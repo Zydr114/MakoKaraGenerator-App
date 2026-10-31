@@ -49,6 +49,8 @@ v1 初始硬预算：每 client 和每 consumer 最多 1 个 stream、每 host �
 
 同一 Worker 有一个固定 Runtime，会话打开时从 `BackendPreparedProjectRuntimeInput` 的受哈希保护字节和既有 `ProjectRuntimeInput` 路径创建；包、图片和音频固定闭包及 profile 检查与静态预览等价。P1 独立流注册表拥有 proxy 和输入 retention，P2 共用 `ProjectRenderSession` 的帧准备、诊断与绘制，不复制 Runtime。
 
+Host 先以既有 `ProjectRuntimeInputWorkerContract.OpenKind` 打开固定输入，随后发送 `GpuStreamWorkerContract.OpenKind`：`GpuStreamWorkerOpen { streamId, hostInstanceId, inputGeneration, width, height, transparentBackground, maximumAllocationBytes, expectedMainPid, brokerPath, handshake }`。成功的 `OpenResultKind` 带 `GpuStreamWorkerOpened { streamId, producerEpoch, poolGeneration, width, height, slotCount, allocationBytes, workerPid, vendorId, deviceId, drmRenderMajor, drmRenderMinor, deviceUuid }`，其中 epoch 为十进制字符串；只有真实 allocation 成功才可注册流。关闭以 `CloseKind` 发送 `GpuStreamWorkerClose { streamId, producerEpoch, inputGeneration }`，仅 `CloseResultKind` 的 `GpuStreamWorkerClosed { streamId, producerEpoch, drained: true }` 能证明 Worker 池正常排空。控制与帧在 native channel，不能混入 Host/Worker 单帧 receipt。
+
 控制采用私有可靠有界通道，不经逐帧 HTTP receipt 或 SSE journal：
 
 ```

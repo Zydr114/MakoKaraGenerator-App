@@ -137,6 +137,7 @@ function flushControl(s) {
 }
 function packet(s,p) {
   const m=p.metadata;
+  s.lastPacketType=['hello-accepted','frame','clock-ping','clock-calibrated','control-applied','state','stopped','failed'].includes(m.type)?m.type:'unknown';
   p.receivedNs=process.hrtime.bigint();
   if(p.peerPid!==s.workerPid)throw new Error('Worker peer PID mismatch');
   validateWorkerMessage(m,s,config);
@@ -204,7 +205,15 @@ async function attach(streamId,expectedInputGeneration) {
     s.helloNs=process.hrtime.bigint().toString();
     stage='hello';
     send(s,{type:'hello',protocolVersion:1,consumerId:config.consumerId,consumerEpoch:'1',streamId,hostInstanceId:config.hostInstanceId,producerEpoch:s.producerEpoch,handshake:claim.handshake,senderMonotonicNs:s.helloNs});
-    s.poll=setInterval(()=>{try{for(let count=0;count<16&&s.connection;count++){const p=broker.receive(s.connection);if(!p)break;packet(s,p);}}catch{failStop('gpuBrokerProtocolFailed');}},2);
+    s.poll=setInterval(()=>{
+      try{for(let count=0;count<16&&s.connection;count++){const p=broker.receive(s.connection);if(!p)break;packet(s,p);}}
+      catch(error){
+        const known=['Worker response identity mismatch','Worker pool identity mismatch','Invalid Worker hello','Invalid calibrated clock','Worker stopped before exact lease drain','Unexpected applied control','peer disconnected; outstanding leases unknown','recvmsg failed','closed connection','Worker GPU completion unknown'];
+        const cause=known.includes(error?.message)?error.message:'invalidWorkerPacket';
+        console.error(JSON.stringify({type:'desktop-broker-error',stage:s.lastPacketType??'receive',cause,stopping:!!s.stopping,stopped:!!s.stopped,outstanding:s.imports.size}));
+        failStop('gpuBrokerProtocolFailed');
+      }
+    },2);
     await Promise.race([hello,delay(5000).then(()=>{if(!s.hello)throw new Error('GPU handshake deadline');})]);
     window.webContents.send('mako-gpu:attached',{...controlIdentity(s),inputGeneration:s.inputGeneration,poolGeneration:s.poolGeneration});
     return {streamId,inputGeneration:s.inputGeneration,producerEpoch:s.producerEpoch};

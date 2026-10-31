@@ -184,18 +184,23 @@ async function detach() {
 async function attach(streamId,expectedInputGeneration) {
   if(typeof streamId!=='string'||!/^[a-zA-Z0-9_-]{1,128}$/.test(streamId)||!positive(expectedInputGeneration)||attachBusy)throw new Error('Invalid desktop stream attachment');
   attachBusy=true;
+  let stage='drainPrevious';
   try{
     await detach();
+    stage='claim';
     const response=await fetch(new URL(`/internal/gpu-preview-streams/${encodeURIComponent(streamId)}/claim`,config.baseUrl),{method:'POST',headers:{'Content-Type':'application/json','X-Mako-Desktop-Secret':config.consumerSecret},body:JSON.stringify({consumerId:config.consumerId,hostInstanceId:config.hostInstanceId,expectedInputGeneration}),signal:AbortSignal.timeout(10000)});
-    if(!response.ok)throw new Error('Desktop stream claim rejected');
+    if(!response.ok){stage=`claimHttp${response.status}`;throw new Error('Desktop stream claim rejected');}
+    stage='validateClaim';
     const claim=await response.json();
     if(!positive(claim.producerEpoch)||!positive(claim.poolGeneration)||claim.inputGeneration!==expectedInputGeneration||!claim.size||!Number.isInteger(claim.size.width)||!Number.isInteger(claim.size.height)||claim.size.width<64||claim.size.height<64||claim.size.width>2560||claim.size.height>1440||!Number.isSafeInteger(claim.workerPid)||claim.workerPid<1||typeof claim.brokerEndpoint!=='string'||!path.isAbsolute(claim.brokerEndpoint)||typeof claim.handshake!=='string'||claim.handshake.length>512)throw new Error('Invalid desktop claim');
     const s={streamId,workerPid:claim.workerPid,producerEpoch:claim.producerEpoch,poolGeneration:claim.poolGeneration,size:claim.size,expectedInputGeneration,imports:new Map(),slotEpochs:new Map(),lastFrame:0,controlSeq:0,barrierSeq:1};
     stream=s;
     const until=Date.now()+5000;
+    stage='connectBroker';
     while(!s.connection){try{const st=fs.lstatSync(claim.brokerEndpoint),parent=fs.lstatSync(path.dirname(claim.brokerEndpoint));if(!st.isSocket()||st.uid!==process.getuid()||!parent.isDirectory()||parent.uid!==process.getuid()||(parent.mode&0o777)!==0o700||fs.realpathSync(path.dirname(claim.brokerEndpoint))!==path.dirname(claim.brokerEndpoint))throw new Error('Invalid broker ownership');s.connection=broker.connect(claim.brokerEndpoint);}catch(error){if(Date.now()>until)throw error;await delay(20);}}
     const hello=new Promise(done=>{s.resolveHello=done;});
     s.helloNs=process.hrtime.bigint().toString();
+    stage='hello';
     send(s,{type:'hello',protocolVersion:1,consumerId:config.consumerId,consumerEpoch:'1',streamId,hostInstanceId:config.hostInstanceId,producerEpoch:s.producerEpoch,handshake:claim.handshake,senderMonotonicNs:s.helloNs});
     s.poll=setInterval(()=>{try{for(let count=0;count<16&&s.connection;count++){const p=broker.receive(s.connection);if(!p)break;packet(s,p);}}catch{failStop('gpuBrokerProtocolFailed');}},2);
     await Promise.race([hello,delay(5000).then(()=>{if(!s.hello)throw new Error('GPU handshake deadline');})]);
@@ -205,7 +210,8 @@ async function attach(streamId,expectedInputGeneration) {
     const s=stream;
     if(s?.imports.size){failStop('gpuAttachFailed');}
     else if(s){clearInterval(s.poll);if(s.connection)try{broker.close(s.connection);}catch{}if(stream===s)stream=null;}
-    throw new Error('GPU attachment failed');
+    console.error(JSON.stringify({type:'desktop-attach-failed',stage}));
+    throw new Error(`GPU attachment failed (${stage})`);
   }finally{attachBusy=false;}
 }
 function playback(value,rendererClock) {

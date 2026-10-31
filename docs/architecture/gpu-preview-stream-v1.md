@@ -4,7 +4,7 @@
 
 ## 身份与授权
 
-一个 stream 属于一个 `hostInstanceId`、一个已认证 `clientId` 和一个固定来源。所有可靠操作复用现有 bearer/client、host instance、receipt、owner 与失效语义；不接受调用方声称的 owner。`streamId` 是标识而不是凭证。创建和替换必须复用 `PreviewBackendService.CaptureAsync` 的来源修订校验、资源准备、profile 握手和 `RetentionLease`，在 writer 之外执行 Worker 启动；发布前通过原有注册门禁复核来源和所有权。失败或 CAS 竞争时释放新引用，旧代仍有效。
+一个 stream 属于一个 `hostInstanceId`、一个已认证 `clientId` 和一个固定来源。所有可靠操作复用现有 bearer/client、host instance、receipt、owner 与失效语义；不接受调用方声称的 owner。`streamId` 是标识而不是凭证。创建和替换必须复用 `PreviewBackendService.CaptureAsync` 的来源修订校验、资源准备、profile 握手和 `RetentionLease`，在 writer 之外执行 Worker 启动；发布前通过原有注册门禁复核来源和所有权。排空开始前发生输入准备失败或 CAS 竞争时释放新引用并保持旧代；排空后失败进入 failed，不能承诺恢复旧代。
 
 现有前端 SDK 继续持有原 client 的认证并执行可靠 HTTP 操作，GPU create、replace、resize、close 使用同一 client owner；不向 preload 传递该 token，也不迁移既有注册、刷新或恢复。Electron main 每次启动生成随机 `consumerId`、256 bit `consumerCredential` 和自身 PID，启动自有 Server 时使用私有 `MAKO_DESKTOP_CONSUMER_ID`、`MAKO_DESKTOP_CONSUMER_SECRET`、`MAKO_DESKTOP_MAIN_PID` 环境注入；Server 仅承认此启动绑定且绝不输出 secret。公开 bootstrap 只提供 `consumerId`。未配置此启动身份时不公布 GPU stream 能力，也不注册 claim 端点。
 
@@ -59,7 +59,7 @@ ControlApplied { streamId, producerEpoch, inputGeneration, controlSeq,
   timelineEpoch, mode, effectiveMediaTimeUs }
 ```
 
-`controlSeq` 严格递增，同序同内容可重放，不同内容拒绝；至多一个执行中和一个最新待处理状态，后者可覆盖。seek/循环通过改变明确的 `timelineResetId` 提升 `timelineEpoch`，不能根据时间回退推断；普通时钟校正允许轻微回偏而不重置。不得跳过 Runtime 必要状态推进。`producerEpoch` 为 Worker 实例随机身份；replacement、resize 增加 `inputGeneration`，进程重启不得继承旧 epoch。`senderMonotonicNs` 为十进制字符串；单调时钟需握手估计映射及不确定度，不跨进程直接相减；无法建立时钟时只允许暂停定点帧。对外状态区分 accepted、applied、frame-ready 和 consumer-released。
+`controlSeq` 严格递增，最新序号同内容可重放，最新序号不同内容及更旧序号均拒绝；至多一个执行中和一个最新待处理状态，后者可覆盖。seek/循环通过改变明确的 `timelineResetId` 提升 `timelineEpoch`，不能根据时间回退推断；普通时钟校正允许轻微回偏而不重置。不得跳过 Runtime 必要状态推进。`producerEpoch` 为 Worker 实例随机身份；replacement、resize 增加 `inputGeneration`，进程重启不得继承旧 epoch。`senderMonotonicNs` 为十进制字符串；单调时钟需握手估计映射及不确定度，不跨进程直接相减；无法建立时钟时只允许暂停定点帧。对外状态区分 accepted、applied、frame-ready 和 consumer-released。
 
 ## 帧与生命周期合同
 

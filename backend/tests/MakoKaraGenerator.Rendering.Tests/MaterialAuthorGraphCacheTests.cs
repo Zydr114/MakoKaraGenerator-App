@@ -332,6 +332,7 @@ public sealed class MaterialAuthorGraphCacheTests
         internal Action? AfterRead { get; set; }
         internal bool FailRead { get; set; }
         public SkiaRenderDeviceInfo Info => _inner.Info;
+        public object SynchronizationRoot => _inner.SynchronizationRoot;
         public SKSurface CreateSurface(SKImageInfo info) { Created++; BeforeCreate?.Invoke(); return _inner.CreateSurface(info); }
         public void FlushAndSubmit(SKSurface surface) => _inner.FlushAndSubmit(surface);
         public SKImage? RasterizeImage(SKImage image) => _inner.RasterizeImage(image);

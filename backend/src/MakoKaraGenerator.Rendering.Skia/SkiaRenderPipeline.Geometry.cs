@@ -21,6 +21,12 @@ public sealed partial class SkiaRenderPipeline
 
     private SceneFrame MeasureSceneFrame(ProjectSnapshot snapshot, long timeUs, string? editingLineId, bool layoutReference, string? editingCueId = null)
     {
+        lock (_device.SynchronizationRoot)
+            return MeasureSceneFrameCore(snapshot, timeUs, editingLineId, layoutReference, editingCueId);
+    }
+
+    private SceneFrame MeasureSceneFrameCore(ProjectSnapshot snapshot, long timeUs, string? editingLineId, bool layoutReference, string? editingCueId)
+    {
         ArgumentNullException.ThrowIfNull(snapshot);
         ObjectDisposedException.ThrowIf(_disposed, this);
         SceneFrame frame = layoutReference ? LayoutReferenceScene.Sample(snapshot)

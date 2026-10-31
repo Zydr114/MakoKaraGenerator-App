@@ -6,10 +6,12 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="SkiaSharp" Version="3.119.4" />
-    <PackageReference Include="SkiaSharp.Vulkan.SharpVk" Version="3.119.4" />
-    <PackageReference Include="SharpVk" Version="0.4.2" />
-    <Compile Include="../../backend/src/MakoKaraGenerator.Rendering.Skia/SkiaRenderBackend.cs" Link="SourceUnderProbe/SkiaRenderBackend.cs" />
-    <None Include="../../.local/skia-p0/libSkiaSharp.so" Link="libSkiaSharp.so" CopyToOutputDirectory="PreserveNewest" />
+    <ProjectReference Include="../../backend/src/MakoKaraGenerator.Rendering.Skia/MakoKaraGenerator.Rendering.Skia.csproj" />
+    <ProjectReference Include="../../backend/src/MakoKaraGenerator.Runtime.Hosting/MakoKaraGenerator.Runtime.Hosting.csproj" />
   </ItemGroup>
+  <Target Name="CopyMatchedGpuNativeLibraries" AfterTargets="Build">
+    <Copy SourceFiles="../../.local/skia-p0/libSkiaSharp.so;../../native/gpu-preview/build/libmako_gpu_preview.so" DestinationFolder="$(TargetDir)" />
+    <Copy SourceFiles="../../.local/skia-p0/libSkiaSharp.so" DestinationFolder="$(TargetDir)runtimes/linux-x64/native" />
+    <Copy SourceFiles="../../.local/skia-p0/libmako-gpu-validation.so" DestinationFolder="$(TargetDir)" Condition="Exists('../../.local/skia-p0/libmako-gpu-validation.so')" />
+  </Target>
 </Project>

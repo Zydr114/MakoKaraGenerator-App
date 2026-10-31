@@ -13,7 +13,7 @@ namespace MakoKaraGenerator.Runtime.Hosting;
 public sealed class ProjectRenderSessionFactory(string referenceDirectory, string artifactRoot, IVideoFrameProvider videos, ReplayReason reason,
     Func<IBackgroundFrameSourceResolver>? backgroundResolverFactory = null,
     bool layoutReference = false, string? editingLineId = null, string? editingCueId = null,
-    string? renderBackend = null)
+    string? renderBackend = null, bool enableGpuPreview = false, bool enableGpuPreviewBenchmark = false)
     : IRenderFrameSessionFactory
 {
     private readonly Lazy<ScriptCompiler> _compiler = new(() => new(referenceDirectory, artifactRoot));
@@ -35,7 +35,11 @@ public sealed class ProjectRenderSessionFactory(string referenceDirectory, strin
         try
         {
             token.ThrowIfCancellationRequested();
-            device = SkiaRenderDeviceFactory.Create(_renderBackendOptions);
+            device = SkiaRenderDeviceFactory.Create(enableGpuPreview
+                ? (_renderBackendOptions ?? SkiaRenderBackendOptions.FromEnvironment()) with { EnableGpuPreview = true }
+                : _renderBackendOptions);
+            if (enableGpuPreview && device is not VulkanSkiaRenderDevice)
+                throw new GpuPreviewException("GpuPreviewGpuBackendRequired", "Shared GPU preview requires an explicitly selected Vulkan backend.");
             ReadOnlyMemory<byte>[] fonts = [.. snapshot.Effects.Packages.SelectMany(package => package.Files)
                 .Where(file => file.Role == "font").Select(file => file.Content.AsMemory())];
             SkiaRenderPipeline Renderer(IBackgroundFrameSourceResolver? background = null, ImageSurfaceBudgetSession? surfaces = null,
@@ -48,7 +52,7 @@ public sealed class ProjectRenderSessionFactory(string referenceDirectory, strin
             {
                 renderer = Renderer(resolver);
                 token.ThrowIfCancellationRequested();
-                return new ProjectRenderSession(snapshot, renderer, null, null, [], [], null, null, device);
+                return new ProjectRenderSession(snapshot, renderer, null, null, [], [], null, null, device, enableGpuPreviewBenchmark);
             }
             var compiled = await CompiledProjectEffects.CompileAsync(snapshot, _compiler.Value, new PackageImageValidator(), new PackageShaderValidator(),
                 new PackageImageGraphValidator(), new PackageMaterialValidator(), token).ConfigureAwait(false);
@@ -108,7 +112,7 @@ public sealed class ProjectRenderSessionFactory(string referenceDirectory, strin
             token.ThrowIfCancellationRequested();
             renderer = Renderer(resolver, budget, resources);
             token.ThrowIfCancellationRequested();
-            return new ProjectRenderSession(snapshot, renderer, source, resources, natives, inputs, budget, fixedImages, device);
+            return new ProjectRenderSession(snapshot, renderer, source, resources, natives, inputs, budget, fixedImages, device, enableGpuPreviewBenchmark);
         }
         catch (Exception error)
         {

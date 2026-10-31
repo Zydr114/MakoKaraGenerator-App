@@ -27,6 +27,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="MakoKaraGenerator.Rendering.Tests" />
     <InternalsVisibleTo Include="MakoKaraGenerator.Runtime.Hosting" />
+    <InternalsVisibleTo Include="SkiaGpuTargetProbe" />
     <PackageReference Include="SkiaSharp" />
     <PackageReference Include="SkiaSharp.HarfBuzz" />
     <!-- 见 ADR-0007：Linux 的 native 资产必须显式引用，否则运行时 DllNotFoundException -->

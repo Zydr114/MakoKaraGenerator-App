@@ -13,3 +13,6 @@ for variant in draw blit; do
         "$APP_ROOT/probes/skia-gpu-target/draw-plugin.cc" -L "$TASK_ROOT" -lSkiaSharp -lvulkan \
         -Wl,-rpath,'$ORIGIN' -o "$TASK_ROOT/libmako-skia-$variant.so"
 done
+g++ -shared -fPIC -std=c++20 -O2 -Wall -Wextra -Werror -Wno-missing-field-initializers \
+    -I "$HEADERS_ROOT" "$APP_ROOT/probes/skia-gpu-target/validation-import.cc" \
+    -lvulkan -o "$TASK_ROOT/libmako-gpu-validation.so"

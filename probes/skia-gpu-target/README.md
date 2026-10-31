@@ -1,7 +1,8 @@
-# P0 Skia Vulkan target probe
+# Skia Vulkan target and production-output probes
 
 This isolated probe establishes the Skia producer boundary for the Linux GPU
-preview. It does not change the production renderer or claim a performance result.
+preview. The optional P2 probe exercises the production renderer. Neither claims
+a performance result.
 
 The released SkiaSharp 3.119.4 managed API and native C ABI do not expose Vulkan
 backend-image queries or mutable-state flush. `skia-vulkan-state.patch` adds only:
@@ -51,8 +52,9 @@ payloads, against an independent IEEE binary32 bit expansion. Initial build
 failure and the existing upstream memcpy warnings are recorded in
 `evidence/native-build.json`; the plugin itself builds with warnings as errors.
 
-`SkiaGpuTargetProbe.csproj` uses the fixed released NuGet packages and links the
-repository's unmodified Vulkan device source. It performs 12 repeated draw,
+`SkiaGpuTargetProbe.csproj` references the repository's production Skia and Runtime
+projects with the fixed released managed packages and copies the matching native
+libraries. The default entry performs 12 repeated draw,
 TRANSFER_SRC flush, image-state query and pixel checks for each of null and sRGB
 color spaces, with the production BottomLeft origin. Its 24 explicit pixel
 readbacks are validation only, and are not part of the shared transport.
@@ -79,3 +81,38 @@ Skia submits are a P0 correctness baseline, not the future continuous-stream
 publication protocol. The plugin shutdown runs while caller Vulkan handles are
 alive; it releases the Skia context and command pool before device destruction.
 Electron display evidence is maintained separately under the P0 evidence archive.
+
+## P2 production managed/native acceptance
+
+After building `native/gpu-preview/` and the plugins, run:
+
+```bash
+dotnet run --project probes/skia-gpu-target/SkiaGpuTargetProbe.csproj -c Release -- --production
+```
+
+This exercises production `VulkanGpuFramePool`/lease code, actual exported DMA-BUFs
+and a separate **test-only** Vulkan importer in `validation-import.cc`. Direct
+DMA-BUF mmap was rejected with EPERM on this GPU, so the test importer creates its
+own image/memory references, acquires FOREIGN ownership, copies into a CPU staging
+buffer, returns GENERAL/FOREIGN, waits for its GPU queue, and destroys all imported
+references before returning. The exported FD is then closed before exact release.
+This importer is never linked into production; all 55 readbacks reported by this
+probe are explicit validation operations, excluded from performance measurements.
+
+The probe compares every BGRA byte for 24 ordinary BottomLeft-surface frames
+(12 null color-space and 12 sRGB), including orientation, gray, transparent and
+half-alpha patches and sequence changes. It also verifies three-slot exhaustion,
+unpublished cancellation/reuse with a fresh slot epoch, stale release rejection,
+one-time export, old+new real allocation totals, the two-generation limit, real
+`ProjectRenderSession` CPU/GPU output parity, cancellation, input identity and
+idempotent close. A recording prepared source verifies exact output mode, time,
+target and warning preservation on both output paths. Synthetic output uses the
+same device/pool/blit/lease, skips preparation only when explicitly enabled, and
+encodes the authoritative returned lease sequence rather than caller attempts.
+Unknown exported delivery quarantines the device and teardown reports NotDrained.
+
+The underlying session accepts at most 192 MiB across two retained generations;
+the Host applies its separate stricter 64 MiB pool / 128 MiB host budget and drains
+before replacement. Local probe completion proves only this test importer's GPU
+completion. Electron's actual allReferencesReleased and platform presentation
+evidence remain separate.

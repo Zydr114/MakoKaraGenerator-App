@@ -110,6 +110,46 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
 
     private RenderFrame RenderCore(RenderRequest request, SceneFrame? measuredScene)
     {
+        lock (_device.SynchronizationRoot)
+            return RenderToOutput(request, measuredScene, (surface, info, target, diagnostics) =>
+            {
+                int stride = checked(target.PixelWidth * 4);
+                byte[] buffer = ArrayPool<byte>.Shared.Rent(checked(stride * target.PixelHeight));
+                try
+                {
+                    _device.FlushAndSubmit(surface);
+                    unsafe
+                    {
+                        fixed (byte* pixels = buffer)
+                            if (!_device.ReadPixels(surface, info, (IntPtr)pixels, stride))
+                                throw new InvalidOperationException($"Skia {_device.Info.Backend} 表面 readback 失败（{_device.Info}）。");
+                    }
+                    return new RenderFrame(buffer, target, PixelFormat.Bgra8888Premultiplied, request.TimeUs, pooledBuffer: true)
+                    { MaterialDiagnostics = diagnostics.Materials, ImageEffectDiagnostics = diagnostics.Images, DiagnosticSnapshot = diagnostics.Scene };
+                }
+                catch { ArrayPool<byte>.Shared.Return(buffer); throw; }
+            });
+    }
+
+    /// <summary>同一绘制核心输出本机 GPU 租约；不分配最终 CPU 像素或执行最终回读。</summary>
+    public GpuRenderFrame RenderGpu(RenderRequest request)
+    {
+        lock (_device.SynchronizationRoot)
+        {
+            if (_device is not VulkanSkiaRenderDevice gpu || !gpu.SupportsGpuFrames)
+                throw new GpuPreviewException("GpuPreviewUnavailable", "This pipeline did not enable shared Vulkan GPU output.");
+            return RenderToOutput(request, null, (surface, _, target, diagnostics) =>
+                new GpuRenderFrame(target, request.TimeUs, gpu.CopyGpuFrame(surface, target))
+                { MaterialDiagnostics = diagnostics.Materials, ImageEffectDiagnostics = diagnostics.Images, DiagnosticSnapshot = diagnostics.Scene });
+        }
+    }
+
+    private sealed record DrawDiagnostics(ImmutableArray<RenderMaterialDiagnostic> Materials,
+        ImmutableArray<RenderImageEffectDiagnostic> Images, RuntimeDiagnosticSnapshot Scene);
+
+    private T RenderToOutput<T>(RenderRequest request, SceneFrame? measuredScene,
+        Func<SKSurface, SKImageInfo, RenderTarget, DrawDiagnostics, T> output)
+    {
         ArgumentNullException.ThrowIfNull(request);
         ObjectDisposedException.ThrowIf(_disposed, this);
 
@@ -137,75 +177,48 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
             throw new InvalidOperationException($"渲染目标尺寸非法：{target.PixelWidth}×{target.PixelHeight}。");
         }
 
-        int stride = target.PixelWidth * 4;
-        byte[] buffer = ArrayPool<byte>.Shared.Rent(stride * target.PixelHeight);
-
-        try
+        using var srgb = request.PreparedFrame is { } colorFrame && (!colorFrame.Materials.IsEmpty || !colorFrame.ImageEffects.IsEmpty || !colorFrame.GroupOpacities.IsEmpty || colorFrame.OverlayBatches.OfType<Scripting.SpriteBatch>().Any(batch => !batch.Sprites.IsEmpty)) ? SKColorSpace.CreateSrgb() : null;
+        SKImageInfo info = new(target.PixelWidth, target.PixelHeight, SKColorType.Bgra8888, SKAlphaType.Premul, srgb);
+        ImmutableArray<RenderImageEffectDiagnostic> imageDiagnostics = [];
+        ImmutableArray<RenderMaterialDiagnostic> materialDiagnostics = [];
+        RuntimeDiagnosticSnapshot sceneDiagnostics = request.PreparedFrame?.DiagnosticSnapshot ?? RuntimeDiagnosticSnapshot.Empty;
+        using (SKSurface surface = _device.CreateSurface(info))
         {
-            using var srgb = request.PreparedFrame is { } colorFrame && (!colorFrame.Materials.IsEmpty || !colorFrame.ImageEffects.IsEmpty || !colorFrame.GroupOpacities.IsEmpty || colorFrame.OverlayBatches.OfType<Scripting.SpriteBatch>().Any(batch => !batch.Sprites.IsEmpty)) ? SKColorSpace.CreateSrgb() : null;
-            SKImageInfo info = new(target.PixelWidth, target.PixelHeight, SKColorType.Bgra8888, SKAlphaType.Premul, srgb);
-            ImmutableArray<RenderImageEffectDiagnostic> imageDiagnostics = [];
-            ImmutableArray<RenderMaterialDiagnostic> materialDiagnostics = [];
-            RuntimeDiagnosticSnapshot sceneDiagnostics = request.PreparedFrame?.DiagnosticSnapshot ?? RuntimeDiagnosticSnapshot.Empty;
+            SKCanvas canvas = surface.Canvas;
+            canvas.ClipRect(new(0, 0, target.PixelWidth, target.PixelHeight));
 
-            using (SKSurface surface = _device.CreateSurface(info))
+            // 透明输出（EXPORT-07）：从全透明开始，并且下面不画背景层。
+            canvas.Clear(
+                request.TransparentBackground
+                    ? SKColors.Transparent
+                    : ToSkColor(composition.BackgroundColor));
+
+            double scaleX = target.ScaleXOf(composition);
+            double scaleY = target.ScaleYOf(composition);
+
+            canvas.Save();
+            canvas.Scale((float)scaleX, (float)scaleY);
+
+            // 先背景后歌词：背景色已在 Clear 时铺满画布，背景图是它上面的一层。
+            // 透明输出时两层都不画——底色与背景图都算"背景"。
+            if (!request.TransparentBackground)
             {
-                SKCanvas canvas = surface.Canvas;
-                canvas.ClipRect(new(0, 0, target.PixelWidth, target.PixelHeight));
-
-                // 透明输出（EXPORT-07）：从全透明开始，并且下面不画背景层。
-                canvas.Clear(
-                    request.TransparentBackground
-                        ? SKColors.Transparent
-                        : ToSkColor(composition.BackgroundColor));
-
-                double scaleX = target.ScaleXOf(composition);
-                double scaleY = target.ScaleYOf(composition);
-
-                canvas.Save();
-                canvas.Scale((float)scaleX, (float)scaleY);
-
-                // 先背景后歌词：背景色已在 Clear 时铺满画布，背景图是它上面的一层。
-                // 透明输出时两层都不画——底色与背景图都算"背景"。
-                if (!request.TransparentBackground)
-                {
-                    DrawBackground(canvas, request, composition);
-                }
-
-                using var frameResources = _surfaceBudget.BeginFrame();
-                using var spriteImages = BorrowSpriteImages(request, frameResources);
-                DrawOverlays(canvas, request, Scripting.OverlayLayer.BehindText);
-                if (request.PreparedFrame is { } preparedScene && (!preparedScene.Materials.IsEmpty || !preparedScene.ImageEffects.IsEmpty || !preparedScene.GroupOpacities.IsEmpty))
-                {
-                    imageDiagnostics = DrawImageEffectScene(surface, request, frameResources, out var drawingDiagnostics, out materialDiagnostics);
-                    sceneDiagnostics = sceneDiagnostics.Append(drawingDiagnostics);
-                }
-                else DrawLyrics(canvas, request, composition, measuredScene);
-                DrawOverlays(canvas, request, Scripting.OverlayLayer.AboveText);
-
-                canvas.Restore();
-                _device.FlushAndSubmit(surface);
-                unsafe
-                {
-                    fixed (byte* pixels = buffer)
-                    {
-                        if (!_device.ReadPixels(surface, info, (IntPtr)pixels, stride))
-                            throw new InvalidOperationException($"Skia {_device.Info.Backend} 表面 readback 失败（{_device.Info}）。");
-                    }
-                }
+                DrawBackground(canvas, request, composition);
             }
 
-            return new RenderFrame(buffer, target, PixelFormat.Bgra8888Premultiplied, request.TimeUs, pooledBuffer: true)
-                { MaterialDiagnostics = materialDiagnostics, ImageEffectDiagnostics = imageDiagnostics, DiagnosticSnapshot = sceneDiagnostics };
-        }
-        catch
-        {
-            // 构造失败时缓冲区已经归还给池之外，这里必须自己还掉，否则每次异常都漏一块。
-            ArrayPool<byte>.Shared.Return(buffer);
-            throw;
-        }
-        finally
-        {
+            using var frameResources = _surfaceBudget.BeginFrame();
+            using var spriteImages = BorrowSpriteImages(request, frameResources);
+            DrawOverlays(canvas, request, Scripting.OverlayLayer.BehindText);
+            if (request.PreparedFrame is { } preparedScene && (!preparedScene.Materials.IsEmpty || !preparedScene.ImageEffects.IsEmpty || !preparedScene.GroupOpacities.IsEmpty))
+            {
+                imageDiagnostics = DrawImageEffectScene(surface, request, frameResources, out var drawingDiagnostics, out materialDiagnostics);
+                sceneDiagnostics = sceneDiagnostics.Append(drawingDiagnostics);
+            }
+            else DrawLyrics(canvas, request, composition, measuredScene);
+            DrawOverlays(canvas, request, Scripting.OverlayLayer.AboveText);
+
+            canvas.Restore();
+            return output(surface, info, target, new(materialDiagnostics, imageDiagnostics, sceneDiagnostics));
         }
     }
 
@@ -271,6 +284,12 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
     /// <inheritdoc/>
     public void Dispose()
     {
+        lock (_device.SynchronizationRoot) DisposeCore();
+        GC.SuppressFinalize(this);
+    }
+
+    private void DisposeCore()
+    {
         if (_disposed)
         {
             return;
@@ -290,7 +309,6 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
         _deviceLifetime?.Dispose();
 
         _disposed = true;
-        GC.SuppressFinalize(this);
     }
 
     /// <summary>

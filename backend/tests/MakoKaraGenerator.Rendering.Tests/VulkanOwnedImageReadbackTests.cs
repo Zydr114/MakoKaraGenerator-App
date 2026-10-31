@@ -180,6 +180,7 @@ public sealed class VulkanOwnedImageReadbackTests
         public int OwnedReads { get; private set; }
         public int BorrowedReads { get; private set; }
         public SkiaRenderDeviceInfo Info => _inner.Info;
+        public object SynchronizationRoot => _inner.SynchronizationRoot;
         public SKSurface CreateSurface(SKImageInfo info) => _inner.CreateSurface(info);
         public void FlushAndSubmit(SKSurface surface) => _inner.FlushAndSubmit(surface);
         public SKImage? RasterizeImage(SKImage image) => _inner.RasterizeImage(image);

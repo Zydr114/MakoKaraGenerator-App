@@ -12,5 +12,6 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="MakoKaraGenerator.Runtime.Hosting.Tests" />
+    <InternalsVisibleTo Include="SkiaGpuTargetProbe" />
   </ItemGroup>
 </Project>

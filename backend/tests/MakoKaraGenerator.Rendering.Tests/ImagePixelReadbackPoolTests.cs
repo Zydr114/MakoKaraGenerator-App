@@ -210,6 +210,7 @@ public sealed class ImagePixelReadbackPoolTests
         public Func<SKImage, int, bool>? BeforeRead { get; set; }
         public Action<IntPtr>? AfterRead { get; set; }
         public SkiaRenderDeviceInfo Info => _inner.Info;
+        public object SynchronizationRoot => _inner.SynchronizationRoot;
         public SKSurface CreateSurface(SKImageInfo imageInfo) => _inner.CreateSurface(imageInfo);
         public void FlushAndSubmit(SKSurface surface) => _inner.FlushAndSubmit(surface);
         public SKImage? RasterizeImage(SKImage image) => _inner.RasterizeImage(image);

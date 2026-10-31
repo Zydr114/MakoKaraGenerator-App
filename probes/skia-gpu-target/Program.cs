@@ -4,6 +4,12 @@ using System.Text.Json;
 using MakoKaraGenerator.Rendering.Skia;
 using SkiaSharp;
 
+if (args.Contains("--production"))
+{
+    await ProductionGpuProbe.RunAsync();
+    return;
+}
+
 using var device = VulkanSkiaRenderDevice.Create();
 var context = (GRContext)typeof(VulkanSkiaRenderDevice).GetField("_context", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(device)!;
 var output = new List<object>();
@@ -45,17 +51,4 @@ static class Bridge
     [DllImport("libSkiaSharp", EntryPoint = "sk_mako_surface_get_vk_image_info", CallingConvention = CallingConvention.Cdecl)]
     [return: MarshalAs(UnmanagedType.I1)]
     internal static extern bool GetInfo(IntPtr surface, out GRVkImageInfo info);
-}
-
-namespace MakoKaraGenerator.Rendering.Skia
-{
-    // The linked production device is unchanged. This standalone probe disables only telemetry.
-    internal enum PerformancePhase { Readback }
-    internal static class PerformanceTelemetry
-    {
-        internal static bool HasFrame => false;
-        internal static void RecordReadback(bool image, long bytes) { }
-        internal static IDisposable Measure(PerformancePhase phase) => new EmptyScope();
-        private sealed class EmptyScope : IDisposable { public void Dispose() { } }
-    }
 }

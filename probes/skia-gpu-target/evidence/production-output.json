@@ -1,0 +1,28 @@
+{
+  "date": "2026-11-01",
+  "scope": "P2 production managed/native seam; no throughput or Electron presentation claim",
+  "production": {
+    "sourceOrigin": "BottomLeft",
+    "sourceColorSpaces": ["unchanged null default", "unchanged conditional sRGB"],
+    "output": "one synchronous GPU blit to exported DMA-BUF; no final CPU pixel allocation or final pixel readback",
+    "nativeTransportCpuPixelReadbacks": 0,
+    "synchronization": "same Vulkan device gate for draws, geometry, lease operations and synchronous native resource retirement"
+  },
+  "productionProbe": {
+    "command": "dotnet run --project probes/skia-gpu-target/SkiaGpuTargetProbe.csproj -c Release -- --production",
+    "passed": true,
+    "fullByteComparisons": { "ordinarySurfaceNullColorSpaceFrames": 12, "ordinarySurfaceSrgbFrames": 12, "projectSession": 1, "preparedOpaqueTransparentSessions": 2 },
+    "validationOnlyReadbacks": 55,
+    "testImporter": "Vulkan external image import, FOREIGN acquire, GPU copy to staging, GENERAL/FOREIGN release, queue completion, destroy imported image/memory, close exported FD, exact token release",
+    "testOnlyImporterLinkedIntoProduction": false,
+    "checks": ["orientation, gray, transparent and premultiplied half-alpha pixels", "three-slot exhaustion", "cancel unpublished and change slot epoch", "reject stale release and repeated export", "two-generation retained real allocation budget", "exact PrepareAsync time/output-mode/target", "prepared warning diagnostic parity", "cancelled request", "snapshot identity rejection", "idempotent session close", "synthetic explicit benchmark gate and skipped PrepareAsync", "synthetic pixel identity matches authoritative lease sequence", "unknown export quarantines and teardown reports NotDrained"],
+    "initialValidationToolLimitation": "Direct DMA-BUF mmap returned EPERM; replaced by the separate Vulkan test importer without changing production ABI"
+  },
+  "regressions": {
+    "renderingCpuAndContractTests": { "passed": 99, "failed": 0, "note": "Includes opt-in GPU tests whose GPU branches remain disabled in this run" },
+    "enabledGpuReadbackTests": { "environment": "MAKO_GPU_SMOKE=1", "passed": 8, "failed": 0 },
+    "originalStateProbe": { "frames": 24, "validationOnlyReadbacks": 24, "passed": true },
+    "projectBuilds": "Production Rendering.Skia and Runtime.Hosting probe dependencies built with zero warnings and errors"
+  },
+  "boundaries": ["All test readbacks are excluded from performance measurements", "Electron allReferencesReleased and platform presentation require separate acceptance", "Synchronous submits and queue-idle remain correctness baseline", "Host applies stricter 64 MiB pool and 128 MiB total limits than the 192 MiB two-generation rendering-session capability"]
+}

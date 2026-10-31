@@ -13,6 +13,12 @@ public sealed partial class SkiaRenderPipeline
     /// <summary>一次真实整形测量，并将同一 SceneFrame 直接交给绘制，不重采样。</summary>
     public MeasuredRenderFrame MeasureAndRender(RenderRequest request, bool layoutReference, string? editingLineId = null, string? editingCueId = null)
     {
+        lock (_device.SynchronizationRoot)
+            return MeasureAndRenderCore(request, layoutReference, editingLineId, editingCueId);
+    }
+
+    private MeasuredRenderFrame MeasureAndRenderCore(RenderRequest request, bool layoutReference, string? editingLineId, string? editingCueId)
+    {
         if (request.PreparedFrame is { } prepared)
         {
             var actual = prepared.HierarchyScene with { TokenGeometries = prepared.FinalGeometry,

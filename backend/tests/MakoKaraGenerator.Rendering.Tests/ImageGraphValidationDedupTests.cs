@@ -289,6 +289,7 @@ public sealed class ImageGraphValidationDedupTests
         public bool CorruptNextImageRead { get; set; }
         public Action? AfterImageRead { get; set; }
         public SkiaRenderDeviceInfo Info => _inner.Info;
+        public object SynchronizationRoot => _inner.SynchronizationRoot;
         public SKSurface CreateSurface(SKImageInfo imageInfo) => _inner.CreateSurface(imageInfo);
         public void FlushAndSubmit(SKSurface surface) => _inner.FlushAndSubmit(surface);
         public SKImage? RasterizeImage(SKImage image) { Rasterizations++; return _inner.RasterizeImage(image); }

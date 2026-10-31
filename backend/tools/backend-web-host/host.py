@@ -138,6 +138,14 @@ def origin(value):
     return value
 
 
+def sanitized_backend_environment(source):
+    """Keep the benchmark provider opt-in exact; all other backend knobs are owned here."""
+    env = {k: v for k, v in source.items() if not k.startswith('MAKO_BACKEND_')}
+    if source.get('MAKO_BACKEND_GPU_PREVIEW_BENCHMARK') == '1':
+        env['MAKO_BACKEND_GPU_PREVIEW_BENCHMARK'] = '1'
+    return env
+
+
 def run(args):
     dist = args.dist.resolve()
     manifest = validate_dist(dist)
@@ -151,7 +159,7 @@ def run(args):
     run_dir = Path(tempfile.mkdtemp(prefix='run-', dir=profile / 'runs'))
     run_dir.chmod(0o700)
     credential = run_dir / 'bootstrap.json'
-    env = {k: v for k, v in os.environ.items() if not k.startswith('MAKO_BACKEND_')}
+    env = sanitized_backend_environment(os.environ)
     env.update(resource_environment(args))
     env.update(MAKO_BACKEND_RESOURCE_ROOT=str(run_dir / 'resources'), MAKO_BACKEND_CREDENTIAL_FILE=str(credential),
                MAKO_BACKEND_STATE_ROOT=str(profile / 'state'),

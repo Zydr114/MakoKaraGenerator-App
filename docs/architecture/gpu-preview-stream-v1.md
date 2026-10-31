@@ -65,6 +65,8 @@ ControlApplied { streamId, producerEpoch, inputGeneration, controlSeq,
 
 同一 VkDevice/queue 的 allocator 与 Skia session 使用 typed target lease；不得跨设备使用 P0 独立 producer 的 image。跨 agent 交付接口在实现前共同确定 ABI 版本，最少包含 device/pool/slot 身份、image、尺寸、format、当前 layout 和 queue family、ownership、错误与取消；图像绝不进入 Server JSON。一次 GPU copy 被允许但须计数，最终帧不得 CPU readback。
 
+首版同步模式固定为 Skia 同步 submit 后执行一次 GPU blit，检查 `vkQueueWaitIdle`，以 `GENERAL/FOREIGN` 释放目标后发布；每帧 fresh import，正常消费者的最终引用与 GPU 完成后才归槽。此模式会等待 CPU，但不读回像素；P3 必须计入等待成本。Electron 尚无已验证的外部 acquire fence，不能将未经验证的 semaphore 或 implicit fence 冒充等价方案。
+
 ```
 FrameReady { streamId, hostInstanceId, producerEpoch, inputGeneration,
   timelineEpoch, consumerEpoch, poolGeneration, slotId, slotEpoch, frameSeq,

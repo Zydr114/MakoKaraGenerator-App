@@ -12,6 +12,7 @@
   <ItemGroup>
     <Compile Include="../Shared/*.cs" LinkBase="Shared" />
     <Compile Include="../Shared/Rendering/TimedRubyFixture.cs" Link="Shared/TimedRubyFixture.cs" />
+    <None Update="Fixtures/GpuStreamWorkerWire.json" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Fixtures/AudioPreparationBaseline/*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

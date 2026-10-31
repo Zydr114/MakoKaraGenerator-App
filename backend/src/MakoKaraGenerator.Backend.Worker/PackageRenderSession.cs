@@ -9,7 +9,7 @@ using MakoKaraGenerator.Scripting;
 namespace MakoKaraGenerator.Backend.Worker;
 
 /// <summary>每个 package Worker 进程最多持有一个固定包 Runtime 会话。</summary>
-internal sealed class PackageRenderSession(string? renderBackend = null) : IAsyncDisposable
+internal sealed class PackageRenderSession(string? renderBackend = null, bool enableGpuPreview = false, bool enableGpuPreviewBenchmark = false) : IAsyncDisposable
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
     private IRenderFrameSession? _session;
@@ -18,6 +18,8 @@ internal sealed class PackageRenderSession(string? renderBackend = null) : IAsyn
     private Guid _id;
     private string? _sourceHash;
     private long _sequence;
+    private GpuStreamSession? _gpuStream;
+    private GpuStreamWorkerOpen? _gpuOpen;
 
     public async Task<WorkerMessage> ExecuteAsync(WorkerMessage request, CancellationToken token)
     {
@@ -50,9 +52,11 @@ internal sealed class PackageRenderSession(string? renderBackend = null) : IAsyn
                         throw new SnapshotContractException("SnapshotVersionMismatch", "包会话必须携带包来源。");
                 }
                 var factory = runtimeInput?.CreateFactory(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
-                    Path.Combine(Path.GetTempPath(), $"makokara-worker-package-{Environment.ProcessId}"), ReplayReason.Initial, renderBackend: renderBackend) ?? new ProjectRenderSessionFactory(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
+                    Path.Combine(Path.GetTempPath(), $"makokara-worker-package-{Environment.ProcessId}"), ReplayReason.Initial, renderBackend: renderBackend,
+                    enableGpuPreview: enableGpuPreview, enableGpuPreviewBenchmark: enableGpuPreviewBenchmark) ?? new ProjectRenderSessionFactory(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
                     Path.Combine(Path.GetTempPath(), $"makokara-worker-package-{Environment.ProcessId}"),
-                    new FfmpegVideoFrameProvider(), ReplayReason.Initial, imageResolverFactory, renderBackend: renderBackend);
+                    new FfmpegVideoFrameProvider(), ReplayReason.Initial, imageResolverFactory, renderBackend: renderBackend,
+                    enableGpuPreview: enableGpuPreview, enableGpuPreviewBenchmark: enableGpuPreviewBenchmark);
                 IRenderFrameSession session;
                 try { session = await factory.CreateAsync(snapshot, token).ConfigureAwait(false); }
                 catch (ProjectEffectCompilationException failure)
@@ -68,8 +72,56 @@ internal sealed class PackageRenderSession(string? renderBackend = null) : IAsyn
                 _id = input.SessionId; _sourceHash = input.SourceSha256; _sequence = 0; _snapshot = snapshot; _session = session; _runtimeInput = runtimeInput;
                 return SessionResult(request);
             }
+            if (request.Kind is GpuStreamWorkerContract.OpenKind or GpuStreamWorkerContract.CloseKind or GpuStreamWorkerContract.ReadKind)
+            {
+                if (request.SessionId != _id.ToString("N") || request.SourceSha256 != _sourceHash || request.FrameSequence is not { } sequence)
+                    throw GpuStreamProtocol.Invalid();
+                ValidateOwned(_id, _sourceHash!, sequence);
+                _sequence = sequence;
+                if (request.Kind == GpuStreamWorkerContract.OpenKind)
+                {
+                    if (!enableGpuPreview || _gpuStream is not null || _runtimeInput is null ||
+                        _session is not IGpuRenderFrameSession { SupportsGpuFrames: true } gpu)
+                        throw new WorkerProtocolException("固定 Runtime 会话没有启用 GPU 流。", "WorkerGpuStreamUnavailable");
+                    var open = GpuStreamWorkerContract.Decode<GpuStreamWorkerOpen>(request.Payload);
+                    if (open.Width is < 1 or > 4096 || open.Height is < 1 or > 4096 ||
+                        open.MaximumAllocationBytes is 0 or > 64UL * 1024 * 1024 || string.IsNullOrEmpty(open.BrokerPath))
+                        throw GpuStreamProtocol.Invalid();
+                    RenderTarget target = new() { PixelWidth = open.Width, PixelHeight = open.Height };
+                    GpuFramePoolInfo pool = await gpu.InitializeGpuOutputAsync(target, open.MaximumAllocationBytes, token).ConfigureAwait(false);
+                    GpuStreamSession.ValidateOpen(open, pool);
+                    ProjectSnapshot snapshot = _snapshot!;
+                    var channel = new GpuNativeChannel(open.BrokerPath);
+                    try
+                    {
+                        _gpuStream = new(open, pool, channel, (timeUs, attempt, lifetime) => enableGpuPreviewBenchmark
+                            ? gpu.RenderSyntheticGpuAsync(target, timeUs, attempt, lifetime)
+                            : gpu.RenderGpuAsync(RenderRequest.At(snapshot, timeUs) with
+                            {
+                                Target = target, TransparentBackground = open.TransparentBackground,
+                                Quality = RenderQuality.Standard, CancellationToken = lifetime,
+                            }, lifetime), enableGpuPreviewBenchmark);
+                    }
+                    catch { channel.Dispose(); throw; }
+                    _gpuOpen = open;
+                    return GpuResult(request, GpuStreamWorkerContract.OpenResultKind, _gpuStream.Opened);
+                }
+                if (_gpuStream is null || _gpuOpen is null) throw GpuStreamProtocol.Invalid();
+                if (request.Kind == GpuStreamWorkerContract.ReadKind)
+                {
+                    var read = GpuStreamWorkerContract.Decode<GpuStreamWorkerRead>(request.Payload);
+                    ValidateGpuIdentity(read.StreamId, read.ProducerEpoch, read.InputGeneration);
+                    return GpuResult(request, GpuStreamWorkerContract.ReadResultKind, _gpuStream.ReadState());
+                }
+                var close = GpuStreamWorkerContract.Decode<GpuStreamWorkerClose>(request.Payload);
+                ValidateGpuIdentity(close.StreamId, close.ProducerEpoch, close.InputGeneration);
+                bool drained = await _gpuStream.StopAsync(token).ConfigureAwait(false);
+                return GpuResult(request, GpuStreamWorkerContract.CloseResultKind,
+                    new GpuStreamWorkerClosed(close.StreamId, close.ProducerEpoch, drained));
+            }
             if (request.Kind == PackageRenderWorkerContract.RenderKind)
             {
+                if (_gpuStream is not null) throw new WorkerProtocolException("GPU 流持有固定 Runtime 会话。", "WorkerGpuStreamAlreadyOpen");
                 StaticWorkerFrameRequest input = PackageRenderWorkerContract.DecodeFrame(request.Payload);
                 ValidateMetadata(request, input.SessionId, input.SourceSha256, input.Sequence);
                 ValidateOwned(input.SessionId, input.SourceSha256, input.Sequence);
@@ -100,6 +152,8 @@ internal sealed class PackageRenderSession(string? renderBackend = null) : IAsyn
                 var input = PackageRenderWorkerContract.DecodeClose(request.Payload);
                 ValidateMetadata(request, input.SessionId, input.SourceSha256, input.Sequence);
                 ValidateOwned(input.SessionId, input.SourceSha256, input.Sequence);
+                if (_gpuStream is not null) await _gpuStream.DisposeAsync().ConfigureAwait(false);
+                _gpuStream = null; _gpuOpen = null;
                 IRenderFrameSession session = _session!; _session = null; _snapshot = null;
                 try { await session.DisposeAsync().ConfigureAwait(false); } finally { _runtimeInput?.Dispose(); _runtimeInput = null; }
                 return SessionResult(request);
@@ -112,8 +166,20 @@ internal sealed class PackageRenderSession(string? renderBackend = null) : IAsyn
     public async ValueTask DisposeAsync()
     {
         await _gate.WaitAsync().ConfigureAwait(false);
-        try { IRenderFrameSession? session = _session; _session = null; _snapshot = null; try { if (session is not null) await session.DisposeAsync().ConfigureAwait(false); } finally { _runtimeInput?.Dispose(); _runtimeInput = null; } }
+        try { if (_gpuStream is not null) await _gpuStream.DisposeAsync().ConfigureAwait(false); _gpuStream = null; _gpuOpen = null; IRenderFrameSession? session = _session; _session = null; _snapshot = null; try { if (session is not null) await session.DisposeAsync().ConfigureAwait(false); } finally { _runtimeInput?.Dispose(); _runtimeInput = null; } }
         finally { _gate.Release(); }
+    }
+
+    private void ValidateGpuIdentity(string stream, string producer, string input)
+    {
+        if (stream != _gpuOpen!.StreamId || input != _gpuOpen.InputGeneration || producer != _gpuStream!.Opened.ProducerEpoch)
+            throw GpuStreamProtocol.Invalid();
+    }
+    private static WorkerMessage GpuResult<T>(WorkerMessage request, string kind, T value)
+    {
+        byte[] payload = GpuStreamWorkerContract.Encode(value);
+        return new(kind, request.RequestId, request.InputSha256, payload, outputSha256: WorkerProtocol.ComputeSha256(payload),
+            sessionId: request.SessionId, sourceSha256: request.SourceSha256, frameSequence: request.FrameSequence);
     }
 
     private void ValidateOwned(Guid id, string hash, long sequence)

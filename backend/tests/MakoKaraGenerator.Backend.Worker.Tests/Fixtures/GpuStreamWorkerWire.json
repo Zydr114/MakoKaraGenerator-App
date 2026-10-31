@@ -1,0 +1,196 @@
+{
+  "helloAccepted": {
+    "type": "hello-accepted",
+    "protocolVersion": 1,
+    "streamId": "stream",
+    "hostInstanceId": "host",
+    "producerEpoch": "1",
+    "inputGeneration": "1",
+    "consumerEpoch": "1",
+    "consumerId": "fixture",
+    "poolGeneration": "2",
+    "workerMonotonicNs": "2000000",
+    "echoSenderMonotonicNs": "1000000",
+    "provider": "runtime",
+    "width": 256,
+    "height": 128,
+    "slotCount": 3,
+    "allocationBytes": 393216,
+    "gpu": {
+      "name": "fixture",
+      "vendorId": 1,
+      "deviceId": 2,
+      "drmRenderMajor": 226,
+      "drmRenderMinor": 128,
+      "deviceUUID": "00000000000000000000000000000000"
+    }
+  },
+  "frame": {
+    "type": "frame",
+    "protocolVersion": 1,
+    "streamId": "stream",
+    "hostInstanceId": "host",
+    "producerEpoch": "1",
+    "inputGeneration": "1",
+    "consumerEpoch": "1",
+    "producerPid": 123,
+    "timelineEpoch": "1",
+    "poolGeneration": "2",
+    "slotId": 0,
+    "slotEpoch": "1",
+    "frameSeq": 1,
+    "controlSeq": 1,
+    "timelineResetId": "initial",
+    "timeUs": 1000,
+    "width": 256,
+    "height": 128,
+    "renderStartMonotonicNs": "3000000",
+    "producerReadyMonotonicNs": "4000000",
+    "format": "BGRA_8888",
+    "fourcc": "AR24",
+    "modifier": "0",
+    "planes": [
+      {
+        "fdIndex": 0,
+        "stride": 1024,
+        "offset": 0,
+        "size": 131072
+      }
+    ],
+    "allocationSize": 131072,
+    "queriedSubresourceSize": 131072,
+    "origin": "top-left",
+    "alphaMode": "premultiplied",
+    "colorSpace": "srgb",
+    "sync": "queue-idle-foreign-release",
+    "provider": "runtime",
+    "diagnostics": {
+      "total": 1,
+      "warningCount": 1,
+      "errorCount": 0,
+      "truncated": false,
+      "items": [
+        {
+          "severity": "Warning",
+          "code": "StyleFallback",
+          "message": "Fixture warning",
+          "sourceId": "fixture-instance",
+          "stage": "render"
+        }
+      ]
+    },
+    "gpu": {
+      "name": "fixture",
+      "vendorId": 1,
+      "deviceId": 2,
+      "drmRenderMajor": 226,
+      "drmRenderMinor": 128,
+      "deviceUUID": "00000000000000000000000000000000"
+    },
+    "counters": {
+      "gpuBlits": 1,
+      "cpuPixelReadbacks": 0,
+      "queueIdleWaits": 1
+    }
+  },
+  "controlApplied": {
+    "type": "control-applied",
+    "protocolVersion": 1,
+    "streamId": "stream",
+    "hostInstanceId": "host",
+    "producerEpoch": "1",
+    "inputGeneration": "1",
+    "consumerEpoch": "1",
+    "poolGeneration": "2",
+    "controlSeq": 1,
+    "timelineEpoch": "1",
+    "timelineResetId": "initial",
+    "mode": "paused",
+    "effectiveMediaTimeUs": 1000
+  },
+  "state": {
+    "type": "state",
+    "protocolVersion": 1,
+    "streamId": "stream",
+    "hostInstanceId": "host",
+    "producerEpoch": "1",
+    "inputGeneration": "1",
+    "consumerEpoch": "1",
+    "poolGeneration": "2",
+    "timelineEpoch": "1",
+    "lastAppliedControlSeq": 1,
+    "mode": "paused",
+    "state": "paused",
+    "outstanding": 1,
+    "poolSize": 3,
+    "framesSent": 1,
+    "framesReleased": 0,
+    "staleFrames": 0,
+    "clockCalibrated": true,
+    "clockUncertaintyNs": "1000",
+    "provider": "runtime",
+    "diagnostics": {
+      "total": 1,
+      "warningCount": 1,
+      "errorCount": 0,
+      "truncated": false,
+      "items": [
+        {
+          "severity": "Warning",
+          "code": "StyleFallback",
+          "message": "Fixture warning",
+          "sourceId": "fixture-instance",
+          "stage": "render"
+        }
+      ]
+    }
+  },
+  "stopped": {
+    "type": "stopped",
+    "protocolVersion": 1,
+    "streamId": "stream",
+    "hostInstanceId": "host",
+    "producerEpoch": "1",
+    "inputGeneration": "1",
+    "consumerEpoch": "1",
+    "frames": 1,
+    "released": 1,
+    "drained": true
+  },
+  "failed": {
+    "type": "failed",
+    "protocolVersion": 1,
+    "streamId": "stream",
+    "hostInstanceId": "host",
+    "producerEpoch": "1",
+    "inputGeneration": "1",
+    "consumerEpoch": "1",
+    "code": "WorkerRuntimeDiagnosticError",
+    "drained": true,
+    "diagnostics": {
+      "total": 1,
+      "warningCount": 0,
+      "errorCount": 1,
+      "truncated": false,
+      "items": [
+        {
+          "severity": "Error",
+          "code": "FixtureError",
+          "message": "Fixture error",
+          "sourceId": "fixture-instance",
+          "stage": "render"
+        }
+      ]
+    }
+  },
+  "clockPing": {
+    "type": "clock-ping",
+    "workerMonotonicNs": "2000000"
+  },
+  "clockCalibrated": {
+    "type": "clock-calibrated",
+    "workerMinusSenderNs": "-1000",
+    "uncertaintyNs": "1000",
+    "calibrated": true
+  }
+}

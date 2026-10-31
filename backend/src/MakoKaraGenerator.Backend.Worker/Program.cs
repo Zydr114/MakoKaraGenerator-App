@@ -25,6 +25,8 @@ internal static class Program
         PerformanceTelemetry.ConfigureFromEnvironment(Console.Error.WriteLine);
         // Fixed before any author code runs; later environment changes cannot change session devices.
         string renderBackend = RuntimeRenderBackendProbe.ResolveEnvironment();
+        bool enableGpuPreview = Environment.GetEnvironmentVariable("MAKO_BACKEND_GPU_PREVIEW") == "1";
+        bool enableGpuPreviewBenchmark = enableGpuPreview && Environment.GetEnvironmentVariable("MAKO_BACKEND_GPU_PREVIEW_BENCHMARK") == "1";
         bool ownsGroup = LinuxProcessGuards.InitializeCurrentProcessGroup();
         long? fileSizeLimit = null;
         if (Environment.GetEnvironmentVariable("MAKO_BACKEND_WORKER_MEDIA_LIMIT_BYTES") is { } configuredMediaLimit)
@@ -38,7 +40,7 @@ internal static class Program
         SemaphoreSlim outputGate = new(1, 1);
         ConcurrentDictionary<string, Task> operations = new(StringComparer.Ordinal);
         await using StaticRenderSession staticSession = new(renderBackend);
-        await using PackageRenderSession packageSession = new(renderBackend);
+        await using PackageRenderSession packageSession = new(renderBackend, enableGpuPreview, enableGpuPreviewBenchmark);
         using SemaphoreSlim renderSessionGate = new(1, 1);
         string? renderSessionOwner = null;
         using SemaphoreSlim validationGate = new(1, 1);
@@ -90,6 +92,9 @@ internal static class Program
                     case PackageRenderWorkerContract.OpenKind:
                     case PackageRenderWorkerContract.RenderKind:
                     case PackageRenderWorkerContract.CloseKind:
+                    case GpuStreamWorkerContract.OpenKind:
+                    case GpuStreamWorkerContract.CloseKind:
+                    case GpuStreamWorkerContract.ReadKind:
                     case PackageResourceWorkerContract.CapabilitiesKind:
                     case PackageResourceWorkerContract.ValidateKind:
                     case WorkerValidationContract.RequestKind:
@@ -143,6 +148,7 @@ internal static class Program
                                 or RuntimeValidationWorkerContract.CapabilitiesKind
                                 or ProjectRuntimeInputWorkerContract.OpenKind or ProjectImagePreviewWorkerContract.OpenKind or PackageRenderWorkerContract.OpenKind
                                 or PackageRenderWorkerContract.RenderKind or PackageRenderWorkerContract.CloseKind
+                                or GpuStreamWorkerContract.OpenKind or GpuStreamWorkerContract.CloseKind or GpuStreamWorkerContract.ReadKind
                                 => Task.Run(() => RunPackageAsync(message, operationCancellation.Token)),
                             PackageResourceWorkerContract.CapabilitiesKind or PackageResourceWorkerContract.ValidateKind
                                 => Task.Run(() => RunPackageResourceAsync(message, operationCancellation.Token)),
@@ -595,6 +601,9 @@ internal static class Program
                     PackageRenderWorkerContract.CapabilitiesKind => PackageRenderWorkerContract.CapabilitiesResultKind,
                     PackageRenderWorkerContract.ValidationCapabilitiesKind => PackageRenderWorkerContract.ValidationCapabilitiesResultKind,
                     PackageRenderWorkerContract.RenderKind => PackageRenderWorkerContract.FrameResultKind,
+                    GpuStreamWorkerContract.OpenKind => GpuStreamWorkerContract.OpenResultKind,
+                    GpuStreamWorkerContract.CloseKind => GpuStreamWorkerContract.CloseResultKind,
+                    GpuStreamWorkerContract.ReadKind => GpuStreamWorkerContract.ReadResultKind,
                     _ => PackageRenderWorkerContract.SessionResultKind,
                 };
                 await ReplyAsync(new(kind, request.RequestId, request.InputSha256, cancelled: true,
@@ -613,7 +622,7 @@ internal static class Program
                 string code = primary switch
                 { WorkerProtocolException value => value.Code, SnapshotContractException value => value.Code,
                     EffectFailureException value => value.Code, PreparedFrameException value => value.Code,
-                    ImageBackgroundDecodeException value => value.Code,
+                    ImageBackgroundDecodeException value => value.Code, GpuPreviewException value => value.Code,
                     ProjectEffectCompilationException => "WorkerPackageCompilationFailed", _ => "WorkerPackageRuntimeFailed" };
                 await ReplyAsync(new("error", request.RequestId, request.InputSha256, error: "包 Worker Runtime 会话失败。", errorCode: code,
                     diagnostics: diagnostics, sessionId: request.SessionId, sourceSha256: request.SourceSha256, frameSequence: request.FrameSequence,
@@ -653,7 +662,8 @@ internal static class Program
             await renderSessionGate.WaitAsync(token).ConfigureAwait(false);
             try
             {
-                bool package = request.Kind is ProjectRuntimeInputWorkerContract.OpenKind or ProjectImagePreviewWorkerContract.OpenKind or PackageRenderWorkerContract.OpenKind or PackageRenderWorkerContract.RenderKind or PackageRenderWorkerContract.CloseKind;
+                bool package = request.Kind is ProjectRuntimeInputWorkerContract.OpenKind or ProjectImagePreviewWorkerContract.OpenKind or PackageRenderWorkerContract.OpenKind or PackageRenderWorkerContract.RenderKind or PackageRenderWorkerContract.CloseKind
+                    or GpuStreamWorkerContract.OpenKind or GpuStreamWorkerContract.CloseKind or GpuStreamWorkerContract.ReadKind;
                 bool opening = request.Kind is ProjectRuntimeInputWorkerContract.OpenKind or ProjectImagePreviewWorkerContract.OpenKind or PackageRenderWorkerContract.OpenKind or StaticRenderWorkerContract.OpenKind;
                 bool closing = request.Kind is PackageRenderWorkerContract.CloseKind or StaticRenderWorkerContract.CloseKind;
                 string owner = package ? "package" : "static";

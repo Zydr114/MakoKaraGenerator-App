@@ -147,9 +147,9 @@ export function analyze(records, manifest={}) {
       completeRatio:delivered.length/expected,sliding5s:{...window,requiredUniqueFrames:threshold},intervalMs:distribution(intervals),
       stallsOver250ms:intervals.filter(value=>value>250).length,renderMs:distribution(delivered.map(frame=>frame.renderMs)),
       brokerToCompletionMs:distribution(delivered.map(frame=>frame.brokerToCompletionMs)),readyToCompletionMs:distribution(delivered.map(frame=>frame.readyToCompletionMs)),
-      totalClockUncertaintyMs:distribution(sampleClocks),signedDriftMs:distribution(drift),ageMs:distribution(age),
+      totalClockUncertaintyMs:distribution(sampleClocks),signedDriftMs:distribution(drift),ageMs:distribution(age),absoluteDriftMs:distribution(drift.map(Math.abs)),
       workerFlowControl:{status:streamSnapshots.length&&streamSnapshots.every(record=>record.snapshot.workerState)?'recorded':'unmeasured',samples:streamSnapshots.filter(record=>record.snapshot.workerState).map(record=>({monotonicNs:String(record.time),...record.snapshot.workerState})),publicStates:streamSnapshots.filter(record=>record.snapshot.workerPublicState).map(record=>({monotonicNs:String(record.time),...record.snapshot.workerPublicState}))},
-      freshness:drift.length===delivered.length&&delivered.length>0?{status:percentile(age,.95)<=2*period?'candidate-met':'candidate-failed',candidateP95LimitMs:2*period,model:'latest calibrated real audio.currentTime sample at or before completion, extrapolated by rate within exact timelineResetId'}:{status:'unmeasured',reason:'Missing calibrated audio master comparison on some frames'},
+      freshness:drift.length===delivered.length&&delivered.length>0?{status:percentile(age,.95)<=2*period&&percentile(drift.map(Math.abs),.95)<=2*period?'candidate-met':'candidate-failed',candidateP95LimitMs:2*period,earlyFrameConstraint:'absolute signed drift p95 must also stay within two periods; negative age never makes an early frame pass',model:'latest calibrated real audio.currentTime sample at or before completion, extrapolated by rate within exact timelineResetId'}:{status:'unmeasured',reason:'Missing calibrated audio master comparison on some frames'},
       resourceTrends:[...resourcePids.values()].map(points=>({pid:points.pid,startTicks:points.startTicks,role:points.role,fd:regression(points.fd),rssBytes:regression(points.rss),gpuMemoryBytes:regression(points.gpu)})),
       gates:gate,throughputPassed:Object.values(gate).every(Boolean)};
   });
@@ -336,11 +336,16 @@ async function run(values) {
     await record({type:'snapshot',snapshot:{...snapshot,...(workerPublicState?{workerPublicState}:{}),samples:changed},processes:await processSnapshot(snapshot)});
     return {...snapshot,latestSample:[...observedSamples.values()].at(-1)};
   };
+  const mainClockBracket=async()=>{
+    const start=process.hrtime.bigint();
+    const main=ns(await page.eval(`window.makoDesktopPreview.readPreviewState(${sampleRevision}).then(value=>value.nowMonotonicNs)`));
+    const end=process.hrtime.bigint();
+    return {offset:main-(start+end)/2n,uncertaintyMs:Number(end-start)/2e6};
+  };
   const invokeInteraction=async(kind,action)=>{
-    const nodeStart=process.hrtime.bigint(),before=await sample(),nodeAfter=process.hrtime.bigint();
-    const offset=ns(before.nowMonotonicNs)-(nodeStart+nodeAfter)/2n;
-    const uncertaintyMs=Number(nodeAfter-nodeStart)/2e6;
-    const invocation=process.hrtime.bigint()+offset;
+    const before=await sample(),bracket=await mainClockBracket();
+    const uncertaintyMs=bracket.uncertaintyMs;
+    const invocation=process.hrtime.bigint()+bracket.offset;
     await action();
     const deadline=Date.now()+10_000;
     let after;
@@ -397,14 +402,14 @@ async function run(values) {
     }
     invariant(await page.eval(`typeof window.makoGpuPreviewAcceptance?.setBackground==='function'`),'Real project edit benchmark hook unavailable');
     for(let index=0;index<(values.debug?1:20);index++){
-      const nodeStart=process.hrtime.bigint(),before=await sample(),nodeAfter=process.hrtime.bigint();
-      const invocation=process.hrtime.bigint()+ns(before.nowMonotonicNs)-(nodeStart+nodeAfter)/2n;
+      await sample();
+      const bracket=await mainClockBracket(),invocation=process.hrtime.bigint()+bracket.offset;
       const old=await page.eval('window.makoGpuPreviewAcceptance.current()');
       const edited=await page.eval(`window.makoGpuPreviewAcceptance.setBackground(${index%2?24:48},16,32,255)`);
       const deadline=Date.now()+30_000;let current;
       do{current=await page.eval('window.makoGpuPreviewAcceptance.current()');if(current?.source?.sourceRevision===edited.sourceRevision&&current.inputGeneration!==old.inputGeneration)break;await sample();await pause(20);}while(Date.now()<deadline);
       invariant(current?.streamId===old.streamId&&current.source.sourceRevision===edited.sourceRevision&&current.inputGeneration!==old.inputGeneration,'Real project input did not replace exact public generation');
-      await record({type:'interaction',kind:'latest-input',uiInvocationMonotonicNs:String(invocation),uiInvocationClockUncertaintyMs:Number(nodeAfter-nodeStart)/2e6,
+      await record({type:'interaction',kind:'latest-input',uiInvocationMonotonicNs:String(invocation),uiInvocationClockUncertaintyMs:bracket.uncertaintyMs,
         streamId:current.streamId,inputGeneration:current.inputGeneration,expectedSourceRevision:edited.sourceRevision,previousInputGeneration:old.inputGeneration});
       const matching=()=>[...observedSamples.values()].some(frame=>frame.drawn===true&&ns(frame.completedMonotonicNs)>=invocation&&frame.streamId===current.streamId&&frame.inputGeneration===current.inputGeneration);
       while(!matching()&&Date.now()<deadline){await pause(20);await sample();}

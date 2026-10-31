@@ -88,3 +88,10 @@ test('lifecycle counts require verified replacement and retired Worker drain',()
   assert.equal(report.requiredLifecycle.attachDetach.observed,1);
   assert.equal(report.requiredLifecycle.publicResizeSeek.observed,0);
 });
+test('an early frame cannot satisfy freshness solely through negative age',()=>{
+  const report=analyze([snapshot(2n*N,[frame(1,2n*N,{timeUs:2_100_000})],1,{mediaClock:{mode:'playing',rate:1,timelineResetId:'initial',mediaTimeUs:1_000_000,mainSampleMonotonicNs:String(N)}}),phase]);
+  const result=report.phaseReports[0];
+  assert.equal(result.ageMs.p95,-100);
+  assert.equal(result.absoluteDriftMs.p95,100);
+  assert.equal(result.freshness.status,'candidate-failed');
+});

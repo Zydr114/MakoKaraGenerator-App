@@ -26,10 +26,10 @@ from static_style_schema import extend_static_style_schemas, style_query_paramet
 from template_library_schema import extend_template_library_schemas, query_parameters as template_query_parameters, LIMITS as TEMPLATE_LIMITS
 
 ROOT = Path(__file__).resolve().parents[2]
-CONTRACT = "1.40.0"
+CONTRACT = "1.41.0"
 BASELINE = "245be6cc8f41a75460ef77bb67b35d79673c7e3b"
 PRODUCT = re.search(r"<VersionPrefix>([^<]+)</VersionPrefix>", (ROOT / "Directory.Build.props").read_text()).group(1)
-FREEZE_DATE = "2026-10-30"
+FREEZE_DATE = "2026-11-01"
 BEHAVIOR = "docs/architecture/backend-api.md"
 TOOL = Path(__file__).resolve().parent
 
@@ -92,6 +92,11 @@ GET|/api/v1/recovery-candidates|recoveryCandidates|-|RecoveryCandidatesResponse|
 GET|/api/v1/recovery-jobs|recoveryJobs|-|RecoveryJobsResponse|200|8|读取旧主机持久任务记录
 GET|/api/v1/runtime-info|runtimeInfo|-|PreviewRuntimeInfoResponse|200|9|读取预览运行能力
 GET|/api/v1/render-backends|renderBackends|-|RenderBackendsResponse|200|25|读取当前部署真实CPU/GPU设备可用性
+POST|/api/v1/gpu-preview-streams|createGpuPreviewStream|GpuPreviewStreamCreateRequest|GpuPreviewStreamState|201|25|创建固定来源GPU流
+GET|/api/v1/gpu-preview-streams/{id}|readGpuPreviewStream|-|GpuPreviewStreamState|200|25|读取GPU流登记和Worker状态
+PUT|/api/v1/gpu-preview-streams/{id}/source|replaceGpuPreviewStream|GpuPreviewStreamReplaceRequest|GpuPreviewStreamState|200|25|按修订更换GPU流来源
+PUT|/api/v1/gpu-preview-streams/{id}/size|resizeGpuPreviewStream|GpuPreviewStreamResizeRequest|GpuPreviewStreamState|200|25|按修订更换GPU流尺寸
+DELETE|/api/v1/gpu-preview-streams/{id}|closeGpuPreviewStream|GpuPreviewStreamCloseRequest|GpuPreviewStreamState|200|25|排空并关闭GPU流
 POST|/api/v1/preview-sessions|createPreview|PreviewSessionRequest|PreviewSessionResponse|201|9|创建固定修订预览
 POST|/api/v1/project-sessions/{id}/edit-previews|createEditPreview|ProjectEditPreviewRequest|PreviewSessionResponse|201|6.12|创建或替换固定修订的只读编辑候选
 POST|/api/v1/project-sessions/{id}/preset-application-previews|createPresetApplicationPreview|PresetApplicationPreviewRequest|PreviewSessionResponse|201|13|创建只读预设候选试看
@@ -970,6 +975,35 @@ def generate(metadata):
     extend_render_backends(schemas, metadata)
     extend_w8_authoring(schemas, metadata)
 
+    # GPU streams use a smaller device pool than ordinary PNG previews.
+    schemas["GpuPreviewSizeInput"] = copy.deepcopy(schemas["PreviewSizeDtoInput"])
+    schemas["GpuPreviewSizeInput"]["properties"]["width"].update(minimum=64, maximum=2560)
+    schemas["GpuPreviewSizeInput"]["properties"]["height"].update(minimum=64, maximum=1440)
+    schemas["GpuPreviewSize"] = copy.deepcopy(schemas["PreviewSizeDto"])
+    schemas["GpuPreviewSize"]["properties"]["width"].update(minimum=64, maximum=2560)
+    schemas["GpuPreviewSize"]["properties"]["height"].update(minimum=64, maximum=1440)
+    for component in ("GpuPreviewStreamCreateRequest", "GpuPreviewStreamResizeRequest"):
+        schemas[component]["properties"]["size"] = ref("GpuPreviewSizeInput")
+    gpu_create = schemas["GpuPreviewStreamCreateRequest"]["properties"]
+    gpu_create["api"] = {"type": "string", "const": "vulkan"}
+    gpu_create["consumerId"] = {"type": "string", "pattern": "^[0-9a-f]{32}$"}
+    gpu_state = schemas["GpuPreviewStreamState"]["properties"]
+    gpu_state["size"] = ref("GpuPreviewSize")
+    gpu_state["api"] = {"type": "string", "const": "vulkan"}
+    gpu_state["textureAlphaMode"] = {"type": "string", "const": "premultiplied"}
+    gpu_state["registrationState"] = {"type": "string", "enum": ["ready", "failed", "closed"]}
+    gpu_state["slotCount"] = {"type": "integer", "const": 3}
+    gpu_state["allocationBytes"].update(minimum=1, maximum=67108864)
+    for field in ("streamRevision", "inputGeneration", "producerEpoch", "poolGeneration"):
+        gpu_state[field]["pattern"] = r"^(0|[1-9][0-9]*)$"
+    worker_state = schemas["GpuStreamWorkerState"]["properties"]
+    worker_state["state"]["enum"] = ["opening", "ready", "playing", "paused", "draining", "stopped", "failed"]
+    worker_state["mode"]["enum"] = ["playing", "paused"]
+    worker_state["timelineEpoch"]["pattern"] = r"^(0|[1-9][0-9]*)$"
+    for field in ("lastAppliedControlSeq", "effectiveMediaTimeUs"):
+        worker_state[field].update(minimum=0, maximum=9007199254740991)
+    schemas["GpuStreamDiagnosticSummary"]["properties"]["items"]["maxItems"] = 4
+
     # ProjectPresetApplicationSourceDto explicitly uses JsonIgnore(Never) for
     # its three nullable source comparison fields.  They are therefore always
     # present on the actual response (including null), unlike ordinary nullable
@@ -1007,7 +1041,8 @@ def source_routes():
         if any(m not in ("MapGet", "MapPost", "MapPut", "MapDelete", "MapMethods") for m in mappings):
             raise ValueError(f"Unreviewed route mapping method: {file}")
         for method, path in re.findall(r'app\.Map(Get|Post|Put|Delete)\("([^"]+)"', text):
-            result.add((method.upper(), path))
+            if (method.upper(), path) != ("POST", "/internal/gpu-preview-streams/{id}/claim"):
+                result.add((method.upper(), path))
         for path, methods in re.findall(r'app\.MapMethods\("([^"]+)",\s*\[([^\]]+)\]', text):
             for method in re.findall(r'"([A-Z]+)"', methods):
                 result.add((method, path))
@@ -1344,9 +1379,10 @@ def main():
     # deterministically refreshes tagged P3/P4/render-backend fixture slices. Version
     # metadata belongs to the final aggregate, not its historical base file.
     from w8_authoring_fixtures import append_to as append_w8, PREFIX as W8_PREFIX
+    from gpu_stream_fixtures import append_to as append_gpu_stream
     existing_examples = json.loads((ROOT / "web/examples.json").read_text())
     existing_examples["cases"] = [case for case in existing_examples["cases"] if not case["name"].startswith(W8_PREFIX)]
-    example_document = append_w8(append_to(existing_examples))
+    example_document = append_gpu_stream(append_w8(append_to(existing_examples)))
     example_document["contractVersion"] = CONTRACT
     examples = encoded(example_document)
     outputs = {"web/openapi.json": encoded(spec), "web/api-index.md": inventory(spec, operations), "web/api-contract.md": (ROOT / "web/api-contract.md").read_bytes(), "web/examples.json": examples}

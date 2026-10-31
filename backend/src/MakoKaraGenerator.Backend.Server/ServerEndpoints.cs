@@ -10,6 +10,7 @@ internal static partial class ServerEndpoints
 {
     private const string ClientItem = "Mako.AuthenticatedClient";
     private static readonly string[] EnabledPreviewCapabilities = ["preview.create.static-project", "preview.input.static-project", "preview.create.template-sample", "preview.frame-requests"];
+    private static readonly string[] EnabledGpuPreviewCapabilities = ["preview.gpu-streams"];
     public static void Configure(WebApplication app)
     {
         app.Use(async (context, next) =>
@@ -44,7 +45,11 @@ internal static partial class ServerEndpoints
                     context.Response.StatusCode = 204; return;
                 }
                 bool publicEndpoint = context.Request.Path is { Value: "/health/live" or "/api/v1/health/live" or "/api/v1/clients" };
-                if (!publicEndpoint)
+                string[] pathParts = (context.Request.Path.Value ?? "").Split('/', StringSplitOptions.RemoveEmptyEntries);
+                bool privateGpuClaim = context.Request.Method == "POST" && pathParts.Length == 4 &&
+                    pathParts[0] == "internal" && pathParts[1] == "gpu-preview-streams" && pathParts[3] == "claim" &&
+                    context.RequestServices.GetRequiredService<PreviewBackendService>().GpuStreamsConfigured;
+                if (!publicEndpoint && !privateGpuClaim)
                 {
                     ClientRegistry clients = context.RequestServices.GetRequiredService<ClientRegistry>();
                     string? client = context.Request.Headers["X-Mako-Client-Id"].Count == 1 ? context.Request.Headers["X-Mako-Client-Id"][0] : null;
@@ -100,6 +105,7 @@ internal static partial class ServerEndpoints
         ConfigureFileLyricsEndpoints(app);
         ConfigureBasicMediaEndpoints(app);
         ConfigurePreviewEndpoints(app);
+        if (app.Services.GetRequiredService<PreviewBackendService>().GpuStreamsConfigured) ConfigureGpuStreamEndpoints(app);
         ConfigureValidationEndpoints(app);
         ConfigureExportEndpoints(app);
         ConfigureAnalysisEndpoints(app);
@@ -118,7 +124,10 @@ internal static partial class ServerEndpoints
     }
 
     private static string Client(HttpRequest request) => (string)request.HttpContext.Items[ClientItem]!;
-    private static IResult Capabilities(ResourceStore store, ProjectSessionRegistry registry, ClientRegistry clients, PreviewBackendService previews) => Results.Json(new BackendCapabilitiesResponse(
+    private static async Task<IResult> Capabilities(ResourceStore store, ProjectSessionRegistry registry, ClientRegistry clients, PreviewBackendService previews)
+    {
+        bool gpuAvailable = await previews.GpuStreamsAvailableAsync().ConfigureAwait(false);
+        return Results.Json(new BackendCapabilitiesResponse(
         BackendProtocol.Version, registry.HostInstanceId, typeof(ServerEndpoints).Assembly.GetName().Version?.ToString(3) ?? "unknown",
         store.MaxAssetBytes, store.MaxAssetQuotaBytes, ResourceStore.AllowedMimeTypes.ToArray(),
         ["effect-packages.inspect", "template-libraries.read", "template-libraries.templates.read", "template-libraries.templates.detail",
@@ -192,12 +201,15 @@ internal static partial class ServerEndpoints
             .. (registry.ValidationCapabilities.Enabled ? EnabledValidationCapabilities : []),
             .. (registry.ExportCapabilities.Enabled ? EnabledExportCapabilities : []),
             .. (registry.AnalysisCapabilities.Enabled ? EnabledAnalysisCapabilities : []),
+            .. (gpuAvailable ? EnabledGpuPreviewCapabilities : []),
             .. (previews.RuntimeInfo.Enabled ? EnabledPreviewCapabilities : [])],
         registry.ServerTimeUtc, registry.MaxCommandRetryWindowSeconds, registry.MaxCommandReceiptsPerSession,
         clients.Options.TokenLifetimeSeconds, clients.Options.LeaseLifetimeSeconds, clients.Options.MaxClients,
         clients.Options.MaxSessionsPerClient, store.UnreferencedAssetLifetimeSeconds, clients.Options.MaxEventsPerClient,
         registry.Receipts.MaxReceiptsPerClient, registry.Receipts.MaxReceiptBytes, registry.Receipts.MaxReceiptBytesPerClient,
-        MaxAssets: store.MaxAssets, AudioPreparation: registry.AudioPreparationCapabilities));
+        MaxAssets: store.MaxAssets, AudioPreparation: registry.AudioPreparationCapabilities,
+        GpuPreview: gpuAvailable ? new(2560, 1440, 3, 67108864, 2, false) : null));
+    }
 
     private static async Task<IResult> RegisterClientAsync(HttpRequest request, ClientRegistry clients,
         ProjectSessionRegistry projects, PreviewBackendService previews)
@@ -361,14 +373,20 @@ internal static partial class ServerEndpoints
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
     };
 
-    private static async Task<(T? Input, IResult? Error)> ReadStrictJsonAsync<T>(HttpRequest request) where T : class
+    private static readonly JsonSerializerOptions StrictGpuRequestJson = new(StrictRequestJson)
+    {
+        RespectRequiredConstructorParameters = true,
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase, allowIntegerValues: false) },
+    };
+
+    private static async Task<(T? Input, IResult? Error)> ReadStrictJsonAsync<T>(HttpRequest request, bool gpu = false) where T : class
     {
         if (!request.HasJsonContentType()) return (null, Error(new(BackendErrorCode.UnsupportedMediaType, "请求必须使用JSON媒体类型。", "contentType"), 415));
         try
         {
             using var document = await JsonDocument.ParseAsync(request.Body, cancellationToken: request.HttpContext.RequestAborted);
             EnsureUniqueJsonProperties(document.RootElement);
-            T? input = document.RootElement.Deserialize<T>(StrictRequestJson);
+            T? input = document.RootElement.Deserialize<T>(gpu ? StrictGpuRequestJson : StrictRequestJson);
             return input is null ? (null, Error(new(BackendErrorCode.InvalidRequest, "请求体不能为空。"))) : (input, null);
         }
         catch (JsonException) { return (null, Error(new(BackendErrorCode.InvalidRequest, "请求JSON无效。"))); }

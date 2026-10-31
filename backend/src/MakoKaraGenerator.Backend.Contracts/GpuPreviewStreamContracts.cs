@@ -21,8 +21,9 @@ public sealed record GpuPreviewStreamResizeRequest(string ExpectedStreamRevision
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record GpuPreviewStreamCloseRequest(string ExpectedStreamRevision, RequestMetadataDto? Metadata = null);
 
-/// <summary>客户端可见的有界流状态；不包含 native 句柄或凭证。</summary>
+/// <summary>客户端可见的登记状态；alphaMode 选择背景透明度，纹理采用预乘 alpha。</summary>
 public sealed record GpuPreviewStreamState(string StreamId, string StreamRevision, string InputGeneration,
-    string State, PreviewSourceDto Source, PreviewSizeDto Size, PreviewAlphaMode AlphaMode, string Api,
+    string RegistrationState, PreviewSourceDto Source, PreviewSizeDto Size, PreviewAlphaMode AlphaMode, string Api,
     string ProducerEpoch, string PoolGeneration, int SlotCount, long AllocationBytes,
-    long? LastAppliedControlSeq = null, string? FailureCode = null);
+    long? LastAppliedControlSeq = null, string? FailureCode = null, string TextureAlphaMode = "premultiplied",
+    GpuStreamWorkerState? WorkerState = null);

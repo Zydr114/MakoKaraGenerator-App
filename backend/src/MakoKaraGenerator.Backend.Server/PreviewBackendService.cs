@@ -500,7 +500,11 @@ internal sealed partial class PreviewBackendService : IAsyncDisposable
     public async Task DrainClientAsync(string client)
     {
         await _membership.WaitAsync().ConfigureAwait(false);
-        try { await _previews.DrainClientAsync(client).ConfigureAwait(false); }
+        try
+        {
+            try { await DrainGpuClientAsync(client).ConfigureAwait(false); }
+            finally { await _previews.DrainClientAsync(client).ConfigureAwait(false); }
+        }
         finally { _membership.Release(); }
     }
 
@@ -509,6 +513,11 @@ internal sealed partial class PreviewBackendService : IAsyncDisposable
         await _membership.WaitAsync().ConfigureAwait(false);
         try
         {
+            if (_gpuStreams is not null)
+                foreach (string client in _gpuStreams.ActiveClientIds)
+                    if (!_clients.TryReadLease(client, out _, out bool dormant) || dormant)
+                        try { await DrainGpuClientAsync(client).ConfigureAwait(false); }
+                        catch (Exception) { Console.Error.WriteLine("GPU stream cleanup failed; capacity remains reserved."); }
             foreach (string client in _previews.ActiveClientIds)
                 if (!_clients.TryReadLease(client, out _, out bool dormant) || dormant)
                     await _previews.DrainClientAsync(client).ConfigureAwait(false);
@@ -539,8 +548,21 @@ internal sealed partial class PreviewBackendService : IAsyncDisposable
         try
         {
             _stopping = true;
-            await _previews.DisposeAsync().ConfigureAwait(false);
+            List<Exception> failures = [];
+            if (_gpuStreams is not null)
+            {
+                foreach (string client in _gpuStreams.ActiveClientIds)
+                    try { await DrainGpuClientAsync(client).ConfigureAwait(false); }
+                    catch (Exception error) { failures.Add(error); }
+                try { await _gpuStreams.RetryFailedOpensAsync().ConfigureAwait(false); }
+                catch (Exception error) { failures.Add(error); }
+                try { _gpuStreams.ReleaseAllInputs(); }
+                catch (Exception error) { failures.Add(error); }
+            }
+            try { await _previews.DisposeAsync().ConfigureAwait(false); }
+            catch (Exception error) { failures.Add(error); }
             _previews.Updated -= PublishEvent;
+            if (failures.Count != 0) throw new AggregateException(failures);
         }
         finally { _membership.Release(); }
     }

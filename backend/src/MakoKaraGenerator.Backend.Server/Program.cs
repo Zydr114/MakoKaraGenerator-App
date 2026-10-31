@@ -112,6 +112,7 @@ PreviewBackendService previewService = new(sessions, previewSessions, resources,
         new WorkerRenderFrameSessionFactory(previewWorker.Options with { RenderBackend = renderBackends.DefaultBackend }),
         new WorkerPackageRenderFrameSessionFactory(previewWorker.Options with { RenderBackend = renderBackends.DefaultBackend })),
     previewWorker.Info with { FrameLeaseLifetimeSeconds = frameLeaseSeconds }, renderBackends);
+previewService.ConfigureGpuStreams(DesktopConsumerIdentity.FromEnvironment(), previewWorker.Options);
 builder.Services.AddSingleton(resources);
 builder.Services.AddSingleton(sessions);
 builder.Services.AddSingleton(hostOptions);
@@ -143,9 +144,12 @@ await resourceCleanup.ConfigureAwait(false);
 await previewCleanup.ConfigureAwait(false);
 await audioPreparationShutdown.ConfigureAwait(false);
 await accepted.DrainAsync().ConfigureAwait(false);
-await previewService.DisposeAsync().ConfigureAwait(false);
-await sessions.DisposeAsync().ConfigureAwait(false);
-renderBackends.Dispose();
+try { await previewService.DisposeAsync().ConfigureAwait(false); }
+finally
+{
+    try { await sessions.DisposeAsync().ConfigureAwait(false); }
+    finally { renderBackends.Dispose(); }
+}
 
 static long? OptionalPositiveLong(string variable)
 {

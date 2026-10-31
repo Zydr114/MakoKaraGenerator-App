@@ -14,8 +14,8 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def expected_product_versions(contract_version, spec_path):
-    historical = {"1.37.0": "0.103.0", "1.38.0": "0.104.0", "1.38.1": "0.104.1", "1.39.0": "0.106.0", "1.40.0": "0.108.0"}
-    if contract_version not in ("1.38.1", "1.39.0", "1.40.0"):
+    historical = {"1.37.0": "0.103.0", "1.38.0": "0.104.0", "1.38.1": "0.104.1", "1.39.0": "0.106.0", "1.40.0": "0.108.0", "1.41.0": "0.109.0"}
+    if contract_version not in ("1.38.1", "1.39.0", "1.40.0", "1.41.0"):
         return {historical[contract_version]}
     # The public API can keep its contract version across an internal renderer
     # release. The canonical frozen document must match the current product.
@@ -41,7 +41,7 @@ def main():
     actual_version = spec["info"]["version"]
     # P3/P4 and their documentation patch retain the historical 1.36 gates.
     # Keep previous hash and shape assertions active for the current contract.
-    p4_versions = ("1.38.0", "1.38.1", "1.39.0", "1.40.0")
+    p4_versions = ("1.38.0", "1.38.1", "1.39.0", "1.40.0", "1.41.0")
     p3_versions = ("1.37.0", *p4_versions)
     legacy_version = "1.36.0" if actual_version in p3_versions else actual_version
     validate_spec(spec)
@@ -73,15 +73,21 @@ def main():
     assert example_document.get("contractVersion") == actual_version, (
         "Example corpus contractVersion must match OpenAPI info.version")
     frozen_cases = example_document["cases"]
+    gpu_additions = []
+    if actual_version == "1.41.0":
+        from gpu_stream_fixtures import append_to as append_gpu
+        gpu_additions = append_gpu({"cases": []})["cases"]
+        assert frozen_cases[-len(gpu_additions):] == gpu_additions
+        frozen_cases = frozen_cases[:-len(gpu_additions)]
     w8_additions = []
-    if actual_version == "1.40.0":
+    if actual_version in ("1.40.0", "1.41.0"):
         from w8_authoring_fixtures import fixtures as w8_fixtures
         w8_additions = w8_fixtures()["cases"]
         assert frozen_cases[-len(w8_additions):] == w8_additions
         frozen_cases = frozen_cases[:-len(w8_additions)]
     render_additions = []
     render_wire_cases = None
-    if actual_version in ("1.39.0", "1.40.0"):
+    if actual_version in ("1.39.0", "1.40.0", "1.41.0"):
         from render_backend_fixtures import fixtures as render_fixtures
         from render_backend_schema import migrate_legacy_cases
         render_additions = render_fixtures()["cases"]
@@ -112,7 +118,7 @@ def main():
     external_cases = []
     for extra in args.extra_examples:
         external_cases += json.loads(extra.read_text())["cases"]
-    cases = (render_wire_cases + render_additions if render_additions else frozen_cases + extra_cases) + w8_additions + external_cases
+    cases = (render_wire_cases + render_additions if render_additions else frozen_cases + extra_cases) + w8_additions + gpu_additions + external_cases
     if legacy_version == "1.36.0":
         from p1p2_fixtures import migrate_legacy_cases
         # Validate migrated wire values above; audit immutable historical hashes
@@ -216,7 +222,7 @@ def main():
             if method == "get":
                 assert "requestBody" not in operation, path
             routes.append((method.upper(), re.compile("^" + re.sub(r"\\\{[^{}]+\\\}", "[^/]+", re.escape(path)) + "$"), path, operation))
-    assert (len(routes) - (7 if w8_additions else 0) - (2 if p3_additions else 0) - (8 if p4_additions else 0) - (2 if render_additions else 0), len(spec["paths"]) - (6 if w8_additions else 0) - (2 if p3_additions else 0) - (7 if p4_additions else 0) - (2 if render_additions else 0)) == ({"1.8.0": (65, 58), "1.9.0": (69, 62), "1.10.0": (69, 62), "1.11.0": (69, 62), "1.12.0": (70, 63), "1.13.0": (71, 64), "1.14.0": (71, 64), "1.15.0": (72, 65), "1.16.0": (73, 66), "1.17.0": (73, 66), "1.18.0": (73, 66), "1.19.0": (73, 66), "1.20.0": (73, 66), "1.21.0": (73, 66), "1.22.0": (75, 68), "1.23.0": (75, 68), "1.24.0": (77, 70), "1.24.1": (77, 70), "1.25.0": (89, 80), "1.26.0": (89, 80), "1.27.0": (89, 80), "1.28.0": (89, 80), "1.29.0": (89, 80), "1.30.0": (89, 80), "1.30.1": (89, 80), "1.30.2": (89, 80), "1.31.0": (90, 81), "1.32.0": (97, 87), "1.32.1": (97, 87), "1.33.0": (97, 87), "1.34.0": (97, 87), "1.35.0": (97, 87), "1.36.0": (101, 91), "1.38.0": (101, 91)}[legacy_version])
+    assert (len(routes) - (5 if actual_version == "1.41.0" else 0) - (7 if w8_additions else 0) - (2 if p3_additions else 0) - (8 if p4_additions else 0) - (2 if render_additions else 0), len(spec["paths"]) - (4 if actual_version == "1.41.0" else 0) - (6 if w8_additions else 0) - (2 if p3_additions else 0) - (7 if p4_additions else 0) - (2 if render_additions else 0)) == ({"1.8.0": (65, 58), "1.9.0": (69, 62), "1.10.0": (69, 62), "1.11.0": (69, 62), "1.12.0": (70, 63), "1.13.0": (71, 64), "1.14.0": (71, 64), "1.15.0": (72, 65), "1.16.0": (73, 66), "1.17.0": (73, 66), "1.18.0": (73, 66), "1.19.0": (73, 66), "1.20.0": (73, 66), "1.21.0": (73, 66), "1.22.0": (75, 68), "1.23.0": (75, 68), "1.24.0": (77, 70), "1.24.1": (77, 70), "1.25.0": (89, 80), "1.26.0": (89, 80), "1.27.0": (89, 80), "1.28.0": (89, 80), "1.29.0": (89, 80), "1.30.0": (89, 80), "1.30.1": (89, 80), "1.30.2": (89, 80), "1.31.0": (90, 81), "1.32.0": (97, 87), "1.32.1": (97, 87), "1.33.0": (97, 87), "1.34.0": (97, 87), "1.35.0": (97, 87), "1.36.0": (101, 91), "1.38.0": (101, 91)}[legacy_version])
     if legacy_version in ("1.32.0", "1.32.1", "1.33.0", "1.34.0", "1.35.0", "1.36.0", "1.38.0"):
         author_routes = {
             ("post", "/api/v1/drafts"): ("AuthorDraftCreateRequest", "AuthorDraftResponse", "201"),
@@ -387,12 +393,13 @@ def main():
                                     + sum(not case["valid"] for case in validation_image_additions)
                                     + sum(not case["valid"] for case in export_image_additions))
             assert len(frozen_cases) == frozen_count
-            assert len(cases) == frozen_count + len(extra_cases) + len(render_additions) + len(w8_additions) + len(external_cases)
+            assert len(cases) == frozen_count + len(extra_cases) + len(render_additions) + len(w8_additions) + len(gpu_additions) + len(external_cases)
             assert sum(not case["valid"] for case in frozen_cases) == frozen_negative_count
             assert sum(not case["valid"] for case in cases) == (frozen_negative_count
                 + sum(not case["valid"] for case in extra_cases)
                 + sum(not case["valid"] for case in render_additions)
                 + sum(not case["valid"] for case in w8_additions)
+                + sum(not case["valid"] for case in gpu_additions)
                 + sum(not case["valid"] for case in external_cases))
             expected_schema_count = 556 if p4_additions else (530 if p3_additions else {"1.30.2": 464, "1.31.0": 468, "1.32.0": 481, "1.32.1": 481, "1.33.0": 481, "1.34.0": 481, "1.35.0": 481, "1.36.0": 500}.get(legacy_version, 463))
             expected_schema_count += 4 if render_additions else 0
@@ -400,6 +407,7 @@ def main():
                 from w8_authoring_schema import NEW_SCHEMAS
                 assert set(NEW_SCHEMAS).issubset(components["schemas"])
                 expected_schema_count += len(NEW_SCHEMAS)
+            expected_schema_count += 11 if gpu_additions else 0
             assert len(components["schemas"]) == expected_schema_count
         schemas = components["schemas"]
         mapping = schemas["ProjectCommandDtoInput"]["discriminator"]["mapping"]
@@ -463,14 +471,14 @@ def main():
     if p3_additions:
         assert spec["x-product-version"] in expected_product_versions(actual_version, args.spec), (
             "Frozen contract product must match Directory.Build.props; explicit offline specs may retain the reviewed historical product")
-        assert (len(spec["paths"]), len(routes)) == ((108, 120) if w8_additions else (102, 113) if render_additions else (100, 111) if p4_additions else (93, 103))
+        assert (len(spec["paths"]), len(routes)) == ((112, 125) if actual_version == "1.41.0" else (108, 120) if w8_additions else (102, 113) if render_additions else (100, 111) if p4_additions else (93, 103))
         for path in ("/api/v1/effect-packages/inspect", "/api/v1/template-preview-options"):
             operation = spec["paths"][path]["post"]
             assert operation["x-receipt-location"] == "none"
             assert "200" in operation["responses"]
         assert len(components["schemas"]["ProjectCommandDtoInput"]["oneOf"]) == 96
         assert components["schemas"]["EffectPackageParameterSchemaDto"]["properties"]["defaultValueJson"]["type"] == "string"
-    if actual_version in ("1.38.1", "1.39.0", "1.40.0"):
+    if actual_version in ("1.38.1", "1.39.0", "1.40.0", "1.41.0"):
         for path, methods in spec["paths"].items():
             if path.startswith("/api/v1/drafts") or path.startswith("/api/v1/script-configurations") or path == "/api/v1/jobs/{id}/compilation-result":
                 for operation in methods.values():

@@ -45,6 +45,8 @@ GET    /api/v1/gpu-preview-streams/{streamId} -> StreamState
 
 v1 初始硬预算：每 client 和每 consumer 最多 1 个 stream、每 host 最多 2 个 stream/Worker；每池恰好 3 槽；最大 dimensions 2560×1440，宽高下限 64，均以 capability 与实际格式能力进一步收紧；每池总实际 allocation 不超过 64 MiB，每 host GPU 池合计不超过 128 MiB。替换和 resize 先停止并 drain 旧代后建立新池，不重叠双代；失败显式进入 failed，不恢复已销毁的旧代。创建前预留预算、按驱动实际分配复核、失败回滚；资源闭包继续受已有输入预算约束。控制每流最多一个执行、一个最新待处理，native packet 最多 16 KiB / 4 FD。目标覆盖 1280×720 24 fps 至 2560×1440 30 fps；`dimensionsSupported` 是实际格式与分配探测结果，`performanceValidated` 必须由生产链路实测证明，未测量时为 false，目标不是承诺。
 
+私有 claim 回包额外携带 `inputGeneration`、`poolGeneration` 和 `size`，供 main 复核代次和尺寸。Linux broker 路径为 `/tmp/mkg-gpu-<24位小写十六进制>/broker.sock`；main 验证私有父目录的属主和 `0700` 权限，连接还须校验进程身份与 nonce。公开的 `registrationState` 仅表示服务端登记状态，不是 Worker 播放状态；播放状态以 native `read-state` 为准。`alphaMode` 沿用现有选项，只控制输出背景是否透明，GPU 传输纹理为 BGRA 预乘 alpha，公开 `textureAlphaMode: premultiplied`。
+
 ## 内部控制合同
 
 同一 Worker 有一个固定 Runtime，会话打开时从 `BackendPreparedProjectRuntimeInput` 的受哈希保护字节和既有 `ProjectRuntimeInput` 路径创建；包、图片和音频固定闭包及 profile 检查与静态预览等价。P1 独立流注册表拥有 proxy 和输入 retention，P2 共用 `ProjectRenderSession` 的帧准备、诊断与绘制，不复制 Runtime。

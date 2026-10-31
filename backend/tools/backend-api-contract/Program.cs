@@ -16,7 +16,8 @@ foreach (Type type in typeof(HealthResponse).Assembly.GetExportedTypes().OrderBy
     }
     if (!type.Name.EndsWith("Dto", StringComparison.Ordinal)
         && !type.Name.EndsWith("Request", StringComparison.Ordinal)
-        && !type.Name.EndsWith("Response", StringComparison.Ordinal)) continue;
+        && !type.Name.EndsWith("Response", StringComparison.Ordinal)
+        && type.Name is not ("GpuPreviewStreamState" or "GpuStreamWorkerState" or "GpuStreamDiagnosticSummary" or "GpuStreamDiagnosticItem")) continue;
     var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance).Select(property =>
     {
         // Derived positional records inherit properties whose matching parameters belong to

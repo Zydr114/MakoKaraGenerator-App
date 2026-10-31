@@ -14,6 +14,10 @@ public static class GpuStreamWorkerContract
     public const string CloseKind = "gpu-stream-close-v1";
     /// <summary>已停止且池已排空。</summary>
     public const string CloseResultKind = "gpu-stream-close-result-v1";
+    /// <summary>读取 Worker 的权威流状态。</summary>
+    public const string ReadKind = "gpu-stream-read-v1";
+    /// <summary>Worker 当前流状态。</summary>
+    public const string ReadResultKind = "gpu-stream-read-result-v1";
     /// <summary>私有消息字节上限。</summary>
     public const int MaximumBytes = 16 * 1024;
     private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web)
@@ -79,3 +83,20 @@ public sealed record GpuStreamWorkerClose(string StreamId, string ProducerEpoch,
 /// <summary>Worker 确认停止且租约已全部排空。</summary>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record GpuStreamWorkerClosed(string StreamId, string ProducerEpoch, bool Drained);
+
+/// <summary>读取绑定的 Worker 代次。</summary>
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record GpuStreamWorkerRead(string StreamId, string ProducerEpoch, string InputGeneration);
+
+/// <summary>Worker 观察到的播放及排空状态。</summary>
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record GpuStreamWorkerState(string State, long? LastAppliedControlSeq, string TimelineEpoch,
+    string TimelineResetId, string Mode, long? EffectiveMediaTimeUs, string? FailureCode, bool Drained,
+    GpuStreamDiagnosticSummary? Diagnostics = null);
+
+/// <summary>受限的渲染诊断摘要。</summary>
+public sealed record GpuStreamDiagnosticSummary(int Total, int WarningCount, int ErrorCount, bool Truncated,
+    GpuStreamDiagnosticItem[] Items);
+
+/// <summary>单条受限渲染诊断。</summary>
+public sealed record GpuStreamDiagnosticItem(string Severity, string Code, string Message, string? SourceId, string? Stage);

@@ -153,7 +153,12 @@ public sealed record BackendCapabilitiesResponse(
     int MaxEventConnections = 4,
     int MaxEventConnectionsPerClient = 2,
     int MaxAssets = 4096,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] BackendAudioPreparationCapabilitiesDto? AudioPreparation = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] BackendAudioPreparationCapabilitiesDto? AudioPreparation = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] GpuPreviewCapabilitiesDto? GpuPreview = null);
+
+/// <summary>GPU 流的固定预算，不代表具体尺寸已通过分配探测。</summary>
+public sealed record GpuPreviewCapabilitiesDto(int MaxWidth, int MaxHeight, int SlotsPerPool,
+    long MaxAllocationBytesPerPool, int MaxStreamsPerHost, bool PerformanceValidated);
 
 /// <summary>已授权的不可变上传资源摘要。</summary>
 public sealed record AssetResponse(

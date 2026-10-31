@@ -1,0 +1,54 @@
+--- a/include/c/gr_context.h
++++ b/include/c/gr_context.h
+@@ -50,0 +51,3 @@
++// Mako P0 extension: flush to an explicit Vulkan state and synchronously submit.
++// Owns no handles. The caller must serialize all access to the context and surface.
++SK_C_API bool gr_mako_direct_context_flush_surface_vk_state(gr_direct_context_t* context, sk_surface_t* surface, uint32_t layout, uint32_t queueFamily);
+--- a/src/c/gr_context.cpp
++++ b/src/c/gr_context.cpp
+@@ -13,0 +14 @@
++#include "include/gpu/MutableTextureState.h"
+@@ -329,0 +331,14 @@
++
++// Mako P0 extension. Do not infer success from GrSemaphoresSubmitted::kNo:
++// GrFlushInfo has no semaphores. A successful submit is the completion boundary.
++bool gr_mako_direct_context_flush_surface_vk_state(gr_direct_context_t* context, sk_surface_t* surface, uint32_t layout, uint32_t queueFamily) {
++    return SK_ONLY_VULKAN(([&]() {
++        if (!context || !surface) return false;
++        auto direct = AsGrDirectContext(context);
++        auto target = AsSurface(surface);
++        if (direct->abandoned() || direct->backend() != GrBackendApi::kVulkan || target->recordingContext() != direct) return false;
++        skgpu::MutableTextureState state(static_cast<VkImageLayout>(layout), queueFamily);
++        direct->flush(target, GrFlushInfo{}, &state);
++        return direct->submit(GrSyncCpu::kYes) && !direct->abandoned();
++    })(), false);
++}
+--- a/include/c/sk_surface.h
++++ b/include/c/sk_surface.h
+@@ -47,0 +48,4 @@
++// Mako P0 extension: borrowed single-sample image info; valid only while surface
++// remains alive and is not drawn to. No ownership of VkImage or VkDeviceMemory.
++SK_C_API bool sk_mako_surface_get_vk_image_info(sk_surface_t* surface, gr_vk_imageinfo_t* info);
++
+--- a/src/c/sk_surface.cpp
++++ b/src/c/sk_surface.cpp
+@@ -19,0 +20 @@
++#include "include/gpu/ganesh/vk/GrVkBackendSurface.h"
+@@ -124,0 +126,17 @@
++
++bool sk_mako_surface_get_vk_image_info(sk_surface_t* surface, gr_vk_imageinfo_t* info) {
++    return SK_ONLY_VULKAN(([&]() {
++        if (!surface || !info) return false;
++        GrVkImageInfo image;
++        auto target = AsSurface(surface);
++        auto texture = SkSurfaces::GetBackendTexture(target, SkSurfaces::BackendHandleAccess::kFlushRead);
++        bool valid = texture.isValid() && GrBackendTextures::GetVkImageInfo(texture, &image);
++        if (!valid) {
++            auto renderTarget = SkSurfaces::GetBackendRenderTarget(target, SkSurfaces::BackendHandleAccess::kFlushRead);
++            valid = renderTarget.isValid() && GrBackendRenderTargets::GetVkImageInfo(renderTarget, &image);
++        }
++        if (!valid || image.fSampleCount != 1) return false;
++        *AsGrVkImageInfo(info) = image;
++        return true;
++    })(), false);
++}

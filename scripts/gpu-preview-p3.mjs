@@ -273,7 +273,7 @@ async function actualWaylandEvidence(page,cdp,snapshot) {
 }
 async function selectGpu(page) {
   await page.waitFor(`(()=>{const option=document.querySelector('.render-device-option[data-value="gpu"]')?.closest('mdui-menu-item');return option&&!option.disabled;})()`,'Available GPU render backend',120_000);
-  await page.eval(`document.querySelector('.render-device-option[data-value="gpu"]').closest('mdui-menu-item').click()`);
+  await page.eval(`document.querySelector('.render-device-option[data-value="gpu"]').closest('mdui-menu-item').dispatchEvent(new MouseEvent('click',{bubbles:true,composed:true}))`);
 }
 async function createProject(page,fixture) {
   await click(page,'新建工程');
@@ -295,7 +295,9 @@ async function connectPage(port) {
     try{
       const targets=await fetch(`http://127.0.0.1:${port}/json/list`).then(response=>response.json());
       const target=targets.find(value=>value.type==='page'&&/^http:\/\/(127\.0\.0\.1|localhost):/.test(value.url));
-      if(target){const cdp=await Cdp.connect(target.webSocketDebuggerUrl);const page=new Page(cdp,undefined);await page.send('Runtime.enable');await page.send('Page.enable');return {cdp,page};}
+      if(target){const cdp=await Cdp.connect(target.webSocketDebuggerUrl);
+        cdp.ws.addEventListener('close',()=>{for(const pending of cdp.pending.values())pending.reject(new Error('Owned Electron CDP connection closed during acceptance'));cdp.pending.clear();});
+        const page=new Page(cdp,undefined);await page.send('Runtime.enable');await page.send('Page.enable');return {cdp,page};}
     }catch{}
     await pause(100);
   }

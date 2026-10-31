@@ -84,9 +84,10 @@ function validateFrame(s,packet) {
   if(m.width!==s.size.width||m.height!==s.size.height||m.format!=='BGRA_8888'||m.fourcc!=='AR24'||m.origin!=='top-left'||m.alphaMode!=='premultiplied'||m.colorSpace!=='srgb'||m.sync!=='queue-idle-foreign-release'||!['runtime','synthetic-gpu'].includes(m.provider)||m.counters?.cpuPixelReadbacks!==0)throw new Error('Unsupported GPU texture contract');
   if(m.modifier!=='0'||!Number.isSafeInteger(m.allocationSize)||m.allocationSize<1||m.allocationSize*3>64*1024**2||!Array.isArray(m.planes)||m.planes.length!==1||packet.fds.length!==1)throw new Error('Invalid native pixmap descriptor');
   for(const p of m.planes)if(p.fdIndex!==0||![p.stride,p.offset,p.size].every(Number.isSafeInteger)||p.stride<m.width*4||p.offset<0||p.size<p.offset+p.stride*m.height||p.size>m.allocationSize)throw new Error('Invalid native pixmap bounds');
-  const gpuPid=app.getAppMetrics().find(x=>x.type==='GPU')?.pid;
-  if(!s.device){physicalDevice(m);s.device={...m.gpu,pid:gpuPid};}
-  else if(gpuPid!==s.device.pid||['vendorId','deviceId','drmRenderMajor','drmRenderMinor','deviceUUID'].some(k=>m.gpu?.[k]!==s.device[k]))throw new Error('GPU device changed');
+  if(!s.device){physicalDevice(m);s.device={...m.gpu,pid:sTelemetry.device.chromiumGpuPid};}
+  // GPU process loss/replacement is a global child-process-gone fail-stop. The
+  // hot path compares the established device without rescanning process metrics.
+  else if(['vendorId','deviceId','drmRenderMajor','drmRenderMinor','deviceUUID'].some(k=>m.gpu?.[k]!==s.device[k]))throw new Error('GPU device changed');
   s.lastFrame=m.frameSeq;s.slotEpochs.set(m.slotId,BigInt(m.slotEpoch));
   return m;
 }

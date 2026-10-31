@@ -26,6 +26,8 @@ public sealed record WorkerProcessOptions
     public long? ExportMediaFileSizeLimitBytes { get; init; }
     /// <summary>固定公开选择；null保留非渲染Worker兼容，cpu/gpu必须在实际进程内核验。</summary>
     public string? RenderBackend { get; init; }
+    /// <summary>仅 GPU 流 Worker 允许创建同设备预览池。</summary>
+    public bool EnableGpuPreview { get; init; }
 
     public void Validate()
     {
@@ -38,6 +40,8 @@ public sealed record WorkerProcessOptions
             throw new ArgumentOutOfRangeException(nameof(ExportMediaFileSizeLimitBytes));
         if (RenderBackend is not null && !WorkerRenderBackendContract.IsSupported(RenderBackend))
             throw new ArgumentException("Worker渲染后端必须为cpu或gpu。", nameof(RenderBackend));
+        if (EnableGpuPreview && RenderBackend != "gpu")
+            throw new ArgumentException("GPU 预览要求显式 GPU 后端。", nameof(EnableGpuPreview));
     }
 }
 
@@ -84,7 +88,7 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
     private static bool IsPackageResourceKind(string kind) => kind is PackageResourceWorkerContract.CapabilitiesKind
         or PackageResourceWorkerContract.ValidateKind;
     private static bool IsPackageSessionKind(string kind) => kind is PackageRenderWorkerContract.RenderKind
-        or PackageRenderWorkerContract.CloseKind;
+        or PackageRenderWorkerContract.CloseKind or GpuStreamWorkerContract.OpenKind or GpuStreamWorkerContract.CloseKind;
     private Process? _runtimeInputVerifiedProcess;
     private Process? VerifiedPackageProcess(string kind) => IsPackageResourceKind(kind)
         ? _packageResourceVerifiedProcess
@@ -167,6 +171,9 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
                 CreateNoWindow = true,
             };
             RemoveDesktopCredentials(start);
+            start.Environment.Remove("MAKO_BACKEND_GPU_PREVIEW");
+            start.Environment.Remove("MAKO_BACKEND_GPU_PREVIEW_BENCHMARK");
+            if (_options.EnableGpuPreview) start.Environment["MAKO_BACKEND_GPU_PREVIEW"] = "1";
             foreach (string argument in _options.Arguments ?? []) start.ArgumentList.Add(argument);
             if (_options.RenderBackend is { } selectedBackend)
                 start.Environment["MAKO_RENDER_BACKEND"] = WorkerRenderBackendContract.EnvironmentValue(selectedBackend);

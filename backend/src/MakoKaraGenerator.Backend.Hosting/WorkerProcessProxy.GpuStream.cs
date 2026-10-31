@@ -1,0 +1,58 @@
+using System.Globalization;
+using MakoKaraGenerator.Backend.Contracts;
+
+namespace MakoKaraGenerator.Backend.Hosting;
+
+public sealed partial class WorkerProcessProxy
+{
+    /// <summary>在同一固定 Runtime 进程中初始化真实 GPU 池。</summary>
+    public async Task<GpuStreamWorkerOpened> OpenGpuStreamAsync(StaticWorkerSessionHandle session,
+        GpuStreamWorkerOpen input, TimeSpan timeout, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(input);
+        byte[] payload = GpuStreamWorkerContract.Encode(input);
+        WorkerMessage request = new(GpuStreamWorkerContract.OpenKind, Guid.NewGuid().ToString("N"),
+            WorkerProtocol.ComputeSha256(payload), payload, sessionId: session.SessionId.ToString("N"),
+            sourceSha256: session.SourceSha256, frameSequence: 1);
+        GpuStreamWorkerOpened? result = null;
+        await InvokeTimedMessageAsync(request, GpuStreamWorkerContract.OpenResultKind, timeout, response =>
+        {
+            if (response.OutputSha256 is null || response.Error is not null || response.ErrorCode is not null || response.Cancelled)
+                throw InvalidGpuStream();
+            result = GpuStreamWorkerContract.Decode<GpuStreamWorkerOpened>(response.Payload);
+            if (result.StreamId != input.StreamId || result.WorkerPid != ProcessId || result.Width != input.Width ||
+                result.Height != input.Height || result.SlotCount != 3 || result.AllocationBytes == 0 ||
+                result.AllocationBytes > input.MaximumAllocationBytes || !CanonicalUInt64(result.ProducerEpoch) ||
+                !CanonicalUInt64(result.PoolGeneration) || result.DeviceUuid is not { Length: 32 } ||
+                !result.DeviceUuid.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f')) throw InvalidGpuStream();
+        }, cancellationToken, requirePackageRuntimeGuards: true).ConfigureAwait(false);
+        return result!;
+    }
+
+    /// <summary>要求 Worker 停止生产并确认所有槽位已排空。</summary>
+    public async Task CloseGpuStreamAsync(StaticWorkerSessionHandle session, GpuStreamWorkerClose input,
+        TimeSpan timeout, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(input);
+        byte[] payload = GpuStreamWorkerContract.Encode(input);
+        WorkerMessage request = new(GpuStreamWorkerContract.CloseKind, Guid.NewGuid().ToString("N"),
+            WorkerProtocol.ComputeSha256(payload), payload, sessionId: session.SessionId.ToString("N"),
+            sourceSha256: session.SourceSha256, frameSequence: 2);
+        await InvokeTimedMessageAsync(request, GpuStreamWorkerContract.CloseResultKind, timeout, response =>
+        {
+            if (response.OutputSha256 is null || response.Error is not null || response.ErrorCode is not null || response.Cancelled)
+                throw InvalidGpuStream();
+            var closed = GpuStreamWorkerContract.Decode<GpuStreamWorkerClosed>(response.Payload);
+            if (!closed.Drained || closed.StreamId != input.StreamId || closed.ProducerEpoch != input.ProducerEpoch)
+                throw InvalidGpuStream();
+        }, cancellationToken, requirePackageRuntimeGuards: true).ConfigureAwait(false);
+    }
+
+    private static bool CanonicalUInt64(string value) => ulong.TryParse(value, NumberStyles.None,
+        CultureInfo.InvariantCulture, out ulong parsed) && parsed != 0 && parsed.ToString(CultureInfo.InvariantCulture) == value;
+
+    private static WorkerProtocolException InvalidGpuStream() =>
+        new("GPU 流 Worker 回执无效。", "WorkerGpuStreamProtocolInvalid");
+}

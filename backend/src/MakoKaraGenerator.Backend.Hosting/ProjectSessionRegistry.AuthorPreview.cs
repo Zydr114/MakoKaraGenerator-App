@@ -60,6 +60,18 @@ public sealed partial class ProjectSessionRegistry
         return result.Accepted ? result.Response! : new(null, result.Error!);
     }
 
+    private Task<BackendOperationResult<T>> RegisterPreparedAuthorInputAsync<T>(string clientId,
+        BackendPreviewPinnedInput input, Func<BackendOperationResult<T>> register) =>
+        WithAuthorPreviewDraftAsync(clientId, input.Source.SourceId, document =>
+        {
+            if (input.CapturedProjectSession is not null || input.PreparedInput is null ||
+                document.DraftRevision != input.Source.SourceRevision ||
+                (document.Configuration ?? DefaultConfiguration(document)).SourceRevision != input.Source.AuthorSourceRevision)
+                return Task.FromResult(AuthorReject<T>(BackendErrorCode.RevisionConflict,
+                    "作者草稿在固定预览输入期间已改变。", "source.sourceRevision"));
+            return Task.FromResult(register());
+        });
+
     private async Task<BackendOperationResult<AuthorPreviewCapture>> CaptureAuthorPreviewCoreAsync(
         AuthorDraftDocument document, PreviewSourceDto source)
     {

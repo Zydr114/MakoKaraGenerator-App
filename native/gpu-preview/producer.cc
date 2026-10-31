@@ -1,4 +1,6 @@
 #include "draw-plugin.h"
+#include "gpu-core.h"
+#include "ipc-core.h"
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -48,13 +50,9 @@ struct UniqueFd {
   UniqueFd(const UniqueFd &) = delete;
   UniqueFd &operator=(const UniqueFd &) = delete;
 };
-struct Slot {
-  VkImage image{};
-  VkDeviceMemory memory{};
+struct Slot : mkg::Image {
   VkImageView view{};
   VkFramebuffer framebuffer{};
-  VkDeviceSize allocation{}, stride{}, offset{}, size{};
-  bool external = false;
   uint64_t epoch = 0;
 };
 struct Gpu {
@@ -113,10 +111,7 @@ struct Gpu {
           vkDestroyFramebuffer(device, s.framebuffer, nullptr);
         if (s.view)
           vkDestroyImageView(device, s.view, nullptr);
-        if (s.image)
-          vkDestroyImage(device, s.image, nullptr);
-        if (s.memory)
-          vkFreeMemory(device, s.memory, nullptr);
+        mkg::DestroyImage(Core(), s);
       }
       if (pass)
         vkDestroyRenderPass(device, pass, nullptr);
@@ -129,6 +124,9 @@ struct Gpu {
       vkDestroyInstance(instance, nullptr);
       instance = VK_NULL_HANDLE;
     }
+  }
+  mkg::Context Core() const {
+    return {instance, physical, device, queue, family};
   }
   void Init(uint32_t w, uint32_t h, uint32_t count) {
     width = w;
@@ -209,55 +207,7 @@ struct Gpu {
         vkGetDeviceProcAddr(device, "vkGetMemoryFdKHR"));
     if (!getFd)
       throw std::runtime_error("vkGetMemoryFdKHR absent");
-    VkDrmFormatModifierPropertiesListEXT ml{
-        VK_STRUCTURE_TYPE_DRM_FORMAT_MODIFIER_PROPERTIES_LIST_EXT};
-    VkFormatProperties2 fp{VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2};
-    fp.pNext = &ml;
-    vkGetPhysicalDeviceFormatProperties2(physical, VK_FORMAT_B8G8R8A8_UNORM,
-                                         &fp);
-    std::vector<VkDrmFormatModifierPropertiesEXT> mods(
-        ml.drmFormatModifierCount);
-    ml.pDrmFormatModifierProperties = mods.data();
-    vkGetPhysicalDeviceFormatProperties2(physical, VK_FORMAT_B8G8R8A8_UNORM,
-                                         &fp);
-    auto linear = std::find_if(mods.begin(), mods.end(), [](auto &m) {
-      return m.drmFormatModifier == 0 && m.drmFormatModifierPlaneCount == 1;
-    });
-    VkFormatFeatureFlags features = VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT |
-                                    VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
-                                    VK_FORMAT_FEATURE_TRANSFER_SRC_BIT |
-                                    VK_FORMAT_FEATURE_TRANSFER_DST_BIT;
-    if (linear == mods.end() ||
-        (linear->drmFormatModifierTilingFeatures & features) != features)
-      throw std::runtime_error("BGRA linear modifier lacks required "
-                               "color/sampled/transfer features");
-    VkPhysicalDeviceImageDrmFormatModifierInfoEXT mi{
-        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_DRM_FORMAT_MODIFIER_INFO_EXT};
-    mi.drmFormatModifier = 0;
-    mi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    VkPhysicalDeviceExternalImageFormatInfo external{
-        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO};
-    external.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
-    external.pNext = &mi;
-    VkPhysicalDeviceImageFormatInfo2 fi{
-        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2};
-    fi.pNext = &external;
-    fi.format = VK_FORMAT_B8G8R8A8_UNORM;
-    fi.type = VK_IMAGE_TYPE_2D;
-    fi.tiling = VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT;
-    fi.usage = usage;
-    VkExternalImageFormatProperties ep{
-        VK_STRUCTURE_TYPE_EXTERNAL_IMAGE_FORMAT_PROPERTIES};
-    VkImageFormatProperties2 ip{VK_STRUCTURE_TYPE_IMAGE_FORMAT_PROPERTIES_2};
-    ip.pNext = &ep;
-    Check(vkGetPhysicalDeviceImageFormatProperties2(physical, &fi, &ip),
-          "BGRA linear external format query");
-    if (!(ep.externalMemoryProperties.externalMemoryFeatures &
-          VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT))
-      throw std::runtime_error("BGRA linear DMA_BUF is not exportable");
-    if (w > ip.imageFormatProperties.maxExtent.width ||
-        h > ip.imageFormatProperties.maxExtent.height)
-      throw std::runtime_error("dimensions exceed format capability");
+    mkg::QueryCapabilities(Core(), width, height, false, nullptr);
     VkCommandPoolCreateInfo pc{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
     pc.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     pc.queueFamilyIndex = family;
@@ -287,77 +237,7 @@ struct Gpu {
       Allocate(s);
   }
   void Allocate(Slot &s) {
-    uint64_t modifier = 0;
-    VkImageDrmFormatModifierListCreateInfoEXT ml{
-        VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_LIST_CREATE_INFO_EXT};
-    ml.drmFormatModifierCount = 1;
-    ml.pDrmFormatModifiers = &modifier;
-    VkExternalMemoryImageCreateInfo external{
-        VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO};
-    external.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
-    external.pNext = &ml;
-    VkImageCreateInfo ic{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
-    ic.pNext = &external;
-    ic.imageType = VK_IMAGE_TYPE_2D;
-    ic.format = VK_FORMAT_B8G8R8A8_UNORM;
-    ic.extent = {width, height, 1};
-    ic.mipLevels = 1;
-    ic.arrayLayers = 1;
-    ic.samples = VK_SAMPLE_COUNT_1_BIT;
-    ic.tiling = VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT;
-    ic.usage = usage;
-    ic.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    ic.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    Check(vkCreateImage(device, &ic, nullptr, &s.image), "exportable image");
-    VkMemoryRequirements req;
-    vkGetImageMemoryRequirements(device, s.image, &req);
-    VkPhysicalDeviceMemoryProperties mp;
-    vkGetPhysicalDeviceMemoryProperties(physical, &mp);
-    uint32_t type = UINT32_MAX;
-    for (uint32_t i = 0; i < mp.memoryTypeCount; i++)
-      if ((req.memoryTypeBits & (1u << i)) &&
-          (mp.memoryTypes[i].propertyFlags &
-           VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)) {
-        type = i;
-        break;
-      }
-    if (type == UINT32_MAX)
-      throw std::runtime_error("No compatible device-local memory");
-    VkMemoryDedicatedAllocateInfo dedicated{
-        VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO};
-    dedicated.image = s.image;
-    VkExportMemoryAllocateInfo exportInfo{
-        VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO};
-    exportInfo.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
-    exportInfo.pNext = &dedicated;
-    VkMemoryAllocateInfo ma{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
-    ma.pNext = &exportInfo;
-    ma.allocationSize = req.size;
-    ma.memoryTypeIndex = type;
-    Check(vkAllocateMemory(device, &ma, nullptr, &s.memory), "export memory");
-    s.allocation = req.size;
-    Check(vkBindImageMemory(device, s.image, s.memory, 0), "bind memory");
-    auto getModifier =
-        reinterpret_cast<PFN_vkGetImageDrmFormatModifierPropertiesEXT>(
-            vkGetDeviceProcAddr(device,
-                                "vkGetImageDrmFormatModifierPropertiesEXT"));
-    if (!getModifier)
-      throw std::runtime_error(
-          "vkGetImageDrmFormatModifierPropertiesEXT absent");
-    VkImageDrmFormatModifierPropertiesEXT actual{
-        VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_PROPERTIES_EXT};
-    Check(getModifier(device, s.image, &actual), "actual modifier");
-    if (actual.drmFormatModifier != 0)
-      throw std::runtime_error("driver did not select linear modifier");
-    VkImageSubresource sr{VK_IMAGE_ASPECT_MEMORY_PLANE_0_BIT_EXT, 0, 0};
-    VkSubresourceLayout layout{};
-    vkGetImageSubresourceLayout(device, s.image, &sr, &layout);
-    s.stride = layout.rowPitch;
-    s.offset = layout.offset;
-    s.size = layout.size;
-    if (s.stride < width * 4ull || s.offset >= s.allocation ||
-        s.stride * (height - 1ull) + width * 4ull > s.allocation - s.offset)
-      throw std::runtime_error("Invalid plane layout/allocation bounds");
+    mkg::AllocateImage(Core(), width, height, mkg::kAbsolutePoolBudget / 3, s);
     VkImageViewCreateInfo iv{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
     iv.image = s.image;
     iv.viewType = VK_IMAGE_VIEW_TYPE_2D;
@@ -398,20 +278,9 @@ struct Gpu {
     VkCommandBufferBeginInfo bi{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
     bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     Check(vkBeginCommandBuffer(cmd, &bi), "begin command");
-    VkImageMemoryBarrier barrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
-    barrier.srcAccessMask = 0;
-    barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-    barrier.oldLayout =
-        s.external ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED;
-    barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    barrier.srcQueueFamilyIndex =
-        s.external ? VK_QUEUE_FAMILY_FOREIGN_EXT : VK_QUEUE_FAMILY_IGNORED;
-    barrier.dstQueueFamilyIndex = s.external ? family : VK_QUEUE_FAMILY_IGNORED;
-    barrier.image = s.image;
-    barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0,
-                         nullptr, 0, nullptr, 1, &barrier);
+    mkg::Acquire(cmd, Core(), s, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                 VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                 VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
     VkClearValue base{};
     base.color = {{0.12f, 0.12f, 0.12f, 1}};
     VkRenderPassBeginInfo begin{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
@@ -454,15 +323,9 @@ struct Gpu {
                : std::array<float, 4>{0, 0, 0, 1});
     }
     vkCmdEndRenderPass(cmd);
-    barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-    barrier.dstAccessMask = 0;
-    barrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-    barrier.srcQueueFamilyIndex = family;
-    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_FOREIGN_EXT;
-    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                         VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0,
-                         nullptr, 1, &barrier);
+    mkg::Release(cmd, Core(), s, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                 VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                 VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
     Check(vkEndCommandBuffer(cmd), "end command");
     VkSubmitInfo submit{VK_STRUCTURE_TYPE_SUBMIT_INFO};
     submit.commandBufferCount = 1;
@@ -473,18 +336,7 @@ struct Gpu {
     s.external = true;
     s.epoch++;
   }
-  int Export(Slot &s) {
-    VkMemoryGetFdInfoKHR info{VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR};
-    info.memory = s.memory;
-    info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
-    int fd = -1;
-    Check(getFd(device, &info, &fd), "export DMA_BUF");
-    if (fcntl(fd, F_SETFD, FD_CLOEXEC) < 0) {
-      close(fd);
-      throw std::runtime_error("export CLOEXEC failed");
-    }
-    return fd;
-  }
+  int Export(Slot &s) { return mkg::ExportFd(Core(), s); }
   std::string Descriptor(Slot &s, uint32_t id, uint64_t seq, uint64_t epoch) {
     std::ostringstream o;
     o << "{\"type\":\"frame\",\"protocolVersion\":1,\"producerPid\":"
@@ -517,22 +369,11 @@ struct Gpu {
   }
 };
 void Send(int socket, const std::string &text, int fd = -1) {
-  iovec io{const_cast<char *>(text.data()), text.size()};
-  msghdr msg{};
-  msg.msg_iov = &io;
-  msg.msg_iovlen = 1;
-  alignas(cmsghdr) char c[CMSG_SPACE(sizeof(int))]{};
-  if (fd >= 0) {
-    msg.msg_control = c;
-    msg.msg_controllen = sizeof(c);
-    auto *h = CMSG_FIRSTHDR(&msg);
-    h->cmsg_level = SOL_SOCKET;
-    h->cmsg_type = SCM_RIGHTS;
-    h->cmsg_len = CMSG_LEN(sizeof(int));
-    std::memcpy(CMSG_DATA(h), &fd, sizeof(fd));
-  }
-  if (sendmsg(socket, &msg, MSG_NOSIGNAL) != static_cast<ssize_t>(text.size()))
-    throw std::runtime_error("sendmsg failed; pool quarantined");
+  int32_t attached = fd;
+  if (mkg::ipc::Send(socket, text.data(), text.size(),
+                     fd < 0 ? nullptr : &attached,
+                     fd < 0 ? 0 : 1) != MKG_GPU_OK)
+    throw std::runtime_error("bounded send would block; pool quarantined");
 }
 // Deliberately narrow flat release grammar: unique keys, integers, no arrays or
 // nested input.
@@ -603,26 +444,10 @@ std::map<std::string, std::string> Ack(int fd, uint32_t timeout) {
   int ready = poll(&p, 1, static_cast<int>(timeout));
   if (ready <= 0 || !(p.revents & POLLIN))
     throw std::runtime_error("consumer timeout/disconnect; no slot reuse");
-  char b[2048];
-  iovec io{b, sizeof(b)};
-  alignas(cmsghdr) char control[CMSG_SPACE(4 * sizeof(int))]{};
-  msghdr msg{};
-  msg.msg_iov = &io;
-  msg.msg_iovlen = 1;
-  msg.msg_control = control;
-  msg.msg_controllen = sizeof(control);
-  ssize_t n = recvmsg(fd, &msg, MSG_CMSG_CLOEXEC);
-  bool attached = false;
-  for (auto *h = CMSG_FIRSTHDR(&msg); h; h = CMSG_NXTHDR(&msg, h))
-    if (h->cmsg_level == SOL_SOCKET && h->cmsg_type == SCM_RIGHTS) {
-      attached = true;
-      auto *f = reinterpret_cast<int *>(CMSG_DATA(h));
-      for (size_t j = 0; j < (h->cmsg_len - CMSG_LEN(0)) / sizeof(int); j++)
-        close(f[j]);
-    }
-  if (n <= 0 || attached || (msg.msg_flags & (MSG_TRUNC | MSG_CTRUNC)))
+  auto packet = mkg::ipc::Receive(fd);
+  if (!packet.available || !packet.fds.empty() || packet.bytes.size() > 2048)
     throw std::runtime_error("invalid release transport; no slot reuse");
-  auto a = ParseRelease(std::string(b, n));
+  auto a = ParseRelease(packet.bytes);
   if (a.size() == 1 && a["type"] == "stop")
     return a;
   if (a.size() != 4 || a["type"] != "release" || !a.contains("frameSeq") ||

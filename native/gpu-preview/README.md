@@ -1,7 +1,7 @@
-# P0 Linux GPU 共享图像探针
+# Linux GPU 共享图像与原生通道
 
-本目录是有界 P0 探针，不是生产预览协议。生产者是独立 Vulkan 进程；N-API addon
-只在 Electron main 使用。它们不改现有 HTTP、预览采样或 500 ms 控制节奏。
+本目录提供生产用、借用同一 Vulkan 设备的共享图像 C ABI，以及独立的有界 P0 探针。
+N-API addon 只在 Electron main 使用。它们不改现有 HTTP、预览采样或 500 ms 控制节奏。
 
 ## 构建
 
@@ -14,6 +14,7 @@
 headers=$(bash native/gpu-preview/bootstrap-headers.sh)
 VULKAN_INCLUDE_DIR="$headers" bash native/gpu-preview/build.sh
 node native/gpu-preview/check-native.mjs
+VULKAN_INCLUDE_DIR="$headers" bash native/gpu-preview/check-api.sh
 ```
 
 引导使用 Khronos Vulkan-Headers `vulkan-sdk-1.4.341.0`，提交
@@ -21,6 +22,67 @@ node native/gpu-preview/check-native.mjs
 `7937d8ec21785736436d9ff52564db7d55992070b5ac98324472cce6e425a7ba`。
 下载代理默认 `127.0.0.1:7897`，可用 `GPU_PREVIEW_PROXY` 覆盖；系统 Vulkan 库仍由
 系统提供，不随探针复制。`build.sh --addon-only` 可独立编译 broker。
+
+默认构建同时输出 `build/libmako_gpu_preview.so`、`build/gpu_preview_broker.node`、
+`build/gpu-preview-producer`。生产库仅导出 `mkg_gpu_*` C 符号，可由 .NET
+`DllImport("mako_gpu_preview")` 加载；无 Skia/Node/V8 链接依赖。
+
+## 生产 C ABI 与同设备输出
+
+固定合同见 `gpu-preview.h`，ABI 版本为 1；所有结构以 `sizeof(struct), version` 开头，
+使用固定宽度整数和 Linux x64 的 64 位 Vulkan handle bits。所有异常都在 C 边界转为
+状态码和有界 error 信息。调用方必须串行化每个 pool 和该 Vulkan queue 的全部
+Skia/native 工作，销毁时不得有并行调用。库不创建线程，不创建第二个 Vulkan device。
+
+`pool_create_borrowed` 借用现有 instance/physical device/device/queue/family。
+调用方保证已实际启用五项 required extension，不能把“支持”伪装成“已启用”；库还会
+真实查询设备、BGRA optimal BLIT_SRC、linear modifier BLIT_DST 及完整 target usage、
+DMA-BUF external format 组合。固定三个槽，尺寸上限 2560×1440，每池预算由调用方
+预留、按真实 allocation size 扣减，硬上限 192 MiB；本库不会扩池或跨设备回退。
+Worker/Hosting 仍须把并存旧池与客户端/全局预算纳入自己的总预算。
+
+调用顺序是：
+
+```text
+try_acquire → Reserved → blit → Ready → export → ExportedAwaitRelease
+                  └ cancel ────┘                   │
+                               exact consumer_released → Free
+```
+
+`try_acquire` 要求 frameSeq 单调递增，分配 slotEpoch 并返回完整 lease。
+`blit` 要求 source 是同设备、BGRA8888 UNORM、optimal tiling、sampleCount=1、
+TRANSFER_SRC usage，已由同一 Skia context flush/submit 到 TRANSFER_SRC_OPTIMAL 和
+同一个 graphics family。source surface/image 必须保活到同步调用返回。native 不修改
+source layout/family，因此 Skia 的实际 mutable state 仍一致。目标 acquire 后只执行
+一次 nearest GPU blit（BottomLeft source 仅翻转 Y），release 为 GENERAL/FOREIGN，
+checked queue idle 后 Ready；不映射或回读像素。颜色空间和预乘 alpha 语义由调用方保持，
+本库不把缺省颜色空间自动声明为 sRGB。
+
+`export` 在暴露新 FD 前原子进入 ExportedAwaitRelease，防止消费者快速归还与
+“标记已发布”之间产生竞态。调用方成功后唯一拥有这个 FD，sendmsg 完成后关闭它。
+同一 lease 只能 export 一次；send WouldBlock 时可有界保留同一个 FD 重试，未知交付
+必须 quarantine。Reserved/Ready 可显式 cancel；导出后 cancel 被拒绝。
+只有已验证的真正消费者最终完成，才能调用 `consumer_released`，匹配所有 epoch、
+frameSeq 和 slotId；陈旧/重复释放没有回收效果。quarantine 禁止新 acquire/blit/export，
+仍允许确认已有 lease 的真实完成以排空。
+
+`destroy_drained` 要求所有槽 Free，checked 自身 queue idle 成功后只销毁本地池资源，
+不销毁任何 borrowed context handle。未排空或 wait 失败会保留 pool。
+`abandon_local` 是独立异常出口：checked 自身 queue wait 后只释放本地对象，
+`out_was_drained=0` 明确表示 outstanding lease 未证明排空。device-lost 时允许释放
+本地对象，返回 OK 但 `error.vk_result=VK_ERROR_DEVICE_LOST`、drained=0；其他 wait
+错误保留 pool，绝不报告正常 drain。导出 payload 的独立 FD 引用寿命见后文官方规则。
+
+`channel_listen/accept/send/receive_control/close` 与 pool 状态完全独立，使用同一
+`ipc-core` 的有界 SCM_RIGHTS 实现。监听路径父目录必须属于调用者且无 group/other
+权限，接受相同 UID 并返回 peer PID；Worker 必须再校验 expected main PID 与握手。
+所有调用非阻塞，最多 16 KiB/4 FD。receive_control 不接受任何 FD，恶意附属句柄会被
+关闭并拒绝；它不解析 JSON 或授权 lease。正常 channel close 会关闭其 FD，并仅在路径
+仍为自己创建的 socket inode 时 unlink，不删除被替换的路径。
+
+P0 和生产共享 `gpu-core` 的外存能力查询、分配、export 与 acquire/release barrier，
+以及 `ipc-core` 的 sendmsg/recvmsg；P3 synthetic provider 应继续使用生产 Skia source→
+同一 pool blit→同一通道，不以 P0 另一个程序代替生产吞吐证据。
 
 ## 程序入口和实际图像
 
@@ -132,3 +194,11 @@ GENERAL/FOREIGN acquire/release，报告本帧 GPU copy 数（0 或 1），返�
 延迟旧身份拒绝、超时不复用、恶意 JSON/null/array、消息截断和 FD 附件截断无泄漏。
 Electron 显示、校色、共享设备、消费者 GPU 完成及异常情景的证据在独立 P0 运行中记录；
 本目录测试不声明呈现率、性能或端到端零 GPU copy。
+
+`check-api.sh` 对生产 `.so` 做真实 GPU 有限检查：借用 P0 fixture 已有的设备，
+用独立 optimal source GPU clear，三槽有界保留、五次 blit、原子导出、重复/旧 lease
+拒绝、未排空 destroy 保留、Ready cancel、quarantine 禁止复用和 local abandon 标志。
+还通过生产 channel 传递真实 DMA-BUF，验证控制 FD 拒绝并关闭、消息上限与 peer PID。
+池销毁后在原 source 再次 GPU clear，确认 borrowed queue/device/source 仍可用。
+此检查没有像素 mapping/readback，也没有实际 importing GPU consumer，native-only
+release 仅在本测试关闭全部独立 FD 且从未导入后执行；不替代 Electron 完成信号验证。

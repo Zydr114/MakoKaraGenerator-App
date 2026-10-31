@@ -1,0 +1,4 @@
+MKG_GPU_1 {
+  global: mkg_gpu_*;
+  local: *;
+};

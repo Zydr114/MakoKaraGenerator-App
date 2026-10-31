@@ -188,19 +188,27 @@ function GpuPreviewPanel(props: Parameters<typeof StaticPreviewPanel>[0]) {
   useEffect(()=>{
     if(!controller)return;
     const audio=props.audio;
-    const update=()=>{
+    let lastImmediate='';
+    const update=(clockCorrection=false)=>{
       if(audio&&audio.state.status!=='ready')return;
       const mediaTimeUs=previewTimeUs(audio);
       const samplePerformanceMs=performance.now();
-      controller.show(props.session.latestRevision,{mode:audio?.playing?'playing':'paused',mediaTimeUs,rate:audio?.state.rate??1,targetFps,timelineResetId:`${props.session.projectSessionId}:${audio?.timelineReset$.get()??0}`,samplePerformanceMs});
+      const mode=audio?.playing?'playing':'paused';
+      const rate=audio?.state.rate??1;
+      const timelineResetId=`${props.session.projectSessionId}:${audio?.timelineReset$.get()??0}`;
+      const revision=props.session.latestRevision;
+      const signature=`${revision}/${mode}/${rate}/${targetFps}/${timelineResetId}/${mode==='paused'?mediaTimeUs:''}`;
+      if(signature===lastImmediate&&(!clockCorrection||mode==='paused'))return;
+      lastImmediate=signature;
+      controller.show(revision,{mode,mediaTimeUs,rate,targetFps,timelineResetId,samplePerformanceMs});
     };
     update();
     // Audio is the master clock. Full state corrections remain at most 2 Hz;
     // explicit seek/loop, play/pause and rate changes are immediate events.
-    const timer=setInterval(update,PLAYBACK_INTERVAL_MS);
-    const offAudio=audio?.state$.subscribe(update);
-    const offTimeline=audio?.timelineReset$.subscribe(update);
-    const offProject=props.session.state$.subscribe(update);
+    const timer=setInterval(()=>update(true),PLAYBACK_INTERVAL_MS);
+    const offAudio=audio?.state$.subscribe(()=>update());
+    const offTimeline=audio?.timelineReset$.subscribe(()=>update());
+    const offProject=props.session.state$.subscribe(()=>update());
     return()=>{clearInterval(timer);offAudio?.();offTimeline?.();offProject();};
   },[controller,props.audio,props.session,targetFps]);
   const view=useObservable(controller?.state$??GPU_IDLE);

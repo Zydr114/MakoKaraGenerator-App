@@ -6,7 +6,9 @@
 
 一个 stream 属于一个 `hostInstanceId`、一个已认证 `clientId` 和一个固定来源。所有可靠操作复用现有 bearer/client、host instance、receipt、owner 与失效语义；不接受调用方声称的 owner。`streamId` 是标识而不是凭证。创建和替换必须复用 `PreviewBackendService.CaptureAsync` 的来源修订校验、资源准备、profile 握手和 `RetentionLease`，在 writer 之外执行 Worker 启动；发布前通过原有注册门禁复核来源和所有权。失败或 CAS 竞争时释放新引用，旧代仍有效。
 
-桌面入口的目标是 main 持有同一个已注册 client 的访问凭证，preload 只暴露具名操作，main 校验调用窗口、帧与本地来源，并将 bearer 放在 loopback HTTP Authorization header；返回给 renderer 的是状态和不透明 streamId，不含 bearer、resume token、broker 路径、原始 FD 或 Worker 凭证。renderer 不得提供任意 URL、headers 或 clientId 指令。必须先实现并验证主进程接管 client 注册、刷新、恢复和清理，使既有项目操作与 stream 使用同一 owner；不能为 stream 新建 client 后绕过 owner，也不能把现有 renderer 持有的 token 重新传给 main 冒充无凭证方案。非桌面浏览器现有认证和 PNG 路径不变。该接管是桌面接线前置条件，具体迁移不得破坏现有 client 生命周期。
+现有前端 SDK 继续持有原 client 的认证并执行可靠 HTTP 操作，GPU create、replace、resize、close 使用同一 client owner；不向 preload 传递该 token，也不迁移既有注册、刷新或恢复。Electron main 每次启动生成随机 `consumerId`、256 bit `consumerCredential` 和自身 PID，启动自有 Server 时使用私有 `MAKO_DESKTOP_CONSUMER_ID`、`MAKO_DESKTOP_CONSUMER_SECRET`、`MAKO_DESKTOP_MAIN_PID` 环境注入；Server 仅承认此启动绑定且绝不输出 secret。公开 bootstrap 只提供 `consumerId`。未配置此启动身份时不公布 GPU stream 能力，也不注册 claim 端点。
+
+consumer 不是 backend client，不能修改工程或替代 owner。create 显式绑定 `consumerId`，Server 验证它是本次启动身份；main 的窄 `attach(streamId)` 只领取绑定到自身的 stream，不允许传入任意 URL、FD 或后端凭证。main 校验请求窗口及 consumer 关联；未绑定、跨 consumer、已关闭或重放的领取失败。consumer 会话断开由 Server 停流并回收 retention，前端 close 仍走可靠 API。现有 renderer 本就持有的 client token 不因此扩散给 preload。
 
 Worker 由 Server 自有 proxy 启动，控制通道与 broker 由本机进程建立；broker 使用私有目录、权限和同 UID/PID 校验，并由父进程私下提供一次性随机握手值绑定 `streamId`、`hostInstanceId`、`producerEpoch` 和已登记 Electron main 身份。随机值不得进入 URL、renderer、普通日志或公开状态；不能仅凭同 UID 信任对方。必须验证实际对端进程身份和握手，失败即关闭并清理 FD。具体私有传递机制在实现中验证，不以环境变量明文日志或公开 HTTP 响应传递。
 
@@ -16,13 +18,32 @@ Worker 由 Server 自有 proxy 启动，控制通道与 broker 由本机进程�
 
 | 操作 | 请求字段 | 提交语义 |
 | --- | --- | --- |
-| `CreateStream` | `source { kind, sourceId, sourceRevision }`, `width`, `height`, `alphaMode`, `renderBackend: gpu` | 固定输入、能力、内存及 Worker 均成功后注册；失败不公开半成品。 |
-| `ReplaceInput` | `streamId`, `expectedStreamRevision`, `source` | 比较 revision 后原子切换至新 `inputGeneration`；旧输入和池在其 lease 排空后释放。 |
-| `Resize` | `streamId`, `expectedStreamRevision`, `width`, `height` | 使用新 generation；不得覆盖还被消费的旧池。 |
+| `CreateStream` | `source: PreviewSourceDto`, `size: PreviewSizeDto`, `alphaMode`, `api: vulkan`, `consumerId` | 固定输入、能力、内存及 Worker 均成功后注册；失败不公开半成品。 |
+| `ReplaceInput` | `streamId`, `expectedStreamRevision`, `source` | 比较 revision 并固定新输入，排空旧代后切换至新 `inputGeneration`。 |
+| `Resize` | `streamId`, `expectedStreamRevision`, `size` | 排空旧池后建立新 generation；不得覆盖还被消费的旧池。 |
 | `CloseStream` | `streamId`, `expectedStreamRevision` | 幂等有界排空；关闭后拒绝新控制与帧。 |
 | `ReadStreamState` | `streamId` | owner/host 校验后返回权威状态、epochs、最后应用控制和有限计数。 |
 
 新增路由及 DTO 由 Server/Contracts 共同冻结和生成合同，不能声称已发布；原 PNG API、尺寸限制和导出合同不变。重复 request ID 使用现有 receipt 的相同负载幂等、不同负载冲突；revision 不匹配失败，不得先改变旧代。每 client、host 的 stream 数、固定资源、Worker 数和双代过渡内存须有明确硬预算；能力和分配之前检查 dimensions、实际 allocation 与总额，失败清理引用。第一版参数仅在能力响应声明实测支持的值，不能假定 1440p 可用。
+
+确定的 HTTP 草案（现有授权 middleware 和 `RequestMetadataDto` 保持适用）：
+
+```
+POST   /api/v1/gpu-preview-streams
+  { source: PreviewSourceDto, size: PreviewSizeDto, alphaMode, api: "vulkan", consumerId, metadata }
+  -> { streamId, streamRevision, inputGeneration, state }
+PUT    /api/v1/gpu-preview-streams/{streamId}/source
+  { expectedStreamRevision, source: PreviewSourceDto, metadata } -> StreamState
+PUT    /api/v1/gpu-preview-streams/{streamId}/size
+  { expectedStreamRevision, size: PreviewSizeDto, metadata } -> StreamState
+DELETE /api/v1/gpu-preview-streams/{streamId}
+  { expectedStreamRevision, metadata } -> StreamState
+GET    /api/v1/gpu-preview-streams/{streamId} -> StreamState
+```
+
+`PreviewSourceDto` 原样保留 `kind`、`sourceId`、`sourceRevision`、可选 `templateSample` 和 `authorSourceRevision`，实际支持种类以现有 capture 校验为准。`api: vulkan` 是此流的显式原生 API；若内部调用现有 `renderBackend` 选择器，则映射为现有公开合同的 `gpu`，不改写原 API 枚举。`streamRevision`、`inputGeneration`、`producerEpoch`、`poolGeneration` 和 `slotEpoch` 用规范非负十进制字符串；native producerEpoch/poolGeneration 为 uint64。`frameSeq`、`controlSeq` 为非负 JS safe integer，溢出前停止并重建流。main 使用 `POST /internal/gpu-preview-streams/{streamId}/claim`，body 为 `{ consumerId, hostInstanceId }`，以 `X-Mako-Desktop-Secret` 私有 header 认证；Server 恒时比较 secret，并检查 consumerId、host、stream 绑定且每 stream 只领取一次，返回 `{ producerEpoch, workerPid, brokerEndpoint, handshake }` 仅供 main。native channel 校验 `SO_PEERCRED` 等于启动 main PID 和 nonce。异常和拒绝不得记录 secret、header 或 handshake。
+
+v1 初始硬预算：每 client 和每 consumer 最多 1 个 stream、每 host 最多 2 个 stream/Worker；每池恰好 3 槽；最大 dimensions 2560×1440，宽高下限 64，均以 capability 与实际格式能力进一步收紧；每池总实际 allocation 不超过 64 MiB，每 host GPU 池合计不超过 128 MiB。替换和 resize 先停止并 drain 旧代后建立新池，不重叠双代；失败显式进入 failed，不恢复已销毁的旧代。创建前预留预算、按驱动实际分配复核、失败回滚；资源闭包继续受已有输入预算约束。控制每流最多一个执行、一个最新待处理，native packet 最多 16 KiB / 4 FD。目标覆盖 1280×720 24 fps 至 2560×1440 30 fps；`dimensionsSupported` 是实际格式与分配探测结果，`performanceValidated` 必须由生产链路实测证明，未测量时为 false，目标不是承诺。
 
 ## 内部控制合同
 
@@ -33,12 +54,12 @@ Worker 由 Server 自有 proxy 启动，控制通道与 broker 由本机进程�
 ```
 SetPlaybackState { streamId, hostInstanceId, producerEpoch, inputGeneration,
   controlSeq, mode: paused|playing, mediaTimeUs, rate, targetFps,
-  clockSample: { mediaTimeUs, senderMonotonicNs } }
+  timelineResetId, clockSample: { mediaTimeUs, senderMonotonicNs } }
 ControlApplied { streamId, producerEpoch, inputGeneration, controlSeq,
   timelineEpoch, mode, effectiveMediaTimeUs }
 ```
 
-`controlSeq` 严格递增，同序同内容可重放，不同内容拒绝；至多一个执行中和一个最新待处理状态，后者可覆盖。seek/循环不连续提升 `timelineEpoch`，不得跳过 Runtime 必要状态推进。`producerEpoch` 为 Worker 实例随机身份；replacement、resize 增加 `inputGeneration`，进程重启不得继承旧 epoch。单调时钟需握手估计映射及不确定度，不跨进程直接相减；无法建立时钟时只允许暂停定点帧。对外状态区分 accepted、applied、frame-ready 和 consumer-released。
+`controlSeq` 严格递增，同序同内容可重放，不同内容拒绝；至多一个执行中和一个最新待处理状态，后者可覆盖。seek/循环通过改变明确的 `timelineResetId` 提升 `timelineEpoch`，不能根据时间回退推断；普通时钟校正允许轻微回偏而不重置。不得跳过 Runtime 必要状态推进。`producerEpoch` 为 Worker 实例随机身份；replacement、resize 增加 `inputGeneration`，进程重启不得继承旧 epoch。`senderMonotonicNs` 为十进制字符串；单调时钟需握手估计映射及不确定度，不跨进程直接相减；无法建立时钟时只允许暂停定点帧。对外状态区分 accepted、applied、frame-ready 和 consumer-released。
 
 ## 帧与生命周期合同
 

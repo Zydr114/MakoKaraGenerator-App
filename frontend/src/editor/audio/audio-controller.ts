@@ -38,6 +38,8 @@ const UNAVAILABLE_TEXT: Record<string, string> = {
 
 export class AudioController {
   readonly state$ = new ObservableValue<AudioState>({ status: 'loading', durationUs: 0, playing: false, rate: 1 });
+  /** Explicit seek/loop boundary; GPU clocks must not infer it from time going backwards. */
+  readonly timelineReset$ = new ObservableValue(0);
   private readonly audio: HTMLAudioElement;
   private url: string | undefined;
   private disposed = false;
@@ -180,6 +182,7 @@ export class AudioController {
     const duration = this.state.durationUs;
     const clamped = Math.max(0, duration > 0 ? Math.min(us, duration) : us);
     this.audio.currentTime = usToSeconds(clamped);
+    this.timelineReset$.set(this.timelineReset$.get()+1);
   }
 
   setRate(rate: number): void {

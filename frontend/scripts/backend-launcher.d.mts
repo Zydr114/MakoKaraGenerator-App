@@ -33,4 +33,5 @@ export function startBackend(options?: {
   dist?: string;
   origins?: string[];
   log?: (line: string) => void;
+  env?: Record<string,string>;
 }): Promise<RunningBackend>;

@@ -4,6 +4,8 @@
 // 一次“连接”绑定一个 Server 进程（hostInstanceId）。Server 重启后旧身份全部失效：
 // 状态变为 hostRestarted、清空队列并发出 reset，由页面调用 reinitialize() 重新取启动信息并登记。
 
+import type { GpuPreviewCreateInput, GpuPreviewStreamState } from '../protocol';
+
 import {
   DIRECTORY_PAGE_MAX,
   LYRIC_WINDOW_MAX_LIMIT,
@@ -1456,6 +1458,27 @@ export class MakoClient extends Emitter<MakoClientEvents> {
           ...(signal ? { signal } : {}),
         })
       ).data,
+  };
+
+  readonly gpuPreview = {
+    create: async (input: GpuPreviewCreateInput): Promise<GpuPreviewStreamState> => {
+      const receipt = this.requireConn().receipts.create('preview');
+      return (await this.send<GpuPreviewStreamState>({ method:'POST', path:'/api/v1/gpu-preview-streams', json:{...input,metadata:toMetadata(receipt)}, auth:'access', label:'gpuPreview.create' },receipt)).data;
+    },
+    read: async (streamId: string): Promise<GpuPreviewStreamState> =>
+      (await this.send<GpuPreviewStreamState>({ method:'GET',path:`/api/v1/gpu-preview-streams/${enc(streamId)}`,auth:'access',label:'gpuPreview.read' })).data,
+    replaceInput: async (streamId: string, input: { expectedStreamRevision:string;source:PreviewSource }): Promise<GpuPreviewStreamState> => {
+      const receipt=this.requireConn().receipts.create('preview-input');
+      return (await this.send<GpuPreviewStreamState>({ method:'PUT',path:`/api/v1/gpu-preview-streams/${enc(streamId)}/source`,json:{...input,metadata:toMetadata(receipt)},auth:'access',label:'gpuPreview.replaceInput' },receipt)).data;
+    },
+    resize: async (streamId: string, input: { expectedStreamRevision:string;size:PreviewSize }): Promise<GpuPreviewStreamState> => {
+      const receipt=this.requireConn().receipts.create('preview-input');
+      return (await this.send<GpuPreviewStreamState>({ method:'PUT',path:`/api/v1/gpu-preview-streams/${enc(streamId)}/size`,json:{...input,metadata:toMetadata(receipt)},auth:'access',label:'gpuPreview.resize' },receipt)).data;
+    },
+    close: async (streamId: string, expectedStreamRevision:string): Promise<GpuPreviewStreamState> => {
+      const receipt=this.requireConn().receipts.create('preview');
+      return (await this.send<GpuPreviewStreamState>({ method:'DELETE',path:`/api/v1/gpu-preview-streams/${enc(streamId)}`,json:{expectedStreamRevision,metadata:toMetadata(receipt)},auth:'access',label:'gpuPreview.close' },receipt)).data;
+    },
   };
 
   readonly preview = {

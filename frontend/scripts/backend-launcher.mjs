@@ -19,7 +19,7 @@ export const DEFAULT_PROFILE = join(DEV_DIR, 'backend-profile');
 export const DEV_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173'];
 
 /** 本项目固定消费的后端合同版本（docs/backend/contract/contract-manifest.json）。 */
-export const EXPECTED_PRODUCT_VERSION = '0.108.0';
+export const EXPECTED_PRODUCT_VERSION = '0.109.0';
 
 const READY_TIMEOUT_MS = 120_000;
 const STOP_TIMEOUT_MS = 120_000;
@@ -64,7 +64,7 @@ export async function writeBootstrapFile(file, info) {
 /**
  * 启动后端并等待就绪。
  * @param {{ profile?: string, bootstrapFile?: string, dist?: string, origins?: string[],
- *           log?: (line: string) => void }} options
+ *           log?: (line: string) => void, env?: Record<string,string> }} options
  * @returns {Promise<{ info: { baseUrl: string, hostInstanceId: string, bootstrapToken: string },
  *                     ready: object, stop: () => Promise<number|null>, exited: Promise<number|null> }>}
  */
@@ -95,7 +95,7 @@ export async function startBackend(options = {}) {
     cwd: repo,
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: true,
-    env: { ...process.env, PYTHONUNBUFFERED: '1' },
+    env: { ...process.env, ...options.env, PYTHONUNBUFFERED: '1' },
   });
 
   let exitCode = null;

@@ -3,6 +3,7 @@ const { app, BrowserWindow, ipcMain, sharedTexture } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
+const { importAndTransferFrame } = require('../gpu-preview/import-consumer.cjs');
 
 const configPath = process.argv[process.argv.indexOf('--p0-config') + 1];
 const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
@@ -134,56 +135,44 @@ function validate(packet) {
 }
 
 async function consume(packet) {
-  let item;
-  try {
-    const metadata = validate(packet);
-    const imported = sharedTexture.importSharedTexture({
-      textureInfo: {
-        pixelFormat: 'bgra', colorSpace: { primaries: 'bt709', transfer: 'srgb', matrix: 'rgb', range: 'full' },
-        codedSize: { width: metadata.width, height: metadata.height }, timestamp: metadata.frameSeq,
-        handle: { nativePixmap: { planes: metadata.planes.map(p => ({ fd: packet.fds[p.fdIndex], stride: p.stride, offset: p.offset, size: p.size })), modifier: metadata.modifier, supportsZeroCopyWebGpuImport: false } },
-      },
-      allReferencesReleased: () => {
-        record('all-references-released', { frameSeq: metadata.frameSeq, slotId: metadata.slotId, slotEpoch: metadata.slotEpoch });
-        imports.delete(metadata.frameSeq);
-        if (finishing || !connection || consumerLost) {
-          if (consumerLost) record('release-ack-suppressed-unknown-completion', { frameSeq:metadata.frameSeq });
-          return;
-        }
-        try {
-          if (gpuLost) throw new Error('GPU completion unknown after GPU process loss');
-          if ((!drawn.has(metadata.frameSeq) && !stopRequested) || released.has(metadata.frameSeq)) throw new Error('Missing canvas draw or duplicate final release');
-          released.add(metadata.frameSeq);
-          broker.send(connection, JSON.stringify({ type: 'release', frameSeq: metadata.frameSeq, slotId: metadata.slotId, slotEpoch: metadata.slotEpoch }));
-          acknowledged++;
-          record('producer-ack', { frameSeq: metadata.frameSeq, acknowledged, fd: fdSnapshot(process.pid) });
-          maybeComplete();
-        } catch (error) { fail(error); }
-      },
-    });
-    item = { imported, metadata, mainReleased: false };
-    imports.set(metadata.frameSeq, item);
-    record('imported', { metadata, outstanding: imports.size, fd: fdSnapshot(process.pid) });
-  } finally {
-    // Electron v45.2.1 duplicates each plane during the synchronous import.
-    // The received SCM_RIGHTS descriptors belong to the broker until closed here.
-    for (const fd of packet.fds) broker.closeFd(fd);
-  }
-  if (config.scenario === 'no-consumer') requestStop('no consumer attached');
-  try {
-    if (stopRequested) record('drained-without-transfer', { frameSeq:item.metadata.frameSeq });
-    else {
-      await sharedTexture.sendSharedTexture({ frame: window.webContents.mainFrame, importedSharedTexture: item.imported }, item.metadata);
-      record('transferred', { frameSeq: item.metadata.frameSeq });
-    }
-  } catch (error) {
-    if (stopRequested && config.scenario === 'renderer-crash') record('transfer-cancelled-by-renderer-exit', { frameSeq:item.metadata.frameSeq, error:String(error.message || error) });
-    else throw error;
-  } finally {
-    item.mainReleased = true;
-    item.imported.release();
-    record('main-release', { frameSeq: item.metadata.frameSeq });
-  }
+  return importAndTransferFrame({
+    packet, broker, sharedTexture, validate,
+    timestamp: metadata => metadata.frameSeq,
+    targetFrame: () => window.webContents.mainFrame,
+    onImported: item => {
+      imports.set(item.metadata.frameSeq,item);
+      record('imported', { metadata:item.metadata, outstanding:imports.size, fd:fdSnapshot(process.pid) });
+    },
+    onAllReferencesReleased: metadata => {
+      record('all-references-released', { frameSeq:metadata.frameSeq, slotId:metadata.slotId, slotEpoch:metadata.slotEpoch });
+      imports.delete(metadata.frameSeq);
+      if (finishing || !connection || consumerLost) {
+        if (consumerLost) record('release-ack-suppressed-unknown-completion', { frameSeq:metadata.frameSeq });
+        return;
+      }
+      try {
+        if (gpuLost) throw new Error('GPU completion unknown after GPU process loss');
+        if ((!drawn.has(metadata.frameSeq) && !stopRequested) || released.has(metadata.frameSeq)) throw new Error('Missing canvas draw or duplicate final release');
+        released.add(metadata.frameSeq);
+        broker.send(connection,JSON.stringify({ type:'release', frameSeq:metadata.frameSeq, slotId:metadata.slotId, slotEpoch:metadata.slotEpoch }));
+        acknowledged++;
+        record('producer-ack', { frameSeq:metadata.frameSeq, acknowledged, fd:fdSnapshot(process.pid) });
+        maybeComplete();
+      } catch (error) { fail(error); }
+    },
+    shouldTransfer: () => {
+      if (config.scenario === 'no-consumer') requestStop('no consumer attached');
+      return !stopRequested;
+    },
+    onTransferred: metadata => record('transferred',{frameSeq:metadata.frameSeq}),
+    onDrained: metadata => record('drained-without-transfer',{frameSeq:metadata.frameSeq}),
+    onTransferError: (error,metadata) => {
+      if (!(stopRequested && config.scenario === 'renderer-crash')) return false;
+      record('transfer-cancelled-by-renderer-exit',{frameSeq:metadata.frameSeq,error:String(error.message || error)});
+      return true;
+    },
+    onMainReleased: metadata => record('main-release',{frameSeq:metadata.frameSeq}),
+  });
 }
 
 async function startProducer() {
@@ -230,13 +219,13 @@ async function startProducer() {
   }, 4);
 }
 
-ipcMain.handle('p0:config', event => {
+ipcMain.handle('mako-gpu:config', event => {
   if (event.sender !== window.webContents) throw new Error('Unexpected renderer');
   return { mode: config.mode, scenario: config.scenario, width: config.width, height: config.height, slowMs: config.slowMs };
 });
-ipcMain.on('p0:error', (event, error) => { if (event.sender === window.webContents) fail(new Error(error)); });
-ipcMain.on('p0:renderer-release', (event, data) => { if (event.sender === window.webContents) record('renderer-release-requested', data); });
-ipcMain.on('p0:drawn', async (event, data) => {
+ipcMain.on('mako-gpu:error', (event, error) => { if (event.sender === window.webContents) fail(new Error(error)); });
+ipcMain.on('mako-gpu:renderer-release', (event, data) => { if (event.sender === window.webContents) record('renderer-release-requested', data); });
+ipcMain.on('mako-gpu:drawn', async (event, data) => {
   if (event.sender !== window.webContents) return;
   if (!imports.has(data.frameSeq) || drawn.has(data.frameSeq) || data.timestamp !== data.frameSeq || data.width !== config.width || data.height !== config.height) return fail(new Error('Invalid canvas frame identity'));
   drawn.add(data.frameSeq);
@@ -251,7 +240,7 @@ ipcMain.on('p0:drawn', async (event, data) => {
   if (scenarioTriggered || data.frameSeq !== 1 || finishing) return;
   scenarioTriggered = true;
   if (config.scenario === 'hidden') window.hide();
-  if (config.scenario === 'detach') { requestStop('active detach'); window.webContents.send('p0:detach'); }
+  if (config.scenario === 'detach') { requestStop('active detach'); window.webContents.send('mako-gpu:detach'); }
   if (config.scenario === 'close') window.close();
   if (config.scenario === 'renderer-crash') {
     requestStop('renderer crash');
@@ -267,7 +256,7 @@ ipcMain.on('p0:drawn', async (event, data) => {
     else { requestStop('GPU crash'); gpuLost = true; consumerLost = true; process.kill(gpu.pid, 'SIGKILL'); }
   }
 });
-ipcMain.once('p0:ready', async (event, data) => {
+ipcMain.once('mako-gpu:ready', async (event, data) => {
   if (event.sender !== window.webContents) return;
   record('renderer-ready', data);
   if (!data.sandboxed || !data.contextIsolated) return fail(new Error('Sandbox/context isolation required'));
@@ -285,7 +274,7 @@ ipcMain.once('p0:ready', async (event, data) => {
 
 app.whenReady().then(async () => {
   report.fdBaseline = fdSnapshot(process.pid);
-  window = new BrowserWindow({ width: Math.min(config.width, 1360), height: Math.min(config.height + 60, 850), show: true, backgroundColor: '#20232a', webPreferences: { preload: path.join(__dirname, 'preload.cjs'), sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false } });
+  window = new BrowserWindow({ width: Math.min(config.width, 1360), height: Math.min(config.height + 60, 850), show: true, backgroundColor: '#20232a', webPreferences: { preload: path.join(__dirname, '../gpu-preview/preload.cjs'), sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false } });
   window.on('close', event => { if (!finishing && connection) { event.preventDefault(); requestStop('visible window close'); } });
   window.webContents.on('render-process-gone', (_, details) => {
     record('renderer-gone', details);

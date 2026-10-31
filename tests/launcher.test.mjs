@@ -11,7 +11,7 @@ const distRoot = join(root, '.local/backend-dist');
 await mkdir(distRoot, { recursive: true });
 const dist = await mkdtemp(join(distRoot, 'launcher-test-'));
 const privateDir = await mkdtemp(join(tmpdir(), 'mako-launcher-test-'));
-await writeFile(join(dist, 'deployment.json'), JSON.stringify({ version: '0.108.0' }));
+await writeFile(join(dist, 'deployment.json'), JSON.stringify({ version: '0.109.0' }));
 let credentialFile;
 let ownedChild;
 let blockParent;
@@ -20,7 +20,7 @@ mock.module('node:child_process', { exports: {
   spawn() {
     if (spawnMissing) return actualSpawn('mako-nonexistent-test-executable', [], { stdio: ['ignore', 'pipe', 'pipe'] });
     if (blockParent) writeFileSync(blockParent, 'not a directory');
-    const payload = JSON.stringify({ credentialFile, addresses: ['http://127.0.0.1:12345'], hostInstanceId: 'fixture', version: '0.108.0', pid: 123, runDirectory: privateDir });
+    const payload = JSON.stringify({ credentialFile, addresses: ['http://127.0.0.1:12345'], hostInstanceId: 'fixture', version: '0.109.0', pid: 123, runDirectory: privateDir });
     ownedChild = actualSpawn(process.execPath, ['-e', `console.log('WEB_BACKEND_READY ' + ${JSON.stringify(payload)}); setInterval(() => {}, 1000);`], { stdio: ['ignore', 'pipe', 'pipe'] });
     return ownedChild;
   },

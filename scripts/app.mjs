@@ -2,19 +2,25 @@
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { createReadStream, existsSync } from 'node:fs';
-import { mkdir, realpath, stat, writeFile } from 'node:fs/promises';
+import { mkdir, realpath, stat, rm } from 'node:fs/promises';
 import { dirname, extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import { startBackend } from '../frontend/scripts/backend-launcher.mjs';
+import { startBackend, resolveDist, writeBootstrapFile } from '../frontend/scripts/backend-launcher.mjs';
+import { randomBytes } from 'node:crypto';
+import { buildDesktopNative, augmentDesktopDeployment, verifyDesktopDeployment } from './desktop-build.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const LOCAL = join(ROOT, '.local');
-const { positionals, values } = parseArgs({ allowPositionals: true, options: { port: { type: 'string', default: '5173' } } });
+const { positionals, values } = parseArgs({ allowPositionals: true, options: { port: { type: 'string', default: '5173' },'cdp-port':{type:'string'},'slow-consumer-ms':{type:'string'} } });
 const command = positionals[0];
 const port = Number(values.port);
-if (!['build', 'start', 'dev'].includes(command) || positionals.length !== 1 || !Number.isInteger(port) || port < 1024 || port > 65535) {
-  console.error('用法：node scripts/app.mjs <build|start|dev> [--port 5173]');
+const cdpPort=values['cdp-port']===undefined?undefined:Number(values['cdp-port']);
+if(cdpPort!==undefined&&(command!=='desktop'||!Number.isInteger(cdpPort)||cdpPort<1024||cdpPort>65535||cdpPort===port))throw new Error('CDP port must be a separate explicit desktop acceptance port');
+const slowConsumerMs=values['slow-consumer-ms']===undefined?undefined:Number(values['slow-consumer-ms']);
+if(slowConsumerMs!==undefined&&(!cdpPort||!Number.isInteger(slowConsumerMs)||slowConsumerMs<1||slowConsumerMs>1000))throw new Error('Slow consumer requires an explicit desktop acceptance session');
+if (!['build', 'build:desktop', 'desktop', 'start', 'dev'].includes(command) || positionals.length !== 1 || !Number.isInteger(port) || port < 1024 || port > 65535) {
+  console.error('用法：node scripts/app.mjs <build|build:desktop|desktop|start|dev> [--port 5173]');
   process.exit(1);
 }
 await mkdir(LOCAL, { recursive: true, mode: 0o700 });
@@ -39,25 +45,37 @@ function run(executable, args, cwd) {
   });
 }
 
-if (command === 'build') {
+if (command === 'build' || command === 'build:desktop') {
+  const native = command === 'build:desktop' ? await buildDesktopNative(ROOT) : null;
   await run('pnpm', ['build'], join(ROOT, 'frontend'));
   const stamp = new Date().toISOString().replaceAll(/[^0-9TZ]/g, '');
   const dist = join(LOCAL, 'backend-dist', stamp);
   await run('python3', [join(ROOT, 'backend/tools/backend-web-host/host.py'), 'publish', '--dist', dist], join(ROOT, 'backend'));
-  await writeFile(join(LOCAL, 'backend-current.json'), JSON.stringify({ dist }, null, 2) + '\n', { mode: 0o600 });
+  const gpuPreview = native ? await augmentDesktopDeployment(ROOT, dist, native) : undefined;
+  await writeBootstrapFile(join(LOCAL, 'backend-current.json'), { dist, gpuPreview });
   console.log('[app] Web 与匹配 Server＋Worker 构建完成；pnpm start 启动。');
 } else {
-  const bootstrapFile = join(LOCAL, 'run/backend.json');
+  const bootstrapFile = command === 'desktop' ? join(LOCAL,'run',`desktop-backend-${process.pid}.json`) : join(LOCAL, 'run/backend.json');
   const origins = [`http://127.0.0.1:${port}`, `http://localhost:${port}`];
   const distRoot = join(ROOT, 'frontend/dist');
-  if (command === 'start' && !existsSync(join(distRoot, 'index.html'))) throw new Error('缺少 Web 构建；请先运行 pnpm build。');
+  if (command !== 'dev' && !existsSync(join(distRoot, 'index.html'))) throw new Error('缺少 Web 构建；请先运行 pnpm build。');
   let backend;
   let startup;
   let web;
   let stopping = false;
+  let desktopChild;
+  let desktopExited;
+  let desktopConfigFile;
   async function shutdown(code = 0) {
     if (stopping) return;
     stopping = true;
+    if (desktopChild?.pid && desktopChild.exitCode === null && desktopChild.signalCode === null) {
+      await new Promise(done => {
+        const force = setTimeout(() => { if (desktopChild.exitCode === null && desktopChild.signalCode === null) desktopChild.kill('SIGKILL'); }, 15000);
+        desktopExited.then(() => { clearTimeout(force); done(); });
+        desktopChild.kill('SIGTERM');
+      });
+    }
     if (web) await new Promise((done) => {
       const result = web.close(done);
       if (result?.then) result.then(done, done);
@@ -65,12 +83,32 @@ if (command === 'build') {
     });
     if (startup) backend = await startup.catch(() => null);
     if (backend) await backend.stop();
+    if (desktopConfigFile) await rm(desktopConfigFile, { force:true });
     console.log('[app] 自有 Web 与后端进程已停止。');
     process.exit(code);
   }
   for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(signal, () => void shutdown());
   try {
-    startup = startBackend({ profile: join(LOCAL, 'profile'), bootstrapFile, origins });
+    let desktopSession;
+    if (command === 'desktop') {
+      const desktopDist=resolveDist().dist;
+      const desktopManifest=await verifyDesktopDeployment(ROOT, desktopDist);
+      const { default:electron } = await import('../desktop/node_modules/electron/index.js');
+      desktopConfigFile = join(LOCAL, 'run', `desktop-${process.pid}.json`);
+      desktopSession = { consumerId:randomBytes(16).toString('hex'), consumerSecret:randomBytes(32).toString('hex'), pageUrl:origins[0], root:ROOT,
+        brokerAddon:join(desktopDist,'desktop/gpu_preview_broker.node'),brokerAddonSha256:desktopManifest.files['desktop/gpu_preview_broker.node'],slowConsumerMs };
+      await writeBootstrapFile(desktopConfigFile, { ...desktopSession, ready:false });
+      desktopChild = spawn(electron, [...(cdpPort?[`--remote-debugging-port=${cdpPort}`,'--remote-debugging-address=127.0.0.1']:[]),join(ROOT,'desktop/main.cjs'),'--launch-config',desktopConfigFile], { cwd:ROOT, env:{...process.env,ELECTRON_RUN_AS_NODE:undefined}, stdio:['ignore','pipe','pipe'] });
+      desktopExited = new Promise(done => { desktopChild.once('exit',done); desktopChild.once('error',done); });
+      desktopChild.stdout.on('data', data => process.stdout.write(data));
+      desktopChild.stderr.on('data', data => process.stderr.write(data));
+      desktopChild.on('error', () => { if (!stopping) void shutdown(1); });
+      desktopChild.once('exit', code => { if (!stopping) void shutdown(code || 0); });
+      if (!desktopChild.pid) throw new Error('Electron did not start');
+    }
+    startup = startBackend({ profile: join(LOCAL, command === 'desktop' ? 'desktop-profile' : 'profile'), bootstrapFile, origins,
+      ...(desktopSession ? { env:{ MAKO_DESKTOP_CONSUMER_ID:desktopSession.consumerId, MAKO_DESKTOP_CONSUMER_SECRET:desktopSession.consumerSecret, MAKO_DESKTOP_MAIN_PID:String(desktopChild.pid) } } : {}),
+    });
     backend = await startup;
     if (stopping) await new Promise(() => {});
     backend.exited.then((code) => { if (!stopping) void shutdown(code || 1); });
@@ -113,7 +151,8 @@ if (command === 'build') {
       })().catch(() => { if (!res.headersSent) res.writeHead(500); res.end(); }); });
       await new Promise((done, reject) => { web.once('error', reject); web.listen(port, '127.0.0.1', done); });
     }
-    console.log(`[app] ${command === 'dev' ? '开发' : '构建'}页面：http://127.0.0.1:${port}（Ctrl+C 停止）`);
+    if (desktopSession) await writeBootstrapFile(desktopConfigFile, { ...desktopSession, ready:true, baseUrl:backend.info.baseUrl, hostInstanceId:backend.info.hostInstanceId, mainPid:desktopChild.pid });
+    console.log(`[app] ${command === 'dev' ? '开发' : command === 'desktop' ? '桌面' : '构建'}页面：http://127.0.0.1:${port}（Ctrl+C 停止）`);
   } catch (error) {
     console.error(`[app] ${error.message}`);
     await shutdown(1);

@@ -8,6 +8,7 @@ import { formatTime } from '../model/time';
 import type { EditorSession } from '../session/editor-session';
 import { useObservable } from '../ui/hooks';
 import { fitPreviewSize, PreviewController, type PreviewViewState } from './preview-controller';
+import { GpuPreviewController, type GpuPreviewViewState } from './gpu-preview-controller';
 
 /** 预览用的时刻：播放头，留在音频末尾之前 1 毫秒；没有音频时是 0。 */
 export function previewTimeUs(audio: AudioController | null): number {
@@ -40,7 +41,15 @@ export interface PreviewReplacement {
  * 渲染设备偏好变了就给已开的会话换设备（渲染设备设计 §2.3）。
  * overlay 画在画面上面（编排页的叠加层，W4 设计 §13.6），拿到正在显示的帧；replacement 换掉成片帧。
  */
-export function PreviewPanel(props: {
+export function PreviewPanel(props: Parameters<typeof StaticPreviewPanel>[0]) {
+  const device=useObservable(renderDevice.state$);
+  useObservable(props.session.state$);
+  const choice=resolveChoice(device.preference,device.backends);
+  return window.makoDesktopPreview && choice.target==='gpu'
+    ? <GpuPreviewPanel {...props} /> : <StaticPreviewPanel {...props} />;
+}
+
+function StaticPreviewPanel(props: {
   session: EditorSession;
   audio: AudioController | null;
   warning?: string | undefined;
@@ -149,6 +158,68 @@ export function PreviewPanel(props: {
 }
 
 const IDLE = new ObservableValue<PreviewViewState>({ status: 'idle' });
+const GPU_IDLE = new ObservableValue<GpuPreviewViewState>({ status:'idle' });
+
+function GpuPreviewPanel(props: Parameters<typeof StaticPreviewPanel>[0]) {
+  const state=useObservable(props.session.state$);
+  const available=props.session.supports('preview.gpu-streams');
+  const [quality,setQuality]=useState<'720p24'|'1440p30'>('720p24');
+  const targetFps=quality==='1440p30'?30:24;
+  const size=useMemo(()=>{
+    const max=quality==='1440p30'?{width:2560,height:1440}:{width:1280,height:720};
+    const width=state.settings?.canvasWidth??1920,height=state.settings?.canvasHeight??1080;
+    const scale=Math.min(max.width/width,max.height/height);
+    return {width:Math.max(64,Math.floor(width*scale/2)*2),height:Math.max(64,Math.floor(height*scale/2)*2)};
+  },[state.settings?.canvasWidth,state.settings?.canvasHeight,quality]);
+  const [controller,setController]=useState<GpuPreviewController|null>(null);
+  const [visible,setVisible]=useState(!document.hidden);
+  useEffect(()=>{
+    const changed=()=>setVisible(!document.hidden);
+    document.addEventListener('visibilitychange',changed);
+    return()=>document.removeEventListener('visibilitychange',changed);
+  },[]);
+  useEffect(()=>{
+    if(!available)return;
+    const next=new GpuPreviewController(client,props.session.projectSessionId,size,window.makoDesktopPreview!);
+    setController(next);
+    return()=>next.dispose();
+  },[available,props.session,size]);
+  useEffect(()=>{controller?.setEnabled(visible&&!props.replacement);},[controller,visible,props.replacement]);
+  useEffect(()=>{
+    if(!controller)return;
+    const audio=props.audio;
+    const update=()=>{
+      if(audio&&audio.state.status!=='ready')return;
+      const mediaTimeUs=previewTimeUs(audio);
+      const samplePerformanceMs=performance.now();
+      controller.show(props.session.latestRevision,{mode:audio?.playing?'playing':'paused',mediaTimeUs,rate:audio?.state.rate??1,targetFps,timelineResetId:`${props.session.projectSessionId}:${audio?.timelineReset$.get()??0}`,samplePerformanceMs});
+    };
+    update();
+    // Audio is the master clock. Full state corrections remain at most 2 Hz;
+    // explicit seek/loop, play/pause and rate changes are immediate events.
+    const timer=setInterval(update,PLAYBACK_INTERVAL_MS);
+    const offAudio=audio?.state$.subscribe(update);
+    const offTimeline=audio?.timelineReset$.subscribe(update);
+    const offProject=props.session.state$.subscribe(update);
+    return()=>{clearInterval(timer);offAudio?.();offTimeline?.();offProject();};
+  },[controller,props.audio,props.session,targetFps]);
+  const view=useObservable(controller?.state$??GPU_IDLE);
+  const shown=view.frameRevision!==undefined&&view.frameTimeUs!==undefined?{revision:view.frameRevision,timeUs:view.frameTimeUs}:undefined;
+  const replacement=props.replacement;
+  if(replacement)return <div className="preview-panel"><div className="preview-title"><span className="pane-title-text">{replacement.title}</span></div><div className="preview-frame" style={{aspectRatio:`${size.width} / ${size.height}`}}>{replacement.imageUrl?<img src={replacement.imageUrl} alt={replacement.title}/>:<span className="preview-overlay">{replacement.placeholder}</span>}{props.overlay?.(undefined)}</div><p className="hint">{replacement.hint}</p></div>;
+  return <div className="preview-panel">
+    <div className="preview-title"><span className="pane-title-text">{shown?`成片 · GPU · 修订 ${shown.revision} · ${formatTime(shown.timeUs)}`:'成片 · GPU'}</span><select aria-label="GPU 预览规格" value={quality} onChange={event=>setQuality(event.target.value as typeof quality)}><option value="720p24">720p · 24 fps</option><option value="1440p30">1440p · 30 fps</option></select><span className="muted">{view.status==='rendering'?'准备中':''}</span></div>
+    <div className="preview-frame" style={{aspectRatio:`${size.width} / ${size.height}`}}>
+      <canvas id="mako-gpu-preview" width={size.width} height={size.height} style={{width:'100%',height:'100%',objectFit:'contain'}} aria-label="GPU 成片预览"/>
+      {!available&&<span className="preview-overlay notice-error">当前后端没有开放桌面 GPU 连续预览。</span>}
+      {available&&!shown&&view.status!=='error'&&<span className="preview-overlay">正在准备 GPU 预览……</span>}
+      {view.status==='error'&&<span className="preview-overlay notice-error">{view.error}<RetryButton onRetry={()=>controller?.retry()}/></span>}
+      {props.overlay?.(shown)}
+    </div>
+    <p className="hint">{`GPU 连续预览 · 预览 ${size.width}×${size.height} · 音频主时钟。`}{props.warning&&<span className="notice-warning"> {props.warning}</span>}</p>
+    {!!view.diagnostics?.total&&<div className={view.diagnostics.errorCount?'notice-error':'notice-warning'} role="status">{`渲染诊断：${view.diagnostics.warningCount} 个警告，${view.diagnostics.errorCount} 个错误。`}{view.diagnostics.items.map((item,index)=><p key={index}>{item.code}：{item.message}</p>)}{view.diagnostics.truncated&&<p>其余诊断已省略。</p>}</div>}
+  </div>;
+}
 
 /** 设备错误后预览停住，点这里再试一次（渲染设备设计 §2.3）。 */
 function RetryButton(props: { onRetry: () => void }) {

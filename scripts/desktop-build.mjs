@@ -26,7 +26,7 @@ async function nativeSources(root) {
 }
 async function symbols(file,names) {
   const {stdout}=await execute('nm',['-D','--defined-only',file],{maxBuffer:8*1024*1024});
-  const exported=new Set(stdout.split('\n').map(line=>line.trim().split(/\s+/).at(-1)));
+  const exported=new Set(stdout.split('\n').map(line=>line.trim().split(/\s+/).at(-1)?.split('@')[0]));
   for(const name of names) if(!exported.has(name)) throw new Error(`Required native ABI symbol missing: ${name}`);
 }
 export async function buildDesktopNative(root) {

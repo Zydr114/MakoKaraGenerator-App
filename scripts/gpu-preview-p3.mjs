@@ -329,7 +329,7 @@ async function run(values) {
   let child,cdp,page;
   const seenSamples=new Map();
   const observedSamples=new Map();
-  let sampleRevision=0;
+  let sampleRevision=0,lastWorkerPublicRead=0,workerPublicState,workerPublicReadMonotonicNs;
   const sample=async()=>{
     const snapshot=await page.eval(`window.makoDesktopPreview.readPreviewState(${sampleRevision}).then(snapshot=>({...snapshot,rendererVisibility:document.visibilityState}))`);
     ns(snapshot.nowMonotonicNs);
@@ -337,11 +337,13 @@ async function run(values) {
     sampleRevision=snapshot.sampleRevision;
     // Persist each complete event once, plus actual late drawn updates; the bridge
     // returns a bounded history so repeated samples must never multiply counts.
-    let workerPublicState;
-    try{workerPublicState=await page.eval(`window.makoGpuPreviewAcceptance?.read()`);}catch{}
+    if(Date.now()-lastWorkerPublicRead>=1000){
+      lastWorkerPublicRead=Date.now();
+      try{workerPublicState=await page.eval(`window.makoGpuPreviewAcceptance?.read()`);workerPublicReadMonotonicNs=snapshot.nowMonotonicNs;}catch{}
+    }
     const changed=[];
     for(const frame of snapshot.samples){const key=leaseKey(frame),serialized=JSON.stringify(frame);observedSamples.set(key,frame);if(seenSamples.get(key)!==serialized){seenSamples.set(key,serialized);changed.push(frame);}}
-    await record({type:'snapshot',snapshot:{...snapshot,...(workerPublicState?{workerPublicState}:{}),samples:changed},processes:await processSnapshot(snapshot)});
+    await record({type:'snapshot',snapshot:{...snapshot,...(workerPublicState?{workerPublicState,workerPublicReadMonotonicNs}:{}),samples:changed},processes:await processSnapshot(snapshot)});
     return {...snapshot,latestSample:[...observedSamples.values()].at(-1)};
   };
   const mainClockBracket=async()=>{

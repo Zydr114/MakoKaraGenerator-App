@@ -841,6 +841,7 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
     {
         Process? process = _process;
         if (process is null) return;
+        bool reaped = false;
         try
         {
             _ownedTree?.ObserveDescendants();
@@ -864,6 +865,7 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
             if (_ownedGroup is not null) await _ownedGroup.KillAndDrainAsync(TimeSpan.FromSeconds(3), CancellationToken.None).ConfigureAwait(false);
             else if (_ownedTree is not null) await _ownedTree.KillAndDrainAsync(TimeSpan.FromSeconds(3), CancellationToken.None).ConfigureAwait(false);
             if (_stderrDrain is not null) await _stderrDrain.ConfigureAwait(false);
+            reaped = true;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -875,18 +877,22 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
             if (_ownedGroup is not null) await _ownedGroup.KillAndDrainAsync(TimeSpan.FromSeconds(3), CancellationToken.None).ConfigureAwait(false);
             else if (_ownedTree is not null) await _ownedTree.KillAndDrainAsync(TimeSpan.FromSeconds(3), CancellationToken.None).ConfigureAwait(false);
             if (_stderrDrain is not null) await _stderrDrain.ConfigureAwait(false);
+            reaped = true;
             throw;
         }
         finally
         {
-            process.Dispose(); _process = null; _input = null; _output = null; _stderrDrain = null;
-            _ownedGroup = null; _actualMediaFileSizeLimit = null;
-            _ownedTree = null;
-            _packageRenderVerifiedProcess = null; _packageValidationVerifiedProcess = null;
-            _imageValidationVerifiedProcess = null; _runtimeValidationVerifiedProcess = null;
-            _packageResourceVerifiedProcess = null; _packageSessionProcess = null;
-            _imagePreviewVerifiedProcess = null; _runtimeInputVerifiedProcess = null; _packageSessionOpenKind = null;
-            VerifiedRenderBackendDevice = null;
+            if (reaped)
+            {
+                process.Dispose(); _process = null; _input = null; _output = null; _stderrDrain = null;
+                _ownedGroup = null; _actualMediaFileSizeLimit = null;
+                _ownedTree = null;
+                _packageRenderVerifiedProcess = null; _packageValidationVerifiedProcess = null;
+                _imageValidationVerifiedProcess = null; _runtimeValidationVerifiedProcess = null;
+                _packageResourceVerifiedProcess = null; _packageSessionProcess = null;
+                _imagePreviewVerifiedProcess = null; _runtimeInputVerifiedProcess = null; _packageSessionOpenKind = null;
+                VerifiedRenderBackendDevice = null;
+            }
         }
 
         async Task KillOwnedAsync()

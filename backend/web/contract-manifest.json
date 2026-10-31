@@ -266,7 +266,7 @@
     "src/MakoKaraGenerator.Backend.Hosting/WorkerProcessProxy.RuntimeInput.cs": "b1db45b952002874a91aeb2a64441daa3adeae746a1327d342ba0f24bbddf297",
     "src/MakoKaraGenerator.Backend.Hosting/WorkerProcessProxy.RuntimeValidation.cs": "b4f20c011cb84486328763bc0812e12498d26288349afcb6ed9c735e4d4c472f",
     "src/MakoKaraGenerator.Backend.Hosting/WorkerProcessProxy.SceneMeasurements.cs": "e7f9e33299239ad22b3e4a4ab0f04faea56ab7cc5bfce826795757813bb73c7b",
-    "src/MakoKaraGenerator.Backend.Hosting/WorkerProcessProxy.cs": "55111278dd0747b2723d9a61c8f4affb93c3ac7c97d143cecc62ce32a52ad60f",
+    "src/MakoKaraGenerator.Backend.Hosting/WorkerProcessProxy.cs": "39f1ae719c603b859246992313da67539087e2d7905a16a5719eba6eba63631d",
     "src/MakoKaraGenerator.Backend.Hosting/WorkerRenderFrameSessionFactory.cs": "392b9c7e853f3aac61b8dac647faeff4120e02e44e458168e99ce5987d39ac99",
     "src/MakoKaraGenerator.Backend.Hosting/WorkerResourceLeaseStore.cs": "9913d094ff921c126974365c23c65b714d32d881128d072acc275239ff3ad8ce",
     "src/MakoKaraGenerator.Backend.Hosting/WorkerTelemetryDrain.cs": "854e785c85bcfb94c1dc59da1900767c9b7ed3216a6d20aa5e7e2eebe1328395",

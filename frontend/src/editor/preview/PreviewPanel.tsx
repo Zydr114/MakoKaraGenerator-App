@@ -180,7 +180,11 @@ function GpuPreviewPanel(props: Parameters<typeof StaticPreviewPanel>[0]) {
   },[]);
   useEffect(()=>{
     if(!available)return;
-    const next=new GpuPreviewController(client,props.session.projectSessionId,size,window.makoDesktopPreview!);
+    const next=new GpuPreviewController(client,props.session.projectSessionId,size,window.makoDesktopPreview!,async(red,green,blue,alpha)=>{
+      const response=await props.session.command({type:'composition.setBackgroundColor',red,green,blue,alpha});
+      if(!response)throw new Error('Background edit rejected');
+      return {sourceRevision:response.projectRevision};
+    });
     setController(next);
     return()=>next.dispose();
   },[available,props.session,size]);

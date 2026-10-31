@@ -1,4 +1,5 @@
 import type { PreviewAlphaMode, PreviewSize, PreviewSource } from './preview';
+import type { Revision } from './int64';
 
 /** Public owner-authenticated state. Native paths, handles and nonces never enter this DTO. */
 export interface GpuPreviewStreamState {
@@ -68,6 +69,10 @@ export interface DesktopPreviewBridge {
 declare global {
   interface Window {
     makoDesktopPreview?: DesktopPreviewBridge;
-    makoGpuPreviewAcceptance?: { resize(width:number,height:number):Promise<GpuPreviewStreamState>;current():GpuPreviewStreamState|undefined };
+    makoGpuPreviewAcceptance?: {
+      resize(width:number,height:number):Promise<GpuPreviewStreamState>;
+      current():GpuPreviewStreamState|undefined;
+      setBackground(red:number,green:number,blue:number,alpha:number):Promise<{sourceRevision:Revision}>;
+    };
   }
 }

@@ -27,10 +27,15 @@ export class GpuPreviewController {
   private attached = false;
   private needsRecreate = false;
   private readonly unsubscribe: () => void;
-  constructor(private readonly client: MakoClient, private readonly projectSessionId: string, private size: PreviewSize, private readonly bridge: DesktopPreviewBridge) {
+  constructor(private readonly client: MakoClient, private readonly projectSessionId: string, private size: PreviewSize, private readonly bridge: DesktopPreviewBridge,
+    private readonly acceptanceEdit?: (red:number,green:number,blue:number,alpha:number)=>Promise<{sourceRevision:Revision}>) {
     acceptanceOwner=this;
     void bridge.acceptanceEnabled().then(enabled=>{
-      if(enabled&&!this.disposed&&acceptanceOwner===this)window.makoGpuPreviewAcceptance={resize:(width,height)=>this.resizeForAcceptance(width,height),current:()=>this.stream};
+      if(enabled&&!this.disposed&&acceptanceOwner===this)window.makoGpuPreviewAcceptance={resize:(width,height)=>this.resizeForAcceptance(width,height),current:()=>this.stream,
+        setBackground:async(red,green,blue,alpha)=>{
+          if(this.disposed||!this.acceptanceEdit||![red,green,blue,alpha].every(value=>Number.isInteger(value)&&value>=0&&value<=255))throw new Error('Invalid acceptance background edit');
+          return this.acceptanceEdit(red,green,blue,alpha);
+        }};
     });
     this.unsubscribe=bridge.onPreviewState(event=>{
       if(this.disposed)return;

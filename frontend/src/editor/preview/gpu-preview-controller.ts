@@ -32,6 +32,7 @@ export class GpuPreviewController {
     acceptanceOwner=this;
     void bridge.acceptanceEnabled().then(enabled=>{
       if(enabled&&!this.disposed&&acceptanceOwner===this)window.makoGpuPreviewAcceptance={resize:(width,height)=>this.resizeForAcceptance(width,height),current:()=>this.stream,
+        read:()=>{if(!this.stream)throw new Error('No active acceptance stream');return this.client.gpuPreview.read(this.stream.streamId);},
         setBackground:async(red,green,blue,alpha)=>{
           if(this.disposed||!this.acceptanceEdit||![red,green,blue,alpha].every(value=>Number.isInteger(value)&&value>=0&&value<=255))throw new Error('Invalid acceptance background edit');
           return this.acceptanceEdit(red,green,blue,alpha);

@@ -72,6 +72,7 @@ declare global {
     makoGpuPreviewAcceptance?: {
       resize(width:number,height:number):Promise<GpuPreviewStreamState>;
       current():GpuPreviewStreamState|undefined;
+      read():Promise<GpuPreviewStreamState>;
       setBackground(red:number,green:number,blue:number,alpha:number):Promise<{sourceRevision:Revision}>;
     };
   }

@@ -35,3 +35,16 @@ pnpm smoke:browser    # start运行时：新建、编辑、撤销、暂停seek�
 浏览器冒烟使用本机已有 Chromium（可设 `CHROME_PATH`），独立临时浏览器 profile 与临时音频/歌词，不操作用户已有浏览器。截图与成功结果保存在 `.local/integration/`。本次构建和真实运行记录见 [docs/integration/2026-11-01-web-integration.md](docs/integration/2026-11-01-web-integration.md)。
 
 原预览控制节奏与 API 保持不变。目标原始 RGBA／2560×1440 吞吐矩阵已在门禁停止：当前公开接口返回 PNG，预览尺寸上限 1280×720；更大尺寸真实请求被拒绝。见 [协议门禁报告](docs/performance/preview-protocol-gate.md)。正常 PNG 预览、单元回归和构建成功不代表完成性能验收，也不代表完整 W1～W8 产品验收或跨平台验收。
+
+GPU 共享纹理 P0 入口独立位于 `desktop/` 与 `native/gpu-preview/`，锁定 Electron 45.2.1，不加载编辑器或真实工程。先构建原生工具，再运行有限正确性验证：
+
+```bash
+pnpm setup:p0
+headers=$(bash native/gpu-preview/bootstrap-headers.sh)
+VULKAN_INCLUDE_DIR="$headers" bash native/gpu-preview/build.sh
+pnpm preview:p0 --mode probe
+pnpm preview:p0 --mode correctness --slots 1 --frames 1
+pnpm preview:p0 --mode finite --slots 3 --frames 12
+```
+
+首次 Electron 下载可设置 `HTTPS_PROXY=http://127.0.0.1:7897 HTTP_PROXY=http://127.0.0.1:7897 ELECTRON_GET_USE_PROXY=1`；缓存、每次独立 profile、日志与结果均位于 App `.local/`。入口要求系统允许非特权 sandbox，禁止使用 `--no-sandbox`；缺 Vulkan 头时使用本地固定头文件并设置 `VULKAN_INCLUDE_DIR`，不修改系统安装。`correctness` 允许取样与截图，`finite` 不进行像素回读；这不是持续吞吐矩阵或 GPU 零复制证明。

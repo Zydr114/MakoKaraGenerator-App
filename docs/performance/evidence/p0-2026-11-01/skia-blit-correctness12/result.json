@@ -1,0 +1,4511 @@
+{
+  "config": {
+    "mode": "correctness",
+    "scenario": "normal",
+    "frames": 12,
+    "slots": 3,
+    "width": 1280,
+    "height": 720,
+    "slowMs": 180,
+    "deadlineMs": 30000,
+    "drawPlugin": "/mnt/Data/Program/MakoKaraGenerator-App/.local/skia-p0/libmako-skia-blit.so",
+    "gpuCopiesPerFrame": 1,
+    "root": "/mnt/Data/Program/MakoKaraGenerator-App",
+    "runDir": "/mnt/Data/Program/MakoKaraGenerator-App/.local/gpu-preview-p0/2026-10-31T18-21-54-710Z-444567",
+    "artifactHashes": {
+      "desktop/node_modules/.pnpm/electron@45.2.1/node_modules/electron/dist/electron": "870b5982c855df1405399efa0d51d83e6e048b3308a84cce4040bc3b052ce9f3",
+      "native/gpu-preview/build/gpu-preview-producer": "a94e10382b0589b0c6bc9ddf0ab7b7f403bb46b4d1511418e64768e85a73213c",
+      "native/gpu-preview/build/gpu_preview_broker.node": "353db7307fd489dcb532c73ef39c4a0ea721cf95ae26a804b7faa23977a97d60",
+      ".local/skia-p0/libmako-skia-blit.so": "004e139079e7aa4094cd08f29efe57dbf1cbdae2f4b5e7aa4d6a588ea4594b55",
+      ".local/skia-p0/libSkiaSharp.so": "15cb994d64661fcf997eeb65da3baa76213d4d16cd405cbd260ea7c97af3764a"
+    }
+  },
+  "versions": {
+    "node": "24.22.1",
+    "acorn": "8.18.0",
+    "ada": "4.0.0",
+    "amaro": "1.1.11",
+    "ares": "1.34.9",
+    "brotli": "1.2.0",
+    "cldr": "48.0",
+    "icu": "78.2",
+    "llhttp": "9.4.3",
+    "merve": "1.2.2",
+    "modules": "150",
+    "napi": "10",
+    "nbytes": "0.1.4",
+    "ncrypto": "0.0.1",
+    "nghttp2": "1.70.0",
+    "nghttp3": "",
+    "ngtcp2": "",
+    "openssl": "0.0.0",
+    "simdjson": "4.6.11",
+    "simdutf": "7.7.0",
+    "sqlite": "3.53.4",
+    "tz": "2026e",
+    "undici": "7.30.1",
+    "unicode": "17.0",
+    "uv": "1.52.1",
+    "uvwasi": "0.0.23",
+    "v8": "15.6.75.25-electron.0",
+    "zlib": "1.3.2.1-motley",
+    "zstd": "1.6.0",
+    "electron": "45.2.1",
+    "chrome": "156.0.8078.75"
+  },
+  "mainPid": 444582,
+  "status": "passed",
+  "events": [
+    {
+      "ms": 520.804939,
+      "type": "renderer-ready",
+      "sandboxed": true,
+      "contextIsolated": true,
+      "versions": {
+        "acorn": "8.18.0",
+        "ada": "4.0.0",
+        "amaro": "1.1.11",
+        "ares": "1.34.9",
+        "brotli": "1.2.0",
+        "cldr": "48.0",
+        "icu": "78.2",
+        "llhttp": "9.4.3",
+        "merve": "1.2.2",
+        "modules": "150",
+        "napi": "10",
+        "nbytes": "0.1.4",
+        "ncrypto": "0.0.1",
+        "nghttp2": "1.70.0",
+        "nghttp3": "",
+        "ngtcp2": "",
+        "node": "24.22.1",
+        "openssl": "0.0.0",
+        "simdjson": "4.6.11",
+        "simdutf": "7.7.0",
+        "sqlite": "3.53.4",
+        "tz": "2026e",
+        "undici": "7.30.1",
+        "unicode": "17.0",
+        "uv": "1.52.1",
+        "uvwasi": "0.0.23",
+        "v8": "15.6.75.25-electron.0",
+        "zlib": "1.3.2.1-motley",
+        "zstd": "1.6.0",
+        "electron": "45.2.1",
+        "chrome": "156.0.8078.75"
+      }
+    },
+    {
+      "ms": 1032.148515,
+      "type": "gpu-identity",
+      "gpu": {
+        "auxAttributes": {
+          "amdSwitchable": false,
+          "canSupportThreadedTextureMailbox": false,
+          "glImplementationParts": "(gl=none,angle=none)",
+          "glResetNotificationStrategy": 0,
+          "hardwareSupportsVulkan": false,
+          "inProcessGpu": true,
+          "initializationTime": 0,
+          "isAsan": false,
+          "isClangCoverage": false,
+          "jpegDecodeAcceleratorSupported": false,
+          "optimus": false,
+          "passthroughCmdDecoder": false,
+          "sandboxed": false,
+          "skiaBackendType": "None",
+          "subpixelFontRendering": true,
+          "targetCpuBits": 64,
+          "visibilityCallbackCallCount": 0
+        },
+        "gpuDevice": [
+          {
+            "active": true,
+            "deviceId": 5390,
+            "gpuPreference": 0,
+            "vendorId": 4098
+          }
+        ]
+      },
+      "features": {
+        "2d_canvas": "enabled",
+        "direct_rendering_display_compositor": "disabled_off_ok",
+        "gpu_compositing": "enabled",
+        "multiple_raster_threads": "enabled_on",
+        "opengl": "enabled_on",
+        "rasterization": "enabled",
+        "raw_draw": "disabled_off_ok",
+        "skia_graphite": "disabled_off",
+        "trees_in_viz": "disabled_off",
+        "video_decode": "enabled",
+        "video_encode": "disabled_software",
+        "vulkan": "disabled_off",
+        "webgl": "enabled",
+        "webgpu": "enabled",
+        "webgpu_on_vk_via_gl_interop": "disabled_off",
+        "webnn": "disabled_off"
+      },
+      "processes": [
+        {
+          "pid": 444582,
+          "type": "Browser",
+          "identity": {
+            "startTime": "4092615",
+            "state": "R"
+          },
+          "fd": {
+            "pid": 444582,
+            "count": 110,
+            "drm": [
+              "/dev/dri/renderD128"
+            ],
+            "dmaBuf": 4
+          }
+        },
+        {
+          "pid": 444639,
+          "type": "GPU",
+          "identity": {
+            "startTime": "4092663",
+            "state": "S"
+          },
+          "fd": {
+            "pid": 444639,
+            "count": 60,
+            "drm": [
+              "/dev/dri/renderD128",
+              "/dev/dri/renderD128",
+              "/dev/dri/renderD128",
+              "/dev/dri/renderD128",
+              "/dev/dri/renderD128"
+            ],
+            "dmaBuf": 9
+          }
+        },
+        {
+          "pid": 444642,
+          "type": "Utility",
+          "identity": {
+            "startTime": "4092664",
+            "state": "S"
+          },
+          "fd": {
+            "pid": 444642,
+            "count": 26,
+            "drm": [],
+            "dmaBuf": 0
+          }
+        },
+        {
+          "pid": 444650,
+          "type": "Tab",
+          "identity": {
+            "startTime": "4092667",
+            "state": "S"
+          },
+          "fd": {
+            "pid": 444650,
+            "count": 41,
+            "drm": [],
+            "dmaBuf": 0
+          }
+        }
+      ]
+    },
+    {
+      "ms": 1108.783614,
+      "type": "device-match",
+      "vendorId": 4098,
+      "deviceId": 5390,
+      "renderMajor": 226,
+      "renderMinor": 128,
+      "chromiumGpuPid": 444639
+    },
+    {
+      "ms": 1112.258974,
+      "type": "imported",
+      "metadata": {
+        "type": "frame",
+        "protocolVersion": 1,
+        "producerPid": 444711,
+        "producerEpoch": "40927515688022",
+        "poolGeneration": 1,
+        "slotId": 0,
+        "slotEpoch": 1,
+        "frameSeq": 1,
+        "width": 1280,
+        "height": 720,
+        "format": "BGRA_8888",
+        "fourcc": "AR24",
+        "modifier": "0",
+        "planes": [
+          {
+            "fdIndex": 0,
+            "stride": 5120,
+            "offset": 0,
+            "size": 3686400
+          }
+        ],
+        "allocationSize": 3686400,
+        "queriedSubresourceSize": 3686400,
+        "origin": "top-left",
+        "alphaMode": "premultiplied",
+        "colorSpace": "srgb",
+        "sync": "queue-idle-foreign-release",
+        "gpu": {
+          "name": "AMD Radeon 880M Graphics (RADV STRIX1)",
+          "vendorId": 4098,
+          "deviceId": 5390,
+          "drmRenderMajor": 226,
+          "drmRenderMinor": 128,
+          "deviceUUID": "00000000c10000000000000000000000"
+        },
+        "provider": "skia-plugin",
+        "counters": {
+          "gpuBlits": 1,
+          "cpuPixelReadbacks": 0,
+          "queueIdleWaits": 1
+        }
+      },
+      "outstanding": 1,
+      "fd": {
+        "pid": 444582,
+        "count": 115,
+        "drm": [
+          "/dev/dri/renderD128"
+        ],
+        "dmaBuf": 5
+      }
+    },
+    {
+      "ms": 1116.86834,
+      "type": "imported",
+      "metadata": {
+        "type": "frame",
+        "protocolVersion": 1,
+        "producerPid": 444711,
+        "producerEpoch": "40927515688022",
+        "poolGeneration": 1,
+        "slotId": 1,
+        "slotEpoch": 1,
+        "frameSeq": 2,
+        "width": 1280,
+        "height": 720,
+        "format": "BGRA_8888",
+        "fourcc": "AR24",
+        "modifier": "0",
+        "planes": [
+          {
+            "fdIndex": 0,
+            "stride": 5120,
+            "offset": 0,
+            "size": 3686400
+          }
+        ],
+        "allocationSize": 3686400,
+        "queriedSubresourceSize": 3686400,
+        "origin": "top-left",
+        "alphaMode": "premultiplied",
+        "colorSpace": "srgb",
+        "sync": "queue-idle-foreign-release",
+        "gpu": {
+          "name": "AMD Radeon 880M Graphics (RADV STRIX1)",
+          "vendorId": 4098,
+          "deviceId": 5390,
+          "drmRenderMajor": 226,
+          "drmRenderMinor": 128,
+          "deviceUUID": "00000000c10000000000000000000000"
+        },
+        "provider": "skia-plugin",
+        "counters": {
+          "gpuBlits": 2,
+          "cpuPixelReadbacks": 0,
+          "queueIdleWaits": 2
+        }
+      },
+      "outstanding": 2,
+      "fd": {
+        "pid": 444582,
+        "count": 115,
+        "drm": [
+          "/dev/dri/renderD128"
+        ],
+        "dmaBuf": 5
+      }
+    },
+    {
+      "ms": 1118.443645,
+      "type": "transferred",
+      "frameSeq": 1
+    },
+    {
+      "ms": 1118.57958,
+      "type": "main-release",
+      "frameSeq": 1
+    },
+    {
+      "ms": 1122.381352,
+      "type": "imported",
+      "metadata": {
+        "type": "frame",
+        "protocolVersion": 1,
+        "producerPid": 444711,
+        "producerEpoch": "40927515688022",
+        "poolGeneration": 1,
+        "slotId": 2,
+        "slotEpoch": 1,
+        "frameSeq": 3,
+        "width": 1280,
+        "height": 720,
+        "format": "BGRA_8888",
+        "fourcc": "AR24",
+        "modifier": "0",
+        "planes": [
+          {
+            "fdIndex": 0,
+            "stride": 5120,
+            "offset": 0,
+            "size": 3686400
+          }
+        ],
+        "allocationSize": 3686400,
+        "queriedSubresourceSize": 3686400,
+        "origin": "top-left",
+        "alphaMode": "premultiplied",
+        "colorSpace": "srgb",
+        "sync": "queue-idle-foreign-release",
+        "gpu": {
+          "name": "AMD Radeon 880M Graphics (RADV STRIX1)",
+          "vendorId": 4098,
+          "deviceId": 5390,
+          "drmRenderMajor": 226,
+          "drmRenderMinor": 128,
+          "deviceUUID": "00000000c10000000000000000000000"
+        },
+        "provider": "skia-plugin",
+        "counters": {
+          "gpuBlits": 3,
+          "cpuPixelReadbacks": 0,
+          "queueIdleWaits": 3
+        }
+      },
+      "outstanding": 3,
+      "fd": {
+        "pid": 444582,
+        "count": 116,
+        "drm": [
+          "/dev/dri/renderD128"
+        ],
+        "dmaBuf": 6
+      }
+    },
+    {
+      "ms": 1181.60509,
+      "type": "drawn",
+      "frameSeq": 1,
+      "timestamp": 1,
+      "width": 1280,
+      "height": 720,
+      "samples": [
+        {
+          "name": "top-left-red",
+          "x": 0.05,
+          "y": 0.15,
+          "expected": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "rgba": [
+            255,
+            0,
+            0,
+            255
+          ]
+        },
+        {
+          "name": "top-right-green",
+          "x": 0.95,
+          "y": 0.15,
+          "expected": [
+            0,
+            255,
+            0,
+            255
+          ],
+          "rgba": [
+            0,
+            255,
+            0,
+            255
+          ]
+        },
+        {
+          "name": "bottom-left-blue",
+          "x": 0.05,
+          "y": 0.95,
+          "expected": [
+            0,
+            0,
+            255,
+            255
+          ],
+          "rgba": [
+            0,
+            0,
+            255,
+            255
+          ]
+        },
+        {
+          "name": "bottom-right-white",
+          "x": 0.95,
+          "y": 0.95,
+          "expected": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "rgba": [
+            255,
+            255,
+            255,
+            255
+          ]
+        },
+        {
+          "name": "premultiplied-alpha",
+          "x": 0.375,
+          "y": 0.8,
+          "expected": [
+            255,
+            0,
+            255,
+            128
+          ],
+          "rgba": [
+            255,
+            0,
+            255,
+            128
+          ]
+        },
+        {
+          "name": "transparent",
+          "x": 0.625,
+          "y": 0.8,
+          "expected": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "rgba": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "gray-0",
+          "x": 0.0625,
+          "y": 0.5,
+          "expected": [
+            0,
+            0,
+            0,
+            255
+          ],
+          "rgba": [
+            0,
+            0,
+            0,
+            255
+          ]
+        },
+        {
+          "name": "gray-1",
+          "x": 0.1875,
+          "y": 0.5,
+          "expected": [
+            36,
+            36,
+            36,
+            255
+          ],
+          "rgba": [
+            36,
+            36,
+            36,
+            255
+          ]
+        },
+        {
+          "name": "gray-2",
+          "x": 0.3125,
+          "y": 0.5,
+          "expected": [
+            73,
+            73,
+            73,
+            255
+          ],
+          "rgba": [
+            73,
+            73,
+            73,
+            255
+          ]
+        },
+        {
+          "name": "gray-3",
+          "x": 0.4375,
+          "y": 0.5,
+          "expected": [
+            109,
+            109,
+            109,
+            255
+          ],
+          "rgba": [
+            109,
+            109,
+            109,
+            255
+          ]
+        },
+        {
+          "name": "gray-4",
+          "x": 0.5625,
+          "y": 0.5,
+          "expected": [
+            146,
+            146,
+            146,
+            255
+          ],
+          "rgba": [
+            146,
+            146,
+            146,
+            255
+          ]
+        },
+        {
+          "name": "gray-5",
+          "x": 0.6875,
+          "y": 0.5,
+          "expected": [
+            182,
+            182,
+            182,
+            255
+          ],
+          "rgba": [
+            182,
+            182,
+            182,
+            255
+          ]
+        },
+        {
+          "name": "gray-6",
+          "x": 0.8125,
+          "y": 0.5,
+          "expected": [
+            219,
+            219,
+            219,
+            255
+          ],
+          "rgba": [
+            219,
+            219,
+            219,
+            255
+          ]
+        },
+        {
+          "name": "gray-7",
+          "x": 0.9375,
+          "y": 0.5,
+          "expected": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "rgba": [
+            255,
+            255,
+            255,
+            255
+          ]
+        }
+      ],
+      "pixelChecksPassed": true,
+      "decodedSequence": 1
+    },
+    {
+      "ms": 1182.718659,
+      "type": "transferred",
+      "frameSeq": 2
+    },
+    {
+      "ms": 1182.815681,
+      "type": "main-release",
+      "frameSeq": 2
+    },
+    {
+      "ms": 1189.139814,
+      "type": "drawn",
+      "frameSeq": 2,
+      "timestamp": 2,
+      "width": 1280,
+      "height": 720,
+      "samples": [
+        {
+          "name": "top-left-red",
+          "x": 0.05,
+          "y": 0.15,
+          "expected": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "rgba": [
+            255,
+            0,
+            0,
+            255
+          ]
+        },
+        {
+          "name": "top-right-green",
+          "x": 0.95,
+          "y": 0.15,
+          "expected": [
+            0,
+            255,
+            0,
+            255
+          ],
+          "rgba": [
+            0,
+            255,
+            0,
+            255
+          ]
+        },
+        {
+          "name": "bottom-left-blue",
+          "x": 0.05,
+          "y": 0.95,
+          "expected": [
+            0,
+            0,
+            255,
+            255
+          ],
+          "rgba": [
+            0,
+            0,
+            255,
+            255
+          ]
+        },
+        {
+          "name": "bottom-right-white",
+          "x": 0.95,
+          "y": 0.95,
+          "expected": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "rgba": [
+            255,
+            255,
+            255,
+            255
+          ]
+        },
+        {
+          "name": "premultiplied-alpha",
+          "x": 0.375,
+          "y": 0.8,
+          "expected": [
+            255,
+            0,
+            255,
+            128
+          ],
+          "rgba": [
+            255,
+            0,
+            255,
+            128
+          ]
+        },
+        {
+          "name": "transparent",
+          "x": 0.625,
+          "y": 0.8,
+          "expected": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "rgba": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "gray-0",
+          "x": 0.0625,
+          "y": 0.5,
+          "expected": [
+            0,
+            0,
+            0,
+            255
+          ],
+          "rgba": [
+            0,
+            0,
+            0,
+            255
+          ]
+        },
+        {
+          "name": "gray-1",
+          "x": 0.1875,
+          "y": 0.5,
+          "expected": [
+            36,
+            36,
+            36,
+            255
+          ],
+          "rgba": [
+            36,
+            36,
+            36,
+            255
+          ]
+        },
+        {
+          "name": "gray-2",
+          "x": 0.3125,
+          "y": 0.5,
+          "expected": [
+            73,
+            73,
+            73,
+            255
+          ],
+          "rgba": [
+            73,
+            73,
+            73,
+            255
+          ]
+        },
+        {
+          "name": "gray-3",
+          "x": 0.4375,
+          "y": 0.5,
+          "expected": [
+            109,
+            109,
+            109,
+            255
+          ],
+          "rgba": [
+            109,
+            109,
+            109,
+            255
+          ]
+        },
+        {
+          "name": "gray-4",
+          "x": 0.5625,
+          "y": 0.5,
+          "expected": [
+            146,
+            146,
+            146,
+            255
+          ],
+          "rgba": [
+            146,
+            146,
+            146,
+            255
+          ]
+        },
+        {
+          "name": "gray-5",
+          "x": 0.6875,
+          "y": 0.5,
+          "expected": [
+            182,
+            182,
+            182,
+            255
+          ],
+          "rgba": [
+            182,
+            182,
+            182,
+            255
+          ]
+        },
+        {
+          "name": "gray-6",
+          "x": 0.8125,
+          "y": 0.5,
+          "expected": [
+            219,
+            219,
+            219,
+            255
+          ],
+          "rgba": [
+            219,
+            219,
+            219,
+            255
+          ]
+        },
+        {
+          "name": "gray-7",
+          "x": 0.9375,
+          "y": 0.5,
+          "expected": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "rgba": [
+            255,
+            255,
+            255,
+            255
+          ]
+        }
+      ],
+      "pixelChecksPassed": true,
+      "decodedSequence": 2
+    },
+    {
+      "ms": 1189.54282,
+      "type": "transferred",
+      "frameSeq": 3
+    },
+    {
+      "ms": 1189.752213,
+      "type": "main-release",
+      "frameSeq": 3
+    },
+    {
+      "ms": 1195.387494,
+      "type": "drawn",
+      "frameSeq": 3,
+      "timestamp": 3,
+      "width": 1280,
+      "height": 720,
+      "samples": [
+        {
+          "name": "top-left-red",
+          "x": 0.05,
+          "y": 0.15,
+          "expected": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "rgba": [
+            255,
+            0,
+            0,
+            255
+          ]
+        },
+        {
+          "name": "top-right-green",
+          "x": 0.95,
+          "y": 0.15,
+          "expected": [
+            0,
+            255,
+            0,
+            255
+          ],
+          "rgba": [
+            0,
+            255,
+            0,
+            255
+          ]
+        },
+        {
+          "name": "bottom-left-blue",
+          "x": 0.05,
+          "y": 0.95,
+          "expected": [
+            0,
+            0,
+            255,
+            255
+          ],
+          "rgba": [
+            0,
+            0,
+            255,
+            255
+          ]
+        },
+        {
+          "name": "bottom-right-white",
+          "x": 0.95,
+          "y": 0.95,
+          "expected": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "rgba": [
+            255,
+            255,
+            255,
+            255
+          ]
+        },
+        {
+          "name": "premultiplied-alpha",
+          "x": 0.375,
+          "y": 0.8,
+          "expected": [
+            255,
+            0,
+            255,
+            128
+          ],
+          "rgba": [
+            255,
+            0,
+            255,
+            128
+          ]
+        },
+        {
+          "name": "transparent",
+          "x": 0.625,
+          "y": 0.8,
+          "expected": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "rgba": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "gray-0",
+          "x": 0.0625,
+          "y": 0.5,
+          "expected": [
+            0,
+            0,
+            0,
+            255
+          ],
+          "rgba": [
+            0,
+            0,
+            0,
+            255
+          ]
+        },
+        {
+          "name": "gray-1",
+          "x": 0.1875,
+          "y": 0.5,
+          "expected": [
+            36,
+            36,
+            36,
+            255
+          ],
+          "rgba": [
+            36,
+            36,
+            36,
+            255
+          ]
+        },
+        {
+          "name": "gray-2",
+          "x": 0.3125,
+          "y": 0.5,
+          "expected": [
+            73,
+            73,
+            73,
+            255
+          ],
+          "rgba": [
+            73,
+            73,
+            73,
+            255
+          ]
+        },
+        {
+          "name": "gray-3",
+          "x": 0.4375,
+          "y": 0.5,
+          "expected": [
+            109,
+            109,
+            109,
+            255
+          ],
+          "rgba": [
+            109,
+            109,
+            109,
+            255
+          ]
+        },
+        {
+          "name": "gray-4",
+          "x": 0.5625,
+          "y": 0.5,
+          "expected": [
+            146,
+            146,
+            146,
+            255
+          ],
+          "rgba": [
+            146,
+            146,
+            146,
+            255
+          ]
+        },
+        {
+          "name": "gray-5",
+          "x": 0.6875,
+          "y": 0.5,
+          "expected": [
+            182,
+            182,
+            182,
+            255
+          ],
+          "rgba": [
+            182,
+            182,
+            182,
+            255
+          ]
+        },
+        {
+          "name": "gray-6",
+          "x": 0.8125,
+          "y": 0.5,
+          "expected": [
+            219,
+            219,
+            219,
+            255
+          ],
+          "rgba": [
+            219,
+            219,
+            219,
+            255
+          ]
+        },
+        {
+          "name": "gray-7",
+          "x": 0.9375,
+          "y": 0.5,
+          "expected": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "rgba": [
+            255,
+            255,
+            255,
+            255
+          ]
+        }
+      ],
+      "pixelChecksPassed": true,
+      "decodedSequence": 3
+    },
+    {
+      "ms": 1196.424609,
+      "type": "renderer-release-requested",
+      "frameSeq": 1
+    },
+    {
+      "ms": 1196.689166,
+      "type": "renderer-release-requested",
+      "frameSeq": 2
+    },
+    {
+      "ms": 1196.739079,
+      "type": "renderer-release-requested",
+      "frameSeq": 3
+    },
+    {
+      "ms": 1197.348603,
+      "type": "all-references-released",
+      "frameSeq": 1,
+      "slotId": 0,
+      "slotEpoch": 1
+    },
+    {
+      "ms": 1199.086473,
+      "type": "producer-ack",
+      "frameSeq": 1,
+      "acknowledged": 1,
+      "fd": {
+        "pid": 444582,
+        "count": 116,
+        "drm": [
+          "/dev/dri/renderD128"
+        ],
+        "dmaBuf": 6
+      }
+    },
+    {
+      "ms": 1199.649138,
+      "type": "all-references-released",
+      "frameSeq": 2,
+      "slotId": 1,
+      "slotEpoch": 1
+    },
+    {
+      "ms": 1201.086515,
+      "type": "producer-ack",
+      "frameSeq": 2,
+      "acknowledged": 2,
+      "fd": {
+        "pid": 444582,
+        "count": 117,
+        "drm": [
+          "/dev/dri/renderD128"
+        ],
+        "dmaBuf": 6
+      }
+    },
+    {
+      "ms": 1201.306597,
+      "type": "all-references-released",
+      "frameSeq": 3,
+      "slotId": 2,
+      "slotEpoch": 1
+    },
+    {
+      "ms": 1202.655578,
+      "type": "producer-ack",
+      "frameSeq": 3,
+      "acknowledged": 3,
+      "fd": {
+        "pid": 444582,
+        "count": 117,
+        "drm": [
+          "/dev/dri/renderD128"
+        ],
+        "dmaBuf": 6
+      }
+    },
+    {
+      "ms": 1204.488977,
+      "type": "imported",
+      "metadata": {
+        "type": "frame",
+        "protocolVersion": 1,
+        "producerPid": 444711,
+        "producerEpoch": "40927515688022",
+        "poolGeneration": 1,
+        "slotId": 0,
+        "slotEpoch": 2,
+        "frameSeq": 4,
+        "width": 1280,
+        "height": 720,
+        "format": "BGRA_8888",
+        "fourcc": "AR24",
+        "modifier": "0",
+        "planes": [
+          {
+            "fdIndex": 0,
+            "stride": 5120,
+            "offset": 0,
+            "size": 3686400
+          }
+        ],
+        "allocationSize": 3686400,
+        "queriedSubresourceSize": 3686400,
+        "origin": "top-left",
+        "alphaMode": "premultiplied",
+        "colorSpace": "srgb",
+        "sync": "queue-idle-foreign-release",
+        "gpu": {
+          "name": "AMD Radeon 880M Graphics (RADV STRIX1)",
+          "vendorId": 4098,
+          "deviceId": 5390,
+          "drmRenderMajor": 226,
+          "drmRenderMinor": 128,
+          "deviceUUID": "00000000c10000000000000000000000"
+        },
+        "provider": "skia-plugin",
+        "counters": {
+          "gpuBlits": 4,
+          "cpuPixelReadbacks": 0,
+          "queueIdleWaits": 4
+        }
+      },
+      "outstanding": 1,
+      "fd": {
+        "pid": 444582,
+        "count": 118,
+        "drm": [
+          "/dev/dri/renderD128"
+        ],
+        "dmaBuf": 7
+      }
+    },
+    {
+      "ms": 1205.198408,
+      "type": "transferred",
+      "frameSeq": 4
+    },
+    {
+      "ms": 1205.245196,
+      "type": "main-release",
+      "frameSeq": 4
+    },
+    {
+      "ms": 1208.780067,
+      "type": "imported",
+      "metadata": {
+        "type": "frame",
+        "protocolVersion": 1,
+        "producerPid": 444711,
+        "producerEpoch": "40927515688022",
+        "poolGeneration": 1,
+        "slotId": 1,
+        "slotEpoch": 2,
+        "frameSeq": 5,
+        "width": 1280,
+        "height": 720,
+        "format": "BGRA_8888",
+        "fourcc": "AR24",
+        "modifier": "0",
+        "planes": [
+          {
+            "fdIndex": 0,
+            "stride": 5120,
+            "offset": 0,
+            "size": 3686400
+          }
+        ],
+        "allocationSize": 3686400,
+        "queriedSubresourceSize": 3686400,
+        "origin": "top-left",
+        "alphaMode": "premultiplied",
+        "colorSpace": "srgb",
+        "sync": "queue-idle-foreign-release",
+        "gpu": {
+          "name": "AMD Radeon 880M Graphics (RADV STRIX1)",
+          "vendorId": 4098,
+          "deviceId": 5390,
+          "drmRenderMajor": 226,
+          "drmRenderMinor": 128,
+          "deviceUUID": "00000000c10000000000000000000000"
+        },
+        "provider": "skia-plugin",
+        "counters": {
+          "gpuBlits": 5,
+          "cpuPixelReadbacks": 0,
+          "queueIdleWaits": 5
+        }
+      },
+      "outstanding": 2,
+      "fd": {
+        "pid": 444582,
+        "count": 117,
+        "drm": [
+          "/dev/dri/renderD128"
+        ],
+        "dmaBuf": 7
+      }
+    },
+    {
+      "ms": 1213.025902,
+      "type": "imported",
+      "metadata": {
+        "type": "frame",
+        "protocolVersion": 1,
+        "producerPid": 444711,
+        "producerEpoch": "40927515688022",
+        "poolGeneration": 1,
+        "slotId": 2,
+        "slotEpoch": 2,
+        "frameSeq": 6,
+        "width": 1280,
+        "height": 720,
+        "format": "BGRA_8888",
+        "fourcc": "AR24",
+        "modifier": "0",
+        "planes": [
+          {
+            "fdIndex": 0,
+            "stride": 5120,
+            "offset": 0,
+            "size": 3686400
+          }
+        ],
+        "allocationSize": 3686400,
+        "queriedSubresourceSize": 3686400,
+        "origin": "top-left",
+        "alphaMode": "premultiplied",
+        "colorSpace": "srgb",
+        "sync": "queue-idle-foreign-release",
+        "gpu": {
+          "name": "AMD Radeon 880M Graphics (RADV STRIX1)",
+          "vendorId": 4098,
+          "deviceId": 5390,
+          "drmRenderMajor": 226,
+          "drmRenderMinor": 128,
+          "deviceUUID": "00000000c10000000000000000000000"
+        },
+        "provider": "skia-plugin",
+        "counters": {
+          "gpuBlits": 6,
+          "cpuPixelReadbacks": 0,
+          "queueIdleWaits": 6
+        }
+      },
+      "outstanding": 3,
+      "fd": {
+        "pid": 444582,
+        "count": 117,
+        "drm": [
+          "/dev/dri/renderD128"
+        ],
+        "dmaBuf": 7
+      }
+    },
+    {
+      "ms": 1213.772452,
+      "type": "drawn",
+      "frameSeq": 4,
+      "timestamp": 4,
+      "width": 1280,
+      "height": 720,
+      "samples": [
+        {
+          "name": "top-left-red",
+          "x": 0.05,
+          "y": 0.15,
+          "expected": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "rgba": [
+            255,
+            0,
+            0,
+            255
+          ]
+        },
+        {
+          "name": "top-right-green",
+          "x": 0.95,
+          "y": 0.15,
+          "expected": [
+            0,
+            255,
+            0,
+            255
+          ],
+          "rgba": [
+            0,
+            255,
+            0,
+            255
+          ]
+        },
+        {
+          "name": "bottom-left-blue",
+          "x": 0.05,
+          "y": 0.95,
+          "expected": [
+            0,
+            0,
+            255,
+            255
+          ],
+          "rgba": [
+            0,
+            0,
+            255,
+            255
+          ]
+        },
+        {
+          "name": "bottom-right-white",
+          "x": 0.95,
+          "y": 0.95,
+          "expected": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "rgba": [
+            255,
+            255,
+            255,
+            255
+          ]
+        },
+        {
+          "name": "premultiplied-alpha",
+          "x": 0.375,
+          "y": 0.8,
+          "expected": [
+            255,
+            0,
+            255,
+            128
+          ],
+          "rgba": [
+            255,
+            0,
+            255,
+            128
+          ]
+        },
+        {
+          "name": "transparent",
+          "x": 0.625,
+          "y": 0.8,
+          "expected": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "rgba": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "gray-0",
+          "x": 0.0625,
+          "y": 0.5,
+          "expected": [
+            0,
+            0,
+            0,
+            255
+          ],
+          "rgba": [
+            0,
+            0,
+            0,
+            255
+          ]
+        },
+        {
+          "name": "gray-1",
+          "x": 0.1875,
+          "y": 0.5,
+          "expected": [
+            36,
+            36,
+            36,
+            255
+          ],
+          "rgba": [
+            36,
+            36,
+            36,
+            255
+          ]
+        },
+        {
+          "name": "gray-2",
+          "x": 0.3125,
+          "y": 0.5,
+          "expected": [
+            73,
+            73,
+            73,
+            255
+          ],
+          "rgba": [
+            73,
+            73,
+            73,
+            255
+          ]
+        },
+        {
+          "name": "gray-3",
+          "x": 0.4375,
+          "y": 0.5,
+          "expected": [
+            109,
+            109,
+            109,
+            255
+          ],
+          "rgba": [
+            109,
+            109,
+            109,
+            255
+          ]
+        },
+        {
+          "name": "gray-4",
+          "x": 0.5625,
+          "y": 0.5,
+          "expected": [
+            146,
+            146,
+            146,
+            255
+          ],
+          "rgba": [
+            146,
+            146,
+            146,
+            255
+          ]
+        },
+        {
+          "name": "gray-5",
+          "x": 0.6875,
+          "y": 0.5,
+          "expected": [
+            182,
+            182,
+            182,
+            255
+          ],
+          "rgba": [
+            182,
+            182,
+            182,
+            255
+          ]
+        },
+        {
+          "name": "gray-6",
+          "x": 0.8125,
+          "y": 0.5,
+          "expected": [
+            219,
+            219,
+            219,
+            255
+          ],
+          "rgba": [
+            219,
+            219,
+            219,
+            255
+          ]
+        },
+        {
+          "name": "gray-7",
+          "x": 0.9375,
+          "y": 0.5,
+          "expected": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "rgba": [
+            255,
+            255,
+            255,
+            255
+          ]
+        }
+      ],
+      "pixelChecksPassed": true,
+      "decodedSequence": 4
+    },
+    {
+      "ms": 1214.407523,
+      "type": "transferred",
+      "frameSeq": 5
+    },
+    {
+      "ms": 1214.476863,
+      "type": "main-release",
+      "frameSeq": 5
+    },
+    {
+      "ms": 1225.247408,
+      "type": "drawn",
+      "frameSeq": 5,
+      "timestamp": 5,
+      "width": 1280,
+      "height": 720,
+      "samples": [
+        {
+          "name": "top-left-red",
+          "x": 0.05,
+          "y": 0.15,
+          "expected": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "rgba": [
+            255,
+            0,
+            0,
+            255
+          ]
+        },
+        {
+          "name": "top-right-green",
+          "x": 0.95,
+          "y": 0.15,
+          "expected": [
+            0,
+            255,
+            0,
+            255
+          ],
+          "rgba": [
+            0,
+            255,
+            0,
+            255
+          ]
+        },
+        {
+          "name": "bottom-left-blue",
+          "x": 0.05,
+          "y": 0.95,
+          "expected": [
+            0,
+            0,
+            255,
+            255
+          ],
+          "rgba": [
+            0,
+            0,
+            255,
+            255
+          ]
+        },
+        {
+          "name": "bottom-right-white",
+          "x": 0.95,
+          "y": 0.95,
+          "expected": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "rgba": [
+            255,
+            255,
+            255,
+            255
+          ]
+        },
+        {
+          "name": "premultiplied-alpha",
+          "x": 0.375,
+          "y": 0.8,
+          "expected": [
+            255,
+            0,
+            255,
+            128
+          ],
+          "rgba": [
+            255,
+            0,
+            255,
+            128
+          ]
+        },
+        {
+          "name": "transparent",
+          "x": 0.625,
+          "y": 0.8,
+          "expected": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "rgba": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "gray-0",
+          "x": 0.0625,
+          "y": 0.5,
+          "expected": [
+            0,
+            0,
+            0,
+            255
+          ],
+          "rgba": [
+            0,
+            0,
+            0,
+            255
+          ]
+        },
+        {
+          "name": "gray-1",
+          "x": 0.1875,
+          "y": 0.5,
+          "expected": [
+            36,
+            36,
+            36,
+            255
+          ],
+          "rgba": [
+            36,
+            36,
+            36,
+            255
+          ]
+        },
+        {
+          "name": "gray-2",
+          "x": 0.3125,
+          "y": 0.5,
+          "expected": [
+            73,
+            73,
+            73,
+            255
+          ],
+          "rgba": [
+            73,
+            73,
+            73,
+            255
+          ]
+        },
+        {
+          "name": "gray-3",
+          "x": 0.4375,
+          "y": 0.5,
+          "expected": [
+            109,
+            109,
+            109,
+            255
+          ],
+          "rgba": [
+            109,
+            109,
+            109,
+            255
+          ]
+        },
+        {
+          "name": "gray-4",
+          "x": 0.5625,
+          "y": 0.5,
+          "expected": [
+            146,
+            146,
+            146,
+            255
+          ],
+          "rgba": [
+            146,
+            146,
+            146,
+            255
+          ]
+        },
+        {
+          "name": "gray-5",
+          "x": 0.6875,
+          "y": 0.5,
+          "expected": [
+            182,
+            182,
+            182,
+            255
+          ],
+          "rgba": [
+            182,
+            182,
+            182,
+            255
+          ]
+        },
+        {
+          "name": "gray-6",
+          "x": 0.8125,
+          "y": 0.5,
+          "expected": [
+            219,
+            219,
+            219,
+            255
+          ],
+          "rgba": [
+            219,
+            219,
+            219,
+            255
+          ]
+        },
+        {
+          "name": "gray-7",
+          "x": 0.9375,
+          "y": 0.5,
+          "expected": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "rgba": [
+            255,
+            255,
+            255,
+            255
+          ]
+        }
+      ],
+      "pixelChecksPassed": true,
+      "decodedSequence": 5
+    },
+    {
+      "ms": 1226.759364,
+      "type": "renderer-release-requested",
+      "frameSeq": 4
+    },
+    {
+      "ms": 1228.881305,
+      "type": "transferred",
+      "frameSeq": 6
+    },
+    {
+      "ms": 1229.108862,
+      "type": "main-release",
+      "frameSeq": 6
+    },
+    {
+      "ms": 1240.521801,
+      "type": "drawn",
+      "frameSeq": 6,
+      "timestamp": 6,
+      "width": 1280,
+      "height": 720,
+      "samples": [
+        {
+          "name": "top-left-red",
+          "x": 0.05,
+          "y": 0.15,
+          "expected": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "rgba": [
+            255,
+            0,
+            0,
+            255
+          ]
+        },
+        {
+          "name": "top-right-green",
+          "x": 0.95,
+          "y": 0.15,
+          "expected": [
+            0,
+            255,
+            0,
+            255
+          ],
+          "rgba": [
+            0,
+            255,
+            0,
+            255
+          ]
+        },
+        {
+          "name": "bottom-left-blue",
+          "x": 0.05,
+          "y": 0.95,
+          "expected": [
+            0,
+            0,
+            255,
+            255
+          ],
+          "rgba": [
+            0,
+            0,
+            255,
+            255
+          ]
+        },
+        {
+          "name": "bottom-right-white",
+          "x": 0.95,
+          "y": 0.95,
+          "expected": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "rgba": [
+            255,
+            255,
+            255,
+            255
+          ]
+        },
+        {
+          "name": "premultiplied-alpha",
+          "x": 0.375,
+          "y": 0.8,
+          "expected": [
+            255,
+            0,
+            255,
+            128
+          ],
+          "rgba": [
+            255,
+            0,
+            255,
+            128
+          ]
+        },
+        {
+          "name": "transparent",
+          "x": 0.625,
+          "y": 0.8,
+          "expected": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "rgba": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "gray-0",
+          "x": 0.0625,
+          "y": 0.5,
+          "expected": [
+            0,
+            0,
+            0,
+            255
+          ],
+          "rgba": [
+            0,
+            0,
+            0,
+            255
+          ]
+        },
+        {
+          "name": "gray-1",
+          "x": 0.1875,
+          "y": 0.5,
+          "expected": [
+            36,
+            36,
+            36,
+            255
+          ],
+          "rgba": [
+            36,
+            36,
+            36,
+            255
+          ]
+        },
+        {
+          "name": "gray-2",
+          "x": 0.3125,
+          "y": 0.5,
+          "expected": [
+            73,
+            73,
+            73,
+            255
+          ],
+          "rgba": [
+            73,
+            73,
+            73,
+            255
+          ]
+        },
+        {
+          "name": "gray-3",
+          "x": 0.4375,
+          "y": 0.5,
+          "expected": [
+            109,
+            109,
+            109,
+            255
+          ],
+          "rgba": [
+            109,
+            109,
+            109,
+            255
+          ]
+        },
+        {
+          "name": "gray-4",
+          "x": 0.5625,
+          "y": 0.5,
+          "expected": [
+            146,
+            146,
+            146,
+            255
+          ],
+          "rgba": [
+            146,
+            146,
+            146,
+            255
+          ]
+        },
+        {
+          "name": "gray-5",
+          "x": 0.6875,
+          "y": 0.5,
+          "expected": [
+            182,
+            182,
+            182,
+            255
+          ],
+          "rgba": [
+            182,
+            182,
+            182,
+            255
+          ]
+        },
+        {
+          "name": "gray-6",
+          "x": 0.8125,
+          "y": 0.5,
+          "expected": [
+            219,
+            219,
+            219,
+            255
+          ],
+          "rgba": [
+            219,
+            219,
+            219,
+            255
+          ]
+        },
+        {
+          "name": "gray-7",
+          "x": 0.9375,
+          "y": 0.5,
+          "expected": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "rgba": [
+            255,
+            255,
+            255,
+            255
+          ]
+        }
+      ],
+      "pixelChecksPassed": true,
+      "decodedSequence": 6
+    },
+    {
+      "ms": 1241.093413,
+      "type": "renderer-release-requested",
+      "frameSeq": 5
+    },
+    {
+      "ms": 1244.171127,
+      "type": "all-references-released",
+      "frameSeq": 4,
+      "slotId": 0,
+      "slotEpoch": 2
+    },
+    {
+      "ms": 1245.299864,
+      "type": "producer-ack",
+      "frameSeq": 4,
+      "acknowledged": 4,
+      "fd": {
+        "pid": 444582,
+        "count": 116,
+        "drm": [
+          "/dev/dri/renderD128"
+        ],
+        "dmaBuf": 6
+      }
+    },
+    {
+      "ms": 1245.941257,
+      "type": "renderer-release-requested",
+      "frameSeq": 6
+    },
+    {
+      "ms": 1247.458874,
+      "type": "all-references-released",
+      "frameSeq": 5,
+      "slotId": 1,
+      "slotEpoch": 2
+    },
+    {
+      "ms": 1248.350667,
+      "type": "producer-ack",
+      "frameSeq": 5,
+      "acknowledged": 5,
+      "fd": {
+        "pid": 444582,
+        "count": 116,
+        "drm": [
+          "/dev/dri/renderD128"
+        ],
+        "dmaBuf": 6
+      }
+    },
+    {
+      "ms": 1250.535185,
+      "type": "imported",
+      "metadata": {
+        "type": "frame",
+        "protocolVersion": 1,
+        "producerPid": 444711,
+        "producerEpoch": "40927515688022",
+        "poolGeneration": 1,
+        "slotId": 0,
+        "slotEpoch": 3,
+        "frameSeq": 7,
+        "width": 1280,
+        "height": 720,
+        "format": "BGRA_8888",
+        "fourcc": "AR24",
+        "modifier": "0",
+        "planes": [
+          {
+            "fdIndex": 0,
+            "stride": 5120,
+            "offset": 0,
+            "size": 3686400
+          }
+        ],
+        "allocationSize": 3686400,
+        "queriedSubresourceSize": 3686400,
+        "origin": "top-left",
+        "alphaMode": "premultiplied",
+        "colorSpace": "srgb",
+        "sync": "queue-idle-foreign-release",
+        "gpu": {
+          "name": "AMD Radeon 880M Graphics (RADV STRIX1)",
+          "vendorId": 4098,
+          "deviceId": 5390,
+          "drmRenderMajor": 226,
+          "drmRenderMinor": 128,
+          "deviceUUID": "00000000c10000000000000000000000"
+        },
+        "provider": "skia-plugin",
+        "counters": {
+          "gpuBlits": 7,
+          "cpuPixelReadbacks": 0,
+          "queueIdleWaits": 7
+        }
+      },
+      "outstanding": 2,
+      "fd": {
+        "pid": 444582,
+        "count": 117,
+        "drm": [
+          "/dev/dri/renderD128"
+        ],
+        "dmaBuf": 7
+      }
+    },
+    {
+      "ms": 1250.939734,
+      "type": "all-references-released",
+      "frameSeq": 6,
+      "slotId": 2,
+      "slotEpoch": 2
+    },
+    {
+      "ms": 1251.862275,
+      "type": "producer-ack",
+      "frameSeq": 6,
+      "acknowledged": 6,
+      "fd": {
+        "pid": 444582,
+        "count": 116,
+        "drm": [
+          "/dev/dri/renderD128"
+        ],
+        "dmaBuf": 6
+      }
+    },
+    {
+      "ms": 1252.400765,
+      "type": "transferred",
+      "frameSeq": 7
+    },
+    {
+      "ms": 1252.443966,
+      "type": "main-release",
+      "frameSeq": 7
+    },
+    {
+      "ms": 1260.696957,
+      "type": "imported",
+      "metadata": {
+        "type": "frame",
+        "protocolVersion": 1,
+        "producerPid": 444711,
+        "producerEpoch": "40927515688022",
+        "poolGeneration": 1,
+        "slotId": 1,
+        "slotEpoch": 3,
+        "frameSeq": 8,
+        "width": 1280,
+        "height": 720,
+        "format": "BGRA_8888",
+        "fourcc": "AR24",
+        "modifier": "0",
+        "planes": [
+          {
+            "fdIndex": 0,
+            "stride": 5120,
+            "offset": 0,
+            "size": 3686400
+          }
+        ],
+        "allocationSize": 3686400,
+        "queriedSubresourceSize": 3686400,
+        "origin": "top-left",
+        "alphaMode": "premultiplied",
+        "colorSpace": "srgb",
+        "sync": "queue-idle-foreign-release",
+        "gpu": {
+          "name": "AMD Radeon 880M Graphics (RADV STRIX1)",
+          "vendorId": 4098,
+          "deviceId": 5390,
+          "drmRenderMajor": 226,
+          "drmRenderMinor": 128,
+          "deviceUUID": "00000000c10000000000000000000000"
+        },
+        "provider": "skia-plugin",
+        "counters": {
+          "gpuBlits": 8,
+          "cpuPixelReadbacks": 0,
+          "queueIdleWaits": 8
+        }
+      },
+      "outstanding": 2,
+      "fd": {
+        "pid": 444582,
+        "count": 117,
+        "drm": [
+          "/dev/dri/renderD128"
+        ],
+        "dmaBuf": 7
+      }
+    },
+    {
+      "ms": 1264.864956,
+      "type": "imported",
+      "metadata": {
+        "type": "frame",
+        "protocolVersion": 1,
+        "producerPid": 444711,
+        "producerEpoch": "40927515688022",
+        "poolGeneration": 1,
+        "slotId": 2,
+        "slotEpoch": 3,
+        "frameSeq": 9,
+        "width": 1280,
+        "height": 720,
+        "format": "BGRA_8888",
+        "fourcc": "AR24",
+        "modifier": "0",
+        "planes": [
+          {
+            "fdIndex": 0,
+            "stride": 5120,
+            "offset": 0,
+            "size": 3686400
+          }
+        ],
+        "allocationSize": 3686400,
+        "queriedSubresourceSize": 3686400,
+        "origin": "top-left",
+        "alphaMode": "premultiplied",
+        "colorSpace": "srgb",
+        "sync": "queue-idle-foreign-release",
+        "gpu": {
+          "name": "AMD Radeon 880M Graphics (RADV STRIX1)",
+          "vendorId": 4098,
+          "deviceId": 5390,
+          "drmRenderMajor": 226,
+          "drmRenderMinor": 128,
+          "deviceUUID": "00000000c10000000000000000000000"
+        },
+        "provider": "skia-plugin",
+        "counters": {
+          "gpuBlits": 9,
+          "cpuPixelReadbacks": 0,
+          "queueIdleWaits": 9
+        }
+      },
+      "outstanding": 3,
+      "fd": {
+        "pid": 444582,
+        "count": 117,
+        "drm": [
+          "/dev/dri/renderD128"
+        ],
+        "dmaBuf": 7
+      }
+    },
+    {
+      "ms": 1266.270212,
+      "type": "drawn",
+      "frameSeq": 7,
+      "timestamp": 7,
+      "width": 1280,
+      "height": 720,
+      "samples": [
+        {
+          "name": "top-left-red",
+          "x": 0.05,
+          "y": 0.15,
+          "expected": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "rgba": [
+            255,
+            0,
+            0,
+            255
+          ]
+        },
+        {
+          "name": "top-right-green",
+          "x": 0.95,
+          "y": 0.15,
+          "expected": [
+            0,
+            255,
+            0,
+            255
+          ],
+          "rgba": [
+            0,
+            255,
+            0,
+            255
+          ]
+        },
+        {
+          "name": "bottom-left-blue",
+          "x": 0.05,
+          "y": 0.95,
+          "expected": [
+            0,
+            0,
+            255,
+            255
+          ],
+          "rgba": [
+            0,
+            0,
+            255,
+            255
+          ]
+        },
+        {
+          "name": "bottom-right-white",
+          "x": 0.95,
+          "y": 0.95,
+          "expected": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "rgba": [
+            255,
+            255,
+            255,
+            255
+          ]
+        },
+        {
+          "name": "premultiplied-alpha",
+          "x": 0.375,
+          "y": 0.8,
+          "expected": [
+            255,
+            0,
+            255,
+            128
+          ],
+          "rgba": [
+            255,
+            0,
+            255,
+            128
+          ]
+        },
+        {
+          "name": "transparent",
+          "x": 0.625,
+          "y": 0.8,
+          "expected": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "rgba": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "gray-0",
+          "x": 0.0625,
+          "y": 0.5,
+          "expected": [
+            0,
+            0,
+            0,
+            255
+          ],
+          "rgba": [
+            0,
+            0,
+            0,
+            255
+          ]
+        },
+        {
+          "name": "gray-1",
+          "x": 0.1875,
+          "y": 0.5,
+          "expected": [
+            36,
+            36,
+            36,
+            255
+          ],
+          "rgba": [
+            36,
+            36,
+            36,
+            255
+          ]
+        },
+        {
+          "name": "gray-2",
+          "x": 0.3125,
+          "y": 0.5,
+          "expected": [
+            73,
+            73,
+            73,
+            255
+          ],
+          "rgba": [
+            73,
+            73,
+            73,
+            255
+          ]
+        },
+        {
+          "name": "gray-3",
+          "x": 0.4375,
+          "y": 0.5,
+          "expected": [
+            109,
+            109,
+            109,
+            255
+          ],
+          "rgba": [
+            109,
+            109,
+            109,
+            255
+          ]
+        },
+        {
+          "name": "gray-4",
+          "x": 0.5625,
+          "y": 0.5,
+          "expected": [
+            146,
+            146,
+            146,
+            255
+          ],
+          "rgba": [
+            146,
+            146,
+            146,
+            255
+          ]
+        },
+        {
+          "name": "gray-5",
+          "x": 0.6875,
+          "y": 0.5,
+          "expected": [
+            182,
+            182,
+            182,
+            255
+          ],
+          "rgba": [
+            182,
+            182,
+            182,
+            255
+          ]
+        },
+        {
+          "name": "gray-6",
+          "x": 0.8125,
+          "y": 0.5,
+          "expected": [
+            219,
+            219,
+            219,
+            255
+          ],
+          "rgba": [
+            219,
+            219,
+            219,
+            255
+          ]
+        },
+        {
+          "name": "gray-7",
+          "x": 0.9375,
+          "y": 0.5,
+          "expected": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "rgba": [
+            255,
+            255,
+            255,
+            255
+          ]
+        }
+      ],
+      "pixelChecksPassed": true,
+      "decodedSequence": 7
+    },
+    {
+      "ms": 1267.839035,
+      "type": "transferred",
+      "frameSeq": 8
+    },
+    {
+      "ms": 1268.008203,
+      "type": "main-release",
+      "frameSeq": 8
+    },
+    {
+      "ms": 1277.871034,
+      "type": "drawn",
+      "frameSeq": 8,
+      "timestamp": 8,
+      "width": 1280,
+      "height": 720,
+      "samples": [
+        {
+          "name": "top-left-red",
+          "x": 0.05,
+          "y": 0.15,
+          "expected": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "rgba": [
+            255,
+            0,
+            0,
+            255
+          ]
+        },
+        {
+          "name": "top-right-green",
+          "x": 0.95,
+          "y": 0.15,
+          "expected": [
+            0,
+            255,
+            0,
+            255
+          ],
+          "rgba": [
+            0,
+            255,
+            0,
+            255
+          ]
+        },
+        {
+          "name": "bottom-left-blue",
+          "x": 0.05,
+          "y": 0.95,
+          "expected": [
+            0,
+            0,
+            255,
+            255
+          ],
+          "rgba": [
+            0,
+            0,
+            255,
+            255
+          ]
+        },
+        {
+          "name": "bottom-right-white",
+          "x": 0.95,
+          "y": 0.95,
+          "expected": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "rgba": [
+            255,
+            255,
+            255,
+            255
+          ]
+        },
+        {
+          "name": "premultiplied-alpha",
+          "x": 0.375,
+          "y": 0.8,
+          "expected": [
+            255,
+            0,
+            255,
+            128
+          ],
+          "rgba": [
+            255,
+            0,
+            255,
+            128
+          ]
+        },
+        {
+          "name": "transparent",
+          "x": 0.625,
+          "y": 0.8,
+          "expected": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "rgba": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "gray-0",
+          "x": 0.0625,
+          "y": 0.5,
+          "expected": [
+            0,
+            0,
+            0,
+            255
+          ],
+          "rgba": [
+            0,
+            0,
+            0,
+            255
+          ]
+        },
+        {
+          "name": "gray-1",
+          "x": 0.1875,
+          "y": 0.5,
+          "expected": [
+            36,
+            36,
+            36,
+            255
+          ],
+          "rgba": [
+            36,
+            36,
+            36,
+            255
+          ]
+        },
+        {
+          "name": "gray-2",
+          "x": 0.3125,
+          "y": 0.5,
+          "expected": [
+            73,
+            73,
+            73,
+            255
+          ],
+          "rgba": [
+            73,
+            73,
+            73,
+            255
+          ]
+        },
+        {
+          "name": "gray-3",
+          "x": 0.4375,
+          "y": 0.5,
+          "expected": [
+            109,
+            109,
+            109,
+            255
+          ],
+          "rgba": [
+            109,
+            109,
+            109,
+            255
+          ]
+        },
+        {
+          "name": "gray-4",
+          "x": 0.5625,
+          "y": 0.5,
+          "expected": [
+            146,
+            146,
+            146,
+            255
+          ],
+          "rgba": [
+            146,
+            146,
+            146,
+            255
+          ]
+        },
+        {
+          "name": "gray-5",
+          "x": 0.6875,
+          "y": 0.5,
+          "expected": [
+            182,
+            182,
+            182,
+            255
+          ],
+          "rgba": [
+            182,
+            182,
+            182,
+            255
+          ]
+        },
+        {
+          "name": "gray-6",
+          "x": 0.8125,
+          "y": 0.5,
+          "expected": [
+            219,
+            219,
+            219,
+            255
+          ],
+          "rgba": [
+            219,
+            219,
+            219,
+            255
+          ]
+        },
+        {
+          "name": "gray-7",
+          "x": 0.9375,
+          "y": 0.5,
+          "expected": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "rgba": [
+            255,
+            255,
+            255,
+            255
+          ]
+        }
+      ],
+      "pixelChecksPassed": true,
+      "decodedSequence": 8
+    },
+    {
+      "ms": 1278.331598,
+      "type": "transferred",
+      "frameSeq": 9
+    },
+    {
+      "ms": 1278.398043,
+      "type": "main-release",
+      "frameSeq": 9
+    },
+    {
+      "ms": 1286.342766,
+      "type": "drawn",
+      "frameSeq": 9,
+      "timestamp": 9,
+      "width": 1280,
+      "height": 720,
+      "samples": [
+        {
+          "name": "top-left-red",
+          "x": 0.05,
+          "y": 0.15,
+          "expected": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "rgba": [
+            255,
+            0,
+            0,
+            255
+          ]
+        },
+        {
+          "name": "top-right-green",
+          "x": 0.95,
+          "y": 0.15,
+          "expected": [
+            0,
+            255,
+            0,
+            255
+          ],
+          "rgba": [
+            0,
+            255,
+            0,
+            255
+          ]
+        },
+        {
+          "name": "bottom-left-blue",
+          "x": 0.05,
+          "y": 0.95,
+          "expected": [
+            0,
+            0,
+            255,
+            255
+          ],
+          "rgba": [
+            0,
+            0,
+            255,
+            255
+          ]
+        },
+        {
+          "name": "bottom-right-white",
+          "x": 0.95,
+          "y": 0.95,
+          "expected": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "rgba": [
+            255,
+            255,
+            255,
+            255
+          ]
+        },
+        {
+          "name": "premultiplied-alpha",
+          "x": 0.375,
+          "y": 0.8,
+          "expected": [
+            255,
+            0,
+            255,
+            128
+          ],
+          "rgba": [
+            255,
+            0,
+            255,
+            128
+          ]
+        },
+        {
+          "name": "transparent",
+          "x": 0.625,
+          "y": 0.8,
+          "expected": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "rgba": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "gray-0",
+          "x": 0.0625,
+          "y": 0.5,
+          "expected": [
+            0,
+            0,
+            0,
+            255
+          ],
+          "rgba": [
+            0,
+            0,
+            0,
+            255
+          ]
+        },
+        {
+          "name": "gray-1",
+          "x": 0.1875,
+          "y": 0.5,
+          "expected": [
+            36,
+            36,
+            36,
+            255
+          ],
+          "rgba": [
+            36,
+            36,
+            36,
+            255
+          ]
+        },
+        {
+          "name": "gray-2",
+          "x": 0.3125,
+          "y": 0.5,
+          "expected": [
+            73,
+            73,
+            73,
+            255
+          ],
+          "rgba": [
+            73,
+            73,
+            73,
+            255
+          ]
+        },
+        {
+          "name": "gray-3",
+          "x": 0.4375,
+          "y": 0.5,
+          "expected": [
+            109,
+            109,
+            109,
+            255
+          ],
+          "rgba": [
+            109,
+            109,
+            109,
+            255
+          ]
+        },
+        {
+          "name": "gray-4",
+          "x": 0.5625,
+          "y": 0.5,
+          "expected": [
+            146,
+            146,
+            146,
+            255
+          ],
+          "rgba": [
+            146,
+            146,
+            146,
+            255
+          ]
+        },
+        {
+          "name": "gray-5",
+          "x": 0.6875,
+          "y": 0.5,
+          "expected": [
+            182,
+            182,
+            182,
+            255
+          ],
+          "rgba": [
+            182,
+            182,
+            182,
+            255
+          ]
+        },
+        {
+          "name": "gray-6",
+          "x": 0.8125,
+          "y": 0.5,
+          "expected": [
+            219,
+            219,
+            219,
+            255
+          ],
+          "rgba": [
+            219,
+            219,
+            219,
+            255
+          ]
+        },
+        {
+          "name": "gray-7",
+          "x": 0.9375,
+          "y": 0.5,
+          "expected": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "rgba": [
+            255,
+            255,
+            255,
+            255
+          ]
+        }
+      ],
+      "pixelChecksPassed": true,
+      "decodedSequence": 9
+    },
+    {
+      "ms": 1287.013855,
+      "type": "renderer-release-requested",
+      "frameSeq": 7
+    },
+    {
+      "ms": 1287.972063,
+      "type": "renderer-release-requested",
+      "frameSeq": 8
+    },
+    {
+      "ms": 1288.08806,
+      "type": "renderer-release-requested",
+      "frameSeq": 9
+    },
+    {
+      "ms": 1299.936006,
+      "type": "all-references-released",
+      "frameSeq": 7,
+      "slotId": 0,
+      "slotEpoch": 3
+    },
+    {
+      "ms": 1301.762582,
+      "type": "producer-ack",
+      "frameSeq": 7,
+      "acknowledged": 7,
+      "fd": {
+        "pid": 444582,
+        "count": 116,
+        "drm": [
+          "/dev/dri/renderD128"
+        ],
+        "dmaBuf": 6
+      }
+    },
+    {
+      "ms": 1301.920328,
+      "type": "all-references-released",
+      "frameSeq": 8,
+      "slotId": 1,
+      "slotEpoch": 3
+    },
+    {
+      "ms": 1302.729386,
+      "type": "producer-ack",
+      "frameSeq": 8,
+      "acknowledged": 8,
+      "fd": {
+        "pid": 444582,
+        "count": 116,
+        "drm": [
+          "/dev/dri/renderD128"
+        ],
+        "dmaBuf": 6
+      }
+    },
+    {
+      "ms": 1302.904645,
+      "type": "all-references-released",
+      "frameSeq": 9,
+      "slotId": 2,
+      "slotEpoch": 3
+    },
+    {
+      "ms": 1303.937492,
+      "type": "producer-ack",
+      "frameSeq": 9,
+      "acknowledged": 9,
+      "fd": {
+        "pid": 444582,
+        "count": 116,
+        "drm": [
+          "/dev/dri/renderD128"
+        ],
+        "dmaBuf": 6
+      }
+    },
+    {
+      "ms": 1305.75937,
+      "type": "imported",
+      "metadata": {
+        "type": "frame",
+        "protocolVersion": 1,
+        "producerPid": 444711,
+        "producerEpoch": "40927515688022",
+        "poolGeneration": 1,
+        "slotId": 0,
+        "slotEpoch": 4,
+        "frameSeq": 10,
+        "width": 1280,
+        "height": 720,
+        "format": "BGRA_8888",
+        "fourcc": "AR24",
+        "modifier": "0",
+        "planes": [
+          {
+            "fdIndex": 0,
+            "stride": 5120,
+            "offset": 0,
+            "size": 3686400
+          }
+        ],
+        "allocationSize": 3686400,
+        "queriedSubresourceSize": 3686400,
+        "origin": "top-left",
+        "alphaMode": "premultiplied",
+        "colorSpace": "srgb",
+        "sync": "queue-idle-foreign-release",
+        "gpu": {
+          "name": "AMD Radeon 880M Graphics (RADV STRIX1)",
+          "vendorId": 4098,
+          "deviceId": 5390,
+          "drmRenderMajor": 226,
+          "drmRenderMinor": 128,
+          "deviceUUID": "00000000c10000000000000000000000"
+        },
+        "provider": "skia-plugin",
+        "counters": {
+          "gpuBlits": 10,
+          "cpuPixelReadbacks": 0,
+          "queueIdleWaits": 10
+        }
+      },
+      "outstanding": 1,
+      "fd": {
+        "pid": 444582,
+        "count": 117,
+        "drm": [
+          "/dev/dri/renderD128"
+        ],
+        "dmaBuf": 7
+      }
+    },
+    {
+      "ms": 1331.013263,
+      "type": "correctness-screenshot"
+    },
+    {
+      "ms": 1332.459556,
+      "type": "imported",
+      "metadata": {
+        "type": "frame",
+        "protocolVersion": 1,
+        "producerPid": 444711,
+        "producerEpoch": "40927515688022",
+        "poolGeneration": 1,
+        "slotId": 1,
+        "slotEpoch": 4,
+        "frameSeq": 11,
+        "width": 1280,
+        "height": 720,
+        "format": "BGRA_8888",
+        "fourcc": "AR24",
+        "modifier": "0",
+        "planes": [
+          {
+            "fdIndex": 0,
+            "stride": 5120,
+            "offset": 0,
+            "size": 3686400
+          }
+        ],
+        "allocationSize": 3686400,
+        "queriedSubresourceSize": 3686400,
+        "origin": "top-left",
+        "alphaMode": "premultiplied",
+        "colorSpace": "srgb",
+        "sync": "queue-idle-foreign-release",
+        "gpu": {
+          "name": "AMD Radeon 880M Graphics (RADV STRIX1)",
+          "vendorId": 4098,
+          "deviceId": 5390,
+          "drmRenderMajor": 226,
+          "drmRenderMinor": 128,
+          "deviceUUID": "00000000c10000000000000000000000"
+        },
+        "provider": "skia-plugin",
+        "counters": {
+          "gpuBlits": 11,
+          "cpuPixelReadbacks": 0,
+          "queueIdleWaits": 11
+        }
+      },
+      "outstanding": 2,
+      "fd": {
+        "pid": 444582,
+        "count": 118,
+        "drm": [
+          "/dev/dri/renderD128"
+        ],
+        "dmaBuf": 7
+      }
+    },
+    {
+      "ms": 1332.816396,
+      "type": "transferred",
+      "frameSeq": 10
+    },
+    {
+      "ms": 1332.843677,
+      "type": "main-release",
+      "frameSeq": 10
+    },
+    {
+      "ms": 1332.933676,
+      "type": "drawn",
+      "frameSeq": 10,
+      "timestamp": 10,
+      "width": 1280,
+      "height": 720,
+      "samples": [
+        {
+          "name": "top-left-red",
+          "x": 0.05,
+          "y": 0.15,
+          "expected": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "rgba": [
+            255,
+            0,
+            0,
+            255
+          ]
+        },
+        {
+          "name": "top-right-green",
+          "x": 0.95,
+          "y": 0.15,
+          "expected": [
+            0,
+            255,
+            0,
+            255
+          ],
+          "rgba": [
+            0,
+            255,
+            0,
+            255
+          ]
+        },
+        {
+          "name": "bottom-left-blue",
+          "x": 0.05,
+          "y": 0.95,
+          "expected": [
+            0,
+            0,
+            255,
+            255
+          ],
+          "rgba": [
+            0,
+            0,
+            255,
+            255
+          ]
+        },
+        {
+          "name": "bottom-right-white",
+          "x": 0.95,
+          "y": 0.95,
+          "expected": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "rgba": [
+            255,
+            255,
+            255,
+            255
+          ]
+        },
+        {
+          "name": "premultiplied-alpha",
+          "x": 0.375,
+          "y": 0.8,
+          "expected": [
+            255,
+            0,
+            255,
+            128
+          ],
+          "rgba": [
+            255,
+            0,
+            255,
+            128
+          ]
+        },
+        {
+          "name": "transparent",
+          "x": 0.625,
+          "y": 0.8,
+          "expected": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "rgba": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "gray-0",
+          "x": 0.0625,
+          "y": 0.5,
+          "expected": [
+            0,
+            0,
+            0,
+            255
+          ],
+          "rgba": [
+            0,
+            0,
+            0,
+            255
+          ]
+        },
+        {
+          "name": "gray-1",
+          "x": 0.1875,
+          "y": 0.5,
+          "expected": [
+            36,
+            36,
+            36,
+            255
+          ],
+          "rgba": [
+            36,
+            36,
+            36,
+            255
+          ]
+        },
+        {
+          "name": "gray-2",
+          "x": 0.3125,
+          "y": 0.5,
+          "expected": [
+            73,
+            73,
+            73,
+            255
+          ],
+          "rgba": [
+            73,
+            73,
+            73,
+            255
+          ]
+        },
+        {
+          "name": "gray-3",
+          "x": 0.4375,
+          "y": 0.5,
+          "expected": [
+            109,
+            109,
+            109,
+            255
+          ],
+          "rgba": [
+            109,
+            109,
+            109,
+            255
+          ]
+        },
+        {
+          "name": "gray-4",
+          "x": 0.5625,
+          "y": 0.5,
+          "expected": [
+            146,
+            146,
+            146,
+            255
+          ],
+          "rgba": [
+            146,
+            146,
+            146,
+            255
+          ]
+        },
+        {
+          "name": "gray-5",
+          "x": 0.6875,
+          "y": 0.5,
+          "expected": [
+            182,
+            182,
+            182,
+            255
+          ],
+          "rgba": [
+            182,
+            182,
+            182,
+            255
+          ]
+        },
+        {
+          "name": "gray-6",
+          "x": 0.8125,
+          "y": 0.5,
+          "expected": [
+            219,
+            219,
+            219,
+            255
+          ],
+          "rgba": [
+            219,
+            219,
+            219,
+            255
+          ]
+        },
+        {
+          "name": "gray-7",
+          "x": 0.9375,
+          "y": 0.5,
+          "expected": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "rgba": [
+            255,
+            255,
+            255,
+            255
+          ]
+        }
+      ],
+      "pixelChecksPassed": true,
+      "decodedSequence": 10
+    },
+    {
+      "ms": 1333.004399,
+      "type": "renderer-release-requested",
+      "frameSeq": 10
+    },
+    {
+      "ms": 1333.43173,
+      "type": "all-references-released",
+      "frameSeq": 10,
+      "slotId": 0,
+      "slotEpoch": 4
+    },
+    {
+      "ms": 1334.20477,
+      "type": "producer-ack",
+      "frameSeq": 10,
+      "acknowledged": 10,
+      "fd": {
+        "pid": 444582,
+        "count": 117,
+        "drm": [
+          "/dev/dri/renderD128"
+        ],
+        "dmaBuf": 6
+      }
+    },
+    {
+      "ms": 1334.373166,
+      "type": "transferred",
+      "frameSeq": 11
+    },
+    {
+      "ms": 1334.395608,
+      "type": "main-release",
+      "frameSeq": 11
+    },
+    {
+      "ms": 1336.589824,
+      "type": "imported",
+      "metadata": {
+        "type": "frame",
+        "protocolVersion": 1,
+        "producerPid": 444711,
+        "producerEpoch": "40927515688022",
+        "poolGeneration": 1,
+        "slotId": 2,
+        "slotEpoch": 4,
+        "frameSeq": 12,
+        "width": 1280,
+        "height": 720,
+        "format": "BGRA_8888",
+        "fourcc": "AR24",
+        "modifier": "0",
+        "planes": [
+          {
+            "fdIndex": 0,
+            "stride": 5120,
+            "offset": 0,
+            "size": 3686400
+          }
+        ],
+        "allocationSize": 3686400,
+        "queriedSubresourceSize": 3686400,
+        "origin": "top-left",
+        "alphaMode": "premultiplied",
+        "colorSpace": "srgb",
+        "sync": "queue-idle-foreign-release",
+        "gpu": {
+          "name": "AMD Radeon 880M Graphics (RADV STRIX1)",
+          "vendorId": 4098,
+          "deviceId": 5390,
+          "drmRenderMajor": 226,
+          "drmRenderMinor": 128,
+          "deviceUUID": "00000000c10000000000000000000000"
+        },
+        "provider": "skia-plugin",
+        "counters": {
+          "gpuBlits": 12,
+          "cpuPixelReadbacks": 0,
+          "queueIdleWaits": 12
+        }
+      },
+      "outstanding": 2,
+      "fd": {
+        "pid": 444582,
+        "count": 117,
+        "drm": [
+          "/dev/dri/renderD128"
+        ],
+        "dmaBuf": 7
+      }
+    },
+    {
+      "ms": 1343.024746,
+      "type": "drawn",
+      "frameSeq": 11,
+      "timestamp": 11,
+      "width": 1280,
+      "height": 720,
+      "samples": [
+        {
+          "name": "top-left-red",
+          "x": 0.05,
+          "y": 0.15,
+          "expected": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "rgba": [
+            255,
+            0,
+            0,
+            255
+          ]
+        },
+        {
+          "name": "top-right-green",
+          "x": 0.95,
+          "y": 0.15,
+          "expected": [
+            0,
+            255,
+            0,
+            255
+          ],
+          "rgba": [
+            0,
+            255,
+            0,
+            255
+          ]
+        },
+        {
+          "name": "bottom-left-blue",
+          "x": 0.05,
+          "y": 0.95,
+          "expected": [
+            0,
+            0,
+            255,
+            255
+          ],
+          "rgba": [
+            0,
+            0,
+            255,
+            255
+          ]
+        },
+        {
+          "name": "bottom-right-white",
+          "x": 0.95,
+          "y": 0.95,
+          "expected": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "rgba": [
+            255,
+            255,
+            255,
+            255
+          ]
+        },
+        {
+          "name": "premultiplied-alpha",
+          "x": 0.375,
+          "y": 0.8,
+          "expected": [
+            255,
+            0,
+            255,
+            128
+          ],
+          "rgba": [
+            255,
+            0,
+            255,
+            128
+          ]
+        },
+        {
+          "name": "transparent",
+          "x": 0.625,
+          "y": 0.8,
+          "expected": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "rgba": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "gray-0",
+          "x": 0.0625,
+          "y": 0.5,
+          "expected": [
+            0,
+            0,
+            0,
+            255
+          ],
+          "rgba": [
+            0,
+            0,
+            0,
+            255
+          ]
+        },
+        {
+          "name": "gray-1",
+          "x": 0.1875,
+          "y": 0.5,
+          "expected": [
+            36,
+            36,
+            36,
+            255
+          ],
+          "rgba": [
+            36,
+            36,
+            36,
+            255
+          ]
+        },
+        {
+          "name": "gray-2",
+          "x": 0.3125,
+          "y": 0.5,
+          "expected": [
+            73,
+            73,
+            73,
+            255
+          ],
+          "rgba": [
+            73,
+            73,
+            73,
+            255
+          ]
+        },
+        {
+          "name": "gray-3",
+          "x": 0.4375,
+          "y": 0.5,
+          "expected": [
+            109,
+            109,
+            109,
+            255
+          ],
+          "rgba": [
+            109,
+            109,
+            109,
+            255
+          ]
+        },
+        {
+          "name": "gray-4",
+          "x": 0.5625,
+          "y": 0.5,
+          "expected": [
+            146,
+            146,
+            146,
+            255
+          ],
+          "rgba": [
+            146,
+            146,
+            146,
+            255
+          ]
+        },
+        {
+          "name": "gray-5",
+          "x": 0.6875,
+          "y": 0.5,
+          "expected": [
+            182,
+            182,
+            182,
+            255
+          ],
+          "rgba": [
+            182,
+            182,
+            182,
+            255
+          ]
+        },
+        {
+          "name": "gray-6",
+          "x": 0.8125,
+          "y": 0.5,
+          "expected": [
+            219,
+            219,
+            219,
+            255
+          ],
+          "rgba": [
+            219,
+            219,
+            219,
+            255
+          ]
+        },
+        {
+          "name": "gray-7",
+          "x": 0.9375,
+          "y": 0.5,
+          "expected": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "rgba": [
+            255,
+            255,
+            255,
+            255
+          ]
+        }
+      ],
+      "pixelChecksPassed": true,
+      "decodedSequence": 11
+    },
+    {
+      "ms": 1344.33855,
+      "type": "transferred",
+      "frameSeq": 12
+    },
+    {
+      "ms": 1344.440211,
+      "type": "main-release",
+      "frameSeq": 12
+    },
+    {
+      "ms": 1357.075533,
+      "type": "drawn",
+      "frameSeq": 12,
+      "timestamp": 12,
+      "width": 1280,
+      "height": 720,
+      "samples": [
+        {
+          "name": "top-left-red",
+          "x": 0.05,
+          "y": 0.15,
+          "expected": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "rgba": [
+            255,
+            0,
+            0,
+            255
+          ]
+        },
+        {
+          "name": "top-right-green",
+          "x": 0.95,
+          "y": 0.15,
+          "expected": [
+            0,
+            255,
+            0,
+            255
+          ],
+          "rgba": [
+            0,
+            255,
+            0,
+            255
+          ]
+        },
+        {
+          "name": "bottom-left-blue",
+          "x": 0.05,
+          "y": 0.95,
+          "expected": [
+            0,
+            0,
+            255,
+            255
+          ],
+          "rgba": [
+            0,
+            0,
+            255,
+            255
+          ]
+        },
+        {
+          "name": "bottom-right-white",
+          "x": 0.95,
+          "y": 0.95,
+          "expected": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "rgba": [
+            255,
+            255,
+            255,
+            255
+          ]
+        },
+        {
+          "name": "premultiplied-alpha",
+          "x": 0.375,
+          "y": 0.8,
+          "expected": [
+            255,
+            0,
+            255,
+            128
+          ],
+          "rgba": [
+            255,
+            0,
+            255,
+            128
+          ]
+        },
+        {
+          "name": "transparent",
+          "x": 0.625,
+          "y": 0.8,
+          "expected": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "rgba": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "gray-0",
+          "x": 0.0625,
+          "y": 0.5,
+          "expected": [
+            0,
+            0,
+            0,
+            255
+          ],
+          "rgba": [
+            0,
+            0,
+            0,
+            255
+          ]
+        },
+        {
+          "name": "gray-1",
+          "x": 0.1875,
+          "y": 0.5,
+          "expected": [
+            36,
+            36,
+            36,
+            255
+          ],
+          "rgba": [
+            36,
+            36,
+            36,
+            255
+          ]
+        },
+        {
+          "name": "gray-2",
+          "x": 0.3125,
+          "y": 0.5,
+          "expected": [
+            73,
+            73,
+            73,
+            255
+          ],
+          "rgba": [
+            73,
+            73,
+            73,
+            255
+          ]
+        },
+        {
+          "name": "gray-3",
+          "x": 0.4375,
+          "y": 0.5,
+          "expected": [
+            109,
+            109,
+            109,
+            255
+          ],
+          "rgba": [
+            109,
+            109,
+            109,
+            255
+          ]
+        },
+        {
+          "name": "gray-4",
+          "x": 0.5625,
+          "y": 0.5,
+          "expected": [
+            146,
+            146,
+            146,
+            255
+          ],
+          "rgba": [
+            146,
+            146,
+            146,
+            255
+          ]
+        },
+        {
+          "name": "gray-5",
+          "x": 0.6875,
+          "y": 0.5,
+          "expected": [
+            182,
+            182,
+            182,
+            255
+          ],
+          "rgba": [
+            182,
+            182,
+            182,
+            255
+          ]
+        },
+        {
+          "name": "gray-6",
+          "x": 0.8125,
+          "y": 0.5,
+          "expected": [
+            219,
+            219,
+            219,
+            255
+          ],
+          "rgba": [
+            219,
+            219,
+            219,
+            255
+          ]
+        },
+        {
+          "name": "gray-7",
+          "x": 0.9375,
+          "y": 0.5,
+          "expected": [
+            255,
+            255,
+            255,
+            255
+          ],
+          "rgba": [
+            255,
+            255,
+            255,
+            255
+          ]
+        }
+      ],
+      "pixelChecksPassed": true,
+      "decodedSequence": 12
+    },
+    {
+      "ms": 1357.322527,
+      "type": "renderer-release-requested",
+      "frameSeq": 11
+    },
+    {
+      "ms": 1359.308051,
+      "type": "renderer-release-requested",
+      "frameSeq": 12
+    },
+    {
+      "ms": 1361.344552,
+      "type": "all-references-released",
+      "frameSeq": 11,
+      "slotId": 1,
+      "slotEpoch": 4
+    },
+    {
+      "ms": 1362.893668,
+      "type": "producer-ack",
+      "frameSeq": 11,
+      "acknowledged": 11,
+      "fd": {
+        "pid": 444582,
+        "count": 116,
+        "drm": [
+          "/dev/dri/renderD128"
+        ],
+        "dmaBuf": 6
+      }
+    },
+    {
+      "ms": 1363.490577,
+      "type": "all-references-released",
+      "frameSeq": 12,
+      "slotId": 2,
+      "slotEpoch": 4
+    },
+    {
+      "ms": 1364.609126,
+      "type": "producer-ack",
+      "frameSeq": 12,
+      "acknowledged": 12,
+      "fd": {
+        "pid": 444582,
+        "count": 116,
+        "drm": [
+          "/dev/dri/renderD128"
+        ],
+        "dmaBuf": 6
+      }
+    },
+    {
+      "ms": 1368.954758,
+      "type": "producer-message",
+      "metadata": {
+        "type": "finished",
+        "frames": 12,
+        "slots": 3,
+        "cpuPixelReadbacks": 0,
+        "gpuBlits": 12
+      }
+    },
+    {
+      "ms": 1373.360973,
+      "type": "producer-exit",
+      "code": 0,
+      "signal": null
+    }
+  ],
+  "boundaries": {
+    "cpuReadback": true,
+    "chromiumInternalCopies": "unmeasured",
+    "acquireSync": "producer queue idle + foreign ownership release; correctness baseline only"
+  },
+  "fdBaseline": {
+    "pid": 444582,
+    "count": 64,
+    "drm": [
+      "/dev/dri/renderD128"
+    ],
+    "dmaBuf": 0
+  },
+  "gpu": {
+    "auxAttributes": {
+      "amdSwitchable": false,
+      "canSupportThreadedTextureMailbox": false,
+      "glImplementationParts": "(gl=none,angle=none)",
+      "glResetNotificationStrategy": 0,
+      "hardwareSupportsVulkan": false,
+      "inProcessGpu": true,
+      "initializationTime": 0,
+      "isAsan": false,
+      "isClangCoverage": false,
+      "jpegDecodeAcceleratorSupported": false,
+      "optimus": false,
+      "passthroughCmdDecoder": false,
+      "sandboxed": false,
+      "skiaBackendType": "None",
+      "subpixelFontRendering": true,
+      "targetCpuBits": 64,
+      "visibilityCallbackCallCount": 0
+    },
+    "gpuDevice": [
+      {
+        "active": true,
+        "deviceId": 5390,
+        "gpuPreference": 0,
+        "vendorId": 4098
+      }
+    ]
+  },
+  "gpuFeatures": {
+    "2d_canvas": "enabled",
+    "direct_rendering_display_compositor": "disabled_off_ok",
+    "gpu_compositing": "enabled",
+    "multiple_raster_threads": "enabled_on",
+    "opengl": "enabled_on",
+    "rasterization": "enabled",
+    "raw_draw": "disabled_off_ok",
+    "skia_graphite": "disabled_off",
+    "trees_in_viz": "disabled_off",
+    "video_decode": "enabled",
+    "video_encode": "disabled_software",
+    "vulkan": "disabled_off",
+    "webgl": "enabled",
+    "webgpu": "enabled",
+    "webgpu_on_vk_via_gl_interop": "disabled_off",
+    "webnn": "disabled_off"
+  },
+  "processes": [
+    {
+      "pid": 444582,
+      "type": "Browser",
+      "identity": {
+        "startTime": "4092615",
+        "state": "R"
+      },
+      "fd": {
+        "pid": 444582,
+        "count": 110,
+        "drm": [
+          "/dev/dri/renderD128"
+        ],
+        "dmaBuf": 4
+      }
+    },
+    {
+      "pid": 444639,
+      "type": "GPU",
+      "identity": {
+        "startTime": "4092663",
+        "state": "S"
+      },
+      "fd": {
+        "pid": 444639,
+        "count": 60,
+        "drm": [
+          "/dev/dri/renderD128",
+          "/dev/dri/renderD128",
+          "/dev/dri/renderD128",
+          "/dev/dri/renderD128",
+          "/dev/dri/renderD128"
+        ],
+        "dmaBuf": 9
+      }
+    },
+    {
+      "pid": 444642,
+      "type": "Utility",
+      "identity": {
+        "startTime": "4092664",
+        "state": "S"
+      },
+      "fd": {
+        "pid": 444642,
+        "count": 26,
+        "drm": [],
+        "dmaBuf": 0
+      }
+    },
+    {
+      "pid": 444650,
+      "type": "Tab",
+      "identity": {
+        "startTime": "4092667",
+        "state": "S"
+      },
+      "fd": {
+        "pid": 444650,
+        "count": 41,
+        "drm": [],
+        "dmaBuf": 0
+      }
+    }
+  ],
+  "fdConnected": {
+    "pid": 444582,
+    "count": 114,
+    "drm": [
+      "/dev/dri/renderD128"
+    ],
+    "dmaBuf": 4
+  },
+  "deviceMatch": {
+    "vendorId": 4098,
+    "deviceId": 5390,
+    "renderMajor": 226,
+    "renderMinor": 128,
+    "chromiumGpuPid": 444639
+  },
+  "reason": "finite frame identity/canvas draw/final GPU release verified; producer finished and exited zero",
+  "acknowledged": 12,
+  "outstandingAtStop": [],
+  "unknownGpuCompletion": false,
+  "fdAtStop": {
+    "pid": 444582,
+    "count": 114,
+    "drm": [
+      "/dev/dri/renderD128"
+    ],
+    "dmaBuf": 6
+  },
+  "fdAfterProducerExit": {
+    "pid": 444582,
+    "count": 108,
+    "drm": [
+      "/dev/dri/renderD128"
+    ],
+    "dmaBuf": 6
+  }
+}

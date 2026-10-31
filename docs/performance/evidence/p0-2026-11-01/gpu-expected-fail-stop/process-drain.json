@@ -1,0 +1,45 @@
+{
+  "drained": true,
+  "checks": [
+    {
+      "pid": 447399,
+      "type": "Browser",
+      "original": {
+        "startTime": "4102399",
+        "state": "R"
+      },
+      "current": null,
+      "stillRunning": false
+    },
+    {
+      "pid": 447449,
+      "type": "GPU",
+      "original": {
+        "startTime": "4102437",
+        "state": "S"
+      },
+      "current": null,
+      "stillRunning": false
+    },
+    {
+      "pid": 447452,
+      "type": "Utility",
+      "original": {
+        "startTime": "4102438",
+        "state": "S"
+      },
+      "current": null,
+      "stillRunning": false
+    },
+    {
+      "pid": 447459,
+      "type": "Tab",
+      "original": {
+        "startTime": "4102439",
+        "state": "S"
+      },
+      "current": null,
+      "stillRunning": false
+    }
+  ]
+}

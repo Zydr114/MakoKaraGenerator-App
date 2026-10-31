@@ -13,6 +13,8 @@
     "dev": "node scripts/app.mjs dev",
     "test:unit": "pnpm --dir frontend test:unit",
     "test:launcher": "node --experimental-test-module-mocks --test tests/launcher.test.mjs",
-    "smoke:browser": "node scripts/browser-smoke.mjs"
+    "smoke:browser": "node scripts/browser-smoke.mjs",
+    "setup:p0": "pnpm --dir desktop run setup",
+    "preview:p0": "pnpm --dir desktop run p0"
   }
 }

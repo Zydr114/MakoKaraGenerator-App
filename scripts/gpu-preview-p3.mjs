@@ -266,10 +266,16 @@ async function actualWaylandEvidence(page,cdp,snapshot) {
   try{commandLine=await readFile(`/proc/${snapshot.mainPid}/cmdline`,'utf8').then(value=>value.split('\0').filter(Boolean));}catch{}
   const details=await page.eval(`({visibility:document.visibilityState,userAgent:navigator.userAgent,platform:navigator.platform})`);
   const backend=systemInfo?.gpu?.auxAttributes?.displayType??systemInfo?.gpu?.auxAttributes?.glImplementationParts??null;
-  return {renderer:details,gpuAuxAttributes:systemInfo?.gpu?.auxAttributes??null,electronArguments:commandLine,
+  const ownedProcesses=[];
+  for(const proc of [{pid:snapshot.rendererPid,type:'renderer'},...(snapshot.processes??[]).filter(proc=>proc.type==='GPU')]){
+    if(!proc.pid)continue;
+    try{const args=(await readFile(`/proc/${proc.pid}/cmdline`,'utf8')).split('\0');const ozone=args.filter(arg=>/^--ozone-platform=/.test(arg));ownedProcesses.push({pid:proc.pid,type:proc.type,ozonePlatformArguments:ozone});}catch{}
+  }
+  const actualWaylandProcesses=ownedProcesses.length>=2&&ownedProcesses.every(proc=>proc.ozonePlatformArguments.includes('--ozone-platform=wayland'));
+  return {renderer:details,gpuAuxAttributes:systemInfo?.gpu?.auxAttributes??null,electronArguments:commandLine,ownedProcesses,waylandRuntimeProof:actualWaylandProcesses?'owned Electron GPU and renderer process both run --ozone-platform=wayland':null,
     actualOzoneBackend:backend??'unmeasured; environment variables alone are not proof',
     environmentObservation:{XDG_SESSION_TYPE:process.env.XDG_SESSION_TYPE??null,WAYLAND_DISPLAY:process.env.WAYLAND_DISPLAY??null},
-    waylandConfirmed:typeof backend==='string'&&/wayland/i.test(backend)};
+    waylandConfirmed:actualWaylandProcesses||(typeof backend==='string'&&/wayland/i.test(backend))};
 }
 async function selectGpu(page) {
   await page.waitFor(`(()=>{const option=document.querySelector('.render-device-option[data-value="gpu"]')?.closest('mdui-menu-item');return option&&!option.disabled;})()`,'Available GPU render backend',120_000);
@@ -380,7 +386,7 @@ async function run(values) {
     await page.waitFor(`typeof window.makoDesktopPreview?.readPreviewState==='function'`,'Desktop production bridge');
     manifest.platformEvidence=await actualWaylandEvidence(page,cdp,{...await sample(),cdpPort:values['cdp-port']});
     if(!values['reuse-project'])manifest.fixture=await makeFixtures(output).then(async fixture=>{await createProject(page,fixture);return fixture;});
-    if(values['reuse-project'])await selectGpu(page);
+    if(values['reuse-project']){invariant(await page.eval(`!!document.querySelector('mdui-navigation-rail-item[value="orchestration"]')`),'--reuse-project requires an already-open project in the live App');await selectGpu(page);}
     await writeFile(join(output,'manifest.json'),JSON.stringify(manifest,null,2)+'\n');
     await page.eval(`(()=>{window.__makoP3Events=[];window.makoDesktopPreview.onPreviewState(event=>{window.__makoP3Events.push({event,rendererPerformanceMs:performance.now()});if(window.__makoP3Events.length>4096)window.__makoP3Events.shift();});})()`);
     await page.eval(`document.querySelector('[aria-label="播放"]')?.click()`);
@@ -447,7 +453,7 @@ async function run(values) {
       const resized=await page.eval(`window.makoGpuPreviewAcceptance.resize(${targetWidth},${targetHeight})`);
       invariant(old.streamId===resized.streamId&&old.inputGeneration!==resized.inputGeneration,'Resize did not preserve stream and replace input generation');
       await seekTimeline(page,20+index*7);
-      const after=await waitFrames(before.completedDrawnUnique,3,state=>state.latestSample?.streamId===resized.streamId&&state.latestSample?.inputGeneration===resized.inputGeneration);
+      const after=await waitFrames(before.completedDrawnUnique,3,state=>state.latestSample?.streamId===resized.streamId&&state.latestSample?.inputGeneration===resized.inputGeneration&&state.latestSample?.timelineResetId!==before.mediaClock?.timelineResetId);
       await record({type:'action',kind:'public-resize-seek',exactGenerationCompleted:true,index,startMonotonicNs:before.nowMonotonicNs,endMonotonicNs:after.nowMonotonicNs,
         streamId:resized.streamId,previousInputGeneration:old.inputGeneration,inputGeneration:resized.inputGeneration,previousPoolGeneration:old.poolGeneration,poolGeneration:resized.poolGeneration});
     }

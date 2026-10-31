@@ -166,6 +166,7 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
                 RedirectStandardError = true,
                 CreateNoWindow = true,
             };
+            RemoveDesktopCredentials(start);
             foreach (string argument in _options.Arguments ?? []) start.ArgumentList.Add(argument);
             if (_options.RenderBackend is { } selectedBackend)
                 start.Environment["MAKO_RENDER_BACKEND"] = WorkerRenderBackendContract.EnvironmentValue(selectedBackend);
@@ -228,6 +229,14 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
             }
         }
         finally { _lifecycleGate.Release(); }
+    }
+
+    internal static void RemoveDesktopCredentials(ProcessStartInfo start)
+    {
+        ArgumentNullException.ThrowIfNull(start);
+        foreach (string key in start.Environment.Keys.Where(key =>
+                     key.StartsWith("MAKO_DESKTOP_", StringComparison.OrdinalIgnoreCase)).ToArray())
+            start.Environment.Remove(key);
     }
 
     /// <summary>发送一条受限 Worker 命令，并校验回执的请求 ID 与输入哈希。</summary>

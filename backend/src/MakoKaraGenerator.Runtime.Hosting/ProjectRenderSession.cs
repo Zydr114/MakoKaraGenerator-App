@@ -70,6 +70,7 @@ internal sealed class ProjectRenderSession(ProjectSnapshot snapshot, SkiaRenderP
             if (!SupportsGpuFrames) throw new GpuPreviewException("GpuPreviewUnavailable", "This render session did not enable GPU shared output.");
             if (!ReferenceEquals(request.Project, snapshot)) throw new PreparedFrameException("RenderSessionInputsMismatch", "GPU 会话不属于当前快照。");
             var target = request.ResolveTarget();
+            ((VulkanSkiaRenderDevice)device!).EnsureGpuTargetInitialized(target);
             using var frameScope = PerformanceTelemetry.BeginFrame(_telemetrySession, "gpu",
                 Interlocked.Increment(ref _telemetrySequence), target.PixelWidth, target.PixelHeight);
             try

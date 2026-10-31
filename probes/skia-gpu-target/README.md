@@ -110,6 +110,8 @@ target and warning preservation on both output paths. Synthetic output uses the
 same device/pool/blit/lease, skips preparation only when explicitly enabled, and
 encodes the authoritative returned lease sequence rather than caller attempts.
 Unknown exported delivery quarantines the device and teardown reports NotDrained.
+Uninitialized targets fail before preparation or surface allocation; the recording
+source remains untouched on that rejection.
 
 The underlying session accepts at most 192 MiB across two retained generations;
 the Host applies its separate stricter 64 MiB pool / 128 MiB host budget and drains

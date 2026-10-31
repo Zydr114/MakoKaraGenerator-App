@@ -134,10 +134,12 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
     /// <summary>同一绘制核心输出本机 GPU 租约；不分配最终 CPU 像素或执行最终回读。</summary>
     public GpuRenderFrame RenderGpu(RenderRequest request)
     {
+        ArgumentNullException.ThrowIfNull(request);
         lock (_device.SynchronizationRoot)
         {
             if (_device is not VulkanSkiaRenderDevice gpu || !gpu.SupportsGpuFrames)
                 throw new GpuPreviewException("GpuPreviewUnavailable", "This pipeline did not enable shared Vulkan GPU output.");
+            gpu.EnsureGpuTargetInitialized(request.ResolveTarget());
             return RenderToOutput(request, null, (surface, _, target, diagnostics) =>
                 new GpuRenderFrame(target, request.TimeUs, gpu.CopyGpuFrame(surface, target))
                 { MaterialDiagnostics = diagnostics.Materials, ImageEffectDiagnostics = diagnostics.Images, DiagnosticSnapshot = diagnostics.Scene });

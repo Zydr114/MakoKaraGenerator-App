@@ -419,11 +419,20 @@ internal sealed class VulkanSkiaRenderDevice : ISkiaRenderDevice
     {
         lock (SynchronizationRoot)
         {
+            EnsureGpuTargetInitialized(target);
+            return _currentGpuPool!.CopyFrom(surface, _context, _queueFamily, checked(++_gpuSequence));
+        }
+    }
+
+    internal void EnsureGpuTargetInitialized(RenderTarget target)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        lock (SynchronizationRoot)
+        {
             ObjectDisposedException.ThrowIf(_disposed, this);
             if (!SupportsGpuFrames) throw new GpuPreviewException("GpuPreviewUnavailable", "This session did not enable GPU shared output or its stream has failed.");
             if (_currentGpuPool is null || _currentGpuPool.Target.PixelWidth != target.PixelWidth || _currentGpuPool.Target.PixelHeight != target.PixelHeight)
                 throw new GpuPreviewException("GpuPreviewTargetNotInitialized", "Reserve the session budget and initialize this exact GPU target before rendering.");
-            return _currentGpuPool.CopyFrom(surface, _context, _queueFamily, checked(++_gpuSequence));
         }
     }
 

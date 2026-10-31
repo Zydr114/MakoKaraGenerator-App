@@ -116,6 +116,9 @@ internal static class ProductionGpuProbe
             var renderer = new SkiaRenderPipeline(null, null, null, null, false, device, false);
             var source = new RecordingSource(snapshot, renderer);
             await using var session = new ProjectRenderSession(snapshot, renderer, source, null, [], [], null, null, device, true);
+            try { await session.RenderGpuAsync(RenderRequest.At(snapshot, 0)); throw new Exception("uninitialized target prepared"); }
+            catch (GpuPreviewException error) when (error.Code == "GpuPreviewTargetNotInitialized") { }
+            Require(source.Calls == 0, "target rejection must precede PrepareAsync");
             await session.InitializeGpuOutputAsync(new() { PixelWidth = 96, PixelHeight = 64 }, Budget);
             foreach (bool transparent in new[] { false, true })
             {

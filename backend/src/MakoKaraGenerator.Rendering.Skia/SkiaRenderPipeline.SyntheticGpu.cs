@@ -13,6 +13,7 @@ public sealed partial class SkiaRenderPipeline
             ObjectDisposedException.ThrowIf(_disposed, this);
             if (_device is not VulkanSkiaRenderDevice { SupportsGpuFrames: true } gpu)
                 throw new GpuPreviewException("GpuPreviewUnavailable", "Synthetic GPU output requires the same shared Vulkan device.");
+            gpu.EnsureGpuTargetInitialized(target);
             // Encode the exact authoritative lease identity. A caller attempt
             // counter can diverge after pool exhaustion or a new stream.
             sequence = gpu.NextGpuFrameSequence;

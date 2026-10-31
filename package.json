@@ -1,0 +1,18 @@
+{
+  "name": "makokara-generator-app",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "setup": "pnpm --dir frontend install --frozen-lockfile",
+    "build": "node scripts/app.mjs build",
+    "start": "node scripts/app.mjs start",
+    "dev": "node scripts/app.mjs dev",
+    "test:unit": "pnpm --dir frontend test:unit",
+    "test:launcher": "node --experimental-test-module-mocks --test tests/launcher.test.mjs",
+    "smoke:browser": "node scripts/browser-smoke.mjs"
+  }
+}

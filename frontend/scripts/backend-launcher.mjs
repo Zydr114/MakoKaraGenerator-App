@@ -1,12 +1,12 @@
 // 启动真实 Backend.Server 的可复用部分，供 dev-backend.mjs 与集成测试共用。
 //
-// 不直接运行 dotnet：本机没有共享 ASP.NET runtime，且新建工程需要匹配的 Worker 做音频准备。
+// App 使用本仓库 build 发布的 self-contained Server＋Worker，独立运行音频准备。
 // 这里调用后端仓库交付的稳定启动器 tools/backend-web-host/host.py run（self-contained Server＋完整 Worker），
 // 解析其 stdout 的 WEB_BACKEND_READY，再由本进程读取私有 bootstrap 文件。凭证只写入 0600 的输出文件，不打印。
 // 设计见 docs/web-client-w0-design.md §4.1。
 
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { mkdir, open, rename, rm } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -25,37 +25,27 @@ const READY_TIMEOUT_MS = 120_000;
 const STOP_TIMEOUT_MS = 120_000;
 
 export function resolveBackendRepo() {
-  return resolve(PROJECT_ROOT, process.env.MAKO_BACKEND_REPO ?? '../MakoKaraGenerator-Backend');
+  const local = resolve(PROJECT_ROOT, '../backend');
+  if (realpathSync(local) !== local) throw new Error('App backend 不能通过符号链接引用外部源码。');
+  if (process.env.MAKO_BACKEND_REPO && resolve(process.env.MAKO_BACKEND_REPO) !== local) {
+    throw new Error('App 只允许使用本仓库 backend；请移除外部 MAKO_BACKEND_REPO。');
+  }
+  return local;
 }
 
-/**
- * 找到匹配发布的 Server＋Worker 目录。优先 MAKO_BACKEND_DIST，其次 W8 匹配发布和后端交接文档推荐的发布目录，
- * 最后是本仓库 .dev/backend-dist/<版本>：后端仓库还在继续提交时，前端从交付提交的独立克隆发布到这里，
- * 不往后端仓库写东西（docs/backend/README.md 记录来源提交）。
- */
+/** App 只运行根 build 生成的本地匹配 Server＋Worker，禁止回退兄弟仓库 artifacts。 */
 export function resolveDist(explicit) {
-  const repo = resolveBackendRepo();
-  const candidates = explicit
-    ? [resolve(explicit)]
-    : process.env.MAKO_BACKEND_DIST
-      ? [resolve(process.env.MAKO_BACKEND_DIST)]
-      : [
-          join(repo, 'artifacts/w8-authoring-20261030/dist-final1'),
-          join(repo, 'artifacts/web-backend', EXPECTED_PRODUCT_VERSION),
-          join(DEV_DIR, 'backend-dist', EXPECTED_PRODUCT_VERSION),
-        ];
-  for (const dir of candidates) {
-    if (existsSync(join(dir, 'deployment.json'))) {
-      const manifest = JSON.parse(readFileSync(join(dir, 'deployment.json'), 'utf8'));
-      if (!explicit && !process.env.MAKO_BACKEND_DIST && manifest.version !== EXPECTED_PRODUCT_VERSION) continue;
-      return { dist: dir, version: manifest.version };
-    }
-  }
-  throw new Error(
-    `找不到后端部署（deployment.json）。已检查：\n  ${candidates.join('\n  ')}\n` +
-      '请在后端仓库执行 python3 tools/backend-web-host/host.py publish --dist <新目录>，' +
-      '然后设置 MAKO_BACKEND_DIST 指向该目录。',
-  );
+  const localRoot = resolve(PROJECT_ROOT, '../.local/backend-dist');
+  const pointer = resolve(PROJECT_ROOT, '../.local/backend-current.json');
+  let selected = explicit ?? process.env.MAKO_BACKEND_DIST;
+  if (!selected && existsSync(pointer)) selected = JSON.parse(readFileSync(pointer, 'utf8')).dist;
+  if (!selected) throw new Error('App 尚无后端构建；请在 App 根执行 pnpm build。');
+  const dist = realpathSync(resolve(selected));
+  if (!dist.startsWith(localRoot + '/')) throw new Error('App 后端部署必须位于本仓库 .local/backend-dist/。');
+  if (!existsSync(join(dist, 'deployment.json'))) throw new Error(`后端部署不完整：${dist}`);
+  const manifest = JSON.parse(readFileSync(join(dist, 'deployment.json'), 'utf8'));
+  if (manifest.version !== EXPECTED_PRODUCT_VERSION) throw new Error('App 后端部署与固定合同产品版本不一致。');
+  return { dist, version: manifest.version };
 }
 
 /** 以 0600 原子写入启动信息；先写临时文件再改名，读取方不会看到半个文件。 */
@@ -109,7 +99,9 @@ export async function startBackend(options = {}) {
   });
 
   let exitCode = null;
+  let spawnError;
   const exited = new Promise((resolveExit) => {
+    child.once('error', (error) => { spawnError = error; exitCode = 1; resolveExit(1); });
     child.on('exit', (code, signal) => {
       exitCode = code ?? (signal ? 128 : null);
       resolveExit(exitCode);
@@ -119,68 +111,75 @@ export async function startBackend(options = {}) {
     for (const line of String(chunk).split('\n')) if (line) log(`[backend:stderr] ${line}`);
   });
 
-  const ready = await new Promise((resolveReady, rejectReady) => {
-    const timer = setTimeout(() => {
-      rejectReady(new Error(`后端在 ${READY_TIMEOUT_MS / 1000} 秒内没有就绪。`));
-    }, READY_TIMEOUT_MS);
-    const lines = createInterface({ input: child.stdout });
-    lines.on('line', (line) => {
-      // host.py 的 stdout 只含地址、hostInstanceId、路径与 pid，不含凭证。
-      if (line.startsWith('WEB_BACKEND_READY ')) {
-        clearTimeout(timer);
-        try {
-          resolveReady(JSON.parse(line.slice('WEB_BACKEND_READY '.length)));
-        } catch (error) {
-          rejectReady(error);
+  try {
+    const ready = await new Promise((resolveReady, rejectReady) => {
+      const timer = setTimeout(() => {
+        rejectReady(new Error(`后端在 ${READY_TIMEOUT_MS / 1000} 秒内没有就绪。`));
+      }, READY_TIMEOUT_MS);
+      const lines = createInterface({ input: child.stdout });
+      lines.on('line', (line) => {
+        // host.py 的 stdout 只含地址、hostInstanceId、路径与 pid，不含凭证。
+        if (line.startsWith('WEB_BACKEND_READY ')) {
+          clearTimeout(timer);
+          try {
+            resolveReady(JSON.parse(line.slice('WEB_BACKEND_READY '.length)));
+          } catch (error) {
+            rejectReady(error);
+          }
         }
-      }
-      log(`[backend] ${line}`);
+        log(`[backend] ${line}`);
+      });
+      exited.then((code) => {
+        clearTimeout(timer);
+        rejectReady(spawnError ?? new Error(`后端启动器提前退出（${code}）；日志见 profile/runs/*/server.log。`));
+      });
     });
-    exited.then((code) => {
-      clearTimeout(timer);
-      rejectReady(new Error(`后端启动器提前退出（${code}）；日志见 profile/runs/*/server.log。`));
-    });
-  }).catch(async (error) => {
+
+    const credentialFile = ready.credentialFile;
+    const mode = statSync(credentialFile).mode & 0o777;
+    if (mode !== 0o600) throw new Error(`bootstrap 凭证文件权限应为 0600，实际 ${mode.toString(8)}。`);
+    const credential = JSON.parse(readFileSync(credentialFile, 'utf8'));
+    const info = {
+      baseUrl: ready.addresses[0],
+      hostInstanceId: ready.hostInstanceId,
+      bootstrapToken: credential.bootstrapToken,
+      version: ready.version,
+      pid: ready.pid,
+      runDirectory: ready.runDirectory,
+      writtenAtUtc: new Date().toISOString(),
+    };
+    await writeBootstrapFile(bootstrapFile, info);
+    log(`[backend] 就绪：${info.baseUrl} host=${info.hostInstanceId}；启动信息已写入 ${bootstrapFile}（0600）`);
+
+    let stopping = null;
+    const stop = () => {
+      stopping ??= (async () => {
+        if (exitCode === null) {
+          // 只向自己启动的启动器 PID 发信号；启动器再转发给 Server 并等待排水。不按进程名杀进程。
+          process.kill(child.pid, 'SIGTERM');
+          let stopTimer;
+          const timeout = new Promise((r) => { stopTimer = setTimeout(() => r('timeout'), STOP_TIMEOUT_MS); });
+          try {
+            if ((await Promise.race([exited, timeout])) === 'timeout') {
+              log('[backend] 等待退出超时，仍在运行的启动器 PID: ' + child.pid);
+            }
+          } finally { clearTimeout(stopTimer); }
+        }
+        await rm(bootstrapFile, { force: true });
+        return exitCode;
+      })();
+      return stopping;
+    };
+    exited.then(() => rm(bootstrapFile, { force: true }));
+
+    return { info, ready, stop, exited };
+  } catch (error) {
+    // 就绪后的凭证读取、权限检查或原子写入也属于启动；失败必须停止本次启动器。
     if (exitCode === null) {
-      process.kill(child.pid, 'SIGTERM');
+      try { process.kill(child.pid, 'SIGTERM'); } catch (killError) { if (killError.code !== 'ESRCH') throw killError; }
       await exited;
     }
+    await rm(bootstrapFile, { force: true });
     throw error;
-  });
-
-  const credentialFile = ready.credentialFile;
-  const mode = statSync(credentialFile).mode & 0o777;
-  if (mode !== 0o600) throw new Error(`bootstrap 凭证文件权限应为 0600，实际 ${mode.toString(8)}。`);
-  const credential = JSON.parse(readFileSync(credentialFile, 'utf8'));
-  const info = {
-    baseUrl: ready.addresses[0],
-    hostInstanceId: ready.hostInstanceId,
-    bootstrapToken: credential.bootstrapToken,
-    version: ready.version,
-    pid: ready.pid,
-    runDirectory: ready.runDirectory,
-    writtenAtUtc: new Date().toISOString(),
-  };
-  await writeBootstrapFile(bootstrapFile, info);
-  log(`[backend] 就绪：${info.baseUrl} host=${info.hostInstanceId}；启动信息已写入 ${bootstrapFile}（0600）`);
-
-  let stopping = null;
-  const stop = () => {
-    stopping ??= (async () => {
-      if (exitCode === null) {
-        // 只向自己启动的启动器 PID 发信号；启动器再转发给 Server 并等待排水。不按进程名杀进程。
-        process.kill(child.pid, 'SIGTERM');
-        const timeout = new Promise((r) => setTimeout(() => r('timeout'), STOP_TIMEOUT_MS));
-        if ((await Promise.race([exited, timeout])) === 'timeout') {
-          log('[backend] 等待退出超时，仍在运行的启动器 PID: ' + child.pid);
-        }
-      }
-      await rm(bootstrapFile, { force: true });
-      return exitCode;
-    })();
-    return stopping;
-  };
-  exited.then(() => rm(bootstrapFile, { force: true }));
-
-  return { info, ready, stop, exited };
+  }
 }

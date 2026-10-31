@@ -1,0 +1,21 @@
+{
+  "method": "POST",
+  "path": "/api/v1/preview-sessions/preview-99c427e620804397aa6c72673dc46665/close",
+  "headers": {
+    "X-Mako-Client-Id": "client-2fcad300cdb74e0dbbf3f44be26b95ba",
+    "X-Mako-Host-Instance-Id": "host-4dc464feb83e49e0bd084e9bd74bf2b3",
+    "Authorization": "<redacted>",
+    "Content-Type": "application/json"
+  },
+  "json": {
+    "expectedPreviewGeneration": "1",
+    "expectedSourceRevision": "0",
+    "metadata": {
+      "requestId": "protocol-gate-close-preview",
+      "hostInstanceId": "host-4dc464feb83e49e0bd084e9bd74bf2b3",
+      "validUntilUtc": "2026-10-31T17:35:33.560347Z"
+    }
+  },
+  "bodyBytes": 230,
+  "bodySha256": "b6c17369ac9f2702c18e16ac530f323fed3e91188a78a8724bc0b1feaaf403dc"
+}

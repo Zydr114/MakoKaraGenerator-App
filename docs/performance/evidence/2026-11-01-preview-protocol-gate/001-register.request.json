@@ -1,0 +1,14 @@
+{
+  "method": "POST",
+  "path": "/api/v1/clients",
+  "headers": {
+    "Authorization": "<redacted>",
+    "X-Mako-Host-Instance-Id": "host-4dc464feb83e49e0bd084e9bd74bf2b3",
+    "Content-Type": "application/json"
+  },
+  "json": {
+    "protocolVersion": "1"
+  },
+  "bodyBytes": 24,
+  "bodySha256": "b32a36cc1c8e8bf58f191b0c856dc4f4dcec365dc1fa45b57e1421f3e0672201"
+}

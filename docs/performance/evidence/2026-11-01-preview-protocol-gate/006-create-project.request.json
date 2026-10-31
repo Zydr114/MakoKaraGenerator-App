@@ -1,0 +1,33 @@
+{
+  "method": "POST",
+  "path": "/api/v1/project-sessions",
+  "headers": {
+    "X-Mako-Client-Id": "client-2fcad300cdb74e0dbbf3f44be26b95ba",
+    "X-Mako-Host-Instance-Id": "host-4dc464feb83e49e0bd084e9bd74bf2b3",
+    "Authorization": "<redacted>",
+    "Content-Type": "application/json"
+  },
+  "json": {
+    "name": "Preview protocol gate",
+    "audioAssetId": "asset-5d2952368cad4625b7810f53fbb77e24",
+    "lyricsAssetId": "asset-ef5a606c07d54c6cb5687fad3ebb45ab",
+    "metadata": {
+      "requestId": "protocol-gate-project",
+      "hostInstanceId": "host-4dc464feb83e49e0bd084e9bd74bf2b3",
+      "validUntilUtc": "2026-10-31T17:35:32.664803Z"
+    },
+    "composition": {
+      "canvasWidth": 1280,
+      "canvasHeight": 720,
+      "frameRateNumerator": 24,
+      "frameRateDenominator": 1,
+      "backgroundRed": 0,
+      "backgroundGreen": 0,
+      "backgroundBlue": 0,
+      "backgroundAlpha": 255,
+      "outputDurationUs": 2000000
+    }
+  },
+  "bodyBytes": 537,
+  "bodySha256": "f4950557a24e6dde58c875ff51fb6ca1670644858a9446d6e24db9934fd07584"
+}

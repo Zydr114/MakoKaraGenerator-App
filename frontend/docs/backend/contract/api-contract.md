@@ -1,6 +1,8 @@
 # 前后端 API 执行合同
 
-状态：**冻结1.40.0**，产品元数据与源码指纹更新于2026-10-30；产品 **0.108.0**，HTTP `protocolVersion:"1"`。范围为108路径／120方法／574 schemas、3388合成例（2521反例），固定基线与文件指纹见[manifest](contract-manifest.json)。本批新增 W8 作者草稿恢复、包文本编辑、源码历史与完整包下载，并保留 G31 具体错误定位和 R10 当前源码能力判断。合同形状、实际功能、匹配发布与 fresh HTTP 分别登记，合同版本独立于产品和HTTP协议。
+状态：**冻结1.41.0**，产品元数据与源码指纹更新于2026-11-01；产品 **0.109.0**，HTTP `protocolVersion:"1"`。本批新增桌面 GPU 流生命周期公开合同，固定基线与文件指纹见[manifest](contract-manifest.json)。合同形状、实际功能、匹配发布与 fresh HTTP 分别登记，合同版本独立于产品和HTTP协议。
+
+GPU 流按精确修订创建、换来源、改变尺寸和关闭；创建受真实设备及分配能力限制。`registrationState` 是登记状态，`workerState` 来自 Worker 实时查询；`textureAlphaMode` 固定 `premultiplied`，`alphaMode` 仅控制背景透明度。桌面主进程的私有 claim 不属于公开 API。详细协议和失效语义见仓库根 `docs/architecture/gpu-preview-stream-v1.md`。
 
 **1.24.1／0.94.1修复：** `ExportJobRequest.format`透明格式与实际服务一致为`transparentProRes4444`；错误旧值`transparentMov`仍被服务拒绝。附着来源／前奏缺失分别带`TargetStale`及`command.branchId`／`command.leadInId`，错误容器带`ContainerInvalid`及`command.containerId`。无新路由、DTO或命令；匹配发布Server＋Worker后使用产品0.94.1。实际构建、HTTP与合同证据见[修复记录](../docs/backend-basic-business-bugfix-0941.md)。
 

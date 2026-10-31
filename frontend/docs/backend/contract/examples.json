@@ -125443,7 +125443,459 @@
         "ownershipState": "shared",
         "canClaim": true
       }
+    },
+    {
+      "name": "gpu-stream-create",
+      "schema": "GpuPreviewStreamCreateRequest",
+      "value": {
+        "source": {
+          "kind": "project",
+          "sourceId": "project",
+          "sourceRevision": "1"
+        },
+        "size": {
+          "width": 1280,
+          "height": 720
+        },
+        "alphaMode": "opaque",
+        "api": "vulkan",
+        "consumerId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "metadata": {
+          "requestId": "gpu-example",
+          "hostInstanceId": "host",
+          "validUntilUtc": "2030-01-01T00:00:00Z"
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "gpu-stream-create-missing-source",
+      "schema": "GpuPreviewStreamCreateRequest",
+      "value": {
+        "size": {
+          "width": 1280,
+          "height": 720
+        },
+        "alphaMode": "opaque",
+        "api": "vulkan",
+        "consumerId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "metadata": {
+          "requestId": "gpu-example",
+          "hostInstanceId": "host",
+          "validUntilUtc": "2030-01-01T00:00:00Z"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "gpu-stream-create-missing-size",
+      "schema": "GpuPreviewStreamCreateRequest",
+      "value": {
+        "source": {
+          "kind": "project",
+          "sourceId": "project",
+          "sourceRevision": "1"
+        },
+        "alphaMode": "opaque",
+        "api": "vulkan",
+        "consumerId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "metadata": {
+          "requestId": "gpu-example",
+          "hostInstanceId": "host",
+          "validUntilUtc": "2030-01-01T00:00:00Z"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "gpu-stream-create-missing-alphaMode",
+      "schema": "GpuPreviewStreamCreateRequest",
+      "value": {
+        "source": {
+          "kind": "project",
+          "sourceId": "project",
+          "sourceRevision": "1"
+        },
+        "size": {
+          "width": 1280,
+          "height": 720
+        },
+        "api": "vulkan",
+        "consumerId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "metadata": {
+          "requestId": "gpu-example",
+          "hostInstanceId": "host",
+          "validUntilUtc": "2030-01-01T00:00:00Z"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "gpu-stream-create-missing-api",
+      "schema": "GpuPreviewStreamCreateRequest",
+      "value": {
+        "source": {
+          "kind": "project",
+          "sourceId": "project",
+          "sourceRevision": "1"
+        },
+        "size": {
+          "width": 1280,
+          "height": 720
+        },
+        "alphaMode": "opaque",
+        "consumerId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "metadata": {
+          "requestId": "gpu-example",
+          "hostInstanceId": "host",
+          "validUntilUtc": "2030-01-01T00:00:00Z"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "gpu-stream-create-missing-consumerId",
+      "schema": "GpuPreviewStreamCreateRequest",
+      "value": {
+        "source": {
+          "kind": "project",
+          "sourceId": "project",
+          "sourceRevision": "1"
+        },
+        "size": {
+          "width": 1280,
+          "height": 720
+        },
+        "alphaMode": "opaque",
+        "api": "vulkan",
+        "metadata": {
+          "requestId": "gpu-example",
+          "hostInstanceId": "host",
+          "validUntilUtc": "2030-01-01T00:00:00Z"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "gpu-stream-create-missing-metadata",
+      "schema": "GpuPreviewStreamCreateRequest",
+      "value": {
+        "source": {
+          "kind": "project",
+          "sourceId": "project",
+          "sourceRevision": "1"
+        },
+        "size": {
+          "width": 1280,
+          "height": 720
+        },
+        "alphaMode": "opaque",
+        "api": "vulkan",
+        "consumerId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "valid": false
+    },
+    {
+      "name": "gpu-stream-create-size-small",
+      "schema": "GpuPreviewStreamCreateRequest",
+      "value": {
+        "source": {
+          "kind": "project",
+          "sourceId": "project",
+          "sourceRevision": "1"
+        },
+        "size": {
+          "width": 63,
+          "height": 720
+        },
+        "alphaMode": "opaque",
+        "api": "vulkan",
+        "consumerId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "metadata": {
+          "requestId": "gpu-example",
+          "hostInstanceId": "host",
+          "validUntilUtc": "2030-01-01T00:00:00Z"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "gpu-stream-create-size-large",
+      "schema": "GpuPreviewStreamCreateRequest",
+      "value": {
+        "source": {
+          "kind": "project",
+          "sourceId": "project",
+          "sourceRevision": "1"
+        },
+        "size": {
+          "width": 2561,
+          "height": 720
+        },
+        "alphaMode": "opaque",
+        "api": "vulkan",
+        "consumerId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "metadata": {
+          "requestId": "gpu-example",
+          "hostInstanceId": "host",
+          "validUntilUtc": "2030-01-01T00:00:00Z"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "gpu-stream-create-invalid-api",
+      "schema": "GpuPreviewStreamCreateRequest",
+      "value": {
+        "source": {
+          "kind": "project",
+          "sourceId": "project",
+          "sourceRevision": "1"
+        },
+        "size": {
+          "width": 1280,
+          "height": 720
+        },
+        "alphaMode": "opaque",
+        "api": "gpu",
+        "consumerId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "metadata": {
+          "requestId": "gpu-example",
+          "hostInstanceId": "host",
+          "validUntilUtc": "2030-01-01T00:00:00Z"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "gpu-stream-create-invalid-consumer",
+      "schema": "GpuPreviewStreamCreateRequest",
+      "value": {
+        "source": {
+          "kind": "project",
+          "sourceId": "project",
+          "sourceRevision": "1"
+        },
+        "size": {
+          "width": 1280,
+          "height": 720
+        },
+        "alphaMode": "opaque",
+        "api": "vulkan",
+        "consumerId": "BAD",
+        "metadata": {
+          "requestId": "gpu-example",
+          "hostInstanceId": "host",
+          "validUntilUtc": "2030-01-01T00:00:00Z"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "gpu-stream-create-invalid-enum",
+      "schema": "GpuPreviewStreamCreateRequest",
+      "value": {
+        "source": {
+          "kind": "project",
+          "sourceId": "project",
+          "sourceRevision": "1"
+        },
+        "size": {
+          "width": 1280,
+          "height": 720
+        },
+        "alphaMode": 1,
+        "api": "vulkan",
+        "consumerId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "metadata": {
+          "requestId": "gpu-example",
+          "hostInstanceId": "host",
+          "validUntilUtc": "2030-01-01T00:00:00Z"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "gpu-stream-create-invalid-unknown",
+      "schema": "GpuPreviewStreamCreateRequest",
+      "value": {
+        "source": {
+          "kind": "project",
+          "sourceId": "project",
+          "sourceRevision": "1"
+        },
+        "size": {
+          "width": 1280,
+          "height": 720
+        },
+        "alphaMode": "opaque",
+        "api": "vulkan",
+        "consumerId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "metadata": {
+          "requestId": "gpu-example",
+          "hostInstanceId": "host",
+          "validUntilUtc": "2030-01-01T00:00:00Z"
+        },
+        "extra": true
+      },
+      "valid": false
+    },
+    {
+      "name": "gpu-stream-replace",
+      "schema": "GpuPreviewStreamReplaceRequest",
+      "value": {
+        "expectedStreamRevision": "1",
+        "source": {
+          "kind": "project",
+          "sourceId": "project",
+          "sourceRevision": "1"
+        },
+        "metadata": {
+          "requestId": "gpu-example",
+          "hostInstanceId": "host",
+          "validUntilUtc": "2030-01-01T00:00:00Z"
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "gpu-stream-resize",
+      "schema": "GpuPreviewStreamResizeRequest",
+      "value": {
+        "expectedStreamRevision": "1",
+        "size": {
+          "width": 1280,
+          "height": 720
+        },
+        "metadata": {
+          "requestId": "gpu-example",
+          "hostInstanceId": "host",
+          "validUntilUtc": "2030-01-01T00:00:00Z"
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "gpu-stream-close",
+      "schema": "GpuPreviewStreamCloseRequest",
+      "value": {
+        "expectedStreamRevision": "1",
+        "metadata": {
+          "requestId": "gpu-example",
+          "hostInstanceId": "host",
+          "validUntilUtc": "2030-01-01T00:00:00Z"
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "gpu-stream-state",
+      "schema": "GpuPreviewStreamState",
+      "value": {
+        "streamId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "streamRevision": "1",
+        "inputGeneration": "1",
+        "registrationState": "ready",
+        "source": {
+          "kind": "project",
+          "sourceId": "project",
+          "sourceRevision": "1"
+        },
+        "size": {
+          "width": 1280,
+          "height": 720
+        },
+        "alphaMode": "opaque",
+        "api": "vulkan",
+        "producerEpoch": "1",
+        "poolGeneration": "1",
+        "slotCount": 3,
+        "allocationBytes": 11059200,
+        "textureAlphaMode": "premultiplied"
+      },
+      "valid": true
+    },
+    {
+      "name": "gpu-stream-state-1440p",
+      "schema": "GpuPreviewStreamState",
+      "value": {
+        "streamId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "streamRevision": "1",
+        "inputGeneration": "1",
+        "registrationState": "ready",
+        "source": {
+          "kind": "project",
+          "sourceId": "project",
+          "sourceRevision": "1"
+        },
+        "size": {
+          "width": 2560,
+          "height": 1440
+        },
+        "alphaMode": "opaque",
+        "api": "vulkan",
+        "producerEpoch": "1",
+        "poolGeneration": "1",
+        "slotCount": 3,
+        "allocationBytes": 44236800,
+        "textureAlphaMode": "premultiplied"
+      },
+      "valid": true
+    },
+    {
+      "name": "gpu-stream-state-excess-allocation",
+      "schema": "GpuPreviewStreamState",
+      "value": {
+        "streamId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "streamRevision": "1",
+        "inputGeneration": "1",
+        "registrationState": "ready",
+        "source": {
+          "kind": "project",
+          "sourceId": "project",
+          "sourceRevision": "1"
+        },
+        "size": {
+          "width": 1280,
+          "height": 720
+        },
+        "alphaMode": "opaque",
+        "api": "vulkan",
+        "producerEpoch": "1",
+        "poolGeneration": "1",
+        "slotCount": 3,
+        "allocationBytes": 67108865,
+        "textureAlphaMode": "premultiplied"
+      },
+      "valid": false
+    },
+    {
+      "name": "gpu-stream-state-alpha",
+      "schema": "GpuPreviewStreamState",
+      "value": {
+        "streamId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "streamRevision": "1",
+        "inputGeneration": "1",
+        "registrationState": "ready",
+        "source": {
+          "kind": "project",
+          "sourceId": "project",
+          "sourceRevision": "1"
+        },
+        "size": {
+          "width": 1280,
+          "height": 720
+        },
+        "alphaMode": "opaque",
+        "api": "vulkan",
+        "producerEpoch": "1",
+        "poolGeneration": "1",
+        "slotCount": 3,
+        "allocationBytes": 11059200,
+        "textureAlphaMode": "straight"
+      },
+      "valid": false
     }
   ],
-  "contractVersion": "1.40.0"
+  "contractVersion": "1.41.0"
 }

@@ -1,10 +1,10 @@
 # 冻结 API 清单
 
-合同 **1.40.0** · HTTP **1** · 产品 **0.108.0** · 基线 `245be6cc8f41a75460ef77bb67b35d79673c7e3b` · 2026-10-30。
+合同 **1.41.0** · HTTP **1** · 产品 **0.109.0** · 基线 `245be6cc8f41a75460ef77bb67b35d79673c7e3b` · 2026-11-01。
 
 执行入口：[行为合同](api-contract.md)；机器规范：[openapi.json](openapi.json)；指纹：[contract-manifest.json](contract-manifest.json)。本表由核对过的路由定义生成，不能手工单独扩表。
 
-共 **108 个路径、120 个显式方法**（含 5 个兼容别名；HEAD 单计，全局 OPTIONS 不计）。业务成功状态仅表示HTTP操作结果，202须等待job或preview状态。
+共 **112 个路径、125 个显式方法**（含 5 个兼容别名；HEAD 单计，全局 OPTIONS 不计）。业务成功状态仅表示HTTP操作结果，202须等待job或preview状态。
 
 | 方法 | 路径 | 认证 | 请求 | 成功响应 | 行为源章节 |
 |---|---|---|---|---|---|
@@ -67,6 +67,11 @@
 | GET | `/api/v1/recovery-jobs` | access + clientId | - | 200 · RecoveryJobsResponse | §8 |
 | GET | `/api/v1/runtime-info` | access + clientId | - | 200 · PreviewRuntimeInfoResponse | §9 |
 | GET | `/api/v1/render-backends` | access + clientId | - | 200 · RenderBackendsResponse | §25 |
+| POST | `/api/v1/gpu-preview-streams` | access + clientId | GpuPreviewStreamCreateRequest | 201 · GpuPreviewStreamState | §25 |
+| GET | `/api/v1/gpu-preview-streams/{id}` | access + clientId | - | 200 · GpuPreviewStreamState | §25 |
+| PUT | `/api/v1/gpu-preview-streams/{id}/source` | access + clientId | GpuPreviewStreamReplaceRequest | 200 · GpuPreviewStreamState | §25 |
+| PUT | `/api/v1/gpu-preview-streams/{id}/size` | access + clientId | GpuPreviewStreamResizeRequest | 200 · GpuPreviewStreamState | §25 |
+| DELETE | `/api/v1/gpu-preview-streams/{id}` | access + clientId | GpuPreviewStreamCloseRequest | 200 · GpuPreviewStreamState | §25 |
 | POST | `/api/v1/preview-sessions` | access + clientId | PreviewSessionRequest | 201 · PreviewSessionResponse | §9 |
 | POST | `/api/v1/project-sessions/{id}/edit-previews` | access + clientId | ProjectEditPreviewRequest | 201 · PreviewSessionResponse | §6.12 |
 | POST | `/api/v1/project-sessions/{id}/preset-application-previews` | access + clientId | PresetApplicationPreviewRequest | 201 · PreviewSessionResponse | §13 |

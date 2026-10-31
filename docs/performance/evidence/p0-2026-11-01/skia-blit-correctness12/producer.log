@@ -1,0 +1,14 @@
+{"type":"listening","pid":444711,"slots":3,"gpu":"AMD Radeon 880M Graphics (RADV STRIX1)","drmRenderMajor":226,"drmRenderMinor":128}
+{"type":"skia-frame","frameSeq":1,"sourceLayout":6,"sourceQueueFamily":0,"cpuPixelReadbacks":0,"gpuBlits":1}
+{"type":"skia-frame","frameSeq":2,"sourceLayout":6,"sourceQueueFamily":0,"cpuPixelReadbacks":0,"gpuBlits":1}
+{"type":"skia-frame","frameSeq":3,"sourceLayout":6,"sourceQueueFamily":0,"cpuPixelReadbacks":0,"gpuBlits":1}
+{"type":"skia-frame","frameSeq":4,"sourceLayout":6,"sourceQueueFamily":0,"cpuPixelReadbacks":0,"gpuBlits":1}
+{"type":"skia-frame","frameSeq":5,"sourceLayout":6,"sourceQueueFamily":0,"cpuPixelReadbacks":0,"gpuBlits":1}
+{"type":"skia-frame","frameSeq":6,"sourceLayout":6,"sourceQueueFamily":0,"cpuPixelReadbacks":0,"gpuBlits":1}
+{"type":"skia-frame","frameSeq":7,"sourceLayout":6,"sourceQueueFamily":0,"cpuPixelReadbacks":0,"gpuBlits":1}
+{"type":"skia-frame","frameSeq":8,"sourceLayout":6,"sourceQueueFamily":0,"cpuPixelReadbacks":0,"gpuBlits":1}
+{"type":"skia-frame","frameSeq":9,"sourceLayout":6,"sourceQueueFamily":0,"cpuPixelReadbacks":0,"gpuBlits":1}
+{"type":"skia-frame","frameSeq":10,"sourceLayout":6,"sourceQueueFamily":0,"cpuPixelReadbacks":0,"gpuBlits":1}
+{"type":"skia-frame","frameSeq":11,"sourceLayout":6,"sourceQueueFamily":0,"cpuPixelReadbacks":0,"gpuBlits":1}
+{"type":"skia-frame","frameSeq":12,"sourceLayout":6,"sourceQueueFamily":0,"cpuPixelReadbacks":0,"gpuBlits":1}
+{"type":"finished","frames":12,"slots":3,"cpuPixelReadbacks":0,"gpuBlits":12}

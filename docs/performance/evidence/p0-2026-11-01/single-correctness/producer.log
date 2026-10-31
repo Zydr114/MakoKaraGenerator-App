@@ -1,0 +1,2 @@
+{"type":"listening","pid":419586,"slots":1,"gpu":"AMD Radeon 880M Graphics (RADV STRIX1)","drmRenderMajor":226,"drmRenderMinor":128}
+{"type":"finished","frames":1,"slots":1,"cpuPixelReadbacks":0,"gpuBlits":0}

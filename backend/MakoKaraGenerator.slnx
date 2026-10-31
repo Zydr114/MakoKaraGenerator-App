@@ -1,0 +1,42 @@
+<Solution>
+  <Folder Name="/samples/" />
+  <Folder Name="/samples/TechnicalSpike/">
+    <Project Path="samples/TechnicalSpike/MakoKaraGenerator.Spike.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/MakoKaraGenerator.Application/MakoKaraGenerator.Application.csproj" />
+    <Project Path="src/MakoKaraGenerator.Backend.Hosting/MakoKaraGenerator.Backend.Hosting.csproj" />
+    <Project Path="src/MakoKaraGenerator.Backend.Contracts/MakoKaraGenerator.Backend.Contracts.csproj" />
+    <Project Path="src/MakoKaraGenerator.Backend.Rendering/MakoKaraGenerator.Backend.Rendering.csproj" />
+    <Project Path="src/MakoKaraGenerator.Backend.Rendering.Skia/MakoKaraGenerator.Backend.Rendering.Skia.csproj" />
+    <Project Path="src/MakoKaraGenerator.Backend.Server/MakoKaraGenerator.Backend.Server.csproj" />
+    <Project Path="src/MakoKaraGenerator.Backend.Worker/MakoKaraGenerator.Backend.Worker.csproj" />
+    <Project Path="src/MakoKaraGenerator.Core/MakoKaraGenerator.Core.csproj" />
+    <Project Path="src/MakoKaraGenerator.Export/MakoKaraGenerator.Export.csproj" />
+    <Project Path="src/MakoKaraGenerator.Media/MakoKaraGenerator.Media.csproj" />
+    <Project Path="src/MakoKaraGenerator.Processes/MakoKaraGenerator.Processes.csproj" />
+    <Project Path="src/MakoKaraGenerator.Rendering.Abstractions/MakoKaraGenerator.Rendering.Abstractions.csproj" />
+    <Project Path="src/MakoKaraGenerator.Rendering.Skia/MakoKaraGenerator.Rendering.Skia.csproj" />
+    <Project Path="src/MakoKaraGenerator.Runtime.Hosting/MakoKaraGenerator.Runtime.Hosting.csproj" />
+    <Project Path="src/MakoKaraGenerator.Scripting.Abstractions/MakoKaraGenerator.Scripting.Abstractions.csproj" />
+    <Project Path="src/MakoKaraGenerator.Scripting/MakoKaraGenerator.Scripting.csproj" />
+    <Project Path="src/MakoKaraGenerator.Text/MakoKaraGenerator.Text.csproj" />
+    <Project Path="src/MakoKaraGenerator.Timeline/MakoKaraGenerator.Timeline.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MakoKaraGenerator.Application.Tests/MakoKaraGenerator.Application.Tests.csproj" />
+    <Project Path="tests/MakoKaraGenerator.Backend.Hosting.Tests/MakoKaraGenerator.Backend.Hosting.Tests.csproj" />
+    <Project Path="tests/MakoKaraGenerator.Backend.Rendering.Tests/MakoKaraGenerator.Backend.Rendering.Tests.csproj" />
+    <Project Path="tests/MakoKaraGenerator.Backend.Rendering.Skia.Tests/MakoKaraGenerator.Backend.Rendering.Skia.Tests.csproj" />
+    <Project Path="tests/MakoKaraGenerator.Backend.Server.Tests/MakoKaraGenerator.Backend.Server.Tests.csproj" />
+    <Project Path="tests/MakoKaraGenerator.Backend.Worker.Tests/MakoKaraGenerator.Backend.Worker.Tests.csproj" />
+    <Project Path="tests/MakoKaraGenerator.Core.Tests/MakoKaraGenerator.Core.Tests.csproj" />
+    <Project Path="tests/MakoKaraGenerator.Export.Tests/MakoKaraGenerator.Export.Tests.csproj" />
+    <Project Path="tests/MakoKaraGenerator.Media.Tests/MakoKaraGenerator.Media.Tests.csproj" />
+    <Project Path="tests/MakoKaraGenerator.Processes.Tests/MakoKaraGenerator.Processes.Tests.csproj" />
+    <Project Path="tests/MakoKaraGenerator.Rendering.Tests/MakoKaraGenerator.Rendering.Tests.csproj" />
+    <Project Path="tests/MakoKaraGenerator.Runtime.Hosting.Tests/MakoKaraGenerator.Runtime.Hosting.Tests.csproj" />
+    <Project Path="tests/MakoKaraGenerator.Scripting.Tests/MakoKaraGenerator.Scripting.Tests.csproj" />
+    <Project Path="tests/MakoKaraGenerator.Timeline.Tests/MakoKaraGenerator.Timeline.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,174 @@
+{
+  "schema": "structural-performance-completion-v1",
+  "status": "passed",
+  "verifiedUtc": "2026-10-28T10:52:10.958703+00:00",
+  "sourceCommits": {
+    "old": "10bad12111eadc3b88fa7a44ebc1b9f6cf8b96e4",
+    "new": "5802ac146fcaa89ad882229b0b3e1615c15dc5b0"
+  },
+  "toolCommit": "5802ac146fcaa89ad882229b0b3e1615c15dc5b0",
+  "verificationHead": "5a3be9acbf8c6319bf063604040199bcbd0ff2e1",
+  "samplingUtc": {
+    "start": "2026-10-28T09:31:32.055093+00:00",
+    "finish": "2026-10-28T10:15:47.580864+00:00"
+  },
+  "labels": {
+    "main": {
+      "valid": true,
+      "errors": [],
+      "counts": {
+        "projectFrames": 2560,
+        "probeFrames": 80,
+        "matchedFrames": 1280,
+        "matchedMonitoringFrames": 0,
+        "validatedTraces": 0,
+        "exitedProcesses": 80
+      },
+      "statistics": "P95 uses linear interpolation at (n-1)*0.95. Independent batch medians are also reported; pooled frames are correlated.",
+      "scope": "Uninstrumented baseline wall time is distinct from instrumented step time; original and traced same-backend frames must match. No CPU/GPU pixel equivalence claim."
+    },
+    "heavy": {
+      "valid": true,
+      "errors": [],
+      "counts": {
+        "projectFrames": 480,
+        "probeFrames": 40,
+        "matchedFrames": 240,
+        "matchedMonitoringFrames": 0,
+        "validatedTraces": 0,
+        "exitedProcesses": 40
+      },
+      "statistics": "P95 uses linear interpolation at (n-1)*0.95. Independent batch medians are also reported; pooled frames are correlated.",
+      "scope": "Uninstrumented baseline wall time is distinct from instrumented step time; original and traced same-backend frames must match. No CPU/GPU pixel equivalence claim."
+    },
+    "seek": {
+      "valid": true,
+      "errors": [],
+      "counts": {
+        "projectFrames": 192,
+        "probeFrames": 24,
+        "matchedFrames": 96,
+        "matchedMonitoringFrames": 0,
+        "validatedTraces": 0,
+        "exitedProcesses": 24
+      },
+      "statistics": "P95 uses linear interpolation at (n-1)*0.95. Independent batch medians are also reported; pooled frames are correlated.",
+      "scope": "Uninstrumented baseline wall time is distinct from instrumented step time; original and traced same-backend frames must match. No CPU/GPU pixel equivalence claim."
+    },
+    "transparent": {
+      "valid": true,
+      "errors": [],
+      "counts": {
+        "projectFrames": 72,
+        "probeFrames": 24,
+        "matchedFrames": 36,
+        "matchedMonitoringFrames": 0,
+        "validatedTraces": 0,
+        "exitedProcesses": 24
+      },
+      "statistics": "P95 uses linear interpolation at (n-1)*0.95. Independent batch medians are also reported; pooled frames are correlated.",
+      "scope": "Uninstrumented baseline wall time is distinct from instrumented step time; original and traced same-backend frames must match. No CPU/GPU pixel equivalence claim."
+    },
+    "trace-main": {
+      "valid": true,
+      "errors": [],
+      "counts": {
+        "projectFrames": 512,
+        "probeFrames": 16,
+        "matchedFrames": 256,
+        "matchedMonitoringFrames": 0,
+        "validatedTraces": 528,
+        "exitedProcesses": 16
+      },
+      "statistics": "P95 uses linear interpolation at (n-1)*0.95. Independent batch medians are also reported; pooled frames are correlated.",
+      "scope": "Uninstrumented baseline wall time is distinct from instrumented step time; original and traced same-backend frames must match. No CPU/GPU pixel equivalence claim."
+    },
+    "trace-heavy": {
+      "valid": true,
+      "errors": [],
+      "counts": {
+        "projectFrames": 96,
+        "probeFrames": 8,
+        "matchedFrames": 48,
+        "matchedMonitoringFrames": 0,
+        "validatedTraces": 104,
+        "exitedProcesses": 8
+      },
+      "statistics": "P95 uses linear interpolation at (n-1)*0.95. Independent batch medians are also reported; pooled frames are correlated.",
+      "scope": "Uninstrumented baseline wall time is distinct from instrumented step time; original and traced same-backend frames must match. No CPU/GPU pixel equivalence claim."
+    },
+    "monitoring": {
+      "valid": true,
+      "errors": [],
+      "counts": {
+        "projectFrames": 648,
+        "probeFrames": 54,
+        "matchedFrames": 0,
+        "matchedMonitoringFrames": 432,
+        "validatedTraces": 0,
+        "exitedProcesses": 54
+      },
+      "statistics": "P95 uses linear interpolation at (n-1)*0.95. Independent batch medians are also reported; pooled frames are correlated.",
+      "scope": "Uninstrumented baseline wall time is distinct from instrumented step time; original and traced same-backend frames must match. No CPU/GPU pixel equivalence claim."
+    }
+  },
+  "traceComparisons": {
+    "main": {
+      "valid": true,
+      "errors": [],
+      "originalLabel": "main",
+      "tracedLabel": "trace-main",
+      "matchedFrames": 512
+    },
+    "heavy": {
+      "valid": true,
+      "errors": [],
+      "originalLabel": "heavy",
+      "tracedLabel": "trace-heavy",
+      "matchedFrames": 96
+    }
+  },
+  "counts": {
+    "processes": 246,
+    "projectFrames": 4560,
+    "deviceProbeFrames": 246,
+    "hardwareVulkanProcesses": 123,
+    "matchedOldNewFrames": 1956,
+    "matchedOriginalTraceFrames": 608,
+    "matchedMonitoringFrames": 432,
+    "validatedTraces": 632
+  },
+  "productionInputsStable": 915,
+  "archives": [
+    {
+      "index": "evidence-index.json",
+      "archive": {
+        "path": "evidence.tar.gz",
+        "sha256": "a22eb349230142e4affca5f5f812d92a6c16172bf5c937f9e9638bb4d38572b3",
+        "bytes": 1210306
+      },
+      "verifiedFiles": 587,
+      "credentialPatternHits": []
+    },
+    {
+      "index": "orchestration-index.json",
+      "archive": {
+        "path": "orchestration-evidence.tar.gz",
+        "sha256": "3346ddd0649a41eb8b4cfd9a0513aae0bc9b59b93138cb2b5bc507717714f5a2",
+        "bytes": 176842
+      },
+      "verifiedFiles": 33,
+      "credentialPatternHits": []
+    }
+  ],
+  "credentialScanScope": "Static scan of every archived file for private-key, bearer-authorization and long OpenAI key patterns. Runtime performance fixture does not create authentication credentials. Not a substitute for prior HTTP token-aware scanning.",
+  "loadObservation": {
+    "samples": 86,
+    "firstUtc": "2026-10-28T09:32:47.104527+00:00",
+    "lastUtc": "2026-10-28T10:15:18.545904+00:00",
+    "knownCompetingSamples": 0,
+    "scope": "30-second process-name/CPU snapshots and per-label preflight; ordinary desktop remains active. Not continuous proof of exclusive hardware or fixed clocks."
+  },
+  "earlierDeferredDecision": "../20261028-structural-optimization-acceptance/performance-deferred.json",
+  "scope": "Same-machine finite Runtime performance and logging-overhead acceptance; prior HTTP/regression evidence remains attached to its original run. Main 500ms result does not cover every startup/seek/monitoring sample."
+}

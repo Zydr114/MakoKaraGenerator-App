@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>MakoKaraGenerator.Backend.Server</RootNamespace>
+    <AssemblyName>MakoKaraGenerator.Backend.Server</AssemblyName>
+    <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../MakoKaraGenerator.Backend.Contracts/MakoKaraGenerator.Backend.Contracts.csproj" />
+    <ProjectReference Include="../MakoKaraGenerator.Backend.Hosting/MakoKaraGenerator.Backend.Hosting.csproj" />
+    <ProjectReference Include="../MakoKaraGenerator.Backend.Rendering/MakoKaraGenerator.Backend.Rendering.csproj" />
+    <ProjectReference Include="../MakoKaraGenerator.Backend.Rendering.Skia/MakoKaraGenerator.Backend.Rendering.Skia.csproj" />
+    <ProjectReference Include="../MakoKaraGenerator.Runtime.Hosting/MakoKaraGenerator.Runtime.Hosting.csproj" />
+  </ItemGroup>
+</Project>

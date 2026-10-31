@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>MakoKaraGenerator.Export.Tests</RootNamespace>
+    <AssemblyName>MakoKaraGenerator.Export.Tests</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../../samples/ScriptEffects/Examples/EventBurst.cs" Link="script-samples/EventBurst.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../samples/ScriptEffects/CursorTrail/src/CursorTrail.cs" Link="script-samples/CursorTrail.cs" CopyToOutputDirectory="PreserveNewest" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
+    <PackageReference Include="coverlet.collector" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="../Shared/*.cs" LinkBase="Shared" />
+  </ItemGroup>
+
+  <!--
+    导出测试需要真实的渲染管线：导出的画面必须来自与预览相同的那条管线
+    （docs/development.md §3.2），所以这里引用 Skia 后端而不是造一个假的渲染器。
+  -->
+  <ItemGroup>
+    <ProjectReference Include="../../src/MakoKaraGenerator.Scripting/MakoKaraGenerator.Scripting.csproj" />
+    <ProjectReference Include="../../src/MakoKaraGenerator.Application/MakoKaraGenerator.Application.csproj" />
+    <ProjectReference Include="../../src/MakoKaraGenerator.Core/MakoKaraGenerator.Core.csproj" />
+    <ProjectReference Include="../../src/MakoKaraGenerator.Export/MakoKaraGenerator.Export.csproj" />
+    <ProjectReference Include="../../src/MakoKaraGenerator.Media/MakoKaraGenerator.Media.csproj" />
+    <ProjectReference Include="../../src/MakoKaraGenerator.Rendering.Abstractions/MakoKaraGenerator.Rendering.Abstractions.csproj" />
+    <ProjectReference Include="../../src/MakoKaraGenerator.Rendering.Skia/MakoKaraGenerator.Rendering.Skia.csproj" />
+    <ProjectReference Include="../../samples/TechnicalSpike/MakoKaraGenerator.Spike.csproj" />
+  </ItemGroup>
+
+</Project>

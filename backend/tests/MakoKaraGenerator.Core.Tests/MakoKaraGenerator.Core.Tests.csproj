@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>MakoKaraGenerator.Core.Tests</RootNamespace>
+    <AssemblyName>MakoKaraGenerator.Core.Tests</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
+    <PackageReference Include="coverlet.collector" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Lyrics/Fixtures/*.ttml" />
+    <!-- 跨测试项目共用的辅助代码（不复制粘贴） -->
+    <Compile Include="../Shared/*.cs" LinkBase="Shared" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/MakoKaraGenerator.Core/MakoKaraGenerator.Core.csproj" />
+  </ItemGroup>
+
+</Project>

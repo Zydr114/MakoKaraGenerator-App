@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>MakoKaraGenerator.Media.Tests</RootNamespace>
+    <AssemblyName>MakoKaraGenerator.Media.Tests</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
+    <PackageReference Include="coverlet.collector" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="../Shared/*.cs" LinkBase="Shared" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/MakoKaraGenerator.Media/MakoKaraGenerator.Media.csproj" />
+    <ProjectReference Include="../MakoKaraGenerator.Media.Worker/MakoKaraGenerator.Media.Worker.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <Target Name="CopyMediaWorker" AfterTargets="Build">
+    <MSBuild Projects="$(MSBuildThisFileDirectory)../MakoKaraGenerator.Media.Worker/MakoKaraGenerator.Media.Worker.csproj" Targets="GetTargetPath" BuildInParallel="false">
+      <Output TaskParameter="TargetOutputs" ItemName="_MediaWorkerAssembly" />
+    </MSBuild>
+    <PropertyGroup><_MediaWorkerDirectory>@(_MediaWorkerAssembly->'%(RootDir)%(Directory)')</_MediaWorkerDirectory></PropertyGroup>
+    <ItemGroup><_MediaWorkerFiles Include="$(_MediaWorkerDirectory)*" /></ItemGroup>
+    <Copy SourceFiles="@(_MediaWorkerFiles)" DestinationFolder="$(OutDir)media-worker" SkipUnchangedFiles="true" />
+  </Target>
+</Project>

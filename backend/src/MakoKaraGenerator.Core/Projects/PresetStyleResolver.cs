@@ -1,0 +1,136 @@
+using System.Collections.Immutable;
+using MakoKaraGenerator.Core.Effects;
+using MakoKaraGenerator.Core.Lyrics;
+
+namespace MakoKaraGenerator.Core.Projects;
+
+/// <summary>最终静态外观与逐属性持久来源；不会用材质代表色替代包。</summary>
+public sealed record PresetStyleResolution
+{
+    /// <summary>完整有效外观。</summary>
+    public LyricStyle Style { get; }
+    /// <summary>属性来源的实际源路径。</summary>
+    public ImmutableDictionary<LyricStyleProperty, string> Sources { get; }
+
+    internal PresetStyleResolution(LyricStyle style, IReadOnlyDictionary<LyricStyleProperty, string> sources)
+    {
+        Style = style;
+        Sources = sources.ToImmutableDictionary();
+    }
+
+    /// <summary>包材质的真实源引用；普通材质返回空。</summary>
+    public SourceMaterialReference? MaterialReference(LyricStyleProperty property)
+    {
+        var (material, suffix, region) = property switch
+        {
+            LyricStyleProperty.UnsungColor => (Style.UnsungFill.Material, ".unsungFill", "fill"),
+            LyricStyleProperty.SungColor => (Style.SungFill.Material, ".sungFill", "fill"),
+            LyricStyleProperty.StrokeColor => (Style.Stroke?.Material, ".stroke.material", "stroke"),
+            _ => throw new ArgumentOutOfRangeException(nameof(property)),
+        };
+        if (material is not MaterialSpec.PackageMaterial package) return null;
+        string path = Sources[property];
+        if (path.StartsWith("lyricPresentation.", StringComparison.Ordinal))
+            suffix = property == LyricStyleProperty.UnsungColor ? ".pendingFill"
+                : property == LyricStyleProperty.SungColor ? ".elapsedFill" : suffix;
+        return new(path + suffix, region, package);
+    }
+}
+
+/// <summary>只读源样式解析器；场景装载路径由实际帧传入，不猜测动态槽位。</summary>
+public sealed class PresetStyleResolver
+{
+    private readonly LyricStyle _style;
+    private readonly PresetApplications _applications;
+    private readonly ImmutableDictionary<string, (LyricBranch Branch, LyricLine Line)> _lines;
+
+    /// <summary>捕获不可变源引用，不保存另一份编辑工程。</summary>
+    public PresetStyleResolver(LyricStyle style, LyricsDocument lyrics, PresetApplications applications)
+    {
+        ArgumentNullException.ThrowIfNull(style);
+        ArgumentNullException.ThrowIfNull(lyrics);
+        ArgumentNullException.ThrowIfNull(applications);
+        _style = style;
+        _applications = applications;
+        _lines = lyrics.Branches.SelectMany(branch => branch.Lines.Select(line =>
+            new KeyValuePair<string, (LyricBranch, LyricLine)>(line.Id, (branch, line)))).ToImmutableDictionary(StringComparer.Ordinal);
+    }
+
+    /// <summary>解析源或实际场景中的歌词；节点顺序为根到直属父节点。</summary>
+    public PresetStyleResolution ResolveLyrics(string lineId, string? tokenId = null,
+        string? clipId = null, IReadOnlyList<string>? nodePath = null)
+    {
+        if (!_lines.TryGetValue(lineId, out var source)) throw new ArgumentException("歌词行已失效。", nameof(lineId));
+        var layers = new Layers(_style, "lyricStyle");
+        Apply(layers, new(ProjectEffectBindingKind.Project));
+        string branchPath = "lyrics.branches." + source.Branch.Id;
+        layers.Overlay(source.Branch.StyleOverride, branchPath + ".styleOverride");
+        Apply(layers, new(ProjectEffectBindingKind.Branch, id: source.Branch.Id));
+        ApplyNodes(layers, nodePath);
+        if (clipId is not null) Apply(layers, new(ProjectEffectBindingKind.Clips, ids: [clipId]));
+        string linePath = branchPath + ".lines." + source.Line.Id;
+        layers.Overlay(source.Line.StyleOverride, linePath + ".styleOverride");
+        Apply(layers, new(ProjectEffectBindingKind.Lines, ids: [lineId]));
+        if (tokenId is not null)
+        {
+            var token = source.Line.Tokens.SingleOrDefault(token => token.Id == tokenId)
+                ?? throw new ArgumentException("文字对象不属于所选行。", nameof(tokenId));
+            layers.Overlay(token.StyleOverride, linePath + ".tokens." + token.Id + ".styleOverride");
+            Apply(layers, new(ProjectEffectBindingKind.Tokens, ids: [tokenId]));
+        }
+        return layers.Complete();
+    }
+
+    /// <summary>标记保持真实提示组／自身源外观，再解析应用层及真实运行父链。</summary>
+    public PresetStyleResolution ResolveMark(LyricStyle appearance, string appearancePath,
+        LyricStyleOverride? ownOverride, string ownPath, IReadOnlyList<string> nodePath, string? branchId = null)
+    {
+        var layers = new Layers(appearance, appearancePath);
+        layers.Overlay(ownOverride, ownPath);
+        Apply(layers, new(ProjectEffectBindingKind.Project));
+        if (branchId is not null) Apply(layers, new(ProjectEffectBindingKind.Branch, id: branchId));
+        ApplyNodes(layers, nodePath);
+        return layers.Complete();
+    }
+
+    private void Apply(Layers layers, ProjectEffectBinding target)
+    {
+        if (_applications.Find(target) is not { Enabled: true } application) return;
+        layers.Overlay(StyleBatchEditor.CopyProperties(LyricStyleOverride.Empty,
+            application.Snapshot.Style, application.Snapshot.Properties), "presetApplications." + application.Id + ".snapshot.style");
+    }
+
+    private void ApplyNodes(Layers layers, IReadOnlyList<string>? path)
+    {
+        if (path is null) return;
+        for (int index = 0; index < path.Count; index++)
+        {
+            var target = new ProjectEffectBinding(ProjectEffectBindingKind.Node, id: path[index]);
+            if (_applications.Find(target) is { } application &&
+                (index == path.Count - 1 || application.Target.IncludeDescendants)) Apply(layers, target);
+        }
+    }
+
+    private sealed class Layers
+    {
+        private LyricStyle _style;
+        private readonly Dictionary<LyricStyleProperty, string> _sources;
+
+        public Layers(LyricStyle style, string path)
+        {
+            _style = style;
+            _sources = LyricStylePropertyExtensions.All.ToDictionary(property => property, _ => path);
+        }
+
+        public void Overlay(LyricStyleOverride? overlay, string path)
+        {
+            if (overlay is null || overlay.IsEmpty) return;
+            var resolved = LyricStyleResolver.Resolve(_style, lineOverride: overlay);
+            foreach (var property in LyricStylePropertyExtensions.All)
+                if (resolved.SourceOf(property) == LyricStyleSource.Line) _sources[property] = path;
+            _style = resolved.Style;
+        }
+
+        public PresetStyleResolution Complete() => new(_style, _sources);
+    }
+}

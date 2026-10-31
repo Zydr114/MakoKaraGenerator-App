@@ -1,0 +1,29 @@
+{
+  "info": {
+    "durationUs": 213000,
+    "sampleRate": 48000,
+    "channels": 2,
+    "codecName": "vorbis",
+    "containerName": "ogg",
+    "estimatedSampleCount": 10224
+  },
+  "sampleRate": 48000,
+  "sampleCount": 10096,
+  "durationUs": 210333,
+  "baseBucketSamples": 64,
+  "levelCount": 9,
+  "peakCounts": [
+    158,
+    79,
+    40,
+    20,
+    10,
+    5,
+    3,
+    2,
+    1
+  ],
+  "fullPyramidHash": "6227400d851fd723c1a759f03f4c962c1c543fb245d2a5f93aaae4bac60c6038",
+  "sourceHash": "3a3594dcd6a4a63631aa174290f0525d553977cbb82d4625144456a9c3baa1c6",
+  "oracle": "Original AudioWaveformLoader.CreateDefault; source-rate full waveform pyramid, not 48k analysis. HTTP exposes duration only; full-pyramid equality belongs to author regressions."
+}

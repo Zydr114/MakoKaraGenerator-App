@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>MakoKaraGenerator.Spike</RootNamespace>
+    <AssemblyName>MakoKaraGenerator.Spike</AssemblyName>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <!--
+    阶段 0 技术验证用的库（docs/roadmap.md §5）。
+    这里只引入验证字形整形与离屏渲染所需的包；不含 Avalonia，
+    以便整形逻辑可以在无窗口的单元测试里被断言。
+  -->
+  <ItemGroup>
+    <!-- GraphemeSplitter 已提升进 Core（导入歌词也要用它）；
+         行布局结果（ShapedLine / ShapedTextElement）已提升进 MakoKaraGenerator.Text。
+         本示例只剩阶段 0 的帧渲染器，作为离屏验证工具保留。 -->
+    <ProjectReference Include="../../src/MakoKaraGenerator.Core/MakoKaraGenerator.Core.csproj" />
+    <ProjectReference Include="../../src/MakoKaraGenerator.Text/MakoKaraGenerator.Text.csproj" />
+    <ProjectReference Include="../../src/MakoKaraGenerator.Rendering.Skia/MakoKaraGenerator.Rendering.Skia.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="SkiaSharp.HarfBuzz" />
+    <!-- 见 ADR-0007：Linux 的 native 资产必须显式引用，否则运行时 DllNotFoundException -->
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux" />
+    <PackageReference Include="HarfBuzzSharp.NativeAssets.Linux" />
+  </ItemGroup>
+
+</Project>

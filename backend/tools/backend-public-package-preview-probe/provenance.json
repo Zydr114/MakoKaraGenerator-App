@@ -1,0 +1,46 @@
+{
+  "baseCommit": "b9f02af69d4dc581b2899ae224bc3b7f2a501f6c",
+  "inputs": {
+    "tools/backend-web-host/host.py": {
+      "sha256": "e7d6073ebdd4d282cfa105a72b530c2606d89d82505ad3fc6e8be713876256fd",
+      "gitBlob": "d72dbe88f5c75ad46d964c62e74d5ecb0095d850"
+    },
+    "tools/backend-web-host/smoke.py": {
+      "sha256": "5e12ffc51ce3ef117cb78b5c73c7b00b1e95da4bdcd98158c529506e1ec6aa09",
+      "gitBlob": "d69e058bae8dad39eb7b325670e5f1b4c5fd036a"
+    },
+    "tests/MakoKaraGenerator.Runtime.Hosting.Tests/PackageWorkerRuntimeFixture.cs": {
+      "sha256": "6b045f58eea4a686f95c5fe628163f9fe75bd695b1b5d0f60b84d7427bf28050",
+      "gitBlob": "1e5a542af9a63adfe3b7eaf0d3b9ca8bdbf87eba"
+    },
+    "tests/Shared/EffectPackageFixture.cs": {
+      "sha256": "574d9be9e382a796324e864810d271cfc18b1031cb4601ba0f7bc4e7c65dd717",
+      "gitBlob": "414df0bd1bf30c726a51d15c9904001098bea565"
+    },
+    "tests/Shared/MixedEffectPackageFixture.cs": {
+      "sha256": "6905a298494f0ae61dfc33bbe5942846c158b2dd65a684cb06562cb7140d85ca",
+      "gitBlob": "c91dd3bf1a404ade02de06622e7eb054c7272542"
+    },
+    "tests/Shared/EffectPackageShaderFixture.cs": {
+      "sha256": "39f8022cea700bfcdcda2e513f52923ed6101658177f9bbff2fecaa86c27e96b",
+      "gitBlob": "e4aaa399fdc815e65b487fb41ce822cc21d3e358"
+    },
+    "tests/Shared/EffectPackageGraphFixture.cs": {
+      "sha256": "c82209cd2c2e9f3802acc975028f34229114fc72c3d807a5f79392620fffb9b3",
+      "gitBlob": "8e377fd876f4985a76c6d9982a43654c3fc2b9bd"
+    },
+    "tools/backend-basic-business-http-probe/probe.py": {
+      "sha256": "6c29dd7299da9347bc7739d6a261158a902660ff4f2482135acc06acd7781fc4",
+      "gitBlob": "861aebc896d5c4c7ff2444e9ae75676e486daff7"
+    }
+  },
+  "adaptations": {
+    "configured_host.py": "Copy of original host.py lifecycle; adds explicit existing asset TTL 2s argument; shared TTML dotnet lock. Canonical hash verification retained.",
+    "launcher.py": "Copy Smoke.start only; selects configured or explicit variant host without changing original shared tools. Observe recursive identities from launcher start, including pre-ready capability Workers.",
+    "FixtureOracle/FixtureSources.cs": "Copy finite Runtime fixture constructors; removes Xunit helpers; conditional actual Error after 300000 us; otherwise original actual source fixtures.",
+    "FixtureOracle/Program.cs": "Independent production save/load/direct Runtime oracle; adds actual PCM16 WAV and 130/270 warning fixtures. No HTTP values used for expectations.",
+    "variant_host.py": "Calls configured lifecycle with explicit variant file inventory validation, deliberately bypasses standard missingrefs precheck to test real Worker gate.",
+    "variants.py": "Git archive/rebuild historical production source; explicit version override only for named current-version variant; hardlinks copied canonical deployment but unlink manifest and replace worker before mutation."
+  },
+  "scope": "Tool provenance recorded before final source freeze; final tool/source commit and hashes are separately captured by matching deployment/evidence assessment."
+}

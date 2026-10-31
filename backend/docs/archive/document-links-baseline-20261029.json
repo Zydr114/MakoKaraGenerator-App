@@ -1,0 +1,1288 @@
+{
+  "files": 252,
+  "localLinks": 3072,
+  "issues": [
+    {
+      "file": "AGENTS.md",
+      "line": 41,
+      "target": "docs/backend-public-package-preview-plan.md#8-%E5%AE%9E%E6%96%BD%E4%B8%8E%E9%AA%8C%E6%94%B6%E7%8A%B6%E6%80%812026-10-19-%E6%9C%80%E7%BB%88%E9%AA%8C%E6%94%B6",
+      "kind": "missing-anchor"
+    },
+    {
+      "file": "AGENTS.md",
+      "line": 1047,
+      "target": "docs/architecture/backend-api.md#%E5%B7%B2%E4%BF%9D%E5%AD%98%E5%B7%A5%E7%A8%8Bimage%E8%83%8C%E6%99%AF%E5%AF%BC%E5%87%BA01010%E5%90%88%E5%90%8C1350http%E5%BE%85%E9%AA%8C%E6%94%B6",
+      "kind": "missing-anchor"
+    },
+    {
+      "file": "AGENTS.md",
+      "line": 1047,
+      "target": "docs/backend-extraction-progress.md#%E5%B7%B2%E4%BF%9D%E5%AD%98%E5%B7%A5%E7%A8%8Bimage%E8%83%8C%E6%99%AF%E5%AF%BC%E5%87%BA%E5%90%88%E5%90%8C%E4%B8%8E%E5%AE%9E%E7%8E%B0%E7%99%BB%E8%AE%B0%E4%BA%A7%E5%93%8101010%E5%90%88%E5%90%8C1350http%E5%BE%85%E9%AA%8C%E6%94%B6",
+      "kind": "missing-anchor"
+    },
+    {
+      "file": "AGENTS.md",
+      "line": 1047,
+      "target": "docs/decisions.md#adr-0238",
+      "kind": "missing-anchor"
+    },
+    {
+      "file": "docs/architecture/backend-api.md",
+      "line": 1571,
+      "target": "../backend-api-completion-plan.md#9-p3-%E5%AE%9E%E6%96%BD%E8%AE%B0%E5%BD%95",
+      "kind": "missing-anchor"
+    },
+    {
+      "file": "docs/architecture/render-entrypoints.md",
+      "line": 24,
+      "target": "../../samples/TechnicalSpike.App/App.axaml.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/architecture/render-entrypoints.md",
+      "line": 261,
+      "target": "../../samples/TechnicalSpike.App/Views/MainWindow.axaml.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/architecture/render-entrypoints.md",
+      "line": 261,
+      "target": "../../samples/TechnicalSpike.App/Views/AppearanceWorkspaceView.Preview.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/architecture/render-entrypoints.md",
+      "line": 261,
+      "target": "../../samples/TechnicalSpike.App/App.axaml.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/architecture/render-entrypoints.md",
+      "line": 263,
+      "target": "../../samples/TechnicalSpike.App/Controls/KaraokeCanvas.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/architecture/render-entrypoints.md",
+      "line": 263,
+      "target": "../../samples/TechnicalSpike.App/Controls/KaraokeCanvas.Async.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/architecture/render-entrypoints.md",
+      "line": 265,
+      "target": "../../samples/TechnicalSpike.App/Rendering/PreviewFrameCoordinator.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/architecture/render-entrypoints.md",
+      "line": 267,
+      "target": "../../samples/TechnicalSpike.App/Controls/KaraokeCanvas.Async.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/architecture/render-entrypoints.md",
+      "line": 271,
+      "target": "../../samples/TechnicalSpike.App/Views/MainWindow.Navigation.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/architecture/render-entrypoints.md",
+      "line": 271,
+      "target": "../../samples/TechnicalSpike.App/Controls/NeutralLyricsPreview.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/architecture/render-entrypoints.md",
+      "line": 273,
+      "target": "../../samples/TechnicalSpike.App/Controls/KaraokeCanvas.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/architecture/render-entrypoints.md",
+      "line": 273,
+      "target": "../../samples/TechnicalSpike.App/App.axaml.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/architecture/render-entrypoints.md",
+      "line": 275,
+      "target": "../../samples/TechnicalSpike.App/Workspaces/ScriptRuntimeValidator.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/architecture/render-script-loading.md",
+      "line": 9,
+      "target": "../../samples/TechnicalSpike.App/App.axaml.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/architecture/render-script-loading.md",
+      "line": 67,
+      "target": "../../samples/TechnicalSpike.App/ViewModels/ScriptConfigurationSourceEditorViewModel.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/architecture/render-script-loading.md",
+      "line": 70,
+      "target": "../../samples/TechnicalSpike.App/Workspaces/ScriptAuthorPackageStore.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/architecture/render-script-loading.md",
+      "line": 71,
+      "target": "../../samples/TechnicalSpike.App/ViewModels/ScriptConfigurationWorkspaceViewModel.Revisions.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/architecture/render-script-loading.md",
+      "line": 223,
+      "target": "../../tests/MakoKaraGenerator.Spike.App.Tests/Rendering/ProjectRenderSessionTests.Emphasis.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/architecture/render-script-loading.md",
+      "line": 275,
+      "target": "../../tests/MakoKaraGenerator.Spike.App.Tests/Rendering/ProjectRenderSessionTests.Emphasis.Revisions.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/architecture/render-script-loading.md",
+      "line": 275,
+      "target": "../../tests/MakoKaraGenerator.Spike.App.Tests/Rendering/ProjectRenderSessionTests.Emphasis.Replay.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/architecture/render-script-loading.md",
+      "line": 275,
+      "target": "../../tests/MakoKaraGenerator.Spike.App.Tests/Rendering/ProjectRenderSessionTests.Emphasis.Outputs.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/architecture/render-script-loading.md",
+      "line": 275,
+      "target": "../../tests/MakoKaraGenerator.Spike.App.Tests/Rendering/ProjectRenderSessionTests.R8Public.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/backend-api-p5-closure-audit-20261025.md",
+      "line": 40,
+      "target": "architecture/backend-api.md#24-p3-%E5%AE%8C%E6%95%B4%E6%A8%A1%E6%9D%BF%E9%A2%84%E8%AE%BE%E5%B7%A5%E5%9D%8A01030%E5%90%88%E5%90%8C1370",
+      "kind": "missing-anchor"
+    },
+    {
+      "file": "docs/backend-api-p5-closure-audit-20261025.md",
+      "line": 40,
+      "target": "backend-api-completion-plan.md#9-p3-%E5%AE%9E%E6%96%BD%E8%AE%B0%E5%BD%95",
+      "kind": "missing-anchor"
+    },
+    {
+      "file": "docs/backend-api-target-catalog.md",
+      "line": 21,
+      "target": "architecture/backend-api.md#24-p3-%E5%AE%8C%E6%95%B4%E6%A8%A1%E6%9D%BF%E9%A2%84%E8%AE%BE%E5%B7%A5%E5%9D%8A01030%E5%90%88%E5%90%8C1370",
+      "kind": "missing-anchor"
+    },
+    {
+      "file": "docs/backend-api-target-catalog.md",
+      "line": 47,
+      "target": "architecture/backend-api.md#24-p3-%E5%AE%8C%E6%95%B4%E6%A8%A1%E6%9D%BF%E9%A2%84%E8%AE%BE%E5%B7%A5%E5%9D%8A01030%E5%90%88%E5%90%8C1370",
+      "kind": "missing-anchor"
+    },
+    {
+      "file": "docs/backend-api-target-catalog.md",
+      "line": 174,
+      "target": "../web/api-contract.md#13-p1p2%E7%BB%9F%E4%B8%80%E8%BE%93%E5%85%A5%E4%B8%8E%E7%BC%96%E8%BE%91%E5%90%88%E5%90%8C",
+      "kind": "missing-anchor"
+    },
+    {
+      "file": "docs/backend-api-target-catalog.md",
+      "line": 174,
+      "target": "backend-api-completion-plan.md#9-p3-%E5%AE%9E%E6%96%BD%E8%AE%B0%E5%BD%95",
+      "kind": "missing-anchor"
+    },
+    {
+      "file": "docs/backend-api-target-catalog.md",
+      "line": 174,
+      "target": "architecture/backend-api.md#24-p3-%E5%AE%8C%E6%95%B4%E6%A8%A1%E6%9D%BF%E9%A2%84%E8%AE%BE%E5%B7%A5%E5%9D%8A01030%E5%90%88%E5%90%8C1370",
+      "kind": "missing-anchor"
+    },
+    {
+      "file": "docs/backend-api-target-catalog.md",
+      "line": 174,
+      "target": "../web/api-contract.md#14-p3%E5%AE%8C%E6%95%B4%E6%A8%A1%E6%9D%BF%E4%B8%8E%E9%A2%84%E8%AE%BE%E5%B7%A5%E5%9D%8A01030%E5%90%88%E5%90%8C1370",
+      "kind": "missing-anchor"
+    },
+    {
+      "file": "docs/backend-api-target-catalog.md",
+      "line": 174,
+      "target": "../web/api-contract.md#15-p4%E4%BD%9C%E8%80%85%E4%B8%8E%E4%B8%AA%E4%BA%BA%E9%85%8D%E7%BD%AE%E5%BA%9301041%E5%90%88%E5%90%8C1381",
+      "kind": "missing-anchor"
+    },
+    {
+      "file": "docs/backend-api-target-catalog.md",
+      "line": 174,
+      "target": "../web/api-contract.md#15-p4%E4%BD%9C%E8%80%85%E4%B8%8E%E4%B8%AA%E4%BA%BA%E9%85%8D%E7%BD%AE%E5%BA%9301041%E5%90%88%E5%90%8C1381",
+      "kind": "missing-anchor"
+    },
+    {
+      "file": "docs/backend-api-target-catalog.md",
+      "line": 186,
+      "target": "backend-api-completion-plan.md#9-p3-%E5%AE%9E%E6%96%BD%E8%AE%B0%E5%BD%95",
+      "kind": "missing-anchor"
+    },
+    {
+      "file": "docs/backend-api-v1-draft.md",
+      "line": 210,
+      "target": "../samples/TechnicalSpike.App/ViewModels/ScriptConfigurationWorkspaceViewModel.Revisions.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/backend-api-v1-draft.md",
+      "line": 210,
+      "target": "../samples/TechnicalSpike.App/ViewModels/ScriptConfigurationRuntimeViewModel.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/backend-api.md",
+      "line": 5,
+      "target": "architecture/backend-api.md#10-%E5%9B%BA%E5%AE%9A%E9%9D%99%E6%80%81%E5%B7%A5%E7%A8%8B%E6%AD%A3%E5%BC%8F%E9%AA%8C%E8%AF%81%E4%BB%BB%E5%8A%A1",
+      "kind": "missing-anchor"
+    },
+    {
+      "file": "docs/backend-api.md",
+      "line": 5,
+      "target": "architecture/backend-api.md#11-%E5%9B%BA%E5%AE%9A%E9%9D%99%E6%80%81%E5%B7%A5%E7%A8%8B%E7%8B%AC%E7%AB%8B%E5%AF%BC%E5%87%BA",
+      "kind": "missing-anchor"
+    },
+    {
+      "file": "docs/backend-api.md",
+      "line": 5,
+      "target": "architecture/backend-api.md#13-%E7%8B%AC%E7%AB%8B%E6%A8%A1%E6%9D%BF%E5%BA%93",
+      "kind": "missing-anchor"
+    },
+    {
+      "file": "docs/backend-api.md",
+      "line": 9,
+      "target": "architecture/backend-api.md#9-%E9%9D%99%E6%80%81%E5%B7%A5%E7%A8%8B%E9%A2%84%E8%A7%88",
+      "kind": "missing-anchor"
+    },
+    {
+      "file": "docs/backend-baseline-change-report.md",
+      "line": 54,
+      "target": "../samples/TechnicalSpike.App/Rendering/PreviewFrameCoordinator.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/backend-baseline-change-report.md",
+      "line": 54,
+      "target": "../samples/TechnicalSpike.App/Controls/KaraokeCanvas.Async.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/backend-extraction-plan.md",
+      "line": 35,
+      "target": "../samples/TechnicalSpike.App/Workspaces/NewProjectPreparation.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/backend-extraction-plan.md",
+      "line": 35,
+      "target": "../samples/TechnicalSpike.App/Authoring/AuthorInputDraft.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/backend-extraction-plan.md",
+      "line": 35,
+      "target": "../samples/TechnicalSpike.App/ViewModels/TemplateWorkshopViewModel.History.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/backend-extraction-plan.md",
+      "line": 35,
+      "target": "../samples/TechnicalSpike.App/ViewModels/ScriptConfigurationSourceEditorViewModel.Workflow.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/backend-extraction-plan.md",
+      "line": 35,
+      "target": "../samples/TechnicalSpike.App/Workspaces/ScriptAuthorPackageStore.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/backend-extraction-plan.md",
+      "line": 35,
+      "target": "../samples/TechnicalSpike.App/Rendering/PreviewFrameCoordinator.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/backend-extraction-plan.md",
+      "line": 202,
+      "target": "../tests/MakoKaraGenerator.Spike.App.Tests/LyricsTimeDraftTests.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/backend-extraction-plan.md",
+      "line": 202,
+      "target": "../tests/MakoKaraGenerator.Spike.App.Tests/ViewModels/AudioProjectHistoryTests.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/backend-extraction-plan.md",
+      "line": 202,
+      "target": "../tests/MakoKaraGenerator.Spike.App.Tests/Rendering/PreviewFrameCoordinatorTests.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/backend-main-integration-20261027.md",
+      "line": 47,
+      "target": "backend-api-completion-plan.md#9-p3-%E5%AE%9E%E6%96%BD%E8%AE%B0%E5%BD%95",
+      "kind": "missing-anchor"
+    },
+    {
+      "file": "docs/backend-w4-orchestration-plan.md",
+      "line": 6,
+      "target": "../../MakoKaraGenerator-Web/docs/web-ui-design.md#11-%E7%94%A8%E6%88%B7%E5%86%B3%E5%AE%9A-2026-10-16",
+      "kind": "missing-anchor"
+    },
+    {
+      "file": "docs/backend-web-feasibility-report.md",
+      "line": 38,
+      "target": "../samples/TechnicalSpike.App/MakoKaraGenerator.Spike.App.csproj",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/backend-web-feasibility-report.md",
+      "line": 72,
+      "target": "../samples/TechnicalSpike.App/ViewModels/EditorViewModel.State.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/backend-web-feasibility-report.md",
+      "line": 72,
+      "target": "../samples/TechnicalSpike.App/Rendering/PreviewFrameCoordinator.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/backend-web-feasibility-report.md",
+      "line": 86,
+      "target": "../samples/TechnicalSpike.App/ViewModels/EditorViewModel.Commands.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/backend-web-feasibility-report.md",
+      "line": 86,
+      "target": "../samples/TechnicalSpike.App/ViewModels/EditorViewModel.State.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/backend-web-feasibility-report.md",
+      "line": 112,
+      "target": "../samples/TechnicalSpike.App/App.axaml.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/backend-web-feasibility-report.md",
+      "line": 112,
+      "target": "../samples/TechnicalSpike.App/Views/MainWindow.axaml.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/backend-web-feasibility-report.md",
+      "line": 112,
+      "target": "../samples/TechnicalSpike.App/Controls/KaraokeCanvas.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/backend-web-feasibility-report.md",
+      "line": 120,
+      "target": "../samples/TechnicalSpike.App/Rendering/PreviewFrameCoordinator.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/backend-web-feasibility-report.md",
+      "line": 120,
+      "target": "../samples/TechnicalSpike.App/Controls/KaraokeCanvas.Async.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/backend-web-feasibility-report.md",
+      "line": 143,
+      "target": "../samples/TechnicalSpike.App/ViewModels/EditorViewModel.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/backend-web-feasibility-report.md",
+      "line": 143,
+      "target": "../samples/TechnicalSpike.App/Views/MainWindow.axaml.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/backend-web-feasibility-report.md",
+      "line": 143,
+      "target": "../samples/TechnicalSpike.App/App.axaml.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/backend-web-feasibility-report.md",
+      "line": 143,
+      "target": "../samples/TechnicalSpike.App/ViewModels/EditorViewModel.State.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/backend-web-feasibility-report.md",
+      "line": 143,
+      "target": "../samples/TechnicalSpike.App/ViewModels/EditorViewModel.Placement.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/backend-web-feasibility-report.md",
+      "line": 143,
+      "target": "../samples/TechnicalSpike.App/ViewModels/EditorViewModel.SceneEditing.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/backend-web-feasibility-report.md",
+      "line": 143,
+      "target": "../samples/TechnicalSpike.App/Views/ProjectSettingsView.Preview.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/backend-web-feasibility-report.md",
+      "line": 143,
+      "target": "../samples/TechnicalSpike.App/Controls/KaraokeCanvas.Async.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/backend-web-feasibility-report.md",
+      "line": 143,
+      "target": "../samples/TechnicalSpike.App/Rendering/PreviewFrameCoordinator.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/code-review-remediation-acceptance.md",
+      "line": 19,
+      "target": "../tests/MakoKaraGenerator.Spike.App.Tests/ViewModels/ExportStateTests.Commit.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/code-review-remediation-acceptance.md",
+      "line": 35,
+      "target": "../tests/MakoKaraGenerator.Spike.App.Tests/ViewModels/AudioProjectHistoryTests.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/code-review-remediation-acceptance.md",
+      "line": 52,
+      "target": "../tests/MakoKaraGenerator.Spike.App.Tests/ViewModels/PlaybackCompletionTests.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/code-review-remediation-acceptance.md",
+      "line": 70,
+      "target": "../tests/MakoKaraGenerator.Spike.App.Tests/ViewModels/LibraryConcurrencyTests.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/code-review-remediation-acceptance.md",
+      "line": 88,
+      "target": "../tests/MakoKaraGenerator.Spike.App.Tests/ViewModels/TemplateWorkshopInputDraftTests.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/code-review-remediation-acceptance.md",
+      "line": 100,
+      "target": "../samples/TechnicalSpike.App/Workspaces/AuthorRequestSession.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/code-review-remediation-acceptance.md",
+      "line": 100,
+      "target": "../samples/TechnicalSpike.App/Views/TemplateWorkshopWindow.axaml.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/code-review-remediation-acceptance.md",
+      "line": 102,
+      "target": "../samples/TechnicalSpike.App/Views/ScriptConfigurationWorkspaceWindow.axaml.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/code-review-remediation-acceptance.md",
+      "line": 106,
+      "target": "../tools/ui-suki-compatibility/PackageImportFlow.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/code-review-remediation-acceptance.md",
+      "line": 116,
+      "target": "../tools/ui-suki-compatibility/TaskCommandFlow.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/code-review-remediation-acceptance.md",
+      "line": 118,
+      "target": "../samples/TechnicalSpike.App/Workspaces/TaskCommandContext.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/code-review-remediation-acceptance.md",
+      "line": 197,
+      "target": "../tools/ui-suki-compatibility/PersistenceFlow.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/code-review-remediation-acceptance.md",
+      "line": 208,
+      "target": "../tools/ui-suki-compatibility/PersistenceCrashRecovery.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/code-review-remediation-acceptance.md",
+      "line": 223,
+      "target": "../tools/ui-suki-compatibility/TemplateCatalogueFlow.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/code-review-remediation-acceptance.md",
+      "line": 309,
+      "target": "../tests/MakoKaraGenerator.Spike.App.Tests/ViewModels/DiagnosticConsumerTests.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/code-review-remediation-acceptance.md",
+      "line": 309,
+      "target": "../tests/MakoKaraGenerator.Spike.App.Tests/ViewModels/ScriptRuntimeValidationTests.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/code-review-remediation-acceptance.md",
+      "line": 310,
+      "target": "../tests/MakoKaraGenerator.Spike.App.Tests/Rendering/ProjectRenderSessionTests.Diagnostics.Snapshots.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/code-review-remediation-acceptance.md",
+      "line": 355,
+      "target": "../tools/ui-suki-compatibility/BasicLayoutFlow.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/code-review-remediation-acceptance.md",
+      "line": 382,
+      "target": "../tools/ui-suki-compatibility/AuthoringBindingsFlow.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/code-review-remediation-acceptance.md",
+      "line": 520,
+      "target": "../tests/MakoKaraGenerator.Spike.App.Tests/Rendering/ProjectRenderSessionTests.R8Full.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/code-review-remediation-plan.md",
+      "line": 73,
+      "target": "../samples/TechnicalSpike.App/ViewModels/EditorViewModel.AudioLoading.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/code-review-remediation-plan.md",
+      "line": 73,
+      "target": "../samples/TechnicalSpike.App/ViewModels/EditorViewModel.Commands.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/code-review-remediation-plan.md",
+      "line": 73,
+      "target": "../samples/TechnicalSpike.App/ViewModels/EditorViewModel.Playback.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/code-review-remediation-plan.md",
+      "line": 73,
+      "target": "../samples/TechnicalSpike.App/Views/MainWindow.Project.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/code-review-remediation-plan.md",
+      "line": 73,
+      "target": "../samples/TechnicalSpike.App/Views/MainWindow.Keyboard.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/code-review-remediation-plan.md",
+      "line": 102,
+      "target": "../samples/TechnicalSpike.App/ViewModels/TemplateWorkshopViewModel.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/code-review-remediation-plan.md",
+      "line": 102,
+      "target": "../samples/TechnicalSpike.App/ViewModels/TemplateWorkshopViewModel.Transfer.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/code-review-remediation-plan.md",
+      "line": 121,
+      "target": "../samples/TechnicalSpike.App/Authoring/StyleDesignField.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/code-review-remediation-plan.md",
+      "line": 121,
+      "target": "../samples/TechnicalSpike.App/ViewModels/TemplateWorkshopViewModel.History.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/code-review-remediation-plan.md",
+      "line": 131,
+      "target": "../samples/TechnicalSpike.App/Views/TemplateWorkshopWindow.axaml.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/code-review-remediation-plan.md",
+      "line": 141,
+      "target": "../samples/TechnicalSpike.App/Views/MainWindow.Navigation.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/code-review-remediation-plan.md",
+      "line": 141,
+      "target": "../samples/TechnicalSpike.App/Views/MainWindow.Keyboard.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/code-review-remediation-plan.md",
+      "line": 194,
+      "target": "../samples/TechnicalSpike.App/Views/MainWindow.AutoSave.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/code-review-remediation-plan.md",
+      "line": 194,
+      "target": "../samples/TechnicalSpike.App/Views/AppearanceWorkspaceView.axaml.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/code-review-remediation-plan.md",
+      "line": 194,
+      "target": "../samples/TechnicalSpike.App/Views/AppearanceWorkspaceView.Objects.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/code-review-remediation-plan.md",
+      "line": 310,
+      "target": "../samples/TechnicalSpike.App/Workspaces/ScriptRuntimeValidator.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/decisions.md",
+      "line": 160,
+      "target": "#adr-0024schema-v2-%E5%BC%95%E5%85%A5%E6%AD%8C%E8%AF%8D%E6%A0%B7%E5%BC%8F%E5%B9%B6%E8%90%BD%E5%9C%B0-cgo-06-%E8%BF%81%E7%A7%BB%E6%A1%86%E6%9E%B6",
+      "kind": "missing-anchor"
+    },
+    {
+      "file": "docs/decisions.md",
+      "line": 3308,
+      "target": "scripting-package-graph-semantics-contract.md#4-%E5%B7%B2%E7%A1%AE%E8%AE%A4-c%E5%AF%BC%E5%87%BA%E4%B8%8E%E6%9D%90%E8%B4%A8%E5%9B%9E%E9%80%80%E7%BC%96%E7%A0%81%E5%BE%85%E5%AE%9E%E6%96%BD",
+      "kind": "missing-anchor"
+    },
+    {
+      "file": "docs/decisions.md",
+      "line": 4627,
+      "target": "ui-0496-refactoring-progress.md#7-%E5%B7%A5%E7%A8%8B%E8%AE%BE%E7%BD%AE%E4%B8%8E%E6%B7%BB%E5%8A%A0%E6%AD%8C%E8%AF%8D%E5%85%A5%E5%8F%A304910",
+      "kind": "missing-anchor"
+    },
+    {
+      "file": "docs/decisions.md",
+      "line": 5094,
+      "target": "architecture/backend-api.md#13-%E7%8B%AC%E7%AB%8B%E6%A8%A1%E6%9D%BF%E5%BA%930840",
+      "kind": "missing-anchor"
+    },
+    {
+      "file": "docs/project-save-queue-contract.md",
+      "line": 29,
+      "target": "../tools/ui-suki-compatibility/PersistenceFlow.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/project-save-queue-contract.md",
+      "line": 37,
+      "target": "../tools/ui-suki-compatibility/PersistenceCrashRecovery.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/roadmap.md",
+      "line": 1370,
+      "target": "scripting-package-graph-semantics-contract.md#4-%E5%B7%B2%E7%A1%AE%E8%AE%A4-c%E5%AF%BC%E5%87%BA%E4%B8%8E%E6%9D%90%E8%B4%A8%E5%9B%9E%E9%80%80%E7%BC%96%E7%A0%81%E5%BE%85%E5%AE%9E%E6%96%BD",
+      "kind": "missing-anchor"
+    },
+    {
+      "file": "docs/roadmap.md",
+      "line": 3087,
+      "target": "backend-public-package-preview-plan.md#8-%E5%AE%9E%E6%96%BD%E4%B8%8E%E9%AA%8C%E6%94%B6%E7%8A%B6%E6%80%812026-10-19-%E6%9C%80%E7%BB%88%E9%AA%8C%E6%94%B6",
+      "kind": "missing-anchor"
+    },
+    {
+      "file": "docs/roadmap.md",
+      "line": 3102,
+      "target": "backend-capability-gap-audit.md#13-2026-10-21-%E5%90%8E%E7%BB%AD%E4%BC%98%E5%85%88%E7%BA%A7%E7%9F%A9%E9%98%B5",
+      "kind": "missing-anchor"
+    },
+    {
+      "file": "docs/style-editor-ux-redesign-plan.md",
+      "line": 9,
+      "target": "../%E4%B8%BB%E7%95%8C%E9%9D%A2.png",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/style-editor-ux-redesign-plan.md",
+      "line": 9,
+      "target": "../%E6%A0%B7%E5%BC%8F%E7%BC%96%E8%BE%91%E5%99%A8.png",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/style-editor-ux-redesign-plan.md",
+      "line": 30,
+      "target": "../%E4%B8%BB%E7%95%8C%E9%9D%A2.png",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/style-editor-ux-redesign-plan.md",
+      "line": 31,
+      "target": "../%E6%A0%B7%E5%BC%8F%E7%BC%96%E8%BE%91%E5%99%A8.png",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-feature-migration.md",
+      "line": 11,
+      "target": "../samples/TechnicalSpike.App/Views/AppearanceLyricsView.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-feature-migration.md",
+      "line": 21,
+      "target": "../samples/TechnicalSpike.App/Views/AppearanceWorkspaceView.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-feature-migration.md",
+      "line": 42,
+      "target": "../samples/TechnicalSpike.App/Views/BranchSettingsWindow.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-feature-migration.md",
+      "line": 53,
+      "target": "../samples/TechnicalSpike.App/Views/ColorPickerPanel.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-feature-migration.md",
+      "line": 71,
+      "target": "../samples/TechnicalSpike.App/Views/ColorSwatchPicker.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-feature-migration.md",
+      "line": 79,
+      "target": "../samples/TechnicalSpike.App/Views/ExportDialog.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-feature-migration.md",
+      "line": 90,
+      "target": "../samples/TechnicalSpike.App/Views/ImportLyricsDialog.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-feature-migration.md",
+      "line": 100,
+      "target": "../samples/TechnicalSpike.App/Views/LyricLineEditorWindow.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-feature-migration.md",
+      "line": 119,
+      "target": "../samples/TechnicalSpike.App/Views/MainWindow.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-feature-migration.md",
+      "line": 195,
+      "target": "../samples/TechnicalSpike.App/Views/NewProjectDialog.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-feature-migration.md",
+      "line": 206,
+      "target": "../samples/TechnicalSpike.App/Views/PlaybackBarView.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-feature-migration.md",
+      "line": 219,
+      "target": "../samples/TechnicalSpike.App/Views/SaveProjectDialog.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-feature-migration.md",
+      "line": 229,
+      "target": "../samples/TechnicalSpike.App/Views/ScriptConfigurationWorkspaceWindow.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-feature-migration.md",
+      "line": 255,
+      "target": "../samples/TechnicalSpike.App/Views/ScriptParameterFieldView.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-feature-migration.md",
+      "line": 266,
+      "target": "../samples/TechnicalSpike.App/Views/ScriptRuntimeValidationView.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-feature-migration.md",
+      "line": 277,
+      "target": "../samples/TechnicalSpike.App/Views/StartPageView.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-feature-migration.md",
+      "line": 289,
+      "target": "../samples/TechnicalSpike.App/Views/StrokeSpecEditorView.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-feature-migration.md",
+      "line": 297,
+      "target": "../samples/TechnicalSpike.App/Views/StyleGradientEditorView.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-feature-migration.md",
+      "line": 306,
+      "target": "../samples/TechnicalSpike.App/Views/StylePropertyRowView.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-feature-migration.md",
+      "line": 316,
+      "target": "../samples/TechnicalSpike.App/Views/StyleTargetPickerDialog.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-feature-migration.md",
+      "line": 327,
+      "target": "../samples/TechnicalSpike.App/Views/TemplateCreationDialog.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-feature-migration.md",
+      "line": 336,
+      "target": "../samples/TechnicalSpike.App/Views/TemplateWorkshopWindow.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-feature-migration.md",
+      "line": 371,
+      "target": "../samples/TechnicalSpike.App/Views/TextInputDialog.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-feature-migration.md",
+      "line": 380,
+      "target": "../samples/TechnicalSpike.App/Views/ThemePaletteDialog.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-feature-migration.md",
+      "line": 390,
+      "target": "../samples/TechnicalSpike.App/Views/TokenSplitDialog.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-feature-migration.md",
+      "line": 510,
+      "target": "ui-0496-refactoring-progress.md#7-%E5%B7%A5%E7%A8%8B%E8%AE%BE%E7%BD%AE%E4%B8%8E%E6%B7%BB%E5%8A%A0%E6%AD%8C%E8%AF%8D%E5%85%A5%E5%8F%A304910",
+      "kind": "missing-anchor"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 16,
+      "target": "../samples/TechnicalSpike.App/Theme/UiControlMetrics.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 16,
+      "target": "../samples/TechnicalSpike.App/Theme/EditorStyles.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 16,
+      "target": "../samples/TechnicalSpike.App/App.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 16,
+      "target": "../samples/TechnicalSpike.App/Theme/Colors.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 16,
+      "target": "../samples/TechnicalSpike.App/Theme/UiSukiTheme.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/StartPageView.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/NewProjectDialog.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/MainWindow.Project.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/MainWindow.AutoSave.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/BranchSettingsWindow.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/ImportLyricsDialog.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/MainWindow.LyricsIO.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/LyricLineEditorWindow.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/LyricLineEditorWindow.Tokens.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/TokenSplitDialog.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/LyricLineEditorWindow.Timing.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Controls/TimelineControl.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/MainWindow.Keyboard.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/PlaybackBarView.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/MainWindow.Playback.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/AppearanceWorkspaceView.Objects.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/AppearanceLyricsView.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/AppearanceWorkspaceView.axaml.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/AppearanceWorkspaceView.Inputs.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/AppearanceWorkspaceView.Catalogue.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Workspaces/BasicLayoutUi.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/MainWindow.Composition.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/SceneEditorControl.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/TemplateWorkshopWindow.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/StyleGradientEditorView.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/StrokeSpecEditorView.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/ShadowSpecEditorView.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/TemplateWorkshopWindow.Transfer.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/TemplateWorkshopWindow.Preview.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/ScriptConfigurationWorkspaceWindow.Commands.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/ScriptConfigurationWorkspaceWindow.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/ScriptParameterFieldView.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/ScriptParameterInputView.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/ScriptConfigurationWorkspaceWindow.axaml.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/ScriptRuntimeValidationView.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/MainWindow.Composition.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/ExportDialog.axaml.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/MainWindow.axaml",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Workspaces/TaskCommandContext.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-0496-refactoring-plan.md",
+      "line": 68,
+      "target": "../samples/TechnicalSpike.App/Views/MainWindow.Theme.cs",
+      "kind": "missing-target"
+    },
+    {
+      "file": "docs/ui-suki-compatibility.md",
+      "line": 65,
+      "target": "licenses/suki-ui/README.md",
+      "kind": "missing-target"
+    },
+    {
+      "file": "web/api-contract.md",
+      "line": 47,
+      "target": "../docs/architecture/backend-api.md#13-%E7%8B%AC%E7%AB%8B%E6%A8%A1%E6%9D%BF%E5%BA%930840",
+      "kind": "missing-anchor"
+    },
+    {
+      "file": "web/api-contract.md",
+      "line": 47,
+      "target": "../docs/architecture/backend-api.md#133-%E5%B7%A5%E7%A8%8B%E5%86%85%E6%98%BE%E5%BC%8F%E9%A2%84%E8%AE%BE%E5%88%86%E9%85%8D0850",
+      "kind": "missing-anchor"
+    },
+    {
+      "file": "web/api-contract.md",
+      "line": 47,
+      "target": "../docs/architecture/backend-api.md#135-%E5%B7%A5%E7%A8%8B%E7%BC%96%E6%8E%92%E8%AF%BB%E6%A8%A1%E5%9E%8B%E4%B8%8E%E9%BB%98%E8%AE%A4%E5%AE%B9%E5%99%A8-w4-%E5%90%88%E5%90%8C1130",
+      "kind": "missing-anchor"
+    },
+    {
+      "file": "web/api-contract.md",
+      "line": 146,
+      "target": "../docs/architecture/backend-api.md#1321-%E7%9C%9F%E5%AE%9Eworker%E5%90%8C%E5%B8%A7%E6%B5%8B%E9%87%8F%E5%90%88%E5%90%8C1240",
+      "kind": "missing-anchor"
+    },
+    {
+      "file": "web/api-contract.md",
+      "line": 202,
+      "target": "../docs/backend-api-completion-plan.md#9-p3-%E5%AE%9E%E6%96%BD%E8%AE%B0%E5%BD%95",
+      "kind": "missing-anchor"
+    }
+  ],
+  "evidenceSha256": {
+    "docs/performance/20261027/baseline.json": "77e884487a7b56b53303973d8a1f669dc04271b1cf7a271ff8bbe34adab7a742",
+    "docs/performance/20261027/checksums.json": "7b91a59e902d7fe871d4764e929e62ece90f1e189cc40e1a7ec7f4585fbca109",
+    "docs/performance/20261027/evidence-index.json": "237840c4a32badfe9cb11f166f52ddfc32864b4a715dc403ad4ad6f186f16aff",
+    "docs/performance/20261027/evidence.tar.gz": "85195e833bf04e5d44a33af1f7abb85cca103fab8e44336adb973d1cb92c3bbb",
+    "docs/performance/20261027/frames.csv": "52dbc18fb3c0fb2fa42a9f294abe3519ff210d45e0d395cb378b63c26b371ff9",
+    "docs/performance/20261027/stages.csv": "4a3708bd9057486a9949a73cfd228254887c068f84466f07822abcb6eca92678",
+    "docs/performance/20261027/verification.json": "d6e5a2025de1fcdfbb81d4b8a29884deedd8c449b6f7a5f9969b7465d3a35a4c",
+    "docs/performance/20261027-optimization/compact-performance-comparison.json": "674ef42f01502bea87ea1bfca114b50afbc80eed110c6c54021886569660dcb2",
+    "docs/performance/20261027-optimization/evidence-index.json": "aa13d1e5b1313a103eddbac29ccd5eec30afb2ac4e02d1d574648094c32e8a5c",
+    "docs/performance/20261027-optimization/evidence.tar.gz": "cd60e42150f5d1b330f5a365cc19128f5e305f8027af521a0bb7201ff0d6697c",
+    "docs/performance/20261028-structural-optimization/README.md": "5adf420f2d23b0bcf9b8c91eec769fbe7daf10ea76f8f3c1fc8b41efeb8b8f71",
+    "docs/performance/20261028-structural-optimization/compact-performance-comparison.json": "9d2abe969145557d3488a87b3889c8ff1e9f83835375489c6aeb423b8bc0483b",
+    "docs/performance/20261028-structural-optimization/completion.json": "93a5d1f243373c67d7605cdd36e5e32f882ed1755479eb96ddef6fabf0856a0d",
+    "docs/performance/20261028-structural-optimization/evidence-index.json": "03bfb71a8887f1dac0e33474e8cdbcafa44ed4a7875bfdcc6155f5d6659f3f6d",
+    "docs/performance/20261028-structural-optimization/evidence.tar.gz": "a22eb349230142e4affca5f5f812d92a6c16172bf5c937f9e9638bb4d38572b3",
+    "docs/performance/20261028-structural-optimization/orchestration-evidence.tar.gz": "3346ddd0649a41eb8b4cfd9a0513aae0bc9b59b93138cb2b5bc507717714f5a2",
+    "docs/performance/20261028-structural-optimization/orchestration-index.json": "9a6cfe6926d9147391277df07d5421ad4047c2b7cb3131c740c4f5494c5994d0",
+    "docs/performance/20261028-structural-optimization-acceptance/README.md": "1592379102c15d8ed7b4036a7753fa28c986f71d6b5b9a13bca79de9bcbd7587",
+    "docs/performance/20261028-structural-optimization-acceptance/acceptance-evidence.tar.gz": "2431a004887149ce81a88e1c105c5b9bf15c12518680100aacaa2d908825472c",
+    "docs/performance/20261028-structural-optimization-acceptance/acceptance-summary.json": "55bc845098da296a1463244040f78366aaab12dc27dfc5c5ac6926af7adacaac",
+    "docs/performance/20261028-structural-optimization-acceptance/evidence-index.json": "bbab850bd8d4d9643f1175dd2e8b3a9876560d387cbede97068ebe86eb9263ef",
+    "docs/performance/20261028-structural-optimization-acceptance/performance-deferred.json": "9e2f842aa8255e7114df06160d3cb7d39b5706a32a0069ac7adc68c970453a85",
+    "docs/performance/20261028-structural-optimization-acceptance/telemetry-http-audit.json": "96e0e92b64b21d6b4b97a98e6ae378165dcf1894bddee004a0f57c4c48cd28a0",
+    "docs/performance/20261028-structural-research/README.md": "30334b292abcdf4cc34720f0480da113695b6778e30bf2681c5cdac3ae5e7cc6",
+    "docs/performance/20261028-structural-research/archive-verification.json": "bf8ebc309be404cbe1d6c1bad039c4fbb65e185886acf8419bfa3a40fdd13f32",
+    "docs/performance/20261028-structural-research/compact-research-summary.json": "f345ca45883b06e02f5de995218aeeb9556360e9bb1810d653e51901b07ed789",
+    "docs/performance/20261028-structural-research/evidence-index.json": "a951c0bb6ce8882d62288b7e20b813f009d2449462b556e4ba9db5ab3858cc12",
+    "docs/performance/20261028-structural-research/evidence.tar.gz": "f452ed96ee913a30810c21c762bbf482a2dd984b95f727584414ae45adcedce4"
+  },
+  "manifestErrors": [],
+  "samplePackageSha256": {
+    "samples/ScriptEffects/CursorTrail/README.md": "e543f12714f62493e8a640228c829ddcdd7edfdff6d52e65b14e42602320274c",
+    "samples/ScriptEffects/CursorTrail/manifest.json": "506c535a0ee9e6e0f868cc4805b017c86a7d07048cb8078f403f5632ac8a5286",
+    "samples/ScriptEffects/CursorTrail/src/CursorTrail.cs": "c7d09782a7f6d9cde7883d02b336717b1d1b337ca5b9e7542da4ff8517ec1bd3",
+    "samples/ScriptEffects/CustomInk/README.md": "b0c8e8b779aff4f93f0bfeb54e35ca60ba67ff9d24a36dbad04eb18cdecca1bf",
+    "samples/ScriptEffects/CustomInk/graphs/wave.graph.json": "34d7f2a70f34bc2d2346425a8c888421ec7ef01866c146069daa5578a1d52d1c",
+    "samples/ScriptEffects/CustomInk/manifest.json": "7fd805b85214f6a911c2a9b0165d066a2061e06773ae510750b7f27ee641c048",
+    "samples/ScriptEffects/CustomInk/shaders/wave.program.json": "cc5b6dbc6ae21ed7906753e931fcdff838ab30f81fdf484e79446ad3796ff339",
+    "samples/ScriptEffects/CustomInk/shaders/wave.sksl": "c58c3da65f5aa8b9575f8ba3a048933cf12b36fe79280be0ba8c68c61cb189d2",
+    "samples/ScriptEffects/EventBurst/README.md": "99799d3e34094bb59a4730d12cdd4712cac17ea35b8320bd2c65f90567423fc8",
+    "samples/ScriptEffects/EventBurst/manifest.json": "d64d7b23320e4f7a846fe8ae48c37293640f5f31d90141c5e6e69c52cc6cb919",
+    "samples/ScriptEffects/EventBurst/src/EventBurst.cs": "3591031932f61ea810490962a588860d5620b71af3a13b50c5587b04f855f624",
+    "samples/ScriptEffects/Examples/EventBurst.cs": "b3a5094d6ba6d44e73668ee651c98ea00eb9f842eb42a738691b5d86b938fef9",
+    "samples/ScriptEffects/GlassInk/README.md": "20dfd2bc15e9532771248c93833354551773fd590a4794829b23d29c6681a3ba",
+    "samples/ScriptEffects/GlassInk/graphs/glass-backdrop.graph.json": "475de077a12c525a269ac86f0ff615a3e4967a99ab5d87b6446264ff0827096c",
+    "samples/ScriptEffects/GlassInk/graphs/glass-media.graph.json": "4123a590a7d6785381224a5434361d46785f9e3c8b1843d1a94988001cc49c8c",
+    "samples/ScriptEffects/GlassInk/manifest.json": "a02201465ead485f124d45bc3ebc3947a50549c5e1b5af2b156cd011b493a71f",
+    "samples/ScriptEffects/GlassInk/shaders/glass.program.json": "ca550bbce8d0225606f290b0e0ce280fcd34c501b32770191dd6ae1c558e6217",
+    "samples/ScriptEffects/GlassInk/shaders/glass.sksl": "9f1b972bb8a89136a457820ed1a59e0c522e03ce5c094b6c090aa6c533ad1305",
+    "samples/ScriptEffects/LineGlitch/README.md": "9e0f70506489f14fe3242f22b977bba42aed577e35456c28166f85d330a26da2",
+    "samples/ScriptEffects/LineGlitch/graphs/glitch.graph.json": "a41bcd159dd8e20bf1f6b6e2fe1770c34ccfa98c0fd299e3e8328c6f5641e19e",
+    "samples/ScriptEffects/LineGlitch/manifest.json": "8a8c7ddcc1a2ac50305cd25b7c02dcaefaae6185bd444a6836e8fa89b4e6ae96",
+    "samples/ScriptEffects/LineGlitch/shaders/glitch.program.json": "f6a3601447dc4d213a83d71bccfa819f08a7678659f110c31ca49683b0fe52cc",
+    "samples/ScriptEffects/LineGlitch/shaders/glitch.sksl": "779695b8dcea6c7983a9cad7c20496e17d3dafcae2b513c500bb07f2be2329d1",
+    "samples/ScriptEffects/README.md": "86631bb34de34f86faedd1bbc5bd653cf1206835247e606fb6d41f829422fbf1",
+    "samples/ScriptEffects/RepeatEmphasis/README.md": "4225fc75d2f1e6e30a8154f0db61ac188f2f1ae9b8e8027f150582b1934f43cc",
+    "samples/ScriptEffects/RepeatEmphasis/manifest.json": "7ff633998c45971c0d90d71943e04f9515af06feea658bc2db1d1236aaafb150",
+    "samples/ScriptEffects/RepeatEmphasis/src/RepeatEmphasis.cs": "aedebd66ff45c574e5dbe75cb4d77dd22bc786cd0aed081d45c0e08257e148af",
+    "samples/ScriptEffects/SpriteTrail/README.md": "5f063bf6cc66cb526a4fa7d965d730e4137fe885d3c1be8e601be3638b718843",
+    "samples/ScriptEffects/SpriteTrail/assets/spark.png": "6bc24a3d3fadcd949f14f17b7eca007d7cae132bcb9d1b6db02892445f168619",
+    "samples/ScriptEffects/SpriteTrail/manifest.json": "a71a16b6b198b5231f0bdb4c958c8ff4cc01fffb14f90f1204a806a494bcf1ba",
+    "samples/ScriptEffects/SpriteTrail/src/SpriteTrail.cs": "13dd3cdd28917792c76b119444ba56ec237f0fadff734240caabba6a25ac7687",
+    "samples/ScriptEffects/VectorTrail/README.md": "97755021ebf9dd2874838795c06186292d2c4eaf88f0034d6062b48de893343e",
+    "samples/ScriptEffects/VectorTrail/manifest.json": "5a8e22eaa327779067ab5e6cbc8d57c6d12078852275b81d6dad388cf4911136",
+    "samples/ScriptEffects/VectorTrail/src/VectorTrail.cs": "9989183dde9bcfb7a00a7abfa6aea33790acd93ded64f858b05649a8e58dd3c6",
+    "samples/ScriptEffects/WordEmphasis/README.md": "e599d54a92792bcf4c6b91e865a290a0879c7efbe4dd41613a27cd08d1a78354",
+    "samples/ScriptEffects/WordEmphasis/manifest.json": "48140eb423c494ac3bf9fbf75cd4e31d09a021c734e280bdba0a24af2a8b5961",
+    "samples/ScriptEffects/WordEmphasis/src/WordEmphasis.cs": "5bfca397aad0567cd57c5d8f79f523a42705673d446109148da9158d4e3ca615"
+  }
+}

@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>MakoKaraGenerator.Text</RootNamespace>
+    <AssemblyName>MakoKaraGenerator.Text</AssemblyName>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <!--
+    文字布局层（docs/roadmap.md §3.1、docs/development.md §9）。
+
+    ⚠️ 本项目<b>刻意</b>不引用 SkiaSharp / HarfBuzzSharp / Avalonia：
+    这里只放"布局结果"这类纯数据与接口，具体整形由后端的 ITextLayoutEngine 实现负责。
+    这样上层（渲染抽象、导出、后续脚本 SDK）可以只依赖布局数据的形状，
+    而不会被某个具体文字库绑住。
+  -->
+  <ItemGroup>
+    <ProjectReference Include="../MakoKaraGenerator.Core/MakoKaraGenerator.Core.csproj" />
+  </ItemGroup>
+
+</Project>

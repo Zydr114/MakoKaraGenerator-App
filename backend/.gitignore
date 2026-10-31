@@ -1,0 +1,64 @@
+# MakoKaraGenerator —— 不应进入版本库的内容
+# 参考：docs/roadmap.md §14「不应提交到 Git」
+
+# ---- 构建产物 ----
+bin/
+obj/
+*.user
+*.suo
+*.userprefs
+*.binlog
+*.dll
+*.pdb
+*.exe
+*.nupkg
+*.snupkg
+.artifacts/
+artifacts/
+
+# ---- 项目源数据之外的运行时目录（文档 §6.1）----
+# cache/ 与 backups/ 可随时删除重建，不属于源数据
+cache/
+backups/
+
+# ---- Python 工具缓存 ----
+__pycache__/
+*.py[cod]
+
+# ---- IDE / 编辑器 ----
+.vs/
+.vscode/
+.VSCodeCounter/
+.idea/
+*.swp
+*.swo
+*~
+
+# ---- 测试与渲染临时产物 ----
+# 临时视频、PNG 帧、渲染输出
+*.frames/
+test-output/
+TestResults/
+*.trx
+*.coverage
+coverage*.xml
+coverage*.json
+
+# ---- 本机字体副本 ----
+# 除非明确拥有分发许可，不得提交（文档 §14、§9.5）
+assets/fonts/local/
+
+# ---- 诊断与个人路径 ----
+# 含个人媒体路径的诊断文件
+*.diag.json
+*.local.json
+launchSettings.local.json
+
+# ---- 操作系统 ----
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- .NET 工具与本地 SDK ----
+.dotnet/
+.nuget/

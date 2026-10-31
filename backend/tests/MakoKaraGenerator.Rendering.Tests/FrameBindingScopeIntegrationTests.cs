@@ -1,0 +1,168 @@
+using MakoKaraGenerator.Core.Projects;
+using MakoKaraGenerator.Rendering.Skia;
+using MakoKaraGenerator.Scripting.Compilation;
+using MakoKaraGenerator.Scripting.Execution;
+using MakoKaraGenerator.Scripting.Projection;
+using Fx = MakoKaraGenerator.Scripting;
+
+namespace MakoKaraGenerator.Rendering.Tests;
+
+public sealed class FrameBindingScopeIntegrationTests
+{
+    private const string Fingerprint = "R7-real-frame-binding-scope";
+    private static readonly Lazy<Task<ScriptCompilationResult>> Probe = new(async () =>
+    {
+        ScriptCompiler compiler = new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));
+        var artifact = await compiler.CompileAsync([new("src/BindingScopeProbe.cs", """
+            using System;
+            using System.Linq;
+            using MakoKaraGenerator.Scripting;
+            public sealed class BindingScopeProbe : EffectBase
+            {
+                private static string NonEmpty(string value) => value.Length == 0 ? "<empty>" : value;
+                public override void Evaluate(FrameContext frame, FrameWriter output)
+                {
+                    frame.Diagnostics.Report(DiagnosticSeverity.Info, "EvaluateTokens",
+                        NonEmpty(string.Join(",", frame.Presentations.TokensInBinding.Select(token => token.TokenId.Value))));
+                    frame.Diagnostics.Report(DiagnosticSeverity.Info, "EvaluateLines",
+                        NonEmpty(string.Join(",", frame.Presentations.LinesInBinding.Select(line => line.LineId.Value))));
+                    frame.Diagnostics.Report(DiagnosticSeverity.Info, "EvaluateMarks",
+                        NonEmpty(string.Join(",", frame.Presentations.MarksInBinding.Select(mark => mark.Target.NodeId.Value))));
+                    string mode = frame.Parameters.GetEnum("mode");
+                    if (mode == "all")
+                    {
+                        foreach (var token in frame.Presentations.TokensInBinding)
+                            output.Transforms.ScaleTokenFamily(token.WithRuby, 1.2, Pivot.BaseAdvanceCenter);
+                        foreach (var line in frame.Presentations.LinesInBinding)
+                            output.Transforms.ApplyAffine(line.Target, Affine2.Translation(8, 0));
+                        foreach (var mark in frame.Presentations.MarksInBinding)
+                            output.Transforms.ApplyAffine(mark.Target, Affine2.Translation(0, 5));
+                    }
+                    if (mode == "lineWrite")
+                        output.Transforms.ApplyAffine(frame.Presentations.LinesInBinding.Single().Target, Affine2.Translation(8, 0));
+                    if (mode == "groupWrite")
+                        output.Transforms.ApplyAffine(new GroupTarget(new(frame.Parameters.GetText("group"))), Affine2.Translation(8, 0));
+                    if (mode == "markWrite")
+                        output.Transforms.ApplyAffine(new TextMarkTarget(new(frame.Parameters.GetText("mark")), new("cue-first"),
+                            frame.Presentations.LinesInBinding.Single().BindingId), Affine2.Translation(0, 5));
+                }
+                public override void EvaluateVisuals(VisualFrameContext frame, VisualWriter output)
+                {
+                    frame.Diagnostics.Report(DiagnosticSeverity.Info, "VisualTokens",
+                        NonEmpty(string.Join(",", frame.FinalGeometry.Presentations.TokensInBinding.Select(token => token.TokenId.Value))));
+                    frame.Diagnostics.Report(DiagnosticSeverity.Info, "VisualLines",
+                        NonEmpty(string.Join(",", frame.FinalGeometry.Presentations.LinesInBinding.Select(line => line.LineId.Value))));
+                    frame.Diagnostics.Report(DiagnosticSeverity.Info, "VisualMarks",
+                        NonEmpty(string.Join(",", frame.FinalGeometry.Presentations.MarksInBinding.Select(mark => mark.Target.NodeId.Value))));
+                }
+            }
+            """)]);
+        Assert.True(artifact.Succeeded, string.Join('\n', artifact.Diagnostics)); return artifact;
+    });
+    private static ProjectSnapshot Snapshot(bool fixedParent = false)
+    {
+        var project = LeadInFixture.Create(true, true);
+        if (fixedParent)
+        {
+            var tree = project.LyricPresentation; var program = tree.FindProgram("primary")!;
+            var indicator = tree.FindNode(program.LeadIns[0].IndicatorContainerId)!;
+            project = project with { LyricPresentation = tree with { Nodes = tree.Nodes.Replace(indicator,
+                indicator with { Attachment = new() { Mode = SceneAttachmentMode.FixedParent } }) } };
+        }
+        return ProjectSnapshot.FromProject(project) with { EffectInputsFingerprint = Fingerprint };
+    }
+    private static async Task<PureFrameSourceFactory> Factory(Fx.EffectBinding binding, string mode = "all", string group = "", string mark = "")
+    {
+        var parameters = new Fx.ParameterValues(new Dictionary<string, Fx.ParameterValue>
+        {
+            ["mode"] = new Fx.ParameterValue.Choice(mode), ["group"] = new Fx.ParameterValue.Text(group), ["mark"] = new Fx.ParameterValue.Text(mark),
+        });
+        return new([new(new("scope-instance"), await Probe.Value, "BindingScopeProbe", parameters, binding, Fx.EffectCapabilities.Transforms)],
+            Fingerprint, static () => new SkiaRenderPipeline());
+    }
+    private static Fx.SceneCatalog Catalog(ProjectSnapshot snapshot) => SceneProjection.Create(snapshot, ContentProjection.Create(snapshot));
+    private static string Message(PreparedRenderFrame frame, string code)
+    {
+        string message = frame.Diagnostics.Last(item => item.Diagnostic.Code == code).Diagnostic.Message;
+        return message == "<empty>" ? string.Empty : message;
+    }
+
+    [Fact]
+    public async Task 真实槽位轮换查询与生产文字及视觉阶段使用相同当前装载()
+    {
+        var snapshot = Snapshot(); using SkiaRenderPipeline renderer = new(); var catalog = Catalog(snapshot);
+        var first = renderer.GetSceneFrame(snapshot, 12_500_000); var last = renderer.GetSceneFrame(snapshot, 47_000_000);
+        var original = FrameProjection.Lines(first, catalog).Single(line => line.LineId.Value == "first");
+        var next = FrameProjection.Lines(last, catalog).Single(line => line.LineId.Value == "tail-a");
+        Assert.Equal(original.ParentId, next.ParentId); Assert.NotEqual(original.BindingId, next.BindingId);
+        var binding = new Fx.EffectBinding.Node(original.ParentId, true);
+        await using var source = await (await Factory(binding)).CreateAsync(snapshot);
+        foreach (var scene in new[] { first, last })
+        {
+            var scope = new FrameBindingScope(scene);
+            var tokens = FrameProjection.Tokens(scene).Where(token => scope.ContainsToken(binding, token)).ToArray();
+            var lines = FrameProjection.Lines(scene, catalog).Where(line => scope.ContainsLine(binding, line)).ToArray();
+            Assert.Single(lines); Assert.Equal(2, tokens.Length);
+            var prepared = await source.PrepareAsync(scene.TimeUs, Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition));
+            Assert.Equal(tokens.Select(token => token.WithRuby), prepared.TokenTransforms.Select(item => item.Target));
+            Assert.Equal(lines.Select(line => line.Target), prepared.LineTransforms.Select(item => item.Target));
+            string tokenIds = string.Join(",", tokens.Select(token => token.TokenId.Value));
+            string lineIds = string.Join(",", lines.Select(line => line.LineId.Value));
+            Assert.Equal(tokenIds, Message(prepared, "EvaluateTokens")); Assert.Equal(tokenIds, Message(prepared, "VisualTokens"));
+            Assert.Equal(lineIds, Message(prepared, "EvaluateLines")); Assert.Equal(lineIds, Message(prepared, "VisualLines"));
+            using var changed = renderer.Render(RenderRequest.At(snapshot, scene.TimeUs) with { PreparedFrame = prepared, TransparentBackground = true });
+            using var plain = renderer.Render(RenderRequest.At(snapshot with { EffectInputsFingerprint = null }, scene.TimeUs) with { TransparentBackground = true });
+            Assert.False(changed.PixelMemory.Span.SequenceEqual(plain.PixelMemory.Span));
+        }
+        Assert.False(new FrameBindingScope(last).ContainsLine(binding, original));
+    }
+
+    [Theory]
+    [InlineData("lineWrite")] [InlineData("groupWrite")] [InlineData("markWrite")]
+    public async Task 元素绑定可读真实所属行但生产writer不能写整行标记或组(string mode)
+    {
+        var snapshot = Snapshot(); var binding = new Fx.EffectBinding.Tokens([new("first-a")]);
+        string root = snapshot.LyricPresentation.FindProgram("primary")!.RootContainerId;
+        var program = snapshot.LyricPresentation.FindProgram("primary")!;
+        var indicator = snapshot.LyricPresentation.FindNode(program.LeadIns[0].IndicatorContainerId)!;
+        string mark = ((CountdownSequenceContent)indicator.Content!).MarkNodeIds[0];
+        await using var observed = await (await Factory(binding, "observe")).CreateAsync(snapshot);
+        var current = await observed.PrepareAsync(10_000_000, Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition));
+        Assert.Equal("first-a", Message(current, "EvaluateTokens")); Assert.Equal("first", Message(current, "EvaluateLines"));
+        Assert.Equal(string.Empty, Message(current, "EvaluateMarks")); Assert.Equal("first", Message(current, "VisualLines"));
+        await using var writing = await (await Factory(binding, mode, root, mark)).CreateAsync(snapshot);
+        var failure = await Assert.ThrowsAsync<EffectFailureException>(async () => await writing.PrepareAsync(10_000_000,
+            Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition)));
+        Assert.Equal("TargetOutsideBinding", failure.Code); Assert.Equal("Evaluate", failure.Stage); Assert.Equal("scope-instance", failure.InstanceId.Value);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task 跟随和固定前奏的实际祖先区分在查询文字视觉及生产组writer保持一致(bool fixedParent)
+    {
+        var snapshot = Snapshot(fixedParent); using SkiaRenderPipeline renderer = new(); var scene = renderer.GetSceneFrame(snapshot, 10_000_000);
+        var first = FrameProjection.Lines(scene, Catalog(snapshot)).Single(line => line.LineId.Value == "first");
+        string indicator = snapshot.LyricPresentation.FindProgram("primary")!.LeadIns[0].IndicatorContainerId;
+        var binding = new Fx.EffectBinding.Node(first.NodeId, true); var scope = new FrameBindingScope(scene);
+        var marks = FrameProjection.Marks(scene, Catalog(snapshot)).Where(mark => scope.ContainsMark(binding, mark)).ToArray();
+        Assert.Equal(fixedParent ? 0 : 3, marks.Length); Assert.Equal(!fixedParent, scope.ContainsGroup(binding, new(new(indicator))));
+        Assert.False(new FrameBindingScope(scene).ContainsGroup(new Fx.EffectBinding.Node(first.NodeId, false), new(new(indicator))));
+        var runtime = scene.Elements.Single(node => node.Id == indicator);
+        var persistent = scene.Definition.Elements.Single(node => node.Id == indicator);
+        Assert.Equal(fixedParent ? persistent.ParentId : first.NodeId.Value, runtime.ParentId);
+        await using var source = await (await Factory(binding)).CreateAsync(snapshot);
+        var prepared = await source.PrepareAsync(scene.TimeUs, Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition));
+        Assert.Equal(marks.Select(mark => mark.Target), prepared.MarkTransforms.Select(item => item.Target));
+        string markIds = string.Join(",", marks.Select(mark => mark.Target.NodeId.Value));
+        Assert.Equal(markIds, Message(prepared, "EvaluateMarks")); Assert.Equal(markIds, Message(prepared, "VisualMarks"));
+        await using var groupSource = await (await Factory(binding, "groupWrite", indicator)).CreateAsync(snapshot);
+        if (fixedParent)
+        {
+            var failure = await Assert.ThrowsAsync<EffectFailureException>(async () => await groupSource.PrepareAsync(scene.TimeUs,
+                Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition)));
+            Assert.Equal("TargetOutsideBinding", failure.Code); return;
+        }
+        var groupFrame = await groupSource.PrepareAsync(scene.TimeUs, Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition));
+        Assert.Equal(indicator, Assert.Single(groupFrame.GroupTransforms).Target.NodeId.Value);
+    }
+}

@@ -1,0 +1,29 @@
+{
+  "info": {
+    "durationUs": 213000,
+    "sampleRate": 48000,
+    "channels": 2,
+    "codecName": "aac",
+    "containerName": "mov,mp4,m4a,3gp,3g2,mj2",
+    "estimatedSampleCount": 10224
+  },
+  "sampleRate": 48000,
+  "sampleCount": 10224,
+  "durationUs": 213000,
+  "baseBucketSamples": 64,
+  "levelCount": 9,
+  "peakCounts": [
+    160,
+    80,
+    40,
+    20,
+    10,
+    5,
+    3,
+    2,
+    1
+  ],
+  "fullPyramidHash": "908d249530fcf82437cd1b98b795feaaf086ed5d367be62f39ca079f1377ad7c",
+  "sourceHash": "6af598f8babdbcf94f513ac62a20898bc407475aaa76abd2e3871655fde9d717",
+  "oracle": "Original AudioWaveformLoader.CreateDefault; source-rate full waveform pyramid, not 48k analysis. HTTP exposes duration only; full-pyramid equality belongs to author regressions."
+}

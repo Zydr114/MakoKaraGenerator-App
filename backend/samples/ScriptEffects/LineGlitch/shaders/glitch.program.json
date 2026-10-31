@@ -1,0 +1,29 @@
+{
+  "programVersion": 1,
+  "source": "shaders/glitch.sksl",
+  "profile": "skia-raster-3.119.4-v1",
+  "uniforms": [
+    {
+      "name": "timeSeconds",
+      "type": "float"
+    },
+    {
+      "name": "strengthPx",
+      "type": "float"
+    },
+    {
+      "name": "sliceHeightPx",
+      "type": "float"
+    },
+    {
+      "name": "frequencyHz",
+      "type": "float"
+    }
+  ],
+  "children": [
+    {
+      "name": "original",
+      "type": "color"
+    }
+  ]
+}

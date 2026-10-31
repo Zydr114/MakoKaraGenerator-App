@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>MakoKaraGenerator.Backend.Hosting</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../MakoKaraGenerator.Backend.Contracts/MakoKaraGenerator.Backend.Contracts.csproj" />
+    <ProjectReference Include="../MakoKaraGenerator.Backend.Rendering/MakoKaraGenerator.Backend.Rendering.csproj" />
+    <ProjectReference Include="../MakoKaraGenerator.Application/MakoKaraGenerator.Application.csproj" />
+    <ProjectReference Include="../MakoKaraGenerator.Core/MakoKaraGenerator.Core.csproj" />
+    <ProjectReference Include="../MakoKaraGenerator.Media/MakoKaraGenerator.Media.csproj" />
+    <ProjectReference Include="../MakoKaraGenerator.Processes/MakoKaraGenerator.Processes.csproj" />
+    <ProjectReference Include="../MakoKaraGenerator.Rendering.Abstractions/MakoKaraGenerator.Rendering.Abstractions.csproj" />
+    <ProjectReference Include="../MakoKaraGenerator.Runtime.Hosting/MakoKaraGenerator.Runtime.Hosting.csproj" />
+    <ProjectReference Include="../MakoKaraGenerator.Scripting/MakoKaraGenerator.Scripting.csproj" />
+  </ItemGroup>
+</Project>

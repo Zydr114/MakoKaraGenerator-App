@@ -1,0 +1,28 @@
+{
+  "programVersion": 1,
+  "source": "shaders/wave.sksl",
+  "profile": "skia-raster-3.119.4-v1",
+  "uniforms": [
+    {
+      "name": "timeSeconds",
+      "type": "float"
+    },
+    {
+      "name": "frequencyHz",
+      "type": "float"
+    },
+    {
+      "name": "amplitude",
+      "type": "float"
+    },
+    {
+      "name": "colorA",
+      "type": "color"
+    },
+    {
+      "name": "colorB",
+      "type": "color"
+    }
+  ],
+  "children": []
+}

@@ -1,0 +1,109 @@
+{
+  "packageVersion": 2,
+  "packageId": "makokara.repeat-emphasis",
+  "name": "重复文本强调",
+  "version": "1.0.0",
+  "sdkVersion": "1.0.0",
+  "shaderProfile": "skia-raster-3.119.4-v1",
+  "files": [
+    {
+      "path": "src/RepeatEmphasis.cs",
+      "role": "csharp",
+      "sha256": "aedebd66ff45c574e5dbe75cb4d77dd22bc786cd0aed081d45c0e08257e148af"
+    },
+    {
+      "path": "README.md",
+      "role": "asset",
+      "sha256": "4225fc75d2f1e6e30a8154f0db61ac188f2f1ae9b8e8027f150582b1934f43cc"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "countScope",
+      "type": "enum",
+      "label": "计数范围",
+      "default": "branch",
+      "values": [
+        {
+          "value": "branch",
+          "label": "当前分支"
+        },
+        {
+          "value": "project",
+          "label": "整个工程"
+        }
+      ]
+    },
+    {
+      "id": "scaleStep",
+      "type": "number",
+      "label": "每次放大增量",
+      "default": 0.08,
+      "min": 0,
+      "max": 3
+    },
+    {
+      "id": "maxScale",
+      "type": "number",
+      "label": "最大放大比例",
+      "default": 1.8,
+      "min": 1,
+      "max": 4
+    },
+    {
+      "id": "darkenStep",
+      "type": "number",
+      "label": "每次亮度减少",
+      "default": 0.06,
+      "min": 0,
+      "max": 1
+    },
+    {
+      "id": "minBrightness",
+      "type": "number",
+      "label": "最低亮度",
+      "default": 0.35,
+      "min": 0,
+      "max": 1
+    }
+  ],
+  "exports": [
+    {
+      "id": "repeat-emphasis",
+      "kind": "controller",
+      "name": "重复文本强调",
+      "entryType": "RepeatEmphasis",
+      "parameters": [
+        "countScope",
+        "scaleStep",
+        "maxScale",
+        "darkenStep",
+        "minBrightness"
+      ],
+      "bindingKinds": [
+        "project",
+        "branch",
+        "lines",
+        "tokens",
+        "clips",
+        "node"
+      ],
+      "outputs": [
+        {
+          "id": "scale",
+          "kind": "VisualTransform",
+          "target": "tokenFamily",
+          "requires": [],
+          "dependsOn": []
+        },
+        {
+          "id": "sungColor",
+          "kind": "StyleModulation",
+          "target": "tokenFamily",
+          "requires": [],
+          "dependsOn": []
+        }
+      ]
+    }
+  ]
+}

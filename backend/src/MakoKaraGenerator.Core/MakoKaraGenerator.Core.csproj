@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>MakoKaraGenerator.Core</RootNamespace>
+    <AssemblyName>MakoKaraGenerator.Core</AssemblyName>
+  </PropertyGroup>
+
+  <!--
+    硬性约束（docs/roadmap.md §3.2）：
+      Core 不得引用 Avalonia，也不得直接启动 FFmpeg。
+    因此本文件刻意保持零 PackageReference / 零 ProjectReference。
+    任何新增引用都必须先说明它为什么不属于 Application / Infrastructure 层。
+  -->
+
+</Project>

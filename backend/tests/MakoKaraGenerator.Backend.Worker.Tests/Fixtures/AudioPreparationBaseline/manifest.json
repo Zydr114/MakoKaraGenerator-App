@@ -1,0 +1,186 @@
+{
+  "baselineVersion": "0.71.0",
+  "originalDeployment": "artifacts/backend-extraction/b4-compressed-export/http/deployment-final2/analysis-oracle",
+  "oracleBinarySha256": "6b9d24fe31e60d47da45b50b41dd93c260608636826fd26fbc3a3602f490b324",
+  "oracleAssemblySha256": "d71607dd962283d4fbcafb4ffe5e837520c432fa34d16f21475a1f08066dd9a7",
+  "originalMediaAssemblySha256": "a7f6fd1f2cf0e9042961800fd4a6db5f6c203098d1792bfab79b37d4b7c7bcf7",
+  "ffmpegVersion": "ffmpeg version n9.0.2 Copyright (c) 2000-2026 the FFmpeg developers",
+  "ffprobeVersion": "ffprobe version n9.0.2 Copyright (c) 2007-2026 the FFmpeg developers",
+  "platform": "Linux x64 local fixed decoder evidence; golden float results do not claim arbitrary tool version or cross-platform bit-exact equivalence.",
+  "method": "Unmodified 0.71.0 self-contained RuntimeOracle waveform mode. Hash uses each full-pyramid min/max IEEE754 float32 little-endian pair, ordered by level then bucket. Fixed encoded bytes are retained; tests never regenerate fixtures or require artifacts.",
+  "cases": [
+    {
+      "name": "wave16",
+      "muxer": "wav",
+      "encoder": "pcm_s16le",
+      "sampleRate": 44100,
+      "channels": 1,
+      "encodedExitCode": 0,
+      "originalOracleExitCode": 0
+    },
+    {
+      "name": "wavefloat",
+      "muxer": "wav",
+      "encoder": "pcm_f32le",
+      "sampleRate": 48000,
+      "channels": 2,
+      "encodedExitCode": 0,
+      "originalOracleExitCode": 0
+    },
+    {
+      "name": "mp3",
+      "muxer": "mp3",
+      "encoder": "libmp3lame",
+      "sampleRate": 44100,
+      "channels": 2,
+      "encodedExitCode": 0,
+      "originalOracleExitCode": 0
+    },
+    {
+      "name": "flac",
+      "muxer": "flac",
+      "encoder": "flac",
+      "sampleRate": 48000,
+      "channels": 2,
+      "encodedExitCode": 0,
+      "originalOracleExitCode": 0
+    },
+    {
+      "name": "aac",
+      "muxer": "adts",
+      "encoder": "aac",
+      "sampleRate": 44100,
+      "channels": 1,
+      "encodedExitCode": 0,
+      "originalOracleExitCode": 0
+    },
+    {
+      "name": "m4aaac",
+      "muxer": "ipod",
+      "encoder": "aac",
+      "sampleRate": 48000,
+      "channels": 2,
+      "encodedExitCode": 0,
+      "originalOracleExitCode": 0
+    },
+    {
+      "name": "m4aalac",
+      "muxer": "ipod",
+      "encoder": "alac",
+      "sampleRate": 44100,
+      "channels": 1,
+      "encodedExitCode": 0,
+      "originalOracleExitCode": 0
+    },
+    {
+      "name": "oggvorbis",
+      "muxer": "ogg",
+      "encoder": "libvorbis",
+      "sampleRate": 48000,
+      "channels": 2,
+      "encodedExitCode": 0,
+      "originalOracleExitCode": 0
+    },
+    {
+      "name": "oggopus",
+      "muxer": "ogg",
+      "encoder": "libopus",
+      "sampleRate": 48000,
+      "channels": 1,
+      "encodedExitCode": 0,
+      "originalOracleExitCode": 0
+    }
+  ],
+  "files": [
+    {
+      "name": "aac.input",
+      "size": 2207,
+      "sha256": "1e26e810ed95f5c5b2988e4810218f8f3e2a15c1e938839f866aabe1f23d41c3"
+    },
+    {
+      "name": "aac.waveform.json",
+      "size": 749,
+      "sha256": "9ba5fa03bec030bbfc138a8bcdc97a443c4b265afc8db80792bdb60bc67ec16f"
+    },
+    {
+      "name": "flac.input",
+      "size": 12149,
+      "sha256": "549282e092ec99e03ab10c99ba109f87547eab820b0dea3881f8a55e0474b9a5"
+    },
+    {
+      "name": "flac.waveform.json",
+      "size": 751,
+      "sha256": "dffdb3e5ab54dfd47093e05c503a9fc73f4f22577617c46c02c9658fbe9629ec"
+    },
+    {
+      "name": "m4aaac.input",
+      "size": 4535,
+      "sha256": "6af598f8babdbcf94f513ac62a20898bc407475aaa76abd2e3871655fde9d717"
+    },
+    {
+      "name": "m4aaac.waveform.json",
+      "size": 769,
+      "sha256": "dd10c4558c308bc2f002b59ef953034f63d49c1734ad022b96c05652135dbdb2"
+    },
+    {
+      "name": "m4aalac.input",
+      "size": 5704,
+      "sha256": "cebf49e63609a283ba3ddd5e52373b4ac91d7b766cd5a86f908971ae8225edd9"
+    },
+    {
+      "name": "m4aalac.waveform.json",
+      "size": 768,
+      "sha256": "2fc2758be7601dadabb6163e316848772a5881215c7edd0d2fbae6e6290dbf47"
+    },
+    {
+      "name": "mp3.input",
+      "size": 4431,
+      "sha256": "453f8ba03848c685dd8e7e75ca6e9b04459bafb2286e6abc95f138794dfc221d"
+    },
+    {
+      "name": "mp3.waveform.json",
+      "size": 747,
+      "sha256": "4d549a0964cf5d3827bef3b7319365101fb25f06ba8b53e52d4471e3db9e0a0f"
+    },
+    {
+      "name": "oggopus.input",
+      "size": 2447,
+      "sha256": "85af9c6dd75d0b892e59b00b018c26387ce0083482bd9a17b32509298a58e9ed"
+    },
+    {
+      "name": "oggopus.waveform.json",
+      "size": 750,
+      "sha256": "dd86ec11d57325f65daa7d15ec1d137dc5a24b2006414a2859c92a047acaf04f"
+    },
+    {
+      "name": "oggvorbis.input",
+      "size": 4938,
+      "sha256": "3a3594dcd6a4a63631aa174290f0525d553977cbb82d4625144456a9c3baa1c6"
+    },
+    {
+      "name": "oggvorbis.waveform.json",
+      "size": 752,
+      "sha256": "5c1cca8b60ed965c741f9dc771fc4996951999504da585ac752776281e94e9c1"
+    },
+    {
+      "name": "wave16.input",
+      "size": 18864,
+      "sha256": "7ff1384e5ea19b28750f8aaecbf843e9f7be2ee225b262839fe0f61d8c3bb581"
+    },
+    {
+      "name": "wave16.waveform.json",
+      "size": 753,
+      "sha256": "68ee65bf38e8497bc0bdfa01fb71ff7fbdb9b329efee7e0634dd776b86237327"
+    },
+    {
+      "name": "wavefloat.input",
+      "size": 81884,
+      "sha256": "5c15f025020e733ec34009348bf2c2ae8167d1b88100ef5d9bdfe467052828c5"
+    },
+    {
+      "name": "wavefloat.waveform.json",
+      "size": 755,
+      "sha256": "4a8132dd4950c5c84b8d8ac4ec55639fe9d602008f9abfc1a3932dfe4fdb962b"
+    }
+  ]
+}

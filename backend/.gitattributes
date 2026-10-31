@@ -1,0 +1,53 @@
+# MakoKaraGenerator —— 行尾与差异策略
+# 首要平台为 Linux，因此文本一律归一化为 LF，保证跨机 checkout 字节可预测。
+# 参考：docs/roadmap.md §14
+
+* text=auto eol=lf
+
+# 源码与工程文件
+*.cs            text eol=lf diff=csharp
+*.csproj        text eol=lf
+*.props         text eol=lf
+*.targets       text eol=lf
+*.sln           text eol=lf
+*.slnx          text eol=lf
+*.axaml         text eol=lf
+*.xaml          text eol=lf
+*.json          text eol=lf
+*.jsonc         text eol=lf
+*.md            text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+*.sh            text eol=lf
+*.editorconfig  text eol=lf
+.gitignore      text eol=lf
+.gitattributes  text eol=lf
+
+# 二进制资源：不做任何行尾或文本转换
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.bmp   binary
+*.ico   binary
+*.webp  binary
+*.ttf   binary
+*.otf   binary
+*.ttc   binary
+*.woff  binary
+*.woff2 binary
+*.mkg   binary
+*.mp4   binary
+*.mov   binary
+*.mkv   binary
+*.webm  binary
+*.wav   binary
+*.mp3   binary
+*.m4a   binary
+*.flac  binary
+*.ogg   binary
+*.zip   binary
+*.7z    binary
+
+# 渲染金样使用 LFS 之外的字节级比较，禁止 diff 转换
+tests/**/golden/**  -text -diff

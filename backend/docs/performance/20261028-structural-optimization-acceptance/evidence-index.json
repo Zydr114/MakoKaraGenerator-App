@@ -1,0 +1,329 @@
+{
+  "schema": "structural-optimization-acceptance-evidence-v1",
+  "productionCommit": "5802ac146fcaa89ad882229b0b3e1615c15dc5b0",
+  "deploymentCommit": "103ba2cc1adafe91f4256803c20a93aabdb82875",
+  "files": {
+    "artifacts/author-cache-20261028/author-cache-assertion-mutation-red.log": {
+      "sha256": "d2986c5dfb28d561d459c338e8aac9a86b61eac7f3cf7f13d85716293528b956",
+      "bytes": 4200
+    },
+    "artifacts/author-cache-20261028/author-cache-assertion-mutation-red.trx": {
+      "sha256": "b340b47b81d0a00d660e5d06882b85ca6de097539c4a90570b3f1feb00724c00",
+      "bytes": 8600
+    },
+    "artifacts/author-cache-20261028/author-cache-assertion-mutation-report.json": {
+      "sha256": "2fd5704c1ea1b7db5f227ceba83777c170e5265c34b0a6d5ce7511a91b2011f5",
+      "bytes": 2452
+    },
+    "artifacts/author-cache-20261028/author-cache-assertion-restore-green.log": {
+      "sha256": "c76ac49658b9fcdcbd0ce7d6a4e7103e2b2e66615e8955c5e2b06ceca7578377",
+      "bytes": 2221
+    },
+    "artifacts/author-cache-20261028/author-cache-assertion-restore-green.trx": {
+      "sha256": "a6bab1f0a04e68cf2cbae7b120c2b461c531af59280847e25c9e1791c239289d",
+      "bytes": 233550
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/acceptance-summary.json": {
+      "sha256": "55bc845098da296a1463244040f78366aaab12dc27dfc5c5ac6926af7adacaac",
+      "bytes": 8765
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/archive_acceptance.py": {
+      "sha256": "d20ad3fdb5360fb5eee7038fb13d3f9c33c9d5bf28dcfa0d435b64c3c43ec527",
+      "bytes": 3937
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/before-performance-processes.txt": {
+      "sha256": "39d39c362929a939757dcbd63c57f55a488713a5c30d9159e065af4fd42491a1",
+      "bytes": 58713
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/contract-http-detailed.json": {
+      "sha256": "903debd7de15719dcd7f6fe21d19288fd75947d8bfa232f1b1dd7c0ba04d8d12",
+      "bytes": 1054
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/contract-http-summary.json": {
+      "sha256": "a5c04044f21ba22eea51c64a4250bdfd38428351b46b89acd43581a685ae69ed",
+      "bytes": 1404
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/contract-validation.json": {
+      "sha256": "70f74685d32b8b789c560d6f482222ffab3c7caade8f13cccec405905dd0a957",
+      "bytes": 151
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/deployment-audit.json": {
+      "sha256": "6eafb2d57af835708fb9f1b4716996caa95178bb13b2878f293a238a9f9964e9",
+      "bytes": 364
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/dist-103ba2c/deployment.json": {
+      "sha256": "16b74e2935e5c639e4178b71b3ed6a08cd5d951cd98425a88cc5366364f57870",
+      "bytes": 252154
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/dist-103ba2c/server-publish.log": {
+      "sha256": "1d0b4dd5bbf3aa58f8832b89ccd6176384bbb20988dee6a14bd8305227879466",
+      "bytes": 4973
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/dist-103ba2c/worker-publish.log": {
+      "sha256": "8966539a0bbc0245a333c78063676692d1d32b0940564ddb493654f4049a2156",
+      "bytes": 2746
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/http-detailed-final1/evidence-manifest.json": {
+      "sha256": "4c2273a55a3f4889fa197cbe0f8585d2b13bd2b9350fc7eb2de289b94e553ac4",
+      "bytes": 127096
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/http-detailed-final1/gpu-environment.json": {
+      "sha256": "93a542d3a64a4dbf6c3d925006d5249bf282d722d283873abcafe542c97f9ab3",
+      "bytes": 703
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/http-detailed-final1/gpu-render-final-shutdown.json": {
+      "sha256": "4bc11a3fcb076b4c9af7d1a6f0cf06a392fbda0d2d2b629b8b97a4c51cc503bf",
+      "bytes": 3633
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/http-detailed-final1/gpu-worker-evidence.json": {
+      "sha256": "00aac6f67bc97e8f7813e9f3076eb681b6ab6a08f759e38197414d017c6c3092",
+      "bytes": 36305
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/http-detailed-final1/profile/runs/run-6bnjihni/server.log": {
+      "sha256": "0021e9a32d87bfa6787319ba6479739f92aaf324d1a294a2f4a2b81fa2b89c0c",
+      "bytes": 196839
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/http-detailed-final1/summary.json": {
+      "sha256": "f1fb034d6ea4253859463e19b3d43e73b9b04b8cd6f718959f60ea90b0c447eb",
+      "bytes": 295756
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/http-summary-final1/evidence-manifest.json": {
+      "sha256": "94e814dbf8ce39c0a84024bda46a6a5cb5bd4f540628a4c902a547756ddf0942",
+      "bytes": 66872
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/http-summary-final1/failure.txt": {
+      "sha256": "295f6ea87a748149ad0ea1588062ff13c1d2a8336da04a96b128d61345c8e103",
+      "bytes": 63
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/http-summary-final1/gpu-environment.json": {
+      "sha256": "57a9205d1de3c9e230cc04da5ada80de3f36a8146d22978d756dd0a7e9ff68c3",
+      "bytes": 703
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/http-summary-final1/gpu-render-final-shutdown.json": {
+      "sha256": "e56228e4f161d204546e60d6a941adf71e69c1f27f80d9802411a6eab2eccd7f",
+      "bytes": 2775
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/http-summary-final1/gpu-worker-evidence.json": {
+      "sha256": "92bd49adf8ca7ed821877497cf02cc46dbeed4aad4484491c3010140a3ba0d43",
+      "bytes": 20131
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/http-summary-final1/profile/runs/run-yeeb2et5/server.log": {
+      "sha256": "c2be2d5d0315ee02bcf0d73f3fde2f7096988427a78561819927e3fbf42ba6e0",
+      "bytes": 76112
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/http-summary-final1/summary.json": {
+      "sha256": "2858b5a58a02e1bd69e13645ccfa6b49d09c12bfa60e9c6d9c787e984eba7d4b",
+      "bytes": 90490
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/http-summary-final2/evidence-manifest.json": {
+      "sha256": "1a04e9b591b9bc7b4146c0a0383266bcb0e1c23f98c39ad7f458f1ece7edb14e",
+      "bytes": 598037
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/http-summary-final2/gpu-environment.json": {
+      "sha256": "93a542d3a64a4dbf6c3d925006d5249bf282d722d283873abcafe542c97f9ab3",
+      "bytes": 703
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/http-summary-final2/gpu-render-final-shutdown.json": {
+      "sha256": "a2c956cd4b52541d397a1f721dfa6e6aa9fa2dd4da040bcfd34b844e34429d9f",
+      "bytes": 10101
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/http-summary-final2/gpu-worker-evidence.json": {
+      "sha256": "962681804747b73d5e4c5f7bf551118af9c2e7dc48165b8f92a04115ab76da78",
+      "bytes": 111132
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/http-summary-final2/profile/runs/run-je0jl9rp/server.log": {
+      "sha256": "3650a862874b8af168d4b8cd5a7004b79a3db3540b49764131be1f5ab74d97df",
+      "bytes": 989104
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/http-summary-final2/summary.json": {
+      "sha256": "a42cca3b49144af7bd78f776ed0fce6653b1adc0b4d46405424705ffacb2b018",
+      "bytes": 983464
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/metadata-build.log": {
+      "sha256": "974ac93f056720f5c333616633f7afeefc84a515cb332b44b6a304662b8782db",
+      "bytes": 395
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/oracle-build.log": {
+      "sha256": "6fe540f90ebc2a330d7cbec98ddb3402737c666ec6c68e9b79dd10ed651e8958",
+      "bytes": 2122
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/oracle-rebuild-103ba2c.log": {
+      "sha256": "e8a9e03b261e1656dd304320d6ec95f136e42fe22877ace2567141e8a7ceba99",
+      "bytes": 2122
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/oracle-worker-dll-audit.json": {
+      "sha256": "5df74137a25ed2716352a2ed54cb34865f5434303b60a5db551a8a6fcfa74e96",
+      "bytes": 129
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/oracle-worker-dll-differences.json": {
+      "sha256": "93b8251896c13575985eea68f89fcdbe9ab564f2cb2915241557e699dc745ac2",
+      "bytes": 2451
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/performance.py": {
+      "sha256": "7c5a15be632c753b401880615e008c091bfb4b7ddeff286088fa74bd2ff9ac56",
+      "bytes": 2613
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/regression-final1/Backend.Hosting-focused.log": {
+      "sha256": "b20cf4ebfdfa36ebd30a7109f8e803e0aee92eec3fe0f8d1dd5c6bca3efaffa4",
+      "bytes": 625
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/regression-final1/Backend.Hosting-focused.trx": {
+      "sha256": "36eef829d13a6c53edb0591a7e4d04a92b010825311f26fa2e24ef59cc50f256",
+      "bytes": 87909
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/regression-final1/Backend.Server.log": {
+      "sha256": "c1456d23fa2a2803e4083f263f462b5f4651116994ac2d9bc7d2a2a572118bf2",
+      "bytes": 618
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/regression-final1/Backend.Server.trx": {
+      "sha256": "bfae56d1ae1613b1ab7badfeeb0a95e557dc04f87e214e6cc53bbfe087713f59",
+      "bytes": 870440
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/regression-final1/Backend.Worker.log": {
+      "sha256": "aee2c8aaa91efdedf932ed9de47447ebc58f16caced69dd125e3e91a470b5737",
+      "bytes": 613
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/regression-final1/Backend.Worker.trx": {
+      "sha256": "b4998d522d111617afc052e46166dc191e654fea11033cda7e2d85918a51de43",
+      "bytes": 174497
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/regression-final1/Scripting.log": {
+      "sha256": "a0ea1b16326cdd13f48f83605f09cba516249372034caf0ae444e1c3491fd2a5",
+      "bytes": 593
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/regression-final1/Scripting.trx": {
+      "sha256": "5fce27e76ddfd57d582c71a3c28fa6d0e1ec118e3c5ce262c9c3e2ec8aa43706",
+      "bytes": 413634
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/regression-final1/commands.json": {
+      "sha256": "a7b362ccb3924186aaf739e0389156461d56e7325ce8a1decf2681b6e5b330be",
+      "bytes": 16927
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/regression-final1/cpu-Backend.Rendering.Skia.log": {
+      "sha256": "ff302872541751557f2833168497a0581b398dc46decffd04f71374bf46088d5",
+      "bytes": 651
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/regression-final1/cpu-Backend.Rendering.Skia.trx": {
+      "sha256": "4774086c8f75b42ff4bc76b7150edff2c54dda29878a7d5d66e3ed4ac818cb63",
+      "bytes": 16646
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/regression-final1/cpu-Backend.Rendering.log": {
+      "sha256": "09b00600bda390cb24401d99b4d8b02f76176b05a5a58669e7f9cea1b53bef34",
+      "bytes": 629
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/regression-final1/cpu-Backend.Rendering.trx": {
+      "sha256": "7da7017e944df3c2c95bcbb476c99c55fe6b39881022084d8cf981fa62304a2c",
+      "bytes": 463535
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/regression-final1/cpu-Rendering.log": {
+      "sha256": "70cbf84110f87ab95470d378fce0317cba2bbb927fbc62a377f2dd61c2252b2e",
+      "bytes": 601
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/regression-final1/cpu-Rendering.trx": {
+      "sha256": "91ee281a9ead17d22ac1fd2035398352da3abe12167333bb6c87f4df016aab4f",
+      "bytes": 1800433
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/regression-final1/cpu-Runtime.Hosting.log": {
+      "sha256": "6c9e7fc756ffa1bc2cfb69ee751c1d5aa8e0aaa0bdf2cdd58aa1f506068c2ba5",
+      "bytes": 626
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/regression-final1/cpu-Runtime.Hosting.trx": {
+      "sha256": "18d17911e8434741d092ea46d6e2a51f745914c5f72b4a2cc98ba05a0bfcf21d",
+      "bytes": 392857
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/regression-final1/explicit-vulkan.log": {
+      "sha256": "359a4cf0a3ca7836ddb148d824a008146262ee83578c3c9519d9e477c567f165",
+      "bytes": 600
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/regression-final1/explicit-vulkan.trx": {
+      "sha256": "2b8b9cde82c9d07d6044e238bbfb143b9e340fedf60d57fb4ef1e9b0eed0d79e",
+      "bytes": 67102
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/regression-final1/inputs.json": {
+      "sha256": "72263d1b330bbd44597c040d86e2b8978dfdb518dd78b56ce265aeaf7369fa56",
+      "bytes": 219842
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/regression-final1/solution-debug-build.log": {
+      "sha256": "e00e8024a08201d4220666a03a93cb5ff8f5aaa3734a0700771b2908ee4eeb62",
+      "bytes": 6226
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/regression-final1/summary.json": {
+      "sha256": "d9ef23a490e52262cda3b4a5de17fcb7cd72cb2b3290048ef36db91e985caa4e",
+      "bytes": 5268
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/regression-final1/vulkan-Backend.Rendering.Skia.log": {
+      "sha256": "68bfaf1dce77db1f215e4f9adb5d8ed45af870a9038c35323644dee23e89223d",
+      "bytes": 655
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/regression-final1/vulkan-Backend.Rendering.Skia.trx": {
+      "sha256": "c1b5e7079e3ddbcdc4633511cbd3a7fee3f8b47156f12f7a204dc006b15ef5fa",
+      "bytes": 16646
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/regression-final1/vulkan-Backend.Rendering.log": {
+      "sha256": "7ab3359e4fb95db04bc237fc9bb5ca4654b7ab1cfcdcaa5ff6e06971fc833930",
+      "bytes": 632
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/regression-final1/vulkan-Backend.Rendering.trx": {
+      "sha256": "af44b3a3499702c4df31f03b855e58aacc8bb77b2d1b923b34b8c8b3d7b59e69",
+      "bytes": 463535
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/regression-final1/vulkan-Rendering.log": {
+      "sha256": "171282676172a813cbb3c154212080fd2c98cd4e80ce8252129ed335fb2acc93",
+      "bytes": 605
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/regression-final1/vulkan-Rendering.trx": {
+      "sha256": "0db8b8657ccb80ba1dc11c183a239fdc3b9e5a96464388ee2ff0c1d93ac23076",
+      "bytes": 1800433
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/regression-final1/vulkan-Runtime.Hosting.log": {
+      "sha256": "72b88c57c13b8e09fcf357648d6b7d4611899309cfa9b90e6860d23c5f9b8ca0",
+      "bytes": 629
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/regression-final1/vulkan-Runtime.Hosting.trx": {
+      "sha256": "46ce77b4ebfed2ae341f3ae06dc08a1edc214c5ca66e087d44dc6d951cecc480",
+      "bytes": 392814
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/regression.py": {
+      "sha256": "814182896fa5c87c064909598b848ff9e4c8f7d0883402f8b3f63d62169ceab7",
+      "bytes": 4696
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/telemetry-http-audit.json": {
+      "sha256": "96e0e92b64b21d6b4b97a98e6ae378165dcf1894bddee004a0f57c4c48cd28a0",
+      "bytes": 5957
+    },
+    "artifacts/gpu-structural-optimization-20261028/owned-readback/mutation-green-2.trx": {
+      "sha256": "21db355aeab94a4ce7f5db38dd5047c357f7af76acb2b2f2748353667e29593b",
+      "bytes": 4673
+    },
+    "artifacts/gpu-structural-optimization-20261028/owned-readback/mutation-red-2.trx": {
+      "sha256": "776f2a3b1046c0f8edfd3a838cd69ea6db538d80c509b309f39bf7d8659de364",
+      "bytes": 6597
+    },
+    "artifacts/gpu-structural-optimization-20261028/owned-readback/skia-telemetry-final-2.trx": {
+      "sha256": "e8f63a20fc5372c58bfcaf4b927a229dddfe4312b14f41950b5a08246ca3d56b",
+      "bytes": 7805
+    },
+    "artifacts/gpu-structural-optimization-20261028/owned-readback/telemetry-mutation-red-2.trx": {
+      "sha256": "93a3a8bc014b0eae56306228ac19985993b5a462e75429f434ae319af1d982fb",
+      "bytes": 6177
+    },
+    "artifacts/gpu-structural-optimization-20261028/owned-readback/telemetry-restored-green.trx": {
+      "sha256": "6b0cc6ad43da52cfeca3f72371a64bbbe99e6ae69500ee5e30583c6da0b906b8",
+      "bytes": 117108
+    },
+    "artifacts/gpu-structural-optimization-20261028/tool-checks/assessment.json": {
+      "sha256": "f9807e6ea0f292126e0ff1ddecc78e3c6774bc62946dad86a194f5e3d092da00",
+      "bytes": 1192
+    },
+    "artifacts/gpu-structural-optimization-20261028/tool-checks/commands.json": {
+      "sha256": "7cd788c25662e63299eeb96bb0ab8fe426b7a933432e2ec3fbcce40d9243258f",
+      "bytes": 1630
+    }
+  },
+  "archive": {
+    "path": "acceptance-evidence.tar.gz",
+    "sha256": "2431a004887149ce81a88e1c105c5b9bf15c12518680100aacaa2d908825472c",
+    "bytes": 1705455
+  },
+  "scope": "Local regression and finite HTTP/log evidence. Failed first HTTP run retained separately. No formal performance result yet. Raw HTTP payloads and media are retained locally and indexed, not included in this compact archive."
+}

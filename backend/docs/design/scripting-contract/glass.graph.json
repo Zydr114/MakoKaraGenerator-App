@@ -1,0 +1,95 @@
+{
+  "graphVersion": 1,
+  "id": "glass",
+  "inputs": [
+    {
+      "id": "coverage",
+      "source": "TargetRegionCoverage",
+      "type": "coverage",
+      "availability": "required",
+      "backgroundRequirement": "none",
+      "space": "canvas",
+      "capture": {
+        "includeRuby": true,
+        "includeStroke": true,
+        "includeShadow": true,
+        "includeDescendantGroups": true,
+        "includeOwnedOverlay": false,
+        "region": "materialRegion"
+      }
+    },
+    {
+      "id": "background",
+      "source": "parameter:backgroundSource",
+      "choices": {
+        "media": "BackgroundMedia",
+        "backdrop": "BackdropBelow"
+      },
+      "type": "color",
+      "availability": "required",
+      "backgroundRequirement": "opaqueCanvas",
+      "space": "canvas"
+    }
+  ],
+  "parameters": [
+    "backgroundSource",
+    "blurPx"
+  ],
+  "nodes": [
+    {
+      "id": "background-blur",
+      "op": "Blur",
+      "input": "input:background",
+      "sigmaPx": "parameter:blurPx",
+      "bounds": {
+        "expandPx": "ceil(3 * parameter:blurPx)",
+        "maxExpandPx": 192,
+        "maxSampleOffsetPx": 192
+      },
+      "edge": "clamp"
+    },
+    {
+      "id": "refraction",
+      "op": "RuntimeShader",
+      "program": "shaders/glass.program.json",
+      "children": {
+        "background": "node:background-blur"
+      },
+      "uniforms": {
+        "timeSeconds": "host:timeSeconds",
+        "logicalResolution": "host:canvasSize",
+        "strengthPx": 4.0
+      },
+      "outputType": "color",
+      "bounds": {
+        "expandPx": 4.0,
+        "maxExpandPx": 4.0,
+        "maxSampleOffsetPx": 4
+      },
+      "edge": "clamp"
+    },
+    {
+      "id": "masked",
+      "op": "Mask",
+      "color": "node:refraction",
+      "coverage": "input:coverage",
+      "bounds": {
+        "expandPx": 0.0,
+        "maxExpandPx": 0.0,
+        "maxSampleOffsetPx": 0
+      },
+      "edge": "transparent"
+    }
+  ],
+  "output": "node:masked",
+  "anchorMode": "ColorOnly",
+  "bounds": {
+    "space": "canvas",
+    "source": "targetRegion",
+    "maxExpandPx": 196
+  },
+  "composite": {
+    "mode": "replaceCoveredBackdrop",
+    "coverage": "input:coverage"
+  }
+}

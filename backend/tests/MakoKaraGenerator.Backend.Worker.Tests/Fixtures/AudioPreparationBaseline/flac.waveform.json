@@ -1,0 +1,29 @@
+{
+  "info": {
+    "durationUs": 213000,
+    "sampleRate": 48000,
+    "channels": 2,
+    "codecName": "flac",
+    "containerName": "flac",
+    "estimatedSampleCount": 10224
+  },
+  "sampleRate": 48000,
+  "sampleCount": 10224,
+  "durationUs": 213000,
+  "baseBucketSamples": 64,
+  "levelCount": 9,
+  "peakCounts": [
+    160,
+    80,
+    40,
+    20,
+    10,
+    5,
+    3,
+    2,
+    1
+  ],
+  "fullPyramidHash": "d75046998a248929a3238a508da3e4efd236ea1b4920b1bbdcbe2d3b064ffd8a",
+  "sourceHash": "549282e092ec99e03ab10c99ba109f87547eab820b0dea3881f8a55e0474b9a5",
+  "oracle": "Original AudioWaveformLoader.CreateDefault; source-rate full waveform pyramid, not 48k analysis. HTTP exposes duration only; full-pyramid equality belongs to author regressions."
+}

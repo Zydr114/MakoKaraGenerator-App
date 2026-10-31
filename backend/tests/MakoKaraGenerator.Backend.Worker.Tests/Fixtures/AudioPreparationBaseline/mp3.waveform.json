@@ -1,0 +1,29 @@
+{
+  "info": {
+    "durationUs": 212993,
+    "sampleRate": 44100,
+    "channels": 2,
+    "codecName": "mp3",
+    "containerName": "mp3",
+    "estimatedSampleCount": 9393
+  },
+  "sampleRate": 44100,
+  "sampleCount": 9393,
+  "durationUs": 212993,
+  "baseBucketSamples": 64,
+  "levelCount": 9,
+  "peakCounts": [
+    147,
+    74,
+    37,
+    19,
+    10,
+    5,
+    3,
+    2,
+    1
+  ],
+  "fullPyramidHash": "79e368aff63e142125762eb73d54edf321f4f4673e8080f45b5b5284526b202d",
+  "sourceHash": "453f8ba03848c685dd8e7e75ca6e9b04459bafb2286e6abc95f138794dfc221d",
+  "oracle": "Original AudioWaveformLoader.CreateDefault; source-rate full waveform pyramid, not 48k analysis. HTTP exposes duration only; full-pyramid equality belongs to author regressions."
+}

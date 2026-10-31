@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>MakoKaraGenerator.Rendering.Skia</RootNamespace>
+    <AssemblyName>MakoKaraGenerator.Rendering.Skia</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <!-- 仅锁定版 runtime effect C ABI 反射的 LibraryImport 生成代码需要。 -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <!--
+    Skia 渲染后端（docs/roadmap.md §3.1）：文字整形与像素绘制都在这里。
+    Backend.Rendering.Skia 也直接使用固定版 SkiaSharp，但仅编码已有像素为传输 PNG，
+    不提供另一套渲染引擎或文字布局。
+
+    依赖方向（docs/roadmap.md §3.2）：
+      Rendering.Skia -> Rendering.Abstractions -> Core
+      Rendering.Skia -> Text                  -> Core
+    刻意<b>不</b>引用 Avalonia：预览通过 Rendering.Abstractions 的裸像素输出对接界面。
+  -->
+  <ItemGroup>
+    <ProjectReference Include="../MakoKaraGenerator.Core/MakoKaraGenerator.Core.csproj" />
+    <ProjectReference Include="../MakoKaraGenerator.Text/MakoKaraGenerator.Text.csproj" />
+    <ProjectReference Include="../MakoKaraGenerator.Rendering.Abstractions/MakoKaraGenerator.Rendering.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="MakoKaraGenerator.Rendering.Tests" />
+    <InternalsVisibleTo Include="MakoKaraGenerator.Runtime.Hosting" />
+    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="SkiaSharp.HarfBuzz" />
+    <!-- 见 ADR-0007：Linux 的 native 资产必须显式引用，否则运行时 DllNotFoundException -->
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux" />
+    <PackageReference Include="SkiaSharp.Vulkan.SharpVk" />
+    <PackageReference Include="SharpVk" />
+    <PackageReference Include="HarfBuzzSharp.NativeAssets.Linux" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>MakoKaraGenerator.Application</RootNamespace>
+    <AssemblyName>MakoKaraGenerator.Application</AssemblyName>
+  </PropertyGroup>
+
+  <!--
+    用例层（docs/development.md §13）：项目操作、服务、日后的撤销/重做。
+    依赖方向是 App -> Application -> Core，因此这里只引用 Core，
+    不出现 Avalonia、不出现 Skia、也不直接启动外部进程。
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="../MakoKaraGenerator.Core/MakoKaraGenerator.Core.csproj" />
+  </ItemGroup>
+
+</Project>

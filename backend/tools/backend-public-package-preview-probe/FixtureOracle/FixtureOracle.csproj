@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><IsPackable>false</IsPackable></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../src/MakoKaraGenerator.Runtime.Hosting/MakoKaraGenerator.Runtime.Hosting.csproj" />
+    <ProjectReference Include="../../../src/MakoKaraGenerator.Backend.Rendering/MakoKaraGenerator.Backend.Rendering.csproj" />
+    <Compile Include="../../../tests/Shared/EffectPackageFixture.cs" Link="Fixtures/EffectPackageFixture.cs" />
+    <Compile Include="../../../tests/Shared/MixedEffectPackageFixture.cs" Link="Fixtures/MixedEffectPackageFixture.cs" />
+    <Compile Include="../../../tests/Shared/EffectPackageShaderFixture.cs" Link="Fixtures/EffectPackageShaderFixture.cs" />
+    <Compile Include="../../../tests/Shared/EffectPackageGraphFixture.cs" Link="Fixtures/EffectPackageGraphFixture.cs" />
+  </ItemGroup>
+</Project>

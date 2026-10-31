@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup><Using Remove="Xunit" /><Using Remove="MakoKaraGenerator.TestSupport" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../../src/MakoKaraGenerator.Application/MakoKaraGenerator.Application.csproj" /></ItemGroup>
+</Project>

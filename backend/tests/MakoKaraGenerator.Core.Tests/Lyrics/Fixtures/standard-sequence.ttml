@@ -1,0 +1,8 @@
+<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttp="http://www.w3.org/ns/ttml#parameter" xmlns:tts="http://www.w3.org/ns/ttml#styling" ttp:frameRate="30" ttp:frameRateMultiplier="1000 1001" ttp:tickRate="100">
+  <body begin="1s">
+    <div begin="2s" timeContainer="seq">
+      <p begin="1s" dur="2s"><span tts:ruby="container"><span tts:ruby="base" begin="0s" dur="1s">詮</span><span tts:ruby="textContainer" xml:lang="ja"><span tts:ruby="text" begin="10t" end="40t">せ</span><span tts:ruby="text" begin="40t" end="60t">ん</span></span></span></p>
+      <p dur="30f">次</p>
+    </div>
+  </body>
+</tt>

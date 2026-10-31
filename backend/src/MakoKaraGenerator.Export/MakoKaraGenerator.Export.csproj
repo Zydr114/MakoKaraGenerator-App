@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>MakoKaraGenerator.Export</RootNamespace>
+    <AssemblyName>MakoKaraGenerator.Export</AssemblyName>
+  </PropertyGroup>
+
+  <!--
+    视频导出（docs/roadmap.md §10 的 EXPORT-01 ~ EXPORT-09，docs/development.md §13 的
+    MakoKaraGenerator.Export）。
+
+    本程序集负责"把渲染管线产出的裸像素写成能播放的成片"：FFmpeg 适配器、输出配置与导出任务。
+    依赖方向按 docs/development.md §13：Export -> Rendering.Abstractions / Media，
+    不引用 Avalonia——因此界面里不允许出现 FFmpeg 的命令行或可执行文件名
+    （docs/development.md §12.2：不要让 ViewModel 直接拼接 FFmpeg 命令行）。
+  -->
+  <ItemGroup>
+    <PackageReference Include="CliWrap" />
+  </ItemGroup>
+
+  <!--
+    FFmpeg 的命令行细节保持 internal：参数拼装是这一层的事，外部（尤其是界面）不该碰。
+    测试项目需要直接断言拼出来的参数，因此开一个精确到单个测试程序集的可见性，
+    而不是把它们变成公共 API。
+  -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="MakoKaraGenerator.Export.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../MakoKaraGenerator.Processes/MakoKaraGenerator.Processes.csproj" />
+    <ProjectReference Include="../MakoKaraGenerator.Core/MakoKaraGenerator.Core.csproj" />
+    <ProjectReference Include="../MakoKaraGenerator.Media/MakoKaraGenerator.Media.csproj" />
+    <ProjectReference Include="../MakoKaraGenerator.Rendering.Abstractions/MakoKaraGenerator.Rendering.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

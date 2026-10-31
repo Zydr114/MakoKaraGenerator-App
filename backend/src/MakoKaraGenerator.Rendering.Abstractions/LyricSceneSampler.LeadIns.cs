@@ -1,0 +1,128 @@
+using System.Collections.Immutable;
+using MakoKaraGenerator.Core.Lyrics;
+using MakoKaraGenerator.Core.Projects;
+using MakoKaraGenerator.Core.Time;
+
+namespace MakoKaraGenerator.Rendering;
+
+/// <summary>源歌词的展示阶段，显示和演唱事件分离。</summary>
+public enum SceneDisplayPhase
+{
+    /// <summary>正常源时间显示或演唱。</summary>
+    Performance,
+    /// <summary>前奏提前显示，演唱进度保持为零。</summary>
+    Preparation,
+}
+
+/// <summary>运行中的前奏容器装载，只读时间与目标关联。</summary>
+public sealed record SceneLeadInSample
+{
+    /// <summary>前奏身份。</summary>
+    public required string CueId { get; init; }
+    /// <summary>显示程序。</summary>
+    public required string ProgramId { get; init; }
+    /// <summary>提示容器。</summary>
+    public required string ContainerId { get; init; }
+    /// <summary>目标文本的稳定场景节点。</summary>
+    public required string TargetElementId { get; init; }
+    /// <summary>与演唱阶段连续的目标装载身份。</summary>
+    public required string TargetBindingId { get; init; }
+    /// <summary>源分支。</summary>
+    public required string BranchId { get; init; }
+    /// <summary>目标源行。</summary>
+    public required string TargetLineId { get; init; }
+    /// <summary>完整半开准备时间。</summary>
+    public TimeRange Range { get; init; }
+    /// <summary>已经过的步骤数。</summary>
+    public int ElapsedMarks { get; init; }
+}
+
+public static partial class LyricSceneSampler
+{
+    private static ImmutableArray<SceneLeadInSample> SampleLeadIns(ProjectSnapshot snapshot, SceneFrame frame)
+    {
+        List<SceneLeadInSample> cues = [];
+        foreach (var sample in frame.Lines.Where(line => line.DisplayPhase == SceneDisplayPhase.Preparation && line.CueId is not null))
+        {
+            var program = snapshot.LyricPresentation.FindProgram(sample.Branch.Id)!;
+            var cue = program.LeadIns.First(item => item.Id == sample.CueId);
+            var range = LeadInTiming.Range(sample.Frame.Line!, cue.DurationUs)!.Value;
+            var content = (CountdownSequenceContent)snapshot.LyricPresentation.FindNode(cue.IndicatorContainerId)!.Content!;
+            cues.Add(new() { CueId = cue.Id, ProgramId = program.Id, ContainerId = cue.IndicatorContainerId,
+                TargetElementId = sample.ElementId, TargetBindingId = sample.BindingId!, BranchId = sample.Branch.Id,
+                TargetLineId = sample.Frame.Line!.Id, Range = range, ElapsedMarks = LeadInTiming.ElapsedMarks(range, content.MarkNodeIds.Length, frame.TimeUs) });
+        }
+        return [.. cues];
+    }
+
+    private static ImmutableArray<SceneLineSample> SamplePreparedProgram(ProjectSnapshot snapshot, LyricBranch branch, LyricDisplayProgram program, long timeUs)
+    {
+        var active = LyricDisplayScheduleBuilder.Build(branch, program, snapshot.LyricPresentation).Where(item => item.Contains(timeUs)).ToArray();
+        var preparing = active.FirstOrDefault(item => item.Preparation is { } range && range.Contains(timeUs));
+        if (preparing is not null) active = [preparing];
+        else if (active.Length > 0 && active.All(item => item.SlotIndex < 0))
+            active = [active.OrderBy(item => item.Line.Time!.Value.StartUs).ThenBy(item => item.SourceIndex).Last()];
+        return [.. active.Select(occurrence =>
+        {
+            string containerId = occurrence.Segment.ContainerId(program);
+            var presentation = snapshot.LyricPresentation.ResolveDisplay(branch.Id, containerId);
+            SceneLineSample sample;
+            if (presentation.SlotSequenceProfile is { } profile)
+            {
+                int segmentIndex = Array.FindIndex(occurrence.Segment.Lines.ToArray(), line => line.Id == occurrence.Line.Id);
+                sample = CreateSlotSample(snapshot, branch, occurrence.Segment, presentation, profile,
+                    new(segmentIndex, occurrence.Line.Id, occurrence.SlotIndex, 0, occurrence.RevealTimeUs, occurrence.HideTimeUs), timeUs);
+            }
+            else
+            {
+                sample = CreateSample(snapshot, branch, LyricSampler.SampleLine(occurrence.Line, timeUs, occurrence.SourceIndex)) with
+                { DisplayContainerId = containerId, Presentation = presentation, DisplayClipId = occurrence.Segment.Clip?.Id,
+                    Placement = presentation.DefaultPlacement, BindingId = BindingId(program, occurrence.Segment, containerId, occurrence.Line.Id) };
+                sample = ApplyLineAnimation(snapshot, sample, timeUs, occurrence.RevealTimeUs);
+            }
+            sample = sample with { CueId = occurrence.LeadIn?.Id };
+            if (occurrence.Preparation is not { } range || !range.Contains(timeUs)) return sample;
+            return sample with { DisplayPhase = SceneDisplayPhase.Preparation, Frame = sample.Frame with
+            { LineProgress = 0, LineProgressSource = ProgressSource.Unavailable, CurrentTokenIndex = -1,
+                Tokens = [.. sample.Frame.Tokens.Select(token => token with { Progress = 0, IsCurrent = false })],
+                RubySegments = [.. sample.Frame.RubySegments.Select(segment => segment with
+                    { Progress = 0, IsCurrent = false, Source = ProgressSource.Unavailable })] } };
+        })];
+    }
+
+    private static string BindingId(LyricDisplayProgram program, LyricDisplaySegment segment, string parentId, string lineId) =>
+        Uri.EscapeDataString(program.Id) + "/binding/" + Uri.EscapeDataString(segment.Identity) + "/"
+        + Uri.EscapeDataString(parentId) + "/" + Uri.EscapeDataString(lineId);
+
+    private static SceneLineSample CreateSlotSample(ProjectSnapshot snapshot, LyricBranch branch, LyricDisplaySegment segment,
+        LyricBranchPresentation presentation, SlotSequenceAnimationProfile profile, SlotSequenceSample entry, long timeUs)
+    {
+        var line = segment.Lines[entry.LineIndex];
+        int sourceIndex = Array.FindIndex(branch.Lines.ToArray(), source => source.Id == line.Id);
+        var lineAnimation = presentation.FindLine(line.Id)?.EnterAnimation;
+        long enterDuration = lineAnimation?.DurationUs ?? profile.EnterDurationUs;
+        long exitDuration = profile.ExitDurationUs;
+        long span = entry.HideTimeUs - entry.RevealTimeUs;
+        if ((double)enterDuration + exitDuration > span)
+        {
+            enterDuration = (long)Math.Floor(span * ((double)enterDuration / ((double)enterDuration + exitDuration)));
+            exitDuration = span - enterDuration;
+        }
+        double enter = Ratio(timeUs - entry.RevealTimeUs, enterDuration);
+        long exitStart = entry.HideTimeUs - exitDuration;
+        double exit = exitDuration == 0 || timeUs < exitStart ? 0 : Ratio(timeUs - exitStart, exitDuration);
+        SceneTransform enterFrom = lineAnimation is { } animation ? new()
+        { Opacity = animation.StartOpacity, Scale = animation.StartScale, OffsetYPx = animation.StartOffsetPx } : profile.EnterFrom;
+        SceneTransform transform = SceneTransform.Interpolate(enterFrom, profile.Hold, AnimationEasingFunctions.Evaluate(lineAnimation?.Easing ?? profile.Easing, enter));
+        if (exit > 0) transform = SceneTransform.Interpolate(transform, profile.ExitTo, AnimationEasingFunctions.Evaluate(profile.ExitEasing, exit));
+        string containerId = segment.ContainerId(snapshot.LyricPresentation.FindProgram(branch.Id)!);
+        string slotNodeId = snapshot.LyricPresentation.FindNode(containerId)!.Layout!.SlotIds[entry.SlotIndex];
+        return CreateSample(snapshot, branch, LyricSampler.SampleLine(line, timeUs, sourceIndex)) with
+        {
+            SlotId = profile.Slots[entry.SlotIndex].Id, Placement = SceneDefinitionBuilder.SlotTextPlacement(profile.Slots[entry.SlotIndex].Placement),
+            ParentNodeId = slotNodeId, DisplayContainerId = containerId, Presentation = presentation, DisplayClipId = segment.Clip?.Id,
+            BindingId = BindingId(snapshot.LyricPresentation.FindProgram(branch.Id)!, segment, slotNodeId, line.Id),
+            EnterProgress = enter, ExitProgress = exit, Transform = transform,
+        };
+    }
+}

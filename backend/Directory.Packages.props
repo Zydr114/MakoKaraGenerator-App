@@ -1,0 +1,43 @@
+<Project>
+
+  <!--
+    集中式包版本管理（CPM）。本仓库只包含无窗口后端和共享领域库。
+    新增第三方包前必须记录许可证、native asset、Linux/Windows 支持与维护状态。
+  -->
+
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+
+  <ItemGroup Label="2D 渲染与文字整形">
+    <PackageVersion Include="SkiaSharp" Version="3.119.4" />
+    <PackageVersion Include="SkiaSharp.HarfBuzz" Version="3.119.4" />
+    <PackageVersion Include="HarfBuzzSharp" Version="8.3.1.5" />
+    <PackageVersion Include="SkiaSharp.NativeAssets.Linux" Version="3.119.4" />
+    <PackageVersion Include="SkiaSharp.Vulkan.SharpVk" Version="3.119.4" />
+    <PackageVersion Include="SharpVk" Version="0.4.2" />
+    <PackageVersion Include="HarfBuzzSharp.NativeAssets.Linux" Version="8.3.1.5" />
+  </ItemGroup>
+
+  <!-- ADR-0071：受管 C# 编译器，MIT，无 native 资产，Linux/Windows 均使用 net10.0。 -->
+  <PropertyGroup>
+    <ScriptFrameworkReferenceVersion>10.0.0</ScriptFrameworkReferenceVersion>
+  </PropertyGroup>
+  <ItemGroup Label="C# 效果编译（固定 C# 14）">
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
+  </ItemGroup>
+
+  <ItemGroup Label="进程与媒体">
+    <PackageVersion Include="CliWrap" Version="3.10.5" />
+    <PackageVersion Include="SoundFlow" Version="1.4.1" />
+  </ItemGroup>
+
+  <ItemGroup Label="测试（跟随 .NET 10 官方 xunit 模板组合）">
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
+    <PackageVersion Include="coverlet.collector" Version="6.0.4" />
+  </ItemGroup>
+
+</Project>

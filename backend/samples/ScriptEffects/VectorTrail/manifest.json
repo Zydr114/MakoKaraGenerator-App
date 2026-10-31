@@ -1,0 +1,183 @@
+{
+  "packageVersion": 2,
+  "packageId": "makokara.vector-trail",
+  "name": "线段与带状粒子拖尾",
+  "version": "1.1.0",
+  "sdkVersion": "1.0.0",
+  "shaderProfile": "skia-raster-3.119.4-v1",
+  "files": [
+    {
+      "path": "README.md",
+      "role": "asset",
+      "sha256": "97755021ebf9dd2874838795c06186292d2c4eaf88f0034d6062b48de893343e"
+    },
+    {
+      "path": "src/VectorTrail.cs",
+      "role": "csharp",
+      "sha256": "9989183dde9bcfb7a00a7abfa6aea33790acd93ded64f858b05649a8e58dd3c6"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "mode",
+      "type": "enum",
+      "label": "绘制方式",
+      "default": "ribbon",
+      "values": [
+        {
+          "value": "ribbon",
+          "label": "带状拖尾"
+        },
+        {
+          "value": "segments",
+          "label": "平端线段"
+        },
+        {
+          "value": "dots",
+          "label": "点状拖尾"
+        }
+      ]
+    },
+    {
+      "id": "rate",
+      "type": "number",
+      "label": "每条播放头／桥接路径每秒发射数",
+      "default": 60,
+      "min": 0,
+      "max": 1.7976931348623157e+308,
+      "unit": "/s"
+    },
+    {
+      "id": "lifeUs",
+      "type": "duration",
+      "label": "粒子寿命",
+      "default": 600000,
+      "min": 1,
+      "max": 9223372036854775807,
+      "unit": "us"
+    },
+    {
+      "id": "sizePx",
+      "type": "number",
+      "label": "粒子直径",
+      "default": 4,
+      "min": 5e-324,
+      "max": 1.7976931348623157e+308,
+      "unit": "px"
+    },
+    {
+      "id": "spreadPx",
+      "type": "number",
+      "label": "出生散布半宽",
+      "default": 8,
+      "min": 0,
+      "max": 1.7976931348623157e+308,
+      "unit": "px"
+    },
+    {
+      "id": "trailUs",
+      "type": "duration",
+      "label": "固定拖尾时长",
+      "default": 250000,
+      "min": 0,
+      "max": 9223372036854775807,
+      "unit": "us"
+    },
+    {
+      "id": "color",
+      "type": "color",
+      "label": "粒子颜色",
+      "default": {
+        "r": 1,
+        "g": 0.1,
+        "b": 0.05,
+        "a": 0.8
+      }
+    },
+    {
+      "id": "transition",
+      "type": "enum",
+      "label": "跨行方式",
+      "default": "jump",
+      "values": [
+        {
+          "value": "jump",
+          "label": "直接换点"
+        },
+        {
+          "value": "bridge",
+          "label": "沿真实后继路径飞行"
+        }
+      ]
+    },
+    {
+      "id": "bridgeUs",
+      "type": "duration",
+      "label": "桥接时长",
+      "default": 180000,
+      "min": 0,
+      "max": 9223372036854775807,
+      "unit": "us"
+    },
+    {
+      "id": "bridgeGapLimitUs",
+      "type": "duration",
+      "label": "桥接空档上限",
+      "default": 2000000,
+      "min": 0,
+      "max": 9223372036854775807,
+      "unit": "us"
+    }
+  ],
+  "exports": [
+    {
+      "id": "vector-trail",
+      "kind": "controller",
+      "name": "线段与带状粒子拖尾",
+      "entryType": "VectorTrail",
+      "parameters": [
+        "mode",
+        "rate",
+        "lifeUs",
+        "sizePx",
+        "spreadPx",
+        "trailUs",
+        "color",
+        "transition",
+        "bridgeUs",
+        "bridgeGapLimitUs"
+      ],
+      "bindingKinds": [
+        "project",
+        "branch",
+        "lines",
+        "tokens",
+        "clips",
+        "node"
+      ],
+      "outputs": [
+        {
+          "id": "cursor",
+          "kind": "Overlay",
+          "target": "line",
+          "requires": [],
+          "dependsOn": []
+        },
+        {
+          "id": "heads",
+          "kind": "Overlay",
+          "target": "line",
+          "requires": [],
+          "dependsOn": []
+        },
+        {
+          "id": "path",
+          "kind": "Overlay",
+          "target": "line",
+          "requires": [],
+          "dependsOn": []
+        }
+      ]
+    }
+  ]
+}

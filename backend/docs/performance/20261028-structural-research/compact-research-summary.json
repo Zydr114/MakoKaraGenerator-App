@@ -1,0 +1,4844 @@
+{
+  "scope": "Research evidence only; original first-batch results remain unchanged.",
+  "sourceCommit": "61ee27ef069c1d7126e68a3bfe0e6c6d8391d3bd",
+  "micro": {
+    "runs": {
+      "processes": 6,
+      "groups": [
+        {
+          "backend": "cpu",
+          "srgb": false,
+          "method": "image-production-staged",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 14.2451,
+            "p95Ms": 29.74951,
+            "maxMs": 29.9326
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.09405,
+              "p95Ms": 0.171215,
+              "maxMs": 0.1713
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 13.86525,
+              "p95Ms": 29.282935000000002,
+              "maxMs": 29.3262
+            },
+            "producerSubmit": {
+              "n": 18,
+              "medianMs": 0.0012499999999999998,
+              "p95Ms": 0.003409999999999995,
+              "maxMs": 0.0063
+            },
+            "snapshot": {
+              "n": 18,
+              "medianMs": 0.00695,
+              "p95Ms": 0.012354999999999994,
+              "maxMs": 0.0155
+            },
+            "consumerSubmit": {
+              "n": 18,
+              "medianMs": 0.0003,
+              "p95Ms": 0.0007,
+              "maxMs": 0.0007
+            },
+            "toRaster": {
+              "n": 18,
+              "medianMs": 0.0020499999999999997,
+              "p95Ms": 0.006934999999999979,
+              "maxMs": 0.0196
+            },
+            "rasterCopy": {
+              "n": 18,
+              "medianMs": 0.33099999999999996,
+              "p95Ms": 0.44419000000000003,
+              "maxMs": 0.4515
+            }
+          }
+        },
+        {
+          "backend": "cpu",
+          "srgb": false,
+          "method": "image-scratch-surface",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 15.257449999999999,
+            "p95Ms": 31.58888,
+            "maxMs": 31.7531
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.1252,
+              "p95Ms": 0.14868,
+              "maxMs": 0.1514
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 13.78245,
+              "p95Ms": 29.367359999999998,
+              "maxMs": 29.4085
+            },
+            "producerSubmit": {
+              "n": 18,
+              "medianMs": 0.0013,
+              "p95Ms": 0.004624999999999998,
+              "maxMs": 0.0059
+            },
+            "snapshot": {
+              "n": 18,
+              "medianMs": 0.0055,
+              "p95Ms": 0.015874999999999993,
+              "maxMs": 0.0197
+            },
+            "scratchCreate": {
+              "n": 18,
+              "medianMs": 0.04435,
+              "p95Ms": 0.06554499999999999,
+              "maxMs": 0.0692
+            },
+            "scratchDraw": {
+              "n": 18,
+              "medianMs": 1.1170499999999999,
+              "p95Ms": 1.7522449999999998,
+              "maxMs": 1.7712
+            },
+            "read": {
+              "n": 18,
+              "medianMs": 0.27485000000000004,
+              "p95Ms": 0.44222,
+              "maxMs": 0.4531
+            }
+          }
+        },
+        {
+          "backend": "cpu",
+          "srgb": false,
+          "method": "surface-explicit-sync",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 14.4,
+            "p95Ms": 29.893125,
+            "maxMs": 29.906299999999998
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.096,
+              "p95Ms": 0.15065499999999996,
+              "maxMs": 0.164
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 14.05665,
+              "p95Ms": 29.335265,
+              "maxMs": 29.3396
+            },
+            "producerSubmit": {
+              "n": 18,
+              "medianMs": 0.00215,
+              "p95Ms": 0.005545,
+              "maxMs": 0.0058
+            },
+            "read": {
+              "n": 18,
+              "medianMs": 0.31905,
+              "p95Ms": 0.474165,
+              "maxMs": 0.4785
+            }
+          }
+        },
+        {
+          "backend": "cpu",
+          "srgb": false,
+          "method": "surface-read-sync",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 14.419049999999999,
+            "p95Ms": 30.380705,
+            "maxMs": 30.401699999999998
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.06565,
+              "p95Ms": 0.14307,
+              "maxMs": 0.1446
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 14.031749999999999,
+              "p95Ms": 29.905725,
+              "maxMs": 29.9427
+            },
+            "read": {
+              "n": 18,
+              "medianMs": 0.327,
+              "p95Ms": 0.44965999999999995,
+              "maxMs": 0.4602
+            }
+          }
+        },
+        {
+          "backend": "cpu",
+          "srgb": true,
+          "method": "image-production-staged",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 14.810849999999999,
+            "p95Ms": 30.3461,
+            "maxMs": 31.0176
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.12890000000000001,
+              "p95Ms": 0.148675,
+              "maxMs": 0.1491
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 14.33,
+              "p95Ms": 29.747414999999997,
+              "maxMs": 30.4292
+            },
+            "producerSubmit": {
+              "n": 18,
+              "medianMs": 0.00165,
+              "p95Ms": 0.014305,
+              "maxMs": 0.0149
+            },
+            "snapshot": {
+              "n": 18,
+              "medianMs": 0.0046,
+              "p95Ms": 0.0122,
+              "maxMs": 0.0122
+            },
+            "consumerSubmit": {
+              "n": 18,
+              "medianMs": 0.0002,
+              "p95Ms": 0.0005149999999999998,
+              "maxMs": 0.0006
+            },
+            "toRaster": {
+              "n": 18,
+              "medianMs": 0.00165,
+              "p95Ms": 0.010589999999999943,
+              "maxMs": 0.0451
+            },
+            "rasterCopy": {
+              "n": 18,
+              "medianMs": 0.34004999999999996,
+              "p95Ms": 0.45064999999999983,
+              "maxMs": 0.5637
+            }
+          }
+        },
+        {
+          "backend": "cpu",
+          "srgb": true,
+          "method": "image-scratch-surface",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 15.4971,
+            "p95Ms": 31.4944,
+            "maxMs": 31.8837
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.10135,
+              "p95Ms": 0.14452,
+              "maxMs": 0.1452
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 14.21425,
+              "p95Ms": 29.681285000000003,
+              "maxMs": 29.7441
+            },
+            "producerSubmit": {
+              "n": 18,
+              "medianMs": 0.00165,
+              "p95Ms": 0.0062549999999999975,
+              "maxMs": 0.0077
+            },
+            "snapshot": {
+              "n": 18,
+              "medianMs": 0.0043,
+              "p95Ms": 0.015234999999999992,
+              "maxMs": 0.0211
+            },
+            "scratchCreate": {
+              "n": 18,
+              "medianMs": 0.05855,
+              "p95Ms": 0.13992,
+              "maxMs": 0.1457
+            },
+            "scratchDraw": {
+              "n": 18,
+              "medianMs": 0.9875499999999999,
+              "p95Ms": 1.585775,
+              "maxMs": 1.6491
+            },
+            "read": {
+              "n": 18,
+              "medianMs": 0.2703,
+              "p95Ms": 0.44602499999999995,
+              "maxMs": 0.4558
+            }
+          }
+        },
+        {
+          "backend": "cpu",
+          "srgb": true,
+          "method": "surface-explicit-sync",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 14.6634,
+            "p95Ms": 30.47276,
+            "maxMs": 31.1327
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.118,
+              "p95Ms": 0.16148499999999982,
+              "maxMs": 0.2583
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 14.24,
+              "p95Ms": 29.88138,
+              "maxMs": 30.5692
+            },
+            "producerSubmit": {
+              "n": 18,
+              "medianMs": 0.0014,
+              "p95Ms": 0.0024749999999999963,
+              "maxMs": 0.0046
+            },
+            "read": {
+              "n": 18,
+              "medianMs": 0.35775,
+              "p95Ms": 0.42738499999999996,
+              "maxMs": 0.4528
+            }
+          }
+        },
+        {
+          "backend": "cpu",
+          "srgb": true,
+          "method": "surface-read-sync",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 14.566199999999998,
+            "p95Ms": 30.223764999999997,
+            "maxMs": 30.2502
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.0883,
+              "p95Ms": 0.14352499999999999,
+              "maxMs": 0.1499
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 14.264050000000001,
+              "p95Ms": 29.679265,
+              "maxMs": 29.7125
+            },
+            "read": {
+              "n": 18,
+              "medianMs": 0.29800000000000004,
+              "p95Ms": 0.44090999999999997,
+              "maxMs": 0.4778
+            }
+          }
+        },
+        {
+          "backend": "vulkan",
+          "srgb": false,
+          "method": "image-production-staged",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 2.4825,
+            "p95Ms": 3.4557399999999996,
+            "maxMs": 3.5132
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.015050000000000001,
+              "p95Ms": 0.026905,
+              "maxMs": 0.0275
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 0.03785,
+              "p95Ms": 0.05315499999999998,
+              "maxMs": 0.0665
+            },
+            "producerSubmit": {
+              "n": 18,
+              "medianMs": 0.37795,
+              "p95Ms": 0.5088599999999995,
+              "maxMs": 0.7557
+            },
+            "snapshot": {
+              "n": 18,
+              "medianMs": 0.0058,
+              "p95Ms": 0.019614999999999997,
+              "maxMs": 0.0214
+            },
+            "consumerSubmit": {
+              "n": 18,
+              "medianMs": 0.087,
+              "p95Ms": 0.20353,
+              "maxMs": 0.2156
+            },
+            "toRaster": {
+              "n": 18,
+              "medianMs": 1.6132,
+              "p95Ms": 2.3451099999999996,
+              "maxMs": 2.4551
+            },
+            "rasterCopy": {
+              "n": 18,
+              "medianMs": 0.2801,
+              "p95Ms": 0.348,
+              "maxMs": 0.3616
+            }
+          }
+        },
+        {
+          "backend": "vulkan",
+          "srgb": false,
+          "method": "image-scratch-surface",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 2.24595,
+            "p95Ms": 3.1846949999999996,
+            "maxMs": 3.4765
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.01545,
+              "p95Ms": 0.027164999999999998,
+              "maxMs": 0.0281
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 0.0385,
+              "p95Ms": 0.05945999999999996,
+              "maxMs": 0.0853
+            },
+            "producerSubmit": {
+              "n": 18,
+              "medianMs": 0.41285,
+              "p95Ms": 0.5539549999999993,
+              "maxMs": 0.9889
+            },
+            "snapshot": {
+              "n": 18,
+              "medianMs": 0.00635,
+              "p95Ms": 0.013179999999999996,
+              "maxMs": 0.0159
+            },
+            "scratchCreate": {
+              "n": 18,
+              "medianMs": 0.006,
+              "p95Ms": 0.016024999999999994,
+              "maxMs": 0.019
+            },
+            "scratchDraw": {
+              "n": 18,
+              "medianMs": 0.0174,
+              "p95Ms": 0.03704,
+              "maxMs": 0.0384
+            },
+            "read": {
+              "n": 18,
+              "medianMs": 1.6894,
+              "p95Ms": 2.464425,
+              "maxMs": 2.5728
+            }
+          }
+        },
+        {
+          "backend": "vulkan",
+          "srgb": false,
+          "method": "surface-explicit-sync",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 2.0336,
+            "p95Ms": 3.1363949999999985,
+            "maxMs": 4.1643
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.015550000000000001,
+              "p95Ms": 0.02919,
+              "maxMs": 0.0297
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 0.03995,
+              "p95Ms": 0.05804499999999998,
+              "maxMs": 0.0702
+            },
+            "producerSubmit": {
+              "n": 18,
+              "medianMs": 0.40964999999999996,
+              "p95Ms": 1.107799999999999,
+              "maxMs": 1.7062
+            },
+            "read": {
+              "n": 18,
+              "medianMs": 1.5413000000000001,
+              "p95Ms": 2.0387149999999994,
+              "maxMs": 2.4094
+            }
+          }
+        },
+        {
+          "backend": "vulkan",
+          "srgb": false,
+          "method": "surface-read-sync",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 1.9516999999999998,
+            "p95Ms": 2.776709999999999,
+            "maxMs": 3.3355
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.01595,
+              "p95Ms": 0.029189999999999983,
+              "maxMs": 0.0382
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 0.037,
+              "p95Ms": 0.050884999999999986,
+              "maxMs": 0.0593
+            },
+            "read": {
+              "n": 18,
+              "medianMs": 1.9034499999999999,
+              "p95Ms": 2.724299999999999,
+              "maxMs": 3.2785
+            }
+          }
+        },
+        {
+          "backend": "vulkan",
+          "srgb": true,
+          "method": "image-production-staged",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 10.29815,
+            "p95Ms": 15.04975,
+            "maxMs": 15.4297
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.019250000000000003,
+              "p95Ms": 0.028694999999999995,
+              "maxMs": 0.0315
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 0.0485,
+              "p95Ms": 0.06455999999999996,
+              "maxMs": 0.0853
+            },
+            "producerSubmit": {
+              "n": 18,
+              "medianMs": 0.44185,
+              "p95Ms": 0.9318699999999995,
+              "maxMs": 1.1731
+            },
+            "snapshot": {
+              "n": 18,
+              "medianMs": 0.0051,
+              "p95Ms": 0.017335,
+              "maxMs": 0.0181
+            },
+            "consumerSubmit": {
+              "n": 18,
+              "medianMs": 0.16544999999999999,
+              "p95Ms": 0.19930499999999998,
+              "maxMs": 0.1999
+            },
+            "toRaster": {
+              "n": 18,
+              "medianMs": 9.200949999999999,
+              "p95Ms": 13.882514999999998,
+              "maxMs": 14.3161
+            },
+            "rasterCopy": {
+              "n": 18,
+              "medianMs": 0.37675000000000003,
+              "p95Ms": 0.4415,
+              "maxMs": 0.4466
+            }
+          }
+        },
+        {
+          "backend": "vulkan",
+          "srgb": true,
+          "method": "image-scratch-surface",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 9.8976,
+            "p95Ms": 14.226915,
+            "maxMs": 14.346
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.019049999999999997,
+              "p95Ms": 0.027689999999999996,
+              "maxMs": 0.0299
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 0.04645,
+              "p95Ms": 0.06998499999999999,
+              "maxMs": 0.0716
+            },
+            "producerSubmit": {
+              "n": 18,
+              "medianMs": 0.4218,
+              "p95Ms": 0.6879399999999993,
+              "maxMs": 1.0752
+            },
+            "snapshot": {
+              "n": 18,
+              "medianMs": 0.00575,
+              "p95Ms": 0.014309999999999995,
+              "maxMs": 0.0172
+            },
+            "scratchCreate": {
+              "n": 18,
+              "medianMs": 0.0058,
+              "p95Ms": 0.018275,
+              "maxMs": 0.0187
+            },
+            "scratchDraw": {
+              "n": 18,
+              "medianMs": 0.019299999999999998,
+              "p95Ms": 0.05563499999999998,
+              "maxMs": 0.0683
+            },
+            "read": {
+              "n": 18,
+              "medianMs": 9.320250000000001,
+              "p95Ms": 13.652545,
+              "maxMs": 13.7667
+            }
+          }
+        },
+        {
+          "backend": "vulkan",
+          "srgb": true,
+          "method": "surface-explicit-sync",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 10.16105,
+            "p95Ms": 14.05358,
+            "maxMs": 14.0682
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.022449999999999998,
+              "p95Ms": 0.033059999999999985,
+              "maxMs": 0.0385
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 0.0498,
+              "p95Ms": 0.09224999999999997,
+              "maxMs": 0.1118
+            },
+            "producerSubmit": {
+              "n": 18,
+              "medianMs": 0.46215,
+              "p95Ms": 0.9505999999999997,
+              "maxMs": 1.192
+            },
+            "read": {
+              "n": 18,
+              "medianMs": 9.448450000000001,
+              "p95Ms": 13.420695,
+              "maxMs": 13.4354
+            }
+          }
+        },
+        {
+          "backend": "vulkan",
+          "srgb": true,
+          "method": "surface-read-sync",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 9.7057,
+            "p95Ms": 14.080024999999997,
+            "maxMs": 14.6474
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.0209,
+              "p95Ms": 0.035594999999999974,
+              "maxMs": 0.0503
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 0.0439,
+              "p95Ms": 0.06914999999999998,
+              "maxMs": 0.0853
+            },
+            "read": {
+              "n": 18,
+              "medianMs": 9.6421,
+              "p95Ms": 14.015735,
+              "maxMs": 14.5571
+            }
+          }
+        }
+      ]
+    },
+    "color-runs": {
+      "processes": 6,
+      "groups": [
+        {
+          "backend": "cpu",
+          "srgb": false,
+          "method": "image-direct-matched",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 17.3901,
+            "p95Ms": 19.962905,
+            "maxMs": 20.2797
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.11599999999999999,
+              "p95Ms": 0.14443499999999998,
+              "maxMs": 0.1469
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 16.904600000000002,
+              "p95Ms": 19.28616,
+              "maxMs": 19.7625
+            },
+            "producerSubmit": {
+              "n": 18,
+              "medianMs": 0.00145,
+              "p95Ms": 0.004059999999999999,
+              "maxMs": 0.0044
+            },
+            "snapshot": {
+              "n": 18,
+              "medianMs": 0.0057,
+              "p95Ms": 0.01009499999999999,
+              "maxMs": 0.0163
+            },
+            "read": {
+              "n": 18,
+              "medianMs": 0.33615,
+              "p95Ms": 0.4388749999999998,
+              "maxMs": 0.5583
+            }
+          }
+        },
+        {
+          "backend": "cpu",
+          "srgb": false,
+          "method": "image-direct-null",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 17.67585,
+            "p95Ms": 20.362659999999998,
+            "maxMs": 20.5755
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.11565,
+              "p95Ms": 0.15320499999999992,
+              "maxMs": 0.2031
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 17.212249999999997,
+              "p95Ms": 19.807409999999997,
+              "maxMs": 20.0347
+            },
+            "producerSubmit": {
+              "n": 18,
+              "medianMs": 0.0015,
+              "p95Ms": 0.004359999999999999,
+              "maxMs": 0.0047
+            },
+            "snapshot": {
+              "n": 18,
+              "medianMs": 0.0063,
+              "p95Ms": 0.012564999999999995,
+              "maxMs": 0.0152
+            },
+            "read": {
+              "n": 18,
+              "medianMs": 0.3419,
+              "p95Ms": 0.41169999999999984,
+              "maxMs": 0.4899
+            }
+          }
+        },
+        {
+          "backend": "cpu",
+          "srgb": false,
+          "method": "surface-explicit-sync",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 17.7868,
+            "p95Ms": 20.14227,
+            "maxMs": 20.5399
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.10715,
+              "p95Ms": 0.14660499999999993,
+              "maxMs": 0.1846
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 17.2509,
+              "p95Ms": 19.62717,
+              "maxMs": 20.0265
+            },
+            "producerSubmit": {
+              "n": 18,
+              "medianMs": 0.0015500000000000002,
+              "p95Ms": 0.005109999999999998,
+              "maxMs": 0.0063
+            },
+            "read": {
+              "n": 18,
+              "medianMs": 0.3492,
+              "p95Ms": 0.4554499999999999,
+              "maxMs": 0.4818
+            }
+          }
+        },
+        {
+          "backend": "cpu",
+          "srgb": false,
+          "method": "surface-matched-color",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 18.0634,
+            "p95Ms": 19.898335,
+            "maxMs": 20.183
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.12815,
+              "p95Ms": 0.14564,
+              "maxMs": 0.1521
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 17.580849999999998,
+              "p95Ms": 19.404445,
+              "maxMs": 19.6835
+            },
+            "producerSubmit": {
+              "n": 18,
+              "medianMs": 0.0019,
+              "p95Ms": 0.0048449999999999995,
+              "maxMs": 0.0051
+            },
+            "read": {
+              "n": 18,
+              "medianMs": 0.34485,
+              "p95Ms": 0.4038299999999998,
+              "maxMs": 0.5009
+            }
+          }
+        },
+        {
+          "backend": "cpu",
+          "srgb": true,
+          "method": "image-direct-matched",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 14.72505,
+            "p95Ms": 19.39385,
+            "maxMs": 19.7245
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.1031,
+              "p95Ms": 0.142055,
+              "maxMs": 0.1503
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 14.2407,
+              "p95Ms": 18.87487,
+              "maxMs": 19.2045
+            },
+            "producerSubmit": {
+              "n": 18,
+              "medianMs": 0.0015,
+              "p95Ms": 0.004194999999999998,
+              "maxMs": 0.0053
+            },
+            "snapshot": {
+              "n": 18,
+              "medianMs": 0.0037,
+              "p95Ms": 0.008705,
+              "maxMs": 0.0093
+            },
+            "read": {
+              "n": 18,
+              "medianMs": 0.3155,
+              "p95Ms": 0.38139,
+              "maxMs": 0.3955
+            }
+          }
+        },
+        {
+          "backend": "cpu",
+          "srgb": true,
+          "method": "image-direct-null",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 14.67625,
+            "p95Ms": 18.240624999999998,
+            "maxMs": 19.6036
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.0927,
+              "p95Ms": 0.16017999999999982,
+              "maxMs": 0.2666
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 14.19295,
+              "p95Ms": 17.76112,
+              "maxMs": 19.0759
+            },
+            "producerSubmit": {
+              "n": 18,
+              "medianMs": 0.0014,
+              "p95Ms": 0.0025699999999999976,
+              "maxMs": 0.0041
+            },
+            "snapshot": {
+              "n": 18,
+              "medianMs": 0.0043,
+              "p95Ms": 0.009664999999999984,
+              "maxMs": 0.0191
+            },
+            "read": {
+              "n": 18,
+              "medianMs": 0.32425000000000004,
+              "p95Ms": 0.4095049999999998,
+              "maxMs": 0.5308
+            }
+          }
+        },
+        {
+          "backend": "cpu",
+          "srgb": true,
+          "method": "surface-explicit-sync",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 14.3737,
+            "p95Ms": 19.10678,
+            "maxMs": 19.5379
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.0968,
+              "p95Ms": 0.15003499999999992,
+              "maxMs": 0.1984
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 13.87825,
+              "p95Ms": 18.435109999999998,
+              "maxMs": 19.0704
+            },
+            "producerSubmit": {
+              "n": 18,
+              "medianMs": 0.00175,
+              "p95Ms": 0.005545,
+              "maxMs": 0.0058
+            },
+            "read": {
+              "n": 18,
+              "medianMs": 0.34555,
+              "p95Ms": 0.4597499999999998,
+              "maxMs": 0.5643
+            }
+          }
+        },
+        {
+          "backend": "cpu",
+          "srgb": true,
+          "method": "surface-matched-color",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 14.654250000000001,
+            "p95Ms": 18.666154999999996,
+            "maxMs": 19.9341
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.11925,
+              "p95Ms": 0.14539999999999997,
+              "maxMs": 0.159
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 14.1451,
+              "p95Ms": 18.15704,
+              "maxMs": 19.3399
+            },
+            "producerSubmit": {
+              "n": 18,
+              "medianMs": 0.00175,
+              "p95Ms": 0.0066249999999999885,
+              "maxMs": 0.013
+            },
+            "read": {
+              "n": 18,
+              "medianMs": 0.3463,
+              "p95Ms": 0.43394999999999995,
+              "maxMs": 0.4382
+            }
+          }
+        },
+        {
+          "backend": "vulkan",
+          "srgb": false,
+          "method": "image-direct-matched",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 2.3455500000000002,
+            "p95Ms": 3.1522999999999994,
+            "maxMs": 3.3818
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.0195,
+              "p95Ms": 0.025194999999999995,
+              "maxMs": 0.0297
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 0.0422,
+              "p95Ms": 0.06147,
+              "maxMs": 0.0647
+            },
+            "producerSubmit": {
+              "n": 18,
+              "medianMs": 0.4021,
+              "p95Ms": 0.599205,
+              "maxMs": 0.6083
+            },
+            "snapshot": {
+              "n": 18,
+              "medianMs": 0.0057,
+              "p95Ms": 0.013239999999999997,
+              "maxMs": 0.0146
+            },
+            "read": {
+              "n": 18,
+              "medianMs": 1.8749,
+              "p95Ms": 2.5403449999999994,
+              "maxMs": 2.8279
+            }
+          }
+        },
+        {
+          "backend": "vulkan",
+          "srgb": false,
+          "method": "image-direct-null",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 2.46685,
+            "p95Ms": 2.8890000000000002,
+            "maxMs": 2.9162
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.01915,
+              "p95Ms": 0.037405,
+              "maxMs": 0.038
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 0.0412,
+              "p95Ms": 0.07159999999999998,
+              "maxMs": 0.0818
+            },
+            "producerSubmit": {
+              "n": 18,
+              "medianMs": 0.384,
+              "p95Ms": 0.50058,
+              "maxMs": 0.522
+            },
+            "snapshot": {
+              "n": 18,
+              "medianMs": 0.0059,
+              "p95Ms": 0.014089999999999997,
+              "maxMs": 0.0163
+            },
+            "read": {
+              "n": 18,
+              "medianMs": 2.0013,
+              "p95Ms": 2.34844,
+              "maxMs": 2.4705
+            }
+          }
+        },
+        {
+          "backend": "vulkan",
+          "srgb": false,
+          "method": "surface-explicit-sync",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 2.4142,
+            "p95Ms": 2.95946,
+            "maxMs": 2.9683
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.019799999999999998,
+              "p95Ms": 0.030299999999999994,
+              "maxMs": 0.0337
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 0.04255,
+              "p95Ms": 0.06469499999999993,
+              "maxMs": 0.1083
+            },
+            "producerSubmit": {
+              "n": 18,
+              "medianMs": 0.4185,
+              "p95Ms": 0.727085,
+              "maxMs": 0.7372
+            },
+            "read": {
+              "n": 18,
+              "medianMs": 1.83795,
+              "p95Ms": 2.4576749999999996,
+              "maxMs": 2.5924
+            }
+          }
+        },
+        {
+          "backend": "vulkan",
+          "srgb": false,
+          "method": "surface-matched-color",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 2.50075,
+            "p95Ms": 3.153895,
+            "maxMs": 3.1788
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.019000000000000003,
+              "p95Ms": 0.025219999999999996,
+              "maxMs": 0.0276
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 0.039599999999999996,
+              "p95Ms": 0.075075,
+              "maxMs": 0.0772
+            },
+            "producerSubmit": {
+              "n": 18,
+              "medianMs": 0.40954999999999997,
+              "p95Ms": 0.6236999999999999,
+              "maxMs": 0.639
+            },
+            "read": {
+              "n": 18,
+              "medianMs": 2.0347,
+              "p95Ms": 2.594235,
+              "maxMs": 2.6494
+            }
+          }
+        },
+        {
+          "backend": "vulkan",
+          "srgb": true,
+          "method": "image-direct-matched",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 2.5848500000000003,
+            "p95Ms": 3.0166,
+            "maxMs": 3.0370000000000004
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.022699999999999998,
+              "p95Ms": 0.029064999999999997,
+              "maxMs": 0.0317
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 0.0508,
+              "p95Ms": 0.06102,
+              "maxMs": 0.0634
+            },
+            "producerSubmit": {
+              "n": 18,
+              "medianMs": 0.48860000000000003,
+              "p95Ms": 0.7179,
+              "maxMs": 0.7723
+            },
+            "snapshot": {
+              "n": 18,
+              "medianMs": 0.00735,
+              "p95Ms": 0.012484999999999982,
+              "maxMs": 0.0226
+            },
+            "read": {
+              "n": 18,
+              "medianMs": 1.9721000000000002,
+              "p95Ms": 2.440585,
+              "maxMs": 2.4643
+            }
+          }
+        },
+        {
+          "backend": "vulkan",
+          "srgb": true,
+          "method": "image-direct-null",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 13.253599999999999,
+            "p95Ms": 18.60943,
+            "maxMs": 18.7932
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.02005,
+              "p95Ms": 0.03505,
+              "maxMs": 0.0376
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 0.0468,
+              "p95Ms": 0.07668499999999996,
+              "maxMs": 0.1021
+            },
+            "producerSubmit": {
+              "n": 18,
+              "medianMs": 0.42469999999999997,
+              "p95Ms": 0.6661449999999999,
+              "maxMs": 0.6919
+            },
+            "snapshot": {
+              "n": 18,
+              "medianMs": 0.0079,
+              "p95Ms": 0.012214999999999993,
+              "maxMs": 0.0157
+            },
+            "read": {
+              "n": 18,
+              "medianMs": 12.8385,
+              "p95Ms": 17.98752,
+              "maxMs": 18.012
+            }
+          }
+        },
+        {
+          "backend": "vulkan",
+          "srgb": true,
+          "method": "surface-explicit-sync",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 13.51605,
+            "p95Ms": 18.683139999999998,
+            "maxMs": 18.8222
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.02225,
+              "p95Ms": 0.038204999999999996,
+              "maxMs": 0.0405
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 0.044700000000000004,
+              "p95Ms": 0.060875,
+              "maxMs": 0.0613
+            },
+            "producerSubmit": {
+              "n": 18,
+              "medianMs": 0.4138,
+              "p95Ms": 0.6981299999999999,
+              "maxMs": 0.7051
+            },
+            "read": {
+              "n": 18,
+              "medianMs": 13.03605,
+              "p95Ms": 18.041975,
+              "maxMs": 18.0713
+            }
+          }
+        },
+        {
+          "backend": "vulkan",
+          "srgb": true,
+          "method": "surface-matched-color",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 2.3262,
+            "p95Ms": 2.99102,
+            "maxMs": 3.0970999999999997
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.02055,
+              "p95Ms": 0.028489999999999998,
+              "maxMs": 0.0307
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 0.0469,
+              "p95Ms": 0.06277999999999999,
+              "maxMs": 0.0672
+            },
+            "producerSubmit": {
+              "n": 18,
+              "medianMs": 0.48445,
+              "p95Ms": 0.6657749999999999,
+              "maxMs": 0.69
+            },
+            "read": {
+              "n": 18,
+              "medianMs": 1.84665,
+              "p95Ms": 2.40779,
+              "maxMs": 2.4457
+            }
+          }
+        }
+      ]
+    },
+    "origin-runs": {
+      "processes": 3,
+      "groups": [
+        {
+          "backend": "vulkan",
+          "srgb": false,
+          "method": "image-direct-matched",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 2.0723000000000003,
+            "p95Ms": 2.414495,
+            "maxMs": 2.4903999999999997
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.01765,
+              "p95Ms": 0.04289499999999993,
+              "maxMs": 0.0814
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 0.0436,
+              "p95Ms": 0.11348999999999991,
+              "maxMs": 0.1667
+            },
+            "producerSubmit": {
+              "n": 18,
+              "medianMs": 0.45205,
+              "p95Ms": 0.505775,
+              "maxMs": 0.5215
+            },
+            "snapshot": {
+              "n": 18,
+              "medianMs": 0.0049499999999999995,
+              "p95Ms": 0.009999999999999981,
+              "maxMs": 0.0219
+            },
+            "read": {
+              "n": 18,
+              "medianMs": 1.557,
+              "p95Ms": 1.8287099999999998,
+              "maxMs": 1.8622
+            }
+          }
+        },
+        {
+          "backend": "vulkan",
+          "srgb": false,
+          "method": "image-direct-null",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 2.00135,
+            "p95Ms": 2.2911,
+            "maxMs": 2.3148999999999997
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.01645,
+              "p95Ms": 0.03321499999999998,
+              "maxMs": 0.0435
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 0.04105,
+              "p95Ms": 0.06300999999999997,
+              "maxMs": 0.0846
+            },
+            "producerSubmit": {
+              "n": 18,
+              "medianMs": 0.43495,
+              "p95Ms": 0.6251899999999998,
+              "maxMs": 0.7107
+            },
+            "snapshot": {
+              "n": 18,
+              "medianMs": 0.0054,
+              "p95Ms": 0.008139999999999998,
+              "maxMs": 0.0095
+            },
+            "read": {
+              "n": 18,
+              "medianMs": 1.4684499999999998,
+              "p95Ms": 1.7353299999999998,
+              "maxMs": 1.7865
+            }
+          }
+        },
+        {
+          "backend": "vulkan",
+          "srgb": false,
+          "method": "surface-explicit-sync",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 2.09215,
+            "p95Ms": 2.37637,
+            "maxMs": 2.4527
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.02025,
+              "p95Ms": 0.033219999999999986,
+              "maxMs": 0.0407
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 0.04175,
+              "p95Ms": 0.09300499999999996,
+              "maxMs": 0.114
+            },
+            "producerSubmit": {
+              "n": 18,
+              "medianMs": 0.4401,
+              "p95Ms": 0.5029549999999999,
+              "maxMs": 0.5061
+            },
+            "read": {
+              "n": 18,
+              "medianMs": 1.5588000000000002,
+              "p95Ms": 1.864995,
+              "maxMs": 1.9613
+            }
+          }
+        },
+        {
+          "backend": "vulkan",
+          "srgb": false,
+          "method": "surface-matched-color",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 2.0459,
+            "p95Ms": 2.1948199999999995,
+            "maxMs": 2.4148
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.016050000000000002,
+              "p95Ms": 0.031089999999999975,
+              "maxMs": 0.0452
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 0.0392,
+              "p95Ms": 0.05073999999999998,
+              "maxMs": 0.0623
+            },
+            "producerSubmit": {
+              "n": 18,
+              "medianMs": 0.42935,
+              "p95Ms": 0.49273999999999984,
+              "maxMs": 0.5995
+            },
+            "read": {
+              "n": 18,
+              "medianMs": 1.52615,
+              "p95Ms": 1.7194649999999996,
+              "maxMs": 1.9244
+            }
+          }
+        },
+        {
+          "backend": "vulkan",
+          "srgb": true,
+          "method": "image-direct-matched",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 1.7610999999999999,
+            "p95Ms": 2.3138249999999996,
+            "maxMs": 2.7231
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.02215,
+              "p95Ms": 0.035535,
+              "maxMs": 0.0363
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 0.051449999999999996,
+              "p95Ms": 0.08150999999999997,
+              "maxMs": 0.098
+            },
+            "producerSubmit": {
+              "n": 18,
+              "medianMs": 0.30725,
+              "p95Ms": 0.6270199999999996,
+              "maxMs": 0.8606
+            },
+            "snapshot": {
+              "n": 18,
+              "medianMs": 0.0057,
+              "p95Ms": 0.014434999999999993,
+              "maxMs": 0.0186
+            },
+            "read": {
+              "n": 18,
+              "medianMs": 1.42135,
+              "p95Ms": 1.7896649999999998,
+              "maxMs": 1.845
+            }
+          }
+        },
+        {
+          "backend": "vulkan",
+          "srgb": true,
+          "method": "image-direct-null",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 1.8446,
+            "p95Ms": 2.14071,
+            "maxMs": 2.1452999999999998
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.0207,
+              "p95Ms": 0.026149999999999986,
+              "maxMs": 0.0338
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 0.0433,
+              "p95Ms": 0.06925999999999999,
+              "maxMs": 0.0781
+            },
+            "producerSubmit": {
+              "n": 18,
+              "medianMs": 0.4134,
+              "p95Ms": 0.47977,
+              "maxMs": 0.5
+            },
+            "snapshot": {
+              "n": 18,
+              "medianMs": 0.008,
+              "p95Ms": 0.013594999999999996,
+              "maxMs": 0.0164
+            },
+            "read": {
+              "n": 18,
+              "medianMs": 1.4422000000000001,
+              "p95Ms": 1.6447699999999998,
+              "maxMs": 1.6514
+            }
+          }
+        },
+        {
+          "backend": "vulkan",
+          "srgb": true,
+          "method": "surface-explicit-sync",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 1.7593,
+            "p95Ms": 2.0438650000000003,
+            "maxMs": 2.0703
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.0214,
+              "p95Ms": 0.04264499999999998,
+              "maxMs": 0.0514
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 0.047,
+              "p95Ms": 0.07122499999999997,
+              "maxMs": 0.0895
+            },
+            "producerSubmit": {
+              "n": 18,
+              "medianMs": 0.35745000000000005,
+              "p95Ms": 0.4639449999999999,
+              "maxMs": 0.5305
+            },
+            "read": {
+              "n": 18,
+              "medianMs": 1.37175,
+              "p95Ms": 1.51235,
+              "maxMs": 1.5302
+            }
+          }
+        },
+        {
+          "backend": "vulkan",
+          "srgb": true,
+          "method": "surface-matched-color",
+          "totalStageSum": {
+            "n": 18,
+            "medianMs": 1.9613500000000001,
+            "p95Ms": 2.13905,
+            "maxMs": 2.1841
+          },
+          "stages": {
+            "create": {
+              "n": 18,
+              "medianMs": 0.02055,
+              "p95Ms": 0.03032999999999999,
+              "maxMs": 0.0356
+            },
+            "draw": {
+              "n": 18,
+              "medianMs": 0.04235,
+              "p95Ms": 0.06544499999999998,
+              "maxMs": 0.0725
+            },
+            "producerSubmit": {
+              "n": 18,
+              "medianMs": 0.41900000000000004,
+              "p95Ms": 0.451685,
+              "maxMs": 0.4533
+            },
+            "read": {
+              "n": 18,
+              "medianMs": 1.4748999999999999,
+              "p95Ms": 1.67177,
+              "maxMs": 1.6886
+            }
+          }
+        }
+      ]
+    },
+    "originComparison": {
+      "matches": 0,
+      "mismatches": 192
+    }
+  },
+  "pairedRuntime": [
+    {
+      "scenario": "graph",
+      "baseline": {
+        "wall": {
+          "n": 24,
+          "medianMs": 99.75755000000001,
+          "p95Ms": 113.53945,
+          "maxMs": 121.9884
+        },
+        "roundMediansMs": [
+          94.53184999999999,
+          103.7286,
+          99.0113
+        ],
+        "createMedianMs": 254.8493,
+        "coldMedianMs": 338.0024
+      },
+      "matched-read": {
+        "wall": {
+          "n": 24,
+          "medianMs": 33.11495,
+          "p95Ms": 37.743604999999995,
+          "maxMs": 41.7245
+        },
+        "roundMediansMs": [
+          31.83775,
+          34.2888,
+          32.1701
+        ],
+        "createMedianMs": 383.0591,
+        "coldMedianMs": 274.055
+      },
+      "medianReductionPercent": 66.8045676743264
+    },
+    {
+      "scenario": "material",
+      "baseline": {
+        "wall": {
+          "n": 24,
+          "medianMs": 1044.48205,
+          "p95Ms": 1063.5165949999998,
+          "maxMs": 1069.643
+        },
+        "roundMediansMs": [
+          1045.6730499999999,
+          1041.5845,
+          1045.125
+        ],
+        "createMedianMs": 230.1408,
+        "coldMedianMs": 1326.3619
+      },
+      "matched-read": {
+        "wall": {
+          "n": 24,
+          "medianMs": 305.8319,
+          "p95Ms": 347.884875,
+          "maxMs": 361.6762
+        },
+        "roundMediansMs": [
+          293.83175,
+          344.93245,
+          303.6142
+        ],
+        "createMedianMs": 265.5989,
+        "coldMedianMs": 565.4186
+      },
+      "medianReductionPercent": 70.71927660221637
+    },
+    {
+      "scenario": "combined",
+      "baseline": {
+        "wall": {
+          "n": 24,
+          "medianMs": 1203.04095,
+          "p95Ms": 1305.7547149999998,
+          "maxMs": 1321.8983
+        },
+        "roundMediansMs": [
+          1191.13265,
+          1213.7487999999998,
+          1211.2579
+        ],
+        "createMedianMs": 1196.5686,
+        "coldMedianMs": 1656.751
+      },
+      "matched-read": {
+        "wall": {
+          "n": 24,
+          "medianMs": 385.88925,
+          "p95Ms": 495.68476499999997,
+          "maxMs": 506.3313
+        },
+        "roundMediansMs": [
+          381.21605,
+          434.57565,
+          372.56825000000003
+        ],
+        "createMedianMs": 1129.2753,
+        "coldMedianMs": 791.9887
+      },
+      "medianReductionPercent": 67.92384748000472
+    }
+  ],
+  "historicalTraceReanalysis": [
+    {
+      "scenario": "lyrics",
+      "backend": "cpu",
+      "source": "historical-traces/trace-main/r01-lyrics-cpu-new-instrumented.json",
+      "sha256": "c62997fdd829f921d51c1ba0c51ed453eb15682907538748a214101c17459183",
+      "frames": 24,
+      "wall": {
+        "n": 24,
+        "medianMs": 1.70015,
+        "p95Ms": 2.493445,
+        "maxMs": 3.0746
+      },
+      "stages": [
+        {
+          "name": "device.submit",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.000957,
+          "exclusiveMedianMs": 0.000957
+        },
+        {
+          "name": "geometry.scene",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.26795899999999995,
+          "exclusiveMedianMs": 0.26795899999999995
+        },
+        {
+          "name": "render",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 1.7008949999999998,
+          "exclusiveMedianMs": 0.019611999999999997
+        },
+        {
+          "name": "runtime.gate",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.0008320000000000001,
+          "exclusiveMedianMs": 0.0008320000000000001
+        },
+        {
+          "name": "runtime.prepare",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.0002005,
+          "exclusiveMedianMs": 0.0002005
+        },
+        {
+          "name": "runtime.render.core",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 1.6816485,
+          "exclusiveMedianMs": 0.0018235
+        },
+        {
+          "name": "runtime.skia",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 1.6790485,
+          "exclusiveMedianMs": 0.0009165
+        },
+        {
+          "name": "skia.draw",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 1.0734545,
+          "exclusiveMedianMs": 0.2994985
+        },
+        {
+          "name": "skia.draw.background",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.000511,
+          "exclusiveMedianMs": 0.000511
+        },
+        {
+          "name": "skia.draw.lyrics",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.77323,
+          "exclusiveMedianMs": 0.483039
+        },
+        {
+          "name": "skia.draw.overlays",
+          "calls": [
+            2
+          ],
+          "inclusiveMedianMs": 0.0009965,
+          "exclusiveMedianMs": 0.0009965
+        },
+        {
+          "name": "skia.finalReadback",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.43127150000000003,
+          "exclusiveMedianMs": 0.43127150000000003
+        },
+        {
+          "name": "skia.finalSubmit",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.001237,
+          "exclusiveMedianMs": 0.00033099999999999997
+        },
+        {
+          "name": "skia.render",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 1.6782374999999998,
+          "exclusiveMedianMs": 0.012243500000000001
+        },
+        {
+          "name": "skia.surface.create",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.14024399999999998,
+          "exclusiveMedianMs": 0.14024399999999998
+        },
+        {
+          "name": "skia.validate",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.011261,
+          "exclusiveMedianMs": 0.011261
+        },
+        {
+          "name": "text.shape",
+          "calls": [
+            0,
+            1
+          ],
+          "inclusiveMedianMs": 0.0,
+          "exclusiveMedianMs": 0.0
+        }
+      ]
+    },
+    {
+      "scenario": "lyrics",
+      "backend": "vulkan",
+      "source": "historical-traces/trace-main/r01-lyrics-vulkan-new-instrumented.json",
+      "sha256": "593934289c0c0cb202c3c36960d388c15a5866b28ee05d9ef48daa3fba566816",
+      "frames": 24,
+      "wall": {
+        "n": 24,
+        "medianMs": 3.9499,
+        "p95Ms": 4.389,
+        "maxMs": 5.0099
+      },
+      "stages": [
+        {
+          "name": "device.submit",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.4201155,
+          "exclusiveMedianMs": 0.4201155
+        },
+        {
+          "name": "geometry.scene",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.45339299999999993,
+          "exclusiveMedianMs": 0.45339299999999993
+        },
+        {
+          "name": "render",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 3.954199,
+          "exclusiveMedianMs": 0.06530849999999999
+        },
+        {
+          "name": "runtime.gate",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.0019690000000000003,
+          "exclusiveMedianMs": 0.0019690000000000003
+        },
+        {
+          "name": "runtime.prepare",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.00033099999999999997,
+          "exclusiveMedianMs": 0.00033099999999999997
+        },
+        {
+          "name": "runtime.render.core",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 3.887564,
+          "exclusiveMedianMs": 0.0048695
+        },
+        {
+          "name": "runtime.skia",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 3.8802795,
+          "exclusiveMedianMs": 0.002179
+        },
+        {
+          "name": "skia.draw",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 1.0209155,
+          "exclusiveMedianMs": 0.030652
+        },
+        {
+          "name": "skia.draw.background",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.000551,
+          "exclusiveMedianMs": 0.000551
+        },
+        {
+          "name": "skia.draw.lyrics",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.9873325,
+          "exclusiveMedianMs": 0.5362994999999999
+        },
+        {
+          "name": "skia.draw.overlays",
+          "calls": [
+            2
+          ],
+          "inclusiveMedianMs": 0.0017125,
+          "exclusiveMedianMs": 0.0017125
+        },
+        {
+          "name": "skia.finalReadback",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 2.2802195000000003,
+          "exclusiveMedianMs": 2.2802195000000003
+        },
+        {
+          "name": "skia.finalSubmit",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.42127249999999994,
+          "exclusiveMedianMs": 0.0011979999999999998
+        },
+        {
+          "name": "skia.render",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 3.8782514999999997,
+          "exclusiveMedianMs": 0.059001
+        },
+        {
+          "name": "skia.surface.create",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.035181,
+          "exclusiveMedianMs": 0.035181
+        },
+        {
+          "name": "skia.validate",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.0241505,
+          "exclusiveMedianMs": 0.0241505
+        },
+        {
+          "name": "text.shape",
+          "calls": [
+            0,
+            1
+          ],
+          "inclusiveMedianMs": 0.0,
+          "exclusiveMedianMs": 0.0
+        }
+      ]
+    },
+    {
+      "scenario": "csharp",
+      "backend": "cpu",
+      "source": "historical-traces/trace-main/r01-csharp-cpu-new-instrumented.json",
+      "sha256": "52fe5b56b60de6f9d159851014452aec63dd7ca4d95cb4bf3bb687e0e0df3c1a",
+      "frames": 24,
+      "wall": {
+        "n": 24,
+        "medianMs": 3.13625,
+        "p95Ms": 3.950405,
+        "maxMs": 4.2162
+      },
+      "stages": [
+        {
+          "name": "device.submit",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.001177,
+          "exclusiveMedianMs": 0.001177
+        },
+        {
+          "name": "geometry.scene",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.49164549999999996,
+          "exclusiveMedianMs": 0.49164549999999996
+        },
+        {
+          "name": "particle.commit",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.0057065,
+          "exclusiveMedianMs": 0.0057065
+        },
+        {
+          "name": "particle.read",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.031674499999999994,
+          "exclusiveMedianMs": 0.031674499999999994
+        },
+        {
+          "name": "render",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 3.1367814999999997,
+          "exclusiveMedianMs": 0.0290495
+        },
+        {
+          "name": "runtime.gate",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.0012469999999999998,
+          "exclusiveMedianMs": 0.0012469999999999998
+        },
+        {
+          "name": "runtime.prepare",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 2.1085825,
+          "exclusiveMedianMs": 0.001718
+        },
+        {
+          "name": "runtime.render.core",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 3.1057379999999997,
+          "exclusiveMedianMs": 0.001493
+        },
+        {
+          "name": "runtime.skia",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.9677004999999999,
+          "exclusiveMedianMs": 0.0007019999999999999
+        },
+        {
+          "name": "script.boundary",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 2.0863899999999997,
+          "exclusiveMedianMs": 0.057784999999999996
+        },
+        {
+          "name": "script.emitters",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.0373445,
+          "exclusiveMedianMs": 0.0373445
+        },
+        {
+          "name": "script.evaluate",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 1.962567,
+          "exclusiveMedianMs": 1.4166439999999998
+        },
+        {
+          "name": "script.frame.prepare",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 2.1068689999999997,
+          "exclusiveMedianMs": 0.010073499999999999
+        },
+        {
+          "name": "script.invoke.Advance",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.0035915,
+          "exclusiveMedianMs": 0.0035915
+        },
+        {
+          "name": "script.invoke.ComposeOutputs",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.0167075,
+          "exclusiveMedianMs": 0.0167075
+        },
+        {
+          "name": "script.invoke.Evaluate",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.035794,
+          "exclusiveMedianMs": 0.035794
+        },
+        {
+          "name": "script.invoke.OnEvent",
+          "calls": [
+            0,
+            3,
+            9
+          ],
+          "inclusiveMedianMs": 0.0,
+          "exclusiveMedianMs": 0.0
+        },
+        {
+          "name": "skia.draw",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.619345,
+          "exclusiveMedianMs": 0.1934195
+        },
+        {
+          "name": "skia.draw.background",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.0005909999999999999,
+          "exclusiveMedianMs": 0.0005909999999999999
+        },
+        {
+          "name": "skia.draw.lyrics",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.421508,
+          "exclusiveMedianMs": 0.421508
+        },
+        {
+          "name": "skia.draw.overlays",
+          "calls": [
+            2
+          ],
+          "inclusiveMedianMs": 0.004258,
+          "exclusiveMedianMs": 0.004258
+        },
+        {
+          "name": "skia.finalReadback",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.22282,
+          "exclusiveMedianMs": 0.22282
+        },
+        {
+          "name": "skia.finalSubmit",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.001372,
+          "exclusiveMedianMs": 0.00017999999999999998
+        },
+        {
+          "name": "skia.render",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.9667839999999999,
+          "exclusiveMedianMs": 0.011986
+        },
+        {
+          "name": "skia.surface.create",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.08811050000000001,
+          "exclusiveMedianMs": 0.08811050000000001
+        },
+        {
+          "name": "skia.validate",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.022347,
+          "exclusiveMedianMs": 0.022347
+        },
+        {
+          "name": "text.shape",
+          "calls": [
+            0,
+            2
+          ],
+          "inclusiveMedianMs": 0.0,
+          "exclusiveMedianMs": 0.0
+        }
+      ]
+    },
+    {
+      "scenario": "csharp",
+      "backend": "vulkan",
+      "source": "historical-traces/trace-main/r01-csharp-vulkan-new-instrumented.json",
+      "sha256": "e33e58437371de4f3c2b21d9c750e7f3a3e8ce9fdff3b3bf3e6411ce2c2b22ff",
+      "frames": 24,
+      "wall": {
+        "n": 24,
+        "medianMs": 4.7858,
+        "p95Ms": 6.562429999999998,
+        "maxMs": 7.8204
+      },
+      "stages": [
+        {
+          "name": "device.submit",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.327155,
+          "exclusiveMedianMs": 0.327155
+        },
+        {
+          "name": "geometry.scene",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.5385575,
+          "exclusiveMedianMs": 0.5385575
+        },
+        {
+          "name": "particle.commit",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.005976499999999999,
+          "exclusiveMedianMs": 0.005976499999999999
+        },
+        {
+          "name": "particle.read",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.0302925,
+          "exclusiveMedianMs": 0.0302925
+        },
+        {
+          "name": "render",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 4.7865655,
+          "exclusiveMedianMs": 0.035442
+        },
+        {
+          "name": "runtime.gate",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.0013219999999999998,
+          "exclusiveMedianMs": 0.0013219999999999998
+        },
+        {
+          "name": "runtime.prepare",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 2.2163144999999997,
+          "exclusiveMedianMs": 0.0018535
+        },
+        {
+          "name": "runtime.render.core",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 4.74646,
+          "exclusiveMedianMs": 0.0025645
+        },
+        {
+          "name": "runtime.skia",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 2.3838795,
+          "exclusiveMedianMs": 0.0010325
+        },
+        {
+          "name": "script.boundary",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 2.1910315,
+          "exclusiveMedianMs": 0.0571135
+        },
+        {
+          "name": "script.emitters",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.041724,
+          "exclusiveMedianMs": 0.041724
+        },
+        {
+          "name": "script.evaluate",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 2.044451,
+          "exclusiveMedianMs": 1.4359015
+        },
+        {
+          "name": "script.frame.prepare",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 2.2145159999999997,
+          "exclusiveMedianMs": 0.011581000000000001
+        },
+        {
+          "name": "script.invoke.Advance",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.003997,
+          "exclusiveMedianMs": 0.003997
+        },
+        {
+          "name": "script.invoke.ComposeOutputs",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.018125000000000002,
+          "exclusiveMedianMs": 0.018125000000000002
+        },
+        {
+          "name": "script.invoke.Evaluate",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.0365435,
+          "exclusiveMedianMs": 0.0365435
+        },
+        {
+          "name": "script.invoke.OnEvent",
+          "calls": [
+            0,
+            3,
+            9
+          ],
+          "inclusiveMedianMs": 0.0,
+          "exclusiveMedianMs": 0.0
+        },
+        {
+          "name": "skia.draw",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.3891025,
+          "exclusiveMedianMs": 0.0168615
+        },
+        {
+          "name": "skia.draw.background",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.000461,
+          "exclusiveMedianMs": 0.000461
+        },
+        {
+          "name": "skia.draw.lyrics",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.36856849999999997,
+          "exclusiveMedianMs": 0.36856849999999997
+        },
+        {
+          "name": "skia.draw.overlays",
+          "calls": [
+            2
+          ],
+          "inclusiveMedianMs": 0.0039775,
+          "exclusiveMedianMs": 0.0039775
+        },
+        {
+          "name": "skia.finalReadback",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 1.6012279999999999,
+          "exclusiveMedianMs": 1.6012279999999999
+        },
+        {
+          "name": "skia.finalSubmit",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.3276365,
+          "exclusiveMedianMs": 0.000461
+        },
+        {
+          "name": "skia.render",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 2.3829079999999996,
+          "exclusiveMedianMs": 0.021983
+        },
+        {
+          "name": "skia.surface.create",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.014732499999999999,
+          "exclusiveMedianMs": 0.014732499999999999
+        },
+        {
+          "name": "skia.validate",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.022007,
+          "exclusiveMedianMs": 0.022007
+        },
+        {
+          "name": "text.shape",
+          "calls": [
+            0,
+            2
+          ],
+          "inclusiveMedianMs": 0.0,
+          "exclusiveMedianMs": 0.0
+        }
+      ]
+    },
+    {
+      "scenario": "graph",
+      "backend": "cpu",
+      "source": "historical-traces/trace-main/r01-graph-cpu-new-instrumented.json",
+      "sha256": "105a5c3cf43965c75d924770c19cedfe94dfe77176d21012588b25ed1b2f89f5",
+      "frames": 24,
+      "wall": {
+        "n": 24,
+        "medianMs": 417.90560000000005,
+        "p95Ms": 422.11989,
+        "maxMs": 425.4335
+      },
+      "stages": [
+        {
+          "name": "device.imageReadback",
+          "calls": [
+            7
+          ],
+          "inclusiveMedianMs": 2.1917479999999996,
+          "exclusiveMedianMs": 2.1917479999999996
+        },
+        {
+          "name": "device.submit",
+          "calls": [
+            20
+          ],
+          "inclusiveMedianMs": 0.0240765,
+          "exclusiveMedianMs": 0.0240765
+        },
+        {
+          "name": "geometry.scene",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.23956149999999998,
+          "exclusiveMedianMs": 0.216934
+        },
+        {
+          "name": "graph.draw",
+          "calls": [
+            2
+          ],
+          "inclusiveMedianMs": 283.55177249999997,
+          "exclusiveMedianMs": 283.55177249999997
+        },
+        {
+          "name": "graph.raster",
+          "calls": [
+            2
+          ],
+          "inclusiveMedianMs": 287.88847599999997,
+          "exclusiveMedianMs": 0.599077
+        },
+        {
+          "name": "graph.readback",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 1.382617,
+          "exclusiveMedianMs": 0.010824499999999999
+        },
+        {
+          "name": "graph.sceneReadback",
+          "calls": [
+            3
+          ],
+          "inclusiveMedianMs": 0.8175535,
+          "exclusiveMedianMs": 0.0037614999999999997
+        },
+        {
+          "name": "graph.submit",
+          "calls": [
+            2
+          ],
+          "inclusiveMedianMs": 0.0063915,
+          "exclusiveMedianMs": 0.003061
+        },
+        {
+          "name": "graph.surface.create",
+          "calls": [
+            2
+          ],
+          "inclusiveMedianMs": 0.6271545000000001,
+          "exclusiveMedianMs": 0.6271545000000001
+        },
+        {
+          "name": "graph.validate.premultiplied",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 4.6142515,
+          "exclusiveMedianMs": 4.6142515
+        },
+        {
+          "name": "particle.commit",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.0038519999999999995,
+          "exclusiveMedianMs": 0.0038519999999999995
+        },
+        {
+          "name": "particle.read",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.0149285,
+          "exclusiveMedianMs": 0.0149285
+        },
+        {
+          "name": "render",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 417.906955,
+          "exclusiveMedianMs": 0.071153
+        },
+        {
+          "name": "runtime.gate",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.001999,
+          "exclusiveMedianMs": 0.001999
+        },
+        {
+          "name": "runtime.prepare",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.8895339999999999,
+          "exclusiveMedianMs": 0.004779
+        },
+        {
+          "name": "runtime.render.core",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 417.8251265,
+          "exclusiveMedianMs": 0.005846499999999999
+        },
+        {
+          "name": "runtime.skia",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 416.86267499999997,
+          "exclusiveMedianMs": 0.0023794999999999997
+        },
+        {
+          "name": "script.boundary",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.8622719999999999,
+          "exclusiveMedianMs": 0.0365535
+        },
+        {
+          "name": "script.emitters",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.032836,
+          "exclusiveMedianMs": 0.032836
+        },
+        {
+          "name": "script.evaluate",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.704271,
+          "exclusiveMedianMs": 0.39205749999999995
+        },
+        {
+          "name": "script.frame.prepare",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.8859014999999999,
+          "exclusiveMedianMs": 0.0159455
+        },
+        {
+          "name": "script.invoke.Advance",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.002445,
+          "exclusiveMedianMs": 0.002445
+        },
+        {
+          "name": "script.invoke.ComposeOutputs",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.021725,
+          "exclusiveMedianMs": 0.021725
+        },
+        {
+          "name": "script.invoke.Evaluate",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.02067,
+          "exclusiveMedianMs": 0.02067
+        },
+        {
+          "name": "script.invoke.OnEvent",
+          "calls": [
+            0,
+            3,
+            9
+          ],
+          "inclusiveMedianMs": 0.0,
+          "exclusiveMedianMs": 0.0
+        },
+        {
+          "name": "skia.draw",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 416.3202055,
+          "exclusiveMedianMs": 0.29983899999999997
+        },
+        {
+          "name": "skia.draw.background",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.001122,
+          "exclusiveMedianMs": 0.001122
+        },
+        {
+          "name": "skia.draw.imageScene",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 415.997433,
+          "exclusiveMedianMs": 124.67447999999999
+        },
+        {
+          "name": "skia.draw.overlays",
+          "calls": [
+            2
+          ],
+          "inclusiveMedianMs": 0.0119825,
+          "exclusiveMedianMs": 0.0119825
+        },
+        {
+          "name": "skia.finalReadback",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.36682,
+          "exclusiveMedianMs": 0.36682
+        },
+        {
+          "name": "skia.finalSubmit",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.0022395,
+          "exclusiveMedianMs": 0.0006515
+        },
+        {
+          "name": "skia.render",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 416.8600655,
+          "exclusiveMedianMs": 0.017548
+        },
+        {
+          "name": "skia.surface.create",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.136171,
+          "exclusiveMedianMs": 0.136171
+        },
+        {
+          "name": "skia.validate",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.009914,
+          "exclusiveMedianMs": 0.009914
+        },
+        {
+          "name": "text.shape",
+          "calls": [
+            0,
+            2
+          ],
+          "inclusiveMedianMs": 0.0,
+          "exclusiveMedianMs": 0.0
+        }
+      ]
+    },
+    {
+      "scenario": "graph",
+      "backend": "vulkan",
+      "source": "historical-traces/trace-main/r01-graph-vulkan-new-instrumented.json",
+      "sha256": "485ced9092227016ba571e007d55a401a10e80196b817e93d801873ded654e03",
+      "frames": 24,
+      "wall": {
+        "n": 24,
+        "medianMs": 88.8546,
+        "p95Ms": 94.40576999999999,
+        "maxMs": 95.7718
+      },
+      "stages": [
+        {
+          "name": "device.imageReadback",
+          "calls": [
+            7
+          ],
+          "inclusiveMedianMs": 70.8014735,
+          "exclusiveMedianMs": 70.8014735
+        },
+        {
+          "name": "device.submit",
+          "calls": [
+            20
+          ],
+          "inclusiveMedianMs": 5.109883,
+          "exclusiveMedianMs": 5.109883
+        },
+        {
+          "name": "geometry.scene",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.49909349999999997,
+          "exclusiveMedianMs": 0.480103
+        },
+        {
+          "name": "graph.draw",
+          "calls": [
+            2
+          ],
+          "inclusiveMedianMs": 0.044174,
+          "exclusiveMedianMs": 0.044174
+        },
+        {
+          "name": "graph.raster",
+          "calls": [
+            2
+          ],
+          "inclusiveMedianMs": 23.638852999999997,
+          "exclusiveMedianMs": 0.084485
+        },
+        {
+          "name": "graph.readback",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 40.1026485,
+          "exclusiveMedianMs": 0.016847
+        },
+        {
+          "name": "graph.sceneReadback",
+          "calls": [
+            3
+          ],
+          "inclusiveMedianMs": 30.692124,
+          "exclusiveMedianMs": 0.006692999999999999
+        },
+        {
+          "name": "graph.submit",
+          "calls": [
+            2
+          ],
+          "inclusiveMedianMs": 0.9315329999999999,
+          "exclusiveMedianMs": 0.001133
+        },
+        {
+          "name": "graph.surface.create",
+          "calls": [
+            2
+          ],
+          "inclusiveMedianMs": 0.0317045,
+          "exclusiveMedianMs": 0.0317045
+        },
+        {
+          "name": "graph.validate.premultiplied",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 4.7418510000000005,
+          "exclusiveMedianMs": 4.7418510000000005
+        },
+        {
+          "name": "particle.commit",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.009763999999999998,
+          "exclusiveMedianMs": 0.009763999999999998
+        },
+        {
+          "name": "particle.read",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.0396445,
+          "exclusiveMedianMs": 0.0396445
+        },
+        {
+          "name": "render",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 88.8657105,
+          "exclusiveMedianMs": 0.06458249999999999
+        },
+        {
+          "name": "runtime.gate",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.0019985000000000003,
+          "exclusiveMedianMs": 0.0019985000000000003
+        },
+        {
+          "name": "runtime.prepare",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 1.4268945,
+          "exclusiveMedianMs": 0.0034714999999999998
+        },
+        {
+          "name": "runtime.render.core",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 88.7915,
+          "exclusiveMedianMs": 0.004959
+        },
+        {
+          "name": "runtime.skia",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 86.8277105,
+          "exclusiveMedianMs": 0.002173
+        },
+        {
+          "name": "script.boundary",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 1.391086,
+          "exclusiveMedianMs": 0.073113
+        },
+        {
+          "name": "script.emitters",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.0500385,
+          "exclusiveMedianMs": 0.0500385
+        },
+        {
+          "name": "script.evaluate",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 1.232263,
+          "exclusiveMedianMs": 0.6139235000000001
+        },
+        {
+          "name": "script.frame.prepare",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 1.423358,
+          "exclusiveMedianMs": 0.01856
+        },
+        {
+          "name": "script.invoke.Advance",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.006843,
+          "exclusiveMedianMs": 0.006843
+        },
+        {
+          "name": "script.invoke.ComposeOutputs",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.056186,
+          "exclusiveMedianMs": 0.056186
+        },
+        {
+          "name": "script.invoke.Evaluate",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.0465585,
+          "exclusiveMedianMs": 0.0465585
+        },
+        {
+          "name": "script.invoke.OnEvent",
+          "calls": [
+            0,
+            3,
+            9
+          ],
+          "inclusiveMedianMs": 0.0,
+          "exclusiveMedianMs": 0.0
+        },
+        {
+          "name": "skia.draw",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 84.35886099999999,
+          "exclusiveMedianMs": 0.02124
+        },
+        {
+          "name": "skia.draw.background",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.0007419999999999999,
+          "exclusiveMedianMs": 0.0007419999999999999
+        },
+        {
+          "name": "skia.draw.imageScene",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 84.3297215,
+          "exclusiveMedianMs": 3.987187
+        },
+        {
+          "name": "skia.draw.overlays",
+          "calls": [
+            2
+          ],
+          "inclusiveMedianMs": 0.007133499999999999,
+          "exclusiveMedianMs": 0.007133499999999999
+        },
+        {
+          "name": "skia.finalReadback",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 1.843413,
+          "exclusiveMedianMs": 1.843413
+        },
+        {
+          "name": "skia.finalSubmit",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.288057,
+          "exclusiveMedianMs": 0.00025049999999999996
+        },
+        {
+          "name": "skia.render",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 86.8250205,
+          "exclusiveMedianMs": 0.017507500000000002
+        },
+        {
+          "name": "skia.surface.create",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.017072499999999997,
+          "exclusiveMedianMs": 0.017072499999999997
+        },
+        {
+          "name": "skia.validate",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.017683499999999998,
+          "exclusiveMedianMs": 0.017683499999999998
+        },
+        {
+          "name": "text.shape",
+          "calls": [
+            0,
+            2
+          ],
+          "inclusiveMedianMs": 0.0,
+          "exclusiveMedianMs": 0.0
+        }
+      ]
+    },
+    {
+      "scenario": "material",
+      "backend": "cpu",
+      "source": "historical-traces/trace-heavy/r01-material-cpu-new-instrumented.json",
+      "sha256": "7e88dca05965543912515657b87330a0f03f6b9575a4ebf0792a8bf6945888ed",
+      "frames": 8,
+      "wall": {
+        "n": 8,
+        "medianMs": 4409.76915,
+        "p95Ms": 4431.219735,
+        "maxMs": 4432.3033
+      },
+      "stages": [
+        {
+          "name": "device.imageReadback",
+          "calls": [
+            91
+          ],
+          "inclusiveMedianMs": 29.501965499999997,
+          "exclusiveMedianMs": 29.501965499999997
+        },
+        {
+          "name": "device.submit",
+          "calls": [
+            193
+          ],
+          "inclusiveMedianMs": 0.216184,
+          "exclusiveMedianMs": 0.216184
+        },
+        {
+          "name": "geometry.scene",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.3955345,
+          "exclusiveMedianMs": 0.3955345
+        },
+        {
+          "name": "graph.draw",
+          "calls": [
+            48
+          ],
+          "inclusiveMedianMs": 3850.8074395,
+          "exclusiveMedianMs": 3850.8074395
+        },
+        {
+          "name": "graph.raster",
+          "calls": [
+            48
+          ],
+          "inclusiveMedianMs": 3947.8923664999998,
+          "exclusiveMedianMs": 17.473708
+        },
+        {
+          "name": "graph.readback",
+          "calls": [
+            64
+          ],
+          "inclusiveMedianMs": 23.989665,
+          "exclusiveMedianMs": 0.13887649999999999
+        },
+        {
+          "name": "graph.sceneReadback",
+          "calls": [
+            27
+          ],
+          "inclusiveMedianMs": 5.7941325,
+          "exclusiveMedianMs": 0.021128
+        },
+        {
+          "name": "graph.submit",
+          "calls": [
+            48
+          ],
+          "inclusiveMedianMs": 0.137263,
+          "exclusiveMedianMs": 0.059150999999999995
+        },
+        {
+          "name": "graph.surface.create",
+          "calls": [
+            48
+          ],
+          "inclusiveMedianMs": 6.127479999999999,
+          "exclusiveMedianMs": 6.127479999999999
+        },
+        {
+          "name": "graph.validate.premultiplied",
+          "calls": [
+            64
+          ],
+          "inclusiveMedianMs": 71.6313285,
+          "exclusiveMedianMs": 71.6313285
+        },
+        {
+          "name": "particle.commit",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.013335999999999999,
+          "exclusiveMedianMs": 0.013335999999999999
+        },
+        {
+          "name": "particle.read",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.044698499999999995,
+          "exclusiveMedianMs": 0.044698499999999995
+        },
+        {
+          "name": "render",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 4409.770818499999,
+          "exclusiveMedianMs": 0.08137849999999999
+        },
+        {
+          "name": "runtime.gate",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.002665,
+          "exclusiveMedianMs": 0.002665
+        },
+        {
+          "name": "runtime.prepare",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 1.3177995,
+          "exclusiveMedianMs": 0.004508999999999999
+        },
+        {
+          "name": "runtime.render.core",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 4409.352371999999,
+          "exclusiveMedianMs": 0.007598499999999999
+        },
+        {
+          "name": "runtime.skia",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 4407.3898435,
+          "exclusiveMedianMs": 0.0023095
+        },
+        {
+          "name": "script.boundary",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 1.2817064999999999,
+          "exclusiveMedianMs": 0.039001999999999995
+        },
+        {
+          "name": "script.emitters",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.013014499999999998,
+          "exclusiveMedianMs": 0.013014499999999998
+        },
+        {
+          "name": "script.evaluate",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 1.1896495,
+          "exclusiveMedianMs": 0.772389
+        },
+        {
+          "name": "script.frame.prepare",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 1.313326,
+          "exclusiveMedianMs": 0.016453999999999996
+        },
+        {
+          "name": "skia.draw",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 4406.727943,
+          "exclusiveMedianMs": 0.312407
+        },
+        {
+          "name": "skia.draw.background",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.001252,
+          "exclusiveMedianMs": 0.001252
+        },
+        {
+          "name": "skia.draw.imageScene",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 4406.1491895,
+          "exclusiveMedianMs": 429.7616725
+        },
+        {
+          "name": "skia.draw.overlays",
+          "calls": [
+            2
+          ],
+          "inclusiveMedianMs": 0.014136,
+          "exclusiveMedianMs": 0.014136
+        },
+        {
+          "name": "skia.finalReadback",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.37805599999999995,
+          "exclusiveMedianMs": 0.37805599999999995
+        },
+        {
+          "name": "skia.finalSubmit",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.0025445,
+          "exclusiveMedianMs": 0.0007415
+        },
+        {
+          "name": "skia.render",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 4407.3874485,
+          "exclusiveMedianMs": 0.018325
+        },
+        {
+          "name": "skia.surface.create",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.1356,
+          "exclusiveMedianMs": 0.1356
+        },
+        {
+          "name": "skia.validate",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.011952499999999998,
+          "exclusiveMedianMs": 0.011952499999999998
+        }
+      ]
+    },
+    {
+      "scenario": "material",
+      "backend": "vulkan",
+      "source": "historical-traces/trace-heavy/r01-material-vulkan-new-instrumented.json",
+      "sha256": "de4d12db98169a81f1d9c9d943aa52c098b9812aa1d94ae3e5ea162b68b8c89c",
+      "frames": 8,
+      "wall": {
+        "n": 8,
+        "medianMs": 1003.9392,
+        "p95Ms": 1024.26537,
+        "maxMs": 1026.8966
+      },
+      "stages": [
+        {
+          "name": "device.imageReadback",
+          "calls": [
+            91
+          ],
+          "inclusiveMedianMs": 850.0415419999999,
+          "exclusiveMedianMs": 850.0415419999999
+        },
+        {
+          "name": "device.submit",
+          "calls": [
+            193
+          ],
+          "inclusiveMedianMs": 56.179046,
+          "exclusiveMedianMs": 56.179046
+        },
+        {
+          "name": "geometry.scene",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.319277,
+          "exclusiveMedianMs": 0.319277
+        },
+        {
+          "name": "graph.draw",
+          "calls": [
+            48
+          ],
+          "inclusiveMedianMs": 0.568379,
+          "exclusiveMedianMs": 0.568379
+        },
+        {
+          "name": "graph.raster",
+          "calls": [
+            48
+          ],
+          "inclusiveMedianMs": 520.146976,
+          "exclusiveMedianMs": 0.7835654999999999
+        },
+        {
+          "name": "graph.readback",
+          "calls": [
+            64
+          ],
+          "inclusiveMedianMs": 598.554302,
+          "exclusiveMedianMs": 0.1070565
+        },
+        {
+          "name": "graph.sceneReadback",
+          "calls": [
+            27
+          ],
+          "inclusiveMedianMs": 252.44584399999997,
+          "exclusiveMedianMs": 0.033741
+        },
+        {
+          "name": "graph.submit",
+          "calls": [
+            48
+          ],
+          "inclusiveMedianMs": 17.2095225,
+          "exclusiveMedianMs": 0.024961999999999998
+        },
+        {
+          "name": "graph.surface.create",
+          "calls": [
+            48
+          ],
+          "inclusiveMedianMs": 0.2280555,
+          "exclusiveMedianMs": 0.2280555
+        },
+        {
+          "name": "graph.validate.premultiplied",
+          "calls": [
+            64
+          ],
+          "inclusiveMedianMs": 72.19311099999999,
+          "exclusiveMedianMs": 72.19311099999999
+        },
+        {
+          "name": "particle.commit",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.010038499999999999,
+          "exclusiveMedianMs": 0.010038499999999999
+        },
+        {
+          "name": "particle.read",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.036433,
+          "exclusiveMedianMs": 0.036433
+        },
+        {
+          "name": "render",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 1003.9408794999999,
+          "exclusiveMedianMs": 0.067172
+        },
+        {
+          "name": "runtime.gate",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.0026295,
+          "exclusiveMedianMs": 0.0026295
+        },
+        {
+          "name": "runtime.prepare",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 1.0699185,
+          "exclusiveMedianMs": 0.0036869999999999997
+        },
+        {
+          "name": "runtime.render.core",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 1003.8743394999999,
+          "exclusiveMedianMs": 0.0063225
+        },
+        {
+          "name": "runtime.skia",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 1002.8174254999999,
+          "exclusiveMedianMs": 0.0024045
+        },
+        {
+          "name": "script.boundary",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 1.0353724999999998,
+          "exclusiveMedianMs": 0.035527500000000004
+        },
+        {
+          "name": "script.emitters",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.010294499999999998,
+          "exclusiveMedianMs": 0.010294499999999998
+        },
+        {
+          "name": "script.evaluate",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.9552719999999999,
+          "exclusiveMedianMs": 0.6427784999999999
+        },
+        {
+          "name": "script.frame.prepare",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 1.0669125,
+          "exclusiveMedianMs": 0.017467999999999997
+        },
+        {
+          "name": "skia.draw",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 1000.8961654999999,
+          "exclusiveMedianMs": 0.0159995
+        },
+        {
+          "name": "skia.draw.background",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.0007819999999999999,
+          "exclusiveMedianMs": 0.0007819999999999999
+        },
+        {
+          "name": "skia.draw.imageScene",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 1000.8720599999999,
+          "exclusiveMedianMs": 21.8668385
+        },
+        {
+          "name": "skia.draw.overlays",
+          "calls": [
+            2
+          ],
+          "inclusiveMedianMs": 0.0071585,
+          "exclusiveMedianMs": 0.0071585
+        },
+        {
+          "name": "skia.finalReadback",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 1.376645,
+          "exclusiveMedianMs": 1.376645
+        },
+        {
+          "name": "skia.finalSubmit",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.2494945,
+          "exclusiveMedianMs": 0.00020549999999999998
+        },
+        {
+          "name": "skia.render",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 1002.814856,
+          "exclusiveMedianMs": 0.014488
+        },
+        {
+          "name": "skia.surface.create",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.0116325,
+          "exclusiveMedianMs": 0.0116325
+        },
+        {
+          "name": "skia.validate",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.0104495,
+          "exclusiveMedianMs": 0.0104495
+        }
+      ]
+    },
+    {
+      "scenario": "particle",
+      "backend": "cpu",
+      "source": "historical-traces/trace-main/r01-particle-cpu-new-instrumented.json",
+      "sha256": "07658f86ad20084b2696eaed6333cce69f3bd3de2cb090f30cd0b67946a795e0",
+      "frames": 24,
+      "wall": {
+        "n": 24,
+        "medianMs": 5.9037,
+        "p95Ms": 8.741444999999997,
+        "maxMs": 14.6363
+      },
+      "stages": [
+        {
+          "name": "device.submit",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.0014624999999999998,
+          "exclusiveMedianMs": 0.0014624999999999998
+        },
+        {
+          "name": "geometry.scene",
+          "calls": [
+            5,
+            6,
+            7
+          ],
+          "inclusiveMedianMs": 0.8764345,
+          "exclusiveMedianMs": 0.87426
+        },
+        {
+          "name": "particle.birthGeometry",
+          "calls": [
+            1,
+            2,
+            3
+          ],
+          "inclusiveMedianMs": 1.582768,
+          "exclusiveMedianMs": 0.059658
+        },
+        {
+          "name": "particle.commit",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 1.4488765,
+          "exclusiveMedianMs": 0.160582
+        },
+        {
+          "name": "particle.read",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 1.014554,
+          "exclusiveMedianMs": 0.957141
+        },
+        {
+          "name": "render",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 5.9045285,
+          "exclusiveMedianMs": 0.039473999999999995
+        },
+        {
+          "name": "runtime.gate",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.001493,
+          "exclusiveMedianMs": 0.001493
+        },
+        {
+          "name": "runtime.prepare",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 4.8769005,
+          "exclusiveMedianMs": 0.0019639999999999996
+        },
+        {
+          "name": "runtime.render.core",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 5.866396999999999,
+          "exclusiveMedianMs": 0.0019145
+        },
+        {
+          "name": "runtime.skia",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.961489,
+          "exclusiveMedianMs": 0.0009469999999999999
+        },
+        {
+          "name": "script.boundary",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 3.398835,
+          "exclusiveMedianMs": 0.134554
+        },
+        {
+          "name": "script.emitters",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.1911195,
+          "exclusiveMedianMs": 0.1713525
+        },
+        {
+          "name": "script.evaluate",
+          "calls": [
+            5,
+            6,
+            7
+          ],
+          "inclusiveMedianMs": 3.352583,
+          "exclusiveMedianMs": 2.388169
+        },
+        {
+          "name": "script.frame.prepare",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 4.8750465,
+          "exclusiveMedianMs": 0.013836999999999999
+        },
+        {
+          "name": "script.invoke.Advance",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.0048385,
+          "exclusiveMedianMs": 0.0048385
+        },
+        {
+          "name": "script.invoke.ComposeOutputs",
+          "calls": [
+            5,
+            6,
+            7
+          ],
+          "inclusiveMedianMs": 0.014738,
+          "exclusiveMedianMs": 0.014738
+        },
+        {
+          "name": "script.invoke.Evaluate",
+          "calls": [
+            5,
+            6,
+            7
+          ],
+          "inclusiveMedianMs": 0.033091499999999996,
+          "exclusiveMedianMs": 0.033091499999999996
+        },
+        {
+          "name": "script.invoke.EvaluateEmitters",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.0201485,
+          "exclusiveMedianMs": 0.0201485
+        },
+        {
+          "name": "script.invoke.OnEvent",
+          "calls": [
+            0,
+            3,
+            9
+          ],
+          "inclusiveMedianMs": 0.0,
+          "exclusiveMedianMs": 0.0
+        },
+        {
+          "name": "skia.draw",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.5771109999999999,
+          "exclusiveMedianMs": 0.2088825
+        },
+        {
+          "name": "skia.draw.background",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.000761,
+          "exclusiveMedianMs": 0.000761
+        },
+        {
+          "name": "skia.draw.lyrics",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.31595399999999996,
+          "exclusiveMedianMs": 0.31595399999999996
+        },
+        {
+          "name": "skia.draw.overlays",
+          "calls": [
+            2
+          ],
+          "inclusiveMedianMs": 0.048446499999999997,
+          "exclusiveMedianMs": 0.048446499999999997
+        },
+        {
+          "name": "skia.finalReadback",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.26252849999999994,
+          "exclusiveMedianMs": 0.26252849999999994
+        },
+        {
+          "name": "skia.finalSubmit",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.0017485,
+          "exclusiveMedianMs": 0.00043099999999999996
+        },
+        {
+          "name": "skia.render",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.9604219999999999,
+          "exclusiveMedianMs": 0.0170475
+        },
+        {
+          "name": "skia.surface.create",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.0909565,
+          "exclusiveMedianMs": 0.0909565
+        },
+        {
+          "name": "skia.validate",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.024501,
+          "exclusiveMedianMs": 0.024501
+        },
+        {
+          "name": "text.shape",
+          "calls": [
+            0,
+            2
+          ],
+          "inclusiveMedianMs": 0.0,
+          "exclusiveMedianMs": 0.0
+        }
+      ]
+    },
+    {
+      "scenario": "particle",
+      "backend": "vulkan",
+      "source": "historical-traces/trace-main/r01-particle-vulkan-new-instrumented.json",
+      "sha256": "c382ef5ae805da19947c0997b10782e89ec11cddb9ed603ea33e070072dc0233",
+      "frames": 24,
+      "wall": {
+        "n": 24,
+        "medianMs": 6.9832,
+        "p95Ms": 8.997355,
+        "maxMs": 10.4838
+      },
+      "stages": [
+        {
+          "name": "device.submit",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.30893099999999996,
+          "exclusiveMedianMs": 0.30893099999999996
+        },
+        {
+          "name": "geometry.scene",
+          "calls": [
+            5,
+            6,
+            7
+          ],
+          "inclusiveMedianMs": 0.921074,
+          "exclusiveMedianMs": 0.918398
+        },
+        {
+          "name": "particle.birthGeometry",
+          "calls": [
+            1,
+            2,
+            3
+          ],
+          "inclusiveMedianMs": 1.6133505,
+          "exclusiveMedianMs": 0.0691455
+        },
+        {
+          "name": "particle.commit",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 1.2825324999999999,
+          "exclusiveMedianMs": 0.1387505
+        },
+        {
+          "name": "particle.read",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 1.116005,
+          "exclusiveMedianMs": 0.6292645
+        },
+        {
+          "name": "render",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 6.990831999999999,
+          "exclusiveMedianMs": 0.048866999999999994
+        },
+        {
+          "name": "runtime.gate",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.002019,
+          "exclusiveMedianMs": 0.002019
+        },
+        {
+          "name": "runtime.prepare",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 4.643742,
+          "exclusiveMedianMs": 0.0024999999999999996
+        },
+        {
+          "name": "runtime.render.core",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 6.9303235,
+          "exclusiveMedianMs": 0.002865
+        },
+        {
+          "name": "runtime.skia",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 2.2662285,
+          "exclusiveMedianMs": 0.0013725
+        },
+        {
+          "name": "script.boundary",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 3.3525679999999998,
+          "exclusiveMedianMs": 0.12036949999999999
+        },
+        {
+          "name": "script.emitters",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.18923099999999998,
+          "exclusiveMedianMs": 0.169389
+        },
+        {
+          "name": "script.evaluate",
+          "calls": [
+            5,
+            6,
+            7
+          ],
+          "inclusiveMedianMs": 3.484356,
+          "exclusiveMedianMs": 2.534618
+        },
+        {
+          "name": "script.frame.prepare",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 4.641216999999999,
+          "exclusiveMedianMs": 0.015439499999999998
+        },
+        {
+          "name": "script.invoke.Advance",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.004718,
+          "exclusiveMedianMs": 0.004718
+        },
+        {
+          "name": "script.invoke.ComposeOutputs",
+          "calls": [
+            5,
+            6,
+            7
+          ],
+          "inclusiveMedianMs": 0.0160305,
+          "exclusiveMedianMs": 0.0160305
+        },
+        {
+          "name": "script.invoke.Evaluate",
+          "calls": [
+            5,
+            6,
+            7
+          ],
+          "inclusiveMedianMs": 0.032977,
+          "exclusiveMedianMs": 0.032977
+        },
+        {
+          "name": "script.invoke.EvaluateEmitters",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.0203185,
+          "exclusiveMedianMs": 0.0203185
+        },
+        {
+          "name": "script.invoke.OnEvent",
+          "calls": [
+            0,
+            3,
+            9
+          ],
+          "inclusiveMedianMs": 0.0,
+          "exclusiveMedianMs": 0.0
+        },
+        {
+          "name": "skia.draw",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.33801099999999995,
+          "exclusiveMedianMs": 0.023213499999999998
+        },
+        {
+          "name": "skia.draw.background",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.000641,
+          "exclusiveMedianMs": 0.000641
+        },
+        {
+          "name": "skia.draw.lyrics",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.28550200000000003,
+          "exclusiveMedianMs": 0.28550200000000003
+        },
+        {
+          "name": "skia.draw.overlays",
+          "calls": [
+            2
+          ],
+          "inclusiveMedianMs": 0.027131,
+          "exclusiveMedianMs": 0.027131
+        },
+        {
+          "name": "skia.finalReadback",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 1.5149499999999998,
+          "exclusiveMedianMs": 1.5149499999999998
+        },
+        {
+          "name": "skia.finalSubmit",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.309382,
+          "exclusiveMedianMs": 0.0006069999999999999
+        },
+        {
+          "name": "skia.render",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 2.2647405,
+          "exclusiveMedianMs": 0.0311545
+        },
+        {
+          "name": "skia.surface.create",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.0231585,
+          "exclusiveMedianMs": 0.0231585
+        },
+        {
+          "name": "skia.validate",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.025467999999999998,
+          "exclusiveMedianMs": 0.025467999999999998
+        },
+        {
+          "name": "text.shape",
+          "calls": [
+            0,
+            2
+          ],
+          "inclusiveMedianMs": 0.0,
+          "exclusiveMedianMs": 0.0
+        }
+      ]
+    },
+    {
+      "scenario": "combined",
+      "backend": "cpu",
+      "source": "historical-traces/trace-heavy/r01-combined-cpu-new-instrumented.json",
+      "sha256": "5b4cdedfc748daee116b01011ef962711f6a8210cada868aec6765166cc9c276",
+      "frames": 8,
+      "wall": {
+        "n": 8,
+        "medianMs": 4784.4055499999995,
+        "p95Ms": 4862.8911100000005,
+        "maxMs": 4878.5982
+      },
+      "stages": [
+        {
+          "name": "device.imageReadback",
+          "calls": [
+            95
+          ],
+          "inclusiveMedianMs": 29.9391385,
+          "exclusiveMedianMs": 29.9391385
+        },
+        {
+          "name": "device.submit",
+          "calls": [
+            196
+          ],
+          "inclusiveMedianMs": 0.23310949999999997,
+          "exclusiveMedianMs": 0.23310949999999997
+        },
+        {
+          "name": "geometry.scene",
+          "calls": [
+            6,
+            7
+          ],
+          "inclusiveMedianMs": 0.563155,
+          "exclusiveMedianMs": 0.563155
+        },
+        {
+          "name": "graph.draw",
+          "calls": [
+            50
+          ],
+          "inclusiveMedianMs": 4189.307877,
+          "exclusiveMedianMs": 4189.307877
+        },
+        {
+          "name": "graph.raster",
+          "calls": [
+            50
+          ],
+          "inclusiveMedianMs": 4289.714642999999,
+          "exclusiveMedianMs": 17.424877
+        },
+        {
+          "name": "graph.readback",
+          "calls": [
+            68
+          ],
+          "inclusiveMedianMs": 24.444659,
+          "exclusiveMedianMs": 0.1552235
+        },
+        {
+          "name": "graph.sceneReadback",
+          "calls": [
+            27
+          ],
+          "inclusiveMedianMs": 6.1407324999999995,
+          "exclusiveMedianMs": 0.020203
+        },
+        {
+          "name": "graph.submit",
+          "calls": [
+            50
+          ],
+          "inclusiveMedianMs": 0.1404765,
+          "exclusiveMedianMs": 0.0637385
+        },
+        {
+          "name": "graph.surface.create",
+          "calls": [
+            50
+          ],
+          "inclusiveMedianMs": 6.488759999999999,
+          "exclusiveMedianMs": 6.488759999999999
+        },
+        {
+          "name": "graph.validate.premultiplied",
+          "calls": [
+            68
+          ],
+          "inclusiveMedianMs": 77.929137,
+          "exclusiveMedianMs": 77.929137
+        },
+        {
+          "name": "particle.birthGeometry",
+          "calls": [
+            2,
+            3
+          ],
+          "inclusiveMedianMs": 1.00467,
+          "exclusiveMedianMs": 0.048646499999999995
+        },
+        {
+          "name": "particle.commit",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.9876674999999999,
+          "exclusiveMedianMs": 0.11225149999999999
+        },
+        {
+          "name": "particle.read",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.378131,
+          "exclusiveMedianMs": 0.287662
+        },
+        {
+          "name": "render",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 4784.407481499999,
+          "exclusiveMedianMs": 0.078944
+        },
+        {
+          "name": "runtime.gate",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.0040725,
+          "exclusiveMedianMs": 0.0040725
+        },
+        {
+          "name": "runtime.prepare",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 3.2818655,
+          "exclusiveMedianMs": 0.0046949999999999995
+        },
+        {
+          "name": "runtime.render.core",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 4784.3314835,
+          "exclusiveMedianMs": 0.007048499999999999
+        },
+        {
+          "name": "runtime.skia",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 4782.120978499999,
+          "exclusiveMedianMs": 0.0026994999999999996
+        },
+        {
+          "name": "script.boundary",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 2.102922,
+          "exclusiveMedianMs": 0.14240399999999998
+        },
+        {
+          "name": "script.emitters",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.23129049999999998,
+          "exclusiveMedianMs": 0.194321
+        },
+        {
+          "name": "script.evaluate",
+          "calls": [
+            6,
+            7
+          ],
+          "inclusiveMedianMs": 2.1373119999999997,
+          "exclusiveMedianMs": 1.3585509999999998
+        },
+        {
+          "name": "script.frame.prepare",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 3.276896,
+          "exclusiveMedianMs": 0.027410499999999997
+        },
+        {
+          "name": "script.invoke.Advance",
+          "calls": [
+            12
+          ],
+          "inclusiveMedianMs": 0.0068275,
+          "exclusiveMedianMs": 0.0068275
+        },
+        {
+          "name": "script.invoke.ComposeOutputs",
+          "calls": [
+            18,
+            21
+          ],
+          "inclusiveMedianMs": 0.06848699999999999,
+          "exclusiveMedianMs": 0.06848699999999999
+        },
+        {
+          "name": "script.invoke.Evaluate",
+          "calls": [
+            18,
+            21
+          ],
+          "inclusiveMedianMs": 0.08628849999999999,
+          "exclusiveMedianMs": 0.08628849999999999
+        },
+        {
+          "name": "script.invoke.EvaluateEmitters",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.0369695,
+          "exclusiveMedianMs": 0.0369695
+        },
+        {
+          "name": "script.invoke.OnEvent",
+          "calls": [
+            0,
+            9
+          ],
+          "inclusiveMedianMs": 0.0,
+          "exclusiveMedianMs": 0.0
+        },
+        {
+          "name": "skia.draw",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 4781.62712,
+          "exclusiveMedianMs": 0.27149449999999997
+        },
+        {
+          "name": "skia.draw.background",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.0013075,
+          "exclusiveMedianMs": 0.0013075
+        },
+        {
+          "name": "skia.draw.imageScene",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 4781.314200999999,
+          "exclusiveMedianMs": 458.99748850000003
+        },
+        {
+          "name": "skia.draw.overlays",
+          "calls": [
+            2
+          ],
+          "inclusiveMedianMs": 0.073514,
+          "exclusiveMedianMs": 0.073514
+        },
+        {
+          "name": "skia.finalReadback",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.37887249999999995,
+          "exclusiveMedianMs": 0.37887249999999995
+        },
+        {
+          "name": "skia.finalSubmit",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.0026550000000000002,
+          "exclusiveMedianMs": 0.0007509999999999999
+        },
+        {
+          "name": "skia.render",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 4782.118259,
+          "exclusiveMedianMs": 0.0178375
+        },
+        {
+          "name": "skia.surface.create",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.12277099999999999,
+          "exclusiveMedianMs": 0.12277099999999999
+        },
+        {
+          "name": "skia.validate",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.0142625,
+          "exclusiveMedianMs": 0.0142625
+        }
+      ]
+    },
+    {
+      "scenario": "combined",
+      "backend": "vulkan",
+      "source": "historical-traces/trace-heavy/r01-combined-vulkan-new-instrumented.json",
+      "sha256": "e608ccf5b4c5b590397f7687a4a56f24b6f480cb783d56b391622fe94e2f6cc0",
+      "frames": 8,
+      "wall": {
+        "n": 8,
+        "medianMs": 1106.9092999999998,
+        "p95Ms": 1171.55076,
+        "maxMs": 1184.8124
+      },
+      "stages": [
+        {
+          "name": "device.imageReadback",
+          "calls": [
+            95
+          ],
+          "inclusiveMedianMs": 934.011209,
+          "exclusiveMedianMs": 934.011209
+        },
+        {
+          "name": "device.submit",
+          "calls": [
+            196
+          ],
+          "inclusiveMedianMs": 59.7906905,
+          "exclusiveMedianMs": 59.7906905
+        },
+        {
+          "name": "geometry.scene",
+          "calls": [
+            6,
+            7
+          ],
+          "inclusiveMedianMs": 0.5147189999999999,
+          "exclusiveMedianMs": 0.5147189999999999
+        },
+        {
+          "name": "graph.draw",
+          "calls": [
+            50
+          ],
+          "inclusiveMedianMs": 0.813136,
+          "exclusiveMedianMs": 0.813136
+        },
+        {
+          "name": "graph.raster",
+          "calls": [
+            50
+          ],
+          "inclusiveMedianMs": 562.7491605,
+          "exclusiveMedianMs": 1.287336
+        },
+        {
+          "name": "graph.readback",
+          "calls": [
+            68
+          ],
+          "inclusiveMedianMs": 664.276693,
+          "exclusiveMedianMs": 0.142978
+        },
+        {
+          "name": "graph.sceneReadback",
+          "calls": [
+            27
+          ],
+          "inclusiveMedianMs": 270.3307975,
+          "exclusiveMedianMs": 0.0497585
+        },
+        {
+          "name": "graph.submit",
+          "calls": [
+            50
+          ],
+          "inclusiveMedianMs": 18.557389999999998,
+          "exclusiveMedianMs": 0.035200999999999996
+        },
+        {
+          "name": "graph.surface.create",
+          "calls": [
+            50
+          ],
+          "inclusiveMedianMs": 0.45210399999999995,
+          "exclusiveMedianMs": 0.45210399999999995
+        },
+        {
+          "name": "graph.validate.premultiplied",
+          "calls": [
+            68
+          ],
+          "inclusiveMedianMs": 79.461578,
+          "exclusiveMedianMs": 79.461578
+        },
+        {
+          "name": "particle.birthGeometry",
+          "calls": [
+            2,
+            3
+          ],
+          "inclusiveMedianMs": 0.9673309999999999,
+          "exclusiveMedianMs": 0.0438425
+        },
+        {
+          "name": "particle.commit",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 1.0300535,
+          "exclusiveMedianMs": 0.1071915
+        },
+        {
+          "name": "particle.read",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.368293,
+          "exclusiveMedianMs": 0.24602749999999998
+        },
+        {
+          "name": "render",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 1106.910962,
+          "exclusiveMedianMs": 0.07233049999999999
+        },
+        {
+          "name": "runtime.gate",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.0033165,
+          "exclusiveMedianMs": 0.0033165
+        },
+        {
+          "name": "runtime.prepare",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 3.2027769999999998,
+          "exclusiveMedianMs": 0.004403
+        },
+        {
+          "name": "runtime.render.core",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 1106.8390625,
+          "exclusiveMedianMs": 0.0066879999999999995
+        },
+        {
+          "name": "runtime.skia",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 1104.8811435,
+          "exclusiveMedianMs": 0.00262
+        },
+        {
+          "name": "script.boundary",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 1.6654844999999998,
+          "exclusiveMedianMs": 0.125286
+        },
+        {
+          "name": "script.emitters",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.20102799999999998,
+          "exclusiveMedianMs": 0.1627455
+        },
+        {
+          "name": "script.evaluate",
+          "calls": [
+            6,
+            7
+          ],
+          "inclusiveMedianMs": 1.9639609999999998,
+          "exclusiveMedianMs": 1.172587
+        },
+        {
+          "name": "script.frame.prepare",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 3.197427,
+          "exclusiveMedianMs": 0.025282
+        },
+        {
+          "name": "script.invoke.Advance",
+          "calls": [
+            12
+          ],
+          "inclusiveMedianMs": 0.005872,
+          "exclusiveMedianMs": 0.005872
+        },
+        {
+          "name": "script.invoke.ComposeOutputs",
+          "calls": [
+            18,
+            21
+          ],
+          "inclusiveMedianMs": 0.07497499999999999,
+          "exclusiveMedianMs": 0.07497499999999999
+        },
+        {
+          "name": "script.invoke.Evaluate",
+          "calls": [
+            18,
+            21
+          ],
+          "inclusiveMedianMs": 0.077913,
+          "exclusiveMedianMs": 0.077913
+        },
+        {
+          "name": "script.invoke.EvaluateEmitters",
+          "calls": [
+            4
+          ],
+          "inclusiveMedianMs": 0.0327215,
+          "exclusiveMedianMs": 0.0327215
+        },
+        {
+          "name": "script.invoke.OnEvent",
+          "calls": [
+            0,
+            9
+          ],
+          "inclusiveMedianMs": 0.0,
+          "exclusiveMedianMs": 0.0
+        },
+        {
+          "name": "skia.draw",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 1102.4685635,
+          "exclusiveMedianMs": 0.023348
+        },
+        {
+          "name": "skia.draw.background",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.000691,
+          "exclusiveMedianMs": 0.000691
+        },
+        {
+          "name": "skia.draw.imageScene",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 1102.393633,
+          "exclusiveMedianMs": 27.1417085
+        },
+        {
+          "name": "skia.draw.overlays",
+          "calls": [
+            2
+          ],
+          "inclusiveMedianMs": 0.0322955,
+          "exclusiveMedianMs": 0.0322955
+        },
+        {
+          "name": "skia.finalReadback",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 1.8465345,
+          "exclusiveMedianMs": 1.8465345
+        },
+        {
+          "name": "skia.finalSubmit",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.2891085,
+          "exclusiveMedianMs": 0.000376
+        },
+        {
+          "name": "skia.render",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 1104.8789539999998,
+          "exclusiveMedianMs": 0.018154
+        },
+        {
+          "name": "skia.surface.create",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.020062999999999998,
+          "exclusiveMedianMs": 0.020062999999999998
+        },
+        {
+          "name": "skia.validate",
+          "calls": [
+            1
+          ],
+          "inclusiveMedianMs": 0.0113965,
+          "exclusiveMedianMs": 0.0113965
+        }
+      ]
+    }
+  ],
+  "runtimeVerification": {
+    "processes": 42,
+    "projectFrames": 342,
+    "probeFrames": 42,
+    "maximumProjectFramesPerProcess": 12,
+    "matchedReadFramePairs": 161,
+    "matchedReadAllPixelAndDiagnosticEqual": true,
+    "topLeftFramePairs": 20,
+    "topLeftUnequalPixelPairs": 5,
+    "radVAndDrmEvidenceProcesses": 42
+  },
+  "microVerification": {
+    "processes": 15,
+    "readRecords": 960,
+    "surfaces": 1056,
+    "sameMethodGroupMismatches": 0,
+    "crossOriginPixelHashMismatches": 192
+  },
+  "selectedInputsVerified": 952,
+  "observedExitZeroAndAbsentProcesses": 57,
+  "archive": {
+    "path": "evidence.tar.gz",
+    "bytes": 1552675,
+    "sha256": "f452ed96ee913a30810c21c762bbf482a2dd984b95f727584414ae45adcedce4"
+  }
+}

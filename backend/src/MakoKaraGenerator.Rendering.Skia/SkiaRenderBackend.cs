@@ -1,0 +1,423 @@
+using System.Runtime.ExceptionServices;
+using System.Runtime.InteropServices;
+using SharpVk;
+using SkiaSharp;
+
+namespace MakoKaraGenerator.Rendering.Skia;
+
+/// <summary>Skia 后端的显式设备选择。默认值保持既有 CPU 光栅行为。</summary>
+internal enum SkiaRenderBackend
+{
+    Cpu,
+    Vulkan,
+}
+
+internal sealed record SkiaRenderBackendOptions(SkiaRenderBackend Backend = SkiaRenderBackend.Cpu)
+{
+    public static SkiaRenderBackendOptions FromEnvironment() =>
+        Parse(Environment.GetEnvironmentVariable("MAKO_RENDER_BACKEND"));
+
+    internal static SkiaRenderBackendOptions Parse(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Equals("cpu", StringComparison.OrdinalIgnoreCase))
+            return new(SkiaRenderBackend.Cpu);
+        if (value.Equals("vulkan", StringComparison.OrdinalIgnoreCase))
+            return new(SkiaRenderBackend.Vulkan);
+        throw new InvalidOperationException($"未知渲染后端 '{value}'；允许值为 cpu 或 vulkan。");
+    }
+}
+
+internal sealed record SkiaRenderDeviceInfo(string Backend, string? Vendor, string? Device, string? Driver, string? ApiVersion)
+{
+    public override string ToString() => string.Join(", ", new[]
+    {
+        $"backend={Backend}", Vendor is null ? null : $"vendor={Vendor}", Device is null ? null : $"device={Device}",
+        Driver is null ? null : $"driver={Driver}", ApiVersion is null ? null : $"api={ApiVersion}",
+    }.Where(value => value is not null));
+}
+
+/// <summary>共享给主画布和所有图中间表面的 Skia 设备。</summary>
+internal interface ISkiaRenderDevice : IDisposable
+{
+    SkiaRenderDeviceInfo Info { get; }
+    SKSurface CreateSurface(SKImageInfo imageInfo);
+    void FlushAndSubmit(SKSurface surface);
+    SKImage? RasterizeImage(SKImage image);
+    bool ReadPixels(SKSurface surface, SKImageInfo imageInfo, IntPtr destination, int rowBytes);
+    bool ReadPixels(SKImage image, SKImageInfo imageInfo, IntPtr destination, int rowBytes);
+    // Caller must own the snapshot and know that this device created it.
+    bool ReadOwnedImagePixels(SKImage image, SKImageInfo imageInfo, IntPtr destination, int rowBytes)
+        => ReadPixels(image, imageInfo, destination, rowBytes);
+}
+
+internal static class SkiaReadbackTelemetry
+{
+    internal static void Record(bool image, SKImageInfo info)
+    {
+        if (!PerformanceTelemetry.HasFrame) return;
+        long pixels = (long)Math.Max(0, info.Width) * Math.Max(0, info.Height);
+        int bytesPerPixel = Math.Max(0, info.BytesPerPixel);
+        long bytes = bytesPerPixel == 0 ? 0 : pixels > long.MaxValue / bytesPerPixel ? long.MaxValue : pixels * bytesPerPixel;
+        PerformanceTelemetry.RecordReadback(image, bytes);
+    }
+}
+
+internal static class SkiaRenderDeviceFactory
+{
+    public static ISkiaRenderDevice Create(SkiaRenderBackendOptions? options = null)
+    {
+        options ??= SkiaRenderBackendOptions.FromEnvironment();
+        return options.Backend switch
+        {
+            SkiaRenderBackend.Cpu => new CpuSkiaRenderDevice(),
+            SkiaRenderBackend.Vulkan => VulkanSkiaRenderDevice.Create(),
+            _ => throw new InvalidOperationException($"不支持的 Skia 渲染后端：{options.Backend}。"),
+        };
+    }
+}
+
+internal sealed class CpuSkiaRenderDevice : ISkiaRenderDevice
+{
+    private bool _disposed;
+
+    public SkiaRenderDeviceInfo Info { get; } = new("cpu", null, "Skia raster", null, null);
+
+    public SKSurface CreateSurface(SKImageInfo imageInfo)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        return SKSurface.Create(imageInfo) ?? throw new InvalidOperationException("无法创建 CPU Skia 表面。");
+    }
+
+    public void FlushAndSubmit(SKSurface surface)
+    {
+        ArgumentNullException.ThrowIfNull(surface);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        surface.Flush();
+    }
+
+    public SKImage? RasterizeImage(SKImage image)
+    {
+        ArgumentNullException.ThrowIfNull(image);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        return image.ToRasterImage(true);
+    }
+
+    public bool ReadPixels(SKSurface surface, SKImageInfo imageInfo, IntPtr destination, int rowBytes)
+    {
+        ArgumentNullException.ThrowIfNull(surface);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        using var performance = PerformanceTelemetry.Measure(PerformancePhase.Readback);
+        SkiaReadbackTelemetry.Record(false, imageInfo);
+        return surface.ReadPixels(imageInfo, destination, rowBytes, 0, 0);
+    }
+
+    public bool ReadPixels(SKImage image, SKImageInfo imageInfo, IntPtr destination, int rowBytes)
+    {
+        ArgumentNullException.ThrowIfNull(image);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        using var performance = PerformanceTelemetry.Measure(PerformancePhase.Readback);
+        SkiaReadbackTelemetry.Record(true, imageInfo);
+        return image.ReadPixels(imageInfo, destination, rowBytes, 0, 0);
+    }
+
+    public void Dispose() => _disposed = true;
+}
+
+/// <summary>Skia Ganesh Vulkan device backed by one SharpVk instance/device/queue.</summary>
+internal sealed class VulkanSkiaRenderDevice : ISkiaRenderDevice
+{
+    private readonly Instance _instance;
+    private readonly PhysicalDevice _physicalDevice;
+    private readonly Device _device;
+    private readonly Queue _queue;
+    private readonly GRVkExtensions _extensions;
+    private readonly GRSharpVkBackendContext _backendContext;
+    private readonly GRContext _context;
+    private readonly IntPtr _vulkanLibrary;
+    private readonly GRVkGetProcedureAddressDelegate _nativeProcedure;
+    private readonly GRSharpVkGetProcedureAddressDelegate _sharpProcedure;
+    private bool _disposed;
+
+    private VulkanSkiaRenderDevice(Instance instance, PhysicalDevice physicalDevice, Device device, Queue queue,
+        GRVkExtensions extensions, GRSharpVkBackendContext backendContext, GRContext context, IntPtr vulkanLibrary,
+        GRVkGetProcedureAddressDelegate nativeProcedure, GRSharpVkGetProcedureAddressDelegate sharpProcedure,
+        SkiaRenderDeviceInfo info)
+    {
+        _instance = instance;
+        _physicalDevice = physicalDevice;
+        _device = device;
+        _queue = queue;
+        _extensions = extensions;
+        _backendContext = backendContext;
+        _context = context;
+        _vulkanLibrary = vulkanLibrary;
+        _nativeProcedure = nativeProcedure;
+        _sharpProcedure = sharpProcedure;
+        Info = info;
+    }
+
+    public SkiaRenderDeviceInfo Info { get; }
+
+    public static VulkanSkiaRenderDevice Create()
+    {
+        SharpVkNativeLoader.EnsureInstalled();
+        Instance? instance = null;
+        Device? device = null;
+        GRVkExtensions? extensions = null;
+        GRSharpVkBackendContext? backendContext = null;
+        GRContext? context = null;
+        IntPtr vulkanLibrary = IntPtr.Zero;
+        try
+        {
+            instance = Instance.Create(null, null, null,
+                new ApplicationInfo { ApplicationName = "MakoKaraGenerator", ApplicationVersion = new SharpVk.Version(1, 0, 0),
+                    EngineName = "MakoKaraGenerator", EngineVersion = new SharpVk.Version(1, 0, 0), ApiVersion = new SharpVk.Version(1, 0, 0) },
+                null, null, null);
+            PhysicalDevice[] physicalDevices = instance.EnumeratePhysicalDevices();
+            var candidates = physicalDevices.Select(value =>
+            {
+                PhysicalDeviceProperties properties = value.GetProperties();
+                int graphicsQueueFamily = Array.FindIndex(value.GetQueueFamilyProperties(),
+                    family => family.QueueCount > 0 && family.QueueFlags.HasFlag(QueueFlags.Graphics));
+                return new DeviceCandidate(properties.DeviceName, properties.DeviceType, graphicsQueueFamily);
+            }).ToArray();
+            int selectedIndex = SelectGpuIndex(candidates);
+            PhysicalDevice physical = physicalDevices[selectedIndex];
+            int family = candidates[selectedIndex].GraphicsQueueFamily;
+            DeviceQueueCreateInfo[] queues = [new() { QueueFamilyIndex = (uint)family, QueuePriorities = [1f] }];
+            device = physical.CreateDevice(queues,
+                null, null, null, null, null, null, null);
+            Queue queue = device.GetQueue((uint)family, 0);
+            Instance stableInstance = instance;
+            Device stableDevice = device;
+            vulkanLibrary = NativeLibrary.Load("libvulkan.so.1");
+            var globalGetInstanceProcAddress = Marshal.GetDelegateForFunctionPointer<VkGetInstanceProcAddrDelegate>(
+                NativeLibrary.GetExport(vulkanLibrary, "vkGetInstanceProcAddr"));
+            GRVkGetProcedureAddressDelegate getRawProc = new((name, vkInstance, vkDevice) =>
+                vkDevice != IntPtr.Zero ? stableDevice.GetProcedureAddress(name)
+                : vkInstance != IntPtr.Zero ? stableInstance.GetProcedureAddress(name)
+                : GlobalProcedure(globalGetInstanceProcAddress, name));
+            GRSharpVkGetProcedureAddressDelegate getSharpProc = new((name, vkInstance, vkDevice) =>
+            {
+                IntPtr rawInstance = vkInstance is null ? IntPtr.Zero : checked((IntPtr)(long)vkInstance.RawHandle.ToUInt64());
+                IntPtr rawDevice = vkDevice is null ? IntPtr.Zero : checked((IntPtr)(long)vkDevice.RawHandle.ToUInt64());
+                return getRawProc(name, rawInstance, rawDevice);
+            });
+            extensions = GRVkExtensions.Create(
+                getRawProc,
+                (IntPtr)instance.RawHandle.ToUInt64(), (IntPtr)physical.RawHandle.ToUInt64(), Array.Empty<string>(), Array.Empty<string>());
+            var properties = physical.GetProperties();
+            backendContext = new GRSharpVkBackendContext
+            {
+                VkInstance = instance,
+                VkPhysicalDevice = physical,
+                VkDevice = device,
+                VkQueue = queue,
+                GraphicsQueueIndex = (uint)family,
+                MaxAPIVersion = 0x00400000,
+                Extensions = extensions,
+                GetProcedureAddress = getSharpProc,
+            };
+            context = GRContext.CreateVulkan(backendContext)
+                ?? throw new InvalidOperationException("Skia Ganesh 无法基于 Vulkan device 创建 GRContext。");
+            var info = new SkiaRenderDeviceInfo("vulkan", $"0x{properties.VendorID:X8}", properties.DeviceName,
+                FormatDriverVersion(properties.DriverVersion), FormatApiVersion(properties.ApiVersion));
+            var result = new VulkanSkiaRenderDevice(instance, physical, device, queue, extensions, backendContext, context,
+                vulkanLibrary, getRawProc, getSharpProc, info);
+            instance = null; device = null; extensions = null; context = null;
+            backendContext = null; vulkanLibrary = IntPtr.Zero;
+            return result;
+
+            static IntPtr GlobalProcedure(VkGetInstanceProcAddrDelegate global, string name)
+            {
+                IntPtr utf8 = Marshal.StringToCoTaskMemUTF8(name);
+                try { return global(IntPtr.Zero, utf8); }
+                finally { Marshal.FreeCoTaskMem(utf8); }
+            }
+        }
+        catch (Exception error)
+        {
+            SkiaNativeResourceCleanup.Run(error,
+                () => device?.WaitIdle(),
+                () => context?.Dispose(),
+                () => backendContext?.Dispose(),
+                () => extensions?.Dispose(),
+                () => device?.Dispose(),
+                () => instance?.Dispose(),
+                () => { if (vulkanLibrary != IntPtr.Zero) NativeLibrary.Free(vulkanLibrary); });
+            throw new InvalidOperationException($"Vulkan Skia 渲染设备初始化失败；已拒绝回落 CPU：{error.Message}", error);
+        }
+    }
+
+    internal readonly record struct DeviceCandidate(string Name, PhysicalDeviceType Type, int GraphicsQueueFamily);
+
+    internal static int SelectGpuIndex(IReadOnlyList<DeviceCandidate> candidates)
+    {
+        int selected = -1;
+        int selectedPriority = 0;
+        for (int index = 0; index < candidates.Count; index++)
+        {
+            DeviceCandidate candidate = candidates[index];
+            int priority = candidate.Type switch
+            {
+                PhysicalDeviceType.DiscreteGpu => 3,
+                PhysicalDeviceType.IntegratedGpu => 2,
+                PhysicalDeviceType.VirtualGpu => 1,
+                _ => 0,
+            };
+            if (candidate.GraphicsQueueFamily < 0 || priority <= selectedPriority) continue;
+            selected = index;
+            selectedPriority = priority;
+        }
+        if (selected >= 0) return selected;
+
+        string available = candidates.Count == 0 ? "无 physical device" : string.Join("；",
+            candidates.Select(value => $"{value.Name} ({value.Type}, graphicsQueueFamily={value.GraphicsQueueFamily})"));
+        throw new InvalidOperationException(
+            $"Vulkan 没有带 graphics queue 的集成、独立或虚拟 GPU；CPU/软件设备不支持显式 GPU 渲染。已枚举：{available}。");
+    }
+
+    // Vulkan driverVersion has vendor-defined encoding. Preserve the exact bits rather
+    // than presenting SharpVk.Version's generic decode as a vendor's semantic version.
+    internal static string FormatDriverVersion(SharpVk.Version version) => $"raw:0x{(uint)version:X8}";
+
+    internal static string FormatApiVersion(SharpVk.Version version)
+    {
+        uint raw = (uint)version;
+        uint variant = raw >> 29;
+        string value = $"{(raw >> 22) & 0x7f}.{(raw >> 12) & 0x3ff}.{raw & 0xfff}";
+        return variant == 0 ? value : $"{value} (variant {variant})";
+    }
+
+    public SKSurface CreateSurface(SKImageInfo imageInfo)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        return SKSurface.Create(_context, true, imageInfo)
+            ?? throw new InvalidOperationException($"Vulkan Skia 无法创建 GPU 表面（{imageInfo.Width}×{imageInfo.Height}）。");
+    }
+
+    public void FlushAndSubmit(SKSurface surface)
+    {
+        ArgumentNullException.ThrowIfNull(surface);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        surface.Flush();
+        _context.Flush();
+        _context.Submit(true);
+    }
+
+    public SKImage? RasterizeImage(SKImage image)
+    {
+        ArgumentNullException.ThrowIfNull(image);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        _context.Flush();
+        _context.Submit(true);
+        return image.ToRasterImage(true);
+    }
+
+    public bool ReadPixels(SKSurface surface, SKImageInfo imageInfo, IntPtr destination, int rowBytes)
+    {
+        ArgumentNullException.ThrowIfNull(surface);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        using var performance = PerformanceTelemetry.Measure(PerformancePhase.Readback);
+        SkiaReadbackTelemetry.Record(false, imageInfo);
+        return surface.ReadPixels(imageInfo, destination, rowBytes, 0, 0);
+    }
+
+    public bool ReadPixels(SKImage image, SKImageInfo imageInfo, IntPtr destination, int rowBytes)
+    {
+        ArgumentNullException.ThrowIfNull(image);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        using var performance = PerformanceTelemetry.Measure(PerformancePhase.Readback);
+        SkiaReadbackTelemetry.Record(true, imageInfo);
+        _context.Flush();
+        _context.Submit(true);
+        SKImage? raster = image.ToRasterImage(true);
+        if (raster is null) return false;
+        try { return raster.ReadPixels(imageInfo, destination, rowBytes, 0, 0); }
+        finally { if (!ReferenceEquals(raster, image)) raster.Dispose(); }
+    }
+
+    public bool ReadOwnedImagePixels(SKImage image, SKImageInfo imageInfo, IntPtr destination, int rowBytes)
+    {
+        ArgumentNullException.ThrowIfNull(image);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        using var colorSpace = image.ColorSpace;
+        if (image.ColorType != SKColorType.Bgra8888 || image.AlphaType != SKAlphaType.Premul
+            || colorSpace?.IsSrgb != true || imageInfo.ColorType != SKColorType.Bgra8888
+            || imageInfo.AlphaType != SKAlphaType.Premul || imageInfo.ColorSpace is not null
+            || imageInfo.Width != image.Width || imageInfo.Height != image.Height)
+            return ReadPixels(image, imageInfo, destination, rowBytes);
+
+        using var performance = PerformanceTelemetry.Measure(PerformancePhase.Readback);
+        SkiaReadbackTelemetry.Record(true, imageInfo);
+        _context.Flush();
+        _context.Submit(true);
+        // Skia treats a null destination color space as the image's color space.
+        // Explicitly matching it avoids the expensive raster intermediate without
+        // changing the requested pixel encoding.
+        return image.ReadPixels(imageInfo.WithColorSpace(colorSpace), destination, rowBytes, 0, 0);
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        Exception? error = SkiaNativeResourceCleanup.Run(null,
+            _device.WaitIdle,
+            _context.Dispose,
+            _backendContext.Dispose,
+            _extensions.Dispose,
+            _device.Dispose,
+            _instance.Dispose,
+            () => NativeLibrary.Free(_vulkanLibrary));
+        if (error is not null) ExceptionDispatchInfo.Capture(error).Throw();
+    }
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate IntPtr VkGetInstanceProcAddrDelegate(IntPtr instance, IntPtr name);
+}
+
+internal static class SharpVkNativeLoader
+{
+    private static readonly Lazy<bool> Installation = new(InstallResolver, LazyThreadSafetyMode.ExecutionAndPublication);
+
+    public static void EnsureInstalled() => _ = Installation.Value;
+
+    private static bool InstallResolver()
+    {
+        try
+        {
+            NativeLibrary.SetDllImportResolver(typeof(Instance).Assembly, static (name, assembly, searchPath) =>
+                name == "libdl.so" ? NativeLibrary.Load("libdl.so.2") : IntPtr.Zero);
+        }
+        catch (InvalidOperationException)
+        {
+            // A host may have installed an equivalent resolver before this backend is loaded.
+        }
+        return true;
+    }
+}
+
+internal static class SkiaNativeResourceCleanup
+{
+    internal const string SecondaryFailuresKey = "VulkanCleanupFailures";
+
+    // All native owners must be released even after WaitIdle/device loss or a failed
+    // partial initialization. Retain the original failure and its stack for callers.
+    internal static Exception? Run(Exception? primaryFailure, params Action[] release)
+    {
+        List<Exception>? secondaryFailures = null;
+        foreach (Action step in release)
+        {
+            try { step(); }
+            catch (Exception error)
+            {
+                if (primaryFailure is null) primaryFailure = error;
+                else (secondaryFailures ??= []).Add(error);
+            }
+        }
+        if (secondaryFailures is not null)
+            primaryFailure!.Data[SecondaryFailuresKey] = secondaryFailures.ToArray();
+        return primaryFailure;
+    }
+}

@@ -1,0 +1,143 @@
+{
+  "schema": "performance-orchestration-evidence-v1",
+  "files": {
+    "artifacts/gpu-structural-optimization-20261028/ab-final1/analyze-heavy.orchestration.log": {
+      "sha256": "02fbaf6fe4c493717d21488e7aa2ba85718c7c58607c41f8d8b410651234030c",
+      "bytes": 492
+    },
+    "artifacts/gpu-structural-optimization-20261028/ab-final1/analyze-main.orchestration.log": {
+      "sha256": "df4351a35c3ba7d9cc4f23a419437d30992ed9dee311e2feda0fb3e4a12bdf2e",
+      "bytes": 494
+    },
+    "artifacts/gpu-structural-optimization-20261028/ab-final1/analyze-monitoring.orchestration.log": {
+      "sha256": "fcb88622ea5a6faf646fa223410419ad3d76d56ca11d3b577e83b73759b7f273",
+      "bytes": 492
+    },
+    "artifacts/gpu-structural-optimization-20261028/ab-final1/analyze-seek.orchestration.log": {
+      "sha256": "64ebb11e31eecd6d65adc76d2b50dfbbb825309a3a97d895fbc99ac3e2b94a28",
+      "bytes": 491
+    },
+    "artifacts/gpu-structural-optimization-20261028/ab-final1/analyze-trace-heavy.orchestration.log": {
+      "sha256": "04daa23a9b20ef3a08bfb38c6db0209a3b5d36c36344470e9ef29ed24939fc10",
+      "bytes": 490
+    },
+    "artifacts/gpu-structural-optimization-20261028/ab-final1/analyze-trace-main.orchestration.log": {
+      "sha256": "63682ff415553452504c4495bdca258ee1cbec3802bb799b7cc62d74e5d2809e",
+      "bytes": 494
+    },
+    "artifacts/gpu-structural-optimization-20261028/ab-final1/analyze-transparent.orchestration.log": {
+      "sha256": "2b8bcf05d86b2359811dcda6940b82b43bd4c6581485799e453580bf52a7feb8",
+      "bytes": 490
+    },
+    "artifacts/gpu-structural-optimization-20261028/ab-final1/compact-performance-comparison.json": {
+      "sha256": "9d2abe969145557d3488a87b3889c8ff1e9f83835375489c6aeb423b8bc0483b",
+      "bytes": 872214
+    },
+    "artifacts/gpu-structural-optimization-20261028/ab-final1/compare-trace-heavy.orchestration.log": {
+      "sha256": "729b519498dce5608b064f6b707e45e05a6b4147398841583131b18d2be32f11",
+      "bytes": 107
+    },
+    "artifacts/gpu-structural-optimization-20261028/ab-final1/compare-trace-main.orchestration.log": {
+      "sha256": "92ff5bc70088062330e1d3f1e44169126463598ec337083cf2cf06f9bb3a3738",
+      "bytes": 106
+    },
+    "artifacts/gpu-structural-optimization-20261028/ab-final1/comparison-table.md": {
+      "sha256": "2a576f80889beaf5df4452c5b598d32f76f6f10689c32d6e0955ae246160e6ff",
+      "bytes": 1138
+    },
+    "artifacts/gpu-structural-optimization-20261028/ab-final1/heavy.orchestration.log": {
+      "sha256": "aa3bca76afe5a8eb28eb2d0367eedd00c5968b6bbb37b20a715a558abc718f4c",
+      "bytes": 4110
+    },
+    "artifacts/gpu-structural-optimization-20261028/ab-final1/heavy.process-load.txt": {
+      "sha256": "418da6b1374cc99b8e2b9996e9b08d10763d06abac47f2473cd41ab69dd6dc72",
+      "bytes": 18854
+    },
+    "artifacts/gpu-structural-optimization-20261028/ab-final1/main.orchestration.log": {
+      "sha256": "7c809021a53a8af06638a4801bd501b102e34347599255222a9fe6bdd6aaa5f8",
+      "bytes": 8117
+    },
+    "artifacts/gpu-structural-optimization-20261028/ab-final1/main.process-load.txt": {
+      "sha256": "ea4b64ed9438bc8e07eab550494d49f05633760435686a5b1e634a5be6ff1eb1",
+      "bytes": 19162
+    },
+    "artifacts/gpu-structural-optimization-20261028/ab-final1/monitoring.orchestration.log": {
+      "sha256": "ec192c461c48d0fcc2552fb79ff536934247d6887141d2367df051951e3f6859",
+      "bytes": 6463
+    },
+    "artifacts/gpu-structural-optimization-20261028/ab-final1/monitoring.process-load.txt": {
+      "sha256": "8e1a0f9266d3ba226ba5a260f16de2fb618a8a2170fb0d2517fce61bfae45ed1",
+      "bytes": 19566
+    },
+    "artifacts/gpu-structural-optimization-20261028/ab-final1/orchestration.json": {
+      "sha256": "194b30a4390874fbc9cabbe9b31f96407477d2f082bbad62554764642dc23d01",
+      "bytes": 9698
+    },
+    "artifacts/gpu-structural-optimization-20261028/ab-final1/resumed-preflight.json": {
+      "sha256": "0e9231f202e67e12ff82f143f9fced3361ff6ab788f00e0376080f554bbf7acb",
+      "bytes": 439
+    },
+    "artifacts/gpu-structural-optimization-20261028/ab-final1/seek.orchestration.log": {
+      "sha256": "360cfee13eed6fc4cecfd6530aa2b7194806160f5bfb0b84c8f51c07dc80dbe3",
+      "bytes": 2449
+    },
+    "artifacts/gpu-structural-optimization-20261028/ab-final1/seek.process-load.txt": {
+      "sha256": "1f960db34c730333bd9500238682c33a52ed04c2b61ec6b22d3b62ba49fabf85",
+      "bytes": 19774
+    },
+    "artifacts/gpu-structural-optimization-20261028/ab-final1/trace-heavy.orchestration.log": {
+      "sha256": "9e478f050e24a58dd48a1bb9882ddd7317b5279ca4809fe68a27c4c83bdd7dea",
+      "bytes": 926
+    },
+    "artifacts/gpu-structural-optimization-20261028/ab-final1/trace-heavy.process-load.txt": {
+      "sha256": "54033f4dfe2647d1278c2863d4fd4b97b987f1182a5c2d0bd2eb62deb3ed1f16",
+      "bytes": 20370
+    },
+    "artifacts/gpu-structural-optimization-20261028/ab-final1/trace-main.orchestration.log": {
+      "sha256": "ea2b5b3475f61bad3446544d50bf3e54c1fff8177028fcb55144087f9510a1b1",
+      "bytes": 1834
+    },
+    "artifacts/gpu-structural-optimization-20261028/ab-final1/trace-main.process-load.txt": {
+      "sha256": "603a0344426b884437cb305bd84619dbbd3c4bc6b85cc3e82609d9340fe27612",
+      "bytes": 20206
+    },
+    "artifacts/gpu-structural-optimization-20261028/ab-final1/transparent.orchestration.log": {
+      "sha256": "5a297b84342449560f031d70a4b23d4d67f90b3e849d809b04f7a8cbc852ad50",
+      "bytes": 2448
+    },
+    "artifacts/gpu-structural-optimization-20261028/ab-final1/transparent.process-load.txt": {
+      "sha256": "27f0157b68bc7802b7cf8bb0bdd40c3e4fa0814bd424986b6eb51a26a2063b01",
+      "bytes": 20051
+    },
+    "artifacts/gpu-structural-optimization-20261028/ab-final1/window-process-load.jsonl": {
+      "sha256": "4b4a23961f6acebbe8d2f3be0daf5778c6063dc30b3188dd269e954796592751",
+      "bytes": 1829041
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/archive_supplement.py": {
+      "sha256": "a5354e478633a245585f3a7395350237c5750839a724646c4b5d65fba6c58997",
+      "bytes": 2210
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/final-performance-review.json": {
+      "sha256": "e108fd6ea5f37d717b5ad66ac4fbf3ec578e66faca9d295103812992761a3f0c",
+      "bytes": 172407
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/main-review.json": {
+      "sha256": "a209aa010940f80907256ef00f0a0a157823abad66ccfea7fccbcf4606ffe800",
+      "bytes": 25150
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/performance.py": {
+      "sha256": "7c5a15be632c753b401880615e008c091bfb4b7ddeff286088fa74bd2ff9ac56",
+      "bytes": 2613
+    },
+    "artifacts/gpu-structural-optimization-20261028/acceptance/summarize_performance.py": {
+      "sha256": "59c89ad2763b9a1c13a767b68a6a6f5fa962984ac9bdf45d967ae84082cb6737",
+      "bytes": 3914
+    }
+  },
+  "archive": {
+    "path": "orchestration-evidence.tar.gz",
+    "sha256": "3346ddd0649a41eb8b4cfd9a0513aae0bc9b59b93138cb2b5bc507717714f5a2",
+    "bytes": 176842
+  },
+  "scope": "Supplement to Runtime archive: orchestration, source preflight and process-load observations. Snapshots cannot prove exclusive hardware access between observations."
+}

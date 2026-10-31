@@ -1,0 +1,164 @@
+// 四层静态样式的底层读写（合同 1.8.0 起，规范 §6.11）、模板库共用的规范样式形状（§13）与最终静态样式的来源解释（合同 1.37.0，规范 §17.6）。
+// 用户决定（docs/web-ui-design.md §11）：外观页只做模板分配，不用 styles.* 写命令编辑样式；
+// 这两个命令只声明类型，供合同对照。GET .../style 用来只读显示“直接覆盖”。
+
+import type { Revision } from './int64';
+
+export type StyleTarget =
+  | { kind: 'project' }
+  | { kind: 'branch'; branchId: string }
+  | { kind: 'line'; branchId: string; lineId: string }
+  | { kind: 'token'; branchId: string; lineId: string; tokenId: string };
+
+/** 闭合属性名与对应取值，前端不构造，只原样转交。 */
+export interface StyleChange {
+  property: string;
+  value: unknown;
+}
+
+export type StyleCommand =
+  | { type: 'styles.patch'; targets: StyleTarget[]; changes: StyleChange[] }
+  | { type: 'styles.restore'; targets: StyleTarget[]; properties: string[] };
+
+export interface StyleCommandResult {
+  changedTargetCount: number;
+}
+
+/** 0..255 的整数分量。 */
+export interface StyleColor {
+  red: number;
+  green: number;
+  blue: number;
+  alpha: number;
+}
+
+export interface StyleGradientStop {
+  /** 0..1。 */
+  offset: number;
+  color: StyleColor;
+}
+
+export interface StyleGradient {
+  kind: 'linear' | 'radial';
+  angleDegrees: number;
+  /** 径向时 0..1；线性时也必须给出（原样保留）。 */
+  centerX: number;
+  centerY: number;
+  /** 径向时必须大于 0。 */
+  radiusX: number;
+  radiusY: number;
+  coordinateSpace: 'canvas' | 'line' | 'glyph' | 'progress';
+  colorSpace: 'linearRgb' | 'hsv' | 'oklch';
+  huePath: 'shorter' | 'longer' | 'increasing' | 'decreasing';
+  /** 2..256 个。 */
+  stops: StyleGradientStop[];
+}
+
+export type StaticMaterial = { kind: 'solid'; color: StyleColor } | { kind: 'gradient'; gradient: StyleGradient };
+/** 包材质只读：只有身份，不能作为新写入的材质回传。 */
+export interface PackageMaterial {
+  kind: 'package';
+  packageId: string;
+  revision: string;
+  exportId: string;
+}
+export type StyleMaterial = StaticMaterial | PackageMaterial;
+
+export interface StyleTypography {
+  /** null 表示后端默认字体。 */
+  fontFamilyName: string | null;
+  fallbackFamilyNames: string[];
+  fontSizePx: number;
+  /** 100..900。 */
+  fontWeight: number;
+  isBold: boolean;
+  isItalic: boolean;
+  letterSpacingPx: number;
+}
+
+export interface StyleStroke<M = StyleMaterial> {
+  material: M;
+  widthPx: number;
+  join: 'miter' | 'round' | 'bevel';
+  position: 'outside';
+}
+
+export interface StyleShadow {
+  color: StyleColor;
+  /** 0..1。 */
+  opacity: number;
+  angleDegrees: number;
+  distancePx: number;
+  blurRadiusPx: number;
+}
+
+export type HorizontalAlignment = 'left' | 'center' | 'right';
+
+/** 完整规范样式。stroke／shadow 为 null 表示明确关闭。 */
+export interface CanonicalStyle<M = StyleMaterial> {
+  typography: StyleTypography;
+  unsungFill: { material: M };
+  sungFill: { material: M };
+  stroke: StyleStroke<M> | null;
+  shadow: StyleShadow | null;
+  /** 0..1。 */
+  verticalCenterRatio: number;
+  horizontalAlignment: HorizontalAlignment;
+  /** 0..1。 */
+  opacity: number;
+  /** 大于 0。 */
+  scale: number;
+}
+
+/** GET .../style：baseline→branch→line→token 四层静态解析；不是最终帧外观（不含模板分配与编排上下文）。 */
+export interface ProjectStyleResponse {
+  projectSessionId: string;
+  projectRevision: Revision;
+  target: StyleTarget;
+  baseline: CanonicalStyle;
+  /** 本层真实覆盖；缺少的属性表示继承。project 目标恒为空数组。 */
+  local: StyleChange[];
+  staticHierarchy: CanonicalStyle;
+  /** 只说明工程里有分配（含停用的、不作用于此目标的），不证明这个目标被覆盖。 */
+  hasPresetApplications: boolean;
+  resolution: 'staticHierarchy';
+  protocolVersion: string;
+}
+
+/** 最终静态样式所在的上下文：nodePath 从根到 Runtime 的文字叶（最后一个是 textNodeId）。 */
+export interface ResolvedStyleContext {
+  branchId: string;
+  lineId: string;
+  tokenId: string | null;
+  clipId: string | null;
+  containerId: string;
+  nodeId: string;
+  textNodeId: string;
+  nodePath: string[];
+  contextKind: 'container' | 'scheduledSlot';
+}
+
+/** GET .../resolved-style 的查询：clipId／nodeId 只用来核对归属，不能任填父链。 */
+export interface ResolvedStyleQuery {
+  branchId: string;
+  lineId: string;
+  tokenId?: string;
+  clipId?: string;
+  nodeId?: string;
+}
+
+/**
+ * 工程、来源、节点、片段、行、文字各层覆盖与模板分配叠加后的静态样式，以及 21 个属性各自最后来自哪里。
+ * sourcePath 是工程里的持久路径，例如 lyricStyle、lyrics.branches.<b>.lines.<l>.styleOverride、presetApplications.<id>.snapshot.style。
+ * 不运行动画、脚本与字体测量，finalPixelAppearance 恒为 false。
+ */
+export interface ProjectResolvedStyleResponse {
+  projectSessionId: string;
+  projectRevision: Revision;
+  context: ResolvedStyleContext;
+  style: CanonicalStyle;
+  sources: { property: string; sourcePath: string }[];
+  resolution: 'staticPresetHierarchy';
+  finalPixelAppearance: false;
+  protocolVersion: '1';
+}

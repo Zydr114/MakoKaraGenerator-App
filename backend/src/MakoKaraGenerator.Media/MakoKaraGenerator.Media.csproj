@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>MakoKaraGenerator.Media</RootNamespace>
+    <AssemblyName>MakoKaraGenerator.Media</AssemblyName>
+  </PropertyGroup>
+
+  <!--
+    音频与媒体适配层（docs/roadmap.md §3.1 的 MakoKaraGenerator.Media）。
+
+    本程序集负责"与外部运行时（FFmpeg）打交道"以及"把 PCM 变成可渲染的峰值数据"，
+    不引用 Avalonia。时间轴控件只能通过这里的抽象拿波形数据，
+    绝不允许把 FFmpeg 命令写进 ViewModel 或控件（docs/roadmap.md §8 的设计要求）。
+  -->
+  <ItemGroup>
+    <PackageReference Include="CliWrap" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../MakoKaraGenerator.Processes/MakoKaraGenerator.Processes.csproj" />
+    <ProjectReference Include="../MakoKaraGenerator.Core/MakoKaraGenerator.Core.csproj" />
+    <!--
+      背景视频的帧来源（P1）：实现 IVideoFrameProvider，供渲染层注入。
+      引用方向是"媒体 → 渲染抽象"，渲染层因此不必反过来依赖 FFmpeg 与命令行参数。
+    -->
+    <ProjectReference Include="../MakoKaraGenerator.Rendering.Abstractions/MakoKaraGenerator.Rendering.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- MEDIA-04：播放走统一适配层（见 ADR-0019）。 -->
+    <PackageReference Include="SoundFlow" />
+  </ItemGroup>
+
+  <ItemGroup><InternalsVisibleTo Include="MakoKaraGenerator.Media.Tests" /></ItemGroup>
+</Project>

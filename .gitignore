@@ -1,0 +1,13 @@
+.local/
+node_modules/
+dist/
+bin/
+obj/
+artifacts/
+.dev/
+*.log
+__pycache__/
+*.py[cod]
+*.local.json
+.env
+.env.*

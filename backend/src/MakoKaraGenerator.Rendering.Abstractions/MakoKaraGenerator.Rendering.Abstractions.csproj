@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>MakoKaraGenerator.Rendering</RootNamespace>
+    <AssemblyName>MakoKaraGenerator.Rendering.Abstractions</AssemblyName>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <!--
+    渲染抽象层（docs/roadmap.md §3.1、docs/development.md §10.2）。
+
+    ⚠️ 这里只放"管线契约 + 不可变输入输出"，刻意不引用 SkiaSharp 与 Avalonia：
+    渲染输出是一块裸像素（RenderFrame），因此后续的脚本 SDK、导出模块
+    可以只依赖本项目，而不会被某个具体渲染后端绑住。
+    后端实现在 ../MakoKaraGenerator.Rendering.Skia。
+  -->
+  <ItemGroup>
+    <ProjectReference Include="../MakoKaraGenerator.Core/MakoKaraGenerator.Core.csproj" />
+    <ProjectReference Include="../MakoKaraGenerator.Scripting.Abstractions/MakoKaraGenerator.Scripting.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

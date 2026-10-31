@@ -1,0 +1,29 @@
+{
+  "info": {
+    "durationUs": 213000,
+    "sampleRate": 48000,
+    "channels": 2,
+    "codecName": "pcm_f32le",
+    "containerName": "wav",
+    "estimatedSampleCount": 10224
+  },
+  "sampleRate": 48000,
+  "sampleCount": 10224,
+  "durationUs": 213000,
+  "baseBucketSamples": 64,
+  "levelCount": 9,
+  "peakCounts": [
+    160,
+    80,
+    40,
+    20,
+    10,
+    5,
+    3,
+    2,
+    1
+  ],
+  "fullPyramidHash": "25339f8dc15da4903ac5fa6154e126868944586c70fd317737e2bac4a5e39772",
+  "sourceHash": "5c15f025020e733ec34009348bf2c2ae8167d1b88100ef5d9bdfe467052828c5",
+  "oracle": "Original AudioWaveformLoader.CreateDefault; source-rate full waveform pyramid, not 48k analysis. HTTP exposes duration only; full-pyramid equality belongs to author regressions."
+}

@@ -1,5 +1,9 @@
 # 公开脚本 SDK 参考
 
+> 2026-11-01 源码盘点入口：[后端样式系统与脚本 SDK](style-reference/README.md)，
+> 其中 [SDK 成员与当前门禁](style-reference/script-sdk.md)按 App `f3fdfdf`、后端 `0.109.0` 核对。
+> 本文以下保留各历史版本合同和旧桌面操作说明；历史版本号、待实施状态及 GUI 路线不代表当前 App 能力。
+
 > 当前运行宿主0.46.0补充：作者SDK报告方法与下述能力门禁保持，Rendering.Abstractions新增`RuntimeDiagnosticSnapshot`／`RuntimeDiagnosticBuffer`／`RuntimeDiagnosticCursor`供宿主使用；现有完整Diagnostics数组仍按需可读。正式预览／导出／运行验证以发生身份增量消费，完整日志和同文多次报告不截断，Error来源与失败门禁保持。见[诊断快照合同](scripting-diagnostic-snapshot-contract.md)／ADR-0176；当前数据格式28／16／6、配置1、包profile2保持，后述0.40.2版本和格式为该轮能力盘点基线。
 
 > 当前能力与作者路线更新至 **0.40.2，2026-10-06**。语义依据[已接受实施合同](archive/plans/scripting-system-implementation-contract.md)与已实施 ADR；完成度以 [roadmap §18](archive/history/roadmap.md) 为准。目标 SDK **1.0.0 尚未冻结**；包清单中的 `sdkVersion:1.0.0` 是当前宿主要求的协议声明，程序集随程序为 0.40.2，实际 SDK 字节参与编译缓存身份。工程／歌词／模板 schema26／16／5、包 profile2 与 shader profile `skia-raster-3.119.4-v1` 保持。

@@ -1,5 +1,7 @@
 # 后端文档入口
 
+- 样式与脚本能力盘点：[后端样式系统与脚本 SDK](style-reference/README.md)，
+  按当前源码列出静态选项、动画/场景/预设、作者 SDK 和 HTTP 编辑入口，明确作用域与限制。
 - 当前调用合同：[Web 交接](../web/README.md)、[执行合同](../web/api-contract.md)、
   [API 清单](../web/api-index.md)、[OpenAPI](../web/openapi.json) 与
   [行为合同](architecture/backend-api.md)。同一提交的 manifest 固定相关指纹。

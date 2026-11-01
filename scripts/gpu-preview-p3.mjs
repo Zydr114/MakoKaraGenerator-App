@@ -123,6 +123,7 @@ export function analyze(records, manifest={}) {
       return (frame.timeUs-master)/1000;
     }).filter(Number.isFinite);
     const age=drift.map(value=>-value);
+    const freshnessUpperBound=drift.length===delivered.length?drift.map((value,index)=>Math.abs(value)+sampleClocks[index]):[];
     const streamSnapshots=snapshots.filter(record=>record.time>=start&&record.time<=end);
     const resourcePids=new Map();
     for(const record of streamSnapshots)for(const proc of record.processes??[]){
@@ -147,9 +148,9 @@ export function analyze(records, manifest={}) {
       completeRatio:delivered.length/expected,sliding5s:{...window,requiredUniqueFrames:threshold},intervalMs:distribution(intervals),
       stallsOver250ms:intervals.filter(value=>value>250).length,renderMs:distribution(delivered.map(frame=>frame.renderMs)),
       brokerToCompletionMs:distribution(delivered.map(frame=>frame.brokerToCompletionMs)),readyToCompletionMs:distribution(delivered.map(frame=>frame.readyToCompletionMs)),
-      totalClockUncertaintyMs:distribution(sampleClocks),signedDriftMs:distribution(drift),ageMs:distribution(age),absoluteDriftMs:distribution(drift.map(Math.abs)),
+      totalClockUncertaintyMs:distribution(sampleClocks),signedDriftMs:distribution(drift),ageMs:distribution(age),absoluteDriftMs:distribution(drift.map(Math.abs)),absoluteDriftUpperBoundMs:distribution(freshnessUpperBound),
       workerFlowControl:{status:streamSnapshots.length&&streamSnapshots.every(record=>record.snapshot.workerState)?'recorded':'unmeasured',samples:streamSnapshots.filter(record=>record.snapshot.workerState).map(record=>({monotonicNs:String(record.time),...record.snapshot.workerState})),publicStates:streamSnapshots.filter(record=>record.snapshot.workerPublicState).map(record=>({monotonicNs:String(record.time),...record.snapshot.workerPublicState}))},
-      freshness:drift.length===delivered.length&&delivered.length>0?{status:percentile(age,.95)<=2*period&&percentile(drift.map(Math.abs),.95)<=2*period?'candidate-met':'candidate-failed',candidateP95LimitMs:2*period,earlyFrameConstraint:'absolute signed drift p95 must also stay within two periods; negative age never makes an early frame pass',model:'latest calibrated real audio.currentTime sample at or before completion, extrapolated by rate within exact timelineResetId'}:{status:'unmeasured',reason:'Missing calibrated audio master comparison on some frames'},
+      freshness:drift.length===delivered.length&&delivered.length>0?{status:percentile(age,.95)<=2*period&&percentile(freshnessUpperBound,.95)!==null&&percentile(freshnessUpperBound,.95)<=2*period&&unknownClock===0?'candidate-met':'candidate-failed',candidateP95LimitMs:2*period,uncertaintyPolicy:'p95 of each absolute drift plus that frame total calibrated clock uncertainty must fit the unchanged limit',earlyFrameConstraint:'absolute signed drift p95 must also stay within two periods; negative age never makes an early frame pass',model:'latest calibrated real audio.currentTime sample at or before completion, extrapolated by rate within exact timelineResetId'}:{status:'unmeasured',reason:'Missing calibrated audio master comparison on some frames'},
       resourceTrends:[...resourcePids.values()].map(points=>({pid:points.pid,startTicks:points.startTicks,role:points.role,fd:regression(points.fd),rssBytes:regression(points.rss),gpuMemoryBytes:regression(points.gpu)})),
       gates:gate,throughputPassed:Object.values(gate).every(Boolean)};
   });
@@ -164,12 +165,13 @@ export function analyze(records, manifest={}) {
       (action.minimumControlSeq===undefined||frame.controlSeq>=action.minimumControlSeq)).sort((a,b)=>ns(a.completedMonotonicNs)<ns(b.completedMonotonicNs)?-1:1)[0];
     return {...action,firstMatchingCompletedLease:matching?leaseKey(matching):null,
       uiInvocationToMatchingCompletionMs:matching?Number(ns(matching.completedMonotonicNs)-start)/1e6:null,
+      uiInvocationToMatchingCompletionUpperBoundMs:matching&&Number.isFinite(action.uiInvocationClockUncertaintyMs)?Number(ns(matching.completedMonotonicNs)-start)/1e6+action.uiInvocationClockUncertaintyMs:null,
       uiInvocationClockUncertaintyMs:action.uiInvocationClockUncertaintyMs??null,
       mainReceiveToWorkerAppliedMs:'unmeasured unless separate main-receive and worker-applied timestamps are recorded'};
   });
   const interactionGroups=Object.fromEntries([...new Set(interactions.map(action=>action.kind))].map(kind=>{
-    const group=interactions.filter(action=>action.kind===kind),values=group.map(action=>action.uiInvocationToMatchingCompletionMs).filter(Number.isFinite);
-    return [kind,{...distribution(values),missing:group.length-values.length,tailSampleCaveat:group.length<100?'fewer than 100 observations; p99 is the nearest-rank observed tail, not a population-tail estimate':null,origin:'CDP invocation bracket mapped to Electron main monotonic; include reported uncertainty',candidateMet:values.length===group.length&&percentile(values,.95)<=150&&percentile(values,.99)<=250}];
+    const group=interactions.filter(action=>action.kind===kind),values=group.map(action=>action.uiInvocationToMatchingCompletionMs).filter(Number.isFinite),upper=group.map(action=>action.uiInvocationToMatchingCompletionUpperBoundMs).filter(Number.isFinite);
+    return [kind,{...distribution(values),withClockUncertaintyUpperBoundMs:distribution(upper),missing:group.length-values.length,tailSampleCaveat:group.length<100?'fewer than 100 observations; p99 is the nearest-rank observed tail, not a population-tail estimate':null,origin:'CDP invocation bracket mapped to Electron main monotonic; include reported uncertainty',candidateMet:values.length===group.length&&upper.length===group.length&&percentile(upper,.95)<=150&&percentile(upper,.99)<=250}];
   }));
   const lifecycle={attachDetach:{required:20,observed:actionReports.filter(action=>action.kind==='attach-detach'&&action.newGenerationVerified===true&&action.oldWorkerExited===true).length},
     publicResizeSeek:{required:10,observed:actionReports.filter(action=>action.kind==='public-resize-seek'&&action.exactGenerationCompleted===true).length},

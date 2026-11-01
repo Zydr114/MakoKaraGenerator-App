@@ -95,3 +95,13 @@ test('an early frame cannot satisfy freshness solely through negative age',()=>{
   assert.equal(result.absoluteDriftMs.p95,100);
   assert.equal(result.freshness.status,'candidate-failed');
 });
+test('freshness and interaction gates include their measured clock uncertainty',()=>{
+  const report=analyze([snapshot(2n*N,[frame(1,2n*N,{timeUs:1_920_000,totalClockUncertaintyMs:5})],1,{mediaClock:{mode:'playing',rate:1,timelineResetId:'initial',mediaTimeUs:1_000_000,mainSampleMonotonicNs:String(N)}}),
+    {type:'interaction',kind:'pause',uiInvocationMonotonicNs:'1851000000',streamId:'stream',minimumControlSeq:1,uiInvocationClockUncertaintyMs:2},phase]);
+  assert.equal(report.phaseReports[0].absoluteDriftMs.p95,80);
+  assert.equal(report.phaseReports[0].absoluteDriftUpperBoundMs.p95,85);
+  assert.equal(report.phaseReports[0].freshness.status,'candidate-failed');
+  assert.equal(report.interactionGroups.pause.p95,149);
+  assert.equal(report.interactionGroups.pause.withClockUncertaintyUpperBoundMs.p95,151);
+  assert.equal(report.interactionGroups.pause.candidateMet,false);
+});

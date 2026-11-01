@@ -1,0 +1,397 @@
+/* 设计稿共用：重置、页面切换、时间轴与画面的结构。颜色和字体由各稿自己定义。 */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+body {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow: hidden;
+}
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+button {
+  cursor: pointer;
+}
+h1,
+h2,
+h3,
+h4,
+p {
+  margin: 0;
+}
+:lang(ja) {
+  font-family: var(--font-ja, 'Inter', 'Noto Sans CJK JP', sans-serif);
+}
+.num,
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 图标 */
+.ic {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* 页面切换 */
+.screen {
+  display: none;
+  height: 100vh;
+}
+.screen.is-on {
+  display: block;
+}
+.screen.is-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+}
+
+/* 设计稿导航：不是设计的一部分 */
+.draft-nav {
+  position: fixed;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  z-index: 999;
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  padding: 3px;
+  border-radius: 8px;
+  background: rgba(30, 30, 34, 0.86);
+  backdrop-filter: blur(6px);
+  font: 12px/1 'Inter', 'Noto Sans CJK SC', sans-serif;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25);
+  opacity: 0.35;
+  transition: opacity 0.15s;
+}
+.draft-nav:hover {
+  opacity: 1;
+}
+.draft-nav a {
+  color: #cfd2d8;
+  text-decoration: none;
+  padding: 6px 9px;
+  border-radius: 6px;
+}
+.draft-nav a:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.draft-nav a.on,
+.draft-nav a.cur {
+  background: #f4f4f5;
+  color: #18181b;
+}
+.draft-nav .sep {
+  width: 1px;
+  height: 16px;
+  background: rgba(255, 255, 255, 0.18);
+  margin: 0 4px;
+}
+
+/* 逐字填充：--p 是已唱比例 */
+.wipe {
+  background: linear-gradient(90deg, var(--wipe-on) 0 var(--p), var(--wipe-off) var(--p) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ———— 时间轴结构 ———— */
+.tl {
+  display: flex;
+  flex-direction: column;
+  user-select: none;
+}
+.tl-row {
+  display: grid;
+  grid-template-columns: var(--tl-head, 72px) 1fr;
+  height: var(--tl-h, 26px);
+}
+.tl.no-heads .tl-row {
+  grid-template-columns: 1fr;
+}
+.tl-head {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.tl-lane {
+  position: relative;
+  overflow: hidden;
+}
+.tl-ruler {
+  height: var(--tl-ruler-h, 22px);
+}
+.tl-wave {
+  height: var(--tl-wave-h, 56px);
+}
+.tl-ruby,
+.tl-trans,
+.tl-leadins {
+  height: var(--tl-thin-h, 20px);
+}
+.tl-item {
+  position: absolute;
+  top: var(--tl-item-inset, 3px);
+  bottom: var(--tl-item-inset, 3px);
+  white-space: nowrap;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.tl-item i {
+  font-style: normal;
+}
+.tl-tick {
+  position: absolute;
+  bottom: 0;
+  height: 5px;
+  border-left: 1px solid currentColor;
+}
+.tl-tick.is-major {
+  height: 9px;
+}
+.tl-tick b {
+  position: absolute;
+  bottom: 9px;
+  left: 4px;
+  font-weight: 400;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.tl-ph {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  margin-left: -0.5px;
+  z-index: 3;
+  pointer-events: none;
+}
+.wv {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ———— 渲染画面（工程内容：不随界面主题变化） ———— */
+.frame {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  container-type: inline-size;
+  overflow: hidden;
+  background: #000;
+  font-family: 'Noto Sans CJK JP', sans-serif;
+}
+.fbg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(90% 55% at 72% 96%, rgba(244, 172, 128, 0.85) 0%, rgba(244, 172, 128, 0) 60%),
+    linear-gradient(180deg, #121833 0%, #232b58 38%, #5b4f80 66%, #b98088 85%, #e2a487 100%);
+}
+.fbg::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 30%;
+  background: #0d1124;
+  clip-path: polygon(0 62%, 4% 62%, 4% 40%, 9% 40%, 9% 55%, 13% 55%, 13% 28%, 16% 28%, 16% 48%, 22% 48%, 22% 36%, 27% 36%, 27% 58%, 33% 58%, 33% 22%, 35% 22%, 35% 18%, 37% 18%, 37% 46%, 43% 46%, 43% 60%, 50% 60%, 50% 38%, 55% 38%, 55% 50%, 61% 50%, 61% 30%, 64% 30%, 64% 52%, 70% 52%, 70% 42%, 76% 42%, 76% 26%, 79% 26%, 79% 56%, 86% 56%, 86% 44%, 91% 44%, 91% 60%, 96% 60%, 96% 50%, 100% 50%, 100% 100%, 0 100%);
+}
+.fbg::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 9%;
+  background: linear-gradient(180deg, #151a30, #07090f);
+  border-top: 0.25cqw solid rgba(255, 214, 160, 0.35);
+}
+.fl {
+  position: absolute;
+  white-space: nowrap;
+  font-weight: 700;
+  font-size: 3.7cqw;
+  line-height: 1.5;
+  letter-spacing: 0.04em;
+}
+.fl rt {
+  font-size: 0.42em;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.fl-1 {
+  left: 8%;
+  bottom: 27%;
+}
+.fl-2 {
+  right: 8%;
+  bottom: 15%;
+}
+.fl-zh {
+  left: 0;
+  right: 0;
+  bottom: 9.4%;
+  text-align: center;
+  font-family: 'Noto Sans CJK SC', sans-serif;
+  font-size: 2.1cqw;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.86);
+  filter: drop-shadow(0 0 0.2cqw rgba(5, 8, 20, 0.9));
+}
+.fl-lead {
+  left: 8.6%;
+  bottom: 38%;
+  font-size: 1.9cqw;
+  letter-spacing: 0.35em;
+  color: #8fd3ff;
+  filter: drop-shadow(0 0 0.14cqw #0a1640);
+}
+.fk {
+  background: linear-gradient(90deg, #8fd3ff 0 var(--p), #ffffff var(--p) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 0.14cqw #0a1640) drop-shadow(0 0 0.14cqw #0a1640) drop-shadow(0 0.25cqw 0.4cqw rgba(0, 0, 0, 0.45));
+}
+.fl-2 .fk {
+  filter: drop-shadow(0 0 0.14cqw #0a1640) drop-shadow(0 0 0.14cqw #0a1640);
+}
+
+/* 布局参考 */
+.frame.is-layout .fbg {
+  filter: saturate(0.35) brightness(0.55);
+}
+.fbox {
+  position: absolute;
+  border: 1px dashed rgba(255, 255, 255, 0.55);
+  display: flex;
+  align-items: center;
+  padding: 0 1.2cqw;
+}
+.fbox-tag {
+  position: absolute;
+  left: -1px;
+  bottom: 100%;
+  padding: 0.25cqw 0.6cqw;
+  font: 500 1.05cqw/1.2 'Inter', 'Noto Sans CJK SC', sans-serif;
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.14);
+  white-space: nowrap;
+}
+.fbox-txt {
+  font-weight: 700;
+  font-size: 2.9cqw;
+  color: rgba(255, 255, 255, 0.82);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.fbox.is-dim {
+  border-color: rgba(255, 255, 255, 0.28);
+}
+.fbox.is-dim .fbox-txt {
+  color: rgba(255, 255, 255, 0.38);
+}
+.fbox.is-sel {
+  border: 1.5px solid var(--frame-sel, #f0b44c);
+}
+.fbox.is-sel .fbox-tag {
+  background: var(--frame-sel, #f0b44c);
+  color: var(--frame-sel-ink, #1d1606);
+}
+.fbox .h {
+  position: absolute;
+  width: 0.9cqw;
+  height: 0.9cqw;
+  background: #fff;
+  border: 1.5px solid var(--frame-sel, #f0b44c);
+}
+.fbox .h.tl {
+  left: -0.5cqw;
+  top: -0.5cqw;
+}
+.fbox .h.tr {
+  right: -0.5cqw;
+  top: -0.5cqw;
+}
+.fbox .h.bl {
+  left: -0.5cqw;
+  bottom: -0.5cqw;
+}
+.fbox .h.br {
+  right: -0.5cqw;
+  bottom: -0.5cqw;
+}
+.b-left {
+  left: 6%;
+  width: 48%;
+  bottom: 24%;
+  height: 10%;
+}
+.b-right {
+  right: 6%;
+  width: 48%;
+  bottom: 12%;
+  height: 10%;
+  justify-content: flex-end;
+}
+.b-center {
+  left: 20%;
+  width: 60%;
+  top: 40%;
+  height: 11%;
+  justify-content: center;
+}
+.b-trans {
+  left: 25%;
+  width: 50%;
+  bottom: 3.5%;
+  height: 6.5%;
+  justify-content: center;
+}
+.b-trans .fbox-txt {
+  font-size: 1.9cqw;
+  font-family: 'Noto Sans CJK SC', sans-serif;
+}
+.b-lead {
+  left: 6%;
+  width: 13%;
+  bottom: 36%;
+  height: 6.5%;
+}
+.b-lead .fbox-txt {
+  font-size: 1.8cqw;
+  letter-spacing: 0.3em;
+}
+.fsafe {
+  position: absolute;
+  inset: 5%;
+  border: 1px dotted rgba(255, 255, 255, 0.18);
+  pointer-events: none;
+}
+.frame.is-small .fbox-tag {
+  display: none;
+}

@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>MakoKara 界面风格稿</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; font: 14px/1.6 'Inter', 'Noto Sans CJK SC', sans-serif; font-feature-settings: 'cv11'; color: #1f2226; background: #f3f4f5; -webkit-font-smoothing: antialiased; }
+h1, h2, h3, p { margin: 0; }
+a { color: inherit; }
+.page { max-width: 1280px; margin: 0 auto; padding: 40px 40px 64px; }
+header.intro { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 48px; align-items: end; padding-bottom: 28px; border-bottom: 1px solid #dcdee2; }
+h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.01em; }
+.intro p { color: #555b63; margin-top: 10px; max-width: 64ch; }
+.intro ul { margin: 0; padding-left: 18px; color: #555b63; font-size: 13px; }
+.intro li + li { margin-top: 4px; }
+.dir { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 40px; padding: 36px 0; border-bottom: 1px solid #dcdee2; }
+.dir h2 { font-size: 20px; font-weight: 700; display: flex; align-items: baseline; gap: 10px; }
+.dir h2 small { font-size: 13px; font-weight: 500; color: #8a9099; }
+.dir .lead { margin-top: 8px; color: #3d4248; }
+.sw { display: flex; gap: 0; margin: 16px 0 6px; border-radius: 6px; overflow: hidden; height: 28px; box-shadow: 0 0 0 1px rgba(0, 0, 0, .06); }
+.sw i { flex: 1; }
+.sw i.wide { flex: 3; }
+.swl { display: flex; justify-content: space-between; font-size: 11.5px; color: #8a9099; font-variant-numeric: tabular-nums; }
+dl { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 6px 12px; margin: 18px 0 0; font-size: 13px; }
+dt { color: #8a9099; }
+dd { margin: 0; color: #3d4248; }
+.open { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 18px; }
+.open a { text-decoration: none; font-size: 12.5px; padding: 3px 10px; border-radius: 6px; background: #fff; box-shadow: 0 0 0 1px #dcdee2; }
+.open a:hover { box-shadow: 0 0 0 1px #9aa0a8; }
+.open a.main { background: #1f2226; color: #fff; box-shadow: none; }
+.shots { display: flex; flex-direction: column; gap: 10px; }
+.shot { position: relative; overflow: hidden; border-radius: 6px; background: #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, .08), 0 6px 20px rgba(20, 22, 26, .08); width: calc(1440px * var(--s)); height: calc(900px * var(--s)); display: block; }
+.shot iframe { position: absolute; left: 0; top: 0; width: 1440px; height: 900px; border: 0; transform: scale(var(--s)); transform-origin: 0 0; pointer-events: none; }
+.shot span { position: absolute; left: 8px; bottom: 6px; font-size: 11px; padding: 1px 6px; border-radius: 4px; background: rgba(20, 22, 26, .72); color: #fff; }
+.big { --s: .565; }
+.row { display: flex; gap: 10px; }
+.small { --s: .136; }
+section.block { padding: 36px 0 0; }
+section.block h2 { font-size: 18px; font-weight: 700; }
+section.block > p { color: #555b63; margin-top: 6px; max-width: 80ch; }
+.cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin-top: 16px; }
+.cols h3 { font-size: 14px; font-weight: 600; }
+.cols p { font-size: 13px; color: #555b63; margin-top: 4px; }
+table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 13px; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 0 0 1px #dcdee2; }
+th, td { white-space: normal; text-align: left; padding: 8px 12px; border-top: 1px solid #eceef0; vertical-align: top; }
+th { white-space: nowrap; font-weight: 600; font-size: 12px; color: #61666e; background: #f8f9fa; border-top: 0; }
+td:first-child { font-weight: 600; white-space: nowrap; }
+td.lic { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.y { color: #2e7d4f; }
+.w { color: #b4630f; }
+.n { color: #be3a2f; }
+.rec { margin-top: 16px; padding: 16px 18px; border-radius: 8px; background: #fff; box-shadow: 0 0 0 1px #dcdee2; }
+.rec p + p { margin-top: 8px; }
+.rec p { color: #3d4248; }
+footer { margin-top: 36px; font-size: 12px; color: #8a9099; }
+footer a { color: #61666e; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<header class="intro">
+  <div>
+    <h1>MakoKara 界面风格稿</h1>
+    <p>三份方向不同的风格稿，覆盖开屏、新建工程、歌词、编排、导出五个画面。页面分区、交互和用词都沿用已确认的《Web 前端设计稿》，这里只改视觉和布局。请从三份里选一份，细节可以从其他稿里借。</p>
+  </div>
+  <ul>
+    <li>密度：比 mdui 默认紧，比视频剪辑软件松；控件统一 24～30px 高。</li>
+    <li>秩序：底部只留一条播放条加时间轴；所选单元的起止固定在编辑区底部。</li>
+    <li>常驻提示收进“快捷键”入口；状态只在一处显示。</li>
+    <li>三稿共用同一个记号：卡拉 OK 的逐字填充（标志、文本单元、波形、预览）。</li>
+  </ul>
+</header>
+
+<article class="dir">
+  <div>
+    <h2>A 暗场<small>深色，像剪辑软件</small></h2>
+    <p class="lead">整块石墨灰，面板之间只留 1px 缝。琥珀色只给“已唱、当前、主操作”。页签放在 40px 标题栏正中，去掉左侧导航栏，底部 24px 状态栏放连接、修订和快捷键。</p>
+    <div class="sw"><i class="wide" style="background:#16171a"></i><i style="background:#1e2024"></i><i style="background:#262930"></i><i style="background:#30343b"></i><i style="background:#e6e7ea"></i><i style="background:#eeb34f"></i></div>
+    <div class="swl"><span>#16171a</span><span>#eeb34f</span></div>
+    <dl>
+      <dt>适合</dt><dd>长时间打轴、在暗处看画面；最接近专业剪辑软件的习惯。</dd>
+      <dt>代价</dt><dd>日文注音和中文小字在深底上更费眼；表单类页面（首页、导出）显得沉。</dd>
+    </dl>
+    <div class="open"><a class="main" href="a-dark-stage.html#lyrics">打开 A</a><a href="a-dark-stage.html#home">开屏</a><a href="a-dark-stage.html#new">新建</a><a href="a-dark-stage.html#orchestration">编排</a><a href="a-dark-stage.html#export">导出</a></div>
+  </div>
+  <div class="shots">
+    <a class="shot big" href="a-dark-stage.html#lyrics"><iframe src="a-dark-stage.html?shot#lyrics" loading="lazy" tabindex="-1"></iframe><span>歌词</span></a>
+    <div class="row">
+      <a class="shot small" href="a-dark-stage.html#home"><iframe src="a-dark-stage.html?shot#home" loading="lazy" tabindex="-1"></iframe><span>开屏</span></a>
+      <a class="shot small" href="a-dark-stage.html#new"><iframe src="a-dark-stage.html?shot#new" loading="lazy" tabindex="-1"></iframe><span>新建</span></a>
+      <a class="shot small" href="a-dark-stage.html#orchestration"><iframe src="a-dark-stage.html?shot#orchestration" loading="lazy" tabindex="-1"></iframe><span>编排</span></a>
+      <a class="shot small" href="a-dark-stage.html#export"><iframe src="a-dark-stage.html?shot#export" loading="lazy" tabindex="-1"></iframe><span>导出</span></a>
+    </div>
+  </div>
+</article>
+
+<article class="dir">
+  <div>
+    <h2>B 歌本<small>浅色，像排好版的歌本</small></h2>
+    <p class="lead">白纸放在浅灰桌面上。行列表按歌本排印：行号悬在页边，注音在上，译文在下。顶栏正中是真实的制作顺序“1 歌词、2 编排、3 外观”，属性面板做成表格式的属性单。靛蓝只给“已唱、当前、主操作”。</p>
+    <div class="sw"><i class="wide" style="background:#eceef1"></i><i style="background:#ffffff"></i><i style="background:#cfd4da"></i><i style="background:#59616b"></i><i style="background:#1b1f24"></i><i style="background:#2c4d9e"></i></div>
+    <div class="swl"><span>#eceef1</span><span>#2c4d9e</span></div>
+    <dl>
+      <dt>适合</dt><dd>以文字为主的工作；新用户一眼能看懂先做什么后做什么。</dd>
+      <dt>代价</dt><dd>预览画面四周是白的，判断画面明暗不如暗底准；整体最“办公”。</dd>
+    </dl>
+    <div class="open"><a class="main" href="b-songbook.html#lyrics">打开 B</a><a href="b-songbook.html#home">开屏</a><a href="b-songbook.html#new">新建</a><a href="b-songbook.html#orchestration">编排</a><a href="b-songbook.html#export">导出</a></div>
+  </div>
+  <div class="shots">
+    <a class="shot big" href="b-songbook.html#lyrics"><iframe src="b-songbook.html?shot#lyrics" loading="lazy" tabindex="-1"></iframe><span>歌词</span></a>
+    <div class="row">
+      <a class="shot small" href="b-songbook.html#home"><iframe src="b-songbook.html?shot#home" loading="lazy" tabindex="-1"></iframe><span>开屏</span></a>
+      <a class="shot small" href="b-songbook.html#new"><iframe src="b-songbook.html?shot#new" loading="lazy" tabindex="-1"></iframe><span>新建</span></a>
+      <a class="shot small" href="b-songbook.html#orchestration"><iframe src="b-songbook.html?shot#orchestration" loading="lazy" tabindex="-1"></iframe><span>编排</span></a>
+      <a class="shot small" href="b-songbook.html#export"><iframe src="b-songbook.html?shot#export" loading="lazy" tabindex="-1"></iframe><span>导出</span></a>
+    </div>
+  </div>
+</article>
+
+<article class="dir">
+  <div>
+    <h2>C 台前幕后<small>动手处浅，看画处暗</small></h2>
+    <p class="lead">填写、选择、列表都在浅色台面上；画面和时间轴放在暗场里，并连成一整块：歌词页是 L 形，编排页是 T 形。面板之间留 6px 缝，像放在台面上的板子。页面切换是顶栏里的分段按钮，青绿只给“已唱、当前、主操作”。</p>
+    <div class="sw"><i class="wide" style="background:#e9eaec"></i><i style="background:#f6f6f7"></i><i style="background:#1b1d21"></i><i style="background:#61666e"></i><i style="background:#13806f"></i><i style="background:#3cc9b3"></i></div>
+    <div class="swl"><span>#e9eaec</span><span>#13806f / #3cc9b3</span></div>
+    <dl>
+      <dt>适合</dt><dd>既要长时间读写日文和注音，又要准确看画面；首页和导出也有一块能看画面的地方。</dd>
+      <dt>代价</dt><dd>两套明暗要同时维护（用变量作用域解决）；拼接处的细节要做好，否则显得拼凑。</dd>
+    </dl>
+    <div class="open"><a class="main" href="c-desk-stage.html#lyrics">打开 C</a><a href="c-desk-stage.html#home">开屏</a><a href="c-desk-stage.html#new">新建</a><a href="c-desk-stage.html#orchestration">编排</a><a href="c-desk-stage.html#export">导出</a></div>
+  </div>
+  <div class="shots">
+    <a class="shot big" href="c-desk-stage.html#lyrics"><iframe src="c-desk-stage.html?shot#lyrics" loading="lazy" tabindex="-1"></iframe><span>歌词</span></a>
+    <div class="row">
+      <a class="shot small" href="c-desk-stage.html#home"><iframe src="c-desk-stage.html?shot#home" loading="lazy" tabindex="-1"></iframe><span>开屏</span></a>
+      <a class="shot small" href="c-desk-stage.html#new"><iframe src="c-desk-stage.html?shot#new" loading="lazy" tabindex="-1"></iframe><span>新建</span></a>
+      <a class="shot small" href="c-desk-stage.html#orchestration"><iframe src="c-desk-stage.html?shot#orchestration" loading="lazy" tabindex="-1"></iframe><span>编排</span></a>
+      <a class="shot small" href="c-desk-stage.html#export"><iframe src="c-desk-stage.html?shot#export" loading="lazy" tabindex="-1"></iframe><span>导出</span></a>
+    </div>
+  </div>
+</article>
+
+<section class="block">
+  <h2>三稿共同的布局改动</h2>
+  <div class="cols">
+    <div><h3>底部只剩一块</h3><p>现在底部叠着 4～5 条横栏。改成一条播放条（播放、速度、循环、本页开关、缩放、吸附）加时间轴；歌词分配移到编排页的左栏或画布下方。</p></div>
+    <div><h3>时间字段固定</h3><p>所选文本单元的起、止、±1 帧、整行平移，固定在行编辑区底部，编辑区怎么滚动都不会被挤走。</p></div>
+    <div><h3>一套控件尺寸</h3><p>输入框、下拉、按钮统一 28px 左右，不再出现 56px 描边输入框挨着原生下拉框的情况。快捷键说明收进一个入口。</p></div>
+  </div>
+</section>
+
+<section class="block">
+  <h2>组件库与许可</h2>
+  <p>仓库计划以 GPLv3 开源。MIT、ISC、BSD 可以并入 GPLv2 和 GPLv3；Apache-2.0 只能并入 GPLv3（与 GPLv2 不兼容），所以本仓库应写 GPLv3 或“GPLv3 或更新版本”。字体用 OFL，可以随软件一起分发，字体本身仍按 OFL。</p>
+  <table>
+    <thead><tr><th>库</th><th>许可</th><th>与 GPLv3</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>React Aria Components</td><td class="lic">Apache-2.0</td><td class="y">兼容</td><td>无样式。列表多选、拖放排序、树、带单位的数字字段、键盘操作都很完整，正好对应行列表、文本单元、槽位、画面结构树和属性面板。</td></tr>
+      <tr><td>Base UI</td><td class="lic">MIT</td><td class="y">兼容</td><td>无样式，MUI 团队维护，已到 1.x，shadcn 的默认底座。组件更轻；拖放和树要另配。</td></tr>
+      <tr><td>Radix Primitives</td><td class="lic">MIT</td><td class="y">兼容</td><td>无样式，生态最大；与 Base UI 同类。</td></tr>
+      <tr><td>Ark UI</td><td class="lic">MIT</td><td class="y">兼容</td><td>无样式，基于状态机，多框架通用。</td></tr>
+      <tr><td>Mantine</td><td class="lic">MIT</td><td class="y">兼容</td><td>自带样式和大量组件，上手最快；要做成这三稿的样子，需要覆盖它的大部分样式。</td></tr>
+      <tr><td>Blueprint</td><td class="lic">Apache-2.0</td><td class="y">兼容</td><td>为高密度桌面界面设计，但自身风格很强，改主题成本高。</td></tr>
+      <tr><td>Semi Design</td><td class="lic">MIT</td><td class="y">兼容</td><td>组件全；React 19 需要用单独的包。</td></tr>
+      <tr><td>Fluent UI v9</td><td class="lic">MIT（代码）</td><td class="w">代码兼容</td><td>字体和图标资产另有许可，不宜随 GPL 软件分发。</td></tr>
+      <tr><td>react-resizable-panels</td><td class="lic">MIT</td><td class="y">兼容</td><td>可拖动的分栏和底部区高度，三稿都需要。</td></tr>
+      <tr><td>dockview</td><td class="lic">MIT（核心）</td><td class="w">核心兼容</td><td>可停靠面板。8.0 起另有商业许可的 Enterprise 附加包，不要引入。</td></tr>
+      <tr><td>Lucide／Phosphor／Tabler</td><td class="lic">ISC／MIT／MIT</td><td class="y">兼容</td><td>线性图标，24 网格，和稿里手绘的图标风格一致。</td></tr>
+      <tr><td>Inter、Noto Sans CJK</td><td class="lic">OFL-1.1</td><td class="y">可随附</td><td>界面字体。MiSans、HarmonyOS Sans 是专有许可，不要打包。</td></tr>
+      <tr><td>mdui（现用）</td><td class="lic">MIT</td><td class="y">兼容</td><td>可以逐页替换，不必一次推倒。</td></tr>
+    </tbody>
+  </table>
+  <div class="rec">
+    <p><b>建议：</b>交互层用 React Aria Components，分栏用 react-resizable-panels，图标用 Lucide，外观全部由自己的 CSS 变量决定。三份稿都是自定义外观，带样式的库（Mantine、Blueprint、Semi）反而要花力气去掉原样式。</p>
+    <p>风格上我推荐 <b>C 台前幕后</b>：这个软件一半时间在读写日文和注音，一半时间在看画面和时间轴，C 让两件事各在最合适的底色上；也是三份里最不像通用模板的一份。想要最“专业剪辑软件”的观感就选 A，想要最好上手就选 B。</p>
+  </div>
+</section>
+
+<footer>
+  稿件是手写的 HTML 与 CSS，用来定方向，不是组件库的实际渲染；图标是为稿件手绘的占位。说明和来源见 <a href="README.md">README.md</a>。
+</footer>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,673 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>A 暗场 · MakoKara 界面风格稿</title>
+<link rel="stylesheet" href="shared/base.css">
+<style>
+/* A 暗场：石墨深灰的停靠面板，画面和波形最亮；琥珀色只表示“已唱／播放进度／主操作”。 */
+.dir-a {
+  --g0: #16171a; /* 面板之间的缝 */
+  --g1: #1e2024; /* 面板 */
+  --g2: #262930; /* 输入框、悬停 */
+  --g3: #30343b; /* 选中 */
+  --ln: #2a2d33;
+  --ln2: #3a3e46;
+  --t1: #e6e7ea;
+  --t2: #a2a7af;
+  --t3: #6b717a;
+  --amber: #eeb34f;
+  --amber-ink: #231907;
+  --amber-soft: rgba(238, 179, 79, 0.12);
+  --ok: #6dbf90;
+  --warn: #e98d5e;
+  --err: #e8615c;
+  --wipe-on: var(--amber);
+  --wipe-off: var(--t1);
+  --frame-sel: var(--amber);
+  --tl-head: 68px;
+  font: 13px/1.45 'Inter', 'Noto Sans CJK SC', sans-serif;
+  font-feature-settings: 'cv11', 'ss03';
+  color: var(--t1);
+  background: var(--g0);
+}
+.dir-a ::selection { background: var(--amber-soft); }
+
+/* ———— 基础控件 ———— */
+.btn {
+  height: 28px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px;
+  border-radius: 6px; border: 1px solid var(--ln2); background: transparent; color: var(--t1); white-space: nowrap;
+}
+.btn:hover { background: var(--g2); }
+.btn.primary { background: var(--amber); border-color: var(--amber); color: var(--amber-ink); font-weight: 600; }
+.btn.ghost { border-color: transparent; color: var(--t2); }
+.btn.ghost:hover { color: var(--t1); }
+.btn.icon { width: 28px; padding: 0; justify-content: center; border-color: transparent; color: var(--t2); }
+.btn.icon:hover { color: var(--t1); }
+.btn.sm { height: 24px; padding: 0 8px; font-size: 12px; }
+.btn.icon.sm { width: 24px; padding: 0; }
+.btn.on { background: var(--g3); color: var(--t1); border-color: var(--g3); }
+.btn[disabled] { opacity: .38; pointer-events: none; }
+.btn .ic { width: 15px; height: 15px; }
+.field {
+  height: 28px; padding: 0 8px; display: inline-flex; align-items: center; gap: 6px;
+  border-radius: 5px; border: 1px solid transparent; background: var(--g2); color: var(--t1); min-width: 0;
+}
+.field.focus { border-color: var(--amber); box-shadow: 0 0 0 3px var(--amber-soft); }
+.field .suf { color: var(--t3); margin-left: auto; }
+.field.sel .ic { margin-left: auto; color: var(--t3); width: 14px; height: 14px; }
+.field.num { font-variant-numeric: tabular-nums; }
+.seg { display: inline-flex; padding: 2px; gap: 2px; border-radius: 7px; background: var(--g0); }
+.seg span { height: 24px; padding: 0 10px; display: inline-flex; align-items: center; gap: 5px; border-radius: 5px; color: var(--t2); }
+.seg span.on { background: var(--g3); color: var(--t1); }
+.chip { height: 20px; padding: 0 7px; display: inline-flex; align-items: center; gap: 4px; border-radius: 4px; font-size: 11.5px; background: var(--g2); color: var(--t2); white-space: nowrap; }
+.chip.amber { background: var(--amber-soft); color: var(--amber); }
+.chip.ok { color: var(--ok); }
+.kbd { font-size: 11px; padding: 0 5px; border-radius: 4px; border: 1px solid var(--ln2); color: var(--t3); line-height: 16px; }
+.muted { color: var(--t2); }
+.faint { color: var(--t3); }
+.vsep { width: 1px; height: 18px; background: var(--ln2); margin: 0 4px; flex: none; }
+.spacer { flex: 1; }
+.toggle { display: inline-flex; align-items: center; gap: 6px; color: var(--t2); }
+.toggle i { width: 26px; height: 15px; border-radius: 8px; background: var(--g3); position: relative; flex: none; }
+.toggle i::after { content: ''; position: absolute; top: 2px; left: 2px; width: 11px; height: 11px; border-radius: 50%; background: var(--t2); }
+.toggle.on i { background: var(--amber); }
+.toggle.on i::after { left: 13px; background: var(--amber-ink); }
+
+/* ———— 外壳 ———— */
+.app { height: 100vh; display: grid; grid-template-rows: 40px minmax(0, 1fr) auto 24px; gap: 1px; background: var(--g0); }
+.app.nodock { grid-template-rows: 40px minmax(0, 1fr) 24px; }
+.titlebar { display: flex; align-items: center; gap: 6px; padding: 0 8px 0 10px; background: var(--g1); }
+.mark { font: 800 19px/1 'Inter', sans-serif; letter-spacing: -0.02em; padding: 0 2px; flex: none; }
+.proj { display: flex; align-items: baseline; gap: 8px; margin-left: 6px; min-width: 0; }
+.proj b { font-weight: 600; }
+.proj .dirty { font-size: 12px; color: var(--t3); display: inline-flex; align-items: center; gap: 5px; }
+.proj .dirty::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--amber); }
+.pages { position: absolute; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 2px; }
+.pages a { height: 28px; padding: 0 12px; display: inline-flex; align-items: center; gap: 6px; border-radius: 6px; color: var(--t2); text-decoration: none; }
+.pages a .ic { width: 15px; height: 15px; }
+.pages a:hover { color: var(--t1); }
+.pages a.on { background: var(--g3); color: var(--t1); }
+.titlebar { position: relative; }
+.statusbar { display: flex; align-items: center; gap: 14px; padding: 0 10px; background: var(--g1); font-size: 11.5px; color: var(--t3); }
+.statusbar span { display: inline-flex; align-items: center; gap: 5px; }
+.statusbar .ic { width: 13px; height: 13px; }
+.dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); display: inline-block; }
+
+.work { display: grid; gap: 1px; min-height: 0; }
+.panel { background: var(--g1); display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.ph { height: 36px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 6px 0 12px; border-bottom: 1px solid var(--ln); }
+.ph h3 { font-size: 13px; font-weight: 600; }
+.ph .ic { width: 15px; height: 15px; }
+.pbody { flex: 1; min-height: 0; overflow: hidden; }
+
+/* ———— 歌词页 ———— */
+.lyrics .work { grid-template-columns: 284px minmax(0, 1fr) 296px; }
+.src { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; }
+.src .ic { width: 14px; height: 14px; color: var(--t3); }
+.ll-row { display: grid; grid-template-columns: 26px minmax(0, 1fr) 18px; align-items: center; gap: 0 6px; padding: 6px 10px 6px 6px; border-left: 2px solid transparent; }
+.ll-row:hover { background: var(--g2); }
+.ll-row.is-sel { background: var(--g3); }
+.ll-row.is-active { border-left-color: var(--amber); }
+.ll-n { text-align: right; color: var(--t3); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.ll-body { display: flex; flex-direction: column; min-width: 0; }
+.ll-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13.5px; }
+.ll-zh { font-size: 11.5px; color: var(--t3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ll-time { font-size: 11px; color: var(--t3); font-variant-numeric: tabular-nums; }
+.ll-sub { display: flex; justify-content: space-between; gap: 8px; min-width: 0; }
+.ll-st .ic { width: 14px; height: 14px; color: var(--t3); }
+.st-ok .ll-st .ic, .st-edited .ll-st .ic { color: var(--ok); }
+.st-none .ll-time { color: var(--t3); opacity: .7; }
+.st-none .ll-text { color: var(--t2); }
+
+.editor { padding: 14px 18px 0; display: flex; flex-direction: column; gap: 16px; overflow: hidden; }
+.erow { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 10px; align-items: start; }
+.erow > label { color: var(--t3); font-size: 12px; padding-top: 5px; }
+.lead { display: flex; align-items: baseline; gap: 10px; }
+.lead h2 { font-size: 15px; font-weight: 600; }
+.lead .tnum { color: var(--t2); font-size: 12.5px; }
+.tools { display: flex; align-items: center; gap: 2px; margin-bottom: 8px; }
+.tk-row { display: flex; flex-wrap: wrap; gap: 4px; }
+.tk { display: inline-flex; flex-direction: column; align-items: center; min-width: 34px; padding: 3px 7px 4px; border-radius: 6px; background: var(--g2); border: 1px solid transparent; position: relative; }
+.tk-r { font-size: 10.5px; color: var(--t3); line-height: 14px; }
+.tk-t { font-size: 18px; line-height: 26px; font-weight: 500; }
+.tk-d { font-size: 10px; color: var(--t3); font-variant-numeric: tabular-nums; line-height: 13px; }
+.tk.is-sel { border-color: var(--amber); background: var(--g3); }
+.tk::after { content: ''; position: absolute; left: 6px; right: 6px; bottom: 1px; height: 2px; border-radius: 1px; background: linear-gradient(90deg, var(--amber) 0 var(--p), transparent var(--p)); opacity: .7; }
+.sub { font-size: 12px; color: var(--t3); }
+.timing { margin-top: auto; flex: none; display: flex; align-items: center; gap: 6px; height: 44px; padding: 0 10px 0 18px; border-top: 1px solid var(--ln); background: var(--g1); }
+.timing .lbl { color: var(--t3); font-size: 12px; }
+.timing .field { width: 92px; }
+.timing b { font-weight: 600; }
+
+.wp { padding: 18px 18px; display: flex; flex-direction: column; gap: 14px; }
+.wp-line { font-size: 15px; color: var(--t3); line-height: 1.9; }
+.wp-line rt { font-size: 9.5px; }
+.wp-line.is-cur { font-size: 18px; font-weight: 600; line-height: 2; }
+.wp-line.is-cur rt { font-size: 11px; }
+.wp-line.is-prev { color: var(--t3); opacity: .7; }
+.wp-zh { margin-top: -10px; font-size: 13px; color: var(--t2); }
+.wp-k { --wipe-off: var(--t1); }
+
+/* ———— 底部：播放与时间轴 ———— */
+.dock { background: var(--g1); display: flex; flex-direction: column; }
+.transport { height: 38px; display: flex; align-items: center; gap: 6px; padding: 0 10px; border-bottom: 1px solid var(--ln); }
+.play { width: 28px; height: 28px; border-radius: 50%; background: var(--amber); color: var(--amber-ink); display: grid; place-items: center; border: 0; }
+.play .ic { width: 14px; height: 14px; }
+.tc { font-size: 15px; font-weight: 500; font-variant-numeric: tabular-nums; letter-spacing: .01em; margin-left: 4px; }
+.tc small { font-size: 12px; color: var(--t3); font-weight: 400; margin-left: 4px; }
+.zoom { width: 110px; height: 3px; border-radius: 2px; background: var(--g3); position: relative; }
+.zoom::after { content: ''; position: absolute; left: 42%; top: -5px; width: 12px; height: 12px; border-radius: 50%; background: var(--t2); }
+
+.tl { --tl-wave-h: 72px; --tl-h: 28px; font-size: 11.5px; padding-bottom: 4px; }
+.tl-head { padding-left: 12px; color: var(--t3); font-size: 11.5px; border-right: 1px solid var(--ln); }
+.tl-ruler .tl-lane { color: var(--t3); border-bottom: 1px solid var(--ln); }
+.tl-ruler .tl-tick { color: var(--ln2); }
+.tl-ruler .tl-tick b { color: var(--t3); font-size: 10.5px; }
+.tl-wave .tl-lane { background: #1a1c20; }
+.wv-a { fill: #4a4f58; }
+.wv-b { fill: #8a7550; }
+.tl-row + .tl-row:not(.tl-ruler) .tl-lane { border-top: 1px solid rgba(255,255,255,.025); }
+.tl-tok { background: var(--g3); border-radius: 3px; padding: 0 4px; color: var(--t2); box-shadow: inset 0 -2px 0 0 transparent; font-size: 12px; }
+.tl-tok { background: linear-gradient(90deg, rgba(238,179,79,.26) 0 var(--p), var(--g3) var(--p)); }
+.tl-tok.in-line { color: var(--t1); }
+.tl-tok.is-sel { outline: 1.5px solid var(--amber); outline-offset: -1.5px; color: var(--t1); }
+.tl-tok.is-est { background: transparent; border: 1px dashed var(--ln2); }
+.tl-rb { color: var(--t3); font-size: 10.5px; padding: 0 4px; border-left: 1px solid var(--ln2); top: 2px; bottom: 2px; }
+.tl-line { background: var(--g2); border-radius: 3px; padding: 0 6px; color: var(--t2); font-size: 12px; border-left: 2px solid var(--ln2); }
+.tl-line i { color: var(--t3); font-size: 10.5px; margin-right: 2px; }
+.tl-line.is-sel { background: var(--g3); color: var(--t1); border-left-color: var(--amber); }
+.tl-line.st-est { border-left-style: dashed; }
+.tl-tr { color: var(--t3); font-size: 11px; padding: 0 6px; border-left: 1px solid var(--ln2); top: 2px; bottom: 2px; }
+.tl-ph { background: var(--amber); }
+.tl-ph.is-cap::before { content: ''; position: absolute; top: 0; left: -4.5px; border: 5px solid transparent; border-top: 6px solid var(--amber); border-bottom: 0; }
+.tl-clip { border-radius: 3px; padding: 0 8px; font-size: 11.5px; color: var(--t1); }
+.tl-clip i { font-weight: 600; margin-right: 4px; }
+.tl-clip.c1 { background: #2f3c4f; box-shadow: inset 2px 0 0 #6b8fc4; }
+.tl-clip.c2 { background: #45363f; box-shadow: inset 2px 0 0 #c4789a; }
+.tl-clip.is-sel { outline: 1.5px solid var(--t1); outline-offset: -1.5px; }
+.tl-lead { color: var(--t2); font-size: 11px; padding: 0 6px; background: repeating-linear-gradient(135deg, #2a2d33 0 4px, #24262b 4px 8px); border-radius: 3px; }
+.tl-lead .ic { width: 13px; height: 13px; }
+
+/* ———— 编排页 ———— */
+.orch .work { grid-template-columns: 284px minmax(0, 1fr) 300px; }
+.tabs { display: flex; gap: 2px; }
+.tabs span { height: 26px; padding: 0 9px; display: inline-flex; align-items: center; gap: 5px; border-radius: 5px; color: var(--t2); font-size: 12.5px; }
+.tabs span.on { background: var(--g3); color: var(--t1); }
+.tabs span em { font-style: normal; color: var(--t3); font-size: 11px; }
+.tree { padding: 6px 0; }
+.tn { height: 28px; display: flex; align-items: center; gap: 6px; padding: 0 10px 0 calc(8px + var(--d, 0) * 16px); color: var(--t1); }
+.tn .car { width: 12px; height: 12px; color: var(--t3); }
+.tn .car.none { visibility: hidden; }
+.tn .ic:not(.car) { width: 15px; height: 15px; color: var(--t3); }
+.tn .role { margin-left: auto; font-size: 11.5px; color: var(--t3); }
+.tn:hover { background: var(--g2); }
+.tn.is-sel { background: var(--g3); box-shadow: inset 2px 0 0 var(--amber); }
+.tn.is-sel .ic:not(.car) { color: var(--amber); }
+.assign { border-top: 1px solid var(--ln); padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+.kv { display: grid; grid-template-columns: 60px minmax(0, 1fr); gap: 8px; align-items: center; }
+.kv > label { color: var(--t3); font-size: 12px; }
+.cl { display: flex; flex-direction: column; }
+.cl-row { display: grid; grid-template-columns: 8px minmax(0,1fr) auto; gap: 8px; align-items: center; height: 28px; padding: 0 4px; border-radius: 5px; }
+.cl-row i { width: 8px; height: 8px; border-radius: 2px; }
+.cl-row.is-sel { background: var(--g3); }
+.cl-row span:last-child { color: var(--t3); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.canvas-bar { height: 36px; display: flex; align-items: center; gap: 6px; padding: 0 8px; border-bottom: 1px solid var(--ln); }
+.stage { flex: 1; min-height: 0; background: var(--g0); display: grid; place-items: center; padding: 18px 28px; }
+.stage > div { width: 100%; height: 100%; container-type: size; display: grid; place-items: center; }
+.stage .frame { width: min(100cqw, calc(100cqh * 16 / 9)); box-shadow: 0 0 0 1px #000; }
+.ident { font-size: 12px; color: var(--t2); display: inline-flex; gap: 8px; align-items: center; }
+.ident b { color: var(--t1); font-weight: 600; }
+.path { font-size: 12px; color: var(--t3); display: flex; align-items: center; gap: 2px; flex-wrap: wrap; }
+.path .ic { width: 12px; height: 12px; }
+.insp { overflow: hidden; }
+.insp-head { padding: 12px 14px 10px; border-bottom: 1px solid var(--ln); display: flex; flex-direction: column; gap: 4px; }
+.insp-head h2 { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.sect { padding: 10px 14px 12px; border-bottom: 1px solid var(--ln); display: flex; flex-direction: column; gap: 7px; }
+.sect h4 { font-size: 12px; font-weight: 600; color: var(--t2); display: flex; align-items: center; gap: 4px; margin-bottom: 2px; }
+.sect h4 .ic { width: 12px; height: 12px; color: var(--t3); }
+.g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.lf { display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: center; height: 28px; border-radius: 5px; background: var(--g2); overflow: hidden; }
+.lf > span:first-child { color: var(--t3); font-size: 11.5px; text-align: center; }
+.lf > span:last-child { padding-right: 8px; display: flex; justify-content: space-between; font-variant-numeric: tabular-nums; }
+.lf > span:last-child em { font-style: normal; color: var(--t3); }
+.lf.wide { grid-template-columns: 48px minmax(0, 1fr); }
+.slots { display: flex; flex-direction: column; gap: 2px; }
+.slot { height: 28px; display: grid; grid-template-columns: 16px 18px minmax(0,1fr) auto; gap: 6px; align-items: center; padding: 0 6px; border-radius: 5px; background: var(--g2); }
+.slot .ic { width: 14px; height: 14px; color: var(--t3); }
+.slot b { font-weight: 500; color: var(--t3); font-size: 11.5px; text-align: center; }
+
+/* ———— 首页 ———— */
+.home .work { grid-template-columns: 300px minmax(0, 1fr); }
+.start { padding: 22px 18px; display: flex; flex-direction: column; gap: 10px; }
+.start .btn { height: 34px; justify-content: flex-start; padding: 0 12px; }
+.start h5 { font-size: 12px; color: var(--t3); font-weight: 500; margin: 18px 0 2px 2px; }
+.recent { display: flex; flex-direction: column; }
+.recent a { display: flex; justify-content: space-between; gap: 8px; padding: 6px 8px; border-radius: 5px; color: var(--t2); text-decoration: none; font-size: 12.5px; }
+.recent a:hover { background: var(--g2); color: var(--t1); }
+.recent a span:last-child { color: var(--t3); font-variant-numeric: tabular-nums; font-size: 11.5px; }
+.start .foot { margin-top: auto; font-size: 11.5px; color: var(--t3); line-height: 1.6; }
+.homemain { overflow: auto; padding: 22px 28px; display: flex; flex-direction: column; gap: 26px; }
+.homemain h2 { font-size: 13px; font-weight: 600; color: var(--t2); margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
+.sessions { display: grid; grid-template-columns: repeat(auto-fill, 264px); gap: 14px; }
+.sess { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 8px 8px 12px; border-radius: 8px; background: var(--g1); border: 1px solid var(--ln); }
+.sess > div:last-child { padding: 0 4px; }
+.sess.is-cur { border-color: #4b4232; background: linear-gradient(0deg, var(--amber-soft), var(--amber-soft)), var(--g1); }
+.sess .frame { border-radius: 4px; }
+.sess b { font-weight: 600; display: block; margin-bottom: 3px; }
+.sess > div > span { font-size: 12px; color: var(--t3); display: block; }
+.sess .chip { margin-top: 6px; color: var(--amber); }
+.dirbar { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.crumb { display: flex; align-items: center; gap: 2px; color: var(--t2); }
+.crumb .ic { width: 12px; height: 12px; color: var(--t3); }
+.crumb b { color: var(--t1); font-weight: 500; }
+.search { width: 220px; color: var(--t3); }
+.search .ic { width: 14px; height: 14px; }
+.ptable { border-radius: 8px; border: 1px solid var(--ln); background: var(--g1); overflow: hidden; }
+.pr-row, .pr-headrow { display: grid; grid-template-columns: 32px minmax(160px, 1.4fr) minmax(120px, 1fr) 110px 90px 100px; align-items: center; height: 38px; padding: 0 8px; border-top: 1px solid var(--ln); }
+.pr-headrow { height: 30px; border-top: 0; color: var(--t3); font-size: 11.5px; background: #1b1d21; }
+.pr-row:hover { background: var(--g2); }
+.pr-row.is-open { background: var(--g2); }
+.pr-ic { color: var(--t3); display: grid; place-items: center; }
+.pr-ic .ic { width: 15px; height: 15px; }
+.pr-name { font-weight: 500; }
+.pr-path, .pr-time, .pr-ver { color: var(--t3); font-size: 12px; font-variant-numeric: tabular-nums; }
+.pr-ver em { font-style: normal; color: var(--warn); }
+.pr-act { display: flex; justify-content: flex-end; gap: 2px; }
+.pr-row.is-bad .pr-name { color: var(--t3); }
+.pr-row.is-dir .pr-name { color: var(--t2); }
+
+/* ———— 新建工程 ———— */
+.scrim { position: absolute; inset: 0; background: rgba(8, 9, 11, 0.62); display: grid; place-items: center; }
+.dialog { width: 720px; border-radius: 12px; background: var(--g1); border: 1px solid var(--ln2); box-shadow: 0 24px 60px rgba(0,0,0,.5); display: grid; grid-template-columns: 180px minmax(0, 1fr); overflow: hidden; }
+.steps { background: #1a1c20; padding: 20px 14px; display: flex; flex-direction: column; gap: 4px; border-right: 1px solid var(--ln); }
+.steps h2 { font-size: 15px; font-weight: 600; margin: 0 0 14px 6px; }
+.step { display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 8px; border-radius: 6px; color: var(--t3); }
+.step b { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; border: 1px solid var(--ln2); font-weight: 600; }
+.step.on { background: var(--g3); color: var(--t1); }
+.step.on b { background: var(--amber); border-color: var(--amber); color: var(--amber-ink); }
+.dbody { padding: 20px 22px 0; display: flex; flex-direction: column; gap: 16px; }
+.frow { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 12px; align-items: start; }
+.frow > label { color: var(--t2); padding-top: 7px; font-size: 12.5px; }
+.filebox { display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 6px 0 10px; border-radius: 7px; background: var(--g2); }
+.filebox .ic { width: 16px; height: 16px; color: var(--t2); }
+.filebox b { font-weight: 500; white-space: nowrap; }
+.filebox span { color: var(--t3); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.detect { margin-top: 6px; border-radius: 7px; border: 1px solid var(--ln); overflow: hidden; }
+.detect-head { display: flex; align-items: center; gap: 8px; padding: 7px 10px; font-size: 12px; color: var(--t2); background: #1b1d21; }
+.detect-head .ic { width: 14px; height: 14px; color: var(--ok); }
+.detect-body { padding: 6px 10px 8px; font-size: 12.5px; color: var(--t2); display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 2px 10px; }
+.detect-body span:nth-child(odd) { color: var(--t3); font-variant-numeric: tabular-nums; font-size: 11.5px; padding-top: 1px; }
+.dfoot { display: flex; align-items: center; gap: 8px; padding: 14px 0 18px; margin-top: 4px; }
+.hint { font-size: 12px; color: var(--t3); }
+
+/* ———— 导出页 ———— */
+.export .work { grid-template-columns: 380px minmax(0, 1fr); }
+.exset { padding: 4px 0 0; overflow: auto; }
+.fmt { display: flex; flex-direction: column; gap: 6px; }
+.fmt label { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 2px 8px; padding: 9px 10px; border-radius: 7px; border: 1px solid var(--ln); }
+.fmt label.on { border-color: #5a4a2c; background: var(--amber-soft); }
+.fmt label i { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--t3); margin-top: 2px; }
+.fmt label.on i { border: 4px solid var(--amber); }
+.fmt b { font-weight: 600; }
+.fmt span { grid-column: 2; font-size: 12px; color: var(--t3); }
+.sum { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 5px 10px; font-size: 12.5px; }
+.sum span:nth-child(odd) { color: var(--t3); }
+.sum span:nth-child(even) { font-variant-numeric: tabular-nums; }
+.exgo { margin-top: auto; padding: 12px 14px; border-top: 1px solid var(--ln); display: flex; align-items: center; gap: 8px; }
+.exgo .btn.primary { height: 32px; padding: 0 16px; }
+.exmain { overflow: auto; padding: 18px 24px; display: flex; flex-direction: column; gap: 22px; }
+.exmain h2 { font-size: 13px; font-weight: 600; color: var(--t2); margin-bottom: 8px; display: flex; gap: 8px; align-items: center; }
+.checks { border: 1px solid var(--ln); border-radius: 8px; background: var(--g1); }
+.ck { display: grid; grid-template-columns: 22px 120px minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 38px; padding: 0 10px; border-top: 1px solid var(--ln); }
+.ck:first-child { border-top: 0; }
+.ck .ic { width: 15px; height: 15px; }
+.ck .ok { color: var(--ok); }
+.ck .warn { color: var(--warn); }
+.ck .info { color: var(--t3); }
+.ck span:nth-child(3) { color: var(--t2); font-size: 12.5px; }
+.thumbs { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.thumbs figure { margin: 0; }
+.thumbs figcaption { font-size: 12px; color: var(--t3); margin-top: 6px; display: flex; justify-content: space-between; font-variant-numeric: tabular-nums; }
+.thumbs .frame { border-radius: 4px; }
+.job { border: 1px solid var(--ln); border-radius: 8px; background: var(--g1); padding: 10px 12px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; align-items: center; }
+.job + .job { margin-top: 8px; }
+.job b { font-weight: 600; }
+.job .meta { font-size: 12px; color: var(--t3); font-variant-numeric: tabular-nums; }
+.bar { grid-column: 1 / -1; height: 4px; border-radius: 2px; background: var(--g3); overflow: hidden; }
+.bar i { display: block; height: 100%; width: var(--w); background: var(--amber); }
+.okline { color: var(--ok); font-size: 12px; display: inline-flex; align-items: center; gap: 5px; }
+.okline .ic { width: 14px; height: 14px; }
+</style>
+</head>
+<body class="dir-a">
+
+<!-- ═════════════ 开屏（首页） ═════════════ -->
+<section class="screen home" id="home">
+  <div class="app nodock">
+    <header class="titlebar">
+      <span class="mark wipe" style="--p:58%" aria-label="MakoKara">M</span>
+      <div class="proj"><b>MakoKara</b></div>
+      <nav class="pages"><a class="on" data-i="home">首页</a><a data-i="library">样式库</a></nav>
+      <span class="spacer"></span>
+    </header>
+    <div class="work">
+      <aside class="panel start">
+        <button class="btn primary" data-i="plus">新建工程</button>
+        <button class="btn" data-i="restore">从备份恢复…</button>
+        <h5>最近打开</h5>
+        <nav class="recent">
+          <a href="#"><span lang="ja">dawn-platform</span><span>今天</span></a>
+          <a href="#"><span>summer-night</span><span>10-30</span></a>
+          <a href="#"><span>spring-rain-cover</span><span>10-21</span></a>
+        </nav>
+        <p class="foot">工程保存在本机的工程目录里；样式库不属于任何工程。</p>
+      </aside>
+      <main class="panel homemain">
+        <section>
+          <h2>继续工作</h2>
+          <div class="sessions">
+            <div class="sess is-cur"><div data-r="frame" data-o='{"small":true}'></div><div><b>黎明站台 <span class="chip amber" style="margin:0 0 0 6px;vertical-align:1px">正在编辑</span></b><span>修订 42，未保存</span></div></div>
+            <div class="sess"><div data-r="frame" data-o='{"small":true}'></div><div><b lang="ja">夏祭りの夜</b><span>修订 3，已保存</span></div></div>
+          </div>
+        </section>
+        <section>
+          <div class="dirbar">
+            <h2 style="margin:0">工程目录</h2>
+            <span class="crumb"><b>projects</b></span>
+            <span class="spacer"></span>
+            <span class="field search" data-i="search">搜索工程</span>
+          </div>
+          <div class="ptable">
+            <div class="pr-headrow"><span></span><span>名称</span><span>文件夹</span><span>修改时间</span><span>版本</span><span></span></div>
+            <div data-r="projectRows" data-o='{"highlight":false}' style="display:contents"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+        <footer class="statusbar"><span><i class="dot"></i>已连接</span><span>后端 0.109.0</span><span class="spacer"></span><span data-i="gpu">渲染设备：跟随默认（GPU）</span></footer>
+  </div>
+</section>
+
+<!-- ═════════════ 新建工程 ═════════════ -->
+<section class="screen is-overlay" id="new" data-under="home">
+  <div class="scrim">
+    <div class="dialog" role="dialog" aria-label="新建工程">
+      <aside class="steps">
+        <h2>新建工程</h2>
+        <div class="step on"><b>1</b>文件</div>
+        <div class="step"><b>2</b>画面</div>
+      </aside>
+      <div class="dbody">
+        <div class="frow"><label>音频</label>
+          <div class="filebox" data-i="music"><b>dawn-platform.wav</b><span>3:45.000，48 kHz</span><span class="spacer"></span><button class="btn ghost sm">更换</button><button class="btn icon sm" aria-label="移除" data-i="x"></button></div>
+        </div>
+        <div class="frow"><label>歌词</label>
+          <div>
+            <div class="filebox" data-i="file"><b>dawn-platform.lrc</b><span>4.1 KB</span><span class="spacer"></span><button class="btn ghost sm">更换</button><button class="btn icon sm" aria-label="移除" data-i="x"></button></div>
+            <div class="detect">
+              <div class="detect-head" data-i="check">识别为增强 LRC，UTF-8，12 行，其中 8 行带逐字时间</div>
+              <div class="detect-body" lang="ja">
+                <span>0:02.100</span><span>朝の光が窓を染めて</span>
+                <span>0:06.800</span><span>君の声がまだ耳に残る</span>
+                <span>0:12.300</span><span>夜明けのホームで手を振った</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="frow"><label>工程名</label><div><span class="field focus" style="width:100%">黎明站台</span><p class="hint" style="margin-top:5px">不填时用“dawn-platform”</p></div></div>
+        <div class="frow"><label>拆分</label><div style="display:flex;gap:8px;align-items:center"><span class="seg"><span>按字</span><span class="on">混合</span><span>按词</span></span><span class="toggle"><i></i>按字数估算逐字时间</span></div></div>
+        <div class="dfoot"><span class="hint">下一步设置画布和帧率</span><span class="spacer"></span><button class="btn ghost">取消</button><button class="btn primary">下一步</button></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════════ 歌词 ═════════════ -->
+<section class="screen lyrics" id="lyrics">
+  <div class="app">
+    <header class="titlebar">
+      <button class="btn icon" aria-label="首页" data-i="home"></button>
+      <span class="mark wipe" style="--p:58%" aria-label="MakoKara">M</span>
+      <div class="proj"><b>黎明站台</b><span class="dirty">未保存</span></div>
+      <nav class="pages"><a class="on" data-i="lyrics">歌词</a><a data-i="layout">编排</a><a data-i="swatch">外观</a><span class="vsep"></span><a data-i="library">样式库</a></nav>
+      <span class="spacer"></span>
+      <button class="btn icon" aria-label="撤销" data-i="undo"></button>
+      <button class="btn icon" aria-label="重做" data-i="redo" disabled></button>
+      <span class="vsep"></span>
+      <button class="btn icon" aria-label="工程设置" data-i="sliders"></button>
+      <button class="btn">保存</button>
+      <button class="btn primary" data-i="film">导出视频</button>
+      <button class="btn icon" aria-label="更多" data-i="more"></button>
+    </header>
+    <div class="work">
+      <aside class="panel">
+        <div class="ph"><span class="src">主歌词 <svg class="ic"><use href="#i-down"/></svg></span><span class="faint" style="font-size:12px;margin-left:4px">12 行</span><span class="spacer"></span><button class="btn icon sm" aria-label="添加歌词" data-i="plus"></button><button class="btn icon sm" aria-label="管理来源" data-i="translate"></button><button class="btn icon sm" aria-label="多选" data-i="check"></button></div>
+        <div class="pbody" data-r="lineList" data-o='{}'></div>
+      </aside>
+      <main class="panel">
+        <div class="editor">
+          <div class="lead"><h2>第 3 行</h2><span class="tnum">0:12.300 – 0:15.800</span><span class="chip ok">已修改</span><span class="spacer"></span><button class="btn ghost sm" data-i="target">定位</button><button class="btn ghost sm" data-i="headphones">试听</button><button class="btn icon sm" aria-label="行操作" data-i="more"></button></div>
+          <div class="erow"><label>正文</label><span class="field" lang="ja" style="height:32px;font-size:14px">夜明けのホームで手を振った</span></div>
+          <div class="erow"><label>文本单元</label>
+            <div>
+              <div class="tools"><button class="btn ghost sm" data-i="split">拆开</button><button class="btn ghost sm" data-i="merge">与后一个合并</button><button class="btn ghost sm" data-i="wand">按规则重切…</button><span class="spacer"></span><span class="sub">12 个</span></div>
+              <div data-r="tokens"></div>
+            </div>
+          </div>
+          <div class="erow"><label>注音</label><div style="display:flex;gap:8px;align-items:center"><span class="field" lang="ja" style="width:160px">よあ</span><span class="sub">所选「夜明」，清空即删除</span></div></div>
+          <div class="erow"><label>翻译</label><div style="display:flex;gap:8px;align-items:center;padding-top:4px"><span>在黎明的站台挥手</span><span class="chip">跟随本句</span><span class="spacer"></span><button class="btn ghost sm" data-i="link">改关联…</button></div></div>
+        </div>
+        <div class="timing">
+          <span class="lbl">所选</span><b lang="ja">夜明</b>
+          <span class="lbl" style="margin-left:6px">起</span><span class="field num">0:12.300</span>
+          <span class="lbl">止</span><span class="field num">0:12.780</span>
+          <span class="faint tnum" style="font-size:12px">0.480 s</span>
+          <button class="btn icon sm" aria-label="早一帧" data-i="left"></button><button class="btn icon sm" aria-label="晚一帧" data-i="right"></button>
+          <button class="btn ghost sm">取播放头</button><button class="btn ghost sm">清除</button>
+          <span class="spacer"></span>
+          <button class="btn ghost sm">整行平移…</button>
+        </div>
+      </main>
+      <aside class="panel">
+        <div class="ph"><h3>逐字预览</h3><span class="faint tnum" style="font-size:12px;margin-left:6px">0:14.218</span><span class="spacer"></span><button class="btn icon sm" aria-label="收起" data-i="right"></button></div>
+        <div class="pbody" data-r="wordPreview"></div>
+      </aside>
+    </div>
+    <div class="dock">
+      <div class="transport">
+        <button class="play" aria-label="播放" data-i="play"></button>
+        <span class="tc">0:14.218<small>/ 3:45.000</small></span>
+        <span class="vsep"></span>
+        <span class="field sel" style="width:64px;height:24px">1.0× <svg class="ic"><use href="#i-down"/></svg></span>
+        <button class="btn ghost sm" data-i="loop">循环本行</button>
+        <button class="btn sm on" data-i="stamp">打点 <span class="kbd">J</span></button>
+        <span class="spacer"></span>
+        <button class="btn icon sm" aria-label="缩小" data-i="zoomout"></button><span class="zoom"></span><button class="btn icon sm" aria-label="放大" data-i="zoomin"></button>
+        <button class="btn ghost sm" data-i="fit">全曲</button>
+        <span class="vsep"></span>
+        <button class="btn ghost sm" data-i="magnet">吸附到帧 30 fps</button>
+      </div>
+      <div data-r="timeline" data-o='{"from":10,"to":27,"tracks":["ruler","wave","tokens","ruby","lines","trans"]}'></div>
+    </div>
+    <footer class="statusbar"><span><i class="dot"></i>已连接</span><span>修订 42</span><span>就绪</span><span class="spacer"></span><span data-i="info">快捷键</span><span data-i="gpu">GPU</span></footer>
+  </div>
+</section>
+
+<!-- ═════════════ 编排 ═════════════ -->
+<section class="screen orch" id="orchestration">
+  <div class="app">
+    <header class="titlebar">
+      <button class="btn icon" aria-label="首页" data-i="home"></button>
+      <span class="mark wipe" style="--p:58%" aria-label="MakoKara">M</span>
+      <div class="proj"><b>黎明站台</b><span class="dirty">未保存</span></div>
+      <nav class="pages"><a data-i="lyrics">歌词</a><a class="on" data-i="layout">编排</a><a data-i="swatch">外观</a><span class="vsep"></span><a data-i="library">样式库</a></nav>
+      <span class="spacer"></span>
+      <button class="btn icon" aria-label="撤销" data-i="undo"></button>
+      <button class="btn icon" aria-label="重做" data-i="redo" disabled></button>
+      <span class="vsep"></span>
+      <button class="btn icon" aria-label="工程设置" data-i="sliders"></button>
+      <button class="btn">保存</button>
+      <button class="btn primary" data-i="film">导出视频</button>
+      <button class="btn icon" aria-label="更多" data-i="more"></button>
+    </header>
+    <div class="work">
+      <aside class="panel">
+        <div class="ph"><h3>画面结构</h3><span class="spacer"></span><button class="btn icon sm" aria-label="新建" data-i="plus"></button><button class="btn icon sm" aria-label="复制" data-i="copy"></button><button class="btn icon sm" aria-label="更多" data-i="more"></button></div>
+        <div class="tree">
+          <div class="tn" style="--d:0"><svg class="ic car"><use href="#i-down"/></svg><svg class="ic"><use href="#i-group"/></svg>画面<span class="role">组</span></div>
+          <div class="tn" style="--d:1"><svg class="ic car"><use href="#i-down"/></svg><svg class="ic"><use href="#i-group"/></svg>主歌词组<span class="role">组</span></div>
+          <div class="tn is-sel" style="--d:2"><svg class="ic car"><use href="#i-down"/></svg><svg class="ic"><use href="#i-rotate"/></svg>前段<span class="role">轮换 2</span></div>
+          <div class="tn" style="--d:3"><svg class="ic car none"><use href="#i-down"/></svg><svg class="ic"><use href="#i-slot"/></svg>左侧<span class="role">槽位 1</span></div>
+          <div class="tn" style="--d:3"><svg class="ic car none"><use href="#i-down"/></svg><svg class="ic"><use href="#i-slot"/></svg>右侧<span class="role">槽位 2</span></div>
+          <div class="tn" style="--d:2"><svg class="ic car none"><use href="#i-down"/></svg><svg class="ic"><use href="#i-box"/></svg>副歌<span class="role">自由</span></div>
+          <div class="tn" style="--d:2"><svg class="ic car"><use href="#i-right"/></svg><svg class="ic"><use href="#i-leadin"/></svg>三点提示<span class="role">前奏 3</span></div>
+          <div class="tn" style="--d:1"><svg class="ic car"><use href="#i-down"/></svg><svg class="ic"><use href="#i-group"/></svg>翻译组<span class="role">组</span></div>
+          <div class="tn" style="--d:2"><svg class="ic car none"><use href="#i-down"/></svg><svg class="ic"><use href="#i-box"/></svg>翻译<span class="role">自由</span></div>
+        </div>
+        <div class="assign" style="margin-top:auto">
+          <div class="tabs"><span class="on">片段 <em>3</em></span><span>前奏提示 <em>2</em></span><span class="spacer"></span><button class="btn icon sm" aria-label="新建片段" data-i="plus"></button></div>
+          <div class="kv"><label>来源</label><span class="field sel">主歌词 <svg class="ic"><use href="#i-down"/></svg></span></div>
+          <div class="kv"><label>默认容器</label><span class="field sel">前段 <svg class="ic"><use href="#i-down"/></svg></span></div>
+          <div class="cl">
+            <div class="cl-row"><i style="background:#6b8fc4"></i><span>前段</span><span>1–6 句</span></div>
+            <div class="cl-row is-sel"><i style="background:#c4789a"></i><span>副歌</span><span>7–8 句</span></div>
+            <div class="cl-row"><i style="background:#6b8fc4"></i><span>前段</span><span>9–12 句</span></div>
+          </div>
+        </div>
+      </aside>
+      <main class="panel">
+        <div class="canvas-bar">
+          <span class="seg"><span class="on">布局参考</span><span>时间预览</span></span>
+          <span class="vsep"></span>
+          <span class="ident">每个容器放代表性文字，不看时刻</span>
+          <span class="spacer"></span>
+          <button class="btn ghost sm" data-i="eye">参考框</button>
+          <button class="btn ghost sm" data-i="grid">对齐线</button>
+          <span class="field sel" style="height:24px">适合窗口 <svg class="ic"><use href="#i-down"/></svg></span>
+          <button class="btn sm" data-i="wand">快速布局…</button>
+        </div>
+        <div class="stage"><div data-r="frame" data-o='{"mode":"layout"}'></div></div>
+      </main>
+      <aside class="panel insp">
+        <div class="insp-head">
+          <div class="path">画面<svg class="ic"><use href="#i-right"/></svg>主歌词组<svg class="ic"><use href="#i-right"/></svg></div>
+          <h2>前段 <span class="chip">槽位轮换</span></h2>
+        </div>
+        <div class="sect">
+          <h4><svg class="ic"><use href="#i-down"/></svg>位置与变换</h4>
+          <div class="g2"><span class="lf"><span>X</span><span>50<em>%</em></span></span><span class="lf"><span>Y</span><span>72<em>%</em></span></span><span class="lf"><span>旋转</span><span>0<em>°</em></span></span><span class="lf"><span>缩放</span><span>1.00<em>×</em></span></span></div>
+          <span class="lf wide"><span>锚点</span><span>中心<em><svg class="ic" style="width:12px;height:12px"><use href="#i-down"/></svg></em></span></span>
+        </div>
+        <div class="sect">
+          <h4><svg class="ic"><use href="#i-down"/></svg>内部布局</h4>
+          <span class="seg" style="align-self:flex-start"><span class="on">槽位轮换</span><span>自由布局</span></span>
+          <div class="slots">
+            <div class="slot"><svg class="ic"><use href="#i-drag"/></svg><b>1</b><span>左侧</span><button class="btn icon sm" aria-label="更多" data-i="more"></button></div>
+            <div class="slot"><svg class="ic"><use href="#i-drag"/></svg><b>2</b><span>右侧</span><button class="btn icon sm" aria-label="更多" data-i="more"></button></div>
+          </div>
+          <button class="btn ghost sm" style="align-self:flex-start" data-i="plus">添加槽位</button>
+        </div>
+        <div class="sect">
+          <h4><svg class="ic"><use href="#i-down"/></svg>调度</h4>
+          <span class="lf wide"><span>同时</span><span>最多 2 句<em><svg class="ic" style="width:12px;height:12px"><use href="#i-down"/></svg></em></span></span>
+          <span class="lf wide"><span>保留</span><span>到下一句起唱<em><svg class="ic" style="width:12px;height:12px"><use href="#i-down"/></svg></em></span></span>
+        </div>
+        <div class="sect" style="border-bottom:0">
+          <h4><svg class="ic"><use href="#i-down"/></svg>动画</h4>
+          <div class="g2"><span class="lf wide"><span>进入</span><span>淡入<em>0.30 s</em></span></span><span class="lf wide"><span>退出</span><span>淡出<em>0.25 s</em></span></span></div>
+        </div>
+      </aside>
+    </div>
+    <div class="dock">
+      <div class="transport">
+        <button class="play" aria-label="播放" data-i="play"></button>
+        <span class="tc">0:14.218<small>/ 3:45.000</small></span>
+        <span class="vsep"></span>
+        <span class="field sel" style="width:64px;height:24px">1.0× <svg class="ic"><use href="#i-down"/></svg></span>
+        <button class="btn ghost sm" data-i="loop">循环选中</button>
+        <span class="spacer"></span>
+        <button class="btn icon sm" aria-label="缩小" data-i="zoomout"></button><span class="zoom"></span><button class="btn icon sm" aria-label="放大" data-i="zoomin"></button>
+        <button class="btn ghost sm" data-i="fit">全曲</button>
+        <span class="vsep"></span>
+        <button class="btn ghost sm" data-i="magnet">吸附到行</button>
+      </div>
+      <div data-r="timeline" data-o='{"from":0,"to":64,"step":2,"tracks":["ruler","wave","lines","clips","leadins"]}'></div>
+    </div>
+    <footer class="statusbar"><span><i class="dot"></i>已连接</span><span>修订 42</span><span>就绪</span><span class="spacer"></span><span data-i="info">快捷键</span><span data-i="gpu">GPU</span></footer>
+  </div>
+</section>
+
+<!-- ═════════════ 导出 ═════════════ -->
+<section class="screen export" id="export">
+  <div class="app nodock">
+    <header class="titlebar">
+      <button class="btn ghost" data-i="back">返回编辑</button>
+      <div class="proj"><b>导出视频</b><span class="faint" style="font-size:12px">黎明站台</span></div>
+      <nav class="pages"><a data-i="lyrics">歌词</a><a data-i="layout">编排</a><a data-i="swatch">外观</a><span class="vsep"></span><a data-i="library">样式库</a></nav>
+      <span class="spacer"></span>
+      <button class="btn icon" aria-label="工程设置" data-i="sliders"></button>
+      <button class="btn">保存</button>
+      <button class="btn icon" aria-label="更多" data-i="more"></button>
+    </header>
+    <div class="work">
+      <aside class="panel">
+        <div class="ph"><h3>格式与范围</h3></div>
+        <div class="exset">
+          <div class="sect">
+            <div class="fmt">
+              <label class="on"><i></i><b>MP4（H.264）</b><span>适合直接播放和上传；画面不透明，背景按工程设置</span></label>
+              <label><i></i><b>MOV 透明（ProRes 4444）</b><span>保留透明背景，叠到其他视频上用；文件大很多</span></label>
+            </div>
+          </div>
+          <div class="sect">
+            <h4>范围</h4>
+            <span class="seg" style="align-self:flex-start"><span class="on">整首</span><span>自定义</span></span>
+            <div class="g2"><span class="lf"><span>起</span><span>0:00.000</span></span><span class="lf"><span>止</span><span>3:45.000</span></span></div>
+          </div>
+          <div class="sect" style="border-bottom:0">
+            <h4>摘要</h4>
+            <div class="sum">
+              <span>画布</span><span>1920 × 1080</span>
+              <span>帧率</span><span>30 fps</span>
+              <span>时长</span><span>3:45.000</span>
+              <span>帧数</span><span>6,750</span>
+              <span>音轨</span><span>包含</span>
+              <span>背景</span><span>图片 dawn.jpg</span>
+              <span>渲染设备</span><span>GPU（偏好）</span>
+            </div>
+          </div>
+        </div>
+        <div class="exgo"><span class="hint">导出时可以继续编辑</span><span class="spacer"></span><button class="btn primary" data-i="film">开始导出</button></div>
+      </aside>
+      <main class="panel exmain">
+        <section>
+          <h2>准备检查</h2>
+          <div class="checks">
+            <div class="ck"><svg class="ic ok"><use href="#i-check"/></svg><span>音频</span><span>dawn-platform.wav，3:45.000，已准备</span><span></span></div>
+            <div class="ck"><svg class="ic ok"><use href="#i-check"/></svg><span>输出时长</span><span>3:45.000，按音频时长</span><span></span></div>
+            <div class="ck"><svg class="ic warn"><use href="#i-warn"/></svg><span>歌词时间</span><span>第 9–12 行未打轴，这几行不会出现在画面里</span><button class="btn sm">去歌词页</button></div>
+            <div class="ck"><svg class="ic ok"><use href="#i-check"/></svg><span>正式验证</span><span>修订 42 通过，普通与透明各 120 帧</span><button class="btn ghost sm">重新验证</button></div>
+          </div>
+        </section>
+        <section>
+          <h2>首帧与末帧</h2>
+          <div class="thumbs">
+            <figure><div data-r="frame" data-o='{"mode":"first"}'></div><figcaption><span>首帧</span><span>0:00.000</span></figcaption></figure>
+            <figure><div data-r="frame" data-o='{"mode":"end"}'></div><figcaption><span>末帧</span><span>3:44.967</span></figcaption></figure>
+          </div>
+        </section>
+        <section>
+          <h2>任务</h2>
+          <div class="job"><div><b>导出 MP4</b> <span class="meta">修订 42，GPU</span></div><button class="btn ghost sm">取消</button><div class="bar" style="--w:31%"><i></i></div><span class="meta">渲染中 2,093 / 6,750 帧，约 25 分钟</span><span class="meta">31%</span></div>
+          <div class="job"><div><b>导出 MP4</b> <span class="meta">修订 40，GPU，182.4 MB</span></div><button class="btn sm" data-i="download">下载</button><span class="okline"><svg class="ic"><use href="#i-check"/></svg>完成，成片在后端保留 1 小时</span></div>
+        </section>
+      </main>
+    </div>
+        <footer class="statusbar"><span><i class="dot"></i>已连接</span><span>修订 42</span><span>导出中 31%</span><span class="spacer"></span><span data-i="gpu">GPU</span></footer>
+  </div>
+</section>
+
+<script src="shared/mock.js"></script>
+</body>
+</html>

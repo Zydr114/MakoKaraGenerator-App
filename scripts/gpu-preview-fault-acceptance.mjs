@@ -3,8 +3,37 @@ import {spawn} from 'node:child_process';
 import {open,mkdir,readFile,readdir,writeFile} from 'node:fs/promises';
 import {resolve,join} from 'node:path';
 import {parseArgs} from 'node:util';
+import {fileURLToPath} from 'node:url';
+import {createHash} from 'node:crypto';
 import {createProject,connectPage,makeFixtures} from './gpu-preview-p3.mjs';
-const {values}=parseArgs({options:{output:{type:'string'},prefix:{type:'string'},port:{type:'string',default:'5185'},'cdp-port':{type:'string',default:'9235'}}});
+export function analyzeFaultCase(entry,text) {
+  const messages=text.split('\n').filter(x=>x.startsWith('{')).map(x=>{try{return JSON.parse(x)}catch{return {}}});
+  const loss=messages.find(x=>x.type==='desktop-injected-loss'),failStop=messages.find(x=>x.type==='desktop-fail-stop');
+  const exitLine=text.match(/backend exited (-?\d+)/),serverExit=exitLine?Number(exitLine[1]):null;
+  const baseline=entry.external?entry.probe?.externalKill?.acknowledgedAtObservation:loss?.acknowledgedAtLoss;
+  const finalAck=failStop?.counters?.acknowledgedUnique;
+  const ackDelta=Number.isSafeInteger(baseline)&&Number.isSafeInteger(finalAck)?finalAck-baseline:null;
+  const gates={probePassed:entry.probe?.passed===true,allOwnedExited:entry.allOwnedExited===true,
+    unknownOutstanding:Number.isSafeInteger(failStop?.unknownOutstanding)&&failStop.unknownOutstanding>=1,
+    explicitServerExit:exitLine!==null,expectedServerExit:serverExit===1,
+    expectedLauncherExit:entry.launcherExit?.code===1&&entry.launcherExit?.signal===null,
+    zeroAcknowledgements:ackDelta===0};
+  return {loss,failStop,serverExit,serverAbort:serverExit===-6,
+    ...(entry.external?{observationToDetectionAckDelta:ackDelta}:{exactLossToFailStopAckDelta:ackDelta}),gates,passed:Object.values(gates).every(Boolean)};
+}
+async function run() {
+const {values}=parseArgs({options:{output:{type:'string'},prefix:{type:'string'},port:{type:'string',default:'5185'},'cdp-port':{type:'string',default:'9235'},analyze:{type:'string'},'run-source-commit':{type:'string'}}});
+if(values.analyze){
+  const source=resolve(values.analyze),original=JSON.parse(await readFile(source,'utf8'));
+  const output=resolve(values.output??`${source}.analyzed.json`);
+  if(!output.startsWith(join(process.cwd(),'.local')+'/')||output===source)throw new Error('Offline analysis must use a separate App .local output');
+  const cases=[];
+  for(const entry of original.cases){const text=await readFile(entry.log,'utf8');cases.push({name:entry.name,external:entry.external,log:entry.log,logSha256:createHash('sha256').update(text).digest('hex'),...analyzeFaultCase(entry,text)});}
+  const report={schemaVersion:1,originalRunSourceCommit:values['run-source-commit'],originalReport:source,originalReportSha256:createHash('sha256').update(await readFile(source)).digest('hex'),
+    analyzerSource:import.meta.url,analyzerSha256:createHash('sha256').update(await readFile(fileURLToPath(import.meta.url))).digest('hex'),analyzedAt:new Date().toISOString(),
+    boundary:'Original run and source hashes are unchanged. External ACK delta is from the before-kill observation to detection, not an exact loss-time baseline.',cases,passed:cases.length===4&&cases.every(x=>x.passed)};
+  await writeFile(output,JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify({output,passed:report.passed}));if(!report.passed)process.exitCode=1;return;
+}
 const root=process.cwd(),prefix=values.prefix??`fault-${Date.now()}`,output=resolve(values.output??`.local/gpu-preview-lifecycle/${prefix}`);
 if(!/^[a-z0-9][a-z0-9-]{0,27}$/.test(prefix)||!output.startsWith(join(root,'.local')+'/'))throw new Error('Invalid fault acceptance prefix/output');
 await mkdir(output,{recursive:true,mode:0o700});
@@ -28,12 +57,7 @@ try{
       entry.launcherExit=await Promise.race([exited,pause(20000).then(()=>{throw new Error('Owned launcher did not exit');})]);
       entry.probe=JSON.parse(await readFile(join(directory,'probe/report.json'),'utf8'));
       entry.ownedAfter=await Promise.all(owned.map(x=>proc(x.pid)));entry.allOwnedExited=entry.ownedAfter.every((p,i)=>p.exited||p.startTicks!==owned[i].startTicks);
-      const text=await readFile(logPath,'utf8'),messages=text.split('\n').filter(x=>x.startsWith('{')).map(x=>{try{return JSON.parse(x)}catch{return {}}});
-      entry.loss=messages.find(x=>x.type==='desktop-injected-loss');entry.failStop=messages.find(x=>x.type==='desktop-fail-stop');
-      entry.serverExit=Number(text.match(/backend exited (-?\d+)/)?.[1]??0);entry.serverAbort=/backend exited -6/.test(text);
-      if(external)entry.observationToDetectionAckDelta=entry.failStop.counters.acknowledgedUnique-entry.probe.externalKill.acknowledgedAtObservation;
-      else entry.exactLossToFailStopAckDelta=entry.failStop.counters.acknowledgedUnique-entry.loss.acknowledgedAtLoss;
-      entry.passed=entry.probe.passed&&entry.allOwnedExited&&entry.failStop?.unknownOutstanding>=1&&!entry.serverAbort&&(external||entry.exactLossToFailStopAckDelta===0);
+      Object.assign(entry,analyzeFaultCase(entry,await readFile(logPath,'utf8')));
       if(!entry.passed)throw new Error(`Fault case failed: ${name}`);
       console.log(JSON.stringify({name,code:entry.failStop.code,unknown:entry.failStop.unknownOutstanding,serverExit:entry.serverExit,allOwnedExited:entry.allOwnedExited}));
     }finally{
@@ -42,3 +66,6 @@ try{
     }
   }
 }catch(error){summary.error=error.stack;process.exitCode=1;}finally{summary.finishedAt=new Date().toISOString();summary.passed=summary.cases.length===4&&summary.cases.every(x=>x.passed)&&!summary.error;await writeFile(join(output,'report.json'),JSON.stringify(summary,null,2)+'\n');console.log(JSON.stringify({output,passed:summary.passed,error:summary.error}));}
+
+}
+if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url))await run();

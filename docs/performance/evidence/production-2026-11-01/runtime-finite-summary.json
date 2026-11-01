@@ -17,6 +17,12 @@
       "path": ".local/gpu-preview-p3/runtime-finite-final/events.jsonl",
       "bytes": 8413732,
       "sha256": "00280dfab03964c8801cd872332899afc99291521f41baa483f443797e85aee3"
+    },
+    "correctness-before-timing.png": {
+      "path": ".local/gpu-preview-p3/runtime-finite-final/correctness-before-timing.png",
+      "bytes": 208494,
+      "sha256": "9e56005f444923a9649539092269328d7bdfe43c07432ae566ceb79cd8f010eb",
+      "boundary": "Validation-only screenshot before warmup, excluded from timed performance readback claims; CSS-sized visible rendering is not an alpha pixel proof"
     }
   },
   "manifest": {

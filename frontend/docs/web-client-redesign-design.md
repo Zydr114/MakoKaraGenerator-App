@@ -221,6 +221,10 @@ React Aria 的 Toast 在 1.22 里还是 `UNSTABLE_` 前缀，提示条自己写�
 - 效果组件与作者草稿：配置、源码、验证；
 - 工程设置面板。
 
+2026-11-01 已出稿：`desk-stage.html` 的 `#appearance`、`#picker`、`#library`（含 `-material`、`-fx`、`-adv`）、
+`#draft`（含 `-source`、`-validate`）、`#project-settings`，总览页“外观与样式库”一节。歌词页的“外观”“显示在”
+同时改成 §2.7 的只读样子。待用户确认。
+
 **批 1：底座。**
 
 - 安装依赖；

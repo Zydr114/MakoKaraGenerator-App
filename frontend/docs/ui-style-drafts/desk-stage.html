@@ -61,13 +61,13 @@
 .field b { font-weight: 400; color: var(--on-surface-variant); font-size: 11.5px; min-width: 24px; }
 .field .ic.lead { width: 18px; height: 18px; color: var(--on-surface-variant); }
 .seg { display: inline-flex; border: 1px solid var(--outline-variant); border-radius: 999px; overflow: hidden; flex: none; }
-.seg span { height: 30px; padding: 0 12px; display: inline-flex; align-items: center; gap: 6px; color: var(--on-surface); font-weight: 500; font-size: 12.5px; white-space: nowrap; cursor: pointer; }
-.seg span + span { border-left: 1px solid var(--outline-variant); }
-.seg span.on { background: var(--sel); color: var(--on-sel); }
-.seg span.on::before { content: ''; width: 16px; height: 16px; margin-left: -2px; background: currentColor; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 -960 960 960'%3E%3Cpath d='m378-332 363-363q9-9 21.5-9t21.5 9q9 9 9 21.5t-9 21.5L399-267q-9 9-21 9t-21-9L175-449q-9-9-8.5-21.5T176-492q9-9 21.5-9t21.5 9l159 160Z'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 -960 960 960'%3E%3Cpath d='m378-332 363-363q9-9 21.5-9t21.5 9q9 9 9 21.5t-9 21.5L399-267q-9 9-21 9t-21-9L175-449q-9-9-8.5-21.5T176-492q9-9 21.5-9t21.5 9l159 160Z'/%3E%3C/svg%3E") center / contain no-repeat; }
-.seg span.on .ic { display: none; }
+.seg > :is(span, a) { height: 30px; padding: 0 12px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; color: var(--on-surface); font-weight: 500; font-size: 12.5px; white-space: nowrap; cursor: pointer; text-decoration: none; }
+.seg > :is(span, a) + :is(span, a) { border-left: 1px solid var(--outline-variant); }
+.seg > .on { background: var(--sel); color: var(--on-sel); }
+.seg > .on::before { content: ''; width: 16px; height: 16px; margin-left: -2px; background: currentColor; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 -960 960 960'%3E%3Cpath d='m378-332 363-363q9-9 21.5-9t21.5 9q9 9 9 21.5t-9 21.5L399-267q-9 9-21 9t-21-9L175-449q-9-9-8.5-21.5T176-492q9-9 21.5-9t21.5 9l159 160Z'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 -960 960 960'%3E%3Cpath d='m378-332 363-363q9-9 21.5-9t21.5 9q9 9 9 21.5t-9 21.5L399-267q-9 9-21 9t-21-9L175-449q-9-9-8.5-21.5T176-492q9-9 21.5-9t21.5 9l159 160Z'/%3E%3C/svg%3E") center / contain no-repeat; }
+.seg > .on .ic { display: none; }
 .seg .ic { width: 16px; height: 16px; }
-.seg.sm span { height: 26px; padding: 0 10px; }
+.seg.sm > :is(span, a) { height: 26px; padding: 0 10px; }
 .tag { height: 22px; padding: 0 8px; display: inline-flex; align-items: center; gap: 4px; border-radius: 6px; font-size: 11.5px; font-weight: 500; background: var(--surface-high); color: var(--on-surface-variant); white-space: nowrap; }
 .tag.ok { background: var(--ok-container); color: var(--ok); }
 .tag.accent { background: var(--sel); color: var(--on-sel); }
@@ -81,8 +81,8 @@
 .switch { display: inline-flex; align-items: center; gap: 10px; color: var(--on-surface); }
 .switch i { width: 36px; height: 20px; border-radius: 10px; background: var(--surface-highest); box-shadow: inset 0 0 0 2px var(--outline); position: relative; flex: none; }
 .switch i::after { content: ''; position: absolute; top: 5px; left: 5px; width: 10px; height: 10px; border-radius: 50%; background: var(--outline); }
-.switch.on i { background: var(--primary); box-shadow: none; }
-.switch.on i::after { top: 3px; left: 19px; width: 14px; height: 14px; background: var(--on-primary); }
+.switch.on i { background: var(--accent); box-shadow: none; }
+.switch.on i::after { top: 3px; left: 19px; width: 14px; height: 14px; background: var(--on-accent); }
 .slider { position: relative; width: 104px; height: 20px; flex: none; --v: 45%; }
 .slider::before { content: ''; position: absolute; left: 0; top: 8px; height: 4px; width: calc(var(--v) - 4px); border-radius: 2px; background: var(--accent); }
 .slider::after { content: ''; position: absolute; right: 0; top: 8px; height: 4px; left: calc(var(--v) + 4px); border-radius: 2px; background: var(--sel); }
@@ -342,7 +342,7 @@
 .stabs a { height: 32px; padding: 0 14px; border-radius: 999px; display: inline-flex; align-items: center; gap: 6px; color: var(--on-surface-variant); font-weight: 500; text-decoration: none; }
 .stabs a.on { background: var(--secondary-container); color: var(--on-secondary-container); }
 .stabs .ic { width: 18px; height: 18px; }
-.sbody { flex: 1; overflow: auto; padding: 4px 24px 24px; display: flex; flex-direction: column; gap: 22px; }
+.sbody { flex: 1; overflow: auto; scrollbar-width: thin; scrollbar-color: var(--outline-variant) transparent; padding: 4px 24px 24px; display: flex; flex-direction: column; gap: 22px; }
 .sset { display: flex; flex-direction: column; gap: 10px; }
 .sset > h4 { font-size: 12.5px; font-weight: 600; color: var(--primary); }
 .sset > p { font-size: 12px; color: var(--on-surface-variant); margin-top: -4px; }
@@ -416,6 +416,270 @@
 .range .tl { --tl-wave-h: 40px; --tl-ruler-h: 24px; }
 .range .in { position: absolute; inset: 0; box-shadow: inset 0 0 0 2px var(--tertiary); border-radius: 10px; pointer-events: none; }
 .range figcaption { display: flex; justify-content: space-between; padding-top: 8px; font-size: 12px; color: var(--stage-ink2); font-variant-numeric: tabular-nums; }
+/* ———— 模板字样：渲染画面属于工程内容，颜色由模板决定，不随界面主题 ———— */
+.frame .fk { background: linear-gradient(90deg, var(--t-sung, #8fd3ff) 0 var(--p), var(--t-un, #fff) var(--p) 100%); -webkit-background-clip: text; background-clip: text; filter: drop-shadow(0 0 .14cqw var(--t-edge, #0a1640)) drop-shadow(0 0 .14cqw var(--t-edge, #0a1640)) var(--t-fx, drop-shadow(0 .25cqw .4cqw rgba(0, 0, 0, .45))); }
+.frame .fl-2 .fk { filter: drop-shadow(0 0 .14cqw var(--t-edge, #0a1640)) drop-shadow(0 0 .14cqw var(--t-edge, #0a1640)) var(--t-fx2, drop-shadow(0 0 0 transparent)); }
+.tp-gold { --t-sung: #ffc857; --t-un: #fff6e0; --t-edge: #3b2306; }
+.tp-neon { --t-sung: #ff6ad5; --t-un: #e9fbff; --t-edge: #2a0b45; --t-fx: drop-shadow(0 0 .9cqw rgba(255, 106, 213, .85)); --t-fx2: drop-shadow(0 0 .6cqw rgba(140, 200, 255, .55)); }
+.tp-glow { --t-sung: #b9f3dc; --t-un: #fff; --t-edge: #0c2a2a; --t-fx: drop-shadow(0 0 .7cqw rgba(185, 243, 220, .7)); }
+.tp-soft { --t-sung: #e3ecff; --t-un: rgba(255, 255, 255, .72); --t-edge: rgba(10, 22, 64, .55); }
+.tp-summer { --t-sung: #ff9b45; --t-un: #fffaf2; --t-edge: #4a1405; }
+.tthumb { border-radius: 6px; }
+.tthumb .fl-mid { left: 0; right: 0; bottom: 26%; text-align: center; font-size: 14cqw; }
+.fx-sparks { position: absolute; inset: 0; pointer-events: none; }
+.fx-sparks i { position: absolute; width: var(--s); height: var(--s); border-radius: 50%; background: #ffe3f6; box-shadow: 0 0 .7cqw .15cqw rgba(255, 106, 213, .85); }
+
+/* ———— 共用：属性行、色块、标签页、提示 ———— */
+.frow { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 8px; align-items: center; min-height: 32px; }
+.frow > label { font-size: 12px; color: var(--on-surface-variant); }
+.prow { display: grid; grid-template-columns: 52px minmax(0, 1fr) 36px; gap: 8px; align-items: center; min-height: 32px; }
+.prow > label { font-size: 12px; color: var(--on-surface-variant); }
+.prow > .ctl { display: flex; gap: 6px; min-width: 0; align-items: center; }
+.prow > .ctl > .field { flex: 1; }
+.prow > .ctl > .field.w { flex: none; width: 96px; }
+.prow > .sub { grid-column: 2 / -1; display: flex; flex-direction: column; gap: 6px; }
+.prow.off > label, .prow.off .ctl { color: var(--outline); }
+.field i.c { width: 16px; height: 16px; border-radius: 4px; background: var(--c); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--on-surface) 18%, transparent); flex: none; }
+.field.ph { color: var(--outline); }
+.tag.warn { background: var(--warn-container); color: var(--warn); }
+.tag.err { background: var(--error-container); color: var(--error); }
+.udot { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); flex: none; }
+.cbt { font-weight: 600; font-size: 14px; margin: 0 4px 0 8px; }
+.ptabs { flex: none; display: flex; align-items: center; padding: 0 8px; border-bottom: 1px solid var(--line); }
+.ptabs a { position: relative; height: 40px; padding: 0 12px; display: inline-flex; align-items: center; gap: 6px; color: var(--on-surface-variant); font-weight: 500; text-decoration: none; }
+.ptabs a:hover { background-image: var(--hover); }
+.ptabs a.on { color: var(--primary); }
+.ptabs a.on::after { content: ''; position: absolute; left: 10px; right: 10px; bottom: -1px; height: 3px; border-radius: 3px 3px 0 0; background: var(--primary); }
+.ptabs .n { font-size: 11px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; display: inline-grid; place-items: center; background: var(--surface-high); color: var(--on-surface-variant); font-variant-numeric: tabular-nums; }
+.pbody { flex: 1; min-height: 0; overflow: hidden; }
+.pbody[hidden] { display: none; }
+.pintro { padding: 10px 16px 2px; font-size: 12px; color: var(--on-surface-variant); }
+.grp > h4 .switch { margin-left: auto; }
+.grp > h4 .faint { font-weight: 400; font-size: 12px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.chip { height: 28px; padding: 0 4px 0 10px; display: inline-flex; align-items: center; gap: 2px; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--outline-variant); font-size: 12.5px; white-space: nowrap; }
+.chip .ic { width: 16px; height: 16px; color: var(--on-surface-variant); }
+.chip.add { padding: 0 10px 0 6px; color: var(--primary); gap: 4px; }
+.chip.add .ic { color: inherit; }
+.code { font: 12px/1.65 ui-monospace, 'Cascadia Mono', 'JetBrains Mono', 'Noto Sans Mono', 'DejaVu Sans Mono', monospace; font-variant-ligatures: none; }
+.cic { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: var(--surface-high); color: var(--on-surface-variant); flex: none; }
+.cic .ic { width: 20px; height: 20px; }
+.play.sm { width: 32px; height: 32px; border-radius: 10px; }
+.play.sm .ic { width: 20px; height: 20px; }
+
+/* ———— 外观页：沿用编排页的 T 形幕后区 ———— */
+.appear .work { --left: 300px; --right: 340px; }
+.appear .tlbox .tl { --tl-wave-h: 40px; }
+.tsearch { flex: none; display: flex; padding: 0 10px 6px; }
+.tsearch .field { flex: 1; color: var(--on-surface-variant); }
+.tsearch .field .ic { width: 18px; height: 18px; }
+.atree { flex: 1; min-height: 0; overflow: hidden; padding: 0 6px; }
+.at { height: 30px; display: flex; align-items: center; gap: 6px; padding: 0 10px 0 calc(6px + var(--d, 0) * 18px); border-radius: 999px; white-space: nowrap; }
+.at:hover { background-image: var(--hover); }
+.at .car { width: 16px; height: 16px; color: var(--on-surface-variant); }
+.at .car.none { visibility: hidden; }
+.at .ic:not(.car) { width: 18px; height: 18px; color: var(--on-surface-variant); }
+.at .n { width: 16px; flex: none; text-align: right; font-size: 11px; color: var(--outline); font-variant-numeric: tabular-nums; }
+.at .tx { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.at .sub { font-size: 11.5px; color: var(--on-surface-variant); }
+.at.is-sel { background: var(--sel); color: var(--on-sel); font-weight: 600; }
+.at.is-sel .n, .at.is-sel .ic, .at.is-sel .asg { color: inherit; }
+.asg { margin-left: auto; flex: none; display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 500; color: var(--on-surface-variant); }
+.asg i { width: 10px; height: 10px; border-radius: 3px; background: var(--a); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .25); }
+.tokchips { display: flex; flex-wrap: wrap; gap: 3px; padding: 2px 10px 6px 68px; }
+.tokchips span { height: 22px; min-width: 22px; padding: 0 5px; display: inline-grid; place-items: center; border-radius: 6px; background: var(--field); font-size: 12px; }
+.sect .at { margin: 0 4px; }
+.sect .atree2 { padding-bottom: 6px; }
+.acard { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 8px 12px; align-items: center; padding: 8px; border-radius: 12px; background: var(--surface-low); }
+.acard .frame { border-radius: 8px; }
+.acard b { display: block; font-weight: 600; font-size: 14px; }
+.acard .small { color: var(--on-surface-variant); }
+.acard .row { grid-column: 1 / -1; display: flex; gap: 2px; margin: -2px -4px -4px; }
+.acts3 { display: flex; gap: 6px; flex-wrap: wrap; }
+.srcs { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 0 10px; align-items: center; font-size: 12.5px; }
+.srcs > span:nth-child(3n + 1) { color: var(--on-surface-variant); font-size: 12px; }
+.srcs .v { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; overflow: hidden; font-variant-numeric: tabular-nums; }
+.srcs .v i { width: 14px; height: 14px; border-radius: 4px; background: var(--c); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--on-surface) 18%, transparent); flex: none; }
+.srcs a { color: var(--primary); font-size: 12px; height: 28px; display: inline-flex; align-items: center; padding: 0 6px; margin-right: -6px; border-radius: 6px; cursor: pointer; }
+.srcs a:hover { background-image: var(--hover); }
+
+/* 模板选择器：左边挑，右边幕后区试看 */
+.dialog.pick { width: 1060px; height: 580px; display: grid; grid-template-columns: minmax(0, 1fr) 440px; }
+.dhead .sub { color: var(--on-surface-variant); font-size: 14px; }
+.ptools { display: flex; gap: 8px; padding: 0 24px 6px; }
+.ptools .field:first-child { flex: 1; color: var(--on-surface-variant); }
+.ptools .field .ic.lead, .ptools .field > .ic:first-child { width: 18px; height: 18px; }
+.plistc { flex: 1; min-height: 0; overflow: hidden; padding: 0 16px; }
+.plistc .grouphead { padding: 0 8px 6px; }
+.tcards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.tcard { padding: 6px 6px 8px; border-radius: 16px; background: var(--field); display: flex; flex-direction: column; gap: 6px; cursor: pointer; }
+.tcard:hover { background-image: var(--hover); }
+.tcard .frame { border-radius: 10px; }
+.tcard .nm { display: flex; align-items: center; gap: 6px; padding: 0 4px; min-height: 20px; }
+.tcard b { font-weight: 600; }
+.tcard .tag { height: 18px; padding: 0 6px; font-size: 11px; margin-left: auto; }
+.tcard .small { padding: 0 4px; color: var(--on-surface-variant); margin-top: -4px; }
+.tcard.on { background: var(--secondary-container); color: var(--on-secondary-container); box-shadow: inset 0 0 0 2px var(--primary); }
+.tcard.on .small { color: inherit; opacity: .8; }
+.tcard.off { cursor: default; }
+.tcard.off .frame { opacity: .4; }
+.tcard.off b { color: var(--on-surface-variant); font-weight: 500; }
+.pvf { padding: 0 18px; }
+.pvf .frame { border-radius: 10px; }
+.pvcap { padding: 6px 18px 4px; font-size: 12px; color: var(--stage-ink2); font-variant-numeric: tabular-nums; }
+.dside .frow > label { color: var(--stage-ink2); }
+
+/* ———— 样式库：左边列表，中间幕后区试样，右边编辑 ———— */
+.lib .work { --left: 300px; --right: 400px; grid-template-columns: var(--left) minmax(0, 1fr) var(--right); grid-template-rows: auto minmax(0, 1fr); grid-template-areas: "ret ret ret" "list stage panel"; }
+.lib.noret .work { grid-template-rows: minmax(0, 1fr); grid-template-areas: "list stage panel"; }
+#draft[data-tab='source'] .work { --right: 680px; }
+.retbar { grid-area: ret; height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 4px 0 12px; border-radius: 12px; background: var(--secondary-container); color: var(--on-secondary-container); font-size: 12.5px; }
+.retbar > .ic { width: 18px; height: 18px; }
+.retbar .btn.icon { color: inherit; }
+.lseg { flex: none; display: flex; padding: 10px 10px 8px; }
+.lseg .seg { flex: 1; }
+.lseg .seg > a { flex: 1; }
+.ltools { flex: none; display: flex; gap: 6px; padding: 0 10px 8px; }
+.ltools .field:first-child { flex: 1; color: var(--on-surface-variant); }
+.ltools .field .ic:first-child { width: 18px; height: 18px; }
+.llist { flex: 1; min-height: 0; overflow: hidden; }
+.llist .grouphead { padding: 0 16px 6px; height: 30px; }
+.trow { display: grid; grid-template-columns: 72px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px 10px 6px 6px; margin: 0 6px; border-radius: 12px; }
+.trow:hover { background-image: var(--hover); }
+.trow .frame { border-radius: 6px; }
+.trow b { display: block; font-weight: 500; }
+.trow .small { display: block; color: var(--on-surface-variant); }
+.trow.is-sel { background: var(--sel); color: var(--on-sel); }
+.trow.is-sel b { font-weight: 600; }
+.trow.is-sel .small { color: inherit; opacity: .8; }
+.crow { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px 10px 6px 6px; margin: 0 6px; border-radius: 12px; }
+.crow:hover { background-image: var(--hover); }
+.crow b { display: block; font-weight: 500; }
+.crow .small { display: block; color: var(--on-surface-variant); }
+.crow.is-sel { background: var(--sel); color: var(--on-sel); }
+.crow.is-sel b { font-weight: 600; }
+.crow.is-sel .small { color: inherit; opacity: .8; }
+.crow.is-sel .cic { background: color-mix(in srgb, var(--on-sel) 10%, transparent); color: inherit; }
+.lib .stage { padding: 0 24px 4px; }
+.sbar { height: 52px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 16px 6px 12px; }
+.sbar .slider { flex: 1; width: auto; }
+.sbar .tc { font-size: 13px; margin: 0 4px; }
+.sbar .switch { color: var(--stage-ink2); }
+.phead { flex: none; padding: 10px 8px 4px 16px; display: flex; flex-direction: column; gap: 2px; }
+.phead > div { display: flex; align-items: center; gap: 4px; min-height: 34px; }
+.phead h2 { font-size: 18px; font-weight: 600; margin-right: 6px; }
+.phead .meta { font-size: 12px; color: var(--on-surface-variant); }
+.grad { position: relative; height: 22px; margin: 2px 6px 16px; border-radius: 6px; background: linear-gradient(90deg, var(--a), var(--b)); }
+.grad i { position: absolute; top: 100%; left: var(--x); width: 12px; height: 12px; margin: 4px 0 0 -6px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 2px var(--surface-lowest), 0 0 0 3px var(--outline); }
+.grad i.on { box-shadow: 0 0 0 2px var(--surface-lowest), 0 0 0 4px var(--primary); }
+.stop { display: grid; grid-template-columns: 108px minmax(0, 1fr) 28px; gap: 6px; align-items: center; }
+.note { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 2px 0 10px; border-radius: 8px; background: var(--surface-low); font-size: 12.5px; }
+.note > .ic { width: 18px; height: 18px; color: var(--primary); }
+.note .btn { margin-left: auto; }
+.prm { display: grid; grid-template-columns: 64px minmax(0, 1fr) 84px; gap: 8px; align-items: center; min-height: 32px; }
+.prm > label { font-size: 12px; color: var(--on-surface-variant); }
+.prm .slider { width: auto; }
+.prm > .field { min-width: 0; }
+.prm > .wide { grid-column: 2 / -1; }
+.curve { height: 92px; border-radius: 8px; background: var(--field); overflow: hidden; }
+.curve svg { display: block; width: 100%; height: 100%; }
+.curve .g { stroke: var(--outline-variant); stroke-width: 1; }
+.curve .cv { fill: none; stroke: var(--primary); stroke-width: 2; }
+.curve .ar { fill: color-mix(in srgb, var(--primary) 12%, transparent); }
+.curve circle { fill: var(--surface-lowest); stroke: var(--primary); stroke-width: 2; }
+.curve circle.on { fill: var(--primary); }
+.rlist { display: flex; flex-direction: column; gap: 2px; }
+.rcp { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto auto; gap: 8px; align-items: center; min-height: 46px; padding: 4px 10px 4px 6px; border-radius: 12px; background: var(--surface-low); }
+.rcp > .ic { width: 18px; height: 18px; color: var(--outline); }
+.rcp b { display: block; font-weight: 600; }
+.rcp .small { display: block; color: var(--on-surface-variant); }
+.rcp.is-sel { background: var(--sel); color: var(--on-sel); }
+.rcp.is-sel .small, .rcp.is-sel > .ic { color: inherit; opacity: .8; }
+.rcp.is-off b { color: var(--on-surface-variant); font-weight: 500; }
+.rtools { display: flex; }
+.addfx { display: flex; gap: 6px; }
+.addfx .field { flex: 1; }
+.pkg { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 0 10px; align-items: center; padding: 8px 6px 8px 8px; border-radius: 12px; background: var(--surface-low); }
+.pkg b { font-weight: 600; }
+.pkg .small { display: block; color: var(--on-surface-variant); }
+.json { margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--field); white-space: pre; overflow: hidden; color: var(--on-surface); }
+.json .k { color: var(--primary); }
+.json .s { color: var(--tertiary); }
+.json .n { color: var(--clip2-bar); }
+.files { display: flex; flex-direction: column; gap: 2px; }
+.files span { height: 28px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border-radius: 8px; font-size: 12.5px; }
+.files span .ic { width: 16px; height: 16px; color: var(--on-surface-variant); }
+.files em { font-style: normal; margin-left: auto; color: var(--on-surface-variant); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+
+/* 作者草稿：源码页签把右栏放宽，左边是文件与修订，右边是编辑器 */
+.srcwrap { height: 100%; display: grid; grid-template-columns: 172px minmax(0, 1fr); }
+.srcside { padding: 6px 4px 8px 8px; display: flex; flex-direction: column; gap: 2px; overflow: hidden; border-right: 1px solid var(--line); }
+.srcside h5 { margin: 0; font-size: 12px; font-weight: 600; color: var(--primary); padding: 8px 8px 4px; }
+.fitem { height: 30px; display: flex; align-items: center; gap: 6px; padding: 0 8px; border-radius: 8px; font-size: 12.5px; }
+.fitem .ic { width: 16px; height: 16px; color: var(--on-surface-variant); }
+.fitem .udot { margin-left: auto; }
+.fitem.is-sel { background: var(--sel); color: var(--on-sel); font-weight: 600; }
+.fitem.is-sel .ic { color: inherit; }
+.rev { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0 4px; padding: 5px 4px 5px 8px; border-radius: 8px; font-size: 12.5px; }
+.rev b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.rev span { grid-column: 1; font-size: 11.5px; color: var(--on-surface-variant); }
+.rev .btn { grid-row: 1 / span 2; grid-column: 2; }
+.rev.is-sel { background: var(--surface-low); }
+.srcmain { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 8px 10px 10px; }
+.srcbar { flex: none; display: flex; align-items: center; gap: 6px; min-height: 32px; }
+.srcbar b { font-weight: 600; margin-left: 4px; }
+.editor { flex: 1; min-height: 0; border-radius: 12px; background: var(--field); overflow: hidden; padding: 8px 0; color: var(--on-surface); }
+.editor .l { position: relative; padding-left: 50px; white-space: pre; }
+.editor .l::before { content: attr(data-n); position: absolute; left: 0; width: 38px; text-align: right; color: var(--outline); }
+.editor .l.cur { background: color-mix(in srgb, var(--primary) 7%, transparent); }
+.editor .l.cur::before { color: var(--on-surface); }
+.editor .l.bad::before { color: var(--error); font-weight: 700; }
+.editor .kw { color: var(--primary); font-weight: 600; }
+.editor .ty { color: var(--tertiary); }
+.editor .st { color: var(--clip2-bar); }
+.editor .cm { color: var(--outline); font-style: italic; }
+.editor .nu { color: var(--clip2-bar); }
+.editor .err { text-decoration: wavy underline var(--error); text-decoration-skip-ink: none; text-underline-offset: 3px; }
+.diag { flex: none; border-radius: 12px; background: var(--surface-low); padding: 6px 6px 6px 12px; display: flex; flex-direction: column; gap: 2px; }
+.diag header { display: flex; align-items: center; gap: 6px; min-height: 30px; font-weight: 600; font-size: 12.5px; }
+.diag header .ic { width: 18px; height: 18px; color: var(--error); }
+.diag header .faint { font-weight: 400; font-size: 12px; margin-left: auto; padding-right: 6px; }
+.dline { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 8px; align-items: center; min-height: 28px; padding: 0 8px; margin-left: -6px; border-radius: 8px; font-size: 12.5px; }
+.dline:hover { background-image: var(--hover); }
+.dline .loc { color: var(--primary); font-variant-numeric: tabular-nums; }
+.vsum { display: flex; gap: 24px; padding: 2px 0 4px; font-size: 12px; color: var(--on-surface-variant); }
+.vsum b { display: block; font-size: 20px; font-weight: 600; color: var(--on-surface); font-variant-numeric: tabular-nums; line-height: 1.3; }
+.iss { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 2px 10px; align-items: center; padding: 8px 6px 8px 10px; border-radius: 12px; background: var(--surface-low); }
+.iss > .ic { width: 20px; height: 20px; align-self: start; margin-top: 1px; }
+.iss.e > .ic { color: var(--error); }
+.iss.w > .ic { color: var(--warn); }
+.iss b { font-weight: 600; display: block; }
+.iss .small { display: block; color: var(--on-surface-variant); }
+
+/* ———— 工程设置：右侧面板，与应用设置同一种外形 ———— */
+.sheet .frow .field { width: 100%; }
+.sintro { padding: 0 24px 10px; font-size: 12px; color: var(--on-surface-variant); }
+.media { display: grid; grid-template-columns: 136px minmax(0, 1fr); gap: 2px 12px; align-items: center; padding: 8px; border-radius: 16px; background: var(--dialog-field); }
+.media .frame { border-radius: 10px; }
+.media b { display: block; font-weight: 600; }
+.media .small { display: block; color: var(--on-surface-variant); }
+.btnrow { display: flex; gap: 6px; flex-wrap: wrap; }
+.sheet .dl { padding: 10px 14px; border-radius: 16px; background: var(--dialog-field); grid-template-columns: 52px minmax(0, 1fr); }
+.sheet .dl dt { color: var(--on-surface-variant); }
+.anl { display: flex; align-items: center; gap: 12px; padding: 8px 14px 8px 10px; border-radius: 16px; background: var(--dialog-field); }
+.anl .cic { background: var(--ok-container); color: var(--ok); }
+.anl b { display: block; font-weight: 600; }
+.anl span { font-size: 12px; color: var(--on-surface-variant); }
+.durv { display: flex; align-items: baseline; gap: 10px; }
+.durv b { font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* 歌词页行编辑区：外观与显示在，只读，点击跳到对应页面 */
+.ro { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 4px 0 10px; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--outline-variant); color: inherit; text-decoration: none; white-space: nowrap; min-width: 0; }
+.ro:hover { background-image: var(--hover); }
+.ro > .ic { width: 18px; height: 18px; color: var(--on-surface-variant); margin-left: auto; }
+.ro .faint { overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
+.ro i { width: 12px; height: 12px; border-radius: 3px; background: var(--a); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .25); flex: none; }
+#draft:not([data-tab='config']) .ptabs .btn { display: none; }
 </style>
 </head>
 <body class="dir-c">
@@ -426,7 +690,7 @@
     <header class="top">
       <a class="brand" href="#home" title="首页"><img src="../../assets/logo/logo-icon.png" alt="MakoKara Generator"></a><b class="appname">MakoKara Generator</b>
       <span class="spacer"></span>
-      <button class="btn ghost" data-i="library">样式库</button>
+      <a class="btn ghost" href="#library" data-i="library">样式库</a>
       <a class="btn icon" href="#settings" aria-label="设置" data-i="settings"></a>
       <a class="btn icon" href="#about" aria-label="关于" data-i="info"></a>
     </header>
@@ -524,22 +788,7 @@
 <!-- ═════════════ 歌词：右上逐字预览与底部时间轴连成 L 形幕后区 ═════════════ -->
 <section class="screen lyrics" id="lyrics">
   <div class="app">
-    <header class="top">
-      <a class="brand" href="#home" title="首页"><img src="../../assets/logo/logo-icon.png" alt="MakoKara Generator"></a>
-      <span class="pname">黎明站台<svg class="ic"><use href="#i-down"/></svg></span><span class="saved">未保存</span>
-      <nav class="pages"><a class="on" href="#lyrics" data-i="lyricsf">歌词</a><a href="#orchestration" data-i="layout">编排</a><a data-i="swatch">外观</a></nav>
-      <span class="vsep"></span>
-      <button class="btn ghost" data-i="library">样式库</button>
-      <span class="spacer"></span>
-      <span class="conn"><i class="dot"></i>已连接，修订 42</span>
-      <button class="btn icon" aria-label="撤销" data-i="undo"></button>
-      <button class="btn icon" aria-label="重做" data-i="redo" disabled></button>
-      <button class="btn icon" aria-label="工程设置" data-i="sliders"></button>
-      <a class="btn icon" href="#settings" aria-label="设置" data-i="settings"></a>
-      <span class="vsep"></span>
-      <button class="btn">保存</button>
-      <a class="btn primary" href="#export" data-i="film">导出视频</a>
-    </header>
+    <header class="top" data-r="topbar" data-o='{"page":"lyrics"}'></header>
     <div class="work">
       <aside class="tile" style="grid-area:list">
         <div class="thead"><span class="srcpick">主歌词<svg class="ic"><use href="#i-down"/></svg></span><span class="spacer"></span><button class="btn icon sm" aria-label="添加歌词" data-i="plus"></button><button class="btn icon sm" aria-label="多选" data-i="check"></button><button class="btn icon sm" aria-label="更多" data-i="more"></button></div>
@@ -556,8 +805,8 @@
             <div class="fs"><header><h4>翻译</h4><span class="tag">跟随本句</span><span class="spacer"></span><button class="btn text sm" data-i="link">改关联…</button></header><span style="padding-top:5px">在黎明的站台挥手</span></div>
           </div>
           <div class="pair">
-            <div class="fs"><header><h4>外观</h4><span class="tag">跟随默认</span></header><span class="field sel">标准横排<svg class="ic"><use href="#i-down"/></svg></span></div>
-            <div class="fs"><header><h4>显示在</h4><span class="spacer"></span><a class="btn text sm" href="#orchestration" data-i="layout">去编排</a></header><span style="padding-top:5px">前段的槽位 1（左侧），与第 4 行同屏</span></div>
+            <div class="fs"><header><h4>外观</h4></header><a class="ro" href="#appearance" style="--a:#ffc857"><i></i>金色强调<span class="faint">本行直接分配</span><svg class="ic"><use href="#i-right"/></svg></a></div>
+            <div class="fs"><header><h4>显示在</h4></header><a class="ro" href="#orchestration">前段<span class="faint">片段 1–6 句，容器：前段</span><svg class="ic"><use href="#i-right"/></svg></a></div>
           </div>
         </div>
         <div class="timebar">
@@ -597,22 +846,7 @@
 <!-- ═════════════ 编排：中间画布与底部时间轴连成 T 形幕后区 ═════════════ -->
 <section class="screen orch" id="orchestration">
   <div class="app">
-    <header class="top">
-      <a class="brand" href="#home" title="首页"><img src="../../assets/logo/logo-icon.png" alt="MakoKara Generator"></a>
-      <span class="pname">黎明站台<svg class="ic"><use href="#i-down"/></svg></span><span class="saved">未保存</span>
-      <nav class="pages"><a href="#lyrics" data-i="lyrics">歌词</a><a class="on" href="#orchestration" data-i="layoutf">编排</a><a data-i="swatch">外观</a></nav>
-      <span class="vsep"></span>
-      <button class="btn ghost" data-i="library">样式库</button>
-      <span class="spacer"></span>
-      <span class="conn"><i class="dot"></i>已连接，修订 42</span>
-      <button class="btn icon" aria-label="撤销" data-i="undo"></button>
-      <button class="btn icon" aria-label="重做" data-i="redo" disabled></button>
-      <button class="btn icon" aria-label="工程设置" data-i="sliders"></button>
-      <a class="btn icon" href="#settings" aria-label="设置" data-i="settings"></a>
-      <span class="vsep"></span>
-      <button class="btn">保存</button>
-      <a class="btn primary" href="#export" data-i="film">导出视频</a>
-    </header>
+    <header class="top" data-r="topbar" data-o='{"page":"orchestration"}'></header>
     <div class="work">
       <aside class="tile" style="grid-area:tree">
         <div class="thead"><h3>画面结构</h3><span class="spacer"></span><button class="btn icon sm" aria-label="新建容器" data-i="plus"></button><button class="btn icon sm" aria-label="复制" data-i="copy"></button><button class="btn icon sm" aria-label="更多" data-i="more"></button></div>
@@ -697,6 +931,382 @@
   </div>
 </section>
 
+<!-- ═════════════ 外观：左边选目标，中间成片预览与底部时间轴连成 T 形幕后区，右边检查器 ═════════════ -->
+<section class="screen orch appear" id="appearance">
+  <div class="app">
+    <header class="top" data-r="topbar" data-o='{"page":"appearance"}'></header>
+    <div class="work">
+      <aside class="tile" style="grid-area:tree">
+        <div class="thead"><h3>外观目标</h3><span class="spacer"></span><span class="faint small">Ctrl 加选，Shift 连选</span></div>
+        <div class="tsearch"><span class="field sm" data-i="search">搜索行</span></div>
+        <div class="atree">
+          <div class="at" style="--d:0"><svg class="ic car none"><use href="#i-down"/></svg><svg class="ic"><use href="#i-home"/></svg><span class="tx">工程默认</span><span class="asg" style="--a:#8fd3ff"><i></i>清晰描边</span></div>
+          <div class="at" style="--d:0"><svg class="ic car"><use href="#i-down"/></svg><svg class="ic"><use href="#i-lyrics"/></svg><span class="tx">主歌词</span><span class="sub">12 行</span></div>
+          <div class="at" style="--d:1"><svg class="ic car none"><use href="#i-down"/></svg><span class="n">1</span><span class="tx" lang="ja">朝の光が窓を染めて</span></div>
+          <div class="at" style="--d:1"><svg class="ic car none"><use href="#i-down"/></svg><span class="n">2</span><span class="tx" lang="ja">君の声がまだ耳に残る</span></div>
+          <div class="at is-sel" style="--d:1"><svg class="ic car"><use href="#i-down"/></svg><span class="n">3</span><span class="tx" lang="ja">夜明けのホームで手を振った</span><span class="asg" style="--a:#ffc857"><i></i>金色强调</span></div>
+          <div class="tokchips" lang="ja"><span>夜明</span><span>け</span><span>の</span><span>ホ</span><span>ー</span><span>ム</span><span>で</span><span>手</span><span>を</span><span>振</span><span>っ</span><span>た</span></div>
+          <div class="at" style="--d:1"><svg class="ic car none"><use href="#i-down"/></svg><span class="n">4</span><span class="tx" lang="ja">言えなかった言葉を抱いて</span></div>
+          <div class="at" style="--d:1"><svg class="ic car none"><use href="#i-down"/></svg><span class="n">5</span><span class="tx" lang="ja">走り出す電車の窓から</span></div>
+          <div class="at" style="--d:1"><svg class="ic car none"><use href="#i-down"/></svg><span class="n">6</span><span class="tx" lang="ja">遠ざかる街を見ていた</span></div>
+          <div class="at" style="--d:1"><svg class="ic car none"><use href="#i-down"/></svg><span class="n">7</span><span class="tx" lang="ja">いつかまた会えると信じて</span></div>
+          <div class="at" style="--d:1"><svg class="ic car none"><use href="#i-down"/></svg><span class="n">8</span><span class="tx" lang="ja">歌うよ この空の下で</span></div>
+          <div class="at" style="--d:0"><svg class="ic car"><use href="#i-right"/></svg><svg class="ic"><use href="#i-translate"/></svg><span class="tx">翻译：中文</span><span class="asg" style="--a:#e3ecff"><i></i>淡色字幕</span></div>
+        </div>
+        <div class="sect">
+          <header><h4>编排对象</h4><span class="spacer"></span><span class="seg sm"><span class="on">结构</span><span>片段 3</span></span></header>
+          <div class="atree2">
+            <div class="at" style="--d:0"><svg class="ic car"><use href="#i-down"/></svg><svg class="ic"><use href="#i-group"/></svg><span class="tx">主歌词组</span></div>
+            <div class="at" style="--d:1"><svg class="ic car none"><use href="#i-down"/></svg><svg class="ic"><use href="#i-rotate"/></svg><span class="tx">前段</span></div>
+            <div class="at" style="--d:1"><svg class="ic car none"><use href="#i-down"/></svg><svg class="ic"><use href="#i-box"/></svg><span class="tx">副歌</span><span class="asg" style="--a:#ff6ad5"><i></i>霓虹</span></div>
+            <div class="at" style="--d:1"><svg class="ic car none"><use href="#i-down"/></svg><svg class="ic"><use href="#i-leadin"/></svg><span class="tx">三点提示</span><span class="asg" style="--a:#b9f3dc"><i></i>柔光</span></div>
+          </div>
+        </div>
+      </aside>
+      <main class="tile stage-zone joins" style="grid-area:canvas">
+        <div class="canvasbar">
+          <span class="cbt">成片</span><span class="hint" style="margin-left:0">GPU，修订 42，0:14.218</span>
+          <span class="spacer"></span>
+          <span class="field sel sm" style="width:136px">720p · 24 fps<svg class="ic"><use href="#i-down"/></svg></span>
+        </div>
+        <div class="stage"><div data-r="frame" data-o='{"c1":"tp-gold"}'></div></div>
+      </main>
+      <aside class="tile" style="grid-area:insp">
+        <div class="ihead"><div class="crumbs">主歌词<svg class="ic"><use href="#i-right"/></svg>第 3 行</div><h2 lang="ja">夜明けのホームで手を振った</h2></div>
+        <div class="grp"><h4>模板<span class="faint">本行直接分配</span></h4>
+          <div class="acard">
+            <div data-r="tthumb" data-o='{"t":"tp-gold"}'></div>
+            <div><b>金色强调</b><span class="small">内置，歌词行</span></div>
+            <div class="row"><button class="btn ghost sm" data-i="hide">停用</button><button class="btn ghost sm" data-i="update">更新</button><button class="btn ghost sm" data-i="trash">移除</button></div>
+          </div>
+          <div class="acts3"><a class="btn tonal sm" href="#picker" data-i="swap">换模板…</a><a class="btn ghost sm" href="#library" data-i="edit">在样式库中编辑副本</a></div>
+        </div>
+        <div class="grp"><h4>本层直接覆盖 · 只读</h4><p class="hint">没有直接覆盖：外观全部来自上一层和模板分配。</p></div>
+        <div class="grp"><h4>外观来源<span class="spacer"></span><button class="btn icon sm" aria-label="收起" data-i="up"></button></h4>
+          <div class="srcs">
+            <span>字体</span><span class="v">Noto Sans CJK JP，粗体</span><a>工程默认</a>
+            <span>字号</span><span class="v">54 px</span><a>第 3 行</a>
+            <span>未唱</span><span class="v"><i style="--c:#fff6e0"></i>#FFF6E0</span><a>第 3 行</a>
+            <span>已唱</span><span class="v"><i style="--c:#ffc857"></i>#FFC857</span><a>第 3 行</a>
+            <span>描边</span><span class="v">6 px<i style="--c:#3b2306"></i>#3B2306</span><a>第 3 行</a>
+            <span>阴影</span><span class="v">关</span><a>工程默认</a>
+          </div>
+          <p class="hint">只解析静态样式，不含动画和效果的像素。点来源选中那个目标。</p>
+        </div>
+      </aside>
+      <div class="dock stage-zone">
+        <i class="fillet l"></i><i class="fillet r"></i>
+        <div class="transport">
+          <button class="play" aria-label="播放" data-i="play"></button>
+          <span class="tc">0:14.218<small>/ 3:45.000</small></span>
+          <span class="field sel sm" style="width:68px">1.0×<svg class="ic"><use href="#i-down"/></svg></span>
+          <span class="hint" style="margin-left:8px;color:var(--stage-ink3)">点选或框选行，点片段轨选中片段</span>
+          <span class="spacer"></span>
+          <button class="btn icon sm" aria-label="缩小" data-i="zoomout"></button><span class="slider" style="--v:30%"><i></i></span><button class="btn icon sm" aria-label="放大" data-i="zoomin"></button>
+          <button class="btn ghost sm" data-i="fit">全曲</button>
+        </div>
+        <div class="tlbox" data-r="timeline" data-o='{"from":0,"to":64,"step":2,"tracks":["ruler","wave","lines","clips"]}'></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════════ 模板选择器：左边挑模板，右边幕后区试看；应用之前不写入工程 ═════════════ -->
+<section class="screen is-overlay" id="picker" data-under="appearance">
+  <div class="scrim">
+    <div class="dialog pick" role="dialog" aria-label="选择模板">
+      <div class="dmain">
+        <div class="dhead"><h2>选择模板</h2><span class="sub">用于第 3 行</span></div>
+        <div class="ptools"><span class="field" data-i="search">搜索模板</span><span class="field sel" style="width:140px">全部用途<svg class="ic"><use href="#i-down"/></svg></span></div>
+        <div class="plistc">
+          <div class="grouphead">内置<span>4</span></div>
+          <div class="tcards">
+            <div class="tcard"><div data-r="tthumb" data-o='{}'></div><div class="nm"><b>清晰描边</b></div><span class="small">歌词行</span></div>
+            <div class="tcard"><div data-r="tthumb" data-o='{"t":"tp-gold"}'></div><div class="nm"><b>金色强调</b><span class="tag">在用</span></div><span class="small">歌词行</span></div>
+            <div class="tcard"><div data-r="tthumb" data-o='{"t":"tp-glow"}'></div><div class="nm"><b>柔光</b></div><span class="small">歌词行、提示</span></div>
+            <div class="tcard off"><div data-r="tthumb" data-o='{"t":"tp-soft","text":"晨光染","lang":"zh"}'></div><div class="nm"><b>淡色字幕</b></div><span class="small">只能用于翻译</span></div>
+          </div>
+          <div class="grouphead" style="margin-top:10px">我的<span>2</span></div>
+          <div class="tcards">
+            <div class="tcard on"><div data-r="tthumb" data-o='{"t":"tp-neon"}'></div><div class="nm"><b>霓虹</b><span class="tag">含效果</span></div><span class="small">歌词行</span></div>
+            <div class="tcard"><div data-r="tthumb" data-o='{"t":"tp-summer"}'></div><div class="nm"><b>夏夜橙</b></div><span class="small">歌词行</span></div>
+          </div>
+        </div>
+        <div class="dfoot"><span class="hint">将把“霓虹”的固定副本写入工程；第 3 行原有的分配会被替换。</span><span class="spacer"></span><a class="btn text" href="#appearance">取消</a><a class="btn primary" href="#appearance">应用到第 3 行</a></div>
+      </div>
+      <aside class="dside">
+        <div class="stage-zone">
+          <div class="thead"><h3>试看 · 霓虹</h3><span class="spacer"></span><span class="tag accent">没有写入工程</span></div>
+          <div class="pvf"><div data-r="frame" data-o='{"c1":"tp-neon"}'></div></div>
+          <p class="pvcap">第 3 行，0:14.218，修订 42</p>
+          <div class="dsec">
+            <h4>来源输入</h4>
+            <div class="frow"><label>翻译</label><span class="field sel">翻译：中文<svg class="ic"><use href="#i-down"/></svg></span></div>
+            <span class="small faint">应用后，分配记住这里选的来源。</span>
+          </div>
+          <div class="dsec">
+            <dl class="dl"><dt>用途</dt><dd>歌词行</dd><dt>效果</dt><dd>光晕；粒子拖尾（已停用）</dd><dt>效果包</dt><dd>neon-kit</dd></dl>
+            <span class="small faint">之后在样式库里改这个模板，不会影响已经应用的副本。</span>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════════ 样式库 · 模板：左边列表，中间幕后区试样，右边按页签编辑 ═════════════ -->
+<section class="screen lib" id="library" data-tab-default="look">
+  <div class="app">
+    <header class="top" data-r="topbar" data-o='{"page":"library"}'></header>
+    <div class="work">
+      <div class="retbar"><svg class="ic"><use href="#i-back"/></svg><span>来自外观：<b>主歌词 / 第 3 行</b>。保存后回到外观页，用这个模板继续试看。</span><span class="spacer"></span><a class="btn primary sm" href="#picker">保存并返回试看</a><button class="btn icon sm" aria-label="关闭返回栏" data-i="x"></button></div>
+      <aside class="tile" style="grid-area:list">
+        <div class="lseg"><span class="seg sm"><a class="on" href="#library">模板</a><a href="#draft">效果组件</a></span></div>
+        <div class="ltools"><span class="field sm" data-i="search">搜索模板</span><span class="field sel sm" style="width:104px">全部用途<svg class="ic"><use href="#i-down"/></svg></span></div>
+        <div class="llist">
+          <div class="grouphead">内置<span>4</span></div>
+          <div class="trow"><div data-r="tthumb" data-o='{}'></div><div><b>清晰描边</b><span class="small">歌词行</span></div><span></span></div>
+          <div class="trow"><div data-r="tthumb" data-o='{"t":"tp-gold"}'></div><div><b>金色强调</b><span class="small">歌词行</span></div><span></span></div>
+          <div class="trow"><div data-r="tthumb" data-o='{"t":"tp-glow"}'></div><div><b>柔光</b><span class="small">歌词行、提示</span></div><span></span></div>
+          <div class="trow"><div data-r="tthumb" data-o='{"t":"tp-soft","text":"晨光染","lang":"zh"}'></div><div><b>淡色字幕</b><span class="small">翻译</span></div><span></span></div>
+          <div class="grouphead" style="margin-top:6px">我的<span>2</span></div>
+          <div class="trow is-sel"><div data-r="tthumb" data-o='{"t":"tp-neon"}'></div><div><b>霓虹</b><span class="small">歌词行，含效果</span></div><i class="udot" title="有未保存的修改"></i></div>
+          <div class="trow"><div data-r="tthumb" data-o='{"t":"tp-summer"}'></div><div><b>夏夜橙</b><span class="small">歌词行</span></div><span></span></div>
+        </div>
+        <div class="listfoot" style="padding:0 8px 0 10px"><button class="btn tonal sm" data-i="plus">新建</button><span class="spacer"></span><button class="btn ghost sm" data-i="upload">导入…</button><button class="btn icon sm" aria-label="模板库的更多操作" data-i="morev"></button></div>
+      </aside>
+      <main class="tile stage-zone" style="grid-area:stage">
+        <div class="canvasbar">
+          <span class="cbt">试样</span><span class="hint" style="margin-left:0">固定样本上的效果，不是工程里的最终外观</span>
+          <span class="spacer"></span>
+          <span class="field sel sm" style="width:132px"><b>样本</b>默认样本<svg class="ic"><use href="#i-down"/></svg></span>
+          <span class="field sel sm" style="width:112px"><b>目标</b>第 1 行<svg class="ic"><use href="#i-down"/></svg></span>
+        </div>
+        <div class="stage"><div class="tp-neon" data-r="frame"></div></div>
+        <div class="sbar">
+          <button class="play sm" aria-label="试播" data-i="play"></button>
+          <span class="tc">1.20 s<small>/ 4.00 s</small></span>
+          <span class="slider" style="--v:30%"><i></i></span>
+          <span class="switch on"><i></i>循环</span>
+        </div>
+      </main>
+      <aside class="tile" style="grid-area:panel">
+        <div class="phead">
+          <div><h2>霓虹</h2><span class="tag">我的模板</span><span class="tag warn">未保存</span><span class="spacer"></span><button class="btn icon sm" aria-label="撤销模板修改" data-i="undo"></button><button class="btn icon sm" aria-label="重做模板修改" data-i="redo" disabled></button><button class="btn icon sm" aria-label="模板操作" data-i="morev"></button></div>
+          <div><span class="field sel sm" style="width:132px"><b>用途</b>歌词行<svg class="ic"><use href="#i-down"/></svg></span><span class="spacer"></span><button class="btn text sm">放弃修改</button><button class="btn primary sm" data-i="save">保存</button></div>
+        </div>
+        <nav class="ptabs"><a data-tab="look" href="#library-look">外观</a><a data-tab="material" href="#library-material">材质</a><a data-tab="fx" href="#library-fx">效果<span class="n">2</span></a><a data-tab="adv" href="#library-adv">高级</a></nav>
+
+        <div class="pbody" data-panel="look">
+          <p class="pintro">右边的开关打开时，这一项写进模板；关掉时由目标继承。</p>
+          <div class="grp"><h4>文字<span class="spacer"></span><button class="btn text sm" data-i="font">字体检查</button></h4>
+            <div class="prow"><label>字体</label><span class="ctl"><span class="field sel">Noto Sans CJK JP<svg class="ic"><use href="#i-down"/></svg></span></span><span class="switch on"><i></i></span>
+              <div class="sub"><div class="chips"><span class="chip">回退：Noto Sans CJK SC<svg class="ic"><use href="#i-x"/></svg></span><span class="chip add" data-i="plus">回退字体</span></div></div></div>
+            <div class="prow"><label>字号</label><span class="ctl"><span class="field num w">54<em>px</em></span></span><span class="switch on"><i></i></span></div>
+            <div class="prow"><label>字重</label><span class="ctl"><span class="field sel">粗体（700）<svg class="ic"><use href="#i-down"/></svg></span><span class="field sel w">常规<svg class="ic"><use href="#i-down"/></svg></span></span><span class="switch on"><i></i></span></div>
+            <div class="prow"><label>字距</label><span class="ctl"><span class="field num w">0.04<em>em</em></span></span><span class="switch on"><i></i></span></div>
+          </div>
+          <div class="grp"><h4>颜色与描边</h4>
+            <div class="prow"><label>未唱</label><span class="ctl"><span class="field sel w">纯色<svg class="ic"><use href="#i-down"/></svg></span><span class="field"><i class="c" style="--c:#e9fbff"></i>#E9FBFF</span></span><span class="switch on"><i></i></span></div>
+            <div class="prow"><label>已唱</label><span class="ctl"><span class="field sel w">效果包<svg class="ic"><use href="#i-down"/></svg></span><a class="note" href="#library-material" style="flex:1;color:inherit;text-decoration:none"><svg class="ic"><use href="#i-texture"/></svg>流光<svg class="ic" style="margin-left:auto;color:var(--on-surface-variant)"><use href="#i-right"/></svg></a></span><span class="switch on"><i></i></span></div>
+            <div class="prow"><label>描边</label><span class="ctl"><span class="field num w">6<em>px</em></span><span class="field sel">圆角<svg class="ic"><use href="#i-down"/></svg></span></span><span class="switch on"><i></i></span>
+              <div class="sub">
+                <div class="ctl" style="display:flex;gap:6px"><span class="field sel" style="width:96px">渐变<svg class="ic"><use href="#i-down"/></svg></span><span class="field sel" style="flex:1"><b>类型</b>线性<svg class="ic"><use href="#i-down"/></svg></span><span class="field num" style="width:80px"><b>角度</b>90<em>°</em></span></div>
+                <div class="grad" style="--a:#ff6ad5;--b:#7b6cff"><i class="on" style="--x:0%;--c:#ff6ad5"></i><i style="--x:100%;--c:#7b6cff"></i></div>
+                <div class="stop"><span class="field num"><b>色标 1</b>0<em>%</em></span><span class="field"><i class="c" style="--c:#ff6ad5"></i>#FF6AD5</span><span></span></div>
+                <div class="stop"><span class="field num"><b>色标 2</b>100<em>%</em></span><span class="field"><i class="c" style="--c:#7b6cff"></i>#7B6CFF</span><button class="btn icon sm" aria-label="删除色标 2" data-i="trash"></button></div>
+              </div></div>
+            <div class="prow off"><label>阴影</label><span class="ctl small">由目标继承</span><span class="switch"><i></i></span></div>
+          </div>
+        </div>
+
+        <div class="pbody" data-panel="material" hidden>
+          <div class="grp"><h4>材质部位</h4>
+            <span class="seg sm" style="align-self:flex-start"><span>未唱填充</span><span class="on">已唱填充</span><span>描边</span></span>
+            <p class="hint">选中的部位同时是试样画布的材质焦点。</p>
+          </div>
+          <div class="grp"><h4>已唱填充</h4>
+            <div class="frow"><label>类型</label><span class="seg sm" style="justify-self:start"><span>纯色</span><span>渐变</span><span class="on">效果包</span></span></div>
+            <div class="frow"><label>效果包</label><span class="field sel">neon-kit（修订 3）<svg class="ic"><use href="#i-down"/></svg></span></div>
+            <div class="frow"><label>材质</label><span class="field sel">流光<svg class="ic"><use href="#i-down"/></svg></span></div>
+          </div>
+          <div class="grp"><h4>参数</h4>
+            <div class="prm"><label>流速</label><span class="slider" style="--v:40%"><i></i></span><span class="field num">0.60</span></div>
+            <div class="prm"><label>亮度</label><span class="slider" style="--v:62%"><i></i></span><span class="field num">1.40</span></div>
+            <div class="prm"><label>颜色 A</label><span class="field wide"><i class="c" style="--c:#ff6ad5"></i>#FF6AD5</span></div>
+            <div class="prm"><label>颜色 B</label><span class="field wide"><i class="c" style="--c:#7b6cff"></i>#7B6CFF</span></div>
+            <div class="prm"><label>噪点</label><span class="switch on wide"><i></i></span></div>
+          </div>
+          <div class="grp"><h4>效果包<span class="spacer"></span><button class="btn ghost sm" data-i="upload">导入效果包…</button></h4>
+            <div class="pkg"><span class="cic"><svg class="ic"><use href="#i-package"/></svg></span><div><b>neon-kit</b><span class="small">修订 3，4 个文件，2 个导出</span><span class="small">用于已唱填充、光晕</span></div><button class="btn icon sm" aria-label="移除 neon-kit" data-i="trash" disabled></button></div>
+          </div>
+        </div>
+
+        <div class="pbody" data-panel="fx" hidden>
+          <div class="grp"><h4>效果<span class="faint">从上到下依次叠加</span></h4>
+            <div class="rlist">
+              <div class="rcp is-sel"><svg class="ic"><use href="#i-drag"/></svg><div><b>光晕</b><span class="small">整行，文字下方</span></div><span class="rtools"><button class="btn icon sm" aria-label="上移 光晕" data-i="up" disabled></button><button class="btn icon sm" aria-label="下移 光晕" data-i="down"></button><button class="btn icon sm" aria-label="复制 光晕" data-i="copy"></button><button class="btn icon sm" aria-label="删除 光晕" data-i="trash"></button></span><span class="switch on"><i></i></span></div>
+              <div class="rcp is-off"><svg class="ic"><use href="#i-drag"/></svg><div><b>粒子拖尾</b><span class="small">文本单元，文字上方，已停用</span></div><span></span><span class="switch"><i></i></span></div>
+            </div>
+            <div class="addfx"><span class="field sel ph">要加的效果<svg class="ic"><use href="#i-down"/></svg></span><button class="btn tonal sm" data-i="plus">加效果</button></div>
+          </div>
+          <div class="grp"><h4>光晕<span class="faint">包“neon-kit”的导出 glow</span></h4>
+            <div class="frow"><label>名称</label><span class="field">光晕</span></div>
+            <div class="g2">
+              <span class="field sel"><b>作用于</b>整行<svg class="ic"><use href="#i-down"/></svg></span>
+              <span class="field sel"><b>叠放层</b>文字下方<svg class="ic"><use href="#i-down"/></svg></span>
+              <span class="field sel"><b>读取</b>本行<svg class="ic"><use href="#i-down"/></svg></span>
+              <span class="field ph"><b>种子</b>不固定</span>
+            </div>
+          </div>
+          <div class="grp"><h4>参数</h4>
+            <div class="prm"><label>半径</label><span class="slider" style="--v:36%"><i></i></span><span class="field num">18<em>px</em></span></div>
+            <div class="prm"><label>强度</label><span class="slider" style="--v:80%"><i></i></span><span class="field num">0.80</span></div>
+            <div class="prm" style="align-items:start"><label style="padding-top:6px">衰减</label>
+              <div class="curve wide"><svg viewBox="0 0 300 92" preserveAspectRatio="none"><path class="g" d="M0 46H300M75 0V92M150 0V92M225 0V92"/><path class="ar" d="M8 84 C70 84 90 10 150 12 S260 70 292 78 V92 H8Z"/><path class="cv" d="M8 84 C70 84 90 10 150 12 S260 70 292 78"/><circle cx="8" cy="84" r="4.5"/><circle class="on" cx="150" cy="12" r="5"/><circle cx="292" cy="78" r="4.5"/></svg></div></div>
+            <div class="prm"><label>颜色</label><span class="field wide"><i class="c" style="--c:#ff6ad5"></i>#FF6AD5</span></div>
+          </div>
+        </div>
+
+        <div class="pbody" data-panel="adv" hidden>
+          <div class="grp"><h4>完整定义（只读）<span class="spacer"></span><button class="btn ghost sm" data-i="copy">复制</button></h4>
+<pre class="json code">{
+  <span class="k">"name"</span>: <span class="s">"霓虹"</span>,
+  <span class="k">"purpose"</span>: <span class="s">"lyricLine"</span>,
+  <span class="k">"font"</span>: {
+    <span class="k">"family"</span>: <span class="s">"Noto Sans CJK JP"</span>,
+    <span class="k">"fallbacks"</span>: [<span class="s">"Noto Sans CJK SC"</span>],
+    <span class="k">"size"</span>: <span class="n">54</span>, <span class="k">"weight"</span>: <span class="n">700</span>, <span class="k">"tracking"</span>: <span class="n">0.04</span>
+  },
+  <span class="k">"unsung"</span>: { <span class="k">"solid"</span>: <span class="s">"#E9FBFF"</span> },
+  <span class="k">"sung"</span>: { <span class="k">"package"</span>: <span class="s">"neon-kit"</span>, <span class="k">"material"</span>: <span class="s">"flow"</span> },
+  <span class="k">"stroke"</span>: { <span class="k">"width"</span>: <span class="n">6</span>, <span class="k">"join"</span>: <span class="s">"round"</span>, … },
+  <span class="k">"effects"</span>: [
+    { <span class="k">"name"</span>: <span class="s">"光晕"</span>, <span class="k">"export"</span>: <span class="s">"glow"</span>, … },
+    { <span class="k">"name"</span>: <span class="s">"粒子拖尾"</span>, <span class="k">"enabled"</span>: <span class="n">false</span>, … }
+  ]
+}</pre>
+          </div>
+          <div class="grp"><h4>效果包 · 4 个文件</h4>
+            <div class="files">
+              <span data-i="file">neon-kit/manifest.json<em>1.2 KB</em></span>
+              <span data-i="file">neon-kit/materials/flow.wgsl<em>3.8 KB</em></span>
+              <span data-i="code">neon-kit/effects/Glow.cs<em>2.1 KB</em></span>
+              <span data-i="code">neon-kit/effects/Trail.cs<em>2.6 KB</em></span>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════════ 样式库 · 效果组件的作者草稿：配置、源码、验证；源码页签把右栏放宽 ═════════════ -->
+<section class="screen lib noret" id="draft" data-tab-default="config">
+  <div class="app">
+    <header class="top" data-r="topbar" data-o='{"page":"library"}'></header>
+    <div class="work">
+      <aside class="tile" style="grid-area:list">
+        <div class="lseg"><span class="seg sm"><a href="#library">模板</a><a class="on" href="#draft">效果组件</a></span></div>
+        <div class="ltools"><span class="field sm" data-i="search">搜索效果组件</span></div>
+        <div class="llist">
+          <div class="grouphead">草稿<span>只在本标签页</span></div>
+          <div class="crow is-sel"><span class="cic"><svg class="ic"><use href="#i-spark"/></svg></span><div><b>粒子拖尾</b><span class="small">效果，编辑自“粒子拖尾”</span></div><i class="udot" title="有没保存到组件库的改动"></i></div>
+          <div class="grouphead" style="margin-top:6px">我的效果组件<span>3</span></div>
+          <div class="crow"><span class="cic"><svg class="ic"><use href="#i-spark"/></svg></span><div><b>粒子拖尾</b><span class="small">效果，neon-kit</span></div><span></span></div>
+          <div class="crow"><span class="cic"><svg class="ic"><use href="#i-spark"/></svg></span><div><b>光晕</b><span class="small">效果，neon-kit</span></div><span></span></div>
+          <div class="crow"><span class="cic"><svg class="ic"><use href="#i-texture"/></svg></span><div><b>流光</b><span class="small">材质，neon-kit</span></div><span></span></div>
+        </div>
+        <div class="listfoot" style="padding:0 8px 0 10px"><button class="btn tonal sm" data-i="upload">导入效果包…</button><span class="spacer"></span></div>
+      </aside>
+      <main class="tile stage-zone" style="grid-area:stage">
+        <div class="canvasbar">
+          <span class="cbt">试样</span><span class="hint" style="margin-left:0">用内置“经典整行”做底</span>
+          <span class="spacer"></span>
+          <span class="field sel sm" style="width:112px"><b>目标</b>第 1 行<svg class="ic"><use href="#i-down"/></svg></span>
+        </div>
+        <div class="stage"><div data-r="frame" data-o='{"sparks":true}'></div></div>
+        <div class="sbar">
+          <button class="play sm" aria-label="试播" data-i="play"></button>
+          <span class="tc">1.20 s<small>/ 4.00 s</small></span>
+          <span class="slider" style="--v:30%"><i></i></span>
+          <span class="switch on"><i></i>循环</span>
+        </div>
+      </main>
+      <aside class="tile" style="grid-area:panel">
+        <div class="phead">
+          <div><h2>粒子拖尾</h2><span class="tag">草稿</span><span class="tag warn">未保存到组件库</span><span class="spacer"></span><button class="btn icon sm" aria-label="草稿操作" data-i="morev"></button></div>
+          <div><span class="meta">效果，在用修订 5</span><span class="spacer"></span><button class="btn text sm">另存为新组件…</button><button class="btn primary sm" data-i="save">保存到组件库</button></div>
+        </div>
+        <nav class="ptabs"><a data-tab="config" href="#draft-config">配置</a><a data-tab="source" href="#draft-source">源码</a><a data-tab="validate" href="#draft-validate">验证<span class="n">2</span></a><span class="spacer"></span><button class="btn icon sm" aria-label="撤销配置修改" data-i="undo"></button><button class="btn icon sm" aria-label="重做配置修改" data-i="redo" disabled></button></nav>
+
+        <div class="pbody" data-panel="config">
+          <p class="pintro">改动会自动提交到草稿；保存到组件库才会长期保留。</p>
+          <div class="grp"><h4>组件</h4>
+            <div class="frow"><label>名称</label><span class="field">粒子拖尾</span></div>
+            <div class="frow"><label>导出</label><span class="field sel">trail（控制器）<svg class="ic"><use href="#i-down"/></svg></span></div>
+            <div class="g2">
+              <span class="field sel"><b>作用于</b>文本单元<svg class="ic"><use href="#i-down"/></svg></span>
+              <span class="field sel"><b>叠放层</b>文字上方<svg class="ic"><use href="#i-down"/></svg></span>
+              <span class="field sel"><b>读取</b>本行<svg class="ic"><use href="#i-down"/></svg></span>
+              <span class="field ph"><b>输入名</b>例如 翻译</span>
+            </div>
+            <div class="frow"><label>随机种子</label><span class="field ph">留空表示不固定</span></div>
+          </div>
+          <div class="grp"><h4>参数</h4>
+            <div class="prm"><label>数量</label><span class="slider" style="--v:19%"><i></i></span><span class="field num">48</span></div>
+            <div class="prm"><label>寿命</label><span class="slider" style="--v:40%"><i></i></span><span class="field num">0.80<em>s</em></span></div>
+            <div class="prm"><label>扩散</label><span class="slider" style="--v:35%"><i></i></span><span class="field num">0.35</span></div>
+            <div class="prm"><label>颜色</label><span class="field wide"><i class="c" style="--c:#ffe3f6"></i>#FFE3F6</span></div>
+            <div class="prm" style="align-items:start"><label style="padding-top:6px">拖尾</label>
+              <div class="curve wide"><svg viewBox="0 0 300 92" preserveAspectRatio="none"><path class="g" d="M0 46H300M75 0V92M150 0V92M225 0V92"/><path class="ar" d="M8 10 C90 12 120 70 292 84 V92 H8Z"/><path class="cv" d="M8 10 C90 12 120 70 292 84"/><circle class="on" cx="8" cy="10" r="5"/><circle cx="292" cy="84" r="4.5"/></svg></div></div>
+          </div>
+        </div>
+
+        <div class="pbody" data-panel="source" hidden>
+          <div class="srcwrap">
+            <div class="srcside">
+              <h5>文件</h5>
+              <div class="fitem is-sel" data-i="code">Trail.cs<i class="udot" title="改过"></i></div>
+              <div class="fitem" data-i="code">Spawn.cs</div>
+              <h5 style="margin-top:6px">修订</h5>
+              <div class="rev is-sel"><b>修订 6</b><span>最新，编译失败</span></div>
+              <div class="rev"><b>修订 5</b><span>在用，编译通过</span><button class="btn text sm">查看</button></div>
+              <div class="rev"><b>修订 4</b><span>编译通过</span><button class="btn text sm">查看</button></div>
+              <div class="rev"><b>原包</b><span>neon-kit 修订 3</span><button class="btn text sm">查看</button></div>
+            </div>
+            <div class="srcmain">
+              <div class="srcbar"><b>Trail.cs</b><span class="faint small" title="Ctrl+S 保存为新修订">修订 6，有改动没保存</span><span class="spacer"></span><button class="btn primary sm" data-i="save">保存修订</button><button class="btn tonal sm" data-i="build">编译</button></div>
+<div class="editor code"><div class="l" data-n="1"><span class="kw">using</span> Mako.Effects;</div><div class="l" data-n="2"> </div><div class="l" data-n="3"><span class="cm">// 粒子拖尾：沿已唱部分的右缘放出光点，按“拖尾”曲线淡出</span></div><div class="l" data-n="4"><span class="kw">public sealed class</span> <span class="ty">Trail</span> : <span class="ty">EffectController</span></div><div class="l" data-n="5">{</div><div class="l" data-n="6">    [<span class="ty">Param</span>(<span class="st">"数量"</span>, Max = <span class="nu">256</span>)] <span class="kw">public int</span> Count = <span class="nu">48</span>;</div><div class="l" data-n="7">    [<span class="ty">Param</span>(<span class="st">"寿命"</span>)] <span class="kw">public float</span> Life = <span class="nu">0.8f</span>;</div><div class="l" data-n="8">    [<span class="ty">Param</span>(<span class="st">"扩散"</span>)] <span class="kw">public float</span> Spread = <span class="nu">0.35f</span>;</div><div class="l" data-n="9"> </div><div class="l" data-n="10">    <span class="kw">readonly</span> <span class="ty">Particle</span>[] _pool = <span class="kw">new</span> <span class="ty">Particle</span>[<span class="nu">256</span>];</div><div class="l" data-n="11"> </div><div class="l" data-n="12">    <span class="kw">public override void</span> Update(<span class="ty">EffectContext</span> ctx)</div><div class="l" data-n="13">    {</div><div class="l" data-n="14">        <span class="kw">var</span> edge = ctx.Target.SungEdge;</div><div class="l" data-n="15">        <span class="kw">for</span> (<span class="kw">var</span> i = <span class="nu">0</span>; i &lt; Count; i++)</div><div class="l" data-n="16">        {</div><div class="l" data-n="17">            <span class="kw">ref var</span> p = <span class="kw">ref</span> _pool[i];</div><div class="l" data-n="18">            <span class="kw">if</span> (p.Age &gt;= Life)</div><div class="l" data-n="19">                p = <span class="ty">Particle</span>.Spawn(edge, ctx.Random, Spread);</div><div class="l" data-n="20">            p.Age += ctx.DeltaTime;</div><div class="l cur bad" data-n="21">            p.Alpha = ctx.Curve(<span class="st">"拖尾"</span>, p.Age / <span class="err">Lfie</span>);</div><div class="l" data-n="22">            ctx.Draw(p);</div><div class="l" data-n="23">        }</div><div class="l" data-n="24">    }</div><div class="l" data-n="25">}</div></div>
+              <div class="diag">
+                <header><svg class="ic"><use href="#i-error"/></svg>编译 · 修订 6 · 1 个错误<span class="faint">试样在用的是修订 5</span></header>
+                <div class="dline"><span class="loc">Trail.cs 21:51</span><span>CS0103：当前上下文中不存在名称“Lfie”</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="pbody" data-panel="validate" hidden>
+          <div class="grp"><h4>条件</h4>
+            <div class="g2">
+              <span class="field sel"><b>样本</b>默认样本<svg class="ic"><use href="#i-down"/></svg></span>
+              <span class="field sel"><b>目标</b>跟随试样画布<svg class="ic"><use href="#i-down"/></svg></span>
+            </div>
+            <div class="frow"><label>背景</label><span class="seg sm" style="justify-self:start"><span class="on">普通</span><span>透明</span></span></div>
+            <p class="hint">按固定规格逐帧检查：720 帧，1920 × 1080，30 fps。渲染设备按顶栏的选择（GPU）。</p>
+            <div><button class="btn primary sm" data-i="verify">重新验证</button></div>
+          </div>
+          <div class="grp"><h4>报告<span class="faint">修订 5，普通背景</span></h4>
+            <div class="vsum"><span><b>720</b>帧</span><span><b>2</b>个问题</span><span><b>11.4 s</b>用时</span></div>
+            <div class="iss e"><svg class="ic"><use href="#i-error"/></svg><div><b>运行时异常：索引超出了数组界限</b><span class="small">第 233 帧，Trail.Update；运行时异常没有行号</span></div><a class="btn text sm" href="#draft-source">看修订 5</a></div>
+            <div class="iss w"><svg class="ic"><use href="#i-warn"/></svg><div><b>每帧都在分配新的数组</b><span class="small">Spawn.cs 第 14 行，导出时会变慢</span></div><a class="btn text sm" href="#draft-source">看这一行</a></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</section>
+
 <!-- ═════════════ 导出：左边设置和任务，右边幕后区看首末帧与范围 ═════════════ -->
 <section class="screen export" id="export">
   <div class="app">
@@ -756,6 +1366,45 @@
       </main>
     </div>
   </div>
+</section>
+
+<!-- ═════════════ 工程设置：右侧面板，每次修改立即生效、可以撤销 ═════════════ -->
+<section class="screen is-overlay" id="project-settings" data-under="lyrics">
+  <a class="sheet-scrim" href="#lyrics" aria-label="关闭"></a>
+  <aside class="sheet" role="dialog" aria-label="工程设置">
+    <div class="shead"><h2>工程设置</h2><span class="spacer"></span><a class="btn icon" href="#lyrics" aria-label="关闭工程设置" data-i="x"></a></div>
+    <p class="sintro">每次修改立即生效，记一条历史，可以撤销。</p>
+    <div class="sbody">
+      <section class="sset">
+        <h4>工程</h4>
+        <span class="field"><b>名称</b>黎明站台</span>
+        <p>只改显示名称，不移动保存目录。</p>
+      </section>
+      <section class="sset">
+        <h4>画布</h4>
+        <div class="g2"><span class="field sel"><b>尺寸</b>1920 × 1080<svg class="ic"><use href="#i-down"/></svg></span><span class="field sel"><b>帧率</b>30 fps<svg class="ic"><use href="#i-down"/></svg></span></div>
+        <p>已打的时间不会移动；吸附和逐帧微调按新的帧率计算。</p>
+      </section>
+      <section class="sset">
+        <h4>背景</h4>
+        <div class="media"><div data-r="frame" data-o='{"mode":"end","small":true}'></div><div><b>dawn.jpg</b><span class="small">图片，2560 × 1440，1.8 MB</span><div class="btnrow" style="margin-top:6px"><button class="btn sm" data-i="swap">替换…</button><button class="btn ghost sm" data-i="trash">移除</button></div></div></div>
+        <div class="g2"><span class="field sel"><b>适配</b>铺满<svg class="ic"><use href="#i-down"/></svg></span><span class="field"><b>底色</b><i class="c" style="--c:#0d1124"></i>#0D1124</span></div>
+        <p>底色在媒体透明处或留白处可见。</p>
+      </section>
+      <section class="sset">
+        <h4>音频</h4>
+        <dl class="dl"><dt>文件</dt><dd>dawn-platform.wav</dd><dt>时长</dt><dd>3:45.000，已准备</dd><dt>分析</dt><dd>已采用，1,284 个分析点，覆盖整首</dd></dl>
+        <div class="btnrow"><button class="btn sm" data-i="music">替换音频…</button><button class="btn sm" data-i="graphic">重新分析并采用</button><span class="spacer"></span><button class="btn icon sm" aria-label="更多" data-i="morev"></button></div>
+        <p>音频分析供编排里的音频驱动效果使用，分析时可以继续编辑。</p>
+      </section>
+      <section class="sset">
+        <h4>输出时长</h4>
+        <div class="durv"><b>3:45.000</b><span class="muted small">6,750 帧</span></div>
+        <span class="seg sm"><span class="on">按音频时长</span><span>按歌词末尾</span><span>自定义…</span></span>
+        <p>“按音频时长”“按歌词末尾”只取一次当时的值，之后改音频或歌词不会自动跟着变。</p>
+      </section>
+    </div>
+  </aside>
 </section>
 
 <!-- ═════════════ 应用设置：右侧面板，改动立即生效，左边能直接看到效果 ═════════════ -->

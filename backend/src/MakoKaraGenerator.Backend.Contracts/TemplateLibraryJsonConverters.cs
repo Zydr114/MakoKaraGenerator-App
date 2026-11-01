@@ -227,8 +227,8 @@ internal static class TemplateLibraryJson
     internal static StaticTemplateDefinitionDto Definition(JsonElement root)
     {
         var f = StyleCommandJson.Fields(root, "name", "kind", "style", "properties");
-        if (f["properties"].ValueKind != JsonValueKind.Array || f["properties"].GetArrayLength() is < 1 or > 21)
-            throw new JsonException("静态模板 properties 必须包含1..21个原模板属性。");
+        if (f["properties"].ValueKind != JsonValueKind.Array || f["properties"].GetArrayLength() is < 1 or > 26)
+            throw new JsonException("静态模板 properties 必须包含1..26个模板属性。");
         TemplateProperty[] properties = [.. f["properties"].EnumerateArray().Select(StyleCommandJson.Enum<TemplateProperty>)];
         if (properties.Distinct().Count() != properties.Length) throw new JsonException("模板属性不能重复。");
         CanonicalStyleDto style = StyleCommandJson.CanonicalStyle(f["style"]);
@@ -276,7 +276,7 @@ internal static class TemplateLibraryJson
     private static void CheckNewDefinition(JsonElement definition)
     {
         var d = StyleCommandJson.Fields(definition, "name", "kind", "style", "properties"); CheckName(StyleCommandJson.String(d["name"]));
-        var s = StyleCommandJson.Fields(d["style"], "typography", "unsungFill", "sungFill", "stroke", "shadow", "verticalCenterRatio", "horizontalAlignment", "opacity", "scale");
+        var s = StyleCommandJson.Fields(d["style"], "typography", "unsungFill", "sungFill", "stroke", "shadow", "verticalCenterRatio", "horizontalAlignment", "opacity", "scale", "glow");
         var t = StyleCommandJson.Fields(s["typography"], "fontFamilyName", "fallbackFamilyNames", "fontSizePx", "fontWeight", "isBold", "isItalic", "letterSpacingPx");
         if (t["fontFamilyName"].ValueKind == JsonValueKind.String && t["fontFamilyName"].GetString()!.Length > StyleEditingLimits.MaxFontLength) throw new TemplateLibraryBudgetExceededException();
         if (t["fallbackFamilyNames"].ValueKind == JsonValueKind.Array)

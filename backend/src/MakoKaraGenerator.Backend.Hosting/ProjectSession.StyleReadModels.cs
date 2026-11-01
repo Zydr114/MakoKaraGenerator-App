@@ -100,6 +100,8 @@ public sealed partial class ProjectSession
         : new(ProjectMaterial(stroke.Material, budget), stroke.WidthPx, (StyleStrokeJoin)stroke.Join, (StyleStrokePosition)stroke.Position);
     private static StyleShadowDto? ProjectShadow(ShadowSpec? shadow) => shadow is null ? null
         : new(StyleColor(shadow.Color), shadow.Opacity, shadow.AngleDegrees, shadow.DistancePx, shadow.BlurRadiusPx);
+    private static StyleGlowDto? ProjectGlow(GlowSpec? glow) => glow is null ? null
+        : new(StyleColor(glow.Color), glow.Opacity, glow.BlurRadiusPx, glow.SpreadPx);
     private static CanonicalStyleDto ProjectCanonicalStyle(LyricStyle style, ReadModelBudget budget)
     {
         budget.Item(); budget.Item(style.Typography.FallbackFamilyNames.Length);
@@ -108,7 +110,7 @@ public sealed partial class ProjectSession
         return new(new(t.FontFamilyName, t.FallbackFamilyNames.ToArray(), t.FontSizePx, t.FontWeight, t.IsBold, t.IsItalic, t.LetterSpacingPx),
             new(ProjectMaterial(style.UnsungFill.Material, budget)), new(ProjectMaterial(style.SungFill.Material, budget)),
             ProjectStroke(style.Stroke, budget), ProjectShadow(style.Shadow), style.VerticalCenterRatio,
-            (StyleHorizontalAlignment)style.HorizontalAlignment, style.Opacity, style.Scale);
+            (StyleHorizontalAlignment)style.HorizontalAlignment, style.Opacity, style.Scale, ProjectGlow(style.Glow));
     }
     private static StyleChangeDto[] ProjectLocalStyle(LyricStyleOverride? own, ReadModelBudget budget)
     {
@@ -153,6 +155,17 @@ public sealed partial class ProjectSession
                 if (shadow.BlurRadiusPx is { } blur) values.Add(new StyleShadowBlurChangeDto(blur));
             }
         }
+        if (own.Glow.IsSet)
+        {
+            if (own.Glow.Value is not { } glow) values.Add(new StyleGlowChangeDto(null));
+            else
+            {
+                if (glow.Color is { } color) values.Add(new StyleGlowColorChangeDto(StyleColor(color)));
+                if (glow.Opacity is { } opacity) values.Add(new StyleGlowOpacityChangeDto(opacity));
+                if (glow.BlurRadiusPx is { } blur) values.Add(new StyleGlowBlurChangeDto(blur));
+                if (glow.SpreadPx is { } spread) values.Add(new StyleGlowSpreadChangeDto(spread));
+            }
+        }
         if (own.VerticalCenterRatio is { } center) values.Add(new StyleVerticalCenterChangeDto(center));
         if (own.HorizontalAlignment is { } alignment) values.Add(new StyleAlignmentChangeDto((StyleHorizontalAlignment)alignment));
         if (own.Opacity is { } alpha) values.Add(new StyleOpacityChangeDto(alpha));
@@ -176,8 +189,10 @@ public sealed partial class ProjectSession
         { Material = CoreMaterial(stroke.Material), WidthPx = stroke.WidthPx, Join = (StrokeJoin)stroke.Join, Position = (StrokePosition)stroke.Position };
     private static ShadowSpec? CoreShadow(StyleShadowDto? shadow) => shadow is null ? null : new()
         { Color = CoreColor(shadow.Color), Opacity = shadow.Opacity, AngleDegrees = shadow.AngleDegrees, DistancePx = shadow.DistancePx, BlurRadiusPx = shadow.BlurRadiusPx };
+    private static GlowSpec? CoreGlow(StyleGlowDto? glow) => glow is null ? null : new()
+        { Color = CoreColor(glow.Color), Opacity = glow.Opacity, BlurRadiusPx = glow.BlurRadiusPx, SpreadPx = glow.SpreadPx };
     private static readonly string[] StylePropertyNames =
-    ["typography.fontFamilyName","typography.fallbackFamilyNames","typography.fontSizePx","typography.fontWeight","typography.isBold","typography.isItalic","typography.letterSpacingPx","unsungFill.material","sungFill.material","stroke","stroke.material","stroke.widthPx","stroke.join","stroke.position","shadow","shadow.color","shadow.opacity","shadow.angleDegrees","shadow.distancePx","shadow.blurRadiusPx","verticalCenterRatio","horizontalAlignment","opacity","scale"];
+    ["typography.fontFamilyName","typography.fallbackFamilyNames","typography.fontSizePx","typography.fontWeight","typography.isBold","typography.isItalic","typography.letterSpacingPx","unsungFill.material","sungFill.material","stroke","stroke.material","stroke.widthPx","stroke.join","stroke.position","shadow","shadow.color","shadow.opacity","shadow.angleDegrees","shadow.distancePx","shadow.blurRadiusPx","verticalCenterRatio","horizontalAlignment","opacity","scale","glow","glow.color","glow.opacity","glow.blurRadiusPx","glow.spreadPx"];
     private static StyleEditProperty CoreStyleProperty(string property)
     {
         int index = Array.IndexOf(StylePropertyNames, property);
@@ -207,6 +222,11 @@ public sealed partial class ProjectSession
             StyleShadowAngleChangeDto v => new StyleEditChange.ShadowAngle(v.Value),
             StyleShadowDistanceChangeDto v => new StyleEditChange.ShadowDistance(v.Value),
             StyleShadowBlurChangeDto v => new StyleEditChange.ShadowBlur(v.Value),
+            StyleGlowChangeDto v => new StyleEditChange.Glow(CoreGlow(v.Value)),
+            StyleGlowColorChangeDto v => new StyleEditChange.GlowColor(CoreColor(v.Value)),
+            StyleGlowOpacityChangeDto v => new StyleEditChange.GlowOpacity(v.Value),
+            StyleGlowBlurChangeDto v => new StyleEditChange.GlowBlur(v.Value),
+            StyleGlowSpreadChangeDto v => new StyleEditChange.GlowSpread(v.Value),
             StyleVerticalCenterChangeDto v => new StyleEditChange.VerticalCenter(v.Value),
             StyleAlignmentChangeDto v => new StyleEditChange.HorizontalAlignment((LyricHorizontalAlignment)v.Value),
             StyleOpacityChangeDto v => new StyleEditChange.Opacity(v.Value),

@@ -16,6 +16,20 @@ namespace MakoKaraGenerator.Backend.Hosting.Tests;
 
 public sealed class BackendStyleCommandsTests
 {
+    [Fact]
+    public async Task 辉光读回关闭恢复及无操作保留重做()
+    {
+        using var f = await Fixture.Create();
+        f.Replace(f.Workspace.Project with { LyricStyle = f.Workspace.Project.LyricStyle with { Glow = new() { BlurRadiusPx = 9, SpreadPx = 2 } } });
+        Accepted(await f.Command("0", Patch(Line, new StyleGlowChangeDto(null))));
+        var read = await f.Read(Line, "1");
+        Assert.Null(read.StaticHierarchy.Glow); Assert.Contains(read.Local, x => x is StyleGlowChangeDto { Value: null });
+        Assert.False(Accepted(await f.Command("1", new RestoreStylesCommandDto([Line], ["glow.blurRadiusPx"]))).Changed);
+        Accepted(await f.Command("1", Patch(Line, new StyleGlowOpacityChangeDto(.4f))));
+        read = await f.Read(Line, "2"); Assert.Equal(9, read.StaticHierarchy.Glow!.BlurRadiusPx); Assert.Equal(.4f, read.StaticHierarchy.Glow.Opacity);
+        Accepted(await f.Command("2", new RestoreStylesCommandDto([Line], ["glow"])));
+        Assert.Equal(2, (await f.Read(Line, "3")).StaticHierarchy.Glow!.SpreadPx);
+    }
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
         { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull, Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) } };
     private static readonly StyleTargetDto Line = new LineStyleTargetDto("secondary", "other");

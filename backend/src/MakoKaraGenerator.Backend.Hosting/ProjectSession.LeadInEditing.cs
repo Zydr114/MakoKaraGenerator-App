@@ -31,7 +31,7 @@ public sealed partial class ProjectSession
             if (!EditingCommandTypeMatches(command) || command.Target is not null || command.StartUs is not null
                 || command.EndUs is not null || command.AnalysisJobId is not null) return LeadInInvalid("命令type、DTO或继承字段不匹配。");
             // The complete strict JSON path also validates in-process callers and detaches nested arrays.
-            if (command is SetMarkAppearanceCommandDto { Changes.Length: > 21 }
+            if (command is SetMarkAppearanceCommandDto { Changes.Length: > 26 }
                 or ApplyLeadInGenerationCommandDto { SelectedLineIds.Length: > 1000 }
                 or ReorderOrchestrationMarksCommandDto { OrderedIds.Length: > 64 }) throw new ReadModelBudgetExceededException();
             var settings = command switch { SetLeadInGenerationCommandDto v => v.Settings, PreviewLeadInGenerationCommandDto v => v.Settings,

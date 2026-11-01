@@ -27,7 +27,7 @@ public enum TemplateKind
     /// <summary>组合模板。</summary>
     Composite,
 }
-/// <summary>完整旧模板属性选择，独立于24个样式 patch 路径。</summary>
+/// <summary>完整模板属性选择，独立于样式 patch 路径。</summary>
 [JsonConverter(typeof(StyleEnumJsonConverter<TemplateProperty>))]
 public enum TemplateProperty
 {
@@ -73,6 +73,16 @@ public enum TemplateProperty
     Opacity,
     /// <summary>缩放。</summary>
     Scale,
+    /// <summary>完整辉光。</summary>
+    GlowSpec,
+    /// <summary>辉光颜色。</summary>
+    GlowColor,
+    /// <summary>辉光透明度。</summary>
+    GlowOpacity,
+    /// <summary>辉光模糊半径。</summary>
+    GlowBlurRadiusPx,
+    /// <summary>辉光扩散半径。</summary>
+    GlowSpreadPx,
 }
 /// <summary>有界模板摘要；能力检查覆盖完整未选样式。</summary>
 public sealed record TemplateSummaryDto(string TemplateId, string Name, TemplateKind Kind, string TemplateRevision,

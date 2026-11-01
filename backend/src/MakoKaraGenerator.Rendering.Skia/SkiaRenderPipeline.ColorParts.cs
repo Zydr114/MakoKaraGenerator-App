@@ -20,11 +20,11 @@ public sealed partial class SkiaRenderPipeline
         ObjectDisposedException.ThrowIf(_disposed, this); request.CancellationToken.ThrowIfCancellationRequested();
         PreparedRenderFrame.ValidateRequest(request); ValidateNativePreparedFrame(request.PreparedFrame);
         if (!Enum.IsDefined(part)) throw new PreparedFrameException("InvalidSceneColorPart", "部件类别无效。");
-        bool ruby = part is SceneColorPart.RubyFill or SceneColorPart.RubyStroke or SceneColorPart.RubyShadow;
+        bool ruby = part is SceneColorPart.RubyFill or SceneColorPart.RubyStroke or SceneColorPart.RubyShadow or SceneColorPart.RubyGlow;
         if (target is SceneCaptureTarget.Group || target is SceneCaptureTarget.Mark && ruby)
             throw new PreparedFrameException("UnsupportedSceneColorPartTarget", "组没有自己的字形部件，文字标记没有注音部件。");
         var recipe = new SceneCaptureRecipe(ruby, part is SceneColorPart.BaseStroke or SceneColorPart.RubyStroke,
-            part is SceneColorPart.BaseShadow or SceneColorPart.RubyShadow, false, SceneCaptureRegion.FillAndStroke);
+            part is SceneColorPart.BaseShadow or SceneColorPart.RubyShadow, false, SceneCaptureRegion.FillAndStroke, part is SceneColorPart.BaseGlow or SceneColorPart.RubyGlow);
         var frame = request.PreparedFrame?.HierarchyScene ?? GetSceneFrame(request.Project, request.TimeUs, request.LayoutLineId);
         var item = SelectCaptureItems(frame, target, recipe).Single();
         _ = CaptureMatrix(item.Line?.Geometry?.WorldMatrix ?? item.Mark!.Geometry.WorldMatrix!.Value);

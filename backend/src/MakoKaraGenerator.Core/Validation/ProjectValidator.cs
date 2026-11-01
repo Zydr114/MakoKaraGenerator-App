@@ -332,6 +332,8 @@ public static partial class ProjectValidator
             ValidateGradientSupport(strokeGradient, location + ".stroke.gradient", issues);
         if (style.Shadow is { IsValid: false })
             Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "阴影描述无效。", location + ".shadow");
+        if (style.Glow is { IsValid: false })
+            Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "辉光描述无效。", location + ".glow");
         if (!double.IsFinite(style.VerticalCenterRatio) || style.VerticalCenterRatio is < 0 or > 1)
             Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "纵向中心比例必须是 0 到 1 之间的有限数。", location + ".verticalCenterRatio");
         if (!Enum.IsDefined(style.HorizontalAlignment))
@@ -386,6 +388,9 @@ public static partial class ProjectValidator
             Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "描边覆盖描述无效。", location + ".stroke");
         if (styleOverride.Shadow is { IsSet: true, Value: { IsValid: false } })
             Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "阴影覆盖描述无效。", location + ".shadow");
+
+        if (styleOverride.Glow is { IsSet: true, Value: { IsValid: false } })
+            Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "辉光覆盖描述无效。", location + ".glow");
 
         if (styleOverride.VerticalCenterRatio is { } ratio && (!double.IsFinite(ratio) || ratio is < 0d or > 1d))
         {

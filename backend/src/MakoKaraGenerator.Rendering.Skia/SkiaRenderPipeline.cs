@@ -410,6 +410,8 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
             return;
         }
 
+        DrawLineGlow(canvas, shaped, options, originX, baselineY, lineStyle, antialias, capture: capture);
+
         // 每个区域只绘制一次最终样式。已唱区域由每个有时间的元素各自贡献，
         // 因此夹在两个已定时元素之间的未定时元素不会被连续填充误染成已唱色。
         using SKPath sungRegions = BuildSungRegions(sample, shaped, originX, canvas.LocalClipBounds);
@@ -550,11 +552,9 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
         ShadowSpec? shadowSpec = EffectiveShadow(style);
         float stroke = strokeSpec is { IsEnabled: true } ? MathF.Max(strokeSpec.WidthPx, 0f) : 0f;
         float shadow = shadowSpec is { IsEnabled: true }
-            ? MathF.Max(MathF.Abs(shadowSpec.OffsetXPx), MathF.Abs(shadowSpec.OffsetYPx))
-              + MathF.Max(shadowSpec.BlurRadiusPx, 0f)
-            : 0f;
-
-        return MathF.Min(stroke + shadow + 2f, 64f);
+            ? MathF.Max(MathF.Abs(shadowSpec.OffsetXPx), MathF.Abs(shadowSpec.OffsetYPx)) + MathF.Max(shadowSpec.BlurRadiusPx, 0f) : 0f;
+        float legacy = MathF.Min(stroke + shadow + 2f, 64f);
+        return style.Glow is { IsEnabled: true } glow ? Math.Max(legacy, (float)(ValidateGlow(glow) + 2)) : legacy;
     }
 
     /// <summary>元素的像素对齐字框；"排除基线"与"重画元素"两遍共用同一个矩形。</summary>

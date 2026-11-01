@@ -5,6 +5,28 @@ namespace MakoKaraGenerator.Core.Tests.Effects;
 
 public sealed class EffectPackageImageGraphsTests
 {
+    [Theory]
+    [InlineData(null, true)] [InlineData(true, true)] [InlineData(false, false)]
+    public void 辉光捕获可选省略默认包含且显式开关独立保留(bool? included, bool expected)
+    {
+        var graph = EffectPackageGraphFixture.Graph();
+        if (included is { } value) graph["inputs"]![0]!["capture"]!["includeGlow"] = value;
+        var result = EffectPackageImageGraphs.Read(EffectPackageGraphFixture.Contents(graph))[EffectPackageGraphFixture.GraphPath];
+        Assert.Equal(expected, result.Captures["original"].IncludeGlow);
+        Assert.True(result.Captures["original"].IncludeRuby);
+    }
+
+    [Fact]
+    public void 辉光捕获拒绝非布尔值且现有必填字段仍必填()
+    {
+        var graph = EffectPackageGraphFixture.Graph(); var capture = graph["inputs"]![0]!["capture"]!.AsObject();
+        capture["includeGlow"] = 1;
+        var error = Assert.Throws<EffectPackageException>(() => EffectPackageImageGraphs.Read(EffectPackageGraphFixture.Contents(graph)));
+        Assert.Equal("PackageParameterTypeMismatch", error.Code); Assert.EndsWith(".capture.includeGlow", error.Path, StringComparison.Ordinal);
+        capture["includeGlow"] = false; capture.Remove("includeShadow");
+        Assert.Equal("PackageSemanticMissingField", Assert.Throws<EffectPackageException>(() => EffectPackageImageGraphs.Read(EffectPackageGraphFixture.Contents(graph))).Code);
+    }
+
     [Fact]
     public void 每个输入独立保存完整配方不受原JSON后改影响()
     {

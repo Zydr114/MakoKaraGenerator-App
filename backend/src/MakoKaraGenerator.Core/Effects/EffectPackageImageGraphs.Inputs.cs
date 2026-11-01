@@ -33,7 +33,7 @@ public static partial class EffectPackageImageGraphs
         if (capture)
         {
             var value = input.GetProperty("capture"); string at = path + ".capture";
-            Keys(value, at, ["includeRuby", "includeStroke", "includeShadow", "includeDescendantGroups", "includeOwnedOverlay", "region"], []);
+            Keys(value, at, ["includeRuby", "includeStroke", "includeShadow", "includeDescendantGroups", "includeOwnedOverlay", "region"], ["includeGlow"]);
             var region = RequiredText(value, "region", at) switch
             {
                 "fill" => EffectCaptureRegion.Fill, "stroke" => EffectCaptureRegion.Stroke,
@@ -43,7 +43,8 @@ public static partial class EffectPackageImageGraphs
             var recipe = new EffectGraphCapture(Boolean(value.GetProperty("includeRuby"), at + ".includeRuby"),
                 Boolean(value.GetProperty("includeStroke"), at + ".includeStroke"), Boolean(value.GetProperty("includeShadow"), at + ".includeShadow"),
                 Boolean(value.GetProperty("includeDescendantGroups"), at + ".includeDescendantGroups"),
-                Boolean(value.GetProperty("includeOwnedOverlay"), at + ".includeOwnedOverlay"), region);
+                Boolean(value.GetProperty("includeOwnedOverlay"), at + ".includeOwnedOverlay"), region,
+                value.TryGetProperty("includeGlow", out var glow) ? Boolean(glow, at + ".includeGlow") : true);
             if (!captures.TryAdd(id, recipe)) throw Error("GraphDuplicateIdentity", path + ".id", "输入身份重复。");
         }
         string? resource = image ? RequiredText(input, "resource", path) : null;

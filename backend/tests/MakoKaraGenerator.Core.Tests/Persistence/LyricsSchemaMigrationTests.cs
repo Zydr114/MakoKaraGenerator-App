@@ -29,8 +29,10 @@ public sealed class LyricsSchemaMigrationTests : IDisposable
 
         JsonObject current = LegacyLyrics(16);
         MigrationLog log = ProjectSchemaMigrator.Migrate(
-            current, 16, LyricsDocument.CurrentSchemaVersion, ProjectSchemaMigrator.LyricsDefault);
-        Assert.Equal(LyricsDocument.CurrentSchemaVersion, current["schemaVersion"]!.GetValue<int>());
+            current, 16, 17, ProjectSchemaMigrator.LyricsDefault);
+        Assert.Equal(17, current["schemaVersion"]!.GetValue<int>());
+        Assert.Throws<InvalidOperationException>(() => ProjectSchemaMigrator.Migrate(
+            current, 17, LyricsDocument.CurrentSchemaVersion, ProjectSchemaMigrator.LyricsDefault));
         Assert.NotEmpty(log.Entries);
     }
 
@@ -106,7 +108,7 @@ public sealed class LyricsSchemaMigrationTests : IDisposable
             ["media"] = JsonNode.Parse("{\"audio\":null,\"background\":null}"),
             ["audioAnalysis"] = JsonNode.Parse("{\"state\":\"noAudio\"}"),
             ["effects"] = JsonNode.Parse("{\"contractVersion\":1,\"simulation\":{\"version\":1,\"stepHz\":120,\"random\":\"pcg32-v1\"},\"budgets\":{\"surfaceMemoryBytes\":536870912,\"liveParticles\":20000,\"trailSamples\":200000,\"emissionRecords\":100000,\"drawCommands\":100000},\"packages\":[],\"instances\":[]}"),
-            ["presetApplications"] = JsonNode.Parse("{\"contractVersion\":1,\"templateSchemaVersion\":6,\"items\":[]}"),
+            ["presetApplications"] = JsonNode.Parse($"{{\"contractVersion\":1,\"templateSchemaVersion\":{StyleTemplateLibrary.CurrentSchemaVersion},\"items\":[]}}"),
             ["lyricPresentation"] = new JsonObject { ["nodes"] = new JsonArray(), ["programs"] = new JsonArray(), ["lineOverrides"] = new JsonArray() },
         };
 

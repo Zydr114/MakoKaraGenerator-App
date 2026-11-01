@@ -48,7 +48,7 @@ public sealed class StyleBatchEditorTests
             var overlay = StyleBatchEditor.CopyProperties(LyricStyleOverride.Empty, style, [property]);
             var set = TokenStyleSupport.SetProperties(overlay);
             Assert.Contains(property, set);
-            Assert.Equal(property is LyricStyleProperty.UnsungColor or LyricStyleProperty.UnsungGradientSpec or LyricStyleProperty.SungColor or LyricStyleProperty.SungGradientSpec ? 2 : 1, set.Count);
+            Assert.Equal(property is LyricStyleProperty.UnsungColor or LyricStyleProperty.UnsungGradientSpec or LyricStyleProperty.SungColor or LyricStyleProperty.SungGradientSpec ? 2 : property == LyricStyleProperty.GlowSpec ? 5 : 1, set.Count);
             Assert.False(overlay.IsEmpty);
             Assert.True(StyleBatchEditor.CopyProperties(overlay, style, [property], restoreInheritance: true).IsEmpty);
         }

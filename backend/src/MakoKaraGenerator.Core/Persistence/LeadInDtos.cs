@@ -20,6 +20,7 @@ internal sealed class SceneTextAppearanceDto
     public JsonElement ElapsedFill { get; set; }
     public StrokeSpecDto? Stroke { get; set; }
     public ShadowSpecDto? Shadow { get; set; }
+    public GlowSpecDto? Glow { get; set; }
     public float? Opacity { get; set; }
 }
 internal sealed class SceneTextAppearanceOverrideDto
@@ -33,6 +34,8 @@ internal sealed class SceneTextAppearanceOverrideDto
     public JsonElement Stroke { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public JsonElement Shadow { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public JsonElement Glow { get; set; }
     public float? Opacity { get; set; }
 }
 internal sealed class LyricLeadInDto

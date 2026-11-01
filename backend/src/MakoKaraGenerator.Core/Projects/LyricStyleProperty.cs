@@ -60,6 +60,16 @@ public enum LyricStyleProperty
     Opacity,
     /// <summary>对应 <see cref="LyricStyle.Scale" />。</summary>
     Scale,
+    /// <summary>完整辉光及其关闭状态。</summary>
+    GlowSpec,
+    /// <summary>辉光颜色。</summary>
+    GlowColor,
+    /// <summary>辉光自身透明度。</summary>
+    GlowOpacity,
+    /// <summary>辉光高斯 sigma。</summary>
+    GlowBlurRadiusPx,
+    /// <summary>辉光轮廓外扩距离。</summary>
+    GlowSpreadPx,
 }
 
 /// <summary><see cref="LyricStyleProperty" /> 的辅助方法。</summary>
@@ -123,6 +133,11 @@ public static class LyricStylePropertyExtensions
         LyricStyleProperty.ShadowSpec => "shadowSpec",
         LyricStyleProperty.Opacity => "opacity",
         LyricStyleProperty.Scale => "scale",
+        LyricStyleProperty.GlowSpec => "glowSpec",
+        LyricStyleProperty.GlowColor => "glowColor",
+        LyricStyleProperty.GlowOpacity => "glowOpacity",
+        LyricStyleProperty.GlowBlurRadiusPx => "glowBlurRadiusPx",
+        LyricStyleProperty.GlowSpreadPx => "glowSpreadPx",
         _ => throw new ArgumentOutOfRangeException(nameof(property), property, "未知的样式属性。"),
     };
 
@@ -150,5 +165,10 @@ public static class LyricStylePropertyExtensions
         LyricStyleProperty.ShadowSpec,
         LyricStyleProperty.Opacity,
         LyricStyleProperty.Scale,
+        LyricStyleProperty.GlowSpec,
+        LyricStyleProperty.GlowColor,
+        LyricStyleProperty.GlowOpacity,
+        LyricStyleProperty.GlowBlurRadiusPx,
+        LyricStyleProperty.GlowSpreadPx,
     ];
 }

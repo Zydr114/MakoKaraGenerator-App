@@ -102,18 +102,27 @@ public sealed class BackendLeadInEditingTests
         var model = (await f.Registry.ReadOrchestrationAsync("client", f.Id, "1")).Response!;
         var baseline = model.Nodes.Single(n => n.Id == group).Content!.Appearance!;
         var stroke = new StyleStrokeDto(new SolidStyleMaterialDto(new(1,2,3,255)), 2, StyleStrokeJoin.Round, StyleStrokePosition.Outside);
-        Accepted(await f.Command("1", new SetCountdownAppearanceCommandDto(group, baseline with { Stroke = stroke, Opacity = .8f })));
-        var set = new SetMarkAppearanceCommandDto(mark, [new StyleStrokeChangeDto(null), new StyleFontSizeChangeDto(48)]);
+        var glow = new StyleGlowDto(new(255, 255, 255, 255), .7f, 8, 2);
+        Accepted(await f.Command("1", new SetCountdownAppearanceCommandDto(group, baseline with { Stroke = stroke, Glow = glow, Opacity = .8f })));
+        var set = new SetMarkAppearanceCommandDto(mark, [new StyleStrokeChangeDto(null), new StyleFontSizeChangeDto(48), new StyleGlowChangeDto(null)]);
         Accepted(await f.Command("2", set));
         Assert.False(Accepted(await f.Command("3", set)).Changed);
+        var updated = (await f.Registry.ReadOrchestrationAsync("client", f.Id, "3")).Response!;
+        Assert.Equal(glow, updated.Nodes.Single(n => n.Id == group).Content!.Appearance!.Glow);
+        Assert.Contains(updated.Nodes.Single(n => n.Id == mark).Content!.AppearanceOverride!,
+            change => change is StyleGlowChangeDto { Value: null });
         var sequence = (CountdownSequenceContent)f.Workspace.Project.LyricPresentation.FindNode(group)!.Content!;
         var text = (TextMarkContent)f.Workspace.Project.LyricPresentation.FindNode(mark)!.Content!;
         Assert.True(text.AppearanceOverride!.Stroke.IsSet); Assert.Null(sequence.Appearance.Resolve(text.AppearanceOverride).Stroke);
+        Assert.True(text.AppearanceOverride.Glow.IsSet); Assert.Null(sequence.Appearance.Resolve(text.AppearanceOverride).Glow);
+        Assert.Equal(2, sequence.Appearance.Glow!.SpreadPx);
         Assert.Equal(48, sequence.Appearance.Resolve(text.AppearanceOverride).Typography.FontSizePx);
         Assert.Equal(BackendErrorCode.InvalidRequest, (await f.Command("3", new SetMarkAppearanceCommandDto(mark, [new StyleScaleChangeDto(2)]))).Error!.Code);
         Accepted(await f.Command("3", new SetMarkAppearanceCommandDto(mark, [])));
         Assert.Null(((TextMarkContent)f.Workspace.Project.LyricPresentation.FindNode(mark)!.Content!).AppearanceOverride);
         Assert.NotNull(sequence.Appearance.Resolve(null).Stroke);
+        var cleared = (await f.Registry.ReadOrchestrationAsync("client", f.Id, "4")).Response!;
+        Assert.DoesNotContain(cleared.Nodes.Single(n => n.Id == mark).Content!.AppearanceOverride!, change => change.Property == "glow");
     }
     [Fact]
     public async Task 分析回执数组隔离与规范时间重试_并发及陈旧目标拒绝()

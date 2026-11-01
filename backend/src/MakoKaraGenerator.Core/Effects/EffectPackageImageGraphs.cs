@@ -21,8 +21,9 @@ public enum EffectCaptureRegion
 /// <param name="IncludeRuby">注音。</param><param name="IncludeStroke">描边。</param>
 /// <param name="IncludeShadow">阴影。</param><param name="IncludeDescendantGroups">子组。</param>
 /// <param name="IncludeOwnedOverlay">该实例拥有的覆盖层。</param><param name="Region">显式区域。</param>
+/// <param name="IncludeGlow">包含静态辉光；省略时保持完整颜色捕获。</param>
 public sealed record EffectGraphCapture(bool IncludeRuby, bool IncludeStroke, bool IncludeShadow,
-    bool IncludeDescendantGroups, bool IncludeOwnedOverlay, EffectCaptureRegion Region);
+    bool IncludeDescendantGroups, bool IncludeOwnedOverlay, EffectCaptureRegion Region, bool IncludeGlow = true);
 
 /// <summary>包文件的固定图计划及逐输入配方；不是可启用的导出或 SDK 句柄。</summary>
 public sealed class EffectPackageImageGraph

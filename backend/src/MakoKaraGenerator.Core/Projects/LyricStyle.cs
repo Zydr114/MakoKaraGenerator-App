@@ -14,6 +14,8 @@ public sealed record LyricStyle
     public StrokeSpec? Stroke { get; init; }
     /// <summary>阴影；为空表示关闭。</summary>
     public ShadowSpec? Shadow { get; init; }
+    /// <summary>静态辉光；为空表示关闭。</summary>
+    public GlowSpec? Glow { get; init; }
     /// <summary>默认排版的纵向中心比例。</summary>
     public double VerticalCenterRatio { get; init; } = .5d;
     /// <summary>文字水平对齐方式。</summary>
@@ -27,7 +29,7 @@ public sealed record LyricStyle
     /// <summary>所有对象、枚举和数值是否有效。</summary>
     public bool IsValid => Typography is { IsValid: true }
         && UnsungFill is { IsValid: true } && SungFill is { IsValid: true }
-        && (Stroke is null || Stroke.IsValid) && (Shadow is null || Shadow.IsValid)
+        && (Stroke is null || Stroke.IsValid) && (Shadow is null || Shadow.IsValid) && (Glow is null || Glow.IsValid)
         && Enum.IsDefined(HorizontalAlignment) && double.IsFinite(VerticalCenterRatio)
         && VerticalCenterRatio is >= 0d and <= 1d && float.IsFinite(Opacity)
         && Opacity is >= 0f and <= 1f && float.IsFinite(Scale) && Scale > 0f;

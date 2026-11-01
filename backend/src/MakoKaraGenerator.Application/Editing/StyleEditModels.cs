@@ -74,12 +74,32 @@ public enum StyleEditProperty
     Opacity,
     /// <summary>整体缩放。</summary>
     Scale,
+    /// <summary>完整辉光或关闭。</summary>
+    Glow,
+    /// <summary>辉光颜色。</summary>
+    GlowColor,
+    /// <summary>辉光透明度。</summary>
+    GlowOpacity,
+    /// <summary>辉光模糊半径。</summary>
+    GlowBlurRadiusPx,
+    /// <summary>辉光扩散半径。</summary>
+    GlowSpreadPx,
 }
 
 /// <summary>只携带对应成员真实类型的样式意图。</summary>
 /// <param name="Property">规范成员。</param>
 public abstract record StyleEditChange(StyleEditProperty Property)
 {
+    /// <summary>设置完整辉光或关闭。</summary>
+    public sealed record Glow(GlowSpec? Value) : StyleEditChange(StyleEditProperty.Glow);
+    /// <summary>设置辉光颜色。</summary>
+    public sealed record GlowColor(RgbaColor Value) : StyleEditChange(StyleEditProperty.GlowColor);
+    /// <summary>设置辉光透明度。</summary>
+    public sealed record GlowOpacity(float Value) : StyleEditChange(StyleEditProperty.GlowOpacity);
+    /// <summary>设置辉光模糊半径。</summary>
+    public sealed record GlowBlur(float Value) : StyleEditChange(StyleEditProperty.GlowBlurRadiusPx);
+    /// <summary>设置辉光扩散半径。</summary>
+    public sealed record GlowSpread(float Value) : StyleEditChange(StyleEditProperty.GlowSpreadPx);
     /// <summary>设置 TypographyFontFamilyName；空值仅具有该成员的明确语义。</summary>
     /// <param name="Value">成员新值。</param>
     public sealed record FontFamilyName(string? Value) : StyleEditChange(StyleEditProperty.TypographyFontFamilyName);

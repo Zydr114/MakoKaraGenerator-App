@@ -103,6 +103,15 @@ public sealed partial class SkiaRenderPipeline
     private void DrawRuby(SKCanvas canvas, IReadOnlyList<RubyLayout> ruby, LyricFrameSample sample,
         LyricLine line, LyricStyle lineStyle, Composition composition, float origin, float baseline, bool antialias, LyricStyle? familyStyle = null, CapturePaint? capture = null)
     {
+        if (familyStyle?.Glow is { IsEnabled: true } || familyStyle is null && (lineStyle.Glow is { IsEnabled: true }
+            || ruby.Any(entry => line.Tokens[entry.TokenIndex].StyleOverride is { Glow.IsSet: true })))
+        foreach (RubyLayout entry in ruby)
+        {
+            LyricStyle style = familyStyle ?? (line.Tokens[entry.TokenIndex].StyleOverride is { } overlay
+                ? ResolveElementStyle(lineStyle, overlay) : lineStyle);
+            DrawLineGlow(canvas, entry.Shaped, entry.Options, origin + entry.X, baseline + entry.Baseline,
+                style, antialias, capture: capture, ruby: true);
+        }
         foreach (RubyLayout entry in ruby)
         {
             LyricStyle style = familyStyle ?? (line.Tokens[entry.TokenIndex].StyleOverride is { } overlay

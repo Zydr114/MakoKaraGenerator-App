@@ -31,6 +31,13 @@ public sealed record LyricStyleOverride
     public OptionalValue<StrokeSpecOverride?> Stroke { get; init; }
     /// <summary>阴影部分覆盖；显式空关闭整个效果。</summary>
     public OptionalValue<ShadowSpecOverride?> Shadow { get; init; }
+    /// <summary>辉光部分覆盖；显式空关闭整个效果。</summary>
+    public OptionalValue<GlowSpecOverride?> Glow
+    {
+        get => _glow;
+        init => _glow = value is { IsSet: true, Value: { IsEmpty: true } } ? default : value;
+    }
+    private readonly OptionalValue<GlowSpecOverride?> _glow;
     /// <summary>默认排版纵向中心覆盖。</summary>
     public double? VerticalCenterRatio { get; init; }
     /// <summary>水平对齐覆盖。</summary>
@@ -44,6 +51,7 @@ public sealed record LyricStyleOverride
         && IsEmptyFill(UnsungFill) && IsEmptyFill(SungFill)
         && (!Stroke.IsSet || Stroke.Value is { IsEmpty: true })
         && (!Shadow.IsSet || Shadow.Value is { IsEmpty: true })
+        && (!Glow.IsSet || Glow.Value is { IsEmpty: true })
         && VerticalCenterRatio is null && HorizontalAlignment is null && Opacity is null && Scale is null;
     private static bool IsEmptyFill(OptionalValue<FillSpecOverride?> fill) => !fill.IsSet || fill.Value is { IsEmpty: true };
     /// <summary>字体 FontFamilyName 覆盖的源码访问外观。</summary>

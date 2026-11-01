@@ -46,6 +46,11 @@ public sealed class TokenStyleSupportTests
         [LyricStyleProperty.ShadowSpec] = new() { ShadowSpec = ShadowSpec.Create(RgbaColor.Black) },
         [LyricStyleProperty.Opacity] = new() { Opacity = 0.5f },
         [LyricStyleProperty.Scale] = new() { Scale = 1.5f },
+        [LyricStyleProperty.GlowSpec] = new() { Glow = OptionalValue.Set<GlowSpecOverride?>(GlowSpecOverride.FromSpec(new())) },
+        [LyricStyleProperty.GlowColor] = new() { Glow = OptionalValue.Set<GlowSpecOverride?>(new() { Color = RgbaColor.White }) },
+        [LyricStyleProperty.GlowOpacity] = new() { Glow = OptionalValue.Set<GlowSpecOverride?>(new() { Opacity = .5f }) },
+        [LyricStyleProperty.GlowBlurRadiusPx] = new() { Glow = OptionalValue.Set<GlowSpecOverride?>(new() { BlurRadiusPx = 3f }) },
+        [LyricStyleProperty.GlowSpreadPx] = new() { Glow = OptionalValue.Set<GlowSpecOverride?>(new() { SpreadPx = 2f }) },
     };
 
     [Fact]
@@ -70,7 +75,8 @@ public sealed class TokenStyleSupportTests
             var expected = property is LyricStyleProperty.UnsungColor or LyricStyleProperty.UnsungGradientSpec
                 ? new[] { LyricStyleProperty.UnsungColor, LyricStyleProperty.UnsungGradientSpec }
                 : property is LyricStyleProperty.SungColor or LyricStyleProperty.SungGradientSpec
-                    ? new[] { LyricStyleProperty.SungColor, LyricStyleProperty.SungGradientSpec } : [property];
+                    ? new[] { LyricStyleProperty.SungColor, LyricStyleProperty.SungGradientSpec } : property == LyricStyleProperty.GlowSpec
+                        ? new[] { LyricStyleProperty.GlowSpec, LyricStyleProperty.GlowColor, LyricStyleProperty.GlowOpacity, LyricStyleProperty.GlowBlurRadiusPx, LyricStyleProperty.GlowSpreadPx } : [property];
             Assert.Equal(expected, set);
         }
     }

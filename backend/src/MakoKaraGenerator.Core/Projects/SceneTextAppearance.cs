@@ -15,16 +15,18 @@ public sealed record SceneTextAppearance
     public StrokeSpec? Stroke { get; init; }
     /// <summary>阴影；为空关闭。</summary>
     public ShadowSpec? Shadow { get; init; }
+    /// <summary>静态辉光；为空关闭。</summary>
+    public GlowSpec? Glow { get; init; }
     /// <summary>标记自身透明度。</summary>
     public float Opacity { get; init; } = 1;
     /// <summary>所有外观值是否有效。</summary>
     public bool IsValid => ToLyricStyle().IsValid;
     /// <summary>复用现有样式解析和绘制，只映射外观字段。</summary>
     public LyricStyle ToLyricStyle() => new() { Typography = Typography, UnsungFill = PendingFill,
-        SungFill = ElapsedFill, Stroke = Stroke, Shadow = Shadow, Opacity = Opacity };
+        SungFill = ElapsedFill, Stroke = Stroke, Shadow = Shadow, Glow = Glow, Opacity = Opacity };
     /// <summary>从模板按值读取适用外观，排除位置、缩放和动画。</summary>
     public static SceneTextAppearance FromStyle(LyricStyle style) => new() { Typography = style.Typography,
-        PendingFill = style.UnsungFill, ElapsedFill = style.SungFill, Stroke = style.Stroke, Shadow = style.Shadow, Opacity = style.Opacity };
+        PendingFill = style.UnsungFill, ElapsedFill = style.SungFill, Stroke = style.Stroke, Shadow = style.Shadow, Glow = style.Glow, Opacity = style.Opacity };
     /// <summary>应用部分覆盖；相同结果保留原实例。</summary>
     public SceneTextAppearance Resolve(SceneTextAppearanceOverride? overlay)
     {
@@ -34,7 +36,7 @@ public sealed record SceneTextAppearance
     }
 }
 
-/// <summary>文字标记的部分外观覆盖，未写继承，显式空关闭描边或阴影。</summary>
+/// <summary>文字标记的部分外观覆盖，未写继承，显式空关闭描边、阴影或辉光。</summary>
 public sealed record SceneTextAppearanceOverride
 {
     /// <summary>字体的部分覆盖。</summary>
@@ -48,12 +50,19 @@ public sealed record SceneTextAppearanceOverride
     public OptionalValue<StrokeSpecOverride?> Stroke { get; init; }
     /// <summary>阴影的部分覆盖或显式关闭。</summary>
     public OptionalValue<ShadowSpecOverride?> Shadow { get; init; }
+    /// <summary>辉光部分覆盖或显式关闭。</summary>
+    public OptionalValue<GlowSpecOverride?> Glow
+    {
+        get => _glow;
+        init => _glow = value is { IsSet: true, Value: { IsEmpty: true } } ? default : value;
+    }
+    private readonly OptionalValue<GlowSpecOverride?> _glow;
     /// <summary>透明度覆盖。</summary>
     public float? Opacity { get; init; }
     /// <summary>复用现有覆盖解析器，不向其中传入布局字段。</summary>
     public LyricStyleOverride ToStyleOverride() => new() { Typography = Typography, UnsungFill = PendingFill,
-        SungFill = ElapsedFill, Stroke = Stroke, Shadow = Shadow, Opacity = Opacity };
+        SungFill = ElapsedFill, Stroke = Stroke, Shadow = Shadow, Glow = Glow, Opacity = Opacity };
     /// <summary>提取现有样式覆盖的外观字段。</summary>
     public static SceneTextAppearanceOverride FromStyleOverride(LyricStyleOverride style) => new() { Typography = style.Typography,
-        PendingFill = style.UnsungFill, ElapsedFill = style.SungFill, Stroke = style.Stroke, Shadow = style.Shadow, Opacity = style.Opacity };
+        PendingFill = style.UnsungFill, ElapsedFill = style.SungFill, Stroke = style.Stroke, Shadow = style.Shadow, Glow = style.Glow, Opacity = style.Opacity };
 }

@@ -16,8 +16,9 @@ public sealed partial class SkiaRenderPipeline
         public bool SungOnly => Source == GraphInputSource.SungCoverage;
         public bool SuppressCommonOpacity => Part.HasValue;
         public bool ShadowOnly => Part is SceneColorPart.BaseShadow or SceneColorPart.RubyShadow;
+        public bool GlowOnly => Part is SceneColorPart.BaseGlow or SceneColorPart.RubyGlow;
         public bool StrokeOnly => Part is SceneColorPart.BaseStroke or SceneColorPart.RubyStroke;
-        public bool IncludesGlyph(bool ruby) => Part is null || ruby == (Part is SceneColorPart.RubyFill or SceneColorPart.RubyStroke or SceneColorPart.RubyShadow);
+        public bool IncludesGlyph(bool ruby) => Part is null || ruby == (Part is SceneColorPart.RubyFill or SceneColorPart.RubyStroke or SceneColorPart.RubyShadow or SceneColorPart.RubyGlow);
         public ImageSurfaceReservation? Layer(string operation) => Budget?.Reserve(1, PixelBytes, operation);
         public LyricStyle Style(LyricStyle source)
         {
@@ -29,15 +30,15 @@ public sealed partial class SkiaRenderPipeline
                     EffectMaterialFallback.Gradient gradient => new FillSpec { Color = gradient.Value.Stops[0].Color, Gradient = gradient.Value },
                     _ => throw new PreparedFrameException("InvalidMaterialFallback", "材质基础外观必须是明确纯色或完整渐变。"),
                 };
-                return source with { UnsungFill = materialFill, SungFill = materialFill, Opacity = 1, Shadow = null,
+                return source with { UnsungFill = materialFill, SungFill = materialFill, Opacity = 1, Shadow = null, Glow = null,
                     Stroke = Recipe.IncludeStroke && source.Stroke is { } outline ? outline with { Material = materialFill.Material } : null };
             }
-            if (!IsCoverage) return source with { Stroke = Recipe.IncludeStroke ? source.Stroke : null, Shadow = Recipe.IncludeShadow ? source.Shadow : null };
+            if (!IsCoverage) return source with { Stroke = Recipe.IncludeStroke ? source.Stroke : null, Shadow = Recipe.IncludeShadow ? source.Shadow : null, Glow = Recipe.IncludeGlow ? source.Glow : null };
             bool stroke = Source == GraphInputSource.StrokeCoverage || Source == GraphInputSource.TargetRegionCoverage && Recipe.Region is SceneCaptureRegion.Stroke or SceneCaptureRegion.FillAndStroke;
             bool fill = Source != GraphInputSource.StrokeCoverage && (Source != GraphInputSource.TargetRegionCoverage || Recipe.Region != SceneCaptureRegion.Stroke);
             var color = fill ? RgbaColor.White : new RgbaColor(0, 0, 0, 0);
             return source with { UnsungFill = new() { Color = color }, SungFill = new() { Color = color }, Opacity = 1,
-                Stroke = stroke && source.Stroke is { IsValid: true, WidthPx: > 0 } spec ? spec with { Material = new MaterialSpec.Solid(RgbaColor.White) } : null, Shadow = null };
+                Stroke = stroke && source.Stroke is { IsValid: true, WidthPx: > 0 } spec ? spec with { Material = new MaterialSpec.Solid(RgbaColor.White) } : null, Shadow = null, Glow = null };
         }
     }
     private sealed record SceneDrawItem(string NodeId, SceneLineSample? Line, SceneTextMarkSample? Mark);

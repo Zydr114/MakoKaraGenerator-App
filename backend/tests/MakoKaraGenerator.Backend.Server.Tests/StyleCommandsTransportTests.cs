@@ -15,6 +15,26 @@ namespace MakoKaraGenerator.Backend.Server.Tests;
 public sealed partial class PreviewTransportTests
 {
     [Fact]
+    public async Task HTTP辉光叶值显式关闭和继承可往返()
+    {
+        await using var f = await Fixture.Create();
+        string path = $"/api/v1/project-sessions/{f.Project.ProjectSessionId}";
+        var lyrics = (await f.Http.GetFromJsonAsync<ProjectLyricsWindowResponse>(path + "/lyrics/window?branchId=primary&expectedRevision=0", Json))!;
+        string target = JsonSerializer.Serialize(new TokenStyleTargetDto("primary", lyrics.Lines[0].Id, lyrics.Lines[0].Tokens[0].Id), Json);
+        using var set = await PostRawEditing(f, "0", $$"""{"type":"styles.patch","targets":[{{target}}],"changes":[{"property":"glow.blurRadiusPx","value":6},{"property":"glow.spreadPx","value":2}]}""");
+        Assert.Equal(HttpStatusCode.OK, set.StatusCode);
+        string route = path + "/style?expectedRevision=1&kind=token&branchId=primary&lineId=" + Uri.EscapeDataString(lyrics.Lines[0].Id) + "&tokenId=" + Uri.EscapeDataString(lyrics.Lines[0].Tokens[0].Id);
+        using var read = await f.Http.GetAsync(route); Assert.Equal(HttpStatusCode.OK, read.StatusCode);
+        using var document = JsonDocument.Parse(await read.Content.ReadAsStringAsync());
+        Assert.Equal(6, document.RootElement.GetProperty("staticHierarchy").GetProperty("glow").GetProperty("blurRadiusPx").GetSingle());
+        using var close = await PostRawEditing(f, "1", $$"""{"type":"styles.patch","targets":[{{target}}],"changes":[{"property":"glow","value":null}]}""");
+        Assert.Equal(HttpStatusCode.OK, close.StatusCode);
+        using var restore = await PostRawEditing(f, "2", $$"""{"type":"styles.restore","targets":[{{target}}],"properties":["glow"]}""");
+        Assert.Equal(HttpStatusCode.OK, restore.StatusCode);
+        using var invalid = await PostRawEditing(f, "3", $$"""{"type":"styles.patch","targets":[{{target}}],"changes":[{"property":"glow.opacity","value":null}]}""");
+        Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+    }
+    [Fact]
     public async Task HTTP样式二命令四层实际JSON显式空值和历史刷新保持一致()
     {
         await using var f = await Fixture.Create();

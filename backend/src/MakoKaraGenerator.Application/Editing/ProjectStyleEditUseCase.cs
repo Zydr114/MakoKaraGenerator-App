@@ -24,7 +24,7 @@ public static partial class ProjectStyleEditUseCase
         Project source = workspace.Project; long generation = workspace.Generation;
         if (targets.Count is < 1 or > 1000)
             return new(workspace, generation, source, Reject(source, new(ProjectStyleEditErrorCode.InvalidTarget)), "styles.patch");
-        if (changes.Count is < 1 or > 24)
+        if (changes.Count is < 1 or > 29)
             return new(workspace, generation, source, Reject(source, new(ProjectStyleEditErrorCode.InvalidProperty)), "styles.patch");
         StyleEditTarget[] fixedTargets = [.. targets]; StyleEditChange[] fixedChanges = [.. changes];
         var properties = fixedChanges.Select(change => change?.Property ?? (StyleEditProperty)(-1)).ToArray();
@@ -46,7 +46,7 @@ public static partial class ProjectStyleEditUseCase
         Project source = workspace.Project; long generation = workspace.Generation;
         if (targets.Count is < 1 or > 1000)
             return new(workspace, generation, source, Reject(source, new(ProjectStyleEditErrorCode.InvalidTarget)), "styles.restore");
-        if (properties.Count is < 1 or > 24)
+        if (properties.Count is < 1 or > 29)
             return new(workspace, generation, source, Reject(source, new(ProjectStyleEditErrorCode.InvalidProperty)), "styles.restore");
         ProjectStyleEditResult result = Prepare(source, [.. targets], [.. properties], null, onChangedTarget);
         return new(workspace, generation, source, result, "styles.restore");
@@ -147,13 +147,15 @@ public static partial class ProjectStyleEditUseCase
                 return new(ProjectStyleEditErrorCode.UnsupportedProperty, Property: property);
         }
         if (seen.Contains(StyleEditProperty.Stroke) && properties.Any(IsStrokeLeaf)
-            || seen.Contains(StyleEditProperty.Shadow) && properties.Any(IsShadowLeaf))
+            || seen.Contains(StyleEditProperty.Shadow) && properties.Any(IsShadowLeaf)
+            || seen.Contains(StyleEditProperty.Glow) && properties.Any(IsGlowLeaf))
             return new(ProjectStyleEditErrorCode.InvalidProperty);
         return null;
     }
 
     private static bool IsStrokeLeaf(StyleEditProperty property) => property is >= StyleEditProperty.StrokeMaterial and <= StyleEditProperty.StrokePosition;
     private static bool IsShadowLeaf(StyleEditProperty property) => property is >= StyleEditProperty.ShadowColor and <= StyleEditProperty.ShadowBlurRadiusPx;
+    private static bool IsGlowLeaf(StyleEditProperty property) => property is >= StyleEditProperty.GlowColor and <= StyleEditProperty.GlowSpreadPx;
 
     private static Project UpdateTarget(Project project, StyleEditTarget target, StyleEditProperty[] properties, StyleEditChange[]? changes)
     {

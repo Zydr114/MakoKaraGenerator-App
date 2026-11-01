@@ -16,6 +16,9 @@ public enum LyricStyleEffectKind
 
     /// <summary>阴影。</summary>
     Shadow,
+
+    /// <summary>静态文字辉光。</summary>
+    Glow,
 }
 
 /// <summary>集中维护现有样式效果的启用、关闭和属性范围。</summary>
@@ -49,6 +52,12 @@ public static class LyricStyleEffects
         LyricStyleProperty.ShadowSpec,
     ];
 
+    private static readonly ImmutableArray<LyricStyleProperty> GlowProperties =
+    [
+        LyricStyleProperty.GlowSpec, LyricStyleProperty.GlowColor, LyricStyleProperty.GlowOpacity,
+        LyricStyleProperty.GlowBlurRadiusPx, LyricStyleProperty.GlowSpreadPx,
+    ];
+
     /// <summary>读取效果是否拥有足够参数可以绘制。</summary>
     /// <param name="style">要检查的样式。</param>
     /// <param name="effect">效果类型。</param>
@@ -63,6 +72,7 @@ public static class LyricStyleEffects
             LyricStyleEffectKind.SungGradient => style.SungFill.Gradient?.IsValid == true,
             LyricStyleEffectKind.Stroke => GetStroke(style)?.IsEnabled == true,
             LyricStyleEffectKind.Shadow => style.Shadow?.IsEnabled == true,
+            LyricStyleEffectKind.Glow => style.Glow?.IsEnabled == true,
             _ => throw UnknownEffect(effect),
         };
     }
@@ -76,6 +86,7 @@ public static class LyricStyleEffects
         LyricStyleEffectKind.SungGradient => SungGradientProperties,
         LyricStyleEffectKind.Stroke => StrokeProperties,
         LyricStyleEffectKind.Shadow => ShadowProperties,
+        LyricStyleEffectKind.Glow => GlowProperties,
         _ => throw UnknownEffect(effect),
     };
 
@@ -117,6 +128,7 @@ public static class LyricStyleEffects
             },
             LyricStyleEffectKind.Stroke => EnableStroke(style),
             LyricStyleEffectKind.Shadow => EnableShadow(style),
+            LyricStyleEffectKind.Glow => style.Glow?.IsEnabled == true ? style : style with { Glow = new GlowSpec() },
             _ => throw UnknownEffect(effect),
         };
     }
@@ -147,6 +159,7 @@ public static class LyricStyleEffects
             {
                 Shadow = null,
             },
+            LyricStyleEffectKind.Glow => style with { Glow = null },
             _ => throw UnknownEffect(effect),
         };
     }

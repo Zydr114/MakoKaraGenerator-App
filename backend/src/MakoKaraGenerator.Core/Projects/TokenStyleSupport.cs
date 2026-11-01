@@ -81,6 +81,11 @@ public static class TokenStyleSupport
             || styleOverride.Shadow.Value.Opacity is not null));
         Add(set, LyricStyleProperty.Opacity, styleOverride.Opacity is not null);
         Add(set, LyricStyleProperty.Scale, styleOverride.Scale is not null);
+        Add(set, LyricStyleProperty.GlowSpec, styleOverride.Glow.IsSet && (styleOverride.Glow.Value is null || styleOverride.Glow.Value.IsComplete));
+        Add(set, LyricStyleProperty.GlowColor, styleOverride.Glow.IsSet && (styleOverride.Glow.Value is null || styleOverride.Glow.Value.Color is not null));
+        Add(set, LyricStyleProperty.GlowOpacity, styleOverride.Glow.IsSet && (styleOverride.Glow.Value is null || styleOverride.Glow.Value.Opacity is not null));
+        Add(set, LyricStyleProperty.GlowBlurRadiusPx, styleOverride.Glow.IsSet && (styleOverride.Glow.Value is null || styleOverride.Glow.Value.BlurRadiusPx is not null));
+        Add(set, LyricStyleProperty.GlowSpreadPx, styleOverride.Glow.IsSet && (styleOverride.Glow.Value is null || styleOverride.Glow.Value.SpreadPx is not null));
 
         return set;
     }

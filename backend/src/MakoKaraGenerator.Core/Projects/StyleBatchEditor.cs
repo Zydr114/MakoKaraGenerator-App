@@ -125,10 +125,28 @@ public static class StyleBatchEditor
                 LyricStyleProperty.ShadowSpec => overlay with { ShadowSpec = restoreInheritance ? default(OptionalValue<ShadowSpec?>) : OptionalValue.Set<ShadowSpec?>(style.ShadowSpec) },
                 LyricStyleProperty.Opacity => overlay with { Opacity = restoreInheritance ? null : style.Opacity },
                 LyricStyleProperty.Scale => overlay with { Scale = restoreInheritance ? null : style.Scale },
+                LyricStyleProperty.GlowSpec => overlay with { Glow = restoreInheritance ? default : OptionalValue.Set<GlowSpecOverride?>(style.Glow is { } glow ? GlowSpecOverride.FromSpec(glow) : null) },
+                LyricStyleProperty.GlowColor or LyricStyleProperty.GlowOpacity or LyricStyleProperty.GlowBlurRadiusPx or LyricStyleProperty.GlowSpreadPx => CopyGlowLeaf(overlay, style, property, restoreInheritance),
                 _ => throw new ArgumentOutOfRangeException(nameof(properties)),
             };
         }
         return overlay;
+    }
+
+    private static LyricStyleOverride CopyGlowLeaf(LyricStyleOverride overlay, LyricStyle style, LyricStyleProperty property, bool restore)
+    {
+        if (overlay.Glow.Value is null && (restore || overlay.Glow.IsSet && style.Glow is null)) return overlay;
+        GlowSpecOverride value = overlay.Glow.Value ?? new();
+        GlowSpec basis = style.Glow ?? new() { Color = RgbaColor.Transparent, BlurRadiusPx = 0, SpreadPx = 0 };
+        value = property switch
+        {
+            LyricStyleProperty.GlowColor => value with { Color = restore ? null : basis.Color },
+            LyricStyleProperty.GlowOpacity => value with { Opacity = restore ? null : basis.Opacity },
+            LyricStyleProperty.GlowBlurRadiusPx => value with { BlurRadiusPx = restore ? null : basis.BlurRadiusPx },
+            LyricStyleProperty.GlowSpreadPx => value with { SpreadPx = restore ? null : basis.SpreadPx },
+            _ => throw new ArgumentOutOfRangeException(nameof(property)),
+        };
+        return overlay with { Glow = value.IsEmpty ? default : OptionalValue.Set<GlowSpecOverride?>(value) };
     }
 
     /// <summary>检查非有限数值；领域解析器另外负责样式范围校验。</summary>
@@ -141,7 +159,7 @@ public static class StyleBatchEditor
             || !float.IsFinite(style.Opacity) || !float.IsFinite(style.Scale)
             || style.UnsungFill is not { IsValid: true } || style.SungFill is not { IsValid: true }
             || (style.StrokeSpec is { IsValid: false })
-            || (style.ShadowSpec is { IsValid: false }))
+            || (style.ShadowSpec is { IsValid: false }) || (style.Glow is { IsValid: false }))
             throw new ArgumentOutOfRangeException(nameof(style), "样式数值必须是有限数。");
     }
 

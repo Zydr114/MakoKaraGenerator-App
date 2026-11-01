@@ -30,7 +30,7 @@ public sealed record Project
     /// v23 保存效果闭包，v24 增加完整媒体与分析修订，v25 增加模板来源与图元层；
     /// v26 统一源材质，v27 保存固定组合预设应用，v28 保存片段调度上下文。仅支持当前程序版本，不转换旧工程。
     /// </remarks>
-    public const int CurrentSchemaVersion = 28;
+    public const int CurrentSchemaVersion = 29;
 
     /// <summary>项目的 schema 版本。当前只接受当前程序版本和结构，不转换旧工程。</summary>
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;

@@ -32,8 +32,9 @@ public enum SceneCaptureRegion
 /// <param name="IncludeRuby">纳入基础字关联注音。</param><param name="IncludeStroke">TargetColor 纳入外部描边。</param>
 /// <param name="IncludeShadow">TargetColor 纳入阴影。</param><param name="IncludeDescendantGroups">纳入运行父树中的子组后代。</param>
 /// <param name="Region">目标覆盖区域；其他来源不读取此项。</param>
+/// <param name="IncludeGlow">TargetColor 独立纳入外发光；覆盖通道不读取此项。</param>
 public sealed record SceneCaptureRecipe(bool IncludeRuby, bool IncludeStroke, bool IncludeShadow,
-    bool IncludeDescendantGroups, SceneCaptureRegion Region);
+    bool IncludeDescendantGroups, SceneCaptureRegion Region, bool IncludeGlow = true);
 
 /// <summary>调用前可验证的捕获通道；背景和包资源由其他生产器提供。</summary>
 public static class SceneCaptureChannels

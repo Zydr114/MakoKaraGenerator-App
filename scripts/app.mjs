@@ -9,12 +9,15 @@ import { parseArgs } from 'node:util';
 import { startBackend, resolveDist, writeBootstrapFile } from '../frontend/scripts/backend-launcher.mjs';
 import { randomBytes } from 'node:crypto';
 import { buildDesktopNative, augmentDesktopDeployment, verifyDesktopDeployment } from './desktop-build.mjs';
+import desktopSessionPaths from '../desktop/gpu-preview/session-paths.cjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const LOCAL = join(ROOT, '.local');
-const { positionals, values } = parseArgs({ allowPositionals: true, options: { port: { type: 'string', default: '5173' },'cdp-port':{type:'string'},'slow-consumer-ms':{type:'string'} } });
+const { positionals, values } = parseArgs({ allowPositionals: true, options: { port: { type: 'string', default: '5173' },'cdp-port':{type:'string'},'slow-consumer-ms':{type:'string'},'session-name':{type:'string'} } });
 const command = positionals[0];
 const port = Number(values.port);
+const sessionName=values['session-name'];
+if(sessionName!==undefined&&command!=='desktop')throw new Error('Named sessions are only available for desktop');
 const cdpPort=values['cdp-port']===undefined?undefined:Number(values['cdp-port']);
 if(cdpPort!==undefined&&(command!=='desktop'||!Number.isInteger(cdpPort)||cdpPort<1024||cdpPort>65535||cdpPort===port))throw new Error('CDP port must be a separate explicit desktop acceptance port');
 const slowConsumerMs=values['slow-consumer-ms']===undefined?undefined:Number(values['slow-consumer-ms']);
@@ -25,6 +28,7 @@ if (!['build', 'build:desktop', 'desktop', 'start', 'dev'].includes(command) || 
 }
 await mkdir(LOCAL, { recursive: true, mode: 0o700 });
 if (await realpath(LOCAL) !== LOCAL) throw new Error('App .local 不能通过符号链接引用外部目录。');
+const sessionPaths=command==='desktop'?desktopSessionPaths.prepareDesktopSession(ROOT,sessionName):undefined;
 if (process.env.MAKO_BACKEND_REPO && resolve(process.env.MAKO_BACKEND_REPO) !== join(ROOT, 'backend')) {
   throw new Error('App 禁止引用外部 MAKO_BACKEND_REPO；请移除该环境变量。');
 }
@@ -96,7 +100,7 @@ if (command === 'build' || command === 'build:desktop') {
       const { default:electron } = await import('../desktop/node_modules/electron/index.js');
       desktopConfigFile = join(LOCAL, 'run', `desktop-${process.pid}.json`);
       desktopSession = { consumerId:randomBytes(16).toString('hex'), consumerSecret:randomBytes(32).toString('hex'), pageUrl:origins[0], root:ROOT,
-        brokerAddon:join(desktopDist,'desktop/gpu_preview_broker.node'),brokerAddonSha256:desktopManifest.files['desktop/gpu_preview_broker.node'],slowConsumerMs };
+        brokerAddon:join(desktopDist,'desktop/gpu_preview_broker.node'),brokerAddonSha256:desktopManifest.files['desktop/gpu_preview_broker.node'],slowConsumerMs,sessionName };
       await writeBootstrapFile(desktopConfigFile, { ...desktopSession, ready:false });
       desktopChild = spawn(electron, [...(cdpPort?[`--remote-debugging-port=${cdpPort}`,'--remote-debugging-address=127.0.0.1']:[]),join(ROOT,'desktop/main.cjs'),'--launch-config',desktopConfigFile], { cwd:ROOT, env:{...process.env,ELECTRON_RUN_AS_NODE:undefined}, stdio:['ignore','pipe','pipe'] });
       desktopExited = new Promise(done => { desktopChild.once('exit',done); desktopChild.once('error',done); });
@@ -106,7 +110,7 @@ if (command === 'build' || command === 'build:desktop') {
       desktopChild.once('exit', code => { if (!stopping) void shutdown(code || 0); });
       if (!desktopChild.pid) throw new Error('Electron did not start');
     }
-    startup = startBackend({ profile: join(LOCAL, command === 'desktop' ? 'desktop-profile' : 'profile'), bootstrapFile, origins,
+    startup = startBackend({ profile: sessionPaths?.profile??join(LOCAL,'profile'), bootstrapFile, origins,
       ...(desktopSession ? { env:{ MAKO_DESKTOP_CONSUMER_ID:desktopSession.consumerId, MAKO_DESKTOP_CONSUMER_SECRET:desktopSession.consumerSecret, MAKO_DESKTOP_MAIN_PID:String(desktopChild.pid) } } : {}),
     });
     backend = await startup;

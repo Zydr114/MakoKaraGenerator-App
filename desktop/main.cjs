@@ -6,13 +6,15 @@ const { createHash } = require('node:crypto');
 const { readLaunchConfig } = require('./gpu-preview/launch-contract.cjs');
 const { importAndTransferFrame } = require('./gpu-preview/import-consumer.cjs');
 const { validateWorkerMessage } = require('./gpu-preview/wire.cjs');
+const { prepareDesktopSession } = require('./gpu-preview/session-paths.cjs');
 
 const root = fs.realpathSync(path.join(__dirname,'..'));
 const configFile = process.argv[process.argv.indexOf('--launch-config')+1];
 let config = readLaunchConfig(configFile,root,process.pid);
 if (process.versions.electron !== '45.2.1') throw new Error('Desktop requires the pinned Electron runtime');
-app.setPath('userData',path.join(root,'.local/desktop-electron-profile'));
-app.setPath('crashDumps',path.join(root,'.local/desktop-electron-crashes'));
+const sessionPaths=prepareDesktopSession(root,config.sessionName);
+app.setPath('userData',sessionPaths.userData);
+app.setPath('crashDumps',sessionPaths.crashDumps);
 app.commandLine.appendSwitch('disable-breakpad');
 const addon=fs.realpathSync(config.brokerAddon);
 if(addon!==config.brokerAddon||!addon.startsWith(path.join(root,'.local/backend-dist')+path.sep)||createHash('sha256').update(fs.readFileSync(addon)).digest('hex')!==config.brokerAddonSha256)throw new Error('Desktop broker payload mismatch');

@@ -210,6 +210,19 @@ async function readProc(pid,role) {
       gpuMemoryBytes:clients.size?[...clients.values()].reduce((sum,value)=>sum+value,0):null,gpuMemorySource:clients.size?'per-process DRM fdinfo, deduplicated client-id':'unavailable'};
   }catch{return {pid,role,exited:true};}
 }
+async function concurrentAppEvidence(ownMainPid) {
+  const result=[];
+  for(const pidText of await readdir('/proc')){
+    if(!/^\d+$/.test(pidText))continue;
+    const pid=Number(pidText);if(pid===ownMainPid)continue;
+    try{
+      const args=(await readFile(`/proc/${pid}/cmdline`,'utf8')).split('\0').filter(Boolean);
+      if(!args.includes(join(ROOT,'desktop/main.cjs')))continue;
+      result.push({...await readProc(pid,'concurrent-App-Electron-main'),observedOnly:true,cmdlineClassification:'same App desktop main; arguments omitted to preserve private handles'});
+    }catch{}
+  }
+  return {observation:'Other App instances are preserved; no pause/close/kill is performed for timing',observedAt:new Date().toISOString(),instances:result};
+}
 async function processSnapshot(snapshot) {
   const pids=new Map();
   if(snapshot.mainPid)pids.set(snapshot.mainPid,'electron-main');
@@ -310,6 +323,7 @@ async function connectPage(port) {
   throw new Error('Loopback Electron CDP page did not become ready');
 }
 async function run(values) {
+  invariant(!values['correctness-snapshot']||values.debug||values.finite,'Correctness screenshot must stay outside formal timed runs');
   const sessionName=values.connect?null:(values['session-name']??`p3-${new Date().toISOString().replaceAll(/[^0-9TZ]/g,'').toLowerCase()}`);
   if(sessionName!==null)invariant(/^[a-z0-9][a-z0-9-]{0,63}$/.test(sessionName),'Invalid isolated desktop session name');
   const output=resolve(values.output??join(ROOT,'.local/gpu-preview-p3',new Date().toISOString().replaceAll(':','-')));
@@ -388,7 +402,9 @@ async function run(values) {
     }
     ({cdp,page}=await connectPage(Number(values['cdp-port'])));
     await page.waitFor(`typeof window.makoDesktopPreview?.readPreviewState==='function'`,'Desktop production bridge');
-    manifest.platformEvidence=await actualWaylandEvidence(page,cdp,{...await sample(),cdpPort:values['cdp-port']});
+    const initial=await sample();
+    manifest.platformEvidence=await actualWaylandEvidence(page,cdp,{...initial,cdpPort:values['cdp-port']});
+    manifest.concurrentAppObservation=await concurrentAppEvidence(initial.mainPid);
     if(!values['reuse-project'])manifest.fixture=await makeFixtures(output).then(async fixture=>{await createProject(page,fixture);return fixture;});
     if(values['reuse-project']){invariant(await page.eval(`!!document.querySelector('mdui-navigation-rail-item[value="orchestration"]')`),'--reuse-project requires an already-open project in the live App');await selectGpu(page);}
     await writeFile(join(output,'manifest.json'),JSON.stringify(manifest,null,2)+'\n');
@@ -398,6 +414,11 @@ async function run(values) {
     for(const phase of manifest.phases){
       await page.eval(`(()=>{const select=document.querySelector('select[aria-label="GPU 预览规格"]');select.value=${JSON.stringify(phase.name)};select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
       const before=await sample();await waitFrames(before.completedDrawnUnique,3,state=>state.latestSample?.width===phase.width&&state.latestSample?.height===phase.height&&state.mediaClock?.targetFps===phase.targetFps);
+      if(values['correctness-snapshot']&&phase.name==='720p24'){
+        const image=await page.screenshot();
+        await writeFile(join(output,'correctness-before-timing.png'),image);
+        await record({type:'correctness-observation',readback:'validation-only CDP screenshot before warmup/timed phase; excluded from zero-readback performance evidence',snapshot:await sample(),path:'correctness-before-timing.png'});
+      }
       const warmupUntil=Date.now()+manifest.warmupSeconds*1000;while(Date.now()<warmupUntil){await sample();await pause(1000);}
       const start=await sample();
       const until=Date.now()+manifest.measureSeconds*1000;while(Date.now()<until){await pause(Math.min(1000,until-Date.now()));await sample();}
@@ -491,7 +512,7 @@ async function run(values) {
 }
 async function main() {
   const {values}=parseArgs({options:{'cdp-port':{type:'string',default:'9223'},port:{type:'string',default:'5174'},output:{type:'string'},provider:{type:'string',default:'runtime'},
-    connect:{type:'boolean'},'session-name':{type:'string'},'reuse-project':{type:'boolean'},'dry-run':{type:'boolean'},debug:{type:'boolean'},finite:{type:'boolean'},analyze:{type:'string'}}});
+    connect:{type:'boolean'},'session-name':{type:'string'},'reuse-project':{type:'boolean'},'dry-run':{type:'boolean'},debug:{type:'boolean'},finite:{type:'boolean'},'correctness-snapshot':{type:'boolean'},analyze:{type:'string'}}});
   invariant(['runtime','synthetic'].includes(values.provider),'provider must be runtime or synthetic');
   if(values.analyze){const directory=resolve(values.analyze);const records=(await readFile(join(directory,'events.jsonl'),'utf8')).trim().split('\n').filter(Boolean).map(line=>JSON.parse(line));
     const manifest=JSON.parse(await readFile(join(directory,'manifest.json'),'utf8'));const report=analyze(records,manifest);await writeFile(join(directory,'report.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));return;}

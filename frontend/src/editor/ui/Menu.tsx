@@ -6,7 +6,7 @@
 //     </Menu>
 //   </MenuTrigger>
 
-import type { ReactNode } from 'react';
+import { createContext, useContext, type ReactNode } from 'react';
 import {
   Header,
   Menu as AriaMenu,
@@ -27,6 +27,9 @@ import './controls.css';
 
 export { SubmenuTrigger };
 
+// React Aria 的子菜单只调用自己的 onAction；子菜单没给时沿用外层菜单的，调用方只写一处。
+const MenuActionContext = createContext<((id: Key) => void) | undefined>(undefined);
+
 export function MenuTrigger(props: MenuTriggerProps) {
   return <AriaMenuTrigger {...props} />;
 }
@@ -42,18 +45,23 @@ export function Menu(props: {
   selectedKeys?: Iterable<Key>;
   onSelectionChange?: (keys: Selection) => void;
 }) {
+  const inherited = useContext(MenuActionContext);
+  const onAction = props.onAction ?? inherited;
   return (
     <Popover className="popover" offset={4} placement={props.placement ?? 'bottom start'}>
-      <AriaMenu
-        className={cls('menu-list', props.className)}
-        {...(props.label ? { 'aria-label': props.label } : {})}
-        {...(props.onAction ? { onAction: props.onAction } : {})}
-        {...(props.selectionMode ? { selectionMode: props.selectionMode } : {})}
-        {...(props.selectedKeys ? { selectedKeys: props.selectedKeys } : {})}
-        {...(props.onSelectionChange ? { onSelectionChange: props.onSelectionChange } : {})}
-      >
-        {props.children}
-      </AriaMenu>
+      {/* 包在 AriaMenu 外面：菜单项（含子菜单）在 AriaMenu 里面渲染，传给它的 children 只用来建集合。 */}
+      <MenuActionContext.Provider value={onAction}>
+        <AriaMenu
+          className={cls('menu-list', props.className)}
+          {...(props.label ? { 'aria-label': props.label } : {})}
+          {...(onAction ? { onAction } : {})}
+          {...(props.selectionMode ? { selectionMode: props.selectionMode } : {})}
+          {...(props.selectedKeys ? { selectedKeys: props.selectedKeys } : {})}
+          {...(props.onSelectionChange ? { onSelectionChange: props.onSelectionChange } : {})}
+        >
+          {props.children}
+        </AriaMenu>
+      </MenuActionContext.Provider>
     </Popover>
   );
 }

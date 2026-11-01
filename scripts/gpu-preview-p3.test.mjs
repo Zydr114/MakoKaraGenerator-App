@@ -105,3 +105,11 @@ test('freshness and interaction gates include their measured clock uncertainty',
   assert.equal(report.interactionGroups.pause.withClockUncertaintyUpperBoundMs.p95,151);
   assert.equal(report.interactionGroups.pause.candidateMet,false);
 });
+test('Worker pool/render/control gates require real independent telemetry and actual retained bytes',()=>{
+  const good={executingRender:1,pendingControls:1,pendingRenderTargets:1,outstanding:2,slotCount:3,actualAllocationBytes:12_000_000,retainedAllocationBytes:12_000_000,peaks:{executingRender:1,pendingControls:1,pendingRenderTargets:1,outstanding:3}};
+  const report=state=>analyze([snapshot(2n*N,[frame(1,N)],1,{workerState:state}),phase]).phaseReports[0];
+  assert.equal(report(undefined).gates.workerPoolAndRenderControlBudgets,false);
+  assert.equal(report(good).gates.workerPoolAndRenderControlBudgets,true);
+  assert.equal(report({...good,retainedAllocationBytes:65*1024**2}).gates.workerPoolAndRenderControlBudgets,false);
+  assert.equal(report({...good,peaks:{...good.peaks,executingRender:2}}).gates.workerPoolAndRenderControlBudgets,false);
+});

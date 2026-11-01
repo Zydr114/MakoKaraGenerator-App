@@ -84,7 +84,7 @@ export function analyze(records, manifest={}) {
     for(const sample of snapshot.samples){
       const key=leaseKey(sample), completed=ns(sample.completedMonotonicNs), previous=frames.get(key);
       invariant(completed<=observed,'Frame completion is after snapshot time');
-      const enriched={...sample,...(sample.totalClockUncertaintyMs===undefined&&totalUncertainty!==undefined?{totalClockUncertaintyMs:Number(ns(totalUncertainty))/1e6}:{})};
+      const enriched={...sample,clockUncertaintyProvenance:sample.clockUncertaintyProvenance??(sample.totalClockUncertaintyMs!==undefined?'native-completion-sample':'legacy-observation-snapshot'),...(sample.totalClockUncertaintyMs===undefined&&totalUncertainty!==undefined?{totalClockUncertaintyMs:Number(ns(totalUncertainty))/1e6}:{})};
       if(previous){
         invariant(previous.completedMonotonicNs===sample.completedMonotonicNs,'Completion timestamp changed for one lease');
         frames.set(key,{...previous,...enriched,drawn:previous.drawn===true||sample.drawn===true});
@@ -110,6 +110,7 @@ export function analyze(records, manifest={}) {
     const threshold=Math.ceil(phase.targetFps*5*.98);
     const sampleClocks=delivered.map(frame=>frame.totalClockUncertaintyMs);
     const unknownClock=sampleClocks.filter(value=>!Number.isFinite(value)).length;
+    const legacyClock=delivered.filter(frame=>frame.clockUncertaintyProvenance!=='native-completion-sample').length;
     const badProvider=delivered.filter(frame=>frame.provider!==phase.provider).length;
     const readbacks=candidates.filter(frame=>frame.counters?.cpuPixelReadbacks!==0).length;
     const wrongSize=delivered.filter(frame=>frame.width!==phase.width||frame.height!==phase.height).length;
@@ -133,12 +134,15 @@ export function analyze(records, manifest={}) {
       if(Number.isFinite(proc.gpuMemoryBytes))points.gpu.push([record.time,proc.gpuMemoryBytes]);
       resourcePids.set(key,points);
     }
+    const workerStates=streamSnapshots.filter(record=>record.snapshot.workerState).map(record=>record.snapshot.workerState);
+    const workerBudgetGate=workerStates.length>0&&workerStates.every(state=>state.slotCount===3&&Number.isSafeInteger(state.actualAllocationBytes)&&state.actualAllocationBytes>0&&state.actualAllocationBytes<=64*1024**2&&Number.isSafeInteger(state.retainedAllocationBytes)&&state.retainedAllocationBytes>=state.actualAllocationBytes&&state.retainedAllocationBytes<=64*1024**2&&state.executingRender<=1&&state.pendingControls<=1&&state.pendingRenderTargets<=1&&state.outstanding<=3&&state.peaks?.executingRender<=1&&state.peaks?.pendingControls<=1&&state.peaks?.pendingRenderTargets<=1&&state.peaks?.outstanding<=3);
     const gate={overall:delivered.length>=Math.ceil(expected*.99),sliding5s:window.complete&&window.minimumUniqueFrames>=threshold,
       intervalP95:percentile(intervals,.95)!==null&&percentile(intervals,.95)<=2*period,
       intervalP99:percentile(intervals,.99)!==null&&percentile(intervals,.99)<=3*period,
-      noUnexplainedStall:intervals.every(value=>value<=250),clockRecorded:unknownClock===0&&delivered.length>0,
+      noUnexplainedStall:intervals.every(value=>value<=250),clockRecorded:unknownClock===0&&delivered.length>0,contemporaneousClockRecorded:legacyClock===0&&delivered.length>0,
       exactProvider:badProvider===0&&delivered.length>0,exactSize:wrongSize===0&&delivered.length>0,
       productionFinalReadbacksZero:readbacks===0&&delivered.length>0,
+      workerPoolAndRenderControlBudgets:workerBudgetGate,
       visibleWindow:streamSnapshots.length>0&&streamSnapshots.every(record=>record.snapshot.rendererVisibility==='visible'),
       poolBounded:streamSnapshots.length>0&&streamSnapshots.every(record=>record.snapshot.outstanding<=3&&record.snapshot.peakOutstanding<=3),
       mainControlsBounded:streamSnapshots.length>0&&streamSnapshots.every(record=>record.snapshot.executingControls<=1&&record.snapshot.pendingControls<=1)};
@@ -149,6 +153,7 @@ export function analyze(records, manifest={}) {
       stallsOver250ms:intervals.filter(value=>value>250).length,renderMs:distribution(delivered.map(frame=>frame.renderMs)),
       brokerToCompletionMs:distribution(delivered.map(frame=>frame.brokerToCompletionMs)),readyToCompletionMs:distribution(delivered.map(frame=>frame.readyToCompletionMs)),
       totalClockUncertaintyMs:distribution(sampleClocks),signedDriftMs:distribution(drift),ageMs:distribution(age),absoluteDriftMs:distribution(drift.map(Math.abs)),absoluteDriftUpperBoundMs:distribution(freshnessUpperBound),
+      displayGeometryObservations:streamSnapshots.map(record=>({monotonicNs:String(record.time),...record.snapshot.displayGeometry})),
       workerFlowControl:{status:streamSnapshots.length&&streamSnapshots.every(record=>record.snapshot.workerState)?'recorded':'unmeasured',samples:streamSnapshots.filter(record=>record.snapshot.workerState).map(record=>({monotonicNs:String(record.time),...record.snapshot.workerState})),publicStates:streamSnapshots.filter(record=>record.snapshot.workerPublicState).map(record=>({monotonicNs:String(record.time),...record.snapshot.workerPublicState}))},
       freshness:drift.length===delivered.length&&delivered.length>0?{status:percentile(age,.95)<=2*period&&percentile(freshnessUpperBound,.95)!==null&&percentile(freshnessUpperBound,.95)<=2*period&&unknownClock===0?'candidate-met':'candidate-failed',candidateP95LimitMs:2*period,uncertaintyPolicy:'p95 of each absolute drift plus that frame total calibrated clock uncertainty must fit the unchanged limit',earlyFrameConstraint:'absolute signed drift p95 must also stay within two periods; negative age never makes an early frame pass',model:'latest calibrated real audio.currentTime sample at or before completion, extrapolated by rate within exact timelineResetId'}:{status:'unmeasured',reason:'Missing calibrated audio master comparison on some frames'},
       resourceTrends:[...resourcePids.values()].map(points=>({pid:points.pid,startTicks:points.startTicks,role:points.role,fd:regression(points.fd),rssBytes:regression(points.rss),gpuMemoryBytes:regression(points.gpu)})),
@@ -191,7 +196,7 @@ export function analyze(records, manifest={}) {
     counting:'unique canvas-drawn identity intersected with actual native allReferencesReleased; measured at completion timestamp',
     phaseReports,eventGaps:[...new Set(gaps)],actions:actionReports,interactions,interactionGroups,requiredLifecycle:lifecycle,measuredRequirements:requirements,
     conclusion:manifest.runClass!=='formal-p3'?(manifest.runClass??'incomplete-or-failed'):Object.values(requirements).every(Boolean)?'measured-candidate-gates-met; separate correctness/trace/resource interpretation remains required':'incomplete-or-failed',
-    p3Acceptance:'not established by timed runner alone; requires separate correctness/trace, Worker pool/control budgets, and lifetime lease/FD/cache review',
+    p3Acceptance:'not established by timed runner alone; requires separate correctness/trace and lifetime lease/FD/cache review',
     limitations:['No screen scan/displayed FPS measurement','No Chromium internal copy count inferred','RSS/GPU-memory slopes need platform-cache interpretation, not an invented fixed MB threshold','Synthetic and runtime providers must be measured and reported separately']};
 }
 
@@ -248,7 +253,7 @@ async function seekTimeline(page,xOffset) {
   await page.send('Input.dispatchMouseEvent',{type:'mousePressed',x:point.x,y:point.y,button:'left',clickCount:1});
   await page.send('Input.dispatchMouseEvent',{type:'mouseReleased',x:point.x,y:point.y,button:'left',clickCount:1});
 }
-async function makeFixtures(output) {
+export async function makeFixtures(output) {
   const seconds=1800,rate=8000,bytes=seconds*rate*2,header=Buffer.alloc(44),audio=join(output,'silence-1800s.wav');
   header.write('RIFF');header.writeUInt32LE(36+bytes,4);header.write('WAVEfmt ',8);header.writeUInt32LE(16,16);header.writeUInt16LE(1,20);header.writeUInt16LE(1,22);header.writeUInt32LE(rate,24);header.writeUInt32LE(rate*2,28);header.writeUInt16LE(2,32);header.writeUInt16LE(16,34);header.write('data',36);header.writeUInt32LE(bytes,40);
   await writeFile(audio,Buffer.concat([header,Buffer.alloc(bytes)]));
@@ -296,7 +301,7 @@ async function selectGpu(page) {
   await page.waitFor(`(()=>{const option=document.querySelector('.render-device-option[data-value="gpu"]')?.closest('mdui-menu-item');return option&&!option.disabled;})()`,'Available GPU render backend',120_000);
   await page.eval(`document.querySelector('.render-device-option[data-value="gpu"]').closest('mdui-menu-item').dispatchEvent(new MouseEvent('click',{bubbles:true,composed:true}))`);
 }
-async function createProject(page,fixture) {
+export async function createProject(page,fixture) {
   await click(page,'新建工程');
   await page.waitFor(`!!document.querySelector('input[aria-label="选择音频"]')`,'New project file inputs');
   await setFile(page,'input[aria-label="选择音频"]',fixture.audio);
@@ -310,7 +315,7 @@ async function createProject(page,fixture) {
   await page.waitFor(`!!document.querySelector('select[aria-label="GPU 预览规格"]')`,'Production GPU preview',180_000);
   await page.waitFor(`!!document.querySelector('[aria-label="播放"]:not([disabled])')`,'Real audio playback ready',180_000);
 }
-async function connectPage(port) {
+export async function connectPage(port) {
   const deadline=Date.now()+90_000;
   while(Date.now()<deadline){
     try{
@@ -354,7 +359,7 @@ async function run(values) {
   const observedSamples=new Map();
   let sampleRevision=0,lastWorkerPublicRead=0,workerPublicState,workerPublicReadMonotonicNs;
   const sample=async()=>{
-    const snapshot=await page.eval(`window.makoDesktopPreview.readPreviewState(${sampleRevision}).then(snapshot=>({...snapshot,rendererVisibility:document.visibilityState}))`);
+    const snapshot=await page.eval(`window.makoDesktopPreview.readPreviewState(${sampleRevision}).then(snapshot=>{const canvas=document.getElementById('mako-gpu-preview'),rect=canvas?.getBoundingClientRect();return {...snapshot,rendererVisibility:document.visibilityState,displayGeometry:{viewport:{width:innerWidth,height:innerHeight,devicePixelRatio},canvas:canvas?{backingWidth:canvas.width,backingHeight:canvas.height,cssWidth:rect.width,cssHeight:rect.height,cssX:rect.x,cssY:rect.y}:null}};})`);
     ns(snapshot.nowMonotonicNs);
     invariant(!snapshot.sampleCursorExpired,'Native completion telemetry cursor expired; evidence is incomplete');
     sampleRevision=snapshot.sampleRevision;

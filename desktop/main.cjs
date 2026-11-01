@@ -250,6 +250,7 @@ ipcMain.handle('mako-gpu:acceptance-failure',(event,kind)=>{
   const pid=kind==='renderer-loss'?window.webContents.getOSProcessId():stream?.workerPid;
   if(!pid)throw new Error('No active owned fault target');
   lost=true;record('injected-consumer-loss',{kind,pid});
+  console.error(JSON.stringify({type:'desktop-injected-loss',kind,pid,unknownOutstanding:stream?.imports.size??0,acknowledgedAtLoss:sTelemetry.acknowledgedUnique}));
   process.kill(pid,'SIGKILL');failStop(kind==='renderer-loss'?'injectedRendererLoss':'injectedWorkerLoss');
 });
 ipcMain.handle('mako-gpu:acceptance-visibility',(event,visible)=>{

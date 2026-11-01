@@ -25,7 +25,7 @@ try{
   invariant(['paused','playing'].includes(values.mode),'Expected paused or playing mode');
   await page.eval(values.mode==='paused'?`document.querySelector('[aria-label="暂停"]')?.click()`:`document.querySelector('[aria-label="播放"]')?.click()`);
   const before=await until(async()=>{const s=await sample();return s.activeStream&&s.mediaClock?.mode===values.mode&&(!values.scenario.endsWith('-loss')||s.outstanding>=1)?s:false;});report.before=before;invariant(before.activeStream&&before.completedDrawnUnique>0,'Requires a real, drawn production GPU stream');
-  report.ownedIdentities=await Promise.all([before.mainPid,before.workerPid,before.rendererPid].map(proc));
+  report.ownedIdentities=await Promise.all([...new Set([before.mainPid,before.workerPid,before.rendererPid,...before.processes.map(p=>p.pid)])].map(proc));
   if(values.scenario==='hidden'){
     await page.eval('window.makoDesktopPreview.setAcceptanceVisibility(false)');
     const hidden=await until(async()=>{const s=await sample();return s.visibility==='hidden'&&!s.activeStream&&s.outstanding===0?s:false;});

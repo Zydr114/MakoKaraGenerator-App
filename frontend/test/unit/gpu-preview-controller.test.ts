@@ -1,6 +1,6 @@
 import {afterEach,beforeEach,expect,it,vi} from 'vitest';
 import type {MakoClient} from '../../src/client';
-import {revision,type DesktopPreviewBridge,type GpuPreviewCreateInput,type GpuPreviewStreamState} from '../../src/protocol';
+import {revision,type DesktopPreviewBridge,type DesktopPreviewEvent,type GpuPreviewCreateInput,type GpuPreviewStreamState} from '../../src/protocol';
 import {GpuPreviewController} from '../../src/editor/preview/gpu-preview-controller';
 
 const deferred=()=>{let resolve!:()=>void;const promise=new Promise<void>(done=>{resolve=done;});return {promise,resolve};};
@@ -8,6 +8,7 @@ beforeEach(()=>vi.stubGlobal('window',{}));
 afterEach(()=>vi.unstubAllGlobals());
 function fixture(options:{createGate?:Promise<void>;replaceGate?:Promise<void>;replaceFails?:()=>boolean}={}){
   const calls:string[]=[];let nextId=0;let attached=false;
+  const listeners=new Set<(event:DesktopPreviewEvent)=>void>();
   const state=(id:string,source:GpuPreviewStreamState['source'],generation='1'):GpuPreviewStreamState=>({streamId:id,streamRevision:generation,inputGeneration:generation,registrationState:'ready',source,size:{width:1280,height:720},alphaMode:'straight',textureAlphaMode:'premultiplied',api:'vulkan',producerEpoch:generation,poolGeneration:'1',slotCount:3,allocationBytes:4096,lastAppliedControlSeq:0});
   const client={gpuPreview:{
     create:async(input:GpuPreviewCreateInput)=>{calls.push(`create:${input.source.sourceId}`);await options.createGate;return state(`s${++nextId}`,input.source);},
@@ -19,11 +20,11 @@ function fixture(options:{createGate?:Promise<void>;replaceGate?:Promise<void>;r
     attachPreview:async(id:string,generation:string)=>{calls.push(`attach:${id}:${generation}`);attached=true;},
     detachPreview:async()=>{calls.push('detach');attached=false;},
     setPlaybackState:async()=>{if(!attached)throw new Error('not attached');calls.push('playback');return {controlSeq:1};},
-    onPreviewState:()=>()=>{},
+    onPreviewState:(listener:(event:DesktopPreviewEvent)=>void)=>{listeners.add(listener);return()=>listeners.delete(listener);},
   } as unknown as DesktopPreviewBridge;
   const make=(id='p1')=>new GpuPreviewController(client,id,{width:1280,height:720},bridge);
   const show=(controller:GpuPreviewController,rev='1')=>controller.show(revision(rev),{mode:'paused',mediaTimeUs:0,rate:1,targetFps:24,timelineResetId:'reset',samplePerformanceMs:performance.now()});
-  return {calls,make,show};
+  return {calls,make,show,emit:(event:DesktopPreviewEvent)=>listeners.forEach(listener=>listener(event))};
 }
 it('unmount during create closes its eventual unclaimed stream before the next panel creates',async()=>{
   const gate=deferred();const f=fixture({createGate:gate.promise});const old=f.make();f.show(old);
@@ -47,4 +48,16 @@ it('retry after a stopped replacement fails closes the old stream and creates a 
   await vi.waitFor(()=>expect(f.calls.filter(x=>x==='playback')).toHaveLength(2));
   expect(f.calls).toContain('close:s1');expect(f.calls).toContain('attach:s2:1');
   controller.dispose();await vi.waitFor(()=>expect(f.calls).toContain('close:s2'));
+});
+it('a retired stream failure cannot block a new controller or a new input generation',async()=>{
+  const f=fixture();const old=f.make();f.show(old);await vi.waitFor(()=>expect(f.calls).toContain('playback'));
+  old.dispose();const next=f.make('p2');f.show(next);
+  f.emit({type:'failed',streamId:'s1',producerEpoch:'1',inputGeneration:'1',code:'retiredFailure'});
+  await vi.waitFor(()=>expect(f.calls).toContain('attach:s2:1'));
+  expect(next.state$.get().status).not.toBe('error');
+  f.emit({type:'failed',streamId:'s2',producerEpoch:'1',inputGeneration:'9',code:'retiredGeneration'});
+  expect(next.state$.get().status).not.toBe('error');
+  f.emit({type:'failed',streamId:'s2',producerEpoch:'1',inputGeneration:'1',code:'currentFailure'});
+  expect(next.state$.get()).toMatchObject({status:'error',error:'currentFailure'});
+  next.dispose();await vi.waitFor(()=>expect(f.calls).toContain('close:s2'));
 });

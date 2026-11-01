@@ -27,7 +27,7 @@ async function fixture(){
   const control=(mode='paused')=>({mode,mediaTimeUs:0,rate:1,targetFps:24,timelineResetId:'reset',samplePerformanceMs:performance.now()});
   const barrier=seq=>emit('barrier',{...identity,timelineEpoch:'1',timelineResetId:'reset',minControlSeq:seq});
   const frame=async seq=>receiver({importedSharedTexture:{getVideoFrame:()=>({timestamp:seq,displayWidth:64,displayHeight:64,close(){}}),release(){releases++;}}},{...identity,timelineEpoch:'1',timelineResetId:'reset',controlSeq:seq,frameSeq:seq,slotId:0,slotEpoch:String(seq),timeUs:seq,width:64,height:64});
-  return {api,pending,emit,control,barrier,frame,get draws(){return draws;},get releases(){return releases;}};
+  return {api,pending,emit,control,barrier,frame,identity,get draws(){return draws;},get releases(){return releases;}};
 }
 test('unknown hard barrier stays blocked across old applied events and same-reset mode changes',async()=>{
   const f=await fixture();
@@ -49,4 +49,12 @@ test('ordinary clock correction cannot clear an unresolved hard barrier',async()
   f.barrier(1);await f.frame(1);assert.equal(f.draws,0);
   f.pending[1].resolve({controlSeq:3});await correction;f.barrier(1);await f.frame(1);assert.equal(f.draws,0);
   f.pending[0].resolve({controlSeq:2});await hard;f.barrier(2);await f.frame(2);assert.equal(f.draws,1);
+});
+test('attached reset and repeated semantic state confirm the actual applied sequence without admitting older frames',async()=>{
+  const f=await fixture();const first=f.api.setPlaybackState(f.control('playing'));await turn();f.pending.shift().resolve({controlSeq:1});await first;f.barrier(1);
+  f.emit('attached',f.identity);
+  const repeated=f.api.setPlaybackState(f.control('playing'));await turn();f.pending.shift().resolve({controlSeq:2});await repeated;
+  f.emit('barrier',{...f.identity,timelineEpoch:'1',timelineResetId:'reset',minControlSeq:1,controlSeq:2});
+  await f.frame(1);assert.equal(f.draws,0);
+  await f.frame(2);assert.equal(f.draws,1);
 });

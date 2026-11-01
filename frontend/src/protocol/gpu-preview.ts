@@ -60,6 +60,7 @@ export interface DesktopPreviewBridge {
   consumerId(): Promise<string>;
   acceptanceEnabled(): Promise<boolean>;
   injectAcceptanceFailure(kind: 'renderer-loss' | 'worker-loss'): Promise<void>;
+  setAcceptanceVisibility(visible:boolean): Promise<void>;
   attachPreview(streamId: string, expectedInputGeneration: string): Promise<unknown>;
   setPlaybackState(state: GpuPlaybackState): Promise<{ controlSeq: number }>;
   readPreviewState(sinceRevision?:number): Promise<unknown>;

@@ -156,7 +156,7 @@ function packet(s,p) {
   if(m.type==='control-applied'){
     if(!s.executing||m.controlSeq!==s.executing.controlSeq||!positive(m.timelineEpoch))throw new Error('Unexpected applied control');
     const applied=s.executing;s.executing=null;
-    window.webContents.send('mako-gpu:barrier',{...controlIdentity(s),inputGeneration:s.inputGeneration,poolGeneration:s.poolGeneration,timelineEpoch:m.timelineEpoch,timelineResetId:applied.timelineResetId,minControlSeq:s.barrierSeq});
+    window.webContents.send('mako-gpu:barrier',{...controlIdentity(s),inputGeneration:s.inputGeneration,poolGeneration:s.poolGeneration,timelineEpoch:m.timelineEpoch,timelineResetId:applied.timelineResetId,minControlSeq:s.barrierSeq,controlSeq:m.controlSeq});
     safeState({...m,timelineResetId:applied.timelineResetId});flushControl(s);return;
   }
   if(m.type==='state'){diagnostics(m.diagnostics);safeState(m);return;}
@@ -167,10 +167,10 @@ function packet(s,p) {
       s.stopping=true;s.stopped=true;s.pending=null;s.executing=null;
       window.webContents.send('mako-gpu:detach');
       completeStop(s);
-      safeState({type:'failed',code:m.code??m.failureCode??'gpuRenderFailed',diagnostics:summary});
+      safeState({type:'failed',...controlIdentity(s),code:m.code??m.failureCode??'gpuRenderFailed',diagnostics:summary});
       return;
     }
-    safeState({type:'failed',code:'gpuWorkerFailed',diagnostics:summary});
+    safeState({type:'failed',...controlIdentity(s),code:'gpuWorkerFailed',diagnostics:summary});
     throw new Error('Worker GPU completion unknown');
   }
   throw new Error('Unknown Worker GPU packet');
@@ -241,7 +241,7 @@ function playback(value,rendererClock) {
   s.desired={...state};s.pending={...state,controlSeq,senderMonotonicNs:rendererClock.senderMonotonicNs,rendererUncertaintyNs:rendererClock.uncertaintyNs};flushControl(s);
   return {controlSeq};
 }
-for(const [name,handler] of Object.entries({config:()=>({mode:'production',...(config.slowConsumerMs?{scenario:'slow',slowMs:config.slowConsumerMs}:{})}),'consumer-id':()=>config.consumerId,'acceptance-enabled':()=>app.commandLine.hasSwitch('remote-debugging-port'),clock:()=>({mainMonotonicNs:process.hrtime.bigint().toString()}),attach,playback,read:(sinceRevision=0)=>{if(!Number.isSafeInteger(sinceRevision)||sinceRevision<0)throw new Error('Invalid sample cursor');if(stream?.connection&&!stream.stopped)send(stream,{type:'read-state',...controlIdentity(stream)});return {...sTelemetry,nowMonotonicNs:process.hrtime.bigint().toString(),clock:stream?.clock?{...stream.clock,rendererUncertaintyNs:stream.rendererUncertaintyNs,totalUncertaintyNs:(BigInt(stream.clock.uncertaintyNs)+BigInt(stream.rendererUncertaintyNs??'0')).toString()}:undefined,mediaClock:stream?.mediaClock,activeStream:stream?{...controlIdentity(stream),poolGeneration:stream.poolGeneration,size:stream.size}:null,executingControls:stream?.executing?1:0,pendingControls:stream?.pending?1:0,outstanding:stream?.imports.size??0,sampleRevision,sampleCursorExpired:samples.length>0&&sinceRevision>0&&sinceRevision<Math.min(...samples.map(x=>x.sampleRevision))-1,samples:samples.filter(x=>x.sampleRevision>sinceRevision),mainPid:process.pid,workerPid:stream?.workerPid,rendererPid:window?.webContents.getOSProcessId(),processes:app.getAppMetrics().map(x=>({pid:x.pid,type:x.type,cpu:x.cpu,memory:x.memory}))};},detach}))ipcMain.handle(`mako-gpu:${name}`,(event,...args)=>{authorize(event);return handler(...args);});
+for(const [name,handler] of Object.entries({config:()=>({mode:'production',...(config.slowConsumerMs?{scenario:'slow',slowMs:config.slowConsumerMs}:{})}),'consumer-id':()=>config.consumerId,'acceptance-enabled':()=>app.commandLine.hasSwitch('remote-debugging-port'),clock:()=>({mainMonotonicNs:process.hrtime.bigint().toString()}),attach,playback,read:(sinceRevision=0)=>{if(!Number.isSafeInteger(sinceRevision)||sinceRevision<0)throw new Error('Invalid sample cursor');if(stream?.connection&&!stream.stopping&&!stream.stopped)send(stream,{type:'read-state',...controlIdentity(stream)});return {...sTelemetry,nowMonotonicNs:process.hrtime.bigint().toString(),clock:stream?.clock?{...stream.clock,rendererUncertaintyNs:stream.rendererUncertaintyNs,totalUncertaintyNs:(BigInt(stream.clock.uncertaintyNs)+BigInt(stream.rendererUncertaintyNs??'0')).toString()}:undefined,mediaClock:stream?.mediaClock,activeStream:stream?{...controlIdentity(stream),poolGeneration:stream.poolGeneration,size:stream.size}:null,executingControls:stream?.executing?1:0,pendingControls:stream?.pending?1:0,outstanding:stream?.imports.size??0,sampleRevision,sampleCursorExpired:samples.length>0&&sinceRevision>0&&sinceRevision<Math.min(...samples.map(x=>x.sampleRevision))-1,samples:samples.filter(x=>x.sampleRevision>sinceRevision),mainPid:process.pid,workerPid:stream?.workerPid,rendererPid:window?.webContents.getOSProcessId(),processes:app.getAppMetrics().map(x=>({pid:x.pid,type:x.type,cpu:x.cpu,memory:x.memory}))};},detach}))ipcMain.handle(`mako-gpu:${name}`,(event,...args)=>{authorize(event);return handler(...args);});
 ipcMain.handle('mako-gpu:acceptance-failure',(event,kind)=>{
   authorize(event);
   if(!app.commandLine.hasSwitch('remote-debugging-port')||!['renderer-loss','worker-loss'].includes(kind))throw new Error('Acceptance fault injection unavailable');
@@ -249,6 +249,11 @@ ipcMain.handle('mako-gpu:acceptance-failure',(event,kind)=>{
   if(!pid)throw new Error('No active owned fault target');
   lost=true;record('injected-consumer-loss',{kind,pid});
   process.kill(pid,'SIGKILL');failStop(kind==='renderer-loss'?'injectedRendererLoss':'injectedWorkerLoss');
+});
+ipcMain.handle('mako-gpu:acceptance-visibility',(event,visible)=>{
+  authorize(event);
+  if(!app.commandLine.hasSwitch('remote-debugging-port')||typeof visible!=='boolean')throw new Error('Acceptance visibility unavailable');
+  if(visible)window.show();else window.hide();
 });
 ipcMain.on('mako-gpu:error',event=>{authorize(event);failStop('gpuRendererReceiverFailed');});
 ipcMain.on('mako-gpu:drawn',(event,data)=>{authorize(event);const key=leaseKey(data),done=completed.get(key),item=stream?.imports.get(key)??done?.item;if(item&&!item.drawn&&data.timestamp===item.metadata.timeUs){item.drawn=true;sTelemetry.drawn++;if(done){done.sample.drawn=true;done.sample.sampleRevision=++sampleRevision;sTelemetry.completedDrawnUnique++;sTelemetry.completedWithoutDraw--;}safeState({type:'drawn',...data});}});

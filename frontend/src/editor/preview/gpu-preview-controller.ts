@@ -40,9 +40,10 @@ export class GpuPreviewController {
     });
     this.unsubscribe=bridge.onPreviewState(event=>{
       if(this.disposed)return;
+      const current=this.stream;
+      if(event.streamId!==undefined&&(!current||event.streamId!==current.streamId||event.producerEpoch!==current.producerEpoch||event.inputGeneration!==current.inputGeneration))return;
       if(event.diagnostics)this.state$.set({...this.state$.get(),diagnostics:event.diagnostics});
       if(event.type==='failed'){this.blocked=true;this.needsRecreate=true;this.state$.set({...this.state$.get(),status:'error',error:event.code??'GPU 预览失败'});}
-      const current=this.stream;
       if(event.type==='drawn'&&current&&event.streamId===current.streamId&&event.producerEpoch===current.producerEpoch&&event.inputGeneration===current.inputGeneration&&event.timelineResetId===this.want?.playback.timelineResetId&&event.timeUs!==undefined){
         this.state$.set({status:'ready',frameRevision:current.source.sourceRevision as Revision,frameTimeUs:event.timeUs,...(event.diagnostics?{diagnostics:event.diagnostics}:{})});
       }

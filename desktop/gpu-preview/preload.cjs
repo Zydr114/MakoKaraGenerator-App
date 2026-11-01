@@ -7,9 +7,10 @@ let barrier;
 let desiredPlayback;
 let waitingReset = false;
 let hardBarrier = {seq:0};
+const drops={count:0,lastReason:null,lastFrame:null};
 const refreshBarrier = () => {
   waitingReset = !attachment || !barrier || !desiredPlayback || hardBarrier.seq === null ||
-    barrier.timelineResetId !== desiredPlayback.timelineResetId || barrier.minControlSeq < hardBarrier.seq;
+    barrier.timelineResetId !== desiredPlayback.timelineResetId || (barrier.controlSeq??barrier.minControlSeq) < hardBarrier.seq;
 };
 const identityKeys = ['streamId','hostInstanceId','producerEpoch','inputGeneration','consumerEpoch','timelineEpoch','poolGeneration','slotId','slotEpoch','frameSeq'];
 const lease = metadata => Object.fromEntries(identityKeys.map(key=>[key,metadata[key]]));
@@ -46,6 +47,7 @@ contextBridge.exposeInMainWorld('makoDesktopPreview', Object.freeze({
   consumerId: () => ipcRenderer.invoke('mako-gpu:consumer-id'),
   acceptanceEnabled: () => ipcRenderer.invoke('mako-gpu:acceptance-enabled'),
   injectAcceptanceFailure: kind => ipcRenderer.invoke('mako-gpu:acceptance-failure',kind),
+  setAcceptanceVisibility: visible => ipcRenderer.invoke('mako-gpu:acceptance-visibility',visible),
   attachPreview: (streamId,expectedInputGeneration) => ipcRenderer.invoke('mako-gpu:attach', streamId,expectedInputGeneration),
   setPlaybackState: async state => {
     const changed = !desiredPlayback || desiredPlayback.timelineResetId!==state.timelineResetId || desiredPlayback.mode!==state.mode || desiredPlayback.rate!==state.rate || desiredPlayback.targetFps!==state.targetFps;
@@ -65,7 +67,7 @@ contextBridge.exposeInMainWorld('makoDesktopPreview', Object.freeze({
       return result;
     });
   },
-  readPreviewState: (sinceRevision=0) => ipcRenderer.invoke('mako-gpu:read',sinceRevision),
+  readPreviewState: async(sinceRevision=0) => ({...await ipcRenderer.invoke('mako-gpu:read',sinceRevision),rendererGate:{...drops,detached,waitingReset,hardControlSeq:hardBarrier.seq,attachment,barrier}}),
   detachPreview: () => ipcRenderer.invoke('mako-gpu:detach'),
   onPreviewState: listener => {
     if (typeof listener !== 'function') throw new TypeError('listener required');
@@ -91,7 +93,12 @@ window.addEventListener('DOMContentLoaded', async () => {
         const canvas = document.getElementById(config.mode === 'production' ? 'mako-gpu-preview' : 'preview');
         const current = config.mode !== 'production' || (attachment && barrier && !waitingReset &&
           ['streamId','hostInstanceId','producerEpoch','inputGeneration','consumerEpoch','poolGeneration'].every(key=>metadata[key]===attachment[key]) &&
-          metadata.timelineEpoch===barrier.timelineEpoch && metadata.timelineResetId===desiredPlayback?.timelineResetId && metadata.controlSeq>=barrier.minControlSeq);
+          metadata.timelineEpoch===barrier.timelineEpoch && metadata.timelineResetId===desiredPlayback?.timelineResetId && metadata.controlSeq>=Math.max(barrier.minControlSeq,hardBarrier.seq??Infinity));
+        if(detached||!canvas||!current){
+          drops.count=Math.min(Number.MAX_SAFE_INTEGER,drops.count+1);
+          drops.lastReason=detached?'detached':!canvas?'canvasUnavailable':waitingReset?'waitingBarrier':!attachment||!barrier?'missingAttachment':'staleIdentityOrControl';
+          drops.lastFrame={...lease(metadata),controlSeq:metadata.controlSeq,timelineResetId:metadata.timelineResetId};
+        }
         if (!detached && canvas && current) {
           if (canvas.width !== metadata.width) canvas.width = metadata.width;
           if (canvas.height !== metadata.height) canvas.height = metadata.height;

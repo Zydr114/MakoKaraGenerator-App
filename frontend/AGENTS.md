@@ -6,6 +6,8 @@
 
 **后续路线（2026-10-26 用户决定）**：后端补齐计划 P1～P5 已完成（合同 1.38.1，产品 0.104.1，后端 `aef1af4`，分支 `dev/backend-api-completion-p2`）。顺序是：第 0 步合同同步与回归（已完成）→ W4 收尾（已完成，2026-10-26 验收）→ W5 工程闭环与导出（已完成，2026-10-27 验收）→ 第 0 步同步合同 1.39.0（已完成）→ 渲染设备（CPU/GPU，已完成，2026-10-27 验收）→ W6 歌词页补全（已完成，2026-10-27 验收）→ W7 完整模板（已完成，2026-10-29 验收）→ W8 效果组件与作者（已完成，2026-10-31 用户验收）。分期见 [docs/web-ui-design.md](docs/web-ui-design.md) §10。Agent Mail 暂不使用，新缺口只登记在设计文档里。
 
+**界面改版（台前幕后），实施中。** 2026-11-01 用户选定设计稿“台前幕后”第二版并确认计划：React Aria Components 加自写的紧凑 M3 样式，主题色可自选（默认取自标志 `#019BFE`），浅色、深色统一。共分 7 批：批 1 底座已完成（主题引擎、令牌与字体、图标、全部新控件、`scripts/ui-query.mjs`），批 2 外壳与工作区做完后交用户看一次定调，批 3～7 完成后一起验收。过渡期旧的 mdui 封装在 `src/editor/ui/legacy/`，页面逐批改用 `src/editor/ui/` 的新控件，批 7 移除 mdui。计划、步骤与实施记录见 [docs/web-client-redesign-design.md](docs/web-client-redesign-design.md)，设计稿在 `docs/ui-style-drafts/`。
+
 **W8：效果组件与作者流程（样式库），已完成（2026-10-31 用户验收）。** 三批实现与自动化联调完成后，用户确认当前 W8 可以认定为完成。已完成效果组件库、作者草稿配置与试样、CodeMirror 源码与编译诊断、作者验证报告与源码跳转、模板效果／材质“从效果组件选”。2026-10-31 同步合同 1.40.0／产品 0.108.0；后端 G33～G36、R10、G31 已交付，草稿认领、包文本编辑、完整修订历史、`.mkfx` 下载的新增 UI 留作后续，不扩大已审阅的 W8 三批范围。新登记 R11（普通脚本异常的预览诊断为空，非阻断），前端指引到验证页查看具体问题。新增 `smoke:author`，复用已有测试工具，只补作者关键链路。实施记录、出口对照、联调证据和限制见 [docs/web-client-w8-design.md](docs/web-client-w8-design.md) §6～§8。
 
 **W7：完整模板（外观与样式库），已完成（2026-10-29 用户验收）。** 三批 2026-10-27 实施。第一次验收（后端 0.107.0）时试样全部失败（429 `sessionQuotaExceeded`），原因是离开页面时成片预览会话没有关闭，已修复（`a99423a`），复验通过。 样式库按完整定义编辑：导入效果包、材质与效果页签、参数控件、工坊多试样、字体选择与检查、`.mktpl` 导入导出；外观页：含效果的模板可试看和应用、来源输入映射、编排对象（容器和组、片段、前奏提示组与标记）作为分配目标、外观来源、在样式库中编辑副本。新登记的后端缺口 G31、G32 不阻断。2026-10-27 用户决定（§9）：效果包在 W7 直接导入 `.mkfx`；提示组与标记只通过分配模板改外观；分三批实施，全部做完后一起验收。新增 `pnpm smoke:library`，`smoke:appearance` 补了 W7 部分。实测记录、范围、缺口、步骤与验收见 [docs/web-client-w7-design.md](docs/web-client-w7-design.md)，实施记录、出口对照与已知限制见同文 §6～§8。
@@ -30,6 +32,7 @@
 
 | 文件 | 内容 |
 |---|---|
+| `docs/web-client-redesign-design.md` | 界面改版：依赖、主题引擎、令牌、控件、外壳与工作区布局、各页改法、冒烟脚本改写，分批步骤与验收，实施记录（§7），用户决定（§9） |
 | `docs/web-client-w8-design.md` | W8 设计：实测记录（§0）、效果组件库、作者草稿生命周期、配置／源码（CodeMirror 6）／验证页签、作者草稿试样、曲线与图片参数的图形编辑、模板里“从效果组件选”；后端缺口 G33～G36、R10，步骤与验收，用户决定（§9） |
 | `docs/web-client-w7-design.md` | W7 设计：实测记录（§0）、完整定义与效果包、材质与效果页签、参数控件、工坊多试样、字体、`.mktpl`；外观页的高级模板、来源输入、编排对象目标、外观来源、编辑副本；后端缺口 G31、G32，步骤与验收；实施记录、出口对照与已知限制（§6～§8），用户决定（§9） |
 | `docs/web-client-render-backend-design.md` | 渲染设备（CPU/GPU）批次：偏好与顶栏菜单、各处怎么传 `renderBackend`、成片预览换设备与失败处理、步骤与验收 |
@@ -127,6 +130,7 @@ pnpm smoke:lyrics       # 真实 Chrome 走 W6：用工程 TTML 新建（恢复�
 pnpm smoke:library      # 真实 Chrome 走 W7 样式库：复制模板→字体选择与字体检查→导入效果包作材质、材质焦点、改参数与越界校验、移除在用的包被拦→加效果、改参数与固定种子→工坊多试样、换目标、拖时刻、试播→保存后重读一致→.mktpl 导出、导入为新 ID、第三次传输写明要等几分钟→删除（要后端仓库的 samples/ScriptEffects，找不到时跳过；需 pnpm dev:backend 与 pnpm dev）
 pnpm smoke:author       # 真实 Chrome 走 W8：组件导入、配置与曲线、源码失败诊断和修正、720 帧验证、保存组件、模板选效果与材质、删除来源后模板快照；需 pnpm dev:backend 与 pnpm dev，效果包取后端 samples/ScriptEffects
 node scripts/page-shot.mjs <url> <out.png> [--wait 表达式]   # 开发辅助：真实 Chrome 截图并列出页面异常
+# 开发辅助：pnpm dev 下打开 http://localhost:5173/ui-gallery.html 看新控件样张（?mode=dark、?open=dialog 等，见改版设计 §7.1）
 ```
 
 - `dev:backend` 与集成测试调用后端仓库的 `tools/backend-web-host/host.py run`，需要匹配发布的 Server＋Worker。部署目录取 `MAKO_BACKEND_DIST`，缺省见 `scripts/backend-launcher.mjs`；后端仓库位置取 `MAKO_BACKEND_REPO`（默认 `../MakoKaraGenerator-Backend`）。

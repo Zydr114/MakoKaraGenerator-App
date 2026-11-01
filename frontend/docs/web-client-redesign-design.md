@@ -286,6 +286,48 @@ React Aria 的 Toast 在 1.22 里还是 `UNSTABLE_` 前缀，提示条自己写�
 | 不同系统的中日文字体回退不同 | 字体栈列出各平台的后备字体；Electron 打包时再评估是否随附 |
 | 与 GPU 共享纹理（P1～P3）并行开发，都会动预览面板 | 预览面板只改外层布局和样式，不动 `preview-controller`、`gpu-preview-controller` 的逻辑 |
 
+## 7. 实施记录
+
+### 7.1 批 1：底座（2026-11-01）
+
+提交：`2431e34` 依赖，`0bfc382` 主题引擎，`6abcb08` 令牌、字体与首帧主题，`20a1995` 旧封装移到 `ui/legacy`，
+`1a34456` 图标，`8e453db` 基础控件，`e7f681e` 列表与树，`bea7201` 对话框、面板与消息条，`60e343d` 控件样张页，
+`e230289` 子菜单动作，`391ab0f` `ui-query.mjs`。
+
+做了什么：
+
+- **主题**：`theme/scheme.ts` 由种子色生成全部颜色角色。标准角色直接取 material-color-utilities 的结果（柔和用
+  TonalSpot，鲜艳用 Vibrant）；台前幕后、波形、第二片段色、成功和警告这些自定义角色按色调表取值，对照稿件截图校准过。
+  每个角色同时给出 `--角色-rgb`，供画布使用。`theme/theme-store.ts` 管偏好（模式、种子色、鲜艳），跟随系统深浅，
+  并把两套 CSS 缓存到 `localStorage`；`index.html` 的内联脚本在 React 启动前写上缓存，首帧不闪。mdui 跟着同一个种子色和模式走。
+- **令牌与字体**：`theme/tokens.css`；Roboto Flex 只带界面用到的子集（`theme/fonts/`，OFL）。
+- **图标**：`scripts/gen-icons.mjs` 从 `@material-symbols/svg-400`（Rounded）只取用到的图标，生成
+  `ui/icons.generated.ts`（109 个）。新增图标时在脚本里补名字后重新运行。
+- **控件**：§2.4 的控件全部完成，样式在 `ui/controls.css`、`collections.css`、`overlays.css`，状态都用 React Aria 的
+  `data-*` 属性。动画遵从“减少动态效果”。
+- **过渡**：旧的 mdui 封装移到 `ui/legacy/`，新控件直接用最终的模块名（`ui/fields.tsx`、`ui/FormDialog.tsx`、
+  `ui/dialogs.tsx`、`ui/feedback.tsx` 等）。之后每批改页面时只把导入从 `ui/legacy/*` 换成 `ui/*`；批 7 删除 `ui/legacy/`。
+  这一批页面没有切换，界面上只有配色变化。
+- **控件样张**：`pnpm dev` 下打开 `/ui-gallery.html`（不进生产构建），`?mode=dark`、`?open=dialog|form|sheet|confirm|text|reorder|toast|menu`
+  便于截图。浅色、深色和各弹出层都截图对照过稿件。
+- **冒烟查询**：`scripts/ui-query.mjs` 的写法是 `ui.click(page, 'button', '保存')`、`ui.fill(page, '工程名', '夜空', { enter: true })`、
+  `ui.choose(page, '字体', '思源宋体')`、`ui.menu(page, '文件', 'TTML', { submenu: '导出歌词' })`、`ui.waitDialog(page, '新建工程')`；
+  scope 可以写 `'@dialog'`、`'@menu'`。模态打开时外面的内容带 `aria-hidden`，查询自动跳过。
+  点击用真实鼠标事件，并确认点到的就是目标。已在样张页逐项跑通。
+
+与 §2.4 不同的地方：
+
+- **`NumberField`** 不用 React Aria 的 `NumberField`。它会把越界的值悄悄夹到范围内；现有行为是不提交并写明原因
+  （“不能大于 400。”），所以沿用提交式输入框加范围校验。暂时没有步进按钮。
+- **`TextField` 的标签**有三种摆法：上方（表单、对话框）、左侧一列（属性检查器，稿件的排法）、不显示（工具栏，只作可访问名称）。
+  计划里写的“框内”标签没有做。
+- **`Menu`**：React Aria 的子菜单只调用自己的 `onAction`；封装把外层菜单的动作传给子菜单，调用方只写一处。
+- **类名冲突**：`editor.css` 里旧的 `.tag` 改成 `:where(.tag)`，新旧同屏时以新控件为准；新颜色输入框的类名用
+  `color-input`，不与旧的 `.color-field` 冲突。`.muted`、`.spacer` 两边含义相同，批 7 删除 `editor.css` 时一起清理。
+- **基础样式**：正文字体、`:lang(ja)` 和页面底色在批 2 和外壳一起改，这一批只在样张页里用。
+
+检查：`pnpm typecheck`、`pnpm test:unit`（43 个文件，3881 项）通过；首页截图配色正确，没有页面异常。
+
 ## 9. 用户决定（2026-11-01）
 
 设计稿阶段：

@@ -1,0 +1,311 @@
+{
+  "launcher": 567451,
+  "rows": [
+    {
+      "second": 0,
+      "monotonicNs": "81014033254057",
+      "processes": [
+        {
+          "pid": 567451,
+          "role": "launcher",
+          "startTicks": "8098507",
+          "policy": 5,
+          "nice": 16
+        },
+        {
+          "pid": 567594,
+          "role": "Server",
+          "startTicks": "8098582",
+          "policy": 0,
+          "nice": 0
+        },
+        {
+          "pid": 568101,
+          "role": "Worker",
+          "startTicks": "8101331",
+          "policy": 0,
+          "nice": 0
+        },
+        {
+          "pid": 567487,
+          "role": "Browser",
+          "startTicks": "8098546",
+          "policy": 0,
+          "nice": -8
+        },
+        {
+          "pid": 567544,
+          "role": "GPU",
+          "startTicks": "8098564",
+          "policy": 0,
+          "nice": -8
+        },
+        {
+          "pid": 567815,
+          "role": "Tab",
+          "startTicks": "8098833",
+          "policy": 0,
+          "nice": 0
+        }
+      ]
+    },
+    {
+      "second": 1,
+      "monotonicNs": "81015039247350",
+      "processes": [
+        {
+          "pid": 567451,
+          "role": "launcher",
+          "startTicks": "8098507",
+          "policy": 5,
+          "nice": 16
+        },
+        {
+          "pid": 567594,
+          "role": "Server",
+          "startTicks": "8098582",
+          "policy": 0,
+          "nice": 0
+        },
+        {
+          "pid": 568101,
+          "role": "Worker",
+          "startTicks": "8101331",
+          "policy": 0,
+          "nice": 0
+        },
+        {
+          "pid": 567487,
+          "role": "Browser",
+          "startTicks": "8098546",
+          "policy": 0,
+          "nice": -8
+        },
+        {
+          "pid": 567544,
+          "role": "GPU",
+          "startTicks": "8098564",
+          "policy": 0,
+          "nice": -8
+        },
+        {
+          "pid": 567815,
+          "role": "Tab",
+          "startTicks": "8098833",
+          "policy": 0,
+          "nice": 0
+        }
+      ]
+    },
+    {
+      "second": 2,
+      "monotonicNs": "81016045540777",
+      "processes": [
+        {
+          "pid": 567451,
+          "role": "launcher",
+          "startTicks": "8098507",
+          "policy": 5,
+          "nice": 16
+        },
+        {
+          "pid": 567594,
+          "role": "Server",
+          "startTicks": "8098582",
+          "policy": 0,
+          "nice": 0
+        },
+        {
+          "pid": 568101,
+          "role": "Worker",
+          "startTicks": "8101331",
+          "policy": 0,
+          "nice": 0
+        },
+        {
+          "pid": 567487,
+          "role": "Browser",
+          "startTicks": "8098546",
+          "policy": 0,
+          "nice": -8
+        },
+        {
+          "pid": 567544,
+          "role": "GPU",
+          "startTicks": "8098564",
+          "policy": 0,
+          "nice": -8
+        },
+        {
+          "pid": 567815,
+          "role": "Tab",
+          "startTicks": "8098833",
+          "policy": 0,
+          "nice": 0
+        }
+      ]
+    },
+    {
+      "second": 3,
+      "monotonicNs": "81017051513348",
+      "processes": [
+        {
+          "pid": 567451,
+          "role": "launcher",
+          "startTicks": "8098507",
+          "policy": 5,
+          "nice": 16
+        },
+        {
+          "pid": 567594,
+          "role": "Server",
+          "startTicks": "8098582",
+          "policy": 0,
+          "nice": 0
+        },
+        {
+          "pid": 568101,
+          "role": "Worker",
+          "startTicks": "8101331",
+          "policy": 0,
+          "nice": 0
+        },
+        {
+          "pid": 567487,
+          "role": "Browser",
+          "startTicks": "8098546",
+          "policy": 0,
+          "nice": -8
+        },
+        {
+          "pid": 567544,
+          "role": "GPU",
+          "startTicks": "8098564",
+          "policy": 0,
+          "nice": -8
+        },
+        {
+          "pid": 567815,
+          "role": "Tab",
+          "startTicks": "8098833",
+          "policy": 0,
+          "nice": 0
+        }
+      ]
+    },
+    {
+      "second": 4,
+      "monotonicNs": "81018058106827",
+      "processes": [
+        {
+          "pid": 567451,
+          "role": "launcher",
+          "startTicks": "8098507",
+          "policy": 5,
+          "nice": 16
+        },
+        {
+          "pid": 567594,
+          "role": "Server",
+          "startTicks": "8098582",
+          "policy": 0,
+          "nice": 0
+        },
+        {
+          "pid": 568101,
+          "role": "Worker",
+          "startTicks": "8101331",
+          "policy": 0,
+          "nice": 0
+        },
+        {
+          "pid": 567487,
+          "role": "Browser",
+          "startTicks": "8098546",
+          "policy": 0,
+          "nice": -8
+        },
+        {
+          "pid": 567544,
+          "role": "GPU",
+          "startTicks": "8098564",
+          "policy": 0,
+          "nice": -8
+        },
+        {
+          "pid": 567815,
+          "role": "Tab",
+          "startTicks": "8098833",
+          "policy": 0,
+          "nice": 0
+        }
+      ]
+    },
+    {
+      "second": 5,
+      "monotonicNs": "81019064565520",
+      "processes": [
+        {
+          "pid": 567451,
+          "role": "launcher",
+          "startTicks": "8098507",
+          "policy": 5,
+          "nice": 16
+        },
+        {
+          "pid": 567594,
+          "role": "Server",
+          "startTicks": "8098582",
+          "policy": 0,
+          "nice": 0
+        },
+        {
+          "pid": 568101,
+          "role": "Worker",
+          "startTicks": "8101331",
+          "policy": 0,
+          "nice": 0
+        },
+        {
+          "pid": 567487,
+          "role": "Browser",
+          "startTicks": "8098546",
+          "policy": 0,
+          "nice": -8
+        },
+        {
+          "pid": 567544,
+          "role": "GPU",
+          "startTicks": "8098564",
+          "policy": 0,
+          "nice": -8
+        },
+        {
+          "pid": 567815,
+          "role": "Tab",
+          "startTicks": "8098833",
+          "policy": 0,
+          "nice": 0
+        }
+      ]
+    }
+  ],
+  "productPipelineOrdinary": true,
+  "ownedRecordedPidsGone": {
+    "567451": true,
+    "567487": true,
+    "567544": true,
+    "567594": true,
+    "567815": true,
+    "568101": true
+  },
+  "sourceCommit": "939a832",
+  "command": "node scripts/app.mjs desktop --session-name scheduler-explicit-check --port5185 --cdp-port9235 --ordinary-scheduling",
+  "limits": [
+    "Only explicitly requested fresh acceptance Electron/host children reset their own scheduler before exec; existing processes and system rules are untouched",
+    "Node launcher remains observed SCHED_IDLE/nice16; performance gates apply to the actual Electron/Server/Worker pipeline and record instrumentation scheduling separately",
+    "Six snapshots span5.03s after a real paused frame, not a throughput measurement",
+    "Chromium independently chooses nice-8 for main/GPU, policy remainsOTHER",
+    "SCHED_IDLE first attempt and instrumented diagnosis remain archived and are not reclassified by this preflight"
+  ]
+}

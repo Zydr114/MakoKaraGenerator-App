@@ -285,7 +285,7 @@ async function actualWaylandEvidence(page,cdp,snapshot) {
     try{const args=(await readFile(`/proc/${proc.pid}/cmdline`,'utf8')).split('\0');const ozone=args.filter(arg=>/^--ozone-platform=/.test(arg));ownedProcesses.push({pid:proc.pid,type:proc.type,ozonePlatformArguments:ozone});}catch{}
   }
   const actualWaylandProcesses=ownedProcesses.length>=2&&ownedProcesses.every(proc=>proc.ozonePlatformArguments.includes('--ozone-platform=wayland'));
-  return {renderer:details,gpuAuxAttributes:systemInfo?.gpu?.auxAttributes??null,electronArguments:commandLine,ownedProcesses,waylandRuntimeProof:actualWaylandProcesses?'owned Electron GPU and renderer process both run --ozone-platform=wayland':null,
+  return {renderer:details,gpuAuxAttributes:systemInfo?.gpu?.auxAttributes??null,electronOzoneArguments:commandLine?.filter(arg=>/^--ozone-platform(?:-hint)?=/.test(arg))??null,ownedProcesses,waylandRuntimeProof:actualWaylandProcesses?'owned Electron GPU and renderer process both run --ozone-platform=wayland':null,
     actualOzoneBackend:backend??'unmeasured; environment variables alone are not proof',
     environmentObservation:{XDG_SESSION_TYPE:process.env.XDG_SESSION_TYPE??null,WAYLAND_DISPLAY:process.env.WAYLAND_DISPLAY??null},
     waylandConfirmed:actualWaylandProcesses||(typeof backend==='string'&&/wayland/i.test(backend))};

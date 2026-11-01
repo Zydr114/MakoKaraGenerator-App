@@ -1,0 +1,66 @@
+/* 设计令牌（界面改版 §2.3）。颜色角色由 theme-store 写到 <html> 上（见 scheme.ts），这里只放与颜色无关的令牌，
+   以及由颜色角色组合出的语义变量。台前用主色系；幕后（.stage-zone：预览、时间轴、逐字填充）用第三色。 */
+
+/* Roboto Flex 子集：只含拉丁字母、数字和常用标点，中日文走系统字体。许可见 fonts/RobotoFlex-OFL.txt。 */
+@font-face {
+  font-family: 'Roboto Flex';
+  src: url('./fonts/RobotoFlex-ui.woff2') format('woff2');
+  font-weight: 100 1000;
+  font-display: block;
+}
+
+:root {
+  color-scheme: light;
+
+  --gap: 8px;
+  --control: 32px;
+  --control-sm: 28px;
+  --radius-panel: 16px;
+  --radius-row: 12px;
+  --radius-field: 8px;
+  --radius-tag: 6px;
+  --radius-dialog: 28px;
+
+  --fs: 13px;
+  --fs-sm: 12.5px;
+  --fs-lg: 14px;
+  --fs-title: 18px;
+  --font: 'Roboto Flex', 'Noto Sans CJK SC', 'PingFang SC', 'Microsoft YaHei UI', sans-serif;
+  --font-ja: 'Roboto Flex', 'Noto Sans CJK JP', 'Hiragino Sans', 'Yu Gothic UI', sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Mono', 'JetBrains Mono', 'Noto Sans Mono', 'DejaVu Sans Mono', monospace;
+
+  /* 选中、强调、输入框底色：幕后作用域里改写 */
+  --sel: var(--secondary-container);
+  --on-sel: var(--on-secondary-container);
+  --accent: var(--primary);
+  --on-accent: var(--on-primary);
+  --stage-ink: var(--on-surface);
+  --wipe-on: var(--tertiary);
+  --wipe-off: var(--on-surface);
+
+  /* 状态层：悬停时叠 8% 的当前文字色 */
+  --hover: linear-gradient(color-mix(in srgb, currentColor 8%, transparent) 0 0);
+  --press: linear-gradient(color-mix(in srgb, currentColor 12%, transparent) 0 0);
+  --focus-ring: 0 0 0 2px var(--panel), 0 0 0 4px var(--primary);
+
+  --scrim: rgba(0, 0, 0, 0.32);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.12), 0 4px 16px rgba(0, 0, 0, 0.1);
+  --shadow-menu: 0 1px 2px rgba(0, 0, 0, 0.14), 0 3px 10px rgba(0, 0, 0, 0.12);
+}
+
+:root[data-mode='dark'] {
+  color-scheme: dark;
+  --scrim: rgba(0, 0, 0, 0.5);
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 6px 20px rgba(0, 0, 0, 0.35);
+  --shadow-menu: 0 1px 3px rgba(0, 0, 0, 0.45), 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+.stage-zone {
+  --sel: var(--tertiary-container);
+  --on-sel: var(--on-tertiary-container);
+  --accent: var(--tertiary);
+  --on-accent: var(--on-tertiary);
+  --field: var(--stage-high);
+  background: var(--stage);
+  color: var(--stage-ink);
+}

@@ -90,13 +90,16 @@ import '@mdui/icons/zoom-in.js';
 import '@mdui/icons/zoom-out.js';
 import { setColorScheme } from 'mdui/functions/setColorScheme.js';
 import { setTheme } from 'mdui/functions/setTheme.js';
+import type { ThemeStore } from '../theme/theme-store';
 
-/** 主题种子色：生成整套 Material You 配色。 */
-export const SEED_COLOR = '#3f6fd8';
-
-export function installMdui(): void {
-  setTheme('auto');
-  setColorScheme(SEED_COLOR);
+/** 界面改版的过渡期（§2.2）：mdui 跟着界面主题用同一个种子色和明暗，混在一起的页面颜色一致。 */
+export function installMdui(theme: ThemeStore): void {
+  const sync = () => {
+    setTheme(theme.state.dark ? 'dark' : 'light');
+    setColorScheme(theme.state.seed);
+  };
+  sync();
+  theme.state$.subscribe(sync);
   guardDetachedRefs();
 }
 

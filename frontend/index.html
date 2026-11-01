@@ -4,6 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MakoKara</title>
+    <script>
+      // 首帧不闪（界面改版 §2.2）：React 启动前按上次的主题写上颜色变量。格式见 src/editor/theme/theme-store.ts。
+      try {
+        var prefs = JSON.parse(localStorage.getItem('mako.theme') || '{}') || {};
+        var cache = JSON.parse(localStorage.getItem('mako.theme-cache') || 'null');
+        var dark = prefs.mode === 'dark' || (prefs.mode !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.dataset.mode = dark ? 'dark' : 'light';
+        if (cache) document.documentElement.style.cssText = cache[dark ? 'dark' : 'light'] || '';
+      } catch (error) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

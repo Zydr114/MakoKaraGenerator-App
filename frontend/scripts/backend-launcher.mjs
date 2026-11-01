@@ -6,6 +6,7 @@
 // 设计见 docs/web-client-w0-design.md §4.1。
 
 import { spawn } from 'node:child_process';
+import ordinaryExec from '../../desktop/gpu-preview/ordinary-exec.cjs';
 import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { mkdir, open, rename, rm } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
@@ -91,7 +92,8 @@ export async function startBackend(options = {}) {
   log(`[backend] profile ${profile}`);
 
   // 独立进程组：终端 Ctrl+C 只到达本进程，由本进程向启动器转发恰好一次 SIGTERM。
-  const child = spawn('python3', args, {
+  const launch=options.ordinaryScheduling?ordinaryExec.ordinaryCommand('python3',args):{executable:'python3',args};
+  const child = spawn(launch.executable, launch.args, {
     cwd: repo,
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: true,

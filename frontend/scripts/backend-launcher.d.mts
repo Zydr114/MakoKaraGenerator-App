@@ -34,4 +34,5 @@ export function startBackend(options?: {
   origins?: string[];
   log?: (line: string) => void;
   env?: Record<string,string>;
+  ordinaryScheduling?: boolean;
 }): Promise<RunningBackend>;

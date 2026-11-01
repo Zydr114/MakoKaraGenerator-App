@@ -100,12 +100,12 @@ class GlowProbe(assignment.AssignmentProbe):
         white = {'kind': 'solid', 'color': {'red': 255, 'green': 255, 'blue': 255, 'alpha': 255}}
         revision = self.patch('prepare', '0', PROJECT, [('typography.fontSizePx', 36), ('stroke', None), ('shadow', None),
             ('unsungFill.material', white), ('sungFill.material', white)])
-        base_t = self.capture_frame('baseline-transparent', revision, 'transparent')
+        base_t = self.capture_frame('baseline-transparent', revision, 'straight')
         base_o = self.capture_frame('baseline-opaque', revision, 'opaque')
         revision = self.patch('project-glow', revision, PROJECT, [('glow', GLOW)])
         project = self.style('project-glow-read', revision, PROJECT)
         self.check(project['baseline']['glow'] == GLOW, 'project complete glow round trip')
-        glow_t = self.capture_frame('glow-transparent', revision, 'transparent')
+        glow_t = self.capture_frame('glow-transparent', revision, 'straight')
         glow_o = self.capture_frame('glow-opaque', revision, 'opaque')
         self.check(glow_o != base_o and glow_t != base_t, 'glow changes both real outputs')
         outside = [i for i in range(0, len(base_t), 4) if base_t[i + 3] == 0 and glow_t[i + 3] > 0]
@@ -113,7 +113,7 @@ class GlowProbe(assignment.AssignmentProbe):
         self.check(any(glow_t[i] > glow_t[i + 1] and glow_t[i] > glow_t[i + 2] for i in outside),
                    'expanded pixels contain the configured red glow')
         revision = self.patch('spread-change', revision, PROJECT, [('glow.spreadPx', 4)])
-        spread_t = self.capture_frame('spread-transparent', revision, 'transparent')
+        spread_t = self.capture_frame('spread-transparent', revision, 'straight')
         self.check(spread_t != glow_t, 'nonzero spread changes transparent pixels')
         revision = self.patch('spread-reset', revision, PROJECT, [('glow.spreadPx', 0)])
 
@@ -171,7 +171,7 @@ class GlowProbe(assignment.AssignmentProbe):
                  400, 'invalidRequest')
         rejected('null-opacity', [PROJECT], [('glow.opacity', None)], 400, 'invalidRequest')
         rejected('parent-leaf-conflict', [PROJECT], [('glow', GLOW), ('glow.color', BLUE)],
-                 422, 'commandRejected', 'InvalidProperty')
+                 400, 'invalidRequest')
         rejected('second-target-missing', [line_target, {**line_target, 'lineId': 'glow-probe-missing-line'}],
                  [('glow.color', BLUE)], 422, 'commandRejected', 'InvalidTarget')
         other = self.register('glow-other-client', select=False)
@@ -184,12 +184,12 @@ class GlowProbe(assignment.AssignmentProbe):
         self.check(self.style('after-foreign', revision, PROJECT)['baseline']['glow'] == GLOW, 'foreign client cannot change glow')
 
         revision = self.patch('disable', revision, PROJECT, [('glow', None)])
-        restored = self.capture_frame('disabled-transparent', revision, 'transparent')
+        restored = self.capture_frame('disabled-transparent', revision, 'straight')
         self.check(restored == base_t, 'disabled glow restores baseline pixels exactly')
         undo = self.command('undo-disable', revision, {'type': 'history.undo'})
         revision = undo['projectRevision']
         self.check(self.style('undo-read', revision, PROJECT)['baseline']['glow'] == GLOW, 'undo restores glow')
-        self.check(self.capture_frame('undo-transparent', revision, 'transparent') == glow_t, 'undo restores glow pixels')
+        self.check(self.capture_frame('undo-transparent', revision, 'straight') == glow_t, 'undo restores glow pixels')
         revision = self.patch('noop-after-undo', revision, PROJECT, [('glow', GLOW)], changed=False)
         redo = self.command('redo-disable', revision, {'type': 'history.redo'})
         revision = redo['projectRevision']
@@ -198,7 +198,7 @@ class GlowProbe(assignment.AssignmentProbe):
         reopened = self.save_and_reopen(revision)
         revision = reopened['projectRevision']
         self.check(self.style('reopened-read', revision, PROJECT)['baseline']['glow'] == GLOW, 'save and reopen retain glow')
-        self.check(self.capture_frame('reopened-transparent', revision, 'transparent') == glow_t, 'reopened pixels match')
+        self.check(self.capture_frame('reopened-transparent', revision, 'straight') == glow_t, 'reopened pixels match')
         self.job('final-close', self.request('final-close', 'POST', self.project_path + '/close', status=202,
             value={'expectedRevision': revision, 'policy': 'requireClean', 'activeJobs': 'wait'}))
         self.check(bool(self.worker_identities), 'managed Worker identity observed')

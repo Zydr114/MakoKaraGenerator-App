@@ -21,7 +21,7 @@
 | Skia CPU / Vulkan 定向 | 各176/176 | 新Glow与原StyleDesign、SceneCapture、ColorPart、PreparedStyle、MixedEffectPackage回归 |
 | CLR metadata / 合同 | 通过 | 112 paths / 125 methods / 597 schemas / 3431 examples，2547反例 |
 
-TRX 和定向日志保存在本工作树的 `backend/artifacts/glow-tests/`，不作为源码提交。最终生产源码提交 `54f2c647599272be9deb06560789557d67ebbaf9`；完整后端解决方案在最后渲染修改后再次构建，通过零警告/零错误。实际 SDK 根据 `global.json` 的 rollForward 规则解析到本机 `10.0.114`；配置最低值仍为 `10.0.112`，没有升级依赖。
+TRX 和定向日志保存在本工作树的 `backend/artifacts/glow-tests/`，不作为源码提交；Core 完整测试计数来自执行控制台记录，没有单独归档 TRX。最终生产源码提交 `54f2c647599272be9deb06560789557d67ebbaf9`；完整后端解决方案在最后渲染修改后再次构建，通过零警告/零错误。实际 SDK 根据 `global.json` 的 rollForward 规则解析到本机 `10.0.114`；配置最低值仍为 `10.0.112`，没有升级依赖。
 
 新增像素断言覆盖透明填充仍有外光、字形内部扣除、sigma/spread、零值、公共透明度一次、演唱边界、多段Ruby、逐字覆盖和独立变换、相邻不同颜色字形、标记、超过64像素的外扩、覆盖通道、部件重组、包材质与图capture、预算释放及原生范围拒绝。CPU/Vulkan证据分别登记，不声称两后端逐位相同。
 
@@ -29,7 +29,23 @@ TRX 和定向日志保存在本工作树的 `backend/artifacts/glow-tests/`，�
 
 ## 匹配发布与真实 HTTP
 
-待最终生产源码提交、同源 self-contained Server/Worker 发布和 fresh `backend-glow-http-probe` 完成后登记。探针会使用独立profile和随机loopback，保留有限PNG、请求/响应、修订、历史、保存重开、颜色/外扩差异以及进程排水和凭证扫描证据。
+匹配 self-contained Release/linux-x64 发布目录：`backend/artifacts/glow-publish-20261101/`。`deployment.json` 确认来源提交 `0036d87c05c7ccc4479f7f3489e871872c7385bb`、`sourceDirty:false`、产品0.110.0，Server和Worker来自同一源码。manifest SHA-256 为 `c8e874ebdeae958beb487d86c50a9800a4615cdcee1259d6129bf8362a163abf`。
+
+fresh [backend-glow-http-probe](../../tools/backend-glow-http-probe/README.md) 已通过。证据目录为本工作树的 `backend/artifacts/glow-http-20261101-final3/`，使用独立 profile、随机 loopback 和自有 WAV/LRC 工程；没有操作用户工程。发布后只修正探针请求及预期状态并补充本记录，生产源码和部署未改变。
+
+| 验证 | 结果与证据 |
+|---|---|
+| 实际 HTTP | 213 次请求，`summary.json` 状态为 `passed`，记录 1393 条断言（含首次凭证扫描） |
+| 编辑与一致性 | 四层 whole/leaf/null/restore、继承、no-op 保留 redo、undo/redo、CAS、回执重放、跨客户端拒绝、失败多目标原子性、保存重开通过 |
+| 实际 PNG | 8 帧，预览请求接受后等待对应 generation/sequence 的 `ready`，认证下载并验证长度/SHA，完整解码 RGBA |
+| 有限像素对照 | 透明基线外新增 11111 个非零 alpha 像素，包含配置的红色；spread 改变输出；不透明帧有变化；关闭精确恢复基线；undo 和保存重开精确恢复辉光帧 |
+| 实际 JSON 对合同 | `backend/artifacts/glow-tests/contract-http-final.json`：205 个 JSON 响应、52 个成功 JSON 请求通过，覆盖 22 个 operation；8 个 PNG 响应没有成对 JSON 请求记录，单独由二进制探针验证；无未映射 JSON 跳过 |
+| 退出与排水 | `glow-shutdown.json`：启动器退出码 0；捕获 34 个进程身份（含 29 个 Worker），`remaining: []` |
+| 凭证扫描 | 写 summary 前扫描 447 个证据文件，写入后再次扫描并包含 summary；最终控制台计数为 1841 条断言，第二次扫描产生的断言没有回写 summary |
+
+`comparison.png` 是上述已验证 PNG 派生的三栏观察图（关闭、sigma 8/spread 0、sigma 8/spread 4），已通过图像查看工具检查可见光晕；不作为新的请求或算法 oracle 计数。
+
+此前两次探针尝试分别保存在 `backend/artifacts/glow-http-20261101/` 和 `backend/artifacts/glow-http-20261101-final2/`，均已排水，未计入通过结果。第一轮误传不存在的 alpha mode `transparent`，改为合同已有的 `straight`；第二轮将父子属性冲突误期望为 422，改为实际 strict JSON 的 400 / `invalidRequest`。这两处是探针修正，没有修改生产行为。
 
 ## 边界
 

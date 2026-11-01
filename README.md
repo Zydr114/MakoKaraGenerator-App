@@ -4,7 +4,7 @@
 
 当前 MVP：2026-11-01 用户本机以 1280×720、24fps 预览设置手测，低效果可流畅预览，高效果／复杂效果仍明显卡顿；用户认可最小原型实现，对高效果性能仍不满意。用户判断传输链路未显示阻断级问题；这不替代尚未通过的 P3 自动门槛。具体观察及导出约 3fps 的进度条估算边界见[用户本机手测与原型评价](docs/performance/gpu-preview-production-2026-11-01.md#用户本机手测与原型评价)。
 
-`backend/` 来源 `a4783fad683bcfef3f2db4042e8963e5228830b5`，`frontend/` 来源 `c2d06fd68a051de1ab1018b9cd2b18ef2ccd8bab`。路径、分支、tree 与源工作树排除项见 [source-snapshots.json](source-snapshots.json)。两个源仓库保持原样；App 只有自己的 Git 历史，没有 remote，也没有上传。上游已有的文档、AGENTS 和历史验收保持原归属，本仓库工作规则见根 [AGENTS.md](AGENTS.md)。
+`backend/` 来源 `a4783fad683bcfef3f2db4042e8963e5228830b5`，`frontend/` 来源 `c2d06fd68a051de1ab1018b9cd2b18ef2ccd8bab`。路径、分支、tree 与源工作树排除项见 [source-snapshots.json](source-snapshots.json)。两个源仓库保持原样；App 保留自己的 Git 历史，用户授权的私有远程同步目标为 `https://github.com/Zydr114/MakoKaraGenerator-App`，暂不添加许可证；实际推送结果以远程核验为准。上游已有的文档、AGENTS 和历史验收保持原归属，本仓库工作规则见根 [AGENTS.md](AGENTS.md)。
 
 需要 Linux x64、Node 26、pnpm、Python 3、仓库 `backend/global.json` 允许的 .NET 10 SDK、flock、FFmpeg/FFprobe，以及 Skia 使用的字体和系统 native 库。本机实测使用 Node 26.12.1、pnpm 11.7.0、.NET SDK 10.0.113。
 

@@ -265,6 +265,24 @@ public sealed class WorkerProcessProxyTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public async Task Failed_cleanup_retains_owned_process_until_successful_retry()
+    {
+        await using WorkerProcessProxy proxy = NewProxy();
+        await proxy.StartAsync();
+        var processField = typeof(WorkerProcessProxy).GetField("_process", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        var drainField = typeof(WorkerProcessProxy).GetField("_stderrDrain", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        Process process = Assert.IsType<Process>(processField.GetValue(proxy));
+        Task originalDrain = Assert.IsAssignableFrom<Task>(drainField.GetValue(proxy));
+        drainField.SetValue(proxy, Task.FromException(new IOException("injected drain failure")));
+        await Assert.ThrowsAsync<IOException>(() => proxy.StopAsync());
+        Assert.Same(process, processField.GetValue(proxy));
+        await originalDrain;
+        drainField.SetValue(proxy, Task.CompletedTask);
+        await proxy.StopAsync();
+        Assert.Null(processField.GetValue(proxy));
+    }
+
+    [Fact]
     public async Task Frame_deadline_reaps_unresponsive_process_tree_and_proxy_restarts()
     {
         using TemporaryDirectory temp = new();

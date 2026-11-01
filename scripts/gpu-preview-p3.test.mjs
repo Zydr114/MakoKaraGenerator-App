@@ -107,7 +107,7 @@ test('freshness and interaction gates include their measured clock uncertainty',
 });
 test('Worker pool/render/control gates require real independent telemetry and actual retained bytes',()=>{
   const good={executingRender:1,pendingControls:1,pendingRenderTargets:1,outstanding:2,slotCount:3,actualAllocationBytes:12_000_000,retainedAllocationBytes:12_000_000,peaks:{executingRender:1,pendingControls:1,pendingRenderTargets:1,outstanding:3}};
-  const report=state=>analyze([snapshot(2n*N,[frame(1,N)],1,{workerState:state}),phase]).phaseReports[0];
+  const report=state=>analyze([2n,5n,8n,10n].map((t,index)=>snapshot(t*N,index===0?[frame(1,N)]:[],1,{workerState:state?{...state,streamId:'stream',inputGeneration:'1',mainObservedMonotonicNs:String((t===10n?10n:t-1n)*N)}:undefined})).concat(phase)).phaseReports[0];
   assert.equal(report(undefined).gates.workerPoolAndRenderControlBudgets,false);
   assert.equal(report(good).gates.workerPoolAndRenderControlBudgets,true);
   assert.equal(report({...good,retainedAllocationBytes:65*1024**2}).gates.workerPoolAndRenderControlBudgets,false);
@@ -135,4 +135,13 @@ test('latest-input activation is an exact new-generation attachment event while 
   assert.equal(report.interactionGroups['latest-input'].candidateMet,false);
   assert.equal(report.activeInteractionGroups['latest-input'].candidateMet,true);
   assert.equal(analyze([snapshot(3n*N,[{...sample,attachedMonotonicNs:'999000000'}],1),{type:'interaction',kind:'latest-input',uiInvocationMonotonicNs:String(N),streamId:'stream',inputGeneration:'2'}]).interactions[0].activeToMatchingCompletionMs,null);
+});
+test('stale cached native Worker state cannot satisfy budget evidence across a phase',()=>{
+  const state={streamId:'stream',inputGeneration:'1',mainObservedMonotonicNs:String(N),executingRender:1,pendingControls:0,pendingRenderTargets:0,outstanding:1,slotCount:3,actualAllocationBytes:12_000_000,retainedAllocationBytes:12_000_000,peaks:{executingRender:1,pendingControls:1,pendingRenderTargets:1,outstanding:3}};
+  const records=[snapshot(2n*N,[frame(1,N)],1,{workerState:state}),snapshot(10n*N,[],1,{workerState:state}),phase];
+  const report=analyze(records).phaseReports[0];
+  assert.equal(report.gates.workerPoolAndRenderControlBudgets,false);
+  assert.equal(report.workerFlowControl.freshness.uniqueUpdates,1);
+  assert.equal(report.workerFlowControl.freshness.maxAgeMs,9000);
+  assert.equal(report.workerFlowControl.freshness.covered,false);
 });

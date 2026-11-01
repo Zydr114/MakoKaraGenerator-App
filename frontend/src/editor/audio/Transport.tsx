@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { formatTime } from '../model/time';
-import { Select, Switch } from '../ui/fields';
+import { CompactSelect, Switch } from '../ui/fields';
 import { useObservable } from '../ui/hooks';
 import type { AudioController } from './audio-controller';
 
@@ -43,6 +43,13 @@ export function Transport(props: {
     return () => cancelAnimationFrame(frame);
   }, [props.audio]);
 
+  const help =
+    state.status === 'ready'
+      ? props.stampMode
+        ? '打点：按住 J 记起点，松开记终点并前进 · ←→ 选元素 · Alt＋←→ 微调一帧 · Delete 清除'
+        : (props.help ?? '空格 播放／暂停 · ←→ 选元素 · ↑↓ 选行')
+      : undefined;
+
   return (
     <div className="transport">
       <mdui-button-icon variant="filled" disabled={state.status !== 'ready'} onClick={() => props.audio.toggle()} aria-label={state.playing ? '暂停' : '播放'}>
@@ -52,14 +59,14 @@ export function Transport(props: {
         <span ref={time}>0:00.000</span>
         <span className="muted"> / {formatTime(state.durationUs)}</span>
       </span>
-      <Select label="速度" value={String(state.rate) as (typeof RATES)[number]['value']} options={RATES} onChange={(v) => props.audio.setRate(Number(v))} className="transport-rate" />
+      <CompactSelect label="速度" value={String(state.rate) as (typeof RATES)[number]['value']} options={RATES} onChange={(v) => props.audio.setRate(Number(v))} className="transport-rate" />
       <Switch label={props.loopLabel ?? '循环本行'} checked={props.loopLine} disabled={!props.loopAvailable} onChange={props.onLoopLine} />
       {props.onStampMode && <Switch label="打点模式" checked={!!props.stampMode} disabled={!props.stampAvailable} onChange={props.onStampMode} />}
-      <span className="transport-help muted">
+      {/* 窄窗口下说明只显示一行，完整文字在悬停提示里。 */}
+      <span className="transport-help muted" title={state.status === 'error' ? state.error : help}>
         {state.status === 'loading' && '正在读取音频……'}
         {state.status === 'error' && <span className="notice-error">{state.error}</span>}
-        {state.status === 'ready' &&
-          (props.stampMode ? '打点：按住 J 记起点，松开记终点并前进 · ←→ 选元素 · Alt＋←→ 微调一帧 · Delete 清除' : (props.help ?? '空格 播放／暂停 · ←→ 选元素 · ↑↓ 选行'))}
+        {help}
       </span>
     </div>
   );

@@ -105,6 +105,22 @@ function SelectField<T extends string>(props: SelectProps<T>) {
   );
 }
 
+/** 工具栏里的紧凑下拉框：原生 select，标签写在左边，高度和工具栏按钮一样（不用 mdui 的 56px 输入框）。 */
+export function CompactSelect<T extends string>(props: SelectProps<T> & { title?: string }) {
+  return (
+    <label className={props.className ? `compact-select ${props.className}` : 'compact-select'} title={props.title}>
+      <span className="compact-select-label">{props.label}</span>
+      <select aria-label={props.label} value={props.value} disabled={!!props.disabled} onChange={(event) => props.onChange(event.currentTarget.value as T)}>
+        {props.options.map((option) => (
+          <option key={option.value} value={option.value} disabled={!!option.disabled}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 export function Switch(props: { label: ReactNode; checked: boolean; onChange: (checked: boolean) => void; disabled?: boolean }) {
   const ref = useRef<Checked>(null);
   useDomEvent(ref, 'change', () => props.onChange(ref.current!.checked));

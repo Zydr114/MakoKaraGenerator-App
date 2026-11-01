@@ -42,7 +42,7 @@ import { formatTime } from '../model/time';
 import type { EditorSession, EditorState } from '../session/editor-session';
 import { Timeline, type TimelineBand, type TimelineTrack } from '../timeline/Timeline';
 import { toast } from '../ui/feedback';
-import { CommitField, Select } from '../ui/fields';
+import { CommitField, CompactSelect, Select } from '../ui/fields';
 import { useObservable } from '../ui/hooks';
 import { isEditing } from '../workspace/Workspace';
 import type { OrchestrationState, OrchestrationStore } from './orchestration-store';
@@ -1103,14 +1103,14 @@ function AssignmentBar(props: {
   return (
     <div className="assignment-bar">
       <span className="pane-title-text">歌词分配</span>
-      <Select
+      <CompactSelect
         label="来源"
         className="assignment-source"
         value={view.branchId}
         options={props.branches.map((b) => ({ value: b.id, label: b.name || b.id }))}
         onChange={(id) => store.setBranch(id)}
       />
-      <Select
+      <CompactSelect
         label="默认容器"
         className="assignment-container"
         value={program?.defaultContainerId ?? ''}
@@ -1165,7 +1165,11 @@ function AssignmentBar(props: {
       >
         前奏提示{program ? ` · ${props.leadInCount}` : ''}
       </mdui-button>
-      {hint && <span className="hint assignment-hint">{hint}</span>}
+      {hint && (
+        <span className="hint assignment-hint" title={hint}>
+          {hint}
+        </span>
+      )}
       <QuickLayoutDialog
         open={layoutOpen}
         branchName={branchName}

@@ -90,6 +90,8 @@ const PRELUDE = `
   const anyButton = (text, scope) => buttons(scope).find((b) => b.textContent.trim() === text);
   const field = (label) => [...document.querySelectorAll('mdui-text-field')].find((f) => f.label === label);
   const select = (label) => [...document.querySelectorAll('mdui-select')].find((f) => f.label === label);
+  // 歌词分配条用原生紧凑下拉框（工具栏不用 mdui 的 56px 输入框）。
+  const assignmentSelect = (label) => document.querySelector('.assignment-bar select[aria-label="' + label + '"]');
   const revision = () => (document.querySelector('.status-bar')?.textContent.match(/修订 (\\d+)/) ?? [])[1];
   const rows = () => [...document.querySelectorAll('.orchestration .node-row')].map((r) => ({
     name: r.querySelector('.target-label').textContent,
@@ -354,9 +356,9 @@ try {
   // 4. 歌词分配条与不可用的入口
   const bar = await page.eval(
     js(`return {
-      source: (() => { const s = select('来源'); return [...s.querySelectorAll('mdui-menu-item')].find((i) => i.value === s.value)?.textContent.trim(); })(),
-      container: (() => { const s = select('默认容器'); return [...s.querySelectorAll('mdui-menu-item')].find((i) => i.value === s.value)?.textContent.trim(); })(),
-      containerDisabled: !!select('默认容器')?.disabled,
+      source: assignmentSelect('来源')?.selectedOptions[0]?.textContent.trim(),
+      container: assignmentSelect('默认容器')?.selectedOptions[0]?.textContent.trim(),
+      containerDisabled: !!assignmentSelect('默认容器')?.disabled,
       hint: hint(),
       leadIns: (() => { const b = document.querySelector('.assignment-lead-ins'); return b && !b.disabled ? b.textContent.trim() : undefined; })(),
       clips: clipButton()?.textContent.trim(),
@@ -432,7 +434,7 @@ try {
   await page.waitFor(js(`return Number(revision()) === ${layoutStart + 1} && !dialog()?.open && rows().length === 5;`), '套用双行居中', 15_000);
   await page.waitFor(js(`return rows().find((r) => r.selected)?.name === '双行居中';`), '选中新的默认容器', 10_000);
   const applied = await page.eval(
-    js(`return { rows: rows(), layout: [layoutTag(), ...sectionLayouts()], containerDisabled: !!select('默认容器')?.disabled, hint: hint() };`),
+    js(`return { rows: rows(), layout: [layoutTag(), ...sectionLayouts()], containerDisabled: !!assignmentSelect('默认容器')?.disabled, hint: hint() };`),
   );
   const created = applied.rows.find((r) => r.name === '双行居中');
   check(
@@ -446,8 +448,8 @@ try {
   await snapshot(page, 'layout-applied');
 
   // 7a. 改默认容器（R6 已修复）：一条历史，帧变化；撤销后恢复
-  // 只设值：mdui-select 自己会发 change（再手动发一次会变成两条命令，第二条是 no-op）。
-  await page.eval(js(`const s = select('默认容器'); s.value = [...s.querySelectorAll('mdui-menu-item')].find((i) => i.textContent.trim().startsWith('常规')).value;`));
+  // 原生 select 只设值不会发 change，像用户选择一样手动发一次。
+  await page.eval(js(`const s = assignmentSelect('默认容器'); s.value = [...s.options].find((o) => o.textContent.trim().startsWith('常规')).value; s.dispatchEvent(new Event('change', { bubbles: true }));`));
   await page.waitFor(js(`return Number(revision()) === ${layoutStart + 2} && rows().find((r) => r.name === '常规')?.isDefault;`), '默认容器改为常规', 10_000);
   const regularFrame = await hash('.orchestration', String(layoutStart + 2));
   const switched = await page.eval(js(`return [layoutTag(), ...sectionLayouts()];`));
@@ -1520,7 +1522,7 @@ try {
     !!translation && translation.rows === 2 && !translation.empty && added.path === '主歌词 / 画面 / 常规',
     `加翻译来源后结构按新修订重读：新来源“中文”有自己的画面和常规容器（R4 已修复）；选中的节点保留（${added.path}）`,
   );
-  await page.eval(js(`const s = select('来源'); s.value = [...s.querySelectorAll('mdui-menu-item')].find((i) => i.textContent.trim() === '中文').value; s.dispatchEvent(new Event('change', { bubbles: true }));`));
+  await page.eval(js(`const s = assignmentSelect('来源'); s.value = [...s.options].find((o) => o.textContent.trim() === '中文').value; s.dispatchEvent(new Event('change', { bubbles: true }));`));
   await page.waitFor(js(`return path() === '中文 / 画面 / 常规';`), '分配条切到新来源');
   const r7 = await page.eval(
     js(`const b = anyButton('快速布局…', document.querySelector('.assignment-bar')); const add = anyButton('＋ 新建片段', document.querySelector('.clip-panel'));
@@ -1537,7 +1539,7 @@ try {
   await key(page, 'z', 'KeyZ', 90, 2);
   // 撤销本身也是一个新修订。
   await page.waitFor(js(`return Number(revision()) === ${before + 2} && sections().length === 1;`), '撤销后', 10_000);
-  await page.waitFor(js(`return select('来源')?.value !== undefined && hint().includes('只有一个歌词容器');`), '分配条回到主歌词', 10_000);
+  await page.waitFor(js(`return assignmentSelect('来源')?.value !== undefined && hint().includes('只有一个歌词容器');`), '分配条回到主歌词', 10_000);
   check(true, 'Ctrl+Z 撤销：新来源从结构树消失，歌词分配条回到主歌词');
 
   if (values.screenshot) {

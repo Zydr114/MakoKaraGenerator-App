@@ -1015,25 +1015,70 @@ body {
   margin: 0;
 }
 
+/* 工具栏的紧凑下拉框（播放条、歌词分配）：一行 32px，不跟 mdui 表单控件的尺寸。 */
+.compact-select {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  font-size: var(--mdui-typescale-body-small-size);
+  color: rgb(var(--mdui-color-on-surface-variant));
+}
+
+.compact-select select {
+  height: 32px;
+  padding: 0 4px 0 8px;
+  border: 1px solid rgb(var(--mdui-color-outline));
+  border-radius: var(--mdui-shape-corner-extra-small);
+  background: rgb(var(--mdui-color-surface));
+  color: rgb(var(--mdui-color-on-surface));
+  font: inherit;
+  font-size: var(--mdui-typescale-body-medium-size);
+}
+
+.compact-select select:disabled {
+  border-color: rgba(var(--mdui-color-on-surface), 0.12);
+  color: rgba(var(--mdui-color-on-surface), 0.38);
+}
+
+/* 播放条一行 40px；说明只占一行，放不下时省略，完整文字在悬停提示里。 */
 .transport {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 8px 16px;
+  gap: 12px;
+  min-height: 40px;
+  padding: 0 16px;
+}
+
+.transport > mdui-button-icon {
+  width: 32px;
+  height: 32px;
+  font-size: 20px;
+}
+
+.transport .switch-field {
+  flex: none;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.transport mdui-switch {
+  height: 32px;
 }
 
 .transport-time {
-  min-width: 170px;
-  font-size: 1.1rem;
+  flex: none;
+  min-width: 150px;
   font-variant-numeric: tabular-nums;
-}
-
-.transport-rate {
-  width: 120px;
 }
 
 .transport-help {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   text-align: right;
   font-size: var(--mdui-typescale-body-small-size);
 }
@@ -1041,9 +1086,28 @@ body {
 .timeline-toolbar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
+  min-height: 32px;
   padding: 0 16px;
+  white-space: nowrap;
   font-size: var(--mdui-typescale-body-small-size);
+}
+
+.timeline-toolbar mdui-button-icon {
+  width: 28px;
+  height: 28px;
+  font-size: 20px;
+}
+
+.timeline-toolbar mdui-button {
+  height: 28px;
+}
+
+.timeline-help {
+  min-width: 0;
+  margin-left: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .timeline-snap {
@@ -3481,25 +3545,37 @@ button.source-row:hover {
   border-left: 1px solid rgb(var(--mdui-color-outline-variant));
 }
 
+/* 歌词分配条：一行 40px，放不下时才折行；说明放不下时省略，完整文字在悬停提示里。 */
 .assignment-bar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 12px;
-  padding: 8px 16px;
+  gap: 4px 12px;
+  min-height: 40px;
+  padding: 4px 16px;
   border-bottom: 1px solid rgb(var(--mdui-color-outline-variant));
+  white-space: nowrap;
 }
 
-.assignment-source {
-  width: 160px;
+.assignment-bar mdui-button {
+  height: 32px;
 }
 
-.assignment-container {
-  width: 220px;
+.assignment-source select {
+  width: 120px;
 }
 
+.assignment-container select {
+  width: 180px;
+}
+
+/* 说明不撑宽这一行：剩下至少 120px 就留在行尾，否则折到下一行。 */
 .assignment-hint {
+  flex: 1 1 0;
+  min-width: 120px;
   margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .assignment-range {
@@ -3517,8 +3593,12 @@ button.source-row:hover {
 
 /* 片段（G19，W4 设计 §10.3） */
 .clip-panel {
-  padding: 4px 16px 8px;
+  padding: 0 16px 4px;
   border-bottom: 1px solid rgb(var(--mdui-color-outline-variant));
+}
+
+.clip-panel-header mdui-button {
+  height: 32px;
 }
 
 .clip-panel-header {

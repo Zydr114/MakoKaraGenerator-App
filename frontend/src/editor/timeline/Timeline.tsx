@@ -730,6 +730,7 @@ export function Timeline(props: {
   };
 
   const visibleSeconds = (viewport.current.widthPx * viewport.current.usPerPx) / 1e6;
+  const help = `${props.help ?? (editable ? '拖边界改时间（Alt 不吸附，Esc 取消）' : props.onSelectLines ? '点选行或文本单元（Ctrl／Shift 加选）· 行轨空白处拖动框选' : '点选行或文本单元')} · 滚轮平移 · Ctrl＋滚轮缩放`;
 
   return (
     <div className="timeline">
@@ -751,8 +752,8 @@ export function Timeline(props: {
             吸附到帧{props.frameRate ? `（${(props.frameRate.numerator / props.frameRate.denominator).toFixed(2).replace(/\.00$/, '')} fps）` : '（帧率未知）'}
           </label>
         )}
-        <span className="muted">
-          {props.help ?? (editable ? '拖边界改时间（Alt 不吸附，Esc 取消）' : props.onSelectLines ? '点选行或文本单元（Ctrl／Shift 加选）· 行轨空白处拖动框选' : '点选行或文本单元')} · 滚轮平移 · Ctrl＋滚轮缩放
+        <span className="muted timeline-help" title={help}>
+          {help}
         </span>
       </div>
       <div className="timeline-canvas" ref={container}>

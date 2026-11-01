@@ -11,6 +11,8 @@ const { prepareDesktopSession } = require('./gpu-preview/session-paths.cjs');
 const root = fs.realpathSync(path.join(__dirname,'..'));
 const configFile = process.argv[process.argv.indexOf('--launch-config')+1];
 let config = readLaunchConfig(configFile,root,process.pid);
+const performanceDiagnostics=config.performanceDiagnostics?require('./gpu-preview/performance-diagnostics.cjs').createPerformanceDiagnostics():null;
+const measured=(type,action,metadata,threshold)=>performanceDiagnostics?performanceDiagnostics.measure(type,action,metadata,threshold):action();
 if (process.versions.electron !== '45.2.1') throw new Error('Desktop requires the pinned Electron runtime');
 const sessionPaths=prepareDesktopSession(root,config.sessionName);
 app.setPath('userData',sessionPaths.userData);
@@ -57,7 +59,7 @@ function send(s,message) {
 const controlIdentity=s=>({protocolVersion:1,streamId:s.streamId,hostInstanceId:config.hostInstanceId,producerEpoch:s.producerEpoch,inputGeneration:s.inputGeneration??s.expectedInputGeneration,consumerEpoch:'1'});
 function physicalDevice(m) {
   const pci = gpuInfo?.gpuDevice.find(x=>x.active&&x.vendorId===m.gpu?.vendorId&&x.deviceId===m.gpu?.deviceId);
-  const gpu=app.getAppMetrics().find(x=>x.type==='GPU');
+  const gpu=measured('main-getAppMetrics',()=>app.getAppMetrics()).find(x=>x.type==='GPU');
   if(!pci||!gpu)throw new Error('GPU device identity unavailable');
   const directory=`/proc/${gpu.pid}/fd`;
   const matched=fs.readdirSync(directory).some(fd=>{
@@ -90,11 +92,12 @@ function validateFrame(s,packet) {
   // GPU process loss/replacement is a global child-process-gone fail-stop. The
   // hot path compares the established device without rescanning process metrics.
   else if(['vendorId','deviceId','drmRenderMajor','drmRenderMinor','deviceUUID'].some(k=>m.gpu?.[k]!==s.device[k]))throw new Error('GPU device changed');
-  s.lastFrame=m.frameSeq;s.slotEpochs.set(m.slotId,BigInt(m.slotEpoch));
+  if(performanceDiagnostics)s.lastFrameMetadata=lease(m);s.lastFrame=m.frameSeq;s.slotEpochs.set(m.slotId,BigInt(m.slotEpoch));
   return m;
 }
 async function consume(s,packet) {
-  await importAndTransferFrame({packet,broker,sharedTexture,validate:p=>validateFrame(s,p),timestamp:m=>m.timeUs,
+  const texture=performanceDiagnostics?{importSharedTexture:options=>measured('main-importSharedTexture',()=>sharedTexture.importSharedTexture(options),packet.metadata),sendSharedTexture:(options,metadata)=>{metadata.diagnosticTransferStartNs=process.hrtime.bigint().toString();return sharedTexture.sendSharedTexture(options,metadata);}}:sharedTexture;
+  await importAndTransferFrame({packet,broker,sharedTexture:texture,validate:p=>{const m=validateFrame(s,p);return performanceDiagnostics?{...m,diagnosticBrokerReceivedNs:packet.receivedNs.toString()}:m;},timestamp:m=>m.timeUs,
     targetFrame:()=>window.webContents.mainFrame,
     onImported:item=>{item.receivedNs=packet.receivedNs;s.imports.set(leaseKey(item.metadata),item);sTelemetry.imported++;sTelemetry.peakOutstanding=Math.max(sTelemetry.peakOutstanding,s.imports.size);},
     shouldTransfer:m=>{
@@ -209,6 +212,7 @@ async function attach(streamId,expectedInputGeneration) {
     stage='hello';
     send(s,{type:'hello',protocolVersion:1,consumerId:config.consumerId,consumerEpoch:'1',streamId,hostInstanceId:config.hostInstanceId,producerEpoch:s.producerEpoch,handshake:claim.handshake,senderMonotonicNs:s.helloNs});
     s.poll=setInterval(()=>{
+      const pollStarted=performanceDiagnostics?process.hrtime.bigint():null;
       try{for(let count=0;count<16&&s.connection;count++){const p=broker.receive(s.connection);if(!p)break;packet(s,p);}}
       catch(error){
         const known=['Worker response identity mismatch','Worker pool identity mismatch','Invalid Worker hello','Invalid calibrated clock','Worker stopped before exact lease drain','Unexpected applied control','peer disconnected; outstanding leases unknown','recvmsg failed','closed connection','Worker GPU completion unknown'];
@@ -216,6 +220,7 @@ async function attach(streamId,expectedInputGeneration) {
         console.error(JSON.stringify({type:'desktop-broker-error',stage:s.lastPacketType??'receive',cause,stopping:!!s.stopping,stopped:!!s.stopped,outstanding:s.imports.size}));
         failStop('gpuBrokerProtocolFailed');
       }
+      finally{if(pollStarted!==null){const end=process.hrtime.bigint();if(end-pollStarted>=10000000n)performanceDiagnostics.add('main-poll',pollStarted,end,{lease:performanceDiagnostics.identity(s.lastFrameMetadata)});}}
     },2);
     await Promise.race([hello,delay(5000).then(()=>{if(!s.hello)throw new Error('GPU handshake deadline');})]);
     s.attachedMonotonicNs=process.hrtime.bigint().toString();
@@ -243,7 +248,7 @@ function playback(value,rendererClock) {
   s.desired={...state};s.pending={...state,controlSeq,senderMonotonicNs:rendererClock.senderMonotonicNs,rendererUncertaintyNs:rendererClock.uncertaintyNs,mainReceivedMonotonicNs:now.toString()};flushControl(s);
   return {controlSeq};
 }
-for(const [name,handler] of Object.entries({config:()=>({mode:'production',...(config.slowConsumerMs?{scenario:'slow',slowMs:config.slowConsumerMs}:{})}),'consumer-id':()=>config.consumerId,'acceptance-enabled':()=>app.commandLine.hasSwitch('remote-debugging-port'),clock:()=>({mainMonotonicNs:process.hrtime.bigint().toString()}),attach,playback,read:(sinceRevision=0)=>{if(!Number.isSafeInteger(sinceRevision)||sinceRevision<0)throw new Error('Invalid sample cursor');if(stream?.connection&&!stream.stopping&&!stream.stopped)send(stream,{type:'read-state',...controlIdentity(stream)});return {...sTelemetry,nowMonotonicNs:process.hrtime.bigint().toString(),clock:stream?.clock?{...stream.clock,rendererUncertaintyNs:stream.rendererUncertaintyNs,totalUncertaintyNs:(BigInt(stream.clock.uncertaintyNs)+BigInt(stream.rendererUncertaintyNs??'0')).toString()}:undefined,mediaClock:stream?.mediaClock,workerState:stream?.workerState,controlApplied:stream?.controlApplied,attachedMonotonicNs:stream?.attachedMonotonicNs,activeStream:stream?{...controlIdentity(stream),poolGeneration:stream.poolGeneration,size:stream.size}:null,executingControls:stream?.executing?1:0,pendingControls:stream?.pending?1:0,outstanding:stream?.imports.size??0,sampleRevision,sampleCursorExpired:samples.length>0&&sinceRevision>0&&sinceRevision<Math.min(...samples.map(x=>x.sampleRevision))-1,samples:samples.filter(x=>x.sampleRevision>sinceRevision),mainPid:process.pid,workerPid:stream?.workerPid,rendererPid:window?.webContents.getOSProcessId(),processes:app.getAppMetrics().map(x=>({pid:x.pid,type:x.type,cpu:x.cpu,memory:x.memory}))};},detach}))ipcMain.handle(`mako-gpu:${name}`,(event,...args)=>{authorize(event);return handler(...args);});
+for(const [name,handler] of Object.entries({config:()=>({mode:'production',...(performanceDiagnostics?{performanceDiagnostics:true}:{}),...(config.slowConsumerMs?{scenario:'slow',slowMs:config.slowConsumerMs}:{})}),'consumer-id':()=>config.consumerId,'acceptance-enabled':()=>app.commandLine.hasSwitch('remote-debugging-port'),clock:()=>({mainMonotonicNs:process.hrtime.bigint().toString()}),attach,playback,read:(sinceRevision=0)=>{if(!Number.isSafeInteger(sinceRevision)||sinceRevision<0)throw new Error('Invalid sample cursor');if(stream?.connection&&!stream.stopping&&!stream.stopped)send(stream,{type:'read-state',...controlIdentity(stream)});return {...sTelemetry,nowMonotonicNs:process.hrtime.bigint().toString(),clock:stream?.clock?{...stream.clock,rendererUncertaintyNs:stream.rendererUncertaintyNs,totalUncertaintyNs:(BigInt(stream.clock.uncertaintyNs)+BigInt(stream.rendererUncertaintyNs??'0')).toString()}:undefined,mediaClock:stream?.mediaClock,workerState:stream?.workerState,controlApplied:stream?.controlApplied,attachedMonotonicNs:stream?.attachedMonotonicNs,activeStream:stream?{...controlIdentity(stream),poolGeneration:stream.poolGeneration,size:stream.size}:null,executingControls:stream?.executing?1:0,pendingControls:stream?.pending?1:0,outstanding:stream?.imports.size??0,sampleRevision,sampleCursorExpired:samples.length>0&&sinceRevision>0&&sinceRevision<Math.min(...samples.map(x=>x.sampleRevision))-1,samples:samples.filter(x=>x.sampleRevision>sinceRevision),mainPid:process.pid,workerPid:stream?.workerPid,rendererPid:window?.webContents.getOSProcessId(),performanceDiagnostics:performanceDiagnostics?.snapshot(),processes:measured('main-getAppMetrics',()=>app.getAppMetrics()).map(x=>({pid:x.pid,type:x.type,cpu:x.cpu,memory:x.memory}))};},detach}))ipcMain.handle(`mako-gpu:${name}`,(event,...args)=>{authorize(event);return name==='read'?measured('main-read',()=>handler(...args),undefined,10):handler(...args);});
 ipcMain.handle('mako-gpu:acceptance-failure',(event,kind)=>{
   authorize(event);
   if(!app.commandLine.hasSwitch('remote-debugging-port')||!['renderer-loss','worker-loss'].includes(kind))throw new Error('Acceptance fault injection unavailable');

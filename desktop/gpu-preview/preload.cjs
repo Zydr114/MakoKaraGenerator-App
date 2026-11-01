@@ -7,6 +7,13 @@ let barrier;
 let desiredPlayback;
 let waitingReset = false;
 let hardBarrier = {seq:0};
+let diagnosticSequence=0;const diagnosticEvents=[];
+function diagnostic(type,startMs,endMs,detail={}) {
+  if(!config?.performanceDiagnostics)return;
+  const map=ms=>calibratedClock?(BigInt(Math.round(ms*1e6))+calibratedClock.offsetNs).toString():null;
+  diagnosticEvents.push({sequence:++diagnosticSequence,type,startPerformanceMs:startMs,endPerformanceMs:endMs,startMonotonicNs:map(startMs),endMonotonicNs:map(endMs),mappingUncertaintyNs:calibratedClock?.uncertaintyNs.toString(),durationMs:endMs-startMs,...detail});
+  if(diagnosticEvents.length>512)diagnosticEvents.shift();
+}
 const drops={count:0,lastReason:null,lastFrame:null};
 const refreshBarrier = () => {
   waitingReset = !attachment || !barrier || !desiredPlayback || hardBarrier.seq === null ||
@@ -67,7 +74,7 @@ contextBridge.exposeInMainWorld('makoDesktopPreview', Object.freeze({
       return result;
     });
   },
-  readPreviewState: async(sinceRevision=0) => ({...await ipcRenderer.invoke('mako-gpu:read',sinceRevision),rendererGate:{...drops,detached,waitingReset,hardControlSeq:hardBarrier.seq,attachment,barrier}}),
+  readPreviewState: async(sinceRevision=0) => ({...await ipcRenderer.invoke('mako-gpu:read',sinceRevision),...(config?.performanceDiagnostics?{rendererPerformanceDiagnostics:{enabled:true,sequence:diagnosticSequence,capacity:512,events:diagnosticEvents.slice()}}:{}),rendererGate:{...drops,detached,waitingReset,hardControlSeq:hardBarrier.seq,attachment,barrier}}),
   detachPreview: () => ipcRenderer.invoke('mako-gpu:detach'),
   onPreviewState: listener => {
     if (typeof listener !== 'function') throw new TypeError('listener required');
@@ -80,6 +87,7 @@ contextBridge.exposeInMainWorld('makoDesktopPreview', Object.freeze({
 window.addEventListener('DOMContentLoaded', async () => {
   try {
     config = await ipcRenderer.invoke('mako-gpu:config');
+    if(config.performanceDiagnostics){let previous=performance.now();setInterval(()=>{const end=performance.now(),start=previous+20;if(end-start>=20)diagnostic('renderer-event-loop-lag',start,end);previous=end;},20);}
     if (typeof sharedTexture?.setSharedTextureReceiver !== 'function') throw new Error('sandbox sharedTexture receiver unavailable');
     if (config.mode !== 'production') {
       const initialCanvas = document.getElementById('preview');
@@ -88,8 +96,11 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
     sharedTexture.setSharedTextureReceiver(async ({ importedSharedTexture }, metadata) => {
       let frame;
+      const diagnosticStart=config.performanceDiagnostics?performance.now():null;
+      let diagnosticGetVideoEnd,diagnosticDrawStart,diagnosticDrawEnd,diagnosticFrameClosed;
       try {
         frame = importedSharedTexture.getVideoFrame();
+        if(diagnosticStart!==null)diagnosticGetVideoEnd=performance.now();
         const canvas = document.getElementById(config.mode === 'production' ? 'mako-gpu-preview' : 'preview');
         const current = config.mode !== 'production' || (attachment && barrier && !waitingReset &&
           ['streamId','hostInstanceId','producerEpoch','inputGeneration','consumerEpoch','poolGeneration'].every(key=>metadata[key]===attachment[key]) &&
@@ -104,8 +115,10 @@ window.addEventListener('DOMContentLoaded', async () => {
           if (canvas.height !== metadata.height) canvas.height = metadata.height;
           const context = canvas.getContext('2d', { alpha:true });
           if (!context) throw new Error('Canvas 2D context unavailable');
+          if(diagnosticStart!==null)diagnosticDrawStart=performance.now();
           context.clearRect(0, 0, canvas.width, canvas.height);
           context.drawImage(frame, 0, 0);
+          if(diagnosticStart!==null)diagnosticDrawEnd=performance.now();
           const label = document.getElementById('state');
           if (label && config.mode !== 'production') label.textContent = ` frame ${metadata.frameSeq} / slot ${metadata.slotId}`;
           const observation = { ...lease(metadata), controlSeq:metadata.controlSeq, timelineResetId:metadata.timelineResetId, timeUs:metadata.timeUs, sourceRevision:metadata.sourceRevision, diagnostics:metadata.diagnostics, timestamp: frame.timestamp, width: frame.displayWidth, height: frame.displayHeight };
@@ -135,8 +148,12 @@ window.addEventListener('DOMContentLoaded', async () => {
         ipcRenderer.send('mako-gpu:error', String(error.stack || error));
       } finally {
         try { frame?.close(); } catch { ipcRenderer.send('mako-gpu:error','VideoFrame close failed'); }
+        if(diagnosticStart!==null)diagnosticFrameClosed=performance.now();
         try { importedSharedTexture.release(); } catch { ipcRenderer.send('mako-gpu:error','Shared texture release failed'); }
         ipcRenderer.send('mako-gpu:renderer-release', lease(metadata));
+        if(diagnosticStart!==null){const end=performance.now(),transferToReceiveMs=calibratedClock&&metadata.diagnosticTransferStartNs?Number(BigInt(Math.round(diagnosticStart*1e6))+calibratedClock.offsetNs-BigInt(metadata.diagnosticTransferStartNs))/1e6:null;
+          if(end-diagnosticStart>=5||transferToReceiveMs>=10)diagnostic('renderer-frame',diagnosticStart,end,{lease:lease(metadata),getVideoFrameMs:diagnosticGetVideoEnd-diagnosticStart,drawMs:diagnosticDrawEnd-diagnosticDrawStart,frameCloseMs:diagnosticFrameClosed-(diagnosticDrawEnd??diagnosticGetVideoEnd),releaseMs:end-diagnosticFrameClosed,transferToReceiveMs,brokerReceivedMonotonicNs:metadata.diagnosticBrokerReceivedNs,transferStartMonotonicNs:metadata.diagnosticTransferStartNs});
+        }
       }
     });
     ipcRenderer.send('mako-gpu:ready', { sandboxed: process.sandboxed, contextIsolated: process.contextIsolated, versions: process.versions });

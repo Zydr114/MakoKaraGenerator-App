@@ -13,13 +13,14 @@ import desktopSessionPaths from '../desktop/gpu-preview/session-paths.cjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const LOCAL = join(ROOT, '.local');
-const { positionals, values } = parseArgs({ allowPositionals: true, options: { port: { type: 'string', default: '5173' },'cdp-port':{type:'string'},'slow-consumer-ms':{type:'string'},'session-name':{type:'string'} } });
+const { positionals, values } = parseArgs({ allowPositionals: true, options: { port: { type: 'string', default: '5173' },'cdp-port':{type:'string'},'slow-consumer-ms':{type:'string'},'session-name':{type:'string'},'performance-diagnostics':{type:'boolean'} } });
 const command = positionals[0];
 const port = Number(values.port);
 const sessionName=values['session-name'];
 if(sessionName!==undefined&&command!=='desktop')throw new Error('Named sessions are only available for desktop');
 const cdpPort=values['cdp-port']===undefined?undefined:Number(values['cdp-port']);
 if(cdpPort!==undefined&&(command!=='desktop'||!Number.isInteger(cdpPort)||cdpPort<1024||cdpPort>65535||cdpPort===port))throw new Error('CDP port must be a separate explicit desktop acceptance port');
+if(values['performance-diagnostics']&&(!cdpPort||!sessionName))throw new Error('Performance diagnostics require an explicit named CDP acceptance session');
 const slowConsumerMs=values['slow-consumer-ms']===undefined?undefined:Number(values['slow-consumer-ms']);
 if(slowConsumerMs!==undefined&&(!cdpPort||!Number.isInteger(slowConsumerMs)||slowConsumerMs<1||slowConsumerMs>1000))throw new Error('Slow consumer requires an explicit desktop acceptance session');
 if (!['build', 'build:desktop', 'desktop', 'start', 'dev'].includes(command) || positionals.length !== 1 || !Number.isInteger(port) || port < 1024 || port > 65535) {
@@ -100,7 +101,7 @@ if (command === 'build' || command === 'build:desktop') {
       const { default:electron } = await import('../desktop/node_modules/electron/index.js');
       desktopConfigFile = join(LOCAL, 'run', `desktop-${process.pid}.json`);
       desktopSession = { consumerId:randomBytes(16).toString('hex'), consumerSecret:randomBytes(32).toString('hex'), pageUrl:origins[0], root:ROOT,
-        brokerAddon:join(desktopDist,'desktop/gpu_preview_broker.node'),brokerAddonSha256:desktopManifest.files['desktop/gpu_preview_broker.node'],slowConsumerMs,sessionName };
+        brokerAddon:join(desktopDist,'desktop/gpu_preview_broker.node'),brokerAddonSha256:desktopManifest.files['desktop/gpu_preview_broker.node'],slowConsumerMs,sessionName,performanceDiagnostics:!!values['performance-diagnostics'] };
       await writeBootstrapFile(desktopConfigFile, { ...desktopSession, ready:false });
       desktopChild = spawn(electron, [...(cdpPort?[`--remote-debugging-port=${cdpPort}`,'--remote-debugging-address=127.0.0.1']:[]),join(ROOT,'desktop/main.cjs'),'--launch-config',desktopConfigFile], { cwd:ROOT, env:{...process.env,ELECTRON_RUN_AS_NODE:undefined}, stdio:['ignore','pipe','pipe'] });
       desktopExited = new Promise(done => { desktopChild.once('exit',done); desktopChild.once('error',done); });

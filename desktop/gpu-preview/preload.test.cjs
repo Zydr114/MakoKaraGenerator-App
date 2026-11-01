@@ -6,19 +6,19 @@ const path=require('node:path');
 const vm=require('node:vm');
 const {EventEmitter}=require('node:events');
 const turn=()=>new Promise(done=>setImmediate(done));
-async function fixture(){
+async function fixture(options={}){
   const ipc=new EventEmitter(),pending=[];let api,boot,receiver,draws=0,releases=0;
   ipc.invoke=async(name,...args)=>{
-    if(name==='mako-gpu:config')return {mode:'production'};
+    if(name==='mako-gpu:config')return {mode:'production',performanceDiagnostics:!!options.diagnostics};
     if(name==='mako-gpu:clock')return {mainMonotonicNs:BigInt(Math.round(performance.now()*1e6)).toString()};
     if(name==='mako-gpu:playback')return new Promise(resolve=>pending.push({args,resolve}));
     return undefined;
   };
   ipc.send=()=>{};
-  const canvas={width:64,height:64,getContext:()=>({clearRect(){},drawImage(){draws++;}})};
+  const canvas={width:64,height:64,getContext:()=>({clearRect(){},drawImage(){draws++;const end=performance.now()+(options.drawDelayMs??0);while(performance.now()<end){}}})};
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,'preload.cjs'),'utf8'),{
     require:name=>{assert.equal(name,'electron');return {contextBridge:{exposeInMainWorld(_name,value){api=value;}},ipcRenderer:ipc,sharedTexture:{setSharedTextureReceiver(value){receiver=value;}}};},
-    window:{addEventListener(_name,callback){boot=callback;}},document:{getElementById:()=>canvas},performance,process:{sandboxed:true,contextIsolated:true,versions:{}},setTimeout,requestAnimationFrame:callback=>setImmediate(callback),
+    window:{addEventListener(_name,callback){boot=callback;}},document:{getElementById:()=>canvas},performance,process:{sandboxed:true,contextIsolated:true,versions:{}},setTimeout,setInterval:()=>0,requestAnimationFrame:callback=>setImmediate(callback),
   });
   await boot();
   const identity={protocolVersion:1,streamId:'stream',hostInstanceId:'host',producerEpoch:'1',inputGeneration:'1',consumerEpoch:'1',poolGeneration:'1'};
@@ -57,4 +57,10 @@ test('attached reset and repeated semantic state confirm the actual applied sequ
   f.emit('barrier',{...f.identity,timelineEpoch:'1',timelineResetId:'reset',minControlSeq:1,controlSeq:2});
   await f.frame(1);assert.equal(f.draws,0);
   await f.frame(2);assert.equal(f.draws,1);
+});
+test('explicit diagnostics attribute a slow draw to its exact lease while ordinary mode has no diagnostics',async()=>{
+  const normal=await fixture();assert.equal((await normal.api.readPreviewState()).rendererPerformanceDiagnostics,undefined);
+  const f=await fixture({diagnostics:true,drawDelayMs:8}),p=f.api.setPlaybackState(f.control());await turn();f.pending.shift().resolve({controlSeq:1});await p;f.barrier(1);await f.frame(1);
+  const event=(await f.api.readPreviewState()).rendererPerformanceDiagnostics.events.find(e=>e.type==='renderer-frame');
+  assert.equal(event.lease.frameSeq,1);assert.equal(event.lease.streamId,'stream');assert.ok(event.drawMs>=7);assert.equal(f.releases,1);
 });

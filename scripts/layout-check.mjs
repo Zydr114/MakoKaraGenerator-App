@@ -1,4 +1,4 @@
-// 有限布局检查：真实 Chromium 在几种窗口尺寸下打开编排页与外观页，确认预览画布完整显示、页面不需要滚动。
+// 有限布局检查：真实 Chromium 在几种窗口尺寸下打开编排页与外观页，确认预览画布完整显示、页面不需要滚动；歌词页只截图。
 // 用法：node scripts/layout-check.mjs [页面地址] [--sizes 1920x1080,1440x900,1366x768]
 // 需要 pnpm start 或 pnpm dev 已运行。只读布局尺寸并截图，不测性能。
 import { mkdtemp, writeFile, rm, mkdir } from 'node:fs/promises';
@@ -78,6 +78,13 @@ try {
   await page.waitFor(`!!document.querySelector('.lyrics-plan-summary')`, '歌词识别');
   await click('下一步'); await click('新建');
   await page.waitFor(`document.querySelectorAll('.line-list mdui-list-item').length === 8`, '8 行歌词进入工作区', 120_000);
+
+  // 歌词页与另两页共用播放条和时间轴：只截图对照，不判定。
+  for (const size of sizes) {
+    await resize(size);
+    await writeFile(join(out, `lyrics-${size.width}x${size.height}.png`), await page.screenshot());
+  }
+  await resize(sizes[0]);
 
   for (const view of ['orchestration', 'appearance']) {
     await goto(view);

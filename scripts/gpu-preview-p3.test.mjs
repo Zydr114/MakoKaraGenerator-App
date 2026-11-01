@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { analyze, leaseKey, percentile, slidingWindows, ozoneArguments } from './gpu-preview-p3.mjs';
+import { analyze, leaseKey, percentile, slidingWindows, ozoneArguments, parseSchedulerStat } from './gpu-preview-p3.mjs';
 
 const N=1_000_000_000n;
 const frame=(seq,time,extra={})=>({streamId:'stream',hostInstanceId:'host',producerEpoch:'1',inputGeneration:'1',consumerEpoch:'1',timelineEpoch:'1',poolGeneration:'1',slotId:seq%3,slotEpoch:String(seq),frameSeq:seq,
@@ -150,4 +150,9 @@ test('frame-ready to completion reports Worker mapping uncertainty separately fr
   assert.equal(report.phaseReports[0].readyToCompletionMs.p95,3);
   assert.equal(report.phaseReports[0].readyToCompletionUpperBoundMs.p95,5);
   assert.match(report.phaseReports[0].readyToCompletionBoundary,/actual native allReferencesReleased/);
+});
+test('scheduler proc stat parsing uses kernel field offsets even with spaces in comm',()=>{
+  const fields=Array.from({length:45},()=> '0');fields[0]='S';fields[15]='20';fields[16]='0';fields[36]='7';fields[37]='0';fields[38]='5';
+  const parsed=parseSchedulerStat('123 (Electron Renderer) '+fields.join(' '));
+  assert.deepEqual({policy:parsed.policy,name:parsed.policyName,priority:parsed.priority,nice:parsed.nice,cpu:parsed.cpu},{policy:5,name:'SCHED_IDLE',priority:20,nice:0,cpu:7});
 });

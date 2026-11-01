@@ -145,6 +145,8 @@ export function analyze(records, manifest={}) {
       if(Number.isFinite(proc.gpuMemoryBytes))points.gpu.push([observedTime,proc.gpuMemoryBytes]);
       resourcePids.set(key,points);
     }
+    const schedProcesses=streamSnapshots.flatMap(record=>record.processes??[]).filter(proc=>!proc.exited);
+    const schedulerObserved=schedProcesses.length>0&&schedProcesses.every(proc=>proc.scheduler?.policy===0)&&(schedProcesses.filter(proc=>proc.role==='worker').every(proc=>proc.scheduler?.nice===0));
     const workerStates=streamSnapshots.filter(record=>record.snapshot.workerState).map(record=>record.snapshot.workerState);
     const workerObserved=streamSnapshots.filter(record=>record.snapshot.workerState).map(record=>({time:record.time,state:record.snapshot.workerState}));
     const workerIdentity=workerObserved.length>0&&workerObserved.every(({state})=>state.streamId===phase.streamId&&state.inputGeneration===phase.inputGeneration);
@@ -161,6 +163,7 @@ export function analyze(records, manifest={}) {
       noUnexplainedStall:intervals.every(value=>value<=250),clockRecorded:unknownClock===0&&delivered.length>0,contemporaneousClockRecorded:legacyClock===0&&delivered.length>0,
       exactProvider:badProvider===0&&delivered.length>0,exactSize:wrongSize===0&&delivered.length>0,
       productionFinalReadbacksZero:readbacks===0&&delivered.length>0,
+      schedulerOtherObserved:schedulerObserved,
       workerPoolAndRenderControlBudgets:workerBudgetGate,selectedAudioClockComponentsRecorded:driftObservations.length>0&&driftObservations.every(value=>value.clockComponentsRecorded),
       visibleWindow:streamSnapshots.length>0&&streamSnapshots.every(record=>record.snapshot.rendererVisibility==='visible'),
       poolBounded:streamSnapshots.length>0&&streamSnapshots.every(record=>record.snapshot.outstanding<=3&&record.snapshot.peakOutstanding<=3),
@@ -219,6 +222,7 @@ export function analyze(records, manifest={}) {
     formalRunClass:manifest.runClass==='formal-p3',runFinished:typeof manifest.finishedAt==='string'&&manifest.runError===undefined,
     matchingDeployment:manifest.deployment?.verified===true,visibleRenderer:manifest.platformEvidence?.renderer?.visibility==='visible',
     runtimeWayland:manifest.platformEvidence?.waylandConfirmed===true,
+    ordinarySchedulerBaseline:manifest.schedulerBaseline?.runner?.scheduler?.policy===0&&manifest.schedulerBaseline?.runner?.scheduler?.nice===0&&manifest.schedulerBaseline?.launcher?.scheduler?.policy===0&&manifest.schedulerBaseline?.launcher?.scheduler?.nice===0,
     phaseMatrix:['720p24','1440p30','1440p30-lifetime'].every(name=>phaseReports.some(phase=>phase.name===name&&phase.provider===(manifest.provider==='synthetic'?'synthetic-gpu':manifest.provider)&&phase.durationSeconds>=(name.endsWith('lifetime')?600:180))),
     throughput:phaseReports.length===3&&phaseReports.every(phase=>phase.throughputPassed),
     freshness:phaseReports.length===3&&phaseReports.every(phase=>phase.freshness.status==='candidate-met'),
@@ -234,11 +238,22 @@ export function analyze(records, manifest={}) {
     limitations:['No screen scan/displayed FPS measurement','No Chromium internal copy count inferred','RSS/GPU-memory slopes need platform-cache interpretation, not an invented fixed MB threshold','Synthetic and runtime providers must be measured and reported separately']};
 }
 
+const SCHEDULER_POLICY_NAMES={0:'SCHED_OTHER',1:'SCHED_FIFO',2:'SCHED_RR',3:'SCHED_BATCH',5:'SCHED_IDLE',6:'SCHED_DEADLINE'};
+export function parseSchedulerStat(identity) {
+  const fields=identity.slice(identity.lastIndexOf(')')+2).split(' ');
+  const policy=Number(fields[38]);
+  return {policy,policyName:SCHEDULER_POLICY_NAMES[policy]??'unknown',priority:Number(fields[15]),nice:Number(fields[16]),rtPriority:Number(fields[37]),cpu:Number(fields[36]),source:'/proc/pid/stat fields 18/19/39/40/41'};
+}
+async function schedulerKernelState() {
+  try{const enabled=(await readFile('/proc/sys/kernel/sched_schedstats','utf8')).trim()==='1';return {schedSchedstatsEnabled:enabled,waitTimeInterpretation:enabled?'schedstat runqueue-wait counter is enabled':'disabled: zero schedstat wait does not prove no runqueue wait'};}catch{return {schedSchedstatsEnabled:null,waitTimeInterpretation:'kernel schedstats state unavailable'};}
+}
 async function readProc(pid,role) {
   try{
     const directory=`/proc/${pid}`;
     const [identity,status,fds]=await Promise.all([readFile(`${directory}/stat`,'utf8'),readFile(`${directory}/status`,'utf8'),readdir(`${directory}/fd`)]);
     const fields=identity.slice(identity.lastIndexOf(')')+2).split(' '), startTicks=fields[19];
+    const scheduler=parseSchedulerStat(identity);
+    try{const values=(await readFile(`${directory}/schedstat`,'utf8')).trim().split(/\s+/);scheduler.schedstat={cpuRuntimeNs:values[0],runqueueWaitNs:values[1],timeslices:values[2],waitValidity:'interpret with manifest kernel schedstats flag; zero when disabled is unmeasured wait'};}catch{}
     const clients=new Map();
     for(const fd of fds){
       let info;try{info=await readFile(`${directory}/fdinfo/${fd}`,'utf8');}catch{continue;}
@@ -247,7 +262,7 @@ async function readProc(pid,role) {
       const bytes=[...info.matchAll(/^drm-memory-(?:vram|gtt|system):\s*(\d+)\s*(KiB|kB|B)$/mg)].reduce((sum,match)=>sum+Number(match[1])*(match[2]==='B'?1:1024),0);
       clients.set(client,bytes);
     }
-    return {pid,role,startTicks,rssBytes:Number(status.match(/^VmRSS:\s*(\d+) kB$/m)?.[1]??0)*1024,fdCount:fds.length,
+    return {pid,role,startTicks,scheduler,rssBytes:Number(status.match(/^VmRSS:\s*(\d+) kB$/m)?.[1]??0)*1024,fdCount:fds.length,
       gpuMemoryBytes:clients.size?[...clients.values()].reduce((sum,value)=>sum+value,0):null,gpuMemorySource:clients.size?'per-process DRM fdinfo, deduplicated client-id':'unavailable'};
   }catch{return {pid,role,exited:true};}
 }
@@ -377,6 +392,7 @@ async function run(values) {
     phases:[{name:'720p24',width:1280,height:720,targetFps:24},{name:'1440p30',width:2560,height:1440,targetFps:30}],
     thresholds:{overallRatio:.99,sliding5sRatio:.98,intervalP95Periods:2,intervalP99Periods:3,maxUnexplainedStallMs:250,interactionP95Ms:150,interactionP99Ms:250},
     lifecycle:{attachDetach:20,publicResizeSeek:10,uiResolutionRecreate:10},command:process.argv};
+  manifest.schedulerBaseline={kernel:await schedulerKernelState(),runner:await readProc(process.pid,'p3-runner'),runnerParent:await readProc(process.ppid,'runner-parent'),requiredFormalPolicy:'SCHED_OTHER (0) for runner, owned launcher, Electron main/renderer/GPU, and Worker; runner/launcher/Worker initial nice=0; Chromium may adjust its own nice and each value is recorded; inherited SCHED_IDLE is a confound and requires a separately identified run'};
   manifest.sourceCommit=await commandOutput('git',['rev-parse','HEAD']);
   manifest.dirtyPaths=(await commandOutput('git',['status','--short'])).split('\n').filter(Boolean);
   manifest.deployment=await deploymentEvidence();
@@ -390,6 +406,7 @@ async function run(values) {
   invariant(manifest.deployment.verified&&manifest.deployment.files.every(file=>!file.missing),'Matched desktop deployment is missing/stale: build:desktop before a real run');
   const records=[],record=async value=>{records.push(value);await appendFile(join(output,'events.jsonl'),JSON.stringify(value)+'\n');};
   let child,cdp,page;
+  if(manifest.runClass==='formal-p3')invariant(manifest.schedulerBaseline.runner.scheduler?.policy===0&&manifest.schedulerBaseline.runner.scheduler?.nice===0,'Formal runner must start under recorded SCHED_OTHER and nice=0; inherited scheduler priority is a confound');
   const seenSamples=new Map();
   const observedSamples=new Map();
   let sampleRevision=0,lastWorkerPublicRead=0,workerPublicState,workerPublicReadMonotonicNs;
@@ -451,11 +468,13 @@ async function run(values) {
       child=spawn(process.execPath,[join(ROOT,'scripts/app.mjs'),'desktop','--port',values.port,'--cdp-port',values['cdp-port'],'--session-name',sessionName],
         {cwd:ROOT,env:{...process.env,...(values.provider==='synthetic'?{MAKO_BACKEND_GPU_PREVIEW_BENCHMARK:'1'}:{})},stdio:['ignore','ignore','inherit']});
       child.once('error',()=>{});
+      manifest.schedulerBaseline.launcher=await readProc(child.pid,'owned-app-launcher');
     }
     ({cdp,page}=await connectPage(Number(values['cdp-port'])));
     await page.waitFor(`typeof window.makoDesktopPreview?.readPreviewState==='function'`,'Desktop production bridge');
     const initial=await sample();
     manifest.platformEvidence=await actualWaylandEvidence(page,cdp,{...initial,cdpPort:values['cdp-port']});
+    manifest.schedulerBaseline.initialOwnedProcesses=await processSnapshot(initial);
     manifest.concurrentAppObservation=await concurrentAppEvidence(initial.mainPid);
     if(!values['reuse-project'])manifest.fixture=await makeFixtures(output).then(async fixture=>{await createProject(page,fixture);return fixture;});
     if(values['reuse-project']){invariant(await page.eval(`!!document.querySelector('mdui-navigation-rail-item[value="orchestration"]')`),'--reuse-project requires an already-open project in the live App');await selectGpu(page);}

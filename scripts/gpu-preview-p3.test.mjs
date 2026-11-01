@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { analyze, leaseKey, percentile, slidingWindows, ozoneArguments, parseSchedulerStat } from './gpu-preview-p3.mjs';
+import { analyze, leaseKey, percentile, slidingWindows, ozoneArguments, parseSchedulerStat, auditPipelineScheduler } from './gpu-preview-p3.mjs';
 
 const N=1_000_000_000n;
 const frame=(seq,time,extra={})=>({streamId:'stream',hostInstanceId:'host',producerEpoch:'1',inputGeneration:'1',consumerEpoch:'1',timelineEpoch:'1',poolGeneration:'1',slotId:seq%3,slotEpoch:String(seq),frameSeq:seq,
@@ -159,13 +159,33 @@ test('scheduler proc stat parsing uses kernel field offsets even with spaces in 
 
 
 test('scheduler gate excludes observed tool Node priority but rejects actual pipeline IDLE and Worker nice drift',()=>{
-  const pipeline=[{role:'Browser',scheduler:{policy:0,nice:-8}},{role:'GPU',scheduler:{policy:0,nice:-8}},{role:'Tab',scheduler:{policy:0,nice:0}},{role:'worker',scheduler:{policy:0,nice:0}}];
+  const pipeline=[{pid:1,startTicks:'10',role:'Browser',scheduler:{policy:0,nice:-8}},{pid:2,startTicks:'20',role:'GPU',scheduler:{policy:0,nice:-8}},{pid:3,startTicks:'30',role:'Tab',scheduler:{policy:0,nice:0}},{pid:4,startTicks:'40',role:'worker',scheduler:{policy:0,nice:0}}];
   const tools=[{role:'p3-runner',scheduler:{policy:5,nice:16}},{role:'owned-app-launcher',scheduler:{policy:5,nice:16}}];
-  const gate=processes=>analyze([{...snapshot(2n*N,[frame(1,N)],1),processes},phase],{schedulerBaseline:{explicitOrdinaryScheduling:true,initialOwnedProcesses:pipeline}});
+  const gate=processes=>analyze([{...snapshot(2n*N,[frame(1,N)],1,{rendererPid:3,workerPid:4,device:{chromiumGpuPid:2}}),processes},phase],{schedulerBaseline:{explicitOrdinaryScheduling:true,initialOwnedProcesses:pipeline}});
   const observed=gate([...pipeline,...tools]);
   assert.equal(observed.phaseReports[0].gates.schedulerOtherObserved,true);
   assert.equal(observed.measuredRequirements.ordinarySchedulerBaseline,true);
   assert.equal(gate([...pipeline,{role:'Tab',scheduler:{policy:5,nice:0}},...tools]).phaseReports[0].gates.schedulerOtherObserved,false);
   assert.equal(gate(pipeline.map(proc=>proc.role==='worker'?{...proc,scheduler:{policy:0,nice:16}}:proc)).phaseReports[0].gates.schedulerOtherObserved,false);
   assert.equal(gate(tools).phaseReports[0].gates.schedulerOtherObserved,false);
+});
+
+
+test('every sampled declared pipeline identity is required even after an earlier valid observation',()=>{
+  const record=()=>({snapshot:{mainPid:1,rendererPid:3,workerPid:4,device:{chromiumGpuPid:2}},processes:['Browser','GPU','Tab','worker'].map((role,index)=>({role,pid:index+1,startTicks:String(index+10),scheduler:{policy:0,nice:0}}))});
+  assert.equal(auditPipelineScheduler([record(),record()]).passed,true);
+  for(const role of ['Browser','GPU','Tab','worker']){
+    const missing=record();missing.processes=missing.processes.filter(proc=>proc.role!==role);
+    assert.equal(auditPipelineScheduler([record(),missing]).passed,false,`missing ${role}`);
+    const exited=record();exited.processes.find(proc=>proc.role===role).exited=true;
+    assert.equal(auditPipelineScheduler([record(),exited]).passed,false,`exited ${role}`);
+    const changed=record();changed.processes.find(proc=>proc.role===role).startTicks='999';
+    assert.equal(auditPipelineScheduler([record(),changed]).passed,false,`reused ${role} PID`);
+    const unknown=record();delete unknown.processes.find(proc=>proc.role===role).startTicks;
+    assert.equal(auditPipelineScheduler([record(),unknown]).passed,false,`unknown ${role} identity`);
+  }
+  const wrong=record();wrong.snapshot.rendererPid=99;assert.equal(auditPipelineScheduler([record(),wrong]).passed,false);
+  const undeclared=record();delete undeclared.snapshot.device;assert.equal(auditPipelineScheduler([record(),undeclared]).passed,false);
+  const duplicate=record();duplicate.processes.push({...duplicate.processes[0]});assert.equal(auditPipelineScheduler([duplicate]).passed,false);
+  assert.equal(auditPipelineScheduler([]).passed,false);
 });

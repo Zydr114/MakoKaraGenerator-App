@@ -69,6 +69,28 @@ function regression(points) {
   return {count:points.length,slopePerSecond:denominator?values.reduce((sum,[x,y])=>sum+(x-meanX)*(y-meanY),0)/denominator:null,
     delta:values.at(-1)[1]-values[0][1],min:Math.min(...values.map(([,y])=>y)),max:Math.max(...values.map(([,y])=>y)),first:values[0][1],last:values.at(-1)[1]};
 }
+export function auditPipelineScheduler(snapshots) {
+  const issues=[],identities=new Map();
+  for(const [index,record] of snapshots.entries()){
+    const state=record.snapshot??{},processes=record.processes??[];
+    const expected=[['Browser',state.mainPid],['Tab',state.rendererPid],['worker',state.workerPid],['GPU',state.device?.chromiumGpuPid]];
+    for(const [role,pid] of expected){
+      const matching=processes.filter(proc=>proc.pid===pid&&proc.role===role);
+      const proc=matching[0];
+      if(!Number.isSafeInteger(pid)||pid<=0||matching.length!==1||proc.exited||typeof proc.startTicks!=='string'||!/^\d+$/.test(proc.startTicks)){
+        issues.push({snapshot:index,role,pid:pid??null,reason:'missing/exited/duplicate exact process identity'});continue;
+      }
+      const key=String(pid),previous=identities.get(key);
+      if(previous!==undefined&&previous!==proc.startTicks)issues.push({snapshot:index,role,pid,reason:'startTicks changed for same PID'});
+      identities.set(key,proc.startTicks);
+    }
+    for(const proc of processes.filter(proc=>!['p3-runner','owned-app-launcher'].includes(proc.role))){
+      if(proc.exited||proc.scheduler?.policy!==0||(proc.role==='worker'&&proc.scheduler?.nice!==0))issues.push({snapshot:index,role:proc.role,pid:proc.pid,reason:'pipeline scheduler unavailable or outside ordinary policy/Worker nice'});
+    }
+  }
+  return {snapshotCount:snapshots.length,passed:snapshots.length>0&&issues.length===0,issues,
+    boundary:'Each sampled main/renderer/Worker/GPU exact PID plus stable startTicks and role is required; all observed pipeline policy0, Worker nice0. Runner/launcher are observed only; asynchronous brackets do not prove unsampled instants.'};
+}
 export function analyze(records, manifest={}) {
   const frames=new Map(), snapshots=[], phases=[], actions=[], gaps=[];
   let previousAck, previousMainPid;
@@ -145,8 +167,8 @@ export function analyze(records, manifest={}) {
       if(Number.isFinite(proc.gpuMemoryBytes))points.gpu.push([observedTime,proc.gpuMemoryBytes]);
       resourcePids.set(key,points);
     }
-    const schedProcesses=streamSnapshots.flatMap(record=>record.processes??[]).filter(proc=>!proc.exited&&!['p3-runner','owned-app-launcher'].includes(proc.role));
-    const schedulerObserved=schedProcesses.some(proc=>proc.role==='worker')&&schedProcesses.every(proc=>proc.scheduler?.policy===0&&(proc.role!=='worker'||proc.scheduler?.nice===0));
+    const schedulerCoverage=auditPipelineScheduler(streamSnapshots);
+    const schedulerObserved=schedulerCoverage.passed;
     const workerStates=streamSnapshots.filter(record=>record.snapshot.workerState).map(record=>record.snapshot.workerState);
     const workerObserved=streamSnapshots.filter(record=>record.snapshot.workerState).map(record=>({time:record.time,state:record.snapshot.workerState}));
     const workerIdentity=workerObserved.length>0&&workerObserved.every(({state})=>state.streamId===phase.streamId&&state.inputGeneration===phase.inputGeneration);
@@ -177,6 +199,7 @@ export function analyze(records, manifest={}) {
       readyToCompletionUpperBoundMs:distribution(delivered.map(frame=>Number.isFinite(frame.readyToCompletionMs)&&Number.isFinite(frame.clockUncertaintyMs)?frame.readyToCompletionMs+frame.clockUncertaintyMs:null)),
       readyToCompletionBoundary:'Worker frame-ready → actual native allReferencesReleased; includes scheduling/import/consumer lifetime and Worker-to-main clock uncertainty, no screen scan or pure GPU-copy inference',
       totalClockUncertaintyMs:distribution(sampleClocks),signedDriftMs:distribution(drift),ageMs:distribution(age),absoluteDriftMs:distribution(drift.map(Math.abs)),absoluteDriftUpperBoundMs:distribution(freshnessUpperBound),
+      schedulerCoverage,
       displayGeometryObservations:streamSnapshots.map(record=>({monotonicNs:String(record.time),...record.snapshot.displayGeometry})),
       workerFlowControl:{freshness:workerFreshness,status:streamSnapshots.length&&streamSnapshots.every(record=>record.snapshot.workerState)?'recorded':'unmeasured',samples:streamSnapshots.filter(record=>record.snapshot.workerState).map(record=>({monotonicNs:String(record.time),...record.snapshot.workerState})),publicStates:streamSnapshots.filter(record=>record.snapshot.workerPublicState).map(record=>({monotonicNs:String(record.time),...record.snapshot.workerPublicState}))},
       freshness:drift.length===delivered.length&&delivered.length>0?{status:percentile(age,.95)<=2*period&&percentile(freshnessUpperBound,.95)!==null&&percentile(freshnessUpperBound,.95)<=2*period&&unknownClock===0?'candidate-met':'candidate-failed',candidateP95LimitMs:2*period,uncertaintyPolicy:'p95(abs drift + max(frame total uncertainty, frame Worker mapping + selected audio renderer mapping)); selected audio mapping components are required for formal evidence, no repeated Worker term',earlyFrameConstraint:'absolute signed drift p95 must also stay within two periods; negative age never makes an early frame pass',model:'latest calibrated real audio.currentTime sample at or before completion, extrapolated by rate within exact timelineResetId'}:{status:'unmeasured',reason:'Missing calibrated audio master comparison on some frames'},
@@ -588,7 +611,10 @@ async function main() {
     connect:{type:'boolean'},'ordinary-scheduling':{type:'boolean'},'session-name':{type:'string'},'reuse-project':{type:'boolean'},'dry-run':{type:'boolean'},debug:{type:'boolean'},finite:{type:'boolean'},'correctness-snapshot':{type:'boolean'},analyze:{type:'string'}}});
   invariant(['runtime','synthetic'].includes(values.provider),'provider must be runtime or synthetic');
   if(values.analyze){const directory=resolve(values.analyze);const records=(await readFile(join(directory,'events.jsonl'),'utf8')).trim().split('\n').filter(Boolean).map(line=>JSON.parse(line));
-    const manifest=JSON.parse(await readFile(join(directory,'manifest.json'),'utf8'));const report=analyze(records,manifest);await writeFile(join(directory,'report.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));return;}
+    const manifest=JSON.parse(await readFile(join(directory,'manifest.json'),'utf8'));const report=analyze(records,manifest);
+    const analyzerSha256=createHash('sha256').update(await readFile(fileURLToPath(import.meta.url))).digest('hex');
+    report.analysisSource={sourceCommit:await commandOutput('git',['rev-parse','HEAD']),analyzerSha256,boundary:'Offline reanalysis; original manifest, events and report.json are preserved'};
+    const output=join(directory,`report-analysis-${analyzerSha256.slice(0,12)}.json`);await writeFile(output,JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify({output,report}));return;}
   for(const option of ['cdp-port','port'])invariant(/^\d+$/.test(values[option])&&Number(values[option])>=1024&&Number(values[option])<=65535,`Invalid ${option}`);
   if(!values.debug&&!values.finite&&!values.connect)values['ordinary-scheduling']=true;
   invariant(!values.connect||!values['ordinary-scheduling'],'--ordinary-scheduling requires a newly owned isolated session');

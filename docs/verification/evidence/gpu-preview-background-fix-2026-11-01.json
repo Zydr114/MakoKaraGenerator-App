@@ -1,0 +1,1729 @@
+{
+  "schemaVersion": 2,
+  "label": "gpu-composition-background-fix-finite-correctness",
+  "date": "2026-11-01",
+  "passed": true,
+  "productionFixCommit": "61071757b23c3376ea3658d2ec8d5cebe7281754",
+  "probeScript": "scripts/gpu-preview-background-acceptance.mjs",
+  "retainedInitialProbeFailure": {
+    "path": ".local/gpu-preview-background/real-6107175/report.json",
+    "sha256": "c72d85845c12c22031a6a7c86c58315a41e6b1f8cd67a90ef6ce9424c96c57c1",
+    "boundary": "CDP navigation readiness race, no case executed; preserved separately; launcher exit0"
+  },
+  "runs": [
+    {
+      "label": "background-color-line-graph",
+      "effectGraphInputSource": "BackgroundColor",
+      "passed": true,
+      "sourceCommit": "61071757b23c3376ea3658d2ec8d5cebe7281754",
+      "probeSha256": "20c37a85c2dc490b5949f81ce5505e286e721fcb6e49ce96fcdf5d796bcf80cd",
+      "startedAt": "2026-11-01T09:05:08.638Z",
+      "finishedAt": "2026-11-01T09:05:40.559Z",
+      "rawReport": {
+        "path": ".local/gpu-preview-background/real-6107175-attempt2/report.json",
+        "sha256": "69147cd43900fbfcb22fa40ba822d5f514003fc4315f636594e5c57957c2d2e2"
+      },
+      "deployment": {
+        "dist": ".local/backend-dist/20261101T045924324Z",
+        "manifestSha256": "fdaa354a0809150a57df47cc48e578b5844e909f3ba831b2804aff3524777ac2"
+      },
+      "loadedSourceHashes": {
+        "frontend/dist/index.html": "8f5c7f6ccd488aab5d69607c143b876fc3140984dc177ebc5f410d9dc37dd36e",
+        "frontend/src/editor/preview/gpu-preview-controller.ts": "ea4da2d35b95443f2e55a29e125ba954286629a29b5a48942d4922ca790237e5",
+        "desktop/main.cjs": "0686285e841c707678307401dca0863330e66719b1b1471dbac5827784e0060b",
+        "desktop/gpu-preview/preload.cjs": "89fd43fd464ea1fe613af381714e4ebb14fa08273d502d4d691a184e8c7f0e33",
+        "scripts/gpu-preview-background-acceptance.mjs": "20c37a85c2dc490b5949f81ce5505e286e721fcb6e49ce96fcdf5d796bcf80cd",
+        "frontend/dist/assets/editor-BVeTNi-B.js": "de3d441842a90d2312f463d9a0d1ef3326d51d937bdc65e65e7118aa50b836b6",
+        "frontend/dist/assets/jsx-runtime-D_n7Nqdf.js": "815fd1c01e954c0a73c493de5dd631052977c0b36ebbdcea4e252c0abcef8fae",
+        "frontend/dist/assets/editor-DSht3DXh.css": "e3f600f34ba8347dbc4251e6845a2511246eb0a4c2df3e1866543251ca7b7017"
+      },
+      "fixtureHashes": {
+        "quadrants.png": {
+          "sha256": "76555be5c8a41550fefd1e5acfaf6f501a0973f9ff3d5e3facf65f810128ff51"
+        },
+        "two-colors.mov": {
+          "sha256": "64470e8679bb5abf918af0c28beca9c3d6d738c01290b9999ba238637b0f64a9"
+        },
+        "silence.wav": {
+          "sha256": "bff9ae2d1c0defb0f2b9070f43439fcb723621dbeb1cca5e2dbadcd9bfb13c68"
+        },
+        "lyrics.lrc": {
+          "sha256": "cda7ff5e9ce8ff934b95145a5e5e1dab4f3867ae706643aa7117e8d57d2a9d05"
+        },
+        "effect.mkfx": {
+          "sha256": "89c01f19783f27953db3412665bb328f6bbfaea64217f10fb3b70494fe72ee2d"
+        },
+        "baseline.mkfx": {
+          "sha256": "f390bf8423a5ca833f69e42e9f80b9d6389cc9d3f08d9a040cb64fda476f7a5f"
+        }
+      },
+      "checks": [
+        {
+          "name": "actual-production-controller-create-opaque",
+          "requests": [
+            {
+              "alphaMode": "opaque",
+              "source": {
+                "kind": "project",
+                "sourceId": "project-ba40d3eb58b14c23a216e68229152dee",
+                "sourceRevision": "0"
+              },
+              "size": {
+                "width": 1280,
+                "height": 720
+              }
+            }
+          ]
+        },
+        {
+          "name": "real-background-settings-enabled",
+          "passed": true
+        },
+        {
+          "name": "video-exact-two-times-change",
+          "passed": true
+        },
+        {
+          "name": "background-dependency-actual-visible-contribution",
+          "diff": {
+            "mae": 1.7182942708333333,
+            "max": 207,
+            "channelsOver8": 6760,
+            "ratioChannelsOver8": 0.029340277777777778
+          },
+          "passed": true
+        }
+      ],
+      "cases": [
+        {
+          "name": "image-opaque-ui",
+          "rawGpuPath": ".local/gpu-preview-background/real-6107175-attempt2/image-opaque-ui-gpu.rgba",
+          "rawGpuSha256": "903492cf10aaaa664c6beba82d22d8bc7d4aadfd37bc28bf8dbe4896c0af4909",
+          "cpuPngPath": ".local/gpu-preview-background/real-6107175-attempt2/image-opaque-ui-cpu.png",
+          "cpuPngSha256": "77d4697711fbf9e90e4becf671679b6312f7bf8f6fd3d32608399d0caf45bc41",
+          "size": {
+            "width": 320,
+            "height": 180
+          },
+          "alphaMode": "opaque",
+          "pixelDiff": {
+            "mae": 0.0058246527777777776,
+            "max": 2,
+            "channelsOver8": 0,
+            "ratioChannelsOver8": 0
+          },
+          "gpuCorners": [
+            [
+              240,
+              30,
+              50,
+              255
+            ],
+            [
+              20,
+              210,
+              60,
+              255
+            ],
+            [
+              30,
+              60,
+              230,
+              255
+            ],
+            [
+              235,
+              190,
+              25,
+              255
+            ]
+          ],
+          "cpuCorners": [
+            [
+              240,
+              30,
+              50,
+              255
+            ],
+            [
+              20,
+              210,
+              60,
+              255
+            ],
+            [
+              30,
+              60,
+              230,
+              255
+            ],
+            [
+              235,
+              190,
+              25,
+              255
+            ]
+          ],
+          "exactNativeIdentity": {
+            "streamId": "9d4751828fec4ce1b3b6febe1441a1b1",
+            "producerEpoch": "908266124601063591",
+            "inputGeneration": "3",
+            "consumerEpoch": "1",
+            "timelineEpoch": "2",
+            "poolGeneration": "1",
+            "slotId": 1,
+            "slotEpoch": "1",
+            "frameSeq": 2,
+            "timeUs": 250000,
+            "timelineResetId": "image-check",
+            "provider": "runtime",
+            "drawn": true,
+            "completedMonotonicNs": "93927846988762"
+          },
+          "productionFrameCounters": {
+            "gpuBlits": 2,
+            "cpuPixelReadbacks": 0,
+            "queueIdleWaits": 2
+          }
+        },
+        {
+          "name": "video-red-ui",
+          "rawGpuPath": ".local/gpu-preview-background/real-6107175-attempt2/video-red-ui-gpu.rgba",
+          "rawGpuSha256": "4a1a6e4cbd42732074914a0d99d294d2bae9b64438f0b84da76b65513ea872fe",
+          "cpuPngPath": ".local/gpu-preview-background/real-6107175-attempt2/video-red-ui-cpu.png",
+          "cpuPngSha256": "4bc4d4cd66443dab7a7c97da55608f755d5f668c2e0671dd48562f87c4130717",
+          "size": {
+            "width": 320,
+            "height": 180
+          },
+          "alphaMode": "opaque",
+          "pixelDiff": {
+            "mae": 0.0026302083333333334,
+            "max": 1,
+            "channelsOver8": 0,
+            "ratioChannelsOver8": 0
+          },
+          "gpuCorners": [
+            [
+              253,
+              0,
+              0,
+              255
+            ],
+            [
+              253,
+              0,
+              0,
+              255
+            ],
+            [
+              253,
+              0,
+              0,
+              255
+            ],
+            [
+              253,
+              0,
+              0,
+              255
+            ]
+          ],
+          "cpuCorners": [
+            [
+              253,
+              0,
+              0,
+              255
+            ],
+            [
+              253,
+              0,
+              0,
+              255
+            ],
+            [
+              253,
+              0,
+              0,
+              255
+            ],
+            [
+              253,
+              0,
+              0,
+              255
+            ]
+          ],
+          "exactNativeIdentity": {
+            "streamId": "9d4751828fec4ce1b3b6febe1441a1b1",
+            "producerEpoch": "12842230902479686305",
+            "inputGeneration": "4",
+            "consumerEpoch": "1",
+            "timelineEpoch": "2",
+            "poolGeneration": "1",
+            "slotId": 1,
+            "slotEpoch": "1",
+            "frameSeq": 2,
+            "timeUs": 250000,
+            "timelineResetId": "video-250000",
+            "provider": "runtime",
+            "drawn": true,
+            "completedMonotonicNs": "93930141506946"
+          },
+          "productionFrameCounters": {
+            "gpuBlits": 2,
+            "cpuPixelReadbacks": 0,
+            "queueIdleWaits": 2
+          }
+        },
+        {
+          "name": "video-blue-ui",
+          "rawGpuPath": ".local/gpu-preview-background/real-6107175-attempt2/video-blue-ui-gpu.rgba",
+          "rawGpuSha256": "cfe17c4b620381381248a53dd9c9a85aee28b37bcfd23cfeb5733a92f941e996",
+          "cpuPngPath": ".local/gpu-preview-background/real-6107175-attempt2/video-blue-ui-cpu.png",
+          "cpuPngSha256": "fabfcc63fd665c6bf18249dd816a66a90c2b3d0d900b233835a3a5f4492463fe",
+          "size": {
+            "width": 320,
+            "height": 180
+          },
+          "alphaMode": "opaque",
+          "pixelDiff": {
+            "mae": 0.002578125,
+            "max": 1,
+            "channelsOver8": 0,
+            "ratioChannelsOver8": 0
+          },
+          "gpuCorners": [
+            [
+              0,
+              0,
+              254,
+              255
+            ],
+            [
+              0,
+              0,
+              254,
+              255
+            ],
+            [
+              0,
+              0,
+              254,
+              255
+            ],
+            [
+              0,
+              0,
+              254,
+              255
+            ]
+          ],
+          "cpuCorners": [
+            [
+              0,
+              0,
+              254,
+              255
+            ],
+            [
+              0,
+              0,
+              254,
+              255
+            ],
+            [
+              0,
+              0,
+              254,
+              255
+            ],
+            [
+              0,
+              0,
+              254,
+              255
+            ]
+          ],
+          "exactNativeIdentity": {
+            "streamId": "9d4751828fec4ce1b3b6febe1441a1b1",
+            "producerEpoch": "12842230902479686305",
+            "inputGeneration": "4",
+            "consumerEpoch": "1",
+            "timelineEpoch": "3",
+            "poolGeneration": "1",
+            "slotId": 2,
+            "slotEpoch": "1",
+            "frameSeq": 3,
+            "timeUs": 1250000,
+            "timelineResetId": "video-1250000",
+            "provider": "runtime",
+            "drawn": true,
+            "completedMonotonicNs": "93931458311520"
+          },
+          "productionFrameCounters": {
+            "gpuBlits": 3,
+            "cpuPixelReadbacks": 0,
+            "queueIdleWaits": 3
+          }
+        },
+        {
+          "name": "video-transparent-control",
+          "rawGpuPath": ".local/gpu-preview-background/real-6107175-attempt2/video-transparent-control-gpu.rgba",
+          "rawGpuSha256": "8c8b192fd1e108a635951b5030d5975ff78707d7af3df14596c0a7db0a2101f0",
+          "cpuPngPath": ".local/gpu-preview-background/real-6107175-attempt2/video-transparent-control-cpu.png",
+          "cpuPngSha256": "9a208a07f7a60201d7101fd32fcc240f2bbe831f62b1911dc0125870c4895cc6",
+          "size": {
+            "width": 320,
+            "height": 180
+          },
+          "alphaMode": "straight",
+          "pixelDiff": {
+            "mae": 0.03203125,
+            "max": 127,
+            "channelsOver8": 84,
+            "ratioChannelsOver8": 0.00036458333333333335
+          },
+          "gpuCorners": [
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          "cpuCorners": [
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          "exactNativeIdentity": {
+            "streamId": "29b1a74495054998bc749ed0d7c5f181",
+            "producerEpoch": "10114876471968758080",
+            "inputGeneration": "1",
+            "consumerEpoch": "1",
+            "timelineEpoch": "1",
+            "poolGeneration": "1",
+            "slotId": 0,
+            "slotEpoch": "1",
+            "frameSeq": 1,
+            "timeUs": 250000,
+            "timelineResetId": "video-transparent",
+            "provider": "runtime",
+            "drawn": true,
+            "completedMonotonicNs": "93934314380062"
+          },
+          "productionFrameCounters": {
+            "gpuBlits": 1,
+            "cpuPixelReadbacks": 0,
+            "queueIdleWaits": 1
+          }
+        },
+        {
+          "name": "background-effect-opaque",
+          "rawGpuPath": ".local/gpu-preview-background/real-6107175-attempt2/background-effect-opaque-gpu.rgba",
+          "rawGpuSha256": "de662a8af043438077a23ee15c0a101a76490b3c17bb3d2dc73760489e3bed25",
+          "cpuPngPath": ".local/gpu-preview-background/real-6107175-attempt2/background-effect-opaque-cpu.png",
+          "cpuPngSha256": "67007636fe0a79badee96338835621dcee453b43fcacf9ac3c4447333bcdf20e",
+          "size": {
+            "width": 320,
+            "height": 180
+          },
+          "alphaMode": "opaque",
+          "pixelDiff": {
+            "mae": 7.8125e-05,
+            "max": 1,
+            "channelsOver8": 0,
+            "ratioChannelsOver8": 0
+          },
+          "gpuCorners": [
+            [
+              45,
+              75,
+              108,
+              255
+            ],
+            [
+              24,
+              31,
+              48,
+              255
+            ],
+            [
+              45,
+              75,
+              108,
+              255
+            ],
+            [
+              24,
+              31,
+              48,
+              255
+            ]
+          ],
+          "cpuCorners": [
+            [
+              45,
+              75,
+              108,
+              255
+            ],
+            [
+              24,
+              31,
+              48,
+              255
+            ],
+            [
+              45,
+              75,
+              108,
+              255
+            ],
+            [
+              24,
+              31,
+              48,
+              255
+            ]
+          ],
+          "exactNativeIdentity": {
+            "streamId": "104c6c5f362146d797712f103346ae75",
+            "producerEpoch": "18103354421822358366",
+            "inputGeneration": "1",
+            "consumerEpoch": "1",
+            "timelineEpoch": "1",
+            "poolGeneration": "1",
+            "slotId": 0,
+            "slotEpoch": "1",
+            "frameSeq": 1,
+            "timeUs": 1000000,
+            "timelineResetId": "effect-effect-opaque",
+            "provider": "runtime",
+            "drawn": true,
+            "completedMonotonicNs": "93938231626014"
+          },
+          "productionFrameCounters": {
+            "gpuBlits": 1,
+            "cpuPixelReadbacks": 0,
+            "queueIdleWaits": 1
+          },
+          "diagnostics": {
+            "total": 0,
+            "warningCount": 0,
+            "errorCount": 0,
+            "truncated": false,
+            "items": []
+          }
+        },
+        {
+          "name": "background-effect-straight",
+          "rawGpuPath": ".local/gpu-preview-background/real-6107175-attempt2/background-effect-straight-gpu.rgba",
+          "rawGpuSha256": "66e6045a6fabe4d03297dc084f794685a555c0788df1c0cda5540e6c5dad1fb2",
+          "cpuPngPath": ".local/gpu-preview-background/real-6107175-attempt2/background-effect-straight-cpu.png",
+          "cpuPngSha256": "bec7242620276314010b188b6a7f3c36c4d72cac81139308f5572877d3271631",
+          "size": {
+            "width": 320,
+            "height": 180
+          },
+          "alphaMode": "straight",
+          "pixelDiff": {
+            "mae": 0.046649305555555555,
+            "max": 128,
+            "channelsOver8": 130,
+            "ratioChannelsOver8": 0.0005642361111111111
+          },
+          "gpuCorners": [
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          "cpuCorners": [
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          "exactNativeIdentity": {
+            "streamId": "cee6123e53da4248884f64d98f3fcb24",
+            "producerEpoch": "14239259275859965318",
+            "inputGeneration": "1",
+            "consumerEpoch": "1",
+            "timelineEpoch": "1",
+            "poolGeneration": "1",
+            "slotId": 0,
+            "slotEpoch": "1",
+            "frameSeq": 1,
+            "timeUs": 1000000,
+            "timelineResetId": "effect-effect-straight",
+            "provider": "runtime",
+            "drawn": true,
+            "completedMonotonicNs": "93943341650773"
+          },
+          "productionFrameCounters": {
+            "gpuBlits": 1,
+            "cpuPixelReadbacks": 0,
+            "queueIdleWaits": 1
+          },
+          "diagnostics": {
+            "total": 1,
+            "warningCount": 1,
+            "errorCount": 0,
+            "truncated": false,
+            "items": [
+              {
+                "severity": "Warning",
+                "code": "TransparentBackgroundDependency",
+                "message": "Image effect fallback",
+                "sourceId": "fx:e45adb77ef1447feb6db0f54d10d1bca",
+                "stage": "image"
+              }
+            ]
+          }
+        },
+        {
+          "name": "background-baseline-opaque",
+          "rawGpuPath": ".local/gpu-preview-background/real-6107175-attempt2/background-baseline-opaque-gpu.rgba",
+          "rawGpuSha256": "da0292d3278972437439db50370cd33b2f9ebb0686241eee5a51d87a922413aa",
+          "cpuPngPath": ".local/gpu-preview-background/real-6107175-attempt2/background-baseline-opaque-cpu.png",
+          "cpuPngSha256": "f260939d0a7d0e3ed5c9786ce71990ed1e9074ba85715807910235ce3f155c87",
+          "size": {
+            "width": 320,
+            "height": 180
+          },
+          "alphaMode": "opaque",
+          "pixelDiff": {
+            "mae": 0.01197048611111111,
+            "max": 2,
+            "channelsOver8": 0,
+            "ratioChannelsOver8": 0
+          },
+          "gpuCorners": [
+            [
+              45,
+              75,
+              108,
+              255
+            ],
+            [
+              24,
+              31,
+              48,
+              255
+            ],
+            [
+              45,
+              75,
+              108,
+              255
+            ],
+            [
+              24,
+              31,
+              48,
+              255
+            ]
+          ],
+          "cpuCorners": [
+            [
+              45,
+              75,
+              108,
+              255
+            ],
+            [
+              24,
+              31,
+              48,
+              255
+            ],
+            [
+              45,
+              75,
+              108,
+              255
+            ],
+            [
+              24,
+              31,
+              48,
+              255
+            ]
+          ],
+          "exactNativeIdentity": {
+            "streamId": "b96e90244b364d46929b9474c3aeed0c",
+            "producerEpoch": "3085741036602236130",
+            "inputGeneration": "1",
+            "consumerEpoch": "1",
+            "timelineEpoch": "1",
+            "poolGeneration": "1",
+            "slotId": 0,
+            "slotEpoch": "1",
+            "frameSeq": 1,
+            "timeUs": 1000000,
+            "timelineResetId": "effect-baseline-opaque",
+            "provider": "runtime",
+            "drawn": true,
+            "completedMonotonicNs": "93948645305840"
+          },
+          "productionFrameCounters": {
+            "gpuBlits": 1,
+            "cpuPixelReadbacks": 0,
+            "queueIdleWaits": 1
+          },
+          "diagnostics": {
+            "total": 0,
+            "warningCount": 0,
+            "errorCount": 0,
+            "truncated": false,
+            "items": []
+          }
+        }
+      ],
+      "independentPixelCounterfactuals": {
+        "video250msVs1250ms": {
+          "mae": 125.95314670138889,
+          "max": 254,
+          "channelsOver8": 115186
+        },
+        "sameProjectVideoOpaqueVsStraight250ms": {
+          "mae": 126.38453559027778,
+          "max": 255,
+          "channelsOver8": 116664
+        },
+        "backgroundDependentLineGraphVsSameWorkshopNoBinding": {
+          "mae": 1.7182942708333333,
+          "max": 207,
+          "channelsOver8": 6760
+        }
+      },
+      "ownedProcessCleanup": {
+        "observedIdentities": [
+          {
+            "pid": 676649,
+            "startTicks": "9391963",
+            "sameIdentityStillPresent": false
+          },
+          {
+            "pid": 676810,
+            "startTicks": "9392042",
+            "sameIdentityStillPresent": false
+          },
+          {
+            "pid": 676692,
+            "startTicks": "9392004",
+            "sameIdentityStillPresent": false
+          },
+          {
+            "pid": 677076,
+            "startTicks": "9392299",
+            "sameIdentityStillPresent": false
+          },
+          {
+            "pid": 677465,
+            "startTicks": "9392716",
+            "sameIdentityStillPresent": false
+          },
+          {
+            "pid": 676760,
+            "startTicks": "9392021",
+            "sameIdentityStillPresent": false
+          },
+          {
+            "pid": 677600,
+            "startTicks": "9392944",
+            "sameIdentityStillPresent": false
+          },
+          {
+            "pid": 678116,
+            "startTicks": "9393367",
+            "sameIdentityStillPresent": false
+          },
+          {
+            "pid": 678258,
+            "startTicks": "9393627",
+            "sameIdentityStillPresent": false
+          },
+          {
+            "pid": 678451,
+            "startTicks": "9394114",
+            "sameIdentityStillPresent": false
+          },
+          {
+            "pid": 678649,
+            "startTicks": "9394671",
+            "sameIdentityStillPresent": false
+          }
+        ],
+        "launcherExit": {
+          "code": 0,
+          "signal": null
+        },
+        "observedIdentityCount": 11,
+        "allObservedOwnedIdentitiesGone": true,
+        "scope": "Named profile and exact owned launcher plus sampled Server/main/renderer/GPU/Worker identities; no claim of complete arbitrary child-tree inventory"
+      },
+      "sensitiveFieldScan": {
+        "files": [
+          "report.json",
+          "fixture-manifest.json",
+          "owned-launcher.log"
+        ],
+        "sensitiveKeyHits": 0,
+        "bearerValueHits": 0
+      }
+    },
+    {
+      "label": "background-media-line-graph",
+      "effectGraphInputSource": "BackgroundMedia",
+      "passed": true,
+      "sourceCommit": "61071757b23c3376ea3658d2ec8d5cebe7281754",
+      "probeSha256": "7d4c5c65c8bc75edca2e541ee4e44b1e92a7c393e04fb193733deccb6157b0fe",
+      "startedAt": "2026-11-01T09:09:12.692Z",
+      "finishedAt": "2026-11-01T09:09:41.434Z",
+      "rawReport": {
+        "path": ".local/gpu-preview-background/real-6107175-media/report.json",
+        "sha256": "43e407473e9a9a0a31ef91e7ec95aac92be7788c80afbadfe1957272d2e42b24"
+      },
+      "deployment": {
+        "dist": ".local/backend-dist/20261101T045924324Z",
+        "manifestSha256": "fdaa354a0809150a57df47cc48e578b5844e909f3ba831b2804aff3524777ac2"
+      },
+      "loadedSourceHashes": {
+        "frontend/dist/index.html": "8f5c7f6ccd488aab5d69607c143b876fc3140984dc177ebc5f410d9dc37dd36e",
+        "frontend/src/editor/preview/gpu-preview-controller.ts": "ea4da2d35b95443f2e55a29e125ba954286629a29b5a48942d4922ca790237e5",
+        "desktop/main.cjs": "0686285e841c707678307401dca0863330e66719b1b1471dbac5827784e0060b",
+        "desktop/gpu-preview/preload.cjs": "89fd43fd464ea1fe613af381714e4ebb14fa08273d502d4d691a184e8c7f0e33",
+        "scripts/gpu-preview-background-acceptance.mjs": "7d4c5c65c8bc75edca2e541ee4e44b1e92a7c393e04fb193733deccb6157b0fe",
+        "frontend/dist/assets/editor-BVeTNi-B.js": "de3d441842a90d2312f463d9a0d1ef3326d51d937bdc65e65e7118aa50b836b6",
+        "frontend/dist/assets/jsx-runtime-D_n7Nqdf.js": "815fd1c01e954c0a73c493de5dd631052977c0b36ebbdcea4e252c0abcef8fae",
+        "frontend/dist/assets/editor-DSht3DXh.css": "e3f600f34ba8347dbc4251e6845a2511246eb0a4c2df3e1866543251ca7b7017"
+      },
+      "fixtureHashes": {
+        "quadrants.png": {
+          "sha256": "76555be5c8a41550fefd1e5acfaf6f501a0973f9ff3d5e3facf65f810128ff51"
+        },
+        "two-colors.mov": {
+          "sha256": "64470e8679bb5abf918af0c28beca9c3d6d738c01290b9999ba238637b0f64a9"
+        },
+        "silence.wav": {
+          "sha256": "bff9ae2d1c0defb0f2b9070f43439fcb723621dbeb1cca5e2dbadcd9bfb13c68"
+        },
+        "lyrics.lrc": {
+          "sha256": "cda7ff5e9ce8ff934b95145a5e5e1dab4f3867ae706643aa7117e8d57d2a9d05"
+        },
+        "effect.mkfx": {
+          "sha256": "316da05d93f1d14149fb173dbd4c7592b7af0a19ba5d1e3a57517dd557ca7808"
+        },
+        "baseline.mkfx": {
+          "sha256": "58df75ac42942c76183350767a82931846f739af33ea8caf86bca2c329c5e6d5"
+        }
+      },
+      "checks": [
+        {
+          "name": "actual-production-controller-create-opaque",
+          "requests": [
+            {
+              "alphaMode": "opaque",
+              "source": {
+                "kind": "project",
+                "sourceId": "project-a0410aafeb7449f6b90353ee3a887c5f",
+                "sourceRevision": "0"
+              },
+              "size": {
+                "width": 1280,
+                "height": 720
+              }
+            }
+          ]
+        },
+        {
+          "name": "real-background-settings-enabled",
+          "passed": true
+        },
+        {
+          "name": "video-exact-two-times-change",
+          "passed": true
+        },
+        {
+          "name": "background-dependency-actual-visible-contribution",
+          "diff": {
+            "mae": 1.2805295138888888,
+            "max": 207,
+            "channelsOver8": 5989,
+            "ratioChannelsOver8": 0.025993923611111112
+          },
+          "passed": true
+        }
+      ],
+      "cases": [
+        {
+          "name": "image-opaque-ui",
+          "rawGpuPath": ".local/gpu-preview-background/real-6107175-media/image-opaque-ui-gpu.rgba",
+          "rawGpuSha256": "903492cf10aaaa664c6beba82d22d8bc7d4aadfd37bc28bf8dbe4896c0af4909",
+          "cpuPngPath": ".local/gpu-preview-background/real-6107175-media/image-opaque-ui-cpu.png",
+          "cpuPngSha256": "77d4697711fbf9e90e4becf671679b6312f7bf8f6fd3d32608399d0caf45bc41",
+          "size": {
+            "width": 320,
+            "height": 180
+          },
+          "alphaMode": "opaque",
+          "pixelDiff": {
+            "mae": 0.0058246527777777776,
+            "max": 2,
+            "channelsOver8": 0,
+            "ratioChannelsOver8": 0
+          },
+          "gpuCorners": [
+            [
+              240,
+              30,
+              50,
+              255
+            ],
+            [
+              20,
+              210,
+              60,
+              255
+            ],
+            [
+              30,
+              60,
+              230,
+              255
+            ],
+            [
+              235,
+              190,
+              25,
+              255
+            ]
+          ],
+          "cpuCorners": [
+            [
+              240,
+              30,
+              50,
+              255
+            ],
+            [
+              20,
+              210,
+              60,
+              255
+            ],
+            [
+              30,
+              60,
+              230,
+              255
+            ],
+            [
+              235,
+              190,
+              25,
+              255
+            ]
+          ],
+          "exactNativeIdentity": {
+            "streamId": "64504e58376245c8aed2a4648298f8f0",
+            "producerEpoch": "11974981157172312663",
+            "inputGeneration": "3",
+            "consumerEpoch": "1",
+            "timelineEpoch": "2",
+            "poolGeneration": "1",
+            "slotId": 1,
+            "slotEpoch": "1",
+            "frameSeq": 2,
+            "timeUs": 250000,
+            "timelineResetId": "image-check",
+            "provider": "runtime",
+            "drawn": true,
+            "completedMonotonicNs": "94171685759347"
+          },
+          "productionFrameCounters": {
+            "gpuBlits": 2,
+            "cpuPixelReadbacks": 0,
+            "queueIdleWaits": 2
+          }
+        },
+        {
+          "name": "video-red-ui",
+          "rawGpuPath": ".local/gpu-preview-background/real-6107175-media/video-red-ui-gpu.rgba",
+          "rawGpuSha256": "4a1a6e4cbd42732074914a0d99d294d2bae9b64438f0b84da76b65513ea872fe",
+          "cpuPngPath": ".local/gpu-preview-background/real-6107175-media/video-red-ui-cpu.png",
+          "cpuPngSha256": "4bc4d4cd66443dab7a7c97da55608f755d5f668c2e0671dd48562f87c4130717",
+          "size": {
+            "width": 320,
+            "height": 180
+          },
+          "alphaMode": "opaque",
+          "pixelDiff": {
+            "mae": 0.0026302083333333334,
+            "max": 1,
+            "channelsOver8": 0,
+            "ratioChannelsOver8": 0
+          },
+          "gpuCorners": [
+            [
+              253,
+              0,
+              0,
+              255
+            ],
+            [
+              253,
+              0,
+              0,
+              255
+            ],
+            [
+              253,
+              0,
+              0,
+              255
+            ],
+            [
+              253,
+              0,
+              0,
+              255
+            ]
+          ],
+          "cpuCorners": [
+            [
+              253,
+              0,
+              0,
+              255
+            ],
+            [
+              253,
+              0,
+              0,
+              255
+            ],
+            [
+              253,
+              0,
+              0,
+              255
+            ],
+            [
+              253,
+              0,
+              0,
+              255
+            ]
+          ],
+          "exactNativeIdentity": {
+            "streamId": "64504e58376245c8aed2a4648298f8f0",
+            "producerEpoch": "15102623077125496852",
+            "inputGeneration": "4",
+            "consumerEpoch": "1",
+            "timelineEpoch": "2",
+            "poolGeneration": "1",
+            "slotId": 1,
+            "slotEpoch": "1",
+            "frameSeq": 2,
+            "timeUs": 250000,
+            "timelineResetId": "video-250000",
+            "provider": "runtime",
+            "drawn": true,
+            "completedMonotonicNs": "94173946684848"
+          },
+          "productionFrameCounters": {
+            "gpuBlits": 2,
+            "cpuPixelReadbacks": 0,
+            "queueIdleWaits": 2
+          }
+        },
+        {
+          "name": "video-blue-ui",
+          "rawGpuPath": ".local/gpu-preview-background/real-6107175-media/video-blue-ui-gpu.rgba",
+          "rawGpuSha256": "cfe17c4b620381381248a53dd9c9a85aee28b37bcfd23cfeb5733a92f941e996",
+          "cpuPngPath": ".local/gpu-preview-background/real-6107175-media/video-blue-ui-cpu.png",
+          "cpuPngSha256": "fabfcc63fd665c6bf18249dd816a66a90c2b3d0d900b233835a3a5f4492463fe",
+          "size": {
+            "width": 320,
+            "height": 180
+          },
+          "alphaMode": "opaque",
+          "pixelDiff": {
+            "mae": 0.002578125,
+            "max": 1,
+            "channelsOver8": 0,
+            "ratioChannelsOver8": 0
+          },
+          "gpuCorners": [
+            [
+              0,
+              0,
+              254,
+              255
+            ],
+            [
+              0,
+              0,
+              254,
+              255
+            ],
+            [
+              0,
+              0,
+              254,
+              255
+            ],
+            [
+              0,
+              0,
+              254,
+              255
+            ]
+          ],
+          "cpuCorners": [
+            [
+              0,
+              0,
+              254,
+              255
+            ],
+            [
+              0,
+              0,
+              254,
+              255
+            ],
+            [
+              0,
+              0,
+              254,
+              255
+            ],
+            [
+              0,
+              0,
+              254,
+              255
+            ]
+          ],
+          "exactNativeIdentity": {
+            "streamId": "64504e58376245c8aed2a4648298f8f0",
+            "producerEpoch": "15102623077125496852",
+            "inputGeneration": "4",
+            "consumerEpoch": "1",
+            "timelineEpoch": "3",
+            "poolGeneration": "1",
+            "slotId": 2,
+            "slotEpoch": "1",
+            "frameSeq": 3,
+            "timeUs": 1250000,
+            "timelineResetId": "video-1250000",
+            "provider": "runtime",
+            "drawn": true,
+            "completedMonotonicNs": "94175218159122"
+          },
+          "productionFrameCounters": {
+            "gpuBlits": 3,
+            "cpuPixelReadbacks": 0,
+            "queueIdleWaits": 3
+          }
+        },
+        {
+          "name": "video-transparent-control",
+          "rawGpuPath": ".local/gpu-preview-background/real-6107175-media/video-transparent-control-gpu.rgba",
+          "rawGpuSha256": "8c8b192fd1e108a635951b5030d5975ff78707d7af3df14596c0a7db0a2101f0",
+          "cpuPngPath": ".local/gpu-preview-background/real-6107175-media/video-transparent-control-cpu.png",
+          "cpuPngSha256": "9a208a07f7a60201d7101fd32fcc240f2bbe831f62b1911dc0125870c4895cc6",
+          "size": {
+            "width": 320,
+            "height": 180
+          },
+          "alphaMode": "straight",
+          "pixelDiff": {
+            "mae": 0.03203125,
+            "max": 127,
+            "channelsOver8": 84,
+            "ratioChannelsOver8": 0.00036458333333333335
+          },
+          "gpuCorners": [
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          "cpuCorners": [
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          "exactNativeIdentity": {
+            "streamId": "bef38053642641559f283f08beb75bce",
+            "producerEpoch": "13091612179251603428",
+            "inputGeneration": "1",
+            "consumerEpoch": "1",
+            "timelineEpoch": "1",
+            "poolGeneration": "1",
+            "slotId": 0,
+            "slotEpoch": "1",
+            "frameSeq": 1,
+            "timeUs": 250000,
+            "timelineResetId": "video-transparent",
+            "provider": "runtime",
+            "drawn": true,
+            "completedMonotonicNs": "94177812556883"
+          },
+          "productionFrameCounters": {
+            "gpuBlits": 1,
+            "cpuPixelReadbacks": 0,
+            "queueIdleWaits": 1
+          }
+        },
+        {
+          "name": "background-effect-opaque",
+          "rawGpuPath": ".local/gpu-preview-background/real-6107175-media/background-effect-opaque-gpu.rgba",
+          "rawGpuSha256": "d375ebb62ef3c6b2e5eb8d30d26e8ea97be7e11ae39526fd7e61a75c1da6e9c0",
+          "cpuPngPath": ".local/gpu-preview-background/real-6107175-media/background-effect-opaque-cpu.png",
+          "cpuPngSha256": "81aa39b7f3d9c7b45873118ac91ed7d01e23f8ddfa9e8c5db1df690232f21c52",
+          "size": {
+            "width": 320,
+            "height": 180
+          },
+          "alphaMode": "opaque",
+          "pixelDiff": {
+            "mae": 0.00018229166666666667,
+            "max": 1,
+            "channelsOver8": 0,
+            "ratioChannelsOver8": 0
+          },
+          "gpuCorners": [
+            [
+              45,
+              75,
+              108,
+              255
+            ],
+            [
+              24,
+              31,
+              48,
+              255
+            ],
+            [
+              45,
+              75,
+              108,
+              255
+            ],
+            [
+              24,
+              31,
+              48,
+              255
+            ]
+          ],
+          "cpuCorners": [
+            [
+              45,
+              75,
+              108,
+              255
+            ],
+            [
+              24,
+              31,
+              48,
+              255
+            ],
+            [
+              45,
+              75,
+              108,
+              255
+            ],
+            [
+              24,
+              31,
+              48,
+              255
+            ]
+          ],
+          "exactNativeIdentity": {
+            "streamId": "ac7d2236a57c4ba8a1fc4428bb897662",
+            "producerEpoch": "136393281823430905",
+            "inputGeneration": "1",
+            "consumerEpoch": "1",
+            "timelineEpoch": "1",
+            "poolGeneration": "1",
+            "slotId": 0,
+            "slotEpoch": "1",
+            "frameSeq": 1,
+            "timeUs": 1000000,
+            "timelineResetId": "effect-effect-opaque",
+            "provider": "runtime",
+            "drawn": true,
+            "completedMonotonicNs": "94181050478239"
+          },
+          "productionFrameCounters": {
+            "gpuBlits": 1,
+            "cpuPixelReadbacks": 0,
+            "queueIdleWaits": 1
+          },
+          "diagnostics": {
+            "total": 0,
+            "warningCount": 0,
+            "errorCount": 0,
+            "truncated": false,
+            "items": []
+          }
+        },
+        {
+          "name": "background-effect-straight",
+          "rawGpuPath": ".local/gpu-preview-background/real-6107175-media/background-effect-straight-gpu.rgba",
+          "rawGpuSha256": "66e6045a6fabe4d03297dc084f794685a555c0788df1c0cda5540e6c5dad1fb2",
+          "cpuPngPath": ".local/gpu-preview-background/real-6107175-media/background-effect-straight-cpu.png",
+          "cpuPngSha256": "bec7242620276314010b188b6a7f3c36c4d72cac81139308f5572877d3271631",
+          "size": {
+            "width": 320,
+            "height": 180
+          },
+          "alphaMode": "straight",
+          "pixelDiff": {
+            "mae": 0.046649305555555555,
+            "max": 128,
+            "channelsOver8": 130,
+            "ratioChannelsOver8": 0.0005642361111111111
+          },
+          "gpuCorners": [
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          "cpuCorners": [
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          "exactNativeIdentity": {
+            "streamId": "78d48db9276d44499cf68ef42ee7620a",
+            "producerEpoch": "8505061222617564933",
+            "inputGeneration": "1",
+            "consumerEpoch": "1",
+            "timelineEpoch": "1",
+            "poolGeneration": "1",
+            "slotId": 0,
+            "slotEpoch": "1",
+            "frameSeq": 1,
+            "timeUs": 1000000,
+            "timelineResetId": "effect-effect-straight",
+            "provider": "runtime",
+            "drawn": true,
+            "completedMonotonicNs": "94186292361707"
+          },
+          "productionFrameCounters": {
+            "gpuBlits": 1,
+            "cpuPixelReadbacks": 0,
+            "queueIdleWaits": 1
+          },
+          "diagnostics": {
+            "total": 1,
+            "warningCount": 1,
+            "errorCount": 0,
+            "truncated": false,
+            "items": [
+              {
+                "severity": "Warning",
+                "code": "TransparentBackgroundDependency",
+                "message": "Image effect fallback",
+                "sourceId": "fx:38a1dae36e3b4a8aad77f8da1cbdc171",
+                "stage": "image"
+              }
+            ]
+          }
+        },
+        {
+          "name": "background-baseline-opaque",
+          "rawGpuPath": ".local/gpu-preview-background/real-6107175-media/background-baseline-opaque-gpu.rgba",
+          "rawGpuSha256": "da0292d3278972437439db50370cd33b2f9ebb0686241eee5a51d87a922413aa",
+          "cpuPngPath": ".local/gpu-preview-background/real-6107175-media/background-baseline-opaque-cpu.png",
+          "cpuPngSha256": "f260939d0a7d0e3ed5c9786ce71990ed1e9074ba85715807910235ce3f155c87",
+          "size": {
+            "width": 320,
+            "height": 180
+          },
+          "alphaMode": "opaque",
+          "pixelDiff": {
+            "mae": 0.01197048611111111,
+            "max": 2,
+            "channelsOver8": 0,
+            "ratioChannelsOver8": 0
+          },
+          "gpuCorners": [
+            [
+              45,
+              75,
+              108,
+              255
+            ],
+            [
+              24,
+              31,
+              48,
+              255
+            ],
+            [
+              45,
+              75,
+              108,
+              255
+            ],
+            [
+              24,
+              31,
+              48,
+              255
+            ]
+          ],
+          "cpuCorners": [
+            [
+              45,
+              75,
+              108,
+              255
+            ],
+            [
+              24,
+              31,
+              48,
+              255
+            ],
+            [
+              45,
+              75,
+              108,
+              255
+            ],
+            [
+              24,
+              31,
+              48,
+              255
+            ]
+          ],
+          "exactNativeIdentity": {
+            "streamId": "0f18fda104a14ab88f662b483699f451",
+            "producerEpoch": "2401273745350882159",
+            "inputGeneration": "1",
+            "consumerEpoch": "1",
+            "timelineEpoch": "1",
+            "poolGeneration": "1",
+            "slotId": 0,
+            "slotEpoch": "1",
+            "frameSeq": 1,
+            "timeUs": 1000000,
+            "timelineResetId": "effect-baseline-opaque",
+            "provider": "runtime",
+            "drawn": true,
+            "completedMonotonicNs": "94190149851073"
+          },
+          "productionFrameCounters": {
+            "gpuBlits": 1,
+            "cpuPixelReadbacks": 0,
+            "queueIdleWaits": 1
+          },
+          "diagnostics": {
+            "total": 0,
+            "warningCount": 0,
+            "errorCount": 0,
+            "truncated": false,
+            "items": []
+          }
+        }
+      ],
+      "independentPixelCounterfactuals": {
+        "video250msVs1250ms": {
+          "mae": 125.95314670138889,
+          "max": 254,
+          "channelsOver8": 115186
+        },
+        "sameProjectVideoOpaqueVsStraight250ms": {
+          "mae": 126.38453559027778,
+          "max": 255,
+          "channelsOver8": 116664
+        },
+        "backgroundDependentLineGraphVsSameWorkshopNoBinding": {
+          "mae": 1.2805295138888888,
+          "max": 207,
+          "channelsOver8": 5989
+        }
+      },
+      "ownedProcessCleanup": {
+        "observedIdentities": [
+          {
+            "pid": 681517,
+            "startTicks": "9416369",
+            "sameIdentityStillPresent": false
+          },
+          {
+            "pid": 681668,
+            "startTicks": "9416448",
+            "sameIdentityStillPresent": false
+          },
+          {
+            "pid": 681553,
+            "startTicks": "9416411",
+            "sameIdentityStillPresent": false
+          },
+          {
+            "pid": 681922,
+            "startTicks": "9416683",
+            "sameIdentityStillPresent": false
+          },
+          {
+            "pid": 682294,
+            "startTicks": "9417101",
+            "sameIdentityStillPresent": false
+          },
+          {
+            "pid": 681611,
+            "startTicks": "9416429",
+            "sameIdentityStillPresent": false
+          },
+          {
+            "pid": 682426,
+            "startTicks": "9417319",
+            "sameIdentityStillPresent": false
+          },
+          {
+            "pid": 682942,
+            "startTicks": "9417731",
+            "sameIdentityStillPresent": false
+          },
+          {
+            "pid": 683083,
+            "startTicks": "9417953",
+            "sameIdentityStillPresent": false
+          },
+          {
+            "pid": 683267,
+            "startTicks": "9418436",
+            "sameIdentityStillPresent": false
+          },
+          {
+            "pid": 683473,
+            "startTicks": "9418887",
+            "sameIdentityStillPresent": false
+          }
+        ],
+        "launcherExit": {
+          "code": 0,
+          "signal": null
+        },
+        "observedIdentityCount": 11,
+        "allObservedOwnedIdentitiesGone": true,
+        "scope": "Named profile and exact owned launcher plus sampled Server/main/renderer/GPU/Worker identities; no claim of complete arbitrary child-tree inventory"
+      },
+      "sensitiveFieldScan": {
+        "files": [
+          "report.json",
+          "fixture-manifest.json",
+          "owned-launcher.log"
+        ],
+        "sensitiveKeyHits": 0,
+        "bearerValueHits": 0
+      }
+    }
+  ],
+  "boundaries": [
+    "Two finite correctness runs, 7 cases each; BackgroundColor and BackgroundMedia graph inputs are reported separately",
+    "Validation-only CPU PNG decode and GPU canvas getImageData pixel reads are intentional; no throughput, zero-total-readback or performance acceptance claim",
+    "Normal UI project creation and image/video file-input upload exercised production controller; create request and resulting stream alphaMode were opaque",
+    "OS native file-picker interaction was not manually exercised; enabled control and real file-input/upload/command route were exercised",
+    "CPU preview used same fixed source, size and exact timeUs with renderBackend=cpu; real GPU canvas followed matching runtime identity and native allReferencesReleased completion",
+    "Both graph cases use an owned authorDraft workshop and a line image graph shader with actual background rgb contribution plus same-scene no-binding counterfactual; this is not arbitrary effects/materials coverage",
+    "BackgroundMedia graph samples the fixed workshop PNG image; video-driven effects and arbitrary materials were not measured, while standalone video background playback is covered at two exact times",
+    "Explicit straight video omits media; explicit straight background-dependent graphs report TransparentBackgroundDependency and bypass; opaque is background inclusion, not a guarantee every arbitrary project pixel alpha is255",
+    "Full-image comparison is tolerance-based; transparent text antialias/unpremultiplication produces rare maximum channel differences127/128, not byteexact equivalence",
+    "P3 prior sliding-window failures, unmeasured1440p/600s, arbitrary content and cross-platform limits are unchanged",
+    "Existing user profiles/projects/processes were not opened, edited, paused or terminated"
+  ],
+  "sourceHashBoundary": "Run hashes distinguish App disk source/main/preload, actual frontend index and its directly referenced entry JS/CSS, and published managed/native deployment; no claim of every lazy asset being loaded",
+  "independentOfflineReview": {
+    "caseArtifactHashAndLengthChecked": 14,
+    "effectArchiveInputsChecked": [
+      "BackgroundColor",
+      "BackgroundMedia"
+    ],
+    "counterfactualsRecomputed": true,
+    "freshTransparentDiagnosticChecked": true,
+    "gpuRerunForReview": false
+  },
+  "currentCommittedProbeSha256": "23dc7d7fbce99a7b7b36d895ba36ddabe6080373a9a540a3244f0ebe1ec332df",
+  "currentCommittedProbeProvenance": "After the two recorded runs, removed trailing whitespace from one blank script line only. Historical per-run probeSha256 values remain the exact executed script hashes; no GPU run was repeated."
+}

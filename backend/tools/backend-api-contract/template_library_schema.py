@@ -6,7 +6,8 @@ from static_style_schema import audit, obj, ref
 PROPERTIES = ('fontFamilyName', 'fallbackFamilyNames', 'fontSizePx', 'fontWeight', 'isBold', 'isItalic',
               'letterSpacingPx', 'verticalCenterRatio', 'horizontalAlignment', 'unsungColor', 'sungColor',
               'unsungGradientSpec', 'sungGradientSpec', 'strokeColor', 'strokeWidthPx', 'strokeSpec',
-              'shadowColor', 'shadowBlurPx', 'shadowSpec', 'opacity', 'scale')
+              'shadowColor', 'shadowBlurPx', 'shadowSpec', 'opacity', 'scale',
+              'glowSpec', 'glowColor', 'glowOpacity', 'glowBlurRadiusPx', 'glowSpreadPx')
 TOKEN_PROPERTIES = tuple(p for p in PROPERTIES if p not in (
     'fontFamilyName', 'fallbackFamilyNames', 'fontSizePx', 'fontWeight', 'isBold', 'isItalic',
     'letterSpacingPx', 'verticalCenterRatio', 'horizontalAlignment', 'scale'))
@@ -61,6 +62,7 @@ def add_canonical_style(schemas):
             source['properties'][field] = ref('TemplateLibraryFill' + suffix)
         source['properties']['stroke'] = {'anyOf': [ref('TemplateLibraryStroke' + suffix), {'type': 'null'}]}
         source['properties']['shadow'] = {'anyOf': [ref('StyleShadowDto' + suffix), {'type': 'null'}]}
+        source['properties']['glow'] = {'anyOf': [ref('StyleGlowDto' + suffix), {'type': 'null'}]}
         source['description'] = '完整静态canonical style，所有字段必填；字体/描边/阴影允许显式null；不携带包身份的残缺高级定义。'
         schemas['TemplateLibraryStyle' + suffix] = source
     assert all(schemas[name] == value for name, value in before.items()), 'Template extension changed an older schema'
@@ -96,7 +98,7 @@ def extend_template_library_schemas(schemas, metadata, schema_for):
     discovery = typed('TemplateLibrariesResponse', {'libraries': 'TemplateLibraryDescriptorDto[]', 'protocolVersion': 'String'}, optional=('protocolVersion',))
     discovery['properties']['libraries'].update(minItems=2, maxItems=2)
     discovery['properties']['protocolVersion']['const'] = '1'
-    properties = {'type': 'array', 'maxItems': 21, 'uniqueItems': True, 'items': ref('TemplateProperty')}
+    properties = {'type': 'array', 'maxItems': 26, 'uniqueItems': True, 'items': ref('TemplateProperty')}
     summary = typed('TemplateSummaryDto', {'templateId': 'String', 'name': 'String', 'kind': 'TemplateKind', 'templateRevision': 'String',
         'properties': 'TemplateProperty[]', 'hasEffectRecipes': 'Boolean', 'hasPackageMaterials': 'Boolean', 'hasPackages': 'Boolean'})
     summary['properties']['templateId'] = copy.deepcopy(IDENTIFIER)

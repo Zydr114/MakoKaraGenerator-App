@@ -21,7 +21,7 @@
 
 ## 继承与编辑
 
-工程、分支、行和 token 均支持；注音跟随基础 token 的有效外观；倒计时组和文字标记也保留辉光。
+工程、分支、行和 token 均支持；注音跟随基础 token 的有效外观；倒计时组和文字标记也保留辉光。多个 token 若共享一个不可独立拆分的整形字簇，改变其中一个的辉光或辉光透明度会明确报告 `UnsupportedGlyphPartition`；不会复制相邻字形来伪造独立辉光。
 
 - 未指定 `glow`：继承。
 - 显式 `glow: null`：关闭继承的辉光。
@@ -30,6 +30,24 @@
 - restore 整体移除整个局部辉光覆盖；restore 叶字段只移除该叶，不撤销显式整体 null。
 
 HTTP 在 `styles.patch` / `styles.restore` 上新增 `glow`、`glow.color`、`glow.opacity`、`glow.blurRadiusPx`、`glow.spreadPx`；同批整体与叶冲突拒绝。完整对象和每个叶值必须遵守当前 [OpenAPI](../../web/openapi.json) 的严格字段、颜色编码和空值规则。
+
+例如，`commands` 请求中的 `command` 可以写为（外层仍使用当前修订和回执 metadata）：
+
+```json
+{
+  "type": "styles.patch",
+  "targets": [{ "kind": "project" }],
+  "changes": [{
+    "property": "glow",
+    "value": {
+      "color": { "red": 80, "green": 180, "blue": 255, "alpha": 255 },
+      "opacity": 0.8,
+      "blurRadiusPx": 8,
+      "spreadPx": 2
+    }
+  }]
+}
+```
 
 Core 来源追踪新增 `GlowSpec`、`GlowColor`、`GlowOpacity`、`GlowBlurRadiusPx`、`GlowSpreadPx` 五项，属性总数为 26；HTTP 编辑成员总数为 29。模板按整体或叶选择，保留原有应用层次与 no-op/历史语义。
 
@@ -43,6 +61,10 @@ Core 来源追踪新增 `GlowSpec`、`GlowColor`、`GlowOpacity`、`GlowBlurRadi
 
 工程 schema `29`、歌词 schema `18`、模板 schema `7` / `templates-v7`。新格式贯通普通持久化、固定模板与 Worker 源快照；不新增旧项目自动迁移。程序版本用于现有 Server/Worker 引擎身份核验，必须成对更新。HTTP 协议仍为 1，包声明 `sdkVersion: "1.0.0"` 保持；该声明不是程序集的二进制版本。
 
+## 实现依据
+
+本仓库固定 SkiaSharp `3.119.4`；其安装包 `SkiaSharp.xml` 将 `SKImageFilter.CreateBlur(float sigmaX, float sigmaY)` 的两个参数定义为高斯标准差。实现复用现有整行 HarfBuzz/Skia 字形绘制，用 `SKPaintStyle.StrokeAndFill` 的 round join 生成外扩遮罩，SaveLayer 聚合后统一模糊和着色，最后 `DstOut` 去除内部；没有引入新依赖或字形重新排版。入口见 [Glow 绘制](../../src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.Glow.cs)、[Core 值对象](../../src/MakoKaraGenerator.Core/Projects/GlowSpec.cs)、[HTTP DTO](../../src/MakoKaraGenerator.Backend.Contracts/BackendStyleContracts.cs)。
+
 ## 实施与验收
 
-设计已冻结，实现和当前版本验收进行中。完成后在此记录定向回归、合同校验、匹配发布与真实 HTTP/PNG 证据；它们不代表浏览器、所有字体、所有平台或性能验收。
+实现与当前版本证据记录在[辉光验收记录](glow-acceptance.md)。定向回归、合同校验、匹配发布与真实HTTP/PNG分别登记，不代表浏览器、所有字体、所有平台或性能验收。

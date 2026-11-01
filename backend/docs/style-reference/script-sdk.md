@@ -1,6 +1,6 @@
 # 作者脚本 SDK 参考
 
-本文按 **2026-11-01、App 提交 `f3fdfdf210c69dcf1af15537e855d5559ec9ce09`、后端 `0.109.0`** 的源码整理。命名空间是 `MakoKaraGenerator.Scripting`，作者引用程序集是 `MakoKaraGenerator.Scripting.Abstractions`；程序集名与命名空间不同。本文覆盖作者可读服务和全部 27 个写入方法重载；字段、构造器、枚举和按文件索引见 [SDK 类型与成员索引](script-sdk-types.md)。这是源码调查，不代表本次执行过编译、渲染或 HTTP 验收。
+本文原按 **2026-11-01、App 提交 `f3fdfdf210c69dcf1af15537e855d5559ec9ce09`、后端 `0.109.0`** 的源码整理；辉光按后续 `0.110.0` 工作树补充。命名空间是 `MakoKaraGenerator.Scripting`，作者引用程序集是 `MakoKaraGenerator.Scripting.Abstractions`；程序集名与命名空间不同。本文覆盖作者可读服务和全部 27 个写入方法重载；字段、构造器、枚举和按文件索引见 [SDK 类型与成员索引](script-sdk-types.md)。这是源码调查，不代表本次执行过编译、渲染或 HTTP 验收。
 
 [版本源](../../Directory.Build.props)；[抽象层项目](../../src/MakoKaraGenerator.Scripting.Abstractions/MakoKaraGenerator.Scripting.Abstractions.csproj)；[包 profile 源](../../src/MakoKaraGenerator.Core/Effects/ProjectEffectsJson.cs)。当前包要求精确匹配 `packageVersion: 2`、`sdkVersion: "1.0.0"`、`shaderProfile: "skia-raster-3.119.4-v1"`。`sdkVersion` 是包协议声明，不等同产品版本，也不能据此推定所有公开类型均有生产执行路径。该 shader profile 也不是作者可借此指定 CPU/Vulkan 的渲染后端开关。
 
@@ -165,6 +165,8 @@
 全部要求 `Style` 能力和真实允许目标。元素族的**实际变化**受独立字簇限制；恒等/不变内容不强制拆分字簇。材质不能 `null`，关闭填充可用透明 Solid。Set 顺序覆盖，opacity 顺序相乘，乘数有限且非负，宿主最终校验合成结果 `[0,1]`；不要假设 `factor>1` 必定合法。跨实例保持工程实例顺序，各实例读取共同静态 `Baseline`。
 
 材质值工厂：`MaterialValue.Solid(ColorRgba color)`、`Gradient(GradientValue gradient)`、`PackageExport(MaterialHandle handle, ParameterValues parameters)`。`ColorRgba(double red,double green,double blue,double alpha)` 为 `[0,1]` 直乘 sRGB；`MultiplyRgb(double factor)` 不改 alpha，结果不能超出颜色范围。描边 `StrokeValue(double widthPx, MaterialValue material, StrokeJoin join = StrokeJoin.Round, StrokePosition position = StrokePosition.Outside)`；阴影 `ShadowValue(ColorRgba color, double opacity = 1, double angleDegrees = 45, double distancePx = 4, double blurRadiusPx = 8)`。角度 0 向右、90 向下，长度单位逻辑像素。
+
+`StyleView.Glow` 提供可空、只读的 `GlowValue` 静态基线；`GlowValue` 的颜色、透明度、模糊和外扩均只读。`StyleUpdate` 不提供辉光写入，现有 27 个 writer 重载也没有动态 Glow setter。静态编辑和继承见[辉光参考](glow.md)。
 
 `GradientValue` 能描述更多枚举，但脚本生产样式目前只接受 Linear/Radial、Canvas/Line、LinearRgb/Hsv；Glyph/Progress/Oklch 报 `UnsupportedEffectGradient`，不能按 Core 静态样式的历史回退说明推定脚本会降级。包材质还需固定包修订、fill/stroke 区域声明、参数、ColorOnly 和资源闭包校验。参考 [Style writer](../../src/MakoKaraGenerator.Scripting.Abstractions/FrameWriter.Style.cs)、[StyleUpdate](../../src/MakoKaraGenerator.Scripting.Abstractions/StyleUpdate.cs)、[实际样式转换](../../src/MakoKaraGenerator.Rendering.Abstractions/StaticStyleProjection.cs)、[GradientSupport](../../src/MakoKaraGenerator.Core/Projects/GradientSupport.cs)。
 

@@ -1,16 +1,18 @@
 # 前后端 API 执行合同
 
-状态：**冻结1.41.0**，产品元数据与源码指纹更新于2026-11-01；产品 **0.109.0**，HTTP `protocolVersion:"1"`。本批新增桌面 GPU 流生命周期公开合同，固定基线与文件指纹见[manifest](contract-manifest.json)。合同形状、实际功能、匹配发布与 fresh HTTP 分别登记，合同版本独立于产品和HTTP协议。
+状态：**冻结1.42.0**，产品元数据与源码指纹更新于2026-11-01；产品 **0.110.0**，HTTP `protocolVersion:"1"`。本批新增独立静态外辉光的四层编辑、模板和文字标记合同；原桌面 GPU 流生命周期保持，固定基线与文件指纹见[manifest](contract-manifest.json)。合同形状、实际功能、匹配发布与 fresh HTTP 分别登记，合同版本独立于产品和HTTP协议。
 
 GPU 流按精确修订创建、换来源、改变尺寸和关闭；创建受真实设备及分配能力限制。`registrationState` 是登记状态，`workerState` 来自 Worker 实时查询；`textureAlphaMode` 固定 `premultiplied`，`alphaMode` 仅控制背景透明度。桌面主进程的私有 claim 不属于公开 API。详细协议和失效语义见仓库根 `docs/architecture/gpu-preview-stream-v1.md`。
 
 **1.24.1／0.94.1修复：** `ExportJobRequest.format`透明格式与实际服务一致为`transparentProRes4444`；错误旧值`transparentMov`仍被服务拒绝。附着来源／前奏缺失分别带`TargetStale`及`command.branchId`／`command.leadInId`，错误容器带`ContainerInvalid`及`command.containerId`。无新路由、DTO或命令；匹配发布Server＋Worker后使用产品0.94.1。实际构建、HTTP与合同证据见[修复记录](../docs/backend-basic-business-bugfix-0941.md)。
 
+静态辉光新增 `glow` 及 color/opacity/blurRadiusPx/spreadPx 四叶，支持继承、显式关闭和 restore；颜色使用完整RGBA对象。工程/歌词/模板 schema 为29/18/7；具体语义及验收入口见[辉光参考](../docs/style-reference/glow.md)。
+
 ## 1. 执行依据与文件分工
 
 | 文件 | 用途 |
 |---|---|
-| [api-index.md](api-index.md) | 全部108路径／120方法、认证、请求和响应清单；包含5兼容别名 |
+| [api-index.md](api-index.md) | 全部112路径／125方法、认证、请求和响应清单；包含5兼容别名 |
 | [openapi.json](openapi.json) | 固定OpenAPI 3.1.0机器规范，供类型生成、请求/响应校验和mock使用 |
 | [行为规范源](../docs/architecture/backend-api.md) | 认证、回执、修订、任务、SSE、字节读取及所有端点的详细语义，继续作为唯一详细行为正文 |
 | [contract-manifest.json](contract-manifest.json) | 固定上述文件、工具及当前Backend源码的SHA-256；绑定这一份行为源而不是任意未来版本 |

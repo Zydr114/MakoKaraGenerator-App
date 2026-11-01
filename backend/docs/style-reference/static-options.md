@@ -1,6 +1,6 @@
 # 静态样式选项参考
 
-本文以 App 提交 `f3fdfdf`、后端 `0.109.0` 的源码为基线，列出歌词静态样式及注音选项。它是源码核对结果，未执行构建、HTTP 或像素验收。场景位置和动画查[动画、场景与预设](animation-scene-presets.md)，运行时输出查[脚本 SDK](script-sdk.md)，请求封装查[HTTP 编辑与作者入口](http-authoring.md)；这里仍说明它们与静态样式的交界。
+本文原以 App 提交 `f3fdfdf`、后端 `0.109.0` 为基线；辉光按后续 `0.110.0` 工作树源码补充。它是源码核对结果，未执行构建、HTTP 或像素验收。场景位置和动画查[动画、场景与预设](animation-scene-presets.md)，运行时输出查[脚本 SDK](script-sdk.md)，请求封装查[HTTP 编辑与作者入口](http-authoring.md)。
 
 必须区分三层能力：**Core 可表达**表示领域模型能保存该值；**HTTP 可编辑**表示当前 `styles.patch`/`styles.restore` 接受该意图；**渲染支持**表示实际消费者实现该语义。前两项成立不自动意味着第三项成立，渐变的 `glyph`、`progress`、`oklch` 就是现成反例。
 
@@ -8,7 +8,7 @@
 
 ### 1.1 静态对象
 
-`LyricStyle` 有 9 个规范顶层成员；其平面属性是直接访问嵌套对象的 C# 外观，没有第二份独立值。
+`LyricStyle` 有 10 个规范顶层成员；其平面属性是直接访问嵌套对象的 C# 外观，没有第二份独立值。
 
 | Core 成员 / HTTP canonical 字段 | 默认值 | 内容及边界 |
 | --- | --- | --- |
@@ -17,12 +17,13 @@
 | `SungFill` / `sungFill` | solid `#4C8DFFFF` | 已唱材质；只有未唱/已唱两态，没有第三个“当前字颜色”字段 |
 | `Stroke` / `stroke` | `null` | 整体描边为空表示关闭 |
 | `Shadow` / `shadow` | `null` | 整体阴影为空表示关闭 |
+| `Glow` / `glow` | `null` | 整体辉光为空表示关闭 |
 | `VerticalCenterRatio` / `verticalCenterRatio` | `0.5` | 有限数，`[0,1]`；默认排版纵向中心 |
 | `HorizontalAlignment` / `horizontalAlignment` | `center` | `left / center / right` |
 | `Opacity` / `opacity` | `1` | 有限数，`[0,1]`；绘制透明度 |
 | `Scale` / `scale` | `1` | 正的有限数，无模型上限；基础几何缩放 |
 
-`LyricStyleOverride` 对应同一组规范成员：`Typography` 为可空部分对象，填充/描边/阴影使用 `OptionalValue<T?>`，另外四项为 nullable 数值或枚举。空覆盖归一化为 `null`；覆盖仅修改本层明确设置的成员。
+`LyricStyleOverride` 对应同一组规范成员：`Typography` 为可空部分对象，填充/描边/阴影/辉光使用 `OptionalValue<T?>`，另外四项为 nullable 数值或枚举。空覆盖归一化为 `null`；覆盖仅修改本层明确设置的成员。
 
 源码：[LyricStyle](../../src/MakoKaraGenerator.Core/Projects/LyricStyle.cs)、[LyricStyleOverride](../../src/MakoKaraGenerator.Core/Projects/LyricStyleOverride.cs)、[LyricStyleEditor](../../src/MakoKaraGenerator.Core/Projects/LyricStyleEditor.cs)、[HTTP canonical DTO](../../src/MakoKaraGenerator.Backend.Contracts/BackendStyleContracts.cs)。
 
@@ -30,10 +31,10 @@
 
 | 目标 | 本层数据 | 静态 HTTP 目标形状 | 可写范围 |
 | --- | --- | --- | --- |
-| 工程 | `Project.LyricStyle` 完整基线 | `{kind:"project"}` | 全部 24 个规范编辑成员；不能 restore |
-| 分支 | `LyricBranch.StyleOverride` | `{kind:"branch",branchId}` | 全部 24 个规范编辑成员 |
-| 行 | `LyricLine.StyleOverride` | `{kind:"line",branchId,lineId}` | 全部 24 个规范编辑成员 |
-| token | `LyricToken.StyleOverride` | `{kind:"token",branchId,lineId,tokenId}` | 颜色/材质、描边、阴影、透明度；禁止排版和基础缩放 |
+| 工程 | `Project.LyricStyle` 完整基线 | `{kind:"project"}` | 全部 29 个规范编辑成员；不能 restore |
+| 分支 | `LyricBranch.StyleOverride` | `{kind:"branch",branchId}` | 全部 29 个规范编辑成员 |
+| 行 | `LyricLine.StyleOverride` | `{kind:"line",branchId,lineId}` | 全部 29 个规范编辑成员 |
+| token | `LyricToken.StyleOverride` | `{kind:"token",branchId,lineId,tokenId}` | 颜色/材质、描边、阴影、辉光、透明度；禁止排版和基础缩放 |
 | Ruby 注音组 | `LyricLine.RubyAnnotations[]` | 不属于 `StyleTargetDto` | 自身有比例/间距/对齐；没有独立 `LyricStyleOverride` |
 
 `LyricStyleResolver.Resolve` 的顺序是：传入默认样式（省略才用 `LyricStyle.Default`）→ 可选旧式 `LyricStylePreset` **整份替换** → 分支覆盖 → 行覆盖 → token 覆盖。每层之后校验；`LyricStyleSource` 的枚举数值不代表应用次序。工程里的 `LyricStylePresetId` 是基线来源标识，`LyricStyleEditor.ApplyPreset` 将完整样式写入基线，手改基线会清除此 ID。
@@ -116,7 +117,7 @@ Core 的线性渐变只要求 center/radius 有限，即使中心超出 `[0,1]` 
 
 源码：[GradientSpec](../../src/MakoKaraGenerator.Core/Projects/GradientSpec.cs)、[能力矩阵](../../src/MakoKaraGenerator.Core/Projects/GradientSupport.cs)、[取色实现](../../src/MakoKaraGenerator.Core/Projects/GradientSampler.cs)、[工程校验](../../src/MakoKaraGenerator.Core/Validation/ProjectValidator.cs)、[HTTP 编辑准备](../../src/MakoKaraGenerator.Application/Editing/ProjectStyleEditUseCase.Values.cs)、[HTTP 往返回归源码](../../tests/MakoKaraGenerator.Backend.Hosting.Tests/BackendStyleCommandsTests.cs)、[Skia shader](../../src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.cs)、[绘制与 native 检查](../../src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.TextPainting.cs)、[包 fallback 检查](../../src/MakoKaraGenerator.Rendering.Skia/PackageMaterialValidator.cs)。
 
-## 5. 描边与阴影
+## 5. 描边、阴影与辉光
 
 ### 5.1 StrokeSpec 的 4 个规范字段
 
@@ -170,9 +171,22 @@ Core 还有 `LyricStyleEffects` 四种便捷开关：`UnsungGradient / SungGradi
 
 源码：[应用层 set/restore](../../src/MakoKaraGenerator.Application/Editing/ProjectStyleEditUseCase.Values.cs)、[规范覆盖](../../src/MakoKaraGenerator.Core/Projects/LyricStyleOverride.cs)、[效果开关](../../src/MakoKaraGenerator.Core/Projects/LyricStyleEffects.cs)。
 
-## 6. LyricStyleProperty 全量清单（21 项）
+### 5.4 静态辉光
 
-此枚举用于属性来源、模板选择和 token 能力判断，**不是** HTTP 的 24 项编辑字段枚举。填充现已整体是材质，仍保留颜色/渐变名称用于兼容的属性选择与来源追踪。
+完整 `GlowSpec` 默认关闭（`null`）；新建对象的默认字段如下。完整 HTTP 对象必须提供全部字段，颜色使用 `{red,green,blue,alpha}` 字节对象；持久模型及绘制细节见[辉光参考](glow.md)。
+
+| Core 字段 / HTTP 属性 | 对象默认值 | 约束 |
+| --- | --- | --- |
+| `Color` / `glow.color` | 白色 `#FFFFFFFF` | RGBA |
+| `Opacity` / `glow.opacity` | 1 | 有限数 [0,1] |
+| `BlurRadiusPx` / `glow.blurRadiusPx` | 8 | 非负有限数，高斯 sigma，画布像素 |
+| `SpreadPx` / `glow.spreadPx` | 0 | 非负有限数，圆角轮廓向外扩张的画布像素 |
+
+四层均支持辉光，包括 token。完整 `glow:null` 明确关闭；`styles.restore` 恢复本层完整对象或指定叶字段的继承。上层无辉光时部分覆盖从透明色、opacity 1、零 sigma 和零外扩合并；这不同于新建完整对象的默认值。颜色 alpha、opacity 任一为零或模糊和外扩均为零时不绘制。
+
+## 6. LyricStyleProperty 全量清单（26 项）
+
+此枚举用于属性来源、模板选择和 token 能力判断，**不是** HTTP 的 29 项编辑字段枚举。填充现已整体是材质，仍保留颜色/渐变名称用于兼容的属性选择与来源追踪。
 
 | Core 枚举 / JSON 名称 | 指向或含义 | token | HTTP 对应编辑入口 |
 | --- | --- | --- | --- |
@@ -195,18 +209,23 @@ Core 还有 `LyricStyleEffects` 四种便捷开关：`UnsungGradient / SungGradi
 | `ShadowColor` / `shadowColor` | 阴影颜色 | 支持 | `shadow.color` |
 | `ShadowBlurPx` / `shadowBlurPx` | 阴影模糊 | 支持 | `shadow.blurRadiusPx` |
 | `ShadowSpec` / `shadowSpec` | 整体阴影及方向/距离等 | 支持 | `shadow`、`shadow.opacity`、`shadow.angleDegrees`、`shadow.distancePx` |
+| `GlowSpec` / `glowSpec` | 整体辉光及关闭状态 | 支持 | `glow` |
+| `GlowColor` / `glowColor` | 辉光颜色 | 支持 | `glow.color` |
+| `GlowOpacity` / `glowOpacity` | 辉光透明度 | 支持 | `glow.opacity` |
+| `GlowBlurRadiusPx` / `glowBlurRadiusPx` | 辉光模糊 | 支持 | `glow.blurRadiusPx` |
+| `GlowSpreadPx` / `glowSpreadPx` | 辉光外扩 | 支持 | `glow.spreadPx` |
 | `Opacity` / `opacity` | 整体绘制透明度 | 支持 | `opacity` |
 | `Scale` / `scale` | 基础几何缩放 | 禁止 | `scale` |
 
-共 **10 项 token 禁止、11 项 token 支持**。HTTP 对应为 24 个规范成员中 **14 个可用于 token、10 个禁止**。不能把 `TokenStyleSupport.IsSupported` 当作未知枚举合法性检查：调用者还须先验证枚举已定义。
+共 **10 项 token 禁止、16 项 token 支持**。HTTP 对应为 29 个规范成员中 **19 个可用于 token、10 个禁止**。不能把 `TokenStyleSupport.IsSupported` 当作未知枚举合法性检查：调用者还须先验证枚举已定义。
 
 来源表也有表达粒度限制：写入完整填充材质时会同时标记 color 和 gradient 来源；描边 join/position 共用 `StrokeSpec`；阴影没有独立的 opacity 来源键，当前 `MarkShadowSources` 对仅 `Opacity` 的部分覆盖不单独更新来源键。因此来源枚举不是全部 canonical 叶字段的无损审计表，HTTP `local` 保留叶意图更适合编辑。
 
-模板中的 `Properties` 使用本节 21 项名称；模板种类、属性范围和预设应用入口详见[动画、场景与预设](animation-scene-presets.md)。不要用本节 JSON 名称代替下一节 HTTP canonical 属性路径。
+模板中的 `Properties` 使用本节 26 项名称；模板种类、属性范围和预设应用入口详见[动画、场景与预设](animation-scene-presets.md)。不要用本节 JSON 名称代替下一节 HTTP canonical 属性路径。
 
 源码：[全部属性和 JSON 名称](../../src/MakoKaraGenerator.Core/Projects/LyricStyleProperty.cs)、[TokenStyleSupport](../../src/MakoKaraGenerator.Core/Projects/TokenStyleSupport.cs)、[HTTP 到 Core 映射](../../src/MakoKaraGenerator.Application/Editing/ProjectStyleEditUseCase.Values.cs)、[来源标记](../../src/MakoKaraGenerator.Core/Projects/LyricStyleResolver.cs)、[模板拷贝语义](../../src/MakoKaraGenerator.Core/Projects/StyleBatchEditor.cs)。
 
-## 7. HTTP 静态编辑清单（24 项）
+## 7. HTTP 静态编辑清单（29 项）
 
 每项均采用 `{property:"准确名称",value:...}`；并非向 `LyricStyle` 发任意 JSON Merge Patch。以下列出所有入口，详细值范围见前表。
 
@@ -232,14 +251,19 @@ Core 还有 `LyricStyleEffects` 四种便捷开关：`UnsungGradient / SungGradi
 | `shadow.angleDegrees` | double | 否 | 是 |
 | `shadow.distancePx` | float | 否 | 是 |
 | `shadow.blurRadiusPx` | float | 否 | 是 |
+| `glow` | 完整 Glow 或 null | 合法，关闭 | 是 |
+| `glow.color` | 完整 RGBA | 否 | 是 |
+| `glow.opacity` | float | 否 | 是 |
+| `glow.blurRadiusPx` | float | 否 | 是 |
+| `glow.spreadPx` | float | 否 | 是 |
 | `verticalCenterRatio` | double | 否 | 否 |
 | `horizontalAlignment` | `left/center/right` | 否 | 否 |
 | `opacity` | float | 否 | 是 |
 | `scale` | float | 否 | 否 |
 
-`styles.patch` 需 `type/targets/changes`；`styles.restore` 需 `type/targets/properties`，后者的 properties 使用上表相同字符串。所有目标必须同层、身份完整且不重复；工程目标只允许一个。属性不能重复，也不能在同批同时写 `stroke` 与 `stroke.*`、`shadow` 与 `shadow.*`。字段名、枚举准确 camelCase，拒绝大小写变体、整数枚举、未知/重复/缺失字段，`value` 即使为 null 也必须显式存在。
+`styles.patch` 需 `type/targets/changes`；`styles.restore` 需 `type/targets/properties`，后者的 properties 使用上表相同字符串。所有目标必须同层、身份完整且不重复；工程目标只允许一个。属性不能重复，也不能在同批同时写 `stroke` 与 `stroke.*`、`shadow` 与 `shadow.*` 或 `glow` 与 `glow.*`。字段名、枚举准确 camelCase，拒绝大小写变体、整数枚举、未知/重复/缺失字段，`value` 即使为 null 也必须显式存在。
 
-当前新输入预算：目标 `1..1000`；成员 `1..24`；完整命令意图最多 `64 KiB`；改变目标的新完整投影累计及新值展开最多 `16 MiB`；新主字体/各回退名称最长 `256` UTF-16 单元；新回退链最多 `32` 项；新渐变最多 `256` stops。这些是新编辑输入预算，不把旧工程值自动截断。HTTP 命令还经过已有修订/CAS、只读、关闭状态与完整回执预算门禁。
+当前新输入预算：目标 `1..1000`；成员 `1..29`；完整命令意图最多 `64 KiB`；改变目标的新完整投影累计及新值展开最多 `16 MiB`；新主字体/各回退名称最长 `256` UTF-16 单元；新回退链最多 `32` 项；新渐变最多 `256` stops。这些是新编辑输入预算，不把旧工程值自动截断。HTTP 命令还经过已有修订/CAS、只读、关闭状态与完整回执预算门禁。
 
 修改和恢复都先准备候选，任一目标失败整批不采纳。真实变化形成一个历史命令；同值、同内容数组等 no-op 不改变工程修订/历史和 redo。restore 只删除本层成员，不从解析结果复制完整样式，工程基线没有上层可恢复。
 
@@ -285,15 +309,15 @@ Ruby 是附着到基础 token 的独立组，不是第三套歌词样式。完�
 
 ## 10. 回归源码核对索引
 
-下表只说明本次查阅的现有测试意图，**没有在本次执行这些测试**，不能作为当前构建或运行通过记录。
+下表说明源码盘点时查阅的测试意图；原文档盘点未执行测试。后续辉光实施的实际回归和HTTP验收单列于[辉光参考](glow.md)，不将未执行的其他测试推定为通过。
 
 | 测试源 | 用于交叉核对的规则 |
 | --- | --- |
-| [ProjectStyleEditValidationTests](../../tests/MakoKaraGenerator.Application.Tests/ProjectStyleEditValidationTests.cs) | 全部 24 成员、token 10 禁止/14 允许、非法值、重复色标 |
+| [ProjectStyleEditValidationTests](../../tests/MakoKaraGenerator.Application.Tests/ProjectStyleEditValidationTests.cs) | 全部 29 成员、token 10 禁止/19 允许、非法值、重复色标 |
 | [ProjectStyleEditUseCaseTests](../../tests/MakoKaraGenerator.Application.Tests/ProjectStyleEditUseCaseTests.cs) | 四层局部编辑、显式关闭、只恢复叶与恢复 whole 的差异、无上层效果的透明零宽合并、no-op |
 | [BackendStyleCommandsTests](../../tests/MakoKaraGenerator.Backend.Hosting.Tests/BackendStyleCommandsTests.cs) | 空白字体合法、progress/oklch 完整往返、包身份只读和参数保留、历史 |
-| [StyleCommandsTransportTests](../../tests/MakoKaraGenerator.Backend.Server.Tests/StyleCommandsTransportTests.cs) | 24 属性真实 wire 构造、strict JSON、准确 camelCase、输入预算 |
-| [TokenStyleSupportTests](../../tests/MakoKaraGenerator.Core.Tests/Projects/TokenStyleSupportTests.cs) | 21 项枚举覆盖、允许与禁止互斥、绘制覆盖识别 |
+| [StyleCommandsTransportTests](../../tests/MakoKaraGenerator.Backend.Server.Tests/StyleCommandsTransportTests.cs) | 29 属性真实 wire 构造、strict JSON、准确 camelCase、输入预算 |
+| [TokenStyleSupportTests](../../tests/MakoKaraGenerator.Core.Tests/Projects/TokenStyleSupportTests.cs) | 26 项枚举覆盖、允许与禁止互斥、绘制覆盖识别 |
 | [LyricStyleResolverTests](../../tests/MakoKaraGenerator.Core.Tests/Projects/LyricStyleResolverTests.cs) | 完整预设替换、三态 null、属性来源和层级错误归因 |
 | [GradientOpacityTests](../../tests/MakoKaraGenerator.Rendering.Tests/GradientOpacityTests.cs) | 渐变色标与样式透明度各应用一次，包含描边和 Ruby |
 | [TimedRubyRenderingTests](../../tests/MakoKaraGenerator.Rendering.Tests/TimedRubyRenderingTests.cs) | 无时间回退、独立时间不延长显示、字簇内边界、时间变化保持聚合几何 |

@@ -1,6 +1,6 @@
 # 样式与效果的 HTTP 创作入口
 
-本文索引本仓库后端 0.109.0 的用户可调用接口，以同次提交的 [OpenAPI](../../web/openapi.json)、[接口索引](../../web/api-index.md) 和实际 Server/Contracts 实现为准。各接口需要 access 和客户端身份；请求前先按 [Web 接入说明](../../web/README.md) 建立客户端，ID 和修订均使用服务返回的原值。本文只作源码级梳理，不代表本次运行或像素验收。
+本文原按后端 0.109.0 梳理；辉光接口按后续 0.110.0 工作树源码补充。生成的 [OpenAPI](../../web/openapi.json) 和[接口索引](../../web/api-index.md)以各自冻结版本为准。各接口需要 access 和客户端身份；请求前先按 [Web 接入说明](../../web/README.md) 建立客户端，ID 和修订均使用服务返回的原值。本文只作源码级梳理，不代表本次运行或像素验收。
 
 静态字段及约束见 [静态样式](static-options.md)，动画及场景模型见 [动画和场景预设](animation-scene-presets.md)，包作者 SDK 见 [脚本 SDK](script-sdk.md)。Core 持久模型、模板定义、HTTP 读投影和可写命令不是同一个 JSON：不要直接把源码对象或 GET 的整份结果回传为命令。
 
@@ -22,7 +22,9 @@
 
 `style` 的 `resolution` 为 `staticHierarchy`，只表示 project → branch → line → token 静态继承；`hasPresetApplications` 是全工程提示，并不证明目标被某个预设覆盖。`resolved-style` 为 `staticPresetHierarchy`，包括真实节点路径与适用的固定预设；`finalPixelAppearance:false`，仍不执行动画或脚本，也不是最终像素。前者 [DTO](../../src/MakoKaraGenerator.Backend.Contracts/BackendStyleContracts.cs)、后者 [DTO](../../src/MakoKaraGenerator.Backend.Contracts/BackendResolvedStyleContracts.cs)；查询检查见 [Server](../../src/MakoKaraGenerator.Backend.Server/ServerEndpoints.ResolvedStyle.cs)。
 
-`local` 不含某属性表示继承；`typography.fontFamilyName` 的显式 null 表示选择默认字体，`stroke`/`shadow` 的显式 null 表示关闭效果。要移除局部覆盖、恢复继承，使用 `styles.restore`，不是省略 `value` 或写 null。project 级没有父级可恢复。读取时完整样式的字体、描边和阴影 null 保留；包材质是只读身份，`styles.patch` 的材质写入只接受完整 `solid` 或 `gradient`。父字段与其叶字段不能在同一批中重复指定。具体形状和属性到 Application 的映射见 [HTTP DTO](../../src/MakoKaraGenerator.Backend.Contracts/BackendStyleContracts.cs)、[JSON 转换器](../../src/MakoKaraGenerator.Backend.Contracts/StyleCommandJsonConverters.cs)、[编辑用例](../../src/MakoKaraGenerator.Application/Editing/ProjectStyleEditUseCase.cs)及 [值转换](../../src/MakoKaraGenerator.Application/Editing/ProjectStyleEditUseCase.Values.cs)。
+`local` 不含某属性表示继承；`typography.fontFamilyName` 的显式 null 表示选择默认字体，`stroke`/`shadow`/`glow` 的显式 null 表示关闭效果。要移除局部覆盖、恢复继承，使用 `styles.restore`，不是省略 `value` 或写 null。project 级没有父级可恢复。读取时完整样式的字体和可空效果保留 null；包材质是只读身份，`styles.patch` 的材质写入只接受完整 `solid` 或 `gradient`。父字段与其叶字段不能在同一批中重复指定。具体形状和属性到 Application 的映射见 [HTTP DTO](../../src/MakoKaraGenerator.Backend.Contracts/BackendStyleContracts.cs)、[JSON 转换器](../../src/MakoKaraGenerator.Backend.Contracts/StyleCommandJsonConverters.cs)、[编辑用例](../../src/MakoKaraGenerator.Application/Editing/ProjectStyleEditUseCase.cs)及 [值转换](../../src/MakoKaraGenerator.Application/Editing/ProjectStyleEditUseCase.Values.cs)。
+
+辉光写入使用 `glow` 或 `glow.color`、`glow.opacity`、`glow.blurRadiusPx`、`glow.spreadPx`。完整对象例如 `{"color":{"red":255,"green":0,"blue":0,"alpha":255},"opacity":1,"blurRadiusPx":8,"spreadPx":0}`；颜色是四个字节通道的对象，不是十六进制字符串。完整对象的四项均须提供；继承及数值限制见[静态辉光](glow.md)。
 
 工程命令外层示例（占位身份和修订必须换成实际值）：
 
@@ -128,8 +130,8 @@
 | `setMarkText` | `nodeId/text` | 修改文字标记，文本限制同上。 |
 | `reorderMarks` | `containerId/orderedIds` | 按完整顺序重排标记。 |
 | `spaceMarks` | `containerId` | 均匀排列标记。 |
-| `setCountdownAppearance` | `containerId/appearance`，完整六字段，显式包含可 null 的 stroke/shadow | 设置倒计时文字外观。 |
-| `setMarkAppearance` | `nodeId/changes` | 替换完整静态 override；空数组清除，不接受三个几何属性。 |
+| `setCountdownAppearance` | `containerId/appearance`，完整七字段 `typography/pendingFill/elapsedFill/stroke/shadow/opacity/glow`，显式包含可 null 的 stroke/shadow/glow | 设置倒计时文字外观。 |
+| `setMarkAppearance` | `nodeId/changes` | 替换完整静态 override；空数组清除，不接受三个几何属性；支持辉光完整对象及叶字段。 |
 
 以上命令分发包含 [普通转换器](../../src/MakoKaraGenerator.Backend.Contracts/ProjectCommandJsonConverter.cs)、[节点创建](../../src/MakoKaraGenerator.Backend.Contracts/NodeCreationCommandJson.cs)、[场景属性](../../src/MakoKaraGenerator.Backend.Contracts/OrchestrationPropertiesCommandJson.cs)、[编辑补全](../../src/MakoKaraGenerator.Backend.Contracts/OrchestrationEditingCompletionJson.cs)、[前奏](../../src/MakoKaraGenerator.Backend.Contracts/LeadInCommandJson.cs)、[前奏生成与标记](../../src/MakoKaraGenerator.Backend.Contracts/LeadInEditingCommandJson.cs)及[片段成员](../../src/MakoKaraGenerator.Backend.Contracts/ClipMembersCommandJson.cs)。
 

@@ -3,7 +3,9 @@
 import copy
 import json
 
-from template_library_schema import PROPERTIES, TOKEN_PROPERTIES
+from template_library_schema import PROPERTIES as CURRENT_PROPERTIES, TOKEN_PROPERTIES as CURRENT_TOKEN_PROPERTIES
+PROPERTIES = CURRENT_PROPERTIES[:21]
+TOKEN_PROPERTIES = tuple(p for p in PROPERTIES if p in CURRENT_TOKEN_PROPERTIES)
 
 
 def static_definition(name='  自有模板 e\u0301 🎵  ', kind='line', properties=None):

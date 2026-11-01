@@ -83,7 +83,7 @@ HTTP 的槽位时长、延迟和提前量使用仅含 ASCII 十进制数字且�
 
 `CountdownSequenceContent` 按顺序引用直接子文字标记 `MarkNodeIds`，有 `Appearance`；`TextMarkContent` 有 `Text`（默认 `●`）和可空局部 `AppearanceOverride`。序列至少一个标记，引用唯一且必须与直接子标记一致。`SceneAttachment.Mode` 为 `FixedParent` 或 `CueTargetText`；后者跟随目标句的槽位、微调和动画。见[内容模型](../../src/MakoKaraGenerator.Core/Projects/SceneContent.cs)。
 
-[`SceneTextAppearance`](../../src/MakoKaraGenerator.Core/Projects/SceneTextAppearance.cs) 字段为 `Typography`（默认字体配置但字号 32px）、`PendingFill`（白色 RGBA 255,255,255,255）、`ElapsedFill`（95,95,95,255）、可空 `Stroke`/`Shadow`、`Opacity`（1）。它复用静态样式值的校验；局部覆盖允许分别覆盖这些外观，显式 null 可关闭描边/阴影。组外观是子标记基线，不再作为父透明度相乘。前奏创建、更新、删除，生成预览/应用/排除，标记增改排序/均匀分布，外观及附着命令见[前奏合同](../../src/MakoKaraGenerator.Backend.Contracts/BackendLeadInContracts.cs)和[编辑合同](../../src/MakoKaraGenerator.Backend.Contracts/BackendLeadInEditingContracts.cs)。
+[`SceneTextAppearance`](../../src/MakoKaraGenerator.Core/Projects/SceneTextAppearance.cs) 字段为 `Typography`（默认字体配置但字号 32px）、`PendingFill`（白色 RGBA 255,255,255,255）、`ElapsedFill`（95,95,95,255）、可空 `Stroke`/`Shadow`/`Glow`、`Opacity`（1）。辉光按后续工作树源码补充，详见[静态辉光](glow.md)。它复用静态样式值的校验；局部覆盖允许分别覆盖这些外观，显式 null 可关闭描边/阴影/辉光。组外观是子标记基线，不再作为父透明度相乘。前奏创建、更新、删除，生成预览/应用/排除，标记增改排序/均匀分布，外观及附着命令见[前奏合同](../../src/MakoKaraGenerator.Backend.Contracts/BackendLeadInContracts.cs)和[编辑合同](../../src/MakoKaraGenerator.Backend.Contracts/BackendLeadInEditingContracts.cs)。
 
 HTTP 限制比仅查看 Core 值对象更具体：创建倒计时的标记数为 1–64，添加和排序也受 64 个标记上限及节点预算约束；标记文本非空白且 UTF-16 长度不超过 4096。生成设置的排除 ID 与应用选择 ID 各至多 1000 项，分析的分支至多 1000 行，并受源树、响应和回执预算限制。时间字符串须解析为 64 位整数，duration >0、gap >=0；目标、引用及可用区间还须通过领域校验。见[创建处理](../../src/MakoKaraGenerator.Backend.Hosting/ProjectSession.LeadIns.cs)和[生成与标记处理](../../src/MakoKaraGenerator.Backend.Hosting/ProjectSession.LeadInEditing.cs)。
 

@@ -1,6 +1,6 @@
 # 后端样式系统与脚本 SDK 总览
 
-调查日期：2026-11-01。源码基线：App 提交 `f3fdfdf210c69dcf1af15537e855d5559ec9ce09`。
+调查日期：2026-11-01。原始源码基线：App 提交 `f3fdfdf210c69dcf1af15537e855d5559ec9ce09`；辉光内容按后续工作树源码补充，该提交不包含辉光。
 本组文档来自当前 `backend/` 的模型、校验、编辑命令、SDK 与实际渲染消费代码；
 描述后端能力，不表示 App 前端已经为每项能力提供界面。
 
@@ -9,6 +9,7 @@
 | 要解决的问题 | 文档 | 内容 |
 |---|---|---|
 | 用户能调哪些文字外观，默认值和范围是什么？ | [静态样式选项](static-options.md) | 字体、排版、未唱/已唱填充、渐变、包材质、描边、阴影、透明度、缩放、注音、逐字支持与继承 |
+| 辉光如何继承、编辑和绘制？ | [静态辉光](glow.md) | 字段、覆盖、HTTP 和渲染语义 |
 | 显示、运动、场景和可复用预设能调什么？ | [动画、场景与预设](animation-scene-presets.md) | 行与槽位动画、前奏提示、容器与场景变换、展示编排、模板、预设应用和效果实例配置 |
 | C# 脚本可以读取什么、写入什么？ | [脚本 SDK](script-sdk.md) | 生命周期、上下文、查询、事件、音频、几何、全部输出 writer、材质、图、粒子、资源和限制 |
 | 查找某个 SDK 类型的字段、构造器或枚举值 | [SDK 类型与成员索引](script-sdk-types.md) | 上下文和数据类型完整索引、作者值与宿主接缝的区别、逐文件源码入口 |
@@ -33,11 +34,11 @@
 
 | 身份 | 本次读取的值 | 单一来源 |
 |---|---|---|
-| 后端产品/程序集版本 | `0.109.0` | [Directory.Build.props](../../Directory.Build.props) |
-| HTTP 合同/协议 | `1.41.0` / `1` | [contract-manifest.json](../../web/contract-manifest.json) |
-| 工程 schema | `28` | [Project.cs](../../src/MakoKaraGenerator.Core/Projects/Project.cs) |
-| 歌词 schema | `17` | [LyricsDocument.cs](../../src/MakoKaraGenerator.Core/Lyrics/LyricsDocument.cs) |
-| 模板库 schema | `6` | [StyleTemplateLibrary.cs](../../src/MakoKaraGenerator.Core/Persistence/StyleTemplateLibrary.cs) |
+| 后端产品/程序集版本 | `0.110.0` | [Directory.Build.props](../../Directory.Build.props) |
+| HTTP 合同/协议 | `1.42.0` / `1` | [contract-manifest.json](../../web/contract-manifest.json) |
+| 工程 schema | `29` | [Project.cs](../../src/MakoKaraGenerator.Core/Projects/Project.cs) |
+| 歌词 schema | `18` | [LyricsDocument.cs](../../src/MakoKaraGenerator.Core/Lyrics/LyricsDocument.cs) |
+| 模板库 schema | `7` | [StyleTemplateLibrary.cs](../../src/MakoKaraGenerator.Core/Persistence/StyleTemplateLibrary.cs) |
 | 脚本配置库 schema | `1` | [ScriptConfigurationLibrary.cs](../../src/MakoKaraGenerator.Core/Persistence/ScriptConfigurationLibrary.cs) |
 | 包格式/SDK 声明 | `packageVersion: 2` / `sdkVersion: "1.0.0"` | [ProjectEffectsJson.cs](../../src/MakoKaraGenerator.Core/Effects/ProjectEffectsJson.cs) |
 | Shader profile | `skia-raster-3.119.4-v1` | [ShaderProgramDefinition.cs](../../src/MakoKaraGenerator.Core/Effects/ShaderProgramDefinition.cs) |
@@ -142,7 +143,7 @@ flowchart TD
 并检查新增文档的本地链接及 Git 差异格式；没有运行构建、单元测试、HTTP 服务、
 渲染或性能探针。文中的“实现/支持”表示源码路径已接通，不代表本次完成实测验收。
 
-清单覆盖按当前声明逐项对照：21 个 `LyricStyleProperty`、24 个 HTTP 样式编辑成员、
+辉光补充后的清单覆盖：26 个 `LyricStyleProperty`、29 个 HTTP 样式编辑成员、
 42 个 `orchestration.*` 命令以及 27 个作者 writer 写入方法重载。
 SDK 附录覆盖抽象层全部 69 个 C# 源码文件，同时区分作者入口和宿主辅助类型。
 

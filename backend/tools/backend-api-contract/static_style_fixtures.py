@@ -4,7 +4,9 @@ import copy
 import json
 import sys
 
-from static_style_schema import CHANGES, TARGETS, TOKEN_PROPERTIES
+from static_style_schema import LEGACY_CHANGES as CHANGES, TARGETS
+TOKEN_PROPERTIES = [p for p, *_ in CHANGES if not p.startswith("typography.")
+                    and p not in ("verticalCenterRatio", "horizontalAlignment", "scale")]
 
 
 def fixtures():

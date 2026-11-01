@@ -1,6 +1,6 @@
 # 脚本 SDK 类型与完整成员索引
 
-与 [作者 SDK 主文](script-sdk.md) 使用同一基线：App `f3fdfdf210c69dcf1af15537e855d5559ec9ce09`，后端 `0.109.0`。本索引覆盖 `Scripting.Abstractions` 的 **69 个 `.cs` 文件**。表中嵌套类型均写所属类型；位置记录的主构造参数同时就是公开属性。集合均为不可变值；这里只列源码显式声明的 SDK 成员，不逐一重复 C# record/struct 自动合成的相等、打印、复制和解构成员。普通公共实例构造器不等于宿主会采纳该实例。
+与 [作者 SDK 主文](script-sdk.md) 使用同一基线：原始 App `f3fdfdf210c69dcf1af15537e855d5559ec9ce09`、后端 `0.109.0`，辉光按后续 `0.110.0` 工作树补充。本索引覆盖 `Scripting.Abstractions` 的 **69 个 `.cs` 文件、209 个不重复顶层公共类型**。表中嵌套类型均写所属类型；位置记录的主构造参数同时就是公开属性。集合均为不可变值；这里只列源码显式声明的 SDK 成员，不逐一重复 C# record/struct 自动合成的相等、打印、复制和解构成员。普通公共实例构造器不等于宿主会采纳该实例。
 
 阅读标记：**输入**是宿主提供的上下文/目录/结果；**作者值**可供作者组合传入 writer；**宿主接缝**是公开但由宿主创建/收取/关闭的通道；**中立**表示存在可计算/描述类型，未因此获得正式输出通路。全部写入方法的完整重载、能力和执行限制见 [主文 §6](script-sdk.md#6-全部作者-writer-方法)。每个源文件的链接见 [§8](#8-按源码文件的完整索引)。
 
@@ -152,7 +152,8 @@
 | `MaterialValue.PackageMaterial` | `MaterialHandle Handle`；`ParameterValues Parameters`；`GraphUniformValues Uniforms`（公开只读）；构造器和覆盖 helper 非 public | 固定包材质值 |
 | `StrokeValue` | `StrokeValue(double widthPx,MaterialValue material,StrokeJoin join = StrokeJoin.Round,StrokePosition position = StrokePosition.Outside)`；`double WidthPx`；`MaterialValue Material`；`StrokeJoin Join`；`StrokePosition Position` | 外描边 |
 | `ShadowValue` | `ShadowValue(ColorRgba color,double opacity = 1,double angleDegrees = 45,double distancePx = 4,double blurRadiusPx = 8)`；`ColorRgba Color`；`double Opacity,AngleDegrees,DistancePx,BlurRadiusPx` | 阴影 |
-| `StyleView` | `StyleView(MaterialValue unsungMaterial,MaterialValue sungMaterial,StrokeValue? stroke,ShadowValue? shadow,double opacity)`；`MaterialValue UnsungMaterial,SungMaterial`；`StrokeValue? Stroke`；`ShadowValue? Shadow`；`double Opacity`；`ColorRgba RequireSungSolidColor()` | 基线输入/中立值；非 Solid 不猜基色 |
+| `GlowValue` | `GlowValue(ColorRgba color,double opacity = 1,double blurRadiusPx = 8,double spreadPx = 0)`；`ColorRgba Color`；`double Opacity,BlurRadiusPx,SpreadPx` | 只读；opacity 为 [0,1]，模糊和外扩为非负有限值 |
+| `StyleView` | `StyleView(MaterialValue unsungMaterial,MaterialValue sungMaterial,StrokeValue? stroke,ShadowValue? shadow,double opacity,GlowValue? glow = null)`；`MaterialValue UnsungMaterial,SungMaterial`；`StrokeValue? Stroke`；`ShadowValue? Shadow`；`double Opacity`；`GlowValue? Glow`；`ColorRgba RequireSungSolidColor()` | 基线输入/中立值；辉光只读，非 Solid 不猜基色 |
 | `GroupStyleView` | `GroupStyleView(double opacity)`；`double Opacity` | 组无文字材质 |
 | `BaselineStyles` | `static BaselineStyles Empty`；6 个 `Get`：`StyleView Get(TokenId id)`、`Get(TokenFamilyTarget target)`、`Get(LineId id)`、`Get(LineTarget target)`、`Get(TextMarkTarget target)`；`GroupStyleView Get(GroupTarget target)` | 所有实例共同静态基线；构造器见 §6 |
 | `StrokeUpdate` / `ShadowUpdate` | `StrokeUpdate(StrokeValue? Value)` / `ShadowUpdate(ShadowValue? Value)` | null 包装表示明确关闭 |
@@ -356,7 +357,7 @@
 | [StableIdentities.cs](../../src/MakoKaraGenerator.Scripting.Abstractions/StableIdentities.cs) | `StableIdentities` |
 | [StateContext.cs](../../src/MakoKaraGenerator.Scripting.Abstractions/StateContext.cs) | `SimulationStep`, `SemanticContext`, `StateContext`, `EventContext` |
 | [StyleUpdate.cs](../../src/MakoKaraGenerator.Scripting.Abstractions/StyleUpdate.cs) | `StrokeUpdate`, `ShadowUpdate`, `StyleUpdate`, `TokenFamilyStyle` |
-| [StyleView.cs](../../src/MakoKaraGenerator.Scripting.Abstractions/StyleView.cs) | `StrokeJoin`, `StrokePosition`, `StrokeValue`, `ShadowValue`, `StyleView`, `BaselineStyles` |
+| [StyleView.cs](../../src/MakoKaraGenerator.Scripting.Abstractions/StyleView.cs) | `StrokeJoin`, `StrokePosition`, `StrokeValue`, `ShadowValue`, `GlowValue`, `StyleView`, `BaselineStyles` |
 | [TimeRange.cs](../../src/MakoKaraGenerator.Scripting.Abstractions/TimeRange.cs) | `TimeRange` |
 | [TimelineEvent.cs](../../src/MakoKaraGenerator.Scripting.Abstractions/TimelineEvent.cs) | `TimelineEventKind`, `ReplayReason`, `EventSourceOrder`, `TimelineEvent`, `TokenPerformanceEvent`, `TokenStarted`, `TokenCompleted`, `LinePerformanceEvent`, `LinePerformanceStarted`, `LinePerformanceCompleted` |
 | [TimelineHistory.cs](../../src/MakoKaraGenerator.Scripting.Abstractions/TimelineHistory.cs) | `EventRecord`, `TimelineHistory` |

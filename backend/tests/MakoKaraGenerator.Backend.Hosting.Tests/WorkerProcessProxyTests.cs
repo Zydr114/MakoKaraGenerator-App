@@ -283,6 +283,41 @@ public sealed class WorkerProcessProxyTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public async Task Failed_open_cleanup_keeps_input_and_quota_until_retry_confirms_termination()
+    {
+        await using WorkerProcessProxy proxy = NewProxy();
+        await proxy.StartAsync();
+        var drainField = typeof(WorkerProcessProxy).GetField("_stderrDrain", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        Task originalDrain = Assert.IsAssignableFrom<Task>(drainField.GetValue(proxy));
+        drainField.SetValue(proxy, Task.FromException(new IOException("injected drain failure")));
+        await Assert.ThrowsAsync<IOException>(() => proxy.StopAsync());
+        GpuPreviewStreamRegistry registry = new();
+        IDisposable reservation = registry.TryReserve("a", "consumer-a")!;
+        using IDisposable second = registry.TryReserve("b", "consumer-b")!;
+        CountingLease lease = new();
+        var input = new BackendPreviewPinnedInput(new("project", "source", "1"), null!, null!, lease);
+        using TemporaryDirectory directory = new();
+        var failure = new GpuStreamOpenCleanupException(proxy, directory.Path, new InvalidOperationException("open"), new IOException("cleanup"));
+        registry.QuarantineOpen(reservation, null, null, input, failure);
+        reservation.Dispose();
+        await Assert.ThrowsAsync<AggregateException>(() => registry.RetryFailedOpensAsync());
+        Assert.Equal(0, lease.Count);
+        Assert.Null(registry.TryReserve("c", "consumer-c"));
+        await originalDrain;
+        drainField.SetValue(proxy, Task.CompletedTask);
+        await registry.RetryFailedOpensAsync();
+        await registry.RetryFailedOpensAsync();
+        Assert.Equal(1, lease.Count);
+        Assert.Null(registry.TryReserve("c", "consumer-c"));
+    }
+
+    private sealed class CountingLease : IDisposable
+    {
+        public int Count { get; private set; }
+        public void Dispose() => Count++;
+    }
+
+    [Fact]
     public async Task Frame_deadline_reaps_unresponsive_process_tree_and_proxy_restarts()
     {
         using TemporaryDirectory temp = new();

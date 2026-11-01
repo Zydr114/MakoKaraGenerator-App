@@ -98,7 +98,7 @@ public sealed class GpuPreviewStreamRegistry
 
     private static void MarkExited(Entry entry)
     {
-        if (!entry.Busy && !entry.Worker.IsWorkerAlive)
+        if (!entry.Busy && entry.State.RegistrationState != "failed" && !entry.Worker.IsWorkerAlive)
         {
             entry.State = entry.State with { RegistrationState = "failed", FailureCode = "GpuWorkerExited" };
             entry.Claimed = true;

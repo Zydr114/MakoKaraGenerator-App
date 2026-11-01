@@ -89,12 +89,12 @@ internal sealed partial class PreviewBackendService
         {
             GpuPreviewStreamState? state = _gpuStreams?.Read(client, id);
             if (state is null) return Reject<GpuPreviewStreamState>(BackendErrorCode.SessionNotFound, "GPU 流不存在。");
+            if (state.RegistrationState == "failed") return BackendOperationResult<GpuPreviewStreamState>.Success(state);
             GpuStreamWorkerSession? worker = _gpuStreams!.WorkerForRead(client, id);
             if (worker is null) return BackendOperationResult<GpuPreviewStreamState>.Success(state);
             GpuStreamWorkerState? failedState = null;
             try
             {
-                if (state.RegistrationState == "failed") throw new InvalidOperationException();
                 GpuStreamWorkerState current = await worker.ReadAsync(_shutdown.Token).ConfigureAwait(false);
                 if (current.State != "failed")
                     return BackendOperationResult<GpuPreviewStreamState>.Success(state with

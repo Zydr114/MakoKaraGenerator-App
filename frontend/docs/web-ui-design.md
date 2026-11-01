@@ -759,6 +759,11 @@ W6 的范围按 1.39.0 的接口清单核对过，所需接口都已交付：
 - 协议类型继续手写，按阶段增量补，集成测试用冻结 OpenAPI 校验每个真实响应；到 W7 遇到完整模板定义时再评估是否改为从 OpenAPI 生成（W7 评估后决定继续手写，理由见 W7 设计 §2.1）。
 - Agent Mail 暂不使用：新发现的后端缺口和缺陷只登记在当前阶段设计文档里，由用户转达。
 
+2026-11-01 用户决定：W8 之后做界面改版。选定设计稿“台前幕后”第二版（`docs/ui-style-drafts/`），改用紧凑的
+Material You：React Aria Components 加自写样式，material-color-utilities 配色，用户可选主题色，最后移除 mdui。
+交互和信息架构不变；本文 §3.1 外壳和 §7 视觉规格届时按新设计更新，§7.1 断点、§7.2 分栏拖动一起实现。
+计划见 [`web-client-redesign-design.md`](web-client-redesign-design.md)。
+
 ---
 
 ## 11. 用户决定（2026-10-16）

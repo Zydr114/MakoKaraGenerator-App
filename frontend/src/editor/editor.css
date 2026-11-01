@@ -2302,7 +2302,7 @@ body {
   margin-left: auto;
 }
 
-.tag {
+:where(.tag) {
   padding: 2px 8px;
   border-radius: var(--mdui-shape-corner-small);
   background: rgb(var(--mdui-color-secondary-container));

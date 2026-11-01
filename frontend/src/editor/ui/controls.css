@@ -1,0 +1,997 @@
+/* 控件（界面改版 §2.4）：尺寸与颜色按设计稿 desk-stage.html。状态用 React Aria 的 data-* 属性。 */
+
+.ic {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.muted {
+  color: var(--on-surface-variant);
+}
+.faint {
+  color: var(--outline);
+}
+.stage-zone .faint {
+  color: var(--stage-ink3);
+}
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+.spacer {
+  flex: 1;
+}
+.vsep {
+  width: 1px;
+  height: 20px;
+  flex: none;
+  margin: 0 4px;
+  background: var(--outline-variant);
+}
+
+/* ———— 按钮 ———— */
+.btn {
+  position: relative;
+  height: var(--control);
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: none;
+  border-radius: 999px;
+  border: 1px solid var(--outline-variant);
+  background-color: transparent;
+  color: var(--on-surface-variant);
+  font: 500 var(--fs) / 1 var(--font);
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn[data-hovered] {
+  background-image: var(--hover);
+}
+.btn[data-pressed] {
+  background-image: var(--press);
+}
+.btn[data-focus-visible] {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.btn[data-disabled] {
+  opacity: 0.38;
+  cursor: default;
+  background-image: none;
+}
+.btn[data-pending] {
+  cursor: progress;
+}
+.btn .ic {
+  width: 18px;
+  height: 18px;
+  margin-left: -3px;
+}
+.btn .ic.trail {
+  margin: 0 -4px 0 0;
+}
+.btn.filled {
+  background-color: var(--primary);
+  color: var(--on-primary);
+  border-color: transparent;
+}
+.btn.tonal {
+  background-color: var(--secondary-container);
+  color: var(--on-secondary-container);
+  border-color: transparent;
+}
+.btn.text {
+  border-color: transparent;
+  padding: 0 10px;
+  color: var(--primary);
+}
+.btn.ghost {
+  border-color: transparent;
+  padding: 0 10px;
+}
+.btn.danger.filled {
+  background-color: var(--error);
+  color: var(--on-error);
+}
+.btn.danger:not(.filled) {
+  color: var(--error);
+}
+.btn.sm {
+  height: var(--control-sm);
+  padding: 0 12px;
+  font-size: var(--fs-sm);
+}
+.btn.sm.text,
+.btn.sm.ghost {
+  padding: 0 8px;
+}
+.btn.sm .ic {
+  width: 16px;
+  height: 16px;
+}
+.btn.lg {
+  height: 40px;
+  padding: 0 20px;
+  font-size: var(--fs-lg);
+}
+.btn.icon {
+  width: var(--control);
+  padding: 0;
+  border-color: transparent;
+}
+.btn.icon.outlined {
+  border-color: var(--outline-variant);
+}
+.btn.icon .ic {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+}
+.btn.icon.sm {
+  width: var(--control-sm);
+}
+.btn.icon.sm .ic {
+  width: 18px;
+  height: 18px;
+}
+.btn.icon[data-selected] {
+  background-color: var(--sel);
+  color: var(--on-sel);
+}
+.btn.icon.filled[data-selected] {
+  background-color: var(--accent);
+  color: var(--on-accent);
+}
+
+/* ———— 输入框 ———— */
+.tf {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.tf > .lbl {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--primary);
+}
+.tf.side {
+  display: grid;
+  grid-template-columns: var(--label-w, 64px) minmax(0, 1fr);
+  align-items: center;
+  gap: 4px 8px;
+}
+.tf.side > .lbl {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--on-surface-variant);
+}
+.tf.side > .help {
+  grid-column: 2;
+}
+.tf[data-disabled] > .lbl {
+  opacity: 0.6;
+}
+.help {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--on-surface-variant);
+}
+.help.err {
+  color: var(--error);
+}
+
+.field {
+  height: var(--control);
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  border-radius: var(--radius-field);
+  background: var(--field);
+  color: var(--on-surface);
+  font: inherit;
+  font-size: var(--fs);
+  white-space: nowrap;
+}
+.field:focus-within,
+.field.select[data-focus-visible],
+.tf[data-open] .field.select {
+  box-shadow: inset 0 0 0 2px var(--primary);
+}
+.tf[data-invalid] .field {
+  box-shadow: inset 0 0 0 1px var(--error);
+}
+.tf[data-invalid] .field:focus-within {
+  box-shadow: inset 0 0 0 2px var(--error);
+}
+.tf[data-disabled] .field,
+.field[data-disabled] {
+  opacity: 0.38;
+}
+.field.sm {
+  height: var(--control-sm);
+  font-size: var(--fs-sm);
+}
+.field input,
+.field textarea {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.field input::placeholder,
+.field textarea::placeholder {
+  color: var(--outline);
+}
+.field.multi {
+  height: auto;
+  padding: 6px 10px;
+  align-items: stretch;
+}
+.field textarea {
+  resize: vertical;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+.field .ic.lead {
+  width: 18px;
+  height: 18px;
+  margin-left: -2px;
+  color: var(--on-surface-variant);
+}
+.field .unit {
+  font-style: normal;
+  font-size: 12px;
+  color: var(--on-surface-variant);
+}
+.num .field {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 下拉选择：触发按钮长得像输入框 */
+.field.select {
+  width: 100%;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+  outline: none;
+}
+.field.select[data-hovered] {
+  background-image: var(--hover);
+}
+.select-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.select-value[data-placeholder] {
+  color: var(--outline);
+}
+.field.select .arrow {
+  width: 20px;
+  height: 20px;
+  margin-right: -6px;
+  color: var(--on-surface-variant);
+}
+
+/* 颜色：色块在框内左边，点开系统取色器 */
+.color-input .swatch {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  margin-left: -4px;
+  flex: none;
+  border: 0;
+  border-radius: 4px;
+  background: var(--c);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--on-surface) 18%, transparent);
+  cursor: pointer;
+}
+.color-input .field.sm .swatch {
+  width: 18px;
+  height: 18px;
+}
+.color-input .swatch:focus-within {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.color-input .swatch input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.file-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.file-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-sm);
+}
+
+.field-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--control);
+  padding: 0 2px 0 10px;
+  border-radius: var(--radius-field);
+  background: var(--surface-low);
+  font-size: var(--fs-sm);
+}
+.field-note > .ic {
+  width: 18px;
+  height: 18px;
+  color: var(--primary);
+}
+.field-note > span {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ———— 弹出层：下拉列表与菜单 ———— */
+.popover {
+  box-sizing: border-box;
+  min-width: max(var(--trigger-width, 0px), 160px);
+  max-width: 360px;
+  max-height: min(420px, var(--visible-height, 420px));
+  overflow: auto;
+  padding: 4px;
+  border-radius: var(--radius-row);
+  background: var(--dialog);
+  color: var(--on-surface);
+  box-shadow: var(--shadow-menu);
+  font: var(--fs) / 1.4 var(--font);
+  outline: none;
+  scrollbar-width: thin;
+}
+.popover[data-entering] {
+  animation: pop-in 120ms ease-out;
+}
+.popover[data-exiting] {
+  animation: pop-in 90ms ease-in reverse;
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+.menu-list {
+  outline: none;
+  display: flex;
+  flex-direction: column;
+}
+.menu-item {
+  min-height: var(--control);
+  padding: 4px 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: var(--radius-field);
+  cursor: pointer;
+  outline: none;
+}
+.menu-item[data-focused],
+.menu-item[data-hovered] {
+  background-image: var(--hover);
+}
+.menu-item[data-focus-visible] {
+  box-shadow: inset 0 0 0 2px var(--primary);
+}
+.menu-item[data-selected] {
+  background-color: var(--sel);
+  color: var(--on-sel);
+}
+.menu-item[data-disabled] {
+  opacity: 0.38;
+  cursor: default;
+}
+.menu-item.danger {
+  color: var(--error);
+}
+.menu-item > .ic {
+  width: 18px;
+  height: 18px;
+  color: var(--on-surface-variant);
+}
+.menu-item[data-selected] > .ic,
+.menu-item.danger > .ic {
+  color: inherit;
+}
+.menu-item .menu-check.off {
+  visibility: hidden;
+}
+.menu-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.menu-desc {
+  font-size: 12px;
+  color: var(--on-surface-variant);
+}
+.menu-item[data-selected] .menu-desc {
+  color: inherit;
+  opacity: 0.8;
+}
+.menu-kbd {
+  font: 11.5px var(--font);
+  color: var(--on-surface-variant);
+}
+.menu-check {
+  margin-left: auto;
+}
+.menu-head {
+  padding: 8px 10px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary);
+}
+.menu-sep {
+  height: 1px;
+  margin: 4px 6px;
+  border: 0;
+  background: var(--line);
+}
+
+/* ———— 分段按钮 ———— */
+.seg {
+  display: inline-flex;
+  width: fit-content;
+  flex: none;
+  border: 1px solid var(--outline-variant);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.seg.stretch {
+  display: flex;
+  width: auto;
+}
+.seg-btn {
+  height: 30px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--on-surface);
+  font: 500 var(--fs-sm) / 1 var(--font);
+  white-space: nowrap;
+  cursor: pointer;
+  outline: none;
+}
+.seg.stretch .seg-btn {
+  flex: 1;
+}
+.seg-btn + .seg-btn {
+  border-left: 1px solid var(--outline-variant);
+}
+.seg-btn[data-hovered] {
+  background-image: var(--hover);
+}
+.seg-btn[data-selected] {
+  background-color: var(--sel);
+  color: var(--on-sel);
+}
+.seg-btn[data-focus-visible] {
+  box-shadow: inset 0 0 0 2px var(--primary);
+}
+.seg-btn[data-disabled] {
+  opacity: 0.38;
+  cursor: default;
+}
+.seg-btn .ic {
+  width: 16px;
+  height: 16px;
+}
+.seg.sm .seg-btn {
+  height: 26px;
+  padding: 0 10px;
+}
+
+/* ———— 开关、复选框、单选 ———— */
+/* 外层是块，里面的 label 是行内弹性盒，会按文字基线对齐，勾、横杠、空框的基线不同就会上下错开 */
+.switch,
+.checkbox,
+.radio {
+  display: flex;
+}
+.switch-btn,
+.checkbox-btn,
+.radio-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--on-surface);
+  cursor: pointer;
+}
+.switch-btn[data-disabled],
+.checkbox-btn[data-disabled],
+.radio-btn[data-disabled] {
+  opacity: 0.38;
+  cursor: default;
+}
+.switch .track {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  flex: none;
+  border-radius: 10px;
+  background: var(--surface-highest);
+  box-shadow: inset 0 0 0 2px var(--outline);
+  transition: background-color 120ms;
+}
+.switch .track::after {
+  content: '';
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--outline);
+  transition:
+    left 120ms,
+    top 120ms,
+    width 120ms,
+    height 120ms;
+}
+.switch-btn[data-selected] .track {
+  background: var(--accent);
+  box-shadow: none;
+}
+.switch-btn[data-selected] .track::after {
+  top: 3px;
+  left: 19px;
+  width: 14px;
+  height: 14px;
+  background: var(--on-accent);
+}
+.switch-btn[data-pressed] .track::after {
+  transform: scale(1.15);
+}
+.switch-btn[data-focus-visible] .track,
+.checkbox-btn[data-focus-visible] .box,
+.radio-btn[data-focus-visible] .dot {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.checkbox .box {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 2px var(--on-surface-variant);
+}
+.checkbox-btn:is([data-selected], [data-indeterminate]) .box {
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: none;
+}
+.checkbox .box .ic {
+  width: 16px;
+  height: 16px;
+}
+.checkbox .box .dash {
+  width: 10px;
+  height: 2px;
+  border-radius: 1px;
+  background: currentColor;
+}
+
+.radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.radio-group > .lbl {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--primary);
+}
+.radio-options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.radio-group[data-orientation='horizontal'] .radio-options {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+.radio .dot {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 2px var(--on-surface-variant);
+}
+.radio-btn[data-selected] .dot {
+  box-shadow:
+    inset 0 0 0 2px var(--accent),
+    inset 0 0 0 5px transparent,
+    inset 0 0 0 9px var(--accent);
+}
+.radio-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.radio-desc {
+  font-size: 12px;
+  color: var(--on-surface-variant);
+}
+.radio-btn {
+  min-height: var(--control);
+}
+/* 卡片式：每项一块，选中的用选中色 */
+.radio-group.cards .radio-options {
+  gap: 6px;
+}
+.radio-group.cards .radio-btn {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: start;
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: var(--radius-row);
+  background: var(--surface-low);
+}
+.radio-group.cards .radio-btn[data-hovered] {
+  background-image: var(--hover);
+}
+.radio-group.cards .radio-btn[data-selected] {
+  background-color: var(--sel);
+  color: var(--on-sel);
+}
+.radio-group.cards .radio-btn .dot {
+  margin-top: 1px;
+}
+.radio-group.cards .radio-label {
+  font-weight: 600;
+}
+.radio-group.cards .radio-btn[data-selected] .radio-desc {
+  color: inherit;
+  opacity: 0.8;
+}
+
+/* ———— 滑块：活动段与剩余段之间留缝，滑块是一根竖条 ———— */
+.slider-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.slider-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.slider-head .lbl {
+  font-size: 12px;
+  color: var(--on-surface-variant);
+}
+.slider-value {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.slider {
+  position: relative;
+  height: 20px;
+  min-width: 64px;
+  cursor: pointer;
+}
+.slider-field[data-disabled] {
+  opacity: 0.38;
+}
+.slider-rail::before,
+.slider-rail::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  height: 4px;
+  border-radius: 2px;
+}
+.slider-rail::before {
+  left: 0;
+  width: max(0px, calc(var(--v) - 5px));
+  background: var(--accent);
+}
+.slider-rail::after {
+  right: 0;
+  left: min(100%, calc(var(--v) + 5px));
+  background: var(--sel);
+}
+.slider-thumb {
+  top: 50%;
+  width: 4px;
+  height: 18px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.slider-thumb[data-dragging] {
+  width: 2px;
+}
+.slider-thumb[data-focus-visible] {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
+
+/* ———— 页签 ———— */
+.tabs.with-panels {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.tab-list {
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+.tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--on-surface-variant);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  outline: none;
+}
+.tab[data-hovered] {
+  background-image: var(--hover);
+}
+.tab[data-disabled] {
+  opacity: 0.38;
+  cursor: default;
+}
+.tab[data-focus-visible] {
+  box-shadow: inset 0 0 0 2px var(--primary);
+}
+.tab .ic {
+  width: 18px;
+  height: 18px;
+}
+.tab .badge {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--surface-high);
+  color: var(--on-surface-variant);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+/* 下划线页签：面板里，下面一条分隔线 */
+.tab-list.line {
+  padding: 0 8px;
+  border-bottom: 1px solid var(--line);
+}
+.tab-list.line .tab {
+  height: 40px;
+  padding: 0 12px;
+}
+.tab-list.line .tab[data-selected] {
+  color: var(--primary);
+}
+.tab-list.line .tab[data-selected]::after {
+  content: '';
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: -1px;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: var(--primary);
+}
+/* 胶囊页签：顶栏的页面、侧边面板 */
+.tab-list.pill {
+  gap: 4px;
+}
+.tab-list.pill .tab {
+  height: var(--control);
+  padding: 0 14px;
+  border-radius: 999px;
+}
+.tab-list.pill .tab:has(.ic) {
+  padding-left: 10px;
+}
+.tab-list.pill .tab[data-selected] {
+  background-color: var(--secondary-container);
+  color: var(--on-secondary-container);
+}
+.tab-panel {
+  flex: 1;
+  min-height: 0;
+  outline: none;
+}
+
+/* ———— 标签、进度 ———— */
+.tag {
+  height: 22px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  border-radius: var(--radius-tag);
+  background: var(--surface-high);
+  color: var(--on-surface-variant);
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.tag .ic {
+  width: 14px;
+  height: 14px;
+}
+.tag.accent {
+  background: var(--sel);
+  color: var(--on-sel);
+}
+.tag.ok {
+  background: var(--ok-container);
+  color: var(--ok);
+}
+.tag.warn {
+  background: var(--warn-container);
+  color: var(--warn);
+}
+.tag.error {
+  background: var(--error-container);
+  color: var(--error);
+}
+
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.progress-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--on-surface-variant);
+}
+.progress-track {
+  position: relative;
+  height: 4px;
+  overflow: hidden;
+}
+.progress-track::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  left: min(100%, calc(var(--v) + 4px));
+  border-radius: 2px;
+  background: var(--sel);
+}
+.progress-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: max(0px, var(--v));
+  border-radius: 2px;
+  background: var(--accent);
+}
+.progress.indeterminate .progress-track::after {
+  left: 0;
+}
+.progress.indeterminate .progress-fill {
+  z-index: 1;
+  width: 32%;
+  box-shadow:
+    -4px 0 0 var(--panel),
+    4px 0 0 var(--panel);
+  animation: progress-slide 1.4s ease-in-out infinite;
+}
+@keyframes progress-slide {
+  from {
+    left: -32%;
+  }
+  to {
+    left: 100%;
+  }
+}
+
+.spinner {
+  display: inline-grid;
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+.spinner svg {
+  width: 100%;
+  height: 100%;
+  animation: spin 1s linear infinite;
+}
+.spinner circle {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-dasharray: 40 100;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.btn .spinner {
+  width: 16px;
+  height: 16px;
+  margin-left: -3px;
+}
+
+/* ———— 提示 ———— */
+.tooltip {
+  max-width: 280px;
+  padding: 4px 8px;
+  border-radius: var(--radius-tag);
+  background: var(--inverse-surface);
+  color: var(--inverse-on-surface);
+  font: 12px / 1.4 var(--font);
+  pointer-events: none;
+}
+.tooltip[data-entering] {
+  animation: fade-in 100ms ease-out;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .popover,
+  .tooltip {
+    animation: none !important;
+  }
+  .progress.indeterminate .progress-fill {
+    animation-duration: 3s;
+  }
+}

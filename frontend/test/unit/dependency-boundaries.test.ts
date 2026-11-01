@@ -51,7 +51,8 @@ function violations(layer: string, rules: LayerRules): string[] {
   return result;
 }
 
-const UI_PACKAGES = (target: string) => /^(react|react-dom|mdui|@mdui\/icons)(\/|$)/.test(target);
+// 界面改版（§2.1）引入 React Aria Components 与 material-color-utilities；mdui 在批 7 移除。
+const UI_PACKAGES = (target: string) => /^(react|react-dom|react-aria-components|@material\/material-color-utilities|mdui|@mdui\/icons)(\/|$)/.test(target);
 /** 代码编辑器（W8 设计 §2.6）：CodeMirror 只在 SourceEditor.tsx 里用，它只被动态 import，打成单独的分块。 */
 const CODE_EDITOR = 'editor/library/SourceEditor.tsx';
 const EDITOR_PACKAGES = (target: string, file: string) =>

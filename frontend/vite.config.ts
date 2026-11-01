@@ -33,5 +33,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
+    // material-color-utilities 0.4 的 ESM 里有不带扩展名的相对导入，Node 直接加载会失败，交给 Vite 处理。
+    server: { deps: { inline: ['@material/material-color-utilities'] } },
   },
 });

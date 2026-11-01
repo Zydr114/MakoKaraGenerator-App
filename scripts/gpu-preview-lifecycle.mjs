@@ -3,7 +3,7 @@ import {mkdir,writeFile,readFile,appendFile} from 'node:fs/promises';
 import {resolve,join} from 'node:path';
 import {parseArgs} from 'node:util';
 import {Cdp,Page} from '../frontend/scripts/cdp.mjs';
-const {values}=parseArgs({options:{'cdp-port':{type:'string',default:'9234'},scenario:{type:'string'},output:{type:'string'},seconds:{type:'string',default:'10'},mode:{type:'string',default:'playing'}}});
+const {values}=parseArgs({options:{'cdp-port':{type:'string',default:'9234'},scenario:{type:'string'},output:{type:'string'},seconds:{type:'string',default:'10'},mode:{type:'string',default:'playing'},'external-loss':{type:'boolean'},'session-name':{type:'string'}}});
 const scenarios=['hidden','slow','renderer-loss','worker-loss','trace'];
 if(!scenarios.includes(values.scenario))throw new Error(`Expected scenario ${scenarios.join('|')}`);
 const root=process.cwd(),output=resolve(values.output??join(root,'.local/gpu-preview-lifecycle',`${values.scenario}-${Date.now()}`));
@@ -18,7 +18,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
 const invariant=(value,message)=>{if(!value)throw new Error(message);};
 let revision=0;
 const sample=async()=>{const s=await page.eval(`window.makoDesktopPreview.readPreviewState(${revision}).then(s=>({...s,visibility:document.visibilityState}))`);revision=s.sampleRevision;await appendFile(join(output,'events.jsonl'),JSON.stringify({type:'snapshot',observedAt:new Date().toISOString(),snapshot:s})+'\n');return s;};
-const proc=async pid=>{try{const stat=await readFile(`/proc/${pid}/stat`,'utf8');return {pid,startTicks:stat.slice(stat.lastIndexOf(')')+2).split(' ')[19],state:stat.slice(stat.lastIndexOf(')')+2).split(' ')[0]};}catch(error){if(error.code==='ENOENT')return {pid,exited:true};throw error;}};
+const proc=async pid=>{try{const stat=await readFile(`/proc/${pid}/stat`,'utf8'),fields=stat.slice(stat.lastIndexOf(')')+2).split(' ');return {pid,startTicks:fields[19],state:fields[0],parentPid:Number(fields[1])};}catch(error){if(error.code==='ENOENT')return {pid,exited:true};throw error;}};
 const until=async(predicate,timeout=15000)=>{const deadline=Date.now()+timeout;let result;while(Date.now()<deadline){result=await predicate();if(result)return result;await wait(100);}throw new Error('Finite acceptance condition did not converge');};
 const report={schemaVersion:1,scenario:values.scenario,startedAt:new Date().toISOString(),cdpPort:Number(values['cdp-port']),readback:'none',evidenceBoundary:'finite injected scenario; displayed FPS and Chromium internal copies remain unmeasured'};
 try{
@@ -49,7 +49,20 @@ try{
     await cdp.send('IO.close',{handle:result.stream});await writeFile(join(output,'chromium-trace.json'),trace);
     const parsed=JSON.parse(trace);report.trace={categories,durationSeconds:10,eventCount:parsed.traceEvents?.length??0,path:'chromium-trace.json',displayedFps:'unmeasured; raw trace retained without deriving a presentation rate'};report.after=await sample();report.passed=report.trace.eventCount>0&&report.after.completedDrawnUnique>=before.completedDrawnUnique+10;
   }else{
-    try{await page.eval(`window.makoDesktopPreview.injectAcceptanceFailure(${JSON.stringify(values.scenario)})`);}catch(error){report.injectReturn=error.message;}
+    if(values['external-loss']){
+      invariant(typeof values['session-name']==='string'&&/^[a-z0-9][a-z0-9-]{0,47}$/.test(values['session-name']),'External loss requires an explicit named acceptance session');
+      const main=report.ownedIdentities.find(p=>p.pid===before.mainPid);
+      const launch=JSON.parse(await readFile(join(root,'.local/run',`desktop-${main.parentPid}.json`),'utf8'));
+      invariant(launch.root===root&&launch.mainPid===before.mainPid&&launch.sessionName===values['session-name'],'External target is not the explicitly owned acceptance session');
+      const pid=values.scenario==='renderer-loss'?before.rendererPid:before.workerPid;
+      const owned=report.ownedIdentities.find(p=>p.pid===pid),current=await proc(pid);
+      invariant(owned&&!current.exited&&current.startTicks===owned.startTicks,'External target process identity changed');
+      report.externalKill={target:current,observedBeforeKillMonotonicNs:process.hrtime.bigint().toString(),acknowledgedAtObservation:before.acknowledgedUnique,outstandingAtObservation:before.outstanding};
+      process.kill(pid,'SIGKILL');
+      report.evidenceBoundary='External exact-owned-PID SIGKILL exercises production automatic loss handling. The previous CDP observation precedes kill and detection; it is not an exact loss-time ACK baseline. Native completion remains unknown.';
+    }else{
+      try{await page.eval(`window.makoDesktopPreview.injectAcceptanceFailure(${JSON.stringify(values.scenario)})`);}catch(error){report.injectReturn=error.message;}
+    }
     report.ownedAfter=await until(async()=>{const states=await Promise.all(report.ownedIdentities.map(p=>proc(p.pid)));return states.every((s,index)=>s.exited||s.startTicks!==report.ownedIdentities[index].startTicks)?states:false;},30000);
     report.passed=true;report.evidenceBoundary+='; exact unknown-before-kill and ACK suppression require the owned main log';
   }

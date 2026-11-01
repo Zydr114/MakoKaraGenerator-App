@@ -1,0 +1,419 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "0588556",
+  "purpose": "single explicitly instrumented synthetic720p24 diagnostic; not formal acceptance",
+  "rawReport": ".local/gpu-preview-performance/perfdiag-1793510020992/report.json",
+  "rawReportSha256": "a9b9d214540689d0e6abca180a04d7ee05fe9d3a1ad98ab7270d1bbefc3d1b72",
+  "eventsPath": ".local/gpu-preview-performance/perfdiag-1793510020992/events.jsonl",
+  "eventsSha256": "060fb8ce792789e8261048e1a90aee3b6073e04e2face598b9f7f50d030940ff",
+  "sourceHashes": {
+    "desktop/main.cjs": "0686285e841c707678307401dca0863330e66719b1b1471dbac5827784e0060b",
+    "desktop/gpu-preview/preload.cjs": "89fd43fd464ea1fe613af381714e4ebb14fa08273d502d4d691a184e8c7f0e33",
+    "desktop/gpu-preview/performance-diagnostics.cjs": "e0ae7ce4b0da73041e9caee880cfc01ebbb9eccff52e69f27df638c966ce2f6c",
+    "scripts/gpu-preview-performance-diagnostic.mjs": "5bb72e725c8698f0abcbbe483c8a016c412adefed33543f144a896699056bb1a"
+  },
+  "deployment": {
+    "dist": "/mnt/Data/Program/MakoKaraGenerator-App/.local/backend-dist/20261101T045924324Z",
+    "gpuPreview": {
+      "manifest": "/mnt/Data/Program/MakoKaraGenerator-App/.local/backend-dist/20261101T045924324Z/gpu-preview-manifest.json",
+      "sha256": "b0f4ac8a0a817c673de7056805d0984cc2d0cdd052573035eb7d68f9a7db2c51"
+    }
+  },
+  "measurement": {
+    "startMonotonicNs": "80050116752338",
+    "endMonotonicNs": "80230126542448",
+    "seconds": 180.00979011,
+    "uniqueDrawnCompleted": 4320,
+    "maximumCompletionIntervalMs": 137.331271
+  },
+  "measuredSlowEventCounts": {
+    "renderer-event-loop-lag": 1,
+    "renderer-frame": 1,
+    "main-event-loop-lag": 4
+  },
+  "diagnosticThresholdsMs": {
+    "mainLoopLag": 20,
+    "rendererLoopLag": 20,
+    "mainGc": 5,
+    "synchronousImport": 5,
+    "getAppMetrics": 5,
+    "read": 10,
+    "poll": 10,
+    "rendererCallback": 5,
+    "transferToRendererReceive": 10
+  },
+  "gaps": [
+    {
+      "durationMs": 62.725638,
+      "before": {
+        "attachedMonotonicNs": "80039830994616",
+        "controlApplied": {
+          "protocolVersion": 1,
+          "streamId": "60ea77f7499f4a83898fe09a30cb48e1",
+          "hostInstanceId": "host-a503e4fc5796464e89290cb9f920f6a8",
+          "producerEpoch": "2536680620033060047",
+          "inputGeneration": "1",
+          "consumerEpoch": "1",
+          "controlSeq": 66,
+          "timelineResetId": "project-d7db5a5d3b7b47cebcf8eb3b8e1a62f0:0",
+          "mainObservedMonotonicNs": "80072166824011",
+          "mainReceivedMonotonicNs": "80072163670288"
+        },
+        "sampleRevision": 784,
+        "streamId": "60ea77f7499f4a83898fe09a30cb48e1",
+        "hostInstanceId": "host-a503e4fc5796464e89290cb9f920f6a8",
+        "producerEpoch": "2536680620033060047",
+        "inputGeneration": "1",
+        "consumerEpoch": "1",
+        "timelineEpoch": "1",
+        "poolGeneration": "1",
+        "slotId": 0,
+        "slotEpoch": "262",
+        "frameSeq": 784,
+        "timeUs": 33641603,
+        "controlSeq": 66,
+        "timelineResetId": "project-d7db5a5d3b7b47cebcf8eb3b8e1a62f0:0",
+        "provider": "synthetic-gpu",
+        "width": 1280,
+        "height": 720,
+        "counters": {
+          "gpuBlits": 784,
+          "cpuPixelReadbacks": 0,
+          "queueIdleWaits": 784
+        },
+        "drawn": true,
+        "completedMonotonicNs": "80072470766694",
+        "renderMs": 0.626602,
+        "brokerToCompletionMs": 1.216346,
+        "readyToBrokerMs": 1.919098,
+        "readyToCompletionMs": 3.135444,
+        "clockUncertaintyMs": 2.042291,
+        "totalClockUncertaintyMs": 2.093291
+      },
+      "after": {
+        "attachedMonotonicNs": "80039830994616",
+        "controlApplied": {
+          "protocolVersion": 1,
+          "streamId": "60ea77f7499f4a83898fe09a30cb48e1",
+          "hostInstanceId": "host-a503e4fc5796464e89290cb9f920f6a8",
+          "producerEpoch": "2536680620033060047",
+          "inputGeneration": "1",
+          "consumerEpoch": "1",
+          "controlSeq": 66,
+          "timelineResetId": "project-d7db5a5d3b7b47cebcf8eb3b8e1a62f0:0",
+          "mainObservedMonotonicNs": "80072166824011",
+          "mainReceivedMonotonicNs": "80072163670288"
+        },
+        "sampleRevision": 785,
+        "streamId": "60ea77f7499f4a83898fe09a30cb48e1",
+        "hostInstanceId": "host-a503e4fc5796464e89290cb9f920f6a8",
+        "producerEpoch": "2536680620033060047",
+        "inputGeneration": "1",
+        "consumerEpoch": "1",
+        "timelineEpoch": "1",
+        "poolGeneration": "1",
+        "slotId": 1,
+        "slotEpoch": "262",
+        "frameSeq": 785,
+        "timeUs": 33683113,
+        "controlSeq": 66,
+        "timelineResetId": "project-d7db5a5d3b7b47cebcf8eb3b8e1a62f0:0",
+        "provider": "synthetic-gpu",
+        "width": 1280,
+        "height": 720,
+        "counters": {
+          "gpuBlits": 785,
+          "cpuPixelReadbacks": 0,
+          "queueIdleWaits": 785
+        },
+        "drawn": true,
+        "completedMonotonicNs": "80072533492332",
+        "renderMs": 0.51926,
+        "brokerToCompletionMs": 22.730058,
+        "readyToBrokerMs": 1.721154,
+        "readyToCompletionMs": 24.451212,
+        "clockUncertaintyMs": 2.042291,
+        "totalClockUncertaintyMs": 2.093291
+      },
+      "producerReadyGapMs": 41.40986999999999,
+      "nearbyEvents": [
+        {
+          "scope": "rendererPerformanceDiagnostics",
+          "sequence": 5,
+          "type": "renderer-frame",
+          "startPerformanceMs": 37409.5,
+          "endPerformanceMs": 37409.89999999106,
+          "startMonotonicNs": "80072530146133",
+          "endMonotonicNs": "80072530546133",
+          "mappingUncertaintyNs": "51000",
+          "durationMs": 0.3999999910593033,
+          "lease": {
+            "streamId": "60ea77f7499f4a83898fe09a30cb48e1",
+            "hostInstanceId": "host-a503e4fc5796464e89290cb9f920f6a8",
+            "producerEpoch": "2536680620033060047",
+            "inputGeneration": "1",
+            "consumerEpoch": "1",
+            "timelineEpoch": "1",
+            "poolGeneration": "1",
+            "slotId": 1,
+            "slotEpoch": "262",
+            "frameSeq": 785
+          },
+          "getVideoFrameMs": 0,
+          "drawMs": 0.20000000298023224,
+          "frameCloseMs": 0.09999999403953552,
+          "releaseMs": 0,
+          "transferToReceiveMs": 19.249585,
+          "brokerReceivedMonotonicNs": "80072510762274",
+          "transferStartMonotonicNs": "80072510896548"
+        }
+      ]
+    },
+    {
+      "durationMs": 123.928079,
+      "before": {
+        "attachedMonotonicNs": "80039830994616",
+        "controlApplied": {
+          "protocolVersion": 1,
+          "streamId": "60ea77f7499f4a83898fe09a30cb48e1",
+          "hostInstanceId": "host-a503e4fc5796464e89290cb9f920f6a8",
+          "producerEpoch": "2536680620033060047",
+          "inputGeneration": "1",
+          "consumerEpoch": "1",
+          "controlSeq": 222,
+          "timelineResetId": "project-d7db5a5d3b7b47cebcf8eb3b8e1a62f0:0",
+          "mainObservedMonotonicNs": "80150165819914",
+          "mainReceivedMonotonicNs": "80150164804358"
+        },
+        "sampleRevision": 2658,
+        "streamId": "60ea77f7499f4a83898fe09a30cb48e1",
+        "hostInstanceId": "host-a503e4fc5796464e89290cb9f920f6a8",
+        "producerEpoch": "2536680620033060047",
+        "inputGeneration": "1",
+        "consumerEpoch": "1",
+        "timelineEpoch": "1",
+        "poolGeneration": "1",
+        "slotId": 2,
+        "slotEpoch": "886",
+        "frameSeq": 2658,
+        "timeUs": 111718891,
+        "controlSeq": 222,
+        "timelineResetId": "project-d7db5a5d3b7b47cebcf8eb3b8e1a62f0:0",
+        "provider": "synthetic-gpu",
+        "width": 1280,
+        "height": 720,
+        "counters": {
+          "gpuBlits": 2658,
+          "cpuPixelReadbacks": 0,
+          "queueIdleWaits": 2658
+        },
+        "drawn": true,
+        "completedMonotonicNs": "80150554878610",
+        "renderMs": 1.071652,
+        "brokerToCompletionMs": 2.537098,
+        "readyToBrokerMs": 1.858442,
+        "readyToCompletionMs": 4.39554,
+        "clockUncertaintyMs": 2.042291,
+        "totalClockUncertaintyMs": 2.043291
+      },
+      "after": {
+        "attachedMonotonicNs": "80039830994616",
+        "controlApplied": {
+          "protocolVersion": 1,
+          "streamId": "60ea77f7499f4a83898fe09a30cb48e1",
+          "hostInstanceId": "host-a503e4fc5796464e89290cb9f920f6a8",
+          "producerEpoch": "2536680620033060047",
+          "inputGeneration": "1",
+          "consumerEpoch": "1",
+          "controlSeq": 222,
+          "timelineResetId": "project-d7db5a5d3b7b47cebcf8eb3b8e1a62f0:0",
+          "mainObservedMonotonicNs": "80150165819914",
+          "mainReceivedMonotonicNs": "80150164804358"
+        },
+        "sampleRevision": 2659,
+        "streamId": "60ea77f7499f4a83898fe09a30cb48e1",
+        "hostInstanceId": "host-a503e4fc5796464e89290cb9f920f6a8",
+        "producerEpoch": "2536680620033060047",
+        "inputGeneration": "1",
+        "consumerEpoch": "1",
+        "timelineEpoch": "1",
+        "poolGeneration": "1",
+        "slotId": 0,
+        "slotEpoch": "887",
+        "frameSeq": 2659,
+        "timeUs": 111763026,
+        "controlSeq": 222,
+        "timelineResetId": "project-d7db5a5d3b7b47cebcf8eb3b8e1a62f0:0",
+        "provider": "synthetic-gpu",
+        "width": 1280,
+        "height": 720,
+        "counters": {
+          "gpuBlits": 2659,
+          "cpuPixelReadbacks": 0,
+          "queueIdleWaits": 2659
+        },
+        "drawn": true,
+        "completedMonotonicNs": "80150678806689",
+        "renderMs": 1.198281,
+        "brokerToCompletionMs": 59.992695,
+        "readyToBrokerMs": 24.059675,
+        "readyToCompletionMs": 84.05237,
+        "clockUncertaintyMs": 2.042291,
+        "totalClockUncertaintyMs": 2.043291
+      },
+      "producerReadyGapMs": 44.271249,
+      "nearbyEvents": [
+        {
+          "scope": "performanceDiagnostics",
+          "sequence": 3,
+          "type": "main-event-loop-lag",
+          "startMonotonicNs": "80150571144894",
+          "endMonotonicNs": "80150618665244",
+          "durationMs": 47.52035
+        },
+        {
+          "scope": "performanceDiagnostics",
+          "sequence": 4,
+          "type": "main-event-loop-lag",
+          "startMonotonicNs": "80150638665244",
+          "endMonotonicNs": "80150678615178",
+          "durationMs": 39.949934
+        }
+      ]
+    },
+    {
+      "durationMs": 137.331271,
+      "before": {
+        "attachedMonotonicNs": "80039830994616",
+        "controlApplied": {
+          "protocolVersion": 1,
+          "streamId": "60ea77f7499f4a83898fe09a30cb48e1",
+          "hostInstanceId": "host-a503e4fc5796464e89290cb9f920f6a8",
+          "producerEpoch": "2536680620033060047",
+          "inputGeneration": "1",
+          "consumerEpoch": "1",
+          "controlSeq": 223,
+          "timelineResetId": "project-d7db5a5d3b7b47cebcf8eb3b8e1a62f0:0",
+          "mainObservedMonotonicNs": "80150680294186",
+          "mainReceivedMonotonicNs": "80150678721549"
+        },
+        "sampleRevision": 2663,
+        "streamId": "60ea77f7499f4a83898fe09a30cb48e1",
+        "hostInstanceId": "host-a503e4fc5796464e89290cb9f920f6a8",
+        "producerEpoch": "2536680620033060047",
+        "inputGeneration": "1",
+        "consumerEpoch": "1",
+        "timelineEpoch": "1",
+        "poolGeneration": "1",
+        "slotId": 1,
+        "slotEpoch": "888",
+        "frameSeq": 2663,
+        "timeUs": 111927158,
+        "controlSeq": 223,
+        "timelineResetId": "project-d7db5a5d3b7b47cebcf8eb3b8e1a62f0:0",
+        "provider": "synthetic-gpu",
+        "width": 1280,
+        "height": 720,
+        "counters": {
+          "gpuBlits": 2663,
+          "cpuPixelReadbacks": 0,
+          "queueIdleWaits": 2663
+        },
+        "drawn": true,
+        "completedMonotonicNs": "80150761594969",
+        "renderMs": 0.661418,
+        "brokerToCompletionMs": 1.514568,
+        "readyToBrokerMs": 1.741581,
+        "readyToCompletionMs": 3.256149,
+        "clockUncertaintyMs": 2.042291,
+        "totalClockUncertaintyMs": 2.043291
+      },
+      "after": {
+        "attachedMonotonicNs": "80039830994616",
+        "controlApplied": {
+          "protocolVersion": 1,
+          "streamId": "60ea77f7499f4a83898fe09a30cb48e1",
+          "hostInstanceId": "host-a503e4fc5796464e89290cb9f920f6a8",
+          "producerEpoch": "2536680620033060047",
+          "inputGeneration": "1",
+          "consumerEpoch": "1",
+          "controlSeq": 223,
+          "timelineResetId": "project-d7db5a5d3b7b47cebcf8eb3b8e1a62f0:0",
+          "mainObservedMonotonicNs": "80150680294186",
+          "mainReceivedMonotonicNs": "80150678721549"
+        },
+        "sampleRevision": 2664,
+        "streamId": "60ea77f7499f4a83898fe09a30cb48e1",
+        "hostInstanceId": "host-a503e4fc5796464e89290cb9f920f6a8",
+        "producerEpoch": "2536680620033060047",
+        "inputGeneration": "1",
+        "consumerEpoch": "1",
+        "timelineEpoch": "1",
+        "poolGeneration": "1",
+        "slotId": 2,
+        "slotEpoch": "888",
+        "frameSeq": 2664,
+        "timeUs": 111968931,
+        "controlSeq": 223,
+        "timelineResetId": "project-d7db5a5d3b7b47cebcf8eb3b8e1a62f0:0",
+        "provider": "synthetic-gpu",
+        "width": 1280,
+        "height": 720,
+        "counters": {
+          "gpuBlits": 2664,
+          "cpuPixelReadbacks": 0,
+          "queueIdleWaits": 2664
+        },
+        "drawn": true,
+        "completedMonotonicNs": "80150898926240",
+        "renderMs": 1.254798,
+        "brokerToCompletionMs": 55.464039,
+        "readyToBrokerMs": 42.755253,
+        "readyToCompletionMs": 98.219292,
+        "clockUncertaintyMs": 2.042291,
+        "totalClockUncertaintyMs": 2.043291
+      },
+      "producerReadyGapMs": 42.36812799999999,
+      "nearbyEvents": [
+        {
+          "scope": "performanceDiagnostics",
+          "sequence": 5,
+          "type": "main-event-loop-lag",
+          "startMonotonicNs": "80150801017449",
+          "endMonotonicNs": "80150843994566",
+          "durationMs": 42.977117
+        },
+        {
+          "scope": "performanceDiagnostics",
+          "sequence": 6,
+          "type": "main-event-loop-lag",
+          "startMonotonicNs": "80150863994566",
+          "endMonotonicNs": "80150898661451",
+          "durationMs": 34.666885
+        }
+      ]
+    }
+  ],
+  "ownedRuntimePidsGone": {
+    "562847": true,
+    "562904": true,
+    "562907": true,
+    "563163": true,
+    "563357": true,
+    "563408": true
+  },
+  "launcherExit": {
+    "code": 0,
+    "signal": null
+  },
+  "conclusion": "Two reproduced100ms completion stalls overlap main event-loop lag. Producer readiness remains periodic, renderer draw remains short, and no instrumented synchronous import/metrics/read/poll or>=5ms main GC event explains the measured stalls. Main scheduling versus uninstrumented Chromium native tasks remains unresolved.",
+  "limits": [
+    "Instrumentation itself adds two20ms timers, GC observer, timing probes, extra frame metadata and1Hz diagnostic snapshots; this run cannot replace uninstrumented formal acceptance",
+    "No direct Worker send timestamp; producer ready to broker includes Worker delivery scheduling and main receive scheduling",
+    "Main timer lag does not by itself distinguish CPU runqueue delay, blocking Chromium native UI tasks, or other unobserved event-loop work",
+    "Absence of an event establishes only below configured duration threshold, not zero cost",
+    "Renderer timestamps use the independently calibrated main mapping and report its uncertainty",
+    "No trace/screenshots/readbacks used; no extra automatic diagnostic run was launched",
+    "Main app.getAppMetrics is synchronous only on read snapshots plus first-device validation; getGPUInfo is startup-only; ordinary preload rendering does not await rAF or slow timers"
+  ]
+}

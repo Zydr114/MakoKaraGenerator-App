@@ -4,6 +4,7 @@ import { installTheme } from './theme/theme-store';
 import { installMdui } from './ui/mdui';
 import { App } from './App';
 import './theme/tokens.css';
+import './theme/base.css';
 import './editor.css';
 
 installMdui(installTheme());

@@ -19,7 +19,9 @@ import { ProgressBar, Spinner, Tag } from '../indicators';
 import { Menu, MenuItem, MenuSection, MenuSeparator, MenuTrigger, SubmenuTrigger } from '../Menu';
 import { Tabs } from '../Tabs';
 import { Tooltip } from '../Tooltip';
+import { logoIcon } from '../../theme/logo/logo';
 import '../../theme/tokens.css';
+import '../../theme/base.css';
 import './gallery.css';
 
 const params = new URLSearchParams(location.search);
@@ -92,7 +94,7 @@ function Gallery() {
   return (
     <div className="gallery">
       <header className="g-top">
-        <img src="/assets/logo/logo-icon.png" alt="" className="g-logo" />
+        <img src={logoIcon} alt="" className="g-logo" />
         <b>控件样张</b>
         <Tabs
           label="页面"

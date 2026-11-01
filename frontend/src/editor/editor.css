@@ -1,16 +1,3 @@
-html,
-body,
-#root {
-  height: 100%;
-  margin: 0;
-}
-
-body {
-  font-family: Roboto, 'Noto Sans SC', 'Noto Sans JP', system-ui, sans-serif;
-  background: rgb(var(--mdui-color-background));
-  color: rgb(var(--mdui-color-on-background));
-}
-
 .editor {
   display: flex;
   flex-direction: column;

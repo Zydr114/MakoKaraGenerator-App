@@ -156,3 +156,16 @@ test('scheduler proc stat parsing uses kernel field offsets even with spaces in 
   const parsed=parseSchedulerStat('123 (Electron Renderer) '+fields.join(' '));
   assert.deepEqual({policy:parsed.policy,name:parsed.policyName,priority:parsed.priority,nice:parsed.nice,cpu:parsed.cpu},{policy:5,name:'SCHED_IDLE',priority:20,nice:0,cpu:7});
 });
+
+
+test('scheduler gate excludes observed tool Node priority but rejects actual pipeline IDLE and Worker nice drift',()=>{
+  const pipeline=[{role:'Browser',scheduler:{policy:0,nice:-8}},{role:'GPU',scheduler:{policy:0,nice:-8}},{role:'Tab',scheduler:{policy:0,nice:0}},{role:'worker',scheduler:{policy:0,nice:0}}];
+  const tools=[{role:'p3-runner',scheduler:{policy:5,nice:16}},{role:'owned-app-launcher',scheduler:{policy:5,nice:16}}];
+  const gate=processes=>analyze([{...snapshot(2n*N,[frame(1,N)],1),processes},phase],{schedulerBaseline:{explicitOrdinaryScheduling:true,initialOwnedProcesses:pipeline}});
+  const observed=gate([...pipeline,...tools]);
+  assert.equal(observed.phaseReports[0].gates.schedulerOtherObserved,true);
+  assert.equal(observed.measuredRequirements.ordinarySchedulerBaseline,true);
+  assert.equal(gate([...pipeline,{role:'Tab',scheduler:{policy:5,nice:0}},...tools]).phaseReports[0].gates.schedulerOtherObserved,false);
+  assert.equal(gate(pipeline.map(proc=>proc.role==='worker'?{...proc,scheduler:{policy:0,nice:16}}:proc)).phaseReports[0].gates.schedulerOtherObserved,false);
+  assert.equal(gate(tools).phaseReports[0].gates.schedulerOtherObserved,false);
+});

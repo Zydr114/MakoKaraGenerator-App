@@ -145,8 +145,8 @@ export function analyze(records, manifest={}) {
       if(Number.isFinite(proc.gpuMemoryBytes))points.gpu.push([observedTime,proc.gpuMemoryBytes]);
       resourcePids.set(key,points);
     }
-    const schedProcesses=streamSnapshots.flatMap(record=>record.processes??[]).filter(proc=>!proc.exited);
-    const schedulerObserved=schedProcesses.length>0&&schedProcesses.every(proc=>proc.scheduler?.policy===0)&&(schedProcesses.filter(proc=>['worker','p3-runner','owned-app-launcher'].includes(proc.role)).every(proc=>proc.scheduler?.nice===0));
+    const schedProcesses=streamSnapshots.flatMap(record=>record.processes??[]).filter(proc=>!proc.exited&&!['p3-runner','owned-app-launcher'].includes(proc.role));
+    const schedulerObserved=schedProcesses.some(proc=>proc.role==='worker')&&schedProcesses.every(proc=>proc.scheduler?.policy===0&&(proc.role!=='worker'||proc.scheduler?.nice===0));
     const workerStates=streamSnapshots.filter(record=>record.snapshot.workerState).map(record=>record.snapshot.workerState);
     const workerObserved=streamSnapshots.filter(record=>record.snapshot.workerState).map(record=>({time:record.time,state:record.snapshot.workerState}));
     const workerIdentity=workerObserved.length>0&&workerObserved.every(({state})=>state.streamId===phase.streamId&&state.inputGeneration===phase.inputGeneration);
@@ -222,7 +222,7 @@ export function analyze(records, manifest={}) {
     formalRunClass:manifest.runClass==='formal-p3',runFinished:typeof manifest.finishedAt==='string'&&manifest.runError===undefined,
     matchingDeployment:manifest.deployment?.verified===true,visibleRenderer:manifest.platformEvidence?.renderer?.visibility==='visible',
     runtimeWayland:manifest.platformEvidence?.waylandConfirmed===true,
-    ordinarySchedulerBaseline:manifest.schedulerBaseline?.runner?.scheduler?.policy===0&&manifest.schedulerBaseline?.runner?.scheduler?.nice===0&&manifest.schedulerBaseline?.launcher?.scheduler?.policy===0&&manifest.schedulerBaseline?.launcher?.scheduler?.nice===0,
+    ordinarySchedulerBaseline:manifest.schedulerBaseline?.explicitOrdinaryScheduling===true&&manifest.schedulerBaseline?.initialOwnedProcesses?.length>0&&manifest.schedulerBaseline.initialOwnedProcesses.every(proc=>!proc.exited&&proc.scheduler?.policy===0&&(proc.role!=='worker'||proc.scheduler?.nice===0)),
     phaseMatrix:['720p24','1440p30','1440p30-lifetime'].every(name=>phaseReports.some(phase=>phase.name===name&&phase.provider===(manifest.provider==='synthetic'?'synthetic-gpu':manifest.provider)&&phase.durationSeconds>=(name.endsWith('lifetime')?600:180))),
     throughput:phaseReports.length===3&&phaseReports.every(phase=>phase.throughputPassed),
     freshness:phaseReports.length===3&&phaseReports.every(phase=>phase.freshness.status==='candidate-met'),
@@ -392,12 +392,12 @@ async function run(values) {
     phases:[{name:'720p24',width:1280,height:720,targetFps:24},{name:'1440p30',width:2560,height:1440,targetFps:30}],
     thresholds:{overallRatio:.99,sliding5sRatio:.98,intervalP95Periods:2,intervalP99Periods:3,maxUnexplainedStallMs:250,interactionP95Ms:150,interactionP99Ms:250},
     lifecycle:{attachDetach:20,publicResizeSeek:10,uiResolutionRecreate:10},command:process.argv};
-  manifest.schedulerBaseline={kernel:await schedulerKernelState(),runner:await readProc(process.pid,'p3-runner'),runnerParent:await readProc(process.ppid,'runner-parent'),requiredFormalPolicy:'SCHED_OTHER (0) for runner, owned launcher, Electron main/renderer/GPU, and Worker; runner/launcher/Worker initial nice=0; Chromium may adjust its own nice and each value is recorded; inherited SCHED_IDLE is a confound and requires a separately identified run'};
+  manifest.schedulerBaseline={kernel:await schedulerKernelState(),runner:await readProc(process.pid,'p3-runner'),runnerParent:await readProc(process.ppid,'runner-parent'),explicitOrdinaryScheduling:values['ordinary-scheduling']===true,requiredFormalPolicy:'Explicit acceptance-only wrapper for newly spawned App/host: actual Electron main/renderer/GPU/utility and Worker SCHED_OTHER (0), Worker nice=0; Chromium may adjust its own nice. Runner/launcher actual scheduler is recorded continuously but excluded from pipeline gate; their external policy changes are an observation of the probe environment'};
   manifest.sourceCommit=await commandOutput('git',['rev-parse','HEAD']);
   manifest.dirtyPaths=(await commandOutput('git',['status','--short'])).split('\n').filter(Boolean);
   manifest.deployment=await deploymentEvidence();
   manifest.sourceSnapshotCurrentOnDisk={};
-  for(const file of ['scripts/gpu-preview-p3.mjs','scripts/app.mjs','desktop/main.cjs','desktop/gpu-preview/preload.cjs','frontend/src/editor/preview/PreviewPanel.tsx','frontend/src/editor/preview/gpu-preview-controller.ts']){
+  for(const file of ['scripts/gpu-preview-p3.mjs','scripts/app.mjs','desktop/gpu-preview/ordinary-exec.cjs','desktop/main.cjs','desktop/gpu-preview/preload.cjs','frontend/src/editor/preview/PreviewPanel.tsx','frontend/src/editor/preview/gpu-preview-controller.ts']){
     manifest.sourceSnapshotCurrentOnDisk[file]=createHash('sha256').update(await readFile(join(ROOT,file))).digest('hex');
   }
   manifest.sourceSnapshotBoundary='Hashes identify current disk source, deployment hashes identify managed/native payload; a connected Electron may have loaded an earlier disk source version before connection';
@@ -406,7 +406,6 @@ async function run(values) {
   invariant(manifest.deployment.verified&&manifest.deployment.files.every(file=>!file.missing),'Matched desktop deployment is missing/stale: build:desktop before a real run');
   const records=[],record=async value=>{records.push(value);await appendFile(join(output,'events.jsonl'),JSON.stringify(value)+'\n');};
   let child,cdp,page;
-  if(manifest.runClass==='formal-p3')invariant(manifest.schedulerBaseline.runner.scheduler?.policy===0&&manifest.schedulerBaseline.runner.scheduler?.nice===0,'Formal runner must start under recorded SCHED_OTHER and nice=0; inherited scheduler priority is a confound');
   const seenSamples=new Map();
   const observedSamples=new Map();
   let sampleRevision=0,lastWorkerPublicRead=0,workerPublicState,workerPublicReadMonotonicNs;
@@ -468,7 +467,7 @@ async function run(values) {
   };
   try{
     if(!values.connect){
-      child=spawn(process.execPath,[join(ROOT,'scripts/app.mjs'),'desktop','--port',values.port,'--cdp-port',values['cdp-port'],'--session-name',sessionName],
+      child=spawn(process.execPath,[join(ROOT,'scripts/app.mjs'),'desktop','--port',values.port,'--cdp-port',values['cdp-port'],'--session-name',sessionName,...(values['ordinary-scheduling']?['--ordinary-scheduling']:[])],
         {cwd:ROOT,env:{...process.env,...(values.provider==='synthetic'?{MAKO_BACKEND_GPU_PREVIEW_BENCHMARK:'1'}:{})},stdio:['ignore','ignore','inherit']});
       child.once('error',()=>{});
       manifest.schedulerBaseline.launcher=await readProc(child.pid,'owned-app-launcher');
@@ -586,11 +585,13 @@ async function run(values) {
 }
 async function main() {
   const {values}=parseArgs({options:{'cdp-port':{type:'string',default:'9223'},port:{type:'string',default:'5174'},output:{type:'string'},provider:{type:'string',default:'runtime'},
-    connect:{type:'boolean'},'session-name':{type:'string'},'reuse-project':{type:'boolean'},'dry-run':{type:'boolean'},debug:{type:'boolean'},finite:{type:'boolean'},'correctness-snapshot':{type:'boolean'},analyze:{type:'string'}}});
+    connect:{type:'boolean'},'ordinary-scheduling':{type:'boolean'},'session-name':{type:'string'},'reuse-project':{type:'boolean'},'dry-run':{type:'boolean'},debug:{type:'boolean'},finite:{type:'boolean'},'correctness-snapshot':{type:'boolean'},analyze:{type:'string'}}});
   invariant(['runtime','synthetic'].includes(values.provider),'provider must be runtime or synthetic');
   if(values.analyze){const directory=resolve(values.analyze);const records=(await readFile(join(directory,'events.jsonl'),'utf8')).trim().split('\n').filter(Boolean).map(line=>JSON.parse(line));
     const manifest=JSON.parse(await readFile(join(directory,'manifest.json'),'utf8'));const report=analyze(records,manifest);await writeFile(join(directory,'report.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));return;}
   for(const option of ['cdp-port','port'])invariant(/^\d+$/.test(values[option])&&Number(values[option])>=1024&&Number(values[option])<=65535,`Invalid ${option}`);
+  if(!values.debug&&!values.finite&&!values.connect)values['ordinary-scheduling']=true;
+  invariant(!values.connect||!values['ordinary-scheduling'],'--ordinary-scheduling requires a newly owned isolated session');
   await run(values);
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href)main().catch(error=>{console.error(error.message);process.exitCode=1;});

@@ -1135,5 +1135,43 @@
     "inferredReadyGapMs": 42.130642000000016,
     "inferredBrokerGapMs": 53.297160000000005,
     "interpretation": "Current frame render remains short; ready-to-complete span expands. Inferred stage gaps use recorded point metrics, not scheduler/OS root cause or pure GPU copy duration."
+  },
+  "versionedReanalysis": {
+    "report": {
+      "path": "/mnt/Data/Program/MakoKaraGenerator-App/.local/gpu-preview-p3/synthetic-formal-attempt2/report-analysis-0df69e140795.json",
+      "bytes": 656811,
+      "sha256": "155194dea6990c8e960206c39af8e2fb701f5fd387bf3fcca48ac7d342632423"
+    },
+    "analysisSource": {
+      "sourceCommit": "43c39868cc517ce5be1923cda6ad037ae7bd557b",
+      "analyzerSha256": "0df69e1407951196c874434d0064da7742233116554056c31813724a11289eaa",
+      "boundary": "Offline reanalysis; original manifest, events and report.json are preserved"
+    },
+    "originalReportPreserved": true,
+    "schedulerCoverage": {
+      "snapshotCount": 179,
+      "passed": true,
+      "issues": [],
+      "boundary": "Each sampled main/renderer/Worker/GPU exact PID plus stable startTicks and role is required; all observed pipeline policy0, Worker nice0. Runner/launcher are observed only; asynchronous brackets do not prove unsampled instants."
+    },
+    "gates": {
+      "overall": true,
+      "sliding5s": false,
+      "intervalP95": true,
+      "intervalP99": true,
+      "noUnexplainedStall": true,
+      "clockRecorded": true,
+      "contemporaneousClockRecorded": true,
+      "exactProvider": true,
+      "exactSize": true,
+      "productionFinalReadbacksZero": true,
+      "schedulerOtherObserved": true,
+      "workerPoolAndRenderControlBudgets": true,
+      "selectedAudioClockComponentsRecorded": true,
+      "visibleWindow": true,
+      "poolBounded": true,
+      "mainControlsBounded": true
+    },
+    "conclusion": "incomplete-or-failed"
   }
 }

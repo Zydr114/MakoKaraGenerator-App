@@ -709,7 +709,8 @@ try {
 
   // 8. 保存到新目录
   await clickButton(page, '保存工程');
-  await page.waitFor(`!!document.querySelector('mdui-dialog.save-location-dialog[open] .directory-row')`, '“保存到…”对话框列出工程目录', 30_000);
+  // 列表加载完：有目录行，或者工程目录还是空的（新 profile）。
+  await page.waitFor(`!!document.querySelector('mdui-dialog.save-location-dialog[open] :is(.directory-row, .directory-empty)')`, '“保存到…”对话框列出工程目录', 30_000);
   await typeInto(page, '目录名', directory);
   await page.waitFor(`document.querySelector('.save-target')?.dataset.kind === 'new'`, '目标写明“会新建目录”');
   await clickDialogButton(page, '保存');

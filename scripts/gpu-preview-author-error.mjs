@@ -8,7 +8,7 @@ import {execFileSync} from 'node:child_process';
 import {parseArgs} from 'node:util';
 import {Cdp,Page} from '../frontend/scripts/cdp.mjs';
 
-const {values}=parseArgs({options:{bootstrap:{type:'string'},desktop:{type:'string'},'cdp-port':{type:'string',default:'9244'},output:{type:'string'},prepare:{type:'boolean'}}});
+const {values}=parseArgs({options:{bootstrap:{type:'string'},desktop:{type:'string'},'cdp-port':{type:'string',default:'9244'},output:{type:'string'},prepare:{type:'boolean'},inflight:{type:'boolean'}}});
 const root=resolve(import.meta.dirname,'..'),output=resolve(values.output??join(root,'.local/gpu-preview-author-error',String(Date.now())));
 assert.ok(output.startsWith(join(root,'.local')+sep));
 await mkdir(output,{recursive:true,mode:0o700});
@@ -37,10 +37,11 @@ if(values.prepare){console.log(`Prepared owned author Error fixture: ${archive}`
 assert.ok(values.bootstrap&&values.desktop,'Pass private bootstrap and desktop file paths');
 const bootstrap=JSON.parse(await readFile(resolve(values.bootstrap),'utf8')),desktop=JSON.parse(await readFile(resolve(values.desktop),'utf8'));
 assert.match(desktop.sessionName??'',/^author-error-/,'Use a dedicated author-error-* acceptance session');
+if(values.inflight)assert.equal(desktop.slowConsumerMs,1000,'Inflight drain acceptance requires an owned --slow-consumer-ms 1000 session');
 const base=new URL(bootstrap.baseUrl);assert.equal(base.hostname,'127.0.0.1');assert.equal(desktop.hostInstanceId,bootstrap.hostInstanceId);
 const report={schemaVersion:1,startedAt:new Date().toISOString(),probeSourceCommit:execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim(),
   sessionName:desktop.sessionName,scope:'real author Evaluate Error, exact production lease completion, stream drain and App survival; no timing or display claim',
-  readbacks:'none',fixture:{sourceSha256:sha256(source),archiveSha256:sha256(await readFile(archive)),errorCode:'AcceptanceAuthorError',failureAtTimeUs:1000000},checks:[]};
+  readbacks:'none',inflight:values.inflight===true,fixture:{sourceSha256:sha256(source),archiveSha256:sha256(await readFile(archive)),errorCode:'AcceptanceAuthorError',failureAtTimeUs:1000000},checks:[]};
 const dist=dirname(dirname(desktop.brokerAddon)),deploymentBytes=await readFile(join(dist,'deployment.json'));
 const deployment=JSON.parse(deploymentBytes);report.publishedDeployment={dist:dist.slice(root.length+1),sourceCommit:deployment.sourceCommit,sourceDirty:deployment.sourceDirty,manifestSha256:sha256(deploymentBytes)};
 const metadata=()=>({requestId:randomUUID().replaceAll('-',''),hostInstanceId:bootstrap.hostInstanceId,validUntilUtc:new Date(Date.now()+90000).toISOString()});
@@ -77,12 +78,34 @@ try{
   stream=await createStream();report.checks.push({name:'real-author-runtime-pool-opened',streamId:stream.streamId,allocationBytes:stream.allocationBytes});
   await page.eval(`window.makoDesktopPreview.attachPreview(${JSON.stringify(stream.streamId)},${JSON.stringify(stream.inputGeneration)})`);
   await playback(0,'author-error-before');
-  const first=await until(async()=>{const s=await sample();return s.completedDrawnUnique>initial.completedDrawnUnique?s:false;});
-  report.successfulBeforeError=first;assert.equal(first.samples.at(-1).provider,'runtime');
+  const first=await until(async()=>{const s=await sample();return (values.inflight
+    ?s.imported>initial.imported&&s.outstanding>=1
+    :s.completedDrawnUnique>initial.completedDrawnUnique)?s:false;});
+  report.successfulBeforeError=first;
+  if(!values.inflight)assert.equal(first.samples.at(-1).provider,'runtime');
   await playback(1000000,'author-error-trigger');
+  if(values.inflight){
+    report.waitingForNativeCompletion=await until(async()=>{
+      const s=await sample(),worker=s.workerState;
+      return s.outstanding>=1&&worker?.state==='draining'&&worker.outstanding>=1&&worker.diagnostics?.errorCount>=1?s:false;
+    });
+    const events=await page.eval('window.__authorErrorEvents');
+    assert.ok(!events.some(e=>e.type==='failed'),'Author Error reported terminal failure before outstanding native completion');
+    assert.equal(report.waitingForNativeCompletion.acknowledgedUnique,initial.acknowledgedUnique);
+    assert.equal(report.waitingForNativeCompletion.workerState.framesReleased,0);
+    report.checks.push({name:'real-author-error-waits-with-unreleased-native-lease',passed:true,
+      mainOutstanding:report.waitingForNativeCompletion.outstanding,workerOutstanding:report.waitingForNativeCompletion.workerState.outstanding});
+  }
   report.failureEvent=await until(async()=>{const events=await page.eval('window.__authorErrorEvents');return events.find(e=>e.type==='failed'&&e.code==='WorkerRuntimeDiagnosticError');});
   assert.ok(report.failureEvent.diagnostics.errorCount>=1);assert.ok(report.failureEvent.diagnostics.items.some(item=>item.code==='AcceptanceAuthorError'));
   report.afterFailure=await sample();assert.equal(report.afterFailure.outstanding,0);assert.equal(report.afterFailure.rendererGate.detached,true);
+  if(values.inflight){
+    const matching=report.afterFailure.samples.filter(frame=>frame.streamId===stream.streamId&&frame.controlSeq===1&&frame.drawn===true&&frame.provider==='runtime');
+    assert.equal(matching.length,1,'Initial production lease must complete exactly once');
+    assert.ok(BigInt(matching[0].completedMonotonicNs)>BigInt(report.waitingForNativeCompletion.workerState.mainObservedMonotonicNs));
+    assert.equal(report.afterFailure.acknowledgedUnique,initial.acknowledgedUnique+1);
+    report.exactCompletionAfterError=matching[0];
+  }
   const publicFailure=await request('GET',`/api/v1/gpu-preview-streams/${stream.streamId}`);
   report.publicFailure=publicFailure;assert.equal(publicFailure.workerState.state,'failed');assert.equal(publicFailure.workerState.drained,true);
   assert.equal(publicFailure.workerState.failureCode,'WorkerRuntimeDiagnosticError');assert.ok(publicFailure.workerState.diagnostics.errorCount>=1);
@@ -91,7 +114,7 @@ try{
   // A fresh healthy time on the same authored source proves the App can continue using GPU preview.
   stream=await createStream();await page.eval(`window.makoDesktopPreview.attachPreview(${JSON.stringify(stream.streamId)},${JSON.stringify(stream.inputGeneration)})`);
   await playback(0,'author-error-recovered');
-  report.recovered=await until(async()=>{const s=await sample();return s.completedDrawnUnique>first.completedDrawnUnique?s:false;});
+  report.recovered=await until(async()=>{const s=await sample();return s.completedDrawnUnique>report.afterFailure.completedDrawnUnique?s:false;});
   report.checks.push({name:'fresh-healthy-runtime-stream-after-error',passed:true,streamId:stream.streamId});
   report.survivingProcesses=await Promise.all(report.ownedProcesses.map(p=>processIdentity(p.pid)));
   assert.deepEqual(report.survivingProcesses,report.ownedProcesses);report.passed=true;

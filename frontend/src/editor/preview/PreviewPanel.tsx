@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { ObservableValue } from '../../client';
 import type { Revision } from '../../protocol';
 import type { AudioController } from '../audio/audio-controller';
@@ -109,11 +109,11 @@ function StaticPreviewPanel(props: {
         <div className="preview-title">
           <span className="pane-title-text">{replacement.title}</span>
         </div>
-        <div className="preview-frame" style={{ aspectRatio: `${size.width} / ${size.height}` }}>
+        <PreviewStage size={size}>
           {replacement.imageUrl && <img src={replacement.imageUrl} alt={replacement.title} />}
           {!replacement.imageUrl && <span className="preview-overlay">{replacement.placeholder}</span>}
           {props.overlay?.(undefined)}
-        </div>
+        </PreviewStage>
         <p className="hint">{replacement.hint}</p>
       </div>
     );
@@ -131,7 +131,7 @@ function StaticPreviewPanel(props: {
           {view.status === 'rendering' ? '渲染中' : stale && view.status === 'error' ? '这是旧修订的画面' : ''}
         </span>
       </div>
-      <div className="preview-frame" style={{ aspectRatio: `${size.width} / ${size.height}` }}>
+      <PreviewStage size={size}>
         {view.frameUrl && <img src={view.frameUrl} alt="成片预览" />}
         {!available && <span className="preview-overlay">后端没有开放预览（未配置渲染 Worker）。</span>}
         {available && !view.frameUrl && view.status !== 'error' && <span className="preview-overlay">正在准备预览……</span>}
@@ -142,7 +142,7 @@ function StaticPreviewPanel(props: {
           </span>
         )}
         {props.overlay?.(shown)}
-      </div>
+      </PreviewStage>
       {view.status === 'error' && view.frameUrl && (
         <p className="notice-error preview-error">
           {view.deviceBlocked ? view.error : `预览失败：${view.error}`}
@@ -218,19 +218,31 @@ function GpuPreviewPanel(props: Parameters<typeof StaticPreviewPanel>[0]) {
   const view=useObservable(controller?.state$??GPU_IDLE);
   const shown=view.frameRevision!==undefined&&view.frameTimeUs!==undefined?{revision:view.frameRevision,timeUs:view.frameTimeUs}:undefined;
   const replacement=props.replacement;
-  if(replacement)return <div className="preview-panel"><div className="preview-title"><span className="pane-title-text">{replacement.title}</span></div><div className="preview-frame" style={{aspectRatio:`${size.width} / ${size.height}`}}>{replacement.imageUrl?<img src={replacement.imageUrl} alt={replacement.title}/>:<span className="preview-overlay">{replacement.placeholder}</span>}{props.overlay?.(undefined)}</div><p className="hint">{replacement.hint}</p></div>;
+  if(replacement)return <div className="preview-panel"><div className="preview-title"><span className="pane-title-text">{replacement.title}</span></div><PreviewStage size={size}>{replacement.imageUrl?<img src={replacement.imageUrl} alt={replacement.title}/>:<span className="preview-overlay">{replacement.placeholder}</span>}{props.overlay?.(undefined)}</PreviewStage><p className="hint">{replacement.hint}</p></div>;
   return <div className="preview-panel">
     <div className="preview-title"><span className="pane-title-text">{shown?`成片 · GPU · 修订 ${shown.revision} · ${formatTime(shown.timeUs)}`:'成片 · GPU'}</span><select aria-label="GPU 预览规格" value={quality} onChange={event=>setQuality(event.target.value as typeof quality)}><option value="720p24">720p · 24 fps</option><option value="1440p30">1440p · 30 fps</option></select><span className="muted">{view.status==='rendering'?'准备中':''}</span></div>
-    <div className="preview-frame" style={{aspectRatio:`${size.width} / ${size.height}`}}>
+    <PreviewStage size={size}>
       <canvas id="mako-gpu-preview" width={size.width} height={size.height} style={{width:'100%',height:'100%',objectFit:'contain'}} aria-label="GPU 成片预览"/>
       {!available&&<span className="preview-overlay notice-error">当前后端没有开放桌面 GPU 连续预览。</span>}
       {available&&!shown&&view.status!=='error'&&<span className="preview-overlay">正在准备 GPU 预览……</span>}
       {view.status==='error'&&<span className="preview-overlay notice-error">{view.error}<RetryButton onRetry={()=>controller?.retry()}/></span>}
       {props.overlay?.(shown)}
-    </div>
+    </PreviewStage>
     <p className="hint">{`GPU 连续预览 · 预览 ${size.width}×${size.height} · 音频主时钟。`}{props.warning&&<span className="notice-warning"> {props.warning}</span>}</p>
     {!!view.diagnostics?.total&&<div className={view.diagnostics.errorCount?'notice-error':'notice-warning'} role="status">{`渲染诊断：${view.diagnostics.warningCount} 个警告，${view.diagnostics.errorCount} 个错误。`}{view.diagnostics.items.map((item,index)=><p key={index}>{item.code}：{item.message}</p>)}{view.diagnostics.truncated&&<p>其余诊断已省略。</p>}</div>}
   </div>;
+}
+
+/** 画面区：占满面板剩余高度，画面按预览比例完整放进去，不需要滚动。 */
+function PreviewStage(props: { size: { width: number; height: number }; children: ReactNode }) {
+  const { width, height } = props.size;
+  return (
+    <div className="preview-stage">
+      <div className="preview-frame" style={{ aspectRatio: `${width} / ${height}`, '--preview-ratio': width / height } as CSSProperties}>
+        {props.children}
+      </div>
+    </div>
+  );
 }
 
 /** 设备错误后预览停住，点这里再试一次（渲染设备设计 §2.3）。 */

@@ -117,7 +117,7 @@ async function consume(s,packet) {
         if(item.drawn)sTelemetry.completedDrawnUnique++;else sTelemetry.completedWithoutDraw++;
         const completedNs=process.hrtime.bigint();
         const sample={sampleRevision:++sampleRevision,...lease(m),timeUs:m.timeUs,controlSeq:m.controlSeq,timelineResetId:m.timelineResetId,provider:m.provider,width:m.width,height:m.height,counters:m.counters,drawn:!!item.drawn,completedMonotonicNs:completedNs.toString(),renderMs:Number(BigInt(m.producerReadyMonotonicNs)-BigInt(m.renderStartMonotonicNs))/1e6,brokerToCompletionMs:Number(completedNs-item.receivedNs)/1e6,
-          ...(s.clock?{readyToBrokerMs:Number(item.receivedNs-(BigInt(m.producerReadyMonotonicNs)-BigInt(s.clock.workerMinusSenderNs)))/1e6,readyToCompletionMs:Number(completedNs-(BigInt(m.producerReadyMonotonicNs)-BigInt(s.clock.workerMinusSenderNs)))/1e6,clockUncertaintyMs:Number(BigInt(s.clock.uncertaintyNs))/1e6}:{})};
+          ...(s.clock?{readyToBrokerMs:Number(item.receivedNs-(BigInt(m.producerReadyMonotonicNs)-BigInt(s.clock.workerMinusSenderNs)))/1e6,readyToCompletionMs:Number(completedNs-(BigInt(m.producerReadyMonotonicNs)-BigInt(s.clock.workerMinusSenderNs)))/1e6,clockUncertaintyMs:Number(BigInt(s.clock.uncertaintyNs))/1e6,totalClockUncertaintyMs:Number(BigInt(s.clock.uncertaintyNs)+BigInt(s.rendererUncertaintyNs??'0'))/1e6}:{})};
         // Retain bounded identity/observation data only, never an imported GPU
         // reference across frames after its exact completion has been ACKed.
         samples.push(sample);completed.set(key,{item:{metadata:m,drawn:item.drawn},sample});

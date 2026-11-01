@@ -1,6 +1,6 @@
 # GPU 共享纹理预览实施计划
 
-状态：**P0 条件 Go；P1/P2 已实现，生产联调和 P3 验收进行中**。日期：2026-11-01。
+状态：**P0 条件 Go；P1/P2 已实现，P3 两次正式滑动窗口均失败，本轮收口；后续矩阵未测**。日期：2026-11-01。
 设计源码基线为 App `3ca6730`，计划提交为 `8411e6a`；原设计阶段为只读研究，之后用户授权实施。
 P0 证据位于[归档目录](../performance/evidence/p0-2026-11-01/)，生产合同见
 [GPU 流 v1](../architecture/gpu-preview-stream-v1.md)。后文保留原门禁和阶段出口作为设计历史，
@@ -22,7 +22,7 @@ renderer/GPU crash 或消费者完成未知只证明 fail-stop／quarantine，�
 已完成 720p24、1440p30 和短时 lifetime 三阶段（分别 121、151、150 个唯一 drawn/native-completed 帧），
 质量重建、来源更新、切页重附着和公开 resize 的新输入代次均取得精确消费，报告没有 runError。
 这些阶段各约五秒，旧发布未提供 Worker 独立遥测；单次来源冷启动加时钟不确定度为 1080.60 ms，
-未通过交互候选门槛。因此该轮明确为 debug，完整生命周期与 P3 仍待最终报告。
+未通过交互候选门槛。因此该轮明确为 debug；后续有限生命周期与正式 P3 结论另列如下。
 独立的 32 项[真实 HTTP 检查](../performance/evidence/production-2026-11-01/http-negative.json)通过，
 包括 owner/CAS/strict JSON、create 重放、私有 claim、2560×1440 实际三槽分配（44,236,800 B）
 及旧／新 Worker PID 身份消失；该探针没有连接原生消费者，不构成帧或呈现证据。归档分别记录
@@ -35,8 +35,26 @@ Error 已出现时 main／Worker 各有一个未归还租约且 ACK 为零，Wor
 App 主进程、renderer 与 Server 身份保持不变，新健康流再次完成帧，隔离实例全部正常退出。
 [上一轮](../performance/evidence/production-2026-11-01/author-error.json)触发前帧已完成的边界单独保留。
 renderer／Worker 丢失注入虽抑制后续 ACK 且自有进程退出，但 Server 清理出现未处理聚合异常并以 -6 退出；
-`f1fe7f8` 已修复为正常记录清理错误并继续关闭，两个定向测试及合同冻结通过，匹配发布的真实故障重验待补。
-历史 -6 结果不能记作 graceful drain，也不构成 crash 安全回收证据。
+`f1fe7f8` 已修复为记录清理错误并继续关闭，两个定向测试及合同冻结通过；新匹配发布
+`.local/backend-dist/20261101T045924324Z` 的[四类故障复验](../performance/evidence/production-2026-11-01/desktop-faults-fixed.json)
+确认受控非零退出而非 abort，自有进程退出。`921b943` 严格离线分析原日志4／4及32项变异断言通过，
+来源与ACK观测起点详见[生产记录](../performance/gpu-preview-production-2026-11-01.md)。历史 -6 结果不覆盖，
+新结果也不构成 crash 安全回收证据。
+
+[真实 Runtime 有限矩阵](../performance/evidence/production-2026-11-01/runtime-finite-summary.json)完成20次attach/detach、
+10次公开resize/seek、10次质量重建与各20次pause／seek／输入替换；输入UI调用p95为1202.08ms，
+hello-ready生效后p95为164.06ms，后者仍超过150ms候选。正式synthetic的
+[attempt1](../performance/evidence/production-2026-11-01/synthetic-formal-attempt1.json)在720p24记录180.0296s，
+4320唯一完整帧（23.9961fps）；总体99.9836%通过，但最差滑动5s为117帧，未达118。
+显式普通调度的[attempt2](../performance/evidence/production-2026-11-01/synthetic-formal-attempt2.json)记录180.0265s、
+4320唯一完整帧（23.9965fps）；179个阶段快照内main／renderer／GPU／Worker的准确PID及稳定
+startTicks齐全，均为SCHED_OTHER、Worker nice=0，最差滑动5s仍只有116帧。
+两次均只有该阶段滑动窗口门槛失败，原门槛未改；自动停止后1440p180s、600s及正式交互生命周期
+均未测。本轮完成实现、有限功能和生命周期验收，以P3失败收口，不作性能通过交付。
+[诊断记录](../performance/evidence/production-2026-11-01/desktop-performance-diagnostic.json)与正式复验均观察到
+ready之后main接收／消费者完成区间的延迟，但未确定单一根因；attempt1未记录实际调度策略，
+不能由后续预检追认其历史PID策略或把失败单独归因于IDLE。完整复现命令与边界见
+[生产记录](../performance/gpu-preview-production-2026-11-01.md)。
 
 ## 1. 决策与范围
 

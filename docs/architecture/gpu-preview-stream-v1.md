@@ -1,6 +1,6 @@
 # GPU 预览流 v1 合同
 
-状态：**P1/P2 已实现并冻结 0.109.0 合同，P3 待最终报告**。P0 的限定设备有限图案只构成条件 Go；实现、单元测试、真实 HTTP、native 消费与性能各自保留证据边界。当前生产路线是同一 Worker 的普通 Skia Vulkan surface 经一次 GPU blit 至三槽 DMA-BUF，最终帧不回读 CPU；不是零 GPU copy。32 项 [HTTP 检查](../performance/evidence/production-2026-11-01/http-negative.json)、后续[短时质量与公开 resize 联调](../performance/evidence/production-2026-11-01/quality-debug.json)及[真实作者 Error 在途排空](../performance/evidence/production-2026-11-01/author-error-inflight.json)分别通过其有限场景；持续性能和完整故障生命周期不能由这些结果推定。原始门禁及阶段状态见[实施计划](../plans/gpu-shared-texture-preview-plan.md)。
+状态：**P1/P2 已实现并冻结 0.109.0 合同；P3 两次正式720p24滑动窗口均失败，显式普通调度复验仍未达标；1440p／600s未测**。P0 的限定设备有限图案只构成条件 Go；实现、单元测试、真实 HTTP、native 消费与性能各自保留证据边界。当前生产路线是同一 Worker 的普通 Skia Vulkan surface 经一次 GPU blit 至三槽 DMA-BUF，最终帧不回读 CPU；不是零 GPU copy。32 项 [HTTP 检查](../performance/evidence/production-2026-11-01/http-negative.json)、[真实 Runtime 有限矩阵](../performance/evidence/production-2026-11-01/runtime-finite-summary.json)及[真实作者 Error 在途排空](../performance/evidence/production-2026-11-01/author-error-inflight.json)分别保留其功能、交互未通过项与证据边界；持续性能详见[生产记录](../performance/gpu-preview-production-2026-11-01.md)，不能用总体帧率抵消正式滑动窗口失败。原始门禁及阶段状态见[实施计划](../plans/gpu-shared-texture-preview-plan.md)。
 
 ## 身份与授权
 
@@ -94,7 +94,7 @@ FD 仅随本地 native channel 的 `SCM_RIGHTS` 传递，JSON 的索引不是 FD
 
 正常关闭/替换先停止新帧，再等待所有实际消费者和 Worker 排空，最后释放输入、池与设备。renderer/GPU 崩溃时已转移 lease 的完成状态未知，停止整个流和 Electron 会话、隔离槽位并拒绝 ACK，不自动重启或扩池；该结果是 expected fail-stop，不是安全 drain 或恢复。已交付 FD 的 payload 引用可延长 allocation 寿命，不代表 GPU 工作完成。
 
-当前 renderer／Worker 丢失注入确认 loss 后 ACK 为零且自有进程退出，但 Server 的清理异常传播曾导致 -6 退出；源码 `f1fe7f8` 已修复关闭错误的记录与后续清理，匹配发布的真实重验待补，不能将历史结果记作正常关闭成功。
+renderer／Worker 丢失历史注入的 Server 清理异常传播曾导致 -6 退出；源码 `f1fe7f8` 修复后，匹配发布的两类注入与两类外部丢失复验均受控退出1、自有进程消失。严格离线分析`921b943`单独复核原日志，不改写原运行来源；注入场景精确loss至fail-stop ACK差为零，外部场景仅证明before-kill观测至检测的ACK差为零。未知租约仍隔离，不能记作正常排空或安全归槽。
 
 ## 验收和交付边界
 

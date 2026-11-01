@@ -99,7 +99,9 @@ export class GpuPreviewController {
         if(!this.stream){
           this.state$.set({...this.state$.get(),status:'rendering'});
           const consumerId=await this.bridge.consumerId();
-          this.stream=await this.client.gpuPreview.create({source:{kind:'project',sourceId:this.projectSessionId,sourceRevision:want.revision},size:this.size,alphaMode:'straight',api:'vulkan',consumerId});
+          // This is the full composition preview. Straight alpha requests a
+          // transparent lyrics layer and deliberately omits the project background.
+          this.stream=await this.client.gpuPreview.create({source:{kind:'project',sourceId:this.projectSessionId,sourceRevision:want.revision},size:this.size,alphaMode:'opaque',api:'vulkan',consumerId});
           this.inputEffective('create-response');
           if(this.disposed||!this.enabled)continue;
           await this.bridge.attachPreview(this.stream.streamId,this.stream.inputGeneration);

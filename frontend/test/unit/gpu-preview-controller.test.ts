@@ -6,17 +6,20 @@ import {GpuPreviewController} from '../../src/editor/preview/gpu-preview-control
 const deferred=()=>{let resolve!:()=>void;const promise=new Promise<void>(done=>{resolve=done;});return {promise,resolve};};
 beforeEach(()=>vi.stubGlobal('window',{}));
 afterEach(()=>vi.unstubAllGlobals());
-function fixture(options:{createGate?:Promise<void>;replaceGate?:Promise<void>;replaceFails?:()=>boolean}={}){
+function fixture(options:{createGate?:Promise<void>;replaceGate?:Promise<void>;replaceFails?:()=>boolean;acceptanceEnabled?:boolean}={}){
   const calls:string[]=[];let nextId=0;let attached=false;
+  const creates:GpuPreviewCreateInput[]=[];
+  const streams=new Map<string,GpuPreviewStreamState>();
   const listeners=new Set<(event:DesktopPreviewEvent)=>void>();
-  const state=(id:string,source:GpuPreviewStreamState['source'],generation='1'):GpuPreviewStreamState=>({streamId:id,streamRevision:generation,inputGeneration:generation,registrationState:'ready',source,size:{width:1280,height:720},alphaMode:'straight',textureAlphaMode:'premultiplied',api:'vulkan',producerEpoch:generation,poolGeneration:'1',slotCount:3,allocationBytes:4096,lastAppliedControlSeq:0});
+  const state=(id:string,source:GpuPreviewStreamState['source'],generation='1',alphaMode:GpuPreviewStreamState['alphaMode']='opaque'):GpuPreviewStreamState=>({streamId:id,streamRevision:generation,inputGeneration:generation,registrationState:'ready',source,size:{width:1280,height:720},alphaMode,textureAlphaMode:'premultiplied',api:'vulkan',producerEpoch:generation,poolGeneration:'1',slotCount:3,allocationBytes:4096,lastAppliedControlSeq:0});
   const client={gpuPreview:{
-    create:async(input:GpuPreviewCreateInput)=>{calls.push(`create:${input.source.sourceId}`);await options.createGate;return state(`s${++nextId}`,input.source);},
-    replaceInput:async(id:string,input:{source:GpuPreviewStreamState['source']})=>{calls.push(`replace:${id}`);await options.replaceGate;if(options.replaceFails?.())throw new Error('replace failed');return state(id,input.source,'2');},
+    create:async(input:GpuPreviewCreateInput)=>{calls.push(`create:${input.source.sourceId}`);creates.push(input);await options.createGate;const next=state(`s${++nextId}`,input.source,'1',input.alphaMode);streams.set(next.streamId,next);return next;},
+    replaceInput:async(id:string,input:{source:GpuPreviewStreamState['source']})=>{calls.push(`replace:${id}`);await options.replaceGate;if(options.replaceFails?.())throw new Error('replace failed');const next=state(id,input.source,'2',streams.get(id)!.alphaMode);streams.set(id,next);return next;},
+    resize:async(id:string,input:{size:GpuPreviewStreamState['size']})=>{calls.push(`resize:${id}`);const next={...streams.get(id)!,streamRevision:'3',inputGeneration:'3',size:input.size};streams.set(id,next);return next;},
     close:async(id:string)=>{calls.push(`close:${id}`);},
   }} as unknown as MakoClient;
   const bridge={
-    acceptanceEnabled:async()=>false,consumerId:async()=>'a'.repeat(32),
+    acceptanceEnabled:async()=>options.acceptanceEnabled??false,consumerId:async()=>'a'.repeat(32),
     attachPreview:async(id:string,generation:string)=>{calls.push(`attach:${id}:${generation}`);attached=true;},
     detachPreview:async()=>{calls.push('detach');attached=false;},
     setPlaybackState:async(state:{samplePerformanceMs:number})=>{if(!attached)throw new Error('not attached');calls.push('playback');samples.push(state.samplePerformanceMs);return {controlSeq:1};},
@@ -25,8 +28,26 @@ function fixture(options:{createGate?:Promise<void>;replaceGate?:Promise<void>;r
   const make=(id='p1')=>new GpuPreviewController(client,id,{width:1280,height:720},bridge);
   const show=(controller:GpuPreviewController,rev='1')=>controller.show(revision(rev),{mode:'paused',mediaTimeUs:0,rate:1,targetFps:24,timelineResetId:'reset',samplePerformanceMs:performance.now()});
   const samples:number[]=[];
-  return {calls,make,show,samples,emit:(event:DesktopPreviewEvent)=>listeners.forEach(listener=>listener(event))};
+  return {calls,creates,streams,make,show,samples,emit:(event:DesktopPreviewEvent)=>listeners.forEach(listener=>listener(event))};
 }
+it('requests opaque composition preview and retains mode across revision replacement and resize',async()=>{
+  const f=fixture({acceptanceEnabled:true});const controller=f.make();f.show(controller);
+  try{
+    await vi.waitFor(()=>expect(f.calls).toContain('playback'));
+    expect(f.creates).toHaveLength(1);
+    expect(f.creates[0]).toMatchObject({alphaMode:'opaque',api:'vulkan'});
+    expect(f.streams.get('s1')?.alphaMode).toBe('opaque');
+    f.show(controller,'2');
+    await vi.waitFor(()=>expect(f.calls.filter(x=>x==='playback')).toHaveLength(2));
+    expect(f.streams.get('s1')).toMatchObject({source:{sourceRevision:'2'},alphaMode:'opaque',inputGeneration:'2'});
+    const resized=await window.makoGpuPreviewAcceptance!.resize(2560,1440);
+    expect(resized).toMatchObject({alphaMode:'opaque',size:{width:2560,height:1440},inputGeneration:'3'});
+    expect(f.creates).toHaveLength(1);
+    expect(f.calls).toContain('attach:s1:3');
+  }finally{
+    controller.dispose();await vi.waitFor(()=>expect(f.calls).toContain('close:s1'));
+  }
+});
 it('unmount during create closes its eventual unclaimed stream before the next panel creates',async()=>{
   const gate=deferred();const f=fixture({createGate:gate.promise});const old=f.make();f.show(old);
   await vi.waitFor(()=>expect(f.calls).toEqual(['create:p1']));
@@ -48,6 +69,7 @@ it('retry after a stopped replacement fails closes the old stream and creates a 
   await vi.waitFor(()=>expect(controller.state$.get().status).toBe('error'));fail=false;controller.retry();
   await vi.waitFor(()=>expect(f.calls.filter(x=>x==='playback')).toHaveLength(2));
   expect(f.calls).toContain('close:s1');expect(f.calls).toContain('attach:s2:1');
+  expect(f.creates.map(input=>input.alphaMode)).toEqual(['opaque','opaque']);
   controller.dispose();await vi.waitFor(()=>expect(f.calls).toContain('close:s2'));
 });
 it('a retired stream failure cannot block a new controller or a new input generation',async()=>{
@@ -71,5 +93,6 @@ it('visibility enable followed by fresh audio sampling sends the new paused samp
   controller.show(revision('1'),{mode:'paused',mediaTimeUs:123456,rate:1,targetFps:24,timelineResetId:'reset',samplePerformanceMs:fresh});
   await vi.waitFor(()=>expect(f.samples).toHaveLength(2));
   expect(f.samples.at(-1)).toBe(fresh);
+  expect(f.creates.map(input=>input.alphaMode)).toEqual(['opaque','opaque']);
   controller.dispose();await vi.waitFor(()=>expect(f.calls).toContain('close:s2'));
 });

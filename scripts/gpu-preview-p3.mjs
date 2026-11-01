@@ -331,13 +331,18 @@ async function run(values) {
   await mkdir(output,{recursive:true,mode:0o700});
   const manifest={schemaVersion:1,startedAt:new Date().toISOString(),platform:platform(),arch:arch(),kernel:release(),provider:values.provider,sessionName,connectionOwnership:values.connect?'existing-explicit-CDP-session':'owned-isolated-session',
     runClass:values.debug?'short-debug-not-performance-acceptance':values.finite?'finite-correctness-not-performance-acceptance':'formal-p3',
-    warmupSeconds:values.debug||values.finite?2:10,measureSeconds:values.debug||values.finite?5:180,stabilitySeconds:values.debug||values.finite?5:600,readbacks:'none; no screenshots/pixel extraction in timed runner',
+    warmupSeconds:values.debug||values.finite?2:10,measureSeconds:values.debug||values.finite?5:180,stabilitySeconds:values.debug||values.finite?5:600,readbacks:values['correctness-snapshot']?'one validation-only screenshot before warmup; no screenshots/pixel extraction in timed phases':'none; no screenshots/pixel extraction in timed runner',
     phases:[{name:'720p24',width:1280,height:720,targetFps:24},{name:'1440p30',width:2560,height:1440,targetFps:30}],
     thresholds:{overallRatio:.99,sliding5sRatio:.98,intervalP95Periods:2,intervalP99Periods:3,maxUnexplainedStallMs:250,interactionP95Ms:150,interactionP99Ms:250},
     lifecycle:{attachDetach:20,publicResizeSeek:10,uiResolutionRecreate:10},command:process.argv};
   manifest.sourceCommit=await commandOutput('git',['rev-parse','HEAD']);
   manifest.dirtyPaths=(await commandOutput('git',['status','--short'])).split('\n').filter(Boolean);
   manifest.deployment=await deploymentEvidence();
+  manifest.sourceSnapshotCurrentOnDisk={};
+  for(const file of ['scripts/gpu-preview-p3.mjs','scripts/app.mjs','desktop/main.cjs','desktop/gpu-preview/preload.cjs','frontend/src/editor/preview/PreviewPanel.tsx','frontend/src/editor/preview/gpu-preview-controller.ts']){
+    manifest.sourceSnapshotCurrentOnDisk[file]=createHash('sha256').update(await readFile(join(ROOT,file))).digest('hex');
+  }
+  manifest.sourceSnapshotBoundary='Hashes identify current disk source, deployment hashes identify managed/native payload; a connected Electron may have loaded an earlier disk source version before connection';
   await writeFile(join(output,'manifest.json'),JSON.stringify(manifest,null,2)+'\n');
   if(values['dry-run']){console.log(JSON.stringify({output,plan:manifest}));return;}
   invariant(manifest.deployment.verified&&manifest.deployment.files.every(file=>!file.missing),'Matched desktop deployment is missing/stale: build:desktop before a real run');

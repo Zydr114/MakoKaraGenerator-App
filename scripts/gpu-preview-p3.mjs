@@ -310,10 +310,12 @@ async function connectPage(port) {
   throw new Error('Loopback Electron CDP page did not become ready');
 }
 async function run(values) {
+  const sessionName=values.connect?null:(values['session-name']??`p3-${new Date().toISOString().replaceAll(/[^0-9TZ]/g,'').toLowerCase()}`);
+  if(sessionName!==null)invariant(/^[a-z0-9][a-z0-9-]{0,63}$/.test(sessionName),'Invalid isolated desktop session name');
   const output=resolve(values.output??join(ROOT,'.local/gpu-preview-p3',new Date().toISOString().replaceAll(':','-')));
   invariant(output.startsWith(join(ROOT,'.local')+'/'),'P3 output must stay in App .local');
   await mkdir(output,{recursive:true,mode:0o700});
-  const manifest={schemaVersion:1,startedAt:new Date().toISOString(),platform:platform(),arch:arch(),kernel:release(),provider:values.provider,
+  const manifest={schemaVersion:1,startedAt:new Date().toISOString(),platform:platform(),arch:arch(),kernel:release(),provider:values.provider,sessionName,connectionOwnership:values.connect?'existing-explicit-CDP-session':'owned-isolated-session',
     runClass:values.debug?'short-debug-not-performance-acceptance':values.finite?'finite-correctness-not-performance-acceptance':'formal-p3',
     warmupSeconds:values.debug||values.finite?2:10,measureSeconds:values.debug||values.finite?5:180,stabilitySeconds:values.debug||values.finite?5:600,readbacks:'none; no screenshots/pixel extraction in timed runner',
     phases:[{name:'720p24',width:1280,height:720,targetFps:24},{name:'1440p30',width:2560,height:1440,targetFps:30}],
@@ -380,7 +382,7 @@ async function run(values) {
   };
   try{
     if(!values.connect){
-      child=spawn(process.execPath,[join(ROOT,'scripts/app.mjs'),'desktop','--port',values.port,'--cdp-port',values['cdp-port']],
+      child=spawn(process.execPath,[join(ROOT,'scripts/app.mjs'),'desktop','--port',values.port,'--cdp-port',values['cdp-port'],'--session-name',sessionName],
         {cwd:ROOT,env:{...process.env,...(values.provider==='synthetic'?{MAKO_BACKEND_GPU_PREVIEW_BENCHMARK:'1'}:{})},stdio:['ignore','ignore','inherit']});
       child.once('error',()=>{});
     }
@@ -489,7 +491,7 @@ async function run(values) {
 }
 async function main() {
   const {values}=parseArgs({options:{'cdp-port':{type:'string',default:'9223'},port:{type:'string',default:'5174'},output:{type:'string'},provider:{type:'string',default:'runtime'},
-    connect:{type:'boolean'},'reuse-project':{type:'boolean'},'dry-run':{type:'boolean'},debug:{type:'boolean'},finite:{type:'boolean'},analyze:{type:'string'}}});
+    connect:{type:'boolean'},'session-name':{type:'string'},'reuse-project':{type:'boolean'},'dry-run':{type:'boolean'},debug:{type:'boolean'},finite:{type:'boolean'},analyze:{type:'string'}}});
   invariant(['runtime','synthetic'].includes(values.provider),'provider must be runtime or synthetic');
   if(values.analyze){const directory=resolve(values.analyze);const records=(await readFile(join(directory,'events.jsonl'),'utf8')).trim().split('\n').filter(Boolean).map(line=>JSON.parse(line));
     const manifest=JSON.parse(await readFile(join(directory,'manifest.json'),'utf8'));const report=analyze(records,manifest);await writeFile(join(directory,'report.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));return;}

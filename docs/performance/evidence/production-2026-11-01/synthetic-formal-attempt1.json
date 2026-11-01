@@ -1,0 +1,770 @@
+{
+  "schemaVersion": 1,
+  "label": "synthetic-formal",
+  "archivedAt": "2026-11-01T05:09:50.087867+00:00",
+  "rawEvidence": {
+    "manifest.json": {
+      "path": ".local/gpu-preview-p3/synthetic-formal-final/manifest.json",
+      "bytes": 18117,
+      "sha256": "a44acbdd13ea3189629c48cc76f756c35621a11c4c4d6ca4ad84823ea9afaf6d"
+    },
+    "report.json": {
+      "path": ".local/gpu-preview-p3/synthetic-formal-final/report.json",
+      "bytes": 654586,
+      "sha256": "69e6f166ca99b82ac083d34a30d6f9c77819fdfc0ad7f8737cf8eef765aa446d"
+    },
+    "events.jsonl": {
+      "path": ".local/gpu-preview-p3/synthetic-formal-final/events.jsonl",
+      "bytes": 6743108,
+      "sha256": "42dba9f9fc76f245a3cf2fb5cd683852c26f54fdf1ef8c67919c3bc1fba240a4"
+    }
+  },
+  "manifest": {
+    "schemaVersion": 1,
+    "startedAt": "2026-11-01T05:03:06.259Z",
+    "platform": "linux",
+    "arch": "x64",
+    "kernel": "7.3.0-5-cachyos",
+    "provider": "synthetic",
+    "sessionName": "p3-synthetic-final",
+    "connectionOwnership": "owned-isolated-session",
+    "runClass": "formal-p3",
+    "warmupSeconds": 10,
+    "measureSeconds": 180,
+    "stabilitySeconds": 600,
+    "readbacks": "none; no screenshots/pixel extraction in timed runner",
+    "phases": [
+      {
+        "name": "720p24",
+        "width": 1280,
+        "height": 720,
+        "targetFps": 24
+      },
+      {
+        "name": "1440p30",
+        "width": 2560,
+        "height": 1440,
+        "targetFps": 30
+      }
+    ],
+    "thresholds": {
+      "overallRatio": 0.99,
+      "sliding5sRatio": 0.98,
+      "intervalP95Periods": 2,
+      "intervalP99Periods": 3,
+      "maxUnexplainedStallMs": 250,
+      "interactionP95Ms": 150,
+      "interactionP99Ms": 250
+    },
+    "lifecycle": {
+      "attachDetach": 20,
+      "publicResizeSeek": 10,
+      "uiResolutionRecreate": 10
+    },
+    "command": [
+      "/usr/bin/node",
+      "/mnt/Data/Program/MakoKaraGenerator-App/scripts/gpu-preview-p3.mjs",
+      "--session-name",
+      "p3-synthetic-final",
+      "--provider",
+      "synthetic",
+      "--port",
+      "5186",
+      "--cdp-port",
+      "9236",
+      "--output",
+      ".local/gpu-preview-p3/synthetic-formal-final"
+    ],
+    "sourceCommit": "db8cee2dfecdf3f40860776fbf1068f1738d2f12",
+    "dirtyPaths": [
+      "?? docs/performance/gpu-preview-production-2026-11-01.md"
+    ],
+    "deployment": {
+      "available": true,
+      "verified": true,
+      "sourceBoundary": {
+        "managedAndNative": "matched published dist; verifyDesktopDeployment checks payload inventory",
+        "desktopJs": "main/preload are App disk source loaded at process startup; hashes recorded separately from managed dist",
+        "frontend": "built index plus JS/CSS assets served by App launcher; source files do not substitute for these bundles"
+      },
+      "dist": ".local/backend-dist/20261101T045924324Z",
+      "files": [
+        {
+          "path": ".local/backend-dist/20261101T045924324Z/server/MakoKaraGenerator.Backend.Server.dll",
+          "size": 345600,
+          "sha256": "fcce34c09ef285bd2e43f3983867b230db6b942e6adef35a4ff506703d59b260"
+        },
+        {
+          "path": ".local/backend-dist/20261101T045924324Z/worker/MakoKaraGenerator.Backend.Worker.dll",
+          "size": 277504,
+          "sha256": "aed4e769741c00cadafffaa3a498bfb0bb4c124b2c6b5b95b614cb05710baea8"
+        },
+        {
+          "path": ".local/backend-dist/20261101T045924324Z/worker/libSkiaSharp.so",
+          "size": 11566472,
+          "sha256": "15cb994d64661fcf997eeb65da3baa76213d4d16cd405cbd260ea7c97af3764a"
+        },
+        {
+          "path": ".local/backend-dist/20261101T045924324Z/worker/libmako_gpu_preview.so",
+          "size": 69648,
+          "sha256": "9d51dda46648e531485af903838261c371032dc2e50025585bf25d5d4b384f62"
+        },
+        {
+          "path": ".local/backend-dist/20261101T045924324Z/desktop/gpu_preview_broker.node",
+          "size": 34472,
+          "sha256": "93529fecadc868e4ff61f2031e3e4aba520934f507cc3003694d357f805cd446"
+        },
+        {
+          "path": ".local/backend-dist/20261101T045924324Z/deployment.json",
+          "size": 256773,
+          "sha256": "fdaa354a0809150a57df47cc48e578b5844e909f3ba831b2804aff3524777ac2"
+        },
+        {
+          "path": ".local/backend-dist/20261101T045924324Z/gpu-preview-manifest.json",
+          "size": 4598,
+          "sha256": "b0f4ac8a0a817c673de7056805d0984cc2d0cdd052573035eb7d68f9a7db2c51"
+        },
+        {
+          "path": "desktop/node_modules/electron/package.json",
+          "size": 744,
+          "sha256": "f53b9f0b6b63e503f925f722ff7da9900cfb3bf1b17fe5fd48771c999cb3a256"
+        },
+        {
+          "path": "frontend/dist/index.html",
+          "size": 480,
+          "sha256": "546bb2c29991ba25ef095ea5405d4858c29031020fecc0eee87fdd2f0e96ce5c"
+        },
+        {
+          "path": "frontend/dist/assets/SourceEditor-BHDdkMj7.js",
+          "size": 355565,
+          "sha256": "54f424e07ad77ed3092a6b44b9cf5832442b1538dd6f1c5a6085d158e9eefed8"
+        },
+        {
+          "path": "frontend/dist/assets/console-B_pp6zn-.css",
+          "size": 5730,
+          "sha256": "fbaac100a655cddba7e246bb996a33f5718846c9e36fefd269ca06cbd5779483"
+        },
+        {
+          "path": "frontend/dist/assets/console-q5ivvHIo.js",
+          "size": 24593,
+          "sha256": "eee2b832976d0928833d99d3a102ff0a0b280d186673c77a080e2eb713b36aff"
+        },
+        {
+          "path": "frontend/dist/assets/editor-CiIdDkvU.css",
+          "size": 81486,
+          "sha256": "c93a4ce34d854d3832e85ec82689f4ae067aeae890fe7cb2e74c39fc9dc51629"
+        },
+        {
+          "path": "frontend/dist/assets/editor-k004Sf8A.js",
+          "size": 942301,
+          "sha256": "d773a2405ad23a0595b48ac1f5cc645f69492be98f42d6a01dd1ce90414eba59"
+        },
+        {
+          "path": "frontend/dist/assets/jsx-runtime-D_n7Nqdf.js",
+          "size": 282431,
+          "sha256": "815fd1c01e954c0a73c493de5dd631052977c0b36ebbdcea4e252c0abcef8fae"
+        }
+      ],
+      "nativeManifest": {
+        "schemaVersion": 1,
+        "abiVersion": 1,
+        "platform": "linux-x64",
+        "electron": "45.2.1",
+        "sourceCommit": "4297e027917fcc1f2dd4249b4f425341a59815e8",
+        "sourceDirty": false,
+        "sourceInputs": {
+          "native/gpu-preview/.gitignore": "181314065df2f2fdaf920b1a8b5311daa216a2d6489a06ada5b49cc514d89417",
+          "native/gpu-preview/README.md": "a8732b46dd2e3e31dc479d99b8fa42fcb64ee906508dcd384ba76c5ef340609c",
+          "native/gpu-preview/bootstrap-headers.sh": "4fdd7b8ef681f071ac9796deed435818c5c48f67da5f35c58718538c3a49e800",
+          "native/gpu-preview/broker.cc": "4e93dd605e2dc2337df381434ee4f3b8b327c93f12edac534914dae3546e647a",
+          "native/gpu-preview/build.sh": "e691a2012d30769da0fcc223f34e3b4f3c9c7bb38eeb3971adc7fc9d24c705b9",
+          "native/gpu-preview/check-api.cc": "ced65a5fa71d0f21ca1f016aad9cbd4e57c314b930d900edfb23dd2c65b085ba",
+          "native/gpu-preview/check-api.sh": "576f7f11e7d329e03a371c17caa105cb8546d3bdad87feb555f4e21617d7bece",
+          "native/gpu-preview/check-native.mjs": "8bcdee31722cafbd10048dfe0441ba744fef36377c155f8e23243e5ca799a866",
+          "native/gpu-preview/draw-plugin.h": "0b7d8a7ec62b214fd071285041ccc8fc73e90783def2697d03301b3b08c38ad4",
+          "native/gpu-preview/exports.map": "953f4f7eb39580958f4b0985cb61d92cbe864da3c9c8bd32058bc5a5b7053bab",
+          "native/gpu-preview/gpu-core.cc": "3b8fc6424899a0e55e591647130bab110bb906f7d879dcc27cd971fec46d6369",
+          "native/gpu-preview/gpu-core.h": "7627025efdfb34110b67cc592ed0c1bb66d52a28e445c9454202f6b8ca05ad69",
+          "native/gpu-preview/gpu-preview.cc": "f7792c190e62bbcfc70fe3b955eafb00ecdbeee54b120a0091fabe60d969609c",
+          "native/gpu-preview/gpu-preview.h": "a644a15683405eff85007597bbbe6c6d1ba7c9a9306e43c15dd2011e7cff338f",
+          "native/gpu-preview/ipc-core.cc": "310ed579c88ee35b4ad412b9a399fa70f35191acaff0b44a77c4f5d5547e7ee7",
+          "native/gpu-preview/ipc-core.h": "72090063983302ca1c1d62185a0eb3dffb172ce693b7bf1c893b4acb774f24ea",
+          "native/gpu-preview/producer.cc": "20938a86423489cd5d3afb491e30b8f7a669cc8c54ab00e8cb5e389eda89d70c",
+          "probes/skia-gpu-target/ProductionGpuProbe.cs": "0f777687ef4b6f4ce736c339472ee6f3ed518e9fc414c62a34bd6246537fd743",
+          "probes/skia-gpu-target/Program.cs": "f60a3afed54c8b3897a22c2e2f2eb6252ae7603aada9184ea8342d0f6639936e",
+          "probes/skia-gpu-target/README.md": "721733fc7f084c5aa4d95e4917ceb3beaccb9a01f03194133049bf8b01a2f798",
+          "probes/skia-gpu-target/SkiaGpuTargetProbe.csproj": "a53b0009e68e19ef56e63ae08c2bf7495524746dfb8d184c0dbce6d986d074a2",
+          "probes/skia-gpu-target/bootstrap.py": "d4e6e183cd8dfc387d7141440c46e9872072cbaa3c2aa554b420bc7bb78987f9",
+          "probes/skia-gpu-target/build-native.sh": "1de54cb86b2fd9b799ef4ac90d7865bf14815bb5e4a62abb5e38148886942584",
+          "probes/skia-gpu-target/build-plugins.sh": "040f6e07b65bbbb71c187863ca852f05f470baa95ca85e4c4e7b03f42aecbf82",
+          "probes/skia-gpu-target/draw-plugin.cc": "5571c44946ae56798b8ff2333e68531f3259a2b440200beddf7033ad0050776c",
+          "probes/skia-gpu-target/evidence/half-intrinsic-probe.json": "989d3d33eb96471543091ad7c565bd731c73b98c5e254d0b3ca943c0b078937d",
+          "probes/skia-gpu-target/evidence/managed-probe.json": "7ffe30686997cd06d41e5604174ffdd79b7959e6fd7d45018edbda57dfd48cdf",
+          "probes/skia-gpu-target/evidence/native-build.json": "0b1790421a04e020c35932bccdf1082876d99fb3b2e36b528664b5dd2a7f5a27",
+          "probes/skia-gpu-target/evidence/production-output.json": "0fdc16443b2a997985ba414080fdbda20a935d44c6df2028bdd028f754769c7a",
+          "probes/skia-gpu-target/fetch-deps.py": "902d755d10b9207c7092fa00f642acad28b27cf07e1f03789e61555d6568af75",
+          "probes/skia-gpu-target/half-intrinsic-probe.cc": "00efc5d42ac6e770fa3fffaf484ad8ab92df3a7f52a4713aa00ea9bce1cadde6",
+          "probes/skia-gpu-target/skcms-clang23.patch": "890b6287d8849fb3f4170415bd8be72056ce39eeccc071fed008ba4fd6c99fe0",
+          "probes/skia-gpu-target/skia-vulkan-state.patch": "f112e9250b9c25a1bb24932afa9987dc4c8500a3a1b60571a051658c0125a7af",
+          "probes/skia-gpu-target/validation-import.cc": "6b1dd3bdcd2a678cc6673fc4fb5d0edc3eb1138b87a9cfdca488213d7294b3b7"
+        },
+        "sourcePins": {
+          "skiaSharp": "f568ac94dd768ef9a2f593537cfde2dd0d348ef5",
+          "skia": "7dbfc07dd33181f84e0958afb7ee805c6c769f0b",
+          "vulkanHeaders": "b5c8f996196ba4aa6d8f97e52b5d3b6e70f7e4e2"
+        },
+        "gpuCopiesPerFrame": 1,
+        "files": {
+          "worker/libSkiaSharp.so": "15cb994d64661fcf997eeb65da3baa76213d4d16cd405cbd260ea7c97af3764a",
+          "worker/libmako_gpu_preview.so": "9d51dda46648e531485af903838261c371032dc2e50025585bf25d5d4b384f62",
+          "desktop/gpu_preview_broker.node": "93529fecadc868e4ff61f2031e3e4aba520934f507cc3003694d357f805cd446"
+        }
+      }
+    },
+    "sourceSnapshotCurrentOnDisk": {
+      "scripts/gpu-preview-p3.mjs": "c6d8f45549911377bbcd717de063398b6d7cef5dc54528e2608dfa772f9e571e",
+      "scripts/app.mjs": "daa17d594298c893ed107ce7c66508fe4dc592b7fc6bac505e72948698059f90",
+      "desktop/main.cjs": "f336e1a580fafde644ecf4b214eb8b22aff3752d6af2f5b140c2e6f92c1d9679",
+      "desktop/gpu-preview/preload.cjs": "04be87c83872c441be558443ac890a58e56204b9b3d4c050e2f7b2e2c97859f5",
+      "frontend/src/editor/preview/PreviewPanel.tsx": "1ebb4817e7247ed758396c49478ccd2d42c535463a4a67c8ed0b861fb29a601d",
+      "frontend/src/editor/preview/gpu-preview-controller.ts": "57706a31f20ab8362e7813d78c174144958432e243d1cf004fec109270d9a9e3"
+    },
+    "sourceSnapshotBoundary": "Hashes identify current disk source, deployment hashes identify managed/native payload; a connected Electron may have loaded an earlier disk source version before connection",
+    "platformEvidence": {
+      "renderer": {
+        "visibility": "visible",
+        "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.8078.75 Electron/45.2.1 Safari/537.36",
+        "platform": "Linux x86_64"
+      },
+      "gpuAuxAttributes": {
+        "amdSwitchable": false,
+        "canSupportThreadedTextureMailbox": false,
+        "directRenderingVersion": "",
+        "displayType": "ANGLE_OPENGL",
+        "glExtensions": "GL_AMD_performance_monitor GL_ANGLE_blob_cache GL_ANGLE_client_arrays GL_ANGLE_clip_cull_distance GL_ANGLE_compressed_texture_etc GL_ANGLE_depth_texture GL_ANGLE_framebuffer_blit GL_ANGLE_framebuffer_multisample GL_ANGLE_get_serialized_context_string GL_ANGLE_get_tex_level_parameter GL_ANGLE_instanced_arrays GL_ANGLE_memory_size GL_ANGLE_program_binary_readiness_query GL_ANGLE_program_cache_control GL_ANGLE_renderability_validation GL_ANGLE_request_extension GL_ANGLE_robust_client_memory GL_ANGLE_shader_pixel_local_storage GL_ANGLE_stencil_texturing GL_ANGLE_texture_compression_dxt3 GL_ANGLE_texture_compression_dxt5 GL_ANGLE_texture_multisample GL_ANGLE_translated_shader_source GL_ARM_rgba8 GL_CHROMIUM_bind_generates_resource GL_CHROMIUM_bind_uniform_location GL_CHROMIUM_copy_texture GL_CHROMIUM_lose_context GL_EXT_blend_func_extended GL_EXT_blend_minmax GL_EXT_clear_texture GL_EXT_clip_control GL_EXT_clip_cull_distance GL_EXT_color_buffer_float GL_EXT_color_buffer_half_float GL_EXT_compressed_ETC1_RGB8_sub_texture GL_EXT_conservative_depth GL_EXT_debug_label GL_EXT_debug_marker GL_EXT_depth_clamp GL_EXT_discard_framebuffer GL_EXT_disjoint_timer_query GL_EXT_draw_buffers GL_EXT_draw_buffers_indexed GL_EXT_float_blend GL_EXT_frag_depth GL_EXT_instanced_arrays GL_EXT_map_buffer_range GL_EXT_memory_object GL_EXT_memory_object_fd GL_EXT_occlusion_query_boolean GL_EXT_polygon_offset_clamp GL_EXT_read_format_bgra GL_EXT_render_snorm GL_EXT_robustness GL_EXT_sRGB GL_EXT_sRGB_write_control GL_EXT_semaphore GL_EXT_semaphore_fd GL_EXT_shadow_samplers GL_EXT_texture_border_clamp GL_EXT_texture_compression_bptc GL_EXT_texture_compression_dxt1 GL_EXT_texture_compression_rgtc GL_EXT_texture_compression_s3tc_srgb GL_EXT_texture_filter_anisotropic GL_EXT_texture_format_BGRA8888 GL_EXT_texture_mirror_clamp_to_edge GL_EXT_texture_norm16 GL_EXT_texture_rg GL_EXT_texture_sRGB_R8 GL_EXT_texture_sRGB_RG8 GL_EXT_texture_sRGB_decode GL_EXT_texture_shadow_lod GL_EXT_texture_storage GL_EXT_texture_type_2_10_10_10_REV GL_EXT_unpack_subimage GL_KHR_blend_equation_advanced GL_KHR_blend_equation_advanced_coherent GL_KHR_debug GL_KHR_parallel_shader_compile GL_KHR_robustness GL_KHR_texture_compression_astc_ldr GL_KHR_texture_compression_astc_sliced_3d GL_MESA_framebuffer_flip_y GL_NV_fence GL_NV_framebuffer_blit GL_NV_pack_subimage GL_NV_pixel_buffer_object GL_NV_read_depth GL_NV_read_stencil GL_NV_shader_noperspective_interpolation GL_OES_EGL_image GL_OES_EGL_image_external GL_OES_EGL_image_external_essl3 GL_OES_EGL_sync GL_OES_compressed_ETC1_RGB8_texture GL_OES_depth24 GL_OES_draw_buffers_indexed GL_OES_element_index_uint GL_OES_fbo_render_mipmap GL_OES_get_program_binary GL_OES_mapbuffer GL_OES_packed_depth_stencil GL_OES_required_internalformat GL_OES_rgb8_rgba8 GL_OES_sample_variables GL_OES_shader_multisample_interpolation GL_OES_standard_derivatives GL_OES_surfaceless_context GL_OES_texture_3D GL_OES_texture_border_clamp GL_OES_texture_float GL_OES_texture_float_linear GL_OES_texture_half_float GL_OES_texture_half_float_linear GL_OES_texture_npot GL_OES_texture_stencil8 GL_OES_texture_storage_multisample_2d_array GL_OES_vertex_array_object ",
+        "glImplementationParts": "(gl=egl-angle,angle=opengl)",
+        "glRenderer": "ANGLE (AMD, AMD Radeon 880M Graphics (radeonsi strix1 ACO), OpenGL ES 3.2 Mesa 26.2.5-arch3.1)",
+        "glResetNotificationStrategy": 33362,
+        "glVendor": "Google Inc. (AMD)",
+        "glVersion": "OpenGL ES 3.0 (ANGLE 2.1.28975 git hash: 127e783de334)",
+        "glWsExtensions": "EGL_EXT_create_context_robustness EGL_KHR_create_context EGL_KHR_image EGL_KHR_image_base EGL_KHR_gl_colorspace EGL_KHR_gl_texture_2D_image EGL_KHR_gl_texture_cubemap_image EGL_KHR_gl_texture_3D_image EGL_KHR_gl_renderbuffer_image EGL_KHR_get_all_proc_addresses EGL_KHR_fence_sync EGL_KHR_wait_sync EGL_ANGLE_create_context_webgl_compatibility EGL_CHROMIUM_create_context_bind_generates_resource EGL_KHR_swap_buffers_with_damage EGL_EXT_pixel_format_float EGL_KHR_surfaceless_context EGL_ANGLE_display_texture_share_group EGL_ANGLE_display_semaphore_share_group EGL_ANGLE_create_context_client_arrays EGL_ANGLE_program_cache_control EGL_ANGLE_robust_resource_initialization EGL_ANGLE_create_context_extensions_enabled EGL_ANDROID_blob_cache EGL_ANDROID_recordable EGL_ANDROID_native_fence_sync EGL_ANGLE_create_context_backwards_compatible EGL_KHR_no_config_context EGL_KHR_create_context_no_error EGL_EXT_image_dma_buf_import EGL_EXT_image_dma_buf_import_modifiers EGL_KHR_reusable_sync EGL_ANGLE_external_context_and_surface EGL_EXT_buffer_age EGL_ANGLE_context_virtualization EGL_ANGLE_memory_usage_report EGL_ANGLE_create_context_passthrough_shaders ",
+        "glWsVendor": "Google Inc. (AMD)",
+        "glWsVersion": "1.5 (ANGLE 2.1.28975 git hash: 127e783de334)",
+        "hardwareSupportsVulkan": false,
+        "inProcessGpu": false,
+        "initializationTime": 0.044425,
+        "isAsan": false,
+        "isClangCoverage": false,
+        "jpegDecodeAcceleratorSupported": false,
+        "maxMsaaSamples": "8",
+        "optimus": false,
+        "passthroughCmdDecoder": true,
+        "pixelShaderVersion": "3.00",
+        "processCrashCount": 0,
+        "sandboxed": false,
+        "skiaBackendType": "GaneshGL",
+        "subpixelFontRendering": true,
+        "targetCpuBits": 64,
+        "vertexShaderVersion": "3.00",
+        "visibilityCallbackCallCount": 0
+      },
+      "electronOzoneArguments": [],
+      "ownedProcesses": [
+        {
+          "pid": 560745,
+          "type": "renderer",
+          "ozonePlatformArguments": [
+            "--ozone-platform=wayland"
+          ],
+          "source": "owned /proc cmdline argv or Chromium process-title token; unrelated arguments omitted"
+        },
+        {
+          "pid": 560486,
+          "type": "GPU",
+          "ozonePlatformArguments": [
+            "--ozone-platform=wayland"
+          ],
+          "source": "owned /proc cmdline argv or Chromium process-title token; unrelated arguments omitted"
+        }
+      ],
+      "waylandRuntimeProof": "owned Electron GPU and renderer process both run --ozone-platform=wayland",
+      "actualOzoneBackend": "ANGLE_OPENGL",
+      "environmentObservation": {
+        "XDG_SESSION_TYPE": "wayland",
+        "WAYLAND_DISPLAY": "wayland-1"
+      },
+      "waylandConfirmed": true
+    },
+    "concurrentAppObservation": {
+      "observation": "Other App instances are preserved; no pause/close/kill is performed for timing",
+      "observedAt": "2026-11-01T05:03:09.844Z",
+      "instances": []
+    },
+    "fixture": {
+      "audio": "/mnt/Data/Program/MakoKaraGenerator-App/.local/gpu-preview-p3/synthetic-formal-final/silence-1800s.wav",
+      "lyrics": "/mnt/Data/Program/MakoKaraGenerator-App/.local/gpu-preview-p3/synthetic-formal-final/production-lyrics.lrc",
+      "audioSeconds": 1800,
+      "audioSha256": "3e7b7f6fcc3aa383cf9a539343ac3deafa1e02b4444c8145cbefebb519fc6ed4"
+    },
+    "runError": "Formal phase 720p24 failed throughput/freshness candidate gates; long matrix stopped",
+    "finishedAt": "2026-11-01T05:06:25.372Z"
+  },
+  "result": {
+    "conclusion": "incomplete-or-failed",
+    "runClass": "formal-p3",
+    "identity": "stream/host/producer/input/consumer/timeline/pool/slot/slotEpoch/frameSeq",
+    "counting": "unique canvas-drawn identity intersected with actual native allReferencesReleased; measured at completion timestamp",
+    "eventGaps": [],
+    "measuredRequirements": {
+      "formalRunClass": true,
+      "runFinished": false,
+      "matchingDeployment": true,
+      "visibleRenderer": true,
+      "runtimeWayland": true,
+      "phaseMatrix": false,
+      "throughput": false,
+      "freshness": false,
+      "interactions": false,
+      "lifecycle": false,
+      "completeEventHistory": true
+    },
+    "requiredLifecycle": {
+      "attachDetach": {
+        "required": 20,
+        "observed": 0
+      },
+      "publicResizeSeek": {
+        "required": 10,
+        "observed": 0
+      },
+      "uiResolutionRecreate": {
+        "observed": 0
+      }
+    },
+    "interactionGroups": {},
+    "activeInteractionGroups": {},
+    "p3Acceptance": "not established by timed runner alone; requires separate correctness/trace and lifetime lease/FD/cache review",
+    "limitations": [
+      "No screen scan/displayed FPS measurement",
+      "No Chromium internal copy count inferred",
+      "RSS/GPU-memory slopes need platform-cache interpretation, not an invented fixed MB threshold",
+      "Synthetic and runtime providers must be measured and reported separately"
+    ]
+  },
+  "phaseReports": [
+    {
+      "name": "720p24",
+      "provider": "synthetic-gpu",
+      "width": 1280,
+      "height": 720,
+      "targetFps": 24,
+      "durationSeconds": 180.029579309,
+      "uniqueNativeCompletions": 4320,
+      "uniqueDrawnAndNativeCompleted": 4320,
+      "undrawnNativeCompletions": 0,
+      "expectedFrames": 4320.709903416,
+      "uniqueCompleteConsumptionFps": 23.996056740127234,
+      "displayedFps": "unmeasured",
+      "chromiumInternalCopies": "unmeasured",
+      "completeRatio": 0.9998356975053014,
+      "sliding5s": {
+        "complete": true,
+        "windowSeconds": 5,
+        "minimumUniqueFrames": 117,
+        "minimumFps": 23.4,
+        "worstStartMonotonicNs": "79545620266375",
+        "checkedEventBoundaries": 8402,
+        "requiredUniqueFrames": 118
+      },
+      "intervalMs": {
+        "count": 4319,
+        "min": 0.026931,
+        "p50": 41.719996,
+        "p95": 44.121191,
+        "p99": 45.629439,
+        "max": 149.756964
+      },
+      "stallsOver250ms": 0,
+      "renderMs": {
+        "count": 4320,
+        "min": 0.305003,
+        "p50": 1.001752,
+        "p95": 1.695798,
+        "p99": 2.020552,
+        "max": 3.261992
+      },
+      "brokerToCompletionMs": {
+        "count": 4320,
+        "min": 0.703704,
+        "p50": 1.380474,
+        "p95": 3.321368,
+        "p99": 4.321632,
+        "max": 53.933389
+      },
+      "readyToBrokerMs": {
+        "count": 4320,
+        "min": 1.369984,
+        "p50": 3.393934,
+        "p95": 4.456025,
+        "p99": 4.758905,
+        "max": 61.930256
+      },
+      "readyToCompletionMs": {
+        "count": 4320,
+        "min": 2.425602,
+        "p50": 4.934434,
+        "p95": 7.011125,
+        "p99": 8.274786,
+        "max": 115.863645
+      },
+      "readyToCompletionUpperBoundMs": {
+        "count": 4320,
+        "min": 4.405374,
+        "p50": 6.914206,
+        "p95": 8.990897,
+        "p99": 10.254558000000001,
+        "max": 117.843417
+      },
+      "readyToCompletionBoundary": "Worker frame-ready → actual native allReferencesReleased; includes scheduling/import/consumer lifetime and Worker-to-main clock uncertainty, no screen scan or pure GPU-copy inference",
+      "totalClockUncertaintyMs": {
+        "count": 4320,
+        "min": 1.980772,
+        "p50": 1.980772,
+        "p95": 2.030772,
+        "p99": 2.030772,
+        "max": 2.030772
+      },
+      "signedDriftMs": {
+        "count": 4320,
+        "min": -116.58691800001263,
+        "p50": -5.9763039999902245,
+        "p95": -2.667842000000179,
+        "p99": -0.5908819999992847,
+        "max": 0.47837700000405314
+      },
+      "ageMs": {
+        "count": 4320,
+        "min": -0.47837700000405314,
+        "p50": 5.974817000001669,
+        "p95": 9.326519999999553,
+        "p99": 11.339262000000105,
+        "max": 116.58691800001263
+      },
+      "absoluteDriftMs": {
+        "count": 4320,
+        "min": 0.0020879999995231627,
+        "p50": 5.974817000001669,
+        "p95": 9.326519999999553,
+        "p99": 11.339262000000105,
+        "max": 116.58691800001263
+      },
+      "absoluteDriftUpperBoundMs": {
+        "count": 4320,
+        "min": 2.023680999994397,
+        "p50": 7.964226999998212,
+        "p95": 11.307291999999553,
+        "p99": 13.320034000000105,
+        "max": 118.61769000001263
+      },
+      "freshness": {
+        "status": "candidate-met",
+        "candidateP95LimitMs": 83.33333333333333,
+        "uncertaintyPolicy": "p95(abs drift + max(frame total uncertainty, frame Worker mapping + selected audio renderer mapping)); selected audio mapping components are required for formal evidence, no repeated Worker term",
+        "earlyFrameConstraint": "absolute signed drift p95 must also stay within two periods; negative age never makes an early frame pass",
+        "model": "latest calibrated real audio.currentTime sample at or before completion, extrapolated by rate within exact timelineResetId"
+      },
+      "resourceTrends": [
+        {
+          "pid": 560427,
+          "startTicks": "7939792",
+          "role": "Browser",
+          "fd": {
+            "count": 179,
+            "slopePerSecond": 0.007742073353096732,
+            "delta": 1,
+            "min": 122,
+            "max": 128,
+            "first": 122,
+            "last": 123
+          },
+          "rssBytes": {
+            "count": 179,
+            "slopePerSecond": 69079.24039116292,
+            "delta": 11935744,
+            "min": 240103424,
+            "max": 253001728,
+            "first": 240574464,
+            "last": 252510208
+          },
+          "gpuMemoryBytes": {
+            "count": 179,
+            "slopePerSecond": 0,
+            "delta": 0,
+            "min": 2109440,
+            "max": 2109440,
+            "first": 2109440,
+            "last": 2109440
+          }
+        },
+        {
+          "pid": 560990,
+          "startTicks": "7940496",
+          "role": "worker",
+          "fd": {
+            "count": 179,
+            "slopePerSecond": 0.0033379157890377938,
+            "delta": 5,
+            "min": 114,
+            "max": 150,
+            "first": 132,
+            "last": 137
+          },
+          "rssBytes": {
+            "count": 179,
+            "slopePerSecond": 52042.58635418902,
+            "delta": 11538432,
+            "min": 160567296,
+            "max": 172580864,
+            "first": 160567296,
+            "last": 172105728
+          },
+          "gpuMemoryBytes": {
+            "count": 179,
+            "slopePerSecond": 0,
+            "delta": 0,
+            "min": 19898368,
+            "max": 19898368,
+            "first": 19898368,
+            "last": 19898368
+          }
+        },
+        {
+          "pid": 560486,
+          "startTicks": "7939807",
+          "role": "GPU",
+          "fd": {
+            "count": 179,
+            "slopePerSecond": 0.001410813344888634,
+            "delta": 0,
+            "min": 70,
+            "max": 74,
+            "first": 71,
+            "last": 71
+          },
+          "rssBytes": {
+            "count": 179,
+            "slopePerSecond": 1776.0588353800902,
+            "delta": 659456,
+            "min": 173105152,
+            "max": 174333952,
+            "first": 173105152,
+            "last": 173764608
+          },
+          "gpuMemoryBytes": {
+            "count": 179,
+            "slopePerSecond": 53321.25824411544,
+            "delta": 10035200,
+            "min": 131780608,
+            "max": 174010368,
+            "first": 137433088,
+            "last": 147468288
+          }
+        },
+        {
+          "pid": 560490,
+          "startTicks": "7939807",
+          "role": "Utility",
+          "fd": {
+            "count": 179,
+            "slopePerSecond": -0.040305340632078586,
+            "delta": -6,
+            "min": 29,
+            "max": 35,
+            "first": 35,
+            "last": 29
+          },
+          "rssBytes": {
+            "count": 179,
+            "slopePerSecond": -1759.4342998256936,
+            "delta": -90112,
+            "min": 91631616,
+            "max": 92086272,
+            "first": 91750400,
+            "last": 91660288
+          },
+          "gpuMemoryBytes": {
+            "count": 0,
+            "slopePerSecond": null,
+            "delta": null,
+            "min": null,
+            "max": null
+          }
+        },
+        {
+          "pid": 560745,
+          "startTicks": "7940066",
+          "role": "Tab",
+          "fd": {
+            "count": 179,
+            "slopePerSecond": 0,
+            "delta": 0,
+            "min": 61,
+            "max": 61,
+            "first": 61,
+            "last": 61
+          },
+          "rssBytes": {
+            "count": 179,
+            "slopePerSecond": 8065.967848842168,
+            "delta": 3330048,
+            "min": 372174848,
+            "max": 377978880,
+            "first": 374587392,
+            "last": 377917440
+          },
+          "gpuMemoryBytes": {
+            "count": 0,
+            "slopePerSecond": null,
+            "delta": null,
+            "min": null,
+            "max": null
+          }
+        },
+        {
+          "pid": 560938,
+          "startTicks": "7940420",
+          "role": "Utility",
+          "fd": {
+            "count": 179,
+            "slopePerSecond": 0,
+            "delta": 0,
+            "min": 27,
+            "max": 27,
+            "first": 27,
+            "last": 27
+          },
+          "rssBytes": {
+            "count": 179,
+            "slopePerSecond": 1594.61407096843,
+            "delta": 479232,
+            "min": 78016512,
+            "max": 78499840,
+            "first": 78016512,
+            "last": 78495744
+          },
+          "gpuMemoryBytes": {
+            "count": 0,
+            "slopePerSecond": null,
+            "delta": null,
+            "min": null,
+            "max": null
+          }
+        }
+      ],
+      "gates": {
+        "overall": true,
+        "sliding5s": false,
+        "intervalP95": true,
+        "intervalP99": true,
+        "noUnexplainedStall": true,
+        "clockRecorded": true,
+        "contemporaneousClockRecorded": true,
+        "exactProvider": true,
+        "exactSize": true,
+        "productionFinalReadbacksZero": true,
+        "workerPoolAndRenderControlBudgets": true,
+        "selectedAudioClockComponentsRecorded": true,
+        "visibleWindow": true,
+        "poolBounded": true,
+        "mainControlsBounded": true
+      },
+      "throughputPassed": false,
+      "workerFlowControl": {
+        "freshness": {
+          "uniqueUpdates": 179,
+          "maxAgeMs": 1048.833317,
+          "maxGapMs": 1052.114765,
+          "policy": "1Hz state requests; unique main-observed native state updates, max age/gap 3000ms, phase endpoint coverage within 2000ms",
+          "identityMatches": true,
+          "covered": true
+        },
+        "status": "recorded",
+        "observedIndependentPeaks": {
+          "executingRender": 1,
+          "pendingControls": 1,
+          "pendingRenderTargets": 0,
+          "outstanding": 3
+        },
+        "maxActualAllocationBytes": 11059200,
+        "maxRetainedAllocationBytes": 11059200
+      },
+      "displayGeometry": {
+        "distinctBackingAndCssSizes": [
+          {
+            "backingHeight": 720,
+            "backingWidth": 1280,
+            "cssHeight": 116.55000305175781,
+            "cssWidth": 207.1999969482422,
+            "cssX": 416,
+            "cssY": 424
+          }
+        ],
+        "boundary": "full backing pixels transported; CSS size is not full-resolution screen presentation"
+      },
+      "resourceObservationSampling": "asynchronous /proc inventory, per-snapshot start/end and mapping error are retained in original events/report; trend time is bracket midpoint, not atomic main snapshot"
+    }
+  ],
+  "processDrain": {
+    "checkedAt": "2026-11-01T05:09:50.087886+00:00",
+    "observedOwnedProcessIdentities": [
+      {
+        "pid": 560427,
+        "startTicks": "7939792",
+        "role": "Browser",
+        "sameOwnedIdentityStillPresent": false
+      },
+      {
+        "pid": 560486,
+        "startTicks": "7939807",
+        "role": "GPU",
+        "sameOwnedIdentityStillPresent": false
+      },
+      {
+        "pid": 560490,
+        "startTicks": "7939807",
+        "role": "Utility",
+        "sameOwnedIdentityStillPresent": false
+      },
+      {
+        "pid": 560745,
+        "startTicks": "7940066",
+        "role": "Tab",
+        "sameOwnedIdentityStillPresent": false
+      },
+      {
+        "pid": 560938,
+        "startTicks": "7940420",
+        "role": "Utility",
+        "sameOwnedIdentityStillPresent": false
+      },
+      {
+        "pid": 560990,
+        "startTicks": "7940496",
+        "role": "worker",
+        "sameOwnedIdentityStillPresent": false
+      }
+    ],
+    "allObservedOwnedIdentitiesExited": true,
+    "launcherBoundary": "Runner stopped only its spawned launcher handle with SIGINT and awaited exit; launcher/Server start identities were not included in /proc metric snapshots; do not inflate observed identity coverage",
+    "otherSessionPolicy": "No other App instance was paused, closed or killed for this run"
+  },
+  "stoppedMatrix": {
+    "reason": "Formal phase 720p24 failed throughput/freshness candidate gates; long matrix stopped",
+    "notMeasured": [
+      "1440p30 180 seconds",
+      "1440p30 600 seconds stability",
+      "formal synthetic interactions and lifecycle"
+    ],
+    "acceptance": "failed 720p24 sliding 5 second window; no full P3 performance acceptance"
+  }
+}

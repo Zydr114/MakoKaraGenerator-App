@@ -1,0 +1,100 @@
+/* 控件样张的页面排布，只在开发时用。 */
+html,
+body {
+  margin: 0;
+  background: var(--desk);
+  color: var(--on-surface);
+  font: var(--fs) / 1.45 var(--font);
+}
+:lang(ja) {
+  font-family: var(--font-ja);
+}
+.gallery {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.g-top {
+  height: 52px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+.g-logo {
+  width: 26px;
+  height: 26px;
+}
+.g-grid {
+  padding: 8px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 8px;
+  align-items: start;
+}
+.g-panel {
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-radius: var(--radius-panel);
+  background: var(--panel);
+}
+.g-panel.stage-zone {
+  background: var(--stage);
+}
+.g-tall {
+  grid-row: span 2;
+}
+.g-panel h3 {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: 600;
+}
+.g-panel h4 {
+  margin: 4px 0 0;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--on-surface-variant);
+}
+.g-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.g-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.g-form.side {
+  --label-w: 44px;
+  gap: 6px 12px;
+}
+.g-pad {
+  margin: 0;
+  padding: 12px;
+}
+.g-p {
+  margin: 0;
+}
+.g-line {
+  align-items: flex-start;
+}
+.g-time {
+  width: 58px;
+  flex: none;
+  font-size: 12px;
+  line-height: 20px;
+}
+.g-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.g-text .muted {
+  font-size: 12px;
+}

@@ -1,0 +1,226 @@
+/* 对话框、右侧面板与消息条（界面改版 §2.4）。弹出菜单和提示在 controls.css。 */
+
+.scrim,
+.sheet-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+}
+.scrim {
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--scrim);
+}
+.sheet-scrim {
+  background: color-mix(in srgb, var(--scrim) 60%, transparent);
+}
+:is(.scrim, .sheet-scrim)[data-entering] {
+  animation: overlay-fade 150ms ease-out;
+}
+:is(.scrim, .sheet-scrim)[data-exiting] {
+  animation: overlay-fade 120ms ease-in reverse;
+}
+
+/* ———— 对话框 ———— */
+.dialog {
+  --field: var(--dialog-field);
+  width: min(560px, 100%);
+  max-height: 100%;
+  display: flex;
+  border-radius: var(--radius-dialog);
+  background: var(--dialog);
+  color: var(--on-surface);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  outline: none;
+}
+.dialog.ask {
+  width: min(420px, 100%);
+}
+.dialog[data-entering] {
+  animation: dialog-in 200ms cubic-bezier(0.2, 0, 0, 1);
+}
+.dialog-inner {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  outline: none;
+}
+.dhead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 22px 24px 12px;
+}
+.dhead h2 {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+.ddesc {
+  margin: 0;
+  padding: 0 24px 12px;
+  font-size: var(--fs-lg);
+  line-height: 1.5;
+  color: var(--on-surface-variant);
+  white-space: pre-line;
+}
+.dbody {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 4px 24px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--outline-variant) transparent;
+}
+.dfoot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 16px 24px 20px;
+}
+.dfoot .dialog-secondary-action {
+  margin-right: auto;
+  margin-left: -10px;
+}
+/* 选项多、文字长（例如槽位重排的三个去向）时按钮竖排 */
+.ask.stacked .dfoot {
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+/* ———— 右侧面板 ———— */
+.sheet {
+  --field: var(--dialog-field);
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  bottom: 8px;
+  width: min(400px, calc(100% - 16px));
+  display: flex;
+  border-radius: var(--radius-dialog);
+  background: var(--dialog);
+  color: var(--on-surface);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  outline: none;
+}
+.sheet[data-entering] {
+  animation: sheet-in 220ms cubic-bezier(0.2, 0, 0, 1);
+}
+.sheet[data-exiting] {
+  animation: sheet-in 150ms ease-in reverse;
+}
+.sheet-inner {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  outline: none;
+}
+.shead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 18px 14px 6px 24px;
+}
+.shead h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+.sbody {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 4px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--outline-variant) transparent;
+}
+
+/* ———— 消息条：底部居中，深浅模式都用反色面 ———— */
+.toast-region {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: 1100;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.toast {
+  box-sizing: border-box;
+  min-height: 44px;
+  max-width: min(560px, calc(100vw - 32px));
+  padding: 6px 6px 6px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: var(--radius-field);
+  background: var(--inverse-surface);
+  color: var(--inverse-on-surface);
+  box-shadow: var(--shadow-menu);
+  font-size: var(--fs);
+  pointer-events: auto;
+  animation: toast-in 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+.toast-text {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.4;
+}
+.toast .btn.text {
+  color: var(--inverse-primary);
+}
+.toast .btn.icon {
+  color: inherit;
+}
+.toast .btn[data-focus-visible] {
+  outline-color: var(--inverse-primary);
+}
+
+@keyframes overlay-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scrim,
+  .sheet-scrim,
+  .dialog,
+  .sheet,
+  .toast {
+    animation: none !important;
+  }
+}

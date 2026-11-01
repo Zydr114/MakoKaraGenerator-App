@@ -1,11 +1,28 @@
 # GPU 共享纹理预览实施计划
 
-状态：**已授权实施，P0 正在验收**。日期：2026-11-01。设计源码基线：App
-`3ca6730`，计划提交 `8411e6a`。原设计阶段为只读研究；用户随后授权在 App 内实现，
-先完成真实 Linux GPU 互操作硬门禁，再决定后续阶段。独立 `desktop/` 可见消费者与
-`native/gpu-preview/` 生产者已有有限正确性证据，见
-[P0 证据目录](../performance/evidence/p0-2026-11-01/)。P0 尚须合并 Skia 与异常路径
-验收结论；本文的后续性能数值仍是出口门槛，不是性能承诺。
+状态：**P0 条件 Go；P1/P2 已实现，生产联调和 P3 验收进行中**。日期：2026-11-01。
+设计源码基线为 App `3ca6730`，计划提交为 `8411e6a`；原设计阶段为只读研究，之后用户授权实施。
+P0 证据位于[归档目录](../performance/evidence/p0-2026-11-01/)，生产合同见
+[GPU 流 v1](../architecture/gpu-preview-stream-v1.md)。后文保留原门禁和阶段出口作为设计历史，
+不将待验收性能门槛写成测量结果。
+
+当前实现采用 **普通 Skia Vulkan BottomLeft surface → 同设备一次 GPU blit（Y 翻转）→
+三槽 exportable image → SCM_RIGHTS → Electron SharedTexture／VideoFrame →
+allReferencesReleased 后精确 release**。最终预览帧不回读 CPU；每帧一次整帧 GPU copy 与
+queue-idle 等待均计入成本。直接绘入 exportable target 已完成 P0 探索，生产路线为保留现有
+Skia surface 语义的一次 blit，不再把直接目标列为当前首选。
+
+已实现同一固定 Runtime 的 typed GPU lease、私有有界控制、低频可靠 HTTP owner/CAS、
+三槽预算、Electron 窄桥与编辑器 adapter。Worker 全套 138 项测试通过，其中 GPU 定向 25 项；
+测试证据只覆盖各自边界，不能替代真实生产首帧或 P3。当前仅限定 Linux x64／Wayland／
+AMD 组合；renderer/GPU crash 或消费者完成未知只证明 fail-stop／quarantine，未验证 crash 安全回收或恢复。
+
+当前有限结果：真实生产 Runtime 首轮观测到 173 个唯一 drawn/native-completed 帧，峰值未归还为 2；
+切换质量档位时发生 `gpuBrokerProtocolFailed`，因此完整切换／关闭生命周期与 P3 仍未验收。
+独立的 32 项[真实 HTTP 检查](../performance/evidence/production-2026-11-01/http-negative.json)通过，
+包括 owner/CAS/strict JSON、create 重放、私有 claim、2560×1440 实际三槽分配（44,236,800 B）
+及旧／新 Worker PID 身份消失；该探针没有连接原生消费者，不构成帧或呈现证据。归档分别记录
+发布 `c409d3a` 与运行探针时 HEAD，不能用后者冒充已发布 Server/Worker 来源。
 
 ## 1. 决策与范围
 
@@ -14,10 +31,10 @@ transport。优先证明本机 Linux／Wayland／AMD 集成 GPU 的实际路径�
 句柄适配作为后续独立阶段。现有浏览器 PNG 静态预览继续作为兼容入口，不把它
 改名为零拷贝，也不直接提高现有 500 ms 帧请求频率。
 
-主路线是 **Worker 在可导出的 Vulkan 图像上绘制 → 本机原生句柄 broker → Electron
-导入 → renderer 消费 VideoFrame → 原生消费者完成后归还槽位**。应先验证一个
-静态 GPU 图案的真实跨进程显示与安全释放，再验证三个槽位的持续循环；可行性
-门禁通过后才实施持续播放协议和生产渲染接缝。
+当前主路线是 **Worker 在普通 Skia Vulkan surface 绘制 → 一次 GPU blit 至可共享 image →
+本机原生句柄 broker → Electron 导入 → renderer 消费 VideoFrame → 原生消费者完成后
+归还槽位**。P0 已完成有限图案与三槽循环验证并批准一次 blit 路线；P1/P2 已接入持续
+控制与生产渲染接缝，真实应用与性能结果仍分别验收。
 
 术语与承诺边界如下。
 
@@ -26,8 +43,8 @@ transport。优先证明本机 Linux／Wayland／AMD 集成 GPU 的实际路径�
 | CPU 共享 RAM、mmap、SharedArrayBuffer | 进程共享 CPU 可访问内存；仍可能需要 GPU 回读与再次上传 | 不能据此称 GPU 零回读；仅为备选优化方向 |
 | GPU 共享纹理 | 通过操作系统句柄引用同一 GPU allocation，附带同步和寿命协议 | 主路线；须实际证明设备、格式、modifier 和消费者兼容 |
 | CPU-readback-free | 最终预览帧没有 GPU→CPU 像素回读，Worker／Server／JS 不序列化整帧像素 | 主路线的可审计目标；不保证脚本、材质等内部完全没有回读 |
-| 直接绘入共享目标 | 绘制直接写入 exportable VkImage | 首选，避免额外整帧 GPU blit |
-| 一次 GPU blit | 现有 GPU surface 复制到可共享的 GPU image | 可单独提案；仍可无 CPU 回读，但不是严格零 GPU 拷贝 |
+| 直接绘入共享目标 | 绘制直接写入 exportable VkImage | P0 探索方案；当前生产未选用 |
+| 一次 GPU blit | 普通 Skia GPU surface 复制到可共享 image，并修正 BottomLeft 方向 | 已批准并实现的生产路线；无最终 CPU 回读，有一次整帧 GPU copy |
 
 不将集成 GPU 的统一物理内存当作零拷贝证据；需要依据实际调用、句柄、同步和
 数据通路判断。Chromium 合成器内部的转换或复制也必须如实登记，不能仅凭应用
@@ -39,7 +56,12 @@ transport。优先证明本机 Linux／Wayland／AMD 集成 GPU 的实际路径�
 目标是排除内容渲染成本后，证明完整预览帧可从 1280×720 @ 24 fps 扩展至
 2560×1440 @ 30 fps，并具有明确的流控、交互和回收边界。
 
-## 2. 当前代码与阻塞
+## 2. 原始代码基线与当时阻塞
+
+本节源码行号和“当前”描述保留设计阶段的旧 PNG 路径审计，不能用来判断新增 GPU 流是否实现。新增实现入口为
+`GpuRenderFrame.cs`、`VulkanGpuFramePool.cs`、Worker `GpuStreamSession.cs`、Hosting
+`GpuStreamWorkerSession.cs`、Server `PreviewBackendService.GpuStream.cs`、`desktop/main.cjs` 与
+`frontend/src/editor/preview/gpu-preview-controller.ts`。
 
 已有[协议门禁报告](../performance/preview-protocol-gate.md)记录同一真实来源创建
 720p 成功、创建 1440p 被拒绝，公开内容为 PNG，帧请求数为零；它证明现有协议
@@ -73,7 +95,7 @@ SkiaSharp.Vulkan.SharpVk 3.119.4 与 SharpVk 0.4.2。不能假设另一套 Vulka
 
 ## 3. 目标架构与最小接口
 
-以下是候选内部合同，尚未实现；具体路由、类型名和协议版本应在 P1 冻结。现有
+本节说明已实现的内部边界；精确 DTO、路由和字段以[流 v1 合同](../architecture/gpu-preview-stream-v1.md)与生成合同为准。现有
 HTTP／Worker／CPU RenderFrame 合同保持可用。新 GPU 路径使用明确的 typed lease，
 不能把空 byte[] 或数值句柄塞进当前 CPU 像素结果以伪装兼容。
 
@@ -83,7 +105,7 @@ HTTP／Worker／CPU RenderFrame 合同保持可用。新 GPU 路径使用明确�
                     GPU 预览流协调器
                    1 executing + 1 latest
                               │
-隔离 Worker ─ render-to-target ─ exportable GPU image pool（3 slots）
+隔离 Worker ─ 普通 Skia surface ─ 一次 GPU blit ─ exportable image pool（3 slots）
                               │ native handle + synchronization
                     Electron main 原生 broker
                               │ imported SharedTexture / opaque token
@@ -99,11 +121,11 @@ HTTP／Worker／CPU RenderFrame 合同保持可用。新 GPU 路径使用明确�
 尺寸及实际 allocation 字节上限、池大小、失败原因。不以“Vulkan 可用”代替可共享
 和可导入；不匹配必须显式拒绝。
 
-新增 `RenderToGpuTarget(request, targetLease)` 类能力，输出 `GpuFrameLease`，
+已实现 `IGpuRenderFrameSession.InitializeGpuOutputAsync`／`RenderGpuAsync` 与 `GpuFrameLease`，
 至少包含设备／pool／slot 身份、有效像素区域、格式、布局、同步与释放所有者。
-将现有实际绘制步骤提取为共享 draw 核心；CPU 输出仍执行现有读回，GPU 输出
-直接绘入共享目标。若绑定缺少必要的 Vulkan／Skia 功能，只允许增加有边界、可
-独立验证的 native adapter；是否需要依赖升级或更换绑定要单列审查，不能顺手升级。
+现有实际绘制步骤共用 draw 核心；CPU 输出仍执行现有读回，GPU 输出从同设备普通
+Skia surface 通过一次 blit 交给共享目标。固定 SkiaSharp／Skia 源码上的小型 native C ABI
+补丁提供实际 image 状态交接，构建与部署均核验版本和符号；没有更换 Vulkan 绑定。
 当前 `SkiaRenderPipeline.cs:145` 仅在特定效果路径使用 sRGB，其余可为 null；上游
 `SKSurface.cs:198` 普通 GPU surface 默认 BottomLeft。P0 要以当前输出为基准验证
 校色、alpha 和方向，不预先硬改为 TopLeft 或一律 sRGB。Runtime 的
@@ -129,13 +151,13 @@ HTTP／Worker／CPU RenderFrame 合同保持可用。新 GPU 路径使用明确�
 
 控制序号严格递增、重复同内容可幂等、重复异内容拒绝；同一流最多一个应用中的
 控制与一个可覆盖的最新期望状态。播放内插生成目标时间，不为每个目标时间建立
-receipt、SSE journal 记录或无界队列。时钟校正建议上限 2 Hz（待 P1 定稿），而
+receipt、SSE journal 记录或无界队列。时钟校正已限制为上限 2 Hz，而
 play／pause／seek／变速／loop 立即发送；暂停目标保留一个最新请求直到完成或失败。
 音频为 master，显示按目标时间选择新鲜帧；过期帧丢弃并归还槽位，不能堆积追赶。
 
 `inputGeneration` 标识修订／尺寸／设备，`timelineEpoch` 标识 seek／循环等不连续
 时间线，`producerEpoch` 标识实际 Worker 进程代次。所有帧必须匹配这三者；不要
-复用时间戳或 controlSeq 代替寿命身份。renderer 重建也有独立 consumerEpoch。
+复用时间戳或 controlSeq 代替寿命身份。v1 每次 Electron 会话固定 consumerEpoch；renderer 全文导航／重载被拒绝，崩溃停止会话，暂不自动重建。
 
 ### 3.3 帧通知与句柄通道
 
@@ -187,8 +209,9 @@ layout 与外部 queue ownership 交接→导入→消费→释放的完整顺�
 pool 初始固定三个槽：一个生产、一个待消费、一个消费；实际允许状态由同步
 验证决定，不假定三者必然并行。预算按实际 allocation 大小与 descriptor 数计，
 不是只算 `width×height×4`。1440p 四字节紧密像素每槽为 14,745,600 B，三个槽为
-44,236,800 B（42.1875 MiB）；modifier、对齐、驱动和 Chromium 内部开销另外记录。P1 必须制定
-每流、每客户端和全局上限，以及旧 pool 尚在 drain 时 resize 可保留的总量。
+44,236,800 B（42.1875 MiB）；modifier、对齐、驱动和 Chromium 内部开销另外记录。已实现每池
+64 MiB、每 client／consumer 一流、每 host 两流与 128 MiB；resize／换输入先 drain 旧代，再建新代，
+不重叠两代 GPU 池。
 
 失败规则：
 
@@ -197,9 +220,10 @@ pool 初始固定三个槽：一个生产、一个待消费、一个消费；实
 | seek／loop／输入变化 | 更新相应 epoch，取消旧待处理工作，拒绝旧帧，旧 consumer lease 仍排空 |
 | resize／设备变化 | 新 pool 完整准备后切换；旧 pool 停止发布，引用归零后销毁，不能无限保留历史 pool |
 | 导入／modifier／同步不支持 | 明确失败与原因；不静默改 PNG 或 CPU 并继续标记零回读 |
-| renderer crash／detach | broker 释放对应导入引用；不能仅等待已死亡 JS 发送 release |
+| 主动 detach | 停新帧并等待原生最终引用完成，再归还精确 lease |
+| renderer crash | 完成状态未知时 fail-stop 整个 Electron 会话，隔离池、不发 ACK；未验证 crash 安全回收 |
 | send Promise 超时／late completion | 不当作消费失败后已安全释放；隔离该 lease，等待真实完成／drain，不得覆写或新增槽绕过 |
-| Worker crash／重启 | 旧 producerEpoch 全部失效，新流重新握手；旧消费者 allocation 安全排空 |
+| Worker crash／重启 | 旧 producerEpoch 失效，已有未知消费者引用隔离；停止会话，暂不自动恢复 |
 | Chromium GPU process crash | 不把 crash 通知当作普遍 GPU 完成信号；隔离未知 lease，按已证明安全的 drain／device teardown 回收 |
 | 消费者超时／fence 无法确认 | quarantine 受影响槽／pool，停止流；不能超时后直接重写仍可能被 GPU 使用的图像 |
 | 客户端租约失效／应用退出 | 先撤销入口、停止新工作、按自身 PID 与进程身份排水，再释放授权资源 |
@@ -209,7 +233,7 @@ driver 资源寿命规则证明安全，不能把“等待 N ms”当成普遍�
 
 ## 5. 实施阶段与 Go／No-go
 
-### P0：先证明本机原生 GPU 互操作（硬门禁）
+### P0：本机原生 GPU 互操作（已条件 Go；以下保留原出口）
 
 交付独立、最小的受控验证程序／入口，使用本仓库匹配依赖与真实父子进程。先
 单张静态 GPU 图案，后再三个槽循环。生产端只生成 GPU 合成图案，不打开真实
@@ -246,7 +270,7 @@ driver 资源寿命规则证明安全，不能把“等待 N ms”当成普遍�
 位置和代价再决定是否接受。同步 API 不够时，需要 native adapter 的成本也属于
 P0 结论。没有明确的生产／消费同步方案时不以 queue idle 永久替代发布协议。
 
-### P1：冻结接口并实现持续控制与有界资源
+### P1：持续控制与有界资源（已实现；合同与实测分别验收）
 
 依赖 P0 Go。冻结 capability、控制、frame descriptor、同步、release、epoch、
 owner、错误码和资源上限，形成独立合同审查；确认对既有静态协议与能力声明的
@@ -257,7 +281,7 @@ owner、错误码和资源上限，形成独立合同审查；确认对既有静
 renderer／Worker 崩溃和排空；全路径的帧率不会消耗逐帧 receipt。旧 PNG 路径
 和 500 ms 节奏保持原语义。此阶段功能通过不等于性能达标。
 
-### P2：接入生产绘制与编辑器
+### P2：生产绘制与编辑器（已实现；生产联调进行中）
 
 依赖 P1 及 typed GPU target。提取共享 draw 接缝，将预览最终输出接到外部目标；
 保留 CPU RenderFrame 与导出路径。透传原有固定输入、精确修订、资源闭包和诊断，
@@ -284,7 +308,7 @@ dirty 状态，确认新合同支持 1440p 且最终 GPU 输出没有 CPU readba
 输入变代次等压力情景分开。压力情景允许最新优先丢帧，必须证明预算和恢复有界。
 只测试本机 Linux／Wayland；如增加 X11 则另记真实环境与结果。
 
-候选验收门槛（P1 冻结时确认，未测量）：
+P3 验收门槛（测量结果须另附证据，不能由下表推定）：
 
 | 指标 | 提案出口 |
 | --- | --- |
@@ -329,9 +353,9 @@ P0 成功仍不意味着 P3 帧率达标；P3 达标也不意味着任意实际�
 
 ## 7. 官方资料、版本锁与本机能力边界
 
-2026-11-01 只读审计 Electron **v45.2.1**（2026-10-31 发布）的固定 tag；它是研究
-pin，本次未安装／运行 Electron。下列一手来源作为 P0 输入，实施时锁定实际构建
-版本重新核对，不从历史 Electron 37／45.1 或 macOS 覆盖推定 Linux 可用。
+设计阶段于 2026-11-01 审计 Electron **v45.2.1** 的固定 tag，随后 P0 已安装并运行该固定版本；
+生产桌面入口继续锁定 45.2.1。以下保留原一手来源和当时的限制说明，实际 native 小补丁、
+设备与发布证据另见 P0 归档及流合同，不从历史 Electron 37／45.1 或 macOS 覆盖推定 Linux 可用。
 
 | 一手资料 | 已核对的关键限制 |
 | --- | --- |
@@ -347,6 +371,6 @@ Vulkan device 1.4.354／loader 1.4.363，kernel 7.3.0-5-cachyos，Wayland waylan
 renderD128（226:128），另有 XWayland DISPLAY=:0。驱动枚举 external_memory_dma_buf、
 image_drm_format_modifier rev2、external_memory_fd、external_semaphore_fd、
 external_fence_fd、queue_family_foreign；**枚举支持不证明目标 BGRA／modifier／usage／
-export／import 组合或同步可用**。本次没有 GPU 图案、跨进程共享、Electron 显示或
-性能运行。canvas／合成器若仍有 GPU blit，只能报告实证覆盖的 CPU-readback-free
-等级；严格零 GPU copy 在证据不足或已知存在 copy 时停止验收。
+export／import 组合或同步可用**。这些枚举是设计阶段基线；P0 随后取得 GPU 图案、跨进程共享和 Electron 有限消费证据。
+生产路径明确有一次 GPU blit，只能报告最终帧 CPU-readback-free；Chromium 内部复制及实际
+屏幕扫描帧率仍未由这些证据测定，不能宣称严格零 GPU copy。

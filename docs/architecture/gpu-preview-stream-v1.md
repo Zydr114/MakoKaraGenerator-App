@@ -1,6 +1,6 @@
-# GPU 预览流 v1 合同草案
+# GPU 预览流 v1 合同
 
-状态：供跨模块审查，未实现、未宣称能力。P0 只证明限定设备上的有限图案，不能代替生产 Runtime 验收。本文锁定 v1 的职责与字段；审查通过后实现并以实际合同测试、能力握手和发布结果确认。
+状态：**P1/P2 已实现并冻结 0.109.0 合同，生产联调与 P3 结果分别验收**。P0 的限定设备有限图案只构成条件 Go；实现、单元测试、真实 HTTP、native 消费与性能各自保留证据边界。当前生产路线是同一 Worker 的普通 Skia Vulkan surface 经一次 GPU blit 至三槽 DMA-BUF，最终帧不回读 CPU；不是零 GPU copy。32 项真实 HTTP owner/CAS/strict/claim 与未连接消费者的 1440p 池换代检查已通过，见[脱敏证据](../performance/evidence/production-2026-11-01/http-negative.json)。首轮生产帧已实际消费，但质量切换故障仍在定位，完整生命周期及性能尚未验收。原始门禁及阶段状态见[实施计划](../plans/gpu-shared-texture-preview-plan.md)。
 
 ## 身份与授权
 
@@ -14,7 +14,7 @@ Worker 由 Server 自有 proxy 启动，控制通道与 broker 由本机进程�
 
 ## 可靠操作
 
-所有请求均携带现有 `RequestMetadata`、host instance、owner 上下文；所有响应包含 `streamId`、`streamRevision`、`inputGeneration`、`state`。下列字段为 v1 必填：
+所有请求均携带现有 `RequestMetadata`、host instance、owner 上下文；所有响应包含 `streamId`、`streamRevision`、`inputGeneration`、`registrationState`；Worker 当前播放／失败状态单列 `workerState`。下列字段为 v1 必填：
 
 | 操作 | 请求字段 | 提交语义 |
 | --- | --- | --- |
@@ -24,14 +24,14 @@ Worker 由 Server 自有 proxy 启动，控制通道与 broker 由本机进程�
 | `CloseStream` | `streamId`, `expectedStreamRevision` | 幂等有界排空；关闭后拒绝新控制与帧。 |
 | `ReadStreamState` | `streamId` | owner/host 校验后返回权威状态、epochs、最后应用控制和有限计数。 |
 
-新增路由及 DTO 由 Server/Contracts 共同冻结和生成合同，不能声称已发布；原 PNG API、尺寸限制和导出合同不变。重复 request ID 使用现有 receipt 的相同负载幂等、不同负载冲突；revision 不匹配失败，不得先改变旧代。每 client、host 的 stream 数、固定资源、Worker 数和双代过渡内存须有明确硬预算；能力和分配之前检查 dimensions、实际 allocation 与总额，失败清理引用。第一版参数仅在能力响应声明实测支持的值，不能假定 1440p 可用。
+新增路由及 DTO 已由 Server/Contracts 冻结并生成到 `backend/web/`，App 前端副本在 `frontend/docs/backend/`；原 PNG API、尺寸限制和导出合同不变。重复 request ID 使用现有 receipt 的相同负载幂等、不同负载冲突；revision 不匹配失败，不得先改变旧代。每 client、host 的 stream 数、固定资源、Worker 数和双代过渡内存须有明确硬预算；能力和分配之前检查 dimensions、实际 allocation 与总额，失败清理引用。第一版参数仅在能力响应声明实测支持的值，不能假定 1440p 可用。
 
-确定的 HTTP 草案（现有授权 middleware 和 `RequestMetadataDto` 保持适用）：
+已冻结的 HTTP 形状（现有授权 middleware 和 `RequestMetadataDto` 保持适用）：
 
 ```
 POST   /api/v1/gpu-preview-streams
   { source: PreviewSourceDto, size: PreviewSizeDto, alphaMode, api: "vulkan", consumerId, metadata }
-  -> { streamId, streamRevision, inputGeneration, state }
+  -> { streamId, streamRevision, inputGeneration, registrationState, workerState?, ... }
 PUT    /api/v1/gpu-preview-streams/{streamId}/source
   { expectedStreamRevision, source: PreviewSourceDto, metadata } -> StreamState
 PUT    /api/v1/gpu-preview-streams/{streamId}/size
@@ -45,15 +45,17 @@ GET    /api/v1/gpu-preview-streams/{streamId} -> StreamState
 
 v1 初始硬预算：每 client 和每 consumer 最多 1 个 stream、每 host 最多 2 个 stream/Worker；每池恰好 3 槽；最大 dimensions 2560×1440，宽高下限 64，均以 capability 与实际格式能力进一步收紧；每池总实际 allocation 不超过 64 MiB，每 host GPU 池合计不超过 128 MiB。替换和 resize 先停止并 drain 旧代后建立新池，不重叠双代；失败显式进入 failed，不恢复已销毁的旧代。创建前预留预算、按驱动实际分配复核、失败回滚；资源闭包继续受已有输入预算约束。控制每流最多一个执行、一个最新待处理，native packet 最多 16 KiB / 4 FD。目标覆盖 1280×720 24 fps 至 2560×1440 30 fps；`dimensionsSupported` 是实际格式与分配探测结果，`performanceValidated` 必须由生产链路实测证明，未测量时为 false，目标不是承诺。
 
-私有 claim 回包额外携带 `inputGeneration`、`poolGeneration` 和 `size`，供 main 复核代次和尺寸。Linux broker 路径为 `/tmp/mkg-gpu-<24位小写十六进制>/broker.sock`；main 验证私有父目录的属主和 `0700` 权限，连接还须校验进程身份与 nonce。公开的 `registrationState` 仅表示服务端登记状态，不是 Worker 播放状态；播放状态以 native `read-state` 为准。`alphaMode` 沿用现有选项，只控制输出背景是否透明，GPU 传输纹理为 BGRA 预乘 alpha，公开 `textureAlphaMode: premultiplied`。
+私有 claim 回包额外携带 `inputGeneration`、`poolGeneration` 和 `size`，供 main 复核代次和尺寸。Linux broker 路径为 `/tmp/mkg-gpu-<24位小写十六进制>/broker.sock`；main 验证私有父目录的属主和 `0700` 权限，连接还须校验进程身份与 nonce。公开的 `registrationState` 仅表示服务端登记状态，不是 Worker 播放状态；Server GET 通过私有 `ReadKind`／`ReadResultKind` 读取同一 Worker 原子快照并放入 `workerState`，native `read-state` 复用该内部状态，不能由两侧猜测播放状态。`alphaMode` 沿用现有选项，只控制输出背景是否透明，GPU 传输纹理为 BGRA 预乘 alpha，公开 `textureAlphaMode: premultiplied`。
 
 ## 内部控制合同
 
 同一 Worker 有一个固定 Runtime，会话打开时从 `BackendPreparedProjectRuntimeInput` 的受哈希保护字节和既有 `ProjectRuntimeInput` 路径创建；包、图片和音频固定闭包及 profile 检查与静态预览等价。P1 独立流注册表拥有 proxy 和输入 retention，P2 共用 `ProjectRenderSession` 的帧准备、诊断与绘制，不复制 Runtime。
 
-Host 先以既有 `ProjectRuntimeInputWorkerContract.OpenKind` 打开固定输入，随后发送 `GpuStreamWorkerContract.OpenKind`：`GpuStreamWorkerOpen { streamId, hostInstanceId, inputGeneration, width, height, transparentBackground, maximumAllocationBytes, expectedMainPid, brokerPath, handshake }`。成功的 `OpenResultKind` 带 `GpuStreamWorkerOpened { streamId, producerEpoch, poolGeneration, width, height, slotCount, allocationBytes, workerPid, vendorId, deviceId, drmRenderMajor, drmRenderMinor, deviceUuid }`，其中 epoch 为十进制字符串；只有真实 allocation 成功才可注册流。关闭以 `CloseKind` 发送 `GpuStreamWorkerClose { streamId, producerEpoch, inputGeneration }`，仅 `CloseResultKind` 的 `GpuStreamWorkerClosed { streamId, producerEpoch, drained: true }` 能证明 Worker 池正常排空。控制与帧在 native channel，不能混入 Host/Worker 单帧 receipt。
+Host 先以既有 `ProjectRuntimeInputWorkerContract.OpenKind` 打开固定输入，随后发送 `GpuStreamWorkerContract.OpenKind`：`GpuStreamWorkerOpen { streamId, hostInstanceId, inputGeneration, width, height, transparentBackground, maximumAllocationBytes, expectedMainPid, brokerPath, handshake }`。成功的 `OpenResultKind` 带 `GpuStreamWorkerOpened { streamId, producerEpoch, poolGeneration, width, height, slotCount, allocationBytes, workerPid, vendorId, deviceId, drmRenderMajor, drmRenderMinor, deviceUuid }`，其中 epoch 为十进制字符串；只有真实 allocation 成功才可注册流。关闭以 `CloseKind` 发送 `GpuStreamWorkerClose { streamId, producerEpoch, inputGeneration }`，`ReadKind` 携带 `GpuStreamWorkerRead { streamId, producerEpoch, inputGeneration }`，返回 `GpuStreamWorkerState { state, lastAppliedControlSeq, timelineEpoch, timelineResetId, mode, effectiveMediaTimeUs, failureCode, drained, diagnostics }`。open/read/close 外层序号严格递增；`CloseResultKind` 的 `GpuStreamWorkerClosed { streamId, producerEpoch, drained: true }` 证明该流没有未归还消费者租约，随后固定 Runtime close 才执行池与设备清理。控制与帧在 native channel，不能混入 Host/Worker 单帧 receipt。
 
-控制采用私有可靠有界通道，不经逐帧 HTTP receipt 或 SSE journal：
+控制采用私有可靠有界通道，不经逐帧 HTTP receipt 或 SSE journal。以下为语义名称；实际 wire `type` 使用 `hello`、`hello-accepted`、`clock-ping`、`clock-pong`、`clock-calibrated`、`set-playback-state`、`control-applied`、`frame`、`release`、`read-state`、`state`、`stop`、`stopped`、`failed` 小写形式。所有通用控制身份包含 `protocolVersion: 1`、stream/host/producer/input/consumer，时钟特殊包以已绑定连接限定。真实序列化 fixture 位于 `backend/tests/MakoKaraGenerator.Backend.Worker.Tests/Fixtures/GpuStreamWorkerWire.json`，单测对照生产 hello/frame serializer。
+
+控制形状：
 
 ```
 SetPlaybackState { streamId, hostInstanceId, producerEpoch, inputGeneration,
@@ -63,11 +65,11 @@ ControlApplied { streamId, producerEpoch, inputGeneration, controlSeq,
   timelineEpoch, mode, effectiveMediaTimeUs }
 ```
 
-`controlSeq` 严格递增，最新序号同内容可重放，最新序号不同内容及更旧序号均拒绝；至多一个执行中和一个最新待处理状态，后者可覆盖。seek/循环通过改变明确的 `timelineResetId` 提升 `timelineEpoch`，不能根据时间回退推断；普通时钟校正允许轻微回偏而不重置。不得跳过 Runtime 必要状态推进。`producerEpoch` 为 Worker 实例随机身份；replacement、resize 增加 `inputGeneration`，进程重启不得继承旧 epoch。`senderMonotonicNs` 为十进制字符串；单调时钟需握手估计映射及不确定度，不跨进程直接相减；无法建立时钟时只允许暂停定点帧。对外状态区分 accepted、applied、frame-ready 和 consumer-released。
+`controlSeq` 严格递增，最新序号同内容可重放，最新序号不同内容及更旧序号均拒绝；至多一个执行中和一个最新待处理状态，后者可覆盖。seek/循环通过改变明确的 `timelineResetId` 提升 `timelineEpoch`，不能根据时间回退推断；普通时钟校正允许轻微回偏而不重置。普通 2 Hz 校正允许已在途的同时间线帧完成，帧保留实际捕获的 controlSeq；pause/play、rate、FPS 或明确 reset 构成显示硬屏障。调度基于绝对单调 deadline，迟到时取最新目标，不在 render 后追加完整帧周期延时。不得跳过 Runtime 必要状态推进。`producerEpoch` 为 Worker 实例随机身份；replacement、resize 增加 `inputGeneration`，进程重启不得继承旧 epoch。`senderMonotonicNs` 为十进制字符串；单调时钟需握手估计映射及不确定度，不跨进程直接相减；无法建立时钟时只允许暂停定点帧。对外状态区分 accepted、applied、frame-ready 和 consumer-released。
 
 ## 帧与生命周期合同
 
-同一 VkDevice/queue 的 allocator 与 Skia session 使用 typed target lease；不得跨设备使用 P0 独立 producer 的 image。跨 agent 交付接口在实现前共同确定 ABI 版本，最少包含 device/pool/slot 身份、image、尺寸、format、当前 layout 和 queue family、ownership、错误与取消；图像绝不进入 Server JSON。一次 GPU copy 被允许但须计数，最终帧不得 CPU readback。
+同一 VkDevice/queue 的 allocator 与 Skia session 使用 typed target lease；不得跨设备使用 P0 独立 producer 的 image。已冻结 C ABI v1 与 managed `IGpuRenderFrameSession`／`GpuFrameLease`，包含 device/pool/slot 身份、image、尺寸、format、当前 layout 和 queue family、ownership、错误与取消；图像绝不进入 Server JSON。普通 Skia surface 是 BottomLeft，GPU blit 同时完成 Y 翻转；描述符为 BGRA8888 premultiplied、sRGB、TopLeft、linear modifier 0。一次 GPU copy、最终 CPU readback 和 queue-idle 次数随帧计数；目标最终 CPU readback 为零。
 
 首版同步模式固定为 Skia 同步 submit 后执行一次 GPU blit，检查 `vkQueueWaitIdle`，以 `GENERAL/FOREIGN` 释放目标后发布；每帧 fresh import，正常消费者的最终引用与 GPU 完成后才归槽。此模式会等待 CPU，但不读回像素；P3 必须计入等待成本。Electron 尚无已验证的外部 acquire fence，不能将未经验证的 semaphore 或 implicit fence 冒充等价方案。
 
@@ -75,15 +77,21 @@ ControlApplied { streamId, producerEpoch, inputGeneration, controlSeq,
 FrameReady { streamId, hostInstanceId, producerEpoch, inputGeneration,
   timelineEpoch, consumerEpoch, poolGeneration, slotId, slotEpoch, frameSeq,
   timeUs, width, height, format, colorSpace, alphaMode, origin,
-  modifier, planes: [{ fdIndex, stride, offset, size }], sync }
-Release { streamId, producerEpoch, inputGeneration, consumerEpoch,
-  poolGeneration, slotId, slotEpoch, frameSeq }
+  modifier, planes: [{ fdIndex, stride, offset, size }], sync,
+  controlSeq, timelineResetId, renderStartMonotonicNs, producerReadyMonotonicNs,
+  provider: runtime|synthetic-gpu, gpu, counters, diagnostics }
+Release { streamId, hostInstanceId, producerEpoch, inputGeneration, consumerEpoch,
+  timelineEpoch, poolGeneration, slotId, slotEpoch, frameSeq }
 ```
 
 FD 仅随本地 native channel 的 `SCM_RIGHTS` 传递，JSON 的索引不是 FD；验证设备、plane 边界、格式、descriptor 数及身份后导入。每个固定池最多三槽；每槽 `Free → Writing → Ready → ConsumerUsing → Retiring → Free`，不能借 send、draw 或 JS close 判定 GPU 完成。正常消费仅在 Electron 全引用释放且 GPU 同步成立时发布 release；无空槽时合并目标而非扩池。分配失败、设备不匹配、同步未知必须失败且不做 CPU fallback。
+
+每帧捕获实际执行开始／GPU Ready 单调时间与应用控制身份；Ready 发布前遇到实际 Error 诊断则取消该未导出帧。frame/state/failed 携带真实计数和最多四项文本的有界诊断摘要，字段截断带 `truncated`，整个 native 消息仍限 16 KiB。普通作者 Error 停止新生产并继续接收旧 lease 的 exact release，排空后 `failed + drained:true`，前端显示诊断而不退出整个应用。
 
 正常关闭/替换先停止新帧，再等待所有实际消费者和 Worker 排空，最后释放输入、池与设备。renderer/GPU 崩溃时已转移 lease 的完成状态未知，停止整个流和 Electron 会话、隔离槽位并拒绝 ACK，不自动重启或扩池；该结果是 expected fail-stop，不是安全 drain 或恢复。已交付 FD 的 payload 引用可延长 allocation 寿命，不代表 GPU 工作完成。
 
 ## 验收和交付边界
 
 先单测合同、owner/host/CAS、资源保留、代际 ABA、背压与错误清理；再固定构建同版本 Server/Worker、验证 profile 握手和独立流运行；最后由 Electron 实测可见帧、三槽、同步、替换/关闭和崩溃。不得把 P0 图案、202 accepted、单元测试或 capability 枚举当作 P1/P2 的生产端到端验收。性能运行只能在对应生产链路通过上述门禁之后进行。
+
+启动时只有 GPU stream Worker 注入 `MAKO_BACKEND_GPU_PREVIEW=1`；synthetic 另需受控基准启动配置，Worker 在任何作者代码运行前固定该选择，公开 HTTP／控制字段不能切 provider。renderer→main 与 main→Worker 分别校准单调时钟并登记不确定度。正常 PNG 预览与 500 ms 控制入口不变。

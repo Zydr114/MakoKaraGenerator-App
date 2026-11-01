@@ -1,0 +1,239 @@
+{
+  "schemaVersion": 1,
+  "completedAt": "2026-10-31T19:35:57.943Z",
+  "passed": true,
+  "scope": "HTTP guards and real unconnected Worker pool lifecycle; no frame/presentation claim",
+  "checks": [
+    {
+      "name": "create-isolated-project",
+      "status": 201
+    },
+    {
+      "name": "foreign-source-create",
+      "status": 404,
+      "errorCode": "sessionNotFound"
+    },
+    {
+      "name": "create-missing-required-fields",
+      "status": 400,
+      "errorCode": "invalidRequest"
+    },
+    {
+      "name": "create-unknown-field",
+      "status": 400,
+      "errorCode": "invalidRequest"
+    },
+    {
+      "name": "create-integer-enum",
+      "status": 400,
+      "errorCode": "invalidRequest"
+    },
+    {
+      "name": "create-duplicate-field",
+      "status": 400,
+      "errorCode": "invalidRequest"
+    },
+    {
+      "name": "PNG-size-limit-remains-1280",
+      "status": 400,
+      "errorCode": "invalidRequest"
+    },
+    {
+      "name": "real-worker-pool-open",
+      "status": 201
+    },
+    {
+      "name": "same-metadata-create-replay",
+      "status": 201,
+      "streamIdUnchanged": true,
+      "producerEpochUnchanged": true,
+      "poolGenerationUnchanged": true
+    },
+    {
+      "name": "private-old-generation-worker-identity",
+      "status": 200,
+      "workerPid": 506233,
+      "workerStartTicks": "4536767"
+    },
+    {
+      "name": "same-consumer-quota",
+      "status": 429,
+      "errorCode": "sessionQuotaExceeded"
+    },
+    {
+      "name": "foreign-stream-read",
+      "status": 404,
+      "errorCode": "sessionNotFound"
+    },
+    {
+      "name": "foreign-stream-resize",
+      "status": 404,
+      "errorCode": "sessionNotFound"
+    },
+    {
+      "name": "foreign-stream-close",
+      "status": 404,
+      "errorCode": "sessionNotFound"
+    },
+    {
+      "name": "stale-resize-CAS",
+      "status": 409,
+      "errorCode": "revisionConflict"
+    },
+    {
+      "name": "stale-source-CAS",
+      "status": 409,
+      "errorCode": "revisionConflict"
+    },
+    {
+      "name": "stale-source-revision-preserves-old-generation",
+      "status": 409,
+      "errorCode": "revisionConflict"
+    },
+    {
+      "name": "stale-close-CAS",
+      "status": 409,
+      "errorCode": "revisionConflict"
+    },
+    {
+      "name": "resize-unknown-field",
+      "status": 400,
+      "errorCode": "invalidRequest"
+    },
+    {
+      "name": "resize-duplicate-nested-field",
+      "status": 400,
+      "errorCode": "invalidRequest"
+    },
+    {
+      "name": "rejected-writes-preserve-generation",
+      "status": 200
+    },
+    {
+      "name": "real-1440p-resize-new-generation",
+      "status": 200,
+      "oldWorkerExited": true,
+      "allocationBytes": 44236800,
+      "inputGeneration": "2"
+    },
+    {
+      "name": "claim-missing-secret",
+      "status": 401,
+      "errorCode": "unauthorizedClient"
+    },
+    {
+      "name": "claim-wrong-secret",
+      "status": 401,
+      "errorCode": "unauthorizedClient"
+    },
+    {
+      "name": "claim-wrong-consumer",
+      "status": 401,
+      "errorCode": "unauthorizedClient"
+    },
+    {
+      "name": "claim-wrong-host",
+      "status": 401,
+      "errorCode": "unauthorizedClient"
+    },
+    {
+      "name": "claim-stale-generation",
+      "status": 401,
+      "errorCode": "unauthorizedClient"
+    },
+    {
+      "name": "private-claim-once",
+      "status": 200,
+      "workerPid": 506268,
+      "workerStartTicks": "4536835"
+    },
+    {
+      "name": "private-claim-replay",
+      "status": 401,
+      "errorCode": "unauthorizedClient"
+    },
+    {
+      "name": "close-unconnected-worker-pool",
+      "status": 200,
+      "workerExited": true
+    },
+    {
+      "name": "cleanup-project-accepted",
+      "status": 202
+    },
+    {
+      "name": "cleanup-project-terminal",
+      "state": "succeeded"
+    }
+  ],
+  "ownedWorkers": [
+    {
+      "pid": 506233,
+      "startTicks": "4536767"
+    },
+    {
+      "pid": 506268,
+      "startTicks": "4536835"
+    }
+  ],
+  "probeSourceCommit": "d3f5cc008edc1542bd1f8615539ad21e8538cb97",
+  "publishedDeployment": {
+    "dist": ".local/backend-dist/20261031T192835836Z",
+    "version": "0.109.0",
+    "sourceCommit": "c409d3a1de12342c7be15a83ce67e8be24efe841",
+    "sourceDirty": false,
+    "deploymentManifestSha256": "75d249fcd07216b761e2f34349bedd1a1261a7c39d56fa2d16579fbc1614d739",
+    "nativeManifestSha256": "5be02702f3bcf6be1f6f8b6c5e26d64a437fe25d0961b614fa95e1da30afe849",
+    "sourceInputsHashEncoding": "UTF-8 JSON object, keys sorted by localeCompare, no whitespace",
+    "sourceInputsSha256": "65a3face53fa9dda5fe818519e829ffd94f3611461e77b7f6e7a1b21331f240b",
+    "sourceInputCount": 943,
+    "nativeSourceInputsSha256": "61bc78fa9767cd1fd5cadb6c7273062c60a291fed86715526f4ca1eaf867458e",
+    "nativeSourceInputCount": 34,
+    "nativeSourceInputs": {
+      "native/gpu-preview/.gitignore": "181314065df2f2fdaf920b1a8b5311daa216a2d6489a06ada5b49cc514d89417",
+      "native/gpu-preview/README.md": "a8732b46dd2e3e31dc479d99b8fa42fcb64ee906508dcd384ba76c5ef340609c",
+      "native/gpu-preview/bootstrap-headers.sh": "4fdd7b8ef681f071ac9796deed435818c5c48f67da5f35c58718538c3a49e800",
+      "native/gpu-preview/broker.cc": "4e93dd605e2dc2337df381434ee4f3b8b327c93f12edac534914dae3546e647a",
+      "native/gpu-preview/build.sh": "e691a2012d30769da0fcc223f34e3b4f3c9c7bb38eeb3971adc7fc9d24c705b9",
+      "native/gpu-preview/check-api.cc": "ced65a5fa71d0f21ca1f016aad9cbd4e57c314b930d900edfb23dd2c65b085ba",
+      "native/gpu-preview/check-api.sh": "576f7f11e7d329e03a371c17caa105cb8546d3bdad87feb555f4e21617d7bece",
+      "native/gpu-preview/check-native.mjs": "8bcdee31722cafbd10048dfe0441ba744fef36377c155f8e23243e5ca799a866",
+      "native/gpu-preview/draw-plugin.h": "0b7d8a7ec62b214fd071285041ccc8fc73e90783def2697d03301b3b08c38ad4",
+      "native/gpu-preview/exports.map": "953f4f7eb39580958f4b0985cb61d92cbe864da3c9c8bd32058bc5a5b7053bab",
+      "native/gpu-preview/gpu-core.cc": "3b8fc6424899a0e55e591647130bab110bb906f7d879dcc27cd971fec46d6369",
+      "native/gpu-preview/gpu-core.h": "7627025efdfb34110b67cc592ed0c1bb66d52a28e445c9454202f6b8ca05ad69",
+      "native/gpu-preview/gpu-preview.cc": "f7792c190e62bbcfc70fe3b955eafb00ecdbeee54b120a0091fabe60d969609c",
+      "native/gpu-preview/gpu-preview.h": "a644a15683405eff85007597bbbe6c6d1ba7c9a9306e43c15dd2011e7cff338f",
+      "native/gpu-preview/ipc-core.cc": "310ed579c88ee35b4ad412b9a399fa70f35191acaff0b44a77c4f5d5547e7ee7",
+      "native/gpu-preview/ipc-core.h": "72090063983302ca1c1d62185a0eb3dffb172ce693b7bf1c893b4acb774f24ea",
+      "native/gpu-preview/producer.cc": "20938a86423489cd5d3afb491e30b8f7a669cc8c54ab00e8cb5e389eda89d70c",
+      "probes/skia-gpu-target/ProductionGpuProbe.cs": "0f777687ef4b6f4ce736c339472ee6f3ed518e9fc414c62a34bd6246537fd743",
+      "probes/skia-gpu-target/Program.cs": "f60a3afed54c8b3897a22c2e2f2eb6252ae7603aada9184ea8342d0f6639936e",
+      "probes/skia-gpu-target/README.md": "721733fc7f084c5aa4d95e4917ceb3beaccb9a01f03194133049bf8b01a2f798",
+      "probes/skia-gpu-target/SkiaGpuTargetProbe.csproj": "a53b0009e68e19ef56e63ae08c2bf7495524746dfb8d184c0dbce6d986d074a2",
+      "probes/skia-gpu-target/bootstrap.py": "d4e6e183cd8dfc387d7141440c46e9872072cbaa3c2aa554b420bc7bb78987f9",
+      "probes/skia-gpu-target/build-native.sh": "1de54cb86b2fd9b799ef4ac90d7865bf14815bb5e4a62abb5e38148886942584",
+      "probes/skia-gpu-target/build-plugins.sh": "040f6e07b65bbbb71c187863ca852f05f470baa95ca85e4c4e7b03f42aecbf82",
+      "probes/skia-gpu-target/draw-plugin.cc": "5571c44946ae56798b8ff2333e68531f3259a2b440200beddf7033ad0050776c",
+      "probes/skia-gpu-target/evidence/half-intrinsic-probe.json": "989d3d33eb96471543091ad7c565bd731c73b98c5e254d0b3ca943c0b078937d",
+      "probes/skia-gpu-target/evidence/managed-probe.json": "7ffe30686997cd06d41e5604174ffdd79b7959e6fd7d45018edbda57dfd48cdf",
+      "probes/skia-gpu-target/evidence/native-build.json": "0b1790421a04e020c35932bccdf1082876d99fb3b2e36b528664b5dd2a7f5a27",
+      "probes/skia-gpu-target/evidence/production-output.json": "0fdc16443b2a997985ba414080fdbda20a935d44c6df2028bdd028f754769c7a",
+      "probes/skia-gpu-target/fetch-deps.py": "902d755d10b9207c7092fa00f642acad28b27cf07e1f03789e61555d6568af75",
+      "probes/skia-gpu-target/half-intrinsic-probe.cc": "00efc5d42ac6e770fa3fffaf484ad8ab92df3a7f52a4713aa00ea9bce1cadde6",
+      "probes/skia-gpu-target/skcms-clang23.patch": "890b6287d8849fb3f4170415bd8be72056ce39eeccc071fed008ba4fd6c99fe0",
+      "probes/skia-gpu-target/skia-vulkan-state.patch": "f112e9250b9c25a1bb24932afa9987dc4c8500a3a1b60571a051658c0125a7af",
+      "probes/skia-gpu-target/validation-import.cc": "6b1dd3bdcd2a678cc6673fc4fb5d0edc3eb1138b87a9cfdca488213d7294b3b7"
+    },
+    "nativeArtifacts": {
+      "worker/libSkiaSharp.so": "15cb994d64661fcf997eeb65da3baa76213d4d16cd405cbd260ea7c97af3764a",
+      "worker/libmako_gpu_preview.so": "9d51dda46648e531485af903838261c371032dc2e50025585bf25d5d4b384f62",
+      "desktop/gpu_preview_broker.node": "93529fecadc868e4ff61f2031e3e4aba520934f507cc3003694d357f805cd446"
+    }
+  },
+  "provenanceNote": "Probe HEAD identifies the HTTP runner workspace; published Server/Worker/native sources are separately pinned by publishedDeployment. Desktop main/frontend may include later workspace changes. No native consumer was connected by this probe.",
+  "priorAttempt": {
+    "scope": "Only client registration occurred; no project or stream was created",
+    "reason": "Runner initially expected 200 for client registration; actual documented new registration response is 201. Expectation was corrected before this fresh complete run."
+  }
+}

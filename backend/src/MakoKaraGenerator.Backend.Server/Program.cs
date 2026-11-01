@@ -144,12 +144,8 @@ await resourceCleanup.ConfigureAwait(false);
 await previewCleanup.ConfigureAwait(false);
 await audioPreparationShutdown.ConfigureAwait(false);
 await accepted.DrainAsync().ConfigureAwait(false);
-try { await previewService.DisposeAsync().ConfigureAwait(false); }
-finally
-{
-    try { await sessions.DisposeAsync().ConfigureAwait(false); }
-    finally { renderBackends.Dispose(); }
-}
+if (!await ServerShutdown.DisposeAsync(previewService.DisposeAsync, sessions.DisposeAsync, renderBackends.Dispose,
+    Console.Error).ConfigureAwait(false)) Environment.ExitCode = 1;
 
 static long? OptionalPositiveLong(string variable)
 {

@@ -146,7 +146,7 @@ export function analyze(records, manifest={}) {
       resourcePids.set(key,points);
     }
     const schedProcesses=streamSnapshots.flatMap(record=>record.processes??[]).filter(proc=>!proc.exited);
-    const schedulerObserved=schedProcesses.length>0&&schedProcesses.every(proc=>proc.scheduler?.policy===0)&&(schedProcesses.filter(proc=>proc.role==='worker').every(proc=>proc.scheduler?.nice===0));
+    const schedulerObserved=schedProcesses.length>0&&schedProcesses.every(proc=>proc.scheduler?.policy===0)&&(schedProcesses.filter(proc=>['worker','p3-runner','owned-app-launcher'].includes(proc.role)).every(proc=>proc.scheduler?.nice===0));
     const workerStates=streamSnapshots.filter(record=>record.snapshot.workerState).map(record=>record.snapshot.workerState);
     const workerObserved=streamSnapshots.filter(record=>record.snapshot.workerState).map(record=>({time:record.time,state:record.snapshot.workerState}));
     const workerIdentity=workerObserved.length>0&&workerObserved.every(({state})=>state.streamId===phase.streamId&&state.inputGeneration===phase.inputGeneration);
@@ -427,7 +427,10 @@ async function run(values) {
     }
     const changed=[];
     for(const frame of snapshot.samples){const key=leaseKey(frame),serialized=JSON.stringify(frame);observedSamples.set(key,frame);if(seenSamples.get(key)!==serialized){seenSamples.set(key,serialized);changed.push(frame);}}
-    const procStart=process.hrtime.bigint()+mainOffset,processes=await processSnapshot(snapshot),procEnd=process.hrtime.bigint()+mainOffset;
+    const procStart=process.hrtime.bigint()+mainOffset,processes=await processSnapshot(snapshot);
+    processes.push(await readProc(process.pid,'p3-runner'));
+    if(child?.pid)processes.push(await readProc(child.pid,'owned-app-launcher'));
+    const procEnd=process.hrtime.bigint()+mainOffset;
     await record({type:'snapshot',snapshot:{...snapshot,...(workerPublicState?{workerPublicState,workerPublicReadMonotonicNs}:{}),samples:changed},processes,processObservationBracket:{startMonotonicNs:String(procStart),endMonotonicNs:String(procEnd),mappingUncertaintyNs:String(observationClockUncertaintyNs),sampling:'approximate asynchronous /proc inventory over this bracket; not atomic with main snapshot'}});
     return {...snapshot,latestSample:[...observedSamples.values()].at(-1)};
   };

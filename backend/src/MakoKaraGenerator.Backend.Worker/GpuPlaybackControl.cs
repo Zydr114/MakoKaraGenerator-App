@@ -16,6 +16,12 @@ internal sealed class GpuPlaybackControl
     private bool _closed;
     private string? _appliedResetId;
     private long _timelineEpoch;
+    private int _peakPending;
+
+    internal (int Pending, int PeakPending) ReadQueueState()
+    {
+        lock (_gate) return (_pending is null ? 0 : 1, _peakPending);
+    }
 
     public bool Offer(GpuPlaybackState state)
     {
@@ -36,6 +42,7 @@ internal sealed class GpuPlaybackControl
                 throw new InvalidOperationException("Stale or conflicting GPU playback control.");
             }
             _latestAccepted = _pending = state;
+            _peakPending = Math.Max(_peakPending, _pending is null ? 0 : 1);
             return true;
         }
     }

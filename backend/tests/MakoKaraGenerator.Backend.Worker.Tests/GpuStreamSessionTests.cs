@@ -16,6 +16,74 @@ public sealed class GpuStreamSessionTests
     private static GpuRenderFrame Frame(Lease lease, long time = 0) => new(new() { PixelWidth = 16, PixelHeight = 16 }, time, lease);
 
     [Fact]
+    public async Task NativeStateMeasuresRenderMailboxTargetsAndActualPoolOccupancy()
+    {
+        using var channel = new Channel();
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var ready = new TaskCompletionSource<GpuRenderFrame>(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var stream = new GpuStreamSession(Open, Pool with { RetainedAllocationBytes = 24576 }, channel, (time, seq, _) =>
+        {
+            if (seq == 1) { started.SetResult(); return new(ready.Task); }
+            return ValueTask.FromResult(Frame(new Lease(seq), time));
+        }, false);
+        channel.ReadState();
+        var empty = await channel.Wait("state", 1);
+        Assert.Equal(0, empty.GetProperty("executingRender").GetInt32());
+        Assert.Equal(0, empty.GetProperty("pendingControls").GetInt32());
+        Assert.Equal(0, empty.GetProperty("peaks").GetProperty("executingRender").GetInt32());
+        Assert.Equal(3, empty.GetProperty("slotCount").GetInt32());
+        Assert.Equal(Pool.AllocationBytes, empty.GetProperty("actualAllocationBytes").GetUInt64());
+        Assert.Equal(24576ul, empty.GetProperty("retainedAllocationBytes").GetUInt64());
+
+        channel.Control(1);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        channel.ControlAndReadState(2, "seek", 100);
+        var pending = await channel.Wait("state", 2);
+        Assert.Equal(1, pending.GetProperty("executingRender").GetInt32());
+        Assert.Equal(1, pending.GetProperty("pendingControls").GetInt32());
+        Assert.Equal(0, pending.GetProperty("outstanding").GetInt32());
+        await channel.Wait("control-applied", 2);
+        channel.ReadState();
+        var target = await channel.Wait("state", 3);
+        Assert.Equal(0, target.GetProperty("pendingControls").GetInt32());
+        Assert.Equal(1, target.GetProperty("pendingRenderTargets").GetInt32());
+
+        ready.SetResult(Frame(new Lease(1)));
+        var frames = new List<JsonElement> { await channel.Wait("frame", 1) };
+        for (int seq = 3; seq <= 4; seq++)
+        {
+            channel.Control(seq, "seek", seq * 100);
+            frames.Add(await channel.Wait("frame", seq - 1));
+        }
+        channel.Control(5, "seek", 500);
+        await channel.Wait("control-applied", 5);
+        channel.ReadState();
+        var full = await channel.Wait("state", 4);
+        Assert.Equal(0, full.GetProperty("executingRender").GetInt32());
+        Assert.Equal(0, full.GetProperty("pendingControls").GetInt32());
+        Assert.Equal(1, full.GetProperty("pendingRenderTargets").GetInt32());
+        Assert.Equal(3, full.GetProperty("outstanding").GetInt32());
+        var peaks = full.GetProperty("peaks");
+        Assert.Equal(1, peaks.GetProperty("executingRender").GetInt32());
+        Assert.Equal(1, peaks.GetProperty("pendingControls").GetInt32());
+        Assert.Equal(1, peaks.GetProperty("pendingRenderTargets").GetInt32());
+        Assert.Equal(3, peaks.GetProperty("outstanding").GetInt32());
+
+        channel.Release(frames[0]);
+        frames.Add(await channel.Wait("frame", 4));
+        channel.ReadState();
+        var resumed = await channel.Wait("state", 5);
+        Assert.Equal(0, resumed.GetProperty("pendingRenderTargets").GetInt32());
+        Assert.Equal(3, resumed.GetProperty("outstanding").GetInt32());
+        foreach (var frame in frames.Skip(1)) channel.Release(frame);
+        channel.ReadState();
+        var drained = await channel.Wait("state", 6);
+        Assert.Equal(0, drained.GetProperty("outstanding").GetInt32());
+        Assert.Equal(3, drained.GetProperty("peaks").GetProperty("outstanding").GetInt32());
+        Assert.True(await stream.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(3)));
+    }
+
+    [Fact]
     public async Task StopWaitsForExactOldTimelineRelease()
     {
         using var channel = new Channel();
@@ -243,6 +311,7 @@ public sealed class GpuStreamSessionTests
     }
     private sealed class Channel : IGpuStreamChannel
     {
+        private readonly object _receiveGate = new();
         internal readonly ConcurrentQueue<byte[]> Incoming = new();
         internal readonly ConcurrentQueue<JsonElement> Packets = new();
         internal bool BlockFrames, AutoReleaseFrames;
@@ -252,7 +321,10 @@ public sealed class GpuStreamSessionTests
             Open.HostInstanceId, producerEpoch = "1", Open.Handshake, senderMonotonicNs = "1",
         }));
         public bool TryAccept(int expectedPid) => expectedPid == 123;
-        public byte[]? TryReceive() => Incoming.TryDequeue(out var bytes) ? bytes : null;
+        public byte[]? TryReceive()
+        {
+            lock (_receiveGate) return Incoming.TryDequeue(out var bytes) ? bytes : null;
+        }
         public bool TrySend(byte[] packet, SafeFileHandle? descriptor = null)
         {
             using var document = JsonDocument.Parse(packet);
@@ -270,6 +342,15 @@ public sealed class GpuStreamSessionTests
             return true;
         }
         public void Dispose() { }
+        internal void ControlAndReadState(long seq, string reset, long time)
+        {
+            lock (_receiveGate) { Control(seq, reset, time); ReadState(); }
+        }
+        internal void ReadState() => Incoming.Enqueue(GpuStreamWorkerContract.Encode(new
+        {
+            type = "read-state", protocolVersion = 1, Open.StreamId, Open.HostInstanceId,
+            producerEpoch = "1", Open.InputGeneration, consumerEpoch = "1",
+        }));
         internal void Control(long seq, string reset = "initial", long time = 0, string mode = "paused") => Incoming.Enqueue(GpuStreamWorkerContract.Encode(new
         {
             type = "set-playback-state", protocolVersion = 1, Open.StreamId, Open.HostInstanceId, producerEpoch = "1",

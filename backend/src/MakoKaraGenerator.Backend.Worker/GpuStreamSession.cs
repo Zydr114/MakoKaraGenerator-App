@@ -31,6 +31,7 @@ internal sealed class GpuStreamSession : IAsyncDisposable
     private GpuStreamDiagnosticSummary? _diagnostics;
     private long _timelineEpoch, _lastControlSeq, _framesSent, _framesReleased, _staleFrames;
     private GpuPlaybackState? _applied;
+    private int _peakExecutingRender, _peakPendingRenderTargets, _peakOutstanding;
     private string ProducerEpoch => GpuStreamProtocol.Decimal(_pool.ProducerEpoch);
     private string Provider => _synthetic ? "synthetic-gpu" : "runtime";
 
@@ -129,7 +130,7 @@ internal sealed class GpuStreamSession : IAsyncDisposable
                 {
                     byte[]? packet = _channel.TryReceive();
                     if (packet is null) break;
-                    Process(packet);
+                    Process(packet, rendering is not null, pausedDirty);
                 }
                 long now = GpuStreamProtocol.MonotonicNs();
                 UpdateState();
@@ -144,6 +145,7 @@ internal sealed class GpuStreamSession : IAsyncDisposable
                     _applied = latest; _lastControlSeq = latest.ControlSeq;
                     if (resetSchedule) { schedulingAnchor = nextDeadline = now; _barrierControlSeq = latest.ControlSeq; }
                     pausedDirty = latest.Mode == "paused";
+                    ObservePendingRenderTarget(pausedDirty);
                     SendApplied(now);
                 }
                 if (rendering is { IsCompleted: true })
@@ -151,7 +153,7 @@ internal sealed class GpuStreamSession : IAsyncDisposable
                     Rendered? result = null;
                     try { result = await rendering.ConfigureAwait(false); }
                     catch (GpuPreviewException failure) when (failure.Code == "GpuPreviewNoFreeSlot")
-                    { if (_applied?.Mode == "paused") pausedDirty = true; }
+                    { if (_applied?.Mode == "paused") { pausedDirty = true; ObservePendingRenderTarget(pausedDirty); } }
                     catch (Exception failure) when (RuntimeDiagnosticFailure(failure) is not null)
                     {
                         _diagnostics = GpuStreamDiagnostics.Summarize(RuntimeDiagnosticFailure(failure)!);
@@ -181,6 +183,7 @@ internal sealed class GpuStreamSession : IAsyncDisposable
                                     Provider, result.StartedNs, result.ReadyNs, _diagnostics);
                                 delivery = new(result, exported, bytes);
                                 _published.Add(exported.Descriptor.Token.FrameSequence, delivery);
+                                _peakOutstanding = Math.Max(_peakOutstanding, _published.Count);
                             }
                             catch
                             { exported?.Dispose(); result.Frame.Dispose(); throw; }
@@ -226,6 +229,7 @@ internal sealed class GpuStreamSession : IAsyncDisposable
                             GpuRenderFrame frame = await _render(timeUs, attempt, _lifetime.Token).ConfigureAwait(false);
                             return new Rendered(frame, started, GpuStreamProtocol.MonotonicNs(), capturedControl, capturedTimeline, capturedReset);
                         });
+                        _peakExecutingRender = Math.Max(_peakExecutingRender, rendering is null ? 0 : 1);
                     }
                 }
                 await Task.Delay(2, _lifetime.Token).ConfigureAwait(false);
@@ -287,7 +291,7 @@ internal sealed class GpuStreamSession : IAsyncDisposable
         _failureCode = code; _runtimeFailed = true;
         Interlocked.Exchange(ref _stop, 1);
     }
-    private void Process(byte[] packet)
+    private void Process(byte[] packet, bool executingRender, bool pendingRenderTarget)
     {
         switch (GpuStreamProtocol.Type(packet))
         {
@@ -324,7 +328,7 @@ internal sealed class GpuStreamSession : IAsyncDisposable
                 var identity = GpuStreamWorkerContract.Decode<GpuIdentityPacket>(packet);
                 Identity(identity.ProtocolVersion, identity.StreamId, identity.HostInstanceId, identity.ProducerEpoch, identity.InputGeneration, identity.ConsumerEpoch);
                 if (identity.Type == "stop") Interlocked.Exchange(ref _stop, 1);
-                else SendState();
+                else SendState(executingRender, pendingRenderTarget);
                 break;
             default: throw GpuStreamProtocol.Invalid();
         }
@@ -352,14 +356,28 @@ internal sealed class GpuStreamSession : IAsyncDisposable
             _lastControlSeq == 0 ? null : _lastControlSeq, GpuStreamProtocol.Decimal(_timelineEpoch),
             _applied?.TimelineResetId ?? "initial", _applied?.Mode ?? "paused", time, _failureCode, drained, _diagnostics));
     }
-    private void SendState() => Send(new { type = "state", protocolVersion = 1, _open.StreamId, _open.HostInstanceId,
+    private void ObservePendingRenderTarget(bool pending) =>
+        _peakPendingRenderTargets = Math.Max(_peakPendingRenderTargets, pending ? 1 : 0);
+    private void SendState(bool executingRender, bool pendingRenderTarget)
+    {
+        var controls = _controls.ReadQueueState();
+        // These are Worker-local occupancy counts. A render task stays occupied until harvested;
+        // pending targets describe the latest paused target, never missed playing deadlines.
+        Send(new { type = "state", protocolVersion = 1, _open.StreamId, _open.HostInstanceId,
         producerEpoch = ProducerEpoch, _open.InputGeneration, consumerEpoch = _consumerEpoch,
         poolGeneration = GpuStreamProtocol.Decimal(_pool.PoolGeneration), timelineEpoch = GpuStreamProtocol.Decimal(_timelineEpoch),
         lastAppliedControlSeq = _lastControlSeq, mode = _applied?.Mode ?? "paused",
         state = Volatile.Read(ref _stop) != 0 ? "draining" : _applied?.Mode ?? "opening",
-        outstanding = _published.Count, poolSize = 3, framesSent = _framesSent, framesReleased = _framesReleased,
+        outstanding = _published.Count, poolSize = _pool.SlotCount, slotCount = _pool.SlotCount,
+        actualAllocationBytes = _pool.AllocationBytes, retainedAllocationBytes = _pool.RetainedAllocationBytes,
+        executingRender = executingRender ? 1 : 0, pendingControls = controls.Pending,
+        pendingRenderTargets = pendingRenderTarget && Volatile.Read(ref _stop) == 0 ? 1 : 0,
+        peaks = new { executingRender = _peakExecutingRender, pendingControls = controls.PeakPending,
+            pendingRenderTargets = _peakPendingRenderTargets, outstanding = _peakOutstanding },
+        framesSent = _framesSent, framesReleased = _framesReleased,
         staleFrames = _staleFrames, clockCalibrated = _clock.Calibrated,
         clockUncertaintyNs = GpuStreamProtocol.Decimal(_clock.UncertaintyNs), provider = Provider, diagnostics = _diagnostics });
+    }
     private void Send<T>(T packet) => SendBytes(GpuStreamWorkerContract.Encode(packet));
     private void SendBytes(byte[] packet)
     {

@@ -9,8 +9,11 @@ public sealed class GpuPlaybackControlTests
     public void PendingStateIsBoundedAndClockCorrectionDoesNotResetTimeline()
     {
         var control = new GpuPlaybackControl();
+        Assert.Equal((0, 0), control.ReadQueueState());
         Assert.True(control.Offer(State(1)));
+        Assert.Equal((1, 1), control.ReadQueueState());
         Assert.True(control.TryBegin(out var first));
+        Assert.Equal((0, 1), control.ReadQueueState());
         Assert.True(control.Offer(State(2)));
         Assert.True(control.Offer(State(3, 90)));
         Assert.False(control.TryBegin(out _));
@@ -21,6 +24,10 @@ public sealed class GpuPlaybackControlTests
         Assert.True(control.Offer(State(4, 90, "seek-1")));
         Assert.True(control.TryBegin(out var seek));
         Assert.Equal(2, control.Complete(seek!));
+        Assert.Equal((0, 1), control.ReadQueueState());
+        control.Offer(State(5));
+        control.Close();
+        Assert.Equal((0, 1), control.ReadQueueState());
     }
 
     [Fact]

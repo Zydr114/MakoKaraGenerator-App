@@ -145,3 +145,9 @@ test('stale cached native Worker state cannot satisfy budget evidence across a p
   assert.equal(report.workerFlowControl.freshness.maxAgeMs,9000);
   assert.equal(report.workerFlowControl.freshness.covered,false);
 });
+test('frame-ready to completion reports Worker mapping uncertainty separately from UI latency',()=>{
+  const report=analyze([snapshot(2n*N,[frame(1,N,{readyToCompletionMs:3,clockUncertaintyMs:2,totalClockUncertaintyMs:20})],1),phase]);
+  assert.equal(report.phaseReports[0].readyToCompletionMs.p95,3);
+  assert.equal(report.phaseReports[0].readyToCompletionUpperBoundMs.p95,5);
+  assert.match(report.phaseReports[0].readyToCompletionBoundary,/actual native allReferencesReleased/);
+});

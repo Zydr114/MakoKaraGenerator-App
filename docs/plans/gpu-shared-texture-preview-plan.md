@@ -13,16 +13,30 @@ queue-idle 等待均计入成本。直接绘入 exportable target 已完成 P0 �
 Skia surface 语义的一次 blit，不再把直接目标列为当前首选。
 
 已实现同一固定 Runtime 的 typed GPU lease、私有有界控制、低频可靠 HTTP owner/CAS、
-三槽预算、Electron 窄桥与编辑器 adapter。Worker 全套 138 项测试通过，其中 GPU 定向 25 项；
-测试证据只覆盖各自边界，不能替代真实生产首帧或 P3。当前仅限定 Linux x64／Wayland／
-AMD 组合；renderer/GPU crash 或消费者完成未知只证明 fail-stop／quarantine，未验证 crash 安全回收或恢复。
+三槽预算、Electron 窄桥与编辑器 adapter。Worker `f93dda6` 全套 138 项测试通过，其中 GPU 定向 25 项；
+后续真实占用遥测 `09920f4` 的 mailbox／stream 定向 14 项通过，硬编码 render 计数为零的变异回归失败。
+测试证据只覆盖各自边界，不能替代 P3。当前限定 Linux x64／AMD 组合，Wayland 需逐次检查实际进程；
+renderer/GPU crash 或消费者完成未知只证明 fail-stop／quarantine，未验证 crash 安全回收或恢复。
 
-当前有限结果：真实生产 Runtime 首轮观测到 173 个唯一 drawn/native-completed 帧，峰值未归还为 2；
-切换质量档位时发生 `gpuBrokerProtocolFailed`，因此完整切换／关闭生命周期与 P3 仍未验收。
+当前有限结果：首轮 173 帧后质量切换故障保留为历史；后续[短时生产联调](../performance/evidence/production-2026-11-01/quality-debug.json)
+已完成 720p24、1440p30 和短时 lifetime 三阶段（分别 121、151、150 个唯一 drawn/native-completed 帧），
+质量重建、来源更新、切页重附着和公开 resize 的新输入代次均取得精确消费，报告没有 runError。
+这些阶段各约五秒，旧发布未提供 Worker 独立遥测；单次来源冷启动加时钟不确定度为 1080.60 ms，
+未通过交互候选门槛。因此该轮明确为 debug，完整生命周期与 P3 仍待最终报告。
 独立的 32 项[真实 HTTP 检查](../performance/evidence/production-2026-11-01/http-negative.json)通过，
 包括 owner/CAS/strict JSON、create 重放、私有 claim、2560×1440 实际三槽分配（44,236,800 B）
 及旧／新 Worker PID 身份消失；该探针没有连接原生消费者，不构成帧或呈现证据。归档分别记录
 发布 `c409d3a` 与运行探针时 HEAD，不能用后者冒充已发布 Server/Worker 来源。
+
+独立匹配发布 `.local/backend-dist/20261101T044730838Z`（源码 `273abab`）完成
+[真实作者 Error 在途排空](../performance/evidence/production-2026-11-01/author-error-inflight.json)：
+Error 已出现时 main／Worker 各有一个未归还租约且 ACK 为零，Worker 保持 draining；
+约 883 ms 后同一租约的 native completion 才产生精确 release，随后公开状态为 failed／drained:true。
+App 主进程、renderer 与 Server 身份保持不变，新健康流再次完成帧，隔离实例全部正常退出。
+[上一轮](../performance/evidence/production-2026-11-01/author-error.json)触发前帧已完成的边界单独保留。
+renderer／Worker 丢失注入虽抑制后续 ACK 且自有进程退出，但 Server 清理出现未处理聚合异常并以 -6 退出；
+`f1fe7f8` 已修复为正常记录清理错误并继续关闭，两个定向测试及合同冻结通过，匹配发布的真实故障重验待补。
+历史 -6 结果不能记作 graceful drain，也不构成 crash 安全回收证据。
 
 ## 1. 决策与范围
 

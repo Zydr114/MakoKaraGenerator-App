@@ -1,6 +1,6 @@
 # GPU 预览流 v1 合同
 
-状态：**P1/P2 已实现并冻结 0.109.0 合同，生产联调与 P3 结果分别验收**。P0 的限定设备有限图案只构成条件 Go；实现、单元测试、真实 HTTP、native 消费与性能各自保留证据边界。当前生产路线是同一 Worker 的普通 Skia Vulkan surface 经一次 GPU blit 至三槽 DMA-BUF，最终帧不回读 CPU；不是零 GPU copy。32 项真实 HTTP owner/CAS/strict/claim 与未连接消费者的 1440p 池换代检查已通过，见[脱敏证据](../performance/evidence/production-2026-11-01/http-negative.json)。首轮生产帧已实际消费，但质量切换故障仍在定位，完整生命周期及性能尚未验收。原始门禁及阶段状态见[实施计划](../plans/gpu-shared-texture-preview-plan.md)。
+状态：**P1/P2 已实现并冻结 0.109.0 合同，P3 待最终报告**。P0 的限定设备有限图案只构成条件 Go；实现、单元测试、真实 HTTP、native 消费与性能各自保留证据边界。当前生产路线是同一 Worker 的普通 Skia Vulkan surface 经一次 GPU blit 至三槽 DMA-BUF，最终帧不回读 CPU；不是零 GPU copy。32 项 [HTTP 检查](../performance/evidence/production-2026-11-01/http-negative.json)、后续[短时质量与公开 resize 联调](../performance/evidence/production-2026-11-01/quality-debug.json)及[真实作者 Error 在途排空](../performance/evidence/production-2026-11-01/author-error-inflight.json)分别通过其有限场景；持续性能和完整故障生命周期不能由这些结果推定。原始门禁及阶段状态见[实施计划](../plans/gpu-shared-texture-preview-plan.md)。
 
 ## 身份与授权
 
@@ -67,6 +67,8 @@ ControlApplied { streamId, producerEpoch, inputGeneration, controlSeq,
 
 `controlSeq` 严格递增，最新序号同内容可重放，最新序号不同内容及更旧序号均拒绝；至多一个执行中和一个最新待处理状态，后者可覆盖。seek/循环通过改变明确的 `timelineResetId` 提升 `timelineEpoch`，不能根据时间回退推断；普通时钟校正允许轻微回偏而不重置。普通 2 Hz 校正允许已在途的同时间线帧完成，帧保留实际捕获的 controlSeq；pause/play、rate、FPS 或明确 reset 构成显示硬屏障。调度基于绝对单调 deadline，迟到时取最新目标，不在 render 后追加完整帧周期延时。不得跳过 Runtime 必要状态推进。`producerEpoch` 为 Worker 实例随机身份；replacement、resize 增加 `inputGeneration`，进程重启不得继承旧 epoch。`senderMonotonicNs` 为十进制字符串；单调时钟需握手估计映射及不确定度，不跨进程直接相减；无法建立时钟时只允许暂停定点帧。对外状态区分 accepted、applied、frame-ready 和 consumer-released。
 
+私有 native `state` 的 Worker 遥测独立于 Electron main：`executingRender` 表示尚未收割的单个 render Task，`pendingControls` 是带锁 mailbox 的真实占位，`pendingRenderTargets` 只表示尚待重试的最新暂停目标，不把错过的播放 deadline 当队列。三者为 0／1；`outstanding` 是实际已导出未归还租约数，`peaks` 保存各自实际峰值。`slotCount`、`actualAllocationBytes` 来自真实池信息；`retainedAllocationBytes` 为初始化时该固定 Runtime 所有保留池分配总量，此 stream 固定 target 期间不再创建池。公共 Worker DTO 保持原形状，不能拿 main 的控制计数替代 Worker 遥测。
+
 ## 帧与生命周期合同
 
 同一 VkDevice/queue 的 allocator 与 Skia session 使用 typed target lease；不得跨设备使用 P0 独立 producer 的 image。已冻结 C ABI v1 与 managed `IGpuRenderFrameSession`／`GpuFrameLease`，包含 device/pool/slot 身份、image、尺寸、format、当前 layout 和 queue family、ownership、错误与取消；图像绝不进入 Server JSON。普通 Skia surface 是 BottomLeft，GPU blit 同时完成 Y 翻转；描述符为 BGRA8888 premultiplied、sRGB、TopLeft、linear modifier 0。一次 GPU copy、最终 CPU readback 和 queue-idle 次数随帧计数；目标最终 CPU readback 为零。
@@ -88,7 +90,11 @@ FD 仅随本地 native channel 的 `SCM_RIGHTS` 传递，JSON 的索引不是 FD
 
 每帧捕获实际执行开始／GPU Ready 单调时间与应用控制身份；Ready 发布前遇到实际 Error 诊断则取消该未导出帧。frame/state/failed 携带真实计数和最多四项文本的有界诊断摘要，字段截断带 `truncated`，整个 native 消息仍限 16 KiB。普通作者 Error 停止新生产并继续接收旧 lease 的 exact release，排空后 `failed + drained:true`，前端显示诊断而不退出整个应用。
 
+真实自含作者草稿已实测该路径：1000 ms 消费者延迟下，C# `Evaluate` 报告 Error 时仍有一个旧租约，Worker 保持 draining 且不提前 ACK；精确 native completion 后才报告排空，随后同一 App 可消费新健康流。原始帧已完成后再触发 Error 的结果与该在途结果分别归档，不混作同一证据。
+
 正常关闭/替换先停止新帧，再等待所有实际消费者和 Worker 排空，最后释放输入、池与设备。renderer/GPU 崩溃时已转移 lease 的完成状态未知，停止整个流和 Electron 会话、隔离槽位并拒绝 ACK，不自动重启或扩池；该结果是 expected fail-stop，不是安全 drain 或恢复。已交付 FD 的 payload 引用可延长 allocation 寿命，不代表 GPU 工作完成。
+
+当前 renderer／Worker 丢失注入确认 loss 后 ACK 为零且自有进程退出，但 Server 的清理异常传播曾导致 -6 退出；源码 `f1fe7f8` 已修复关闭错误的记录与后续清理，匹配发布的真实重验待补，不能将历史结果记作正常关闭成功。
 
 ## 验收和交付边界
 

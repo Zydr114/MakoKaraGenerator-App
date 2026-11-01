@@ -43,7 +43,9 @@ pnpm smoke:browser    # start运行时：新建、编辑、撤销、暂停seek�
 
 桌面生产路径是 **同一 Worker 的普通 Skia Vulkan surface → 一次 GPU blit（含方向修正）→ 三槽共享 DMA-BUF → Electron SharedTexture／VideoFrame**。最终帧不经过 CPU 像素回读或 PNG；有一次整帧 GPU copy 和 queue-idle 同步等待，不能称严格零拷贝。脚本、材质等内部已有读回与 Chromium 内部复制另计。每池最多 64 MiB、每 host 最多两流及 128 MiB，实际分配与设备握手成功后才公布流。
 
-当前支持范围为本机 Linux x64／Wayland／AMD 已验证组合，Electron 固定 45.2.1。P0 已取得有限正确性和正常排空证据；P1/P2 已实现。首轮生产运行已取得 173 个唯一 drawn/native-completed 帧，切换分辨率时发生退出，完整生命周期尚未验收；32 项独立真实 HTTP 检查已通过（含 1440p 换代、owner/CAS/claim 与实际 Worker 退出），证据见 [HTTP 有限验收](docs/performance/evidence/production-2026-11-01/http-negative.json)。生产联调及 P3 的最终证据以[实施计划](docs/plans/gpu-shared-texture-preview-plan.md)和[流合同](docs/architecture/gpu-preview-stream-v1.md)为准。运行时 Error 诊断停止新帧并正常排空旧租约；设备、通道或消费者完成状态未知时隔离池并 fail-stop，不把 crash／超时当作安全归槽。构建、单元测试或 capability 成功均不代表达到目标帧率、屏幕扫描帧率、任意内容吞吐或跨平台验收。
+当前范围限定本机 Linux x64／AMD 组合，Electron 固定 45.2.1；Wayland 以每次运行的实际进程证据为准。P0 已取得有限正确性和正常排空证据；P1/P2 已实现，P3 仍待最终报告。[短时生产联调](docs/performance/evidence/production-2026-11-01/quality-debug.json)已完成两档质量、来源更新、切页和公开 resize 的精确新代次消费；五秒阶段不能证明持续吞吐，单次来源冷启动也未达到交互候选门槛。32 项独立 [HTTP 检查](docs/performance/evidence/production-2026-11-01/http-negative.json)覆盖 owner/CAS/claim、1440p 池换代与实际 Worker 退出。
+
+[真实作者错误补验](docs/performance/evidence/production-2026-11-01/author-error-inflight.json)确认 `Evaluate` Error 发生时旧租约仍未完成，Worker 等待该租约的精确 native completion 后报告 `failed + drained:true`；同一 App 随后成功消费新健康流。设备、通道或消费者完成状态未知时隔离池并 fail-stop；故障注入曾使 Server 在清理时以未处理聚合异常退出，源码修复已完成、匹配发布重验待补，不能描述为正常排空。生产联调与最终性能边界见[实施计划](docs/plans/gpu-shared-texture-preview-plan.md)和[流合同](docs/architecture/gpu-preview-stream-v1.md)。构建、单元测试或 capability 成功均不代表屏幕呈现帧率、任意内容吞吐、crash 安全归槽或跨平台验收。
 
 历史独立 P0 入口位于 `desktop/` 与 `native/gpu-preview/`，锁定 Electron 45.2.1，不加载编辑器或真实工程。先构建原生工具，再运行有限正确性验证：
 

@@ -248,7 +248,7 @@ async function concurrentAppEvidence(ownMainPid) {
     const pid=Number(pidText);if(pid===ownMainPid)continue;
     try{
       const args=(await readFile(`/proc/${pid}/cmdline`,'utf8')).split('\0').filter(Boolean);
-      if(!args.includes(join(ROOT,'desktop/main.cjs')))continue;
+      if(!args[0]?.startsWith(join(ROOT,'desktop/node_modules/electron/dist/electron'))||!args.join(' ').includes(join(ROOT,'desktop/main.cjs')))continue;
       result.push({...await readProc(pid,'concurrent-App-Electron-main'),observedOnly:true,cmdlineClassification:'same App desktop main; arguments omitted to preserve private handles'});
     }catch{}
   }

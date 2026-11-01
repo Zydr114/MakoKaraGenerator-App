@@ -297,11 +297,12 @@ async function deploymentEvidence() {
   const candidates=[join(current.dist,'server/MakoKaraGenerator.Backend.Server.dll'),join(current.dist,'worker/MakoKaraGenerator.Backend.Worker.dll'),
     join(current.dist,'worker/libSkiaSharp.so'),join(current.dist,'worker/libmako_gpu_preview.so'),join(current.dist,'desktop/gpu_preview_broker.node'),
     join(current.dist,'deployment.json'),join(current.dist,'gpu-preview-manifest.json'),join(ROOT,'desktop/node_modules/electron/package.json'),join(ROOT,'frontend/dist/index.html')];
+  try{for(const name of await readdir(join(ROOT,'frontend/dist/assets')))if(/\.(js|css)$/.test(name))candidates.push(join(ROOT,'frontend/dist/assets',name));}catch{}
   const files=[];
   for(const path of candidates){try{const bytes=await readFile(path);files.push({path:path.replace(ROOT+'/',''),size:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex')});}catch{files.push({path:path.replace(ROOT+'/',''),missing:true});}}
   let verified=false,verificationError,nativeManifest;
   try{nativeManifest=await verifyDesktopDeployment(ROOT,current.dist);verified=true;}catch(error){verificationError=error.message;}
-  return {available:true,verified,verificationError,dist:current.dist.replace(ROOT+'/',''),files,nativeManifest};
+  return {available:true,verified,verificationError,sourceBoundary:{managedAndNative:'matched published dist; verifyDesktopDeployment checks payload inventory',desktopJs:'main/preload are App disk source loaded at process startup; hashes recorded separately from managed dist',frontend:'built index plus JS/CSS assets served by App launcher; source files do not substitute for these bundles'},dist:current.dist.replace(ROOT+'/',''),files,nativeManifest};
 }
 async function actualWaylandEvidence(page,cdp,snapshot) {
   let systemInfo=null,commandLine=null;

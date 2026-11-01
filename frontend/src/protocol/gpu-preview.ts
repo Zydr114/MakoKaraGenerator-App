@@ -74,6 +74,7 @@ declare global {
       resize(width:number,height:number):Promise<GpuPreviewStreamState>;
       current():GpuPreviewStreamState|undefined;
       read():Promise<GpuPreviewStreamState>;
+      timings():{kind:string;streamId:string;inputGeneration:string;sourceRevision:string;rendererPerformanceMs:number}[];
       setBackground(red:number,green:number,blue:number,alpha:number):Promise<{sourceRevision:Revision}>;
     };
   }

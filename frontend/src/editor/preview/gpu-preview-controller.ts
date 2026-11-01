@@ -26,12 +26,19 @@ export class GpuPreviewController {
   private blocked = false;
   private attached = false;
   private needsRecreate = false;
+  private readonly timings:{kind:string;streamId:string;inputGeneration:string;sourceRevision:string;rendererPerformanceMs:number}[]=[];
+  private inputEffective(kind:string):void {
+    if(!this.stream)return;
+    this.timings.push({kind,streamId:this.stream.streamId,inputGeneration:this.stream.inputGeneration,sourceRevision:this.stream.source.sourceRevision,rendererPerformanceMs:performance.now()});
+    if(this.timings.length>128)this.timings.shift();
+  }
   private readonly unsubscribe: () => void;
   constructor(private readonly client: MakoClient, private readonly projectSessionId: string, private size: PreviewSize, private readonly bridge: DesktopPreviewBridge,
     private readonly acceptanceEdit?: (red:number,green:number,blue:number,alpha:number)=>Promise<{sourceRevision:Revision}>) {
     acceptanceOwner=this;
     void bridge.acceptanceEnabled().then(enabled=>{
       if(enabled&&!this.disposed&&acceptanceOwner===this)window.makoGpuPreviewAcceptance={resize:(width,height)=>this.resizeForAcceptance(width,height),current:()=>this.stream,
+        timings:()=>this.timings.slice(),
         read:()=>{if(!this.stream)throw new Error('No active acceptance stream');return this.client.gpuPreview.read(this.stream.streamId);},
         setBackground:async(red,green,blue,alpha)=>{
           if(this.disposed||!this.acceptanceEdit||![red,green,blue,alpha].every(value=>Number.isInteger(value)&&value>=0&&value<=255))throw new Error('Invalid acceptance background edit');
@@ -59,6 +66,7 @@ export class GpuPreviewController {
       if(this.disposed||!this.enabled||!this.stream)throw new Error('No active acceptance preview');
       if(this.attached){await this.bridge.detachPreview();this.attached=false;}
       this.stream=await this.client.gpuPreview.resize(this.stream.streamId,{expectedStreamRevision:this.stream.streamRevision,size:{width,height}});
+      this.inputEffective('resize-response');
       this.size={width,height};this.sent=undefined;
       if(this.disposed||!this.enabled){await this.close();throw new Error('Acceptance panel closed during resize');}
       await this.bridge.attachPreview(this.stream.streamId,this.stream.inputGeneration);this.attached=true;
@@ -92,6 +100,7 @@ export class GpuPreviewController {
           this.state$.set({...this.state$.get(),status:'rendering'});
           const consumerId=await this.bridge.consumerId();
           this.stream=await this.client.gpuPreview.create({source:{kind:'project',sourceId:this.projectSessionId,sourceRevision:want.revision},size:this.size,alphaMode:'straight',api:'vulkan',consumerId});
+          this.inputEffective('create-response');
           if(this.disposed||!this.enabled)continue;
           await this.bridge.attachPreview(this.stream.streamId,this.stream.inputGeneration);
           this.attached=true;
@@ -99,6 +108,7 @@ export class GpuPreviewController {
           await this.bridge.detachPreview();
           this.attached=false;
           this.stream=await this.client.gpuPreview.replaceInput(this.stream.streamId,{expectedStreamRevision:this.stream.streamRevision,source:{kind:'project',sourceId:this.projectSessionId,sourceRevision:want.revision}});
+          this.inputEffective('input-replacement-response');
           if(this.disposed||!this.enabled)continue;
           await this.bridge.attachPreview(this.stream.streamId,this.stream.inputGeneration);
           this.attached=true;

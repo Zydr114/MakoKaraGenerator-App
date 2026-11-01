@@ -116,7 +116,7 @@ async function consume(s,packet) {
         s.imports.delete(key);sTelemetry.acknowledgedUnique++;
         if(item.drawn)sTelemetry.completedDrawnUnique++;else sTelemetry.completedWithoutDraw++;
         const completedNs=process.hrtime.bigint();
-        const sample={sampleRevision:++sampleRevision,...lease(m),timeUs:m.timeUs,controlSeq:m.controlSeq,timelineResetId:m.timelineResetId,provider:m.provider,width:m.width,height:m.height,counters:m.counters,drawn:!!item.drawn,completedMonotonicNs:completedNs.toString(),renderMs:Number(BigInt(m.producerReadyMonotonicNs)-BigInt(m.renderStartMonotonicNs))/1e6,brokerToCompletionMs:Number(completedNs-item.receivedNs)/1e6,
+        const sample={attachedMonotonicNs:s.attachedMonotonicNs,controlApplied:s.controlApplied,sampleRevision:++sampleRevision,...lease(m),timeUs:m.timeUs,controlSeq:m.controlSeq,timelineResetId:m.timelineResetId,provider:m.provider,width:m.width,height:m.height,counters:m.counters,drawn:!!item.drawn,completedMonotonicNs:completedNs.toString(),renderMs:Number(BigInt(m.producerReadyMonotonicNs)-BigInt(m.renderStartMonotonicNs))/1e6,brokerToCompletionMs:Number(completedNs-item.receivedNs)/1e6,
           ...(s.clock?{readyToBrokerMs:Number(item.receivedNs-(BigInt(m.producerReadyMonotonicNs)-BigInt(s.clock.workerMinusSenderNs)))/1e6,readyToCompletionMs:Number(completedNs-(BigInt(m.producerReadyMonotonicNs)-BigInt(s.clock.workerMinusSenderNs)))/1e6,clockUncertaintyMs:Number(BigInt(s.clock.uncertaintyNs))/1e6,totalClockUncertaintyMs:Number(BigInt(s.clock.uncertaintyNs)+BigInt(s.rendererUncertaintyNs??'0'))/1e6}:{})};
         // Retain bounded identity/observation data only, never an imported GPU
         // reference across frames after its exact completion has been ACKed.
@@ -134,7 +134,7 @@ function completeStop(s) {
 function flushControl(s) {
   if(s.stopping||s.executing||!s.pending||!s.hello||(s.pending.mode==='playing'&&!s.clock))return;
   const value=s.pending;s.pending=null;s.executing=value;
-  const {senderMonotonicNs,rendererUncertaintyNs,...state}=value;
+  const {senderMonotonicNs,rendererUncertaintyNs,mainReceivedMonotonicNs,...state}=value;
   send(s,{type:'set-playback-state',...controlIdentity(s),...state,clockSample:{mediaTimeUs:value.mediaTimeUs,senderMonotonicNs}});
 }
 function packet(s,p) {
@@ -157,9 +157,10 @@ function packet(s,p) {
     if(!s.executing||m.controlSeq!==s.executing.controlSeq||!positive(m.timelineEpoch))throw new Error('Unexpected applied control');
     const applied=s.executing;s.executing=null;
     window.webContents.send('mako-gpu:barrier',{...controlIdentity(s),inputGeneration:s.inputGeneration,poolGeneration:s.poolGeneration,timelineEpoch:m.timelineEpoch,timelineResetId:applied.timelineResetId,minControlSeq:s.barrierSeq,controlSeq:m.controlSeq});
+    s.controlApplied={...controlIdentity(s),controlSeq:m.controlSeq,timelineResetId:applied.timelineResetId,mainObservedMonotonicNs:process.hrtime.bigint().toString(),mainReceivedMonotonicNs:applied.mainReceivedMonotonicNs};
     safeState({...m,timelineResetId:applied.timelineResetId});flushControl(s);return;
   }
-  if(m.type==='state'){diagnostics(m.diagnostics);safeState(m);return;}
+  if(m.type==='state'){diagnostics(m.diagnostics);s.workerState={...m,mainObservedMonotonicNs:process.hrtime.bigint().toString()};safeState(m);return;}
   if(m.type==='stopped'){if(m.drained!==true||s.imports.size!==0)throw new Error('Worker stopped before exact lease drain');s.stopped=true;completeStop(s);return;}
   if(m.type==='failed'){
     const summary=diagnostics(m.diagnostics);
@@ -217,6 +218,7 @@ async function attach(streamId,expectedInputGeneration) {
       }
     },2);
     await Promise.race([hello,delay(5000).then(()=>{if(!s.hello)throw new Error('GPU handshake deadline');})]);
+    s.attachedMonotonicNs=process.hrtime.bigint().toString();
     window.webContents.send('mako-gpu:attached',{...controlIdentity(s),inputGeneration:s.inputGeneration,poolGeneration:s.poolGeneration});
     return {streamId,inputGeneration:s.inputGeneration,producerEpoch:s.producerEpoch};
   }catch{
@@ -237,11 +239,11 @@ function playback(value,rendererClock) {
   if(!s.desired||s.desired.timelineResetId!==value.timelineResetId||s.desired.mode!==value.mode||s.desired.rate!==value.rate||s.desired.targetFps!==value.targetFps)s.barrierSeq=controlSeq;
   const {samplePerformanceMs,...state}=value;
   s.rendererUncertaintyNs=rendererClock.uncertaintyNs;
-  s.mediaClock={...state,controlSeq,mainSampleMonotonicNs:rendererClock.senderMonotonicNs,uncertaintyNs:(uncertaintyNs+BigInt(s.clock?.uncertaintyNs??'0')).toString()};
-  s.desired={...state};s.pending={...state,controlSeq,senderMonotonicNs:rendererClock.senderMonotonicNs,rendererUncertaintyNs:rendererClock.uncertaintyNs};flushControl(s);
+  s.mediaClock={...state,controlSeq,mainSampleMonotonicNs:rendererClock.senderMonotonicNs,rendererUncertaintyNs:rendererClock.uncertaintyNs,workerUncertaintyNs:s.clock?.uncertaintyNs,uncertaintyNs:(uncertaintyNs+BigInt(s.clock?.uncertaintyNs??'0')).toString()};
+  s.desired={...state};s.pending={...state,controlSeq,senderMonotonicNs:rendererClock.senderMonotonicNs,rendererUncertaintyNs:rendererClock.uncertaintyNs,mainReceivedMonotonicNs:now.toString()};flushControl(s);
   return {controlSeq};
 }
-for(const [name,handler] of Object.entries({config:()=>({mode:'production',...(config.slowConsumerMs?{scenario:'slow',slowMs:config.slowConsumerMs}:{})}),'consumer-id':()=>config.consumerId,'acceptance-enabled':()=>app.commandLine.hasSwitch('remote-debugging-port'),clock:()=>({mainMonotonicNs:process.hrtime.bigint().toString()}),attach,playback,read:(sinceRevision=0)=>{if(!Number.isSafeInteger(sinceRevision)||sinceRevision<0)throw new Error('Invalid sample cursor');if(stream?.connection&&!stream.stopping&&!stream.stopped)send(stream,{type:'read-state',...controlIdentity(stream)});return {...sTelemetry,nowMonotonicNs:process.hrtime.bigint().toString(),clock:stream?.clock?{...stream.clock,rendererUncertaintyNs:stream.rendererUncertaintyNs,totalUncertaintyNs:(BigInt(stream.clock.uncertaintyNs)+BigInt(stream.rendererUncertaintyNs??'0')).toString()}:undefined,mediaClock:stream?.mediaClock,activeStream:stream?{...controlIdentity(stream),poolGeneration:stream.poolGeneration,size:stream.size}:null,executingControls:stream?.executing?1:0,pendingControls:stream?.pending?1:0,outstanding:stream?.imports.size??0,sampleRevision,sampleCursorExpired:samples.length>0&&sinceRevision>0&&sinceRevision<Math.min(...samples.map(x=>x.sampleRevision))-1,samples:samples.filter(x=>x.sampleRevision>sinceRevision),mainPid:process.pid,workerPid:stream?.workerPid,rendererPid:window?.webContents.getOSProcessId(),processes:app.getAppMetrics().map(x=>({pid:x.pid,type:x.type,cpu:x.cpu,memory:x.memory}))};},detach}))ipcMain.handle(`mako-gpu:${name}`,(event,...args)=>{authorize(event);return handler(...args);});
+for(const [name,handler] of Object.entries({config:()=>({mode:'production',...(config.slowConsumerMs?{scenario:'slow',slowMs:config.slowConsumerMs}:{})}),'consumer-id':()=>config.consumerId,'acceptance-enabled':()=>app.commandLine.hasSwitch('remote-debugging-port'),clock:()=>({mainMonotonicNs:process.hrtime.bigint().toString()}),attach,playback,read:(sinceRevision=0)=>{if(!Number.isSafeInteger(sinceRevision)||sinceRevision<0)throw new Error('Invalid sample cursor');if(stream?.connection&&!stream.stopping&&!stream.stopped)send(stream,{type:'read-state',...controlIdentity(stream)});return {...sTelemetry,nowMonotonicNs:process.hrtime.bigint().toString(),clock:stream?.clock?{...stream.clock,rendererUncertaintyNs:stream.rendererUncertaintyNs,totalUncertaintyNs:(BigInt(stream.clock.uncertaintyNs)+BigInt(stream.rendererUncertaintyNs??'0')).toString()}:undefined,mediaClock:stream?.mediaClock,workerState:stream?.workerState,controlApplied:stream?.controlApplied,attachedMonotonicNs:stream?.attachedMonotonicNs,activeStream:stream?{...controlIdentity(stream),poolGeneration:stream.poolGeneration,size:stream.size}:null,executingControls:stream?.executing?1:0,pendingControls:stream?.pending?1:0,outstanding:stream?.imports.size??0,sampleRevision,sampleCursorExpired:samples.length>0&&sinceRevision>0&&sinceRevision<Math.min(...samples.map(x=>x.sampleRevision))-1,samples:samples.filter(x=>x.sampleRevision>sinceRevision),mainPid:process.pid,workerPid:stream?.workerPid,rendererPid:window?.webContents.getOSProcessId(),processes:app.getAppMetrics().map(x=>({pid:x.pid,type:x.type,cpu:x.cpu,memory:x.memory}))};},detach}))ipcMain.handle(`mako-gpu:${name}`,(event,...args)=>{authorize(event);return handler(...args);});
 ipcMain.handle('mako-gpu:acceptance-failure',(event,kind)=>{
   authorize(event);
   if(!app.commandLine.hasSwitch('remote-debugging-port')||!['renderer-loss','worker-loss'].includes(kind))throw new Error('Acceptance fault injection unavailable');

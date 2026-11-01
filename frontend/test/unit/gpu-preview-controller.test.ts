@@ -19,12 +19,13 @@ function fixture(options:{createGate?:Promise<void>;replaceGate?:Promise<void>;r
     acceptanceEnabled:async()=>false,consumerId:async()=>'a'.repeat(32),
     attachPreview:async(id:string,generation:string)=>{calls.push(`attach:${id}:${generation}`);attached=true;},
     detachPreview:async()=>{calls.push('detach');attached=false;},
-    setPlaybackState:async()=>{if(!attached)throw new Error('not attached');calls.push('playback');return {controlSeq:1};},
+    setPlaybackState:async(state:{samplePerformanceMs:number})=>{if(!attached)throw new Error('not attached');calls.push('playback');samples.push(state.samplePerformanceMs);return {controlSeq:1};},
     onPreviewState:(listener:(event:DesktopPreviewEvent)=>void)=>{listeners.add(listener);return()=>listeners.delete(listener);},
   } as unknown as DesktopPreviewBridge;
   const make=(id='p1')=>new GpuPreviewController(client,id,{width:1280,height:720},bridge);
   const show=(controller:GpuPreviewController,rev='1')=>controller.show(revision(rev),{mode:'paused',mediaTimeUs:0,rate:1,targetFps:24,timelineResetId:'reset',samplePerformanceMs:performance.now()});
-  return {calls,make,show,emit:(event:DesktopPreviewEvent)=>listeners.forEach(listener=>listener(event))};
+  const samples:number[]=[];
+  return {calls,make,show,samples,emit:(event:DesktopPreviewEvent)=>listeners.forEach(listener=>listener(event))};
 }
 it('unmount during create closes its eventual unclaimed stream before the next panel creates',async()=>{
   const gate=deferred();const f=fixture({createGate:gate.promise});const old=f.make();f.show(old);
@@ -60,4 +61,15 @@ it('a retired stream failure cannot block a new controller or a new input genera
   f.emit({type:'failed',streamId:'s2',producerEpoch:'1',inputGeneration:'1',code:'currentFailure'});
   expect(next.state$.get()).toMatchObject({status:'error',error:'currentFailure'});
   next.dispose();await vi.waitFor(()=>expect(f.calls).toContain('close:s2'));
+});
+it('visibility enable followed by fresh audio sampling sends the new paused sample',async()=>{
+  const f=fixture();const controller=f.make();f.show(controller);
+  await vi.waitFor(()=>expect(f.samples).toHaveLength(1));
+  controller.setEnabled(false);await vi.waitFor(()=>expect(f.calls).toContain('close:s1'));
+  controller.setEnabled(true);
+  const fresh=performance.now()+1;
+  controller.show(revision('1'),{mode:'paused',mediaTimeUs:123456,rate:1,targetFps:24,timelineResetId:'reset',samplePerformanceMs:fresh});
+  await vi.waitFor(()=>expect(f.samples).toHaveLength(2));
+  expect(f.samples.at(-1)).toBe(fresh);
+  controller.dispose();await vi.waitFor(()=>expect(f.calls).toContain('close:s2'));
 });

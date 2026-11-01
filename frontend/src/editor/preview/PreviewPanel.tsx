@@ -214,7 +214,7 @@ function GpuPreviewPanel(props: Parameters<typeof StaticPreviewPanel>[0]) {
     const offTimeline=audio?.timelineReset$.subscribe(()=>update());
     const offProject=props.session.state$.subscribe(()=>update());
     return()=>{clearInterval(timer);offAudio?.();offTimeline?.();offProject();};
-  },[controller,props.audio,props.session,targetFps]);
+  },[controller,props.audio,props.session,targetFps,visible]);
   const view=useObservable(controller?.state$??GPU_IDLE);
   const shown=view.frameRevision!==undefined&&view.frameTimeUs!==undefined?{revision:view.frameRevision,timeUs:view.frameTimeUs}:undefined;
   const replacement=props.replacement;

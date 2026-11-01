@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { analyze, leaseKey, percentile, slidingWindows } from './gpu-preview-p3.mjs';
+import { analyze, leaseKey, percentile, slidingWindows, ozoneArguments } from './gpu-preview-p3.mjs';
 
 const N=1_000_000_000n;
 const frame=(seq,time,extra={})=>({streamId:'stream',hostInstanceId:'host',producerEpoch:'1',inputGeneration:'1',consumerEpoch:'1',timelineEpoch:'1',poolGeneration:'1',slotId:seq%3,slotEpoch:String(seq),frameSeq:seq,
@@ -96,7 +96,7 @@ test('an early frame cannot satisfy freshness solely through negative age',()=>{
   assert.equal(result.freshness.status,'candidate-failed');
 });
 test('freshness and interaction gates include their measured clock uncertainty',()=>{
-  const report=analyze([snapshot(2n*N,[frame(1,2n*N,{timeUs:1_920_000,totalClockUncertaintyMs:5})],1,{mediaClock:{mode:'playing',rate:1,timelineResetId:'initial',mediaTimeUs:1_000_000,mainSampleMonotonicNs:String(N)}}),
+  const report=analyze([snapshot(2n*N,[frame(1,2n*N,{timeUs:1_920_000,totalClockUncertaintyMs:5})],1,{mediaClock:{mode:'playing',rate:1,timelineResetId:'initial',mediaTimeUs:1_000_000,mainSampleMonotonicNs:String(N),uncertaintyNs:'5000000'}}),
     {type:'interaction',kind:'pause',uiInvocationMonotonicNs:'1851000000',streamId:'stream',minimumControlSeq:1,uiInvocationClockUncertaintyMs:2},phase]);
   assert.equal(report.phaseReports[0].absoluteDriftMs.p95,80);
   assert.equal(report.phaseReports[0].absoluteDriftUpperBoundMs.p95,85);
@@ -112,4 +112,27 @@ test('Worker pool/render/control gates require real independent telemetry and ac
   assert.equal(report(good).gates.workerPoolAndRenderControlBudgets,true);
   assert.equal(report({...good,retainedAllocationBytes:65*1024**2}).gates.workerPoolAndRenderControlBudgets,false);
   assert.equal(report({...good,peaks:{...good.peaks,executingRender:2}}).gates.workerPoolAndRenderControlBudgets,false);
+});
+test('selected audio mapping uncertainty remains in freshness despite smaller completion mapping',()=>{
+  const report=analyze([snapshot(2n*N,[frame(1,2n*N,{timeUs:1_925_000,clockUncertaintyMs:1,totalClockUncertaintyMs:2})],1,{mediaClock:{mode:'playing',rate:1,timelineResetId:'initial',mediaTimeUs:1_000_000,mainSampleMonotonicNs:String(N),rendererUncertaintyNs:'10000000',workerUncertaintyNs:'1000000',uncertaintyNs:'11000000'}}),phase]);
+  const result=report.phaseReports[0];
+  assert.equal(result.absoluteDriftMs.p95,75);
+  assert.equal(result.absoluteDriftUpperBoundMs.p95,86);
+  assert.equal(result.freshness.status,'candidate-failed');
+  assert.equal(result.gates.selectedAudioClockComponentsRecorded,true);
+});
+test('Ozone runtime evidence extracts normal argv and Chromium process titles only',()=>{
+  assert.deepEqual(ozoneArguments('/app/electron\0--type=renderer\0--ozone-platform=wayland\0--field-trial=secret'),['--ozone-platform=wayland']);
+  assert.deepEqual(ozoneArguments('/app/electron --type=gpu-process --ozone-platform=wayland --field-trial=secret\0'),['--ozone-platform=wayland']);
+  assert.deepEqual(ozoneArguments('/app/electron\0--ozone-platform-hint=wayland\0'),['--ozone-platform-hint=wayland']);
+  assert.deepEqual(ozoneArguments('/app/electron --unrelated=--ozone-platform=waylandish'),[]);
+});
+test('latest-input activation is an exact new-generation attachment event while UI cold start stays visible',()=>{
+  const sample=frame(1,2n*N,{inputGeneration:'2',attachedMonotonicNs:'1990000000'});
+  const report=analyze([snapshot(3n*N,[sample],1),{type:'interaction',kind:'latest-input',uiInvocationMonotonicNs:String(N),streamId:'stream',inputGeneration:'2',uiInvocationClockUncertaintyMs:1}]);
+  assert.equal(report.interactions[0].uiInvocationToMatchingCompletionMs,1000);
+  assert.equal(report.interactions[0].activeToMatchingCompletionMs,10);
+  assert.equal(report.interactionGroups['latest-input'].candidateMet,false);
+  assert.equal(report.activeInteractionGroups['latest-input'].candidateMet,true);
+  assert.equal(analyze([snapshot(3n*N,[{...sample,attachedMonotonicNs:'999000000'}],1),{type:'interaction',kind:'latest-input',uiInvocationMonotonicNs:String(N),streamId:'stream',inputGeneration:'2'}]).interactions[0].activeToMatchingCompletionMs,null);
 });

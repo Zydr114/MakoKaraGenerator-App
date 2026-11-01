@@ -27,6 +27,9 @@ export function leaseKey(frame) {
   invariant(KEYS.every(key => frame[key] !== undefined && frame[key] !== null), 'Incomplete frame identity');
   return JSON.stringify(KEYS.map(key => frame[key]));
 }
+export function ozoneArguments(commandLine) {
+  return [...new Set([...commandLine.matchAll(/(?:^|[\0\s])(--ozone-platform(?:-hint)?=(?:wayland|x11))(?=[\0\s]|$)/g)].map(match=>match[1]))];
+}
 export function percentile(values, fraction) {
   if (!values.length) return null;
   const sorted = [...values].sort((a,b) => a-b);
@@ -115,23 +118,31 @@ export function analyze(records, manifest={}) {
     const readbacks=candidates.filter(frame=>frame.counters?.cpuPixelReadbacks!==0).length;
     const wrongSize=delivered.filter(frame=>frame.width!==phase.width||frame.height!==phase.height).length;
     const clocks=snapshots.filter(record=>record.snapshot.mediaClock).map(record=>record.snapshot.mediaClock);
-    const drift=delivered.map(frame=>{
-      if(Number.isFinite(frame.signedDriftUs))return frame.signedDriftUs/1000;
+    const driftObservations=delivered.map(frame=>{
       const completion=ns(frame.completedMonotonicNs);
       const clock=clocks.filter(clock=>clock.timelineResetId===frame.timelineResetId&&ns(clock.mainSampleMonotonicNs)<=completion).at(-1);
-      if(!clock)return null;
+      if(!clock)return {driftMs:null,uncertaintyMs:null,clockComponentsRecorded:false};
       const master=clock.mediaTimeUs+(clock.mode==='playing'?Number(completion-ns(clock.mainSampleMonotonicNs))/1000*clock.rate:0);
-      return (frame.timeUs-master)/1000;
-    }).filter(Number.isFinite);
+      const driftMs=Number.isFinite(frame.signedDriftUs)?frame.signedDriftUs/1000:(frame.timeUs-master)/1000;
+      const split=clock.rendererUncertaintyNs!==undefined&&Number.isFinite(frame.clockUncertaintyMs);
+      // Renderer->main belongs to the selected audio sample; Worker->main belongs
+      // to this completed frame. The full completion bound also protects a later
+      // mapping expansion. A worker component is never summed twice.
+      const selectedBound=split?frame.clockUncertaintyMs+Number(ns(clock.rendererUncertaintyNs))/1e6:
+        clock.uncertaintyNs===undefined?null:Number(ns(clock.uncertaintyNs))/1e6;
+      return {driftMs,uncertaintyMs:Number.isFinite(selectedBound)&&Number.isFinite(frame.totalClockUncertaintyMs)?Math.max(frame.totalClockUncertaintyMs,selectedBound):null,clockComponentsRecorded:split};
+    });
+    const drift=driftObservations.map(value=>value.driftMs).filter(Number.isFinite);
     const age=drift.map(value=>-value);
-    const freshnessUpperBound=drift.length===delivered.length?drift.map((value,index)=>Math.abs(value)+sampleClocks[index]):[];
+    const freshnessUpperBound=driftObservations.map(value=>Number.isFinite(value.driftMs)&&Number.isFinite(value.uncertaintyMs)?Math.abs(value.driftMs)+value.uncertaintyMs:null).filter(Number.isFinite);
     const streamSnapshots=snapshots.filter(record=>record.time>=start&&record.time<=end);
     const resourcePids=new Map();
     for(const record of streamSnapshots)for(const proc of record.processes??[]){
       const key=`${proc.pid}:${proc.startTicks}`,points=resourcePids.get(key)??{pid:proc.pid,startTicks:proc.startTicks,role:proc.role,fd:[],rss:[],gpu:[]};
-      if(Number.isFinite(proc.fdCount))points.fd.push([record.time,proc.fdCount]);
-      if(Number.isFinite(proc.rssBytes))points.rss.push([record.time,proc.rssBytes]);
-      if(Number.isFinite(proc.gpuMemoryBytes))points.gpu.push([record.time,proc.gpuMemoryBytes]);
+      const observedTime=record.processObservationBracket?(ns(record.processObservationBracket.startMonotonicNs)+ns(record.processObservationBracket.endMonotonicNs))/2n:record.time;
+      if(Number.isFinite(proc.fdCount))points.fd.push([observedTime,proc.fdCount]);
+      if(Number.isFinite(proc.rssBytes))points.rss.push([observedTime,proc.rssBytes]);
+      if(Number.isFinite(proc.gpuMemoryBytes))points.gpu.push([observedTime,proc.gpuMemoryBytes]);
       resourcePids.set(key,points);
     }
     const workerStates=streamSnapshots.filter(record=>record.snapshot.workerState).map(record=>record.snapshot.workerState);
@@ -142,7 +153,7 @@ export function analyze(records, manifest={}) {
       noUnexplainedStall:intervals.every(value=>value<=250),clockRecorded:unknownClock===0&&delivered.length>0,contemporaneousClockRecorded:legacyClock===0&&delivered.length>0,
       exactProvider:badProvider===0&&delivered.length>0,exactSize:wrongSize===0&&delivered.length>0,
       productionFinalReadbacksZero:readbacks===0&&delivered.length>0,
-      workerPoolAndRenderControlBudgets:workerBudgetGate,
+      workerPoolAndRenderControlBudgets:workerBudgetGate,selectedAudioClockComponentsRecorded:driftObservations.length>0&&driftObservations.every(value=>value.clockComponentsRecorded),
       visibleWindow:streamSnapshots.length>0&&streamSnapshots.every(record=>record.snapshot.rendererVisibility==='visible'),
       poolBounded:streamSnapshots.length>0&&streamSnapshots.every(record=>record.snapshot.outstanding<=3&&record.snapshot.peakOutstanding<=3),
       mainControlsBounded:streamSnapshots.length>0&&streamSnapshots.every(record=>record.snapshot.executingControls<=1&&record.snapshot.pendingControls<=1)};
@@ -155,7 +166,8 @@ export function analyze(records, manifest={}) {
       totalClockUncertaintyMs:distribution(sampleClocks),signedDriftMs:distribution(drift),ageMs:distribution(age),absoluteDriftMs:distribution(drift.map(Math.abs)),absoluteDriftUpperBoundMs:distribution(freshnessUpperBound),
       displayGeometryObservations:streamSnapshots.map(record=>({monotonicNs:String(record.time),...record.snapshot.displayGeometry})),
       workerFlowControl:{status:streamSnapshots.length&&streamSnapshots.every(record=>record.snapshot.workerState)?'recorded':'unmeasured',samples:streamSnapshots.filter(record=>record.snapshot.workerState).map(record=>({monotonicNs:String(record.time),...record.snapshot.workerState})),publicStates:streamSnapshots.filter(record=>record.snapshot.workerPublicState).map(record=>({monotonicNs:String(record.time),...record.snapshot.workerPublicState}))},
-      freshness:drift.length===delivered.length&&delivered.length>0?{status:percentile(age,.95)<=2*period&&percentile(freshnessUpperBound,.95)!==null&&percentile(freshnessUpperBound,.95)<=2*period&&unknownClock===0?'candidate-met':'candidate-failed',candidateP95LimitMs:2*period,uncertaintyPolicy:'p95 of each absolute drift plus that frame total calibrated clock uncertainty must fit the unchanged limit',earlyFrameConstraint:'absolute signed drift p95 must also stay within two periods; negative age never makes an early frame pass',model:'latest calibrated real audio.currentTime sample at or before completion, extrapolated by rate within exact timelineResetId'}:{status:'unmeasured',reason:'Missing calibrated audio master comparison on some frames'},
+      freshness:drift.length===delivered.length&&delivered.length>0?{status:percentile(age,.95)<=2*period&&percentile(freshnessUpperBound,.95)!==null&&percentile(freshnessUpperBound,.95)<=2*period&&unknownClock===0?'candidate-met':'candidate-failed',candidateP95LimitMs:2*period,uncertaintyPolicy:'p95(abs drift + max(frame total uncertainty, frame Worker mapping + selected audio renderer mapping)); selected audio mapping components are required for formal evidence, no repeated Worker term',earlyFrameConstraint:'absolute signed drift p95 must also stay within two periods; negative age never makes an early frame pass',model:'latest calibrated real audio.currentTime sample at or before completion, extrapolated by rate within exact timelineResetId'}:{status:'unmeasured',reason:'Missing calibrated audio master comparison on some frames'},
+      resourceObservationBrackets:streamSnapshots.map(record=>record.processObservationBracket??{sampling:'legacy approximate /proc inventory after snapshot; exact bracket unavailable'}),
       resourceTrends:[...resourcePids.values()].map(points=>({pid:points.pid,startTicks:points.startTicks,role:points.role,fd:regression(points.fd),rssBytes:regression(points.rss),gpuMemoryBytes:regression(points.gpu)})),
       gates:gate,throughputPassed:Object.values(gate).every(Boolean)};
   });
@@ -168,15 +180,27 @@ export function analyze(records, manifest={}) {
       (action.sourceRevision===undefined||frame.sourceRevision===action.sourceRevision)&&
       (action.timelineResetId===undefined||frame.timelineResetId===action.timelineResetId)&&
       (action.minimumControlSeq===undefined||frame.controlSeq>=action.minimumControlSeq)).sort((a,b)=>ns(a.completedMonotonicNs)<ns(b.completedMonotonicNs)?-1:1)[0];
+    const applied=matching?.controlApplied;
+    const validApplied=applied&&matching&&applied.streamId===matching.streamId&&applied.inputGeneration===matching.inputGeneration&&applied.timelineResetId===matching.timelineResetId&&applied.controlSeq<=matching.controlSeq&&(action.minimumControlSeq===undefined||applied.controlSeq>=action.minimumControlSeq)&&applied.mainObservedMonotonicNs!==undefined;
+    const active=action.kind==='latest-input'?matching?.attachedMonotonicNs:validApplied?applied.mainObservedMonotonicNs:undefined;
+    const activeValid=active!==undefined&&ns(active)>=start&&matching&&ns(active)<=ns(matching.completedMonotonicNs);
     return {...action,firstMatchingCompletedLease:matching?leaseKey(matching):null,
       uiInvocationToMatchingCompletionMs:matching?Number(ns(matching.completedMonotonicNs)-start)/1e6:null,
       uiInvocationToMatchingCompletionUpperBoundMs:matching&&Number.isFinite(action.uiInvocationClockUncertaintyMs)?Number(ns(matching.completedMonotonicNs)-start)/1e6+action.uiInvocationClockUncertaintyMs:null,
       uiInvocationClockUncertaintyMs:action.uiInvocationClockUncertaintyMs??null,
-      mainReceiveToWorkerAppliedMs:'unmeasured unless separate main-receive and worker-applied timestamps are recorded'};
+      activationOrigin:action.kind==='latest-input'?'exact attached hello-ready event for the new source/input generation':'exact main observation of matching Worker control-applied event',
+      activeToMatchingCompletionMs:activeValid?Number(ns(matching.completedMonotonicNs)-ns(active))/1e6:null,
+      activeMonotonicNs:activeValid?active:null,
+      mainReceiveToWorkerAppliedObservedMs:validApplied&&applied.mainReceivedMonotonicNs!==undefined?Number(ns(applied.mainObservedMonotonicNs)-ns(applied.mainReceivedMonotonicNs))/1e6:null,
+      mainReceiveToWorkerAppliedMs:'unmeasured pure Worker apply instant; separately report main receive to observed Worker applied ack'};
   });
   const interactionGroups=Object.fromEntries([...new Set(interactions.map(action=>action.kind))].map(kind=>{
     const group=interactions.filter(action=>action.kind===kind),values=group.map(action=>action.uiInvocationToMatchingCompletionMs).filter(Number.isFinite),upper=group.map(action=>action.uiInvocationToMatchingCompletionUpperBoundMs).filter(Number.isFinite);
     return [kind,{...distribution(values),withClockUncertaintyUpperBoundMs:distribution(upper),missing:group.length-values.length,tailSampleCaveat:group.length<100?'fewer than 100 observations; p99 is the nearest-rank observed tail, not a population-tail estimate':null,origin:'CDP invocation bracket mapped to Electron main monotonic; include reported uncertainty',candidateMet:values.length===group.length&&upper.length===group.length&&percentile(upper,.95)<=150&&percentile(upper,.99)<=250}];
+  }));
+  const activeInteractionGroups=Object.fromEntries([...new Set(interactions.map(action=>action.kind))].map(kind=>{
+    const group=interactions.filter(action=>action.kind===kind),values=group.map(action=>action.activeToMatchingCompletionMs).filter(Number.isFinite);
+    return [kind,{...distribution(values),missing:group.length-values.length,origin:kind==='latest-input'?'new input native hello-ready attachment event → first matching completed frame':'main-observed matching Worker control-applied ack → first matching completed frame',candidateMet:values.length===group.length&&percentile(values,.95)<=150&&percentile(values,.99)<=250}];
   }));
   const lifecycle={attachDetach:{required:20,observed:actionReports.filter(action=>action.kind==='attach-detach'&&action.newGenerationVerified===true&&action.oldWorkerExited===true).length},
     publicResizeSeek:{required:10,observed:actionReports.filter(action=>action.kind==='public-resize-seek'&&action.exactGenerationCompleted===true).length},
@@ -188,13 +212,13 @@ export function analyze(records, manifest={}) {
     phaseMatrix:['720p24','1440p30','1440p30-lifetime'].every(name=>phaseReports.some(phase=>phase.name===name&&phase.provider===(manifest.provider==='synthetic'?'synthetic-gpu':manifest.provider)&&phase.durationSeconds>=(name.endsWith('lifetime')?600:180))),
     throughput:phaseReports.length===3&&phaseReports.every(phase=>phase.throughputPassed),
     freshness:phaseReports.length===3&&phaseReports.every(phase=>phase.freshness.status==='candidate-met'),
-    interactions:['pause','seek','latest-input'].every(kind=>interactionGroups[kind]?.count>=20&&interactionGroups[kind]?.candidateMet===true),
+    interactions:['pause','seek','latest-input'].every(kind=>activeInteractionGroups[kind]?.count>=20&&activeInteractionGroups[kind]?.candidateMet===true),
     lifecycle:lifecycle.attachDetach.observed>=20&&lifecycle.publicResizeSeek.observed>=10,
     completeEventHistory:gaps.length===0};
   return {schemaVersion:1,sourceCommit:manifest.sourceCommit??null,generatedAt:new Date().toISOString(),runClass:manifest.runClass??'unspecified',
     identity:'stream/host/producer/input/consumer/timeline/pool/slot/slotEpoch/frameSeq',
     counting:'unique canvas-drawn identity intersected with actual native allReferencesReleased; measured at completion timestamp',
-    phaseReports,eventGaps:[...new Set(gaps)],actions:actionReports,interactions,interactionGroups,requiredLifecycle:lifecycle,measuredRequirements:requirements,
+    phaseReports,eventGaps:[...new Set(gaps)],actions:actionReports,interactions,interactionGroups,activeInteractionGroups,requiredLifecycle:lifecycle,measuredRequirements:requirements,
     conclusion:manifest.runClass!=='formal-p3'?(manifest.runClass??'incomplete-or-failed'):Object.values(requirements).every(Boolean)?'measured-candidate-gates-met; separate correctness/trace/resource interpretation remains required':'incomplete-or-failed',
     p3Acceptance:'not established by timed runner alone; requires separate correctness/trace and lifetime lease/FD/cache review',
     limitations:['No screen scan/displayed FPS measurement','No Chromium internal copy count inferred','RSS/GPU-memory slopes need platform-cache interpretation, not an invented fixed MB threshold','Synthetic and runtime providers must be measured and reported separately']};
@@ -289,10 +313,10 @@ async function actualWaylandEvidence(page,cdp,snapshot) {
   const ownedProcesses=[];
   for(const proc of [{pid:snapshot.rendererPid,type:'renderer'},...(snapshot.processes??[]).filter(proc=>proc.type==='GPU')]){
     if(!proc.pid)continue;
-    try{const args=(await readFile(`/proc/${proc.pid}/cmdline`,'utf8')).split('\0');const ozone=args.filter(arg=>/^--ozone-platform=/.test(arg));ownedProcesses.push({pid:proc.pid,type:proc.type,ozonePlatformArguments:ozone});}catch{}
+    try{const args=(await readFile(`/proc/${proc.pid}/cmdline`,'utf8')).split('\0');const ozone=ozoneArguments(args.join('\0'));ownedProcesses.push({pid:proc.pid,type:proc.type,ozonePlatformArguments:ozone,source:'owned /proc cmdline argv or Chromium process-title token; unrelated arguments omitted'});}catch{}
   }
   const actualWaylandProcesses=ownedProcesses.length>=2&&ownedProcesses.every(proc=>proc.ozonePlatformArguments.includes('--ozone-platform=wayland'));
-  return {renderer:details,gpuAuxAttributes:systemInfo?.gpu?.auxAttributes??null,electronOzoneArguments:commandLine?.filter(arg=>/^--ozone-platform(?:-hint)?=/.test(arg))??null,ownedProcesses,waylandRuntimeProof:actualWaylandProcesses?'owned Electron GPU and renderer process both run --ozone-platform=wayland':null,
+  return {renderer:details,gpuAuxAttributes:systemInfo?.gpu?.auxAttributes??null,electronOzoneArguments:commandLine?ozoneArguments(commandLine.join('\0')):null,ownedProcesses,waylandRuntimeProof:actualWaylandProcesses?'owned Electron GPU and renderer process both run --ozone-platform=wayland':null,
     actualOzoneBackend:backend??'unmeasured; environment variables alone are not proof',
     environmentObservation:{XDG_SESSION_TYPE:process.env.XDG_SESSION_TYPE??null,WAYLAND_DISPLAY:process.env.WAYLAND_DISPLAY??null},
     waylandConfirmed:actualWaylandProcesses||(typeof backend==='string'&&/wayland/i.test(backend))};
@@ -359,19 +383,24 @@ async function run(values) {
   const observedSamples=new Map();
   let sampleRevision=0,lastWorkerPublicRead=0,workerPublicState,workerPublicReadMonotonicNs;
   const sample=async()=>{
+    const captureNodeStart=process.hrtime.bigint();
     const snapshot=await page.eval(`window.makoDesktopPreview.readPreviewState(${sampleRevision}).then(snapshot=>{const canvas=document.getElementById('mako-gpu-preview'),rect=canvas?.getBoundingClientRect();return {...snapshot,rendererVisibility:document.visibilityState,displayGeometry:{viewport:{width:innerWidth,height:innerHeight,devicePixelRatio},canvas:canvas?{backingWidth:canvas.width,backingHeight:canvas.height,cssWidth:rect.width,cssHeight:rect.height,cssX:rect.x,cssY:rect.y}:null}};})`);
+    const captureNodeEnd=process.hrtime.bigint();
     ns(snapshot.nowMonotonicNs);
+    const mainOffset=ns(snapshot.nowMonotonicNs)-(captureNodeStart+captureNodeEnd)/2n;
+    const observationClockUncertaintyNs=(captureNodeEnd-captureNodeStart)/2n;
     invariant(!snapshot.sampleCursorExpired,'Native completion telemetry cursor expired; evidence is incomplete');
     sampleRevision=snapshot.sampleRevision;
     // Persist each complete event once, plus actual late drawn updates; the bridge
     // returns a bounded history so repeated samples must never multiply counts.
     if(Date.now()-lastWorkerPublicRead>=1000){
       lastWorkerPublicRead=Date.now();
-      try{workerPublicState=await page.eval(`window.makoGpuPreviewAcceptance?.read()`);workerPublicReadMonotonicNs=snapshot.nowMonotonicNs;}catch{}
+      try{const started=process.hrtime.bigint()+mainOffset;workerPublicState=await page.eval(`window.makoGpuPreviewAcceptance?.read()`);workerPublicReadMonotonicNs={start:String(started),end:String(process.hrtime.bigint()+mainOffset),mappingUncertaintyNs:String(observationClockUncertaintyNs)};}catch{}
     }
     const changed=[];
     for(const frame of snapshot.samples){const key=leaseKey(frame),serialized=JSON.stringify(frame);observedSamples.set(key,frame);if(seenSamples.get(key)!==serialized){seenSamples.set(key,serialized);changed.push(frame);}}
-    await record({type:'snapshot',snapshot:{...snapshot,...(workerPublicState?{workerPublicState,workerPublicReadMonotonicNs}:{}),samples:changed},processes:await processSnapshot(snapshot)});
+    const procStart=process.hrtime.bigint()+mainOffset,processes=await processSnapshot(snapshot),procEnd=process.hrtime.bigint()+mainOffset;
+    await record({type:'snapshot',snapshot:{...snapshot,...(workerPublicState?{workerPublicState,workerPublicReadMonotonicNs}:{}),samples:changed},processes,processObservationBracket:{startMonotonicNs:String(procStart),endMonotonicNs:String(procEnd),mappingUncertaintyNs:String(observationClockUncertaintyNs),sampling:'approximate asynchronous /proc inventory over this bracket; not atomic with main snapshot'}});
     return {...snapshot,latestSample:[...observedSamples.values()].at(-1)};
   };
   const mainClockBracket=async()=>{
@@ -455,7 +484,7 @@ async function run(values) {
       do{current=await page.eval('window.makoGpuPreviewAcceptance.current()');if(current?.source?.sourceRevision===edited.sourceRevision&&current.inputGeneration!==old.inputGeneration)break;await sample();await pause(20);}while(Date.now()<deadline);
       invariant(current?.streamId===old.streamId&&current.source.sourceRevision===edited.sourceRevision&&current.inputGeneration!==old.inputGeneration,'Real project input did not replace exact public generation');
       await record({type:'interaction',kind:'latest-input',uiInvocationMonotonicNs:String(invocation),uiInvocationClockUncertaintyMs:bracket.uncertaintyMs,
-        streamId:current.streamId,inputGeneration:current.inputGeneration,expectedSourceRevision:edited.sourceRevision,previousInputGeneration:old.inputGeneration});
+        streamId:current.streamId,inputGeneration:current.inputGeneration,expectedSourceRevision:edited.sourceRevision,previousInputGeneration:old.inputGeneration,controllerResponseTimings:await page.eval('window.makoGpuPreviewAcceptance.timings?.()??[]')});
       const matching=()=>[...observedSamples.values()].some(frame=>frame.drawn===true&&ns(frame.completedMonotonicNs)>=invocation&&frame.streamId===current.streamId&&frame.inputGeneration===current.inputGeneration);
       while(!matching()&&Date.now()<deadline){await pause(20);await sample();}
       invariant(matching(),'Latest real input did not yield an exact-generation native-completed drawn frame');

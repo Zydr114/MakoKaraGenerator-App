@@ -7,10 +7,10 @@ import { OVERLAY_LABEL, READ_SCOPE_LABEL, RECIPE_TARGET_LABEL } from '../model/e
 import { EXPORT_KIND_TEXT, shortRevision } from '../model/full-template';
 import { checkComponentName, componentKindText, componentSample, filterByName, importableExports, importedName, parameterSummary } from '../model/script-components';
 import { errorText } from '../session/editor-session';
-import { confirmAction } from '../ui/dialogs';
-import { toast } from '../ui/feedback';
-import { FileButton, TextField } from '../ui/fields';
-import { FormDialog } from '../ui/FormDialog';
+import { confirmAction } from '../ui/legacy/dialogs';
+import { toast } from '../ui/legacy/feedback';
+import { FileButton, TextField } from '../ui/legacy/fields';
+import { FormDialog } from '../ui/legacy/FormDialog';
 import { DRAFT_LIMIT_TEXT, draftSaveState, type AuthorDraftStore, type DraftSaveState, type DraftsState } from './author-draft-store';
 import { selectedComponent, type ComponentLibraryStore, type ComponentState } from './component-library-store';
 import type { TemplateLibraryStore } from './template-library-store';

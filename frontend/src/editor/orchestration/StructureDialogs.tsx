@@ -2,8 +2,8 @@ import { useState } from 'react';
 import type { CreateNodeKind, OrchestrationNode, OrchestrationProgram } from '../../protocol';
 import { insertionParent, isPlainGroup, moveTargets, NODE_KIND_NAME, NODE_KIND_TEXT, nodeName, nodePath, type OrchestrationModel } from '../model/orchestration';
 import { DEFAULT_MARK_COUNT, MAX_MARKS } from '../model/orchestration-lead-ins';
-import { FormDialog } from '../ui/FormDialog';
-import { Select, TextField } from '../ui/fields';
+import { FormDialog } from '../ui/legacy/FormDialog';
+import { Select, TextField } from '../ui/legacy/fields';
 import type { NewNode } from './orchestration-store';
 
 /** 下拉框里的“画布根层”：mdui-select 不接受空值，用一个不会是节点 ID 的值代替 null。 */

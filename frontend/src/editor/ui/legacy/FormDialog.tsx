@@ -1,5 +1,6 @@
+// 过渡期（界面改版 §4）：旧的 mdui 版封装。页面逐批改用 ui/ 下的新控件，批 7 删除本目录。
 import { useRef, type ReactNode } from 'react';
-import { useDomEvent } from './hooks';
+import { useDomEvent } from '../hooks';
 
 /**
  * 表单对话框：mdui-dialog 的受控封装。Esc、点遮罩、“取消”都走 onClose；

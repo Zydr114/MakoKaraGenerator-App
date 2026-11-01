@@ -4,8 +4,8 @@ import { client } from '../connection';
 import { candidateDescription, sortCandidates } from '../model/recovery';
 import { EditorSession, errorText } from '../session/editor-session';
 import { recoverProject } from '../session/project-files';
-import { FormDialog } from '../ui/FormDialog';
-import { TextField } from '../ui/fields';
+import { FormDialog } from '../ui/legacy/FormDialog';
+import { TextField } from '../ui/legacy/fields';
 
 /**
  * 从备份恢复（W5 设计 §1、§2.6）：候选按保存时间倒序，可按工程名搜索（候选不能清理，会越积越多，G27）。

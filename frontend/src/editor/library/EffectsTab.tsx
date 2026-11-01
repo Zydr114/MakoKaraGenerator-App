@@ -24,7 +24,7 @@ import {
 } from '../model/effect-recipes';
 import { packageKey, referenceKey, type DefinitionIssue } from '../model/full-template';
 import { componentEffectProblem } from '../model/script-components';
-import { CommitField, Select, Switch } from '../ui/fields';
+import { CommitField, Select, Switch } from '../ui/legacy/fields';
 import { PackagesPanel } from './PackagesPanel';
 import { ParameterFields } from './ParameterFields';
 import type { TemplateDraft, TemplateLibraryStore } from './template-library-store';

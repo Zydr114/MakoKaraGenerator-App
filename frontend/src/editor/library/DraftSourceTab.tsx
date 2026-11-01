@@ -4,8 +4,8 @@
 import { Component, lazy, Suspense, useEffect, useRef, type ReactNode } from 'react';
 import { compileOutcomeText, compileRows, type CompileRow, type SourceMarker } from '../model/compile-diagnostics';
 import { shortRevision } from '../model/full-template';
-import { confirmAction } from '../ui/dialogs';
-import { toast } from '../ui/feedback';
+import { confirmAction } from '../ui/legacy/dialogs';
+import { toast } from '../ui/legacy/feedback';
 import { useObservable } from '../ui/hooks';
 import type { FullDraft } from './author-draft-store';
 import { revisionLabelText, revisionRows, type DraftSourceModel, type SourceResult } from './draft-source';

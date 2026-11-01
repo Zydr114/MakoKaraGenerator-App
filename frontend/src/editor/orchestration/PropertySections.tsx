@@ -36,8 +36,8 @@ import {
   type PolicyChoice,
   type PoseKey,
 } from '../model/orchestration-properties';
-import { FormDialog } from '../ui/FormDialog';
-import { NumberField, Select, TextField } from '../ui/fields';
+import { FormDialog } from '../ui/legacy/FormDialog';
+import { NumberField, Select, TextField } from '../ui/legacy/fields';
 import type { OrchestrationResult } from './orchestration-store';
 
 /** 属性编辑（G21）：不可用时 block 是原因；run 发一条属性命令，成功时提示 done 并可撤销。 */

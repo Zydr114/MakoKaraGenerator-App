@@ -5,7 +5,7 @@ import { TIMING_STATUS_TEXT, isTimed, type EditorLine, type EditorToken } from '
 import { nudgedRange, segmentTarget, selectedSegment, stampedEnd, stampedStart, type TimeRange } from '../model/ruby-segments';
 import { formatTime, fromLyricTime, parseTime, toMicros } from '../model/time';
 import type { EditorSession } from '../session/editor-session';
-import { TextField } from '../ui/fields';
+import { TextField } from '../ui/legacy/fields';
 
 /**
  * 时间栏（整体设计 §5.2）：固定在播放条上方，左边是所选元素的起止、±1 帧、清除，

@@ -14,7 +14,7 @@ import {
   type PlanPurpose,
 } from '../model/lyrics-import';
 import { errorText } from '../session/editor-session';
-import { Select } from '../ui/fields';
+import { Select } from '../ui/legacy/fields';
 
 /** 用户在识别结果下的改选；AUTO 表示沿用后端的识别或默认来源。 */
 export interface PlanChoices {

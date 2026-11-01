@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { BRANCH_ROLE_TEXT, lineNumbers } from '../model/branches';
 import type { EditorLine } from '../model/lyrics';
 import type { EditorSession, EditorState } from '../session/editor-session';
-import { Select } from '../ui/fields';
+import { Select } from '../ui/legacy/fields';
 import { LinkDialog } from './LinkDialog';
 
 const UNLINKED = '__unlinked__';

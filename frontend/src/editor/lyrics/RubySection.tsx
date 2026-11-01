@@ -13,8 +13,8 @@ import {
   splitEdits,
 } from '../model/ruby-segments';
 import type { EditorSession } from '../session/editor-session';
-import { askText } from '../ui/dialogs';
-import { CommitField } from '../ui/fields';
+import { askText } from '../ui/legacy/dialogs';
+import { CommitField } from '../ui/legacy/fields';
 import { StatusGlyph } from './LineList';
 
 /**

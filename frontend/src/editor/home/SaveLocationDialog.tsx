@@ -3,9 +3,9 @@ import { ObservableValue } from '../../client';
 import { client } from '../connection';
 import { saveTarget, saveTargetText } from '../model/project-directory';
 import { errorText } from '../session/editor-session';
-import { confirmAction } from '../ui/dialogs';
-import { FormDialog } from '../ui/FormDialog';
-import { TextField } from '../ui/fields';
+import { confirmAction } from '../ui/legacy/dialogs';
+import { FormDialog } from '../ui/legacy/FormDialog';
+import { TextField } from '../ui/legacy/fields';
 import { useObservable } from '../ui/hooks';
 import { DirectoryBrowser, useDirectoryListing } from './DirectoryBrowser';
 

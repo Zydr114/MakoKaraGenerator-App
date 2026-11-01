@@ -2,7 +2,7 @@ import { useRef, useState, type DragEvent } from 'react';
 import { isTimed, type EditorLine, type EditorToken } from '../model/lyrics';
 import { graphemes } from '../model/token-segments';
 import type { EditorSession } from '../session/editor-session';
-import { askReorderSlots } from '../ui/dialogs';
+import { askReorderSlots } from '../ui/legacy/dialogs';
 import { ResplitLineDialog } from './ResplitDialogs';
 
 /**

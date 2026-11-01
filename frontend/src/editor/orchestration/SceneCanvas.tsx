@@ -10,7 +10,7 @@ import { dragReference, hitLine, hitNode, lineDragReference, overlayShapes, quad
 import { PreviewPanel, previewTimeUs, type ShownFrame } from '../preview/PreviewPanel';
 import { fitPreviewSize } from '../preview/preview-controller';
 import type { EditorSession } from '../session/editor-session';
-import { Switch } from '../ui/fields';
+import { Switch } from '../ui/legacy/fields';
 import { useObservable } from '../ui/hooks';
 import type { LineActions } from './LineInspector';
 import type { OrchestrationState } from './orchestration-store';

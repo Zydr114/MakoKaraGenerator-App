@@ -4,9 +4,9 @@ import type { TemplateImportPreflightResponse, TemplateLibraryId } from '../../p
 import { templateTransfers } from '../connection';
 import { errorText } from '../session/editor-session';
 import { saveBlob } from '../ui/download';
-import { toast } from '../ui/feedback';
-import { FilePicker, Select } from '../ui/fields';
-import { FormDialog } from '../ui/FormDialog';
+import { toast } from '../ui/legacy/feedback';
+import { FilePicker, Select } from '../ui/legacy/fields';
+import { FormDialog } from '../ui/legacy/FormDialog';
 import { useObservable } from '../ui/hooks';
 import { AVAILABILITY_TEXT, MAX_TRANSFER_TEMPLATES, PreflightGoneError, TRANSFER_FILE_NAME } from './template-transfers';
 import { KIND_TEXT, type TemplateLibraryStore } from './template-library-store';

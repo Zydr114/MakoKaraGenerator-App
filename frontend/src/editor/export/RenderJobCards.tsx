@@ -5,7 +5,7 @@ import { diagnosticText, downloadName, exportReportFacts, isTerminal, progressFr
 import { recordedBackendText } from '../model/render-device';
 import { errorText } from '../session/editor-session';
 import { saveBlob } from '../ui/download';
-import { NumberField } from '../ui/fields';
+import { NumberField } from '../ui/legacy/fields';
 import type { ExportState, ExportStore, JobTrack } from './export-store';
 
 /** 问题列表最多显示多少条；完整报告里的其余条目只写数量。 */

@@ -6,7 +6,7 @@ import type { FontInspectResponse, StyleTypography } from '../../protocol';
 import { catalogName, fontCheckText, fontRuns, hasFamily, markText, MAX_FALLBACKS, MAX_FAMILY_LENGTH, searchFamilies } from '../model/fonts';
 import { client, fonts } from '../connection';
 import { errorText } from '../session/editor-session';
-import { TextField } from '../ui/fields';
+import { TextField } from '../ui/legacy/fields';
 import { useObservable } from '../ui/hooks';
 
 function useFontCatalog() {

@@ -28,8 +28,8 @@ import {
 } from '../model/orchestration-lead-ins';
 import { fromSeconds, toSeconds } from '../model/orchestration-properties';
 import { formatTime } from '../model/time';
-import { FormDialog } from '../ui/FormDialog';
-import { CommitField, NumberField, Select, Switch, TextField } from '../ui/fields';
+import { FormDialog } from '../ui/legacy/FormDialog';
+import { CommitField, NumberField, Select, Switch, TextField } from '../ui/legacy/fields';
 import type { GenerationPreviewState, NewLeadIn, OrchestrationResult } from './orchestration-store';
 import { Row, ToolButton, useSelectReset } from './parts';
 

@@ -9,8 +9,8 @@ import { branchInputsField, defaultInputMapping, missingInputs } from '../model/
 import { BRANCH_ROLE_TEXT } from '../model/branches';
 import { propertySummary } from '../model/template-groups';
 import { formatTime } from '../model/time';
-import { Select, TextField } from '../ui/fields';
-import { FormDialog } from '../ui/FormDialog';
+import { Select, TextField } from '../ui/legacy/fields';
+import { FormDialog } from '../ui/legacy/FormDialog';
 import { useObjectUrl, useObservable } from '../ui/hooks';
 import type { ApplyResult, TrialState } from './appearance-store';
 import type { Fact } from './template-facts';

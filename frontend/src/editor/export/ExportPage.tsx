@@ -18,7 +18,7 @@ import { formatTime, frameStartUs, type FrameRate } from '../model/time';
 import { fitPreviewSize } from '../preview/preview-controller';
 import type { EditorSession, EditorState } from '../session/editor-session';
 import { useProjectResources } from '../settings/project-resources';
-import { Select, Switch } from '../ui/fields';
+import { Select, Switch } from '../ui/legacy/fields';
 import { useObservable } from '../ui/hooks';
 import type { ExportState, ExportStore } from './export-store';
 import { ExportJobCard, ValidationCard } from './RenderJobCards';

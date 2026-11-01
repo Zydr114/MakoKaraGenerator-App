@@ -3,8 +3,8 @@ import { client } from '../connection';
 import { AUDIO_FILE_ACCEPT } from '../model/new-project';
 import { errorText, type EditorSession, type EditorState } from '../session/editor-session';
 import { replaceAudio } from '../session/project-media';
-import { toast } from '../ui/feedback';
-import { FileButton } from '../ui/fields';
+import { toast } from '../ui/legacy/feedback';
+import { FileButton } from '../ui/legacy/fields';
 import { useObservableSelector } from '../ui/hooks';
 
 /**

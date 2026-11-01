@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { TIMING_MODE_TEXT, autoPair, currentLinks, linkChanges, type LinkDraft } from '../model/branches';
 import { batchHistoryText } from '../model/edit-batches';
 import type { EditorSession } from '../session/editor-session';
-import { toast } from '../ui/feedback';
-import { FormDialog } from '../ui/FormDialog';
+import { toast } from '../ui/legacy/feedback';
+import { FormDialog } from '../ui/legacy/FormDialog';
 
 /**
  * 翻译关联（整体设计 §5.2）：左边是这个来源的行，右边选它关联的主歌词行。

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { formatTime } from '../model/time';
-import { CompactSelect, Switch } from '../ui/fields';
+import { CompactSelect, Switch } from '../ui/legacy/fields';
 import { useObservable } from '../ui/hooks';
 import type { AudioController } from './audio-controller';
 

@@ -41,8 +41,8 @@ import { defaultContainerBlock, SLOT_DEFAULT_NEEDS_KARAOKE, slotSequenceBlock, t
 import { formatTime } from '../model/time';
 import type { EditorSession, EditorState } from '../session/editor-session';
 import { Timeline, type TimelineBand, type TimelineTrack } from '../timeline/Timeline';
-import { toast } from '../ui/feedback';
-import { CommitField, CompactSelect, Select } from '../ui/fields';
+import { toast } from '../ui/legacy/feedback';
+import { CommitField, CompactSelect, Select } from '../ui/legacy/fields';
 import { useObservable } from '../ui/hooks';
 import { isEditing } from '../workspace/Workspace';
 import type { OrchestrationState, OrchestrationStore } from './orchestration-store';

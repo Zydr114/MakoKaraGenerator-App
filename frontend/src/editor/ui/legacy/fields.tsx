@@ -1,8 +1,9 @@
+// 过渡期（界面改版 §4）：旧的 mdui 版封装。页面逐批改用 ui/ 下的新控件，批 7 删除本目录。
 // mdui 表单组件的受控薄封装（设计 §3.2）：值经 property 写入，变化经 DOM 事件读出。
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { formatColor, parseColor, type Rgba } from '../model/settings';
-import { useDomEvent } from './hooks';
+import { formatColor, parseColor, type Rgba } from '../../model/settings';
+import { useDomEvent } from '../hooks';
 
 type Valued = HTMLElement & { value: string };
 type Validatable = Valued & { setCustomValidity(message: string): void; updateComplete: Promise<boolean> };

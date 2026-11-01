@@ -7,10 +7,10 @@ import type { EffectPackageInspectResponse, FullTemplateDefinition, ScriptConfig
 import { definitionIssues, issueWhereText, shortRevision, staticDefinition } from '../model/full-template';
 import { resolveChoice } from '../model/render-device';
 import { definitionProblem, groupAllowed, groupIncluded, groupSwatch, groupValueText, KIND_LIMIT_TEXT, propertySummary, TEMPLATE_GROUPS } from '../model/template-groups';
-import { confirmAction } from '../ui/dialogs';
-import { toast } from '../ui/feedback';
-import { FileButton, Select, Tabs, TextField } from '../ui/fields';
-import { FormDialog } from '../ui/FormDialog';
+import { confirmAction } from '../ui/legacy/dialogs';
+import { toast } from '../ui/legacy/feedback';
+import { FileButton, Select, Tabs, TextField } from '../ui/legacy/fields';
+import { FormDialog } from '../ui/legacy/FormDialog';
 import { client, renderDevice, templateTransfers } from '../connection';
 import { COMPONENT_LIBRARY_FEATURE, type ComponentLibraryStore } from './component-library-store';
 import type { AuthorDraftStore } from './author-draft-store';

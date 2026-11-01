@@ -3,7 +3,7 @@ import type { ProjectDirectoryEntry } from '../../protocol';
 import { client } from '../connection';
 import { filterEntries, pathSegments } from '../model/project-directory';
 import { directoryErrorText, projectRoot } from '../session/project-files';
-import { TextField } from '../ui/fields';
+import { TextField } from '../ui/legacy/fields';
 
 export interface DirectoryListing {
   entries: ProjectDirectoryEntry[];

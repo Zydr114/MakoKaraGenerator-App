@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { OrchestrationProgram } from '../../protocol';
 import { LAYOUT_PRESETS, layoutImpactText, layoutIsNoOp, lineRangeText, type LayoutPresetInfo, type LineRange } from '../model/orchestration';
-import { FormDialog } from '../ui/FormDialog';
+import { FormDialog } from '../ui/legacy/FormDialog';
 import type { LayoutPreviewState } from './orchestration-store';
 
 /** 卡片上的示意图（只是图标，不代表后端几何）：每个槽位一条横线，位置大致对应预设。 */

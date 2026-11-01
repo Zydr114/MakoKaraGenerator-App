@@ -22,7 +22,7 @@ import {
 } from '../model/orchestration-lead-ins';
 import { roundTo, toPercent, toSeconds, withCurrent } from '../model/orchestration-properties';
 import { formatTime } from '../model/time';
-import { NumberField, Select, Switch } from '../ui/fields';
+import { NumberField, Select, Switch } from '../ui/legacy/fields';
 import type { LineCommand, LinePresentationState, OrchestrationResult } from './orchestration-store';
 import { Row, useSelectReset } from './parts';
 

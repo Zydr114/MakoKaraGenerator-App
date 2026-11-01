@@ -2,7 +2,7 @@ import { useEffect, useRef, type CSSProperties } from 'react';
 import { TEMPLATE_WORKSHOP_SAMPLE_IDS, type TemplateLibraryId, type TemplateSummary } from '../../protocol';
 import { SLOT_LABEL } from '../model/full-template';
 import { formatTime } from '../model/time';
-import { Select, Switch } from '../ui/fields';
+import { Select, Switch } from '../ui/legacy/fields';
 import { useDomEvent, useObjectUrl, useObservable } from '../ui/hooks';
 import { SAMPLE_SIZE, thumbnailKey, type SampleFrame, type SampleSource, type TemplateThumbnails } from './template-thumbnails';
 import { SAMPLE_LABEL, targetLabel, workshopTitle, WORKSHOP_DURATION_US, type TemplateWorkshop } from './template-workshop';

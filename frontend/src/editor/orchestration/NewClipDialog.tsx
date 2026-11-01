@@ -3,8 +3,8 @@ import type { OrchestrationProgram } from '../../protocol';
 import type { EditorLine } from '../model/lyrics';
 import { clipCreateBlock, containersOf, defaultClipContainer, linesBetween, nodeName, roleText, type LineRange, type OrchestrationModel } from '../model/orchestration';
 import { formatTime } from '../model/time';
-import { FormDialog } from '../ui/FormDialog';
-import { Select, TextField } from '../ui/fields';
+import { FormDialog } from '../ui/legacy/FormDialog';
+import { Select, TextField } from '../ui/legacy/fields';
 import type { NewClip } from './orchestration-store';
 
 /** 句号输入：正整数，否则 NaN（linesBetween 判为无效）。 */

@@ -15,8 +15,8 @@ import {
 } from '../model/lyrics-export';
 import { errorText, type EditorSession } from '../session/editor-session';
 import { saveBlob } from '../ui/download';
-import { Select, Switch, TextField } from '../ui/fields';
-import { FormDialog } from '../ui/FormDialog';
+import { Select, Switch, TextField } from '../ui/legacy/fields';
+import { FormDialog } from '../ui/legacy/FormDialog';
 import { useObservable } from '../ui/hooks';
 
 export const LYRICS_EXPORT_FEATURE = 'project-sessions.lyrics-export-plans';

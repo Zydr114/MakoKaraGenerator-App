@@ -31,7 +31,7 @@ import {
   TEMPLATE_GROUPS,
   type TemplateGroup,
 } from '../model/template-groups';
-import { ColorField, CommitField, NumberField, Select, SliderField, Switch } from '../ui/fields';
+import { ColorField, CommitField, NumberField, Select, SliderField, Switch } from '../ui/legacy/fields';
 import { FallbackFonts, FontCheck, FontPicker } from './FontFields';
 import { checkTemplateName, KIND_TEXT } from './template-library-store';
 

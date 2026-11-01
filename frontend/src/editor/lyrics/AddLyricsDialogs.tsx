@@ -4,9 +4,9 @@ import { BRANCH_ROLE_TEXT } from '../model/branches';
 import { AUTO, LYRICS_FILE_ACCEPT, NEW_BRANCH_ROLES, chosen, fileStem, pastedLineCount, primaryImportBlock, type NewBranchRole } from '../model/lyrics-import';
 import { SPLIT_RULES } from '../model/split-rules';
 import { errorText, type EditorSession, type EditorState } from '../session/editor-session';
-import { toast } from '../ui/feedback';
-import { FormDialog } from '../ui/FormDialog';
-import { FilePicker, Select, Switch, TextField } from '../ui/fields';
+import { toast } from '../ui/legacy/feedback';
+import { FormDialog } from '../ui/legacy/FormDialog';
+import { FilePicker, Select, Switch, TextField } from '../ui/legacy/fields';
 import { LyricsPlanPanel, planReady, useLyricsPlan, type PlanChoices } from './LyricsPlanPanel';
 
 /** 目标选择里“新来源”的取值；其余取值是来源 ID。 */

@@ -1,3 +1,4 @@
+// 过渡期（界面改版 §4）：旧的 mdui 版封装。页面逐批改用 ui/ 下的新控件，批 7 删除本目录。
 // 成功反馈（整体设计 §4.6）：底部 snackbar 约 4 秒；错误不用会自动消失的提示。
 
 import { snackbar } from 'mdui/functions/snackbar.js';

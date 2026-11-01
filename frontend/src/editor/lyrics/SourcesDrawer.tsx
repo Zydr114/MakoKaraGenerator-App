@@ -2,9 +2,9 @@ import { useRef, useState } from 'react';
 import type { LyricBranchRole, LyricBranchSummary, LyricBranchTimingMode } from '../../protocol';
 import { BRANCH_ROLE_TEXT, TIMING_MODE_TEXT, branchDescription, roleOptions, timingModeOptions } from '../model/branches';
 import type { EditorSession, EditorState } from '../session/editor-session';
-import { confirmAction } from '../ui/dialogs';
-import { toast } from '../ui/feedback';
-import { Select, TextField } from '../ui/fields';
+import { confirmAction } from '../ui/legacy/dialogs';
+import { toast } from '../ui/legacy/feedback';
+import { Select, TextField } from '../ui/legacy/fields';
 import { useDomEvent } from '../ui/hooks';
 
 /**

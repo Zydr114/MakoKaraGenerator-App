@@ -8,8 +8,8 @@ import { CANVAS_OPTIONS, FPS_OPTIONS } from '../model/settings';
 import { SPLIT_RULES } from '../model/split-rules';
 import { EditorSession, errorText } from '../session/editor-session';
 import { createProject } from '../session/project-files';
-import { FormDialog } from '../ui/FormDialog';
-import { FilePicker, Select, Switch, TextField } from '../ui/fields';
+import { FormDialog } from '../ui/legacy/FormDialog';
+import { FilePicker, Select, Switch, TextField } from '../ui/legacy/fields';
 
 const SPLIT_OPTIONS = SPLIT_RULES.map((rule) => ({ value: rule.name, label: rule.label }));
 const PREVIEW_LINES = 3;

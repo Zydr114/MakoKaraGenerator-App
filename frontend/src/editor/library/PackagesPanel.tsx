@@ -4,8 +4,8 @@
 import { useState } from 'react';
 import type { EffectPackageInspectResponse, EffectPackageReference, FullTemplateDefinition } from '../../protocol';
 import { EXPORT_KIND_TEXT, packageKey, packageUsers, referenceKey, shortRevision, usedPackageKeys } from '../model/full-template';
-import { toast } from '../ui/feedback';
-import { FileButton } from '../ui/fields';
+import { toast } from '../ui/legacy/feedback';
+import { FileButton } from '../ui/legacy/fields';
 import { errorText } from '../session/editor-session';
 import type { TemplateDraft, TemplateLibraryStore } from './template-library-store';
 

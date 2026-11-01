@@ -17,7 +17,7 @@ import {
 } from '../model/full-template';
 import { groupAllowed, groupIncluded, TEMPLATE_GROUPS, type TemplateGroupId } from '../model/template-groups';
 import { componentMaterialProblem } from '../model/script-components';
-import { Select } from '../ui/fields';
+import { Select } from '../ui/legacy/fields';
 import { PackagesPanel } from './PackagesPanel';
 import { ParameterFields } from './ParameterFields';
 import type { TemplateDraft, TemplateLibraryStore } from './template-library-store';

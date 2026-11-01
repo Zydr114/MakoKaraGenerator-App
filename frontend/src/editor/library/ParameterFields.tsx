@@ -18,7 +18,7 @@ import {
   withParameter,
 } from '../model/effect-params';
 import { isJsonInteger, isJsonNumber, parseObjectEntries } from '../model/json-text';
-import { ColorField, CommitField, Select, SliderField, Switch } from '../ui/fields';
+import { ColorField, CommitField, Select, SliderField, Switch } from '../ui/legacy/fields';
 import { CurveField } from './CurveField';
 
 export function ParameterFields(props: {

@@ -21,7 +21,7 @@ import {
   type CurvePoint,
   type Easing,
 } from '../model/curves';
-import { NumberField, Select } from '../ui/fields';
+import { NumberField, Select } from '../ui/legacy/fields';
 
 const W = 220;
 const H = 180;

@@ -4,9 +4,9 @@ import type { EditorLine } from '../model/lyrics';
 import { SPLIT_RULES } from '../model/split-rules';
 import { SEPARATOR, currentSegments, parseSegments } from '../model/token-segments';
 import type { EditorSession } from '../session/editor-session';
-import { toast } from '../ui/feedback';
-import { FormDialog } from '../ui/FormDialog';
-import { Select, Switch, TextField } from '../ui/fields';
+import { toast } from '../ui/legacy/feedback';
+import { FormDialog } from '../ui/legacy/FormDialog';
+import { Select, Switch, TextField } from '../ui/legacy/fields';
 
 /** “按规则重切本行…”（整体设计 §5.2）：在正文里用“|”标出切分位置，下面预览切分结果。 */
 export function ResplitLineDialog(props: { session: EditorSession; line: EditorLine | undefined; open: boolean; onClose: () => void }) {

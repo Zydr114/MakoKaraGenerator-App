@@ -1,3 +1,4 @@
+// 过渡期（界面改版 §4）：旧的 mdui 版封装。页面逐批改用 ui/ 下的新控件，批 7 删除本目录。
 // 用 mdui 的函数式对话框问用户：未保存时如何关闭、确认删除、重排时间槽、填一小段文字。
 
 import { confirm } from 'mdui/functions/confirm.js';

@@ -31,9 +31,9 @@ import {
 import { formatTime, parseTime, toMicros } from '../model/time';
 import { errorText, type EditorSession, type EditorState } from '../session/editor-session';
 import { replaceAudio, uploadMedia, uploadedName } from '../session/project-media';
-import { confirmAction } from '../ui/dialogs';
-import { toast } from '../ui/feedback';
-import { ColorField, CommitField, FileButton, Select } from '../ui/fields';
+import { confirmAction } from '../ui/legacy/dialogs';
+import { toast } from '../ui/legacy/feedback';
+import { ColorField, CommitField, FileButton, Select } from '../ui/legacy/fields';
 import { useDomEvent, useObservable } from '../ui/hooks';
 import { useProjectResources, useResourceObjectUrl } from './project-resources';
 

@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import { BackendError } from '../../client';
 import type { ScriptConfigurationDetailResponse, ScriptConfigurationKind } from '../../protocol';
 import { errorText } from '../session/editor-session';
-import { FormDialog } from '../ui/FormDialog';
-import { Select } from '../ui/fields';
+import { FormDialog } from '../ui/legacy/FormDialog';
+import { Select } from '../ui/legacy/fields';
 import type { ComponentLibraryStore } from './component-library-store';
 
 interface Choice {

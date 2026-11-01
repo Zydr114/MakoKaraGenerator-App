@@ -5,8 +5,8 @@ import type { OrchestrationClip, OrchestrationProgram } from '../../protocol';
 import type { EditorLine } from '../model/lyrics';
 import { clipRangeBlock, lineRange, lineRangeText, linesBetween, type OrchestrationModel } from '../model/orchestration';
 import { defaultSplitPoint, mergeNeighbour, scheduleContextNote, splitBlock, splitPoints, splitResultText, type MergeSide } from '../model/orchestration-clip-members';
-import { FormDialog } from '../ui/FormDialog';
-import { Select } from '../ui/fields';
+import { FormDialog } from '../ui/legacy/FormDialog';
+import { Select } from '../ui/legacy/fields';
 import { ClipRangeFields, parseLineNumber, rangeInvalidText } from './NewClipDialog';
 
 /** 调整句子、拆分、合并：不可用时 block 是原因。 */

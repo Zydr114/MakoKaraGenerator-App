@@ -3,11 +3,11 @@ import { client } from '../connection';
 import { AUDIO_FILE_ACCEPT } from '../model/new-project';
 import { errorText, type EditorSession, type EditorState } from '../session/editor-session';
 import { replaceAudio } from '../session/project-media';
+import { toast } from '../ui/feedback';
 import { FileButton } from '../ui/fields';
 import { useObservableSelector } from '../ui/hooks';
 import { Icon } from '../ui/Icon';
 import { Spinner } from '../ui/indicators';
-import { toast } from '../ui/legacy/feedback';
 import './audio.css';
 
 /**

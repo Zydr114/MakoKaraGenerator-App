@@ -4,12 +4,18 @@ import { client } from '../connection';
 import { candidateDescription, sortCandidates } from '../model/recovery';
 import { EditorSession, errorText } from '../session/editor-session';
 import { recoverProject } from '../session/project-files';
-import { FormDialog } from '../ui/legacy/FormDialog';
-import { TextField } from '../ui/legacy/fields';
+import { List } from '../ui/collections';
+import { TextField } from '../ui/fields';
+import { FormDialog } from '../ui/FormDialog';
+import { Icon } from '../ui/Icon';
+import { ProgressBar } from '../ui/indicators';
+import './home.css';
+
+type Row = RecoveryCandidate & { id: string };
 
 /**
  * 从备份恢复（W5 设计 §1、§2.6）：候选按保存时间倒序，可按工程名搜索（候选不能清理，会越积越多，G27）。
- * 选一项恢复，任务进度显示在对话框里；成功后进入歌词页。恢复出的工程是否记得原位置由摘要的 hasPath 决定。
+ * 单击选中，双击或回车直接恢复；任务进度显示在对话框里，成功后进入歌词页。恢复出的工程是否记得原位置由摘要的 hasPath 决定。
  */
 export function RecoveryDialog(props: { open: boolean; onClose: () => void; onRecovered: (session: EditorSession) => void }) {
   const [candidates, setCandidates] = useState<RecoveryCandidate[] | null>(null);
@@ -36,11 +42,11 @@ export function RecoveryDialog(props: { open: boolean; onClose: () => void; onRe
     };
   }, [props.open]);
 
-  const shown = sortCandidates(candidates ?? [], query);
   const now = new Date();
+  const shown: Row[] = sortCandidates(candidates ?? [], query).map((c) => ({ ...c, id: c.recoveryId }));
 
   const submit = async (recoveryId = selected) => {
-    if (!recoveryId) return;
+    if (!recoveryId || busy !== null) return;
     setError(null);
     setBusy('正在恢复');
     try {
@@ -65,47 +71,49 @@ export function RecoveryDialog(props: { open: boolean; onClose: () => void; onRe
       onSubmit={() => void submit()}
       onClose={props.onClose}
       className="recovery-dialog"
+      footerNote={candidates && candidates.length > 0 ? `共 ${candidates.length} 份备份` : undefined}
     >
-      <div className="dialog-form">
-        {candidates === null && !loadError && <mdui-linear-progress />}
-        {loadError && <p className="dialog-error">{loadError}</p>}
-        {candidates && candidates.length === 0 && <p className="muted">没有可以恢复的备份。</p>}
-        {candidates && candidates.length > 0 && (
-          <>
-            <TextField label="按工程名搜索" value={query} onChange={setQuery} />
-            <div className="recovery-list" role="listbox" aria-label="备份">
-              {shown.map((c) => (
-                <button
-                  key={c.recoveryId}
-                  type="button"
-                  role="option"
-                  aria-selected={selected === c.recoveryId}
-                  className={`recovery-item${selected === c.recoveryId ? ' is-selected' : ''}`}
-                  disabled={busy !== null}
-                  data-recovery-id={c.recoveryId}
-                  onClick={() => setSelected(c.recoveryId)}
-                  onDoubleClick={() => {
-                    setSelected(c.recoveryId);
-                    if (busy === null) void submit(c.recoveryId);
-                  }}
-                >
+      {candidates === null && !loadError && <ProgressBar label="正在读取备份" />}
+      {loadError && <p className="errline">{loadError}</p>}
+      {candidates && candidates.length === 0 && <p className="recovery-empty">没有可以恢复的备份。</p>}
+      {candidates && candidates.length > 0 && (
+        <>
+          <TextField label="按工程名搜索" labelPlacement="none" icon="search" placeholder="按工程名搜索" value={query} onChange={setQuery} onEscape={() => setQuery('')} />
+          <List
+            label="备份"
+            items={shown}
+            textValue={(c) => c.projectName}
+            selectedKeys={selected ? [selected] : []}
+            onSelectionChange={(keys) => setSelected((([key]) => (key === undefined ? null : String(key)))([...keys]))}
+            onAction={(key) => void submit(String(key))}
+            disabledKeys={busy !== null ? shown.map((c) => c.id) : []}
+            rowClassName={() => 'recovery-item'}
+            className="recovery-list"
+            emptyText={`没有名称包含“${query.trim()}”的备份。`}
+          >
+            {(c) => (
+              <>
+                <Icon name="settings_backup_restore" className="recovery-icon" />
+                <span className="recovery-text" data-recovery-id={c.recoveryId}>
                   <span className="recovery-name">{c.projectName}</span>
                   <span className="recovery-meta">{candidateDescription(c, now)}</span>
-                </button>
-              ))}
-              {shown.length === 0 && <p className="muted">没有名称包含“{query.trim()}”的备份。</p>}
-            </div>
-            <p className="hint">共 {candidates.length} 份备份。</p>
-          </>
-        )}
-        {busy && (
-          <div className="dialog-busy">
-            <mdui-linear-progress />
-            <span>{busy}</span>
-          </div>
-        )}
-        {error && <p className="dialog-error">{error}</p>}
-      </div>
+                </span>
+              </>
+            )}
+          </List>
+        </>
+      )}
+      {busy && (
+        <div className="busyline">
+          <ProgressBar label={busy} />
+          <span>{busy}</span>
+        </div>
+      )}
+      {error && (
+        <p className="errline" role="alert">
+          {error}
+        </p>
+      )}
     </FormDialog>
   );
 }

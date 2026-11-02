@@ -1,13 +1,25 @@
 import { useEffect, useState } from 'react';
 import { ObservableValue } from '../../client';
 import { client } from '../connection';
-import { saveTarget, saveTargetText } from '../model/project-directory';
+import { saveTarget, saveTargetText, type SaveTarget } from '../model/project-directory';
 import { errorText } from '../session/editor-session';
-import { confirmAction } from '../ui/legacy/dialogs';
-import { FormDialog } from '../ui/legacy/FormDialog';
-import { TextField } from '../ui/legacy/fields';
+import { cls } from '../ui/cls';
+import { confirmAction } from '../ui/dialogs';
+import { TextField } from '../ui/fields';
+import { FormDialog } from '../ui/FormDialog';
 import { useObservable } from '../ui/hooks';
+import { Icon, type IconName } from '../ui/Icon';
+import { ProgressBar } from '../ui/indicators';
 import { DirectoryBrowser, useDirectoryListing } from './DirectoryBrowser';
+import './home.css';
+
+const TARGET_ICON: Record<SaveTarget['kind'], IconName> = {
+  invalid: 'error',
+  new: 'add',
+  directory: 'folder',
+  project: 'warning',
+  current: 'check_circle',
+};
 
 export interface SaveLocationRequest {
   headline: string;
@@ -74,7 +86,7 @@ function SaveLocationDialog(props: { request: SaveLocationRequest | null; onDone
     if (!request || blocked || busy) return;
     if (
       target.kind === 'project' &&
-      !(await confirmAction({ headline: '覆盖已有工程？', description: `“${target.path}”里的工程会被当前工程替换，原来的内容不能找回。`, confirmText: '覆盖' }))
+      !(await confirmAction({ headline: '覆盖已有工程？', description: `“${target.path}”里的工程会被当前工程替换，原来的内容不能找回。`, confirmText: '覆盖', danger: true }))
     )
       return;
     setError(null);
@@ -101,20 +113,31 @@ function SaveLocationDialog(props: { request: SaveLocationRequest | null; onDone
       onClose={() => props.onDone(false)}
       className="save-location-dialog"
     >
-      <div className="dialog-form">
-        <DirectoryBrowser path={parent} listing={listing} onNavigate={setParent} disabled={busy !== null} onProject={(entry) => setName(entry.name)} highlight={name.trim()} />
-        <TextField label="目录名" value={name} disabled={busy !== null} onChange={setName} onEnter={() => void submit()} />
-        <p className={`save-target save-target-${target.kind}`} data-kind={target.kind} aria-live="polite">
-          {saveTargetText(target)}
+      <DirectoryBrowser
+        path={parent}
+        listing={listing}
+        onNavigate={setParent}
+        disabled={busy !== null}
+        onProject={(entry) => setName(entry.name)}
+        highlight={name.trim()}
+        className="save-browser"
+      />
+      <TextField label="目录名" value={name} disabled={busy !== null} onChange={setName} onEnter={() => void submit()} />
+      <p className={cls('save-target', `save-target-${target.kind}`)} data-kind={target.kind} aria-live="polite">
+        <Icon name={TARGET_ICON[target.kind]} />
+        <span>{saveTargetText(target)}</span>
+      </p>
+      {busy && (
+        <div className="busyline">
+          <ProgressBar label={busy} />
+          <span>{busy}</span>
+        </div>
+      )}
+      {error && (
+        <p className="errline" role="alert">
+          {error}
         </p>
-        {busy && (
-          <div className="dialog-busy">
-            <mdui-linear-progress />
-            <span>{busy}</span>
-          </div>
-        )}
-        {error && <p className="dialog-error">{error}</p>}
-      </div>
+      )}
     </FormDialog>
   );
 }

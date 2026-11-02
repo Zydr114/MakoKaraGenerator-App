@@ -7,8 +7,17 @@
   flex-direction: column;
   min-height: 0;
 }
+.preview-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .preview-title .pane-title-text {
   font-variant-numeric: tabular-nums;
+}
+/* 桌面版 GPU 连续预览的规格（720p24、1440p30），靠右 */
+.preview-title .preview-quality {
+  margin-left: auto;
 }
 .preview-stage {
   flex: 1;

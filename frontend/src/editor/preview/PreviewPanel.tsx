@@ -3,10 +3,11 @@ import { ObservableValue } from '../../client';
 import type { Revision } from '../../protocol';
 import type { AudioController } from '../audio/audio-controller';
 import { client, renderDevice } from '../connection';
-import { RENDER_BACKEND_LABEL, resolveChoice } from '../model/render-device';
+import { RENDER_BACKEND_LABEL, resolveChoice, usesGpuStream } from '../model/render-device';
 import { formatTime } from '../model/time';
 import type { EditorSession } from '../session/editor-session';
 import { Button } from '../ui/Button';
+import { Select } from '../ui/fields';
 import { useObservable } from '../ui/hooks';
 import { fitPreviewSize, PreviewController, type PreviewViewState } from './preview-controller';
 import { GpuPreviewController, type GpuPreviewViewState } from './gpu-preview-controller';
@@ -42,13 +43,13 @@ export interface PreviewReplacement {
  * 编辑后自动换输入。失败时保留上一帧，标题写明它是哪个设备、哪个修订、哪个时刻的画面。
  * 渲染设备偏好变了就给已开的会话换设备（渲染设备设计 §2.3）。
  * overlay 画在画面上面（编排页的叠加层，W4 设计 §13.6），拿到正在显示的帧；replacement 换掉成片帧。
+ * 桌面版按 usesGpuStream 换成 GPU 共享纹理的连续预览；浏览器里始终是静态预览。
  */
 export function PreviewPanel(props: Parameters<typeof StaticPreviewPanel>[0]) {
-  const device=useObservable(renderDevice.state$);
+  const device = useObservable(renderDevice.state$);
   useObservable(props.session.state$);
-  const choice=resolveChoice(device.preference,device.backends);
-  return window.makoDesktopPreview && choice.target==='gpu'
-    ? <GpuPreviewPanel {...props} /> : <StaticPreviewPanel {...props} />;
+  const gpu = !!window.makoDesktopPreview && usesGpuStream(device.preference, device.backends, props.session.supports('preview.gpu-streams'));
+  return gpu ? <GpuPreviewPanel {...props} /> : <StaticPreviewPanel {...props} />;
 }
 
 function StaticPreviewPanel(props: {
@@ -161,6 +162,7 @@ function StaticPreviewPanel(props: {
 
 const IDLE = new ObservableValue<PreviewViewState>({ status: 'idle' });
 const GPU_IDLE = new ObservableValue<GpuPreviewViewState>({ status:'idle' });
+const GPU_QUALITIES = [{ value:'720p24', label:'720p · 24 fps' }, { value:'1440p30', label:'1440p · 30 fps' }] as const;
 
 function GpuPreviewPanel(props: Parameters<typeof StaticPreviewPanel>[0]) {
   const state=useObservable(props.session.state$);
@@ -222,7 +224,11 @@ function GpuPreviewPanel(props: Parameters<typeof StaticPreviewPanel>[0]) {
   const replacement=props.replacement;
   if(replacement)return <div className="preview-panel"><div className="preview-title"><span className="pane-title-text">{replacement.title}</span></div><PreviewStage size={size}>{replacement.imageUrl?<img src={replacement.imageUrl} alt={replacement.title}/>:<span className="preview-overlay">{replacement.placeholder}</span>}{props.overlay?.(undefined)}</PreviewStage><p className="hint">{replacement.hint}</p></div>;
   return <div className="preview-panel">
-    <div className="preview-title"><span className="pane-title-text">{shown?`成片 · GPU · 修订 ${shown.revision} · ${formatTime(shown.timeUs)}`:'成片 · GPU'}</span><select aria-label="GPU 预览规格" value={quality} onChange={event=>setQuality(event.target.value as typeof quality)}><option value="720p24">720p · 24 fps</option><option value="1440p30">1440p · 30 fps</option></select><span className="muted">{view.status==='rendering'?'准备中':''}</span></div>
+    <div className="preview-title">
+      <span className="pane-title-text">{shown?`成片 · GPU · 修订 ${shown.revision} · ${formatTime(shown.timeUs)}`:'成片 · GPU'}</span>
+      <span className="muted">{view.status==='rendering'?'准备中':''}</span>
+      <Select label="GPU 预览规格" labelPlacement="none" size="sm" className="preview-quality" value={quality} options={GPU_QUALITIES} onChange={setQuality}/>
+    </div>
     <PreviewStage size={size}>
       <canvas id="mako-gpu-preview" width={size.width} height={size.height} style={{width:'100%',height:'100%',objectFit:'contain'}} aria-label="GPU 成片预览"/>
       {!available&&<span className="preview-overlay notice-error">当前后端没有开放桌面 GPU 连续预览。</span>}

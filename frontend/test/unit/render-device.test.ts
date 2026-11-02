@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { BackendError, type MakoClient } from '../../src/client';
 import type { RenderBackendsResponse } from '../../src/protocol';
-import { availabilityOf, availabilityText, recordedBackendText, renderBackendField } from '../../src/editor/model/render-device';
+import { availabilityOf, availabilityText, recordedBackendText, renderBackendField, usesGpuStream } from '../../src/editor/model/render-device';
 import { RENDER_DEVICE_STORAGE_KEY, renderBackendErrorText, RenderDeviceStore } from '../../src/editor/preview/render-device';
 
 const UNAVAILABLE = { code: 'taskUnavailable', message: 'GPU device unavailable', field: 'renderBackend', failureCode: 'RenderBackendUnavailable', protocolVersion: '1' as const };
@@ -83,6 +83,15 @@ describe('渲染设备偏好', () => {
     store.forget();
     expect(store.state.backends).toBeUndefined();
     expect(store.state.checking).toBe(false);
+  });
+
+  it('桌面版：明确选 CPU 或后端没开放连续预览时不走共享纹理；选 GPU 时走；跟随默认时 GPU 可用才走', () => {
+    expect(usesGpuStream('cpu', backends(true, 'gpu'), true)).toBe(false);
+    expect(usesGpuStream('gpu', backends(true), false)).toBe(false);
+    expect(usesGpuStream('gpu', undefined, true)).toBe(true);
+    expect(usesGpuStream('default', backends(true), true)).toBe(true);
+    expect(usesGpuStream('default', backends(false), true)).toBe(false);
+    expect(usesGpuStream('default', undefined, true)).toBe(false);
   });
 });
 

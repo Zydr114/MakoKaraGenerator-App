@@ -31,6 +31,15 @@ export function resolveChoice(preference: RenderDevicePreference, backends: Rend
   return { request: undefined, target: backends?.defaultBackend };
 }
 
+/**
+ * 桌面版的成片预览走不走 GPU 共享纹理（2026-11-03 用户决定）：后端没开放连续预览、明确选 CPU 时不走；
+ * 选 GPU 时走；跟随后端默认时检测到 GPU 可用就走。浏览器里没有桌面接口，始终是静态预览。
+ */
+export function usesGpuStream(preference: RenderDevicePreference, backends: RenderBackendsResponse | undefined, streamsSupported: boolean): boolean {
+  if (!streamsSupported || preference === 'cpu') return false;
+  return preference === 'gpu' || availabilityOf(backends, 'gpu')?.available === true;
+}
+
 export const RENDER_BACKEND_LABEL: Record<RenderBackend, string> = { cpu: 'CPU', gpu: 'GPU' };
 
 export function availabilityOf(backends: RenderBackendsResponse | undefined, backend: RenderBackend): RenderBackendAvailability | undefined {

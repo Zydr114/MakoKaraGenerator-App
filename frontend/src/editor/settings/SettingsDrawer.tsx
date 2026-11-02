@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { AnalysisCapabilities, AnalysisProgress, ProjectCommand, ProjectResource, ProjectSettings } from '../../protocol';
 import { client } from '../connection';
 import {
@@ -31,28 +31,52 @@ import {
 import { formatTime, parseTime, toMicros } from '../model/time';
 import { errorText, type EditorSession, type EditorState } from '../session/editor-session';
 import { replaceAudio, uploadMedia, uploadedName } from '../session/project-media';
-import { confirmAction } from '../ui/legacy/dialogs';
-import { toast } from '../ui/legacy/feedback';
-import { ColorField, CommitField, FileButton, Select } from '../ui/legacy/fields';
-import { useDomEvent, useObservable } from '../ui/hooks';
+import { Button } from '../ui/Button';
+import { Sheet } from '../ui/Dialog';
+import { confirmAction } from '../ui/dialogs';
+import { toast } from '../ui/feedback';
+import { ColorField, CommitField, FileButton, Select } from '../ui/fields';
+import { useObservable } from '../ui/hooks';
+import { Icon } from '../ui/Icon';
+import { ProgressBar } from '../ui/indicators';
 import { useProjectResources, useResourceObjectUrl } from './project-resources';
+import './settings.css';
 
 /**
- * 工程设置（整体设计 §5.6、W5 设计 §2.5）：右侧面板，分工程、画布、背景、音频、输出时长五组。
+ * 工程设置（整体设计 §5.6、W5 设计 §2.5，稿件 #project-settings）：右侧面板，分工程、画布、背景、音频、输出时长五组。
  * 每次修改立即发送，一条历史，可以撤销；值以后端为准，刷新后显示。媒体的大小和状态取自资源清单（面板打开时按修订读）。
  */
 export function SettingsDrawer(props: { session: EditorSession; open: boolean; focus?: SettingsGroup | undefined; onClose: () => void }) {
   const { session } = props;
   const state = useObservable(session.state$);
-  const ref = useRef<HTMLElement>(null);
-  useDomEvent(ref, 'close', (event) => event.target === ref.current && props.onClose());
   const settings = state.settings;
   const { resources } = useProjectResources(session, props.open);
 
-  // 从导出页的修复入口打开时，滚到那一组并短暂高亮。
+  return (
+    <Sheet open={props.open} onClose={props.onClose} title="工程设置" closeLabel="关闭工程设置" className="project-settings">
+      <FocusGroup focus={props.open ? props.focus : undefined} />
+      <p className="settings-intro">{state.summary.isReadOnly ? '工程以只读方式打开，不能修改设置。' : '每次修改立即生效，记一条历史，可以撤销。'}</p>
+      {settings ? (
+        <>
+          <ProjectGroup session={session} name={state.summary.name} readOnly={state.summary.isReadOnly} />
+          <CanvasGroup session={session} settings={settings} readOnly={state.summary.isReadOnly} />
+          <BackgroundGroup session={session} settings={settings} readOnly={state.summary.isReadOnly} resources={resources} />
+          <AudioGroup session={session} state={state} settings={settings} open={props.open} resources={resources} />
+          <DurationGroup session={session} settings={settings} readOnly={state.summary.isReadOnly} />
+        </>
+      ) : (
+        <p className="settings-intro">后端没有提供工程设置的读取。</p>
+      )}
+    </Sheet>
+  );
+}
+
+/** 从导出页的修复入口打开时，滚到那一组并短暂高亮。放在面板内容里，面板打开、内容挂上之后才找得到那一组。 */
+function FocusGroup(props: { focus: SettingsGroup | undefined }) {
+  const ref = useRef<HTMLSpanElement>(null);
   useEffect(() => {
-    if (!props.open || !props.focus) return;
-    const group = ref.current?.querySelector<HTMLElement>(`[data-group="${props.focus}"]`);
+    if (!props.focus) return;
+    const group = ref.current?.parentElement?.querySelector<HTMLElement>(`[data-group="${props.focus}"]`);
     if (!group) return;
     group.scrollIntoView({ block: 'start', behavior: 'smooth' });
     group.classList.add('settings-group-focus');
@@ -61,32 +85,36 @@ export function SettingsDrawer(props: { session: EditorSession; open: boolean; f
       window.clearTimeout(timer);
       group.classList.remove('settings-group-focus');
     };
-  }, [props.open, props.focus]);
+  }, [props.focus]);
+  return <span ref={ref} hidden />;
+}
 
+/** 一组设置：主色小标题，aria-label 和 data-group 供导出页的修复入口与冒烟脚本定位。 */
+function Group(props: { title: string; id: SettingsGroup; children: ReactNode }) {
   return (
-    <mdui-navigation-drawer ref={ref} open={props.open} modal close-on-esc close-on-overlay-click placement="right" className="settings-drawer">
-      <div className="drawer-content">
-        <header className="drawer-header">
-          <span className="drawer-title">工程设置</span>
-          <span className="spacer" />
-          <mdui-button-icon aria-label="关闭工程设置" onClick={props.onClose}>
-            <mdui-icon-close />
-          </mdui-button-icon>
-        </header>
-        {state.summary.isReadOnly && <p className="hint">工程以只读方式打开，不能修改设置。</p>}
-        {settings ? (
-          <>
-            <ProjectGroup session={session} name={state.summary.name} readOnly={state.summary.isReadOnly} />
-            <CanvasGroup session={session} settings={settings} readOnly={state.summary.isReadOnly} />
-            <BackgroundGroup session={session} settings={settings} readOnly={state.summary.isReadOnly} resources={resources} />
-            <AudioGroup session={session} state={state} settings={settings} open={props.open} resources={resources} />
-            <DurationGroup session={session} settings={settings} readOnly={state.summary.isReadOnly} />
-          </>
-        ) : (
-          <p className="muted">后端没有提供工程设置的读取。</p>
-        )}
-      </div>
-    </mdui-navigation-drawer>
+    <section className="sset settings-group" aria-label={props.title} data-group={props.id}>
+      <h4>{props.title}</h4>
+      {props.children}
+    </section>
+  );
+}
+
+/** 进行中和失败的说明。 */
+function Status(props: { busy?: string | null | undefined; error?: string | undefined }) {
+  return (
+    <>
+      {props.busy && (
+        <div className="busyline">
+          <ProgressBar label={props.busy} />
+          <span>{props.busy}</span>
+        </div>
+      )}
+      {props.error && (
+        <p className="errline" role="alert">
+          {props.error}
+        </p>
+      )}
+    </>
   );
 }
 
@@ -106,18 +134,16 @@ async function send(session: EditorSession, command: ProjectCommand, message: st
 function ProjectGroup({ session, name, readOnly }: { session: EditorSession; name: string; readOnly: boolean }) {
   const can = !readOnly && session.supportsCommand('project.rename');
   return (
-    <section className="settings-group" aria-label="工程" data-group="project">
-      <div className="section-title">工程</div>
+    <Group title="工程" id="project">
       <CommitField
         label="名称"
         value={name}
         disabled={!can}
-        helper="只改显示名称，不移动保存目录"
         validate={checkProjectName}
         onCommit={(v) => void send(session, { type: 'project.rename', name: v }, `工程名已改为“${v.trim()}”`)}
-        className="drawer-field"
       />
-    </section>
+      <p>只改显示名称，不移动保存目录。</p>
+    </Group>
   );
 }
 
@@ -163,25 +189,44 @@ function CanvasGroup({ session, settings, readOnly }: GroupProps) {
     void send(session, { type: 'composition.setFrameRate', numerator, denominator }, `帧率已改为 ${formatFrameRate({ numerator, denominator })}`);
 
   return (
-    <section className="settings-group" aria-label="画布" data-group="canvas">
-      <div className="section-title">画布</div>
-      <Select
-        label="尺寸"
-        value={customSize || !sizePreset ? CUSTOM : size}
-        options={[...CANVAS_OPTIONS, { value: CUSTOM, label: sizePreset ? '自定义…' : `自定义（${settings.canvasWidth} × ${settings.canvasHeight}）` }]}
-        disabled={!canSize}
-        onChange={(value) => {
-          setCustomSize(value === CUSTOM);
-          if (value === CUSTOM) return;
-          const [width, height] = value.split('x').map(Number) as [number, number];
-          setSize(width, height);
-        }}
-        className="drawer-field"
-      />
+    <Group title="画布" id="canvas">
+      <div className="g2">
+        <Select
+          label="尺寸"
+          value={customSize || !sizePreset ? CUSTOM : size}
+          options={[...CANVAS_OPTIONS, { value: CUSTOM, label: sizePreset ? '自定义…' : `自定义（${settings.canvasWidth} × ${settings.canvasHeight}）` }]}
+          disabled={!canSize}
+          onChange={(value) => {
+            setCustomSize(value === CUSTOM);
+            if (value === CUSTOM) return;
+            const [width, height] = value.split('x').map(Number) as [number, number];
+            setSize(width, height);
+          }}
+        />
+        <Select
+          label="帧率"
+          value={customRate || !ratePreset ? CUSTOM : rate}
+          options={[
+            ...FPS_OPTIONS,
+            {
+              value: CUSTOM,
+              label: ratePreset ? '自定义…' : `自定义（${formatFrameRate({ numerator: settings.frameRateNumerator, denominator: settings.frameRateDenominator })}）`,
+            },
+          ]}
+          disabled={!canRate}
+          onChange={(value) => {
+            setCustomRate(value === CUSTOM);
+            if (value === CUSTOM) return;
+            const [numerator, denominator] = value.split('/').map(Number) as [number, number];
+            setRate(numerator, denominator);
+          }}
+        />
+      </div>
       {(customSize || !sizePreset) && (
-        <div className="dialog-grid">
+        <div className="g2">
           <CommitField
             label="宽"
+            suffix="px"
             value={String(settings.canvasWidth)}
             disabled={!canSize}
             validate={(v) => (parseDimension(v).ok ? undefined : '请填正整数')}
@@ -189,6 +234,7 @@ function CanvasGroup({ session, settings, readOnly }: GroupProps) {
           />
           <CommitField
             label="高"
+            suffix="px"
             value={String(settings.canvasHeight)}
             disabled={!canSize}
             validate={(v) => (parseDimension(v).ok ? undefined : '请填正整数')}
@@ -196,25 +242,6 @@ function CanvasGroup({ session, settings, readOnly }: GroupProps) {
           />
         </div>
       )}
-      <Select
-        label="帧率"
-        value={customRate || !ratePreset ? CUSTOM : rate}
-        options={[
-          ...FPS_OPTIONS,
-          {
-            value: CUSTOM,
-            label: ratePreset ? '自定义…' : `自定义（${formatFrameRate({ numerator: settings.frameRateNumerator, denominator: settings.frameRateDenominator })}）`,
-          },
-        ]}
-        disabled={!canRate}
-        onChange={(value) => {
-          setCustomRate(value === CUSTOM);
-          if (value === CUSTOM) return;
-          const [numerator, denominator] = value.split('/').map(Number) as [number, number];
-          setRate(numerator, denominator);
-        }}
-        className="drawer-field"
-      />
       {(customRate || !ratePreset) && (
         <CommitField
           label="自定义帧率"
@@ -229,11 +256,10 @@ function CanvasGroup({ session, settings, readOnly }: GroupProps) {
             const parsed = parseFrameRate(v);
             if (parsed.ok) setRate(parsed.value.numerator, parsed.value.denominator);
           }}
-          className="drawer-field"
         />
       )}
-      <p className="hint">已打的时间不会移动；吸附和逐帧微调按新的帧率计算。</p>
-    </section>
+      <p>已打的时间不会移动；吸附和逐帧微调按新的帧率计算。</p>
+    </Group>
   );
 }
 
@@ -274,27 +300,36 @@ function BackgroundGroup({ session, settings, readOnly, resources }: GroupProps 
 
   const name = uploadedName(resource?.assetId);
   const size = formatBytes(resource?.sizeBytes);
+  const colorField = <ColorField label="底色" value={color} onCommit={setColor} disabled={!canSet} />;
   return (
-    <section className="settings-group" aria-label="背景" data-group="background">
-      <div className="section-title">背景</div>
-      <ColorField label="底色" value={color} onCommit={setColor} disabled={!canSet} />
+    <Group title="背景" id="background">
       {media ? (
         <>
           <div className="background-media">
-            {media.kind === 'image' ? (
-              thumbnail ? <img className="background-thumb" src={thumbnail} alt="背景图片缩略图" /> : <div className="background-thumb placeholder"><mdui-icon-image /></div>
+            {media.kind === 'image' && thumbnail ? (
+              <img className="background-thumb" src={thumbnail} alt="背景图片缩略图" />
             ) : (
-              <div className="background-thumb placeholder"><mdui-icon-movie /></div>
+              <div className="background-thumb placeholder">
+                <Icon name={media.kind === 'image' ? 'image' : 'movie'} />
+              </div>
             )}
             <div className="background-info">
-              <span className="background-name">{name ?? BACKGROUND_KIND_TEXT[media.kind]}</span>
-              <span className="hint">
-                {[name ? BACKGROUND_KIND_TEXT[media.kind] : undefined, size, resource ? resourceStatusText(resource) : resources ? '资源清单里没有' : undefined].filter(Boolean).join(' · ')}
+              <b className="background-name">{name ?? BACKGROUND_KIND_TEXT[media.kind]}</b>
+              <span className="background-facts">
+                {[name ? BACKGROUND_KIND_TEXT[media.kind] : undefined, size, resource ? resourceStatusText(resource) : resources ? '资源清单里没有' : undefined]
+                  .filter(Boolean)
+                  .join('，')}
               </span>
+              <div className="btnrow">
+                <FileButton label="替换…" size="sm" variant="outlined" icon="swap_horiz" accept={BACKGROUND_FILE_ACCEPT} disabled={!canMedia || !!action.busy} onPick={choose} />
+                <Button variant="ghost" size="sm" icon="delete" isDisabled={readOnly || !session.supportsCommand('composition.clearBackground') || !!action.busy} onPress={remove}>
+                  移除
+                </Button>
+              </div>
             </div>
           </div>
-          {resource && !resourceUsable(resource) && <p className="dialog-error">背景媒体{resourceStatusText(resource)}，预览和导出用不了它。可以替换或移除。</p>}
-          <div className="dialog-grid">
+          {resource && !resourceUsable(resource) && <p className="errline">背景媒体{resourceStatusText(resource)}，预览和导出用不了它。可以替换或移除。</p>}
+          <div className="g2">
             <Select
               label="适配方式"
               value={media.fit}
@@ -302,7 +337,7 @@ function BackgroundGroup({ session, settings, readOnly, resources }: GroupProps 
               disabled={readOnly || !session.supportsCommand('composition.setBackgroundFit') || !!action.busy}
               onChange={(fit) => void send(session, { type: 'composition.setBackgroundFit', fit }, `适配方式已改为${FIT_OPTIONS.find((o) => o.value === fit)!.label}`)}
             />
-            {media.kind === 'video' && (
+            {media.kind === 'video' ? (
               <Select
                 label="播放"
                 value={media.playback}
@@ -310,29 +345,23 @@ function BackgroundGroup({ session, settings, readOnly, resources }: GroupProps 
                 disabled={readOnly || !session.supportsCommand('composition.setBackgroundPlayback') || !!action.busy}
                 onChange={(playback) => void send(session, { type: 'composition.setBackgroundPlayback', playback }, `视频播完后${PLAYBACK_OPTIONS.find((o) => o.value === playback)!.label}`)}
               />
+            ) : (
+              colorField
             )}
           </div>
-          <div className="form-actions">
-            <FileButton label="替换…" accept={BACKGROUND_FILE_ACCEPT} disabled={!canMedia || !!action.busy} onPick={choose} />
-            <mdui-button variant="text" disabled={readOnly || !session.supportsCommand('composition.clearBackground') || !!action.busy} onClick={remove}>
-              移除
-            </mdui-button>
-          </div>
-          <p className="hint">底色在媒体透明处或留白处可见。</p>
+          {media.kind === 'video' && colorField}
+          <p>底色在媒体透明处或留白处可见。</p>
         </>
       ) : (
-        <div className="form-actions">
-          <FileButton label="选择图片或视频…" accept={BACKGROUND_FILE_ACCEPT} disabled={!canMedia || !!action.busy} onPick={choose} />
-        </div>
+        <>
+          {colorField}
+          <div className="btnrow">
+            <FileButton label="选择图片或视频…" size="sm" icon="image" accept={BACKGROUND_FILE_ACCEPT} disabled={!canMedia || !!action.busy} onPick={choose} />
+          </div>
+        </>
       )}
-      {action.busy && (
-        <div className="dialog-busy">
-          <mdui-linear-progress />
-          <span>{action.busy}</span>
-        </div>
-      )}
-      {action.error && <p className="dialog-error">{action.error}</p>}
-    </section>
+      <Status busy={action.busy} error={action.error} />
+    </Group>
   );
 }
 
@@ -407,9 +436,8 @@ function AudioGroup(props: { session: EditorSession; state: EditorState; setting
   };
 
   return (
-    <section className="settings-group" aria-label="音频" data-group="audio">
-      <div className="section-title">音频</div>
-      <dl className="settings-facts">
+    <Group title="音频" id="audio">
+      <dl className="dl settings-facts">
         <div>
           <dt>文件</dt>
           <dd className="audio-file">{hasAudio ? (fileName ?? '（重开后不显示文件名）') : '没有音频'}</dd>
@@ -421,57 +449,64 @@ function AudioGroup(props: { session: EditorSession; state: EditorState; setting
         {hasAudio && resource && (
           <div>
             <dt>状态</dt>
-            <dd className="audio-status">{[audioStatusText(resource), formatBytes(resource.sizeBytes)].filter(Boolean).join(' · ')}</dd>
+            <dd className="audio-status">{[audioStatusText(resource), formatBytes(resource.sizeBytes)].filter(Boolean).join('，')}</dd>
           </div>
         )}
         <div>
-          <dt>音频分析</dt>
+          <dt>分析</dt>
           <dd className="analysis-status">
-            {adopted
-              ? `已采用 · ${analysis.pointCount ?? 0} 个分析点，覆盖 ${analysis.durationUs ? formatTime(Number(analysis.durationUs)) : '整首'}`
-              : '未分析'}
+            {adopted ? `已采用，${analysis.pointCount ?? 0} 个分析点，覆盖 ${analysis.durationUs ? formatTime(Number(analysis.durationUs)) : '整首'}` : '未分析'}
           </dd>
         </div>
       </dl>
-      <div className="form-actions">
-        <FileButton label={hasAudio ? '替换音频…' : '选择音频…'} accept={AUDIO_FILE_ACCEPT} disabled={!canReplace || !!media.busy || !!running} onPick={replace} />
+      <div className="btnrow">
+        <FileButton
+          label={hasAudio ? '替换音频…' : '选择音频…'}
+          size="sm"
+          variant="outlined"
+          icon="music_note"
+          accept={AUDIO_FILE_ACCEPT}
+          disabled={!canReplace || !!media.busy || !!running}
+          onPick={replace}
+        />
         {hasAudio && (
-          <mdui-button variant="text" disabled={readOnly || !session.supportsCommand('audio.clear') || !!media.busy || !!running} onClick={() => void removeAudio()}>
+          <Button
+            variant="ghost"
+            size="sm"
+            icon="delete"
+            isDisabled={readOnly || !session.supportsCommand('audio.clear') || !!media.busy || !!running}
+            onPress={() => void removeAudio()}
+          >
             移除音频
-          </mdui-button>
+          </Button>
         )}
       </div>
-      {media.busy && (
-        <div className="dialog-busy">
-          <mdui-linear-progress />
-          <span>{media.busy}</span>
-        </div>
-      )}
-      {media.error && <p className="dialog-error">{media.error}</p>}
-      <div className="form-actions">
-        <mdui-button variant="tonal" loading={!!running} disabled={!canAnalyze || !hasAudio || !!running || !!media.busy} onClick={() => void analyze()}>
+      <Status busy={media.busy} error={media.error} />
+      <div className="btnrow">
+        <Button variant="tonal" size="sm" icon="graphic_eq" isPending={!!running} isDisabled={!canAnalyze || !hasAudio || !!running || !!media.busy} onPress={() => void analyze()}>
           {adopted ? '重新分析并采用' : '分析并采用'}
-        </mdui-button>
-        <mdui-button variant="text" disabled={readOnly || !adopted || !!running || !session.supportsCommand('audio.analysis.clear')} onClick={clear}>
+        </Button>
+        <Button variant="ghost" size="sm" isDisabled={readOnly || !adopted || !!running || !session.supportsCommand('audio.analysis.clear')} onPress={clear}>
           清除
-        </mdui-button>
+        </Button>
       </div>
       {progress && (
-        <div className="analysis-progress">
-          {progress.fraction === undefined ? <mdui-linear-progress /> : <mdui-linear-progress value={progress.fraction} />}
-          <span className="hint">{progress.text}</span>
+        <div className="busyline">
+          <ProgressBar label={progress.text} value={progress.fraction === undefined ? undefined : progress.fraction * 100} />
+          <span>{progress.text}</span>
         </div>
       )}
-      {reason && <p className="hint">{reason}</p>}
-      {error && <p className="dialog-error">{error}</p>}
-      <p className="hint">分析音乐的低音和节拍，供编排里的音频驱动效果使用。分析时可以继续编辑；采用和清除都可以撤销。</p>
-    </section>
+      {reason && <p>{reason}</p>}
+      <Status error={error} />
+      <p>分析音乐的低音和节拍，供编排里的音频驱动效果使用。分析时可以继续编辑；采用和清除都可以撤销。</p>
+    </Group>
   );
 }
 
 function DurationGroup({ session, settings, readOnly }: GroupProps) {
   const durationUs = settings.outputDurationUs !== undefined ? Number(settings.outputDurationUs) : undefined;
   const can = (type: ProjectCommand['type']) => !readOnly && session.supportsCommand(type);
+  const frames = durationUs === undefined ? undefined : Math.round((durationUs * settings.frameRateNumerator) / settings.frameRateDenominator / 1_000_000);
 
   const applyLyricsEnd = async () => {
     const response = await session.command({ type: 'composition.useLyricsEnd' });
@@ -480,30 +515,32 @@ function DurationGroup({ session, settings, readOnly }: GroupProps) {
   };
 
   return (
-    <section className="settings-group" aria-label="输出时长" data-group="duration">
-      <div className="section-title">输出时长</div>
-      <div className={durationUs === undefined ? 'duration-value undetermined' : 'duration-value'}>
-        {durationUs === undefined ? '未确定' : formatTime(durationUs)}
+    <Group title="输出时长" id="duration">
+      <div className="duration-line">
+        <b className={durationUs === undefined ? 'duration-value undetermined' : 'duration-value'}>{durationUs === undefined ? '未确定' : formatTime(durationUs)}</b>
+        {frames !== undefined && <span className="duration-frames">{frames.toLocaleString('zh-CN')} 帧</span>}
       </div>
-      {durationUs === undefined && <p className="hint">导出前必须确定输出时长。</p>}
-      <div className="form-actions">
-        <mdui-button
+      {durationUs === undefined && <p className="duration-warn">导出前必须确定输出时长。</p>}
+      <div className="btnrow">
+        <Button
           variant="tonal"
-          disabled={!can('composition.useAudioDuration')}
-          onClick={() => void send(session, { type: 'composition.useAudioDuration' }, '输出时长已改为音频时长')}
+          size="sm"
+          isDisabled={!can('composition.useAudioDuration')}
+          onPress={() => void send(session, { type: 'composition.useAudioDuration' }, '输出时长已改为音频时长')}
         >
           按音频时长
-        </mdui-button>
-        <mdui-button variant="tonal" disabled={!can('composition.useLyricsEnd')} onClick={() => void applyLyricsEnd()}>
+        </Button>
+        <Button variant="tonal" size="sm" isDisabled={!can('composition.useLyricsEnd')} onPress={() => void applyLyricsEnd()}>
           按歌词末尾
-        </mdui-button>
-        <mdui-button
-          variant="text"
-          disabled={durationUs === undefined || !can('composition.setOutputDuration')}
-          onClick={() => void send(session, { type: 'composition.setOutputDuration', durationUs: null }, '输出时长已设为未确定')}
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          isDisabled={durationUs === undefined || !can('composition.setOutputDuration')}
+          onPress={() => void send(session, { type: 'composition.setOutputDuration', durationUs: null }, '输出时长已设为未确定')}
         >
           设为未确定
-        </mdui-button>
+        </Button>
       </div>
       <CommitField
         label="自定义时长"
@@ -519,9 +556,8 @@ function DurationGroup({ session, settings, readOnly }: GroupProps) {
           const us = parseTime(v);
           if (us !== null && us > 0) void send(session, { type: 'composition.setOutputDuration', durationUs: toMicros(us) }, `输出时长已改为 ${formatTime(us)}`);
         }}
-        className="drawer-field"
       />
-      <p className="hint">“按音频时长”“按歌词末尾”只取一次当时的值，之后改音频或歌词不会自动跟着变。</p>
-    </section>
+      <p>“按音频时长”“按歌词末尾”只取一次当时的值，之后改音频或歌词不会自动跟着变。</p>
+    </Group>
   );
 }

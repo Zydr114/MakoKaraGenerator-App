@@ -20,6 +20,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { launchChrome } from './cdp.mjs';
+import { shell } from './ui-query.mjs';
 import { packSampleEffect, sampleEffectsDir } from './effect-packages.mjs';
 
 const { values } = parseArgs({
@@ -79,7 +80,8 @@ function check(ok, label) {
 }
 
 const PRELUDE = `
-  const buttons = (scope = document) => [...scope.querySelectorAll('mdui-button, mdui-button-icon')];
+  // 先找页面里的 mdui 按钮，再找新控件（顶栏“保存工程”的文字也是“保存”）
+  const buttons = (scope = document) => [...scope.querySelectorAll('mdui-button, mdui-button-icon'), ...scope.querySelectorAll('button')];
   const button = (text, scope) => buttons(scope).find((b) => (b.textContent.trim() === text || b.getAttribute('aria-label') === text) && !b.disabled);
   const anyButton = (text, scope) => buttons(scope).find((b) => b.textContent.trim() === text || b.getAttribute('aria-label') === text);
   const field = (label) => [...document.querySelectorAll('mdui-text-field')].find((f) => f.label === label);
@@ -137,7 +139,7 @@ async function key(page, keyName, code, keyCode, modifiers = 0) {
 }
 
 async function gotoPage(page, value, ready) {
-  await page.eval(`document.querySelector('mdui-navigation-rail-item[value=${value}]').click()`);
+  await shell.goto(page, value);
   await page.waitFor(ready, `进入 ${value}`);
 }
 
@@ -181,10 +183,10 @@ async function newProject(page) {
   await page.waitFor(`document.querySelectorAll('.line-list mdui-list-item').length === 4`, '工作区显示 4 行', 120_000);
 }
 
-/** 更多菜单“关闭工程”；有未保存的修改时选“不保存”。在样式库里关闭时留在样式库，再从导航栏回首页。 */
+/** 工程菜单“关闭工程”；有未保存的修改时选“不保存”。在样式库里关闭时留在样式库，再从顶栏标志回首页。 */
 async function closeProject(page) {
-  await menuItem(page, '更多', '关闭工程');
-  const closed = `!document.querySelector('mdui-navigation-rail-item[value=lyrics]')`;
+  await shell.projectMenu(page, '关闭工程');
+  const closed = `!(${shell.projectOpen})`;
   const discard = js(`return openDialog() && button('不保存', openDialog());`);
   await page.waitFor(`${closed} || !!${discard}`, '关闭工程', 60_000);
   if (await page.eval(`!!${discard}`)) await clickDialogButton(page, '不保存');
@@ -318,7 +320,7 @@ try {
   await page.send('DOM.enable');
   // 数歌词窗口的读取次数（W4 设计 §2.5）：资源计时的缓冲区默认只有 250 条。
   await page.eval(`performance.setResourceTimingBufferSize(100000)`);
-  await page.waitFor(`document.querySelector('.connection')?.textContent === '已连接'`, '连接 Server');
+  await page.waitFor(shell.connected, '连接 Server');
 
   // 1. 新建工程
   await newProject(page);

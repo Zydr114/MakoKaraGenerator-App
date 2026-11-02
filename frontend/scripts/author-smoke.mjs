@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { isDeepStrictEqual, parseArgs } from 'node:util';
 import { launchChrome } from './cdp.mjs';
+import { shell } from './ui-query.mjs';
 import { packSampleEffect, packVariantEffect, sampleEffectsDir } from './effect-packages.mjs';
 
 const { values } = parseArgs({ options: { url: { type: 'string', default: 'http://localhost:5173' }, headed: { type: 'boolean' }, screenshot: { type: 'string' } } });
@@ -89,8 +90,8 @@ try {
   });
   page = await browser.openPage(`${new URL(values.url).origin}/`, { width: 1440, height: 1200 });
   await page.send('DOM.enable');
-  await page.waitFor(`document.querySelector('.connection')?.textContent === '已连接'`, '连接 Server');
-  await page.eval(`document.querySelector('mdui-navigation-rail-item[value=library]').click()`);
+  await page.waitFor(shell.connected, '连接 Server');
+  await shell.goto(page, 'library');
   await page.waitFor(`!!document.querySelector('.library-sections mdui-tab[value=components]')`, '组件库');
   await tab('.library-sections', 'components');
   await page.waitFor(`!!document.querySelector('.component-empty, .library-list [data-configuration-id]')`, '读取组件库');

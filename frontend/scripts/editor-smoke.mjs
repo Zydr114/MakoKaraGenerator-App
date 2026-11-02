@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { launchChrome } from './cdp.mjs';
+import { shell, ui } from './ui-query.mjs';
 
 const { values } = parseArgs({
   options: {
@@ -73,7 +74,8 @@ function check(ok, label) {
 
 /** 页面里常用的查询，作为表达式前缀注入。 */
 const PRELUDE = `
-  const buttons = () => [...document.querySelectorAll('mdui-button, mdui-button-icon')];
+  // 先找页面里的 mdui 按钮，再找新控件（顶栏“保存工程”的文字也是“保存”，不能抢在页面按钮前面）
+  const buttons = () => [...document.querySelectorAll('mdui-button, mdui-button-icon'), ...document.querySelectorAll('button')];
   const button = (text) => buttons().find((b) => b.textContent.trim() === text || b.getAttribute('aria-label') === text);
   const field = (label) => [...document.querySelectorAll('mdui-text-field')].find((f) => f.label === label);
   const revision = () => (document.querySelector('.status-bar')?.textContent.match(/修订 (\\d+)/) ?? [])[1];
@@ -98,7 +100,7 @@ async function clickMenuItem(page, trigger, text) {
 
 /** 点 scope 容器里文字为 text 的按钮（页面上有同名按钮时用）。 */
 async function clickButtonIn(page, scope, text) {
-  const target = `[...document.querySelectorAll(${JSON.stringify(`${scope} mdui-button`)})].find((b) => b.textContent.trim() === ${JSON.stringify(text)})`;
+  const target = `[...document.querySelectorAll(${JSON.stringify(`${scope} :is(mdui-button, button)`)})].find((b) => b.textContent.trim() === ${JSON.stringify(text)})`;
   await page.waitFor(`!!(${target}) && !(${target}).disabled`, `「${text}」可用`);
   await page.eval(`(${target}).click()`);
 }
@@ -172,7 +174,7 @@ try {
 
   page = await browser.openPage(`${ORIGIN}/`, { width: 1440, height: 900 });
   await page.send('DOM.enable');
-  await page.waitFor(`document.querySelector('.connection')?.textContent === '已连接'`, '连接 Server');
+  await page.waitFor(shell.connected, '连接 Server');
   check(true, '编辑器页面经 bootstrap 路由连上 Server');
 
   // 1. 新建
@@ -219,9 +221,11 @@ try {
   // 4. 播放中打点：第 2 行（3.0–6.0 秒）的前两个元素，按住 J 记起点、松开记终点
   await page.eval(`document.querySelectorAll('.line-list mdui-list-item')[1].click()`);
   await page.waitFor(js(`return field('正文')?.value === '青い空見上げ';`), '选中第 2 行');
-  await page.waitFor(`document.querySelector('.transport mdui-button-icon') && !document.querySelector('.transport mdui-button-icon').disabled`, '音频就绪', 60_000);
+  await page.waitFor(`document.querySelector('.transport .play') && !document.querySelector('.transport .play').disabled`, '音频就绪', 60_000);
   check(true, '工程音频经鉴权读取后可以播放');
-  await page.eval(`[...document.querySelectorAll('.switch-field')].find((l) => l.textContent.includes('打点模式')).querySelector('mdui-switch').click()`);
+  await ui.setChecked(page, 'switch', '打点模式', true);
+  // 真实点击会把焦点留在开关上，空格会拨开关而不是播放
+  await page.eval(`document.activeElement?.blur()`);
   await page.waitFor(`document.querySelector('.transport-help')?.textContent.includes('按住 J')`, '打点模式开启');
   const revisionBefore = Number(await page.eval(js(`return revision();`)));
   await key(page, 'keyDown', ' ', 'Space', 32);
@@ -655,7 +659,7 @@ try {
   const analysisText = `(document.querySelector('.settings-drawer .analysis-status')?.textContent ?? '')`;
   const atRevision = (n) => js(`return Number(revision()) === ${n};`);
   before = Number(await page.eval(js(`return revision();`)));
-  await page.eval(`document.querySelector('.nav-rail .settings-item').dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }))`);
+  await ui.click(page, 'button', '工程设置');
   await page.waitFor(settingsOpen, '工程设置面板打开');
   await page.waitFor(`${selectValue('尺寸')} === '1920x1080' && ${selectValue('帧率')} === '30/1'`, '显示当前画布与帧率', 10_000);
   const initialDuration = await page.eval(durationText);
@@ -696,10 +700,28 @@ try {
   await clickButton(page, '关闭工程设置');
   await page.waitFor(`!(${settingsOpen})`, '关闭工程设置');
 
+  // 6g. 界面主题（界面改版 §2.8）：应用设置里切深色、换主题色，立即生效；刷新后偏好还在
+  const themeFacts = `JSON.stringify({ mode: document.documentElement.dataset.mode, primary: getComputedStyle(document.documentElement).getPropertyValue('--primary').trim() })`;
+  const lightTheme = JSON.parse(await page.eval(themeFacts));
+  await ui.click(page, 'button', '应用设置');
+  await ui.click(page, 'button', '深色');
+  await ui.fill(page, '当前', '#7A5AF8', { enter: true });
+  await page.waitFor(`(() => { const t = ${themeFacts}; return JSON.parse(t).mode === 'dark' && JSON.parse(t).primary !== ${JSON.stringify(lightTheme.primary)}; })()`, '深色与新主题色生效', 10_000);
+  const darkTheme = JSON.parse(await page.eval(themeFacts));
+  check(true, `应用设置：切深色、主题色改为 #7A5AF8，立即生效（主色 ${lightTheme.primary} → ${darkTheme.primary}）`);
+  await page.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await page.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await page.waitFor(`!document.querySelector('[role=dialog]')`, '关闭应用设置');
+
   // 7. 刷新页面：经 resume 接回同一 client，首页列出已打开的工程，点击后回到同一修订
   const revisionBeforeReload = await page.eval(js(`return revision();`));
   await page.navigate(`${ORIGIN}/`);
-  await page.waitFor(`document.querySelector('.connection')?.textContent === '已连接'`, '刷新后重新连接');
+  await page.waitFor(shell.connected, '刷新后重新连接');
+  const reloadedTheme = JSON.parse(await page.eval(themeFacts));
+  check(
+    reloadedTheme.mode === 'dark' && reloadedTheme.primary === darkTheme.primary,
+    `刷新后主题偏好还在（${reloadedTheme.mode}，主色 ${reloadedTheme.primary}）`,
+  );
   const sessionCard = `[...document.querySelectorAll('.home .session-card')].find((c) => c.querySelector('.session-card-name')?.textContent.includes(${JSON.stringify(directory)}))`;
   await page.waitFor(`!!(${sessionCard})`, '首页“继续工作”列出已打开的工程', 30_000);
   await page.eval(`(${sessionCard}).click()`);
@@ -718,7 +740,7 @@ try {
   check(true, `保存到授权目录下的新目录 ${directory}（job 成功终态）`);
 
   // 9. 关闭并从工程目录重开
-  await clickMenuItem(page, '更多', '关闭工程');
+  await shell.projectMenu(page, '关闭工程');
   await page.waitFor(`!!document.querySelector('.home')`, '回到首页', 60_000);
   check(true, '关闭工程回到首页');
   const directoryRow = `document.querySelector('.directory-row[data-path=${JSON.stringify(directory)}] .directory-main')`;

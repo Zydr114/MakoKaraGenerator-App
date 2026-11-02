@@ -34,6 +34,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { launchChrome } from './cdp.mjs';
+import { shell } from './ui-query.mjs';
 
 const { values } = parseArgs({
   options: {
@@ -85,7 +86,8 @@ function check(ok, label) {
 }
 
 const PRELUDE = `
-  const buttons = (scope = document) => [...scope.querySelectorAll('mdui-button, mdui-button-icon')];
+  // 先找页面里的 mdui 按钮，再找新控件（顶栏“保存工程”的文字也是“保存”）
+  const buttons = (scope = document) => [...scope.querySelectorAll('mdui-button, mdui-button-icon'), ...scope.querySelectorAll('button')];
   const button = (text, scope) => buttons(scope).find((b) => (b.textContent.trim() === text || b.getAttribute('aria-label') === text) && !b.disabled);
   const anyButton = (text, scope) => buttons(scope).find((b) => b.textContent.trim() === text);
   const field = (label) => [...document.querySelectorAll('mdui-text-field')].find((f) => f.label === label);
@@ -195,7 +197,7 @@ async function key(page, keyName, code, keyCode, modifiers = 0) {
 }
 
 async function gotoPage(page, value, ready) {
-  await page.eval(`document.querySelector('mdui-navigation-rail-item[value=${value}]').click()`);
+  await shell.goto(page, value);
   await page.waitFor(ready, `进入 ${value}`);
 }
 
@@ -291,7 +293,7 @@ try {
 
   page = await browser.openPage(`${ORIGIN}/`, { width: 1440, height: 900 });
   await page.send('DOM.enable');
-  await page.waitFor(`document.querySelector('.connection')?.textContent === '已连接'`, '连接 Server');
+  await page.waitFor(shell.connected, '连接 Server');
 
   // 1. 新建工程；导航栏顺序
   await clickButton(page, '新建工程');
@@ -303,8 +305,8 @@ try {
   await clickButton(page, '下一步');
   await clickButton(page, '新建');
   await page.waitFor(`document.querySelectorAll('.line-list mdui-list-item').length === 4`, '工作区显示 4 行', 120_000);
-  const nav = await page.eval(`[...document.querySelectorAll('mdui-navigation-rail > mdui-navigation-rail-item:not([slot])')].map((i) => i.value).join(',')`);
-  check(nav === 'home,lyrics,orchestration,appearance,library', `新建工程（4 行），导航栏“编排”位于“歌词”和“外观”之间（${nav}）`);
+  const nav = await page.eval(`[...document.querySelectorAll('.app-bar .pages .page-tab')].map((t) => t.textContent.trim()).join(',')`);
+  check(nav === '歌词,编排,外观', `新建工程（4 行），顶栏页签“编排”位于“歌词”和“外观”之间（${nav}）`);
 
   // 2. 结构树与只读属性
   await gotoPage(page, 'orchestration', treeReady);

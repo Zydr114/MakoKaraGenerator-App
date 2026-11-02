@@ -120,7 +120,12 @@ export const ui = {
 
   async click(page, role, name, opts = {}) {
     await ui.wait(page, role, name, opts);
-    const p = await page.eval(uiJs(`return __ui.point(${findExpr(role, name, opts)});`));
+    // 被挡住时等一会儿：可能是正在关闭的面板、对话框还在做退场动画
+    let p = await page.eval(uiJs(`return __ui.point(${findExpr(role, name, opts)});`));
+    for (let i = 0; p.covered && i < 20; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      p = await page.eval(uiJs(`return __ui.point(${findExpr(role, name, opts)});`));
+    }
     if (p.covered) throw new Error(`${describe(role, name)}被 ${p.what} 挡住了`);
     await mouseClick(page, p.x, p.y, 1);
     if (opts.double) await mouseClick(page, p.x, p.y, 2);
@@ -178,5 +183,25 @@ export const ui = {
   /** 消息条的文字（没有时是空串）。 */
   async toastText(page) {
     return page.eval(`document.querySelector('.toast-region .toast-text')?.textContent ?? ''`);
+  },
+};
+
+const PAGE_LABEL = { home: '首页', lyrics: '歌词', orchestration: '编排', appearance: '外观', library: '样式库' };
+
+/** 外壳（界面改版 §2.5）：连接就绪的判断、顶栏切页面、工程菜单。 */
+export const shell = {
+  /** 页面表达式：状态胶囊写着已连接。 */
+  connected: `document.querySelector('.status-chip')?.dataset.connection === 'ready'`,
+  /** 页面表达式：有工程打开（顶栏有歌词、编排、外观页签）。 */
+  projectOpen: `!!document.querySelector('.app-bar .pages')`,
+
+  /** 顶栏切页面：value 是 home、lyrics、orchestration、appearance、library，或者按钮名。 */
+  async goto(page, value) {
+    await ui.click(page, 'button', PAGE_LABEL[value] ?? value, { scope: '.app-bar' });
+  },
+
+  /** 工程名菜单（另存为、导出歌词文件、关闭工程、协议控制台）。 */
+  async projectMenu(page, item) {
+    await ui.menu(page, '工程菜单', item, { partial: true, scope: '.app-bar' });
   },
 };

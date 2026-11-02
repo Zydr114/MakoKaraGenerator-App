@@ -18,6 +18,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { launchChrome } from './cdp.mjs';
+import { shell } from './ui-query.mjs';
 
 const { values } = parseArgs({
   options: {
@@ -106,7 +107,8 @@ function check(ok, label) {
 }
 
 const PRELUDE = `
-  const buttons = () => [...document.querySelectorAll('mdui-button, mdui-button-icon')];
+  // 先找页面里的 mdui 按钮，再找新控件（顶栏“保存工程”的文字也是“保存”）
+  const buttons = () => [...document.querySelectorAll('mdui-button, mdui-button-icon'), ...document.querySelectorAll('button')];
   const button = (text) => buttons().find((b) => b.textContent.trim() === text || b.getAttribute('aria-label') === text);
   const field = (label, scope = '') => [...document.querySelectorAll(scope + ' mdui-text-field')].find((f) => f.label === label);
   const select = (label) => [...document.querySelectorAll('mdui-select')].find((s) => s.label === label);
@@ -139,7 +141,7 @@ async function clickDialogButton(page, text) {
 
 /** 点 scope 里文字为 text 的按钮（同名按钮在别处也有时用）。 */
 async function clickButtonIn(page, scope, text) {
-  const target = `[...document.querySelectorAll(${JSON.stringify(`${scope} mdui-button`)})].find((b) => b.textContent.trim() === ${JSON.stringify(text)})`;
+  const target = `[...document.querySelectorAll(${JSON.stringify(`${scope} :is(mdui-button, button)`)})].find((b) => b.textContent.trim() === ${JSON.stringify(text)})`;
   await page.waitFor(`!!(${target}) && !(${target}).disabled`, `「${text}」可用`);
   await page.eval(`(${target}).click()`);
 }
@@ -192,7 +194,7 @@ try {
 
   page = await browser.openPage(`${ORIGIN}/`, { width: 1440, height: 900 });
   await page.send('DOM.enable');
-  await page.waitFor(`document.readyState === 'complete' && document.querySelector('.connection')?.textContent === '已连接'`, '连接 Server');
+  await page.waitFor(`document.readyState === 'complete' && ${shell.connected}`, '连接 Server');
 
   // 1. 用工程 TTML 新建：识别结果写明会恢复全部来源，不选来源
   await clickButton(page, '新建工程');

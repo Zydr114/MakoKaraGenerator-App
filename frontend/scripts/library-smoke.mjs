@@ -15,6 +15,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { launchChrome } from './cdp.mjs';
+import { shell } from './ui-query.mjs';
 import { packSampleEffect, sampleEffectsDir } from './effect-packages.mjs';
 
 const { values } = parseArgs({
@@ -52,7 +53,8 @@ function check(ok, label) {
 }
 
 const PRELUDE = `
-  const buttons = (scope = document) => [...scope.querySelectorAll('mdui-button, mdui-button-icon')];
+  // 先找页面里的 mdui 按钮，再找新控件（顶栏“保存工程”的文字也是“保存”）
+  const buttons = (scope = document) => [...scope.querySelectorAll('mdui-button, mdui-button-icon'), ...scope.querySelectorAll('button')];
   const button = (text, scope) => buttons(scope).find((b) => (b.textContent.trim() === text || b.getAttribute('aria-label') === text) && !b.disabled);
   const anyButton = (text, scope) => buttons(scope).find((b) => b.textContent.trim() === text || b.getAttribute('aria-label') === text);
   const field = (label) => [...document.querySelectorAll('mdui-text-field')].find((f) => f.label === label);
@@ -186,10 +188,10 @@ try {
   await page.send('DOM.enable');
   await browser.cdp.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: downloads });
   await page.eval(`performance.setResourceTimingBufferSize(100000)`);
-  await page.waitFor(`document.querySelector('.connection')?.textContent === '已连接'`, '连接 Server');
+  await page.waitFor(shell.connected, '连接 Server');
 
   // 1. 复制“经典整行”
-  await page.eval(`document.querySelector('mdui-navigation-rail-item[value=library]').click()`);
+  await shell.goto(page, 'library');
   await page.waitFor(`!!document.querySelector('.library-list [data-template-id="builtin:line-classic"]')`, '样式库');
   await selectTemplate(page, 'builtin:line-classic', '经典整行');
   await clickButton(page, '复制并编辑');

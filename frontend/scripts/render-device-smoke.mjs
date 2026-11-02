@@ -1,5 +1,5 @@
 // 渲染设备的浏览器冒烟（渲染设备设计 §4 第 5 步）：用真实 Chrome 走一遍 CPU／GPU 偏好。
-// 顶栏菜单列出跟随默认、CPU、GPU 与设备摘要 → 新建工程 → 外观页成片预览是 CPU 帧
+// 顶栏状态胶囊的菜单列出跟随默认、CPU、GPU 与设备摘要 → 新建工程 → 外观页成片预览是 CPU 帧
 // → 选 GPU：已开的预览不重开就换成 GPU 帧 → 编排页预览与测量、样式库缩略图在 GPU 下照常
 // → 导出页：缩略图、正式验证与导出都用 GPU，卡片和报告写明设备 → 改回跟随默认，预览回到 CPU 帧
 // → 偏好在刷新后还在。GPU 不可用时（可以用 VK_ICD_FILENAMES=/nonexistent 启动后端来模拟），改为确认 GPU 一项禁用并写明原因，
@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { launchChrome } from './cdp.mjs';
+import { shell, ui, uiJs } from './ui-query.mjs';
 
 const { values } = parseArgs({
   options: {
@@ -65,7 +66,8 @@ function check(ok, label) {
 }
 
 const PRELUDE = `
-  const buttons = () => [...document.querySelectorAll('mdui-button, mdui-button-icon')];
+  // 先找页面里的 mdui 按钮，再找新控件（顶栏“保存工程”的文字也是“保存”）
+  const buttons = () => [...document.querySelectorAll('mdui-button, mdui-button-icon'), ...document.querySelectorAll('button')];
   const button = (text) => buttons().find((b) => b.textContent.trim() === text || b.getAttribute('aria-label') === text);
   const field = (label, scope = '') => [...document.querySelectorAll(scope + ' mdui-text-field')].find((f) => f.label === label);
 `;
@@ -78,18 +80,9 @@ async function clickButton(page, text) {
 }
 
 async function clickButtonIn(page, scope, text) {
-  const target = `[...document.querySelectorAll(${JSON.stringify(`${scope} mdui-button`)})].find((b) => b.textContent.trim() === ${JSON.stringify(text)})`;
+  const target = `[...document.querySelectorAll(${JSON.stringify(`${scope} :is(mdui-button, button)`)})].find((b) => b.textContent.trim() === ${JSON.stringify(text)})`;
   await page.waitFor(`!!(${target}) && !(${target}).disabled`, `「${text}」可用`);
   await page.eval(`(${target}).click()`);
-}
-
-async function clickMenuItem(page, trigger, text) {
-  await clickButton(page, trigger);
-  const item = js(
-    `const d = button(${JSON.stringify(trigger)})?.closest('mdui-dropdown'); return d?.open ? [...d.querySelectorAll('mdui-menu-item')].find((i) => i.textContent.trim() === ${JSON.stringify(text)} && !i.disabled) : undefined;`,
-  );
-  await page.waitFor(`!!${item}`, `菜单项「${text}」可用`);
-  await page.eval(`${item}.${click}`);
 }
 
 async function clickDialogButton(page, text) {
@@ -115,31 +108,53 @@ async function setFile(page, ariaLabel, path) {
 }
 
 async function gotoPage(page, value, ready) {
-  await page.eval(`document.querySelector('mdui-navigation-rail-item[value=${value}]').click()`);
+  await shell.goto(page, value);
   await page.waitFor(ready, `切到「${value}」页`);
 }
 
-// 顶栏“渲染设备”
-const deviceButton = `document.querySelector('.render-device-button')?.textContent.trim()`;
-const option = (value) => `document.querySelector('.render-device-option[data-value=${value}]')`;
-const optionDetail = (value) => `${option(value)}?.querySelector('.render-device-detail')?.textContent`;
+// 顶栏状态胶囊（界面改版 §2.5）：写“已连接，CPU”；点开是渲染设备菜单，菜单只在打开时渲染
+const deviceText = `((document.querySelector('.status-chip .status-text')?.textContent ?? '').split('，')[1] ?? '')`;
+const menuOpen = `!!document.querySelector('.render-device-menu')`;
+const DEVICE_LABEL = { default: '跟随后端默认', cpu: 'CPU', gpu: 'GPU' };
+const deviceItem = (value) => `__ui.find('menuitem', ${JSON.stringify(DEVICE_LABEL[value])}, ${value === 'default'}, '.render-device-menu')`;
 
 async function openDeviceMenu(page) {
-  await page.eval(`document.querySelector('.render-device-button').click()`);
-  await page.waitFor(`document.querySelector('.render-device-button').closest('mdui-dropdown').open === true`, '打开渲染设备菜单');
+  if (await page.eval(menuOpen)) return;
+  await ui.click(page, 'button', '（渲染设备）', { partial: true, scope: '.app-bar' });
+  await page.waitFor(menuOpen, '打开渲染设备菜单');
+}
+
+async function closeDeviceMenu(page) {
+  if (!(await page.eval(menuOpen))) return;
+  await page.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await page.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await page.waitFor(`!(${menuOpen})`, '关闭渲染设备菜单');
+}
+
+/** 打开菜单等检测完，读出三项的文字、设备摘要、是否选中、是否禁用，再关上。 */
+async function readDevices(page, what) {
+  await openDeviceMenu(page);
+  await page.waitFor(uiJs(`const d = ${deviceItem('gpu')}?.querySelector('.menu-desc')?.textContent; return !!d && d !== '还没有检测';`), what, 60_000);
+  const devices = await page.eval(
+    uiJs(`return JSON.stringify(Object.fromEntries(${JSON.stringify(Object.keys(DEVICE_LABEL))}.map((value) => {
+      const el = { default: ${deviceItem('default')}, cpu: ${deviceItem('cpu')}, gpu: ${deviceItem('gpu')} }[value];
+      return [value, { label: __ui.text(el), detail: el.querySelector('.menu-desc')?.textContent ?? '', checked: el.getAttribute('aria-checked') === 'true', disabled: __ui.disabled(el) }];
+    })));`),
+  );
+  await closeDeviceMenu(page);
+  return JSON.parse(devices);
 }
 
 async function chooseDevice(page, value) {
   await openDeviceMenu(page);
-  await page.waitFor(`!!${option(value)} && !${option(value)}.closest('mdui-menu-item').disabled`, `渲染设备「${value}」可选`);
-  await page.eval(`${option(value)}.closest('mdui-menu-item').${click}`);
-  await page.waitFor(`document.querySelector('.render-device-button').closest('mdui-dropdown').open === false`, '菜单关闭');
+  await ui.click(page, 'menuitem', DEVICE_LABEL[value], { partial: value === 'default', scope: '.render-device-menu', what: `渲染设备「${value}」可选` });
+  await page.waitFor(`!(${menuOpen})`, '菜单关闭');
 }
 
 const previewTitle = `document.querySelector('.preview-panel .preview-title')?.textContent ?? ''`;
 
 async function closeCurrentProject(page) {
-  await clickMenuItem(page, '更多', '关闭工程');
+  await shell.projectMenu(page, '关闭工程');
   const discard = `[...[...document.querySelectorAll('mdui-dialog')].find((d) => d.open)?.querySelectorAll('mdui-button') ?? []].find((b) => b.textContent.trim() === '不保存')`;
   await page.waitFor(`!!document.querySelector('.home') || !!(${discard})`, '关闭工程', 60_000);
   if (await page.eval(`!!(${discard})`)) await page.eval(`(${discard}).${click}`);
@@ -186,28 +201,26 @@ try {
   await page.send('DOM.enable');
   // 从“跟随后端默认”开始。
   await page.eval(`localStorage.removeItem('mako.renderBackend'); location.reload()`);
-  await page.waitFor(`document.readyState === 'complete' && document.querySelector('.connection')?.textContent === '已连接'`, '连接 Server');
+  await page.waitFor(`document.readyState === 'complete' && ${shell.connected}`, '连接 Server');
 
-  // 1. 顶栏菜单：检测结果与三项
-  await page.waitFor(`!!${optionDetail('gpu')} && ${optionDetail('gpu')} !== '还没有检测'`, '检测渲染设备', 60_000);
-  const defaultLabel = await page.eval(`${option('default')}.textContent`);
-  const gpuDetail = await page.eval(optionDetail('gpu'));
+  // 1. 状态胶囊的菜单：检测结果与三项
+  const devices = await readDevices(page, '检测渲染设备');
+  const gpuDetail = devices.gpu.detail;
   const gpuAvailable = !gpuDetail.startsWith('不可用');
   check(
-    (await page.eval(deviceButton)) === 'CPU' && defaultLabel.includes('跟随后端默认（CPU）') && (await page.eval(`!!${option('default')}.querySelector('mdui-icon-check')`)),
-    '顶栏按钮写“CPU”；菜单里选中“跟随后端默认（CPU）”',
+    (await page.eval(deviceText)) === 'CPU' && devices.default.label === '跟随后端默认（CPU）' && devices.default.checked,
+    '状态胶囊写“已连接，CPU”；菜单里选中“跟随后端默认（CPU）”',
   );
-  check(!!(await page.eval(optionDetail('cpu'))), `CPU 一项有设备摘要（${await page.eval(optionDetail('cpu'))}）`);
+  check(!!devices.cpu.detail, `CPU 一项有设备摘要（${devices.cpu.detail}）`);
   if (!gpuAvailable) {
     // GPU 不可用（例如用 VK_ICD_FILENAMES=/nonexistent 启动后端）：菜单禁用 GPU；偏好已经是 GPU 时，预览与任务明确失败，不悄悄用 CPU。
-    await openDeviceMenu(page);
-    check(await page.eval(`${option('gpu')}.closest('mdui-menu-item').disabled`), `GPU 不可用：这一项禁用并写明原因（${gpuDetail}）`);
+    check(devices.gpu.disabled, `GPU 不可用：这一项禁用并写明原因（${gpuDetail}）`);
     await page.eval(`localStorage.setItem('mako.renderBackend', 'gpu'); location.reload()`);
-    await page.waitFor(`document.readyState === 'complete' && document.querySelector('.connection')?.textContent === '已连接'`, '刷新后重新连接');
-    await page.waitFor(`!!${optionDetail('gpu')} && ${optionDetail('gpu')} !== '还没有检测'`, '刷新后检测渲染设备', 60_000);
+    await page.waitFor(`document.readyState === 'complete' && ${shell.connected}`, '刷新后重新连接');
+    const reloaded = await readDevices(page, '刷新后检测渲染设备');
     check(
-      (await page.eval(deviceButton)) === 'GPU（不可用）' && !(await page.eval(`${option('gpu')}.closest('mdui-menu-item').disabled`)),
-      '偏好已经是 GPU：不自动改，按钮写“GPU（不可用）”，菜单里这一项仍可见可选',
+      (await page.eval(deviceText)) === 'GPU（不可用）' && !reloaded.gpu.disabled && reloaded.gpu.checked,
+      '偏好已经是 GPU：不自动改，胶囊写“GPU（不可用）”，菜单里这一项仍可见可选',
     );
 
     await createProject(page);
@@ -248,8 +261,8 @@ try {
     await chooseDevice(page, 'gpu');
     await page.waitFor(`(${previewTitle}).startsWith('成片 · GPU · 修订')`, '外观页 GPU 帧', 60_000);
     check(
-      (await page.eval(deviceButton)) === 'GPU' && (await page.eval(`localStorage.getItem('mako.renderBackend')`)) === 'gpu',
-      '选 GPU：按钮改成“GPU”并记在本机；已开的成片预览不用重开就换成 GPU 帧',
+      (await page.eval(deviceText)) === 'GPU' && (await page.eval(`localStorage.getItem('mako.renderBackend')`)) === 'gpu',
+      '选 GPU：胶囊改成“GPU”并记在本机；已开的成片预览不用重开就换成 GPU 帧',
     );
 
     // 外观页的候选试看（一次性渲染）
@@ -313,9 +326,9 @@ try {
     await chooseDevice(page, 'gpu');
     await closeCurrentProject(page);
     await page.eval(`location.reload()`);
-    await page.waitFor(`document.readyState === 'complete' && document.querySelector('.connection')?.textContent === '已连接'`, '刷新后重新连接');
-    await page.waitFor(`!!${optionDetail('gpu')} && ${optionDetail('gpu')} !== '还没有检测'`, '刷新后检测渲染设备', 60_000);
-    check((await page.eval(deviceButton)) === 'GPU', '刷新页面后偏好还是 GPU');
+    await page.waitFor(`document.readyState === 'complete' && ${shell.connected}`, '刷新后重新连接');
+    const reloaded = await readDevices(page, '刷新后检测渲染设备');
+    check((await page.eval(deviceText)) === 'GPU' && reloaded.gpu.checked, '刷新页面后偏好还是 GPU');
     await chooseDevice(page, 'default');
   }
 

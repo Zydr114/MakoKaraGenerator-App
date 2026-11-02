@@ -9,6 +9,7 @@
 //   await ui.waitDialog(page, '新建工程');
 //
 // 名称按可访问名称（aria-labelledby、aria-label、关联的 label、文字）精确匹配；{ partial: true } 改为包含。
+// ui.click 的选项：double 双击，right 右键（打开右键菜单）。
 // 点击走 CDP 的真实鼠标事件：先滚到可见处，再确认这个点上最上层的元素就是它，避免点到盖在上面的东西。
 
 /** 注入页面的查询函数，作为表达式前缀。 */
@@ -95,9 +96,10 @@ const describe = (role, name) => `${role}「${name}」`;
 /** 选项里的 scope 是 CSS 选择器，或 '@dialog'、'@menu'（最上层的对话框、菜单），只在这个元素里找。 */
 const findExpr = (role, name, opts = {}) => `__ui.find(${arg(role)}, ${arg(name)}, ${!!opts.partial}, ${arg(opts.scope)})`;
 
-async function mouseClick(page, x, y, clickCount = 1) {
+async function mouseClick(page, x, y, clickCount = 1, button = 'left') {
   for (const type of ['mouseMoved', 'mousePressed', 'mouseReleased']) {
-    await page.send('Input.dispatchMouseEvent', { type, x, y, button: type === 'mouseMoved' ? 'none' : 'left', buttons: type === 'mousePressed' ? 1 : 0, clickCount });
+    const pressed = type === 'mousePressed' ? (button === 'right' ? 2 : 1) : 0;
+    await page.send('Input.dispatchMouseEvent', { type, x, y, button: type === 'mouseMoved' ? 'none' : button, buttons: pressed, clickCount });
   }
 }
 
@@ -130,7 +132,7 @@ export const ui = {
       p = await measure();
     }
     if (p.covered) throw new Error(`${describe(role, name)}被 ${p.what} 挡住了`);
-    await mouseClick(page, p.x, p.y, 1);
+    await mouseClick(page, p.x, p.y, 1, opts.right ? 'right' : 'left');
     if (opts.double) await mouseClick(page, p.x, p.y, 2);
   },
 

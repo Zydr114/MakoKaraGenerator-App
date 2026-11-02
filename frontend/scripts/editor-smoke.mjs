@@ -1,6 +1,6 @@
 // 编辑器浏览器冒烟（W1 设计 §6）：用真实 Chrome 走一遍编辑器主链路。
 // 新建（上传生成的 WAV＋LRC）→ 选元素改时间（逐字预览跟随）→ 撤销／重做 → 播放中按 J 打点 → 微调／清除
-// → 整行平移、定位到此行 → 时间轴波形读自后端（G11）、拖动边界（含相邻元素共用边界）→ 注音、正文、行插入／复制／批量删除
+// → 整行平移、定位 → 时间轴波形读自后端（G11）、拖动边界（含相邻元素共用边界）→ 注音、正文、行插入／复制／批量删除
 // → 文本单元重切本行、合并、拆开、拖动排序、整来源重切 → 来源管理与翻译关联 → 粘贴追加、导入文件与导入报告
 // → 工程设置（画布、帧率、背景色、输出时长、音频分析）
 // → 刷新后从“继续工作”接回 → 保存到新目录 → 关闭 → 从工程目录重开并核对时间。
@@ -72,94 +72,77 @@ function check(ok, label) {
   if (!ok) process.exitCode = 1;
 }
 
-/** 页面里常用的查询，作为表达式前缀注入。 */
-const PRELUDE = `
-  // 先找页面里的 mdui 按钮，再找新控件（顶栏“保存工程”的文字也是“保存”，不能抢在页面按钮前面）
-  const buttons = () => [...document.querySelectorAll('mdui-button, mdui-button-icon'), ...document.querySelectorAll('button')];
-  const button = (text) => buttons().find((b) => b.textContent.trim() === text || b.getAttribute('aria-label') === text);
-  const field = (label) => [...document.querySelectorAll('mdui-text-field')].find((f) => f.label === label);
-  const revision = () => (document.querySelector('.status-bar')?.textContent.match(/修订 (\\d+)/) ?? [])[1];
-`;
-const js = (body) => `(() => { ${PRELUDE} ${body} })()`;
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const REVISION = `Number((document.querySelector('.status-bar')?.textContent.match(/修订 (\\d+)/) ?? [])[1])`;
+const atRevision = (n) => `${REVISION} === ${n}`;
+const revision = () => page.eval(REVISION);
 
-async function clickButton(page, text) {
-  await page.waitFor(js(`const b = button(${JSON.stringify(text)}); return !!b && !b.disabled;`), `按钮「${text}」可用`);
-  await page.eval(js(`button(${JSON.stringify(text)}).click();`));
+// 行列表、文本单元、时间栏、行编辑区
+const rowCount = `document.querySelectorAll('.line-list [role=row]').length`;
+const lineTexts = `[...document.querySelectorAll('.line-list .ll-text')].map((n) => n.textContent)`;
+const lineNotes = `[...document.querySelectorAll('.line-list .ll-sub')].map((n) => n.textContent)`;
+const chipTexts = `[...document.querySelectorAll('.tk-row .tk .tk-t')].map((n) => n.textContent)`;
+const selectedChip = `document.querySelector('.tk-row .tk[aria-selected=true] .tk-t')?.textContent`;
+const lineTitle = `document.querySelector('.lhead h2')?.textContent`;
+const lineText = uiJs(`return __ui.find('textbox', '正文')?.value ?? null;`);
+/** 时间栏的起止（所选文本单元，没选时是本行）。 */
+const timeInputs = `[...document.querySelectorAll('.timebar .tb-time input')]`;
+const startTime = `(${timeInputs}[0]?.value ?? null)`;
+const endTime = `(${timeInputs}[1]?.value ?? null)`;
+const timebarStatus = `document.querySelector('.timebar .status-icon')?.getAttribute('aria-label')`;
+const previewText = (role) => `document.querySelector('.wp-${role} .wp-text')?.textContent`;
+const toastHas = (text) => `(document.querySelector('.toast-region .toast-text')?.textContent ?? '').includes(${JSON.stringify(text)})`;
+const dialogOpen = `!!document.querySelector('[role=dialog], [role=alertdialog]')`;
+
+/** 选中当前行里文字为 text 的文本单元；已选中时不再点（再点一次会回到整行）。 */
+async function selectToken(page, text) {
+  if ((await page.eval(selectedChip)) !== text) await page.eval(`[...document.querySelectorAll('.tk-row .tk')].find((c) => c.querySelector('.tk-t').textContent === ${JSON.stringify(text)}).click()`);
+  await page.waitFor(`${selectedChip} === ${JSON.stringify(text)} && document.querySelector('.timebar b')?.textContent === ${JSON.stringify(text)}`, `选中文本单元「${text}」`);
 }
 
-/** 打开 aria-label 为 trigger 的下拉菜单，等这个菜单打开后点其中文字为 text 的菜单项。 */
-async function clickMenuItem(page, trigger, text) {
-  await clickButton(page, trigger);
-  const item = js(
-    `const d = button(${JSON.stringify(trigger)})?.closest('mdui-dropdown'); return d?.open ? [...d.querySelectorAll('mdui-menu-item')].find((i) => i.textContent.trim() === ${JSON.stringify(text)} && !i.disabled) : undefined;`,
-  );
-  await page.waitFor(`!!${item}`, `菜单项「${text}」可用`);
-  // mdui 组件覆盖了 click()，转给内部元素时不一定冒泡到 React；派发一个真实的点击事件。
-  await page.eval(`${item}.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }))`);
+/** 时间栏填起止并回车提交。 */
+async function setTimes(page, start, end) {
+  await page.eval(uiJs(`const el = ${timeInputs}[0]; el.focus(); __ui.setValue(el, ${JSON.stringify(start)});`));
+  await page.eval(uiJs(`const el = ${timeInputs}[1]; el.focus(); __ui.setValue(el, ${JSON.stringify(end)}); __ui.key(el, 'Enter');`));
 }
 
-/** 点 scope 容器里文字为 text 的按钮（页面上有同名按钮时用）。 */
-async function clickButtonIn(page, scope, text) {
-  const target = `[...document.querySelectorAll(${JSON.stringify(`${scope} :is(mdui-button, button)`)})].find((b) => b.textContent.trim() === ${JSON.stringify(text)})`;
-  await page.waitFor(`!!(${target}) && !(${target}).disabled`, `「${text}」可用`);
-  await page.eval(`(${target}).click()`);
+/** 点一行；等行编辑区换到这一行。 */
+async function selectRow(page, number, text) {
+  await ui.click(page, 'row', `${number} ${text}`.trim());
+  await page.waitFor(`${lineTitle} === '第 ${number} 行'`, `选中第 ${number} 行`);
 }
 
-/** 点当前打开的对话框里文字为 text 的按钮。 */
-async function clickDialogButton(page, text) {
-  const target = `[...document.querySelectorAll('mdui-dialog')].find((d) => d.open)?.querySelector('mdui-button:not([disabled])') && [...[...document.querySelectorAll('mdui-dialog')].find((d) => d.open).querySelectorAll('mdui-button')].find((b) => b.textContent.trim() === ${JSON.stringify(text)} && !b.disabled)`;
-  await page.waitFor(`!!(${target})`, `对话框按钮「${text}」可用`);
-  await page.eval(`(${target}).dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }))`);
-}
-
-async function typeInto(page, label, value) {
-  await page.waitFor(js(`return !!field(${JSON.stringify(label)});`), `输入框「${label}」`);
-  await page.eval(
-    js(`const f = field(${JSON.stringify(label)}); f.value = ${JSON.stringify(value)}; f.dispatchEvent(new Event('input', { bubbles: true, composed: true }));`),
-  );
-}
-
-async function pressEnter(page, label) {
-  await page.eval(js(`field(${JSON.stringify(label)}).dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, composed: true }));`));
-}
-
-/** 选中当前行的第 index 个元素；已选中时不再点（再点一次会回到整行）。 */
-async function selectToken(page, index, text) {
-  const title = `document.querySelector('.time-editor-title')?.textContent.includes('所选「${text}」')`;
-  if (!(await page.eval(title))) await page.eval(`document.querySelectorAll('.token-chip')[${index}].click()`);
-  await page.waitFor(title, `选中元素「${text}」`);
-}
+/** 顶栏的撤销、重做（工程设置面板、提示条里也有“撤销”）。 */
+const undo = (page) => ui.click(page, 'button', '撤销', { scope: '.app-bar' });
+const redo = (page) => ui.click(page, 'button', '重做', { scope: '.app-bar' });
 
 async function key(page, type, keyName, code, keyCode) {
   await page.send('Input.dispatchKeyEvent', { type, key: keyName, code, windowsVirtualKeyCode: keyCode, nativeVirtualKeyCode: keyCode });
 }
 
+async function escape(page) {
+  await key(page, 'keyDown', 'Escape', 'Escape', 27);
+  await key(page, 'keyUp', 'Escape', 'Escape', 27);
+}
+
+/** 来源选择菜单里的来源名称（打开看一眼再关上）。 */
+async function branchNames(page) {
+  await ui.click(page, 'button', '歌词来源：', { partial: true });
+  await ui.wait(page, 'menuitem', '管理来源…', { scope: '@menu' });
+  const names = await page.eval(uiJs(`return [...document.querySelectorAll('[role=menu] [role=menuitemradio]')].map((el) => __ui.names(el).at(-1));`));
+  await escape(page);
+  await page.waitFor(`!document.querySelector('[role=menu]')`, '来源菜单关闭');
+  return names;
+}
+
 const playheadText = `(document.querySelector('.transport-time span')?.textContent ?? '')`;
-const tokenStatuses = js(`return [...document.querySelectorAll('.token-chip')].map((c) => [...c.classList].find((k) => k.startsWith('status-')));`);
 
 /** 中间截图：等对话框、侧边面板的动画结束再截。 */
 async function snapshot(page, suffix) {
   if (!values.screenshot) return;
-  await new Promise((resolve) => setTimeout(resolve, 700));
+  await sleep(700);
   await writeFile(values.screenshot.replace(/\.png$/, `-${suffix}.png`), await page.screenshot());
 }
-
-async function setFile(page, ariaLabel, path) {
-  const { root } = await page.send('DOM.getDocument', { depth: -1 });
-  const { nodeId } = await page.send('DOM.querySelector', { nodeId: root.nodeId, selector: `input[type=file][aria-label="${ariaLabel}"]` });
-  await page.send('DOM.setFileInputFiles', { nodeId, files: [path] });
-}
-
-/** 把标签为 label 的 mdui-select 改成 value，像用户选择一样发出 change。 */
-async function chooseOption(page, label, value) {
-  await page.eval(`(() => {
-    const sel = [...document.querySelectorAll('mdui-select')].find((s) => s.label === ${JSON.stringify(label)});
-    // 改 value 后内部 mdui-menu 会发一次冒泡的 change，和用户点选一样；不要再手动派发，否则命令会发两次。
-    sel.value = ${JSON.stringify(value)};
-  })()`);
-}
-
-const fieldValue = (label) => js(`return field(${JSON.stringify(label)})?.value ?? null;`);
 
 const browser = await launchChrome({ headed: values.headed });
 let page;
@@ -181,98 +164,94 @@ try {
   await shell.startNewProject(page, { audio: wavPath, lyrics: lrcPath, name: `冒烟 ${directory}` });
   await page.waitFor(`document.querySelector('.new-project-dialog').innerText.includes('冒烟音频.wav') && document.querySelector('.new-project-dialog').innerText.includes('冒烟歌词.lrc')`, '文件已选择');
   await shell.finishNewProject(page);
-  await page.waitFor(`document.querySelectorAll('.line-list mdui-list-item').length === 4`, '工作区显示 4 行', 120_000);
+  await page.waitFor(`${rowCount} === 4 && ${chipTexts}.length > 0`, '工作区显示 4 行', 120_000);
   check(true, '上传中文文件名的 WAV 与 LRC，新建工程并进入工作区（4 行）');
-  check(await page.eval(js(`return revision() === '0';`)), '新建后修订 0');
-  const chips = await page.eval(`[...document.querySelectorAll('.token-chip .token-text')].map((n) => n.textContent)`);
+  check((await revision()) === 0, '新建后修订 0');
+  const chips = await page.eval(chipTexts);
   check(chips.join('') === '朝の光浴びて' && chips.length === 6, `第一行按“混合”规则逐字拆成 6 个元素（${chips.join('|')}）`);
 
   // 逐字预览：播放头在 0 秒，第一句（0.5 秒起）尚未开始
-  const previewText = (role) => `document.querySelector('.wp-${role} .wp-text')?.textContent`;
   await page.waitFor(`${previewText('upcoming')} === '朝の光浴びて'`, '逐字预览显示即将开始的第一句', 30_000);
   check(true, '逐字预览：播放头在第一句之前时显示即将开始的第一句');
 
   // 2. 选第一个元素并输入时间
-  await page.eval(`document.querySelector('.token-chip').click()`);
-  await page.waitFor(`document.querySelector('.time-editor-title')?.textContent.includes('所选「朝」')`, '选中元素「朝」');
-  await typeInto(page, '起点', '0:00.600');
-  await typeInto(page, '终点', '0:00.900');
-  await pressEnter(page, '终点');
-  await page.waitFor(js(`return revision() === '1';`), '命令后修订 1');
-  check((await page.eval(fieldValue('起点'))) === '0:00.600' && (await page.eval(fieldValue('终点'))) === '0:00.900', '回车提交 setTimeRange：读模型刷新后元素时间为 0.600–0.900');
+  await selectToken(page, '朝');
+  await setTimes(page, '0:00.600', '0:00.900');
+  await page.waitFor(atRevision(1), '命令后修订 1');
+  check((await page.eval(startTime)) === '0:00.600' && (await page.eval(endTime)) === '0:00.900', '回车提交 setTimeRange：读模型刷新后元素时间为 0.600–0.900');
   await page.waitFor(`!!document.querySelector('.wp-upcoming .wp-seg[data-s="600000"][data-e="900000"]')`, '逐字预览跟随编辑', 10_000);
   check(true, '逐字预览跟随编辑：「朝」的填充区间变为 0.600–0.900');
-  if (values.screenshot) await writeFile(values.screenshot.replace(/\.png$/, '-preview.png'), await page.screenshot());
+  await snapshot(page, 'preview');
 
   // 3. 撤销／重做
-  await clickButton(page, '撤销');
-  await page.waitFor(js(`return revision() === '2';`), '撤销后修订 2');
-  check((await page.eval(fieldValue('起点'))) === '', '撤销后元素回到未打轴');
-  await clickButton(page, '重做');
-  await page.waitFor(js(`return revision() === '3';`), '重做后修订 3');
-  check((await page.eval(fieldValue('起点'))) === '0:00.600', '重做后元素时间恢复');
+  await undo(page);
+  await page.waitFor(atRevision(2), '撤销后修订 2');
+  check((await page.eval(startTime)) === '', '撤销后元素回到未打轴');
+  await redo(page);
+  await page.waitFor(atRevision(3), '重做后修订 3');
+  check((await page.eval(startTime)) === '0:00.600', '重做后元素时间恢复');
 
   // 4. 播放中打点：第 2 行（3.0–6.0 秒）的前两个元素，按住 J 记起点、松开记终点
-  await page.eval(`document.querySelectorAll('.line-list mdui-list-item')[1].click()`);
-  await page.waitFor(js(`return field('正文')?.value === '青い空見上げ';`), '选中第 2 行');
+  await selectRow(page, 2, '青い空見上げ');
+  await page.waitFor(`${lineText} === '青い空見上げ'`, '第 2 行正文');
   await page.waitFor(`document.querySelector('.transport .play') && !document.querySelector('.transport .play').disabled`, '音频就绪', 60_000);
   check(true, '工程音频经鉴权读取后可以播放');
   await ui.setChecked(page, 'switch', '打点模式', true);
   // 真实点击会把焦点留在开关上，空格会拨开关而不是播放
   await page.eval(`document.activeElement?.blur()`);
   await page.waitFor(`document.querySelector('.transport-help')?.textContent.includes('按住 J')`, '打点模式开启');
-  const revisionBefore = Number(await page.eval(js(`return revision();`)));
+  const revisionBefore = await revision();
   await key(page, 'keyDown', ' ', 'Space', 32);
   await key(page, 'keyUp', ' ', 'Space', 32);
   await page.waitFor(`${playheadText} >= '0:03.200'`, '播放到 3.2 秒', 20_000);
   for (let i = 0; i < 2; i++) {
     await key(page, 'keyDown', 'j', 'KeyJ', 74);
-    await new Promise((r) => setTimeout(r, 250));
+    await sleep(250);
     await key(page, 'keyUp', 'j', 'KeyJ', 74);
-    await new Promise((r) => setTimeout(r, 100));
+    await sleep(100);
   }
   await key(page, 'keyDown', ' ', 'Space', 32);
   await key(page, 'keyUp', ' ', 'Space', 32);
-  await page.waitFor(js(`return Number(revision()) === ${revisionBefore + 4} && !document.querySelector('.status-bar')?.textContent.includes('同步中');`), '四条打点命令完成', 20_000);
-  if (values.screenshot) await writeFile(values.screenshot.replace(/\.png$/, '-stamped.png'), await page.screenshot());
+  await page.waitFor(`${atRevision(revisionBefore + 4)} && !document.querySelector('.status-bar')?.textContent.includes('同步中')`, '四条打点命令完成', 20_000);
+  await snapshot(page, 'stamped');
   const fills = await page.eval(`[...document.querySelectorAll('.wp-current .wp-seg')].map((s) => s.style.getPropertyValue('--fill'))`);
   check(
     (await page.eval(previewText('current'))) === '青い空見上げ' && fills[0] === '1' && fills[1] === '1' && fills[2] === '0',
     `暂停后逐字预览：当前行「青い空見上げ」，已打点的两个元素填满、未打轴的「空」未填（${fills.join(' ')}）`,
   );
-  const statuses = await page.eval(tokenStatuses);
-  check(statuses[0] === 'status-edited' && statuses[1] === 'status-edited' && statuses[2] === 'status-missing', `播放中打点两次：前两个元素已修改、第三个未打轴（${statuses.slice(0, 3).join(' ')}）`);
-  check(await page.eval(`document.querySelector('.time-editor-title')?.textContent.includes('所选「空」')`), '每次松开 J 自动前进：打完两个元素后选中第三个「空」');
-  await selectToken(page, 0, '青');
-  const stampStart = await page.eval(fieldValue('起点'));
-  check(stampStart >= '0:03.200' && stampStart < '0:04.500', `打点时间来自按键当时的播放头（「青」起点 ${stampStart}）`);
+  const untimed = await page.eval(`[...document.querySelectorAll('.tk-row .tk')].map((c) => c.classList.contains('untimed'))`);
+  check(untimed[0] === false && untimed[1] === false && untimed[2] === true, `播放中打点两次：前两个元素有了时间、第三个未打轴（${untimed.slice(0, 3).join(' ')}）`);
+  check((await page.eval(selectedChip)) === '空', '每次松开 J 自动前进：打完两个元素后选中第三个「空」');
+  await selectToken(page, '青');
+  const stampStart = await page.eval(startTime);
+  const stampStatus = await page.eval(timebarStatus);
+  check(stampStart >= '0:03.200' && stampStart < '0:04.500' && stampStatus === '已修改', `打点时间来自按键当时的播放头（「青」起点 ${stampStart}，${stampStatus}）`);
 
   // 5. 按帧微调与清除
-  const beforeNudge = Number(await page.eval(js(`return revision();`)));
-  await clickButton(page, '+1 帧');
-  await page.waitFor(js(`return Number(revision()) === ${beforeNudge + 1};`), '微调完成');
-  check((await page.eval(fieldValue('起点'))) !== stampStart, `按帧微调：起点 ${stampStart} → ${await page.eval(fieldValue('起点'))}`);
-  await selectToken(page, 1, 'い');
-  await clickButton(page, '清除时间');
-  await page.waitFor(js(`return Number(revision()) === ${beforeNudge + 2};`), '清除完成');
-  check((await page.eval(fieldValue('起点'))) === '', '清除元素时间后回到未打轴');
+  const beforeNudge = await revision();
+  await ui.click(page, 'button', '晚一帧', { scope: '.timebar' });
+  await page.waitFor(atRevision(beforeNudge + 1), '微调完成');
+  check((await page.eval(startTime)) !== stampStart, `按帧微调：起点 ${stampStart} → ${await page.eval(startTime)}`);
+  await selectToken(page, 'い');
+  await ui.click(page, 'button', '清除', { scope: '.timebar' });
+  await page.waitFor(atRevision(beforeNudge + 2), '清除完成');
+  check((await page.eval(startTime)) === '', '清除元素时间后回到未打轴');
 
   // 6. 整行平移与时间轴拖动：第 1 行
-  await page.eval(`document.querySelectorAll('.line-list mdui-list-item')[0].click()`);
-  await page.waitFor(js(`return field('正文')?.value === '朝の光浴びて';`), '选中第 1 行');
-  const beforeShift = Number(await page.eval(js(`return revision();`)));
-  await typeInto(page, '整行平移（毫秒）', '-100');
-  await clickButton(page, '平移');
-  await page.waitFor(js(`return Number(revision()) === ${beforeShift + 1};`), '平移完成');
+  await selectRow(page, 1, '朝の光浴びて');
+  const beforeShift = await revision();
+  await ui.click(page, 'button', '整行平移…');
+  await ui.fill(page, '毫秒（可为负）', '-100', { enter: true });
+  await page.waitFor(`${atRevision(beforeShift + 1)} && !document.querySelector('.shift-dialog')`, '平移完成');
   check(
-    await page.eval(`document.querySelector('.line-detail-header')?.textContent.includes('0:00.400 – 0:02.900')`),
-    '整行平移 −100 毫秒：行 0.4–2.9，已定时元素一起移动',
+    await page.eval(`document.querySelector('.lhead .tnum')?.textContent === '0:00.400 – 0:02.900'`),
+    '整行平移 −100 毫秒（弹层输入）：行 0.4–2.9，已定时元素一起移动',
   );
-  await clickButton(page, '定位到此行');
-  await page.waitFor(`${previewText('current')} === '朝の光浴びて' && document.querySelector('.word-preview .pane-title-text')?.textContent.includes('0:00.400')`, '定位到第 1 行', 10_000);
-  check(true, '定位到此行：播放头到行起点 0:00.400，逐字预览显示该行为当前行');
+  await ui.click(page, 'button', '定位', { scope: '.lhead' });
+  await page.waitFor(`${previewText('current')} === '朝の光浴びて' && document.querySelector('.wp-clock')?.textContent.includes('0:00.400')`, '定位到第 1 行', 10_000);
+  check(true, '定位：播放头到行起点 0:00.400，逐字预览显示该行为当前行');
 
-  await clickButton(page, '全曲');
+  await ui.click(page, 'button', '全曲');
   const geometry = await page.eval(`(() => {
     const r = document.querySelector('.timeline-canvas canvas').getBoundingClientRect();
     return { left: r.left, top: r.top, width: r.width };
@@ -315,118 +294,108 @@ try {
   check(beats === 12, `时间轴波形读自后端（G11，按块懒加载）：全曲视口里数出 ${beats} 拍（应为 12）`);
 
   // 「朝」现在 0.5–0.8：把终点拖到 1.1 秒（30 fps 下正好在帧上）。
-  const beforeDrag = Number(await page.eval(js(`return revision();`)));
+  const beforeDrag = await revision();
   await dragTimeline(800_000, 1_100_000);
-  await page.waitFor(js(`return Number(revision()) === ${beforeDrag + 1};`), '拖动终点提交');
-  await selectToken(page, 0, '朝');
-  await page.waitFor(js(`return field('终点')?.value === '0:01.100';`), '「朝」终点 1.1', 10_000).catch(() => undefined);
-  check((await page.eval(fieldValue('终点'))) === '0:01.100', `拖动元素终点：「朝」0.5–${await page.eval(fieldValue('终点'))}`);
+  await page.waitFor(atRevision(beforeDrag + 1), '拖动终点提交');
+  await selectToken(page, '朝');
+  await page.waitFor(`${endTime} === '0:01.100'`, '「朝」终点 1.1', 10_000).catch(() => undefined);
+  check((await page.eval(endTime)) === '0:01.100', `拖动元素终点：「朝」0.5–${await page.eval(endTime)}`);
 
   // 「の」接在后面：1.1–1.4；再把共用边界 1.1 拖到 1.0，两边一次提交。
-  await selectToken(page, 1, 'の');
-  await typeInto(page, '起点', '0:01.100');
-  await typeInto(page, '终点', '0:01.400');
-  await pressEnter(page, '终点');
-  await page.waitFor(js(`return Number(revision()) === ${beforeDrag + 2};`), '「の」设时间');
+  await selectToken(page, 'の');
+  await setTimes(page, '0:01.100', '0:01.400');
+  await page.waitFor(atRevision(beforeDrag + 2), '「の」设时间');
   await dragTimeline(1_100_000, 1_000_000);
-  await page.waitFor(js(`return Number(revision()) === ${beforeDrag + 3} && !document.querySelector('.status-bar')?.textContent.includes('同步中');`), '拖动共用边界提交');
+  await page.waitFor(`${atRevision(beforeDrag + 3)} && !document.querySelector('.status-bar')?.textContent.includes('同步中')`, '拖动共用边界提交');
   // 拖动开始时会选中被拖的元素（这里是「朝」），分别选中两边读时间。
-  await selectToken(page, 1, 'の');
-  const noStart = await page.eval(fieldValue('起点'));
-  await selectToken(page, 0, '朝');
-  const asaEnd = await page.eval(fieldValue('终点'));
+  await selectToken(page, 'の');
+  const noStart = await page.eval(startTime);
+  await selectToken(page, '朝');
+  const asaEnd = await page.eval(endTime);
   check(asaEnd === '0:01.000' && noStart === '0:01.000', `拖动相邻元素的共用边界：一次命令同时改「朝」终点（${asaEnd}）与「の」起点（${noStart}）`);
-  await clickButton(page, '撤销');
-  await page.waitFor(js(`return Number(revision()) === ${beforeDrag + 4};`), '撤销拖动');
-  await page.waitFor(js(`return field('终点')?.value === '0:01.100';`), '撤销后「朝」终点 1.1', 10_000).catch(() => undefined);
-  check((await page.eval(fieldValue('终点'))) === '0:01.100', '一次撤销还原共用边界两侧');
-  const savedAsaStart = await page.eval(fieldValue('起点'));
+  await undo(page);
+  await page.waitFor(atRevision(beforeDrag + 4), '撤销拖动');
+  await page.waitFor(`${endTime} === '0:01.100'`, '撤销后「朝」终点 1.1', 10_000).catch(() => undefined);
+  check((await page.eval(endTime)) === '0:01.100', '一次撤销还原共用边界两侧');
+  const savedAsaStart = await page.eval(startTime);
 
   // 6b. 注音、正文、行操作（S3a）
-  const lineTexts = `[...document.querySelectorAll('.line-list .line-text')].map((n) => n.textContent)`;
-  const toastShown = (text) => `[...document.querySelectorAll('mdui-snackbar')].some((s) => s.open && s.textContent.includes(${JSON.stringify(text)}))`;
-  let before = Number(await page.eval(js(`return revision();`)));
-  await typeInto(page, '整段注音', 'あさ');
-  await pressEnter(page, '整段注音');
-  await page.waitFor(`document.querySelector('.token-chip .token-ruby')?.textContent === 'あさ'`, '注音显示在「朝」上方', 10_000);
-  check(Number(await page.eval(js(`return revision();`))) === before + 1, '注音：setRubyText 后「朝」上方显示「あさ」');
+  let before = await revision();
+  await ui.fill(page, '整段注音', 'あさ', { enter: true });
+  await page.waitFor(`document.querySelector('.tk-row .tk .tk-r')?.textContent === 'あさ'`, '注音显示在「朝」上方', 10_000);
+  check((await revision()) === before + 1, '注音：setRubyText 后「朝」上方显示「あさ」');
 
-  await page.eval(`document.querySelectorAll('.line-list mdui-list-item')[3].click()`);
-  await page.waitFor(js(`return field('正文')?.value === '你好，世界';`), '选中第 4 行');
-  before = Number(await page.eval(js(`return revision();`)));
-  await typeInto(page, '正文', '你好，新世界');
-  await pressEnter(page, '正文');
-  await page.waitFor(`${toastShown('正文已更新')}`, '正文更新提示', 10_000);
-  check(
-    (await page.eval(lineTexts))[3] === '你好，新世界' && (await page.eval(`[...document.querySelectorAll('mdui-snackbar')].find((s) => s.open)?.textContent`)).includes('保留'),
-    '正文：Enter 提交 setLineText，提示保留／重新拆分的文本单元数',
-  );
-  await clickButton(page, '撤销');
-  await page.waitFor(js(`return Number(revision()) === ${before + 2} && field('正文')?.value === '你好，世界';`), '撤销正文', 10_000);
+  await selectRow(page, 4, '你好，世界');
+  before = await revision();
+  await ui.fill(page, '正文', '你好，新世界', { enter: true });
+  await page.waitFor(toastHas('正文已更新'), '正文更新提示', 10_000);
+  check((await page.eval(lineTexts))[3] === '你好，新世界' && (await page.eval(toastHas('保留'))), '正文：Enter 提交 setLineText，提示保留／重新拆分的文本单元数');
+  await undo(page);
+  await page.waitFor(`${atRevision(before + 2)} && ${lineText} === '你好，世界'`, '撤销正文', 10_000);
   check(true, '撤销正文修改');
 
-  await clickMenuItem(page, '第 4 行操作', '在下方插入');
+  await ui.menu(page, '行操作', '在下方插入', { scope: '.lhead' });
   await page.waitFor(`${lineTexts}.length === 5`, '插入后 5 行', 10_000);
-  await page.waitFor(js(`return field('正文')?.value === '' && document.querySelectorAll('.line-list mdui-list-item')[4].active;`), '选中新插入的空行', 10_000);
-  check(true, '在下方插入：新空行出现在第 5 行并被选中（feedback.selection）');
-  await clickMenuItem(page, '第 1 行操作', '复制本行');
+  await page.waitFor(`${lineText} === '' && ${lineTitle} === '第 5 行'`, '选中新插入的空行', 10_000);
+  check(true, '行操作菜单“在下方插入”：新空行出现在第 5 行并被选中（feedback.selection）');
+  // 右键第 1 行：选中它并在指针处弹出行操作菜单
+  await ui.click(page, 'row', '1 朝の光浴びて', { right: true });
+  await ui.click(page, 'menuitem', '复制本行', { scope: '@menu' });
   await page.waitFor(`${lineTexts}.length === 6`, '复制后 6 行', 10_000);
-  check(JSON.stringify((await page.eval(lineTexts)).slice(0, 2)) === JSON.stringify(['朝の光浴びて', '朝の光浴びて']), '复制本行：副本紧接原行');
+  check(JSON.stringify((await page.eval(lineTexts)).slice(0, 2)) === JSON.stringify(['朝の光浴びて', '朝の光浴びて']), '右键菜单“复制本行”：副本紧接原行');
 
-  // Ctrl 点击加选副本和空行，批量删除（一次 project.applyEdits，确认框，一条历史）
-  before = Number(await page.eval(js(`return revision();`)));
-  for (const index of [1, 5]) {
-    await page.eval(`document.querySelectorAll('.line-list mdui-list-item')[${index}].dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true }))`);
-  }
-  await page.waitFor(`document.querySelector('.bulk-bar')?.textContent.includes('已选 2 行')`, '多选 2 行');
-  await clickButton(page, '删除');
-  await page.waitFor(`[...document.querySelectorAll('mdui-dialog')].some((d) => d.open && d.headline === '删除 2 行？')`, '确认框');
-  await page.eval(`[...document.querySelectorAll('mdui-dialog')].find((d) => d.open).querySelectorAll('mdui-button')[1].click()`);
-  await page.waitFor(js(`return Number(revision()) === ${before + 1} && document.querySelectorAll('.line-list mdui-list-item').length === 4;`), '批量删除完成', 20_000);
+  // 打开多选，勾选副本和空行，批量删除（一次 project.applyEdits，确认框，一条历史）
+  before = await revision();
+  await ui.click(page, 'button', '多选');
+  await ui.click(page, 'row', '2 朝の光浴びて');
+  await ui.click(page, 'row', '6');
+  await page.waitFor(`document.querySelector('.bulk-count')?.textContent === '已选 2 行'`, '多选 2 行');
+  await ui.click(page, 'button', '删除', { scope: '.bulk-bar' });
+  await ui.waitDialog(page, '删除 2 行？');
+  await ui.clickInDialog(page, '删除');
+  await page.waitFor(`${atRevision(before + 1)} && ${rowCount} === 4`, '批量删除完成', 20_000);
   check(
     JSON.stringify(await page.eval(lineTexts)) === JSON.stringify(['朝の光浴びて', '青い空見上げ', 'Hello karaoke', '你好，世界']),
-    'Ctrl 加选两行后批量删除：确认后一次删除（一条历史），回到原来 4 行',
+    '多选勾选两行后批量删除：确认后一次删除（一条历史），回到原来 4 行',
   );
-  await clickButton(page, '撤销');
-  await page.waitFor(js(`return Number(revision()) === ${before + 2} && document.querySelectorAll('.line-list mdui-list-item').length === 6;`), '撤销批量删除', 10_000);
-  await clickButton(page, '重做');
-  await page.waitFor(js(`return Number(revision()) === ${before + 3} && document.querySelectorAll('.line-list mdui-list-item').length === 4;`), '重做批量删除', 10_000);
+  await ui.click(page, 'button', '多选');
+  await page.waitFor(`!document.querySelector('.bulk-bar')`, '关闭多选');
+  await undo(page);
+  await page.waitFor(`${atRevision(before + 2)} && ${rowCount} === 6`, '撤销批量删除', 10_000);
+  await redo(page);
+  await page.waitFor(`${atRevision(before + 3)} && ${rowCount} === 4`, '重做批量删除', 10_000);
   check(true, '批量删除一次撤销两行都回来，重做再次删除');
 
   // 6c. 文本单元结构（S3c）：第 3 行「Hello karaoke」
-  const chipTexts = `[...document.querySelectorAll('.token-chip .token-text')].map((n) => n.textContent)`;
-  const dialogClosed = `![...document.querySelectorAll('mdui-dialog')].some((d) => d.open)`;
-  await page.eval(`document.querySelectorAll('.line-list mdui-list-item')[2].click()`);
-  await page.waitFor(js(`return field('正文')?.value === 'Hello karaoke';`), '选中第 3 行');
-  await clickButton(page, '按规则重切本行…');
-  await page.waitFor(js(`return field('切分')?.value === 'Hello |karaoke';`), '重切对话框带出当前切分', 10_000);
-  await typeInto(page, '切分', 'Hel|lo |karaoke');
-  await page.waitFor(`[...document.querySelectorAll('mdui-dialog')].find((d) => d.open)?.querySelectorAll('.segment-chip').length === 3`, '切分预览 3 段');
-  await clickDialogButton(page, '重切');
-  await page.waitFor(`${dialogClosed} && ${chipTexts}.length === 3 && ${toastShown('已重切本行')}`, '重切本行完成', 10_000);
+  await selectRow(page, 3, 'Hello karaoke');
+  await ui.click(page, 'button', '按规则重切本行…');
+  await ui.waitDialog(page, '按规则重切本行');
+  await page.waitFor(uiJs(`return __ui.find('textbox', '切分', false, '@dialog')?.value === 'Hello |karaoke';`), '重切对话框带出当前切分', 10_000);
+  await ui.fill(page, '切分', 'Hel|lo |karaoke', { scope: '@dialog' });
+  await page.waitFor(`document.querySelectorAll('[role=dialog] .resplit-chip').length === 3`, '切分预览 3 段');
+  await ui.clickInDialog(page, '重切');
+  await page.waitFor(`!${dialogOpen} && ${chipTexts}.length === 3 && ${toastHas('已重切本行')}`, '重切本行完成', 10_000);
   check(true, `按规则重切本行：用“|”切成 3 段（${(await page.eval(chipTexts)).join('|')}），对话框预览切分结果`);
 
-  await selectToken(page, 0, 'Hel');
-  before = Number(await page.eval(js(`return revision();`)));
-  await clickButton(page, '与后一个合并');
-  await page.waitFor(js(`return Number(revision()) === ${before + 1};`) + ` && ${chipTexts}.length === 2`, '合并完成', 10_000);
-  await page.waitFor(`document.querySelector('.time-editor-title')?.textContent.includes('所选「Hello')`, '合并后选中合并结果', 10_000);
+  await selectToken(page, 'Hel');
+  before = await revision();
+  await ui.click(page, 'button', '与后一个合并');
+  await page.waitFor(`${atRevision(before + 1)} && ${chipTexts}.length === 2`, '合并完成', 10_000);
+  await page.waitFor(`${selectedChip} === 'Hello '`, '合并后选中合并结果', 10_000);
   check(true, '与后一个合并：「Hel」+「lo」，选中合并后的单元（tokenResult.selection）');
 
-  await typeInto(page, '起点', '0:06.200');
-  await typeInto(page, '终点', '0:06.800');
-  await pressEnter(page, '终点');
-  await page.waitFor(js(`return Number(revision()) === ${before + 2};`), '给 Hello 打上时间', 10_000);
-  await clickButton(page, '拆开');
+  await setTimes(page, '0:06.200', '0:06.800');
+  await page.waitFor(atRevision(before + 2), '给 Hello 打上时间', 10_000);
+  await ui.click(page, 'button', '拆开');
   await page.waitFor(`${chipTexts}.length === 3`, '拆开完成', 10_000);
   const splitChips = await page.eval(chipTexts);
   // 合并结果是「Hello 」（含尾随空格，6 个文本元素），对半拆成「Hel」「lo 」。
   check(splitChips[0] === 'Hel' && splitChips[1] === 'lo ', `拆开已打轴的单元：按文本元素数对半（${splitChips.join('|')}）`);
 
   // 把最后一个单元拖到最前，选“时间槽跟着新顺序重排”
-  before = Number(await page.eval(js(`return revision();`)));
+  before = await revision();
   await page.eval(`(() => {
-    const chips = document.querySelectorAll('.token-chip');
+    const chips = document.querySelectorAll('.tk-row .tk');
     const dt = new DataTransfer();
     const fire = (el, type, x) => el.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: dt, clientX: x, clientY: el.getBoundingClientRect().top + 5 }));
     const first = chips[0].getBoundingClientRect();
@@ -435,175 +404,154 @@ try {
     fire(chips[0], 'drop', first.left + 2);
     fire(chips[2], 'dragend', 0);
   })()`);
-  await clickDialogButton(page, '时间槽跟着新顺序重排');
-  await page.waitFor(js(`return Number(revision()) === ${before + 1};`), '重排完成', 10_000);
+  await ui.waitDialog(page, '调整文本单元顺序');
+  await ui.clickInDialog(page, '时间槽跟着新顺序重排');
+  await page.waitFor(atRevision(before + 1), '重排完成', 10_000);
   await page.waitFor(`${chipTexts}[0] === 'karaoke'`, '重排后顺序', 10_000);
   check(true, `拖动排序：「karaoke」移到最前（${(await page.eval(chipTexts)).join('|')}），时间槽跟着新顺序重排`);
 
   // 整个来源按“逐字”重切，一次撤销整体还原
   const chipsBefore = (await page.eval(chipTexts)).length;
-  before = Number(await page.eval(js(`return revision();`)));
-  await clickMenuItem(page, '来源操作', '按规则重切整个来源…');
-  await page.waitFor(`[...document.querySelectorAll('mdui-dialog')].some((d) => d.open && d.headline === '按规则重切整个来源')`, '整来源重切对话框');
-  await page.eval(`(() => {
-    const sel = [...document.querySelectorAll('mdui-dialog')].find((d) => d.open).querySelector('mdui-select');
-    sel.value = 'perTextElement';
-    sel.dispatchEvent(new Event('change', { bubbles: true }));
-  })()`);
-  await clickDialogButton(page, '重切');
-  await page.waitFor(`${dialogClosed} && ${toastShown('已重切')}`, '整来源重切完成', 20_000);
-  await page.waitFor(js(`return Number(revision()) === ${before + 1};`), '整来源一条历史', 10_000);
+  before = await revision();
+  await ui.menu(page, '来源操作', '按规则重切整个来源…');
+  await ui.waitDialog(page, '按规则重切整个来源');
+  await ui.choose(page, '拆分规则', '逐字：英文也逐字母', { scope: '@dialog' });
+  await ui.clickInDialog(page, '重切');
+  await page.waitFor(`!${dialogOpen} && ${toastHas('已重切')}`, '整来源重切完成', 20_000);
+  await page.waitFor(atRevision(before + 1), '整来源一条历史', 10_000);
   const perLetter = (await page.eval(chipTexts)).length;
-  await clickButton(page, '撤销');
-  await page.waitFor(js(`return Number(revision()) === ${before + 2};`) + ` && ${chipTexts}.length === ${chipsBefore}`, '撤销整来源重切', 10_000);
+  await undo(page);
+  await page.waitFor(`${atRevision(before + 2)} && ${chipTexts}.length === ${chipsBefore}`, '撤销整来源重切', 10_000);
   check(perLetter > chipsBefore, `按规则重切整个来源（逐字）：第 3 行 ${chipsBefore} → ${perLetter} 个单元，一次撤销整体还原`);
-  await page.eval(`document.querySelectorAll('.line-list mdui-list-item')[0].click()`);
-  await selectToken(page, 0, '朝');
+  await selectRow(page, 1, '朝の光浴びて');
+  await selectToken(page, '朝');
 
   // 6d. 来源管理与翻译关联（S3b）
-  const drawerOpen = `document.querySelector('.sources-drawer')?.open === true`;
-  const branchItems = `[...document.querySelectorAll('.sources-drawer .branch-list mdui-list-item')]`;
-  const lineMetas = `[...document.querySelectorAll('.line-list .line-meta')].map((n) => n.textContent)`;
-  before = Number(await page.eval(js(`return revision();`)));
-  await clickButton(page, '管理来源');
-  await page.waitFor(drawerOpen, '管理来源面板打开');
-  await clickButton(page, '添加翻译来源');
-  await typeInto(page, '新来源名称', '中文');
-  await typeInto(page, '新来源语言（可留空）', 'zh-Hans');
-  await clickButton(page, '添加');
-  await page.waitFor(js(`return Number(revision()) === ${before + 1};`) + ` && ${branchItems}.length === 2`, '添加翻译来源', 10_000);
-  await page.waitFor(
-    `document.querySelector('.empty-state')?.textContent.includes('还没有歌词') && ${js(`return field('名称')?.value === '中文';`)}`,
-    '切到新来源并在面板里编辑它',
-    10_000,
-  );
+  const branchRows = `[...document.querySelectorAll('.sources-sheet .branch-row')]`;
+  const inSheet = { scope: '@dialog' };
+  const sheetField = (label) => uiJs(`return __ui.find('textbox', ${JSON.stringify(label)}, false, '@dialog')?.value ?? null;`);
+  before = await revision();
+  await ui.menu(page, '歌词来源：', '管理来源…', { partial: true });
+  await ui.waitDialog(page, '管理来源');
+  await ui.click(page, 'button', '添加翻译来源', inSheet);
+  await ui.fill(page, '新来源名称', '中文', inSheet);
+  await ui.fill(page, '新来源语言（可留空）', 'zh-Hans', inSheet);
+  await ui.click(page, 'button', '添加', inSheet);
+  await page.waitFor(`${atRevision(before + 1)} && ${branchRows}.length === 2`, '添加翻译来源', 10_000);
+  await page.waitFor(`document.querySelector('.lp-empty')?.textContent.includes('「中文」还没有歌词') && ${sheetField('名称')} === '中文'`, '切到新来源并在面板里编辑它', 10_000);
   check(true, '添加翻译来源：切到新的空来源（branchResult.selectedBranchId），面板选中它');
-  await typeInto(page, '名称', '中文翻译');
-  await clickButton(page, '保存');
+  await ui.fill(page, '名称', '中文翻译', inSheet);
+  await ui.click(page, 'button', '保存', inSheet);
   await page.waitFor(
-    `${branchItems}.some((i) => i.querySelector('span')?.textContent === '中文翻译' && i.querySelector('[slot=description]')?.textContent === '翻译 · zh-Hans · 跟随主歌词 · 0 行')`,
+    `${branchRows}.some((r) => r.querySelector('.branch-name')?.textContent === '中文翻译' && r.querySelector('.faint')?.textContent === '翻译 · zh-Hans · 跟随主歌词 · 0 行')`,
     '来源改名',
     10_000,
   );
-  check(Number(await page.eval(js(`return revision();`))) === before + 2, '修改来源名称（configureBranch），列表显示角色、语言、时间策略');
-  await page.eval(`${branchItems}[0].click()`);
-  await page.waitFor(js(`return field('名称')?.value === '主歌词';`), '面板选中主歌词');
+  check((await revision()) === before + 2, '修改来源名称（configureBranch），列表显示角色、语言、时间策略');
+  await ui.click(page, 'row', '主歌词', inSheet);
+  await page.waitFor(`${sheetField('名称')} === '主歌词'`, '面板选中主歌词');
   check(
     await page.eval(
-      js(
-        `const remove = button('删除来源'); const role = [...document.querySelectorAll('.sources-drawer mdui-select')].find((s) => s.label === '角色'); return remove.disabled && role.disabled && document.querySelector('.sources-drawer').textContent.includes('主歌词不能删除');`,
+      uiJs(
+        `const remove = __ui.find('button', '删除来源', false, '@dialog'); const role = __ui.find('select', '角色', false, '@dialog'); return __ui.disabled(remove) && __ui.disabled(role) && document.querySelector('.sources-sheet').textContent.includes('主歌词不能删除');`,
       ),
     ),
     '主歌词的“删除来源”和“角色”禁用，并写明原因',
   );
   await snapshot(page, 'sources');
-  await clickButton(page, '关闭管理来源');
-  await page.waitFor(`!(${drawerOpen})`, '关闭管理来源面板');
+  await ui.click(page, 'button', '关闭管理来源');
+  await ui.waitDialogClosed(page, '管理来源');
 
   // 在翻译来源里建两行，再按顺序自动配对
-  await clickButton(page, '新建一行');
-  await page.waitFor(js(`return field('正文')?.value === '' && document.querySelectorAll('.line-list mdui-list-item').length === 1;`), '新建第一行', 10_000);
-  await typeInto(page, '正文', '沐浴着晨光');
-  await pressEnter(page, '正文');
+  await ui.click(page, 'button', '新建一行', { scope: '.lp-empty' });
+  await page.waitFor(`${lineText} === '' && ${rowCount} === 1`, '新建第一行', 10_000);
+  await ui.fill(page, '正文', '沐浴着晨光', { enter: true });
   await page.waitFor(`${lineTexts}[0] === '沐浴着晨光'`, '第一行正文', 10_000);
-  await clickMenuItem(page, '第 1 行操作', '在下方插入');
-  await page.waitFor(js(`return field('正文')?.value === '' && document.querySelectorAll('.line-list mdui-list-item').length === 2;`), '插入第二行', 10_000);
-  await typeInto(page, '正文', '仰望蓝天');
-  await pressEnter(page, '正文');
+  await ui.menu(page, '行操作', '在下方插入', { scope: '.lhead' });
+  await page.waitFor(`${lineText} === '' && ${rowCount} === 2`, '插入第二行', 10_000);
+  await ui.fill(page, '正文', '仰望蓝天', { enter: true });
   await page.waitFor(`${lineTexts}[1] === '仰望蓝天'`, '第二行正文', 10_000);
-  before = Number(await page.eval(js(`return revision();`)));
-  await clickMenuItem(page, '来源操作', '关联主歌词…');
-  await page.waitFor(`[...document.querySelectorAll('mdui-dialog')].some((d) => d.open && d.headline === '关联主歌词：中文翻译')`, '翻译关联对话框');
-  await clickDialogButton(page, '按顺序自动配对');
+  before = await revision();
+  await ui.menu(page, '来源操作', '关联主歌词…');
+  await ui.waitDialog(page, '关联主歌词：中文翻译');
+  await ui.click(page, 'button', '按顺序自动配对', { scope: '@dialog' });
   await page.waitFor(`document.querySelectorAll('.link-row.changed').length === 2`, '自动配对后两行有修改');
   await snapshot(page, 'link');
-  await clickDialogButton(page, '应用 2 处修改');
-  await page.waitFor(`${dialogClosed} && ${toastShown('已修改 2 行关联')}`, '应用关联', 20_000);
-  await page.waitFor(js(`return Number(revision()) === ${before + 1};`) + ` && ${lineMetas}.every((t) => t.includes('跟随 第'))`, '关联刷新', 10_000);
-  const metas = await page.eval(lineMetas);
+  await ui.clickInDialog(page, '应用 2 处修改');
+  await page.waitFor(`!${dialogOpen} && ${toastHas('已修改 2 行关联')}`, '应用关联', 20_000);
+  await page.waitFor(`${atRevision(before + 1)} && ${lineNotes}.every((t) => t.includes('跟随 第'))`, '关联刷新', 10_000);
+  const notes = await page.eval(lineNotes);
   check(
-    metas[0].includes('跟随 第 1 行') && metas[0].includes('主歌词 1：朝の光浴びて') && metas[1].includes('跟随 第 2 行'),
-    `按顺序自动配对：两处关联一次提交（一条历史），行列表显示“跟随 第 N 行”和关联的主歌词（${metas[0]}）`,
+    notes[0].includes('跟随 第 1 行') && notes[0].includes('主歌词 1：朝の光浴びて') && notes[1].includes('跟随 第 2 行'),
+    `按顺序自动配对：两处关联一次提交（一条历史），行列表显示“跟随 第 N 行”和关联的主歌词（${notes[0]}）`,
   );
-  await page.waitFor(`document.querySelector('.translation-section')?.textContent.includes('跟随主歌词第 2 行显示')`, '行编辑区显示关联');
+  await page.waitFor(`document.querySelector('.fs.trans')?.textContent.includes('跟随主歌词第 2 行显示')`, '行编辑区显示关联');
   check(true, '翻译行的行编辑区显示它关联的主歌词');
 
   // 回到主歌词：行列表、行编辑区和逐字预览都显示关联的翻译
-  await page.eval(`(() => {
-    const sel = [...document.querySelectorAll('mdui-select')].find((s) => s.label === '歌词来源');
-    sel.value = sel.querySelector('mdui-menu-item').value;
-    sel.dispatchEvent(new Event('change', { bubbles: true }));
-  })()`);
+  await ui.menu(page, '歌词来源：', '主歌词', { partial: true });
   await page.waitFor(`${lineTexts}[0] === '朝の光浴びて'`, '切回主歌词', 10_000);
-  await page.eval(`document.querySelectorAll('.line-list mdui-list-item')[0].click()`);
-  await clickButton(page, '定位到此行');
+  await selectRow(page, 1, '朝の光浴びて');
+  await ui.click(page, 'button', '定位', { scope: '.lhead' });
   await page.waitFor(`document.querySelector('.wp-translation')?.textContent.includes('沐浴着晨光')`, '逐字预览显示翻译', 10_000);
-  await page.waitFor(`${lineMetas}[0]?.includes('翻译：沐浴着晨光')`, '主歌词行下显示翻译', 10_000);
-  await page.waitFor(`document.querySelector('.translation-section')?.textContent.includes('沐浴着晨光')`, '行编辑区列出关联的翻译', 10_000);
+  await page.waitFor(`${lineNotes}[0]?.includes('沐浴着晨光')`, '主歌词行下显示翻译', 10_000);
+  await page.waitFor(`document.querySelector('.fs.trans')?.textContent.includes('沐浴着晨光')`, '行编辑区列出关联的翻译', 10_000);
   check(true, '主歌词行下显示关联的翻译；行编辑区列出关联的翻译；逐字预览在当前行下显示翻译');
   await snapshot(page, 'translations');
 
   // 删除翻译来源（确认），撤销后来源和关联都回来
-  before = Number(await page.eval(js(`return revision();`)));
-  await clickButton(page, '管理来源');
-  await page.waitFor(drawerOpen, '管理来源面板打开');
-  await page.eval(`${branchItems}[1].click()`);
-  await page.waitFor(js(`return field('名称')?.value === '中文翻译';`), '面板选中中文翻译');
-  await clickButton(page, '删除来源');
-  await page.waitFor(`[...document.querySelectorAll('mdui-dialog')].some((d) => d.open && d.headline === '删除来源「中文翻译」？')`, '删除来源确认框');
-  await clickDialogButton(page, '删除');
-  await page.waitFor(js(`return Number(revision()) === ${before + 1};`) + ` && ${branchItems}.length === 1`, '删除来源', 10_000);
-  await clickButton(page, '关闭管理来源');
-  await page.waitFor(`!(${drawerOpen}) && !document.querySelector('.wp-translation') && !${lineMetas}[0].includes('翻译')`, '翻译从各处消失', 10_000);
-  await clickButton(page, '撤销');
-  await page.waitFor(js(`return Number(revision()) === ${before + 2};`) + ` && ${lineMetas}[0].includes('翻译：沐浴着晨光')`, '撤销删除来源', 10_000);
+  before = await revision();
+  await ui.menu(page, '歌词来源：', '管理来源…', { partial: true });
+  await ui.waitDialog(page, '管理来源');
+  await ui.click(page, 'row', '中文翻译', inSheet);
+  await page.waitFor(`${sheetField('名称')} === '中文翻译'`, '面板选中中文翻译');
+  await ui.click(page, 'button', '删除来源', inSheet);
+  await ui.waitDialog(page, '删除来源「中文翻译」？');
+  await ui.clickInDialog(page, '删除');
+  await page.waitFor(`${atRevision(before + 1)} && ${branchRows}.length === 1`, '删除来源', 10_000);
+  await ui.click(page, 'button', '关闭管理来源');
+  await page.waitFor(`!${dialogOpen} && !document.querySelector('.wp-translation') && !${lineNotes}[0].includes('沐浴着晨光')`, '翻译从各处消失', 10_000);
+  await undo(page);
+  await page.waitFor(`${atRevision(before + 2)} && ${lineNotes}[0].includes('沐浴着晨光')`, '撤销删除来源', 10_000);
   check(true, '删除翻译来源（先确认），翻译从行列表和预览消失；撤销后来源和关联恢复');
 
   // 6e. 添加歌词（S3d）：粘贴到新翻译来源、追加到现有来源末尾、导入文件为新来源（导入报告）、导入替换现有来源
-  const openDialog = (headline) => `[...document.querySelectorAll('mdui-dialog')].some((d) => d.open && d.headline === ${JSON.stringify(headline)})`;
-  const branchOptions = `([...document.querySelectorAll('mdui-select')].find((s) => s.label === '歌词来源')?.querySelectorAll('mdui-menu-item').length ?? 0)`;
-  const selectedText = js(`return field('正文')?.value;`);
-  before = Number(await page.eval(js(`return revision();`)));
-  await clickMenuItem(page, '添加歌词', '粘贴文本…');
-  await page.waitFor(openDialog('粘贴歌词'), '粘贴对话框');
-  await typeInto(page, '歌词', 'Bathing in morning light\n\n  \nLooking up at the blue sky\n');
-  await page.waitFor(js(`return field('歌词')?.helper === '将追加 2 行；空白行跳过';`), '粘贴行数预览');
-  await chooseOption(page, '追加到', '__new__');
-  await typeInto(page, '新来源名称', 'English');
+  before = await revision();
+  await ui.menu(page, '添加歌词', '粘贴文本…');
+  await ui.waitDialog(page, '粘贴歌词');
+  await ui.fill(page, '歌词', 'Bathing in morning light\n\n  \nLooking up at the blue sky\n', { scope: '@dialog' });
+  await page.waitFor(`document.querySelector('[role=dialog] .paste-text')?.textContent.includes('将追加 2 行；空白行跳过')`, '粘贴行数预览');
+  await ui.choose(page, '追加到', '新建翻译来源', { scope: '@dialog' });
+  await ui.fill(page, '新来源名称', 'English', { scope: '@dialog' });
   await snapshot(page, 'paste');
-  await clickDialogButton(page, '追加 2 行');
-  await page.waitFor(`${dialogClosed} && ${toastShown('已新建翻译来源「English」，2 行')}`, '粘贴到新翻译来源', 10_000);
+  await ui.clickInDialog(page, '追加 2 行');
+  await page.waitFor(`!${dialogOpen} && ${toastHas('已新建翻译来源「English」，2 行')}`, '粘贴到新翻译来源', 10_000);
   await page.waitFor(
-    js(`return Number(revision()) === ${before + 1};`) + ` && ${branchOptions} === 3 && ${lineTexts}.join('|') === 'Bathing in morning light|Looking up at the blue sky' && ${selectedText} === 'Bathing in morning light'`,
+    `${atRevision(before + 1)} && ${lineTexts}.join('|') === 'Bathing in morning light|Looking up at the blue sky' && ${lineText} === 'Bathing in morning light'`,
     '切到新翻译来源并选中第一行',
     10_000,
   );
-  check(true, '粘贴文本到新翻译来源（appendText newTranslation）：跳过空白行，切到新来源并选中新加入的第一行');
-  await clickMenuItem(page, '添加歌词', '粘贴文本…');
-  await page.waitFor(openDialog('粘贴歌词'), '粘贴对话框');
-  await typeInto(page, '歌词', 'Walking the road with you');
-  await clickDialogButton(page, '追加 1 行');
-  await page.waitFor(
-    js(`return Number(revision()) === ${before + 2};`) + ` && ${lineTexts}.length === 3 && ${selectedText} === 'Walking the road with you'`,
-    '追加到现有来源末尾',
-    10_000,
-  );
+  const afterPaste = await branchNames(page);
+  check(afterPaste.length === 3 && afterPaste.includes('English'), `粘贴文本到新翻译来源（appendText newTranslation）：跳过空白行，切到新来源并选中新加入的第一行（来源：${afterPaste.join('、')}）`);
+  await ui.menu(page, '添加歌词', '粘贴文本…');
+  await ui.waitDialog(page, '粘贴歌词');
+  await ui.fill(page, '歌词', 'Walking the road with you', { scope: '@dialog' });
+  await ui.clickInDialog(page, '追加 1 行');
+  await page.waitFor(`${atRevision(before + 2)} && ${lineTexts}.length === 3 && ${lineText} === 'Walking the road with you'`, '追加到现有来源末尾', 10_000);
   check(true, '粘贴文本追加到当前来源末尾（appendText existing），选中新加入的第一行');
 
-  await clickMenuItem(page, '添加歌词', '导入文件…');
-  await page.waitFor(openDialog('导入歌词文件'), '导入对话框');
-  await setFile(page, '选择文件', importPath);
-  await chooseOption(page, '导入到', '__new__');
-  await page.waitFor(js(`return field('新来源名称')?.value === '冒烟导入';`), '新来源名称默认用文件名');
-  await chooseOption(page, '拆分文本单元', 'none');
+  const lyricsCheckState = `document.querySelector('[role=dialog] .file-check [data-check="lyrics"]')?.dataset.state`;
+  await ui.menu(page, '添加歌词', '导入文件…');
+  await ui.waitDialog(page, '导入歌词文件');
+  await ui.setFile(page, '选择歌词文件', importPath);
+  await page.waitFor(`['ok', 'warn'].includes(${lyricsCheckState})`, '识别结果', 30_000);
+  await ui.choose(page, '导入到', '作为新来源', { scope: '@dialog' });
+  await page.waitFor(uiJs(`return __ui.find('textbox', '新来源名称', false, '@dialog')?.value === '冒烟导入';`), '新来源名称默认用文件名');
+  await ui.choose(page, '拆分文本单元', '不拆分：保持文件原有粒度', { scope: '@dialog' });
   await snapshot(page, 'import');
-  await clickDialogButton(page, '导入');
-  await page.waitFor(openDialog('导入报告：冒烟导入.lrc'), '导入后显示报告', 20_000);
-  await page.waitFor(
-    js(`return Number(revision()) === ${before + 3};`) + ` && ${branchOptions} === 4 && ${lineTexts}.includes('倒序的一行')`,
-    '切到导入的新来源',
-    10_000,
-  );
+  await ui.clickInDialog(page, '导入');
+  await ui.waitDialog(page, '导入报告：冒烟导入.lrc', { timeout: 20_000 });
+  await page.waitFor(`${atRevision(before + 3)} && ${lineTexts}.includes('倒序的一行')`, '切到导入的新来源', 10_000);
   const facts = await page.eval(`document.querySelector('.report-facts')?.textContent ?? ''`);
   check(facts.includes('普通 LRC') && facts.includes('源文件 7 行 → 歌词 3 行，跳过 2 行'), `导入文件为新来源（importAsset newBranch），报告显示格式与行数（${facts.slice(0, 60)}…）`);
   const issueItems = `[...document.querySelectorAll('.report-dialog .issue-item')]`;
@@ -615,36 +563,38 @@ try {
     `document.querySelector('.source-line.focused')?.dataset.line === ${issueItems}.find((i) => i.classList.contains('located')).textContent.match(/第 (\\d+) 行/)[1]`,
     '默认定位到第一条有行号的问题',
   );
-  await page.eval(`${issueItems}.find((i) => i.textContent.includes('第 6 行')).click()`);
+  await ui.click(page, '.report-dialog .issue-item', '第 6 行', { partial: true });
   await page.waitFor(`document.querySelector('.source-line.focused')?.textContent.includes('倒序的一行') && document.querySelector('.source-line.focused')?.dataset.line === '6'`, '定位到源文件第 6 行');
   check(true, '导入报告的问题清单按源文件行号定位：点“第 6 行”的警告，源文件对照高亮第 6 行');
   await snapshot(page, 'report');
-  await clickDialogButton(page, '关闭');
-  await page.waitFor(dialogClosed, '关闭导入报告');
-  await clickMenuItem(page, '添加歌词', '查看上次导入报告');
-  await page.waitFor(openDialog('导入报告：冒烟导入.lrc'), '重新打开上次导入报告');
-  await clickDialogButton(page, '关闭');
-  await page.waitFor(dialogClosed, '关闭导入报告');
+  await ui.clickInDialog(page, '关闭');
+  await ui.waitDialogClosed(page, '导入报告：冒烟导入.lrc');
+  check((await branchNames(page)).length === 4, '导入后共 4 个来源');
+  await ui.menu(page, '添加歌词', '查看上次导入报告');
+  await ui.waitDialog(page, '导入报告：冒烟导入.lrc');
+  await ui.clickInDialog(page, '关闭');
+  await ui.waitDialogClosed(page, '导入报告：冒烟导入.lrc');
 
-  await clickMenuItem(page, '添加歌词', '导入文件…');
-  await page.waitFor(openDialog('导入歌词文件'), '导入对话框');
-  await setFile(page, '选择文件', importPath);
-  await page.waitFor(`document.querySelector('.import-dialog')?.textContent.includes('「冒烟导入」现有的 3 行会被全部替换')`, '替换现有来源的说明');
+  await ui.menu(page, '添加歌词', '导入文件…');
+  await ui.waitDialog(page, '导入歌词文件');
+  await ui.setFile(page, '选择歌词文件', importPath);
+  await page.waitFor(`['ok', 'warn'].includes(${lyricsCheckState})`, '识别结果', 30_000);
+  await page.waitFor(`document.querySelector('.import-replace')?.textContent.includes('「冒烟导入」现有的 3 行会被全部替换')`, '替换现有来源的说明');
   // 普通 LRC 本身逐字切分；“按词”把连续的中日文合成一个单元，三行都会被重切。
-  await chooseOption(page, '拆分文本单元', 'latinWords');
-  await clickDialogButton(page, '导入');
-  await page.waitFor(openDialog('导入报告：冒烟导入.lrc'), '替换导入后显示报告', 20_000);
-  await page.waitFor(js(`return Number(revision()) === ${before + 4};`) + ` && ${branchOptions} === 4 && ${lineTexts}.length === 3`, '替换现有来源', 10_000);
+  await ui.choose(page, '拆分文本单元', '按词：连续中日文算一个元素', { scope: '@dialog' });
+  await ui.clickInDialog(page, '导入');
+  await ui.waitDialog(page, '导入报告：冒烟导入.lrc', { timeout: 20_000 });
+  await page.waitFor(`${atRevision(before + 4)} && ${lineTexts}.length === 3`, '替换现有来源', 10_000);
   const replacedFacts = await page.eval(`document.querySelector('.report-facts')?.textContent ?? ''`);
   check(replacedFacts.includes('重新切分3 行'), `导入文件替换现有来源（importAsset existing），按所选规则重新切分并在报告中说明（${replacedFacts.match(/重新切分[^文]*/)?.[0] ?? '无'}）`);
-  await clickDialogButton(page, '关闭');
-  await page.waitFor(dialogClosed, '关闭导入报告');
+  await ui.clickInDialog(page, '关闭');
+  await ui.waitDialogClosed(page, '导入报告：冒烟导入.lrc');
   for (let i = 1; i <= 4; i++) {
-    await clickButton(page, '撤销');
-    await page.waitFor(js(`return Number(revision()) === ${before + 4 + i};`), `撤销第 ${i} 步添加歌词`, 10_000);
+    await undo(page);
+    await page.waitFor(atRevision(before + 4 + i), `撤销第 ${i} 步添加歌词`, 10_000);
   }
-  await page.waitFor(`${branchOptions} === 2 && ${lineTexts}[0] === '朝の光浴びて'`, '撤销后回到主歌词', 10_000);
-  check(true, '四次添加歌词各一条历史，逐步撤销后新来源消失，回到主歌词');
+  await page.waitFor(`${lineTexts}[0] === '朝の光浴びて'`, '撤销后回到主歌词', 10_000);
+  check((await branchNames(page)).length === 2, '四次添加歌词各一条历史，逐步撤销后新来源消失，回到主歌词');
 
   // 6f. 工程设置：画布、帧率、背景色、输出时长、音频分析各一条历史；输出时长“未确定”有明确显示；逐步撤销
   // 面板是模态的：下拉框显示的是选项文字，撤销用面板标题栏里的按钮
@@ -654,8 +604,7 @@ try {
   const colorShown = uiJs(`return __ui.find('textbox', '底色', false, '.project-settings')?.value;`);
   const durationText = `(document.querySelector('.project-settings .duration-value')?.textContent ?? '')`;
   const analysisText = `(document.querySelector('.project-settings .analysis-status')?.textContent ?? '')`;
-  const atRevision = (n) => js(`return Number(revision()) === ${n};`);
-  before = Number(await page.eval(js(`return revision();`)));
+  before = await revision();
   await ui.click(page, 'button', '工程设置');
   await page.waitFor(settingsOpen, '工程设置面板打开');
   await page.waitFor(`${selectShown('尺寸')} === '1920 × 1080' && ${selectShown('帧率')} === '30 fps'`, '显示当前画布与帧率', 10_000);
@@ -709,7 +658,7 @@ try {
   await page.waitFor(`!document.querySelector('[role=dialog]')`, '关闭应用设置');
 
   // 7. 刷新页面：经 resume 接回同一 client，首页列出已打开的工程，点击后回到同一修订
-  const revisionBeforeReload = await page.eval(js(`return revision();`));
+  const revisionBeforeReload = await revision();
   await page.navigate(`${ORIGIN}/`);
   await page.waitFor(shell.connected, '刷新后重新连接');
   const reloadedTheme = JSON.parse(await page.eval(themeFacts));
@@ -721,9 +670,9 @@ try {
   await page.waitFor(`!!(${sessionRow})`, '首页“正在编辑”列出已打开的工程', 30_000);
   const sessionScope = `.session-row[data-session-id="${await page.eval(`(${sessionRow}).dataset.sessionId`)}"]`;
   await ui.click(page, 'button', '接回', { scope: sessionScope });
-  await page.waitFor(js(`return revision() === ${JSON.stringify(revisionBeforeReload)} && document.querySelectorAll('.line-list mdui-list-item').length === 4;`), '接回工程', 60_000);
+  await page.waitFor(`${atRevision(revisionBeforeReload)} && ${rowCount} === 4 && ${chipTexts}.length > 0`, '接回工程', 60_000);
   check(true, `刷新页面后从首页接回同一工程（修订 ${revisionBeforeReload}），不重新打开`);
-  await selectToken(page, 0, '朝');
+  await selectToken(page, '朝');
 
   // 8. 保存到新目录
   await ui.click(page, 'button', '保存工程');
@@ -744,11 +693,10 @@ try {
   await page.waitFor(`!!(${directoryRow}) && !(${directoryRow}).disabled`, '工程目录列出刚保存的工程', 30_000);
   // 单击只选中，双击打开
   await ui.click(page, 'button', directory, { scope: `.directory-row[data-path=${JSON.stringify(directory)}]`, partial: true, double: true });
-  await page.waitFor(`document.querySelectorAll('.line-list mdui-list-item').length === 4`, '重开后显示 4 行', 120_000);
-  await page.eval(`document.querySelector('.token-chip').click()`);
-  await page.waitFor(`document.querySelector('.time-editor-title')?.textContent.includes('所选「朝」')`, '重开后选中元素「朝」');
+  await page.waitFor(`${rowCount} === 4 && ${chipTexts}.length > 0`, '重开后显示 4 行', 120_000);
+  await selectToken(page, '朝');
   check(
-    (await page.eval(fieldValue('起点'))) === savedAsaStart && (await page.eval(fieldValue('终点'))) === '0:01.100' && (await page.eval(`document.querySelector('.project-state')?.textContent`)) === '已保存',
+    (await page.eval(startTime)) === savedAsaStart && (await page.eval(endTime)) === '0:01.100' && (await page.eval(`document.querySelector('.project-state')?.textContent`)) === '已保存',
     `从工程目录重开：时间与保存状态一致（「朝」${savedAsaStart}–0:01.100）`,
   );
 

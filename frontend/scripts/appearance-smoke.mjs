@@ -173,7 +173,7 @@ async function frameHash(page, label) {
 /** 在首页用新建对话框建工程（12 秒 WAV、四行 LRC）。 */
 async function newProject(page) {
   await shell.newProject(page, { audio: wavPath, lyrics: lrcPath });
-  await page.waitFor(`document.querySelectorAll('.line-list mdui-list-item').length === 4`, '工作区显示 4 行', 120_000);
+  await page.waitFor(`document.querySelectorAll('.line-list [role=row]').length === 4`, '工作区显示 4 行', 120_000);
 }
 
 /** 工程菜单“关闭工程”；有未保存的修改时选“不保存”。在样式库里关闭时留在样式库，再从顶栏标志回首页。 */

@@ -150,11 +150,6 @@ async function pressEnter(page, label, scope = '') {
   await page.eval(js(`field(${JSON.stringify(label)}, ${JSON.stringify(scope)}).dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, composed: true }));`));
 }
 
-async function chooseOption(page, label, value) {
-  // 改 value 后内部 mdui-menu 会发一次冒泡的 change，和用户点选一样。
-  await page.eval(`[...document.querySelectorAll('mdui-select')].find((s) => s.label === ${JSON.stringify(label)}).value = ${JSON.stringify(value)}`);
-}
-
 const setFile = ui.setFile;
 
 async function gotoPage(page, value, ready) {
@@ -195,7 +190,7 @@ async function snapshot(page, suffix) {
   await writeFile(values.screenshot.replace(/\.png$/, `-${suffix}.png`), await page.screenshot());
 }
 
-const lineCount = `document.querySelectorAll('.line-list mdui-list-item').length`;
+const lineCount = `document.querySelectorAll('.line-list [role=row]').length`;
 const settingsOpen = `!!document.querySelector('.project-settings:not([data-exiting])')`;
 const settingsClosed = `!document.querySelector('.project-settings')`;
 /** 等下拉框显示 text（设置在修订变化之后才重新读回来）；超时返回 false。 */
@@ -241,18 +236,19 @@ try {
   await ui.fill(page, '工程名', projectName);
   await ui.clickInDialog(page, '下一步');
   await ui.clickInDialog(page, '新建');
-  await page.waitFor(`!!document.querySelector('.no-audio-bar') && !!document.querySelector('.empty-state')`, '空工程进入歌词页', 60_000);
+  await page.waitFor(`!!document.querySelector('.no-audio-bar') && !!document.querySelector('.lp-empty')`, '空工程进入歌词页', 60_000);
   check(await page.eval(js(`return revision() === '0';`)), '不选音频和歌词也能新建：歌词页显示导入入口，底部显示“还没有音频”');
   await snapshot(page, 'empty');
 
   // 2. 导入歌词、选择音频、改名
-  await clickButtonIn(page, '.empty-state', '导入歌词文件…');
-  await page.waitFor(`!!document.querySelector('mdui-dialog.import-dialog[open]')`, '导入对话框');
-  await setFile(page, '选择文件', lrcPath);
-  await chooseOption(page, '拆分文本单元', 'none');
-  await clickDialogButton(page, '导入');
-  await page.waitFor(`!!document.querySelector('mdui-dialog.report-dialog[open]')`, '导入报告', 30_000);
-  await clickDialogButton(page, '关闭');
+  await ui.click(page, 'button', '导入歌词文件…', { scope: '.lp-empty' });
+  await ui.waitDialog(page, '导入歌词文件');
+  await ui.setFile(page, '选择歌词文件', lrcPath);
+  await page.waitFor(`['ok', 'warn'].includes(document.querySelector('[role=dialog] .file-check [data-check="lyrics"]')?.dataset.state)`, '识别结果', 30_000);
+  await ui.choose(page, '拆分文本单元', '不拆分：保持文件原有粒度', { scope: '@dialog' });
+  await ui.clickInDialog(page, '导入');
+  await ui.waitDialog(page, '导入报告：', { partial: true, timeout: 30_000 });
+  await ui.clickInDialog(page, '关闭');
   await page.waitFor(`${lineCount} === 2`, '导入后 2 行');
   check(true, '从空态导入歌词文件（2 行）');
 
@@ -397,7 +393,7 @@ try {
   await closeCurrentProject(page);
 
   await newProject(page, { audio: wavPath, name: `${projectName} 只有音频` });
-  await page.waitFor(`!!document.querySelector('.empty-state') && !!document.querySelector('.timeline') && !document.querySelector('.no-audio-bar')`, '只有音频的工程', 120_000);
+  await page.waitFor(`!!document.querySelector('.lp-empty') && !!document.querySelector('.timeline') && !document.querySelector('.no-audio-bar')`, '只有音频的工程', 120_000);
   check(true, '只选音频新建：歌词页显示导入入口，有播放控制与时间轴');
 
   // 9. 背景视频与播放策略；替换音频；移除音频与撤销
@@ -441,7 +437,7 @@ try {
     await ui.click(page, 'row', recovered, { scope: '@dialog', partial: true });
     await page.waitFor(`document.querySelector('.recovery-item')?.getAttribute('aria-selected') === 'true'`, '选中最新的备份');
     await ui.clickInDialog(page, '恢复');
-    await page.waitFor(`document.querySelector('.project-name')?.textContent === ${JSON.stringify(recovered)} && (!!document.querySelector('.line-list') || !!document.querySelector('.empty-state'))`, '恢复后进入歌词页', 180_000);
+    await page.waitFor(`document.querySelector('.project-name')?.textContent === ${JSON.stringify(recovered)} && (!!document.querySelector('.line-list') || !!document.querySelector('.lp-empty'))`, '恢复后进入歌词页', 180_000);
     check(true, `“从备份恢复…”列出 ${candidates} 份备份；恢复最新的一份（${recovered}）并进入歌词页`);
     await closeCurrentProject(page);
   } else {

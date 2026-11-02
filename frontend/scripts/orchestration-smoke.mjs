@@ -34,7 +34,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { launchChrome } from './cdp.mjs';
-import { shell } from './ui-query.mjs';
+import { shell, ui } from './ui-query.mjs';
 
 const { values } = parseArgs({
   options: {
@@ -291,7 +291,7 @@ try {
 
   // 1. 新建工程；导航栏顺序
   await shell.newProject(page, { audio: wavPath, lyrics: lrcPath });
-  await page.waitFor(`document.querySelectorAll('.line-list mdui-list-item').length === 4`, '工作区显示 4 行', 120_000);
+  await page.waitFor(`document.querySelectorAll('.line-list [role=row]').length === 4`, '工作区显示 4 行', 120_000);
   const nav = await page.eval(`[...document.querySelectorAll('.app-bar .pages .page-tab')].map((t) => t.textContent.trim()).join(',')`);
   check(nav === '歌词,编排,外观', `新建工程（4 行），顶栏页签“编排”位于“歌词”和“外观”之间（${nav}）`);
 
@@ -1496,13 +1496,14 @@ try {
   // 8. 加一个翻译来源：编排按新修订重读，新来源有自己的程序（R4 已修复）；它的快速布局不可用并写明原因（R7）
   await gotoPage(page, 'lyrics', `!!document.querySelector('.line-list')`);
   const before = Number(await page.eval(js(`return revision();`)));
-  await clickButton(page, '管理来源');
-  await page.waitFor(`document.querySelector('.sources-drawer')?.open === true`, '管理来源面板打开');
-  await clickButton(page, '添加翻译来源');
-  await typeInto(page, '新来源名称', '中文');
-  await clickButton(page, '添加');
+  await ui.menu(page, '歌词来源：', '管理来源…', { partial: true });
+  await ui.waitDialog(page, '管理来源');
+  await ui.click(page, 'button', '添加翻译来源', { scope: '@dialog' });
+  await ui.fill(page, '新来源名称', '中文', { scope: '@dialog' });
+  await ui.click(page, 'button', '添加', { scope: '@dialog' });
   await page.waitFor(js(`return Number(revision()) === ${before + 1};`), '添加翻译来源', 10_000);
-  await page.eval(`document.querySelector('.sources-drawer').open = false`);
+  await ui.click(page, 'button', '关闭管理来源');
+  await ui.waitDialogClosed(page, '管理来源');
   await gotoPage(page, 'orchestration', treeReady);
   await page.waitFor(js(`return sections().length === 2;`), '结构树出现新来源', 10_000);
   const added = await page.eval(js(`return { sections: sections(), path: path() };`));

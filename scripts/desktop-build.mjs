@@ -17,7 +17,7 @@ async function step(command,args,cwd,env=process.env) {
     child.once('exit',(code,signal)=>{cleanup();code===0?done():reject(new Error(`${command} failed (${code??signal})`));});
   });
 }
-async function nativeSources(root) {
+export async function nativeSources(root) {
   const {stdout}=await execute('git',['ls-files','-co','--exclude-standard','--','native/gpu-preview','probes/skia-gpu-target'],{cwd:root});
   const files=[...new Set(stdout.trim().split('\n').filter(Boolean))].sort();
   const result={};

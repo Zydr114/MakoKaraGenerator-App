@@ -1,5 +1,5 @@
 'use strict';
-const { app, BrowserWindow, ipcMain, sharedTexture } = require('electron');
+const { app, BrowserWindow, Menu, dialog, ipcMain, screen, sharedTexture } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
@@ -270,6 +270,22 @@ async function close() {
   if(ending)return;
   try{await detach();ending=true;app.exit(0);}catch{failStop('gpuShutdownFailed');}
 }
+// 关窗会连后端一起停掉。先在页面里派发一次 beforeunload：编辑器在工程、样式库模板、作者草稿没保存时会拦下，
+// 这时问一下再退出。页面 3 秒没回应（卡住）就当作没拦，照常退出。
+let closing=false;
+async function requestClose() {
+  if(ending||closing)return;
+  closing=true;
+  try{
+    const blocked=await Promise.race([window.webContents.executeJavaScript("!window.dispatchEvent(new Event('beforeunload',{cancelable:true}))",true).catch(()=>false),delay(3000).then(()=>false)]);
+    if(blocked===true){
+      const {response}=await dialog.showMessageBox(window,{type:'warning',buttons:['退出','取消'],defaultId:1,cancelId:1,noLink:true,title:'MakoKara Generator',
+        message:'还有没保存的修改',detail:'工程、样式库模板或作者草稿有改动还没保存，现在退出会丢掉这些改动。'});
+      if(response!==0)return;
+    }
+    await close();
+  }finally{closing=false;}
+}
 for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>void close());
 app.on('before-quit',event=>{if(!ending){event.preventDefault();void close();}});
 app.on('child-process-gone',(_event,details)=>{if(details.type==='GPU')failStop('gpuProcessLost');});
@@ -279,7 +295,13 @@ process.on('unhandledRejection',()=>failStop('desktopUnhandledFailure'));
   const deadline=Date.now()+45000;
   while(!config.ready){if(Date.now()>deadline)throw new Error('Desktop launch deadline');await delay(50);config=readLaunchConfig(configFile,root,process.pid);}
   await app.whenReady();
-  window=new BrowserWindow({width:1440,height:1000,webPreferences:{preload:path.join(__dirname,'gpu-preview/preload.cjs'),sandbox:true,contextIsolation:true,nodeIntegration:false,backgroundThrottling:true}});
+  // 编辑器自带顶栏，不要 Electron 默认菜单；窗口按工作区收小，最小 1024 宽（界面改版的最窄断点）。
+  // 页面画好再显示，避免先闪一下白底。
+  Menu.setApplicationMenu(null);
+  const work=screen.getPrimaryDisplay().workAreaSize;
+  window=new BrowserWindow({width:Math.min(1440,work.width),height:Math.min(1000,work.height),minWidth:1024,minHeight:640,title:'MakoKara Generator',icon:path.join(__dirname,'assets/icon-128.png'),show:false,
+    webPreferences:{preload:path.join(__dirname,'gpu-preview/preload.cjs'),sandbox:true,contextIsolation:true,nodeIntegration:false,backgroundThrottling:true}});
+  window.once('ready-to-show',()=>{if(!ending&&!window.isDestroyed())window.show();});
   window.webContents.setWindowOpenHandler(()=>({action:'deny'}));
   // v1 keeps one renderer epoch for the whole process. SPA history changes do
   // not emit will-navigate; full document navigation/reload is prohibited.
@@ -287,8 +309,9 @@ process.on('unhandledRejection',()=>failStop('desktopUnhandledFailure'));
   window.webContents.on('will-frame-navigate',event=>event.preventDefault());
   window.webContents.on('before-input-event',(event,input)=>{if(input.key==='F5'||((input.control||input.meta)&&input.key.toLowerCase()==='r'))event.preventDefault();});
   window.webContents.on('render-process-gone',()=>failStop('gpuRendererLost'));
-  window.on('close',event=>{if(!ending){event.preventDefault();void close();}});
+  window.on('close',event=>{if(!ending){event.preventDefault();void requestClose();}});
   window.on('hide',()=>{if(stream)void detach().catch(()=>{});});
   gpuInfo=await app.getGPUInfo('complete');
   await window.loadURL(config.pageUrl);
+  if(!ending&&!window.isDestroyed()&&!window.isVisible())window.show();
 })().catch(()=>failStop('desktopStartupFailed'));

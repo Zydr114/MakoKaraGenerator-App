@@ -92,6 +92,17 @@ export function App() {
     };
   }, [drafts]);
 
+  // 桌面版关窗会连后端一起停掉（浏览器关标签页不会），所以工程有未保存的修改时也要拦下：桌面主进程关窗前派发 beforeunload 来问。
+  useEffect(() => {
+    if (!session || !window.makoDesktopPreview) return;
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      const { summary } = session.state;
+      if (summary.isDirty && !summary.isReadOnly) event.preventDefault();
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [session]);
+
   const enter = useCallback((next: EditorSession) => {
     setHomeMessage(null);
     setSession((current) => {

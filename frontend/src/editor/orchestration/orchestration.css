@@ -7,44 +7,6 @@
   display: flex;
   flex-direction: column;
 }
-.pane-head {
-  flex: none;
-  height: 46px;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 0 6px 0 16px;
-}
-.pane-head h3 {
-  margin: 0;
-  font-size: var(--fs-lg);
-  font-weight: 600;
-}
-.pane-head .faint {
-  margin-left: 8px;
-  font-size: var(--fs-sm);
-}
-.pane-note {
-  margin: 0 16px 6px;
-}
-.pane-progress {
-  margin: 8px 16px;
-}
-.read-error {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 12px 6px;
-  padding: 4px 4px 4px 12px;
-  border-radius: var(--radius-field);
-  background: var(--error-container);
-  color: var(--on-error-container);
-  font-size: var(--fs-sm);
-}
-.read-error > span {
-  flex: 1;
-  min-width: 0;
-}
 .structure-scroll {
   flex: 1 1 auto;
   min-height: 80px;
@@ -288,9 +250,6 @@
   font-size: 12px;
   color: var(--stage-ink3);
 }
-.tool-wrap {
-  display: inline-flex;
-}
 .orch-canvas .preview-panel {
   padding: 0 24px 12px;
 }
@@ -369,126 +328,6 @@
   min-height: 0;
   overflow: auto;
 }
-.insp {
-  padding-bottom: 12px;
-}
-.insp-empty {
-  margin: 0;
-  padding: 16px;
-}
-.ihead {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 12px 16px 10px;
-}
-.crumbs {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  font-size: 12px;
-  color: var(--on-surface-variant);
-}
-.crumbs > span {
-  display: inline-flex;
-  align-items: center;
-}
-.crumbs .ic {
-  width: 16px;
-  height: 16px;
-}
-.ihead h2 {
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 18px;
-  font-weight: 600;
-}
-.ihead-name {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.ihead h2 .tag {
-  flex: none;
-}
-.grp {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 8px 16px 12px;
-}
-.grp + .grp {
-  border-top: 1px solid var(--line);
-}
-.grp > h4 {
-  margin: 0;
-  min-height: 26px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--primary);
-}
-.grp-title {
-  flex: 1;
-  min-width: 0;
-}
-.grp-extra {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  font-weight: 400;
-}
-.grp > h4 .btn.text {
-  margin-right: -8px;
-}
-.grp .g2 {
-  gap: 6px 8px;
-}
-.span2 {
-  grid-column: 1 / -1;
-}
-.sub {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 28px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--on-surface-variant);
-}
-.sub .btn.text {
-  margin-right: -8px;
-}
-.note {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--on-surface-variant);
-}
-.note.err {
-  color: var(--error);
-}
-ul.note {
-  padding-left: 18px;
-}
-.info-list {
-  font-size: 12.5px;
-}
-.info-list dd {
-  overflow-wrap: anywhere;
-}
-.row-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 6px;
-}
-.row-actions > .btn.text:first-child {
-  margin-left: -8px;
-}
 .line-text {
   margin: 0;
   font-size: var(--fs-lg);
@@ -499,18 +338,6 @@ ul.note {
 .line-animation-effective {
   margin: 0;
   font-size: var(--fs-sm);
-}
-.insp-foot {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 12px 16px 0;
-  border-top: 1px solid var(--line);
-}
-.insp-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
 }
 
 /* 槽位、标记、用提示组的前奏：一行一块浅底 */

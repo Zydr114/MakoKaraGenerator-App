@@ -25,8 +25,8 @@ import { formatTime } from '../model/time';
 import { Button } from '../ui/Button';
 import { Switch } from '../ui/choices';
 import { NumberField, Select } from '../ui/fields';
+import { Group, InspectorHead, Note, Row } from '../workspace/panel';
 import type { LineCommand, LinePresentationState, OrchestrationResult } from './orchestration-store';
-import { Group, InspectorHead, Note, Row } from './parts';
 
 /** 句子命令（§14.7）：block 是整体不可用的原因（只读、后端没开放）；run 发一条命令，成功时提示 done 并可撤销。 */
 export interface LineActions {

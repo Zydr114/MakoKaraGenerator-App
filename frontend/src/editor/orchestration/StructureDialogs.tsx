@@ -4,8 +4,8 @@ import { insertionParent, isPlainGroup, moveTargets, NODE_KIND_NAME, NODE_KIND_T
 import { DEFAULT_MARK_COUNT, MAX_MARKS } from '../model/orchestration-lead-ins';
 import { Select, TextField } from '../ui/fields';
 import { FormDialog } from '../ui/FormDialog';
+import { Note } from '../workspace/panel';
 import type { NewNode } from './orchestration-store';
-import { Note } from './parts';
 
 /** 下拉框里的“画布根层”：选项的值不能是 null，用一个不会是节点 ID 的值代替。 */
 const CANVAS = '::canvas';

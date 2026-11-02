@@ -35,8 +35,8 @@ import { CommitField, NumberField, Select, TextField } from '../ui/fields';
 import { FormDialog } from '../ui/FormDialog';
 import { Icon } from '../ui/Icon';
 import { ProgressBar, Tag } from '../ui/indicators';
+import { Group, InspectorHead, Note, Row, ToolButton } from '../workspace/panel';
 import type { GenerationPreviewState, NewLeadIn, OrchestrationResult } from './orchestration-store';
-import { Group, InspectorHead, Note, Row, ToolButton } from './parts';
 
 const ATTACHMENT_OPTIONS: readonly { value: LeadInAttachmentMode; label: string }[] = [
   { value: 'CueTargetText', label: '跟着目标句的文字' },

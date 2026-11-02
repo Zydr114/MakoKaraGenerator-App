@@ -40,8 +40,8 @@ import { Button } from '../ui/Button';
 import { Segmented } from '../ui/choices';
 import { NumberField, Select, TextField } from '../ui/fields';
 import { FormDialog } from '../ui/FormDialog';
+import { Group, Note } from '../workspace/panel';
 import type { OrchestrationResult } from './orchestration-store';
-import { Group, Note } from './parts';
 
 /** 属性编辑（G21）：不可用时 block 是原因；run 发一条属性命令，成功时提示 done 并可撤销。 */
 export interface PropertyActions {

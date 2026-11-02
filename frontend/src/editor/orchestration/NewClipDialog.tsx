@@ -5,8 +5,8 @@ import { clipCreateBlock, containersOf, defaultClipContainer, linesBetween, node
 import { formatTime } from '../model/time';
 import { Select, TextField } from '../ui/fields';
 import { FormDialog } from '../ui/FormDialog';
+import { Note } from '../workspace/panel';
 import type { NewClip } from './orchestration-store';
-import { Note } from './parts';
 
 /** 句号输入：正整数，否则 NaN（linesBetween 判为无效）。 */
 export const parseLineNumber = (text: string) => (/^\s*\d+\s*$/.test(text) ? Number(text) : NaN);

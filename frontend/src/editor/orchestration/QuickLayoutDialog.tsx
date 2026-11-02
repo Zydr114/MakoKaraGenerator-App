@@ -3,8 +3,8 @@ import type { OrchestrationProgram } from '../../protocol';
 import { LAYOUT_PRESETS, layoutImpactText, layoutIsNoOp, lineRangeText, type LayoutPresetInfo, type LineRange } from '../model/orchestration';
 import { RadioGroup } from '../ui/choices';
 import { FormDialog } from '../ui/FormDialog';
+import { Note } from '../workspace/panel';
 import type { LayoutPreviewState } from './orchestration-store';
-import { Note } from './parts';
 
 /** 卡片上的示意图（只是图标，不代表后端几何）：每个槽位一条横线，位置大致对应预设。 */
 const SKETCH: Record<LayoutPresetInfo['preset'], readonly { x: number; y: number }[]> = {

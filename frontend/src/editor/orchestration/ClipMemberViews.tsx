@@ -8,8 +8,8 @@ import { defaultSplitPoint, mergeNeighbour, scheduleContextNote, splitBlock, spl
 import { Button } from '../ui/Button';
 import { Select } from '../ui/fields';
 import { FormDialog } from '../ui/FormDialog';
+import { Note } from '../workspace/panel';
 import { ClipRangeFields, parseLineNumber, rangeInvalidText } from './NewClipDialog';
-import { Note } from './parts';
 
 /** 调整句子、拆分、合并：不可用时 block 是原因。 */
 export interface ClipMemberActions {

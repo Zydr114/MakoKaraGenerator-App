@@ -38,6 +38,7 @@ import { useObservable } from '../ui/hooks';
 import { StatusBar } from '../workspace/StatusBar';
 import { WorkLayout } from '../workspace/WorkLayout';
 import { isEditing } from '../workspace/Workspace';
+import { Group, InspectorHead, Note, Row, ToolButton } from '../workspace/panel';
 import type { OrchestrationState, OrchestrationStore } from './orchestration-store';
 import { clipBands, clipColors } from './clip-bands';
 import { ClipMemberButtons, ClipMembersDialog, SplitClipDialog, type ClipMemberActions } from './ClipMemberViews';
@@ -49,7 +50,7 @@ import { AnimationPolicyField, GeometrySection, LayoutSection, SlotAnimationSect
 import { SceneCanvas, type FocusedLine } from './SceneCanvas';
 import { MoveNodeDialog, NewNodeDialog } from './StructureDialogs';
 import { ALL_BLOCKED, AssignmentSection, nodeBlocks, StructurePane, type ClipActions, type StructureActions } from './StructurePane';
-import { Group, InspectorHead, NO_PROGRAM, Note, Row, ToolButton } from './parts';
+import { NO_PROGRAM } from './parts';
 import './orchestration.css';
 
 const CLIP_COMMANDS = ['orchestration.createClip', 'orchestration.renameClip', 'orchestration.setClipContainer', 'orchestration.deleteClip'] as const;

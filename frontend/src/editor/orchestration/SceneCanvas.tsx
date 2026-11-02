@@ -13,9 +13,9 @@ import type { EditorSession } from '../session/editor-session';
 import { IconButton } from '../ui/Button';
 import { Segmented } from '../ui/choices';
 import { useObservable } from '../ui/hooks';
+import { Note } from '../workspace/panel';
 import type { LineActions } from './LineInspector';
 import type { OrchestrationState } from './orchestration-store';
-import { Note } from './parts';
 import type { PropertyActions } from './PropertySections';
 import { SCENE_MEASUREMENT, SceneMeasurementController, type MeasurementWant, type SceneMeasurementViewState } from './scene-measurement';
 

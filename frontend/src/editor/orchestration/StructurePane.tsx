@@ -33,10 +33,11 @@ import { Select } from '../ui/fields';
 import { Icon, type IconName } from '../ui/Icon';
 import { ProgressBar, Tag } from '../ui/indicators';
 import { Menu, MenuItem, MenuSeparator, MenuTrigger } from '../ui/Menu';
+import { Note, ReadError } from '../workspace/panel';
 import { BAND_COLORS } from './clip-bands';
 import { LeadInList, type LeadInActions } from './LeadInViews';
 import type { OrchestrationState, OrchestrationStore } from './orchestration-store';
-import { NO_PROGRAM, Note, ReadError } from './parts';
+import { NO_PROGRAM } from './parts';
 
 const NO_NODE = '先在结构树里选择一个节点。';
 

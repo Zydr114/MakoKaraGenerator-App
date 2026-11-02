@@ -15,6 +15,7 @@ import { parseArgs } from 'node:util';
 import { createHash } from 'node:crypto';
 import { release, platform, arch } from 'node:os';
 import { Cdp, Page } from '../frontend/scripts/cdp.mjs';
+import { shell, ui } from '../frontend/scripts/ui-query.mjs';
 import { verifyDesktopDeployment } from './desktop-build.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -309,17 +310,6 @@ async function processSnapshot(snapshot) {
   for(const proc of snapshot.processes??[])pids.set(proc.pid,proc.type);
   return Promise.all([...pids].map(([pid,role])=>readProc(pid,role)));
 }
-async function setFile(page,selector,path) {
-  const {root}=await page.send('DOM.getDocument');
-  const {nodeId}=await page.send('DOM.querySelector',{nodeId:root.nodeId,selector});
-  invariant(nodeId,'Missing file input '+selector);
-  await page.send('DOM.setFileInputFiles',{nodeId,files:[path]});
-}
-async function click(page,text,selector='mdui-button,button') {
-  const search=`[...document.querySelectorAll(${JSON.stringify(selector)})].find(element=>element.textContent.trim()===${JSON.stringify(text)}&&!element.disabled)`;
-  await page.waitFor(`!!(${search})`,`UI ${text}`,120_000);
-  await page.eval(`(${search}).click()`);
-}
 async function seekTimeline(page,xOffset) {
   const point=await page.eval(`(()=>{const rect=document.querySelector('canvas[aria-label="时间轴"]').getBoundingClientRect();return {x:rect.x+Math.min(rect.width-2,${xOffset}),y:rect.y+8};})()`);
   await page.send('Input.dispatchMouseEvent',{type:'mousePressed',x:point.x,y:point.y,button:'left',clickCount:1});
@@ -371,21 +361,21 @@ async function actualWaylandEvidence(page,cdp,snapshot) {
     waylandConfirmed:actualWaylandProcesses||(typeof backend==='string'&&/wayland/i.test(backend))};
 }
 async function selectGpu(page) {
-  await page.waitFor(`(()=>{const option=document.querySelector('.render-device-option[data-value="gpu"]')?.closest('mdui-menu-item');return option&&!option.disabled;})()`,'Available GPU render backend',120_000);
-  await page.eval(`document.querySelector('.render-device-option[data-value="gpu"]').closest('mdui-menu-item').dispatchEvent(new MouseEvent('click',{bubbles:true,composed:true}))`);
+  // 顶栏状态胶囊的渲染设备菜单；GPU 不可用时那一项禁用，ui.click 会一直等到超时
+  await ui.click(page,'button','（渲染设备）',{partial:true,scope:'.app-bar'});
+  await ui.click(page,'menuitem','GPU',{scope:'.render-device-menu',what:'Available GPU render backend',timeout:120_000});
+  await page.waitFor(`!document.querySelector('.render-device-menu')`,'Render device menu closed');
+}
+const QUALITY_LABEL={'720p24':'720p · 24 fps','1440p30':'1440p · 30 fps'};
+/** 成片预览标题栏的“GPU 预览规格”下拉框；name 是 720p24 或 1440p30。 */
+async function setQuality(page,name) {
+  await ui.choose(page,'GPU 预览规格',QUALITY_LABEL[name]);
 }
 export async function createProject(page,fixture) {
-  await click(page,'新建工程');
-  await page.waitFor(`!!document.querySelector('input[aria-label="选择音频"]')`,'New project file inputs');
-  await setFile(page,'input[aria-label="选择音频"]',fixture.audio);
-  await setFile(page,'input[aria-label="选择歌词"]',fixture.lyrics);
-  await page.eval(`(()=>{const field=document.querySelector('mdui-text-field[aria-label="工程名"]');field.value='P3 GPU production benchmark';field.dispatchEvent(new Event('input',{bubbles:true}));})()`);
-  await click(page,'下一步','.new-project-dialog mdui-button');
-  await click(page,'新建','.new-project-dialog mdui-button');
-  await page.waitFor(`!!document.querySelector('mdui-navigation-rail-item[value="orchestration"]')`,'Project created',180_000);
-  await page.eval(`document.querySelector('mdui-navigation-rail-item[value="orchestration"]').click()`);
+  await shell.newProject(page,{audio:fixture.audio,lyrics:fixture.lyrics,name:'P3 GPU production benchmark'});
+  await shell.goto(page,'orchestration');
   await selectGpu(page);
-  await page.waitFor(`!!document.querySelector('select[aria-label="GPU 预览规格"]')`,'Production GPU preview',180_000);
+  await ui.wait(page,'select','GPU 预览规格',{what:'Production GPU preview',timeout:180_000});
   await page.waitFor(`!!document.querySelector('[aria-label="播放"]:not([disabled])')`,'Real audio playback ready',180_000);
 }
 export async function connectPage(port) {
@@ -502,13 +492,13 @@ async function run(values) {
     manifest.schedulerBaseline.initialOwnedProcesses=await processSnapshot(initial);
     manifest.concurrentAppObservation=await concurrentAppEvidence(initial.mainPid);
     if(!values['reuse-project'])manifest.fixture=await makeFixtures(output).then(async fixture=>{await createProject(page,fixture);return fixture;});
-    if(values['reuse-project']){invariant(await page.eval(`!!document.querySelector('mdui-navigation-rail-item[value="orchestration"]')`),'--reuse-project requires an already-open project in the live App');await selectGpu(page);}
+    if(values['reuse-project']){invariant(await page.eval(shell.projectOpen),'--reuse-project requires an already-open project in the live App');await shell.goto(page,'orchestration');await selectGpu(page);}
     await writeFile(join(output,'manifest.json'),JSON.stringify(manifest,null,2)+'\n');
     await page.eval(`(()=>{window.__makoP3Events=[];window.makoDesktopPreview.onPreviewState(event=>{window.__makoP3Events.push({event,rendererPerformanceMs:performance.now()});if(window.__makoP3Events.length>4096)window.__makoP3Events.shift();});})()`);
-    await page.eval(`document.querySelector('[aria-label="播放"]')?.click()`);
+    await ui.click(page,'button','播放',{scope:'.transport'});
     await page.waitFor(`!!document.querySelector('[aria-label="暂停"]')`,'Audio master playing');
     for(const phase of manifest.phases){
-      await page.eval(`(()=>{const select=document.querySelector('select[aria-label="GPU 预览规格"]');select.value=${JSON.stringify(phase.name)};select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await setQuality(page,phase.name);
       const before=await sample();await waitFrames(before.completedDrawnUnique,3,state=>state.latestSample?.width===phase.width&&state.latestSample?.height===phase.height&&state.mediaClock?.targetFps===phase.targetFps);
       if(values['correctness-snapshot']&&phase.name==='720p24'){
         const image=await page.screenshot();
@@ -547,15 +537,15 @@ async function run(values) {
     // A resolution selector replacement is reported separately from public resize.
     for(let index=0;index<(values.debug?1:10);index++){
       const before=await sample(),quality=index%2?'1440p30':'720p24';
-      await page.eval(`(()=>{const select=document.querySelector('select[aria-label="GPU 预览规格"]');select.value=${JSON.stringify(quality)};select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await setQuality(page,quality);
       const after=await waitFrames(before.completedDrawnUnique);
       await record({type:'action',kind:'ui-resolution-recreate',index,startMonotonicNs:before.nowMonotonicNs,endMonotonicNs:after.nowMonotonicNs,previousWorkerPid:before.workerPid,nextWorkerPid:after.workerPid});
     }
     for(let index=0;index<(values.debug?1:20);index++){
       const before=await sample();
-      await page.eval(`document.querySelector('mdui-navigation-rail-item[value="library"]').click()`);
+      await shell.goto(page,'library');
       await page.waitFor(`!document.querySelector('#mako-gpu-preview')`,'Preview detached by actual page navigation');
-    await page.eval(`document.querySelector('mdui-navigation-rail-item[value="orchestration"]').click()`);
+      await shell.goto(page,'orchestration');
       const after=await waitFrames(before.completedDrawnUnique);
       const oldIdentity=before.latestSample,newIdentity=after.latestSample;
       invariant(oldIdentity?.streamId!==newIdentity?.streamId||oldIdentity?.inputGeneration!==newIdentity?.inputGeneration,'Attach cycle replayed the same claimed stream generation');
@@ -578,7 +568,7 @@ async function run(values) {
       await record({type:'action',kind:'public-resize-seek',exactGenerationCompleted:true,index,startMonotonicNs:before.nowMonotonicNs,endMonotonicNs:after.nowMonotonicNs,
         streamId:resized.streamId,previousInputGeneration:old.inputGeneration,inputGeneration:resized.inputGeneration,previousPoolGeneration:old.poolGeneration,poolGeneration:resized.poolGeneration});
     }
-    await page.eval(`(()=>{const select=document.querySelector('select[aria-label="GPU 预览规格"]');select.value='1440p30';select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await setQuality(page,'1440p30');
     await page.waitFor(`!!window.makoGpuPreviewAcceptance?.current()`,'Current public stream before stability');
     const stabilityPublic=await page.eval('window.makoGpuPreviewAcceptance.current()');
     if(stabilityPublic.size.width!==2560||stabilityPublic.size.height!==1440)await page.eval(`window.makoGpuPreviewAcceptance.resize(2560,1440)`);

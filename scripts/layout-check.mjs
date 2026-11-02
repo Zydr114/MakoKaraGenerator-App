@@ -1,4 +1,4 @@
-// 有限布局检查：真实 Chromium 在几种窗口尺寸下打开编排页与外观页，确认预览画布完整显示、页面不需要滚动；歌词页只截图。
+// 有限布局检查：真实 Chromium 在几种窗口尺寸下打开编排页与外观页，确认中栏的预览画布完整显示、中栏与整页不需要滚动；歌词页只截图。
 // 用法：node scripts/layout-check.mjs [页面地址] [--sizes 1920x1080,1440x900,1366x768]
 // 需要 pnpm start 或 pnpm dev 已运行。只读布局尺寸并截图，不测性能。
 import { mkdtemp, writeFile, rm, mkdir } from 'node:fs/promises';
@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { launchChrome } from '../frontend/scripts/cdp.mjs';
+import { shell } from '../frontend/scripts/ui-query.mjs';
 
 const { values, positionals } = parseArgs({ allowPositionals: true, options: { sizes: { type: 'string', default: '1920x1080,1440x900,1366x768' } } });
 const url = positionals[0] ?? 'http://127.0.0.1:5173';
@@ -29,55 +30,45 @@ const browser = await launchChrome();
 const errors = [];
 const results = [];
 let page;
-const button = (text) => `[...document.querySelectorAll('mdui-button,mdui-button-icon')].find(b => (b.textContent.trim() === ${JSON.stringify(text)} || b.getAttribute('aria-label') === ${JSON.stringify(text)}) && !b.disabled)`;
-async function click(text) { const expr = button(text); await page.waitFor(`!!(${expr})`, text); await page.eval(`(${expr}).click()`); }
-async function file(label, path) { const { root } = await page.send('DOM.getDocument', { depth: -1 }); const { nodeId } = await page.send('DOM.querySelector', { nodeId: root.nodeId, selector: `input[type=file][aria-label="${label}"]` }); await page.send('DOM.setFileInputFiles', { nodeId, files: [path] }); }
 async function resize({ width, height }) {
   await page.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
   await new Promise((r) => setTimeout(r, 600));
 }
-async function goto(view) {
-  await page.eval(`document.querySelector('mdui-navigation-rail-item[value=${view}]').click()`);
-  await page.waitFor(`!!document.querySelector('.${view} .preview-frame')`, `${view} 预览区`);
-}
 
-/** 预览区与整页是否需要滚动、画布是否整块落在可见区域里。 */
+/** 中栏（画布）与整页是否需要滚动、画布是否整块落在中栏和窗口的可见区域里。 */
 const measure = (view) => `(() => {
   const r = (e) => { const b = e.getBoundingClientRect(); return { x: Math.round(b.x), y: Math.round(b.y), w: Math.round(b.width), h: Math.round(b.height) }; };
-  const main = document.querySelector('.editor-main');
-  const pane = document.querySelector('.${view}-preview');
-  const frame = pane.querySelector('.preview-frame');
-  const bottom = document.querySelector('.${view} .workspace-bottom');
-  const p = pane.getBoundingClientRect(), f = frame.getBoundingClientRect();
+  const root = document.querySelector('.work-layout.${view}');
+  const center = root.querySelector('.work-center');
+  const frame = center.querySelector('.preview-frame');
+  const dock = root.querySelector('.work-dock');
+  const page = document.scrollingElement;
+  const c = center.getBoundingClientRect(), f = frame.getBoundingClientRect();
   return {
-    pane: r(pane), frame: r(frame), bottom: r(bottom),
-    paneScrolls: pane.scrollHeight > pane.clientHeight + 1 || pane.scrollWidth > pane.clientWidth + 1,
-    mainScrolls: main.scrollHeight > main.clientHeight + 1 || main.scrollWidth > main.clientWidth + 1,
-    frameInside: f.top >= p.top - 1 && f.bottom <= p.bottom + 1 && f.left >= p.left - 1 && f.right <= p.right + 1 && f.bottom <= innerHeight + 1,
+    center: r(center), frame: r(frame), dock: r(dock),
+    centerScrolls: center.scrollHeight > center.clientHeight + 1 || center.scrollWidth > center.clientWidth + 1,
+    pageScrolls: page.scrollHeight > page.clientHeight + 1 || page.scrollWidth > page.clientWidth + 1,
+    frameInside: f.top >= c.top - 1 && f.bottom <= c.bottom + 1 && f.left >= c.left - 1 && f.right <= c.right + 1 && f.bottom <= innerHeight + 1,
     frameShare: +(f.height / innerHeight).toFixed(3),
   };
 })()`;
 
-async function check(view, size, label) {
+async function check(view, size) {
   const m = await page.eval(measure(view));
-  const name = `${view}${label ? `-${label}` : ''}-${size.width}x${size.height}`;
+  const name = `${view}-${size.width}x${size.height}`;
   await writeFile(join(out, `${name}.png`), await page.screenshot());
-  const pass = !m.paneScrolls && !m.mainScrolls && m.frameInside && m.frame.h >= 120;
+  const pass = !m.centerScrolls && !m.pageScrolls && m.frameInside && m.frame.h >= 120;
   results.push({ name, pass, ...m });
-  console.log(`${pass ? 'PASS' : 'FAIL'} ${name} 画布 ${m.frame.w}×${m.frame.h}（占窗口高 ${m.frameShare}）· 底部 ${m.bottom.h}px${m.paneScrolls ? ' · 预览区需要滚动' : ''}${m.mainScrolls ? ' · 整页需要滚动' : ''}${m.frameInside ? '' : ' · 画布超出可见区'}`);
+  console.log(`${pass ? 'PASS' : 'FAIL'} ${name} 画布 ${m.frame.w}×${m.frame.h}（占窗口高 ${m.frameShare}）· 底部 ${m.dock.h}px${m.centerScrolls ? ' · 中栏需要滚动' : ''}${m.pageScrolls ? ' · 整页需要滚动' : ''}${m.frameInside ? '' : ' · 画布超出可见区'}`);
 }
 
 try {
   browser.cdp.on((m) => { if (m.method === 'Runtime.exceptionThrown') errors.push(m.params.exceptionDetails.exception?.description ?? 'exception'); });
   page = await browser.openPage(url, sizes[0]);
   await page.send('DOM.enable');
-  await page.waitFor(`document.querySelector('.connection')?.textContent === '已连接'`, '连接后端');
-  await click('新建工程');
-  await page.waitFor(`!!document.querySelector('mdui-dialog.new-project-dialog[open] input[aria-label="选择歌词"]')`, '新建对话框');
-  await file('选择音频', wav); await file('选择歌词', lrc);
-  await page.waitFor(`!!document.querySelector('.lyrics-plan-summary')`, '歌词识别');
-  await click('下一步'); await click('新建');
-  await page.waitFor(`document.querySelectorAll('.line-list mdui-list-item').length === 8`, '8 行歌词进入工作区', 120_000);
+  await page.waitFor(shell.connected, '连接后端');
+  await shell.newProject(page, { audio: wav, lyrics: lrc });
+  await page.waitFor(`document.querySelectorAll('.line-list [role=row]').length === 8`, '8 行歌词进入工作区', 120_000);
 
   // 歌词页与另两页共用播放条和时间轴：只截图对照，不判定。
   for (const size of sizes) {
@@ -87,31 +78,16 @@ try {
   await resize(sizes[0]);
 
   for (const view of ['orchestration', 'appearance']) {
-    await goto(view);
-    await page.waitFor(`document.querySelector('.${view} .preview-frame img')?.naturalWidth > 0`, `${view} 预览帧`, 120_000);
+    await shell.goto(page, view);
+    await page.waitFor(`document.querySelector('.work-layout.${view} .work-center .preview-frame img')?.naturalWidth > 0`, `${view} 预览帧`, 120_000);
     for (const size of sizes) {
       await resize(size);
       await check(view, size);
-      if (view === 'orchestration') {
-        // 片段列表展开时底部最高。
-        await page.eval(`document.querySelector('.assignment-clips').click()`);
-        await page.waitFor(`!!document.querySelector('.clip-panel')`, '片段列表');
-        await new Promise((r) => setTimeout(r, 300));
-        await check(view, size, 'clips');
-        await page.eval(`document.querySelector('.assignment-clips').click()`);
-        await page.waitFor(`!document.querySelector('.clip-panel')`, '收起片段列表');
-      }
     }
     await resize(sizes[0]);
   }
 
-  await click('更多');
-  const item = `[...document.querySelectorAll('mdui-menu-item')].find(i => i.textContent.trim() === '关闭工程' && !i.disabled)`;
-  await page.waitFor(`!!(${item})`, '关闭工程菜单');
-  await page.eval(`(${item}).dispatchEvent(new MouseEvent('click',{bubbles:true,composed:true}))`);
-  await page.waitFor(`!!(${button('不保存')}) || !document.querySelector('mdui-navigation-rail-item[value=lyrics]')`, '关闭或放弃保存');
-  if (await page.eval(`!!(${button('不保存')})`)) await click('不保存');
-  await page.waitFor(`!document.querySelector('mdui-navigation-rail-item[value=lyrics]')`, '工程已关闭');
+  await shell.closeProject(page);
 } catch (error) {
   if (page) await writeFile(join(out, 'failure.png'), await page.screenshot()).catch(() => {});
   throw error;

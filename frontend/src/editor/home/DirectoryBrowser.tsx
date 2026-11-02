@@ -3,7 +3,12 @@ import type { ProjectDirectoryEntry } from '../../protocol';
 import { client } from '../connection';
 import { filterEntries, pathSegments } from '../model/project-directory';
 import { directoryErrorText, projectRoot } from '../session/project-files';
-import { TextField } from '../ui/legacy/fields';
+import { Button, IconButton } from '../ui/Button';
+import { cls } from '../ui/cls';
+import { TextField } from '../ui/fields';
+import { Icon } from '../ui/Icon';
+import { ProgressBar } from '../ui/indicators';
+import './home.css';
 
 export interface DirectoryListing {
   entries: ProjectDirectoryEntry[];
@@ -47,7 +52,7 @@ export function useDirectoryListing(ready: boolean, path: string): DirectoryList
 
 /**
  * 工程目录浏览器：路径导航、当前层搜索、刷新，工程行与普通目录行。
- * 普通目录点进去；工程行的动作由调用方给（首页是打开／只读打开，保存对话框是选为覆盖目标）。
+ * 普通目录点进去；工程行的动作由调用方给（首页是选中看详情、双击或“打开”打开，保存对话框是选为覆盖目标）。
  */
 export function DirectoryBrowser(props: {
   path: string;
@@ -58,81 +63,104 @@ export function DirectoryBrowser(props: {
   projectActions?: (entry: ProjectDirectoryEntry) => ReactNode;
   /** 点工程行本身。 */
   onProject?: (entry: ProjectDirectoryEntry) => void;
-  /** 当前选中的条目名（保存对话框里与输入的目录名同名的那一项）。 */
-  highlight?: string;
+  /** 双击工程行。 */
+  onProjectDoubleClick?: (entry: ProjectDirectoryEntry) => void;
+  /** 选中的条目名（首页右边显示详情的那一项；保存对话框里与输入的目录名同名的那一项）。 */
+  highlight?: string | undefined;
+  /** 搜索框放在外面时（首页的标题行）由外面给出关键词；不给时浏览器自带一个搜索框。 */
+  query?: string;
   className?: string;
 }) {
   const { listing } = props;
-  const [query, setQuery] = useState('');
+  const [ownQuery, setOwnQuery] = useState('');
   // 换了一层就清空搜索：搜索只针对当前这一层。
-  useEffect(() => setQuery(''), [props.path]);
+  useEffect(() => setOwnQuery(''), [props.path]);
+  const query = props.query ?? ownQuery;
   const shown = filterEntries(listing.entries, query);
   const segments = pathSegments(props.path);
   const disabled = !!props.disabled;
 
   return (
-    <div className={`directory-browser${props.className ? ` ${props.className}` : ''}`}>
+    <div className={cls('directory-browser', props.className)}>
       <div className="directory-toolbar">
         <nav className="breadcrumb" aria-label="当前目录">
-          <mdui-button variant="text" disabled={disabled || segments.length === 0} onClick={() => props.onNavigate('')}>
+          <Button variant="text" size="sm" icon="folder" isDisabled={disabled || segments.length === 0} onPress={() => props.onNavigate('')}>
             工程目录
-          </mdui-button>
+          </Button>
           {segments.map((segment, i) => (
             <span key={segment.path} className="breadcrumb-part">
-              <span className="breadcrumb-sep">/</span>
-              <mdui-button variant="text" disabled={disabled || i === segments.length - 1} onClick={() => props.onNavigate(segment.path)}>
+              <Icon name="chevron_right" className="breadcrumb-sep" />
+              <Button variant="text" size="sm" isDisabled={disabled || i === segments.length - 1} onPress={() => props.onNavigate(segment.path)}>
                 {segment.name}
-              </mdui-button>
+              </Button>
             </span>
           ))}
         </nav>
-        <TextField label="搜索这一层" value={query} variant="outlined" className="directory-search" disabled={disabled} onChange={setQuery} onEscape={() => setQuery('')} />
-        <mdui-button-icon disabled={disabled || listing.loading} onClick={listing.reload} aria-label="刷新">
-          <mdui-icon-refresh />
-        </mdui-button-icon>
+        {!listing.loading && !listing.error && <span className="directory-count">{shown.length} 项</span>}
+        {props.query === undefined && (
+          <TextField
+            label="搜索这一层"
+            labelPlacement="none"
+            size="sm"
+            icon="search"
+            placeholder="搜索这一层"
+            value={ownQuery}
+            className="directory-search"
+            disabled={disabled}
+            onChange={setOwnQuery}
+            onEscape={() => setOwnQuery('')}
+          />
+        )}
+        <IconButton icon="refresh" size="sm" label="刷新" isDisabled={disabled || listing.loading} onPress={listing.reload} />
       </div>
-      {listing.loading && <mdui-linear-progress className="directory-progress" />}
+      {listing.loading && <ProgressBar label="正在读取目录" className="directory-progress" />}
       {listing.error && (
-        <div className="error-banner" role="alert">
-          {listing.error}
+        <div className="banner error" role="alert">
+          <Icon name="error" />
+          <span>{listing.error}</span>
           {segments.length > 0 && (
-            <mdui-button variant="text" onClick={() => props.onNavigate('')}>
+            <Button variant="text" size="sm" onPress={() => props.onNavigate('')}>
               回到工程目录
-            </mdui-button>
+            </Button>
           )}
         </div>
       )}
-      <div className="directory-list" role="list">
+      <div className="directory-list" role="list" aria-label="目录内容">
         {segments.length > 0 && (
           <div className="directory-row directory-up" role="listitem">
             <button type="button" className="directory-main" disabled={disabled} onClick={() => props.onNavigate(segments.at(-2)?.path ?? '')}>
-              <mdui-icon-arrow-upward />
+              <Icon name="arrow_upward" />
               <span className="directory-name">上一层</span>
             </button>
           </div>
         )}
-        {shown.map((entry) => (
-          <div
-            key={entry.relativePath}
-            role="listitem"
-            className={`directory-row${entry.isProject ? ' is-project' : ''}${props.highlight === entry.name ? ' is-highlight' : ''}`}
-            data-path={entry.relativePath}
-          >
-            <button
-              type="button"
-              className="directory-main"
-              disabled={disabled || (entry.isProject && !props.onProject)}
-              onClick={() => (entry.isProject ? props.onProject?.(entry) : props.onNavigate(entry.relativePath))}
+        {shown.map((entry) => {
+          const selected = props.highlight === entry.name;
+          return (
+            <div
+              key={entry.relativePath}
+              role="listitem"
+              className={cls('directory-row', entry.isProject && 'is-project', selected && 'is-highlight')}
+              data-path={entry.relativePath}
             >
-              {entry.isProject ? <mdui-icon-music-note /> : <mdui-icon-folder />}
-              <span className="directory-name">{entry.name}</span>
-              <span className="directory-kind">{entry.isProject ? '工程' : '目录'}</span>
-            </button>
-            {entry.isProject && props.projectActions?.(entry)}
-          </div>
-        ))}
+              <button
+                type="button"
+                className="directory-main"
+                disabled={disabled || (entry.isProject && !props.onProject)}
+                {...(selected ? { 'aria-current': true } : {})}
+                onClick={() => (entry.isProject ? props.onProject?.(entry) : props.onNavigate(entry.relativePath))}
+                onDoubleClick={() => entry.isProject && props.onProjectDoubleClick?.(entry)}
+              >
+                <Icon name={entry.isProject ? 'music_note' : 'folder'} className="directory-icon" />
+                <span className="directory-name">{entry.name}</span>
+                {!entry.isProject && <Icon name="chevron_right" className="directory-go" />}
+              </button>
+              {entry.isProject && props.projectActions?.(entry)}
+            </div>
+          );
+        })}
         {!listing.loading && !listing.error && shown.length === 0 && (
-          <p className="directory-empty muted">{listing.entries.length === 0 ? '这个目录是空的。' : `这一层没有名称包含“${query.trim()}”的项。`}</p>
+          <p className="directory-empty">{listing.entries.length === 0 ? '这个目录是空的。' : `这一层没有名称包含“${query.trim()}”的项。`}</p>
         )}
       </div>
     </div>

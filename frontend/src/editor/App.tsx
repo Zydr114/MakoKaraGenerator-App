@@ -239,10 +239,7 @@ export function App() {
             />
           </div>
         ) : (
-          <div className="page-tile">
-            {homeMessage && <div className="info-banner">{homeMessage}</div>}
-            <Home ready={snapshot.state === 'ready'} current={session} onEnter={enter} onResume={() => setPage('lyrics')} />
-          </div>
+          <Home ready={snapshot.state === 'ready'} current={session} notice={homeMessage} onEnter={enter} onResume={() => setPage('lyrics')} />
         )}
       </main>
       {session && (

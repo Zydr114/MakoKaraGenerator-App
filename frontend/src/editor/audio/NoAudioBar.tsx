@@ -3,9 +3,12 @@ import { client } from '../connection';
 import { AUDIO_FILE_ACCEPT } from '../model/new-project';
 import { errorText, type EditorSession, type EditorState } from '../session/editor-session';
 import { replaceAudio } from '../session/project-media';
-import { toast } from '../ui/legacy/feedback';
-import { FileButton } from '../ui/legacy/fields';
+import { FileButton } from '../ui/fields';
 import { useObservableSelector } from '../ui/hooks';
+import { Icon } from '../ui/Icon';
+import { Spinner } from '../ui/indicators';
+import { toast } from '../ui/legacy/feedback';
+import './audio.css';
 
 /**
  * 工程没有音频时底部区的空态（W5 设计 §1）：“还没有音频 · [选择音频…]”，选好就直接替换音频（一条历史）。
@@ -31,12 +34,12 @@ export function NoAudioBar(props: { session: EditorSession }) {
 
   return (
     <div className="no-audio-bar">
-      <mdui-icon-music-off />
+      <Icon name="music_off" />
       <span className="no-audio-text">{busy ?? '还没有音频'}</span>
       {busy ? (
-        <mdui-circular-progress />
+        <Spinner label={busy} />
       ) : (
-        <FileButton label="选择音频…" accept={AUDIO_FILE_ACCEPT} disabled={!canReplace} onPick={(file) => void pick(file)} />
+        <FileButton label="选择音频…" icon="music_note" size="sm" accept={AUDIO_FILE_ACCEPT} disabled={!canReplace} onPick={(file) => void pick(file)} />
       )}
       <span className="hint">有音频后才显示播放控制和时间轴。</span>
     </div>

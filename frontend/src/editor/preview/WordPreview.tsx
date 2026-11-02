@@ -3,6 +3,8 @@ import type { AudioController } from '../audio/audio-controller';
 import { isTimed, type EditorLine } from '../model/lyrics';
 import { formatTime } from '../model/time';
 import { fillRatio, previewSegments, previewWindow, windowKey, type TimedLine } from '../model/word-preview';
+import { IconButton } from '../ui/Button';
+import { useWorkSide } from '../workspace/WorkLayout';
 
 /**
  * 逐字预览（W2 设计 §2.4，整体设计 §4.3）：当前时刻的上一行、当前行、关联翻译和下一行。
@@ -12,9 +14,10 @@ export const WordPreview = memo(function WordPreview(props: {
   audio: AudioController | null;
   lines: readonly EditorLine[];
   translations: ReadonlyMap<string, readonly EditorLine[]>;
-  onCollapse: () => void;
 }) {
   const { audio } = props;
+  // 收起按钮收起所在的栏（常驻时收成窄条，覆盖面板时关上）
+  const side = useWorkSide();
   const root = useRef<HTMLDivElement>(null);
   const clock = useRef<HTMLSpanElement>(null);
   const nowUs = () => audio?.playheadUs() ?? 0;
@@ -51,9 +54,7 @@ export const WordPreview = memo(function WordPreview(props: {
         <span className="pane-title-text">
           逐字预览 · <span ref={clock}>{formatTime(nowUs())}</span>
         </span>
-        <mdui-button-icon aria-label="收起逐字预览" onClick={props.onCollapse}>
-          <mdui-icon-chevron-right />
-        </mdui-button-icon>
+        {side && <IconButton icon="chevron_right" label="收起逐字预览" size="sm" onPress={side.hide} />}
       </header>
       <div className="word-preview-body" ref={root}>
         {!hasTimed && <p className="muted">还没有打轴的行。打轴后，这里会按播放头逐字显示。</p>}

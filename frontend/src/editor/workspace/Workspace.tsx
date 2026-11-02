@@ -14,10 +14,15 @@ import { toMicros } from '../model/time';
 import type { EditorSession } from '../session/editor-session';
 import { Timeline, type RubyTimeEdit, type TokenTimeEdit } from '../timeline/Timeline';
 import { useObservable } from '../ui/hooks';
+import { StatusBar } from './StatusBar';
+import { WorkLayout } from './WorkLayout';
 
 const PREVIEW_COLLAPSED_KEY = 'mako.editor.wordPreviewCollapsed';
 
-/** 歌词页（整体设计 §5.2）：左栏行列表，中栏行编辑，右栏逐字预览；底部区是时间栏、播放条与时间轴。 */
+/**
+ * 歌词页（整体设计 §5.2，界面改版 §2.6）：左栏行列表，中栏行编辑（下面是时间栏），右栏逐字预览；
+ * 底部区是播放条与时间轴。逐字预览是幕后，和底部区连成 L 形。
+ */
 export function Workspace(props: {
   session: EditorSession;
   audio: AudioController | null;
@@ -128,38 +133,38 @@ export function Workspace(props: {
   const select = useCallback((selection: Selection) => session.select(selection), [session]);
 
   return (
-    <div className={previewCollapsed ? 'workspace preview-collapsed' : 'workspace'}>
-      <LinePane session={session} state={state} onUndo={props.onUndo} />
-      <section className="pane pane-detail">
-        {selectedLine ? (
-          <LineDetail session={session} state={state} audio={audio} line={selectedLine} lineNumber={selectedLineIndex + 1} tokenId={state.selection?.tokenId} segmentId={state.selection?.segmentId} />
-        ) : (
-          <p className="muted">选择左侧的一行。</p>
-        )}
-      </section>
-      <aside className="pane pane-preview">
-        {previewCollapsed ? (
-          <mdui-button-icon aria-label="展开逐字预览" onClick={() => collapsePreview(false)}>
-            <mdui-icon-chevron-left />
-          </mdui-button-icon>
-        ) : (
-          <WordPreview audio={audio} lines={previewLines} translations={translations} onCollapse={() => collapsePreview(true)} />
-        )}
-      </aside>
-      <div className="workspace-bottom">
-        <TimeBar session={session} audio={audio} line={selectedLine} tokenId={state.selection?.tokenId} segmentId={state.selection?.segmentId} />
-        <NoAudioBar session={session} />
-        {audio && (
-          <>
-            <Transport
-              audio={audio}
-              loopLine={loopLine}
-              onLoopLine={setLoopLine}
-              loopAvailable={!!selectedLine && isTimed(selectedLine)}
-              stampMode={stampMode}
-              onStampMode={setStampMode}
-              stampAvailable={stampAvailable}
-            />
+    <WorkLayout
+      page="lyrics"
+      className="workspace"
+      stage="right"
+      left={{ label: '歌词行', content: <LinePane session={session} state={state} onUndo={props.onUndo} /> }}
+      center={
+        <>
+          <section className="pane pane-detail">
+            {selectedLine ? (
+              <LineDetail session={session} state={state} audio={audio} line={selectedLine} lineNumber={selectedLineIndex + 1} tokenId={state.selection?.tokenId} segmentId={state.selection?.segmentId} />
+            ) : (
+              <p className="muted">选择左侧的一行。</p>
+            )}
+          </section>
+          <TimeBar session={session} audio={audio} line={selectedLine} tokenId={state.selection?.tokenId} segmentId={state.selection?.segmentId} />
+        </>
+      }
+      right={{
+        label: '逐字预览',
+        collapsed: previewCollapsed,
+        onCollapsedChange: collapsePreview,
+        content: (
+          <aside className="pane pane-preview">
+            <WordPreview audio={audio} lines={previewLines} translations={translations} />
+          </aside>
+        ),
+      }}
+      timeline={!!audio}
+      dock={
+        <>
+          <NoAudioBar session={session} />
+          {audio && (
             <Timeline
               audio={audio}
               lines={state.lines}
@@ -174,19 +179,23 @@ export function Workspace(props: {
               followSpans={follows}
               onCommitTrackLine={commitTrackLine}
               onOpenTrackLine={openTrackLine}
+              leading={
+                <Transport
+                  audio={audio}
+                  loopLine={loopLine}
+                  onLoopLine={setLoopLine}
+                  loopAvailable={!!selectedLine && isTimed(selectedLine)}
+                  stampMode={stampMode}
+                  onStampMode={setStampMode}
+                  stampAvailable={stampAvailable}
+                />
+              }
             />
-          </>
-        )}
-      </div>
-      <footer className="status-bar">
-        <span className={`notice notice-${state.notice?.level ?? 'none'}`}>{state.notice?.message ?? '就绪'}</span>
-        <span className="muted">
-          {state.syncing ? '同步中 · ' : ''}
-          {state.pendingCommands > 0 ? `${state.pendingCommands} 条命令进行中 · ` : ''}修订 {state.summary.projectRevision}
-          {state.readModel === 'minimal' ? ' · 读模型：最小投影' : ''}
-        </span>
-      </footer>
-    </div>
+          )}
+        </>
+      }
+      status={<StatusBar state={state} />}
+    />
   );
 }
 

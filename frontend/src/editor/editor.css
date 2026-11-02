@@ -430,17 +430,6 @@
 
 /* ── 工作区 ── */
 
-.workspace {
-  display: grid;
-  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr) minmax(280px, 360px);
-  grid-template-rows: minmax(0, 1fr) auto auto;
-  grid-template-areas:
-    'lines detail preview'
-    'bottom bottom bottom'
-    'status status status';
-  height: 100%;
-}
-
 .pane {
   min-height: 0;
   overflow: auto;
@@ -448,28 +437,9 @@
 }
 
 .pane-lines {
-  grid-area: lines;
   display: flex;
   flex-direction: column;
   padding: 12px 8px;
-  border-right: 1px solid rgb(var(--mdui-color-outline-variant));
-}
-
-.pane-detail {
-  grid-area: detail;
-}
-
-.workspace.preview-collapsed {
-  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr) 56px;
-}
-
-.pane-preview {
-  grid-area: preview;
-  border-left: 1px solid rgb(var(--mdui-color-outline-variant));
-}
-
-.preview-collapsed .pane-preview {
-  padding: 8px 4px;
 }
 
 .pane-header {
@@ -733,14 +703,15 @@
   color: rgb(var(--mdui-color-on-surface-variant));
 }
 
-/* 时间栏：底部区最上面，所选文本单元一组、本行一组；窄屏时两组各占一行，标题等宽让字段对齐。 */
+/* 时间栏：中栏最下面，所选文本单元一组、本行一组；窄屏时两组各占一行，标题等宽让字段对齐。 */
 .time-bar {
+  flex: none;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 16px;
   padding: 8px 16px;
-  border-bottom: 1px solid rgb(var(--mdui-color-outline-variant));
+  border-top: 1px solid var(--line);
   font-variant-numeric: tabular-nums;
 }
 
@@ -851,17 +822,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.status-bar {
-  grid-area: status;
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 6px 16px;
-  border-top: 1px solid rgb(var(--mdui-color-outline-variant));
-  font-size: var(--mdui-typescale-body-small-size);
-  font-variant-numeric: tabular-nums;
-}
-
 .notice-warning {
   color: rgb(var(--mdui-color-tertiary));
 }
@@ -870,36 +830,7 @@
   color: rgb(var(--mdui-color-error));
 }
 
-/* ── 播放条与时间轴 ── */
-
-.workspace-bottom {
-  grid-area: bottom;
-  border-top: 1px solid rgb(var(--mdui-color-outline-variant));
-  background: rgb(var(--mdui-color-surface-container-low));
-}
-
-.no-audio-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
-  color: rgb(var(--mdui-color-on-surface-variant));
-}
-
-.no-audio-bar mdui-circular-progress {
-  width: 24px;
-  height: 24px;
-}
-
-.no-audio-text {
-  color: rgb(var(--mdui-color-on-surface));
-}
-
-.no-audio-bar .hint {
-  margin: 0;
-}
-
-/* 工具栏的紧凑下拉框（播放条、歌词分配）：一行 32px，不跟 mdui 表单控件的尺寸。 */
+/* 工具栏的紧凑下拉框（歌词分配）：一行 32px，不跟 mdui 表单控件的尺寸。 */
 .compact-select {
   display: inline-flex;
   flex: none;
@@ -924,90 +855,6 @@
 .compact-select select:disabled {
   border-color: rgba(var(--mdui-color-on-surface), 0.12);
   color: rgba(var(--mdui-color-on-surface), 0.38);
-}
-
-/* 播放条一行 40px；说明只占一行，放不下时省略，完整文字在悬停提示里。 */
-.transport {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 40px;
-  padding: 0 16px;
-}
-
-.transport > mdui-button-icon {
-  width: 32px;
-  height: 32px;
-  font-size: 20px;
-}
-
-.transport .switch-field {
-  flex: none;
-  gap: 8px;
-  white-space: nowrap;
-}
-
-.transport mdui-switch {
-  height: 32px;
-}
-
-.transport-time {
-  flex: none;
-  min-width: 150px;
-  font-variant-numeric: tabular-nums;
-}
-
-.transport-help {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-align: right;
-  font-size: var(--mdui-typescale-body-small-size);
-}
-
-.timeline-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-height: 32px;
-  padding: 0 16px;
-  white-space: nowrap;
-  font-size: var(--mdui-typescale-body-small-size);
-}
-
-.timeline-toolbar mdui-button-icon {
-  width: 28px;
-  height: 28px;
-  font-size: 20px;
-}
-
-.timeline-toolbar mdui-button {
-  height: 28px;
-}
-
-.timeline-help {
-  min-width: 0;
-  margin-left: 8px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.timeline-snap {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  cursor: pointer;
-}
-
-.timeline-canvas {
-  padding: 4px 0 8px;
-}
-
-.timeline-canvas canvas {
-  display: block;
-  touch-action: none;
 }
 
 /* ── 逐字预览：纯文字，不含任何样式；--fill 由 WordPreview 每帧更新 ── */
@@ -1053,8 +900,8 @@
   color: transparent;
   background: linear-gradient(
     to right,
-    rgb(var(--mdui-color-primary)) calc(var(--fill) * 100%),
-    rgb(var(--mdui-color-on-surface-variant)) calc(var(--fill) * 100%)
+    var(--wipe-on) calc(var(--fill) * 100%),
+    var(--wipe-off) calc(var(--fill) * 100%)
   );
   background-clip: text;
   -webkit-background-clip: text;
@@ -1686,6 +1533,10 @@
     'list detail'
     'status status';
   height: 100%;
+}
+
+.library > .status-bar {
+  grid-area: status;
 }
 
 /* 从外观页进来编辑副本时的返回栏（W7 设计 §2.7）。 */
@@ -2785,24 +2636,11 @@
 
 /* ── 外观页 ── */
 
-.appearance {
-  display: grid;
-  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr) minmax(280px, 360px);
-  grid-template-rows: minmax(0, 1fr) auto auto;
-  grid-template-areas:
-    'targets preview inspector'
-    'bottom bottom bottom'
-    'status status status';
-  height: 100%;
-}
-
 .appearance-targets {
-  grid-area: targets;
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding: 12px 8px;
-  border-right: 1px solid rgb(var(--mdui-color-outline-variant));
 }
 
 .appearance-targets .pane-header {
@@ -2949,7 +2787,6 @@ button.target-toggle:hover {
 }
 
 .appearance-preview {
-  grid-area: preview;
   display: flex;
   flex-direction: column;
 }
@@ -2964,11 +2801,6 @@ button.target-toggle:hover {
 
 .preview-error {
   margin: 6px 0 0;
-}
-
-.appearance-inspector {
-  grid-area: inspector;
-  border-left: 1px solid rgb(var(--mdui-color-outline-variant));
 }
 
 .inspector-path {
@@ -3274,24 +3106,11 @@ button.source-row:hover {
 
 /* ── 编排页 ── */
 
-.orchestration {
-  display: grid;
-  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr) minmax(280px, 360px);
-  grid-template-rows: minmax(0, 1fr) auto auto;
-  grid-template-areas:
-    'tree preview inspector'
-    'bottom bottom bottom'
-    'status status status';
-  height: 100%;
-}
-
 .orchestration-tree {
-  grid-area: tree;
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding: 12px 8px;
-  border-right: 1px solid rgb(var(--mdui-color-outline-variant));
 }
 
 .orchestration-tree .pane-header {
@@ -3331,7 +3150,6 @@ button.source-row:hover {
 }
 
 .orchestration-preview {
-  grid-area: preview;
   display: flex;
   flex-direction: column;
 }
@@ -3422,11 +3240,6 @@ button.source-row:hover {
 
 .canvas-status {
   margin: 4px 0 0;
-}
-
-.orchestration-inspector {
-  grid-area: inspector;
-  border-left: 1px solid rgb(var(--mdui-color-outline-variant));
 }
 
 /* 歌词分配条：一行 40px，放不下时才折行；说明放不下时省略，完整文字在悬停提示里。 */

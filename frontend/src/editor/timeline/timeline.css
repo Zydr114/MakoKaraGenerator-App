@@ -1,0 +1,41 @@
+/* 时间轴（界面改版 §2.6）：工具栏一行 48px（最前面是播放条），下面是圆角的画布；都在底部区（幕后）。 */
+
+.timeline {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.timeline-toolbar {
+  height: 48px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  white-space: nowrap;
+  font-size: var(--fs-sm);
+}
+
+.timeline-span {
+  margin: 0 4px;
+  font-size: 12px;
+  color: var(--stage-ink3);
+  font-variant-numeric: tabular-nums;
+}
+
+.timeline-snap {
+  flex: none;
+}
+
+.timeline-canvas {
+  margin: 0 var(--gap) var(--gap);
+  border-radius: var(--radius-row);
+  overflow: hidden;
+  background: color-mix(in srgb, var(--stage-high) 45%, var(--stage));
+}
+
+.timeline-canvas canvas {
+  display: block;
+  touch-action: none;
+}

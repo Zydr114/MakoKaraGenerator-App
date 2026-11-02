@@ -1,0 +1,103 @@
+/* 播放条与“还没有音频”（界面改版 §2.6）：都在底部区（幕后），和时间轴工具栏同一行。 */
+
+.transport {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.transport .play {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: var(--tertiary);
+  color: var(--on-tertiary);
+  cursor: pointer;
+  outline: none;
+}
+.transport .play .ic {
+  width: 22px;
+  height: 22px;
+}
+.transport .play[data-hovered] {
+  background-image: var(--hover);
+}
+.transport .play[data-pressed] {
+  background-image: var(--press);
+}
+.transport .play[data-focus-visible] {
+  outline: 2px solid var(--tertiary);
+  outline-offset: 2px;
+}
+.transport .play[data-disabled] {
+  background: color-mix(in srgb, var(--stage-ink) 12%, transparent);
+  color: color-mix(in srgb, var(--stage-ink) 38%, transparent);
+  cursor: default;
+}
+
+.transport-time {
+  flex: none;
+  margin: 0 6px 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.transport-time small {
+  margin-left: 4px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--stage-ink3);
+}
+
+.transport-rate {
+  flex: none;
+  width: 80px;
+}
+.transport .switch {
+  flex: none;
+  margin-left: 8px;
+}
+
+.transport-help {
+  flex: 1;
+  min-width: 0;
+  margin: 0 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+  font-size: 12px;
+  color: var(--stage-ink3);
+}
+.transport-help .notice-error {
+  color: var(--error);
+}
+
+.no-audio-bar {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px 0 16px;
+  color: var(--stage-ink3);
+  font-size: var(--fs-sm);
+}
+.no-audio-bar > .ic {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+.no-audio-text {
+  color: var(--stage-ink);
+  font-weight: 500;
+}
+.no-audio-bar .hint {
+  margin: 0;
+}

@@ -2,7 +2,7 @@
 // （W6 设计 §2.6），编排页另有片段轨（W4 设计 §10.2）。拖动时只在本地显示，松手才提交一条命令；相邻元素（注音片段）共用的边界一起移动
 // （一次批量命令、一次撤销）。
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { AudioController } from '../audio/audio-controller';
 import type { LineTrack } from '../model/line-tracks';
 import { isTimed, type EditorLine, type Selection } from '../model/lyrics';
@@ -21,7 +21,11 @@ import {
   zoomAround,
   type Viewport,
 } from '../model/timeline';
+import { Button, IconButton } from '../ui/Button';
+import { Checkbox } from '../ui/choices';
 import { useObservable } from '../ui/hooks';
+import { TimelineHeight } from './timeline-size';
+import './timeline.css';
 
 /** 轨上的一个色块。color 是颜色序号（片段按目标容器区分），循环使用几种颜色；dim 时画淡（停用的前奏）。 */
 export interface TimelineBand {
@@ -63,6 +67,8 @@ const RUBY = 22;
 const TOKENS = 34;
 const LINES = 22;
 const CLIPS = 22;
+/** 拖矮底部区时波形轨最矮的高度。 */
+const MIN_WAVE = 32;
 
 /**
  * 各轨的顶边与画布高度。注音轨不显示时 ruby 与 tokens 相同。lineTracks 是第一条翻译行轨（参考轨）的顶边，各高 LINES；
@@ -71,6 +77,8 @@ const CLIPS = 22;
 interface Lanes {
   ruler: number;
   wave: number;
+  /** 波形轨的高度：自然是 WAVE，底部区拖高拖矮时跟着变。 */
+  waveHeight: number;
   ruby: number;
   tokens: number;
   lines: number;
@@ -79,11 +87,18 @@ interface Lanes {
   height: number;
 }
 
-function lanesOf(ruby: boolean, lineTracks: number, clipTracks: number): Lanes {
-  const tokens = RULER + WAVE + (ruby ? RUBY : 0);
+function lanesOf(ruby: boolean, lineTracks: number, clipTracks: number, waveHeight = WAVE): Lanes {
+  const tokens = RULER + waveHeight + (ruby ? RUBY : 0);
   const lines = tokens + TOKENS;
   const clips = lines + LINES + lineTracks * LINES;
-  return { ruler: 0, wave: RULER, ruby: RULER + WAVE, tokens, lines, lineTracks: lines + LINES, clips, height: clips + clipTracks * CLIPS };
+  return { ruler: 0, wave: RULER, waveHeight, ruby: RULER + waveHeight, tokens, lines, lineTracks: lines + LINES, clips, height: clips + clipTracks * CLIPS };
+}
+
+/** 按拖出来的总高度定波形轨高度：其他轨道不变，波形轨吃掉差额，最矮 MIN_WAVE。 */
+function sizedLanes(ruby: boolean, lineTracks: number, clipTracks: number, height: number | undefined): Lanes {
+  const natural = lanesOf(ruby, lineTracks, clipTracks);
+  if (height === undefined) return natural;
+  return lanesOf(ruby, lineTracks, clipTracks, Math.max(MIN_WAVE, WAVE + height - natural.height));
 }
 
 /** 默认视口宽度：约 12 秒，适合逐字打轴。 */
@@ -110,14 +125,18 @@ interface Drag {
 }
 
 interface Palette {
+  /** 画布底色，也是来源名小字的衬底。 */
   surface: string;
   outline: string;
   text: string;
   muted: string;
   wave: string;
+  wavePlayed: string;
   token: string;
   tokenEstimated: string;
   tokenSelected: string;
+  /** 选中（主色）色块上的字。 */
+  onSelected: string;
   line: string;
   lineSelected: string;
   playhead: string;
@@ -126,26 +145,45 @@ interface Palette {
   bands: string[];
 }
 
+/**
+ * 时间轴在幕后（界面改版 §2.3）：颜色取主题引擎写在 <html> 上的 --角色-rgb。
+ * 底色是 stage-high 与 stage 的 45% 混合，和 .timeline-canvas 的 CSS 底色一致。
+ */
 function readPalette(): Palette {
   const style = getComputedStyle(document.documentElement);
-  const color = (name: string, alpha = 1) => `rgba(${style.getPropertyValue(`--mdui-color-${name}`).trim() || '128, 128, 128'}, ${alpha})`;
+  fontFamily = style.getPropertyValue('--font').trim() || fontFamily;
+  const rgb = (name: string): [number, number, number] => {
+    const parts = style.getPropertyValue(`--${name}-rgb`).split(',').map((v) => Number(v.trim()));
+    return parts.length === 3 && parts.every(Number.isFinite) ? (parts as [number, number, number]) : [128, 128, 128];
+  };
+  const color = (name: string, alpha = 1) => `rgba(${rgb(name).join(', ')}, ${alpha})`;
+  const mix = (a: string, b: string, t: number) => {
+    const [x, y] = [rgb(a), rgb(b)];
+    return `rgb(${x.map((v, i) => Math.round(v * t + y[i]! * (1 - t))).join(', ')})`;
+  };
   return {
-    surface: color('surface-container-lowest'),
-    outline: color('outline-variant'),
+    surface: mix('stage-high', 'stage', 0.45),
+    outline: color('stage-line'),
     text: color('on-surface'),
-    muted: color('on-surface-variant'),
-    wave: color('primary', 0.55),
-    token: color('secondary-container'),
-    tokenEstimated: color('tertiary-container'),
+    muted: color('stage-ink3'),
+    wave: color('wave'),
+    wavePlayed: color('wave-on'),
+    token: mix('tertiary', 'stage-high', 0.22),
+    tokenEstimated: color('stage-line', 0.7),
     tokenSelected: color('primary'),
-    line: color('surface-container-highest'),
+    onSelected: color('on-primary'),
+    line: color('stage-high'),
     lineSelected: color('primary-container'),
-    playhead: color('error'),
-    grid: color('outline-variant', 0.5),
-    loop: color('primary', 0.08),
-    bands: [color('primary-container'), color('tertiary-container'), color('secondary-container'), color('error-container')],
+    playhead: color('tertiary'),
+    grid: color('stage-line', 0.6),
+    loop: color('tertiary', 0.1),
+    bands: [color('primary-container'), color('clip2'), color('tertiary-container'), color('secondary-container')],
   };
 }
+
+/** 画布文字用界面字体（--font），读颜色时一起更新。 */
+let fontFamily = 'system-ui, sans-serif';
+const font = (px: number) => `${px}px ${fontFamily}`;
 
 export function Timeline(props: {
   audio: AudioController;
@@ -175,10 +213,12 @@ export function Timeline(props: {
   onSelectBand?: (trackId: string, bandId: string) => void;
   /** 工具栏的操作说明（滚轮、缩放的说明之前那部分）。 */
   help?: string;
+  /** 工具栏最前面的内容：播放条（界面改版 §2.6，播放条和时间轴工具栏合成一行）。 */
+  leading?: ReactNode;
 }) {
   const editable = !!props.onCommitTokens && !!props.onCommitLine;
   const rubyShown = !!props.showRuby && hasRuby(props.lines);
-  const lanes = lanesOf(rubyShown, props.lineTracks?.length ?? 0, props.tracks?.length ?? 0);
+  const lanes = sizedLanes(rubyShown, props.lineTracks?.length ?? 0, props.tracks?.length ?? 0, useContext(TimelineHeight));
   const height = lanes.height;
   const lanesRef = useRef(lanes);
   lanesRef.current = lanes;
@@ -237,16 +277,15 @@ export function Timeline(props: {
   // 注音轨、翻译行轨、片段轨出现或消失时画布高度跟着变。
   useEffect(() => resize.current(), [height]);
 
-  // 明暗主题或配色变化时重读颜色。
+  // 明暗主题或主题色变化时重读颜色：主题引擎把颜色写在 <html> 的 style 上，明暗写在 data-mode。
   useEffect(() => {
     palette.current = readPalette();
-    const media = window.matchMedia('(prefers-color-scheme: dark)');
-    const onChange = () => {
+    const observer = new MutationObserver(() => {
       palette.current = readPalette();
       dirty.current = true;
-    };
-    media.addEventListener('change', onChange);
-    return () => media.removeEventListener('change', onChange);
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['style', 'data-mode'] });
+    return () => observer.disconnect();
   }, []);
 
   // 选中元素变化（键盘、打点后前进）且不在播放时，把它滚进视口。
@@ -335,7 +374,7 @@ export function Timeline(props: {
     const step = tickStepUs(vp.usPerPx);
     ctx.fillStyle = colors.muted;
     ctx.strokeStyle = colors.outline;
-    ctx.font = '11px system-ui, sans-serif';
+    ctx.font = font(11);
     ctx.textBaseline = 'middle';
     ctx.beginPath();
     for (const t of ticks(vp, step)) {
@@ -352,9 +391,16 @@ export function Timeline(props: {
     if (audio.peaks) {
       const peaks = audio.peaks.columns(vp.startUs, vp.usPerPx, Math.ceil(width));
       if ('loadedChunks' in audio.peaks) c.dataset.waveformChunks = String(audio.peaks.loadedChunks);
-      const mid = LANE.wave + WAVE / 2;
-      const half = WAVE / 2 - 4;
-      ctx.fillStyle = colors.wave;
+      const mid = LANE.wave + LANE.waveHeight / 2;
+      const half = LANE.waveHeight / 2 - 4;
+      // 播放头左边（已播放）用另一种颜色
+      const played = ctx.createLinearGradient(0, 0, width, 0);
+      const split = Math.min(1, Math.max(0, xOf(vp, props.audio.playheadUs()) / width));
+      played.addColorStop(0, colors.wavePlayed);
+      played.addColorStop(split, colors.wavePlayed);
+      played.addColorStop(split, colors.wave);
+      played.addColorStop(1, colors.wave);
+      ctx.fillStyle = played;
       for (let x = 0; x < peaks.min.length; x++) {
         const lo = peaks.min[x]!;
         const hi = peaks.max[x]!;
@@ -366,7 +412,7 @@ export function Timeline(props: {
     } else {
       ctx.fillStyle = colors.muted;
       const pending = audio.peaksFallback === undefined ? '正在读取波形……' : '正在解码波形……';
-      ctx.fillText(audio.peaksError ?? (audio.status === 'error' ? (audio.error ?? '音频不可用') : pending), 8, LANE.wave + WAVE / 2);
+      ctx.fillText(audio.peaksError ?? (audio.status === 'error' ? (audio.error ?? '音频不可用') : pending), 8, LANE.wave + LANE.waveHeight / 2);
     }
 
     const overrides = previewTimes();
@@ -422,7 +468,7 @@ export function Timeline(props: {
         const selected = isSelected(token.id, selection?.tokenId === token.id);
         ctx.fillStyle = selected ? colors.tokenSelected : token.status === 'estimated' || token.status === 'imported' ? colors.tokenEstimated : colors.token;
         ctx.fillRect(x0 + 0.5, LANE.tokens + 3, Math.max(1, x1 - x0 - 1), TOKENS - 6);
-        label(ctx, token.text, x0, x1, LANE.tokens + TOKENS / 2, selected ? colors.surface : colors.text);
+        label(ctx, token.text, x0, x1, LANE.tokens + TOKENS / 2, selected ? colors.onSelected : colors.text);
       }
     }
 
@@ -439,7 +485,7 @@ export function Timeline(props: {
       }
       ctx.fillStyle = selected ? colors.tokenSelected : band.status === 'estimated' || band.status === 'imported' ? colors.tokenEstimated : colors.token;
       ctx.fillRect(x0 + 0.5, LANE.ruby + 3, Math.max(1, x1 - x0 - 1), RUBY - 6);
-      label(ctx, band.text, x0, x1, LANE.ruby + RUBY / 2, selected ? colors.surface : colors.text);
+      label(ctx, band.text, x0, x1, LANE.ruby + RUBY / 2, selected ? colors.onSelected : colors.text);
     }
 
     // 色块轨（片段轨、前奏轨）
@@ -448,7 +494,7 @@ export function Timeline(props: {
       separator(ctx, colors, top, width);
       if (track.bands.length === 0) {
         ctx.fillStyle = colors.muted;
-        ctx.font = '11px system-ui, sans-serif';
+        ctx.font = font(11);
         ctx.fillText(track.empty, 8, top + CLIPS / 2);
       }
       for (const band of track.bands) {
@@ -472,11 +518,19 @@ export function Timeline(props: {
     const px = Math.round(xOf(vp, props.audio.playheadUs())) + 0.5;
     if (px >= 0 && px <= width) {
       ctx.strokeStyle = colors.playhead;
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(px, 0);
       ctx.lineTo(px, total);
       ctx.stroke();
+      // 标尺上的小三角
+      ctx.fillStyle = colors.playhead;
+      ctx.beginPath();
+      ctx.moveTo(px - 6, 0);
+      ctx.lineTo(px + 6, 0);
+      ctx.lineTo(px, 9);
+      ctx.closePath();
+      ctx.fill();
     }
 
     // 框选范围
@@ -735,26 +789,26 @@ export function Timeline(props: {
   return (
     <div className="timeline">
       <div className="timeline-toolbar">
-        <mdui-button-icon onClick={() => zoom(1 / 1.5)} aria-label="放大">
-          <mdui-icon-zoom-in />
-        </mdui-button-icon>
-        <mdui-button-icon onClick={() => zoom(1.5)} aria-label="缩小">
-          <mdui-icon-zoom-out />
-        </mdui-button-icon>
-        <mdui-button variant="text" onClick={fitAll}>
+        {props.leading}
+        <IconButton icon="zoom_out" label="缩小" size="sm" onPress={() => zoom(1.5)} />
+        <IconButton icon="zoom_in" label="放大" size="sm" onPress={() => zoom(1 / 1.5)} />
+        <Button variant="ghost" size="sm" icon="fit_screen" onPress={fitAll}>
           全曲
-        </mdui-button>
-        <span className="muted">可见 {visibleSeconds < 10 ? visibleSeconds.toFixed(1) : Math.round(visibleSeconds)} 秒</span>
-        <span style={{ flex: 1 }} />
+        </Button>
+        <span className="timeline-span">可见 {visibleSeconds < 10 ? visibleSeconds.toFixed(1) : Math.round(visibleSeconds)} 秒</span>
         {editable && (
-          <label className="timeline-snap">
-            <input type="checkbox" checked={snap} disabled={!props.frameRate} onChange={(e) => setSnap(e.currentTarget.checked)} />
-            吸附到帧{props.frameRate ? `（${(props.frameRate.numerator / props.frameRate.denominator).toFixed(2).replace(/\.00$/, '')} fps）` : '（帧率未知）'}
-          </label>
+          <>
+            <span className="vsep" />
+            <Checkbox
+              label={`吸附到帧${props.frameRate ? `（${(props.frameRate.numerator / props.frameRate.denominator).toFixed(2).replace(/\.00$/, '')} fps）` : '（帧率未知）'}`}
+              checked={snap}
+              disabled={!props.frameRate}
+              onChange={setSnap}
+              className="timeline-snap"
+            />
+          </>
         )}
-        <span className="muted timeline-help" title={help}>
-          {help}
-        </span>
+        <IconButton icon="info" label="时间轴操作说明" tooltip={help} size="sm" className="timeline-help" />
       </div>
       <div className="timeline-canvas" ref={container}>
         <canvas
@@ -804,12 +858,10 @@ function dashedBand(
   label(ctx, text, Math.max(x0, textFrom), x1, top + RUBY / 2, colors.muted);
 }
 
-const TRACK_NAME_FONT = '11px system-ui, sans-serif';
-
 /** 来源名小字（连底色）的右边缘。 */
 function trackNameRight(ctx: CanvasRenderingContext2D, text: string): number {
   ctx.save();
-  ctx.font = TRACK_NAME_FONT;
+  ctx.font = font(11);
   const width = ctx.measureText(text).width;
   ctx.restore();
   return width + 10;
@@ -818,7 +870,7 @@ function trackNameRight(ctx: CanvasRenderingContext2D, text: string): number {
 /** 轨道左端的小字（来源名），垫一层底色，免得和色块叠在一起。 */
 function trackName(ctx: CanvasRenderingContext2D, colors: Palette, text: string, y: number): void {
   ctx.save();
-  ctx.font = TRACK_NAME_FONT;
+  ctx.font = font(11);
   ctx.textBaseline = 'middle';
   const width = ctx.measureText(text).width;
   ctx.fillStyle = colors.surface;
@@ -839,7 +891,7 @@ function label(ctx: CanvasRenderingContext2D, text: string, x0: number, x1: numb
   ctx.rect(x0 + 3, y - 10, width, 20);
   ctx.clip();
   ctx.fillStyle = color;
-  ctx.font = '13px system-ui, sans-serif';
+  ctx.font = font(12);
   ctx.textBaseline = 'middle';
   ctx.fillText(text, x0 + 4, y);
   ctx.restore();

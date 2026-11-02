@@ -1,0 +1,286 @@
+/* 工作区布局（界面改版 §2.6）：面板、幕后拼接、分隔条、窄条与覆盖面板、底部区、状态栏。 */
+
+.work-layout {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.work-banner {
+  margin: 0 var(--gap) var(--gap);
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: var(--radius-row);
+  background: var(--warn-container);
+  color: var(--on-surface);
+  font-size: var(--fs-sm);
+}
+.work-banner .ic {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: var(--warn);
+}
+
+/* 五列：左栏 | 缝（分隔条）| 中栏 | 缝 | 右栏；下面一行是底部区。 */
+.work {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: var(--left) var(--gap) minmax(0, 1fr) var(--gap) var(--right);
+  grid-template-rows: minmax(0, 1fr) auto;
+  row-gap: var(--gap);
+  padding: 0 var(--gap);
+}
+
+.work-side,
+.work-center,
+.work-dock,
+.work-rail {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-panel);
+  background: var(--panel);
+}
+.work-side,
+.work-center {
+  overflow: hidden;
+}
+.work-side.stage-zone,
+.work-center.stage-zone,
+.work-dock {
+  background: var(--stage);
+}
+.work-side[hidden] {
+  display: none;
+}
+.work-side.left {
+  grid-row: 1;
+  grid-column: 1;
+}
+.work-side.right {
+  grid-row: 1;
+  grid-column: 5;
+}
+.work-center {
+  grid-row: 1;
+  grid-column: 3;
+}
+.work-dock {
+  grid-row: 2;
+  grid-column: 1 / -1;
+}
+
+/* 栏里原有的 .pane 撑满面板，自己滚动 */
+.work-side > .pane,
+.work-center > .pane {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* ———— 幕后拼接：幕后那一块向下伸进缝里，接缝处补内凹圆角 ———— */
+.joins {
+  margin-bottom: calc(-1 * var(--gap));
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.work-dock.join-right {
+  border-top-right-radius: 0;
+}
+.work-dock .fillet {
+  position: absolute;
+  top: calc(-1 * var(--gap));
+  width: var(--gap);
+  height: var(--gap);
+  pointer-events: none;
+}
+.work-dock.join-center .fillet.l {
+  left: var(--left);
+}
+.work-dock.join-center .fillet.r {
+  right: var(--right);
+}
+.work-dock.join-right .fillet.l {
+  right: var(--right);
+}
+.work-dock .fillet.l {
+  background: radial-gradient(circle at 0 0, transparent calc(var(--gap) - 0.5px), var(--stage) var(--gap));
+}
+.work-dock .fillet.r {
+  background: radial-gradient(circle at 100% 0, transparent calc(var(--gap) - 0.5px), var(--stage) var(--gap));
+}
+
+/* ———— 分隔条：就是面板之间的缝；悬停、拖动、键盘聚焦时显出一条主色细线 ———— */
+.splitter {
+  position: relative;
+  z-index: 3;
+  outline: none;
+  touch-action: none;
+}
+.splitter::before {
+  content: '';
+  position: absolute;
+}
+.splitter::after {
+  content: '';
+  position: absolute;
+  border-radius: 1px;
+  background: transparent;
+  transition: background-color 0.12s;
+}
+.splitter:hover::after,
+.splitter.dragging::after,
+.splitter:focus-visible::after {
+  background: var(--primary);
+}
+.splitter.col {
+  grid-row: 1;
+  cursor: col-resize;
+}
+.splitter.col.left {
+  grid-column: 2;
+}
+.splitter.col.right {
+  grid-column: 4;
+}
+/* 命中区比缝宽一点，压住面板边缘 3px */
+.splitter.col::before {
+  inset: 0 -3px;
+}
+.splitter.col::after {
+  top: 16px;
+  bottom: 16px;
+  left: calc(50% - 1px);
+  width: 2px;
+}
+.splitter.row {
+  position: absolute;
+  top: calc(-1 * var(--gap));
+  left: 0;
+  right: 0;
+  height: var(--gap);
+  cursor: row-resize;
+}
+.splitter.row::before {
+  inset: -3px 0;
+}
+.splitter.row::after {
+  left: 16px;
+  right: 16px;
+  top: calc(50% - 1px);
+  height: 2px;
+}
+html[data-resizing='col'],
+html[data-resizing='col'] * {
+  cursor: col-resize !important;
+  user-select: none;
+}
+html[data-resizing='row'],
+html[data-resizing='row'] * {
+  cursor: row-resize !important;
+  user-select: none;
+}
+
+/* ———— 窄条与覆盖面板 ———— */
+.work-rail {
+  grid-row: 1;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+  border: 0;
+  color: var(--on-surface-variant);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+}
+.work-rail.left {
+  grid-column: 1;
+}
+.work-rail.right {
+  grid-column: 5;
+}
+.work-rail .ic {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+.work-rail .rail-label {
+  writing-mode: vertical-rl;
+  letter-spacing: 0.12em;
+}
+.work-rail[data-hovered] {
+  background-image: var(--hover);
+}
+.work-rail[data-focus-visible] {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.work-rail.on {
+  background-color: var(--secondary-container);
+  color: var(--on-secondary-container);
+}
+
+/* 覆盖面板浮在中栏上，贴着自己那一侧 */
+.work-side.overlay {
+  grid-row: 1;
+  grid-column: 3;
+  z-index: 5;
+  box-shadow: var(--shadow);
+}
+.work-side.left.overlay {
+  justify-self: start;
+  width: min(var(--left-w), 100%);
+}
+.work-side.right.overlay {
+  justify-self: end;
+  width: min(var(--right-w), 100%);
+}
+
+/* ———— 状态栏：窗口最下面一条 24px ———— */
+.status-bar {
+  flex: none;
+  height: 24px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 14px;
+  font-size: 12px;
+  color: var(--on-surface-variant);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.status-bar .notice {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.status-bar .notice-none,
+.status-bar .notice-info {
+  color: var(--on-surface);
+}
+.status-bar .notice-warning {
+  color: var(--warn);
+}
+.status-bar .notice-error {
+  color: var(--error);
+}
+.status-bar .status-facts {
+  flex: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .splitter::after {
+    transition: none;
+  }
+}

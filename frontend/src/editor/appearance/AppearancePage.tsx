@@ -39,6 +39,8 @@ import { Timeline, type TimelineTrack } from '../timeline/Timeline';
 import { toast } from '../ui/legacy/feedback';
 import { Switch, TextField } from '../ui/legacy/fields';
 import { useObservable } from '../ui/hooks';
+import { StatusBar } from '../workspace/StatusBar';
+import { WorkLayout } from '../workspace/WorkLayout';
 import { isEditing } from '../workspace/Workspace';
 import { ApplicationsPanel, type ApplicationActions } from './ApplicationsPanel';
 import type { AppearanceState, AppearanceStore } from './appearance-store';
@@ -262,34 +264,79 @@ export function AppearancePage(props: {
   );
 
   return (
-    <div className="appearance">
-      <aside className="pane appearance-targets">
-        <TargetBrowser state={state} view={view} orchestration={orchestration} onTargets={(targets, anchorKey) => store.setTargets(targets, anchorKey)} />
-      </aside>
-      <section className="pane appearance-preview">
-        <PreviewPanel session={session} audio={audio} warning={view.presetsPreview === false ? PRESETS_WARNING : undefined} />
-      </section>
-      <aside className="pane appearance-inspector">
-        <Inspector
-          state={state}
-          branches={branches}
-          view={view}
-          model={model}
-          onIncludeDescendants={(value) => store.setIncludeDescendants(value)}
-          canApply={canApply}
-          canUndoApply={store.canUndoApply}
-          actions={actions}
-          onPick={() => setPicking(true)}
-          onUndoApply={() => void store.undoApply()}
-          onRetry={() => store.reloadInspect()}
-          onRetryApplications={() => store.reloadApplications()}
-          canReadSources={store.canReadSources}
-          onSourcesOpen={(open) => store.setSourcesOpen(open)}
-          onRetrySources={() => store.reloadResolved()}
-          onPickSource={(target) => store.setTargets([target])}
-          copy={copySource && { blocked: copySource.blocked, busy: copying || libraries.busy || !copySource.libraryId, copying, run: () => void editCopy() }}
-        />
-      </aside>
+    <WorkLayout
+      page="appearance"
+      className="appearance"
+      stage="center"
+      left={{
+        label: '外观目标',
+        content: (
+          <aside className="pane appearance-targets">
+            <TargetBrowser state={state} view={view} orchestration={orchestration} onTargets={(targets, anchorKey) => store.setTargets(targets, anchorKey)} />
+          </aside>
+        ),
+      }}
+      center={
+        <section className="pane appearance-preview">
+          <PreviewPanel session={session} audio={audio} warning={view.presetsPreview === false ? PRESETS_WARNING : undefined} />
+        </section>
+      }
+      right={{
+        label: '模板与覆盖',
+        content: (
+          <aside className="pane appearance-inspector">
+            <Inspector
+              state={state}
+              branches={branches}
+              view={view}
+              model={model}
+              onIncludeDescendants={(value) => store.setIncludeDescendants(value)}
+              canApply={canApply}
+              canUndoApply={store.canUndoApply}
+              actions={actions}
+              onPick={() => setPicking(true)}
+              onUndoApply={() => void store.undoApply()}
+              onRetry={() => store.reloadInspect()}
+              onRetryApplications={() => store.reloadApplications()}
+              canReadSources={store.canReadSources}
+              onSourcesOpen={(open) => store.setSourcesOpen(open)}
+              onRetrySources={() => store.reloadResolved()}
+              onPickSource={(target) => store.setTargets([target])}
+              copy={copySource && { blocked: copySource.blocked, busy: copying || libraries.busy || !copySource.libraryId, copying, run: () => void editCopy() }}
+            />
+          </aside>
+        ),
+      }}
+      timeline={!!audio}
+      dock={
+        <>
+          <NoAudioBar session={session} />
+          {audio && (
+            <Timeline
+              audio={audio}
+              lines={state.lines}
+              selection={state.selection}
+              frameRate={session.frameRate}
+              marked={marked}
+              onSelect={selectFromTimeline}
+              onSelectLines={selectLines}
+              tracks={tracks}
+              onSelectBand={selectBand}
+              leading={
+                <Transport
+                  audio={audio}
+                  loopLine={loopLine}
+                  onLoopLine={setLoopLine}
+                  loopAvailable={!!selectedLine && isTimed(selectedLine)}
+                  help="空格 播放／暂停 · ↑↓ 选行 · ←→ 选文本单元"
+                />
+              }
+            />
+          )}
+        </>
+      }
+      status={<StatusBar state={state} />}
+    >
       <TemplatePicker
         open={picking}
         initialChoice={pickInitial}
@@ -315,39 +362,7 @@ export function AppearancePage(props: {
           setPickInitial(null);
         }}
       />
-      <div className="workspace-bottom">
-        <NoAudioBar session={session} />
-        {audio && (
-          <>
-            <Transport
-              audio={audio}
-              loopLine={loopLine}
-              onLoopLine={setLoopLine}
-              loopAvailable={!!selectedLine && isTimed(selectedLine)}
-              help="空格 播放／暂停 · ↑↓ 选行 · ←→ 选文本单元"
-            />
-            <Timeline
-              audio={audio}
-              lines={state.lines}
-              selection={state.selection}
-              frameRate={session.frameRate}
-              marked={marked}
-              onSelect={selectFromTimeline}
-              onSelectLines={selectLines}
-              tracks={tracks}
-              onSelectBand={selectBand}
-            />
-          </>
-        )}
-      </div>
-      <footer className="status-bar">
-        <span className={`notice notice-${state.notice?.level ?? 'none'}`}>{state.notice?.message ?? '就绪'}</span>
-        <span className="muted">
-          {state.syncing ? '同步中 · ' : ''}
-          {state.pendingCommands > 0 ? `${state.pendingCommands} 条命令进行中 · ` : ''}修订 {state.summary.projectRevision}
-        </span>
-      </footer>
-    </div>
+    </WorkLayout>
   );
 }
 

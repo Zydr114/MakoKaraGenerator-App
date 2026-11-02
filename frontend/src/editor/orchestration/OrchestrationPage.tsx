@@ -44,6 +44,8 @@ import { Timeline, type TimelineBand, type TimelineTrack } from '../timeline/Tim
 import { toast } from '../ui/legacy/feedback';
 import { CommitField, CompactSelect, Select } from '../ui/legacy/fields';
 import { useObservable } from '../ui/hooks';
+import { StatusBar } from '../workspace/StatusBar';
+import { WorkLayout } from '../workspace/WorkLayout';
 import { isEditing } from '../workspace/Workspace';
 import type { OrchestrationState, OrchestrationStore } from './orchestration-store';
 import { BAND_COLORS, clipBands, clipColors } from './clip-bands';
@@ -357,251 +359,124 @@ export function OrchestrationPage(props: {
   };
 
   return (
-    <div className="orchestration">
-      <aside className="pane orchestration-tree">
-        <StructureTree view={view} sections={sections} branches={branches} actions={structure} onSelect={(id) => store.select(id)} onRetry={() => store.reload()} />
-      </aside>
-      <section className="pane orchestration-preview">
-        <SceneCanvas
-          session={session}
-          audio={audio}
-          view={view}
-          properties={properties}
-          line={canvasLine}
-          lineActions={lineActions}
-          onSelect={(id) => store.select(id)}
-          onFocusLine={(line) => store.focusLine(line.branchId, line.lineId)}
-        />
-      </section>
-      <aside className="pane orchestration-inspector">
-        {selectedLeadIn && view.model && program ? (
-          <LeadInInspector
-            model={view.model}
-            program={program}
-            leadIn={selectedLeadIn}
-            lines={lines}
-            branchName={branchName}
-            actions={leadInActions}
-            attachmentBlock={attachmentBlock}
-          />
-        ) : view.selectedClipId && view.model && program && clips.some((c) => c.id === view.selectedClipId) ? (
-          <ClipInspector
-            model={view.model}
-            program={program}
-            clips={clips}
-            clipId={view.selectedClipId}
-            lines={lines}
-            branchName={branchName}
-            actions={clipActions}
-            members={memberActions}
-            onSelectNode={(id) => store.select(id)}
-          />
-        ) : focused && view.model ? (
-          <LineInspector
-            model={view.model}
-            program={program}
-            branchId={view.branchId}
-            branchName={branchName}
-            line={focused}
-            lines={lines}
-            presentation={shown}
-            actions={lineActions}
-            leadIns={
-              program && !leadInEditBlock(branch, program)
-                ? { block: leadInActions.block, onAdd: (lineId) => leadInActions.onAdd(lineId), onSelect: (leadIn) => store.selectLeadIn(leadIn.id) }
-                : undefined
-            }
-            onSeek={(us) => audio?.seek(us)}
-          />
-        ) : view.lineFocus && range && range.count > 1 && view.model ? (
-          <LinesSummary model={view.model} branchName={branchName} range={range} actions={lineActions} clip={{ block: clipActions.block, busy: clipActions.busy, onNew: clipActions.onNew }} />
-        ) : (
-          <NodeInspector
+    <WorkLayout
+      page="orchestration"
+      className="orchestration"
+      stage="center"
+      left={{
+        label: '画面结构',
+        content: (
+          <aside className="pane orchestration-tree">
+            <StructureTree view={view} sections={sections} branches={branches} actions={structure} onSelect={(id) => store.select(id)} onRetry={() => store.reload()} />
+          </aside>
+        ),
+      }}
+      center={
+        <section className="pane orchestration-preview">
+          <SceneCanvas
+            session={session}
+            audio={audio}
             view={view}
-            branches={branches}
-            actions={structure}
             properties={properties}
-            leadIns={leadInActions}
-            attachmentBlock={attachmentBlock}
-            marks={marks}
-            linesOf={linesOf}
+            line={canvasLine}
+            lineActions={lineActions}
             onSelect={(id) => store.select(id)}
+            onFocusLine={(line) => store.focusLine(line.branchId, line.lineId)}
           />
-        )}
-      </aside>
-      <div className="workspace-bottom">
-        <AssignmentBar
-          session={session}
-          state={state}
-          view={view}
-          store={store}
-          branches={branches}
-          lines={lines}
-          range={range}
-          leadInCount={leadIns.length}
-          clipActions={clipActions}
-          onUndo={props.onUndo}
-        />
-        {view.panel === 'clips' && view.model && program && (
-          <ClipList
-            model={view.model}
-            clips={clips}
+        </section>
+      }
+      right={{
+        label: '属性',
+        content: (
+          <aside className="pane orchestration-inspector">
+            {selectedLeadIn && view.model && program ? (
+              <LeadInInspector
+                model={view.model}
+                program={program}
+                leadIn={selectedLeadIn}
+                lines={lines}
+                branchName={branchName}
+                actions={leadInActions}
+                attachmentBlock={attachmentBlock}
+              />
+            ) : view.selectedClipId && view.model && program && clips.some((c) => c.id === view.selectedClipId) ? (
+              <ClipInspector
+                model={view.model}
+                program={program}
+                clips={clips}
+                clipId={view.selectedClipId}
+                lines={lines}
+                branchName={branchName}
+                actions={clipActions}
+                members={memberActions}
+                onSelectNode={(id) => store.select(id)}
+              />
+            ) : focused && view.model ? (
+              <LineInspector
+                model={view.model}
+                program={program}
+                branchId={view.branchId}
+                branchName={branchName}
+                line={focused}
+                lines={lines}
+                presentation={shown}
+                actions={lineActions}
+                leadIns={
+                  program && !leadInEditBlock(branch, program)
+                    ? { block: leadInActions.block, onAdd: (lineId) => leadInActions.onAdd(lineId), onSelect: (leadIn) => store.selectLeadIn(leadIn.id) }
+                    : undefined
+                }
+                onSeek={(us) => audio?.seek(us)}
+              />
+            ) : view.lineFocus && range && range.count > 1 && view.model ? (
+              <LinesSummary model={view.model} branchName={branchName} range={range} actions={lineActions} clip={{ block: clipActions.block, busy: clipActions.busy, onNew: clipActions.onNew }} />
+            ) : (
+              <NodeInspector
+                view={view}
+                branches={branches}
+                actions={structure}
+                properties={properties}
+                leadIns={leadInActions}
+                attachmentBlock={attachmentBlock}
+                marks={marks}
+                linesOf={linesOf}
+                onSelect={(id) => store.select(id)}
+              />
+            )}
+          </aside>
+        ),
+      }}
+      timeline={!!audio}
+      dock={
+        <>
+          <AssignmentBar
+            session={session}
+            state={state}
+            view={view}
+            store={store}
+            branches={branches}
             lines={lines}
-            colors={colors}
-            selectedId={view.selectedClipId}
-            actions={clipActions}
-            onSelect={(id) => store.selectClip(id)}
+            range={range}
+            leadInCount={leadIns.length}
+            clipActions={clipActions}
+            onUndo={props.onUndo}
           />
-        )}
-        {view.panel === 'leadIns' && view.model && program && (
-          <LeadInList model={view.model} leadIns={leadIns} lines={lines} selectedId={view.selectedLeadInId} actions={leadInActions} onSelect={(id) => store.selectLeadIn(id)} />
-        )}
-        <AddLeadInDialog
-          open={!!addLeadIn}
-          model={view.model}
-          program={program}
-          lines={lines}
-          selected={addLeadIn?.lineId ? [addLeadIn.lineId] : view.lineIds}
-          busy={!!view.busy}
-          createBlock={countdownBlock}
-          onCreateCountdown={createCountdown}
-          onCreate={async (leadIn) => {
-            const outcome = await store.createLeadIn(view.branchId, leadIn);
-            if (outcome.result === 'failed') return outcome.error;
-            setAddLeadIn(undefined);
-            toast(`已为${lineNumberText(lines, leadIn.targetLineId)}添加前奏`, undo);
-            return undefined;
-          }}
-          onClose={() => setAddLeadIn(undefined)}
-        />
-        <GenerateLeadInsDialog
-          open={generateOpen}
-          model={view.model}
-          program={program}
-          lines={lines}
-          preview={view.generationPreview?.branchId === view.branchId ? view.generationPreview : undefined}
-          busy={!!view.busy}
-          createBlock={countdownBlock}
-          onCreateCountdown={createCountdown}
-          onPreview={previewGeneration}
-          onApply={async (settings, selected, result) => {
-            const outcome = await store.applyGeneration(view.branchId, settings, selected);
-            if (outcome.result === 'failed') return outcome.error;
-            closeGenerate();
-            if (outcome.result === 'applied') toast(appliedText(result.candidates, selected), undo);
-            else toast('没有变化');
-            return undefined;
-          }}
-          onClose={closeGenerate}
-        />
-        <NewClipDialog
-          open={newClipOpen}
-          branchName={branchName}
-          model={view.model}
-          program={program}
-          lines={lines}
-          range={range}
-          busy={!!view.busy}
-          onCreate={async (clip, { first, last }) => {
-            const outcome = await store.createClip(view.branchId, clip);
-            if (outcome.result === 'failed') return outcome.error;
-            setNewClipOpen(false);
-            const text = first === last ? `第 ${first} 句` : `第 ${first}～${last} 句`;
-            toast(`已为${text}新建片段${clip.name?.trim() ? `“${clip.name.trim()}”` : ''}`, { label: '撤销', run: props.onUndo });
-            return undefined;
-          }}
-          onClose={() => setNewClipOpen(false)}
-        />
-        <ClipMembersDialog
-          clip={adjustClip}
-          label={adjustClip && program ? clipLabel(program, lines, adjustClip) : ''}
-          program={program}
-          lines={lines}
-          busy={!!view.busy}
-          onApply={async (clip, lineIds, rangeText) => {
-            const label = program ? clipLabel(program, lines, clip) : clip.id;
-            const outcome = await store.setClipMembers(view.branchId, clip.id, lineIds);
-            if (outcome.result === 'failed') return outcome.error;
-            setAdjustClipId(undefined);
-            if (outcome.result === 'applied') toast(`片段“${label}”改为${rangeText}`, undo);
-            else toast('没有变化');
-            return undefined;
-          }}
-          onClose={() => setAdjustClipId(undefined)}
-        />
-        <SplitClipDialog
-          clip={splitClip}
-          label={splitClip && program ? clipLabel(program, lines, splitClip) : ''}
-          lines={lines}
-          playheadUs={split?.playheadUs}
-          busy={!!view.busy}
-          onSplit={async (clip, splitLineId) => {
-            const label = program ? clipLabel(program, lines, clip) : clip.id;
-            const parts = splitParts(clip, lines, splitLineId);
-            const outcome = await store.splitClip(view.branchId, clip.id, splitLineId);
-            if (outcome.result === 'failed') return outcome.error;
-            setSplit(undefined);
-            if (outcome.result === 'applied') toast(parts ? `已把片段“${label}”拆成${parts.left}和${parts.right}` : `已拆分片段“${label}”`, undo);
-            return undefined;
-          }}
-          onClose={() => setSplit(undefined)}
-        />
-        <NewNodeDialog
-          open={newNodeOpen}
-          model={view.model}
-          candidates={candidates}
-          program={program}
-          selectedId={view.selectedId}
-          branchName={branchNameOf}
-          busy={!!view.busy}
-          countdown={session.supportsCommand('orchestration.createCountdown')}
-          onCreate={async (node) => {
-            if (node.kind === 'countdown') {
-              const created = await store.createCountdown(node.parentId, node.name, node.count, { select: true });
-              if (created.result === 'failed') return created.error;
-              setNewNodeOpen(false);
-              const name = node.name.trim();
-              toast(`已新建前奏提示组${name ? `“${name}”` : ''}（${node.count} 个标记）`, undo);
-              return undefined;
-            }
-            const outcome = await store.createNode(node);
-            if (outcome.result === 'failed') return outcome.error;
-            setNewNodeOpen(false);
-            const name = node.name.trim();
-            toast(`已新建${NODE_KIND_TEXT[node.kind]}${name ? `“${name}”` : ''}${node.kind === 'slotSequence' ? `（${node.slotCount ?? 2} 个槽位）` : ''}`, undo);
-            return undefined;
-          }}
-          onClose={() => setNewNodeOpen(false)}
-        />
-        <MoveNodeDialog
-          nodeId={moveId}
-          model={view.model}
-          candidates={candidates}
-          branchName={branchNameOf}
-          busy={!!view.busy}
-          onMove={async (parentId) => {
-            const id = moveId!;
-            const text = label(id);
-            const target = parentId ? label(parentId) : undefined;
-            const result = await store.moveNode(id, parentId);
-            if (result === 'failed') return session.state.notice?.message ?? '移动没有成功。';
-            setMoveId(undefined);
-            if (result === 'applied') toast(target ? `已把“${text}”移到“${target}”` : `已把“${text}”移到画布根层`, undo);
-            return undefined;
-          }}
-          onClose={() => setMoveId(undefined)}
-        />
-        <NoAudioBar session={session} />
-        {audio && (
-          <>
-            <Transport
-              audio={audio}
-              loopLine={loopLine}
-              onLoopLine={setLoopLine}
-              loopAvailable={!!loopSpan}
-              loopLabel="循环选中"
-              help="空格 播放／暂停 · ↑↓ 在结构里移动 · Delete 删除节点"
+          {view.panel === 'clips' && view.model && program && (
+            <ClipList
+              model={view.model}
+              clips={clips}
+              lines={lines}
+              colors={colors}
+              selectedId={view.selectedClipId}
+              actions={clipActions}
+              onSelect={(id) => store.selectClip(id)}
             />
+          )}
+          {view.panel === 'leadIns' && view.model && program && (
+            <LeadInList model={view.model} leadIns={leadIns} lines={lines} selectedId={view.selectedLeadInId} actions={leadInActions} onSelect={(id) => store.selectLeadIn(id)} />
+          )}
+          <NoAudioBar session={session} />
+          {audio && (
             <Timeline
               audio={audio}
               lines={lines}
@@ -613,18 +488,158 @@ export function OrchestrationPage(props: {
               tracks={tracks}
               onSelectBand={selectBand}
               help={TIMELINE_HELP}
+              leading={
+                <Transport
+                  audio={audio}
+                  loopLine={loopLine}
+                  onLoopLine={setLoopLine}
+                  loopAvailable={!!loopSpan}
+                  loopLabel="循环选中"
+                  help="空格 播放／暂停 · ↑↓ 在结构里移动 · Delete 删除节点"
+                />
+              }
             />
-          </>
-        )}
-      </div>
-      <footer className="status-bar">
-        <span className={`notice notice-${state.notice?.level ?? 'none'}`}>{state.notice?.message ?? '就绪'}</span>
-        <span className="muted">
-          {state.syncing ? '同步中 · ' : ''}
-          {state.pendingCommands > 0 ? `${state.pendingCommands} 条命令进行中 · ` : ''}修订 {state.summary.projectRevision}
-        </span>
-      </footer>
-    </div>
+          )}
+        </>
+      }
+      status={<StatusBar state={state} />}
+    >
+      <AddLeadInDialog
+        open={!!addLeadIn}
+        model={view.model}
+        program={program}
+        lines={lines}
+        selected={addLeadIn?.lineId ? [addLeadIn.lineId] : view.lineIds}
+        busy={!!view.busy}
+        createBlock={countdownBlock}
+        onCreateCountdown={createCountdown}
+        onCreate={async (leadIn) => {
+          const outcome = await store.createLeadIn(view.branchId, leadIn);
+          if (outcome.result === 'failed') return outcome.error;
+          setAddLeadIn(undefined);
+          toast(`已为${lineNumberText(lines, leadIn.targetLineId)}添加前奏`, undo);
+          return undefined;
+        }}
+        onClose={() => setAddLeadIn(undefined)}
+      />
+      <GenerateLeadInsDialog
+        open={generateOpen}
+        model={view.model}
+        program={program}
+        lines={lines}
+        preview={view.generationPreview?.branchId === view.branchId ? view.generationPreview : undefined}
+        busy={!!view.busy}
+        createBlock={countdownBlock}
+        onCreateCountdown={createCountdown}
+        onPreview={previewGeneration}
+        onApply={async (settings, selected, result) => {
+          const outcome = await store.applyGeneration(view.branchId, settings, selected);
+          if (outcome.result === 'failed') return outcome.error;
+          closeGenerate();
+          if (outcome.result === 'applied') toast(appliedText(result.candidates, selected), undo);
+          else toast('没有变化');
+          return undefined;
+        }}
+        onClose={closeGenerate}
+      />
+      <NewClipDialog
+        open={newClipOpen}
+        branchName={branchName}
+        model={view.model}
+        program={program}
+        lines={lines}
+        range={range}
+        busy={!!view.busy}
+        onCreate={async (clip, { first, last }) => {
+          const outcome = await store.createClip(view.branchId, clip);
+          if (outcome.result === 'failed') return outcome.error;
+          setNewClipOpen(false);
+          const text = first === last ? `第 ${first} 句` : `第 ${first}～${last} 句`;
+          toast(`已为${text}新建片段${clip.name?.trim() ? `“${clip.name.trim()}”` : ''}`, { label: '撤销', run: props.onUndo });
+          return undefined;
+        }}
+        onClose={() => setNewClipOpen(false)}
+      />
+      <ClipMembersDialog
+        clip={adjustClip}
+        label={adjustClip && program ? clipLabel(program, lines, adjustClip) : ''}
+        program={program}
+        lines={lines}
+        busy={!!view.busy}
+        onApply={async (clip, lineIds, rangeText) => {
+          const label = program ? clipLabel(program, lines, clip) : clip.id;
+          const outcome = await store.setClipMembers(view.branchId, clip.id, lineIds);
+          if (outcome.result === 'failed') return outcome.error;
+          setAdjustClipId(undefined);
+          if (outcome.result === 'applied') toast(`片段“${label}”改为${rangeText}`, undo);
+          else toast('没有变化');
+          return undefined;
+        }}
+        onClose={() => setAdjustClipId(undefined)}
+      />
+      <SplitClipDialog
+        clip={splitClip}
+        label={splitClip && program ? clipLabel(program, lines, splitClip) : ''}
+        lines={lines}
+        playheadUs={split?.playheadUs}
+        busy={!!view.busy}
+        onSplit={async (clip, splitLineId) => {
+          const label = program ? clipLabel(program, lines, clip) : clip.id;
+          const parts = splitParts(clip, lines, splitLineId);
+          const outcome = await store.splitClip(view.branchId, clip.id, splitLineId);
+          if (outcome.result === 'failed') return outcome.error;
+          setSplit(undefined);
+          if (outcome.result === 'applied') toast(parts ? `已把片段“${label}”拆成${parts.left}和${parts.right}` : `已拆分片段“${label}”`, undo);
+          return undefined;
+        }}
+        onClose={() => setSplit(undefined)}
+      />
+      <NewNodeDialog
+        open={newNodeOpen}
+        model={view.model}
+        candidates={candidates}
+        program={program}
+        selectedId={view.selectedId}
+        branchName={branchNameOf}
+        busy={!!view.busy}
+        countdown={session.supportsCommand('orchestration.createCountdown')}
+        onCreate={async (node) => {
+          if (node.kind === 'countdown') {
+            const created = await store.createCountdown(node.parentId, node.name, node.count, { select: true });
+            if (created.result === 'failed') return created.error;
+            setNewNodeOpen(false);
+            const name = node.name.trim();
+            toast(`已新建前奏提示组${name ? `“${name}”` : ''}（${node.count} 个标记）`, undo);
+            return undefined;
+          }
+          const outcome = await store.createNode(node);
+          if (outcome.result === 'failed') return outcome.error;
+          setNewNodeOpen(false);
+          const name = node.name.trim();
+          toast(`已新建${NODE_KIND_TEXT[node.kind]}${name ? `“${name}”` : ''}${node.kind === 'slotSequence' ? `（${node.slotCount ?? 2} 个槽位）` : ''}`, undo);
+          return undefined;
+        }}
+        onClose={() => setNewNodeOpen(false)}
+      />
+      <MoveNodeDialog
+        nodeId={moveId}
+        model={view.model}
+        candidates={candidates}
+        branchName={branchNameOf}
+        busy={!!view.busy}
+        onMove={async (parentId) => {
+          const id = moveId!;
+          const text = label(id);
+          const target = parentId ? label(parentId) : undefined;
+          const result = await store.moveNode(id, parentId);
+          if (result === 'failed') return session.state.notice?.message ?? '移动没有成功。';
+          setMoveId(undefined);
+          if (result === 'applied') toast(target ? `已把“${text}”移到“${target}”` : `已把“${text}”移到画布根层`, undo);
+          return undefined;
+        }}
+        onClose={() => setMoveId(undefined)}
+      />
+    </WorkLayout>
   );
 }
 

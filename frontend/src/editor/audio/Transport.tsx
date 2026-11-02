@@ -1,8 +1,12 @@
 import { useEffect, useRef } from 'react';
+import { Button as AriaButton } from 'react-aria-components';
 import { formatTime } from '../model/time';
-import { CompactSelect, Switch } from '../ui/legacy/fields';
+import { Switch } from '../ui/choices';
+import { Select } from '../ui/fields';
 import { useObservable } from '../ui/hooks';
+import { Icon } from '../ui/Icon';
 import type { AudioController } from './audio-controller';
+import './audio.css';
 
 const RATES = [
   { value: '0.5', label: '0.5×' },
@@ -10,7 +14,10 @@ const RATES = [
   { value: '1', label: '1.0×' },
 ] as const;
 
-/** 播放条：播放／暂停、播放头时间、速度、循环本行、打点模式（外观页没有打点，不传 onStampMode）。 */
+/**
+ * 播放条：播放／暂停、播放头时间、速度、循环本行、打点模式（外观页没有打点，不传 onStampMode）。
+ * 放在时间轴工具栏的最前面（界面改版 §2.6），播放按钮用第三色（幕后）。
+ */
 export function Transport(props: {
   audio: AudioController;
   loopLine: boolean;
@@ -52,18 +59,26 @@ export function Transport(props: {
 
   return (
     <div className="transport">
-      <mdui-button-icon variant="filled" disabled={state.status !== 'ready'} onClick={() => props.audio.toggle()} aria-label={state.playing ? '暂停' : '播放'}>
-        {state.playing ? <mdui-icon-pause /> : <mdui-icon-play-arrow />}
-      </mdui-button-icon>
+      <AriaButton className="play" isDisabled={state.status !== 'ready'} onPress={() => props.audio.toggle()} aria-label={state.playing ? '暂停' : '播放'}>
+        <Icon name={state.playing ? 'pause' : 'play_arrow'} filled />
+      </AriaButton>
       <span className="transport-time">
         <span ref={time}>0:00.000</span>
-        <span className="muted"> / {formatTime(state.durationUs)}</span>
+        <small>/ {formatTime(state.durationUs)}</small>
       </span>
-      <CompactSelect label="速度" value={String(state.rate) as (typeof RATES)[number]['value']} options={RATES} onChange={(v) => props.audio.setRate(Number(v))} className="transport-rate" />
+      <Select
+        label="速度"
+        labelPlacement="none"
+        size="sm"
+        value={String(state.rate) as (typeof RATES)[number]['value']}
+        options={RATES}
+        onChange={(v) => props.audio.setRate(Number(v))}
+        className="transport-rate"
+      />
       <Switch label={props.loopLabel ?? '循环本行'} checked={props.loopLine} disabled={!props.loopAvailable} onChange={props.onLoopLine} />
       {props.onStampMode && <Switch label="打点模式" checked={!!props.stampMode} disabled={!props.stampAvailable} onChange={props.onStampMode} />}
-      {/* 窄窗口下说明只显示一行，完整文字在悬停提示里。 */}
-      <span className="transport-help muted" title={state.status === 'error' ? state.error : help}>
+      {/* 说明只显示一行，放不下时省略，完整文字在悬停提示里。 */}
+      <span className="transport-help" title={state.status === 'error' ? state.error : help}>
         {state.status === 'loading' && '正在读取音频……'}
         {state.status === 'error' && <span className="notice-error">{state.error}</span>}
         {help}

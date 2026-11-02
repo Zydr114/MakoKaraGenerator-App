@@ -6,6 +6,7 @@ import { Icon } from '../ui/Icon';
 import {
   clampSide,
   clampTimeline,
+  initialSide,
   isOverlaySide,
   layoutKey,
   NARROW_WIDTH,
@@ -27,21 +28,25 @@ export interface WorkSide {
   /** 常驻时也能收起成窄条（歌词页的逐字预览）；受控，和 onCollapsedChange 一起给。 */
   collapsed?: boolean;
   onCollapsedChange?: (collapsed: boolean) => void;
+  /** 暂时定宽（样式库作者草稿的源码页签）：常驻时不能拖，也不改本机记的宽度。 */
+  width?: number | undefined;
 }
 
 export interface WorkLayoutProps {
   page: LayoutPage;
-  /** 页面根节点的类名（workspace、orchestration、appearance），冒烟脚本靠它找页面。 */
+  /** 页面根节点的类名（workspace、orchestration、appearance、library），冒烟脚本靠它找页面。 */
   className: string;
   /** 幕后那一块：歌词页是右栏（逐字预览，和底部区连成 L 形），编排、外观是中栏（画布，连成 T 形）。 */
   stage: 'center' | 'right';
   left: WorkSide;
   center: ReactNode;
   right: WorkSide;
-  /** 底部区：播放条、时间轴等。 */
-  dock: ReactNode;
+  /** 面板上面的一整条（样式库的返回栏）。 */
+  top?: ReactNode;
+  /** 底部区：播放条、时间轴等；样式库没有底部区，幕后那一块不往下拼接。 */
+  dock?: ReactNode;
   /** 底部区里有时间轴时才能拖高度。 */
-  timeline: boolean;
+  timeline?: boolean;
   status: ReactNode;
   /** 不占位置的东西（对话框）。 */
   children?: ReactNode;
@@ -87,7 +92,7 @@ export function WorkLayout(props: WorkLayoutProps) {
   }
 
   // 最新尺寸：拖动中每次移动都改，松手（或双击、按键）后写进本机。
-  const [sizes, setSizes] = useState<LayoutSizes>(() => parseLayout(localStorage.getItem(layoutKey(page))));
+  const [sizes, setSizes] = useState<LayoutSizes>(() => parseLayout(localStorage.getItem(layoutKey(page)), page));
   const latest = useRef(sizes);
   const commit = () => localStorage.setItem(layoutKey(page), JSON.stringify(latest.current));
   const resize = (patch: Partial<LayoutSizes>) => {
@@ -113,12 +118,14 @@ export function WorkLayout(props: WorkLayoutProps) {
 
   const left = placement('left');
   const right = placement('right');
-  const joined = props.stage === 'center' ? 'center' : right === 'docked' ? 'right' : null;
+  const hasDock = props.dock !== undefined;
+  const joined = !hasDock ? null : props.stage === 'center' ? 'center' : right === 'docked' ? 'right' : null;
+  const rightWidth = props.right.width ?? sizes.right;
   const style = {
     '--left': `${left === 'docked' ? sizes.left : RAIL_WIDTH}px`,
-    '--right': `${right === 'docked' ? sizes.right : RAIL_WIDTH}px`,
+    '--right': `${right === 'docked' ? rightWidth : RAIL_WIDTH}px`,
     '--left-w': `${sizes.left}px`,
-    '--right-w': `${sizes.right}px`,
+    '--right-w': `${rightWidth}px`,
   } as CSSProperties;
 
   const dock = useRef<HTMLDivElement>(null);
@@ -158,7 +165,8 @@ export function WorkLayout(props: WorkLayoutProps) {
           请使用更宽的窗口：宽度不足 {NARROW_WIDTH} 像素，部分内容可能显示不全。
         </div>
       )}
-      <div className="work" style={style}>
+      {props.top && <div className="work-top">{props.top}</div>}
+      <div className={cls('work', !hasDock && 'no-dock')} style={style}>
         {rail('left', left)}
         {sideTile('left', left)}
         {left === 'docked' && (
@@ -173,11 +181,11 @@ export function WorkLayout(props: WorkLayoutProps) {
             start={() => latest.current.left}
             onChange={(px) => resize({ left: clampSide('left', px) })}
             onCommit={commit}
-            onReset={() => resize({ left: SIDE_LIMITS.left.initial })}
+            onReset={() => resize({ left: initialSide(page, 'left') })}
           />
         )}
         <div className={cls('work-center', props.stage === 'center' && 'stage-zone', joined === 'center' && 'joins')}>{props.center}</div>
-        {right === 'docked' && (
+        {right === 'docked' && props.right.width === undefined && (
           <Splitter
             className="col right"
             orientation="vertical"
@@ -189,36 +197,38 @@ export function WorkLayout(props: WorkLayoutProps) {
             start={() => latest.current.right}
             onChange={(px) => resize({ right: clampSide('right', px) })}
             onCommit={commit}
-            onReset={() => resize({ right: SIDE_LIMITS.right.initial })}
+            onReset={() => resize({ right: initialSide(page, 'right') })}
           />
         )}
         {sideTile('right', right)}
         {rail('right', right)}
-        <div ref={dock} className={cls('work-dock', 'stage-zone', joined && `join-${joined}`)}>
-          {joined === 'center' && (
-            <>
-              <i className="fillet l" aria-hidden />
-              <i className="fillet r" aria-hidden />
-            </>
-          )}
-          {joined === 'right' && <i className="fillet l" aria-hidden />}
-          {props.timeline && (
-            <Splitter
-              className="row"
-              orientation="horizontal"
-              label="调整时间轴高度"
-              value={sizes.timeline ?? Math.round(timelineNow())}
-              min={TIMELINE_LIMITS.min}
-              max={TIMELINE_LIMITS.max}
-              sign={-1}
-              start={() => latest.current.timeline ?? timelineNow()}
-              onChange={(px) => resize({ timeline: clampTimeline(px) })}
-              onCommit={commit}
-              onReset={() => resize({ timeline: undefined })}
-            />
-          )}
-          <TimelineHeight.Provider value={sizes.timeline}>{props.dock}</TimelineHeight.Provider>
-        </div>
+        {hasDock && (
+          <div ref={dock} className={cls('work-dock', 'stage-zone', joined && `join-${joined}`)}>
+            {joined === 'center' && (
+              <>
+                <i className="fillet l" aria-hidden />
+                <i className="fillet r" aria-hidden />
+              </>
+            )}
+            {joined === 'right' && <i className="fillet l" aria-hidden />}
+            {props.timeline && (
+              <Splitter
+                className="row"
+                orientation="horizontal"
+                label="调整时间轴高度"
+                value={sizes.timeline ?? Math.round(timelineNow())}
+                min={TIMELINE_LIMITS.min}
+                max={TIMELINE_LIMITS.max}
+                sign={-1}
+                start={() => latest.current.timeline ?? timelineNow()}
+                onChange={(px) => resize({ timeline: clampTimeline(px) })}
+                onCommit={commit}
+                onReset={() => resize({ timeline: undefined })}
+              />
+            )}
+            <TimelineHeight.Provider value={sizes.timeline}>{props.dock}</TimelineHeight.Provider>
+          </div>
+        )}
       </div>
       {props.status}
       {props.children}

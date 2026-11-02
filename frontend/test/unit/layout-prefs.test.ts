@@ -10,6 +10,7 @@ describe('工作区尺寸', () => {
     expect(parseLayout('{坏')).toEqual(initial);
     expect(parseLayout('[1,2]')).toEqual(initial);
     expect(parseLayout('{"left":"300","timeline":null}')).toEqual(initial);
+    expect(parseLayout(null, 'library')).toEqual({ ...initial, right: 400 });
   });
 
   it('越界的值夹到范围里，小数取整', () => {

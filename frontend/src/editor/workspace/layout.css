@@ -284,3 +284,12 @@ html[data-resizing='row'] * {
     transition: none;
   }
 }
+
+/* ———— 没有底部区（样式库）：面板占满一行；上面可以有一整条（返回栏） ———— */
+.work.no-dock {
+  grid-template-rows: minmax(0, 1fr);
+}
+.work-top {
+  flex: none;
+  margin: 0 var(--gap) var(--gap);
+}

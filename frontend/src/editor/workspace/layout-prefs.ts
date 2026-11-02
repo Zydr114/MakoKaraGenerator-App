@@ -1,6 +1,6 @@
 // 工作区布局（界面改版 §2.6）：分栏宽度、时间轴高度的范围与本机记忆，窗口宽度断点。纯函数，不碰 DOM。
 
-export type LayoutPage = 'lyrics' | 'orchestration' | 'appearance';
+export type LayoutPage = 'lyrics' | 'orchestration' | 'appearance' | 'library';
 export type Side = 'left' | 'right';
 
 /** 分栏宽度（像素）；双击分隔条回到 initial。 */
@@ -8,6 +8,13 @@ export const SIDE_LIMITS: Record<Side, { min: number; max: number; initial: numb
   left: { min: 240, max: 400, initial: 300 },
   right: { min: 300, max: 440, initial: 340 },
 };
+
+/** 个别页面的默认宽度另取：样式库的右栏要放下编辑页签。 */
+const PAGE_INITIAL: Partial<Record<LayoutPage, Partial<Record<Side, number>>>> = { library: { right: 400 } };
+
+export function initialSide(page: LayoutPage, side: Side): number {
+  return PAGE_INITIAL[page]?.[side] ?? SIDE_LIMITS[side].initial;
+}
 
 /** 时间轴画布高度（像素）；没拖过时按轨道数取自然高度。 */
 export const TIMELINE_LIMITS = { min: 120, max: 320 } as const;
@@ -35,7 +42,7 @@ export function clampTimeline(px: number): number {
 }
 
 /** 读本机记的尺寸；缺项、坏值、越界都回到默认或夹到范围里。 */
-export function parseLayout(text: string | null): LayoutSizes {
+export function parseLayout(text: string | null, page: LayoutPage = 'lyrics'): LayoutSizes {
   let raw: Record<string, unknown> = {};
   try {
     const parsed: unknown = text ? JSON.parse(text) : {};
@@ -48,8 +55,8 @@ export function parseLayout(text: string | null): LayoutSizes {
   const right = num(raw.right);
   const timeline = num(raw.timeline);
   return {
-    left: left === undefined ? SIDE_LIMITS.left.initial : clampSide('left', left),
-    right: right === undefined ? SIDE_LIMITS.right.initial : clampSide('right', right),
+    left: left === undefined ? initialSide(page, 'left') : clampSide('left', left),
+    right: right === undefined ? initialSide(page, 'right') : clampSide('right', right),
     timeline: timeline === undefined ? undefined : clampTimeline(timeline),
   };
 }

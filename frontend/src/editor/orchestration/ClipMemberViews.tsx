@@ -5,9 +5,11 @@ import type { OrchestrationClip, OrchestrationProgram } from '../../protocol';
 import type { EditorLine } from '../model/lyrics';
 import { clipRangeBlock, lineRange, lineRangeText, linesBetween, type OrchestrationModel } from '../model/orchestration';
 import { defaultSplitPoint, mergeNeighbour, scheduleContextNote, splitBlock, splitPoints, splitResultText, type MergeSide } from '../model/orchestration-clip-members';
-import { FormDialog } from '../ui/legacy/FormDialog';
-import { Select } from '../ui/legacy/fields';
+import { Button } from '../ui/Button';
+import { Select } from '../ui/fields';
+import { FormDialog } from '../ui/FormDialog';
 import { ClipRangeFields, parseLineNumber, rangeInvalidText } from './NewClipDialog';
+import { Note } from './parts';
 
 /** 调整句子、拆分、合并：不可用时 block 是原因。 */
 export interface ClipMemberActions {
@@ -38,28 +40,21 @@ export function ClipMemberButtons(props: {
     : [...(split ? [`拆分：${split}`] : []), ...sides.flatMap(({ side, merge }) => (merge.block ? [`${MERGE_TEXT[side]}：${merge.block}`] : []))];
   return (
     <>
-      <div className="clip-member-actions">
-        <mdui-button variant="outlined" className="clip-adjust" disabled={disabled} title={actions.block} onClick={() => actions.onAdjust(clip)}>
+      <div className="row-actions clip-member-actions">
+        <Button size="sm" isDisabled={disabled} onPress={() => actions.onAdjust(clip)}>
           调整句子…
-        </mdui-button>
-        <mdui-button variant="outlined" className="clip-split" disabled={disabled || !!split} title={actions.block ?? split} onClick={() => actions.onSplit(clip)}>
+        </Button>
+        <Button size="sm" isDisabled={disabled || !!split} onPress={() => actions.onSplit(clip)}>
           拆分…
-        </mdui-button>
+        </Button>
         {sides.map(({ side, merge }) => (
-          <mdui-button
-            key={side}
-            variant="outlined"
-            className={`clip-merge-${side}`}
-            disabled={disabled || !!merge.block}
-            title={actions.block ?? merge.block}
-            onClick={() => merge.clip && void actions.onMerge(clip, props.label, merge.clip, merge.label)}
-          >
+          <Button key={side} size="sm" isDisabled={disabled || !!merge.block} onPress={() => merge.clip && void actions.onMerge(clip, props.label, merge.clip, merge.label)}>
             {MERGE_TEXT[side]}
-          </mdui-button>
+          </Button>
         ))}
       </div>
       {reasons.length > 0 && (
-        <ul className="hint clip-member-reasons">
+        <ul className="note clip-member-reasons">
           {reasons.map((reason) => (
             <li key={reason}>{reason}</li>
           ))}
@@ -125,16 +120,20 @@ export function ClipMembersDialog(props: {
       busy={props.busy}
       onSubmit={() => void submit()}
       onClose={props.onClose}
-      className="clip-members"
+      className="orch-dialog clip-members"
     >
       <ClipRangeFields first={first} last={last} lines={lines} onFirst={edit(setFirst)} onLast={edit(setLast)} />
-      {note && <p className="hint clip-members-context">{note}</p>}
-      {block && <p className="notice-error clip-members-block">{block}</p>}
-      <p className="hint">片段的名称和目标容器不变。改动可以撤销。</p>
+      {note && <Note className="clip-members-context">{note}</Note>}
+      {block && (
+        <Note error className="clip-members-block">
+          {block}
+        </Note>
+      )}
+      <Note>片段的名称和目标容器不变。改动可以撤销。</Note>
       {error && (
-        <p className="notice-error clip-members-error" role="alert">
+        <Note error className="clip-members-error">
           {error}
-        </p>
+        </Note>
       )}
     </FormDialog>
   );
@@ -183,11 +182,10 @@ export function SplitClipDialog(props: {
       busy={props.busy}
       onSubmit={() => void submit()}
       onClose={props.onClose}
-      className="split-clip"
+      className="orch-dialog split-clip"
     >
       <Select
         label="从哪一句开始拆出"
-        className="dialog-field split-clip-point"
         value={lineId}
         options={points.map((p) => ({ value: p.lineId, label: p.label }))}
         onChange={(value) => {
@@ -195,12 +193,16 @@ export function SplitClipDialog(props: {
           setError(undefined);
         }}
       />
-      {result && <p className="hint split-clip-result">{result}</p>}
-      {block && <p className="notice-error split-clip-block">{block}</p>}
+      {result && <Note className="split-clip-result">{result}</Note>}
+      {block && (
+        <Note error className="split-clip-block">
+          {block}
+        </Note>
+      )}
       {error && (
-        <p className="notice-error split-clip-error" role="alert">
+        <Note error className="split-clip-error">
           {error}
-        </p>
+        </Note>
       )}
     </FormDialog>
   );

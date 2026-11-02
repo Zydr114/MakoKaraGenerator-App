@@ -3,9 +3,10 @@ import type { OrchestrationProgram } from '../../protocol';
 import type { EditorLine } from '../model/lyrics';
 import { clipCreateBlock, containersOf, defaultClipContainer, linesBetween, nodeName, roleText, type LineRange, type OrchestrationModel } from '../model/orchestration';
 import { formatTime } from '../model/time';
-import { FormDialog } from '../ui/legacy/FormDialog';
-import { Select, TextField } from '../ui/legacy/fields';
+import { Select, TextField } from '../ui/fields';
+import { FormDialog } from '../ui/FormDialog';
 import type { NewClip } from './orchestration-store';
+import { Note } from './parts';
 
 /** 句号输入：正整数，否则 NaN（linesBetween 判为无效）。 */
 export const parseLineNumber = (text: string) => (/^\s*\d+\s*$/.test(text) ? Number(text) : NaN);
@@ -23,17 +24,17 @@ export function ClipRangeFields(props: { first: string; last: string; lines: rea
   const lastLine = valid ? lines[b - 1] : undefined;
   return (
     <>
-      <div className="new-clip-range">
-        <TextField label="从第" value={props.first} onChange={props.onFirst} className="new-clip-number" ariaLabel="起句" />
-        <TextField label="到第" value={props.last} onChange={props.onLast} className="new-clip-number" ariaLabel="止句" />
-        <span className="muted">句（共 {lines.length} 句）</span>
+      <div className="clip-range">
+        <TextField label="从第" labelPlacement="side" suffix="句" value={props.first} onChange={props.onFirst} ariaLabel="起句" />
+        <TextField label="到第" labelPlacement="side" suffix="句" value={props.last} onChange={props.onLast} ariaLabel="止句" />
+        <span className="faint">共 {lines.length} 句</span>
       </div>
       {firstLine && lastLine && (
-        <p className="hint new-clip-lines">
+        <Note className="clip-range-lines">
           {b - a + 1} 句
           {firstLine.startUs !== undefined && lastLine.endUs !== undefined ? ` · ${formatTime(firstLine.startUs)}～${formatTime(lastLine.endUs)}` : ''} · 「{firstLine.text}」
           {b > a ? `～「${lastLine.text}」` : ''}
-        </p>
+        </Note>
       )}
     </>
   );
@@ -108,28 +109,31 @@ export function NewClipDialog(props: {
       busy={props.busy}
       onSubmit={() => void submit()}
       onClose={props.onClose}
-      className="new-clip"
+      className="orch-dialog new-clip"
     >
       <ClipRangeFields first={first} last={last} lines={lines} onFirst={edit(setFirst)} onLast={edit(setLast)} />
-      {block && <p className="notice-error new-clip-block">{block}</p>}
+      {block && (
+        <Note error className="new-clip-block">
+          {block}
+        </Note>
+      )}
       <Select
         label="目标容器"
-        className="dialog-field"
         value={containerId}
         options={model ? containers.map((n) => ({ value: n.id, label: `${nodeName(model, n)} · ${roleText(model, n)}${n.id === program?.defaultContainerId ? '（默认容器）' : ''}` })) : []}
         onChange={edit(setContainerId)}
       />
-      <p className="hint">
+      <Note>
         {container && container.id === program?.defaultContainerId
           ? '目标是默认容器：这几句仍在默认容器显示，但单独成一段。'
           : '这几句改在目标容器里显示。'}
-        对话框里不能新建容器：要放进新容器，先用“快速布局…”建一个，或等结构编辑（G20）。
-      </p>
-      <TextField label="名称（可不填）" value={name} onChange={setName} placeholder="不填时显示为“片段 N”" className="dialog-field" onEnter={() => void submit()} />
+        对话框里不能新建容器：要放进新容器，先在画面结构里新建，或用“快速布局…”。
+      </Note>
+      <TextField label="名称" value={name} onChange={setName} placeholder="可以不填，显示为“片段 N”" onEnter={() => void submit()} />
       {error && (
-        <p className="notice-error new-clip-error" role="alert">
+        <Note error className="new-clip-error">
           {error}
-        </p>
+        </Note>
       )}
     </FormDialog>
   );

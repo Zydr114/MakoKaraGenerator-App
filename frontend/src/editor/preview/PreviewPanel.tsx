@@ -6,6 +6,7 @@ import { client, renderDevice } from '../connection';
 import { RENDER_BACKEND_LABEL, resolveChoice } from '../model/render-device';
 import { formatTime } from '../model/time';
 import type { EditorSession } from '../session/editor-session';
+import { Button } from '../ui/Button';
 import { useObservable } from '../ui/hooks';
 import { fitPreviewSize, PreviewController, type PreviewViewState } from './preview-controller';
 import { GpuPreviewController, type GpuPreviewViewState } from './gpu-preview-controller';
@@ -248,8 +249,8 @@ function PreviewStage(props: { size: { width: number; height: number }; children
 /** 设备错误后预览停住，点这里再试一次（渲染设备设计 §2.3）。 */
 function RetryButton(props: { onRetry: () => void }) {
   return (
-    <mdui-button variant="text" className="preview-retry" onClick={props.onRetry}>
+    <Button variant="text" size="sm" className="preview-retry" onPress={props.onRetry}>
       重试
-    </mdui-button>
+    </Button>
   );
 }

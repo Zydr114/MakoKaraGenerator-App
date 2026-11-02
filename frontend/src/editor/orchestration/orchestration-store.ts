@@ -68,7 +68,7 @@ export interface OrchestrationState {
   selectedLeadInId?: string;
   /** 句子焦点：在时间轴上点选、框选句子，或在画布上双击句子；属性区显示句子（§14.7）。 */
   lineFocus?: boolean;
-  /** 分配条下面展开的列表：片段或前奏提示，一次只展开一个（切换页面时保留）。 */
+  /** 歌词分配下面显示的列表：片段或前奏提示，缺省是片段（切换页面时保留）。 */
   panel?: 'clips' | 'leadIns';
   /** 编排命令进行中。 */
   busy?: boolean;
@@ -236,14 +236,9 @@ export class OrchestrationStore {
     this.patch({ ...NO_LINES, branchId, lineIds: [lineId], lineAnchor: lineId, lineFocus: true });
   }
 
-  /** 展开或收起片段列表（会收起前奏列表）。 */
-  toggleClips(): void {
-    this.patch({ panel: this.state.panel === 'clips' ? undefined : 'clips' });
-  }
-
-  /** 展开或收起前奏列表（会收起片段列表）。 */
-  toggleLeadIns(): void {
-    this.patch({ panel: this.state.panel === 'leadIns' ? undefined : 'leadIns' });
+  /** 歌词分配下面改显示片段列表或前奏列表。 */
+  showPanel(panel: 'clips' | 'leadIns'): void {
+    this.patch({ panel });
   }
 
   /** 清空选中的句子、片段与前奏。 */

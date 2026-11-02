@@ -22,9 +22,11 @@ import {
 } from '../model/orchestration-lead-ins';
 import { roundTo, toPercent, toSeconds, withCurrent } from '../model/orchestration-properties';
 import { formatTime } from '../model/time';
-import { NumberField, Select, Switch } from '../ui/legacy/fields';
+import { Button } from '../ui/Button';
+import { Switch } from '../ui/choices';
+import { NumberField, Select } from '../ui/fields';
 import type { LineCommand, LinePresentationState, OrchestrationResult } from './orchestration-store';
-import { Row, useSelectReset } from './parts';
+import { Group, InspectorHead, Note, Row } from './parts';
 
 /** 句子命令（§14.7）：block 是整体不可用的原因（只读、后端没开放）；run 发一条命令，成功时提示 done 并可撤销。 */
 export interface LineActions {
@@ -53,33 +55,40 @@ export function LineInspector(props: {
   const number = lineNumberText(lines, line.id);
   const response = presentation?.lineId === line.id && presentation.branchId === props.branchId ? presentation.response : undefined;
   const leadIn = props.leadIns && program ? leadInOfLine(program, line.id) : undefined;
+  const leadInBlock = props.leadIns?.block ?? (isTimed(line) ? undefined : '这一句没有时间。');
   return (
-    <div className="inspector line-inspector">
-      <div className="inspector-path">
-        <span className="pane-title-text">{[props.branchName, number].join(' / ')}</span>
-        <span className="muted">句子</span>
-        <code className="node-id">{line.id}</code>
-      </div>
-      <p className="line-inspector-text">{line.text || '（空行）'}</p>
-      <dl className="override-list">
-        <Row label="时间" value={isTimed(line) ? `${formatTime(line.startUs)}～${formatTime(line.endUs)}` : '没有时间'} />
-        {program && <Row label="显示在" value={lineContainerText(model, program, line.id)} />}
-      </dl>
-      <p className="clip-container">
-        <mdui-button variant="text" className="line-seek" disabled={!isTimed(line)} onClick={() => isTimed(line) && props.onSeek((line.startUs + line.endUs) / 2)}>
-          跳到这一句
-        </mdui-button>
-      </p>
-      {actions.block && <p className="hint property-block">{actions.block}</p>}
+    <div className="insp line-inspector">
+      <InspectorHead crumbs={[props.branchName]} title={number} kind="句子" id={line.id} />
+      <Group
+        title="句子"
+        extra={
+          <Button variant="text" size="sm" icon="play_arrow" isDisabled={!isTimed(line)} onPress={() => isTimed(line) && props.onSeek((line.startUs + line.endUs) / 2)}>
+            跳到这一句
+          </Button>
+        }
+      >
+        <p className="line-text">{line.text || '（空行）'}</p>
+        <dl className="dl info-list">
+          <Row label="时间" value={isTimed(line) ? `${formatTime(line.startUs)}～${formatTime(line.endUs)}` : '没有时间'} />
+          {program && <Row label="显示在" value={lineContainerText(model, program, line.id)} />}
+        </dl>
+        {actions.block && <Note className="property-block">{actions.block}</Note>}
+      </Group>
       {!response ? (
         presentation?.status === 'error' ? (
-          <p className="notice-error line-presentation-error">{presentation.error}</p>
+          <Note error className="line-presentation-error">
+            {presentation.error}
+          </Note>
         ) : (
-          <p className="hint">正在读取……</p>
+          <Note className="insp-loading">正在读取……</Note>
         )
       ) : (
         <>
-          {presentation?.status === 'error' && <p className="notice-error line-presentation-error">{presentation.error}</p>}
+          {presentation?.status === 'error' && (
+            <Note error className="line-presentation-error">
+              {presentation.error}
+            </Note>
+          )}
           <TransformSection key={`transform-${line.id}`} branchId={props.branchId} lineId={line.id} transform={response.localTransform} actions={actions} />
           <LineAnimationSection
             key={`animation-${line.id}`}
@@ -94,30 +103,28 @@ export function LineInspector(props: {
       )}
       <ProjectAnimationSection animation={model.projectEnterAnimation} actions={actions} />
       {props.leadIns && (
-        <>
-          <h3 className="section-title">前奏</h3>
+        <Group title="前奏">
           {leadIn ? (
-            <p className="clip-container line-lead-in">
+            <div className="row-actions line-lead-in">
               <span>
                 有前奏：{secondsText(leadIn.durationUs)}
                 {leadIn.enabled ? '' : '（已停用）'}
               </span>
-              <mdui-button variant="text" className="line-lead-in-show" onClick={() => props.leadIns!.onSelect(leadIn)}>
-                查看
-              </mdui-button>
-            </p>
+              <Button variant="text" size="sm" onPress={() => props.leadIns!.onSelect(leadIn)}>
+                查看前奏
+              </Button>
+            </div>
           ) : (
-            <mdui-button
-              variant="text"
-              className="line-lead-in-add"
-              disabled={!!props.leadIns.block || !isTimed(line)}
-              title={props.leadIns.block ?? (isTimed(line) ? undefined : '这一句没有时间。')}
-              onClick={() => props.leadIns!.onAdd(line.id)}
-            >
-              为这一句添加前奏…
-            </mdui-button>
+            <>
+              <div className="row-actions">
+                <Button variant="text" size="sm" icon="add" isDisabled={!!leadInBlock} onPress={() => props.leadIns!.onAdd(line.id)}>
+                  为这一句添加前奏…
+                </Button>
+              </div>
+              {leadInBlock && <Note>{leadInBlock}</Note>}
+            </>
           )}
-        </>
+        </Group>
       )}
     </div>
   );
@@ -132,20 +139,23 @@ export function LinesSummary(props: {
   clip: { block: string | undefined; busy: boolean; onNew: () => void };
 }) {
   const { range } = props;
+  const clipBlock = props.clip.block ?? (range.contiguous ? undefined : '选中的句子不连续。');
   return (
-    <div className="inspector line-inspector">
-      <div className="inspector-path">
-        <span className="pane-title-text">{[props.branchName, '已选句子'].join(' / ')}</span>
-        <span className="muted">句子</span>
-      </div>
-      <p className="line-inspector-text lines-summary">
-        已选{lineRangeText(range)}，共 {range.count} 句
-      </p>
-      <p className="hint">本句微调一次只对一句：在时间轴上点一句，或在画布上双击文字。</p>
-      <mdui-button variant="text" className="lines-new-clip" disabled={!!props.clip.block || props.clip.busy || !range.contiguous} title={props.clip.block} onClick={props.clip.onNew}>
-        为这几句新建片段
-      </mdui-button>
-      {props.actions.block && <p className="hint property-block">{props.actions.block}</p>}
+    <div className="insp line-inspector">
+      <InspectorHead crumbs={[props.branchName]} title="已选句子" kind="句子" />
+      <Group title="句子">
+        <p className="line-text lines-summary">
+          已选{lineRangeText(range)}，共 {range.count} 句
+        </p>
+        <Note>本句微调一次只对一句：在时间轴上点一句，或在画布上双击文字。</Note>
+        <div className="row-actions">
+          <Button variant="tonal" size="sm" icon="add" isDisabled={!!clipBlock || props.clip.busy} onPress={props.clip.onNew}>
+            为这几句新建片段
+          </Button>
+        </div>
+        {clipBlock && <Note>{clipBlock}</Note>}
+        {props.actions.block && <Note className="property-block">{props.actions.block}</Note>}
+      </Group>
       <ProjectAnimationSection animation={props.model.projectEnterAnimation} actions={props.actions} />
     </div>
   );
@@ -158,52 +168,84 @@ function TransformSection(props: { branchId: string; lineId: string; transform: 
   const disabled = !!actions.block || actions.busy;
   const set = (patch: Partial<LineLocalTransform>) => void actions.run(lineTransformCommand(branchId, lineId, transform, patch), '已调整本句微调');
   return (
-    <>
-      <h3 className="section-title">本句微调</h3>
-      <div className="prop-grid line-transform">
-        <NumberField label="X 偏移" suffix="%" value={toPercent(t.offsetXRatio)} disabled={disabled} className="line-x" onCommit={(v) => set({ offsetXRatio: ratio(v) })} />
-        <NumberField label="Y 偏移" suffix="%" value={toPercent(t.offsetYRatio)} disabled={disabled} className="line-y" onCommit={(v) => set({ offsetYRatio: ratio(v) })} />
-        <NumberField label="旋转" suffix="°" value={roundTo(t.rotationDegrees, 2)} disabled={disabled} className="line-rotation" onCommit={(rotationDegrees) => set({ rotationDegrees })} />
-        <NumberField label="缩放" suffix="倍" value={roundTo(t.scale, 3)} greaterThan={0} disabled={disabled} className="line-scale" onCommit={(scale) => set({ scale })} />
+    <Group
+      title="本句微调"
+      extra={
+        <Button
+          variant="text"
+          size="sm"
+          isDisabled={disabled || !transform}
+          onPress={() => void actions.run({ type: 'orchestration.setLineLocalTransform', branchId, lineId, transform: null }, '已清除本句微调')}
+        >
+          清除本句微调
+        </Button>
+      }
+    >
+      <div className="g2 line-transform">
+        <NumberField label="X 偏移" labelPlacement="inside" suffix="%" value={toPercent(t.offsetXRatio)} disabled={disabled} onCommit={(v) => set({ offsetXRatio: ratio(v) })} />
+        <NumberField label="Y 偏移" labelPlacement="inside" suffix="%" value={toPercent(t.offsetYRatio)} disabled={disabled} onCommit={(v) => set({ offsetYRatio: ratio(v) })} />
+        <NumberField label="旋转" labelPlacement="inside" suffix="°" value={roundTo(t.rotationDegrees, 2)} disabled={disabled} onCommit={(rotationDegrees) => set({ rotationDegrees })} />
+        <NumberField label="缩放" labelPlacement="inside" suffix="×" value={roundTo(t.scale, 3)} greaterThan={0} disabled={disabled} onCommit={(scale) => set({ scale })} />
       </div>
-      <p className="hint">偏移按所在容器参考框的宽高算，可以为负；也可以在画布上拖动这一句。</p>
-      <mdui-button
-        variant="text"
-        className="line-transform-clear"
-        disabled={disabled || !transform}
-        onClick={() => void actions.run({ type: 'orchestration.setLineLocalTransform', branchId, lineId, transform: null }, '已清除本句微调')}
-      >
-        清除本句微调
-      </mdui-button>
-    </>
+      <Note>偏移按所在容器参考框的宽高算，可以为负；也可以在画布上拖动这一句。</Note>
+    </Group>
   );
 }
 
 /** 进入动画的五个字段（§14.7）：本句与工程默认共用。 */
-function AnimationFields(props: { animation: LineEnterAnimation; disabled: boolean; epoch: number; className: string; onCommit: (patch: Partial<LineEnterAnimation>) => void }) {
+function AnimationFields(props: { animation: LineEnterAnimation; disabled: boolean; className: string; onCommit: (patch: Partial<LineEnterAnimation>) => void }) {
   const a = props.animation;
   return (
-    <div className={`prop-grid ${props.className}`}>
-      <NumberField label="时长" suffix="秒" value={toSeconds(a.durationUs)} min={0} max={10} disabled={props.disabled} className="enter-duration" onCommit={(v) => props.onCommit({ durationUs: enterDurationUs(v) })} />
+    <div className={`g2 ${props.className}`}>
+      <NumberField
+        label="时长"
+        labelPlacement="inside"
+        suffix="秒"
+        value={toSeconds(a.durationUs)}
+        min={0}
+        max={10}
+        disabled={props.disabled}
+        onCommit={(v) => props.onCommit({ durationUs: enterDurationUs(v) })}
+      />
       <Select<string>
-        key={props.epoch}
         label="缓动"
+        labelPlacement="inside"
         value={a.easing}
         options={withCurrent(ENTER_EASING_OPTIONS, a.easing)}
         disabled={props.disabled}
-        className="enter-easing"
         onChange={(easing) => props.onCommit({ easing: easing as LineEnterAnimation['easing'] })}
       />
-      <NumberField label="起始不透明度" suffix="%" value={toPercent(a.startOpacity)} min={0} max={100} disabled={props.disabled} className="enter-opacity" onCommit={(v) => props.onCommit({ startOpacity: ratio(v) })} />
-      <NumberField label="起始缩放" suffix="倍" value={roundTo(a.startScale, 3)} greaterThan={0} max={4} disabled={props.disabled} className="enter-scale" onCommit={(startScale) => props.onCommit({ startScale })} />
+      <NumberField
+        label="起始不透明度"
+        labelPlacement="inside"
+        suffix="%"
+        value={toPercent(a.startOpacity)}
+        min={0}
+        max={100}
+        disabled={props.disabled}
+        className="span2"
+        onCommit={(v) => props.onCommit({ startOpacity: ratio(v) })}
+      />
+      <NumberField
+        label="起始缩放"
+        labelPlacement="inside"
+        suffix="×"
+        value={roundTo(a.startScale, 3)}
+        greaterThan={0}
+        max={4}
+        disabled={props.disabled}
+        className="span2"
+        onCommit={(startScale) => props.onCommit({ startScale })}
+      />
       <NumberField
         label="起始纵向偏移"
+        labelPlacement="inside"
         suffix="px"
         value={roundTo(a.startOffsetPx, 2)}
         min={-10000}
         max={10000}
         disabled={props.disabled}
-        className="enter-offset"
+        className="span2"
         helper="正值从下方进入。"
         onCommit={(startOffsetPx) => props.onCommit({ startOffsetPx })}
       />
@@ -223,61 +265,49 @@ function LineAnimationSection(props: {
   actions: LineActions;
 }) {
   const { branchId, lineId, local, actions } = props;
-  const [epoch, reset] = useSelectReset();
   const disabled = !!actions.block || actions.busy;
-  const run = async (animation: LineEnterAnimation | null, done: string) => {
-    if ((await actions.run(lineEnterCommand(branchId, lineId, animation), done)) !== 'applied') reset();
-  };
+  const run = (animation: LineEnterAnimation | null, done: string) => void actions.run(lineEnterCommand(branchId, lineId, animation), done);
   return (
-    <>
-      <h3 className="section-title">进入动画</h3>
+    <Group title="进入动画">
       <p className="line-animation-effective">
         {enterAnimationText(props.effective)} · {ANIMATION_SOURCE_TEXT[props.source] ?? props.source}
       </p>
       <Switch
-        key={`own-${epoch}`}
         label="本句单独设置"
         checked={!!local}
         disabled={disabled}
-        onChange={(on) =>
-          void (on ? run(props.effective ?? DEFAULT_ENTER_ANIMATION, '已为这一句单独设置进入动画') : run(null, '已清除本句进入动画，改用工程默认'))
-        }
+        onChange={(on) => (on ? run(props.effective ?? DEFAULT_ENTER_ANIMATION, '已为这一句单独设置进入动画') : run(null, '已清除本句进入动画，改用工程默认'))}
       />
       {local && (
         <>
-          <AnimationFields animation={local} disabled={disabled} epoch={epoch} className="line-animation" onCommit={(patch) => void run(enterAnimationOf(local, patch), '已调整本句进入动画')} />
-          {isNeutralAnimation(local) && <p className="hint">{NEUTRAL_HINT}</p>}
+          <AnimationFields animation={local} disabled={disabled} className="line-animation" onCommit={(patch) => run(enterAnimationOf(local, patch), '已调整本句进入动画')} />
+          {isNeutralAnimation(local) && <Note>{NEUTRAL_HINT}</Note>}
         </>
       )}
-    </>
+    </Group>
   );
 }
 
 /** 工程默认进入动画（§14.7）：开关和五个字段；关掉时发 null。 */
 function ProjectAnimationSection(props: { animation: LineEnterAnimation | null; actions: LineActions }) {
   const { animation, actions } = props;
-  const [epoch, reset] = useSelectReset();
   const disabled = !!actions.block || actions.busy;
-  const run = async (next: LineEnterAnimation | null, done: string) => {
-    if ((await actions.run(projectEnterCommand(next), done)) !== 'applied') reset();
-  };
+  const run = (next: LineEnterAnimation | null, done: string) => void actions.run(projectEnterCommand(next), done);
   return (
-    <>
-      <h3 className="section-title">工程默认进入动画</h3>
+    <Group title="工程默认进入动画" className="project-animation-group">
       <Switch
-        key={`project-${epoch}`}
-        label="开启"
+        label="开启工程默认进入动画"
         checked={!!animation}
         disabled={disabled}
-        onChange={(on) => void (on ? run(DEFAULT_ENTER_ANIMATION, '已开启工程默认进入动画') : run(null, '已关闭工程默认进入动画'))}
+        onChange={(on) => (on ? run(DEFAULT_ENTER_ANIMATION, '已开启工程默认进入动画') : run(null, '已关闭工程默认进入动画'))}
       />
       {animation && (
         <>
-          <AnimationFields animation={animation} disabled={disabled} epoch={epoch} className="project-animation" onCommit={(patch) => void run(enterAnimationOf(animation, patch), '已调整工程默认进入动画')} />
-          {isNeutralAnimation(animation) && <p className="hint">{NEUTRAL_HINT}</p>}
+          <AnimationFields animation={animation} disabled={disabled} className="project-animation" onCommit={(patch) => run(enterAnimationOf(animation, patch), '已调整工程默认进入动画')} />
+          {isNeutralAnimation(animation) && <Note>{NEUTRAL_HINT}</Note>}
         </>
       )}
-      <p className="hint">所有句子默认用它，本句可以单独覆盖。</p>
-    </>
+      <Note>所有句子默认用它，本句可以单独覆盖。</Note>
+    </Group>
   );
 }

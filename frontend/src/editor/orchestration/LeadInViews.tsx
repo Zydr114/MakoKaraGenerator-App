@@ -28,10 +28,15 @@ import {
 } from '../model/orchestration-lead-ins';
 import { fromSeconds, toSeconds } from '../model/orchestration-properties';
 import { formatTime } from '../model/time';
-import { FormDialog } from '../ui/legacy/FormDialog';
-import { CommitField, NumberField, Select, Switch, TextField } from '../ui/legacy/fields';
+import { Button } from '../ui/Button';
+import { Checkbox, Switch } from '../ui/choices';
+import { List } from '../ui/collections';
+import { CommitField, NumberField, Select, TextField } from '../ui/fields';
+import { FormDialog } from '../ui/FormDialog';
+import { Icon } from '../ui/Icon';
+import { ProgressBar, Tag } from '../ui/indicators';
 import type { GenerationPreviewState, NewLeadIn, OrchestrationResult } from './orchestration-store';
-import { Row, ToolButton, useSelectReset } from './parts';
+import { Group, InspectorHead, Note, Row, ToolButton } from './parts';
 
 const ATTACHMENT_OPTIONS: readonly { value: LeadInAttachmentMode; label: string }[] = [
   { value: 'CueTargetText', label: '跟着目标句的文字' },
@@ -81,7 +86,7 @@ const nameOf = (model: OrchestrationModel, id: string) => {
 
 // ── 前奏列表 ──
 
-/** 前奏列表（§14.2）：与前奏轨显示同一份数据，联动选中；标题上可以添加前奏、自动生成。 */
+/** 前奏列表（§14.2）：与前奏轨显示同一份数据，联动选中；上面可以添加前奏、自动生成。 */
 export function LeadInList(props: {
   model: OrchestrationModel;
   leadIns: readonly OrchestrationLeadIn[];
@@ -93,44 +98,43 @@ export function LeadInList(props: {
   const { model, actions } = props;
   const disabled = !!actions.block || actions.busy;
   return (
-    <div className="clip-panel lead-in-panel" role="region" aria-label="前奏提示">
-      <div className="clip-panel-header">
-        <span className="pane-title-text">前奏提示 · {props.leadIns.length} 个</span>
-        <mdui-button variant="text" className="lead-in-new" disabled={disabled} title={actions.block} onClick={() => actions.onAdd()}>
-          ＋ 添加前奏
-        </mdui-button>
-        <mdui-button variant="text" className="lead-in-generate" disabled={disabled} title={actions.block} onClick={actions.onGenerate}>
+    <div className="assign-list lead-in-list">
+      <div className="assign-tools">
+        <Button variant="text" size="sm" icon="add" isDisabled={disabled} onPress={() => actions.onAdd()}>
+          添加前奏
+        </Button>
+        <Button variant="text" size="sm" icon="wand_stars" isDisabled={disabled} onPress={actions.onGenerate}>
           自动生成…
-        </mdui-button>
-        {actions.block && <span className="hint">{actions.block}</span>}
+        </Button>
       </div>
-      {props.leadIns.length === 0 ? (
-        <p className="hint clip-empty">这个来源还没有前奏提示。点“＋ 添加前奏”给某一句加，或用“自动生成…”按开头和长间奏一次生成。</p>
-      ) : (
-        <div className="clip-rows" role="listbox" aria-label="前奏列表">
-          {props.leadIns.map((leadIn) => {
-            const selected = leadIn.id === props.selectedId;
-            return (
-              <div
-                key={leadIn.id}
-                role="option"
-                aria-selected={selected}
-                data-lead-in-id={leadIn.id}
-                className={`clip-row lead-in-row${selected ? ' selected' : ''}${leadIn.enabled ? '' : ' disabled'}`}
-                onClick={() => props.onSelect(leadIn.id)}
-              >
-                <span className="target-label">{lineLabel(props.lines, leadIn.targetLineId)}</span>
-                <span className="target-meta">{timeText(leadIn)}</span>
-                <span className="target-meta">{secondsText(leadIn.durationUs)}</span>
-                <span className="target-meta">▸ {nameOf(model, leadIn.indicatorContainerId)}</span>
-                {leadIn.name && <span className="target-meta">“{leadIn.name}”</span>}
-                <span className="target-template">{originText(leadIn.origin)}</span>
-                {!leadIn.enabled && <span className="tag lead-in-off">已停用</span>}
-              </div>
-            );
-          })}
-        </div>
-      )}
+      {actions.block && <Note>{actions.block}</Note>}
+      <List
+        label="前奏列表"
+        items={props.leadIns}
+        textValue={(leadIn) => lineLabel(props.lines, leadIn.targetLineId)}
+        selectedKeys={props.selectedId ? [props.selectedId] : []}
+        onSelectionChange={(keys) => {
+          const [key] = keys;
+          if (key !== undefined && key !== props.selectedId) props.onSelect(String(key));
+        }}
+        rowClassName={(leadIn) => (leadIn.enabled ? undefined : 'is-off')}
+        emptyText="这个来源还没有前奏提示。点“添加前奏”给某一句加，或用“自动生成…”按开头和长间奏一次生成。"
+      >
+        {(leadIn) => (
+          <span className="clip lead-in" data-lead-in-id={leadIn.id}>
+            <Icon name="pending" />
+            <span className="clip-text">
+              <span className="clip-name">{lineLabel(props.lines, leadIn.targetLineId)}</span>
+              <span className="faint">
+                {[timeText(leadIn), `▸ ${nameOf(model, leadIn.indicatorContainerId)}`, leadIn.name ? `“${leadIn.name}”` : '', originText(leadIn.origin), leadIn.enabled ? '' : '已停用']
+                  .filter(Boolean)
+                  .join(' · ')}
+              </span>
+            </span>
+            <span className="faint tnum">{secondsText(leadIn.durationUs)}</span>
+          </span>
+        )}
+      </List>
     </div>
   );
 }
@@ -149,11 +153,8 @@ export function LeadInInspector(props: {
   attachmentBlock: string | undefined;
 }) {
   const { model, program, leadIn, lines, actions } = props;
-  const [epoch, reset] = useSelectReset();
   const disabled = !!actions.block || actions.busy;
-  const update = async (patch: LeadInPatch, done: string) => {
-    if ((await actions.onUpdate(leadIn, patch, done)) !== 'applied') reset();
-  };
+  const update = (patch: LeadInPatch, done: string) => void actions.onUpdate(leadIn, patch, done);
   const taken = new Set((program.leadIns ?? []).filter((l) => l.id !== leadIn.id).map((l) => l.targetLineId));
   const targetOptions = lines.map((l) => ({
     value: l.id,
@@ -167,63 +168,52 @@ export function LeadInInspector(props: {
   if (!countdowns.some((n) => n.id === leadIn.indicatorContainerId)) indicatorOptions.unshift({ value: leadIn.indicatorContainerId, label: nameOf(model, leadIn.indicatorContainerId) });
 
   return (
-    <div className="inspector lead-in-inspector">
-      <div className="inspector-path">
-        <span className="pane-title-text">{[props.branchName, '前奏提示', lineNumberText(lines, leadIn.targetLineId)].join(' / ')}</span>
-        <span className="muted">前奏提示</span>
-        <code className="node-id">{leadIn.id}</code>
-      </div>
-      <CommitField
-        key={leadIn.id}
-        label="名称"
-        value={leadIn.name ?? ''}
-        placeholder="不命名"
-        helper="可以不填。"
-        disabled={disabled}
-        className="lead-in-name"
-        onCommit={(name) => void update({ name }, name.trim() ? `前奏已改名为“${name.trim()}”` : '已清除前奏名称')}
-      />
-      <Select
-        key={`target-${epoch}`}
-        label="目标句"
-        className="lead-in-target"
-        value={leadIn.targetLineId}
-        options={targetOptions}
-        disabled={disabled}
-        onChange={(targetLineId) => void update({ targetLineId }, `前奏已改到${lineNumberText(lines, targetLineId)}`)}
-      />
-      <Select
-        key={`indicator-${epoch}`}
-        label="提示组"
-        className="lead-in-indicator"
-        value={leadIn.indicatorContainerId}
-        options={indicatorOptions}
-        disabled={disabled || indicatorOptions.length < 2}
-        onChange={(indicatorContainerId) => void update({ indicatorContainerId }, `前奏改用“${nameOf(model, indicatorContainerId)}”提示`)}
-      />
-      <div className="prop-grid lead-in-fields">
-        <NumberField
-          label="时长"
-          suffix="秒"
-          value={toSeconds(leadIn.durationUs)}
-          greaterThan={0}
+    <div className="insp lead-in-inspector">
+      <InspectorHead crumbs={[props.branchName, '前奏提示']} title={lineNumberText(lines, leadIn.targetLineId)} kind="前奏提示" id={leadIn.id} />
+      <Group title="前奏">
+        <CommitField
+          key={leadIn.id}
+          label="名称"
+          labelPlacement="inside"
+          value={leadIn.name ?? ''}
+          placeholder="不命名"
           disabled={disabled}
-          className="lead-in-duration"
-          onCommit={(seconds) => void update({ durationUs: fromSeconds(seconds) }, '已调整前奏')}
+          onCommit={(name) => update({ name }, name.trim() ? `前奏已改名为“${name.trim()}”` : '已清除前奏名称')}
         />
-      </div>
-      <Switch
-        key={`enabled-${epoch}`}
-        label="启用"
-        checked={leadIn.enabled}
-        disabled={disabled}
-        onChange={(enabled) => void update({ enabled }, enabled ? '已启用前奏' : '已停用前奏')}
-      />
-      <dl className="override-list">
-        <Row label="时间" value={leadInSpan(leadIn) ? timeText(leadIn) : '没有时间（目标句没有时间，或起唱前不够一个时长）'} />
-        <Row label="来源" value={originText(leadIn.origin)} />
-      </dl>
-      {leadIn.origin === 'Generated' && <p className="hint">自动生成的前奏：改动后变为手工，自动生成不会再改它。</p>}
+        <Select
+          label="目标句"
+          labelPlacement="inside"
+          value={leadIn.targetLineId}
+          options={targetOptions}
+          disabled={disabled}
+          onChange={(targetLineId) => update({ targetLineId }, `前奏已改到${lineNumberText(lines, targetLineId)}`)}
+        />
+        <Select
+          label="提示组"
+          labelPlacement="inside"
+          value={leadIn.indicatorContainerId}
+          options={indicatorOptions}
+          disabled={disabled || indicatorOptions.length < 2}
+          onChange={(indicatorContainerId) => update({ indicatorContainerId }, `前奏改用“${nameOf(model, indicatorContainerId)}”提示`)}
+        />
+        <div className="g2">
+          <NumberField
+            label="时长"
+            labelPlacement="inside"
+            suffix="秒"
+            value={toSeconds(leadIn.durationUs)}
+            greaterThan={0}
+            disabled={disabled}
+            onCommit={(seconds) => update({ durationUs: fromSeconds(seconds) }, '已调整前奏')}
+          />
+          <Switch label="启用" checked={leadIn.enabled} disabled={disabled} onChange={(enabled) => update({ enabled }, enabled ? '已启用前奏' : '已停用前奏')} />
+        </div>
+        <dl className="info-list">
+          <Row label="时间" value={leadInSpan(leadIn) ? timeText(leadIn) : '没有时间（目标句没有时间，或起唱前不够一个时长）'} />
+          <Row label="来源" value={originText(leadIn.origin)} />
+        </dl>
+        {leadIn.origin === 'Generated' && <Note>自动生成的前奏：改动后变为手工，自动生成不会再改它。</Note>}
+      </Group>
       <AttachmentField
         model={model}
         branchId={program.branchId}
@@ -232,25 +222,21 @@ export function LeadInInspector(props: {
         block={actions.block ?? props.attachmentBlock}
         busy={actions.busy}
         onAttachment={actions.onAttachment}
+        onShow={indicator ? () => actions.onSelectNode(indicator.id) : undefined}
       />
-      {indicator && (
-        <p className="clip-container">
-          <mdui-button variant="text" className="lead-in-indicator-show" onClick={() => actions.onSelectNode(indicator.id)}>
-            在结构树里查看提示组
-          </mdui-button>
-        </p>
-      )}
-      <div className="clip-actions">
-        <mdui-button variant="outlined" className="lead-in-delete" disabled={disabled} onClick={() => void actions.onDelete(leadIn, false)}>
-          删除前奏
-        </mdui-button>
-        {leadIn.origin === 'Generated' && (
-          <mdui-button variant="outlined" className="lead-in-exclude" disabled={disabled} onClick={() => void actions.onDelete(leadIn, true)}>
-            删除并不再自动生成
-          </mdui-button>
-        )}
-      </div>
-      <p className="hint">{actions.block ?? '删除前奏不会删除提示组。改动都可以撤销。'}</p>
+      <footer className="insp-foot">
+        <div className="insp-actions">
+          <Button danger size="sm" icon="delete" isDisabled={disabled} onPress={() => void actions.onDelete(leadIn, false)}>
+            删除前奏
+          </Button>
+          {leadIn.origin === 'Generated' && (
+            <Button danger size="sm" isDisabled={disabled} onPress={() => void actions.onDelete(leadIn, true)}>
+              删除并不再自动生成
+            </Button>
+          )}
+        </div>
+        <Note>{actions.block ?? '删除前奏不会删除提示组。改动都可以撤销。'}</Note>
+      </footer>
     </div>
   );
 }
@@ -264,34 +250,41 @@ function AttachmentField(props: {
   block: string | undefined;
   busy: boolean;
   onAttachment: LeadInActions['onAttachment'];
+  /** 在结构树里选中提示组（前奏属性里给出）。 */
+  onShow?: (() => void) | undefined;
 }) {
   const { model, indicator, leadIn } = props;
-  const [epoch, reset] = useSelectReset();
   if (!indicator) return null;
   const mode = (indicator.content?.attachmentMode ?? 'CueTargetText') as LeadInAttachmentMode;
   const users = leadInsUsing(model, indicator.id).length;
   const options = ATTACHMENT_OPTIONS.some((o) => o.value === mode) ? ATTACHMENT_OPTIONS : [...ATTACHMENT_OPTIONS, { value: mode, label: mode }];
-  const change = async (next: LeadInAttachmentMode) => {
-    if (!leadIn || !props.branchId || (await props.onAttachment(props.branchId, leadIn, next)) !== 'applied') reset();
-  };
   return (
-    <>
-      <h3 className="section-title">附着方式</h3>
+    <Group
+      title="附着方式"
+      extra={
+        props.onShow && (
+          <Button variant="text" size="sm" onPress={props.onShow}>
+            查看提示组
+          </Button>
+        )
+      }
+    >
       <Select
-        key={epoch}
         label="提示组放在哪里"
-        className="lead-in-attachment"
+        labelPlacement="inside"
         value={mode}
         options={options}
         disabled={!!props.block || props.busy || !leadIn}
-        onChange={(next) => void change(next)}
+        onChange={(next) => {
+          if (leadIn && props.branchId) void props.onAttachment(props.branchId, leadIn, next);
+        }}
       />
-      <p className="hint">
+      <Note>
         {!leadIn
           ? '还没有前奏用这个提示组，添加前奏后才能切换附着方式。'
           : `附着方式属于提示组“${nodeName(model, indicator)}”，用它的 ${users} 个前奏都跟着变。切换时按目标句文字的真实位置换算，画面上不动。`}
-      </p>
-    </>
+      </Note>
+    </Group>
   );
 }
 
@@ -315,21 +308,22 @@ export function CountdownSections(props: {
   const markDisabled = !!marks.block || marks.busy;
   return (
     <>
-      <h3 className="section-title">前奏 · {users.length} 个</h3>
-      {users.length === 0 ? (
-        <p className="hint">还没有前奏用这个提示组。</p>
-      ) : (
-        <div className="slot-list countdown-lead-ins" role="list" aria-label="用这个提示组的前奏">
-          {users.map(({ program, leadIn }) => (
-            <div key={leadIn.id} role="listitem" className="slot-row" data-lead-in-id={leadIn.id}>
-              <button type="button" className="slot-name" onClick={() => actions.onSelect(program.branchId, leadIn.id)} title="选中这个前奏">
-                {props.branchName(program.branchId)} · {lineLabel(props.lines(program.branchId), leadIn.targetLineId)} · {secondsText(leadIn.durationUs)}
-                {leadIn.enabled ? '' : '（已停用）'}
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+      <Group title={`前奏 · ${users.length} 个`}>
+        {users.length === 0 ? (
+          <Note>还没有前奏用这个提示组。</Note>
+        ) : (
+          <div className="slots countdown-lead-ins" role="list" aria-label="用这个提示组的前奏">
+            {users.map(({ program, leadIn }) => (
+              <div key={leadIn.id} role="listitem" className="slot" data-lead-in-id={leadIn.id}>
+                <button type="button" className="slot-name" onClick={() => actions.onSelect(program.branchId, leadIn.id)} title="选中这个前奏">
+                  {props.branchName(program.branchId)} · {lineLabel(props.lines(program.branchId), leadIn.targetLineId)} · {secondsText(leadIn.durationUs)}
+                  {leadIn.enabled ? '' : '（已停用）'}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Group>
       <AttachmentField
         model={model}
         branchId={first?.program.branchId}
@@ -339,44 +333,40 @@ export function CountdownSections(props: {
         busy={actions.busy}
         onAttachment={actions.onAttachment}
       />
-      <h3 className="section-title">标记 · {markIds.length} 个</h3>
-      <div className="slot-list mark-list" role="list" aria-label="标记">
-        {markIds.map((id, i) => {
-          const mark = model.byId.get(id);
-          const blocks = marks.blocks(id);
-          const own = (reason: string | undefined) => marks.structureBlock ?? (mark ? reason : '这个标记不存在。');
-          return (
-            <div key={id} role="listitem" className="slot-row mark-row" data-mark-id={id}>
-              <CommitField
-                label={`标记 ${i + 1}`}
-                value={mark?.content?.text ?? ''}
-                disabled={markDisabled || !mark}
-                className="mark-text"
-                validate={markTextBlock}
-                onCommit={(text) => void marks.onText(id, text)}
-              />
-              <ToolButton label="上移" reason={own(blocks.up)} disabled={marks.busy} className="mark-up" onClick={() => void marks.onReorder(id, -1)}>
-                <mdui-icon-arrow-upward />
-              </ToolButton>
-              <ToolButton label="下移" reason={own(blocks.down)} disabled={marks.busy} className="mark-down" onClick={() => void marks.onReorder(id, 1)}>
-                <mdui-icon-arrow-downward />
-              </ToolButton>
-              <ToolButton label="删除" reason={own(blocks.remove)} disabled={marks.busy} className="mark-remove" onClick={() => void marks.onRemove(id)}>
-                <mdui-icon-delete />
-              </ToolButton>
-            </div>
-          );
-        })}
-      </div>
-      <div className="mark-actions">
-        <mdui-button variant="text" className="mark-add" disabled={markDisabled || markIds.length >= MAX_MARKS} title={markIds.length >= MAX_MARKS ? `最多 ${MAX_MARKS} 个标记。` : undefined} onClick={() => void marks.onAdd(node.id)}>
-          ＋ 加标记
-        </mdui-button>
-        <mdui-button variant="text" className="mark-space" disabled={markDisabled} onClick={() => void marks.onSpace(node.id)}>
-          均匀排列
-        </mdui-button>
-      </div>
-      <p className="hint">{marks.block ?? APPEARANCE_HINT}</p>
+      <Group title={`标记 · ${markIds.length} 个`}>
+        <div className="slots mark-list" role="list" aria-label="标记">
+          {markIds.map((id, i) => {
+            const mark = model.byId.get(id);
+            const blocks = marks.blocks(id);
+            const own = (reason: string | undefined) => marks.structureBlock ?? (mark ? reason : '这个标记不存在。');
+            return (
+              <div key={id} role="listitem" className="slot mark-row" data-mark-id={id}>
+                <CommitField
+                  label={`标记 ${i + 1}`}
+                  labelPlacement="inside"
+                  size="sm"
+                  value={mark?.content?.text ?? ''}
+                  disabled={markDisabled || !mark}
+                  validate={markTextBlock}
+                  onCommit={(text) => void marks.onText(id, text)}
+                />
+                <ToolButton icon="arrow_upward" label={`上移标记 ${i + 1}`} reason={own(blocks.up)} disabled={marks.busy} onPress={() => void marks.onReorder(id, -1)} />
+                <ToolButton icon="arrow_downward" label={`下移标记 ${i + 1}`} reason={own(blocks.down)} disabled={marks.busy} onPress={() => void marks.onReorder(id, 1)} />
+                <ToolButton icon="delete" label={`删除标记 ${i + 1}`} reason={own(blocks.remove)} disabled={marks.busy} onPress={() => void marks.onRemove(id)} />
+              </div>
+            );
+          })}
+        </div>
+        <div className="row-actions">
+          <Button variant="text" size="sm" icon="add" isDisabled={markDisabled || markIds.length >= MAX_MARKS} onPress={() => void marks.onAdd(node.id)}>
+            加标记
+          </Button>
+          <Button variant="text" size="sm" isDisabled={markDisabled} onPress={() => void marks.onSpace(node.id)}>
+            均匀排列
+          </Button>
+        </div>
+        <Note>{marks.block ?? (markIds.length >= MAX_MARKS ? `最多 ${MAX_MARKS} 个标记。${APPEARANCE_HINT}` : APPEARANCE_HINT)}</Note>
+      </Group>
     </>
   );
 }
@@ -387,24 +377,23 @@ export function MarkSection(props: { model: OrchestrationModel; node: Orchestrat
   const owner = model.markOf.get(node.id);
   const container = owner && model.byId.get(owner.containerId);
   return (
-    <>
-      <h3 className="section-title">标记</h3>
+    <Group title="标记">
       <CommitField
         key={node.id}
         label="文字"
+        labelPlacement="inside"
         value={node.content?.text ?? ''}
         disabled={!!marks.block || marks.busy}
-        className="mark-text"
         validate={markTextBlock}
         onCommit={(text) => void marks.onText(node.id, text)}
       />
       {container && (
-        <p className="hint">
+        <Note>
           提示组“{nodeName(model, container)}”的第 {owner.index} 个标记。上移、下移调整它在提示组里的顺序。
-        </p>
+        </Note>
       )}
-      <p className="hint">{marks.block ?? APPEARANCE_HINT}</p>
-    </>
+      <Note>{marks.block ?? APPEARANCE_HINT}</Note>
+    </Group>
   );
 }
 
@@ -438,21 +427,21 @@ function IndicatorField(props: {
   };
   // 刚新建的提示组要等读到新修订才在列表里。
   if (created !== undefined && !countdowns.some((n) => n.id === created)) {
-    return <p className="hint lead-in-indicator-empty">正在读取新提示组…</p>;
+    return <Note className="lead-in-indicator-empty">正在读取新提示组…</Note>;
   }
   if (countdowns.length === 0) {
     return (
       <div className="lead-in-indicator-empty">
-        <span className="hint">这个来源还没有前奏提示组。</span>
-        <mdui-button variant="tonal" className="countdown-new" disabled={props.busy || !!props.createBlock} title={props.createBlock} onClick={() => void create()}>
+        <Note>这个来源还没有前奏提示组。{props.createBlock}</Note>
+        <Button variant="tonal" size="sm" icon="add" isDisabled={props.busy || !!props.createBlock} onPress={() => void create()}>
           新建提示组
-        </mdui-button>
+        </Button>
       </div>
     );
   }
   const options = countdowns.map((n) => ({ value: n.id, label: nodeName(model, n), disabled: false }));
   if (value && !countdowns.some((n) => n.id === value)) options.unshift({ value, label: `${value}（不存在）`, disabled: true });
-  return <Select label="提示组" className="dialog-field lead-in-indicator" value={value ?? ''} options={options} onChange={props.onChange} />;
+  return <Select label="提示组" value={value ?? ''} options={options} onChange={props.onChange} />;
 }
 
 const parseSeconds = (text: string) => (/^\s*\d+(\.\d+)?\s*$/.test(text) ? Number(text) : NaN);
@@ -518,11 +507,10 @@ export function AddLeadInDialog(props: {
       busy={props.busy}
       onSubmit={() => void submit()}
       onClose={props.onClose}
-      className="structure-dialog lead-in-dialog"
+      className="orch-dialog lead-in-dialog"
     >
       <Select
         label="目标句"
-        className="dialog-field lead-in-target"
         value={target ?? ''}
         options={lines.map((l) => ({
           value: l.id,
@@ -543,14 +531,12 @@ export function AddLeadInDialog(props: {
           onError={setError}
         />
       )}
-      <TextField label="时长（秒）" value={seconds} onChange={edit(setSeconds)} error={secondsError} className="dialog-field lead-in-seconds" onEnter={() => void submit()} />
-      <TextField label="名称" value={name} onChange={edit(setName)} placeholder="可以不填" className="dialog-field lead-in-name" onEnter={() => void submit()} />
-      <p className="hint">{block && block !== secondsError ? block : '提示组在目标句开始前这段时间里倒数。'}</p>
-      {error && (
-        <p className="notice-error structure-dialog-error" role="alert">
-          {error}
-        </p>
-      )}
+      <div className="g2">
+        <TextField label="时长" suffix="秒" value={seconds} onChange={edit(setSeconds)} error={secondsError} onEnter={() => void submit()} />
+        <TextField label="名称" value={name} onChange={edit(setName)} placeholder="可以不填" onEnter={() => void submit()} />
+      </div>
+      <Note>{block && block !== secondsError ? block : '提示组在目标句开始前这段时间里倒数。'}</Note>
+      {error && <Note error>{error}</Note>}
     </FormDialog>
   );
 }
@@ -636,31 +622,16 @@ export function GenerateLeadInsDialog(props: {
       busy={props.busy}
       onSubmit={() => void submit()}
       onClose={props.onClose}
-      className="structure-dialog generate-dialog"
+      className="orch-dialog generate-dialog"
+      footerNote="“移除”是不再符合规则的自动前奏，默认不勾，确认后再勾上。应用时设置一并保存。"
     >
       <div className="generate-kinds">
         <Switch label="开头第一句" checked={settings.includeOpening} onChange={(includeOpening) => change({ includeOpening })} />
         <Switch label="长间奏之后" checked={settings.includeLongGaps} onChange={(includeLongGaps) => change({ includeLongGaps })} />
       </div>
-      <div className="prop-grid generate-fields">
-        <TextField
-          label="间奏阈值（秒）"
-          value={gap}
-          error={gapError}
-          className="generate-gap"
-          onChange={setGap}
-          onBlur={commitGap}
-          onEnter={commitGap}
-        />
-        <TextField
-          label="提示时长（秒）"
-          value={duration}
-          error={durationError}
-          className="generate-duration"
-          onChange={setDuration}
-          onBlur={commitDuration}
-          onEnter={commitDuration}
-        />
+      <div className="g2">
+        <TextField label="间奏阈值" suffix="秒" value={gap} error={gapError} onChange={setGap} onBlur={commitGap} onEnter={commitGap} />
+        <TextField label="提示时长" suffix="秒" value={duration} error={durationError} onChange={setDuration} onBlur={commitDuration} onEnter={commitDuration} />
       </div>
       <IndicatorField
         model={model}
@@ -673,76 +644,60 @@ export function GenerateLeadInsDialog(props: {
         onError={setError}
       />
       <div className="generate-excluded">
-        <span className="hint">{settings.excludedLineIds.length > 0 ? `已排除 ${settings.excludedLineIds.length} 句` : '没有排除的句子'}</span>
-        <mdui-button variant="text" className="generate-clear-excluded" disabled={settings.excludedLineIds.length === 0} onClick={() => change({ excludedLineIds: [] })}>
+        <span>{settings.excludedLineIds.length > 0 ? `已排除 ${settings.excludedLineIds.length} 句` : '没有排除的句子'}</span>
+        <Button variant="text" size="sm" isDisabled={settings.excludedLineIds.length === 0} onPress={() => change({ excludedLineIds: [] })}>
           清除排除
-        </mdui-button>
+        </Button>
       </div>
 
       {settingsBlock ? (
-        <p className="hint">{settingsBlock}</p>
+        <Note>{settingsBlock}</Note>
       ) : !preview || (preview.status === 'loading' && !result) ? (
-        <mdui-linear-progress />
+        <ProgressBar label="正在预演" />
       ) : preview.status === 'error' ? (
-        <p className="notice-error" role="alert">
-          {preview.error}
-        </p>
+        <Note error>{preview.error}</Note>
       ) : (
         result && (
-          <>
+          <div className="generate-result">
             <p className="generate-summary">
               {candidateSummary(candidates)}
-              {preview.status === 'loading' && <span className="muted"> · 正在重新预演…</span>}
+              {preview.status === 'loading' && <span className="faint"> · 正在重新预演…</span>}
             </p>
             {result.diagnostics.map((d, i) => (
-              <p key={i} className={d.severity === 'Error' ? 'notice-error generate-diagnostic' : 'hint generate-diagnostic'}>
+              <Note key={i} error={d.severity === 'Error'} className="generate-diagnostic">
                 {d.message}
-              </p>
+              </Note>
             ))}
             <div className="generate-candidates" role="list" aria-label="候选">
               {candidates.map((c) => {
                 const selectable = candidateSelectable(c);
                 const from = c.existing?.durationUs;
                 const to = c.proposed?.durationUs;
+                const facts = [
+                  c.reason !== 'None' ? candidateReasonText(c.reason) : '',
+                  c.startUs !== undefined && c.endUs !== undefined ? `${formatTime(Number(c.startUs))}～${formatTime(Number(c.endUs))}` : '',
+                  c.status === 'Update' && from && to && from !== to ? `时长 ${secondsText(from)} → ${secondsText(to)}` : '',
+                ].filter(Boolean);
                 return (
                   <div key={c.targetLineId} role="listitem" className={`generate-row status-${c.status}`} data-line-id={c.targetLineId}>
-                    <mdui-checkbox
-                      checked={selectable && chosen.includes(c.targetLineId)}
-                      disabled={!selectable}
-                      aria-label={`应用${lineNumberText(lines, c.targetLineId)}`}
-                      onClick={() => selectable && toggle(c.targetLineId)}
-                    />
-                    <span className="target-label">{lineLabel(lines, c.targetLineId)}</span>
-                    <span className="tag generate-status">{c.status === 'Remove' ? '移除（不再符合规则的自动前奏）' : candidateStatusText(c.status)}</span>
-                    {c.reason !== 'None' && <span className="target-meta">{candidateReasonText(c.reason)}</span>}
-                    {c.startUs !== undefined && c.endUs !== undefined && (
-                      <span className="target-meta">
-                        {formatTime(Number(c.startUs))}～{formatTime(Number(c.endUs))}
-                      </span>
-                    )}
-                    {c.status === 'Update' && from && to && from !== to && <span className="target-meta">时长 {secondsText(from)} → {secondsText(to)}</span>}
+                    <Checkbox label={lineLabel(lines, c.targetLineId)} checked={selectable && chosen.includes(c.targetLineId)} disabled={!selectable} onChange={() => toggle(c.targetLineId)} />
+                    <Tag tone={c.status === 'Remove' ? 'warn' : c.status === 'Create' ? 'accent' : 'neutral'} className="generate-status">
+                      {c.status === 'Remove' ? '移除（不再符合规则的自动前奏）' : candidateStatusText(c.status)}
+                    </Tag>
+                    {facts.length > 0 && <span className="faint generate-facts">{facts.join(' · ')}</span>}
                     {c.reason === 'Excluded' && (
-                      <mdui-button
-                        variant="text"
-                        className="generate-unexclude"
-                        onClick={() => change({ excludedLineIds: settings.excludedLineIds.filter((id) => id !== c.targetLineId) })}
-                      >
+                      <Button variant="text" size="sm" onPress={() => change({ excludedLineIds: settings.excludedLineIds.filter((id) => id !== c.targetLineId) })}>
                         取消排除
-                      </mdui-button>
+                      </Button>
                     )}
                   </div>
                 );
               })}
             </div>
-          </>
+          </div>
         )
       )}
-      <p className="hint">“移除”是不再符合规则的自动前奏，默认不勾，确认后再勾上。应用时设置一并保存。</p>
-      {error && (
-        <p className="notice-error structure-dialog-error" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <Note error>{error}</Note>}
     </FormDialog>
   );
 }

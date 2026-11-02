@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { ObservableValue } from '../../client';
 import type { GeometryPoint, GeometryReference, LineLocalTransform, SceneMeasurement } from '../../protocol';
 import type { AudioController, AudioState } from '../audio/audio-controller';
@@ -10,10 +10,12 @@ import { dragReference, hitLine, hitNode, lineDragReference, overlayShapes, quad
 import { PreviewPanel, previewTimeUs, type ShownFrame } from '../preview/PreviewPanel';
 import { fitPreviewSize } from '../preview/preview-controller';
 import type { EditorSession } from '../session/editor-session';
-import { Switch } from '../ui/legacy/fields';
+import { IconButton } from '../ui/Button';
+import { Segmented } from '../ui/choices';
 import { useObservable } from '../ui/hooks';
 import type { LineActions } from './LineInspector';
 import type { OrchestrationState } from './orchestration-store';
+import { Note } from './parts';
 import type { PropertyActions } from './PropertySections';
 import { SCENE_MEASUREMENT, SceneMeasurementController, type MeasurementWant, type SceneMeasurementViewState } from './scene-measurement';
 
@@ -53,6 +55,8 @@ export function SceneCanvas(props: {
   lineActions: LineActions;
   onSelect: (id: string) => void;
   onFocusLine: (line: LineRef) => void;
+  /** 工具栏右端的操作（快速布局…）。 */
+  tools?: ReactNode;
 }) {
   const { session, audio, view } = props;
   const state = useObservable(session.state$);
@@ -134,25 +138,28 @@ export function SceneCanvas(props: {
   const status = canvasStatus(available, mode, playing, measured);
   return (
     <>
-      <div className="canvas-modes" role="radiogroup" aria-label="画布模式">
-        {(['time', 'layout'] as const).map((m) => (
-          <button
-            key={m}
-            type="button"
-            role="radio"
-            aria-checked={mode === m}
-            className={`canvas-mode${mode === m ? ' selected' : ''}`}
-            disabled={m === 'layout' && !available}
-            title={m === 'layout' && !available ? NO_MEASUREMENT : undefined}
-            onClick={() => setMode(m)}
-          >
-            {m === 'time' ? '时间预览' : '布局参考'}
-          </button>
-        ))}
-        <span className="hint">{!available ? NO_MEASUREMENT : mode === 'time' && props.properties.block ? `点画布上的文字或框选中节点。${props.properties.block}` : MODE_HINT[mode]}</span>
-        <span className="canvas-frames">
-          <Switch label="显示框" checked={showFrames && available} disabled={!available} onChange={setShowFrames} />
-        </span>
+      <div className="canvasbar">
+        <Segmented<CanvasMode>
+          label="画布模式"
+          size="sm"
+          value={mode}
+          options={[
+            { value: 'time', label: '时间预览' },
+            { value: 'layout', label: '布局参考', disabled: !available },
+          ]}
+          onChange={setMode}
+        />
+        <span className="canvas-hint">{!available ? NO_MEASUREMENT : mode === 'time' && props.properties.block ? `点画布上的文字或框选中节点。${props.properties.block}` : MODE_HINT[mode]}</span>
+        <span className="spacer" />
+        <IconButton
+          icon={showFrames && available ? 'visibility' : 'visibility_off'}
+          size="sm"
+          label="显示框"
+          selected={showFrames && available}
+          onSelectedChange={setShowFrames}
+          isDisabled={!available}
+        />
+        {props.tools}
       </div>
       <PreviewPanel
         session={session}
@@ -169,7 +176,11 @@ export function SceneCanvas(props: {
             : undefined
         }
       />
-      {status && <p className={`canvas-status ${status.error ? 'notice-error' : 'hint'}`}>{status.text}</p>}
+      {status && (
+        <Note error={!!status.error} className="canvas-status">
+          {status.text}
+        </Note>
+      )}
     </>
   );
 }

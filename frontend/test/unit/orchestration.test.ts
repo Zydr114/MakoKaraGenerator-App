@@ -893,12 +893,10 @@ describe('前奏与句子（G23、G24）', () => {
     expect(store.state.selectedLeadInId).toBeUndefined();
     expect(store.state.lineIds).toEqual(['l2']);
 
-    store.toggleClips();
-    expect(store.state.panel).toBe('clips');
-    store.toggleLeadIns();
+    store.showPanel('leadIns');
     expect(store.state.panel).toBe('leadIns');
-    store.toggleLeadIns();
-    expect(store.state.panel).toBeUndefined();
+    store.showPanel('clips');
+    expect(store.state.panel).toBe('clips');
     store.dispose();
   });
 

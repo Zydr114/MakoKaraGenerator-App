@@ -3,7 +3,6 @@ import type { LyricBranchSummary, OrchestrationClip, OrchestrationLeadIn, Orches
 import type { AudioController } from '../audio/audio-controller';
 import { NoAudioBar } from '../audio/NoAudioBar';
 import { Transport } from '../audio/Transport';
-import { BRANCH_ROLE_TEXT } from '../model/branches';
 import { isTimed, type EditorLine, type Selection } from '../model/lyrics';
 import {
   clipEditBlock,
@@ -11,55 +10,48 @@ import {
   clipsOf,
   clipTimeSpan,
   containersOf,
-  copyBlock,
-  currentLayoutText,
   defaultFor,
   lineRange,
   lineRangeText,
-  moveBlock,
-  moveTargets,
   NODE_KIND_TEXT,
   nodeName,
   nodePath,
-  nodeRole,
   presetLabel,
   programOfNode,
   quickLayoutBlock,
-  removeBlock,
-  reorderPlan,
   roleText,
   structureSections,
   subtreeIds,
-  unassignedCount,
-  type LineRange,
-  type OrchestrationModel,
   type StructureSection,
+  type OrchestrationModel,
 } from '../model/orchestration';
 import { clipLabel, mergedRangeText, splitParts } from '../model/orchestration-clip-members';
 import { appliedText, DEFAULT_MARK_COUNT, DEFAULT_MARK_TEXT, leadInEditBlock, leadInsOf, leadInSpan, lineNumberText } from '../model/orchestration-lead-ins';
-import { defaultContainerBlock, SLOT_DEFAULT_NEEDS_KARAOKE, slotSequenceBlock, toSeconds } from '../model/orchestration-properties';
+import { slotSequenceBlock, toSeconds } from '../model/orchestration-properties';
 import { formatTime } from '../model/time';
-import type { EditorSession, EditorState } from '../session/editor-session';
+import type { EditorSession } from '../session/editor-session';
 import { Timeline, type TimelineBand, type TimelineTrack } from '../timeline/Timeline';
-import { toast } from '../ui/legacy/feedback';
-import { CommitField, CompactSelect, Select } from '../ui/legacy/fields';
+import { Button } from '../ui/Button';
+import { toast } from '../ui/feedback';
+import { CommitField, Select } from '../ui/fields';
 import { useObservable } from '../ui/hooks';
 import { StatusBar } from '../workspace/StatusBar';
 import { WorkLayout } from '../workspace/WorkLayout';
 import { isEditing } from '../workspace/Workspace';
 import type { OrchestrationState, OrchestrationStore } from './orchestration-store';
-import { BAND_COLORS, clipBands, clipColors } from './clip-bands';
+import { clipBands, clipColors } from './clip-bands';
 import { ClipMemberButtons, ClipMembersDialog, SplitClipDialog, type ClipMemberActions } from './ClipMemberViews';
-import { AddLeadInDialog, CountdownSections, GenerateLeadInsDialog, LeadInInspector, LeadInList, MarkSection, type LeadInActions, type MarkActions } from './LeadInViews';
+import { AddLeadInDialog, CountdownSections, GenerateLeadInsDialog, LeadInInspector, MarkSection, type LeadInActions, type MarkActions } from './LeadInViews';
 import { LineInspector, LinesSummary, type LineActions } from './LineInspector';
 import { NewClipDialog } from './NewClipDialog';
 import { QuickLayoutDialog } from './QuickLayoutDialog';
 import { AnimationPolicyField, GeometrySection, LayoutSection, SlotAnimationSection, type PropertyActions } from './PropertySections';
 import { SceneCanvas, type FocusedLine } from './SceneCanvas';
 import { MoveNodeDialog, NewNodeDialog } from './StructureDialogs';
-import { Row, ToolButton } from './parts';
+import { ALL_BLOCKED, AssignmentSection, nodeBlocks, StructurePane, type ClipActions, type StructureActions } from './StructurePane';
+import { Group, InspectorHead, NO_PROGRAM, Note, Row, ToolButton } from './parts';
+import './orchestration.css';
 
-const NO_PROGRAM = '这个来源还没有编排程序（后端缺陷 R4），暂时不能编排。';
 const CLIP_COMMANDS = ['orchestration.createClip', 'orchestration.renameClip', 'orchestration.setClipContainer', 'orchestration.deleteClip'] as const;
 const CLIP_MEMBER_COMMANDS = ['orchestration.setClipMembers', 'orchestration.splitClip', 'orchestration.mergeClips'] as const;
 const STRUCTURE_COMMANDS = [
@@ -91,12 +83,12 @@ const LEAD_IN_COMMANDS = [
 ] as const;
 const MARK_COMMANDS = ['orchestration.addMark', 'orchestration.setMarkText', 'orchestration.reorderMarks', 'orchestration.spaceMarks'] as const;
 const LINE_COMMANDS = ['orchestration.setLineLocalTransform', 'orchestration.setLineEnterAnimation', 'orchestration.setProjectEnterAnimation'] as const;
-const NO_NODE = '先在结构树里选择一个节点。';
 const TIMELINE_HELP = '点选句子（Shift／Ctrl 扩展成连续几句）· 行轨空白处拖动框选 · 点片段轨、前奏轨选片段、前奏';
 
 /**
- * 编排页（整体设计 §5.3，W4 设计 §2.6、§10～§14）：左栏画面结构，中栏成片预览，右栏前奏、片段、句子或节点的属性；
- * 底部是歌词分配条、片段或前奏列表、播放条与只读时间轴（分配条来源的行、片段轨和前奏轨）。编排直接生效，撤销靠工程历史（整体设计 §11）。
+ * 编排页（整体设计 §5.3，W4 设计 §2.6、§10～§14，界面改版稿件 #orchestration）：左栏上面是画面结构，下面是歌词分配与片段、前奏列表；
+ * 中栏是画布（工具栏、成片预览与叠加层），右栏是前奏、片段、句子或节点的属性；底部是播放条与只读时间轴（分配来源的行、片段轨和前奏轨）。
+ * 编排直接生效，撤销靠工程历史（整体设计 §11）。
  */
 export function OrchestrationPage(props: {
   session: EditorSession;
@@ -326,23 +318,38 @@ export function OrchestrationPage(props: {
   };
   useOrchestrationKeys({ store, audio, sections, onUndo: props.onUndo, onRedo: props.onRedo, onSave: props.onSave, onDelete: deleteSelected });
 
+  // 歌词分配：改默认容器；快速布局（画布工具栏）。
+  const canSetDefault = session.supportsCommand('orchestration.setDefaultContainer') && !readOnly;
+  const changeDefault = async (containerId: string) => {
+    const target = view.model?.byId.get(containerId);
+    const result = await store.setDefaultContainer(view.branchId, containerId);
+    if (result === 'applied') toast(`默认容器已改为“${target && view.model ? nodeName(view.model, target) : containerId}”`, undo);
+  };
+  const [layoutOpen, setLayoutOpen] = useState(false);
+  const canLayout = session.supportsCommand('orchestration.previewBasicLayout') && session.supportsCommand('orchestration.applyBasicLayout') && !readOnly;
+  const layoutBlock = !program ? NO_PROGRAM : (quickLayoutBlock(branch, program) ?? (canLayout ? undefined : readOnly ? '工程只读，不能快速布局。' : '后端没有开放快速布局。'));
+  const closeLayout = () => {
+    setLayoutOpen(false);
+    store.endLayoutPreview();
+  };
+
   const clipActions: ClipActions = {
     block: clipBlock,
     busy: !!view.busy,
     onNew: () => setNewClipOpen(true),
     onRename: async (clip, name) => {
       const result = await store.renameClip(view.branchId, clip.id, name);
-      if (result === 'applied') toast(name.trim() ? `片段已改名为“${name.trim()}”` : '已清除片段名称', { label: '撤销', run: props.onUndo });
+      if (result === 'applied') toast(name.trim() ? `片段已改名为“${name.trim()}”` : '已清除片段名称', undo);
     },
     onMove: async (clip, label, containerId) => {
       const target = view.model?.byId.get(containerId);
       const result = await store.setClipContainer(view.branchId, clip.id, containerId);
-      if (result === 'applied') toast(`片段“${label}”已改到“${target && view.model ? nodeName(view.model, target) : containerId}”`, { label: '撤销', run: props.onUndo });
+      if (result === 'applied') toast(`片段“${label}”已改到“${target && view.model ? nodeName(view.model, target) : containerId}”`, undo);
     },
     onDelete: async (clip, label) => {
       const clipRange = lineRange(lines, clip.lineIds);
       const result = await store.deleteClip(view.branchId, clip.id);
-      if (result === 'applied') toast(`已删除片段“${label}”，${clipRange ? lineRangeText(clipRange) : '这几句'}回到默认容器`, { label: '撤销', run: props.onUndo });
+      if (result === 'applied') toast(`已删除片段“${label}”，${clipRange ? lineRangeText(clipRange) : '这几句'}回到默认容器`, undo);
     },
   };
   const memberActions: ClipMemberActions = {
@@ -366,13 +373,34 @@ export function OrchestrationPage(props: {
       left={{
         label: '画面结构',
         content: (
-          <aside className="pane orchestration-tree">
-            <StructureTree view={view} sections={sections} branches={branches} actions={structure} onSelect={(id) => store.select(id)} onRetry={() => store.reload()} />
-          </aside>
+          <StructurePane
+            view={view}
+            sections={sections}
+            branches={branches}
+            actions={structure}
+            onSelect={(id) => store.select(id)}
+            onRetry={() => store.reload()}
+            assignment={
+              <AssignmentSection
+                view={view}
+                store={store}
+                branches={branches}
+                lines={lines}
+                range={range}
+                clips={clips}
+                colors={colors}
+                leadIns={leadIns}
+                canSetDefault={canSetDefault}
+                clipActions={clipActions}
+                leadInActions={leadInActions}
+                onDefaultContainer={(id) => void changeDefault(id)}
+              />
+            }
+          />
         ),
       }}
       center={
-        <section className="pane orchestration-preview">
+        <section className="orch-canvas">
           <SceneCanvas
             session={session}
             audio={audio}
@@ -382,13 +410,20 @@ export function OrchestrationPage(props: {
             lineActions={lineActions}
             onSelect={(id) => store.select(id)}
             onFocusLine={(line) => store.focusLine(line.branchId, line.lineId)}
+            tools={
+              <span className="tool-wrap" {...(view.model && layoutBlock ? { title: `快速布局：${layoutBlock}` } : {})}>
+                <Button size="sm" icon="wand_stars" isDisabled={!view.model || !!layoutBlock || !!view.busy} onPress={() => setLayoutOpen(true)}>
+                  快速布局…
+                </Button>
+              </span>
+            }
           />
         </section>
       }
       right={{
         label: '属性',
         content: (
-          <aside className="pane orchestration-inspector">
+          <div className="orch-insp">
             {selectedLeadIn && view.model && program ? (
               <LeadInInspector
                 model={view.model}
@@ -443,38 +478,12 @@ export function OrchestrationPage(props: {
                 onSelect={(id) => store.select(id)}
               />
             )}
-          </aside>
+          </div>
         ),
       }}
       timeline={!!audio}
       dock={
         <>
-          <AssignmentBar
-            session={session}
-            state={state}
-            view={view}
-            store={store}
-            branches={branches}
-            lines={lines}
-            range={range}
-            leadInCount={leadIns.length}
-            clipActions={clipActions}
-            onUndo={props.onUndo}
-          />
-          {view.panel === 'clips' && view.model && program && (
-            <ClipList
-              model={view.model}
-              clips={clips}
-              lines={lines}
-              colors={colors}
-              selectedId={view.selectedClipId}
-              actions={clipActions}
-              onSelect={(id) => store.selectClip(id)}
-            />
-          )}
-          {view.panel === 'leadIns' && view.model && program && (
-            <LeadInList model={view.model} leadIns={leadIns} lines={lines} selectedId={view.selectedLeadInId} actions={leadInActions} onSelect={(id) => store.selectLeadIn(id)} />
-          )}
           <NoAudioBar session={session} />
           {audio && (
             <Timeline
@@ -504,6 +513,25 @@ export function OrchestrationPage(props: {
       }
       status={<StatusBar state={state} />}
     >
+      <QuickLayoutDialog
+        open={layoutOpen}
+        branchName={branchName}
+        lineCount={branch?.lineCount}
+        program={program}
+        range={range}
+        preview={view.layoutPreview?.branchId === view.branchId ? view.layoutPreview : undefined}
+        busy={!!view.busy}
+        onPreview={(preset, lineIds) => void store.previewLayout(view.branchId, preset, lineIds)}
+        onApply={async (preset, lineIds) => {
+          const target = lineIds && range ? lineRangeText(range) : branchName;
+          const result = await store.applyLayout(view.branchId, preset, lineIds);
+          if (result === 'failed') return;
+          closeLayout();
+          if (result === 'applied') toast(`已套用“${presetLabel(preset.preset)}”到${lineIds ? '' : ' '}${target}`, undo);
+          else toast('已经是这个布局，没有变化');
+        }}
+        onClose={closeLayout}
+      />
       <AddLeadInDialog
         open={!!addLeadIn}
         model={view.model}
@@ -555,7 +583,7 @@ export function OrchestrationPage(props: {
           if (outcome.result === 'failed') return outcome.error;
           setNewClipOpen(false);
           const text = first === last ? `第 ${first} 句` : `第 ${first}～${last} 句`;
-          toast(`已为${text}新建片段${clip.name?.trim() ? `“${clip.name.trim()}”` : ''}`, { label: '撤销', run: props.onUndo });
+          toast(`已为${text}新建片段${clip.name?.trim() ? `“${clip.name.trim()}”` : ''}`, undo);
           return undefined;
         }}
         onClose={() => setNewClipOpen(false)}
@@ -643,182 +671,9 @@ export function OrchestrationPage(props: {
   );
 }
 
-// ── 画面结构 ──
-
-/** 选中节点上每个结构操作不能做的原因（W4 设计 §12.4）；undefined 表示可以做。 */
-interface NodeBlocks {
-  copy: string | undefined;
-  up: string | undefined;
-  down: string | undefined;
-  move: string | undefined;
-  remove: string | undefined;
-}
-
-const ALL_BLOCKED: NodeBlocks = { copy: NO_NODE, up: NO_NODE, down: NO_NODE, move: NO_NODE, remove: NO_NODE };
-
-function nodeBlocks(model: OrchestrationModel, id: string, candidates: readonly OrchestrationNode[], branchName: (id: string) => string | undefined): NodeBlocks {
-  if (!model.byId.has(id)) return ALL_BLOCKED;
-  const reorder = (delta: -1 | 1) => {
-    const plan = reorderPlan(model, id, delta);
-    return 'block' in plan ? plan.block : undefined;
-  };
-  const targets = moveTargets(model, id, candidates);
-  return {
-    copy: copyBlock(model, id),
-    up: reorder(-1),
-    down: reorder(1),
-    move: moveBlock(model, id) ?? (targets.groups.length === 0 && !targets.canvas ? '没有可以移到的普通组：子树里有被来源引用的节点时，只能留在那个来源的根下。' : undefined),
-    remove: removeBlock(model, id, branchName),
-  };
-}
-
-/** 结构编辑（G20）：block 是整体不可用的原因（只读、后端没开放），blocks 给出选中节点上各操作的原因。 */
-interface StructureActions {
-  block: string | undefined;
-  busy: boolean;
-  blocks: (id: string) => NodeBlocks;
-  onNew: () => void;
-  onCopy: (id: string) => Promise<void>;
-  onReorder: (id: string, delta: -1 | 1) => Promise<void>;
-  onMove: (id: string) => void;
-  onRemove: (id: string) => Promise<void>;
-  onRename: (id: string, name: string) => Promise<void>;
-  onAddSlot: (containerId: string) => Promise<void>;
-}
-
-function StructureToolbar(props: { actions: StructureActions; selectedId: string | undefined }) {
-  const { actions, selectedId: id } = props;
-  const blocks = id ? actions.blocks(id) : ALL_BLOCKED;
-  const reason = (own: string | undefined) => actions.block ?? own;
-  const busy = actions.busy;
-  return (
-    <div className="structure-toolbar" role="toolbar" aria-label="结构编辑">
-      <ToolButton label="新建…" reason={actions.block} disabled={busy} className="structure-new" onClick={actions.onNew}>
-        <mdui-icon-add />
-      </ToolButton>
-      <ToolButton label="复制" reason={reason(blocks.copy)} disabled={busy} className="structure-copy" onClick={() => id && void actions.onCopy(id)}>
-        <mdui-icon-content-copy />
-      </ToolButton>
-      <ToolButton label="上移" reason={reason(blocks.up)} disabled={busy} className="structure-up" onClick={() => id && void actions.onReorder(id, -1)}>
-        <mdui-icon-arrow-upward />
-      </ToolButton>
-      <ToolButton label="下移" reason={reason(blocks.down)} disabled={busy} className="structure-down" onClick={() => id && void actions.onReorder(id, 1)}>
-        <mdui-icon-arrow-downward />
-      </ToolButton>
-      <ToolButton label="移到…" reason={reason(blocks.move)} disabled={busy} className="structure-move" onClick={() => id && actions.onMove(id)}>
-        <mdui-icon-drive-file-move />
-      </ToolButton>
-      <ToolButton label="删除" reason={reason(blocks.remove)} disabled={busy} className="structure-remove" onClick={() => id && void actions.onRemove(id)}>
-        <mdui-icon-delete />
-      </ToolButton>
-    </div>
-  );
-}
-
-function StructureTree(props: {
-  view: OrchestrationState;
-  sections: StructureSection[];
-  branches: LyricBranchSummary[];
-  actions: StructureActions;
-  onSelect: (id: string) => void;
-  onRetry: () => void;
-}) {
-  const { view } = props;
-  const model = view.model;
-  const tree = useRef<HTMLDivElement>(null);
-
-  // 选中的节点滚进视野（↑↓ 移动、换来源时）。
-  useEffect(() => {
-    const id = view.selectedId;
-    if (!id) return;
-    requestAnimationFrame(() => tree.current?.querySelector(`[data-node-id="${CSS.escape(id)}"]`)?.scrollIntoView({ block: 'nearest' }));
-  }, [view.selectedId]);
-
-  const meta = (section: StructureSection) => {
-    if (section.kind === 'orphans') return '不属于任何来源';
-    if (section.kind === 'unlisted') return '来源列表里没有';
-    const role = props.branches.find((b) => b.id === section.branchId)?.role;
-    // 主来源通常就叫“主歌词”，与角色相同时不重复。
-    return role && BRANCH_ROLE_TEXT[role] !== section.title ? BRANCH_ROLE_TEXT[role] : undefined;
-  };
-
-  return (
-    <>
-      <div className="pane-header">
-        <span className="pane-title-text">画面结构</span>
-        {view.status === 'loading' && model && <span className="muted">刷新中…</span>}
-      </div>
-      {model && <StructureToolbar actions={props.actions} selectedId={view.selectedId} />}
-      {model && props.actions.block && <p className="hint structure-block">{props.actions.block}</p>}
-      {view.status === 'error' && <ReadError error={view.error} onRetry={props.onRetry} />}
-      {view.status === 'unsupported' ? (
-        <p className="hint">后端没有开放编排读模型。</p>
-      ) : !model ? (
-        view.status !== 'error' && <mdui-linear-progress />
-      ) : (
-        <div className="target-tree" role="tree" aria-label="画面结构" ref={tree}>
-          {props.sections.map((section) => (
-            <div key={section.key} role="group" aria-label={section.title} className="structure-section">
-              <div className="structure-source">
-                <span className="target-label">{section.title}</span>
-                {meta(section) && <span className="target-meta">{meta(section)}</span>}
-                {section.program && <span className="target-meta structure-layout">{currentLayoutText(model, section.program)}</span>}
-              </div>
-              {section.kind === 'branch' && !section.program && <p className="hint structure-empty">{NO_PROGRAM}</p>}
-              {section.rows.map(({ node, depth }) => (
-                <NodeRow key={node.id} model={model} node={node} depth={depth} selected={node.id === view.selectedId} onSelect={props.onSelect} />
-              ))}
-            </div>
-          ))}
-        </div>
-      )}
-    </>
-  );
-}
-
-function NodeRow(props: { model: OrchestrationModel; node: OrchestrationNode; depth: number; selected: boolean; onSelect: (id: string) => void }) {
-  const { model, node } = props;
-  const isDefault = defaultFor(model, node.id).length > 0;
-  const clipCount = model.programs.reduce((n, p) => n + (p.clips ?? []).filter((c) => c.containerId === node.id).length, 0);
-  return (
-    <div
-      role="treeitem"
-      aria-level={props.depth + 1}
-      aria-selected={props.selected}
-      data-node-id={node.id}
-      className={`target-row node-row${props.selected ? ' selected' : ''}`}
-      style={{ paddingLeft: 12 + props.depth * 20 }}
-      onClick={() => props.onSelect(node.id)}
-    >
-      <span className="target-label">{nodeName(model, node)}</span>
-      {isDefault && (
-        <span className="target-template" title="没有单独分配的歌词放在这里">
-          默认
-        </span>
-      )}
-      {clipCount > 0 && (
-        <span className="target-meta node-clips" title={`${clipCount} 个片段以它为目标容器`}>
-          片段·{clipCount}
-        </span>
-      )}
-      <span className={`node-role role-${nodeRole(model, node)}`}>{roleText(model, node)}</span>
-    </div>
-  );
-}
-
-function ReadError(props: { error: string | undefined; onRetry: () => void }) {
-  return (
-    <p className="notice-error">
-      {props.error}{' '}
-      <mdui-button variant="text" onClick={props.onRetry}>
-        重试
-      </mdui-button>
-    </p>
-  );
-}
-
 // ── 属性 ──
 
+/** 节点的属性（W4 设计 §12、§13、§14.6）：名称、位置与变换、参考框、内部布局与槽位、调度与动画、提示组与标记、来源。 */
 function NodeInspector(props: {
   view: OrchestrationState;
   branches: LyricBranchSummary[];
@@ -836,8 +691,8 @@ function NodeInspector(props: {
   if (!model || !node) {
     const text = view.status === 'unsupported' ? '后端没有开放编排读模型。' : !model ? '正在读取编排结构…' : '在左侧选择一个节点。';
     return (
-      <div className="inspector">
-        <p className="hint">{text}</p>
+      <div className="insp">
+        <Note className="insp-empty">{text}</Note>
       </div>
     );
   }
@@ -853,36 +708,42 @@ function NodeInspector(props: {
   const programDefault = program && model.byId.get(program.defaultContainerId);
   const disabled = !!actions.block || actions.busy;
   const unnamed = nodeName(model, { ...node, name: null });
+  const path = nodePath(model, node.id, branchName);
 
   return (
-    <div className="inspector">
-      <div className="inspector-path">
-        <span className="pane-title-text">{nodePath(model, node.id, branchName).join(' / ')}</span>
-        <span className="muted">{roleText(model, node)}</span>
-        <code className="node-id">{node.id}</code>
-      </div>
-      <CommitField
-        key={node.id}
-        label="名称"
-        value={node.name ?? ''}
-        placeholder={unnamed}
-        helper={`清空表示不命名，显示为“${unnamed}”。`}
-        disabled={disabled}
-        className="node-name"
-        onCommit={(value) => void actions.onRename(node.id, value)}
-      />
-      {defaults.length > 0 && <p className="hint">{defaults.map((p) => sourceName(p.branchId)).join('、')}的默认容器：没有单独分配的歌词放在这里。</p>}
-      {slotContainer && (
-        <p className="hint">
-          “{nodeName(model, slotContainer)}”轮换的第 {slot.index} 个槽位。
-        </p>
-      )}
-
-      {properties.block && <p className="hint property-block">{properties.block}</p>}
+    <div className="insp">
+      <InspectorHead crumbs={path.slice(0, -1)} title={path.at(-1) ?? nodeName(model, node)} kind={roleText(model, node)} id={node.id} />
+      <Group title="节点">
+        <CommitField
+          key={node.id}
+          label="名称"
+          labelPlacement="inside"
+          value={node.name ?? ''}
+          placeholder={unnamed}
+          helper={`清空表示不命名，显示为“${unnamed}”。`}
+          disabled={disabled}
+          onCommit={(value) => void actions.onRename(node.id, value)}
+        />
+        {defaults.length > 0 && <Note>{defaults.map((p) => sourceName(p.branchId)).join('、')}的默认容器：没有单独分配的歌词放在这里。</Note>}
+        {slotContainer && (
+          <Note>
+            “{nodeName(model, slotContainer)}”轮换的第 {slot.index} 个槽位。
+          </Note>
+        )}
+        {properties.block && <Note className="property-block">{properties.block}</Note>}
+      </Group>
       <GeometrySection key={`geometry-${node.id}`} model={model} node={node} actions={properties} />
-      {layout && <LayoutSection key={`layout-${node.id}`} model={model} node={node} kindBlock={slotSequenceBlock(model, node.id, isPrimary)} actions={properties} />}
-      {layout && (layout.kind === 'SlotSequence' || layout.slotIds.length > 0) && (
-        <SlotList model={model} container={node} actions={actions} disabled={disabled} onSelect={props.onSelect} />
+      {layout && (
+        <LayoutSection
+          key={`layout-${node.id}`}
+          model={model}
+          node={node}
+          kindBlock={slotSequenceBlock(model, node.id, isPrimary)}
+          actions={properties}
+          slots={
+            (layout.kind === 'SlotSequence' || layout.slotIds.length > 0) && <SlotList model={model} container={node} actions={actions} disabled={disabled} onSelect={props.onSelect} />
+          }
+        />
       )}
       {layout?.slotAnimation && <SlotAnimationSection key={`slots-${node.id}`} node={node} animation={layout.slotAnimation} actions={properties} />}
       {node.contentKind === 'countdownSequence' && (
@@ -900,65 +761,51 @@ function NodeInspector(props: {
       {model.markOf.has(node.id) && <MarkSection model={model} node={node} marks={props.marks} />}
 
       {program && (
-        <>
-          <h3 className="section-title">来源</h3>
-          <dl className="override-list">
+        <Group title="来源">
+          <dl className="dl info-list">
             <Row label="来源" value={sourceName(program.branchId)} />
             <Row label="默认容器" value={programDefault ? nodeName(model, programDefault) : `${program.defaultContainerId}（不存在）`} />
           </dl>
           <AnimationPolicyField key={`policy-${program.id}`} model={model} program={program} primary={isPrimary(program.branchId)} actions={properties} />
-        </>
+        </Group>
       )}
     </div>
   );
 }
 
-/** 轮换的槽位（W4 设计 §12.5）：按轮换顺序，每行可上移、下移、删除；下方加槽位。 */
+/** 轮换的槽位（W4 设计 §12.5）：放在“内部布局”里，按轮换顺序，每行可上移、下移、删除；下方加槽位。 */
 function SlotList(props: { model: OrchestrationModel; container: OrchestrationNode; actions: StructureActions; disabled: boolean; onSelect: (id: string) => void }) {
   const { model, container, actions } = props;
   const slotIds = container.layout?.slotIds ?? [];
   return (
-    <>
-      <h3 className="section-title">槽位 · {slotIds.length} 个</h3>
-      <div className="slot-list" role="list" aria-label="槽位">
-        {slotIds.map((id) => {
+    <div className="slot-block">
+      <div className="sub">槽位 · {slotIds.length} 个</div>
+      <div className="slots" role="list" aria-label="槽位">
+        {slotIds.map((id, i) => {
           const slot = model.byId.get(id);
           const blocks = slot ? actions.blocks(id) : ALL_BLOCKED;
           const own = (reason: string | undefined) => actions.block ?? (slot ? reason : '这个槽位不存在。');
           return (
-            <div key={id} role="listitem" className="slot-row" data-slot-id={id}>
+            <div key={id} role="listitem" className="slot" data-slot-id={id}>
+              <b className="slot-n">{i + 1}</b>
               <button type="button" className="slot-name" disabled={!slot} onClick={() => props.onSelect(id)} title="在结构树里选中">
                 {slot ? nodeName(model, slot) : `${id}（不存在）`}
               </button>
-              <ToolButton label="上移" reason={own(blocks.up)} disabled={props.disabled} className="slot-up" onClick={() => void actions.onReorder(id, -1)}>
-                <mdui-icon-arrow-upward />
-              </ToolButton>
-              <ToolButton label="下移" reason={own(blocks.down)} disabled={props.disabled} className="slot-down" onClick={() => void actions.onReorder(id, 1)}>
-                <mdui-icon-arrow-downward />
-              </ToolButton>
-              <ToolButton label="删除" reason={own(blocks.remove)} disabled={props.disabled} className="slot-remove" onClick={() => void actions.onRemove(id)}>
-                <mdui-icon-delete />
-              </ToolButton>
+              <ToolButton icon="arrow_upward" label={`上移槽位 ${i + 1}`} reason={own(blocks.up)} disabled={props.disabled} onPress={() => void actions.onReorder(id, -1)} />
+              <ToolButton icon="arrow_downward" label={`下移槽位 ${i + 1}`} reason={own(blocks.down)} disabled={props.disabled} onPress={() => void actions.onReorder(id, 1)} />
+              <ToolButton icon="delete" label={`删除槽位 ${i + 1}`} reason={own(blocks.remove)} disabled={props.disabled} onPress={() => void actions.onRemove(id)} />
             </div>
           );
         })}
       </div>
-      <mdui-button variant="text" className="slot-add" disabled={props.disabled} onClick={() => void actions.onAddSlot(container.id)}>
-        ＋ 加槽位
-      </mdui-button>
-      <p className="hint">槽位数变了，“同时最多显示”不会跟着变，在下面的“槽位动画”里调整。</p>
-    </>
+      <div className="row-actions">
+        <Button variant="text" size="sm" icon="add" isDisabled={props.disabled} onPress={() => void actions.onAddSlot(container.id)}>
+          加槽位
+        </Button>
+      </div>
+      <Note>槽位数变了，“同时最多显示”不会跟着变，在下面的“调度”里调整。</Note>
+    </div>
   );
-}
-
-/** 片段的增删改（G19-B）：不可用时 block 是原因。 */
-interface ClipActions {
-  block: string | undefined;
-  busy: boolean;
-  onNew: () => void;
-  onRename: (clip: OrchestrationClip, name: string) => Promise<void>;
-  onMove: (clip: OrchestrationClip, label: string, containerId: string) => Promise<void>;
-  onDelete: (clip: OrchestrationClip, label: string) => Promise<void>;
 }
 
 /** 片段的属性（W4 设计 §10.5、§11.3～§11.5、§15.2）：名称、句子、时间、目标容器、调度上下文；改名、调整句子、拆分、合并、改目标容器、删除。 */
@@ -995,276 +842,74 @@ function ClipInspector(props: {
   const options = container && !containers.includes(container) ? [container, ...containers] : containers;
 
   return (
-    <div className="inspector clip-inspector">
-      <div className="inspector-path">
-        <span className="pane-title-text">{[props.branchName, '片段', name].join(' / ')}</span>
-        <span className="muted">片段</span>
-        <code className="node-id">{clip.id}</code>
-      </div>
-      <CommitField
-        key={clip.id}
-        label="名称"
-        value={clip.name ?? ''}
-        placeholder={`片段 ${index + 1}`}
-        helper="清空表示不命名，列表里显示“片段 N”。"
-        disabled={disabled}
-        className="clip-name"
-        onCommit={(value) => void actions.onRename(clip, value)}
-      />
-      <h3 className="section-title">句子</h3>
-      <dl className="override-list">
-        <Row label="范围" value={range ? `${lineRangeText(range)}${range.count > 1 ? `（${range.count} 句）` : ''}` : '句子都不在来源里'} />
-        {missing > 0 && <Row label="不在来源里" value={`${missing} 句`} />}
-        <Row label="时间" value={span ? `${formatTime(span.startUs)}～${formatTime(span.endUs)}` : '没有时间'} />
-      </dl>
-      <ClipMemberButtons model={model} program={props.program} lines={lines} clip={clip} label={name} actions={props.members} />
-      <h3 className="section-title">目标容器</h3>
-      <Select
-        label="目标容器"
-        className="clip-target"
-        value={clip.containerId}
-        options={[
-          ...options.map((n) => ({ value: n.id, label: `${nodeName(model, n)} · ${roleText(model, n)}${n.id === props.program.defaultContainerId ? '（默认容器）' : ''}` })),
-          ...(container ? [] : [{ value: clip.containerId, label: `${clip.containerId}（不存在）`, disabled: true }]),
-        ]}
-        disabled={disabled || options.length < 2}
-        onChange={(id) => void actions.onMove(clip, name, id)}
-      />
-      {container && (
-        <p className="clip-container">
-          <mdui-button variant="text" onClick={() => props.onSelectNode(container.id)}>
-            在结构树里查看
-          </mdui-button>
-        </p>
-      )}
+    <div className="insp clip-inspector">
+      <InspectorHead crumbs={[props.branchName, '片段']} title={name} kind="片段" id={clip.id} />
+      <Group title="片段">
+        <CommitField
+          key={clip.id}
+          label="名称"
+          labelPlacement="inside"
+          value={clip.name ?? ''}
+          placeholder={`片段 ${index + 1}`}
+          helper="清空表示不命名，列表里显示“片段 N”。"
+          disabled={disabled}
+          onCommit={(value) => void actions.onRename(clip, value)}
+        />
+      </Group>
+      <Group title="句子">
+        <dl className="dl info-list">
+          <Row label="范围" value={range ? `${lineRangeText(range)}${range.count > 1 ? `（${range.count} 句）` : ''}` : '句子都不在来源里'} />
+          {missing > 0 && <Row label="不在来源里" value={`${missing} 句`} />}
+          <Row label="时间" value={span ? `${formatTime(span.startUs)}～${formatTime(span.endUs)}` : '没有时间'} />
+        </dl>
+        <ClipMemberButtons model={model} program={props.program} lines={lines} clip={clip} label={name} actions={props.members} />
+      </Group>
+      <Group
+        title="目标容器"
+        extra={
+          container && (
+            <Button variant="text" size="sm" onPress={() => props.onSelectNode(container.id)}>
+              在结构树里查看
+            </Button>
+          )
+        }
+      >
+        <Select
+          label="目标容器"
+          labelPlacement="none"
+          value={clip.containerId}
+          options={[
+            ...options.map((n) => ({ value: n.id, label: `${nodeName(model, n)} · ${roleText(model, n)}${n.id === props.program.defaultContainerId ? '（默认容器）' : ''}` })),
+            ...(container ? [] : [{ value: clip.containerId, label: `${clip.containerId}（不存在）`, disabled: true }]),
+          ]}
+          disabled={disabled || options.length < 2}
+          onChange={(id) => void actions.onMove(clip, name, id)}
+        />
+      </Group>
       {context && (
-        <>
-          <h3 className="section-title">调度上下文</h3>
-          <dl className="override-list">
+        <Group title="调度上下文">
+          <dl className="dl info-list">
             <Row label="原段" value={contextRange ? lineRangeText(contextRange) : '句子都不在来源里'} />
             <Row label="默认段" value={context.isDefaultSegment ? '是（原来在默认容器里）' : '否'} />
             <Row label="前一句" value={lineNumber(context.previousLineId)} />
             <Row label="后一句" value={lineNumber(context.nextLineId)} />
           </dl>
-          <p className="hint">从原来的一段拆出，保持原来的槽位和显示时钟。</p>
-        </>
+          <Note>从原来的一段拆出，保持原来的槽位和显示时钟。</Note>
+        </Group>
       )}
-      <div className="clip-actions">
-        <mdui-button variant="outlined" className="clip-delete" disabled={disabled} onClick={() => void actions.onDelete(clip, name)}>
-          删除片段
-        </mdui-button>
-      </div>
-      <p className="hint">{actions.block ?? '删除后这几句回到默认容器。改动都可以撤销。'}</p>
-    </div>
-  );
-}
-
-// ── 歌词分配 ──
-
-function AssignmentBar(props: {
-  session: EditorSession;
-  state: EditorState;
-  view: OrchestrationState;
-  store: OrchestrationStore;
-  branches: LyricBranchSummary[];
-  /** 分配条来源的行。 */
-  lines: readonly EditorLine[];
-  range: LineRange | undefined;
-  leadInCount: number;
-  clipActions: ClipActions;
-  onUndo: () => void;
-}) {
-  const { session, view, store, clipActions } = props;
-  const [layoutOpen, setLayoutOpen] = useState(false);
-  const model = view.model;
-  const program = model?.programByBranch.get(view.branchId);
-  const branch = props.branches.find((b) => b.id === view.branchId);
-  const branchName = branch?.name || view.branchId;
-  const containers = model && program ? containersOf(model, program) : [];
-  // 当前默认容器不在来源根下时（结构异常）也列出来，免得下拉框显示空白。
-  const current = model && program ? model.byId.get(program.defaultContainerId) : undefined;
-  const options = current && !containers.includes(current) ? [current, ...containers] : containers;
-  const readOnly = props.state.summary.isReadOnly;
-  const canSet = session.supportsCommand('orchestration.setDefaultContainer') && !readOnly;
-  const canLayout = session.supportsCommand('orchestration.previewBasicLayout') && session.supportsCommand('orchestration.applyBasicLayout') && !readOnly;
-  const blocked = program ? quickLayoutBlock(branch, program) : undefined;
-  const clipCount = program?.clips?.length ?? 0;
-  const primary = branch?.role === 'primary';
-  const slotDefaultBlocked = !!program && options.some((n) => n.id !== program.defaultContainerId && !!defaultContainerBlock(program, n, primary));
-
-  const hint = !model
-    ? undefined
-    : !program
-      ? NO_PROGRAM
-      : blocked
-        ? blocked
-        : options.length < 2
-          ? '这个来源只有一个歌词容器；“快速布局…”会新建容器。'
-          : slotDefaultBlocked
-            ? `没有单独分配的歌词放在默认容器里。${SLOT_DEFAULT_NEEDS_KARAOKE}`
-            : '没有单独分配的歌词放在默认容器里。';
-
-  const change = async (containerId: string) => {
-    const name = model?.byId.get(containerId);
-    const result = await store.setDefaultContainer(view.branchId, containerId);
-    if (result === 'applied') toast(`默认容器已改为“${name && model ? nodeName(model, name) : containerId}”`, { label: '撤销', run: props.onUndo });
-  };
-
-  const closeLayout = () => {
-    setLayoutOpen(false);
-    store.endLayoutPreview();
-  };
-
-  return (
-    <div className="assignment-bar">
-      <span className="pane-title-text">歌词分配</span>
-      <CompactSelect
-        label="来源"
-        className="assignment-source"
-        value={view.branchId}
-        options={props.branches.map((b) => ({ value: b.id, label: b.name || b.id }))}
-        onChange={(id) => store.setBranch(id)}
-      />
-      <CompactSelect
-        label="默认容器"
-        className="assignment-container"
-        value={program?.defaultContainerId ?? ''}
-        options={model && program ? options.map((n) => ({ value: n.id, label: `${nodeName(model, n)} · ${roleText(model, n)}`, disabled: n.id !== program.defaultContainerId && !!defaultContainerBlock(program, n, primary) })) : []}
-        disabled={!canSet || !program || !!view.busy || options.length < 2}
-        onChange={(id) => void change(id)}
-      />
-      {model && program && <span className="tag assignment-layout">{currentLayoutText(model, program)}</span>}
-      {program && <span className="muted assignment-unassigned">未单独分配 {unassignedCount(program, props.lines)} 句</span>}
-      {props.range && (
-        <span className="tag assignment-range">
-          已选{lineRangeText(props.range)}
-          <mdui-button-icon onClick={() => store.clearLines()} aria-label="取消选中的句子">
-            <mdui-icon-close />
-          </mdui-button-icon>
-        </span>
-      )}
-      {props.range && !view.selectedClipId && (
-        <mdui-button
-          variant="text"
-          className="assignment-new-clip"
-          disabled={!!clipActions.block || clipActions.busy}
-          title={clipActions.block}
-          onClick={clipActions.onNew}
-        >
-          为这几句新建片段
-        </mdui-button>
-      )}
-      <mdui-button
-        variant="tonal"
-        disabled={!canLayout || !program || !!blocked || !!view.busy}
-        title={!program ? NO_PROGRAM : blocked ? blocked : !canLayout ? '后端没有开放快速布局，或工程只读' : undefined}
-        onClick={() => setLayoutOpen(true)}
-      >
-        快速布局…
-      </mdui-button>
-      <mdui-button
-        variant={view.panel === 'clips' ? 'filled' : 'text'}
-        className="assignment-clips"
-        aria-pressed={view.panel === 'clips'}
-        disabled={!program}
-        onClick={() => store.toggleClips()}
-      >
-        片段{program ? ` · ${clipCount}` : ''}
-      </mdui-button>
-      <mdui-button
-        variant={view.panel === 'leadIns' ? 'filled' : 'text'}
-        className="assignment-lead-ins"
-        aria-pressed={view.panel === 'leadIns'}
-        disabled={!program}
-        onClick={() => store.toggleLeadIns()}
-      >
-        前奏提示{program ? ` · ${props.leadInCount}` : ''}
-      </mdui-button>
-      {hint && (
-        <span className="hint assignment-hint" title={hint}>
-          {hint}
-        </span>
-      )}
-      <QuickLayoutDialog
-        open={layoutOpen}
-        branchName={branchName}
-        lineCount={branch?.lineCount}
-        program={program}
-        range={props.range}
-        preview={view.layoutPreview?.branchId === view.branchId ? view.layoutPreview : undefined}
-        busy={!!view.busy}
-        onPreview={(preset, lineIds) => void store.previewLayout(view.branchId, preset, lineIds)}
-        onApply={async (preset, lineIds) => {
-          const branchId = view.branchId;
-          const target = lineIds && props.range ? lineRangeText(props.range) : branchName;
-          const result = await store.applyLayout(branchId, preset, lineIds);
-          if (result === 'failed') return;
-          closeLayout();
-          if (result === 'applied') toast(`已套用“${presetLabel(preset.preset)}”到${lineIds ? '' : ' '}${target}`, { label: '撤销', run: props.onUndo });
-          else toast('已经是这个布局，没有变化');
-        }}
-        onClose={closeLayout}
-      />
-    </div>
-  );
-}
-
-// ── 片段 ──
-
-/** 片段列表（W4 设计 §10.3、§11.2）：与片段轨显示同一份数据，联动选中；标题上可以新建片段。 */
-function ClipList(props: {
-  model: OrchestrationModel;
-  clips: readonly OrchestrationClip[];
-  lines: readonly EditorLine[];
-  colors: ReadonlyMap<string, number>;
-  selectedId: string | undefined;
-  actions: ClipActions;
-  onSelect: (id: string) => void;
-}) {
-  const { model, actions } = props;
-  return (
-    <div className="clip-panel" role="region" aria-label="片段">
-      <div className="clip-panel-header">
-        <span className="pane-title-text">片段 · {props.clips.length} 个</span>
-        <mdui-button variant="text" className="clip-new" disabled={!!actions.block || actions.busy} title={actions.block} onClick={actions.onNew}>
-          ＋ 新建片段
-        </mdui-button>
-        {actions.block && <span className="hint">{actions.block}</span>}
-      </div>
-      {props.clips.length === 0 ? (
-        <p className="hint clip-empty">这个来源还没有片段。在时间轴上选几句，点“为这几句新建片段”，或给这几句套快速布局。</p>
-      ) : (
-        <div className="clip-rows" role="listbox" aria-label="片段列表">
-          {props.clips.map((clip, i) => {
-            const range = lineRange(props.lines, clip.lineIds);
-            const container = model.byId.get(clip.containerId);
-            const selected = clip.id === props.selectedId;
-            return (
-              <div
-                key={clip.id}
-                role="option"
-                aria-selected={selected}
-                data-clip-id={clip.id}
-                className={`clip-row${selected ? ' selected' : ''}`}
-                onClick={() => props.onSelect(clip.id)}
-              >
-                <span className={`clip-swatch band-${(props.colors.get(clip.containerId) ?? 0) % BAND_COLORS}`} aria-hidden="true" />
-                <span className="target-label">{clipName(clip, i + 1)}</span>
-                <span className="target-meta">{range ? lineRangeText(range) : '句子不在来源里'}</span>
-                <span className="target-meta">→ {container ? nodeName(model, container) : `${clip.containerId}（不存在）`}</span>
-                {clip.scheduleContext && (
-                  <span className="target-template" title="从原来的一段拆出，保持原来的槽位和显示时钟">
-                    保留原调度
-                  </span>
-                )}
-              </div>
-            );
-          })}
+      <footer className="insp-foot">
+        <div className="insp-actions">
+          <Button danger size="sm" icon="delete" isDisabled={disabled} onPress={() => void actions.onDelete(clip, name)}>
+            删除片段
+          </Button>
         </div>
-      )}
+        <Note>{actions.block ?? '删除后这几句回到默认容器。改动都可以撤销。'}</Note>
+      </footer>
     </div>
   );
 }
+
+// ── 时间轴 ──
 
 /** 前奏轨的色块：“▸ N 秒”，停用的画淡；算不出时间的不画。 */
 function leadInBands(leadIns: readonly OrchestrationLeadIn[], selectedId: string | undefined): TimelineBand[] {
@@ -1287,6 +932,8 @@ function timedSpan(lines: readonly EditorLine[], ids: ReadonlySet<string>): { st
 }
 
 // ── 快捷键 ──
+
+const inCollection = (event: Event) => event.composedPath().some((node) => node instanceof HTMLElement && ['treegrid', 'grid'].includes(node.getAttribute('role') ?? ''));
 
 /** 编排页快捷键（整体设计 §4）：空格播放，↑↓ 在结构树里移动，Delete 删除选中的节点，Ctrl／⌘+Z、Shift+Z、Y、S。焦点在输入框里时让给输入框。 */
 function useOrchestrationKeys(options: {
@@ -1336,6 +983,8 @@ function useOrchestrationKeys(options: {
         return;
       }
       if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+        // 焦点在结构树、片段或前奏列表里时由它们自己移动。
+        if (inCollection(event)) return;
         const order = sections.flatMap((s) => s.rows.map((r) => r.node.id));
         if (order.length === 0) return;
         event.preventDefault();

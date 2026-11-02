@@ -1,19 +1,21 @@
-import { useState } from 'react';
+import { Button as AriaButton } from 'react-aria-components';
 import { BRANCH_ROLE_TEXT, lineNumbers } from '../model/branches';
 import type { EditorLine } from '../model/lyrics';
 import type { EditorSession, EditorState } from '../session/editor-session';
-import { Select } from '../ui/legacy/fields';
-import { LinkDialog } from './LinkDialog';
+import { Button } from '../ui/Button';
+import { Select } from '../ui/fields';
+import { Icon } from '../ui/Icon';
+import { Tag } from '../ui/indicators';
+import type { LineActions } from './line-actions';
 
 const UNLINKED = '__unlinked__';
 
 /**
- * 行编辑区的“关联”一节（整体设计 §5.2）：主歌词行列出关联到它的其他来源的行，点击跳过去；
- * 其他来源的行选择它关联的主歌词行，或打开对照视图整体调整。
+ * 行编辑区的“翻译”（整体设计 §5.2）：主歌词行列出关联到它的其他来源的行，点击跳过去，“改关联…”打开对照编辑；
+ * 其他来源的行选择它关联的主歌词行，或打开对照编辑整体调整。只有一个来源时不显示。
  */
-export function TranslationSection(props: { session: EditorSession; state: EditorState; line: EditorLine }) {
-  const { session, state, line } = props;
-  const [linkOpen, setLinkOpen] = useState(false);
+export function TranslationSection(props: { session: EditorSession; state: EditorState; line: EditorLine; actions: LineActions }) {
+  const { session, state, line, actions } = props;
   const { primaryBranchId, branches } = state;
   if (!primaryBranchId || !branches || branches.length < 2) return null;
 
@@ -21,29 +23,41 @@ export function TranslationSection(props: { session: EditorSession; state: Edito
     const linked = branches
       .filter((b) => b.id !== primaryBranchId)
       .flatMap((b) => (state.linesByBranch[b.id] ?? []).flatMap((l, i) => (l.primaryLineId === line.id ? [{ branch: b, line: l, number: i + 1 }] : [])));
+    const only = linked.length === 1 ? linked[0] : undefined;
+    const follows = (b: (typeof linked)[number]['branch']) => b.timingMode === 'followPrimary';
     return (
-      <section className="translation-section">
-        <div className="section-title">关联的翻译</div>
+      <section className="fs trans">
+        <header>
+          <h4>{linked.every((l) => l.branch.role === 'translation') ? '翻译' : '关联的行'}</h4>
+          {only && <Tag>{follows(only.branch) ? '跟随本句' : '只对照'}</Tag>}
+          <span className="spacer" />
+          {only && (
+            <Button variant="text" size="sm" icon="link" isDisabled={!session.supportsCommand('lyrics.linkPrimaryLine')} onPress={() => actions.openLink(only.branch.id, only.line.id)}>
+              改关联…
+            </Button>
+          )}
+        </header>
         {linked.length === 0 ? (
-          <p className="muted">没有其他来源的行关联到这一句。</p>
+          <p className="faint">没有其他来源的行关联到这一句。</p>
         ) : (
-          <mdui-list className="linked-lines">
+          <div className="tr-lines">
             {linked.map(({ branch, line: l, number }) => (
-              <mdui-list-item
+              <AriaButton
                 key={l.id}
-                rounded
-                onClick={() => {
+                className="tr-line"
+                onPress={() => {
                   session.selectBranch(branch.id);
                   session.select({ lineId: l.id });
                 }}
               >
-                <span>{l.text || '（空行）'}</span>
-                <span slot="description">
-                  {branch.name}（{BRANCH_ROLE_TEXT[branch.role]}）第 {number} 行 · {branch.timingMode === 'followPrimary' ? '跟随本句' : '只对照，不跟随'}
+                <span className="tr-text">{l.text || '（空行）'}</span>
+                <span className="faint small">
+                  {branch.name}（{BRANCH_ROLE_TEXT[branch.role]}）第 {number} 行{only ? '' : ` · ${follows(branch) ? '跟随本句' : '只对照'}`}
                 </span>
-              </mdui-list-item>
+                <Icon name="chevron_right" className="ro-go" />
+              </AriaButton>
             ))}
-          </mdui-list>
+          </div>
         )}
       </section>
     );
@@ -59,17 +73,17 @@ export function TranslationSection(props: { session: EditorSession; state: Edito
     void session.command({ type: 'lyrics.linkPrimaryLine', branchId: line.branchId, lineId: line.id, primaryLineId: value === UNLINKED ? null : value });
 
   return (
-    <section className="translation-section">
-      <header className="section-header">
-        <span className="section-title">关联主歌词</span>
+    <section className="fs trans">
+      <header>
+        <h4>关联主歌词</h4>
         <span className="spacer" />
-        <mdui-button variant="text" disabled={!canLink} onClick={() => setLinkOpen(true)}>
-          <mdui-icon-link slot="icon" />
+        <Button variant="text" size="sm" icon="link" isDisabled={!canLink} onPress={() => actions.openLink(line.branchId, line.id)}>
           对照编辑…
-        </mdui-button>
+        </Button>
       </header>
       <Select
         label="关联到"
+        labelPlacement="none"
         value={missing ? UNLINKED : (line.primaryLineId ?? UNLINKED)}
         options={[
           { value: UNLINKED, label: '不关联' },
@@ -77,7 +91,6 @@ export function TranslationSection(props: { session: EditorSession; state: Edito
         ]}
         disabled={!canLink}
         onChange={link}
-        className="link-select"
       />
       <p className="hint">
         {missing
@@ -85,10 +98,9 @@ export function TranslationSection(props: { session: EditorSession; state: Edito
           : linkedNumber === undefined
             ? '这一行没有关联主歌词。'
             : branch?.timingMode === 'followPrimary'
-              ? `这一行跟随主歌词第 ${linkedNumber} 行显示。`
-              : `这个来源不是“跟随主歌词”，关联只用于对照显示。`}
+              ? `跟随主歌词第 ${linkedNumber} 行显示。`
+              : '这个来源不跟随主歌词，关联只用于对照显示。'}
       </p>
-      <LinkDialog session={session} branchId={linkOpen ? line.branchId : null} focusLineId={line.id} onClose={() => setLinkOpen(false)} />
     </section>
   );
 }

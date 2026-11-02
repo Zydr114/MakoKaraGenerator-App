@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TokenTarget } from '../../protocol';
+import type { AppearanceStore } from '../appearance/appearance-store';
 import type { AudioController } from '../audio/audio-controller';
 import { NoAudioBar } from '../audio/NoAudioBar';
 import { Transport } from '../audio/Transport';
+import { useLineActions } from '../lyrics/line-actions';
 import { LineDetail } from '../lyrics/LineDetail';
 import { LinePane } from '../lyrics/LinePane';
 import { TimeBar } from '../lyrics/TimeBar';
@@ -11,6 +13,7 @@ import { followSpans, lineTracks } from '../model/line-tracks';
 import { isTimed, stepToken, type EditorLine, type Selection } from '../model/lyrics';
 import { translationsByPrimary } from '../model/word-preview';
 import { toMicros } from '../model/time';
+import type { OrchestrationStore } from '../orchestration/orchestration-store';
 import type { EditorSession } from '../session/editor-session';
 import { Timeline, type RubyTimeEdit, type TokenTimeEdit } from '../timeline/Timeline';
 import { useObservable } from '../ui/hooks';
@@ -26,12 +29,17 @@ const PREVIEW_COLLAPSED_KEY = 'mako.editor.wordPreviewCollapsed';
 export function Workspace(props: {
   session: EditorSession;
   audio: AudioController | null;
+  /** 行编辑区的“外观”“显示在”用：分配列表与编排结构（还没建好时为 null，这两项不显示）。 */
+  appearance: AppearanceStore | null;
+  orchestration: OrchestrationStore | null;
+  onOpen: (page: 'appearance' | 'orchestration') => void;
   onUndo: () => void;
   onRedo: () => void;
   onSave: () => void;
 }) {
   const { session, audio } = props;
   const state = useObservable(session.state$);
+  const { actions, dialogs } = useLineActions(session, props.onUndo);
   const [loopLine, setLoopLine] = useState(false);
   const [stampMode, setStampMode] = useState(false);
   const selectedLineIndex = state.selection ? state.lines.findIndex((l) => l.id === state.selection!.lineId) : -1;
@@ -137,17 +145,30 @@ export function Workspace(props: {
       page="lyrics"
       className="workspace"
       stage="right"
-      left={{ label: '歌词行', content: <LinePane session={session} state={state} onUndo={props.onUndo} /> }}
+      left={{ label: '歌词行', content: <LinePane session={session} state={state} onUndo={props.onUndo} actions={actions} /> }}
       center={
         <>
-          <section className="pane pane-detail">
+          <section className="line-edit" aria-label="行编辑">
             {selectedLine ? (
-              <LineDetail session={session} state={state} audio={audio} line={selectedLine} lineNumber={selectedLineIndex + 1} tokenId={state.selection?.tokenId} segmentId={state.selection?.segmentId} />
+              <LineDetail
+                session={session}
+                state={state}
+                audio={audio}
+                line={selectedLine}
+                lineNumber={selectedLineIndex + 1}
+                tokenId={state.selection?.tokenId}
+                segmentId={state.selection?.segmentId}
+                actions={actions}
+                appearance={props.appearance}
+                orchestration={props.orchestration}
+                onOpen={props.onOpen}
+              />
             ) : (
-              <p className="muted">选择左侧的一行。</p>
+              <p className="faint line-edit-empty">选择左侧的一行。</p>
             )}
           </section>
           <TimeBar session={session} audio={audio} line={selectedLine} tokenId={state.selection?.tokenId} segmentId={state.selection?.segmentId} />
+          {dialogs}
         </>
       }
       right={{
@@ -200,8 +221,10 @@ export function Workspace(props: {
 }
 
 /**
- * 工作区快捷键（设计 §4.6）。焦点在输入框里时全部让给输入框。
+ * 工作区快捷键（设计 §4.6）。焦点在输入框、对话框或菜单里时全部让给它们。
  * 打点模式下按住 J 记起点、松开记终点并前进；按键当时的播放头才是打点时间。
+ * 空格在捕获阶段处理：行列表、按钮等 React Aria 控件会自己处理空格并阻止冒泡。
+ * 其余按键在冒泡阶段，控件已经处理过的（例如焦点在行列表里时的上下键）不再处理。
  */
 function useWorkspaceKeys(options: {
   session: EditorSession;
@@ -239,13 +262,8 @@ function useWorkspaceKeys(options: {
       } else if (mod && key === 's') {
         event.preventDefault();
         latest.current.onSave();
-      } else if (mod) {
+      } else if (mod || event.defaultPrevented) {
         return;
-      } else if (event.key === ' ') {
-        event.preventDefault();
-        // 刚点过的按钮仍有焦点时，松开空格会再“点”它一次：先移走焦点。
-        if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) document.activeElement.blur();
-        audio?.toggle();
       } else if (key === 'j' && stampMode && audio) {
         event.preventDefault();
         if (event.repeat || stamping.current) return;
@@ -291,9 +309,19 @@ function useWorkspaceKeys(options: {
       if (next) session.select({ lineId: next.lineId, tokenId: next.id });
     };
 
+    // 在控件之前拿到空格：阻止默认动作，按钮不会在松开时被“点”一次，也不会滚动页面。
+    const onSpace = (event: KeyboardEvent) => {
+      if (event.key !== ' ' || event.ctrlKey || event.metaKey || event.altKey || isEditing(event)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (!event.repeat) latest.current.audio?.toggle();
+    };
+
+    window.addEventListener('keydown', onSpace, true);
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
     return () => {
+      window.removeEventListener('keydown', onSpace, true);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
     };
@@ -302,9 +330,12 @@ function useWorkspaceKeys(options: {
 
 const NON_TEXT_INPUTS = new Set(['checkbox', 'radio', 'range', 'button', 'submit', 'reset', 'file', 'color']);
 
+/** 这些角色的元素里按键归它们：对话框、侧面板（React Aria 的 Modal 都是 dialog）、菜单。 */
+const OVERLAY_ROLES = new Set(['dialog', 'alertdialog', 'menu']);
+
 /**
  * 事件是否来自文字输入控件（包括 mdui 组件 shadow DOM 里的 input）；复选框、开关等不算。
- * 来自对话框里的也算：对话框是模态的，空格、方向键留给对话框里的按钮。
+ * 来自对话框、菜单和下拉列表里的也算：它们是模态的，空格、方向键留给里面的控件。
  */
 export function isEditing(event: Event): boolean {
   return event.composedPath().some(
@@ -313,6 +344,9 @@ export function isEditing(event: Event): boolean {
       ((node instanceof HTMLInputElement && !NON_TEXT_INPUTS.has(node.type)) ||
         node.tagName === 'TEXTAREA' ||
         node.isContentEditable ||
+        OVERLAY_ROLES.has(node.getAttribute('role') ?? '') ||
+        // React Aria 的弹出层（菜单、下拉选择）带 data-trigger
+        node.hasAttribute('data-trigger') ||
         // 对话框关闭后焦点可能还留在里面，只算打开的。
         (node.tagName === 'MDUI-DIALOG' && (node as HTMLElement & { open?: boolean }).open === true)),
   );

@@ -1,15 +1,24 @@
+import type { AppearanceStore } from '../appearance/appearance-store';
 import type { AudioController } from '../audio/audio-controller';
 import { isTimed, type EditorLine } from '../model/lyrics';
 import { formatTime } from '../model/time';
+import type { OrchestrationStore } from '../orchestration/orchestration-store';
 import type { EditorSession, EditorState } from '../session/editor-session';
-import { toast } from '../ui/legacy/feedback';
-import { CommitField } from '../ui/legacy/fields';
+import { Button, IconButton } from '../ui/Button';
+import { toast } from '../ui/feedback';
+import { CommitField } from '../ui/fields';
+import { Menu, MenuTrigger } from '../ui/Menu';
+import { lineActionItems, type LineAction, type LineActions } from './line-actions';
+import { LineLinks } from './LineLinks';
+import { StatusTag } from './LineList';
 import { RubySection } from './RubySection';
-import { StatusBadge } from './TimeBar';
 import { TokenSection } from './TokenSection';
 import { TranslationSection } from './TranslationSection';
 
-/** 行编辑区：选中行的正文、文本单元、注音片段与翻译关联。时间字段在底部的时间栏。 */
+/**
+ * 行编辑区（界面改版稿件 #lyrics）：标题行是行号、起止、时间状态、定位、试听和行操作；
+ * 下面是正文、文本单元、注音与翻译、外观与显示在。时间字段在下面的时间栏。
+ */
 export function LineDetail(props: {
   session: EditorSession;
   state: EditorState;
@@ -18,10 +27,15 @@ export function LineDetail(props: {
   lineNumber: number;
   tokenId?: string | undefined;
   segmentId?: string | undefined;
+  actions: LineActions;
+  appearance: AppearanceStore | null;
+  orchestration: OrchestrationStore | null;
+  onOpen: (page: 'appearance' | 'orchestration') => void;
 }) {
-  const { session, audio, line } = props;
+  const { session, state, audio, line, actions } = props;
   const timed = isTimed(line);
   const target = { branchId: line.branchId, lineId: line.id };
+  const isPrimary = line.branchId === state.primaryBranchId || !state.primaryBranchId;
 
   const setText = async (text: string) => {
     const response = await session.command({ type: 'lyrics.setLineText', target, text });
@@ -30,37 +44,51 @@ export function LineDetail(props: {
   };
 
   return (
-    <div className="line-detail">
-      <header className="line-detail-header">
-        <span className="line-number">第 {props.lineNumber} 行</span>
-        <span>{timed ? `${formatTime(line.startUs)} – ${formatTime(line.endUs)}` : '未打轴'}</span>
-        {line.status && <StatusBadge status={line.status} />}
+    <div className="edit">
+      <header className="lhead">
+        <h2>第 {props.lineNumber} 行</h2>
+        <span className="tnum">{timed ? `${formatTime(line.startUs)} – ${formatTime(line.endUs)}` : '未打轴'}</span>
+        {line.status && <StatusTag status={line.status} />}
         <span className="spacer" />
-        <mdui-button variant="text" disabled={!timed || !audio} onClick={() => timed && audio?.seek(line.startUs)}>
-          <mdui-icon-my-location slot="icon" />
-          定位到此行
-        </mdui-button>
-        <mdui-button variant="text" disabled={!timed || !audio} onClick={() => timed && audio?.playRange(line.startUs, line.endUs)}>
-          <mdui-icon-headphones slot="icon" />
-          试听此行
-        </mdui-button>
+        <Button variant="ghost" size="sm" icon="my_location" isDisabled={!timed || !audio} onPress={() => timed && audio?.seek(line.startUs)}>
+          定位
+        </Button>
+        <Button variant="ghost" size="sm" icon="headphones" isDisabled={!timed || !audio} onPress={() => timed && audio?.playRange(line.startUs, line.endUs)}>
+          试听
+        </Button>
+        <MenuTrigger>
+          <IconButton icon="more_horiz" label="行操作" size="sm" />
+          <Menu label="行操作" placement="bottom end" onAction={(id) => actions.run(id as LineAction, line)}>
+            {lineActionItems(session, isPrimary)}
+          </Menu>
+        </MenuTrigger>
       </header>
-      <CommitField
-        key={line.id}
-        label="正文"
-        value={line.text}
-        placeholder="（空行）"
-        helper="Enter 或离开输入框时提交，Esc 撤回"
-        disabled={!session.supportsCommand('lyrics.setLineText')}
-        onCommit={(text) => void setText(text)}
-        className="line-text-field"
-      />
 
-      <TokenSection session={session} line={line} tokenId={props.tokenId} />
+      <section className="fs">
+        <header>
+          <h4>正文</h4>
+          <span className="faint small">Enter 或离开输入框时提交，Esc 撤回</span>
+        </header>
+        <CommitField
+          key={line.id}
+          label="正文"
+          labelPlacement="none"
+          value={line.text}
+          placeholder="（空行）"
+          disabled={!session.supportsCommand('lyrics.setLineText')}
+          onCommit={(text) => void setText(text)}
+          className="line-text"
+        />
+      </section>
 
-      <RubySection session={session} line={line} tokenId={props.tokenId} segmentId={props.segmentId} />
+      <TokenSection session={session} line={line} tokenId={props.tokenId} actions={actions} />
 
-      <TranslationSection session={session} state={props.state} line={line} />
+      <div className="pair">
+        <RubySection session={session} line={line} tokenId={props.tokenId} segmentId={props.segmentId} />
+        <TranslationSection session={session} state={state} line={line} actions={actions} />
+      </div>
+
+      <LineLinks appearance={props.appearance} orchestration={props.orchestration} state={state} line={line} onOpen={props.onOpen} />
     </div>
   );
 }

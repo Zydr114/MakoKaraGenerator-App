@@ -1,0 +1,588 @@
+/* 歌词页（界面改版稿件 #lyrics）：左栏行列表、中栏行编辑与时间栏。逐字预览在 preview 下。 */
+
+/* ———— 左栏 ———— */
+.line-pane {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.lp-head {
+  flex: none;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 8px 0 10px;
+}
+.srcpick {
+  min-width: 0;
+  height: var(--control);
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 4px 0 6px;
+  border: 0;
+  border-radius: var(--radius-field);
+  background: none;
+  color: inherit;
+  font: 600 var(--fs-lg) / 1 var(--font);
+  cursor: pointer;
+  outline: none;
+}
+.srcpick-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.srcpick .ic {
+  width: 18px;
+  height: 18px;
+  color: var(--on-surface-variant);
+}
+.srcpick[data-hovered],
+.srcpick[data-pressed] {
+  background-image: var(--hover);
+}
+.srcpick[data-focus-visible] {
+  box-shadow: var(--focus-ring);
+}
+.srcpick[data-disabled] {
+  opacity: 0.38;
+  cursor: default;
+}
+
+.bulk-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0 8px 6px;
+  padding: 2px 4px 2px 12px;
+  border-radius: var(--radius-field);
+  background: var(--secondary-container);
+  color: var(--on-secondary-container);
+  font-size: var(--fs-sm);
+}
+.bulk-count {
+  font-variant-numeric: tabular-nums;
+}
+
+.lp-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 16px;
+  color: var(--on-surface-variant);
+}
+.lp-empty p {
+  margin: 0 0 4px;
+}
+
+.line-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.line-list > .list {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.list .row.line-row {
+  height: 100%;
+  padding: 0 10px 0 0;
+  align-items: stretch;
+}
+.ll {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 20px;
+  align-items: start;
+  gap: 0 4px;
+  padding: 6px 0;
+}
+.line-list.multi .ll {
+  grid-template-columns: 26px 24px minmax(0, 1fr) 20px;
+}
+.ll-check {
+  justify-self: end;
+  margin-top: 2px;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 2px var(--outline);
+}
+.ll-check.on {
+  background: var(--primary);
+  box-shadow: none;
+  color: var(--on-primary);
+}
+.ll-check .ic {
+  width: 14px;
+  height: 14px;
+}
+.ll-n {
+  padding: 3px 6px 0 0;
+  text-align: right;
+  color: var(--outline);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.ll-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ll-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 14px / 1.5 var(--font-ja);
+}
+.ll-sub {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--on-surface-variant);
+}
+.ll-note {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ll-time {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+.ll .status-icon {
+  padding-top: 3px;
+}
+.line-row.untimed .ll-text {
+  color: var(--on-surface-variant);
+}
+.list .row.line-row[data-selected] :is(.ll-n, .ll-sub, .status-icon) {
+  color: inherit;
+  opacity: 0.8;
+}
+/* 多选时正在编辑的行（不一定被勾选）：左边一道主色 */
+.line-list.multi .row.line-row.editing {
+  box-shadow: inset 3px 0 0 var(--primary);
+}
+
+.status-icon {
+  display: inline-flex;
+  color: var(--outline);
+}
+.status-icon .ic {
+  width: 16px;
+  height: 16px;
+}
+.status-icon.tone-ok {
+  color: var(--ok);
+}
+.status-icon.tone-warn {
+  color: var(--warn);
+}
+.status-icon.tone-error {
+  color: var(--error);
+}
+
+.lp-foot {
+  flex: none;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  font-size: 12px;
+  color: var(--on-surface-variant);
+}
+.lp-foot > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.lp-foot .ic {
+  width: 14px;
+  height: 14px;
+}
+.lp-foot .tone-ok {
+  color: var(--ok);
+}
+.lp-foot .tone-warn {
+  color: var(--warn);
+}
+.lp-foot .tone-error {
+  color: var(--error);
+}
+.lp-foot .lp-trans {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+/* ———— 中栏：行编辑 ———— */
+.line-edit {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+.line-edit-empty {
+  padding: 20px;
+}
+.edit {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 14px 20px 16px;
+}
+.lhead {
+  min-height: var(--control);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.lhead h2 {
+  margin: 0;
+  font-size: var(--fs-title);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.lhead .tnum {
+  color: var(--on-surface-variant);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+}
+.lhead .btn {
+  flex: none;
+}
+
+.fs {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.fs > header {
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.fs > header h4 {
+  margin: 0 6px 0 0;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--primary);
+  white-space: nowrap;
+}
+.fs .small {
+  font-size: 12px;
+}
+.fs > header .small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fs .hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--on-surface-variant);
+}
+.fs > p.faint {
+  margin: 0;
+  padding: 4px 0;
+}
+.line-text .field {
+  height: 40px;
+  padding: 0 12px;
+}
+.line-text input {
+  font: 16px var(--font-ja);
+}
+
+/* 文本单元：注音在上、时长在下 */
+.tk-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.tk {
+  position: relative;
+  min-width: 40px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 8px 7px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--field);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  outline: none;
+}
+.tk:hover {
+  background-image: var(--hover);
+}
+.tk:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+.tk-r {
+  font-size: 10.5px;
+  line-height: 14px;
+  color: var(--on-surface-variant);
+}
+.tk-t {
+  font: 21px / 28px var(--font-ja);
+}
+.tk-d {
+  font-size: 10px;
+  line-height: 13px;
+  color: var(--outline);
+  font-variant-numeric: tabular-nums;
+}
+.tk.untimed {
+  outline: 1px dashed var(--outline-variant);
+  outline-offset: -1px;
+}
+.tk.untimed .tk-t {
+  color: var(--on-surface-variant);
+}
+.tk.is-sel {
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+  box-shadow: inset 0 0 0 2px var(--primary);
+}
+.tk.is-sel :is(.tk-r, .tk-d, .tk-t) {
+  color: var(--on-primary-container);
+}
+.tk.is-sel:focus-visible {
+  box-shadow:
+    inset 0 0 0 2px var(--primary),
+    var(--focus-ring);
+}
+.tk.dragging {
+  opacity: 0.4;
+}
+.tk.drop-before {
+  box-shadow: -3px 0 0 var(--primary);
+}
+.tk.drop-after {
+  box-shadow: 3px 0 0 var(--primary);
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: minmax(220px, 2fr) minmax(0, 3fr);
+  gap: 16px 24px;
+  align-items: start;
+}
+
+/* 注音片段 */
+.rb-segs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.rb-seg {
+  height: var(--control-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 6px 0 10px;
+  border: 0;
+  border-radius: var(--radius-field);
+  background: var(--field);
+  color: inherit;
+  font: 14px var(--font-ja);
+  cursor: pointer;
+  outline: none;
+}
+.rb-seg:hover {
+  background-image: var(--hover);
+}
+.rb-seg:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+.rb-seg.is-sel {
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+  box-shadow: inset 0 0 0 2px var(--primary);
+}
+.rb-seg .status-icon .ic {
+  width: 14px;
+  height: 14px;
+}
+.rb-edit {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.rb-edit .tf {
+  flex: 1;
+  min-width: 0;
+  margin-right: 4px;
+}
+
+/* 翻译：关联到本句的行，点了跳过去 */
+.tr-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.tr-line,
+.ro {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  border-radius: var(--radius-field);
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--outline-variant);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  outline: none;
+}
+.tr-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0 8px;
+  padding: 5px 4px 5px 10px;
+}
+.tr-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-lg);
+}
+.tr-line .small {
+  grid-row: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tr-line .ro-go {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+}
+:is(.tr-line, .ro)[data-hovered] {
+  background-image: var(--hover);
+}
+:is(.tr-line, .ro)[data-focus-visible] {
+  box-shadow: var(--focus-ring);
+}
+
+/* 外观、显示在：只读，点了跳到对应页面 */
+.ro {
+  height: var(--control);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px 0 10px;
+  white-space: nowrap;
+}
+.ro-lead {
+  color: var(--primary);
+}
+.ro-name {
+  flex: none;
+  max-width: 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+.ro .faint {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+}
+.ro-go {
+  width: 18px;
+  height: 18px;
+  margin-left: auto;
+  color: var(--on-surface-variant);
+}
+
+/* ———— 时间栏 ———— */
+.timebar {
+  flex: none;
+  min-height: 48px;
+  box-sizing: border-box;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 8px;
+  padding: 6px 6px 6px 14px;
+  border-radius: var(--radius-row);
+  background: var(--surface-high);
+}
+.timebar .lbl {
+  font-size: 12px;
+  color: var(--on-surface-variant);
+}
+.timebar .tb-gap {
+  margin-left: 6px;
+}
+.timebar b {
+  max-width: 8em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 600 15px var(--font-ja);
+}
+.tb-time {
+  width: 92px;
+}
+.tb-time .field {
+  background: var(--panel);
+}
+.timebar .btn.ghost {
+  background-color: var(--panel);
+}
+.tb-err {
+  font-size: 12px;
+  color: var(--error);
+}
+
+.shift-pop {
+  padding: 14px;
+}
+.shift-dialog {
+  width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  outline: none;
+}
+.shift-title {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: 600;
+}
+.shift-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}

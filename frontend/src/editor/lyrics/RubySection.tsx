@@ -13,26 +13,60 @@ import {
   splitEdits,
 } from '../model/ruby-segments';
 import type { EditorSession } from '../session/editor-session';
-import { askText } from '../ui/legacy/dialogs';
-import { CommitField } from '../ui/legacy/fields';
-import { StatusGlyph } from './LineList';
+import { IconButton } from '../ui/Button';
+import { cls } from '../ui/cls';
+import { askText } from '../ui/dialogs';
+import { CommitField } from '../ui/fields';
+import { Menu, MenuItem, MenuTrigger } from '../ui/Menu';
+import { StatusIcon } from './LineList';
 
 /**
  * 注音（W6 设计 §2.4）：所选文本单元的注音组。整段文字只在没有注音或只有一个没有时间的片段时能直接改；
- * 片段一排小按钮，点选后可以改字、左右移、删除；加片段、按字拆开、删除注音。
+ * 片段一排小块，点选后可以改字、左右移、删除；加片段；标题栏的菜单里是按字拆开、删除注音。
  */
 export function RubySection(props: { session: EditorSession; line: EditorLine; tokenId?: string | undefined; segmentId?: string | undefined }) {
   const { session, line } = props;
   const token = props.tokenId ? line.tokens.find((t) => t.id === props.tokenId) : undefined;
-  if (!token) return <p className="muted">选中文本单元后可以编辑它的注音。</p>;
-
-  const ruby = rubyOf(line, token.id);
-  const selected = selectedSegment(line, { lineId: line.id, tokenId: token.id, ...(props.segmentId ? { segmentId: props.segmentId } : {}) });
+  const ruby = token ? rubyOf(line, token.id) : undefined;
+  const selected = token ? selectedSegment(line, { lineId: line.id, tokenId: token.id, ...(props.segmentId ? { segmentId: props.segmentId } : {}) }) : undefined;
   const locked = rubyTextLocked(ruby);
   const blocked = ruby ? splitBlocked(ruby) : undefined;
   const canSegments = session.supportsCommand('lyrics.addRubySegment');
-  const select = (segmentId?: string) => session.select({ lineId: line.id, tokenId: token.id, ...(segmentId ? { segmentId } : {}) });
 
+  const header = (
+    <header>
+      <h4>注音</h4>
+      {token && <span className="faint small">所选「{token.text}」</span>}
+      <span className="spacer" />
+      {ruby && (
+        <MenuTrigger>
+          <IconButton icon="more_horiz" label="注音操作" size="sm" />
+          <Menu
+            label="注音操作"
+            placement="bottom end"
+            onAction={(id) => void session.applyEdits(id === 'split' ? splitEdits(line, ruby) : removeRubyEdits(line, ruby))}
+          >
+            <MenuItem id="split" icon="call_split" disabled={!!blocked || !canSegments} {...(blocked ? { description: blocked } : {})}>
+              按字拆开
+            </MenuItem>
+            <MenuItem id="remove" icon="delete" danger disabled={!canSegments}>
+              删除注音
+            </MenuItem>
+          </Menu>
+        </MenuTrigger>
+      )}
+    </header>
+  );
+  if (!token) {
+    return (
+      <section className="fs ruby">
+        {header}
+        <p className="faint">选中文本单元后编辑它的注音。</p>
+      </section>
+    );
+  }
+
+  const select = (segmentId?: string) => session.select({ lineId: line.id, tokenId: token.id, ...(segmentId ? { segmentId } : {}) });
   const setRuby = (text: string) => void session.command({ type: 'lyrics.setRubyText', target: { branchId: line.branchId, lineId: line.id, tokenId: token.id }, text });
   const addSegment = async () => {
     if (!ruby) return;
@@ -45,86 +79,61 @@ export function RubySection(props: { session: EditorSession; line: EditorLine; t
   };
 
   return (
-    <section className="ruby-section">
-      <header className="section-header">
-        <span className="section-title">注音（所选「{token.text}」）</span>
-        <span className="spacer" />
-        {ruby && (
-          <>
-            <mdui-button variant="text" disabled={!!blocked || !canSegments} title={blocked} onClick={() => void session.applyEdits(splitEdits(line, ruby))}>
-              <mdui-icon-call-split slot="icon" />
-              按字拆开
-            </mdui-button>
-            <mdui-button variant="text" disabled={!canSegments} onClick={() => void session.applyEdits(removeRubyEdits(line, ruby))}>
-              <mdui-icon-delete slot="icon" />
-              删除注音
-            </mdui-button>
-          </>
-        )}
-      </header>
+    <section className="fs ruby">
+      {header}
       <CommitField
         key={`${token.id}:${ruby?.id ?? ''}`}
         label="整段注音"
+        labelPlacement="none"
         value={ruby?.text ?? ''}
         placeholder={ruby ? '' : '输入后回车添加注音'}
-        helper={locked ?? (ruby ? '清空即删除注音' : '添加后可以拆成几个片段，各自打轴')}
+        {...(locked ? { helper: locked } : {})}
         disabled={!!locked || !session.supportsCommand('lyrics.setRubyText')}
         onCommit={setRuby}
-        className="ruby-field"
+        className="ruby-text"
       />
       {ruby && (
-        <div className="ruby-segments" role="listbox" aria-label="注音片段">
+        <div className="rb-segs" role="listbox" aria-label="注音片段" lang="ja">
           {ruby.segments.map((segment) => (
             <button
               key={segment.id}
               type="button"
               role="option"
               aria-selected={segment.id === selected?.segment.id}
-              className={['ruby-chip', segment.id === selected?.segment.id ? 'selected' : '', segmentTimed(segment) ? '' : 'untimed'].filter(Boolean).join(' ')}
+              className={cls('rb-seg', segment.id === selected?.segment.id && 'is-sel', !segmentTimed(segment) && 'untimed')}
               title={TIMING_STATUS_TEXT[segment.timingStatus]}
               onClick={() => select(segment.id === selected?.segment.id ? undefined : segment.id)}
             >
-              <span className="ruby-chip-text">{segment.text}</span>
-              <StatusGlyph status={segment.timingStatus} />
+              <span>{segment.text}</span>
+              <StatusIcon status={segment.timingStatus} />
             </button>
           ))}
-          <mdui-button variant="text" disabled={!canSegments} onClick={() => void addSegment()}>
-            <mdui-icon-add slot="icon" />
-            加片段
-          </mdui-button>
+          <IconButton icon="add" label="加片段" size="sm" isDisabled={!canSegments} onPress={() => void addSegment()} />
         </div>
       )}
       {ruby && selected && (
-        <div className="ruby-segment-editor">
+        <div className="rb-edit">
           <CommitField
             key={selected.segment.id}
             label={`所选片段「${selected.segment.text}」`}
+            labelPlacement="none"
+            size="sm"
             value={selected.segment.text}
-            helper="不能为空；要删除请用“删除片段”"
             validate={(text) => (text.trim() ? undefined : '不能为空')}
             disabled={!canSegments}
             onCommit={(text) => void session.command({ type: 'lyrics.setRubySegmentText', target: segmentTarget(line, ruby, selected.segment.id), text })}
-            className="ruby-segment-field"
           />
-          <mdui-button variant="text" disabled={!canSegments || selected.index === 0} onClick={() => move(-1)}>
-            <mdui-icon-chevron-left slot="icon" />
-            左移
-          </mdui-button>
-          <mdui-button variant="text" disabled={!canSegments || selected.index === ruby.segments.length - 1} onClick={() => move(1)}>
-            <mdui-icon-chevron-right slot="end-icon" />
-            右移
-          </mdui-button>
-          <mdui-button
-            variant="text"
-            disabled={!canSegments}
-            onClick={() => void session.command({ type: 'lyrics.removeRubySegment', target: segmentTarget(line, ruby, selected.segment.id) })}
-          >
-            <mdui-icon-delete slot="icon" />
-            {ruby.segments.length === 1 ? '删除注音' : '删除片段'}
-          </mdui-button>
+          <IconButton icon="chevron_left" label="左移" size="sm" isDisabled={!canSegments || selected.index === 0} onPress={() => move(-1)} />
+          <IconButton icon="chevron_right" label="右移" size="sm" isDisabled={!canSegments || selected.index === ruby.segments.length - 1} onPress={() => move(1)} />
+          <IconButton
+            icon="delete"
+            label={ruby.segments.length === 1 ? '删除注音' : '删除片段'}
+            size="sm"
+            isDisabled={!canSegments}
+            onPress={() => void session.command({ type: 'lyrics.removeRubySegment', target: segmentTarget(line, ruby, selected.segment.id) })}
+          />
         </div>
       )}
-      {ruby && !selected && ruby.segments.length > 0 && <p className="hint">点选片段可以改字、调整顺序或删除{blocked ? `；按字拆开：${blocked}` : ''}。</p>}
     </section>
   );
 }

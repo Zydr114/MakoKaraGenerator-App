@@ -192,7 +192,16 @@ export function App() {
       />
       <main className="app-main">
         {page === 'lyrics' && session ? (
-          <Workspace session={session} audio={audio} onUndo={() => void session.undo()} onRedo={() => void session.redo()} onSave={() => void save(session)} />
+          <Workspace
+            session={session}
+            audio={audio}
+            appearance={appearance}
+            orchestration={orchestration}
+            onOpen={(next) => void goto(next)}
+            onUndo={() => void session.undo()}
+            onRedo={() => void session.redo()}
+            onSave={() => void save(session)}
+          />
         ) : page === 'orchestration' && session && orchestration ? (
           <OrchestrationPage
             session={session}

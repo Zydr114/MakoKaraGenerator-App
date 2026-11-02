@@ -2,22 +2,27 @@ import { useRef, useState, type DragEvent } from 'react';
 import { isTimed, type EditorLine, type EditorToken } from '../model/lyrics';
 import { graphemes } from '../model/token-segments';
 import type { EditorSession } from '../session/editor-session';
-import { askReorderSlots } from '../ui/legacy/dialogs';
-import { ResplitLineDialog } from './ResplitDialogs';
+import { Button, IconButton } from '../ui/Button';
+import { cls } from '../ui/cls';
+import { askReorderSlots } from '../ui/dialogs';
+import type { LineActions } from './line-actions';
 
 /**
- * 文本单元区（整体设计 §5.2）：点击选中，再点回到整行；拖动排序；
- * 拆开（至少两个字且已有时间）、与后一个合并、按规则重切本行。
+ * 文本单元（整体设计 §5.2，界面改版稿件 #lyrics）：一排块，注音在上、时长在下。
+ * 点击选中，再点回到整行；拖动排序；拆开（至少两个字且已有时间）、与后一个合并、按规则重切本行。
  */
-export function TokenSection(props: { session: EditorSession; line: EditorLine; tokenId?: string | undefined }) {
+export function TokenSection(props: { session: EditorSession; line: EditorLine; tokenId?: string | undefined; actions: LineActions }) {
   const { session, line } = props;
   // 拖动源放在 ref 里：drop 时直接读，不依赖 dragover 的状态更新是否已渲染。state 只用于显示插入标记。
   const dragFrom = useRef<number | null>(null);
   const [drag, setDrag] = useState<{ from: number; gap: number | null } | null>(null);
-  const [resplitOpen, setResplitOpen] = useState(false);
   const index = props.tokenId ? line.tokens.findIndex((t) => t.id === props.tokenId) : -1;
   const token = index >= 0 ? line.tokens[index] : undefined;
-  const rubyOf = (tokenId: string) => line.ruby.filter((r) => r.baseTokenId === tokenId).map((r) => r.text).join('');
+  const rubyOf = (tokenId: string) =>
+    line.ruby
+      .filter((r) => r.baseTokenId === tokenId)
+      .map((r) => r.text)
+      .join('');
   const target = (t: EditorToken) => ({ branchId: line.branchId, lineId: line.id, tokenId: t.id });
 
   const splitBlocked = !token
@@ -66,51 +71,53 @@ export function TokenSection(props: { session: EditorSession; line: EditorLine; 
   const canReorder = session.supportsCommand('lyrics.reorderToken') && line.tokens.length > 1;
 
   return (
-    <section className="token-section">
-      <header className="section-header">
-        <span className="section-title">文本单元</span>
+    <section className="fs tokens">
+      <header>
+        <h4>文本单元</h4>
+        <span className="faint small">
+          {line.tokens.length} 个{canReorder ? '，可拖动排序' : ''}
+        </span>
         <span className="spacer" />
-        <mdui-button
-          variant="text"
-          disabled={!!splitBlocked || !session.supportsCommand('lyrics.splitToken')}
-          onClick={() => token && void session.command({ type: 'lyrics.splitToken', target: target(token) })}
+        <Button
+          variant="ghost"
+          size="sm"
+          icon="call_split"
+          isDisabled={!!splitBlocked || !session.supportsCommand('lyrics.splitToken')}
+          onPress={() => token && void session.command({ type: 'lyrics.splitToken', target: target(token) })}
         >
-          <mdui-icon-call-split slot="icon" />
           拆开
-        </mdui-button>
-        <mdui-button
-          variant="text"
-          disabled={!!mergeBlocked || !session.supportsCommand('lyrics.mergeToken')}
-          onClick={() => token && void session.command({ type: 'lyrics.mergeToken', target: target(token) })}
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          icon="merge"
+          isDisabled={!!mergeBlocked || !session.supportsCommand('lyrics.mergeToken')}
+          onPress={() => token && void session.command({ type: 'lyrics.mergeToken', target: target(token) })}
         >
-          <mdui-icon-merge slot="icon" />
           与后一个合并
-        </mdui-button>
-        <mdui-button variant="text" disabled={!session.supportsCommand('lyrics.resplitLine')} onClick={() => setResplitOpen(true)}>
-          按规则重切本行…
-        </mdui-button>
+        </Button>
+        <IconButton icon="wand_stars" label="按规则重切本行…" size="sm" isDisabled={!session.supportsCommand('lyrics.resplitLine')} onPress={() => props.actions.run('resplit', line)} />
       </header>
 
-      <div className="token-row" role="listbox" aria-label="文本单元">
-        {line.tokens.length === 0 && <span className="muted">本行没有拆分文本单元，只能编辑整行时间。</span>}
+      <div className="tk-row" role="listbox" aria-label="文本单元" lang="ja">
+        {line.tokens.length === 0 && <span className="faint">本行没有拆分文本单元，只能编辑整行时间。</span>}
         {line.tokens.map((t, i) => (
           <button
             key={t.id}
             type="button"
             role="option"
             aria-selected={t.id === props.tokenId}
+            aria-label={t.text}
+            aria-description={`${rubyOf(t.id) ? `注音 ${rubyOf(t.id)}，` : ''}${isTimed(t) ? `${((t.endUs - t.startUs) / 1e6).toFixed(2)} 秒` : '未打轴'}`}
             draggable={canReorder}
-            className={[
-              'token-chip',
-              `status-${t.status ?? 'unknown'}`,
-              t.id === props.tokenId ? 'selected' : '',
-              isTimed(t) ? '' : 'untimed',
-              drag?.from === i ? 'dragging' : '',
-              drag?.gap === i && drag.from !== i && drag.from !== i - 1 ? 'drop-before' : '',
-              drag?.gap === i + 1 && i === line.tokens.length - 1 && drag.from !== i ? 'drop-after' : '',
-            ]
-              .filter(Boolean)
-              .join(' ')}
+            className={cls(
+              'tk',
+              t.id === props.tokenId && 'is-sel',
+              !isTimed(t) && 'untimed',
+              drag?.from === i && 'dragging',
+              drag?.gap === i && drag.from !== i && drag.from !== i - 1 && 'drop-before',
+              drag?.gap === i + 1 && i === line.tokens.length - 1 && drag.from !== i && 'drop-after',
+            )}
             onClick={() => session.select(t.id === props.tokenId ? { lineId: line.id } : { lineId: line.id, tokenId: t.id })}
             onDragStart={(event) => {
               event.dataTransfer.effectAllowed = 'move';
@@ -125,16 +132,13 @@ export function TokenSection(props: { session: EditorSession; line: EditorLine; 
               setDrag(null);
             }}
           >
-            {rubyOf(t.id) && <span className="token-ruby">{rubyOf(t.id)}</span>}
-            <span className="token-text">{t.text}</span>
+            <span className="tk-r">{rubyOf(t.id) || '\u00a0'}</span>
+            <span className="tk-t">{t.text}</span>
+            <span className="tk-d">{isTimed(t) ? ((t.endUs - t.startUs) / 1e6).toFixed(2) : '—'}</span>
           </button>
         ))}
       </div>
-      <p className="hint">
-        点选文本单元编辑它的时间和注音，再点一次回到整行；拖动可以调整顺序。{reason && <span className="token-reason">{reason}。</span>}
-      </p>
-
-      <ResplitLineDialog session={session} line={line} open={resplitOpen} onClose={() => setResplitOpen(false)} />
+      {reason && <p className="hint">{reason}。</p>}
     </section>
   );
 }

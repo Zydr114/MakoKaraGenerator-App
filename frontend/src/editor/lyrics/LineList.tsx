@@ -1,9 +1,11 @@
-import { memo, useEffect, useRef, type MouseEvent, type ReactNode } from 'react';
+import { memo, useEffect, useRef, type MouseEvent } from 'react';
 import type { TimingStatus } from '../../protocol';
-import { TIMING_STATUS_TEXT, isTimed, type EditorLine } from '../model/lyrics';
+import { TIMING_STATUS_TEXT, type EditorLine } from '../model/lyrics';
 import { formatTime } from '../model/time';
-
-export type LineAction = 'insertAfter' | 'duplicate' | 'remove' | 'resplit' | 'link';
+import { cls } from '../ui/cls';
+import { List, type Key } from '../ui/collections';
+import { Icon, type IconName } from '../ui/Icon';
+import { Tag } from '../ui/indicators';
 
 /** 行列表里附加的说明：时间位置的替代文字（“跟随 第 3 行”）和正文下的一行（关联的主歌词或翻译）。 */
 export interface LineNote {
@@ -11,167 +13,132 @@ export interface LineNote {
   extra?: string;
 }
 
-const ACTIONS: ReadonlyArray<{ action: LineAction; label: string; icon: ReactNode }> = [
-  { action: 'insertAfter', label: '在下方插入', icon: <mdui-icon-playlist-add slot="icon" /> },
-  { action: 'duplicate', label: '复制本行', icon: <mdui-icon-content-copy slot="icon" /> },
-  { action: 'remove', label: '删除本行', icon: <mdui-icon-delete slot="icon" /> },
-  { action: 'resplit', label: '按规则重切本行…', icon: <mdui-icon-call-split slot="icon" /> },
-  { action: 'link', label: '关联到主歌词某行…', icon: <mdui-icon-link slot="icon" /> },
-];
+/** 行高固定（两行文字），长列表按它虚拟滚动；行间距与 collections.css 的 .list 一致。 */
+const ROW = 50;
+const GAP = 2;
 
 /**
- * 左栏行列表（整体设计 §5.2）。点击选中；Ctrl／⌘ 点击加选，Shift 点击连选；
- * 多选开关打开后每行出现复选框。每行的 ⋯ 菜单和右键菜单提供行操作。
+ * 左栏行列表（整体设计 §5.2，界面改版稿件 #lyrics）：单击选中这一行来编辑；Ctrl／⌘ 点击加选，Shift 点击连选，
+ * 选了两行以上就是多选（批量删除）。多选开关打开后单击就是勾选，正在编辑的行不变。
+ * 右键一行：选中它并在指针处打开行操作菜单。长列表虚拟滚动。
  */
 export const LineList = memo(function LineList(props: {
   lines: readonly EditorLine[];
   selectedLineId?: string | undefined;
   marked: ReadonlySet<string>;
   multi: boolean;
-  /** 这个来源的行菜单里出现哪些操作。 */
-  actions: readonly LineAction[];
-  available: (action: LineAction) => boolean;
   notes?: ReadonlyMap<string, LineNote> | undefined;
   onSelect: (lineId: string) => void;
   onMark: (marked: ReadonlySet<string>) => void;
-  onAction: (action: LineAction, line: EditorLine) => void;
+  onContextMenu?: (lineId: string, at: { x: number; y: number }) => void;
 }) {
   const container = useRef<HTMLDivElement>(null);
-  const anchor = useRef<string | undefined>(undefined);
+  const { lines, notes, multi, marked } = props;
+  const rows = lines.map((line, index) => ({ id: line.id, line, index }));
 
+  // 选中的行不在视野里时滚过去（虚拟滚动时不在视野里的行没有渲染，按行高算位置）。
   useEffect(() => {
-    if (!props.selectedLineId) return;
-    const item = container.current?.querySelector(`[data-line-id="${CSS.escape(props.selectedLineId)}"]`);
-    item?.scrollIntoView({ block: 'nearest' });
+    const list = container.current?.querySelector<HTMLElement>('.list');
+    const index = props.selectedLineId ? lines.findIndex((l) => l.id === props.selectedLineId) : -1;
+    if (!list || index < 0) return;
+    const top = index * (ROW + GAP);
+    if (top < list.scrollTop) list.scrollTop = top;
+    else if (top + ROW > list.scrollTop + list.clientHeight) list.scrollTop = top + ROW - list.clientHeight;
   }, [props.selectedLineId]);
 
-  if (props.lines.length === 0) return null;
-
-  const toggle = (lineId: string) => {
-    const next = new Set(props.marked);
-    if (next.has(lineId)) next.delete(lineId);
-    else next.add(lineId);
-    anchor.current = lineId;
-    props.onMark(next);
-  };
-
-  const click = (event: MouseEvent, line: EditorLine) => {
-    if (event.shiftKey) {
-      const from = props.lines.findIndex((l) => l.id === (anchor.current ?? props.selectedLineId));
-      const to = props.lines.findIndex((l) => l.id === line.id);
-      if (from >= 0) {
-        const [a, b] = from < to ? [from, to] : [to, from];
-        props.onMark(new Set(props.lines.slice(a, b + 1).map((l) => l.id)));
-        return;
-      }
-    }
-    if (event.ctrlKey || event.metaKey) {
-      toggle(line.id);
+  const selectedKeys = multi || marked.size > 0 ? [...marked] : props.selectedLineId ? [props.selectedLineId] : [];
+  const change = (keys: Set<Key>) => {
+    const ids = [...keys].map(String);
+    if (multi || ids.length > 1) {
+      props.onMark(new Set(ids));
       return;
     }
-    anchor.current = line.id;
-    if (props.marked.size > 0 && !props.multi) props.onMark(new Set());
-    props.onSelect(line.id);
+    if (marked.size > 0) props.onMark(new Set());
+    if (ids[0]) props.onSelect(ids[0]);
+  };
+
+  const contextMenu = (event: MouseEvent) => {
+    const id = (event.target as HTMLElement).closest<HTMLElement>('[data-line-id]')?.dataset.lineId;
+    if (!id || !props.onContextMenu) return;
+    event.preventDefault();
+    props.onContextMenu(id, { x: event.clientX, y: event.clientY });
   };
 
   return (
-    <div className="line-list" ref={container}>
-      <mdui-list>
-        {props.lines.map((line, index) => (
-          <LineRow
-            key={line.id}
-            line={line}
-            index={index}
-            active={line.id === props.selectedLineId}
-            marked={props.marked.has(line.id)}
-            multi={props.multi}
-            actions={props.actions}
-            available={props.available}
-            note={props.notes?.get(line.id)}
-            onClick={click}
-            onToggle={toggle}
-            onAction={props.onAction}
-          />
-        ))}
-      </mdui-list>
+    <div className={cls('line-list', multi && 'multi')} ref={container} onContextMenu={contextMenu}>
+      <List
+        label="歌词行"
+        items={rows}
+        textValue={(r) => `${r.index + 1} ${r.line.text}`}
+        selectionMode="multiple"
+        selectionBehavior={multi ? 'toggle' : 'replace'}
+        selectedKeys={selectedKeys}
+        onSelectionChange={change}
+        rowSize={ROW}
+        rowClassName={(r) => cls('line-row', r.line.id === props.selectedLineId && 'editing', !r.line.status || r.line.status === 'missing' ? 'untimed' : undefined)}
+      >
+        {(r, state) => <LineRow line={r.line} index={r.index} note={notes?.get(r.id)} checked={multi ? state.isSelected : undefined} />}
+      </List>
     </div>
   );
 });
 
-const LineRow = memo(function LineRow(props: {
-  line: EditorLine;
-  index: number;
-  active: boolean;
-  marked: boolean;
-  multi: boolean;
-  actions: readonly LineAction[];
-  available: (action: LineAction) => boolean;
-  note?: LineNote | undefined;
-  onClick: (event: MouseEvent, line: EditorLine) => void;
-  onToggle: (lineId: string) => void;
-  onAction: (action: LineAction, line: EditorLine) => void;
-}) {
+function LineRow(props: { line: EditorLine; index: number; note?: LineNote | undefined; checked: boolean | undefined }) {
   const { line, note } = props;
-  const menu = useRef<HTMLElement & { open: boolean }>(null);
+  const time = note?.time ?? (line.startUs !== undefined ? formatTime(line.startUs) : '未打轴');
   return (
-    <mdui-list-item
-      data-line-id={line.id}
-      active={props.active}
-      rounded
-      className={props.marked ? 'line-row marked' : 'line-row'}
-      onMouseDown={(event) => event.shiftKey && event.preventDefault()}
-      onClick={(event) => props.onClick(event, line)}
-      onContextMenu={(event) => {
-        event.preventDefault();
-        if (menu.current) menu.current.open = true;
-      }}
-    >
-      {props.multi ? (
-        <mdui-checkbox
-          slot="icon"
-          checked={props.marked}
-          aria-label={`选择第 ${props.index + 1} 行`}
-          onClick={(event) => {
-            event.stopPropagation();
-            props.onToggle(line.id);
-          }}
-        />
-      ) : (
-        <span slot="icon" className="line-index">
-          {String(props.index + 1).padStart(2, '0')}
+    <span className="ll" data-line-id={line.id}>
+      {props.checked !== undefined && <span className={cls('ll-check', props.checked && 'on')}>{props.checked && <Icon name="check" />}</span>}
+      <span className="ll-n">{props.index + 1}</span>
+      <span className="ll-body">
+        <span className="ll-text" lang="ja">
+          {line.text || '（空行）'}
         </span>
-      )}
-      <span className="line-text">{line.text || '（空行）'}</span>
-      <span slot="description" className="line-meta">
-        {line.status && !note?.time && <StatusGlyph status={line.status} />}
-        {note?.time ?? (isTimed(line) ? `${formatTime(line.startUs)} – ${formatTime(line.endUs)}` : '未打轴')}
-        {note?.extra && <span className="line-note">{note.extra}</span>}
+        <span className="ll-sub">
+          <span className="ll-note">{note?.extra}</span>
+          <span className="ll-time">{time}</span>
+        </span>
       </span>
-      <mdui-dropdown slot="end-icon" placement="bottom-end" ref={menu} onClick={(event) => event.stopPropagation()}>
-        <mdui-button-icon slot="trigger" className="line-menu" aria-label={`第 ${props.index + 1} 行操作`}>
-          <mdui-icon-more-vert />
-        </mdui-button-icon>
-        <mdui-menu>
-          {ACTIONS.filter((a) => props.actions.includes(a.action)).map((a) => (
-            <mdui-menu-item key={a.action} disabled={!props.available(a.action)} onClick={() => props.onAction(a.action, line)}>
-              {a.icon}
-              {a.label}
-            </mdui-menu-item>
-          ))}
-        </mdui-menu>
-      </mdui-dropdown>
-    </mdui-list-item>
-  );
-});
-
-/** 时间状态图标（整体设计 §5.2）：✓ 已确认／已修改，◐ 估算或导入，○ 未打轴，⚠ 无效；悬停显示文字。 */
-const STATUS_GLYPH: Record<TimingStatus, string> = { confirmed: '✓', edited: '✓', estimated: '◐', imported: '◐', missing: '○', invalid: '⚠' };
-
-export function StatusGlyph(props: { status: TimingStatus }) {
-  const text = TIMING_STATUS_TEXT[props.status];
-  return (
-    <span className={`status-glyph status-${props.status}`} title={text} aria-label={text}>
-      {STATUS_GLYPH[props.status]}
+      {line.status && !note?.time ? <StatusIcon status={line.status} /> : <span className="status-icon" />}
     </span>
   );
+}
+
+/** 时间状态图标（整体设计 §5.2）：已确认／已修改、估算或导入、未打轴、无效；悬停显示文字。 */
+const STATUS_ICON: Record<TimingStatus, { icon: IconName; filled?: boolean; tone: 'ok' | 'warn' | 'error' | 'none' }> = {
+  confirmed: { icon: 'check_circle', filled: true, tone: 'ok' },
+  edited: { icon: 'check_circle', filled: true, tone: 'ok' },
+  estimated: { icon: 'contrast', tone: 'warn' },
+  imported: { icon: 'contrast', tone: 'warn' },
+  missing: { icon: 'radio_button_unchecked', tone: 'none' },
+  invalid: { icon: 'error', filled: true, tone: 'error' },
+};
+
+export function StatusIcon(props: { status: TimingStatus; className?: string }) {
+  const text = TIMING_STATUS_TEXT[props.status];
+  const { icon, filled, tone } = STATUS_ICON[props.status];
+  return (
+    <span className={cls('status-icon', `tone-${tone}`, props.className)} title={text} role="img" aria-label={text}>
+      <Icon name={icon} filled={!!filled} />
+    </span>
+  );
+}
+
+/** 时间状态标签（行编辑区标题、时间栏）：颜色同状态图标。 */
+export function StatusTag(props: { status: TimingStatus }) {
+  const { tone } = STATUS_ICON[props.status];
+  return <Tag tone={tone === 'none' ? 'neutral' : tone}>{TIMING_STATUS_TEXT[props.status]}</Tag>;
+}
+
+/** 列表底部的统计：已确认（含已修改）、估算或导入、未打轴、无效。 */
+export function statusCounts(lines: readonly EditorLine[]): { ok: number; partial: number; missing: number; invalid: number } {
+  const counts = { ok: 0, partial: 0, missing: 0, invalid: 0 };
+  for (const line of lines) {
+    const tone = line.status ? STATUS_ICON[line.status].tone : 'none';
+    if (tone === 'ok') counts.ok++;
+    else if (tone === 'warn') counts.partial++;
+    else if (tone === 'error') counts.invalid++;
+    else counts.missing++;
+  }
+  return counts;
 }

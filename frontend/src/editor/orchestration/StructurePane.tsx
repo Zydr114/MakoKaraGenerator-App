@@ -217,6 +217,15 @@ function StructureTree(props: { model: OrchestrationModel; view: OrchestrationSt
     requestAnimationFrame(() => box.current?.querySelector(`[data-node-id="${CSS.escape(selectedId)}"]`)?.scrollIntoView({ block: 'nearest' }));
   }, [selectedId]);
 
+  // 选中片段、前奏或句子时，结构树高亮的是相关的节点；再点这一行回到节点本身。选择没变时 React Aria 不发事件，这里自己接。
+  const related = !!(view.selectedClipId || view.selectedLeadInId || view.lineFocus);
+  const reselect = (target: EventTarget) => {
+    const el = target as HTMLElement;
+    if (!related || el.closest('.caret')) return;
+    const id = el.closest('.tree-row')?.querySelector<HTMLElement>('.node')?.dataset.nodeId;
+    if (id && id === selectedId) props.onSelect(id);
+  };
+
   const meta = (section: StructureSection) => {
     if (section.kind === 'orphans') return '不属于任何来源';
     if (section.kind === 'unlisted') return '来源列表里没有';
@@ -226,7 +235,7 @@ function StructureTree(props: { model: OrchestrationModel; view: OrchestrationSt
   };
 
   return (
-    <div ref={box} className="structure-tree">
+    <div ref={box} className="structure-tree" onClickCapture={(e) => reselect(e.target)} onKeyDownCapture={(e) => e.key === 'Enter' && reselect(e.target)}>
       <Tree<TreeNode>
         label="画面结构"
         sections={items.map(({ section, items: nodes }) => ({

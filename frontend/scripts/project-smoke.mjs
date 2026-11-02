@@ -169,10 +169,7 @@ async function waitDownload(name, timeoutMs = 30_000) {
 
 /** 更多菜单“关闭工程”；有未保存的修改时选“不保存”。 */
 async function closeCurrentProject(page) {
-  await shell.projectMenu(page, '关闭工程');
-  const discard = `[...[...document.querySelectorAll('mdui-dialog')].find((d) => d.open)?.querySelectorAll('mdui-button') ?? []].find((b) => b.textContent.trim() === '不保存')`;
-  await page.waitFor(`!!document.querySelector('.home') || !!(${discard})`, '关闭工程', 60_000);
-  if (await page.eval(`!!(${discard})`)) await page.eval(`(${discard}).${click}`);
+  await shell.closeProject(page);
   await page.waitFor(`!!document.querySelector('.home')`, '回到首页', 60_000);
 }
 

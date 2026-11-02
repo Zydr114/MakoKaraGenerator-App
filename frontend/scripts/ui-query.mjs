@@ -255,4 +255,14 @@ export const shell = {
   async projectMenu(page, item) {
     await ui.menu(page, '工程菜单', item, { partial: true, scope: '.app-bar' });
   },
+
+  /** 工程菜单“关闭工程”；有未保存的修改时选“不保存”，等工程关掉（在样式库里关闭时留在样式库，别的页面回首页）。 */
+  async closeProject(page) {
+    await shell.projectMenu(page, '关闭工程');
+    const closed = `!(${shell.projectOpen})`;
+    const discard = uiJs(`return !!__ui.find('button', '不保存', false, '@dialog');`);
+    await page.waitFor(`${closed} || ${discard}`, '关闭工程', 60_000);
+    if (await page.eval(discard)) await ui.clickInDialog(page, '不保存');
+    await page.waitFor(closed, '工程已关闭', 60_000);
+  },
 };

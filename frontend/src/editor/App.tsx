@@ -23,9 +23,8 @@ import { AppSettings } from './shell/AppSettings';
 import type { CheckFix, SettingsGroup } from './model/export-readiness';
 import { parentPath, suggestDirectoryName } from './model/project-directory';
 import { closeProject, projectLocation, rememberProject, saveProject } from './session/project-files';
-import { DialogHost } from './ui/dialogs';
+import { askCloseUnsaved, DialogHost } from './ui/dialogs';
 import { ToastHost } from './ui/feedback';
-import { askCloseUnsaved } from './ui/legacy/dialogs';
 import { useObservableSelector } from './ui/hooks';
 import { Workspace } from './workspace/Workspace';
 

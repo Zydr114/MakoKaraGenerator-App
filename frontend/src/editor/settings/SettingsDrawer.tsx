@@ -31,7 +31,7 @@ import {
 import { formatTime, parseTime, toMicros } from '../model/time';
 import { errorText, type EditorSession, type EditorState } from '../session/editor-session';
 import { replaceAudio, uploadMedia, uploadedName } from '../session/project-media';
-import { Button } from '../ui/Button';
+import { Button, IconButton } from '../ui/Button';
 import { Sheet } from '../ui/Dialog';
 import { confirmAction } from '../ui/dialogs';
 import { toast } from '../ui/feedback';
@@ -53,7 +53,20 @@ export function SettingsDrawer(props: { session: EditorSession; open: boolean; f
   const { resources } = useProjectResources(session, props.open);
 
   return (
-    <Sheet open={props.open} onClose={props.onClose} title="工程设置" closeLabel="关闭工程设置" className="project-settings">
+    <Sheet
+      open={props.open}
+      onClose={props.onClose}
+      title="工程设置"
+      closeLabel="关闭工程设置"
+      className="project-settings"
+      headerActions={
+        // 面板是模态的，顶栏的撤销重做被挡住；在这里也放一组，改完可以直接撤销。
+        <>
+          <IconButton icon="undo" label="撤销" isDisabled={!state.summary.canUndo} onPress={() => void session.undo()} />
+          <IconButton icon="redo" label="重做" isDisabled={!state.summary.canRedo} onPress={() => void session.redo()} />
+        </>
+      }
+    >
       <FocusGroup focus={props.open ? props.focus : undefined} />
       <p className="settings-intro">{state.summary.isReadOnly ? '工程以只读方式打开，不能修改设置。' : '每次修改立即生效，记一条历史，可以撤销。'}</p>
       {settings ? (

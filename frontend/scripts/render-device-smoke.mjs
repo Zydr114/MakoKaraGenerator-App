@@ -72,7 +72,6 @@ const PRELUDE = `
   const field = (label, scope = '') => [...document.querySelectorAll(scope + ' mdui-text-field')].find((f) => f.label === label);
 `;
 const js = (body) => `(() => { ${PRELUDE} ${body} })()`;
-const click = `dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }))`;
 
 async function clickButton(page, text) {
   await page.waitFor(js(`const b = button(${JSON.stringify(text)}); return !!b && !b.disabled;`), `按钮「${text}」可用`);
@@ -83,12 +82,6 @@ async function clickButtonIn(page, scope, text) {
   const target = `[...document.querySelectorAll(${JSON.stringify(`${scope} :is(mdui-button, button)`)})].find((b) => b.textContent.trim() === ${JSON.stringify(text)})`;
   await page.waitFor(`!!(${target}) && !(${target}).disabled`, `「${text}」可用`);
   await page.eval(`(${target}).click()`);
-}
-
-async function clickDialogButton(page, text) {
-  const target = `[...[...document.querySelectorAll('mdui-dialog')].find((d) => d.open)?.querySelectorAll('mdui-button') ?? []].find((b) => b.textContent.trim() === ${JSON.stringify(text)} && !b.disabled)`;
-  await page.waitFor(`!!(${target})`, `对话框按钮「${text}」可用`);
-  await page.eval(`(${target}).${click}`);
 }
 
 async function typeInto(page, label, value, scope = '') {
@@ -148,10 +141,7 @@ async function chooseDevice(page, value) {
 const previewTitle = `document.querySelector('.preview-panel .preview-title')?.textContent ?? ''`;
 
 async function closeCurrentProject(page) {
-  await shell.projectMenu(page, '关闭工程');
-  const discard = `[...[...document.querySelectorAll('mdui-dialog')].find((d) => d.open)?.querySelectorAll('mdui-button') ?? []].find((b) => b.textContent.trim() === '不保存')`;
-  await page.waitFor(`!!document.querySelector('.home') || !!(${discard})`, '关闭工程', 60_000);
-  if (await page.eval(`!!(${discard})`)) await page.eval(`(${discard}).${click}`);
+  await shell.closeProject(page);
   await page.waitFor(`!!document.querySelector('.home')`, '回到首页', 60_000);
 }
 
@@ -253,14 +243,15 @@ try {
     );
 
     // 外观页的候选试看（一次性渲染）
-    await page.eval(`document.querySelectorAll('.target-row.level-2')[0].click()`);
-    await clickButton(page, '选择模板…');
-    const card = `document.querySelector('.template-picker .template-card[data-template-id="builtin:line-classic"]')`;
-    await page.waitFor(`!!${card}`, '选择器卡片');
-    await page.eval(`${card}.click()`);
-    await page.waitFor(`!!document.querySelector('.picker-trial img[data-sha]') || !!document.querySelector('.picker-trial .notice-error')`, '试看画面', 60_000);
+    await ui.click(page, '.appearance-targets .at.line-row', null);
+    await page.waitFor(`(document.querySelector('.appearance-inspector .ihead')?.dataset.path ?? '').includes('第 1 行')`, '选中第 1 行');
+    await ui.click(page, 'button', '选择模板…', { scope: '.template-grp' });
+    await ui.waitDialog(page, '选择模板');
+    await ui.click(page, '.template-picker .template-card[data-template-id="builtin:line-classic"]', null);
+    await page.waitFor(`!!document.querySelector('.picker-trial img[data-sha]') || !!document.querySelector('.picker-trial .preview-overlay.err')`, '试看画面', 60_000);
     check(await page.eval(`!!document.querySelector('.picker-trial img[data-sha]')`), '外观页选择器的候选试看在 GPU 下出图');
-    await clickDialogButton(page, '取消');
+    await ui.clickInDialog(page, '取消');
+    await ui.waitDialogClosed(page, '选择模板');
 
     // 4. 编排页的预览与测量、样式库缩略图
     await gotoPage(page, 'orchestration', `!!document.querySelector('.orchestration .preview-panel')`);

@@ -10,8 +10,10 @@ import {
   GridListItem,
   ListLayout,
   Tree as AriaTree,
+  TreeHeader,
   TreeItem,
   TreeItemContent,
+  TreeSection,
   Virtualizer,
   useDragAndDrop,
   type Key,
@@ -116,6 +118,13 @@ export interface TreeData {
   children?: readonly TreeData[];
 }
 
+/** 树的一节：标题（不能聚焦、不能选）加这一节的节点，例如画面结构按来源分节。 */
+export interface TreeSectionData<T> {
+  id: Key;
+  header: ReactNode;
+  items: readonly T[];
+}
+
 export interface TreeRowState extends RowState {
   level: number;
   isExpanded: boolean;
@@ -124,7 +133,9 @@ export interface TreeRowState extends RowState {
 
 export function Tree<T extends TreeData>(props: {
   label: string;
-  items: readonly T[];
+  /** 不分节时的节点；分节时给 sections。 */
+  items?: readonly T[];
+  sections?: readonly TreeSectionData<T>[];
   textValue: (item: T) => string;
   children: (item: T, state: TreeRowState) => ReactNode;
   selectionMode?: 'none' | 'single' | 'multiple';
@@ -142,7 +153,8 @@ export function Tree<T extends TreeData>(props: {
   const allKeys = () => {
     const keys: Key[] = [];
     const walk = (nodes: readonly TreeData[]) => nodes.forEach((n) => (keys.push(n.id), n.children && walk(n.children)));
-    walk(props.items);
+    walk(props.items ?? []);
+    props.sections?.forEach((s) => walk(s.items));
     return keys;
   };
   const renderItem = (item: T): ReactNode => (
@@ -167,7 +179,7 @@ export function Tree<T extends TreeData>(props: {
   return (
     <AriaTree
       aria-label={props.label}
-      items={props.items}
+      {...(props.sections ? {} : { items: props.items ?? [] })}
       selectionMode={props.selectionMode ?? 'single'}
       selectionBehavior="replace"
       className={cls('tree', props.className)}
@@ -180,7 +192,14 @@ export function Tree<T extends TreeData>(props: {
       {...(props.onExpandedChange ? { onExpandedChange: (keys: Set<Key>) => props.onExpandedChange!(new Set(keys)) } : {})}
       {...(props.disabledKeys ? { disabledKeys: props.disabledKeys } : {})}
     >
-      {renderItem}
+      {props.sections
+        ? props.sections.map((section) => (
+            <TreeSection key={section.id} id={section.id} className="tree-section">
+              <TreeHeader className="tree-head">{section.header}</TreeHeader>
+              <Collection items={section.items}>{renderItem}</Collection>
+            </TreeSection>
+          ))
+        : renderItem}
     </AriaTree>
   );
 }

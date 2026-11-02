@@ -151,6 +151,26 @@
   opacity: 0.38;
 }
 
+/* 分节标题：不能聚焦、不能选 */
+.tree-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.tree-section + .tree-section {
+  margin-top: 8px;
+}
+.tree-head {
+  min-height: 28px;
+  padding: 4px 10px 2px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  font-size: 12px;
+  color: var(--on-surface-variant);
+}
+
 .tree .caret {
   width: 20px;
   height: 20px;

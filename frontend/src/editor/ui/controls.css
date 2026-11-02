@@ -177,6 +177,18 @@
 .tf.side > .help {
   grid-column: 2;
 }
+/* 框内标签：标签在框里左边，值跟在后面，单位靠右（编排检查器的两列网格） */
+.tf.inside {
+  gap: 4px;
+}
+.field .in-lbl {
+  flex: none;
+  min-width: 24px;
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--on-surface-variant);
+  white-space: nowrap;
+}
 .tf[data-disabled] > .lbl {
   opacity: 0.6;
 }

@@ -1,6 +1,7 @@
 // 输入类控件（界面改版 §2.4）：填充式输入框、提交式输入框、数值、颜色、下拉选择、文件。
 // 接口沿用旧的 mdui 封装（ui/legacy/fields.tsx），页面改版时只换导入路径和少数布局属性。
-// 标签有三种摆法：top 在框上方（对话框、表单），side 在左边一列（属性检查器），none 不显示（工具栏，只作可访问名称）。
+// 标签有四种摆法：top 在框上方（对话框、表单），side 在左边一列（外观检查器），inside 在框内左边（编排检查器的紧凑网格），
+// none 不显示（工具栏，只作可访问名称）。
 
 import { useEffect, useId, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
 import {
@@ -24,7 +25,7 @@ import { cls, defined } from './cls';
 import { Icon, type IconName } from './Icon';
 import './controls.css';
 
-export type LabelPlacement = 'top' | 'side' | 'none';
+export type LabelPlacement = 'top' | 'side' | 'inside' | 'none';
 
 interface FieldLayout {
   labelPlacement?: LabelPlacement;
@@ -84,8 +85,9 @@ export function TextField(props: TextFieldProps) {
       {...defined({ style: props.style })}
       {...(placement === 'none' || props.ariaLabel ? { 'aria-label': props.ariaLabel ?? props.label } : {})}
     >
-      {placement !== 'none' && <Label className="lbl">{props.label}</Label>}
+      {(placement === 'top' || placement === 'side') && <Label className="lbl">{props.label}</Label>}
       <div className={cls('field', props.size === 'sm' && 'sm', !!props.rows && 'multi')}>
+        {placement === 'inside' && <Label className="in-lbl">{props.label}</Label>}
         {props.icon && <Icon name={props.icon} className="lead" />}
         {props.lead}
         {props.rows ? <TextArea rows={props.rows} {...inputProps} /> : <Input {...inputProps} />}
@@ -260,10 +262,16 @@ export function Select<T extends string>(props: SelectProps<T>) {
       disabledKeys={props.options.filter((o) => o.disabled).map((o) => o.value)}
       className={cls('tf', placement, props.className)}
       {...defined({ style: props.style })}
-      {...(placement === 'none' ? { 'aria-label': props.label } : {})}
+      {...(placement === 'none' || placement === 'inside' ? { 'aria-label': props.label } : {})}
     >
-      {placement !== 'none' && <Label className="lbl">{props.label}</Label>}
+      {(placement === 'top' || placement === 'side') && <Label className="lbl">{props.label}</Label>}
       <AriaButton className={cls('field', 'select', props.size === 'sm' && 'sm')} {...(props.title ? { 'aria-description': props.title } : {})}>
+        {/* 按钮里不能放 label 元素：框内标签只是看的，可访问名称用上面的 aria-label */}
+        {placement === 'inside' && (
+          <b className="in-lbl" aria-hidden>
+            {props.label}
+          </b>
+        )}
         {props.icon && <Icon name={props.icon} className="lead" />}
         <SelectValue className="select-value" />
         <Icon name="arrow_drop_down" className="arrow" />

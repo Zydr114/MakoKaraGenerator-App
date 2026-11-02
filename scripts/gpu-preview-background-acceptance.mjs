@@ -7,6 +7,7 @@ import {join,resolve,sep,dirname} from 'node:path';
 import {randomUUID,createHash} from 'node:crypto';
 import {parseArgs} from 'node:util';
 import {connectPage,createProject} from './gpu-preview-p3.mjs';
+import {shell,ui} from '../frontend/scripts/ui-query.mjs';
 
 const ROOT=resolve(import.meta.dirname,'..');
 const {values}=parseArgs({options:{output:{type:'string'},prepare:{type:'boolean'},port:{type:'string',default:'5191'},'cdp-port':{type:'string',default:'9241'}}});
@@ -65,6 +66,9 @@ async function identity(pid){try{const text=await readFile(`/proc/${pid}/stat`,'
 async function remember(pid){if(pid&&!owned.has(pid)){const x=await identity(pid);if(x)owned.set(pid,x);}}
 async function until(fn,label,timeout=30000){const end=Date.now()+timeout;while(Date.now()<end){const x=await fn();if(x)return x;await wait(50);}throw new Error('Timed out: '+label);}
 async function setFile(selector,path){const {root}=await page.send('DOM.getDocument');const {nodeId}=await page.send('DOM.querySelector',{nodeId:root.nodeId,selector});assert.ok(nodeId,selector);await page.send('DOM.setFileInputFiles',{nodeId,files:[path]});}
+// 顶栏“工程设置”打开右侧面板；关闭后等面板退场。
+async function openSettings(){await ui.click(page,'button','工程设置',{scope:'.app-bar'});await page.waitFor(`!!document.querySelector('.project-settings:not([data-exiting])')`,'project settings open');}
+async function closeSettings(){await ui.click(page,'button','关闭工程设置');await page.waitFor(`!document.querySelector('.project-settings')`,'project settings closed');}
 async function sample(){const s=await page.eval('window.makoDesktopPreview.readPreviewState()');for(const pid of [s.mainPid,s.rendererPid,s.workerPid,s.device?.chromiumGpuPid])await remember(pid);return s;}
 async function rgbaCanvas(){return Buffer.from(await page.eval(`(()=>{const c=document.querySelector('#mako-gpu-preview');const b=c.getContext('2d').getImageData(0,0,c.width,c.height).data;let s='';for(let i=0;i<b.length;i+=8192)s+=String.fromCharCode(...b.subarray(i,i+8192));return btoa(s);})()`),'base64');}
 function pixel(bytes,w,x,y){return [...bytes.subarray((y*w+x)*4,(y*w+x)*4+4)];}
@@ -114,22 +118,22 @@ try{
  let stream=await page.eval('window.makoGpuPreviewAcceptance.current()');assert.equal(stream.alphaMode,'opaque');
  const creates=await page.eval('window.__backgroundRequests');assert.ok(creates.length&&creates.every(x=>x.alphaMode==='opaque'));report.checks.push({name:'actual-production-controller-create-opaque',requests:creates.map(x=>({alphaMode:x.alphaMode,source:x.source,size:x.size}))});
  await page.eval('window.makoGpuPreviewAcceptance.resize(320,180)');
- await page.eval(`document.querySelector('.settings-item').click()`);await page.waitFor(`!!document.querySelector('input[aria-label="选择图片或视频…"]')`,'background settings input');
+ await openSettings();await page.waitFor(`!!document.querySelector('input[aria-label="选择图片或视频…"]')`,'background settings input');
  const canChoose=await page.eval(`(()=>{const i=document.querySelector('input[aria-label="选择图片或视频…"]');return !i.nextElementSibling.disabled;})()`);assert.equal(canChoose,true);report.checks.push({name:'real-background-settings-enabled',passed:true});
  await setFile('input[aria-label="选择图片或视频…"]',image);
- await page.waitFor(`!!document.querySelector('input[aria-label="替换…"]')&&!document.querySelector('.dialog-busy')`,'image upload applied',180000);
- await page.eval(`document.querySelector('[aria-label="关闭工程设置"]').click()`);
+ await page.waitFor(`!!document.querySelector('img.background-thumb')&&!!document.querySelector('input[aria-label="替换…"]')`,'image upload applied',180000);
+ await closeSettings();
  stream=await until(async()=>{const x=await page.eval('window.makoGpuPreviewAcceptance.current()');return x&&x.source.sourceRevision!==stream.source.sourceRevision?x:false;},'image source generation');
  const imageDone=await exactFrame(stream,250000,'image-check');const imagePixels=await rgbaCanvas();const imageCpu=await cpuFrame(stream.source,stream.size,'opaque',250000);
  const imageCase=await writeCase('image-opaque-ui',imagePixels,imageCpu,stream.size,{nativeFrame:imageDone.frame,alphaMode:stream.alphaMode});
  const expected=[[240,30,50,255],[20,210,60,255],[30,60,230,255],[235,190,25,255]];imageCase.gpuCorners.forEach((p,i)=>p.forEach((v,c)=>assert.ok(Math.abs(v-expected[i][c])<=3,'image quadrant missing')));
- await page.eval(`document.querySelector('.settings-item').click()`);await setFile('input[aria-label="替换…"]',video);await page.waitFor(`!!document.querySelector('[data-group="background"] mdui-icon-movie')&&!document.querySelector('.dialog-busy')`,'video upload applied',180000);await page.eval(`document.querySelector('[aria-label="关闭工程设置"]').click()`);
+ await openSettings();await setFile('input[aria-label="替换…"]',video);await page.waitFor(`document.querySelector('[data-group="background"] .background-info')?.textContent.includes('视频')`,'video upload applied',180000);await closeSettings();
  const imageRevision=stream.source.sourceRevision;stream=await until(async()=>{const x=await page.eval('window.makoGpuPreviewAcceptance.current()');return x&&x.source.sourceRevision!==imageRevision?x:false;},'video source generation');
  const videoPixels=[];
  for(const [timeUs,color] of [[250000,'red'],[1250000,'blue']]){const done=await exactFrame(stream,timeUs,'video-'+timeUs);const gpu=await rgbaCanvas();const cpu=await cpuFrame(stream.source,stream.size,'opaque',timeUs);const item=await writeCase('video-'+color+'-ui',gpu,cpu,stream.size,{nativeFrame:done.frame,alphaMode:stream.alphaMode});const corner=item.gpuCorners[0];assert.ok(color==='red'?corner[0]>220&&corner[2]<20:corner[2]>220&&corner[0]<20,'video expected time/color missing');videoPixels.push(gpu);}
  assert.ok(compare(...videoPixels).mae>50,'two video times must change actual pixels');report.checks.push({name:'video-exact-two-times-change',passed:true});
  // Leave the normal editor page before controlled manual streams, closing its controller.
- await page.eval(`document.querySelector('mdui-navigation-rail-item[value="home"]').click()`);await until(async()=>!(await sample()).activeStream,'UI stream detached');await wait(250);
+ await shell.goto(page,'home');await until(async()=>!(await sample()).activeStream,'UI stream detached');await wait(250);
  await page.eval(`(()=>{const c=document.createElement('canvas');c.id='mako-gpu-preview';c.width=320;c.height=180;c.style.cssText='position:fixed;left:10px;top:10px;width:640px;height:360px;z-index:9999';document.body.appendChild(c);})()`);
  client=await nodeRequest('POST','/api/v1/clients',{protocolVersion:'1'},{Authorization:`Bearer ${bootstrap.bootstrapToken}`});heartbeat=setInterval(()=>{void nodeRequest('POST',`/api/v1/clients/${client.clientId}/heartbeat`,{}).catch(()=>{});},20000);
  // Transparent negative control on the SAME project video source/size/time.

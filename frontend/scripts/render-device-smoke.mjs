@@ -101,12 +101,6 @@ async function pressEnter(page, label, scope = '') {
   await page.eval(js(`field(${JSON.stringify(label)}, ${JSON.stringify(scope)}).dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, composed: true }));`));
 }
 
-async function setFile(page, ariaLabel, path) {
-  const { root } = await page.send('DOM.getDocument', { depth: -1 });
-  const { nodeId } = await page.send('DOM.querySelector', { nodeId: root.nodeId, selector: `input[type=file][aria-label="${ariaLabel}"]` });
-  await page.send('DOM.setFileInputFiles', { nodeId, files: [path] });
-}
-
 async function gotoPage(page, value, ready) {
   await shell.goto(page, value);
   await page.waitFor(ready, `切到「${value}」页`);
@@ -161,18 +155,11 @@ async function closeCurrentProject(page) {
   await page.waitFor(`!!document.querySelector('.home')`, '回到首页', 60_000);
 }
 
-const settingsOpen = `!!document.querySelector('mdui-navigation-drawer.settings-drawer')?.open`;
+const settingsOpen = `!!document.querySelector('.project-settings:not([data-exiting])')`;
 const check$ = (id) => `document.querySelector('[data-check="${id}"]')?.dataset.level`;
 
 async function createProject(page) {
-  await clickButton(page, '新建工程');
-  await page.waitFor(`!!document.querySelector('mdui-dialog.new-project-dialog[open] input[aria-label="选择歌词"]')`, '新建工程对话框');
-  await setFile(page, '选择音频', wavPath);
-  await setFile(page, '选择歌词', lrcPath);
-  await page.waitFor(`!!document.querySelector('.lyrics-plan-summary')`, '歌词识别结果', 30_000);
-  await typeInto(page, '工程名', projectName);
-  await clickDialogButton(page, '下一步');
-  await clickDialogButton(page, '新建');
+  await shell.newProject(page, { audio: wavPath, lyrics: lrcPath, name: projectName });
   await page.waitFor(`document.querySelector('.project-name')?.textContent === ${JSON.stringify(projectName)}`, '进入工程', 60_000);
 }
 
@@ -182,10 +169,10 @@ async function openExportReady(page) {
   await page.waitFor(`${check$('duration')} === 'block'`, '导出页', 30_000);
   await page.eval(`document.querySelector('[data-check="duration"] mdui-button').click()`);
   await page.waitFor(settingsOpen, '修复入口打开工程设置');
-  await clickButtonIn(page, '[data-group="duration"]', '按音频时长');
+  await ui.click(page, 'button', '按音频时长', { scope: '[data-group="duration"]' });
   await page.waitFor(`${check$('duration')} === 'ok'`, '输出时长确定', 20_000);
-  await clickButton(page, '关闭工程设置');
-  await page.waitFor(`!(${settingsOpen})`, '关闭工程设置');
+  await ui.click(page, 'button', '关闭工程设置');
+  await page.waitFor(`!document.querySelector('.project-settings')`, '关闭工程设置');
 }
 
 const browser = await launchChrome({ headed: values.headed });

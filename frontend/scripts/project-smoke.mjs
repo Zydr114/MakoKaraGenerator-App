@@ -1,6 +1,6 @@
 // 工程闭环与导出的浏览器冒烟（W5 设计 §4 第 11 步）：用真实 Chrome 走一遍 W5 的主链路。
 // 首页目录浏览与搜索 → 新建空工程 → 导入歌词、选择音频、改名 → 背景图片：适配、移除、撤销
-// → 保存到…、关闭、从工程目录打开 → 另存为（目标是已有工程时写明覆盖） → 导出歌词文件（评估、接受损失、下载）
+// → 保存到…、关闭、首页单击选中看详情再打开 → 另存为（目标是已有工程时写明覆盖） → 导出歌词文件（评估、接受损失、下载）
 // → 导出页：修复入口（输出时长）、正式验证、导出 MP4 并下载、再导出一次后取消 → 只读打开
 // → 只有歌词、只有音频的新建 → 背景视频与播放策略、替换音频、移除音频与撤销 → 从备份恢复一份。
 //
@@ -15,7 +15,7 @@ import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { deflateSync } from 'node:zlib';
 import { launchChrome } from './cdp.mjs';
-import { shell, ui } from './ui-query.mjs';
+import { shell, ui, uiJs } from './ui-query.mjs';
 
 const { values } = parseArgs({
   options: {
@@ -133,16 +133,6 @@ async function clickButtonIn(page, scope, text) {
   await page.eval(`(${target}).click()`);
 }
 
-async function clickMenuItem(page, trigger, text) {
-  await clickButton(page, trigger);
-  const item = js(
-    `const d = button(${JSON.stringify(trigger)})?.closest('mdui-dropdown'); return d?.open ? [...d.querySelectorAll('mdui-menu-item')].find((i) => i.textContent.trim() === ${JSON.stringify(text)} && !i.disabled) : undefined;`,
-  );
-  await page.waitFor(`!!${item}`, `菜单项「${text}」可用`);
-  // mdui 组件覆盖了 click()，转给内部元素时不一定冒泡到 React；派发一个真实的点击事件。
-  await page.eval(`${item}.${click}`);
-}
-
 async function clickDialogButton(page, text) {
   const target = `[...[...document.querySelectorAll('mdui-dialog')].find((d) => d.open)?.querySelectorAll('mdui-button') ?? []].find((b) => b.textContent.trim() === ${JSON.stringify(text)} && !b.disabled)`;
   await page.waitFor(`!!(${target})`, `对话框按钮「${text}」可用`);
@@ -165,11 +155,7 @@ async function chooseOption(page, label, value) {
   await page.eval(`[...document.querySelectorAll('mdui-select')].find((s) => s.label === ${JSON.stringify(label)}).value = ${JSON.stringify(value)}`);
 }
 
-async function setFile(page, ariaLabel, path) {
-  const { root } = await page.send('DOM.getDocument', { depth: -1 });
-  const { nodeId } = await page.send('DOM.querySelector', { nodeId: root.nodeId, selector: `input[type=file][aria-label="${ariaLabel}"]` });
-  await page.send('DOM.setFileInputFiles', { nodeId, files: [path] });
-}
+const setFile = ui.setFile;
 
 async function gotoPage(page, value, ready) {
   await shell.goto(page, value);
@@ -196,21 +182,8 @@ async function closeCurrentProject(page) {
 }
 
 /** 在首页用新建对话框建工程；audio、lyrics 可以都不给。 */
-async function newProject(page, { audio, lyrics, name }) {
-  await clickButton(page, '新建工程');
-  await page.waitFor(`!!document.querySelector('mdui-dialog.new-project-dialog[open] input[aria-label="选择歌词"]')`, '新建工程对话框');
-  if (audio) {
-    await setFile(page, '选择音频', audio);
-    await page.waitFor(`document.querySelector('mdui-dialog.new-project-dialog').innerText.includes(${JSON.stringify(audio.split('/').at(-1))})`, '音频已选择');
-  }
-  if (lyrics) {
-    await setFile(page, '选择歌词', lyrics);
-    await page.waitFor(`!!document.querySelector('.lyrics-plan-summary')`, '歌词识别结果', 30_000);
-  }
-  await typeInto(page, '工程名', name);
-  await clickDialogButton(page, '下一步');
-  await clickDialogButton(page, '新建');
-}
+const newProject = (page, files) => shell.newProject(page, files);
+const fileCheck = shell.fileCheck;
 
 /** 设置面板里某一项（dt）的取值。 */
 const settingsFact = (group, label) =>
@@ -223,7 +196,18 @@ async function snapshot(page, suffix) {
 }
 
 const lineCount = `document.querySelectorAll('.line-list mdui-list-item').length`;
-const settingsOpen = `!!document.querySelector('mdui-navigation-drawer.settings-drawer')?.open`;
+const settingsOpen = `!!document.querySelector('.project-settings:not([data-exiting])')`;
+const settingsClosed = `!document.querySelector('.project-settings')`;
+/** 等下拉框显示 text（设置在修订变化之后才重新读回来）；超时返回 false。 */
+const selectShows = (page, label, text, scope) =>
+  page
+    .waitFor(uiJs(`return __ui.find('select', ${JSON.stringify(label)}, false, ${JSON.stringify(scope)})?.textContent.trim() === ${JSON.stringify(text)};`), `下拉「${label}」显示「${text}」`, 10_000)
+    .then(() => true, () => false);
+
+async function closeSettings(page) {
+  await ui.click(page, 'button', '关闭工程设置');
+  await page.waitFor(settingsClosed, '关闭工程设置');
+}
 const check$ = (id) => `document.querySelector('[data-check="${id}"]')?.dataset.level`;
 
 const browser = await launchChrome({ headed: values.headed });
@@ -242,17 +226,21 @@ try {
 
   // 1. 首页：工程目录浏览与搜索，新建空工程
   await page.waitFor(`!!document.querySelector('.directory-list') && !document.querySelector('.directory-progress')`, '工程目录读完', 30_000);
-  check(await page.eval(`!!document.querySelector('.breadcrumb')`), '首页显示授权目录的路径导航与列表');
-  await typeInto(page, '搜索这一层', `不存在-${stamp}`);
+  check(await page.eval(`!!document.querySelector('.breadcrumb') && !!document.querySelector('.home-detail')`), '首页显示授权目录的路径导航与列表，右边是详情');
+  await ui.fill(page, '搜索这一层', `不存在-${stamp}`);
   await page.waitFor(`document.querySelector('.directory-empty')?.textContent.includes('没有名称包含')`, '搜索没有结果');
-  await typeInto(page, '搜索这一层', '');
+  await ui.fill(page, '搜索这一层', '');
   check(true, '按名称搜索这一层，没有结果时写明');
 
-  await clickButton(page, '新建工程');
-  await page.waitFor(`!!document.querySelector('mdui-dialog.new-project-dialog[open]')`, '新建工程对话框');
-  await typeInto(page, '工程名', projectName);
-  await clickDialogButton(page, '下一步');
-  await clickDialogButton(page, '新建');
+  await ui.click(page, 'button', '新建工程');
+  await ui.waitDialog(page, '新建工程');
+  check(
+    (await page.eval(`${fileCheck('audio')} === 'none' && ${fileCheck('lyrics')} === 'none'`)) && (await ui.exists(page, 'button', '下一步', { scope: '@dialog' })),
+    '新建工程第一步：文件检查写明没有选音频、歌词',
+  );
+  await ui.fill(page, '工程名', projectName);
+  await ui.clickInDialog(page, '下一步');
+  await ui.clickInDialog(page, '新建');
   await page.waitFor(`!!document.querySelector('.no-audio-bar') && !!document.querySelector('.empty-state')`, '空工程进入歌词页', 60_000);
   check(await page.eval(js(`return revision() === '0';`)), '不选音频和歌词也能新建：歌词页显示导入入口，底部显示“还没有音频”');
   await snapshot(page, 'empty');
@@ -274,8 +262,7 @@ try {
 
   await ui.click(page, 'button', '工程设置');
   await page.waitFor(settingsOpen, '打开工程设置');
-  await typeInto(page, '名称', `${projectName} 改`, '.settings-drawer');
-  await pressEnter(page, '名称', '.settings-drawer');
+  await ui.fill(page, '名称', `${projectName} 改`, { scope: '.project-settings', enter: true });
   await page.waitFor(`document.querySelector('.project-name')?.textContent === ${JSON.stringify(`${projectName} 改`)}`, '改名生效', 20_000);
   check(await page.eval(`document.querySelector('.audio-file')?.textContent === '冒烟音频.wav'`), '设置里改名一条历史；音频显示本次上传的文件名');
 
@@ -284,52 +271,58 @@ try {
   await setFile(page, '选择图片或视频…', pngPath);
   await page.waitFor(`!!document.querySelector('img.background-thumb')`, '背景缩略图', 60_000);
   const beforeFit = await page.eval(revisionOf);
-  await chooseOption(page, '适配方式', 'cover');
+  await ui.choose(page, '适配方式', '铺满', { scope: '.project-settings' });
   await page.waitFor(`${revisionOf} === ${beforeFit + 1}`, '改适配方式');
-  await clickButtonIn(page, '[data-group="background"]', '移除');
+  await ui.click(page, 'button', '移除', { scope: '[data-group="background"]' });
   await page.waitFor(`!document.querySelector('img.background-thumb') && ${revisionOf} === ${beforeFit + 2}`, '移除背景媒体');
-  await clickButton(page, '撤销');
+  // 面板是模态的，用面板标题栏里的撤销
+  await ui.click(page, 'button', '撤销', { scope: '.project-settings' });
   await page.waitFor(`!!document.querySelector('img.background-thumb')`, '撤销后背景回来', 30_000);
-  check(
-    await page.eval(`[...document.querySelectorAll('mdui-select')].find((s) => s.label === '适配方式')?.value === 'cover'`),
-    '背景图片：选择、改适配（一条历史）、移除、撤销后恢复为“铺满”',
-  );
+  check(await selectShows(page, '适配方式', '铺满', '.project-settings'), '背景图片：选择、改适配（一条历史）、移除、在面板里撤销后恢复为“铺满”');
   await snapshot(page, 'settings');
-  await clickButton(page, '关闭工程设置');
-  await page.waitFor(`!(${settingsOpen})`, '关闭工程设置');
+  await closeSettings(page);
 
   // 4. 保存到…、关闭、从工程目录打开
-  await clickButton(page, '保存工程');
-  await page.waitFor(`!!document.querySelector('mdui-dialog.save-location-dialog[open] .directory-row')`, '“保存到…”对话框', 30_000);
-  await typeInto(page, '目录名', directory);
+  const saveRows = `!!document.querySelector('.save-browser .directory-row') && !document.querySelector('.save-browser .directory-progress')`;
+  await ui.click(page, 'button', '保存工程');
+  await ui.waitDialog(page, '保存到');
+  await page.waitFor(saveRows, '“保存到…”对话框列出目录', 30_000);
+  await ui.fill(page, '目录名', directory);
   await page.waitFor(`document.querySelector('.save-target')?.dataset.kind === 'new'`, '目标写明“会新建目录”');
-  await clickDialogButton(page, '保存');
+  await ui.clickInDialog(page, '保存');
   await page.waitFor(`document.querySelector('.project-state')?.textContent === '已保存'`, '保存完成', 60_000);
   await shell.projectMenu(page, '关闭工程');
   await page.waitFor(`!!document.querySelector('.home')`, '回到首页', 60_000);
-  const directoryRow = `document.querySelector('.directory-row[data-path=${JSON.stringify(directory)}] .directory-main')`;
+  const rowScope = (path) => `.directory-row[data-path=${JSON.stringify(path)}]`;
+  const directoryRow = `document.querySelector('${rowScope(directory)} .directory-main')`;
   await page.waitFor(`!!(${directoryRow}) && !(${directoryRow}).disabled`, '工程目录列出刚保存的工程', 30_000);
-  await page.eval(`(${directoryRow}).click()`);
+  // 单击只选中，右边详情写出位置；用详情里的“打开”
+  await ui.click(page, 'button', directory, { scope: rowScope(directory), partial: true });
+  await page.waitFor(`document.querySelector('.home-detail h2')?.textContent === ${JSON.stringify(directory)} && document.querySelector('${rowScope(directory)}').classList.contains('is-highlight')`, '单击选中工程');
+  check(await page.eval(`!!document.querySelector('.home') && ${lineCount} === 0`), '单击工程只选中：右边详情显示名称和位置，不打开');
+  await ui.click(page, 'button', '打开', { scope: '.home-detail' });
   await page.waitFor(`${lineCount} === 2 && document.querySelector('.project-name')?.textContent === ${JSON.stringify(`${projectName} 改`)}`, '重开工程', 120_000);
-  check(true, `保存到新目录 ${directory}、关闭、从工程目录重开（名称与歌词一致）`);
+  check(true, `保存到新目录 ${directory}、关闭、从首页详情打开（名称与歌词一致）`);
 
   // 4b. 另存为：选中别的工程时写明“覆盖”（不真的覆盖）；换成新目录名另存
   const savedAs = `${directory}-另存`;
   await shell.projectMenu(page, '另存为…');
-  await page.waitFor(`!!document.querySelector('mdui-dialog.save-location-dialog[open] .directory-row')`, '另存为对话框', 30_000);
-  const otherProject = `[...document.querySelectorAll('mdui-dialog.save-location-dialog .directory-row.is-project')].find((r) => r.dataset.path !== ${JSON.stringify(directory)})?.querySelector('.directory-main')`;
-  const saveButton = `[...document.querySelectorAll('mdui-dialog.save-location-dialog mdui-button')].map((b) => b.textContent.trim())`;
-  if (await page.eval(`!!(${otherProject})`)) {
-    await page.eval(`(${otherProject}).click()`);
+  await ui.waitDialog(page, '另存为');
+  await page.waitFor(saveRows, '另存为对话框列出目录', 30_000);
+  const otherProject = await page.eval(
+    `[...document.querySelectorAll('.save-browser .directory-row.is-project')].find((r) => r.dataset.path !== ${JSON.stringify(directory)})?.dataset.path ?? ''`,
+  );
+  if (otherProject) {
+    await ui.click(page, 'button', otherProject, { scope: `.save-browser ${rowScope(otherProject)}`, partial: true });
     await page.waitFor(`document.querySelector('.save-target')?.dataset.kind === 'project'`, '目标写明“覆盖已有工程”');
-    check((await page.eval(saveButton)).includes('覆盖'), '另存为：选中别的工程时写明会覆盖，按钮变为“覆盖”');
+    check(await ui.exists(page, 'button', '覆盖', { scope: '@dialog' }), '另存为：选中别的工程时写明会覆盖，按钮变为“覆盖”');
   } else {
     check(true, '跳过覆盖提示：授权目录里没有别的工程');
   }
-  await typeInto(page, '目录名', savedAs);
+  await ui.fill(page, '目录名', savedAs);
   await page.waitFor(`document.querySelector('.save-target')?.dataset.kind === 'new'`, '另存为的目标写明“会新建目录”');
-  await clickDialogButton(page, '保存');
-  await page.waitFor(`!document.querySelector('mdui-dialog.save-location-dialog[open]') && document.querySelector('.project-state')?.textContent === '已保存'`, '另存为完成', 60_000);
+  await ui.clickInDialog(page, '保存');
+  await page.waitFor(`!document.querySelector('.save-location-dialog') && document.querySelector('.project-state')?.textContent === '已保存'`, '另存为完成', 60_000);
   check(true, `另存为到新目录 ${savedAs}`);
 
   // 5. 导出歌词文件
@@ -356,10 +349,9 @@ try {
   check(await page.eval(`[...document.querySelectorAll('[aria-label="导出"] mdui-button')].find((b) => b.textContent.includes('开始导出'))?.disabled === true`), '准备检查有阻断项时“开始导出”停用');
   await page.eval(`document.querySelector('[data-check="duration"] mdui-button').click()`);
   await page.waitFor(settingsOpen, '修复入口打开工程设置');
-  await clickButtonIn(page, '[data-group="duration"]', '按音频时长');
+  await ui.click(page, 'button', '按音频时长', { scope: '[data-group="duration"]' });
   await page.waitFor(`${check$('duration')} === 'ok'`, '输出时长确定', 20_000);
-  await clickButton(page, '关闭工程设置');
-  await page.waitFor(`!(${settingsOpen})`, '关闭工程设置');
+  await closeSettings(page);
   await page.waitFor(`document.querySelectorAll('.export-thumbnail img').length === 2`, '首帧与末帧缩略图', 60_000);
   check(true, '修复入口“去设置”打开输出时长一组；确定后阻断解除，摘要显示首帧与末帧');
 
@@ -392,8 +384,8 @@ try {
 
   // 7. 只读打开：关闭工程（不保存导出页里定下的输出时长），从工程目录的更多操作里只读打开
   await closeCurrentProject(page);
-  await page.waitFor(`!!(${directoryRow}) && !!document.querySelector('.directory-row[data-path=${JSON.stringify(savedAs)}]')`, '工程目录列出原工程和另存的工程', 30_000);
-  await clickMenuItem(page, `${directory} 的更多操作`, '只读打开');
+  await page.waitFor(`!!(${directoryRow}) && !!document.querySelector('${rowScope(savedAs)}')`, '工程目录列出原工程和另存的工程', 30_000);
+  await ui.menu(page, `${directory} 的更多操作`, '只读打开');
   await page.waitFor(`document.querySelector('.project-state')?.textContent === '只读' && ${lineCount} === 2`, '只读打开', 120_000);
   check(await page.eval(`document.querySelector('.project-name')?.textContent === ${JSON.stringify(`${projectName} 改`)}`), '从工程目录“只读打开”：顶栏显示“只读”，名称和歌词与保存时一致');
   await closeCurrentProject(page);
@@ -413,14 +405,12 @@ try {
   await page.waitFor(settingsOpen, '打开工程设置');
   if (hasVideo) {
     await setFile(page, '选择图片或视频…', mp4Path);
-    await page.waitFor(`document.querySelector('[data-group="background"] .background-info')?.textContent.includes('视频') && [...document.querySelectorAll('mdui-select')].some((s) => s.label === '播放')`, '背景视频', 90_000);
+    await page.waitFor(`document.querySelector('[data-group="background"] .background-info')?.textContent.includes('视频')`, '背景视频', 90_000);
+    await ui.wait(page, 'select', '播放', { scope: '.project-settings' });
     const beforePlayback = await page.eval(revisionOf);
-    await chooseOption(page, '播放', 'freezeLastFrame');
+    await ui.choose(page, '播放', '停在最后一帧', { scope: '.project-settings' });
     await page.waitFor(`${revisionOf} === ${beforePlayback + 1}`, '改播放策略');
-    check(
-      await page.eval(`[...document.querySelectorAll('mdui-select')].find((s) => s.label === '播放')?.value === 'freezeLastFrame'`),
-      '背景视频：选择后显示类型与大小，“停在最后一帧”一条历史',
-    );
+    check(await selectShows(page, '播放', '停在最后一帧', '.project-settings'), '背景视频：选择后显示类型与大小，“停在最后一帧”一条历史');
   } else {
     check(true, '跳过背景视频：本机没有 ffmpeg，造不出测试视频');
   }
@@ -431,30 +421,32 @@ try {
   const durationAfter = await page.eval(settingsFact('audio', '时长'));
   check(!!durationAfter && durationAfter !== durationBefore, `替换音频：时长 ${durationBefore} → ${durationAfter}，文件名随之更新`);
 
-  await clickButtonIn(page, '[data-group="audio"]', '移除音频');
-  await clickDialogButton(page, '移除');
+  await ui.click(page, 'button', '移除音频', { scope: '[data-group="audio"]' });
+  await ui.waitDialog(page, '移除音频？');
+  await ui.clickInDialog(page, '移除');
   await page.waitFor(`!!document.querySelector('.no-audio-bar') && !document.querySelector('.timeline')`, '移除音频后时间轴消失', 60_000);
-  await clickButton(page, '撤销');
+  await ui.click(page, 'button', '撤销', { scope: '.project-settings' });
   await page.waitFor(`!document.querySelector('.no-audio-bar') && !!document.querySelector('.timeline') && ${settingsFact('audio', '时长')} === ${JSON.stringify(durationAfter)}`, '撤销后音频回来', 120_000);
-  check(true, '移除音频（先确认）后时间轴消失、底部显示“还没有音频”；撤销后音频和时间轴回来');
-  await clickButton(page, '关闭工程设置');
-  await page.waitFor(`!(${settingsOpen})`, '关闭工程设置');
+  check(true, '移除音频（先确认）后时间轴消失、底部显示“还没有音频”；在面板里撤销后音频和时间轴回来');
+  await closeSettings(page);
   await closeCurrentProject(page);
 
   // 10. 从备份恢复一份，进入歌词页
-  await clickButton(page, '从备份恢复…');
-  await page.waitFor(`!!document.querySelector('mdui-dialog.recovery-dialog[open]') && (!!document.querySelector('.recovery-item') || document.querySelector('.recovery-dialog')?.textContent.includes('没有可以恢复的备份'))`, '恢复对话框', 30_000);
+  await ui.click(page, 'button', '从备份恢复…');
+  await ui.waitDialog(page, '从备份恢复');
+  await page.waitFor(`!!document.querySelector('.recovery-item') || !!document.querySelector('.recovery-empty')`, '恢复对话框读完备份', 30_000);
   const candidates = await page.eval(`document.querySelectorAll('.recovery-item').length`);
   if (candidates > 0) {
     const recovered = await page.eval(`document.querySelector('.recovery-item .recovery-name').textContent`);
-    await page.eval(`document.querySelector('.recovery-item').click()`);
-    await clickDialogButton(page, '恢复');
+    await ui.click(page, 'row', recovered, { scope: '@dialog', partial: true });
+    await page.waitFor(`document.querySelector('.recovery-item')?.getAttribute('aria-selected') === 'true'`, '选中最新的备份');
+    await ui.clickInDialog(page, '恢复');
     await page.waitFor(`document.querySelector('.project-name')?.textContent === ${JSON.stringify(recovered)} && (!!document.querySelector('.line-list') || !!document.querySelector('.empty-state'))`, '恢复后进入歌词页', 180_000);
     check(true, `“从备份恢复…”列出 ${candidates} 份备份；恢复最新的一份（${recovered}）并进入歌词页`);
     await closeCurrentProject(page);
   } else {
     check(true, '“从备份恢复…”写明没有可以恢复的备份（profile 是新的）');
-    await clickDialogButton(page, '取消');
+    await ui.clickInDialog(page, '取消');
   }
 
   if (values.screenshot) {

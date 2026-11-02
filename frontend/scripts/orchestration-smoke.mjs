@@ -201,12 +201,6 @@ async function gotoPage(page, value, ready) {
   await page.waitFor(ready, `进入 ${value}`);
 }
 
-async function setFile(page, ariaLabel, path) {
-  const { root } = await page.send('DOM.getDocument', { depth: -1 });
-  const { nodeId } = await page.send('DOM.querySelector', { nodeId: root.nodeId, selector: `input[type=file][aria-label="${ariaLabel}"]` });
-  await page.send('DOM.setFileInputFiles', { nodeId, files: [path] });
-}
-
 const playheadText = `(document.querySelector('.transport-time span')?.textContent ?? '')`;
 
 /** 时间轴上的点击：t 秒处，lane 是 ruler／lines／clips／leadIns；modifiers 8 是 Shift。全曲视图下 12 秒铺满画布宽度。 */
@@ -296,14 +290,7 @@ try {
   await page.waitFor(shell.connected, '连接 Server');
 
   // 1. 新建工程；导航栏顺序
-  await clickButton(page, '新建工程');
-  await page.waitFor(`!!document.querySelector('mdui-dialog.new-project-dialog[open] input[aria-label="选择歌词"]')`, '新建工程对话框');
-  await setFile(page, '选择音频', wavPath);
-  await setFile(page, '选择歌词', lrcPath);
-  await page.waitFor(`!!document.querySelector('.lyrics-plan-summary')`, '歌词识别结果');
-  await page.waitFor(`document.body.innerText.includes('编排冒烟.wav')`, '文件已选择');
-  await clickButton(page, '下一步');
-  await clickButton(page, '新建');
+  await shell.newProject(page, { audio: wavPath, lyrics: lrcPath });
   await page.waitFor(`document.querySelectorAll('.line-list mdui-list-item').length === 4`, '工作区显示 4 行', 120_000);
   const nav = await page.eval(`[...document.querySelectorAll('.app-bar .pages .page-tab')].map((t) => t.textContent.trim()).join(',')`);
   check(nav === '歌词,编排,外观', `新建工程（4 行），顶栏页签“编排”位于“歌词”和“外观”之间（${nav}）`);

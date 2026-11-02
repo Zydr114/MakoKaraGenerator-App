@@ -197,24 +197,19 @@ try {
   await page.waitFor(`document.readyState === 'complete' && ${shell.connected}`, '连接 Server');
 
   // 1. 用工程 TTML 新建：识别结果写明会恢复全部来源，不选来源
-  await clickButton(page, '新建工程');
-  await page.waitFor(`!!document.querySelector('mdui-dialog.new-project-dialog[open] input[aria-label="选择歌词"]')`, '新建工程对话框');
-  await setFile(page, '选择音频', wavPath);
-  await setFile(page, '选择歌词', ttmlPath);
-  await page.waitFor(`!!document.querySelector('.lyrics-plan-summary')`, '歌词识别结果', 30_000);
-  const createPlan = await page.eval(planText);
+  // 新建对话框右边的文件检查：识别结果、提示和前几行
+  await shell.startNewProject(page, { audio: wavPath, lyrics: ttmlPath, name: projectName });
+  const lyricsCheck = `document.querySelector('.file-check [data-check="lyrics"]')`;
+  const createPlan = await page.eval(`${lyricsCheck}.textContent`);
   check(
-    createPlan.includes('这是 MakoKara 工程 TTML，新建时会恢复全部 3 个来源。') && !(await page.eval(`!!document.querySelector('mdui-dialog[open] .plan-source')`)),
+    createPlan.includes('这是 MakoKara 工程 TTML，新建时会恢复全部 3 个来源。') && !(await page.eval(`!!document.querySelector('.new-project-dialog .plan-source')`)),
     '新建工程：多来源的工程 TTML 写明“新建时会恢复全部 3 个来源”，不需要选来源',
   );
-  check(
-    (await page.eval(previewTexts))[0] === '朝の光' && (await page.eval(previewRuby))[0] === '朝（あ·さ）',
-    `识别结果的预览写出注音片段（${(await page.eval(previewRuby))[0]}）`,
-  );
+  const createTexts = await page.eval(`[...${lyricsCheck}.querySelectorAll('.found .plan-line-text')].map((n) => n.textContent)`);
+  const createRuby = await page.eval(`[...${lyricsCheck}.querySelectorAll('.found .plan-line-ruby')].map((n) => n.textContent)`);
+  check(createTexts[0] === '朝の光' && createRuby[0] === '朝（あ·さ）', `文件检查的预览写出注音片段（${createRuby[0]}）`);
   await snapshot(page, 'create');
-  await typeInto(page, '工程名', projectName);
-  await clickDialogButton(page, '下一步');
-  await clickDialogButton(page, '新建');
+  await shell.finishNewProject(page);
   await page.waitFor(`document.querySelector('.project-name')?.textContent === ${JSON.stringify(projectName)}`, '进入工程', 60_000);
   await page.waitFor(`${lineTexts}.length === 3 && ${branchOptions} === 3`, '新工程有三个来源', 30_000);
   await page.waitFor(`${lineMetas}[0]?.includes('翻译：晨光')`, '主歌词行下显示关联的翻译', 10_000);

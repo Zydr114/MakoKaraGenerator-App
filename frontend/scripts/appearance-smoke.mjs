@@ -172,14 +172,7 @@ async function frameHash(page, label) {
 
 /** 在首页用新建对话框建工程（12 秒 WAV、四行 LRC）。 */
 async function newProject(page) {
-  await clickButton(page, '新建工程');
-  await page.waitFor(`!!document.querySelector('mdui-dialog.new-project-dialog[open] input[aria-label="选择歌词"]')`, '新建工程对话框');
-  await setFile(page, '选择音频', wavPath);
-  await setFile(page, '选择歌词', lrcPath);
-  await page.waitFor(`!!document.querySelector('.lyrics-plan-summary')`, '歌词识别结果');
-  await page.waitFor(`document.body.innerText.includes('外观冒烟.wav')`, '文件已选择');
-  await clickButton(page, '下一步');
-  await clickButton(page, '新建');
+  await shell.newProject(page, { audio: wavPath, lyrics: lrcPath });
   await page.waitFor(`document.querySelectorAll('.line-list mdui-list-item').length === 4`, '工作区显示 4 行', 120_000);
 }
 

@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { launchChrome } from './cdp.mjs';
-import { shell, ui } from './ui-query.mjs';
+import { shell, ui, uiJs } from './ui-query.mjs';
 
 const { values } = parseArgs({
   options: {
@@ -178,15 +178,9 @@ try {
   check(true, '编辑器页面经 bootstrap 路由连上 Server');
 
   // 1. 新建
-  await clickButton(page, '新建工程');
-  await page.waitFor(`!!document.querySelector('mdui-dialog.new-project-dialog[open] input[aria-label="选择歌词"]')`, '新建工程对话框');
-  await setFile(page, '选择音频', wavPath);
-  await setFile(page, '选择歌词', lrcPath);
-  await page.waitFor(`!!document.querySelector('.lyrics-plan-summary')`, '歌词识别结果');
-  await page.waitFor(`document.body.innerText.includes('冒烟音频.wav') && document.body.innerText.includes('冒烟歌词.lrc')`, '文件已选择');
-  await typeInto(page, '工程名', `冒烟 ${directory}`);
-  await clickButton(page, '下一步');
-  await clickButton(page, '新建');
+  await shell.startNewProject(page, { audio: wavPath, lyrics: lrcPath, name: `冒烟 ${directory}` });
+  await page.waitFor(`document.querySelector('.new-project-dialog').innerText.includes('冒烟音频.wav') && document.querySelector('.new-project-dialog').innerText.includes('冒烟歌词.lrc')`, '文件已选择');
+  await shell.finishNewProject(page);
   await page.waitFor(`document.querySelectorAll('.line-list mdui-list-item').length === 4`, '工作区显示 4 行', 120_000);
   check(true, '上传中文文件名的 WAV 与 LRC，新建工程并进入工作区（4 行）');
   check(await page.eval(js(`return revision() === '0';`)), '新建后修订 0');
@@ -653,52 +647,53 @@ try {
   check(true, '四次添加歌词各一条历史，逐步撤销后新来源消失，回到主歌词');
 
   // 6f. 工程设置：画布、帧率、背景色、输出时长、音频分析各一条历史；输出时长“未确定”有明确显示；逐步撤销
-  const settingsOpen = `document.querySelector('.settings-drawer')?.open === true`;
-  const selectValue = (label) => `[...document.querySelectorAll('.settings-drawer mdui-select')].find((s) => s.label === ${JSON.stringify(label)})?.value`;
-  const durationText = `(document.querySelector('.settings-drawer .duration-value')?.textContent ?? '')`;
-  const analysisText = `(document.querySelector('.settings-drawer .analysis-status')?.textContent ?? '')`;
+  // 面板是模态的：下拉框显示的是选项文字，撤销用面板标题栏里的按钮
+  const settingsOpen = `!!document.querySelector('.project-settings:not([data-exiting])')`;
+  const inSettings = { scope: '.project-settings' };
+  const selectShown = (label) => uiJs(`return __ui.find('select', ${JSON.stringify(label)}, false, '.project-settings')?.textContent.trim();`);
+  const colorShown = uiJs(`return __ui.find('textbox', '底色', false, '.project-settings')?.value;`);
+  const durationText = `(document.querySelector('.project-settings .duration-value')?.textContent ?? '')`;
+  const analysisText = `(document.querySelector('.project-settings .analysis-status')?.textContent ?? '')`;
   const atRevision = (n) => js(`return Number(revision()) === ${n};`);
   before = Number(await page.eval(js(`return revision();`)));
   await ui.click(page, 'button', '工程设置');
   await page.waitFor(settingsOpen, '工程设置面板打开');
-  await page.waitFor(`${selectValue('尺寸')} === '1920x1080' && ${selectValue('帧率')} === '30/1'`, '显示当前画布与帧率', 10_000);
+  await page.waitFor(`${selectShown('尺寸')} === '1920 × 1080' && ${selectShown('帧率')} === '30 fps'`, '显示当前画布与帧率', 10_000);
   const initialDuration = await page.eval(durationText);
   check(initialDuration === '未确定' && (await page.eval(`!!document.querySelector('.duration-value.undetermined')`)), '新工程的输出时长显示“未确定”，并提示导出前必须确定');
-  await chooseOption(page, '尺寸', '1280x720');
-  await page.waitFor(`${atRevision(before + 1)} && ${selectValue('尺寸')} === '1280x720'`, '改画布尺寸', 10_000);
-  await chooseOption(page, '帧率', '25/1');
-  await page.waitFor(`${atRevision(before + 2)} && ${selectValue('帧率')} === '25/1'`, '改帧率', 10_000);
-  await typeInto(page, '底色', '#102030');
-  await pressEnter(page, '底色');
-  await page.waitFor(`${atRevision(before + 3)} && ${fieldValue('底色')} === '#102030' && document.querySelector('.color-swatch').value === '#102030'`, '改背景色', 10_000);
+  await ui.choose(page, '尺寸', '1280 × 720', inSettings);
+  await page.waitFor(`${atRevision(before + 1)} && ${selectShown('尺寸')} === '1280 × 720'`, '改画布尺寸', 10_000);
+  await ui.choose(page, '帧率', '25 fps', inSettings);
+  await page.waitFor(`${atRevision(before + 2)} && ${selectShown('帧率')} === '25 fps'`, '改帧率', 10_000);
+  await ui.fill(page, '底色', '#102030', { ...inSettings, enter: true });
+  await page.waitFor(`${atRevision(before + 3)} && ${colorShown} === '#102030' && document.querySelector('.project-settings input[type=color]').value === '#102030'`, '改背景色', 10_000);
   const noticeText = await page.eval(`document.querySelector('.status-bar .notice')?.textContent ?? ''`);
   check(!noticeText.includes('没有变化'), `画布尺寸、帧率、背景色各一条历史（composition.setCanvasSize／setFrameRate／setBackgroundColor），面板显示新值，没有重复发出的空命令（提示：${noticeText || '无'}）`);
-  await clickButtonIn(page, '.settings-drawer', '按音频时长');
+  await ui.click(page, 'button', '按音频时长', inSettings);
   await page.waitFor(`${atRevision(before + 4)} && ${durationText} === '0:12.000'`, '按音频时长', 10_000);
-  await typeInto(page, '自定义时长', '10.5');
-  await pressEnter(page, '自定义时长');
+  await ui.fill(page, '自定义时长', '10.5', { ...inSettings, enter: true });
   await page.waitFor(`${atRevision(before + 5)} && ${durationText} === '0:10.500'`, '自定义输出时长', 10_000);
-  await clickButtonIn(page, '.settings-drawer', '设为未确定');
+  await ui.click(page, 'button', '设为未确定', inSettings);
   await page.waitFor(`${atRevision(before + 6)} && ${durationText} === '未确定'`, '设为未确定', 10_000);
   check(true, '输出时长：按音频时长（0:12.000）→ 自定义 10.5 秒 → 设为未确定，各一条历史');
-  await clickButtonIn(page, '.settings-drawer', '分析并采用');
+  await ui.click(page, 'button', '分析并采用', inSettings);
   await page.waitFor(`${atRevision(before + 7)} && ${analysisText}.startsWith('已采用')`, '分析并采用', 90_000);
   check(true, `音频分析：建任务、等成功、audio.analysis.apply 采用（${await page.eval(analysisText)}）`);
   await snapshot(page, 'settings');
-  await clickButtonIn(page, '.settings-drawer', '清除');
+  await ui.click(page, 'button', '清除', inSettings);
   await page.waitFor(`${atRevision(before + 8)} && ${analysisText} === '未分析'`, '清除音频分析', 10_000);
   for (let i = 1; i <= 8; i++) {
-    await clickButton(page, '撤销');
+    await ui.click(page, 'button', '撤销', inSettings);
     await page.waitFor(atRevision(before + 8 + i), `撤销第 ${i} 步设置`, 10_000);
   }
   await page.waitFor(
-    `${selectValue('尺寸')} === '1920x1080' && ${selectValue('帧率')} === '30/1' && ${fieldValue('底色')} !== '#102030' && ${durationText} === '未确定' && ${analysisText} === '未分析'`,
+    `${selectShown('尺寸')} === '1920 × 1080' && ${selectShown('帧率')} === '30 fps' && ${colorShown} !== '#102030' && ${durationText} === '未确定' && ${analysisText} === '未分析'`,
     '撤销后设置回到原值',
     10_000,
   );
-  check(true, '清除音频分析；八步设置逐步撤销后，画布、帧率、背景色、输出时长和音频分析都回到原值');
-  await clickButton(page, '关闭工程设置');
-  await page.waitFor(`!(${settingsOpen})`, '关闭工程设置');
+  check(true, '清除音频分析；八步设置在面板里逐步撤销后，画布、帧率、背景色、输出时长和音频分析都回到原值');
+  await ui.click(page, 'button', '关闭工程设置');
+  await page.waitFor(`!document.querySelector('.project-settings')`, '关闭工程设置');
 
   // 6g. 界面主题（界面改版 §2.8）：应用设置里切深色、换主题色，立即生效；刷新后偏好还在
   const themeFacts = `JSON.stringify({ mode: document.documentElement.dataset.mode, primary: getComputedStyle(document.documentElement).getPropertyValue('--primary').trim() })`;
@@ -722,20 +717,22 @@ try {
     reloadedTheme.mode === 'dark' && reloadedTheme.primary === darkTheme.primary,
     `刷新后主题偏好还在（${reloadedTheme.mode}，主色 ${reloadedTheme.primary}）`,
   );
-  const sessionCard = `[...document.querySelectorAll('.home .session-card')].find((c) => c.querySelector('.session-card-name')?.textContent.includes(${JSON.stringify(directory)}))`;
-  await page.waitFor(`!!(${sessionCard})`, '首页“继续工作”列出已打开的工程', 30_000);
-  await page.eval(`(${sessionCard}).click()`);
+  const sessionRow = `[...document.querySelectorAll('.home .session-row')].find((c) => c.querySelector('.session-name')?.textContent.includes(${JSON.stringify(directory)}))`;
+  await page.waitFor(`!!(${sessionRow})`, '首页“正在编辑”列出已打开的工程', 30_000);
+  const sessionScope = `.session-row[data-session-id="${await page.eval(`(${sessionRow}).dataset.sessionId`)}"]`;
+  await ui.click(page, 'button', '接回', { scope: sessionScope });
   await page.waitFor(js(`return revision() === ${JSON.stringify(revisionBeforeReload)} && document.querySelectorAll('.line-list mdui-list-item').length === 4;`), '接回工程', 60_000);
   check(true, `刷新页面后从首页接回同一工程（修订 ${revisionBeforeReload}），不重新打开`);
   await selectToken(page, 0, '朝');
 
   // 8. 保存到新目录
-  await clickButton(page, '保存工程');
+  await ui.click(page, 'button', '保存工程');
+  await ui.waitDialog(page, '保存到');
   // 列表加载完：有目录行，或者工程目录还是空的（新 profile）。
-  await page.waitFor(`!!document.querySelector('mdui-dialog.save-location-dialog[open] :is(.directory-row, .directory-empty)')`, '“保存到…”对话框列出工程目录', 30_000);
-  await typeInto(page, '目录名', directory);
+  await page.waitFor(`!!document.querySelector('.save-browser :is(.directory-row, .directory-empty)')`, '“保存到…”对话框列出工程目录', 30_000);
+  await ui.fill(page, '目录名', directory);
   await page.waitFor(`document.querySelector('.save-target')?.dataset.kind === 'new'`, '目标写明“会新建目录”');
-  await clickDialogButton(page, '保存');
+  await ui.clickInDialog(page, '保存');
   await page.waitFor(`document.querySelector('.project-state')?.textContent === '已保存'`, '保存完成', 60_000);
   check(true, `保存到授权目录下的新目录 ${directory}（job 成功终态）`);
 
@@ -745,7 +742,8 @@ try {
   check(true, '关闭工程回到首页');
   const directoryRow = `document.querySelector('.directory-row[data-path=${JSON.stringify(directory)}] .directory-main')`;
   await page.waitFor(`!!(${directoryRow}) && !(${directoryRow}).disabled`, '工程目录列出刚保存的工程', 30_000);
-  await page.eval(`(${directoryRow}).click()`);
+  // 单击只选中，双击打开
+  await ui.click(page, 'button', directory, { scope: `.directory-row[data-path=${JSON.stringify(directory)}]`, partial: true, double: true });
   await page.waitFor(`document.querySelectorAll('.line-list mdui-list-item').length === 4`, '重开后显示 4 行', 120_000);
   await page.eval(`document.querySelector('.token-chip').click()`);
   await page.waitFor(`document.querySelector('.time-editor-title')?.textContent.includes('所选「朝」')`, '重开后选中元素「朝」');

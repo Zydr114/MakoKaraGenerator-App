@@ -120,11 +120,14 @@ export const ui = {
 
   async click(page, role, name, opts = {}) {
     await ui.wait(page, role, name, opts);
-    // 被挡住时等一会儿：可能是正在关闭的面板、对话框还在做退场动画
-    let p = await page.eval(uiJs(`return __ui.point(${findExpr(role, name, opts)});`));
-    for (let i = 0; p.covered && i < 20; i++) {
+    // 被挡住或还在移动时等一会儿：可能是正在关闭的面板、对话框的进退场动画、面板打开后的平滑滚动
+    const measure = () => page.eval(uiJs(`return __ui.point(${findExpr(role, name, opts)});`));
+    let last = null;
+    let p = await measure();
+    for (let i = 0; (p.covered || !last || last.x !== p.x || last.y !== p.y) && i < 30; i++) {
       await new Promise((r) => setTimeout(r, 100));
-      p = await page.eval(uiJs(`return __ui.point(${findExpr(role, name, opts)});`));
+      last = p;
+      p = await measure();
     }
     if (p.covered) throw new Error(`${describe(role, name)}被 ${p.what} 挡住了`);
     await mouseClick(page, p.x, p.y, 1);
@@ -147,7 +150,8 @@ export const ui = {
   async choose(page, label, option, opts = {}) {
     await ui.click(page, 'select', label, opts);
     await ui.click(page, 'option', option, { what: `下拉「${label}」的选项「${option}」` });
-    await page.waitFor(uiJs(`return !document.querySelector('[role=listbox]');`), `下拉「${label}」关闭`);
+    // 看这个下拉框自己收起（弹层打开时它被 aria-hidden，找不到）；页面上别处可能一直有 listbox
+    await page.waitFor(uiJs(`const el = ${findExpr('select', label, opts)}; return !!el && el.getAttribute('aria-expanded') !== 'true';`), `下拉「${label}」关闭`);
   },
 
   /** 菜单：点触发按钮，再点菜单项（submenu 给出时先进子菜单）。 */
@@ -180,6 +184,14 @@ export const ui = {
     await ui.click(page, 'button', button, { ...opts, scope: '@dialog' });
   },
 
+  /** 给文件输入框（按 aria-label 找，例如“选择音频”）选上本机文件，和用户选择一样触发 change。 */
+  async setFile(page, label, path) {
+    const { root } = await page.send('DOM.getDocument', { depth: -1 });
+    const { nodeId } = await page.send('DOM.querySelector', { nodeId: root.nodeId, selector: `input[type=file][aria-label=${JSON.stringify(label)}]` });
+    if (!nodeId) throw new Error(`找不到文件输入框「${label}」`);
+    await page.send('DOM.setFileInputFiles', { nodeId, files: [path] });
+  },
+
   /** 消息条的文字（没有时是空串）。 */
   async toastText(page) {
     return page.eval(`document.querySelector('.toast-region .toast-text')?.textContent ?? ''`);
@@ -200,6 +212,41 @@ export const shell = {
     await ui.click(page, 'button', PAGE_LABEL[value] ?? value, { scope: '.app-bar' });
     // 真实点击把焦点留在顶栏按钮上，之后关对话框时焦点会回到它，抢走脚本刚聚焦的输入框；切完页面放回 body
     await page.eval(`document.activeElement?.blur()`);
+  },
+
+  /** 新建工程对话框右边文件检查里一项（audio、lyrics）的状态：none、loading、ok、warn、error。 */
+  fileCheck: (id) => `document.querySelector('.file-check [data-check="${id}"]')?.dataset.state`,
+
+  /**
+   * 在首页打开新建工程对话框，选好文件（可以都不给）、填工程名，等文件检查完成。
+   * 停在第一步，返回后可以检查文件检查的内容；再调 finishNewProject 建出来。
+   */
+  async startNewProject(page, { audio, lyrics, name } = {}) {
+    await ui.click(page, 'button', '新建工程');
+    await ui.waitDialog(page, '新建工程');
+    if (audio) {
+      await ui.setFile(page, '选择音频', audio);
+      // 浏览器解不开的文件是 warn，新建时后端仍会读
+      await page.waitFor(`['ok', 'warn'].includes(${shell.fileCheck('audio')})`, '音频检查完成', 30_000);
+    }
+    if (lyrics) {
+      await ui.setFile(page, '选择歌词', lyrics);
+      // 有提示（例如格式有两种可能）时是 warn，也能新建
+      await page.waitFor(`['ok', 'warn'].includes(${shell.fileCheck('lyrics')})`, '歌词识别结果', 30_000);
+    }
+    if (name !== undefined) await ui.fill(page, '工程名', name);
+  },
+
+  /** 第一步之后：下一步、新建。 */
+  async finishNewProject(page) {
+    await ui.clickInDialog(page, '下一步');
+    await ui.clickInDialog(page, '新建');
+    await page.waitFor(shell.projectOpen, '进入工程', 120_000);
+  },
+
+  async newProject(page, files = {}) {
+    await shell.startNewProject(page, files);
+    await shell.finishNewProject(page);
   },
 
   /** 工程名菜单（另存为、导出歌词文件、关闭工程、协议控制台）。 */

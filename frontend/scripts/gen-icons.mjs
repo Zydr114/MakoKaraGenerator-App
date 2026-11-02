@@ -29,7 +29,7 @@ const ICONS = [
   'translate', 'call_split', 'merge', 'playlist_add', 'checklist', 'view_quilt', 'stacks', 'crop_free', 'crop_16_9', 'aspect_ratio',
   'grid_guides', 'layers',
   // 外观与样式库
-  'text_fields', 'gradient', 'texture', 'wand_stars',
+  'text_fields', 'gradient', 'texture', 'wand_stars', 'font_download', 'package_2', 'show_chart',
 ];
 
 const root = fileURLToPath(new URL('..', import.meta.url));

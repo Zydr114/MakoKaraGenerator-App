@@ -47,17 +47,20 @@ export function InspectorHead(props: { crumbs: readonly string[]; title: string;
 }
 
 /** 检查器的一组：标题（主色）、紧跟标题的浅色说明、标题右边的控件、内容。 */
-export function Group(props: { title: string; hint?: string | undefined; extra?: ReactNode; className?: string; children?: ReactNode }) {
+export function Group(
+  props: { title: string; hint?: string | undefined; extra?: ReactNode; className?: string; children?: ReactNode } & { [data: `data-${string}`]: string | boolean | undefined },
+) {
+  const { title, hint, extra, className, children, ...data } = props;
   return (
-    <section className={cls('grp', props.className)} aria-label={props.title}>
+    <section className={cls('grp', className)} aria-label={title} {...data}>
       <h4>
         <span className="grp-title">
-          {props.title}
-          {props.hint && <span className="grp-hint">{props.hint}</span>}
+          {title}
+          {hint && <span className="grp-hint">{hint}</span>}
         </span>
-        {props.extra && <span className="grp-extra">{props.extra}</span>}
+        {extra && <span className="grp-extra">{extra}</span>}
       </h4>
-      {props.children}
+      {children}
     </section>
   );
 }

@@ -69,6 +69,25 @@
   color: var(--primary);
 }
 
+/* ———— 幕后区顶上的工具条（编排页画布、样式库试样）：标题或模式、说明、右边的选择 ———— */
+.canvasbar {
+  flex: none;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+}
+.canvas-hint {
+  min-width: 0;
+  margin-left: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--stage-ink3);
+}
+
 /* ———— 幕后区里的成片预览：标题、画面、说明都用幕后区的颜色 ———— */
 .stage-canvas .preview-panel {
   padding: 0 24px 12px;

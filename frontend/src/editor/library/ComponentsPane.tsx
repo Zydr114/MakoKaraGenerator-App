@@ -7,10 +7,17 @@ import { OVERLAY_LABEL, READ_SCOPE_LABEL, RECIPE_TARGET_LABEL } from '../model/e
 import { EXPORT_KIND_TEXT, shortRevision } from '../model/full-template';
 import { checkComponentName, componentKindText, componentSample, filterByName, importableExports, importedName, parameterSummary } from '../model/script-components';
 import { errorText } from '../session/editor-session';
-import { confirmAction } from '../ui/legacy/dialogs';
-import { toast } from '../ui/legacy/feedback';
-import { FileButton, TextField } from '../ui/legacy/fields';
-import { FormDialog } from '../ui/legacy/FormDialog';
+import { Button, IconButton } from '../ui/Button';
+import { Checkbox } from '../ui/choices';
+import { List } from '../ui/collections';
+import { confirmAction } from '../ui/dialogs';
+import { toast } from '../ui/feedback';
+import { TextField } from '../ui/fields';
+import { FormDialog } from '../ui/FormDialog';
+import { Icon } from '../ui/Icon';
+import { ProgressBar, Tag } from '../ui/indicators';
+import { Menu, MenuItem, MenuSeparator, MenuTrigger } from '../ui/Menu';
+import { Group, Note, ReadError } from '../workspace/panel';
 import { DRAFT_LIMIT_TEXT, draftSaveState, type AuthorDraftStore, type DraftSaveState, type DraftsState } from './author-draft-store';
 import { selectedComponent, type ComponentLibraryStore, type ComponentState } from './component-library-store';
 import type { TemplateLibraryStore } from './template-library-store';
@@ -19,81 +26,106 @@ import type { TemplateWorkshop } from './template-workshop';
 
 export const SAVE_STATE_TEXT: Record<DraftSaveState, string> = { saved: '已保存', unsaved: '未保存到组件库', orphan: '没有对应的组件', checking: '正在核对…' };
 
-export function ComponentList(props: {
-  store: ComponentLibraryStore;
-  state: ComponentState;
-  drafts: AuthorDraftStore;
-  draftsState: DraftsState;
-  query: string;
-  onImport: (file: File) => void;
-  importing: boolean;
-}) {
+const kindIcon = (kind: string) => (kind === 'Material' ? 'texture' : 'wand_stars');
+
+/** 左栏：本标签页的草稿和组件库，一行一个（图标、名称、种类）。 */
+export function ComponentList(props: { store: ComponentLibraryStore; state: ComponentState; draftsState: DraftsState; query: string }) {
   const { store, state, draftsState } = props;
   const configurations = state.configurations;
   const shown = useMemo(() => filterByName(configurations ?? [], props.query), [configurations, props.query]);
   const draftItems = useMemo(() => draftsState.drafts.filter((d) => filterByName([d.configuration], props.query).length > 0), [draftsState.drafts, props.query]);
   const selectedDraft = state.selection?.kind === 'draft' ? state.selection.draftId : undefined;
-  if (state.status === 'failed') {
-    return (
-      <div className="empty-state">
-        读取组件库失败。
-        <mdui-button variant="tonal" onClick={() => void store.load()}>
-          重试
-        </mdui-button>
-      </div>
-    );
-  }
-  if (!configurations) return <mdui-linear-progress />;
+  const selected = selectedComponent(state);
+  if (state.status === 'failed') return <ReadError error="读取组件库失败。" onRetry={() => void store.load()} />;
+  if (!configurations) return <ProgressBar label="正在读取组件库" className="pane-progress" />;
   return (
-    <div className="line-list">
+    <div className="llist">
       {(draftsState.drafts.length > 0 || draftsState.lost) && (
-        <mdui-list className="draft-list">
-          <mdui-list-subheader>
-            草稿 · 本标签页 · {draftsState.drafts.length}/{AUTHOR_DRAFT_LIMIT}
-          </mdui-list-subheader>
-          {draftsState.lost && <div className="line-list empty notice-warning">{draftsState.lost}</div>}
-          {draftItems.map((d) => {
-            const saveState = draftSaveState(draftsState, d);
-            return (
-              <mdui-list-item key={d.draftId} rounded data-draft-id={d.draftId} data-save-state={saveState} active={selectedDraft === d.draftId} onClick={() => store.selectDraft(d.draftId)}>
-                {d.configuration.name}
-                <span slot="description">
-                  {componentKindText(d.configuration.kind)} · {SAVE_STATE_TEXT[saveState]}
-                </span>
-                {saveState !== 'saved' && saveState !== 'checking' && <span slot="end-icon" className="draft-dot" aria-label="有没保存到组件库的改动" />}
-              </mdui-list-item>
-            );
-          })}
-        </mdui-list>
+        <section className="template-list draft-list" aria-label="草稿">
+          <h3 className="grouphead">
+            草稿
+            <span>
+              只在本标签页 · {draftsState.drafts.length}/{AUTHOR_DRAFT_LIMIT}
+            </span>
+          </h3>
+          {draftsState.lost && (
+            <Note error className="list-note">
+              {draftsState.lost}
+            </Note>
+          )}
+          {draftItems.length > 0 && (
+            <List
+              label="草稿"
+              items={draftItems.map((d) => ({ id: d.draftId, draft: d }))}
+              textValue={(item) => item.draft.configuration.name}
+              selectedKeys={selectedDraft ? [selectedDraft] : []}
+              onSelectionChange={(keys) => {
+                const [key] = keys;
+                if (key !== undefined) store.selectDraft(String(key));
+              }}
+              className="tlist"
+              rowClassName={() => 'crow'}
+            >
+              {({ draft: d }) => {
+                const saveState = draftSaveState(draftsState, d);
+                return (
+                  <span className="crow-body" data-draft-id={d.draftId} data-save-state={saveState}>
+                    <span className="cic">
+                      <Icon name={kindIcon(d.configuration.kind)} />
+                    </span>
+                    <span className="crow-text">
+                      <b>{d.configuration.name}</b>
+                      <span className="small faint">
+                        {componentKindText(d.configuration.kind)}，{SAVE_STATE_TEXT[saveState]}
+                      </span>
+                    </span>
+                    {saveState !== 'saved' && saveState !== 'checking' && <i className="udot draft-dot" title="有没保存到组件库的改动" />}
+                  </span>
+                );
+              }}
+            </List>
+          )}
+        </section>
       )}
-      <mdui-list>
-        <mdui-list-subheader>我的效果组件</mdui-list-subheader>
-        {shown.map((c) => (
-          <mdui-list-item
-            key={c.configurationId}
-            rounded
-            data-configuration-id={c.configurationId}
-            active={selectedComponent(state) === c.configurationId}
-            onClick={() => void store.select(c.configurationId)}
+      <section className="template-list component-list" aria-label="我的效果组件">
+        <h3 className="grouphead">
+          我的效果组件
+          <span>{configurations.length}</span>
+        </h3>
+        {shown.length > 0 && (
+          <List
+            label="我的效果组件"
+            items={shown.map((c) => ({ id: c.configurationId, summary: c }))}
+            textValue={(item) => item.summary.name}
+            selectedKeys={selected && !selectedDraft ? [selected] : []}
+            onSelectionChange={(keys) => {
+              const [key] = keys;
+              if (key !== undefined) void store.select(String(key));
+            }}
+            className="tlist"
+            rowClassName={() => 'crow'}
           >
-            {c.name}
-            <span slot="description">
-              {c.packageId} · {c.exportId}
-            </span>
-            <span slot="end-icon" className="component-kind">
-              {componentKindText(c.kind)}
-            </span>
-          </mdui-list-item>
-        ))}
-        {configurations.length === 0 ? (
-          <div className="line-list empty component-empty">
-            还没有效果组件 ·
-            <FileButton label="导入效果包…" accept=".mkfx" variant="text" onPick={props.onImport} disabled={state.busy || props.importing} />
-          </div>
-        ) : (
-          shown.length === 0 && <div className="line-list empty">没有符合条件的组件。</div>
+            {({ summary: c }) => (
+              <span className="crow-body" data-configuration-id={c.configurationId} title={`${c.packageId} · ${c.exportId}`}>
+                <span className="cic">
+                  <Icon name={kindIcon(c.kind)} />
+                </span>
+                <span className="crow-text">
+                  <b>{c.name}</b>
+                  <span className="small faint">
+                    {componentKindText(c.kind)}，{c.packageId}
+                  </span>
+                </span>
+              </span>
+            )}
+          </List>
         )}
-      </mdui-list>
+        {configurations.length === 0 ? (
+          <Note className="list-note component-empty">还没有效果组件。用下面的“导入效果包…”导入。</Note>
+        ) : (
+          shown.length === 0 && <Note className="list-note">没有符合条件的组件。</Note>
+        )}
+      </section>
     </div>
   );
 }
@@ -108,6 +140,7 @@ const NAME_DIALOG_TEXT: Record<NameDialog['action'], { headline: string; submit:
 
 export type DetailProps = { store: ComponentLibraryStore; state: ComponentState; drafts: AuthorDraftStore; draftsState: DraftsState; templates: TemplateLibraryStore; workshop: TemplateWorkshop | null };
 
+/** 右栏：选中组件的标题与操作、配置摘要；试样画在中栏。 */
 export function ComponentDetail(props: DetailProps) {
   const { store, state, drafts, draftsState, workshop } = props;
   const [nameDialog, setNameDialog] = useState<NameDialog | null>(null);
@@ -118,63 +151,83 @@ export function ComponentDetail(props: DetailProps) {
   const materialSlot = sample && 'definition' in sample ? sample.materialSlot : undefined;
   useEffect(() => workshop?.setMaterialSlot(materialSlot), [workshop, materialSlot]);
 
-  if (selection === undefined) return <div className="placeholder">从左侧选择一个效果组件查看，或导入效果包。</div>;
-  if (state.detailLoading || (!detail && store.summary(selection))) return <mdui-linear-progress />;
-  if (!detail) return <div className="placeholder">这个组件已不在库中。</div>;
+  if (selection === undefined) return <Note className="insp-empty">从左侧选择一个效果组件查看，或导入效果包。</Note>;
+  if (state.detailLoading || (!detail && store.summary(selection))) return <ProgressBar label="正在读取效果组件" className="pane-progress" />;
+  if (!detail) return <Note className="insp-empty">这个组件已不在库中。</Note>;
 
   const { configuration, package: pkg } = detail;
   const existing = drafts.draftFor(configuration.configurationId);
   const full = !existing && draftsState.drafts.length >= AUTHOR_DRAFT_LIMIT;
   const remove = async () => {
-    const ok = await confirmAction({ headline: `删除“${configuration.name}”？`, description: '只从效果组件库中删除；已经用在模板里的不受影响。', confirmText: '删除' });
+    const ok = await confirmAction({ headline: `删除“${configuration.name}”？`, description: '只从效果组件库中删除；已经用在模板里的不受影响。', confirmText: '删除', danger: true });
     if (ok && (await store.remove(configuration.configurationId))) toast(`已删除“${configuration.name}”`);
+  };
+  const menu = (id: unknown) => {
+    if (id === 'rename') setNameDialog({ action: 'rename', id: configuration.configurationId, initial: configuration.name });
+    else if (id === 'copy') setNameDialog({ action: 'copy', id: configuration.configurationId, initial: `${configuration.name} 副本` });
+    else if (id === 'delete') void remove();
   };
 
   return (
-    <div className="template-detail component-detail" data-configuration-id={configuration.configurationId}>
-      <div className="template-header">
-        <h2 className="template-name">{configuration.name}</h2>
-        <div className="chips">
-          <span className="tag">效果组件 · {componentKindText(configuration.kind)}</span>
-        </div>
-        <div className="template-actions">
-          <mdui-button variant="tonal" disabled={state.busy || draftsState.busy || full || draftsState.status !== 'ready'} onClick={() => void drafts.edit(configuration.configurationId)}>
-            <mdui-icon-edit slot="icon" />
-            {existing ? '打开草稿' : '编辑'}
-          </mdui-button>
-          <mdui-dropdown placement="bottom-end">
-            <mdui-button-icon slot="trigger" aria-label="组件操作">
-              <mdui-icon-more-vert />
-            </mdui-button-icon>
-            <mdui-menu>
-              <mdui-menu-item disabled={state.busy} onClick={() => setNameDialog({ action: 'rename', id: configuration.configurationId, initial: configuration.name })}>
+    <div className="lib-detail component-detail" data-configuration-id={configuration.configurationId}>
+      <header className="phead">
+        <div className="phead-row">
+          <h2 className="template-name">{configuration.name}</h2>
+          <Tag>效果组件</Tag>
+          <span className="spacer" />
+          <MenuTrigger>
+            <IconButton icon="more_vert" size="sm" label="组件操作" />
+            <Menu placement="bottom end" onAction={menu}>
+              <MenuItem id="rename" icon="edit" disabled={state.busy}>
                 改名…
-              </mdui-menu-item>
-              <mdui-menu-item disabled={state.busy} onClick={() => setNameDialog({ action: 'copy', id: configuration.configurationId, initial: `${configuration.name} 副本` })}>
+              </MenuItem>
+              <MenuItem id="copy" icon="content_copy" disabled={state.busy}>
                 复制…
-              </mdui-menu-item>
-              <mdui-menu-item disabled={state.busy} onClick={() => void remove()}>
+              </MenuItem>
+              <MenuSeparator />
+              <MenuItem id="delete" icon="delete" danger disabled={state.busy}>
                 删除…
-              </mdui-menu-item>
-            </mdui-menu>
-          </mdui-dropdown>
+              </MenuItem>
+            </Menu>
+          </MenuTrigger>
         </div>
-      </div>
-      {full && <p className="hint">{DRAFT_LIMIT_TEXT}</p>}
+        <div className="phead-row template-actions">
+          <span className="meta">
+            {componentKindText(configuration.kind)}，{pkg?.name ?? configuration.packageId}
+          </span>
+          <span className="spacer" />
+          <Button
+            variant="filled"
+            size="sm"
+            icon="edit"
+            isDisabled={state.busy || draftsState.busy || full || draftsState.status !== 'ready'}
+            onPress={() => void drafts.edit(configuration.configurationId)}
+          >
+            {existing ? '打开草稿' : '编辑'}
+          </Button>
+        </div>
+      </header>
+      {full && <Note className="phead-note">{DRAFT_LIMIT_TEXT}</Note>}
       {workshop &&
         (starter.error ? (
-          <p className="notice-error">读不到试样用的内置模板：{starter.error}</p>
+          <Note error className="phead-note">
+            读不到试样用的内置模板：{starter.error}
+          </Note>
         ) : (
           <SampleArea
             workshop={workshop}
             source={sample && 'definition' in sample ? { kind: 'draft', definition: sample.definition } : undefined}
             scope={`component|${configuration.configurationId}|${detail.revision}`}
             blocked={sample && 'problem' in sample ? sample.problem : undefined}
-            sourceNote=""
+            sourceNote="用内置“经典整行”做底，"
           />
         ))}
-      <ConfigurationFacts configuration={configuration} pkg={pkg} />
-      <p className="hint">试样用内置“经典整行”做底，只是固定样本上的效果。用到模板里后，可在外观页看成片预览。</p>
+      <div className="pbody">
+        <p className="pintro">编辑会在本标签页新建草稿；用到模板里后，可在外观页看成片预览。</p>
+        <Group title="配置">
+          <ConfigurationFacts configuration={configuration} pkg={pkg} />
+        </Group>
+      </div>
       <ComponentNameDialog
         dialog={nameDialog}
         busy={state.busy}
@@ -197,17 +250,17 @@ export function ConfigurationFacts(props: { configuration: ScriptConfigurationFi
   const material = configuration.kind === 'Material';
   const parameters = pkg ? parameterSummary(pkg, configuration) : [];
   return (
-    <dl className="component-facts">
+    <dl className="facts component-facts">
       <Fact label="包">
         {pkg && `${pkg.name} ${pkg.version}`}
-        <span className="muted">
+        <span className="faint">
           {pkg ? ' · ' : ''}
           {configuration.packageId} · 修订 {shortRevision(configuration.packageRevision)}
         </span>
       </Fact>
       <Fact label="导出">
         {exp ? `${exp.name}（${EXPORT_KIND_TEXT[exp.kind]}）` : configuration.exportId}
-        {pkg && !exp && <span className="notice-error"> 包里没有这个导出</span>}
+        {pkg && !exp && <span className="err"> 包里没有这个导出</span>}
       </Fact>
       {!material && <Fact label="作用于">{RECIPE_TARGET_LABEL[configuration.relativeTarget]}</Fact>}
       <Fact label="读取范围">
@@ -235,10 +288,10 @@ export function ConfigurationFacts(props: { configuration: ScriptConfigurationFi
 
 function Fact(props: { label: string; children: ReactNode }) {
   return (
-    <>
+    <div>
       <dt>{props.label}</dt>
       <dd>{props.children}</dd>
-    </>
+    </div>
   );
 }
 
@@ -274,7 +327,7 @@ export function ComponentNameDialog(props: { dialog: NameDialog | null; busy: bo
       onSubmit={submit}
       onClose={props.onClose}
     >
-      <TextField label="名称" value={name} onChange={setName} error={name ? error : undefined} onEnter={submit} />
+      <TextField label="名称" value={name} onChange={setName} error={name ? error : undefined} onEnter={submit} autoFocus />
     </FormDialog>
   );
 }
@@ -326,11 +379,14 @@ export function useComponentImport(store: ComponentLibraryStore, busy: boolean):
     >
       {pending?.status === 'inspecting' && (
         <div className="package-pending" data-status="inspecting">
-          <mdui-linear-progress />
-          <span className="muted">正在上传并检查 {pending.fileName}…</span>
+          <ProgressBar label={`正在上传并检查 ${pending.fileName}…`} showLabel />
         </div>
       )}
-      {pending?.status === 'failed' && <p className="notice-error">读不出 {pending.fileName}：{pending.message}</p>}
+      {pending?.status === 'failed' && (
+        <Note error>
+          读不出 {pending.fileName}：{pending.message}
+        </Note>
+      )}
       {pkg && <ImportChoices pkg={pkg} exports={exports} checked={checked} onChange={setChecked} disabled={busy} />}
     </FormDialog>
   );
@@ -351,33 +407,37 @@ function ImportChoices(props: {
     props.onChange(next);
   };
   return (
-    <div className="package-pending" data-status="ready" data-valid={pkg.structureValid}>
+    <div className="import-choices" data-status="ready" data-valid={pkg.structureValid}>
       <div className="package-pending-title">
-        <strong>{pkg.name}</strong> {pkg.version} · 修订 {shortRevision(pkg.packageRevision)} · {pkg.files.length} 个文件
+        <b>{pkg.name}</b> {pkg.version} · 修订 {shortRevision(pkg.packageRevision)} · {pkg.files.length} 个文件
       </div>
-      {pkg.structureValid && exports.length > 0 && <p className="hint">每个勾选的导出在组件库里新建一个组件，参数全部默认。</p>}
+      {pkg.structureValid && exports.length > 0 && <Note>每个勾选的导出在组件库里新建一个组件，参数全部默认。</Note>}
       <div className="transfer-list" role="list">
         {exports.map((e) => (
-          <label key={e.id} role="listitem" className="transfer-row" data-export-id={e.id}>
-            <mdui-checkbox checked={checked.has(e.id)} disabled={props.disabled || !pkg.structureValid} aria-label={`导入 ${e.name}`} onClick={() => toggle(e.id)} />
-            <span className="transfer-name">{importedName(pkg, e)}</span>
-            <span className="target-meta">
+          <div key={e.id} role="listitem" className="transfer-row" data-export-id={e.id}>
+            <Checkbox
+              label={<span className="transfer-name">{importedName(pkg, e)}</span>}
+              checked={checked.has(e.id)}
+              onChange={() => toggle(e.id)}
+              disabled={props.disabled || !pkg.structureValid}
+            />
+            <span className="transfer-meta">
               {EXPORT_KIND_TEXT[e.kind]} · {e.parameterIds.length} 个参数
             </span>
-          </label>
+          </div>
         ))}
       </div>
-      {exports.length === 0 && <p className="notice-error">包里没有能导入的导出。</p>}
+      {exports.length === 0 && <Note error>包里没有能导入的导出。</Note>}
       {pkg.diagnostics.length > 0 && (
         <ul className="package-diagnostics">
           {pkg.diagnostics.map((d, i) => (
             <li key={i}>
-              <code>{d.code}</code> {d.path && <span className="muted">{d.path}</span>} {d.message}
+              <code>{d.code}</code> {d.path && <span className="faint">{d.path}</span>} {d.message}
             </li>
           ))}
         </ul>
       )}
-      {!pkg.structureValid && <p className="notice-error">包的结构无效，不能导入。</p>}
+      {!pkg.structureValid && <Note error>包的结构无效，不能导入。</Note>}
     </div>
   );
 }

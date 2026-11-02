@@ -1,6 +1,6 @@
 // 源码页签的代码编辑器（W8 设计 §2.6，§9 决定 1）：CodeMirror 6 的一层 React 包装，只带 C# 高亮、行号、括号匹配、撤销历史、Tab 缩进和诊断标记，
 // 不带补全、搜索面板和格式化。源码页签第一次打开时才动态 import，打成单独的分块。
-// 每个文件的 EditorState（内容、撤销历史、光标）寄存在 DraftSourceModel 里，切文件、切页签、切草稿都不丢。配色取 mdui 的颜色变量，跟随浅色和深色主题。
+// 每个文件的 EditorState（内容、撤销历史、光标）寄存在 DraftSourceModel 里，切文件、切页签、切草稿都不丢。配色取主题令牌，跟随浅色和深色主题。
 
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { bracketMatching, HighlightStyle, indentOnInput, StreamLanguage, syntaxHighlighting } from '@codemirror/language';
@@ -36,28 +36,28 @@ const theme = EditorView.theme({
   '&': {
     height: '100%',
     fontSize: '13px',
-    color: 'rgb(var(--mdui-color-on-surface))',
-    backgroundColor: 'rgb(var(--mdui-color-surface-container-lowest))',
+    color: 'var(--on-surface)',
+    backgroundColor: 'var(--field)',
   },
-  '.cm-scroller': { fontFamily: "ui-monospace, 'Cascadia Mono', 'Noto Sans Mono CJK SC', monospace", lineHeight: '1.5' },
-  '.cm-content': { caretColor: 'rgb(var(--mdui-color-primary))' },
+  '.cm-scroller': { fontFamily: 'var(--font-mono)', lineHeight: '1.5' },
+  '.cm-content': { caretColor: 'var(--primary)' },
   '&.cm-focused': { outline: 'none' },
-  '&.cm-focused .cm-cursor': { borderLeftColor: 'rgb(var(--mdui-color-primary))' },
+  '&.cm-focused .cm-cursor': { borderLeftColor: 'var(--primary)' },
   '.cm-gutters': {
-    backgroundColor: 'rgb(var(--mdui-color-surface-container-low))',
-    color: 'rgb(var(--mdui-color-on-surface-variant))',
-    borderRight: '1px solid rgb(var(--mdui-color-outline-variant))',
+    backgroundColor: 'var(--field)',
+    color: 'var(--on-surface-variant)',
+    borderRight: '1px solid var(--line)',
   },
-  '.cm-activeLine': { backgroundColor: 'rgba(var(--mdui-color-primary), 0.06)' },
-  '.cm-activeLineGutter': { backgroundColor: 'rgba(var(--mdui-color-primary), 0.1)' },
+  '.cm-activeLine': { backgroundColor: 'color-mix(in srgb, var(--primary) 6%, transparent)' },
+  '.cm-activeLineGutter': { backgroundColor: 'color-mix(in srgb, var(--primary) 10%, transparent)' },
   '.cm-selectionBackground, &.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground': {
-    backgroundColor: 'rgba(var(--mdui-color-primary), 0.22)',
+    backgroundColor: 'color-mix(in srgb, var(--primary) 22%, transparent)',
   },
-  '.cm-matchingBracket, &.cm-focused .cm-matchingBracket': { backgroundColor: 'rgba(var(--mdui-color-tertiary), 0.25)', outline: 'none' },
-  '.cm-nonmatchingBracket, &.cm-focused .cm-nonmatchingBracket': { backgroundColor: 'rgba(var(--mdui-color-error), 0.25)' },
+  '.cm-matchingBracket, &.cm-focused .cm-matchingBracket': { backgroundColor: 'color-mix(in srgb, var(--tertiary) 25%, transparent)', outline: 'none' },
+  '.cm-nonmatchingBracket, &.cm-focused .cm-nonmatchingBracket': { backgroundColor: 'color-mix(in srgb, var(--error) 25%, transparent)' },
 });
 
-/** 颜色取 editor.css 里的 --mk-code-* 变量（浅色、深色两套）。 */
+/** 颜色取 library.css 里的 --mk-code-* 变量（浅色、深色两套）。 */
 const highlight = HighlightStyle.define([
   { tag: [tags.keyword, tags.controlKeyword, tags.modifier], color: 'var(--mk-code-keyword)' },
   { tag: [tags.string, tags.special(tags.string), tags.character], color: 'var(--mk-code-string)' },

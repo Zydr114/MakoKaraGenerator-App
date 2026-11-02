@@ -4,9 +4,13 @@ import type { TemplateImportPreflightResponse, TemplateLibraryId } from '../../p
 import { templateTransfers } from '../connection';
 import { errorText } from '../session/editor-session';
 import { saveBlob } from '../ui/download';
-import { toast } from '../ui/legacy/feedback';
-import { FilePicker, Select } from '../ui/legacy/fields';
-import { FormDialog } from '../ui/legacy/FormDialog';
+import { Button } from '../ui/Button';
+import { Checkbox } from '../ui/choices';
+import { toast } from '../ui/feedback';
+import { FilePicker, Select } from '../ui/fields';
+import { FormDialog } from '../ui/FormDialog';
+import { ProgressBar } from '../ui/indicators';
+import { Note } from '../workspace/panel';
 import { useObservable } from '../ui/hooks';
 import { AVAILABILITY_TEXT, MAX_TRANSFER_TEMPLATES, PreflightGoneError, TRANSFER_FILE_NAME } from './template-transfers';
 import { KIND_TEXT, type TemplateLibraryStore } from './template-library-store';
@@ -96,6 +100,9 @@ export function ExportTemplatesDialog(props: {
       <div className="transfer-toolbar">
         <Select
           label="库"
+          labelPlacement="inside"
+          size="sm"
+          className="transfer-library"
           value={libraryId}
           options={LIBRARY_OPTIONS}
           onChange={(id) => {
@@ -104,28 +111,33 @@ export function ExportTemplatesDialog(props: {
           }}
           disabled={busy}
         />
-        <mdui-button variant="text" disabled={busy || templates.length === 0} onClick={() => setChecked(new Set(templates.slice(0, MAX_TRANSFER_TEMPLATES).map((t) => t.templateId)))}>
+        <span className="spacer" />
+        <Button
+          variant="text"
+          size="sm"
+          isDisabled={busy || templates.length === 0}
+          onPress={() => setChecked(new Set(templates.slice(0, MAX_TRANSFER_TEMPLATES).map((t) => t.templateId)))}
+        >
           全选
-        </mdui-button>
-        <mdui-button variant="text" disabled={busy || ids.length === 0} onClick={() => setChecked(new Set())}>
+        </Button>
+        <Button variant="text" size="sm" isDisabled={busy || ids.length === 0} onPress={() => setChecked(new Set())}>
           全不选
-        </mdui-button>
+        </Button>
       </div>
       <div className="transfer-list" role="list" aria-label="要导出的模板">
-        {templates.length === 0 && <p className="hint">这个库里还没有模板。</p>}
+        {templates.length === 0 && <Note>这个库里还没有模板。</Note>}
         {templates.map((t) => (
-          <label key={t.templateId} role="listitem" className="transfer-row" data-template-id={t.templateId}>
-            <mdui-checkbox checked={checked.has(t.templateId)} disabled={busy} aria-label={`导出 ${t.name}`} onClick={() => toggle(t.templateId)} />
-            <span className="transfer-name">{t.name}</span>
-            <span className="target-meta">
+          <div key={t.templateId} role="listitem" className="transfer-row" data-template-id={t.templateId}>
+            <Checkbox label={<span className="transfer-name">{t.name}</span>} checked={checked.has(t.templateId)} disabled={busy} onChange={() => toggle(t.templateId)} />
+            <span className="transfer-meta">
               {KIND_TEXT[t.kind]}
-              {t.hasEffectRecipes || t.hasPackageMaterials ? ' · 含效果' : ''}
+              {t.hasEffectRecipes || t.hasPackageMaterials ? '，含效果' : ''}
             </span>
-          </label>
+          </div>
         ))}
       </div>
-      {tooMany && <p className="notice-warning">一次最多导出 {MAX_TRANSFER_TEMPLATES} 个模板。</p>}
-      {message && <p className="notice-error">{message}</p>}
+      {tooMany && <Note error>一次最多导出 {MAX_TRANSFER_TEMPLATES} 个模板。</Note>}
+      {message && <Note error>{message}</Note>}
     </FormDialog>
   );
 }
@@ -211,26 +223,26 @@ export function ImportTemplatesDialog(props: {
       className="transfer-dialog"
     >
       <FilePicker label="选择 .mktpl 文件" accept=".mktpl" file={file} onChange={(f) => void choose(f)} disabled={busy} />
-      {busy && !preflight && file && <mdui-linear-progress />}
+      {busy && !preflight && file && <ProgressBar label="正在检查归档" />}
       {preflight && (
         <>
-          <p className="hint">
+          <Note>
             归档 {formatBytes(preflight.archiveBytes)}，{count} 个模板。导入后全部生成新 ID，不会覆盖已有模板。
-          </p>
+          </Note>
           <div className="transfer-list" role="list" aria-label="将导入的模板">
             {preflight.templates.map(({ summary, definitionAvailability }) => (
               <div key={summary.templateId} role="listitem" className="transfer-row">
                 <span className="transfer-name">{summary.name}</span>
-                <span className="target-meta">
+                <span className="transfer-meta">
                   {KIND_TEXT[summary.kind]}
-                  {AVAILABILITY_TEXT[definitionAvailability] ? ` · ${AVAILABILITY_TEXT[definitionAvailability]}` : ''}
+                  {AVAILABILITY_TEXT[definitionAvailability] ? `，${AVAILABILITY_TEXT[definitionAvailability]}` : ''}
                 </span>
               </div>
             ))}
           </div>
         </>
       )}
-      {message && <p className="notice-error">{message}</p>}
+      {message && <Note error>{message}</Note>}
     </FormDialog>
   );
 }

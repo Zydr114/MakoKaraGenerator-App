@@ -8,9 +8,13 @@ import { SLOT_LABEL, shortRevision } from '../model/full-template';
 import { recordedBackendText } from '../model/render-device';
 import { diagnosticText, isTerminal } from '../model/render-job';
 import { formatTime } from '../model/time';
-import { toast } from '../ui/legacy/feedback';
-import { Select } from '../ui/legacy/fields';
+import { Button } from '../ui/Button';
+import { cls } from '../ui/cls';
+import { toast } from '../ui/feedback';
+import { Select } from '../ui/fields';
 import { useObservable, useObservableSelector } from '../ui/hooks';
+import { Icon } from '../ui/Icon';
+import { Group, Note } from '../workspace/panel';
 import type { FullDraft } from './author-draft-store';
 import type { DraftSourceModel } from './draft-source';
 import {
@@ -74,66 +78,83 @@ export function DraftValidationTab(props: {
   };
 
   const sample = options.samples.find((s) => s.sampleId === conditions?.sampleId);
+  const inside = { labelPlacement: 'inside', size: 'sm' } as const;
   return (
     <section className="draft-validation" aria-label="验证" data-job-id={job?.jobId} data-state={job?.state} data-stale={stale ? '' : undefined}>
-      <p className="hint">按固定规格逐帧检查：{AUTHOR_VALIDATION_SPEC}。渲染设备按顶栏的选择。</p>
-      {source?.dirty && <p className="notice-warning">源码页签还有改动没保存成修订，本次验证只检查草稿的在用修订。</p>}
-      {conditions ? (
-        <div className="validation-conditions">
-          <Select<TemplateWorkshopSampleId>
-            label="样本"
-            value={conditions.sampleId}
-            options={options.samples.map((s) => ({ value: s.sampleId, label: SAMPLE_LABEL[s.sampleId] ?? s.sampleId, disabled: s.targets.length === 0 }))}
-            onChange={(sampleId) => change({ sampleId })}
-            disabled={running}
-          />
-          <Select
-            label="目标"
-            value={conditions.targetKey}
-            options={(sample?.targets ?? []).map((t) => ({ value: t.key, label: targetLabel(t.key) }))}
-            onChange={(targetKey) => change({ targetKey })}
-            disabled={running}
-          />
-          {conditions.materialSlot && (
-            <Select<TemplateMaterialSlot>
-              label="材质部位"
-              value={conditions.materialSlot}
-              options={options.materialSlots.map((slot) => ({ value: slot, label: SLOT_LABEL[slot] }))}
-              onChange={(materialSlot) => change({ materialSlot })}
-              disabled={running}
-            />
-          )}
-          {state.chosen ? (
-            <mdui-button variant="text" disabled={running} onClick={() => model.choose(undefined)}>
-              跟随试样画布
-            </mdui-button>
-          ) : (
-            <span className="hint">{canvas ? '跟随试样画布' : '默认样本'}</span>
-          )}
-          <mdui-button variant="tonal" className="validation-start" loading={!!state.submitting} disabled={running || props.disabled} onClick={() => void model.start(conditions)}>
-            {state.submitting ? '正在提交验证…' : job && !running ? '重新验证' : '开始验证'}
-          </mdui-button>
-        </div>
-      ) : (
-        <p className="notice-error">这个草稿没有可用的试样目标，不能验证。</p>
-      )}
-      {state.submitError && <p className="dialog-error">{state.submitError}</p>}
-      {state.restoring && <p className="muted">正在读取上一次的验证…</p>}
-      {!job && state.error && <p className="dialog-error">{state.error}</p>}
-      {state.retryable && (
-        <mdui-button variant="text" disabled={!!state.restoring || props.disabled} onClick={() => void model.retry()}>
-          重新读取验证结果
-        </mdui-button>
-      )}
-      {job && (
-        <p className="hint job-device">
-          {validated ? `验证的是 ${conditionsText(validated)} · 修订 ${shortRevision(validated.sourceRevision)} · ` : ''}
-          渲染设备：{recordedBackendText(job.input?.renderBackend)}
-        </p>
-      )}
-      {job && !terminal && <JobProgressView job={job} cancelling={state.cancelling} error={state.error} onCancel={() => void model.cancel()} />}
-      {terminal && !state.settled && <p className="muted job-result">正在读取验证报告……</p>}
-      {terminal && state.settled && <ValidationResult state={state} stale={stale} onOpen={(row) => void openIssue(row)} canOpen={!!source} />}
+      <Group title="条件" hint={state.chosen ? undefined : canvas ? '跟随试样画布' : '默认样本'}>
+        {conditions ? (
+          <>
+            <div className="g2 validation-conditions">
+              <Select<TemplateWorkshopSampleId>
+                {...inside}
+                label="样本"
+                value={conditions.sampleId}
+                options={options.samples.map((s) => ({ value: s.sampleId, label: SAMPLE_LABEL[s.sampleId] ?? s.sampleId, disabled: s.targets.length === 0 }))}
+                onChange={(sampleId) => change({ sampleId })}
+                disabled={running}
+              />
+              <Select
+                {...inside}
+                label="目标"
+                value={conditions.targetKey}
+                options={(sample?.targets ?? []).map((t) => ({ value: t.key, label: targetLabel(t.key) }))}
+                onChange={(targetKey) => change({ targetKey })}
+                disabled={running}
+              />
+              {conditions.materialSlot && (
+                <Select<TemplateMaterialSlot>
+                  {...inside}
+                  label="材质部位"
+                  className="span2"
+                  value={conditions.materialSlot}
+                  options={options.materialSlots.map((slot) => ({ value: slot, label: SLOT_LABEL[slot] }))}
+                  onChange={(materialSlot) => change({ materialSlot })}
+                  disabled={running}
+                />
+              )}
+            </div>
+            <Note>按固定规格逐帧检查：{AUTHOR_VALIDATION_SPEC}。渲染设备按顶栏的选择。</Note>
+            {source?.dirty && <Note error>源码页签还有改动没保存成修订，本次验证只检查草稿的在用修订。</Note>}
+            <div className="row-actions">
+              <Button
+                variant="filled"
+                size="sm"
+                icon="fact_check"
+                className="validation-start"
+                isPending={!!state.submitting}
+                isDisabled={running || props.disabled}
+                onPress={() => void model.start(conditions)}
+              >
+                {state.submitting ? '正在提交验证…' : job && !running ? '重新验证' : '开始验证'}
+              </Button>
+              {state.chosen && (
+                <Button variant="text" size="sm" isDisabled={running} onPress={() => model.choose(undefined)}>
+                  跟随试样画布
+                </Button>
+              )}
+            </div>
+          </>
+        ) : (
+          <Note error>这个草稿没有可用的试样目标，不能验证。</Note>
+        )}
+      </Group>
+      <Group title="报告" hint={validated ? `修订 ${shortRevision(validated.sourceRevision)}，${conditionsText(validated)}` : undefined} className="validation-report">
+        {state.submitError && <Note error>{state.submitError}</Note>}
+        {state.restoring && <Note>正在读取上一次的验证…</Note>}
+        {!job && state.error && <Note error>{state.error}</Note>}
+        {state.retryable && (
+          <div className="row-actions">
+            <Button variant="text" size="sm" icon="refresh" isDisabled={!!state.restoring || props.disabled} onPress={() => void model.retry()}>
+              重新读取验证结果
+            </Button>
+          </div>
+        )}
+        {!job && !state.restoring && !state.error && !state.submitError && <Note>还没有验证过。</Note>}
+        {job && <Note className="job-device">渲染设备：{recordedBackendText(job.input?.renderBackend)}</Note>}
+        {job && !terminal && <JobProgressView job={job} cancelling={state.cancelling} error={state.error} onCancel={() => void model.cancel()} />}
+        {terminal && !state.settled && <Note className="job-result">正在读取验证报告……</Note>}
+        {terminal && state.settled && <ValidationResult state={state} stale={stale} onOpen={(row) => void openIssue(row)} canOpen={!!source} />}
+      </Group>
     </section>
   );
 }
@@ -145,44 +166,60 @@ function ValidationResult(props: { state: DraftValidationModel['state']; stale: 
   const extra = report ? extraDiagnostics(report) : [];
   return (
     <div className="job-result validation-result" data-outcome={report ? (report.succeeded ? 'passed' : 'failed') : undefined}>
-      {props.stale && <p className="notice-warning validation-stale">草稿已经改过，结果对应旧版本，需要重新验证。</p>}
+      {props.stale && <Note error className="validation-stale">草稿已经改过，结果对应旧版本，需要重新验证。</Note>}
       {report ? (
-        <p className={`validation-outcome ${report.succeeded ? 'job-ok' : 'dialog-error'}`}>
-          {validationOutcomeText(report)} · 设备 {recordedBackendText(report.renderBackend)}
-        </p>
+        <>
+          <div className="vsum">
+            <span>
+              <b className={report.succeeded ? 'ok' : 'bad'}>{report.succeeded ? '通过' : '失败'}</b>结果
+            </span>
+            <span>
+              <b>{report.opaqueFrames}</b>普通帧
+            </span>
+            <span>
+              <b>{report.transparentFrames}</b>透明帧
+            </span>
+            <span>
+              <b>{rows.length}</b>个问题
+            </span>
+          </div>
+          <p className="note validation-outcome">
+            {validationOutcomeText(report)} · 设备 {recordedBackendText(report.renderBackend)}
+          </p>
+        </>
       ) : (
-        <p className={state.job?.state === 'cancelled' ? 'muted' : 'dialog-error'}>{state.error ?? '没有读到验证报告。'}</p>
+        <Note error={state.job?.state !== 'cancelled'}>{state.error ?? '没有读到验证报告。'}</Note>
       )}
-      {report && state.error && <p className="dialog-error">{state.error}</p>}
+      {report && state.error && <Note error>{state.error}</Note>}
       {rows.length > 0 && (
-        <ul className="compile-rows validation-issues">
-          {rows.slice(0, MAX_LISTED).map((row) => (
-            <li key={row.key}>
-              <button
-                type="button"
-                className="compile-row validation-issue"
-                data-severity={row.isError ? 'error' : 'warning'}
-                disabled={!props.canOpen || !row.script}
-                title={row.script && props.canOpen ? (row.location ? '到源码页签看这一行' : '到源码页签看验证的修订（运行时异常没有行号）') : undefined}
-                onClick={() => props.onOpen(row)}
-              >
-                {row.isError ? <mdui-icon-error className="compile-icon" /> : <mdui-icon-warning className="compile-icon" />}
-                <span className="compile-location">
-                  {formatTime(row.timeUs)} · {row.transparent ? '透明' : '普通'} · {ORIGIN_TEXT[row.origin]}
-                </span>
-                <code>{row.code}</code>
-                {row.location && (
-                  <span className="compile-location">
-                    {row.location.path}:{row.location.line}:{row.location.column}
+        <ul className="iss-list validation-issues">
+          {rows.slice(0, MAX_LISTED).map((row) => {
+            const open = props.canOpen && row.script;
+            return (
+              <li key={row.key} className={cls('iss', 'validation-issue', row.isError ? 'e' : 'w')} data-severity={row.isError ? 'error' : 'warning'}>
+                <Icon name={row.isError ? 'error' : 'warning'} />
+                <span className="iss-text">
+                  <b>
+                    <code>{row.code}</code> {row.message}
+                  </b>
+                  <span className="small">
+                    {formatTime(row.timeUs)} · {row.transparent ? '透明' : '普通'} · {ORIGIN_TEXT[row.origin]}
+                    {row.location ? ` · ${row.location.path}:${row.location.line}:${row.location.column}` : row.origin === 'runtime' ? '，运行时异常没有行号' : ''}
                   </span>
+                </span>
+                {open ? (
+                  <Button variant="text" size="sm" className="validation-open" onPress={() => props.onOpen(row)}>
+                    {row.location ? '看这一行' : '看修订'}
+                  </Button>
+                ) : (
+                  <span />
                 )}
-                <span className="compile-message">{row.message}</span>
-              </button>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       )}
-      {rows.length > MAX_LISTED && <p className="hint">还有 {rows.length - MAX_LISTED} 个问题没有列出。</p>}
+      {rows.length > MAX_LISTED && <Note>还有 {rows.length - MAX_LISTED} 个问题没有列出。</Note>}
       {extra.length > 0 && (
         <details className="validation-diagnostics">
           <summary>其他诊断（{extra.length} 条）</summary>

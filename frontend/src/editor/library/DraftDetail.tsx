@@ -6,9 +6,13 @@ import type { DraftTab, FullDraft } from './author-draft-store';
 import { draftSaveState, type AuthorDraftStore, type DraftsState } from './author-draft-store';
 import { compiledOk, componentKindText } from '../model/script-components';
 import { shortRevision } from '../model/full-template';
-import { confirmAction } from '../ui/legacy/dialogs';
-import { toast } from '../ui/legacy/feedback';
-import { Tabs } from '../ui/legacy/fields';
+import { Button, IconButton } from '../ui/Button';
+import { confirmAction } from '../ui/dialogs';
+import { toast } from '../ui/feedback';
+import { useObservable } from '../ui/hooks';
+import { Tag } from '../ui/indicators';
+import { Tabs } from '../ui/Tabs';
+import { Note } from '../workspace/panel';
 import type { ComponentState } from './component-library-store';
 import { ComponentNameDialog, SAVE_STATE_TEXT, type NameDialog } from './ComponentsPane';
 import type { DraftConfigEditor } from './draft-config-editor';
@@ -51,7 +55,7 @@ export function DraftDetail(props: { state: ComponentState; drafts: AuthorDraftS
   };
   const close = async () => {
     if (saveState !== 'saved' || editor?.unsettled || source?.dirty) {
-      const ok = await confirmAction({ headline: `关闭草稿“${configuration.name}”？`, description: '草稿里的修改没有保存到组件库，关闭后找不回来。', confirmText: '关闭' });
+      const ok = await confirmAction({ headline: `关闭草稿“${configuration.name}”？`, description: '草稿里的修改没有保存到组件库，关闭后找不回来。', confirmText: '关闭', danger: true });
       if (!ok) return;
     }
     setClosing(true);
@@ -61,41 +65,41 @@ export function DraftDetail(props: { state: ComponentState; drafts: AuthorDraftS
   const saveAs = () => setNameDialog({ action: 'saveAs', id: draft.draftId, initial: editor?.state.value.name ?? configuration.name });
 
   return (
-    <div className="template-detail component-detail draft-detail" data-draft-id={draft.draftId} data-save-state={saveState}>
-      <div className="template-header">
-        <h2 className="template-name">{configuration.name}</h2>
-        <div className="chips">
-          <span className="tag">
-            草稿 · {componentKindText(configuration.kind)} · {SAVE_STATE_TEXT[saveState]}
+    <div className="lib-detail draft-detail" data-draft-id={draft.draftId} data-save-state={saveState}>
+      <header className="phead">
+        <div className="phead-row">
+          <h2 className="template-name">{configuration.name}</h2>
+          <Tag>草稿</Tag>
+          {saveState !== 'saved' && <Tag tone={saveState === 'checking' ? 'neutral' : 'warn'}>{SAVE_STATE_TEXT[saveState]}</Tag>}
+          <span className="spacer" />
+          <IconButton icon="close" size="sm" label="关闭草稿" isDisabled={busy} onPress={() => void close()} />
+        </div>
+        <div className="phead-row template-actions">
+          <span className="meta draft-package" title={`${pkg ? `${pkg.name} ${pkg.version} · ` : ''}${configuration.packageId}`}>
+            {componentKindText(configuration.kind)}，在用修订 {shortRevision(configuration.sourceRevision)}
+            {configuration.sourceRevision === draft.baseSourceRevision ? '（原包）' : ''}
           </span>
-        </div>
-        <div className="template-actions">
+          <span className="spacer" />
           {originConfig ? (
-            <mdui-button variant="filled" loading={draftsState.busy} disabled={busy || saveState !== 'unsaved'} onClick={() => void save()}>
-              保存到“{originConfig.name}”
-            </mdui-button>
-          ) : (
-            <mdui-button variant="filled" disabled={busy} onClick={saveAs}>
-              另存为新组件…
-            </mdui-button>
-          )}
-          <mdui-button variant="text" disabled={busy} onClick={() => void close()}>
-            关闭
-          </mdui-button>
-          <mdui-dropdown placement="bottom-end">
-            <mdui-button-icon slot="trigger" aria-label="草稿操作">
-              <mdui-icon-more-vert />
-            </mdui-button-icon>
-            <mdui-menu>
-              <mdui-menu-item disabled={busy} onClick={saveAs}>
+            <>
+              <Button variant="text" size="sm" isDisabled={busy} onPress={saveAs}>
                 另存为新组件…
-              </mdui-menu-item>
-            </mdui-menu>
-          </mdui-dropdown>
+              </Button>
+              <Button variant="filled" size="sm" icon="save" isPending={draftsState.busy} isDisabled={busy || saveState !== 'unsaved'} onPress={() => void save()}>
+                保存到组件库
+              </Button>
+            </>
+          ) : (
+            <Button variant="filled" size="sm" icon="save" isDisabled={busy} onPress={saveAs}>
+              另存为新组件…
+            </Button>
+          )}
         </div>
-      </div>
-      <p className="hint draft-scope">当前页面未提供草稿恢复；请及时保存到组件库，已保存组件仍可用。</p>
-      {saveState === 'orphan' && <p className="hint">{origin ? '来源组件已经不在组件库里了' : '不知道这个草稿来自哪个组件'}，只能另存为新组件。</p>}
+      </header>
+      <Note className="phead-note draft-scope">
+        {originConfig ? `保存会更新组件“${originConfig.name}”。` : ''}草稿只在本标签页，没有恢复，请及时保存到组件库。
+      </Note>
+      {saveState === 'orphan' && <Note className="phead-note">{origin ? '来源组件已经不在组件库里了' : '不知道这个草稿来自哪个组件'}，只能另存为新组件。</Note>}
       {workshop && (
         <SampleArea
           workshop={workshop}
@@ -106,25 +110,25 @@ export function DraftDetail(props: { state: ComponentState; drafts: AuthorDraftS
           failureLink={{ code: 'WorkerPackageCompilationFailed', label: '在源码页签查看', onClick: () => drafts.setTab(draft.draftId, 'source') }}
         />
       )}
-      <p className="hint draft-package">
-        {pkg ? `${pkg.name} ${pkg.version} · ` : ''}
-        {configuration.packageId} · 在用修订 {shortRevision(configuration.sourceRevision)}
-        {configuration.sourceRevision === draft.baseSourceRevision ? '（原包）' : ''}
-      </p>
-      <Tabs value={tab} options={DRAFT_TABS} onChange={(next) => drafts.setTab(draft.draftId, next)} className="draft-tabs" />
-      {tab === 'config' && editor && <DraftConfigTab draft={draft} editor={editor} pkg={pkg} checking={saveState === 'checking'} disabled={busy} />}
-      {tab === 'source' && source && <DraftSourceTab key={draft.draftId} draft={draft} model={source} disabled={busy} />}
-      {tab === 'validation' && validation && (
-        <DraftValidationTab
-          key={draft.draftId}
-          draft={draft}
-          model={validation}
-          source={source}
-          workshop={workshop}
-          onShowSource={() => drafts.setTab(draft.draftId, 'source')}
-          disabled={busy}
-        />
-      )}
+      <div className="ptabs-row">
+        <Tabs label="草稿编辑" value={tab} options={DRAFT_TABS} onChange={(next) => drafts.setTab(draft.draftId, next)} className="ptabs draft-tabs" />
+        {tab === 'config' && editor && <ConfigUndo editor={editor} disabled={busy} />}
+      </div>
+      <div className="pbody" data-tab={tab}>
+        {tab === 'config' && editor && <DraftConfigTab draft={draft} editor={editor} pkg={pkg} checking={saveState === 'checking'} disabled={busy} />}
+        {tab === 'source' && source && <DraftSourceTab key={draft.draftId} draft={draft} model={source} disabled={busy} />}
+        {tab === 'validation' && validation && (
+          <DraftValidationTab
+            key={draft.draftId}
+            draft={draft}
+            model={validation}
+            source={source}
+            workshop={workshop}
+            onShowSource={() => drafts.setTab(draft.draftId, 'source')}
+            disabled={busy}
+          />
+        )}
+      </div>
       <ComponentNameDialog
         dialog={nameDialog}
         busy={busy}
@@ -139,6 +143,17 @@ export function DraftDetail(props: { state: ComponentState; drafts: AuthorDraftS
         }}
       />
     </div>
+  );
+}
+
+/** 配置页签的撤销与重做，放在页签条右边。 */
+function ConfigUndo(props: { editor: DraftConfigEditor; disabled: boolean }) {
+  const state = useObservable(props.editor.state$);
+  return (
+    <span className="ptabs-tools">
+      <IconButton icon="undo" size="sm" label="撤销配置修改" isDisabled={props.disabled || !state.canUndo} onPress={() => props.editor.undo()} />
+      <IconButton icon="redo" size="sm" label="重做配置修改" isDisabled={props.disabled || !state.canRedo} onPress={() => props.editor.redo()} />
+    </span>
   );
 }
 

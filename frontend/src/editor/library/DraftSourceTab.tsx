@@ -4,9 +4,13 @@
 import { Component, lazy, Suspense, useEffect, useRef, type ReactNode } from 'react';
 import { compileOutcomeText, compileRows, type CompileRow, type SourceMarker } from '../model/compile-diagnostics';
 import { shortRevision } from '../model/full-template';
-import { confirmAction } from '../ui/legacy/dialogs';
-import { toast } from '../ui/legacy/feedback';
+import { Button, IconButton } from '../ui/Button';
+import { cls } from '../ui/cls';
+import { confirmAction } from '../ui/dialogs';
+import { toast } from '../ui/feedback';
 import { useObservable } from '../ui/hooks';
+import { Icon } from '../ui/Icon';
+import { Note, ReadError } from '../workspace/panel';
 import type { FullDraft } from './author-draft-store';
 import { revisionLabelText, revisionRows, type DraftSourceModel, type SourceResult } from './draft-source';
 
@@ -31,15 +35,12 @@ export function DraftSourceTab(props: { draft: FullDraft; model: DraftSourceMode
     compileRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [state.compilation]);
 
-  if (state.status === 'none') return <p className="hint draft-source-none">{NO_SOURCE_TEXT}</p>;
-  if (state.status === 'idle' || state.status === 'loading') return <p className="hint">正在读取源码…</p>;
+  if (state.status === 'none') return <Note className="pintro draft-source-none">{NO_SOURCE_TEXT}</Note>;
+  if (state.status === 'idle' || state.status === 'loading') return <Note className="pintro">正在读取源码…</Note>;
   if (state.status === 'failed')
     return (
       <div className="draft-source-failed">
-        <p className="notice-error">{state.error}</p>
-        <mdui-button variant="text" onClick={() => void model.load()}>
-          重试
-        </mdui-button>
+        <ReadError error={state.error} onRetry={() => void model.load()} />
       </div>
     );
 
@@ -77,67 +78,84 @@ export function DraftSourceTab(props: { draft: FullDraft; model: DraftSourceMode
   };
 
   return (
-    <section className="draft-source" aria-label="源码" data-revision={state.revision} data-dirty={dirty ? '' : undefined}>
-      <aside className="draft-source-side">
-        <h3 className="section-title">文件</h3>
+    <section className="srcwrap draft-source" aria-label="源码" data-revision={state.revision} data-dirty={dirty ? '' : undefined}>
+      <aside className="srcside draft-source-side">
+        <h5>文件</h5>
         <ul className="source-files">
           {state.files.map((file) => (
             <li key={file.path}>
               <button
                 type="button"
-                className={`source-file${file.path === state.active ? ' active' : ''}`}
+                className={cls('fitem', 'source-file', file.path === state.active && 'active')}
                 data-path={file.path}
                 data-dirty={file.text !== file.saved ? '' : undefined}
+                aria-current={file.path === state.active ? 'true' : undefined}
+                title={file.path}
                 onClick={() => model.select(file.path)}
               >
-                <span className="source-dot" aria-label={file.text !== file.saved ? '改过' : undefined} />
-                {file.path}
+                <Icon name="code" />
+                <span className="fitem-name">{baseName(file.path)}</span>
+                {file.text !== file.saved && <i className="udot source-dot" aria-label="改过" />}
               </button>
             </li>
           ))}
         </ul>
-        <h3 className="section-title">修订</h3>
+        <h5>修订</h5>
         <ul className="source-revisions">
           {rows.map((row) => (
-            <li key={row.revision} className={`source-revision${row.revision === state.revision ? ' shown' : ''}`} data-revision={row.revision}>
-              <div className="source-revision-name">
-                <code>{shortRevision(row.revision)}</code>
-                <span className="muted">{revisionLabelText(row.labels)}</span>
-              </div>
-              <div className="source-revision-actions">
-                <mdui-button variant="text" className="source-revision-view" disabled={busy || row.revision === state.revision} onClick={() => void view(row.revision)}>
-                  查看
-                </mdui-button>
-                <mdui-button variant="text" className="source-revision-adopt" disabled={busy || row.revision === inUse} onClick={() => void adopt(row.revision)}>
-                  改用此修订
-                </mdui-button>
-              </div>
+            <li key={row.revision} className={cls('rev', 'source-revision', row.revision === state.revision && 'shown')} data-revision={row.revision}>
+              <span className="rev-text source-revision-name">
+                <b>{shortRevision(row.revision)}</b>
+                <span>{revisionLabelText(row.labels)}</span>
+              </span>
+              <span className="rev-tools source-revision-actions">
+                <IconButton
+                  icon="visibility"
+                  size="sm"
+                  label={`查看修订 ${shortRevision(row.revision)}`}
+                  tooltip="查看"
+                  className="source-revision-view"
+                  isDisabled={busy || row.revision === state.revision}
+                  onPress={() => void view(row.revision)}
+                />
+                <IconButton
+                  icon="check_circle"
+                  size="sm"
+                  label={`改用修订 ${shortRevision(row.revision)}`}
+                  tooltip="改用此修订"
+                  className="source-revision-adopt"
+                  isDisabled={busy || row.revision === inUse}
+                  onPress={() => void adopt(row.revision)}
+                />
+              </span>
             </li>
           ))}
         </ul>
-        <p className="hint">后端不列出草稿保留的修订：这里只有原包、最新、已采用、在用和本页保存过的。</p>
-        <div className="source-actions">
-          <mdui-button variant="filled" className="source-save" loading={state.busy === 'saving'} disabled={busy || !dirty} onClick={() => void save()}>
-            保存修订
-          </mdui-button>
-          <mdui-button variant="tonal" className="source-compile-button" loading={!!state.compiling} disabled={busy || !!state.compiling} onClick={() => void compile()}>
-            {dirty ? '保存并编译' : `编译最新修订（${shortRevision(latest)}）`}
-          </mdui-button>
-        </div>
-        {inUse !== latest && <p className="hint">编译的是最新修订；试样在用的是 {shortRevision(inUse)}。</p>}
+        <Note className="srcside-note">后端不列出草稿保留的修订：这里只有原包、最新、已采用、在用和本页保存过的。</Note>
       </aside>
-      <div className="draft-source-main">
-        <p className="hint source-shown">
-          编辑器里是修订 {state.revision ? shortRevision(state.revision) : '?'}
-          {shown && shown.labels.length > 0 ? `（${revisionLabelText(shown.labels)}）` : ''}
-          {state.revision !== inUse ? ` · 试样在用的是 ${shortRevision(inUse)}` : ''}
-          {dirty ? ' · 有改动没保存，Ctrl+S 保存为新修订' : ''}
-        </p>
-        {state.error && <p className="notice-error">{state.error}</p>}
+      <div className="srcmain draft-source-main">
+        <div className="srcbar">
+          <b className="srcbar-file" title={active?.path}>
+            {active ? baseName(active.path) : '没有文件'}
+          </b>
+          <span className="small faint source-shown" title="Ctrl+S 保存为新修订">
+            修订 {state.revision ? shortRevision(state.revision) : '?'}
+            {shown && shown.labels.length > 0 ? `（${revisionLabelText(shown.labels)}）` : ''}
+            {dirty ? '，有改动没保存' : ''}
+          </span>
+          <span className="spacer" />
+          <Button variant="filled" size="sm" icon="save" className="source-save" isPending={state.busy === 'saving'} isDisabled={busy || !dirty} onPress={() => void save()}>
+            保存修订
+          </Button>
+          <Button variant="tonal" size="sm" icon="build" className="source-compile-button" isPending={!!state.compiling} isDisabled={busy || !!state.compiling} onPress={() => void compile()}>
+            {dirty ? '保存并编译' : '编译'}
+          </Button>
+        </div>
+        {state.error && <Note error>{state.error}</Note>}
         <div className="source-editor-frame">
           {active ? (
             <EditorBoundary>
-              <Suspense fallback={<p className="hint">正在加载编辑器…</p>}>
+              <Suspense fallback={<Note className="pintro">正在加载编辑器…</Note>}>
                 <SourceEditor
                   docKey={`${draft.draftId}|${state.generation}|${active.path}`}
                   text={active.text}
@@ -153,34 +171,48 @@ export function DraftSourceTab(props: { draft: FullDraft; model: DraftSourceMode
               </Suspense>
             </EditorBoundary>
           ) : (
-            <p className="hint">这个修订没有 C# 文件。</p>
+            <Note className="pintro">这个修订没有 C# 文件。</Note>
           )}
         </div>
-        <section ref={compileRef} className="source-compile" aria-label="编译" data-outcome={compilation ? (compilation.succeeded ? 'passed' : 'failed') : undefined} data-stale={stale ? '' : undefined}>
-          <div className="source-compile-head">
+        <section
+          ref={compileRef}
+          className="diag source-compile"
+          aria-label="编译"
+          data-outcome={compilation ? (compilation.succeeded ? 'passed' : 'failed') : undefined}
+          data-stale={stale ? '' : undefined}
+        >
+          <header>
+            {compilation && <Icon name={compilation.succeeded ? 'check_circle' : 'error'} className={compilation.succeeded ? 'ok' : 'bad'} />}
             <span className="source-compile-outcome">
-              {compilation ? `编译 · ${shortRevision(compilation.sourceRevision)} · ${compileOutcomeText(compilation)}` : '还没有编译过'}
+              {compilation ? `编译 · 修订 ${shortRevision(compilation.sourceRevision)} · ${compileOutcomeText(compilation)}` : '还没有编译过'}
             </span>
-            {stale && <span className="muted">已过期，需要重新编译</span>}
+            {stale && <span className="diag-stale">已过期，需要重新编译</span>}
+            <span className="faint">
+              {state.compiling
+                ? state.compiling.cancelling
+                  ? '正在取消…'
+                  : '正在编译…'
+                : inUse !== latest
+                  ? `编译的是最新修订 ${shortRevision(latest)}；试样在用的是 ${shortRevision(inUse)}`
+                  : ''}
+            </span>
             {state.compiling && (
-              <>
-                <span className="muted">{state.compiling.cancelling ? '正在取消…' : '正在编译…'}</span>
-                <mdui-button variant="text" disabled={!state.compiling.canCancel || state.compiling.cancelling} onClick={() => void model.cancelCompile()}>
-                  取消
-                </mdui-button>
-              </>
+              <Button variant="text" size="sm" isDisabled={!state.compiling.canCancel || state.compiling.cancelling} onPress={() => void model.cancelCompile()}>
+                取消
+              </Button>
             )}
-          </div>
-          {state.compileError && <p className="notice-error">{state.compileError}</p>}
+          </header>
+          {state.compileError && <Note error>{state.compileError}</Note>}
           {rowsOf.length > 0 && (
             <ul className="compile-rows">
               {rowsOf.map((row, i) => (
                 <li key={i}>
-                  <button type="button" className="compile-row" data-severity={row.isError ? 'error' : 'warning'} disabled={!row.path} onClick={() => void jump(row)}>
-                    {row.isError ? <mdui-icon-error className="compile-icon" /> : <mdui-icon-warning className="compile-icon" />}
-                    <code>{row.code}</code>
-                    {row.location && <span className="compile-location">{row.location}</span>}
-                    <span className="compile-message">{row.message}</span>
+                  <button type="button" className="dline compile-row" data-severity={row.isError ? 'error' : 'warning'} disabled={!row.path} onClick={() => void jump(row)}>
+                    <Icon name={row.isError ? 'error' : 'warning'} className="compile-icon" />
+                    {row.location && <span className="loc compile-location">{row.location}</span>}
+                    <span className="compile-message">
+                      <code>{row.code}</code> {row.message}
+                    </span>
                   </button>
                 </li>
               ))}
@@ -204,16 +236,13 @@ class EditorBoundary extends Component<{ children: ReactNode }, { error?: unknow
     if (this.state.error === undefined) return this.props.children;
     return (
       <div className="draft-source-failed">
-        <p className="notice-error">代码编辑器出错了：{this.state.error instanceof Error ? this.state.error.message : String(this.state.error)}</p>
-        <mdui-button
-          variant="text"
-          onClick={() => {
+        <ReadError
+          error={`代码编辑器出错了：${this.state.error instanceof Error ? this.state.error.message : String(this.state.error)}`}
+          onRetry={() => {
             SourceEditor = loadEditor();
             this.setState({ error: undefined });
           }}
-        >
-          重试
-        </mdui-button>
+        />
       </div>
     );
   }
@@ -236,6 +265,10 @@ function report(result: SourceResult): void {
     case 'busy':
       break;
   }
+}
+
+function baseName(path: string): string {
+  return path.slice(path.lastIndexOf('/') + 1);
 }
 
 /** 编辑器里有没保存成修订的改动时先确认。 */

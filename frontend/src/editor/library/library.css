@@ -1123,3 +1123,468 @@
   flex-direction: column;
   gap: 6px;
 }
+
+/* ———— 效果组件与作者草稿 ———— */
+
+.phead-note {
+  margin: 0 16px 4px;
+}
+.lib-detail > .note.phead-note {
+  margin: 0 16px 4px;
+}
+/* 页签条右边放撤销、重做（草稿的配置页签） */
+.ptabs-row {
+  flex: none;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  padding-right: 8px;
+}
+.ptabs-row .ptabs {
+  flex: 1;
+  min-width: 0;
+}
+.ptabs-row .ptabs .tab-list.line {
+  border-bottom: 0;
+}
+.ptabs-tools {
+  display: flex;
+}
+
+/* 配置摘要：名称｜取值 */
+.facts {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12.5px;
+}
+.facts > div {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 8px;
+  min-height: 26px;
+  align-items: baseline;
+}
+.facts dt {
+  font-size: 12px;
+  color: var(--on-surface-variant);
+}
+.facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.facts .err {
+  color: var(--error);
+}
+.facts code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.component-params {
+  margin: 0;
+  padding-left: 16px;
+}
+
+/* 源码页签：左边文件与修订，右边编辑器与编译结果；面板临时加宽 */
+.pbody[data-tab='source'] {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0;
+}
+.srcwrap {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 172px minmax(0, 1fr);
+}
+.srcside {
+  min-height: 0;
+  padding: 6px 4px 8px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: auto;
+  scrollbar-width: thin;
+  border-right: 1px solid var(--line);
+}
+.srcside h5 {
+  margin: 0;
+  padding: 8px 8px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary);
+}
+.srcside ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.fitem {
+  width: 100%;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.fitem:hover {
+  background: var(--hover);
+}
+.fitem.active {
+  background: var(--sel);
+  color: var(--on-sel);
+}
+.fitem:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+.fitem .ic {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--on-surface-variant);
+}
+.fitem.active .ic {
+  color: inherit;
+}
+.fitem-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rev {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 2px 4px 8px;
+  border-radius: 8px;
+}
+.rev.shown {
+  background: var(--sel);
+  color: var(--on-sel);
+}
+.rev-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.rev-text b {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+}
+.rev-text span {
+  font-size: 11.5px;
+  color: var(--on-surface-variant);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rev.shown .rev-text span,
+.rev.shown .btn.icon {
+  color: inherit;
+}
+.rev-tools {
+  display: flex;
+}
+.srcside-note {
+  padding: 8px;
+}
+.srcmain {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px 10px;
+}
+.srcbar {
+  flex: none;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.srcbar-file {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.srcbar-file {
+  flex: none;
+  max-width: 40%;
+}
+.srcbar .source-shown {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.source-editor-frame {
+  flex: 1;
+  min-height: 200px;
+  overflow: hidden;
+  border-radius: var(--radius-field);
+  background: var(--field);
+}
+.source-editor {
+  height: 100%;
+}
+/* 编译结果 */
+.diag {
+  flex: none;
+  max-height: 34%;
+  overflow: auto;
+  scrollbar-width: thin;
+  border-radius: var(--radius-row);
+  background: var(--surface-low);
+  padding: 6px 6px 6px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.diag header {
+  min-height: 30px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.diag header .ic {
+  width: 18px;
+  height: 18px;
+}
+.diag header .ic.bad {
+  color: var(--error);
+}
+.diag header .ic.ok {
+  color: var(--primary);
+}
+.diag header .faint {
+  margin-left: auto;
+  padding-right: 6px;
+  font-size: 12px;
+  font-weight: 400;
+}
+.diag-stale {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--warn);
+}
+.compile-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dline {
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.dline:hover:not(:disabled) {
+  background: var(--hover);
+}
+.dline:disabled {
+  cursor: default;
+}
+.dline .ic {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  align-self: center;
+}
+.dline[data-severity='error'] .ic {
+  color: var(--error);
+}
+.dline[data-severity='warning'] .ic {
+  color: var(--warn);
+}
+.dline .loc {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--on-surface-variant);
+}
+.dline code,
+.iss code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+/* 验证页签：报告摘要与问题卡片 */
+.vsum {
+  display: flex;
+  gap: 24px;
+  padding: 2px 0 4px;
+  font-size: 12px;
+  color: var(--on-surface-variant);
+}
+.vsum b {
+  display: block;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--on-surface);
+  font-variant-numeric: tabular-nums;
+}
+.vsum b.ok {
+  color: var(--primary);
+}
+.vsum b.bad {
+  color: var(--error);
+}
+.iss-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.iss {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  gap: 2px 10px;
+  align-items: center;
+  padding: 8px 6px 8px 10px;
+  border-radius: var(--radius-row);
+  background: var(--surface-low);
+}
+.iss > .ic {
+  width: 20px;
+  height: 20px;
+  align-self: start;
+  margin-top: 1px;
+}
+.iss.e > .ic {
+  color: var(--error);
+}
+.iss.w > .ic {
+  color: var(--warn);
+}
+.iss-text {
+  min-width: 0;
+}
+.iss b {
+  display: block;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.iss .small {
+  display: block;
+  color: var(--on-surface-variant);
+}
+.validation-diagnostics summary {
+  cursor: pointer;
+  font-size: 12.5px;
+}
+
+/* 导入效果包、.mktpl 导入导出：勾选列表 */
+.import-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.transfer-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.transfer-toolbar .transfer-library {
+  width: 160px;
+}
+.transfer-list {
+  max-height: 320px;
+  overflow: auto;
+  scrollbar-width: thin;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.transfer-row {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  border-radius: 8px;
+}
+.transfer-row:hover {
+  background: var(--hover);
+}
+.transfer-row > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+.transfer-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.transfer-meta {
+  flex: none;
+  font-size: 12px;
+  color: var(--on-surface-variant);
+}
+.package-diagnostics {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--on-surface-variant);
+}
+
+/* 源码的语法颜色：浅色、深色两套 */
+:root {
+  --mk-code-keyword: #8b2fc9;
+  --mk-code-string: #0a7d3b;
+  --mk-code-comment: #6b7280;
+  --mk-code-number: #b45309;
+  --mk-code-type: #0f6ab4;
+  --mk-code-definition: #1d4ed8;
+  --mk-code-meta: #9a3412;
+  --mk-code-builtin: #0e7490;
+}
+:root[data-mode='dark'] {
+  --mk-code-keyword: #d19bff;
+  --mk-code-string: #8fd9a8;
+  --mk-code-comment: #8b949e;
+  --mk-code-number: #f5b971;
+  --mk-code-type: #79c0ff;
+  --mk-code-definition: #a5c8ff;
+  --mk-code-meta: #ffab91;
+  --mk-code-builtin: #7ee0f0;
+}

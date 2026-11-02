@@ -2,11 +2,12 @@ import { useState } from 'react';
 import type { CreateNodeKind, OrchestrationNode, OrchestrationProgram } from '../../protocol';
 import { insertionParent, isPlainGroup, moveTargets, NODE_KIND_NAME, NODE_KIND_TEXT, nodeName, nodePath, type OrchestrationModel } from '../model/orchestration';
 import { DEFAULT_MARK_COUNT, MAX_MARKS } from '../model/orchestration-lead-ins';
-import { FormDialog } from '../ui/legacy/FormDialog';
-import { Select, TextField } from '../ui/legacy/fields';
+import { Select, TextField } from '../ui/fields';
+import { FormDialog } from '../ui/FormDialog';
 import type { NewNode } from './orchestration-store';
+import { Note } from './parts';
 
-/** 下拉框里的“画布根层”：mdui-select 不接受空值，用一个不会是节点 ID 的值代替 null。 */
+/** 下拉框里的“画布根层”：选项的值不能是 null，用一个不会是节点 ID 的值代替。 */
 const CANVAS = '::canvas';
 const CANVAS_LABEL = '画布根层（不属于任何来源）';
 /** 新建对话框的种类：结构节点三种，加上前奏提示组（G23，§14.6）。 */
@@ -105,18 +106,16 @@ export function NewNodeDialog(props: {
       busy={props.busy}
       onSubmit={() => void submit()}
       onClose={props.onClose}
-      className="structure-dialog new-node"
+      className="orch-dialog new-node"
     >
       <Select
         label="种类"
-        className="dialog-field new-node-kind"
         value={kind}
         options={(['group', 'auto', 'slotSequence', ...(props.countdown ? ['countdown' as const] : [])] as const).map((k) => ({ value: k, label: KIND_TEXT[k] }))}
         onChange={changeKind}
       />
       <Select
         label="放在"
-        className="dialog-field new-node-parent"
         value={parent}
         options={[
           ...(model ? groups.map((n) => ({ value: n.id, label: pathOf(model, n, props.branchName) })) : []),
@@ -124,31 +123,34 @@ export function NewNodeDialog(props: {
         ]}
         onChange={edit(setParent)}
       />
-      {parentError && <p className="notice-error new-node-parent-error">{parentError}</p>}
-      <TextField label="名称" value={name} onChange={edit(setName)} placeholder="清空表示不命名" className="dialog-field new-node-name" onEnter={() => void submit()} />
+      {parentError && (
+        <Note error className="new-node-parent-error">
+          {parentError}
+        </Note>
+      )}
+      <TextField label="名称" value={name} onChange={edit(setName)} placeholder="清空表示不命名" onEnter={() => void submit()} />
       {kind === 'slotSequence' && (
         <TextField
           label="槽位数"
           value={slots}
           onChange={edit(setSlots)}
           error={slotError}
-          helper={slotError ? '' : `同时最多显示 ${Math.min(2, slotCount || 2)} 句，之后可调。`}
-          className="dialog-field new-node-slots"
+          {...(slotError ? {} : { helper: `同时最多显示 ${Math.min(2, slotCount || 2)} 句，之后可调。` })}
           onEnter={() => void submit()}
         />
       )}
       {kind === 'countdown' && (
-        <TextField label="标记数" value={marks} onChange={edit(setMarks)} error={markError} className="dialog-field new-node-marks" onEnter={() => void submit()} />
+        <TextField label="标记数" value={marks} onChange={edit(setMarks)} error={markError} onEnter={() => void submit()} />
       )}
-      <p className="hint">
+      <Note>
         {kind === 'countdown'
           ? `前奏提示组放在某个来源的根下，才能被那个来源的前奏使用。标记的字都是“●”，均匀排列，之后可以改。`
           : `${kind !== 'group' ? '歌词容器放在某个来源的根下，才能被选为那个来源的默认容器或片段的目标。' : ''}新节点铺满父级、居中，位置以后在属性区调整。`}
-      </p>
+      </Note>
       {error && (
-        <p className="notice-error structure-dialog-error" role="alert">
+        <Note error className="structure-dialog-error">
           {error}
-        </p>
+        </Note>
       )}
     </FormDialog>
   );
@@ -201,12 +203,11 @@ export function MoveNodeDialog(props: {
       busy={props.busy}
       onSubmit={() => void submit()}
       onClose={props.onClose}
-      className="structure-dialog move-node"
+      className="orch-dialog move-node"
     >
       {options.length > 0 ? (
         <Select
           label="移到"
-          className="dialog-field move-node-target"
           value={target}
           options={options}
           onChange={(value) => {
@@ -215,13 +216,13 @@ export function MoveNodeDialog(props: {
           }}
         />
       ) : (
-        <p className="notice-error">没有可以移到的普通组：子树里有某个来源的默认容器、片段目标或前奏提示容器时，只能留在那个来源的根下。</p>
+        <Note error>没有可以移到的普通组：子树里有某个来源的默认容器、片段目标或前奏提示容器时，只能留在那个来源的根下。</Note>
       )}
-      <p className="hint">移动后画面上的位置不变。只能放进普通组（没有布局、没有内容）或画布根层；放在画布根层的节点不属于任何来源。</p>
+      <Note>移动后画面上的位置不变。只能放进普通组（没有布局、没有内容）或画布根层；放在画布根层的节点不属于任何来源。</Note>
       {error && (
-        <p className="notice-error structure-dialog-error" role="alert">
+        <Note error className="structure-dialog-error">
           {error}
-        </p>
+        </Note>
       )}
     </FormDialog>
   );

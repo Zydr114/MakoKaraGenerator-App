@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import type { OrchestrationProgram } from '../../protocol';
 import { LAYOUT_PRESETS, layoutImpactText, layoutIsNoOp, lineRangeText, type LayoutPresetInfo, type LineRange } from '../model/orchestration';
-import { FormDialog } from '../ui/legacy/FormDialog';
+import { RadioGroup } from '../ui/choices';
+import { FormDialog } from '../ui/FormDialog';
 import type { LayoutPreviewState } from './orchestration-store';
+import { Note } from './parts';
 
 /** 卡片上的示意图（只是图标，不代表后端几何）：每个槽位一条横线，位置大致对应预设。 */
 const SKETCH: Record<LayoutPresetInfo['preset'], readonly { x: number; y: number }[]> = {
@@ -76,66 +78,57 @@ export function QuickLayoutDialog(props: {
       busy={props.busy}
       onSubmit={() => chosen && props.onApply(chosen, lineIds)}
       onClose={props.onClose}
-      className="quick-layout"
+      className="orch-dialog quick-layout"
+      footerNote="套用是一条历史，可以撤销。"
     >
-      <div className="layout-cards" role="radiogroup" aria-label="布局预设">
-        {LAYOUT_PRESETS.map((preset) => {
-          const selected = chosen?.preset === preset.preset;
-          return (
-            <button
-              key={preset.preset}
-              type="button"
-              role="radio"
-              aria-checked={selected}
-              data-preset={preset.preset}
-              className={`template-card layout-card${selected ? ' selected' : ''}`}
-              onClick={() => setChosen(preset)}
-            >
+      <RadioGroup<LayoutPresetInfo['preset'] | ''>
+        label="布局预设"
+        variant="card"
+        orientation="horizontal"
+        className="layout-presets"
+        value={chosen?.preset ?? ''}
+        options={LAYOUT_PRESETS.map((preset) => ({
+          value: preset.preset,
+          label: preset.label,
+          description: (
+            <>
               <svg className="layout-sketch" viewBox="0 0 160 90" aria-hidden="true">
                 <rect x="1" y="1" width="158" height="88" rx="6" className="layout-sketch-canvas" />
                 {SKETCH[preset.preset].map((bar, i) => (
                   <rect key={i} x={bar.x} y={bar.y} width="70" height="6" rx="3" className="layout-sketch-bar" />
                 ))}
               </svg>
-              <span className="template-card-name">
-                {preset.label}
-                {props.program?.recognizedLayoutPreset === preset.preset && <span className="target-template">当前</span>}
+              <span>
+                {preset.slots} 个槽位{props.program?.recognizedLayoutPreset === preset.preset ? ' · 当前' : ''}
               </span>
-              <span className="template-card-meta">{preset.slots} 个槽位</span>
-            </button>
-          );
-        })}
-      </div>
-      <div className="layout-scope" role="radiogroup" aria-label="范围">
-        <span>范围</span>
-        <button type="button" role="radio" aria-checked={!useRange} data-scope="source" className={`canvas-mode${useRange ? '' : ' selected'}`} onClick={() => setScope('source')}>
-          整个来源{props.lineCount !== undefined ? `（共 ${props.lineCount} 句）` : ''}
-        </button>
-        {range && (
-          <button
-            type="button"
-            role="radio"
-            aria-checked={useRange}
-            data-scope="range"
-            className={`canvas-mode${useRange ? ' selected' : ''}`}
-            disabled={!range.contiguous}
-            onClick={() => setScope('range')}
-          >
-            选中的{lineRangeText(range)}
-            {range.contiguous && range.count > 1 ? `（${range.count} 句）` : ''}
-          </button>
-        )}
-        <span className="hint">
-          {!range
-            ? '在时间轴上选连续几句，可以只给这几句套用。'
-            : !range.contiguous
-              ? '选中的句子不连续，只套几句需要连续歌词段。'
-              : useRange
-                ? '只给这几句新建片段，其余句子保持原来的调度。'
-                : '整个来源换成新布局，并设为默认容器。'}
-        </span>
-      </div>
-      <p className={`layout-impact${preview?.status === 'error' ? ' notice-error' : ''}`} aria-live="polite">
+            </>
+          ),
+        }))}
+        onChange={(value) => setChosen(LAYOUT_PRESETS.find((p) => p.preset === value) ?? null)}
+      />
+      <RadioGroup<'source' | 'range'>
+        label="范围"
+        orientation="horizontal"
+        className="layout-scope"
+        value={useRange ? 'range' : 'source'}
+        options={[
+          { value: 'source', label: `整个来源${props.lineCount !== undefined ? `（共 ${props.lineCount} 句）` : ''}` },
+          ...(range
+            ? [{ value: 'range' as const, label: `选中的${lineRangeText(range)}${range.contiguous && range.count > 1 ? `（${range.count} 句）` : ''}`, disabled: !range.contiguous }]
+            : []),
+        ]}
+        onChange={setScope}
+      />
+      <Note>
+        {!range
+          ? '在时间轴上选连续几句，可以只给这几句套用。'
+          : !range.contiguous
+            ? '选中的句子不连续，只套几句需要连续歌词段。'
+            : useRange
+              ? '只给这几句新建片段，其余句子保持原来的调度。'
+              : '整个来源换成新布局，并设为默认容器。'}
+      </Note>
+      <p className={`layout-impact${preview?.status === 'error' ? ' err' : ''}`} aria-live="polite">
         {!chosen
           ? '选择一个预设，先看它会改动什么。'
           : !preview || preview.status === 'loading'
@@ -144,7 +137,6 @@ export function QuickLayoutDialog(props: {
               ? preview.error
               : layoutImpactText(preview.result!, chosen, already, useRange ? range : undefined)}
       </p>
-      <p className="hint">套用是一条历史，可以撤销。</p>
     </FormDialog>
   );
 }

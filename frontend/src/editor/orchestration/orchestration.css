@@ -200,6 +200,7 @@
 }
 .assign-list .list-empty {
   padding: 4px 8px 8px;
+  text-align: left;
   font-size: 12px;
   color: var(--on-surface-variant);
 }
@@ -659,4 +660,39 @@ ul.note {
 }
 .generate-row.status-Skipped .checkbox {
   opacity: 0.6;
+}
+
+/* 快速布局：预设卡片两列，卡片里是示意图（只是图标，不代表后端几何） */
+.layout-presets .radio-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.layout-presets .radio-desc {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.layout-sketch {
+  width: 100%;
+  max-width: 168px;
+  height: auto;
+  margin-top: 6px;
+}
+.layout-sketch-canvas {
+  fill: var(--stage);
+  stroke: var(--outline-variant);
+}
+.layout-sketch-bar {
+  fill: var(--primary);
+}
+.layout-impact {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-panel);
+  background: var(--dialog-field);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+.layout-impact.err {
+  color: var(--error);
 }

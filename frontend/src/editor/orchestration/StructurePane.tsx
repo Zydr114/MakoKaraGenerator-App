@@ -107,7 +107,7 @@ function nest(rows: StructureSection['rows']): TreeNode[] {
 }
 
 /** 节点图标：组、自动布局、轮换、槽位、前奏提示组、标记（稿件的结构树）。 */
-function nodeIcon(model: OrchestrationModel, node: OrchestrationNode): IconName {
+export function nodeIcon(model: OrchestrationModel, node: OrchestrationNode): IconName {
   switch (nodeRole(model, node)) {
     case 'slot':
       return 'crop_16_9';

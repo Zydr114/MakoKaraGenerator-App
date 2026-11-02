@@ -43,6 +43,61 @@
   display: inline-flex;
 }
 
+/* 侧栏下部的一块浅底（编排页的歌词分配、外观页的编排对象） */
+.sect {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 55%;
+  display: flex;
+  flex-direction: column;
+  margin: 0 8px 8px;
+  border-radius: 12px;
+  background: var(--surface-low);
+}
+.sect > header {
+  flex: none;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px 0 12px;
+}
+.sect > header h4 {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--primary);
+}
+
+/* ———— 幕后区里的成片预览：标题、画面、说明都用幕后区的颜色 ———— */
+.stage-canvas .preview-panel {
+  padding: 0 24px 12px;
+}
+.stage-canvas .preview-title {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: var(--stage-ink2);
+}
+.stage-canvas .preview-title .pane-title-text {
+  font: inherit;
+}
+.stage-canvas .preview-frame {
+  border-radius: 6px;
+  background: var(--stage-high);
+}
+.stage-canvas .preview-overlay {
+  color: var(--stage-ink2);
+}
+.stage-canvas .preview-panel > .hint,
+.stage-canvas .preview-error {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--stage-ink3);
+}
+.stage-canvas .preview-error {
+  color: var(--error);
+}
+
 /* ———— 检查器 ———— */
 .insp {
   padding-bottom: 12px;
@@ -109,6 +164,14 @@
 .grp-title {
   flex: 1;
   min-width: 0;
+}
+.grp-hint {
+  margin-left: 8px;
+  font-weight: 400;
+  color: var(--on-surface-variant);
+}
+.grp .read-error {
+  margin: 0;
 }
 .grp-extra {
   flex: none;

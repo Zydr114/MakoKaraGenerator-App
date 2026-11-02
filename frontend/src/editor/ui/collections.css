@@ -210,3 +210,20 @@
     transition: none;
   }
 }
+
+/* 一组卡片或列表上面的小标题：主色的组名，后面浅色的数量 */
+.grouphead {
+  height: 32px;
+  margin: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 0 20px 6px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--primary);
+}
+.grouphead span {
+  font-weight: 400;
+  color: var(--on-surface-variant);
+}

@@ -68,21 +68,6 @@
   margin-top: 10px;
 }
 
-.grouphead {
-  height: 32px;
-  margin: 0;
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-  padding: 0 20px 6px;
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  color: var(--primary);
-}
-.grouphead span {
-  font-weight: 400;
-  color: var(--on-surface-variant);
-}
 
 /* 正在编辑：后端里还开着的会话 */
 .sessions {
@@ -386,30 +371,6 @@
   font-size: var(--fs-lg);
   font-weight: 600;
 }
-.dsec {
-  padding: 6px 18px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.dsec + .dsec {
-  padding-top: 12px;
-  border-top: 1px solid var(--stage-line);
-}
-.dsec h4 {
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  line-height: 1.4;
-}
-.dsec h4 > :is(.ic, .spinner) {
-  width: 18px;
-  height: 18px;
-  flex: none;
-}
 .dsec.ok h4 > .ic {
   color: var(--ok);
 }
@@ -424,15 +385,6 @@
   color: var(--stage-ink2);
 }
 .dsec.none h4 > .ic {
-  color: var(--stage-ink3);
-}
-.dsec .small {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--stage-ink2);
-}
-.dsec .faint {
   color: var(--stage-ink3);
 }
 .wavebox {

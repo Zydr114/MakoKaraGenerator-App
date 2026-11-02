@@ -401,7 +401,7 @@ export function OrchestrationPage(props: {
         ),
       }}
       center={
-        <section className="orch-canvas">
+        <section className="orch-canvas stage-canvas">
           <SceneCanvas
             session={session}
             audio={audio}

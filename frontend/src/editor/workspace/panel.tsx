@@ -24,8 +24,8 @@ export function ToolButton(props: { icon: IconName; label: string; reason: strin
   );
 }
 
-/** 检查器的标题：上面一行是所在位置，下面是名称和种类。data-path 是完整路径（冒烟脚本用）。 */
-export function InspectorHead(props: { crumbs: readonly string[]; title: string; kind: string; id?: string }) {
+/** 检查器的标题：上面一行是所在位置，下面是名称和种类（没有种类时只有名称）。data-path 是完整路径（冒烟脚本用）。 */
+export function InspectorHead(props: { crumbs: readonly string[]; title: string; kind?: string | undefined; id?: string }) {
   return (
     <header className="ihead" data-path={[...props.crumbs, props.title].join(' / ')}>
       {props.crumbs.length > 0 && (
@@ -40,18 +40,21 @@ export function InspectorHead(props: { crumbs: readonly string[]; title: string;
       )}
       <h2 {...(props.id ? { title: `ID：${props.id}` } : {})}>
         <span className="ihead-name">{props.title}</span>
-        <Tag>{props.kind}</Tag>
+        {props.kind && <Tag>{props.kind}</Tag>}
       </h2>
     </header>
   );
 }
 
-/** 检查器的一组：标题（主色）、标题右边的控件、内容。 */
-export function Group(props: { title: string; extra?: ReactNode; className?: string; children?: ReactNode }) {
+/** 检查器的一组：标题（主色）、紧跟标题的浅色说明、标题右边的控件、内容。 */
+export function Group(props: { title: string; hint?: string | undefined; extra?: ReactNode; className?: string; children?: ReactNode }) {
   return (
     <section className={cls('grp', props.className)} aria-label={props.title}>
       <h4>
-        <span className="grp-title">{props.title}</span>
+        <span className="grp-title">
+          {props.title}
+          {props.hint && <span className="grp-hint">{props.hint}</span>}
+        </span>
         {props.extra && <span className="grp-extra">{props.extra}</span>}
       </h4>
       {props.children}

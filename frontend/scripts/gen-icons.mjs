@@ -21,7 +21,7 @@ const ICONS = [
   'warning', 'warning-fill', 'error', 'error-fill', 'info-fill', 'pending', 'schedule',
   // 文件与媒体
   'folder', 'folder_open', 'drive_file_move', 'description', 'music_note', 'music_off', 'headphones', 'image', 'wallpaper',
-  'graphic_eq', 'library_books', 'deployed_code', 'input',
+  'graphic_eq', 'library_books', 'deployed_code', 'input', 'audio_file', 'settings_backup_restore',
   // 播放与时间轴
   'play_arrow', 'play_arrow-fill', 'pause', 'pause-fill', 'repeat', 'zoom_in', 'zoom_out', 'fit_screen', 'my_location',
   'straighten', 'ads_click',

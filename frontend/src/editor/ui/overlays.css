@@ -45,8 +45,40 @@
   flex: 1;
   min-width: 0;
   display: flex;
-  flex-direction: column;
   outline: none;
+}
+.dmain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* 带幕后侧栏：左边表单，右边一块凹下去的幕后区（稿件的新建工程） */
+.dialog.has-side {
+  width: min(880px, 100%);
+}
+.dside {
+  width: 340px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 10px 10px 10px 0;
+}
+.dside > .stage-zone {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: 20px;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--stage-line) transparent;
+}
+@media (max-width: 959px) {
+  .dside {
+    display: none;
+  }
 }
 .dhead {
   display: flex;
@@ -91,6 +123,65 @@
 .dfoot .dialog-secondary-action {
   margin-right: auto;
   margin-left: -10px;
+}
+/* 底部左边的一句说明（例如下一步要做什么） */
+.dnote {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--on-surface-variant);
+}
+
+/* 分步对话框：标题旁的步骤 */
+.dhead:has(.dsteps) h2 {
+  flex: none;
+}
+.dsteps {
+  margin: 0 0 0 8px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-sm);
+  color: var(--on-surface-variant);
+}
+.dsteps li {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+.dsteps li + li::before {
+  content: '';
+  width: 16px;
+  height: 1px;
+  margin-right: 8px;
+  background: var(--outline-variant);
+}
+.dsteps b {
+  width: 20px;
+  height: 20px;
+  margin-right: 6px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px var(--outline);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.dsteps b .ic {
+  width: 14px;
+  height: 14px;
+}
+.dsteps .on {
+  color: var(--on-surface);
+  font-weight: 600;
+}
+.dsteps :is(.on, .done) b {
+  background: var(--primary);
+  color: var(--on-primary);
+  box-shadow: none;
 }
 /* 选项多、文字长（例如槽位重排的三个去向）时按钮竖排 */
 .ask.stacked .dfoot {
@@ -149,6 +240,100 @@
   gap: 22px;
   scrollbar-width: thin;
   scrollbar-color: var(--outline-variant) transparent;
+}
+
+/* 面板里的一组设置：主色小标题，下面是控件和说明 */
+.sset {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sset > h4 {
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--primary);
+}
+.sset > p {
+  margin: -4px 0 0;
+  font-size: 12px;
+  color: var(--on-surface-variant);
+}
+.sset > .seg {
+  align-self: flex-start;
+}
+/* 组里输入框的标签降一级（稿件把标签放在框内、用浅色），免得和主色的组标题抢 */
+.sset .tf:not(.side) > .lbl {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--on-surface-variant);
+}
+/* 面板里的键值列表放在一块浅底上 */
+.sheet .dl {
+  padding: 10px 14px;
+  border-radius: var(--radius-panel);
+  background: var(--dialog-field);
+}
+.sintro {
+  margin: 0;
+  padding: 0 24px 10px;
+  font-size: 12px;
+  color: var(--on-surface-variant);
+}
+
+/* 并排两项 */
+.g2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px 8px;
+  align-items: start;
+}
+
+/* 键值列表：左边浅色的名称，右边的值 */
+.dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 14px;
+  font-size: var(--fs-sm);
+}
+.dl > div {
+  display: contents;
+}
+.dl dt {
+  color: var(--on-surface-variant);
+}
+.stage-zone .dl dt {
+  color: var(--stage-ink3);
+}
+.dl dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 一排按钮 */
+.btnrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 对话框、面板里的进行中和失败说明 */
+.busyline {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--on-surface-variant);
+}
+.errline {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--error);
 }
 
 /* ———— 消息条：底部居中，深浅模式都用反色面 ———— */

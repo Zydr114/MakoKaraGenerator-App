@@ -1,7 +1,7 @@
 // W5 工程设置里的媒体（W5 设计 §2.5）：背景种类判断、大小、资源状态、工程名预检。
 
 import { describe, expect, it } from 'vitest';
-import { audioResource, audioStatusText, backgroundKindOf, backgroundResource, checkProjectName, formatBytes, resourceUsable } from '../../src/editor/model/media';
+import { acceptsFile, audioResource, audioStatusText, backgroundKindOf, backgroundResource, checkProjectName, formatBytes, resourceUsable } from '../../src/editor/model/media';
 import type { ProjectResource } from '../../src/protocol';
 
 const resource = (overrides: Partial<ProjectResource>): ProjectResource => ({ resourceId: 'r', kind: 'media', roles: [], status: 'available', ...overrides });
@@ -30,5 +30,14 @@ describe('工程设置的媒体', () => {
     expect(checkProjectName('  ')).toMatch(/不能为空/);
     expect(checkProjectName('a'.repeat(256))).toBeUndefined();
     expect(checkProjectName(` ${'a'.repeat(256)}`)).toMatch(/太长/);
+  });
+
+  it('拖进来的文件按选择范围检查：扩展名、MIME 和通配', () => {
+    const accept = 'audio/*,.wav,.LRC';
+    expect(acceptsFile({ name: 'a.flac', type: 'audio/flac' }, accept)).toBe(true);
+    expect(acceptsFile({ name: 'B.WAV', type: '' }, accept)).toBe(true);
+    expect(acceptsFile({ name: 'c.lrc', type: '' }, accept)).toBe(true);
+    expect(acceptsFile({ name: 'd.png', type: 'image/png' }, accept)).toBe(false);
+    expect(acceptsFile({ name: 'e.json', type: 'application/json' }, 'application/json')).toBe(true);
   });
 });

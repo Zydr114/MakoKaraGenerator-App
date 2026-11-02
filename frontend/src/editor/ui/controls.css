@@ -336,6 +336,84 @@
   font-size: var(--fs-sm);
 }
 
+/* 提示条：页面、对话框里的一段说明或错误，右边可以有操作 */
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 6px 6px 6px 12px;
+  border-radius: var(--radius-row);
+  background: var(--secondary-container);
+  color: var(--on-secondary-container);
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+}
+.banner > .ic {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+.banner > span {
+  flex: 1;
+  min-width: 0;
+}
+.banner.error {
+  background: var(--error-container);
+  color: var(--on-error-container);
+}
+.banner.warn {
+  background: var(--warn-container);
+  color: var(--on-surface);
+}
+.banner.warn > .ic {
+  color: var(--warn);
+}
+
+/* 文件框：选好的文件写在一长条里，可以拖文件进来 */
+.filebox {
+  height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 0 6px 0 14px;
+  border-radius: var(--radius-row);
+  background: var(--field);
+}
+.filebox > .ic {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  color: var(--primary);
+}
+.filebox.over {
+  background-image: var(--hover);
+  box-shadow: inset 0 0 0 2px var(--primary);
+}
+.filebox.disabled {
+  opacity: 0.6;
+}
+.filebox-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.filebox .file-name {
+  font-size: var(--fs);
+  font-weight: 500;
+}
+.filebox-detail,
+.filebox-empty {
+  font-size: 12px;
+  color: var(--on-surface-variant);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .field-note {
   display: flex;
   align-items: center;

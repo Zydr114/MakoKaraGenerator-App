@@ -24,6 +24,8 @@
 .row {
   box-sizing: border-box;
   position: relative;
+  /* 列表限高滚动时行不能被压扁（两行文字的行会叠到下一行上） */
+  flex: none;
   min-height: var(--control);
   margin: 0 6px;
   padding: 6px 10px;

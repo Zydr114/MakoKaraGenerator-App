@@ -8,6 +8,16 @@ const VIDEO_EXTENSIONS = ['mp4', 'mov', 'webm', 'mkv', 'avi', 'mpg', 'mpeg'];
 /** 背景文件的选择范围：后端接受的图片和视频。 */
 export const BACKGROUND_FILE_ACCEPT = ['image/*', 'video/*', ...[...IMAGE_EXTENSIONS, ...VIDEO_EXTENSIONS].map((e) => `.${e}`)].join(',');
 
+/** 文件是否符合文件选择框的 accept（扩展名、MIME 或 audio/* 这样的通配）。拖进来的文件不经过系统对话框的过滤，要自己查。 */
+export function acceptsFile(file: { name: string; type: string }, accept: string): boolean {
+  const name = file.name.toLowerCase();
+  const type = file.type.toLowerCase();
+  return accept
+    .split(',')
+    .map((rule) => rule.trim().toLowerCase())
+    .some((rule) => (rule.startsWith('.') ? name.endsWith(rule) : rule.endsWith('/*') ? type.startsWith(rule.slice(0, -1)) : !!rule && type === rule));
+}
+
 /** 按文件的 MIME 判断背景种类，浏览器没给类型时看扩展名；都不是时为 undefined。 */
 export function backgroundKindOf(file: { name: string; type: string }): BackgroundMediaKind | undefined {
   if (file.type.startsWith('image/')) return 'image';

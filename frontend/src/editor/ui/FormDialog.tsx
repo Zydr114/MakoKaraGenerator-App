@@ -21,6 +21,10 @@ export function FormDialog(props: {
   secondaryAction?: { text: string; onClick: () => void; disabled?: boolean };
   /** 标题行右侧的内容（例如分步对话框的步骤）。 */
   headerExtra?: ReactNode;
+  /** 右边的幕后侧栏。 */
+  side?: ReactNode;
+  /** 底部左边的一句说明。 */
+  footerNote?: ReactNode;
   children: ReactNode;
 }) {
   const busy = !!props.busy;
@@ -34,9 +38,11 @@ export function FormDialog(props: {
       title={props.headline}
       description={props.description}
       headerExtra={props.headerExtra}
+      side={props.side === undefined ? undefined : props.open && props.side}
       className={cls('form-dialog', props.className)}
       actions={
         <>
+          {props.footerNote && <span className="dnote">{props.footerNote}</span>}
           {props.secondaryAction && (
             <Button variant="text" className="dialog-secondary-action" isDisabled={busy || !!props.secondaryAction.disabled} onPress={props.secondaryAction.onClick}>
               {props.secondaryAction.text}

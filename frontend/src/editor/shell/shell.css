@@ -15,7 +15,7 @@
   flex-direction: column;
 }
 
-/* 还没改版的页面（首页、样式库、导出）放在一整块面板里，等各自的批次再拆。 */
+/* 还没改版的页面（样式库、导出）放在一整块面板里，等各自的批次再拆。 */
 .page-tile {
   flex: 1;
   min-height: 0;
@@ -251,25 +251,6 @@
   align-items: center;
   gap: 4px;
   padding: 6px 20px 8px;
-}
-.sset {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.sset > h4 {
-  margin: 0;
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  color: var(--primary);
-}
-.sset > p {
-  margin: -4px 0 0;
-  font-size: 12px;
-  color: var(--on-surface-variant);
-}
-.sset > .seg {
-  align-self: flex-start;
 }
 
 .swatches {

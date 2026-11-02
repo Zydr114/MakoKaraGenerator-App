@@ -2,7 +2,7 @@
 // 接口沿用旧的 mdui 封装（ui/legacy/fields.tsx），页面改版时只换导入路径和少数布局属性。
 // 标签有三种摆法：top 在框上方（对话框、表单），side 在左边一列（属性检查器），none 不显示（工具栏，只作可访问名称）。
 
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
 import {
   Button as AriaButton,
   FieldError,
@@ -17,6 +17,7 @@ import {
   TextArea,
   TextField as AriaTextField,
 } from 'react-aria-components';
+import { acceptsFile } from '../model/media';
 import { formatColor, parseColor, type Rgba } from '../model/settings';
 import { Button, IconButton, type ButtonVariant } from './Button';
 import { cls, defined } from './cls';
@@ -312,6 +313,78 @@ export function FilePicker(props: {
       </Button>
       <span className={props.file ? 'file-name' : 'file-name muted'}>{props.file ? props.file.name : (props.emptyText ?? '未选择')}</span>
       {props.clearable && props.file && <IconButton icon="close" size="sm" label={`移除 ${props.file.name}`} isDisabled={!!props.disabled} onPress={() => props.onChange(null)} />}
+    </div>
+  );
+}
+
+/**
+ * 文件框（稿件的新建工程）：输入框底色的一长条，写已选的文件名和说明，可以更换、移除，也可以把文件拖进来。
+ * 隐藏的文件输入框的可访问名称是“选择＋标签”（例如“选择音频”）。
+ */
+export function FileBox(props: {
+  label: string;
+  accept: string;
+  file: File | null;
+  onChange: (file: File | null) => void;
+  icon: IconName;
+  /** 没选文件时的说明。 */
+  emptyText: string;
+  /** 文件名后面的说明（大小等）。 */
+  detail?: string | undefined;
+  /** 拖进来的文件不符合 accept 时的说明。 */
+  rejectText: (file: File) => string;
+  disabled?: boolean;
+}) {
+  const input = useRef<HTMLInputElement>(null);
+  const [over, setOver] = useState(false);
+  const [rejected, setRejected] = useState<string>();
+  const labelId = useId();
+  const disabled = !!props.disabled;
+  const pick = (file: File | null) => {
+    setRejected(undefined);
+    props.onChange(file);
+  };
+  const onDrop = (event: DragEvent) => {
+    event.preventDefault();
+    setOver(false);
+    const file = event.dataTransfer.files[0];
+    if (!file || disabled) return;
+    if (acceptsFile(file, props.accept)) pick(file);
+    else setRejected(props.rejectText(file));
+  };
+  return (
+    <div className="tf">
+      <span className="lbl" id={labelId}>
+        {props.label}
+      </span>
+      <div
+        role="group"
+        aria-labelledby={labelId}
+        className={cls('filebox', over && 'over', disabled && 'disabled')}
+        onDragOver={(event) => {
+          if (disabled || !event.dataTransfer.types.includes('Files')) return;
+          event.preventDefault();
+          setOver(true);
+        }}
+        onDragLeave={() => setOver(false)}
+        onDrop={onDrop}
+      >
+        <HiddenFileInput ref={input} label={`选择${props.label}`} accept={props.accept} onPick={(file) => file && pick(file)} />
+        <Icon name={props.icon} />
+        {props.file ? (
+          <span className="filebox-text">
+            <b className="file-name">{props.file.name}</b>
+            {props.detail && <span className="filebox-detail">{props.detail}</span>}
+          </span>
+        ) : (
+          <span className="filebox-text filebox-empty">{props.emptyText}</span>
+        )}
+        <Button variant="ghost" size="sm" isDisabled={disabled} onPress={() => input.current?.click()}>
+          {props.file ? '更换' : '选择…'}
+        </Button>
+        {props.file && <IconButton icon="close" size="sm" label={`移除${props.label}`} isDisabled={disabled} onPress={() => pick(null)} />}
+      </div>
+      {rejected && <span className="help err">{rejected}</span>}
     </div>
   );
 }

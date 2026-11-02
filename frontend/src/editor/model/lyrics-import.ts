@@ -2,6 +2,7 @@
 
 import type { LyricBranchRole, LyricsImportIssue, LyricsImportIssueKind, LyricsImportIssueSeverity, LyricsImportPlan, LyricsImportReport } from '../../protocol';
 import { BRANCH_ROLE_TEXT } from './branches';
+import { formatTime } from './time';
 
 /** 文件选择器接受的扩展名（与后端 LyricsFormatCatalog.PickerExtensions 一致）。 */
 export const LYRICS_FILE_ACCEPT = '.lrc,.elrc,.txt,.srt,.vtt,.ass,.ssa,.ttml,.xml,text/plain';
@@ -161,6 +162,8 @@ export interface PreviewRow {
   ruby?: string;
   /** 时间：逐字时间、部分逐字时间、只有行时间、没有时间。 */
   timing: string;
+  /** 行的开始时间（m:ss.mmm）；没有时间时省略。 */
+  start?: string;
 }
 
 const timed = (time: { startUs?: string; endUs?: string }) => time.startUs !== undefined && time.endUs !== undefined;
@@ -184,8 +187,30 @@ export function previewRows(plan: LyricsImportPlan, limit: number): PreviewRow[]
         return `${base}（${text}）`;
       })
       .join(' ');
-    return { id: line.id, text: line.text, timing, ...(ruby ? { ruby } : {}) };
+    const start = line.time.startUs ?? line.tokens.find((t) => t.time.startUs !== undefined)?.time.startUs;
+    return { id: line.id, text: line.text, timing, ...(ruby ? { ruby } : {}), ...(start !== undefined ? { start: formatTime(Number(start)) } : {}) };
   });
+}
+
+export interface PlanStats {
+  lines: number;
+  /** 至少有一个文本单元带时间的行。 */
+  wordTimed: number;
+  /** 只有行时间的行。 */
+  lineTimed: number;
+  untimed: number;
+}
+
+/** 新建工程文件检查里的统计：按所选来源的行数，带逐字时间、只有行时间、没有时间各几行。解析失败时为 undefined。 */
+export function planStats(plan: LyricsImportPlan): PlanStats | undefined {
+  if (plan.preparationError || !plan.report) return undefined;
+  const stats: PlanStats = { lines: plan.previewLines.length, wordTimed: 0, lineTimed: 0, untimed: 0 };
+  for (const line of plan.previewLines) {
+    if (line.tokens.some((t) => timed(t.time))) stats.wordTimed++;
+    else if (timed(line.time)) stats.lineTimed++;
+    else stats.untimed++;
+  }
+  return stats;
 }
 
 // ── 导入报告 ──

@@ -10,12 +10,13 @@ import {
   needsFormatChoice,
   planErrorText,
   planNotes,
+  planStats,
   planSummary,
   previewRows,
   primaryImportBlock,
   sourceChoices,
 } from '../../src/editor/model/lyrics-import';
-import { defaultProjectName, newProjectKind } from '../../src/editor/model/new-project';
+import { audioFormatName, audioProbeText, defaultProjectName, newProjectKind, wavFormat, waveBars } from '../../src/editor/model/new-project';
 import { candidateDescription, formatSavedAt, sortCandidates } from '../../src/editor/model/recovery';
 import { micros, type EditableLyricLine, type LyricsImportPlan, type LyricsImportReport } from '../../src/protocol';
 
@@ -93,6 +94,51 @@ describe('新建工程', () => {
   });
 });
 
+describe('新建工程的音频检查（界面改版批 3）', () => {
+  /** 最小的 PCM WAV 文件头：fmt 块之前放一个奇数长度的块，检查对齐跳过。 */
+  function wav(sampleRate: number, channels: number, dataBytes: number): ArrayBuffer {
+    const buffer = new ArrayBuffer(12 + 8 + 3 + 1 + 8 + 16 + 8);
+    const view = new DataView(buffer);
+    const tag = (offset: number, text: string) => [...text].forEach((c, i) => view.setUint8(offset + i, c.charCodeAt(0)));
+    tag(0, 'RIFF');
+    view.setUint32(4, buffer.byteLength - 8 + dataBytes, true);
+    tag(8, 'WAVE');
+    tag(12, 'LIST');
+    view.setUint32(16, 3, true);
+    tag(24, 'fmt ');
+    view.setUint32(28, 16, true);
+    view.setUint16(32, 1, true);
+    view.setUint16(34, channels, true);
+    view.setUint32(36, sampleRate, true);
+    view.setUint32(40, sampleRate * channels * 2, true);
+    view.setUint16(44, channels * 2, true);
+    view.setUint16(46, 16, true);
+    tag(48, 'data');
+    view.setUint32(52, dataBytes, true);
+    return buffer;
+  }
+
+  it('WAV 文件头读出采样率、声道和精确时长；不是 WAV 时为 undefined', () => {
+    expect(wavFormat(wav(48_000, 2, 48_000 * 4 * 3))).toEqual({ sampleRate: 48_000, channels: 2, durationUs: 3_000_000 });
+    expect(wavFormat(new TextEncoder().encode('ID3\u0004 not a wav file').buffer)).toBeUndefined();
+    expect(wavFormat(new ArrayBuffer(4))).toBeUndefined();
+  });
+
+  it('波形条取每段各声道的峰值，按最响的一段归一', () => {
+    const left = new Float32Array([0.125, -0.25, 0, 0, 0.5, 0.25]);
+    const right = new Float32Array([0, 0, -0.375, 0, 0, 0]);
+    expect(waveBars([left, right], 3)).toEqual([0.5, 0.75, 1]);
+    expect(waveBars([], 2)).toEqual([0, 0]);
+  });
+
+  it('规格一行：时长、采样率（有时）、声道、格式', () => {
+    expect(audioFormatName({ name: 'Song.flac', type: 'audio/flac' })).toBe('FLAC');
+    expect(audioFormatName({ name: 'blob', type: 'audio/mpeg' })).toBe('MPEG');
+    expect(audioProbeText({ durationUs: 225_000_000, channels: 2, sampleRate: 44_100, format: 'WAV', bars: [] })).toBe('3:45.000，44.1 kHz，立体声，WAV');
+    expect(audioProbeText({ durationUs: 1_500_000, channels: 1, format: 'MP3', bars: [] })).toBe('0:01.500，单声道，MP3');
+  });
+});
+
 describe('导入文件的识别结果（W6 设计 §2.3）', () => {
   const sources = {
     sourceBranches: [
@@ -135,7 +181,7 @@ describe('导入文件的识别结果（W6 设计 §2.3）', () => {
             ],
           }),
           line('l2', '風声', { tokens: [token('t4', '風', true), token('t5', '声', false)] }),
-          line('l3', 'line', { time: { startUs: micros(0), endUs: micros(1) }, tokens: [token('t6', 'line', false)] }),
+          line('l3', 'line', { time: { startUs: micros(65_500_000), endUs: micros(66_000_000) }, tokens: [token('t6', 'line', false)] }),
           line('l4', 'none', { tokens: [token('t7', 'none', false)] }),
           line('l5', 'cut'),
         ],
@@ -143,11 +189,15 @@ describe('导入文件的识别结果（W6 设计 §2.3）', () => {
       4,
     );
     expect(rows).toEqual([
-      { id: 'l1', text: '朝の光', ruby: '朝（あ·さ） 光（ひかり）', timing: '逐字时间' },
-      { id: 'l2', text: '風声', timing: '逐字时间 1/2' },
-      { id: 'l3', text: 'line', timing: '行时间' },
+      { id: 'l1', text: '朝の光', ruby: '朝（あ·さ） 光（ひかり）', timing: '逐字时间', start: '0:00.000' },
+      { id: 'l2', text: '風声', timing: '逐字时间 1/2', start: '0:00.000' },
+      { id: 'l3', text: 'line', timing: '行时间', start: '1:05.500' },
       { id: 'l4', text: 'none', timing: '没有时间' },
     ]);
+    // 文件检查的统计按全部预览行：有一个文本单元带时间就算逐字；解析失败时没有统计。
+    const all = plan({ previewLines: [line('a', 'a', { tokens: [token('x', 'a', true), token('y', 'b', false)] }), line('b', 'b', { time: { startUs: micros(1), endUs: micros(2) } }), line('c', 'c')] });
+    expect(planStats(all)).toEqual({ lines: 3, wordTimed: 1, lineTimed: 1, untimed: 1 });
+    expect(planStats(plan({ preparationError: { code: 'emptyLyrics', message: 'x', protocolVersion: '1', failureCode: 'EmptyImport' } }))).toBeUndefined();
   });
 
   it('关联主歌词的行不能导入到主歌词；空文件和解析出错写明原因', () => {

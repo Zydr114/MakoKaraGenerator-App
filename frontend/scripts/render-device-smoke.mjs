@@ -265,9 +265,9 @@ try {
     // 4. 编排页的预览与测量、样式库缩略图
     await gotoPage(page, 'orchestration', `!!document.querySelector('.orchestration .preview-panel')`);
     await page.waitFor(`(${previewTitle}).startsWith('成片 · GPU · 修订')`, '编排页 GPU 帧', 60_000);
-    await page.waitFor(`!!document.querySelector('.orchestration .canvas-overlay') || !!document.querySelector('.orchestration .canvas-status.notice-error')`, '编排页同帧测量', 60_000);
+    await page.waitFor(`!!document.querySelector('.orchestration .canvas-overlay') || !!document.querySelector('.orchestration .canvas-status.err')`, '编排页同帧测量', 60_000);
     check(
-      (await page.eval(`!!document.querySelector('.orchestration .canvas-overlay') && !document.querySelector('.orchestration .canvas-status.notice-error')`)),
+      (await page.eval(`!!document.querySelector('.orchestration .canvas-overlay') && !document.querySelector('.orchestration .canvas-status.err')`)),
       '编排页：成片预览是 GPU 帧，同帧测量在 GPU 下出叠加层',
     );
     await gotoPage(page, 'library', `!!document.querySelector('.library')`);

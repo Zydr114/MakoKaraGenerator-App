@@ -324,13 +324,13 @@ try {
 
   // 1. 新建工程
   await newProject(page);
-  check(true, '新建工程（4 行），导航栏出现“外观”“样式库”');
+  check(true, '新建工程（4 行），顶栏出现“外观”“样式库”');
 
   // 2. 样式库：内置只读；复制并编辑；保存后重读一致；改名
   await gotoPage(page, 'library', `!!document.querySelector('[data-template-id="builtin:line-classic"]')`);
   await page.eval(`document.querySelector('[data-template-id="builtin:line-classic"]').click()`);
   await page.waitFor(js(`return templateName() === '经典整行' && !!button('复制并编辑');`), '内置详情');
-  check(await page.eval(js(`return !button('保存') && !field('未唱颜色');`)), '内置模板只读：只有“复制并编辑”，没有可编辑的表单');
+  check(await page.eval(js(`return !button('保存', document.querySelector('.library')) && !field('未唱颜色');`)), '内置模板只读：只有“复制并编辑”，没有可编辑的表单');
   await clickButton(page, '复制并编辑');
   await typeInto(page, '名称', copyName, { inDialog: true });
   await clickDialogButton(page, '复制');

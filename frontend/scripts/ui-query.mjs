@@ -198,6 +198,8 @@ export const shell = {
   /** 顶栏切页面：value 是 home、lyrics、orchestration、appearance、library，或者按钮名。 */
   async goto(page, value) {
     await ui.click(page, 'button', PAGE_LABEL[value] ?? value, { scope: '.app-bar' });
+    // 真实点击把焦点留在顶栏按钮上，之后关对话框时焦点会回到它，抢走脚本刚聚焦的输入框；切完页面放回 body
+    await page.eval(`document.activeElement?.blur()`);
   },
 
   /** 工程名菜单（另存为、导出歌词文件、关闭工程、协议控制台）。 */

@@ -1,0 +1,534 @@
+/* 外壳（界面改版 §2.5）：顶栏、状态胶囊、应用设置、关于。 */
+
+.app {
+  height: 100%;
+  min-height: 720px;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-main {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 还没改版的页面（首页、样式库、导出）放在一整块面板里，等各自的批次再拆。 */
+.page-tile {
+  flex: 1;
+  min-height: 0;
+  margin: 0 var(--gap) var(--gap);
+  border-radius: var(--radius-panel);
+  background: var(--panel);
+  overflow: auto;
+}
+
+/* ———— 顶栏 ———— */
+.app-bar {
+  height: 52px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 10px 0 8px;
+  white-space: nowrap;
+}
+
+.brand {
+  width: 36px;
+  height: 36px;
+  margin-right: 2px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  cursor: pointer;
+  outline: none;
+}
+.brand img {
+  width: 36px;
+  height: 36px;
+  display: block;
+}
+.brand[data-focus-visible] {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.app-name {
+  margin-left: 4px;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.bar-title {
+  margin: 0 0 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.bar-title + .project-name {
+  margin-left: 8px;
+}
+
+/* 工程名：点开是工程菜单 */
+.pname {
+  height: var(--control);
+  min-width: 0;
+  max-width: 240px;
+  padding: 0 4px 0 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border: 0;
+  border-radius: var(--radius-field);
+  background: none;
+  color: var(--on-surface);
+  font: inherit;
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+}
+.pname .project-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pname .ic {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: var(--on-surface-variant);
+}
+.pname[data-hovered],
+.pname[data-pressed] {
+  background-image: var(--hover);
+}
+.pname[data-focus-visible] {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.project-state {
+  margin: 0 10px 0 2px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--on-surface-variant);
+}
+.project-state[data-state='dirty']::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--warn);
+}
+
+/* 页面：歌词、编排、外观 */
+.pages {
+  display: inline-flex;
+  gap: 2px;
+}
+.page-tab {
+  height: var(--control);
+  padding: 0 14px 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--on-surface-variant);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+}
+.page-tab .ic {
+  width: 20px;
+  height: 20px;
+}
+.page-tab[data-hovered] {
+  background-image: var(--hover);
+}
+.page-tab[data-focus-visible] {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.page-tab.on,
+.app-bar .btn.on {
+  border-color: transparent;
+  background-color: var(--secondary-container);
+  color: var(--on-secondary-container);
+}
+
+/* 窄窗口：页面只留图标，名字仍给读屏 */
+@media (max-width: 1199px) {
+  .page-tab {
+    padding: 0 8px;
+  }
+  .page-tab .page-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .pname {
+    max-width: 160px;
+  }
+}
+
+/* ———— 状态胶囊：连接与渲染设备 ———— */
+.status-chip {
+  height: 28px;
+  margin-right: 4px;
+  padding: 0 2px 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--on-surface-variant);
+  font: inherit;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  outline: none;
+}
+.status-chip .ic {
+  width: 18px;
+  height: 18px;
+}
+.status-chip[data-hovered],
+.status-chip[data-pressed] {
+  background-image: var(--hover);
+}
+.status-chip[data-focus-visible] {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.status-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--ok);
+}
+.status-chip[data-tone='pending'] .status-dot {
+  background: var(--outline);
+  animation: status-pulse 1.2s ease-in-out infinite alternate;
+}
+.status-chip[data-tone='warn'] .status-dot {
+  background: var(--warn);
+}
+.status-chip[data-tone='error'] {
+  color: var(--error);
+}
+.status-chip[data-tone='error'] .status-dot {
+  background: var(--error);
+}
+@keyframes status-pulse {
+  to {
+    opacity: 0.3;
+  }
+}
+
+.render-device-menu {
+  min-width: 300px;
+  max-width: 420px;
+}
+
+/* ———— 应用设置 ———— */
+.stabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 20px 8px;
+}
+.sset {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sset > h4 {
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--primary);
+}
+.sset > p {
+  margin: -4px 0 0;
+  font-size: 12px;
+  color: var(--on-surface-variant);
+}
+.sset > .seg {
+  align-self: flex-start;
+}
+
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.sw {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-panel);
+  background: var(--field);
+  color: var(--on-surface-variant);
+  cursor: pointer;
+  outline: none;
+}
+.sw[data-hovered],
+.sw.custom:hover {
+  background-image: var(--hover);
+}
+.sw[data-focus-visible],
+.sw.custom:has(input:focus-visible) {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.sw[data-selected],
+.sw.custom.on {
+  background-color: var(--secondary-container);
+  box-shadow: inset 0 0 0 2px var(--primary);
+}
+.sw[data-selected]::after,
+.sw.custom.on::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+/* 选中：右上角主色圆点上的对勾（Material Symbols 的 check） */
+.sw[data-selected]::before,
+.sw.custom.on::before {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  top: 8px;
+  right: 8px;
+  width: 14px;
+  height: 14px;
+  background: var(--on-primary);
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 -960 960 960'%3E%3Cpath d='m378-332 363-363q9-9 21.5-9t21.5 9q9 9 9 21.5t-9 21.5L399-267q-9 9-21 9t-21-9L175-449q-9-9-8.5-21.5T176-492q9-9 21.5-9t21.5 9l159 160Z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.swatch-dot {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background:
+    linear-gradient(180deg, var(--a) 0 50%, transparent 50%),
+    linear-gradient(90deg, var(--b) 0 50%, var(--c) 50%);
+}
+.sw.logo img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+.sw.logo .swatch-dot {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  width: 18px;
+  height: 18px;
+  box-shadow: 0 0 0 2px var(--field);
+}
+.sw.custom .swatch-dot {
+  display: none;
+}
+.sw.custom.on .swatch-dot {
+  display: block;
+}
+.sw.custom > .ic {
+  width: 24px;
+  height: 24px;
+}
+.sw.custom.on > .ic {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  width: 16px;
+  height: 16px;
+}
+.sw.custom input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.seedline {
+  --label-w: 36px;
+  width: 160px;
+}
+.seedline input {
+  font-variant-numeric: tabular-nums;
+  text-transform: uppercase;
+}
+
+.roles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-radius: var(--radius-row);
+  overflow: hidden;
+}
+.roles > div {
+  display: grid;
+  grid-template-columns: 28px 64px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--field);
+  font-size: var(--fs-sm);
+}
+.roles i {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-field);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--on-surface) 10%, transparent);
+}
+.roles b {
+  font-weight: 600;
+}
+.roles span {
+  color: var(--on-surface-variant);
+}
+
+.shortcuts {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+.shortcuts th,
+.shortcuts td {
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+.shortcuts th {
+  width: 132px;
+  padding-right: 12px;
+  font-weight: 400;
+}
+.shortcuts .combo {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin: 0 4px 4px 0;
+}
+.shortcuts .or {
+  margin-right: 1px;
+  color: var(--on-surface-variant);
+}
+.shortcuts kbd {
+  min-width: 18px;
+  padding: 0 5px;
+  display: inline-block;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px var(--outline-variant);
+  background: var(--field);
+  font: inherit;
+  font-size: 11.5px;
+  line-height: 20px;
+  text-align: center;
+}
+.shortcuts td .faint {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+}
+
+/* ———— 关于 ———— */
+.dialog.about {
+  width: min(520px, 100%);
+}
+/* 标题只给读屏，画面上是横版标志 */
+.dialog.about .dhead {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.dialog.about .dbody {
+  padding-top: 24px;
+  align-items: center;
+  gap: 6px;
+}
+.about .wordmark {
+  width: 320px;
+  height: auto;
+  margin: -6px 0 2px;
+  display: block;
+}
+.about .ver {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.about .ver + .muted {
+  margin: 0;
+}
+.about-facts {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 14px 0 0;
+  padding: 12px 16px;
+  display: grid;
+  gap: 6px;
+  border-radius: var(--radius-panel);
+  background: var(--dialog-field);
+  font-size: var(--fs-sm);
+}
+.about-facts > div {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr);
+  gap: 12px;
+}
+.about-facts dt {
+  color: var(--on-surface-variant);
+}
+.about-facts dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.about-facts.licenses {
+  margin-top: 4px;
+}
+.about-facts.licenses > div {
+  grid-template-columns: 180px minmax(0, 1fr);
+}
+.about-links {
+  margin-top: 8px;
+  display: flex;
+  gap: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-chip[data-tone='pending'] .status-dot {
+    animation: none;
+  }
+}

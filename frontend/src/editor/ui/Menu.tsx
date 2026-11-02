@@ -105,9 +105,19 @@ export function MenuItem(props: {
   );
 }
 
-export function MenuSection(props: { title?: string; children: ReactNode }) {
+/** 给出 selectionMode 时这一节自己是勾选式的（例如渲染设备菜单里的三个设备），其余菜单项仍是普通操作。 */
+export function MenuSection(props: {
+  title?: string;
+  children: ReactNode;
+  selectionMode?: 'single' | 'multiple';
+  selectedKeys?: Iterable<Key>;
+  onSelectionChange?: (keys: Selection) => void;
+}) {
   return (
-    <AriaMenuSection className="menu-section">
+    <AriaMenuSection
+      className="menu-section"
+      {...defined({ selectionMode: props.selectionMode, selectedKeys: props.selectedKeys, onSelectionChange: props.onSelectionChange })}
+    >
       {props.title && <Header className="menu-head">{props.title}</Header>}
       {props.children}
     </AriaMenuSection>

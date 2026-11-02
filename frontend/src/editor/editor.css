@@ -1,88 +1,5 @@
-.editor {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
-/* top-app-bar 默认 fixed；外壳用 flex 布局，改为随文档流。 */
-.app-bar {
-  position: relative;
-  flex: none;
-}
-
-.shell-body {
-  position: relative;
-  display: flex;
-  flex: 1;
-  min-height: 0;
-}
-
-/* 导航栏随外壳布局，不固定在 body 上。 */
-.nav-rail {
-  position: relative;
-  flex: none;
-  height: 100%;
-}
-
-.editor-main {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  overflow: auto;
-}
-
-.connection {
-  margin-inline: 12px;
-  font-size: var(--mdui-typescale-label-medium-size);
-  color: rgb(var(--mdui-color-on-surface-variant));
-}
-
-.connection-failed,
-.connection-hostRestarted,
-.connection-needsRegistration {
-  color: rgb(var(--mdui-color-error));
-}
-
 .placeholder {
   padding: 24px;
-  color: rgb(var(--mdui-color-on-surface-variant));
-}
-
-.connection {
-  align-self: center;
-}
-
-.app-bar mdui-top-app-bar-title {
-  flex: none;
-}
-
-/* 顶栏“渲染设备”（渲染设备设计 §2.1）。 */
-.render-device-button {
-  align-self: center;
-  flex: none;
-}
-
-.render-device-menu {
-  min-width: 300px;
-  max-width: 420px;
-}
-
-.render-device-option {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 16px;
-}
-
-.render-device-option-text {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.render-device-detail {
-  font-size: var(--mdui-typescale-body-small-size);
   color: rgb(var(--mdui-color-on-surface-variant));
 }
 
@@ -509,26 +426,6 @@
   gap: 12px;
   grid-column: 1 / -1;
   cursor: pointer;
-}
-
-/* ── 顶栏工程操作 ── */
-
-.project-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: 16px;
-}
-
-.project-name {
-  font-weight: 500;
-  margin-right: 8px;
-}
-
-.project-state {
-  margin-right: 12px;
-  font-size: var(--mdui-typescale-label-medium-size);
-  color: rgb(var(--mdui-color-on-surface-variant));
 }
 
 /* ── 工作区 ── */
@@ -3986,20 +3883,7 @@ button.source-row:hover {
 .export-page {
   max-width: 880px;
   margin: 0 auto;
-  padding: 8px 24px 48px;
-}
-
-.export-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-left: -12px;
-}
-
-.export-header h1 {
-  margin: 0;
-  font-size: var(--mdui-typescale-title-large-size);
-  font-weight: var(--mdui-typescale-title-large-weight);
+  padding: 16px 24px 48px;
 }
 
 .export-card {

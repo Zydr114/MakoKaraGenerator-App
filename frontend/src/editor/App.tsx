@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ObservableValue, type ConnectionState } from '../client';
+import { useCallback, useEffect, useState } from 'react';
+import { ObservableValue } from '../client';
 import { AppearancePage, type EditCopyRequest, type ReturnTrial } from './appearance/AppearancePage';
 import { AppearanceStore } from './appearance/appearance-store';
 import { AudioController } from './audio/audio-controller';
 import { client, renderDevice, useConnection } from './connection';
 import { ExportPage } from './export/ExportPage';
-import { LYRICS_EXPORT_FEATURE, LyricsExportDialog } from './export/LyricsExportDialog';
 import { ExportStore } from './export/export-store';
 import { Home } from './home/Home';
 import { askSaveLocation, SaveLocationHost } from './home/SaveLocationDialog';
@@ -16,33 +15,22 @@ import { TemplateLibraryStore } from './library/template-library-store';
 import { TemplateThumbnails } from './library/template-thumbnails';
 import { OrchestrationPage } from './orchestration/OrchestrationPage';
 import { OrchestrationStore } from './orchestration/orchestration-store';
-import { RenderDeviceMenu } from './preview/RenderDeviceMenu';
 import { EditorSession, errorText, type EditorState } from './session/editor-session';
 import { SettingsDrawer } from './settings/SettingsDrawer';
+import { AboutDialog } from './shell/AboutDialog';
+import { AppBar, type EditPage, type Page } from './shell/AppBar';
+import { AppSettings } from './shell/AppSettings';
 import type { CheckFix, SettingsGroup } from './model/export-readiness';
 import { parentPath, suggestDirectoryName } from './model/project-directory';
 import { closeProject, projectLocation, rememberProject, saveProject } from './session/project-files';
+import { DialogHost } from './ui/dialogs';
+import { ToastHost } from './ui/feedback';
 import { askCloseUnsaved } from './ui/legacy/dialogs';
-import { useDomEvent, useObservable, useObservableSelector } from './ui/hooks';
+import { useObservableSelector } from './ui/hooks';
 import { Workspace } from './workspace/Workspace';
 
-const STATE_TEXT: Record<ConnectionState, string> = {
-  connecting: '正在连接',
-  ready: '已连接',
-  refreshing: '正在刷新凭证',
-  needsRegistration: '需要重新登记',
-  hostRestarted: '后端已重启，正在重新连接',
-  failed: '连接失败，正在重试',
-};
-
-type Page = 'home' | 'lyrics' | 'orchestration' | 'appearance' | 'library' | 'export';
-type EditPage = 'lyrics' | 'orchestration' | 'appearance';
-
-/** 导航栏里的页面；导出页不在导航栏里（W5 设计 §2.1）。 */
-const PAGES: readonly Page[] = ['home', 'lyrics', 'orchestration', 'appearance', 'library'];
-
 /**
- * 应用外壳（整体设计 §3.1）：顶栏、导航栏与当前页面。
+ * 应用外壳（界面改版 §2.5）：顶栏与当前页面。
  * 播放器属于工程而不是某个页面（共享底部区，§3.2）：切换页面时播放头和播放状态保持。
  * 样式库是应用级资源（W3 设计 §2.1）：没有工程也能进，关闭工程或连接重置时留在原页。
  */
@@ -53,6 +41,8 @@ export function App() {
   const [homeMessage, setHomeMessage] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsFocus, setSettingsFocus] = useState<SettingsGroup>();
+  const [appSettingsOpen, setAppSettingsOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
   /** 进导出页之前的编辑页，“返回编辑”回到这里。 */
   const [editPage, setEditPage] = useState<EditPage>('lyrics');
   const audio = useProjectAudio(session);
@@ -155,6 +145,24 @@ export function App() {
     setSettingsOpen(true);
   };
 
+  /** 关闭工程：有未保存的修改先问（保存后关闭、不保存、取消）。 */
+  const close = async () => {
+    if (!session) return;
+    let policy: 'requireClean' | 'discard' = 'requireClean';
+    if (session.state.summary.isDirty) {
+      const choice = await askCloseUnsaved();
+      if (choice === 'cancel') return;
+      if (choice === 'save' && !(await save(session))) return;
+      if (choice === 'discard') policy = 'discard';
+    }
+    try {
+      await closeProject(client, session.projectSessionId, policy);
+      leave();
+    } catch (error) {
+      session.notify({ level: 'error', message: `关闭失败：${errorText(error)}` });
+    }
+  };
+
   /** 导出页的修复入口：设置面板的某一组，或歌词页的某一句（离开导出页，任务不停）。 */
   const fix = (target: CheckFix) => {
     if (!session) return;
@@ -168,49 +176,56 @@ export function App() {
   };
 
   return (
-    <div className="editor">
-      <mdui-top-app-bar variant="small" className="app-bar">
-        <mdui-top-app-bar-title>MakoKara</mdui-top-app-bar-title>
-        {session && <ProjectActions session={session} exporting={page === 'export'} onExport={() => void goto('export')} onClosed={leave} />}
-        <div style={{ flexGrow: 1 }} />
-        <RenderDeviceMenu store={renderDevice} ready={snapshot.state === 'ready'} />
-        <span className={`connection connection-${snapshot.state}`}>{STATE_TEXT[snapshot.state]}</span>
-      </mdui-top-app-bar>
-      <div className="shell-body">
-        <NavRail page={page} hasProject={!!session} onPage={goto} onSettings={() => openSettings()} />
-        <main className="editor-main">
-          {page === 'lyrics' && session ? (
-            <Workspace session={session} audio={audio} onUndo={() => void session.undo()} onRedo={() => void session.redo()} onSave={() => void save(session)} />
-          ) : page === 'orchestration' && session && orchestration ? (
-            <OrchestrationPage
-              session={session}
-              store={orchestration}
-              audio={audio}
-              onUndo={() => void session.undo()}
-              onRedo={() => void session.redo()}
-              onSave={() => void save(session)}
-            />
-          ) : page === 'appearance' && session && appearance && orchestration ? (
-            <AppearancePage
-              session={session}
-              store={appearance}
-              orchestration={orchestration}
-              library={library}
-              thumbnails={thumbnails}
-              audio={audio}
-              onUndo={() => void session.undo()}
-              onRedo={() => void session.redo()}
-              onSave={() => void save(session)}
-              onEditCopy={(request) => {
-                setLibraryReturn({ ...request, projectSessionId: session.projectSessionId });
-                setPage('library');
-              }}
-              returnTrial={returnTrial}
-              onReturnTrialDone={endReturnTrial}
-            />
-          ) : page === 'export' && session && exporter ? (
-            <ExportPage session={session} store={exporter} onBack={() => setPage(editPage)} onFix={fix} />
-          ) : page === 'library' ? (
+    <div className="app">
+      <AppBar
+        page={page}
+        session={session}
+        connection={snapshot.state}
+        renderDevice={renderDevice}
+        onPage={(next) => void goto(next)}
+        onBack={() => setPage(editPage)}
+        onSave={(saveAs) => (session ? save(session, saveAs) : Promise.resolve(false))}
+        onClose={close}
+        onProjectSettings={() => openSettings()}
+        onAppSettings={() => setAppSettingsOpen(true)}
+        onAbout={() => setAboutOpen(true)}
+      />
+      <main className="app-main">
+        {page === 'lyrics' && session ? (
+          <Workspace session={session} audio={audio} onUndo={() => void session.undo()} onRedo={() => void session.redo()} onSave={() => void save(session)} />
+        ) : page === 'orchestration' && session && orchestration ? (
+          <OrchestrationPage
+            session={session}
+            store={orchestration}
+            audio={audio}
+            onUndo={() => void session.undo()}
+            onRedo={() => void session.redo()}
+            onSave={() => void save(session)}
+          />
+        ) : page === 'appearance' && session && appearance && orchestration ? (
+          <AppearancePage
+            session={session}
+            store={appearance}
+            orchestration={orchestration}
+            library={library}
+            thumbnails={thumbnails}
+            audio={audio}
+            onUndo={() => void session.undo()}
+            onRedo={() => void session.redo()}
+            onSave={() => void save(session)}
+            onEditCopy={(request) => {
+              setLibraryReturn({ ...request, projectSessionId: session.projectSessionId });
+              setPage('library');
+            }}
+            returnTrial={returnTrial}
+            onReturnTrialDone={endReturnTrial}
+          />
+        ) : page === 'export' && session && exporter ? (
+          <div className="page-tile">
+            <ExportPage session={session} store={exporter} onFix={fix} />
+          </div>
+        ) : page === 'library' ? (
+          <div className="page-tile">
             <LibraryPage
               store={library}
               components={components}
@@ -222,18 +237,22 @@ export function App() {
                   : undefined
               }
             />
-          ) : (
-            <>
-              {homeMessage && <div className="info-banner">{homeMessage}</div>}
-              <Home ready={snapshot.state === 'ready'} current={session} onEnter={enter} onResume={() => setPage('lyrics')} />
-            </>
-          )}
-        </main>
-      </div>
+          </div>
+        ) : (
+          <div className="page-tile">
+            {homeMessage && <div className="info-banner">{homeMessage}</div>}
+            <Home ready={snapshot.state === 'ready'} current={session} onEnter={enter} onResume={() => setPage('lyrics')} />
+          </div>
+        )}
+      </main>
       {session && (
         <SettingsDrawer key={session.projectSessionId} session={session} open={settingsOpen} focus={settingsFocus} onClose={() => setSettingsOpen(false)} />
       )}
+      <AppSettings open={appSettingsOpen} onClose={() => setAppSettingsOpen(false)} onAbout={() => setAboutOpen(true)} />
+      <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
       <SaveLocationHost />
+      <DialogHost />
+      <ToastHost />
     </div>
   );
 }
@@ -278,57 +297,6 @@ const createOrchestration = (s: EditorSession) => new OrchestrationStore(client,
 const createAppearance = (s: EditorSession) => new AppearanceStore(client, s, renderDevice);
 const createExport = (s: EditorSession) => new ExportStore(client, s, renderDevice);
 
-/** 导航栏：页面在上；最下方“设置”打开工程设置面板，不是一个页面（整体设计 §3.1）。 */
-function NavRail(props: { page: Page; hasProject: boolean; onPage: (page: Page) => Promise<boolean>; onSettings: () => void }) {
-  const ref = useRef<HTMLElement & { value: string }>(null);
-  useDomEvent(ref, 'change', () => {
-    const value = ref.current?.value as Page | undefined;
-    if (!value || !PAGES.includes(value) || value === props.page) return;
-    const current = props.page;
-    // 没有切换（用户取消）时把导航栏的选中项改回来。
-    void props.onPage(value).then((ok) => {
-      if (!ok && ref.current) ref.current.value = current;
-    });
-  });
-  return (
-    <mdui-navigation-rail ref={ref} contained value={props.page} className="nav-rail">
-      <mdui-navigation-rail-item value="home">
-        <mdui-icon-home slot="icon" />
-        首页
-      </mdui-navigation-rail-item>
-      {props.hasProject && (
-        <mdui-navigation-rail-item value="lyrics">
-          <mdui-icon-music-note slot="icon" />
-          歌词
-        </mdui-navigation-rail-item>
-      )}
-      {props.hasProject && (
-        <mdui-navigation-rail-item value="orchestration">
-          <mdui-icon-view-quilt slot="icon" />
-          编排
-        </mdui-navigation-rail-item>
-      )}
-      {props.hasProject && (
-        <mdui-navigation-rail-item value="appearance">
-          <mdui-icon-palette slot="icon" />
-          外观
-        </mdui-navigation-rail-item>
-      )}
-      <mdui-navigation-rail-item value="library">
-        <mdui-icon-style slot="icon" />
-        样式库
-      </mdui-navigation-rail-item>
-      {props.hasProject && (
-        // bottom 插槽里的项不参与导航栏的选中状态，点击只打开面板。
-        <mdui-navigation-rail-item slot="bottom" className="settings-item" onClick={props.onSettings}>
-          <mdui-icon-settings slot="icon" />
-          设置
-        </mdui-navigation-rail-item>
-      )}
-    </mdui-navigation-rail>
-  );
-}
-
 /**
  * 保存：已有保存位置直接保存；新工程第一次保存和“另存为…”打开“保存到…”对话框（W5 设计 §1）。返回是否保存成功。
  * 另存为之后，工程的保存位置就是新目录。
@@ -357,80 +325,4 @@ async function save(session: EditorSession, saveAs = false): Promise<boolean> {
       await session.refresh();
     },
   });
-}
-
-function ProjectActions(props: { session: EditorSession; exporting: boolean; onExport: () => void; onClosed: () => void }) {
-  const { session } = props;
-  const state = useObservable(session.state$);
-  const [busy, setBusy] = useState(false);
-  const [lyricsExportOpen, setLyricsExportOpen] = useState(false);
-  const summary = state.summary;
-
-  const close = async () => {
-    let policy: 'requireClean' | 'discard' = 'requireClean';
-    if (summary.isDirty) {
-      const choice = await askCloseUnsaved();
-      if (choice === 'cancel') return;
-      if (choice === 'save' && !(await save(session))) return;
-      if (choice === 'discard') policy = 'discard';
-    }
-    setBusy(true);
-    try {
-      await closeProject(client, session.projectSessionId, policy);
-      props.onClosed();
-    } catch (error) {
-      session.notify({ level: 'error', message: `关闭失败：${error instanceof Error ? error.message : String(error)}` });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const runSave = async (saveAs = false) => {
-    setBusy(true);
-    try {
-      await save(session, saveAs);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="project-actions">
-      <span className="project-name">{summary.name}</span>
-      <span className="project-state">{summary.isReadOnly ? '只读' : summary.isDirty ? '未保存' : '已保存'}</span>
-      <mdui-button-icon disabled={!summary.canUndo || busy} onClick={() => void session.undo()} aria-label="撤销">
-        <mdui-icon-undo />
-      </mdui-button-icon>
-      <mdui-button-icon disabled={!summary.canRedo || busy} onClick={() => void session.redo()} aria-label="重做">
-        <mdui-icon-redo />
-      </mdui-button-icon>
-      <mdui-button variant="tonal" disabled={busy || summary.isReadOnly} onClick={() => void runSave()}>
-        保存工程
-      </mdui-button>
-      <mdui-button variant={props.exporting ? 'filled' : 'outlined'} onClick={props.onExport}>
-        <mdui-icon-movie slot="icon" />
-        导出视频
-      </mdui-button>
-      <mdui-dropdown placement="bottom-end">
-        <mdui-button-icon slot="trigger" aria-label="更多">
-          <mdui-icon-more-vert />
-        </mdui-button-icon>
-        <mdui-menu>
-          <mdui-menu-item disabled={busy || summary.isReadOnly} onClick={() => void runSave(true)}>
-            另存为…
-          </mdui-menu-item>
-          <mdui-menu-item disabled={busy || !session.supports(LYRICS_EXPORT_FEATURE)} onClick={() => setLyricsExportOpen(true)}>
-            导出歌词文件…
-          </mdui-menu-item>
-          <mdui-menu-item disabled={busy} onClick={close}>
-            关闭工程
-          </mdui-menu-item>
-          <mdui-menu-item href="/console.html" target="_blank">
-            协议控制台
-          </mdui-menu-item>
-        </mdui-menu>
-      </mdui-dropdown>
-      <LyricsExportDialog session={session} open={lyricsExportOpen} onClose={() => setLyricsExportOpen(false)} />
-    </div>
-  );
 }

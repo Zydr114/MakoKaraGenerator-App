@@ -28,9 +28,9 @@ const NO_BRANCHES: NonNullable<EditorState['branches']> = [];
 
 /**
  * 导出页（整体设计 §5.7、W5 设计 §1）：准备检查、格式、摘要、正式验证、任务。
- * 不在导航栏里，从顶栏“导出视频”进入，“返回编辑”回到原来的页面。离开时任务不停（ExportStore 由 App 持有）。
+ * 从顶栏“导出视频”进入，顶栏的“返回编辑”回到原来的页面。离开时任务不停（ExportStore 由 App 持有）。
  */
-export function ExportPage(props: { session: EditorSession; store: ExportStore; onBack: () => void; onFix: (fix: CheckFix) => void }) {
+export function ExportPage(props: { session: EditorSession; store: ExportStore; onFix: (fix: CheckFix) => void }) {
   const { session, store } = props;
   const state = useObservable(session.state$);
   const exportState = useObservable(store.state$);
@@ -38,13 +38,6 @@ export function ExportPage(props: { session: EditorSession; store: ExportStore; 
 
   return (
     <div className="export-page">
-      <header className="export-header">
-        <mdui-button variant="text" onClick={props.onBack}>
-          <mdui-icon-arrow-back slot="icon" />
-          返回编辑
-        </mdui-button>
-        <h1>导出视频</h1>
-      </header>
       {settings ? (
         <ExportSections session={session} store={store} state={state} exportState={exportState} settings={settings} onFix={props.onFix} />
       ) : (

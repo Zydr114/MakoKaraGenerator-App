@@ -13,171 +13,8 @@
   color: rgb(var(--mdui-color-on-surface-variant));
 }
 
-.error-banner,
-.info-banner {
-  margin: 12px 0;
-  padding: 12px 16px;
-  border-radius: var(--mdui-shape-corner-small);
-}
-
-.error-banner {
-  background: rgb(var(--mdui-color-error-container));
-  color: rgb(var(--mdui-color-on-error-container));
-}
-
-.info-banner {
-  margin: 16px auto 0;
-  max-width: 880px;
-  background: rgb(var(--mdui-color-secondary-container));
-  color: rgb(var(--mdui-color-on-secondary-container));
-}
-
-/* ── 首页 ── */
-
-.home {
-  max-width: 880px;
-  margin: 0 auto;
-  padding: 16px 24px 48px;
-}
-
-.home-progress {
-  position: sticky;
-  top: 0;
-}
-
-.home-busy {
-  margin: 8px 0;
-  color: rgb(var(--mdui-color-primary));
-}
-
-.home-card {
-  margin-top: 16px;
-  padding: 16px 20px 20px;
-  border-radius: var(--mdui-shape-corner-large);
-  background: rgb(var(--mdui-color-surface-container-low));
-}
-
-.home-card h2 {
-  margin: 0 0 12px;
-  font-size: var(--mdui-typescale-title-medium-size);
-  font-weight: var(--mdui-typescale-title-medium-weight);
-}
-
-.home-section {
-  margin-top: 24px;
-}
-
-.home-section h2 {
-  margin: 0 0 12px;
-  font-size: var(--mdui-typescale-title-medium-size);
-  font-weight: var(--mdui-typescale-title-medium-weight);
-}
-
-.home-error {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding-block: 4px;
-}
-
-.session-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 12px;
-}
-
-.session-card {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 14px 16px;
-}
-
-.session-card-name {
-  font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.session-card-meta {
-  font-size: var(--mdui-typescale-body-small-size);
-  color: rgb(var(--mdui-color-on-surface-variant));
-}
-
-.session-card-badge {
-  margin-right: 6px;
-  padding: 1px 6px;
-  border-radius: var(--mdui-shape-corner-extra-small);
-  background: rgb(var(--mdui-color-primary-container));
-  color: rgb(var(--mdui-color-on-primary-container));
-}
-
-.recent-projects {
-  align-items: center;
-  margin: 0 0 12px;
-}
-
-.home-actions {
-  display: flex;
-  gap: 12px;
-  margin-top: 24px;
-}
-
-/* ── 新建与恢复对话框 ── */
-
-.new-project-dialog::part(panel),
-.recovery-dialog::part(panel) {
-  width: min(640px, 92vw);
-}
-
-.save-location-dialog::part(panel) {
-  width: min(720px, 94vw);
-}
-
-.save-location-dialog .directory-list {
-  max-height: min(320px, 40vh);
-}
-
-.save-target {
-  margin: 0;
-  color: rgb(var(--mdui-color-on-surface-variant));
-}
-
-.save-target-invalid {
-  color: rgb(var(--mdui-color-error));
-}
-
-.save-target-project {
-  color: rgb(var(--mdui-color-tertiary));
-  font-weight: 500;
-}
-
-.dialog-form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.dialog-form > p {
-  margin: 0;
-}
-
-.dialog-form .dialog-grid {
-  margin-bottom: 0;
-}
-
 .dialog-secondary-action {
   margin-right: auto;
-}
-
-.dialog-busy {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 12px;
-  color: rgb(var(--mdui-color-primary));
 }
 
 .lyrics-plan {
@@ -223,154 +60,6 @@
   border-radius: var(--mdui-shape-corner-extra-small);
   background: rgb(var(--mdui-color-surface-container-highest));
   white-space: nowrap;
-}
-
-.recovery-list {
-  display: flex;
-  flex-direction: column;
-  max-height: 320px;
-  overflow: auto;
-}
-
-.recovery-item {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  padding: 10px 12px;
-  border: none;
-  border-radius: var(--mdui-shape-corner-small);
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.recovery-item:hover {
-  background: rgb(var(--mdui-color-surface-container-highest));
-}
-
-.recovery-item.is-selected {
-  background: rgb(var(--mdui-color-secondary-container));
-  color: rgb(var(--mdui-color-on-secondary-container));
-}
-
-.recovery-name {
-  font-weight: 500;
-}
-
-.recovery-meta {
-  font-size: var(--mdui-typescale-body-small-size);
-  opacity: 0.8;
-}
-
-/* ── 工程目录浏览器 ── */
-
-.directory-browser {
-  border-radius: var(--mdui-shape-corner-large);
-  background: rgb(var(--mdui-color-surface-container-low));
-  padding: 8px 8px 12px;
-}
-
-.directory-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 4px 8px;
-}
-
-.breadcrumb {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  flex: 1;
-  min-width: 0;
-}
-
-.breadcrumb-part {
-  display: inline-flex;
-  align-items: center;
-}
-
-.breadcrumb-sep {
-  color: rgb(var(--mdui-color-on-surface-variant));
-}
-
-.directory-search {
-  width: 200px;
-  flex: none;
-}
-
-.directory-progress {
-  margin-bottom: 4px;
-}
-
-.directory-list {
-  max-height: 420px;
-  overflow: auto;
-}
-
-.directory-row {
-  display: flex;
-  align-items: center;
-  border-radius: var(--mdui-shape-corner-small);
-}
-
-.directory-row:hover,
-.directory-row.is-highlight {
-  background: rgb(var(--mdui-color-surface-container-highest));
-}
-
-.directory-main {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex: 1;
-  min-width: 0;
-  padding: 10px 12px;
-  border: none;
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.directory-main:disabled {
-  cursor: default;
-}
-
-.directory-main mdui-icon-folder,
-.directory-main mdui-icon-arrow-upward {
-  color: rgb(var(--mdui-color-on-surface-variant));
-}
-
-.directory-row.is-project .directory-main mdui-icon-music-note {
-  color: rgb(var(--mdui-color-primary));
-}
-
-.directory-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.directory-kind {
-  font-size: var(--mdui-typescale-body-small-size);
-  color: rgb(var(--mdui-color-on-surface-variant));
-}
-
-.directory-actions {
-  display: inline-flex;
-  align-items: center;
-  margin-right: 4px;
-}
-
-.directory-empty {
-  margin: 12px;
 }
 
 .form-grid {
@@ -1376,98 +1065,25 @@
   color: rgb(var(--mdui-color-on-surface-variant));
 }
 
-/* 工程设置面板 */
-.settings-drawer::part(panel) {
-  width: min(420px, 100vw);
-}
-
-/* 与 .branch-form 同理：块布局，mdui 输入框在 flex 项里会把轮廓画到含 helper 的整个高度。 */
-.settings-group {
-  display: block;
-  padding-bottom: 8px;
-  border-bottom: 1px solid rgb(var(--mdui-color-outline-variant));
-}
-
-.settings-group-focus {
-  border-radius: var(--mdui-shape-corner-small);
-  background: rgba(var(--mdui-color-secondary-container), 0.6);
-  transition: background 0.4s;
-}
-
-.settings-group:last-child {
-  border-bottom: none;
-}
-
-.settings-group .section-title {
-  margin: 12px 0 8px;
-}
-
-.settings-group .dialog-grid {
-  margin-bottom: 8px;
-}
-
-.settings-group .form-actions {
-  margin: 8px 0;
-}
-
-.settings-facts {
+.export-facts {
   display: grid;
   grid-template-columns: max-content 1fr;
   gap: 4px 16px;
   margin: 0;
 }
 
-.settings-facts > div {
+.export-facts > div {
   display: contents;
 }
 
-.settings-facts dt {
+.export-facts dt {
   color: rgb(var(--mdui-color-on-surface-variant));
 }
 
-.settings-facts dd {
+.export-facts dd {
   margin: 0;
   min-width: 0;
   overflow-wrap: anywhere;
-}
-
-.background-media {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 8px 0;
-}
-
-.background-thumb {
-  flex: none;
-  width: 96px;
-  height: 54px;
-  border-radius: var(--mdui-shape-corner-small);
-  object-fit: contain;
-  background: rgb(var(--mdui-color-surface-container-highest));
-}
-
-.background-thumb.placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: rgb(var(--mdui-color-on-surface-variant));
-}
-
-.background-info {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.background-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.background-info .hint {
-  margin: 0;
 }
 
 .color-row {
@@ -1496,30 +1112,6 @@
   display: block;
   flex: 1;
   min-width: 0;
-}
-
-.duration-value {
-  font-size: var(--mdui-typescale-headline-small-size);
-  font-variant-numeric: tabular-nums;
-}
-
-.duration-value.undetermined {
-  color: rgb(var(--mdui-color-error));
-}
-
-.duration-value.undetermined + .hint {
-  margin-top: 0;
-}
-
-.analysis-progress {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: 8px;
-}
-
-.analysis-progress .hint {
-  margin: 0;
 }
 
 /* ── 样式库 ── */

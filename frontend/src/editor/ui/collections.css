@@ -21,7 +21,7 @@
   color: var(--on-surface-variant);
 }
 
-.row {
+.list .row {
   box-sizing: border-box;
   position: relative;
   /* 列表限高滚动时行不能被压扁（两行文字的行会叠到下一行上） */
@@ -36,33 +36,33 @@
   cursor: default;
   outline: none;
 }
-.row[data-hovered] {
+.list .row[data-hovered] {
   background-image: var(--hover);
 }
-.row[data-selected] {
+.list .row[data-selected] {
   background-color: var(--sel);
   color: var(--on-sel);
 }
-.row[data-focus-visible] {
+.list .row[data-focus-visible] {
   box-shadow: inset 0 0 0 2px var(--primary);
 }
-.row[data-disabled] {
+.list .row[data-disabled] {
   opacity: 0.38;
 }
-.row[data-dragging] {
+.list .row[data-dragging] {
   opacity: 0.5;
 }
-.row[data-drop-target] {
+.list .row[data-drop-target] {
   box-shadow: inset 0 0 0 2px var(--primary);
 }
 /* 选中行里的次要文字跟着选中色，只降一点不透明度 */
-.row[data-selected] :is(.muted, .faint) {
+.list .row[data-selected] :is(.muted, .faint) {
   color: inherit;
   opacity: 0.8;
 }
 
 /* 拖动把手：悬停或键盘聚焦到行时才显出来 */
-.row .drag {
+.list .row .drag {
   width: 20px;
   height: 24px;
   margin-left: -6px;
@@ -78,18 +78,18 @@
   opacity: 0;
   outline: none;
 }
-.row[data-hovered] .drag,
-.row[data-focus-visible] .drag,
-.row .drag[data-focus-visible] {
+.list .row[data-hovered] .drag,
+.list .row[data-focus-visible] .drag,
+.list .row .drag[data-focus-visible] {
   opacity: 1;
 }
-.row .drag[data-focus-visible] {
+.list .row .drag[data-focus-visible] {
   box-shadow: inset 0 0 0 2px var(--primary);
 }
-.row[data-selected] .drag {
+.list .row[data-selected] .drag {
   color: inherit;
 }
-.row .drag .ic {
+.list .row .drag .ic {
   width: 18px;
   height: 18px;
 }

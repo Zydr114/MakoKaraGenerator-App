@@ -1,17 +1,19 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import type { LyricBranchRole, LyricBranchSummary, LyricBranchTimingMode } from '../../protocol';
 import { BRANCH_ROLE_TEXT, TIMING_MODE_TEXT, branchDescription, roleOptions, timingModeOptions } from '../model/branches';
 import type { EditorSession, EditorState } from '../session/editor-session';
-import { confirmAction } from '../ui/legacy/dialogs';
-import { toast } from '../ui/legacy/feedback';
-import { Select, TextField } from '../ui/legacy/fields';
-import { useDomEvent } from '../ui/hooks';
+import { Button } from '../ui/Button';
+import { List } from '../ui/collections';
+import { Sheet } from '../ui/Dialog';
+import { confirmAction } from '../ui/dialogs';
+import { toast } from '../ui/feedback';
+import { Select, TextField } from '../ui/fields';
 
 /**
  * 管理来源（整体设计 §5.2）：右侧面板列出所有来源；选中一项在下面修改名称、语言、角色、时间策略，或删除。
  * 主歌词不能删除，也不能改角色，相应控件禁用并写明原因。
  */
-export function SourcesDrawer(props: {
+export function SourcesSheet(props: {
   session: EditorSession;
   state: EditorState;
   open: boolean;
@@ -19,26 +21,35 @@ export function SourcesDrawer(props: {
   onLink: (branchId: string) => void;
 }) {
   const { session, state } = props;
-  const ref = useRef<HTMLElement>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
-  useDomEvent(ref, 'close', (event) => event.target === ref.current && props.onClose());
 
   const branches = state.branches ?? [];
   // 正在编辑的来源被删除（或撤销了新增）时，回到当前来源。
   const editing = branches.find((b) => b.id === editingId) ?? branches.find((b) => b.id === state.branchId) ?? branches[0];
 
   return (
-    <mdui-navigation-drawer ref={ref} open={props.open} modal close-on-esc close-on-overlay-click placement="right" className="sources-drawer">
-      <div className="drawer-content">
-        <header className="drawer-header">
-          <span className="drawer-title">管理来源</span>
-          <span className="spacer" />
-          <mdui-button-icon aria-label="关闭管理来源" onClick={props.onClose}>
-            <mdui-icon-close />
-          </mdui-button-icon>
-        </header>
-
+    <Sheet open={props.open} onClose={props.onClose} title="管理来源" closeLabel="关闭管理来源" className="sources-sheet">
+      <section className="sset">
+        <h4>来源</h4>
+        <List
+          label="来源"
+          items={branches}
+          textValue={(b) => b.name}
+          selectedKeys={editing ? [editing.id] : []}
+          onSelectionChange={(keys) => {
+            const id = [...keys][0];
+            if (id !== undefined) setEditingId(String(id));
+          }}
+          className="branch-list"
+        >
+          {(b) => (
+            <span className="branch-row">
+              <span className="branch-name">{b.name}</span>
+              <span className="faint">{branchDescription(b)}</span>
+            </span>
+          )}
+        </List>
         {adding ? (
           <AddBranchForm
             session={session}
@@ -48,33 +59,25 @@ export function SourcesDrawer(props: {
             }}
           />
         ) : (
-          <mdui-button variant="tonal" disabled={!session.supportsCommand('lyrics.addTranslationBranch')} onClick={() => setAdding(true)}>
-            <mdui-icon-add slot="icon" />
-            添加翻译来源
-          </mdui-button>
+          <div className="btnrow">
+            <Button variant="tonal" size="sm" icon="add" isDisabled={!session.supportsCommand('lyrics.addTranslationBranch')} onPress={() => setAdding(true)}>
+              添加翻译来源
+            </Button>
+          </div>
         )}
+      </section>
 
-        <mdui-list className="branch-list">
-          {branches.map((b) => (
-            <mdui-list-item key={b.id} rounded active={b.id === editing?.id} data-branch-id={b.id} onClick={() => setEditingId(b.id)}>
-              <span>{b.name}</span>
-              <span slot="description">{branchDescription(b)}</span>
-            </mdui-list-item>
-          ))}
-        </mdui-list>
-
-        {editing && (
-          <BranchForm
-            // 权威值变化（保存成功、撤销）时重建草稿。
-            key={`${editing.id}|${editing.name}|${editing.language ?? ''}|${editing.role}|${editing.timingMode}`}
-            session={session}
-            branch={editing}
-            isPrimary={editing.id === state.primaryBranchId}
-            onLink={() => props.onLink(editing.id)}
-          />
-        )}
-      </div>
-    </mdui-navigation-drawer>
+      {editing && (
+        <BranchForm
+          // 权威值变化（保存成功、撤销）时重建草稿。
+          key={`${editing.id}|${editing.name}|${editing.language ?? ''}|${editing.role}|${editing.timingMode}`}
+          session={session}
+          branch={editing}
+          isPrimary={editing.id === state.primaryBranchId}
+          onLink={() => props.onLink(editing.id)}
+        />
+      )}
+    </Sheet>
   );
 }
 
@@ -95,18 +98,20 @@ function AddBranchForm(props: { session: EditorSession; onDone: (branchId?: stri
     }
   };
   return (
-    <div className="branch-form">
-      <div className="section-title">添加翻译来源</div>
-      <TextField label="新来源名称" value={name} error={name.trim() ? undefined : '名称不能为空'} onChange={setName} onEnter={() => void submit()} className="drawer-field" />
-      <TextField label="新来源语言（可留空）" value={language} helper="例如 zh-Hans、en" onChange={setLanguage} onEnter={() => void submit()} className="drawer-field" />
+    <div className="branch-add" role="group" aria-label="添加翻译来源">
+      <div className="g2">
+        <TextField label="新来源名称" value={name} error={name.trim() ? undefined : '名称不能为空'} onChange={setName} onEnter={() => void submit()} autoFocus />
+        <TextField label="新来源语言（可留空）" value={language} helper="例如 zh-Hans、en" onChange={setLanguage} onEnter={() => void submit()} />
+      </div>
       <p className="hint">新来源是空的，时间策略为“跟随主歌词”。添加后可以导入或粘贴歌词，再关联到主歌词。</p>
-      <div className="form-actions">
-        <mdui-button variant="text" disabled={busy} onClick={() => props.onDone()}>
+      <div className="btnrow">
+        <span className="spacer" />
+        <Button variant="text" size="sm" isDisabled={busy} onPress={() => props.onDone()}>
           取消
-        </mdui-button>
-        <mdui-button variant="tonal" loading={busy} disabled={busy || !name.trim()} onClick={() => void submit()}>
+        </Button>
+        <Button variant="filled" size="sm" isPending={busy} isDisabled={!name.trim()} onPress={() => void submit()}>
           添加
-        </mdui-button>
+        </Button>
       </div>
     </div>
   );
@@ -144,6 +149,7 @@ function BranchForm(props: { session: EditorSession; branch: LyricBranchSummary;
       headline: `删除来源「${branch.name}」？`,
       description: branch.lineCount > 0 ? `它的 ${branch.lineCount} 行歌词会一起删除。可以撤销。` : '这个来源是空的。可以撤销。',
       confirmText: '删除',
+      danger: true,
     });
     if (!ok) return;
     const response = await session.command({ type: 'lyrics.removeBranch', branchId: branch.id });
@@ -152,46 +158,44 @@ function BranchForm(props: { session: EditorSession; branch: LyricBranchSummary;
 
   const canConfigure = session.supportsCommand('lyrics.configureBranch');
   return (
-    <div className="branch-form">
-      <div className="section-title">来源设置</div>
-      <TextField label="名称" value={name} error={name.trim() ? undefined : '名称不能为空'} disabled={!canConfigure} onChange={setName} onEnter={() => void save()} className="drawer-field" />
-      <TextField label="语言（可留空）" value={language} helper="例如 ja、zh-Hans、en" disabled={!canConfigure} onChange={setLanguage} onEnter={() => void save()} className="drawer-field" />
+    <section className="sset" aria-label="来源设置">
+      <h4>来源设置</h4>
+      <div className="g2">
+        <TextField label="名称" value={name} error={name.trim() ? undefined : '名称不能为空'} disabled={!canConfigure} onChange={setName} onEnter={() => void save()} />
+        <TextField label="语言（可留空）" value={language} helper="例如 ja、zh-Hans、en" disabled={!canConfigure} onChange={setLanguage} onEnter={() => void save()} />
+      </div>
       <Select
         label="角色"
         value={role}
         options={roleOptions(isPrimary).map((r) => ({ value: r, label: BRANCH_ROLE_TEXT[r] }))}
         disabled={isPrimary || !canConfigure}
         onChange={setRole}
-        className="drawer-field"
       />
-      {isPrimary && <p className="hint field-reason">主歌词不能改变角色。</p>}
+      {isPrimary && <p>主歌词不能改变角色。</p>}
       <Select
         label="时间策略"
         value={timingMode}
         options={timingModeOptions(isPrimary, branch.timingMode).map((m) => ({ value: m, label: TIMING_MODE_TEXT[m] }))}
         disabled={!canConfigure}
         onChange={setTimingMode}
-        className="drawer-field"
       />
-      <p className="hint field-reason">{TIMING_MODE_HINT[timingMode]}</p>
-      <div className="form-actions">
-        <mdui-button variant="tonal" loading={busy} disabled={!changed || !name.trim() || busy || !canConfigure} onClick={() => void save()}>
+      <p>{TIMING_MODE_HINT[timingMode]}</p>
+      <div className="btnrow">
+        <Button variant="filled" size="sm" isPending={busy} isDisabled={!changed || !name.trim() || !canConfigure} onPress={() => void save()}>
           保存
-        </mdui-button>
+        </Button>
         {!isPrimary && (
-          <mdui-button variant="text" disabled={!session.supportsCommand('lyrics.linkPrimaryLine') || branch.lineCount === 0} onClick={props.onLink}>
-            <mdui-icon-link slot="icon" />
+          <Button variant="text" size="sm" icon="link" isDisabled={!session.supportsCommand('lyrics.linkPrimaryLine') || branch.lineCount === 0} onPress={props.onLink}>
             关联主歌词…
-          </mdui-button>
+          </Button>
         )}
         <span className="spacer" />
-        <mdui-button variant="text" disabled={isPrimary || !session.supportsCommand('lyrics.removeBranch')} onClick={() => void remove()}>
-          <mdui-icon-delete slot="icon" />
+        <Button variant="text" size="sm" icon="delete" danger isDisabled={isPrimary || !session.supportsCommand('lyrics.removeBranch')} onPress={() => void remove()}>
           删除来源
-        </mdui-button>
+        </Button>
       </div>
-      {isPrimary && <p className="hint field-reason">主歌词不能删除。</p>}
-    </div>
+      {isPrimary && <p>主歌词不能删除。</p>}
+    </section>
   );
 }
 

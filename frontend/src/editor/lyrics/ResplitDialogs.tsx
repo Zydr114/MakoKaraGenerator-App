@@ -4,9 +4,10 @@ import type { EditorLine } from '../model/lyrics';
 import { SPLIT_RULES } from '../model/split-rules';
 import { SEPARATOR, currentSegments, parseSegments } from '../model/token-segments';
 import type { EditorSession } from '../session/editor-session';
-import { toast } from '../ui/legacy/feedback';
-import { FormDialog } from '../ui/legacy/FormDialog';
-import { Select, Switch, TextField } from '../ui/legacy/fields';
+import { Switch } from '../ui/choices';
+import { toast } from '../ui/feedback';
+import { Select, TextField } from '../ui/fields';
+import { FormDialog } from '../ui/FormDialog';
 
 /** “按规则重切本行…”（整体设计 §5.2）：在正文里用“|”标出切分位置，下面预览切分结果。 */
 export function ResplitLineDialog(props: { session: EditorSession; line: EditorLine | undefined; open: boolean; onClose: () => void }) {
@@ -51,11 +52,24 @@ export function ResplitLineDialog(props: { session: EditorSession; line: EditorL
       busy={busy}
       onSubmit={() => void submit()}
       onClose={props.onClose}
+      className="resplit-dialog"
     >
-      <TextField label="切分" value={text} error={parsed && !parsed.ok ? parsed.error : undefined} onChange={setText} onEnter={() => void submit()} className="dialog-field" />
-      <div className="segment-preview" aria-label="切分预览">
-        {parsed?.ok && parsed.segments.map((s, i) => <span key={i} className="segment-chip">{s}</span>)}
-        {parsed?.ok && parsed.segments.length === 0 && <span className="muted">空行，没有文本单元。</span>}
+      <TextField
+        label="切分"
+        value={text}
+        error={parsed && !parsed.ok ? parsed.error : undefined}
+        onChange={setText}
+        onEnter={() => void submit()}
+        autoFocus
+        className="resplit-field"
+      />
+      <div className="resplit-preview" role="group" aria-label="切分预览">
+        <span className="lbl">预览{parsed?.ok && parsed.segments.length > 0 ? ` · ${parsed.segments.length} 个文本单元` : ''}</span>
+        <div className="resplit-chips">
+          {parsed?.ok && parsed.segments.map((s, i) => <span key={i} className="resplit-chip">{s}</span>)}
+          {parsed?.ok && parsed.segments.length === 0 && <span className="muted">空行，没有文本单元。</span>}
+          {parsed && !parsed.ok && <span className="faint">修正上面的切分后显示。</span>}
+        </div>
       </div>
       <Switch label="按字数估算新单元的时间（结果标记为“估算”）" checked={estimate} onChange={setEstimate} />
     </FormDialog>
@@ -93,13 +107,13 @@ export function ResplitBranchDialog(props: { session: EditorSession; branchId: s
       busy={busy}
       onSubmit={() => void submit()}
       onClose={props.onClose}
+      className="resplit-dialog"
     >
       <Select
         label="拆分规则"
         value={rule}
         options={SPLIT_RULES.filter((r) => r.name !== 'none').map((r) => ({ value: r.name, label: r.label }))}
         onChange={setRule}
-        className="dialog-field"
       />
       <Switch label="按字数估算新单元的时间（结果标记为“估算”）" checked={estimate} onChange={setEstimate} />
     </FormDialog>

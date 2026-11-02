@@ -1,10 +1,11 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import type { LyricsPlanState } from '../lyrics/LyricsPlanPanel';
-import { encodingLabel, planErrorText, planNotes, planStats, previewRows } from '../model/lyrics-import';
+import { encodingLabel, planErrorText, planNotes, planStats, previewRows, type PlanPurpose } from '../model/lyrics-import';
 import { audioFormatName, audioProbeText, wavFormat, waveBars, type AudioProbe } from '../model/new-project';
 import { cls } from '../ui/cls';
 import { Icon, type IconName } from '../ui/Icon';
 import { Spinner } from '../ui/indicators';
+import './home.css';
 
 const BARS = 110;
 const PREVIEW_LINES = 4;
@@ -120,18 +121,26 @@ function AudioCheck({ audio, probe }: { audio: File | null; probe: AudioProbeSta
   );
 }
 
-function LyricsCheck({ lyrics, plan: state }: { lyrics: File | null; plan: LyricsPlanState }) {
+/**
+ * 歌词文件的识别结果：格式与编码、统计、提示和前几行。新建工程（create）和歌词页的导入文件（import）共用，
+ * 两者只有提示语不同。
+ */
+export function LyricsCheck({ lyrics, plan: state, purpose = 'create' }: { lyrics: File | null; plan: LyricsPlanState; purpose?: PlanPurpose }) {
   if (!lyrics)
-    return (
+    return purpose === 'create' ? (
       <Section id="lyrics" level="none" title="没有选歌词">
         <p className="small">之后可以在歌词页导入。</p>
+      </Section>
+    ) : (
+      <Section id="lyrics" level="none" title="还没有选文件">
+        <p className="small">选择文件后在这里显示识别结果和前几行。</p>
       </Section>
     );
   const plan = state.plan;
   if (state.error) return <Section id="lyrics" level="error" title={state.error} />;
   if (!plan) return <Section id="lyrics" level="loading" title="正在识别歌词文件……" />;
   const error = planErrorText(plan);
-  const notes = planNotes(plan, 'create');
+  const notes = planNotes(plan, purpose);
   if (error || !plan.report)
     return (
       <Section id="lyrics" level="error" title="无法识别">

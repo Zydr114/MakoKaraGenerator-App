@@ -11,7 +11,10 @@ import {
   splitSourceLines,
   worstSeverity,
 } from '../model/lyrics-import';
-import { useDomEvent } from '../ui/hooks';
+import { Button } from '../ui/Button';
+import { Segmented } from '../ui/choices';
+import { Dialog } from '../ui/Dialog';
+import { Icon, type IconName } from '../ui/Icon';
 import type { ImportedReport } from './AddLyricsDialogs';
 
 /** 问题清单一次最多显示的条数；“显示更多”每次再加这么多。 */
@@ -26,24 +29,22 @@ type Filter = LyricsImportIssueSeverity | 'all';
  * 点一条问题在右侧源文件里定位到它的行号；源文件按报告里的实际编码在浏览器本地解码。
  */
 export function ImportReportDialog(props: { imported: ImportedReport | null; open: boolean; onClose: () => void }) {
-  const ref = useRef<HTMLElement>(null);
-  useDomEvent(ref, 'close', (event) => event.target === ref.current && props.open && props.onClose());
   const { imported } = props;
   return (
-    <mdui-dialog
-      ref={ref}
+    <Dialog
       open={props.open && !!imported}
-      headline={imported ? `导入报告：${imported.file.name}` : '导入报告'}
-      description={imported ? `已导入到「${imported.branchName}」。` : ''}
-      close-on-esc
-      close-on-overlay-click
+      onClose={props.onClose}
+      title={imported ? `导入报告：${imported.file.name}` : '导入报告'}
+      description={imported ? `已导入到「${imported.branchName}」。` : undefined}
       className="report-dialog"
+      actions={
+        <Button variant="tonal" onPress={props.onClose}>
+          关闭
+        </Button>
+      }
     >
       {props.open && imported && <ReportBody imported={imported} />}
-      <mdui-button slot="action" variant="tonal" onClick={props.onClose}>
-        关闭
-      </mdui-button>
-    </mdui-dialog>
+    </Dialog>
   );
 }
 
@@ -65,9 +66,9 @@ function ReportBody({ imported }: { imported: ImportedReport }) {
 
   return (
     <div className="report-body">
-      <dl className="report-facts">
+      <dl className="dl report-facts">
         {reportFacts(report).map((fact) => (
-          <div key={fact.label} className="report-fact">
+          <div key={fact.label}>
             <dt>{fact.label}</dt>
             <dd>{fact.value}</dd>
           </div>
@@ -75,35 +76,36 @@ function ReportBody({ imported }: { imported: ImportedReport }) {
       </dl>
 
       {report.issues.length === 0 ? (
-        <p className="report-clean">没有发现问题。</p>
+        <p className="report-clean">
+          <Icon name="check_circle" filled />
+          没有发现问题。
+        </p>
       ) : (
         <>
-          <div className="report-filters" role="group" aria-label="按严重程度筛选">
-            <span className="section-title">问题 {report.issues.length} 条</span>
+          <div className="report-filters">
+            <h4>问题 {report.issues.length} 条</h4>
             <span className="spacer" />
-            {filters
-              .filter((f) => f.value === 'all' || f.count > 0)
-              .map((f) => (
-                <mdui-button
-                  key={f.value}
-                  variant={filter === f.value ? 'tonal' : 'text'}
-                  onClick={() => {
-                    setFilter(f.value);
-                    setLimit(ISSUE_PAGE);
-                  }}
-                >
-                  {f.label} {f.count}
-                </mdui-button>
-              ))}
+            <Segmented
+              label="按严重程度筛选"
+              size="sm"
+              value={filter}
+              options={filters.filter((f) => f.value === 'all' || f.count > 0).map((f) => ({ value: f.value, label: `${f.label} ${f.count}` }))}
+              onChange={(value) => {
+                setFilter(value);
+                setLimit(ISSUE_PAGE);
+              }}
+            />
           </div>
           <div className="report-columns">
             <IssueList issues={issues.slice(0, limit)} focus={focus} onFocus={setFocus} />
             <SourceView source={source} issues={report.issues} focus={focus} />
           </div>
           {issues.length > limit && (
-            <mdui-button variant="text" onClick={() => setLimit(limit + ISSUE_PAGE)}>
-              还有 {issues.length - limit} 条，再显示 {Math.min(ISSUE_PAGE, issues.length - limit)} 条
-            </mdui-button>
+            <div className="btnrow">
+              <Button variant="text" size="sm" onPress={() => setLimit(limit + ISSUE_PAGE)}>
+                还有 {issues.length - limit} 条，再显示 {Math.min(ISSUE_PAGE, issues.length - limit)} 条
+              </Button>
+            </div>
           )}
         </>
       )}
@@ -146,14 +148,10 @@ function IssueList(props: { issues: LyricsImportIssue[]; focus: number | undefin
   );
 }
 
+const SEVERITY_ICON: Record<LyricsImportIssueSeverity, IconName> = { error: 'error', warning: 'warning', info: 'info' };
+
 function SeverityIcon({ severity }: { severity: LyricsImportIssueSeverity }) {
-  const icon =
-    severity === 'error' ? <mdui-icon-error /> : severity === 'warning' ? <mdui-icon-warning /> : <mdui-icon-info />;
-  return (
-    <span className="severity-icon" title={SEVERITY_TEXT[severity]} aria-label={SEVERITY_TEXT[severity]}>
-      {icon}
-    </span>
-  );
+  return <Icon name={SEVERITY_ICON[severity]} filled={severity === 'error'} className="severity-icon" label={SEVERITY_TEXT[severity]} />;
 }
 
 type SourceText = { lines: string[] } | { error: string } | undefined;

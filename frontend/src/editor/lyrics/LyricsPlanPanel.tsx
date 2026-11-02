@@ -1,20 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { LyricsImportOptions, LyricsImportPlan } from '../../protocol';
 import { client } from '../connection';
-import {
-  chosen,
-  encodingChoices,
-  formatChoices,
-  needsFormatChoice,
-  planErrorText,
-  planNotes,
-  planSummary,
-  previewRows,
-  sourceChoices,
-  type PlanPurpose,
-} from '../model/lyrics-import';
+import { chosen, encodingChoices, formatChoices, planErrorText, sourceChoices } from '../model/lyrics-import';
 import { errorText } from '../session/editor-session';
-import { Select } from '../ui/legacy/fields';
+import { Select } from '../ui/fields';
 
 /** 用户在识别结果下的改选；AUTO 表示沿用后端的识别或默认来源。 */
 export interface PlanChoices {
@@ -92,65 +81,29 @@ export function planReady(state: LyricsPlanState): boolean {
 }
 
 /**
- * 识别结果（W5 设计 §2.6，W6 设计 §2.3）：概要、提示、改选（来源、格式、编码）和前几行预览。
- * 新建工程只在识别有疑问时给出格式、编码改选，也不选来源（全部恢复）；导入文件总是给出。
+ * 导入文件时对识别结果的改选（W6 设计 §2.3）：多来源文件选导入哪个来源，以及格式、编码。
+ * 识别结果本身（概要、提示、前几行）在对话框右边的 LyricsCheck；新建工程只在识别有疑问时给出格式、编码，在它自己的表单里。
  */
-export function LyricsPlanPanel(props: {
-  state: LyricsPlanState;
-  purpose: PlanPurpose;
-  choices: PlanChoices;
-  onChange: (choices: PlanChoices) => void;
-  previewCount: number;
-  disabled?: boolean;
-}) {
-  const { state, purpose, choices } = props;
-  const plan = state.plan;
-  const planError = plan && planErrorText(plan);
-  const rows = plan && !planError ? previewRows(plan, props.previewCount) : [];
+export function PlanChoiceFields(props: { plan: LyricsImportPlan | undefined; choices: PlanChoices; onChange: (choices: PlanChoices) => void; disabled?: boolean }) {
+  const { plan, choices } = props;
+  if (!plan) return null;
   const set = (patch: Partial<PlanChoices>) => props.onChange({ ...choices, ...patch });
-  const showSources = purpose === 'import' && !!plan && plan.sourceBranches.length > 1;
-  const showFormats = !!plan && (purpose === 'import' || needsFormatChoice(plan));
-
+  const disabled = !!props.disabled;
   return (
-    <div className="lyrics-plan" aria-live="polite">
-      {state.loading && <p className="muted">正在识别歌词文件……</p>}
-      {state.error && <p className="dialog-error">{state.error}</p>}
-      {plan && planError && <p className="dialog-error">{planError}</p>}
-      {plan && !planError && <p className="lyrics-plan-summary">{planSummary(plan)}</p>}
-      {plan &&
-        planNotes(plan, purpose).map((note) => (
-          <p key={note} className="hint">
-            {note}
-          </p>
-        ))}
-      {showSources && (
+    <>
+      {plan.sourceBranches.length > 1 && (
         <Select
           label="导入哪个来源"
           value={chosen(choices.source) ?? plan.selectedSourceBranchId ?? plan.sourceBranches[0]!.id}
           options={sourceChoices(plan)}
-          disabled={!!props.disabled}
+          disabled={disabled}
           onChange={(source) => set({ source })}
-          className="plan-source"
         />
       )}
-      {showFormats && (
-        <div className="dialog-grid">
-          <Select label="格式" value={choices.importer} options={formatChoices(plan)} disabled={!!props.disabled} onChange={(importer) => set({ importer })} />
-          <Select label="编码" value={choices.encoding} options={encodingChoices(plan)} disabled={!!props.disabled} onChange={(encoding) => set({ encoding })} />
-        </div>
-      )}
-      {plan && rows.length > 0 && (
-        <ol className="lyrics-plan-preview">
-          {rows.map((row) => (
-            <li key={row.id}>
-              <span className="plan-line-text">{row.text}</span>
-              {row.ruby && <span className="plan-line-ruby">{row.ruby}</span>}
-              <span className="plan-line-timing">{row.timing}</span>
-            </li>
-          ))}
-          {plan.previewLines.length > rows.length && <li className="muted">……</li>}
-        </ol>
-      )}
-    </div>
+      <div className="g2">
+        <Select label="格式" value={choices.importer} options={formatChoices(plan)} disabled={disabled} onChange={(importer) => set({ importer })} />
+        <Select label="编码" value={choices.encoding} options={encodingChoices(plan)} disabled={disabled} onChange={(encoding) => set({ encoding })} />
+      </div>
+    </>
   );
 }

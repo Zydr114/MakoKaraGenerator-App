@@ -13,7 +13,7 @@ import { ImportReportDialog } from './ImportReportDialog';
 import { lineActionItems, type LineAction, type LineActions } from './line-actions';
 import { LineList, statusCounts, type LineNote } from './LineList';
 import { ResplitBranchDialog } from './ResplitDialogs';
-import { SourcesDrawer } from './SourcesDrawer';
+import { SourcesSheet } from './SourcesSheet';
 import './lyrics.css';
 
 const SHOW_TRANSLATIONS_KEY = 'mako.editor.showTranslationsInLineList';
@@ -253,7 +253,7 @@ export function LinePane(props: { session: EditorSession; state: EditorState; on
         {lineActionItems(session, isPrimary)}
       </ContextMenu>
       <ResplitBranchDialog session={session} branchId={state.branchId} open={resplitBranchOpen} onClose={() => setResplitBranchOpen(false)} />
-      <SourcesDrawer
+      <SourcesSheet
         session={session}
         state={state}
         open={sourcesOpen}

@@ -3,17 +3,17 @@ import type { ImportLyricsDestination, LyricsImportReport, TokenSplitRuleName } 
 import { BRANCH_ROLE_TEXT } from '../model/branches';
 import { AUTO, LYRICS_FILE_ACCEPT, NEW_BRANCH_ROLES, chosen, fileStem, pastedLineCount, primaryImportBlock, type NewBranchRole } from '../model/lyrics-import';
 import { SPLIT_RULES } from '../model/split-rules';
-import { errorText, type EditorSession, type EditorState } from '../session/editor-session';
-import { toast } from '../ui/legacy/feedback';
-import { FormDialog } from '../ui/legacy/FormDialog';
-import { FilePicker, Select, Switch, TextField } from '../ui/legacy/fields';
-import { LyricsPlanPanel, planReady, useLyricsPlan, type PlanChoices } from './LyricsPlanPanel';
+import { LyricsCheck } from '../home/FileCheck';
+import { type EditorSession, type EditorState } from '../session/editor-session';
+import { Switch } from '../ui/choices';
+import { toast } from '../ui/feedback';
+import { FileBox, Select, TextField } from '../ui/fields';
+import { FormDialog } from '../ui/FormDialog';
+import { ProgressBar } from '../ui/indicators';
+import { PlanChoiceFields, planReady, useLyricsPlan, type PlanChoices } from './LyricsPlanPanel';
 
 /** 目标选择里“新来源”的取值；其余取值是来源 ID。 */
 const NEW_TARGET = '__new__';
-
-/** 识别结果下预览几行。 */
-const PREVIEW_LINES = 5;
 
 /** 一次文件导入的报告；保留文件本身，报告里可以对照源文件的行。 */
 export interface ImportedReport {
@@ -26,7 +26,7 @@ export interface ImportedReport {
 const NO_CHOICES: PlanChoices = { importer: AUTO, encoding: AUTO, source: AUTO };
 
 /**
- * 导入文件（整体设计 §5.2，W6 设计 §2.3）：选文件 → 上传并做导入规划 → 显示识别结果、改选与预览 → 选目标与选项 → 导入。
+ * 导入文件（整体设计 §5.2，W6 设计 §2.3）：选文件 → 上传并做导入规划 → 右边显示识别结果与前几行，左边改选 → 选目标与选项 → 导入。
  * 文件只上传一次，改选格式、编码或来源时用同一个资源重新规划；导入发 lyrics.importAsset，整次导入一条历史，完成后显示导入报告。
  * MakoKara 工程 TTML 有多个来源，一次导入一个，命令带上所选来源。
  */
@@ -132,12 +132,27 @@ export function ImportLyricsDialog(props: {
       onSubmit={() => void submit()}
       onClose={props.onClose}
       className="import-dialog"
+      side={
+        <div className="file-check">
+          <h3 className="file-check-head">识别结果</h3>
+          <LyricsCheck lyrics={file} plan={lyrics} purpose="import" />
+        </div>
+      }
     >
-      <FilePicker label="选择文件" accept={LYRICS_FILE_ACCEPT} file={file} disabled={!!progress} onChange={chooseFile} />
-      {file && <LyricsPlanPanel state={lyrics} purpose="import" choices={choices} onChange={setChoices} previewCount={PREVIEW_LINES} disabled={!!progress} />}
-      <div className="dialog-grid">
+      <FileBox
+        label="歌词文件"
+        icon="description"
+        accept={LYRICS_FILE_ACCEPT}
+        file={file}
+        emptyText="点“选择…”，或把文件拖到这里"
+        rejectText={(f) => `“${f.name}”不是支持的歌词文件。`}
+        disabled={!!progress}
+        onChange={chooseFile}
+      />
+      <PlanChoiceFields plan={plan} choices={choices} onChange={setChoices} disabled={!!progress} />
+      <div className="g2">
         <Select label="导入到" value={target} options={targetOptions} disabled={!!progress} onChange={setTarget} />
-        {isNew ? (
+        {isNew && (
           <Select
             label="新来源的角色"
             value={role}
@@ -145,8 +160,6 @@ export function ImportLyricsDialog(props: {
             disabled={!!progress}
             onChange={setRole}
           />
-        ) : (
-          <span />
         )}
       </div>
       {isNew ? (
@@ -160,11 +173,10 @@ export function ImportLyricsDialog(props: {
             nameEdited.current = true;
             setName(value);
           }}
-          className="dialog-field"
         />
       ) : (
         replaced && (
-          <p className="hint">
+          <p className="hint import-replace">
             {replaced.lineCount > 0
               ? `「${replaced.name}」现有的 ${replaced.lineCount} 行会被全部替换；来源名称、角色和时间策略保留。`
               : `导入到空的「${replaced.name}」；来源名称、角色和时间策略保留。`}
@@ -172,18 +184,24 @@ export function ImportLyricsDialog(props: {
           </p>
         )
       )}
-      {blocked && <p className="dialog-error">{blocked}</p>}
-      <Select
-        label="拆分文本单元"
-        value={split}
-        options={SPLIT_RULES.map((r) => ({ value: r.name, label: r.label }))}
-        disabled={!!progress}
-        onChange={setSplit}
-        className="dialog-field"
-      />
+      {blocked && (
+        <p className="errline" role="alert">
+          {blocked}
+        </p>
+      )}
+      <Select label="拆分文本单元" value={split} options={SPLIT_RULES.map((r) => ({ value: r.name, label: r.label }))} disabled={!!progress} onChange={setSplit} />
       <Switch label="按字数估算新单元的时间（结果标记为“估算”）" checked={estimate} disabled={!!progress || split === 'none'} onChange={setEstimate} />
-      {progress && <p className="hint">{progress}……</p>}
-      {error && <p className="dialog-error">{error}</p>}
+      {progress && (
+        <div className="busyline">
+          <ProgressBar label={progress} />
+          <span>{progress}……</span>
+        </div>
+      )}
+      {error && (
+        <p className="errline" role="alert">
+          {error}
+        </p>
+      )}
     </FormDialog>
   );
 }
@@ -261,13 +279,17 @@ export function PasteLyricsDialog(props: {
       onClose={props.onClose}
       className="paste-dialog"
     >
-      <TextField label="歌词" value={text} rows={10} helper={`将追加 ${count} 行；空白行跳过`} disabled={busy} onChange={setText} className="dialog-field paste-text" />
-      <div className="dialog-grid">
+      <TextField label="歌词" value={text} rows={10} helper={`将追加 ${count} 行；空白行跳过`} disabled={busy} onChange={setText} autoFocus className="paste-text" />
+      <div className="g2">
         <Select label="追加到" value={target} options={targetOptions} disabled={busy} onChange={setTarget} />
-        {isNew ? <TextField label="新来源名称" value={name} error={name.trim() ? undefined : '名称不能为空'} disabled={busy} onChange={setName} /> : <span />}
+        {isNew && <TextField label="新来源名称" value={name} error={name.trim() ? undefined : '名称不能为空'} disabled={busy} onChange={setName} />}
       </div>
       {secondary && <p className="hint">追加的行还没有关联主歌词，之后可以在“关联主歌词…”里按顺序配对。</p>}
-      {error && <p className="dialog-error">{error}</p>}
+      {error && (
+        <p className="errline" role="alert">
+          {error}
+        </p>
+      )}
     </FormDialog>
   );
 }

@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { TIMING_MODE_TEXT, autoPair, currentLinks, linkChanges, type LinkDraft } from '../model/branches';
 import { batchHistoryText } from '../model/edit-batches';
 import type { EditorSession } from '../session/editor-session';
-import { toast } from '../ui/legacy/feedback';
-import { FormDialog } from '../ui/legacy/FormDialog';
+import { Button } from '../ui/Button';
+import { toast } from '../ui/feedback';
+import { FormDialog } from '../ui/FormDialog';
+import { Icon } from '../ui/Icon';
 
 /**
  * 翻译关联（整体设计 §5.2）：左边是这个来源的行，右边选它关联的主歌词行。
@@ -71,18 +73,20 @@ export function LinkDialog(props: { session: EditorSession; branchId: string | n
           这个来源的时间策略是“{TIMING_MODE_TEXT[branch.timingMode]}”，关联只用于对照显示。要让翻译跟随主歌词显示，在“管理来源”里把时间策略改为“跟随主歌词”。
         </p>
       )}
-      <div className="link-toolbar">
-        <mdui-button variant="text" disabled={primaryLines.length === 0} onClick={() => setDraft(autoPair(lines, primaryLines))}>
+      <div className="link-toolbar" role="toolbar" aria-label="批量修改">
+        <Button variant="text" size="sm" icon="wand_stars" isDisabled={primaryLines.length === 0 || progress !== null} onPress={() => setDraft(autoPair(lines, primaryLines))}>
           按顺序自动配对
-        </mdui-button>
-        <mdui-button variant="text" onClick={() => setDraft(Object.fromEntries(lines.map((l) => [l.id, null])))}>
+        </Button>
+        <Button variant="text" size="sm" icon="link_off" isDisabled={progress !== null} onPress={() => setDraft(Object.fromEntries(lines.map((l) => [l.id, null])))}>
           全部解除
-        </mdui-button>
-        <mdui-button variant="text" disabled={changes.length === 0} onClick={() => setDraft(currentLinks(lines))}>
+        </Button>
+        <Button variant="text" size="sm" icon="undo" isDisabled={changes.length === 0 || progress !== null} onPress={() => setDraft(currentLinks(lines))}>
           还原
-        </mdui-button>
+        </Button>
         <span className="spacer" />
-        <span className="muted">{progress ?? (changes.length > 0 ? `${changes.length} 处修改` : '没有修改')}</span>
+        <span className="muted tnum" aria-live="polite">
+          {progress ?? (changes.length > 0 ? `${changes.length} 处修改` : '没有修改')}
+        </span>
       </div>
       <div className="link-table" ref={table} role="table" aria-label="翻译关联">
         <div className="link-head" role="row">
@@ -101,26 +105,30 @@ export function LinkDialog(props: { session: EditorSession; branchId: string | n
               data-line-id={line.id}
               className={['link-row', changed ? 'changed' : '', line.id === props.focusLineId ? 'focused' : ''].filter(Boolean).join(' ')}
             >
-              <span className="line-index">{String(i + 1).padStart(2, '0')}</span>
-              <span className="link-text">{line.text || '（空行）'}</span>
-              <select
-                className="native-select"
-                aria-label={`第 ${i + 1} 行关联的主歌词`}
-                value={value ?? ''}
-                disabled={progress !== null}
-                onChange={(event) => {
-                  const next = event.currentTarget.value || null;
-                  setDraft((current) => ({ ...current, [line.id]: next }));
-                }}
-              >
-                <option value="">不关联</option>
-                {missing && <option value={value}>（已不存在的行）</option>}
-                {primaryLines.map((p, n) => (
-                  <option key={p.id} value={p.id}>
-                    {`${String(n + 1).padStart(2, '0')}  ${p.text || '（空行）'}`}
-                  </option>
-                ))}
-              </select>
+              <span role="cell" className="link-n tnum">{String(i + 1).padStart(2, '0')}</span>
+              <span role="cell" className="link-text">{line.text || '（空行）'}</span>
+              {/* 行多时几百个下拉，用原生 select 最轻；外观在 lyrics.css 里统一成新控件的样子。 */}
+              <span role="cell" className="link-pick">
+                <select
+                  className="native-select"
+                  aria-label={`第 ${i + 1} 行关联的主歌词`}
+                  value={value ?? ''}
+                  disabled={progress !== null}
+                  onChange={(event) => {
+                    const next = event.currentTarget.value || null;
+                    setDraft((current) => ({ ...current, [line.id]: next }));
+                  }}
+                >
+                  <option value="">不关联</option>
+                  {missing && <option value={value}>（已不存在的行）</option>}
+                  {primaryLines.map((p, n) => (
+                    <option key={p.id} value={p.id}>
+                      {`${String(n + 1).padStart(2, '0')}  ${p.text || '（空行）'}`}
+                    </option>
+                  ))}
+                </select>
+                <Icon name="arrow_drop_down" className="link-caret" />
+              </span>
             </div>
           );
         })}

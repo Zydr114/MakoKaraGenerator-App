@@ -39,6 +39,8 @@ export interface ListProps<T extends { id: Key }> {
   textValue: (item: T) => string;
   children: (item: T, state: RowState) => ReactNode;
   selectionMode?: 'none' | 'single' | 'multiple';
+  /** replace（默认）：单击只选这一行，Ctrl／⌘、Shift 点击加选、连选；toggle：单击就勾选或取消（多选模式）。 */
+  selectionBehavior?: 'replace' | 'toggle';
   selectedKeys?: Iterable<Key>;
   onSelectionChange?: (keys: Set<Key>) => void;
   /** 双击或回车。 */
@@ -72,7 +74,9 @@ export function List<T extends { id: Key }>(props: ListProps<T>) {
       aria-label={props.label}
       items={props.items}
       selectionMode={props.selectionMode ?? 'single'}
-      selectionBehavior="replace"
+      selectionBehavior={props.selectionBehavior ?? 'replace'}
+      // 行里没有拖动柄时左右方向键留给页面（例如歌词页的上一个、下一个文本单元）
+      keyboardNavigationBehavior={props.onReorder ? 'arrow' : 'tab'}
       className={cls('list', props.className)}
       {...defined({ style: props.style })}
       renderEmptyState={() => (props.emptyText ? <div className="list-empty">{props.emptyText}</div> : null)}
@@ -100,7 +104,8 @@ export function List<T extends { id: Key }>(props: ListProps<T>) {
   );
   if (props.rowSize === undefined && props.estimatedRowSize === undefined) return list;
   return (
-    <Virtualizer layout={ListLayout} layoutOptions={props.rowSize !== undefined ? { rowSize: props.rowSize } : { estimatedRowSize: props.estimatedRowSize! }}>
+    // 虚拟滚动时行是绝对定位的，CSS 的 gap 和 padding 不起作用，改由布局给出（与 collections.css 的 .list 一致）
+    <Virtualizer layout={ListLayout} layoutOptions={{ ...(props.rowSize !== undefined ? { rowSize: props.rowSize } : { estimatedRowSize: props.estimatedRowSize! }), gap: 2, padding: 4 }}>
       {list}
     </Virtualizer>
   );

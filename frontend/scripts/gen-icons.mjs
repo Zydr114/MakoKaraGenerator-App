@@ -26,7 +26,7 @@ const ICONS = [
   'play_arrow', 'play_arrow-fill', 'pause', 'pause-fill', 'repeat', 'zoom_in', 'zoom_out', 'fit_screen', 'my_location',
   'straighten', 'ads_click',
   // 歌词与编排
-  'translate', 'call_split', 'merge', 'playlist_add', 'view_quilt', 'stacks', 'crop_free', 'crop_16_9', 'aspect_ratio',
+  'translate', 'call_split', 'merge', 'playlist_add', 'checklist', 'view_quilt', 'stacks', 'crop_free', 'crop_16_9', 'aspect_ratio',
   'grid_guides', 'layers',
   // 外观与样式库
   'text_fields', 'gradient', 'texture', 'wand_stars',

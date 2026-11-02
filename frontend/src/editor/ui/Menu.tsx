@@ -6,7 +6,7 @@
 //     </Menu>
 //   </MenuTrigger>
 
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, useContext, useRef, type ReactNode } from 'react';
 import {
   Header,
   Menu as AriaMenu,
@@ -63,6 +63,25 @@ export function Menu(props: {
         </AriaMenu>
       </MenuActionContext.Provider>
     </Popover>
+  );
+}
+
+/**
+ * 右键菜单：在指针位置弹出，菜单项同 Menu。at 为 null 时关着；选了一项、按 Esc 或点别处时调用 onClose。
+ */
+export function ContextMenu(props: { at: { x: number; y: number } | null; onClose: () => void; label: string; onAction: (id: Key) => void; children: ReactNode }) {
+  const anchor = useRef<HTMLSpanElement>(null);
+  return (
+    <>
+      <span ref={anchor} className="context-anchor" style={{ left: props.at?.x ?? 0, top: props.at?.y ?? 0 }} />
+      <Popover triggerRef={anchor} isOpen={!!props.at} onOpenChange={(open) => !open && props.onClose()} className="popover" offset={2} placement="bottom start">
+        <MenuActionContext.Provider value={props.onAction}>
+          <AriaMenu className="menu-list" aria-label={props.label} autoFocus="first" onAction={props.onAction} onClose={props.onClose}>
+            {props.children}
+          </AriaMenu>
+        </MenuActionContext.Provider>
+      </Popover>
+    </>
   );
 }
 

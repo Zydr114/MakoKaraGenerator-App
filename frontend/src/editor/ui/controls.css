@@ -462,6 +462,13 @@
     transform: translateY(-4px);
   }
 }
+/* 右键菜单的锚点：指针位置上一个看不见的点 */
+.context-anchor {
+  position: fixed;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
 .menu-list {
   outline: none;
   display: flex;

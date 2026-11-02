@@ -17,17 +17,19 @@ pnpm start             # 启动构建结果，打开 http://127.0.0.1:5173
 # 或在完成build之后：
 pnpm dev               # 同一匹配后端＋Vite开发页面
 # Linux桌面共享纹理入口：
-pnpm build:desktop     # Web＋匹配Server/Worker＋固定Skia native补丁＋GPU broker
-pnpm desktop           # 使用桌面构建，打开Electron编辑器
+pnpm desktop           # 检查桌面构建，过期时自动重建，再打开Electron编辑器（http://127.0.0.1:5180）
+pnpm build:desktop     # 只构建不启动：Web＋匹配Server/Worker＋固定Skia native补丁＋GPU broker
 # 可选不同本机端口：
 pnpm start --port 5174
 ```
 
 首次构建需要下载 NuGet/npm 依赖时可设置 `HTTPS_PROXY=http://127.0.0.1:7897`，loopback 请求直连。根入口始终使用 App 内的 `backend/`、`frontend/` 和新发布的 `.local/backend-dist/<UTC时间>/`；`.local/backend-current.json` 指向最近成功发布。构建失败保留独立目录与日志，不覆盖旧发布。缺少构建时明确失败，不回退源仓库的 `artifacts`；外部 `MAKO_BACKEND_REPO`、外部 `MAKO_BACKEND_DIST` 和逃出 App 的部署符号链接均拒绝。
 
-页面与 Server 仅绑定 loopback；Server 随机端口，Web 默认 5173。`start`／`dev` 复用 App 专有 `.local/profile/`，保存的工程、状态和日志保留在其中；不要同时启动两个实例共用此 profile。前端连接信息写入私有 `.local/run/backend.json`（0600）；后端启动器还在本次 `.local/profile/runs/run-*/` 内持有私有 bootstrap，不打印凭证。页面的 bootstrap 通道要求准确 Host、本机地址与同源 fetch；直接在地址栏访问会拒绝。
+页面与 Server 仅绑定 loopback；Server 随机端口，Web 默认 5173，桌面版固定 5180（页面的本机设置按地址保存，端口固定才留得住主题、布局和渲染设备偏好）。`start`／`dev` 复用 App 专有 `.local/profile/`，保存的工程、状态和日志保留在其中；不要同时启动两个实例共用此 profile。前端连接信息写入私有 `.local/run/backend.json`（0600）；后端启动器还在本次 `.local/profile/runs/run-*/` 内持有私有 bootstrap，不打印凭证。页面的 bootstrap 通道要求准确 Host、本机地址与同源 fetch；直接在地址栏访问会拒绝。
 
-桌面使用独立 `.local/desktop-profile/` 与 `.local/desktop-electron-profile/`；其私有启动配置在 `.local/run/desktop-<PID>.json`，只交给本次 Electron main。桌面构建会验证实际 native ABI 符号和部署哈希，普通 `pnpm build` 的发布不能用于 GPU 桌面启动。
+桌面使用独立 `.local/desktop-profile/` 与 `.local/desktop-electron-profile/`；其私有启动配置在 `.local/run/desktop-<PID>.json`，只交给本次 Electron main，进程退出后删除，残留的会在下次启动时按 PID 清理。桌面构建会验证实际 native ABI 符号和部署哈希，普通 `pnpm build` 的发布不能用于 GPU 桌面启动。
+
+`pnpm desktop` 启动前按源码内容哈希判断构建是否过期：后端、GPU 预览原生源码有改动或还没有桌面构建时，整套重建（等同 `pnpm build:desktop`）；只有前端改动时只重建 Web（构建记录在 `.local/web-build.json`）。桌面版的成片预览（编排页、外观页）在渲染设备为“跟随后端默认”且检测到 GPU 可用、或明确选 GPU 时走 GPU 共享纹理；明确选 CPU 时退回与浏览器相同的 PNG 静态预览。关窗时工程、样式库模板或作者草稿有未保存的修改会先弹窗确认。
 
 按 Ctrl+C 或向根 App 进程发送 SIGTERM，桌面入口先排空共享纹理消费者，随后关闭自有 Web、等待自有后端排水，清除 bootstrap；不按名称终止其他进程。`.local/`、构建目录、依赖和私人配置均被 Git 忽略。
 
@@ -37,9 +39,11 @@ pnpm start --port 5174
 pnpm test:launcher     # 6项启动失败清理、正常停止和符号链接边界测试
 pnpm test:unit         # 上游前端单元回归
 pnpm smoke:browser    # start运行时：新建、编辑、撤销、暂停seek、PNG显示、关闭工程
+pnpm smoke:layout     # start运行时：几种窗口尺寸下编排、外观页画布完整显示、不需要滚动
+pnpm smoke:desktop    # 自己启动隔离的桌面会话：默认走GPU、无CPU回读、播放／seek／编辑／换规格／切页刷新、选CPU退回PNG、关窗确认与正常退出
 ```
 
-浏览器冒烟使用本机已有 Chromium（可设 `CHROME_PATH`），独立临时浏览器 profile 与临时音频/歌词，不操作用户已有浏览器。截图与成功结果保存在 `.local/integration/`。本次构建和真实运行记录见 [docs/integration/2026-11-01-web-integration.md](docs/integration/2026-11-01-web-integration.md)。
+浏览器冒烟使用本机已有 Chromium（可设 `CHROME_PATH`），独立临时浏览器 profile 与临时音频/歌词，不操作用户已有浏览器。截图与成功结果保存在 `.local/integration/`。本次构建和真实运行记录见 [docs/integration/2026-11-01-web-integration.md](docs/integration/2026-11-01-web-integration.md)；桌面版一条命令启动与默认 GPU 预览的整合记录、已知问题见 [docs/integration/2026-11-03-desktop-app.md](docs/integration/2026-11-03-desktop-app.md)。
 
 浏览器原预览控制节奏与 API 保持不变。既有 PNG 路径上限仍为 1280×720，[协议门禁报告](docs/performance/preview-protocol-gate.md)记录的是这条路径的限制。新桌面 GPU 流通过独立的低频可靠 HTTP 操作管理固定输入、修订、尺寸和寿命，播放控制与帧使用本机通道，不逐帧消耗 HTTP receipt。
 

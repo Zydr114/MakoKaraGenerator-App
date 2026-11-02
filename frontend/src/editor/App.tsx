@@ -229,9 +229,7 @@ export function App() {
             onReturnTrialDone={endReturnTrial}
           />
         ) : page === 'export' && session && exporter ? (
-          <div className="page-tile">
-            <ExportPage session={session} store={exporter} onFix={fix} />
-          </div>
+          <ExportPage session={session} store={exporter} onFix={fix} />
         ) : page === 'library' ? (
           <LibraryPage
             store={library}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import type { ExportFormat, ExportQuality, ProjectSettings } from '../../protocol';
 import { renderDevice } from '../connection';
 import {
@@ -13,41 +13,53 @@ import {
   type ReadinessInput,
 } from '../model/export-readiness';
 import { BACKGROUND_KIND_TEXT, audioResource, backgroundResource } from '../model/media';
+import { RENDER_BACKEND_LABEL, resolveChoice } from '../model/render-device';
 import { formatFrameRate } from '../model/settings';
 import { formatTime, frameStartUs, type FrameRate } from '../model/time';
 import { fitPreviewSize } from '../preview/preview-controller';
 import type { EditorSession, EditorState } from '../session/editor-session';
 import { useProjectResources } from '../settings/project-resources';
-import { Select, Switch } from '../ui/legacy/fields';
+import { Button } from '../ui/Button';
+import { RadioGroup, Segmented, Switch } from '../ui/choices';
+import { Select } from '../ui/fields';
 import { useObservable } from '../ui/hooks';
+import { Icon, type IconName } from '../ui/Icon';
+import { Spinner } from '../ui/indicators';
+import { Group, Note } from '../workspace/panel';
 import type { ExportState, ExportStore } from './export-store';
-import { ExportJobCard, ValidationCard } from './RenderJobCards';
+import { ExportJobCard, ValidationCard, jobRunning } from './RenderJobCards';
+import './export.css';
 
 const THUMBNAIL_MAX = { width: 384, height: 216 };
 const NO_BRANCHES: NonNullable<EditorState['branches']> = [];
 
+const FORMAT_TEXT: Record<ExportFormat, string> = {
+  opaqueMp4: '直接播放和上传；不透明，背景按工程设置',
+  transparentProRes4444: '保留透明背景，叠到其他视频上；文件大很多',
+};
+
 /**
- * 导出页（整体设计 §5.7、W5 设计 §1）：准备检查、格式、摘要、正式验证、任务。
- * 从顶栏“导出视频”进入，顶栏的“返回编辑”回到原来的页面。离开时任务不停（ExportStore 由 App 持有）。
+ * 导出页（整体设计 §5.7、W5 设计 §1、界面改版 §4 批 7）：左边一块是准备检查、格式、正式验证、任务和开始导出，
+ * 右边幕后区看首帧与末帧。从顶栏“导出视频”进入，“返回编辑”回到原来的页面。离开时任务不停（ExportStore 由 App 持有）。
  */
 export function ExportPage(props: { session: EditorSession; store: ExportStore; onFix: (fix: CheckFix) => void }) {
   const { session, store } = props;
   const state = useObservable(session.state$);
   const exportState = useObservable(store.state$);
   const settings = state.settings;
-
-  return (
-    <div className="export-page">
-      {settings ? (
-        <ExportSections session={session} store={store} state={state} exportState={exportState} settings={settings} onFix={props.onFix} />
-      ) : (
-        <p className="muted">后端没有提供工程设置的读取，不能导出。</p>
-      )}
-    </div>
-  );
+  if (!settings) {
+    return (
+      <div className="export-page">
+        <aside className="export-form">
+          <Note className="export-unavailable">后端没有提供工程设置的读取，不能导出。</Note>
+        </aside>
+      </div>
+    );
+  }
+  return <ExportWork session={session} store={store} state={state} exportState={exportState} settings={settings} onFix={props.onFix} />;
 }
 
-interface SectionsProps {
+interface WorkProps {
   session: EditorSession;
   store: ExportStore;
   state: EditorState;
@@ -56,7 +68,7 @@ interface SectionsProps {
   onFix: (fix: CheckFix) => void;
 }
 
-function ExportSections(props: SectionsProps) {
+function ExportWork(props: WorkProps) {
   const { session, store, state, exportState, settings } = props;
   const revision = state.summary.projectRevision;
   const { resources } = useProjectResources(session, true);
@@ -95,44 +107,60 @@ function ExportSections(props: SectionsProps) {
     validation: validationStatus(exportState, revision),
   };
   const checks = readinessChecks(input);
+  const isBlocked = blocked(checks);
 
   // 首帧与末帧：按修订、尺寸和渲染设备偏好渲染，修订（回来时）或偏好变了重渲。
   const lastFrameUs = frames !== undefined ? frameStartUs(frames - 1, rate) : undefined;
-  const devicePreference = useObservable(renderDevice.state$).preference;
+  const device = useObservable(renderDevice.state$);
   useEffect(() => {
     if (lastFrameUs === undefined) return;
     store.loadThumbnails(revision, fitPreviewSize(settings.canvasWidth, settings.canvasHeight, THUMBNAIL_MAX), lastFrameUs);
-  }, [store, revision, settings.canvasWidth, settings.canvasHeight, lastFrameUs, devicePreference]);
+  }, [store, revision, settings.canvasWidth, settings.canvasHeight, lastFrameUs, device.preference]);
+
+  const target = resolveChoice(device.preference, device.backends).target;
+  const summary = [
+    `${settings.canvasWidth} × ${settings.canvasHeight}`,
+    formatFrameRate(rate),
+    frames !== undefined ? `${frames} 帧` : '时长未定',
+    includeAudio ? '含音轨' : '不含音轨',
+    target ? RENDER_BACKEND_LABEL[target] : '后端默认设备',
+  ].join('，');
 
   return (
-    <>
-      <section className="export-card" aria-label="准备检查">
-        <h2>准备检查</h2>
-        <ReadinessList checks={checks} onFix={props.onFix} />
-        {exportState.capabilities === null && (
-          <mdui-button variant="text" onClick={() => void store.loadCapabilities()}>
-            重新读取导出能力
-          </mdui-button>
-        )}
-        {blocked(checks) && <p className="hint">还有阻断项，处理之后才能开始导出。</p>}
-      </section>
-      <FormatSection store={store} exportState={exportState} hasAudio={hasAudio} />
-      <section className="export-card" aria-label="摘要">
-        <h2>摘要</h2>
-        <dl className="settings-facts export-facts">
-          <Fact label="画布" value={`${settings.canvasWidth} × ${settings.canvasHeight}`} />
-          <Fact label="帧率" value={formatFrameRate(rate)} />
-          <Fact label="时长" value={durationUs !== undefined ? formatTime(durationUs) : '未确定'} />
-          <Fact label="帧数" value={frames !== undefined ? String(frames) : '—'} />
-          <Fact label="格式" value={FORMAT_OPTIONS.find((o) => o.value === exportState.format)?.label ?? exportState.format} />
-          <Fact label="音轨" value={includeAudio ? '包含' : '不含'} />
-          <Fact label="背景" value={BACKGROUND_KIND_TEXT[settings.background?.kind ?? 'color']} />
-        </dl>
-        <Thumbnails exportState={exportState} lastFrameUs={lastFrameUs} />
-      </section>
-      <ValidationCard store={store} exportState={exportState} revision={revision} frames={frames} />
-      <ExportJobCard store={store} exportState={exportState} revision={revision} blocked={blocked(checks)} includeAudio={includeAudio} projectName={state.summary.name} />
-    </>
+    <div className="export-page">
+      <aside className="export-form" aria-label="导出设置">
+        <div className="export-sections">
+          <Group
+            title="准备检查"
+            extra={
+              exportState.capabilities === null && (
+                <Button variant="text" size="sm" icon="refresh" onPress={() => void store.loadCapabilities()}>
+                  重新读取导出能力
+                </Button>
+              )
+            }
+          >
+            <ReadinessList checks={checks} onFix={props.onFix} />
+          </Group>
+          <FormatGroup store={store} exportState={exportState} hasAudio={hasAudio} />
+          <ValidationCard store={store} exportState={exportState} revision={revision} frames={frames} />
+          <ExportJobCard store={store} exportState={exportState} revision={revision} projectName={state.summary.name} />
+        </div>
+        <div className="export-go">
+          <span className="export-sum">{summary}</span>
+          {isBlocked && <Note>准备检查里还有阻断项，处理之后才能开始导出。</Note>}
+          <StartExport store={store} exportState={exportState} blocked={isBlocked} includeAudio={includeAudio} />
+        </div>
+      </aside>
+      <ExportStage
+        exportState={exportState}
+        settings={settings}
+        rate={rate}
+        frames={frames}
+        lastFrameUs={lastFrameUs}
+        backgroundText={BACKGROUND_KIND_TEXT[settings.background?.kind ?? 'color']}
+      />
+    </div>
   );
 }
 
@@ -152,23 +180,23 @@ function validationStatus(exportState: ExportState, revision: string): Readiness
 }
 
 const LEVEL_TEXT: Record<ReadinessCheck['level'], string> = { ok: '通过', info: '提示', warning: '注意', block: '阻断' };
+const LEVEL_ICON: Record<ReadinessCheck['level'], IconName> = { ok: 'check_circle', info: 'info', warning: 'warning', block: 'error' };
 
+/** 一项一行：图标、名称、说明、去修复；注意项与阻断项带底色。 */
 function ReadinessList(props: { checks: readonly ReadinessCheck[]; onFix: (fix: CheckFix) => void }) {
   return (
     <ul className="readiness-list">
       {props.checks.map((check) => (
-        <li key={check.id} className={`readiness-item readiness-${check.level}`} data-check={check.id} data-level={check.level}>
-          <span className="readiness-icon" aria-label={LEVEL_TEXT[check.level]}>
-            {check.level === 'ok' ? <mdui-icon-check-circle /> : check.level === 'block' ? <mdui-icon-error /> : check.level === 'warning' ? <mdui-icon-warning /> : <mdui-icon-info />}
-          </span>
-          <span className="readiness-body">
-            <span className="readiness-title">{check.title}</span>
-            <span className="readiness-text">{check.text}</span>
-          </span>
-          {check.fix && check.level !== 'ok' && (
-            <mdui-button variant="text" onClick={() => props.onFix(check.fix!)}>
+        <li key={check.id} className="ck" data-check={check.id} data-level={check.level}>
+          <Icon name={LEVEL_ICON[check.level]} label={LEVEL_TEXT[check.level]} />
+          <span className="ck-title">{check.title}</span>
+          <span className="ck-text">{check.text}</span>
+          {check.fix && check.level !== 'ok' ? (
+            <Button variant="text" size="sm" onPress={() => props.onFix(check.fix!)}>
               {check.fix.kind === 'lyrics' ? '去歌词页' : '去设置'}
-            </mdui-button>
+            </Button>
+          ) : (
+            <span />
           )}
         </li>
       ))}
@@ -176,60 +204,114 @@ function ReadinessList(props: { checks: readonly ReadinessCheck[]; onFix: (fix: 
   );
 }
 
-function FormatSection(props: { store: ExportStore; exportState: ExportState; hasAudio: boolean }) {
+function FormatGroup(props: { store: ExportStore; exportState: ExportState; hasAudio: boolean }) {
   const { store, exportState } = props;
   const caps = exportState.capabilities;
-  const formats = FORMAT_OPTIONS.map((o) => ({ value: o.value, label: o.label, disabled: !!caps && !caps.formats.includes(o.value) }));
+  const formats = FORMAT_OPTIONS.map((o) => ({ value: o.value, label: o.label, description: FORMAT_TEXT[o.value], disabled: !!caps && !caps.formats.includes(o.value) }));
   const qualities = QUALITY_OPTIONS.map((o) => ({ value: o.value, label: o.label, disabled: !!caps?.qualities && !caps.qualities.includes(o.value) }));
   return (
-    <section className="export-card" aria-label="格式">
-      <h2>格式</h2>
-      <div className="dialog-grid">
-        <Select<ExportFormat> label="格式" value={exportState.format} options={formats} onChange={(v) => store.setFormat(v)} />
-        <Select<ExportQuality> label="质量" value={exportState.quality ?? 'standard'} options={qualities} onChange={(v) => store.setQuality(v)} />
+    <Group title="格式">
+      <RadioGroup<ExportFormat> label="格式" hideLabel variant="card" value={exportState.format} options={formats} onChange={(v) => store.setFormat(v)} />
+      <div className="export-opts">
+        <Select<ExportQuality>
+          label="质量"
+          labelPlacement="side"
+          className="export-quality"
+          value={exportState.quality ?? 'standard'}
+          options={qualities}
+          onChange={(v) => store.setQuality(v)}
+        />
+        <Switch label="含音轨" checked={props.hasAudio && exportState.includeAudio} disabled={!props.hasAudio} onChange={(v) => store.setIncludeAudio(v)} />
       </div>
-      <Switch label="含音轨" checked={props.hasAudio && exportState.includeAudio} disabled={!props.hasAudio} onChange={(v) => store.setIncludeAudio(v)} />
-      <p className="hint">
-        {exportState.format === 'transparentProRes4444'
-          ? 'MOV 透明保留透明背景，适合在剪辑软件里叠到视频上；文件比 MP4 大很多。'
-          : 'MP4 适合直接播放和上传；画面不透明，背景按工程设置。'}
-        {!props.hasAudio && ' 工程没有音频，只导出画面。'}
+    </Group>
+  );
+}
+
+/** 底部的主按钮：有阻断项、任务进行中或后端不能导出时停用。 */
+function StartExport(props: { store: ExportStore; exportState: ExportState; blocked: boolean; includeAudio: boolean }) {
+  const { store, exportState } = props;
+  const track = exportState.exportJob;
+  const running = jobRunning(track);
+  return (
+    <Button
+      variant="filled"
+      size="lg"
+      icon="movie"
+      className="export-start"
+      isDisabled={props.blocked || running || !exportState.capabilities?.enabled}
+      onPress={() => void store.startExport(props.includeAudio)}
+    >
+      {track && !running ? '重新导出' : '开始导出'}
+    </Button>
+  );
+}
+
+type Which = 'first' | 'last';
+
+/** 幕后区：首帧与末帧（两张都留在页面里，只显示选中的一张），下面写输出的画布和范围。 */
+function ExportStage(props: {
+  exportState: ExportState;
+  settings: ProjectSettings;
+  rate: FrameRate;
+  frames: number | undefined;
+  lastFrameUs: number | undefined;
+  backgroundText: string;
+}) {
+  const { settings, frames, lastFrameUs } = props;
+  const [which, setWhich] = useState<Which>('first');
+  const thumbnails = props.exportState.thumbnails;
+  const loading = !!thumbnails?.loading;
+  const ratio = { '--rw': settings.canvasWidth, '--rh': settings.canvasHeight } as CSSProperties;
+  return (
+    <section className="export-stage stage-zone" aria-label="首帧与末帧">
+      <div className="canvasbar">
+        <Segmented<Which>
+          label="看哪一帧"
+          size="sm"
+          value={which}
+          options={[
+            { value: 'first', label: '首帧' },
+            { value: 'last', label: '末帧' },
+          ]}
+          onChange={setWhich}
+          disabled={lastFrameUs === undefined}
+        />
+        {lastFrameUs !== undefined && (
+          <span className="canvas-hint tnum">{which === 'first' ? `${formatTime(0)}，第 1 帧` : `${formatTime(lastFrameUs)}，第 ${frames} 帧`}</span>
+        )}
+        <span className="spacer" />
+        <span className="canvas-hint">背景：{props.backgroundText}</span>
+      </div>
+      <div className="export-frames" style={ratio}>
+        {lastFrameUs === undefined ? (
+          <p className="export-frames-empty">输出时长确定后显示首帧和末帧。</p>
+        ) : (
+          <>
+            <Thumbnail label={`首帧 · ${formatTime(0)}`} url={thumbnails?.first} loading={loading} hidden={which !== 'first'} />
+            <Thumbnail label={`末帧 · ${formatTime(lastFrameUs)}`} url={thumbnails?.last} loading={loading} hidden={which !== 'last'} />
+          </>
+        )}
+      </div>
+      {thumbnails?.error && (
+        <Note error className="export-frames-error">
+          {thumbnails.error}
+        </Note>
+      )}
+      <p className="export-caption tnum">
+        <span>
+          画布 {settings.canvasWidth} × {settings.canvasHeight}，{formatFrameRate(props.rate)}
+        </span>
+        <span>{lastFrameUs !== undefined && frames !== undefined ? `${formatTime(0)} – ${formatTime(Number(settings.outputDurationUs))}，${frames} 帧` : '输出时长未定'}</span>
       </p>
     </section>
   );
 }
 
-function Fact(props: { label: string; value: string }) {
+function Thumbnail(props: { label: string; url: string | undefined; loading: boolean; hidden: boolean }) {
   return (
-    <div>
-      <dt>{props.label}</dt>
-      <dd>{props.value}</dd>
-    </div>
-  );
-}
-
-function Thumbnails(props: { exportState: ExportState; lastFrameUs: number | undefined }) {
-  const thumbnails = props.exportState.thumbnails;
-  if (props.lastFrameUs === undefined) return <p className="hint">输出时长确定后显示首帧和末帧。</p>;
-  return (
-    <>
-      <div className="export-thumbnails">
-        <Thumbnail label={`首帧 · ${formatTime(0)}`} url={thumbnails?.first} loading={!!thumbnails?.loading} />
-        <Thumbnail label={`末帧 · ${formatTime(props.lastFrameUs)}`} url={thumbnails?.last} loading={!!thumbnails?.loading} />
-      </div>
-      {thumbnails?.error && <p className="dialog-error">{thumbnails.error}</p>}
-    </>
-  );
-}
-
-function Thumbnail(props: { label: string; url: string | undefined; loading: boolean }) {
-  return (
-    <figure className="export-thumbnail">
-      <div className="export-thumbnail-frame">
-        {props.url && <img src={props.url} alt={props.label} />}
-        {props.loading && <mdui-circular-progress />}
-      </div>
-      <figcaption>{props.label}</figcaption>
+    <figure className="export-thumbnail" hidden={props.hidden} aria-label={props.label}>
+      {props.url && <img src={props.url} alt={props.label} />}
+      {props.loading && <Spinner label={`正在渲染${props.label}`} />}
     </figure>
   );
 }

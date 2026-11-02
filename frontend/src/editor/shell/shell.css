@@ -15,16 +15,6 @@
   flex-direction: column;
 }
 
-/* 还没改版的页面（导出）放在一整块面板里，等批 7 再拆。 */
-.page-tile {
-  flex: 1;
-  min-height: 0;
-  margin: 0 var(--gap) var(--gap);
-  border-radius: var(--radius-panel);
-  background: var(--panel);
-  overflow: auto;
-}
-
 /* ———— 顶栏 ———— */
 .app-bar {
   height: 52px;

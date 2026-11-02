@@ -1,0 +1,293 @@
+/* 导出页（界面改版 §4 批 7，草图 #export）：左边一块表单，右边幕后区看首帧与末帧；任务卡片作者验证页签也用。 */
+
+.export-page {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(340px, 420px) minmax(0, 1fr);
+  gap: var(--gap);
+  padding: 0 var(--gap) var(--gap);
+}
+.export-form,
+.export-stage {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--radius-panel);
+  background: var(--panel);
+}
+.export-stage {
+  background: var(--stage);
+}
+.export-unavailable {
+  padding: 16px;
+}
+
+/* ———— 左边：各组可以滚动，底部的摘要与开始导出固定 ———— */
+.export-sections {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-top: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--outline-variant) transparent;
+}
+.export-go {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px 16px;
+  border-top: 1px solid var(--line);
+}
+.export-sum {
+  font-size: 12.5px;
+  color: var(--on-surface-variant);
+  font-variant-numeric: tabular-nums;
+}
+.export-go .export-start {
+  height: 44px;
+}
+
+/* 准备检查：图标、名称、说明、去修复 */
+.readiness-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ck {
+  display: grid;
+  grid-template-columns: 20px 56px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  min-height: 32px;
+  font-size: 12.5px;
+}
+.ck > .ic {
+  width: 18px;
+  height: 18px;
+}
+.ck[data-level='ok'] > .ic {
+  color: var(--ok);
+}
+.ck[data-level='info'] > .ic {
+  color: var(--on-surface-variant);
+}
+.ck[data-level='warning'] > .ic {
+  color: var(--warn);
+}
+.ck[data-level='block'] > .ic {
+  color: var(--error);
+}
+.ck-text {
+  color: var(--on-surface-variant);
+  line-height: 1.45;
+}
+.ck[data-level='warning'],
+.ck[data-level='block'] {
+  margin: 0 -8px;
+  padding: 4px 4px 4px 8px;
+  border-radius: var(--radius-row);
+}
+.ck[data-level='warning'] {
+  background: var(--warn-container);
+}
+.ck[data-level='block'] {
+  background: var(--error-container);
+  color: var(--on-error-container);
+}
+.ck[data-level='warning'] .ck-text,
+.ck[data-level='block'] .ck-text {
+  color: inherit;
+}
+
+/* 格式：卡片式单选，下面一行是质量与音轨 */
+.export-opts {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.export-quality {
+  --label-w: 36px;
+  width: 200px;
+}
+
+/* ———— 任务卡片：正式验证、导出、作者验证 ———— */
+.job-start {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.job-frames {
+  --label-w: 56px;
+  flex: 1;
+  min-width: 0;
+}
+.job {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: var(--radius-row);
+  background: var(--surface-low);
+}
+.job-device {
+  margin: 0;
+  font-size: 12px;
+  color: var(--on-surface-variant);
+}
+.job-progress,
+.job-result {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.job-progress-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: var(--control-sm);
+}
+.job-progress-text {
+  min-width: 0;
+  font-size: 12px;
+  color: var(--on-surface-variant);
+  font-variant-numeric: tabular-nums;
+}
+.job-progress-row .btn.text {
+  margin-right: -8px;
+}
+.job-done {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.job-ok {
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ok);
+}
+.job-ok .ic {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+}
+.job .export-facts {
+  font-size: 12px;
+}
+.job-issues {
+  margin: 0;
+  padding-left: 18px;
+  max-height: 200px;
+  overflow: auto;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--on-surface-variant);
+}
+
+/* ———— 右边：首帧与末帧 ———— */
+.export-frames {
+  flex: 1;
+  min-height: 0;
+  padding: 0 28px 14px;
+  container-type: size;
+  display: grid;
+  place-items: center;
+}
+.export-thumbnail {
+  position: relative;
+  margin: 0;
+  width: min(100cqw, calc(100cqh * var(--rw) / var(--rh)));
+  aspect-ratio: var(--rw) / var(--rh);
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--stage-high);
+}
+.export-thumbnail[hidden] {
+  display: none;
+}
+.export-thumbnail img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.export-thumbnail .spinner {
+  position: absolute;
+  inset: 0;
+  width: 28px;
+  height: 28px;
+  margin: auto;
+  color: var(--stage-ink2);
+}
+.export-frames-empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--stage-ink2);
+}
+.export-frames-error {
+  padding: 0 28px 8px;
+}
+.export-caption {
+  flex: none;
+  margin: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 28px 20px;
+  font-size: 12px;
+  color: var(--stage-ink2);
+}
+
+/* ———— 导出歌词文件（对话框） ———— */
+.lyrics-export-form,
+.lyrics-export-plan,
+.lyrics-export-done {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.lyrics-export-format {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.lyrics-export-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.lyrics-export-switches {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.lyrics-export-summary {
+  margin: 0;
+  line-height: 1.5;
+}
+.lyrics-export-plan section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.lyrics-export-plan h4 {
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--primary);
+}

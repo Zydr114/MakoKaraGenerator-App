@@ -14,15 +14,22 @@ import {
   type LyricsExportForm,
 } from '../model/lyrics-export';
 import { errorText, type EditorSession } from '../session/editor-session';
+import { Checkbox, Switch } from '../ui/choices';
+import { DialogSteps } from '../ui/Dialog';
 import { saveBlob } from '../ui/download';
-import { Select, Switch, TextField } from '../ui/legacy/fields';
-import { FormDialog } from '../ui/legacy/FormDialog';
+import { Select, TextField } from '../ui/fields';
+import { FormDialog } from '../ui/FormDialog';
 import { useObservable } from '../ui/hooks';
+import { Icon } from '../ui/Icon';
+import { Note } from '../workspace/panel';
+import './export.css';
 
 export const LYRICS_EXPORT_FEATURE = 'project-sessions.lyrics-export-plans';
 
 type Step = 'form' | 'plan' | 'done';
 
+const STEPS = ['选项', '评估', '完成'];
+const STEP_INDEX: Record<Step, number> = { form: 0, plan: 1, done: 2 };
 const FORMAT_SELECT = LYRICS_EXPORT_FORMAT_OPTIONS.map((o) => ({ value: o.value, label: o.label }));
 
 /**
@@ -106,12 +113,14 @@ export function LyricsExportDialog(props: { session: EditorSession; open: boolea
     <FormDialog
       open={props.open}
       headline="导出歌词文件"
+      headerExtra={<DialogSteps steps={STEPS} current={STEP_INDEX[step]} />}
       className="lyrics-export-dialog"
       submitText={step === 'form' ? '评估' : step === 'plan' ? (stale ? '重新评估' : '导出并下载') : '完成'}
       submitDisabled={step === 'form' ? formInvalid : step === 'plan' && !stale && !!plan?.requiresLossAcceptance && !accepted}
       busy={busy}
       onSubmit={submit}
       onClose={props.onClose}
+      footerNote={step === 'form' ? '评估和导出都不改工程' : undefined}
       {...(step === 'plan'
         ? { secondaryAction: { text: '上一步', onClick: () => setStep('form') } }
         : step === 'done' && result
@@ -120,8 +129,10 @@ export function LyricsExportDialog(props: { session: EditorSession; open: boolea
     >
       {step === 'form' && (
         <div className="lyrics-export-form">
-          <Select<LyricsExportFormat> label="格式" value={form.format} options={FORMAT_SELECT} onChange={(format) => update({ format })} />
-          <p className="hint">{LYRICS_EXPORT_FORMAT_OPTIONS.find((o) => o.value === form.format)?.description}</p>
+          <div className="lyrics-export-format">
+            <Select<LyricsExportFormat> label="格式" value={form.format} options={FORMAT_SELECT} onChange={(format) => update({ format })} />
+            <Note>{LYRICS_EXPORT_FORMAT_OPTIONS.find((o) => o.value === form.format)?.description}</Note>
+          </div>
           {form.format === 'ttml.project' && (
             <Switch label="导出整个工程（全部来源）" checked={form.wholeProject} onChange={(wholeProject) => update({ wholeProject })} />
           )}
@@ -129,7 +140,7 @@ export function LyricsExportDialog(props: { session: EditorSession; open: boolea
             <Select label="来源" value={form.branchId} options={branches.map((b) => ({ value: b.id, label: b.name }))} onChange={(branchId) => update({ branchId })} />
           )}
           {lrc && (
-            <div className="dialog-grid">
+            <div className="lyrics-export-meta">
               <TextField label="标题（可选）" value={form.title} error={metadataErrors.title} onChange={(title) => update({ title })} />
               <TextField label="歌手（可选）" value={form.artist} error={metadataErrors.artist} onChange={(artist) => update({ artist })} />
               <TextField label="专辑（可选）" value={form.album} error={metadataErrors.album} onChange={(album) => update({ album })} />
@@ -140,49 +151,51 @@ export function LyricsExportDialog(props: { session: EditorSession; open: boolea
             <Switch label="Windows 换行（CRLF）" checked={form.crlf} onChange={(crlf) => update({ crlf })} />
             <Switch label="写入 BOM" checked={form.bom} onChange={(bom) => update({ bom })} />
           </div>
-          {lrc && !form.millisecondPrecision && <p className="hint">LRC 通常精确到 1/100 秒，更细的时间会被舍入。</p>}
+          {lrc && !form.millisecondPrecision && <Note>LRC 通常精确到 1/100 秒，更细的时间会被舍入。</Note>}
         </div>
       )}
       {step === 'plan' && plan && (
         <div className="lyrics-export-plan">
-          <p>{planSummary(plan, branchName)}</p>
-          {stale && <p className="dialog-error">工程在评估之后又改了，需要重新评估。</p>}
+          <p className="lyrics-export-summary">{planSummary(plan, branchName)}</p>
+          {stale && <Note error>工程在评估之后又改了，需要重新评估。</Note>}
           {losses.length > 0 ? (
-            <>
-              <p className="section-title">会丢失的内容</p>
+            <section aria-label="会丢失的内容">
+              <h4>会丢失的内容</h4>
               <ul className="job-issues">
                 {losses.map((line, i) => (
                   <li key={i}>{line}</li>
                 ))}
               </ul>
-            </>
+            </section>
           ) : (
-            <p className="job-ok">没有损失。</p>
+            <p className="job-ok">
+              <Icon name="check_circle" />
+              <span>没有损失。</span>
+            </p>
           )}
           {plan.plan.issues.length > 0 && (
-            <>
-              <p className="section-title">问题</p>
+            <section aria-label="问题">
+              <h4>问题</h4>
               <ul className="job-issues">
                 {plan.plan.issues.map((issue, i) => (
                   <li key={i}>{issue.message}</li>
                 ))}
               </ul>
-            </>
+            </section>
           )}
-          {plan.requiresLossAcceptance && !stale && (
-            <mdui-checkbox checked={accepted} onClick={() => setAccepted((a) => !a)}>
-              接受这些损失
-            </mdui-checkbox>
-          )}
+          {plan.requiresLossAcceptance && !stale && <Checkbox label="接受这些损失" checked={accepted} onChange={setAccepted} />}
         </div>
       )}
       {step === 'done' && result && (
         <div className="lyrics-export-done">
-          <p className="job-ok">{reportSummary(result.report, result.sizeBytes)}</p>
-          <p className="hint">文件已开始下载。后端只保留 5 分钟，需要时可以再次下载。</p>
+          <p className="job-ok">
+            <Icon name="check_circle" />
+            <span>{reportSummary(result.report, result.sizeBytes)}</span>
+          </p>
+          <Note>文件已开始下载。后端只保留 5 分钟，需要时可以再次下载。</Note>
         </div>
       )}
-      {error && <p className="dialog-error">{error}</p>}
+      {error && <Note error>{error}</Note>}
     </FormDialog>
   );
 }

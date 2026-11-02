@@ -19,6 +19,7 @@ import {
   tokenTarget,
   type NodeTarget,
 } from '../../src/editor/model/appearance-targets';
+import { lineAppearance, linePlacement } from '../../src/editor/model/line-placement';
 import type { EditorLine } from '../../src/editor/model/lyrics';
 import { buildOrchestration } from '../../src/editor/model/orchestration';
 import { applicationNames, applicationsOn, indexApplications, nodeScopeOf, orphanTargetText, scopeText, updateSource } from '../../src/editor/model/preset-applications';
@@ -535,5 +536,44 @@ describe('外观来源', () => {
     ]);
     // 来源里没有的组不列。
     expect(sourceGroups({ style: STYLE, sources: sources.filter((s) => s.property === 'scale') }).map((g) => g.id)).toEqual(['scale']);
+  });
+});
+
+describe('歌词页的“外观”和“显示在”（界面改版批 4）', () => {
+  const app = (name: string, target: Partial<PresetApplicationTargetRead> & { kind: string }, enabled = true): PresetApplication => ({
+    applicationId: name,
+    target: { includeDescendants: false, ...target },
+    targetValid: true,
+    enabled,
+    snapshot: { templateId: 't', name, kind: 'line', properties: [], hasEffectRecipes: false, hasPackageMaterials: false, hasPackages: false },
+    source: { libraryId: null, revision: null, comparable: false, newVersionAvailable: null },
+    branchInputs: {},
+  });
+  const lines = [...LINES, line('l5', ['夜'])];
+  const [l1, l2, l3, , l5] = lines as [EditorLine, EditorLine, EditorLine, EditorLine, EditorLine];
+
+  it('显示在：所在片段与容器；不在片段里时是默认容器', () => {
+    expect(linePlacement(MODEL, l1, lines)).toEqual({ title: '主歌', detail: '片段 第 1～2 句，容器：常规', clipId: 'c1', containerId: 'main/display/regular' });
+    expect(linePlacement(MODEL, l3, lines)?.title).toBe('片段 2');
+    expect(linePlacement(MODEL, l5, lines)).toEqual({ title: '常规', detail: '不在片段里，用默认容器', containerId: 'main/display/regular' });
+  });
+
+  it('外观：从行往上找最近一层启用的分配；节点要包括里面的内容才算', () => {
+    const index = indexApplications([
+      app('基础', { kind: 'project' }),
+      app('来源样式', { kind: 'branch', branchId: 'main' }),
+      app('只对象', { kind: 'node', nodeId: 'main/display/regular', includeDescendants: false }),
+      app('大字', { kind: 'node', nodeId: 'main/display', includeDescendants: true }),
+      app('片段样式', { kind: 'clips', branchId: 'main', clipIds: ['c1'] }),
+      app('红字', { kind: 'line', branchId: 'main', lineId: 'l2' }),
+      app('停用', { kind: 'line', branchId: 'main', lineId: 'l1' }, false),
+    ]);
+    expect(lineAppearance(index, MODEL, l2, lines, '主歌词')).toEqual({ name: '红字', source: '本行直接分配' });
+    expect(lineAppearance(index, MODEL, l1, lines, '主歌词')).toEqual({ name: '片段样式', source: '继承自片段「主歌」' });
+    expect(lineAppearance(index, MODEL, l3, lines, '主歌词')).toEqual({ name: '大字', source: '继承自「画面」' });
+    // 编排结构还没读到时跳过片段和节点。
+    expect(lineAppearance(index, undefined, l3, lines, '主歌词')).toEqual({ name: '来源样式', source: '继承自来源「主歌词」' });
+    expect(lineAppearance(indexApplications([app('基础', { kind: 'project' })]), MODEL, l3, lines, '主歌词').source).toBe('继承自工程默认');
+    expect(lineAppearance(indexApplications([]), MODEL, l3, lines, '主歌词')).toEqual({ source: '没有分配模板，用默认样式' });
   });
 });

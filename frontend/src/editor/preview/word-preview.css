@@ -1,0 +1,101 @@
+/* 逐字预览（稿件 #lyrics 右上幕后区）：标题行、上一行和下一行淡、当前行大；--fill 由 WordPreview 每帧更新。 */
+.pane-preview {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.word-preview {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.wp-head {
+  height: 46px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px 0 16px;
+}
+.wp-head h3 {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: 600;
+}
+.wp-clock {
+  font-size: 12px;
+  color: var(--stage-ink3);
+}
+.word-preview-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 6px 20px 18px;
+  font-family: var(--font-ja);
+  scrollbar-width: thin;
+  scrollbar-color: var(--stage-line) transparent;
+}
+.wp-empty {
+  margin: 0;
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+  color: var(--stage-ink2);
+}
+.wp-line {
+  line-height: 1.35;
+}
+.wp-text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  white-space: pre-wrap;
+}
+.wp-previous,
+.wp-next {
+  font-size: 15px;
+  opacity: 0.55;
+}
+.wp-current,
+.wp-upcoming {
+  font-size: 24px;
+  font-weight: 600;
+}
+.wp-upcoming {
+  opacity: 0.8;
+}
+.wp-seg {
+  --fill: 0;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+}
+.wp-base,
+.wp-rseg {
+  color: transparent;
+  background: linear-gradient(to right, var(--wipe-on) calc(var(--fill) * 100%), var(--wipe-off) calc(var(--fill) * 100%));
+  background-clip: text;
+  -webkit-background-clip: text;
+}
+.wp-ruby {
+  font-size: 0.48em;
+  font-weight: 500;
+}
+/* 注音片段各有自己的 --fill（paint 逐个设置），不继承所注元素的。 */
+.wp-rseg {
+  --fill: 0;
+}
+.wp-seg.untimed .wp-base {
+  text-decoration: underline dotted var(--stage-ink3);
+}
+.wp-translation {
+  margin-top: 2px;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--stage-ink2);
+}

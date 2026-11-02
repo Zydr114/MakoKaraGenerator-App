@@ -176,7 +176,7 @@ export function Workspace(props: {
         collapsed: previewCollapsed,
         onCollapsedChange: collapsePreview,
         content: (
-          <aside className="pane pane-preview">
+          <aside className="pane-preview">
             <WordPreview audio={audio} lines={previewLines} translations={translations} />
           </aside>
         ),

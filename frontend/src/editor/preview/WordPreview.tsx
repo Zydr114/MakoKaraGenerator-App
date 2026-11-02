@@ -5,6 +5,7 @@ import { formatTime } from '../model/time';
 import { fillRatio, previewSegments, previewWindow, windowKey, type TimedLine } from '../model/word-preview';
 import { IconButton } from '../ui/Button';
 import { useWorkSide } from '../workspace/WorkLayout';
+import './word-preview.css';
 
 /**
  * 逐字预览（W2 设计 §2.4，整体设计 §4.3）：当前时刻的上一行、当前行、关联翻译和下一行。
@@ -50,14 +51,16 @@ export const WordPreview = memo(function WordPreview(props: {
   const hasTimed = props.lines.some(isTimed);
   return (
     <div className="word-preview">
-      <header className="pane-header">
-        <span className="pane-title-text">
-          逐字预览 · <span ref={clock}>{formatTime(nowUs())}</span>
+      <header className="wp-head">
+        <h3>逐字预览</h3>
+        <span className="wp-clock tnum" ref={clock}>
+          {formatTime(nowUs())}
         </span>
+        <span className="spacer" />
         {side && <IconButton icon="chevron_right" label="收起逐字预览" size="sm" onPress={side.hide} />}
       </header>
       <div className="word-preview-body" ref={root}>
-        {!hasTimed && <p className="muted">还没有打轴的行。打轴后，这里会按播放头逐字显示。</p>}
+        {!hasTimed && <p className="wp-empty">还没有打轴的行。打轴后，这里会按播放头逐字显示。</p>}
         {view.previous && <PreviewLine line={view.previous} role="previous" />}
         {view.current && <PreviewLine line={view.current} role={view.active ? 'current' : 'upcoming'} translations={props.translations.get(view.current.id)} />}
         {view.next && <PreviewLine line={view.next} role="next" />}

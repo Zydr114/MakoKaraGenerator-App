@@ -638,6 +638,7 @@ describe('试样画布（W7 §2.5）', () => {
       await vi.advanceTimersByTimeAsync(300);
       release();
       await vi.advanceTimersByTimeAsync(0);
+      expect(workshop.state.frame?.status).toBe('loading');
       release();
       await vi.advanceTimersByTimeAsync(0);
       const draftFrame = workshop.state.frame!;

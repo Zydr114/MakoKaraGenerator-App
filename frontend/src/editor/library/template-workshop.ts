@@ -365,7 +365,8 @@ export class TemplateWorkshop {
             if (session !== this.session || this.input()?.key !== input.key) continue;
           }
           const frame = await this.render(session, timeUs);
-          if (session !== this.session) continue;
+          // 取帧期间换了来源或选择（新会话要到下一轮才建）：这一帧已经过时，不显示。
+          if (session !== this.session || this.input()?.key !== input.key) continue;
           this.shown = { key: input.key, timeUs, frame: { status: 'ready', frame: frame.blob, sha256: frame.sha256, timeUs } };
           this.patch({ frame: this.shown.frame });
         } catch (error) {

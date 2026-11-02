@@ -1,0 +1,639 @@
+/* 外观页（界面改版稿件 #appearance）：左栏外观目标与编排对象，中栏成片，右栏模板、覆盖与来源；模板选择器（#picker）。 */
+
+/* ———— 左栏：外观目标 ———— */
+.appearance-targets {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.tsearch {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  padding: 0 10px 6px;
+}
+.atree {
+  flex: 1 1 auto;
+  min-height: 60px;
+  overflow: auto;
+  padding: 0 6px 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--outline-variant) transparent;
+}
+.at {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px 0 calc(6px + var(--d, 0) * 18px);
+  border-radius: 999px;
+  white-space: nowrap;
+  font-size: var(--fs);
+  cursor: default;
+  user-select: none;
+}
+.at:hover {
+  background-image: var(--hover);
+}
+.at.sel {
+  background-color: var(--sel);
+  color: var(--on-sel);
+  font-weight: 600;
+}
+.at .car {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  margin: 0 -2px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--on-surface-variant);
+  cursor: pointer;
+}
+.at .car .ic,
+.at > .ic.car {
+  width: 16px;
+  height: 16px;
+}
+.at .car:hover {
+  background-image: var(--hover);
+}
+.at .car:focus-visible {
+  outline: 2px solid var(--primary);
+}
+.at .car.none {
+  visibility: hidden;
+}
+/* 行的展开钮平时不显示，悬停、选中或已展开时才出来 */
+.at.line-row .car[aria-label='展开'] {
+  opacity: 0;
+}
+.at.line-row:hover .car,
+.at.line-row.sel .car,
+.at.line-row .car:focus-visible {
+  opacity: 1;
+}
+.at > .ti {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--on-surface-variant);
+}
+.at .n {
+  width: 18px;
+  flex: none;
+  text-align: right;
+  font-size: 11px;
+  color: var(--outline);
+  font-variant-numeric: tabular-nums;
+}
+.at .tx {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.at .sub {
+  flex: none;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--on-surface-variant);
+}
+.at .sub.warn {
+  color: var(--warn);
+}
+.at.sel :is(.n, .ti, .car, .sub, .asg) {
+  color: inherit;
+}
+/* 直接分配的模板名：右对齐，前面一个小色块（停用时是空心的） */
+.asg {
+  margin-left: auto;
+  flex: none;
+  max-width: 45%;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--on-surface-variant);
+}
+.asg i {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--primary);
+}
+.asg.off i {
+  background: none;
+  box-shadow: inset 0 0 0 1.5px var(--outline);
+}
+.asg > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tokchips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  padding: 2px 10px 6px 64px;
+}
+.tok {
+  height: 22px;
+  min-width: 22px;
+  padding: 0 5px;
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: var(--field);
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.tok:hover {
+  background-image: var(--hover);
+}
+.tok:focus-visible {
+  outline: 2px solid var(--primary);
+}
+.tok.has-template {
+  box-shadow: inset 0 -2px 0 var(--primary);
+}
+.tok.sel {
+  background: var(--sel);
+  color: var(--on-sel);
+  font-weight: 600;
+}
+.target-empty {
+  padding: 4px 16px 8px;
+}
+/* 编排对象：左栏下部的浅底块，自己滚动 */
+.target-objects {
+  max-height: 45%;
+}
+.target-objects .atree {
+  min-height: 0;
+  padding: 0 4px 6px;
+}
+.target-objects .target-empty {
+  padding: 0 12px 8px;
+}
+.at.object-section {
+  font-weight: 500;
+}
+
+/* ———— 中栏：成片 ———— */
+.appearance-canvas {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.appearance-canvas .preview-title {
+  height: 46px;
+  flex: none;
+  margin: 0 -8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+}
+.appearance-canvas .preview-title .pane-title-text {
+  font-size: var(--fs);
+  font-weight: 600;
+  color: var(--stage-ink);
+}
+
+/* ———— 右栏：检查器 ———— */
+.appearance-inspector {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--outline-variant) transparent;
+}
+.appearance-insp .swatch {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--on-surface) 18%, transparent);
+}
+.acards {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+/* 一个分配一张卡片：左边缩略图，右边名称与用途，下面一排操作 */
+.acard {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  gap: 8px 12px;
+  align-items: center;
+  padding: 8px;
+  border-radius: 12px;
+  background: var(--surface-low);
+}
+.athumb {
+  width: 104px;
+  aspect-ratio: 16 / 9;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--stage);
+  color: var(--stage-ink3);
+}
+.athumb .template-thumb {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+}
+.athumb > .ic {
+  width: 24px;
+  height: 24px;
+}
+.ainfo {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.ainfo b {
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.acard .small {
+  font-size: 12px;
+  color: var(--on-surface-variant);
+}
+.acard .small.faint {
+  color: var(--outline);
+}
+.atags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 3px;
+}
+.atags .tag {
+  height: 18px;
+  padding: 0 6px;
+  font-size: 11px;
+}
+.acard.disabled .athumb {
+  opacity: 0.4;
+}
+.acard.disabled .ainfo b {
+  color: var(--on-surface-variant);
+  text-decoration: line-through;
+}
+.application-inputs,
+.aacts,
+.ablocked {
+  grid-column: 1 / -1;
+}
+.aacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin: -2px -4px -4px;
+}
+.applied-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 4px 2px 10px;
+  border-radius: var(--radius-field);
+  background: var(--ok-container);
+  color: var(--ok);
+  font-size: 12.5px;
+}
+.applied-banner > .ic {
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+.applied-banner > span {
+  flex: 1;
+  min-width: 0;
+}
+.applied-banner .btn {
+  color: inherit;
+}
+.scope-switch {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.application-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.application-summary p {
+  margin: 0;
+  font-size: 12.5px;
+}
+.application-summary .btn {
+  margin-left: -8px;
+}
+.application-orphans {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 4px;
+}
+.orphan-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+}
+.override-list dd {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* 外观来源：名称、取值、来自哪一层（可点） */
+.srcs {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content minmax(72px, 1fr) minmax(0, max-content);
+  gap: 0 10px;
+  align-items: center;
+  font-size: 12.5px;
+}
+.srcs > div {
+  display: contents;
+}
+.srcs dt {
+  font-size: 12px;
+  color: var(--on-surface-variant);
+}
+.srcs dd {
+  margin: 0;
+  min-width: 0;
+}
+.srcs .v {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  font-variant-numeric: tabular-nums;
+}
+.srcs .v > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.srcs .from {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 0;
+}
+.source-row {
+  max-width: 100%;
+  height: 28px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 28px;
+  padding: 0 6px;
+  margin-right: -6px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--on-surface-variant);
+  white-space: nowrap;
+}
+button.source-row {
+  color: var(--primary);
+  cursor: pointer;
+}
+button.source-row:hover {
+  background-image: var(--hover);
+}
+button.source-row:focus-visible {
+  outline: 2px solid var(--primary);
+}
+
+/* ———— 模板选择器（稿件 #picker）：左边挑模板，右边幕后区试看 ———— */
+.dialog.template-picker {
+  width: min(1060px, 100%);
+  height: min(640px, 100%);
+}
+.template-picker .dside {
+  width: 440px;
+}
+.template-picker .dhead h2 {
+  flex: none;
+}
+.dsub {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-lg);
+  color: var(--on-surface-variant);
+}
+.template-picker .dbody {
+  gap: 0;
+  padding: 0 16px 8px;
+}
+.ptools {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  gap: 8px;
+  padding: 0 8px 6px;
+  background: var(--dialog);
+}
+.ptools .tf:first-child {
+  flex: 1;
+}
+.picker-kind {
+  width: 150px;
+}
+.template-picker .dbody > .progress,
+.template-picker .dbody > .note {
+  margin: 4px 8px;
+}
+.picker-group .grouphead {
+  padding: 0 8px 6px;
+}
+.picker-group + .picker-group {
+  margin-top: 6px;
+}
+.picker-empty {
+  padding: 0 8px 4px;
+}
+.tcards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+.template-card {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 6px 8px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--field);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.template-card:hover {
+  background-image: var(--hover);
+}
+.template-card:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.tthumb {
+  aspect-ratio: 16 / 9;
+  display: grid;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--stage);
+}
+.tthumb .template-thumb {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+}
+.template-card .nm {
+  min-height: 20px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px;
+}
+.template-card b {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.template-card .tag {
+  flex: none;
+  height: 18px;
+  margin-left: auto;
+  padding: 0 6px;
+  font-size: 11px;
+}
+.template-card .small {
+  margin-top: -4px;
+  padding: 0 4px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--on-surface-variant);
+}
+.template-card.selected {
+  background: var(--secondary-container);
+  color: var(--on-secondary-container);
+  box-shadow: inset 0 0 0 2px var(--primary);
+}
+.template-card.selected .small {
+  color: inherit;
+  opacity: 0.8;
+}
+.template-card.blocked {
+  cursor: default;
+}
+.template-card.blocked .tthumb {
+  opacity: 0.4;
+}
+.template-card.blocked b {
+  font-weight: 500;
+  color: var(--on-surface-variant);
+}
+/* 右边的试看 */
+.picker-side {
+  display: flex;
+  flex-direction: column;
+}
+.picker-trial .thead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 18px 10px;
+}
+.picker-trial h3 {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs);
+  font-weight: 600;
+}
+.picker-trial .tag {
+  flex: none;
+}
+.pvf {
+  padding: 0 18px;
+}
+.pvf .preview-frame {
+  border-radius: 10px;
+  background: var(--stage-high);
+}
+.pvf .preview-overlay {
+  font-size: 12.5px;
+  color: var(--stage-ink2);
+}
+.pvf .preview-overlay.err {
+  color: var(--error);
+}
+.pvcap,
+.pvnote {
+  margin: 0;
+  padding: 6px 18px 4px;
+  font-size: 12px;
+  color: var(--stage-ink2);
+  font-variant-numeric: tabular-nums;
+}
+.pvnote {
+  padding-bottom: 14px;
+}
+.picker-side .dsec:first-of-type {
+  margin-top: 8px;
+}
+.picker-input .tf.side {
+  --label-w: 72px;
+}
+.picker-input .tf.side > .lbl {
+  color: var(--stage-ink2);
+}
+.dsec .small.warn {
+  color: var(--warn);
+}
+@media (max-width: 1199px) {
+  .template-picker .dside {
+    width: 380px;
+  }
+}

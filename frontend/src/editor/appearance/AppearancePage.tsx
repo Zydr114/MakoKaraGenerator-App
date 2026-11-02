@@ -32,19 +32,27 @@ import { overrideRows, sceneAppearanceRows, type OverrideRow } from '../model/st
 import { sourceGroups, sourceTarget, sourceText, STYLE_PROPERTY_TEXT, type SourceContext } from '../model/style-sources';
 import { clipBands, clipColors } from '../orchestration/clip-bands';
 import type { OrchestrationState, OrchestrationStore } from '../orchestration/orchestration-store';
+import { nodeIcon } from '../orchestration/StructurePane';
 import { PreviewPanel, previewTimeUs } from '../preview/PreviewPanel';
 import { fitPreviewSize } from '../preview/preview-controller';
 import { errorText, type EditorSession, type EditorState } from '../session/editor-session';
 import { Timeline, type TimelineTrack } from '../timeline/Timeline';
-import { toast } from '../ui/legacy/feedback';
-import { Switch, TextField } from '../ui/legacy/fields';
+import { Button, IconButton } from '../ui/Button';
+import { Segmented, Switch } from '../ui/choices';
+import { cls } from '../ui/cls';
+import { toast } from '../ui/feedback';
+import { TextField } from '../ui/fields';
 import { useObservable } from '../ui/hooks';
+import { Icon, type IconName } from '../ui/Icon';
+import { ProgressBar } from '../ui/indicators';
+import { Group, InspectorHead, Note, ReadError } from '../workspace/panel';
 import { StatusBar } from '../workspace/StatusBar';
 import { WorkLayout } from '../workspace/WorkLayout';
 import { isEditing } from '../workspace/Workspace';
 import { ApplicationsPanel, type ApplicationActions } from './ApplicationsPanel';
 import type { AppearanceState, AppearanceStore } from './appearance-store';
 import { TemplatePicker, type TemplateChoice } from './TemplatePicker';
+import './appearance.css';
 
 const PRESETS_WARNING = '后端预览不支持模板分配：工程里有分配时预览会失败。';
 
@@ -153,6 +161,12 @@ export function AppearancePage(props: {
           else if (result === 'stale') await library.load();
         })(),
       updateBlocked: (app) => (!libraries.builtin && !libraries.personal ? undefined : updateSource(app, has) ? undefined : '库里已经没有这个模板，不能更新。'),
+      entry: (app) => {
+        const libraryId = updateSource(app, has);
+        const list = libraryId ? library.state[libraryId] : undefined;
+        const summary = libraryId ? library.summary(libraryId, app.snapshot.templateId) : undefined;
+        return libraryId && list && summary ? { libraryId, revision: list.revision, summary } : undefined;
+      },
     };
     // libraries 变化时重新判断能否更新。
   }, [library, libraries, session, store, props.onUndo]);
@@ -270,26 +284,23 @@ export function AppearancePage(props: {
       stage="center"
       left={{
         label: '外观目标',
-        content: (
-          <aside className="pane appearance-targets">
-            <TargetBrowser state={state} view={view} orchestration={orchestration} onTargets={(targets, anchorKey) => store.setTargets(targets, anchorKey)} />
-          </aside>
-        ),
+        content: <TargetBrowser state={state} view={view} orchestration={orchestration} onTargets={(targets, anchorKey) => store.setTargets(targets, anchorKey)} />,
       }}
       center={
-        <section className="pane appearance-preview">
+        <section className="stage-canvas appearance-canvas">
           <PreviewPanel session={session} audio={audio} warning={view.presetsPreview === false ? PRESETS_WARNING : undefined} />
         </section>
       }
       right={{
         label: '模板与覆盖',
         content: (
-          <aside className="pane appearance-inspector">
+          <div className="appearance-inspector">
             <Inspector
               state={state}
               branches={branches}
               view={view}
               model={model}
+              thumbnails={props.thumbnails}
               onIncludeDescendants={(value) => store.setIncludeDescendants(value)}
               canApply={canApply}
               canUndoApply={store.canUndoApply}
@@ -304,7 +315,7 @@ export function AppearancePage(props: {
               onPickSource={(target) => store.setTargets([target])}
               copy={copySource && { blocked: copySource.blocked, busy: copying || libraries.busy || !copySource.libraryId, copying, run: () => void editCopy() }}
             />
-          </aside>
+          </div>
         ),
       }}
       timeline={!!audio}
@@ -376,6 +387,12 @@ function useProjectBranches(state: EditorState): readonly LyricBranchSummary[] {
 
 // ── 目标浏览器 ──
 
+const BRANCH_ICON: Record<LyricBranchSummary['role'], IconName> = { primary: 'lyrics', translation: 'translate', annotation: 'text_fields', custom: 'description' };
+
+/**
+ * 左栏（稿件 #appearance）：上面是工程默认、各来源和它们的行（展开的行下面是文本单元），可以搜索行；
+ * 下面一块浅底是编排对象，在“结构”和“片段”之间切换。
+ */
 function TargetBrowser(props: {
   state: EditorState;
   view: AppearanceState;
@@ -389,11 +406,12 @@ function TargetBrowser(props: {
   const [openBranches, setOpenBranches] = useState<ReadonlySet<string>>(() => new Set([state.branchId]));
   const [openLines, setOpenLines] = useState<ReadonlySet<string>>(() => new Set());
   const [openObjects, setOpenObjects] = useState<ReadonlySet<string>>(() => new Set([state.branchId]));
+  const [objectView, setObjectView] = useState<ObjectView>('structure');
   const selected = useMemo(() => new Set(view.targets.map(targetKey)), [view.targets]);
   const assigned = view.applications?.index;
-  const tree = useRef<HTMLDivElement>(null);
+  const root = useRef<HTMLDivElement>(null);
 
-  // 选中的行、文本单元、片段或节点所在的来源和行自动展开，并滚进视野。
+  // 选中的行、文本单元、片段或节点所在的来源和行自动展开（片段、节点切到对应的显示），并滚进视野。
   const only = view.targets.length === 1 ? view.targets[0] : undefined;
   useEffect(() => {
     if (!only || only.kind === 'project' || only.kind === 'branch') return;
@@ -401,10 +419,11 @@ function TargetBrowser(props: {
       setOpenBranches((open) => (open.has(only.branchId) ? open : new Set([...open, only.branchId])));
       if (only.kind === 'token') setOpenLines((open) => (open.has(only.lineId) ? open : new Set([...open, only.lineId])));
     } else {
+      setObjectView(only.kind === 'clip' ? 'clips' : 'structure');
       const branchId = only.kind === 'clip' ? only.branchId : model && programOfNode(model, only.nodeId)?.branchId;
       if (branchId) setOpenObjects((open) => (open.has(branchId) ? open : new Set([...open, branchId])));
     }
-    requestAnimationFrame(() => tree.current?.querySelector(`[data-target-key="${CSS.escape(targetKey(only))}"]`)?.scrollIntoView({ block: 'nearest' }));
+    requestAnimationFrame(() => root.current?.querySelector(`[data-target-key="${CSS.escape(targetKey(only))}"]`)?.scrollIntoView({ block: 'nearest' }));
   }, [only, model]);
 
   const pick = (event: MouseEvent, target: AppearanceTarget, siblings: () => AppearanceTarget[]) => {
@@ -417,20 +436,27 @@ function TargetBrowser(props: {
 
   const q = query.trim().toLowerCase();
   const branchTargets = () => branches.map((b): AppearanceTarget => ({ kind: 'branch', branchId: b.id }));
+  const invalid = assigned?.invalid.length ?? 0;
 
   return (
-    <>
-      <div className="pane-header">
-        <span className="pane-title-text">目标</span>
-        <span className="muted">Ctrl 加选 · Shift 连选</span>
+    <div className="appearance-targets" ref={root}>
+      <div className="pane-head">
+        <h3>外观目标</h3>
+        <span className="spacer" />
+        <span className="faint">Ctrl 加选，Shift 连选</span>
       </div>
-      <TextField label="搜索行" value={query} onChange={setQuery} className="target-search" />
-      <div className="target-tree" role="tree" aria-label="外观目标" aria-multiselectable ref={tree}>
+      <div className="tsearch">
+        <TextField label="搜索行" labelPlacement="none" icon="search" placeholder="搜索行" size="sm" value={query} onChange={setQuery} onEscape={() => setQuery('')} />
+      </div>
+      <div className="atree" role="tree" aria-label="外观目标" aria-multiselectable>
         <TreeRow
           level={1}
+          icon="home"
           label="工程默认"
-          meta={assigned?.invalid.length ? `所有歌词的基础外观 · ${assigned.invalid.length} 个失效分配` : '所有歌词的基础外观'}
-          template={templateText(assigned, PROJECT_TARGET)}
+          title="所有歌词的基础外观"
+          sub={invalid > 0 ? `${invalid} 个失效分配` : undefined}
+          warn={invalid > 0}
+          assigned={assigned}
           target={PROJECT_TARGET}
           selected={selected.has('project')}
           onPick={(e) => pick(e, PROJECT_TARGET, () => [])}
@@ -445,9 +471,11 @@ function TargetBrowser(props: {
             <div key={branch.id} role="group">
               <TreeRow
                 level={1}
+                icon={BRANCH_ICON[branch.role]}
                 label={branch.name || branch.id}
-                meta={`${BRANCH_ROLE_TEXT[branch.role]} · ${lines.length} 行`}
-                template={templateText(assigned, target)}
+                title={BRANCH_ROLE_TEXT[branch.role]}
+                sub={`${lines.length} 行`}
+                assigned={assigned}
                 target={target}
                 selected={selected.has(targetKey(target))}
                 expanded={open}
@@ -470,21 +498,25 @@ function TargetBrowser(props: {
             </div>
           );
         })}
-        {q && branches.every((b) => !(state.linesByBranch[b.id] ?? []).some((l) => l.text.toLowerCase().includes(q))) && <p className="muted target-empty">没有匹配的行。</p>}
-        {!q && (
-          <ObjectSections
-            orchestration={props.orchestration}
-            branches={branches}
-            linesByBranch={state.linesByBranch}
-            selected={selected}
-            assigned={assigned}
-            open={openObjects}
-            onToggle={(branchId) => setOpenObjects((s) => toggled(s, branchId))}
-            onPick={pick}
-          />
+        {q && branches.every((b) => !(state.linesByBranch[b.id] ?? []).some((l) => l.text.toLowerCase().includes(q))) && (
+          <Note className="target-empty">没有匹配的行。</Note>
         )}
       </div>
-    </>
+      {!q && (
+        <ObjectSections
+          orchestration={props.orchestration}
+          branches={branches}
+          linesByBranch={state.linesByBranch}
+          selected={selected}
+          assigned={assigned}
+          open={openObjects}
+          view={objectView}
+          onView={setObjectView}
+          onToggle={(branchId) => setOpenObjects((s) => toggled(s, branchId))}
+          onPick={pick}
+        />
+      )}
+    </div>
   );
 }
 
@@ -495,9 +527,11 @@ function toggled(set: ReadonlySet<string>, id: string): ReadonlySet<string> {
   return next;
 }
 
+type ObjectView = 'structure' | 'clips';
+
 /**
- * 编排对象（W7 设计 §2.7）：按来源分节，先是结构树形状的容器、组、槽位、前奏提示组和标记，再是片段（名称和句子范围）。
- * 节点一次只选一个；片段可以在同一来源里加选、连选。
+ * 编排对象（W7 设计 §2.7）：按来源分节（只有一个来源时不写来源行），“结构”是结构树形状的容器、组、槽位、前奏提示组和标记，
+ * “片段”是片段的名称和句子范围。节点一次只选一个；片段可以在同一来源里加选、连选。
  */
 function ObjectSections(props: {
   orchestration: OrchestrationState;
@@ -506,6 +540,8 @@ function ObjectSections(props: {
   selected: ReadonlySet<string>;
   assigned: ApplicationIndex | undefined;
   open: ReadonlySet<string>;
+  view: ObjectView;
+  onView: (view: ObjectView) => void;
   onToggle: (branchId: string) => void;
   onPick: (event: MouseEvent, target: AppearanceTarget, siblings: () => AppearanceTarget[]) => void;
 }) {
@@ -513,81 +549,100 @@ function ObjectSections(props: {
   const model = orchestration.model;
   const sections = useMemo(() => (model ? structureSections(model, props.branches).filter((s) => s.kind !== 'orphans' && s.branchId) : []), [model, props.branches]);
   if (orchestration.status === 'unsupported') return null;
+  const clipsBy = new Map(sections.map((s) => [s.key, clipsOf(s.program, props.linesByBranch[s.branchId!] ?? [])]));
+  const clipCount = [...clipsBy.values()].reduce((n, clips) => n + clips.length, 0);
+  const several = sections.length > 1;
   return (
-    <div role="group" aria-label="编排对象" className="target-objects">
-      <div className="target-heading">编排对象</div>
+    <section className="sect target-objects" aria-label="编排对象">
+      <header>
+        <h4>编排对象</h4>
+        <span className="spacer" />
+        {model && (
+          <Segmented
+            label="编排对象的显示"
+            size="sm"
+            value={props.view}
+            options={[
+              { value: 'structure', label: '结构' },
+              { value: 'clips', label: `片段 ${clipCount}` },
+            ]}
+            onChange={props.onView}
+          />
+        )}
+      </header>
       {!model ? (
-        orchestration.status === 'error' ? <p className="notice-error target-empty">{orchestration.error}</p> : <p className="muted target-empty">正在读取编排结构…</p>
+        <Note error={orchestration.status === 'error'} className="target-empty">
+          {orchestration.status === 'error' ? orchestration.error : '正在读取编排结构…'}
+        </Note>
       ) : (
-        sections.map((section) => {
-          const branchId = section.branchId!;
-          const lines = props.linesByBranch[branchId] ?? [];
-          const clips = clipsOf(section.program, lines);
-          const open = props.open.has(branchId);
-          const clipTargets = () => clips.map((c) => clipTarget(branchId, c.id));
-          return (
-            <div key={section.key} role="group" data-object-branch={branchId}>
-              <div
-                role="treeitem"
-                aria-level={1}
-                aria-expanded={open}
-                className="target-row object-section"
-                onClick={() => props.onToggle(branchId)}
-              >
-                <span className="target-toggle">{open ? <mdui-icon-expand-more /> : <mdui-icon-chevron-right />}</span>
-                <span className="target-label">{section.title}</span>
-                <span className="target-meta">{section.rows.length === 0 ? '没有编排结构' : `${clips.length} 个片段`}</span>
+        <div className="atree" role="tree" aria-label="编排对象">
+          {sections.map((section) => {
+            const branchId = section.branchId!;
+            const lines = props.linesByBranch[branchId] ?? [];
+            const clips = clipsBy.get(section.key) ?? [];
+            const open = !several || props.open.has(branchId);
+            const clipTargets = () => clips.map((c) => clipTarget(branchId, c.id));
+            const empty = props.view === 'structure' ? (section.rows.length === 0 ? '没有编排结构' : undefined) : clips.length === 0 ? '没有片段' : undefined;
+            const indent = several ? 1 : 0;
+            return (
+              <div key={section.key} role="group" data-object-branch={branchId}>
+                {several && (
+                  <div role="treeitem" aria-level={1} aria-expanded={open} aria-selected={false} className="at object-section" onClick={() => props.onToggle(branchId)}>
+                    <Icon name={open ? 'keyboard_arrow_down' : 'chevron_right'} className="car" />
+                    <span className="tx">{section.title}</span>
+                    <span className="sub">{props.view === 'structure' ? `${section.rows.length} 个对象` : `${clips.length} 个片段`}</span>
+                  </div>
+                )}
+                {open && empty && <Note className="target-empty">{empty}</Note>}
+                {open &&
+                  props.view === 'structure' &&
+                  section.rows.map(({ node, depth }) => {
+                    const target: NodeTarget = { kind: 'node', nodeId: node.id, includeDescendants: nodeScopeOf(assigned, node.id) ?? true };
+                    return (
+                      <TreeRow
+                        key={node.id}
+                        level={1 + indent + depth}
+                        depth={indent + depth}
+                        icon={nodeIcon(model, node)}
+                        label={nodeName(model, node)}
+                        title={roleText(model, node)}
+                        sub={node.contentKind === 'textMark' ? node.content?.text || undefined : undefined}
+                        rowClass="object-row"
+                        assigned={assigned}
+                        target={target}
+                        selected={props.selected.has(targetKey(target))}
+                        onPick={(e) => props.onPick(e, target, () => [])}
+                      />
+                    );
+                  })}
+                {open &&
+                  props.view === 'clips' &&
+                  clips.map((clip, i) => {
+                    const target = clipTarget(branchId, clip.id);
+                    const range = lineRange(lines, clip.lineIds);
+                    return (
+                      <TreeRow
+                        key={clip.id}
+                        level={1 + indent}
+                        depth={indent}
+                        icon="view_quilt"
+                        label={clipName(clip, i + 1)}
+                        sub={range ? lineRangeText(range) : '没有句子'}
+                        rowClass="object-row clip-row"
+                        assigned={assigned}
+                        target={target}
+                        selected={props.selected.has(targetKey(target))}
+                        onPick={(e) => props.onPick(e, target, clipTargets)}
+                      />
+                    );
+                  })}
               </div>
-              {open &&
-                section.rows.map(({ node, depth }) => {
-                  const target: NodeTarget = { kind: 'node', nodeId: node.id, includeDescendants: nodeScopeOf(assigned, node.id) ?? true };
-                  return (
-                    <TreeRow
-                      key={node.id}
-                      level={2 + depth}
-                      rowClass="object-row"
-                      indent={depth}
-                      label={nodeName(model, node)}
-                      meta={nodeMeta(model, node)}
-                      template={templateText(assigned, target)}
-                      target={target}
-                      selected={props.selected.has(targetKey(target))}
-                      onPick={(e) => props.onPick(e, target, () => [])}
-                    />
-                  );
-                })}
-              {open && clips.length > 0 && <div className="target-subheading">片段</div>}
-              {open &&
-                clips.map((clip, i) => {
-                  const target = clipTarget(branchId, clip.id);
-                  const range = lineRange(lines, clip.lineIds);
-                  return (
-                    <TreeRow
-                      key={clip.id}
-                      level={2}
-                      rowClass="object-row clip-row"
-                      indent={0}
-                      label={clipName(clip, i + 1)}
-                      meta={range ? lineRangeText(range) : '没有句子'}
-                      template={templateText(assigned, target)}
-                      target={target}
-                      selected={props.selected.has(targetKey(target))}
-                      onPick={(e) => props.onPick(e, target, clipTargets)}
-                    />
-                  );
-                })}
-            </div>
-          );
-        })
+            );
+          })}
+        </div>
       )}
-    </div>
+    </section>
   );
-}
-
-/** 节点行的说明：角色徽标；标记再加上它的文字。 */
-function nodeMeta(model: OrchestrationModel, node: OrchestrationNode): string {
-  const role = roleText(model, node);
-  return node.contentKind === 'textMark' && node.content?.text ? `${role} · ${node.content.text}` : role;
 }
 
 const LineRows = memo(function LineRows(props: {
@@ -605,9 +660,11 @@ const LineRows = memo(function LineRows(props: {
     <>
       <TreeRow
         level={2}
+        depth={1}
+        rowClass="line-row"
         label={line.text || '（空行）'}
-        index={String(props.number).padStart(2, '0')}
-        template={templateText(assigned, target)}
+        index={String(props.number)}
+        assigned={assigned}
         target={target}
         selected={props.selected.has(targetKey(target))}
         expanded={line.tokens.length > 0 ? props.open : undefined}
@@ -615,7 +672,7 @@ const LineRows = memo(function LineRows(props: {
         onPick={(e) => props.onPick(e, target)}
       />
       {props.open && line.tokens.length > 0 && (
-        <div className="target-tokens" role="group">
+        <div className="tokchips" role="group">
           {line.tokens.map((token) => {
             const t = tokenTarget(line, token.id);
             const key = targetKey(t);
@@ -628,8 +685,9 @@ const LineRows = memo(function LineRows(props: {
                 aria-level={3}
                 aria-selected={props.selected.has(key)}
                 data-target-key={key}
-                className={`target-token${props.selected.has(key) ? ' selected' : ''}${template ? ' has-template' : ''}`}
+                className={cls('tok', props.selected.has(key) && 'sel', !!template && 'has-template')}
                 title={template ? `模板：${template}` : undefined}
+                onMouseDown={(e) => e.shiftKey && e.preventDefault()}
                 onClick={(e) => props.onPick(e, t)}
               >
                 {token.text || '␣'}
@@ -642,17 +700,21 @@ const LineRows = memo(function LineRows(props: {
   );
 });
 
+/** 目标的一行：展开钮、图标或行号、名称、说明，右边是直接分配的模板名。 */
 function TreeRow(props: {
   level: number;
-  /** 代替 level-N 的样式类（编排对象的行）。 */
+  /** 缩进的层数，缺省按 level - 1。 */
+  depth?: number;
   rowClass?: string;
-  /** 编排对象在结构树里的深度：按它缩进。 */
-  indent?: number;
-  label: string;
+  icon?: IconName;
   index?: string;
-  meta?: string;
-  /** 直接分配的模板名。 */
-  template?: string | undefined;
+  label: string;
+  /** 悬停时的说明（例如来源的角色、节点的种类）。 */
+  title?: string;
+  /** 名称后面的浅色说明。 */
+  sub?: string | undefined;
+  warn?: boolean;
+  assigned: ApplicationIndex | undefined;
   target: AppearanceTarget;
   selected: boolean;
   /** undefined 表示不能展开。 */
@@ -661,6 +723,9 @@ function TreeRow(props: {
   onPick: (event: MouseEvent) => void;
 }) {
   const key = targetKey(props.target);
+  const apps = props.assigned?.byTarget.get(key);
+  const template = applicationNames(apps);
+  const off = !!apps && apps.length > 0 && apps.every((a) => !a.enabled);
   return (
     <div
       role="treeitem"
@@ -668,34 +733,37 @@ function TreeRow(props: {
       aria-selected={props.selected}
       aria-expanded={props.expanded}
       data-target-key={key}
-      className={`target-row ${props.rowClass ?? `level-${props.level}`}${props.selected ? ' selected' : ''}`}
-      style={props.indent ? ({ '--indent': props.indent } as CSSProperties) : undefined}
+      className={cls('at', props.rowClass, props.selected && 'sel')}
+      style={{ '--d': props.depth ?? props.level - 1 } as CSSProperties}
+      title={props.title}
       onMouseDown={(e) => e.shiftKey && e.preventDefault()}
       onClick={props.onPick}
     >
       {props.expanded === undefined ? (
-        <span className="target-toggle" />
+        <span className="car none" />
       ) : (
         <button
           type="button"
-          className="target-toggle"
+          className="car"
           aria-label={props.expanded ? '收起' : '展开'}
           onClick={(e) => {
             e.stopPropagation();
             props.onToggle?.();
           }}
         >
-          {props.expanded ? <mdui-icon-expand-more /> : <mdui-icon-chevron-right />}
+          <Icon name={props.expanded ? 'keyboard_arrow_down' : 'chevron_right'} />
         </button>
       )}
-      {props.index && <span className="line-index">{props.index}</span>}
-      <span className="target-label">{props.label}</span>
-      {props.template && (
-        <span className="target-template" title={`模板：${props.template}`}>
-          {props.template}
+      {props.icon && <Icon name={props.icon} className="ti" />}
+      {props.index && <span className="n">{props.index}</span>}
+      <span className="tx">{props.label}</span>
+      {props.sub && <span className={cls('sub', props.warn && 'warn')}>{props.sub}</span>}
+      {template && (
+        <span className={cls('asg', off && 'off')} title={`模板：${template}`}>
+          <i />
+          <span>{template}</span>
         </span>
       )}
-      {props.meta && <span className="target-meta">{props.meta}</span>}
     </div>
   );
 }
@@ -706,11 +774,32 @@ function templateText(index: ApplicationIndex | undefined, target: AppearanceTar
 
 // ── 检查器 ──
 
+/** 检查器的标题：单选一行时名称是这行的文字，其余按目标路径拆成位置和名称。 */
+function inspectorHead(targets: readonly AppearanceTarget[], state: EditorState, model: OrchestrationModel | undefined): { crumbs: string[]; title: string; kind?: string } {
+  const first = targets[0];
+  if (!first || first.kind === 'project') return { crumbs: [], title: '工程默认' };
+  const path = describeTargets(targets, state.branches, state.linesByBranch, model);
+  const node = first.kind === 'node' && targets.length === 1 ? model?.byId.get(first.nodeId) : undefined;
+  const kindText = node && model ? nodeKindText(model, node) : TARGET_KIND_TEXT[first.kind];
+  const kind = targets.length > 1 ? `${kindText} · ${targets.length} 个` : kindText;
+  if (targets.length === 1 && first.kind === 'line') {
+    const line = state.linesByBranch[first.branchId]?.find((l) => l.id === first.lineId);
+    if (line) return { crumbs: path.split(' / '), title: line.text || '（空行）', kind };
+  }
+  if (path.includes('；')) return { crumbs: [], title: path, kind };
+  const parts = path.split(' / ');
+  return { crumbs: parts.slice(0, -1), title: parts.at(-1) ?? path, kind };
+}
+
+/** “本行直接分配”：单选并且有直接分配时写在模板组标题后面。 */
+const DIRECT_UNIT: Record<AppearanceTarget['kind'], string> = { project: '工程', branch: '来源', line: '行', token: '文本单元', clip: '片段', node: '对象' };
+
 function Inspector(props: {
   state: EditorState;
   branches: readonly LyricBranchSummary[];
   view: AppearanceState;
   model: OrchestrationModel | undefined;
+  thumbnails: TemplateThumbnails;
   canApply: boolean;
   canUndoApply: boolean;
   actions: ApplicationActions;
@@ -730,55 +819,52 @@ function Inspector(props: {
   const targets = view.targets;
   const first = targets[0];
   const kind = first?.kind ?? 'project';
-  const path = describeTargets(targets, state.branches, state.linesByBranch, model);
   const index = view.applications?.index;
   const direct = index ? applicationsOn(index, targets) : [];
   const node = first?.kind === 'node' && targets.length === 1 ? model?.byId.get(first.nodeId) : undefined;
-  const kindText = node && model ? nodeKindText(model, node) : TARGET_KIND_TEXT[kind];
+  const head = inspectorHead(targets, state, model);
+  const busy = !props.canApply || !!view.applying;
 
   return (
-    <div className="inspector">
-      <div className="inspector-path">
-        <span className="pane-title-text">{path}</span>
-        {kind !== 'project' && (
-          <span className="muted">
-            {kindText}
-            {targets.length > 1 ? ` · ${targets.length} 个` : ''}
-          </span>
+    <div className="insp appearance-insp">
+      <InspectorHead crumbs={head.crumbs} title={head.title} kind={head.kind} />
+      <Group title="模板" hint={targets.length === 1 && direct.length > 0 ? `本${DIRECT_UNIT[kind]}直接分配` : undefined} className="template-grp">
+        <ApplicationsPanel
+          view={view}
+          targets={targets}
+          branches={props.branches}
+          thumbnails={props.thumbnails}
+          busy={busy}
+          actions={props.actions}
+          onRetry={props.onRetryApplications}
+        />
+        {first?.kind === 'node' && node && node.contentKind !== 'textMark' && (
+          <ScopeSwitch node={node} includeDescendants={first.includeDescendants} disabled={busy} onChange={props.onIncludeDescendants} />
         )}
-      </div>
-
-      <h3 className="section-title">模板</h3>
-      <ApplicationsPanel view={view} targets={targets} branches={props.branches} busy={!props.canApply || !!view.applying} actions={props.actions} onRetry={props.onRetryApplications} />
-      {first?.kind === 'node' && node && node.contentKind !== 'textMark' && (
-        <ScopeSwitch node={node} includeDescendants={first.includeDescendants} disabled={!props.canApply || !!view.applying} onChange={props.onIncludeDescendants} />
-      )}
-      <div className="inspector-actions">
-        <mdui-button variant="tonal" disabled={!props.canApply || !!view.applying} onClick={props.onPick}>
-          <mdui-icon-style slot="icon" />
-          {direct.length > 0 ? '换模板…' : '选择模板…'}
-        </mdui-button>
-        {props.copy && (
-          <mdui-button variant="text" disabled={!!props.copy.blocked || props.copy.busy} loading={props.copy.copying} onClick={props.copy.run}>
-            <mdui-icon-edit slot="icon" />
-            在样式库中编辑副本
-          </mdui-button>
-        )}
-      </div>
-      {props.copy?.blocked && <p className="hint">不能编辑副本：{props.copy.blocked}。</p>}
-      {view.lastApplied && props.canUndoApply && (
-        <div className="applied-banner" role="status">
-          <span>
-            已应用“{view.lastApplied.templateName}”到 {view.lastApplied.targetText}
-          </span>
-          <mdui-button variant="text" onClick={props.onUndoApply}>
-            撤销
-          </mdui-button>
+        <div className="btnrow">
+          <Button variant="tonal" size="sm" icon={direct.length > 0 ? 'swap_horiz' : 'style'} isDisabled={busy} onPress={props.onPick}>
+            {direct.length > 0 ? '换模板…' : '选择模板…'}
+          </Button>
+          {props.copy && (
+            <Button variant="ghost" size="sm" icon="edit" isDisabled={!!props.copy.blocked || props.copy.busy} isPending={props.copy.copying} onPress={props.copy.run}>
+              在样式库中编辑副本
+            </Button>
+          )}
         </div>
-      )}
-      {direct.some((a) => !a.source.comparable) && (
-        <p className="hint">“更新”取库里这个模板的当前版本；后端还没记录分配来自哪个版本，暂时不能提示“库里有新版本”。</p>
-      )}
+        {props.copy?.blocked && <Note>不能编辑副本：{props.copy.blocked}。</Note>}
+        {view.lastApplied && props.canUndoApply && (
+          <div className="applied-banner" role="status">
+            <Icon name="check_circle" />
+            <span>
+              已应用“{view.lastApplied.templateName}”到 {view.lastApplied.targetText}
+            </span>
+            <Button variant="text" size="sm" onPress={props.onUndoApply}>
+              撤销
+            </Button>
+          </div>
+        )}
+        {direct.some((a) => !a.source.comparable) && <Note>“更新”取库里这个模板的当前版本；后端还没记录分配来自哪个版本，暂时不能提示“库里有新版本”。</Note>}
+      </Group>
 
       {kind === 'clip' || kind === 'node' ? (
         <ObjectAppearance node={node} kind={kind} multiple={targets.length > 1} />
@@ -816,45 +902,50 @@ function StyleSources(props: {
   const resolved = view.resolved;
   const groups = useMemo(() => (resolved?.response ? sourceGroups(resolved.response) : []), [resolved?.response]);
   return (
-    <section className="style-sources">
-      <button type="button" className="section-title section-toggle" aria-expanded={open} onClick={() => props.onOpen(!open)}>
-        外观来源
-        {open ? <mdui-icon-expand-more /> : <mdui-icon-chevron-right />}
-      </button>
+    <Group
+      title="外观来源"
+      className="style-sources"
+      extra={
+        <IconButton
+          icon={open ? 'keyboard_arrow_up' : 'keyboard_arrow_down'}
+          size="sm"
+          label={open ? '收起外观来源' : '展开外观来源'}
+          aria-expanded={open}
+          className="section-toggle"
+          onPress={() => props.onOpen(!open)}
+        />
+      }
+    >
       {open &&
         (!only || (only.kind !== 'line' && only.kind !== 'token') ? (
-          <p className="hint">选中一行或一个文本单元后显示。</p>
+          <Note>选中一行或一个文本单元后显示。</Note>
         ) : !props.canRead ? (
-          <p className="hint">后端没有开放外观来源读取。</p>
+          <Note>后端没有开放外观来源读取。</Note>
         ) : resolved?.status === 'error' ? (
-          <p className="notice-error">
-            {resolved.error}{' '}
-            <mdui-button variant="text" onClick={props.onRetry}>
-              重试
-            </mdui-button>
-          </p>
+          <ReadError error={resolved.error} onRetry={props.onRetry} />
         ) : !resolved?.response ? (
-          <mdui-linear-progress />
+          <ProgressBar label="正在读取外观来源" />
         ) : (
           <>
-            <dl className="source-list">
+            <dl className="srcs">
               {groups.map((group) => (
                 <div key={group.id} className="source-group">
                   <dt>{group.label}</dt>
-                  <dd>
-                    <span className="source-value">
-                      {group.value.swatch && <span className="swatch" style={{ background: group.value.swatch }} />}
-                      {group.value.text}
-                    </span>
+                  <dd className="v">
+                    {group.value.swatch && <i className="swatch" style={{ background: group.value.swatch }} />}
+                    <span>{group.value.text}</span>
+                  </dd>
+                  <dd className="from">
                     {group.rows.map((row) => {
-                      const text = `${row.property ? `${STYLE_PROPERTY_TEXT[row.property]} · ` : ''}来自 ${sourceText(row.source, context)}`;
+                      const text = `${row.property && group.rows.length > 1 ? `${STYLE_PROPERTY_TEXT[row.property]}：` : ''}${sourceText(row.source, context)}`;
+                      const title = `${row.property ? `${STYLE_PROPERTY_TEXT[row.property]} · ` : ''}来自 ${sourceText(row.source, context)}（${row.path}）`;
                       const target = sourceTarget(row.source, context);
                       return target ? (
-                        <button key={row.property ?? 'all'} type="button" className="source-row" title={row.path} onClick={() => props.onPick(target)}>
+                        <button key={row.property ?? 'all'} type="button" className="source-row" title={title} onClick={() => props.onPick(target)}>
                           {text}
                         </button>
                       ) : (
-                        <span key={row.property ?? 'all'} className="source-row" title={row.path}>
+                        <span key={row.property ?? 'all'} className="source-row" title={title}>
                           {text}
                         </span>
                       );
@@ -863,10 +954,10 @@ function StyleSources(props: {
                 </div>
               ))}
             </dl>
-            <p className="hint">只解析静态样式，不含动画和效果的像素。点来源选中那个目标。</p>
+            <Note>只解析静态样式，不含动画和效果的像素。点来源选中那个目标。</Note>
           </>
         ))}
-    </section>
+    </Group>
   );
 }
 
@@ -879,9 +970,7 @@ function ScopeSwitch(props: { node: OrchestrationNode; includeDescendants: boole
   return (
     <div className="scope-switch">
       <Switch label={countdown ? '包括里面的标记' : '包括里面的句子'} checked={props.includeDescendants} disabled={props.disabled} onChange={props.onChange} />
-      {!props.includeDescendants && (
-        <p className="hint">{countdown ? '只作用于提示组本身，不影响里面的标记。' : '只作用于容器本身，不影响里面的歌词文字。'}</p>
-      )}
+      {!props.includeDescendants && <Note>{countdown ? '只作用于提示组本身，不影响里面的标记。' : '只作用于容器本身，不影响里面的歌词文字。'}</Note>}
     </div>
   );
 }
@@ -891,30 +980,24 @@ function DirectOverrides(props: { kind: AppearanceTarget['kind']; multiple: bool
   const { kind, inspect } = props;
   const rows = inspect?.response ? overrideRows(inspect.response.local) : [];
   return (
-    <>
-      <h3 className="section-title">本层直接覆盖 · 只读</h3>
+    <Group title="本层直接覆盖 · 只读" className="direct-overrides">
       {kind === 'project' ? (
-        <p className="hint">工程默认是最底层，没有上一层可以覆盖。</p>
+        <Note>工程默认是最底层，没有上一层可以覆盖。</Note>
       ) : props.multiple ? (
-        <p className="hint">选中一个目标时显示。</p>
+        <Note>选中一个目标时显示。</Note>
       ) : !inspect ? (
-        <p className="hint">后端没有开放样式读取。</p>
+        <Note>后端没有开放样式读取。</Note>
       ) : inspect.status === 'error' ? (
-        <p className="notice-error">
-          {inspect.error}{' '}
-          <mdui-button variant="text" onClick={props.onRetry}>
-            重试
-          </mdui-button>
-        </p>
+        <ReadError error={inspect.error} onRetry={props.onRetry} />
       ) : !inspect.response ? (
-        <mdui-linear-progress />
+        <ProgressBar label="正在读取直接覆盖" />
       ) : rows.length === 0 ? (
-        <p className="hint">没有直接覆盖：外观全部来自上一层和模板分配。</p>
+        <Note>没有直接覆盖：外观全部来自上一层和模板分配。</Note>
       ) : (
         <OverrideList rows={rows} />
       )}
-      {kind !== 'project' && rows.length > 0 && <p className="hint">直接覆盖写在歌词上（例如导入时带来的样式），外观页只显示、不编辑；它比模板分配更靠近目标。</p>}
-    </>
+      {kind !== 'project' && rows.length > 0 && <Note>直接覆盖写在歌词上（例如导入时带来的样式），外观页只显示、不编辑；它比模板分配更靠近目标。</Note>}
+    </Group>
   );
 }
 
@@ -926,31 +1009,29 @@ function ObjectAppearance(props: { node: OrchestrationNode | undefined; kind: 'c
   const { node } = props;
   if (props.kind === 'clip' || !node || (node.contentKind !== 'countdownSequence' && node.contentKind !== 'textMark')) {
     return (
-      <>
-        <h3 className="section-title">自己的外观</h3>
-        <p className="hint">{props.multiple ? '选中一个目标时显示。' : props.kind === 'clip' ? '片段没有自己的外观，里面的句子按分配和上一层显示。' : '容器和组没有自己的外观，外观全部来自模板分配。'}</p>
-      </>
+      <Group title="自己的外观" className="direct-overrides">
+        <Note>{props.multiple ? '选中一个目标时显示。' : props.kind === 'clip' ? '片段没有自己的外观，里面的句子按分配和上一层显示。' : '容器和组没有自己的外观，外观全部来自模板分配。'}</Note>
+      </Group>
     );
   }
   const countdown = node.contentKind === 'countdownSequence';
   const rows = countdown ? (node.content?.appearance ? sceneAppearanceRows(node.content.appearance) : []) : overrideRows(node.content?.appearanceOverride ?? []);
   return (
-    <>
-      <h3 className="section-title">{countdown ? '提示组外观 · 只读' : '标记的覆盖 · 只读'}</h3>
-      {rows.length > 0 ? <OverrideList rows={rows} /> : <p className="hint">{countdown ? '读模型里没有提示组外观。' : '没有覆盖：外观来自提示组和模板分配。'}</p>}
-      <p className="hint">提示组和标记自己的外观只显示、不编辑。要改颜色和字体，把模板分配到提示组（包括里面的标记）或单个标记上。</p>
-    </>
+    <Group title={countdown ? '提示组外观 · 只读' : '标记的覆盖 · 只读'} className="direct-overrides">
+      {rows.length > 0 ? <OverrideList rows={rows} /> : <Note>{countdown ? '读模型里没有提示组外观。' : '没有覆盖：外观来自提示组和模板分配。'}</Note>}
+      <Note>提示组和标记自己的外观只显示、不编辑。要改颜色和字体，把模板分配到提示组（包括里面的标记）或单个标记上。</Note>
+    </Group>
   );
 }
 
 function OverrideList(props: { rows: readonly OverrideRow[] }) {
   return (
-    <dl className="override-list">
+    <dl className="dl override-list">
       {props.rows.map((row) => (
         <div key={row.property} className="override-row">
           <dt>{row.label}</dt>
           <dd>
-            {row.swatch && <span className="swatch" style={{ background: row.swatch }} />}
+            {row.swatch && <i className="swatch" style={{ background: row.swatch }} />}
             {row.text}
           </dd>
         </div>

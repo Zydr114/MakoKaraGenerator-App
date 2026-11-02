@@ -1,5 +1,5 @@
 // 成功反馈（整体设计 §4.6，界面改版 §2.4）：底部提示条约 4 秒，新的顶替旧的，不排队；错误不用会自动消失的提示。
-// 接口与旧的 mdui 版（ui/legacy/feedback.ts）相同；由根上的 <ToastHost /> 显示。
+// 由根上的 <ToastHost /> 显示。
 
 import { useEffect, useState } from 'react';
 import { ObservableValue } from '../../client';

@@ -1,0 +1,41 @@
+/* 成片预览面板（外观页、编排页）：画面区占满剩余高度，画面按预览比例完整放进去，不需要滚动。
+   画面框与叠加说明也用在外观页的模板选择器和样式库的试样里。 */
+
+.preview-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.preview-title .pane-title-text {
+  font-variant-numeric: tabular-nums;
+}
+.preview-stage {
+  flex: 1;
+  min-height: 120px;
+  display: grid;
+  place-items: center;
+  container-type: size;
+}
+.preview-stage > .preview-frame {
+  width: min(100cqw, 100cqh * var(--preview-ratio));
+}
+.preview-frame {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--stage-high);
+}
+.preview-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.preview-overlay {
+  position: absolute;
+  padding: 0 16px;
+  text-align: center;
+  color: var(--stage-ink2);
+}

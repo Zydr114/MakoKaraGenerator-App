@@ -1,5 +1,5 @@
 // 函数式对话框（界面改版 §2.4）：问用户未保存时如何关闭、确认删除、重排时间槽、填一小段文字。
-// 接口与旧的 mdui 版（ui/legacy/dialogs.ts）相同。请求排成队列，由根上的 <DialogHost /> 一次显示一个。
+// 请求排成队列，由根上的 <DialogHost /> 一次显示一个。
 
 import { useState } from 'react';
 import { ObservableValue } from '../../client';

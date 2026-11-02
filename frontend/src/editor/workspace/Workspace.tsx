@@ -334,7 +334,7 @@ const NON_TEXT_INPUTS = new Set(['checkbox', 'radio', 'range', 'button', 'submit
 const OVERLAY_ROLES = new Set(['dialog', 'alertdialog', 'menu']);
 
 /**
- * 事件是否来自文字输入控件（包括 mdui 组件 shadow DOM 里的 input）；复选框、开关等不算。
+ * 事件是否来自文字输入控件（包括 shadow DOM 里的 input）；复选框、开关等不算。
  * 来自对话框、菜单和下拉列表里的也算：它们是模态的，空格、方向键留给里面的控件。
  */
 export function isEditing(event: Event): boolean {

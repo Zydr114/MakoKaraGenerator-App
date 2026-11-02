@@ -165,7 +165,7 @@ export class TemplateWorkshop {
       return;
     }
     this.patch({ source: source.kind, frame: loading(sameScope ? this.state.frame : undefined) });
-    // 作者草稿的选项不用另外读，但也放到下一轮再用：同一轮里换掉画布下拉框的选项会让刚建的 mdui-select 还没初始化就被换掉。
+    // 作者草稿的选项不用另外读，但也放到下一轮再用：和其他来源一样先进入读取中，再换上选项。
     if (source.kind === 'authorDraft') this.timer = setTimeout(() => this.useAuthor(source, key), 0);
     else if (source.kind === 'draft') this.timer = setTimeout(() => void this.load(source, key), this.debounceMs);
     else void this.load(source, key);

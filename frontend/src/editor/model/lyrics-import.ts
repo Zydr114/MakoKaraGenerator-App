@@ -94,7 +94,7 @@ export interface Choice {
   label: string;
 }
 
-/** “自动识别”的选项值。不用空字符串：mdui-select 把空值当作清空。 */
+/** “自动识别”的选项值。不用空字符串：下拉框里空值表示没有选择。 */
 export const AUTO = 'auto';
 
 /** 选项值转成请求里的值：自动识别时省略。 */

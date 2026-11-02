@@ -20,6 +20,19 @@
 .tnum {
   font-variant-numeric: tabular-nums;
 }
+/* 控件下面或段落里的一句说明；提示与错误的文字色 */
+.hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--on-surface-variant);
+}
+.notice-warning {
+  color: var(--warn);
+}
+.notice-error {
+  color: var(--error);
+}
 .spacer {
   flex: 1;
 }

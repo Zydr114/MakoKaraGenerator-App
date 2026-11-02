@@ -10,6 +10,7 @@ import { Button } from '../ui/Button';
 import { useObservable } from '../ui/hooks';
 import { fitPreviewSize, PreviewController, type PreviewViewState } from './preview-controller';
 import { GpuPreviewController, type GpuPreviewViewState } from './gpu-preview-controller';
+import './preview.css';
 
 /** 预览用的时刻：播放头，留在音频末尾之前 1 毫秒；没有音频时是 0。 */
 export function previewTimeUs(audio: AudioController | null): number {

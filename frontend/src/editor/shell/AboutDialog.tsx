@@ -17,7 +17,6 @@ const THIRD_PARTY: readonly (readonly [name: string, license: string])[] = [
   ['Material Symbols', 'Apache-2.0'],
   ['Roboto Flex', 'OFL-1.1'],
   ['CodeMirror', 'MIT'],
-  ['mdui（改版过渡期）', 'MIT'],
 ];
 
 /** 桌面外壳里运行时是 Electron 的版本。 */

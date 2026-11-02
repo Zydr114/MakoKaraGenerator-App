@@ -5,7 +5,6 @@ import { Dialog } from './Dialog';
 
 /**
  * 表单对话框：Esc、点遮罩、“取消”都走 onClose；提交按钮在 busy 或 submitDisabled 时禁用，提交中不允许关闭。
- * 接口与旧的 mdui 版（ui/legacy/FormDialog.tsx）相同。
  */
 export function FormDialog(props: {
   open: boolean;

@@ -136,15 +136,17 @@ material-color-utilities 的 `SchemeTonalSpot`（强度“鲜明”可用 `Schem
 与 GPLv2 不兼容，所以本仓库应写 GPLv3 或“GPLv3 或更新版本”，不要写“仅 GPLv2”。
 OFL 字体可以随软件一起分发，字体本身仍按 OFL。
 
-用户选定“无样式库加自写 M3”：
+用户选定“无样式库加自写 M3”。界面改版已完成（2026-11-03），mdui 已移除，现在用的是：
 
-| 库 | 许可 | 与 GPLv3 | 用途 |
-|---|---|---|---|
-| React Aria Components | Apache-2.0 | 兼容 | 无样式的交互层：列表多选、拖放排序、树、带单位的数字字段、菜单、对话框、键盘操作 |
-| @material/material-color-utilities | Apache-2.0 | 兼容 | M3 取色和配色，从标志或任意颜色生成两套角色；前端依赖里已有 0.3.0（经 mdui 间接引入） |
-| Material Symbols | Apache-2.0 | 兼容 | 图标；只打包用到的图标 |
-| Roboto Flex、Noto Sans CJK | OFL-1.1 | 可随附 | 界面字体；Roboto Flex 按需子集化 |
-| mdui（现用） | MIT | 兼容 | 逐页替换，替换完再移除 |
+| 库 | 版本 | 许可 | 与 GPLv3 | 用途 |
+|---|---|---|---|---|
+| React Aria Components | 1.22 | Apache-2.0 | 兼容 | 无样式的交互层：列表多选、拖放排序、树、带单位的数字字段、菜单、对话框、键盘操作 |
+| @material/material-color-utilities | 0.4 | Apache-2.0 | 兼容 | M3 取色和配色，从标志或任意颜色生成两套角色 |
+| Material Symbols（@material-symbols/svg-400） | 0.48 | Apache-2.0 | 兼容 | 图标；开发依赖，由脚本生成只含用到图标的模块 |
+| Roboto Flex | — | OFL-1.1 | 可随附 | 界面字体，按需子集化后入库（`src/editor/theme/fonts/`） |
+| Noto Sans CJK | — | OFL-1.1 | 可随附 | 中日文字体；暂用系统字体，不打包 |
+
+改版前用的 mdui（MIT）已在批 7 移除。
 
 考虑过但不采用：
 

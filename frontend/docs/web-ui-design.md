@@ -783,7 +783,7 @@ W6 的范围按 1.39.0 的接口清单核对过，所需接口都已交付：
 2026-11-01 用户决定：W8 之后做界面改版。选定设计稿“台前幕后”第二版（`docs/ui-style-drafts/`），改用紧凑的
 Material You：React Aria Components 加自写样式，material-color-utilities 配色，用户可选主题色，最后移除 mdui。
 交互和信息架构不变；本文 §3.1 外壳和 §7 视觉规格已按新设计更新，§7.1 断点、§7.2 分栏拖动一起实现，
-mdui 已在 2026-11-03 移除。
+mdui 已在 2026-11-03 移除。七批 2026-11-03 实施完成并通过用户验收。
 计划见 [`web-client-redesign-design.md`](web-client-redesign-design.md)。
 
 ---

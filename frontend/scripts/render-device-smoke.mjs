@@ -65,33 +65,10 @@ function check(ok, label) {
   if (!ok) process.exitCode = 1;
 }
 
-const PRELUDE = `
-  // 先找页面里的 mdui 按钮，再找新控件（顶栏“保存工程”的文字也是“保存”）
-  const buttons = () => [...document.querySelectorAll('mdui-button, mdui-button-icon'), ...document.querySelectorAll('button')];
-  const button = (text) => buttons().find((b) => b.textContent.trim() === text || b.getAttribute('aria-label') === text);
-  const field = (label, scope = '') => [...document.querySelectorAll(scope + ' mdui-text-field')].find((f) => f.label === label);
-`;
-const js = (body) => `(() => { ${PRELUDE} ${body} })()`;
-
-async function clickButton(page, text) {
-  await page.waitFor(js(`const b = button(${JSON.stringify(text)}); return !!b && !b.disabled;`), `按钮「${text}」可用`);
-  await page.eval(js(`button(${JSON.stringify(text)}).click();`));
-}
-
-async function clickButtonIn(page, scope, text) {
-  const target = `[...document.querySelectorAll(${JSON.stringify(`${scope} :is(mdui-button, button)`)})].find((b) => b.textContent.trim() === ${JSON.stringify(text)})`;
-  await page.waitFor(`!!(${target}) && !(${target}).disabled`, `「${text}」可用`);
-  await page.eval(`(${target}).click()`);
-}
-
-async function typeInto(page, label, value, scope = '') {
-  const target = `field(${JSON.stringify(label)}, ${JSON.stringify(scope)})`;
-  await page.waitFor(js(`return !!${target};`), `输入框「${label}」`);
-  await page.eval(js(`const f = ${target}; f.value = ${JSON.stringify(value)}; f.dispatchEvent(new Event('input', { bubbles: true, composed: true }));`));
-}
-
-async function pressEnter(page, label, scope = '') {
-  await page.eval(js(`field(${JSON.stringify(label)}, ${JSON.stringify(scope)}).dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, composed: true }));`));
+/** 正式验证：检查帧数填 5（回车提交），再点开始验证。 */
+async function startValidation(page) {
+  await ui.fill(page, '检查帧数', '5', { enter: true, scope: '[aria-label="正式验证"]' });
+  await ui.click(page, 'button', '开始验证', { scope: '[aria-label="正式验证"]' });
 }
 
 async function gotoPage(page, value, ready) {
@@ -155,9 +132,9 @@ async function createProject(page) {
 
 /** 进导出页，用修复入口把输出时长定为音频时长。 */
 async function openExportReady(page) {
-  await clickButtonIn(page, '.app-bar', '导出视频');
+  await shell.goto(page, '导出视频');
   await page.waitFor(`${check$('duration')} === 'block'`, '导出页', 30_000);
-  await page.eval(`document.querySelector('[data-check="duration"] mdui-button').click()`);
+  await ui.click(page, 'button', '去设置', { scope: '[data-check="duration"]' });
   await page.waitFor(settingsOpen, '修复入口打开工程设置');
   await ui.click(page, 'button', '按音频时长', { scope: '[data-group="duration"]' });
   await page.waitFor(`${check$('duration')} === 'ok'`, '输出时长确定', 20_000);
@@ -210,16 +187,14 @@ try {
     );
 
     await openExportReady(page);
-    await typeInto(page, '检查帧数', '5');
-    await pressEnter(page, '检查帧数');
-    await clickButtonIn(page, '[aria-label="正式验证"]', '开始验证');
-    const validationText = `(document.querySelector('[aria-label="正式验证"] .dialog-error')?.textContent ?? document.querySelector('[aria-label="正式验证"] .job-result[data-state]')?.textContent ?? '')`;
+    await startValidation(page);
+    const validationText = `(document.querySelector('[aria-label="正式验证"] .note.err')?.textContent ?? document.querySelector('[aria-label="正式验证"] .job-result[data-state]')?.textContent ?? '')`;
     await page.waitFor(`${validationText} !== ''`, '正式验证失败', 120_000);
     const failed = await page.eval(validationText);
     check(!failed.includes('验证通过') && /渲染设备|RenderBackend/.test(failed), `正式验证用 GPU 明确失败，不改用 CPU（${failed.slice(0, 80)}）`);
 
     await chooseDevice(page, 'cpu');
-    await clickButton(page, '返回编辑');
+    await ui.click(page, 'button', '返回编辑', { scope: '.app-bar' });
     await gotoPage(page, 'appearance', `!!document.querySelector('.preview-panel')`);
     await page.waitFor(`(${previewTitle}).startsWith('成片 · CPU · 修订')`, '改用 CPU 后出帧', 60_000);
     check(true, '在顶栏改用 CPU 后，成片预览恢复出帧（标题写 CPU）');
@@ -273,19 +248,17 @@ try {
     await page.waitFor(`document.querySelectorAll('.export-thumbnail img').length === 2`, '首帧与末帧缩略图', 60_000);
     check(true, '导出页首帧、末帧缩略图在 GPU 下出图');
 
-    await typeInto(page, '检查帧数', '5');
-    await pressEnter(page, '检查帧数');
-    await clickButtonIn(page, '[aria-label="正式验证"]', '开始验证');
+    await startValidation(page);
     await page.waitFor(`document.querySelector('[aria-label="正式验证"] .job-result[data-state]')?.textContent.includes('验证通过')`, '正式验证完成', 180_000);
     check(
       (await page.eval(`document.querySelector('[aria-label="正式验证"] .job-device')?.textContent`)) === '渲染设备：GPU',
       '正式验证通过，卡片写“渲染设备：GPU”（任务固定的设备）',
     );
-    await clickButtonIn(page, '[aria-label="导出"]', '开始导出');
-    await page.waitFor(`document.querySelector('[aria-label="导出"] .job-result[data-state="succeeded"]')?.textContent.includes('导出完成')`, '导出完成', 300_000);
-    const facts = await page.eval(`document.querySelector('[aria-label="导出"] .export-facts').textContent`);
+    await ui.click(page, 'button', '开始导出', { scope: '.export-go' });
+    await page.waitFor(`document.querySelector('[aria-label="导出任务"] .job-result[data-state="succeeded"]')?.textContent.includes('导出完成')`, '导出完成', 300_000);
+    const facts = await page.eval(`document.querySelector('[aria-label="导出任务"] .export-facts').textContent`);
     check(
-      facts.includes('设备GPU') && (await page.eval(`document.querySelector('[aria-label="导出"] .job-device')?.textContent`)) === '渲染设备：GPU',
+      facts.includes('设备GPU') && (await page.eval(`document.querySelector('[aria-label="导出任务"] .job-device')?.textContent`)) === '渲染设备：GPU',
       '导出完成，卡片和报告摘要都写 GPU',
     );
 
@@ -295,7 +268,7 @@ try {
       (await page.eval(`document.querySelector('[aria-label="正式验证"] .job-device')?.textContent`)) === '渲染设备：GPU',
       '改回跟随默认后，已完成任务的卡片仍写它自己的设备（GPU）',
     );
-    await clickButton(page, '返回编辑');
+    await ui.click(page, 'button', '返回编辑', { scope: '.app-bar' });
     await gotoPage(page, 'appearance', `!!document.querySelector('.preview-panel')`);
     await page.waitFor(`(${previewTitle}).startsWith('成片 · CPU · 修订')`, '外观页回到 CPU 帧', 60_000);
     check((await page.eval(`localStorage.getItem('mako.renderBackend')`)) === null, '改回跟随默认：本机偏好删掉，外观页预览回到 CPU 帧');

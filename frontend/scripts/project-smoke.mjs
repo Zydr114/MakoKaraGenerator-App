@@ -111,44 +111,7 @@ function check(ok, label) {
   if (!ok) process.exitCode = 1;
 }
 
-const PRELUDE = `
-  // 先找页面里的 mdui 按钮，再找新控件（顶栏“保存工程”的文字也是“保存”）
-  const buttons = () => [...document.querySelectorAll('mdui-button, mdui-button-icon'), ...document.querySelectorAll('button')];
-  const button = (text) => buttons().find((b) => b.textContent.trim() === text || b.getAttribute('aria-label') === text);
-  const field = (label, scope = '') => [...document.querySelectorAll(scope + ' mdui-text-field')].find((f) => f.label === label);
-  const revision = () => (document.querySelector('.status-bar')?.textContent.match(/修订 (\\d+)/) ?? [])[1];
-`;
-const js = (body) => `(() => { ${PRELUDE} ${body} })()`;
-const click = `dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }))`;
-
-async function clickButton(page, text) {
-  await page.waitFor(js(`const b = button(${JSON.stringify(text)}); return !!b && !b.disabled;`), `按钮「${text}」可用`);
-  await page.eval(js(`button(${JSON.stringify(text)}).click();`));
-}
-
-/** 点 scope 容器里文字为 text 的按钮（页面上有同名按钮时用）。 */
-async function clickButtonIn(page, scope, text) {
-  const target = `[...document.querySelectorAll(${JSON.stringify(`${scope} :is(mdui-button, button)`)})].find((b) => b.textContent.trim() === ${JSON.stringify(text)})`;
-  await page.waitFor(`!!(${target}) && !(${target}).disabled`, `「${text}」可用`);
-  await page.eval(`(${target}).click()`);
-}
-
-async function clickDialogButton(page, text) {
-  const target = `[...[...document.querySelectorAll('mdui-dialog')].find((d) => d.open)?.querySelectorAll('mdui-button') ?? []].find((b) => b.textContent.trim() === ${JSON.stringify(text)} && !b.disabled)`;
-  await page.waitFor(`!!(${target})`, `对话框按钮「${text}」可用`);
-  await page.eval(`(${target}).${click}`);
-}
-
-/** 同名输入框不止一个时（例如来源管理和工程设置都有“名称”）用 scope 限定。 */
-async function typeInto(page, label, value, scope = '') {
-  const target = `field(${JSON.stringify(label)}, ${JSON.stringify(scope)})`;
-  await page.waitFor(js(`return !!${target};`), `输入框「${label}」`);
-  await page.eval(js(`const f = ${target}; f.value = ${JSON.stringify(value)}; f.dispatchEvent(new Event('input', { bubbles: true, composed: true }));`));
-}
-
-async function pressEnter(page, label, scope = '') {
-  await page.eval(js(`field(${JSON.stringify(label)}, ${JSON.stringify(scope)}).dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, composed: true }));`));
-}
+const revision = `(document.querySelector('.status-bar')?.textContent.match(/修订 (\\d+)/) ?? [])[1]`;
 
 const setFile = ui.setFile;
 
@@ -234,7 +197,7 @@ try {
   await ui.clickInDialog(page, '下一步');
   await ui.clickInDialog(page, '新建');
   await page.waitFor(`!!document.querySelector('.no-audio-bar') && !!document.querySelector('.lp-empty')`, '空工程进入歌词页', 60_000);
-  check(await page.eval(js(`return revision() === '0';`)), '不选音频和歌词也能新建：歌词页显示导入入口，底部显示“还没有音频”');
+  check((await page.eval(revision)) === '0', '不选音频和歌词也能新建：歌词页显示导入入口，底部显示“还没有音频”');
   await snapshot(page, 'empty');
 
   // 2. 导入歌词、选择音频、改名
@@ -260,7 +223,7 @@ try {
   check(await page.eval(`document.querySelector('.audio-file')?.textContent === '冒烟音频.wav'`), '设置里改名一条历史；音频显示本次上传的文件名');
 
   // 3. 背景图片：适配、移除、撤销
-  const revisionOf = js(`return Number(revision());`);
+  const revisionOf = `Number(${revision})`;
   await setFile(page, '选择图片或视频…', pngPath);
   await page.waitFor(`!!document.querySelector('img.background-thumb')`, '背景缩略图', 60_000);
   const beforeFit = await page.eval(revisionOf);
@@ -320,59 +283,60 @@ try {
 
   // 5. 导出歌词文件
   await shell.projectMenu(page, '导出歌词文件…');
-  await page.waitFor(`!!document.querySelector('mdui-dialog.lyrics-export-dialog[open] .lyrics-export-form')`, '导出歌词对话框');
-  await clickDialogButton(page, '评估');
+  await ui.waitDialog(page, '导出歌词文件');
+  await page.waitFor(`!!document.querySelector('.lyrics-export-dialog .lyrics-export-form')`, '导出歌词对话框');
+  await ui.clickInDialog(page, '评估');
   await page.waitFor(`!!document.querySelector('.lyrics-export-plan')`, '评估结果', 30_000);
-  const needsAccept = await page.eval(`!!document.querySelector('.lyrics-export-plan mdui-checkbox')`);
-  if (needsAccept) {
-    const blockedBefore = await page.eval(`[...document.querySelectorAll('mdui-dialog.lyrics-export-dialog mdui-button')].find((b) => b.textContent.trim() === '导出并下载').disabled`);
-    check(blockedBefore, '有损失时不勾选“接受这些损失”不能导出');
-    await page.eval(`document.querySelector('.lyrics-export-plan mdui-checkbox').${click}`);
+  if (await ui.exists(page, 'checkbox', '接受这些损失', { scope: '@dialog' })) {
+    check(await ui.read(page, 'button', '导出并下载', 'return __ui.disabled(el);', { scope: '@dialog' }), '有损失时不勾选“接受这些损失”不能导出');
+    await ui.setChecked(page, 'checkbox', '接受这些损失', true, { scope: '@dialog' });
   }
-  await clickDialogButton(page, '导出并下载');
+  await ui.clickInDialog(page, '导出并下载');
   await page.waitFor(`!!document.querySelector('.lyrics-export-done')`, '歌词导出完成', 30_000);
   const reported = Number((await page.eval(`document.querySelector('.lyrics-export-done').textContent`)).match(/(\d+) 字节/)?.[1]);
   const lyricsSize = await waitDownload(`${projectName} 改.lrc`);
   check(lyricsSize === reported && reported > 0, `导出增强 LRC 并下载，文件大小与报告一致（${lyricsSize} 字节）`);
-  await clickDialogButton(page, '完成');
+  await ui.clickInDialog(page, '完成');
+  await ui.waitDialogClosed(page, '导出歌词文件');
 
   // 6. 导出页：修复入口、正式验证、导出 MP4 并下载、再导出一次后取消
-  await clickButtonIn(page, '.app-bar', '导出视频');
+  await shell.goto(page, '导出视频');
   await page.waitFor(`${check$('duration')} === 'block' && ${check$('timing')} === 'ok'`, '导出页：输出时长未定是阻断项', 30_000);
-  check(await page.eval(`[...document.querySelectorAll('[aria-label="导出"] mdui-button')].find((b) => b.textContent.includes('开始导出'))?.disabled === true`), '准备检查有阻断项时“开始导出”停用');
-  await page.eval(`document.querySelector('[data-check="duration"] mdui-button').click()`);
+  check(await ui.read(page, 'button', '开始导出', 'return __ui.disabled(el);', { scope: '.export-go' }), '准备检查有阻断项时“开始导出”停用');
+  await ui.click(page, 'button', '去设置', { scope: '[data-check="duration"]' });
   await page.waitFor(settingsOpen, '修复入口打开工程设置');
   await ui.click(page, 'button', '按音频时长', { scope: '[data-group="duration"]' });
   await page.waitFor(`${check$('duration')} === 'ok'`, '输出时长确定', 20_000);
   await closeSettings(page);
   await page.waitFor(`document.querySelectorAll('.export-thumbnail img').length === 2`, '首帧与末帧缩略图', 60_000);
-  check(true, '修复入口“去设置”打开输出时长一组；确定后阻断解除，摘要显示首帧与末帧');
+  await ui.click(page, 'button', '末帧', { scope: '.export-stage' });
+  await page.waitFor(`!!document.querySelector('.export-thumbnail:not([hidden]) img[alt^="末帧"]')`, '切到末帧');
+  check(true, '修复入口“去设置”打开输出时长一组；确定后阻断解除，幕后区可切换首帧与末帧');
 
-  await typeInto(page, '检查帧数', '10');
-  await pressEnter(page, '检查帧数');
-  await clickButtonIn(page, '[aria-label="正式验证"]', '开始验证');
+  await ui.fill(page, '检查帧数', '10', { enter: true, scope: '[aria-label="正式验证"]' });
+  await ui.click(page, 'button', '开始验证', { scope: '[aria-label="正式验证"]' });
   await page.waitFor(`document.querySelector('[aria-label="正式验证"] .job-result[data-state]')?.textContent.includes('验证通过')`, '正式验证完成', 180_000);
   check(
     (await page.eval(`document.querySelector('[aria-label="正式验证"] .job-result').textContent`)).includes('普通 10 帧') && (await page.eval(check$('validation'))) === 'ok',
     '正式验证 10 帧通过，准备检查里显示“当前修订验证通过”',
   );
 
-  await clickButtonIn(page, '[aria-label="导出"]', '开始导出');
-  await page.waitFor(`!!document.querySelector('[aria-label="导出"] .job-progress')`, '导出进度');
-  await page.waitFor(`document.querySelector('[aria-label="导出"] .job-result[data-state="succeeded"]')?.textContent.includes('导出完成')`, '导出完成', 300_000);
-  const facts = await page.eval(`document.querySelector('[aria-label="导出"] .export-facts').textContent`);
+  await ui.click(page, 'button', '开始导出', { scope: '.export-go' });
+  await page.waitFor(`!!document.querySelector('[aria-label="导出任务"] .job-progress')`, '导出进度');
+  await page.waitFor(`document.querySelector('[aria-label="导出任务"] .job-result[data-state="succeeded"]')?.textContent.includes('导出完成')`, '导出完成', 300_000);
+  const facts = await page.eval(`document.querySelector('[aria-label="导出任务"] .export-facts').textContent`);
   check(facts.includes('1920 × 1080') && facts.includes('120/120') && facts.includes('有（aac）'), `导出 MP4：报告与设置一致（${facts.slice(0, 80)}…）`);
-  await clickButtonIn(page, '[aria-label="导出"] .job-result', '下载');
+  await ui.click(page, 'button', '下载', { scope: '[aria-label="导出任务"] .job-result' });
   const videoSize = await waitDownload(`${projectName} 改.mp4`, 60_000);
   check(videoSize > 1000, `下载成片（${videoSize} 字节，文件名用工程名）`);
   await snapshot(page, 'export');
 
-  await clickButtonIn(page, '[aria-label="导出"]', '重新导出');
-  await page.waitFor(`!!document.querySelector('[aria-label="导出"] .job-progress')`, '第二次导出开始');
-  await clickButtonIn(page, '[aria-label="导出"] .job-progress', '取消');
-  await page.waitFor(`document.querySelector('[aria-label="导出"] .job-result[data-state]')?.textContent.includes('已取消')`, '取消后的终态', 60_000);
+  await ui.click(page, 'button', '重新导出', { scope: '.export-go' });
+  await page.waitFor(`!!document.querySelector('[aria-label="导出任务"] .job-progress')`, '第二次导出开始');
+  await ui.click(page, 'button', '取消', { scope: '[aria-label="导出任务"] .job-progress' });
+  await page.waitFor(`document.querySelector('[aria-label="导出任务"] .job-result[data-state]')?.textContent.includes('已取消')`, '取消后的终态', 60_000);
   check(true, '导出中途取消，状态是“已取消”');
-  await clickButtonIn(page, '.app-bar', '返回编辑');
+  await ui.click(page, 'button', '返回编辑', { scope: '.app-bar' });
   await page.waitFor(`${lineCount} === 2`, '返回歌词页');
 
   // 7. 只读打开：关闭工程（不保存导出页里定下的输出时长），从工程目录的更多操作里只读打开

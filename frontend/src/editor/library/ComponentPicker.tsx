@@ -4,8 +4,11 @@ import { useEffect, useState } from 'react';
 import { BackendError } from '../../client';
 import type { ScriptConfigurationDetailResponse, ScriptConfigurationKind } from '../../protocol';
 import { errorText } from '../session/editor-session';
-import { FormDialog } from '../ui/legacy/FormDialog';
-import { Select } from '../ui/legacy/fields';
+import { Button } from '../ui/Button';
+import { Select } from '../ui/fields';
+import { FormDialog } from '../ui/FormDialog';
+import { ProgressBar } from '../ui/indicators';
+import { Note, ReadError } from '../workspace/panel';
 import type { ComponentLibraryStore } from './component-library-store';
 
 interface Choice {
@@ -77,7 +80,9 @@ export function ComponentPicker(props: {
   const current = options.find((choice) => choice.id === picked && !choice.problem) ?? options.find((choice) => !choice.problem);
   return (
     <>
-      <mdui-button variant="tonal" disabled={props.disabled} onClick={() => setOpen(true)} aria-label="从效果组件选…">从效果组件选…</mdui-button>
+      <Button variant="ghost" size="sm" icon="wand_stars" className="component-pick" isDisabled={props.disabled} onPress={() => setOpen(true)}>
+        从效果组件选…
+      </Button>
       <FormDialog
         open={open}
         headline="从效果组件选"
@@ -88,13 +93,27 @@ export function ComponentPicker(props: {
         onSubmit={() => { if (current?.detail && props.onChoose(current.detail)) setOpen(false); }}
         onClose={() => setOpen(false)}
       >
-        {loading ? <mdui-linear-progress /> : failure ? (
-          <><p className="notice-error">{failure}</p><mdui-button variant="text" onClick={() => setRetry((n) => n + 1)}>重试</mdui-button></>
-        ) : options.length === 0 ? <p className="hint">还没有{kind === 'Material' ? '材质' : '效果'}组件。到左栏“效果组件”中导入效果包。</p> : (
+        {loading ? (
+          <ProgressBar label="正在读取效果组件" />
+        ) : failure ? (
+          <ReadError error={failure} onRetry={() => setRetry((n) => n + 1)} />
+        ) : options.length === 0 ? (
+          <Note>还没有{kind === 'Material' ? '材质' : '效果'}组件。到左栏“效果组件”中导入效果包。</Note>
+        ) : (
           <>
-            <Select label="效果组件" value={current?.id ?? ''} options={options.map((choice) => ({ value: choice.id, label: `${choice.name}${choice.problem ? ` · ${choice.problem}` : ''}`, disabled: !!choice.problem }))} onChange={setPicked} disabled={props.disabled} />
-            {current?.detail && <p className="hint" data-component-id={current.id}>{current.detail.package.name} · {current.detail.configuration.exportId}</p>}
-            {!current && <p className="hint">这些组件不能用在当前{kind === 'Material' ? '材质部位' : '模板用途'}，原因已列在名称旁。</p>}
+            <Select
+              label="效果组件"
+              value={current?.id ?? ''}
+              options={options.map((choice) => ({ value: choice.id, label: choice.name, disabled: !!choice.problem, ...(choice.problem ? { description: choice.problem } : {}) }))}
+              onChange={setPicked}
+              disabled={props.disabled}
+            />
+            {current?.detail && (
+              <p className="note component-pick-detail" data-component-id={current.id}>
+                {current.detail.package.name} · {current.detail.configuration.exportId}
+              </p>
+            )}
+            {!current && <Note>这些组件不能用在当前{kind === 'Material' ? '材质部位' : '模板用途'}，原因已列在名称下面。</Note>}
           </>
         )}
       </FormDialog>

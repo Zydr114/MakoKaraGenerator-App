@@ -4,9 +4,13 @@
 import { useState } from 'react';
 import type { EffectPackageInspectResponse, EffectPackageReference, FullTemplateDefinition } from '../../protocol';
 import { EXPORT_KIND_TEXT, packageKey, packageUsers, referenceKey, shortRevision, usedPackageKeys } from '../model/full-template';
-import { toast } from '../ui/legacy/feedback';
-import { FileButton } from '../ui/legacy/fields';
 import { errorText } from '../session/editor-session';
+import { Button, IconButton } from '../ui/Button';
+import { toast } from '../ui/feedback';
+import { FileButton } from '../ui/fields';
+import { Icon } from '../ui/Icon';
+import { ProgressBar } from '../ui/indicators';
+import { Group, Note } from '../workspace/panel';
 import type { TemplateDraft, TemplateLibraryStore } from './template-library-store';
 
 type Pending = { status: 'inspecting'; fileName: string } | { status: 'ready'; pkg: EffectPackageInspectResponse } | { status: 'failed'; fileName: string; message: string };
@@ -47,42 +51,61 @@ export function PackagesPanel(props: {
   };
 
   return (
-    <section className="package-panel" aria-label="效果包">
-      <div className="package-panel-header">
-        <h3 className="template-advanced-title">效果包 · {references.length} 个</h3>
-        {draft && <FileButton label="导入效果包…" accept=".mkfx" variant="text" onPick={(file) => void pick(file)} disabled={!editable || pending?.status === 'inspecting'} />}
-      </div>
-      {references.length === 0 && <p className="hint">模板里还没有效果包。{draft ? '导入 .mkfx 后可以用作材质或效果。' : ''}</p>}
+    <Group
+      title="效果包"
+      hint={references.length > 0 ? `${references.length} 个` : undefined}
+      className="package-panel"
+      extra={
+        draft && (
+          <FileButton
+            label="导入效果包…"
+            accept=".mkfx"
+            variant="ghost"
+            size="sm"
+            icon="upload"
+            onPick={(file) => void pick(file)}
+            disabled={!editable || pending?.status === 'inspecting'}
+          />
+        )
+      }
+    >
+      {references.length === 0 && <Note>模板里还没有效果包。{draft ? '导入 .mkfx 后可以用作材质或效果。' : ''}</Note>}
       {references.length > 0 && (
-        <ul className="package-list">
+        <ul className="pkg-list package-list">
           {references.map((reference) => {
             const key = referenceKey(reference);
             const pkg = catalog.get(key);
             const users = packageUsers(definition, key);
             return (
-              <li key={key} className="package-item" data-package-id={reference.packageId} data-revision={reference.packageRevision}>
-                <span className="package-item-text">
-                  <span className="package-name">{pkg ? `${pkg.name} ${pkg.version}` : reference.packageId}</span>
-                  <span className="muted">
-                    修订 {shortRevision(reference.packageRevision)}
-                    {pkg ? ` · ${pkg.exports.length} 个导出` : ' · 没有读到包信息'}
-                    {' · '}
-                    {used.has(key) ? `用于 ${users.join('、')}` : '未使用（保存时不带上）'}
-                  </span>
+              <li key={key} className="pkg package-item" data-package-id={reference.packageId} data-revision={reference.packageRevision}>
+                <span className="cic">
+                  <Icon name="package_2" />
                 </span>
-                {draft && (
-                  <mdui-button-icon disabled={!editable} onClick={() => remove(reference)} aria-label={`移除 ${pkg?.name ?? reference.packageId}`}>
-                    <mdui-icon-close />
-                  </mdui-button-icon>
+                <span className="package-item-text">
+                  <b className="package-name">{pkg ? `${pkg.name} ${pkg.version}` : reference.packageId}</b>
+                  <span className="small">
+                    修订 {shortRevision(reference.packageRevision)}
+                    {pkg ? `，${pkg.files.length} 个文件，${pkg.exports.length} 个导出` : '，没有读到包信息'}
+                  </span>
+                  <span className="small">{used.has(key) ? `用于${users.join('、')}` : '未使用（保存时不带上）'}</span>
+                </span>
+                {draft ? (
+                  <IconButton icon="delete" size="sm" label={`移除 ${pkg?.name ?? reference.packageId}`} isDisabled={!editable} onPress={() => remove(reference)} />
+                ) : (
+                  <span />
                 )}
               </li>
             );
           })}
         </ul>
       )}
-      {notice && <p className="notice-error package-notice">{notice}</p>}
+      {notice && (
+        <Note error className="package-notice">
+          {notice}
+        </Note>
+      )}
       {pending && <PendingCard pending={pending} definition={definition} references={references} disabled={!editable} onAdd={add} onClose={() => setPending(null)} />}
-    </section>
+    </Group>
   );
 }
 
@@ -99,18 +122,21 @@ function PendingCard(props: {
   if (pending.status === 'inspecting') {
     return (
       <div className="package-pending" data-status="inspecting">
-        <mdui-linear-progress />
-        <span className="muted">正在上传并检查 {pending.fileName}…</span>
+        <ProgressBar label={`正在上传并检查 ${pending.fileName}…`} showLabel />
       </div>
     );
   }
   if (pending.status === 'failed') {
     return (
       <div className="package-pending" data-status="failed">
-        <p className="notice-error">读不出 {pending.fileName}：{pending.message}</p>
-        <mdui-button variant="text" onClick={props.onClose}>
-          关闭
-        </mdui-button>
+        <Note error>
+          读不出 {pending.fileName}：{pending.message}
+        </Note>
+        <div className="package-pending-actions">
+          <Button variant="text" size="sm" onPress={props.onClose}>
+            关闭
+          </Button>
+        </div>
       </div>
     );
   }
@@ -121,7 +147,7 @@ function PendingCard(props: {
   return (
     <div className="package-pending" data-status="ready" data-valid={pkg.structureValid}>
       <div className="package-pending-title">
-        <strong>{pkg.name}</strong> {pkg.version} · 修订 {shortRevision(pkg.packageRevision)} · {pkg.files.length} 个文件
+        <b>{pkg.name}</b> {pkg.version} · 修订 {shortRevision(pkg.packageRevision)} · {pkg.files.length} 个文件
       </div>
       <ul className="package-exports">
         {pkg.exports.map((e) => (
@@ -134,21 +160,21 @@ function PendingCard(props: {
         <ul className="package-diagnostics">
           {pkg.diagnostics.map((d, i) => (
             <li key={i}>
-              <code>{d.code}</code> {d.path && <span className="muted">{d.path}</span>} {d.message}
+              <code>{d.code}</code> {d.path && <span className="faint">{d.path}</span>} {d.message}
             </li>
           ))}
         </ul>
       )}
-      {!pkg.structureValid && <p className="notice-error">包的结构无效，不能加入。</p>}
-      {pkg.structureValid && older && !present && <p className="hint">模板正在用这个包的另一个修订。替换后，用到它的材质和效果都改用新修订；新版本没有的参数会标出来。</p>}
+      {!pkg.structureValid && <Note error>包的结构无效，不能加入。</Note>}
+      {pkg.structureValid && older && !present && <Note>模板正在用这个包的另一个修订。替换后，用到它的材质和效果都改用新修订；新版本没有的参数会标出来。</Note>}
       <div className="package-pending-actions">
-        <mdui-button variant="text" onClick={props.onClose}>
+        <Button variant="text" size="sm" onPress={props.onClose}>
           {present || !pkg.structureValid ? '关闭' : '取消'}
-        </mdui-button>
+        </Button>
         {pkg.structureValid && (
-          <mdui-button variant="tonal" disabled={props.disabled || present} onClick={() => props.onAdd(pkg)}>
+          <Button variant="tonal" size="sm" isDisabled={props.disabled || present} onPress={() => props.onAdd(pkg)}>
             {present ? '已在模板里' : older ? '替换为新版本' : '加入模板'}
-          </mdui-button>
+          </Button>
         )}
       </div>
     </div>

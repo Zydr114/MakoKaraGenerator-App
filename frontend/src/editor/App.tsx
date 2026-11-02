@@ -234,19 +234,17 @@ export function App() {
             <ExportPage session={session} store={exporter} onFix={fix} />
           </div>
         ) : page === 'library' ? (
-          <div className="page-tile">
-            <LibraryPage
-              store={library}
-              components={components}
-              drafts={drafts}
-              thumbnails={thumbnails}
-              returnBar={
-                libraryReturn && session?.projectSessionId === libraryReturn.projectSessionId
-                  ? { text: `来自 外观 · ${libraryReturn.targetText}`, onReturn: returnToAppearance, onDismiss: () => setLibraryReturn(null) }
-                  : undefined
-              }
-            />
-          </div>
+          <LibraryPage
+            store={library}
+            components={components}
+            drafts={drafts}
+            thumbnails={thumbnails}
+            returnBar={
+              libraryReturn && session?.projectSessionId === libraryReturn.projectSessionId
+                ? { text: `来自 外观 · ${libraryReturn.targetText}`, onReturn: returnToAppearance, onDismiss: () => setLibraryReturn(null) }
+                : undefined
+            }
+          />
         ) : (
           <Home ready={snapshot.state === 'ready'} current={session} notice={homeMessage} onEnter={enter} onResume={() => setPage('lyrics')} />
         )}

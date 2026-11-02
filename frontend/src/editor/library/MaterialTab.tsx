@@ -1,6 +1,7 @@
 // 材质页签（W7 设计 §2.3）：选部位（未唱填充、已唱填充、描边），再编辑这个部位的材质：纯色、渐变或效果包材质。
 // 选中的部位同时是试样画布的材质焦点（由样式库页传给试样画布）。
 
+import type { ReactNode } from 'react';
 import type { EffectPackageInspectResponse, FullTemplateDefinition, FullTemplateMaterial, TemplateMaterialSlot } from '../../protocol';
 import {
   changeMaterialKind,
@@ -17,7 +18,10 @@ import {
 } from '../model/full-template';
 import { groupAllowed, groupIncluded, TEMPLATE_GROUPS, type TemplateGroupId } from '../model/template-groups';
 import { componentMaterialProblem } from '../model/script-components';
-import { Select } from '../ui/legacy/fields';
+import { Button } from '../ui/Button';
+import { Segmented } from '../ui/choices';
+import { Select } from '../ui/fields';
+import { Group, Note } from '../workspace/panel';
 import { PackagesPanel } from './PackagesPanel';
 import { ParameterFields } from './ParameterFields';
 import type { TemplateDraft, TemplateLibraryStore } from './template-library-store';
@@ -33,6 +37,7 @@ const KIND_OPTIONS: readonly { value: FullTemplateMaterial['kind']; label: strin
   { value: 'package', label: '效果包' },
 ];
 
+/** 材质页签（设计稿 #library-material）：部位分段按钮，选中部位的类型与取值，包材质的参数，模板里的效果包。 */
 export function MaterialTab(props: {
   store: TemplateLibraryStore;
   definition: FullTemplateDefinition;
@@ -57,64 +62,67 @@ export function MaterialTab(props: {
     : !groupIncluded(group, definition.properties)
       ? `这个模板不包含“${group.label}”（由目标继承），这里的材质不会生效。`
       : undefined;
+  const openAppearance = (
+    <Button variant="text" size="sm" onPress={props.onOpenAppearance}>
+      在外观页签打开
+    </Button>
+  );
+  const picker = draft && props.components && (
+    <ComponentPicker
+      components={props.components}
+      kind="Material"
+      problemOf={(detail) => componentMaterialProblem(slot, detail)}
+      disabled={!editable}
+      onChoose={(detail) => props.store.useComponentMaterial(slot, detail)}
+    />
+  );
 
   return (
     <div className="material-tab">
-      <PackagesPanel store={props.store} definition={definition} draft={draft} catalog={catalog} disabled={props.disabled} />
-      <div className="slot-buttons" role="group" aria-label="材质部位">
-        {MATERIAL_SLOTS.map((s) => {
-          const off = s === 'stroke' && !definition.style.stroke;
-          const problem = props.issues.some((i) => i.where.kind === 'slot' && i.where.slot === s);
-          return (
-            <mdui-button key={s} variant={s === slot ? 'filled' : 'outlined'} data-slot={s} data-selected={s === slot} onClick={() => props.onSlot(s)}>
-              {off ? '描边已关闭' : SLOT_LABEL[s]}
-              {problem && <mdui-icon-error slot="end-icon" />}
-            </mdui-button>
-          );
-        })}
-      </div>
+      <Group title="材质部位" className="slot-pick">
+        <Segmented
+          label="材质部位"
+          size="sm"
+          className="slot-buttons"
+          value={slot}
+          options={MATERIAL_SLOTS.map((s) => ({
+            value: s,
+            label: SLOT_LABEL[s],
+            ...(props.issues.some((i) => i.where.kind === 'slot' && i.where.slot === s) ? { icon: 'error' as const } : {}),
+          }))}
+          onChange={props.onSlot}
+        />
+        <Note>选中的部位同时是试样画布的材质焦点。</Note>
+      </Group>
       {material === null ? (
-        <div className="material-off">
-          <p className="hint">描边已关闭。</p>
-          {draft && (
-            <mdui-button variant="text" onClick={props.onOpenAppearance}>
-              在外观页签打开
-            </mdui-button>
-          )}
-        </div>
+        <Group title={SLOT_LABEL[slot]} className="slot-material" data-slot={slot} data-kind="off">
+          <div className="material-off">
+            <Note>描边已关闭。</Note>
+            {draft && openAppearance}
+          </div>
+        </Group>
       ) : (
-        <>
-          {scope && (
-            <div className="material-off">
-              <p className="hint">{scope}</p>
-              {draft && groupAllowed(group, definition.kind) && (
-                <mdui-button variant="text" onClick={props.onOpenAppearance}>
-                  在外观页签打开
-                </mdui-button>
-              )}
-            </div>
-          )}
-          <SlotMaterial
-            definition={definition}
-            draft={draft}
-            catalog={catalog}
-            slot={slot}
-            material={material}
-            issues={slotIssues}
-            onChange={change}
-            disabled={!editable}
-          />
-          {draft && props.components && <div className="add-effect">
-            <ComponentPicker
-              components={props.components}
-              kind="Material"
-              problemOf={(detail) => componentMaterialProblem(slot, detail)}
-              disabled={!editable}
-              onChoose={(detail) => props.store.useComponentMaterial(slot, detail)}
-            />
-          </div>}
-        </>
+        <SlotMaterial
+          definition={definition}
+          draft={draft}
+          catalog={catalog}
+          slot={slot}
+          material={material}
+          issues={slotIssues}
+          onChange={change}
+          disabled={!editable}
+          scope={
+            scope && (
+              <div className="material-off">
+                <Note>{scope}</Note>
+                {draft && groupAllowed(group, definition.kind) && openAppearance}
+              </div>
+            )
+          }
+          picker={picker}
+        />
       )}
+      <PackagesPanel store={props.store} definition={definition} draft={draft} catalog={catalog} disabled={props.disabled} />
     </div>
   );
 }
@@ -128,6 +136,8 @@ function SlotMaterial(props: {
   issues: readonly DefinitionIssue[];
   onChange: (material: FullTemplateMaterial) => void;
   disabled: boolean;
+  scope: ReactNode;
+  picker: ReactNode;
 }) {
   const { material, catalog, slot, disabled } = props;
   const references = [...props.definition.packages, ...(props.draft?.imported ?? [])];
@@ -140,24 +150,48 @@ function SlotMaterial(props: {
   const kindOptions = KIND_OPTIONS.map((o) => (o.value === 'package' && !candidate && material.kind !== 'package' ? { ...o, disabled: true } : o));
 
   return (
-    <div className="slot-material" data-slot={slot} data-kind={material.kind}>
-      <Select
-        label={`${label}的类型`}
-        value={material.kind}
-        options={kindOptions}
-        onChange={(kind) => {
-          const next = changeMaterialKind(material, kind, fallback, candidate);
-          if (next) props.onChange(next);
-        }}
-        disabled={disabled}
-      />
-      {material.kind !== 'package' && !candidate && !disabled && <p className="hint">要用效果包材质，先在上面导入含材质导出的效果包。</p>}
-      {material.kind === 'package' ? (
-        <PackageMaterialFields material={material} pkg={pkg} candidates={candidates} issues={props.issues} onChange={props.onChange} disabled={disabled} />
-      ) : (
-        <StaticMaterialValue label={label} material={material} onChange={props.onChange} disabled={disabled} />
+    <>
+      <Group title={label} className="slot-material" data-slot={slot} data-kind={material.kind} extra={props.picker}>
+        {props.scope}
+        <div className="frow">
+          <span className="frow-lbl">类型</span>
+          <Segmented
+            label={`${label}的类型`}
+            size="sm"
+            className="material-kind"
+            value={material.kind}
+            options={kindOptions}
+            onChange={(kind) => {
+              const next = changeMaterialKind(material, kind, fallback, candidate);
+              if (next) props.onChange(next);
+            }}
+            disabled={disabled}
+          />
+        </div>
+        {material.kind !== 'package' && !candidate && !disabled && <Note>要用效果包材质，先在下面导入含材质导出的效果包。</Note>}
+        {material.kind === 'package' ? (
+          <PackageMaterialFields material={material} pkg={pkg} candidates={candidates} issues={props.issues} onChange={props.onChange} disabled={disabled} />
+        ) : (
+          <StaticMaterialValue label={label} material={material} onChange={props.onChange} disabled={disabled} />
+        )}
+      </Group>
+      {material.kind === 'package' && (
+        <Group title="参数" className="material-params">
+          {pkg ? (
+            <ParameterFields
+              pkg={pkg}
+              exportId={material.exportId}
+              parametersJson={material.parametersJson}
+              onChange={(parametersJson) => props.onChange({ ...material, parametersJson })}
+              issues={props.issues}
+              disabled={disabled}
+            />
+          ) : (
+            <Note>正在读取包信息…读不到时参数原样保留，保存由后端检查。</Note>
+          )}
+        </Group>
       )}
-    </div>
+    </>
   );
 }
 
@@ -180,42 +214,34 @@ function PackageMaterialFields(props: {
 
   return (
     <div className="package-material">
-      <div className="field-row">
-        <Select
-          label="效果包"
-          value={currentKey}
-          options={packageOptions}
-          onChange={(key) => {
-            const c = candidates.find((x) => packageKey(x.pkg.packageId, x.pkg.packageRevision) === key);
-            if (c) props.onChange(packageMaterial(c.pkg, c.exports[0]!.id));
-          }}
-          disabled={disabled}
-        />
-        <Select
-          label="材质"
-          value={material.exportId}
-          options={exportOptions}
-          onChange={(exportId) => props.onChange({ ...material, exportId, parametersJson: '{}' })}
-          disabled={disabled || !pkg}
-        />
-      </div>
+      <Select
+        labelPlacement="side"
+        size="sm"
+        label="效果包"
+        className="material-package"
+        value={currentKey}
+        options={packageOptions}
+        onChange={(key) => {
+          const c = candidates.find((x) => packageKey(x.pkg.packageId, x.pkg.packageRevision) === key);
+          if (c) props.onChange(packageMaterial(c.pkg, c.exports[0]!.id));
+        }}
+        disabled={disabled}
+      />
+      <Select
+        labelPlacement="side"
+        size="sm"
+        label="材质"
+        className="material-export"
+        value={material.exportId}
+        options={exportOptions}
+        onChange={(exportId) => props.onChange({ ...material, exportId, parametersJson: '{}' })}
+        disabled={disabled || !pkg}
+      />
       {whole.map((issue) => (
-        <p key={issue.message} className="notice-error">
+        <Note key={issue.message} error>
           {issue.message}
-        </p>
+        </Note>
       ))}
-      {pkg ? (
-        <ParameterFields
-          pkg={pkg}
-          exportId={material.exportId}
-          parametersJson={material.parametersJson}
-          onChange={(parametersJson) => props.onChange({ ...material, parametersJson })}
-          issues={props.issues}
-          disabled={disabled}
-        />
-      ) : (
-        <p className="hint">正在读取包信息…读不到时参数原样保留，保存由后端检查。</p>
-      )}
     </div>
   );
 }

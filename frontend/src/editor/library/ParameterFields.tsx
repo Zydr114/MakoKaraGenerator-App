@@ -18,9 +18,17 @@ import {
   withParameter,
 } from '../model/effect-params';
 import { isJsonInteger, isJsonNumber, parseObjectEntries } from '../model/json-text';
-import { ColorField, CommitField, Select, SliderField, Switch } from '../ui/legacy/fields';
+import { Button, IconButton } from '../ui/Button';
+import { SliderField, Switch } from '../ui/choices';
+import { cls } from '../ui/cls';
+import { ColorField, CommitField, Select } from '../ui/fields';
+import { Note } from '../workspace/panel';
 import { CurveField } from './CurveField';
 
+/**
+ * 一行一个参数（.prm）：左边短标签，中间滑块（有范围的数字），右边数值框；没有滑块的控件占中右两格。
+ * 末尾一格是“恢复默认”，参数改过时可用。
+ */
 export function ParameterFields(props: {
   pkg: EffectPackageInspectResponse;
   exportId: string;
@@ -41,13 +49,18 @@ export function ParameterFields(props: {
     }
   }, [parametersJson, exp]);
   if (!exp) return null;
-  if (parameters.length === 0 && extra.length === 0) return <p className="hint">这个导出没有参数。</p>;
+  if (parameters.length === 0 && extra.length === 0) return <Note>这个导出没有参数。</Note>;
   const problems = (id: string) => props.issues.filter((i) => i.parameterId === id);
   return (
     <div className="param-fields">
-      {parameters.map((parameter) => (
-        <div key={parameter.id} className="param-row" data-param={parameter.id}>
-          <div className="param-control">
+      {parameters.map((parameter) => {
+        const range = rangeText(parameter);
+        const unit = parameter.type === 'duration' ? '毫秒' : parameter.unit;
+        return (
+          <div key={parameter.id} className={cls('prm', 'param-row', parameter.type === 'curve' && 'top')} data-param={parameter.id}>
+            <span className="prm-lbl" title={[parameter.label, unit && `单位 ${unit}`, range && `范围 ${range}`].filter(Boolean).join('，')}>
+              {parameter.label}
+            </span>
             <ParameterControl
               parameter={parameter}
               files={pkg.files}
@@ -55,32 +68,32 @@ export function ParameterFields(props: {
               onCommit={(raw) => props.onChange(withParameter(parametersJson, parameter, raw))}
               disabled={disabled}
             />
-            <mdui-button
-              variant="text"
+            <IconButton
+              icon="settings_backup_restore"
+              label={`${parameter.label}恢复默认`}
+              tooltip="恢复默认"
+              size="sm"
               className="param-reset"
-              disabled={disabled || !isOverridden(parametersJson, parameter.id)}
-              onClick={() => props.onChange(withParameter(parametersJson, parameter, undefined))}
-            >
-              恢复默认
-            </mdui-button>
+              isDisabled={disabled || !isOverridden(parametersJson, parameter.id)}
+              onPress={() => props.onChange(withParameter(parametersJson, parameter, undefined))}
+            />
+            {problems(parameter.id).map((issue) => (
+              <Note key={issue.message} error className="param-problem">
+                {issue.message}
+              </Note>
+            ))}
           </div>
-          {problems(parameter.id).map((issue) => (
-            <p key={issue.message} className="notice-error param-problem">
-              {issue.message}
-            </p>
-          ))}
-        </div>
-      ))}
+        );
+      })}
       {extra.map((id) => (
-        <div key={id} className="param-row" data-param={id} data-unknown>
-          <div className="param-control">
-            <span className="param-unknown">
-              包里没有参数 <code>{id}</code>（可能来自旧版本的包）
-            </span>
-            <mdui-button variant="text" disabled={disabled} onClick={() => props.onChange(withoutParameter(parametersJson, id))}>
-              删除
-            </mdui-button>
-          </div>
+        <div key={id} className="prm param-row" data-param={id} data-unknown>
+          <span className="prm-lbl faint">{id}</span>
+          <span className="param-unknown wide">
+            包里没有参数 <code>{id}</code>（可能来自旧版本的包）
+          </span>
+          <Button variant="text" size="sm" isDisabled={disabled} onPress={() => props.onChange(withoutParameter(parametersJson, id))}>
+            删除
+          </Button>
         </div>
       ))}
     </div>
@@ -95,8 +108,9 @@ function ParameterControl(props: {
   disabled: boolean;
 }) {
   const { parameter: p, raw, disabled } = props;
-  const label = p.unit && p.type !== 'duration' ? `${p.label}（${p.unit}）` : p.label;
-  const range = rangeText(p);
+  const label = p.label;
+  const unit = p.unit && p.type !== 'duration' ? p.unit : undefined;
+  const compact = { labelPlacement: 'none', size: 'sm' } as const;
   switch (p.type) {
     case 'number':
     case 'integer': {
@@ -104,56 +118,65 @@ function ParameterControl(props: {
       const min = p.minimumJson == null ? NaN : Number(p.minimumJson);
       const max = p.maximumJson == null ? NaN : Number(p.maximumJson);
       const slider = Number.isFinite(min) && Number.isFinite(max) && max > min && isJsonNumber(raw);
+      const field = (
+        <CommitField
+          {...compact}
+          label={label}
+          className={cls('param-number', !slider && 'wide')}
+          value={raw}
+          {...(unit ? { suffix: unit } : {})}
+          validate={(v) => (!isJsonNumber(v) ? '请输入数字。' : integer && !isJsonInteger(v) ? '请输入整数。' : undefined)}
+          onCommit={(v) => props.onCommit(v.trim())}
+          disabled={disabled}
+        />
+      );
+      if (!slider) return field;
       return (
-        <div className="param-number">
-          <CommitField
+        <>
+          <SliderField
             label={label}
-            value={raw}
-            helper={range ? `范围 ${range}` : ''}
-            validate={(v) => (!isJsonNumber(v) ? '请输入数字。' : integer && !isJsonInteger(v) ? '请输入整数。' : undefined)}
-            onCommit={(v) => props.onCommit(v.trim())}
+            hideLabel
+            value={Math.min(max, Math.max(min, Number(raw)))}
+            min={min}
+            max={max}
+            step={integer ? 1 : (max - min) / 100}
+            format={(v) => String(integer ? Math.round(v) : round(v))}
+            onCommit={(v) => props.onCommit(String(integer ? Math.round(v) : round(v)))}
             disabled={disabled}
           />
-          {slider && (
-            <SliderField
-              label=""
-              value={Math.min(max, Math.max(min, Number(raw)))}
-              min={min}
-              max={max}
-              step={integer ? 1 : (max - min) / 100}
-              format={(v) => String(integer ? Math.round(v) : round(v))}
-              onCommit={(v) => props.onCommit(String(integer ? Math.round(v) : round(v)))}
-              disabled={disabled}
-            />
-          )}
-        </div>
+          {field}
+        </>
       );
     }
     case 'duration':
       return (
         <CommitField
-          label={`${p.label}（毫秒）`}
+          {...compact}
+          label={`${label}（毫秒）`}
+          className="wide"
+          suffix="ms"
           value={microsToMillis(raw)}
-          helper={range ? `范围 ${range}` : ''}
           validate={(v) => (millisToMicros(v) === undefined ? '请输入毫秒数，最多 3 位小数。' : undefined)}
           onCommit={(v) => props.onCommit(millisToMicros(v)!)}
           disabled={disabled}
         />
       );
     case 'boolean':
-      return <Switch label={label} checked={raw.trim() === 'true'} onChange={(on) => props.onCommit(String(on))} disabled={disabled} />;
+      return <Switch label={label} hideLabel className="wide" checked={raw.trim() === 'true'} onChange={(on) => props.onCommit(String(on))} disabled={disabled} />;
     case 'enum': {
       const value = parseString(raw) ?? '';
       const options = p.options.map((o) => ({ value: o.value, label: o.label }));
       if (!options.some((o) => o.value === value)) options.push({ value, label: `${value}（不在选项里）` });
-      return <Select label={label} value={value} options={options} onChange={(v) => props.onCommit(JSON.stringify(v))} disabled={disabled} />;
+      return <Select {...compact} label={label} className="wide" value={value} options={options} onChange={(v) => props.onCommit(JSON.stringify(v))} disabled={disabled} />;
     }
     case 'text':
-      return <CommitField label={label} value={parseString(raw) ?? raw} onCommit={(v) => props.onCommit(JSON.stringify(v))} disabled={disabled} />;
+      return <CommitField {...compact} label={label} className="wide" value={parseString(raw) ?? raw} onCommit={(v) => props.onCommit(JSON.stringify(v))} disabled={disabled} />;
     case 'color':
       return (
         <ColorField
+          {...compact}
           label={label}
+          className="wide"
           value={colorFromJson(raw) ?? { red: 0, green: 0, blue: 0, alpha: 255 }}
           onCommit={(color) => props.onCommit(colorToJson(color))}
           disabled={disabled}
@@ -166,7 +189,9 @@ function ParameterControl(props: {
       const value = parseString(raw) ?? raw;
       const options = imageFiles(props.files).map((f) => ({ value: f.path, label: `${f.path}（${sizeText(f.size)}）` }));
       if (!options.some((o) => o.value === value)) options.push({ value, label: `${value}（包里没有这个图片）` });
-      return <Select label={`${label}（包内图片）`} value={value} options={options} onChange={(v) => props.onCommit(JSON.stringify(v))} disabled={disabled} />;
+      return (
+        <Select {...compact} label={`${label}（包内图片）`} className="wide" value={value} options={options} onChange={(v) => props.onCommit(JSON.stringify(v))} disabled={disabled} />
+      );
     }
   }
 }

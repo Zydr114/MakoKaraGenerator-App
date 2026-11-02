@@ -24,13 +24,19 @@ import {
 } from '../model/effect-recipes';
 import { packageKey, referenceKey, type DefinitionIssue } from '../model/full-template';
 import { componentEffectProblem } from '../model/script-components';
-import { CommitField, Select, Switch } from '../ui/legacy/fields';
+import { Button, IconButton } from '../ui/Button';
+import { Switch } from '../ui/choices';
+import { cls } from '../ui/cls';
+import { CommitField, Select } from '../ui/fields';
+import { Icon } from '../ui/Icon';
+import { Group, Note } from '../workspace/panel';
 import { PackagesPanel } from './PackagesPanel';
 import { ParameterFields } from './ParameterFields';
 import type { TemplateDraft, TemplateLibraryStore } from './template-library-store';
 import type { ComponentLibraryStore } from './component-library-store';
 import { ComponentPicker } from './ComponentPicker';
 
+/** 效果页签（设计稿 #library-fx）：配方列表与加效果，选中一项的设置与参数，模板里的效果包。 */
 export function EffectsTab(props: {
   store: TemplateLibraryStore;
   definition: FullTemplateDefinition;
@@ -52,91 +58,92 @@ export function EffectsTab(props: {
     const pkg = catalog.get(packageKey(r.packageId, r.revision));
     return { pkg, exp: pkg?.exports.find((e) => e.id === r.exportId) };
   };
+  const picker = draft && props.components && (
+    <ComponentPicker
+      components={props.components}
+      kind="Effect"
+      problemOf={(detail) => componentEffectProblem(definition.kind, detail)}
+      disabled={!editable}
+      onChoose={(detail) => {
+        const recipeId = store.addComponentEffect(detail);
+        if (!recipeId) return false;
+        setSelectedId(recipeId);
+        return true;
+      }}
+    />
+  );
 
   return (
     <div className="effects-tab">
-      <PackagesPanel store={store} definition={definition} draft={draft} catalog={catalog} disabled={props.disabled} />
-      <h3 className="template-advanced-title">效果 · {recipes.length} 个</h3>
-      {recipes.length === 0 && <p className="hint">这个模板没有效果。{draft ? '在下面从包里的导出或我的效果组件加一个。' : ''}</p>}
-      {recipes.length > 0 && (
-        <ul className="recipe-list">
-          {recipes.map((r, index) => {
-            const { pkg, exp } = lookup(r);
-            const active = r.recipeId === selected?.recipeId;
-            const problem = issuesOf(r.recipeId).length > 0;
-            return (
-              <li key={r.recipeId} className={active ? 'recipe-item selected' : 'recipe-item'} data-recipe={r.recipeId} data-selected={active}>
-                <button type="button" className="recipe-item-text" onClick={() => setSelectedId(r.recipeId)}>
-                  <span className="recipe-name">
-                    {r.name}
-                    {problem && <mdui-icon-error className="recipe-problem-icon" />}
-                  </span>
-                  <span className="muted">
-                    {RECIPE_TARGET_LABEL[r.target]} · {pkg?.name ?? r.packageId} · {exp?.name ?? r.exportId}
-                    {r.enabled ? '' : ' · 已停用'}
-                  </span>
-                </button>
-                <Switch label="启用" checked={r.enabled} onChange={(enabled) => edit(updateRecipe(definition, r.recipeId, { enabled }))} disabled={!editable} />
-                {draft && (
-                  <span className="recipe-actions">
-                    <mdui-button-icon disabled={!editable || index === 0} onClick={() => edit(moveRecipe(definition, r.recipeId, -1))} aria-label={`上移 ${r.name}`}>
-                      <mdui-icon-arrow-upward />
-                    </mdui-button-icon>
-                    <mdui-button-icon disabled={!editable || index === recipes.length - 1} onClick={() => edit(moveRecipe(definition, r.recipeId, 1))} aria-label={`下移 ${r.name}`}>
-                      <mdui-icon-arrow-downward />
-                    </mdui-button-icon>
-                    <mdui-button-icon
-                      disabled={!editable}
-                      onClick={() => {
-                        const copy = duplicateRecipe(definition, r.recipeId);
-                        edit(copy.definition);
-                        setSelectedId(copy.recipeId);
-                      }}
-                      aria-label={`复制 ${r.name}`}
-                    >
-                      <mdui-icon-content-copy />
-                    </mdui-button-icon>
-                    <mdui-button-icon disabled={!editable} onClick={() => edit(removeRecipe(definition, r.recipeId))} aria-label={`删除 ${r.name}`}>
-                      <mdui-icon-delete />
-                    </mdui-button-icon>
-                  </span>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      {draft && (
-        <>
-        <h3 className="template-advanced-title">包里的导出</h3>
-        <AddEffect
-          definition={definition}
-          draft={draft}
-          catalog={catalog}
-          disabled={!editable}
-          onAdd={(pkg, exp) => {
-            const added = addRecipe(definition, pkg, exp);
-            edit(added.definition);
-            setSelectedId(added.recipeId);
-          }}
-        />
-        {props.components && <>
-          <h3 className="template-advanced-title">我的效果组件</h3>
-          <ComponentPicker
-            components={props.components}
-            kind="Effect"
-            problemOf={(detail) => componentEffectProblem(definition.kind, detail)}
+      <Group title="效果" hint={recipes.length > 1 ? '从上到下依次叠加' : undefined} className="recipe-group" extra={picker}>
+        {recipes.length === 0 && <Note>这个模板没有效果。{draft ? '从下面包里的导出，或从效果组件加一个。' : ''}</Note>}
+        {recipes.length > 0 && (
+          <ul className="rlist recipe-list" aria-label="效果列表">
+            {recipes.map((r, index) => {
+              const active = r.recipeId === selected?.recipeId;
+              const problem = issuesOf(r.recipeId).length > 0;
+              return (
+                <li
+                  key={r.recipeId}
+                  className={cls('rcp', 'recipe-item', active && 'selected', !r.enabled && 'off')}
+                  data-recipe={r.recipeId}
+                  data-selected={active}
+                  onClick={() => setSelectedId(r.recipeId)}
+                >
+                  <Icon name={problem ? 'error' : 'wand_stars'} className={problem ? 'recipe-problem-icon' : 'recipe-icon'} />
+                  <button type="button" className="rcp-text recipe-item-text" aria-pressed={active} onClick={() => setSelectedId(r.recipeId)}>
+                    <b className="recipe-name">{r.name}</b>
+                    <span className="small">
+                      {RECIPE_TARGET_LABEL[r.target]}，{OVERLAY_LABEL[r.overlayLayer]}
+                      {r.enabled ? '' : '，已停用'}
+                    </span>
+                  </button>
+                  {draft && active ? (
+                    <span className="rtools recipe-actions">
+                      <IconButton icon="arrow_upward" size="sm" label={`上移 ${r.name}`} isDisabled={!editable || index === 0} onPress={() => edit(moveRecipe(definition, r.recipeId, -1))} />
+                      <IconButton
+                        icon="arrow_downward"
+                        size="sm"
+                        label={`下移 ${r.name}`}
+                        isDisabled={!editable || index === recipes.length - 1}
+                        onPress={() => edit(moveRecipe(definition, r.recipeId, 1))}
+                      />
+                      <IconButton
+                        icon="content_copy"
+                        size="sm"
+                        label={`复制 ${r.name}`}
+                        isDisabled={!editable}
+                        onPress={() => {
+                          const copy = duplicateRecipe(definition, r.recipeId);
+                          edit(copy.definition);
+                          setSelectedId(copy.recipeId);
+                        }}
+                      />
+                      <IconButton icon="delete" size="sm" label={`删除 ${r.name}`} isDisabled={!editable} onPress={() => edit(removeRecipe(definition, r.recipeId))} />
+                    </span>
+                  ) : (
+                    <span />
+                  )}
+                  <Switch label={`启用 ${r.name}`} hideLabel checked={r.enabled} onChange={(enabled) => edit(updateRecipe(definition, r.recipeId, { enabled }))} disabled={!editable} />
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        {draft && (
+          <AddEffect
+            definition={definition}
+            draft={draft}
+            catalog={catalog}
             disabled={!editable}
-            onChoose={(detail) => {
-              const recipeId = store.addComponentEffect(detail);
-              if (!recipeId) return false;
-              setSelectedId(recipeId);
-              return true;
+            onAdd={(pkg, exp) => {
+              const added = addRecipe(definition, pkg, exp);
+              edit(added.definition);
+              setSelectedId(added.recipeId);
             }}
           />
-        </>}
-        </>
-      )}
+        )}
+      </Group>
       {selected && (
         <RecipeFields
           key={selected.recipeId}
@@ -146,9 +153,14 @@ export function EffectsTab(props: {
           issues={issuesOf(selected.recipeId)}
           onChange={(patch) => edit(updateRecipe(definition, selected.recipeId, patch))}
           disabled={!editable}
-          sourceName={selected.configurationId === null ? undefined : props.configurations?.find((c) => c.configurationId === selected.configurationId)?.name ?? (props.configurations ? null : undefined)}
+          sourceName={
+            selected.configurationId === null
+              ? undefined
+              : (props.configurations?.find((c) => c.configurationId === selected.configurationId)?.name ?? (props.configurations ? null : undefined))
+          }
         />
       )}
+      <PackagesPanel store={store} definition={definition} draft={draft} catalog={catalog} disabled={props.disabled} />
     </div>
   );
 }
@@ -173,20 +185,21 @@ function AddEffect(props: {
   const usable = choices.filter((c) => !c.problem);
   const [picked, setPicked] = useState<string | null>(null);
   const current = usable.find((c) => c.value === picked) ?? usable[0];
-  if (choices.length === 0) return <p className="hint add-effect">要加效果，先在上面导入含控制器或图导出的效果包。</p>;
+  if (choices.length === 0) return <Note className="add-effect">要加效果，先在下面导入含控制器或图导出的效果包。</Note>;
   return (
-    <div className="add-effect">
+    <div className="addfx add-effect">
       <Select
         label="要加的效果"
+        labelPlacement="none"
+        size="sm"
         value={current?.value ?? ''}
-        options={choices.map((c) => ({ value: c.value, label: `${c.exp.name}（${c.pkg.name}）${c.problem ? ` · ${c.problem}` : ''}`, disabled: !!c.problem }))}
+        options={choices.map((c) => ({ value: c.value, label: `${c.exp.name}（${c.pkg.name}）`, disabled: !!c.problem, ...(c.problem ? { description: c.problem } : {}) }))}
         onChange={setPicked}
         disabled={props.disabled || usable.length === 0}
       />
-      <mdui-button variant="tonal" disabled={props.disabled || !current} onClick={() => current && props.onAdd(current.pkg, current.exp)}>
-        <mdui-icon-add slot="icon" />
+      <Button variant="tonal" size="sm" icon="add" isDisabled={props.disabled || !current} onPress={() => current && props.onAdd(current.pkg, current.exp)}>
         加效果
-      </mdui-button>
+      </Button>
     </div>
   );
 }
@@ -204,80 +217,105 @@ function RecipeFields(props: {
   const { definition, recipe, pkg, exp, disabled } = props;
   const overlay = exp ? hasOverlay(exp) : true;
   const whole = props.issues.filter((i) => !i.parameterId);
+  const inside = { labelPlacement: 'inside', size: 'sm' } as const;
   return (
-    <section className="recipe-fields" data-recipe={recipe.recipeId} aria-label={`效果“${recipe.name}”`}>
-      <h3 className="template-advanced-title">{recipe.name}</h3>
-      <div className="recipe-grid">
-        <CommitField label="名称" value={recipe.name} validate={(v) => (v.trim() ? undefined : '名称不能为空。')} onCommit={(name) => props.onChange({ name: name.trim() })} disabled={disabled} />
-        <Select
-          label="作用于"
-          className="recipe-target"
-          value={recipe.target}
-          options={RECIPE_TARGETS.map((t) => {
-            const problem = t === recipe.target ? undefined : targetProblem(definition.kind, t, exp);
-            return { value: t, label: problem ? `${RECIPE_TARGET_LABEL[t]}（不可用）` : RECIPE_TARGET_LABEL[t], disabled: !!problem };
-          })}
-          onChange={(target) => props.onChange({ target })}
+    <>
+      <Group
+        title={recipe.name}
+        hint={pkg ? `包“${pkg.name}”的导出 ${exp?.name ?? recipe.exportId}` : undefined}
+        className="recipe-fields"
+        data-recipe={recipe.recipeId}
+      >
+        <CommitField
+          label="名称"
+          labelPlacement="side"
+          size="sm"
+          className="recipe-name-field"
+          value={recipe.name}
+          validate={(v) => (v.trim() ? undefined : '名称不能为空。')}
+          onCommit={(name) => props.onChange({ name: name.trim() })}
           disabled={disabled}
         />
-        <Select
-          label="叠放层"
-          className="recipe-overlay"
-          value={recipe.overlayLayer}
-          options={OVERLAY_LAYERS.map((l) => ({ value: l, label: OVERLAY_LABEL[l], disabled: l !== 'package' && l !== recipe.overlayLayer && !overlay }))}
-          onChange={(overlayLayer) => props.onChange({ overlayLayer })}
-          disabled={disabled}
-        />
-        <Select
-          label="读取范围"
-          className="recipe-read-scope"
-          value={recipe.readScope}
-          options={READ_SCOPES.map((s) => ({ value: s, label: READ_SCOPE_LABEL[s] }))}
-          onChange={(readScope) => props.onChange(withReadScope(recipe, readScope))}
-          disabled={disabled}
-        />
-        {recipe.readScope === 'branchInput' && (
-          <CommitField
-            label="输入名"
-            className="recipe-branch-input"
-            value={recipe.branchInput ?? ''}
-            placeholder="例如 翻译"
-            helper="应用时再选对应的来源"
-            validate={(v) => (v.trim() ? undefined : '要填输入名。')}
-            onCommit={(v) => props.onChange({ branchInput: v.trim() })}
+        <div className="g2">
+          <Select
+            {...inside}
+            label="作用于"
+            className="recipe-target"
+            value={recipe.target}
+            options={RECIPE_TARGETS.map((t) => {
+              const problem = t === recipe.target ? undefined : targetProblem(definition.kind, t, exp);
+              return { value: t, label: RECIPE_TARGET_LABEL[t], disabled: !!problem, ...(problem ? { description: problem } : {}) };
+            })}
+            onChange={(target) => props.onChange({ target })}
             disabled={disabled}
           />
+          <Select
+            {...inside}
+            label="叠放层"
+            className="recipe-overlay"
+            value={recipe.overlayLayer}
+            options={OVERLAY_LAYERS.map((l) => ({ value: l, label: OVERLAY_LABEL[l], disabled: l !== 'package' && l !== recipe.overlayLayer && !overlay }))}
+            onChange={(overlayLayer) => props.onChange({ overlayLayer })}
+            disabled={disabled}
+          />
+          <Select
+            {...inside}
+            label="读取"
+            className="recipe-read-scope"
+            value={recipe.readScope}
+            options={READ_SCOPES.map((s) => ({ value: s, label: READ_SCOPE_LABEL[s] }))}
+            onChange={(readScope) => props.onChange(withReadScope(recipe, readScope))}
+            disabled={disabled}
+          />
+          <CommitField
+            {...inside}
+            label="种子"
+            className="recipe-seed"
+            value={recipe.fixedSeed ?? ''}
+            placeholder="不固定"
+            validate={(v) => (v.trim() === '' ? undefined : seedProblem(v.trim()))}
+            onCommit={(v) => props.onChange({ fixedSeed: v.trim() === '' ? null : v.trim().replace(/^0+(?=\d)/, '') })}
+            disabled={disabled}
+          />
+          {recipe.readScope === 'branchInput' && (
+            <CommitField
+              {...inside}
+              label="输入名"
+              className="recipe-branch-input span2"
+              value={recipe.branchInput ?? ''}
+              placeholder="例如 翻译"
+              helper="应用时再选对应的来源"
+              validate={(v) => (v.trim() ? undefined : '要填输入名。')}
+              onCommit={(v) => props.onChange({ branchInput: v.trim() })}
+              disabled={disabled}
+            />
+          )}
+        </div>
+        <Note>种子留空时，每次应用各取一个。</Note>
+        {!overlay && <Note>这个效果没有图元输出，叠放层只能“随包”。</Note>}
+        {recipe.configurationId !== null && (
+          <Note>{props.sourceName === undefined ? '正在读取效果组件来源…' : props.sourceName === null ? '来自效果组件（已删除）' : `来自效果组件“${props.sourceName}”`}</Note>
         )}
-        <CommitField
-          label="固定随机种子"
-          className="recipe-seed"
-          value={recipe.fixedSeed ?? ''}
-          placeholder="留空表示不固定"
-          helper="留空时每次应用各取一个"
-          validate={(v) => (v.trim() === '' ? undefined : seedProblem(v.trim()))}
-          onCommit={(v) => props.onChange({ fixedSeed: v.trim() === '' ? null : v.trim().replace(/^0+(?=\d)/, '') })}
-          disabled={disabled}
-        />
-      </div>
-      {!overlay && <p className="hint">这个效果没有图元输出，叠放层只能“随包”。</p>}
-      {recipe.configurationId !== null && <p className="hint">{props.sourceName === undefined ? '正在读取效果组件来源…' : props.sourceName === null ? '来自效果组件（已删除）' : `来自效果组件“${props.sourceName}”`}</p>}
-      {whole.map((issue) => (
-        <p key={issue.message} className="notice-error">
-          {issue.message}
-        </p>
-      ))}
-      {pkg && exp ? (
-        <ParameterFields
-          pkg={pkg}
-          exportId={recipe.exportId}
-          parametersJson={recipe.parametersJson}
-          onChange={(parametersJson) => props.onChange({ parametersJson })}
-          issues={props.issues}
-          disabled={disabled}
-        />
-      ) : (
-        <p className="hint">{pkg ? `包“${pkg.name}”里没有导出 ${recipe.exportId}。` : '正在读取包信息…读不到时参数原样保留，保存由后端检查。'}</p>
-      )}
-    </section>
+        {whole.map((issue) => (
+          <Note key={issue.message} error>
+            {issue.message}
+          </Note>
+        ))}
+      </Group>
+      <Group title="参数" className="recipe-params">
+        {pkg && exp ? (
+          <ParameterFields
+            pkg={pkg}
+            exportId={recipe.exportId}
+            parametersJson={recipe.parametersJson}
+            onChange={(parametersJson) => props.onChange({ parametersJson })}
+            issues={props.issues}
+            disabled={disabled}
+          />
+        ) : (
+          <Note>{pkg ? `包“${pkg.name}”里没有导出 ${recipe.exportId}。` : '正在读取包信息…读不到时参数原样保留，保存由后端检查。'}</Note>
+        )}
+      </Group>
+    </>
   );
 }

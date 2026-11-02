@@ -6,8 +6,12 @@ import type { FontInspectResponse, StyleTypography } from '../../protocol';
 import { catalogName, fontCheckText, fontRuns, hasFamily, markText, MAX_FALLBACKS, MAX_FAMILY_LENGTH, searchFamilies } from '../model/fonts';
 import { client, fonts } from '../connection';
 import { errorText } from '../session/editor-session';
-import { TextField } from '../ui/legacy/fields';
+import { Button, IconButton } from '../ui/Button';
+import { cls } from '../ui/cls';
+import { TextField } from '../ui/fields';
+import { Icon } from '../ui/Icon';
 import { useObservable } from '../ui/hooks';
+import { Note } from '../workspace/panel';
 
 function useFontCatalog() {
   const state = useObservable(fonts.state$);
@@ -17,7 +21,7 @@ function useFontCatalog() {
 
 /**
  * 可以搜索的字体输入：聚焦时在下面列出目录里的字体，输入时筛选；点一项或按 Enter 提交，Esc 撤回。
- * clearOnCommit 时提交后清空（“添加回退字体”）。
+ * clearOnCommit 时提交后清空（“添加回退字体”）。标签只作可访问名称，框很紧凑（放在外观页签的一行里）。
  */
 export function FontPicker(props: {
   label: string;
@@ -53,7 +57,7 @@ export function FontPicker(props: {
 
   return (
     <div
-      className={`font-picker${props.className ? ` ${props.className}` : ''}`}
+      className={cls('font-picker', props.className)}
       onFocus={() => setOpen(true)}
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) commit(text);
@@ -61,6 +65,8 @@ export function FontPicker(props: {
     >
       <TextField
         label={props.label}
+        labelPlacement="none"
+        size="sm"
         value={text}
         onChange={(v) => {
           setText(v);
@@ -72,23 +78,23 @@ export function FontPicker(props: {
           setOpen(false);
         }}
         placeholder={props.placeholder ?? ''}
-        helper={props.helper ?? ''}
+        {...(props.helper ? { helper: props.helper } : {})}
         error={error}
         disabled={props.disabled}
       />
       {missing && <p className="font-missing">后端没有这个字体，会用回退字体或默认字体。</p>}
       {open && !props.disabled && (
         <div className="font-options" role="listbox" aria-label={`${props.label}的候选`}>
-          {catalog.status === 'loading' && <p className="hint">正在读取字体目录……</p>}
+          {catalog.status === 'loading' && <p className="font-options-note">正在读取字体目录……</p>}
           {catalog.status === 'failed' && (
-            <p className="notice-error">
+            <p className="font-options-note err">
               读不到字体目录：{catalog.error}
-              <mdui-button variant="text" onMouseDown={(e) => e.preventDefault()} onClick={() => fonts.retry()}>
+              <Button variant="text" size="sm" onPress={() => fonts.retry()}>
                 重试
-              </mdui-button>
+              </Button>
             </p>
           )}
-          {catalog.status === 'ready' && items.length === 0 && <p className="hint">目录里没有“{text.trim()}”。按 Enter 仍然使用它。</p>}
+          {catalog.status === 'ready' && items.length === 0 && <p className="font-options-note">目录里没有“{text.trim()}”。按 Enter 仍然使用它。</p>}
           {items.map((family) => (
             <div
               key={family}
@@ -102,42 +108,36 @@ export function FontPicker(props: {
               {family}
             </div>
           ))}
-          {total > items.length && <p className="hint">还有 {total - items.length} 个，继续输入以筛选。</p>}
+          {total > items.length && <p className="font-options-note">还有 {total - items.length} 个，继续输入以筛选。</p>}
         </div>
       )}
     </div>
   );
 }
 
-/** 回退字体：按顺序列出，可以移除；下面用字体选择器添加。目录里没有的标出。 */
+/** 回退字体：按顺序排成一排小块，可以移除；最后一块是“回退字体”输入框，选一个或输入名称后按 Enter 添加。目录里没有的标出。 */
 export function FallbackFonts(props: { names: readonly string[]; onChange: (names: string[]) => void; disabled: boolean }) {
   const catalog = useFontCatalog();
   const { names } = props;
   const full = names.length >= MAX_FALLBACKS;
   return (
-    <div className="font-fallbacks">
-      <span className="font-fallbacks-label">回退字体（按顺序尝试）</span>
-      <div className="font-chips">
-        {names.length === 0 && <span className="muted">没有回退字体</span>}
-        {names.map((name) => {
-          const missing = catalog.status === 'ready' && !hasFamily(catalog.families, name);
-          return (
-            <span key={name} className={missing ? 'font-chip missing' : 'font-chip'} data-family={name} title={missing ? '后端没有这个字体' : undefined}>
-              {name}
-              {missing && '（后端没有）'}
-              <mdui-button-icon disabled={props.disabled} onClick={() => props.onChange(names.filter((n) => n !== name))} aria-label={`移除回退字体 ${name}`}>
-                <mdui-icon-close />
-              </mdui-button-icon>
-            </span>
-          );
-        })}
-      </div>
+    <div className="font-fallbacks chips" role="group" aria-label="回退字体（按顺序尝试）">
+      {names.map((name) => {
+        const missing = catalog.status === 'ready' && !hasFamily(catalog.families, name);
+        return (
+          <span key={name} className={cls('chip', 'font-chip', missing && 'missing')} data-family={name} title={missing ? '后端没有这个字体' : '回退字体'}>
+            {missing && <Icon name="warning" />}
+            {name}
+            <IconButton icon="close" size="sm" label={`移除回退字体 ${name}`} isDisabled={props.disabled} onPress={() => props.onChange(names.filter((n) => n !== name))} tooltip={false} />
+          </span>
+        );
+      })}
       <FontPicker
         label="添加回退字体"
         className="font-fallback-add"
         value={null}
         clearOnCommit
-        helper={full ? `最多 ${MAX_FALLBACKS} 个` : '选一个或输入名称后按 Enter'}
+        placeholder={full ? `最多 ${MAX_FALLBACKS} 个回退字体` : '＋ 回退字体'}
         onCommit={(family) => {
           if (family && !names.some((n) => n.toLowerCase() === family.toLowerCase())) props.onChange([...names, family]);
         }}
@@ -183,13 +183,22 @@ export function FontCheck(props: { typography: StyleTypography }) {
   return (
     <div className="font-check" data-status={state.status} data-stale={stale}>
       <div className="font-check-input">
-        <TextField label="再检查一段文字" value={extra} onChange={setExtra} onEnter={() => void run()} placeholder="例如歌词里的生僻字" helper="会和试样文字一起检查" />
-        <mdui-button variant="tonal" loading={state.status === 'checking'} onClick={() => void run()}>
-          字体检查
-        </mdui-button>
+        <TextField
+          label="再检查一段文字"
+          labelPlacement="none"
+          size="sm"
+          value={extra}
+          onChange={setExtra}
+          onEnter={() => void run()}
+          placeholder="再加一段文字，例如歌词里的生僻字"
+        />
+        <Button variant="tonal" size="sm" icon="font_download" isPending={state.status === 'checking'} onPress={() => void run()}>
+          检查
+        </Button>
       </div>
-      {stale && <p className="hint">字体设置或文字改过了，结果可能已经不对，再点一次“字体检查”。</p>}
-      {state.status === 'failed' && <p className="notice-error">字体检查失败：{state.message}</p>}
+      <p className="font-check-help">用试样文字加上这一段，按当前字体设置检查实际用到的字体。</p>
+      {stale && <Note>字体设置或文字改过了，结果可能已经不对，再检查一次。</Note>}
+      {state.status === 'failed' && <Note error>字体检查失败：{state.message}</Note>}
       {state.status === 'done' && <FontCheckResult text={state.text} result={state.result} family={t.fontFamilyName} weight={t.fontWeight} />}
     </div>
   );
@@ -203,7 +212,7 @@ function FontCheckResult(props: { text: string; result: FontInspectResponse; fam
   const missing = runs.filter((r) => r.hasMissingGlyph).length;
   return (
     <div className="font-check-result">
-      <p className={result.requestedAvailable ? 'font-check-summary' : 'font-check-summary notice-error'}>
+      <p className={cls('font-check-summary', !result.requestedAvailable && 'err')}>
         {result.requestedAvailable
           ? `主字体：${result.resolvedFamily}`
           : `后端没有字体“${props.family ?? ''}”，实际用的是 ${result.resolvedFamily}`}
@@ -232,7 +241,7 @@ function FontCheckResult(props: { text: string; result: FontInspectResponse; fam
           </tbody>
         </table>
       )}
-      <p className="hint">
+      <p className="font-check-help">
         {missing > 0 ? `${missing} 段缺字（红），` : ''}
         {fallback > 0 ? `${fallback} 段用了回退字体（黄），` : ''}
         {missing === 0 && fallback === 0 ? `所有文字都用 ${result.resolvedFamily} 显示。` : `其余用 ${result.resolvedFamily}。`}环境：{result.environment}

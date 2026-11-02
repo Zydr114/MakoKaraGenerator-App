@@ -1,23 +1,33 @@
-// 样式库页（整体设计 §5.5.1，W3 设计 §2.4、§2.5，W7 设计 §2.3）：左栏模板列表（带缩略图），右侧模板详情。
+// 样式库页（整体设计 §5.5.1，W3 设计 §2.4、§2.5，W7 设计 §2.3，界面改版 §3.6）：左栏是模板或效果组件列表，
+// 中栏（幕后区）是固定样本上的试样画布（G17，W4 设计 §9.2），草稿改动后跟着变；右栏是选中项的编辑。
 // 内置模板只读，“复制并编辑”到我的模板；我的模板按完整定义编辑，含效果的也可以。
-// 详情区顶部是固定样本上的试样画面（G17，W4 设计 §9.2），草稿改动后跟着变。
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { EffectPackageInspectResponse, FullTemplateDefinition, ScriptConfigurationSummary, TemplateKind, TemplateLibraryId, TemplateMaterialSlot, TemplateSummary } from '../../protocol';
 import { definitionIssues, issueWhereText, shortRevision, staticDefinition } from '../model/full-template';
 import { resolveChoice } from '../model/render-device';
-import { definitionProblem, groupAllowed, groupIncluded, groupSwatch, groupValueText, KIND_LIMIT_TEXT, propertySummary, TEMPLATE_GROUPS } from '../model/template-groups';
-import { confirmAction } from '../ui/legacy/dialogs';
-import { toast } from '../ui/legacy/feedback';
-import { FileButton, Select, Tabs, TextField } from '../ui/legacy/fields';
-import { FormDialog } from '../ui/legacy/FormDialog';
+import { changeKind, definitionProblem, groupAllowed, groupIncluded, groupSwatch, groupValueText, KIND_LIMIT_TEXT, propertySummary, TEMPLATE_GROUPS } from '../model/template-groups';
+import { Button, IconButton } from '../ui/Button';
+import { Segmented } from '../ui/choices';
+import { cls } from '../ui/cls';
+import { List } from '../ui/collections';
+import { confirmAction } from '../ui/dialogs';
+import { toast } from '../ui/feedback';
+import { FileButton, Select, TextField } from '../ui/fields';
+import { FormDialog } from '../ui/FormDialog';
+import { Icon } from '../ui/Icon';
+import { ProgressBar, Tag } from '../ui/indicators';
+import { Menu, MenuItem, MenuSeparator, MenuTrigger } from '../ui/Menu';
+import { Tabs } from '../ui/Tabs';
 import { client, renderDevice, templateTransfers } from '../connection';
+import { Group, Note, ReadError } from '../workspace/panel';
+import { WorkLayout } from '../workspace/WorkLayout';
 import { COMPONENT_LIBRARY_FEATURE, type ComponentLibraryStore } from './component-library-store';
 import type { AuthorDraftStore } from './author-draft-store';
 import type { DraftConfigEditor } from './draft-config-editor';
 import { ComponentDetail, ComponentList, useComponentImport, type DetailProps } from './ComponentsPane';
 import { DraftDetail } from './DraftDetail';
-import { useDomEvent, useObservable } from '../ui/hooks';
+import { useObservable } from '../ui/hooks';
 import { isEditing } from '../workspace/Workspace';
 import { EffectsTab } from './EffectsTab';
 import { MaterialTab } from './MaterialTab';
@@ -25,9 +35,10 @@ import { TemplateEditor } from './TemplateEditor';
 import type { TransferFeatures } from './template-transfers';
 import { ExportTemplatesDialog, ImportTemplatesDialog } from './TransferDialogs';
 import { checkTemplateName, filterTemplates, isAdvanced, KIND_TEXT, type LibraryState, type TemplateLibraryStore } from './template-library-store';
-import { SampleArea, TemplateThumb } from './TemplateThumb';
+import { SampleArea, SampleStage, TemplateThumb } from './TemplateThumb';
 import type { SampleSource, TemplateThumbnails } from './template-thumbnails';
 import { TemplateWorkshop } from './template-workshop';
+import './library.css';
 
 const KIND_OPTIONS: readonly { value: TemplateKind | 'all'; label: string }[] = [
   { value: 'all', label: '全部用途' },
@@ -35,11 +46,15 @@ const KIND_OPTIONS: readonly { value: TemplateKind | 'all'; label: string }[] = 
   { value: 'token', label: KIND_TEXT.token },
   { value: 'composite', label: KIND_TEXT.composite },
 ];
+const KIND_CHOICES = (['line', 'token', 'composite'] as const).map((value) => ({ value, label: KIND_TEXT[value] }));
+
+/** 作者草稿的源码页签把右栏放宽（设计稿 #draft-source）。 */
+const SOURCE_PANEL_WIDTH = 680;
 
 /** 离开有未保存草稿的模板前确认（切换模板、离开页面共用）。 */
 export async function confirmDiscardTemplate(store: TemplateLibraryStore): Promise<boolean> {
   if (!store.isDirty) return true;
-  return confirmAction({ headline: '放弃未保存的模板修改？', description: '草稿只在本页，离开后不会保留。', confirmText: '放弃修改' });
+  return confirmAction({ headline: '放弃未保存的模板修改？', description: '草稿只在本页，离开后不会保留。', confirmText: '放弃修改', danger: true });
 }
 
 type NameDialog = { action: 'copy'; libraryId: TemplateLibraryId; templateId: string; initial: string } | { action: 'rename'; templateId: string; initial: string };
@@ -90,6 +105,8 @@ export function LibraryPage(props: {
   const [nameDialog, setNameDialog] = useState<NameDialog | null>(null);
   const [transfer, setTransfer] = useState<'export' | 'import' | null>(null);
   const [features, setFeatures] = useState<TransferFeatures>();
+  // 中栏：试样画布由右栏的详情经 portal 放进来。
+  const [stage, setStage] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
     void store.load();
@@ -152,130 +169,162 @@ export function LibraryPage(props: {
   };
 
   const remove = async (summary: TemplateSummary) => {
-    const ok = await confirmAction({ headline: `删除“${summary.name}”？`, description: '只从我的模板中删除；已经应用到工程里的模板不受影响。', confirmText: '删除' });
+    const ok = await confirmAction({
+      headline: `删除“${summary.name}”？`,
+      description: '只从我的模板中删除；已经应用到工程里的模板不受影响。',
+      confirmText: '删除',
+      danger: true,
+    });
     if (ok && (await store.remove(summary.templateId))) toast(`已删除“${summary.name}”`);
   };
 
-  return (
-    <div className="library">
-      {props.returnBar && <ReturnBar bar={props.returnBar} store={store} state={state} />}
-      <aside className="pane library-list">
-        <div className="pane-header">
-          <span className="pane-title-text">样式库</span>
-          {section === 'components' ? (
-            <FileButton
-              label="导入效果包…"
-              accept=".mkfx"
-              icon={<mdui-icon-add slot="icon" />}
-              onPick={componentImport.pick}
-              disabled={componentState.status !== 'ready' || componentState.busy || componentImport.importing}
-            />
-          ) : (
-            <>
-              <mdui-button variant="tonal" disabled={state.status !== 'ready' || state.busy} onClick={createNew}>
-                <mdui-icon-add slot="icon" />
-                新建
-              </mdui-button>
-              <mdui-dropdown placement="bottom-end">
-                <mdui-button-icon slot="trigger" aria-label="模板库的更多操作">
-                  <mdui-icon-more-vert />
-                </mdui-button-icon>
-                <mdui-menu>
-                  <mdui-menu-item disabled={state.status !== 'ready' || !features?.canExport} onClick={() => setTransfer('export')}>
-                    导出模板…
-                  </mdui-menu-item>
-                  <mdui-menu-item disabled={state.status !== 'ready' || state.busy || !features?.canImport} onClick={() => setTransfer('import')}>
-                    导入模板…
-                  </mdui-menu-item>
-                </mdui-menu>
-              </mdui-dropdown>
-            </>
-          )}
+  const selectedDraft = section === 'components' && componentState.selection?.kind === 'draft' ? componentState.selection.draftId : undefined;
+  const wide = selectedDraft !== undefined && drafts.tab(selectedDraft) === 'source';
+  const notice = section === 'components' ? (draftsState.notice ?? componentState.notice) : state.notice;
+
+  const list =
+    section === 'components' ? (
+      <>
+        <div className="ltools">
+          <TextField label="搜索效果组件" labelPlacement="none" size="sm" icon="search" placeholder="搜索效果组件" value={componentQuery} onChange={setComponentQuery} className="library-search" />
         </div>
-        {componentsAvailable && <Tabs value={section} options={SECTIONS} onChange={(next) => void switchSection(next)} className="library-sections" />}
-        {section === 'components' ? (
-          <>
-            <TextField label="搜索效果组件" value={componentQuery} onChange={setComponentQuery} className="library-search" />
-            <ComponentList
-              store={components}
-              state={componentState}
-              drafts={drafts}
-              draftsState={draftsState}
-              query={componentQuery}
-              onImport={componentImport.pick}
-              importing={componentImport.importing}
-            />
-          </>
-        ) : (
-          <>
-            <TextField label="搜索模板" value={query} onChange={setQuery} className="library-search" />
-            <Select label="用途" value={kind} options={KIND_OPTIONS} onChange={setKind} className="library-kind" />
-            {state.status === 'loading' && !state.builtin && <mdui-linear-progress />}
-            {state.status === 'failed' && (
-              <div className="empty-state">
-                读取模板库失败。
-                <mdui-button variant="tonal" onClick={() => void store.load()}>
-                  重试
-                </mdui-button>
-              </div>
-            )}
-            <div className="line-list">
-              <TemplateList title="内置" libraryId="builtin" state={state} thumbnails={thumbnails} query={query} kind={kind} onChoose={choose} />
-              <TemplateList title="我的" libraryId="personal" state={state} thumbnails={thumbnails} query={query} kind={kind} onChoose={choose} />
-            </div>
-          </>
-        )}
-      </aside>
-      <section className="pane library-detail">
-        {section === 'components' ? (
-          <ComponentPane store={components} state={componentState} drafts={drafts} draftsState={draftsState} templates={store} workshop={workshop} />
-        ) : (
-          <TemplateDetail
-            store={store}
-            state={state}
-            workshop={workshop}
-            components={componentsAvailable ? components : undefined}
-            configurations={componentState.configurations}
-            onCopy={(libraryId, summary) => setNameDialog({ action: 'copy', libraryId, templateId: summary.templateId, initial: `${summary.name} 副本` })}
-            onRename={(summary) => setNameDialog({ action: 'rename', templateId: summary.templateId, initial: summary.name })}
-            onRemove={remove}
+        <ComponentList
+          store={components}
+          state={componentState}
+          drafts={drafts}
+          draftsState={draftsState}
+          query={componentQuery}
+          onImport={componentImport.pick}
+          importing={componentImport.importing}
+        />
+        <div className="listfoot">
+          <FileButton
+            label="导入效果包…"
+            accept=".mkfx"
+            size="sm"
+            icon="upload"
+            onPick={componentImport.pick}
+            disabled={componentState.status !== 'ready' || componentState.busy || componentImport.importing}
           />
-        )}
-      </section>
-      <footer className="status-bar">
-        {section === 'components' ? (
-          <>
-            <span className={`notice notice-${(draftsState.notice ?? componentState.notice)?.level ?? 'none'}`}>{(draftsState.notice ?? componentState.notice)?.message ?? '就绪'}</span>
-            <span className="muted">{componentState.busy ? '正在写入组件库…' : `效果组件 ${componentState.configurations?.length ?? 0} 个`}</span>
-          </>
-        ) : (
-          <>
-            <span className={`notice notice-${state.notice?.level ?? 'none'}`}>{state.notice?.message ?? '就绪'}</span>
-            <span className="muted">{state.busy ? '正在写入模板库…' : `我的模板 ${state.personal?.templates.length ?? 0} 个`}</span>
-          </>
-        )}
-      </footer>
-      {componentImport.dialog}
-      <ExportTemplatesDialog
-        open={transfer === 'export'}
-        store={store}
-        initialLibrary={state.selection?.libraryId ?? (state.personal?.templates.length ? 'personal' : 'builtin')}
-        initialSelected={state.selection?.templateId ? [state.selection.templateId] : []}
-        onClose={() => setTransfer(null)}
-      />
-      <ImportTemplatesDialog open={transfer === 'import'} store={store} confirmDiscard={() => confirmDiscardTemplate(store)} onClose={() => setTransfer(null)} />
-      <TemplateNameDialog
-        dialog={nameDialog}
-        busy={state.busy}
-        onClose={() => setNameDialog(null)}
-        onSubmit={async (dialog, name) => {
-          const ok = dialog.action === 'copy' ? await store.copy(dialog.libraryId, dialog.templateId, name) : await store.rename(dialog.templateId, name);
-          if (!ok) return;
-          setNameDialog(null);
-          toast(dialog.action === 'copy' ? `已复制为“${name.trim()}”` : `已改名为“${name.trim()}”`);
+        </div>
+      </>
+    ) : (
+      <>
+        <div className="ltools">
+          <TextField label="搜索模板" labelPlacement="none" size="sm" icon="search" placeholder="搜索模板" value={query} onChange={setQuery} className="library-search" />
+          <Select label="用途" labelPlacement="none" size="sm" value={kind} options={KIND_OPTIONS} onChange={setKind} className="library-kind" />
+        </div>
+        {state.status === 'loading' && !state.builtin && <ProgressBar label="正在读取模板库" className="pane-progress" />}
+        {state.status === 'failed' && <ReadError error="读取模板库失败。" onRetry={() => void store.load()} />}
+        <div className="llist">
+          <TemplateList title="内置" libraryId="builtin" store={store} state={state} thumbnails={thumbnails} query={query} kind={kind} onChoose={choose} />
+          <TemplateList title="我的" libraryId="personal" store={store} state={state} thumbnails={thumbnails} query={query} kind={kind} onChoose={choose} />
+        </div>
+        <div className="listfoot">
+          <Button variant="tonal" size="sm" icon="add" isDisabled={state.status !== 'ready' || state.busy} onPress={() => void createNew()}>
+            新建
+          </Button>
+          <span className="spacer" />
+          <Button variant="ghost" size="sm" icon="upload" isDisabled={state.status !== 'ready' || state.busy || !features?.canImport} onPress={() => setTransfer('import')}>
+            导入…
+          </Button>
+          <MenuTrigger>
+            <IconButton icon="more_vert" size="sm" label="模板库的更多操作" />
+            <Menu placement="bottom end" onAction={(id) => id === 'export' && setTransfer('export')}>
+              <MenuItem id="export" icon="download" disabled={state.status !== 'ready' || !features?.canExport}>
+                导出模板…
+              </MenuItem>
+            </Menu>
+          </MenuTrigger>
+        </div>
+      </>
+    );
+
+  return (
+    <SampleStage.Provider value={stage}>
+      <WorkLayout
+        page="library"
+        className="library"
+        stage="center"
+        top={props.returnBar && <ReturnBar bar={props.returnBar} store={store} state={state} />}
+        left={{
+          label: '样式库',
+          content: (
+            <div className="library-list">
+              {componentsAvailable && (
+                <div className="lseg">
+                  <Segmented label="样式库内容" size="sm" stretch value={section} options={SECTIONS} onChange={(next) => void switchSection(next)} className="library-sections" />
+                </div>
+              )}
+              {list}
+            </div>
+          ),
         }}
-      />
-    </div>
+        center={
+          <section className="stage-canvas library-canvas">
+            <div className="library-stage" ref={setStage} />
+            <p className="library-stage-empty">{section === 'components' ? '选中效果组件或草稿后，在这里看固定样本上的试样。' : '选中模板后，在这里看固定样本上的试样。'}</p>
+          </section>
+        }
+        right={{
+          label: section === 'components' ? '组件详情' : '模板编辑',
+          width: wide ? SOURCE_PANEL_WIDTH : undefined,
+          content: (
+            <div className="library-detail">
+              {section === 'components' ? (
+                <ComponentPane store={components} state={componentState} drafts={drafts} draftsState={draftsState} templates={store} workshop={workshop} />
+              ) : (
+                <TemplateDetail
+                  store={store}
+                  state={state}
+                  workshop={workshop}
+                  components={componentsAvailable ? components : undefined}
+                  configurations={componentState.configurations}
+                  onCopy={(libraryId, summary) => setNameDialog({ action: 'copy', libraryId, templateId: summary.templateId, initial: `${summary.name} 副本` })}
+                  onRename={(summary) => setNameDialog({ action: 'rename', templateId: summary.templateId, initial: summary.name })}
+                  onRemove={remove}
+                />
+              )}
+            </div>
+          ),
+        }}
+        status={
+          <footer className="status-bar">
+            <span className={`notice notice-${notice?.level ?? 'none'}`}>{notice?.message ?? '就绪'}</span>
+            <span className="status-facts">
+              {section === 'components'
+                ? componentState.busy
+                  ? '正在写入组件库…'
+                  : `效果组件 ${componentState.configurations?.length ?? 0} 个`
+                : state.busy
+                  ? '正在写入模板库…'
+                  : `我的模板 ${state.personal?.templates.length ?? 0} 个`}
+            </span>
+          </footer>
+        }
+      >
+        {componentImport.dialog}
+        <ExportTemplatesDialog
+          open={transfer === 'export'}
+          store={store}
+          initialLibrary={state.selection?.libraryId ?? (state.personal?.templates.length ? 'personal' : 'builtin')}
+          initialSelected={state.selection?.templateId ? [state.selection.templateId] : []}
+          onClose={() => setTransfer(null)}
+        />
+        <ImportTemplatesDialog open={transfer === 'import'} store={store} confirmDiscard={() => confirmDiscardTemplate(store)} onClose={() => setTransfer(null)} />
+        <TemplateNameDialog
+          dialog={nameDialog}
+          busy={state.busy}
+          onClose={() => setNameDialog(null)}
+          onSubmit={async (dialog, name) => {
+            const ok = dialog.action === 'copy' ? await store.copy(dialog.libraryId, dialog.templateId, name) : await store.rename(dialog.templateId, name);
+            if (!ok) return;
+            setNameDialog(null);
+            toast(dialog.action === 'copy' ? `已复制为“${name.trim()}”` : `已改名为“${name.trim()}”`);
+          }}
+        />
+      </WorkLayout>
+    </SampleStage.Provider>
   );
 }
 
@@ -284,7 +333,7 @@ function ComponentPane(props: DetailProps) {
   const selection = props.state.selection;
   if (selection?.kind !== 'draft') return <ComponentDetail {...props} />;
   const draft = props.draftsState.drafts.find((d) => d.draftId === selection.draftId);
-  if (!draft) return <div className="placeholder">{props.draftsState.status === 'ready' ? '这个草稿已经找不回来了。' : '正在读取草稿…'}</div>;
+  if (!draft) return <Note className="insp-empty">{props.draftsState.status === 'ready' ? '这个草稿已经找不回来了。' : '正在读取草稿…'}</Note>;
   return <DraftDetail key={draft.draftId} state={props.state} drafts={props.drafts} draftsState={props.draftsState} draft={draft} workshop={props.workshop} />;
 }
 
@@ -303,24 +352,26 @@ function ReturnBar(props: { bar: LibraryReturnBar; store: TemplateLibraryStore; 
     }
   };
   return (
-    <div className="library-return" role="region" aria-label="返回外观">
-      <mdui-icon-arrow-back />
-      <span className="library-return-text">{bar.text}</span>
-      {problem && <span className="notice-error">不能保存：{problem}</span>}
-      <div style={{ flexGrow: 1 }} />
-      <mdui-button variant="filled" disabled={!!problem || state.busy || returning} loading={returning} onClick={() => void run()}>
+    <div className="retbar library-return" role="region" aria-label="返回外观">
+      <Icon name="arrow_back" />
+      <span className="library-return-text">{bar.text}。保存后回到外观页，用这个模板继续试看。</span>
+      {problem && <span className="retbar-problem">不能保存：{problem}</span>}
+      <span className="spacer" />
+      <Button variant="filled" size="sm" isPending={returning} isDisabled={!!problem || state.busy || returning} onPress={() => void run()}>
         保存并返回试看
-      </mdui-button>
-      <mdui-button-icon aria-label="关闭返回栏" onClick={bar.onDismiss}>
-        <mdui-icon-close />
-      </mdui-button-icon>
+      </Button>
+      <IconButton icon="close" size="sm" label="关闭返回栏" onPress={bar.onDismiss} />
     </div>
   );
 }
 
+/** 新建、还没保存的模板在“我的”列表里占的那一行。 */
+const NEW_ROW = '\u0000new';
+
 function TemplateList(props: {
   title: string;
   libraryId: TemplateLibraryId;
+  store: TemplateLibraryStore;
   state: LibraryState;
   thumbnails: TemplateThumbnails;
   query: string;
@@ -330,41 +381,70 @@ function TemplateList(props: {
   const { state, libraryId } = props;
   const list = state[libraryId];
   const shown = useMemo(() => (list ? filterTemplates(list.templates, props.query, props.kind) : []), [list, props.query, props.kind]);
-  const draftSelected = libraryId === 'personal' && state.selection?.templateId === null;
   if (!list) return null;
+  const draftSelected = libraryId === 'personal' && state.selection?.templateId === null;
+  const items = [...(draftSelected ? [{ id: NEW_ROW, summary: undefined }] : []), ...shown.map((t) => ({ id: t.templateId, summary: t as TemplateSummary | undefined }))];
+  const selected = state.selection?.libraryId === libraryId ? (state.selection.templateId ?? NEW_ROW) : undefined;
+  const dirty = props.store.isDirty;
   return (
-    <mdui-list>
-      <mdui-list-subheader>{props.title}</mdui-list-subheader>
-      {draftSelected && (
-        <mdui-list-item active rounded>
-          {state.draft?.definition.name}
-          <span slot="description">未保存 · {state.draft && KIND_TEXT[state.draft.definition.kind]}</span>
-        </mdui-list-item>
-      )}
-      {shown.map((t) => (
-        <mdui-list-item
-          key={t.templateId}
-          rounded
-          data-template-id={t.templateId}
-          active={state.selection?.libraryId === libraryId && state.selection.templateId === t.templateId}
-          onClick={() => props.onChoose(libraryId, t.templateId)}
+    <section className="template-list" aria-label={`${props.title}模板`}>
+      <h3 className="grouphead">
+        {props.title}
+        <span>{list.templates.length}</span>
+      </h3>
+      {items.length > 0 && (
+        <List
+          label={`${props.title}模板`}
+          items={items}
+          textValue={(item) => item.summary?.name ?? state.draft?.definition.name ?? '新模板'}
+          selectedKeys={selected ? [selected] : []}
+          onSelectionChange={(keys) => {
+            const [key] = keys;
+            if (key !== undefined && key !== NEW_ROW) props.onChoose(libraryId, String(key));
+          }}
+          className="tlist"
+          rowClassName={() => 'trow'}
         >
-          <span slot="icon" className="template-thumb-slot">
-            <TemplateThumb thumbnails={props.thumbnails} libraryId={libraryId} libraryRevision={list.revision} summary={t} />
-          </span>
-          {t.name}
-          <span slot="description">
-            {KIND_TEXT[t.kind]}
-            {isAdvanced(t) ? ' · 含效果' : ''} · {propertySummary(t.kind, t.properties)}
-          </span>
-        </mdui-list-item>
-      ))}
-      {shown.length === 0 && !draftSelected && (
-        <div className="line-list empty">{list.templates.length === 0 ? (libraryId === 'personal' ? '还没有自己的模板。复制一个内置模板，或点“新建”。' : '没有模板。') : '没有符合条件的模板。'}</div>
+          {({ id, summary }) =>
+            summary ? (
+              <span className="trow-body" data-template-id={summary.templateId} title={propertySummary(summary.kind, summary.properties)}>
+                <span className="tthumb">
+                  <TemplateThumb thumbnails={props.thumbnails} libraryId={libraryId} libraryRevision={list.revision} summary={summary} />
+                </span>
+                <span className="trow-text">
+                  <b>{summary.name}</b>
+                  <span className="small faint">
+                    {KIND_TEXT[summary.kind]}
+                    {isAdvanced(summary) ? '，含效果' : ''}
+                  </span>
+                </span>
+                {dirty && selected === id && <i className="udot" title="有未保存的修改" />}
+              </span>
+            ) : (
+              <span className="trow-body" data-new-template>
+                <span className="tthumb empty">
+                  <Icon name="style" />
+                </span>
+                <span className="trow-text">
+                  <b>{state.draft?.definition.name}</b>
+                  <span className="small faint">未保存{state.draft ? `，${KIND_TEXT[state.draft.definition.kind]}` : ''}</span>
+                </span>
+                <i className="udot" title="还没保存" />
+              </span>
+            )
+          }
+        </List>
       )}
-    </mdui-list>
+      {items.length === 0 && (
+        <Note className="list-note">
+          {list.templates.length === 0 ? (libraryId === 'personal' ? '还没有自己的模板。复制一个内置模板，或点“新建”。' : '没有模板。') : '没有符合条件的模板。'}
+        </Note>
+      )}
+    </section>
   );
 }
+
+type DetailTab = 'appearance' | 'material' | 'effects' | 'advanced';
 
 function TemplateDetail(props: {
   store: TemplateLibraryStore;
@@ -383,14 +463,14 @@ function TemplateDetail(props: {
   // 材质页签选中的部位是试样画布的材质焦点；别的页签不指定。
   useEffect(() => workshop?.setMaterialSlot(tab === 'material' ? slot : undefined), [workshop, tab, slot]);
   const selection = state.selection;
-  if (!selection) return <div className="placeholder">从左侧选择一个模板查看。</div>;
-  if (state.detailLoading) return <mdui-linear-progress />;
+  if (!selection) return <Note className="insp-empty">从左侧选择一个模板查看。</Note>;
+  if (state.detailLoading) return <ProgressBar label="正在读取模板" className="pane-progress" />;
 
   const isNew = selection.templateId === null;
   const summary = isNew ? undefined : store.summary(selection.libraryId, selection.templateId!);
   const draft = state.draft;
   const definition = draft?.definition ?? state.detail?.definition ?? null;
-  if (!isNew && (!summary || !state.detail)) return <div className="placeholder">这个模板已不在库中。</div>;
+  if (!isNew && (!summary || !state.detail)) return <Note className="insp-empty">这个模板已不在库中。</Note>;
   const name = definition?.name ?? summary!.name;
   const kind = definition?.kind ?? summary!.kind;
   const builtin = selection.libraryId === 'builtin';
@@ -407,96 +487,131 @@ function TemplateDetail(props: {
         ? { kind: 'saved', libraryId: selection.libraryId, libraryRevision, summary }
         : null;
   const sampleScope = `${selection.libraryId}|${selection.templateId ?? ''}`;
+  const recipes = definition?.effectRecipes.length ?? 0;
+  const tabs: readonly { value: DetailTab; label: string; badge?: number }[] = [
+    { value: 'appearance', label: '外观' },
+    { value: 'material', label: '材质' },
+    { value: 'effects', label: '效果', ...(recipes > 0 ? { badge: recipes } : {}) },
+    { value: 'advanced', label: '高级' },
+  ];
+  const menu = (id: unknown) => {
+    if (!summary) return;
+    if (id === 'rename') props.onRename(summary);
+    else if (id === 'copy') props.onCopy('personal', summary);
+    else if (id === 'delete') props.onRemove(summary);
+  };
 
   return (
-    <div className="template-detail">
-      <div className="template-header">
-        <h2 className="template-name">{name}</h2>
-        <div className="chips">
-          <span className="tag">{builtin ? '内置 · 只读' : isNew ? '新建 · 未保存' : dirty ? '我的模板 · 有未保存的修改' : '我的模板'}</span>
-          <span className="tag">用途：{KIND_TEXT[kind]}</span>
-          {advanced && <span className="tag">含效果</span>}
-        </div>
-        <div className="template-actions">
-          {builtin ? (
-            <mdui-button variant="tonal" disabled={state.busy} onClick={() => props.onCopy('builtin', summary!)}>
-              <mdui-icon-content-copy slot="icon" />
-              复制并编辑
-            </mdui-button>
-          ) : (
+    <div className="lib-detail template-detail">
+      <header className="phead">
+        <div className="phead-row">
+          <h2 className="template-name">{name}</h2>
+          <Tag>{builtin ? '内置' : isNew ? '新建' : '我的模板'}</Tag>
+          {!builtin && (isNew || dirty) && <Tag tone="warn">未保存</Tag>}
+          {advanced && <Tag tone="accent">含效果</Tag>}
+          <span className="spacer" />
+          {draft && (
             <>
-              {draft && (
-                <>
-                  <mdui-button-icon disabled={draft.undo.length === 0 || state.busy} onClick={() => store.undo()} aria-label="撤销模板修改">
-                    <mdui-icon-undo />
-                  </mdui-button-icon>
-                  <mdui-button-icon disabled={draft.redo.length === 0 || state.busy} onClick={() => store.redo()} aria-label="重做模板修改">
-                    <mdui-icon-redo />
-                  </mdui-button-icon>
-                </>
-              )}
-              {summary && (
-                <mdui-dropdown placement="bottom-end">
-                  <mdui-button-icon slot="trigger" aria-label="模板操作">
-                    <mdui-icon-more-vert />
-                  </mdui-button-icon>
-                  <mdui-menu>
-                    <mdui-menu-item disabled={state.busy || dirty} onClick={() => props.onRename(summary)}>
-                      改名{dirty ? '（先保存或放弃修改）' : ''}
-                    </mdui-menu-item>
-                    <mdui-menu-item disabled={state.busy} onClick={() => props.onCopy('personal', summary)}>
-                      复制
-                    </mdui-menu-item>
-                    <mdui-menu-item disabled={state.busy} onClick={() => props.onRemove(summary)}>
-                      删除
-                    </mdui-menu-item>
-                  </mdui-menu>
-                </mdui-dropdown>
-              )}
-              {draft && (
-                <>
-                  <mdui-button variant="text" disabled={state.busy || !dirty} onClick={() => store.discardDraft()}>
-                    {isNew ? '放弃' : '放弃修改'}
-                  </mdui-button>
-                  <mdui-button variant="filled" loading={state.busy} disabled={state.busy || !dirty || !!problem} onClick={() => void saveDraft(store)}>
-                    保存
-                  </mdui-button>
-                </>
-              )}
+              <IconButton icon="undo" size="sm" label="撤销模板修改" isDisabled={draft.undo.length === 0 || state.busy} onPress={() => store.undo()} />
+              <IconButton icon="redo" size="sm" label="重做模板修改" isDisabled={draft.redo.length === 0 || state.busy} onPress={() => store.redo()} />
             </>
           )}
+          {!builtin && summary && (
+            <MenuTrigger>
+              <IconButton icon="more_vert" size="sm" label="模板操作" />
+              <Menu placement="bottom end" onAction={menu}>
+                <MenuItem id="rename" icon="edit" disabled={state.busy || dirty}>
+                  {dirty ? '改名（先保存或放弃修改）' : '改名…'}
+                </MenuItem>
+                <MenuItem id="copy" icon="content_copy" disabled={state.busy}>
+                  复制…
+                </MenuItem>
+                <MenuSeparator />
+                <MenuItem id="delete" icon="delete" danger disabled={state.busy}>
+                  删除…
+                </MenuItem>
+              </Menu>
+            </MenuTrigger>
+          )}
         </div>
-      </div>
-      {draft && problem && <p className="notice-error template-problem">不能保存：{problem}</p>}
-      {props.workshop && (
-        <SampleArea workshop={props.workshop} source={problem ? undefined : sampleSource} scope={sampleScope} blocked={problem ? '草稿不完整，改好后再生成试样。' : undefined} />
+        <div className="phead-row template-actions">
+          {builtin ? (
+            <>
+              <span className="meta">内置模板只读，复制到我的模板后才能改。</span>
+              <span className="spacer" />
+              <Button variant="tonal" size="sm" icon="content_copy" isDisabled={state.busy} onPress={() => props.onCopy('builtin', summary!)}>
+                复制并编辑
+              </Button>
+            </>
+          ) : draft ? (
+            <>
+              <Select<TemplateKind>
+                label="用途"
+                labelPlacement="inside"
+                size="sm"
+                className="template-kind"
+                value={draft.definition.kind}
+                options={KIND_CHOICES}
+                onChange={(next) => store.edit(changeKind(draft.definition, next))}
+                disabled={state.busy}
+              />
+              <span className="spacer" />
+              <Button variant="text" size="sm" isDisabled={state.busy || !dirty} onPress={() => store.discardDraft()}>
+                {isNew ? '放弃' : '放弃修改'}
+              </Button>
+              <Button variant="filled" size="sm" icon="save" isPending={state.busy} isDisabled={state.busy || !dirty || !!problem} onPress={() => void saveDraft(store)}>
+                保存
+              </Button>
+            </>
+          ) : (
+            <span className="meta">用途：{KIND_TEXT[kind]}</span>
+          )}
+        </div>
+      </header>
+      {draft && problem && (
+        <Note error className="template-problem">
+          不能保存：{problem}
+        </Note>
       )}
-      <Tabs value={tab} options={DETAIL_TABS} onChange={setTab} className="template-tabs" />
-      {tab === 'material' && definition ? (
-        <MaterialTab
-          store={store}
-          definition={definition}
-          draft={draft}
-          catalog={state.catalog}
-          issues={issues}
-          slot={slot}
-          onSlot={setSlot}
-          onOpenAppearance={() => setTab('appearance')}
-          disabled={state.busy}
-          components={props.components}
-        />
-      ) : tab === 'effects' && definition ? (
-        <EffectsTab store={store} definition={definition} draft={draft} catalog={state.catalog} issues={issues} disabled={state.busy} components={props.components} configurations={props.configurations} />
-      ) : tab === 'appearance' ? (
-        draft ? (
-          <TemplateEditor definition={draft.definition} baseProperties={draft.base.properties} onChange={(next) => store.edit(next)} disabled={state.busy} />
+      {workshop && (
+        <SampleArea workshop={workshop} source={problem ? undefined : sampleSource} scope={sampleScope} blocked={problem ? '草稿不完整，改好后再生成试样。' : undefined} />
+      )}
+      <Tabs label="模板编辑" value={tab} options={tabs} onChange={setTab} className="ptabs template-tabs" />
+      <div className="pbody" data-tab={tab}>
+        {tab === 'material' && definition ? (
+          <MaterialTab
+            store={store}
+            definition={definition}
+            draft={draft}
+            catalog={state.catalog}
+            issues={issues}
+            slot={slot}
+            onSlot={setSlot}
+            onOpenAppearance={() => setTab('appearance')}
+            disabled={state.busy}
+            components={props.components}
+          />
+        ) : tab === 'effects' && definition ? (
+          <EffectsTab store={store} definition={definition} draft={draft} catalog={state.catalog} issues={issues} disabled={state.busy} components={props.components} configurations={props.configurations} />
+        ) : tab === 'appearance' ? (
+          draft ? (
+            <TemplateEditor
+              definition={draft.definition}
+              baseProperties={draft.base.properties}
+              onChange={(next) => store.edit(next)}
+              onOpenMaterial={(next) => {
+                setSlot(next);
+                setTab('material');
+              }}
+              disabled={state.busy}
+            />
+          ) : definition ? (
+            <DefinitionView definition={definition} />
+          ) : null
         ) : definition ? (
-          <DefinitionView definition={definition} />
-        ) : null
-      ) : definition ? (
-        <AdvancedView definition={definition} closure={state.detail?.packageClosureDetails ?? []} />
-      ) : null}
-      <p className="hint">试样只是固定样本上的效果；应用到工程后，可在外观页看成片预览。</p>
+          <AdvancedView definition={definition} closure={state.detail?.packageClosureDetails ?? []} />
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -520,54 +635,61 @@ async function saveDraft(store: TemplateLibraryStore): Promise<void> {
   if (await store.save()) toast(`已保存“${name}”`);
 }
 
-type DetailTab = 'appearance' | 'material' | 'effects' | 'advanced';
-const DETAIL_TABS: readonly { value: DetailTab; label: string }[] = [
-  { value: 'appearance', label: '外观' },
-  { value: 'material', label: '材质' },
-  { value: 'effects', label: '效果' },
-  { value: 'advanced', label: '高级' },
-];
-
 /** 草稿不能保存的原因：先看整体（没有属性和效果、渐变不对），再看包材质与配方的本地校验（第一条）。 */
 function draftProblem(definition: FullTemplateDefinition, issues: ReturnType<typeof definitionIssues>): string | undefined {
   const first = issues[0];
   return definitionProblem(definition) ?? (first ? `${issueWhereText(definition, first.where)}：${first.message}` : undefined);
 }
 
-/** 高级页签：完整定义的 JSON（只读），和模板用到的效果包与文件清单。 */
+/** 高级页签：完整定义的 JSON（只读，可以复制），和模板用到的效果包与文件清单。 */
 function AdvancedView(props: { definition: FullTemplateDefinition; closure: readonly EffectPackageInspectResponse[] }) {
   const { definition, closure } = props;
+  const json = JSON.stringify(definition, null, 2);
+  const copy = () =>
+    navigator.clipboard.writeText(json).then(
+      () => toast('已复制完整定义'),
+      () => toast('复制失败：浏览器没有允许写剪贴板。'),
+    );
+  const files = closure.reduce((n, p) => n + p.files.length, 0);
   return (
     <div className="template-advanced">
-      <h3 className="template-advanced-title">完整定义（只读）</h3>
-      <pre className="template-json">{JSON.stringify(definition, null, 2)}</pre>
-      <h3 className="template-advanced-title">效果包 · {definition.packages.length} 个</h3>
-      {definition.packages.length === 0 && <p className="hint">这个模板没有用到效果包。</p>}
-      {closure.map((p) => (
-        <details key={`${p.packageId}|${p.packageRevision}`} className="package-closure" data-package-id={p.packageId}>
-          <summary>
-            {p.name} {p.version} · 修订 {shortRevision(p.packageRevision)} · {p.files.length} 个文件
-          </summary>
-          <table className="package-files">
-            <tbody>
+      <Group
+        title="完整定义（只读）"
+        extra={
+          <Button variant="ghost" size="sm" icon="content_copy" onPress={() => void copy()}>
+            复制
+          </Button>
+        }
+      >
+        <pre className="template-json code">{json}</pre>
+      </Group>
+      <Group title={`效果包 · ${definition.packages.length} 个`} hint={files > 0 ? `${files} 个文件` : undefined}>
+        {definition.packages.length === 0 && <Note>这个模板没有用到效果包。</Note>}
+        {closure.map((p) => (
+          <section key={`${p.packageId}|${p.packageRevision}`} className="package-closure" data-package-id={p.packageId} aria-label={p.name}>
+            <h5>
+              {p.name} {p.version}
+              <span className="faint">修订 {shortRevision(p.packageRevision)}</span>
+            </h5>
+            <ul className="files">
               {p.files.map((f) => (
-                <tr key={f.path}>
-                  <td>{f.path}</td>
-                  <td>{f.role}</td>
-                  <td>{formatSize(f.size)}</td>
-                  <td className="mono">{f.sha256.slice(0, 12)}</td>
-                </tr>
+                <li key={f.path} title={`SHA-256 ${f.sha256}`}>
+                  <Icon name={f.path.endsWith('.cs') ? 'code' : 'description'} />
+                  <span className="file-path">{f.path}</span>
+                  <span className="faint">{f.role}</span>
+                  <em>{formatSize(f.size)}</em>
+                </li>
               ))}
-            </tbody>
-          </table>
-        </details>
-      ))}
+            </ul>
+          </section>
+        ))}
+      </Group>
     </div>
   );
 }
 
 function formatSize(bytes: number): string {
-  return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KiB`;
+  return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`;
 }
 
 /** 只读的分组视图：包含的组显示取值，不包含的组由目标继承；用途不允许的组不显示。 */
@@ -576,20 +698,23 @@ function DefinitionView(props: { definition: FullTemplateDefinition }) {
   const limit = KIND_LIMIT_TEXT[definition.kind];
   return (
     <div className="template-groups">
-      {TEMPLATE_GROUPS.filter((g) => groupAllowed(g, definition.kind)).map((g) => {
-        const included = groupIncluded(g, definition.properties);
-        const swatch = included ? groupSwatch(g.id, definition.style) : undefined;
-        return (
-          <div key={g.id} className={included ? 'template-group' : 'template-group excluded'} data-group={g.id}>
-            <span className="template-group-label">{g.label}</span>
-            <span className="template-group-value">
-              {swatch && <span className="swatch" style={{ background: swatch }} />}
-              {included ? groupValueText(g.id, definition.style) : '不包含（由目标继承）'}
-            </span>
-          </div>
-        );
-      })}
-      {limit && <p className="hint">{limit}</p>}
+      <p className="pintro">只读：写进模板的项列出取值，其余由目标继承。</p>
+      <dl className="def-list">
+        {TEMPLATE_GROUPS.filter((g) => groupAllowed(g, definition.kind)).map((g) => {
+          const included = groupIncluded(g, definition.properties);
+          const swatch = included ? groupSwatch(g.id, definition.style) : undefined;
+          return (
+            <div key={g.id} className={cls('template-group', !included && 'excluded')} data-group={g.id}>
+              <dt>{g.label}</dt>
+              <dd className="template-group-value">
+                {swatch && <i className="def-swatch" style={{ background: swatch }} />}
+                <span>{included ? groupValueText(g.id, definition.style) : '由目标继承'}</span>
+              </dd>
+            </div>
+          );
+        })}
+      </dl>
+      {limit && <Note>{limit}</Note>}
     </div>
   );
 }
@@ -609,7 +734,7 @@ function TemplateNameDialog(props: { dialog: NameDialog | null; busy: boolean; o
       onSubmit={() => dialog && !error && props.onSubmit(dialog, name)}
       onClose={props.onClose}
     >
-      <TextField label="名称" value={name} onChange={setName} error={name ? error : undefined} onEnter={() => dialog && !error && props.onSubmit(dialog, name)} />
+      <TextField label="名称" value={name} onChange={setName} error={name ? error : undefined} onEnter={() => dialog && !error && props.onSubmit(dialog, name)} autoFocus />
     </FormDialog>
   );
 }

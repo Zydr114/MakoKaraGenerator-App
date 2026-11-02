@@ -21,11 +21,13 @@ import {
   type CurvePoint,
   type Easing,
 } from '../model/curves';
-import { NumberField, Select } from '../ui/legacy/fields';
+import { NumberField, Select } from '../ui/fields';
+import { Note } from '../workspace/panel';
 
-const W = 220;
-const H = 180;
-const PAD = 14;
+// 画布按 300×132 的比例铺满参数行的宽度（高度跟着宽度走，圆点不变形）。
+const W = 300;
+const H = 132;
+const PAD = 10;
 
 type Handle = { kind: 'first' | 'second' } | { kind: 'point'; index: number };
 
@@ -33,11 +35,10 @@ export function CurveField(props: { label: string; raw: string; onCommit: (raw: 
   const read = readCurve(props.raw);
   if ('problem' in read) {
     return (
-      <span className="param-readonly" data-curve-invalid>
-        <span className="param-label">{props.label}</span>
-        <code>{props.raw}</code>
-        <span className="notice-error">{read.problem}</span>
-      </span>
+      <div className="curve-field wide" data-curve-invalid>
+        <code className="curve-raw">{props.raw}</code>
+        <Note error>{read.problem}</Note>
+      </div>
     );
   }
   return <CurveEditor {...props} curve={read.curve} />;
@@ -120,10 +121,11 @@ function CurveEditor(props: { label: string; curve: Curve; onCommit: (raw: strin
   );
 
   return (
-    <div className="curve-field" data-curve-kind={curve.kind}>
-      <div className="curve-head">
-        <span className="param-label">{props.label}</span>
+    <div className="curve-field wide" data-curve-kind={curve.kind}>
+      <div className="curve-head g2">
         <Select<CurveKind>
+          labelPlacement="inside"
+          size="sm"
           label="类型"
           value={props.curve.kind}
           options={(['easing', 'cubicBezier', 'controlPoints'] as const).map((k) => ({ value: k, label: CURVE_KIND_LABEL[k] }))}
@@ -135,6 +137,8 @@ function CurveEditor(props: { label: string; curve: Curve; onCommit: (raw: strin
         />
         {props.curve.kind === 'easing' && (
           <Select<Easing>
+            labelPlacement="inside"
+            size="sm"
             label="缓动"
             value={props.curve.easing}
             options={EASINGS.map((e) => ({ value: e, label: EASING_LABEL[e] }))}
@@ -143,7 +147,7 @@ function CurveEditor(props: { label: string; curve: Curve; onCommit: (raw: strin
           />
         )}
       </div>
-      <div className="curve-body">
+      <div className="curve">
         <svg
           ref={svg}
           className="curve-graph"
@@ -158,7 +162,9 @@ function CurveEditor(props: { label: string; curve: Curve; onCommit: (raw: strin
           onPointerDown={() => setSelected(null)}
         >
           <rect className="curve-frame" x={sx(0)} y={sy(1)} width={sx(1) - sx(0)} height={sy(0) - sy(1)} />
+          <path className="curve-grid" d={[0.25, 0.5, 0.75].map((t) => `M${sx(t)} ${sy(1)}V${sy(0)}`).join('')} />
           <line className="curve-diagonal" x1={sx(0)} y1={sy(0)} x2={sx(1)} y2={sy(1)} />
+          <path className="curve-area" d={`${line} V${sy(yMin).toFixed(2)} H${sx(0).toFixed(2)}Z`} />
           <path className="curve-line" d={line} />
           {curve.kind === 'cubicBezier' && (
             <>
@@ -177,6 +183,8 @@ function CurveEditor(props: { label: string; curve: Curve; onCommit: (raw: strin
               ),
             )}
         </svg>
+      </div>
+      {props.curve.kind !== 'easing' && (
         <div className="curve-numbers">
           {props.curve.kind === 'cubicBezier' && <BezierNumbers curve={props.curve} onCommit={commit} disabled={disabled} />}
           {props.curve.kind === 'controlPoints' && (
@@ -184,11 +192,11 @@ function CurveEditor(props: { label: string; curve: Curve; onCommit: (raw: strin
               {selected !== null && props.curve.points[selected] && (
                 <PointNumbers curve={props.curve} index={selected} onCommit={commit} disabled={disabled} />
               )}
-              <p className="hint">双击空白处加点；选中一个点后按 Delete 删除。首尾两点固定。</p>
+              <Note>双击空白处加点；选中一个点后按 Delete 删除。首尾两点固定。</Note>
             </>
           )}
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -197,6 +205,8 @@ function BezierNumbers(props: { curve: Extract<Curve, { kind: 'cubicBezier' }>; 
   const { curve } = props;
   const field = (label: string, which: 'first' | 'second', axis: 0 | 1) => (
     <NumberField
+      labelPlacement="inside"
+      size="sm"
       label={label}
       value={curve[which][axis]}
       {...(axis === 0 ? { min: 0, max: 1 } : {})}
@@ -208,7 +218,7 @@ function BezierNumbers(props: { curve: Extract<Curve, { kind: 'cubicBezier' }>; 
     />
   );
   return (
-    <div className="curve-number-grid">
+    <div className="curve-number-grid g2">
       {field('x1', 'first', 0)}
       {field('y1', 'first', 1)}
       {field('x2', 'second', 0)}
@@ -223,8 +233,10 @@ function PointNumbers(props: { curve: Extract<Curve, { kind: 'controlPoints' }>;
   const left = curve.points[index - 1]![0];
   const right = curve.points[index + 1]![0];
   return (
-    <div className="curve-number-grid">
+    <div className="curve-number-grid g2">
       <NumberField
+        labelPlacement="inside"
+        size="sm"
         label={`点 ${index} · x`}
         value={point[0]}
         greaterThan={left}
@@ -232,7 +244,7 @@ function PointNumbers(props: { curve: Extract<Curve, { kind: 'controlPoints' }>;
         onCommit={(v) => props.onCommit(movePoint(curve, index, v, point[1]))}
         disabled={props.disabled}
       />
-      <NumberField label={`点 ${index} · y`} value={point[1]} onCommit={(v) => props.onCommit(movePoint(curve, index, point[0], round4(v)))} disabled={props.disabled} />
+      <NumberField labelPlacement="inside" size="sm" label={`点 ${index} · y`} value={point[1]} onCommit={(v) => props.onCommit(movePoint(curve, index, point[0], round4(v)))} disabled={props.disabled} />
     </div>
   );
 }

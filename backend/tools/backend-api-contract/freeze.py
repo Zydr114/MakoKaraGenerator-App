@@ -27,9 +27,9 @@ from template_library_schema import extend_template_library_schemas, query_param
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTRACT = "1.42.4"
-BASELINE = "9f41a9d77ad55f7d880accb85d542df63a311b64"
+BASELINE = "9dada95921162c55fa3a73f07581f1615b2910bf"
 PRODUCT = re.search(r"<VersionPrefix>([^<]+)</VersionPrefix>", (ROOT / "Directory.Build.props").read_text()).group(1)
-FREEZE_DATE = "2026-11-03"
+FREEZE_DATE = "2026-11-04"
 BEHAVIOR = "docs/architecture/backend-api.md"
 TOOL = Path(__file__).resolve().parent
 

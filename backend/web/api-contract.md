@@ -1,6 +1,6 @@
 # 前后端 API 执行合同
 
-状态：**冻结1.42.4**，产品元数据与源码指纹更新于2026-11-03；产品 **0.110.6**，HTTP `protocolVersion:"1"`。Host 共享编译缓存、Worker 固定产物消费及同输入 HTTP seek 复用已接通；严格软取消后可在原 Worker 重开 Runtime，硬失败仍排水。关闭失败保留 `closing` 和资源所有权，实际排水／清理成功后才返回 `closed`。公共路由、DTO、命令和 schema 保持；v1 时间线重放仍保留。详细边界见[预览行为](../docs/architecture/backend-api.md)。固定基线与文件指纹见[manifest](contract-manifest.json)，合同、匹配发布与 fresh HTTP 分别登记。
+状态：**冻结1.42.4**，产品元数据与源码指纹更新于2026-11-04；产品 **0.110.7**，HTTP `protocolVersion:"1"`。Host 共享编译缓存、Worker 固定产物消费及同输入 HTTP seek 复用已接通；严格软取消后可在原 Worker 重开 Runtime，硬失败仍排水。关闭失败保留 `closing` 和资源所有权，实际排水／清理成功后才返回 `closed`。桌面 GPU stream 在两个进程名额内最多保留一个完整预热备用，业务一次绑定原设备，每输入仍换 Worker。公共路由、DTO、命令和 schema 保持；v1 时间线重放仍保留。详细边界见[预览行为](../docs/architecture/backend-api.md)。固定基线与文件指纹见[manifest](contract-manifest.json)，合同、匹配发布与 fresh HTTP 分别登记。
 
 GPU 流按精确修订创建、换来源、改变尺寸和关闭；创建受真实设备及分配能力限制。`registrationState` 是登记状态，`workerState` 来自 Worker 实时查询；`textureAlphaMode` 固定 `premultiplied`，`alphaMode` 仅控制背景透明度。桌面主进程的私有 claim 不属于公开 API。详细协议和失效语义见仓库根 `docs/architecture/gpu-preview-stream-v1.md`。
 

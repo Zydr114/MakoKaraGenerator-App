@@ -9,7 +9,9 @@ python3 tools/backend-web-host/host.py publish \
   --dist "$PWD/artifacts/web-backend/0.95.0"
 ```
 
-Server 和完整 Worker 分别 self-contained Release/linux-x64 publish，dotnet 共用 `flock -o /tmp/mkg-backend-b4-dotnet.lock`、`-m:1 /p:UseSharedCompilation=false`。发布清单记录版本、源码 HEAD、生产输入 SHA、dirty diff 指纹与部署所有文件 SHA；发布期间生产输入变化则拒绝标为成功。发布失败保留原目录和日志，修复后使用新目录。Worker 必须保留完整依赖与 `script-refs`。不覆盖、合并或删除旧目录。
+Server 和完整 Worker 分别 self-contained Release/linux-x64 publish，dotnet 共用 `flock -o /tmp/mkg-backend-b4-dotnet.lock`、`-m:1 /p:UseSharedCompilation=false`。发布清单记录版本、源码 HEAD、生产输入 SHA、dirty diff 指纹与部署所有文件 SHA；发布期间生产输入或 HEAD 变化则拒绝标为成功。SourceLink 会让仅提交变化也改变程序集字节，因此发布和运行都要求两端 `MakoKaraGenerator.Scripting.Abstractions.dll` 完全一致，与实际脚本引用身份门禁相同。发布失败保留原目录和日志，修复后使用新目录。Worker 必须保留完整依赖与 `script-refs`。不覆盖、合并或删除旧目录。
+
+发布防护的独立回归：`python3 tools/backend-web-host/test_host.py`，覆盖 HEAD 漂移、两端脚本程序集不一致和匹配发布；测试不启动实际 Server。
 
 前台运行；profile 应长期复用，两个 Origin 是明确的 Vite 开发地址：
 

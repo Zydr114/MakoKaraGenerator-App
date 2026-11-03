@@ -66,6 +66,15 @@ def inventory(root):
     return {str(p.relative_to(root)): digest(p) for p in sorted(root.rglob('*')) if p.is_file()}
 
 
+def validate_script_abi(dist):
+    # This exact assembly is appended to the script-reference identity in both processes.
+    # SourceLink changes its bytes even when production inputs and product versions match.
+    name = 'MakoKaraGenerator.Scripting.Abstractions.dll'
+    paths = [dist / role / name for role in ROLES]
+    if any(path.is_symlink() or not path.is_file() for path in paths) or digest(paths[0]) != digest(paths[1]):
+        raise ValueError(f'Server/Worker {name} bytes differ or are missing; publish a fresh matched deployment')
+
+
 def validate_dist(dist):
     manifest = json.loads((dist / 'deployment.json').read_text())
     if manifest.get('rid') != 'linux-x64' or manifest.get('selfContained') is not True:
@@ -84,6 +93,7 @@ def validate_dist(dist):
     refs = dist / 'worker' / 'script-refs' / 'net10.0'
     if not (refs / 'System.Runtime.dll').is_file():
         raise ValueError('complete Worker script-refs are required')
+    validate_script_abi(dist)
     return manifest
 
 
@@ -95,21 +105,32 @@ def source_inputs():
     return {p: digest(REPO / p) for p in sorted(set(paths)) if (REPO / p).is_file()}
 
 
+def git_head():
+    return subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=REPO, check=True, capture_output=True, text=True).stdout.strip()
+
+
+def require_publish_head(expected):
+    if git_head() != expected:
+        raise ValueError('Git HEAD changed during publish; preserve this failed directory and publish a fresh one')
+
+
 def publish(args):
     dist = args.dist.resolve()
     dist.mkdir(parents=True, exist_ok=False)  # Never merge or delete a caller's deployment.
-    git = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=REPO, check=True, capture_output=True, text=True).stdout.strip()
+    git = git_head()
     frozen_inputs = source_inputs()
     diff = subprocess.run(['git', 'diff', '--binary', 'HEAD', '--', 'src', 'Directory.Build.props',
                            'Directory.Build.targets', 'Directory.Packages.props', 'global.json', 'NuGet.Config',
                            'NuGet.config'], cwd=REPO, check=True, capture_output=True).stdout
     version = re.search(r'<VersionPrefix>(.*?)</VersionPrefix>', (REPO / 'Directory.Build.props').read_text()).group(1)
     for role, app in ROLES.items():
+        require_publish_head(git)
         command = ['flock', '-o', LOCK, 'dotnet', 'publish', str(REPO / 'src' / app / (app + '.csproj')),
                    '-c', 'Release', '-r', 'linux-x64', '--self-contained', 'true', '-m:1',
                    '/p:UseSharedCompilation=false', '-o', str(dist / role)]
         with (dist / (role + '-publish.log')).open('w') as log:
             result = subprocess.run(command, cwd=REPO, stdout=log, stderr=subprocess.STDOUT)
+        require_publish_head(git)
         if result.returncode:
             raise ValueError(f'{role} publish failed ({result.returncode}); see {dist / (role + "-publish.log")}')
         print(f'Published {role}', flush=True)
@@ -121,8 +142,11 @@ def publish(args):
                 'sourceDiffSha256': hashlib.sha256(diff).hexdigest(),
                 'sourceDirty': bool(diff) or bool(subprocess.run(['git', 'ls-files', '--others', '--exclude-standard', '--', 'src'], cwd=REPO, check=True, capture_output=True).stdout),
                 'files': files}
+    require_publish_head(git)
+    validate_script_abi(dist)
     (dist / 'deployment.json').write_text(json.dumps(manifest, indent=2) + '\n')
     validate_dist(dist)
+    require_publish_head(git)
     print(f'DEPLOYMENT_READY {dist}', flush=True)
     return 0
 

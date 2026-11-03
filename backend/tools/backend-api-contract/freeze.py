@@ -26,8 +26,8 @@ from static_style_schema import extend_static_style_schemas, style_query_paramet
 from template_library_schema import extend_template_library_schemas, query_parameters as template_query_parameters, LIMITS as TEMPLATE_LIMITS
 
 ROOT = Path(__file__).resolve().parents[2]
-CONTRACT = "1.42.3"
-BASELINE = "5f19aed332d43f61a356ebee20d87bcb125cbbf1"
+CONTRACT = "1.42.4"
+BASELINE = "9f41a9d77ad55f7d880accb85d542df63a311b64"
 PRODUCT = re.search(r"<VersionPrefix>([^<]+)</VersionPrefix>", (ROOT / "Directory.Build.props").read_text()).group(1)
 FREEZE_DATE = "2026-11-03"
 BEHAVIOR = "docs/architecture/backend-api.md"

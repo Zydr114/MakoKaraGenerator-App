@@ -210,7 +210,7 @@ public sealed partial class BackendAnalysisAdoptionTests
         Assert.Equal("succeeded", saved.State); Assert.False(saved.IsDirty);
         byte[] bytes = AudioAnalysisJson.Encode(Workspace(project).Project.AudioAnalysis!.Data!);
         Assert.Equal(bytes, AudioAnalysisJson.Encode(ProjectStore.Load(Path.Combine(f.Root, "adopted")).Project!.AudioAnalysis!.Data!));
-        Assert.Equal("succeeded", (await f.Terminal((await f.Registry.StartCloseAsync("a", project.ProjectSessionId, new("1", Metadata: f.Meta()))).Response!.JobId)).State);
+        Assert.Equal("succeeded", (await f.Terminal((await f.Registry.StartCloseAsync("a", project.ProjectSessionId, new("1", ActiveJobs: "wait", Metadata: f.Meta()))).Response!.JobId)).State);
         JobResponse opened = await f.Terminal((await f.Registry.StartOpenAsync("a", new(handle, Metadata: f.Meta()))).Response!.JobId);
         Assert.Equal("succeeded", opened.State); Assert.Equal(job.AnalysisResult!.ContentHash, opened.Result!.AudioAnalysis!.ContentHash);
         Assert.True(f.Registry.TryGet("a", opened.ProjectSessionId!, out ProjectSession reopened));

@@ -101,7 +101,7 @@ public sealed partial class BackendAnalysisAdoptionTests
         }
         else
         {
-            Assert.Equal("succeeded", (await f.Terminal((await f.Registry.StartCloseAsync("a", original.ProjectSessionId, new("0", Metadata: f.Meta()))).Response!.JobId)).State);
+            Assert.Equal("succeeded", (await f.Terminal((await f.Registry.StartCloseAsync("a", original.ProjectSessionId, new("0", ActiveJobs: "wait", Metadata: f.Meta()))).Response!.JobId)).State);
             loaded = await f.Terminal((await f.Registry.StartOpenAsync("a", new(handle, Metadata: f.Meta()))).Response!.JobId);
             Assert.False(loaded.IsDirty);
         }
@@ -133,7 +133,7 @@ public sealed partial class BackendAnalysisAdoptionTests
         string handle = await f.Handle("compressed");
         JobResponse saved = await f.Terminal((await f.Registry.StartSaveAsync("a", project.ProjectSessionId, new("3", handle, f.Meta()))).Response!.JobId);
         Assert.Equal("succeeded", saved.State);
-        Assert.Equal("succeeded", (await f.Terminal((await f.Registry.StartCloseAsync("a", project.ProjectSessionId, new("3", Metadata: f.Meta()))).Response!.JobId)).State);
+        Assert.Equal("succeeded", (await f.Terminal((await f.Registry.StartCloseAsync("a", project.ProjectSessionId, new("3", ActiveJobs: "wait", Metadata: f.Meta()))).Response!.JobId)).State);
         var opened = await f.Registry.StartOpenAsync("a", new(handle, Metadata: f.Meta())); JobResponse done = await f.Terminal(opened.Response!.JobId);
         Assert.True(done.State == "succeeded", System.Text.Json.JsonSerializer.Serialize(done));
         Assert.True(f.Registry.TryGet("a", done.ProjectSessionId!, out ProjectSession reopened));

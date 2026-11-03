@@ -1,555 +1,813 @@
 # 脚本 SDK v2 与渲染管线重构计划
 
-状态：**计划（只读调研产出，尚未实施）**。日期：2026-11-03。
-同日补充：原 §10 的五个待定项已由用户确认，记为 D13–D17；暂不进入实施。
-源码基线：App `41dc381`（工作树中他人未提交的导入相关修改不在本计划范围）；产品 `0.110.1`，
-HTTP 合同 `1.42.1`／协议 `1`，工程 schema `29`，歌词 schema `18`，模板库 `7`，脚本配置库 `1`，
-效果包 profile `packageVersion 2`／`sdkVersion "1.0.0"`／`skia-raster-3.119.4-v1`。
+状态：**二次调研修订后的设计，尚未进入代码实施**。日期：2026-11-03。
+本轮授权范围是更新设计文档；不据此启动实现、安装依赖或运行性能基准。
 
-本文所有 SDK 代码、接口名、性能门槛均为**候选设计**，不代表已实现的公共 API 或测量结果。
-历史性能数字均引自既有报告，本次没有重新测量。
+原始计划基线为 App `41dc381`，D13–D17 登记于 `7f3b359`。
+本次源码复核基线为 App `0f32571`；产品 `0.110.2`，HTTP 合同 `1.42.2`／协议 `1`，
+工程 schema `29`、歌词 schema `18`、模板库 `7`、脚本配置库 `1`，
+包 profile `packageVersion 2`／`sdkVersion "1.0.0"`／`skia-raster-3.119.4-v1`。
 
-## 0. 摘要
+本文中的 SDK 类型名、接口、错误码和性能门槛均为**候选设计**，不代表已实现的公共 API。
+源码事实与候选方案分开登记；历史性能数字仅引用原报告，本次没有重新测量。
+后续开工时复核版本和源码位置，不把本文基线当作届时最新版本。
 
-现有 v1 脚本系统的卡顿有三个来源：
+## 0. 摘要与本次修订
 
-1. **会话生命周期**：每次 seek、编辑都会新建 Worker 进程。编译缓存目录又按进程 PID 隔离，
-   等于每次都冷编译 Roslyn。
-2. **时间模型**：带状态脚本只能从 0 按 120 Hz 重放到目标时刻，所以 seek 的开销是 O(t)。
-3. **GPU 执行方式**：每帧有多次同步 Submit、整面回读、逐个粒子绘制和大量 SaveLayer。
+目标按用户体验排序：先减少拖动、改参数和改源码的等待，再让脚本能够确定地渲染任意时刻，
+最后提高复杂效果的持续吞吐。SDK 升版、生命周期优化和 GPU 优化分别验收，不互相冒充收益。
 
-扩展性差的根因是 SDK 由"写入方法 × 目标类型"组成的封闭矩阵，状态又藏在作者对象里，宿主无法管理。
+核心方向保留：C#、纯时间求值、宿主持有时间索引、强类型属性输出、Skia Ganesh Vulkan、
+v1 最终淘汰，以及 D13–D17 已确认的容差、媒体规格、寿命上限和备用 Worker 策略。
+二次调研修正以下实现假设：
 
-v2 的方向（均已由用户确认，见 §1）：
+1. HTTP 显式 seek 当前会重建 Worker；GPU seek 已是同流控制，GPU **输入替换**才换 Worker。
+2. `Declare` 返回不可变准备结果，交给宿主持有；不再要求普通方法给 C# `readonly` 字段赋值。
+3. 纯求值分成有向无环的阶段：文字属性 → 最终几何 → 粒子／桥接 → 晚期视觉。
+4. 120 Hz × 5 s 是网格区间量级，不能承诺最多 600 次完整求值或据此推导 seek 延迟。
+5. 补齐图节点预乘颜色校验的整面回读；桌面零像素回读与零 CPU 同步等待分别处理。
+6. 在已有 `PreparedRenderFrame`、图编译器上增加执行计划；缓存保留全域部件绘制顺序。
+7. 媒体轨补齐颜色、时间／空间映射、算法身份和就绪修订；避免逐像素遍历历史帧。
+8. 作者资源编辑、诊断、调试视图和参数反馈进入交付范围；延迟区分 UI 与后端起点。
 
-- 作者脚本只写 `Evaluate(t, 查询)` 纯函数，**RenderAt(t) 是一等能力**。
-- 所有与历史相关的信息，由 Worker 内的渲染宿主在加载时预计算成**轻量只读索引**，脚本只查询。
-- 输出改为"目标 + 属性键"的数据写入。像素工作全部留在 GPU，CPU 与 GPU 之间只传小数据。
-- 渲染层保留 Skia Ganesh Vulkan，中间加一层与后端解耦的**渲染计划（Render Plan）**，做批处理和区域裁剪。
-- 编译归 Server，执行归常驻 Worker。seek 不再换进程，编辑也不再冷编译。
-- v1 不兼容、直接淘汰。工程 schema 按现行门禁从 29 升到 30。
+实施顺序为 **S0 语义与基线 → S1 生命周期 → S2 现有渲染器优化 → S3 最小纯求值 v2 →
+S4 复杂样式与作者流程 → S5 执行计划深化 → S6 能力／合同验收 → S7 删除 v1**。
+真正异步 GPU 回读、NV12、自研 Vulkan 和桌面零 CPU 等待不作为首期 v2 的共同前置条件。
 
-## 1. 已确认决策
+## 1. 决策记录与生效解释
 
-| # | 决策 | 结论 |
+### 1.1 D1–D17：保留既有决定及来源
+
+下表保留原决定的意图；二次调研发现的语言限制、范围歧义和性能假设由 §1.2 明确解释，
+不把原文中的不可实现细节继续当作实施要求。
+
+| # | 决策 | 已确认内容 |
 |---|---|---|
-| D1 | v1 兼容 | 不兼容，直接淘汰；无适配层、无源码迁移 |
-| D2 | 脚本形态 | 继续 C#（Roslyn）；只允许纯函数 `Evaluate`，禁止 `Advance/OnEvent`/字段累积状态 |
-| D3 | 状态归属 | Worker 内渲染宿主在加载时预计算只读索引；脚本每帧本地查询，无跨进程往返 |
-| D4 | 后端范围 | 本期只实现 Vulkan；CPU 后端遇到 v2 效果明确报不支持（导出也走 Vulkan），保留后端抽象 |
-| D5 | SVG | 允许新增依赖（选型见 §5.6） |
-| D6 | 旧工程 | 按现行精确门禁整体升级 schema 29→30，旧工程一律拒绝；模板库、脚本配置库同步升版，按既有机制隔离旧数据 |
-| D7 | 渲染引擎 | 保留 Skia Ganesh Vulkan，重构为渲染计划 + 执行器；计划层与后端解耦，将来可替换为自研 Vulkan |
-| D8 | 首期范围 | 对齐 v1 全部可用能力，并能写出目标复杂样式；重写 9 个样例后再删除 v1 |
-| D9 | 媒体自适应 | GPU 着色器采样背景 + 后台预计算低分辨率视频特征轨（仿照音频分析）；C# 与着色器都可读，支持时间平滑 |
-| D10 | 行退场窗 | 包声明退场时长；宿主在行原本隐藏之后再延长一段只用于视觉的"退场副本"，不影响布局，可与下一行重叠 |
-| D11 | 粒子出生锚点 | 采用脚本变换后的最终几何；宿主按 120 Hz 缓存最终播放头轨迹，seek 只需补算最长寿命窗口（寿命设上限） |
-| D12 | 成本约束 | SDK 设计必须显式考虑 GPU 绘制与 CPU↔GPU 拷贝成本（§4.5） |
-| D13 | 像素验收 | 光栅缓存结果与同帧直绘结果按容差比较，不要求逐像素一致；初始阈值为 1x 缩放下预乘 BGRA 单通道绝对差 ≤ 2/255 |
-| D14 | 纯度分析器 | `Declare` 可用 LINQ 和集合做预计算，结果存入只读字段；`Evaluate` 严格限制（§5.2） |
-| D15 | 媒体特征轨 | 网格 32×18，按背景帧率采样，时间平滑窗口上限 2 s |
-| D16 | 时长上限 | 粒子寿命上限 5 s；退场副本时长上限 3 s |
-| D17 | GPU 流输入替换 | 保留"每个输入代次换新 Worker"的语义，另维持一个预热的备用 Worker；本计划不做进程内替换 |
+| D1 | v1 兼容 | 最终直接淘汰；无运行时适配层、无源码迁移 |
+| D2 | 脚本形态 | 继续 C#／Roslyn；纯时间求值，禁止 `Advance/OnEvent` 和字段累积状态 |
+| D3 | 状态归属 | Worker 渲染宿主持有索引；脚本每帧本地只读查询，无逐查询 IPC |
+| D4 | 后端范围 | v2 本期只实现 Vulkan；CPU 遇到 v2 效果明确拒绝，导出也使用 Vulkan；保留后端抽象 |
+| D5 | SVG | 允许新增依赖，选型见 §5.6 |
+| D6 | 旧工程 | 按精确门禁升级工程 schema 29→30，旧工程拒绝；模板库和脚本配置库升版并隔离旧数据 |
+| D7 | 渲染引擎 | 保留 Skia Ganesh Vulkan，以渲染计划和执行器分层；自研 Vulkan 留作将来 |
+| D8 | 首期范围 | 对齐 v1 全部可用能力并实现目标复杂样式；重写九个样例后才能删除 v1 |
+| D9 | 媒体自适应 | 保留 GPU 背景采样，新增后台低分辨率特征轨；C# 与着色器均可读取并做时间平滑 |
+| D10 | 行退场窗 | 包声明退场时长，隐藏后延长视觉副本；不参与布局，可与下一行重叠 |
+| D11 | 粒子出生锚点 | 使用脚本变换后的最终几何；120 Hz 轨迹记忆、按寿命窗口补算 |
+| D12 | 成本约束 | SDK 显式考虑 GPU 绘制、同步、CPU↔GPU 拷贝与资源成本 |
+| D13 | 像素验收 | 缓存与同帧直绘按容差比较；初始 1x 下预乘 BGRA 单通道绝对差 ≤2/255 |
+| D14 | 纯度分析器 | `Declare` 允许 LINQ／集合预计算，结果只读；逐帧求值严格限制 |
+| D15 | 媒体轨规格 | 网格 32×18，按背景帧率采样，平滑窗口上限 2 s |
+| D16 | 时长上限 | 粒子寿命 ≤5 s；退场副本 ≤3 s；超限明确拒绝 |
+| D17 | GPU 输入替换 | 每个输入代次换新 Worker，另维持一个预热备用 Worker；本计划不做 GPU 流进程内输入替换 |
 
-目标复杂样式（验收样例）：随当前播放头所在的字放大强调；当前句退场时各字符倾斜、扭曲后向左下方飞行并淡出；
-随播放头有飞行粒子，星星 SVG 扫过整句；字符描边随背景媒体颜色自动变色以保证可读性。
+### 1.2 二次调研后的实现约束
 
-## 2. 现状诊断（证据）
+- **D2／D14**：纯函数不等于只有一个回调。采用纯文字求值和纯晚期视觉求值两个逻辑阶段；
+  `Declare` 返回不可变准备结果，宿主持有并传回，不写作者 `readonly` 字段。接口名仍为候选。
+- **D3**：区分加载时建立的源索引、不可变分析制品和可淘汰的派生 memo；不再宣称所有历史
+  都预计算、所有查询都 O(1)／O(log n)，或任意作者准备计算天然线性。
+- **D8**：验收必须覆盖能力矩阵和九样例；不要求 v1 源码兼容或全部像素相同。禁止以九例通过
+  代替完整能力核对。任意可变状态不再是受支持的编程模型；时变发射率等现有功能仍需提供纯化表达。
+  无法映射的实际能力列为发布阻塞项，不能自行标成淘汰项；处理方式见 §5.9／§10。
+- **D11**：寿命窗口外的有限桥接端点、插值端点和断点另计预算；不再使用“≤600 次”硬承诺。
+  播放与随机访问使用同一分段采样规则，memo 命中与否不能改变输出。
+- **D17**：GPU 参数／源码／媒体分析修订生效均属于输入替换，仍换 Worker。
+  HTTP 同输入 seek 的进程复用与 GPU 流规则分别实现；不以“常驻 Worker”概括所有编辑路径。
+- **D13**：保持容差门槛，不用容差掩盖合成顺序、裁剪、错误诊断等语义变化。
+  缩放、倾斜、Warp 阈值经测量提出后再确认。
 
-### 2.1 会话生命周期：seek 和编辑都会换进程、冷编译
+目标样式仍为：当前字放大强调；当前句退场时可独立变换的字簇倾斜、扭曲、向左下方飞行并淡出；
+粒子跟随最终播放头；星星 SVG 扫过整句；描边根据背景改善可读性。
+“可读性”需使用复杂明暗背景做视觉验收，不能仅凭平均亮度算法宣称保证。
 
-- HTTP 预览 seek 先换代次并调用 `Coordinator.Invalidate()`
-  （`backend/src/MakoKaraGenerator.Backend.Hosting/BackendPreviewSessionRegistry.cs:299-310`）。
-  协调器随后销毁并重建会话（`BackendPreviewCoordinator.cs:214/221/245`）。
-- 每个会话都 `new WorkerProcessProxy`（`WorkerPackageRenderFrameSessionFactory.cs:118-133`），
-  再 `Process.Start` 并握手（`WorkerProcessProxy.cs:161-199`）。
-- GPU 流的每次输入替换同样新开 Worker（`GpuStreamWorkerSession.cs:54`）。
-- Worker 的编译产物目录是 `makokara-worker-package-{ProcessId}`（`Backend.Worker/PackageRenderSession.cs:55`），
-  按进程隔离，所以 `ScriptCompiler.cs:96` 在新进程里永远命中不了缓存，每次都冷启动 Roslyn。
-- 既有数据：组合场景单建会话约 1.1–1.2 s；GPU 流从 UI 调用到输入替换帧 p95 为 1202 ms，
-  从新代次 hello-ready 起算是 164 ms（`docs/performance/gpu-preview-production-2026-11-01.md:156-159`）。
+## 2. 现状诊断与源码依据
 
-### 2.2 时间模型：O(t) 重放
+以下位置以本次基线为准；较长文件用类名／方法名定位，行号变化不改变证据边界。
 
-- 往回请求会重置会话（`Scripting/Execution/FrameSession.cs:33`）。重置时重新 Load
-  （新 `ScriptModule`，`FrameEffectHost.cs:74`），再从 0 按 120 Hz 重放。
-  文档记载：第一次请求 60 s 处要执行 7,201 次 Evaluate。
-- `CompiledProjectEffects.cs:121` 一律返回时间线工厂；纯帧工厂只有测试在用。
-- 放大器：
-  - 每个不同的出生时刻多做一次完整 Evaluate（`FrameEffectHost.Particles.cs:26`）；
-  - 每个桥接端点都单独从 0 重放一个会话（`SemanticAnchorQuery.cs:44`）；
-  - 重置时清空端点缓存（`FrameEffectHost.cs:245`）。
-- 粒子发射配额是逐个光标头累加的精确分数（`Particles/ExactEmissionQuota.cs`），依赖逐步推进的历史。
+### 2.1 生命周期与交互延迟
 
-### 2.3 每帧宿主开销
+- HTTP seek 在 `BackendPreviewSessionRegistry.cs:299–310` 换代并 `Invalidate`；
+  `BackendPreviewCoordinator.cs:212–245` 随后销毁／重建会话。
+  `SameInput` 在该文件 `331–340` 把预览代次也纳入运行时身份。
+- `WorkerPackageRenderFrameSessionFactory.cs:118–133` 创建 Worker；`198–202` 对任意异常
+  包括协作取消都标记失败并停止。底层 `WorkerProcessProxy.cs:771–774` 已允许消费匹配取消回执后复用通道，
+  但不能据此假定作者运行状态也仍然有效。
+- GPU seek 使用 `timelineResetId`，输入来源修订改变才 `replaceInput`，见
+  [gpu-preview-controller.ts](../../frontend/src/editor/preview/gpu-preview-controller.ts) 与
+  [GPU 流协议](../architecture/gpu-preview-stream-v1.md)。
+- `PackageRenderSession.cs:54–58` 的编译缓存按 PID 放置，跨新 PID 通常重复编译；同进程仍可能命中。
+  [ScriptCompiler](../../backend/src/MakoKaraGenerator.Scripting/Compilation/ScriptCompiler.cs) 已按源码、
+  编译选项、Roslyn／引用集和入口计算内容键，参数不在编译键内。
+- `ProjectSessionRegistry.Author.cs` 已持有长寿命作者编译器，尚未把持久产物交给渲染链消费。
+  [ScriptArtifactStore](../../backend/src/MakoKaraGenerator.Scripting/Compilation/ScriptArtifactStore.cs)
+  已有原子发布、字节摘要验证和损坏缓存拒绝逻辑，应复用。
+- [PreviewPanel](../../frontend/src/editor/preview/PreviewPanel.tsx) 的 HTTP 分支每 250 ms 检查变化，
+  播放最多每 500 ms 请求；GPU 分支的 500 ms 是时钟纠正，显式 seek 等已有即时事件。
+  [作者配置](../../frontend/src/editor/library/draft-config-editor.ts) 默认合并等待为 300 ms。
 
-- 每次 Evaluate 都完整采样场景、重建绑定范围和样式基线，并对每个实例做 `Where(...Any(...))` 过滤。
-  按 30 fps 输出，每帧约 4 个 120 Hz 边界。
-- 场景元素测量对"元素 × 行"做 LINQ 嵌套，并重复解析样式和注音布局
-  （`Rendering.Skia/SkiaRenderPipeline.SceneFrame.cs`）。
-- 字族变换循环内用 `TokenGeometries.Single(...)`，复杂度 O(n²)
-  （`SkiaRenderPipeline.FamilyTransforms.cs`）。
-- 两个 Skia 管线（一个提供几何、一个负责渲染）各自维护整形缓存。
+历史 [2026-11-01 报告](../performance/gpu-preview-production-2026-11-01.md) 区分了输入替换
+UI 调用到帧 p95 约 1202 ms 与 hello-ready 到帧约 164 ms，另有有限 seek 数据。
+这些不能混为 seek 冷启动成本，也不是当前版本或 v2 测量值。
 
-### 2.4 GPU 执行与拷贝点
+### 2.2 v1 时间模型与宿主开销
 
-| 位置 | 现状 | 代价 |
+- [FrameSession](../../backend/src/MakoKaraGenerator.Scripting/Execution/FrameSession.cs) 回退时重置，
+  重新加载模块并从零推进 120 Hz 边界和事件。重载模块不等于重新 Roslyn 编译。
+  复用进程能减少启动／资源准备，不能单独消除 O(t) 状态重放。
+- `CompiledProjectEffects.cs:121` 生产入口走时间线工厂；出生时刻和桥接端点可能触发额外求值／重放，
+  见 `FrameEffectHost.Particles.cs`、`SemanticAnchorQuery.cs`。
+- 每次求值重复采样场景、构建绑定范围和基线，存在 `Where(...Any(...))` 过滤；
+  `SkiaRenderPipeline.SceneFrame.cs` 重复解析样式／注音，`FamilyTransforms.cs` 有循环内 `Single` 查找。
+- 几何管线与绘制管线的整形缓存可共享，但设备相关 GPU 缓存不能跨 Worker／VkDevice 直接复用。
+- `TimelineProjection.cs` 当前逐边界采样；新索引的建立成本也要测量，不把重放成本全部转移到开工程时。
+
+### 2.3 渲染与拷贝成本
+
+| 位置 | 当前行为 | 二次调研结论 |
 |---|---|---|
-| `SkiaRenderBackend.cs:330-336` | `FlushAndSubmit` 调用 `Submit(true)`，CPU 同步等待 GPU | 每个中间表面一次全管线停顿 |
-| `SkiaRenderPipeline.ImageScene.Surfaces.cs:14`、`GroupIsolation.cs:107`、`SceneSurfaces.cs:64` | 中间表面前后各一次同步 flush | 单帧多次停顿 |
-| `SkiaRenderPipeline.ImageScene.cs:272-286` | `IsEmptyOriginalSurface` 整面回读到 CPU 判断是否为空 | GPU→CPU 拷贝 + 同步，按部件触发 |
-| `SkiaRenderPipeline.Visuals.cs:46-72` | 点、线段、精灵逐个调用 `DrawCircle/DrawLine/DrawImage` | 预算上限 10 万项，绘制调用数随项数线性增长 |
-| `SkiaRenderPipeline.TextPainting.cs:65/97`、`Glow.cs:21-28` | 描边、材质、辉光、阴影都走 `SaveLayer`/图像滤镜 | 离屏目标切换与填充率 |
-| `BackgroundFrameSources.cs:217-245`、`FfmpegVideoFrameProvider.Source.cs:110` | ffmpeg 解码出全分辨率 BGRA → 管道 → 托管数组 → 逐行拷进 `SKBitmap` → 绘制时隐式上传 | 1080p 每帧 8.29 MB，经过 3 次 CPU 拷贝和 1 次上传 |
-| `SkiaRenderPipeline.cs:112-131` | HTTP 预览／导出：整帧同步回读 | 必需，但当前与渲染串行 |
-| `SkiaRenderPipeline.cs:144` | GPU 流：一次 GPU blit 到导出槽，不回读 | 已是零回读路径 |
+| `Rendering.Skia/SkiaRenderBackend.cs:330–336` | `FlushAndSubmit` 同步提交 | 是 CPU 等待边界；等待多久取决于已提交工作，不能按次数推算收益 |
+| `ImageScene.Surfaces.cs`、`GroupIsolation.cs`、`SceneSurfaces.cs` | 中间表面有同步 flush | 同 context 内排序与外部访问边界必须分开优化 |
+| `SkiaRenderPipeline.ImageScene.cs:272–286` | 空原始部件整面回读 | 可证明的空部件可先走 CPU 快路径，不把任意 shader 结果当作可静态判断 |
+| `Effects/CompiledImageGraph.Drawing.cs:70–114` | Color 节点整面回读，验证 RGB≤alpha | 原计划遗漏；不能只删空检测就宣称无中间回读，也不能直接删除诊断 |
+| `VulkanGpuFramePool.cs:68`、`native/gpu-preview/gpu-preview.cc:278–281` | 同步 submit、blit 后 queue-idle | 桌面无最终像素回读，但仍等待 CPU；既有协议明确此完成边界 |
+| `SkiaRenderPipeline.Visuals.cs` | 点／精灵等逐项绘制 | 批处理需保持混合、裁剪和层级；一次托管调用不等于一次 GPU draw／上传 |
+| `TextPainting.cs`、`Glow.cs` | SaveLayer／图像滤镜 | 测量表面和填充成本；不能一律认定层不必要 |
+| `FfmpegVideoFrameProvider.Source.cs`、`BackgroundFrameSources.cs` | raw BGRA、托管缓冲、逐行搬入 SKBitmap | 拷贝路径可确认，精确次数和耗时仍需仪表核查 |
+| `SkiaRenderPipeline.cs:112–131` | HTTP／导出同步回读 | 先研究编码／写盘重叠；真正 GPU 异步回读需额外接缝 |
 
-既有基准（`backend/docs/performance/20261028-structural-optimization/`）：材料场景每帧中位数，
-CPU 后端约 2.9–3.4 s，Vulkan 约 0.3 s。10-28 报告中的后续项 C（惰性空部件检测）、D（GPU 小结果校验）、
-E（区域裁剪、图融合、GPU 常驻输出）都还没做。
+渲染优化还受以下已有语义约束：
 
-### 2.5 扩展性根因
+- [PreparedRenderFrame](../../backend/src/MakoKaraGenerator.Rendering.Abstractions/PreparedRenderFrame.cs)
+  已表示固定快照、时间、模式、目标和已验证几何；
+  [ImageGraphCompiler](../../backend/src/MakoKaraGenerator.Core/Effects/ImageGraphCompiler.cs) 已有中立拓扑、类型与预算。
+- [FamilyTransforms](../../backend/src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.FamilyTransforms.cs)
+  的全域部件顺序防止后画字族的辉光覆盖邻字填充。整字完整外观缓存后逐字贴回会破坏这个保证。
+- 既有图执行已有 bounds／外扩／预算预检；新 ROI 是对已有实现深化，不是从零新增所有区域能力。
 
-1. **能力矩阵封闭**：共 27 个写入重载。比如 Host、预备帧和 Skia 早就支持任意仿射，
-   SDK 却只给字族开放缩放（`Scripting.Abstractions/FrameWriter.cs:155`）。
-   每加一个能力都要同时改 SDK、宿主合成、`PreparedRenderFrame` 校验、Skia 和文档计数。
-2. **输入面窄**：
-   - 内部有 `ExitProgress`，但传给脚本时被丢掉（`Projection/FrameProjection.cs:27-32`），
-     而且只有槽位序列布局有退场窗（`LyricSceneSampler.LeadIns.cs:104-117`）；
-   - 没有媒体分析、矢量路径和逐字簇目标；
-   - 图里 Transform 节点的矩阵只能写字面量。
-3. **状态模型隐式**：状态存在作者字段和宿主游标里，没法快照，也没法跳到任意时刻。
-4. **输出逐帧重新下发命令**：没有可复用的场景节点或光栅缓存，难以做增量和 GPU 常驻。
-5. **版本严格相等**：`ProjectEffectsJson.cs:12` 要求 `sdkVersion == "1.0.0"`，没有能力协商。
+### 2.4 扩展性与作者入口
+
+v1 写入 API 是目标类型与能力的重载矩阵，SDK 暴露面小于宿主表达面；缺少字簇目标、动态辉光、
+SVG 与媒体特征轨。`ExitProgress` 在投影中丢失，现有槽位退出与新隐藏后副本也不是同一个相位。
+
+[PerformanceSample](../../backend/src/MakoKaraGenerator.Scripting.Abstractions/PerformanceSample.cs)
+已区分 Missing／Unavailable／Token／Line／RubySegment；
+[ShapedLine](../../backend/src/MakoKaraGenerator.Text/ShapedLine.cs) 与
+[GlyphPartitioner](../../backend/src/MakoKaraGenerator.Text/GlyphPartitioner.cs) 已区分字素与不可拆整形单元。
+新接口不能为了简短而丢失这些信息。
+
+[SourceEditor](../../frontend/src/editor/library/SourceEditor.tsx) 当前有高亮、编辑和诊断展示，
+[draft-source](../../frontend/src/editor/library/draft-source.ts) 主要处理 C# 修订；
+manifest／SVG／shader／图资源编辑、准备状态、性能解释应核对后端已有端点并补齐前端工作流，
+不能仅新增 SDK 类型和错误文案就宣布作者能力可用。
 
 ## 3. 设计原则
 
-- **P1 纯时间函数**：作者输出只取决于 `(固定输入, t)`。任意时刻都可以单独求值，
-  求值顺序和次数不影响结果。
-- **P2 宿主持有一切历史**：事件、相位、播放头轨迹、粒子出生表和媒体特征都是宿主建立的不可变索引。
-  脚本只读，可查询过去和未来的**源**时间线，但不能读其他实例的输出。
-- **P3 小数据过界，像素留在 GPU**：脚本只产出参数，每帧通常是 KB 量级。
-  任何依赖像素的判断都交给着色器或预计算特征轨。SDK 不提供从 GPU 读像素到 C# 的接口。
-- **P4 声明能力，宿主编排**：包清单声明所需能力、资源和发射器，宿主据此规划区域、批次和预算。
-  新能力以"属性键/图元类型"的方式加法扩展，不新增重载矩阵。
-- **P5 交互成本有上界**：
-  - seek 与 t 无关，只多补算"最长粒子寿命"窗口；
-  - 参数编辑不重新编译；
-  - 源码编辑只重编被改的包，而且在已预热的 Server 编译器里完成。
+- **P1 固定输入纯求值**：输出仅依赖固定运行时输入、准备结果、种子和 `TimeUs`；顺序、重复、
+  乱序以及 memo 冷热状态均不改变结构化输出。结构化确定性与 GPU 像素容差分别验收。
+- **P2 显式依赖**：源索引、准备计算、文字几何、粒子和视觉按 DAG 执行；早阶段不能读取晚阶段产物。
+- **P3 小数据过界**：作者不读 GPU 像素；参数、几何和特征只读查询不做逐项 IPC。
+  上传、回读、同步和分析成本分别计量，不承诺所有输出永远只是 KB。
+- **P4 复用已有合同**：沿用目标身份、微秒半开区间、owner／CAS、取消、租约和渲染语义；
+  执行计划复用 PreparedFrame 与图编译器，不再建立平行语义系统。
+- **P5 有界工作**：预算覆盖准备、查询枚举、出生锚点补算、图元、表面、GPU 缓存及 Worker 数量；
+  有限次数不等于达到交互延迟目标。
+- **P6 以体验验收**：开工程、连续改参、失败恢复、拖动、播放和导出各有出口；
+  区分 UI 发起、请求接受、任务生效、帧准备与实际显示。
+- **P7 能力可发现**：强类型键与能力描述共同驱动校验、补全、文档和 UI；未支持项在加载或写入时明确报告。
 
 ## 4. 目标架构
 
-### 4.1 进程分工与生命周期
+### 4.1 进程分工、编译产物与生命周期
 
 ```text
-Server（长寿命）                        Worker（常驻，Vulkan）
-├─ 包校验、Roslyn 编译                  ├─ 加载 PE（可回收程序集上下文），不编译
-├─ 产物缓存 {StateRoot}/script-artifacts├─ 建立宿主索引（§4.2），按输入差量重建
-├─ 视频/音频特征分析调度与缓存           ├─ 每帧：采样 → Evaluate → 合成 → 渲染计划 → 执行
-└─ 现有 HTTP、owner/CAS、500ms 控制     └─ 输出：GPU 租约（桌面）/ 回读（HTTP、导出）
+Server（长寿命）                         Worker（固定输入执行）
+├─ 包预检／共享编译服务                  ├─ 校验产物身份并加载 PE／PDB
+├─ profile 内内容地址产物缓存            ├─ 源索引／不可变准备结果／派生 memo
+├─ 媒体分析调度与制品缓存                ├─ 纯求值各阶段 → 执行计划 → Vulkan
+└─ HTTP／owner／CAS／输入固定            └─ GPU 租约，或 HTTP／导出回读
+HTTP：同输入 seek 复用 Worker             GPU：每输入代次新 Worker + 最多一个备用
 ```
 
-- **编译**：Server 已为作者流程持有 `ScriptCompiler`（`ProjectSessionRegistry.Author.cs:78`）。
-  v2 统一在 Server 编译，产物按内容地址存在 profile 内。Worker 通过运行时输入收到 PE/PDB 字节与 `ArtifactHash`，
-  校验后加载；Worker 自身不再加载 Roslyn。
-- **seek**：同一 Worker、同一运行时会话内完成。HTTP 的"换代次"语义保留在 Host 侧
-  （帧缓存失效、请求序号），不再销毁会话。
-- **输入变化**：
-  - 参数变化：只替换参数值，并重建受影响的索引；
-  - 歌词或布局变化：差量重建受影响行的布局与相位索引；
-  - 包源码变化：Server 增量编译，Worker 在同一进程卸载旧模块、加载新模块。
-- **GPU 流**（D17）：保留现有"每个输入代次换新 Worker"的语义及其身份复核证据，
-  同时维持一个**预热的备用 Worker**（已握手，Vulkan 与 Skia 已初始化，已加载引用集），
-  切换时只付输入装载成本。备用 Worker 被取用后立即补一个新的；它同样按所拥有的 PID 与进程身份管理和回收。
-  本计划不做进程内替换，因此 `docs/architecture/gpu-preview-stream-v1.md` 的身份语义不变，
-  只需补充备用 Worker 的寿命与排水说明。
-- **失败隔离**：作者异常导致的失败只隔离该实例和该帧，不污染宿主索引。宿主索引不可变，失败后无需重放。
+**共享编译与产物消费**：
 
-### 4.2 宿主索引（轻量只读数据结构）
+1. 扩展已有作者编译服务，统一编译入口，持久化到 `{StateRoot}/script-artifacts`。
+   复用 `ScriptArtifactStore`；缓存身份覆盖源码、入口、选项、编译器、SDK／引用集及纯度分析规则版本。
+2. 区分编译输入指纹与 PE／PDB 字节摘要。Worker 接收不可变产物描述、受预算限制的字节、
+   SDK／引擎 profile／引用身份与入口集合；验证后加载，不信任调用方任意路径或仅一个哈希字符串。
+3. Worker 不再承担 Roslyn 编译。装载验证与 GPU shader／图像／图验证仍在相应执行边界进行。
+   共享 DTO／产物加载代码与 Roslyn 编译依赖分离，并核查 Worker 发布依赖闭包。
+4. 参数变化不编译；源码变化只重编变动包。复用引用和未变语法树是后续优化，不把持久缓存命中
+   称为 Roslyn 增量编译已实现。并发同键编译合并、失败不发布可运行产物，缓存有配额和在用租约。
 
-全部在加载或差量更新时建立。查询复杂度为 O(log n) 或 O(1)，内存与工程规模成线性关系。
+**HTTP 同输入 seek**：
 
-| 索引 | 内容 | 典型查询 |
+- 将公开请求代次与内部固定运行时输入键分离。前者继续隔离旧帧／序号，后者包含来源与修订、
+  模式、尺寸、设备、资源／分析身份；只有请求代次变化时可复用固定会话。
+- 区分协作取消、作者异常、硬超时和 IPC／设备失败。消费取消回执且确认会话状态可恢复后才复用；
+  v1 取消导致状态不可靠时重置运行时，硬失败仍停止所拥有 Worker。
+- S1 不保证消除 v1 O(t) 重放。真实输入变更第一步允许复用编译产物但重建会话，
+  不把复杂热替换作为同输入 seek 优化的前置条件。
+- v2 后续在同一 HTTP Worker 内重建固定会话／卸载模块，仅在取消、租约和装载回收验收通过后启用。
+  collectible ALC 的 `Unload()` 是回收请求，不是内存立即释放；不在每次 seek 强制 GC。
+
+**GPU 备用 Worker（D17）**：
+
+- 主机最多保留一个尚未绑定业务输入的备用 Worker；单独计入 active＋spare 总进程／内存／GPU 预算。
+  不突破既有每 host 最多两个 GPU stream／Worker 的硬上限；第二个活动流优先取用或回收备用名额，
+  无空闲配额时暂不补热。验证两活动流、退回单流后补热及关闭，不以“备用无 stream”绕过 Worker 配额。
+- 预热分级登记：进程和握手、引用加载、设备／Skia 初始化。当前设备在固定输入路径创建，
+  后两项需要新的初始化接缝；不能声称空闲握手已消除资源装载、上传和索引建立成本。
+  S1d 完整出口至少达到握手成功、SDK／运行引用就绪及所选 Vulkan 设备／Skia 初始化，
+  且取用时实际复用这些初始化结果。仅握手的备用可单独交付，但标记部分完成，不能称完整预热。
+- 备用进程不提前打开等待 consumer 的 GPU 流。取用后补一个，定义空闲 TTL、失败退避、
+  配置／部署变化淘汰和退出排水；连续编辑来不及补热时允许受控冷启动，记录为 miss。
+- GPU 每次输入替换仍关闭旧代、建立新代，保留 producer 身份和精确代次检查；
+  不暗中改成旧新双活动，也不引入进程内参数热替换。
+- 备用资源按所拥有 PID＋进程身份回收；进程终止、消费者释放与资源租约释放仍需分别证明。
+
+### 4.2 固定输入、索引与失效
+
+固定运行时输入身份至少包括：工程／作者来源修订、包和产物身份、参数／种子、歌词／布局／字体、
+资源内容、分析 profile／就绪状态／制品摘要、画布和输出模式。输出尺寸与设备身份进入相应执行缓存键。
+不依赖机器路径、墙钟或上一帧是否成功。
+
+| 数据 | 建立与查询 | 成本约束 |
 |---|---|---|
-| `TimelineIndex` | 13 类源事件按类型、来源排序的数组（起唱、行演唱、装载进出、可见性、前奏、光标转换、音频 tick） | `Last(kind, filter, t)`、`Next(...)`、`Count(kind, filter, [a,b))`、`NthOccurrence` |
-| `PresentationIndex` | 每次行装载的揭示、隐藏、进场窗、演唱区间、**退场副本窗 [hide, hide+exit)**、槽位 | `Phase(binding, t)` 返回 Preparing/Entering/Performing/Retained/Exiting 以及各段进度 |
-| `LayoutIndex` | 行与样式 → 整形结果、字簇（DrawUnit）、注音布局（缓存，两条管线共享） | 基础几何；时变变换由 `LyricSceneSampler` 纯函数给出 |
-| `CursorIndex` | 每条 `CursorTrackId` 的分段进度路径 | `BaseCursorAt(track, t)` |
-| `FinalCursorMemo` | 实例链求值后的最终播放头位置，按 120 Hz 网格懒计算，窗口化 LRU 缓存 | 供粒子出生锚点使用（D11），两个网格点之间线性插值 |
-| `ParticleSchedule` | 每个发射器声明 × 光标头的闭式出生序列；Burst 来自 `TimelineIndex` | `AliveAt(t)`：枚举 [t−maxLife, t] 内的出生 |
-| `MediaFeatureTrack` | 背景视频的低分辨率颜色与亮度网格轨（§5.7） | `Sample(rect, t, window)`；着色器侧以纹理形式访问 |
-| `AudioFeatures` | 沿用现有分析结果 | `GetAt/GetRange` |
+| `TimelineIndex` | 按事件类型、来源、occurrence 等有限键排序；Last／Next／Count／Nth | 建立排序成本显式登记；键内定位 O(log n)，返回 k 条为 O(log n+k)；任意 predicate 扫描另计预算 |
+| `PresentationIndex` | 每次装载的 reveal／hide、原退出窗、演唱和隐藏后副本 | 按装载身份查相位；副本不生成新的源演唱事件 |
+| `LayoutIndex` | 字体内容、整形选项、样式与文本对应的 shaping／ruby 布局 | 两条管线共享 CPU 布局；时变几何仍按 t 求值 |
+| `CursorIndex` | 分轨道与身份区段的基础播放头路径 | 查询保留半开区间与断点，不跨身份插值 |
+| `FinalCursorMemo` | 按输入身份、输出模式、轨道／Binding／anchor 类型缓存最终几何采样 | 120 Hz 分段懒计算和 LRU；容量、补算节点与实例成本分别受限 |
+| `ParticleSchedule` | 连续发射累计量、Burst 事件序列与固定随机身份 | 定位存活窗口后枚举；出生、活跃、拖尾与桥接各有数量预算 |
+| `MediaFeatureTrack` | 后台生成不可变特征轨，建立时间／空间查询索引 | 格式、精度、PTS、建立／查询／上传预算见 §5.7 |
+| `AudioFeatures` | 复用现有固定分析内容及语义身份 | 不因帧顺序修改分析结果 |
 
-退场副本（D10）：
+索引增量更新不能只按“受影响行”猜测：布局重排、重复句 ordinal、组继承和播放头连接可能影响后续区段。
+首版允许重建完整依赖闭包以保证正确；有明确依赖证明后再缩小范围。
 
-- 包声明 `lineExit.durationUs` 后，宿主让该装载在 [hide, hide+exit) 内继续存在，阶段为 `Exiting`。
-- 这段时间只参与绘制，不参与布局、不占槽位、不产生演唱事件。光标不进入退场副本。
-- 多个实例声明的时长取最大值。
-- 上限 3 s（D16），超出在加载阶段直接拒绝，不静默截断。
-
-### 4.3 每帧执行流
-
-1. `SceneSample(t)`：纯采样。同一 t 内的几何、Evaluate 和出生锚点共享同一份结果。
-2. 实例按工程顺序执行 `Evaluate(in Frame, Output)`，写入结构化数组形式的输出缓冲（无每帧托管分配）。
-3. **合成**：按属性键规则合并多个实例的输出（仿射按调用顺序组合，透明度相乘，Set 覆盖），并校验预算。
-4. 生成**渲染计划**（§4.4）：排序、批次、区域、缓存命中、表面预算，在执行前确定性地完成预算检查。
-5. 由 Skia Vulkan 执行器执行：单帧只在最后提交一次，中途不同步等待。
-6. 输出：
-   - 桌面：GPU blit 到导出槽（现有路径）；
-   - HTTP 预览与导出：回读整帧，可与下一帧的 CPU 阶段流水重叠。
-
-### 4.4 渲染计划 IR 与 Skia 执行器
-
-渲染计划是与后端无关的有序指令集，包含以下节点：
-
-- 背景（静态图／视频纹理）
-- `BehindText` 图元批次
-- 文字项：行、字族、字簇。每项带变换、透明度、填充、描边、阴影、辉光、材质及图绑定
-- 图节点通道（带区域）
-- `AboveText` 图元批次
-
-执行器策略：
-
-- **光栅缓存**：外观在一段时间内不变、只有仿射或透明度变化时（强调、飞出等最常见的情况），
-  把字项的完整外观（阴影、辉光、描边、填充）光栅化为 GPU 纹理一次，之后每帧只画一个带变换的贴图四边形。
-  - 缓存键为（整形结果、样式哈希、栅格比例档位）；
-  - 放大超过档位时升档重栅格化，生成 mipmap；
-  - 外观本身随时间变化（材质 uniform 改变等）时，回到矢量直绘；
-  - 像素验收按 D13 与同帧直绘做容差比较。初始阈值只覆盖 1x 缩放；
-    缩放、倾斜、网格扭曲状态下的阈值，在 S3 依据实测提出，经用户确认后登记。
-- **网格扭曲**：非仿射扭曲用缓存纹理配合 `DrawVertices` 网格。脚本只写低分辨率网格偏移，
-  替代 v1 的 ColorOnly 图位移。
-- **批处理**：
-  - 点、精灵、粒子用 `DrawAtlas`，一个批次一次调用；
-  - 拖尾和线段合并为一个 `DrawVertices`；
-  - SVG 图元按 §5.6 选择矢量回放或图集。
-- **区域裁剪**：材质、图、模糊按目标墨迹框加 `expand` 分配表面，不再使用整画布。
-  完成 10-28 报告中的 E 项（区域裁剪、图融合）。
-- **去掉同步点**：中间表面不调用 `Submit(true)`；空部件判断改为由渲染计划在 CPU 侧根据几何与样式推断，
-  删除整面回读（10-28 报告 C 项）。
-- **背景视频**（候选）：ffmpeg 直接解码到目标分辨率，或上传 NV12（每像素 1.5 字节）再由着色器转色。
-  这能减少约 60% 上传量；具体收益以 S0 基准为准。
-
-### 4.5 GPU/CPU 成本模型与 SDK 约束
-
-| 数据或操作 | 量级（按 1080p 计算） | SDK／宿主规则 |
+| 变更 | 必须失效／重建 | 可复用 |
 |---|---|---|
-| 脚本每帧输出 | 200 个字 × ~64 B ≈ 13 KB | 允许；整体上传一次 |
-| 粒子实例 | 2 万 × ~36 B（xform + uv + color）≈ 720 KB | 用 `DrawAtlas` 数组一次上传；不允许逐个调用 |
-| 整帧 BGRA | 8.29 MB | 只在 HTTP 与导出时回读；脚本永远拿不到 |
-| 视频帧上传 | 8.29 MB（BGRA）／3.1 MB（NV12） | 宿主负责；脚本只能经着色器或特征轨使用 |
-| 中间表面 | 区域面积 × 4 B | 必须声明或推断区域；预算在渲染计划阶段检查 |
-| GPU→CPU 同步 | 一次完整管线停顿 | 单帧最多一次（最终输出）；SDK 不提供像素读取 |
-| 媒体特征轨 | 32×18 × 4 B ≈ 2.3 KB/帧；3 分钟 30 fps ≈ 12 MB | 预计算并持久化；C# 查询走 CPU，着色器绑定为纹理 |
+| seek | 当前帧输出；派生 memo 按容量按需补算 | 固定输入、编译产物、源索引 |
+| 参数／种子 | Declare 中依赖参数的准备结果、发射计划、最终几何 memo、动态外观 | 未变源码产物；有依赖证明的源布局 |
+| 歌词／布局／字体 | 相关事件、相位、布局、播放头、粒子锚点与依赖闭包 | 未变源码产物 |
+| 包源码／资源 | 对应产物或资源准备、依赖该包的结果 | 其他无依赖包的产物 |
+| 媒体分析完成／算法变化 | 固定输入修订、媒体查询和依赖它的准备／memo／外观 | 原工程内容与无依赖资源 |
+| 设备／输出密度变化 | GPU 对象、栅格／图集和受密度影响的执行数据 | 明确与设备／密度无关的 CPU 数据 |
 
-时间成本（ms）统一在 S0 基准中测量后再登记，本文不预估。
+### 4.3 纯求值阶段与失败边界
+
+```text
+源索引 + 固定准备结果 + t
+  → SceneSample / 基线
+  → 各实例 Evaluate：文字几何、样式和图参数
+  → 确定顺序合成 / 最终几何
+  → ParticleSchedule + FinalCursorMemo / 桥接 / 存活粒子
+  → 各实例 EvaluateVisuals：只产生图元，不回写文字或发射计划
+  → PreparedRenderFrame + 编译图
+  → RenderExecutionPlan → Skia 执行 → 输出
+```
+
+- 同 t 的场景和布局在各阶段共享；出生锚点补算只执行必要的文字几何依赖闭包，
+  不递归执行粒子／视觉阶段。若任意 C# helper 无法安全拆分，保守执行完整文字阶段并计入成本，
+  不假定分析器总能剔除所有无关计算。编译期及运行期接口均阻止晚阶段产物回流。
+- 文字阶段不能读取其他实例输出。晚期视觉可读取宿主已经合成的只读最终几何和本实例粒子，
+  不公开其他实例的原始输出缓冲，不反向修改它们。
+- 实例顺序、目标层级、属性合成和图元顺序固定。作者一次阶段输出先写临时缓冲，
+  完整校验后发布；异常时丢弃该实例本阶段输出，不让半写入结果污染共享索引。
+- 首期作者运行错误使该帧失败并携带准确诊断；预览 UI 可显示标注修订的最近成功帧，
+  导出仍严格失败。不承诺任意异常都可仅跳过实例后产生成功帧。
+- 无法协作取消的循环、内存超限、协议／设备错误由宿主监督和 Worker 隔离处理；
+  分析器与随机确定性探针不提供任意 C# 终止性或安全沙箱证明。
+
+### 4.4 执行计划、缓存与 GPU 边界
+
+`RenderExecutionPlan` 是已有 PreparedFrame／编译图的执行细化，保留它们的身份、类型、预算与诊断。
+节点描述有序 pass、读写依赖、逻辑区域／物理区域／采样区域、临时资源寿命、混合和批次；
+不重复定义语义目标系统，不为提高批量而跨透明合成顺序任意排序。
+
+**分层缓存**：先缓存 shaping、覆盖、描边／辉光等稳定部件，演唱揭示遮罩与动态参数独立处理。
+只有证明顺序等价时才缓存完整外观。缓存键包含字体／资源／包身份、样式、裁剪／揭示状态、
+输出密度／质量／色彩／alpha 模式、采样空间和设备代次；世界／画布坐标渐变、背景依赖、uniform 改变
+可能使移动中的对象外观变化。明确字节配额、LRU、图集 padding、mipmap 和资源释放。
+栅格档位按完整变换的最大放大量选择，不只看 X 轴 scale。
+
+**批次与 Warp**：
+
+- `DrawAtlas` 适用于同图集、兼容 paint／clip／blend 的旋转＋等比缩放＋平移实例。
+  任意仿射／非等比／倾斜使用纹理四边形或原绘制路径，不静默降低已有 Sprite 能力。
+- `DrawVertices` 用于 Warp、线段／拖尾批次；固定绑定的索引类型和容量决定分块。
+  mesh 外沿 AA、接缝、UV 边界和采样规则单独验收，不假定 paint antialias 自动生效。
+- Warp 首期使用有界网格、有限坐标和确定拓扑；退化／翻面等不支持输入明确拒绝。
+  正向位置映射与绘制使用同一网格合同，供最终播放头与粒子锚点使用。
+
+**区域与空部件**：区分语义框、物理分配框和采样需求；反向传播 blur／transform 外扩，保留
+BackdropBelow、repeat／clamp 和输出覆盖语义。优先实现无 backdrop、有限采样半径的 ROI。
+`SaveLayer(bounds)` 不能替代显式 clip。几何非空不等于像素非空；只跳过可证明为空的原始部件，
+不借不可见输出跳过包／参数合法性检查。
+
+**图颜色校验**：保留当前非法预乘颜色的检测域、错误归属和失败规则。
+研究每节点 GPU 检测并聚合小结果，在帧发布前回收；读回字节少不等于无同步。
+若锁定 Skia 接口不足，保留现有校验并登记性能限制，或单独提出合同变更；不能把删除校验算优化通过。
+
+**提交与输出**：同 context 中间依赖优先由 Skia 排序，避免不必要 CPU wait；
+以计数和端到端测量验证，不要求托管层“每帧只调用一次 submit”作为正确性的替代。
+桌面保留现有外部访问完成边界，目标先为零最终像素回读及减少内部等待。
+HTTP／导出先做回读完成后的 CPU 编码／写盘与下一帧渲染重叠，缓冲和队列有界；
+真正 GPU 异步回读另见 §7.9，不跨线程并发操作同一个未受支持的 Skia context。
+
+### 4.5 成本模型与诊断
+
+| 数据／工作 | 量级或维度 | 约束与证据 |
+|---|---|---|
+| 文字参数 | 例如 200 项×约 64 B≈13 KB | 仅为估算；测实际序列化／托管分配／上传，不能推出一次 GPU 上传 |
+| 粒子实例 | 数量×实际实例布局 | 活跃粒子、出生、拖尾采样、批次／顶点及字节分别限制 |
+| 1080p BGRA | 8,294,400 B／帧 | 请求和成功回读字节分别记录；不把等待全算为拷贝带宽 |
+| NV12 候选 | 约 3,110,400 B／帧，理论比 BGRA 少 62.5% | 不等于实测提速；需验证颜色矩阵、range、奇数尺寸与转换成本 |
+| 表面与缓存 | 对齐分配、格式、mipmap、在途副本的真实字节 | 单帧临时与长期驻留分开，总峰值包含 active＋spare |
+| 同步 | submit、CPU wait、queue-idle、读回、消费者完成 | 次数和等待时间分开；不是 GPU kernel 时间 |
+| 媒体轨 | 32×18×编码字节／格×样本数 | 4 B／格约 12.44 MB／3 min@30fps；4×float32 则约 49.77 MB，尚未含索引／统计量 |
+| 索引与准备 | 建立耗时、事件／节点数、内存、取消响应 | 防止把 seek 卡顿移到首次打开或每次编辑 |
+
+宿主写入缓冲以复用和低分配为目标；作者局部集合仍允许，不宣称整条 Evaluate 链零分配。
+遥测可定位实例／阶段／目标和成本来源，正式性能比较关闭高开销诊断后重复有限矩阵。
 
 ## 5. SDK v2 设计（候选）
 
-### 5.1 包清单 v3
+### 5.1 包清单、能力与固定准备
 
 ```jsonc
 {
   "packageVersion": 3,
-  "sdkVersion": "2.0.0",              // 主版本严格一致；宿主次版本 ≥ 包次版本即可接受
+  "sdkVersion": "2.0.0",
   "shaderProfile": "skia-ganesh-3.119.4-v2",
   "requires": ["token.affine", "cluster.affine", "line.exit", "media.features", "path.svg"],
   "lineExit": { "durationUs": 600000 },
-  "emitters": [ { "id": "sparks", "kind": "cursor", "maxLifetimeUs": 1200000 } ],
-  "files": [ /* path/role/sha256，新增 role: "svg" */ ],
-  "parameters": [ ... ], "exports": [ ... ]
+  "emitters": [{ "id": "sparks", "kind": "cursor", "maxLifetimeUs": 1200000 }],
+  "files": [ /* path / role / sha256；新增 svg 角色 */ ],
+  "parameters": [ /* 类型、约束、默认值与编辑提示 */ ],
+  "exports": [ /* 阶段、目标、输出与资源引用 */ ]
 }
 ```
 
-- **能力协商**：宿主公布能力集。`requires` 中有不支持的能力时，在加载阶段报
-  `PackageCapabilityUnsupported`；次版本新增能力属于加法扩展。
-- **删除的声明**：订阅（`subscription`）、`simulation.stepHz`、只与历史推进相关的预算项。
+- SDK 主版本相同、宿主支持所需次版本及 `requires` 才接受；shader profile 和后端能力另行校验。
+  未知必须能力报 `PackageCapabilityUnsupported`，不得只比较版本数字就接受。
+- 删除订阅回调和作者 `simulation.stepHz`；120 Hz 是宿主锚点 profile，不再是可变状态推进合同。
+- 准备计算声明所依赖参数、资源和源索引；依赖无法静态收窄时保守失效，不信任不完整声明。
+- 编译制品与准备制品是两类缓存：参数改变可重新准备，但不重新编译。
 
-### 5.2 入口与纯度保证
+### 5.2 入口、不可变准备结果与纯度
+
+以下仅表达生命周期和读写边界，不是可直接编译的已发布 SDK：
 
 ```csharp
-public sealed class MyEffect : KaraokeEffect          // 候选名
-{
-    public override void Declare(DeclareContext d) { } // 加载期一次：只读预计算，可写 readonly 字段
-    public override void Evaluate(in Frame f, Output o) { } // 纯函数
-}
+PreparedEffect Declare(DeclareContext source);                 // 返回递归只读结果，由宿主持有
+void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output);
+void EvaluateVisuals(in VisualFrame frame, PreparedEffect data, VisualOutput output);
 ```
 
-C# 没有语言级沙箱，纯度靠三层保证：
+无视觉输出的包不必实现晚期入口。宿主可提供泛型／生成包装以保证准备结果类型安全；
+最终语法以 S3 可编译样例为准。准备结果生命周期与固定输入一致，不允许跨帧修改作者字段。
 
-1. **编译期分析器**（随 `ScriptCompiler` 发布，规则按 D14）：
-   - 全局规则：
-     - 禁止可变静态字段；
-     - 禁止 `System.Random`、`DateTime.Now`、`Stopwatch`、`Environment`、IO、线程、反射发射；
-     - 拒绝 `async`/`unsafe`。
-   - `Declare`：
-     - 允许 LINQ、集合构建和任意纯计算，用来预先算好查找表；
-     - 实例字段必须 `readonly`，且只能在 `Declare` 里赋值；
-     - 字段类型必须是不可变类型：基元、`string`、`ImmutableArray`/`ImmutableDictionary`/`FrozenDictionary`、
-       只含 init 属性的 record 等。可变集合要先冻结再存入字段。
-   - `Evaluate`：
-     - 不得对任何字段、静态成员或闭包捕获的外部变量赋值；
-     - 不得调用会修改字段所指对象的方法；
-     - 只读访问输入、参数、资源和 `Declare` 的结果；
-     - 局部变量和局部集合可以自由使用。每帧的分配与 LINQ 不算违规，但计入性能诊断。
-   违反时报编译诊断（沿用作者诊断 DTO）。
-2. **运行期确定性探针**：作者校验任务按"顺序 / 乱序 / 重复"三种方式在随机时刻求值，
-   比对输出哈希。不一致报 `NonDeterministicEffect`。
-3. **文档合同**：明确作者代码是本机可信代码，分析器只防误用，不防恶意。
+**编译诊断**：
 
-### 5.3 输入 `Frame`
+- 禁止可变静态、墙钟／非确定随机、环境读取、IO、线程、反射等绕过固定输入的能力；拒绝 async／unsafe。
+- `Declare` 可使用局部 LINQ／集合构建；返回值必须满足递归只读类型闭包。
+  `ImmutableArray<MutableObject>`、含可变引用的 record 或 FrozenDictionary 不能仅凭外层类型通过。
+- 求值禁止字段／外部捕获写入及修改输入对象；局部变量／局部集合允许，分配与 LINQ 计入性能诊断。
+  检查 helper、getter、委托调用和 SDK 句柄生命周期，无法证明受支持的调用给出可定位诊断。
+- 作者不捕获帧／输出句柄留到后续调用。准备结果不包含 Worker／设备／GPU 资源的任意裸句柄。
 
-- `TimeUs`，`Canvas`。
-- `Lines`：每次装载的身份、`Phase` 及 `EnterProgress/PerformProgress/ExitProgress`、几何（基础框、基线、世界矩阵）。
-- `Tokens`／`Clusters`：
-  - `Active` 进度：未唱 0、演唱中 (0,1)、已唱 1；
-  - `LocalTimeUs`（相对起唱的有符号时间）；
-  - 墨迹框、`DrawUnit` 范围；
-  - 是否可独立变换。
-- `Cursors`：基础播放头（`CursorIndex`）。
-- 查询服务：
-  - `Events`：`TimelineIndex` 的只读查询，可查未来的源事件；
-  - `Layout.At(t)`：任意时刻的基础布局；
-  - `Media`：特征轨；
-  - `Audio`：音频特征；
-  - `Random`：沿用现有 PCG32 计数式接口，`(streamKey, index)` 纯读取；
-  - `Parameters`、`Resources`。
-- 不提供：其他实例的输出、上一帧输出、像素。
+**运行期检查**：对固定输入分别执行顺序、乱序、重复、冷／热 memo 和重新准备后的查询，
+按稳定排序与规范数值编码比较结构化输出；NaN／Infinity 等非法输出在哈希前拒绝。
+采样包含源事件前后 1 µs、粒子出生／死亡、退场端点和重复查询，并保存探针种子与失败位置。
+探针能发现反例，不能证明任意代码纯度。跨 GPU／驱动的像素一致性使用独立容差，不要求输出哈希代替它。
 
-### 5.4 输出：目标 × 属性键
+作者代码仍按本机可信代码处理；准备和运行均有预算、取消及外部超时监督。
 
-目标：`Line`、`Token`（字族，含注音）、**`Cluster`**（新增，逐字簇）、`Mark`、`Group`、`Ruby`（候选）。
+### 5.3 输入、目标粒度与退场身份
 
-| 属性键 | 合成规则 | 说明 |
+公共输入包括 `TimeUs`、画布、固定输入／分析身份、参数、资源、计数式随机、音频、源事件和布局查询。
+时间统一为 `long` 微秒和半开区间；查询枚举受预算限制，可查询未来的源事件，不能读取未来实例输出。
+
+**文字与进度**：保留 `ProgressSource`、nullable 时间区间／进度、有符号 LocalTime、Current／Sung。
+Missing 与尚未起唱不同；没有时长时不能制造字级进度。单一 Phase 不吞并可同时存在的演唱／布局状态。
+
+**目标层级**：
+
+```text
+Group → LineLoad（一次装载）→ TokenFamily
+                              ├─ BaseCluster（可独立绘制的整形单元）
+                              └─ RubyRun → RubyCluster
+Mark 为独立目标，沿实际场景祖先继承
+```
+
+Cluster 不等同 UTF-16 字符或字素。跨 Token 的 shaping 单元公开所属范围和不可独立原因，
+不重复绘制、不拆开连字；边界冲突先明确拒绝，允许作者改为整族操作。
+Ruby 使用自己的整形与段进度；整族变换包含注音，基础字簇变换不擅自把完整注音归给某一个字。
+父子变换、坐标空间和样式继承见 §5.4。
+
+**退场副本（D10／D16）**：
+
+- 区分 hide 前既有布局退出与 `[hide, hide+exit)` 的 `ExitReplica`；副本身份含原 Binding 和装载 occurrence。
+- 在 hide 左极限冻结源布局、槽位、源父链变换基线与层级路径；不把已合成的作者变换烘进此基线。
+  退出期间作者变换仍按当前 t 在冻结基线上合成一次，不再次读取当前源布局父链，也不重复施加父变换。
+  新行占槽后不得重新计算旧副本位置。源几何缺失时明确失败，不借当前新行替代。
+- 不参与布局／槽位／源事件，不增加播放头；图元层级和原行相对顺序固定，下一行可重叠。
+- 多实例取最长副本存在时间，但各实例保留自身 exitDuration 和归一化进度；短实例到终点后
+  继续按夹到 1 的进度求值，隐藏／保持何种外观由其确定输出决定，避免中途撤掉变换导致闪回。
+- 无退场声明实例的 exitDuration 视为 0，进入副本阶段后 ExitProgress 为 1；仍按当前 t 求值，
+  未写属性继承冻结基线。时长 >3 s 在加载阶段拒绝。
+
+文字阶段读基础几何；晚期 `VisualFrame` 额外读最终几何、最终播放头、本实例存活粒子、
+出生计划和解析拖尾查询。两阶段都不提供上一帧、GPU 像素或其他实例原始写入。
+
+### 5.4 强类型属性与合成规则
+
+使用 `PropertyKey<T>`／等价类型安全描述符，注册值类型、支持目标、能力名、单位／坐标空间、
+默认值、合法域、合成、序列化和预算。新增键仍需接通验证、执行、文档和回归，不承诺只加一条注册项。
+
+| 属性 | 操作／合成 | 约束 |
 |---|---|---|
-| `Transform` | 按实例和调用顺序右乘 | 完整仿射；要求可逆；对所有目标开放 |
-| `Opacity` | 相乘 | 最终结果须在 [0,1] |
-| `Fill.Unsung/Sung`、`Stroke`、`Shadow`、`Glow` | 后写覆盖 | 辉光改为可动态写入 |
-| `Material(slot).Uniform(node, name)` | 后写覆盖 | 要求该部位已安装对应包材质 |
-| `Graph` | 整体替换 | 图参数和 Transform 节点矩阵可绑定脚本值 |
-| `Warp` | 后写覆盖 | 低分辨率网格偏移（如 8×4），走 `DrawVertices` |
+| Transform | `AppendTransform`，同目标按实例及调用顺序组合 | 完整仿射，有限且后端精度下可逆；坐标空间显式 |
+| Opacity | `MultiplyOpacity` | 每个因子 [0,1]；父组透明度按隔离合成语义，不重复逐字乘 |
+| Fill.Unsung／Sung、Stroke、Shadow、Glow | 强类型 Set，后写覆盖 | 整体替换与叶属性键区分；null 禁用／未写继承明确 |
+| Material uniform | 按包／槽位／图节点／uniform 身份后写覆盖 | 类型、所有权和实际安装图匹配 |
+| Graph | 完整绑定替换 | 参数及 Transform 矩阵可绑定纯输出；依赖／采样界仍需验证 |
+| Warp | 同目标后写覆盖，首期不叠加多个任意网格 | 先局部 Warp，再局部仿射，再沿父链映射；最终锚点同规则 |
 
-图元：`Dots`、`Segments`、`Trails`、`Sprites`（位图／SVG 图集）、`Paths`（SVG 矢量或 SVG path data）。
-每个批次只调用一次。粒子由宿主自动绘制，或以 `Custom` 模式交给作者用图元绘制。
+采用列向量表述：新追加的局部仿射 B 作用于已累计 A 的结果，累计为 `B*A`；
+父矩阵再左乘子结果。SDK 帮助方法按“调用顺序即作用顺序”表达，避免让作者猜右乘含义。
+世界／画布坐标变换通过显式转换入口完成；Warp 的顺序固定，不随写入交错改变。
 
-扩展方式：新增一个属性键或图元类型，只需加注册项、合成规则和执行器分支，不再新增重载矩阵。
+不同目标的样式先按固定层级解析，实例顺序只裁定同一目标同一键；父子冲突列入合同测试。
+图替换与 uniform 写入先确定最终图身份，再检查写入兼容性，不把旧图的 uniform 静默套到新图。
 
-### 5.5 粒子、Burst 与桥接（纯化）
+输出接口不读取最终全局值，不使用含糊的 `n.Opacity *=` 或 `n.Stroke` getter。
+基线从 `frame.Baseline` 显式读取；若提供本实例累计值查询，名字和返回范围须明确。
 
-- **连续发射**：在清单和 `Declare` 中声明发射器（速率、寿命上限、外观描述）。
-  出生时刻按光标头起点做闭式计算：`t_k = start + k / rate`（分段常速）。
-  速率可以是参数，但不能随帧任意改变，所以闭式计算始终成立。
-- **随机**：用 `(实例种子, 发射器, 光标头, k)` 计数式 PCG32 生成，替代 v1 的递增 `NextIndex`。
-- **锚点**（D11）：出生位置取 `FinalCursorMemo` 中出生时刻的插值。seek 到 t 时最多补算
-  `maxLifetime × 120` 次实例链求值（寿命上限 5 s，D16，即 ≤ 600 次）。声明的寿命超过上限时，在加载阶段拒绝。
-- **运动**：沿用解析运动（初速度、恒加速度、年龄曲线）。拖尾在 [t−trail, t] 内解析采样，无需历史。
-- **Burst**：在清单中声明"源事件类型 → 发射描述"的映射，出生时刻取自 `TimelineIndex`，
-  不再需要 `OnEvent`。
-- **桥接**：端点由 `PresentationIndex` 与 `FinalCursorMemo` 纯计算，不再按端点从 0 重放。
+图元包含 Dots／Segments／Trails／Sprites／Paths，保留 BehindText／AboveText 顺序。
+自动粒子由宿主绘制；Custom 模式由晚期视觉查询本实例粒子后绘制，避免重复渲染。
 
-### 5.6 资源：SVG、图像、着色器
+### 5.5 粒子、事件、桥接与采样预算
 
-- **SVG 依赖**：`Svg.Skia 4.9.1`（MIT）。它依赖 `SkiaSharp ≥ 3.119.2`，与仓库锁定的 3.119.4 兼容，
-  无需升级 Skia；`HarfBuzzSharp ≥ 8.3.1.3` 也满足。传递依赖包括 `Svg.Custom/Model/SceneGraph/Animation`、
-  `ShimSkiaSharp`、`ExCSS 4.3.1`。5.x 版本要求 SkiaSharp 4.148，不采用。
-- **SVG 安全预检**：
-  - 拒绝外部引用（`xlink:href` 指向非内嵌资源）、脚本和外部字体；
-  - 限制元素数、嵌套深度、路径点数和文件大小；
-  - 加载时转换为 `SKPicture`，结果纳入包闭包哈希。
-- **SVG 两种用法**（在清单中声明）：
-  - `vector`：每帧回放，保持清晰，适合少量大尺寸图元；
-  - `atlas`：加载时按声明的最大像素尺寸栅格化进图集（含 mipmap），适合大量粒子或精灵。
-- **图与材质**：
-  - 保留 RuntimeShader、Blur、Mask、Transform、Blend 节点；
-  - Transform 节点矩阵与 uniform 可绑定脚本输出；
-  - 输入新增 `MediaFeatures`（特征轨纹理）；
-  - 默认按目标区域执行。
-- **字体**：沿用 `font` 角色的固定字体目录。
+**连续发射与声明式速率轨**：
 
-### 5.7 媒体特征轨
+- 第一可用切片支持固定／分段常速，S4 能力验收补齐有限分段线性速率轨；累计发射量可积分并单调查找。
+  音频／事件驱动可在准备期转换为有界固定轨道，按新输入修订重建，不恢复逐帧历史状态。
+- 出生采用整数微秒和确定取整；从累计量首次达到 1 开始编号，右端半开，定义零速率、区段接缝、
+  头出现／消失和暂停窗口的配额规则。复用 `ExactEmissionQuota` 的边界用例核对，避免含糊的 k=0 首粒子。
+- 任意依赖最终几何的速率／粒子反馈不能未经分析自动转成曲线。现有可用能力逐项核对，
+  无法纯化的具体场景列入 D8 阻塞清单，不通过隐藏差异宣布对齐。
+- 随机键固定为实例种子、发射器、头／装载身份和出生序号；与 v1 递增随机序列不同可以接受，
+  但必须保证 v2 自身对播放、seek、编辑撤销和重新打开一致。
 
-- **生成**：仿照音频分析的 Worker 任务（`Backend.Worker/StaticAudioAnalysisTask.cs`）。
-  按 D15，ffmpeg 缩放到 32×18 网格，按背景帧率输出每格的线性 RGB 均值和亮度，以媒体 SHA-256 为键持久化在 profile 中。
-- **C# 侧**：`Media.Sample(rect, t, windowUs)` 返回窗口内时间加权的均值、亮度和对比度。
-  只要窗口和数据确定，结果就确定。`windowUs` 上限 2 s（D15），超出报 `MediaWindowTooLong`，不静默夹值。
-- **着色器侧**：作为纹理加时间 uniform 绑定，在 GPU 上做同样的窗口平滑，窗口上限同为 2 s。
-  单次查询最多读取 2 s × 帧率个网格帧（30 fps 时为 60 帧），这决定了每帧的读取上界。
-- **可用性**：
-  - 分析未完成时返回 `Unavailable`，预览照常运行，诊断里提示；
-  - 导出必须等分析完成，以保证预览与导出一致；
-  - 透明输出或没有背景时返回 `NoMedia`。
+**事件与 Burst**：使用类型化 selector，包含来源 scope、真实 occurrence、payload 条件和锚点规则。
+保留同时间事件优先级／源顺序；重复句 ordinal 按指定 project／branch 与源文本计数，
+不能把多个装载当成多次演唱。四类既有锚点、line fallback、目标范围和无锚点诊断逐项迁移。
 
-### 5.8 目标样式写法（示意，不可编译）
+**最终锚点 memo**：
 
-```csharp
-public sealed class StarLyric : KaraokeEffect
-{
-    public override void Evaluate(in Frame f, Output o)
-    {
-        foreach (var line in f.Lines)
-        foreach (var c in line.Clusters)
-        {
-            var n = o.Cluster(c.Id);
-            double a = c.Active.Bell(Ease.OutBack);                 // 唱到时放大，唱完回落
-            double x = line.ExitProgress;                           // 退场副本阶段 0→1
-            double d = Ease.In(Math.Clamp(x * 1.4 - c.IndexInLine * .03, 0, 1)); // 逐字错开
-            n.Transform = Affine2.ScaleAt(1 + .25 * a, c.InkBounds.Center)
-                        * Affine2.SkewAt(-.5 * d, 0, c.InkBounds.Center)
-                        * Affine2.Translation(-180 * d, 120 * d);
-            n.Warp = Warp.Bend(.3 * d);                             // 非仿射扭曲
-            n.Opacity *= 1 - d;
-            var bg = f.Media.Sample(c.WorldInkBounds, f.TimeUs, windowUs: 250_000);
-            n.Stroke = bg.IsAvailable ? Stroke.Solid(bg.Luma > .5 ? Color.Black : Color.White, 3) : n.Stroke;
-        }
-        foreach (var cur in f.Cursors)                              // 星星沿当前行扫过
-            o.Paths("star").Add(Resources.Svg("star"), cur.LinePath.At(cur.LineProgress), scale: .6);
-    }
-}
-// 粒子：在清单中声明 emitters[sparks]（cursor），无需在 Evaluate 中写代码
-```
+- 按轨道、装载、anchor 类型和连续区段保存 120 Hz 节点；时间网格用有理定义映射整数微秒，
+  不反复累加近似的 8,333 µs。真实源边界保留左右极限，禁止跨身份／跳变插值。
+- 作者引入瞬时几何变化时需声明断点；不能证明区段连续的包走该区段精确出生时刻求值。
+  选择由固定包／准备结果决定，不由缓存命中、播放方向或机器负载决定。
+- 最终锚点的断点集合取完整几何依赖闭包的并集，包含目标、祖先及全部参与合成的实例。
+  任一依赖在区段内无法证明连续，该锚点区段整体采用精确时刻求值；策略纳入固定准备身份。
+- 冷热路径均使用相同采样／插值规则。曲线插值误差与最终 anchor 偏差单独验证；
+  不要求“缓存插值”与任意高频脚本的真实连续曲线天然相等。
+- Warp 的正向映射纳入最终 anchor；图像效果中的 ColorOnly 位移不伪装为几何位移。
+- 5 s×120 Hz 对应约 600 个区间，含左右节点通常需要 601／602 个节点；断点、
+  桥接端点、多轨道及实例链成本另计。预算覆盖唯一时间数、实例调用数、枚举量、耗时与内存。
 
-逐像素自适应描边也可以改用材质：描边材质图以 `MediaFeatures` 或 `BackgroundMedia` 为输入，在着色器里计算反差色。
+**运动与桥接**：位置由出生锚点、年龄、初速度／恒加速度和曲线解析求值；拖尾有独立采样预算，
+不得隐含读取已淘汰历史。桥接按前段 `EndUs-1` 和下一段真实起点等合同取端点，
+允许有限的寿命窗口外／未来端点查询，不从零重放，不递归请求粒子输出。
+寿命 >5 s 拒绝；粒子数／查询／桥接超限明确失败，不根据机器速度随机删粒子。
 
-### 5.9 v1 能力映射（D8 对齐清单）
+### 5.6 SVG、字体、图像和图资源
 
-| v1 | v2 |
+- 候选锁定 `Svg.Skia 4.9.1`。包元数据中的 `SkiaSharp ≥3.119.2`、`HarfBuzzSharp ≥8.3.1.3`
+  与当前锁定版本约束相容；这只证明依赖约束，无运行渲染保证。恢复时审查完整传递闭包与许可证，
+  不顺手升级 Skia，也不以版本较新为选型依据。
+- 首期静态 SVG 子集：明确支持的元素／滤镜；拒绝动画、脚本、外部字体和网络／文件引用。
+  同时检查 href／xlink:href、CSS url／import、XML DTD／实体和允许的内嵌资源，设文件、深度、
+  元素、路径点、嵌入位图解码尺寸预算。包内引用只能落在已验证资源闭包。
+- `vector` 在加载时解析为受预算管理的 Picture，适合少量大图元；`atlas` 按声明尺寸／档位栅格化，
+  带 padding／mipmap，适合大量精灵。SVG 源、固定字体／图像、解析 profile 进入缓存身份，
+  不把设备相关 Picture 的原生对象身份当作可移植包哈希。
+- 保留 RuntimeShader／Blur／Mask／Transform／Blend，增加参数绑定和 `MediaFeatures`；
+  `BackgroundMedia` 与 `BackdropBelow` 仍为不同来源。透明输出 fallback 沿包明确声明，不统一替换为特征轨。
+- 字体沿用固定 font 角色；资源加载、GPU 上传和实际 glyph／SVG 渲染各自验证。
+
+### 5.7 媒体特征轨与自适应描边
+
+**数据规格**：遵守 D15 的 32×18 和最长 2 s 窗口。视频按解码后展示帧及其 PTS／持续时间取样，
+不能简单用 frameIndex/fps 处理可变帧率。静态图使用一份可重复查询的网格；纯背景色有显式源类型。
+特征先转换到固定工作颜色空间再统计；定义 transfer、primaries、range、alpha 和色调映射 profile，
+不直接把 gamma 编码的缩小图字节称为线性均值。未支持 HDR 等输入在准入阶段明确报告。
+
+**特征内容**：基础为线性 RGB 均值和亮度；用于局部对比度的亮度二阶统计等必须真实存储或计算，
+不能只凭均值返回一个伪“对比度”。S4 对方差／分位数／极值的实际收益与存储成本做有限选型。
+格式、量化、精度误差与上限先登记，存储预算包含 PTS、索引、统计量、CPU／GPU 副本，见 §4.5。
+
+**查询与平滑**：
+
+- 候选 `Media.Sample(rect, t, windowUs)` 明确 rect 的坐标空间；默认使用当前最终几何区域时由
+  相应晚阶段／材质读取，文字早阶段只能显式查询基础区域，避免样式与最终布局形成环。
+- `windowUs=0` 为 t 所在源样本；正窗口默认按工程时间 `(t-windowUs,t]` 做持续时间加权，
+  起点越界按已定义背景时间策略处理；>2 s 报错，不静默夹值。
+- 复用 `BackgroundPlayback` 的 loop／freezeLastFrame、`BackgroundPlacement` 的 contain／cover／original。
+  包括循环接缝、画布留白、透明图像与背景色合成，不把源视频矩形当画布矩形。
+- 均值／二阶量可建时间累计索引与空间统计；查询实际复杂度与矩形覆盖范围明确登记。
+  累计数据精度、差分误差和长媒体内存也受预算限制。
+- GPU 侧在低分辨率网格统一平滑或绑定当前窗口结果，再给像素 shader 采样。
+  不在每个输出像素循环读取两秒的历史帧。窗口种类数和更新／上传预算有限，C# 与 GPU 使用同一 profile。
+- 直接 `BackgroundMedia` 采样保留真实像素能力；低分辨率轨是近似统计，不能替代 GlassInk 的背景／下层语义。
+
+**制品与就绪身份**：
+
+- 复用音频分析的任务、取消、进度和持久制品模式。身份含媒体内容、算法版本、颜色／采样规格、
+  解码语义与规范输出摘要；源空间轨和工程空间查询映射分别定键。
+- 预览允许固定输入明确为 Pending／Unavailable 并使用声明的 fallback，UI 显示状态。
+  分析完成后创建新的分析输入身份，HTTP 换预览输入、GPU 按 D17 换代；旧帧和依赖 memo 失效，
+  不在原快照内部把 Pending 悄悄改为 Available。
+- 有效效果需要媒体轨时，导出等待该固定制品成功并钉住摘要；失败／取消明确结束，不无限等待。
+  无依赖时不启动无关分析。无媒体／透明输出按 NoMedia 与包 fallback 处理。
+- “预览与导出一致”只针对相同已就绪分析身份、时间和输出模式；临时 fallback 预览不得宣称等价。
+
+**可读性验收**：覆盖明暗混杂、细碎纹理、镜头切换、循环接缝和透明输出。
+黑白描边切换可使用固定时间平滑或准备期生成的确定切换轨，不能在作者字段累积滞回状态。
+必要时允许作者使用双层描边／底衬方案；单一亮度阈值只是样例策略，不是通用可读性保证。
+
+### 5.8 目标样式与作者工作流
+
+目标样式拆成可单独讲解和调试的三部分：
+
+1. 文字阶段根据真实 ProgressSource 和退场副本相位，输出字族／可独立字簇的 Transform、Warp、Opacity。
+   基线样式从输入读，不读其他实例输出。
+2. 声明发射器跟随最终播放头，宿主生成粒子；晚期视觉读取最终几何绘制 SVG 星星或 Custom 粒子。
+3. 描边材质绑定 MediaFeatures 或 BackgroundMedia，显式选择采样区域／窗口与无媒体 fallback。
+
+前端与 SDK 同步交付，范围包括：
+
+- 最小 v2 模板、可编译代码片段、参数约束提示、能力／属性文档；基础补全与源码定位优先，
+  完整通用 C# LSP 另行评估，不是首期前置。
+- manifest／SVG／shader／图文本编辑、资源导入和诊断；复用已有作者文件端点与草稿修订／CAS。
+  包闭包摘要由后端固定，UI 不绕过校验直接改工程包。
+- 显示源码、编译、当前采用、当前显示帧和分析制品修订，避免“编译成功但预览仍是另一份源码”的歧义。
+- 运行诊断关联包／实例／阶段／目标／TimeUs／源码位置；性能视图区分编译、准备、补算、图 pass、
+  粒子量、分配和缓存命中，诊断开关的成本单独记录。
+- 调试叠加层显示字簇、Ruby 归属、播放头、出生锚点和效果范围，只读且默认关闭，不进入正式导出。
+- 失败时保留最近成功画面并明确标注旧修订／失败原因；不把旧帧当新帧 ACK，不改变导出失败规则。
+- 参数编辑保持最新值合并与可撤销提交，显式区分草稿显示值、已提交值和已渲染值。
+  若优化 300 ms 等待，应单独验证提交数量、CAS、撤销粒度与用户端延迟，不改既有 500 ms 播放控制节奏。
+
+### 5.9 D8 能力矩阵与九样例验收
+
+| v1 能力 | v2 对应 | 必须保留／核对 |
+|---|---|---|
+| 字族缩放、行／组／标记仿射 | 强类型 Transform，新增字簇目标 | 完整仿射、Ruby 继承、父子矩阵和不可拆字簇诊断 |
+| 样式写入 | Fill／Stroke／Shadow／Glow／Opacity | 基线、叶覆盖、透明度与部件顺序 |
+| 材质 uniform／图绑定 | 类型化绑定、Graph／uniform 输出 | owning 包、参数、背景与透明 fallback；组图新增能力另验收 |
+| 事件／History | TimelineIndex、typed selector、ordinal | occurrence、scope、同边界顺序、重复装载 |
+| 连续发射／Burst | 累计速率轨／事件出生表 | 固定及可用时变速率、锚点、配额边界、随机身份 |
+| 解析运动／桥接／拖尾 | 有界解析查询与最终锚点 memo | 未来端点、断点、出生后年龄、Custom 访问 |
+| 手工 Overlay／Sprite | 晚期 Dots／Segments／Trails／Sprites／Paths | 全仿射、图层顺序、数量预算；不得重复自动粒子 |
+| 音频／确定随机 | 固定 AudioFeatures／计数式随机 | 无数据状态与可重复性 |
+| 任意字段状态 | 不支持该编程方式，逐用途替换为源索引／准备结果 | 只删除状态机制，实际功能缺口必须显式登记 |
+| 未生产 AnchorMap／GeometryMapping | 有界 Warp | 不把原未执行能力当作必须兼容的像素基线 |
+
+| 样例 | v2 验收重点 |
 |---|---|
-| `ScaleTokenFamily`、行/组/标记 `ApplyAffine` | 所有目标的 `Transform` 属性（新增字族与字簇） |
-| Style 11 个重载 | `Fill/Stroke/Shadow/Glow/Opacity` 属性键 |
-| `Materials.SetUniform` ×2 | `Material(slot).Uniform` |
-| `ImageEffects.Bind` ×4 | `Graph` 属性（组目标随新执行器一起支持，原先拒绝） |
-| `OnEvent` + `Bursts.Queue` | 清单 Burst 映射 + `TimelineIndex` |
-| `EvaluateEmitters` + `EmitterWriter.Set` | 清单或 `Declare` 中的发射器声明 |
-| `Advance/AdvanceVisuals` 共享状态 | 删除，改用索引查询 |
-| `EvaluateVisuals` + Overlay 4 种 | `Evaluate` 内的图元批次，新增 `Paths` |
-| `History.GetStarts`、`GeometryQueries.GetBaseAt` | `Events.*`、`Layout.At(t)` |
-| `AudioFeatures`、`DeterministicRandom` | 原样保留 |
-| `AnchorMap`/`GeometryMapping`（未生产） | 由 `Warp` 取代；不再保留 |
-| 9 个样例 | 全部重写为 v2（S6） |
+| WordEmphasis | 缺时间状态、字族／注音、唱完回落与任意 t |
+| RepeatEmphasis | 按真实演唱 occurrence 的重复句 ordinal，跨 branch／装载去重 |
+| CursorTrail | 连续发射配额、最终锚点、寿命与随机身份 |
+| VectorTrail | Custom 粒子／解析拖尾、批次与断点 |
+| SpriteTrail | 资源身份、完整 Sprite 仿射与图集边缘 |
+| EventBurst | payload 条件、四类锚点、line fallback、同边界顺序 |
+| CustomInk | 纯资源包、材质参数与覆盖合同 |
+| LineGlitch | 图节点、绑定、动态参数／矩阵与采样边界 |
+| GlassInk | BackgroundMedia 与 BackdropBelow 分离、透明 fallback、模糊／折射范围 |
+
+另增加目标复杂样式，覆盖多实例、Ruby、同时退场／入场、Warp 锚点、分析未就绪→就绪。
+记录每项的表达、作者入口、执行、诊断、确定性和性能证据。九样例通过不等于任意 v1 功能已映射。
 
 ## 6. 兼容性与版本影响
 
-| 层 | 影响 | 处理 |
-|---|---|---|
-| 公共 HTTP 结构（112 路径） | 包清单以不透明 JSON 传输（`manifestJson`），OpenAPI 未约束 `sdkVersion`；诊断 `stage` 是字符串 | 结构基本不变。以下变化按加法处理，合同升 MINOR（1.42.x → 1.43.0）：新增错误码（`EffectsRequireGpuBackend`、`PackageCapabilityUnsupported`、`NonDeterministicEffect` 等）、媒体特征分析状态、`stage` 新取值 |
-| 浏览器静态预览协议、500 ms 节奏 | 无 | 只做内部优化 |
-| GPU 流协议 | 无（D17：保留每个代次换新 Worker，另加预热备用 Worker） | 补充备用 Worker 的寿命、排水与回收回归 |
-| Worker IPC | 私有，会变：新增产物传递和差量输入，去掉 Worker 内编译 | 同步维护 Worker 合同与回归 |
-| 工程 schema | 效果嵌在 `project.json`（`ProjectStore.cs:59`）；删除 simulation/subscription | 29→30（`Project.cs:33`）；旧工程按精确门禁拒绝（D6） |
-| 效果 JSON `contractVersion` | 1→2 | 随 schema 30 一起发布 |
-| 模板库（effect recipe） | 引用 v1 包 | 7→8（`StyleTemplateLibrary.cs:32`），旧库按既有版本隔离机制保留数据但不可用 |
-| 脚本配置库 | 引用 v1 包 | 1→2（`ScriptConfigurationLibrary.cs:28`） |
-| 预设应用 JSON | 仅当绑定结构变化时 | S6 核对后决定 |
-| 包 profile | 2/"1.0.0" → 3/"2.0.0"；新 shader profile | v1 包加载即报 `PackageVersionUnsupported` |
-| CPU 后端 | 带 v2 效果的输入不可选 CPU | 明确报错；无效果的工程仍可走 CPU |
-| 前端 | 不依赖 SDK 标识（`frontend/src` 中检索 `EffectBase/IKaraokeEffect/sdkVersion` 为 0） | 需要处理：新错误码文案、特征分析状态、旧 `.mktpl` 导入失败提示 |
-| 产品版本 | 不兼容修改 | 按 1.0 前规则升 MINOR；S1 属内部行为改进，同样按语义递增 |
-| 文档 | SDK 参考、架构、API、ADR | 每阶段同步（§7） |
-| 测试 | 涉及 v1 的约 65 个测试文件、约 1.6 万行 | 在 S7 随 v1 删除；v2 测试按规模适度补齐 |
+| 层 | 计划处理 |
+|---|---|
+| HTTP | 保留既有入口与 owner／CAS／代次／完成语义；新增能力、错误、分析状态和作者入口复用情况逐项审计。结构不变不等于行为兼容；候选 1.43.0 仅在变更确属加法时使用，冻结前重新判定版本 |
+| 浏览器静态预览 | 协议与 500 ms 播放节奏保留；请求身份与 Worker 内部复用解耦，用户端延迟另计 |
+| GPU 流 | D17 身份／每代新进程／发布完成边界保留；增加备用进程寿命与资源证据。零等待专项若改变同步交接需独立审查 |
+| Worker IPC | 新增固定产物描述／字节和准备信息，保持预算、取消、身份和资源闭包；不声称公共 HTTP 因此已验证 |
+| 工程／效果 JSON | 工程 29→30，效果 contractVersion 1→2；旧工程明确拒绝，无自动迁移 |
+| 模板／脚本配置库 | 7→8／1→2；保留旧文件并明确不可用原因，禁止静默覆盖或清空 |
+| 包 | packageVersion 3／SDK 2.0.0／新 shader profile；开发期显式分派 v1／v2，最终发行拒绝 v1 |
+| CPU | 带 v2 效果的预览、正式验证和导出拒绝；无效果工程仍可选 CPU。UI 提前呈现能力原因，不偷偷切设备 |
+| 前端 | 资源编辑、参数反馈、源码／运行诊断、分析状态、调试和旧格式提示，见 §5.8 |
+| 产品 | 按 1.0 前不兼容变更升 MINOR；各代码交付按实际语义升版，文档修订不改程序版本 |
+| 文档／测试 | 各阶段同步 SDK、架构和 ADR；先补 v2 等价能力覆盖，再按路径清理 v1 专属内容，保留通用回归及历史证据 |
+
+schema／SDK 切换作为一致发布单元：S3–S5 的开发并存不得让未声明的 v2 数据写入 schema 29 文件。
+使用明确实验输入／隔离 profile，或在实施切片中同步相应版本与读写门禁；S6 核对预设应用格式是否变化。
+不得用“尚未正式冻结”长期容忍已落盘格式与版本不一致。
 
 ## 7. 实施阶段与出口
 
-每个阶段按"一步一提交、中文 `type(scope): 摘要`"推进，阶段完成后推送私有远程。
-代码阶段结束要求 `dotnet build MakoKaraGenerator.slnx` 零警告零错误，并运行相关定向测试。
+每个独立切片一个中文 `type(scope): 摘要` 提交，按路径暂存并推送授权私有远程。
+代码阶段完成在 App 根目录运行 `dotnet build backend/MakoKaraGenerator.slnx`，零警告零错误，
+执行与改动相称的后端定向回归；前端／desktop 改动同步执行各自相关构建与回归。
+纯文档阶段只检查文档；历史测试不计为新实现通过。各阶段都更新实施状态与未完成项。
 
-### S0 基线与基准
+阶段编号以本修订为准：原 S2 的纯内核移到 S3，原 S3 渲染工作拆入 S2／S5／专项，
+原 S4／S5 的粒子与资源合入新 S4，原 S6 的样例／作者交付提前贯穿 S3–S4，S6 集中做完整性和合同验收。
 
-- 建立可复现的 Vulkan 基准工具，场景包括：无效果、v1 组合、v1 粒子，以及将来的 v2 目标样式。
-- 指标：
-  - seek→首帧（HTTP 与 GPU 流）；
-  - 参数编辑→首帧；
-  - 源码编辑→首帧；
-  - 稳态 1080p30 帧时间 p50/p95/p99；
-  - 每帧同步次数、回读字节数、上传字节数、中间表面字节数。
-- 出口：记录 v1 基线数值，作为后续候选门槛的对照。
+### S0 语义冻结与分层基线
 
-### S1 生命周期（与 SDK 无关，最先做）
+- 先固定阶段依赖、属性合成、进度／字簇／退场身份、锚点断点与媒体修订规则；
+  建立 D8 能力核对表和目标复杂样式验收脚本。
+- 基准场景包含无效果、文字变换、材质／图、粒子、组合，以及随后替换的 v2 对照；
+  覆盖近端／3 min／更长时间、字体／Ruby、透明／背景视频和多实例。
+- 分别测已有路径的冷启动、热进程与编译缓存行为；提前定义 memo 冷热、备用命中／耗尽和
+  索引建立的矩阵，尚未实现项标记待对应阶段采集，不要求 S0 测不存在的 v2 能力。
+- 测量 §8 的时间边界、稳态分位数、同步／回读／上传、分配峰值与诊断开销。
+  统计窗口、样本数、硬件／驱动、模式和输入摘要随报告保存。
+- **出口**：源码事实与实测分开，v1 基线可复现，正式性能门槛由基线提出后确认；
+  纯度 API、DAG 和 D8 核对规则无未说明矛盾。S0 不实现完整 SDK，也不以新基准等同产品验收。
 
-- Server 统一编译，产物缓存放到 `{StateRoot}/script-artifacts`；Worker 接收产物、不再编译。
-- HTTP 预览 seek 复用同一 Worker 会话，Host 侧仍按代次失效帧缓存。
-- GPU 流增加预热备用 Worker（D17），取用后立即补一个；按所拥有的 PID 与进程身份回收。
-- 不做任何 v1 专属优化（如检查点）。
-- 出口：
-  - v1 场景下 seek 不再新建进程、编辑不再冷编译；
-  - 现有 HTTP、owner/CAS、排水回归全部通过；
-  - S0 指标对比登记。
+### S1 生命周期：四个可单独验收的切片
 
-### S2 宿主索引与纯求值内核
+1. **S1a 共享编译缓存**：统一作者／运行请求编译服务，持久内容寻址，校验损坏／并发／取消与配额。
+2. **S1b 产物消费**：Worker 固定身份、预算和入口验证后加载；移除渲染 Worker 的编译职责，
+   保持 shader／图／资源验证。验证新进程缓存命中与部署不匹配拒绝。
+3. **S1c HTTP seek 复用**：拆请求／运行时身份，区分软取消与硬失败，消费回执、隔离旧帧，
+   验证反复 seek／取消后的状态恢复、内存及 ALC 寿命；不声称 v1 O(t) 已消失。
+4. **S1d GPU 备用 Worker**：实现预热分级、最多一个备用、配额／TTL／退避／回收，保留 D17。
+   按 §4.1 验证最低完整就绪等级和取用后的实际复用，验证连续快速改参、备用耗尽、替换失败、
+   关闭和所拥有 PID 排水；仅进程／握手预热不计为整个切片完成。
 
-- 实现 `TimelineIndex/PresentationIndex/LayoutIndex/CursorIndex`，加入退场副本相位。
-- 两条管线共享整形与注音缓存；消除 §2.3 中的 LINQ 与 O(n²) 热点。
-- v2 运行时骨架：清单 v3 解析、能力协商、`Declare/Evaluate`、目标 × 属性键输出与合成（先做变换、透明度、样式）。
-- 编译期分析器与确定性探针。
-- v1 与 v2 按 `packageVersion` 分派，开发期并存。
-- 出口：v2 只含变换和样式的包，在任意 t 单独求值的结果，与顺序播放结果逐帧一致；seek 耗时与 t 无关。
+**出口**：HTTP 同输入 seek 的进程复用有证据；参数修改不触发真实编译；GPU 输入替换仍为新进程。
+编译、准备、首帧与 UI 延迟分别对比，owner／CAS／取消／排水回归通过；不以 hello-ready 起点替代 UI 起点。
 
-### S3 渲染计划与 Skia 执行器
+### S2 现有渲染器的独立优化
 
-- 实现渲染计划 IR；执行器去掉中间 `Submit(true)` 和整面回读。
-- 光栅缓存 + 变换贴图；`Warp` 网格；`DrawAtlas`/`DrawVertices` 批处理；材质、图、模糊的区域裁剪。
-- HTTP 与导出的回读与下一帧流水重叠；背景视频按目标分辨率解码（NV12 上传作为候选）。
-- 出口：
-  - 单帧同步点 ≤ 1，空部件回读为 0；
-  - 像素验收按 D13 容差（1x 缩放下 ≤ 2/255）；变换状态下的阈值提出并经用户确认后登记；
-  - S0 指标对比登记。
+- 消除重复采样／绑定扫描／O(n²) 查找，共享 CPU 整形与注音缓存。
+- 先补可证明空原始部件快路径；单独验证图颜色校验的小结果化可行性，保持错误检测合同。
+- 针对同 context 中间表面减少 CPU 等待，保留外部发布边界；逐项比较像素、诊断和取消语义。
+- 背景优先按所需输出采样分辨率解码，保留裁切与画质；先做回读后编码／写盘的有界重叠。
+- **出口**：每个优化有无仪表端到端对照与成本计数；不出现新视觉／错误语义回退。
+  GPU 小结果校验若受接口限制，记录保留读回的原因与下一阶段方案；该切片不能标记完成，
+  但不阻塞可独立交付的缓存／计算优化，也不宣称零中间回读。
 
-### S4 粒子、Burst、桥接
+### S3 最小纯求值 v2 与作者最小闭环
 
-- 闭式出生表、计数式随机、`FinalCursorMemo`、寿命上限与预算；Burst 映射；桥接纯化；自动绘制改走 atlas。
-- 出口：粒子场景在任意 t 单独求值与顺序播放一致；seek 补算次数不超过寿命窗口；预算超限明确失败。
+- 包 v3、能力描述、不可变准备结果、纯文字阶段、分析器和确定性探针。
+- Timeline／Presentation／Layout／Cursor 索引；保留真实进度、字簇／Ruby 和退场副本合同。
+- 类型化仿射／透明度／基础样式输出，顺序合成；开发期显式 v1／v2 分派与版本门禁。
+- 交付 WordEmphasis、RepeatEmphasis 和逐字退场最小样例；编辑、编译、参数、诊断和预览可在 UI 完成。
+- **出口**：任意 t、顺序／乱序、重开和撤销恢复的结构化输出一致；工作量不随目标绝对时间线性重放。
+  加载成本和 seek 成本分别测量；缺时间、连字、Ruby、多个实例退出通过有限回归。
 
-### S5 资源与媒体
+### S4 复杂样式、资源与作者工作流
 
-- 接入 Svg.Skia 4.9.1 并实现预检，支持 `vector/atlas` 两种用法。
-- 图与材质的参数绑定；`MediaFeatures` 输入；媒体特征轨分析任务、持久化，及 HTTP 状态字段。
-- 出口：GlassInk 类材质与目标样式的自适应描边可用；导出等待分析完成；SVG 预检负例回归通过。
+- 纯晚期视觉、粒子计划、固定／分段速率轨、Burst selector、最终锚点 memo、桥接和预算。
+- SVG 静态子集、vector／atlas、图参数／矩阵绑定、基础 Warp 及其最终锚点正向映射。
+- 交付组目标的图绑定，明确隔离、子项合成、BackdropBelow、区域与预算；S5 再优化其执行成本。
+- 媒体轨制品、时间／空间／颜色合同、就绪换代、进度／取消和导出固定依赖。
+- 完成剩余样例与目标复杂样式；接通 manifest／资源编辑、运行定位、几何调试和成本解释。
+- **出口**：九样例的功能链和作者入口可用，目标复杂样式可创作；随机访问与顺序播放一致，
+  跨断点／循环／寿命边界无伪轨迹。预算、SVG 负例、媒体失败和透明 fallback 明确。
+  新增组图通过功能／诊断回归并纳入 S6 能力矩阵。D8 未映射能力列为阻塞，不能仅凭样例成功跳过。
 
-### S6 样例、文档、合同
+### S5 执行计划深化与复杂效果优化
 
-- 重写 9 个样例，并新增目标复杂样式样例。
-- 重写 `backend/docs/style-reference/script-sdk*.md`；登记 ADR（纯函数模型、宿主索引、渲染计划、v1 淘汰）。
-- schema 升级：工程 30、效果合同 2、模板库 8、脚本配置库 2。
-- HTTP 合同 1.43.0：用合同工具从新构建的元数据生成并校验。前端同步错误码、分析状态和导入提示。
-- 出口：样例全部通过编译、确定性探针和 Vulkan 渲染；合同制品同步；前端单测通过。
+- 在已有 PreparedFrame／图计划上引入执行计划，统一 pass 依赖、资源寿命、批次和预算。
+- 完成分层光栅缓存、演唱揭示复用、有限采样 ROI 和合成顺序保持；优化粒子／Warp 批次。
+- 接续 S2 尚未完成的图颜色校验／中间读回优化，单独报告可消除和仍必需的等待。
+- **出口**：D13 的 1x 容差通过，缩放／倾斜／Warp 阈值确认后验证；全域辉光、背景材质、
+  Ruby、透明合成与诊断保持。实际缓存命中、内存峰值、读回量和帧延迟有对照。
+  未达候选值时记录差距；未达 S0 已确认的正式门槛时保留为验收阻塞，或逐项提出例外供用户决定，
+  不以更名指标、登记差距或删除检查代替通过验收。
 
-### S7 删除 v1 与验收
+### S6 能力矩阵、版本、合同与发布候选验收
 
-- 删除 v1 运行时、写入器、时间线会话、120 Hz 模拟、旧样例和测试；产品版本升 MINOR。
-- 用匹配的 Server/Worker 发布做 fresh HTTP 验证，覆盖进程排水和凭证扫描。
-  GPU 流按已有方式做有限验收；性能结果单独报告。
-- 出口：仓库中没有 v1 代码路径；S0 场景全部登记 v2 数据。
+- 对 §5.9 每项登记表达、编辑入口、执行、失败和确定性证据，清零未批准的功能缺口。
+- 重写 SDK 参考并提供九例＋目标样例，登记纯函数阶段、索引、执行计划和 v1 淘汰 ADR。
+- 对工程 30、效果合同 2、模板库 8、脚本配置库 2、包 v3／SDK2 做一致读写与旧格式拒绝验证；
+  保存旧库文件，前端明确原因及受影响范围，不追加迁移。
+- 从新构建元数据生成／校验 HTTP 合同，按实际变更确定版本；前端同步同一制品，运行相关回归。
+- **出口**：CPU 拒绝路径、作者完整流程、媒体等待／失败、资源闭包、保存重开均有证据；
+  v2 发布候选无未映射的 D8 阻塞。已有协议保持与新能力分别审查，性能报告独立。
 
-## 8. 性能候选门槛（待 S0 后确认，并非测量值）
+### S7 删除 v1 与最终验收
 
-Vulkan，1080p，目标复杂样式，歌曲 3:00 处：
+- S6 通过后删除 v1 时间线推进、旧 SDK 写入器／回调、旧包分派和仅服务 v1 的样例／测试。
+  保留通用文本／图／资源／协议回归和历史证据。120 Hz 最终锚点 memo 仍属 v2，不能误删。
+- 使用同一源码构建的 Server／Worker 发布，fresh HTTP 验证 owner／CAS／取消／任务终态／排水和凭证边界。
+  对桌面 GPU 流与浏览器入口分别做有限验收，核查备用进程、资源归还和旧输入隔离。
+- 重跑 S0 对照矩阵，登记各类延迟、吞吐、缓存、内存和长时资源趋势；未覆盖平台／场景明确列出。
+- **出口**：无可执行 v1 代码路径，v1 包明确拒绝，v2 能力与作者流程验收完成，文档／版本／合同一致。
+  已确认的正式性能门槛全部达标，或未达项已有明确批准且限定范围的例外；候选值本身不构成隐式门禁。
+  构建、测试、实际发布、浏览器／桌面和性能结果分别报告。
 
-| 指标 | 候选门槛 |
+### 7.9 独立研究项：不作为首期共同前置
+
+| 专项 | 先证明什么 | 未通过时 |
+|---|---|---|
+| 真正 GPU 异步回读 | 固定 SkiaSharp 缺少公开接缝时的 native 绑定、提交／完成轮询、在途缓冲和取消排水 | 保留同步回读＋后续 CPU 编码重叠 |
+| NV12 上传 | 色彩／range／尺寸／画质正确及实际带宽收益 | 保留目标分辨率 BGRA |
+| 桌面零 CPU 等待 | Skia／blit／Electron 间可靠 acquire／release 完成机制与所有权 | 保留已验证的同步发布边界，明确等待成本 |
+| 自研 Vulkan | Skia 执行器已证实的瓶颈及替换收益 | 继续使用 Ganesh，不为未来后端重做语义系统 |
+
+专项若改变 GPU 流同步合同、资源寿命或发布行为，另立设计与回归，不借本计划优化授权隐式替换。
+
+## 8. 性能目标与证据口径
+
+### 8.1 时间边界
+
+| 边界 | 定义 |
 |---|---|
-| GPU 流 seek→新帧 p95 | ≤ 50 ms |
-| HTTP 预览 seek→首帧 PNG p95 | ≤ 150 ms |
-| 参数编辑→新帧 p95 | ≤ 200 ms |
-| 源码编辑→新帧 p95 | ≤ 1.5 s（Server 编译器已预热） |
-| 稳态 1080p30 Worker 渲染 p95 | ≤ 16 ms；无 > 250 ms 停顿 |
-| 单帧 GPU→CPU 同步 | 桌面路径 0 次，HTTP 与导出 1 次 |
+| U：用户操作 | 播放头拖动／控件变化／源码保存开始；连续拖动另报最后一次目标及旧帧丢弃 |
+| R：请求发出 | 前端合并／轮询之后的实际请求或 GPU control 发出 |
+| A：接受／生效 | HTTP accepted 与 Worker control-applied／新代 hello-ready 分别记录，不能混用 |
+| F：正确帧 ready | 匹配来源修订、代次、目标时间和成功诊断的完成帧 |
+| V：实际可见 | 浏览器绘制／桌面消费者可观察的显示完成；不能用 Worker ready 冒充扫描显示 |
 
-## 9. 风险与对策
+分别报告 U→R、R→F、A→F 和 U→V。跨进程单调时钟需要映射与误差界；同时保留同进程耗时。
+作者参数的 300 ms 合并、HTTP 250 ms 检查和 500 ms 兜底属于体验成本，不能从 U→V 中扣除。
+500 ms 播放／时钟纠正节奏继续保留；GPU 显式 seek 的即时控制单独测量。
 
-| 风险 | 对策 |
+### 8.2 候选目标与正式门槛
+
+下表保留原计划的期望值，但修正适用边界；**不是测量值或已批准 SLO**。
+S0 依据相同场景／硬件／模式提出正式值，并记录样本量、分位数方法和失败次数。
+
+| 指标 | 候选值／要求 | 边界 |
+|---|---|---|
+| GPU 同输入 seek | control 发出→匹配帧 p95≤50 ms | 不含输入替换；冷 memo 与热 memo 分开 |
+| HTTP seek | 请求发出→匹配 PNG 可获取 p95≤150 ms | U→V 另报，不承诺忽略 250 ms 检查仍达标 |
+| 参数修改 | 请求发出→匹配帧 p95≤200 ms | 备用命中／耗尽、准备成本分别登记；不含 UI 合并等待的数值不能称端到端 |
+| 源码修改 | 提交请求→匹配帧 p95≤1.5 s | 编译器热、真实编译与产物命中分开，含必要准备 |
+| 稳态 1080p30 复杂样式 | Worker 完整渲染 p95≤16 ms，未解释停顿不超过 250 ms | 是留出显示等余量的候选预算，不是 30fps 的直接同义词 |
+| 内部同步／回读 | 去掉无必要等待与整面检测回读 | 逐类列出剩余同步、状态小读回与诊断语义；不预先承诺单帧总同步≤1 |
+| 桌面输出 | 最终像素回读为 0 | 允许已验证外部发布等待；零 CPU 等待归专项 |
+| HTTP／导出 | 最终像素回读与输出编码成本独立记录 | 不把 GPU 状态校验读回漏计，也不把最终一次回读等同总同步一次 |
+
+还必须报告首开与输入准备、长期内存／FD／GPU 资源峰值、取消响应和显示新鲜度。
+吞吐／帧间隔／drift 使用既有 GPU 验收口径，不能只证明 Worker render 快就称流畅。
+20 次等小样本的 p99 只作有限观察，不外推总体尾部分布。预算超限或错误的帧计入失败，不从结果中隐藏。
+
+## 9. 风险与控制
+
+| 风险 | 处理与证据 |
 |---|---|
-| C# 纯度无法绝对保证 | 分析器 + 确定性探针 + 文档合同；作者代码按本机可信代码对待 |
-| 光栅缓存导致像素与直绘不完全一致 | 按 D13 做容差比较；回归同时记录最大差值和超差像素数，便于发现退化 |
-| 最终几何锚点让 seek 成本受寿命影响 | 寿命上限 + 按需记忆 + 预算报错 |
-| SkiaSharp 3.119 未开放 SkMesh 等能力 | 网格扭曲用 `DrawVertices`；需要 RSXform 以外的逐字形倾斜时改为逐字簇矩阵绘制 |
-| SVG 解析的安全与性能 | 预检 + 预算 + 加载期转换为 Picture／图集 |
-| 只支持 Vulkan，测试机可能没有 GPU | 评估 Mesa lavapipe 作为无头 Vulkan 测试后端（待验证）；本机 AMD 做正式验收 |
-| 删除 v1 后回归覆盖下降 | S2–S6 期间先补齐 v2 测试，S7 再删除 |
-| 媒体特征轨对长视频耗时 | 后台任务 + 持久化缓存；导出前置等待并显示进度 |
+| C# 分析器无法证明所有纯度／终止性 | 支持子集、递归只读、诊断、确定性反例探针和 Worker 监督；不声称沙箱 |
+| 初始化／预计算替代 seek 卡顿 | S0 同时测加载、参数重建和取消；按依赖建立索引而非全时间逐帧烘焙 |
+| 最终锚点依赖环、断点插值和昂贵补算 | DAG、分段身份、精确断点、固定采样策略和多维预算 |
+| 字簇／Ruby 与“逐字符”预期冲突 | 公开粒度和不可独立原因，示例与调试可视化使用实际 shaping 单元 |
+| 缓存改变辉光／揭示／背景材质 | 部件顺序、分层键、固定基线直绘与 D13 对照 |
+| 图颜色校验取消后错误被吞 | 小结果化仍在发布前收集；不可实现时保留校验，不删诊断换速度 |
+| GPU 备用占资源或来不及补热 | 最多一个、总配额、TTL、退避、连续编辑 miss 与排水证据 |
+| 媒体完成使同 t 结果变化 | 固定分析身份、显式换代、旧帧标签和导出钉住制品 |
+| 媒体轨长时存储／shader 读取膨胀 | 编码规格、PTS／索引／副本全预算，低分辨率统一平滑 |
+| 资源编辑扩大作者复杂度 | 模板／片段／属性元数据、分阶段诊断和可定位预算提示 |
+| Vulkan 测试设备不足 | 可评估 lavapipe 作有限无头回归；正式性能仍在记录过的本机 GPU 上验收 |
+| v1 删除过早导致功能回退 | S6 能力矩阵清零再删除，保留通用回归，未映射能力不静默淘汰 |
 
-## 10. 待定项
+## 10. 后续确认与开工边界
 
-原有五项已于 2026-11-03 确认，见 D13–D17。剩余需要在实施过程中再确认的事项：
+已通过本轮设计修订确定：实施重排、纯求值 DAG、宿主持有准备结果、薄执行计划、分层缓存、
+媒体就绪修订、作者工作流和性能口径。无需再把普通接口命名、类拆分等实现选择逐项交用户确认。
 
-1. §8 的性能门槛：S0 基线测出后提出正式数值，经用户确认后登记。
-2. D13 在缩放、倾斜、网格扭曲状态下的像素容差阈值：S3 实测后提出，经用户确认后登记。
+后续仍需证据或明确决定的事项：
 
-本计划当前不进入实施，开工时间由用户另行决定。
+1. S0 后正式性能门槛及场景／设备范围；本文候选数值不能直接当既成验收结论。
+2. S5 缩放／倾斜／Warp 像素容差，测量后提出；D13 的初始 1x 阈值保持。
+3. 若 D8 核对发现实际可用能力无法按纯模型实现，列出具体场景及替代再决定范围；未解决前不进入 S7。
+4. 若减少图颜色读回必须改变检测域／失败时机，或零等待专项必须改变 GPU 交接合同，独立审查；
+   默认保留现有正确行为，不把“优化困难”自动变成削弱合同的授权。
+5. 媒体精度／统计格式、准备和查询预算由阶段原型及测量固定；若改变 D15／D16 数值上限才另行确认。
+
+本轮只完成设计文档；代码开工由用户另行决定。
+
+## 11. 一手资料与本次复核入口
+
+外部资料用于核对语言／接口边界，不代替本仓库构建、运行或性能证据；SkiaSharp 链接固定到仓库所用版本。
+
+- [C# readonly 赋值规则](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/readonly)
+  与 [record 的浅不可变性](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/record#immutability)：支持 §5.2 的准备结果设计。
+- [HarfBuzz clusters](https://harfbuzz.github.io/clusters.html)：整形 cluster 与 grapheme 的区别。
+- [Svg.Skia 4.9.1 包元数据](https://www.nuget.org/packages/Svg.Skia/4.9.1)：仅核对依赖约束和发布信息。
+- [SkiaSharp 3.119.4 SKCanvas](https://raw.githubusercontent.com/mono/SkiaSharp/v3.119.4/binding/SkiaSharp/SKCanvas.cs)、
+  [SKSurface](https://raw.githubusercontent.com/mono/SkiaSharp/v3.119.4/binding/SkiaSharp/SKSurface.cs)、
+  [SKImage](https://raw.githubusercontent.com/mono/SkiaSharp/v3.119.4/binding/SkiaSharp/SKImage.cs)：atlas 变换、顶点接口与异步回读公开接缝核查。
+- [Skia m119 GrDirectContext](https://raw.githubusercontent.com/google/skia/chrome/m119/include/gpu/GrDirectContext.h)、
+  [SkCanvas](https://raw.githubusercontent.com/google/skia/chrome/m119/include/core/SkCanvas.h)、
+  [SkRSXform](https://raw.githubusercontent.com/google/skia/chrome/m119/include/core/SkRSXform.h)：同步提交、层边界提示、mesh AA 和 RSXform 范围。
+  原生行为实施时还需核对实际打包 Skia 的对应版本，不能只看上游头文件推定本机 ABI。
+- [FFmpeg 过滤器官方源码文档](https://github.com/FFmpeg/FFmpeg/blob/master/doc/filters.texi)：颜色传递函数、时间戳与缩放统计方案的实现参考，落地时锁定本机工具版本。
+- 本仓库 [SDK 参考](../../backend/docs/style-reference/script-sdk.md)、
+  [GPU 流架构](../architecture/gpu-preview-stream-v1.md)、
+  [有限 GPU 性能证据](../performance/gpu-preview-production-2026-11-01.md) 和
+  [样例目录](../../backend/samples/ScriptEffects/README.md) 共同作为后续能力与验收对照。

@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.42.3",
   "httpProtocolVersion": "1",
-  "productVersion": "0.110.3",
-  "sourceBaselineCommit": "7c8638c9acd52ef7289577131fe3d38a55e48381",
+  "productVersion": "0.110.4",
+  "sourceBaselineCommit": "1adfe1a0fca8d426f2e803db4bfab72e12aff330",
   "frozenOn": "2026-11-03",
   "status": "frozen",
   "behaviorSource": "docs/architecture/backend-api.md",
   "scope": "Implemented public HTTP API through static outer glow with inheritance, templates, text marks and per-input CPU/GPU selection. Contract shape, matched deployment, real Linux GPU/HTTP frames and lifecycle evidence remain separate; not browser, cross-platform or performance acceptance.",
   "files": {
-    "Directory.Build.props": "b7a850b8c52f6f2cbc19d7c2aa9b99d2ec373f2323244e45227b1e35507318e0",
+    "Directory.Build.props": "767cca622792c5ac772c2d1c255f92f664241f75dfad9c01e72fbad98e803326",
     "Directory.Packages.props": "73a39b80a81538299db0031c15eb45c9b3d304cb03c232e5a13e4b19d2d9929b",
     "docs/architecture/backend-api.md": "76e1828667a550636ef0de6ab0931ad0581a1684314a56303217d34409d34657",
     "docs/runtime-validation-and-layout-contract.md": "af88f95301baf372ea29fb5012f59ec11bd3141391566fa09400cefacbd2cb15",
@@ -552,7 +552,7 @@
     "tools/backend-api-contract/editing_completion_fixtures.py": "4b4da8347c0ab78b0354e7d8f81a14235bc5c5646a6377aca492c1e7f0243ca6",
     "tools/backend-api-contract/editing_completion_schema.py": "f182ca0aec1be18ff08afa3eea48aa2b9212bdd43fdb9f00ad9b46a7122e59ba",
     "tools/backend-api-contract/export_request_fixtures.py": "b221f6c1da6ee545b1df3d9c769e5ba8ad8119e8add86004e9b6947fed548321",
-    "tools/backend-api-contract/freeze.py": "e5bb0c738092bf4abb1321a193dd7e6eed6eb57a9e694d2460feb777971ebe48",
+    "tools/backend-api-contract/freeze.py": "ba93bd7823b5c71ad13a2f9330c905c23f2627b3b0894d95f797ee7b44b67650",
     "tools/backend-api-contract/glow_style_fixtures.py": "b571abcdece9844c4e3a2a2d894a98ffce17c017c36345c6cb605653fd10d959",
     "tools/backend-api-contract/gpu_stream_fixtures.py": "8b7b832aa4e1efbd5ce97434ee5e6ed45865016552e08d92cdf0f79bc804fda0",
     "tools/backend-api-contract/node_creation_fixtures.py": "9fc813b46cbd66ed93dcb5396b79ae653dec2d44c2545de89ed8d4ba92b62bcd",
@@ -589,10 +589,10 @@
     "tools/backend-api-contract/w8_authoring_schema.py": "919b3b942a0dcff7bafb04f396072ac550f9378f870679256c82ec6f37bc348e"
   },
   "artifacts": {
-    "web/api-contract.md": "a02412cd47192db1ca63aa596a1ebe9e15299839575996fa0db39f0844770ad9",
-    "web/api-index.md": "8767ffc3842e3b21b6fc0f8851130f6ddd97b5b161e62e67cb1b0d9b51de6c8c",
+    "web/api-contract.md": "0150a67341c05828d32e9081f90d8438fef0e891179d616b366836ea58d7e10e",
+    "web/api-index.md": "639ea1d1b622c7599324b2dea9c9981cad1be891cd6e6bfd7a738fec2558fafc",
     "web/examples.json": "cf763aaf5f7ef0a57ae63c60bdb947905059c51c64a266099900ce638947975c",
-    "web/openapi.json": "d2ce0f1f238c145f91c30c1d53e6a88d9d20528cc3a019cf32b3242d44de82b9"
+    "web/openapi.json": "849e95140ae43abc5a482858e1812bf1e91cf9f48d3bd62f6ae9c33b8fadb227"
   },
   "guards": "Source hashes require review even for behavior-preserving changes. They are drift alarms, not semantic proofs. Runtime/Media behavior still requires existing regression tests."
 }

@@ -22,7 +22,7 @@ public sealed class BackendTemplateTransferTests
         internal Clock Time { get; } = new();
         internal ResourceStore Resources { get; }
         internal ProjectSessionRegistry Registry { get; }
-        internal string Index => Path.Combine(Directory.Path, "state", "libraries", "templates", "index.json");
+        internal string Index => StyleTemplateLibrary.ResolvePath(Path.Combine(Directory.Path, "state", "libraries"));
         internal Fixture()
         {
             Resources = new(new() { ResourceRoot = Path.Combine(Directory.Path, "resources"), UnreferencedAssetLifetimeSeconds = 1 }, Time);

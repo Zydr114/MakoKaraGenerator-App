@@ -24,7 +24,8 @@ public sealed partial class ProjectSessionRegistry
     {
         if (_templateLibrary is not null) throw new InvalidOperationException("模板库已经配置。");
         if (_persistence is null) throw new InvalidOperationException("模板库需要先配置持久profile。");
-        _templateLibrary = new(new TemplateLibraryRepository(Path.Combine(_persistence.StateRoot, "libraries", "templates", StyleTemplateLibrary.FileName)));
+        string stateRoot = _persistence.StateRoot;
+        _templateLibrary = new(new TemplateLibraryRepository(() => ResolveTemplateLibraryPath(stateRoot)));
     }
     /// <summary>固定目录描述；不读取个人磁盘入口。</summary>
     public TemplateLibrariesResponse ReadTemplateLibraries()

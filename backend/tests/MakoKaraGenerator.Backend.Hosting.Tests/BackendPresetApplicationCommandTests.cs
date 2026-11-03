@@ -1,5 +1,6 @@
 using System.Text.Json;
 using MakoKaraGenerator.Application;
+using MakoKaraGenerator.Core.Persistence;
 using MakoKaraGenerator.Backend.Contracts;
 using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Media;
@@ -114,7 +115,7 @@ public sealed partial class BackendPresetApplicationCommandTests
 
         internal string SaveTemplate(StyleTemplate template)
         {
-            string index = Path.Combine(_directory.Path, "state", "libraries", "templates", "index.json");
+            string index = StyleTemplateLibrary.ResolvePath(Path.Combine(_directory.Path, "state", "libraries"));
             MakoKaraGenerator.Core.Persistence.StyleTemplateLibrary.Save(index, [template]);
             return Registry.ReadTemplatesAsync("personal", null).GetAwaiter().GetResult().Response!.Revision;
         }

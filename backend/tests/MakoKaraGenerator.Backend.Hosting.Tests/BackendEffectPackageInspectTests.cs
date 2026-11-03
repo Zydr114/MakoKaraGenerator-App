@@ -96,7 +96,7 @@ public sealed class BackendEffectPackageInspectTests
         using TemporaryDirectory directory = new(); var package = EffectPackageFixture.Contents();
         var template = StyleTemplate.Create("advanced", "高级", StyleTemplateKind.Line, LyricStyle.Default, [],
             [new("recipe", "Scale", TemplateEffectTarget.TokenFamily, package.PackageId, package.Revision, "scale")], [package]);
-        string state = directory.FilePath("state"); string index = Path.Combine(state, "libraries", "templates", "index.json");
+        string state = directory.FilePath("state"); string index = StyleTemplateLibrary.ResolvePath(Path.Combine(state, "libraries"));
         StyleTemplateLibrary.Save(index, [template]);
         ResourceStore resources = new(new() { ResourceRoot = directory.FilePath("assets") });
         await using ProjectSessionRegistry registry = new("host", resources, NewProjectPreparationService.CreateDefault());

@@ -59,7 +59,7 @@ class LibraryProbe(style.StyleProbe):
         self.offline_fixtures = []
         self.restart_number = 0
         self.thread_lock = threading.Lock()
-        self.index = output/'profile/state/libraries/templates/index.json'
+        self.index = output/'profile/state/libraries/templates-v7/index.json'
 
     def index_files(self):
         directory=self.index.parent

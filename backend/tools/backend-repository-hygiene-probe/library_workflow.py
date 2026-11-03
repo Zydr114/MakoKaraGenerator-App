@@ -64,7 +64,7 @@ def run(p, root, host, save):
     package_matches('library-inspection', inspected)
     directories = {
         'configuration': p.output / 'profile/state/script-configurations-v1',
-        'template': p.output / 'profile/state/libraries/templates',
+        'template': p.output / 'profile/state/libraries/templates-v7',
     }
 
     def disk(name, revision):

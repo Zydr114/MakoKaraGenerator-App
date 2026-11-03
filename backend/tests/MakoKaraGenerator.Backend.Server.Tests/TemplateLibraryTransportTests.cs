@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using MakoKaraGenerator.Backend.Contracts;
 using MakoKaraGenerator.Backend.Hosting;
+using MakoKaraGenerator.Core.Persistence;
 
 namespace MakoKaraGenerator.Backend.Server.Tests;
 
@@ -114,7 +115,7 @@ public sealed partial class PreviewTransportTests
         await using var f = await TemplateFixture();
         var persistence = typeof(ProjectSessionRegistry).GetField("_persistence", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(f.Projects)!;
         string state = (string)persistence.GetType().GetProperty("StateRoot")!.GetValue(persistence)!;
-        string index = Path.Combine(state, "libraries", "templates", "index.json"); Directory.CreateDirectory(Path.GetDirectoryName(index)!); await File.WriteAllTextAsync(index, "{broken");
+        string index = StyleTemplateLibrary.ResolvePath(Path.Combine(state, "libraries")); Directory.CreateDirectory(Path.GetDirectoryName(index)!); await File.WriteAllTextAsync(index, "{broken");
         using var descriptors = await f.Http.GetAsync(TemplateRoot); Assert.Equal(HttpStatusCode.OK, descriptors.StatusCode);
         Assert.Equal(2, (await TemplateList(f, "builtin")).TotalCount);
         using var personal = await f.Http.GetAsync(TemplateRoot + "/personal/templates"); await Error(personal, HttpStatusCode.UnprocessableEntity, BackendErrorCode.CommandRejected);

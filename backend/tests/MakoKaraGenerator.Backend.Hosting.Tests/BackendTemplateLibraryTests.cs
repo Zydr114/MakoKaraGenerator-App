@@ -231,7 +231,7 @@ public sealed class BackendTemplateLibraryTests
     private sealed class Fixture : IAsyncDisposable
     {
         internal TemporaryDirectory Directory { get; } = new();
-        internal string Index => Path.Combine(Directory.Path,"state","libraries","templates","index.json");
+        internal string Index => StyleTemplateLibrary.ResolvePath(Path.Combine(Directory.Path,"state","libraries"));
         internal ProjectSessionRegistry Registry { get; }
         internal Fixture()
         {

@@ -2,6 +2,8 @@
 
 本仓库把 Backend 与 Web 的版本化源码整合为独立应用，提供浏览器入口和 Electron 桌面入口。桌面复用同一编辑器，并新增 Linux 本机 GPU 共享纹理预览；浏览器继续使用既有 PNG 静态预览。两条预览路径分别保留自己的能力和验收边界。
 
+2026-11-03 已合入静态外辉光后端并接通重构后的前端：后端 `0.110.0`、HTTP 合同 `1.42.0`。在样式库的“外观 → 颜色与描边 → 辉光”配置颜色、不透明度、扩张和模糊，再从外观页分配模板。取消“辉光写进模板”表示继承，选择“无辉光”表示明确关闭；只包含部分辉光属性的模板会显示“部分覆盖”。工程／歌词／模板 schema 为 `29/18/7`，旧版本由现有门禁直接拒绝，不迁移或改写原文件。实施与验证见[辉光整合记录](docs/integration/2026-11-03-glow.md)。
+
 当前 MVP：2026-11-01 用户本机以 1280×720、24fps 预览设置手测，低效果可流畅预览，高效果／复杂效果仍明显卡顿；用户认可最小原型实现，对高效果性能仍不满意。用户判断传输链路未显示阻断级问题；这不替代尚未通过的 P3 自动门槛。具体观察及导出约 3fps 的进度条估算边界见[用户本机手测与原型评价](docs/performance/gpu-preview-production-2026-11-01.md#用户本机手测与原型评价)。
 
 `backend/` 来源 `a4783fad683bcfef3f2db4042e8963e5228830b5`，`frontend/` 来源 `c2d06fd68a051de1ab1018b9cd2b18ef2ccd8bab`。路径、分支、tree 与源工作树排除项见 [source-snapshots.json](source-snapshots.json)。两个源仓库保持原样；App 保留自己的 Git 历史，用户授权的私有远程同步目标为 `https://github.com/Zydr114/MakoKaraGenerator-App`，暂不添加许可证；实际推送结果以远程核验为准。上游已有的文档、AGENTS 和历史验收保持原归属，本仓库工作规则见根 [AGENTS.md](AGENTS.md)。
@@ -36,9 +38,10 @@ pnpm start --port 5174
 有限验证入口：
 
 ```bash
-pnpm test:launcher     # 6项启动失败清理、正常停止和符号链接边界测试
+pnpm test:launcher     # 启动失败清理、正常停止、符号链接与旧产品部署门禁
 pnpm test:unit         # 上游前端单元回归
 pnpm smoke:browser    # start运行时：新建、编辑、撤销、暂停seek、PNG显示、关闭工程
+pnpm smoke:glow --url http://127.0.0.1:5173  # 隔离profile运行时：辉光模板编辑、保存应用、继承开关和浅深主题
 pnpm smoke:layout     # start运行时：几种窗口尺寸下编排、外观页画布完整显示、不需要滚动
 pnpm smoke:desktop    # 自己启动隔离的桌面会话：默认走GPU、无CPU回读、播放／seek／编辑／换规格／切页刷新、选CPU退回PNG、关窗确认与正常退出
 ```

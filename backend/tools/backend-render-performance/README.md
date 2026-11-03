@@ -1,5 +1,30 @@
 # CPU / Vulkan 单帧性能采样工具
 
+## App M00 显式时刻矩阵
+
+App 仓库中 `prepare --commit HEAD` 和 `prepare-ab` 从对应 App 提交的 `backend/` 树归档，记录提交和子目录；原独立后端根目录仍使用根树。工具源码来自当前工作树并单独记录摘要及脏状态，生产源码只来自所选提交。插桩严格匹配源代码，若当前版本不匹配会失败，不能将失败计作基线。
+
+`matrix` 模式要求显式微秒时刻、零预热及帧数等于时刻数，上限 48。其 370 秒工程在 0、180、360 秒各有四行实际歌词；可请求相同时间以观察同一会话内重复命中，也可后退以观察 seek。首次帧和会话创建分别报告，逐帧标记 first/repeat/forward/backward；它们不证明系统、驱动或编译缓存已清空。新进程使用独立空缓存目录，已生成的编译缓存是否命中需另行证明，不能把重复帧视为跨会话缓存命中。帧内耗时包含准备、绘制和最终回读，fixture 加载另计；像素哈希、完整规范诊断和设备证据仍使用原有规则。
+
+附加场景 `ruby` 为每行首字增加注音，`multi` 使用三个相同包的独立控制器实例，`video` 在运行批次开始前用本机 FFmpeg 的 `testsrc2` 和 FFV1 生成 320×240、10fps、2 秒循环视频。所有变体共享同一文件；manifest 记录生成命令、FFmpeg 版本和文件摘要，分析及归档校验该文件。不同 FFmpeg 版本可能生成不同字节，跨批比较须核对摘要。`--transparent` 使用现有透明输出路径；请分别采集透明和背景视频，透明模式是否绘制背景以实际渲染语义为准。
+
+示例（在 App 根目录，先完成准备和构建；采样须独占设备）：
+
+```bash
+python3 backend/tools/backend-render-performance/bench.py prepare --commit HEAD --output EVIDENCE
+python3 backend/tools/backend-render-performance/bench.py build --output EVIDENCE
+python3 backend/tools/backend-render-performance/bench.py run --output EVIDENCE --label matrix --scenarios lyrics,ruby,multi,video --rounds 1 --mode matrix --warmup 0 --frames 7 --times-us 1000000,1000000,181000000,181000000,361000000,361000000,1000000 --timeout 1800
+python3 backend/tools/backend-render-performance/analyze.py --output EVIDENCE --label matrix
+python3 backend/tools/backend-render-performance/bench.py run --output EVIDENCE --label matrix-transparent --scenarios lyrics,ruby --rounds 1 --mode matrix --warmup 0 --frames 7 --times-us 1000000,1000000,181000000,181000000,361000000,361000000,1000000 --transparent --timeout 1800
+python3 backend/tools/backend-render-performance/analyze.py --output EVIDENCE --label matrix-transparent
+```
+
+显式时刻有限不代表重放工作有限：v1 时间轴可能从零重放至 180 或 360 秒，首次高时间请求可能很慢。每次请求的实际耗时、失败与超时必须如实登记；该矩阵不是三分钟连续播放、HTTP、桌面或视频编码性能验收。性能阈值仍由 M00 数据及用户确认决定。
+
+每次 Runner 以新会话启动；运行期间周期采样 Runner 进程组和可追踪后代的 PID、startTicks、父 PID、进程组及会话。超时时核对 Runner 身份后向该进程组发送 SIGKILL，等待 Runner 并复核已观察身份；manifest 将退出、PID 复用、僵尸及仍存活分别记录。身份无法确认或清理出错时先写失败记录再抛错；超时退出码为 `-999`，失败目录保留。采样不能证明瞬时进程或未观察到的脱组后代已退出；已观察到的脱组后代不会被进程组信号终止，若仍存活会明确记录。
+
+进程观察由调度器每约 200 ms 扫描 `/proc`，可能影响采样时的 CPU 调度；同批次变体使用同一观察方式，但与使用旧工具所得耗时不直接等同。
+
 本工具对固定工程调用生产 `ProjectRenderSessionFactory`，记录直接 Runtime 路径的短批次单帧数据。基准生产源码为 `8681bc09d59fc72c11d62810940324a6a44eefd2`（产品 0.106.0）。它不修改生产源码，不代表完整工程、HTTP、浏览器、跨平台、长片或实际导出性能。
 
 ## 来源与运行
@@ -55,7 +80,7 @@ python3 tools/backend-render-performance/analyze.py --output /path/to/new-eviden
 
 每帧校验尺寸、stride、预乘 BGRA 格式、有效字节长度以及诊断状态，记录完整有效像素的 SHA-256、Runtime/图/材质诊断内容和诊断 SHA-256；随机 Runtime 诊断 epoch GUID 按首次出现顺序归一化为索引，序号及其余诊断字段保留。哈希是严格字节或诊断对照，不能替代像素容差分析。会话仍存活时采集本进程允许范围内的 Vulkan/Radeon 映射和 DRM 设备，再独立 probe 设备；probe 是同进程的另一设备创建，不证明它与项目会话是同一设备对象。
 
-本工具不经过 HTTP、Worker 通信、FFmpeg 或视频编码；最后一帧 PNG 仅作为计时外的检查证据。性能结论限于记录的机器、设备、字体、样本、版本及短批次，不外推 GPU 编码、交互体验或长片性能。
+除上述 `video` 场景使用 FFmpeg 解码背景外，本工具不经过 HTTP、Worker 通信或视频编码；最后一帧 PNG 仅作为计时外的检查证据。性能结论限于记录的机器、设备、字体、样本、版本和时刻，不外推 GPU 编码、交互体验或长片连续播放性能。
 
 ## 工具检查和归档
 

@@ -4,9 +4,15 @@
 import contextlib
 import io
 import json
+import os
+import subprocess
+import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
+from unittest import mock
+from types import SimpleNamespace
 
 import analyze
 import bench
@@ -56,6 +62,68 @@ def sample(backend, variant, counterfactual="none", pixel="a", frame_count=2, mo
 
 
 class AnalysisTests(unittest.TestCase):
+    def test_timeout_terminates_owned_session_and_child(self):
+        program = ("import subprocess,sys,time; "
+                   "p=subprocess.Popen([sys.executable,'-c','import time; time.sleep(60)']); "
+                   "print(p.pid,flush=True); time.sleep(60)")
+        process = subprocess.Popen([sys.executable, "-c", program], stdout=subprocess.PIPE,
+                                   text=True, start_new_session=True)
+        try:
+            child_pid = int(process.stdout.readline())
+            identity = bench.child_identity(process.pid)
+            self.assertIsNotNone(identity["startTicks"])
+            observed = {}
+            self.assertTrue(bench.observe_owned_processes(identity, observed))
+            cleanup = {}
+            outcomes = bench.terminate_owned_group(process, identity, observed, cleanup)
+            self.assertEqual(cleanup["signal"], "SIGKILL")
+            child = next(item for item in outcomes if item["observed"]["pid"] == child_pid)
+            self.assertIn(child["status"], {"exited", "zombie", "pid-reused"})
+            self.assertEqual(child["observed"]["processGroup"], process.pid)
+            self.assertEqual(child["observed"]["session"], process.pid)
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                stat = Path(f"/proc/{child_pid}/stat")
+                if not stat.exists() or stat.read_text().rsplit(")", 1)[1].split()[0] == "Z":
+                    break
+                time.sleep(.01)
+            else:
+                self.fail("child from owned process group remained live")
+        finally:
+            if process.poll() is None:
+                os.killpg(process.pid, 9)
+                process.wait(timeout=5)
+            process.stdout.close()
+
+    def test_cleanup_identity_failure_is_written_before_raising(self):
+        (self.root / "prepare.json").write_text(json.dumps({"toolCommit": "test"}))
+        (self.root / "build-inputs.json").write_text("{}")
+        args = SimpleNamespace(output=str(self.root), label="failed", warmup=0, frames=1, rounds=1,
+            scenarios="lyrics", variants="baseline", action="run", mode="sequential", times_us=None,
+            width=2, height=2, transparent=False, counterfactual="none", timeout=1, pause=0)
+        process = mock.Mock(pid=123, args=["runner"])
+        with mock.patch.object(bench.subprocess, "Popen", return_value=process), \
+             mock.patch.object(bench, "child_identity", return_value={"pid": 123, "startTicks": None}), \
+             mock.patch.object(bench, "wait_observing", side_effect=subprocess.TimeoutExpired("runner", 1)), \
+             mock.patch.object(bench, "terminate_owned_group", side_effect=RuntimeError("identity unavailable")), \
+             contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaisesRegex(RuntimeError, "identity unavailable"):
+                bench.run(args)
+        result = json.loads((self.root / "runs/failed/manifest.json").read_text())
+        self.assertFalse(result.get("complete", False))
+        record = result["runs"][0]
+        self.assertEqual(record["exitCode"], -999)
+        self.assertIn("identity unavailable", record["timeoutCleanup"]["cleanupError"])
+
+    def test_backend_archive_tree_and_bounded_matrix(self):
+        self.assertEqual("abc", bench.archive_tree("abc", ""))
+        self.assertEqual("abc:backend", bench.archive_tree("abc", "backend/"))
+        self.assertEqual([1_000_000, 181_000_000, 361_000_000, 1_000_000],
+                         bench.parse_times("1000000,181000000,361000000,1000000"))
+        for invalid in (None, "", "-1", "370000000", ",".join(["1"] * 49), "1,x"):
+            with self.subTest(value=invalid), self.assertRaises(ValueError):
+                bench.parse_times(invalid)
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
@@ -81,6 +149,19 @@ class AnalysisTests(unittest.TestCase):
         value = json.loads(path.read_text(encoding="utf-8"))
         edit(value)
         write_json(path, value)
+
+    def test_matrix_timestamp_mismatch_is_rejected(self):
+        folder = self.make_run("matrix-check")
+        self.edit_json(folder / "manifest.json", lambda value: value["arguments"].update(
+            mode="matrix", times_us="1000000,1000000", warmup=0, frames=2))
+        for path in folder.glob("*-*.json"):
+            self.edit_json(path, lambda value: value.update(mode="matrix", requestedTimesUs=[1_000_000, 1_000_000],
+                requestedWarmupFrames=0, requestedMeasuredFrames=2))
+        with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit):
+            analyze.analyze(self.root, "matrix-check")
+        assessment = json.loads((folder / "assessment.json").read_text())
+        self.assertFalse(assessment["valid"])
+        self.assertTrue(any("timestamp sequence mismatch" in error for error in assessment["errors"]))
 
     def make_monitoring_run(self):
         folder = self.root / "runs" / "monitoring"

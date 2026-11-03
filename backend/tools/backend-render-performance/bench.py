@@ -8,6 +8,7 @@ import fcntl
 import hashlib
 import json
 import os
+import signal
 from pathlib import Path
 import shutil
 import subprocess
@@ -19,6 +20,7 @@ import time
 TOOL = Path(__file__).resolve().parent
 REPO = TOOL.parent.parent
 SCENARIOS = ("lyrics", "csharp", "graph", "material", "particle", "combined")
+EXTRA_SCENARIOS = ("ruby", "multi", "video")
 VARIANTS = ("baseline", "instrumented")
 BACKENDS = ("cpu", "vulkan")
 AB_VARIANTS = ("old", "new", "old-instrumented", "new-instrumented")
@@ -60,6 +62,36 @@ def tool_copy(destination: Path):
                     ignore=shutil.ignore_patterns("bin", "obj", "__pycache__"))
 
 
+def archive_tree(commit, prefix):
+    """git archive accepts a tree object; this also strips the App backend prefix."""
+    return commit + ":" + prefix.rstrip("/") if prefix else commit
+
+
+def extract_source(commit, destination):
+    prefix = git("rev-parse", "--show-prefix")
+    git_root = git("rev-parse", "--show-toplevel")
+    with tempfile.TemporaryFile() as archive:
+        subprocess.run(["git", "-C", git_root, "archive", "--format=tar", archive_tree(commit, prefix)], stdout=archive, check=True)
+        archive.seek(0)
+        with tarfile.open(fileobj=archive) as tree:
+            tree.extractall(destination, filter="data")
+    if not (destination / "src").is_dir() or not (destination / "Directory.Build.props").is_file():
+        raise ValueError("archived commit does not contain the backend root at " + (prefix or "."))
+    return prefix
+
+
+def parse_times(value):
+    if value is None:
+        raise ValueError("matrix requires --times-us")
+    try:
+        times = [int(part) for part in value.split(",")]
+    except ValueError as error:
+        raise ValueError("times must be comma-separated integer microseconds") from error
+    if not 1 <= len(times) <= 48 or any(time < 0 or time >= 370_000_000 for time in times):
+        raise ValueError("matrix requires 1..48 times within the 370-second fixture")
+    return times
+
+
 def prepare(args):
     output = Path(args.output).resolve()
     if output.exists():
@@ -68,11 +100,7 @@ def prepare(args):
     output.mkdir(parents=True)
     baseline = output / "sources" / "baseline"
     baseline.mkdir(parents=True)
-    with tempfile.TemporaryFile() as archive:
-        subprocess.run(["git", "-C", str(REPO), "archive", "--format=tar", commit], stdout=archive, check=True)
-        archive.seek(0)
-        with tarfile.open(fileobj=archive) as tree:
-            tree.extractall(baseline, filter="data")
+    prefix = extract_source(commit, baseline)
     tool_copy(baseline / "tools" / TOOL.name)
     production = inventory(baseline, lambda p: p.startswith("src/") or p in {
         "Directory.Build.props", "Directory.Build.targets", "Directory.Packages.props", "global.json", "NuGet.Config"})
@@ -88,7 +116,7 @@ def prepare(args):
         if before.get(relative) != after.get(relative):
             differences.append({"path": "src/" + relative, "baseline": before.get(relative), "instrumented": after.get(relative)})
     write_json(output / "prepare.json", {
-        "schema": "render-performance-source-v1", "createdUtc": stamp(), "sourceCommit": commit,
+        "schema": "render-performance-source-v1", "createdUtc": stamp(), "sourceCommit": commit, "sourceSubdirectory": prefix,
         "toolCommit": git("rev-parse", "HEAD"), "toolWorkingTreeStatus": git("status", "--short", "--", str(TOOL)),
         "productionInputs": production, "sampleInputs": inventory(baseline / "samples" / "ScriptEffects"),
         "toolInputs": inventory(TOOL), "instrumentedChanges": differences,
@@ -109,15 +137,11 @@ def prepare_ab(args):
     for name, commit in commits.items():
         root = output / "sources" / name
         root.mkdir(parents=True)
-        with tempfile.TemporaryFile() as archive:
-            subprocess.run(["git", "-C", str(REPO), "archive", "--format=tar", commit], stdout=archive, check=True)
-            archive.seek(0)
-            with tarfile.open(fileobj=archive) as tree:
-                tree.extractall(root, filter="data")
+        prefix = extract_source(commit, root)
         tool_copy(root / "tools" / TOOL.name)
         production = inventory(root, lambda p: p.startswith("src/") or p in {
             "Directory.Build.props", "Directory.Build.targets", "Directory.Packages.props", "global.json", "NuGet.Config"})
-        sources[name] = {"commit": commit, "productionInputs": production,
+        sources[name] = {"commit": commit, "sourceSubdirectory": prefix, "productionInputs": production,
                          "sampleInputs": inventory(root / "samples" / "ScriptEffects")}
         traced = output / "sources" / (name + "-instrumented")
         shutil.copytree(root, traced)
@@ -235,6 +259,86 @@ def exists(identity):
     return current["startTicks"] is not None and current["startTicks"] == identity["startTicks"]
 
 
+def process_snapshot(pid):
+    try:
+        fields = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()
+        return {"pid": pid, "startTicks": fields[19], "state": fields[0],
+                "parentPid": int(fields[1]), "processGroup": int(fields[2]), "session": int(fields[3])}
+    except (OSError, IndexError, ValueError):
+        return None
+
+
+def observe_owned_processes(leader, observed):
+    """Sample the leader session and descendants, retaining identities after exit."""
+    processes = {}
+    for entry in Path("/proc").iterdir():
+        if entry.name.isdecimal():
+            item = process_snapshot(int(entry.name))
+            if item is not None:
+                processes[item["pid"]] = item
+    current = processes.get(leader["pid"])
+    if current is None or current["startTicks"] != leader["startTicks"]:
+        return False
+    selected = {leader["pid"]}
+    selected.update(pid for pid, item in processes.items()
+                    if item["session"] == leader["pid"] and item["processGroup"] == leader["pid"])
+    changed = True
+    while changed:
+        before = len(selected)
+        selected.update(pid for pid, item in processes.items() if item["parentPid"] in selected)
+        changed = len(selected) != before
+    for pid in selected:
+        item = processes[pid]
+        observed[(pid, item["startTicks"])] = item
+    return True
+
+
+def observed_outcomes(observed):
+    outcomes = []
+    for (_, _), item in sorted(observed.items()):
+        current = process_snapshot(item["pid"])
+        if current is None:
+            status = "exited"
+        elif current["startTicks"] != item["startTicks"]:
+            status = "pid-reused"
+        elif current["state"] == "Z":
+            status = "zombie"
+        else:
+            status = "alive"
+        outcomes.append({"observed": item, "status": status,
+                         "current": current if status in {"alive", "zombie"} else None})
+    return outcomes
+
+
+def terminate_owned_group(process, identity, observed, cleanup):
+    """Kill only the new session owned by this still-identical, unreaped leader."""
+    if not exists(identity) or os.getpgid(process.pid) != process.pid or os.getsid(process.pid) != process.pid:
+        raise RuntimeError("cannot verify timed-out benchmark process group identity")
+    observe_owned_processes(identity, observed)
+    os.killpg(process.pid, signal.SIGKILL)
+    cleanup["signal"] = "SIGKILL"
+    process.wait(timeout=10)
+    deadline = time.monotonic() + 5
+    while True:
+        outcomes = observed_outcomes(observed)
+        if not any(item["status"] == "alive" for item in outcomes) or time.monotonic() >= deadline:
+            return outcomes
+        time.sleep(.05)
+
+
+def wait_observing(process, identity, timeout, observed):
+    deadline = time.monotonic() + timeout
+    while True:
+        observe_owned_processes(identity, observed)
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise subprocess.TimeoutExpired(process.args, timeout)
+        try:
+            return process.wait(timeout=min(.2, remaining))
+        except subprocess.TimeoutExpired:
+            continue
+
+
 def monitoring_environment(environment, mode):
     """Do not let desktop/server selectors silently contaminate an A/B process."""
     if mode not in MONITORING_MODES:
@@ -263,7 +367,7 @@ def run(args):
     if not 1 <= args.rounds <= 10:
         raise ValueError("round count must be between 1 and 10")
     scenarios = args.scenarios.split(",")
-    if not scenarios or any(x not in SCENARIOS for x in scenarios):
+    if not scenarios or any(x not in SCENARIOS + EXTRA_SCENARIOS for x in scenarios):
         raise ValueError("unknown scenario")
     variants = args.variants.split(",")
     if not variants or len(set(variants)) != len(variants) or any(x not in available_variants for x in variants):
@@ -277,7 +381,20 @@ def run(args):
         raise ValueError("duplicate scenario")
     if args.mode == "seek" and (args.warmup != 0 or args.frames != 8):
         raise ValueError("seek requires --warmup 0 --frames 8")
+    if args.mode == "matrix":
+        times = parse_times(args.times_us)
+        if args.warmup != 0 or args.frames != len(times):
+            raise ValueError("matrix requires --warmup 0 and --frames equal to the number of times")
+    elif args.times_us is not None:
+        raise ValueError("--times-us requires --mode matrix")
     run_root.mkdir(parents=True)
+    video = None
+    if "video" in scenarios:
+        video = run_root / "fixture-video.mkv"
+        command = ["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc2=size=320x240:rate=10",
+                   "-t", "2", "-an", "-c:v", "ffv1", "-threads", "1", "-y", str(video)]
+        subprocess.run(command, check=True, timeout=60)
+        version = subprocess.check_output(["ffmpeg", "-version"], text=True).splitlines()[0]
     manifest = {"schema": "render-performance-runs-v1", "startedUtc": stamp(), "arguments": vars(args), "runs": [],
         "monitoringModes": list(MONITORING_MODES) if monitoring else ["off"], "monitoringPolicy": MONITORING_POLICY,
         "provenance": {"prepareSha256": digest(output / "prepare.json"),
@@ -286,6 +403,9 @@ def run(args):
                        "sourceCommit": preparation.get("sourceCommit"), "toolCommit": preparation["toolCommit"]},
         "frameBudget": {"maximumRenderedFramesPerProcess": 48, "deviceProbeFramesPerProcess": 1},
         "scope": "Direct Runtime BGRA wall-clock. Rendering is sequential; short independent processes, no HTTP or video encoding."}
+    if video is not None:
+        manifest["videoFixture"] = {"file": video.name, "sha256": digest(video), "bytes": video.stat().st_size,
+                                    "command": command, "ffmpegVersion": version}
     write_json(run_root / "manifest.json", manifest)
     for round_index in range(args.rounds):
         # Alternate both backend and build ordering to reduce a fixed first/last bias.
@@ -306,6 +426,10 @@ def run(args):
                         "--warmup", str(args.warmup), "--frames", str(args.frames), "--width", str(args.width),
                         "--height", str(args.height), "--transparent", str(args.transparent).lower()]
                     command += ["--counterfactual", args.counterfactual, "--monitoring", monitoring_mode]
+                    if args.mode == "matrix":
+                        command += ["--times-us", args.times_us]
+                    if scenario == "video":
+                        command += ["--video", str(video)]
                     env = monitoring_environment(os.environ, monitoring_mode)
                     env.update({"MAKO_RENDER_BACKEND": backend, "VK_DRIVER_FILES": "/usr/share/vulkan/icd.d/radeon_icd.json",
                                 "VK_ICD_FILENAMES": "/usr/share/vulkan/icd.d/radeon_icd.json"})
@@ -314,25 +438,32 @@ def run(args):
                     with (run_root / (name + ".log")).open("w", encoding="utf-8") as log:
                         process = subprocess.Popen(command, cwd=root, env=env, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
                         identity = child_identity(process.pid)
+                        observed = {}
+                        timeout_evidence = None
+                        cleanup_error = None
                         try:
-                            exit_code = process.wait(timeout=args.timeout)
+                            exit_code = wait_observing(process, identity, args.timeout, observed)
                         except subprocess.TimeoutExpired:
-                            # Only the explicitly owned benchmark process is terminated.
-                            process.terminate()
-                            try:
-                                process.wait(timeout=10)
-                            except subprocess.TimeoutExpired:
-                                process.kill()
-                                process.wait(timeout=10)
                             exit_code = -999
+                            timeout_evidence = {"signal": None, "cleanupError": None,
+                                "scope": "periodically observed identities; processes that escaped observation are unknown"}
+                            try:
+                                outcomes = terminate_owned_group(process, identity, observed, timeout_evidence)
+                            except (OSError, RuntimeError, subprocess.TimeoutExpired) as error:
+                                cleanup_error = f"{type(error).__name__}: {error}"
+                                outcomes = observed_outcomes(observed)
+                            timeout_evidence.update(cleanupError=cleanup_error, processes=outcomes)
                     record = {"name": name, "round": round_index + 1, "scenario": scenario, "backend": backend, "variant": variant,
                               "monitoringMode": monitoring_mode,
                               "startedUtc": started, "elapsedSeconds": time.perf_counter() - clock, "identity": identity,
                               "exitCode": exit_code, "exited": not exists(identity), "command": command,
-                              "result": result_path.name if result_path.exists() else None}
+                              "result": result_path.name if result_path.exists() else None,
+                              "observedProcesses": observed_outcomes(observed), "timeoutCleanup": timeout_evidence}
                     manifest["runs"].append(record)
                     write_json(run_root / "manifest.json", manifest)
                     print(json.dumps({k: record[k] for k in ["name", "exitCode", "elapsedSeconds", "exited"]}), flush=True)
+                    if cleanup_error is not None:
+                        raise RuntimeError("timeout cleanup failed: " + cleanup_error)
                     if exit_code != 0 or not record["exited"] or not result_path.exists():
                         raise RuntimeError("short batch failed: " + name)
                     if args.pause:
@@ -346,7 +477,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="action", required=True)
     prepare_args = sub.add_parser("prepare")
-    prepare_args.add_argument("--commit", default="8681bc09d59fc72c11d62810940324a6a44eefd2")
+    prepare_args.add_argument("--commit", default="HEAD" if git("rev-parse", "--show-prefix") else "8681bc09d59fc72c11d62810940324a6a44eefd2")
     prepare_args.add_argument("--output", required=True)
     prepare_args.set_defaults(callback=prepare)
     ab_args = sub.add_parser("prepare-ab")
@@ -371,7 +502,8 @@ def main():
         run_args.add_argument("--frames", type=int, default=24)
         run_args.add_argument("--width", type=int, default=1920)
         run_args.add_argument("--height", type=int, default=1080)
-        run_args.add_argument("--mode", choices=["sequential", "seek"], default="sequential")
+        run_args.add_argument("--mode", choices=["sequential", "seek", "matrix"], default="sequential")
+        run_args.add_argument("--times-us", help="matrix timestamps in microseconds, in request order")
         run_args.add_argument("--transparent", action="store_true")
         run_args.add_argument("--counterfactual", choices=["none", "all", "csharp", "graph", "material", "particle"], default="none")
         run_args.add_argument("--timeout", type=int, default=120)

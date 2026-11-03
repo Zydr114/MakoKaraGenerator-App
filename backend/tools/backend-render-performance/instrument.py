@@ -40,8 +40,18 @@ def instrument(root):
         checks.append({"path": path, "matches": actual, "needleSha256": sha256(old.encode())})
 
     factory = "src/MakoKaraGenerator.Runtime.Hosting/ProjectRenderSessionFactory.cs"
-    replace(factory, '            device = SkiaRenderDeviceFactory.Create(_renderBackendOptions);',
-            '            using (RenderPerformanceTrace.Measure("session.device"))\n                device = SkiaRenderDeviceFactory.Create(_renderBackendOptions);')
+    device_old = '            device = SkiaRenderDeviceFactory.Create(_renderBackendOptions);'
+    device_preview = ('            device = SkiaRenderDeviceFactory.Create(enableGpuPreview\n'
+                      '                ? (_renderBackendOptions ?? SkiaRenderBackendOptions.FromEnvironment()) with { EnableGpuPreview = true }\n'
+                      '                : _renderBackendOptions);')
+    factory_source = (root / factory).read_text(encoding="utf-8")
+    if (factory_source.count(device_old), factory_source.count(device_preview)) == (1, 0):
+        device_statement = device_old
+    elif (factory_source.count(device_old), factory_source.count(device_preview)) == (0, 1):
+        device_statement = device_preview
+    else:
+        raise ValueError("unknown or mixed render device factory layout")
+    replace(factory, device_statement, '            using (RenderPerformanceTrace.Measure("session.device"))\n' + device_statement)
     replace(factory, '            var compiled = await CompiledProjectEffects.CompileAsync(snapshot, _compiler.Value, new PackageImageValidator(), new PackageShaderValidator(),\n                new PackageImageGraphValidator(), new PackageMaterialValidator(), token).ConfigureAwait(false);',
             '            CompiledProjectEffects compiled;\n            using (RenderPerformanceTrace.Measure("session.compile"))\n                compiled = await CompiledProjectEffects.CompileAsync(snapshot, _compiler.Value, new PackageImageValidator(), new PackageShaderValidator(),\n                    new PackageImageGraphValidator(), new PackageMaterialValidator(), token).ConfigureAwait(false);')
     replace(factory, '            foreach (var package in compiled.Packages)\n            {',
@@ -56,13 +66,13 @@ def instrument(root):
     telemetry_prepare = '                using (PerformanceTelemetry.Measure(PerformancePhase.Prepare))\n                    prepared = source is null ? null : await source.PrepareAsync(request.TimeUs,\n                        request.TransparentBackground ? OutputMode.Transparent : OutputMode.Opaque, target, linked.Token).ConfigureAwait(false);'
     session_source = (root / session).read_text(encoding="utf-8")
     runtime_counts = (session_source.count(old_prepare), session_source.count(telemetry_prepare))
-    if runtime_counts not in {(2, 0), (0, 2)}:
+    if runtime_counts not in {(2, 0), (0, 2), (0, 3)}:
         raise ValueError(f"unknown or mixed runtime preparation layout: {runtime_counts}")
     runtime_layout = "legacy" if runtime_counts == (2, 0) else "telemetry"
     replace(session, '    private async Task<RenderFrame> RenderCoreAsync(RenderRequest request, CancellationToken token)\n    {',
             '    private async Task<RenderFrame> RenderCoreAsync(RenderRequest request, CancellationToken token)\n    {\n        using var performanceRuntimeRender = RenderPerformanceTrace.Measure("runtime.render.core");')
     replace(session, '        await _gate.WaitAsync(linked.Token).ConfigureAwait(false);\n        try',
-            '        using (RenderPerformanceTrace.Measure("runtime.gate"))\n            await _gate.WaitAsync(linked.Token).ConfigureAwait(false);\n        try', count=2)
+            '        using (RenderPerformanceTrace.Measure("runtime.gate"))\n            await _gate.WaitAsync(linked.Token).ConfigureAwait(false);\n        try', count=max(runtime_counts))
     if runtime_layout == "legacy":
         replace(session, old_prepare,
                 '            PreparedRenderFrame? prepared;\n            using (RenderPerformanceTrace.Measure("runtime.prepare"))\n                prepared = source is null ? null : await source.PrepareAsync(request.TimeUs,\n                    request.TransparentBackground ? OutputMode.Transparent : OutputMode.Opaque, request.ResolveTarget(), linked.Token).ConfigureAwait(false);', count=2)
@@ -70,7 +80,7 @@ def instrument(root):
                 '            using (RenderPerformanceTrace.Measure("runtime.skia"))\n                return renderer.Render(request with { PreparedFrame = prepared, CancellationToken = linked.Token });')
     else:
         replace(session, telemetry_prepare,
-                '                using (RenderPerformanceTrace.Measure("runtime.prepare"))\n' + telemetry_prepare, count=2)
+                '                using (RenderPerformanceTrace.Measure("runtime.prepare"))\n' + telemetry_prepare, count=runtime_counts[1])
         replace(session, '                RenderFrame frame = renderer.Render(request with { PreparedFrame = prepared, CancellationToken = linked.Token });',
                 '                RenderFrame frame;\n                using (RenderPerformanceTrace.Measure("runtime.skia"))\n                    frame = renderer.Render(request with { PreparedFrame = prepared, CancellationToken = linked.Token });')
 
@@ -144,18 +154,37 @@ def instrument(root):
             '        using var performanceSkia = RenderPerformanceTrace.Measure("skia.render");\n        ArgumentNullException.ThrowIfNull(request);\n        ObjectDisposedException.ThrowIf(_disposed, this);\n\n        request.CancellationToken.ThrowIfCancellationRequested();')
     replace(skia, '        PreparedRenderFrame.ValidateRequest(request);\n        ValidateNativePreparedFrame(request.PreparedFrame);',
             '        using (RenderPerformanceTrace.Measure("skia.validate"))\n        {\n            PreparedRenderFrame.ValidateRequest(request);\n            ValidateNativePreparedFrame(request.PreparedFrame);\n        }')
-    replace(skia, '            using (SKSurface surface = _device.CreateSurface(info))\n            {\n                SKCanvas canvas = surface.Canvas;',
+    new_output_layout = '    private T RenderToOutput<T>(RenderRequest request, SceneFrame? measuredScene,' in (root / skia).read_text(encoding="utf-8")
+    if new_output_layout:
+        replace(skia, '        using (SKSurface surface = _device.CreateSurface(info))\n        {\n            SKCanvas canvas = surface.Canvas;',
+                '        SKSurface surface;\n        using (RenderPerformanceTrace.Measure("skia.surface.create")) surface = _device.CreateSurface(info);\n        using (surface)\n        {\n            using var performanceDraw = RenderPerformanceTrace.Measure("skia.draw");\n            SKCanvas canvas = surface.Canvas;')
+        replace(skia, '            canvas.Restore();\n            return output(surface, info, target, new(materialDiagnostics, imageDiagnostics, sceneDiagnostics));',
+                '            canvas.Restore();\n            performanceDraw.Dispose();\n            return output(surface, info, target, new(materialDiagnostics, imageDiagnostics, sceneDiagnostics));')
+        replace(skia, '                    _device.FlushAndSubmit(surface);\n                    unsafe',
+                '                    using (RenderPerformanceTrace.Measure("skia.finalSubmit")) _device.FlushAndSubmit(surface);\n                    using (RenderPerformanceTrace.Measure("skia.finalReadback"))\n                    unsafe')
+    else:
+        replace(skia, '            using (SKSurface surface = _device.CreateSurface(info))\n            {\n                SKCanvas canvas = surface.Canvas;',
             '            SKSurface surface;\n            using (RenderPerformanceTrace.Measure("skia.surface.create")) surface = _device.CreateSurface(info);\n            using (surface)\n            {\n                using var performanceDraw = RenderPerformanceTrace.Measure("skia.draw");\n                SKCanvas canvas = surface.Canvas;')
-    replace(skia, '                    DrawBackground(canvas, request, composition);',
-            '                    using (RenderPerformanceTrace.Measure("skia.draw.background"))\n                        DrawBackground(canvas, request, composition);')
-    replace(skia, '                DrawOverlays(canvas, request, Scripting.OverlayLayer.BehindText);',
-            '                using (RenderPerformanceTrace.Measure("skia.draw.overlays"))\n                    DrawOverlays(canvas, request, Scripting.OverlayLayer.BehindText);')
-    replace(skia, '                    imageDiagnostics = DrawImageEffectScene(surface, request, frameResources, out var drawingDiagnostics, out materialDiagnostics);',
-            '                    ImmutableArray<Scripting.RuntimeDiagnostic> drawingDiagnostics;\n                    using (RenderPerformanceTrace.Measure("skia.draw.imageScene"))\n                        imageDiagnostics = DrawImageEffectScene(surface, request, frameResources, out drawingDiagnostics, out materialDiagnostics);')
-    replace(skia, '                else DrawLyrics(canvas, request, composition, measuredScene);\n                DrawOverlays(canvas, request, Scripting.OverlayLayer.AboveText);',
-            '                else using (RenderPerformanceTrace.Measure("skia.draw.lyrics")) DrawLyrics(canvas, request, composition, measuredScene);\n                using (RenderPerformanceTrace.Measure("skia.draw.overlays"))\n                    DrawOverlays(canvas, request, Scripting.OverlayLayer.AboveText);')
-    replace(skia, '                canvas.Restore();\n                _device.FlushAndSubmit(surface);\n                unsafe',
-            '                canvas.Restore();\n                performanceDraw.Dispose();\n                using (RenderPerformanceTrace.Measure("skia.finalSubmit")) _device.FlushAndSubmit(surface);\n                using (RenderPerformanceTrace.Measure("skia.finalReadback"))\n                unsafe')
+    if new_output_layout:
+        replace(skia, '                DrawBackground(canvas, request, composition);',
+                '                using (RenderPerformanceTrace.Measure("skia.draw.background"))\n                    DrawBackground(canvas, request, composition);')
+        replace(skia, '            DrawOverlays(canvas, request, Scripting.OverlayLayer.BehindText);',
+                '            using (RenderPerformanceTrace.Measure("skia.draw.overlays"))\n                DrawOverlays(canvas, request, Scripting.OverlayLayer.BehindText);')
+        replace(skia, '                imageDiagnostics = DrawImageEffectScene(surface, request, frameResources, out var drawingDiagnostics, out materialDiagnostics);',
+                '                ImmutableArray<Scripting.RuntimeDiagnostic> drawingDiagnostics;\n                using (RenderPerformanceTrace.Measure("skia.draw.imageScene"))\n                    imageDiagnostics = DrawImageEffectScene(surface, request, frameResources, out drawingDiagnostics, out materialDiagnostics);')
+        replace(skia, '            else DrawLyrics(canvas, request, composition, measuredScene);\n            DrawOverlays(canvas, request, Scripting.OverlayLayer.AboveText);',
+                '            else using (RenderPerformanceTrace.Measure("skia.draw.lyrics")) DrawLyrics(canvas, request, composition, measuredScene);\n            using (RenderPerformanceTrace.Measure("skia.draw.overlays"))\n                DrawOverlays(canvas, request, Scripting.OverlayLayer.AboveText);')
+    else:
+        replace(skia, '                    DrawBackground(canvas, request, composition);',
+                '                    using (RenderPerformanceTrace.Measure("skia.draw.background"))\n                        DrawBackground(canvas, request, composition);')
+        replace(skia, '                DrawOverlays(canvas, request, Scripting.OverlayLayer.BehindText);',
+                '                using (RenderPerformanceTrace.Measure("skia.draw.overlays"))\n                    DrawOverlays(canvas, request, Scripting.OverlayLayer.BehindText);')
+        replace(skia, '                    imageDiagnostics = DrawImageEffectScene(surface, request, frameResources, out var drawingDiagnostics, out materialDiagnostics);',
+                '                    ImmutableArray<Scripting.RuntimeDiagnostic> drawingDiagnostics;\n                    using (RenderPerformanceTrace.Measure("skia.draw.imageScene"))\n                        imageDiagnostics = DrawImageEffectScene(surface, request, frameResources, out drawingDiagnostics, out materialDiagnostics);')
+        replace(skia, '                else DrawLyrics(canvas, request, composition, measuredScene);\n                DrawOverlays(canvas, request, Scripting.OverlayLayer.AboveText);',
+                '                else using (RenderPerformanceTrace.Measure("skia.draw.lyrics")) DrawLyrics(canvas, request, composition, measuredScene);\n                using (RenderPerformanceTrace.Measure("skia.draw.overlays"))\n                    DrawOverlays(canvas, request, Scripting.OverlayLayer.AboveText);')
+        replace(skia, '                canvas.Restore();\n                _device.FlushAndSubmit(surface);\n                unsafe',
+                '                canvas.Restore();\n                performanceDraw.Dispose();\n                using (RenderPerformanceTrace.Measure("skia.finalSubmit")) _device.FlushAndSubmit(surface);\n                using (RenderPerformanceTrace.Measure("skia.finalReadback"))\n                unsafe')
 
     replace(graph, '        int width = checked((int)Math.Round(shape.Width * frame.DensityX)), height = checked((int)Math.Round(shape.Height * frame.DensityY));',
             '        using var performanceRaster = RenderPerformanceTrace.Measure("graph.raster");\n        int width = checked((int)Math.Round(shape.Width * frame.DensityX)), height = checked((int)Math.Round(shape.Height * frame.DensityY));')

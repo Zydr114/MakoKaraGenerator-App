@@ -10,6 +10,8 @@ import math
 from pathlib import Path
 import statistics
 
+import bench
+
 
 def write_json(path, value):
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -144,6 +146,20 @@ def analyze(root, label):
         frames = data["frames"]
         name = record["name"]
         args = manifest["arguments"]
+        if args.get("mode") == "matrix":
+            try:
+                expected_times = bench.parse_times(args.get("times_us"))
+                if data.get("requestedTimesUs") != expected_times or [f["timeUs"] for f in frames] != expected_times:
+                    errors.append(name + ": explicit timestamp sequence mismatch")
+            except ValueError:
+                errors.append(name + ": invalid explicit timestamp sequence")
+        if record["scenario"] == "video":
+            video = manifest.get("videoFixture", {})
+            video_path = folder / video.get("file", "")
+            if (not video_path.is_file() or video_path.is_symlink()
+                    or video_path.parent != folder or bench.digest(video_path) != video.get("sha256")
+                    or data.get("fixture", {}).get("videoSha256") != video.get("sha256")):
+                errors.append(name + ": video fixture digest mismatch")
         monitoring_mode = record.get("monitoringMode", "off")
         if monitoring_mode not in manifest.get("monitoringModes", ["off"]):
             errors.append(name + ": unexpected monitoring mode")

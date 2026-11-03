@@ -12,7 +12,9 @@ using MakoKaraGenerator.Scripting;
 using SkiaSharp;
 
 var options = Options.Parse(args);
-var fixture = await Fixtures.CreateAsync(options.SourceRoot, options.Scenario, options.Counterfactual);
+var fixtureClock = Stopwatch.StartNew();
+var fixture = await Fixtures.CreateAsync(options.SourceRoot, options.Scenario, options.Counterfactual, options.Mode == "matrix", options.Video);
+fixtureClock.Stop();
 var trace = TraceCapture.Load();
 using var monitoring = MonitoringCapture.Start(options.Monitoring, options.Output);
 using var videos = new FfmpegVideoFrameProvider();
@@ -36,7 +38,7 @@ RuntimeRenderBackendProbeInfo? device = null;
 double disposeMs = 0;
 try
 {
-    long[] times = options.Mode == "seek" ? [1_000_000, 1_033_333, 500_000, 1_000_000, 1_000_000, 1_001_234, 1_001_234, 1_200_000]
+    long[] times = options.Mode == "matrix" ? options.Times : options.Mode == "seek" ? [1_000_000, 1_033_333, 500_000, 1_000_000, 1_000_000, 1_001_234, 1_001_234, 1_200_000]
         : Enumerable.Range(0, options.Warmup + options.Frames).Select(i => 1_000_000L + i * 1_000_000L / 30).ToArray();
     for (int index = 0; index < times.Length; index++)
     {
@@ -96,7 +98,8 @@ try
         if (index == times.Length - 1) lastPixels = frame.PixelMemory.ToArray();
         frames.Add(new
         {
-            index, timeUs = time, phase = index == 0 ? "cold" : options.Mode == "seek" ? "seek" : index < options.Warmup ? "warmup" : "steady",
+            index, timeUs = time, phase = index == 0 ? "cold" : options.Mode is "seek" or "matrix" ? "seek" : index < options.Warmup ? "warmup" : "steady",
+            requestKind = index == 0 ? "first" : time == times[index - 1] ? "repeat" : time < times[index - 1] ? "backward" : "forward",
             wallMs = stopwatch.Elapsed.TotalMilliseconds, allocatedBytes = frameAllocated, gcCollections = frameGc,
             bgraSha256 = hash, pixelBytes = frame.PixelMemory.Length,
             diagnosticCount = diagnostics.Length, imageDiagnosticCount = frame.ImageEffectDiagnostics.Length,
@@ -131,9 +134,9 @@ var result = new
 {
     schema = "mako-render-performance-v1", options.Scenario, options.Backend, options.Mode, options.Counterfactual,
     options.Width, options.Height, options.Transparent, requestedWarmupFrames = options.Warmup, requestedMeasuredFrames = options.Frames,
-    timeSequenceStartUs = 1_000_000,
+    timeSequenceStartUs = options.Mode == "matrix" ? options.Times[0] : 1_000_000, requestedTimesUs = options.Mode == "matrix" ? options.Times : null,
     quality = "Final", fixtureSha256 = fixture.Sha256, fixture = fixture.Description,
-    create, frames, disposeMs, process = processEvidence, deviceProbe = device,
+    fixtureLoadMs = fixtureClock.Elapsed.TotalMilliseconds, create, frames, disposeMs, process = processEvidence, deviceProbe = device,
     deviceProbeFrames = 1, deviceProbeSize = "4x2", projectFrameCount = frames.Count,
     pngPath, traceAvailable = trace.Available, monitoringMode = options.Monitoring,
     monitoringFile = monitoring?.FileName, monitoringLines = monitoring?.Lines ?? 0,
@@ -172,7 +175,8 @@ static object ProcessEvidence()
 }
 
 internal sealed record Options(string SourceRoot, string Scenario, string Backend, string Output, string CacheRoot,
-    string Mode, int Warmup, int Frames, int Width, int Height, bool Transparent, string Counterfactual, string Monitoring)
+    string Mode, int Warmup, int Frames, int Width, int Height, bool Transparent, string Counterfactual, string Monitoring,
+    long[] Times, string? Video)
 {
     internal static Options Parse(string[] args)
     {
@@ -182,24 +186,27 @@ internal sealed record Options(string SourceRoot, string Scenario, string Backen
             if (i + 1 >= args.Length || !args[i].StartsWith("--", StringComparison.Ordinal) || !values.TryAdd(args[i][2..], args[i + 1]))
                 throw new ArgumentException("Options must be unique --name value pairs.");
         }
-        string[] allowed = ["source-root", "scenario", "backend", "output", "cache-root", "mode", "warmup", "frames", "width", "height", "transparent", "counterfactual", "monitoring"];
+        string[] allowed = ["source-root", "scenario", "backend", "output", "cache-root", "mode", "warmup", "frames", "width", "height", "transparent", "counterfactual", "monitoring", "times-us", "video"];
         if (values.Keys.Any(key => !allowed.Contains(key, StringComparer.Ordinal))) throw new ArgumentException("Unknown option.");
         string Get(string key, string? fallback = null) => values.GetValueOrDefault(key) ?? fallback ?? throw new ArgumentException($"Missing --{key}.");
         int Number(string key, int fallback) => int.Parse(Get(key, fallback.ToString(CultureInfo.InvariantCulture)), CultureInfo.InvariantCulture);
         string scenario = Get("scenario"), backend = Get("backend"), mode = Get("mode", "sequential"), counterfactual = Get("counterfactual", "none"), monitoring = Get("monitoring", "off");
-        if (!new[] { "lyrics", "csharp", "graph", "material", "particle", "combined" }.Contains(scenario, StringComparer.Ordinal)
+        if (!new[] { "lyrics", "csharp", "graph", "material", "particle", "combined", "ruby", "multi", "video" }.Contains(scenario, StringComparer.Ordinal)
             || !new[] { "cpu", "vulkan" }.Contains(backend, StringComparer.Ordinal)
-            || !new[] { "sequential", "seek" }.Contains(mode, StringComparer.Ordinal)
+            || !new[] { "sequential", "seek", "matrix" }.Contains(mode, StringComparer.Ordinal)
             || !new[] { "none", "all", "csharp", "graph", "material", "particle" }.Contains(counterfactual, StringComparer.Ordinal)
             || !new[] { "off", "summary", "detailed" }.Contains(monitoring, StringComparer.Ordinal))
             throw new ArgumentException("Invalid scenario, backend, mode or counterfactual.");
         int warmup = Number("warmup", mode == "seek" ? 0 : 4), frames = Number("frames", mode == "seek" ? 8 : 16);
         int width = Number("width", 1920), height = Number("height", 1080);
+        long[] times = mode == "matrix" ? Get("times-us").Split(',').Select(value => long.Parse(value, CultureInfo.InvariantCulture)).ToArray() : [];
         if (warmup < 0 || frames < 1 || (long)warmup + frames > 48 || width < 1 || height < 1 || width > 4096 || height > 4096
-            || (mode == "seek" && (warmup != 0 || frames != 8)))
+            || (mode == "seek" && (warmup != 0 || frames != 8))
+            || (mode == "matrix" && (warmup != 0 || frames != times.Length || times.Any(time => time < 0 || time >= 370_000_000)))
+            || (mode != "matrix" && values.ContainsKey("times-us")) || (scenario == "video") != values.ContainsKey("video"))
             throw new ArgumentException("Frame limit is 48; seek requires warmup 0 and frames 8; dimensions must be 1..4096.");
         return new(Get("source-root"), scenario, backend, Get("output"), Get("cache-root"), mode, warmup, frames,
-            width, height, bool.Parse(Get("transparent", "false")), counterfactual, monitoring);
+            width, height, bool.Parse(Get("transparent", "false")), counterfactual, monitoring, times, values.GetValueOrDefault("video"));
     }
 }
 

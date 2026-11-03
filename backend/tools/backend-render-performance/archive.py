@@ -83,6 +83,12 @@ def verify_runs(root, variants=bench.VARIANTS):
     for directory in directories:
         require(not directory.is_symlink(), "run label cannot be a symlink")
         manifest = load(directory / "manifest.json")
+        video = manifest.get("videoFixture")
+        if video is not None:
+            file = directory / video["file"]
+            require(file.parent == directory and file.is_file() and not file.is_symlink()
+                    and file.stat().st_size == video["bytes"] and bench.digest(file) == video["sha256"],
+                    "video fixture mismatch: " + directory.name)
         analyze.analyze(root, directory.name)
         assessment = load(directory / "assessment.json")
         require(manifest.get("complete") is True and assessment.get("valid") is True, "incomplete or invalid run: " + directory.name)
@@ -143,7 +149,7 @@ def collect(root, directories, records, ab=False):
     paths.extend(sorted(path for path in environment.rglob("*") if path.is_file()))
     require(any(path.parent == environment for path in paths), "empty environment directory")
     for directory in directories:
-        paths.extend(sorted(path for path in directory.iterdir() if path.is_file() and path.suffix in {".json", ".jsonl", ".csv", ".md", ".log"}))
+        paths.extend(sorted(path for path in directory.iterdir() if path.is_file() and path.suffix in {".json", ".jsonl", ".csv", ".md", ".log", ".mkv"}))
     entries = {}
     for path in paths:
         require(path.is_file() and not path.is_symlink() and path.resolve().is_relative_to(root), "invalid evidence path: " + str(path))

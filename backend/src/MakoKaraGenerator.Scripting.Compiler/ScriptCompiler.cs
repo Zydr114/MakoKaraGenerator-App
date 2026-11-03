@@ -169,8 +169,8 @@ public sealed class ScriptCompiler : IScriptCompilationService
         if (result.Succeeded)
         {
             result = result with { Descriptor = ScriptArtifactDescriptor.Create(input, result) };
-            result.Descriptor.ValidateResult(result, _artifactBudget);
             if (_artifactRoot is not null) ScriptArtifactStore.Publish(_artifactRoot, result, _artifactBudget, _maximumCacheBytes, token);
+            else result.Descriptor.ValidateResult(result, _artifactBudget);
         }
         return result;
     }

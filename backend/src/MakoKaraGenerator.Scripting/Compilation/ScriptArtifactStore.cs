@@ -31,7 +31,7 @@ public static class ScriptArtifactStore
         ArgumentException.ThrowIfNullOrWhiteSpace(root); ArgumentNullException.ThrowIfNull(result);
         budget ??= ScriptArtifactBudget.Default; budget.Validate();
         if (result.Descriptor is not { } descriptor) throw new InvalidDataException("脚本产物缺少完整身份描述。");
-        descriptor.ValidateResult(result, budget); ValidateDiagnostics(result.Diagnostics);
+        descriptor.ValidateResult(result, budget);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumCacheBytes);
         byte[] manifest = JsonSerializer.SerializeToUtf8Bytes(new ArtifactManifest(3, descriptor, result.Diagnostics), Json);
         if (manifest.LongLength > budget.MaximumManifestBytes) throw new InvalidDataException("脚本产物清单超过字节预算。");
@@ -50,10 +50,14 @@ public static class ScriptArtifactStore
         string staging = Path.Combine(root, ".build-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(staging);
         try
         {
-            File.WriteAllBytes(Path.Combine(staging, "effect.dll"), result.PeImage.AsSpan());
-            File.WriteAllBytes(Path.Combine(staging, "effect.pdb"), result.PdbImage.AsSpan());
-            File.WriteAllBytes(Path.Combine(staging, "build.json"), manifest);
-            _ = LoadCore(staging, budget); cancellationToken.ThrowIfCancellationRequested(); Directory.Move(staging, final); return final;
+            WriteFresh(Path.Combine(staging, "effect.dll"), result.PeImage.AsSpan());
+            WriteFresh(Path.Combine(staging, "effect.pdb"), result.PdbImage.AsSpan());
+            WriteFresh(Path.Combine(staging, "build.json"), manifest);
+            ValidateFileClosure(staging);
+            VerifyWritten(Path.Combine(staging, "effect.dll"), result.PeImage.AsSpan(), budget.MaximumPeBytes, cancellationToken);
+            VerifyWritten(Path.Combine(staging, "effect.pdb"), result.PdbImage.AsSpan(), budget.MaximumPdbBytes, cancellationToken);
+            VerifyWritten(Path.Combine(staging, "build.json"), manifest, budget.MaximumManifestBytes, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested(); Directory.Move(staging, final); return final;
         }
         finally { if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true); }
     }
@@ -117,16 +121,13 @@ public static class ScriptArtifactStore
         ArgumentException.ThrowIfNullOrWhiteSpace(root);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumCacheBytes);
         Directory.CreateDirectory(root); using var gate = AcquireLock(root, "cache", cancellationToken);
+        CleanupStaging(root, cancellationToken);
         PruneCore(root, maximumCacheBytes, 0, cancellationToken);
     }
 
     private static ScriptCompilationResult LoadCore(string directory, ScriptArtifactBudget budget)
     {
-        RejectLink(directory);
-        if (Directory.EnumerateDirectories(directory).Any()
-            || !Directory.EnumerateFiles(directory).Select(path => Path.GetFileName(path)).Order(StringComparer.Ordinal)
-                .SequenceEqual(ArtifactFileNames))
-            throw new InvalidDataException("脚本产物目录不符合固定三文件闭包。");
+        ValidateFileClosure(directory);
         byte[] manifestBytes = ReadBounded(Path.Combine(directory, "build.json"), budget.MaximumManifestBytes);
         try
         {
@@ -158,6 +159,39 @@ public static class ScriptArtifactStore
         if (stream.ReadByte() != -1 || stream.Length != bytes.LongLength) throw new InvalidDataException("脚本产物文件读取时已改变。");
         return bytes;
     }
+    private static void WriteFresh(string path, ReadOnlySpan<byte> bytes)
+    {
+        RejectLink(path);
+        using FileStream stream = new(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+        stream.Write(bytes);
+    }
+    private static void VerifyWritten(string path, ReadOnlySpan<byte> expected, long maximum, CancellationToken token)
+    {
+        RejectLink(path);
+        using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.None, 4096, FileOptions.SequentialScan);
+        if (stream.Length <= 0 || stream.Length > maximum || stream.Length != expected.Length)
+            throw new InvalidDataException("脚本产物写入长度超过预算或与固定字节不符。");
+        Span<byte> buffer = stackalloc byte[4096];
+        for (int offset = 0; offset < expected.Length;)
+        {
+            token.ThrowIfCancellationRequested();
+            int length = Math.Min(buffer.Length, expected.Length - offset);
+            stream.ReadExactly(buffer[..length]);
+            if (!buffer[..length].SequenceEqual(expected.Slice(offset, length)))
+                throw new InvalidDataException("脚本产物写入字节与固定产物不符。");
+            offset += length;
+        }
+        if (stream.ReadByte() != -1 || stream.Length != expected.Length)
+            throw new InvalidDataException("脚本产物验证写入时已改变。");
+    }
+    private static void ValidateFileClosure(string directory)
+    {
+        RejectLink(directory);
+        if (Directory.EnumerateDirectories(directory).Any()
+            || !Directory.EnumerateFiles(directory).Select(path => Path.GetFileName(path)).Order(StringComparer.Ordinal)
+                .SequenceEqual(ArtifactFileNames))
+            throw new InvalidDataException("脚本产物目录不符合固定三文件闭包。");
+    }
     private static void ValidateDiagnostics(ImmutableArray<ScriptCompileDiagnostic> diagnostics)
     {
         if (diagnostics.IsDefault || diagnostics.Any(d => d is null || d.IsError || string.IsNullOrWhiteSpace(d.Code)
@@ -165,7 +199,6 @@ public static class ScriptArtifactStore
     }
     private static void PruneCore(string root, long maximum, long reserve, CancellationToken token)
     {
-        CleanupStaging(root, token);
         var directories = Directory.EnumerateDirectories(root).Where(path => Path.GetFileName(path) is { Length: 64 } name
             && name.All(static c => c is >= '0' and <= '9' or >= 'a' and <= 'f')).Select(path => new DirectoryInfo(path)).OrderBy(d => d.CreationTimeUtc).ThenBy(d => d.Name, StringComparer.Ordinal).ToArray();
         long total = 0; Dictionary<string, long> sizes = [];

@@ -14,6 +14,59 @@ REPOSITORY = TOOL_DIR.parent.parent.resolve()
 TRACE_PATH = "src/MakoKaraGenerator.Rendering.Abstractions/RenderPerformanceTrace.cs"
 
 
+def device_factory_layout(source):
+    legacy = '            device = SkiaRenderDeviceFactory.Create(_renderBackendOptions);'
+    preview = ('            device = SkiaRenderDeviceFactory.Create(enableGpuPreview\n'
+               '                ? (_renderBackendOptions ?? SkiaRenderBackendOptions.FromEnvironment()) with { EnableGpuPreview = true }\n'
+               '                : _renderBackendOptions);')
+    prepared = preview.replace('device = ', 'device = gpuPreparation?.TakeDevice() ?? ')
+    matches = tuple(source.count(statement) for statement in (legacy, preview, prepared))
+    layouts = {(1, 0, 0): ("legacy", legacy), (0, 1, 0): ("preview", preview),
+               (0, 0, 1): ("prepared-preview", prepared)}
+    if matches not in layouts:
+        raise ValueError(f"unknown or mixed render device factory layout: {matches}")
+    layout, statement = layouts[matches]
+    if layout == "prepared-preview":
+        signature = 'bool enableGpuPreviewBenchmark = false, RuntimeGpuPreparation? gpuPreparation = null)'
+        guard = ('            if (gpuPreparation is not null && (!enableGpuPreview ||\n'
+                 '                (_renderBackendOptions ?? SkiaRenderBackendOptions.FromEnvironment()).Backend != SkiaRenderBackend.Vulkan))\n'
+                 '                throw new InvalidOperationException("GPU 预热只能转移给显式 Vulkan shared preview 会话。");')
+        if source.count(signature) != 1 or source.count(guard) != 1:
+            raise ValueError("unknown prepared render device signature or guard")
+    elif "gpuPreparation" in source:
+        raise ValueError("mixed prepared render device factory layout")
+    return layout, statement
+
+
+def scene_main_submit_layout(source):
+    before = ('        using var scratch = state.Resources.Reserve(1, bytes, "SceneBackdropSnapshot");\n'
+              '        _device.FlushAndSubmit(main);\n'
+              '        using var snapshot = main.Snapshot();')
+    after = before.replace('        _device.FlushAndSubmit(main);\n', '')
+    matches = (source.count(before), source.count(after), source.count('_device.FlushAndSubmit(main);'))
+    if matches == (1, 0, 1):
+        return "explicit", before
+    if matches == (0, 1, 0):
+        return "removed", after
+    raise ValueError(f"unknown or mixed scene main submit layout: {matches}")
+
+
+def video_stdout_layout(source):
+    old = ('        private readonly byte[] _buffer;\n'
+           '        private readonly VideoFrame _frame;')
+    new = old.replace('readonly ', '')
+    old_signature = '        private async Task<VideoFrame?> GetFrameAsync(long sourceTimeUs, CancellationToken caller)'
+    new_signature = '        private async Task<VideoFrame?> GetFrameAsync(long sourceTimeUs, int width, int height, CancellationToken caller)'
+    read = ('                        int read = await _process!.Output.ReadAsync(_buffer.AsMemory(total), deadline.Token).ConfigureAwait(false);\n'
+            '                        deadline.ThrowIfExpired();')
+    counts = tuple(source.count(item) for item in (old, new, old_signature, new_signature, read))
+    if counts == (1, 0, 1, 0, 1):
+        return "full-size", read
+    if counts == (0, 1, 0, 1, 1):
+        return "target-size", read
+    raise ValueError(f"unknown or mixed video stdout layout: {counts}")
+
+
 def sha256(data):
     return hashlib.sha256(data).hexdigest()
 
@@ -41,18 +94,9 @@ def instrument(root):
         checks.append({"path": path, "matches": actual, "needleSha256": sha256(old.encode())})
 
     factory = "src/MakoKaraGenerator.Runtime.Hosting/ProjectRenderSessionFactory.cs"
-    device_old = '            device = SkiaRenderDeviceFactory.Create(_renderBackendOptions);'
-    device_preview = ('            device = SkiaRenderDeviceFactory.Create(enableGpuPreview\n'
-                      '                ? (_renderBackendOptions ?? SkiaRenderBackendOptions.FromEnvironment()) with { EnableGpuPreview = true }\n'
-                      '                : _renderBackendOptions);')
     factory_source = (root / factory).read_text(encoding="utf-8")
     factory_layout = detect(factory_source)
-    if (factory_source.count(device_old), factory_source.count(device_preview)) == (1, 0):
-        device_statement = device_old
-    elif (factory_source.count(device_old), factory_source.count(device_preview)) == (0, 1):
-        device_statement = device_preview
-    else:
-        raise ValueError("unknown or mixed render device factory layout")
+    device_layout, device_statement = device_factory_layout(factory_source)
     replace(factory, device_statement, '            using (RenderPerformanceTrace.Measure("session.device"))\n' + device_statement)
     compiler = "_compiler.Value" if factory_layout == "legacy" else "compiler"
     replace(factory, f'            var compiled = await CompiledProjectEffects.CompileAsync(snapshot, {compiler}, new PackageImageValidator(), new PackageShaderValidator(),\n                new PackageImageGraphValidator(), new PackageMaterialValidator(), token).ConfigureAwait(false);',
@@ -195,6 +239,20 @@ def instrument(root):
             '            SKSurface createdSurface;\n            using (RenderPerformanceTrace.Measure("graph.surface.create"))\n                createdSurface = _device.CreateSurface(new SKImageInfo(width, height, SKColorType.Bgra8888, SKAlphaType.Premul, srgb));\n            using var surface = createdSurface;')
     replace(graph, '            cancellationToken.ThrowIfCancellationRequested(); draw(canvas); cancellationToken.ThrowIfCancellationRequested();\n            _device.FlushAndSubmit(surface);',
             '            cancellationToken.ThrowIfCancellationRequested();\n            using (RenderPerformanceTrace.Measure("graph.draw")) draw(canvas);\n            cancellationToken.ThrowIfCancellationRequested();\n            using (RenderPerformanceTrace.Measure("graph.submit")) _device.FlushAndSubmit(surface);')
+    surfaces = "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.ImageScene.Surfaces.cs"
+    main_submit_layout, main_submit_anchor = scene_main_submit_layout((root / surfaces).read_text(encoding="utf-8"))
+    main_submit_instrumented = main_submit_anchor.replace('        _device.FlushAndSubmit(main);',
+        '        using (RenderPerformanceTrace.Measure("scene.mainSubmit")) _device.FlushAndSubmit(main);')
+    # Also count snapshots in the removed layout, so a missing mainSubmit span is
+    # interpretable only when this path really executed in the same frame.
+    main_submit_instrumented = main_submit_instrumented.replace('        using var snapshot = main.Snapshot();',
+        '        using var performanceBackdrop = RenderPerformanceTrace.Measure("scene.backdropSnapshot");\n        using var snapshot = main.Snapshot();')
+    replace(surfaces, main_submit_anchor, main_submit_instrumented)
+    video = "src/MakoKaraGenerator.Media/FfmpegVideoFrameProvider.Source.cs"
+    stdout_layout, stdout_read = video_stdout_layout((root / video).read_text(encoding="utf-8"))
+    replace(video, stdout_read, stdout_read.replace('                        deadline.ThrowIfExpired();',
+        '                        global::MakoKaraGenerator.Rendering.RenderPerformanceTrace.AddBytes("video.stdout.read", read);\n'
+        '                        deadline.ThrowIfExpired();'))
     validation = markers[layout][1][1] + '\n    {'
     replace(graph, validation, validation + '\n        using var performanceValidate = RenderPerformanceTrace.Measure("graph.validate.premultiplied");')
     replace(graph, '        device ??= _device;\n        int rowBytes = checked(image.Width * 4);',
@@ -224,7 +282,9 @@ def instrument(root):
     patch = "".join("".join(difflib.unified_diff(originals[path].splitlines(keepends=True), modified[path].splitlines(keepends=True),
                                                fromfile="a/" + path if originals[path] else "/dev/null", tofile="b/" + path))
                     for path in sorted(modified))
-    manifest = {"schemaVersion": 1, "factoryLayout": factory_layout, "readbackLayout": layout, "runtimeLayout": runtime_layout, "files": [{"path": path, "beforeSha256": sha256(originals[path].encode()) if originals[path] else None,
+    manifest = {"schemaVersion": 1, "factoryLayout": factory_layout, "deviceFactoryLayout": device_layout,
+                "sceneMainSubmitLayout": main_submit_layout, "videoStdoutLayout": stdout_layout,
+                "readbackLayout": layout, "runtimeLayout": runtime_layout, "files": [{"path": path, "beforeSha256": sha256(originals[path].encode()) if originals[path] else None,
                 "afterSha256": sha256(modified[path].encode())} for path in sorted(modified)], "checks": checks,
                 "patchSha256": sha256(patch.encode()), "patch": patch}
     for path, text in modified.items():

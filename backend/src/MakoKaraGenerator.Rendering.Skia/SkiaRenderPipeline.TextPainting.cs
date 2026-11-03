@@ -20,7 +20,7 @@ public sealed partial class SkiaRenderPipeline
         bool antialias,
         ImmutableArray<int> drawUnitIndices = default, CapturePaint? capture = null, bool sungPass = false, bool rubyGlyph = false)
     {
-        if (capture?.IncludesGlyph(rubyGlyph) == false) return;
+        if (capture?.IncludesGlyph(rubyGlyph) == false || capture?.GlowOnly == true) return;
         if (capture?.RequestedSungPass is { } requested && requested != sungPass) return;
         if (capture?.SungOnly == true && !sungPass) return;
         if (capture is not null)

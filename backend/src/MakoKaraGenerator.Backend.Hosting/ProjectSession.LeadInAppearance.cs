@@ -8,7 +8,7 @@ public sealed partial class ProjectSession
     private static SceneTextAppearanceDto ProjectSceneAppearance(SceneTextAppearance appearance, ReadModelBudget budget)
     {
         var value = ProjectCanonicalStyle(appearance.ToLyricStyle(), budget);
-        return new(value.Typography, value.UnsungFill, value.SungFill, value.Stroke, value.Shadow, value.Opacity);
+        return new(value.Typography, value.UnsungFill, value.SungFill, value.Stroke, value.Shadow, value.Opacity, value.Glow);
     }
     private static SceneTextAppearance CoreSceneAppearance(SceneTextAppearanceDto? value)
     {
@@ -21,7 +21,7 @@ public sealed partial class ProjectSession
         return new() { Typography = new() { FontFamilyName = t.FontFamilyName, FallbackFamilyNames = [.. t.FallbackFamilyNames],
             FontSizePx = t.FontSizePx, FontWeight = t.FontWeight, IsBold = t.IsBold, IsItalic = t.IsItalic, LetterSpacingPx = t.LetterSpacingPx },
             PendingFill = new() { Material = CoreMaterial(value.PendingFill.Material) }, ElapsedFill = new() { Material = CoreMaterial(value.ElapsedFill.Material) },
-            Stroke = CoreStroke(value.Stroke), Shadow = CoreShadow(value.Shadow), Opacity = value.Opacity };
+            Stroke = CoreStroke(value.Stroke), Shadow = CoreShadow(value.Shadow), Glow = CoreGlow(value.Glow), Opacity = value.Opacity };
     }
     private static void CheckSceneMaterial(StyleMaterialDto? value)
     {
@@ -33,7 +33,7 @@ public sealed partial class ProjectSession
     }
     private static SceneTextAppearanceOverride? CoreMarkAppearance(StyleChangeDto[]? changes)
     {
-        if (changes is null || changes.Length > 21) throw new JsonException();
+        if (changes is null || changes.Length > 26) throw new JsonException();
         HashSet<string> names = new(StringComparer.Ordinal);
         LyricStyleOverride overlay = LyricStyleOverride.Empty;
         foreach (var change in changes)
@@ -52,7 +52,8 @@ public sealed partial class ProjectSession
             overlay = SetAppearanceValue(overlay, CoreStyleChange(change));
         }
         if (names.Contains("stroke") && names.Any(n => n.StartsWith("stroke.", StringComparison.Ordinal))
-            || names.Contains("shadow") && names.Any(n => n.StartsWith("shadow.", StringComparison.Ordinal))) throw new JsonException();
+            || names.Contains("shadow") && names.Any(n => n.StartsWith("shadow.", StringComparison.Ordinal))
+            || names.Contains("glow") && names.Any(n => n.StartsWith("glow.", StringComparison.Ordinal))) throw new JsonException();
         // Resolve the complete overlay independently, including fields that would be hidden
         // by another override, before admitting it to a persistent mark.
         if (!LyricStyleResolver.Resolve(LyricStyle.Default, lineOverride: overlay).Style.IsValid) throw new JsonException();
@@ -80,6 +81,11 @@ public sealed partial class ProjectSession
         StyleEditChange.ShadowAngle c => overlay with { Shadow = OptionalValue.Set<ShadowSpecOverride?>(Shadow(overlay) with { AngleDegrees = c.Value }) },
         StyleEditChange.ShadowDistance c => overlay with { Shadow = OptionalValue.Set<ShadowSpecOverride?>(Shadow(overlay) with { DistancePx = c.Value }) },
         StyleEditChange.ShadowBlur c => overlay with { Shadow = OptionalValue.Set<ShadowSpecOverride?>(Shadow(overlay) with { BlurRadiusPx = c.Value }) },
+        StyleEditChange.Glow c => overlay with { Glow = OptionalValue.Set<GlowSpecOverride?>(c.Value is { } value ? GlowSpecOverride.FromSpec(value) : null) },
+        StyleEditChange.GlowColor c => overlay with { Glow = OptionalValue.Set<GlowSpecOverride?>(Glow(overlay) with { Color = c.Value }) },
+        StyleEditChange.GlowOpacity c => overlay with { Glow = OptionalValue.Set<GlowSpecOverride?>(Glow(overlay) with { Opacity = c.Value }) },
+        StyleEditChange.GlowBlur c => overlay with { Glow = OptionalValue.Set<GlowSpecOverride?>(Glow(overlay) with { BlurRadiusPx = c.Value }) },
+        StyleEditChange.GlowSpread c => overlay with { Glow = OptionalValue.Set<GlowSpecOverride?>(Glow(overlay) with { SpreadPx = c.Value }) },
         StyleEditChange.VerticalCenter c => overlay with { VerticalCenterRatio = c.Value },
         StyleEditChange.HorizontalAlignment c => overlay with { HorizontalAlignment = c.Value },
         StyleEditChange.Opacity c => overlay with { Opacity = c.Value },
@@ -90,5 +96,6 @@ public sealed partial class ProjectSession
     private static TypographySpecOverride Typography(LyricStyleOverride overlay) => overlay.Typography ?? new();
     private static StrokeSpecOverride Stroke(LyricStyleOverride overlay) => overlay.Stroke.Value ?? new();
     private static ShadowSpecOverride Shadow(LyricStyleOverride overlay) => overlay.Shadow.Value ?? new();
+    private static GlowSpecOverride Glow(LyricStyleOverride overlay) => overlay.Glow.Value ?? new();
 
 }

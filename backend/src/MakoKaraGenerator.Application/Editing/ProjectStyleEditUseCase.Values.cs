@@ -29,6 +29,11 @@ public static partial class ProjectStyleEditUseCase
             StyleEditChange.ShadowAngle => StyleEditProperty.ShadowAngleDegrees,
             StyleEditChange.ShadowDistance => StyleEditProperty.ShadowDistancePx,
             StyleEditChange.ShadowBlur => StyleEditProperty.ShadowBlurRadiusPx,
+            StyleEditChange.Glow => StyleEditProperty.Glow,
+            StyleEditChange.GlowColor => StyleEditProperty.GlowColor,
+            StyleEditChange.GlowOpacity => StyleEditProperty.GlowOpacity,
+            StyleEditChange.GlowBlur => StyleEditProperty.GlowBlurRadiusPx,
+            StyleEditChange.GlowSpread => StyleEditProperty.GlowSpreadPx,
             StyleEditChange.VerticalCenter => StyleEditProperty.VerticalCenterRatio,
             StyleEditChange.HorizontalAlignment => StyleEditProperty.HorizontalAlignment,
             StyleEditChange.Opacity => StyleEditProperty.Opacity,
@@ -97,6 +102,11 @@ public static partial class ProjectStyleEditUseCase
         StyleEditChange.ShadowAngle c => overlay with { Shadow = OptionalValue.Set<ShadowSpecOverride?>(Shadow(overlay) with { AngleDegrees = c.Value }) },
         StyleEditChange.ShadowDistance c => overlay with { Shadow = OptionalValue.Set<ShadowSpecOverride?>(Shadow(overlay) with { DistancePx = c.Value }) },
         StyleEditChange.ShadowBlur c => overlay with { Shadow = OptionalValue.Set<ShadowSpecOverride?>(Shadow(overlay) with { BlurRadiusPx = c.Value }) },
+        StyleEditChange.Glow c => overlay with { Glow = OptionalValue.Set<GlowSpecOverride?>(c.Value is { } value ? GlowSpecOverride.FromSpec(value) : null) },
+        StyleEditChange.GlowColor c => overlay with { Glow = OptionalValue.Set<GlowSpecOverride?>(Glow(overlay) with { Color = c.Value }) },
+        StyleEditChange.GlowOpacity c => overlay with { Glow = OptionalValue.Set<GlowSpecOverride?>(Glow(overlay) with { Opacity = c.Value }) },
+        StyleEditChange.GlowBlur c => overlay with { Glow = OptionalValue.Set<GlowSpecOverride?>(Glow(overlay) with { BlurRadiusPx = c.Value }) },
+        StyleEditChange.GlowSpread c => overlay with { Glow = OptionalValue.Set<GlowSpecOverride?>(Glow(overlay) with { SpreadPx = c.Value }) },
         StyleEditChange.VerticalCenter c => overlay with { VerticalCenterRatio = c.Value },
         StyleEditChange.HorizontalAlignment c => overlay with { HorizontalAlignment = c.Value },
         StyleEditChange.Opacity c => overlay with { Opacity = c.Value },
@@ -107,6 +117,7 @@ public static partial class ProjectStyleEditUseCase
     private static TypographySpecOverride Typography(LyricStyleOverride overlay) => overlay.Typography ?? new();
     private static StrokeSpecOverride Stroke(LyricStyleOverride overlay) => overlay.Stroke.Value ?? new();
     private static ShadowSpecOverride Shadow(LyricStyleOverride overlay) => overlay.Shadow.Value ?? new();
+    private static GlowSpecOverride Glow(LyricStyleOverride overlay) => overlay.Glow.Value ?? new();
 
     private static LyricStyleOverride RestoreValue(LyricStyleOverride overlay, StyleEditProperty property)
     {
@@ -139,6 +150,19 @@ public static partial class ProjectStyleEditUseCase
             };
             return updated == value ? overlay : overlay with { Stroke = updated.IsEmpty ? default : OptionalValue.Set<StrokeSpecOverride?>(updated) };
         }
+        if (IsGlowLeaf(property))
+        {
+            if (overlay.Glow.Value is not { } value) return overlay;
+            var updated = property switch
+            {
+                StyleEditProperty.GlowColor => value with { Color = null },
+                StyleEditProperty.GlowOpacity => value with { Opacity = null },
+                StyleEditProperty.GlowBlurRadiusPx => value with { BlurRadiusPx = null },
+                StyleEditProperty.GlowSpreadPx => value with { SpreadPx = null },
+                _ => value,
+            };
+            return updated == value ? overlay : overlay with { Glow = updated.IsEmpty ? default : OptionalValue.Set<GlowSpecOverride?>(updated) };
+        }
         if (IsShadowLeaf(property))
         {
             if (overlay.Shadow.Value is not { } value) return overlay;
@@ -159,6 +183,7 @@ public static partial class ProjectStyleEditUseCase
             StyleEditProperty.SungMaterial => overlay with { SungFill = default },
             StyleEditProperty.Stroke => overlay with { Stroke = default },
             StyleEditProperty.Shadow => overlay with { Shadow = default },
+            StyleEditProperty.Glow => overlay with { Glow = default },
             StyleEditProperty.VerticalCenterRatio => overlay with { VerticalCenterRatio = null },
             StyleEditProperty.HorizontalAlignment => overlay with { HorizontalAlignment = null },
             StyleEditProperty.Opacity => overlay with { Opacity = null },
@@ -189,6 +214,11 @@ public static partial class ProjectStyleEditUseCase
         StyleEditProperty.ShadowAngleDegrees => LyricStyleProperty.ShadowSpec,
         StyleEditProperty.ShadowDistancePx => LyricStyleProperty.ShadowSpec,
         StyleEditProperty.ShadowBlurRadiusPx => LyricStyleProperty.ShadowBlurPx,
+        StyleEditProperty.Glow => LyricStyleProperty.GlowSpec,
+        StyleEditProperty.GlowColor => LyricStyleProperty.GlowColor,
+        StyleEditProperty.GlowOpacity => LyricStyleProperty.GlowOpacity,
+        StyleEditProperty.GlowBlurRadiusPx => LyricStyleProperty.GlowBlurRadiusPx,
+        StyleEditProperty.GlowSpreadPx => LyricStyleProperty.GlowSpreadPx,
         StyleEditProperty.VerticalCenterRatio => LyricStyleProperty.VerticalCenterRatio,
         StyleEditProperty.HorizontalAlignment => LyricStyleProperty.HorizontalAlignment,
         StyleEditProperty.Opacity => LyricStyleProperty.Opacity,

@@ -53,7 +53,7 @@ public static class StaticStyleProjection
                 Material(stroke.Material, materials),
                 (Fx.StrokeJoin)stroke.Join, (Fx.StrokePosition)stroke.Position) : null,
             style.Shadow is { } shadow ? new(Color(shadow.Color), shadow.Opacity, shadow.AngleDegrees, shadow.DistancePx, shadow.BlurRadiusPx) : null,
-            style.Opacity);
+            style.Opacity, style.Glow is { } glow ? new(Color(glow.Color), glow.Opacity, glow.BlurRadiusPx, glow.SpreadPx) : null);
     }
 
     /// <summary>将最终帧输出投影为现有绘制描述；无变化返回原实例并保留所有未写字段。</summary>

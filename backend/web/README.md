@@ -1,6 +1,6 @@
 # 前端后端开发交接文档
 
-**当前工作：2026-10-30，`chore/repository-hygiene-20261029`，产品0.108.0／API合同1.40.0／HTTP协议1。** 本轮补齐 W8 作者草稿恢复、包文本编辑、源码历史、包下载、R10 能力判断与 G31 具体错误定位；匹配发布的有限 fresh HTTP 为144请求／984断言，证据见[作者修复记录](../docs/backend-w8-authoring-fixes-20261030.md)。浏览器、跨平台、长片和性能验收独立。CPU/GPU选择、设备可用性和固定预览切换见[行为§25](../docs/architecture/backend-api.md#render-backend-selection)。当前范围保持 **108个路径、120个显式方法、96种工程命令**，另有模板库与个人配置库各5种命令。
+**当前工作：2026-11-01，产品0.110.0／API合同1.42.0／HTTP协议1。** 新增静态外辉光、四层继承、模板/文字标记及Worker渲染支持。合同为112路径、125显式方法、597 schemas、3431例；原工程命令种类不变。行为、实施和有限验收见[静态外辉光](../docs/style-reference/glow.md)，客户端入口见[样式系统参考](../docs/style-reference/README.md)。历史W8、GPU流及性能证据保持原归属。
 
 历史合入：2026-10-27 将 `dev/gpu-render` 的 P3/P4/P5 及两批 GPU 工作快进纳入 `main`，完整保留 95 个提交；该次有定向回归，没有新生产修改、发布或 fresh HTTP，见[10月27日合入记录](../docs/archive/history/backend-main-integration-20261027.md)。2026-10-28 将 `dev/performance-optimization` 快进纳入 `main`，完整保留另外 19 个提交；该次仅作 Git 集成、入口文档和静态核验，见[10月28日合入记录](../docs/archive/history/backend-main-integration-20261028.md)。原版本的 HTTP、硬件、媒体和性能证据仍按各验收报告归属。
 

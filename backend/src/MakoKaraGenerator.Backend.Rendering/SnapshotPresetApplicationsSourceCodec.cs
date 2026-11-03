@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using MakoKaraGenerator.Core.Effects;
+using MakoKaraGenerator.Core.Persistence;
 using MakoKaraGenerator.Core.Projects;
 
 namespace MakoKaraGenerator.Backend.Rendering;
@@ -27,7 +28,7 @@ internal static class SnapshotPresetApplicationsSourceCodec
     {
         if (element is null) throw Invalid();
         var source = element.Value.Deserialize<ApplicationsSource>(options) ?? throw Invalid();
-        if (source.ContractVersion != 1 || source.TemplateSchemaVersion != 6 || source.Items.Length == 0)
+        if (source.ContractVersion != 1 || source.TemplateSchemaVersion != StyleTemplateLibrary.CurrentSchemaVersion || source.Items.Length == 0)
             throw Invalid();
         return new(source.Items.Select(item =>
         {
@@ -66,7 +67,7 @@ internal static class SnapshotPresetApplicationsSourceCodec
         RequireMembers(typeof(ProjectEffectBinding), ["Kind", "Id", "Ids", "IncludeDescendants"]);
         if (applications.Items.IsEmpty) throw Invalid();
         if (applications.Items.Length > StaticProjectSnapshotCodec.MaximumSourceValues) throw Size();
-        return new(1, 6, [.. applications.Items.Select(item =>
+        return new(1, StyleTemplateLibrary.CurrentSchemaVersion, [.. applications.Items.Select(item =>
         {
             // Inspect stored source, including disabled applications and unselected style fields.
             if (effects is null && (!item.Snapshot.EffectRecipes.IsEmpty || !item.Snapshot.Packages.IsEmpty

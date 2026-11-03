@@ -133,6 +133,17 @@ public static class LyricStyleResolver
             MarkShadowSources(overlay.Shadow.Value, source, sources);
         }
 
+        if (overlay.Glow.IsSet)
+        {
+            result = result with { Glow = overlay.Glow.Value?.Apply(current.Glow) };
+            GlowSpecOverride? glow = overlay.Glow.Value;
+            if (glow is null || glow.IsComplete) sources[LyricStyleProperty.GlowSpec] = source;
+            if (glow is null || glow.Color is not null) sources[LyricStyleProperty.GlowColor] = source;
+            if (glow is null || glow.Opacity is not null) sources[LyricStyleProperty.GlowOpacity] = source;
+            if (glow is null || glow.BlurRadiusPx is not null) sources[LyricStyleProperty.GlowBlurRadiusPx] = source;
+            if (glow is null || glow.SpreadPx is not null) sources[LyricStyleProperty.GlowSpreadPx] = source;
+        }
+
         if (overlay.VerticalCenterRatio is not null)
             sources[LyricStyleProperty.VerticalCenterRatio] = source;
         if (overlay.HorizontalAlignment is not null)
@@ -258,6 +269,9 @@ public static class LyricStyleResolver
         {
             throw new ArgumentException($"{layerName}产生了无效的阴影描述。", parameterName);
         }
+
+        if (style.Glow is { IsValid: false })
+            throw new ArgumentException($"{layerName}产生了无效的辉光描述。", parameterName);
 
         if (style.Opacity is < 0f or > 1f)
         {

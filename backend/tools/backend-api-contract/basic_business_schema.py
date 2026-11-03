@@ -159,7 +159,7 @@ def extend_basic_response_schemas(schemas, metadata, schema_for):
     resolved["properties"]["finalPixelAppearance"]["const"] = False
     source = schemas["ResolvedStylePropertySourceDto"]
     source["properties"]["property"]["enum"] = list(PROPERTIES)
-    resolved["properties"]["sources"].update(minItems=21, maxItems=21,
+    resolved["properties"]["sources"].update(minItems=26, maxItems=26,
         prefixItems=[{"allOf": [ref("ResolvedStylePropertySourceDto"), {"properties": {"property": {"const": prop}}}]} for prop in PROPERTIES])
     result = schemas["OrchestrationClipMembersCommandResultDto"]["properties"]
     result["operation"]["enum"] = ["setClipMembers", "splitClip", "mergeClips"]

@@ -70,6 +70,8 @@ public sealed partial class SkiaRenderPipeline
             ?? new MakoKaraGenerator.Scripting.Affine2(basis.A, basis.B, basis.C, basis.D, basis.Tx, basis.Ty);
         canvas.Concat(new SKMatrix((float)matrix.A, (float)matrix.C, (float)matrix.Tx,
             (float)matrix.B, (float)matrix.D, (float)matrix.Ty, 0, 0, 1));
+        DrawLineGlow(canvas, shaped, options, (float)geometry.OriginX, (float)geometry.BaselineY,
+            style, request.Quality != RenderQuality.Draft, capture: capture);
         var fill = mark.IsElapsed ? style.SungFill : style.UnsungFill;
         DrawStyledLine(canvas, shaped, options, (float)geometry.OriginX, (float)geometry.BaselineY,
             fill.Color, fill.Gradient, style, composition, request.Quality != RenderQuality.Draft, capture: capture, sungPass: mark.IsElapsed);

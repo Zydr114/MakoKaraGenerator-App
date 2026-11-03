@@ -15,4 +15,8 @@ public enum SceneColorPart
     RubyStroke,
     /// <summary>关联注音阴影。</summary>
     RubyShadow,
+    /// <summary>基础文字外发光。</summary>
+    BaseGlow,
+    /// <summary>关联注音外发光。</summary>
+    RubyGlow,
 }

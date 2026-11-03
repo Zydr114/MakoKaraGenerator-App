@@ -419,7 +419,7 @@ public sealed class ProjectStoreDiagnosticsTests : IDisposable
                   "budgets":{"surfaceMemoryBytes":536870912,"liveParticles":20000,"trailSamples":200000,"emissionRecords":100000,"drawCommands":100000},
                   "packages":[],"instances":[] }
                 """);
-            data["presetApplications"] = JsonNode.Parse("{\"contractVersion\":1,\"templateSchemaVersion\":6,\"items\":[]}");
+            data["presetApplications"] = JsonNode.Parse($"{{\"contractVersion\":1,\"templateSchemaVersion\":{StyleTemplateLibrary.CurrentSchemaVersion},\"items\":[]}}");
             data["lyricPresentation"] ??= new JsonObject { ["nodes"] = new JsonArray(), ["programs"] = new JsonArray(), ["lineOverrides"] = new JsonArray() };
             json = data.ToJsonString(ProjectJson.Options);
         }

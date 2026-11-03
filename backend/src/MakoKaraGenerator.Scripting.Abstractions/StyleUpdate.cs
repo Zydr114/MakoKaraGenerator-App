@@ -63,7 +63,7 @@ public sealed record StyleUpdate
         if (!double.IsFinite(opacity) || opacity is < 0 or > 1) throw new EffectOutputException("InvalidStyleOpacity", "最终样式不透明度必须在 [0,1]。");
         var material = ApplyMaterials(baseline);
         return new(material.UnsungMaterial, material.SungMaterial, material.Stroke,
-            Shadow is { } shadow ? shadow.Value : baseline.Shadow, opacity);
+            Shadow is { } shadow ? shadow.Value : baseline.Shadow, opacity, baseline.Glow);
     }
     /// <summary>按顺序解析材质身份与覆盖；保留基线 alpha／阴影，最终 alpha 在全部实例合并后校验。</summary>
     public StyleView ApplyMaterials(StyleView baseline)
@@ -85,7 +85,7 @@ public sealed record StyleUpdate
         var stroke = Stroke is { } update ? update.Value : baseline.Stroke;
         if (stroke is not null && values[(int)MaterialSlot.Stroke] is { } strokeMaterial)
             stroke = new(stroke.WidthPx, strokeMaterial, stroke.Join, stroke.Position);
-        return new(values[0]!, values[1]!, stroke, baseline.Shadow, baseline.Opacity);
+        return new(values[0]!, values[1]!, stroke, baseline.Shadow, baseline.Opacity, baseline.Glow);
     }
 }
 /// <summary>真实装载元素族的外观输出；基础字和全部注音共用。</summary>

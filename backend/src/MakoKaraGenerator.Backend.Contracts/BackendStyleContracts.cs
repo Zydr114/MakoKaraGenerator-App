@@ -53,6 +53,8 @@ public sealed record StyleFillDto(StyleMaterialDto Material);
 public sealed record StyleStrokeDto(StyleMaterialDto Material, float WidthPx, StyleStrokeJoin Join, StyleStrokePosition Position);
 /// <summary>完整阴影。</summary>
 public sealed record StyleShadowDto(StyleColorDto Color, float Opacity, double AngleDegrees, float DistancePx, float BlurRadiusPx);
+/// <summary>完整辉光。</summary>
+public sealed record StyleGlowDto(StyleColorDto Color, float Opacity, float BlurRadiusPx, float SpreadPx);
 /// <summary>完整排版；fontFamilyName 的 null 必须保留。</summary>
 public sealed record StyleTypographyDto([property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? FontFamilyName,
     string[] FallbackFamilyNames, float FontSizePx, int FontWeight, bool IsBold, bool IsItalic, float LetterSpacingPx);
@@ -60,10 +62,21 @@ public sealed record StyleTypographyDto([property: JsonIgnore(Condition = JsonIg
 public sealed record CanonicalStyleDto(StyleTypographyDto Typography, StyleFillDto UnsungFill, StyleFillDto SungFill,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] StyleStrokeDto? Stroke,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] StyleShadowDto? Shadow,
-    double VerticalCenterRatio, StyleHorizontalAlignment HorizontalAlignment, float Opacity, float Scale);
+    double VerticalCenterRatio, StyleHorizontalAlignment HorizontalAlignment, float Opacity, float Scale,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] StyleGlowDto? Glow = null);
 /// <summary>单属性闭合 typed 联合，value 必须显式提供。</summary>
 [JsonConverter(typeof(StyleChangeJsonConverter))]
 public abstract record StyleChangeDto(string Property);
+/// <summary>修改完整辉光。</summary>
+public sealed record StyleGlowChangeDto(StyleGlowDto? Value) : StyleChangeDto("glow");
+/// <summary>修改辉光颜色。</summary>
+public sealed record StyleGlowColorChangeDto(StyleColorDto Value) : StyleChangeDto("glow.color");
+/// <summary>修改辉光透明度。</summary>
+public sealed record StyleGlowOpacityChangeDto(float Value) : StyleChangeDto("glow.opacity");
+/// <summary>修改辉光模糊。</summary>
+public sealed record StyleGlowBlurChangeDto(float Value) : StyleChangeDto("glow.blurRadiusPx");
+/// <summary>修改辉光扩散。</summary>
+public sealed record StyleGlowSpreadChangeDto(float Value) : StyleChangeDto("glow.spreadPx");
 /// <summary>修改 typography.fontFamilyName；value 与缺失不同。</summary>
 public sealed record StyleFontFamilyChangeDto(string? Value) : StyleChangeDto("typography.fontFamilyName");
 /// <summary>修改 typography.fallbackFamilyNames；value 与缺失不同。</summary>

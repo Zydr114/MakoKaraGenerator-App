@@ -35,7 +35,7 @@ public sealed class SceneImageGraphProgram
                 EffectCaptureRegion.FillAndStroke => SceneCaptureRegion.FillAndStroke,
                 _ => throw new EffectPackageException("PackageMaterialRegionBindingRequired", "inputs." + pair.Key + ".capture.region", "材质区域必须由实际材质绑定解析。"),
             };
-            recipes.Add(pair.Key, new(pair.Value.IncludeRuby, pair.Value.IncludeStroke, pair.Value.IncludeShadow, pair.Value.IncludeDescendantGroups, region));
+            recipes.Add(pair.Key, new(pair.Value.IncludeRuby, pair.Value.IncludeStroke, pair.Value.IncludeShadow, pair.Value.IncludeDescendantGroups, region, pair.Value.IncludeGlow));
         }
         Handle = handle; Graph = graph; Bounds = bounds; _inputRecipes = recipes.ToImmutable();
     }

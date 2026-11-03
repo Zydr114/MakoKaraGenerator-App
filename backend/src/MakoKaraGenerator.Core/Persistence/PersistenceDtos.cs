@@ -118,6 +118,8 @@ internal sealed class LyricStyleDto
     public StrokeSpecDto? Stroke { get; set; }
     /// <summary>规范阴影对象（schema v16 起）。</summary>
     public ShadowSpecDto? Shadow { get; set; }
+    /// <summary>静态辉光（schema v29 起）。</summary>
+    public GlowSpecDto? Glow { get; set; }
     public double? VerticalCenterRatio { get; set; }
     public string? HorizontalAlignment { get; set; }
     public float? Opacity { get; set; }
@@ -191,6 +193,24 @@ internal sealed class StrokeSpecOverrideDto
     public System.Text.Json.JsonElement Material { get; set; }
 }
 
+/// <summary>完整静态辉光的 JSON 形态。</summary>
+internal sealed class GlowSpecDto
+{
+    public string? Color { get; set; }
+    public float? Opacity { get; set; }
+    public float? BlurRadiusPx { get; set; }
+    public float? SpreadPx { get; set; }
+}
+
+/// <summary>静态辉光部分覆盖的 JSON 形态。</summary>
+internal sealed class GlowSpecOverrideDto
+{
+    public string? Color { get; set; }
+    public float? Opacity { get; set; }
+    public float? BlurRadiusPx { get; set; }
+    public float? SpreadPx { get; set; }
+}
+
 /// <summary>阴影部分覆盖的 JSON 形态。</summary>
 internal sealed class ShadowSpecOverrideDto
 {
@@ -235,6 +255,9 @@ internal sealed class LyricStyleOverrideDto
     /// <summary>规范阴影覆盖（schema v13 起）。</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public System.Text.Json.JsonElement Shadow { get; set; }
+    /// <summary>静态辉光覆盖（schema v18 起）。</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public System.Text.Json.JsonElement Glow { get; set; }
     public double? VerticalCenterRatio { get; set; }
     public string? HorizontalAlignment { get; set; }
     public float? Opacity { get; set; }

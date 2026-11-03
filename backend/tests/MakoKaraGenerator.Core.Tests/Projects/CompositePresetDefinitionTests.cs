@@ -59,7 +59,7 @@ public sealed class CompositePresetDefinitionTests
         string old = Path.Combine(oldDirectory, "index.json"); string text = "{\"schemaVersion\":5,\"unknownLegacy\":true}"; File.WriteAllText(old, text);
         string path = StyleTemplateLibrary.ResolvePath(directory.Path); var result = StyleTemplateLibrary.Load(path);
         Assert.Empty(result.Templates); Assert.Empty(result.Issues); Assert.True(result.LegacyLibraryRetained);
-        Assert.Equal("templates-v6", Path.GetFileName(Path.GetDirectoryName(path)));
+        Assert.Equal("templates-v7", Path.GetFileName(Path.GetDirectoryName(path)));
         StyleTemplateLibrary.Save(path, []); Assert.Equal(text, File.ReadAllText(old));
         var rejected = StyleTemplateLibrary.Load(old); Assert.True(rejected.VersionMismatch);
         Assert.Throws<IOException>(() => StyleTemplateLibrary.Save(old, [])); Assert.Equal(text, File.ReadAllText(old));

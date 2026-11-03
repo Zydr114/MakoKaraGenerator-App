@@ -1,6 +1,6 @@
 # 冻结 API 清单
 
-合同 **1.41.0** · HTTP **1** · 产品 **0.109.0** · 基线 `245be6cc8f41a75460ef77bb67b35d79673c7e3b` · 2026-11-01。
+合同 **1.42.0** · HTTP **1** · 产品 **0.110.0** · 基线 `54f2c647599272be9deb06560789557d67ebbaf9` · 2026-11-01。
 
 执行入口：[行为合同](api-contract.md)；机器规范：[openapi.json](openapi.json)；指纹：[contract-manifest.json](contract-manifest.json)。本表由核对过的路由定义生成，不能手工单独扩表。
 
@@ -217,7 +217,7 @@
 | `orchestration.setClipContainer` | `branchId/clipId/containerId` |
 | `orchestration.deleteClip` | `branchId/clipId` |
 | `orchestration.previewBasicLayout` / `orchestration.applyBasicLayout` | `branchId/preset/layoutName/slotNames/selectedSegmentName/retainedSegmentName`；`selectedLineIds`可省略或显式null表示整来源，非null数组表示连续范围并按G19规则校验；片段布局仅支持独立计时、Karaoke来源，其他来源返回`UnsupportedSource` |
-| `styles.patch` | 同种唯一`targets` 1..1000（project仅一个），非空24种canonical属性/value的`changes`；value始终必填 |
+| `styles.patch` | 同种唯一`targets` 1..1000（project仅一个），非空29种canonical属性/value的`changes`；value始终必填 |
 | `styles.restore` | 同种唯一branch/line/token `targets`，非空闭合`properties`；移除选中局部覆盖 |
 
 九十六种命令均在顶层带expectedRevision和回执三字段。OpenAPI按type区分分支；旧五命令接受已知无关字段显式null，新增分型命令只接受各自声明字段。批量目标不得重复，一次请求原子提交一次历史；presetApplications在Writer外固定精确模板快照后再Prepare→Commit，库更新不自动修改已分配工程；schema不证明目标存在或领域边界合法。
@@ -232,7 +232,7 @@ G20–G24整体补齐（合同1.24.0）：新增setLayoutKind、setLineEnterAnim
 
 ## 独立模板库
 
-模板库不要求工程或目标，不改变工程修订/历史。builtin与personal描述不访问个人入口；坏个人库不遮蔽内置目录。list初次读取可省expectedRevision，后续分页和detail使用精确修订；revision是missing或真实索引小写64位SHA，不能按Int64处理。detail始终保definition字段：省略definitionFormat或选择static时，staticAvailable提供完整canonical静态定义与原21属性选择；advancedRuntimeAvailable表示现有Line/Token高级闭包可执行，definition仍为null；advancedUnsupported表示旧静态投影不可提供定义。显式definitionFormat=full返回fullAvailable、完整高级definition及packageClosureDetails，支持包材质、有序配方和固定包引用，详见行为§24。
+模板库不要求工程或目标，不改变工程修订/历史。builtin与personal描述不访问个人入口；坏个人库不遮蔽内置目录。list初次读取可省expectedRevision，后续分页和detail使用精确修订；revision是missing或真实索引小写64位SHA，不能按Int64处理。detail始终保definition字段：省略definitionFormat或选择static时，staticAvailable提供完整canonical静态定义与26属性选择；advancedRuntimeAvailable表示现有Line/Token高级闭包可执行，definition仍为null；advancedUnsupported表示旧静态投影不可提供定义。显式definitionFormat=full返回fullAvailable、完整高级definition及packageClosureDetails，支持包材质、有序配方和固定包引用，详见行为§24。
 
 独立commands严格分型create/replace/copy/rename/delete，所有写入含expectedRevision/metadata。copy捕获sourceLibraryId/sourceRevision/templateId完整快照后对personal CAS；这是固定源复制，不是跨库分布式事务。create/replace保留旧静态定义分支，显式definitionFormat=full时接受完整高级定义；copy/rename/delete保完整原对象和包闭包，删除不清理旧包文件。损坏入口/闭包、版本错误及链接失败关闭，不能当空库覆盖。所有存在性/CAS位于client单层回执owner；成功回执在模板删除或库改变后仍原样重放，新ID只分配一次。
 
@@ -240,7 +240,7 @@ G20–G24整体补齐（合同1.24.0）：新增setLayoutKind、setLineEnterAnim
 
 ## 基础业务接口（0.95 / 合同1.25）
 
-resolved-style按真实line推导clip/container及Core调度slot，nodePath包含动态text叶节点，Node祖先预设遵守includeDescendants；返回21个Core属性来源。FollowPrimary仅跟随时钟/动画，容器路径保持自身来源。staticPresetHierarchy不是动画、脚本或最终像素。旧style staticHierarchy保持原wire。
+resolved-style按真实line推导clip/container及Core调度slot，nodePath包含动态text叶节点，Node祖先预设遵守includeDescendants；返回26个Core属性来源。FollowPrimary仅跟随时钟/动画，容器路径保持自身来源。staticPresetHierarchy不是动画、脚本或最终像素。旧style staticHierarchy保持原wire。
 
 目录浏览只读授权根下一层且先扫描预算再分页；歌词导出支持branch及仅ttml.project的document范围，先完整计划再显式损失确认，UTF-8短期内容可Range/HEAD/ETag；模板.mktpl预检/导入/导出保完整高级闭包，预检与导入只允许personal，导入生成新identity，成功单次消费且metadata重放保持结果。资源页只列当前工程实际闭包，不暴露本机路径或未引用上传。完整限制及失败/生命周期见行为§17。
 

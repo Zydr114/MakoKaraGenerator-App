@@ -20,7 +20,8 @@ public sealed record ReorderOrchestrationMarksCommandDto(string? ContainerId, st
 public sealed record SpaceOrchestrationMarksCommandDto(string? ContainerId) : ProjectCommandDto("orchestration.spaceMarks");
 public sealed record SceneTextAppearanceDto(StyleTypographyDto Typography, StyleFillDto PendingFill, StyleFillDto ElapsedFill,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] StyleStrokeDto? Stroke,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] StyleShadowDto? Shadow, float Opacity);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] StyleShadowDto? Shadow, float Opacity,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] StyleGlowDto? Glow = null);
 public sealed record SetCountdownAppearanceCommandDto(string? ContainerId, SceneTextAppearanceDto? Appearance)
     : ProjectCommandDto("orchestration.setCountdownAppearance");
 public sealed record SetMarkAppearanceCommandDto(string? NodeId, StyleChangeDto[]? Changes)

@@ -92,6 +92,27 @@ public sealed partial class SkiaRenderPipeline
         var sample = scene.Frame; var line = sample.Line!;
         Dictionary<string, Fx.TokenFamilyTransform> byToken = transforms.ToDictionary(static item => item.Target.TokenId.Value, StringComparer.Ordinal);
         var byStyle = styles.ToDictionary(static item => item.Target.TokenId.Value, StringComparer.Ordinal);
+        // 有辉光时按与图像协调器一致的部件顺序绘制整域，避免后画族的 halo 覆盖邻族填充。
+        // 没有辉光的历史路径保持原有工作量和像素顺序。
+        bool hasGlow = capture?.Recipe.IncludeGlow != false && (lineStyle.Glow is { IsEnabled: true }
+            || line.Tokens.Any(token => token.StyleOverride is { } overlay && ResolveElementStyle(lineStyle, overlay).Glow is { IsEnabled: true }));
+        if (hasGlow && (capture is null || capture is { Source: Core.Effects.GraphInputSource.TargetColor, Part: null }))
+        {
+            var original = capture ?? new CapturePaint(Core.Effects.GraphInputSource.TargetColor,
+                new(true, true, true, false, SceneCaptureRegion.FillAndStroke), null);
+            foreach (var part in ColorPartOrder)
+            {
+                var recipe = original.Recipe with
+                {
+                    IncludeStroke = original.Recipe.IncludeStroke && part is SceneColorPart.BaseStroke or SceneColorPart.RubyStroke,
+                    IncludeShadow = original.Recipe.IncludeShadow && part is SceneColorPart.BaseShadow or SceneColorPart.RubyShadow,
+                    IncludeGlow = part is SceneColorPart.BaseGlow or SceneColorPart.RubyGlow,
+                };
+                DrawChangedFamilies(canvas, prepared, scene, shaped, options, ruby, lineStyle, composition, origin, baseline,
+                    antialias, transforms, styles, original with { Part = part, Recipe = recipe });
+            }
+            return;
+        }
         int offset = 0;
         TextSpan[] spans = [.. line.Tokens.Select(token => { var span = new TextSpan(offset, token.Text.Length); offset = span.End; return span; })];
         var partitions = GlyphPartitioner.Partition(shaped, spans);
@@ -107,6 +128,10 @@ public sealed partial class SkiaRenderPipeline
             }
             if (capture?.TokenId is { } selected && line.Tokens[i].Id != selected) continue;
             bool effect = capture?.TokenId == line.Tokens[i].Id || byToken.ContainsKey(line.Tokens[i].Id) || byStyle.ContainsKey(line.Tokens[i].Id);
+            if (!partitions[i].CanTransformIndependently && line.Tokens[i].StyleOverride is { } overlay
+                && (ResolveElementStyle(lineStyle, overlay).Glow != lineStyle.Glow
+                    || lineStyle.Glow is { IsEnabled: true } && ResolveElementStyle(lineStyle, overlay).Opacity != lineStyle.Opacity))
+                throw new PreparedFrameException("UnsupportedGlyphPartition", "共享字簇不能独立应用元素外发光，不能将邻字纳入辉光蒙版。");
             bool source = TokenStyleSupport.HasDrawableOverride(line.Tokens[i].StyleOverride) && partitions[i].CanTransformIndependently;
             if (!effect && !source) continue;
             if (!partitions[i].CanTransformIndependently)
@@ -117,6 +142,7 @@ public sealed partial class SkiaRenderPipeline
         // 未受影响的文字仍走同一两态样式规则，但不再包含被移走的 glyph。
         if (capture?.TokenId is null) using (SKPath sungRegions = BuildSungRegions(sample, shaped, origin, canvas.LocalClipBounds))
         {
+            DrawLineGlow(canvas, shaped, options, origin, baseline, lineStyle, antialias, remaining, capture);
             bool hasSung = !sungRegions.IsEmpty;
             DrawRemaining(false);
             if (hasSung) DrawRemaining(true);
@@ -160,6 +186,7 @@ public sealed partial class SkiaRenderPipeline
             var tokenSample = sample with { Tokens = [token] };
             var style = styleOutput is not null ? prepared!.GetTokenDrawingStyle(styleOutput.Target)
                 : ElementOverlay(line, token) is { } overlay ? ResolveElementStyle(lineStyle, overlay) : lineStyle;
+            DrawLineGlow(canvas, shaped, options, origin, baseline, style, antialias, partitions[index].DrawUnitIndices, capture);
             using (SKPath regions = BuildSungRegions(tokenSample, shaped, origin, canvas.LocalClipBounds))
             {
                 bool hasSung = !regions.IsEmpty;

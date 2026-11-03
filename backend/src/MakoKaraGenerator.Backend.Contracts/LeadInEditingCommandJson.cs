@@ -63,7 +63,7 @@ internal static class LeadInEditingCommandJson
     }
     private static SceneTextAppearanceDto Appearance(JsonElement value, JsonSerializerOptions options)
     {
-        Fields(value, ["typography", "pendingFill", "elapsedFill", "stroke", "shadow", "opacity"]);
+        Fields(value, ["typography", "pendingFill", "elapsedFill", "stroke", "shadow", "opacity", "glow"]);
         Fields(value.GetProperty("typography"), ["fontFamilyName", "fallbackFamilyNames", "fontSizePx", "fontWeight", "isBold", "isItalic", "letterSpacingPx"]);
         Fields(value.GetProperty("pendingFill"), ["material"]); Fields(value.GetProperty("elapsedFill"), ["material"]);
         if (value.GetProperty("stroke") is var stroke && stroke.ValueKind != JsonValueKind.Null) Fields(stroke, ["material", "widthPx", "join", "position"]);
@@ -76,11 +76,12 @@ internal static class LeadInEditingCommandJson
         return new(t, new(StyleCommandJson.Material(value.GetProperty("pendingFill").GetProperty("material"))),
             new(StyleCommandJson.Material(value.GetProperty("elapsedFill").GetProperty("material"))),
             stroke.ValueKind == JsonValueKind.Null ? null : StyleCommandJson.Stroke(stroke),
-            shadow.ValueKind == JsonValueKind.Null ? null : StyleCommandJson.Shadow(shadow), StyleCommandJson.Float(value.GetProperty("opacity")));
+            shadow.ValueKind == JsonValueKind.Null ? null : StyleCommandJson.Shadow(shadow), StyleCommandJson.Float(value.GetProperty("opacity")),
+            value.GetProperty("glow").ValueKind == JsonValueKind.Null ? null : StyleCommandJson.Glow(value.GetProperty("glow")));
     }
     private static StyleChangeDto[] Changes(JsonElement value, JsonSerializerOptions options)
     {
-        if (value.ValueKind != JsonValueKind.Array || value.GetArrayLength() > 21) throw new JsonException("changes必须是最多21项的完整覆盖列表。");
+        if (value.ValueKind != JsonValueKind.Array || value.GetArrayLength() > 26) throw new JsonException("changes必须是最多26项的完整覆盖列表。");
         return value.Deserialize<StyleChangeDto[]>(options) ?? throw new JsonException();
     }
     private static string[] Strings(JsonElement value)

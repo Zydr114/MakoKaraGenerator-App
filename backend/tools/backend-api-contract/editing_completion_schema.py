@@ -39,15 +39,15 @@ def extend_editing_completion_schemas(schemas, metadata, schema_for, variants, b
         expected = {
             "ProjectLineEnterAnimationDto": {"durationUs": "String", "easing": "String", "startOpacity": "Single", "startScale": "Single", "startOffsetPx": "Single"},
             "LeadInGenerationSettingsDto": {"includeOpening": "Boolean", "includeLongGaps": "Boolean", "gapThresholdUs": "String", "durationUs": "String", "indicatorContainerId": "String", "excludedLineIds": "String[]"},
-            "SceneTextAppearanceDto": {"typography": "StyleTypographyDto", "pendingFill": "StyleFillDto", "elapsedFill": "StyleFillDto", "stroke": "StyleStrokeDto", "shadow": "StyleShadowDto", "opacity": "Single"},
+            "SceneTextAppearanceDto": {"typography": "StyleTypographyDto", "pendingFill": "StyleFillDto", "elapsedFill": "StyleFillDto", "stroke": "StyleStrokeDto", "shadow": "StyleShadowDto", "opacity": "Single", "glow": "StyleGlowDto"},
             "SceneMeasurementRequest": {"expectedRevision": "String", "mode": "String", "timeUs": "String", "width": "Int32", "height": "Int32", "alphaMode": "String", "previewId": "String", "expectedPreviewGeneration": "String", "candidateRevision": "String"},
         }[name]
-        nullable_fields = {"LeadInGenerationSettingsDto": {"indicatorContainerId"}, "SceneTextAppearanceDto": {"stroke", "shadow"}, "SceneMeasurementRequest": {"timeUs", "previewId", "expectedPreviewGeneration", "candidateRevision"}}.get(name, set())
+        nullable_fields = {"LeadInGenerationSettingsDto": {"indicatorContainerId"}, "SceneTextAppearanceDto": {"stroke", "shadow", "glow"}, "SceneMeasurementRequest": {"timeUs", "previewId", "expectedPreviewGeneration", "candidateRevision"}}.get(name, set())
         if render_field:
             expected["renderBackend"] = "String"
             nullable_fields.add("renderBackend")
         if any(p["type"] != expected[p["name"]] or p["nullable"] != (p["name"] in nullable_fields)
-               or p["optional"] != (name == "SceneMeasurementRequest" and p["name"] in {"previewId", "expectedPreviewGeneration", "candidateRevision", "renderBackend"})
+               or p["optional"] != ((name == "SceneMeasurementRequest" and p["name"] in {"previewId", "expectedPreviewGeneration", "candidateRevision", "renderBackend"}) or (name == "SceneTextAppearanceDto" and p["name"] == "glow"))
                or p["defaultValue"] is not None for p in metadata[name]["properties"]):
             raise ValueError("Unreviewed editing DTO types/nullability/defaults: " + name)
         component = schema_for(name, mode)["$ref"].split("/")[-1]
@@ -75,10 +75,10 @@ def extend_editing_completion_schemas(schemas, metadata, schema_for, variants, b
     appearance = dto("SceneTextAppearanceDto", {
         "typography": typography, "pendingFill": obj({"material": ref("StyleMaterialDtoInput")}),
         "elapsedFill": obj({"material": ref("StyleMaterialDtoInput")}),
-        "stroke": nullable(ref("StyleStrokeDtoInput")), "shadow": nullable(ref("StyleShadowDtoInput")),
+        "stroke": nullable(ref("StyleStrokeDtoInput")), "shadow": nullable(ref("StyleShadowDtoInput")), "glow": nullable(ref("StyleGlowDtoInput")),
         "opacity": {"type": "number", "minimum": 0, "maximum": 1}})
     dto("SceneTextAppearanceDto", {"typography": ref("StyleTypographyDto"), "pendingFill": ref("StyleFillDto"),
-        "elapsedFill": ref("StyleFillDto"), "stroke": nullable(ref("StyleStrokeDto")), "shadow": nullable(ref("StyleShadowDto")),
+        "elapsedFill": ref("StyleFillDto"), "stroke": nullable(ref("StyleStrokeDto")), "shadow": nullable(ref("StyleShadowDto")), "glow": nullable(ref("StyleGlowDto")),
         "opacity": {"type": "number", "minimum": 0, "maximum": 1}}, "response")
     mark_changes = [ref(clr + "Input") for prop, clr, *_ in CHANGES if prop not in ("scale", "verticalCenterRatio", "horizontalAlignment")]
     schemas["MarkAppearanceChangeInput"] = {"oneOf": mark_changes}
@@ -100,7 +100,7 @@ def extend_editing_completion_schemas(schemas, metadata, schema_for, variants, b
         ("reorderMarks", "ReorderOrchestrationMarksCommandDto", {"containerId": stable, "orderedIds": {**ids, "maxItems": 64}}),
         ("spaceMarks", "SpaceOrchestrationMarksCommandDto", {"containerId": stable}),
         ("setCountdownAppearance", "SetCountdownAppearanceCommandDto", {"containerId": stable, "appearance": appearance}),
-        ("setMarkAppearance", "SetMarkAppearanceCommandDto", {"nodeId": stable, "changes": {"type": "array", "maxItems": 21,
+        ("setMarkAppearance", "SetMarkAppearanceCommandDto", {"nodeId": stable, "changes": {"type": "array", "maxItems": 26,
             "items": ref("MarkAppearanceChangeInput"), "description": "完整本层override；空数组清除，property不得重复。"}}),
     ]
     for operation, clr, fields in commands:

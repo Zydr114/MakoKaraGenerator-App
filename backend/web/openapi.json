@@ -3,8 +3,8 @@
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "info": {
     "title": "MakoKaraGenerator local backend HTTP API",
-    "version": "1.41.0",
-    "description": "冻结合同1.41.0；HTTP协议1，产品0.109.0。只含当前公共HTTP，不含未来功能及私有Worker。与api-contract.md和其固定行为源共同执行。info.version是合同版本，不是产品/HTTP版本。普通响应可忽略未知字段；请求遵守声明字段及业务门禁。"
+    "version": "1.42.0",
+    "description": "冻结合同1.42.0；HTTP协议1，产品0.110.0。只含当前公共HTTP，不含未来功能及私有Worker。与api-contract.md和其固定行为源共同执行。info.version是合同版本，不是产品/HTTP版本。普通响应可忽略未知字段；请求遵守声明字段及业务门禁。"
   },
   "servers": [
     {
@@ -18,9 +18,9 @@
       }
     }
   ],
-  "x-product-version": "0.109.0",
+  "x-product-version": "0.110.0",
   "x-http-protocol-version": "1",
-  "x-source-baseline": "245be6cc8f41a75460ef77bb67b35d79673c7e3b",
+  "x-source-baseline": "54f2c647599272be9deb06560789557d67ebbaf9",
   "x-behavior-contract": "api-contract.md",
   "x-options": {
     "status": 204,
@@ -15158,6 +15158,16 @@
             "exclusiveMinimum": 0,
             "minimum": -3.4028234663852886e+38,
             "maximum": 3.4028234663852886e+38
+          },
+          "glow": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StyleGlowDto"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -15169,7 +15179,8 @@
           "verticalCenterRatio",
           "horizontalAlignment",
           "opacity",
-          "scale"
+          "scale",
+          "glow"
         ],
         "additionalProperties": false,
         "x-clr-type": "MakoKaraGenerator.Backend.Contracts.CanonicalStyleDto"
@@ -15225,6 +15236,16 @@
             "type": "number",
             "format": "float",
             "exclusiveMinimum": 0
+          },
+          "glow": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StyleGlowDtoInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -17967,7 +17988,7 @@
           },
           "properties": {
             "type": "array",
-            "maxItems": 21,
+            "maxItems": 26,
             "uniqueItems": true,
             "items": {
               "$ref": "#/components/schemas/TemplateProperty"
@@ -18022,7 +18043,12 @@
                       "shadowColor",
                       "shadowBlurPx",
                       "shadowSpec",
-                      "opacity"
+                      "opacity",
+                      "glowSpec",
+                      "glowColor",
+                      "glowOpacity",
+                      "glowBlurRadiusPx",
+                      "glowSpreadPx"
                     ]
                   }
                 }
@@ -18063,7 +18089,12 @@
                       "shadowBlurPx",
                       "shadowSpec",
                       "opacity",
-                      "scale"
+                      "scale",
+                      "glowSpec",
+                      "glowColor",
+                      "glowOpacity",
+                      "glowBlurRadiusPx",
+                      "glowSpreadPx"
                     ]
                   }
                 }
@@ -18104,7 +18135,7 @@
           },
           "properties": {
             "type": "array",
-            "maxItems": 21,
+            "maxItems": 26,
             "uniqueItems": true,
             "items": {
               "$ref": "#/components/schemas/TemplateProperty"
@@ -18159,7 +18190,12 @@
                       "shadowColor",
                       "shadowBlurPx",
                       "shadowSpec",
-                      "opacity"
+                      "opacity",
+                      "glowSpec",
+                      "glowColor",
+                      "glowOpacity",
+                      "glowBlurRadiusPx",
+                      "glowSpreadPx"
                     ]
                   }
                 }
@@ -18200,7 +18236,12 @@
                       "shadowBlurPx",
                       "shadowSpec",
                       "opacity",
-                      "scale"
+                      "scale",
+                      "glowSpec",
+                      "glowColor",
+                      "glowOpacity",
+                      "glowBlurRadiusPx",
+                      "glowSpreadPx"
                     ]
                   }
                 }
@@ -18369,6 +18410,16 @@
             "exclusiveMinimum": 0,
             "minimum": -3.4028234663852886e+38,
             "maximum": 3.4028234663852886e+38
+          },
+          "glow": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StyleGlowDto"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -18380,7 +18431,8 @@
           "verticalCenterRatio",
           "horizontalAlignment",
           "opacity",
-          "scale"
+          "scale",
+          "glow"
         ],
         "additionalProperties": false,
         "x-clr-type": "MakoKaraGenerator.Backend.Contracts.CanonicalStyleDto"
@@ -21103,6 +21155,21 @@
           },
           {
             "$ref": "#/components/schemas/StyleOpacityChangeDto"
+          },
+          {
+            "$ref": "#/components/schemas/StyleGlowChangeDto"
+          },
+          {
+            "$ref": "#/components/schemas/StyleGlowColorChangeDto"
+          },
+          {
+            "$ref": "#/components/schemas/StyleGlowOpacityChangeDto"
+          },
+          {
+            "$ref": "#/components/schemas/StyleGlowBlurChangeDto"
+          },
+          {
+            "$ref": "#/components/schemas/StyleGlowSpreadChangeDto"
           }
         ]
       },
@@ -21170,6 +21237,21 @@
           },
           {
             "$ref": "#/components/schemas/StyleOpacityChangeDtoInput"
+          },
+          {
+            "$ref": "#/components/schemas/StyleGlowChangeDtoInput"
+          },
+          {
+            "$ref": "#/components/schemas/StyleGlowColorChangeDtoInput"
+          },
+          {
+            "$ref": "#/components/schemas/StyleGlowOpacityChangeDtoInput"
+          },
+          {
+            "$ref": "#/components/schemas/StyleGlowBlurChangeDtoInput"
+          },
+          {
+            "$ref": "#/components/schemas/StyleGlowSpreadChangeDtoInput"
           }
         ]
       },
@@ -21729,7 +21811,7 @@
           "changes": {
             "type": "array",
             "minItems": 1,
-            "maxItems": 24,
+            "maxItems": 29,
             "items": {
               "$ref": "#/components/schemas/StyleChangeDtoInput"
             },
@@ -22071,6 +22153,76 @@
                 "maxContains": 1
               },
               {
+                "contains": {
+                  "properties": {
+                    "property": {
+                      "const": "glow"
+                    }
+                  },
+                  "required": [
+                    "property"
+                  ]
+                },
+                "minContains": 0,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "property": {
+                      "const": "glow.color"
+                    }
+                  },
+                  "required": [
+                    "property"
+                  ]
+                },
+                "minContains": 0,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "property": {
+                      "const": "glow.opacity"
+                    }
+                  },
+                  "required": [
+                    "property"
+                  ]
+                },
+                "minContains": 0,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "property": {
+                      "const": "glow.blurRadiusPx"
+                    }
+                  },
+                  "required": [
+                    "property"
+                  ]
+                },
+                "minContains": 0,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "property": {
+                      "const": "glow.spreadPx"
+                    }
+                  },
+                  "required": [
+                    "property"
+                  ]
+                },
+                "minContains": 0,
+                "maxContains": 1
+              },
+              {
                 "not": {
                   "allOf": [
                     {
@@ -22130,6 +22282,41 @@
                               "shadow.angleDegrees",
                               "shadow.distancePx",
                               "shadow.blurRadiusPx"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "property"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "not": {
+                  "allOf": [
+                    {
+                      "contains": {
+                        "properties": {
+                          "property": {
+                            "const": "glow"
+                          }
+                        },
+                        "required": [
+                          "property"
+                        ]
+                      }
+                    },
+                    {
+                      "contains": {
+                        "properties": {
+                          "property": {
+                            "enum": [
+                              "glow.color",
+                              "glow.opacity",
+                              "glow.blurRadiusPx",
+                              "glow.spreadPx"
                             ]
                           }
                         },
@@ -27060,8 +27247,8 @@
             "items": {
               "$ref": "#/components/schemas/ResolvedStylePropertySourceDto"
             },
-            "minItems": 21,
-            "maxItems": 21,
+            "minItems": 26,
+            "maxItems": 26,
             "prefixItems": [
               {
                 "allOf": [
@@ -27352,6 +27539,76 @@
                     "properties": {
                       "property": {
                         "const": "scale"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/ResolvedStylePropertySourceDto"
+                  },
+                  {
+                    "properties": {
+                      "property": {
+                        "const": "glowSpec"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/ResolvedStylePropertySourceDto"
+                  },
+                  {
+                    "properties": {
+                      "property": {
+                        "const": "glowColor"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/ResolvedStylePropertySourceDto"
+                  },
+                  {
+                    "properties": {
+                      "property": {
+                        "const": "glowOpacity"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/ResolvedStylePropertySourceDto"
+                  },
+                  {
+                    "properties": {
+                      "property": {
+                        "const": "glowBlurRadiusPx"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/ResolvedStylePropertySourceDto"
+                  },
+                  {
+                    "properties": {
+                      "property": {
+                        "const": "glowSpreadPx"
                       }
                     }
                   }
@@ -27842,7 +28099,7 @@
             "items": {
               "$ref": "#/components/schemas/StyleChangeDto"
             },
-            "maxItems": 24
+            "maxItems": 29
           },
           "staticHierarchy": {
             "$ref": "#/components/schemas/CanonicalStyleDto"
@@ -29053,7 +29310,12 @@
               "shadowBlurPx",
               "shadowSpec",
               "opacity",
-              "scale"
+              "scale",
+              "glowSpec",
+              "glowColor",
+              "glowOpacity",
+              "glowBlurRadiusPx",
+              "glowSpreadPx"
             ]
           },
           "sourcePath": {
@@ -29179,7 +29441,7 @@
           "properties": {
             "type": "array",
             "minItems": 1,
-            "maxItems": 24,
+            "maxItems": 29,
             "items": {
               "type": "string",
               "enum": [
@@ -29206,7 +29468,12 @@
                 "verticalCenterRatio",
                 "horizontalAlignment",
                 "opacity",
-                "scale"
+                "scale",
+                "glow",
+                "glow.color",
+                "glow.opacity",
+                "glow.blurRadiusPx",
+                "glow.spreadPx"
               ]
             },
             "uniqueItems": true,
@@ -29248,6 +29515,27 @@
                           "shadow.angleDegrees",
                           "shadow.distancePx",
                           "shadow.blurRadiusPx"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "not": {
+                  "allOf": [
+                    {
+                      "contains": {
+                        "const": "glow"
+                      }
+                    },
+                    {
+                      "contains": {
+                        "enum": [
+                          "glow.color",
+                          "glow.opacity",
+                          "glow.blurRadiusPx",
+                          "glow.spreadPx"
                         ]
                       }
                     }
@@ -29302,7 +29590,12 @@
                       "shadow.angleDegrees",
                       "shadow.distancePx",
                       "shadow.blurRadiusPx",
-                      "opacity"
+                      "opacity",
+                      "glow",
+                      "glow.color",
+                      "glow.opacity",
+                      "glow.blurRadiusPx",
+                      "glow.spreadPx"
                     ]
                   }
                 }
@@ -30009,6 +30302,16 @@
               }
             ]
           },
+          "glow": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StyleGlowDto"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "opacity": {
             "type": "number",
             "minimum": 0,
@@ -30021,6 +30324,7 @@
           "elapsedFill",
           "stroke",
           "shadow",
+          "glow",
           "opacity"
         ],
         "additionalProperties": false,
@@ -30132,6 +30436,16 @@
               }
             ]
           },
+          "glow": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StyleGlowDtoInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "opacity": {
             "type": "number",
             "minimum": 0,
@@ -30144,6 +30458,7 @@
           "elapsedFill",
           "stroke",
           "shadow",
+          "glow",
           "opacity"
         ],
         "additionalProperties": false,
@@ -31157,7 +31472,7 @@
           },
           "changes": {
             "type": "array",
-            "maxItems": 21,
+            "maxItems": 26,
             "items": {
               "$ref": "#/components/schemas/MarkAppearanceChangeInput"
             },
@@ -32197,7 +32512,7 @@
           },
           "properties": {
             "type": "array",
-            "maxItems": 21,
+            "maxItems": 26,
             "uniqueItems": true,
             "items": {
               "$ref": "#/components/schemas/TemplateProperty"
@@ -32239,7 +32554,12 @@
                       "shadowColor",
                       "shadowBlurPx",
                       "shadowSpec",
-                      "opacity"
+                      "opacity",
+                      "glowSpec",
+                      "glowColor",
+                      "glowOpacity",
+                      "glowBlurRadiusPx",
+                      "glowSpreadPx"
                     ]
                   }
                 }
@@ -32280,7 +32600,12 @@
                       "shadowBlurPx",
                       "shadowSpec",
                       "opacity",
-                      "scale"
+                      "scale",
+                      "glowSpec",
+                      "glowColor",
+                      "glowOpacity",
+                      "glowBlurRadiusPx",
+                      "glowSpreadPx"
                     ]
                   }
                 }
@@ -32308,7 +32633,7 @@
           },
           "properties": {
             "type": "array",
-            "maxItems": 21,
+            "maxItems": 26,
             "uniqueItems": true,
             "items": {
               "$ref": "#/components/schemas/TemplateProperty"
@@ -32350,7 +32675,12 @@
                       "shadowColor",
                       "shadowBlurPx",
                       "shadowSpec",
-                      "opacity"
+                      "opacity",
+                      "glowSpec",
+                      "glowColor",
+                      "glowOpacity",
+                      "glowBlurRadiusPx",
+                      "glowSpreadPx"
                     ]
                   }
                 }
@@ -32391,7 +32721,12 @@
                       "shadowBlurPx",
                       "shadowSpec",
                       "opacity",
-                      "scale"
+                      "scale",
+                      "glowSpec",
+                      "glowColor",
+                      "glowOpacity",
+                      "glowBlurRadiusPx",
+                      "glowSpreadPx"
                     ]
                   }
                 }
@@ -32546,6 +32881,21 @@
           },
           {
             "$ref": "#/components/schemas/StyleScaleChangeDto"
+          },
+          {
+            "$ref": "#/components/schemas/StyleGlowChangeDto"
+          },
+          {
+            "$ref": "#/components/schemas/StyleGlowColorChangeDto"
+          },
+          {
+            "$ref": "#/components/schemas/StyleGlowOpacityChangeDto"
+          },
+          {
+            "$ref": "#/components/schemas/StyleGlowBlurChangeDto"
+          },
+          {
+            "$ref": "#/components/schemas/StyleGlowSpreadChangeDto"
           }
         ]
       },
@@ -32622,6 +32972,21 @@
           },
           {
             "$ref": "#/components/schemas/StyleScaleChangeDtoInput"
+          },
+          {
+            "$ref": "#/components/schemas/StyleGlowChangeDtoInput"
+          },
+          {
+            "$ref": "#/components/schemas/StyleGlowColorChangeDtoInput"
+          },
+          {
+            "$ref": "#/components/schemas/StyleGlowOpacityChangeDtoInput"
+          },
+          {
+            "$ref": "#/components/schemas/StyleGlowBlurChangeDtoInput"
+          },
+          {
+            "$ref": "#/components/schemas/StyleGlowSpreadChangeDtoInput"
           }
         ]
       },
@@ -32927,6 +33292,280 @@
         ],
         "additionalProperties": false,
         "x-clr-type": "MakoKaraGenerator.Backend.Contracts.StyleFontWeightChangeDto"
+      },
+      "StyleGlowBlurChangeDto": {
+        "type": "object",
+        "properties": {
+          "property": {
+            "type": "string",
+            "const": "glow.blurRadiusPx"
+          },
+          "value": {
+            "type": "number",
+            "format": "float",
+            "minimum": 0,
+            "maximum": 3.4028234663852886e+38
+          }
+        },
+        "required": [
+          "property",
+          "value"
+        ],
+        "additionalProperties": false,
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.StyleGlowBlurChangeDto"
+      },
+      "StyleGlowBlurChangeDtoInput": {
+        "type": "object",
+        "properties": {
+          "property": {
+            "type": "string",
+            "const": "glow.blurRadiusPx"
+          },
+          "value": {
+            "type": "number",
+            "format": "float",
+            "minimum": 0,
+            "maximum": 3.4028234663852886e+38
+          }
+        },
+        "required": [
+          "property",
+          "value"
+        ],
+        "additionalProperties": false,
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.StyleGlowBlurChangeDto"
+      },
+      "StyleGlowChangeDto": {
+        "type": "object",
+        "properties": {
+          "property": {
+            "type": "string",
+            "const": "glow"
+          },
+          "value": {
+            "type": "null",
+            "description": "原始local投影仅用whole null关闭效果；非null部分效果按实际存在叶属性展开。"
+          }
+        },
+        "required": [
+          "property",
+          "value"
+        ],
+        "additionalProperties": false,
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.StyleGlowChangeDto"
+      },
+      "StyleGlowChangeDtoInput": {
+        "type": "object",
+        "properties": {
+          "property": {
+            "type": "string",
+            "const": "glow"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StyleGlowDtoInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "property",
+          "value"
+        ],
+        "additionalProperties": false,
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.StyleGlowChangeDto"
+      },
+      "StyleGlowColorChangeDto": {
+        "type": "object",
+        "properties": {
+          "property": {
+            "type": "string",
+            "const": "glow.color"
+          },
+          "value": {
+            "$ref": "#/components/schemas/StyleColorDto"
+          }
+        },
+        "required": [
+          "property",
+          "value"
+        ],
+        "additionalProperties": false,
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.StyleGlowColorChangeDto"
+      },
+      "StyleGlowColorChangeDtoInput": {
+        "type": "object",
+        "properties": {
+          "property": {
+            "type": "string",
+            "const": "glow.color"
+          },
+          "value": {
+            "$ref": "#/components/schemas/StyleColorDtoInput"
+          }
+        },
+        "required": [
+          "property",
+          "value"
+        ],
+        "additionalProperties": false,
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.StyleGlowColorChangeDto"
+      },
+      "StyleGlowDto": {
+        "type": "object",
+        "properties": {
+          "color": {
+            "$ref": "#/components/schemas/StyleColorDto"
+          },
+          "opacity": {
+            "type": "number",
+            "format": "float",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "blurRadiusPx": {
+            "type": "number",
+            "format": "float",
+            "minimum": 0,
+            "maximum": 3.4028234663852886e+38
+          },
+          "spreadPx": {
+            "type": "number",
+            "format": "float",
+            "minimum": 0,
+            "maximum": 3.4028234663852886e+38
+          }
+        },
+        "required": [
+          "color",
+          "opacity",
+          "blurRadiusPx",
+          "spreadPx"
+        ],
+        "additionalProperties": false,
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.StyleGlowDto"
+      },
+      "StyleGlowDtoInput": {
+        "type": "object",
+        "properties": {
+          "color": {
+            "$ref": "#/components/schemas/StyleColorDtoInput"
+          },
+          "opacity": {
+            "type": "number",
+            "format": "float",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "blurRadiusPx": {
+            "type": "number",
+            "format": "float",
+            "minimum": 0,
+            "maximum": 3.4028234663852886e+38
+          },
+          "spreadPx": {
+            "type": "number",
+            "format": "float",
+            "minimum": 0,
+            "maximum": 3.4028234663852886e+38
+          }
+        },
+        "required": [
+          "color",
+          "opacity",
+          "blurRadiusPx",
+          "spreadPx"
+        ],
+        "additionalProperties": false,
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.StyleGlowDto"
+      },
+      "StyleGlowOpacityChangeDto": {
+        "type": "object",
+        "properties": {
+          "property": {
+            "type": "string",
+            "const": "glow.opacity"
+          },
+          "value": {
+            "type": "number",
+            "format": "float",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "required": [
+          "property",
+          "value"
+        ],
+        "additionalProperties": false,
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.StyleGlowOpacityChangeDto"
+      },
+      "StyleGlowOpacityChangeDtoInput": {
+        "type": "object",
+        "properties": {
+          "property": {
+            "type": "string",
+            "const": "glow.opacity"
+          },
+          "value": {
+            "type": "number",
+            "format": "float",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "required": [
+          "property",
+          "value"
+        ],
+        "additionalProperties": false,
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.StyleGlowOpacityChangeDto"
+      },
+      "StyleGlowSpreadChangeDto": {
+        "type": "object",
+        "properties": {
+          "property": {
+            "type": "string",
+            "const": "glow.spreadPx"
+          },
+          "value": {
+            "type": "number",
+            "format": "float",
+            "minimum": 0,
+            "maximum": 3.4028234663852886e+38
+          }
+        },
+        "required": [
+          "property",
+          "value"
+        ],
+        "additionalProperties": false,
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.StyleGlowSpreadChangeDto"
+      },
+      "StyleGlowSpreadChangeDtoInput": {
+        "type": "object",
+        "properties": {
+          "property": {
+            "type": "string",
+            "const": "glow.spreadPx"
+          },
+          "value": {
+            "type": "number",
+            "format": "float",
+            "minimum": 0,
+            "maximum": 3.4028234663852886e+38
+          }
+        },
+        "required": [
+          "property",
+          "value"
+        ],
+        "additionalProperties": false,
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.StyleGlowSpreadChangeDto"
       },
       "StyleGradientColorSpace": {
         "type": "string",
@@ -34104,6 +34743,21 @@
           },
           {
             "$ref": "#/components/schemas/StyleOpacityChangeDtoInput"
+          },
+          {
+            "$ref": "#/components/schemas/StyleGlowChangeDtoInput"
+          },
+          {
+            "$ref": "#/components/schemas/StyleGlowColorChangeDtoInput"
+          },
+          {
+            "$ref": "#/components/schemas/StyleGlowOpacityChangeDtoInput"
+          },
+          {
+            "$ref": "#/components/schemas/StyleGlowBlurChangeDtoInput"
+          },
+          {
+            "$ref": "#/components/schemas/StyleGlowSpreadChangeDtoInput"
           }
         ]
       },
@@ -35272,6 +35926,16 @@
             "exclusiveMinimum": 0,
             "minimum": -3.4028234663852886e+38,
             "maximum": 3.4028234663852886e+38
+          },
+          "glow": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StyleGlowDto"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -35283,7 +35947,8 @@
           "verticalCenterRatio",
           "horizontalAlignment",
           "opacity",
-          "scale"
+          "scale",
+          "glow"
         ],
         "additionalProperties": false,
         "x-clr-type": "MakoKaraGenerator.Backend.Contracts.CanonicalStyleDto",
@@ -35342,6 +36007,16 @@
             "exclusiveMinimum": 0,
             "minimum": -3.4028234663852886e+38,
             "maximum": 3.4028234663852886e+38
+          },
+          "glow": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StyleGlowDtoInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -35353,7 +36028,8 @@
           "verticalCenterRatio",
           "horizontalAlignment",
           "opacity",
-          "scale"
+          "scale",
+          "glow"
         ],
         "additionalProperties": false,
         "x-clr-type": "MakoKaraGenerator.Backend.Contracts.CanonicalStyleDto",
@@ -35915,7 +36591,12 @@
           "shadowBlurPx",
           "shadowSpec",
           "opacity",
-          "scale"
+          "scale",
+          "glowSpec",
+          "glowColor",
+          "glowOpacity",
+          "glowBlurRadiusPx",
+          "glowSpreadPx"
         ]
       },
       "TemplateSampleBindingDto": {
@@ -36021,7 +36702,7 @@
           },
           "properties": {
             "type": "array",
-            "maxItems": 21,
+            "maxItems": 26,
             "uniqueItems": true,
             "items": {
               "$ref": "#/components/schemas/TemplateProperty"

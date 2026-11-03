@@ -14,14 +14,12 @@ public sealed class AnalysisStaticProjectSnapshotCodecTests
     private static readonly string Hash = new('a', 64);
 
     [Fact]
-    public void 原068实际捕获的旧能力全部字节除产品引擎版本外保持不变()
+    public void 旧格式快照即使替换引擎版本也不能绕过新辉光源成员门禁()
     {
         string fixture = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "static-snapshot-v1.baseline.json"));
         byte[] expected = Encoding.UTF8.GetBytes(fixture.Replace("{{ENGINE_IDENTITY}}", StaticProjectSnapshotCodec.EngineIdentity, StringComparison.Ordinal));
-        ProjectSnapshot captured = StaticProjectSnapshotCodec.Decode(expected);
-        Assert.Equal(StaticProjectSnapshotCodec.Profile, StaticProjectSnapshotCodec.SelectProfile(captured));
-        Assert.Equal(expected, StaticProjectSnapshotCodec.Encode(captured));
-        Assert.Equal(expected, StaticProjectSnapshotCodec.Encode(captured, StaticProjectSnapshotCodec.Profile));
+        // Preserve the historic fixture; current source shapes require explicit Glow presence.
+        Assert.Throws<SnapshotContractException>(() => StaticProjectSnapshotCodec.Decode(expected));
     }
 
     [Theory]

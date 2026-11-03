@@ -72,6 +72,7 @@ def extend(schemas, metadata, schema_for):
     for name in ("unsungFill", "sungFill"): style["properties"][name] = ref("FullTemplateFill")
     style["properties"]["stroke"] = nullable(ref("FullTemplateStroke"))
     style["properties"]["shadow"] = nullable(ref("StyleShadowDto"))
+    style["properties"]["glow"] = nullable(ref("StyleGlowDto"))
     schemas["FullTemplateStyle"] = style
     audit(metadata, "FullTemplateDefinitionDto", dict(name="String", kind="TemplateKind", style="CanonicalStyleDto", properties="TemplateProperty[]", effectRecipes="TemplateEffectRecipeDto[]", packages="EffectPackageReferenceDto[]"), base="StaticTemplateDefinitionDto")
     recipe_fields = dict(recipeId=TEXT, name=TEXT, target=ref("TemplateEffectTargetDto"), packageId=TEXT, revision=PACKAGE_REVISION,
@@ -81,7 +82,7 @@ def extend(schemas, metadata, schema_for):
     recipe = obj(recipe_fields)
     recipe["allOf"] = [{"if": {"properties": {"readScope": {"const": "branchInput"}}}, "then": {"properties": {"branchInput": TEXT}}, "else": {"properties": {"branchInput": {"type": "null"}}}}]
     for suffix in ("", "Input"): schemas["TemplateEffectRecipeDto" + suffix] = copy.deepcopy(recipe)
-    props = dict(name=TEXT, kind=ref("TemplateKind"), style=ref("FullTemplateStyle"), properties={"type": "array", "maxItems": 21, "uniqueItems": True, "items": ref("TemplateProperty")},
+    props = dict(name=TEXT, kind=ref("TemplateKind"), style=ref("FullTemplateStyle"), properties={"type": "array", "maxItems": 26, "uniqueItems": True, "items": ref("TemplateProperty")},
         effectRecipes={"type": "array", "items": ref("TemplateEffectRecipeDto")}, packages={"type": "array", "items": ref("EffectPackageReferenceDtoInput")})
     for suffix in ("", "Input"):
         definition = obj(copy.deepcopy(props))

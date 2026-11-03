@@ -22321,7 +22321,8 @@
         "verticalCenterRatio": 0.5,
         "horizontalAlignment": "center",
         "opacity": 1,
-        "scale": 1
+        "scale": 1,
+        "glow": null
       }
     },
     {
@@ -22407,7 +22408,8 @@
         "verticalCenterRatio": 0.5,
         "horizontalAlignment": "center",
         "opacity": 1,
-        "scale": 1
+        "scale": 1,
+        "glow": null
       }
     },
     {
@@ -22493,7 +22495,8 @@
         "verticalCenterRatio": 0.5,
         "horizontalAlignment": "center",
         "opacity": 1,
-        "scale": 1
+        "scale": 1,
+        "glow": null
       }
     },
     {
@@ -22579,7 +22582,8 @@
         "verticalCenterRatio": 0.5,
         "horizontalAlignment": "center",
         "opacity": 1,
-        "scale": 1
+        "scale": 1,
+        "glow": null
       }
     },
     {
@@ -22730,7 +22734,8 @@
         "verticalCenterRatio": 0.5,
         "horizontalAlignment": "center",
         "opacity": 1,
-        "scale": 1
+        "scale": 1,
+        "glow": null
       }
     },
     {
@@ -22825,7 +22830,8 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "glow": null
         },
         "local": [
           {
@@ -22917,7 +22923,8 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "glow": null
         },
         "hasPresetApplications": true,
         "resolution": "staticHierarchy",
@@ -23014,7 +23021,8 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "glow": null
         },
         "local": [],
         "staticHierarchy": {
@@ -23097,7 +23105,8 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "glow": null
         },
         "hasPresetApplications": true,
         "resolution": "staticHierarchy",
@@ -23194,7 +23203,8 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "glow": null
         },
         "local": [
           {
@@ -23286,7 +23296,8 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "glow": null
         },
         "hasPresetApplications": true,
         "resolution": "staticHierarchy",
@@ -23384,7 +23395,8 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "glow": null
         },
         "local": [
           {
@@ -23476,7 +23488,8 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "glow": null
         },
         "hasPresetApplications": true,
         "resolution": "staticHierarchy",
@@ -23574,7 +23587,8 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "glow": null
         },
         "local": [
           {
@@ -23666,7 +23680,8 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "glow": null
         },
         "hasPresetApplications": true,
         "resolution": "staticHierarchy",
@@ -23760,7 +23775,8 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "glow": null
         },
         "local": [
           {
@@ -23852,7 +23868,8 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "glow": null
         },
         "hasPresetApplications": true,
         "resolution": "staticHierarchy",
@@ -23961,7 +23978,8 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "glow": null
         },
         "hasPresetApplications": true,
         "resolution": "staticHierarchy",
@@ -24060,7 +24078,8 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "glow": null
         },
         "staticHierarchy": {
           "typography": {
@@ -24142,7 +24161,8 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "glow": null
         },
         "hasPresetApplications": true,
         "resolution": "staticHierarchy",
@@ -24241,7 +24261,8 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "glow": null
         },
         "local": [
           {
@@ -24350,7 +24371,8 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "glow": null
         },
         "local": [
           {
@@ -24442,7 +24464,8 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "glow": null
         },
         "resolution": "staticHierarchy",
         "protocolVersion": "1"
@@ -24540,7 +24563,8 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "glow": null
         },
         "local": [
           {
@@ -24632,7 +24656,8 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "glow": null
         },
         "hasPresetApplications": true,
         "protocolVersion": "1"
@@ -24730,7 +24755,8 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "glow": null
         },
         "local": [
           {
@@ -24822,7 +24848,8 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "glow": null
         },
         "hasPresetApplications": true,
         "resolution": "staticHierarchy"
@@ -24920,7 +24947,8 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "glow": null
         },
         "local": [
           {
@@ -25012,7 +25040,8 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "glow": null
         },
         "hasPresetApplications": true,
         "resolution": "effective",
@@ -25111,7 +25140,8 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "glow": null
         },
         "local": [
           {
@@ -25203,7 +25233,8 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "glow": null
         },
         "hasPresetApplications": true,
         "resolution": "staticHierarchy",
@@ -25314,7 +25345,8 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "glow": null
           }
         }
       }
@@ -25398,7 +25430,8 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "glow": null
             }
           }
         }
@@ -25475,7 +25508,8 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "glow": null
           }
         }
       }
@@ -25552,7 +25586,8 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "glow": null
           }
         }
       }
@@ -25646,7 +25681,8 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "glow": null
           }
         },
         "projectSessionId": null
@@ -25724,7 +25760,8 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "glow": null
           }
         },
         "target": null
@@ -25802,7 +25839,8 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "glow": null
           }
         },
         "sourceLibraryId": null
@@ -25880,7 +25918,8 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "glow": null
           }
         },
         "sourceRevision": null
@@ -25958,7 +25997,8 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "glow": null
           }
         },
         "templateId": null
@@ -26036,7 +26076,8 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "glow": null
           }
         },
         "name": null
@@ -26114,7 +26155,8 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "glow": null
           }
         },
         "extra": null
@@ -26193,7 +26235,8 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "glow": null
           }
         }
       }
@@ -26278,7 +26321,8 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "glow": null
             }
           }
         }
@@ -26356,7 +26400,8 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "glow": null
           }
         }
       }
@@ -26434,7 +26479,8 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "glow": null
           }
         }
       }
@@ -26511,7 +26557,8 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "glow": null
           }
         }
       }
@@ -26589,7 +26636,8 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "glow": null
           }
         }
       }
@@ -26686,7 +26734,8 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "glow": null
           }
         },
         "projectSessionId": null
@@ -26765,7 +26814,8 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "glow": null
           }
         },
         "target": null
@@ -26844,7 +26894,8 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "glow": null
           }
         },
         "sourceLibraryId": null
@@ -26923,7 +26974,8 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "glow": null
           }
         },
         "sourceRevision": null
@@ -27002,7 +27054,8 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "glow": null
           }
         },
         "name": null
@@ -27081,7 +27134,8 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "glow": null
           }
         },
         "extra": null
@@ -27645,7 +27699,8 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "glow": null
             }
           }
         }
@@ -27730,7 +27785,8 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "glow": null
             }
           }
         }
@@ -27810,7 +27866,8 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "glow": null
             }
           }
         }
@@ -27891,7 +27948,8 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "glow": null
             }
           }
         }
@@ -28003,7 +28061,8 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "glow": null
             }
           }
         },
@@ -28089,7 +28148,8 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "glow": null
             }
           }
         }
@@ -28174,7 +28234,8 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "glow": null
             }
           }
         }
@@ -28259,7 +28320,8 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "glow": null
             }
           }
         }
@@ -28344,7 +28406,8 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "glow": null
             }
           }
         }
@@ -28429,7 +28492,8 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "glow": null
             }
           }
         }
@@ -28514,7 +28578,8 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "glow": null
             }
           }
         }
@@ -28599,7 +28664,8 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "glow": null
             }
           }
         }
@@ -28684,7 +28750,8 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "glow": null
             }
           }
         }
@@ -28833,7 +28900,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -28887,7 +28955,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -28941,7 +29010,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -28995,7 +29065,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -29049,7 +29120,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -29103,7 +29175,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -29157,7 +29230,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -29211,7 +29285,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -29265,7 +29340,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -29319,7 +29395,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -29373,7 +29450,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -29427,7 +29505,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -29481,7 +29560,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -29535,7 +29615,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -29589,7 +29670,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -29643,7 +29725,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -29697,7 +29780,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -29751,7 +29835,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -29805,7 +29890,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -29859,7 +29945,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -29913,7 +30000,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -29967,7 +30055,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -30021,7 +30110,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -30075,7 +30165,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -30129,7 +30220,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -30183,7 +30275,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -30237,7 +30330,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -30291,7 +30385,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -30345,7 +30440,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -30399,7 +30495,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -30453,7 +30550,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -30507,7 +30605,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -30561,7 +30660,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -30615,7 +30715,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -30669,7 +30770,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -30723,7 +30825,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -30777,7 +30880,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -30831,7 +30935,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -30885,7 +30990,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -30939,7 +31045,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -30993,7 +31100,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -31047,7 +31155,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -31101,7 +31210,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -31155,7 +31265,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -31209,7 +31320,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -31263,7 +31375,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -31317,7 +31430,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -31371,7 +31485,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -31425,7 +31540,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -31479,7 +31595,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -31533,7 +31650,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -31587,7 +31705,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -31641,7 +31760,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -31695,7 +31815,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -31749,7 +31870,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -31803,7 +31925,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -31857,7 +31980,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -31911,7 +32035,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -31965,7 +32090,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -32019,7 +32145,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -32073,7 +32200,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -32127,7 +32255,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -32181,7 +32310,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -32236,7 +32366,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -32288,7 +32419,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -32343,7 +32475,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -32397,7 +32530,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -32451,7 +32585,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -32505,7 +32640,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -32559,7 +32695,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -32611,7 +32748,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -32685,7 +32823,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -32759,7 +32898,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -32833,7 +32973,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -32907,7 +33048,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -32980,7 +33122,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -33054,7 +33197,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -33127,7 +33271,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -33201,7 +33346,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -33252,7 +33398,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -33304,7 +33451,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -33443,7 +33591,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         },
         "effectRecipes": []
       }
@@ -33480,7 +33629,8 @@
         "verticalCenterRatio": 0.625,
         "horizontalAlignment": "right",
         "opacity": 0.875,
-        "scale": 1.125
+        "scale": 1.125,
+        "glow": null
       }
     },
     {
@@ -33516,7 +33666,8 @@
         "verticalCenterRatio": 0.625,
         "horizontalAlignment": "right",
         "opacity": 0.875,
-        "scale": 1.125
+        "scale": 1.125,
+        "glow": null
       }
     },
     {
@@ -33552,7 +33703,8 @@
         "verticalCenterRatio": 0.625,
         "horizontalAlignment": "right",
         "opacity": 0.875,
-        "scale": 1.125
+        "scale": 1.125,
+        "glow": null
       }
     },
     {
@@ -33589,7 +33741,8 @@
         "verticalCenterRatio": 0.625,
         "horizontalAlignment": "right",
         "opacity": 0.875,
-        "scale": 1.125
+        "scale": 1.125,
+        "glow": null
       }
     },
     {
@@ -33625,7 +33778,8 @@
         "verticalCenterRatio": 0.625,
         "horizontalAlignment": "right",
         "opacity": 0.875,
-        "scale": 1.125
+        "scale": 1.125,
+        "glow": null
       }
     },
     {
@@ -33662,7 +33816,8 @@
         "verticalCenterRatio": 0.625,
         "horizontalAlignment": "right",
         "opacity": 0.875,
-        "scale": 1.125
+        "scale": 1.125,
+        "glow": null
       }
     },
     {
@@ -33708,7 +33863,8 @@
         "verticalCenterRatio": 0.625,
         "horizontalAlignment": "right",
         "opacity": 0.875,
-        "scale": 1.125
+        "scale": 1.125,
+        "glow": null
       }
     },
     {
@@ -33755,7 +33911,8 @@
         "verticalCenterRatio": 0.625,
         "horizontalAlignment": "right",
         "opacity": 0.875,
-        "scale": 1.125
+        "scale": 1.125,
+        "glow": null
       }
     },
     {
@@ -33801,7 +33958,8 @@
         "verticalCenterRatio": 0.625,
         "horizontalAlignment": "right",
         "opacity": 0.875,
-        "scale": 1.125
+        "scale": 1.125,
+        "glow": null
       }
     },
     {
@@ -33848,7 +34006,8 @@
         "verticalCenterRatio": 0.625,
         "horizontalAlignment": "right",
         "opacity": 0.875,
-        "scale": 1.125
+        "scale": 1.125,
+        "glow": null
       }
     },
     {
@@ -33894,7 +34053,8 @@
         "shadow": null,
         "horizontalAlignment": "right",
         "opacity": 0.875,
-        "scale": 1.125
+        "scale": 1.125,
+        "glow": null
       }
     },
     {
@@ -33941,7 +34101,8 @@
         "verticalCenterRatio": null,
         "horizontalAlignment": "right",
         "opacity": 0.875,
-        "scale": 1.125
+        "scale": 1.125,
+        "glow": null
       }
     },
     {
@@ -33987,7 +34148,8 @@
         "shadow": null,
         "verticalCenterRatio": 0.625,
         "opacity": 0.875,
-        "scale": 1.125
+        "scale": 1.125,
+        "glow": null
       }
     },
     {
@@ -34034,7 +34196,8 @@
         "verticalCenterRatio": 0.625,
         "horizontalAlignment": null,
         "opacity": 0.875,
-        "scale": 1.125
+        "scale": 1.125,
+        "glow": null
       }
     },
     {
@@ -34080,7 +34243,8 @@
         "shadow": null,
         "verticalCenterRatio": 0.625,
         "horizontalAlignment": "right",
-        "scale": 1.125
+        "scale": 1.125,
+        "glow": null
       }
     },
     {
@@ -34127,7 +34291,8 @@
         "verticalCenterRatio": 0.625,
         "horizontalAlignment": "right",
         "opacity": null,
-        "scale": 1.125
+        "scale": 1.125,
+        "glow": null
       }
     },
     {
@@ -34173,7 +34338,8 @@
         "shadow": null,
         "verticalCenterRatio": 0.625,
         "horizontalAlignment": "right",
-        "opacity": 0.875
+        "opacity": 0.875,
+        "glow": null
       }
     },
     {
@@ -34220,7 +34386,8 @@
         "verticalCenterRatio": 0.625,
         "horizontalAlignment": "right",
         "opacity": 0.875,
-        "scale": null
+        "scale": null,
+        "glow": null
       }
     },
     {
@@ -34268,7 +34435,8 @@
         "horizontalAlignment": "right",
         "opacity": 0.875,
         "scale": 1.125,
-        "extra": null
+        "extra": null,
+        "glow": null
       }
     },
     {
@@ -34584,7 +34752,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -34658,7 +34827,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -34762,7 +34932,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -34867,7 +35038,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -34941,7 +35113,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -35058,7 +35231,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -37452,7 +37626,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -39846,7 +40021,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -39917,7 +40093,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -39988,7 +40165,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -40059,7 +40237,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -40130,7 +40309,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         }
       }
     },
@@ -40220,7 +40400,8 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "glow": null
           }
         },
         "protocolVersion": "1"
@@ -40359,7 +40540,8 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "glow": null
           }
         },
         "protocolVersion": "1"
@@ -40475,7 +40657,8 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "glow": null
           }
         },
         "protocolVersion": "1"
@@ -40567,7 +40750,8 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "glow": null
           }
         }
       }
@@ -45726,7 +45910,8 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "glow": null
             }
           }
         },
@@ -58314,7 +58499,8 @@
           },
           "stroke": null,
           "shadow": null,
-          "opacity": 1
+          "opacity": 1,
+          "glow": null
         }
       },
       "valid": true
@@ -58359,7 +58545,8 @@
           },
           "stroke": null,
           "shadow": null,
-          "opacity": 1
+          "opacity": 1,
+          "glow": null
         }
       },
       "valid": true
@@ -58409,7 +58596,8 @@
             },
             "stroke": null,
             "shadow": null,
-            "opacity": 1
+            "opacity": 1,
+            "glow": null
           }
         }
       },
@@ -58454,7 +58642,8 @@
           },
           "stroke": null,
           "shadow": null,
-          "opacity": 1
+          "opacity": 1,
+          "glow": null
         }
       },
       "valid": false
@@ -58498,7 +58687,8 @@
           },
           "stroke": null,
           "shadow": null,
-          "opacity": 1
+          "opacity": 1,
+          "glow": null
         }
       },
       "valid": false
@@ -58552,7 +58742,8 @@
           },
           "stroke": null,
           "shadow": null,
-          "opacity": 1
+          "opacity": 1,
+          "glow": null
         },
         "unknown": true
       },
@@ -58598,7 +58789,8 @@
           },
           "stroke": null,
           "shadow": null,
-          "opacity": 1
+          "opacity": 1,
+          "glow": null
         },
         "target": null
       },
@@ -58644,7 +58836,8 @@
           },
           "stroke": null,
           "shadow": null,
-          "opacity": 1
+          "opacity": 1,
+          "glow": null
         },
         "analysisJobId": null
       },
@@ -58690,7 +58883,8 @@
           },
           "stroke": null,
           "shadow": null,
-          "opacity": 1
+          "opacity": 1,
+          "glow": null
         },
         "startUs": null
       },
@@ -58736,7 +58930,8 @@
           },
           "stroke": null,
           "shadow": null,
-          "opacity": 1
+          "opacity": 1,
+          "glow": null
         },
         "endUs": null
       },
@@ -58782,7 +58977,8 @@
           },
           "stroke": null,
           "shadow": null,
-          "opacity": 1
+          "opacity": 1,
+          "glow": null
         }
       },
       "valid": false
@@ -58827,7 +59023,8 @@
           },
           "stroke": null,
           "shadow": null,
-          "opacity": 1
+          "opacity": 1,
+          "glow": null
         }
       },
       "valid": false
@@ -58872,7 +59069,8 @@
           },
           "stroke": null,
           "shadow": null,
-          "opacity": 1
+          "opacity": 1,
+          "glow": null
         }
       },
       "valid": false
@@ -58917,7 +59115,8 @@
           },
           "stroke": null,
           "shadow": null,
-          "opacity": 1
+          "opacity": 1,
+          "glow": null
         }
       },
       "valid": false
@@ -58962,7 +59161,8 @@
           },
           "stroke": null,
           "shadow": null,
-          "opacity": 1
+          "opacity": 1,
+          "glow": null
         }
       },
       "valid": false
@@ -59864,7 +60064,8 @@
         },
         "stroke": null,
         "shadow": null,
-        "opacity": 1
+        "opacity": 1,
+        "glow": null
       },
       "valid": false
     },
@@ -59894,7 +60095,8 @@
         },
         "stroke": null,
         "shadow": null,
-        "opacity": 1
+        "opacity": 1,
+        "glow": null
       },
       "valid": false
     },
@@ -59924,7 +60126,8 @@
         },
         "stroke": null,
         "shadow": null,
-        "opacity": 1
+        "opacity": 1,
+        "glow": null
       },
       "valid": false
     },
@@ -59964,7 +60167,8 @@
           }
         },
         "shadow": null,
-        "opacity": 1
+        "opacity": 1,
+        "glow": null
       },
       "valid": false
     },
@@ -60004,7 +60208,8 @@
           }
         },
         "stroke": null,
-        "opacity": 1
+        "opacity": 1,
+        "glow": null
       },
       "valid": false
     },
@@ -60044,7 +60249,8 @@
           }
         },
         "stroke": null,
-        "shadow": null
+        "shadow": null,
+        "glow": null
       },
       "valid": false
     },
@@ -60086,7 +60292,8 @@
         "stroke": null,
         "shadow": null,
         "opacity": 1,
-        "scale": 1
+        "scale": 1,
+        "glow": null
       },
       "valid": false
     },
@@ -60128,7 +60335,8 @@
         "stroke": null,
         "shadow": null,
         "opacity": 1,
-        "verticalCenterRatio": 0.5
+        "verticalCenterRatio": 0.5,
+        "glow": null
       },
       "valid": false
     },
@@ -60170,7 +60378,8 @@
         "stroke": null,
         "shadow": null,
         "opacity": 1,
-        "horizontalAlignment": "center"
+        "horizontalAlignment": "center",
+        "glow": null
       },
       "valid": false
     },
@@ -68535,7 +68744,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         },
         "sources": [
           {
@@ -68620,6 +68830,26 @@
           },
           {
             "property": "scale",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowSpec",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowColor",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowOpacity",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowBlurRadiusPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowSpreadPx",
             "sourcePath": "project.baseStyle"
           }
         ],
@@ -68725,7 +68955,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         },
         "sources": [
           {
@@ -68810,6 +69041,26 @@
           },
           {
             "property": "scale",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowSpec",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowColor",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowOpacity",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowBlurRadiusPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowSpreadPx",
             "sourcePath": "project.baseStyle"
           }
         ],
@@ -68879,7 +69130,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         },
         "sources": [
           {
@@ -68961,6 +69213,26 @@
           {
             "property": "opacity",
             "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowSpec",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowColor",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowOpacity",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowBlurRadiusPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowSpreadPx",
+            "sourcePath": "project.baseStyle"
           }
         ],
         "resolution": "staticPresetHierarchy",
@@ -69029,7 +69301,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         },
         "sources": [
           {
@@ -69114,6 +69387,26 @@
           },
           {
             "property": "fontFamilyName",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowSpec",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowColor",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowOpacity",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowBlurRadiusPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowSpreadPx",
             "sourcePath": "project.baseStyle"
           }
         ],
@@ -69867,7 +70160,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         },
         "sources": [
           {
@@ -69952,6 +70246,26 @@
           },
           {
             "property": "scale",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowSpec",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowColor",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowOpacity",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowBlurRadiusPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowSpreadPx",
             "sourcePath": "project.baseStyle"
           }
         ],
@@ -70021,7 +70335,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         },
         "sources": [
           {
@@ -70106,6 +70421,26 @@
           },
           {
             "property": "scale",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowSpec",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowColor",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowOpacity",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowBlurRadiusPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowSpreadPx",
             "sourcePath": "project.baseStyle"
           }
         ],
@@ -70174,7 +70509,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         },
         "sources": [
           {
@@ -70259,6 +70595,26 @@
           },
           {
             "property": "scale",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowSpec",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowColor",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowOpacity",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowBlurRadiusPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowSpreadPx",
             "sourcePath": "project.baseStyle"
           }
         ],
@@ -70328,7 +70684,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         },
         "sources": [
           {
@@ -70413,6 +70770,26 @@
           },
           {
             "property": "scale",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowSpec",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowColor",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowOpacity",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowBlurRadiusPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowSpreadPx",
             "sourcePath": "project.baseStyle"
           }
         ],
@@ -70468,7 +70845,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         },
         "sources": [
           {
@@ -70553,6 +70931,26 @@
           },
           {
             "property": "scale",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowSpec",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowColor",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowOpacity",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowBlurRadiusPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowSpreadPx",
             "sourcePath": "project.baseStyle"
           }
         ],
@@ -70609,7 +71007,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         },
         "sources": [
           {
@@ -70694,6 +71093,26 @@
           },
           {
             "property": "scale",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowSpec",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowColor",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowOpacity",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowBlurRadiusPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowSpreadPx",
             "sourcePath": "project.baseStyle"
           }
         ],
@@ -70806,6 +71225,26 @@
           },
           {
             "property": "scale",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowSpec",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowColor",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowOpacity",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowBlurRadiusPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowSpreadPx",
             "sourcePath": "project.baseStyle"
           }
         ],
@@ -70920,6 +71359,26 @@
           {
             "property": "scale",
             "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowSpec",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowColor",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowOpacity",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowBlurRadiusPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowSpreadPx",
+            "sourcePath": "project.baseStyle"
           }
         ],
         "resolution": "staticPresetHierarchy",
@@ -70988,7 +71447,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         },
         "resolution": "staticPresetHierarchy",
         "finalPixelAppearance": false,
@@ -71056,7 +71516,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         },
         "sources": null,
         "resolution": "staticPresetHierarchy",
@@ -71125,7 +71586,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         },
         "sources": [
           {
@@ -71278,7 +71740,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         },
         "sources": [
           {
@@ -71432,7 +71895,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         },
         "sources": [
           {
@@ -71517,6 +71981,26 @@
           },
           {
             "property": "scale",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowSpec",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowColor",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowOpacity",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowBlurRadiusPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowSpreadPx",
             "sourcePath": "project.baseStyle"
           }
         ],
@@ -71585,7 +72069,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         },
         "sources": [
           {
@@ -71670,6 +72155,26 @@
           },
           {
             "property": "scale",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowSpec",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowColor",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowOpacity",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowBlurRadiusPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowSpreadPx",
             "sourcePath": "project.baseStyle"
           }
         ],
@@ -71739,7 +72244,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         },
         "sources": [
           {
@@ -71824,6 +72330,26 @@
           },
           {
             "property": "scale",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowSpec",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowColor",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowOpacity",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowBlurRadiusPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowSpreadPx",
             "sourcePath": "project.baseStyle"
           }
         ],
@@ -71892,7 +72418,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         },
         "sources": [
           {
@@ -71977,6 +72504,26 @@
           },
           {
             "property": "scale",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowSpec",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowColor",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowOpacity",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowBlurRadiusPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "glowSpreadPx",
             "sourcePath": "project.baseStyle"
           }
         ],
@@ -114056,7 +114603,8 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "glow": null
           }
         },
         "protocolVersion": "1"
@@ -114552,7 +115100,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         },
         "effectRecipes": [
           {
@@ -114629,7 +115178,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         },
         "effectRecipes": [
           {
@@ -114706,7 +115256,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         },
         "effectRecipes": [],
         "packages": [
@@ -114789,7 +115340,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         },
         "packages": [
           {
@@ -114871,7 +115423,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         },
         "effectRecipes": [
           {
@@ -115019,7 +115572,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         },
         "effectRecipes": [
           null
@@ -115104,7 +115658,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         },
         "effectRecipes": [
           {
@@ -115375,7 +115930,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         },
         "effectRecipes": [
           {
@@ -115474,7 +116030,8 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "glow": null
         },
         "effectRecipes": [
           {
@@ -115576,7 +116133,8 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "glow": null
           },
           "effectRecipes": [
             {
@@ -115678,7 +116236,8 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "glow": null
           },
           "effectRecipes": [
             {
@@ -115781,7 +116340,8 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "glow": null
           },
           "effectRecipes": [
             {
@@ -115884,7 +116444,8 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "glow": null
           },
           "effectRecipes": [
             {
@@ -115987,7 +116548,8 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "glow": null
           },
           "effectRecipes": [
             {
@@ -116091,7 +116653,8 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "glow": null
           },
           "effectRecipes": [
             {
@@ -116211,7 +116774,8 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "glow": null
             },
             "effectRecipes": [
               {
@@ -116316,7 +116880,8 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "glow": null
             }
           }
         }
@@ -116397,7 +116962,8 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "glow": null
             },
             "effectRecipes": [
               {
@@ -116519,7 +117085,8 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "glow": null
             },
             "effectRecipes": [
               {
@@ -116665,7 +117232,8 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "glow": null
             },
             "effectRecipes": [
               {
@@ -116784,7 +117352,8 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "glow": null
             },
             "effectRecipes": [
               {
@@ -117998,7 +118567,8 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "glow": null
             },
             "effectRecipes": [
               {
@@ -118124,7 +118694,8 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "glow": null
             },
             "effectRecipes": [
               {
@@ -125895,7 +126466,365 @@
         "textureAlphaMode": "straight"
       },
       "valid": false
+    },
+    {
+      "name": "glow-change-glow",
+      "schema": "StyleChangeDtoInput",
+      "valid": true,
+      "value": {
+        "property": "glow",
+        "value": {
+          "color": {
+            "red": 255,
+            "green": 255,
+            "blue": 255,
+            "alpha": 255
+          },
+          "opacity": 1,
+          "blurRadiusPx": 8,
+          "spreadPx": 0
+        }
+      }
+    },
+    {
+      "name": "glow-token-glow",
+      "schema": "ProjectCommandDtoInput",
+      "valid": true,
+      "value": {
+        "type": "styles.patch",
+        "targets": [
+          {
+            "kind": "token",
+            "branchId": "b",
+            "lineId": "l",
+            "tokenId": "t"
+          }
+        ],
+        "changes": [
+          {
+            "property": "glow",
+            "value": {
+              "color": {
+                "red": 255,
+                "green": 255,
+                "blue": 255,
+                "alpha": 255
+              },
+              "opacity": 1,
+              "blurRadiusPx": 8,
+              "spreadPx": 0
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "glow-null-glow",
+      "schema": "StyleChangeDtoInput",
+      "valid": true,
+      "value": {
+        "property": "glow",
+        "value": null
+      }
+    },
+    {
+      "name": "glow-change-glow.color",
+      "schema": "StyleChangeDtoInput",
+      "valid": true,
+      "value": {
+        "property": "glow.color",
+        "value": {
+          "red": 255,
+          "green": 255,
+          "blue": 255,
+          "alpha": 255
+        }
+      }
+    },
+    {
+      "name": "glow-token-glow.color",
+      "schema": "ProjectCommandDtoInput",
+      "valid": true,
+      "value": {
+        "type": "styles.patch",
+        "targets": [
+          {
+            "kind": "token",
+            "branchId": "b",
+            "lineId": "l",
+            "tokenId": "t"
+          }
+        ],
+        "changes": [
+          {
+            "property": "glow.color",
+            "value": {
+              "red": 255,
+              "green": 255,
+              "blue": 255,
+              "alpha": 255
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "glow-null-glow.color",
+      "schema": "StyleChangeDtoInput",
+      "valid": false,
+      "value": {
+        "property": "glow.color",
+        "value": null
+      }
+    },
+    {
+      "name": "glow-change-glow.opacity",
+      "schema": "StyleChangeDtoInput",
+      "valid": true,
+      "value": {
+        "property": "glow.opacity",
+        "value": 0.5
+      }
+    },
+    {
+      "name": "glow-token-glow.opacity",
+      "schema": "ProjectCommandDtoInput",
+      "valid": true,
+      "value": {
+        "type": "styles.patch",
+        "targets": [
+          {
+            "kind": "token",
+            "branchId": "b",
+            "lineId": "l",
+            "tokenId": "t"
+          }
+        ],
+        "changes": [
+          {
+            "property": "glow.opacity",
+            "value": 0.5
+          }
+        ]
+      }
+    },
+    {
+      "name": "glow-null-glow.opacity",
+      "schema": "StyleChangeDtoInput",
+      "valid": false,
+      "value": {
+        "property": "glow.opacity",
+        "value": null
+      }
+    },
+    {
+      "name": "glow-change-glow.blurRadiusPx",
+      "schema": "StyleChangeDtoInput",
+      "valid": true,
+      "value": {
+        "property": "glow.blurRadiusPx",
+        "value": 4
+      }
+    },
+    {
+      "name": "glow-token-glow.blurRadiusPx",
+      "schema": "ProjectCommandDtoInput",
+      "valid": true,
+      "value": {
+        "type": "styles.patch",
+        "targets": [
+          {
+            "kind": "token",
+            "branchId": "b",
+            "lineId": "l",
+            "tokenId": "t"
+          }
+        ],
+        "changes": [
+          {
+            "property": "glow.blurRadiusPx",
+            "value": 4
+          }
+        ]
+      }
+    },
+    {
+      "name": "glow-null-glow.blurRadiusPx",
+      "schema": "StyleChangeDtoInput",
+      "valid": false,
+      "value": {
+        "property": "glow.blurRadiusPx",
+        "value": null
+      }
+    },
+    {
+      "name": "glow-change-glow.spreadPx",
+      "schema": "StyleChangeDtoInput",
+      "valid": true,
+      "value": {
+        "property": "glow.spreadPx",
+        "value": 2
+      }
+    },
+    {
+      "name": "glow-token-glow.spreadPx",
+      "schema": "ProjectCommandDtoInput",
+      "valid": true,
+      "value": {
+        "type": "styles.patch",
+        "targets": [
+          {
+            "kind": "token",
+            "branchId": "b",
+            "lineId": "l",
+            "tokenId": "t"
+          }
+        ],
+        "changes": [
+          {
+            "property": "glow.spreadPx",
+            "value": 2
+          }
+        ]
+      }
+    },
+    {
+      "name": "glow-null-glow.spreadPx",
+      "schema": "StyleChangeDtoInput",
+      "valid": false,
+      "value": {
+        "property": "glow.spreadPx",
+        "value": null
+      }
+    },
+    {
+      "name": "glow-missing-color",
+      "schema": "StyleGlowDtoInput",
+      "valid": false,
+      "value": {
+        "opacity": 1,
+        "blurRadiusPx": 8,
+        "spreadPx": 0
+      }
+    },
+    {
+      "name": "glow-missing-opacity",
+      "schema": "StyleGlowDtoInput",
+      "valid": false,
+      "value": {
+        "color": {
+          "red": 255,
+          "green": 255,
+          "blue": 255,
+          "alpha": 255
+        },
+        "blurRadiusPx": 8,
+        "spreadPx": 0
+      }
+    },
+    {
+      "name": "glow-missing-blurRadiusPx",
+      "schema": "StyleGlowDtoInput",
+      "valid": false,
+      "value": {
+        "color": {
+          "red": 255,
+          "green": 255,
+          "blue": 255,
+          "alpha": 255
+        },
+        "opacity": 1,
+        "spreadPx": 0
+      }
+    },
+    {
+      "name": "glow-missing-spreadPx",
+      "schema": "StyleGlowDtoInput",
+      "valid": false,
+      "value": {
+        "color": {
+          "red": 255,
+          "green": 255,
+          "blue": 255,
+          "alpha": 255
+        },
+        "opacity": 1,
+        "blurRadiusPx": 8
+      }
+    },
+    {
+      "name": "glow-invalid-opacity",
+      "schema": "StyleGlowDtoInput",
+      "valid": false,
+      "value": {
+        "color": {
+          "red": 255,
+          "green": 255,
+          "blue": 255,
+          "alpha": 255
+        },
+        "opacity": 1.1,
+        "blurRadiusPx": 8,
+        "spreadPx": 0
+      }
+    },
+    {
+      "name": "glow-invalid-blurRadiusPx",
+      "schema": "StyleGlowDtoInput",
+      "valid": false,
+      "value": {
+        "color": {
+          "red": 255,
+          "green": 255,
+          "blue": 255,
+          "alpha": 255
+        },
+        "opacity": 1,
+        "blurRadiusPx": -1,
+        "spreadPx": 0
+      }
+    },
+    {
+      "name": "glow-invalid-spreadPx",
+      "schema": "StyleGlowDtoInput",
+      "valid": false,
+      "value": {
+        "color": {
+          "red": 255,
+          "green": 255,
+          "blue": 255,
+          "alpha": 255
+        },
+        "opacity": 1,
+        "blurRadiusPx": 8,
+        "spreadPx": -1
+      }
+    },
+    {
+      "name": "glow-parent-leaf-conflict",
+      "schema": "ProjectCommandDtoInput",
+      "valid": false,
+      "value": {
+        "type": "styles.patch",
+        "targets": [
+          {
+            "kind": "line",
+            "branchId": "b",
+            "lineId": "l"
+          }
+        ],
+        "changes": [
+          {
+            "property": "glow",
+            "value": null
+          },
+          {
+            "property": "glow.opacity",
+            "value": 1
+          }
+        ]
+      }
     }
   ],
-  "contractVersion": "1.41.0"
+  "contractVersion": "1.42.0"
 }

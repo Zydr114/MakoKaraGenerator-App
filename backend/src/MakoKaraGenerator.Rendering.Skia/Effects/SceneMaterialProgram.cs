@@ -30,6 +30,6 @@ public sealed class SceneMaterialProgram
         var region = value.Region switch { EffectCaptureRegion.Fill => SceneCaptureRegion.Fill,
             EffectCaptureRegion.Stroke => SceneCaptureRegion.Stroke, EffectCaptureRegion.FillAndStroke => SceneCaptureRegion.FillAndStroke,
             EffectCaptureRegion.MaterialRegion => actualRegion, _ => throw new ArgumentOutOfRangeException(nameof(actualRegion)) };
-        return new(value.IncludeRuby, value.IncludeStroke, value.IncludeShadow, value.IncludeDescendantGroups, region);
+        return new(value.IncludeRuby, value.IncludeStroke, value.IncludeShadow, value.IncludeDescendantGroups, region, value.IncludeGlow);
     }
 }

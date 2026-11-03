@@ -15,7 +15,8 @@ public sealed class ProjectStyleEditValidationTests
     [InlineData(6)] [InlineData(7)] [InlineData(8)] [InlineData(9)] [InlineData(10)] [InlineData(11)]
     [InlineData(12)] [InlineData(13)] [InlineData(14)] [InlineData(15)] [InlineData(16)] [InlineData(17)]
     [InlineData(18)] [InlineData(19)] [InlineData(20)] [InlineData(21)] [InlineData(22)] [InlineData(23)]
-    public void 二十四规范成员独立写入且恢复不会留下未选覆盖(int property)
+    [InlineData(24)] [InlineData(25)] [InlineData(26)] [InlineData(27)] [InlineData(28)]
+    public void 规范成员独立写入且恢复不会留下未选覆盖(int property)
     {
         var workspace = Workspace(); var target = Target(StyleEditTargetKind.Branch);
         var change = Change(property);
@@ -50,6 +51,7 @@ public sealed class ProjectStyleEditValidationTests
     [Theory]
     [InlineData(7)] [InlineData(8)] [InlineData(9)] [InlineData(10)] [InlineData(11)] [InlineData(12)]
     [InlineData(13)] [InlineData(14)] [InlineData(15)] [InlineData(16)] [InlineData(17)] [InlineData(18)] [InlineData(19)] [InlineData(22)]
+    [InlineData(24)] [InlineData(25)] [InlineData(26)] [InlineData(27)] [InlineData(28)]
     public void 元素仅接受原领域支持的绘制属性(int property)
     {
         var workspace = Workspace(); var result = Commit(workspace, Target(StyleEditTargetKind.Token), Change(property));
@@ -203,6 +205,9 @@ public sealed class ProjectStyleEditValidationTests
         17 => new StyleEditChange.ShadowAngle(27), 18 => new StyleEditChange.ShadowDistance(3),
         19 => new StyleEditChange.ShadowBlur(6), 20 => new StyleEditChange.VerticalCenter(.3),
         21 => new StyleEditChange.HorizontalAlignment(LyricHorizontalAlignment.Left),
-        22 => new StyleEditChange.Opacity(.7f), _ => new StyleEditChange.Scale(2),
+        22 => new StyleEditChange.Opacity(.7f), 23 => new StyleEditChange.Scale(2),
+        24 => new StyleEditChange.Glow(null), 25 => new StyleEditChange.GlowColor(RgbaColor.White),
+        26 => new StyleEditChange.GlowOpacity(.3f), 27 => new StyleEditChange.GlowBlur(6),
+        28 => new StyleEditChange.GlowSpread(2), _ => throw new ArgumentOutOfRangeException(nameof(property)),
     };
 }

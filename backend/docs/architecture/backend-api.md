@@ -1,8 +1,8 @@
 # 当前后端 HTTP API
 
-更新：2026-10-30。本批工作分支 `chore/repository-hygiene-20261029` 为 **产品0.108.0／HTTP协议1／合同1.40.0**，接续0.107.4，补齐 W8 作者草稿恢复、包文本编辑、源码历史、精确包下载、R10 能力判断与 G31 具体错误定位；CPU/GPU 选择、设备可用性和固定预览切换语义保持。实现与验证入口见[作者修复记录](../backend-w8-authoring-fixes-20261030.md)。接口和源码指纹以同一提交的[执行合同](../../web/api-contract.md)为准；历史P1～P5、GPU性能和main合入证据保持原归属。
+更新：2026-11-01。当前产品 **0.110.0／HTTP协议1／合同1.42.0**，新增独立静态外辉光，贯通四层样式、模板、文字标记、Worker快照与颜色捕获；语义见§6.11和[辉光参考](../style-reference/glow.md)。既有W8作者工作流与桌面GPU流保持；历史证据保留原归属。接口和源码指纹以同一提交的[执行合同](../../web/api-contract.md)为准。
 
-当前合同为108路径／120方法／574 schemas、3388 examples（2521反例），以生成物和合同校验报告为准。公开 `renderBackend` 严格为 `cpu|gpu`，GPU实际API为Vulkan；创建/任务省略或null使用启动默认，已有预览更新省略或null保留当前选择，候选测量省略沿候选固定选择。各渲染任务在准入时固定选择，预览/帧/事件、job input、验证/导出报告及测量响应回显；历史缺失值表示未知。设备可用性不等同于业务渲染成功，202只表示接受，GPU失败不回落CPU。合同静态门禁、本机硬件、HTTP、浏览器、跨平台及性能分别验收。
+当前合同为112路径／125方法／597 schemas、3431 examples（2547反例），以生成物和合同校验报告为准。公开 `renderBackend` 严格为 `cpu|gpu`，GPU实际API为Vulkan；创建/任务省略或null使用启动默认，已有预览更新省略或null保留当前选择，候选测量省略沿候选固定选择。各渲染任务在准入时固定选择，预览/帧/事件、job input、验证/导出报告及测量响应回显；历史缺失值表示未知。设备可用性不等同于业务渲染成功，202只表示接受，GPU失败不回落CPU。合同静态门禁、本机硬件、HTTP、浏览器、跨平台及性能分别验收。
 
 §20 的0.98直接包预览、§10.1的0.100图片验证、§22的0.99图片预览及§11.5的0.101图片导出，均保留各自历史 profile 与证据归属；这些独立 profile 的旧限制不再是本轮统一输入的全局限制。0.99的1175请求／9760断言、0.100的1412请求／10582断言等历史数字不并入本轮。更早实现、失败过程与验收数字仍见 [实施记录](../backend-extraction-progress.md)。 原顶部历史摘要保持归属：0.75内部诊断各类256条/64KiB、合计512条/128KiB与真实0.74拒绝；0.72修复`1c70fae`后的775/775及HTTP699/4239、58终态、六恢复、七controls、四Server/172成员排水，repair1的753及失败HTTP137/987仍单列于原实施记录，不计本轮。运行能力必须采用实际部署的 Worker 握手与 capabilities，不能由产品版本推定；内部进程隔离不构成任意恶意脚本 OS sandbox，也不代表浏览器或跨平台验收。
 
@@ -465,13 +465,13 @@ peaks为application/octet-stream，float32小端min/max交错、原bits完整；
 
 JSON元数据只提供事实，不需要副作用回执、也不改变历史/dirty/redo/事件。HEAD的400/401/404同样无body；GET/HEAD认证先于If-None-Match，因此旧ETag不绕过权限。成功与304暴露ETag/Content-Length，沿现安全头和私有缓存策略。窗口count按请求完整返回，越尾拒绝而非悄悄裁剪；无页游标/无需把不同歌词修订当不同音频。
 
-### 6.11 四层静态样式读写（0.83.0）
+### 6.11 四层静态样式读写（0.83.0；0.110.0 新增外辉光）
 
 产品0.83.0／合同1.8.0／协议1新增一个GET和两命令。能力为 `project-sessions.style.read`、`project-sessions.commands.styles.patch`、`project-sessions.commands.styles.restore`；旧三十三命令及原静态预览profile保持。规则复用共享Application的typed canonical Prepare／Commit，不序列化Core平面Color／Gradient访问外观。
 
 **读取。** `GET /api/v1/project-sessions/{id}/style` 必须提供唯一expectedRevision及kind。kind为project时不带ID；branch带branchId；line带branchId／lineId；token带branchId／lineId／tokenId。所有查询名和值精确匹配；拒绝多余、重复、缺少或不符合kind的字段。ID仅要求非空白，保原Unicode及前后空格，不trim、不新增128字符上限。认证、归属和修订门禁沿§6.4，未知／跨client session为404 sessionNotFound，陈旧修订409 revisionConflict，形状400 invalidRequest。稳定目标不存在为404 commandRejected／failureCode TargetStale。
 
-响应为 `projectSessionId/projectRevision/target/baseline/local/staticHierarchy/hasPresetApplications/resolution/protocolVersion`。baseline和staticHierarchy是完整嵌套canonical样式：typography七字段、unsungFill／sungFill各自唯一material、nullable stroke／shadow、verticalCenterRatio／horizontalAlignment／opacity／scale。字体null及效果null**始终保留**。local为本层真实覆盖的property／value数组：缺少属性表示本层继承，fontFamilyName:null表示明确选择后端默认字体，stroke／shadow:null表示明确关闭。非空局部描边／阴影展开为实际存在的叶成员，未覆盖叶不凭空补齐；project没有上层覆盖，local为空数组，baseline即其本层真值。
+响应为 `projectSessionId/projectRevision/target/baseline/local/staticHierarchy/hasPresetApplications/resolution/protocolVersion`。baseline和staticHierarchy是完整嵌套canonical样式：typography七字段、unsungFill／sungFill各自唯一material、nullable stroke／shadow／glow、verticalCenterRatio／horizontalAlignment／opacity／scale。字体null及效果null**始终保留**。local为本层真实覆盖的property／value数组：缺少属性表示本层继承，fontFamilyName:null表示明确选择后端默认字体，stroke／shadow／glow:null表示明确关闭。非空局部描边／阴影／辉光展开为实际存在的叶成员，未覆盖叶不凭空补齐；project没有上层覆盖，local为空数组，baseline即其本层真值。
 
 resolution固定 `staticHierarchy`，仅解析baseline→branch→line→token。hasPresetApplications只提示整个工程存在固定预设应用，包含禁用或不作用于此目标的应用；不证明该目标被覆盖。该投影不是实际帧最终外观，真实Runtime还会叠加固定预设、节点祖先和clip上下文。读取的包材质仅为 `kind:package/packageId/revision/exportId` 只读身份描述，不传参数，不编译或执行；不能作为新写入材质回传。读取不改变工程、历史、dirty、redo或事件。
 
@@ -485,7 +485,7 @@ resolution固定 `staticHierarchy`，仅解析baseline→branch→line→token�
 {"type":"styles.restore","targets":[{"kind":"line","branchId":"primary","lineId":"<实际ID>"}],"properties":["typography.fontSizePx","stroke"]}
 ```
 
-target是严格kind union，ID组合与GET相同。每次1..1000个同种且不重复目标，project只能一个；patch全批使用同一changes，restore全批使用同一properties。两数组均非空且最多24项，禁止重复属性、stroke／shadow父属性与其任一叶同时出现。value必须显式提供，不能用缺失value表示恢复继承。kind／property／所有样式枚举只接受准确camelCase字符串，数值仅JSON number，整数不接受小数词法；未知、重复、跨type字段或非法null均400 invalidRequest。
+target是严格kind union，ID组合与GET相同。每次1..1000个同种且不重复目标，project只能一个；patch全批使用同一changes，restore全批使用同一properties。两数组均非空且最多29项，禁止重复属性、stroke／shadow／glow父属性与其任一叶同时出现。value必须显式提供，不能用缺失value表示恢复继承。kind／property／所有样式枚举只接受准确camelCase字符串，数值仅JSON number，整数不接受小数词法；未知、重复、跨type字段或非法null均400 invalidRequest。
 
 | canonical property | value |
 |---|---|
@@ -497,13 +497,17 @@ target是严格kind union，ID组合与GET相同。每次1..1000个同种且不�
 | stroke.widthPx／join／position | 非负有限float／miter、round、bevel／outside |
 | shadow | 完整color／opacity／angleDegrees／distancePx／blurRadiusPx对象或显式null关闭 |
 | shadow.color／opacity／angleDegrees／distancePx／blurRadiusPx | 完整RGBA／0..1有限float／有限double／非负有限float／非负有限float |
+| glow | 完整color／opacity／blurRadiusPx／spreadPx对象或显式null关闭 |
+| glow.color／opacity／blurRadiusPx／spreadPx | 完整RGBA／0..1有限float／非负有限float／非负有限float |
 | verticalCenterRatio／horizontalAlignment／opacity／scale | 0..1有限double／left、center、right／0..1有限float／正有限float |
 
 颜色red／green／blue／alpha四个0..255整数全部必填。solid材质为kind+color；gradient为kind+完整gradient。渐变完整保kind、angleDegrees、centerX/Y、radiusX/Y、coordinateSpace、colorSpace、huePath、stops；所有几何有限，radial的中心0..1且半径>0，linear不额外套径向范围。色标至少2个，offset非降序且首0末1，允许相等位置，保原顺序；不排序、不夹紧或归一化。枚举值及完整shape见OpenAPI。
 
 patch只改指定本层成员，不能把整个解析结果固化为覆盖。明确选中材质槽才整体替换；未选的包身份、完整参数、其他效果和几何原样保留。关闭后的局部效果再set叶会成为partial overlay并从真实上层解析，上层也无效果时才用Core透明／零宽基准；project无效果时同样使用该基准。restore仅清本层对应覆盖，最后一个成员移除后归一为无覆盖；对显式关闭的效果restore某叶是no-op，restore整个效果才取消关闭。project没有上层，restore返回422 commandRejected／UnsupportedProperty。
 
-元素仅允许两填充、描边、阴影及整体opacity，字体、位置、对齐、scale均422 UnsupportedProperty。新值领域非法为422 commandRejected／InvalidValue；失效目标为422 InvalidTarget。已有非法基线沿原resolver规则明确拒绝，不在此批新增自动修复：GET为422 InvalidValue、field=style，写入422且不修改工程。新typed进程内调用的非有限CLR浮点在序列化准入返回400 command，不产生未映射任务异常；HTTP parser本身拒绝非有限JSON数值。
+元素仅允许两填充、描边、阴影、辉光及整体opacity，字体、位置、对齐、scale均422 UnsupportedProperty。新值领域非法为422 commandRejected／InvalidValue；失效目标为422 InvalidTarget。已有非法基线沿原resolver规则明确拒绝，不在此批新增自动修复：GET为422 InvalidValue、field=style，写入422且不修改工程。新typed进程内调用的非有限CLR浮点在序列化准入返回400 command，不产生未映射任务异常；HTTP parser本身拒绝非有限JSON数值。
+
+**静态外辉光（合同1.42.0）。** `glow` 默认为 null；完整对象默认白色、opacity 1、blurRadiusPx 8、spreadPx 0。部分覆盖没有上层对象时从透明色／1／0／0合并。模糊半径为高斯 sigma，spread 为 round 字形轮廓外扩；辉光来源为不透明真实字形，减去字形内部，不读取填充 alpha，也不随已唱切分重复绘制。公共样式透明度只参与一次。Ruby继承基础 token 外观，倒计时组和标记通过原外观命令支持相同字段。Core解析来源由21增至26项，模板整体/叶选择随之扩展。SDK只读 `StyleView.Glow`，现有 writer 保留该静态值。TargetColor 可由包 capture 的可选 `includeGlow`（默认 true）控制，coverage 和材质原始区域排除辉光。工程／歌词／模板 schema 为29／18／7，不新增旧格式自动迁移；更多实现边界见[静态外辉光](../style-reference/glow.md)。
 
 **历史、反馈与预算。** 全目标／属性／值先验、纯Prepare和宿主预算均先于唯一CommitPrepared；绑定workspace／generation／原Project，Writer内完成并在提交前重核close／readOnly。所有目标全有或全无；一次真实变化一次历史／修订。等值数组／渐变按内容比较，无变化保原Project、redo及LyricStylePresetId；只有工程基线真实改变才清该旧标识，PresetApplications不随之删除。读取及未选正文、时间、注音、场景、分析与音频身份保持。
 
@@ -931,7 +935,7 @@ apply只带非空且≤128字符的analysisJobId；clear用`{"type":"audio.analy
 
 个人索引修订是实际入口 JSON 的小写64位 SHA-256；不存在的入口是 `missing`，与已发布空索引不同。过期修订返回409，非法修订形状或未知／重复查询参数返回400。个人索引、schema、包资源或链接闭包损坏时返回中立的422 `commandRejected`／`LibraryInvalid`，不能把坏库当空库覆盖；内置读取不依赖个人磁盘。
 
-摘要提供模板 ID、名称、kind、固定模板修订、原21个属性选择及完整能力标志（配方、包材质、包）。静态模板 detail 的 `definitionAvailability` 为 `staticAvailable`，`definition` 包含完整 canonical 静态样式和属性选择，即使未选属性也必须有合法完整值；字体、描边和阴影的显式 null 保留。省略 `definitionFormat` 时，含配方、包或包材质的合法模板（含Composite）返回 `advancedRuntimeAvailable` 与显式 `definition:null`，静态定义字段保持原形状。显式 `definitionFormat=full` 返回 `fullAvailable`、完整可编辑 `definition` 和只读 `packageClosureDetails`，详见§24.1。原0.102.0只允许Line/Token高级闭包的状态保留其历史来源，当前兼容性由原领域模型判断。完整读取单响应最多1MiB／20000个JSON值，超限413且不截断。
+摘要提供模板 ID、名称、kind、固定模板修订、26个属性选择及完整能力标志（配方、包材质、包）。静态模板 detail 的 `definitionAvailability` 为 `staticAvailable`，`definition` 包含完整 canonical 静态样式和属性选择，即使未选属性也必须有合法完整值；字体、描边和阴影的显式 null 保留。省略 `definitionFormat` 时，含配方、包或包材质的合法模板（含Composite）返回 `advancedRuntimeAvailable` 与显式 `definition:null`，静态定义字段保持原形状。显式 `definitionFormat=full` 返回 `fullAvailable`、完整可编辑 `definition` 和只读 `packageClosureDetails`，详见§24.1。原0.102.0只允许Line/Token高级闭包的状态保留其历史来源，当前兼容性由原领域模型判断。完整读取单响应最多1MiB／20000个JSON值，超限413且不截断。
 
 ### 13.2 个人库命令
 
@@ -945,7 +949,7 @@ apply只带非空且≤128字符的analysisJobId；clear用`{"type":"audio.analy
 | `rename` | 只改名称，保留高级模板的全部配方、包、参数和未选材质。 |
 | `delete` | 删除个人索引条目，不删除历史包文件。 |
 
-名称沿既有工厂 trim；新建／替换的静态定义必须通过 kind、21属性选择、canonical 样式、solid／gradient 及所有 null／required 门禁，任何未选包材质也会使定义成为高级对象。完整新 command canonical JSON（不含 metadata）最多256KiB；新名称／字体最多256个 UTF-16 code units，回退链最多32项，单渐变最多256个色标。上述静态新输入限额不反向限制既有摘要、完整读取或服务端 copy／rename／delete。完整full分支沿原完整模板工厂校验，不添加静态控件限额；既有command总体256KiB预算仍适用。
+名称沿既有工厂 trim；新建／替换的静态定义必须通过 kind、26属性选择、canonical 样式、solid／gradient 及所有 null／required 门禁，任何未选包材质也会使定义成为高级对象。完整新 command canonical JSON（不含 metadata）最多256KiB；新名称／字体最多256个 UTF-16 code units，回退链最多32项，单渐变最多256个色标。上述静态新输入限额不反向限制既有摘要、完整读取或服务端 copy／rename／delete。完整full分支沿原完整模板工厂校验，不添加静态控件限额；既有command总体256KiB预算仍适用。
 
 所有存在性检查、CAS复核、ID生成、响应预算和发布都在同一 client 回执 owner 的模板库操作生命周期内完成。候选先纯准备，随后检查完整列表／detail／回执预算，再以原仓储的文件锁和实际修订一次提交；失败保留原库。相同成功 requestId 重试返回原回执，即使模板随后删除或库继续改变也不重复生成 ID或写入。等待取消、晚期取消、关闭排水和未知终态沿现有 client 规则处理；个人库的旧模板包资源不由删除清理。分页只限制响应窗口，不声称全库读取已经分页。
 

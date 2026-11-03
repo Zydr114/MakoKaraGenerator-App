@@ -58,14 +58,33 @@ public sealed record ShadowValue
     /// <summary>逻辑像素模糊半径。</summary>
     public double BlurRadiusPx { get; }
 }
+/// <summary>中立只读静态外发光；不提供动态写入。</summary>
+public sealed record GlowValue
+{
+    /// <summary>固定颜色、不透明度、Gaussian sigma 与向外扩张宽度。</summary>
+    public GlowValue(ColorRgba color, double opacity = 1, double blurRadiusPx = 8, double spreadPx = 0)
+    {
+        ColorRgba.Unit(opacity); Point2.Finite(blurRadiusPx); Point2.Finite(spreadPx);
+        ArgumentOutOfRangeException.ThrowIfNegative(blurRadiusPx); ArgumentOutOfRangeException.ThrowIfNegative(spreadPx);
+        Color = color; Opacity = opacity; BlurRadiusPx = blurRadiusPx; SpreadPx = spreadPx;
+    }
+    /// <summary>直乘颜色。</summary>
+    public ColorRgba Color { get; }
+    /// <summary>独立外发光不透明度 [0,1]。</summary>
+    public double Opacity { get; }
+    /// <summary>逻辑像素 Gaussian sigma。</summary>
+    public double BlurRadiusPx { get; }
+    /// <summary>真实字形向外扩张的逻辑像素宽度。</summary>
+    public double SpreadPx { get; }
+}
 /// <summary>静态解析后的只读外观；字号和源排版不属于样式 writer。</summary>
 public sealed record StyleView
 {
     /// <summary>固定两态材质、装饰及 [0,1] 样式透明度。</summary>
-    public StyleView(MaterialValue unsungMaterial, MaterialValue sungMaterial, StrokeValue? stroke, ShadowValue? shadow, double opacity)
+    public StyleView(MaterialValue unsungMaterial, MaterialValue sungMaterial, StrokeValue? stroke, ShadowValue? shadow, double opacity, GlowValue? glow = null)
     {
         ArgumentNullException.ThrowIfNull(unsungMaterial); ArgumentNullException.ThrowIfNull(sungMaterial); ColorRgba.Unit(opacity);
-        UnsungMaterial = unsungMaterial; SungMaterial = sungMaterial; Stroke = stroke; Shadow = shadow; Opacity = opacity;
+        UnsungMaterial = unsungMaterial; SungMaterial = sungMaterial; Stroke = stroke; Shadow = shadow; Opacity = opacity; Glow = glow;
     }
     /// <summary>未唱材质。</summary>
     public MaterialValue UnsungMaterial { get; }
@@ -75,6 +94,8 @@ public sealed record StyleView
     public StrokeValue? Stroke { get; }
     /// <summary>静态阴影，空为关闭。</summary>
     public ShadowValue? Shadow { get; }
+    /// <summary>只读静态外发光，空为关闭；样式 writer 不修改此值。</summary>
+    public GlowValue? Glow { get; }
     /// <summary>静态样式不透明度；不包含入场或脚本 alpha。</summary>
     public double Opacity { get; }
     /// <summary>明确要求已唱纯色；渐变／包材质报告错误，不采样猜基色。</summary>

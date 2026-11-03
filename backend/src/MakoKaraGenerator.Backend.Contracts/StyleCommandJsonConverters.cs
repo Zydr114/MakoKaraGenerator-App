@@ -102,6 +102,11 @@ public sealed class StyleChangeJsonConverter : JsonConverter<StyleChangeDto>
             case StyleShadowAngleChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
             case StyleShadowDistanceChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
             case StyleShadowBlurChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleGlowChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleGlowColorChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleGlowOpacityChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleGlowBlurChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleGlowSpreadChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
             case StyleVerticalCenterChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
             case StyleAlignmentChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
             case StyleOpacityChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
@@ -140,6 +145,7 @@ internal static class StyleCommandJson
         "horizontalAlignment",
         "opacity",
         "scale",
+        "glow", "glow.color", "glow.opacity", "glow.blurRadiusPx", "glow.spreadPx",
     ];
     internal static Dictionary<string, JsonElement> Fields(JsonElement root, params string[] keys)
     {
@@ -173,14 +179,14 @@ internal static class StyleCommandJson
     }
     internal static CanonicalStyleDto CanonicalStyle(JsonElement root, bool fullTemplate = false)
     {
-        var f = Fields(root, "typography", "unsungFill", "sungFill", "stroke", "shadow", "verticalCenterRatio", "horizontalAlignment", "opacity", "scale");
+        var f = Fields(root, "typography", "unsungFill", "sungFill", "stroke", "shadow", "verticalCenterRatio", "horizontalAlignment", "opacity", "scale", "glow");
         var t = Fields(f["typography"], "fontFamilyName", "fallbackFamilyNames", "fontSizePx", "fontWeight", "isBold", "isItalic", "letterSpacingPx");
         var unsung = Fields(f["unsungFill"], "material"); var sung = Fields(f["sungFill"], "material");
         return new(new(NullableString(t["fontFamilyName"]), Strings(t["fallbackFamilyNames"]), Float(t["fontSizePx"]), Integer(t["fontWeight"]),
                 Boolean(t["isBold"]), Boolean(t["isItalic"]), Float(t["letterSpacingPx"])),
             new(Material(unsung["material"], fullTemplate)), new(Material(sung["material"], fullTemplate)), f["stroke"].ValueKind == JsonValueKind.Null ? null : Stroke(f["stroke"], fullTemplate),
             f["shadow"].ValueKind == JsonValueKind.Null ? null : Shadow(f["shadow"]), Number(f["verticalCenterRatio"]),
-            Enum<StyleHorizontalAlignment>(f["horizontalAlignment"]), Float(f["opacity"]), Float(f["scale"]));
+            Enum<StyleHorizontalAlignment>(f["horizontalAlignment"]), Float(f["opacity"]), Float(f["scale"]), f["glow"].ValueKind == JsonValueKind.Null ? null : Glow(f["glow"]));
     }
 
     internal static StyleChangeDto Change(JsonElement root)
@@ -208,6 +214,11 @@ internal static class StyleCommandJson
             "shadow.angleDegrees" => new StyleShadowAngleChangeDto(Number(v)),
             "shadow.distancePx" => new StyleShadowDistanceChangeDto(Float(v)),
             "shadow.blurRadiusPx" => new StyleShadowBlurChangeDto(Float(v)),
+            "glow" => new StyleGlowChangeDto(v.ValueKind == JsonValueKind.Null ? null : Glow(v)),
+            "glow.color" => new StyleGlowColorChangeDto(Color(v)),
+            "glow.opacity" => new StyleGlowOpacityChangeDto(Float(v)),
+            "glow.blurRadiusPx" => new StyleGlowBlurChangeDto(Float(v)),
+            "glow.spreadPx" => new StyleGlowSpreadChangeDto(Float(v)),
             "verticalCenterRatio" => new StyleVerticalCenterChangeDto(Number(v)),
             "horizontalAlignment" => new StyleAlignmentChangeDto(Enum<StyleHorizontalAlignment>(v)),
             "opacity" => new StyleOpacityChangeDto(Float(v)),
@@ -252,6 +263,11 @@ internal static class StyleCommandJson
     {
         var f = Fields(root, "color", "opacity", "angleDegrees", "distancePx", "blurRadiusPx"); return new(Color(f["color"]), Float(f["opacity"]), Number(f["angleDegrees"]), Float(f["distancePx"]), Float(f["blurRadiusPx"]));
     }
+    internal static StyleGlowDto Glow(JsonElement root)
+    {
+        var f = Fields(root, "color", "opacity", "blurRadiusPx", "spreadPx");
+        return new(Color(f["color"]), Float(f["opacity"]), Float(f["blurRadiusPx"]), Float(f["spreadPx"]));
+    }
     internal static string String(JsonElement v) => v.ValueKind == JsonValueKind.String ? v.GetString()! : throw new JsonException("必须是字符串。");
     internal static string? NullableString(JsonElement v) => v.ValueKind == JsonValueKind.Null ? null : String(v);
     internal static string[] Strings(JsonElement v) => v.ValueKind == JsonValueKind.Array ? [.. v.EnumerateArray().Select(String)] : throw new JsonException("必须是字符串数组。");
@@ -276,7 +292,7 @@ internal static class StyleCommandJson
         string[] names;
         if (patch)
         {
-            if (f["changes"].ValueKind != JsonValueKind.Array || f["changes"].GetArrayLength() is < 1 or > 24) throw new JsonException("changes 必须是非空闭合属性数组。");
+            if (f["changes"].ValueKind != JsonValueKind.Array || f["changes"].GetArrayLength() is < 1 or > 29) throw new JsonException("changes 必须是非空闭合属性数组。");
             // Resource checks precede materialization of new arrays and names; old GET values have no such input limits.
             foreach (var item in f["changes"].EnumerateArray()) CheckNewValue(item);
             var changes = f["changes"].EnumerateArray().Select(Change).ToArray(); names = changes.Select(c => c.Property).ToArray();
@@ -285,7 +301,7 @@ internal static class StyleCommandJson
         else
         {
             names = Strings(f["properties"]);
-            if (names.Length is < 1 or > 24 || names.Any(n => !Properties.Contains(n, StringComparer.Ordinal))) throw new JsonException("properties 必须包含已知属性。");
+            if (names.Length is < 1 or > 29 || names.Any(n => !Properties.Contains(n, StringComparer.Ordinal))) throw new JsonException("properties 必须包含已知属性。");
             result = new RestoreStylesCommandDto(targets, names);
         }
         if (names.Distinct(StringComparer.Ordinal).Count() != names.Length || names.Any(a => names.Any(b => b.StartsWith(a + ".", StringComparison.Ordinal)))) throw new JsonException("属性重复或父子冲突。");

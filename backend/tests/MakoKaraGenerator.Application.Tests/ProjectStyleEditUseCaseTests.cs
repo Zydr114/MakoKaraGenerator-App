@@ -11,6 +11,39 @@ public sealed class ProjectStyleEditUseCaseTests
 {
     [Theory]
     [InlineData(0)] [InlineData(1)] [InlineData(2)] [InlineData(3)]
+    public void 辉光四层局部叶覆盖关闭和恢复(int kind)
+    {
+        var initial = Workspace().Project;
+        var parent = new GlowSpec { Color = RgbaColor.White, Opacity = .8f, BlurRadiusPx = 8, SpreadPx = 2 };
+        var workspace = ProjectWorkspace.Adopt(initial with { LyricStyle = initial.LyricStyle with { Glow = parent } });
+        var target = Target((StyleEditTargetKind)kind);
+        var set = Commit(workspace, target, new StyleEditChange.GlowBlur(4));
+        Assert.True(set.Accepted); Assert.Equal(4, Resolve(set.Project, target).Glow!.BlurRadiusPx);
+        Assert.Equal(2, Resolve(set.Project, target).Glow!.SpreadPx);
+        if (kind == 0) return;
+        Commit(workspace, target, new StyleEditChange.Glow(null));
+        Assert.Null(Resolve(workspace.Project, target).Glow);
+        var noOp = ProjectStyleEditUseCase.PrepareRestore(workspace, [target], [StyleEditProperty.GlowBlurRadiusPx]);
+        Assert.True(noOp.Result.Accepted); Assert.False(noOp.Result.Changed);
+        var restored = ProjectStyleEditUseCase.PrepareRestore(workspace, [target], [StyleEditProperty.Glow]);
+        Assert.True(restored.Result.Accepted); Assert.Equal(parent, Resolve(restored.Result.Project, target).Glow);
+    }
+
+    [Fact]
+    public void 辉光无父级从透明种子合并且校验原子性()
+    {
+        var workspace = Workspace(); var target = Target(StyleEditTargetKind.Token);
+        var result = Commit(workspace, target, new StyleEditChange.GlowOpacity(.5f));
+        var glow = Resolve(result.Project, target).Glow!;
+        Assert.Equal(RgbaColor.Transparent, glow.Color); Assert.Equal(.5f, glow.Opacity);
+        Assert.Equal(0, glow.BlurRadiusPx); Assert.Equal(0, glow.SpreadPx);
+        var bad = ProjectStyleEditUseCase.PreparePatch(workspace, [target], [new StyleEditChange.GlowSpread(-1)]);
+        Assert.False(bad.Result.Accepted); Assert.Same(result.Project, workspace.Project);
+        var conflict = ProjectStyleEditUseCase.PreparePatch(workspace, [target], [new StyleEditChange.Glow(null), new StyleEditChange.GlowColor(RgbaColor.White)]);
+        Assert.False(conflict.Result.Accepted); Assert.Same(result.Project, workspace.Project);
+    }
+    [Theory]
+    [InlineData(0)] [InlineData(1)] [InlineData(2)] [InlineData(3)]
     public void 四层稳定目标纯准备后只提交一次并保正文时间和其他来源(int kind)
     {
         var workspace = Workspace(); var source = workspace.Project;

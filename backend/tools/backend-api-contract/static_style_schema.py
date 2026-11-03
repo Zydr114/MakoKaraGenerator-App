@@ -39,6 +39,14 @@ CHANGES = [
     ("opacity", "StyleOpacityChangeDto", "Single", False),
     ("scale", "StyleScaleChangeDto", "Single", False),
 ]
+LEGACY_CHANGES = CHANGES.copy()
+CHANGES += [
+    ("glow", "StyleGlowChangeDto", "StyleGlowDto", True),
+    ("glow.color", "StyleGlowColorChangeDto", "StyleColorDto", False),
+    ("glow.opacity", "StyleGlowOpacityChangeDto", "Single", False),
+    ("glow.blurRadiusPx", "StyleGlowBlurChangeDto", "Single", False),
+    ("glow.spreadPx", "StyleGlowSpreadChangeDto", "Single", False),
+]
 TOKEN_PROPERTIES = [p for p, *_ in CHANGES if not p.startswith("typography.")
                     and p not in ("verticalCenterRatio", "horizontalAlignment", "scale")]
 ENUMS = {
@@ -108,11 +116,12 @@ def extend_static_style_schemas(schemas, metadata, schema_for, command_variants)
     typed("StyleFillDto", {"material": "StyleMaterialDto"}, modes=("response",))
     typed("StyleStrokeDto", {"material": "StyleMaterialDto", "widthPx": "Single", "join": "StyleStrokeJoin", "position": "StyleStrokePosition"})
     typed("StyleShadowDto", {"color": "StyleColorDto", "opacity": "Single", "angleDegrees": "Double", "distancePx": "Single", "blurRadiusPx": "Single"})
+    typed("StyleGlowDto", {"color": "StyleColorDto", "opacity": "Single", "blurRadiusPx": "Single", "spreadPx": "Single"})
     typed("StyleTypographyDto", {"fontFamilyName": "String", "fallbackFamilyNames": "String[]", "fontSizePx": "Single",
           "fontWeight": "Int32", "isBold": "Boolean", "isItalic": "Boolean", "letterSpacingPx": "Single"}, nullable=("fontFamilyName",), modes=("response",))
     typed("CanonicalStyleDto", {"typography": "StyleTypographyDto", "unsungFill": "StyleFillDto", "sungFill": "StyleFillDto",
           "stroke": "StyleStrokeDto", "shadow": "StyleShadowDto", "verticalCenterRatio": "Double",
-          "horizontalAlignment": "StyleHorizontalAlignment", "opacity": "Single", "scale": "Single"}, nullable=("stroke", "shadow"), modes=("response",))
+          "horizontalAlignment": "StyleHorizontalAlignment", "opacity": "Single", "scale": "Single", "glow": "StyleGlowDto"}, nullable=("stroke", "shadow", "glow"), optional=("glow",), modes=("response",))
 
     audit(metadata, "StyleTargetDto", {"kind": "String"})
     for kind, name, fields in TARGETS:
@@ -154,6 +163,7 @@ def extend_static_style_schemas(schemas, metadata, schema_for, command_variants)
         for name, bounds in (("StyleTypographyDto", {"fontSizePx": {"exclusiveMinimum": 0}, "fontWeight": {"minimum": 100, "maximum": 900}}),
                              ("StyleStrokeDto", {"widthPx": {"minimum": 0}}),
                              ("StyleShadowDto", {"opacity": {"minimum": 0, "maximum": 1}, "distancePx": {"minimum": 0}, "blurRadiusPx": {"minimum": 0}}),
+                             ("StyleGlowDto", {"opacity": {"minimum": 0, "maximum": 1}, "blurRadiusPx": {"minimum": 0}, "spreadPx": {"minimum": 0}}),
                              ("CanonicalStyleDto", {"verticalCenterRatio": {"minimum": 0, "maximum": 1}, "opacity": {"minimum": 0, "maximum": 1}, "scale": {"exclusiveMinimum": 0}})):
             for field, limits in bounds.items():
                 if name + suffix in schemas:
@@ -171,6 +181,7 @@ def extend_static_style_schemas(schemas, metadata, schema_for, command_variants)
             limits = {"typography.fontSizePx": {"exclusiveMinimum": 0}, "typography.fontWeight": {"minimum": 100, "maximum": 900},
                       "stroke.widthPx": {"minimum": 0}, "shadow.opacity": {"minimum": 0, "maximum": 1},
                       "shadow.distancePx": {"minimum": 0}, "shadow.blurRadiusPx": {"minimum": 0},
+                      "glow.opacity": {"minimum": 0, "maximum": 1}, "glow.blurRadiusPx": {"minimum": 0}, "glow.spreadPx": {"minimum": 0},
                       "verticalCenterRatio": {"minimum": 0, "maximum": 1}, "opacity": {"minimum": 0, "maximum": 1}, "scale": {"exclusiveMinimum": 0}}
             value.update(limits.get(property_name, {}))
             if mode == "request" and property_name == "typography.fontFamilyName":
@@ -179,7 +190,7 @@ def extend_static_style_schemas(schemas, metadata, schema_for, command_variants)
                 value.update(maxItems=32, uniqueItems=True, items={**copy.deepcopy(font), "minLength": 1, "pattern": r"\S"})
             if nullable:
                 value = {"anyOf": [value, {"type": "null"}]}
-            if mode == "response" and property_name in ("stroke", "shadow"):
+            if mode == "response" and property_name in ("stroke", "shadow", "glow"):
                 value = {"type": "null", "description": "原始local投影仅用whole null关闭效果；非null部分效果按实际存在叶属性展开。"}
             schemas[name + suffix] = {**obj({"property": {"type": "string", "const": property_name}, "value": value}),
                                      "x-clr-type": "MakoKaraGenerator.Backend.Contracts." + name}
@@ -196,7 +207,7 @@ def extend_static_style_schemas(schemas, metadata, schema_for, command_variants)
         targets = {"oneOf": [{"type": "array", "minItems": 1, "maxItems": 1 if kind == "project" else 1000,
                               "uniqueItems": True, "items": ref(target + "Input")} for kind, target in target_kinds]}
         member = "changes" if typ == "styles.patch" else "properties"
-        values = {"type": "array", "minItems": 1, "maxItems": 24,
+        values = {"type": "array", "minItems": 1, "maxItems": 29,
                   "items": ref("StyleChangeDtoInput") if member == "changes" else {"type": "string", "enum": [p for p, *_ in CHANGES]}}
         if member == "properties":
             values["uniqueItems"] = True
@@ -204,7 +215,7 @@ def extend_static_style_schemas(schemas, metadata, schema_for, command_variants)
             values["allOf"] = [{"contains": {"properties": {"property": {"const": prop}}, "required": ["property"]},
                                 "minContains": 0, "maxContains": 1} for prop, *_ in CHANGES]
         # Parent/child conflicts are schema-expressible even though array item order is free.
-        for parent in ("stroke", "shadow"):
+        for parent in ("stroke", "shadow", "glow"):
             selected = lambda condition: {"properties": {"property": condition}, "required": ["property"]} if member == "changes" else condition
             values.setdefault("allOf", []).append({"not": {"allOf": [
                 {"contains": selected({"const": parent})}, {"contains": selected({"enum": [p for p, *_ in CHANGES if p.startswith(parent + ".")]})}]}})
@@ -232,7 +243,7 @@ def extend_static_style_schemas(schemas, metadata, schema_for, command_variants)
         "x-clr-type": "MakoKaraGenerator.Backend.Contracts.ProjectStyleResponse",
         "description": "baseline完整基线、local仅本层原始存在字段（显式null保留）、staticHierarchy四层静态继承；不是当前帧effective样式。"}
     schemas["ProjectStyleResponse"]["properties"]["resolution"]["const"] = "staticHierarchy"
-    schemas["ProjectStyleResponse"]["properties"]["local"]["maxItems"] = 24
+    schemas["ProjectStyleResponse"]["properties"]["local"]["maxItems"] = 29
     schemas["ProjectStyleResponse"]["allOf"] = [{"if": {"properties": {"target": {"properties": {"kind": {"const": "project"}}, "required": ["kind"]}}, "required": ["target"]},
         "then": {"properties": {"local": {"maxItems": 0}}}}]
     # Format is advisory to most JSON Schema validators. Enforce representable finite CLR ranges

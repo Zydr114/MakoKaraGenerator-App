@@ -35,14 +35,31 @@ public sealed class BackendTemplateLibraryTests
     public async Task Full静态定义可通过create并由full详情读回()
     {
         await using Fixture f = new();
-        var definition = new FullTemplateDefinitionDto("full静态", TemplateKind.Line, Style, [TemplateProperty.FontSizePx], [], []);
+        var glow = new StyleGlowDto(new(20, 30, 40, 255), .7f, 9, 3);
+        var definition = new FullTemplateDefinitionDto("full静态", TemplateKind.Line, Style with { Glow = glow }, [TemplateProperty.FontSizePx, TemplateProperty.GlowSpec], [], []);
         var created = Accepted(await f.Command(f.Request("missing", new CreateTemplateCommandDto(definition, "full"))));
         var detail = Accepted(await f.Registry.ReadTemplateAsync("personal", created.Revision, created.TemplateId, "full"));
         Assert.Equal("full", detail.DefinitionFormat);
         var full = Assert.IsType<FullTemplateDefinitionDto>(detail.Definition);
         Assert.Equal(definition.Name, full.Name);
+        Assert.Equal(glow, full.Style.Glow); Assert.Contains(TemplateProperty.GlowSpec, full.Properties);
         Assert.Empty(full.EffectRecipes);
         Assert.Empty(full.Packages);
+    }
+
+    [Fact]
+    public async Task 静态模板辉光通过创建和替换读回()
+    {
+        await using Fixture f = new();
+        var glow = new StyleGlowDto(new(10, 20, 30, 255), .6f, 7, 2);
+        var definition = new StaticTemplateDefinitionDto("辉光", TemplateKind.Token, Style with { Glow = glow }, [TemplateProperty.GlowSpec]);
+        var created = Accepted(await f.Command(f.Request("missing", new CreateTemplateCommandDto(definition))));
+        var detail = Accepted(await f.Registry.ReadTemplateAsync("personal", created.Revision, created.TemplateId));
+        Assert.Equal(glow, detail.Definition!.Style.Glow); Assert.Contains(TemplateProperty.GlowSpec, detail.Definition.Properties);
+        var replacement = definition with { Style = definition.Style with { Glow = glow with { SpreadPx = 5 } } };
+        var replaced = Accepted(await f.Command(f.Request(created.Revision, new ReplaceTemplateCommandDto(created.TemplateId, replacement))));
+        var reread = Accepted(await f.Registry.ReadTemplateAsync("personal", replaced.Revision, created.TemplateId));
+        Assert.Equal(5, reread.Definition!.Style.Glow!.SpreadPx);
     }
 
     private static CanonicalStyleDto Style => ProjectSession.ExportTemplateLibraryStyle(LyricStyle.Default);
@@ -73,7 +90,7 @@ public sealed class BackendTemplateLibraryTests
             FontWeight = 333, IsBold = true, IsItalic = true, LetterSpacingPx = -3 }, UnsungFill = new() { Material = new MaterialSpec.Gradient(gradient) },
             SungFill = new() { Material = new MaterialSpec.Solid(new(10,20,30,40)) }, Stroke = new() { Material = new MaterialSpec.Gradient(gradient),
                 WidthPx = 3.75f, Join = StrokeJoin.Bevel, Position = StrokePosition.Outside }, Shadow = new() { Color = new(50,60,70,80), Opacity = .4f,
-                AngleDegrees = -123.123456789, DistancePx = 7.2f, BlurRadiusPx = 8.5f }, Opacity = .6f, Scale = 1.3f, VerticalCenterRatio = .3,
+                AngleDegrees = -123.123456789, DistancePx = 7.2f, BlurRadiusPx = 8.5f }, Glow = new() { Color = new(1,2,3,4), Opacity = .4f, BlurRadiusPx = 6, SpreadPx = 2 }, Opacity = .6f, Scale = 1.3f, VerticalCenterRatio = .3,
             HorizontalAlignment = LyricHorizontalAlignment.Right };
         Assert.Equal(source, ProjectSession.ImportTemplateLibraryStyle(ProjectSession.ExportTemplateLibraryStyle(source)));
         foreach (var property in Enum.GetValues<LyricStyleProperty>())

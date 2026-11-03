@@ -3,7 +3,8 @@
 import copy
 import json
 from template_library_fixtures import static_definition
-from template_library_schema import PROPERTIES
+from template_library_schema import PROPERTIES as CURRENT_PROPERTIES
+PROPERTIES = CURRENT_PROPERTIES[:21]
 
 
 def fixtures():

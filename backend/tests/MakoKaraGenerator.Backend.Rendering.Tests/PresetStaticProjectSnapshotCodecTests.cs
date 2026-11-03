@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using MakoKaraGenerator.Core.Effects;
+using MakoKaraGenerator.Core.Persistence;
 using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Rendering;
 
@@ -121,7 +122,7 @@ public sealed class PresetStaticProjectSnapshotCodecTests
             case "empty-apps": applications["items"] = new JsonArray(); break;
             case "null-apps": root["snapshot"]!["presetApplications"] = null; break;
             case "unknown-kind": snapshot["kind"] = "line"; break;
-            case "wrong-version": applications["templateSchemaVersion"] = 7; break;
+            case "wrong-version": applications["templateSchemaVersion"] = StyleTemplateLibrary.CurrentSchemaVersion + 1; break;
             case "trimmed-name": snapshot["name"] = " trailing "; break;
             case "numeric-string": style["opacity"] = "0.8"; break;
             case "color-overflow": style["sungFill"]!["material"]!["color"]!["red"] = 256; break;

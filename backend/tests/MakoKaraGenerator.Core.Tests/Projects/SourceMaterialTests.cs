@@ -193,7 +193,7 @@ public sealed class SourceMaterialTests
         var package = MixedEffectPackageFixture.Contents(); var style = Source(package).LyricStyle;
         Assert.Throws<ArgumentException>(() => StyleTemplate.Create("own", "材质", StyleTemplateKind.Token, style, [LyricStyleProperty.UnsungColor]));
         var template = StyleTemplate.Create("own", "材质", StyleTemplateKind.Token, style, [LyricStyleProperty.UnsungColor], packages: [package]);
-        string path = StyleTemplateLibrary.ResolvePath(directory.Path); Assert.Contains("templates-v6", path, StringComparison.Ordinal);
+        string path = StyleTemplateLibrary.ResolvePath(directory.Path); Assert.Contains("templates-v7", path, StringComparison.Ordinal);
         Assert.True(StyleTemplateLibrary.Load(path).LegacyLibraryRetained);
         StyleTemplateLibrary.Save(path, [template]); var loaded = StyleTemplateLibrary.Load(path); Assert.Empty(loaded.Issues);
         Assert.Equal(style, Assert.Single(loaded.Templates).Style); Assert.Equal(package.Revision, loaded.Templates[0].Packages[0].Revision);

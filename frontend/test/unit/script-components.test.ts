@@ -137,7 +137,7 @@ describe('选中组件', () => {
     let fresh = { ...d, revision: 'b'.repeat(64), configuration: { ...d.configuration, parametersJson: '{"peakScale":9}' }, package: { ...d.package, reference: { ...d.package.reference, kind: 'configuration' as const, configurationId: 'cfg-1', configurationRevision: 'b'.repeat(64) } } };
     const client = { scriptConfigurations: { list: async () => ({ revision: fresh.revision, configurations }), detail: async () => fresh } } as unknown as MakoClient;
     const store = new TemplateLibraryStore(client);
-    store.state$.set({ ...store.state, draft: { templateId: null, base: BASE, definition: { ...added, name: '已改' }, undo: [added], redo: [], imported: [] } });
+    store.state$.set({ ...store.state, status: 'ready', personal: { revision: 'missing', templates: [] }, draft: { templateId: null, base: BASE, definition: { ...added, name: '已改' }, undo: [added], redo: [], imported: [] } });
     expect(await store.refreshComponentReferences()).toBe(true);
     expect(store.state.draft?.definition.packages[0]).toMatchObject({ configurationRevision: 'b'.repeat(64) });
     expect(store.state.draft?.undo[0]?.packages[0]).toMatchObject({ configurationRevision: 'b'.repeat(64) });

@@ -62,6 +62,9 @@ export interface LibraryState {
   status: 'loading' | 'ready' | 'failed';
   builtin?: LibraryList;
   personal?: LibraryList;
+  builtinError?: string;
+  personalError?: string;
+  refreshing: boolean;
   selection: TemplateSelection | null;
   /** 选中的已保存模板的完整详情；读取中或新建草稿时没有。 */
   detail?: TemplateFullDetailResponse;
@@ -85,7 +88,7 @@ export const INVALID_DEFINITION_TEXT = '后端拒绝了这份定义（InvalidDef
 const HISTORY_LIMIT = 200;
 
 export class TemplateLibraryStore {
-  readonly state$ = new ObservableValue<LibraryState>({ status: 'loading', selection: null, detailLoading: false, busy: false, catalog: new Map() });
+  readonly state$ = new ObservableValue<LibraryState>({ status: 'loading', refreshing: false, selection: null, detailLoading: false, busy: false, catalog: new Map() });
   /** 正在按引用补读的包。 */
   private readonly inspecting = new Set<string>();
   /** 完整详情缓存：键含库修订，因为包的 library 引用绑定库修订。 */
@@ -112,7 +115,13 @@ export class TemplateLibraryStore {
 
   /** 读取两个库；已在读取时复用同一次。选中的模板消失时清空选择，库修订变化时重读详情（草稿有修改就保留）。 */
   load(): Promise<void> {
-    this.loading ??= this.reload().finally(() => (this.loading = undefined));
+    if (!this.loading) {
+      this.patch({ refreshing: true });
+      this.loading = this.reload().finally(() => {
+        this.patch({ refreshing: false });
+        this.loading = undefined;
+      });
+    }
     return this.loading;
   }
 
@@ -146,6 +155,7 @@ export class TemplateLibraryStore {
 
   /** 新建：以内置“经典整行”为起点的未保存草稿。 */
   async createDraft(): Promise<void> {
+    if (!this.state.personal || this.state.refreshing) return;
     const seq = ++this.selectSeq;
     const source = this.summary('builtin', NEW_TEMPLATE_SOURCE);
     if (!source) {
@@ -154,7 +164,7 @@ export class TemplateLibraryStore {
     }
     try {
       const detail = this.details.get(this.detailKey('builtin', source)) ?? (await this.fetchDetail('builtin', source));
-      if (seq !== this.selectSeq) return;
+      if (seq !== this.selectSeq || !this.state.personal || this.state.refreshing) return;
       const base = { ...detail.definition, name: NEW_TEMPLATE_NAME };
       this.patch({ selection: { libraryId: 'personal', templateId: null }, detail: undefined, detailLoading: false, draft: { templateId: null, base, definition: base, undo: [], redo: [], imported: [] } });
     } catch (error) {
@@ -335,7 +345,7 @@ export class TemplateLibraryStore {
 
   /** 新建草稿发 create，已有模板发 replace，都用完整定义；成功后选中保存后的模板。 */
   async save(): Promise<boolean> {
-    if (this.saving || this.state.busy || !this.state.draft) return false;
+    if (this.saving || this.state.busy || !this.state.draft || !this.state.personal || this.state.refreshing) return false;
     this.saving = true;
     try {
       if (!(await this.refreshComponentReferences())) return false;
@@ -396,8 +406,7 @@ export class TemplateLibraryStore {
 
   /** 个人库命令：带读到的库修订做 CAS；409 时重读两个库。成功后重读列表，选中的模板随之刷新。 */
   private async command(command: TemplateLibraryCommand, failure: string, conflictText = CONFLICT_TEXT): Promise<TemplateLibraryCommandResponse | undefined> {
-    if (this.state.busy) return undefined;
-    if (!this.state.personal) await this.load();
+    if (this.state.busy || this.state.refreshing || !this.state.personal) return undefined;
     const personal = this.state.personal;
     if (!personal) return undefined;
     this.patch({ busy: true, notice: undefined });
@@ -414,14 +423,16 @@ export class TemplateLibraryStore {
   }
 
   private async reload(): Promise<void> {
-    try {
-      const [builtin, personal] = await Promise.all([this.client.templates.listAll('builtin'), this.client.templates.listAll('personal')]);
-      this.patch({ status: 'ready', builtin, personal });
-    } catch (error) {
-      this.patch({ status: this.state.builtin ? 'ready' : 'failed', notice: { level: 'error', message: `读取模板库失败：${errorText(error)}` } });
-      return;
-    }
-    await this.refreshSelection();
+    const [builtin, personal] = await Promise.allSettled([this.client.templates.listAll('builtin'), this.client.templates.listAll('personal')]);
+    this.patch({
+      status: builtin.status === 'fulfilled' || personal.status === 'fulfilled' ? 'ready' : 'failed',
+      builtin: builtin.status === 'fulfilled' ? builtin.value : undefined,
+      personal: personal.status === 'fulfilled' ? personal.value : undefined,
+      builtinError: builtin.status === 'rejected' ? `读取内置模板库失败：${libraryErrorText(builtin.reason)}` : undefined,
+      personalError: personal.status === 'rejected' ? `读取个人模板库失败：${libraryErrorText(personal.reason)}` : undefined,
+    });
+    const selection = this.state.selection;
+    if (!selection || this.state[selection.libraryId]) await this.refreshSelection();
   }
 
   /**
@@ -532,7 +543,7 @@ function rebaseDraft(draft: TemplateDraft, detail: TemplateFullDetailResponse): 
 }
 
 function libraryErrorText(error: unknown): string {
-  if (error instanceof BackendError && error.failureCode === 'LibraryInvalid') return '个人模板库已损坏，后端拒绝读写；原库保持不变。';
+  if (error instanceof BackendError && error.failureCode === 'LibraryInvalid') return '个人模板库格式不受支持或内容无效，后端拒绝读写；原库保持不变。';
   if (error instanceof BackendError && error.failureCode === 'InvalidDefinition') return INVALID_DEFINITION_TEXT;
   return errorText(error);
 }

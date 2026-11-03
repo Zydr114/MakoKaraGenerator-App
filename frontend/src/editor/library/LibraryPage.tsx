@@ -207,17 +207,18 @@ export function LibraryPage(props: {
           <Select label="用途" labelPlacement="none" size="sm" value={kind} options={KIND_OPTIONS} onChange={setKind} className="library-kind" />
         </div>
         {state.status === 'loading' && !state.builtin && <ProgressBar label="正在读取模板库" className="pane-progress" />}
-        {state.status === 'failed' && <ReadError error="读取模板库失败。" onRetry={() => void store.load()} />}
+        {state.builtinError && <ReadError error={state.builtinError} onRetry={() => void store.load()} />}
+        {state.personalError && <ReadError error={state.personalError} onRetry={() => void store.load()} />}
         <div className="llist">
           <TemplateList title="内置" libraryId="builtin" store={store} state={state} thumbnails={thumbnails} query={query} kind={kind} onChoose={choose} />
           <TemplateList title="我的" libraryId="personal" store={store} state={state} thumbnails={thumbnails} query={query} kind={kind} onChoose={choose} />
         </div>
         <div className="listfoot">
-          <Button variant="tonal" size="sm" icon="add" isDisabled={state.status !== 'ready' || state.busy} onPress={() => void createNew()}>
+          <Button variant="tonal" size="sm" icon="add" isDisabled={!state.builtin || !state.personal || state.refreshing || state.busy} onPress={() => void createNew()}>
             新建
           </Button>
           <span className="spacer" />
-          <Button variant="ghost" size="sm" icon="upload" isDisabled={state.status !== 'ready' || state.busy || !features?.canImport} onPress={() => setTransfer('import')}>
+          <Button variant="ghost" size="sm" icon="upload" isDisabled={!state.personal || state.refreshing || state.busy || !features?.canImport} onPress={() => setTransfer('import')}>
             导入…
           </Button>
           <MenuTrigger>
@@ -290,7 +291,7 @@ export function LibraryPage(props: {
                   : `效果组件 ${componentState.configurations?.length ?? 0} 个`
                 : state.busy
                   ? '正在写入模板库…'
-                  : `我的模板 ${state.personal?.templates.length ?? 0} 个`}
+                  : state.personal ? `我的模板 ${state.personal.templates.length} 个` : '我的模板不可用'}
             </span>
           </footer>
         }
@@ -459,7 +460,7 @@ function TemplateDetail(props: {
   if (state.detailLoading) return <ProgressBar label="正在读取模板" className="pane-progress" />;
 
   const isNew = selection.templateId === null;
-  const summary = isNew ? undefined : store.summary(selection.libraryId, selection.templateId!);
+  const summary = isNew ? undefined : store.summary(selection.libraryId, selection.templateId!) ?? (state.detail?.summary.templateId === selection.templateId ? state.detail.summary : undefined);
   const draft = state.draft;
   const definition = draft?.definition ?? state.detail?.definition ?? null;
   if (!isNew && (!summary || !state.detail)) return <Note className="insp-empty">这个模板已不在库中。</Note>;
@@ -512,14 +513,14 @@ function TemplateDetail(props: {
             <MenuTrigger>
               <IconButton icon="more_vert" size="sm" label="模板操作" />
               <Menu placement="bottom end" onAction={menu}>
-                <MenuItem id="rename" icon="edit" disabled={state.busy || dirty}>
+                <MenuItem id="rename" icon="edit" disabled={state.busy || dirty || !state.personal || state.refreshing}>
                   {dirty ? '改名（先保存或放弃修改）' : '改名…'}
                 </MenuItem>
-                <MenuItem id="copy" icon="content_copy" disabled={state.busy}>
+                <MenuItem id="copy" icon="content_copy" disabled={state.busy || !state.personal || state.refreshing}>
                   复制…
                 </MenuItem>
                 <MenuSeparator />
-                <MenuItem id="delete" icon="delete" danger disabled={state.busy}>
+                <MenuItem id="delete" icon="delete" danger disabled={state.busy || !state.personal || state.refreshing}>
                   删除…
                 </MenuItem>
               </Menu>
@@ -531,7 +532,7 @@ function TemplateDetail(props: {
             <>
               <span className="meta">内置模板只读，复制到我的模板后才能改。</span>
               <span className="spacer" />
-              <Button variant="tonal" size="sm" icon="content_copy" isDisabled={state.busy} onPress={() => props.onCopy('builtin', summary!)}>
+              <Button variant="tonal" size="sm" icon="content_copy" isDisabled={state.busy || !state.personal || state.refreshing} onPress={() => props.onCopy('builtin', summary!)}>
                 复制并编辑
               </Button>
             </>
@@ -551,7 +552,7 @@ function TemplateDetail(props: {
               <Button variant="text" size="sm" isDisabled={state.busy || !dirty} onPress={() => store.discardDraft()}>
                 {isNew ? '放弃' : '放弃修改'}
               </Button>
-              <Button variant="filled" size="sm" icon="save" isPending={state.busy} isDisabled={state.busy || !dirty || !!problem} onPress={() => void saveDraft(store)}>
+              <Button variant="filled" size="sm" icon="save" isPending={state.busy} isDisabled={state.busy || !state.personal || state.refreshing || !dirty || !!problem} onPress={() => void saveDraft(store)}>
                 保存
               </Button>
             </>

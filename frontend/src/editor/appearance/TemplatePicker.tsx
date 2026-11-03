@@ -203,7 +203,8 @@ export function TemplatePicker(props: {
         <Select label="用途" labelPlacement="none" value={kind} options={KIND_OPTIONS} onChange={setKind} className="picker-kind" />
       </div>
       {state.status === 'loading' && !state.builtin && <ProgressBar label="正在读取模板库" />}
-      {state.status === 'failed' && <Note error>读取模板库失败。{state.notice?.message ?? ''}</Note>}
+      {state.builtinError && <ReadError error={state.builtinError} onRetry={() => void library.load()} />}
+      {state.personalError && <ReadError error={state.personalError} onRetry={() => void library.load()} />}
       {message && <Note error>{message}</Note>}
       <div className="picker-groups">
         <PickerGroup title="内置" count={counts.builtin} libraryId="builtin" list={state.builtin} open={props.open} thumbnails={props.thumbnails} query={query} kind={kind} targetKind={targetKind} choice={choice} onChoose={setChoice} />

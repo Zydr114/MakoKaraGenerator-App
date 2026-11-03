@@ -1,6 +1,6 @@
 # 冻结 API 清单
 
-合同 **1.42.0** · HTTP **1** · 产品 **0.110.0** · 基线 `54f2c647599272be9deb06560789557d67ebbaf9` · 2026-11-01。
+合同 **1.42.1** · HTTP **1** · 产品 **0.110.1** · 基线 `2e6808d2980d38d3aceda1946b636da73d4324d3` · 2026-11-03。
 
 执行入口：[行为合同](api-contract.md)；机器规范：[openapi.json](openapi.json)；指纹：[contract-manifest.json](contract-manifest.json)。本表由核对过的路由定义生成，不能手工单独扩表。
 
@@ -232,7 +232,7 @@ G20–G24整体补齐（合同1.24.0）：新增setLayoutKind、setLineEnterAnim
 
 ## 独立模板库
 
-模板库不要求工程或目标，不改变工程修订/历史。builtin与personal描述不访问个人入口；坏个人库不遮蔽内置目录。list初次读取可省expectedRevision，后续分页和detail使用精确修订；revision是missing或真实索引小写64位SHA，不能按Int64处理。detail始终保definition字段：省略definitionFormat或选择static时，staticAvailable提供完整canonical静态定义与26属性选择；advancedRuntimeAvailable表示现有Line/Token高级闭包可执行，definition仍为null；advancedUnsupported表示旧静态投影不可提供定义。显式definitionFormat=full返回fullAvailable、完整高级definition及packageClosureDetails，支持包材质、有序配方和固定包引用，详见行为§24。
+模板库不要求工程或目标，不改变工程修订/历史。builtin与personal描述不访问个人入口；坏个人库不遮蔽内置目录。Host新库按当前schema目录隔离；明确旧schema的历史固定入口保留原位，当前schema固定入口继续使用，未知版本、损坏或双入口歧义拒绝。规则见行为§13.1，不做旧库迁移。list初次读取可省expectedRevision，后续分页和detail使用精确修订；revision是missing或真实索引小写64位SHA，不能按Int64处理。detail始终保definition字段：省略definitionFormat或选择static时，staticAvailable提供完整canonical静态定义与26属性选择；advancedRuntimeAvailable表示现有Line/Token高级闭包可执行，definition仍为null；advancedUnsupported表示旧静态投影不可提供定义。显式definitionFormat=full返回fullAvailable、完整高级definition及packageClosureDetails，支持包材质、有序配方和固定包引用，详见行为§24。
 
 独立commands严格分型create/replace/copy/rename/delete，所有写入含expectedRevision/metadata。copy捕获sourceLibraryId/sourceRevision/templateId完整快照后对personal CAS；这是固定源复制，不是跨库分布式事务。create/replace保留旧静态定义分支，显式definitionFormat=full时接受完整高级定义；copy/rename/delete保完整原对象和包闭包，删除不清理旧包文件。损坏入口/闭包、版本错误及链接失败关闭，不能当空库覆盖。所有存在性/CAS位于client单层回执owner；成功回执在模板删除或库改变后仍原样重放，新ID只分配一次。
 

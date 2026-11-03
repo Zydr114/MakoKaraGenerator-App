@@ -931,6 +931,8 @@ apply只带非空且≤128字符的analysisJobId；clear用`{"type":"audio.analy
 
 ### 13.1 读取与修订
 
+0.110.1 起，Host 的新个人库使用 `state/libraries/templates-v7/index.json`（目录随当前模板 schema）。历史固定入口 `state/libraries/templates/index.json` 只有在有界读取确认其声明为正整数旧 schema 时才保留原位并隔离，不加载、迁移或改写其模板及包；新目录可正常建立当前格式的库。固定入口已经声明当前 schema 时继续使用原入口及同目录包闭包，避免隐藏已保存的当前模板。未知、未来版本、无法读取或无法判定版本的入口严格拒绝；固定入口为当前格式且新目录也有入口时拒绝歧义。选址首次成功后在该仓储生命周期内固定，当前库损坏不会触发回退或创建替代空库。发现与内置模板读取不依赖此个人库选址。
+
 `GET /api/v1/template-libraries` 返回两个固定描述。`GET /api/v1/template-libraries/{id}/templates` 返回同一次完整索引读取的 `revision`、`offset`、`totalCount`、摘要窗口和可选 `nextOffset`；`offset` 默认0，`limit` 默认50，范围1..100。列表首次读取可以省略 `expectedRevision`，分页继续读取时必须把首次返回的修订作为唯一查询值。`GET .../templates/detail` 必须唯一提供 `expectedRevision` 和 `templateId`；可额外提供唯一 `definitionFormat=full` 读取完整定义；ID 保留原 Unicode、空格、斜杠，不 trim，也不新增128字符限制。
 
 个人索引修订是实际入口 JSON 的小写64位 SHA-256；不存在的入口是 `missing`，与已发布空索引不同。过期修订返回409，非法修订形状或未知／重复查询参数返回400。个人索引、schema、包资源或链接闭包损坏时返回中立的422 `commandRejected`／`LibraryInvalid`，不能把坏库当空库覆盖；内置读取不依赖个人磁盘。

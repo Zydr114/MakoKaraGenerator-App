@@ -122,6 +122,61 @@ function fakeLibraries() {
 }
 
 describe('样式库状态', () => {
+  it('个人库读取失败时仍可查看内置模板，重试成功清除读取错误并保留其他提示', async () => {
+    const fake = fakeLibraries();
+    const list = fake.client.templates.listAll.bind(fake.client.templates);
+    let failed = true;
+    vi.spyOn(fake.client.templates, 'listAll').mockImplementation(async (id) => {
+      if (id === 'personal' && failed) throw new BackendError(422, { code: 'commandRejected', failureCode: 'LibraryInvalid', message: 'invalid' } as never);
+      return list(id);
+    });
+    const store = new TemplateLibraryStore(fake.client);
+    await store.load();
+    expect(store.state.status).toBe('ready');
+    expect(store.state.personal).toBeUndefined();
+    expect(store.state.personalError).toContain('个人模板库格式不受支持或内容无效，后端拒绝读写；原库保持不变。');
+    await store.select({ libraryId: 'builtin', templateId: NEW_TEMPLATE_SOURCE });
+    expect(store.state.detail?.definition.name).toBe('经典整行');
+    await store.createDraft();
+    expect(store.state.selection?.libraryId).toBe('builtin');
+    expect(await store.copy('builtin', NEW_TEMPLATE_SOURCE, '副本')).toBeUndefined();
+    expect(fake.commands).toHaveLength(0);
+    store.state$.set({ ...store.state, notice: { level: 'warning', message: '其他提示' } });
+    failed = false;
+    await store.load();
+    expect(store.state.personal?.revision).toBe('missing');
+    expect(store.state.personalError).toBeUndefined();
+    expect(store.state.notice?.message).toBe('其他提示');
+  });
+
+  it('重读失败丢弃旧个人库修订，保留脏草稿并在恢复后保存', async () => {
+    const fake = fakeLibraries();
+    const store = new TemplateLibraryStore(fake.client);
+    await store.load();
+    await store.createDraft();
+    await store.save();
+    store.edit({ ...store.state.draft!.definition, name: '未保存的修改' });
+    const list = fake.client.templates.listAll.bind(fake.client.templates);
+    let failed = true;
+    vi.spyOn(fake.client.templates, 'listAll').mockImplementation(async (id) => {
+      if (id === 'personal' && failed) throw new Error('读取失败');
+      return list(id);
+    });
+    await store.load();
+    expect(store.state.personal).toBeUndefined();
+    expect(store.state.draft?.definition.name).toBe('未保存的修改');
+    const count = fake.commands.length;
+    expect(await store.save()).toBe(false);
+    expect(await store.remove('p1')).toBe(false);
+    expect(fake.commands).toHaveLength(count);
+    failed = false;
+    await store.load();
+    expect(store.state.draft?.definition.name).toBe('未保存的修改');
+    expect(store.isDirty).toBe(true);
+    expect(await store.save()).toBe(true);
+    expect(fake.libraries.personal.templates.get('p1')?.name).toBe('未保存的修改');
+  });
+
   it('只含辉光不透明度且样式为 null 时编辑默认叶值，选择关闭后才明确关闭目标辉光', () => {
     const partial = definition({ name: '辉光默认叶', kind: 'line', style: STYLE, properties: ['glowOpacity'] });
     const state = templateGlowEditing(partial);

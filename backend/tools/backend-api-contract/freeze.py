@@ -26,10 +26,10 @@ from static_style_schema import extend_static_style_schemas, style_query_paramet
 from template_library_schema import extend_template_library_schemas, query_parameters as template_query_parameters, LIMITS as TEMPLATE_LIMITS
 
 ROOT = Path(__file__).resolve().parents[2]
-CONTRACT = "1.42.0"
-BASELINE = "54f2c647599272be9deb06560789557d67ebbaf9"
+CONTRACT = "1.42.1"
+BASELINE = "2e6808d2980d38d3aceda1946b636da73d4324d3"
 PRODUCT = re.search(r"<VersionPrefix>([^<]+)</VersionPrefix>", (ROOT / "Directory.Build.props").read_text()).group(1)
-FREEZE_DATE = "2026-11-01"
+FREEZE_DATE = "2026-11-03"
 BEHAVIOR = "docs/architecture/backend-api.md"
 TOOL = Path(__file__).resolve().parent
 
@@ -1098,7 +1098,7 @@ def inventory(spec, operations):
     lines += ["样式GET/style必须唯一提供expectedRevision、kind及对应ID组合；完整baseline/staticHierarchy的字体及效果null不省略，local仅列本层实际覆盖。resolution固定staticHierarchy，不代表preset/node/clip叠加后的当前帧。包材质仅只读身份描述；写入只接受完整solid/gradient，未选字段和高级参数保留。styles.patch/restore成功带styleResult.changedTargetCount。新意图canonical command JSON最多64KiB；changes数组字节数乘目标数最多16MiB；新字体名256 UTF-16 code units、fallback32项、gradient256色标。完整读投影1MiB/20000项不套新输入长度限额，超限整批拒绝，不截断。", ""]
     lines += ["G20-B createNode/copySubtree成功structureResult返回createdNodeIds（新根第一，其余候选新增顺序）；旧六命令省略。名称256 UTF-16 units，输入ID128且非空白；command16KiB，源/候选各2000节点/深64，copy128节点，create初始槽位1..64。验证输入20000项及累计身份/名称/标记文本1048576 UTF-16 units，包含歌词branch/line/token与程序关联遍历项，长歌词也可能413；完整编排输出独立1MiB/20000项，完整回执提交前预检。见行为§13.17。", ""]
     lines += ["G20–G24整体补齐（合同1.24.0）：新增setLayoutKind、setLineEnterAnimation、setProjectEnterAnimation、setLeadInGeneration、previewLeadInGeneration、applyLeadInGeneration、deleteLeadInAndExclude、setLeadInAttachment、addMark、setMarkText、reorderMarks、spaceMarks、setCountdownAppearance、setMarkAppearance；完整字段和正反例见OpenAPI。单句展示GET提供局部transform与动画继承；measurements POST为只读真实Worker同帧几何及PNG，time/layout严格union。Node预设目标支持nodeId与显式includeDescendants；该历史1.24.0切片仅静态模板，当前完整模板/高级Node目标见行为§24。完整预算、no-op/redo及真实像素验收边界见行为§13.18～13.21。", ""]
-    lines += ["## 独立模板库", "", "模板库不要求工程或目标，不改变工程修订/历史。builtin与personal描述不访问个人入口；坏个人库不遮蔽内置目录。list初次读取可省expectedRevision，后续分页和detail使用精确修订；revision是missing或真实索引小写64位SHA，不能按Int64处理。detail始终保definition字段：省略definitionFormat或选择static时，staticAvailable提供完整canonical静态定义与26属性选择；advancedRuntimeAvailable表示现有Line/Token高级闭包可执行，definition仍为null；advancedUnsupported表示旧静态投影不可提供定义。显式definitionFormat=full返回fullAvailable、完整高级definition及packageClosureDetails，支持包材质、有序配方和固定包引用，详见行为§24。", "", "独立commands严格分型create/replace/copy/rename/delete，所有写入含expectedRevision/metadata。copy捕获sourceLibraryId/sourceRevision/templateId完整快照后对personal CAS；这是固定源复制，不是跨库分布式事务。create/replace保留旧静态定义分支，显式definitionFormat=full时接受完整高级定义；copy/rename/delete保完整原对象和包闭包，删除不清理旧包文件。损坏入口/闭包、版本错误及链接失败关闭，不能当空库覆盖。所有存在性/CAS位于client单层回执owner；成功回执在模板删除或库改变后仍原样重放，新ID只分配一次。", "", "完整新command canonical JSON最多256KiB，不含metadata；新名称/字体256 UTF-16 units、fallback32、gradient256。每次完整读取最多1MiB/20000 JSON值，完整回执预算提交前检查；新定义限额不套旧数据读取/服务端复制/改名/删除。既有index16MiB及完整包256MiB/1024files/单64MiB沿原规则。分页约束响应，不承诺全库IO已分页。", ""]
+    lines += ["## 独立模板库", "", "模板库不要求工程或目标，不改变工程修订/历史。builtin与personal描述不访问个人入口；坏个人库不遮蔽内置目录。Host新库按当前schema目录隔离；明确旧schema的历史固定入口保留原位，当前schema固定入口继续使用，未知版本、损坏或双入口歧义拒绝。规则见行为§13.1，不做旧库迁移。list初次读取可省expectedRevision，后续分页和detail使用精确修订；revision是missing或真实索引小写64位SHA，不能按Int64处理。detail始终保definition字段：省略definitionFormat或选择static时，staticAvailable提供完整canonical静态定义与26属性选择；advancedRuntimeAvailable表示现有Line/Token高级闭包可执行，definition仍为null；advancedUnsupported表示旧静态投影不可提供定义。显式definitionFormat=full返回fullAvailable、完整高级definition及packageClosureDetails，支持包材质、有序配方和固定包引用，详见行为§24。", "", "独立commands严格分型create/replace/copy/rename/delete，所有写入含expectedRevision/metadata。copy捕获sourceLibraryId/sourceRevision/templateId完整快照后对personal CAS；这是固定源复制，不是跨库分布式事务。create/replace保留旧静态定义分支，显式definitionFormat=full时接受完整高级定义；copy/rename/delete保完整原对象和包闭包，删除不清理旧包文件。损坏入口/闭包、版本错误及链接失败关闭，不能当空库覆盖。所有存在性/CAS位于client单层回执owner；成功回执在模板删除或库改变后仍原样重放，新ID只分配一次。", "", "完整新command canonical JSON最多256KiB，不含metadata；新名称/字体256 UTF-16 units、fallback32、gradient256。每次完整读取最多1MiB/20000 JSON值，完整回执预算提交前检查；新定义限额不套旧数据读取/服务端复制/改名/删除。既有index16MiB及完整包256MiB/1024files/单64MiB沿原规则。分页约束响应，不承诺全库IO已分页。", ""]
     command_count = len(spec["components"]["schemas"]["ProjectCommandDtoInput"]["oneOf"])
     lines = [line.replace("七十八种命令", f"{command_count}种命令").replace("九十一种命令", f"{command_count}种命令") for line in lines]
     position = next(i for i, line in enumerate(lines) if line.startswith("| `composition.setOutputDuration`"))

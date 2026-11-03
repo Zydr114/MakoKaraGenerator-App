@@ -151,6 +151,7 @@ export function ImportTemplatesDialog(props: {
   onClose: () => void;
 }) {
   const { store } = props;
+  const state = useObservable(store.state$);
   const [file, setFile] = useState<File | null>(null);
   const [preflight, setPreflight] = useState<TemplateImportPreflightResponse | null>(null);
   const [busy, setBusy] = useState(false);
@@ -183,12 +184,12 @@ export function ImportTemplatesDialog(props: {
   };
 
   const submit = async () => {
-    if (!preflight) return;
+    if (!preflight || !store.state.personal || store.state.refreshing) return;
     if (!(await props.confirmDiscard())) return;
     setBusy(true);
     setMessage(null);
     try {
-      if (!store.state.personal) await store.load();
+      if (store.state.refreshing) throw new Error('正在读取“我的”模板库，请重试。');
       const revision = store.state.personal?.revision;
       if (!revision) throw new Error('读不到“我的”模板库。');
       const response = await templateTransfers.importArchive(revision, preflight);
@@ -216,7 +217,7 @@ export function ImportTemplatesDialog(props: {
       headline="导入模板"
       description="从 .mktpl 归档导入到“我的”。"
       submitText={count > 0 ? `导入 ${count} 个模板` : '导入'}
-      submitDisabled={!preflight}
+      submitDisabled={!preflight || !state.personal || state.refreshing}
       busy={busy}
       onSubmit={() => void submit()}
       onClose={props.onClose}

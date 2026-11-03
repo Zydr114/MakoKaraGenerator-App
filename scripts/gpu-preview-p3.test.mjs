@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { analyze, leaseKey, percentile, slidingWindows, ozoneArguments, parseSchedulerStat, auditPipelineScheduler } from './gpu-preview-p3.mjs';
+import { analyze, leaseKey, percentile, slidingWindows, ozoneArguments, parseSchedulerStat, auditPipelineScheduler, currentCompletedFrames } from './gpu-preview-p3.mjs';
 
 const N=1_000_000_000n;
 const frame=(seq,time,extra={})=>({streamId:'stream',hostInstanceId:'host',producerEpoch:'1',inputGeneration:'1',consumerEpoch:'1',timelineEpoch:'1',poolGeneration:'1',slotId:seq%3,slotEpoch:String(seq),frameSeq:seq,
@@ -188,4 +188,39 @@ test('every sampled declared pipeline identity is required even after an earlier
   const undeclared=record();delete undeclared.snapshot.device;assert.equal(auditPipelineScheduler([record(),undeclared]).passed,false);
   const duplicate=record();duplicate.processes.push({...duplicate.processes[0]});assert.equal(auditPipelineScheduler([duplicate]).passed,false);
   assert.equal(auditPipelineScheduler([]).passed,false);
+});
+
+
+test('current completions reject detached late frames and every stale stream identity',()=>{
+  const good=frame(1,N),activeStream={...good};
+  assert.deepEqual(currentCompletedFrames({activeStream:null},[good]),[]);
+  assert.deepEqual(currentCompletedFrames({activeStream},[good]),[good]);
+  assert.deepEqual(currentCompletedFrames({activeStream},[{...good,drawn:false}]),[]);
+  for(const key of ['streamId','hostInstanceId','producerEpoch','inputGeneration','consumerEpoch','poolGeneration']){
+    assert.deepEqual(currentCompletedFrames({activeStream},[{...good,[key]:'stale'}]),[],key);
+    const missing={...activeStream};delete missing[key];
+    assert.deepEqual(currentCompletedFrames({activeStream:missing},[good]),[],`missing active ${key}`);
+  }
+});
+test('current completion cutoff uses native completion time and returns chronological frames',()=>{
+  const early=frame(1,N),at=frame(2,2n*N),late=frame(3,3n*N);
+  assert.deepEqual(currentCompletedFrames({activeStream:{...early}},[late,early,at],String(2n*N)),[at,late]);
+  assert.deepEqual(currentCompletedFrames({activeStream:{...early}},[early],String(N+1n)),[]);
+});
+test('owned process drain requires successful identity cleanup evidence',()=>{
+  const base={runClass:'formal-p3',connectionOwnership:'owned-isolated-session'};
+  const measured=manifest=>analyze([],manifest).measuredRequirements.ownedProcessDrain;
+  assert.equal(measured(base),false);
+  assert.equal(measured({...base,shutdown:{launcherExitCode:0,remaining:[]}}),true);
+  assert.equal(measured({...base,shutdown:{launcherExitCode:1,remaining:[]}}),false);
+  assert.equal(measured({...base,shutdown:{launcherExitCode:0,remaining:[{pid:1,startTicks:'10'}]}}),false);
+  assert.equal(measured({...base,shutdown:{launcherExitCode:0,remaining:[],error:'drain failed'}}),false);
+  assert.equal(measured({...base,connectionOwnership:'existing-explicit-CDP-session',shutdown:{launcherExitCode:0,remaining:[]}}),false);
+});
+test('interaction matching respects all recorded active stream identities',()=>{
+  for(const key of ['hostInstanceId','producerEpoch','consumerEpoch','poolGeneration']){
+    const action={type:'interaction',kind:'latest-input',uiInvocationMonotonicNs:String(N),streamId:'stream',[key]:'2'};
+    const report=analyze([snapshot(2n*N,[frame(1,1_010_000_000n),frame(2,1_120_000_000n,{[key]:'2'})],2),action]);
+    assert.equal(report.interactions[0].uiInvocationToMatchingCompletionMs,120,key);
+  }
 });

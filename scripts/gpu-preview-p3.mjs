@@ -28,6 +28,16 @@ export function leaseKey(frame) {
   invariant(KEYS.every(key => frame[key] !== undefined && frame[key] !== null), 'Incomplete frame identity');
   return JSON.stringify(KEYS.map(key => frame[key]));
 }
+const STREAM_KEYS=['streamId','hostInstanceId','producerEpoch','inputGeneration','consumerEpoch','poolGeneration'];
+export function currentCompletedFrames(snapshot,frames,since='0') {
+  const active=snapshot.activeStream;
+  if(!active)return [];
+  return [...frames].filter(frame=>frame.drawn===true&&STREAM_KEYS.every(key=>active[key]!==undefined&&frame[key]===active[key])&&
+    ns(frame.completedMonotonicNs)>=ns(since)).sort((a,b)=>ns(a.completedMonotonicNs)<ns(b.completedMonotonicNs)?-1:1);
+}
+function replacedStream(previous,current) {
+  return !!previous&&!!current&&(previous.streamId!==current.streamId||previous.inputGeneration!==current.inputGeneration);
+}
 export function ozoneArguments(commandLine) {
   return [...new Set([...commandLine.matchAll(/(?:^|[\0\s])(--ozone-platform(?:-hint)?=(?:wayland|x11))(?=[\0\s]|$)/g)].map(match=>match[1]))];
 }
@@ -212,8 +222,7 @@ export function analyze(records, manifest={}) {
   const interactions=records.filter(record=>record.type==='interaction').map(action=>{
     const start=ns(action.uiInvocationMonotonicNs);
     const matching=[...frames.values()].filter(frame=>frame.drawn===true&&ns(frame.completedMonotonicNs)>=start&&
-      (action.streamId===undefined||frame.streamId===action.streamId)&&
-      (action.inputGeneration===undefined||frame.inputGeneration===action.inputGeneration)&&
+      STREAM_KEYS.every(key=>action[key]===undefined||frame[key]===action[key])&&
       (action.sourceRevision===undefined||frame.sourceRevision===action.sourceRevision)&&
       (action.timelineResetId===undefined||frame.timelineResetId===action.timelineResetId)&&
       (action.minimumControlSeq===undefined||frame.controlSeq>=action.minimumControlSeq)).sort((a,b)=>ns(a.completedMonotonicNs)<ns(b.completedMonotonicNs)?-1:1)[0];
@@ -244,6 +253,8 @@ export function analyze(records, manifest={}) {
     uiResolutionRecreate:{observed:actionReports.filter(action=>action.kind==='ui-resolution-recreate').length}};
   const requirements={
     formalRunClass:manifest.runClass==='formal-p3',runFinished:typeof manifest.finishedAt==='string'&&manifest.runError===undefined,
+    ownedProcessDrain:manifest.connectionOwnership==='owned-isolated-session'&&manifest.shutdown?.launcherExitCode===0&&
+      manifest.shutdown?.error===undefined&&manifest.shutdown?.remaining?.length===0,
     matchingDeployment:manifest.deployment?.verified===true,visibleRenderer:manifest.platformEvidence?.renderer?.visibility==='visible',
     runtimeWayland:manifest.platformEvidence?.waylandConfirmed===true,
     ordinarySchedulerBaseline:manifest.schedulerBaseline?.explicitOrdinaryScheduling===true&&manifest.schedulerBaseline?.initialOwnedProcesses?.length>0&&manifest.schedulerBaseline.initialOwnedProcesses.every(proc=>!proc.exited&&proc.scheduler?.policy===0&&(proc.role!=='worker'||proc.scheduler?.nice===0)),
@@ -419,6 +430,17 @@ async function run(values) {
   invariant(manifest.deployment.verified&&manifest.deployment.files.every(file=>!file.missing),'Matched desktop deployment is missing/stale: build:desktop before a real run');
   const records=[],record=async value=>{records.push(value);await appendFile(join(output,'events.jsonl'),JSON.stringify(value)+'\n');};
   let child,cdp,page;
+  const ownedProcesses=new Map();
+  const rememberOwned=proc=>{if(!values.connect&&!proc.exited&&typeof proc.startTicks==='string')ownedProcesses.set(`${proc.pid}:${proc.startTicks}`,{pid:proc.pid,startTicks:proc.startTicks,role:proc.role});};
+  const observeOwnedTree=async(pid,seen=new Set())=>{
+    if(seen.has(pid))return;seen.add(pid);
+    const proc=await readProc(pid,pid===child?.pid?'owned-app-launcher':'owned-app-descendant');
+    if(proc.exited)return;rememberOwned(proc);
+    for(const task of await readdir(`/proc/${pid}/task`).catch(()=>[])){
+      const children=await readFile(`/proc/${pid}/task/${task}/children`,'utf8').catch(()=>'');
+      for(const text of children.trim().split(/\s+/).filter(Boolean))await observeOwnedTree(Number(text),seen);
+    }
+  };
   const seenSamples=new Map();
   const observedSamples=new Map();
   let sampleRevision=0,lastWorkerPublicRead=0,workerPublicState,workerPublicReadMonotonicNs;
@@ -440,11 +462,12 @@ async function run(values) {
     const changed=[];
     for(const frame of snapshot.samples){const key=leaseKey(frame),serialized=JSON.stringify(frame);observedSamples.set(key,frame);if(seenSamples.get(key)!==serialized){seenSamples.set(key,serialized);changed.push(frame);}}
     const procStart=process.hrtime.bigint()+mainOffset,processes=await processSnapshot(snapshot);
+    for(const proc of processes)rememberOwned(proc);
     processes.push(await readProc(process.pid,'p3-runner'));
     if(child?.pid)processes.push(await readProc(child.pid,'owned-app-launcher'));
     const procEnd=process.hrtime.bigint()+mainOffset;
     await record({type:'snapshot',snapshot:{...snapshot,...(workerPublicState?{workerPublicState,workerPublicReadMonotonicNs}:{}),samples:changed},processes,processObservationBracket:{startMonotonicNs:String(procStart),endMonotonicNs:String(procEnd),mappingUncertaintyNs:String(observationClockUncertaintyNs),sampling:'approximate asynchronous /proc inventory over this bracket; not atomic with main snapshot'}});
-    return {...snapshot,latestSample:[...observedSamples.values()].at(-1)};
+    return {...snapshot,latestSample:currentCompletedFrames(snapshot,observedSamples.values()).at(-1)};
   };
   const mainClockBracket=async()=>{
     const start=process.hrtime.bigint();
@@ -464,19 +487,35 @@ async function run(values) {
     const minControl=after.mediaClock.controlSeq;
     invariant(Number.isSafeInteger(minControl),'Missing authoritative control sequence for interaction');
     await record({type:'interaction',kind,uiInvocationMonotonicNs:String(invocation),uiInvocationClockUncertaintyMs:uncertaintyMs,
-      streamId:after.activeStream?.streamId,timelineResetId:after.mediaClock.timelineResetId,
+      ...Object.fromEntries(STREAM_KEYS.map(key=>[key,after.activeStream?.[key]])),timelineResetId:after.mediaClock.timelineResetId,
       minimumControlSeq:minControl,controlObservationMonotonicNs:after.nowMonotonicNs});
-    const expectedStream=after.activeStream?.streamId,expectedReset=after.mediaClock.timelineResetId;
-    const matching=()=>[...observedSamples.values()].some(frame=>frame.drawn===true&&ns(frame.completedMonotonicNs)>=invocation&&
-      frame.streamId===expectedStream&&frame.timelineResetId===expectedReset&&frame.controlSeq>=minControl);
+    const expected=after.activeStream,expectedReset=after.mediaClock.timelineResetId;
+    const matching=()=>currentCompletedFrames({activeStream:expected},observedSamples.values(),String(invocation))
+      .some(frame=>frame.timelineResetId===expectedReset&&frame.controlSeq>=minControl);
     while(!matching()&&Date.now()<deadline){await pause(20);after=await sample();}
     invariant(matching(),'Interaction did not yield a matching drawn/native-completed frame');
     return after;
   };
-  const waitFrames=async(previous,count=3,predicate=()=>true)=>{
+  const waitCurrentFrames=async({since='0',count=3,previous,expectedSize,predicate=()=>true}={})=>{
     const deadline=Date.now()+30_000;
-    while(Date.now()<deadline){const state=await sample();if(state.completedDrawnUnique>=previous+count&&predicate(state))return state;await pause(100);}
-    throw new Error('Production unique drawn/native completion did not advance');
+    while(Date.now()<deadline){
+      const state=await sample(),active=state.activeStream;
+      const current=await page.eval('window.makoGpuPreviewAcceptance?.current()??null');
+      const exact=active&&current&&['streamId','producerEpoch','inputGeneration','poolGeneration'].every(key=>active[key]===current[key])&&
+        active.size?.width===current.size?.width&&active.size?.height===current.size?.height;
+      const completed=currentCompletedFrames(state,observedSamples.values(),since);
+      if(exact&&Number.isSafeInteger(state.workerPid)&&state.workerPid>0&&(!previous||replacedStream(previous,active))&&
+        (!expectedSize||active.size.width===expectedSize.width&&active.size.height===expectedSize.height)&&
+        completed.length>=count&&predicate({...state,latestSample:completed.at(-1)}))return {...state,latestSample:completed.at(-1),verifiedCompletedFrames:completed.length};
+      await pause(100);
+    }
+    throw new Error('Current public/native stream did not yield enough exact-generation drawn/native-completed frames');
+  };
+  const waitOwnedExit=async(original)=>{
+    const deadline=Date.now()+30_000;
+    let current;
+    do{current=await readProc(original.pid,'retired-worker');if(current.exited||current.startTicks!==original.startTicks)return current;await pause(100);}while(Date.now()<deadline);
+    throw new Error('Retired exact Worker PID/startTicks did not exit');
   };
   try{
     if(!values.connect){
@@ -488,6 +527,7 @@ async function run(values) {
     ({cdp,page}=await connectPage(Number(values['cdp-port'])));
     await page.waitFor(`typeof window.makoDesktopPreview?.readPreviewState==='function'`,'Desktop production bridge');
     const initial=await sample();
+    if(child?.pid)await observeOwnedTree(child.pid);
     manifest.platformEvidence=await actualWaylandEvidence(page,cdp,{...initial,cdpPort:values['cdp-port']});
     manifest.schedulerBaseline.initialOwnedProcesses=await processSnapshot(initial);
     manifest.concurrentAppObservation=await concurrentAppEvidence(initial.mainPid);
@@ -499,7 +539,7 @@ async function run(values) {
     await page.waitFor(`!!document.querySelector('[aria-label="暂停"]')`,'Audio master playing');
     for(const phase of manifest.phases){
       await setQuality(page,phase.name);
-      const before=await sample();await waitFrames(before.completedDrawnUnique,3,state=>state.latestSample?.width===phase.width&&state.latestSample?.height===phase.height&&state.mediaClock?.targetFps===phase.targetFps);
+      const before=await sample();await waitCurrentFrames({since:before.nowMonotonicNs,expectedSize:phase,predicate:state=>state.mediaClock?.targetFps===phase.targetFps});
       if(values['correctness-snapshot']&&phase.name==='720p24'){
         const image=await page.screenshot();
         await writeFile(join(output,'correctness-before-timing.png'),image);
@@ -517,7 +557,7 @@ async function run(values) {
       await invokeInteraction('pause',()=>page.eval(`document.querySelector('[aria-label="暂停"]').click()`));
       await invokeInteraction('seek',()=>seekTimeline(page,30+index*9));
       await page.eval(`document.querySelector('[aria-label="播放"]').click()`);
-      const before=await sample();await waitFrames(before.completedDrawnUnique,2);
+      const before=await sample();await waitCurrentFrames({since:before.nowMonotonicNs,count:2});
     }
     invariant(await page.eval(`typeof window.makoGpuPreviewAcceptance?.setBackground==='function'`),'Real project edit benchmark hook unavailable');
     for(let index=0;index<(values.debug?1:20);index++){
@@ -528,43 +568,54 @@ async function run(values) {
       const deadline=Date.now()+30_000;let current;
       do{current=await page.eval('window.makoGpuPreviewAcceptance.current()');if(current?.source?.sourceRevision===edited.sourceRevision&&current.inputGeneration!==old.inputGeneration)break;await sample();await pause(20);}while(Date.now()<deadline);
       invariant(current?.streamId===old.streamId&&current.source.sourceRevision===edited.sourceRevision&&current.inputGeneration!==old.inputGeneration,'Real project input did not replace exact public generation');
+      const after=await waitCurrentFrames({since:String(invocation),count:1,predicate:state=>state.activeStream.streamId===current.streamId&&state.activeStream.inputGeneration===current.inputGeneration});
       await record({type:'interaction',kind:'latest-input',uiInvocationMonotonicNs:String(invocation),uiInvocationClockUncertaintyMs:bracket.uncertaintyMs,
-        streamId:current.streamId,inputGeneration:current.inputGeneration,expectedSourceRevision:edited.sourceRevision,previousInputGeneration:old.inputGeneration,controllerResponseTimings:await page.eval('window.makoGpuPreviewAcceptance.timings?.()??[]')});
-      const matching=()=>[...observedSamples.values()].some(frame=>frame.drawn===true&&ns(frame.completedMonotonicNs)>=invocation&&frame.streamId===current.streamId&&frame.inputGeneration===current.inputGeneration);
-      while(!matching()&&Date.now()<deadline){await pause(20);await sample();}
-      invariant(matching(),'Latest real input did not yield an exact-generation native-completed drawn frame');
+        ...Object.fromEntries(STREAM_KEYS.map(key=>[key,after.activeStream[key]])),expectedSourceRevision:edited.sourceRevision,previousInputGeneration:old.inputGeneration,controllerResponseTimings:await page.eval('window.makoGpuPreviewAcceptance.timings?.()??[]')});
     }
     // A resolution selector replacement is reported separately from public resize.
     for(let index=0;index<(values.debug?1:10);index++){
-      const before=await sample(),quality=index%2?'1440p30':'720p24';
+      const before=await waitCurrentFrames({count:1}),quality=index%2?'1440p30':'720p24';
+      const expectedSize=quality==='720p24'?{width:1280,height:720}:{width:2560,height:1440};
+      const oldWorker=await readProc(before.workerPid,'retired-worker');
+      invariant(!oldWorker.exited&&typeof oldWorker.startTicks==='string','Resolution cycle requires a live exact previous Worker identity');
       await setQuality(page,quality);
-      const after=await waitFrames(before.completedDrawnUnique);
-      await record({type:'action',kind:'ui-resolution-recreate',index,startMonotonicNs:before.nowMonotonicNs,endMonotonicNs:after.nowMonotonicNs,previousWorkerPid:before.workerPid,nextWorkerPid:after.workerPid});
+      const after=await waitCurrentFrames({since:before.nowMonotonicNs,previous:before.activeStream,expectedSize});
+      const previousWorkerAfter=await waitOwnedExit(oldWorker);
+      await record({type:'action',kind:'ui-resolution-recreate',index,startMonotonicNs:before.nowMonotonicNs,endMonotonicNs:after.nowMonotonicNs,
+        previousStreamId:before.activeStream.streamId,nextStreamId:after.activeStream.streamId,previousInputGeneration:before.activeStream.inputGeneration,inputGeneration:after.activeStream.inputGeneration,
+        previousWorkerPid:before.workerPid,previousWorkerStartTicks:oldWorker.startTicks,nextWorkerPid:after.workerPid,exactGenerationCompleted:true,oldWorkerExited:true,previousWorkerAfter});
     }
     for(let index=0;index<(values.debug?1:20);index++){
-      const before=await sample();
+      const before=await waitCurrentFrames({count:1}),oldIdentity=before.activeStream;
+      const oldWorker=await readProc(before.workerPid,'retired-worker');
+      invariant(!oldWorker.exited&&typeof oldWorker.startTicks==='string','Attach cycle requires a live exact previous Worker identity');
       await shell.goto(page,'library');
       await page.waitFor(`!document.querySelector('#mako-gpu-preview')`,'Preview detached by actual page navigation');
+      const detachDeadline=Date.now()+30_000;
+      let detached;
+      do{detached=await sample();if(detached.activeStream===null)break;await pause(100);}while(Date.now()<detachDeadline);
+      invariant(detached.activeStream===null,'Page navigation did not detach the native active stream');
+      const previousWorkerAfter=await waitOwnedExit(oldWorker);
       await shell.goto(page,'orchestration');
-      const after=await waitFrames(before.completedDrawnUnique);
-      const oldIdentity=before.latestSample,newIdentity=after.latestSample;
-      invariant(oldIdentity?.streamId!==newIdentity?.streamId||oldIdentity?.inputGeneration!==newIdentity?.inputGeneration,'Attach cycle replayed the same claimed stream generation');
+      const after=await waitCurrentFrames({since:before.nowMonotonicNs,previous:oldIdentity}),newIdentity=after.activeStream;
+      invariant(replacedStream(oldIdentity,newIdentity),'Attach cycle replayed the same claimed stream generation');
       await record({type:'action',kind:'attach-detach',index,startMonotonicNs:before.nowMonotonicNs,endMonotonicNs:after.nowMonotonicNs,
-        previousStreamId:oldIdentity?.streamId,nextStreamId:newIdentity?.streamId,previousWorkerPid:before.workerPid,nextWorkerPid:after.workerPid,
-        newGenerationVerified:true,oldWorkerExited:before.workerPid?(await readProc(before.workerPid,'retired-worker')).exited===true:false,
-        previousWorkerAfter:before.workerPid?await readProc(before.workerPid,'retired-worker'):null});
+        previousStreamId:oldIdentity.streamId,nextStreamId:newIdentity.streamId,previousInputGeneration:oldIdentity.inputGeneration,inputGeneration:newIdentity.inputGeneration,
+        previousWorkerPid:before.workerPid,previousWorkerStartTicks:oldWorker.startTicks,nextWorkerPid:after.workerPid,
+        newGenerationVerified:true,oldWorkerExited:true,previousWorkerAfter,verifiedCompletedFrames:after.verifiedCompletedFrames});
     }
     // This hook must route through the existing public client and controller CAS;
     // it is deliberately never emulated by replaying a claimed old generation.
     invariant(await page.eval(`typeof window.makoGpuPreviewAcceptance?.resize==='function'`),'Public resize benchmark hook is unavailable; UI recreation does not substitute for protocol resize');
     for(let index=0;index<(values.debug?1:10);index++){
-      const before=await sample();
+      const before=await waitCurrentFrames({count:1});
       const old=await page.eval('window.makoGpuPreviewAcceptance.current()');
       const targetWidth=old.size.width===1280?2560:1280,targetHeight=targetWidth===1280?720:1440;
       const resized=await page.eval(`window.makoGpuPreviewAcceptance.resize(${targetWidth},${targetHeight})`);
       invariant(old.streamId===resized.streamId&&old.inputGeneration!==resized.inputGeneration,'Resize did not preserve stream and replace input generation');
       await seekTimeline(page,20+index*7);
-      const after=await waitFrames(before.completedDrawnUnique,3,state=>state.latestSample?.streamId===resized.streamId&&state.latestSample?.inputGeneration===resized.inputGeneration&&state.latestSample?.timelineResetId!==before.mediaClock?.timelineResetId);
+      const after=await waitCurrentFrames({since:before.nowMonotonicNs,previous:before.activeStream,expectedSize:{width:targetWidth,height:targetHeight},
+        predicate:state=>state.latestSample?.streamId===resized.streamId&&state.latestSample?.inputGeneration===resized.inputGeneration&&state.latestSample?.timelineResetId!==before.mediaClock?.timelineResetId});
       await record({type:'action',kind:'public-resize-seek',exactGenerationCompleted:true,index,startMonotonicNs:before.nowMonotonicNs,endMonotonicNs:after.nowMonotonicNs,
         streamId:resized.streamId,previousInputGeneration:old.inputGeneration,inputGeneration:resized.inputGeneration,previousPoolGeneration:old.poolGeneration,poolGeneration:resized.poolGeneration});
     }
@@ -572,7 +623,7 @@ async function run(values) {
     await page.waitFor(`!!window.makoGpuPreviewAcceptance?.current()`,'Current public stream before stability');
     const stabilityPublic=await page.eval('window.makoGpuPreviewAcceptance.current()');
     if(stabilityPublic.size.width!==2560||stabilityPublic.size.height!==1440)await page.eval(`window.makoGpuPreviewAcceptance.resize(2560,1440)`);
-    await waitFrames((await sample()).completedDrawnUnique,3,state=>state.latestSample?.width===2560&&state.latestSample?.height===1440&&state.latestSample?.provider===(values.provider==='synthetic'?'synthetic-gpu':'runtime')&&state.mediaClock?.targetFps===30);
+    await waitCurrentFrames({since:(await sample()).nowMonotonicNs,expectedSize:{width:2560,height:1440},predicate:state=>state.latestSample?.provider===(values.provider==='synthetic'?'synthetic-gpu':'runtime')&&state.mediaClock?.targetFps===30});
     const stableWarmup=Date.now()+manifest.warmupSeconds*1000;while(Date.now()<stableWarmup){await sample();await pause(1000);}
     const start=await sample(),until=Date.now()+manifest.stabilitySeconds*1000;
     while(Date.now()<until){await pause(Math.min(1000,until-Date.now()));await sample();}
@@ -591,7 +642,41 @@ async function run(values) {
       await writeFile(join(output,'report.json'),JSON.stringify(report,null,2)+'\n');
     }finally{
       cdp?.ws.close();
-      if(child&&child.exitCode===null&&child.signalCode===null){child.kill('SIGINT');await new Promise((done,reject)=>{const timer=setTimeout(()=>reject(new Error('Owned App launcher did not drain within 45 seconds')),45_000);child.once('exit',()=>{clearTimeout(timer);done();});});}
+      const shutdown={ownership:values.connect?'existing-explicit-CDP-session':'owned-isolated-session',signalSent:false,observedIdentities:[],remaining:[]};
+      try{
+        if(child){
+          if(child.exitCode===null&&child.signalCode===null){
+            await observeOwnedTree(child.pid);
+            const original=manifest.schedulerBaseline.launcher,current=await readProc(child.pid,'owned-app-launcher');
+            invariant(original&&!current.exited&&current.startTicks===original.startTicks,'Owned App launcher process identity changed before shutdown');
+            await new Promise((done,reject)=>{
+              const timer=setTimeout(()=>reject(new Error('Owned App launcher did not drain within 45 seconds')),45_000);
+              child.once('exit',()=>{clearTimeout(timer);done();});
+              shutdown.signalSent=child.kill('SIGINT');
+            });
+          }
+          shutdown.launcherExitCode=child.exitCode;shutdown.launcherSignal=child.signalCode;
+          invariant(child.exitCode===0,'Owned App launcher did not exit normally with code 0');
+          const deadline=Date.now()+10_000;
+          do{
+            shutdown.remaining=[];
+            for(const original of ownedProcesses.values()){
+              const current=await readProc(original.pid,original.role);
+              if(!current.exited&&current.startTicks===original.startTicks)shutdown.remaining.push(original);
+            }
+            if(shutdown.remaining.length===0)break;
+            await pause(100);
+          }while(Date.now()<deadline);
+          invariant(shutdown.remaining.length===0,'Observed owned App process identities survived launcher shutdown');
+        }
+      }catch(error){shutdown.error=error.message;throw error;}finally{
+        shutdown.observedIdentities=[...ownedProcesses.values()];
+        shutdown.boundary='Only the spawned launcher with matching PID/startTicks is signaled; all observed descendants and pipeline identities are checked after exit. Connected sessions receive no signal. Unsampled short-lived descendants are not proven by process sampling.';
+        await writeFile(join(output,'shutdown.json'),JSON.stringify(shutdown,null,2)+'\n');
+        manifest.shutdown=shutdown;
+        await writeFile(join(output,'manifest.json'),JSON.stringify(manifest,null,2)+'\n');
+        if(report){report=analyze(records,manifest);await writeFile(join(output,'report.json'),JSON.stringify(report,null,2)+'\n');}
+      }
     }
     console.log(JSON.stringify({output,conclusion:report.conclusion}));
   }

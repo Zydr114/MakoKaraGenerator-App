@@ -1,3 +1,4 @@
+using MakoKaraGenerator.Scripting.Compilation;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
@@ -63,7 +64,7 @@ Project projectInput = ProjectStore.Load(saved).Project ?? throw new InvalidOper
 ProjectSnapshot snapshot = ProjectSnapshot.FromProject(projectInput);
 if (args[7] != "none") snapshot = FixtureSources.WithoutContribution(snapshot, args[7]);
 using var videos = new FfmpegVideoFrameProvider();
-var factory = new ProjectRenderSessionFactory(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), prefix + "-cache", videos, ReplayReason.Initial);
+var factory = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), prefix + "-cache"), videos, ReplayReason.Initial);
 byte[] sourceBytes = snapshot.Effects.Packages.IsEmpty ? StaticProjectSnapshotCodec.Encode(snapshot) : PackageProjectSnapshotCodec.Encode(snapshot);
 int index = 0;
 try

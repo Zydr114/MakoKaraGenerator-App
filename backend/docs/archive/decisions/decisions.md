@@ -5255,3 +5255,17 @@ ADR-0219本批终态：self-contained发布434文件／零警告错误，raw IPC
 辉光升级已把模板格式改为 schema 7，但 Host 沿用未带版本的 `libraries/templates/index.json`，使保留 schema 6 的桌面 profile 无法使用个人模板库。新库改用 Core 的 `StyleTemplateLibrary.ResolvePath`；明确声明旧 schema 的固定入口保留原位，新库独立建立，不做旧数据转换。已在固定入口保存的当前 schema 库继续使用原位及其包闭包。
 
 选址在首次个人库操作时有界检查，成功后固定；内置目录始终独立。未知版本、未来版本、损坏入口及两个当前入口的歧义都失败关闭，不用空库掩盖数据问题。现有 CAS、完整闭包验证与文件锁继续负责读写；HTTP 路由和 DTO 保持原形状。具体规则见[API §13.1](../../architecture/backend-api.md#131-读取与修订)。
+
+<a id="adr-0245"></a>
+
+## ADR-0245：Host 共享编译与 Worker 固定产物消费（2026-11-03）
+
+App `dev/script-sdk-render-upgrade` 的 M01–M02 将 Roslyn 编译从渲染 Worker 分离到 Host。
+作者与运行请求共享内容寻址的持久缓存；Worker 接收绑定实际字节摘要、SDK／参考集／引擎身份
+和完整入口的固定产物，继续承担装载及 shader／图像／图／材质校验。失败诊断与成功产物分离，
+保持原错误归属，禁止损坏产物回退。输入目录由 Host 持有到终态或实际进程排水，删除失败保留
+所有权重试。规则与预算见[固定产物架构](../../architecture/script-compilation-artifacts.md)。
+
+本阶段保留 SDK 1、包 2 和 v1 时间线重放；HTTP 公共形状保持，Worker 私有封包独立演进。
+同输入 seek 和 GPU 备用池在 M03／M04 分开验收，不把进程预热当成作者输入准备完成。
+用户已授权完成至 M06 的功能与测试，并在设备空闲窗口进行正式性能对照；证据按 App 验收清单登记。

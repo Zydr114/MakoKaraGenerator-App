@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using MakoKaraGenerator.Scripting.Compilation;
 using System.Globalization;
 using MakoKaraGenerator.Backend.Contracts;
 using MakoKaraGenerator.Backend.Rendering;
@@ -21,7 +22,9 @@ public sealed class WorkerPackageSessionModeIntegrationTests(ITestOutputHelper o
         PackageWorkerRuntimeFixture.AssertFixedFont();
         ProjectSnapshot package = PackageWorkerRuntimeFixture.Create("scale");
         ProjectSnapshot plain = PackageWorkerRuntimeFixture.Fingerprint(package with { Effects = ProjectEffects.Empty });
-        byte[] packageBytes = PackageProjectSnapshotCodec.Encode(package);
+        using TemporaryDirectory temporary = new();
+        using var prepared = await PackageWorkerRuntimeFixture.PrepareScriptsAsync(package, PackageProjectSnapshotCodec.Encode(package), temporary.Path);
+        byte[] packageBytes = prepared.Envelope;
         byte[] staticBytes = StaticProjectSnapshotCodec.Encode(plain);
         using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(90));
         CancellationToken token = deadline.Token;
@@ -59,7 +62,7 @@ public sealed class WorkerPackageSessionModeIntegrationTests(ITestOutputHelper o
             Guid firstId = Guid.NewGuid(), secondId = Guid.NewGuid();
             byte[] firstBytes = packageFirst ? packageBytes : staticBytes;
             byte[] secondBytes = packageFirst ? staticBytes : packageBytes;
-            string firstHash = WorkerProtocol.ComputeSha256(firstBytes), secondHash = WorkerProtocol.ComputeSha256(secondBytes);
+            string firstHash = SourceHash(firstBytes), secondHash = SourceHash(secondBytes);
             await OpenAsync(process, packageFirst, firstId, firstBytes, token);
 
             // A proxy stops on an error reply. Raw IPC keeps this exact process
@@ -113,10 +116,13 @@ public sealed class WorkerPackageSessionModeIntegrationTests(ITestOutputHelper o
         => new(kind, Guid.NewGuid().ToString("N"), WorkerProtocol.ComputeSha256(payload), payload,
             sessionId: session?.ToString("N"), sourceSha256: hash, frameSequence: sequence);
 
+    private static string SourceHash(byte[] bytes) => WorkerProtocol.ComputeSha256(ScriptPreparedInputCodec.IsPrepared(bytes)
+        ? ScriptPreparedInputCodec.Read(bytes, ScriptCompilationIdentity.ForDeployment(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"))).Source : bytes);
+
     private static WorkerMessage OpenRequest(bool package, Guid session, byte[] snapshot)
         => Request(package ? PackageRenderWorkerContract.OpenKind : StaticRenderWorkerContract.OpenKind,
             package ? PackageRenderWorkerContract.EncodeOpen(session, snapshot) : StaticRenderWorkerContract.EncodeOpen(session, snapshot),
-            session, WorkerProtocol.ComputeSha256(snapshot), 0);
+            session, SourceHash(snapshot), 0);
 
     private static async Task OpenAsync(Process process, bool package, Guid session, byte[] snapshot, CancellationToken token)
     {

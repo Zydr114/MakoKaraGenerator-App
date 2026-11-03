@@ -10,12 +10,21 @@ namespace MakoKaraGenerator.Scripting.Compilation;
 public sealed record ScriptCompilationIdentity(string CompilerVersion, string OptionsProfile, string ReferenceIdentity,
     string SdkIdentity, string EngineIdentity, string AnalysisRulesVersion)
 {
+    /// <summary>当前部署固定编译器版本；Worker 不通过加载 Roslyn 核验。</summary>
+    public const string PinnedCompilerVersion = "5.0.0.0";
     /// <summary>v1 无纯度分析器，仍为其规则明确建立身份以隔离后续 v2。</summary>
     public const string V1AnalysisRules = "v1-no-purity-analysis";
     /// <summary>固定 v1 编译选项；格式变更与旧缓存隔离。</summary>
     public const string V1Options = "csharp14|net10.0|release|nullable|deterministic|portable-pdb|unsafe:false|concurrentBuild:false|serial-emit-v1|artifact-format3";
     /// <summary>本部署的执行引擎身份，与固定工程封包一致。</summary>
     public static string CurrentEngineIdentity => "MakoKaraGenerator:" + ProductVersion.Current;
+
+    /// <summary>根据实际分发引用和 SDK 建立 Worker 期望身份。</summary>
+    public static ScriptCompilationIdentity ForDeployment(string referenceDirectory)
+    {
+        var references = ScriptReferenceIdentity.Read(referenceDirectory);
+        return new(PinnedCompilerVersion, V1Options, references.Identity, references.SdkIdentity, CurrentEngineIdentity, V1AnalysisRules);
+    }
 
     /// <summary>拒绝缺失或非规范的身份，不从 PE 文件名猜测部署兼容性。</summary>
     public void Validate()
@@ -31,7 +40,19 @@ public sealed record ScriptCompilationIdentity(string CompilerVersion, string Op
 public sealed record ScriptReferenceIdentity(string Identity, int Count, string SdkIdentity)
 {
     /// <summary>按文件名和字节摘要计算参考集；SDK 与宿主共享同一程序集。</summary>
-    public static ScriptReferenceIdentity Read(string referenceDirectory) => Read(referenceDirectory, out _);
+    public static ScriptReferenceIdentity Read(string referenceDirectory)
+    {
+        string[] paths = EnumeratePaths(referenceDirectory);
+        using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        byte[] sdkHash = [];
+        foreach (string path in paths)
+        {
+            using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, FileOptions.SequentialScan);
+            byte[] digest = SHA256.HashData(stream);
+            ScriptCompilationInput.Add(hash, Path.GetFileName(path)); ScriptCompilationInput.Add(hash, digest); sdkHash = digest;
+        }
+        return new(Convert.ToHexStringLower(hash.GetHashAndReset()), paths.Length, Convert.ToHexStringLower(sdkHash));
+    }
 
     /// <summary>同一次字节快照同时生成身份和编译引用，避免声明身份与实际 MetadataReference 的读取竞态。</summary>
     public static ScriptReferenceIdentity Read(string referenceDirectory, out ImmutableArray<ImmutableArray<byte>> images)

@@ -1,3 +1,4 @@
+using MakoKaraGenerator.Scripting.Compilation;
 using System.Security.Cryptography;
 using MakoKaraGenerator.Backend.Contracts;
 using MakoKaraGenerator.Backend.Hosting;
@@ -27,8 +28,7 @@ public sealed class WorkerStaticSessionIntegrationTests
         };
         Assert.Equal(StaticProjectSnapshotCodec.PresetsProfile, StaticProjectSnapshotCodec.SelectProfile(source));
         var worker = new WorkerRenderFrameSessionFactory(Options());
-        var runtime = new ProjectRenderSessionFactory(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
-            temp.FilePath("unused-cache"), new FfmpegVideoFrameProvider(), ReplayReason.Initial);
+        var runtime = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("unused-cache")), new FfmpegVideoFrameProvider(), ReplayReason.Initial);
         await using IRenderFrameSession actual = await worker.CreateAsync(source);
         await using IRenderFrameSession expected = await runtime.CreateAsync(source);
         RenderRequest request = RenderRequest.At(source, 12_500_000) with
@@ -54,8 +54,7 @@ public sealed class WorkerStaticSessionIntegrationTests
         Assert.Equal("Noto Sans CJK SC", font.FamilyName);
         ProjectSnapshot snapshot = Snapshot();
         var worker = new WorkerRenderFrameSessionFactory(Options());
-        var runtime = new ProjectRenderSessionFactory(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
-            temp.FilePath("unused-cache"), new FfmpegVideoFrameProvider(), ReplayReason.Initial);
+        var runtime = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("unused-cache")), new FfmpegVideoFrameProvider(), ReplayReason.Initial);
         await using IRenderFrameSession actualSession = await worker.CreateAsync(snapshot);
         await using IRenderFrameSession expectedSession = await runtime.CreateAsync(snapshot);
         HashSet<string> hashes = [];

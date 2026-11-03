@@ -6,4 +6,7 @@
   <ItemGroup>
     <ProjectReference Include="../../../src/MakoKaraGenerator.Runtime.Hosting/MakoKaraGenerator.Runtime.Hosting.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../src/MakoKaraGenerator.Scripting.Compiler/MakoKaraGenerator.Scripting.Compiler.csproj" />
+  </ItemGroup>
 </Project>

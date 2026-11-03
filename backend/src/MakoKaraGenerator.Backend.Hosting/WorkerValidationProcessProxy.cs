@@ -46,13 +46,19 @@ public sealed partial class WorkerProcessProxy
                     : StaticProjectSnapshotCodec.Decode(input.SnapshotBytes)).Composition;
         WorkerValidationContract.ValidateGeometryAndTiming(composition.CanvasWidth, composition.CanvasHeight, composition.OutputDurationUs,
             composition.FrameRate.Numerator, composition.FrameRate.Denominator, framesPerOutput);
+        using CancellationTokenSource deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(timeout);
+        using var prepared = await PrepareValidationScriptInputAsync().ConfigureAwait(false);
+        payload = runtime ? RuntimeValidationWorkerContract.EncodeInput(input.TaskId, framesPerOutput, prepared.Envelope)
+            : image ? ProjectImageValidationWorkerContract.EncodeInput(input.TaskId, framesPerOutput, prepared.Envelope)
+            : WorkerValidationContract.EncodeInput(input.TaskId, framesPerOutput, prepared.Envelope, profile == PackageProjectSnapshotCodec.Profile);
+        input = runtime ? RuntimeValidationWorkerContract.DecodeInput(payload) : image
+            ? ProjectImageValidationWorkerContract.DecodeInput(payload) : WorkerValidationContract.DecodeInput(payload);
         string progressKind = runtime ? RuntimeValidationWorkerContract.ProgressKind : image ? ProjectImageValidationWorkerContract.ProgressKind : WorkerValidationContract.ProgressKind;
         string resultKind = runtime ? RuntimeValidationWorkerContract.ResultKind : image ? ProjectImageValidationWorkerContract.ResultKind : WorkerValidationContract.ResultKind;
         string requestKind = runtime ? RuntimeValidationWorkerContract.RequestKind : image ? ProjectImageValidationWorkerContract.RequestKind : WorkerValidationContract.RequestKind;
         WorkerMessage request = new(requestKind, Guid.NewGuid().ToString("N"), WorkerProtocol.ComputeSha256(payload),
             payload, sourceSha256: input.SourceSha256, taskId: input.TaskId.ToString("N"), validationFramesPerOutput: framesPerOutput);
-        using CancellationTokenSource deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        deadline.CancelAfter(timeout);
         // Package validation has a different source codec and must prove the actual
         // Worker contains the matching package runtime before sending the validation
         // payload.  An older Worker may still accept the generic validation kind and
@@ -76,9 +82,20 @@ public sealed partial class WorkerProcessProxy
             catch (OperationCanceledException failure) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested)
             { throw new RenderSessionFailureException("WorkerTaskTimedOut", "统一Runtime验证超过任务期限。", innerException: failure); }
         }
-        try { return await InvokeValidationAsync().ConfigureAwait(false); }
+        try
+        {
+            var report = await InvokeValidationAsync().ConfigureAwait(false);
+            prepared.Complete(); return report;
+        }
         catch (OperationCanceledException failure) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested)
         { throw new RenderSessionFailureException("WorkerTaskTimedOut", "固定帧计划 Worker 验证超过任务期限。", innerException: failure); }
+
+        async Task<PreparedScriptCall> PrepareValidationScriptInputAsync()
+        {
+            try { return await PrepareScriptCallAsync(snapshotBytes, deadline.Token, image: image).ConfigureAwait(false); }
+            catch (OperationCanceledException failure) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested)
+            { throw new RenderSessionFailureException("WorkerTaskTimedOut", "固定帧计划 Worker 验证超过任务期限。", innerException: failure); }
+        }
 
         async Task<ValidationReportDto> InvokeValidationAsync()
         {

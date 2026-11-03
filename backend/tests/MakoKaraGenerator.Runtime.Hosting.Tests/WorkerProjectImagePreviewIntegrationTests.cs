@@ -1,3 +1,4 @@
+using MakoKaraGenerator.Scripting.Compilation;
 using System.Diagnostics;
 using System.Globalization;
 using MakoKaraGenerator.Backend.Contracts;
@@ -34,8 +35,7 @@ public sealed class WorkerProjectImagePreviewIntegrationTests(ITestOutputHelper 
         ProjectSnapshot oracle = PackageWorkerRuntimeFixture.Fingerprint(snapshot with
         { Background = snapshot.Background with { Path = imagePath } });
         ProjectSnapshot plain = PackageWorkerRuntimeFixture.Fingerprint(snapshot with { Background = BackgroundSource.Color });
-        var runtime = new ProjectRenderSessionFactory(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
-            temp.FilePath("cache"), videos, ReplayReason.Initial);
+        var runtime = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")), videos, ReplayReason.Initial);
         await using IRenderFrameSession direct = await runtime.CreateAsync(oracle);
         await using IRenderFrameSession counterfactual = await runtime.CreateAsync(plain);
         await using WorkerProcessProxy proxy = new(new(PackageWorkerRuntimeFixture.WorkerApphost()));

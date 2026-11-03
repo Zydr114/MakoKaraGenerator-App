@@ -1,3 +1,4 @@
+using MakoKaraGenerator.Scripting.Compilation;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
@@ -110,7 +111,7 @@ byte[] imageBytes = File.ReadAllBytes(projectInput.Background.Path!);
 string logicalPath = projectInput.Background.Media!.RelativePath;
 // Use the production saved closure directly. No Worker task, decoder, response, report or HTTP data constructs expectations.
 ProjectSnapshot snapshot = loadedSnapshot with { Background = loadedSnapshot.Background with { Path = logicalPath } };
-var factory = new ProjectRenderSessionFactory(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), prefix + "-cache",
+var factory = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), prefix + "-cache"),
     new FfmpegVideoFrameProvider(), ReplayReason.Initial, () =>
     {
         try { return new MemoryImageBackgroundFrameSourceResolver(logicalPath, imageBytes); }

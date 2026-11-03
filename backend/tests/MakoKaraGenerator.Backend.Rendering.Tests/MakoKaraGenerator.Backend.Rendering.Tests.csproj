@@ -15,4 +15,7 @@
     <Compile Include="../Shared/Rendering/TimedRubyFixture.cs" Link="Shared/TimedRubyFixture.cs" />
     <None Update="Fixtures/static-snapshot-v1.baseline.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/MakoKaraGenerator.Scripting.Compiler/MakoKaraGenerator.Scripting.Compiler.csproj" />
+  </ItemGroup>
 </Project>

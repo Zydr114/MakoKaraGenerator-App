@@ -34,8 +34,9 @@ internal static class StaticValidationTask
         if (request.TaskId != input.TaskId.ToString("N") || request.SourceSha256 != input.SourceSha256
             || request.ValidationFramesPerOutput != input.FramesPerOutput)
             throw new WorkerProtocolException("验证消息与受哈希保护的封包不匹配。");
+        var prepared = WorkerScriptInputs.Read(input.SnapshotBytes, token);
         using ProjectRuntimeInput? runtime = runtimeValidation
-            ? await ProjectRuntimeInput.OpenAsync(input.SnapshotBytes, token).ConfigureAwait(false) : null;
+            ? await ProjectRuntimeInput.OpenAsync(prepared.Source, token, prepared.Compiler).ConfigureAwait(false) : null;
         ProjectSnapshot snapshot;
         bool packageProfile;
         Func<IBackgroundFrameSourceResolver>? imageResolverFactory = null;
@@ -46,7 +47,7 @@ internal static class StaticValidationTask
         }
         else if (imageValidation)
         {
-            var image = ProjectImagePreviewSnapshotCodec.Decode(input.SnapshotBytes);
+            var image = ProjectImagePreviewSnapshotCodec.Decode(prepared.Source);
             snapshot = image.Snapshot;
             ProjectSnapshot basis = snapshot with { Background = BackgroundSource.Color };
             packageProfile = ProjectPreviewSnapshotProfile.Select(basis) == PackageProjectSnapshotCodec.Profile;
@@ -64,17 +65,15 @@ internal static class StaticValidationTask
         {
             packageProfile = input.Profile == PackageProjectSnapshotCodec.Profile;
             snapshot = packageProfile
-                ? PackageProjectSnapshotCodec.Decode(input.SnapshotBytes)
-                : StaticProjectSnapshotCodec.Decode(input.SnapshotBytes);
+                ? PackageProjectSnapshotCodec.Decode(prepared.Source)
+                : StaticProjectSnapshotCodec.Decode(prepared.Source);
         }
         var composition = snapshot.Composition;
         WorkerValidationContract.ValidateGeometryAndTiming(composition.CanvasWidth, composition.CanvasHeight,
             composition.OutputDurationUs, composition.FrameRate.Numerator, composition.FrameRate.Denominator, input.FramesPerOutput);
-        var factory = runtime?.CreateFactory(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
-            Path.Combine(Path.GetTempPath(), $"makokara-worker-validation-{Environment.ProcessId}"), ReplayReason.Initial, renderBackend: renderBackend)
+        var factory = runtime?.CreateFactory(ReplayReason.Initial, renderBackend: renderBackend)
             ?? (imageValidation || sessions is null
-            ? new ProjectRenderSessionFactory(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
-                Path.Combine(Path.GetTempPath(), $"makokara-worker-validation-{Environment.ProcessId}"), new FfmpegVideoFrameProvider(), ReplayReason.Initial, imageResolverFactory, renderBackend: renderBackend)
+            ? new ProjectRenderSessionFactory(prepared.Compiler, new FfmpegVideoFrameProvider(), ReplayReason.Initial, imageResolverFactory, renderBackend: renderBackend)
             : sessions);
         int reportBytes = 2048; // Complete report object, counts, arrays and separators are reserved before items.
         RuntimeValidationBudget budget = new(WorkerValidationContract.MaximumIssues, WorkerValidationContract.MaximumOccurrences,

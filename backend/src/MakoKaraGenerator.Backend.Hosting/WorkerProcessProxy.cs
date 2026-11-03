@@ -7,6 +7,7 @@ using MakoKaraGenerator.Backend.Rendering;
 using MakoKaraGenerator.Core.Effects;
 using MakoKaraGenerator.Scripting;
 using MakoKaraGenerator.Processes;
+using MakoKaraGenerator.Scripting.Compilation;
 
 namespace MakoKaraGenerator.Backend.Hosting;
 
@@ -30,6 +31,8 @@ public sealed record WorkerProcessOptions
     public bool EnableGpuPreview { get; init; }
     /// <summary>仅显式基准启动使用的合成生产者开关。</summary>
     public bool EnableGpuPreviewBenchmark { get; init; }
+    /// <summary>Host 内共享编译服务；不序列化或传入 Worker。</summary>
+    public IScriptCompilationService? ScriptCompilationService { get; init; }
 
     public void Validate()
     {
@@ -301,26 +304,12 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
                 ?? _options.FileName;
             string root = Path.GetDirectoryName(Path.GetFullPath(executable)) ?? string.Empty;
             string directory = Path.Combine(root, "script-refs", "net10.0");
-            string[] paths = [.. Directory.EnumerateFiles(directory, "*.dll").Order(StringComparer.Ordinal)];
-            if (paths.Length == 0 || !paths.Any(path => Path.GetFileName(path) == "System.Runtime.dll")) return null;
-            using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-            foreach (string path in paths.Append(typeof(TokenId).Assembly.Location))
-            {
-                byte[] bytes = File.ReadAllBytes(path);
-                AddReferenceIdentity(hash, Encoding.UTF8.GetBytes(Path.GetFileName(path)));
-                AddReferenceIdentity(hash, SHA256.HashData(bytes));
-            }
-            return (Convert.ToHexStringLower(hash.GetHashAndReset()), paths.Length + 1);
+            var references = ScriptReferenceIdentity.Read(directory);
+            return (references.Identity, references.Count);
         }
         catch (IOException) { return null; }
         catch (UnauthorizedAccessException) { return null; }
-    }
-
-    private static void AddReferenceIdentity(IncrementalHash hash, ReadOnlySpan<byte> bytes)
-    {
-        Span<byte> length = stackalloc byte[sizeof(int)];
-        BinaryPrimitives.WriteInt32LittleEndian(length, bytes.Length);
-        hash.AppendData(length); hash.AppendData(bytes);
+        catch (ArgumentException) { return null; }
     }
 
     /// <summary>探测并校验私有 package Runtime 能力，不改变 hello 原 wire。</summary>
@@ -380,7 +369,7 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
         TimeSpan timeout, CancellationToken cancellationToken = default)
     {
         Guid id = Guid.NewGuid();
-        byte[] payload = PackageRenderWorkerContract.EncodeOpen(id, snapshotBytes.Span);
+        _ = PackageRenderWorkerContract.EncodeOpen(id, snapshotBytes.Span);
         var capabilities = await GetPackageCapabilitiesAsync(timeout, cancellationToken).ConfigureAwait(false);
         using (var source = System.Text.Json.JsonDocument.Parse(snapshotBytes))
         {
@@ -389,12 +378,7 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
                 && capabilities.SourceProfiles?.Contains(PackagePresetProjectSnapshotCodec.Profile, StringComparer.Ordinal) != true)
                 throw new WorkerProtocolException("包 Worker 未声明混合预设来源。", "WorkerPackageProfileMismatch");
         }
-        string sourceHash = WorkerProtocol.ComputeSha256(payload.AsSpan(PackageRenderWorkerContract.OpenHeaderBytes));
-        WorkerMessage request = new(PackageRenderWorkerContract.OpenKind, Guid.NewGuid().ToString("N"),
-            WorkerProtocol.ComputeSha256(payload), payload, sessionId: id.ToString("N"), sourceSha256: sourceHash, frameSequence: 0);
-        await InvokeTimedMessageAsync(request, PackageRenderWorkerContract.SessionResultKind, timeout,
-            ValidateEmptyPackageSessionResult, cancellationToken, requirePackageRuntimeGuards: true).ConfigureAwait(false);
-        return new(id, sourceHash);
+        return await OpenPreparedScriptSessionAsync(PackageRenderWorkerContract.OpenKind, id, snapshotBytes, timeout, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>沿用固定 package 会话交付实际像素和完整 Runtime 诊断。</summary>
@@ -414,6 +398,14 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
     /// <summary>关闭 package 会话并等待 Worker Runtime 排水。</summary>
     public async Task ClosePackageSessionAsync(StaticWorkerSessionHandle session, long sequence, TimeSpan timeout,
         CancellationToken cancellationToken = default)
+        => await ClosePackageSessionCoreAsync(session, sequence, timeout, false, cancellationToken).ConfigureAwait(false);
+
+    internal Task ClosePackageSessionForReopenAsync(StaticWorkerSessionHandle session, long sequence, TimeSpan timeout,
+        CancellationToken cancellationToken = default)
+        => ClosePackageSessionCoreAsync(session, sequence, timeout, true, cancellationToken);
+
+    private async Task ClosePackageSessionCoreAsync(StaticWorkerSessionHandle session, long sequence, TimeSpan timeout,
+        bool retainPreparedInput, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(session);
         byte[] payload = PackageRenderWorkerContract.EncodeClose(session.SessionId, session.SourceSha256, sequence);
@@ -422,6 +414,7 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
             sourceSha256: session.SourceSha256, frameSequence: sequence);
         await InvokeTimedMessageAsync(request, PackageRenderWorkerContract.SessionResultKind, timeout,
             ValidateEmptyPackageSessionResult, cancellationToken, requirePackageRuntimeGuards: true).ConfigureAwait(false);
+        if (!retainPreparedInput) ReleasePreparedScriptInputs();
     }
 
     /// <summary>打开一次固定 snapshot-v1 输入的独立持久 Runtime 会话。</summary>
@@ -630,7 +623,11 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
         // Stop is a cleanup operation: a canceled caller must not skip the gate and
         // leave an already started worker running. The token is still honored by the
         // graceful shutdown below, which forcefully reaps the process tree if it wins.
-        lock (_lifecycleGate) { _activeCallCancellation?.Cancel(); }
+        lock (_lifecycleGate)
+        {
+            _activeCallCancellation?.Cancel();
+            foreach (var preparation in _scriptPreparations.ToArray()) preparation.Cancel();
+        }
         await _callGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
         try
         {
@@ -646,7 +643,8 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
         lock (_lifecycleGate)
         {
             _disposed = true;
-            return new(_disposeTask ??= StopAsync());
+            if (_disposeTask is null || _disposeTask.IsFaulted || _disposeTask.IsCanceled) _disposeTask = StopAsync();
+            return new(_disposeTask);
         }
         // Gates remain managed objects until GC: queued calls must acquire the gate,
         // observe _disposed and release it without racing SemaphoreSlim.Dispose.
@@ -840,7 +838,7 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
     private async Task StopProcessAsync(CancellationToken cancellationToken = default)
     {
         Process? process = _process;
-        if (process is null) return;
+        if (process is null) { ReleasePreparedScriptInputs(); return; }
         bool reaped = false;
         try
         {
@@ -892,6 +890,7 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
                 _packageResourceVerifiedProcess = null; _packageSessionProcess = null;
                 _imagePreviewVerifiedProcess = null; _runtimeInputVerifiedProcess = null; _packageSessionOpenKind = null;
                 VerifiedRenderBackendDevice = null;
+                ReleasePreparedScriptInputs();
             }
         }
 
@@ -906,4 +905,7 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
 }
 
 /// <summary>一次固定静态快照的独立 Worker Runtime 会话身份。</summary>
-public sealed record StaticWorkerSessionHandle(Guid SessionId, string SourceSha256);
+public sealed record StaticWorkerSessionHandle(Guid SessionId, string SourceSha256)
+{
+    internal RetainedPreparedScriptInput? PreparedInput { get; init; }
+}

@@ -10,13 +10,12 @@ using MakoKaraGenerator.Scripting.Compilation;
 namespace MakoKaraGenerator.Runtime.Hosting;
 
 /// <summary>组合根实际装配：固定包、分析和native资源到独立异步像素会话。</summary>
-public sealed class ProjectRenderSessionFactory(string referenceDirectory, string artifactRoot, IVideoFrameProvider videos, ReplayReason reason,
+public sealed class ProjectRenderSessionFactory(IScriptCompilationService compiler, IVideoFrameProvider videos, ReplayReason reason,
     Func<IBackgroundFrameSourceResolver>? backgroundResolverFactory = null,
     bool layoutReference = false, string? editingLineId = null, string? editingCueId = null,
     string? renderBackend = null, bool enableGpuPreview = false, bool enableGpuPreviewBenchmark = false)
     : IRenderFrameSessionFactory
 {
-    private readonly Lazy<ScriptCompiler> _compiler = new(() => new(referenceDirectory, artifactRoot));
     private readonly SkiaRenderBackendOptions? _renderBackendOptions = renderBackend is null ? null : SkiaRenderBackendOptions.Parse(renderBackend);
 
     /// <inheritdoc/>
@@ -54,7 +53,7 @@ public sealed class ProjectRenderSessionFactory(string referenceDirectory, strin
                 token.ThrowIfCancellationRequested();
                 return new ProjectRenderSession(snapshot, renderer, null, null, [], [], null, null, device, enableGpuPreviewBenchmark);
             }
-            var compiled = await CompiledProjectEffects.CompileAsync(snapshot, _compiler.Value, new PackageImageValidator(), new PackageShaderValidator(),
+            var compiled = await CompiledProjectEffects.CompileAsync(snapshot, compiler, new PackageImageValidator(), new PackageShaderValidator(),
                 new PackageImageGraphValidator(), new PackageMaterialValidator(), token).ConfigureAwait(false);
             if (!compiled.Succeeded)
                 throw new ProjectEffectCompilationException(compiled);

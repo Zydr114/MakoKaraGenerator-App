@@ -109,3 +109,10 @@ Final5 passed 419 requests/5346 assertions without static-analysis or the six
 controls. Those directories retain their own scope and counts; final6 does not
 add their numbers or establish browser, video/font/preset, image validation,
 export, measurement, performance or complete B3/B4/B5/B6 acceptance.
+
+## M02 编译依赖分离
+
+独立 Oracle 仍自行从源码编译期望结果。其 Runtime／SDK／渲染依赖逐字节对照匹配发布的 Worker，
+`Scripting.Compiler` 与两个 `Microsoft.CodeAnalysis` 程序集改为逐字节对照同一发布的 Server。
+完整 framework refs 和相邻依赖仍核对发布 manifest；Worker 若含编译依赖则拒绝验收。
+`build_oracle.py` 只编译工具入口并引用上述固定 DLL，不重新构建生产程序集。

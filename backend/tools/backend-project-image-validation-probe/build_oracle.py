@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Publish only the independent Oracle entry point against immutable Worker DLLs."""
+"""Publish only the independent Oracle entry point against immutable Worker runtime and Server compiler DLLs."""
 import argparse
 import hashlib
 import json
@@ -31,6 +31,14 @@ def main():
     references = [path for path in sorted(worker.glob('*.dll'))
                   if path.name.startswith(('MakoKaraGenerator.', 'Microsoft.CodeAnalysis'))
                   or path.name in ('SkiaSharp.dll', 'CliWrap.dll')]
+    compiler_names = ('MakoKaraGenerator.Scripting.Compiler.dll', 'Microsoft.CodeAnalysis.dll', 'Microsoft.CodeAnalysis.CSharp.dll')
+    for name in compiler_names:
+        if (worker / name).exists():
+            raise ValueError('render Worker must not contain compiler dependency: ' + name)
+        path = dist / 'server' / name
+        if not path.is_file():
+            raise ValueError('Server compiler dependency is missing: ' + name)
+        references.append(path)
     items = ['<Compile Include="' + escape(str(path)) + '" />' for path in sources]
     items += ['<Reference Include="' + escape(path.stem) + '"><HintPath>' + escape(str(path))
               + '</HintPath><Private>true</Private></Reference>' for path in references]
@@ -55,12 +63,12 @@ def main():
     # The entry point is new; every production/compiler dependency remains byte-exact.
     for path in references:
         if digest(publish / path.name) != digest(path):
-            raise ValueError('published Oracle changed a fixed Worker dependency: ' + path.name)
+            raise ValueError('published Oracle changed a fixed deployment dependency: ' + path.name)
     validate_dist(dist)
     if deployment_sha != digest(dist / 'deployment.json') or production_inputs() != initial_sources \
             or tool_inputs() != initial_tools:
         raise ValueError('deployment, production or tool inputs changed during Oracle build')
-    manifest = {'scope': 'Only independent fixture/Oracle tool sources compiled. Production DLLs are explicit immutable Worker AssemblyReferences; no production project rebuilt and no HTTP output constructs expected reports.',
+    manifest = {'scope': 'Only independent fixture/Oracle tool sources compiled. Production DLLs are explicit immutable Worker runtime and Server compiler AssemblyReferences; no production project rebuilt and no HTTP output constructs expected reports.',
                 'deploymentSourceCommit': deployment['sourceCommit'],
                 'deploymentManifestSha256': deployment_sha, 'command': command,
                 'toolSources': initial_tools, 'sources': source_hashes,

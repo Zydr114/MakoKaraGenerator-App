@@ -1,3 +1,4 @@
+using MakoKaraGenerator.Scripting.Compilation;
 using System.Buffers;
 using MakoKaraGenerator.Core.Effects;
 using MakoKaraGenerator.Media;
@@ -120,8 +121,7 @@ public sealed class RuntimeValidationTests
         Assert.Equal(transparent ? 2 : 1, factory.Disposed); Assert.All(factory.Frames, frame => Assert.True(frame.IsDisposed));
     }
 
-    private static ProjectRenderSessionFactory Factory(string cache) => new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
-        cache, new FfmpegVideoFrameProvider(), ReplayReason.Initial);
+    private static ProjectRenderSessionFactory Factory(string cache) => new(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), cache), new FfmpegVideoFrameProvider(), ReplayReason.Initial);
     private sealed class InlineProgress(Action<RuntimeValidationProgress> report) : IProgress<RuntimeValidationProgress>
     { public void Report(RuntimeValidationProgress value) => report(value); }
 

@@ -15,8 +15,9 @@ internal static class SceneMeasurementWorker
 {
     internal static async Task<byte[]> ExecuteAsync(byte[] payload, CancellationToken token, string? renderBackend = null)
     {
-        var (input, source) = WorkerSceneMeasurementContract.Decode(payload);
-        using var runtimeInput = await ProjectRuntimeInput.OpenAsync(source, token).ConfigureAwait(false);
+        var prepared = WorkerScriptInputs.Read(payload, token);
+        var (input, source) = WorkerSceneMeasurementContract.Decode(prepared.Source.ToArray());
+        using var runtimeInput = await ProjectRuntimeInput.OpenAsync(source, token, prepared.Compiler).ConfigureAwait(false);
         var snapshot = runtimeInput.Snapshot;
         if (snapshot.LyricPresentation.Nodes.Length > ProjectGeometryReferenceLimits.MaxNodes)
             throw new WorkerProtocolException("测量树超过1024节点。", "SceneMeasurementBudgetExceeded");
@@ -38,8 +39,7 @@ internal static class SceneMeasurementWorker
             }
         }
         token.ThrowIfCancellationRequested();
-        await using var session = await runtimeInput.CreateFactory(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
-            Path.Combine(Path.GetTempPath(), $"makokara-worker-measure-{Environment.ProcessId}"), ReplayReason.Initial, input.Request.Mode == "layout", input.EditingLineId, input.EditingCueId,
+        await using var session = await runtimeInput.CreateFactory(ReplayReason.Initial, input.Request.Mode == "layout", input.EditingLineId, input.EditingCueId,
             renderBackend).CreateAsync(snapshot, token).ConfigureAwait(false);
         if (session is not ISceneMeasurementSession measurable) throw new WorkerProtocolException("Runtime没有同帧测量能力。", "SceneMeasurementUnavailable");
         var request = input.Request;

@@ -7,4 +7,7 @@
     <ProjectReference Include="../../../src/MakoKaraGenerator.Runtime.Hosting/MakoKaraGenerator.Runtime.Hosting.csproj" />
     <ProjectReference Include="../../../src/MakoKaraGenerator.Backend.Rendering/MakoKaraGenerator.Backend.Rendering.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../src/MakoKaraGenerator.Scripting.Compiler/MakoKaraGenerator.Scripting.Compiler.csproj" />
+  </ItemGroup>
 </Project>

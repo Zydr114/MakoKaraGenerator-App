@@ -1500,7 +1500,13 @@ W8 增加 profile 级恢复入口。`GET /api/v1/profile/author-drafts` 只返�
 不是 PE 字节摘要，也不构成公开的产物读取路径。内部缓存默认 256 MiB，PE／PDB 各 32 MiB、清单 1 MiB；
 配额、损坏摘要或读取失败沿既有编译任务失败路径处理，不能回退旧成功产物。磁盘在用租约保护淘汰，
 跨进程同键互斥和崩溃暂存回收不改变 owner／CAS／任务终态。此处是产物读写预算，不保证 Roslyn
-编译期间的峰值内存上限。当前渲染 Worker 的固定产物消费另由 M02 交付。
+编译期间的峰值内存上限。
+
+**0.110.5 固定产物消费：** 预览、验证、导出和场景测量复用 Host 的同一编译服务；
+渲染 Worker 校验固定产物字节、SDK／参考集／引擎及入口后加载，不再运行 Roslyn 编译。
+shader、图像、图、材质和作者运行诊断仍在原执行边界校验，公共请求、owner／CAS、来源 profile
+与终态语义保持。产物是私有 Worker 输入，不增加公共 DLL 路径或读取接口。详细预算及目录
+所有权见[固定产物架构](script-compilation-artifacts.md)。
 
 `DELETE /api/v1/drafts/{id}` 必须携带 `AuthorDraftDeleteRequest` 的精确 `expectedDraftRevision` 和metadata。成功返回 `AuthorDraftDeleteResponse`（200），删除草稿状态及其固定包，并释放客户端作者草稿的存储与回收保护；修订冲突返回409，跨客户端读取仍为401 `resourceUnauthorized`。删除是显式操作，不会自动修改个人模板库或工程历史；同一metadata重试返回原回执。
 

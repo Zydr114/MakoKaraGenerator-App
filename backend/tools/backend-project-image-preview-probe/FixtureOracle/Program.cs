@@ -1,3 +1,4 @@
+using MakoKaraGenerator.Scripting.Compilation;
 using System.Globalization;
 using System.IO.Compression;
 using System.Runtime.InteropServices;
@@ -151,7 +152,7 @@ if (args[7] == "background") snapshot = FixtureSources.Fingerprint(snapshot with
 else if (args[7] == "package") snapshot = FixtureSources.WithoutContribution(snapshot, "scale");
 else if (args[7] != "none") throw new ArgumentException("Unknown counterfactual.");
 using var videos = new FfmpegVideoFrameProvider();
-var factory = new ProjectRenderSessionFactory(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), prefix + "-cache", videos, ReplayReason.Initial);
+var factory = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), prefix + "-cache"), videos, ReplayReason.Initial);
 await using var session = await factory.CreateAsync(snapshot);
 int index = 0;
 foreach (string part in args[6].Split(','))

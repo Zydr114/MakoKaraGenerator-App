@@ -13,9 +13,39 @@ public sealed partial class WorkerProcessProxy
         WorkerProtocol.Validate(request);
         using CancellationTokenSource deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(timeout);
-        try { return await InvokeAsync().ConfigureAwait(false); }
+        try
+        {
+            using var prepared = request.Kind is WorkerExportContract.RequestKind or ProjectImageExportWorkerContract.RequestKind
+                ? await PrepareExportScriptInputAsync().ConfigureAwait(false) : null;
+            var result = await InvokeAsync().ConfigureAwait(false);
+            prepared?.Complete(); return result;
+        }
         catch (OperationCanceledException failure) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested)
         { throw new RenderSessionFailureException("WorkerExportTimedOut", imageExport ? "图片背景导出超过任务期限。" : "静态导出超过任务期限。", innerException: failure); }
+
+        async Task<PreparedScriptCall> PrepareExportScriptInputAsync()
+        {
+            byte[] payload;
+            PreparedScriptCall inputLease;
+            if (imageExport)
+            {
+                var input = ProjectImageExportWorkerContract.DecodeInput(request.Payload);
+                inputLease = await PrepareScriptCallAsync(input.SnapshotBytes, deadline.Token, image: true).ConfigureAwait(false);
+                try { payload = ProjectImageExportWorkerContract.EncodeInput(input.TaskId, input.Metadata, inputLease.Envelope); }
+                catch { inputLease.Dispose(); throw; }
+            }
+            else
+            {
+                var input = WorkerExportContract.DecodeInput(request.Payload, false);
+                inputLease = await PrepareScriptCallAsync(input.SnapshotBytes, deadline.Token).ConfigureAwait(false);
+                try { payload = WorkerExportContract.EncodeInput(input.TaskId, input.Metadata, inputLease.Envelope); }
+                catch { inputLease.Dispose(); throw; }
+            }
+            string sourceHash = imageExport ? ProjectImageExportWorkerContract.DecodeInput(payload).SourceSha256
+                : WorkerExportContract.DecodeInput(payload, false).SourceSha256;
+            request = request with { Payload = payload, InputSha256 = WorkerProtocol.ComputeSha256(payload), SourceSha256 = sourceHash };
+            return inputLease;
+        }
 
         async Task<WorkerMessage> InvokeAsync()
         {

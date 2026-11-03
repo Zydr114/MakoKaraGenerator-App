@@ -1,3 +1,4 @@
+using MakoKaraGenerator.Scripting.Compilation;
 using System.Security.Cryptography;
 using System.Text;
 using MakoKaraGenerator.Core.Effects;
@@ -33,9 +34,9 @@ public sealed class ProjectImagePreviewRuntimeTests
         };
         var decoded = ProjectImagePreviewSnapshotCodec.Decode(ProjectImagePreviewSnapshotCodec.Encode(source, imageBytes));
         string references = Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0");
-        var originalFactory = new ProjectRenderSessionFactory(references, temp.FilePath("original-cache"), videos, ReplayReason.Initial);
+        var originalFactory = new ProjectRenderSessionFactory(new ScriptCompiler(references, temp.FilePath("original-cache")), videos, ReplayReason.Initial);
         List<CountingResolver> resolvers = [];
-        var fixedFactory = new ProjectRenderSessionFactory(references, temp.FilePath("fixed-cache"), videos, ReplayReason.Initial, () =>
+        var fixedFactory = new ProjectRenderSessionFactory(new ScriptCompiler(references, temp.FilePath("fixed-cache")), videos, ReplayReason.Initial, () =>
         {
             var resolver = new CountingResolver(new MemoryImageBackgroundFrameSourceResolver(decoded.LogicalPath, decoded.ImageBytes));
             resolvers.Add(resolver); return resolver;
@@ -68,7 +69,7 @@ public sealed class ProjectImagePreviewRuntimeTests
         using TemporaryDirectory temp = new(); using FfmpegVideoFrameProvider videos = new();
         string references = Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0");
         List<CountingResolver> created = [];
-        var factory = new ProjectRenderSessionFactory(references, temp.FilePath("cache"), videos, ReplayReason.Initial, () =>
+        var factory = new ProjectRenderSessionFactory(new ScriptCompiler(references, temp.FilePath("cache")), videos, ReplayReason.Initial, () =>
         { var value = new CountingResolver(new BackgroundFrameSourceResolver()); created.Add(value); return value; });
         ProjectSnapshot snapshot = PackageRuntimeFixture.Create("scale");
         var files = EffectPackageFixture.Files();
@@ -88,7 +89,7 @@ public sealed class ProjectImagePreviewRuntimeTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => factory.CreateAsync(snapshot, cancellation.Token).AsTask());
         Assert.Empty(created);
         using CancellationTokenSource midway = new();
-        var cancellingFactory = new ProjectRenderSessionFactory(references, temp.FilePath("cache"), videos, ReplayReason.Initial, () =>
+        var cancellingFactory = new ProjectRenderSessionFactory(new ScriptCompiler(references, temp.FilePath("cache")), videos, ReplayReason.Initial, () =>
         { var value = new CountingResolver(new BackgroundFrameSourceResolver()); created.Add(value); midway.Cancel(); return value; });
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cancellingFactory.CreateAsync(snapshot, midway.Token).AsTask());
         Assert.Equal(1, Assert.Single(created).Disposals);
@@ -101,7 +102,7 @@ public sealed class ProjectImagePreviewRuntimeTests
         byte[] bytes = [1, 2, 3]; string hash = Convert.ToHexStringLower(SHA256.HashData(bytes));
         var snapshot = StaticSnapshotFixture.Create() with
         { Background = BackgroundSource.ForImage("data/media/" + hash + ".media") with { Media = new(hash, bytes.Length, "bad.png") } };
-        var factory = new ProjectRenderSessionFactory("missing-refs", temp.FilePath("cache"), videos, ReplayReason.Initial,
+        var factory = new ProjectRenderSessionFactory(new FixedScriptArtifactProvider(new ScriptCompilationIdentity("static-unused", "static-unused", new string('0', 64), new string('0', 64), "static-unused", "static-unused"), []), videos, ReplayReason.Initial,
             () => new MemoryImageBackgroundFrameSourceResolver(snapshot.Background.Path!, bytes));
         var error = await Assert.ThrowsAsync<ImageBackgroundDecodeException>(() => factory.CreateAsync(snapshot).AsTask());
         Assert.Equal("PackageImageDecodeFailed", error.Code);

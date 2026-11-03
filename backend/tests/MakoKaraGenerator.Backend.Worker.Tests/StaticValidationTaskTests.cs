@@ -1,4 +1,5 @@
 using System.Globalization;
+using MakoKaraGenerator.Scripting.Compilation;
 using MakoKaraGenerator.Backend.Contracts;
 using MakoKaraGenerator.Backend.Rendering;
 using MakoKaraGenerator.Core.Lyrics;
@@ -89,7 +90,14 @@ public sealed class StaticValidationTaskTests
                 ExportId = "controller", Binding = new(ProjectEffectBindingKind.Project), Subscription = new("project"),
             }]) };
         var snapshot = ProjectSnapshot.FromProject(project);
-        byte[] bytes = PackageProjectSnapshotCodec.Encode(snapshot); Guid id = Guid.NewGuid();
+        using TemporaryDirectory temporary = new();
+        var compiler = new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));
+        var definition = EffectPackageDefinition.Read(package);
+        var compilationInput = ScriptCompilationInput.Create(EffectPackageSources.Read(package), definition.Controllers.Select(controller => controller.EntryType), compiler.Identity);
+        var compilation = await compiler.CompileAsync(compilationInput.Sources, compilationInput.EntryTypes);
+        using var prepared = ScriptPreparedInputCodec.Prepare(PackageProjectSnapshotCodec.Encode(snapshot), temporary.Path,
+            compiler.Identity, [(compilationInput, compilation)]);
+        byte[] bytes = prepared.Envelope; Guid id = Guid.NewGuid();
         byte[] payload = WorkerValidationContract.EncodeInput(id, 1, bytes, packageProfile: true);
         WorkerMessage request = new(WorkerValidationContract.RequestKind, Guid.NewGuid().ToString("N"), WorkerProtocol.ComputeSha256(payload), payload,
             taskId: id.ToString("N"), sourceSha256: WorkerProtocol.ComputeSha256(bytes), validationFramesPerOutput: 1);

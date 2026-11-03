@@ -49,13 +49,8 @@ public sealed partial class WorkerProcessProxy
         TimeSpan timeout, CancellationToken cancellationToken = default)
     {
         Guid id = Guid.NewGuid();
-        byte[] payload = PackageRenderWorkerContract.EncodeOpen(id, snapshotBytes.Span);
+        _ = PackageRenderWorkerContract.EncodeOpen(id, snapshotBytes.Span);
         await GetImagePreviewCapabilitiesAsync(timeout, cancellationToken).ConfigureAwait(false);
-        string sourceHash = WorkerProtocol.ComputeSha256(payload.AsSpan(PackageRenderWorkerContract.OpenHeaderBytes));
-        WorkerMessage request = new(ProjectImagePreviewWorkerContract.OpenKind, Guid.NewGuid().ToString("N"),
-            WorkerProtocol.ComputeSha256(payload), payload, sessionId: id.ToString("N"), sourceSha256: sourceHash, frameSequence: 0);
-        await InvokeTimedMessageAsync(request, PackageRenderWorkerContract.SessionResultKind, timeout,
-            ValidateEmptyPackageSessionResult, cancellationToken, requirePackageRuntimeGuards: true).ConfigureAwait(false);
-        return new(id, sourceHash);
+        return await OpenPreparedScriptSessionAsync(ProjectImagePreviewWorkerContract.OpenKind, id, snapshotBytes, timeout, cancellationToken, image: true).ConfigureAwait(false);
     }
 }

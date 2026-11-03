@@ -64,11 +64,15 @@ public sealed class FixedScriptArtifactProvider : IScriptCompilationService
     private readonly ScriptCompilationIdentity _identity;
     private readonly Dictionary<string, ScriptCompilationResult> _artifacts;
     private readonly ScriptArtifactBudget _budget;
+    private readonly Dictionary<string, ScriptFailedCompilation> _failures;
+    /// <inheritdoc/>
+    public ScriptCompilationIdentity Identity => _identity;
     /// <summary>建立同部署产物集合；装载前校验全部身份、字节摘要和预算。</summary>
-    public FixedScriptArtifactProvider(ScriptCompilationIdentity identity, IEnumerable<ScriptCompilationResult> artifacts, ScriptArtifactBudget? budget = null)
+    public FixedScriptArtifactProvider(ScriptCompilationIdentity identity, IEnumerable<ScriptCompilationResult> artifacts, ScriptArtifactBudget? budget = null,
+        IEnumerable<ScriptFailedCompilation>? failures = null)
     {
         ArgumentNullException.ThrowIfNull(identity); ArgumentNullException.ThrowIfNull(artifacts); identity.Validate();
-        _identity = identity; _budget = budget ?? ScriptArtifactBudget.Default; _budget.Validate(); _artifacts = [];
+        _identity = identity; _budget = budget ?? ScriptArtifactBudget.Default; _budget.Validate(); _artifacts = []; _failures = [];
         foreach (var artifact in artifacts)
         {
             if (artifact?.Descriptor is not { } descriptor || descriptor.Identity != identity)
@@ -76,12 +80,24 @@ public sealed class FixedScriptArtifactProvider : IScriptCompilationService
             descriptor.ValidateResult(artifact, _budget);
             if (!_artifacts.TryAdd(artifact.ArtifactHash, artifact)) throw new InvalidDataException("固定产物身份重复。");
         }
+        foreach (var failure in failures ?? [])
+        {
+            if (failure is null || failure.Identity != identity) throw new InvalidDataException("固定失败编译与当前部署不匹配。");
+            failure.Validate();
+            if (_artifacts.ContainsKey(failure.ArtifactHash) || !_failures.TryAdd(failure.ArtifactHash, failure))
+                throw new InvalidDataException("固定编译结果身份重复。");
+        }
     }
     /// <inheritdoc/>
     public Task<ScriptCompilationResult> CompileAsync(IEnumerable<ScriptSource> sources, IEnumerable<string> entryTypes, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var input = ScriptCompilationInput.Create(sources, entryTypes, _identity);
+        if (_failures.TryGetValue(input.ArtifactHash, out var failure))
+        {
+            failure.ValidateSources(input);
+            return Task.FromResult(new ScriptCompilationResult(input.ArtifactHash, [], [], failure.Diagnostics));
+        }
         if (!_artifacts.TryGetValue(input.ArtifactHash, out var artifact) || !artifact.Descriptor!.EntryTypes.SequenceEqual(input.EntryTypes))
             throw new InvalidDataException("固定脚本产物缺失或不属于请求的源码及入口。");
         artifact.Descriptor.ValidateResult(artifact, _budget); cancellationToken.ThrowIfCancellationRequested(); return Task.FromResult(artifact);

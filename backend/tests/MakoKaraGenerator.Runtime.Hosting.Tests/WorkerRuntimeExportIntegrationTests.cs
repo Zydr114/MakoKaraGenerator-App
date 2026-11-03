@@ -1,3 +1,4 @@
+using MakoKaraGenerator.Scripting.Compilation;
 using CliWrap;
 using MakoKaraGenerator.Backend.Contracts;
 using MakoKaraGenerator.Backend.Hosting;
@@ -103,8 +104,7 @@ public sealed class WorkerRuntimeExportIntegrationTests
         byte[] actual = raw.ToArray();
         Assert.Equal(3 * 320 * 180 * 4, actual.Length);
         using var videos = new FfmpegVideoFrameProvider();
-        var factory = new ProjectRenderSessionFactory(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
-            temp.FilePath("oracle-cache"), videos, ReplayReason.Initial);
+        var factory = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("oracle-cache")), videos, ReplayReason.Initial);
         await using var session = await factory.CreateAsync(snapshot);
         for (int index = 0; index < 3; index++)
         {

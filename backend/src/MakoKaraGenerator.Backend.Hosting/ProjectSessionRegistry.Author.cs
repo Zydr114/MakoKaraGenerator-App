@@ -23,7 +23,7 @@ public sealed partial class ProjectSessionRegistry
     private readonly SemaphoreSlim _authorStorageGate = new(1, 1);
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _authorDraftLocks = new(StringComparer.Ordinal);
     private string? _authorRoot;
-    private ScriptCompiler? _authorCompiler;
+    private IScriptCompilationService? _authorCompiler;
     private CancellationTokenSource? _authorStop;
     private BackendAuthorCompilationResultStore? _authorCompilationResults;
     private int _authorStopping;
@@ -62,7 +62,7 @@ public sealed partial class ProjectSessionRegistry
         string OverlayLayer);
 
     /// <summary>配置作者草稿根和离线编译参考集；只由可信组合根调用一次。</summary>
-    public void ConfigureAuthorWorkflows(string? referenceDirectory)
+    public void ConfigureAuthorWorkflows(string? referenceDirectory, IScriptCompilationService? compilationService = null)
     {
         lock (_authorConfigurationGate)
         {
@@ -73,7 +73,8 @@ public sealed partial class ProjectSessionRegistry
             _authorCompilationResults = new BackendAuthorCompilationResultStore(_persistence.StateRoot, long.MaxValue);
             _authorStop = new CancellationTokenSource();
             Volatile.Write(ref _authorStopping, 0);
-            if (!string.IsNullOrWhiteSpace(referenceDirectory) && Directory.Exists(referenceDirectory))
+            _authorCompiler = compilationService;
+            if (_authorCompiler is null && !string.IsNullOrWhiteSpace(referenceDirectory) && Directory.Exists(referenceDirectory))
             {
                 try { _authorCompiler = new ScriptCompiler(referenceDirectory, Path.Combine(_persistence.StateRoot, "script-artifacts")); }
                 catch (ArgumentException) { _authorCompiler = null; }

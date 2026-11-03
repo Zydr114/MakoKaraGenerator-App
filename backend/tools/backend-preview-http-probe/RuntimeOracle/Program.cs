@@ -1,3 +1,4 @@
+using MakoKaraGenerator.Scripting.Compilation;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -38,8 +39,7 @@ long time = long.Parse(args[2], CultureInfo.InvariantCulture);
 int width = int.Parse(args[3], CultureInfo.InvariantCulture);
 int height = int.Parse(args[4], CultureInfo.InvariantCulture);
 bool transparent = bool.Parse(args[5]);
-ProjectRenderSessionFactory factory = new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
-    args[1] + "-cache", new FfmpegVideoFrameProvider(), ReplayReason.Initial);
+ProjectRenderSessionFactory factory = new(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), args[1] + "-cache"), new FfmpegVideoFrameProvider(), ReplayReason.Initial);
 await using IRenderFrameSession session = await factory.CreateAsync(snapshot);
 using RenderFrame frame = await session.RenderAsync(RenderRequest.At(snapshot, time) with
 {

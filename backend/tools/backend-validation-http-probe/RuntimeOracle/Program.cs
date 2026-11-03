@@ -1,3 +1,4 @@
+using MakoKaraGenerator.Scripting.Compilation;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -15,8 +16,7 @@ Project project = loaded.Project ?? throw new InvalidOperationException("The sav
 ProjectSnapshot snapshot = ProjectSnapshot.FromProject(project);
 int frames = int.Parse(args[2], CultureInfo.InvariantCulture);
 List<RuntimeValidationProgress> progress = [];
-ProjectRenderSessionFactory factory = new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
-    args[1] + "-cache", new FfmpegVideoFrameProvider(), ReplayReason.Initial);
+ProjectRenderSessionFactory factory = new(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), args[1] + "-cache"), new FfmpegVideoFrameProvider(), ReplayReason.Initial);
 RuntimeValidationResult result = await new RuntimeFrameValidator(factory).ValidateAsync(snapshot,
     new RuntimeValidationPlan(frames), new InlineProgress(progress));
 await File.WriteAllTextAsync(args[1] + ".json", JsonSerializer.Serialize(new

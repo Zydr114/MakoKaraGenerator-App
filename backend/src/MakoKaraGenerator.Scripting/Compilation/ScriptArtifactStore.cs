@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -23,6 +24,23 @@ public static class ScriptArtifactStore
     private static readonly string[] ArtifactFileNames = ["build.json", "effect.dll", "effect.pdb"];
     private static readonly JsonSerializerOptions Json = new()
     { UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow, RespectRequiredConstructorParameters = true, MaxDepth = 16 };
+
+    internal static long MeasurePublicationBytes(ScriptCompilationResult result, ScriptArtifactBudget? budget = null)
+    {
+        budget ??= ScriptArtifactBudget.Default;
+        if (result.Descriptor is not { } descriptor) throw new InvalidDataException("脚本产物缺少完整身份描述。");
+        descriptor.ValidateResult(result, budget);
+        byte[] manifest = JsonSerializer.SerializeToUtf8Bytes(new ArtifactManifest(3, descriptor, result.Diagnostics), Json);
+        if (manifest.LongLength > budget.MaximumManifestBytes) throw new InvalidDataException("脚本产物清单超过字节预算。");
+        return checked(result.PeImage.Length + (long)result.PdbImage.Length + manifest.Length);
+    }
+
+    internal static string PublicationManifestHash(ScriptCompilationResult result)
+    {
+        if (result.Descriptor is not { } descriptor) throw new InvalidDataException("脚本产物缺少完整身份描述。");
+        byte[] manifest = JsonSerializer.SerializeToUtf8Bytes(new ArtifactManifest(3, descriptor, result.Diagnostics), Json);
+        return Convert.ToHexStringLower(SHA256.HashData(manifest));
+    }
 
     /// <summary>发布成功结果，已有代次必须完全匹配；配额不足明确失败且不发布新代次。</summary>
     public static string Publish(string root, ScriptCompilationResult result, ScriptArtifactBudget? budget = null,
@@ -70,6 +88,17 @@ public static class ScriptArtifactStore
         string root = Path.GetDirectoryName(full)!;
         using var gate = AcquireLock(root, "cache", CancellationToken.None); CleanupStaging(root, CancellationToken.None);
         return LoadCore(full, budget);
+    }
+
+    // Prepared closures trust the descriptor received over the private pipe, never a rewritten manifest.
+    internal static (ScriptCompilationResult Artifact, long Bytes) LoadPrepared(string directory,
+        ScriptArtifactDescriptor expected, string manifestSha256, long remainingBytes)
+    {
+        expected.Validate(); ScriptCompilationInput.ValidateHash(manifestSha256);
+        string full = Path.GetFullPath(directory);
+        using var gate = AcquireLock(Path.GetDirectoryName(full)!, "cache", CancellationToken.None);
+        var result = LoadCore(full, ScriptArtifactBudget.Default, out long bytes, expected, remainingBytes, manifestSha256);
+        return (result, bytes);
     }
 
     /// <summary>取用与清理互斥；共享读租约在 Load 完成后仍保护目录免于跨进程淘汰。</summary>
@@ -126,19 +155,49 @@ public static class ScriptArtifactStore
     }
 
     private static ScriptCompilationResult LoadCore(string directory, ScriptArtifactBudget budget)
+        => LoadCore(directory, budget, out _);
+
+    private static ScriptCompilationResult LoadCore(string directory, ScriptArtifactBudget budget, out long readBytes,
+        ScriptArtifactDescriptor? expected = null, long remainingBytes = long.MaxValue, string? manifestSha256 = null)
     {
+        readBytes = 0;
         ValidateFileClosure(directory);
+        if (expected is not null)
+        {
+            long preflight = 0;
+            foreach (var (name, maximum) in new[] { ("build.json", budget.MaximumManifestBytes),
+                ("effect.dll", budget.MaximumPeBytes), ("effect.pdb", budget.MaximumPdbBytes) })
+            {
+                string path = Path.Combine(directory, name); RejectLink(path);
+                long length = new FileInfo(path).Length;
+                if (length <= 0 || length > maximum || length > remainingBytes - preflight)
+                    throw new InvalidDataException("固定产物拷贝超过剩余总预算。");
+                preflight += length;
+            }
+            long manifestLimit = remainingBytes - expected.PeBytes - expected.PdbBytes;
+            if (manifestLimit <= 0) throw new InvalidDataException("固定产物拷贝超过剩余总预算。");
+            budget = budget with { MaximumManifestBytes = Math.Min(budget.MaximumManifestBytes, manifestLimit) };
+        }
         byte[] manifestBytes = ReadBounded(Path.Combine(directory, "build.json"), budget.MaximumManifestBytes);
+        if (manifestSha256 is not null && Convert.ToHexStringLower(SHA256.HashData(manifestBytes)) != manifestSha256)
+            throw new InvalidDataException("脚本产物完整清单与可信固定摘要不符。");
         try
         {
             using var document = JsonDocument.Parse(manifestBytes); RejectDuplicateFields(document.RootElement);
             var manifest = JsonSerializer.Deserialize<ArtifactManifest>(manifestBytes, Json) ?? throw new InvalidDataException("脚本产物清单为空。");
             if (manifest.Format != 3 || manifest.Descriptor is not { } descriptor) throw new InvalidDataException("脚本产物格式或完整身份无效。");
             descriptor.Validate(budget); ValidateDiagnostics(manifest.Diagnostics);
+            if (expected is not null && (descriptor.ArtifactHash != expected.ArtifactHash || descriptor.Identity != expected.Identity
+                || !descriptor.EntryTypes.SequenceEqual(expected.EntryTypes) || descriptor.PeHash != expected.PeHash
+                || descriptor.PdbHash != expected.PdbHash || descriptor.PeBytes != expected.PeBytes || descriptor.PdbBytes != expected.PdbBytes))
+                throw new InvalidDataException("脚本产物清单与可信固定描述不符。");
             ImmutableArray<byte> pe = [.. ReadBounded(Path.Combine(directory, "effect.dll"), budget.MaximumPeBytes, descriptor.PeBytes)];
             ImmutableArray<byte> pdb = [.. ReadBounded(Path.Combine(directory, "effect.pdb"), budget.MaximumPdbBytes, descriptor.PdbBytes)];
             var result = new ScriptCompilationResult(descriptor.ArtifactHash, pe, pdb, manifest.Diagnostics) { Descriptor = descriptor };
-            descriptor.ValidateResult(result, budget); return result;
+            descriptor.ValidateResult(result, budget);
+            readBytes = checked(manifestBytes.LongLength + pe.Length + (long)pdb.Length);
+            if (readBytes > remainingBytes) throw new InvalidDataException("固定产物拷贝超过剩余总预算。");
+            return result;
         }
         catch (JsonException error) { throw new InvalidDataException("脚本产物清单无效。", error); }
     }

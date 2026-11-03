@@ -1,3 +1,4 @@
+using MakoKaraGenerator.Scripting.Compilation;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
@@ -17,7 +18,7 @@ if (!Path.IsPathFullyQualified(args[5]) || !File.Exists(args[5])) throw new Argu
 project = project with { AudioPath = args[5] };
 var snapshot = ProjectSnapshot.FromProject(project);
 using var videos = new FfmpegVideoFrameProvider();
-var factory = new ProjectRenderSessionFactory(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), args[1] + "-cache", videos, ReplayReason.Initial);
+var factory = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), args[1] + "-cache"), videos, ReplayReason.Initial);
 await using var session = await factory.CreateAsync(snapshot);
 var measurable = (ISceneMeasurementSession)session;
 using var measured = await measurable.MeasureAsync(RenderRequest.At(snapshot, long.Parse(args[2], CultureInfo.InvariantCulture)) with

@@ -35,11 +35,14 @@ public sealed partial class WorkerProcessProxy
             throw new WorkerProtocolException("Worker没有匹配的同帧测量能力。", "SceneMeasurementUnavailable");
         // This proxy belongs to one operation and is never restarted between capability and invocation.
         var process = _process;
-        byte[] payload = WorkerSceneMeasurementContract.Encode(input, source);
+        byte[] originalPayload = WorkerSceneMeasurementContract.Encode(input, source);
+        using var prepared = await PrepareScriptCallAsync(originalPayload, cancellationToken, snapshot).ConfigureAwait(false);
+        byte[] payload = prepared.Envelope;
         response = await InvokeMessageAsync(new(WorkerSceneMeasurementContract.RequestKind, Guid.NewGuid().ToString("N"),
             WorkerProtocol.ComputeSha256(payload), payload), cancellationToken, validateResponse: _ => {
                 if (!ReferenceEquals(process, _process)) throw new WorkerProtocolException("测量Worker代次改变。", "SceneMeasurementUnavailable");
             }, expectedProcess: process, requirePackageRuntimeGuards: runtimeInput).ConfigureAwait(false);
+        prepared.Complete();
         if (response.Payload.Length is <= 0 or > SceneMeasurementContract.MaximumResponseBytes)
             throw new WorkerProtocolException("完整测量回执大小无效。", "SceneMeasurementBudgetExceeded");
         var result = DecodeMeasurement<WorkerSceneMeasurementOutput>(response.Payload)

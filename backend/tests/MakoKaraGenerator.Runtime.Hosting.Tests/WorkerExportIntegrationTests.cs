@@ -1,3 +1,4 @@
+using MakoKaraGenerator.Scripting.Compilation;
 using System.Buffers.Binary;
 using System.Globalization;
 using System.Security.Cryptography;
@@ -59,7 +60,7 @@ public sealed class WorkerExportIntegrationTests(ITestOutputHelper output)
         Assert.Equal("prepared", progress[^1].Stage); Assert.DoesNotContain(progress, value => value.Stage == "committing");
         Assert.Equal(plan.TotalFrames, progress[^1].CompletedFrames);
         byte[] actual = await FrameAsync(candidate, 15);
-        var factory = new ProjectRenderSessionFactory(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("unused-cache"),
+        var factory = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("unused-cache")),
             new FfmpegVideoFrameProvider(), ReplayReason.Initial);
         await using var session = await factory.CreateAsync(snapshot);
         using var expected = await session.RenderAsync(RenderRequest.At(snapshot, plan.FrameTimeUs(15)) with

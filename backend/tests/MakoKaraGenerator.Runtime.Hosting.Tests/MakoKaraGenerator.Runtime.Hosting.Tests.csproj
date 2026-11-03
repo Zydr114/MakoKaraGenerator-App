@@ -15,4 +15,7 @@
     <Compile Include="../Shared/Rendering/TimedRubyFixture.cs" Link="Shared/TimedRubyFixture.cs" />
     <Compile Include="../Shared/Rendering/RubySpacingFixture.cs" Link="Shared/RubySpacingFixture.cs" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/MakoKaraGenerator.Scripting.Compiler/MakoKaraGenerator.Scripting.Compiler.csproj" />
+  </ItemGroup>
 </Project>

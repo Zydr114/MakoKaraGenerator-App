@@ -9,4 +9,7 @@
     <Compile Include="../../../tests/Shared/EffectPackageShaderFixture.cs" Link="Fixtures/EffectPackageShaderFixture.cs" />
     <Compile Include="../../../tests/Shared/EffectPackageGraphFixture.cs" Link="Fixtures/EffectPackageGraphFixture.cs" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../src/MakoKaraGenerator.Scripting.Compiler/MakoKaraGenerator.Scripting.Compiler.csproj" />
+  </ItemGroup>
 </Project>

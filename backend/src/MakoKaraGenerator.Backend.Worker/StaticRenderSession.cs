@@ -28,8 +28,7 @@ internal sealed class StaticRenderSession(string? renderBackend = null) : IAsync
                 var input = StaticRenderWorkerContract.DecodeOpen(request.Payload);
                 ValidateMetadata(request, input.SessionId, input.SourceSha256, 0);
                 ProjectSnapshot snapshot = StaticProjectSnapshotCodec.Decode(input.SnapshotBytes);
-                var factory = new ProjectRenderSessionFactory(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
-                    Path.Combine(Path.GetTempPath(), $"makokara-worker-static-{Environment.ProcessId}"),
+                var factory = new ProjectRenderSessionFactory(WorkerScriptInputs.Empty,
                     new FfmpegVideoFrameProvider(), ReplayReason.Initial, renderBackend: renderBackend);
                 IRenderFrameSession session = await factory.CreateAsync(snapshot, token).ConfigureAwait(false);
                 try { token.ThrowIfCancellationRequested(); }

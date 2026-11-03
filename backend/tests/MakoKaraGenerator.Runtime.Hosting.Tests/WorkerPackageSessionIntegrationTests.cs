@@ -1,3 +1,4 @@
+using MakoKaraGenerator.Scripting.Compilation;
 using MakoKaraGenerator.Backend.Contracts;
 using MakoKaraGenerator.Backend.Hosting;
 using MakoKaraGenerator.Backend.Rendering;
@@ -20,8 +21,7 @@ public sealed class WorkerPackageSessionIntegrationTests(ITestOutputHelper outpu
     {
         PackageWorkerRuntimeFixture.AssertFixedFont();
         using TemporaryDirectory temp = new(); using FfmpegVideoFrameProvider videos = new();
-        var runtime = new ProjectRenderSessionFactory(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
-            temp.FilePath("cache"), videos, ReplayReason.Initial);
+        var runtime = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")), videos, ReplayReason.Initial);
         var factory = new WorkerPackageRenderFrameSessionFactory(new(PackageWorkerRuntimeFixture.WorkerApphost()), TimeSpan.FromSeconds(30));
         ProjectSnapshot invalid = PackageWorkerRuntimeFixture.DiagnosticSource(kind);
         ProjectEffectCompilationException expected = await Assert.ThrowsAsync<ProjectEffectCompilationException>(() => runtime.CreateAsync(invalid).AsTask());
@@ -53,8 +53,7 @@ public sealed class WorkerPackageSessionIntegrationTests(ITestOutputHelper outpu
         PackageWorkerRuntimeFixture.AssertFixedFont();
         using TemporaryDirectory temp = new(); using FfmpegVideoFrameProvider videos = new();
         ProjectSnapshot source = PackageWorkerRuntimeFixture.DiagnosticSource(kind);
-        var runtime = new ProjectRenderSessionFactory(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
-            temp.FilePath("cache"), videos, ReplayReason.Initial);
+        var runtime = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")), videos, ReplayReason.Initial);
         await using IRenderFrameSession direct = await runtime.CreateAsync(source);
         var factory = new WorkerPackageRenderFrameSessionFactory(new(PackageWorkerRuntimeFixture.WorkerApphost()), TimeSpan.FromSeconds(30));
         await using IRenderFrameSession session = await factory.CreateAsync(source);
@@ -111,8 +110,7 @@ public sealed class WorkerPackageSessionIntegrationTests(ITestOutputHelper outpu
     {
         PackageWorkerRuntimeFixture.AssertFixedFont();
         using TemporaryDirectory temp = new(); using FfmpegVideoFrameProvider videos = new();
-        var runtime = new ProjectRenderSessionFactory(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
-            temp.FilePath("cache"), videos, ReplayReason.Initial);
+        var runtime = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")), videos, ReplayReason.Initial);
         var factory = new WorkerPackageRenderFrameSessionFactory(new(PackageWorkerRuntimeFixture.WorkerApphost()), TimeSpan.FromSeconds(30));
         ProjectSnapshot source = PackageWorkerRuntimeFixture.RuntimeError();
         await using IRenderFrameSession direct = await runtime.CreateAsync(source);
@@ -142,8 +140,7 @@ public sealed class WorkerPackageSessionIntegrationTests(ITestOutputHelper outpu
         Assert.True(LinuxProcessGuards.IsSupported, "This bounded process isolation exit requires Linux process guards.");
         PackageWorkerRuntimeFixture.AssertFixedFont();
         using TemporaryDirectory temp = new(); using FfmpegVideoFrameProvider videos = new();
-        var runtime = new ProjectRenderSessionFactory(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
-            temp.FilePath("cache"), videos, ReplayReason.Initial);
+        var runtime = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")), videos, ReplayReason.Initial);
         ProjectSnapshot source = PackageWorkerRuntimeFixture.Create(kind);
         ProjectSnapshot removed = PackageWorkerRuntimeFixture.WithoutContribution(source, kind);
         byte[] bytes = PackageProjectSnapshotCodec.Encode(source);

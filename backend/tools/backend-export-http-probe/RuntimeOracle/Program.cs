@@ -1,3 +1,4 @@
+using MakoKaraGenerator.Scripting.Compilation;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -46,8 +47,7 @@ ProjectSnapshot snapshot = ProjectSnapshot.FromProject(project);
 string sourceProfile = StaticProjectSnapshotCodec.SelectProfile(snapshot);
 CompositionFramePlan plan = CompositionFramePlan.Create(snapshot.Composition.OutputDurationUs!.Value, snapshot.Composition.FrameRate);
 using FfmpegVideoFrameProvider videos = new();
-ProjectRenderSessionFactory factory = new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
-    args[2] + "-unused-cache", videos, ReplayReason.Initial);
+ProjectRenderSessionFactory factory = new(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), args[2] + "-unused-cache"), videos, ReplayReason.Initial);
 foreach (bool transparent in new[] { false, true })
 {
     await using IRenderFrameSession session = await factory.CreateAsync(snapshot);

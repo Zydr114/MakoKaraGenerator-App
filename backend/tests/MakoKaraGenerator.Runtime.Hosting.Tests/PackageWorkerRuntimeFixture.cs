@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using MakoKaraGenerator.Scripting.Compilation;
 using System.Text;
 using System.Text.Json.Nodes;
 using MakoKaraGenerator.Core.Effects;
@@ -12,6 +13,19 @@ namespace MakoKaraGenerator.Runtime.Hosting.Tests;
 
 internal static class PackageWorkerRuntimeFixture
 {
+    internal static async Task<ScriptPreparedInputLease> PrepareScriptsAsync(ProjectSnapshot snapshot, byte[] source, string root)
+    {
+        var compiler = new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));
+        List<(ScriptCompilationInput, ScriptCompilationResult)> compilations = [];
+        foreach (var contents in snapshot.Effects.Packages)
+        {
+            var definition = EffectPackageDefinition.Read(contents);
+            var input = ScriptCompilationInput.Create(EffectPackageSources.Read(contents), definition.Controllers.Select(controller => controller.EntryType), compiler.Identity);
+            compilations.Add((input, await compiler.CompileAsync(input.Sources, input.EntryTypes)));
+        }
+        return ScriptPreparedInputCodec.Prepare(source, root, compiler.Identity, compilations);
+    }
+
     internal const string Family = "Noto Sans CJK SC";
     internal const string WarningCode = "PackageSnapshotActualWarning";
     internal const string WarningMessage = "真实作者警告：固定包源🎵";

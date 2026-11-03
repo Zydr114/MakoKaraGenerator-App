@@ -82,7 +82,7 @@ class ImageValidationProbe(mod.PackageValidationProbe):
             "MakoKaraGenerator.Rendering.Abstractions.dll", "MakoKaraGenerator.Rendering.Skia.dll",
             "MakoKaraGenerator.Runtime.Hosting.dll", "MakoKaraGenerator.Scripting.Abstractions.dll",
             "MakoKaraGenerator.Scripting.dll", "MakoKaraGenerator.Text.dll",
-            "Microsoft.CodeAnalysis.dll", "Microsoft.CodeAnalysis.CSharp.dll",
+            "MakoKaraGenerator.Scripting.Compiler.dll", "Microsoft.CodeAnalysis.dll", "Microsoft.CodeAnalysis.CSharp.dll",
         }
         oracle_root, worker_root = self.oracle.parent, self.worker.parent
         oracle_names = {p.name for p in oracle_root.glob("*.dll") if p.name != self.oracle.name}
@@ -90,13 +90,17 @@ class ImageValidationProbe(mod.PackageValidationProbe):
         worker_refs = {p.name for p in (worker_root / "script-refs/net10.0").glob("*.dll")}
         names = sorted(oracle_names | required)
         names += ["script-refs/net10.0/" + name for name in sorted(oracle_refs | worker_refs)]
+        compiler_names = {"MakoKaraGenerator.Scripting.Compiler.dll", "Microsoft.CodeAnalysis.dll", "Microsoft.CodeAnalysis.CSharp.dll"}
         identity = []
         for name in names:
-            left, right = oracle_root / name, worker_root / name
+            component = "server" if name in compiler_names else "worker"
+            left, right = oracle_root / name, self.dist / component / name
+            if name in compiler_names:
+                self.check(not (worker_root / name).exists(), "render Worker excludes compiler: " + name)
             oracle_sha = hashlib.sha256(left.read_bytes()).hexdigest() if left.is_file() else None
             worker_sha = hashlib.sha256(right.read_bytes()).hexdigest() if right.is_file() else None
-            deployed_sha = deployment.get("files", {}).get("worker/" + name)
-            identity.append({"path": name, "oracleSha256": oracle_sha, "workerSha256": worker_sha,
+            deployed_sha = deployment.get("files", {}).get(component + "/" + name)
+            identity.append({"path": name, "deploymentComponent": component, "oracleSha256": oracle_sha, "componentSha256": worker_sha,
                              "deploymentSha256": deployed_sha,
                              "matched": oracle_sha is not None and oracle_sha == worker_sha == deployed_sha})
         mod.MOD.HELPER.save_json(self.output / "oracle-input-identity.json", {
@@ -106,13 +110,13 @@ class ImageValidationProbe(mod.PackageValidationProbe):
             "oracleBuildInputs": oracle_manifest,
             "oracleSha256": hashlib.sha256(self.oracle.read_bytes()).hexdigest(),
             "requiredAssemblies": sorted(required), "inputs": identity,
-            "scope": "Every adjacent Oracle dependency, original Runtime/render/compiler chain and complete script reference set must equal the immutable Worker deployment before HTTP."
+            "scope": "Every adjacent Oracle dependency, original Runtime/render/compiler chain and complete script reference set must equal the immutable matched deployment before HTTP: Runtime against Worker, compiler/Roslyn against Server. Worker excludes compiler dependencies."
         })
         self.check(required <= oracle_names, "Oracle: complete Runtime/compiler dependency set")
         self.check(oracle_refs == worker_refs and "System.Runtime.dll" in oracle_refs,
                    "Oracle: complete framework reference set matches Worker")
         for item in identity:
-            self.check(item["matched"], "Oracle/Worker/deployment byte identity: " + item["path"])
+            self.check(item["matched"], "Oracle/component/deployment byte identity: " + item["path"])
         self.frozen_inputs = {"deploymentManifestSha256": digest(deployment_path),
                               "deploymentFiles": inventory(self.dist),
                               "productionInputs": production_inputs(), "toolInputs": tool_inputs(),

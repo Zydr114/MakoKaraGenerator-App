@@ -1,3 +1,4 @@
+using MakoKaraGenerator.Scripting.Compilation;
 using System.Security.Cryptography;
 using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Media;
@@ -83,8 +84,7 @@ public sealed class StaticSnapshotRuntimeEquivalenceTests
         Assert.False(expectedMarks.PixelMemory.Span.SequenceEqual(removedMarks.PixelMemory.Span));
     }
 
-    private static ProjectRenderSessionFactory Factory(TemporaryDirectory temp, FfmpegVideoFrameProvider videos) => new(
-        Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache"), videos, ReplayReason.Initial);
+    private static ProjectRenderSessionFactory Factory(TemporaryDirectory temp, FfmpegVideoFrameProvider videos) => new(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")), videos, ReplayReason.Initial);
 
     private static RenderRequest Request(ProjectSnapshot snapshot, long time, bool transparent) =>
         RenderRequest.At(snapshot, time) with { Target = new() { PixelWidth = 320, PixelHeight = 180 }, TransparentBackground = transparent };

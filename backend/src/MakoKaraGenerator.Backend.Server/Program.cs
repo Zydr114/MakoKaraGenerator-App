@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using MakoKaraGenerator.Backend.Hosting;
 using MakoKaraGenerator.Backend.Rendering.Skia;
 using MakoKaraGenerator.Backend.Server;
+using MakoKaraGenerator.Scripting.Compilation;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
@@ -45,18 +46,28 @@ ClientRegistry clients = new(hostInstanceId, security.BootstrapToken, clientOpti
 ResourceStore resources = new(hostOptions);
 NewProjectPreparationService preparation = NewProjectPreparationService.CreateDefault();
 ProjectSessionRegistry sessions = new(hostInstanceId, resources, preparation, clients: clients);
-sessions.ConfigurePersistence(new ProjectPersistenceOptions
+ProjectPersistenceOptions persistenceOptions = new()
 {
     StateRoot = Environment.GetEnvironmentVariable("MAKO_BACKEND_STATE_ROOT")
         ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MakoKaraGenerator", "backend", "state"),
     AllowedProjectRoots = ServerEndpoints.ResolveRoots(),
     AutoSaveInterval = TimeSpan.FromSeconds(ServerEndpoints.ResolveInt("MAKO_BACKEND_AUTOSAVE_SECONDS", 30)),
-});
-sessions.ConfigureAuthorWorkflows(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));
+};
+sessions.ConfigurePersistence(persistenceOptions);
+string scriptReferences = Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0");
+IScriptCompilationService? scriptCompiler = null;
+if (Directory.Exists(scriptReferences))
+{
+    try { scriptCompiler = new ScriptCompiler(scriptReferences, Path.Combine(persistenceOptions.StateRoot, "script-artifacts")); }
+    catch (ArgumentException) { }
+}
+sessions.ConfigureAuthorWorkflows(scriptReferences, scriptCompiler);
 sessions.ConfigureScriptConfigurations();
 sessions.ConfigureTemplateLibrary();
 AcceptedOperationTracker accepted = new();
 PreviewWorkerConfiguration previewWorker = await PreviewWorkerConfiguration.ResolveAsync().ConfigureAwait(false);
+if (previewWorker.Options is { } workerOptions)
+    previewWorker = previewWorker with { Options = workerOptions with { ScriptCompilationService = scriptCompiler } };
 BackendRenderBackendConfiguration renderBackends = new(previewWorker.Options);
 sessions.ConfigureRenderBackends(renderBackends);
 sessions.ConfigureSceneMeasurements(previewWorker.Options);

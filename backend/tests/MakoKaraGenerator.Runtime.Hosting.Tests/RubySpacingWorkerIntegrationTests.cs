@@ -1,3 +1,4 @@
+using MakoKaraGenerator.Scripting.Compilation;
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
@@ -36,7 +37,7 @@ public sealed class RubySpacingWorkerIntegrationTests(ITestOutputHelper output)
         }
         byte[] bytes = package ? PackageProjectSnapshotCodec.Encode(source) : StaticProjectSnapshotCodec.Encode(source);
         using TemporaryDirectory temp = new(); using FfmpegVideoFrameProvider videos = new();
-        var factory = new ProjectRenderSessionFactory(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache"), videos, ReplayReason.Initial);
+        var factory = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")), videos, ReplayReason.Initial);
         await using var direct = await factory.CreateAsync(source);
         await using WorkerProcessProxy worker = new(new(PackageWorkerRuntimeFixture.WorkerApphost()));
         var handle = package ? await worker.OpenPackageSessionAsync(bytes, TimeSpan.FromSeconds(30)) : await worker.OpenStaticSessionAsync(bytes, TimeSpan.FromSeconds(30));
@@ -67,7 +68,7 @@ public sealed class RubySpacingWorkerIntegrationTests(ITestOutputHelper output)
     {
         var source = RubySpacingFixture.Create(width: 320); byte[] bytes = StaticProjectSnapshotCodec.Encode(source);
         using TemporaryDirectory temp = new(); using FfmpegVideoFrameProvider videos = new();
-        var factory = new ProjectRenderSessionFactory(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache"), videos, ReplayReason.Initial);
+        var factory = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")), videos, ReplayReason.Initial);
         await using var direct = await factory.CreateAsync(source);
         var measurable = Assert.IsAssignableFrom<ISceneMeasurementSession>(direct);
         foreach (long time in new long[] { 150_000, 250_000 })

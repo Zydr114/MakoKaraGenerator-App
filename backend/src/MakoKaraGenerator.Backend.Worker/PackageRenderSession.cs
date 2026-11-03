@@ -30,31 +30,31 @@ internal sealed class PackageRenderSession(string? renderBackend = null, bool en
             {
                 if (_session is not null) throw new WorkerProtocolException("Worker 已持有固定会话。", "WorkerSessionAlreadyOpen");
                 var input = PackageRenderWorkerContract.DecodeOpen(request.Payload);
-                ValidateMetadata(request, input.SessionId, input.SourceSha256, 0);
+                var prepared = WorkerScriptInputs.Read(input.SnapshotBytes, token);
+                string sourceHash = WorkerProtocol.ComputeSha256(prepared.Source.Span);
+                ValidateMetadata(request, input.SessionId, sourceHash, 0);
                 ProjectSnapshot snapshot;
                 Func<IBackgroundFrameSourceResolver>? imageResolverFactory = null;
                 ProjectRuntimeInput? runtimeInput = null;
                 if (request.Kind == ProjectRuntimeInputWorkerContract.OpenKind)
                 {
-                    runtimeInput = await ProjectRuntimeInput.OpenAsync(input.SnapshotBytes, token).ConfigureAwait(false);
+                    runtimeInput = await ProjectRuntimeInput.OpenAsync(prepared.Source, token, prepared.Compiler).ConfigureAwait(false);
                     snapshot = runtimeInput.Snapshot;
                 }
                 else if (request.Kind == ProjectImagePreviewWorkerContract.OpenKind)
                 {
-                    var image = ProjectImagePreviewSnapshotCodec.Decode(input.SnapshotBytes);
+                    var image = ProjectImagePreviewSnapshotCodec.Decode(prepared.Source);
                     snapshot = image.Snapshot;
                     imageResolverFactory = () => new MemoryImageBackgroundFrameSourceResolver(image.LogicalPath, image.ImageBytes, token);
                 }
                 else
                 {
-                    snapshot = ProjectSnapshotSourceProfile.Decode(input.SnapshotBytes);
+                    snapshot = ProjectSnapshotSourceProfile.Decode(prepared.Source);
                     if (!ProjectSnapshotSourceProfile.IsPackage(ProjectSnapshotSourceProfile.Select(snapshot)))
                         throw new SnapshotContractException("SnapshotVersionMismatch", "包会话必须携带包来源。");
                 }
-                var factory = runtimeInput?.CreateFactory(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
-                    Path.Combine(Path.GetTempPath(), $"makokara-worker-package-{Environment.ProcessId}"), ReplayReason.Initial, renderBackend: renderBackend,
-                    enableGpuPreview: enableGpuPreview, enableGpuPreviewBenchmark: enableGpuPreviewBenchmark) ?? new ProjectRenderSessionFactory(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
-                    Path.Combine(Path.GetTempPath(), $"makokara-worker-package-{Environment.ProcessId}"),
+                var factory = runtimeInput?.CreateFactory(ReplayReason.Initial, renderBackend: renderBackend,
+                    enableGpuPreview: enableGpuPreview, enableGpuPreviewBenchmark: enableGpuPreviewBenchmark) ?? new ProjectRenderSessionFactory(prepared.Compiler,
                     new FfmpegVideoFrameProvider(), ReplayReason.Initial, imageResolverFactory, renderBackend: renderBackend,
                     enableGpuPreview: enableGpuPreview, enableGpuPreviewBenchmark: enableGpuPreviewBenchmark);
                 IRenderFrameSession session;
@@ -69,7 +69,7 @@ internal sealed class PackageRenderSession(string? renderBackend = null, bool en
                 catch { runtimeInput?.Dispose(); throw; }
                 try { token.ThrowIfCancellationRequested(); }
                 catch { try { await session.DisposeAsync().ConfigureAwait(false); } finally { runtimeInput?.Dispose(); } throw; }
-                _id = input.SessionId; _sourceHash = input.SourceSha256; _sequence = 0; _snapshot = snapshot; _session = session; _runtimeInput = runtimeInput;
+                _id = input.SessionId; _sourceHash = sourceHash; _sequence = 0; _snapshot = snapshot; _session = session; _runtimeInput = runtimeInput;
                 return SessionResult(request);
             }
             if (request.Kind is GpuStreamWorkerContract.OpenKind or GpuStreamWorkerContract.CloseKind or GpuStreamWorkerContract.ReadKind)

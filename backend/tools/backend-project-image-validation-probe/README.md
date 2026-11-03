@@ -50,3 +50,10 @@ The main `--worker` must be the fresh source-matched 0.100.0/1.34.0 deployment.
 Every acceptance uses a new output directory. Credentials stay in memory and
 are redacted from request artifacts; the final manifest scans all evidence
 bytes. Failed runs are retained and never overwritten.
+
+## M02 编译依赖分离
+
+独立 Oracle 仍自行从源码编译期望结果。其 Runtime／SDK／渲染依赖逐字节对照匹配发布的 Worker，
+`Scripting.Compiler` 与两个 `Microsoft.CodeAnalysis` 程序集改为逐字节对照同一发布的 Server。
+完整 framework refs 和相邻依赖仍核对发布 manifest；Worker 若含编译依赖则拒绝验收。
+`build_oracle.py` 只编译工具入口并引用上述固定 DLL，不重新构建生产程序集。

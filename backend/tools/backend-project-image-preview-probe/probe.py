@@ -23,8 +23,10 @@ REQUIRED_ORACLE_ASSEMBLIES = {
     'MakoKaraGenerator.Rendering.Abstractions.dll', 'MakoKaraGenerator.Rendering.Skia.dll',
     'MakoKaraGenerator.Runtime.Hosting.dll', 'MakoKaraGenerator.Scripting.Abstractions.dll',
     'MakoKaraGenerator.Scripting.dll', 'MakoKaraGenerator.Text.dll',
-    'Microsoft.CodeAnalysis.dll', 'Microsoft.CodeAnalysis.CSharp.dll',
+    'MakoKaraGenerator.Scripting.Compiler.dll', 'Microsoft.CodeAnalysis.dll', 'Microsoft.CodeAnalysis.CSharp.dll',
 }
+
+COMPILER_ASSEMBLIES = {'MakoKaraGenerator.Scripting.Compiler.dll', 'Microsoft.CodeAnalysis.dll', 'Microsoft.CodeAnalysis.CSharp.dll'}
 
 
 def digest(path):
@@ -49,23 +51,26 @@ class ImagePreviewProbe(base.PackagePreviewProbe):
         names += ['script-refs/net10.0/' + name for name in sorted(oracle_refs | worker_refs)]
         inputs = []
         for name in names:
-            oracle_file, worker_file = oracle_root / name, worker_root / name
+            component = 'server' if name in COMPILER_ASSEMBLIES else 'worker'
+            oracle_file, worker_file = oracle_root / name, self.dist / component / name
+            if name in COMPILER_ASSEMBLIES:
+                self.check(not (worker_root / name).exists(), 'render Worker excludes compiler: ' + name)
             oracle_sha = digest(oracle_file) if oracle_file.is_file() else None
             worker_sha = digest(worker_file) if worker_file.is_file() else None
-            deployed_sha = deployment['files'].get('worker/' + name)
-            inputs.append({'path': name, 'oracleSha256': oracle_sha, 'workerSha256': worker_sha,
+            deployed_sha = deployment['files'].get(component + '/' + name)
+            inputs.append({'path': name, 'deploymentComponent': component, 'oracleSha256': oracle_sha, 'componentSha256': worker_sha,
                            'deploymentSha256': deployed_sha,
                            'matched': oracle_sha is not None and oracle_sha == worker_sha == deployed_sha})
         base.save_json(self.output / 'oracle-input-identity.json', {
             'deploymentSourceCommit': deployment['sourceCommit'], 'oraclePath': str(self.oracle),
             'oracleSha256': digest(self.oracle) if self.oracle.is_file() else None,
             'assemblyCount': len(assemblies), 'frameworkReferenceCount': len(oracle_refs), 'inputs': inputs,
-            'scope': 'Pre-HTTP byte identity of every adjacent Oracle dependency DLL, including the actual scripting SDK, original Runtime/render chain and Roslyn, plus the complete framework reference set. Worker bytes must also match the immutable deployment manifest. No HTTP output constructs expectations.'})
+            'scope': 'Pre-HTTP byte identity of every adjacent Oracle dependency DLL, including the actual scripting SDK, original Runtime/render chain and Roslyn, plus the complete framework reference set. Runtime matches Worker; compiler and Roslyn match Server. All bytes also match the immutable deployment manifest; Worker excludes compiler dependencies. No HTTP output constructs expectations.'})
         self.check(self.oracle.is_file(), 'independent Oracle DLL exists before HTTP')
         self.check(REQUIRED_ORACLE_ASSEMBLIES <= assemblies, 'complete original Runtime/compiler Oracle dependencies before HTTP')
         self.check('System.Runtime.dll' in oracle_refs and oracle_refs == worker_refs, 'complete identical Oracle/Worker framework reference set before HTTP')
         for item in inputs:
-            self.check(item['matched'], 'Oracle/Worker/deployment byte identity before HTTP: ' + item['path'])
+            self.check(item['matched'], 'Oracle/component/deployment byte identity before HTTP: ' + item['path'])
 
     def oracle_run(self, name, arguments):
         result = subprocess.run(['flock', '-o', LOCK, 'dotnet', str(self.oracle), *map(str, arguments)], capture_output=True, text=True)

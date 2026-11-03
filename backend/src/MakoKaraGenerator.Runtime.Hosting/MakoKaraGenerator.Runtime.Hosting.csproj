@@ -9,7 +9,6 @@
     <ProjectReference Include="../MakoKaraGenerator.Rendering.Abstractions/MakoKaraGenerator.Rendering.Abstractions.csproj" />
     <ProjectReference Include="../MakoKaraGenerator.Rendering.Skia/MakoKaraGenerator.Rendering.Skia.csproj" />
     <ProjectReference Include="../MakoKaraGenerator.Scripting/MakoKaraGenerator.Scripting.csproj" />
-    <ProjectReference Include="../MakoKaraGenerator.Scripting.Compiler/MakoKaraGenerator.Scripting.Compiler.csproj" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="MakoKaraGenerator.Runtime.Hosting.Tests" />

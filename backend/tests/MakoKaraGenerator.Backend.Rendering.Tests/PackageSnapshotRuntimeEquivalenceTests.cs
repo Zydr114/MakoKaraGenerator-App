@@ -1,3 +1,4 @@
+using MakoKaraGenerator.Scripting.Compilation;
 using MakoKaraGenerator.Core.Effects;
 using MakoKaraGenerator.Media;
 using MakoKaraGenerator.Rendering;
@@ -17,8 +18,7 @@ public sealed class PackageSnapshotRuntimeEquivalenceTests
     {
         PackageRuntimeFixture.AssertFixedFont();
         using TemporaryDirectory temp = new(); using FfmpegVideoFrameProvider videos = new();
-        var factory = new ProjectRenderSessionFactory(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
-            temp.FilePath("cache"), videos, ReplayReason.Initial);
+        var factory = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")), videos, ReplayReason.Initial);
         ProjectSnapshot source = PackageRuntimeFixture.Create(kind);
         ProjectSnapshot decoded = PackageProjectSnapshotCodec.Decode(PackageProjectSnapshotCodec.Encode(source));
         ProjectSnapshot removed = PackageRuntimeFixture.WithoutContribution(source, kind);

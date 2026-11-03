@@ -9,6 +9,7 @@ using MakoKaraGenerator.Rendering;
 using MakoKaraGenerator.Rendering.Skia;
 using MakoKaraGenerator.Runtime.Hosting;
 using MakoKaraGenerator.Scripting;
+using MakoKaraGenerator.Scripting.Compilation;
 
 namespace MakoKaraGenerator.Backend.Worker;
 
@@ -17,13 +18,19 @@ internal sealed class ProjectRuntimeInput : IDisposable
 {
     private readonly FfmpegVideoFrameProvider _videos = FfmpegVideoFrameProvider.CreateSelfContained();
     private readonly ProjectRuntimeBackgroundGrant? _grant;
-    private ProjectRuntimeInput(ProjectSnapshot snapshot, string profile, ProjectRuntimeBackgroundGrant? grant)
-    { Snapshot = snapshot; SourceProfile = profile; _grant = grant; }
+    private ProjectRuntimeInput(ProjectSnapshot snapshot, string profile, ProjectRuntimeBackgroundGrant? grant,
+        ReadOnlyMemory<byte> source, IScriptCompilationService compiler)
+    { Snapshot = snapshot; SourceProfile = profile; _grant = grant; Source = source; Compiler = compiler; }
     internal ProjectSnapshot Snapshot { get; }
     internal string SourceProfile { get; }
+    internal ReadOnlyMemory<byte> Source { get; }
+    internal IScriptCompilationService Compiler { get; }
 
-    internal static async Task<ProjectRuntimeInput> OpenAsync(ReadOnlyMemory<byte> bytes, CancellationToken token)
+    internal static async Task<ProjectRuntimeInput> OpenAsync(ReadOnlyMemory<byte> bytes, CancellationToken token,
+        IScriptCompilationService? fixedCompiler = null)
     {
+        var prepared = fixedCompiler is null ? WorkerScriptInputs.Read(bytes, token) : (Source: bytes, Compiler: fixedCompiler);
+        bytes = prepared.Source;
         Dictionary<(string, string), EffectPackageContents> packages = [];
         EffectPackageContentUsage packageUsage = new();
         foreach (var packageGrant in ProjectRuntimeInputCodec.ReadPackageGrants(bytes))
@@ -48,13 +55,13 @@ internal sealed class ProjectRuntimeInput : IDisposable
             if (grant.Kind == BackgroundKind.Video)
                 _ = FfmpegVideoFrameProvider.ValidateSelfContainedInput(grant.FilePath, token);
         }
-        token.ThrowIfCancellationRequested(); return new(input.Snapshot, input.SourceProfile, input.Grant);
+        token.ThrowIfCancellationRequested(); return new(input.Snapshot, input.SourceProfile, input.Grant, bytes, prepared.Compiler);
     }
 
-    internal ProjectRenderSessionFactory CreateFactory(string referenceRoot, string artifactRoot, ReplayReason reason,
+    internal ProjectRenderSessionFactory CreateFactory(ReplayReason reason,
         bool layoutReference = false, string? editingLineId = null, string? editingCueId = null, string? renderBackend = null,
         bool enableGpuPreview = false, bool enableGpuPreviewBenchmark = false)
-        => new(referenceRoot, artifactRoot, _videos, reason,
+        => new(Compiler, _videos, reason,
             _grant is null ? null : () => new GrantedBackgroundResolver(_grant, _videos), layoutReference, editingLineId, editingCueId, renderBackend, enableGpuPreview, enableGpuPreviewBenchmark);
     public void Dispose() => _videos.Dispose();
 

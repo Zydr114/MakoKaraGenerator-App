@@ -1,3 +1,4 @@
+using MakoKaraGenerator.Scripting.Compilation;
 using MakoKaraGenerator.Backend.Hosting;
 using MakoKaraGenerator.Core.Lyrics;
 using MakoKaraGenerator.Core.Projects;
@@ -16,9 +17,7 @@ public sealed class RenderFrameV1RuntimeIntegrationTests
     {
         using TemporaryDirectory temp = new();
         ProjectSnapshot snapshot = Snapshot(64, 36);
-        var runtime = new ProjectRenderSessionFactory(
-            Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
-            temp.FilePath("cache"), new FfmpegVideoFrameProvider(), ReplayReason.Initial);
+        var runtime = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")), new FfmpegVideoFrameProvider(), ReplayReason.Initial);
         var adapter = new RenderFrameV1SessionFactory(runtime, new(64, 36, 64L * 36 * 4));
 
         await using IRenderFrameSession session = await adapter.CreateAsync(snapshot);

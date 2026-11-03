@@ -1,3 +1,4 @@
+using MakoKaraGenerator.Scripting.Compilation;
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
@@ -27,8 +28,7 @@ public sealed class TimedRubyWorkerIntegrationTests(ITestOutputHelper output)
         using TemporaryDirectory temp = new(); using FfmpegVideoFrameProvider videos = new();
         var snapshot = Source(package);
         byte[] bytes = package ? PackageProjectSnapshotCodec.Encode(snapshot) : StaticProjectSnapshotCodec.Encode(snapshot);
-        var runtime = new ProjectRenderSessionFactory(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
-            temp.FilePath("cache"), videos, ReplayReason.Initial);
+        var runtime = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")), videos, ReplayReason.Initial);
         await using var expected = await runtime.CreateAsync(snapshot);
         await using WorkerProcessProxy worker = new(new(PackageWorkerRuntimeFixture.WorkerApphost()));
         var handle = package ? await worker.OpenPackageSessionAsync(bytes, TimeSpan.FromSeconds(30))
@@ -76,8 +76,7 @@ public sealed class TimedRubyWorkerIntegrationTests(ITestOutputHelper output)
     {
         var snapshot = Source(false); byte[] source = StaticProjectSnapshotCodec.Encode(snapshot);
         using TemporaryDirectory temp = new(); using FfmpegVideoFrameProvider videos = new();
-        var runtime = new ProjectRenderSessionFactory(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
-            temp.FilePath("cache"), videos, ReplayReason.Initial);
+        var runtime = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")), videos, ReplayReason.Initial);
         await using var expected = await runtime.CreateAsync(snapshot);
         var measurable = Assert.IsAssignableFrom<ISceneMeasurementSession>(expected);
         ProjectGeometryPointDto[]? previous = null; byte[]? previousPng = null;

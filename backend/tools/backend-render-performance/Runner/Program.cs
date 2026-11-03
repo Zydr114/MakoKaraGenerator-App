@@ -1,3 +1,4 @@
+using MakoKaraGenerator.Scripting.Compilation;
 using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
@@ -18,8 +19,7 @@ fixtureClock.Stop();
 var trace = TraceCapture.Load();
 using var monitoring = MonitoringCapture.Start(options.Monitoring, options.Output);
 using var videos = new FfmpegVideoFrameProvider();
-var factory = new ProjectRenderSessionFactory(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
-    options.CacheRoot, videos, ReplayReason.Initial, renderBackend: options.Backend);
+var factory = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), options.CacheRoot), videos, ReplayReason.Initial, renderBackend: options.Backend);
 
 long allocated = GC.GetTotalAllocatedBytes(true);
 int[] gc = Counts();

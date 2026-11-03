@@ -34,7 +34,7 @@ internal static class StaticExportTask
     {
         bool capabilities = request.Kind == (imageExport ? ProjectImageExportWorkerContract.CapabilitiesKind : WorkerExportContract.CapabilitiesKind);
         WorkerExportMetadata metadata;
-        byte[] inputSnapshot;
+        ReadOnlyMemory<byte> inputSnapshot;
         string inputSourceSha;
         Guid taskId;
         if (imageExport)
@@ -61,11 +61,11 @@ internal static class StaticExportTask
             if (imageExport)
             {
                 string referenceDirectory = Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0");
-                ScriptCompiler compiler = new(referenceDirectory);
+                var references = ScriptReferenceIdentity.Read(referenceDirectory);
                 PackageRenderWorkerCapabilities package = new(StaticProjectSnapshotCodec.EngineIdentity,
                     PackageProjectSnapshotCodec.Profile, ProjectEffectsJson.PackageProfile.PackageVersion,
                     ProjectEffectsJson.PackageProfile.SdkVersion, ProjectEffectsJson.PackageProfile.ShaderProfile,
-                    compiler.ReferenceIdentity, compiler.ReferenceCount, ValidationProfiles: [PackageRenderWorkerContract.ValidationProfile]);
+                    references.Identity, references.Count, ValidationProfiles: [PackageRenderWorkerContract.ValidationProfile]);
                 var imageCapabilities = new ProjectImageExportWorkerCapabilities(StaticProjectSnapshotCodec.EngineIdentity,
                     ProjectImageExportWorkerContract.ExportProfile,
                     [BackendSnapshotProfiles.StaticLyricsScene, BackendSnapshotProfiles.StaticLyricsSceneAnalysis, BackendSnapshotProfiles.PackageLyricsScene],
@@ -81,10 +81,11 @@ internal static class StaticExportTask
             return Result(WorkerExportContract.CapabilitiesResultKind, WorkerExportContract.EncodeJson(supported, 4096), 0);
         }
         bool compressedAudio = metadata.ExecutionProfile == WorkerExportContract.CompressedExecutionProfile;
+        var prepared = WorkerScriptInputs.Read(inputSnapshot, token); inputSnapshot = prepared.Source;
         Func<IBackgroundFrameSourceResolver>? imageResolverFactory = null;
         byte[]? imageBytes = null;
         string? imageLogicalPath = null;
-        using ProjectRuntimeInput? runtimeInput = imageExport ? null : await ProjectRuntimeInput.OpenAsync(inputSnapshot, token).ConfigureAwait(false);
+        using ProjectRuntimeInput? runtimeInput = imageExport ? null : await ProjectRuntimeInput.OpenAsync(inputSnapshot, token, prepared.Compiler).ConfigureAwait(false);
         ProjectSnapshot snapshot;
         try
         {
@@ -115,7 +116,7 @@ internal static class StaticExportTask
         if (imageExport)
         {
             byte[] imageCanonical = ProjectImagePreviewSnapshotCodec.Encode(snapshot, imageBytes!);
-            if (!imageCanonical.AsSpan().SequenceEqual(inputSnapshot)) throw Fail("WorkerExportSourceMismatch");
+            if (!imageCanonical.AsSpan().SequenceEqual(inputSnapshot.Span)) throw Fail("WorkerExportSourceMismatch");
         }
         else
         {
@@ -153,10 +154,8 @@ internal static class StaticExportTask
         CheckPath(metadata.CandidatePath!, isDirectory: false, mayBeMissing: true);
         if (File.Exists(metadata.CandidatePath)) throw Fail("WorkerExportCandidateExists");
         IRenderFrameSessionFactory factory = !imageExport && (sessions is null || metadata.CodecProfile == ProjectRuntimeInputCodec.Profile)
-            ? runtimeInput!.CreateFactory(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
-                Path.Combine(Path.GetTempPath(), $"makokara-worker-export-{Environment.ProcessId}"), ReplayReason.Initial, renderBackend: renderBackend)
-            : imageExport ? new ProjectRenderSessionFactory(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
-                Path.Combine(Path.GetTempPath(), $"makokara-worker-export-{Environment.ProcessId}"), new FfmpegVideoFrameProvider(), ReplayReason.Initial,
+            ? runtimeInput!.CreateFactory(ReplayReason.Initial, renderBackend: renderBackend)
+            : imageExport ? new ProjectRenderSessionFactory(prepared.Compiler, new FfmpegVideoFrameProvider(), ReplayReason.Initial,
                 imageResolverFactory, renderBackend: renderBackend) : sessions!;
         var strict = new StrictFactory(factory, metadata);
         var probe = new StrictProbe(new FfmpegMediaProbe(metadata.FfprobePath), metadata, plan, snapshot.Composition, decodedAudio);

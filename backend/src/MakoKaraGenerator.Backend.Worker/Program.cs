@@ -541,14 +541,14 @@ internal static class Program
                         });
                     cancellationToken.ThrowIfCancellationRequested();
                     string referenceDirectory = Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0");
-                    ScriptCompiler compiler;
-                    try { compiler = new ScriptCompiler(referenceDirectory); }
+                    ScriptReferenceIdentity references;
+                    try { references = ScriptReferenceIdentity.Read(referenceDirectory); }
                     catch (Exception error) when (error is ArgumentException or IOException or UnauthorizedAccessException)
                     { throw new WorkerProtocolException("包 Worker 的实际脚本参考集不可用。", "WorkerPackageUnavailable"); }
                     PackageRenderWorkerCapabilities capabilities = new(StaticProjectSnapshotCodec.EngineIdentity,
                         PackageProjectSnapshotCodec.Profile, ProjectEffectsJson.PackageProfile.PackageVersion,
                         ProjectEffectsJson.PackageProfile.SdkVersion, ProjectEffectsJson.PackageProfile.ShaderProfile,
-                        compiler.ReferenceIdentity, compiler.ReferenceCount,
+                        references.Identity, references.Count,
                         ValidationProfiles: [PackageRenderWorkerContract.ValidationProfile],
                         SourceProfiles: [PackageProjectSnapshotCodec.Profile, PackagePresetProjectSnapshotCodec.Profile],
                         RuntimeInputProfile: request.Kind == ProjectRuntimeInputWorkerContract.CapabilitiesKind ? ProjectRuntimeInputWorkerContract.Profile : null);
@@ -718,9 +718,7 @@ internal static class Program
                     Composition.Create(input.Width, input.Height, FrameRate.Fps30,
                         new RgbaColor(input.BackgroundR, input.BackgroundG, input.BackgroundB, input.BackgroundA), 1_000_000),
                     LyricsDocument.Create([])));
-                string referenceDirectory = Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0");
-                string artifactRoot = Path.Combine(Path.GetTempPath(), $"makokara-worker-frame-{Environment.ProcessId}");
-                var factory = new ProjectRenderSessionFactory(referenceDirectory, artifactRoot,
+                var factory = new ProjectRenderSessionFactory(WorkerScriptInputs.Empty,
                     new FfmpegVideoFrameProvider(), ReplayReason.Initial, renderBackend: renderBackend);
                 await using IRenderFrameSession session = await factory.CreateAsync(snapshot, cancellationToken).ConfigureAwait(false);
                 using RenderFrame frame = await session.RenderAsync(

@@ -1,5 +1,7 @@
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
+using System.Xml.Linq;
 
 namespace MakoKaraGenerator.Export.Tests;
 
@@ -21,6 +23,8 @@ namespace MakoKaraGenerator.Export.Tests;
 /// </remarks>
 public sealed class UserInterfacePurityTests
 {
+    private static readonly string[] BackendSourceDirectories = ["src", "tests"];
+
     /// <summary>界面层不得出现的编码器名与命令行参数。</summary>
     private static readonly string[] Forbidden =
     [
@@ -132,13 +136,32 @@ public sealed class UserInterfacePurityTests
     private static void AssertBackendRepositoryBoundary(string repositoryRoot, string applicationRoot)
     {
         string solution = File.ReadAllText(Path.Combine(repositoryRoot, "MakoKaraGenerator.slnx"));
-        string agents = File.ReadAllText(Path.Combine(repositoryRoot, "AGENTS.md"));
         string relativeApplicationPath = Path.GetRelativePath(repositoryRoot, applicationRoot)
             .Replace(Path.DirectorySeparatorChar, '/');
 
         Assert.DoesNotContain(relativeApplicationPath, solution, StringComparison.Ordinal);
-        Assert.Contains("Avalonia/SukiUI 编辑器、桌面 UI 测试、UI 兼容性探针和桌面启动探针已在 `52bace2` 移除", agents, StringComparison.Ordinal);
-        Assert.Contains("不要把桌面项目或 UI 包重新加入本仓库", agents, StringComparison.Ordinal);
+        foreach (string root in BackendSourceDirectories.Select(name => Path.Combine(repositoryRoot, name)))
+        {
+            foreach (string project in Directory.EnumerateFiles(root, "*.csproj", SearchOption.AllDirectories))
+            {
+                var references = XDocument.Load(project).Descendants()
+                    .Where(element => element.Name.LocalName is "PackageReference" or "ProjectReference" or "Reference")
+                    .Select(element => (string?)element.Attribute("Include") ?? string.Empty);
+                Assert.DoesNotContain(references, reference =>
+                    reference.Contains("Avalonia", StringComparison.OrdinalIgnoreCase)
+                    || reference.Contains("SukiUI", StringComparison.OrdinalIgnoreCase)
+                    || reference.Contains("TechnicalSpike.App", StringComparison.OrdinalIgnoreCase));
+            }
+
+            foreach (string file in Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories)
+                .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                    && !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)))
+            {
+                string text = File.ReadAllText(file);
+                Assert.False(Regex.IsMatch(text, @"^\s*(?:global\s+)?using\s+(?:Avalonia|SukiUI)(?:\.|;)", RegexOptions.Multiline),
+                    $"后端源码引用了界面命名空间：{Path.GetRelativePath(repositoryRoot, file)}");
+            }
+        }
     }
 
     /// <summary>枚举源码文件（跳过构建产物与开发用的演示素材生成器）。</summary>

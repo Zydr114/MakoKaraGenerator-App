@@ -266,7 +266,9 @@ public sealed class PackageProjectSnapshotCodecTests
         Assert.Throws<SnapshotContractException>(() => StaticProjectSnapshotCodec.Decode(packageWire));
         string oldFixture = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "static-snapshot-v1.baseline.json"));
         byte[] oldBytes = Encoding.UTF8.GetBytes(oldFixture.Replace("{{ENGINE_IDENTITY}}", StaticProjectSnapshotCodec.EngineIdentity, StringComparison.Ordinal));
-        Assert.Equal(oldBytes, StaticProjectSnapshotCodec.Encode(StaticProjectSnapshotCodec.Decode(oldBytes)));
+        Assert.Throws<SnapshotContractException>(() => StaticProjectSnapshotCodec.Decode(oldBytes));
+        byte[] currentBytes = StaticProjectSnapshotCodec.Encode(StaticSnapshotFixture.Create());
+        Assert.Equal(currentBytes, StaticProjectSnapshotCodec.Encode(StaticProjectSnapshotCodec.Decode(currentBytes)));
     }
 
     private static JsonObject Root(ProjectSnapshot? source = null) => JsonNode.Parse(PackageProjectSnapshotCodec.Encode(source ?? PackageSnapshotContractFixture.Create()))!.AsObject();

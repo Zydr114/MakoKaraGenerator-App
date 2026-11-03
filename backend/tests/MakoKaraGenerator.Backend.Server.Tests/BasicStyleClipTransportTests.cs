@@ -45,7 +45,15 @@ public sealed partial class PreviewTransportTests
         var style = (await f.Http.GetFromJsonAsync<ProjectResolvedStyleResponse>(path + query, Json))!;
         Assert.Equal("clip/right", style.Context.ClipId); Assert.Equal("glyph/2", style.Context.TokenId);
         Assert.Equal("staticPresetHierarchy", style.Resolution); Assert.False(style.FinalPixelAppearance);
-        Assert.Equal(21, style.Sources.Length); Assert.Equal("container", style.Context.ContextKind);
+        string[] expectedProperties =
+        [
+            "fontFamilyName", "fallbackFamilyNames", "fontSizePx", "fontWeight", "isBold", "isItalic", "letterSpacingPx",
+            "verticalCenterRatio", "horizontalAlignment", "unsungColor", "sungColor", "unsungGradientSpec", "sungGradientSpec",
+            "strokeColor", "strokeWidthPx", "strokeSpec", "shadowColor", "shadowBlurPx", "shadowSpec", "opacity", "scale",
+            "glowSpec", "glowColor", "glowOpacity", "glowBlurRadiusPx", "glowSpreadPx",
+        ];
+        Assert.Equal(expectedProperties.Order(StringComparer.Ordinal), style.Sources.Select(item => item.Property).Order(StringComparer.Ordinal));
+        Assert.Equal("container", style.Context.ContextKind);
         var merged = await Send("3", new MergeOrchestrationClipsCommandDto("primary", ["clip/transport", "clip/right"], "clip/transport"));
         Assert.Equal("4", merged.ProjectRevision); Assert.Equal(["clip/right"], merged.ClipMembersResult!.RemovedClipIds);
         Assert.Equal(4, workspace.History.UndoCount);

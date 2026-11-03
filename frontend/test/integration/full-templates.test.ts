@@ -1,7 +1,7 @@
 // 连真实 Server 的完整模板（合同 1.37.0，规范 §24；W7 设计 §0、§2）：完整定义往返、效果包检查、工坊试样、
 // 用到编排节点和片段上、外观来源、.mktpl 往返与传输配额（G32）。
 // 效果包用后端仓库 samples/ScriptEffects 的示例运行时打包；找不到后端仓库时整个文件跳过并写明原因。
-// 个人库属于测试 profile（.dev/it-full-templates），跨次运行保留：结束时删掉本文件写入的模板。
+// 个人库属于本次运行的独立测试 profile（.dev/it-full-templates-*）；结束时删掉本文件写入的模板，目录留作证据。
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { packSampleEffect, sampleEffectsDir } from '../../scripts/effect-packages.mjs';

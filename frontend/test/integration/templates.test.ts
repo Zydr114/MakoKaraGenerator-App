@@ -1,5 +1,5 @@
 // 连真实 Server 的模板库（合同 1.9.0，规范 §13.1～§13.2；W3 设计 §2.3、§2.4）与模板固定试样（G17，合同 1.16.0，规范 §13.7）。
-// 个人库属于测试 profile（.dev/it-templates），跨次运行保留：每个用例只增删自己创建的模板，结束时库回到原样。
+// 个人库属于本次运行的独立测试 profile（.dev/it-templates-*）；结束时删掉本文件创建的模板，目录留作证据。
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { BackendError, MakoClient, MemoryIdentityStore } from '../../src/client';

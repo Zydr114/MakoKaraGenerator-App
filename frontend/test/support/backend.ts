@@ -1,12 +1,14 @@
-// 集成测试的真实 Server：每个测试文件用自己的 profile 与启动信息文件，互不干扰，也不占用开发用的 Server。
+// 集成测试的真实 Server：每次启动创建独立 profile，避免读取上次运行或旧 schema 的个人数据。
+// restart 保留本次 profile；结束后目录留作证据，不清理旧 profile，也不占用开发用的 Server。
 
-import { readFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { DEV_DIR, startBackend, type RunningBackend } from '../../scripts/backend-launcher.mjs';
 import type { BootstrapProvider, ExchangeRecord } from '../../src/client';
 import { OpenApiContract, type SchemaIssue } from './openapi';
 
 export interface TestBackend {
+  readonly profile: string;
   bootstrapFile: string;
   current: RunningBackend;
   provider: BootstrapProvider;
@@ -15,12 +17,14 @@ export interface TestBackend {
 }
 
 export async function startTestBackend(name: string): Promise<TestBackend> {
-  const profile = join(DEV_DIR, `it-${name}`);
-  const bootstrapFile = join(DEV_DIR, `it-${name}.json`);
+  await mkdir(DEV_DIR, { recursive: true, mode: 0o700 });
+  const profile = await mkdtemp(join(DEV_DIR, `it-${name}-`));
+  const bootstrapFile = join(profile, 'backend.json');
   const log = (line: string) => {
     if (process.env.MAKO_IT_VERBOSE) console.log(line);
   };
   const backend: TestBackend = {
+    profile,
     bootstrapFile,
     current: await startBackend({ profile, bootstrapFile, log }),
     // 集成测试宿主：直接读取启动信息文件（设计 §4.2）。每次调用都重新读取，以便识别 Server 重启。

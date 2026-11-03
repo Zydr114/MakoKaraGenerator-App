@@ -1,5 +1,5 @@
 // 连真实 Server 的工程模板分配（合同 1.10.0 命令，1.12.0 读模型 G15，1.14.0 读取能力名与 source 空值（R3），1.15.0 候选试看 G16；规范 §13.3、§13.4、§13.6；W3 设计 §2.6、§3.1）。
-// 用例按顺序共享一个工程；个人库属于测试 profile（.dev/it-presets），结束时删掉自己复制的模板。
+// 用例按顺序共享一个工程；个人库属于本次运行的独立测试 profile（.dev/it-presets-*），目录留作证据，结束时删掉自己复制的模板。
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { BackendError, MakoClient, MemoryIdentityStore } from '../../src/client';

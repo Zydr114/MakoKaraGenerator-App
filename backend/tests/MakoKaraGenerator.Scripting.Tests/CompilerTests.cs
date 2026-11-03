@@ -184,6 +184,44 @@ internal static class ArtifactReuseProcess
 {
     public static int Main(string[] args)
     {
+        if (args is ["--compile-cache", var root, var label])
+        {
+            try
+            {
+                var compiler = new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), root);
+                File.WriteAllText(Path.Combine(root, label + ".ready"), "ready");
+                var elapsed = Stopwatch.StartNew();
+                while (!File.Exists(Path.Combine(root, ".start")))
+                {
+                    if (elapsed.Elapsed > TimeSpan.FromSeconds(30)) throw new TimeoutException("Compiler barrier timed out.");
+                    Thread.Sleep(10);
+                }
+                var artifact = compiler.CompileAsync([new("src/Probe.cs", CompilerTests.Source)], ["Probe"]).GetAwaiter().GetResult();
+                Console.WriteLine($"{compiler.CompilationCount}|{artifact.ArtifactHash}|{Environment.ProcessId}"); return 0;
+            }
+            catch (Exception error) { Console.Error.WriteLine(error); return 1; }
+        }
+        if (args is ["--crash-staging", var stagingRoot, var stagingName])
+        {
+            try
+            {
+                Directory.CreateDirectory(Path.Combine(stagingRoot, ".locks"));
+                using var gate = new FileStream(Path.Combine(stagingRoot, ".locks", "cache"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+                string directory = Path.Combine(stagingRoot, stagingName); Directory.CreateDirectory(directory);
+                File.WriteAllBytes(Path.Combine(directory, "effect.dll"), [1, 2, 3]);
+                Console.WriteLine("staged"); Console.Out.Flush(); _ = Console.ReadLine(); return 0;
+            }
+            catch (Exception error) { Console.Error.WriteLine(error); return 1; }
+        }
+        if (args is ["--hold-artifact", var cache, var hash])
+        {
+            try
+            {
+                using var lease = ScriptArtifactStore.AcquireLease(cache, hash);
+                Console.WriteLine("leased"); Console.Out.Flush(); _ = Console.ReadLine(); return 0;
+            }
+            catch (Exception error) { Console.Error.WriteLine(error); return 1; }
+        }
         if (args is ["--semantic-benchmark", var scenario, var seconds, var output])
             return SemanticCostBenchmark.RunAsync(scenario, int.Parse(seconds, System.Globalization.CultureInfo.InvariantCulture), output).GetAwaiter().GetResult();
         if (args is ["--semantic-benchmark-incremental", var incrementalScenario, var incrementalSeconds, var incrementalOutput])

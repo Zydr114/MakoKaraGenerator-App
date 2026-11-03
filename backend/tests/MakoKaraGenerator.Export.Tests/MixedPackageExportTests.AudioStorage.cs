@@ -39,7 +39,7 @@ public sealed partial class MixedPackageExportTests
     public async Task 保存重开真实音频分析在MP4与透明出口保持预览同帧并携带音轨(bool transparent)
     {
         using TemporaryDirectory temp = new(); var project = await StoredAudioProject(temp);
-        var compiled = await CompiledProjectEffects.CompileAsync(project, new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")));
+        var compiled = await CompiledProjectEffects.CompileAsync(project, new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")));
         Assert.True(compiled.Succeeded); var snapshot = ProjectSnapshot.FromProject(project);
         await using var source = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), ReplayReason.Export).CreateAsync(snapshot);
         using var pipeline = new PreparedPackagePipeline(source, snapshot, Assert.Single(compiled.Packages).Definition);
@@ -71,7 +71,7 @@ public sealed partial class MixedPackageExportTests
     public async Task 已保存真实音频脚本在200ms作者Error时拒绝成片并保护旧产物()
     {
         using TemporaryDirectory temp = new(); var project = await StoredAudioProject(temp, true);
-        var compiled = await CompiledProjectEffects.CompileAsync(project, new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")));
+        var compiled = await CompiledProjectEffects.CompileAsync(project, new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")));
         Assert.True(compiled.Succeeded); var snapshot = ProjectSnapshot.FromProject(project);
         await using var source = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), ReplayReason.Export).CreateAsync(snapshot);
         using var pipeline = new PreparedPackagePipeline(source, snapshot, Assert.Single(compiled.Packages).Definition);

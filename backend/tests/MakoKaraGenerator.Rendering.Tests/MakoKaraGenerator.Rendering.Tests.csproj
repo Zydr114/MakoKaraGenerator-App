@@ -37,6 +37,7 @@
     <ProjectReference Include="../../src/MakoKaraGenerator.Rendering.Skia/MakoKaraGenerator.Rendering.Skia.csproj" />
     <ProjectReference Include="../../samples/TechnicalSpike/MakoKaraGenerator.Spike.csproj" />
     <ProjectReference Include="../../src/MakoKaraGenerator.Scripting/MakoKaraGenerator.Scripting.csproj" />
+    <ProjectReference Include="../../src/MakoKaraGenerator.Scripting.Compiler/MakoKaraGenerator.Scripting.Compiler.csproj" />
     <ProjectReference Include="../../src/MakoKaraGenerator.Media/MakoKaraGenerator.Media.csproj" />
   </ItemGroup>
 

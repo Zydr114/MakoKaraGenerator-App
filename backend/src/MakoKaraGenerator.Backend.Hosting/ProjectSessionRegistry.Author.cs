@@ -75,7 +75,7 @@ public sealed partial class ProjectSessionRegistry
             Volatile.Write(ref _authorStopping, 0);
             if (!string.IsNullOrWhiteSpace(referenceDirectory) && Directory.Exists(referenceDirectory))
             {
-                try { _authorCompiler = new ScriptCompiler(referenceDirectory); }
+                try { _authorCompiler = new ScriptCompiler(referenceDirectory, Path.Combine(_persistence.StateRoot, "script-artifacts")); }
                 catch (ArgumentException) { _authorCompiler = null; }
             }
         }

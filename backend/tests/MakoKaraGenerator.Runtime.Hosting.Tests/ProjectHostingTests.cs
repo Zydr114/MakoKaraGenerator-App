@@ -112,7 +112,10 @@ public sealed class ProjectHostingTests
             Assert.NotEqual(plain.PixelMemory.ToArray(), actual.PixelMemory.ToArray());
             Assert.NotEmpty(cursor.ReadNew(actual.DiagnosticSnapshot));
         }
-        Assert.Single(Directory.GetDirectories(temp.FilePath("cache")));
+        string artifact = Assert.Single(Directory.EnumerateDirectories(temp.FilePath("cache")),
+            path => Path.GetFileName(path) != ".locks");
+        Assert.Collection(Directory.EnumerateFiles(artifact).Select(Path.GetFileName).Order(StringComparer.Ordinal),
+            name => Assert.Equal("build.json", name), name => Assert.Equal("effect.dll", name), name => Assert.Equal("effect.pdb", name));
         await preview.DisposeAsync();
         // Closing one session must leave the other's native programs and replay state alive.
         using var surviving = await export.RenderAsync(RenderRequest.At(snapshot, 500_000) with { TransparentBackground = transparent });
@@ -148,10 +151,13 @@ public sealed class ProjectHostingTests
             Assert.True(value.Source.Line > 0); Assert.True(value.Source.Column > 0);
             Assert.Contains(value.Source.DisplayLabel, error.Message);
         });
-        Assert.False(Directory.Exists(cache));
+        Assert.DoesNotContain(Directory.EnumerateDirectories(cache), path => Path.GetFileName(path) != ".locks");
+        Assert.Empty(Directory.EnumerateFiles(cache, "effect.*", SearchOption.AllDirectories));
+        Assert.Empty(Directory.EnumerateFiles(cache, "build.json", SearchOption.AllDirectories));
         using CancellationTokenSource cancellation = new(); cancellation.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Factory(cache).CreateAsync(Snapshot(package), cancellation.Token).AsTask());
-        Assert.False(Directory.Exists(cache));
+        string cancelledCache = temp.FilePath("cancelled-cache");
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Factory(cancelledCache).CreateAsync(Snapshot(package), cancellation.Token).AsTask());
+        Assert.False(Directory.Exists(cancelledCache));
     }
 
     [Theory]

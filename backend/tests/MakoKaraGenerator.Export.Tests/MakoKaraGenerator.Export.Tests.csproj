@@ -24,6 +24,7 @@
   -->
   <ItemGroup>
     <ProjectReference Include="../../src/MakoKaraGenerator.Scripting/MakoKaraGenerator.Scripting.csproj" />
+    <ProjectReference Include="../../src/MakoKaraGenerator.Scripting.Compiler/MakoKaraGenerator.Scripting.Compiler.csproj" />
     <ProjectReference Include="../../src/MakoKaraGenerator.Application/MakoKaraGenerator.Application.csproj" />
     <ProjectReference Include="../../src/MakoKaraGenerator.Core/MakoKaraGenerator.Core.csproj" />
     <ProjectReference Include="../../src/MakoKaraGenerator.Export/MakoKaraGenerator.Export.csproj" />

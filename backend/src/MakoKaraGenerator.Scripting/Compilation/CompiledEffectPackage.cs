@@ -24,23 +24,23 @@ public sealed partial class CompiledEffectPackage
     public ResourceCatalog Resources { get; }
 
     /// <summary>完整验证图片、离线编译并反射全部入口；反射不运行作者构造或初始化。</summary>
-    public static Task<CompiledEffectPackage> CompileAsync(EffectPackageDefinition definition, ScriptCompiler compiler,
+    public static Task<CompiledEffectPackage> CompileAsync(EffectPackageDefinition definition, IScriptCompilationService compiler,
         IPackageImageValidator? imageValidator = null, CancellationToken cancellationToken = default)
         => CompileAsync(definition, compiler, imageValidator, null, cancellationToken);
 
     /// <summary>由实际后端检查所有图片／shader，再编译全部控制器；缺少所需验证器拒绝启用。</summary>
-    public static Task<CompiledEffectPackage> CompileAsync(EffectPackageDefinition definition, ScriptCompiler compiler,
+    public static Task<CompiledEffectPackage> CompileAsync(EffectPackageDefinition definition, IScriptCompilationService compiler,
         IPackageImageValidator? imageValidator, IPackageShaderValidator? shaderValidator, CancellationToken cancellationToken = default)
         => CompileAsync(definition, compiler, imageValidator, shaderValidator, null, cancellationToken);
 
     /// <summary>由正式后端验证全部图片、程序及图，再编译控制器；不会给未启用导出伪造句柄。</summary>
-    public static Task<CompiledEffectPackage> CompileAsync(EffectPackageDefinition definition, ScriptCompiler compiler,
+    public static Task<CompiledEffectPackage> CompileAsync(EffectPackageDefinition definition, IScriptCompilationService compiler,
         IPackageImageValidator? imageValidator, IPackageShaderValidator? shaderValidator, IPackageImageGraphValidator? graphValidator,
         CancellationToken cancellationToken = default)
         => CompileAsync(definition, compiler, imageValidator, shaderValidator, graphValidator, null, cancellationToken);
 
     /// <summary>验证全部程序、图、图片、材质回退和实际源码；纯资源包不需要假控制器。</summary>
-    public static async Task<CompiledEffectPackage> CompileAsync(EffectPackageDefinition definition, ScriptCompiler compiler,
+    public static async Task<CompiledEffectPackage> CompileAsync(EffectPackageDefinition definition, IScriptCompilationService compiler,
         IPackageImageValidator? imageValidator, IPackageShaderValidator? shaderValidator, IPackageImageGraphValidator? graphValidator,
         IPackageMaterialValidator? materialValidator, CancellationToken cancellationToken = default)
     {

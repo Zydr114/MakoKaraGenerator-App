@@ -20,7 +20,7 @@ public sealed partial class MixedPackageExportTests
             [LyricToken.Create("token","歌词",new(0,700_000),TimingStatus.Edited)])]),
         lyricStyle:LyricStyle.Default with {FontFamilyName="Noto Sans CJK SC",FontSizePx=40,Stroke=null,Shadow=null,Opacity=.7f});
     private static Task<CompiledEffectPackage> CompileMaterial(EffectPackageContents contents) => CompiledEffectPackage.CompileAsync(
-        EffectPackageDefinition.Read(contents),new(Path.Combine(AppContext.BaseDirectory,"script-refs","net10.0")),
+        EffectPackageDefinition.Read(contents),new ScriptCompiler(Path.Combine(AppContext.BaseDirectory,"script-refs","net10.0")),
         new PackageImageValidator(),new PackageShaderValidator(),new PackageImageGraphValidator(),new PackageMaterialValidator());
 
     [Theory]

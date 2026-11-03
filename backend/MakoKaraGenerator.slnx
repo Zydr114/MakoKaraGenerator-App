@@ -20,6 +20,7 @@
     <Project Path="src/MakoKaraGenerator.Runtime.Hosting/MakoKaraGenerator.Runtime.Hosting.csproj" />
     <Project Path="src/MakoKaraGenerator.Scripting.Abstractions/MakoKaraGenerator.Scripting.Abstractions.csproj" />
     <Project Path="src/MakoKaraGenerator.Scripting/MakoKaraGenerator.Scripting.csproj" />
+    <Project Path="src/MakoKaraGenerator.Scripting.Compiler/MakoKaraGenerator.Scripting.Compiler.csproj" />
     <Project Path="src/MakoKaraGenerator.Text/MakoKaraGenerator.Text.csproj" />
     <Project Path="src/MakoKaraGenerator.Timeline/MakoKaraGenerator.Timeline.csproj" />
   </Folder>

@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using MakoKaraGenerator.Core.Effects;
 using MakoKaraGenerator.Rendering.Skia;
+using MakoKaraGenerator.Scripting.Compilation;
 using MakoKaraGenerator.Scripting.Execution;
 using Fx = MakoKaraGenerator.Scripting;
 
@@ -197,7 +198,7 @@ public sealed partial class ContinuousParticleTests
             .ToDictionary(path => Path.GetRelativePath(root, path).Replace('\\', '/'), File.ReadAllBytes);
         var contents = EffectPackageContents.Create(File.ReadAllBytes(Path.Combine(root, "manifest.json")), EffectPackageFixture.Inputs(files), EffectPackageFixture.Profile);
         var compiled = await MakoKaraGenerator.Scripting.Compilation.CompiledEffectPackage.CompileAsync(EffectPackageDefinition.Read(contents),
-            new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")));
+            new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")));
         Assert.True(compiled.Artifact.Succeeded, string.Join('\n', compiled.Artifact.Diagnostics));
         var plain = compiled.CreateEffect("cursor-trail", new("trail"), new Fx.EffectBinding.Project(), 7);
         var red = compiled.CreateEffect("cursor-trail", new("trail"), new Fx.EffectBinding.Project(), 7,

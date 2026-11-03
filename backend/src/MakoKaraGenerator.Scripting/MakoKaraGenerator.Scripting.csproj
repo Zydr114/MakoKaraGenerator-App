@@ -6,7 +6,6 @@
     <ProjectReference Include="../MakoKaraGenerator.Scripting.Abstractions/MakoKaraGenerator.Scripting.Abstractions.csproj" />
     <ProjectReference Include="../MakoKaraGenerator.Core/MakoKaraGenerator.Core.csproj" />
     <ProjectReference Include="../MakoKaraGenerator.Rendering.Abstractions/MakoKaraGenerator.Rendering.Abstractions.csproj" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     <PackageDownload Include="Microsoft.NETCore.App.Ref" Version="[$(ScriptFrameworkReferenceVersion)]" />
     <Content Include="$(NuGetPackageRoot)microsoft.netcore.app.ref/$(ScriptFrameworkReferenceVersion)/ref/net10.0/*.dll"
              Link="script-refs/net10.0/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />

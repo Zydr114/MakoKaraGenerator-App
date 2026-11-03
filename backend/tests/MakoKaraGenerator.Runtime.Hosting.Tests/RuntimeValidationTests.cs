@@ -78,7 +78,10 @@ public sealed class RuntimeValidationTests
         snapshot = snapshot with { Background = Core.Projects.BackgroundSource.Color };
         var result = await new RuntimeFrameValidator(Factory(temp.FilePath("cache"))).ValidateAsync(snapshot, new(3));
         Assert.True(result.Succeeded, string.Join('\n', result.Issues)); Assert.Equal(3, result.OpaqueFrames); Assert.Equal(3, result.TransparentFrames);
-        Assert.Single(Directory.GetDirectories(temp.FilePath("cache")));
+        string artifact = Assert.Single(Directory.EnumerateDirectories(temp.FilePath("cache")),
+            path => Path.GetFileName(path) != ".locks");
+        Assert.Collection(Directory.EnumerateFiles(artifact).Select(Path.GetFileName).Order(StringComparer.Ordinal),
+            name => Assert.Equal("build.json", name), name => Assert.Equal("effect.dll", name), name => Assert.Equal("effect.pdb", name));
     }
 
     [Fact]

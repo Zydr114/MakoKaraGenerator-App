@@ -38,7 +38,7 @@ public sealed partial class MixedPackageExportTests
             [new("r", "错误", TemplateEffectTarget.Line, contents.PackageId, contents.Revision, "controller")], [contents]);
         Assert.True(StyleTemplateApplicator.TryPreview(project, template, "row", null, false, out var applied, out var reason), reason);
         string directory = temp.FilePath("project.mkgproj"); ProjectStore.Save(applied.Result, directory); project = ProjectStore.Load(directory).Project!;
-        var compiled = await CompiledProjectEffects.CompileAsync(project, new(Path.Combine(AppContext.BaseDirectory,"script-refs","net10.0")),
+        var compiled = await CompiledProjectEffects.CompileAsync(project, new ScriptCompiler(Path.Combine(AppContext.BaseDirectory,"script-refs","net10.0")),
             new PackageImageValidator(), new PackageShaderValidator(), new PackageImageGraphValidator(), new PackageMaterialValidator()); Assert.True(compiled.Succeeded);
         var snapshot = ProjectSnapshot.FromProject(project); await using var source = await compiled.CreateFactory(static()=>new SkiaRenderPipeline(),ReplayReason.Export).CreateAsync(snapshot);
         using var pipeline = new PreparedPackagePipeline(source, snapshot, Assert.Single(compiled.Packages).Definition);
@@ -67,7 +67,7 @@ public sealed partial class MixedPackageExportTests
         project = applied.Result; Assert.Single(project.Effects.Instances); Assert.Equal("shared:t", project.Effects.Instances[0].TemplateOrigin!.TemplateId);
         string directory = temp.FilePath("project.mkgproj"); ProjectStore.Save(project, directory);
         var restored = ProjectStore.Load(directory).Project!; Assert.Equal(project.Effects, restored.Effects);
-        var compiled = await CompiledProjectEffects.CompileAsync(restored.Effects, new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")),
+        var compiled = await CompiledProjectEffects.CompileAsync(restored.Effects, new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")),
             new PackageImageValidator(), new PackageShaderValidator(), new PackageImageGraphValidator(), new PackageMaterialValidator()); Assert.True(compiled.Succeeded);
         var snapshot = ProjectSnapshot.FromProject(restored);
         await using var source = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), ReplayReason.Export).CreateAsync(snapshot);

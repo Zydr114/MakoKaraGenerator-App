@@ -14,5 +14,6 @@
     <ProjectReference Include="../MakoKaraGenerator.Rendering.Abstractions/MakoKaraGenerator.Rendering.Abstractions.csproj" />
     <ProjectReference Include="../MakoKaraGenerator.Runtime.Hosting/MakoKaraGenerator.Runtime.Hosting.csproj" />
     <ProjectReference Include="../MakoKaraGenerator.Scripting/MakoKaraGenerator.Scripting.csproj" />
+    <ProjectReference Include="../MakoKaraGenerator.Scripting.Compiler/MakoKaraGenerator.Scripting.Compiler.csproj" />
   </ItemGroup>
 </Project>

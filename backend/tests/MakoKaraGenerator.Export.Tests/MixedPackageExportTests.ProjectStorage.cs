@@ -27,7 +27,7 @@ public sealed partial class MixedPackageExportTests
         { Effects = new([contents], [new() { Id = "fx:persistent", Name = "混合图", PackageId = contents.PackageId, Revision = contents.Revision, ExportId = "controller", Seed = ulong.MaxValue }]) };
         string directory = temp.FilePath("project.mkgproj"); ProjectStore.Save(project, directory);
         var restored = ProjectStore.Load(directory).Project!; Assert.Equal(project.Effects, restored.Effects);
-        var compiled = await CompiledProjectEffects.CompileAsync(restored.Effects, new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")),
+        var compiled = await CompiledProjectEffects.CompileAsync(restored.Effects, new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")),
             new PackageImageValidator(), new PackageShaderValidator(), new PackageImageGraphValidator(), new PackageMaterialValidator()); Assert.True(compiled.Succeeded);
         var snapshot = ProjectSnapshot.FromProject(restored);
         await using var source = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), ReplayReason.Export).CreateAsync(snapshot);

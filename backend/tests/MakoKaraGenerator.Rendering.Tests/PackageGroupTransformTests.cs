@@ -12,7 +12,7 @@ public sealed class PackageGroupTransformTests
     private const string Fingerprint = "real-package-group-transform";
     private static readonly Lazy<Task<CompiledEffectPackage>> Package = new(() => Compile(EffectPackageFixture.GroupTransform()));
     private static Task<CompiledEffectPackage> Compile(EffectPackageContents contents)
-        => CompiledEffectPackage.CompileAsync(EffectPackageDefinition.Read(contents), new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")));
+        => CompiledEffectPackage.CompileAsync(EffectPackageDefinition.Read(contents), new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")));
     private static CompiledFrameEffect Effect(CompiledEffectPackage package, Fx.EffectBinding binding, string node, double x = 30, bool badWrite = false)
         => package.CreateEffect("group-transform", new("package-group"), binding, 5,
             JsonSerializer.SerializeToUtf8Bytes(new { node, offsetX = x, badWrite }));

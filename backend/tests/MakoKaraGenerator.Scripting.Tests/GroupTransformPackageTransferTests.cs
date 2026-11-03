@@ -24,7 +24,7 @@ public sealed class GroupTransformPackageTransferTests
         var imported = await EffectPackageTransfer.ReadArchiveAsync(archive, EffectPackageFixture.Profile);
         Assert.Equal(original.Revision, imported.Revision);
         var compiled = await CompiledEffectPackage.CompileAsync(EffectPackageDefinition.Read(imported),
-            new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")));
+            new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")));
         Assert.True(compiled.Artifact.Succeeded, string.Join('\n', compiled.Artifact.Diagnostics));
         var effect = compiled.CreateEffect("group-transform", new("group"), new EffectBinding.Node(new("root"), false), 2, "{\"node\":\"root\"}"u8.ToArray());
         using ScriptModule module = new(compiled.Artifact.PeImage.AsMemory(), compiled.Artifact.PdbImage.AsMemory());

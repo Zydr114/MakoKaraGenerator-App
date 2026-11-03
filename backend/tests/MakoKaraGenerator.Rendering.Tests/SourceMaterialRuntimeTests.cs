@@ -42,7 +42,7 @@ public sealed class SourceMaterialRuntimeTests
                 node.Content is CountdownSequenceContent sequence ? node with { Content = sequence with { Appearance = SceneTextAppearance.FromStyle(style) } } : node)] } };
     }
     internal static Task<CompiledProjectEffects> Compile(Project project) => CompiledProjectEffects.CompileAsync(project,
-        new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")), new PackageImageValidator(), new PackageShaderValidator(), new PackageImageGraphValidator(), new PackageMaterialValidator());
+        new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")), new PackageImageValidator(), new PackageShaderValidator(), new PackageImageGraphValidator(), new PackageMaterialValidator());
     internal static SceneImageEffectResources Resources(CompiledPackageGraphExports native, CompiledEffectPackage package)
         => new([], null, [native.CreateMaterialProgram(package.Resources.GetMaterial("ink"), new(0, 0, 640, 360))]);
 
@@ -192,7 +192,7 @@ public sealed class SourceMaterialRuntimeTests
     public async Task 源包原生验证与参数错误在会话前保留真实来源()
     {
         var contents = MixedEffectPackageFixture.Contents(pure: true); var project = SourceProject(contents);
-        var absent = await Assert.ThrowsAsync<SourceMaterialFailureException>(() => CompiledProjectEffects.CompileAsync(project, new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"))));
+        var absent = await Assert.ThrowsAsync<SourceMaterialFailureException>(() => CompiledProjectEffects.CompileAsync(project, new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"))));
         Assert.Equal("PackageShaderValidatorMissing", absent.Code); Assert.Equal("lyricStyle.unsungFill", absent.Owner.Reference.Path);
         var badMaterial = new MaterialSpec.PackageMaterial(contents.PackageId, contents.Revision, "ink", EffectParameterOverrides.Parse("{\"amount\":2}"));
         var bad = project with { LyricStyle = project.LyricStyle with { UnsungFill = new() { Material = badMaterial } } };

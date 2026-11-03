@@ -26,7 +26,7 @@ public sealed class CompiledProjectEffects
     public PreparedSourceMaterials? SourceMaterials { get; private set; }
 
     /// <summary>固定整个工程的已接受分析及源实例，再由正式资源门禁编译。</summary>
-    public static async Task<CompiledProjectEffects> CompileAsync(Project project, ScriptCompiler compiler,
+    public static async Task<CompiledProjectEffects> CompileAsync(Project project, IScriptCompilationService compiler,
         IPackageImageValidator? images = null, IPackageShaderValidator? shaders = null, IPackageImageGraphValidator? graphs = null,
         IPackageMaterialValidator? materials = null, CancellationToken cancellationToken = default)
     {
@@ -34,7 +34,7 @@ public sealed class CompiledProjectEffects
         return await CompileAsync(ProjectSnapshot.FromProject(project), compiler, images, shaders, graphs, materials, cancellationToken).ConfigureAwait(false);
     }
     /// <summary>直接固定实际渲染快照及分析，不读取当前工作区或重建缺少字段的源工程。</summary>
-    public static async Task<CompiledProjectEffects> CompileAsync(ProjectSnapshot snapshot, ScriptCompiler compiler,
+    public static async Task<CompiledProjectEffects> CompileAsync(ProjectSnapshot snapshot, IScriptCompilationService compiler,
         IPackageImageValidator? images = null, IPackageShaderValidator? shaders = null, IPackageImageGraphValidator? graphs = null,
         IPackageMaterialValidator? materials = null, CancellationToken cancellationToken = default)
     {
@@ -45,12 +45,12 @@ public sealed class CompiledProjectEffects
         compiled._audio = audio; compiled._fingerprint = snapshot.EffectInputsFingerprint; return compiled;
     }
     /// <summary>根据固定工程字节离线编译，正式资源门禁由组合根提供。</summary>
-    public static async Task<CompiledProjectEffects> CompileAsync(ProjectEffects source, ScriptCompiler compiler,
+    public static async Task<CompiledProjectEffects> CompileAsync(ProjectEffects source, IScriptCompilationService compiler,
         IPackageImageValidator? images = null, IPackageShaderValidator? shaders = null, IPackageImageGraphValidator? graphs = null,
         IPackageMaterialValidator? materials = null, CancellationToken cancellationToken = default)
         => await CompileCoreAsync(source, compiler, images, shaders, graphs, materials, [], null, cancellationToken).ConfigureAwait(false);
 
-    private static async Task<CompiledProjectEffects> CompileCoreAsync(ProjectEffects source, ScriptCompiler compiler,
+    private static async Task<CompiledProjectEffects> CompileCoreAsync(ProjectEffects source, IScriptCompilationService compiler,
         IPackageImageValidator? images, IPackageShaderValidator? shaders, IPackageImageGraphValidator? graphs,
         IPackageMaterialValidator? materials, ImmutableArray<SourceMaterialReference> references, ProjectSnapshot? snapshot, CancellationToken cancellationToken)
     {

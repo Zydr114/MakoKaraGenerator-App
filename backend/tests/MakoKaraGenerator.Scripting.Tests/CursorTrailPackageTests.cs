@@ -24,7 +24,7 @@ public sealed class CursorTrailPackageTests
         var imported = await EffectPackageTransfer.ReadArchiveAsync(archive, EffectPackageFixture.Profile);
         Assert.Equal(original.Revision, imported.Revision); Assert.Equal("makokara.cursor-trail", imported.PackageId);
         var compiled = await CompiledEffectPackage.CompileAsync(EffectPackageDefinition.Read(imported),
-            new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")));
+            new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")));
         Assert.True(compiled.Artifact.Succeeded, string.Join('\n', compiled.Artifact.Diagnostics));
         var definition = compiled.CreateEffect("cursor-trail", new("real"), new EffectBinding.Project(), 7,
             System.Text.Encoding.UTF8.GetBytes("{\"transition\":\"" + mode + "\"}"));

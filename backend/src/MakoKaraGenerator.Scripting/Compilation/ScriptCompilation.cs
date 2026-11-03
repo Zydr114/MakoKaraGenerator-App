@@ -25,6 +25,8 @@ public sealed record ScriptCompilationResult(
     string ArtifactHash, ImmutableArray<byte> PeImage, ImmutableArray<byte> PdbImage,
     ImmutableArray<ScriptCompileDiagnostic> Diagnostics)
 {
+    /// <summary>成功产物的完整身份及字节摘要；失败结果没有可运行描述。</summary>
+    public ScriptArtifactDescriptor? Descriptor { get; init; }
     /// <summary>编译是否成功且存在有效产物。</summary>
     public bool Succeeded => !PeImage.IsDefaultOrEmpty && !Diagnostics.Any(static d => d.IsError);
 }

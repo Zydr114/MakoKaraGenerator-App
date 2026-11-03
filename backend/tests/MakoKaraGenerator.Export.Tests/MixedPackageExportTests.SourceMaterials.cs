@@ -23,7 +23,7 @@ public sealed partial class MixedPackageExportTests
             LyricStyle = project.LyricStyle with { UnsungFill = new() { Material = material }, SungFill = new() { Material = material }, Stroke = new() { Material = material, WidthPx = 3 } } };
     }
     private static Task<CompiledProjectEffects> CompileSources(Project project) => CompiledProjectEffects.CompileAsync(project,
-        new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")), new PackageImageValidator(), new PackageShaderValidator(), new PackageImageGraphValidator(), new PackageMaterialValidator());
+        new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")), new PackageImageValidator(), new PackageShaderValidator(), new PackageImageGraphValidator(), new PackageMaterialValidator());
 
     [Theory]
     [InlineData(false)] [InlineData(true)]

@@ -97,7 +97,7 @@ public sealed partial class MixedPackageExportTests
     {
         using TemporaryDirectory temp = new();
         var definition = EffectPackageDefinition.Read(MixedEffectPackageFixture.Contents(background: true));
-        var package = await CompiledEffectPackage.CompileAsync(definition, new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")),
+        var package = await CompiledEffectPackage.CompileAsync(definition, new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")),
             new PackageImageValidator(), new PackageShaderValidator(), new PackageImageGraphValidator(), new PackageMaterialValidator());
         var project = Project.Create("透明提示", Composition.Create(320, 180, FrameRate.Fps30, outputDurationUs: 400_000),
             LyricsDocument.Create([LyricLine.Create("row", "歌", new(0, 400_000), TimingStatus.Edited)]));
@@ -126,7 +126,7 @@ public sealed partial class MixedPackageExportTests
             }
             """, shaderSource: "uniform float amount; uniform shader original; half4 main(float2 p) { half4 c=original.eval(p); return half4(c.rgb*(amount>.9 ? 4 : 1),c.a); }");
         var definition = EffectPackageDefinition.Read(contents);
-        var package = await CompiledEffectPackage.CompileAsync(definition, new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")),
+        var package = await CompiledEffectPackage.CompileAsync(definition, new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")),
             new PackageImageValidator(), new PackageShaderValidator(), new PackageImageGraphValidator(), new PackageMaterialValidator());
         Assert.True(package.Succeeded);
         var project = Project.Create("像素错误", Composition.Create(320, 180, FrameRate.Fps30, outputDurationUs: 400_000),

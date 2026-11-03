@@ -41,7 +41,7 @@ public sealed class GroupImageEffectHostTests
             if (!graphAllowsNode) graph["bindingKinds"] = new JsonArray("project");
         }, controllerSource: Source);
         var package = await CompiledEffectPackage.CompileAsync(EffectPackageDefinition.Read(contents),
-            new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")), new PackageImageValidator(),
+            new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")), new PackageImageValidator(),
             new PackageShaderValidator(), new PackageImageGraphValidator(), new PackageMaterialValidator());
         Assert.True(package.Succeeded, string.Join('\n', package.Artifact.Diagnostics)); return package;
     }

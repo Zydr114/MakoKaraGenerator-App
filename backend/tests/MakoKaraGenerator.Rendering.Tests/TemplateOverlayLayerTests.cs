@@ -55,7 +55,7 @@ public sealed class TemplateOverlayLayerTests
     [InlineData(EffectOverlayLayer.AboveText,Fx.OverlayLayer.AboveText)]
     public async Task 模板层覆盖真实圆点连续粒子Burst与作者查询且重放一致(EffectOverlayLayer layer,Fx.OverlayLayer expected)
     {
-        var project=Apply(layer); var compiled=await CompiledProjectEffects.CompileAsync(project,new(Path.Combine(AppContext.BaseDirectory,"script-refs","net10.0")));
+        var project=Apply(layer); var compiled=await CompiledProjectEffects.CompileAsync(project,new ScriptCompiler(Path.Combine(AppContext.BaseDirectory,"script-refs","net10.0")));
         Assert.True(compiled.Succeeded);var snapshot=ProjectSnapshot.FromProject(project);var target=RenderTarget.FromComposition(snapshot.Composition);
         await using var source=await compiled.CreateFactory(static()=>new SkiaRenderPipeline(),Fx.ReplayReason.Initial).CreateAsync(snapshot);
         var frame=await source.PrepareAsync(500000,Fx.OutputMode.Transparent,target);
@@ -65,7 +65,7 @@ public sealed class TemplateOverlayLayerTests
         Assert.Equal(frame.Particles.Select(p=>(p.Id,p.Layer,p.Position)),replay.Particles.Select(p=>(p.Id,p.Layer,p.Position)));Assert.Equal(pixels,Pixels(replay));
         if(layer==EffectOverlayLayer.Package)return;
         var other=Apply(layer==EffectOverlayLayer.BehindText?EffectOverlayLayer.AboveText:EffectOverlayLayer.BehindText);
-        var otherCompiled=await CompiledProjectEffects.CompileAsync(other,new(Path.Combine(AppContext.BaseDirectory,"script-refs","net10.0")));
+        var otherCompiled=await CompiledProjectEffects.CompileAsync(other,new ScriptCompiler(Path.Combine(AppContext.BaseDirectory,"script-refs","net10.0")));
         await using var otherSource=await otherCompiled.CreateFactory(static()=>new SkiaRenderPipeline(),Fx.ReplayReason.Initial).CreateAsync(ProjectSnapshot.FromProject(other));
         Assert.NotEqual(pixels,Pixels(await otherSource.PrepareAsync(500000,Fx.OutputMode.Transparent,target)));
     }

@@ -18,7 +18,7 @@ public sealed class GroupOpacityIsolationTests
     private static readonly Lazy<Task<CompiledEffectPackage>> Package = new(async () =>
     {
         var package = await CompiledEffectPackage.CompileAsync(EffectPackageDefinition.Read(EffectPackageFixture.GroupOpacity()),
-            new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")));
+            new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")));
         Assert.True(package.Artifact.Succeeded, string.Join('\n', package.Artifact.Diagnostics)); return package;
     });
     private static string Root(ProjectSnapshot snapshot) => snapshot.LyricPresentation.FindProgram("primary")!.RootContainerId;
@@ -191,7 +191,7 @@ public sealed class GroupOpacityIsolationTests
     public async Task 包声明元素外观不能借Style能力输出组透明度()
     {
         var package = await CompiledEffectPackage.CompileAsync(EffectPackageDefinition.Read(EffectPackageFixture.GroupOpacity(declaresGroup: false)),
-            new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")));
+            new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")));
         Assert.True(package.Artifact.Succeeded);
         var snapshot = ProjectSnapshot.FromProject(LeadInFixture.Create()) with { EffectInputsFingerprint = Fingerprint };
         var effect = package.CreateEffect("group-opacity", new("undeclared"), new Fx.EffectBinding.Node(new(Root(snapshot)), false), 1,

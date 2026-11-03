@@ -18,7 +18,7 @@ public sealed class ParticleAuthorPackageTests
         Assert.Equal(package.Revision, imported.Revision);
         Assert.Equal(package.Files.Select(file => (file.Path, file.Sha256)), imported.Files.Select(file => (file.Path, file.Sha256)));
         var compiled = await CompiledEffectPackage.CompileAsync(EffectPackageDefinition.Read(imported),
-            new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")));
+            new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")));
         Assert.True(compiled.Succeeded, string.Join('\n', compiled.Artifact.Diagnostics));
         return compiled;
     }

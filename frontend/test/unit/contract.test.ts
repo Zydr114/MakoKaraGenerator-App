@@ -11,6 +11,9 @@ import {
   JOB_KINDS,
   JOB_STATES,
   RENDER_BACKENDS,
+  TEMPLATE_PROPERTIES,
+  TOKEN_TEMPLATE_PROPERTIES,
+  COMPOSITE_TEMPLATE_PROPERTIES,
   generation,
   type LyricBranchRole,
   type LyricBranchTimingMode,
@@ -43,6 +46,39 @@ describe('冻结合同副本', () => {
       expect(createHash('sha256').update(readFileSync(local)).digest('hex'), name).toBe(sha);
     }
     expect(OPENAPI_PATH.endsWith('openapi.json')).toBe(true);
+  });
+});
+
+describe('静态辉光合同（1.42.0）', () => {
+  const glow = { color: { red: 80, green: 180, blue: 255, alpha: 255 }, opacity: 0.8, blurRadiusPx: 8, spreadPx: 2 };
+
+  it('整体写入和关闭合法，缺字段、越界及额外字段被拒绝', () => {
+    for (const value of [glow, null]) {
+      expect(contract.validateNamed('StyleGlowChangeDtoInput', { property: 'glow', value })).toEqual([]);
+    }
+    for (const value of [
+      { ...glow, opacity: 1.1 }, { ...glow, blurRadiusPx: -1 }, { ...glow, spreadPx: -1 },
+      { ...glow, color: '#50B4FFFF' }, { ...glow, extra: 1 }, { color: glow.color },
+    ]) {
+      expect(contract.validateNamed('StyleGlowChangeDtoInput', { property: 'glow', value }).length).toBeGreaterThan(0);
+    }
+    expect(contract.validateNamed('StyleGlowChangeDto', { property: 'glow', value: null })).toEqual([]);
+    expect(contract.validateNamed('StyleGlowChangeDto', { property: 'glow', value: glow }).length).toBeGreaterThan(0);
+  });
+
+  it('恢复整体或叶覆盖使用 restore，project 不能恢复', () => {
+    const command = { type: 'styles.restore', targets: [{ kind: 'branch', branchId: 'b' }], properties: ['glow'] };
+    expect(contract.validateNamed('RestoreStylesCommandDtoInput', command)).toEqual([]);
+    expect(contract.validateNamed('RestoreStylesCommandDtoInput', { ...command, properties: ['glow.blurRadiusPx'] })).toEqual([]);
+    expect(contract.validateNamed('RestoreStylesCommandDtoInput', { ...command, properties: ['glow', 'glow.opacity'] }).length).toBeGreaterThan(0);
+    expect(contract.validateNamed('RestoreStylesCommandDtoInput', { ...command, targets: [{ kind: 'project' }] }).length).toBeGreaterThan(0);
+  });
+
+  it('模板属性及 token、composite 范围与冻结合同一致', () => {
+    expect([...TEMPLATE_PROPERTIES].sort()).toEqual([...(contract.schema('TemplateProperty').enum as string[])].sort());
+    const rules = contract.schema('StaticTemplateDefinitionDto').allOf as { then: { properties: { properties: { items: { enum: string[] } } } } }[];
+    expect([...TOKEN_TEMPLATE_PROPERTIES].sort()).toEqual([...rules[0]!.then.properties.properties.items.enum].sort());
+    expect([...COMPOSITE_TEMPLATE_PROPERTIES].sort()).toEqual([...rules[1]!.then.properties.properties.items.enum].sort());
   });
 });
 

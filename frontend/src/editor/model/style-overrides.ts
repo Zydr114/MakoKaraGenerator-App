@@ -2,7 +2,7 @@
 // 以及前奏提示组自己的完整外观（编排读模型，W7 设计 §2.8）。
 // 属性名是闭合集合；取值只做显示，不回写。认不出的属性或取值原样显示 JSON。
 
-import type { SceneTextAppearance, StaticMaterial, StyleChange, StyleColor, StyleShadow, StyleStroke } from '../../protocol';
+import type { SceneTextAppearance, StaticMaterial, StyleChange, StyleColor, StyleGlow, StyleShadow, StyleStroke } from '../../protocol';
 import { cssColor, materialCss, materialText } from './template-groups';
 import { formatColor } from './settings';
 
@@ -35,6 +35,11 @@ const LABELS: Record<string, string> = {
   'shadow.angleDegrees': '阴影角度',
   'shadow.distancePx': '阴影距离',
   'shadow.blurRadiusPx': '阴影模糊',
+  glow: '辉光',
+  'glow.color': '辉光颜色',
+  'glow.opacity': '辉光不透明度',
+  'glow.spreadPx': '辉光扩张',
+  'glow.blurRadiusPx': '辉光模糊',
   verticalCenterRatio: '垂直中心',
   horizontalAlignment: '水平对齐',
   opacity: '透明度',
@@ -48,7 +53,7 @@ export function overrideRows(local: readonly StyleChange[]): OverrideRow[] {
   return local.map(({ property, value }) => ({ property, label: LABELS[property] ?? property, ...describe(property, value) }));
 }
 
-/** 前奏提示组的完整外观：字体各项、未到与已过的填充、描边、阴影、透明度；回退字体为空时不列。 */
+/** 前奏提示组的完整外观；回退字体为空时不列。 */
 export function sceneAppearanceRows(appearance: SceneTextAppearance): OverrideRow[] {
   const t = appearance.typography;
   const rows: Array<[property: string, value: unknown, label?: string]> = [
@@ -63,6 +68,7 @@ export function sceneAppearanceRows(appearance: SceneTextAppearance): OverrideRo
     ['sungFill.material', appearance.elapsedFill.material, '已过填充'],
     ['stroke', appearance.stroke],
     ['shadow', appearance.shadow],
+    ['glow', appearance.glow],
     ['opacity', appearance.opacity],
   ];
   return rows.map(([property, value, label]) => ({ property, label: label ?? LABELS[property] ?? property, ...describe(property, value) }));
@@ -85,6 +91,8 @@ function describe(property: string, value: unknown): { text: string; swatch?: st
     case 'stroke.widthPx':
     case 'shadow.distancePx':
     case 'shadow.blurRadiusPx':
+    case 'glow.spreadPx':
+    case 'glow.blurRadiusPx':
       return typeof value === 'number' ? { text: `${value} px` } : raw;
     case 'typography.fontWeight':
       return typeof value === 'number' ? { text: String(value) } : raw;
@@ -116,9 +124,20 @@ function describe(property: string, value: unknown): { text: string; swatch?: st
         swatch: cssColor(shadow.color),
       };
     }
+    case 'glow': {
+      if (value === null) return { text: '关' };
+      const glow = value as StyleGlow;
+      if (!isRecord(value) || !isColor(glow.color) || ![glow.opacity, glow.spreadPx, glow.blurRadiusPx].every((v) => typeof v === 'number')) return raw;
+      return {
+        text: `${formatColor(glow.color)} · 不透明度 ${percent(glow.opacity)} · 扩张 ${glow.spreadPx} px · 模糊 ${glow.blurRadiusPx} px`,
+        swatch: cssColor(glow.color),
+      };
+    }
     case 'shadow.color':
+    case 'glow.color':
       return isColor(value) ? { text: formatColor(value), swatch: cssColor(value) } : raw;
     case 'shadow.opacity':
+    case 'glow.opacity':
     case 'verticalCenterRatio':
     case 'opacity':
       return typeof value === 'number' ? { text: percent(value) } : raw;

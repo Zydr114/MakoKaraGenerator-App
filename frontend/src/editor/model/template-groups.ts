@@ -9,6 +9,7 @@ import {
   type FullTemplateDefinition,
   type StaticMaterial,
   type StyleColor,
+  type StyleGlow,
   type StyleMaterial,
   type StyleShadow,
   type StyleStroke,
@@ -18,7 +19,7 @@ import {
 import { gradientProblem } from './gradient';
 import { formatColor } from './settings';
 
-export type TemplateGroupId = 'font' | 'size' | 'weight' | 'spacing' | 'position' | 'unsung' | 'sung' | 'stroke' | 'shadow' | 'opacity' | 'scale';
+export type TemplateGroupId = 'font' | 'size' | 'weight' | 'spacing' | 'position' | 'unsung' | 'sung' | 'stroke' | 'shadow' | 'glow' | 'opacity' | 'scale';
 
 export interface TemplateGroup {
   id: TemplateGroupId;
@@ -36,6 +37,7 @@ export const TEMPLATE_GROUPS: readonly TemplateGroup[] = [
   { id: 'sung', label: '已唱填充', properties: ['sungColor', 'sungGradientSpec'] },
   { id: 'stroke', label: '描边', properties: ['strokeColor', 'strokeWidthPx', 'strokeSpec'] },
   { id: 'shadow', label: '阴影', properties: ['shadowColor', 'shadowBlurPx', 'shadowSpec'] },
+  { id: 'glow', label: '辉光', properties: ['glowColor', 'glowOpacity', 'glowSpreadPx', 'glowBlurRadiusPx', 'glowSpec'] },
   { id: 'opacity', label: '透明度', properties: ['opacity'] },
   { id: 'scale', label: '缩放', properties: ['scale'] },
 ];
@@ -60,7 +62,7 @@ export function groupIncluded(group: TemplateGroup, properties: readonly Templat
 /** 用途的说明：哪些组不可用。 */
 export const KIND_LIMIT_TEXT: Record<TemplateKind, string | null> = {
   line: null,
-  token: '文本单元用途只能包含填充、描边、阴影和透明度。',
+  token: '文本单元用途只能包含填充、描边、阴影、辉光和透明度。',
   composite: '组合用途不能包含位置。',
 };
 
@@ -120,6 +122,10 @@ export function groupValueText(group: TemplateGroupId, style: AnyStyle): string 
       const s = style.shadow;
       return s ? `${formatColor(s.color)} · 不透明度 ${round(s.opacity * 100, 1)}% · ${s.angleDegrees}° · 距离 ${s.distancePx} px · 模糊 ${s.blurRadiusPx} px` : '关';
     }
+    case 'glow': {
+      const g = style.glow;
+      return g ? `${formatColor(g.color)} · 不透明度 ${round(g.opacity * 100, 1)}% · 扩张 ${g.spreadPx} px · 模糊 ${g.blurRadiusPx} px` : '关';
+    }
     case 'opacity':
       return `${round(style.opacity * 100, 1)}%`;
     case 'scale':
@@ -138,6 +144,8 @@ export function groupSwatch(group: TemplateGroupId, style: AnyStyle): string | u
       return style.stroke ? materialCss(style.stroke.material) : undefined;
     case 'shadow':
       return style.shadow ? cssColor(style.shadow.color) : undefined;
+    case 'glow':
+      return style.glow ? cssColor(style.glow.color) : undefined;
     default:
       return undefined;
   }
@@ -178,6 +186,17 @@ export function sortProperties(properties: readonly TemplateProperty[]): Templat
   return [...new Set(properties)].sort((a, b) => TEMPLATE_PROPERTIES.indexOf(a) - TEMPLATE_PROPERTIES.indexOf(b));
 }
 
+export type GlowLeafProperty = 'glowColor' | 'glowOpacity' | 'glowSpreadPx' | 'glowBlurRadiusPx';
+
+/** 保留原模板的属性子集，并纳入刚修改的辉光叶；开关整体时用 glowSpec 表达明确关闭。 */
+export function setTemplateGlow(definition: FullTemplateDefinition, glow: StyleGlow | null, property?: GlowLeafProperty): FullTemplateDefinition {
+  return {
+    ...definition,
+    style: { ...definition.style, glow },
+    properties: definition.properties.includes('glowSpec') ? definition.properties : sortProperties([...definition.properties, property ?? 'glowSpec']),
+  };
+}
+
 /** 不能保存的原因；可以保存时返回 undefined。数值范围由各输入框就地校验，这里只查整体约束。 */
 export function definitionProblem(definition: FullTemplateDefinition): string | undefined {
   if (!definition.name.trim()) return '名称不能为空。';
@@ -199,9 +218,10 @@ export function definitionProblem(definition: FullTemplateDefinition): string | 
   return undefined;
 }
 
-/** 描边、阴影从“关”打开时的初值。 */
+/** 描边、阴影、辉光从“关”打开时的初值。 */
 export const DEFAULT_STROKE: StyleStroke<StaticMaterial> = { material: { kind: 'solid', color: { red: 0, green: 0, blue: 0, alpha: 255 } }, widthPx: 4, join: 'round', position: 'outside' };
 export const DEFAULT_SHADOW: StyleShadow = { color: { red: 0, green: 0, blue: 0, alpha: 255 }, opacity: 0.5, angleDegrees: 45, distancePx: 4, blurRadiusPx: 4 };
+export const DEFAULT_GLOW: StyleGlow = { color: { red: 255, green: 255, blue: 255, alpha: 255 }, opacity: 1, spreadPx: 0, blurRadiusPx: 8 };
 
 /** 纯色改为渐变时的初值：同色到半透明的两个色标；其余参数取后端 GradientSpec 的默认值。 */
 export function gradientFrom(color: StyleColor): StaticMaterial {

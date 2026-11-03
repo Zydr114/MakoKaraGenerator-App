@@ -20,7 +20,9 @@ export const DEFAULT_PROFILE = join(DEV_DIR, 'backend-profile');
 export const DEV_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173'];
 
 /** 本项目固定消费的后端合同版本（docs/backend/contract/contract-manifest.json）。 */
-export const EXPECTED_PRODUCT_VERSION = '0.109.0';
+export const EXPECTED_PRODUCT_VERSION = JSON.parse(
+  readFileSync(new URL('../docs/backend/contract/contract-manifest.json', import.meta.url), 'utf8'),
+).productVersion;
 
 const READY_TIMEOUT_MS = 120_000;
 const STOP_TIMEOUT_MS = 120_000;

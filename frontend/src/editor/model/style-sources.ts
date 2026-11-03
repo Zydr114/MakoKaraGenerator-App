@@ -1,4 +1,4 @@
-// 外观来源（W7 设计 §2.7）：GET .../resolved-style 给出解析后的静态样式和 21 个属性各自最后来自哪里。
+// 外观来源（W7 设计 §2.7）：GET .../resolved-style 给出解析后的静态样式和各属性最后来自哪里。
 // 来源路径是工程里的持久路径，这里认出五种（工程样式、来源／行／文本单元的直接覆盖、分配），写成一句话，并给出点了要选中的目标。
 
 import type { CanonicalStyle, LyricBranchSummary, PresetApplication, ProjectResolvedStyleResponse, TemplateProperty } from '../../protocol';
@@ -64,6 +64,11 @@ export const STYLE_PROPERTY_TEXT: Record<TemplateProperty, string> = {
   shadowColor: '阴影颜色',
   shadowBlurPx: '阴影模糊',
   shadowSpec: '阴影设置',
+  glowColor: '辉光颜色',
+  glowOpacity: '辉光不透明度',
+  glowSpreadPx: '辉光扩张',
+  glowBlurRadiusPx: '辉光模糊',
+  glowSpec: '辉光设置',
   opacity: '透明度',
   scale: '缩放',
 };
@@ -214,6 +219,8 @@ function groupValue(id: string, style: CanonicalStyle): { text: string; swatch?:
       return describeValue('stroke', style.stroke);
     case 'shadow':
       return describeValue('shadow', style.shadow);
+    case 'glow':
+      return describeValue('glow', style.glow);
     case 'opacity':
       return describeValue('opacity', style.opacity);
     case 'scale':

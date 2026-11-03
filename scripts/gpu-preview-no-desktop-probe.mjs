@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import { resolve, join } from 'node:path';
+import { EXPECTED_PRODUCT_VERSION } from '../frontend/scripts/backend-launcher.mjs';
 
 const dist = resolve(process.argv[2]);
 const evidence = await mkdtemp(resolve('.local/no-desktop-http-'));
@@ -48,7 +49,7 @@ try {
   result = { productVersion: capabilities.productVersion, capabilityStatus: caps.status,
     gpuFeaturePresent: capabilities.features.includes('preview.gpu-streams'), gpuLimitsPresent: 'gpuPreview' in capabilities,
     publicRouteStatus: publicRoute.status, privateClaimStatus: claim.status };
-  if (result.productVersion !== '0.109.0' || caps.status !== 200 || result.gpuFeaturePresent || result.gpuLimitsPresent ||
+  if (result.productVersion !== EXPECTED_PRODUCT_VERSION || caps.status !== 200 || result.gpuFeaturePresent || result.gpuLimitsPresent ||
       publicRoute.status !== 404 || claim.status !== 404) throw new Error('Unexpected no-desktop HTTP behavior');
 } finally {
   child.kill('SIGTERM');

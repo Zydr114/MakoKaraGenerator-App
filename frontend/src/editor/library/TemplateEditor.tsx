@@ -10,6 +10,7 @@ import type {
   HorizontalAlignment,
   StaticMaterial,
   StyleGradient,
+  StyleGlow,
   StyleShadow,
   StyleStroke,
   StyleTypography,
@@ -18,6 +19,7 @@ import type {
 } from '../../protocol';
 import { addStop, gradientProblem, MAX_GRADIENT_STOPS, removeStop, setStopColor, setStopOffset } from '../model/gradient';
 import {
+  DEFAULT_GLOW,
   DEFAULT_SHADOW,
   DEFAULT_STROKE,
   gradientFrom,
@@ -27,10 +29,12 @@ import {
   materialCss,
   materialText,
   setGroupIncluded,
+  setTemplateGlow,
   solidFrom,
   TEMPLATE_GROUPS,
   type TemplateGroup,
   type TemplateGroupId,
+  type GlowLeafProperty,
 } from '../model/template-groups';
 import { Button, IconButton } from '../ui/Button';
 import { SliderField, Switch } from '../ui/choices';
@@ -66,7 +70,7 @@ const percent = (value: number) => `${Math.round(value * 100)}%`;
 /** 外观页签的三组，每组里按 TEMPLATE_GROUPS 的顺序列出用途允许的项。 */
 const SECTIONS: readonly { title: string; ids: readonly TemplateGroupId[] }[] = [
   { title: '文字', ids: ['font', 'size', 'weight', 'spacing'] },
-  { title: '颜色与描边', ids: ['unsung', 'sung', 'stroke', 'shadow'] },
+  { title: '颜色与描边', ids: ['unsung', 'sung', 'stroke', 'shadow', 'glow'] },
   { title: '位置与透明', ids: ['position', 'opacity', 'scale'] },
 ];
 /** 行首的短名称（完整名称作开关的可访问名称）。 */
@@ -80,6 +84,7 @@ const ROW_LABEL: Record<TemplateGroupId, string> = {
   sung: '已唱',
   stroke: '描边',
   shadow: '阴影',
+  glow: '辉光',
   opacity: '透明度',
   scale: '缩放',
 };
@@ -257,6 +262,8 @@ function rowFields(
       return strokeRow(style.stroke, (stroke) => setStyle({ stroke }), onOpenMaterial, disabled);
     case 'shadow':
       return shadowRow(style.shadow, (shadow) => setStyle({ shadow }), disabled);
+    case 'glow':
+      return glowRow(style.glow, (glow, property) => onChange(setTemplateGlow(d, glow, property)), disabled);
     case 'opacity':
       return {
         ctl: <InlineSlider label="透明度" value={style.opacity} min={0} max={1} step={0.01} format={percent} onCommit={(opacity) => setStyle({ opacity })} disabled={disabled} />,
@@ -404,6 +411,49 @@ function shadowRow(shadow: StyleShadow | null, onChange: (shadow: StyleShadow | 
           <NumberField label="距离" labelPlacement="inside" size="sm" suffix="px" value={shadow.distancePx} min={0} onCommit={(distancePx) => onChange({ ...shadow, distancePx })} disabled={disabled} />
           <NumberField label="模糊" labelPlacement="inside" size="sm" suffix="px" value={shadow.blurRadiusPx} min={0} onCommit={(blurRadiusPx) => onChange({ ...shadow, blurRadiusPx })} disabled={disabled} />
         </div>
+      </>
+    ),
+  };
+}
+
+const GLOW_KINDS = [
+  { value: 'off', label: '无辉光' },
+  { value: 'on', label: '有辉光' },
+] as const;
+
+/** 右侧包含开关控制继承；这里的“无辉光”写入显式 null。 */
+function glowRow(glow: StyleGlow | null, onChange: (glow: StyleGlow | null, property?: GlowLeafProperty) => void, disabled: boolean): { ctl: ReactNode; sub?: ReactNode } {
+  return {
+    ctl: (
+      <>
+        <Select
+          label="辉光开关"
+          labelPlacement="none"
+          size="sm"
+          className="w"
+          value={glow ? 'on' : 'off'}
+          options={GLOW_KINDS}
+          onChange={(v) => onChange(v === 'on' ? DEFAULT_GLOW : null)}
+          disabled={disabled}
+        />
+        {glow ? (
+          <ColorField label="辉光颜色" labelPlacement="none" size="sm" value={glow.color} onCommit={(color) => onChange({ ...glow, color }, 'glowColor')} disabled={disabled} />
+        ) : (
+          <span className="small inherit">明确关闭，不是继承</span>
+        )}
+      </>
+    ),
+    sub: glow && (
+      <>
+        <div className="ctl-row">
+          <span className="sub-lbl">不透明度</span>
+          <InlineSlider label="辉光不透明度" value={glow.opacity} min={0} max={1} step={0.01} format={percent} onCommit={(opacity) => onChange({ ...glow, opacity }, 'glowOpacity')} disabled={disabled} />
+        </div>
+        <div className="g2">
+          <NumberField label="扩张" labelPlacement="inside" size="sm" suffix="px" value={glow.spreadPx} min={0} onCommit={(spreadPx) => onChange({ ...glow, spreadPx }, 'glowSpreadPx')} disabled={disabled} />
+          <NumberField label="模糊" labelPlacement="inside" size="sm" suffix="px" value={glow.blurRadiusPx} min={0} onCommit={(blurRadiusPx) => onChange({ ...glow, blurRadiusPx }, 'glowBlurRadiusPx')} disabled={disabled} />
+        </div>
+        <Note>扩张增加光晕厚度，模糊使边缘更柔和；两项都为 0 时没有光晕。</Note>
       </>
     ),
   };

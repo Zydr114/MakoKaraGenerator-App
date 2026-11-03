@@ -14,7 +14,7 @@
 
 import type { Revision } from './int64';
 import type { RenderBackend } from './preview';
-import type { StaticMaterial, StyleChange, StyleMaterial, StyleShadow, StyleStroke, StyleTypography } from './style';
+import type { StaticMaterial, StyleChange, StyleGlow, StyleMaterial, StyleShadow, StyleStroke, StyleTypography } from './style';
 
 /**
  * 锚点（后端枚举名）。写入只接受这六个（大小写不敏感，回读是标准名）；读模型按字符串处理，未知值原样显示。
@@ -115,6 +115,7 @@ export interface SceneTextAppearance<M = StyleMaterial> {
   elapsedFill: { material: M };
   stroke: StyleStroke<M> | null;
   shadow: StyleShadow | null;
+  glow: StyleGlow | null;
   /** 0..1。 */
   opacity: number;
 }

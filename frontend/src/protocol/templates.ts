@@ -12,7 +12,7 @@ export const TEMPLATE_LIST_MAX_LIMIT = 100;
 
 export type TemplateKind = 'line' | 'token' | 'composite';
 
-/** 模板可以控制的 21 个属性（与 styles.patch 的 24 个路径无关）。 */
+/** 模板可以控制的 26 个属性（与 styles.patch 的 29 个路径无关）。 */
 export const TEMPLATE_PROPERTIES = [
   'fontFamilyName',
   'fallbackFamilyNames',
@@ -35,6 +35,11 @@ export const TEMPLATE_PROPERTIES = [
   'shadowSpec',
   'opacity',
   'scale',
+  'glowSpec',
+  'glowColor',
+  'glowOpacity',
+  'glowBlurRadiusPx',
+  'glowSpreadPx',
 ] as const;
 export type TemplateProperty = (typeof TEMPLATE_PROPERTIES)[number];
 
@@ -51,6 +56,11 @@ export const TOKEN_TEMPLATE_PROPERTIES: readonly TemplateProperty[] = [
   'shadowBlurPx',
   'shadowSpec',
   'opacity',
+  'glowSpec',
+  'glowColor',
+  'glowOpacity',
+  'glowBlurRadiusPx',
+  'glowSpreadPx',
 ];
 export const COMPOSITE_TEMPLATE_PROPERTIES: readonly TemplateProperty[] = TEMPLATE_PROPERTIES.filter(
   (p) => p !== 'verticalCenterRatio' && p !== 'horizontalAlignment',

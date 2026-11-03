@@ -318,6 +318,7 @@ const COUNTDOWN: SceneTextAppearance = {
   elapsedFill: { material: { kind: 'solid', color: { red: 255, green: 0, blue: 0, alpha: 255 } } },
   stroke: null,
   shadow: null,
+  glow: null,
   opacity: 1,
 };
 
@@ -428,9 +429,13 @@ describe('编排对象目标', () => {
       '已过填充=#ff0000',
       '描边=关',
       '阴影=关',
+      '辉光=关',
       '透明度=100%',
     ]);
     expect(overrideRows(MODEL.byId.get('m1')!.content!.appearanceOverride!).map((r) => r.text)).toEqual(['40 px']);
+    const glow = { color: { red: 255, green: 0, blue: 0, alpha: 255 }, opacity: 0.5, spreadPx: 2, blurRadiusPx: 8 };
+    expect(sceneAppearanceRows({ ...COUNTDOWN, glow }).find((row) => row.property === 'glow')?.text)
+      .toBe('#ff0000 · 不透明度 50% · 扩张 2 px · 模糊 8 px');
   });
 
   it('外观状态：片段合成一个目标应用；节点的应用范围可以改，不读样式；编排结构更新后去掉失效目标', async () => {
@@ -466,6 +471,7 @@ describe('外观来源', () => {
     sungFill: { material: { kind: 'solid', color: { red: 255, green: 0, blue: 0, alpha: 255 } } },
     stroke: null,
     shadow: null,
+    glow: null,
     verticalCenterRatio: 0.5,
     horizontalAlignment: 'center',
     opacity: 1,

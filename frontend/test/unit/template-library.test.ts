@@ -4,7 +4,7 @@ import { NEW_TEMPLATE_NAME, NEW_TEMPLATE_SOURCE, TemplateLibraryStore } from '..
 import { SAMPLE_SIZE, SAMPLE_TIME_US, TEMPLATE_PREVIEW, TemplateThumbnails, THUMBNAIL_SAMPLE_ID, THUMBNAIL_SIZE } from '../../src/editor/library/template-thumbnails';
 import { TEMPLATE_PREVIEW_OPTIONS, TemplateWorkshop, workshopTitle, WORKSHOP_DURATION_US } from '../../src/editor/library/template-workshop';
 import { addStop, gradientProblem, removeStop, setStopOffset } from '../../src/editor/model/gradient';
-import { changeKind, definitionProblem, gradientFrom, groupAllowed, propertySummary, setGroupIncluded, TEMPLATE_GROUPS } from '../../src/editor/model/template-groups';
+import { changeKind, definitionProblem, gradientFrom, groupAllowed, propertySummary, setGroupIncluded, setTemplateGlow, TEMPLATE_GROUPS } from '../../src/editor/model/template-groups';
 import {
   type EffectPackageInspectResponse,
   type EffectPackageReference,
@@ -22,6 +22,7 @@ const STYLE: FullTemplateDefinition['style'] = {
   sungFill: { material: { kind: 'solid', color: { red: 76, green: 141, blue: 255, alpha: 255 } } },
   stroke: null,
   shadow: null,
+  glow: null,
   verticalCenterRatio: 0.5,
   horizontalAlignment: 'center',
   opacity: 1,
@@ -121,6 +122,15 @@ function fakeLibraries() {
 }
 
 describe('样式库状态', () => {
+  it('编辑辉光叶属性时保留并补齐模板属性；整体关闭写入 glowSpec', () => {
+    const partial = definition({ name: '辉光叶', kind: 'line', style: { ...STYLE, glow: { color: { red: 255, green: 255, blue: 255, alpha: 255 }, opacity: 1, spreadPx: 1, blurRadiusPx: 8 } }, properties: ['glowColor'] });
+    const withBlur = setTemplateGlow(partial, partial.style.glow, 'glowBlurRadiusPx');
+    expect(withBlur.properties).toEqual(['glowColor', 'glowBlurRadiusPx']);
+    const closed = setTemplateGlow(withBlur, null);
+    expect(closed.properties).toEqual(['glowSpec', 'glowColor', 'glowBlurRadiusPx']);
+    expect(closed.style.glow).toBeNull();
+  });
+
   it('新建草稿以“经典整行”为起点，算未保存；保存发 create（首次修订 missing），之后选中新模板、不再有修改', async () => {
     const fake = fakeLibraries();
     const store = new TemplateLibraryStore(fake.client);
@@ -277,13 +287,13 @@ describe('样式库状态', () => {
 });
 
 describe('模板属性分组', () => {
-  it('用途限制：文本单元只有填充、描边、阴影、透明度；组合不能有位置', () => {
+  it('用途限制：文本单元包含辉光；组合不能有位置', () => {
     const ids = (kind: 'line' | 'token' | 'composite') => TEMPLATE_GROUPS.filter((g) => groupAllowed(g, kind)).map((g) => g.id);
-    expect(ids('token')).toEqual(['unsung', 'sung', 'stroke', 'shadow', 'opacity']);
+    expect(ids('token')).toEqual(['unsung', 'sung', 'stroke', 'shadow', 'glow', 'opacity']);
     expect(ids('composite')).not.toContain('position');
-    expect(ids('line')).toHaveLength(11);
+    expect(ids('line')).toHaveLength(12);
     expect(propertySummary('token', ['unsungColor', 'sungColor'])).toBe('未唱填充、已唱填充');
-    expect(propertySummary('token', ['unsungColor', 'sungColor', 'strokeSpec', 'shadowColor', 'opacity'])).toBe('全部属性');
+    expect(propertySummary('token', ['unsungColor', 'sungColor', 'strokeSpec', 'shadowColor', 'glowSpec', 'opacity'])).toBe('全部属性');
   });
 
   it('开关组：重新打开原来包含的组恢复原子集，新打开的组写整组；换用途去掉不允许的属性', () => {

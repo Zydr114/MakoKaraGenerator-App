@@ -92,15 +92,26 @@ export interface StyleShadow {
   blurRadiusPx: number;
 }
 
+export interface StyleGlow {
+  color: StyleColor;
+  /** 有限值，0..1。 */
+  opacity: number;
+  /** 有限非负值，逻辑像素。 */
+  blurRadiusPx: number;
+  /** 有限非负值，逻辑像素。 */
+  spreadPx: number;
+}
+
 export type HorizontalAlignment = 'left' | 'center' | 'right';
 
-/** 完整规范样式。stroke／shadow 为 null 表示明确关闭。 */
+/** 完整规范样式。stroke／shadow／glow 为 null 表示明确关闭。 */
 export interface CanonicalStyle<M = StyleMaterial> {
   typography: StyleTypography;
   unsungFill: { material: M };
   sungFill: { material: M };
   stroke: StyleStroke<M> | null;
   shadow: StyleShadow | null;
+  glow: StyleGlow | null;
   /** 0..1。 */
   verticalCenterRatio: number;
   horizontalAlignment: HorizontalAlignment;
@@ -148,7 +159,7 @@ export interface ResolvedStyleQuery {
 }
 
 /**
- * 工程、来源、节点、片段、行、文字各层覆盖与模板分配叠加后的静态样式，以及 21 个属性各自最后来自哪里。
+ * 工程、来源、节点、片段、行、文字各层覆盖与模板分配叠加后的静态样式，以及 26 个属性各自最后来自哪里。
  * sourcePath 是工程里的持久路径，例如 lyricStyle、lyrics.branches.<b>.lines.<l>.styleOverride、presetApplications.<id>.snapshot.style。
  * 不运行动画、脚本与字体测量，finalPixelAppearance 恒为 false。
  */

@@ -74,6 +74,7 @@ describe('选中组件', () => {
       sungFill: { material: { kind: 'solid', color: { red: 76, green: 141, blue: 255, alpha: 255 } } },
       stroke: null,
       shadow: null,
+      glow: null,
       verticalCenterRatio: 0.5,
       horizontalAlignment: 'center',
       opacity: 1,

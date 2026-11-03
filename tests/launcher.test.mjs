@@ -1,17 +1,18 @@
 import { mock, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn as actualSpawn } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { access, mkdtemp, mkdir, chmod, writeFile, rm, symlink } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 
 const root = resolve(import.meta.dirname, '..');
+const productVersion = JSON.parse(readFileSync(join(root, 'frontend/docs/backend/contract/contract-manifest.json'), 'utf8')).productVersion;
 const distRoot = join(root, '.local/backend-dist');
 await mkdir(distRoot, { recursive: true });
 const dist = await mkdtemp(join(distRoot, 'launcher-test-'));
 const privateDir = await mkdtemp(join(tmpdir(), 'mako-launcher-test-'));
-await writeFile(join(dist, 'deployment.json'), JSON.stringify({ version: '0.109.0' }));
+await writeFile(join(dist, 'deployment.json'), JSON.stringify({ version: productVersion }));
 let credentialFile;
 let ownedChild;
 let blockParent;
@@ -20,7 +21,7 @@ mock.module('node:child_process', { exports: {
   spawn() {
     if (spawnMissing) return actualSpawn('mako-nonexistent-test-executable', [], { stdio: ['ignore', 'pipe', 'pipe'] });
     if (blockParent) writeFileSync(blockParent, 'not a directory');
-    const payload = JSON.stringify({ credentialFile, addresses: ['http://127.0.0.1:12345'], hostInstanceId: 'fixture', version: '0.109.0', pid: 123, runDirectory: privateDir });
+    const payload = JSON.stringify({ credentialFile, addresses: ['http://127.0.0.1:12345'], hostInstanceId: 'fixture', version: productVersion, pid: 123, runDirectory: privateDir });
     ownedChild = actualSpawn(process.execPath, ['-e', `console.log('WEB_BACKEND_READY ' + ${JSON.stringify(payload)}); setInterval(() => {}, 1000);`], { stdio: ['ignore', 'pipe', 'pipe'] });
     return ownedChild;
   },
@@ -59,6 +60,11 @@ try {
     await symlink(privateDir, link);
     try { assert.throws(() => resolveDist(link), /必须位于/); }
     finally { await rm(link); }
+  });
+  await test('旧产品部署在启动前拒绝', async () => {
+    await writeFile(join(dist, 'deployment.json'), JSON.stringify({ version: '0.109.0' }));
+    try { assert.throws(() => resolveDist(dist), /产品版本不一致/); }
+    finally { await writeFile(join(dist, 'deployment.json'), JSON.stringify({ version: productVersion })); }
   });
 } finally {
   mock.restoreAll();

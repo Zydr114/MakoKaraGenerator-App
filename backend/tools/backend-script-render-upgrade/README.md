@@ -50,6 +50,18 @@ python3 -B backend/tools/backend-script-render-upgrade/probe.py \
 
 每个场景最终请求预览 `closed`、工程关闭任务 `succeeded`；即使 seek失败也尝试这些关闭。最后沿用 Smoke向自有启动器发 SIGTERM、等待所属 Server／Worker身份消失，并扫描所有证据中的内存凭证。结果保留在 `summary.json`、各场景报告、逐次请求／响应、PNG及 `seek-shutdown.json`；失败目录保留，下一次使用新目录。当前探针不覆盖源码／参数改变编译、取消恢复、ALC回收或GPU备用 Worker。
 
+### 取消与恢复探针
+
+独立探针只在显式传入 `--run` 时启动，使用全新的输出目录及隔离 profile：
+
+```bash
+python3 -B backend/tools/backend-script-render-upgrade/cancel_probe.py --run \
+  --dist "$PWD/artifacts/web-backend/m03" \
+  --output "$PWD/artifacts/script-render-upgrade/m03-cancel-01"
+```
+
+探针通过 HTTP 导入专用 C# controller。脚本在目标时间写入所属 PID 和实例标记，等待实际 `FrameContext.CancellationToken`；观察屏障后发送新 seek，确认原实例观察到取消、相同 PID 和 startTicks 的 Worker 内出现新 controller 实例、恢复帧身份精确，且与同时间参考帧的 RGBA 像素一致。探针还检查旧 generation 返回 409、关闭资源、排空所属进程并扫描凭证。`summary.json` 与 `markers/` 保留成功或失败证据。它检验特定脚本和 HTTP 场景，不代表 UI 或其他渲染模式均已验收；须分别使用匹配的 M02 和 M03 发布物验证基线失败及升级后通过。
+
 准备阶段或样本失败会记录具体 `stage`、最近请求名称／方法／路径、限长脱敏的断言标签与错误消息，以及仅含文件／行号／函数的调用位置；不保存调用栈局部变量或源码文本。若尚无场景／样本，先查看 `summary.json.failures` 和对应最后一组请求／响应。错误详情同样参与退出后的凭证扫描。
 
 静态检查（不会启动发布实例）：

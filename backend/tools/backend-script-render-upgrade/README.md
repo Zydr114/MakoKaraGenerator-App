@@ -58,3 +58,20 @@ python3 -B backend/tools/backend-script-render-upgrade/probe.py \
 python3 -B backend/tools/backend-script-render-upgrade/probe.py --help
 python3 -c 'import ast,pathlib; ast.parse(pathlib.Path("backend/tools/backend-script-render-upgrade/probe.py").read_text())'
 ```
+
+### 同步作者编译探针
+
+```bash
+python3 -B backend/tools/backend-script-render-upgrade/compile_probe.py \
+  --dist "$PWD/artifacts/web-backend/current" \
+  --output "$PWD/artifacts/script-render-upgrade/compile-round-01"
+```
+
+每轮使用全新输出目录和独立 profile，`--dist` 必须是匹配的完整 Server/Worker 发布目录。探针导入 `WordEmphasis`，同步编译一次冷样本后对同一源码串行编译 12 次暖样本（`--warm-count` 可设置 12 至 100），核对成功、草稿及源码身份、产物身份、完整诊断和前后源码快照。`summary.json` 分别保存冷样本、全部暖样本、暖样本 median 和 nearest-rank p95、部署清单摘要及工具 SHA-256。耗时从发出 HTTP 请求到完整读取响应，不包括证据落盘；它包含服务端处理和回执传输，不是单独的编译器耗时。
+
+通过相同工具和样本数运行各轮旧／新部署；不同部署应各使用全新 profile。HTTP 产物 hash 一致不能证明实际 Roslyn Emit 次数，实际次数由独立 Scripting 测试验证。探针沿用 W8 的认证、凭证扫描和所属进程身份排水；失败仅记录阶段与异常类型。静态检查不启动服务：
+
+```bash
+python3 -B backend/tools/backend-script-render-upgrade/compile_probe.py --help
+python3 -c 'import ast,pathlib; ast.parse(pathlib.Path("backend/tools/backend-script-render-upgrade/compile_probe.py").read_text())'
+```

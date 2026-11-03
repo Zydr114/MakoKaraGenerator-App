@@ -1494,6 +1494,14 @@ W8 增加 profile 级恢复入口。`GET /api/v1/profile/author-drafts` 只返�
 
 `POST /api/v1/drafts/{id}/compilation-jobs` 绑定捕获的当前源码修订，独立执行脚本编译并返回完整诊断；编译失败是可读取的诊断结果，不改变源码修订。编译诊断最多256项且完整UTF-8回执最多48KiB，超限整次拒绝并保留原草稿状态。`POST /api/v1/drafts/{id}/adopt-source-revision` 同样要求精确草稿修订，显式选择已固定且导出身份有效的源码修订，采用动作不要求编译成功，返回前后修订身份。
 
+**0.110.3 编译缓存：** 作者编译使用当前 profile 的 `script-artifacts` 内容地址缓存。同键并发请求共享编译，
+各调用者独立取消；失败编译不发布可运行产物。缓存身份包括源码、入口、编译选项、编译器、SDK、
+引用集、引擎和规则版本，参数与种子不改变编译输入键。返回的 `artifactHash` 仍是不可解析的内容身份，
+不是 PE 字节摘要，也不构成公开的产物读取路径。内部缓存默认 256 MiB，PE／PDB 各 32 MiB、清单 1 MiB；
+配额、损坏摘要或读取失败沿既有编译任务失败路径处理，不能回退旧成功产物。磁盘在用租约保护淘汰，
+跨进程同键互斥和崩溃暂存回收不改变 owner／CAS／任务终态。此处是产物读写预算，不保证 Roslyn
+编译期间的峰值内存上限。当前渲染 Worker 的固定产物消费另由 M02 交付。
+
 `DELETE /api/v1/drafts/{id}` 必须携带 `AuthorDraftDeleteRequest` 的精确 `expectedDraftRevision` 和metadata。成功返回 `AuthorDraftDeleteResponse`（200），删除草稿状态及其固定包，并释放客户端作者草稿的存储与回收保护；修订冲突返回409，跨客户端读取仍为401 `resourceUnauthorized`。删除是显式操作，不会自动修改个人模板库或工程历史；同一metadata重试返回原回执。
 
 `POST /api/v1/drafts/{id}/compilation-jobs` 可选 `executionMode:"async"` 返回 `202` 与普通 `JobResponse`；省略该字段或显式 `sync` 保持原同步 `200` 回执。异步任务在接受时固定 `draftId`、`draftRevision` 和 `sourceRevision`，沿用现有任务状态、事件/SSE、取消、保留期、客户端授权及前一宿主账本。`GET /api/v1/jobs/{id}/compilation-result` 只返回该任务固定源码修订的完整 `AuthorCompilationResponse`；草稿之后的源码或配置修订不会覆盖它。任务进入提交阶段后取消按既有 `operationNotCancellable` 语义处理；取消、停止或重启造成的无结果终态从普通 job 查询读取，不能用空诊断伪造编译成功。N10只读取当前宿主的live job结果；sidecar与账本持久化不构成公开的编译结果恢复路由。

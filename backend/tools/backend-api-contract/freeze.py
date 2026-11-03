@@ -27,7 +27,7 @@ from template_library_schema import extend_template_library_schemas, query_param
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTRACT = "1.42.3"
-BASELINE = "1adfe1a0fca8d426f2e803db4bfab72e12aff330"
+BASELINE = "5f19aed332d43f61a356ebee20d87bcb125cbbf1"
 PRODUCT = re.search(r"<VersionPrefix>([^<]+)</VersionPrefix>", (ROOT / "Directory.Build.props").read_text()).group(1)
 FREEZE_DATE = "2026-11-03"
 BEHAVIOR = "docs/architecture/backend-api.md"

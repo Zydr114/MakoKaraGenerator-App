@@ -19,12 +19,11 @@ fixtureClock.Stop();
 var trace = TraceCapture.Load();
 using var monitoring = MonitoringCapture.Start(options.Monitoring, options.Output);
 using var videos = new FfmpegVideoFrameProvider();
-var factory = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), options.CacheRoot), videos, ReplayReason.Initial, renderBackend: options.Backend);
-
 long allocated = GC.GetTotalAllocatedBytes(true);
 int[] gc = Counts();
 var capture = trace.Begin("create");
 var stopwatch = Stopwatch.StartNew();
+var factory = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), options.CacheRoot), videos, ReplayReason.Initial, renderBackend: options.Backend);
 var session = await factory.CreateAsync(fixture.Snapshot);
 stopwatch.Stop();
 capture?.Dispose();

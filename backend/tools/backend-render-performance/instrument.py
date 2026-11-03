@@ -6,6 +6,7 @@ import difflib
 import hashlib
 import json
 from pathlib import Path
+from factory_layout import detect
 
 
 TOOL_DIR = Path(__file__).resolve().parent
@@ -45,6 +46,7 @@ def instrument(root):
                       '                ? (_renderBackendOptions ?? SkiaRenderBackendOptions.FromEnvironment()) with { EnableGpuPreview = true }\n'
                       '                : _renderBackendOptions);')
     factory_source = (root / factory).read_text(encoding="utf-8")
+    factory_layout = detect(factory_source)
     if (factory_source.count(device_old), factory_source.count(device_preview)) == (1, 0):
         device_statement = device_old
     elif (factory_source.count(device_old), factory_source.count(device_preview)) == (0, 1):
@@ -52,8 +54,9 @@ def instrument(root):
     else:
         raise ValueError("unknown or mixed render device factory layout")
     replace(factory, device_statement, '            using (RenderPerformanceTrace.Measure("session.device"))\n' + device_statement)
-    replace(factory, '            var compiled = await CompiledProjectEffects.CompileAsync(snapshot, _compiler.Value, new PackageImageValidator(), new PackageShaderValidator(),\n                new PackageImageGraphValidator(), new PackageMaterialValidator(), token).ConfigureAwait(false);',
-            '            CompiledProjectEffects compiled;\n            using (RenderPerformanceTrace.Measure("session.compile"))\n                compiled = await CompiledProjectEffects.CompileAsync(snapshot, _compiler.Value, new PackageImageValidator(), new PackageShaderValidator(),\n                    new PackageImageGraphValidator(), new PackageMaterialValidator(), token).ConfigureAwait(false);')
+    compiler = "_compiler.Value" if factory_layout == "legacy" else "compiler"
+    replace(factory, f'            var compiled = await CompiledProjectEffects.CompileAsync(snapshot, {compiler}, new PackageImageValidator(), new PackageShaderValidator(),\n                new PackageImageGraphValidator(), new PackageMaterialValidator(), token).ConfigureAwait(false);',
+            f'            CompiledProjectEffects compiled;\n            using (RenderPerformanceTrace.Measure("session.compile"))\n                compiled = await CompiledProjectEffects.CompileAsync(snapshot, {compiler}, new PackageImageValidator(), new PackageShaderValidator(),\n                    new PackageImageGraphValidator(), new PackageMaterialValidator(), token).ConfigureAwait(false);')
     replace(factory, '            foreach (var package in compiled.Packages)\n            {',
             '            using (RenderPerformanceTrace.Measure("session.resources"))\n            foreach (var package in compiled.Packages)\n            {')
     replace(factory, '            source = await compiled.CreateFactory(() => layoutReference || editingLineId is not null\n                ? new MeasurementGeometryProvider(Renderer(), layoutReference, editingLineId, editingCueId)\n                : Renderer(), reason).CreateAsync(snapshot, token).ConfigureAwait(false);',
@@ -221,7 +224,7 @@ def instrument(root):
     patch = "".join("".join(difflib.unified_diff(originals[path].splitlines(keepends=True), modified[path].splitlines(keepends=True),
                                                fromfile="a/" + path if originals[path] else "/dev/null", tofile="b/" + path))
                     for path in sorted(modified))
-    manifest = {"schemaVersion": 1, "readbackLayout": layout, "runtimeLayout": runtime_layout, "files": [{"path": path, "beforeSha256": sha256(originals[path].encode()) if originals[path] else None,
+    manifest = {"schemaVersion": 1, "factoryLayout": factory_layout, "readbackLayout": layout, "runtimeLayout": runtime_layout, "files": [{"path": path, "beforeSha256": sha256(originals[path].encode()) if originals[path] else None,
                 "afterSha256": sha256(modified[path].encode())} for path in sorted(modified)], "checks": checks,
                 "patchSha256": sha256(patch.encode()), "patch": patch}
     for path, text in modified.items():

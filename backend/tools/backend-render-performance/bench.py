@@ -16,6 +16,7 @@ import sys
 import tarfile
 import tempfile
 import time
+from factory_layout import adapt, detect, FACTORY
 
 TOOL = Path(__file__).resolve().parent
 REPO = TOOL.parent.parent
@@ -62,6 +63,11 @@ def tool_copy(destination: Path):
                     ignore=shutil.ignore_patterns("bin", "obj", "__pycache__"))
 
 
+def tool_changes(template, generated):
+    return {path: {"template": template.get(path), "generated": generated.get(path)}
+            for path in sorted(template.keys() | generated.keys()) if template.get(path) != generated.get(path)}
+
+
 def archive_tree(commit, prefix):
     """git archive accepts a tree object; this also strips the App backend prefix."""
     return commit + ":" + prefix.rstrip("/") if prefix else commit
@@ -102,6 +108,7 @@ def prepare(args):
     baseline.mkdir(parents=True)
     prefix = extract_source(commit, baseline)
     tool_copy(baseline / "tools" / TOOL.name)
+    factory_layout = adapt(baseline)
     production = inventory(baseline, lambda p: p.startswith("src/") or p in {
         "Directory.Build.props", "Directory.Build.targets", "Directory.Packages.props", "global.json", "NuGet.Config"})
     instrumented = output / "sources" / "instrumented"
@@ -119,7 +126,8 @@ def prepare(args):
         "schema": "render-performance-source-v1", "createdUtc": stamp(), "sourceCommit": commit, "sourceSubdirectory": prefix,
         "toolCommit": git("rev-parse", "HEAD"), "toolWorkingTreeStatus": git("status", "--short", "--", str(TOOL)),
         "productionInputs": production, "sampleInputs": inventory(baseline / "samples" / "ScriptEffects"),
-        "toolInputs": inventory(TOOL), "instrumentedChanges": differences,
+        "toolInputs": inventory(baseline / "tools" / TOOL.name), "toolTemplateInputs": inventory(TOOL),
+        "factoryLayout": factory_layout, "instrumentedChanges": differences,
         "monitoringPolicy": MONITORING_POLICY,
         "scope": "Original production source is from git archive; instrumentation changes only the second isolated copy.",
     })
@@ -134,14 +142,19 @@ def prepare_ab(args):
                (("old", args.old_commit), ("new", args.new_commit))}
     output.mkdir(parents=True)
     sources = {}
+    template = inventory(TOOL)
     for name, commit in commits.items():
         root = output / "sources" / name
         root.mkdir(parents=True)
         prefix = extract_source(commit, root)
         tool_copy(root / "tools" / TOOL.name)
+        factory_layout = adapt(root)
         production = inventory(root, lambda p: p.startswith("src/") or p in {
             "Directory.Build.props", "Directory.Build.targets", "Directory.Packages.props", "global.json", "NuGet.Config"})
+        generated_tool = inventory(root / "tools" / TOOL.name)
         sources[name] = {"commit": commit, "sourceSubdirectory": prefix, "productionInputs": production,
+                         "factoryLayout": factory_layout, "toolInputs": generated_tool,
+                         "toolChanges": tool_changes(template, generated_tool),
                          "sampleInputs": inventory(root / "samples" / "ScriptEffects")}
         traced = output / "sources" / (name + "-instrumented")
         shutil.copytree(root, traced)
@@ -151,7 +164,7 @@ def prepare_ab(args):
         raise ValueError("sample inputs differ between commits")
     write_json(output / "prepare.json", {"schema": "render-performance-ab-source-v1", "createdUtc": stamp(),
         "sources": sources, "variants": AB_VARIANTS, "toolCommit": git("rev-parse", "HEAD"),
-        "toolWorkingTreeStatus": git("status", "--short", "--", str(TOOL)), "toolInputs": inventory(TOOL),
+        "toolWorkingTreeStatus": git("status", "--short", "--", str(TOOL)), "toolInputs": template,
         "monitoringPolicy": MONITORING_POLICY})
     print(json.dumps({"prepared": str(output), "commits": commits}), flush=True)
 
@@ -160,6 +173,10 @@ def verify_ab_sources(output, preparation):
     production_filter = lambda p: p.startswith("src/") or p in {
         "Directory.Build.props", "Directory.Build.targets", "Directory.Packages.props", "global.json", "NuGet.Config"}
     for name, source in preparation["sources"].items():
+        changes = tool_changes(preparation["toolInputs"], source["toolInputs"])
+        expected = {"Runner/Program.cs", "Runner/Runner.csproj"} if source["factoryLayout"] == "legacy" else set()
+        if changes != source["toolChanges"] or set(changes) != expected:
+            raise ValueError(name + ": tool adaptation mismatch")
         original = output / "sources" / name
         traced = output / "sources" / (name + "-instrumented")
         before = inventory(original, production_filter)
@@ -167,6 +184,8 @@ def verify_ab_sources(output, preparation):
             raise ValueError(name + ": production inputs changed")
         after = inventory(traced, production_filter)
         instrumentation = json.loads((output / ("instrumentation-" + name + ".json")).read_text())
+        if detect((original / FACTORY).read_text(encoding="utf-8")) != source["factoryLayout"] or instrumentation.get("factoryLayout") != source["factoryLayout"]:
+            raise ValueError(name + ": factory layout mismatch")
         if instrumentation.get("readbackLayout") not in {"old", "lease"}:
             raise ValueError(name + ": missing or unknown readback layout")
         if instrumentation.get("runtimeLayout", "legacy") not in {"legacy", "telemetry"}:
@@ -183,7 +202,7 @@ def verify_ab_sources(output, preparation):
         if hashlib.sha256(patch).hexdigest() != instrumentation["patchSha256"] or patch != instrumentation["patch"].encode():
             raise ValueError(name + ": instrumentation patch mismatch")
         for root in (original, traced):
-            if inventory(root / "samples" / "ScriptEffects") != source["sampleInputs"] or inventory(root / "tools" / TOOL.name) != preparation["toolInputs"]:
+            if inventory(root / "samples" / "ScriptEffects") != source["sampleInputs"] or inventory(root / "tools" / TOOL.name) != source["toolInputs"]:
                 raise ValueError(name + ": sample or tool inputs changed")
 
 
@@ -348,6 +367,17 @@ def monitoring_environment(environment, mode):
     return result
 
 
+def create_video_fixture(run_root, width, height):
+    video = run_root / "fixture-video.mkv"
+    command = ["ffmpeg", "-v", "error", "-f", "lavfi", "-i", f"testsrc2=size={width}x{height}:rate=10",
+               "-t", "2", "-an", "-c:v", "ffv1", "-threads", "1", "-y", str(video)]
+    subprocess.run(command, check=True, timeout=60)
+    version = subprocess.check_output(["ffmpeg", "-version"], text=True).splitlines()[0]
+    return video, {"file": video.name, "sha256": digest(video), "bytes": video.stat().st_size,
+                   "width": width, "height": height, "frameRate": 10, "durationSeconds": 2,
+                   "command": command, "ffmpegVersion": version}
+
+
 def run(args):
     output = Path(args.output).resolve()
     preparation = json.loads((output / "prepare.json").read_text())
@@ -366,6 +396,9 @@ def run(args):
         raise ValueError("each process must render at most 48 frames, including warmup")
     if not 1 <= args.rounds <= 10:
         raise ValueError("round count must be between 1 and 10")
+    if (args.video_width < 2 or args.video_height < 2 or args.video_width > 4096 or args.video_height > 4096
+            or args.video_width % 2 or args.video_height % 2 or args.video_width * args.video_height > 4096 * 2160):
+        raise ValueError("video dimensions must be even, 2..4096, and at most 4096x2160 pixels")
     scenarios = args.scenarios.split(",")
     if not scenarios or any(x not in SCENARIOS + EXTRA_SCENARIOS for x in scenarios):
         raise ValueError("unknown scenario")
@@ -389,12 +422,9 @@ def run(args):
         raise ValueError("--times-us requires --mode matrix")
     run_root.mkdir(parents=True)
     video = None
+    video_fixture = None
     if "video" in scenarios:
-        video = run_root / "fixture-video.mkv"
-        command = ["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc2=size=320x240:rate=10",
-                   "-t", "2", "-an", "-c:v", "ffv1", "-threads", "1", "-y", str(video)]
-        subprocess.run(command, check=True, timeout=60)
-        version = subprocess.check_output(["ffmpeg", "-version"], text=True).splitlines()[0]
+        video, video_fixture = create_video_fixture(run_root, args.video_width, args.video_height)
     manifest = {"schema": "render-performance-runs-v1", "startedUtc": stamp(), "arguments": vars(args), "runs": [],
         "monitoringModes": list(MONITORING_MODES) if monitoring else ["off"], "monitoringPolicy": MONITORING_POLICY,
         "provenance": {"prepareSha256": digest(output / "prepare.json"),
@@ -404,8 +434,7 @@ def run(args):
         "frameBudget": {"maximumRenderedFramesPerProcess": 48, "deviceProbeFramesPerProcess": 1},
         "scope": "Direct Runtime BGRA wall-clock. Rendering is sequential; short independent processes, no HTTP or video encoding."}
     if video is not None:
-        manifest["videoFixture"] = {"file": video.name, "sha256": digest(video), "bytes": video.stat().st_size,
-                                    "command": command, "ffmpegVersion": version}
+        manifest["videoFixture"] = video_fixture
     write_json(run_root / "manifest.json", manifest)
     for round_index in range(args.rounds):
         # Alternate both backend and build ordering to reduce a fixed first/last bias.
@@ -429,6 +458,8 @@ def run(args):
                     if args.mode == "matrix":
                         command += ["--times-us", args.times_us]
                     if scenario == "video":
+                        if not video.is_file() or digest(video) != manifest["videoFixture"]["sha256"]:
+                            raise ValueError("shared video fixture changed before " + name)
                         command += ["--video", str(video)]
                     env = monitoring_environment(os.environ, monitoring_mode)
                     env.update({"MAKO_RENDER_BACKEND": backend, "VK_DRIVER_FILES": "/usr/share/vulkan/icd.d/radeon_icd.json",
@@ -502,6 +533,8 @@ def main():
         run_args.add_argument("--frames", type=int, default=24)
         run_args.add_argument("--width", type=int, default=1920)
         run_args.add_argument("--height", type=int, default=1080)
+        run_args.add_argument("--video-width", type=int, default=320)
+        run_args.add_argument("--video-height", type=int, default=240)
         run_args.add_argument("--mode", choices=["sequential", "seek", "matrix"], default="sequential")
         run_args.add_argument("--times-us", help="matrix timestamps in microseconds, in request order")
         run_args.add_argument("--transparent", action="store_true")

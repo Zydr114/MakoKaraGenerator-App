@@ -160,6 +160,10 @@ def analyze(root, label):
                     or video_path.parent != folder or bench.digest(video_path) != video.get("sha256")
                     or data.get("fixture", {}).get("videoSha256") != video.get("sha256")):
                 errors.append(name + ": video fixture digest mismatch")
+            if args.get("video_width") is not None and (
+                    video.get("width") != args["video_width"] or video.get("height") != args.get("video_height")
+                    or not video_path.is_file() or video.get("bytes") != video_path.stat().st_size):
+                errors.append(name + ": video fixture dimensions or byte count mismatch")
         monitoring_mode = record.get("monitoringMode", "off")
         if monitoring_mode not in manifest.get("monitoringModes", ["off"]):
             errors.append(name + ": unexpected monitoring mode")

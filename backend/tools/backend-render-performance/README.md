@@ -8,6 +8,21 @@ App 仓库中 `prepare --commit HEAD` 和 `prepare-ab` 从对应 App 提交的 `
 
 附加场景 `ruby` 为每行首字增加注音，`multi` 使用三个相同包的独立控制器实例，`video` 在运行批次开始前用本机 FFmpeg 的 `testsrc2` 和 FFV1 生成 320×240、10fps、2 秒循环视频。所有变体共享同一文件；manifest 记录生成命令、FFmpeg 版本和文件摘要，分析及归档校验该文件。不同 FFmpeg 版本可能生成不同字节，跨批比较须核对摘要。`--transparent` 使用现有透明输出路径；请分别采集透明和背景视频，透明模式是否绘制背景以实际渲染语义为准。
 
+`--video-width` 和 `--video-height` 只改变视频素材尺寸，默认仍为 320×240；两者须为 2..4096 的偶数，且乘积不超过 4096×2160。输出尺寸由独立的 `--width` 和 `--height` 指定。整个 run 只生成一份视频，每个变体启动前重验摘要；manifest 记录素材尺寸、帧率、时长、完整生成命令、文件字节数和 SHA-256。分析器逐帧对照同轮同后端 old/new 的完整 BGRA 摘要和诊断，摘要相同表示字节相等；不同时需要另行获取完整像素计算 D13 通道差，不能用哈希差估算误差。
+
+M06 因子 4 验收示例（先使用匹配的旧、新提交完成 `prepare-ab` 与 `build`）：
+
+```bash
+python3 backend/tools/backend-render-performance/bench.py run --output EVIDENCE --label video-factor4 --scenarios video --variants old,new --rounds 3 --warmup 2 --frames 8 --video-width 1920 --video-height 1080 --width 480 --height 270 --mode sequential --timeout 180
+python3 backend/tools/backend-render-performance/analyze.py --output EVIDENCE --label video-factor4
+```
+
+顺序请求为 30fps、视频为 10fps，因此同一视频帧会重复请求；2 个预热和 8 个测量请求跨多个源帧，但不能把每次测量都解释为一次新解码。各帧 wall time、源时刻、像素摘要及进程分配在 JSON/CSV 中；具体性能门槛须按独占采样规则对照，以上示例本身不证明缩小路径已启用或性能达标。可用独立诊断验证源和实际返回帧尺寸及每帧 stdout 字节。
+
+M02 将 `ProjectRenderSessionFactory` 从路径构造切换为注入 `IScriptCompilationService`。当前 Runner 模板保留编译器项目引用和显式注入；`factory_layout.py` 只在隔离源码归档的工具副本中适配已识别的旧工厂：恢复路径构造调用并移除独立编译器引用。注入版直接使用相同模板。两侧都从工厂／编译服务构造以前开始计时。准备清单记录模板、各侧生成工具摘要、精确差异及工厂布局；构建前逐项复核，未知或混合签名直接失败。`instrument.py` 对旧版 `_compiler.Value` 与注入版 `compiler` 分别严格匹配并记录布局，零匹配不得忽略。
+
+M05 去除的是 `SkiaRenderPipeline.ImageScene.Surfaces.cs` 的 `_device.FlushAndSubmit(main)`，当前插桩没有匹配该调用；`graph.submit` 匹配的是 `Effects/CompiledImageGraph.Drawing.cs` 的另一处 `_device.FlushAndSubmit(surface)`，不能因 M05 改动直接删掉或把它误记为被移除的提交。其余严格匹配仍须按合并后的实际源码验证；若缺失或数量变化，准备阶段应失败，先审查新旧布局后再加具名分支。
+
 示例（在 App 根目录，先完成准备和构建；采样须独占设备）：
 
 ```bash
@@ -74,7 +89,7 @@ python3 tools/backend-render-performance/analyze.py --output /path/to/new-eviden
 
 ## 计时与证据
 
-`create.wallMs` 包括创建真实会话及其资源准备；`frames[].wallMs` 包括 `RenderAsync` 内的准备帧、Skia 绘制及 BGRA 像素读回。逐帧统计另含进程级 `GC.GetTotalAllocatedBytes` 差值和各代 GC 次数差值；这是整个进程的观察值，不是隔离线程或 native 分配量。会话释放单独计时；`RenderFrame.Dispose`、每帧哈希、诊断处理、最后一帧 PNG 编码和设备 probe 均不计入对应渲染 wall 时间。
+`create.wallMs` 包括工厂和编译服务构造、创建真实会话及其资源准备；因此与旧版仅从 `CreateAsync` 开始计时的记录不可直接比较。`frames[].wallMs` 包括 `RenderAsync` 内的准备帧、Skia 绘制及 BGRA 像素读回。逐帧统计另含进程级 `GC.GetTotalAllocatedBytes` 差值和各代 GC 次数差值；这是整个进程的观察值，不是隔离线程或 native 分配量。会话释放单独计时；`RenderFrame.Dispose`、每帧哈希、诊断处理、最后一帧 PNG 编码和设备 probe 均不计入对应渲染 wall 时间。
 
 计时外工作仍会影响后续帧的 CPU、内存和缓存状态，因此这是包含这些间隔的短批次结果，不是无干扰的连续输出吞吐量。新进程和新会话的创建、首帧包含正常 JIT 与资源首次访问；没有清空操作系统或驱动全局缓存，不能称为驱动冷启动。插桩增加测量开销，阶段数值需与未插桩基线分开解释。
 
@@ -90,7 +105,7 @@ python3 tools/backend-render-performance/analyze.py --output /path/to/new-eviden
 
 ## 同设备旧 / 新 A/B
 
-`prepare-ab` 接受两个已提交的源码，使用同一工具副本和相同样例文件，分别建立 `old`、`new` 及其插桩副本；不读取工作区中的未提交生产文件。准备和构建记录保留生产输入、样例、工具和二进制指纹；运行前及归档时复核。插桩是源码版本相关的严格替换，如果新源码不匹配会直接失败并保留失败目录，应检查补丁并更新插桩后另用新目录准备。
+`prepare-ab` 接受两个已提交的源码，使用同一工具模板和相同样例文件，分别建立 `old`、`new` 及其插桩副本；不读取工作区中的未提交生产文件。针对已识别的旧工厂和注入式工厂签名，在隔离副本中生成对应 Runner；清单分别记录模板、生成后的工具指纹、差异和工厂布局，插桩副本使用对应的相同 Runner。准备和构建记录保留生产输入、样例、工具和二进制指纹；运行前及归档时复核。插桩是源码版本相关的严格替换，如果新源码不匹配会直接失败并保留失败目录，应检查补丁并更新插桩后另用新目录准备。
 
 以下将 `OLD`、`NEW` 替换为固定提交，将 `EVIDENCE` 替换为新的绝对路径。正式性能采样须在其他构建、测试、发布和渲染结束后串行进行，先协调独占测量窗口。原版和插桩必须分开运行及解释；每行 run 需随后以对应 label 调用 `analyze.py`，失败不得并入统计。
 

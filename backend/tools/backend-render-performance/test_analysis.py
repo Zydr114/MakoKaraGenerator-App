@@ -62,6 +62,18 @@ def sample(backend, variant, counterfactual="none", pixel="a", frame_count=2, mo
 
 
 class AnalysisTests(unittest.TestCase):
+    def test_video_fixture_records_full_command_dimensions_and_hash(self):
+        def generate(command, **kwargs):
+            Path(command[-1]).write_bytes(b"shared-video")
+        with mock.patch.object(bench.subprocess, "run", side_effect=generate) as run, \
+             mock.patch.object(bench.subprocess, "check_output", return_value="ffmpeg test\n"):
+            path, metadata = bench.create_video_fixture(self.root, 1920, 1080)
+        self.assertEqual(metadata["command"], run.call_args.args[0])
+        self.assertIn("testsrc2=size=1920x1080:rate=10", metadata["command"])
+        self.assertEqual((1920, 1080), (metadata["width"], metadata["height"]))
+        self.assertEqual(len(b"shared-video"), metadata["bytes"])
+        self.assertEqual(bench.digest(path), metadata["sha256"])
+
     def test_timeout_terminates_owned_session_and_child(self):
         program = ("import subprocess,sys,time; "
                    "p=subprocess.Popen([sys.executable,'-c','import time; time.sleep(60)']); "
@@ -100,7 +112,7 @@ class AnalysisTests(unittest.TestCase):
         (self.root / "build-inputs.json").write_text("{}")
         args = SimpleNamespace(output=str(self.root), label="failed", warmup=0, frames=1, rounds=1,
             scenarios="lyrics", variants="baseline", action="run", mode="sequential", times_us=None,
-            width=2, height=2, transparent=False, counterfactual="none", timeout=1, pause=0)
+            width=2, height=2, video_width=320, video_height=240, transparent=False, counterfactual="none", timeout=1, pause=0)
         process = mock.Mock(pid=123, args=["runner"])
         with mock.patch.object(bench.subprocess, "Popen", return_value=process), \
              mock.patch.object(bench, "child_identity", return_value={"pid": 123, "startTicks": None}), \
@@ -149,6 +161,31 @@ class AnalysisTests(unittest.TestCase):
         value = json.loads(path.read_text(encoding="utf-8"))
         edit(value)
         write_json(path, value)
+
+    def make_video_run(self, label):
+        folder = self.make_run(label, variants=("old", "new"))
+        video = folder / "fixture-video.mkv"
+        video.write_bytes(b"shared-video")
+        def update_manifest(value):
+            value["arguments"].update(scenarios="video", video_width=1920, video_height=1080)
+            value["videoFixture"] = {"file": video.name, "sha256": bench.digest(video), "bytes": video.stat().st_size,
+                                     "width": 1920, "height": 1080, "frameRate": 10, "durationSeconds": 2}
+            for record in value["runs"]:
+                record["scenario"] = "video"
+        self.edit_json(folder / "manifest.json", update_manifest)
+        for path in folder.glob("*-*.json"):
+            self.edit_json(path, lambda value: value.update(scenario="video", fixture={"videoSha256": bench.digest(video)}))
+        return folder
+
+    def test_video_fixture_metadata_and_mutations(self):
+        self.make_video_run("video-good")
+        self.run_analyze("video-good")
+        for key, changed in (("width", 320), ("height", 240), ("bytes", 999)):
+            with self.subTest(field=key):
+                label = "video-bad-" + key
+                folder = self.make_video_run(label)
+                self.edit_json(folder / "manifest.json", lambda value: value["videoFixture"].update({key: changed}))
+                self.run_analyze(label, "dimensions or byte count mismatch")
 
     def test_matrix_timestamp_mismatch_is_rejected(self):
         folder = self.make_run("matrix-check")

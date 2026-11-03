@@ -25,6 +25,31 @@ namespace MakoKaraGenerator.Backend.Server.Tests;
 
 public sealed partial class PreviewTransportTests
 {
+    [Fact]
+    public void 组合租约失败时保留主错误且只重试失败项()
+    {
+        var first = new ControlledRetention(true);
+        var second = new ControlledRetention(false);
+        Type type = typeof(PreviewBackendService).GetNestedType("CombinedRetention", System.Reflection.BindingFlags.NonPublic)!;
+        IDisposable combined = (IDisposable)Activator.CreateInstance(type, first, second)!;
+        Assert.Equal("first failed", Assert.Throws<IOException>(() => combined.Dispose()).Message);
+        Assert.Equal(1, first.Count);
+        Assert.Equal(1, second.Count);
+        combined.Dispose();
+        Assert.Equal(2, first.Count);
+        Assert.Equal(1, second.Count);
+    }
+
+    private sealed class ControlledRetention(bool failFirst) : IDisposable
+    {
+        internal int Count;
+        public void Dispose()
+        {
+            Count++;
+            if (failFirst && Count == 1) throw new IOException("first failed");
+        }
+    }
+
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     { Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) } };
 
@@ -198,6 +223,27 @@ public sealed partial class PreviewTransportTests
         string body = await capabilities.Content.ReadAsStringAsync();
         Assert.DoesNotContain("preview.create.static-project", body, StringComparison.Ordinal);
         Assert.Equal(0, fixture.Factory.Created);
+    }
+
+    [Fact]
+    public async Task HTTP换代取消通过引用包装复用可恢复会话()
+    {
+        await using Fixture fixture = await Fixture.Create();
+        fixture.Factory.Recoverable = true;
+        PreviewSessionResponse preview = await fixture.CreatePreview();
+        string route = $"/api/v1/preview-sessions/{preview.PreviewId}/frame-requests";
+        using HttpResponseMessage first = await fixture.Http.PostAsJsonAsync(route, fixture.FrameRequest(preview, 1, 10), Json);
+        Assert.Equal(HttpStatusCode.Accepted, first.StatusCode);
+        RenderCall old = await fixture.Factory.NextRender();
+        using HttpResponseMessage seek = await fixture.Http.PostAsJsonAsync(route,
+            fixture.FrameRequest(preview, 2, 0) with { Intent = "seek" }, Json);
+        Assert.Equal(HttpStatusCode.Accepted, seek.StatusCode);
+        RenderCall current = await fixture.Factory.NextRender();
+        Assert.True(old.Token.IsCancellationRequested);
+        Assert.Equal(1, fixture.Factory.Created);
+        Assert.Equal(0, fixture.Factory.Disposed);
+        current.Release.SetResult();
+        await fixture.WaitReady(preview.PreviewId);
     }
 
     [Fact]
@@ -400,6 +446,39 @@ public sealed partial class PreviewTransportTests
         await fixture.Service.DisposeAsync();
         Assert.True(current.Token.IsCancellationRequested);
         Assert.Equal(2, fixture.Factory.Disposed);
+        Assert.Equal(0, fixture.Previews.Count);
+    }
+
+    [Fact]
+    public async Task 过期预览排水失败不阻止其他客户端且下一轮重试()
+    {
+        await using Fixture fixture = await Fixture.Create(leaseSeconds: 2);
+        ClientRegistrationResponse other = fixture.Clients.Register(fixture._security.BootstrapToken, new()).Response!;
+        PreviewSourceDto source = new("project", "cleanup-source", "0");
+        ProjectSnapshot snapshot = ProjectSnapshot.FromProject(ProjectWorkspace.CreateNew("cleanup").Project);
+        ControlledRetention failedRetention = new(true);
+        ControlledRetention otherRetention = new(false);
+        BackendPreviewSessionResult failedOwner = fixture.Previews.Create(fixture.Client.ClientId, new(source, new(1, 1)),
+            new(source, snapshot, fixture.Factory, RetentionLease: failedRetention));
+        BackendPreviewSessionResult otherOwner = fixture.Previews.Create(other.ClientId, new(source, new(1, 1)),
+            new(source, snapshot, fixture.Factory, RetentionLease: otherRetention));
+        Assert.True(failedOwner.Accepted);
+        Assert.True(otherOwner.Accepted);
+        Assert.Equal(new[] { fixture.Client.ClientId, other.ClientId }, fixture.Previews.ActiveClientIds);
+
+        fixture.Clock.Advance(3);
+        await fixture.Service.DrainExpiredClientsAsync();
+
+        Assert.Equal(1, failedRetention.Count);
+        Assert.Equal(1, otherRetention.Count);
+        Assert.Equal(1, fixture.Previews.Count);
+        Assert.Equal("closing", fixture.Previews.Read(fixture.Client.ClientId, failedOwner.Status!.Session.PreviewId).Status!.Session.State);
+        Assert.Equal(BackendErrorCode.PreviewSessionNotFound,
+            fixture.Previews.Read(other.ClientId, otherOwner.Status!.Session.PreviewId).Error!.Code);
+
+        await fixture.Service.DrainExpiredClientsAsync();
+        Assert.Equal(2, failedRetention.Count);
+        Assert.Equal(1, otherRetention.Count);
         Assert.Equal(0, fixture.Previews.Count);
     }
 
@@ -814,6 +893,7 @@ public sealed partial class PreviewTransportTests
         internal bool PauseCreate;
         internal bool IgnoreCreateCancellation;
         internal bool ThrowCreate;
+        internal bool Recoverable;
         internal BackendErrorResponse? ProfileError;
         internal int ProfileChecks;
         internal int Created;
@@ -838,8 +918,9 @@ public sealed partial class PreviewTransportTests
             }
             return new Session(this);
         }
-        private sealed class Session(Factory owner) : IRenderFrameSession
+        private sealed class Session(Factory owner) : IRenderFrameSession, IBackendPreviewCancellationRecoverable
         {
+            public bool CanReuseAfterCancellation => owner.Recoverable;
             public async ValueTask<RenderFrame> RenderAsync(RenderRequest request, CancellationToken cancellationToken = default)
             {
                 TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);

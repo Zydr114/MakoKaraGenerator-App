@@ -18,6 +18,33 @@ namespace MakoKaraGenerator.Backend.Hosting.Tests;
 
 public sealed class WorkerPackageSessionFactoryTests(ITestOutputHelper output)
 {
+    [Fact]
+    public async Task 包调用在代理门闩排队时取消仍可复用()
+    {
+        if (!OperatingSystem.IsLinux()) return;
+        using Probe probe = await Probe.CreateAsync("valid");
+        ProjectSnapshot snapshot = Snapshot();
+        await using IRenderFrameSession session = await probe.Factory().CreateAsync(snapshot);
+        var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        var proxy = (WorkerProcessProxy)session.GetType().GetFields(flags).Single(f => f.FieldType == typeof(WorkerProcessProxy)).GetValue(session)!;
+        var gate = (SemaphoreSlim)typeof(WorkerProcessProxy).GetField("_callGate", flags)!.GetValue(proxy)!;
+        int? pid = proxy.ProcessId;
+        await gate.WaitAsync();
+        try
+        {
+            using CancellationTokenSource cancel = new();
+            Task<RenderFrame> pending = session.RenderAsync(RenderRequest.At(snapshot, 42), cancel.Token).AsTask();
+            Assert.False(pending.IsCompleted);
+            cancel.Cancel();
+            OperationCanceledException error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending);
+            Assert.Equal("WorkerInvocationNotStartedException", error.GetType().Name);
+        }
+        finally { gate.Release(); }
+        using RenderFrame frame = await session.RenderAsync(RenderRequest.At(snapshot, 43));
+        Assert.Equal(43, frame.TimeUs);
+        Assert.Equal(pid, proxy.ProcessId);
+    }
+
     [Theory]
     [InlineData("cap-engine")]
     [InlineData("cap-codec")]
@@ -272,12 +299,19 @@ public sealed class WorkerPackageSessionFactoryTests(ITestOutputHelper output)
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task 真实取消后严格空合作回执保用户OCE和deadline编号并禁止继续发布像素(bool callerCancel)
+    public async Task 严格合作回执后用户取消可复用而deadline仍排水(bool callerCancel)
     {
         if (!OperatingSystem.IsLinux()) return;
         using Probe probe = await Probe.CreateAsync("cooperative-cancel");
         ProjectSnapshot snapshot = Snapshot();
         await using IRenderFrameSession session = await probe.Factory(TimeSpan.FromSeconds(2)).CreateAsync(snapshot);
+        var handleField = session.GetType().GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+            .Single(field => field.FieldType == typeof(StaticWorkerSessionHandle));
+        var initial = (StaticWorkerSessionHandle)handleField.GetValue(session)!;
+        var prepared = Assert.IsType<RetainedPreparedScriptInput>(initial.PreparedInput);
+        using var metadata = JsonDocument.Parse(prepared.Input.Envelope.AsMemory(8));
+        string inputRoot = metadata.RootElement.GetProperty("Root").GetString()!;
+        Assert.True(Directory.Exists(inputRoot));
         using CancellationTokenSource caller = new();
         Task<RenderFrame> pending = session.RenderAsync(RenderRequest.At(snapshot, 42), caller.Token).AsTask();
         await probe.WaitForRenderAsync();
@@ -286,9 +320,56 @@ public sealed class WorkerPackageSessionFactoryTests(ITestOutputHelper output)
         if (callerCancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending);
         else Assert.Equal("WorkerPackageTimedOut", (await Assert.ThrowsAsync<RenderSessionFailureException>(() => pending)).Code);
         Assert.True(probe.CancellationAcknowledged);
+        if (callerCancel)
+        {
+            await probe.AssertAllAliveAsync(expectedCount: 2);
+            using RenderFrame recovered = await session.RenderAsync(RenderRequest.At(snapshot, 43));
+            Assert.Equal(43, recovered.TimeUs);
+            var reopened = (StaticWorkerSessionHandle)handleField.GetValue(session)!;
+            Assert.NotEqual(initial.SessionId, reopened.SessionId);
+            Assert.Equal(initial.SourceSha256, reopened.SourceSha256);
+            Assert.Same(prepared, reopened.PreparedInput);
+            Assert.True(Directory.Exists(inputRoot));
+            await session.DisposeAsync();
+            Assert.False(Directory.Exists(inputRoot));
+            await probe.AssertAllGoneAsync(output, expectedCount: 2);
+            return;
+        }
         await probe.AssertAllGoneAsync(output, expectedCount: 2);
+        Assert.False(Directory.Exists(inputRoot));
         var terminal = await Assert.ThrowsAsync<PreparedFrameException>(() => session.RenderAsync(RenderRequest.At(snapshot, 43)).AsTask());
         Assert.Equal("WorkerPackageSessionFailed", terminal.Code);
+    }
+
+    [Theory]
+    [InlineData("cooperative-invalid")]
+    [InlineData("cooperative-stale")]
+    public async Task 包取消回执无效或过期时回收进程组(string mode)
+    {
+        if (!OperatingSystem.IsLinux()) return;
+        using Probe probe = await Probe.CreateAsync(mode);
+        ProjectSnapshot snapshot = Snapshot();
+        await using IRenderFrameSession session = await probe.Factory().CreateAsync(snapshot);
+        using CancellationTokenSource cancellation = new();
+        Task<RenderFrame> pending = session.RenderAsync(RenderRequest.At(snapshot, 42), cancellation.Token).AsTask();
+        await probe.WaitForRenderAsync();
+        cancellation.Cancel();
+        await Assert.ThrowsAsync<RenderSessionFailureException>(() => pending);
+        await probe.AssertAllGoneAsync(output, expectedCount: 2);
+    }
+
+    [Fact]
+    public async Task 调用前取消不回收包Worker且随后可渲染()
+    {
+        if (!OperatingSystem.IsLinux()) return;
+        using Probe probe = await Probe.CreateAsync("valid");
+        ProjectSnapshot snapshot = Snapshot();
+        await using IRenderFrameSession session = await probe.Factory().CreateAsync(snapshot);
+        using CancellationTokenSource cancellation = new(); cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => session.RenderAsync(RenderRequest.At(snapshot, 42), cancellation.Token).AsTask());
+        using RenderFrame frame = await session.RenderAsync(RenderRequest.At(snapshot, 43));
+        Assert.Equal(43, frame.TimeUs);
+        await probe.AssertAllAliveAsync(expectedCount: 2);
     }
 
     [Fact]
@@ -571,10 +652,12 @@ public sealed class WorkerPackageSessionFactoryTests(ITestOutputHelper output)
                     if mode != 'no-group': reply['processGroupId'] = os.getpgrp()
                     send(reply)
                 elif kind == 'shutdown': break
-                elif kind == 'cancel' and mode == 'cooperative-cancel':
+                elif kind == 'cancel' and mode in ('cooperative-cancel', 'cooperative-invalid', 'cooperative-stale'):
                     assert pending_render is not None and message['requestId'] == pending_render['requestId']
                     reply = correlated(pending_render, pending_render['kind'].replace('-render-v1', '-frame-v1'))
                     reply['cancelled'] = True
+                    if mode == 'cooperative-invalid': reply['frameWidth'] = 8
+                    if mode == 'cooperative-stale': reply['requestId'] = 'previous-frame'
                     open(path('cancel-ack'), 'w').close(); send(reply)
                 elif 'capabilities' in kind:
                     cap = copy.deepcopy(caps)
@@ -631,7 +714,7 @@ public sealed class WorkerPackageSessionFactoryTests(ITestOutputHelper output)
                         child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                         identities(child)
                     open(path('render'), 'w').close()
-                    if mode == 'cooperative-cancel':
+                    if mode in ('cooperative-cancel', 'cooperative-invalid', 'cooperative-stale') and not os.path.exists(path('cancel-ack')):
                         pending_render = message; continue
                     if mode == 'hang-once' and not os.path.exists(path('attempt')):
                         open(path('attempt'), 'w').close(); time.sleep(60)

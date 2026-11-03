@@ -14,6 +14,111 @@ namespace MakoKaraGenerator.Backend.Hosting.Tests;
 public sealed class WorkerStaticSessionFactoryTests(ITestOutputHelper output)
 {
     [Fact]
+    public async Task 静态关闭回执失败且排水失败时保留首错并允许重试()
+    {
+        using Probe probe = await Probe.CreateAsync("close-malformed", new([], false));
+        IRenderFrameSession session = await probe.Factory().CreateAsync(Snapshot());
+        var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        var proxy = (WorkerProcessProxy)session.GetType().GetFields(flags)
+            .Single(field => field.FieldType == typeof(WorkerProcessProxy)).GetValue(session)!;
+        var drainField = typeof(WorkerProcessProxy).GetField("_stderrDrain", flags)!;
+        var processField = typeof(WorkerProcessProxy).GetField("_process", flags)!;
+        Task originalDrain = Assert.IsAssignableFrom<Task>(drainField.GetValue(proxy));
+        IOException cleanup = new("injected drain failure");
+        drainField.SetValue(proxy, Task.FromException(cleanup));
+        try
+        {
+            WorkerProtocolException primary = await Assert.ThrowsAsync<WorkerProtocolException>(() => session.DisposeAsync().AsTask());
+            Assert.Contains("requestId", primary.Message, StringComparison.Ordinal);
+            Assert.Same(cleanup, primary.Data["WorkerCleanupFailure"]);
+            Assert.NotNull(processField.GetValue(proxy));
+        }
+        finally
+        {
+            drainField.SetValue(proxy, Task.CompletedTask);
+            await session.DisposeAsync();
+            await originalDrain.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        Assert.Null(processField.GetValue(proxy));
+    }
+
+    [Fact]
+    public async Task 静态调用在代理门闩排队时取消仍可复用()
+    {
+        using Probe probe = await Probe.CreateAsync("valid", new([], false));
+        ProjectSnapshot snapshot = Snapshot();
+        await using IRenderFrameSession session = await probe.Factory().CreateAsync(snapshot);
+        var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        var proxy = (WorkerProcessProxy)session.GetType().GetFields(flags).Single(f => f.FieldType == typeof(WorkerProcessProxy)).GetValue(session)!;
+        var gate = (SemaphoreSlim)typeof(WorkerProcessProxy).GetField("_callGate", flags)!.GetValue(proxy)!;
+        int pid = await probe.PidAsync();
+        await gate.WaitAsync();
+        try
+        {
+            using CancellationTokenSource cancel = new();
+            Task<RenderFrame> pending = session.RenderAsync(RenderRequest.At(snapshot, 42), cancel.Token).AsTask();
+            Assert.False(pending.IsCompleted);
+            cancel.Cancel();
+            OperationCanceledException error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending);
+            Assert.Equal("WorkerInvocationNotStartedException", error.GetType().Name);
+        }
+        finally { gate.Release(); }
+        using RenderFrame frame = await session.RenderAsync(RenderRequest.At(snapshot, 43));
+        Assert.Equal(43, frame.TimeUs);
+        Assert.Equal(pid, await probe.PidAsync());
+    }
+
+    [Fact]
+    public async Task 调用前取消不回收静态Worker且随后同会话可渲染()
+    {
+        using Probe probe = await Probe.CreateAsync("valid", new([], false));
+        ProjectSnapshot snapshot = Snapshot();
+        await using IRenderFrameSession session = await probe.Factory().CreateAsync(snapshot);
+        int pid = await probe.PidAsync();
+        using CancellationTokenSource cancel = new(); cancel.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => session.RenderAsync(RenderRequest.At(snapshot, 42), cancel.Token).AsTask());
+        Assert.True(Alive(pid));
+        using RenderFrame frame = await session.RenderAsync(RenderRequest.At(snapshot, 43));
+        Assert.Equal(43, frame.TimeUs);
+        Assert.Equal(pid, await probe.PidAsync());
+    }
+
+    [Fact]
+    public async Task 静态软取消消费回执后同进程重建并可渲染()
+    {
+        using Probe probe = await Probe.CreateAsync("cooperative-cancel", new([], false));
+        ProjectSnapshot snapshot = Snapshot();
+        await using IRenderFrameSession session = await probe.Factory().CreateAsync(snapshot);
+        int pid = await probe.PidAsync();
+        using CancellationTokenSource cancel = new();
+        Task<RenderFrame> pending = session.RenderAsync(RenderRequest.At(snapshot, 42), cancel.Token).AsTask();
+        await probe.WaitForAttemptAsync();
+        cancel.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending);
+        Assert.True(Alive(pid));
+        using RenderFrame frame = await session.RenderAsync(RenderRequest.At(snapshot, 43));
+        Assert.Equal(43, frame.TimeUs);
+        Assert.Equal(pid, await probe.PidAsync());
+        await session.DisposeAsync();
+        Assert.False(Alive(pid));
+    }
+
+    [Fact]
+    public async Task 静态取消回执含未协商输出必须回收Worker()
+    {
+        using Probe probe = await Probe.CreateAsync("cooperative-invalid", new([], false));
+        ProjectSnapshot snapshot = Snapshot();
+        await using IRenderFrameSession session = await probe.Factory().CreateAsync(snapshot);
+        int pid = await probe.PidAsync();
+        using CancellationTokenSource cancel = new();
+        Task<RenderFrame> pending = session.RenderAsync(RenderRequest.At(snapshot, 42), cancel.Token).AsTask();
+        await probe.WaitForAttemptAsync();
+        cancel.Cancel();
+        await Assert.ThrowsAsync<RenderSessionFailureException>(() => pending);
+        Assert.False(Alive(pid));
+    }
+
+    [Fact]
     public async Task 传输完整实际诊断字段保留发生身份和游标不重复()
     {
         var occurrence = StaticWorkerContractTests.Occurrence(1);
@@ -215,6 +320,11 @@ public sealed class WorkerStaticSessionFactoryTests(ITestOutputHelper output)
         public WorkerRenderFrameSessionFactory Factory(TimeSpan? timeout = null) => new(new("python3",
             [_temp.FilePath("probe.py"), _mode, _temp.FilePath("diagnostics.json"), _temp.FilePath("pid"), _temp.FilePath("attempt")], TimeSpan.FromMilliseconds(80)), timeout);
         public async Task<int> PidAsync() => int.Parse(await File.ReadAllTextAsync(_temp.FilePath("pid")), System.Globalization.CultureInfo.InvariantCulture);
+        public async Task WaitForAttemptAsync()
+        {
+            using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(8));
+            while (!File.Exists(_temp.FilePath("attempt"))) await Task.Delay(10, timeout.Token);
+        }
         public void Dispose() => _temp.Dispose();
 
         // Deliberate IPC corruption/lifecycle fixture only; real pixels are compared
@@ -225,9 +335,11 @@ public sealed class WorkerStaticSessionFactoryTests(ITestOutputHelper output)
             with open(pid_file, 'w') as output: output.write(str(os.getpid()))
             with open(diagnostics_file) as source: diagnostics = json.load(source)
             def send(value):
-                body = json.dumps(dict(protocolVersion='worker-1', delayMilliseconds=0, cancelled=False, **value)).encode()
+                value.setdefault('cancelled', False)
+                body = json.dumps(dict(protocolVersion='worker-1', delayMilliseconds=0, **value)).encode()
                 sys.stdout.buffer.write(struct.pack('<i', len(body)) + body)
                 sys.stdout.buffer.flush()
+            pending = None
             while True:
                 prefix = sys.stdin.buffer.read(4)
                 if not prefix: break
@@ -236,9 +348,16 @@ public sealed class WorkerStaticSessionFactoryTests(ITestOutputHelper output)
                 if kind == 'hello':
                     send(dict(kind='hello', requestId=message['requestId'], payload=''))
                 elif kind == 'shutdown': break
+                elif kind == 'cancel' and mode in ('cooperative-cancel', 'cooperative-invalid'):
+                    assert pending is not None and message['requestId'] == pending['requestId']
+                    reply = dict(kind='static-session-frame-v1', requestId=pending['requestId'], inputSha256=pending['inputSha256'], sessionId=pending['sessionId'], sourceSha256=pending['sourceSha256'], frameSequence=pending['frameSequence'], payload='', cancelled=True)
+                    if mode == 'cooperative-invalid': reply['frameWidth'] = 1
+                    send(reply)
+                    pending = None
                 elif kind in ('static-session-open-v1', 'static-session-close-v1'):
                     value = dict(kind='static-session-result-v1', requestId=message['requestId'], inputSha256=message['inputSha256'], sessionId=message['sessionId'], sourceSha256=message['sourceSha256'], frameSequence=message['frameSequence'], payload='')
                     if kind == 'static-session-open-v1' and mode == 'open-malformed': value['requestId'] = 'previous-open'
+                    if kind == 'static-session-close-v1' and mode == 'close-malformed': value['requestId'] = 'previous-close'
                     if kind == 'static-session-open-v1' and mode == 'open-error':
                         value['kind'] = 'error'
                         value['errorCode'] = 'WorkerOpenDiagnosticError'
@@ -246,6 +365,8 @@ public sealed class WorkerStaticSessionFactoryTests(ITestOutputHelper output)
                         value['diagnostics'] = copy.deepcopy(diagnostics)
                     send(value)
                 elif kind == 'static-session-render-v1':
+                    if mode in ('cooperative-cancel', 'cooperative-invalid') and not os.path.exists(attempt):
+                        open(attempt, 'w').close(); pending = message; continue
                     if mode == 'timeout' and not os.path.exists(attempt):
                         open(attempt, 'w').close()
                         time.sleep(60)

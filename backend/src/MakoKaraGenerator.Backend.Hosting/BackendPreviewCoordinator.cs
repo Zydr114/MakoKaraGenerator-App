@@ -4,6 +4,37 @@ using MakoKaraGenerator.Scripting;
 
 namespace MakoKaraGenerator.Backend.Hosting;
 
+/// <summary>表示会话在取消渲染后仍可供相同固定输入复用。</summary>
+public interface IBackendPreviewCancellationRecoverable
+{
+    /// <summary>当前取消是否已安全处理，可以继续复用会话。</summary>
+    bool CanReuseAfterCancellation { get; }
+}
+
+/// <summary>在创建失败且清理未完成时保留可重试的会话所有权。</summary>
+public static class BackendPreviewFailedCreation
+{
+    private const string Key = "BackendPreviewFailedCreation.Session";
+    /// <summary>记录仍需排水的会话。</summary>
+    public static void Attach(Exception error, IRenderFrameSession? session) => error.Data[Key] = session;
+    /// <summary>读取仍需排水的会话。</summary>
+    public static IRenderFrameSession? Get(Exception error) => error.Data.Contains(Key) ? error.Data[Key] as IRenderFrameSession
+        : error.InnerException is null ? null : Get(error.InnerException);
+
+    internal static IRenderFrameSession Worker(WorkerProcessProxy proxy, IDisposable? retention = null) => new FailedWorkerSession(proxy, retention);
+
+    private sealed class FailedWorkerSession(WorkerProcessProxy proxy, IDisposable? retention) : IRenderFrameSession
+    {
+        public ValueTask<RenderFrame> RenderAsync(RenderRequest request, CancellationToken token = default) =>
+            ValueTask.FromException<RenderFrame>(new InvalidOperationException("创建失败的会话只能排水。"));
+        public async ValueTask DisposeAsync()
+        {
+            await proxy.DisposeAsync().ConfigureAwait(false);
+            retention?.Dispose();
+        }
+    }
+}
+
 /// <summary>
 /// 预览请求的中立输入。<see cref="PreviewGeneration"/> 表示一次连续的输入代次，
 /// <see cref="SourceRevision"/> 表示工程或其他固定源的修订；播放头向前移动时可以复用同一代次。
@@ -109,6 +140,8 @@ public sealed class BackendPreviewCoordinator : IAsyncDisposable
     private Work? _latest;
     private Work? _pending;
     private IRenderFrameSession? _session;
+    private bool _sessionNeedsDispose;
+    private Exception? _sessionDisposalFailurePrimary;
     private BackendPreviewRequest? _sessionRequest;
     private CancellationTokenSource? _cancellation;
     private Task? _runner;
@@ -209,18 +242,15 @@ public sealed class BackendPreviewCoordinator : IAsyncDisposable
 
                 try
                 {
+                    if (_sessionNeedsDispose) await DisposeSessionAsync().ConfigureAwait(false);
                     if (release && _session is not null)
                     {
-                        await _session.DisposeAsync().ConfigureAwait(false);
-                        _session = null;
-                        _sessionRequest = null;
+                        await DisposeSessionAsync().ConfigureAwait(false);
                     }
                     if (work is null) continue;
-                    if (_session is not null && (_sessionRequest is null || !SameInput(_sessionRequest, work.Request)))
+                    if (_session is not null && (_sessionRequest is null || !SameFixedInput(_sessionRequest, work.Request)))
                     {
-                        await _session.DisposeAsync().ConfigureAwait(false);
-                        _session = null;
-                        _sessionRequest = null;
+                        await DisposeSessionAsync().ConfigureAwait(false);
                     }
 
                     token.ThrowIfCancellationRequested();
@@ -253,33 +283,62 @@ public sealed class BackendPreviewCoordinator : IAsyncDisposable
                     BackendPreviewFrame result = new(work.Request, work.Sequence, frame);
                     Publish(new(work.Request, work.Sequence, BackendPreviewUpdateState.Ready, result));
                 }
-                catch (OperationCanceledException) when (
+                catch (OperationCanceledException error) when (
                     token.IsCancellationRequested || work?.Request.RenderRequest.CancellationToken.IsCancellationRequested == true)
                 {
-                    // A changed generation/source or coordinator disposal owns cancellation.
+                    if (_session is null && BackendPreviewFailedCreation.Get(error) is { } failedSession)
+                    {
+                        _session = failedSession;
+                        _sessionRequest = work?.Request;
+                        _sessionNeedsDispose = true;
+                    }
+                    if (_session is not null && _session is not IBackendPreviewCancellationRecoverable { CanReuseAfterCancellation: true })
+                    {
+                        try { await DisposeSessionAsync().ConfigureAwait(false); }
+                        catch (Exception cleanup) { error.Data["PreviewCleanupFailure"] = cleanup; }
+                    }
                 }
                 catch (Exception error)
                 {
+                    if (_session is null && BackendPreviewFailedCreation.Get(error) is { } failedSession)
+                    {
+                        _session = failedSession;
+                        _sessionRequest = work?.Request;
+                        _sessionNeedsDispose = true;
+                        _sessionDisposalFailurePrimary = error;
+                    }
+                    Exception failure = error;
+                    if (_sessionNeedsDispose && _sessionDisposalFailurePrimary is { } primary)
+                    {
+                        if (!ReferenceEquals(primary, error)) primary.Data["PreviewCleanupFailure"] = error;
+                        failure = primary;
+                    }
+                    if (_session is not null && !_sessionNeedsDispose)
+                    {
+                        _sessionDisposalFailurePrimary = error;
+                        try { await DisposeSessionAsync().ConfigureAwait(false); }
+                        catch (Exception cleanup) { error.Data["PreviewCleanupFailure"] = cleanup; }
+                    }
                     if (token.IsCancellationRequested) continue;
                     if (work is null) continue;
                     lock (_gate)
                     {
                         if (CurrentInput(work.Request))
                         {
-                            _failure = error.Message;
-                            _failureCode = (error as RenderSessionFailureException)?.Code;
-                            _failureDiagnostics = (error as RenderSessionFailureException)?.DiagnosticSnapshot;
-                            _failureSourceDiagnostics = (error as RenderSessionFailureException)?.SourceDiagnostics ?? [];
-                            _failureImageEffectDiagnostics = (error as RenderSessionFailureException)?.ImageEffectDiagnostics ?? [];
-                            _failureMaterialDiagnostics = (error as RenderSessionFailureException)?.MaterialDiagnostics ?? [];
+                            _failure = failure.Message;
+                            _failureCode = (failure as RenderSessionFailureException)?.Code;
+                            _failureDiagnostics = (failure as RenderSessionFailureException)?.DiagnosticSnapshot;
+                            _failureSourceDiagnostics = (failure as RenderSessionFailureException)?.SourceDiagnostics ?? [];
+                            _failureImageEffectDiagnostics = (failure as RenderSessionFailureException)?.ImageEffectDiagnostics ?? [];
+                            _failureMaterialDiagnostics = (failure as RenderSessionFailureException)?.MaterialDiagnostics ?? [];
                         }
                     }
-                    Publish(new(work.Request, work.Sequence, BackendPreviewUpdateState.Failed, Error: error.Message,
-                        FailureDiagnostics: (error as RenderSessionFailureException)?.DiagnosticSnapshot,
-                        FailureCode: (error as RenderSessionFailureException)?.Code,
-                        FailureSourceDiagnostics: (error as RenderSessionFailureException)?.SourceDiagnostics ?? [],
-                        FailureImageEffectDiagnostics: (error as RenderSessionFailureException)?.ImageEffectDiagnostics ?? [],
-                        FailureMaterialDiagnostics: (error as RenderSessionFailureException)?.MaterialDiagnostics ?? []));
+                    Publish(new(work.Request, work.Sequence, BackendPreviewUpdateState.Failed, Error: failure.Message,
+                        FailureDiagnostics: (failure as RenderSessionFailureException)?.DiagnosticSnapshot,
+                        FailureCode: (failure as RenderSessionFailureException)?.Code,
+                        FailureSourceDiagnostics: (failure as RenderSessionFailureException)?.SourceDiagnostics ?? [],
+                        FailureImageEffectDiagnostics: (failure as RenderSessionFailureException)?.ImageEffectDiagnostics ?? [],
+                        FailureMaterialDiagnostics: (failure as RenderSessionFailureException)?.MaterialDiagnostics ?? []));
                 }
             }
         }
@@ -295,6 +354,17 @@ public sealed class BackendPreviewCoordinator : IAsyncDisposable
                 }
             }
         }
+    }
+
+    private async Task DisposeSessionAsync()
+    {
+        if (_session is null) return;
+        _sessionNeedsDispose = true;
+        await _session.DisposeAsync().ConfigureAwait(false);
+        _session = null;
+        _sessionRequest = null;
+        _sessionNeedsDispose = false;
+        _sessionDisposalFailurePrimary = null;
     }
 
     private void Publish(BackendPreviewUpdate update)
@@ -329,9 +399,11 @@ public sealed class BackendPreviewCoordinator : IAsyncDisposable
         => !_disposed && _latest is { } latest && SameInput(latest.Request, request);
 
     private static bool SameInput(BackendPreviewRequest left, BackendPreviewRequest right)
+        => left.PreviewGeneration == right.PreviewGeneration && SameFixedInput(left, right);
+
+    private static bool SameFixedInput(BackendPreviewRequest left, BackendPreviewRequest right)
         => ReferenceEquals(left.SessionFactory, right.SessionFactory)
             && ReferenceEquals(left.RenderRequest.Project, right.RenderRequest.Project)
-            && left.PreviewGeneration == right.PreviewGeneration
             && string.Equals(left.SourceRevision, right.SourceRevision, StringComparison.Ordinal)
             && left.RenderRequest.Target == right.RenderRequest.Target
             && left.RenderRequest.Quality == right.RenderRequest.Quality
@@ -362,7 +434,7 @@ public sealed class BackendPreviewCoordinator : IAsyncDisposable
     {
         lock (_gate)
         {
-            if (_disposeTask is not null) return new(_disposeTask);
+            if (_disposeTask is not null && !_disposeTask.IsFaulted && !_disposeTask.IsCanceled) return new(_disposeTask);
             _disposed = true;
             _pending = null;
             _cancellation?.Cancel();
@@ -376,21 +448,19 @@ public sealed class BackendPreviewCoordinator : IAsyncDisposable
         try
         {
             if (runner is not null) await runner.ConfigureAwait(false);
-            if (_session is not null) await _session.DisposeAsync().ConfigureAwait(false);
+            if (_session is not null) await DisposeSessionAsync().ConfigureAwait(false);
         }
         finally
         {
             lock (_gate)
             {
                 _latest = null;
-                _sessionRequest = null;
                 _failure = null;
                 _failureCode = null;
                 _failureDiagnostics = null;
                 _failureSourceDiagnostics = [];
                 _failureImageEffectDiagnostics = [];
                 _failureMaterialDiagnostics = [];
-                _session = null;
                 _runner = null;
                 _cancellation?.Dispose();
                 _cancellation = null;

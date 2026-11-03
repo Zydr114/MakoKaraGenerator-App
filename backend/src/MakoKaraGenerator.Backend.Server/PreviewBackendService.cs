@@ -415,11 +415,20 @@ internal sealed partial class PreviewBackendService : IAsyncDisposable
 
     private sealed class CombinedRetention(IDisposable first, IDisposable? second) : IDisposable
     {
-        private int _disposed;
+        private readonly object _gate = new();
+        private bool _firstDisposed, _secondDisposed;
         public void Dispose()
         {
-            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
-            try { first.Dispose(); } finally { second?.Dispose(); }
+            lock (_gate)
+            {
+                Exception? primary = null;
+                if (!_firstDisposed)
+                    try { first.Dispose(); _firstDisposed = true; } catch (Exception error) { primary = error; }
+                if (!_secondDisposed)
+                    try { second?.Dispose(); _secondDisposed = true; }
+                    catch (Exception error) { if (primary is null) primary = error; else primary.Data["SecondaryCleanupFailure"] = error; }
+                if (primary is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(primary).Throw();
+            }
         }
     }
 
@@ -520,7 +529,8 @@ internal sealed partial class PreviewBackendService : IAsyncDisposable
                         catch (Exception) { Console.Error.WriteLine("GPU stream cleanup failed; capacity remains reserved."); }
             foreach (string client in _previews.ActiveClientIds)
                 if (!_clients.TryReadLease(client, out _, out bool dormant) || dormant)
-                    await _previews.DrainClientAsync(client).ConfigureAwait(false);
+                    try { await _previews.DrainClientAsync(client).ConfigureAwait(false); }
+                    catch (Exception) { Console.Error.WriteLine("Preview cleanup failed; capacity remains reserved."); }
         }
         finally { _membership.Release(); }
     }
@@ -538,7 +548,11 @@ internal sealed partial class PreviewBackendService : IAsyncDisposable
 
     public ValueTask DisposeAsync()
     {
-        lock (_disposeGate) return new(_dispose ??= DisposeCoreAsync());
+        lock (_disposeGate)
+        {
+            if (_dispose is null || _dispose.IsFaulted || _dispose.IsCanceled) _dispose = DisposeCoreAsync();
+            return new(_dispose);
+        }
     }
 
     private async Task DisposeCoreAsync()
@@ -606,25 +620,58 @@ internal sealed partial class PreviewBackendService : IAsyncDisposable
                 token.ThrowIfCancellationRequested();
                 return new ReferencedSession(session, lease);
             }
-            catch
+            catch (Exception error)
             {
-                try { if (session is not null) await session.DisposeAsync().ConfigureAwait(false); }
-                finally { lease?.Dispose(); }
+                session ??= BackendPreviewFailedCreation.Get(error);
+                if (session is not null)
+                {
+                    var referenced = new ReferencedSession(session, lease);
+                    try { await referenced.DisposeAsync().ConfigureAwait(false); BackendPreviewFailedCreation.Attach(error, null); }
+                    catch (Exception cleanup)
+                    {
+                        error.Data["PreviewCleanupFailure"] = cleanup;
+                        BackendPreviewFailedCreation.Attach(error, referenced);
+                    }
+                }
+                else if (lease is not null)
+                {
+                    try { lease.Dispose(); }
+                    catch (Exception cleanup)
+                    {
+                        error.Data["PreviewCleanupFailure"] = cleanup;
+                        BackendPreviewFailedCreation.Attach(error, new RetentionOnlySession(lease));
+                    }
+                }
                 throw;
             }
         }
     }
 
-    private sealed class ReferencedSession(IRenderFrameSession inner, IDisposable? lease) : IRenderFrameSession
+    private sealed class RetentionOnlySession(IDisposable lease) : IRenderFrameSession
+    {
+        public ValueTask<RenderFrame> RenderAsync(RenderRequest request, CancellationToken token = default) =>
+            ValueTask.FromException<RenderFrame>(new InvalidOperationException("创建失败的会话只能排水。"));
+        public ValueTask DisposeAsync() { lease.Dispose(); return ValueTask.CompletedTask; }
+    }
+
+    private sealed class ReferencedSession(IRenderFrameSession inner, IDisposable? lease) : IRenderFrameSession, IBackendPreviewCancellationRecoverable
     {
         private Task? _dispose;
         private readonly object _gate = new();
+        public bool CanReuseAfterCancellation => inner is IBackendPreviewCancellationRecoverable { CanReuseAfterCancellation: true };
         public ValueTask<RenderFrame> RenderAsync(RenderRequest request, CancellationToken token = default) => inner.RenderAsync(request, token);
-        public ValueTask DisposeAsync() { lock (_gate) return new(_dispose ??= DisposeCoreAsync()); }
+        public ValueTask DisposeAsync()
+        {
+            lock (_gate)
+            {
+                if (_dispose is null || _dispose.IsFaulted || _dispose.IsCanceled) _dispose = DisposeCoreAsync();
+                return new(_dispose);
+            }
+        }
         private async Task DisposeCoreAsync()
         {
-            try { await inner.DisposeAsync().ConfigureAwait(false); }
-            finally { lease?.Dispose(); }
+            await inner.DisposeAsync().ConfigureAwait(false);
+            lease?.Dispose();
         }
     }
 }

@@ -15,6 +15,71 @@ namespace MakoKaraGenerator.Runtime.Hosting.Tests;
 public sealed class WorkerStaticSessionIntegrationTests
 {
     [Fact]
+    public async Task 真实静态会话调用前取消后同Worker仍可交付正确帧()
+    {
+        ProjectSnapshot snapshot = Snapshot();
+        var factory = new WorkerRenderFrameSessionFactory(Options() with { CancellationGracePeriod = TimeSpan.FromSeconds(5) });
+        await using IRenderFrameSession session = await factory.CreateAsync(snapshot);
+        var proxy = (WorkerProcessProxy)session.GetType().GetFields(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+            .Single(field => field.FieldType == typeof(WorkerProcessProxy)).GetValue(session)!;
+        int pid = Assert.IsType<int>(proxy.ProcessId);
+        using CancellationTokenSource cancel = new();
+        cancel.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => session.RenderAsync(
+            RenderRequest.At(snapshot, 12_500_000) with
+            { Target = new() { PixelWidth = 1024, PixelHeight = 1024 } }, cancel.Token).AsTask());
+        Assert.Equal(pid, proxy.ProcessId);
+        RenderRequest request = RenderRequest.At(snapshot, 12_500_000) with
+        { Target = new() { PixelWidth = 320, PixelHeight = 180 }, TransparentBackground = true };
+        using RenderFrame actual = await session.RenderAsync(request);
+        using TemporaryDirectory temp = new();
+        using FfmpegVideoFrameProvider videos = new();
+        var runtime = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
+            temp.FilePath("cache")), videos, ReplayReason.Initial);
+        await using IRenderFrameSession expected = await runtime.CreateAsync(snapshot);
+        using RenderFrame reference = await expected.RenderAsync(request);
+        Assert.Equal(reference.PixelMemory.ToArray(), actual.PixelMemory.ToArray());
+        Assert.Equal(pid, proxy.ProcessId);
+        await session.DisposeAsync();
+        Assert.Null(proxy.ProcessId);
+    }
+
+    [Fact]
+    public async Task 真实静态Worker未发送取消后同进程重开且新帧与Runtime一致()
+    {
+        ProjectSnapshot snapshot = Snapshot();
+        byte[] bytes = StaticProjectSnapshotCodec.Encode(snapshot);
+        await using WorkerProcessProxy proxy = new(Options() with { CancellationGracePeriod = TimeSpan.FromSeconds(5) });
+        StaticWorkerSessionHandle old = await proxy.OpenStaticSessionAsync(bytes, TimeSpan.FromSeconds(20));
+        int pid = Assert.IsType<int>(proxy.ProcessId);
+        using (CancellationTokenSource notStarted = new())
+        {
+            notStarted.Cancel();
+            OperationCanceledException skipped = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => proxy.RenderStaticSessionAsync(
+                new(old.SessionId, old.SourceSha256, 320, 180, 12_500_000, false, 1), TimeSpan.FromSeconds(20), notStarted.Token));
+            Assert.Equal("WorkerInvocationNotStartedException", skipped.GetType().Name);
+            Assert.Equal(pid, proxy.ProcessId);
+        }
+        await proxy.CloseStaticSessionAsync(old, 2, TimeSpan.FromSeconds(20));
+        StaticWorkerSessionHandle fresh = await proxy.OpenStaticSessionAsync(bytes, TimeSpan.FromSeconds(20));
+        Assert.NotEqual(old.SessionId, fresh.SessionId);
+        Assert.Equal(pid, proxy.ProcessId);
+        WorkerMessage actual = await proxy.RenderStaticSessionAsync(new(fresh.SessionId, fresh.SourceSha256,
+            320, 180, 12_500_000, true, 1), TimeSpan.FromSeconds(20));
+        using TemporaryDirectory temp = new();
+        using FfmpegVideoFrameProvider videos = new();
+        var runtime = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
+            temp.FilePath("cache")), videos, ReplayReason.Initial);
+        await using IRenderFrameSession expected = await runtime.CreateAsync(snapshot);
+        using RenderFrame frame = await expected.RenderAsync(RenderRequest.At(snapshot, 12_500_000) with
+        { Target = new() { PixelWidth = 320, PixelHeight = 180 }, TransparentBackground = true });
+        Assert.Equal(frame.PixelMemory.ToArray(), actual.Payload);
+        await proxy.CloseStaticSessionAsync(fresh, 2, TimeSpan.FromSeconds(20));
+        await proxy.StopAsync();
+        Assert.Null(proxy.ProcessId);
+    }
+
+    [Fact]
     public async Task 持久Worker实际消费纯静态预设快照并与Runtime逐字节相等()
     {
         using TemporaryDirectory temp = new();

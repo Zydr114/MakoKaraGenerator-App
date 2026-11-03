@@ -634,7 +634,7 @@ alphaMode默认opaque，允许opaque／straight；purpose默认preview，其他4
 {"expectedSourceRevision":"1","previewGeneration":"1","requestSeq":"1","timeUs":"1500000","intent":"playback","metadata":{"requestId":"frame-1","hostInstanceId":"host-H","validUntilUtc":"2026-10-13T10:01:00Z"}}
 ```
 
-202返回 `{"previewId":"preview-V","previewGeneration":"1","requestSeq":"1","timeUs":"1500000","state":"accepted","protocolVersion":"1"}`，不保证PNG已经完成。intent仅playback／seek；同代次requestSeq严格递增，seek提交时也须大于旧代次已接受序号。playback时间不后退，同代次连续前向帧复用Worker／Runtime；HTTP seek生成新generation并Invalidate排水／释放旧Runtime与Worker，下一帧重新open。客户端采用seek响应返回的新generation。私有Worker同snapshot支持直接后退时间不等于HTTP seek复用。旧代次／来源409、非递增或playback后退409 previewRequestOutOfOrder，非法时间／参数或超过固定工程时长400。
+202返回 `{"previewId":"preview-V","previewGeneration":"1","requestSeq":"1","timeUs":"1500000","state":"accepted","protocolVersion":"1"}`，不保证PNG已经完成。intent仅playback／seek；同代次requestSeq严格递增，seek提交时也须大于旧代次已接受序号。playback时间不后退，同代次连续前向帧复用Worker／Runtime；HTTP seek生成新generation；0.110.6 起，同一固定输入、输出规格与后端可继续使用原Worker。已验证的协作取消回执会先被完整消费，再在原Worker内用同一固定产物重开Runtime；未发出的请求取消不重开。硬超时、作者错误、IPC或设备失败仍使会话失效并排水，真实输入／规格／后端改变仍建立新Worker。客户端必须采用seek响应返回的新generation，旧代结果不能发布。v1回退仍可能从零重放时间线，不承诺任意时刻纯求值。旧代次／来源409、非递增或playback后退409 previewRequestOutOfOrder，非法时间／参数或超过固定工程时长400。
 
 `GET /api/v1/preview-sessions/preview-V`200返回 `{"session":<PreviewSessionResponse>,"failure":<可选错误>,"renderFailureCode":<可选稳定编号>}`。session.state可能idle／queued／rendering／ready／failed／closing／closed，ready包含latestRequestSeq／latestFrame：
 
@@ -1439,7 +1439,7 @@ ruby文本完整聚合整形和原segment cluster归属保持，独立segment时
 
 在唯一Writer中原子核对精确revision并捕获snapshot、对应audio asset身份和快速resource reservation；Worker握手、编码及脚本执行在Writer外。固定asset用于独立retention/runtime leases，工程音频后续替换/清除不使既有snapshot引用错配。包bytes一次open固定，逐帧不重读工程/库、不重编译；总4MiB、200000源值及原深度门禁不变，净IPC snapshot最多4194280字节。
 
-既有previewId/sourceRevision/requestSeq/代次规则保持。playback同代仅替换最新pending；seek采用响应新generation，Invalidate取消在途并排水旧Runtime/Worker；PUT input也切新固定输入。编辑不自动跟随，关闭工程后预览保独立lease。关闭/失败/取消/替换输入均完整归还本路径拥有引用。
+既有previewId/sourceRevision/requestSeq/代次规则保持。playback同代仅替换最新pending；seek采用响应新generation，同输入经验证软取消后复用Worker并重开Runtime；PUT input切新固定输入，排水旧会话。编辑不自动跟随，关闭工程后预览保独立lease。关闭/失败/取消/替换输入均完整归还本路径拥有引用。
 
 ### 20.3 完整公共诊断
 
@@ -1501,6 +1501,13 @@ W8 增加 profile 级恢复入口。`GET /api/v1/profile/author-drafts` 只返�
 配额、损坏摘要或读取失败沿既有编译任务失败路径处理，不能回退旧成功产物。磁盘在用租约保护淘汰，
 跨进程同键互斥和崩溃暂存回收不改变 owner／CAS／任务终态。此处是产物读写预算，不保证 Roslyn
 编译期间的峰值内存上限。
+
+**0.110.6 HTTP seek 与关闭恢复：** 公开请求 generation 与固定运行输入身份分离，保持旧帧、来源、
+序号、owner/CAS 与帧租约隔离。同输入成功帧之间不重建 Worker；仅协作取消 ACK 验证成功时允许原进程
+重新建立 Runtime，复用同一固定产物目录，不重新编译／复制。关闭或输入替换中的所属进程排水失败时，
+保留会话及资源引用，重试成功前不新建替代会话。预览关闭失败返回既有 `internalError`，状态保留 `closing`，
+不虚报 `closed` 或提前释放会话配额；同一来源／generation 可用新 requestId 重试关闭。
+私有输入目录删除失败同样保留最后引用并拒绝新借用，成功清理后才归还所有权。
 
 **0.110.5 固定产物消费：** 预览、验证、导出和场景测量复用 Host 的同一编译服务；
 渲染 Worker 校验固定产物字节、SDK／参考集／引擎及入口后加载，不再运行 Roslyn 编译。
@@ -1566,7 +1573,7 @@ create/input 的固定输入失败使用既有错误 DTO，消息和字段不包
 
 异步解码失败通过 state 的 `renderFailureCode` 返回 `PackageImageDecodeFailed`，尺寸/解码预算为 `PackageImageBudgetExceeded`；通用 `failure` 沿既有 `internalError` 预览失败语义，不把它改成create的422。超时、包编译或Runtime Error继续复用 `WorkerPackageTimedOut`、`WorkerPackageCompilationFailed`、`WorkerRuntimeDiagnosticError`；失败无本次 latestFrame，不发布成功PNG，旧成功帧租约按原TTL保留。
 
-每个 Runtime session 独占 resolver/native bitmap；无效果、包编译失败、准备失败、取消和正常关闭均由原工厂/会话所有权链释放。连续 playback 复用既有持久Worker，seek、resize、透明切换和input换代沿原 generation/序列规则，旧Worker与native对象排水后不再发布迟到帧。图片factory保留原音频租约包装；无音轨工程也可使用。原会话关闭、客户端过期、工程关闭后固定预览、Host shutdown 和帧读取ACL/TTL规则保持。
+每个 Runtime session 独占 resolver/native bitmap；无效果、包编译失败、准备失败、取消和正常关闭均由原工厂/会话所有权链释放。连续 playback 与固定输入不变的 seek 可复用持久 Worker；seek 在途渲染获协作取消确认后重新创建 Runtime session，未获安全回执或协议失败则排水 Worker。resize、透明切换和 input 更新改变固定输入，旧会话排水；generation/序列规则继续阻止发布迟到帧。图片factory保留原音频租约包装；无音轨工程也可使用。原会话关闭、客户端过期、工程关闭后固定预览、Host shutdown 和帧读取ACL/TTL规则保持。
 
 ### 22.4 证据边界
 

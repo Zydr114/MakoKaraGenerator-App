@@ -134,9 +134,12 @@ public sealed class WorkerPackageRenderFrameSessionFactory : IRenderFrameSession
         }
         catch (Exception error)
         {
-            try { await proxy.DisposeAsync().ConfigureAwait(false); }
-            catch (Exception cleanup) { error.Data["WorkerCleanupFailure"] = cleanup; }
-            finally { retention?.Dispose(); }
+            try { await proxy.DisposeAsync().ConfigureAwait(false); retention?.Dispose(); }
+            catch (Exception cleanup)
+            {
+                error.Data["WorkerCleanupFailure"] = cleanup;
+                BackendPreviewFailedCreation.Attach(error, BackendPreviewFailedCreation.Worker(proxy, retention));
+            }
             if (error is RenderSessionFailureException) throw;
             if (error is WorkerProtocolException failure)
                 throw new RenderSessionFailureException(failure.Code, failure.Message,
@@ -156,13 +159,15 @@ public sealed class WorkerPackageRenderFrameSessionFactory : IRenderFrameSession
         catch (WorkerProtocolException invalid) { throw new RenderSessionFailureException(invalid.Code, invalid.Message, innerException: invalid); }
     }
 
-    private sealed class Session(ProjectSnapshot snapshot, WorkerProcessProxy proxy, StaticWorkerSessionHandle handle, TimeSpan timeout, PackageRenderDiagnosticsMapper mapper, IDisposable? retention) : IRenderFrameSession
+    private sealed class Session(ProjectSnapshot snapshot, WorkerProcessProxy proxy, StaticWorkerSessionHandle handle, TimeSpan timeout, PackageRenderDiagnosticsMapper mapper, IDisposable? retention) : IRenderFrameSession, IBackendPreviewCancellationRecoverable
     {
+        public bool CanReuseAfterCancellation => !_failed && !_disposed;
         private readonly SemaphoreSlim _gate = new(1, 1);
         private readonly CancellationTokenSource _closing = new();
         private Task? _disposeTask;
         private bool _disposed;
         private bool _failed;
+        private bool _resetPending;
         private long _sequence;
 
         public async ValueTask<RenderFrame> RenderAsync(RenderRequest request, CancellationToken cancellationToken = default)
@@ -179,11 +184,22 @@ public sealed class WorkerPackageRenderFrameSessionFactory : IRenderFrameSession
             {
                 ObjectDisposedException.ThrowIf(_disposed, this);
                 if (_failed) throw new PreparedFrameException("WorkerPackageSessionFailed", "包 Worker 会话已失败，请重新建立固定输入会话。");
-                var input = new StaticWorkerFrameRequest(handle.SessionId, handle.SourceSha256, target.PixelWidth, target.PixelHeight,
-                    request.TimeUs, request.TransparentBackground, checked(++_sequence), (int)request.Quality);
-                PackageRenderWorkerContract.ValidateFrameRequest(input);
+                PackageRenderWorkerContract.ValidateFrameRequest(new(handle.SessionId, handle.SourceSha256, target.PixelWidth, target.PixelHeight,
+                    request.TimeUs, request.TransparentBackground, checked(_sequence + 1), (int)request.Quality));
+                linked.Token.ThrowIfCancellationRequested();
                 try
                 {
+                    if (_resetPending)
+                    {
+                        var prepared = handle.PreparedInput ?? throw new InvalidOperationException("包 Worker 会话缺少固定脚本输入。");
+                        await proxy.ClosePackageSessionForReopenAsync(handle, checked(++_sequence), timeout, CancellationToken.None).ConfigureAwait(false);
+                        handle = await proxy.OpenPreparedSessionAsync(prepared, timeout, CancellationToken.None).ConfigureAwait(false);
+                        _sequence = 0;
+                        _resetPending = false;
+                    }
+                    if (linked.IsCancellationRequested) throw new WorkerInvocationNotStartedException(linked.Token);
+                    var input = new StaticWorkerFrameRequest(handle.SessionId, handle.SourceSha256, target.PixelWidth, target.PixelHeight,
+                        request.TimeUs, request.TransparentBackground, checked(++_sequence), (int)request.Quality);
                     WorkerMessage result;
                     try { result = await proxy.RenderPackageSessionAsync(input, timeout, linked.Token).ConfigureAwait(false); }
                     catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && !request.CancellationToken.IsCancellationRequested && !_closing.IsCancellationRequested)
@@ -194,6 +210,15 @@ public sealed class WorkerPackageRenderFrameSessionFactory : IRenderFrameSession
                     var package = mapper.DecodeFrame(result.PackageDiagnostics!);
                     return new(result.Payload, target, PixelFormat.Bgra8888Premultiplied, request.TimeUs)
                     { DiagnosticSnapshot = diagnostics, ImageEffectDiagnostics = package.Image, MaterialDiagnostics = package.Material };
+                }
+                catch (WorkerCooperativeCancellationException) when (linked.IsCancellationRequested && !_closing.IsCancellationRequested)
+                {
+                    _resetPending = true;
+                    throw;
+                }
+                catch (WorkerInvocationNotStartedException) when (linked.IsCancellationRequested && !_closing.IsCancellationRequested)
+                {
+                    throw;
                 }
                 catch (Exception error)
                 {
@@ -223,7 +248,12 @@ public sealed class WorkerPackageRenderFrameSessionFactory : IRenderFrameSession
 
         public ValueTask DisposeAsync()
         {
-            lock (_gate) { _disposed = true; _closing.Cancel(); return new(_disposeTask ??= DisposeCoreAsync()); }
+            lock (_gate)
+            {
+                _disposed = true; _closing.Cancel();
+                if (_disposeTask is null || _disposeTask.IsFaulted || _disposeTask.IsCanceled) _disposeTask = DisposeCoreAsync();
+                return new(_disposeTask);
+            }
         }
 
         private async Task DisposeCoreAsync()
@@ -233,7 +263,14 @@ public sealed class WorkerPackageRenderFrameSessionFactory : IRenderFrameSession
             {
                 _disposed = true;
                 Exception? primary = null;
-                try { if (!_failed) await proxy.ClosePackageSessionAsync(handle, checked(++_sequence), timeout).ConfigureAwait(false); }
+                try
+                {
+                    if (!_failed)
+                    {
+                        _failed = true;
+                        await proxy.ClosePackageSessionAsync(handle, checked(++_sequence), timeout).ConfigureAwait(false);
+                    }
+                }
                 catch (Exception error) { primary = error; }
                 try { await proxy.DisposeAsync().ConfigureAwait(false); }
                 catch (Exception cleanup)
@@ -242,8 +279,9 @@ public sealed class WorkerPackageRenderFrameSessionFactory : IRenderFrameSession
                     else primary.Data["WorkerCleanupFailure"] = cleanup;
                 }
                 if (primary is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(primary).Throw();
+                retention?.Dispose();
             }
-            finally { retention?.Dispose(); _gate.Release(); }
+            finally { _gate.Release(); }
         }
     }
 }

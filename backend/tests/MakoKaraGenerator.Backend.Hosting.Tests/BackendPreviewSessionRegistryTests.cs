@@ -166,6 +166,28 @@ public sealed class BackendPreviewSessionRegistryTests
     }
 
     [Fact]
+    public async Task 完成帧后同输入seek换代并复用固定会话()
+    {
+        await using Fixture fixture = new();
+        Factory factory = new();
+        PreviewSessionResponse session = fixture.Create(Input(factory));
+        Assert.True(fixture.Request(session, 1, 90).Accepted);
+        Call first = await factory.Next();
+        first.Release.SetResult();
+        await fixture.Wait(session.PreviewId, status => status.Session.State == "ready");
+        BackendPreviewFrameRequestResult seek = fixture.Request(session, 2, 10, "seek");
+        Assert.True(seek.Accepted);
+        Assert.NotEqual(session.PreviewGeneration, seek.Response!.PreviewGeneration);
+        Call second = await factory.Next();
+        second.Release.SetResult();
+        BackendPreviewSessionStatus ready = await fixture.Wait(session.PreviewId, status => status.Session.State == "ready");
+        Assert.Equal(seek.Response.PreviewGeneration, ready.Session.PreviewGeneration);
+        Assert.Equal("2", ready.Session.LatestFrame!.RequestSeq);
+        Assert.Equal(1, factory.Created);
+        Assert.Equal(0, factory.Disposed);
+    }
+
+    [Fact]
     public async Task seek由服务换代次并取消旧输入且拒绝迟到失败和旧generation请求()
     {
         await using Fixture fixture = new();
@@ -282,6 +304,78 @@ public sealed class BackendPreviewSessionRegistryTests
         Assert.Equal(0, fixture.Diagnostics.Count);
         Assert.Equal(0, fixture.Registry.Count);
         _ = fixture.Create(input);
+    }
+
+    [Fact]
+    public async Task 更新时旧租约释放失败由关闭重试()
+    {
+        await using Fixture fixture = new();
+        Factory factory = new();
+        CountingLease lease = new() { FailFirst = true };
+        PreviewSessionResponse session = fixture.Create(Input(factory) with { RetentionLease = lease });
+        BackendPreviewPinnedInput next = Input(factory, "source-2");
+        BackendPreviewSessionResult updated = fixture.Registry.Update("client", session.PreviewId, session.Source.SourceRevision,
+            new(session.PreviewGeneration, next.Source, new(1, 1), PreviewAlphaMode.Opaque), next);
+        Assert.True(updated.Accepted);
+        Assert.Equal(1, lease.Disposed);
+        PreviewSessionResponse current = updated.Status!.Session;
+        BackendPreviewSessionResult closed = await fixture.Registry.CloseAsync("client", current.PreviewId,
+            current.PreviewGeneration, current.Source.SourceRevision);
+        Assert.Equal("closed", closed.Status!.Session.State);
+        Assert.Equal(2, lease.Disposed);
+    }
+
+    [Fact]
+    public async Task 旧输入清理持续失败时拒绝继续换代以限制保留资源()
+    {
+        await using Fixture fixture = new();
+        Factory factory = new();
+        CountingLease old = new() { FailCount = 2 };
+        CountingLease currentLease = new();
+        PreviewSessionResponse first = fixture.Create(Input(factory) with { RetentionLease = old });
+        BackendPreviewPinnedInput second = Input(factory, "source-2") with { RetentionLease = currentLease };
+        BackendPreviewSessionResult changed = fixture.Registry.Update("client", first.PreviewId, first.Source.SourceRevision,
+            new(first.PreviewGeneration, second.Source, new(1, 1), PreviewAlphaMode.Opaque), second);
+        Assert.True(changed.Accepted);
+        PreviewSessionResponse current = changed.Status!.Session;
+        BackendPreviewPinnedInput third = Input(factory, "source-3");
+        BackendPreviewSessionResult blocked = fixture.Registry.Update("client", current.PreviewId, current.Source.SourceRevision,
+            new(current.PreviewGeneration, third.Source, new(1, 1), PreviewAlphaMode.Opaque), third);
+        Assert.Equal(BackendErrorCode.InternalError, blocked.Error?.Code);
+        Assert.Equal(current.PreviewGeneration, fixture.Registry.Read("client", current.PreviewId).Status!.Session.PreviewGeneration);
+        Assert.Equal(0, currentLease.Disposed);
+        BackendPreviewSessionResult retried = fixture.Registry.Update("client", current.PreviewId, current.Source.SourceRevision,
+            new(current.PreviewGeneration, third.Source, new(1, 1), PreviewAlphaMode.Opaque), third);
+        Assert.True(retried.Accepted);
+        Assert.Equal(3, old.Disposed);
+        Assert.Equal(1, currentLease.Disposed);
+    }
+
+    [Fact]
+    public async Task 关闭排水失败保留输入和closing并允许同代重试()
+    {
+        await using Fixture fixture = new();
+        Factory factory = new() { FailFirstDispose = true };
+        CountingLease lease = new();
+        PreviewSessionResponse session = fixture.Create(Input(factory) with { RetentionLease = lease });
+        Assert.True(fixture.Request(session, 1, 1).Accepted);
+        Call call = await factory.Next();
+        call.Release.SetResult();
+        await fixture.Wait(session.PreviewId, status => status.Session.State == "ready");
+        BackendPreviewSessionResult failed = await fixture.Registry.CloseAsync("client", session.PreviewId,
+            session.PreviewGeneration, session.Source.SourceRevision);
+        Assert.Equal(BackendErrorCode.InternalError, failed.Error!.Code);
+        BackendPreviewSessionStatus retained = fixture.Registry.Read("client", session.PreviewId).Status!;
+        Assert.Equal("closing", retained.Session.State);
+        Assert.Equal(BackendErrorCode.InternalError, retained.Failure!.Code);
+        Assert.Equal(0, lease.Disposed);
+        Assert.Equal(1, fixture.Registry.Count);
+        BackendPreviewSessionResult closed = await fixture.Registry.CloseAsync("client", session.PreviewId,
+            session.PreviewGeneration, session.Source.SourceRevision);
+        Assert.Equal("closed", closed.Status!.Session.State);
+        Assert.Equal(2, factory.Disposed);
+        Assert.Equal(1, lease.Disposed);
+        Assert.Equal(0, fixture.Registry.Count);
     }
 
     [Fact]
@@ -649,6 +743,17 @@ public sealed class BackendPreviewSessionRegistryTests
     }
 
     private sealed record Call(RenderRequest Request, TaskCompletionSource Release, CancellationToken Token);
+    private sealed class CountingLease : IDisposable
+    {
+        internal int Disposed;
+        internal bool FailFirst;
+        internal int FailCount;
+        public void Dispose()
+        {
+            int attempt = Interlocked.Increment(ref Disposed);
+            if (attempt <= FailCount || attempt == 1 && FailFirst) throw new IOException("retention failure");
+        }
+    }
     private sealed class Factory(bool ignoreCancellation = false) : IRenderFrameSessionFactory
     {
         internal readonly Channel<Call> Calls = Channel.CreateUnbounded<Call>();
@@ -657,6 +762,7 @@ public sealed class BackendPreviewSessionRegistryTests
         internal int Disposed;
         internal int DiagnosticCount;
         internal bool Error;
+        internal bool FailFirstDispose;
         internal ImmutableArray<RenderImageEffectDiagnostic> Image = [];
         internal ImmutableArray<RenderMaterialDiagnostic> Material = [];
 
@@ -685,7 +791,8 @@ public sealed class BackendPreviewSessionRegistryTests
 
             public ValueTask DisposeAsync()
             {
-                Interlocked.Increment(ref owner.Disposed);
+                if (Interlocked.Increment(ref owner.Disposed) == 1 && owner.FailFirstDispose)
+                    throw new InvalidOperationException("controlled drain failure");
                 return ValueTask.CompletedTask;
             }
         }

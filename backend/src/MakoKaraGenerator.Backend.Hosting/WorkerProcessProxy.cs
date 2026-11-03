@@ -11,6 +11,9 @@ using MakoKaraGenerator.Scripting.Compilation;
 
 namespace MakoKaraGenerator.Backend.Hosting;
 
+internal sealed class WorkerCooperativeCancellationException(CancellationToken token) : OperationCanceledException(token);
+internal sealed class WorkerInvocationNotStartedException(CancellationToken token) : OperationCanceledException(token);
+
 /// <summary>启动 Worker 时使用的参数。每个参数通过 <see cref="ProcessStartInfo.ArgumentList"/> 传递。</summary>
 public sealed record WorkerProcessOptions
 {
@@ -484,12 +487,23 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
         string expectedProcessFailureMessage = "测量Worker实际进程代次已改变。")
     {
         if (timeout <= TimeSpan.Zero || timeout > TimeSpan.FromMinutes(1)) throw new ArgumentOutOfRangeException(nameof(timeout));
-        using CancellationTokenSource deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        deadline.CancelAfter(timeout);
-        return await InvokeMessageAsync(request, deadline.Token, validateResponse, expectedKind,
-            requirePackageRuntimeGuards: requirePackageRuntimeGuards, expectedProcess: expectedProcess,
-            expectedProcessFailureCode: expectedProcessFailureCode,
-            expectedProcessFailureMessage: expectedProcessFailureMessage).ConfigureAwait(false);
+        using CancellationTokenSource timeoutSource = new(timeout);
+        using CancellationTokenSource deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutSource.Token);
+        try
+        {
+            return await InvokeMessageAsync(request, deadline.Token, validateResponse, expectedKind,
+                requirePackageRuntimeGuards: requirePackageRuntimeGuards, expectedProcess: expectedProcess,
+                expectedProcessFailureCode: expectedProcessFailureCode,
+                expectedProcessFailureMessage: expectedProcessFailureMessage).ConfigureAwait(false);
+        }
+        catch (WorkerCooperativeCancellationException) when (timeoutSource.IsCancellationRequested)
+        {
+            throw new OperationCanceledException(deadline.Token);
+        }
+        catch (WorkerInvocationNotStartedException) when (timeoutSource.IsCancellationRequested)
+        {
+            throw new OperationCanceledException(deadline.Token);
+        }
     }
 
     private static void ValidateEmptyPackageSessionResult(WorkerMessage response)
@@ -658,13 +672,16 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
         string expectedProcessFailureMessage = "测量Worker实际进程代次已改变。")
     {
         WorkerProtocol.Validate(request);
-        await _callGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try { await _callGate.WaitAsync(cancellationToken).ConfigureAwait(false); }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        { throw new WorkerInvocationNotStartedException(cancellationToken); }
         using CancellationTokenSource callCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         lock (_lifecycleGate) { _activeCallCancellation = callCancellation; }
         cancellationToken = callCancellation.Token;
         Task<WorkerMessage>? read = null;
         Process? invocationProcess = null;
         Stream? invocationOutput = null;
+        bool writeStarted = false;
         try
         {
             Process? verifiedPackageProcess = VerifiedPackageProcess(request.Kind);
@@ -695,11 +712,18 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
                         throw new WorkerProtocolException("包 Worker 实际进程代次已改变或没有已验证会话。", "WorkerPackageUnavailable");
                     invocationProcess = _process;
                     invocationOutput = _output;
+                    cancellationToken.ThrowIfCancellationRequested();
+                    writeStarted = true;
                     await WriteAsync(request, cancellationToken).ConfigureAwait(false);
                 }
                 finally { _lifecycleGate.Release(); }
             }
-            else await WriteAsync(request, cancellationToken).ConfigureAwait(false);
+            else
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                writeStarted = true;
+                await WriteAsync(request, cancellationToken).ConfigureAwait(false);
+            }
             read = requirePackageRuntimeGuards || expectedProcess is not null
                 ? ReadRequiredFromStreamAsync(invocationOutput!, CancellationToken.None)
                 : ReadRequiredAsync(CancellationToken.None);
@@ -741,6 +765,12 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
             if (response.Kind != expectedKind) throw new WorkerProtocolException("Worker 回执 kind 不匹配。");
             if (!string.Equals(response.InputSha256, request.InputSha256, StringComparison.OrdinalIgnoreCase))
                 throw new WorkerProtocolException("Worker 回执 inputSha256 不匹配。");
+            if (response.Cancelled && (requirePackageRuntimeGuards && request.Kind == PackageRenderWorkerContract.RenderKind
+                || request.Kind == StaticRenderWorkerContract.RenderKind))
+            {
+                if (request.Kind == StaticRenderWorkerContract.RenderKind) ValidateStaticCancellation(response, cancellationWon, cancellationToken);
+                throw new WorkerCooperativeCancellationException(cancellationToken);
+            }
             if (cancellationWon || response.Cancelled) throw new OperationCanceledException(cancellationToken);
             validateResponse?.Invoke(response);
             if (requirePackageRuntimeGuards)
@@ -765,6 +795,10 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
                 finally { _lifecycleGate.Release(); }
             }
             return response;
+        }
+        catch (OperationCanceledException) when (!writeStarted && cancellationToken.IsCancellationRequested)
+        {
+            throw new WorkerInvocationNotStartedException(cancellationToken);
         }
         catch (OperationCanceledException) when (read is { IsCompletedSuccessfully: true })
         {
@@ -795,6 +829,21 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
                 catch (Exception error) when (error is IOException or WorkerProtocolException or ObjectDisposedException) { }
             }
         }
+    }
+
+    private static void ValidateStaticCancellation(WorkerMessage response, bool cancellationWon, CancellationToken token)
+    {
+        if ((!cancellationWon && !token.IsCancellationRequested) || response.Payload.Length != 0 || response.OutputSha256 is not null
+            || response.Error is not null || response.ErrorCode is not null || response.Diagnostics is not null
+            || response.FrameWidth is not null || response.FrameHeight is not null || response.FrameStride is not null
+            || response.FrameTimeUs is not null || response.FrameFormat is not null || response.FrameTransparentBackground is not null
+            || response.FrameQuality is not null || response.TaskId is not null || response.ValidationFramesPerOutput is not null
+            || response.ProgressSequence is not null || response.ValidationProgress is not null || response.ExportFormat is not null
+            || response.ExportIncludeAudio is not null || response.ExportProgress is not null || response.ProcessGroupId is not null
+            || response.MediaFileSizeLimitBytes is not null || response.ExportDiagnostics is not null
+            || response.ExportDiagnosticsFailureCode is not null || response.AnalysisProgress is not null
+            || response.PackageDiagnostics is not null || response.DelayMilliseconds != 0)
+            throw new WorkerProtocolException("静态 Worker 取消回执含未协商字段或未请求取消。");
     }
 
     private async Task<WorkerMessage> ReadRequiredAsync(CancellationToken cancellationToken)

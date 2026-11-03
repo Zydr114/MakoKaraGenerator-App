@@ -168,15 +168,15 @@ public sealed partial class PreviewTransportTests
         PreviewSessionStateResponse seekReady = await f.WaitReady(resized.PreviewId);
         Assert.Equal(seek.PreviewGeneration, seekReady.Session.PreviewGeneration);
         Assert.Equal("4", seekReady.Session.LatestFrame!.RequestSeq);
-        await WaitUntil(() => package.Created == 3 && package.Disposed >= 2);
-        Assert.Equal(3, package.Created);
+        Assert.Equal(2, package.Created);
+        Assert.Equal(1, package.Disposed);
 
         using HttpResponseMessage close = await f.Http.PostAsJsonAsync(
             $"/api/v1/preview-sessions/{resized.PreviewId}/close",
             new ClosePreviewSessionRequest(seekReady.Session.PreviewGeneration,
                 seekReady.Session.Source.SourceRevision, f.Metadata()), Json);
         Assert.Equal(HttpStatusCode.OK, close.StatusCode);
-        await WaitUntil(() => package.Disposed == 3);
+        await WaitUntil(() => package.Disposed == 2);
         using HttpResponseMessage closedFrame = await f.Http.GetAsync(
             seekReady.Session.LatestFrame!.Content.ContentUrl);
         Assert.Equal(HttpStatusCode.NotFound, closedFrame.StatusCode);

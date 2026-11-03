@@ -103,7 +103,7 @@ sequenceDiagram
 | `MutateAsync` | `_membership` 串行化服务成员变化，拒绝 stopping／过期或休眠 client；不在此闸门内执行整段逐帧渲染 | 同上 L105–115 |
 | `CaptureAsync` | owner 工程／精确修订→snapshot＋ReferencedFactory；codec 预检查 profile／快照预算后移交资源 reference | 同上 L118–149 |
 | `BackendPreviewSessionRegistry.Create` | 固定来源、目标和 alpha；创建一 preview entry／coordinator，激活 frame 与诊断 store。默认总会话 32、每 client 4 | [Registry](../../src/MakoKaraGenerator.Backend.Hosting/BackendPreviewSessionRegistry.cs) L22–28、L102–123 |
-| `RequestFrame` | timeUs／requestSeq 用规范十进制字符串传输，转非负 long／正 long；序号必须大于已接受序号，time 不超过固定 composition 时长。playback 禁止回退；seek 原子换代次并 invalidate | 同上 L161–213 |
+| `RequestFrame` | timeUs／requestSeq 用规范十进制字符串传输，转非负 long／正 long；序号必须大于已接受序号，time 不超过固定 composition 时长。playback 禁止回退；seek 原子换代次并撤销旧帧，同固定输入可复用执行会话 | 同上 L161–213 |
 | `Update`／`Reset` | 明确新 snapshot／size／alpha，服务分配新 generation，撤销旧帧／诊断并取消旧会话；不靠修改播放头复活旧输入 | 同上 L133–158、L459–476 |
 
 认证在全局路由中间件完成：loopback／Host／Origin allowlist、`X-Mako-Client-Id` 与 Bearer、可选当前 Host identity。frameId 和 content URL 本身不是访问凭证；没有认证的 `<img src>` 也不因此获得读取权。[ServerEndpoints](../../src/MakoKaraGenerator.Backend.Server/ServerEndpoints.cs) L14–58、L85–87。
@@ -124,7 +124,7 @@ HTTP generation 与 private Worker frame sequence 是两种序号。registry 的
 
 ### 3.3 Worker IPC 与真实 Runtime
 
-`WorkerRenderFrameSessionFactory.CreateAsync` 重新编码受限快照，创建一个 `WorkerProcessProxy`，发送 open 并返回持久 `Session`。第一次 frame 请求才需要该 open；后续相同输入 playback 不每帧重发整个工程。`Session.RenderAsync` 强制 request.Project 与固定 snapshot 同引用，拒绝 LayoutLineId／PreparedFrame；连接调用、request 与 closing tokens，用 semaphore 串行发帧，收到完整验证的结果才包装 `RenderFrame`。[WorkerRenderFrameSessionFactory](../../src/MakoKaraGenerator.Backend.Hosting/WorkerRenderFrameSessionFactory.cs) L25–107。
+`WorkerRenderFrameSessionFactory.CreateAsync` 重新编码受限快照，创建一个 `WorkerProcessProxy`，发送 open 并返回持久 `Session`。第一次 frame 请求才需要该 open；后续相同固定输入的 playback／seek 不每帧重发整个工程。seek 取消在途渲染且收到匹配的协作取消回执时，在同一 Worker 关闭并重新打开 Runtime 会话；未获安全回执或协议失败则排水 Worker。`Session.RenderAsync` 强制 request.Project 与固定 snapshot 同引用，拒绝 LayoutLineId／PreparedFrame；连接调用、request 与 closing tokens，用 semaphore 串行发帧，收到完整验证的结果才包装 `RenderFrame`。[WorkerRenderFrameSessionFactory](../../src/MakoKaraGenerator.Backend.Hosting/WorkerRenderFrameSessionFactory.cs)。
 
 | private IPC 数据 | 固定内容／预算 | 位置 |
 | --- | --- | --- |
@@ -286,7 +286,7 @@ App `PreviewFrameCoordinator` 是独立实现，不使用 Backend coordinator，
 | --- | --- | --- |
 | 每张 HTTP preview 的多次复制／base64／hash | Runtime→Worker `ToArray`、JSON/base64、Host `BackendPreviewFrame.ToArray`、PNG native copy／独立 encoded bytes、store copy；IPC 和 PNG 还各自做完整性 SHA。这些是进程／租约所有权边界，不能直接删除 | 分解 cold／warm render、IPC encode/decode、PNG encode、store／HTTP时间与分配；保持 byteexact／取消／租约边界 |
 | PNG encoder 全局串行 | Server 单例 `SkiaBackendPreviewPngEncoder._gate`，各 preview coordinator 在锁外编码，但共享 native scratch gate | 多 previews 下 gate wait 与编码占比；未测前不称所有预览被渲染锁串行 |
-| seek 触发新 Worker／Runtime 会话 | HTTP seek 换 generation→Invalidate 释放 session，下次 frame 重新 Create/open；正常 playback 可复用 | seek 频率、Worker启动/open时间与静态session状态隔离需求；不能拿正式export帧循环推断同样成本 |
+| seek 与 Runtime 会话 | HTTP seek 换 generation，同固定输入可复用 Worker；在途请求获协作取消回执后需重新 open Runtime 会话，异常路径仍会排水 Worker | seek 频率、Runtime 重建与异常排水成本须分别测量；不能拿正式export帧循环推断同样成本 |
 | 嵌套 Task.Run／串行 gate | preview coordinator runner＋Runtime factory／每帧 `Task.Run`；多层 gate分别保护 preview、IPC、Runtime/native | 调度次数、上下文切换及各 gate wait；辨清安全保护后评估，不能猜它们是同一锁 |
 | App／Backend 两套 preview coordinator | latest slot、cancel、失败缓存、stale result、dispose的规则分别实现，App还传完整编译／image／material诊断，Backend还管generation／transport | 对称契约清单与差异测试；不应机械统一而丢掉一侧产品语义 |
 | 文档注释可能保留旧能力口径 | 例如 `WorkerRenderFrameSessionFactory` L10 remarks仍说分析拒绝，而实际 L30自动选择分析profile；App Exporter注释提UI线程旧pipeline，实际带session factory | 以后单独文档／注释修正；本轮以真实调用与codec为准，不改生产源 |

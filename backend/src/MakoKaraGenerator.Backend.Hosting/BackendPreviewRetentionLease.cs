@@ -7,13 +7,13 @@ internal sealed class BackendPreviewRetentionLease : IDisposable
     {
         private readonly object _gate = new();
         private int _references;
-        private bool _released;
+        private bool _releaseStarted;
 
         internal BackendPreviewRetentionLease Acquire()
         {
             lock (_gate)
             {
-                ObjectDisposedException.ThrowIf(_released, this);
+                ObjectDisposedException.ThrowIf(_releaseStarted, this);
                 _references++;
                 return new(this);
             }
@@ -23,21 +23,34 @@ internal sealed class BackendPreviewRetentionLease : IDisposable
         {
             lock (_gate)
             {
-                if (--_references != 0) return;
-                _released = true;
+                if (_references > 1) { _references--; return; }
+                // 清理可能已部分执行；失败后保留最后引用重试，但不能再借出输入。
+                _releaseStarted = true;
+                resource?.Dispose();
+                _references = 0;
             }
-            resource?.Dispose();
         }
     }
 
     private SharedState? _state;
+    private readonly object _disposeGate = new();
     private BackendPreviewRetentionLease(SharedState state) => _state = state;
 
     internal static IDisposable Own(IDisposable? resource) => resource is BackendPreviewRetentionLease
         ? resource : new SharedState(resource).Acquire();
 
-    internal BackendPreviewRetentionLease AcquireReference() =>
-        (_state ?? throw new ObjectDisposedException(nameof(BackendPreviewRetentionLease))).Acquire();
+    internal BackendPreviewRetentionLease AcquireReference()
+    {
+        lock (_disposeGate)
+            return (_state ?? throw new ObjectDisposedException(nameof(BackendPreviewRetentionLease))).Acquire();
+    }
 
-    public void Dispose() => Interlocked.Exchange(ref _state, null)?.Release();
+    public void Dispose()
+    {
+        lock (_disposeGate)
+        {
+            _state?.Release();
+            _state = null;
+        }
+    }
 }

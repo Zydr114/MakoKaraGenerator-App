@@ -80,11 +80,16 @@ public sealed class WorkerRenderFrameSessionFactory : IRenderFrameSessionFactory
         {
             StaticWorkerSessionHandle handle = await proxy.OpenStaticSessionAsync(bytes, _timeout, token).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
-            return new Session(snapshot, proxy, handle, _timeout);
+            return new Session(snapshot, proxy, handle, _timeout, bytes);
         }
         catch (Exception error)
         {
-            await proxy.DisposeAsync().ConfigureAwait(false);
+            try { await proxy.DisposeAsync().ConfigureAwait(false); }
+            catch (Exception cleanup)
+            {
+                error.Data["WorkerCleanupFailure"] = cleanup;
+                BackendPreviewFailedCreation.Attach(error, BackendPreviewFailedCreation.Worker(proxy));
+            }
             if (error is WorkerProtocolException failure)
                 throw new RenderSessionFailureException(failure.Code, failure.Message,
                     failure.Diagnostics is null ? null : DecodeDiagnostics(failure.Diagnostics), failure);
@@ -97,13 +102,15 @@ public sealed class WorkerRenderFrameSessionFactory : IRenderFrameSessionFactory
     }
 
     private sealed class Session(ProjectSnapshot snapshot, WorkerProcessProxy proxy, StaticWorkerSessionHandle handle,
-        TimeSpan timeout) : IRenderFrameSession
+        TimeSpan timeout, byte[] bytes) : IRenderFrameSession, IBackendPreviewCancellationRecoverable
     {
+        public bool CanReuseAfterCancellation => !_failed && !_disposed;
         private readonly SemaphoreSlim _gate = new(1, 1);
         private readonly CancellationTokenSource _closing = new();
         private Task? _disposeTask;
         private bool _disposed;
         private bool _failed;
+        private bool _resetPending;
         private long _sequence;
 
         public async ValueTask<RenderFrame> RenderAsync(RenderRequest request, CancellationToken cancellationToken = default)
@@ -121,12 +128,22 @@ public sealed class WorkerRenderFrameSessionFactory : IRenderFrameSessionFactory
             {
                 ObjectDisposedException.ThrowIf(_disposed, this);
                 if (_failed) throw new PreparedFrameException("WorkerSessionFailed", "Worker 会话已失败，请重新建立固定输入会话。");
-                var input = new StaticWorkerFrameRequest(handle.SessionId, handle.SourceSha256, target.PixelWidth,
-                    target.PixelHeight, request.TimeUs, request.TransparentBackground, checked(++_sequence), (int)request.Quality);
                 // Rejected user geometry never invalidates or starts native rendering.
-                StaticRenderWorkerContract.ValidateFrameRequest(input);
+                StaticRenderWorkerContract.ValidateFrameRequest(new(handle.SessionId, handle.SourceSha256, target.PixelWidth,
+                    target.PixelHeight, request.TimeUs, request.TransparentBackground, checked(_sequence + 1), (int)request.Quality));
+                linked.Token.ThrowIfCancellationRequested();
                 try
                 {
+                    if (_resetPending)
+                    {
+                        await proxy.CloseStaticSessionAsync(handle, checked(++_sequence), timeout, CancellationToken.None).ConfigureAwait(false);
+                        handle = await proxy.OpenStaticSessionAsync(bytes, timeout, CancellationToken.None).ConfigureAwait(false);
+                        _sequence = 0;
+                        _resetPending = false;
+                    }
+                    if (linked.IsCancellationRequested) throw new WorkerInvocationNotStartedException(linked.Token);
+                    var input = new StaticWorkerFrameRequest(handle.SessionId, handle.SourceSha256, target.PixelWidth,
+                        target.PixelHeight, request.TimeUs, request.TransparentBackground, checked(++_sequence), (int)request.Quality);
                     WorkerMessage result = await proxy.RenderStaticSessionAsync(input, timeout, linked.Token).ConfigureAwait(false);
                     linked.Token.ThrowIfCancellationRequested();
                     RuntimeDiagnosticSnapshot diagnostics = DecodeDiagnostics(result.Diagnostics!);
@@ -135,10 +152,20 @@ public sealed class WorkerRenderFrameSessionFactory : IRenderFrameSessionFactory
                     return new(result.Payload, target, PixelFormat.Bgra8888Premultiplied, request.TimeUs)
                     { DiagnosticSnapshot = diagnostics };
                 }
+                catch (WorkerCooperativeCancellationException) when (linked.IsCancellationRequested && !_closing.IsCancellationRequested)
+                {
+                    _resetPending = true;
+                    throw;
+                }
+                catch (WorkerInvocationNotStartedException) when (linked.IsCancellationRequested && !_closing.IsCancellationRequested)
+                {
+                    throw;
+                }
                 catch (Exception error)
                 {
                     _failed = true;
-                    await proxy.StopAsync(CancellationToken.None).ConfigureAwait(false);
+                    try { await proxy.StopAsync(CancellationToken.None).ConfigureAwait(false); }
+                    catch (Exception cleanup) { error.Data["WorkerCleanupFailure"] = cleanup; }
                     if (error is WorkerProtocolException failure)
                         throw new RenderSessionFailureException(failure.Code, failure.Message,
                             failure.Diagnostics is null ? null : DecodeDiagnostics(failure.Diagnostics), failure);
@@ -154,7 +181,8 @@ public sealed class WorkerRenderFrameSessionFactory : IRenderFrameSessionFactory
             {
                 _disposed = true;
                 _closing.Cancel();
-                return new(_disposeTask ??= DisposeCoreAsync());
+                if (_disposeTask is null || _disposeTask.IsFaulted || _disposeTask.IsCanceled) _disposeTask = DisposeCoreAsync();
+                return new(_disposeTask);
             }
         }
 
@@ -164,12 +192,23 @@ public sealed class WorkerRenderFrameSessionFactory : IRenderFrameSessionFactory
             try
             {
                 _disposed = true;
+                Exception? primary = null;
                 try
                 {
                     if (!_failed)
+                    {
+                        _failed = true;
                         await proxy.CloseStaticSessionAsync(handle, checked(++_sequence), timeout).ConfigureAwait(false);
+                    }
                 }
-                finally { await proxy.DisposeAsync().ConfigureAwait(false); }
+                catch (Exception error) { primary = error; }
+                try { await proxy.DisposeAsync().ConfigureAwait(false); }
+                catch (Exception cleanup)
+                {
+                    if (primary is null) primary = cleanup;
+                    else primary.Data["WorkerCleanupFailure"] = cleanup;
+                }
+                if (primary is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(primary).Throw();
             }
             finally { _gate.Release(); }
             // Managed gates/tokens remain valid for already queued callers to observe closure.

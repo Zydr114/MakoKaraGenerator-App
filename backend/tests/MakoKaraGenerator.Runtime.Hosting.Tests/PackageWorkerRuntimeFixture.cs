@@ -30,14 +30,14 @@ internal static class PackageWorkerRuntimeFixture
     internal const string WarningCode = "PackageSnapshotActualWarning";
     internal const string WarningMessage = "真实作者警告：固定包源🎵";
 
-    internal static ProjectSnapshot Create(string kind)
+    internal static ProjectSnapshot Create(string kind, string? scaleSource = null)
     {
         EffectPackageContents package = kind switch
         {
             "graph" => MixedEffectPackageFixture.Contents(controllerSource: WithWarning(MixedEffectPackageFixture.Source)),
             "material" => MixedEffectPackageFixture.Contents(pure: true),
             "sprite" => SpritePackage(),
-            _ => ScalePackage(),
+            _ => ScalePackage(scaleSource),
         };
         var line = LyricLine.Create("row", "歌詞", new(0, 700_000), TimingStatus.Edited,
             [LyricToken.Create("token", "歌詞", new(0, 700_000), TimingStatus.Edited)]);
@@ -212,10 +212,10 @@ internal static class PackageWorkerRuntimeFixture
     private static string WithWarning(string source) => source.Replace("public override void Evaluate(FrameContext frame, FrameWriter output)\n    {",
         "public override void Evaluate(FrameContext frame, FrameWriter output)\n    {\n        frame.Diagnostics.Report(DiagnosticSeverity.Warning, \"" + WarningCode + "\", \"" + WarningMessage + "\");", StringComparison.Ordinal);
 
-    private static EffectPackageContents ScalePackage()
+    private static EffectPackageContents ScalePackage(string? source = null)
     {
         var files = EffectPackageFixture.Files();
-        files["src/PackEffect.cs"] = Encoding.UTF8.GetBytes(WithWarning(EffectPackageFixture.EffectSource));
+        files["src/PackEffect.cs"] = Encoding.UTF8.GetBytes(source ?? WithWarning(EffectPackageFixture.EffectSource));
         return EffectPackageContents.Create(EffectPackageFixture.Bytes(EffectPackageFixture.Manifest(files)), EffectPackageFixture.Inputs(files), EffectPackageFixture.Profile);
     }
 

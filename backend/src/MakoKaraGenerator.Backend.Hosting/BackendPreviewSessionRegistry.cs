@@ -69,6 +69,7 @@ public sealed class BackendPreviewSessionRegistry : IAsyncDisposable
         internal string ClientId { get; } = clientId;
         internal PreviewSessionResponse Session = session;
         internal BackendPreviewPinnedInput? Input = input;
+        internal List<IDisposable> PendingRetentions { get; } = [];
         internal BackendPreviewCoordinator Coordinator { get; } = new();
         internal ConditionalWeakTable<BackendPreviewRequest, PreviewFrameRequest> Requests { get; } = new();
         internal long LastAcceptedSequence;
@@ -258,6 +259,10 @@ public sealed class BackendPreviewSessionRegistry : IAsyncDisposable
     private BackendPreviewSessionResult CommitUpdate(Entry entry, PreviewSessionResponse next,
         BackendPreviewPinnedInput input, bool nextGeneration = true)
     {
+            // One failed old input may remain owned; do not accumulate another
+            // generation while its real cleanup is still failing.
+            try { DrainRetentions(entry); }
+            catch (Exception) { return Rejected(BackendErrorCode.InternalError, "旧预览输入租约仍未释放。"); }
             next = next with { PreviewGeneration = nextGeneration ? NextGeneration() : next.PreviewGeneration,
                 State = "idle", LatestFrame = null, LatestRequestSeq = null, DiagnosticsCursor = null };
             BackendErrorResponse? error = Activate(entry, next);
@@ -266,7 +271,8 @@ public sealed class BackendPreviewSessionRegistry : IAsyncDisposable
             Reset(entry, next);
             entry.Input = ShareInput(input);
             entry.Coordinator.Invalidate();
-            try { oldLease?.Dispose(); }
+            if (oldLease is not null) entry.PendingRetentions.Add(oldLease);
+            try { DrainRetentions(entry); }
             catch (Exception) { Fail(entry, new(BackendErrorCode.InternalError, "旧预览输入租约释放失败。")); }
             Notify(entry);
             return Success(entry);
@@ -274,6 +280,15 @@ public sealed class BackendPreviewSessionRegistry : IAsyncDisposable
 
     private static BackendPreviewPinnedInput ShareInput(BackendPreviewPinnedInput input) => input with
         { RetentionLease = BackendPreviewRetentionLease.Own(input.RetentionLease) };
+
+    private static void DrainRetentions(Entry entry)
+    {
+        while (entry.PendingRetentions.Count != 0)
+        {
+            entry.PendingRetentions[0].Dispose();
+            entry.PendingRetentions.RemoveAt(0);
+        }
+    }
 
     private static BackendPreviewPinnedInput AcquireInput(BackendPreviewPinnedInput input) => input with
         { RetentionLease = ((BackendPreviewRetentionLease)input.RetentionLease!).AcquireReference() };
@@ -307,7 +322,6 @@ public sealed class BackendPreviewSessionRegistry : IAsyncDisposable
                 error = Activate(current, next);
                 if (error is not null) return new(null, error);
                 Reset(current, next);
-                current.Coordinator.Invalidate();
             }
             current.LastAcceptedSequence = sequence;
             current.LastRequestedTime = time;
@@ -353,7 +367,9 @@ public sealed class BackendPreviewSessionRegistry : IAsyncDisposable
 
     private static async Task<BackendPreviewSessionResult> FinishCloseAsync(Entry entry, Task close, CancellationToken token)
     {
-        await close.WaitAsync(token).ConfigureAwait(false);
+        try { await close.WaitAsync(token).ConfigureAwait(false); }
+        catch (Exception) when (!token.IsCancellationRequested)
+        { return Rejected(BackendErrorCode.InternalError, "预览资源释放失败。"); }
         return new(new(entry.Session, entry.Failure, entry.RenderFailureCode), null);
     }
 
@@ -368,7 +384,7 @@ public sealed class BackendPreviewSessionRegistry : IAsyncDisposable
     {
         lock (_gate)
         {
-            if (_disposeTask is not null) return new(_disposeTask);
+            if (_disposeTask is not null && !_disposeTask.IsFaulted && !_disposeTask.IsCanceled) return new(_disposeTask);
             _stopping = true;
             _disposeTask = DisposeCoreAsync(Task.WhenAll(_sessions.Values.ToArray().Select(BeginClose)));
             return new(_disposeTask);
@@ -377,13 +393,10 @@ public sealed class BackendPreviewSessionRegistry : IAsyncDisposable
 
     private async Task DisposeCoreAsync(Task draining)
     {
-        try { await draining.ConfigureAwait(false); }
-        finally
-        {
-            _notifications.Writer.TryComplete();
-            await _notificationPump.ConfigureAwait(false);
-            Updated = null;
-        }
+        await draining.ConfigureAwait(false);
+        _notifications.Writer.TryComplete();
+        await _notificationPump.ConfigureAwait(false);
+        Updated = null;
     }
 
     private async Task PumpNotificationsAsync()
@@ -404,7 +417,7 @@ public sealed class BackendPreviewSessionRegistry : IAsyncDisposable
 
     private Task BeginClose(Entry entry)
     {
-        if (entry.Closing is not null) return entry.Closing;
+        if (entry.Closing is not null && !entry.Closing.IsFaulted && !entry.Closing.IsCanceled) return entry.Closing;
         entry.Session = entry.Session with { State = "closing", LatestFrame = null, DiagnosticsCursor = null };
         Notify(entry);
         _frames.Close(entry.ClientId, entry.Session.PreviewId);
@@ -415,23 +428,32 @@ public sealed class BackendPreviewSessionRegistry : IAsyncDisposable
 
     private async Task CloseCoreAsync(Entry entry)
     {
-        try { await entry.Coordinator.DisposeAsync().ConfigureAwait(false); }
-        catch (Exception)
+        try
         {
-            lock (_gate) entry.Failure = new(BackendErrorCode.InternalError, "预览资源释放失败。");
+            await entry.Coordinator.DisposeAsync().ConfigureAwait(false);
+            lock (_gate)
+            {
+                DrainRetentions(entry);
+                entry.Input?.RetentionLease?.Dispose();
+            }
         }
-        finally
+        catch (Exception)
         {
             lock (_gate)
             {
-                entry.Session = entry.Session with { State = "closed" };
-                try { entry.Input?.RetentionLease?.Dispose(); }
-                catch (Exception) { entry.Failure = new(BackendErrorCode.InternalError, "预览固定输入租约释放失败。"); }
-                entry.Input = null;
-                entry.Requests.Clear();
-                _sessions.Remove(entry.Session.PreviewId);
+                entry.Failure = new(BackendErrorCode.InternalError, "预览资源释放失败。");
                 Notify(entry);
             }
+            throw;
+        }
+        lock (_gate)
+        {
+            entry.Session = entry.Session with { State = "closed" };
+            entry.Failure = null;
+            entry.Input = null;
+            entry.Requests.Clear();
+            _sessions.Remove(entry.Session.PreviewId);
+            Notify(entry);
         }
     }
 

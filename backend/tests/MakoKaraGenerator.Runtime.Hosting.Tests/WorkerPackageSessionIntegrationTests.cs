@@ -14,6 +14,127 @@ namespace MakoKaraGenerator.Runtime.Hosting.Tests;
 
 public sealed class WorkerPackageSessionIntegrationTests(ITestOutputHelper output)
 {
+    [Fact]
+    public async Task 真实包会话活动取消后同Worker自动重建并交付正确新帧()
+    {
+        PackageWorkerRuntimeFixture.AssertFixedFont();
+        using TemporaryDirectory barrier = new();
+        string marker = barrier.FilePath("entered"), release = barrier.FilePath("release");
+        ProjectSnapshot basis = PackageWorkerRuntimeFixture.Create("scale", BarrierSource(marker, release));
+        ProjectSnapshot source = PackageWorkerRuntimeFixture.Fingerprint(basis with
+        { Composition = basis.Composition with { OutputDurationUs = 180_000_000 } });
+        var factory = new WorkerPackageRenderFrameSessionFactory(new(PackageWorkerRuntimeFixture.WorkerApphost(),
+            cancellationGracePeriod: TimeSpan.FromSeconds(5)) { ScriptCompilationService = new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")) }, TimeSpan.FromSeconds(30));
+        await using IRenderFrameSession session = await factory.CreateAsync(source);
+        var proxy = (WorkerProcessProxy)session.GetType().GetFields(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+            .Single(field => field.FieldType == typeof(WorkerProcessProxy)).GetValue(session)!;
+        int pid = Assert.IsType<int>(proxy.ProcessId);
+        using CancellationTokenSource cancel = new();
+        Task<RenderFrame> pending = session.RenderAsync(Request(source, 179_000_000), cancel.Token).AsTask();
+        OperationCanceledException cancelled;
+        try { await WaitForMarker(marker, pending); cancel.Cancel(); cancelled = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending); }
+        finally { File.WriteAllText(release, "release"); }
+        Assert.Equal("WorkerCooperativeCancellationException", cancelled.GetType().Name);
+        Assert.Equal(pid, proxy.ProcessId);
+        using RenderFrame actual = await session.RenderAsync(Request(source, 100_000));
+        using TemporaryDirectory temp = new();
+        using FfmpegVideoFrameProvider videos = new();
+        var runtime = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
+            temp.FilePath("cache")), videos, ReplayReason.Initial);
+        await using IRenderFrameSession expected = await runtime.CreateAsync(source);
+        using RenderFrame reference = await expected.RenderAsync(Request(source, 100_000));
+        Assert.Equal(reference.PixelMemory.ToArray(), actual.PixelMemory.ToArray());
+        Assert.Equal(pid, proxy.ProcessId);
+        await session.DisposeAsync();
+        Assert.Null(proxy.ProcessId);
+    }
+
+    [Fact]
+    public async Task 真实包Worker软取消后同进程重建会话且恢复帧与新Runtime一致()
+    {
+        PackageWorkerRuntimeFixture.AssertFixedFont();
+        using TemporaryDirectory barrier = new();
+        string marker = barrier.FilePath("entered"), release = barrier.FilePath("release");
+        ProjectSnapshot basis = PackageWorkerRuntimeFixture.Create("scale", BarrierSource(marker, release));
+        ProjectSnapshot source = PackageWorkerRuntimeFixture.Fingerprint(basis with
+        { Composition = basis.Composition with { OutputDurationUs = 180_000_000 } });
+        using TemporaryDirectory temp = new();
+        using FfmpegVideoFrameProvider videos = new();
+        var direct = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
+            temp.FilePath("cache")), videos, ReplayReason.Initial);
+        await using IRenderFrameSession expected = await direct.CreateAsync(source);
+        await using WorkerProcessProxy proxy = new(new(PackageWorkerRuntimeFixture.WorkerApphost(), cancellationGracePeriod: TimeSpan.FromSeconds(5))
+            { ScriptCompilationService = new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")) });
+        byte[] bytes = PackageProjectSnapshotCodec.Encode(source);
+        StaticWorkerSessionHandle old = await proxy.OpenPackageSessionAsync(bytes, TimeSpan.FromSeconds(30));
+        int pid = Assert.IsType<int>(proxy.ProcessId);
+        using CancellationTokenSource cancel = new();
+        Task<WorkerMessage> inFlight = proxy.RenderPackageSessionAsync(new(old.SessionId, old.SourceSha256,
+            320, 180, 179_000_000, false, 1), TimeSpan.FromSeconds(30), cancel.Token);
+        OperationCanceledException cancelled;
+        try { await WaitForMarker(marker, inFlight); cancel.Cancel(); cancelled = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => inFlight); }
+        finally { File.WriteAllText(release, "release"); }
+        Assert.Equal("WorkerCooperativeCancellationException", cancelled.GetType().Name);
+        Assert.Equal(pid, proxy.ProcessId);
+        await proxy.ClosePackageSessionAsync(old, 2, TimeSpan.FromSeconds(20));
+        StaticWorkerSessionHandle fresh = await proxy.OpenPackageSessionAsync(bytes, TimeSpan.FromSeconds(30));
+        Assert.Equal(pid, proxy.ProcessId);
+        Assert.NotEqual(old.SessionId, fresh.SessionId);
+        WorkerMessage actual = await proxy.RenderPackageSessionAsync(new(fresh.SessionId, fresh.SourceSha256,
+            320, 180, 100_000, false, 1), TimeSpan.FromSeconds(20));
+        using RenderFrame reference = await expected.RenderAsync(Request(source, 100_000));
+        Assert.Equal(reference.PixelMemory.ToArray(), actual.Payload);
+        Assert.Equal(100_000L, actual.FrameTimeUs);
+        await proxy.ClosePackageSessionAsync(fresh, 2, TimeSpan.FromSeconds(20));
+        List<long> residentBytes = [];
+        for (int cycle = 0; cycle < 8; cycle++)
+        {
+            StaticWorkerSessionHandle reopened = await proxy.OpenPackageSessionAsync(bytes, TimeSpan.FromSeconds(30));
+            Assert.Equal(pid, proxy.ProcessId);
+            WorkerMessage frame = await proxy.RenderPackageSessionAsync(new(reopened.SessionId, reopened.SourceSha256,
+                320, 180, 100_000, false, 1), TimeSpan.FromSeconds(20));
+            Assert.Equal(reference.PixelMemory.ToArray(), frame.Payload);
+            await proxy.ClosePackageSessionAsync(reopened, 2, TimeSpan.FromSeconds(20));
+            using var process = System.Diagnostics.Process.GetProcessById(pid);
+            residentBytes.Add(process.WorkingSet64);
+        }
+        using (var process = System.Diagnostics.Process.GetProcessById(pid))
+            output.WriteLine($"Worker PID={pid}; start={process.StartTime.ToUniversalTime():O}; source={old.SourceSha256}; working-set bytes after successive session close: {string.Join(", ", residentBytes)}");
+        await proxy.StopAsync();
+        Assert.Null(proxy.ProcessId);
+    }
+
+    private static string BarrierSource(string marker, string release) => $$"""
+        using System.IO;
+        using MakoKaraGenerator.Scripting;
+        public sealed class PackEffect : EffectBase
+        {
+            public override void Evaluate(FrameContext frame, FrameWriter output)
+            {
+                if (!File.Exists({{System.Text.Json.JsonSerializer.Serialize(release)}}))
+                {
+                    File.WriteAllText({{System.Text.Json.JsonSerializer.Serialize(marker)}}, "entered");
+                    if (!frame.CancellationToken.WaitHandle.WaitOne(System.TimeSpan.FromSeconds(15)))
+                        throw new System.TimeoutException("script cancellation barrier timed out");
+                    frame.CancellationToken.ThrowIfCancellationRequested();
+                }
+                foreach (var token in frame.Presentations.TokensInBinding)
+                    output.Transforms.ScaleTokenFamily(token.WithRuby, frame.Parameters.GetNumber("peak"), Pivot.BaseAdvanceCenter);
+            }
+        }
+        """;
+
+    private static async Task WaitForMarker(string marker, Task pending)
+    {
+        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(20));
+        while (!File.Exists(marker))
+        {
+            if (pending.IsCompleted) throw new InvalidOperationException("Worker 渲染在脚本 barrier 前结束。", pending.Exception);
+            await Task.Delay(10, timeout.Token);
+        }
+        Assert.False(pending.IsCompleted);
+    }
+
     [Theory]
     [InlineData("compile")]
     [InlineData("compile-source")]

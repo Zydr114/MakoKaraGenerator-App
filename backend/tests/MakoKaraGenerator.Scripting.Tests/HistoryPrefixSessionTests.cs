@@ -3,6 +3,9 @@ using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Rendering;
 using MakoKaraGenerator.Scripting.Compilation;
 using MakoKaraGenerator.Scripting.Execution;
+using MakoKaraGenerator.Scripting.Loading;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 
 namespace MakoKaraGenerator.Scripting.Tests;
 
@@ -88,5 +91,41 @@ public sealed class HistoryPrefixSessionTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await session.PrepareAsync(80_001, OutputMode.Opaque, target, cancellation.Token));
         var rebuilt = await session.PrepareAsync(80_001, OutputMode.Opaque, target);
         Assert.Equal("2:2:1:Seek", Summary(rebuilt)); Assert.Equal("2:2:1:Initial", Summary(old));
+    }
+
+    [Fact]
+    public async Task 取消重放与会话释放后的脚本加载代次可以回收()
+    {
+        WeakReference[] generations = await CaptureCancelledGenerationsAsync();
+        for (int i = 0; i < 12 && generations.Any(item => item.IsAlive); i++)
+        { GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect(); }
+        Assert.All(generations, item => Assert.False(item.IsAlive));
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static async Task<WeakReference[]> CaptureCancelledGenerationsAsync()
+    {
+        using CancellationTokenSource cancel = new();
+        bool stopOnce = true;
+        var factory = await Factory(() => new Geometry(time => { if (time > 10_000 && stopOnce) { stopOnce = false; cancel.Cancel(); } }));
+        var snapshot = Snapshot(); var target = RenderTarget.FromComposition(snapshot.Composition);
+        await using var session = await factory.CreateAsync(snapshot);
+        WeakReference old = ModuleReference(session);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await session.PrepareAsync(80_001, OutputMode.Opaque, target, cancel.Token));
+        await session.PrepareAsync(80_001, OutputMode.Opaque, target);
+        WeakReference recovered = ModuleReference(session);
+        Assert.NotSame(old.Target, recovered.Target);
+        return [old, recovered];
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static WeakReference ModuleReference(IEvaluatedFrameSource session)
+    {
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        object host = session.GetType().GetFields(flags).Single(field => field.FieldType.Name == "FrameEffectHost").GetValue(session)!;
+        var effects = (System.Collections.IEnumerable)host.GetType().GetField("_instances", flags)!.GetValue(host)!;
+        object effect = Assert.Single(effects.Cast<object>());
+        var module = (ScriptModule)effect.GetType().GetProperty("Module")!.GetValue(effect)!;
+        return module.UnloadReference;
     }
 }

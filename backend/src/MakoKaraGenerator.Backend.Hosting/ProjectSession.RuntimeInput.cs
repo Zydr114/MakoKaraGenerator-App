@@ -13,6 +13,7 @@ public sealed class BackendPreparedProjectRuntimeInput : IDisposable
 {
     private readonly SharedState _state;
     private IDisposable? _reference;
+    private readonly object _disposeGate = new();
     internal BackendPreparedProjectRuntimeInput(ProjectSnapshot snapshot, byte[] bytes, ProjectRuntimeBackgroundGrant? grant, string? directory)
     { Snapshot = snapshot; SourceBytes = bytes; Grant = grant; _state = new(directory); _reference = _state.Acquire(); }
     /// <summary>Host固定工程源对象。</summary>
@@ -26,36 +27,60 @@ public sealed class BackendPreparedProjectRuntimeInput : IDisposable
     /// <summary>调用者须在持有现有引用或注册表闸门时取得独立所有权。</summary>
     public IDisposable AcquireReference() => _state.Acquire();
     /// <summary>归还当前独立引用。</summary>
-    public void Dispose() => Interlocked.Exchange(ref _reference, null)?.Dispose();
+    public void Dispose()
+    {
+        lock (_disposeGate)
+        {
+            _reference?.Dispose();
+            _reference = null;
+        }
+    }
 
     internal static void DeletePreparedDirectory(string directory)
     {
-        if (!OperatingSystem.IsWindows())
-            foreach (string folder in Directory.EnumerateDirectories(directory, "*", SearchOption.AllDirectories).Prepend(directory))
-                File.SetUnixFileMode(folder, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
-        Directory.Delete(directory, true);
+        try
+        {
+            if (!OperatingSystem.IsWindows())
+                foreach (string folder in Directory.EnumerateDirectories(directory, "*", SearchOption.AllDirectories).Prepend(directory))
+                    File.SetUnixFileMode(folder, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            Directory.Delete(directory, true);
+        }
+        catch (DirectoryNotFoundException) when (!Directory.Exists(directory) && !File.Exists(directory)) { }
     }
 
     private sealed class SharedState(string? directory)
     {
         private readonly object _gate = new();
         private int _references;
-        private bool _released;
+        private bool _releaseStarted;
         internal IDisposable Acquire()
         {
-            lock (_gate) { ObjectDisposedException.ThrowIf(_released, this); _references++; return new Reference(this); }
+            lock (_gate) { ObjectDisposedException.ThrowIf(_releaseStarted, this); _references++; return new Reference(this); }
         }
         private void Release()
         {
             lock (_gate)
             {
-                if (--_references != 0) return;
-                _released = true;
+                if (_references > 1) { _references--; return; }
+                // 文件系统清理失败仍由最后引用持有目录，禁止对部分清理的输入重新借用。
+                _releaseStarted = true;
+                if (directory is not null) DeletePreparedDirectory(directory);
+                _references = 0;
             }
-            if (directory is not null) DeletePreparedDirectory(directory);
         }
         private sealed class Reference(SharedState owner) : IDisposable
-        { private SharedState? _owner = owner; public void Dispose() => Interlocked.Exchange(ref _owner, null)?.Release(); }
+        {
+            private SharedState? _owner = owner;
+            private readonly object _disposeGate = new();
+            public void Dispose()
+            {
+                lock (_disposeGate)
+                {
+                    _owner?.Release();
+                    _owner = null;
+                }
+            }
+        }
     }
 }
 

@@ -107,7 +107,7 @@
 6. 编辑后显式 `PUT /api/v1/preview-sessions/{id}/input`，带 `expectedPreviewGeneration`、`expectedSourceRevision` 和新 source。省略/null的 `renderBackend`保留当前选择；换输入会推进generation并使旧帧失效。
 7. 关闭用 `POST /api/v1/preview-sessions/{id}/close`，等待 `closed` 或响应完成排水后释放 Blob URL。
 
-HTTP seek 会创建新 generation 并排水旧 Worker；不要假设 seek 与连续 playback 共用同一执行体，也不要把当前接口当作 WebSocket 或固定 30/60 FPS 流。
+HTTP seek 会创建新 generation，旧 generation 的迟到帧不会发布。固定输入不变时可复用 Worker；在途渲染经协作取消确认后，Worker 内的 Runtime 会话会重新创建，异常取消或协议失败仍可能排水 Worker。客户端不应依赖进程身份，也不要把当前接口当作 WebSocket 或固定 30/60 FPS 流。
 
 工程预览会话可以在**同一 client 所有的工程之间**换源：仍发送 `source.kind:"project"`，并提供目标工程的精确 `sourceId/sourceRevision`；服务重新捕获目标工程并推进 generation。工程来源与 `authorDraft` 来源不能互换，作者会话也不能换成另一个草稿；这类换源返回 `422 commandNotSupported`。authorDraft 会话只能在同一 `draftId` 内更新 draft/source 修订和试样选择，详见 §8。
 

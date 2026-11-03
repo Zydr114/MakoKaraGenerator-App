@@ -15,10 +15,32 @@ function diagnostic(type,startMs,endMs,detail={}) {
   if(diagnosticEvents.length>512)diagnosticEvents.shift();
 }
 const drops={count:0,lastReason:null,lastFrame:null};
+const barrierWaiters=new Set();
+const attachmentKeys=['streamId','hostInstanceId','producerEpoch','inputGeneration','consumerEpoch','poolGeneration'];
+const notifyBarrierWaiters=()=>{for(const wake of barrierWaiters)wake();};
 const refreshBarrier = () => {
   waitingReset = !attachment || !barrier || !desiredPlayback || hardBarrier.seq === null ||
     barrier.timelineResetId !== desiredPlayback.timelineResetId || (barrier.controlSeq??barrier.minControlSeq) < hardBarrier.seq;
+  notifyBarrierWaiters();
 };
+// A paused producer emits one final target. Its texture callback can arrive before
+// the invoke response or applied IPC event, so retain that bounded existing lease
+// until both gates are known. No extra control, frame production or CPU copy.
+function waitForPausedBarrier(metadata) {
+  const expectedAttachment=attachment,expectedBarrier=hardBarrier;
+  const eligible=()=>!detached&&!!attachment&&attachment===expectedAttachment&&hardBarrier===expectedBarrier&&
+    desiredPlayback?.mode==='paused'&&metadata.timelineResetId===desiredPlayback.timelineResetId&&
+    attachmentKeys.every(key=>metadata[key]===attachment?.[key])&&
+    (hardBarrier.seq===null||metadata.controlSeq>=hardBarrier.seq);
+  if(!waitingReset||!eligible())return Promise.resolve(false);
+  return new Promise(resolve=>{
+    let settled=false;
+    const finish=expired=>{if(settled)return;settled=true;clearTimeout(timer);barrierWaiters.delete(wake);resolve(expired);};
+    const wake=()=>{if(!waitingReset||!eligible())finish(false);};
+    const timer=setTimeout(()=>finish(true),1000);
+    barrierWaiters.add(wake);wake();
+  });
+}
 const identityKeys = ['streamId','hostInstanceId','producerEpoch','inputGeneration','consumerEpoch','timelineEpoch','poolGeneration','slotId','slotEpoch','frameSeq'];
 const lease = metadata => Object.fromEntries(identityKeys.map(key=>[key,metadata[key]]));
 let calibratedClock;
@@ -45,8 +67,8 @@ ipcRenderer.on('mako-gpu:barrier', (_event,value) => {
   barrier = value;
   refreshBarrier();
 });
-ipcRenderer.on('mako-gpu:attached', (_event,value) => { detached=false;attachment=value;barrier=undefined;desiredPlayback=undefined;waitingReset=true; });
-ipcRenderer.on('mako-gpu:detach', () => { detached=true;attachment=undefined;barrier=undefined;waitingReset=true; });
+ipcRenderer.on('mako-gpu:attached', (_event,value) => { detached=false;attachment=value;barrier=undefined;desiredPlayback=undefined;waitingReset=true;notifyBarrierWaiters(); });
+ipcRenderer.on('mako-gpu:detach', () => { detached=true;attachment=undefined;barrier=undefined;waitingReset=true;notifyBarrierWaiters(); });
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const nextPaint = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
@@ -99,15 +121,16 @@ window.addEventListener('DOMContentLoaded', async () => {
       const diagnosticStart=config.performanceDiagnostics?performance.now():null;
       let diagnosticGetVideoEnd,diagnosticDrawStart,diagnosticDrawEnd,diagnosticFrameClosed;
       try {
+        const barrierExpired=desiredPlayback?.mode==='paused'&&waitingReset?await waitForPausedBarrier(metadata):false;
         frame = importedSharedTexture.getVideoFrame();
         if(diagnosticStart!==null)diagnosticGetVideoEnd=performance.now();
         const canvas = document.getElementById(config.mode === 'production' ? 'mako-gpu-preview' : 'preview');
-        const current = config.mode !== 'production' || (attachment && barrier && !waitingReset &&
-          ['streamId','hostInstanceId','producerEpoch','inputGeneration','consumerEpoch','poolGeneration'].every(key=>metadata[key]===attachment[key]) &&
+        const current = config.mode !== 'production' || (!barrierExpired && attachment && barrier && !waitingReset &&
+          attachmentKeys.every(key=>metadata[key]===attachment[key]) &&
           metadata.timelineEpoch===barrier.timelineEpoch && metadata.timelineResetId===desiredPlayback?.timelineResetId && metadata.controlSeq>=Math.max(barrier.minControlSeq,hardBarrier.seq??Infinity));
         if(detached||!canvas||!current){
           drops.count=Math.min(Number.MAX_SAFE_INTEGER,drops.count+1);
-          drops.lastReason=detached?'detached':!canvas?'canvasUnavailable':waitingReset?'waitingBarrier':!attachment||!barrier?'missingAttachment':'staleIdentityOrControl';
+          drops.lastReason=detached?'detached':!canvas?'canvasUnavailable':barrierExpired?'waitingBarrierTimeout':waitingReset?'waitingBarrier':!attachment||!barrier?'missingAttachment':'staleIdentityOrControl';
           drops.lastFrame={...lease(metadata),controlSeq:metadata.controlSeq,timelineResetId:metadata.timelineResetId};
         }
         if (!detached && canvas && current) {

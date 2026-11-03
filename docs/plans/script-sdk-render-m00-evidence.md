@@ -1,7 +1,7 @@
 # M00 脚本与渲染基线记录
 
 日期：2026-11-03。分支：`dev/script-sdk-render-upgrade`。
-状态：CPU／HTTP／Runtime 基线已采集；桌面暂停竞态已发现，完整有限流程尚待关闭。
+状态：**M00 通过**。CPU／HTTP／Runtime 基线已采集；桌面暂停竞态已修复，完整有限流程通过。
 本记录对应[验收清单](script-sdk-v2-render-acceptance.md)，不代表 M01–M06 已验收。
 
 ## 身份与正式门槛
@@ -104,4 +104,19 @@ M00 桌面首次 finite 流程失败：旧代迟到完成帧增加累计数，�
 Worker 生产并被 native 归还，但 renderer 的 `waitingBarrier` 丢弃了它，暂停态随后没有补帧。
 末端控制序号已生效，Worker executing／pending／outstanding 均为 0。探针只要求一帧当前完整
 身份的 drawn＋native 完成，这不是要求暂停后持续产帧。此项作为已知产品竞态单独修复；
-完整 GPU 生命周期不能记为通过。失败运行启动器 exit 0，已观察自有进程全部退出。
+该次完整 GPU 生命周期不能记为通过。失败运行启动器 exit 0，已观察自有进程全部退出。
+
+修复只在 preload 对暂停状态下尚未确认屏障的当前纹理保留现有租约，最多等待 1 s；
+屏障及 invoke 回执到齐后重新校验六项 attachment 身份、时间线和控制序号再绘制。
+更换 attachment、detach 或新播放意图立即唤醒并归还旧帧；超时归还。播放路径不增加等待，
+不新增控制、产帧或回读，500 ms 控制节奏保持。两种回调顺序的确定性回归在旧实现均失败，
+修复后 preload 11 项、desktop 纯测试 23 项全部通过。
+
+`gpu-finite-r3` 用相同旧后端及修复后的 preload 完成了 3 个短阶段、20 次暂停、20 次 seek、
+20 次真实输入变化、10 次 UI 规格重建、20 次 attach/detach、10 次公开 resize+seek。
+所有交互都有精确匹配完成帧；attach 均证实新代和旧 Worker 退出；没有 runError。
+启动器 exit 0，74 个已观察 PID＋startTicks 身份全部退出。该次 preload SHA-256 为
+`517a52e2c67f52e2bbd92e5917aeb2a9b1e3fb85e560ee020e31503e959e86b2`，runner 为
+`d35212e172e37882d8516f7f9263c349dfb4e86bab13c42e27e55ff5c14c3711`。
+这是有限正确性基线，不是正式桌面性能验收。后续桌面 A/B 以已修复暂停竞态的入口为共同基线，
+不把失帧旧版与可显示新版的耗时直接混比。

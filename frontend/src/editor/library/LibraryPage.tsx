@@ -700,7 +700,7 @@ function DefinitionView(props: { definition: FullTemplateDefinition }) {
               <dt>{g.label}</dt>
               <dd className="template-group-value">
                 {swatch && <i className="def-swatch" style={{ background: swatch }} />}
-                <span>{included ? groupValueText(g.id, definition.style) : '由目标继承'}</span>
+                <span>{included ? groupValueText(g.id, definition.style, definition.properties) : '由目标继承'}</span>
               </dd>
             </div>
           );

@@ -99,7 +99,7 @@ const ALIGN_TEXT = { left: '居左', center: '居中', right: '居右' } as cons
 const JOIN_TEXT = { miter: '尖角', round: '圆角', bevel: '斜角' } as const;
 
 /** 一组的取值摘要（不含材质色块，材质另行显示）。 */
-export function groupValueText(group: TemplateGroupId, style: AnyStyle): string {
+export function groupValueText(group: TemplateGroupId, style: AnyStyle, properties?: readonly TemplateProperty[]): string {
   const t = style.typography;
   switch (group) {
     case 'font':
@@ -123,6 +123,16 @@ export function groupValueText(group: TemplateGroupId, style: AnyStyle): string 
       return s ? `${formatColor(s.color)} · 不透明度 ${round(s.opacity * 100, 1)}% · ${s.angleDegrees}° · 距离 ${s.distancePx} px · 模糊 ${s.blurRadiusPx} px` : '关';
     }
     case 'glow': {
+      if (properties && !properties.includes('glowSpec')) {
+        const g = templateGlowEditing({ style, properties }).value!;
+        const values: [GlowLeafProperty, string][] = [
+          ['glowColor', `颜色 ${formatColor(g.color)}`],
+          ['glowOpacity', `不透明度 ${round(g.opacity * 100, 1)}%`],
+          ['glowSpreadPx', `扩张 ${g.spreadPx} px`],
+          ['glowBlurRadiusPx', `模糊 ${g.blurRadiusPx} px`],
+        ];
+        return `仅覆盖：${values.filter(([property]) => properties.includes(property)).map(([, text]) => text).join(' · ')}`;
+      }
       const g = style.glow;
       return g ? `${formatColor(g.color)} · 不透明度 ${round(g.opacity * 100, 1)}% · 扩张 ${g.spreadPx} px · 模糊 ${g.blurRadiusPx} px` : '关';
     }
@@ -187,6 +197,13 @@ export function sortProperties(properties: readonly TemplateProperty[]): Templat
 }
 
 export type GlowLeafProperty = 'glowColor' | 'glowOpacity' | 'glowSpreadPx' | 'glowBlurRadiusPx';
+
+/** 仅选择叶属性时，null 样式提供这些默认叶值，并不关闭目标上的辉光。 */
+export function templateGlowEditing(definition: { properties: readonly TemplateProperty[]; style: Pick<CanonicalStyle, 'glow'> }): { mode: 'partial' | 'on' | 'off'; value: StyleGlow | null } {
+  const glow = definition.style.glow;
+  if (definition.properties.includes('glowSpec')) return { mode: glow ? 'on' : 'off', value: glow };
+  return { mode: 'partial', value: glow ?? { color: { red: 0, green: 0, blue: 0, alpha: 0 }, opacity: 1, spreadPx: 0, blurRadiusPx: 0 } };
+}
 
 /** 保留原模板的属性子集，并纳入刚修改的辉光叶；开关整体时用 glowSpec 表达明确关闭。 */
 export function setTemplateGlow(definition: FullTemplateDefinition, glow: StyleGlow | null, property?: GlowLeafProperty): FullTemplateDefinition {

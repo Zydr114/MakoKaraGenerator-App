@@ -4,7 +4,7 @@ import { NEW_TEMPLATE_NAME, NEW_TEMPLATE_SOURCE, TemplateLibraryStore } from '..
 import { SAMPLE_SIZE, SAMPLE_TIME_US, TEMPLATE_PREVIEW, TemplateThumbnails, THUMBNAIL_SAMPLE_ID, THUMBNAIL_SIZE } from '../../src/editor/library/template-thumbnails';
 import { TEMPLATE_PREVIEW_OPTIONS, TemplateWorkshop, workshopTitle, WORKSHOP_DURATION_US } from '../../src/editor/library/template-workshop';
 import { addStop, gradientProblem, removeStop, setStopOffset } from '../../src/editor/model/gradient';
-import { changeKind, definitionProblem, gradientFrom, groupAllowed, propertySummary, setGroupIncluded, setTemplateGlow, TEMPLATE_GROUPS } from '../../src/editor/model/template-groups';
+import { changeKind, definitionProblem, gradientFrom, groupAllowed, groupValueText, propertySummary, setGroupIncluded, setTemplateGlow, templateGlowEditing, TEMPLATE_GROUPS } from '../../src/editor/model/template-groups';
 import {
   type EffectPackageInspectResponse,
   type EffectPackageReference,
@@ -122,6 +122,20 @@ function fakeLibraries() {
 }
 
 describe('样式库状态', () => {
+  it('只含辉光不透明度且样式为 null 时编辑默认叶值，选择关闭后才明确关闭目标辉光', () => {
+    const partial = definition({ name: '辉光默认叶', kind: 'line', style: STYLE, properties: ['glowOpacity'] });
+    const state = templateGlowEditing(partial);
+    expect(state).toEqual({ mode: 'partial', value: { color: { red: 0, green: 0, blue: 0, alpha: 0 }, opacity: 1, spreadPx: 0, blurRadiusPx: 0 } });
+    expect(groupValueText('glow', partial.style, partial.properties)).toBe('仅覆盖：不透明度 100%');
+    const edited = setTemplateGlow(partial, { ...state.value!, opacity: 0.5 }, 'glowOpacity');
+    expect(edited.properties).toEqual(['glowOpacity']);
+    expect(templateGlowEditing(edited).mode).toBe('partial');
+    const closed = setTemplateGlow(partial, null);
+    expect(closed.properties).toEqual(['glowSpec', 'glowOpacity']);
+    expect(templateGlowEditing(closed)).toEqual({ mode: 'off', value: null });
+    expect(groupValueText('glow', closed.style, closed.properties)).toBe('关');
+  });
+
   it('编辑辉光叶属性时保留并补齐模板属性；整体关闭写入 glowSpec', () => {
     const partial = definition({ name: '辉光叶', kind: 'line', style: { ...STYLE, glow: { color: { red: 255, green: 255, blue: 255, alpha: 255 }, opacity: 1, spreadPx: 1, blurRadiusPx: 8 } }, properties: ['glowColor'] });
     const withBlur = setTemplateGlow(partial, partial.style.glow, 'glowBlurRadiusPx');

@@ -31,6 +31,7 @@ import {
   setGroupIncluded,
   setTemplateGlow,
   solidFrom,
+  templateGlowEditing,
   TEMPLATE_GROUPS,
   type TemplateGroup,
   type TemplateGroupId,
@@ -263,7 +264,7 @@ function rowFields(
     case 'shadow':
       return shadowRow(style.shadow, (shadow) => setStyle({ shadow }), disabled);
     case 'glow':
-      return glowRow(style.glow, (glow, property) => onChange(setTemplateGlow(d, glow, property)), disabled);
+      return glowRow(d, (glow, property) => onChange(setTemplateGlow(d, glow, property)), disabled);
     case 'opacity':
       return {
         ctl: <InlineSlider label="透明度" value={style.opacity} min={0} max={1} step={0.01} format={percent} onCommit={(opacity) => setStyle({ opacity })} disabled={disabled} />,
@@ -422,7 +423,9 @@ const GLOW_KINDS = [
 ] as const;
 
 /** 右侧包含开关控制继承；这里的“无辉光”写入显式 null。 */
-function glowRow(glow: StyleGlow | null, onChange: (glow: StyleGlow | null, property?: GlowLeafProperty) => void, disabled: boolean): { ctl: ReactNode; sub?: ReactNode } {
+function glowRow(definition: FullTemplateDefinition, onChange: (glow: StyleGlow | null, property?: GlowLeafProperty) => void, disabled: boolean): { ctl: ReactNode; sub?: ReactNode } {
+  const { mode, value: glow } = templateGlowEditing(definition);
+  const options = mode === 'partial' ? [{ value: 'partial', label: '部分覆盖' }, ...GLOW_KINDS] : GLOW_KINDS;
   return {
     ctl: (
       <>
@@ -431,9 +434,11 @@ function glowRow(glow: StyleGlow | null, onChange: (glow: StyleGlow | null, prop
           labelPlacement="none"
           size="sm"
           className="w"
-          value={glow ? 'on' : 'off'}
-          options={GLOW_KINDS}
-          onChange={(v) => onChange(v === 'on' ? DEFAULT_GLOW : null)}
+          value={mode}
+          options={options}
+          onChange={(v) => {
+            if (v !== 'partial') onChange(v === 'on' ? DEFAULT_GLOW : null);
+          }}
           disabled={disabled}
         />
         {glow ? (
@@ -445,6 +450,7 @@ function glowRow(glow: StyleGlow | null, onChange: (glow: StyleGlow | null, prop
     ),
     sub: glow && (
       <>
+        {mode === 'partial' && <Note>只覆盖模板包含的辉光属性，其余从目标继承。修改下方数值会将对应属性写进模板。</Note>}
         <div className="ctl-row">
           <span className="sub-lbl">不透明度</span>
           <InlineSlider label="辉光不透明度" value={glow.opacity} min={0} max={1} step={0.01} format={percent} onCommit={(opacity) => onChange({ ...glow, opacity }, 'glowOpacity')} disabled={disabled} />
@@ -453,7 +459,7 @@ function glowRow(glow: StyleGlow | null, onChange: (glow: StyleGlow | null, prop
           <NumberField label="扩张" labelPlacement="inside" size="sm" suffix="px" value={glow.spreadPx} min={0} onCommit={(spreadPx) => onChange({ ...glow, spreadPx }, 'glowSpreadPx')} disabled={disabled} />
           <NumberField label="模糊" labelPlacement="inside" size="sm" suffix="px" value={glow.blurRadiusPx} min={0} onCommit={(blurRadiusPx) => onChange({ ...glow, blurRadiusPx }, 'glowBlurRadiusPx')} disabled={disabled} />
         </div>
-        <Note>扩张增加光晕厚度，模糊使边缘更柔和；两项都为 0 时没有光晕。</Note>
+        <Note>扩张增加光晕厚度，模糊使边缘更柔和。{mode !== 'partial' && '两项都为 0 时没有光晕。'}</Note>
       </>
     ),
   };

@@ -83,6 +83,42 @@ public sealed class BackendTransportHostingTests
     }
 
     [Fact]
+    public async Task 工程会话创建按歌词扩展名接受浏览器未识别的ASS二进制类型()
+    {
+        using TemporaryDirectory directory = new();
+        ResourceStore store = new(new() { ResourceRoot = directory.Path });
+        const string ass = "[Script Info]\nScriptType: v4.00+\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:01.00,0:00:02.00,Default,,0,0,0,,hello\n";
+        StoredAsset lyrics = await store.UploadAsync("client", "song.ass", "application/octet-stream", new MemoryStream(Encoding.UTF8.GetBytes(ass)));
+        StoredAsset audio = await store.UploadAsync("client", "song.wav", "audio/wav", new MemoryStream([1, 2, 3]));
+        using ProjectSessionRegistry registry = new("host-one", store,
+            new((_, _) => Task.FromResult<LoadedWaveform?>(Sample())));
+
+        ProjectSessionCreateResult result = await registry.CreateAsync("client", new(
+            "ASS project", audio.AssetId, lyrics.AssetId, new CompositionDto(640, 360, 30, 1)));
+
+        Assert.True(result.Accepted);
+        ProjectSession session = Assert.IsType<ProjectSession>(result.Session);
+        ProjectSessionSummaryResponse summary = (await registry.ReadSummaryAsync("client", session.ProjectSessionId))!;
+        Assert.Equal(1, summary.LyricsLineCount);
+    }
+
+    [Theory]
+    [InlineData("song.bin", "application/octet-stream")]
+    [InlineData("song.ass", "video/mp4")]
+    public async Task 工程创建拒绝未知二进制扩展名或视频歌词资源(string fileName, string contentType)
+    {
+        using TemporaryDirectory directory = new();
+        ResourceStore store = new(new() { ResourceRoot = directory.Path });
+        StoredAsset lyrics = await store.UploadAsync("client", fileName, contentType, new MemoryStream([1, 2, 3]));
+        using ProjectSessionRegistry registry = new("host-one", store,
+            new((_, _) => Task.FromResult<LoadedWaveform?>(Sample())));
+        ProjectSessionCreateResult result = await registry.CreateAsync("client", new("Invalid lyrics", LyricsAssetId: lyrics.AssetId));
+        Assert.False(result.Accepted);
+        Assert.Equal(BackendErrorCode.InvalidRequest, result.Error!.Code);
+        Assert.Equal(nameof(CreateProjectSessionRequest.LyricsAssetId), result.Error.Field);
+    }
+
+    [Fact]
     public async Task 工程会话创建在资源ID为空串时返回结构化拒绝而不是访问资源字典异常()
     {
         using TemporaryDirectory directory = new();

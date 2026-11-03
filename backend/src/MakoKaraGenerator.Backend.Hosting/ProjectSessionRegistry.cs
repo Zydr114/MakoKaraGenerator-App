@@ -97,6 +97,12 @@ public sealed partial class ProjectSessionRegistry : IDisposable, IAsyncDisposab
     /// <summary>当前后端进程身份。</summary>
     public string HostInstanceId => _hostInstanceId;
 
+    private static bool IsLyricsAsset(StoredAsset asset) =>
+        asset.ContentType.StartsWith("text/", StringComparison.Ordinal)
+        || asset.ContentType == "application/ttml+xml"
+        || (asset.ContentType == "application/octet-stream"
+            && LyricsFormatCatalog.Default.CandidatesFor(asset.FileName).Count > 0);
+
     /// <summary>命令元信息使用的当前服务时钟。</summary>
     public DateTimeOffset ServerTimeUtc => _timeProvider.GetUtcNow();
 
@@ -216,9 +222,8 @@ public sealed partial class ProjectSessionRegistry : IDisposable, IAsyncDisposab
             StoredAsset? lyrics = request.LyricsAssetId is { } authorizedLyricsId ? _resources.GetAuthorized(clientId, authorizedLyricsId) : null;
             if (audio is not null && audio.ContentType.StartsWith("text/", StringComparison.Ordinal))
                 return Reject(BackendErrorCode.InvalidRequest, "音频资源必须是音频 MIME。", nameof(request.AudioAssetId));
-            if (lyrics is not null && !lyrics.ContentType.StartsWith("text/", StringComparison.Ordinal) && lyrics.ContentType != "application/ttml+xml"
-                && !lyrics.FileName.EndsWith(".lrc", StringComparison.OrdinalIgnoreCase) && !lyrics.FileName.EndsWith(".ttml", StringComparison.OrdinalIgnoreCase))
-                return Reject(BackendErrorCode.InvalidRequest, "歌词资源必须是文本、LRC 或 TTML 文件。", nameof(request.LyricsAssetId));
+            if (lyrics is not null && !IsLyricsAsset(lyrics))
+                return Reject(BackendErrorCode.InvalidRequest, "歌词资源必须是文本、TTML 或已登记歌词扩展名的二进制上传。", nameof(request.LyricsAssetId));
             if (lyrics is not null && !File.Exists(lyrics.StoragePath))
                 return Reject(BackendErrorCode.ResourceNotFound, "歌词资源已不可用。", nameof(request.LyricsAssetId));
             if (audio is not null && !File.Exists(audio.StoragePath))

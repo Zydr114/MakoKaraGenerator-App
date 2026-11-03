@@ -18,6 +18,8 @@ namespace MakoKaraGenerator.Core.Lyrics.Import;
 /// <c>\kt</c>（v4++ 的绝对时间）首期不支持，遇到就跳过并写进报告。
 /// 行内的样式与特效标签（<c>\pos</c>、<c>\fad</c>、<c>{\b1}</c> 等）与时间无关，剥掉并记进报告。
 /// </para>
+/// <para>带 Mako LRC Studio 标识及 karaoke 源注释的文件优先读取源事件，
+/// 还原 <c>正文|读音</c> 与 <c>#|后续读音</c>，不重复导入绘制层。</para>
 /// </remarks>
 public sealed class AssImporter : ParsedLyricsImporterBase
 {
@@ -81,6 +83,7 @@ public sealed class AssImporter : ParsedLyricsImporterBase
         bool sawKaraoke = false;
         bool sawUnsupportedKt = false;
         string[]? columns = null;
+        bool makoSource = HasMakoKaraokeSource(rawLines);
 
         for (int i = 0; i < rawLines.Length; i++)
         {
@@ -104,7 +107,8 @@ public sealed class AssImporter : ParsedLyricsImporterBase
                 continue;
             }
 
-            if (!trimmed.StartsWith("Dialogue:", StringComparison.OrdinalIgnoreCase))
+            string eventType = makoSource ? "Comment:" : "Dialogue:";
+            if (!trimmed.StartsWith(eventType, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
@@ -112,10 +116,11 @@ public sealed class AssImporter : ParsedLyricsImporterBase
             int startIndex = ColumnIndex(columns, "Start", 1);
             int endIndex = ColumnIndex(columns, "End", 2);
             int textIndex = ColumnIndex(columns, "Text", 9);
+            int effectIndex = ColumnIndex(columns, "Effect", 8);
             int columnCount = Math.Max(textIndex + 1, columns?.Length ?? 10);
-            string[] fields = trimmed["Dialogue:".Length..].Split(',', columnCount);
+            string[] fields = trimmed[eventType.Length..].Split(',', columnCount);
 
-            if (fields.Length <= textIndex
+            if (fields.Length <= Math.Max(textIndex, Math.Max(startIndex, endIndex))
                 || !TryParseTime(fields[startIndex], out long startUs)
                 || !TryParseTime(fields[endIndex], out long endUs))
             {
@@ -129,11 +134,18 @@ public sealed class AssImporter : ParsedLyricsImporterBase
                 continue;
             }
 
+            if (makoSource && (fields.Length <= effectIndex
+                || !fields[effectIndex].Trim().Equals("karaoke", StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
             DialogueText parsed = ParseDialogueText(
                 fields[textIndex],
                 startUs,
                 i + 1,
                 issues,
+                makoSource,
                 ref sawStyleTags,
                 ref sawKaraoke,
                 ref sawUnsupportedKt);
@@ -150,10 +162,15 @@ public sealed class AssImporter : ParsedLyricsImporterBase
                 continue;
             }
 
-            lines.Add(new ParsedLyricsLine(parsed.Text, startUs, endUs, parsed.Tokens, i + 1));
+            lines.Add(new ParsedLyricsLine(parsed.Text, startUs, endUs, parsed.Tokens, i + 1, parsed.Ruby));
         }
 
         BudgetedImportList<string> discarded = new(context.PreparationGuard);
+
+        if (makoSource)
+        {
+            discarded.Add("ASS 绘制布局、分部信息及翻译／罗马音字幕");
+        }
 
         if (sawStyleTags)
         {
@@ -179,7 +196,35 @@ public sealed class AssImporter : ParsedLyricsImporterBase
     }
 
     /// <summary>一行 Dialogue 的文本解析结果。</summary>
-    private sealed record DialogueText(string Text, ImmutableArray<ParsedLyricsToken> Tokens);
+    private sealed record DialogueText(string Text, ImmutableArray<ParsedLyricsToken> Tokens, ImmutableArray<ParsedLyricsRuby> Ruby = default);
+
+    private static bool HasMakoKaraokeSource(string[] rawLines)
+    {
+        bool identified = rawLines.Any(line => line.TrimStart().StartsWith("; Mako LRC Studio:", StringComparison.OrdinalIgnoreCase));
+        if (!identified) return false;
+        bool inEvents = false;
+        string[]? columns = null;
+        foreach (string line in rawLines)
+        {
+            string trimmed = line.Trim();
+            if (trimmed.StartsWith('['))
+            {
+                inEvents = trimmed.StartsWith("[Events]", StringComparison.OrdinalIgnoreCase);
+                columns = null;
+            }
+            else if (inEvents && trimmed.StartsWith("Format:", StringComparison.OrdinalIgnoreCase))
+                columns = [.. trimmed["Format:".Length..].Split(',', StringSplitOptions.TrimEntries)];
+            else if (inEvents && trimmed.StartsWith("Comment:", StringComparison.OrdinalIgnoreCase))
+            {
+                int textIndex = ColumnIndex(columns, "Text", 9);
+                int effectIndex = ColumnIndex(columns, "Effect", 8);
+                string[] fields = trimmed["Comment:".Length..].Split(',', Math.Max(textIndex + 1, columns?.Length ?? 10));
+                if (effectIndex < fields.Length && fields[effectIndex].Trim().Equals("karaoke", StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+        }
+        return false;
+    }
 
     private static int ColumnIndex(string[]? columns, string name, int fallback)
     {
@@ -205,6 +250,7 @@ public sealed class AssImporter : ParsedLyricsImporterBase
         long lineStartUs,
         int sourceLineNumber,
         IList<LyricsImportIssue> issues,
+        bool parseRuby,
         ref bool sawStyleTags,
         ref bool sawKaraoke,
         ref bool sawUnsupportedKt)
@@ -213,6 +259,7 @@ public sealed class AssImporter : ParsedLyricsImporterBase
         BudgetedImportText current = new(LyricsImportPreparationGuard.Of(issues));
         long? pendingCs = null;
         int i = 0;
+        bool lineHasKaraoke = false;
 
         while (i < raw.Length)
         {
@@ -253,7 +300,7 @@ public sealed class AssImporter : ParsedLyricsImporterBase
                         continue;
                     }
 
-                    if (current.Length > 0)
+                    if (current.Length > 0 || pendingCs is not null)
                     {
                         chunks.Add((current.ToString(), pendingCs));
                         current.Clear();
@@ -261,6 +308,7 @@ public sealed class AssImporter : ParsedLyricsImporterBase
 
                     pendingCs = centiseconds;
                     sawKaraoke = true;
+                    lineHasKaraoke = true;
                 }
 
                 i = close + 1;
@@ -278,14 +326,14 @@ public sealed class AssImporter : ParsedLyricsImporterBase
             i++;
         }
 
-        if (current.Length > 0)
+        if (current.Length > 0 || pendingCs is not null)
         {
             chunks.Add((current.ToString(), pendingCs));
         }
 
         BudgetedImportText text = new(LyricsImportPreparationGuard.Of(issues));
 
-        if (!sawKaraoke)
+        if (!lineHasKaraoke)
         {
             foreach ((string chunkText, _) in chunks)
             {
@@ -296,6 +344,7 @@ public sealed class AssImporter : ParsedLyricsImporterBase
         }
 
         BudgetedImportBuilder<ParsedLyricsToken> tokens = new(LyricsImportPreparationGuard.Of(issues));
+        BudgetedImportList<(int TokenIndex, BudgetedImportList<ParsedLyricsRubySegment> Segments)> ruby = new(LyricsImportPreparationGuard.Of(issues));
         long cursor = lineStartUs;
         string prefix = string.Empty;
 
@@ -308,12 +357,61 @@ public sealed class AssImporter : ParsedLyricsImporterBase
                 continue;
             }
 
+            if (centiseconds > (long.MaxValue - cursor) / 10_000L)
+            {
+                issues.Add(new LyricsImportIssue(LyricsImportIssueKind.MalformedTag, IssueSeverity.Warning,
+                    sourceLineNumber, chunkText, "卡拉 OK 时长超出可表示范围，已跳过。"));
+                continue;
+            }
             long durationUs = centiseconds * 10_000L;
             long startUs = cursor;
             long endUs = cursor + durationUs;
             string tokenText = prefix + chunkText;
 
-            if (tokenText.Length > 0)
+            if (parseRuby && tokenText == "#")
+            {
+                if (tokens.Count > 0)
+                {
+                    ParsedLyricsToken previous = tokens[^1];
+                    tokens[^1] = previous with { EndUs = endUs };
+                    if (ruby.Count > 0 && ruby[^1].TokenIndex == tokens.Count - 1)
+                    {
+                        var segments = ruby[^1].Segments;
+                        segments[^1] = segments[^1] with { EndUs = endUs };
+                    }
+                }
+                prefix = string.Empty;
+                cursor = endUs;
+                continue;
+            }
+
+            int bar = parseRuby ? tokenText.IndexOf('|') : -1;
+            string baseText = bar >= 0 ? tokenText[..bar] : tokenText;
+            string reading = bar >= 0 ? tokenText[(bar + 1)..] : string.Empty;
+
+            if (bar >= 0 && baseText == "#")
+            {
+                if (tokens.Count > 0)
+                {
+                    ParsedLyricsToken previous = tokens[^1];
+                    tokens[^1] = previous with { EndUs = endUs };
+
+                    if (reading.Length > 0 && ruby.Count > 0 && ruby[^1].TokenIndex == tokens.Count - 1)
+                    {
+                        ruby[^1].Segments.Add(new ParsedLyricsRubySegment(reading, startUs, endUs));
+                    }
+                }
+            }
+            else if (bar >= 0 && baseText.Length > 0 && baseText != "#" && reading.Length > 0)
+            {
+                int tokenIndex = tokens.Count;
+                tokens.Add(new ParsedLyricsToken(baseText, startUs, endUs, false, sourceLineNumber));
+                text.Append(baseText);
+                BudgetedImportList<ParsedLyricsRubySegment> segments = new(LyricsImportPreparationGuard.Of(issues));
+                segments.Add(new ParsedLyricsRubySegment(reading, startUs, endUs));
+                ruby.Add((tokenIndex, segments));
+            }
+            else if (tokenText.Length > 0)
             {
                 tokens.Add(new ParsedLyricsToken(tokenText, startUs, endUs, false, sourceLineNumber));
                 text.Append(tokenText);
@@ -330,7 +428,10 @@ public sealed class AssImporter : ParsedLyricsImporterBase
             text.Append(prefix);
         }
 
-        return new DialogueText(text.ToString(), tokens.ToImmutable());
+        BudgetedImportBuilder<ParsedLyricsRuby> rubyResult = new(LyricsImportPreparationGuard.Of(issues));
+        foreach ((int tokenIndex, BudgetedImportList<ParsedLyricsRubySegment> segments) in ruby)
+            rubyResult.Add(new ParsedLyricsRuby(tokenIndex, string.Concat(segments.Select(segment => segment.Text)), [.. segments]));
+        return new DialogueText(text.ToString(), tokens.ToImmutable(), rubyResult.ToImmutable());
     }
 
     /// <summary>解析 ASS 的 <c>h:mm:ss.cc</c>。</summary>

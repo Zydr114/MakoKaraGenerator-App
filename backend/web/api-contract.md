@@ -1,6 +1,6 @@
 # 前后端 API 执行合同
 
-状态：**冻结1.42.1**，产品元数据与源码指纹更新于2026-11-03；产品 **0.110.1**，HTTP `protocolVersion:"1"`。本批修复持久 profile 个人模板库选址：旧格式保留并隔离，当前格式固定入口继续使用，未知版本、损坏和双入口歧义拒绝；规则见[行为§13.1](../docs/architecture/backend-api.md#131-读取与修订)。静态外辉光合同与桌面 GPU 流生命周期保持，固定基线与文件指纹见[manifest](contract-manifest.json)。合同形状、实际功能、匹配发布与 fresh HTTP 分别登记，合同版本独立于产品和HTTP协议。
+状态：**冻结1.42.2**，产品元数据与源码指纹更新于2026-11-03；产品 **0.110.2**，HTTP `protocolVersion:"1"`。本批修复 ASS 新建资源准入、MakoLrcStudio 源歌词与 ruby 导入，以及空拍／续音；有效 TTML project／AMLL 往返保持现有 profile 语义，命名空间被源文件清空的情况仍拒绝。无新路由、DTO、命令或 schema；详细边界见[行为§6.9](../docs/architecture/backend-api.md#69-再次导入与粘贴追加0810)。静态外辉光、个人模板库隔离与桌面 GPU 流生命周期保持，固定基线与文件指纹见[manifest](contract-manifest.json)。合同形状、实际功能、匹配发布与 fresh HTTP 分别登记。
 
 GPU 流按精确修订创建、换来源、改变尺寸和关闭；创建受真实设备及分配能力限制。`registrationState` 是登记状态，`workerState` 来自 Worker 实时查询；`textureAlphaMode` 固定 `premultiplied`，`alphaMode` 仅控制背景透明度。桌面主进程的私有 claim 不属于公开 API。详细协议和失效语义见仓库根 `docs/architecture/gpu-preview-stream-v1.md`。
 

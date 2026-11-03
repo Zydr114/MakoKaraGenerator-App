@@ -443,6 +443,12 @@ append按原CRLF/CR→LF、跳过空白行，保其他原始空白，Unicode元�
 
 默认八格式×两输入编码自动检测×三换行×六rule×估算两值，共576组旧/新独立runtime完整文档与报告投影相等；强制LRC修复单列。旧public方法CLR签名及public抽象导入器protected List扩展入口保留，新增guard-aware方法默认forward旧扩展，HTTP仅固定八受信导入器，不开放新插件入口。同步托管解析/完整解码输入依然有不可避免临时内存，64MiB工作配额不构成硬deadline或OS隔离。
 
+**0.110.2 歌词兼容修复（合同 1.42.2）：** 新建工程接受文本 MIME、`application/ttml+xml`，以及已登记扩展名（`.lrc/.elrc/.txt/.srt/.vtt/.ass/.ssa/.ttml/.xml`）的 `application/octet-stream`；未知扩展的二进制和视频 MIME 不作为新建歌词输入。既有导入规划／`lyrics.importAsset` 的 octet 内容嗅探保持，不收紧未知扩展名输入。前端为上述歌词扩展名补齐文本／TTML MIME。
+
+ASS 保留普通 `Dialogue` 与 `\k/\kf/\ko` 解析。文件同时具有 Mako LRC Studio 头标识和 `Comment` 的 `Effect=karaoke` 源事件时，改从这些源事件还原歌词，忽略绘制 Dialogue 层，支持 `正文|读音`、`#|续读音`、裸 `#` 延音和空拍；时间仍是源厘秒精度。样式／特效／分部及翻译、罗马音字幕不映射，报告说明损失；不新增 ASS 导出。
+
+TTML 继续要求正文处于 `http://www.w3.org/ns/ttml` 命名空间。`body xmlns=""` 清空默认命名空间的源文件保持拒绝，不按标签本地名静默恢复。有效 TTML 的主文、逐字和 ruby 片段时间沿现有 project／AMLL profile 读写；未显式定时的 ruby 基础 token 仍为 Missing，不凭注音时间猜测正文时间。project 可保留领域身份、多来源和 raw 时间；AMLL 仍通过损失计划声明不支持的内容，不能据此称任意 TTML2 布局、sidecar 和多歌手元数据都无损。
+
 ### 6.10 有界同源波形读取（0.82.0）
 
 产品0.82.0／合同1.7.0／协议1新增两路径三方法；能力逐项公布project-sessions.waveform.read与project-sessions.waveform.peaks.read。

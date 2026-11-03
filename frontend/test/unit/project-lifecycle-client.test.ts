@@ -224,6 +224,12 @@ describe('上传类型推断', () => {
     ['clip.mov', '', 'video/quicktime'],
     ['song.m4a', '', 'audio/mp4'],
     ['lyrics.ttml', '', 'application/ttml+xml'],
+    ['lyrics.ass', '', 'text/plain'],
+    ['lyrics.ssa', '', 'text/plain'],
+    ['lyrics.elrc', '', 'text/plain'],
+    ['lyrics.srt', '', 'text/plain'],
+    ['lyrics.vtt', '', 'text/plain'],
+    ['lyrics.xml', '', 'application/ttml+xml'],
     ['clip.mp4', 'audio/mp4', 'audio/mp4'],
     ['x.webm', '', 'application/octet-stream'],
   ])('%s（%s）→ %s', (name, blobType, expected) => {

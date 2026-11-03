@@ -170,7 +170,7 @@ export function WorkflowPanel({ snapshot }: { snapshot: MakoSnapshot }) {
         </div>
         <div className="row">
           <label className="file">
-            歌词 <input type="file" accept=".lrc,.txt,text/plain" onChange={(e) => setLyricsFile(e.target.files?.[0] ?? null)} />
+            歌词 <input type="file" accept=".lrc,.elrc,.txt,.srt,.vtt,.ass,.ssa,.ttml,.xml,text/plain,application/ttml+xml" onChange={(e) => setLyricsFile(e.target.files?.[0] ?? null)} />
           </label>
           <span className="muted">{lyricsFile ? `${lyricsFile.name} · ${formatBytes(lyricsFile.size)}` : '未选择'}</span>
         </div>

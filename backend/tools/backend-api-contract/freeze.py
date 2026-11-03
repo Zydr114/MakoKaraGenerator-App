@@ -26,8 +26,8 @@ from static_style_schema import extend_static_style_schemas, style_query_paramet
 from template_library_schema import extend_template_library_schemas, query_parameters as template_query_parameters, LIMITS as TEMPLATE_LIMITS
 
 ROOT = Path(__file__).resolve().parents[2]
-CONTRACT = "1.42.1"
-BASELINE = "2e6808d2980d38d3aceda1946b636da73d4324d3"
+CONTRACT = "1.42.2"
+BASELINE = "7c11eaa62be00cb4dff900164a28b5e67e84e7e8"
 PRODUCT = re.search(r"<VersionPrefix>([^<]+)</VersionPrefix>", (ROOT / "Directory.Build.props").read_text()).group(1)
 FREEZE_DATE = "2026-11-03"
 BEHAVIOR = "docs/architecture/backend-api.md"
@@ -1224,6 +1224,7 @@ def manifest(outputs):
     # contract drift alarm alongside the exporter sources.
     for filename in (
             "src/MakoKaraGenerator.Core/Lyrics/Import/TtmlImporter.cs",
+            "src/MakoKaraGenerator.Core/Lyrics/Import/AssImporter.cs",
             "src/MakoKaraGenerator.Core/Lyrics/Import/TtmlTimeTree.cs",
             "src/MakoKaraGenerator.Core/Lyrics/Import/ParsedLyrics.cs",
             "src/MakoKaraGenerator.Core/Lyrics/Import/ParsedLyricsImporterBase.cs",

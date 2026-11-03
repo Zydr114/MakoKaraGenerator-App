@@ -16,6 +16,7 @@
     "test:unit": "pnpm --dir frontend test:unit",
     "test:launcher": "node --experimental-test-module-mocks --test tests/launcher.test.mjs",
     "smoke:browser": "node scripts/browser-smoke.mjs",
+    "smoke:glow": "node frontend/scripts/glow-smoke.mjs",
     "smoke:layout": "node scripts/layout-check.mjs",
     "smoke:desktop": "node scripts/desktop-smoke.mjs",
     "setup:p0": "pnpm --dir desktop run setup",

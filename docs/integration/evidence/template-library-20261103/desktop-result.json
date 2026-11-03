@@ -1,0 +1,65 @@
+{
+  "passed": true,
+  "checks": [
+    "完整复制旧库到唯一隔离会话",
+    "旧库为非空 schema6 样本",
+    "内置模板成功复制到当前个人库",
+    "辉光颜色、扩张和模糊写入草稿",
+    "新写入 templates-v7 且不载入 schema6 旧模板",
+    "界面与启动日志无读取模板库失败",
+    "模板库 HTTP 无失败且页面无未处理异常",
+    "本次启动器后代观察未发生错误",
+    "本次启动器及所有已观察后代完成排水",
+    "关闭窗口后桌面启动器正常退出",
+    "隔离旧库所有文件字节及目录保持不变",
+    "原始旧库所有文件字节及目录保持不变",
+    "同 profile 重启后完整辉光与属性组保持",
+    "界面与启动日志无读取模板库失败",
+    "模板库 HTTP 无失败且页面无未处理异常",
+    "个人库格式错误时内置可查看且新建、复制被禁用",
+    "还原隔离新库并重试后辉光仍保持",
+    "负例恢复隔离新库原始字节",
+    "负例与恢复期间页面无未处理异常",
+    "本次启动器后代观察未发生错误",
+    "本次启动器及所有已观察后代完成排水",
+    "关闭窗口后桌面启动器正常退出",
+    "隔离旧库所有文件字节及目录保持不变",
+    "原始旧库所有文件字节及目录保持不变",
+    "隔离旧库所有文件字节及目录保持不变",
+    "原始旧库所有文件字节及目录保持不变"
+  ],
+  "legacy": {
+    "fileCount": 30,
+    "sha256": "a9f0857fef3d0c3e6881b63f850bd39a064156e4d928be04e15a1a087797b4bd"
+  },
+  "runs": [
+    {
+      "number": 1,
+      "exceptions": 0,
+      "libraryHttpFailures": 0,
+      "expectedNegativeHttpFailures": 0,
+      "observationFailed": false,
+      "drain": {
+        "exitCode": 0,
+        "signal": null,
+        "observedProcessCount": 11,
+        "remainingProcessCount": 0,
+        "cleanLauncherShutdown": true
+      }
+    },
+    {
+      "number": 2,
+      "exceptions": 0,
+      "libraryHttpFailures": 1,
+      "expectedNegativeHttpFailures": 1,
+      "observationFailed": false,
+      "drain": {
+        "exitCode": 0,
+        "signal": null,
+        "observedProcessCount": 11,
+        "remainingProcessCount": 0,
+        "cleanLauncherShutdown": true
+      }
+    }
+  ]
+}

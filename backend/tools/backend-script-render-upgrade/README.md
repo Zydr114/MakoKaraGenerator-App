@@ -62,6 +62,26 @@ python3 -B backend/tools/backend-script-render-upgrade/cancel_probe.py --run \
 
 探针通过 HTTP 导入专用 C# controller。脚本在目标时间写入所属 PID 和实例标记，等待实际 `FrameContext.CancellationToken`；观察屏障后发送新 seek，确认原实例观察到取消、相同 PID 和 startTicks 的 Worker 内出现新 controller 实例、恢复帧身份精确，且与同时间参考帧的 RGBA 像素一致。探针还检查旧 generation 返回 409、关闭资源、排空所属进程并扫描凭证。`summary.json` 与 `markers/` 保留成功或失败证据。它检验特定脚本和 HTTP 场景，不代表 UI 或其他渲染模式均已验收；须分别使用匹配的 M02 和 M03 发布物验证基线失败及升级后通过。
 
+### 字形安全长时间线探针
+
+`long_probe.py` 动态复用 `probe.py` 的 `SeekProbe`，只替换项目歌词 fixture 的创建步骤。它导入相同的 `WordEmphasis` 源和模板，使用明确的 24 个 ASCII 数字字符 `012345678901234567890123`，避免空格和常见拉丁合字；不会修改原探针或仓库样例。`provenance.json` 和 `long-fixture.json` 记录原 `probe.py` SHA-256、fixture 文本 SHA-256 及 24-token 约束。
+
+该工具用于验证长时间线正确性和 v1 replay 边界，不能作为性能基准。M02／M03 应使用完全相同的尺寸、期限、次数和 fixture；M03 可额外传入 `--require-reuse`。只运行两个长场景时分别使用独立输出目录：
+
+```bash
+python3 -B backend/tools/backend-script-render-upgrade/long_probe.py \
+  --dist "$PWD/.local/script-sdk-m02-20261103/dist" \
+  --output "$PWD/.local/script-sdk-m03-20261103/long-safe-m02-180s" \
+  --scenario 180s --count 4 --timeout-seconds 180
+
+python3 -B backend/tools/backend-script-render-upgrade/long_probe.py \
+  --dist "$PWD/.local/backend-dist/m03-20261103" \
+  --output "$PWD/.local/script-sdk-m03-20261103/long-safe-m03-180s" \
+  --scenario 180s --count 4 --timeout-seconds 180 --require-reuse
+```
+
+`360s` 使用相同参数并替换 `--scenario` 与输出目录。每个场景检查目标远端、返回 1 秒和再次远端的完整 PNG／RGBA SHA、精确帧身份、Worker PID/startTicks、资源关闭、所属进程排水和凭证扫描；失败目录保留。`--scenario all` 还会按基础探针语义包含 safe near 场景，该场景不应替代独立 near AB。
+
 准备阶段或样本失败会记录具体 `stage`、最近请求名称／方法／路径、限长脱敏的断言标签与错误消息，以及仅含文件／行号／函数的调用位置；不保存调用栈局部变量或源码文本。若尚无场景／样本，先查看 `summary.json.failures` 和对应最后一组请求／响应。错误详情同样参与退出后的凭证扫描。
 
 静态检查（不会启动发布实例）：

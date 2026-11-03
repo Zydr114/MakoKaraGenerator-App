@@ -171,6 +171,8 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             if (_process is { HasExited: false }) return;
+            if (_gpuWarmupProcess is not null)
+                throw new WorkerProtocolException("预热 GPU Worker 已终止，禁止透明重启复用其业务名额。", GpuWorkerWarmupContract.FailureCode);
             if (_process is not null) await StopProcessAsync(CancellationToken.None).ConfigureAwait(false);
             ProcessStartInfo start = new()
             {

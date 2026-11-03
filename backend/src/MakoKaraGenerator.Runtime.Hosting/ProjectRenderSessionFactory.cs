@@ -13,7 +13,7 @@ namespace MakoKaraGenerator.Runtime.Hosting;
 public sealed class ProjectRenderSessionFactory(IScriptCompilationService compiler, IVideoFrameProvider videos, ReplayReason reason,
     Func<IBackgroundFrameSourceResolver>? backgroundResolverFactory = null,
     bool layoutReference = false, string? editingLineId = null, string? editingCueId = null,
-    string? renderBackend = null, bool enableGpuPreview = false, bool enableGpuPreviewBenchmark = false)
+    string? renderBackend = null, bool enableGpuPreview = false, bool enableGpuPreviewBenchmark = false, RuntimeGpuPreparation? gpuPreparation = null)
     : IRenderFrameSessionFactory
 {
     private readonly SkiaRenderBackendOptions? _renderBackendOptions = renderBackend is null ? null : SkiaRenderBackendOptions.Parse(renderBackend);
@@ -34,7 +34,10 @@ public sealed class ProjectRenderSessionFactory(IScriptCompilationService compil
         try
         {
             token.ThrowIfCancellationRequested();
-            device = SkiaRenderDeviceFactory.Create(enableGpuPreview
+            if (gpuPreparation is not null && (!enableGpuPreview ||
+                (_renderBackendOptions ?? SkiaRenderBackendOptions.FromEnvironment()).Backend != SkiaRenderBackend.Vulkan))
+                throw new InvalidOperationException("GPU 预热只能转移给显式 Vulkan shared preview 会话。");
+            device = gpuPreparation?.TakeDevice() ?? SkiaRenderDeviceFactory.Create(enableGpuPreview
                 ? (_renderBackendOptions ?? SkiaRenderBackendOptions.FromEnvironment()) with { EnableGpuPreview = true }
                 : _renderBackendOptions);
             if (enableGpuPreview && device is not VulkanSkiaRenderDevice)

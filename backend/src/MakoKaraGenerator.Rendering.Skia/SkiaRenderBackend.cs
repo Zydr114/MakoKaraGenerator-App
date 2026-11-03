@@ -128,6 +128,11 @@ internal sealed class CpuSkiaRenderDevice : ISkiaRenderDevice
 /// <summary>Skia Ganesh Vulkan device backed by one SharpVk instance/device/queue.</summary>
 internal sealed class VulkanSkiaRenderDevice : ISkiaRenderDevice
 {
+    private static int _deviceInitializations, _contextInitializations;
+    private readonly string _initializationId = Guid.NewGuid().ToString("N");
+    internal string InitializationId => _initializationId;
+    internal static int DeviceInitializations => Volatile.Read(ref _deviceInitializations);
+    internal static int ContextInitializations => Volatile.Read(ref _contextInitializations);
     private readonly Instance _instance;
     private readonly PhysicalDevice _physicalDevice;
     private readonly Device _device;
@@ -218,6 +223,7 @@ internal sealed class VulkanSkiaRenderDevice : ISkiaRenderDevice
             DeviceQueueCreateInfo[] queues = [new() { QueueFamilyIndex = (uint)family, QueuePriorities = [1f] }];
             device = physical.CreateDevice(queues,
                 null, deviceExtensions.Length == 0 ? null : deviceExtensions, null, null, null, null, null);
+            Interlocked.Increment(ref _deviceInitializations);
             Queue queue = device.GetQueue((uint)family, 0);
             Instance stableInstance = instance;
             Device stableDevice = device;
@@ -251,6 +257,7 @@ internal sealed class VulkanSkiaRenderDevice : ISkiaRenderDevice
             };
             context = GRContext.CreateVulkan(backendContext)
                 ?? throw new InvalidOperationException("Skia Ganesh 无法基于 Vulkan device 创建 GRContext。");
+            Interlocked.Increment(ref _contextInitializations);
             var info = new SkiaRenderDeviceInfo("vulkan", $"0x{properties.VendorID:X8}", properties.DeviceName,
                 FormatDriverVersion(properties.DriverVersion), FormatApiVersion(properties.ApiVersion));
             var result = new VulkanSkiaRenderDevice(instance, physical, device, queue, extensions, backendContext, context,

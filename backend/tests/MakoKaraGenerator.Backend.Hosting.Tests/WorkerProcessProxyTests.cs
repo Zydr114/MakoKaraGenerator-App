@@ -285,7 +285,10 @@ public sealed class WorkerProcessProxyTests(ITestOutputHelper output)
     [Fact]
     public async Task Failed_open_cleanup_keeps_input_and_quota_until_retry_confirms_termination()
     {
-        await using WorkerProcessProxy proxy = NewProxy();
+        await using var pool = new GpuWorkerSparePool<WorkerProcessProxy>("cleanup-fixture", NewProxy,
+            (_, _) => Task.CompletedTask, async worker => { await worker.StopAsync(); await worker.DisposeAsync(); }, _ => true);
+        var workerLease = await pool.AcquireAsync();
+        WorkerProcessProxy proxy = workerLease.Worker;
         await proxy.StartAsync();
         var drainField = typeof(WorkerProcessProxy).GetField("_stderrDrain", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
         Task originalDrain = Assert.IsAssignableFrom<Task>(drainField.GetValue(proxy));
@@ -297,7 +300,7 @@ public sealed class WorkerProcessProxyTests(ITestOutputHelper output)
         CountingLease lease = new();
         var input = new BackendPreviewPinnedInput(new("project", "source", "1"), null!, null!, lease);
         using TemporaryDirectory directory = new();
-        var failure = new GpuStreamOpenCleanupException(proxy, directory.Path, new InvalidOperationException("open"), new IOException("cleanup"));
+        var failure = new GpuStreamOpenCleanupException(workerLease, directory.Path, new InvalidOperationException("open"), new IOException("cleanup"));
         registry.QuarantineOpen(reservation, null, null, input, failure);
         reservation.Dispose();
         await Assert.ThrowsAsync<AggregateException>(() => registry.RetryFailedOpensAsync());

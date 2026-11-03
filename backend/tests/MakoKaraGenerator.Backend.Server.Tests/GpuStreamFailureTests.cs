@@ -13,11 +13,15 @@ public sealed partial class PreviewTransportTests
         string client = fixture.Client.ClientId;
         GpuPreviewStreamRegistry registry = new();
         typeof(PreviewBackendService).GetField("_gpuStreams", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(fixture.Service, registry);
-        WorkerProcessProxy proxy = new(new WorkerProcessOptions("unused", [], TimeSpan.FromSeconds(1)));
+        await using var pool = new GpuWorkerSparePool<WorkerProcessProxy>("drained-fixture",
+            () => new(new WorkerProcessOptions("unused", [], TimeSpan.FromSeconds(1))),
+            (_, _) => Task.CompletedTask, worker => worker.DisposeAsync().AsTask(), _ => true);
+        var workerLease = await pool.AcquireAsync();
+        WorkerProcessProxy proxy = workerLease.Worker;
         GpuStreamWorkerOpened opened = new("stream", "1", "1", 64, 64, 3, 49152, 123, 0, 0, 0, 0, "device");
         GpuStreamWorkerSession worker = (GpuStreamWorkerSession)Activator.CreateInstance(typeof(GpuStreamWorkerSession),
             BindingFlags.Instance | BindingFlags.NonPublic, null,
-            [proxy, new StaticWorkerSessionHandle(Guid.NewGuid(), "hash"), "unused", "1", "unused", "secret", opened], null)!;
+            [proxy, workerLease, new StaticWorkerSessionHandle(Guid.NewGuid(), "hash"), "unused", "1", "unused", "secret", opened], null)!;
         typeof(GpuStreamWorkerSession).GetField("_disposeTask", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(worker, Task.CompletedTask);
         typeof(GpuStreamWorkerSession).GetField("_terminationConfirmed", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(worker, true);
         var source = fixture.Source;

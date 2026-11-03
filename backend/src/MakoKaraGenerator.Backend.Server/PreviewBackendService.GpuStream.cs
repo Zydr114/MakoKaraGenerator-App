@@ -8,6 +8,7 @@ internal sealed partial class PreviewBackendService
 {
     private GpuPreviewStreamRegistry? _gpuStreams;
     private WorkerProcessOptions? _gpuWorkerOptions;
+    private GpuWorkerPool? _gpuWorkerPool;
     private DesktopConsumerIdentity? _desktopConsumer;
     internal bool GpuStreamsConfigured => _gpuStreams is not null;
     internal async Task<bool> GpuStreamsAvailableAsync() => GpuStreamsConfigured && OperatingSystem.IsLinux() &&
@@ -27,6 +28,8 @@ internal sealed partial class PreviewBackendService
         _desktopConsumer = consumer;
         _gpuWorkerOptions = options;
         _gpuStreams = new();
+        _gpuWorkerPool = new(options);
+        _renderBackends?.ConfigureGpuStreamDevice(_gpuWorkerPool.VerifyDeviceAsync);
     }
 
     internal Task<BackendOperationResult<GpuPreviewStreamState>> CreateGpuStreamAsync(string client,
@@ -54,7 +57,7 @@ internal sealed partial class PreviewBackendService
                 if (input.PreparedInput is null)
                     return Reject<GpuPreviewStreamState>(BackendErrorCode.PreviewUnavailable, "固定 Runtime 输入不可用。");
                 string streamId = Guid.NewGuid().ToString("N");
-                worker = await GpuStreamWorkerSession.OpenAsync(_gpuWorkerOptions, input.PreparedInput, streamId,
+                worker = await GpuStreamWorkerSession.OpenAsync(_gpuWorkerPool!, input.PreparedInput, streamId,
                     _clients.HostInstanceId, "1", request.Size.Width, request.Size.Height,
                     request.AlphaMode == PreviewAlphaMode.Straight, _desktopConsumer.MainPid, _shutdown.Token).ConfigureAwait(false);
                 GpuPreviewStreamState state = new(streamId, "1", "1", "ready", input.Source, request.Size,
@@ -209,7 +212,7 @@ internal sealed partial class PreviewBackendService
             previous = oldResources.Worker;
             await previous.DisposeAsync().ConfigureAwait(false);
             string nextGeneration = (generation + 1).ToString(CultureInfo.InvariantCulture);
-            worker = await GpuStreamWorkerSession.OpenAsync(_gpuWorkerOptions, input.PreparedInput, id,
+            worker = await GpuStreamWorkerSession.OpenAsync(_gpuWorkerPool!, input.PreparedInput, id,
                 _clients.HostInstanceId, nextGeneration, size.Width, size.Height,
                 old.AlphaMode == PreviewAlphaMode.Straight, _desktopConsumer.MainPid, _shutdown.Token).ConfigureAwait(false);
             var next = old with { StreamRevision = (revision + 1).ToString(CultureInfo.InvariantCulture),

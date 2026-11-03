@@ -14,6 +14,16 @@ Worker 由 Server 自有 proxy 启动，控制通道与 broker 由本机进程�
 
 ## 可靠操作
 
+App 0.110.7 为 GPU stream 增加未绑定输入的备用 Worker。每 host 的两个进程名额同时包含
+opening、active、spare、retiring 和排水失败的隔离对象，最多一个未使用备用；两活动流时不另开
+备用或 availability helper。备用已完成私有握手、实际运行程序集加载、参考字节固定以及 Vulkan／Skia
+创建和真实绘制核验；业务绑定移交原设备／上下文，不能只凭进程已启动宣称预热完成。
+每个输入代次仍使用从未绑定过业务的 Worker，用过的进程排水后退出，不返回池。
+备用 TTL 为 30 秒，失败退避从 250 ms 增至最多 30 秒；实际部署闭包内容变化淘汰未绑定备用。
+初次业务尝试即消费准备结果，即使输入非法也不能复用该进程。关闭失败仍占进程名额，
+确认所属进程退出后才能释放输入。该实现与本机有限验收属于脚本／渲染升级 M04，
+不改变上面的历史 P3 持续性能未达标结论。
+
 所有请求均携带现有 `RequestMetadata`、host instance、owner 上下文；所有响应包含 `streamId`、`streamRevision`、`inputGeneration`、`registrationState`；Worker 当前播放／失败状态单列 `workerState`。下列字段为 v1 必填：
 
 | 操作 | 请求字段 | 提交语义 |

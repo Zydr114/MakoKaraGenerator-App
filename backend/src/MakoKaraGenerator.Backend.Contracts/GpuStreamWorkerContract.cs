@@ -74,7 +74,8 @@ public sealed record GpuStreamWorkerOpen(string StreamId, string HostInstanceId,
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record GpuStreamWorkerOpened(string StreamId, string ProducerEpoch, string PoolGeneration,
     int Width, int Height, int SlotCount, ulong AllocationBytes, int WorkerPid,
-    uint VendorId, uint DeviceId, uint DrmRenderMajor, uint DrmRenderMinor, string DeviceUuid);
+    uint VendorId, uint DeviceId, uint DrmRenderMajor, uint DrmRenderMinor, string DeviceUuid,
+    GpuWorkerBindingProof? WarmupBinding = null);
 
 /// <summary>关闭请求不暗示消费者已完成。</summary>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]

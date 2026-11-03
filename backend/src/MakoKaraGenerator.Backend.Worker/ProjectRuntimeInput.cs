@@ -60,9 +60,9 @@ internal sealed class ProjectRuntimeInput : IDisposable
 
     internal ProjectRenderSessionFactory CreateFactory(ReplayReason reason,
         bool layoutReference = false, string? editingLineId = null, string? editingCueId = null, string? renderBackend = null,
-        bool enableGpuPreview = false, bool enableGpuPreviewBenchmark = false)
+        bool enableGpuPreview = false, bool enableGpuPreviewBenchmark = false, RuntimeGpuPreparation? gpuPreparation = null)
         => new(Compiler, _videos, reason,
-            _grant is null ? null : () => new GrantedBackgroundResolver(_grant, _videos), layoutReference, editingLineId, editingCueId, renderBackend, enableGpuPreview, enableGpuPreviewBenchmark);
+            _grant is null ? null : () => new GrantedBackgroundResolver(_grant, _videos), layoutReference, editingLineId, editingCueId, renderBackend, enableGpuPreview, enableGpuPreviewBenchmark, gpuPreparation);
     public void Dispose() => _videos.Dispose();
 
     private sealed class GrantedBackgroundResolver(ProjectRuntimeBackgroundGrant grant, FfmpegVideoFrameProvider videos) : IBackgroundFrameSourceResolver

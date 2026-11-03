@@ -10,6 +10,7 @@ public sealed class BackendRenderBackendConfiguration : IDisposable
     private readonly WorkerProcessOptions? _workerOptions;
     private readonly SemaphoreSlim _cpuProbe = new(1, 1);
     private readonly SemaphoreSlim _gpuProbe = new(1, 1);
+    private Func<CancellationToken, Task<RenderBackendDeviceInfoDto>>? _gpuStreamDevice;
     /// <summary>固定部署默认与隔离Worker启动配置；环境只在构造时读取。</summary>
     public BackendRenderBackendConfiguration(WorkerProcessOptions? workerOptions, string? configuredDefault = null)
     {
@@ -22,6 +23,15 @@ public sealed class BackendRenderBackendConfiguration : IDisposable
 
     /// <summary>本次Host启动固定的公开默认选择。</summary>
     public string DefaultBackend { get; }
+
+    /// <summary>桌面 stream 配额启用后，所有 GPU availability 读取复用其已准备的原设备。</summary>
+    public void ConfigureGpuStreamDevice(Func<CancellationToken, Task<RenderBackendDeviceInfoDto>> verify)
+    {
+        ArgumentNullException.ThrowIfNull(verify);
+        ObjectDisposedException.ThrowIf(_disposed != 0, this);
+        if (Interlocked.CompareExchange(ref _gpuStreamDevice, verify, null) is not null)
+            throw new InvalidOperationException("GPU stream 设备检查只能配置一次。");
+    }
     /// <summary>以显式选择、现有会话选择、部署默认的顺序固定公开后端。</summary>
     public string Resolve(string? requested, string? fallback = null)
     {
@@ -56,6 +66,8 @@ public sealed class BackendRenderBackendConfiguration : IDisposable
         {
             await gate.WaitAsync(deadline.Token).ConfigureAwait(false);
             entered = true;
+            if (backend == "gpu" && _gpuStreamDevice is { } verify)
+                return new(backend, true, api, await verify(deadline.Token).ConfigureAwait(false));
             await using var worker = new WorkerProcessProxy(_workerOptions with { RenderBackend = backend });
             await worker.StartAsync(deadline.Token).ConfigureAwait(false);
             return new(backend, true, api, worker.VerifiedRenderBackendDevice);

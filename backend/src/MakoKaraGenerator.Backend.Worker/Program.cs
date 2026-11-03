@@ -39,8 +39,9 @@ internal static class Program
         ConcurrentDictionary<string, CancellationTokenSource> active = new(StringComparer.Ordinal);
         SemaphoreSlim outputGate = new(1, 1);
         ConcurrentDictionary<string, Task> operations = new(StringComparer.Ordinal);
+        using GpuWorkerPreparationState gpuPreparation = new(enableGpuPreview);
         await using StaticRenderSession staticSession = new(renderBackend);
-        await using PackageRenderSession packageSession = new(renderBackend, enableGpuPreview, enableGpuPreviewBenchmark);
+        await using PackageRenderSession packageSession = new(renderBackend, enableGpuPreview, enableGpuPreviewBenchmark, gpuPreparation);
         using SemaphoreSlim renderSessionGate = new(1, 1);
         string? renderSessionOwner = null;
         using SemaphoreSlim validationGate = new(1, 1);
@@ -74,6 +75,8 @@ internal static class Program
                         break;
                     case "render":
                     case "render-frame-v1":
+                    case GpuWorkerWarmupContract.DeviceStateKind:
+                    case GpuWorkerWarmupContract.RequestKind:
                     case WorkerRenderBackendContract.RequestKind:
                     case WorkerSceneMeasurementContract.CapabilitiesKind:
                     case WorkerSceneMeasurementContract.RequestKind:
@@ -132,6 +135,8 @@ internal static class Program
                         {
                             "render" => RunRenderAsync(message, operationCancellation.Token),
                             "render-frame-v1" => RunRenderFrameAsync(message, operationCancellation.Token),
+                            GpuWorkerWarmupContract.DeviceStateKind => Task.Run(() => RunGpuDeviceStateAsync(message, operationCancellation.Token)),
+                            GpuWorkerWarmupContract.RequestKind => Task.Run(() => RunGpuWarmupAsync(message, operationCancellation.Token)),
                             WorkerRenderBackendContract.RequestKind => Task.Run(() => RunRenderBackendVerificationAsync(message, operationCancellation.Token)),
                             WorkerSceneMeasurementContract.CapabilitiesKind or WorkerSceneMeasurementContract.RequestKind => Task.Run(() => RunSceneMeasurementAsync(message, operationCancellation.Token)),
                             StaticRenderWorkerContract.CapabilitiesKind => RunStaticCapabilitiesAsync(message, operationCancellation.Token),
@@ -190,9 +195,27 @@ internal static class Program
         outputGate.Dispose();
         return 0;
 
+        async Task RunGpuDeviceStateAsync(WorkerMessage request, CancellationToken token)
+        {
+            try { await ReplyAsync(gpuPreparation.ReadDevice(request, token)).ConfigureAwait(false); }
+            catch (OperationCanceledException)
+            { await ReplyAsync(new(GpuWorkerWarmupContract.DeviceStateResultKind, request.RequestId, request.InputSha256, cancelled: true)).ConfigureAwait(false); }
+            catch
+            { await ReplyAsync(new("error", request.RequestId, request.InputSha256, error: "GPU Worker 设备状态不可用。", errorCode: GpuWorkerWarmupContract.FailureCode)).ConfigureAwait(false); }
+        }
+
+        async Task RunGpuWarmupAsync(WorkerMessage request, CancellationToken token)
+        {
+            try { await ReplyAsync(gpuPreparation.Warm(request, token)).ConfigureAwait(false); }
+            catch (OperationCanceledException)
+            { await ReplyAsync(new(GpuWorkerWarmupContract.ResultKind, request.RequestId, request.InputSha256, cancelled: true)).ConfigureAwait(false); }
+            catch
+            { await ReplyAsync(new("error", request.RequestId, request.InputSha256, error: "GPU Worker 预热失败。", errorCode: GpuWorkerWarmupContract.FailureCode)).ConfigureAwait(false); }
+        }
+
         async Task RunRenderBackendVerificationAsync(WorkerMessage request, CancellationToken token)
         {
-            try { await ReplyAsync(RenderBackendVerificationTask.Execute(request, renderBackend, token)).ConfigureAwait(false); }
+            try { await ReplyAsync(RenderBackendVerificationTask.Execute(request, renderBackend, gpuPreparation, token)).ConfigureAwait(false); }
             catch (OperationCanceledException)
             { await ReplyAsync(new(WorkerRenderBackendContract.ResultKind, request.RequestId, request.InputSha256, cancelled: true)).ConfigureAwait(false); }
             catch (Exception error)
@@ -542,7 +565,7 @@ internal static class Program
                     cancellationToken.ThrowIfCancellationRequested();
                     string referenceDirectory = Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0");
                     ScriptReferenceIdentity references;
-                    try { references = ScriptReferenceIdentity.Read(referenceDirectory); }
+                    try { references = gpuPreparation.Prepared?.References ?? ScriptReferenceIdentity.Read(referenceDirectory); }
                     catch (Exception error) when (error is ArgumentException or IOException or UnauthorizedAccessException)
                     { throw new WorkerProtocolException("包 Worker 的实际脚本参考集不可用。", "WorkerPackageUnavailable"); }
                     PackageRenderWorkerCapabilities capabilities = new(StaticProjectSnapshotCodec.EngineIdentity,

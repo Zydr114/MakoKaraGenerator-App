@@ -550,9 +550,35 @@ internal sealed partial class PreviewBackendService : IAsyncDisposable
     {
         lock (_disposeGate)
         {
-            if (_dispose is null || _dispose.IsFaulted || _dispose.IsCanceled) _dispose = DisposeCoreAsync();
+            if (_dispose is null) _dispose = DisposeCoreAsync();
+            else if (_dispose.IsFaulted || _dispose.IsCanceled) _dispose = RetryDisposeCoreAsync();
             return new(_dispose);
         }
+    }
+
+    private async Task RetryDisposeCoreAsync()
+    {
+        await _membership.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            List<Exception> failures = [];
+            // A prior stream close keeps its diagnostic fault. Retry authoritative
+            // ownership drain directly rather than replaying that cached close task.
+            if (_gpuWorkerPool is not null)
+                try { await _gpuWorkerPool.DisposeAsync().ConfigureAwait(false); }
+                catch (Exception error) { failures.Add(error); }
+            if (_gpuStreams is not null)
+            {
+                try { await _gpuStreams.RetryFailedOpensAsync().ConfigureAwait(false); }
+                catch (Exception error) { failures.Add(error); }
+                try { _gpuStreams.ReleaseAllInputs(); }
+                catch (Exception error) { failures.Add(error); }
+            }
+            try { await _previews.DisposeAsync().ConfigureAwait(false); }
+            catch (Exception error) { failures.Add(error); }
+            if (failures.Count != 0) throw new AggregateException(failures);
+        }
+        finally { _membership.Release(); }
     }
 
     private async Task DisposeCoreAsync()
@@ -571,6 +597,11 @@ internal sealed partial class PreviewBackendService : IAsyncDisposable
                 try { await _gpuStreams.RetryFailedOpensAsync().ConfigureAwait(false); }
                 catch (Exception error) { failures.Add(error); }
                 try { _gpuStreams.ReleaseAllInputs(); }
+                catch (Exception error) { failures.Add(error); }
+            }
+            if (_gpuWorkerPool is not null)
+            {
+                try { await _gpuWorkerPool.DisposeAsync().ConfigureAwait(false); }
                 catch (Exception error) { failures.Add(error); }
             }
             try { await _previews.DisposeAsync().ConfigureAwait(false); }

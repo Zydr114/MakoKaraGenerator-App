@@ -27,6 +27,10 @@ public sealed partial class WorkerProcessProxy
                 !CanonicalUInt64(result.PoolGeneration) || result.DeviceUuid is not { Length: 32 } ||
                 !result.DeviceUuid.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f')) throw InvalidGpuStream();
         }, cancellationToken, requirePackageRuntimeGuards: true).ConfigureAwait(false);
+        if (GpuWarmup is { } prepared && (result!.WarmupBinding is not { OriginalDeviceBound: true,
+            DeviceInitializations: 1, ContextInitializations: 1 } binding ||
+            binding.PreparationId != prepared.PreparationId || binding.InitializationId != prepared.InitializationId))
+            throw InvalidGpuStream();
         return result!;
     }
 

@@ -18,6 +18,14 @@ public static class RuntimeRenderBackendProbe
     {
         cancellationToken.ThrowIfCancellationRequested();
         using var device = SkiaRenderDeviceFactory.Create(SkiaRenderBackendOptions.Parse(backend));
+        return ProbeRetainedDevice(device, backend, cancellationToken);
+    }
+
+    // The caller owns the actual prepared device. This check must not replace or dispose it.
+    internal static RuntimeRenderBackendProbeInfo ProbeRetainedDevice(ISkiaRenderDevice device, string backend,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
         bool gpu = backend == "vulkan";
         if (device.Info.Backend != backend) throw new InvalidOperationException("实际渲染设备与固定选择不同。");
         SKImageInfo info = new(4, 2, SKColorType.Bgra8888, SKAlphaType.Premul);

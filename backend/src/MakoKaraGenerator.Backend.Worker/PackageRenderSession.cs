@@ -9,7 +9,7 @@ using MakoKaraGenerator.Scripting;
 namespace MakoKaraGenerator.Backend.Worker;
 
 /// <summary>每个 package Worker 进程最多持有一个固定包 Runtime 会话。</summary>
-internal sealed class PackageRenderSession(string? renderBackend = null, bool enableGpuPreview = false, bool enableGpuPreviewBenchmark = false) : IAsyncDisposable
+internal sealed class PackageRenderSession(string? renderBackend = null, bool enableGpuPreview = false, bool enableGpuPreviewBenchmark = false, GpuWorkerPreparationState? gpuPreparation = null) : IAsyncDisposable
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
     private IRenderFrameSession? _session;
@@ -29,6 +29,7 @@ internal sealed class PackageRenderSession(string? renderBackend = null, bool en
             if (request.Kind is PackageRenderWorkerContract.OpenKind or ProjectImagePreviewWorkerContract.OpenKind or ProjectRuntimeInputWorkerContract.OpenKind)
             {
                 if (_session is not null) throw new WorkerProtocolException("Worker 已持有固定会话。", "WorkerSessionAlreadyOpen");
+                var preparedGpu = gpuPreparation?.Bind();
                 var input = PackageRenderWorkerContract.DecodeOpen(request.Payload);
                 var prepared = WorkerScriptInputs.Read(input.SnapshotBytes, token);
                 string sourceHash = WorkerProtocol.ComputeSha256(prepared.Source.Span);
@@ -54,9 +55,9 @@ internal sealed class PackageRenderSession(string? renderBackend = null, bool en
                         throw new SnapshotContractException("SnapshotVersionMismatch", "包会话必须携带包来源。");
                 }
                 var factory = runtimeInput?.CreateFactory(ReplayReason.Initial, renderBackend: renderBackend,
-                    enableGpuPreview: enableGpuPreview, enableGpuPreviewBenchmark: enableGpuPreviewBenchmark) ?? new ProjectRenderSessionFactory(prepared.Compiler,
+                    enableGpuPreview: enableGpuPreview, enableGpuPreviewBenchmark: enableGpuPreviewBenchmark, gpuPreparation: preparedGpu) ?? new ProjectRenderSessionFactory(prepared.Compiler,
                     new FfmpegVideoFrameProvider(), ReplayReason.Initial, imageResolverFactory, renderBackend: renderBackend,
-                    enableGpuPreview: enableGpuPreview, enableGpuPreviewBenchmark: enableGpuPreviewBenchmark);
+                    enableGpuPreview: enableGpuPreview, enableGpuPreviewBenchmark: enableGpuPreviewBenchmark, gpuPreparation: preparedGpu);
                 IRenderFrameSession session;
                 try { session = await factory.CreateAsync(snapshot, token).ConfigureAwait(false); }
                 catch (ProjectEffectCompilationException failure)
@@ -104,7 +105,8 @@ internal sealed class PackageRenderSession(string? renderBackend = null, bool en
                     }
                     catch { channel.Dispose(); throw; }
                     _gpuOpen = open;
-                    return GpuResult(request, GpuStreamWorkerContract.OpenResultKind, _gpuStream.Opened);
+                    return GpuResult(request, GpuStreamWorkerContract.OpenResultKind, _gpuStream.Opened with
+                    { WarmupBinding = gpuPreparation?.BindingProof() });
                 }
                 if (_gpuStream is null || _gpuOpen is null) throw GpuStreamProtocol.Invalid();
                 if (request.Kind == GpuStreamWorkerContract.ReadKind)

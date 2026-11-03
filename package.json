@@ -19,6 +19,7 @@
     "smoke:glow": "node frontend/scripts/glow-smoke.mjs",
     "smoke:layout": "node scripts/layout-check.mjs",
     "smoke:desktop": "node scripts/desktop-smoke.mjs",
+    "smoke:desktop-library": "node scripts/desktop-library-smoke.mjs",
     "setup:p0": "pnpm --dir desktop run setup",
     "preview:p0": "pnpm --dir desktop run p0"
   }

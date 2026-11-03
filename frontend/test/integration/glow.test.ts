@@ -5,7 +5,7 @@ import { cp, readFile, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { MakoClient, MemoryIdentityStore } from '../../src/client';
-import { micros, type JobResponse, type PresetApplicationTarget, type ProjectCommand, type ProjectSessionSummary, type StaticTemplateDefinition, type StyleGlow } from '../../src/protocol';
+import { CONTRACT_PRODUCT_VERSION, micros, type JobResponse, type PresetApplicationTarget, type ProjectCommand, type ProjectSessionSummary, type StaticTemplateDefinition, type StyleGlow } from '../../src/protocol';
 import { ContractRecorder, startTestBackend, type TestBackend } from '../support/backend';
 import { makeWav } from '../support/fixtures';
 
@@ -182,7 +182,7 @@ describe('保存重开与严格版本门禁', () => {
     expect(closed.state, closed.error?.message).toBe('succeeded');
     opened.delete(id());
     const entry = JSON.parse(await readFile(join(projectsRoot, 'current.mkgproj', 'project.json'), 'utf8'));
-    expect(entry).toMatchObject({ applicationVersion: '0.110.0', schemaVersion: 29, presetApplications: { templateSchemaVersion: 7 } });
+    expect(entry).toMatchObject({ applicationVersion: CONTRACT_PRODUCT_VERSION, schemaVersion: 29, presetApplications: { templateSchemaVersion: 7 } });
     expect(JSON.parse(await readFile(join(projectsRoot, 'current.mkgproj', entry.lyricsFile as string), 'utf8')).schemaVersion).toBe(18);
     const reopened = await finish(await client.projects.open({ projectDirectoryHandleId: await handle('current.mkgproj') }));
     expect(reopened.state, reopened.error?.message).toBe('succeeded');

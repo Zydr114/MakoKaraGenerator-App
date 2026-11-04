@@ -151,3 +151,9 @@ SDK 首轮 `scripting-v2-01.log` 为 119 通过／19 失败：18 项算法夹具
 Scripting 475 项通过。源表面密度、相邻字簇顺序、预算、取消和真实 owner 已纳入。
 Warp capability 仍关闭，真实包门禁 10 项已确认拒绝；详细失败与复验记录见
 [M09 证据](script-sdk-render-m09-evidence.md)。SVG native 与图组能力仍在实施，M09 未关闭。
+
+### M09 Warp 真实包准入（产品 0.112.6）
+
+已开放 token／cluster／mark Warp；真实 v3 包 CPU 参考与 Vulkan 各 10/10，通过覆盖写入、
+null 关闭、真实包修订／产物归属、累计预算，以及三级 Warp 后的播放头和粒子锚点。
+CPU 生产 v2 仍拒绝。完整证据及未关闭项见 [M09 记录](script-sdk-render-m09-evidence.md)。

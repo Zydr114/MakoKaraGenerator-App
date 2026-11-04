@@ -49,9 +49,31 @@ Warp 平移用例统一采用相对位移画面的有限差异断言，并独立
 
 当前记录没有宣称导出、HTTP、作者 UI、SVG 或整个 M09 完成，也没有作性能通过结论。
 
+## Warp 真实包准入（产品 0.112.6）
+
+正式开放 `token.warp`、`cluster.warp`、`mark.warp` 三项 v2 能力；SVG 和图组的门禁仍独立。
+`V2WarpPackageTests` 以真实 v3 包走 Declare → SetWarp → Prepare → 实际绘制，覆盖 family、
+base、cluster 和 mark，以及近端／3 分钟／10 分钟乱序、重复和重开。后实例 null 关闭、
+不同包修订覆盖后的最终 owner、256／257 次写入及稠密网格累计预算、三级 Warp 后的
+playback cursor 与真实 CursorTrail 粒子出生锚点均纳入。
+
+- `warp-package-green-01.log`：CPU 参考像素 10/10；
+  `warp-package-vulkan-01.log`：显式 Vulkan 10/10，没有跳过。
+- 生产 CPU v2 准入仍明确拒绝；CPU 参考绘制不是生产支持声明。
+- `build-warp-admission-01.log`：本机 SDK restore 缺少 ASP.NET prune 数据，构建未开始；
+  使用既有完整还原资产的 `build-warp-admission-02.log` 全解决方案构建零警告／零错误。
+
+- `core-warp-admission-full-01.log`：1471/1471；`scripting-warp-admission-full-01.log`：475/475。
+- `rendering-warp-admission-full-01.log`：1408 通过、4 项 MixedEffectPackage 动态 DLL
+  TypeLoadException；`mixed-package-recheck-01.log` 同类 83/83，随后
+  `rendering-warp-admission-full-02.log` 全套 1412/1412。失败日志保留，未确认根因，
+  不以复验通过宣称这一间歇问题已经修复。
+
+此处完成的是包与渲染接缝；导出、HTTP、作者工作流和 M09 整体验收继续推进。
+
 ## 未完成项
 
-- Warp 真实包准入与 Declare/Evaluate、导出及作者工作流；像素接缝的有限证据见上。
+- Warp 导出、HTTP 及作者工作流；真实包准入和像素接缝的有限证据见上。
 - SVG 生产 Picture／atlas／实际 mip、资源生命周期及完整 affine Sprite；目前描述与静态验证已提交。
 - v2 graph／运行时 Transform 绑定、组图调度与 BackdropBelow。
 - M09 的匹配合同／发布／fresh HTTP；M10 和 M11 尚未关闭。

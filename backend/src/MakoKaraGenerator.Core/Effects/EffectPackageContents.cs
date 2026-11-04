@@ -109,7 +109,7 @@ public sealed class EffectPackageContents
         if (v2)
         {
             requires = EffectPackageJson.Strings(root.GetProperty("requires"), "manifest.json.requires");
-            foreach (string capability in requires) EffectPackageProfiles.RequireCapability(capability, "manifest.json.requires");
+            foreach (string capability in requires) EffectPackageProfiles.RequireKnownCapability(capability, "manifest.json.requires");
             var exit = root.GetProperty("lineExit"); Keys(exit, "manifest.json.lineExit", ["durationUs"]);
             if (exit.GetProperty("durationUs").ValueKind != JsonValueKind.Number
                 || !exit.GetProperty("durationUs").TryGetInt64(out lineExitDurationUs) || lineExitDurationUs is < 0 or > 3_000_000)
@@ -167,8 +167,11 @@ public sealed class EffectPackageContents
             Add(digest, Convert.FromHexString(file.Sha256));
         }
         cancellationToken.ThrowIfCancellationRequested();
-        return new(id, name, version, actual, normalized, [.. verified], "sha256:" + Convert.ToHexStringLower(digest.GetHashAndReset()),
+        var result = new EffectPackageContents(id, name, version, actual, normalized, [.. verified], "sha256:" + Convert.ToHexStringLower(digest.GetHashAndReset()),
             requires, lineExitDurationUs, emitters);
+        // 描述解析只读取本固定闭包，不递归构造包；known pending 不代表执行能力获准。
+        _ = EffectPackageSvgResources.Read(result, cancellationToken);
+        return result;
     }
 
     private static ImmutableArray<EffectEmitterDefinition> ReadEmitters(JsonElement value, ImmutableArray<string> requires, CancellationToken token)

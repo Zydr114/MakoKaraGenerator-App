@@ -109,9 +109,9 @@ public sealed partial class EffectPackageDefinition
     private readonly ImmutableDictionary<string, EffectPackageFile> _files;
     private EffectPackageDefinition(EffectPackageContents contents, ImmutableArray<EffectParameterDefinition> parameters,
         ImmutableArray<EffectExportDefinition> exports, ImmutableDictionary<string, ShaderProgramDefinition> shaderPrograms,
-        ImmutableDictionary<string, EffectPackageImageGraph> imageGraphs)
+        ImmutableDictionary<string, EffectPackageImageGraph> imageGraphs, EffectPackageSvgResources svgResources)
     {
-        Contents = contents; Parameters = parameters; Exports = exports; ShaderPrograms = shaderPrograms; ImageGraphs = imageGraphs;
+        Contents = contents; Parameters = parameters; Exports = exports; ShaderPrograms = shaderPrograms; ImageGraphs = imageGraphs; SvgResources = svgResources;
         Controllers = [.. exports.OfType<EffectControllerDefinition>()]; Materials = [.. exports.OfType<EffectMaterialDefinition>()];
         Graphs = [.. exports.OfType<EffectGraphDefinition>()];
         _parameters = parameters.ToImmutableDictionary(parameter => parameter.Id, StringComparer.Ordinal);
@@ -143,6 +143,8 @@ public sealed partial class EffectPackageDefinition
     public ImmutableDictionary<string, ShaderProgramDefinition> ShaderPrograms { get; }
     /// <summary>按图文件路径索引的全部固定计划及逐输入捕获；正式启用前还须 CPU 编译验证。</summary>
     public ImmutableDictionary<string, EffectPackageImageGraph> ImageGraphs { get; }
+    /// <summary>全包严格 SVG 描述；XML/CSS/path 与 native 能力仍须由正式渲染验证器准入。</summary>
+    public EffectPackageSvgResources SvgResources { get; }
     /// <summary>读取真实控制器导出，缺失不选第一个代替。</summary>
     public EffectControllerDefinition GetController(string exportId)
         => Get<EffectControllerDefinition>(exportId);

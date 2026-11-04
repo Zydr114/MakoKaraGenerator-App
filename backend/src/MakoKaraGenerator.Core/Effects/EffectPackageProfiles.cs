@@ -65,6 +65,12 @@ public static class EffectPackageProfiles
         if (!SupportedV2Capabilities.Contains(capability))
             throw new EffectPackageException("PackageCapabilityUnsupported", path, "宿主尚不支持必须能力：" + capability);
     }
+    // SVG 描述可在执行器开通前完整验证；只能由 Definition 的 supported 门禁批准运行。
+    internal static void RequireKnownCapability(string capability, string path)
+    {
+        if (capability is EffectPackageSvgResources.VectorCapability or EffectPackageSvgResources.AtlasCapability) return;
+        RequireCapability(capability, path);
+    }
     private static bool TryVersion(string text, out int major, out int minor)
     {
         major = minor = -1;

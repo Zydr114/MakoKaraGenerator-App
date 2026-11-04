@@ -15,6 +15,7 @@ public sealed partial class EffectPackageDefinition
         var parameters = EffectPackageParameterParser.Read(json.RootElement.GetProperty("parameters"), files, cancellationToken);
         var programs = EffectPackageShaderPrograms.Read(contents, cancellationToken);
         var graphs = EffectPackageImageGraphs.Read(contents, parameters, programs, null, cancellationToken);
+        var svgResources = EffectPackageSvgResources.Read(contents, cancellationToken);
         var exports = ImmutableArray.CreateBuilder<EffectExportDefinition>(); HashSet<string> ids = new(StringComparer.Ordinal); int index = 0;
         var parameterIds = parameters.Select(parameter => parameter.Id).ToHashSet(StringComparer.Ordinal);
         foreach (var item in Array(json.RootElement.GetProperty("exports"), "exports"))
@@ -86,7 +87,9 @@ public sealed partial class EffectPackageDefinition
                 exports.Add(new EffectGraphDefinition(id, name, graphPath, references, ReadBindings(item, path), outputs, ordered));
             }
         }
-        cancellationToken.ThrowIfCancellationRequested(); return new(contents, parameters, exports.ToImmutable(), programs, graphs);
+        // known pending 只允许检查文件闭包；完整 Definition 返回前仍须通过真实执行能力门禁。
+        foreach (string capability in contents.Requires) EffectPackageProfiles.RequireCapability(capability, "manifest.json.requires");
+        cancellationToken.ThrowIfCancellationRequested(); return new(contents, parameters, exports.ToImmutable(), programs, graphs, svgResources);
     }
     private static ImmutableArray<string> ReadBindings(JsonElement item, string path)
     {

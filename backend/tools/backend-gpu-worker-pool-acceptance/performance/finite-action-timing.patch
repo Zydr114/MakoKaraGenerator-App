@@ -1,0 +1,97 @@
+--- a/scripts/gpu-preview-p3.mjs
++++ b/scripts/gpu-preview-p3.mjs
+@@ -511,6 +511,29 @@
+     }
+     throw new Error('Current public/native stream did not yield enough exact-generation drawn/native-completed frames');
+   };
++  // Approved finite A/B endpoint is the native completion timestamp, never
++  // the sampling loop return or the time needed to collect three correctness frames.
++  const recordFiniteAction=async(kind,index,start,after,extra={})=>{
++    if(!values.finite)return;
++    const completed=currentCompletedFrames(after,observedSamples.values(),String(start.invocation))
++      .filter(frame=>extra.expectedTimelineResetId===undefined||frame.timelineResetId===extra.expectedTimelineResetId);
++    const first=completed[0];
++    invariant(first,'Finite action has no exact current-generation drawn/native completion');
++    const worker=await readProc(after.workerPid,'worker');
++    invariant(!worker.exited&&typeof worker.startTicks==='string','Finite action requires exact live new Worker');
++    await record({type:'finite-action',kind,index,uiInvocationMonotonicNs:String(start.invocation),
++      uiInvocationClockUncertaintyMs:start.uncertaintyMs,
++      ...Object.fromEntries(STREAM_KEYS.map(key=>[key,after.activeStream[key]])),
++      firstMatchingCompletedLease:leaseKey(first),firstMatchingCompletedMonotonicNs:first.completedMonotonicNs,
++      uiInvocationToMatchingCompletionMs:Number(ns(first.completedMonotonicNs)-start.invocation)/1e6,
++      uiInvocationToMatchingCompletionUpperBoundMs:Number(ns(first.completedMonotonicNs)-start.invocation)/1e6+start.uncertaintyMs,
++      observationReturnMonotonicNs:after.nowMonotonicNs,
++      completionToObservationMs:Number(ns(after.nowMonotonicNs)-ns(first.completedMonotonicNs))/1e6,
++      workerPid:worker.pid,workerStartTicks:worker.startTicks,
++      timingBoundary:'CDP action invocation mapped to Electron-main monotonic -> original first exact six-identity drawn native-final-release timestamp; correctness count/old PID exit/poll return excluded',
++      ...extra});
++  };
++  const actionStart=async()=>{const clock=await mainClockBracket();return {invocation:process.hrtime.bigint()+clock.offset,uncertaintyMs:clock.uncertaintyMs};};
+   const waitOwnedExit=async(original)=>{
+     const deadline=Date.now()+30_000;
+     let current;
+@@ -562,13 +585,15 @@
+     invariant(await page.eval(`typeof window.makoGpuPreviewAcceptance?.setBackground==='function'`),'Real project edit benchmark hook unavailable');
+     for(let index=0;index<(values.debug?1:20);index++){
+       await sample();
++      const old=await page.eval('window.makoGpuPreviewAcceptance.current()');
+       const bracket=await mainClockBracket(),invocation=process.hrtime.bigint()+bracket.offset;
+-      const old=await page.eval('window.makoGpuPreviewAcceptance.current()');
+       const edited=await page.eval(`window.makoGpuPreviewAcceptance.setBackground(${index%2?24:48},16,32,255)`);
+       const deadline=Date.now()+30_000;let current;
+       do{current=await page.eval('window.makoGpuPreviewAcceptance.current()');if(current?.source?.sourceRevision===edited.sourceRevision&&current.inputGeneration!==old.inputGeneration)break;await sample();await pause(20);}while(Date.now()<deadline);
+       invariant(current?.streamId===old.streamId&&current.source.sourceRevision===edited.sourceRevision&&current.inputGeneration!==old.inputGeneration,'Real project input did not replace exact public generation');
+       const after=await waitCurrentFrames({since:String(invocation),count:1,predicate:state=>state.activeStream.streamId===current.streamId&&state.activeStream.inputGeneration===current.inputGeneration});
++      await recordFiniteAction('input-replacement',index,{invocation,uncertaintyMs:bracket.uncertaintyMs},after,
++        {previousInputGeneration:old.inputGeneration,expectedSourceRevision:edited.sourceRevision});
+       await record({type:'interaction',kind:'latest-input',uiInvocationMonotonicNs:String(invocation),uiInvocationClockUncertaintyMs:bracket.uncertaintyMs,
+         ...Object.fromEntries(STREAM_KEYS.map(key=>[key,after.activeStream[key]])),expectedSourceRevision:edited.sourceRevision,previousInputGeneration:old.inputGeneration,controllerResponseTimings:await page.eval('window.makoGpuPreviewAcceptance.timings?.()??[]')});
+     }
+@@ -578,8 +603,10 @@
+       const expectedSize=quality==='720p24'?{width:1280,height:720}:{width:2560,height:1440};
+       const oldWorker=await readProc(before.workerPid,'retired-worker');
+       invariant(!oldWorker.exited&&typeof oldWorker.startTicks==='string','Resolution cycle requires a live exact previous Worker identity');
++      const timing=await actionStart();
+       await setQuality(page,quality);
+-      const after=await waitCurrentFrames({since:before.nowMonotonicNs,previous:before.activeStream,expectedSize});
++      const after=await waitCurrentFrames({since:String(timing.invocation),previous:before.activeStream,expectedSize});
++      await recordFiniteAction('ui-resolution-recreate',index,timing,after,{previousInputGeneration:before.activeStream.inputGeneration});
+       const previousWorkerAfter=await waitOwnedExit(oldWorker);
+       await record({type:'action',kind:'ui-resolution-recreate',index,startMonotonicNs:before.nowMonotonicNs,endMonotonicNs:after.nowMonotonicNs,
+         previousStreamId:before.activeStream.streamId,nextStreamId:after.activeStream.streamId,previousInputGeneration:before.activeStream.inputGeneration,inputGeneration:after.activeStream.inputGeneration,
+@@ -589,6 +616,7 @@
+       const before=await waitCurrentFrames({count:1}),oldIdentity=before.activeStream;
+       const oldWorker=await readProc(before.workerPid,'retired-worker');
+       invariant(!oldWorker.exited&&typeof oldWorker.startTicks==='string','Attach cycle requires a live exact previous Worker identity');
++      const cycleTiming=await actionStart();
+       await shell.goto(page,'library');
+       await page.waitFor(`!document.querySelector('#mako-gpu-preview')`,'Preview detached by actual page navigation');
+       const detachDeadline=Date.now()+30_000;
+@@ -596,9 +624,12 @@
+       do{detached=await sample();if(detached.activeStream===null)break;await pause(100);}while(Date.now()<detachDeadline);
+       invariant(detached.activeStream===null,'Page navigation did not detach the native active stream');
+       const previousWorkerAfter=await waitOwnedExit(oldWorker);
++      const attachTiming=await actionStart();
+       await shell.goto(page,'orchestration');
+-      const after=await waitCurrentFrames({since:before.nowMonotonicNs,previous:oldIdentity}),newIdentity=after.activeStream;
++      const after=await waitCurrentFrames({since:String(attachTiming.invocation),previous:oldIdentity}),newIdentity=after.activeStream;
+       invariant(replacedStream(oldIdentity,newIdentity),'Attach cycle replayed the same claimed stream generation');
++      await recordFiniteAction('attach',index,attachTiming,after,{previousStreamId:oldIdentity.streamId});
++      await recordFiniteAction('detach-reattach',index,cycleTiming,after,{previousStreamId:oldIdentity.streamId});
+       await record({type:'action',kind:'attach-detach',index,startMonotonicNs:before.nowMonotonicNs,endMonotonicNs:after.nowMonotonicNs,
+         previousStreamId:oldIdentity.streamId,nextStreamId:newIdentity.streamId,previousInputGeneration:oldIdentity.inputGeneration,inputGeneration:newIdentity.inputGeneration,
+         previousWorkerPid:before.workerPid,previousWorkerStartTicks:oldWorker.startTicks,nextWorkerPid:after.workerPid,
+@@ -611,11 +642,13 @@
+       const before=await waitCurrentFrames({count:1});
+       const old=await page.eval('window.makoGpuPreviewAcceptance.current()');
+       const targetWidth=old.size.width===1280?2560:1280,targetHeight=targetWidth===1280?720:1440;
++      const resizeTiming=await actionStart();
+       const resized=await page.eval(`window.makoGpuPreviewAcceptance.resize(${targetWidth},${targetHeight})`);
+       invariant(old.streamId===resized.streamId&&old.inputGeneration!==resized.inputGeneration,'Resize did not preserve stream and replace input generation');
+       await seekTimeline(page,20+index*7);
+       const after=await waitCurrentFrames({since:before.nowMonotonicNs,previous:before.activeStream,expectedSize:{width:targetWidth,height:targetHeight},
+         predicate:state=>state.latestSample?.streamId===resized.streamId&&state.latestSample?.inputGeneration===resized.inputGeneration&&state.latestSample?.timelineResetId!==before.mediaClock?.timelineResetId});
++      await recordFiniteAction('public-resize-seek',index,resizeTiming,after,{previousInputGeneration:old.inputGeneration,expectedTimelineResetId:after.latestSample.timelineResetId});
+       await record({type:'action',kind:'public-resize-seek',exactGenerationCompleted:true,index,startMonotonicNs:before.nowMonotonicNs,endMonotonicNs:after.nowMonotonicNs,
+         streamId:resized.streamId,previousInputGeneration:old.inputGeneration,inputGeneration:resized.inputGeneration,previousPoolGeneration:old.poolGeneration,poolGeneration:resized.poolGeneration});
+     }

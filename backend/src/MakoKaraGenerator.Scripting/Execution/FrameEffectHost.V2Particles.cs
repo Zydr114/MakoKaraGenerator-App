@@ -9,10 +9,13 @@ internal sealed partial class FrameEffectHost
 {
     // Called once for the actual requested frame, never for legacy replay grids
     // or an anchor supplement. No particle result is filtered by current text visibility.
-    public PreparedRenderFrame PreparePureVisuals(PreparedRenderFrame text, RuntimeDiagnosticBuffer diagnostics, CancellationToken token)
+    private PreparedRenderFrame PreparePureVisualsCore(PreparedRenderFrame text, RuntimeDiagnosticBuffer diagnostics, CancellationToken token)
     {
         var pureOwners = _instances.Where(static item => item.Pure is not null).ToArray();
         if (pureOwners.Length == 0) return text;
+        if (pureOwners.All(static item => item.Pure!.Instance is not IPureVisualEffect
+            && item.Pure.Prepared.Particles.Continuous.IsEmpty && item.Pure.Prepared.Particles.Bursts.IsEmpty))
+            return PreparePureTextSnapshots(text, diagnostics, pureOwners, token);
         var particleBudget = V2Budgets.CreateParticleQuery();
         var transaction = _v2AnchorMemo.Begin();
         V2AnchorRequest query = new(text, transaction, particleBudget, V2Budgets.CreateAnchorQuery(token));
@@ -120,5 +123,36 @@ internal sealed partial class FrameEffectHost
                 diagnostics.Snapshot(), _visualBudget,
                 owners: [.. _definitions.Select(definition => new PreparedOverlayOwner(definition.Id, definition.RuntimeHash, definition.PackageIdentity))]);
         transaction.Commit(token); return result;
+    }
+
+    private PreparedRenderFrame PreparePureTextSnapshots(PreparedRenderFrame text, RuntimeDiagnosticBuffer diagnostics,
+        ActiveEffect[] pureOwners, CancellationToken token)
+    {
+        // An empty declaration can never acquire births at a later request. Keep
+        // every public owner/window and the same conservative empty-read charge,
+        // without creating schedules' query temporaries or an unused anchor memo.
+        var budget = V2Budgets.CreateParticleQuery();
+        BirthWindow window = new(Math.Max(0, text.TimeUs - ParticleLimits.MaximumLifetimeUs), text.TimeUs);
+        var snapshots = ImmutableArray.CreateBuilder<PreparedV2ParticleSnapshot>(pureOwners.Length);
+        foreach (var active in pureOwners)
+        {
+            token.ThrowIfCancellationRequested();
+            // CompiledParticleSchedule.Read charges this fixed upper bound even
+            // for zero rows. This is budget accounting, not allocated storage.
+            budget.ReserveBytes(active.Pure!.ParticleOwner!, 16_384, text.TimeUs);
+            snapshots.Add(new(active.Definition.Id, new(window, []), [], []));
+        }
+        token.ThrowIfCancellationRequested();
+        var batches = text.OverlayBatches;
+        if (batches.Length > 1)
+        {
+            var order = _definitions.Select((definition, index) => (definition.Id, index))
+                .ToDictionary(static item => item.Id, static item => item.index);
+            batches = [.. batches.OrderBy(batch => order[batch.InstanceId])
+                .ThenBy(static batch => batch.Id.Value, StringComparer.Ordinal)];
+        }
+        return text.WithV2ParticleSnapshots(snapshots.MoveToImmutable(), new(0, 0, 0, 0, 0))
+            .WithOverlaySnapshot(batches, diagnostics.Snapshot(), _visualBudget,
+                owners: [.. _definitions.Select(definition => new PreparedOverlayOwner(definition.Id, definition.RuntimeHash, definition.PackageIdentity))]);
     }
 }

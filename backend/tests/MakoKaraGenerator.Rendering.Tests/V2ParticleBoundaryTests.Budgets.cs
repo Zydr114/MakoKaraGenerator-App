@@ -45,6 +45,15 @@ public sealed partial class V2ParticleBoundaryTests
             Assert.Equal(package.PackageId, error.PackageIdentity!.PackageId);
             Assert.Equal(package.Revision, error.PackageIdentity.Revision);
             Assert.Equal(kind == "wall" ? "ResolveFinalAnchors" : "ReadParticleBirths", error.Stage);
+            var actual = Assert.IsType<RuntimeDiagnosticSnapshot>(error.DiagnosticSnapshot);
+            Assert.True(actual.HasError);
+            var failure = Assert.Single(actual.ReadAll(), item => item.Diagnostic.Diagnostic.Code == expected).Diagnostic;
+            Assert.Equal(DiagnosticSeverity.Error, failure.Diagnostic.Severity);
+            Assert.Equal(error.InstanceId, failure.InstanceId);
+            Assert.Equal(error.ArtifactHash, failure.ArtifactHash);
+            Assert.Equal(error.PackageIdentity, failure.PackageIdentity);
+            Assert.Equal(error.Stage, failure.Stage);
+            Assert.Equal(error.TimeUs, failure.TimeUs);
         }
         // Both real birth-time scenes were reached, so cancellation was not
         // requested before entry and the memory failure was not a count gate.

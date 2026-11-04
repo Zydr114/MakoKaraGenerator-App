@@ -167,6 +167,7 @@ internal sealed partial class FrameEffectHost : IDisposable
         Dictionary<V2.TextTarget, ActiveEffect> partitionOwners = [];
         Dictionary<V2.TextTarget, PreparedTextWarpBinding> textWarps = [];
         TextWarpBudget warpBudget = new();
+        GraphBindingBudget graphBudget = new();
         Dictionary<TokenFamilyTarget, StyleUpdate> styles = [];
         Dictionary<TokenFamilyTarget, ActiveEffect> styleOwners = [];
         Dictionary<TextMarkTarget, Affine2> markTransforms = [];
@@ -226,7 +227,8 @@ internal sealed partial class FrameEffectHost : IDisposable
             finally { writer.Invalidate(); }
             Invoke(active, "ComposeOutputs", timeUs, diagnostics, ignoredReporter =>
             {
-                ValidatePackageOutput(definition, output!);
+                ValidatePureGraphWrites(definition, output!, graphBudget, cancellationToken);
+                ValidatePackageOutput(definition, output!, cancellationToken);
                 ComposeWarps(active, output!, warpBudget, textWarps);
                 foreach (var transform in output!.BaseTransforms)
                 {

@@ -77,24 +77,36 @@ internal sealed partial class FrameEffectHost
         TextFrame input = new(pure.Source, frame, PresentationIndex.LineLoads(scene,
             frame.Presentations.LinesInBinding, active.Definition.PackageDefinition!.Contents.LineExitDurationUs));
         TextOutput output = new(input, active.Definition.PackageDefinition!.Contents.Requires,
-            [.. writableGroups.Select(static group => group.Target)]);
+            [.. writableGroups.Select(static group => group.Target)]) { GraphCancellation = token };
         try
         {
             pure.Instance.Evaluate(in input, pure.Prepared, output);
             token.ThrowIfCancellationRequested();
-            return ComposePureOutput(output.Complete());
+            return ComposePureOutput(output.Complete(), token);
         }
         finally { output.Invalidate(); }
     }
 
-    private static FrameOutput ComposePureOutput(TextOutputSnapshot snapshot)
+    private static FrameOutput ComposePureOutput(TextOutputSnapshot snapshot, CancellationToken token)
     {
         Dictionary<TextTarget, Affine2> transforms = [];
         Dictionary<TextTarget, StyleUpdate> styles = [];
         Dictionary<GroupTarget, double> groupOpacity = [];
         var warps = ImmutableArray.CreateBuilder<TextWrite.Warp>();
+        var graphs = ImmutableArray.CreateBuilder<TextWrite.GraphBinding>();
+        Dictionary<ImageEffectTarget, ImageEffectBinding> graphBindings = [];
         foreach (var write in snapshot.Writes)
         {
+            token.ThrowIfCancellationRequested();
+            if (write is TextWrite.GraphBinding graph)
+            {
+                graphs.Add(graph);
+                var target = GraphTarget(graph.Target);
+                // Dictionary insertion order is the first target write; replacing
+                // its value never reorders a different target or instance.
+                graphBindings[target] = new(target, graph.Value);
+                continue;
+            }
             if (write is TextWrite.Warp warp) { warps.Add(warp); continue; }
             if (write is TextWrite.Transform transform)
             {
@@ -123,6 +135,8 @@ internal sealed partial class FrameEffectHost
         return new()
         {
             TextWarps = warps.ToImmutable(),
+            GraphWrites = graphs.ToImmutable(),
+            ImageEffects = [.. graphBindings.Values],
             TokenTransforms = [.. transforms.Where(static pair => pair.Key is TextTarget.Family)
                 .Select(static pair => new TokenFamilyTransform(((TextTarget.Family)pair.Key).Value, pair.Value))],
             LineTransforms = [.. transforms.Where(static pair => pair.Key is TextTarget.Line)

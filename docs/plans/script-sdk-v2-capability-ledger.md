@@ -52,6 +52,23 @@ M07 的固定来源编译／显式采用和三例编辑预览已接线；新增 
 
 C03／C05–C07／C10及其余样例仍待所属节点；M08 已开放接口后的独立编码不构成运行通过。
 
+## M09 G2 已开通有限能力：`image.graph`（0.112.10）
+
+`image.graph` 的有限含义为 SDK v2 typed controller 通过 `TextOutput.BindGraph` 向真实
+Family／Line／Mark 写入 ColorOnly 固定包图；完整 `GraphBindingValue` 每次整体替换图、参数、
+uniform 与 Transform 覆盖，同实例同目标保留第一次插入位置，跨实例保留工程顺序。
+Core `SupportedV2Capabilities` 已在关门红例与真实包 CPU／Vulkan 正反例通过后开放此有限能力。
+
+每次写入均检查目标／能力／owning 包修订与资源、值自身形状和 float32 范围；宿主对包括被覆盖值在内的
+完整写序列检查导出目标、bindingKinds 与完整参数。只对最终存活绑定检查真实 shader／节点兼容性。
+逐 writer 及整帧全部实例分别累计最多 256 次绑定、65,536 个标量和 8 MiB 验证字节；数组与被覆盖写入计费，
+图写失败锁存至共享文字 writer 的后续 Transform／Style／Warp／Graph 和 Complete，取消原样传播。
+实际密度下的矩阵、输出框、逆采样与表面预算由 G1 图执行器复验。X／D／T 有限证据见
+[M09 记录](script-sdk-render-m09-evidence.md)；作者 UI／HTTP／导出图包链仍待。
+
+直接 v2 图、组图、实际 AnchorMap／GeometryMapping、跨输出依赖、owned Below 与材质 uniform reducer
+门禁继续保留。性能验收依用户指示暂停；本切片不关闭 C03。
+
 ## 全能力映射
 
 路径前缀：`SA` = `backend/src/MakoKaraGenerator.Scripting.Abstractions`，

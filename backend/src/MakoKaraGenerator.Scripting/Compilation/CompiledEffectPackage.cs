@@ -128,8 +128,12 @@ public sealed partial class CompiledEffectPackage
             string path = "exports." + exportId + ".outputs." + output.Id;
             if (EffectPackageProfiles.IsV2(Definition.Contents.Profile))
             {
-                if (output.Kind is not ("VisualTransform" or "StyleModulation" or "Overlay"))
+                if (output.Kind is not ("VisualTransform" or "StyleModulation" or "Overlay" or "ImageGraph"))
                     throw new EffectPackageException("PackageWriterPending", path, "SDK v2 尚未接通此输出阶段：" + output.Kind);
+                if (output.Kind == "ImageGraph" && output.Target is not ("tokenFamily" or "line" or "textMark"))
+                    throw new EffectPackageException("PackageWriterPending", path, "SDK v2 此图目标的生产调度尚未接通。");
+                if (output.Kind == "ImageGraph" && !Definition.Contents.Requires.Contains("image.graph", StringComparer.Ordinal))
+                    throw new EffectPackageException("PackageCapabilityMissing", path, "图控制器必须声明 image.graph 能力。");
                 // v2 的有限能力已由完整包解析器与包级 requires 共同校验。
             }
             else

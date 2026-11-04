@@ -120,6 +120,7 @@ public sealed partial class TextOutput
     private void RequireOpen()
     {
         if (_closed) throw new EffectOutputException("InvalidOutputStage", "文字输出句柄已离开本次求值阶段。");
+        RequireGraphTransaction();
     }
     private void Require(TextTarget target, string capability)
     {

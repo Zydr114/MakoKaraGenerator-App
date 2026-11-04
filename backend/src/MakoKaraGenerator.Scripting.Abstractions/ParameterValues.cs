@@ -73,6 +73,7 @@ public sealed class ParameterValues
 {
     private readonly ImmutableDictionary<string, ParameterValue> _values;
     private readonly ImmutableArray<string> _ids;
+    internal IEnumerable<KeyValuePair<string, ParameterValue>> Entries => _values;
     /// <summary>构造已固定的参数副本；重复身份拒绝。</summary>
     public ParameterValues(IEnumerable<KeyValuePair<string, ParameterValue>> values)
     {

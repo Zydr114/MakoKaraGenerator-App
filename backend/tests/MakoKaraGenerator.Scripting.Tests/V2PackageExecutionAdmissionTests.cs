@@ -10,8 +10,9 @@ public sealed class V2PackageExecutionAdmissionTests
     [Theory]
     [InlineData("VisualTransform", true)]
     [InlineData("Overlay", true)]
+    [InlineData("ImageGraph", true)]
     [InlineData("ImageGraph", false)]
-    public async Task v2已支持输出能力进入执行且未实现阶段提前具名拒绝(string kind, bool supported)
+    public async Task v2已支持输出进入执行且图缺少必须能力提前具名拒绝(string kind, bool supported)
     {
         var files = EffectPackageFixture.Files();
         files["src/PackEffect.cs"] = Encoding.UTF8.GetBytes("""
@@ -26,7 +27,7 @@ public sealed class V2PackageExecutionAdmissionTests
         manifest["packageVersion"] = EffectPackageProfiles.V2.PackageVersion;
         manifest["sdkVersion"] = EffectPackageProfiles.V2.SdkVersion;
         manifest["shaderProfile"] = EffectPackageProfiles.V2.ShaderProfile;
-        string capability = kind == "Overlay" ? "visuals.dots" : "token.affine";
+        string capability = kind == "Overlay" ? "visuals.dots" : kind == "ImageGraph" && supported ? "image.graph" : "token.affine";
         manifest["requires"] = new JsonArray(capability);
         manifest["lineExit"] = new JsonObject { ["durationUs"] = 0 };
         manifest["emitters"] = new JsonArray();
@@ -38,7 +39,7 @@ public sealed class V2PackageExecutionAdmissionTests
         var compiled = await CompiledEffectPackage.CompileAsync(package, compiler);
         Assert.True(compiled.Succeeded, string.Join('\n', compiled.Artifact.Diagnostics));
         if (supported) Assert.True(compiled.CreateEffect("scale", new("test"), new EffectBinding.Tokens([new("word")]), 0).IsV2);
-        else Assert.Equal("PackageWriterPending", Assert.Throws<EffectPackageException>(() =>
+        else Assert.Equal("PackageCapabilityMissing", Assert.Throws<EffectPackageException>(() =>
             compiled.CreateEffect("scale", new("test"), new EffectBinding.Tokens([new("word")]), 0)).Code);
     }
 }

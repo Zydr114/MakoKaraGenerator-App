@@ -185,3 +185,9 @@ G1 完整值身份、动态矩阵／输出框、原生逆采样检查及两个�
 CPU／Vulkan 定向各67项、Rendering复验1544项、Scripting492项通过，完整构建0警告／0错误。
 首轮重复键缺陷已修复；完整回归中一次 Roslyn 空引用异常仍单独调查，未宣称已修复。
 v2 image.graph 能力仍关闭，G2 作者事务及真实包准入继续实施；详见[M09证据](script-sdk-render-m09-evidence.md)。
+
+### M09 typed controller 图事务（产品 0.112.10）
+
+G2 已接通 TextOutput.BindGraph 并开放 image.graph 的 Family／Line／Mark ColorOnly 路径。
+真实包关门12项红例后，CPU参考／Vulkan各12项通过；Scripting501、Core包回归264、
+Rendering1556通过，完整构建0警告／0错误。无DLL直接图、材质uniform、组图与owned Below仍待。

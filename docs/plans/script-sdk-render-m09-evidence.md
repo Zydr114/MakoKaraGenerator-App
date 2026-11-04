@@ -222,3 +222,20 @@ Decal／Clamp／Repeat 使用完整源域。主画布与独立执行入口都保
 - `graph-g1-scripting-full-01.log`：492/492。
 
 以上为图值与执行器切片证据，不是 M09 关闭、当前版本 HTTP 发布或性能验收。
+
+## G2：typed controller 图事务（0.112.10，2026-11-05）
+
+开放 `image.graph` 的 Family／Line／Mark ColorOnly 控制器路径；SDK 与全帧宿主都累计
+全部写入预算，完整替换不合并旧覆盖，最终节点兼容性只检查存活值。作者吞掉写入错误不能
+继续发布部分事务。纯度规则身份升至 `sdk2-purity-5`，旧产物不会冒用新白名单。
+
+同一证据根：`build-graph-g2-04.log` 完整 solution 0 警告／0 错误；首次构建仅新夹具
+CA1861 失败，已抽取重复常量数组，未放宽分析器。`graph-g2-sdk-01.log` 22/22；
+`graph-g2-admission-red-01.log` 12 项均因 image.graph 能力关闭被具名拒绝；开放后
+`graph-g2-real-package-cpu-01.log` 和 `graph-g2-real-package-vulkan-01.log` 各 12/12。
+覆盖真实包编译、字族／行／标记像素、重复／乱序／600 秒／重开、完整覆盖清除、跨实例顺序、
+intrinsic 坏值不能被后写隐藏、最终节点失败、累计预算和取消恢复。
+
+`graph-g2-scripting-full-01.log` 501/501、`graph-g2-core-admission-01.log` 264/264、
+`graph-g2-rendering-full-01.log` 1556/1556。CPU 是内部参考执行器，生产 v2 的 GPU 门禁未改变。
+直接无 DLL 图、材质 uniform、组图及 owned Below 仍待后继切片，M09 未关闭。

@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.42.4",
   "httpProtocolVersion": "1",
-  "productVersion": "0.110.8",
-  "sourceBaselineCommit": "bb71ae9d82e806cf397365e3bd86628b634788e5",
+  "productVersion": "0.110.9",
+  "sourceBaselineCommit": "3083e6b535f40a04e96f6cd50e6b0896055d211c",
   "frozenOn": "2026-11-04",
   "status": "frozen",
   "behaviorSource": "docs/architecture/backend-api.md",
   "scope": "Implemented public HTTP API through static outer glow with inheritance, templates, text marks and per-input CPU/GPU selection. Contract shape, matched deployment, real Linux GPU/HTTP frames and lifecycle evidence remain separate; not browser, cross-platform or performance acceptance.",
   "files": {
-    "Directory.Build.props": "fc63903b0480a18db317d546335702b2b47b6f3aa6b0ce6ffaa7aed3a4c5fd4d",
+    "Directory.Build.props": "25b42c76afb2456f61d685afc41c425c0a6915322764e98cf121f56c649e799e",
     "Directory.Packages.props": "73a39b80a81538299db0031c15eb45c9b3d304cb03c232e5a13e4b19d2d9929b",
     "docs/architecture/backend-api.md": "7a3f53dd0a1f0deed53c7457ddb7d7db0ea9060006b0f8830dc480b68fa84c1c",
     "docs/runtime-validation-and-layout-contract.md": "af88f95301baf372ea29fb5012f59ec11bd3141391566fa09400cefacbd2cb15",
@@ -474,8 +474,8 @@
     "src/MakoKaraGenerator.Core/Validation/ProjectValidator.cs": "2f6f1962493b1c86fc29daad3a880245ffad093d730cf22777938ddaf216df72",
     "src/MakoKaraGenerator.Media/FfmpegMediaProbe.cs": "d532067ff2d72f3b671353870f70e63ec57343c60be8fe5ea55c72a2d0601b70",
     "src/MakoKaraGenerator.Media/FfmpegPcmReader.cs": "b896ed236cf61f09c54b28009f9c2c4c28076a55d905a2be6243e479a4f91e39",
-    "src/MakoKaraGenerator.Media/FfmpegVideoFrameProvider.Source.cs": "625977ea262005c57c8b9c2148f76ca3aa76043f2bdcf1d9831d79b790211aeb",
-    "src/MakoKaraGenerator.Media/FfmpegVideoFrameProvider.cs": "064c487ddac946e261b31292074102cb510065d80e727d972c2e7922bffa68c2",
+    "src/MakoKaraGenerator.Media/FfmpegVideoFrameProvider.Source.cs": "0396e5abd8a90e66b3a2002b56256265072142f97a43b29597e2f02a9c0ae582",
+    "src/MakoKaraGenerator.Media/FfmpegVideoFrameProvider.cs": "8fbe4826b07d6f9515089e3af0715e0359a0fa09cbb0db885f77e11bae0617a9",
     "src/MakoKaraGenerator.Media/OwnedMediaProcess.cs": "aa2c017e7855b2a11306d1dffb2f2eaa2487f17558ea0cb026e6603b1ef4b5f9",
     "src/MakoKaraGenerator.Media/SelfContainedVideoInput.cs": "a4cbf7d7d8f4d792756227af8004de1d851f7bba7440c338ed3bde1e40abe0c6",
     "src/MakoKaraGenerator.Processes/OwnedProcessGroup.cs": "ec1d6101af074c4604aa84adbdbd3323ad928f9507ffb1dec808ca1ac4953c5e",
@@ -493,7 +493,7 @@
     "src/MakoKaraGenerator.Rendering.Abstractions/SceneDefinition.cs": "bdcce0ec23c37486f78e09196d343e03b52402f88f97405cbc8490376e8c0e0e",
     "src/MakoKaraGenerator.Rendering.Abstractions/StaticStyleProjection.cs": "f1ffb201ac8de2a5148479b65e68ce4990a98394873c55e9ec92cf548e8e3864",
     "src/MakoKaraGenerator.Rendering.Skia/BackgroundFrameSourceResolver.cs": "d389fa4205cabd681dbcf12eca6b4106cb9f15e22b2779e900ce02d1b355af07",
-    "src/MakoKaraGenerator.Rendering.Skia/BackgroundFrameSources.cs": "2f0310f812ab87b9b600071dfa8c46d9e6f33aac91d5a0c1e0b0d4fcc0a7f118",
+    "src/MakoKaraGenerator.Rendering.Skia/BackgroundFrameSources.cs": "c892272dbd3b443a8747bdd7a5e79db1932de2f492d9975d3634a2ddaa6a430d",
     "src/MakoKaraGenerator.Rendering.Skia/Effects/CompiledImageGraph.Drawing.cs": "ce19af6cb7b6f0a3422d2afe600c5901aa3c8c1152356ae71723bb94ab8ab8dd",
     "src/MakoKaraGenerator.Rendering.Skia/Effects/CompiledImageGraph.MaterialCoverage.cs": "64445dacd96edc49c3391a5d952afea2f55aecd53217f26b9f12dd6c18ef64f6",
     "src/MakoKaraGenerator.Rendering.Skia/Effects/CompiledImageGraph.PayloadCapture.cs": "68a4b0f87002ee34ebf40e3b5f009208425db51115351f29d413de18c07df421",
@@ -537,7 +537,7 @@
     "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.TextMarks.cs": "84c8d12962a68722b7891b029858d898306542164b32409d9d1a46b73ac73278",
     "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.TextPainting.cs": "ac81b6d2e70b6c15e12dec23030266613fc96ac085df8c623370807dfb4b3be0",
     "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.TokenGeometry.cs": "601ce6be253f8e866a962fd3c80bbf287eeab7b9100c63c0d2ace2de35eb0d5a",
-    "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.cs": "34e68b376428297143f2ef926da532084fc3bb08de2a882964a88e15b24228a2",
+    "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.cs": "6fd7f7482c6a73f467c84e7ff604421c1323ab7257ff437c569f865986350df2",
     "src/MakoKaraGenerator.Rendering.Skia/SkiaTextLayoutEngine.cs": "64de84f039c8a5d9877a0e21640a904f1934b153af19832989bbfdd211ce9f6b",
     "src/MakoKaraGenerator.Rendering.Skia/SkiaTypefaceCoverage.cs": "9107d72b6276dc3e7f409c0fbe3aa028f6caed043850fead5e838d37f18a1b63",
     "src/MakoKaraGenerator.Runtime.Hosting/ProjectRenderSession.cs": "998f792493fdafd06fd8476ba1a919eea9bbd1386db6818bbfc09ccb347cf5b7",
@@ -560,7 +560,7 @@
     "tools/backend-api-contract/editing_completion_fixtures.py": "4b4da8347c0ab78b0354e7d8f81a14235bc5c5646a6377aca492c1e7f0243ca6",
     "tools/backend-api-contract/editing_completion_schema.py": "f182ca0aec1be18ff08afa3eea48aa2b9212bdd43fdb9f00ad9b46a7122e59ba",
     "tools/backend-api-contract/export_request_fixtures.py": "b221f6c1da6ee545b1df3d9c769e5ba8ad8119e8add86004e9b6947fed548321",
-    "tools/backend-api-contract/freeze.py": "c6c26d46b737a7eb367889777dcc1f8ccea950ea5a4edb414a10b6df4f9a2d98",
+    "tools/backend-api-contract/freeze.py": "92fa6723cdf4177dd91ab83ef385ae5f2f1621397670750ebb323795cab93713",
     "tools/backend-api-contract/glow_style_fixtures.py": "b571abcdece9844c4e3a2a2d894a98ffce17c017c36345c6cb605653fd10d959",
     "tools/backend-api-contract/gpu_stream_fixtures.py": "8b7b832aa4e1efbd5ce97434ee5e6ed45865016552e08d92cdf0f79bc804fda0",
     "tools/backend-api-contract/node_creation_fixtures.py": "9fc813b46cbd66ed93dcb5396b79ae653dec2d44c2545de89ed8d4ba92b62bcd",
@@ -598,9 +598,9 @@
   },
   "artifacts": {
     "web/api-contract.md": "1813371fbf24b6b534728986b277697003d12b24cd66fc82bd42f3687caa0599",
-    "web/api-index.md": "17e92ccfb0f0a2063b983556eaf352b2ae78b86eb895f8dd200fbf044dabe9a5",
+    "web/api-index.md": "297faa95e3c9ef9da18f58cab5727ba0141ab4e81bfbf4cd8b3a457d41a55f73",
     "web/examples.json": "93ef143d2c92288034a3587656dd06a2bf0b9d618dcaad324b6a047f3ae3da7b",
-    "web/openapi.json": "8567f0b95f3286a27994c9b75fab10dec6383b91cbb4dc30a851d8ceb8a21afe"
+    "web/openapi.json": "1d8f092f49a84040b37be6736fdd20e766a42b2887b965acba8010fb14b2a95c"
   },
   "guards": "Source hashes require review even for behavior-preserving changes. They are drift alarms, not semantic proofs. Runtime/Media behavior still requires existing regression tests."
 }

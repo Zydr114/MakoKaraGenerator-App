@@ -110,7 +110,7 @@ def main():
         timings.append(item)
     result = {'status':'passed' if all(x['passed'] for x in comparisons+determinism) else 'failed',
               'pixelToleranceChannel8bit':2,'comparisons':comparisons,'crossProcessDeterminism':determinism,
-              'timings':timings,'formalPerformanceThreshold':'pending user confirmation',
+              'timings':timings,'formalPerformanceThreshold':'user confirmed 2026-11-04; run m07_thresholds.py with the explicit archived baseline',
               'scope':'Finite one-token CJK/Ruby parity. Separate setup/query metrics; no HTTP/UI timing or arbitrary v1 equivalence claim.'}
     save(output / 'summary.json', result)
     print(json.dumps({'status':result['status'],'runs':len(runs),'pixelComparisons':len(comparisons)},ensure_ascii=False))

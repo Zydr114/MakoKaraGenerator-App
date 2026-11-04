@@ -1,15 +1,18 @@
-// 源码页签的代码编辑器（W8 设计 §2.6，§9 决定 1）：CodeMirror 6 的一层 React 包装，只带 C# 高亮、行号、括号匹配、撤销历史、Tab 缩进和诊断标记，
+// 源码页签的代码编辑器（W8 设计 §2.6，§9 决定 1）：CodeMirror 6 的一层 React 包装，按 role 选择 C#／shader／JSON／XML 高亮、行号、括号匹配、撤销历史、Tab 缩进和诊断标记，
 // 不带补全、搜索面板和格式化。源码页签第一次打开时才动态 import，打成单独的分块。
 // 每个文件的 EditorState（内容、撤销历史、光标）寄存在 DraftSourceModel 里，切文件、切页签、切草稿都不丢。配色取主题令牌，跟随浅色和深色主题。
 
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { bracketMatching, HighlightStyle, indentOnInput, StreamLanguage, syntaxHighlighting } from '@codemirror/language';
-import { csharp } from '@codemirror/legacy-modes/mode/clike';
+import { csharp, shader } from '@codemirror/legacy-modes/mode/clike';
+import { json } from '@codemirror/legacy-modes/mode/javascript';
+import { xml } from '@codemirror/legacy-modes/mode/xml';
 import { lintGutter, setDiagnostics, type Diagnostic } from '@codemirror/lint';
-import { EditorState } from '@codemirror/state';
+import { Compartment, EditorState, Transaction } from '@codemirror/state';
 import { drawSelection, EditorView, highlightActiveLine, highlightActiveLineGutter, highlightSpecialChars, keymap, lineNumbers } from '@codemirror/view';
 import { tags } from '@lezer/highlight';
 import { useEffect, useRef } from 'react';
+import type { SourceLanguage } from './draft-source';
 import { diagnosticRange, type SourceMarker } from '../model/compile-diagnostics';
 
 export interface SourceEditorProps {
@@ -17,6 +20,7 @@ export interface SourceEditorProps {
   docKey: string;
   /** 没有寄存的状态时用来新建。 */
   text: string;
+  language?: SourceLanguage;
   /** 寄存的编辑器状态，建编辑器时才读（StrictMode 重新挂载时要拿到上一个编辑器刚寄存的状态）。 */
   keptState(): unknown;
   onChange(text: string): void;
@@ -69,7 +73,10 @@ const highlight = HighlightStyle.define([
   { tag: tags.standard(tags.variableName), color: 'var(--mk-code-builtin)' },
 ]);
 
-const language = StreamLanguage.define(csharp);
+const languageSlot = new Compartment();
+const listenerSlot = new Compartment();
+const languages = { csharp: StreamLanguage.define(csharp), shader: StreamLanguage.define(shader),
+  json: StreamLanguage.define(json), xml: StreamLanguage.define(xml), plain: [] };
 
 export default function SourceEditor(props: SourceEditorProps) {
   const host = useRef<HTMLDivElement>(null);
@@ -80,10 +87,21 @@ export default function SourceEditor(props: SourceEditorProps) {
   /** 已经跳过的 nonce。卸载时清掉：StrictMode 重新挂载后的编辑器要再跳一次（并拿到焦点）。 */
   const revealed = useRef<number | undefined>(undefined);
 
+  // 寄存的 EditorState 会跨组件卸载存活；恢复时必须换成当前组件的回调。
+  // 否则旧 listener 引用旧 active 文件，服务规范化 manifest 会误写进该文件。
+  const listener = () => EditorView.updateListener.of((update) => {
+    if (update.docChanged) latest.current.onChange(update.state.doc.toString());
+    latest.current.onKeep(update.state);
+  });
+
   const stateFor = (p: SourceEditorProps): EditorState => {
     const saved = p.keptState();
     const kept = saved instanceof EditorState ? saved : undefined;
-    if (kept && kept.doc.toString() === p.text) return kept;
+    if (kept) return kept.update({
+      ...(kept.doc.toString() === p.text ? {} : { changes: { from: 0, to: kept.doc.length, insert: p.text } }),
+      effects: [languageSlot.reconfigure(languages[p.language ?? 'csharp']), listenerSlot.reconfigure(listener())],
+      annotations: Transaction.addToHistory.of(false),
+    }).state;
     return EditorState.create({
       doc: p.text,
       extensions: [
@@ -96,7 +114,7 @@ export default function SourceEditor(props: SourceEditorProps) {
         bracketMatching(),
         highlightActiveLine(),
         lintGutter(),
-        language,
+        languageSlot.of(languages[p.language ?? 'csharp']),
         syntaxHighlighting(highlight),
         theme,
         EditorState.tabSize.of(4),
@@ -113,10 +131,7 @@ export default function SourceEditor(props: SourceEditorProps) {
           ...defaultKeymap,
           ...historyKeymap,
         ]),
-        EditorView.updateListener.of((update) => {
-          if (update.docChanged) latest.current.onChange(update.state.doc.toString());
-          latest.current.onKeep(update.state);
-        }),
+        listenerSlot.of(listener()),
       ],
     });
   };
@@ -140,6 +155,14 @@ export default function SourceEditor(props: SourceEditorProps) {
     shownKey.current = props.docKey;
     editor.setState(stateFor(props));
   }, [props.docKey]);
+
+  // 保存后 manifest 的 SHA 由服务规范化；同步固定源原文时保留本文件撤销历史。
+  useEffect(() => {
+    const editor = view.current;
+    if (!editor || shownKey.current !== props.docKey || editor.state.doc.toString() === props.text) return;
+    editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: props.text },
+      annotations: Transaction.addToHistory.of(false) });
+  }, [props.docKey, props.text]);
 
   // 诊断标记：换文件或换了编译结果时重新标。
   useEffect(() => {

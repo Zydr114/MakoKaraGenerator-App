@@ -4,6 +4,7 @@
 // 一次“连接”绑定一个 Server 进程（hostInstanceId）。Server 重启后旧身份全部失效：
 // 状态变为 hostRestarted、清空队列并发出 reset，由页面调用 reinitialize() 重新取启动信息并登记。
 
+import type { AuthorPackageFilesInput, AuthorPackageFilesResponse } from '../protocol/author-package-files';
 import type { GpuPreviewCreateInput, GpuPreviewStreamState } from '../protocol';
 
 import {
@@ -1328,6 +1329,24 @@ export class MakoClient extends Emitter<MakoClientEvents> {
           label: 'drafts.sources',
         })
       ).data,
+
+    /** 精确草稿修订下的完整 manifest、文本与只读二进制描述。 */
+    packageFiles: async (draftId: string, expectedDraftRevision: string, sourceRevision: string): Promise<AuthorPackageFilesResponse> =>
+      (await this.send<AuthorPackageFilesResponse>({
+        method: 'GET', path: `/api/v1/drafts/${enc(draftId)}/package-files`,
+        query: { expectedDraftRevision, sourceRevision }, auth: 'access', label: 'drafts.packageFiles',
+      })).data,
+
+    /** 原子保存完整包文本；SDK2 不自动采用或改变在用来源，服务重算文本摘要。 */
+    savePackageFiles: async (draftId: string, expectedDraftRevision: string, input: AuthorPackageFilesInput): Promise<AuthorDraft> => {
+      const receipt = this.requireConn().receipts.create('draft-package-files');
+      const { data } = await this.send<AuthorDraft>({
+        method: 'PUT', path: `/api/v1/drafts/${enc(draftId)}/package-files`,
+        json: { expectedDraftRevision, ...input, metadata: toMetadata(receipt) },
+        auth: 'access', label: 'drafts.savePackageFiles',
+      }, receipt);
+      return data;
+    },
 
     /** 提交完整配置；内容相同是 no-op（草稿修订不变）。 */
     setConfiguration: async (draftId: string, expectedDraftRevision: string, configuration: AuthorDraftConfigurationInput): Promise<AuthorDraft> => {

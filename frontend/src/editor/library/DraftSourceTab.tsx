@@ -1,5 +1,5 @@
 // 作者草稿的源码页签（W8 设计 §2.6）：左边是文件和修订，右边是代码编辑器和编译结果。编辑器（CodeMirror）第一次打开这个页签时才加载。
-// 本页只接入已有 C# 文件编辑；没有 C# 源码时说明尚未接入包文件编辑。
+// 完整包文件入口保留旧 C# 模型兼容；manifest 与服务标为 editable 的文本共用编辑器，二进制只读。
 
 import { Component, lazy, Suspense, useEffect, useRef, type ReactNode } from 'react';
 import { compileOutcomeText, compileRows, type CompileRow, type SourceMarker } from '../model/compile-diagnostics';
@@ -12,13 +12,13 @@ import { useObservable } from '../ui/hooks';
 import { Icon } from '../ui/Icon';
 import { Note, ReadError } from '../workspace/panel';
 import type { FullDraft } from './author-draft-store';
-import { revisionLabelText, revisionRows, type DraftSourceModel, type SourceResult } from './draft-source';
+import { revisionLabelText, revisionRows, sourceLanguage, type DraftSourceModel, type SourceResult } from './draft-source';
 
 const loadEditor = () => lazy(() => import('./SourceEditor'));
 /** lazy 会记住失败的加载，重试时换一个新的。 */
 let SourceEditor = loadEditor();
 
-export const NO_SOURCE_TEXT = '这个包没有 C# 源码（材质和图由着色器、图文件构成），当前页面尚未接入包文件编辑。';
+export const NO_SOURCE_TEXT = '这个包没有 C# 源码，当前连接使用旧源码接口；完整包文件入口不可用。';
 
 export function DraftSourceTab(props: { draft: FullDraft; model: DraftSourceModel; disabled: boolean }) {
   const { draft, model, disabled } = props;
@@ -51,18 +51,19 @@ export function DraftSourceTab(props: { draft: FullDraft; model: DraftSourceMode
   const dirty = model.dirty;
   const busy = disabled || !!state.busy;
 
-  const save = async () => report(await model.save());
+  const reportResult = (result: SourceResult) => report(result, model.isV2 || !!state.packageFiles);
+  const save = async () => reportResult(await model.save());
   const view = async (revision: string) => {
     if (model.dirty && !(await confirmLoseEdits('查看别的修订'))) return;
     await model.load(revision);
   };
-  const adopt = async (revision: string) => report(await model.adopt(revision));
+  const adopt = async (revision: string) => reportResult(await model.adopt(revision));
   const compile = async () => {
     const saved = await model.compile();
-    if (saved) report(saved);
+    if (saved) reportResult(saved);
   };
-  const undoAdoption = async () => report(await model.undoAdoption());
-  const redoAdoption = async () => report(await model.redoAdoption());
+  const undoAdoption = async () => reportResult(await model.undoAdoption());
+  const redoAdoption = async () => reportResult(await model.redoAdoption());
 
   const latest = draft.currentSourceRevision;
   const compilation = state.compilation;
@@ -71,7 +72,7 @@ export function DraftSourceTab(props: { draft: FullDraft; model: DraftSourceMode
   // 编辑器里是编译的那个修订时，当前文件的诊断标在编辑器里。
   const markers: SourceMarker[] =
     compilation && active && compilation.sourceRevision === state.revision
-      ? rowsOf.filter((d) => d.path === active.path).map((d) => ({ line: d.line, column: d.column, severity: d.isError ? 'error' : 'warning', message: `${d.code} ${d.message}` }))
+      ? rowsOf.filter((d) => d.path === active.path && d.line > 0 && d.column > 0).map((d) => ({ line: d.line, column: d.column, severity: d.isError ? 'error' : 'warning', message: `${d.code} ${d.message}` }))
       : [];
   const jump = async (row: CompileRow) => {
     if (!compilation || !row.path) return;
@@ -92,10 +93,11 @@ export function DraftSourceTab(props: { draft: FullDraft; model: DraftSourceMode
                 data-path={file.path}
                 data-dirty={file.text !== file.saved ? '' : undefined}
                 aria-current={file.path === state.active ? 'true' : undefined}
-                title={file.path}
+                title={`${file.path}${file.role ? ` · ${file.role}` : ''}${file.editable === false ? ' · 只读' : ''}`}
+                aria-label={`${file.path}${file.editable === false ? '，只读' : ''}`}
                 onClick={() => model.select(file.path)}
               >
-                <Icon name="code" />
+                <Icon name={file.editable === false ? 'lock' : 'code'} />
                 <span className="fitem-name">{baseName(file.path)}</span>
                 {file.text !== file.saved && <i className="udot source-dot" aria-label="改过" />}
               </button>
@@ -124,7 +126,7 @@ export function DraftSourceTab(props: { draft: FullDraft; model: DraftSourceMode
                   icon="check_circle"
                   size="sm"
                   label={`${model.isV2 ? '采用' : '改用'}修订 ${shortRevision(row.revision)}`}
-                  tooltip={model.isV2 ? '采用此修订（须编译通过）' : '改用此修订'}
+                  tooltip={model.isV2 ? (draft.canCompile ? '采用此修订（须编译通过）' : '采用此固定资源修订') : '改用此修订'}
                   className="source-revision-adopt"
                   isDisabled={busy || row.revision === inUse}
                   onPress={() => void adopt(row.revision)}
@@ -134,7 +136,10 @@ export function DraftSourceTab(props: { draft: FullDraft; model: DraftSourceMode
           ))}
         </ul>
         <Note className="srcside-note">这里列出原包、最新、已采用、在用和本页保存过的修订。</Note>
-        {model.isV2 && <Note className="srcside-note">保存和编译均不会改变在用修订。查看任一修订后可编译，编译通过再采用；撤销采用的目标也须先编译通过。</Note>}
+        {model.isV2 && <Note className="srcside-note">保存不会改变在用修订。{draft.canCompile
+          ? '查看任一修订后可编译，编译通过再采用；撤销采用的目标也须先编译通过。'
+          : '纯资源修订可按包门禁显式采用，实际运行使用验证页签。'}</Note>}
+        {state.packageFiles && <Note className="srcside-note">manifest 与可编辑文本一起保存；图片、字体等二进制只读。保存会检查包结构，编译或资源运行结果另行显示。</Note>}
       </aside>
       <div className="srcmain draft-source-main">
         <div className="srcbar">
@@ -154,17 +159,24 @@ export function DraftSourceTab(props: { draft: FullDraft; model: DraftSourceMode
           <Button variant="filled" size="sm" icon="save" className="source-save" isPending={state.busy === 'saving'} isDisabled={busy || !dirty} onPress={() => void save()}>
             保存修订
           </Button>
-          <Button variant="tonal" size="sm" icon="build" className="source-compile-button" isPending={!!state.compiling} isDisabled={busy || !!state.compiling} onPress={() => void compile()}>
+          <Button variant="tonal" size="sm" icon="build" className="source-compile-button" isPending={!!state.compiling} isDisabled={busy || !!state.compiling || !draft.canCompile} onPress={() => void compile()}>
             {dirty ? '保存并编译' : model.isV2 ? '编译查看的修订' : '编译'}
           </Button>
         </div>
         {state.error && <Note error>{state.error}</Note>}
         <div className="source-editor-frame">
-          {active ? (
+          {active?.editable === false ? (
+            <div className="source-binary" aria-label="只读包资源">
+              <Note>这个文件以固定原始字节保留，当前包文本入口只读。</Note>
+              <dl><dt>路径</dt><dd>{active.path}</dd><dt>角色</dt><dd>{active.role}</dd>
+                <dt>大小</dt><dd>{active.sizeBytes} 字节</dd><dt>SHA-256</dt><dd>{active.sha256}</dd></dl>
+            </div>
+          ) : active ? (
             <EditorBoundary>
               <Suspense fallback={<Note className="pintro">正在加载编辑器…</Note>}>
                 <SourceEditor
-                  docKey={`${draft.draftId}|${state.generation}|${active.path}`}
+                  docKey={`${draft.draftId}|${state.generation}|${active.path}|${sourceLanguage(active)}`}
+                  language={sourceLanguage(active)}
                   text={active.text}
                   keptState={() => model.viewState(active.path)}
                   onChange={(text) => model.edit(active.path, text)}
@@ -178,9 +190,10 @@ export function DraftSourceTab(props: { draft: FullDraft; model: DraftSourceMode
               </Suspense>
             </EditorBoundary>
           ) : (
-            <Note className="pintro">这个修订没有 C# 文件。</Note>
+            <Note className="pintro">这个修订没有可显示的文件。</Note>
           )}
         </div>
+        {!draft.canCompile && <Note>这个包没有可编译的 C# 入口，文件仍可编辑和保存；资源运行验证使用验证页签。</Note>}
         <section
           ref={compileRef}
           className="diag source-compile"
@@ -262,10 +275,12 @@ class EditorBoundary extends Component<{ children: ReactNode }, { error?: unknow
   }
 }
 
-function report(result: SourceResult): void {
+function report(result: SourceResult, explicitAdoption = false): void {
   switch (result.kind) {
     case 'saved':
-      toast(result.created ? `已保存为修订 ${shortRevision(result.revision)}，试样已改用它` : `内容和修订 ${shortRevision(result.revision)} 相同，试样已改用它`);
+      toast(explicitAdoption
+        ? `已保存修订 ${shortRevision(result.revision)}；在用修订保持，采用后才用于试样`
+        : result.created ? `已保存为修订 ${shortRevision(result.revision)}，试样已改用它` : `内容和修订 ${shortRevision(result.revision)} 相同，试样已改用它`);
       break;
     case 'unchanged':
       toast('内容没有变化');

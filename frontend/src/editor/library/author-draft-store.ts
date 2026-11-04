@@ -32,6 +32,11 @@ export function isV2AuthorDraft(draft: AuthorDraft | undefined, pkg?: EffectPack
   return pkg?.manifest.packageVersion === 3 && typeof pkg.manifest.sdkVersion === 'string' && pkg.manifest.sdkVersion.split('.')[0] === '2';
 }
 
+/** 配置控件只使用在用源码的精确 metadata；来源组件同 packageId 不代表同内容。 */
+export function exactDraftPackage(draft: FullDraft, pkg: EffectPackageInspectResponse | undefined): EffectPackageInspectResponse | undefined {
+  return pkg?.packageId === draft.packageId && pkg.packageRevision === draft.configuration.sourceRevision ? pkg : undefined;
+}
+
 export interface DraftsState {
   status: 'idle' | 'loading' | 'ready' | 'failed';
   drafts: FullDraft[];
@@ -39,10 +44,7 @@ export interface DraftsState {
   origins: Readonly<Record<string, string>>;
   /** 来源组件当前的配置；null 表示已不在库里；没有键表示还在读。 */
   originConfigs: Readonly<Record<string, ScriptConfiguration | null>>;
-  /**
-   * 草稿的包信息（导出、参数、文件），取自来源组件的详情：源码修订只改 C# 文件、不能改 manifest（G34），
-   * 所以和草稿各修订一致。没有来源组件、本页也没读到过时没有。
-   */
+  /** 配置页所用的固定包元数据；必须精确匹配 configuration.sourceRevision，不能拿来源组件旧清单解释新包。 */
   packages: Readonly<Record<string, EffectPackageInspectResponse>>;
   /** 各草稿停在哪个页签；没有键表示配置页签。 */
   tabs: Readonly<Record<string, DraftTab>>;
@@ -132,7 +134,10 @@ export class AuthorDraftStore {
     const editor = new DraftConfigEditor(
       {
         current: () => this.draft(draftId),
-        validate: (value) => configurationIssues(value, draft.configuration.kind, this.state.packages[draftId]),
+        validate: (value) => {
+          const current = this.draft(draftId) ?? draft;
+          return configurationIssues(value, current.configuration.kind, exactDraftPackage(current, this.state.packages[draftId]));
+        },
         put: async (current, input) => {
           const next = await this.full(await this.client.drafts.setConfiguration(draftId, current.draftRevision, input));
           this.replace(next);
@@ -156,6 +161,12 @@ export class AuthorDraftStore {
       current: () => this.draft(draftId),
       isV2: () => isV2AuthorDraft(this.draft(draftId), this.state.packages[draftId]),
       settleConfiguration: async () => (await this.editors.get(draftId)?.flush()) ?? true,
+      readPackage: (draft, revision) => this.client.drafts.packageFiles(draftId, draft.draftRevision, revision),
+      savePackage: async (draft, input) => {
+        const next = await this.full(await this.client.drafts.savePackageFiles(draftId, draft.draftRevision, input));
+        this.replace(next);
+        return next;
+      },
       read: (draft, revision) => this.client.drafts.sources(draftId, draft.draftRevision, revision),
       save: (draft, files) => this.client.drafts.saveSources(draftId, draft.draftRevision, files),
       adopt: (draft, revision) => this.client.drafts.adopt(draftId, draft.draftRevision, revision),
@@ -339,8 +350,12 @@ export class AuthorDraftStore {
 
   /** 用后端返回的新草稿替换列表里的旧草稿（配置、源码、采用之后）。 */
   replace(draft: FullDraft): void {
-    this.patch({ drafts: this.state.drafts.map((d) => (d.draftId === draft.draftId ? draft : d)) });
+    const packages = { ...this.state.packages };
+    const pkg = packages[draft.draftId];
+    if (pkg && !exactDraftPackage(draft, pkg)) delete packages[draft.draftId];
+    this.patch({ drafts: this.state.drafts.map((d) => (d.draftId === draft.draftId ? draft : d)), packages });
     this.editors.get(draft.draftId)?.serverChanged(draft);
+    if (pkg && !packages[draft.draftId]) this.editors.get(draft.draftId)?.revalidate();
   }
 
   clearNotice(): void {
@@ -378,7 +393,10 @@ export class AuthorDraftStore {
       const stored = readOrigins(this.client.state$.get().clientId);
       const origins = Object.fromEntries(Object.entries({ ...stored, ...this.state.origins }).filter(([id]) => drafts.some((d) => d.draftId === id)));
       this.setOrigins(origins);
-      this.patch({ status: 'ready', drafts });
+      this.patch({ status: 'ready', drafts, packages: Object.fromEntries(drafts.flatMap((draft) => {
+        const pkg = exactDraftPackage(draft, this.state.packages[draft.draftId]);
+        return pkg ? [[draft.draftId, pkg]] : [];
+      })) });
       this.dropPageState((id) => !drafts.some((d) => d.draftId === id));
       for (const draft of drafts) this.editors.get(draft.draftId)?.serverChanged(draft);
     } catch (error) {
@@ -406,10 +424,11 @@ export class AuthorDraftStore {
     const originConfigs: Record<string, ScriptConfiguration | null> = {};
     for (const [id, detail] of details) originConfigs[id] = detail?.configuration ?? null;
     const packages = { ...this.state.packages };
+    for (const draft of this.state.drafts) if (!exactDraftPackage(draft, packages[draft.draftId])) delete packages[draft.draftId];
     const arrived: string[] = [];
     for (const draft of this.state.drafts) {
       const pkg = details.get(this.state.origins[draft.draftId] ?? '')?.package;
-      if (!pkg || pkg.packageId !== draft.packageId) continue;
+      if (!pkg || pkg.packageId !== draft.packageId || pkg.packageRevision !== draft.configuration.sourceRevision) continue;
       if (!packages[draft.draftId]) arrived.push(draft.draftId);
       packages[draft.draftId] = pkg;
     }

@@ -73,7 +73,7 @@ export function DraftConfigTab(props: {
           value={value.exportId}
           options={choices.some((e) => e.id === value.exportId) ? choices.map((e) => ({ value: e.id, label: e.name })) : [{ value: value.exportId, label: value.exportId }]}
           onChange={(id) => void changeExport(id)}
-          disabled={disabled || choices.length < 2}
+          disabled={disabled || !pkg || choices.length < 2}
         />
         {!material && (
           <>
@@ -88,7 +88,7 @@ export function DraftConfigTab(props: {
                   return { value: t, label: RECIPE_TARGET_LABEL[t], disabled: !!problem, ...(problem ? { description: problem } : {}) };
                 })}
                 onChange={(relativeTarget) => change({ relativeTarget })}
-                disabled={disabled}
+                disabled={disabled || !pkg}
               />
               <Select
                 {...inside}
@@ -97,7 +97,7 @@ export function DraftConfigTab(props: {
                 value={value.overlayLayer}
                 options={OVERLAY_LAYERS.map((l) => ({ value: l, label: OVERLAY_LABEL[l], disabled: l !== 'package' && l !== value.overlayLayer && !overlay }))}
                 onChange={(overlayLayer) => change({ overlayLayer })}
-                disabled={disabled}
+                disabled={disabled || !pkg}
               />
               <Select
                 {...inside}
@@ -147,7 +147,7 @@ export function DraftConfigTab(props: {
               ? `包“${pkg.name}”里没有导出 ${value.exportId}。`
               : props.checking
                 ? '正在读取包信息…'
-                : '读不到包信息（来源组件已不在组件库里），参数只能原样保留；另存为新组件后可以继续编辑参数。'}
+                : '当前在用修订尚无精确包元数据，导出、作用范围、叠放层和参数暂不编辑；已保存原值保留。'}
           </Note>
         )}
       </Group>

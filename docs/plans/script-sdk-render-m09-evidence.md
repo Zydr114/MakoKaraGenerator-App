@@ -239,3 +239,29 @@ intrinsic 坏值不能被后写隐藏、最终节点失败、累计预算和取�
 `graph-g2-scripting-full-01.log` 501/501、`graph-g2-core-admission-01.log` 264/264、
 `graph-g2-rendering-full-01.log` 1556/1556。CPU 是内部参考执行器，生产 v2 的 GPU 门禁未改变。
 直接无 DLL 图、材质 uniform、组图及 owned Below 仍待后继切片，M09 未关闭。
+
+## SVG 完整包文本 UI（匹配后端 0.112.8／合同 1.45.0）
+
+前端已接 GET／PUT package-files，按服务 editable 标记编辑 manifest、C#、SVG、descriptor、
+shader 与 graph 文本，二进制仅显示身份。保存提交全部文本并读取服务规范化后的 SHA；
+配置 CAS 漂移可重新读取，源码已变化则保留本地 dirty 并拒绝覆盖。新源采用后旧组件 schema
+不再解释新源；精确作者 inspection 和跨 schema 原子迁移仍为后继未完成项。
+
+`svg-package-ui-typecheck-02.log`、`svg-package-ui-unit-02.log`：类型检查与 46 文件／3944 项通过。
+`svg-package-ui-build-01.log`：生产构建通过，保留既有大 chunk 提示。
+
+真实浏览器使用本仓库已匹配发布 0.112.8、全新 profile、localhost:5187 Vite 和独立 Chrome。
+`ui-svg-run-01/browser` 保留 55 检查／2 帧后的真实失败：切到配置再返回时，寄存的 CodeMirror
+EditorState 留有旧组件 listener，canonical manifest 更新误写到 SVG 并造成 dirty。
+修复为恢复状态时通过 Compartment 重新绑定当前 listener；没有改浏览器断言掩盖失败。
+
+`ui-svg-run-02/browser/summary.json`：83 检查／4 张实际显示 opaque PNG 全通过；
+SVG→descriptor→manifest／配置页往返、配置提交后的精确 CAS、canonical SHA、坏源保存与具名
+编译路径、dirty 切修订取消、修复编译、显式采用和历史只读查看均覆盖。新源采用后真正显示的
+SVG 颜色变化，图片核对来源／代次／SHA／解码像素与可见性。无页面未处理异常或 URL 凭证。
+15 份输出凭证扫描通过；UI 关闭本次草稿并删除组件，Vite 已退出，Server 启动器 exit0 且
+PID/startTicks 已排水。工具已保存为 `frontend/scripts/author-package-smoke.mjs`，输入为 HTTP probe
+生成的固定 vector mkfx；使用 `pnpm smoke:author-package --package ... --url ... --output ...`。
+
+本例不含二进制资源，二进制只读只获单测证据；透明 PNG 与跨编辑器 stale CAS 409 由前述 HTTP
+记录覆盖。此浏览器记录不包含共享纹理、浏览器 GPU、跨平台、导出或性能验收，不代表 M11 关闭。

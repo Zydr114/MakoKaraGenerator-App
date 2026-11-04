@@ -191,3 +191,10 @@ v2 image.graph 能力仍关闭，G2 作者事务及真实包准入继续实施�
 G2 已接通 TextOutput.BindGraph 并开放 image.graph 的 Family／Line／Mark ColorOnly 路径。
 真实包关门12项红例后，CPU参考／Vulkan各12项通过；Scripting501、Core包回归264、
 Rendering1556通过，完整构建0警告／0错误。无DLL直接图、材质uniform、组图与owned Below仍待。
+
+### SVG 完整包文本作者 UI
+
+前端已接完整包文本保存、canonical SHA、按role编辑和资源诊断定位。真实浏览器首轮发现
+配置页往返后的旧编辑器listener误写兄弟文件，修复后83检查／4张实际显示PNG通过；
+类型检查、3944项单测和生产构建通过。后端运行明确使用已发布0.112.8／合同1.45.0，
+未把当前后端开发源码冒充同一发布。精确新源schema读取与配置原子迁移仍待，M11未关闭。

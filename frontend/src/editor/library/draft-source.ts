@@ -1,7 +1,8 @@
-// 作者草稿的源码页签（W8 设计 §2.6）：读某个修订的 C# 文件、编辑、保存修订、查看与改用修订、编译与诊断。不依赖 React 和 CodeMirror。
+// 作者草稿的源码页签：完整包文件编辑与旧 C# 源码接口兼容；修订、CAS、编译和显式采用。不依赖 React 和 CodeMirror。
 // 编辑器的状态（撤销历史、光标）由 SourceEditor 寄存在这里，切文件、切页签、切草稿都不丢；读进别的修订时清空。
 // 后端没有列出草稿保留了哪些修订（G35）：本页保存过的修订记在 sessionStorage，按 client 和草稿区分。
 
+import type { AuthorPackageFilesInput, AuthorPackageFilesResponse } from '../../protocol/author-package-files';
 import { BackendError, ObservableValue } from '../../client';
 import type { AuthorCompilation, AuthorDraft, AuthorDraftSourcesResponse, AuthorSourceFile, AuthorSourceRevisionResponse, JobResponse, JobSummary } from '../../protocol';
 import { errorText } from '../session/editor-session';
@@ -47,6 +48,11 @@ export function revisionLabelText(labels: readonly RevisionLabel[]): string {
 
 export interface SourceFile {
   path: string;
+  /** 旧 C# 接口省略 role/editable；包模式完全采用服务的 editable 判断。 */
+  role?: string;
+  editable?: boolean;
+  sizeBytes?: number;
+  sha256?: string;
   /** 读进来或最近一次保存时的内容。 */
   saved: string;
   /** 编辑器里的内容。 */
@@ -56,6 +62,8 @@ export interface SourceFile {
 export interface DraftSourceState {
   /** none：包里没有 C# 源码（材质、图），整个页签只写原因（R10，不看 canCompile）。 */
   status: 'idle' | 'loading' | 'ready' | 'none' | 'failed';
+  /** 使用完整包接口；files 包含 manifest 与只读二进制描述。 */
+  packageFiles?: boolean;
   /** 编辑器里的文件属于哪个修订；保存后是新修订。 */
   revision?: string;
   files: SourceFile[];
@@ -94,6 +102,9 @@ export interface DraftSourcePort {
   isV2?(): boolean;
   /** 在改变采用来源前先提交待写配置。 */
   settleConfiguration?(): Promise<boolean>;
+  /** 配对提供时启用完整包编辑；未提供时保留旧 C# 源码流程。 */
+  readPackage?(draft: FullDraft, revision: string): Promise<AuthorPackageFilesResponse>;
+  savePackage?(draft: FullDraft, input: AuthorPackageFilesInput): Promise<AuthorDraft>;
   read(draft: FullDraft, revision: string): Promise<AuthorDraftSourcesResponse>;
   save(draft: FullDraft, files: AuthorSourceFile[]): Promise<AuthorSourceRevisionResponse>;
   adopt(draft: FullDraft, revision: string): Promise<unknown>;
@@ -122,6 +133,8 @@ export class DraftSourceModel {
   private readonly abort = new AbortController();
   private disposed = false;
   private lastRead = false;
+  /** 包文件加载时观察的最新源码；409 后只能合并配置修订，不能覆盖别人保存的新源码。 */
+  private packageBaseLatest: string | undefined;
   /** 跳转的序号，一直递增（跳过后 reveal 会清掉，序号不能从头再来）。 */
   private revealNonce = 0;
   private readonly undoAdoptions: { before: string; after: string }[] = [];
@@ -137,7 +150,7 @@ export class DraftSourceModel {
 
   /** 编辑器里有没保存成修订的改动。 */
   get dirty(): boolean {
-    return this.state.files.some((f) => f.text !== f.saved);
+    return this.state.files.some((f) => f.editable !== false && f.text !== f.saved);
   }
 
   get isV2(): boolean { return this.port.isV2?.() ?? false; }
@@ -147,6 +160,22 @@ export class DraftSourceModel {
     if (this.state.busy) return false;
     this.patch({ busy: 'loading', ...(this.state.status === 'ready' ? {} : { status: 'loading' as const }) });
     try {
+      if (this.port.readPackage && this.port.savePackage) {
+        let latestAtRead: string | undefined;
+        const response = await this.withFreshDraft((draft) => {
+          latestAtRead = draft.currentSourceRevision;
+          return this.port.readPackage!(draft, revision ?? draft.configuration.sourceRevision);
+        });
+        if (this.disposed) return false;
+        const files = packageSourceFiles(response);
+        const active = files.some((file) => file.path === this.state.active) ? this.state.active : files[0]?.path;
+        this.packageBaseLatest = latestAtRead;
+        this.views.clear();
+        this.patch({ status: 'ready', packageFiles: true, revision: response.sourceRevision, files, active,
+          error: undefined, reveal: undefined, generation: this.state.generation + 1 });
+        void this.readLastCompilation();
+        return true;
+      }
       const response = await this.withFreshDraft((draft) => this.port.read(draft, revision ?? draft.configuration.sourceRevision));
       if (this.disposed) return false;
       const files = response.files.map((f) => ({ path: f.path, saved: f.text, text: f.text }));
@@ -157,7 +186,7 @@ export class DraftSourceModel {
       return true;
     } catch (error) {
       // 在用修订没有 C# 文件：包里本来就没有（不能加文件，G34），以后也不会有。
-      if (error instanceof BackendError && error.status === 404 && (this.state.status !== 'ready' || revision === undefined)) this.patch({ status: 'none', files: [], error: undefined });
+      if (!this.port.readPackage && error instanceof BackendError && error.status === 404 && (this.state.status !== 'ready' || revision === undefined)) this.patch({ status: 'none', files: [], error: undefined });
       else if (this.state.status === 'ready') this.patch({ error: `读取修订失败：${errorText(error)}` });
       else this.patch({ status: 'failed', error: `读取源码失败：${errorText(error)}` });
       return false;
@@ -174,7 +203,7 @@ export class DraftSourceModel {
   edit(path: string, text: string): void {
     const files = this.state.files;
     const index = files.findIndex((f) => f.path === path);
-    if (index < 0 || files[index]!.text === text) return;
+    if (index < 0 || files[index]!.editable === false || files[index]!.text === text) return;
     this.patch({ files: files.map((f, i) => (i === index ? { ...f, text } : f)) });
   }
 
@@ -186,6 +215,7 @@ export class DraftSourceModel {
   async save(): Promise<SourceResult> {
     if (this.state.busy) return { kind: 'busy' };
     if (this.state.status !== 'ready' || !this.dirty) return { kind: 'unchanged' };
+    if (this.state.packageFiles) return this.savePackageRevision();
     const submitted = this.state.files.map((f) => ({ path: f.path, text: f.text }));
     this.patch({ busy: 'saving', error: undefined });
     try {
@@ -213,6 +243,60 @@ export class DraftSourceModel {
       return { kind: 'saved', revision, created };
     } catch (error) {
       return { kind: 'failed', message: `保存修订失败：${errorText(error)}` };
+    } finally {
+      this.patch({ busy: undefined });
+    }
+  }
+
+  /** 保存完整文本集合；内容冲突保留本地缓冲，只有配置 CAS 漂移可重试。 */
+  private async savePackageRevision(): Promise<SourceResult> {
+    const submitted = this.state.files.filter((file) => file.editable !== false).map((file) => ({ path: file.path, text: file.text }));
+    const manifest = submitted.find((file) => file.path === 'manifest.json');
+    if (!manifest || !this.port.savePackage || !this.port.readPackage) return { kind: 'failed', message: '完整包编辑入口不可用。' };
+    const input: AuthorPackageFilesInput = { manifestJson: manifest.text, textFiles: submitted.filter((file) => file.path !== 'manifest.json') };
+    this.patch({ busy: 'saving', error: undefined });
+    try {
+      if (this.port.settleConfiguration && !(await this.port.settleConfiguration()))
+        throw new Error('配置还有未提交或被拒绝的改动，请先修正。');
+      let before = '';
+      const response = await this.withFreshDraft((draft) => {
+        if (draft.currentSourceRevision !== this.packageBaseLatest)
+          throw new Error('草稿最新源码已由其他操作改变，本地文本已保留；请先比较或重新读取修订。');
+        before = draft.draftRevision;
+        return this.port.savePackage!(draft, input);
+      });
+      if (this.disposed) return { kind: 'failed', message: '草稿已关闭。' };
+      const revision = response.currentSourceRevision;
+      const created = response.draftRevision !== before;
+      this.packageBaseLatest = revision;
+      this.patch({ revision, files: this.state.files.map((file) => {
+        const sent = submitted.find((candidate) => candidate.path === file.path);
+        return sent ? { ...file, saved: sent.text } : file;
+      }) });
+      if (created) {
+        const saved = [...this.state.saved.filter((candidate) => candidate !== revision), revision];
+        this.patch({ saved });
+        this.port.rememberSaved(saved);
+      }
+      try {
+        await this.port.refresh();
+        const canonical = await this.withFreshDraft((draft) => this.port.readPackage!(draft, revision));
+        if (this.disposed) return { kind: 'failed', message: '草稿已关闭。' };
+        // 服务派生 manifest SHA；未继续编辑的文本换成固定源原文，保存期间的新输入完整保留。
+        const files = packageSourceFiles(canonical).map((file) => {
+          const local = this.state.files.find((candidate) => candidate.path === file.path);
+          const sent = submitted.find((candidate) => candidate.path === file.path);
+          return local && sent && local.text !== sent.text ? { ...file, text: local.text } : file;
+        });
+        this.patch({ files });
+      } catch (error) {
+        this.patch({ error: `修订已保存，读取固定包内容失败：${errorText(error)}` });
+      }
+      return created ? { kind: 'saved', revision, created } : { kind: 'unchanged' };
+    } catch (error) {
+      const message = `保存包修订失败：${errorText(error)}`;
+      this.patch({ error: message });
+      return { kind: 'failed', message };
     } finally {
       this.patch({ busy: undefined });
     }
@@ -273,12 +357,16 @@ export class DraftSourceModel {
    */
   async compile(): Promise<SourceResult | undefined> {
     if (this.state.busy || this.state.compiling || this.state.status !== 'ready') return undefined;
+    if (this.state.packageFiles && !this.port.current()?.canCompile) {
+      this.patch({ compileError: '这个固定包没有可编译的 C# 入口；包资源仍可编辑和保存。' });
+      return undefined;
+    }
     let saved: SourceResult | undefined;
     if (this.dirty) {
       saved = await this.save();
       if (saved.kind === 'failed' || saved.kind === 'busy') return saved;
     }
-    const sourceRevision = this.isV2 ? this.state.revision : undefined;
+    const sourceRevision = this.isV2 || this.state.packageFiles ? this.state.revision : undefined;
     this.patch({ compiling: { canCancel: false, cancelling: false }, compileError: undefined });
     try {
       const accepted = await this.withFreshDraft((draft) => this.port.compile(draft, sourceRevision));
@@ -323,8 +411,12 @@ export class DraftSourceModel {
   async goTo(revision: string, location?: SourceLocation): Promise<boolean> {
     if (this.state.revision !== revision && !(await this.load(revision))) return false;
     if (!location) return true;
-    if (!this.state.files.some((f) => f.path === location.path)) return false;
-    this.patch({ active: location.path, reveal: { ...location, nonce: ++this.revealNonce } });
+    const file = this.state.files.find((candidate) => candidate.path === location.path)
+      ?? [...this.state.files].sort((a, b) => b.path.length - a.path.length)
+        .find((candidate) => location.path.startsWith(candidate.path + '.'));
+    if (!file) return false;
+    this.patch({ active: file.path, reveal: file.editable !== false && location.line > 0 && location.column > 0
+      ? { ...location, path: file.path, nonce: ++this.revealNonce } : undefined });
     return true;
   }
 
@@ -410,5 +502,28 @@ export function writeSavedRevisions(clientId: string | undefined, draftId: strin
     sessionStorage.setItem(DRAFT_REVISIONS_KEY, JSON.stringify({ clientId, drafts }));
   } catch {
     // 存不下时刷新后只剩原包、最新、已采用、在用四个。
+  }
+}
+
+/** manifest 是独立文本项；二进制只保留元数据，不能借编辑 API 变更其原始字节。 */
+function packageSourceFiles(response: AuthorPackageFilesResponse): SourceFile[] {
+  const files: SourceFile[] = [{ path: 'manifest.json', role: 'manifest', editable: true, saved: response.manifestJson, text: response.manifestJson }];
+  for (const file of response.files) {
+    if (file.editable && typeof file.text !== 'string') throw new Error(`后端没有返回可编辑文件 ${file.path} 的文本。`);
+    files.push({ path: file.path, role: file.role, editable: file.editable, sizeBytes: file.sizeBytes, sha256: file.sha256,
+      saved: file.editable ? file.text! : '', text: file.editable ? file.text! : '' });
+  }
+  return files;
+}
+
+export type SourceLanguage = 'csharp' | 'shader' | 'json' | 'xml' | 'plain';
+/** 按服务 role 选择高亮；未知可编辑文本采用纯文本，不猜测执行能力。 */
+export function sourceLanguage(file: Pick<SourceFile, 'role'>): SourceLanguage {
+  switch (file.role) {
+    case undefined: case 'csharp': return 'csharp';
+    case 'shader': return 'shader';
+    case 'manifest': case 'shaderProgram': case 'graph': case 'svgResource': return 'json';
+    case 'svg': return 'xml';
+    default: return 'plain';
   }
 }

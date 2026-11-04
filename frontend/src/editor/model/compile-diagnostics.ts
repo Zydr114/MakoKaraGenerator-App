@@ -23,7 +23,7 @@ export function compileRows(diagnostics: readonly AuthorCompilationDiagnostic[])
     const key = [d.isError, d.code, d.path ?? '', d.line, d.column, d.message].join('\u0000');
     if (seen.has(key)) continue;
     seen.add(key);
-    rows.push({ ...d, location: d.path ? `${d.path}:${d.line}:${d.column}` : '' });
+    rows.push({ ...d, location: d.path ? (d.line > 0 && d.column > 0 ? `${d.path}:${d.line}:${d.column}` : d.path) : '' });
   }
   return rows.sort(
     (a, b) => Number(b.isError) - Number(a.isError) || (a.path ?? '').localeCompare(b.path ?? '') || a.line - b.line || a.column - b.column,

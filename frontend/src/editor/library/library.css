@@ -1588,3 +1588,18 @@
   --mk-code-meta: #ffab91;
   --mk-code-builtin: #7ee0f0;
 }
+
+/* 包二进制仍在源码文件树中，详情只展示固定闭包事实。 */
+.source-binary {
+  padding: 12px;
+  overflow: auto;
+  height: 100%;
+}
+.source-binary dl {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px 12px;
+  font-size: 12px;
+}
+.source-binary dt { color: var(--on-surface-variant); }
+.source-binary dd { margin: 0; overflow-wrap: anywhere; font-family: var(--font-mono); }

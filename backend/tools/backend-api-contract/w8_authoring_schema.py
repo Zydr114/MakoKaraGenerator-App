@@ -98,7 +98,7 @@ def configure(operation, item):
     if operation_id == "saveAuthorPackageFiles":
         operation["x-author-package-limits"] = {"maxRequestBytes": 32 * 1024 * 1024,
             "maxTextBytes": 16 * 1024 * 1024, "maxFileTextBytes": 4 * 1024 * 1024, "maxTextFiles": 256}
-        operation["description"] += " 完整文本集合与manifest原子保存；图片、字体等二进制保持固定。可选configuration绑定新修订；结构/配置失败不发布。保存不代表编译或渲染通过。"
+        operation["description"] += " 完整csharp/shader/shaderProgram/graph/svg/svgResource文本集合与manifest原子保存；图片、字体等非文本原始字节保持固定。可选configuration绑定新修订；结构/配置失败不发布。保存不代表编译或渲染通过。"
     elif operation_id in ("downloadAuthorPackage", "downloadScriptConfigurationPackage"):
         operation["x-package-download-limits"] = {"maxConcurrentDownloads": 2, "timeoutSeconds": 30}
         operation["responses"]["200"]["headers"].update({

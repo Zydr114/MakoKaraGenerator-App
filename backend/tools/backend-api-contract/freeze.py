@@ -26,10 +26,10 @@ from static_style_schema import extend_static_style_schemas, style_query_paramet
 from template_library_schema import extend_template_library_schemas, query_parameters as template_query_parameters, LIMITS as TEMPLATE_LIMITS
 
 ROOT = Path(__file__).resolve().parents[2]
-CONTRACT = "1.44.2"
-BASELINE = "59c3ff9"
+CONTRACT = "1.45.0"
+BASELINE = "05dbe85"
 PRODUCT = re.search(r"<VersionPrefix>([^<]+)</VersionPrefix>", (ROOT / "Directory.Build.props").read_text()).group(1)
-FREEZE_DATE = "2026-11-04"
+FREEZE_DATE = "2026-11-05"
 BEHAVIOR = "docs/architecture/backend-api.md"
 TOOL = Path(__file__).resolve().parent
 
@@ -1538,10 +1538,61 @@ def manifest(outputs):
         if not source.is_file():
             raise ValueError("Missing reviewed SDK2 M08 behavior source: " + filename)
         files.add(source)
+    # M09 Warp and fixed SVG vector/atlas execution, budgets, resources and author admission.
+    # Explicit paths make moves/deletions fail instead of silently losing behavior fingerprints.
+    for filename in (
+            "docs/third-party/svg-skia/README.md",
+            "docs/third-party/svg-skia/ExCSS-MIT.txt",
+            "docs/third-party/svg-skia/Svg.Custom-MS-PL.txt",
+            "docs/third-party/svg-skia/Svg.Skia-MIT.txt",
+            "src/MakoKaraGenerator.Backend.Contracts/BackendAuthorPackageFilesContracts.cs",
+            "src/MakoKaraGenerator.Core/Effects/EffectPackageSvgResources.Parser.cs",
+            "src/MakoKaraGenerator.Core/Effects/EffectPackageSvgResources.cs",
+            "src/MakoKaraGenerator.Core/Effects/SvgResourceBudget.cs",
+            "src/MakoKaraGenerator.Rendering.Abstractions/EffectPackageResourceCatalog.cs",
+            "src/MakoKaraGenerator.Rendering.Abstractions/IPackageSvgValidator.cs",
+            "src/MakoKaraGenerator.Rendering.Abstractions/PackageSvgValidation.cs",
+            "src/MakoKaraGenerator.Rendering.Abstractions/PreparedRenderFrame.Warps.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/Effects/PackageSvgResources.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/Effects/SceneSvgEffectResources.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/Effects/Svg/StrictSvgAssetLoader.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/Effects/Svg/SvgNativeImageStore.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/Effects/Svg/SvgNativePictureCompiler.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/Effects/Svg/SvgStaticCompiler.Css.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/Effects/Svg/SvgStaticCompiler.Images.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/Effects/Svg/SvgStaticCompiler.Path.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/Effects/Svg/SvgStaticCompiler.References.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/Effects/Svg/SvgStaticCompiler.Xml.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/Effects/Svg/SvgStaticCompiler.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/Effects/Svg/SvgStaticDocument.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/PackageSvgValidator.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.AtlasSprites.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.Paths.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.Visuals.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.Warp.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.WarpPartitions.cs",
+            "src/MakoKaraGenerator.Runtime.Hosting/Authoring/PackageAuthorResourceValidator.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/GridWarp.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/OverlayMemoryCost.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/PlaybackGeometry.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/ResourceCatalog.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/SvgOverlays.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/SvgResourceHandles.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/TextGeometryMapping.Bounds.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/TextGeometryMapping.Mesh.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/TextGeometryMapping.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/V2/TextOutput.Warp.cs",
+            "src/MakoKaraGenerator.Scripting/Compilation/CompiledProjectEffects.cs",
+            "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.Warps.cs",
+):
+        source = ROOT / filename
+        if not source.is_file():
+            raise ValueError("Missing reviewed SDK2 M09 behavior source: " + filename)
+        files.add(source)
     files.update(p for p in TOOL.iterdir() if p.is_file())
     return {"contractVersion": CONTRACT, "httpProtocolVersion": "1", "productVersion": PRODUCT, "sourceBaselineCommit": BASELINE,
             "frozenOn": FREEZE_DATE, "status": "frozen", "behaviorSource": BEHAVIOR,
-            "scope": "Implemented public HTTP API with SDK2 exact continuous/burst particles and late dots/segments/trails/sprites on declared Overlay/canvas outputs. Fixed source compilation/adoption, GPU admission and existing author/preview/export lifecycles remain; no new HTTP DTO, route, schema or example. Source fingerprints include M08 preparation, query budgets, final anchors and runtime diagnostics. Contract generation, matched deployment, fresh HTTP/GPU frames and performance acceptance require separate evidence.",
+            "scope": "Implemented public HTTP API with SDK2 token/cluster/mark Warp and fixed static SVG vector/atlas canvas outputs. Author package files now edit svg/svgResource with exact revision CAS; compilation validates all SVG before C# and retains named resource diagnostics. Resource closure recognizes both SVG roles. Existing particles, GPU admission, source adoption, preview/export lifecycles and HTTP DTO/route/schema/example counts remain. Source fingerprints include M09 geometry, resource ownership, validation, render and budget seams. Contract generation, matched deployment, fresh HTTP/GPU frames and browser acceptance require separate evidence; performance thresholds are deferred by user instruction.",
             "files": {str(p.relative_to(ROOT)): sha(p.read_bytes()) for p in sorted(files)},
             "artifacts": {name: sha(data) for name, data in sorted(outputs.items())},
             "guards": "Source hashes require review even for behavior-preserving changes. They are drift alarms, not semantic proofs. Runtime/Media behavior still requires existing regression tests."}

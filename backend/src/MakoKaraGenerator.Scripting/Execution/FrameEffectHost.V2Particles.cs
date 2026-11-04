@@ -13,9 +13,9 @@ internal sealed partial class FrameEffectHost
     {
         var pureOwners = _instances.Where(static item => item.Pure is not null).ToArray();
         if (pureOwners.Length == 0) return text;
-        ParticleQueryBudget particleBudget = new();
+        var particleBudget = V2Budgets.CreateParticleQuery();
         var transaction = _v2AnchorMemo.Begin();
-        V2AnchorRequest query = new(text, transaction, particleBudget, token);
+        V2AnchorRequest query = new(text, transaction, particleBudget, V2Budgets.CreateAnchorQuery(token));
         BirthWindow window = new(Math.Max(0, text.TimeUs - ParticleLimits.MaximumLifetimeUs), text.TimeUs);
         List<(ActiveEffect Active, ImmutableArray<ScheduledBirth> Births)> selected = [];
         // Prove all birth/alive limits before doing any final-text supplement.

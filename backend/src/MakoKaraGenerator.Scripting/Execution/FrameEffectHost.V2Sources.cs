@@ -80,10 +80,11 @@ internal sealed partial class FrameEffectHost
             switch (anchor)
             {
                 case BurstAnchor.BindingCursors cursors:
-                    return [.. pure.Source.Indexes.Cursors.GetBaseAt(timeUs, new SourceFilter.Project(), cursors.Mode)
+                    sources = pure.Source.Indexes.Cursors.GetBaseAt(timeUs, new SourceFilter.Project(), cursors.Mode)
                         .Where(cursor => Allowed(cursor.Identity)).OrderBy(static cursor => cursor.TrackId.Value, StringComparer.Ordinal)
                         .ThenBy(static cursor => cursor.BindingId.Value, StringComparer.Ordinal)
-                        .Select(static cursor => (ParticleSource)new ParticleSource.Cursor(cursor.TrackId, cursor.Identity))];
+                        .Select(static cursor => (ParticleSource)new ParticleSource.Cursor(cursor.TrackId, cursor.Identity));
+                    break;
                 case BurstAnchor.SourceToken selected:
                     if (!Content.Tokens.Any(item => item.Id == selected.Id)) Unknown();
                     if (!scope.TokenIds.Contains(selected.Id)) Outside();

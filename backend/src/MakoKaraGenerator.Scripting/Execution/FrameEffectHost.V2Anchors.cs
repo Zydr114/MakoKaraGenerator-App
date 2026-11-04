@@ -9,6 +9,7 @@ namespace MakoKaraGenerator.Scripting.Execution;
 
 internal sealed partial class FrameEffectHost
 {
+    internal V2RuntimeBudgetOptions V2Budgets { get; init; } = V2RuntimeBudgetOptions.Default;
     private readonly V2FinalAnchorMemo _v2AnchorMemo = new();
     private ParticlePrepareBudget _v2PrepareBudget = new();
     private ImmutableArray<long> _v2AnchorBreakpoints;
@@ -16,12 +17,12 @@ internal sealed partial class FrameEffectHost
     private int _v2CursorCutCount;
 
     private sealed class V2AnchorRequest(PreparedRenderFrame request, V2FinalAnchorMemo.Transaction memo,
-        ParticleQueryBudget particles, CancellationToken token)
+        ParticleQueryBudget particles, V2AnchorQueryBudget anchorBudget)
     {
         public PreparedRenderFrame Request { get; } = request;
         public V2FinalAnchorMemo.Transaction Memo { get; } = memo;
         public ParticleQueryBudget Particles { get; } = particles;
-        public V2AnchorQueryBudget Budget { get; } = new(token);
+        public V2AnchorQueryBudget Budget { get; } = anchorBudget;
         public Dictionary<long, PreparedRenderFrame> TextFrames { get; } = [];
     }
 

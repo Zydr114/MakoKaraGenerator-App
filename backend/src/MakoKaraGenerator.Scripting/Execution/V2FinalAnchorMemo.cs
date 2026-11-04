@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using MakoKaraGenerator.Rendering;
 using MakoKaraGenerator.Scripting.V2;
 
@@ -63,9 +62,12 @@ internal sealed class V2FinalAnchorMemo(int entryLimit = ParticleLimits.MaximumM
 
 internal sealed class V2AnchorQueryBudget(CancellationToken token,
     int timeLimit = ParticleLimits.MaximumAnchorTimes, int textLimit = ParticleLimits.MaximumTextCalls,
-    int futureLimit = ParticleLimits.MaximumFutureEndpoints, long wallLimitMs = ParticleLimits.MaximumAnchorWallMilliseconds)
+    int futureLimit = ParticleLimits.MaximumFutureEndpoints, long wallLimitMs = ParticleLimits.MaximumAnchorWallMilliseconds,
+    TimeProvider? timeProvider = null)
 {
-    private readonly Stopwatch _watch = new();
+    private readonly TimeProvider _time = timeProvider ?? TimeProvider.System;
+    private TimeSpan _elapsed;
+    private long _started;
     private int _depth;
     private readonly HashSet<long> _times = [];
     private readonly HashSet<(ParticleSource, long)> _future = [];
@@ -73,17 +75,21 @@ internal sealed class V2AnchorQueryBudget(CancellationToken token,
     public PreparedV2AnchorStatistics Statistics => new(_times.Count, _textCalls, _future.Count, _hits, _misses);
     public IDisposable Measure()
     {
-        if (_depth++ == 0) _watch.Start();
+        if (_depth++ == 0) _started = _time.GetTimestamp();
         return new TimingScope(this);
     }
     private sealed class TimingScope(V2AnchorQueryBudget owner) : IDisposable
     {
-        public void Dispose() { if (--owner._depth == 0) owner._watch.Stop(); }
+        public void Dispose()
+        {
+            if (--owner._depth == 0) owner._elapsed += owner._time.GetElapsedTime(owner._started, owner._time.GetTimestamp());
+        }
     }
     public void Check()
     {
         token.ThrowIfCancellationRequested();
-        if (_watch.ElapsedMilliseconds > wallLimitMs)
+        var elapsed = _elapsed + (_depth > 0 ? _time.GetElapsedTime(_started, _time.GetTimestamp()) : TimeSpan.Zero);
+        if (elapsed.Ticks / TimeSpan.TicksPerMillisecond > wallLimitMs)
             throw new EffectOutputException("FinalAnchorWallBudgetExceeded", "完整文字锚点补算超过固定耗时保护；未降低采样精度。");
     }
     public void Time(long timeUs)

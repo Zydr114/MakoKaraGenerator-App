@@ -15,8 +15,11 @@ internal sealed class FrameSessionFactory
     private readonly VisualOutputBudget _visualBudget;
     private readonly ParticleSimulationBudget _particleBudget;
     private readonly PreparedSourceMaterials? _sourceMaterials;
+    private readonly V2RuntimeBudgetOptions _v2Budgets;
     public FrameSessionFactory(ImmutableArray<CompiledFrameEffect> effects, string fingerprint,
-        Func<ILineGeometryProvider> geometryFactory, AudioFeatures? audio, ReplayReason? reason, VisualOutputBudget? visualBudget = null, ParticleSimulationBudget? particleBudget = null, PreparedSourceMaterials? sourceMaterials = null)
+        Func<ILineGeometryProvider> geometryFactory, AudioFeatures? audio, ReplayReason? reason, VisualOutputBudget? visualBudget = null,
+        ParticleSimulationBudget? particleBudget = null, PreparedSourceMaterials? sourceMaterials = null,
+        V2RuntimeBudgetOptions? v2Budgets = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fingerprint); ArgumentNullException.ThrowIfNull(geometryFactory);
         if (effects.IsDefault || effects.IsEmpty && sourceMaterials is null || effects.Any(static item => item is null || !item.Id.IsValid || !HasExecutable(item)
@@ -28,6 +31,7 @@ internal sealed class FrameSessionFactory
         _audio = audio ?? AudioFeatures.NotAnalyzed; _reason = reason;
         _visualBudget = visualBudget ?? VisualOutputBudget.Default;
         _particleBudget = particleBudget ?? ParticleSimulationBudget.Default; _sourceMaterials = sourceMaterials;
+        _v2Budgets = v2Budgets ?? V2RuntimeBudgetOptions.Default;
     }
     private static bool HasExecutable(CompiledFrameEffect effect) => effect.PackageDeclaration is EffectGraphDefinition graph
         ? effect.Artifact is null && effect.EntryType is null && effect.PackageDefinition is { } package
@@ -55,7 +59,8 @@ internal sealed class FrameSessionFactory
         {
             var query = _reason is not null && _reason != ReplayReason.AnchorQuery
                 ? new SemanticAnchorQuery(snapshot, _effects, _fingerprint, _geometryFactory, _audio, _sourceMaterials) : null;
-            host = new(snapshot, project, geometry, _effects, subscriptions, _visualBudget, _particleBudget, _sourceMaterials, timeline, query, cancellationToken);
+            host = new(snapshot, project, geometry, _effects, subscriptions, _visualBudget, _particleBudget, _sourceMaterials, timeline, query, cancellationToken)
+            { V2Budgets = _v2Budgets };
             // v2 的事件表仅供只读索引，不能再由目标绝对时间推进 120 Hz 作者状态。
             bool replayLegacy = _reason is not null && timeline is not null && _effects.Any(static effect => !effect.IsV2);
             host.Load(replayLegacy, cancellationToken);

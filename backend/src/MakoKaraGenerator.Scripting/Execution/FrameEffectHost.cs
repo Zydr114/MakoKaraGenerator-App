@@ -113,7 +113,8 @@ internal sealed partial class FrameEffectHost : IDisposable
                     if (active is null)
                     {
                         try { module?.Dispose(); } catch { /* 保留原始入口失败。 */ }
-                        if (error is not OperationCanceledException) throw Failure(definition, "Load", 0, error, Diagnostics.Snapshot());
+                        if (error is not (OperationCanceledException or EffectFailureException))
+                            throw Failure(definition, "Load", 0, error, Diagnostics.Snapshot());
                     }
                     throw;
                 }

@@ -126,6 +126,11 @@ SDK 首轮 `scripting-v2-01.log` 为 119 通过／19 失败：18 项算法夹具
 修正后 `scripting-build-04.log` 零警告／零错误，`scripting-v2-02.log` 138 项通过。
 初次构建／测试失败记录保留，未将未执行到算法的夹具失败当作算法回归通过。
 
-待补实际四锚点／line fallback、完整依赖断点与 cluster 切换、锚点预算及中途取消恢复。
-静态审查发现 BindingCursors 没有实际 Current 时会返回空集合，尚须真实负例与修复。
-匹配合同、发布、HTTP 作者链与三轮 GPU 采样仍待完成；以上不构成 M08 通过。
+后续真实四锚点／line fallback、完整依赖断点、cluster 切换及装载／退场边界已补齐，
+14 项通过。负例确实暴露 BindingCursors 空集合未拒绝及 Load 吞掉具名诊断的问题，
+已取得旧实现 4 项失败、修复后通过的红绿证据。Rendering 全套 1258 项通过的范围
+包含前 8 项，不含后加的 6 项；Scripting 全套 442 项通过发生在 Load 修复前。
+第三批预算及中途取消恢复已通过，全部边界测试为 18/18；最终构建零警告／零错误，
+同一构建串行复验 Scripting 442/442、Rendering 1268/1268、v2 导出 7/7。
+匹配合同／发布、HTTP 作者链和三轮 GPU 采样仍待完成。
+详见 [M08 证据](script-sdk-render-m08-evidence.md)，以上不构成 M08 通过。

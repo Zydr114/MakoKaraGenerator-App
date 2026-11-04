@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json;
 using MakoKaraGenerator.Rendering.Abstractions;
 
 namespace MakoKaraGenerator.Media.Tests;
@@ -165,6 +166,102 @@ public sealed class FfmpegVideoFrameTests : IDisposable
         Assert.Throws<ArgumentOutOfRangeException>(() => new VideoFrame(0, 4, 16, new byte[64]));
     }
 
+    [Fact]
+    public void 无损透明视频缩放后保留颜色并在尺寸变化和跳转时重新取帧()
+    {
+        string path = Path.Combine(_directory.Path, "lossless.mkv");
+        Run("ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=321x181:rate=2:duration=2",
+            "-vf", "format=rgba,geq=r='if(lt(X,160),220,20)':g='if(lt(Y,90),40,200)':b='30+N*30':a='128+N*20'",
+            "-c:v", "ffv1", "-pix_fmt", "bgra", "-y", path);
+        using FfmpegVideoFrameProvider provider = new();
+        using IVideoFrameSource source = provider.Open(path, out _)!;
+        Assert.Equal(321, source.Width);
+        Assert.Equal(181, source.Height);
+
+        Assert.True(source.TryGetFrame(0, 81, 46, out var first, CancellationToken.None));
+        Assert.Equal(81, first!.Width);
+        Assert.Equal(46, first.Height);
+        byte[] original = [.. first.Pixels];
+        Assert.InRange(original[0], 28, 32);
+        Assert.InRange(original[1], 38, 42);
+        Assert.InRange(original[2], 218, 222);
+        Assert.InRange(original[3], 126, 130);
+        Assert.True(source.TryGetFrame(0, 81, 46, out var repeated, CancellationToken.None));
+        Assert.Equal(original, repeated!.Pixels);
+        Assert.True(source.TryGetFrame(1_000_000, 81, 46, out var forward, CancellationToken.None));
+        Assert.NotEqual(original, forward!.Pixels);
+        Assert.True(source.TryGetFrame(0, 81, 46, out var backward, CancellationToken.None));
+        Assert.Equal(original, backward!.Pixels);
+        Assert.True(source.TryGetFrame(0, 161, 91, out var resized, CancellationToken.None));
+        Assert.Equal(161, resized!.Width);
+        Assert.Equal(91, resized.Height);
+        Assert.InRange(resized.Pixels[3], 126, 130);
+        Assert.True(source.TryGetFrame(0, 81, 46, out var restored, CancellationToken.None));
+        Assert.Equal(original, restored!.Pixels);
+        Assert.True(source.TryGetFrame(0, out var full));
+        Assert.Equal(321, full!.Width);
+        Assert.Equal(181, full.Height);
+    }
+
+    [Fact]
+    public void 缺少缩放滤镜时回退原始帧并保持后续读取()
+    {
+        if (!OperatingSystem.IsLinux()) return;
+        string path = CreateTestVideo();
+        string executable = Path.Combine(_directory.Path, "ffmpeg-without-zscale");
+        File.WriteAllText(executable, "#!/bin/sh\nfor arg in \"$@\"; do case \"$arg\" in *zscale*) exit 1;; esac; done\nexec ffmpeg \"$@\"\n");
+        File.SetUnixFileMode(executable, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        using FfmpegVideoFrameProvider provider = new(executable);
+        using IVideoFrameSource source = provider.Open(path, out _)!;
+        Assert.True(source.TryGetFrame(0, 16, 12, out var first, CancellationToken.None));
+        Assert.Equal(Width, first!.Width);
+        Assert.Equal(Height, first.Height);
+        Assert.Null(source.LastError);
+        Assert.True(source.TryGetFrame(200_000, 16, 12, out var later, CancellationToken.None));
+        Assert.Equal(Width, later!.Width);
+        Assert.Equal(Height, later.Height);
+    }
+
+    [Theory]
+    [InlineData(90)]
+    [InlineData(270)]
+    public void 带显示矩阵的视频按原尺寸解码并与原路径一致(int rotation)
+    {
+        string original = Path.Combine(_directory.Path, "unrotated.mp4");
+        string rotated = Path.Combine(_directory.Path, $"rotated-{rotation}.mp4");
+        Run("ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=160x90:rate=10:duration=2",
+            "-pix_fmt", "yuv420p", "-c:v", "libx264", "-y", original);
+        Run("ffmpeg", "-v", "error", "-display_rotation:v:0", rotation.ToString(System.Globalization.CultureInfo.InvariantCulture), "-i", original, "-c", "copy", "-y", rotated);
+
+        using JsonDocument probe = JsonDocument.Parse(CaptureOutput("ffprobe", "-v", "error", "-select_streams", "v:0",
+            "-show_entries", "stream=width,height:stream_side_data=side_data_type,displaymatrix,rotation", "-of", "json", rotated));
+        JsonElement stream = probe.RootElement.GetProperty("streams")[0];
+        int width = stream.GetProperty("width").GetInt32();
+        int height = stream.GetProperty("height").GetInt32();
+        JsonElement matrix = stream.GetProperty("side_data_list").EnumerateArray()
+            .Single(item => item.GetProperty("side_data_type").GetString() == "Display Matrix");
+        Assert.False(string.IsNullOrWhiteSpace(matrix.GetProperty("displaymatrix").GetString()));
+        Assert.Equal(90, Math.Abs(matrix.GetProperty("rotation").GetInt32()));
+        Assert.Equal(0, width % 5);
+        Assert.Equal(0, height % 5);
+
+        using FfmpegVideoFrameProvider provider = new();
+        using IVideoFrameSource source = provider.Open(rotated, out _)!;
+        using IVideoFrameSource baseline = provider.Open(rotated, out _)!;
+        Assert.Equal(width, source.Width);
+        Assert.Equal(height, source.Height);
+        foreach ((long time, int divisor) in new[] { (0L, 5), (0L, 5), (1_000_000L, 5), (200_000L, 2), (0L, 5) })
+        {
+            Assert.True(baseline.TryGetFrame(time, out var expected), baseline.LastError);
+            byte[] expectedPixels = [.. expected!.Pixels];
+            Assert.True(source.TryGetFrame(time, width / divisor, height / divisor, out var actual, CancellationToken.None), source.LastError);
+            Assert.Equal(width, actual!.Width);
+            Assert.Equal(height, actual.Height);
+            Assert.Equal(expectedPixels, actual.Pixels);
+            Assert.Null(source.LastError);
+        }
+    }
+
     /// <summary>现场生成一段 <c>testsrc</c> 视频。</summary>
     private string CreateTestVideo()
     {
@@ -198,5 +295,17 @@ public sealed class FfmpegVideoFrameTests : IDisposable
         process.WaitForExit();
 
         Assert.True(process.ExitCode == 0, $"{executable} 失败：{stderr}");
+    }
+
+    private static string CaptureOutput(string executable, params string[] arguments)
+    {
+        ProcessStartInfo info = new(executable) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
+        foreach (string argument in arguments) info.ArgumentList.Add(argument);
+        using Process process = Process.Start(info)!;
+        string output = process.StandardOutput.ReadToEnd();
+        string stderr = process.StandardError.ReadToEnd();
+        process.WaitForExit();
+        Assert.True(process.ExitCode == 0, $"{executable} 失败：{stderr}");
+        return output;
     }
 }

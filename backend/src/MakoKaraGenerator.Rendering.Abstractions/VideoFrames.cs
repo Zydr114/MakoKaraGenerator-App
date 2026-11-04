@@ -91,6 +91,10 @@ public interface IVideoFrameSource : IDisposable
         cancellationToken.ThrowIfCancellationRequested();
         return result;
     }
+
+    /// <summary>按请求尺寸取帧；不支持缩放的来源可以返回原尺寸帧。</summary>
+    bool TryGetFrame(long sourceTimeUs, int width, int height, out VideoFrame? frame, CancellationToken cancellationToken)
+        => TryGetFrame(sourceTimeUs, out frame, cancellationToken);
 }
 
 /// <summary>

@@ -150,7 +150,7 @@ public sealed partial class FfmpegVideoFrameProvider : IVideoFrameProvider
         using var deadline = new MediaOperationDeadline(_operationTimeout, caller);
         var args = new List<string> { "-v", "error" };
         AddSelfContainedArguments(args, demuxer);
-        args.AddRange(["-select_streams", "v:0", "-show_entries", "stream=width,height,avg_frame_rate:format=duration", "-of", "json", path]);
+        args.AddRange(["-select_streams", "v:0", "-show_entries", "stream=width,height,avg_frame_rate:stream_tags=rotate:stream_side_data=side_data_type,displaymatrix,rotation:format=duration", "-of", "json", path]);
         using var process = OwnedMediaProcess.Start(_ffprobePath, args);
         using var cancellation = deadline.Token.Register(process.Terminate);
         string json;
@@ -176,10 +176,27 @@ public sealed partial class FfmpegVideoFrameProvider : IVideoFrameProvider
                 ReadInt(stream, "width"),
                 ReadInt(stream, "height"),
                 ReadFrameRate(ReadString(stream, "avg_frame_rate")),
-                ReadDurationUs(root));
+                ReadDurationUs(root),
+                HasDisplayTransform(stream));
         }
         catch (Exception error) when (error is JsonException or InvalidOperationException or FormatException or OverflowException)
         { throw new IOException("FFprobe 输出不是有效的视频元数据。", error); }
+    }
+
+    private static bool HasDisplayTransform(JsonNode stream)
+    {
+        // Even a nominal zero-degree matrix may carry reflection, translation or scaling.
+        if (stream["tags"] is JsonObject tags && tags.ContainsKey("rotate")) return true;
+        JsonNode? sideData = stream["side_data_list"];
+        if (sideData is null) return false;
+        if (sideData is not JsonArray entries) return true;
+        foreach (JsonNode? entry in entries)
+        {
+            if (entry is not JsonObject item) return true;
+            if (item.ContainsKey("displaymatrix") || item.ContainsKey("rotation")) return true;
+            if (ReadString(item, "side_data_type") is not { } type || type == "Display Matrix") return true;
+        }
+        return false;
     }
 
     private static double ReadFrameRate(string? text)
@@ -246,5 +263,5 @@ public sealed partial class FfmpegVideoFrameProvider : IVideoFrameProvider
         node[name] is JsonValue value && value.TryGetValue(out string? text) ? text : null;
 
     /// <summary>探测结果。</summary>
-    private readonly record struct VideoMetadata(int Width, int Height, double FrameRate, long DurationUs);
+    private readonly record struct VideoMetadata(int Width, int Height, double FrameRate, long DurationUs, bool HasDisplayTransform);
 }

@@ -203,7 +203,11 @@ internal sealed class FfmpegEncodingSession : IVideoEncodingSession
     public async Task WriteFrameAsync(RenderFrame frame, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(frame);
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_disposed)
+        {
+            frame.Dispose();
+            throw new ObjectDisposedException(nameof(FfmpegEncodingSession));
+        }
 
         if (frame.Width != _request.Width || frame.Height != _request.Height)
         {

@@ -23,6 +23,10 @@ namespace MakoKaraGenerator.Rendering.Skia;
 /// </remarks>
 public interface IBackgroundFrameSource : IDisposable
 {
+    /// <summary>原始媒体几何；未知时为零，使用帧尺寸。</summary>
+    int SourceWidth => 0;
+    /// <summary>原始媒体几何；未知时为零，使用帧尺寸。</summary>
+    int SourceHeight => 0;
     /// <summary>取该时刻要画的画面。</summary>
     /// <param name="timeUs">时刻（微秒）。</param>
     /// <returns>位图；没有可画的内容（文件缺失、解码失败、该时刻无帧）时为 <see langword="null"/>。</returns>
@@ -36,6 +40,10 @@ public interface IBackgroundFrameSource : IDisposable
         cancellationToken.ThrowIfCancellationRequested();
         return frame;
     }
+
+    /// <summary>按目标密度取帧；图片和旧来源保留原行为。</summary>
+    SKBitmap? GetFrame(long timeUs, Composition composition, RenderTarget target, BackgroundFit fit, CancellationToken cancellationToken)
+        => GetFrame(timeUs, cancellationToken);
 }
 
 /// <summary>把一个背景描述解析成帧来源；同一个背景只解析一次。</summary>
@@ -206,6 +214,10 @@ public sealed class VideoBackgroundFrameSource : IBackgroundFrameSource, IDispos
 
     /// <summary>视频时长（微秒）。</summary>
     public long DurationUs => _source.DurationUs;
+    /// <inheritdoc/>
+    public int SourceWidth => _source.Width;
+    /// <inheritdoc/>
+    public int SourceHeight => _source.Height;
 
     /// <summary>最近一次失败的说明；没有失败时为 <see langword="null"/>。</summary>
     public string? LastError => _source.LastError;
@@ -215,6 +227,24 @@ public sealed class VideoBackgroundFrameSource : IBackgroundFrameSource, IDispos
 
     /// <inheritdoc/>
     public SKBitmap? GetFrame(long timeUs, CancellationToken cancellationToken)
+        => GetFrameCore(timeUs, _source.Width, _source.Height, cancellationToken);
+
+    /// <inheritdoc/>
+    public SKBitmap? GetFrame(long timeUs, Composition composition, RenderTarget target, BackgroundFit fit, CancellationToken cancellationToken)
+    {
+        var placement = BackgroundPlacement.Compute(_source.Width, _source.Height, composition.CanvasWidth, composition.CanvasHeight, fit);
+        if (placement.Source.X == 0 && placement.Source.Y == 0
+            && placement.Source.Width == _source.Width && placement.Source.Height == _source.Height
+            && placement.Destination.X == 0 && placement.Destination.Y == 0
+            && placement.Destination.Width == composition.CanvasWidth && placement.Destination.Height == composition.CanvasHeight
+            && _source.Width % target.PixelWidth == 0 && _source.Height % target.PixelHeight == 0
+            && _source.Width / target.PixelWidth == _source.Height / target.PixelHeight
+            && _source.Width / target.PixelWidth > 1)
+            return GetFrameCore(timeUs, target.PixelWidth, target.PixelHeight, cancellationToken);
+        return GetFrameCore(timeUs, _source.Width, _source.Height, cancellationToken);
+    }
+
+    private SKBitmap? GetFrameCore(long timeUs, int width, int height, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         lock (_gate)
@@ -227,11 +257,16 @@ public sealed class VideoBackgroundFrameSource : IBackgroundFrameSource, IDispos
 
             long sourceTimeUs = BackgroundPlayback.ResolveSourceTimeUs(timeUs, _source.DurationUs, _playback);
 
-            if (!_source.TryGetFrame(sourceTimeUs, out VideoFrame? frame, cancellationToken) || frame is null)
+            if (!_source.TryGetFrame(sourceTimeUs, width, height, out VideoFrame? frame, cancellationToken) || frame is null)
             {
                 return null;
             }
 
+            if (_bitmap is not null && (_bitmap.Width != frame.Width || _bitmap.Height != frame.Height))
+            {
+                _bitmap.Dispose();
+                _bitmap = null;
+            }
             _bitmap ??= new SKBitmap(new SKImageInfo(
                 frame.Width,
                 frame.Height,

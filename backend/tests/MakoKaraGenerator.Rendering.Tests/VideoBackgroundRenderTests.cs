@@ -85,6 +85,65 @@ public sealed class VideoBackgroundRenderTests : IDisposable
         Assert.Equal(VideoColor, center);
     }
 
+    [Theory]
+    [InlineData(BackgroundFit.Original)]
+    [InlineData(BackgroundFit.Contain)]
+    [InlineData(BackgroundFit.Cover)]
+    public void 不同帧尺寸保留原始几何和透明颜色(BackgroundFit fit)
+    {
+        SamplingSource scaled = new(true);
+        SamplingSource original = new(false);
+        using SkiaRenderPipeline scaledPipeline = CreatePipeline(scaled);
+        using SkiaRenderPipeline originalPipeline = CreatePipeline(original);
+        RenderRequest request = RenderRequest.At(CreateSnapshot(fit), 0) with
+        {
+            Target = new RenderTarget { PixelWidth = 80, PixelHeight = 90 },
+        };
+        using RenderFrame actual = scaledPipeline.Render(request);
+        using RenderFrame expected = originalPipeline.Render(request);
+        Assert.Equal(641, scaled.RequestedWidth);
+        Assert.Equal(361, scaled.RequestedHeight);
+        foreach (int y in new[] { 10, 30, 60, 80 })
+        foreach (int x in new[] { 5, 20, 30, 50, 60, 75 })
+        {
+            Assert.True(actual.TryGetPixel(x, y, out RgbaColor actualColor));
+            Assert.True(expected.TryGetPixel(x, y, out RgbaColor expectedColor));
+            Assert.Equal(expectedColor, actualColor);
+        }
+    }
+
+    private sealed class SamplingSource(bool resize) : IVideoFrameSource
+    {
+        public long DurationUs => 1_000_000;
+        public double FrameRate => 30;
+        public int Width => 641;
+        public int Height => 361;
+        public string? LastError => null;
+        public int RequestedWidth { get; private set; }
+        public int RequestedHeight { get; private set; }
+        public bool TryGetFrame(long time, out VideoFrame? frame) => TryGetFrame(time, Width, Height, out frame, CancellationToken.None);
+        public bool TryGetFrame(long time, int width, int height, out VideoFrame? frame, CancellationToken cancellationToken)
+        {
+            RequestedWidth = width;
+            RequestedHeight = height;
+            if (resize) { width = 161; height = 91; }
+            else { width = Width; height = Height; }
+            byte[] pixels = new byte[width * height * 4];
+            for (int y = 0; y < height; y++)
+            for (int x = 0; x < width; x++)
+            {
+                int index = (y * width + x) * 4;
+                pixels[index] = 30;
+                pixels[index + 1] = y < height / 2 ? (byte)40 : (byte)200;
+                pixels[index + 2] = x < width / 2 ? (byte)220 : (byte)20;
+                pixels[index + 3] = 128;
+            }
+            frame = new VideoFrame(width, height, width * 4, pixels);
+            return true;
+        }
+        public void Dispose() { }
+    }
+
     private SkiaRenderPipeline CreatePipeline(IVideoFrameSource? source) =>
         new(_layoutEngine, new BackgroundFrameSourceResolver(source is null ? null : new FakeVideoProvider(source)));
 

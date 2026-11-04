@@ -247,7 +247,7 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
             return;
         }
 
-        SKBitmap? frame = ResolveBackgroundFrame(request);
+        BackgroundFrame? frame = ResolveBackgroundFrame(request);
 
         if (frame is null)
         {
@@ -257,15 +257,26 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
         DrawBackgroundFrame(canvas, frame, background, composition);
     }
 
-    private SKBitmap? ResolveBackgroundFrame(RenderRequest request) => request.Project.Background.HasMedia
-        ? _backgroundResolver.Resolve(request.Project.Background, request.CancellationToken)?.GetFrame(request.TimeUs, request.CancellationToken) : null;
+    private sealed record BackgroundFrame(SKBitmap Bitmap, int SourceWidth, int SourceHeight);
 
-    private static void DrawBackgroundFrame(SKCanvas canvas, SKBitmap frame, BackgroundSource background, Composition composition)
+    private BackgroundFrame? ResolveBackgroundFrame(RenderRequest request)
+    {
+        if (!request.Project.Background.HasMedia) return null;
+        var source = _backgroundResolver.Resolve(request.Project.Background, request.CancellationToken);
+        if (source is null) return null;
+        var bitmap = source.GetFrame(request.TimeUs, request.Project.Composition, request.ResolveTarget(),
+            request.Project.Background.Fit, request.CancellationToken);
+        return bitmap is null ? null : new BackgroundFrame(bitmap,
+            source.SourceWidth > 0 ? source.SourceWidth : bitmap.Width,
+            source.SourceHeight > 0 ? source.SourceHeight : bitmap.Height);
+    }
+
+    private static void DrawBackgroundFrame(SKCanvas canvas, BackgroundFrame frame, BackgroundSource background, Composition composition)
     {
 
         BackgroundPlacement placement = BackgroundPlacement.Compute(
-            frame.Width,
-            frame.Height,
+            frame.SourceWidth,
+            frame.SourceHeight,
             composition.CanvasWidth,
             composition.CanvasHeight,
             background.Fit);
@@ -279,9 +290,12 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
         // 让"图片有没有铺到位"变得难以断言，画面本身也不因此更准。
         using SKPaint paint = new();
 
+        var source = placement.Source;
+        float scaleX = (float)frame.Bitmap.Width / frame.SourceWidth;
+        float scaleY = (float)frame.Bitmap.Height / frame.SourceHeight;
         canvas.DrawBitmap(
-            frame,
-            ToSkRect(placement.Source),
+            frame.Bitmap,
+            ToSkRect(new BackgroundRect(source.X * scaleX, source.Y * scaleY, source.Width * scaleX, source.Height * scaleY)),
             ToSkRect(placement.Destination),
             paint);
     }

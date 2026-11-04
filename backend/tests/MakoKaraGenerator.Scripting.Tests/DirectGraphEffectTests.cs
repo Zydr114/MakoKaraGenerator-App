@@ -12,6 +12,25 @@ namespace MakoKaraGenerator.Scripting.Tests;
 
 public sealed class DirectGraphEffectTests
 {
+    [Fact]
+    public async Task v2直接图在未接通阶段提前拒绝而不误装载为CSharp入口()
+    {
+        var original = Definition().Contents;
+        var manifest = JsonNode.Parse(original.Manifest.AsSpan())!.AsObject();
+        manifest["packageVersion"] = EffectPackageProfiles.V2.PackageVersion;
+        manifest["sdkVersion"] = EffectPackageProfiles.V2.SdkVersion;
+        manifest["shaderProfile"] = EffectPackageProfiles.V2.ShaderProfile;
+        manifest["requires"] = new JsonArray();
+        manifest["lineExit"] = new JsonObject { ["durationUs"] = 0 };
+        manifest["emitters"] = new JsonArray();
+        var definition = EffectPackageDefinition.Read(EffectPackageContents.CreateSupported(EffectPackageFixture.Bytes(manifest),
+            original.Files.Select(file => KeyValuePair.Create(file.Path, (ReadOnlyMemory<byte>)file.Content.ToArray()))));
+        var compiled = await Compile(definition);
+        Assert.True(compiled.Succeeded);
+        Assert.Equal("PackageWriterPending", Assert.Throws<EffectPackageException>(() =>
+            compiled.CreateEffect(ExportId, new("v2-graph"), new EffectBinding.Project(), 0)).Code);
+    }
+
     private static readonly string[] SingleChorusTokenIds = ["chorus-a"];
     private static readonly string[] ChorusTokenIds = ["chorus-a", "chorus-b"];
     private static readonly string[] RotatedInstanceIds = ["a", "a", "b", "b"];

@@ -21,9 +21,12 @@ public sealed partial class SkiaRenderPipeline
     {
         var frame = request.PreparedFrame!;
         var items = DrawItems(frame.HierarchyScene).ToArray();
-        var outputs = frame.GroupOpacities.ToDictionary(item => item.Opacity.Target.NodeId.Value, StringComparer.Ordinal);
+        var nodes = frame.HierarchyScene.Elements.ToDictionary(static item => item.Id, StringComparer.Ordinal);
+        // Frozen parent aliases preserve geometry but still belong to the same logical
+        // group. Composite active and exiting children together before applying alpha.
+        var outputs = frame.GroupOpacities.Where(item => nodes[item.Opacity.Target.NodeId.Value].SourceNodeId is null)
+            .ToDictionary(item => item.Opacity.Target.NodeId.Value, StringComparer.Ordinal);
         if (outputs.Count == 0) { foreach (var item in items) drawObject(main, item); return; }
-        var parents = frame.HierarchyScene.Elements.ToDictionary(item => item.Id, item => item.ParentId, StringComparer.Ordinal);
         IsolationUnit root = new(); Dictionary<string, IsolationUnit> groups = new(StringComparer.Ordinal);
         for (int index = 0; index < items.Length; index++)
         {
@@ -32,9 +35,10 @@ public sealed partial class SkiaRenderPipeline
             while (current is not null)
             {
                 if (!seen.Add(current)) throw new PreparedFrameException("InvalidSceneIsolationTree", "隔离运行父树含环。");
-                if (outputs.ContainsKey(current)) chain.Add(current);
-                if (!parents.TryGetValue(current, out var parent)) throw new PreparedFrameException("InvalidSceneIsolationTree", "隔离运行父树缺少节点。");
-                current = parent;
+                if (!nodes.TryGetValue(current, out var node)) throw new PreparedFrameException("InvalidSceneIsolationTree", "隔离运行父树缺少节点。");
+                string source = node.SourceNodeId ?? current;
+                if (outputs.ContainsKey(source)) chain.Add(source);
+                current = node.ParentId;
             }
             IsolationUnit unit = root;
             for (int i = chain.Count - 1; i >= 0; i--)

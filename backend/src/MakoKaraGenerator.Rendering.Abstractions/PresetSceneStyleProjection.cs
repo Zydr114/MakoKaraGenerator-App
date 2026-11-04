@@ -41,9 +41,23 @@ public static class PresetSceneStyleProjection
     public static PresetStyleResolution Lyrics(ProjectSnapshot snapshot, string lineId, string? tokenId = null,
         SceneFrame? frame = null, PresetStyleResolver? resolver = null)
     {
-        var sample = frame?.Lines.SingleOrDefault(line => line.Frame.Line!.Id == lineId);
+        var sample = frame?.Lines.FirstOrDefault(line => line.Frame.Line!.Id == lineId && line.ExitReplica is null)
+            ?? frame?.Lines.FirstOrDefault(line => line.Frame.Line!.Id == lineId);
+        if (sample is not null) return LyricsForBinding(snapshot, sample, tokenId, frame!, resolver);
         return (resolver ?? Resolver(snapshot)).ResolveLyrics(lineId, tokenId, sample?.DisplayClipId,
             sample is null ? null : NodePath(snapshot, sample.ElementId, frame));
+    }
+
+    /// <summary>按真实装载解析源外观；退出副本使用隐藏左极限的固定来源，不读取当前槽位。</summary>
+    public static PresetStyleResolution LyricsForBinding(ProjectSnapshot snapshot, SceneLineSample sample, string? tokenId,
+        SceneFrame frame, PresetStyleResolver? resolver = null)
+    {
+        ArgumentNullException.ThrowIfNull(sample);
+        if (sample.ExitReplica is { } exit)
+            return tokenId is null ? exit.LineStyle : exit.TokenStyles.TryGetValue(new(tokenId), out var value) ? value
+                : throw new PreparedFrameException("MissingBaselineTarget", "退出副本缺少隐藏左极限的元素外观。");
+        return (resolver ?? Resolver(snapshot)).ResolveLyrics(sample.Frame.Line!.Id, tokenId, sample.DisplayClipId,
+            NodePath(snapshot, sample.ElementId, frame));
     }
 
     /// <summary>真实提示组／标记来源及实际运行父树。</summary>
@@ -69,10 +83,10 @@ public static class PresetSceneStyleProjection
         return frame with { Lines = [.. frame.Lines.Select(sample =>
         {
             var source = sample.Frame.Line!;
-            var lineStyle = Lyrics(snapshot, source.Id, frame: frame, resolver: resolver).Style;
+            var lineStyle = LyricsForBinding(snapshot, sample, null, frame, resolver).Style;
             var tokens = source.Tokens.Select(token =>
             {
-                var style = Lyrics(snapshot, source.Id, token.Id, frame, resolver).Style;
+                var style = LyricsForBinding(snapshot, sample, token.Id, frame, resolver).Style;
                 return token with { StyleOverride = style == lineStyle ? null :
                     StyleBatchEditor.CopyProperties(LyricStyleOverride.Empty, style, TokenStyleSupport.SupportedAtTokenLevel) };
             }).ToImmutableArray();

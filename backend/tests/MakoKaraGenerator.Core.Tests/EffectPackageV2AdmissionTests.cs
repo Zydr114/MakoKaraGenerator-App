@@ -34,7 +34,7 @@ public sealed class EffectPackageV2AdmissionTests
             SdkV2PackageFixture.Contents(manifest => manifest[field] = value)).Code);
 
     [Theory]
-    [InlineData("cluster.affine")]
+    [InlineData("future.unknown")]
     [InlineData("path.svg")]
     [InlineData("media.features")]
     [InlineData("unknown.required")]
@@ -86,8 +86,45 @@ public sealed class EffectPackageV2AdmissionTests
             EffectPackageContents.CreateSupported(EffectPackageFixture.Bytes(manifest), EffectPackageFixture.Inputs(files))).Code);
         var undeclared = SdkV2PackageFixture.Contents(value => value["exports"]![0]!["outputs"]![0]!["requires"] = new JsonArray("group.affine"));
         Assert.Equal("PackageCapabilityMissing", Assert.Throws<EffectPackageException>(() => EffectPackageDefinition.Read(undeclared)).Code);
-        var unsupported = SdkV2PackageFixture.Contents(value => value["exports"]![0]!["outputs"]![0]!["requires"] = new JsonArray("cluster.affine"));
+        var unsupported = SdkV2PackageFixture.Contents(value => value["exports"]![0]!["outputs"]![0]!["requires"] = new JsonArray("future.unknown"));
         Assert.Equal("PackageCapabilityUnsupported", Assert.Throws<EffectPackageException>(() => EffectPackageDefinition.Read(unsupported)).Code);
+    }
+
+    [Theory]
+    [InlineData("baseToken", "VisualTransform")]
+    [InlineData("baseToken", "StyleModulation")]
+    [InlineData("cluster", "VisualTransform")]
+    public void v2正式字与簇目标按输出类型准入且v1不扩大(string target, string kind)
+    {
+        var current = SdkV2PackageFixture.Contents(manifest =>
+        {
+            manifest["requires"]!.AsArray().Add("cluster.affine");
+            manifest["exports"]![0]!["outputs"]![0]!["target"] = target;
+            manifest["exports"]![0]!["outputs"]![0]!["kind"] = kind;
+            manifest["exports"]![0]!["outputs"]![0]!["requires"] = new JsonArray(target == "cluster" ? "cluster.affine" : "token.affine");
+        });
+        var output = Assert.Single(Assert.Single(EffectPackageDefinition.Read(current).Controllers).Outputs);
+        Assert.Equal(target, output.Target); Assert.Equal(kind, output.Kind);
+        var files = EffectPackageFixture.Files(); var old = EffectPackageFixture.Manifest(files);
+        old["exports"]![0]!["outputs"]![0]!["target"] = target;
+        old["exports"]![0]!["outputs"]![0]!["kind"] = kind;
+        var oldContents = EffectPackageContents.CreateSupported(EffectPackageFixture.Bytes(old), EffectPackageFixture.Inputs(files));
+        Assert.Equal("PackageOutputTargetUnsupported", Assert.Throws<EffectPackageException>(() => EffectPackageDefinition.Read(oldContents)).Code);
+    }
+
+    [Theory]
+    [InlineData("baseToken", "GeometryMapping")]
+    [InlineData("baseToken", "ImageGraph")]
+    [InlineData("cluster", "StyleModulation")]
+    [InlineData("cluster", "Overlay")]
+    public void v2不授予基础字或簇未接通的输出类型(string target, string kind)
+    {
+        var package = SdkV2PackageFixture.Contents(manifest =>
+        {
+            manifest["exports"]![0]!["outputs"]![0]!["target"] = target;
+            manifest["exports"]![0]!["outputs"]![0]!["kind"] = kind;
+        });
+        Assert.Equal("PackageOutputTargetUnsupported", Assert.Throws<EffectPackageException>(() => EffectPackageDefinition.Read(package)).Code);
     }
 
     [Fact]

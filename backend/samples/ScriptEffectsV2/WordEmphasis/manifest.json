@@ -1,0 +1,76 @@
+{
+  "packageVersion": 3,
+  "packageId": "makokara.v2.word-emphasis",
+  "name": "逐字强调",
+  "version": "2.0.0",
+  "sdkVersion": "2.0.0",
+  "shaderProfile": "skia-ganesh-3.119.4-v2",
+  "files": [
+    {
+      "path": "src/WordEmphasis.cs",
+      "role": "csharp",
+      "sha256": "20c42302338d232b0957aa2f4b569e81b0e5a34197159da70c0cb693d7ab93c0"
+    },
+    {
+      "path": "README.md",
+      "role": "asset",
+      "sha256": "478bad48063d4e60ead3f9efc0e979b1a7a7e4f62c47983eb675f916e9c49af7"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "peakScale",
+      "type": "number",
+      "label": "最大放大比例",
+      "default": 1.25,
+      "min": 1,
+      "max": 4,
+      "unit": "倍"
+    },
+    {
+      "id": "returnUs",
+      "type": "duration",
+      "label": "回落时长",
+      "default": 120000,
+      "min": 0,
+      "max": 2000000,
+      "unit": "us"
+    }
+  ],
+  "exports": [
+    {
+      "id": "word-emphasis",
+      "kind": "controller",
+      "name": "逐字强调",
+      "entryType": "WordEmphasis",
+      "parameters": [
+        "peakScale",
+        "returnUs"
+      ],
+      "bindingKinds": [
+        "project",
+        "branch",
+        "lines",
+        "tokens",
+        "clips",
+        "node"
+      ],
+      "outputs": [
+        {
+          "id": "scale",
+          "kind": "VisualTransform",
+          "target": "tokenFamily",
+          "requires": [],
+          "dependsOn": []
+        }
+      ]
+    }
+  ],
+  "requires": [
+    "token.affine"
+  ],
+  "lineExit": {
+    "durationUs": 0
+  },
+  "emitters": []
+}

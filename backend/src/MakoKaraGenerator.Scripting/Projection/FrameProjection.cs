@@ -17,7 +17,7 @@ public static class FrameProjection
     public static ImmutableArray<FrameGroup> Groups(SceneFrame scene)
     {
         ArgumentNullException.ThrowIfNull(scene);
-        return [.. scene.Elements.Where(static node => node.Kind == SceneElementKind.Group).Select(node => new FrameGroup(new(new(node.Id)),
+        return [.. scene.Elements.Where(static node => node.Kind == SceneElementKind.Group && node.SourceNodeId is null).Select(node => new FrameGroup(new(new(node.Id)),
             node.ParentId is { } parent ? new(parent) : null, node.IsVisible, node.Opacity))];
     }
     /// <summary>真实源行及当前父槽位装载；未知演唱时间不变成假起唱。</summary>
@@ -25,7 +25,7 @@ public static class FrameProjection
     {
         ArgumentNullException.ThrowIfNull(scene); ArgumentNullException.ThrowIfNull(catalog);
         return [.. scene.Lines.Select(line => new FrameLine(new(line.Frame.Line!.Id), new(line.Branch.Id), new(line.BindingId!),
-            new(line.ElementId), new(line.ParentId), catalog.Programs.Single(program => program.BranchId.Value == line.Branch.Id).Id,
+            new(line.SourceElementId), new(line.ExitReplica is { SourceNodePath.Length: >= 2 } exit ? exit.SourceNodePath[^2] : line.ParentId), catalog.Programs.Single(program => program.BranchId.Value == line.Branch.Id).Id,
             line.DisplayClipId is { } clip ? new(clip) : null, line.CueId is { } cue ? new(cue) : null,
             line.DisplayPhase == SceneDisplayPhase.Preparation ? DisplayPhase.Preparing
                 : line.Frame.Line.Time is { } range && scene.TimeUs >= range.EndUs ? DisplayPhase.Retained : DisplayPhase.Performing,

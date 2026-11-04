@@ -81,8 +81,9 @@ public sealed partial class SkiaRenderPipeline
                 HashSet<string> seen = new(StringComparer.Ordinal); string? current = id;
                 while (current is not null && seen.Add(current))
                 {
-                    if (current == scope) return true;
-                    current = frame.Elements.Single(item => item.Id == current).ParentId;
+                    var node = frame.Elements.Single(item => item.Id == current);
+                    if (current == scope || node.SourceNodeId == scope) return true;
+                    current = node.ParentId;
                 }
                 return false;
             }
@@ -104,7 +105,7 @@ public sealed partial class SkiaRenderPipeline
     }
     private static ImmutableArray<SceneDrawItem> SelectCaptureItems(SceneFrame frame, SceneCaptureTarget target, SceneCaptureRecipe recipe)
     {
-        var items = DrawItems(frame).ToArray(); var parents = frame.Elements.ToDictionary(item => item.Id, item => item.ParentId, StringComparer.Ordinal);
+        var items = DrawItems(frame).ToArray(); var nodes = frame.Elements.ToDictionary(item => item.Id, StringComparer.Ordinal);
         bool Inside(string id, string ancestor)
         {
             HashSet<string> seen = new(StringComparer.Ordinal); string? current = id;
@@ -112,7 +113,9 @@ public sealed partial class SkiaRenderPipeline
             {
                 if (!seen.Add(current)) throw new PreparedFrameException("InvalidCaptureTree", "捕获运行父树含环。");
                 if (current == ancestor) return true;
-                current = parents.TryGetValue(current, out var parent) ? parent : null;
+                if (!nodes.TryGetValue(current, out var node)) return false;
+                if (node.SourceNodeId == ancestor) return true;
+                current = node.ParentId;
             }
             return false;
         }
@@ -134,7 +137,9 @@ public sealed partial class SkiaRenderPipeline
                 && item.Mark.Geometry.BindingId == mark.BindingId.Value) ?? throw Missing()];
         if (target is SceneCaptureTarget.Group { Target: { } group } && group.NodeId.IsValid
             && frame.Elements.Any(item => item.Id == group.NodeId.Value && item.Kind == SceneElementKind.Group))
-            return [.. items.Where(item => recipe.IncludeDescendantGroups ? Inside(item.NodeId, group.NodeId.Value) : parents.GetValueOrDefault(item.NodeId) == group.NodeId.Value)];
+            return [.. items.Where(item => recipe.IncludeDescendantGroups ? Inside(item.NodeId, group.NodeId.Value)
+                : nodes.TryGetValue(item.NodeId, out var node) && node.ParentId is { } parent
+                    && (parent == group.NodeId.Value || nodes.GetValueOrDefault(parent)?.SourceNodeId == group.NodeId.Value))];
         throw Missing();
         static PreparedFrameException Missing() => new("CaptureTargetUnavailable", "捕获目标不是本帧真实装载；不从旧 Binding／Cue 或任意 ID 猜测。");
     }

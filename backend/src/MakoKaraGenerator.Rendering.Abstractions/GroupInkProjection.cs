@@ -15,6 +15,8 @@ public static class GroupInkProjection
         var tokens = finalTokens.IsDefault ? frame.TokenGeometries : finalTokens;
         var marks = finalMarks.IsDefault ? frame.MarkGeometries : finalMarks;
         var parents = frame.Elements.ToDictionary(static element => element.Id, static element => element.ParentId, StringComparer.Ordinal);
+        var sources = frame.Elements.Where(static element => element.SourceNodeId is not null)
+            .ToDictionary(static element => element.Id, static element => element.SourceNodeId!, StringComparer.Ordinal);
         var lines = frame.Lines.ToDictionary(static line => line.BindingId!, StringComparer.Ordinal);
         var corners = frame.GroupGeometries.ToDictionary(static group => group.Target.NodeId.Value, static _ => new List<Fx.Point2>(), StringComparer.Ordinal);
         void Add(string? current, ImmutableArray<Fx.Point2> ink)
@@ -24,6 +26,7 @@ public static class GroupInkProjection
             {
                 if (!visited.Add(current)) throw new PreparedFrameException("InvalidSceneTransform", "运行父树不能循环聚合墨迹。");
                 if (corners.TryGetValue(current, out var group)) group.AddRange(ink);
+                if (sources.TryGetValue(current, out var source) && corners.TryGetValue(source, out var sourceGroup)) sourceGroup.AddRange(ink);
                 current = parents.GetValueOrDefault(current);
             }
         }

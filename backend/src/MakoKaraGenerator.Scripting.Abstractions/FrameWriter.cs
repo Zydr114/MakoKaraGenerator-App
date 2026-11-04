@@ -39,7 +39,7 @@ public enum EffectCapabilities
 public sealed record TokenFamilyTransform(TokenFamilyTarget Target, Affine2 LocalMatrix);
 
 /// <summary>一次纯求值的不可变输出；不会把可变 writer 交给渲染器。</summary>
-public sealed record FrameOutput
+public sealed partial record FrameOutput
 {
     /// <summary>已经按调用次序组合的元素族变换。</summary>
     public ImmutableArray<TokenFamilyTransform> TokenTransforms { get; init; } = [];

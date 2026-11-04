@@ -38,18 +38,18 @@ public sealed class ScriptModule : IDisposable
     /// <typeparam name="T">宿主期望的接口。</typeparam>
     /// <param name="entryType">源码定义的完整类型名。</param>
     /// <returns>同一 SDK 类型系统中的入口。</returns>
-    public T CreateInstance<T>(string entryType) where T : class, IDisposable
+    public T CreateInstance<T>(string entryType) where T : class
     {
         Type type = Entry<T>(entryType);
         T instance = (T)Activator.CreateInstance(type)!;
-        _instances.Add(instance);
+        if (instance is IDisposable disposable) _instances.Add(disposable);
         return instance;
     }
 
     /// <summary>只检查真实入口类型及公共无参构造，不运行作者构造、初始化或释放。</summary>
-    public void ValidateEntry<T>(string entryType) where T : class, IDisposable => _ = Entry<T>(entryType);
+    public void ValidateEntry<T>(string entryType) where T : class => _ = Entry<T>(entryType);
 
-    private Type Entry<T>(string entryType) where T : class, IDisposable
+    private Type Entry<T>(string entryType) where T : class
     {
         ObjectDisposedException.ThrowIf(_context is null, this); ArgumentException.ThrowIfNullOrWhiteSpace(entryType);
         Type type = _assembly!.GetType(entryType, throwOnError: true)!;

@@ -1,0 +1,125 @@
+using System.Collections.Immutable;
+using MakoKaraGenerator.Rendering;
+using MakoKaraGenerator.Scripting.Loading;
+using MakoKaraGenerator.Scripting.Projection;
+using MakoKaraGenerator.Scripting.V2;
+
+namespace MakoKaraGenerator.Scripting.Execution;
+
+internal sealed partial class FrameEffectHost
+{
+    private sealed record PureEffectRuntime(IPureKaraokeEffect Instance, DeclareContext Source, PreparedEffect Prepared);
+
+    private ActiveEffect LoadPure(CompiledFrameEffect definition, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        ScriptModule? module = null;
+        SourceIndexes? indexes = null;
+        try
+        {
+            var artifact = definition.Artifact ?? throw new EffectOutputException("PackageEntryInvalid", "纯文字入口缺少固定编译产物。");
+            module = new(artifact.PeImage.AsMemory(), artifact.PdbImage.AsMemory());
+            var instance = module.CreateInstance<IPureKaraokeEffect>(definition.EntryType!);
+            var timeline = _timeline ?? throw new EffectOutputException("PureSourceIndexRequired", "纯求值需要固定源索引。");
+            var scope = ResolvedSourceSubscription.Create(timeline, definition.Binding, definition.Subscription);
+            indexes = PureSourceIndexes.Create(_snapshot, timeline, _geometry, definition.Binding, definition.Subscription, token);
+            var source = new DeclareContext(_project.Content, _project.Scene, definition.Parameters, _project.Audio,
+                definition.Resources, definition.Seed, indexes.Timeline, _project.CanvasSize, definition.Id, indexes);
+            string? telemetry = PerformanceTelemetry.IsEnabled
+                ? PerformanceTelemetry.CreateScriptIdentity($"{definition.RuntimeHash}|{definition.Id}|{definition.PackageIdentity}") : null;
+            var active = new ActiveEffect(definition, module, null!, new(definition.Seed, definition.Id), scope, telemetry);
+            PreparedEffect? prepared = null;
+            Invoke(active, "Declare", 0, Diagnostics, _ =>
+            {
+                using var measured = MeasureAuthor(active, "Declare");
+                prepared = instance.Declare(source) ?? throw new EffectOutputException("PreparedEffectMissing", "Declare 必须返回递归只读准备结果。");
+            });
+            token.ThrowIfCancellationRequested();
+            return active with { Pure = new(instance, source, prepared!) };
+        }
+        catch (OperationCanceledException) { indexes?.Invalidate(); module?.Dispose(); throw; }
+        catch (Exception error)
+        {
+            indexes?.Invalidate();
+            try { module?.Dispose(); } catch { /* 保留准备失败及其归属。 */ }
+            if (error is EffectFailureException) throw;
+            throw Failure(definition, "Declare", 0, error, Diagnostics.Snapshot());
+        }
+    }
+
+    private static Affine2 ComposeFor(ActiveEffect active, Affine2 previous, Affine2 next)
+        => active.Pure is null ? previous.Compose(next) : next.Compose(previous);
+
+    private static FrameOutput EvaluatePure(ActiveEffect active, FrameContext frame, SceneFrame scene,
+        ImmutableArray<GroupGeometrySample> writableGroups, CancellationToken token)
+    {
+        var pure = active.Pure!;
+        pure.Source.Indexes.SetQueryCancellation(token);
+        TextFrame input = new(pure.Source, frame, PresentationIndex.LineLoads(scene,
+            frame.Presentations.LinesInBinding, active.Definition.PackageDefinition!.Contents.LineExitDurationUs));
+        TextOutput output = new(input, active.Definition.PackageDefinition!.Contents.Requires,
+            [.. writableGroups.Select(static group => group.Target)]);
+        try
+        {
+            pure.Instance.Evaluate(in input, pure.Prepared, output);
+            token.ThrowIfCancellationRequested();
+            return ComposePureOutput(output.Complete());
+        }
+        finally { output.Invalidate(); }
+    }
+
+    private static FrameOutput ComposePureOutput(TextOutputSnapshot snapshot)
+    {
+        Dictionary<TextTarget, Affine2> transforms = [];
+        Dictionary<TextTarget, StyleUpdate> styles = [];
+        Dictionary<GroupTarget, double> groupOpacity = [];
+        foreach (var write in snapshot.Writes)
+        {
+            if (write is TextWrite.Transform transform)
+            {
+                transforms[write.Target] = transform.LocalMatrix.Compose(transforms.GetValueOrDefault(write.Target, Affine2.Identity));
+                continue;
+            }
+            if (write is TextWrite.Opacity opacity && write.Target is TextTarget.Group group)
+            {
+                groupOpacity[group.Value] = groupOpacity.GetValueOrDefault(group.Value, 1) * opacity.Factor;
+                continue;
+            }
+            StyleUpdate update = write switch
+            {
+                TextWrite.Opacity value => new(opacityFactor: value.Factor),
+                TextWrite.Fill { State: FillState.Unsung } value => new(unsung: value.Material),
+                TextWrite.Fill value => new(sung: value.Material),
+                TextWrite.Stroke value => new(stroke: new(value.Value)),
+                TextWrite.Shadow value => new(shadow: new(value.Value)),
+                TextWrite.Glow value => new(glow: new(value.Value)),
+                _ => throw new EffectOutputException("PropertyTargetUnsupported", "未知文字输出。"),
+            };
+            styles[write.Target] = styles.TryGetValue(write.Target, out var previous) ? previous.Then(update) : update;
+        }
+        foreach (var target in transforms.Where(static pair => pair.Value == Affine2.Identity).Select(static pair => pair.Key).ToArray())
+            transforms.Remove(target);
+        return new()
+        {
+            TokenTransforms = [.. transforms.Where(static pair => pair.Key is TextTarget.Family)
+                .Select(static pair => new TokenFamilyTransform(((TextTarget.Family)pair.Key).Value, pair.Value))],
+            LineTransforms = [.. transforms.Where(static pair => pair.Key is TextTarget.Line)
+                .Select(static pair => new LineTransform(((TextTarget.Line)pair.Key).Value, pair.Value))],
+            GroupTransforms = [.. transforms.Where(static pair => pair.Key is TextTarget.Group)
+                .Select(static pair => new GroupTransform(((TextTarget.Group)pair.Key).Value, pair.Value))],
+            MarkTransforms = [.. transforms.Where(static pair => pair.Key is TextTarget.Mark)
+                .Select(static pair => new TextMarkTransform(((TextTarget.Mark)pair.Key).Value, pair.Value))],
+            TokenStyles = [.. styles.Where(static pair => pair.Key is TextTarget.Family)
+                .Select(static pair => new TokenFamilyStyle(((TextTarget.Family)pair.Key).Value, pair.Value))],
+            MarkStyles = [.. styles.Where(static pair => pair.Key is TextTarget.Mark)
+                .Select(static pair => new TextMarkStyle(((TextTarget.Mark)pair.Key).Value, pair.Value))],
+            GroupOpacities = [.. groupOpacity.Select(static pair => new GroupOpacity(pair.Key, pair.Value))],
+            BaseTransforms = [.. transforms.Where(static pair => pair.Key is TextTarget.Base)
+                .Select(static pair => new BaseTokenTransform(((TextTarget.Base)pair.Key).Value, pair.Value))],
+            BaseStyles = [.. styles.Where(static pair => pair.Key is TextTarget.Base)
+                .Select(static pair => new BaseTokenStyle(((TextTarget.Base)pair.Key).Value, pair.Value))],
+            ClusterTransforms = [.. transforms.Where(static pair => pair.Key is TextTarget.Cluster)
+                .Select(static pair => new TextClusterTransform(((TextTarget.Cluster)pair.Key).Value, pair.Value))],
+        };
+    }
+}

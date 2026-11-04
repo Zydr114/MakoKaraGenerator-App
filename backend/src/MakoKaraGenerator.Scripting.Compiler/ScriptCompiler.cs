@@ -38,7 +38,7 @@ public sealed class ScriptCompiler : IScriptCompilationService
         _referenceIdentity = ScriptReferenceIdentity.Read(referenceDirectory, out var referenceImages);
         _references = [.. referenceImages.Select(image => MetadataReference.CreateFromImage(image))];
         Identity = new(typeof(CSharpCompilation).Assembly.GetName().Version!.ToString(), ScriptCompilationIdentity.V1Options,
-            _referenceIdentity.Identity, _referenceIdentity.SdkIdentity, ScriptCompilationIdentity.CurrentEngineIdentity, ScriptCompilationIdentity.V1AnalysisRules);
+            _referenceIdentity.Identity, _referenceIdentity.SdkIdentity, ScriptCompilationIdentity.CurrentEngineIdentity, ScriptCompilationIdentity.CurrentAnalysisRules);
     }
 
     /// <summary>实际编译参考集合的内容身份；由 Worker 能力握手报告。</summary>
@@ -156,12 +156,17 @@ public sealed class ScriptCompiler : IScriptCompilationService
             trees, _references, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary,
                 optimizationLevel: OptimizationLevel.Release, deterministic: true,
                 nullableContextOptions: NullableContextOptions.Enable, concurrentBuild: false));
+        var analysis = ScriptV2PurityAnalyzer.Analyze(compilation, input.EntryTypes, token);
+        if (analysis.Any(static diagnostic => diagnostic.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error))
+            return new(fingerprint, [], [], [.. compilation.GetDiagnostics(token).Concat(analysis)
+                .Where(static diagnostic => diagnostic.Severity is Microsoft.CodeAnalysis.DiagnosticSeverity.Warning or Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
+                .Select(ToDiagnostic)]);
         using MemoryStream dll = new();
         using MemoryStream pdb = new();
         Interlocked.Increment(ref _compilationCount);
         EmitResult emitted = compilation.Emit(dll, pdb,
             options: new EmitOptions(debugInformationFormat: DebugInformationFormat.PortablePdb), cancellationToken: token);
-        ImmutableArray<ScriptCompileDiagnostic> diagnostics = [.. emitted.Diagnostics
+        ImmutableArray<ScriptCompileDiagnostic> diagnostics = [.. emitted.Diagnostics.Concat(analysis)
             .Where(static d => d.Severity is Microsoft.CodeAnalysis.DiagnosticSeverity.Warning or Microsoft.CodeAnalysis.DiagnosticSeverity.Error).Select(ToDiagnostic)];
         var result = new ScriptCompilationResult(fingerprint,
             emitted.Success ? [.. dll.ToArray()] : [], emitted.Success ? [.. pdb.ToArray()] : [], diagnostics);

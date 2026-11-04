@@ -28,8 +28,8 @@ public static class EffectPackageShaderPrograms
             EffectPackageContents.ValidatePath(source);
             if (!files.TryGetValue(source, out var sourceFile) || sourceFile.Role != "shader")
                 throw Error("PackageShaderSourceMissing", file.Path + ".source", "程序须引用同闭包明确声明 role:shader 的源码。");
-            if (profile != contents.Profile.ShaderProfile)
-                throw Error("PackageShaderProfileMismatch", file.Path + ".profile", "程序和包的 shader profile 不一致。");
+            if (profile != EffectPackageProfiles.ShaderProgramProfile(contents.Profile))
+                throw Error("PackageShaderProfileMismatch", file.Path + ".profile", "程序 profile 不属于包执行合同支持的 SkSL ABI。");
             var uniforms = ImmutableArray.CreateBuilder<ShaderUniformDeclaration>();
             var children = ImmutableArray.CreateBuilder<ShaderChildDeclaration>();
             HashSet<string> names = new(StringComparer.Ordinal); string location = file.Path;

@@ -53,7 +53,7 @@ public static class PlaybackProjection
             foreach (var line in branch.Lines)
             {
                 var performance = LyricSampler.SampleLine(line, scene.TimeUs);
-                foreach (var visible in scene.Lines.Where(sample => sample.Branch.Id == branch.Id && sample.Frame.Line!.Id == line.Id)
+                foreach (var visible in scene.Lines.Where(sample => sample.ExitReplica is null && sample.Branch.Id == branch.Id && sample.Frame.Line!.Id == line.Id)
                     .OrderBy(static sample => sample.BindingId, StringComparer.Ordinal))
                 {
                     Fx.LineId lineId = new(line.Id); Fx.BindingId bindingId = new(visible.BindingId!);

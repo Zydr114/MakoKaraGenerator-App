@@ -15,6 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="../../samples/ScriptEffectsV2/**/*" Link="effect-packages-v2/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../samples/ScriptEffects/WordEmphasis/**/*" Link="effect-packages/WordEmphasis/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="../Shared/*.cs" LinkBase="Shared" />
     <Compile Include="../Shared/Rendering/TimedRubyFixture.cs" Link="Shared/TimedRubyFixture.cs" />

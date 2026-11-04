@@ -25,6 +25,10 @@ public sealed class PreparedFrameException : Exception
     public PreparedFrameException(string code, string message) : base(message) { Code = code; }
     /// <summary>稳定诊断代码。</summary>
     public string Code { get; }
+    /// <summary>涉及单个真实装载时的身份，供宿主附加声明该装载寿命的实例归属。</summary>
+    public BindingId? BindingId { get; init; }
+    /// <summary>可归属到一个文字写入的具体目标；整体帧或源数据失败时为空。</summary>
+    public MakoKaraGenerator.Scripting.V2.TextTarget? TextTarget { get; init; }
 }
 
 /// <summary>源快照／时刻／密度／输出模式和已验证视觉变换的一次不可变闭包。</summary>
@@ -102,7 +106,7 @@ public sealed partial class PreparedRenderFrame
             _ = (geometry.FamilyGeometry with { BaseWorldMatrix = world }).WorldInkCorners;
         }
         if (styles.IsDefault) throw new ArgumentException("外观集合不能是 default。", nameof(styles));
-        var sourceStyles = StaticStyleProjection.SourceStyles(snapshot, HierarchyScene);
+        var sourceStyles = StaticStyleProjection.LoadedSourceStyles(snapshot, HierarchyScene);
         var resolved = ImmutableDictionary.CreateBuilder<TokenFamilyTarget, LyricStyle>();
         var effective = ImmutableArray.CreateBuilder<TokenFamilyStyle>();
         var appearances = ImmutableDictionary.CreateBuilder<TokenFamilyTarget, StyleView>();
@@ -110,7 +114,7 @@ public sealed partial class PreparedRenderFrame
         foreach (var style in styles)
         {
             if (style is null || style.Target is null || style.Update is null || !seen.Add(style.Target) || !geometries.TryGetValue(style.Target, out var geometry)
-                || !sourceStyles.TryGetValue(style.Target.TokenId, out var basis))
+                || !sourceStyles.TryGetValue(style.Target, out var basis))
                 throw new PreparedFrameException("InvalidPreparedStyleTarget", "准备帧外观目标重复或不存在。");
             LyricStyle result;
             try { result = StaticStyleProjection.ApplyDrawingStyle(basis, style.Update, sourceMaterials); }
@@ -130,7 +134,8 @@ public sealed partial class PreparedRenderFrame
             if (!byTarget.TryGetValue(item.WithRuby, out var local)) return item;
             GeometrySample Final(GeometrySample basis) => basis with { BaseWorldMatrix = basis.BaseWorldMatrix.Compose(local) };
             return item with { BaseGeometry = Final(item.BaseGeometry), FamilyGeometry = Final(item.FamilyGeometry),
-                Ruby = [.. item.Ruby.Select(ruby => ruby with { Geometry = Final(ruby.Geometry) })] };
+                Ruby = [.. item.Ruby.Select(ruby => ruby with { Geometry = Final(ruby.Geometry) })],
+                Clusters = [.. item.Clusters.Select(cluster => cluster.WithGeometry(Final(cluster.Geometry)))] };
         })];
         FinalLineGeometry = HierarchyScene.LineGeometries;
         Playback = PlaybackProjection.Create(snapshot, HierarchyScene, FinalGeometry);
@@ -157,7 +162,7 @@ public sealed partial class PreparedRenderFrame
     /// <summary>整行最终矩阵的固定几何，包括无逐字元素的行。</summary>
     public ImmutableArray<LineGeometrySample> FinalLineGeometry { get; }
     /// <summary>真实组最终参考矩阵和全部最终文字／注音／标记墨迹，包含独立族输出。</summary>
-    public ImmutableArray<GroupGeometrySample> FinalGroupGeometry { get; }
+    public ImmutableArray<GroupGeometrySample> FinalGroupGeometry { get; private init; }
     /// <summary>按实例顺序组合、已验证的元素族局部变换。</summary>
     public ImmutableArray<TokenFamilyTransform> TokenTransforms { get; }
     /// <summary>按实例顺序组合的有效元素族外观，无变化输出已移除。</summary>
@@ -172,9 +177,9 @@ public sealed partial class PreparedRenderFrame
         : _styles.TryGetValue(target, out var style) ? style
         : throw new PreparedFrameException("MissingPreparedStyle", "该目标没有有效的准备外观。");
     /// <summary>与实际绘制相同的最终元素及注音世界几何。</summary>
-    public ImmutableArray<TokenGeometrySample> FinalGeometry { get; }
+    public ImmutableArray<TokenGeometrySample> FinalGeometry { get; private init; }
     /// <summary>按最终文字矩阵求出的完整当前播放头；消费时显式选择纵向锚点。</summary>
-    public PlaybackFrame Playback { get; }
+    public PlaybackFrame Playback { get; private init; }
     /// <summary>当前真实标记的合并局部仿射。</summary>
     public ImmutableArray<TextMarkTransform> MarkTransforms { get; }
     /// <summary>当前真实标记的有效两态外观。</summary>

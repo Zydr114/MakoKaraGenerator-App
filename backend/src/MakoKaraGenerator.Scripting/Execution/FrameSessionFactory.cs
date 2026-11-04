@@ -40,22 +40,26 @@ internal sealed class FrameSessionFactory
         if (!StringComparer.Ordinal.Equals(snapshot.EffectInputsFingerprint, _fingerprint))
             throw new PreparedFrameException("EffectInputsMismatch", "快照效果输入指纹不匹配固定会话。");
         _sourceMaterials?.ValidateSnapshot(snapshot);
-        var timeline = _reason is { } reason ? TimelineProjection.Create(snapshot, reason, _audio, cancellationToken) : null;
+        var timeline = _reason is not null || _effects.Any(static effect => effect.IsV2)
+            ? TimelineProjection.Create(snapshot, _reason ?? ReplayReason.Initial, _audio, cancellationToken) : null;
         var content = timeline?.Content ?? ContentProjection.Create(snapshot);
         var project = new ProjectContext { Content = content, Scene = timeline?.Scene ?? SceneProjection.Create(snapshot, content),
             CanvasSize = new(snapshot.Composition.CanvasWidth, snapshot.Composition.CanvasHeight), DurationUs = snapshot.Composition.OutputDurationUs, Audio = _audio };
         foreach (var effect in _effects) ResolvedSourceSubscription.ValidateBinding(project.Content, project.Scene, effect.Binding);
         var subscriptions = timeline is null ? ImmutableArray<ResolvedSourceSubscription>.Empty
             : _effects.Select(effect => ResolvedSourceSubscription.Create(timeline, effect.Binding, effect.Subscription)).ToImmutableArray();
-        var geometry = _geometryFactory() ?? throw new InvalidOperationException("几何后端工厂返回 null。");
+        ILineGeometryProvider geometry = _geometryFactory() ?? throw new InvalidOperationException("几何后端工厂返回 null。");
+        if (_effects.Any(static effect => effect.IsV2)) geometry = new FixedInputGeometryProvider(snapshot, geometry);
         FrameEffectHost? host = null;
         try
         {
             var query = _reason is not null && _reason != ReplayReason.AnchorQuery
                 ? new SemanticAnchorQuery(snapshot, _effects, _fingerprint, _geometryFactory, _audio, _sourceMaterials) : null;
-            host = new(snapshot, project, geometry, _effects, subscriptions, _visualBudget, _particleBudget, _sourceMaterials, timeline, query);
-            host.Load(timeline is not null, cancellationToken);
-            return ValueTask.FromResult<IEvaluatedFrameSource>(new FrameSession(host, timeline, _reason, cancellationToken));
+            host = new(snapshot, project, geometry, _effects, subscriptions, _visualBudget, _particleBudget, _sourceMaterials, timeline, query, cancellationToken);
+            // v2 的事件表仅供只读索引，不能再由目标绝对时间推进 120 Hz 作者状态。
+            bool replayLegacy = _reason is not null && timeline is not null && _effects.Any(static effect => !effect.IsV2);
+            host.Load(replayLegacy, cancellationToken);
+            return ValueTask.FromResult<IEvaluatedFrameSource>(new FrameSession(host, replayLegacy ? timeline : null, _reason, cancellationToken));
         }
         catch
         {

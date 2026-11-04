@@ -3,6 +3,7 @@ using System.Globalization;
 using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Text;
 using Fx = MakoKaraGenerator.Scripting;
+using V2 = MakoKaraGenerator.Scripting.V2;
 
 namespace MakoKaraGenerator.Rendering.Skia;
 
@@ -85,8 +86,34 @@ public sealed partial class SkiaRenderPipeline
                     DrawUnits = [.. basis.DrawUnits, .. ruby.SelectMany(static item => item.Geometry.DrawUnits)],
                 };
                 Fx.TokenId tokenId = new(token.Id); Fx.BindingId bindingId = new(sample.BindingId!);
+                List<V2.TextClusterGeometrySample> clusters = [];
+                if (validMapping)
+                {
+                    foreach (int unitIndex in unitIndices)
+                    {
+                        var unit = shaped.DrawUnits[unitIndex];
+                        var owners = line.Tokens.Select((item, index) => (item, index))
+                            .Where(item => spans[item.index].Start < unit.Utf16End && unit.Utf16Start < spans[item.index].End)
+                            .Select(static item => new Fx.TokenId(item.item.Id)).ToImmutableArray();
+                        var measured = MeasureUnits(shaped, [unitIndex], lineGeometry.OriginX, lineGeometry.BaselineY,
+                            world, sample.BindingId!, "base", owners.Length == 1 && shaped.MappingIsExact);
+                        var target = new V2.TextClusterTarget(owners[0], bindingId, measured.DrawUnits[0], unitIndex);
+                        clusters.Add(new(target, owners, unit.Utf16Start, unit.Utf16Length, measured));
+                    }
+                    foreach (RubyLayout annotation in annotations.Where(annotation => annotation.TokenIndex == i))
+                    for (int unitIndex = 0; unitIndex < annotation.Shaped.DrawUnits.Length; unitIndex++)
+                    {
+                        var unit = annotation.Shaped.DrawUnits[unitIndex];
+                        var measured = MeasureUnits(annotation.Shaped, [unitIndex], lineGeometry.OriginX + annotation.X,
+                            lineGeometry.BaselineY + annotation.Baseline, world, sample.BindingId!, "ruby/" + annotation.Id,
+                            annotation.Shaped.MappingIsExact);
+                        var target = new V2.TextClusterTarget(tokenId, bindingId, measured.DrawUnits[0], unitIndex, new(annotation.Id));
+                        clusters.Add(new(target, [tokenId], unit.Utf16Start, unit.Utf16Length, measured));
+                    }
+                }
                 result.Add(new() { BranchId = new(sample.Branch.Id), LineId = new(line.Id), WithRuby = new(tokenId, bindingId),
                     BaseOnly = new(tokenId, bindingId), BaseGeometry = basis, FamilyGeometry = family, Ruby = [.. ruby],
+                    Clusters = [.. clusters],
                     ProgressPath = validMapping ? ProgressPath(shaped, spans[i].Start, spans[i].End, lineGeometry, basis) : null });
             }
         }

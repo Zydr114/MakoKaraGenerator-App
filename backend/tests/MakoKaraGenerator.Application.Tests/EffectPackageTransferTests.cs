@@ -27,7 +27,7 @@ public sealed class EffectPackageTransferTests
         Assert.Equal(old.Revision, (await EffectPackageTransfer.ReadSupportedArchiveAsync(legacy)).Revision);
         using (var archive = ZipFile.Open(zip, ZipArchiveMode.Update))
         {
-            archive.GetEntry("manifest.json")!.Delete(); manifest["requires"] = new JsonArray("cluster.affine");
+            archive.GetEntry("manifest.json")!.Delete(); manifest["requires"] = new JsonArray("future.unknown");
             using var output = archive.CreateEntry("manifest.json").Open(); await output.WriteAsync(EffectPackageFixture.Bytes(manifest));
         }
         Assert.Equal("PackageCapabilityUnsupported", (await Assert.ThrowsAsync<EffectPackageException>(() =>

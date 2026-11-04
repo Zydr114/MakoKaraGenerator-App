@@ -78,11 +78,24 @@ internal sealed partial class FrameEffectHost
     {
         var scene = frame.HierarchyScene; var binding = active.Definition.Binding;
         FrameBindingScope scope = new(scene);
-        var tokens = FrameProjection.Tokens(scene).Where(token => scope.ContainsToken(binding, token)).ToImmutableArray();
-        var lines = FrameProjection.Lines(scene, _project.Scene).Where(line => scope.ContainsLine(binding, line)).ToImmutableArray();
+        var activeBindings = scene.Lines.Where(static line => line.ExitReplica is null)
+            .Select(static line => line.BindingId!).ToHashSet(StringComparer.Ordinal);
+        var tokens = FrameProjection.Tokens(scene).Where(token => (active.Pure is not null || activeBindings.Contains(token.BindingId.Value))
+            && scope.ContainsToken(binding, token)).ToImmutableArray();
+        var lines = FrameProjection.Lines(scene, _project.Scene).Where(line => (active.Pure is not null || activeBindings.Contains(line.BindingId.Value))
+            && scope.ContainsLine(binding, line)).ToImmutableArray();
         var marks = FrameProjection.Marks(scene, _project.Scene).Where(mark => scope.ContainsMark(binding, mark)).ToImmutableArray();
         var tokenTargets = tokens.Select(static token => token.WithRuby).ToHashSet();
         var lineTargets = lines.Select(static line => line.Target).ToHashSet(); var markTargets = marks.Select(static mark => mark.Target).ToHashSet();
+        var sourceGroupIds = scene.Elements.Where(static node => node.SourceNodeId is null).Select(static node => node.Id).ToHashSet(StringComparer.Ordinal);
+        var groups = frame.FinalGroupGeometry.Where(group => sourceGroupIds.Contains(group.Target.NodeId.Value)).ToImmutableArray();
+        if (active.Pure is null && scene.Lines.Any(static line => line.ExitReplica is not null))
+        {
+            // The source group ink also aggregates replica aliases for v2. Recompute
+            // the legacy view from active loads so old visual authors cannot observe
+            // or anchor particles to the new presentation-only extension.
+            groups = LegacyGroups(scene, frame.FinalGeometry, frame.FinalMarkGeometry, groups, activeBindings);
+        }
         bool CursorInBinding(CursorGeometry cursor) => cursor.Identity.TokenId is { } token
             ? tokenTargets.Contains(new(token, cursor.Identity.BindingId))
             : binding is not EffectBinding.Tokens && lineTargets.Contains(new(cursor.Identity.LineId, cursor.Identity.BindingId));
@@ -90,11 +103,27 @@ internal sealed partial class FrameEffectHost
             Presentations = new() { TokensInBinding = tokens, LinesInBinding = lines, MarksInBinding = marks, Groups = FrameProjection.Groups(scene) },
             Tokens = [.. frame.FinalGeometry.Where(token => tokenTargets.Contains(token.WithRuby))],
             Lines = [.. frame.FinalLineGeometry.Where(line => lineTargets.Contains(line.Target))],
-            Marks = [.. frame.FinalMarkGeometry.Where(mark => markTargets.Contains(mark.Target))], Groups = frame.FinalGroupGeometry,
+            Marks = [.. frame.FinalMarkGeometry.Where(mark => markTargets.Contains(mark.Target))],
+            Groups = groups,
             Playback = frame.Playback.IsAvailable ? new([.. frame.Playback.Cursors.Where(CursorInBinding)]) : PlaybackFrame.Unavailable };
     }
-    private static bool HasOverride(IKaraokeEffect instance, string name)
+    private static ImmutableArray<GroupGeometrySample> LegacyGroups(SceneFrame scene,
+        ImmutableArray<TokenGeometrySample> tokens, ImmutableArray<TextMarkGeometrySample> marks,
+        ImmutableArray<GroupGeometrySample> groups, HashSet<string> activeBindings)
     {
+        var activeScene = scene with
+        {
+            Lines = [.. scene.Lines.Where(static line => line.ExitReplica is null)],
+            Elements = [.. scene.Elements.Where(static node => node.SourceNodeId is null)],
+            LineGeometries = [.. scene.LineGeometries.Where(line => activeBindings.Contains(line.Target.BindingId.Value))],
+            GroupGeometries = groups,
+        };
+        return GroupInkProjection.Create(activeScene,
+            [.. tokens.Where(token => activeBindings.Contains(token.WithRuby.BindingId.Value))], marks);
+    }
+    private static bool HasOverride(IKaraokeEffect? instance, string name)
+    {
+        if (instance is null) return false;
         var map = instance.GetType().GetInterfaceMap(typeof(IKaraokeEffect));
         for (int i = 0; i < map.InterfaceMethods.Length; i++)
             if (map.InterfaceMethods[i].Name == name) return map.TargetMethods[i].DeclaringType != typeof(EffectBase);

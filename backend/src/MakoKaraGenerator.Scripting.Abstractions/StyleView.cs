@@ -109,6 +109,8 @@ public sealed class BaselineStyles
     private readonly ImmutableDictionary<LineId, StyleView> _lines;
     private readonly ImmutableDictionary<NodeId, StyleView> _marks;
     private readonly ImmutableDictionary<NodeId, GroupStyleView> _groups;
+    private ImmutableDictionary<TokenFamilyTarget, StyleView> _loadedTokens = ImmutableDictionary<TokenFamilyTarget, StyleView>.Empty;
+    private ImmutableDictionary<LineTarget, StyleView> _loadedLines = ImmutableDictionary<LineTarget, StyleView>.Empty;
     /// <summary>复制真实源元素基线，拒绝空值和重复身份。</summary>
     public BaselineStyles(IEnumerable<KeyValuePair<TokenId, StyleView>> tokens)
         : this(tokens, [], [], []) { }
@@ -126,19 +128,32 @@ public sealed class BaselineStyles
         if (_groups.Any(static pair => !pair.Key.IsValid || pair.Value is null) || _groups.Keys.Any(_marks.ContainsKey))
             throw new ArgumentException("组基线身份或角色无效。", nameof(groups));
     }
+    /// <summary>附加真实装载基线；源身份查询保持兼容，装载查询可区分退出与当前槽位外观。</summary>
+    public BaselineStyles WithLoaded(IEnumerable<KeyValuePair<TokenFamilyTarget, StyleView>> tokens,
+        IEnumerable<KeyValuePair<LineTarget, StyleView>> lines)
+    {
+        ArgumentNullException.ThrowIfNull(tokens); ArgumentNullException.ThrowIfNull(lines);
+        var loadedTokens = tokens.ToImmutableDictionary(); var loadedLines = lines.ToImmutableDictionary();
+        if (loadedTokens.Any(static pair => pair.Key is null || !pair.Key.BindingId.IsValid || !pair.Key.TokenId.IsValid || pair.Value is null)
+            || loadedLines.Any(static pair => pair.Key is null || !pair.Key.BindingId.IsValid || !pair.Key.LineId.IsValid || pair.Value is null))
+            throw new ArgumentException("装载基线须包含真实身份和只读外观。");
+        return new(_tokens, _lines, _marks, _groups) { _loadedTokens = loadedTokens, _loadedLines = loadedLines };
+    }
     /// <summary>无源元素的明确空基线。</summary>
     public static BaselineStyles Empty { get; } = new([]);
     /// <summary>真实源元素基线，装载不改变静态继承结果。</summary>
     public StyleView Get(TokenId id) => _tokens.TryGetValue(id, out var view) ? view : throw new EffectOutputException("MissingBaselineTarget", "源外观不存在：" + id.Value);
     /// <summary>读取基础字及注音共同使用的基础字外观，不以联合墨迹决定颜色。</summary>
     public StyleView Get(TokenFamilyTarget target)
-    { ArgumentNullException.ThrowIfNull(target); if (!target.BindingId.IsValid) throw new ArgumentException("装载身份无效。", nameof(target)); return Get(target.TokenId); }
+    { ArgumentNullException.ThrowIfNull(target); if (!target.BindingId.IsValid) throw new ArgumentException("装载身份无效。", nameof(target));
+        return _loadedTokens.TryGetValue(target, out var loaded) ? loaded : Get(target.TokenId); }
     /// <summary>完整源行的工程／分支／行基线，不把元素覆盖混成一个颜色。</summary>
     public StyleView Get(LineId id) => _lines.TryGetValue(id, out var view) ? view
         : throw new EffectOutputException("MissingBaselineTarget", "源行外观不存在：" + id.Value);
     /// <summary>真实源行装载的静态基线。</summary>
     public StyleView Get(LineTarget target)
-    { ArgumentNullException.ThrowIfNull(target); if (!target.BindingId.IsValid) throw new ArgumentException("行装载身份无效。", nameof(target)); return Get(target.LineId); }
+    { ArgumentNullException.ThrowIfNull(target); if (!target.BindingId.IsValid) throw new ArgumentException("行装载身份无效。", nameof(target));
+        return _loadedLines.TryGetValue(target, out var loaded) ? loaded : Get(target.LineId); }
     /// <summary>文字标记的完整静态基线；两态对应 Pending／Elapsed。</summary>
     public StyleView Get(TextMarkTarget target)
     {

@@ -49,8 +49,6 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
     private readonly Lazy<SceneOpacityProgram> _isolationResources = new(static () => new());
     private readonly LayoutCache _layouts;
     private readonly bool _ownsLayouts;
-    private readonly object _rubyLayoutGate = new();
-    private readonly Dictionary<(LyricLine Line, LyricStyle Style), LineLayout> _rubyLayouts = [];
     private bool _disposed;
 
     /// <summary>创建一个渲染管线。</summary>
@@ -324,7 +322,6 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
         }
 
         if (_ownsLayouts) _layouts.Clear();
-        lock (_rubyLayoutGate) _rubyLayouts.Clear();
         if (_isolationResources.IsValueCreated) _isolationResources.Value.Dispose();
         _spriteProgram?.Dispose();
         if (_ownsSurfaceBudget) _surfaceBudget.Dispose();
@@ -394,7 +391,7 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
             return;
         }
 
-        List<RubyLayout> ruby = capture?.Recipe.IncludeRuby == false ? [] : layout.Ruby;
+        ImmutableArray<RubyLayout> ruby = capture?.Recipe.IncludeRuby == false ? [] : layout.Ruby;
         TextInkBounds? groupInk = GroupInk(shaped.InkBounds, ruby);
         LineRenderGeometry geometry = scene.Geometry!;
         float originX = (float)geometry.OriginX;
@@ -427,6 +424,7 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
         var familyStyles = request.PreparedFrame?.TokenStyles
             .Where(item => item.Target.BindingId.Value == scene.BindingId).ToImmutableArray() ?? [];
         if (capture?.TokenId is not null || capture?.ExcludedTokens is { Count: > 0 } || !familyTransforms.IsEmpty || !familyStyles.IsEmpty
+            || HasTextPartitions(request.PreparedFrame, scene.BindingId!)
             || sample.TokensMatchLineText && line.Tokens.Any(static token => TokenStyleSupport.HasDrawableOverride(token.StyleOverride)))
         {
             DrawChangedFamilies(canvas, request.PreparedFrame, scene, shaped, options, ruby,
@@ -812,8 +810,35 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
         private readonly ConcurrentDictionary<LayoutKey, ShapedLine> _entries = new();
         private readonly ConditionalWeakTable<SkiaTextLayoutEngine, ConcurrentDictionary<LayoutKey, ShapedLine>> _engineEntries = new();
         private readonly object _gate = new();
+        private readonly object _rubyGate = new();
+        private readonly Dictionary<(LyricLine, LyricStyle), LineLayout> _ruby = [];
+        private readonly ConditionalWeakTable<SkiaTextLayoutEngine, Dictionary<(LyricLine, LyricStyle), LineLayout>> _engineRuby = new();
         internal int Count => _entries.Count;
-        internal void Clear() { _entries.Clear(); _engineEntries.Clear(); }
+        internal int RubyBuildCount { get; private set; }
+        internal void Clear()
+        {
+            _entries.Clear(); _engineEntries.Clear();
+            lock (_rubyGate) { _ruby.Clear(); _engineRuby.Clear(); }
+        }
+
+        internal LineLayout GetRuby(LyricLine line, LyricStyle style, SkiaTextLayoutEngine engine, Func<LineLayout> build)
+        {
+            lock (_rubyGate)
+            {
+                var key = (line, style);
+                if (_ruby.TryGetValue(key, out var result)) return result;
+                var local = _engineRuby.GetOrCreateValue(engine);
+                if (local.TryGetValue(key, out result)) return result;
+                result = build(); RubyBuildCount++;
+                // 动态回退字体的字形身份属于原引擎；只有全部布局可共享时才跨管线复用解算。
+                bool share = engine.CanShareLayout(result.Shaped, LayoutOptionsFor(style))
+                    && result.Ruby.All(ruby => engine.CanShareLayout(ruby.Shaped, ruby.Options));
+                var entries = share ? _ruby : local;
+                if (entries.Count >= 256) entries.Clear();
+                entries.Add(key, result);
+                return result;
+            }
+        }
 
         internal ShapedLine GetOrAdd(LayoutKey key, SkiaTextLayoutEngine engine, string text, TextLayoutOptions options)
         {

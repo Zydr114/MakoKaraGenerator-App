@@ -8,6 +8,7 @@ public sealed class ResolvedSourceSubscription
 {
     private ResolvedSourceSubscription? _outputScope;
     internal ResolvedSourceSubscription OutputScope => _outputScope ??= Create(_timeline, _binding, new SourceSubscription.BoundSources());
+    internal bool ContainsOutputBinding(FrameLine binding) => ContainsBinding(binding);
     internal bool AllowsMark(NodeId id)
     {
         if (_binding is EffectBinding.Tokens) return false;

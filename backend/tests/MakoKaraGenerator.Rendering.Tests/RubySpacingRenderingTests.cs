@@ -34,11 +34,14 @@ public sealed class RubySpacingRenderingTests
         using (var frame = first.Render(RenderRequest.At(source, 250_000) with { TransparentBackground = true }))
             expected = frame.PixelMemory.ToArray();
         int initialCount = cache.Count;
+        int initialRubyBuilds = cache.RubyBuildCount;
         Assert.True(initialCount > 0);
+        Assert.True(initialRubyBuilds > 0);
         using var reused = new SkiaRenderPipeline(null, null, null, null, false, null, true, cache);
         using var actual = reused.Render(RenderRequest.At(source, 250_000) with { TransparentBackground = true });
         Assert.Equal(expected, actual.PixelMemory.ToArray());
         Assert.Equal(initialCount, cache.Count);
+        Assert.Equal(initialRubyBuilds, cache.RubyBuildCount);
         var fallbackChanged = source with { LyricStyle = source.LyricStyle with { FallbackFamilyNames = ["Noto Color Emoji"] } };
         using var fallbackFrame = reused.Render(RenderRequest.At(fallbackChanged, 250_000) with { TransparentBackground = true });
         Assert.True(cache.Count > initialCount);
@@ -54,6 +57,31 @@ public sealed class RubySpacingRenderingTests
         using var changedRuby = reused.Render(RenderRequest.At(endAligned, 250_000) with { TransparentBackground = true });
         using var referenceRuby = independent.Render(RenderRequest.At(endAligned, 250_000) with { TransparentBackground = true });
         Assert.Equal(referenceRuby.PixelMemory.ToArray(), changedRuby.PixelMemory.ToArray());
+    }
+
+    [Fact]
+    public void 共享注音解算淘汰后重算且动态回退不跨引擎复用()
+    {
+        var source = RubySpacingFixture.Create();
+        var cache = new SkiaRenderPipeline.LayoutCache();
+        using var first = new SkiaRenderPipeline(null, null, null, null, false, null, true, cache);
+        using var second = new SkiaRenderPipeline(null, null, null, null, false, null, true, cache);
+        using var initial = first.Render(RenderRequest.At(source, 250_000) with { TransparentBackground = true });
+        int builds = cache.RubyBuildCount;
+        for (int index = 0; index < 257; index++)
+            first.GetSceneFrame(source with { LyricStyle = source.LyricStyle with { FontSizePx = 30 + index / 10f } }, 250_000);
+        int evictedBuilds = cache.RubyBuildCount;
+        Assert.True(evictedBuilds > builds);
+        using var restored = second.Render(RenderRequest.At(source, 250_000) with { TransparentBackground = true });
+        Assert.True(cache.RubyBuildCount > evictedBuilds);
+        Assert.Equal(initial.PixelMemory.ToArray(), restored.PixelMemory.ToArray());
+
+        var dynamicFallback = source with { LyricStyle = source.LyricStyle with { FontFamilyName = "DejaVu Sans", FallbackFamilyNames = [] } };
+        using var firstFallback = first.Render(RenderRequest.At(dynamicFallback, 250_000) with { TransparentBackground = true });
+        int firstBuilds = cache.RubyBuildCount;
+        using var secondFallback = second.Render(RenderRequest.At(dynamicFallback, 250_000) with { TransparentBackground = true });
+        Assert.True(cache.RubyBuildCount > firstBuilds);
+        Assert.Equal(firstFallback.PixelMemory.ToArray(), secondFallback.PixelMemory.ToArray());
     }
 
     [Fact]

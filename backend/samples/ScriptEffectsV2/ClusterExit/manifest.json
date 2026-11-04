@@ -1,0 +1,92 @@
+{
+  "packageVersion": 3,
+  "packageId": "makokara.v2.cluster-exit",
+  "name": "字簇退场",
+  "version": "2.0.0",
+  "sdkVersion": "2.0.0",
+  "shaderProfile": "skia-ganesh-3.119.4-v2",
+  "files": [
+    {
+      "path": "src/ClusterExit.cs",
+      "role": "csharp",
+      "sha256": "7ba2f8ea9fdf673d71b03d5d34b6078b30307df802982e33c6964ab0afc29a4a"
+    },
+    {
+      "path": "README.md",
+      "role": "asset",
+      "sha256": "ecee5d0488e4d782d1c4c19cb1afbbeee651aa7ba105fcf6e9715dd4c9627467"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "driftPx",
+      "type": "number",
+      "label": "字簇移动距离",
+      "default": 28,
+      "min": 0,
+      "max": 120,
+      "unit": "px"
+    },
+    {
+      "id": "staggerFraction",
+      "type": "number",
+      "label": "字簇错峰比例",
+      "default": 0.18,
+      "min": 0,
+      "max": 0.4,
+      "unit": "比例"
+    }
+  ],
+  "exports": [
+    {
+      "id": "cluster-exit",
+      "kind": "controller",
+      "name": "字簇退场",
+      "entryType": "ClusterExit",
+      "parameters": [
+        "driftPx",
+        "staggerFraction"
+      ],
+      "bindingKinds": [
+        "project",
+        "branch",
+        "lines",
+        "clips",
+        "node"
+      ],
+      "outputs": [
+        {
+          "id": "clusters",
+          "kind": "VisualTransform",
+          "target": "cluster",
+          "requires": [],
+          "dependsOn": []
+        },
+        {
+          "id": "shared-line",
+          "kind": "VisualTransform",
+          "target": "line",
+          "requires": [],
+          "dependsOn": []
+        },
+        {
+          "id": "fade",
+          "kind": "StyleModulation",
+          "target": "tokenFamily",
+          "requires": [],
+          "dependsOn": []
+        }
+      ]
+    }
+  ],
+  "requires": [
+    "line.exit",
+    "cluster.affine",
+    "line.affine",
+    "token.opacity"
+  ],
+  "lineExit": {
+    "durationUs": 600000
+  },
+  "emitters": []
+}

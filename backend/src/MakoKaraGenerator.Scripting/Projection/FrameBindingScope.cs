@@ -60,7 +60,7 @@ public sealed class FrameBindingScope
             EffectBinding.Lines lines => lines.Ids.Contains(line.LineId),
             EffectBinding.Tokens tokens => sample!.Frame.Line!.Tokens.Any(token => tokens.Ids.Contains(new(token.Id))),
             EffectBinding.Clips clips => line.ClipId is { } id && clips.Ids.Contains(id),
-            EffectBinding.Node node => Inside(node, line.NodeId.Value, line.ParentId.Value),
+            EffectBinding.Node node => Inside(node, sample!.ElementId, sample.ParentId),
             _ => false,
         };
     }
@@ -80,7 +80,8 @@ public sealed class FrameBindingScope
     public bool ContainsGroup(EffectBinding binding, GroupTarget target)
     {
         ArgumentNullException.ThrowIfNull(binding); ArgumentNullException.ThrowIfNull(target);
-        if (!_elements.TryGetValue(target.NodeId.Value, out var element) || element.Kind != SceneElementKind.Group) return false;
+        if (!_elements.TryGetValue(target.NodeId.Value, out var element) || element.Kind != SceneElementKind.Group
+            || element.SourceNodeId is not null) return false;
         return binding is EffectBinding.Project || binding is EffectBinding.Node node && Inside(node, target.NodeId.Value);
     }
 
@@ -88,7 +89,8 @@ public sealed class FrameBindingScope
     {
         if (!_lines.TryGetValue(line.BindingId.Value, out sample)) return false;
         return sample.Branch.Id == line.BranchId.Value && sample.Frame.Line!.Id == line.LineId.Value
-            && sample.ElementId == line.NodeId.Value && sample.ParentId == line.ParentId.Value
+            && sample.SourceElementId == line.NodeId.Value
+            && SourceParent(sample) == line.ParentId.Value
             && sample.DisplayClipId == line.ClipId?.Value;
     }
     private bool Inside(EffectBinding.Node binding, string id, string? actualParent = null)
@@ -99,17 +101,22 @@ public sealed class FrameBindingScope
             throw new PreparedFrameException("InvalidSceneTransform", "真实行装载与运行父树不一致：" + id);
         if (!_ancestors.TryGetValue(id, out var ancestors))
         {
-            ancestors = new(StringComparer.Ordinal); string? current = id;
+            ancestors = new(StringComparer.Ordinal); HashSet<string> visited = new(StringComparer.Ordinal); string? current = id;
             while (current is not null)
             {
-                if (!ancestors.Add(current))
+                if (!visited.Add(current))
                     throw new PreparedFrameException("InvalidSceneTransform", "绑定范围的运行父树循环。");
                 if (!_elements.TryGetValue(current, out var node))
                     throw new PreparedFrameException("InvalidSceneTransform", "绑定范围缺少真实运行父节点：" + current);
+                ancestors.Add(current);
+                if (node.SourceNodeId is { } source) ancestors.Add(source);
                 current = node.ParentId;
             }
             _ancestors.Add(id, ancestors);
         }
-        return id == binding.Id.Value || binding.IncludeDescendants && ancestors.Contains(binding.Id.Value);
+        return id == binding.Id.Value || element.SourceNodeId == binding.Id.Value || binding.IncludeDescendants && ancestors.Contains(binding.Id.Value);
     }
+
+    private static string SourceParent(SceneLineSample sample) => sample.ExitReplica is { SourceNodePath.Length: >= 2 } exit
+        ? exit.SourceNodePath[^2] : sample.ParentId;
 }

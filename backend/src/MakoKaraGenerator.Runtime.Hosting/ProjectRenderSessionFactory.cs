@@ -42,6 +42,7 @@ public sealed class ProjectRenderSessionFactory(IScriptCompilationService compil
                 : _renderBackendOptions);
             if (enableGpuPreview && device is not VulkanSkiaRenderDevice)
                 throw new GpuPreviewException("GpuPreviewGpuBackendRequired", "Shared GPU preview requires an explicitly selected Vulkan backend.");
+            ScriptBackendRequirement.RequireSupported(snapshot, device is VulkanSkiaRenderDevice);
             ReadOnlyMemory<byte>[] fonts = [.. snapshot.Effects.Packages.SelectMany(package => package.Files)
                 .Where(file => file.Role == "font").Select(file => file.Content.AsMemory())];
             SkiaRenderPipeline.LayoutCache layouts = new();

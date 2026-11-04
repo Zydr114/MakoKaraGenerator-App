@@ -168,6 +168,8 @@ public sealed record SceneElementFrame
 {
     /// <summary>稳定节点 ID。</summary>
     public required string Id { get; init; }
+    /// <summary>装载别名对应的源节点；正常节点为空并使用 Id。</summary>
+    public string? SourceNodeId { get; init; }
     /// <summary>本帧父节点 ID。</summary>
     public string? ParentId { get; init; }
     /// <summary>源数据关联。</summary>

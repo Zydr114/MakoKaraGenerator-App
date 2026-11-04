@@ -1,0 +1,118 @@
+{
+  "packageVersion": 3,
+  "packageId": "makokara.v2.repeat-emphasis",
+  "name": "重复文本强调",
+  "version": "2.0.0",
+  "sdkVersion": "2.0.0",
+  "shaderProfile": "skia-ganesh-3.119.4-v2",
+  "files": [
+    {
+      "path": "src/RepeatEmphasis.cs",
+      "role": "csharp",
+      "sha256": "3fac7a5910f8a512a7ba5fee119d2d69ee001c4a529b0de3f69691e5ceb97826"
+    },
+    {
+      "path": "README.md",
+      "role": "asset",
+      "sha256": "72884f712421ee87dc08da55e830241edeaa8a0230406c804d9f3ca8142e3422"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "countScope",
+      "type": "enum",
+      "label": "计数范围",
+      "default": "branch",
+      "values": [
+        {
+          "value": "branch",
+          "label": "当前分支"
+        },
+        {
+          "value": "project",
+          "label": "整个工程"
+        }
+      ]
+    },
+    {
+      "id": "scaleStep",
+      "type": "number",
+      "label": "每次放大增量",
+      "default": 0.08,
+      "min": 0,
+      "max": 3
+    },
+    {
+      "id": "maxScale",
+      "type": "number",
+      "label": "最大放大比例",
+      "default": 1.8,
+      "min": 1,
+      "max": 4
+    },
+    {
+      "id": "darkenStep",
+      "type": "number",
+      "label": "每次亮度减少",
+      "default": 0.06,
+      "min": 0,
+      "max": 1
+    },
+    {
+      "id": "minBrightness",
+      "type": "number",
+      "label": "最低亮度",
+      "default": 0.35,
+      "min": 0,
+      "max": 1
+    }
+  ],
+  "exports": [
+    {
+      "id": "repeat-emphasis",
+      "kind": "controller",
+      "name": "重复文本强调",
+      "entryType": "RepeatEmphasis",
+      "parameters": [
+        "countScope",
+        "scaleStep",
+        "maxScale",
+        "darkenStep",
+        "minBrightness"
+      ],
+      "bindingKinds": [
+        "project",
+        "branch",
+        "lines",
+        "tokens",
+        "clips",
+        "node"
+      ],
+      "outputs": [
+        {
+          "id": "scale",
+          "kind": "VisualTransform",
+          "target": "tokenFamily",
+          "requires": [],
+          "dependsOn": []
+        },
+        {
+          "id": "sungColor",
+          "kind": "StyleModulation",
+          "target": "tokenFamily",
+          "requires": [],
+          "dependsOn": []
+        }
+      ]
+    }
+  ],
+  "requires": [
+    "token.affine",
+    "style.fill",
+    "timeline.index"
+  ],
+  "lineExit": {
+    "durationUs": 0
+  },
+  "emitters": []
+}

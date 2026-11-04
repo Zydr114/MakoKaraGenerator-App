@@ -34,7 +34,7 @@ public sealed partial class EffectPackageDefinition
             var references = Strings(item.GetProperty("parameters"), path + ".parameters");
             foreach (string reference in references)
                 if (!parameterIds.Contains(reference)) throw Error("PackageParameterMissing", path + ".parameters", "引用不存在的参数：" + reference);
-            var outputs = ReadOutputs(item.GetProperty("outputs"), kind, path + ".outputs", cancellationToken);
+            var outputs = ReadOutputs(item.GetProperty("outputs"), kind, path + ".outputs", EffectPackageProfiles.IsV2(contents.Profile), cancellationToken);
             if (EffectPackageProfiles.IsV2(contents.Profile))
                 foreach (var output in outputs)
                     foreach (string capability in output.Requires)
@@ -94,7 +94,7 @@ public sealed partial class EffectPackageDefinition
             throw Error("PackageBindingKindUnsupported", path + ".bindingKinds", "未知绑定种类。");
         return bindings;
     }
-    private static ImmutableArray<EffectOutputDefinition> ReadOutputs(JsonElement value, string exportKind, string path, CancellationToken token)
+    private static ImmutableArray<EffectOutputDefinition> ReadOutputs(JsonElement value, string exportKind, string path, bool v2, CancellationToken token)
     {
         var outputs = ImmutableArray.CreateBuilder<EffectOutputDefinition>(); HashSet<string> ids = new(StringComparer.Ordinal);
         foreach (var output in Array(value, path))
@@ -105,7 +105,9 @@ public sealed partial class EffectPackageDefinition
             if (!ids.Add(id)) throw Error("PackageOutputDuplicate", location + ".id", "输出身份重复。");
             if (kind is not ("StyleModulation" or "VisualTransform" or "GeometryMapping" or "ImageGraph" or "Overlay"))
                 throw Error("PackageOutputKindUnsupported", location + ".kind", "未知输出种类。");
-            if (target is not ("tokenFamily" or "line" or "group" or "textMark") && !(exportKind == "material" && target == "region"))
+            bool v2Target = v2 && exportKind == "controller" && (target == "baseToken" && (kind is "VisualTransform" or "StyleModulation")
+                || target == "cluster" && kind == "VisualTransform");
+            if (target is not ("tokenFamily" or "line" or "group" or "textMark") && !(exportKind == "material" && target == "region") && !v2Target)
                 throw Error("PackageOutputTargetUnsupported", location + ".target", "须声明真实目标类别。");
             EffectOutputBypass? bypass = null;
             if (output.TryGetProperty("bypass", out var field))

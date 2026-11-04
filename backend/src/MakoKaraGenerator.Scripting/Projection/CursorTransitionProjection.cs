@@ -51,7 +51,7 @@ internal static class CursorTransitionProjection
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (!sources.TryGetValue(timeUs, out var result))
-                sources.Add(timeUs, result = [.. PlaybackProjection.GetSources(snapshot, LyricSceneSampler.SampleFrame(snapshot, timeUs))]);
+                sources.Add(timeUs, result = [.. PlaybackProjection.GetSources(snapshot, LyricSceneSampler.SampleFrame(snapshot, timeUs, cancellationToken))]);
             return result;
         }
     }

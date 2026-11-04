@@ -24,7 +24,8 @@ internal sealed partial class FrameEffectHost : IDisposable
     public ContentCatalog Content => _project.Content;
     public FrameEffectHost(ProjectSnapshot snapshot, ProjectContext project, ILineGeometryProvider geometry,
         ImmutableArray<CompiledFrameEffect> definitions, ImmutableArray<ResolvedSourceSubscription> subscriptions, VisualOutputBudget visualBudget,
-        ParticleSimulationBudget particleBudget, PreparedSourceMaterials? sourceMaterials = null, TimelineProjection? timeline = null, SemanticAnchorQuery? anchorQuery = null)
+        ParticleSimulationBudget particleBudget, PreparedSourceMaterials? sourceMaterials = null, TimelineProjection? timeline = null,
+        SemanticAnchorQuery? anchorQuery = null, CancellationToken cancellationToken = default)
     {
         _snapshot = snapshot; _project = project; _geometry = geometry; _definitions = definitions; _subscriptions = subscriptions;
         _visualBudget = visualBudget; _particles = new(particleBudget); _timeline = timeline; _anchorQuery = anchorQuery;
@@ -32,14 +33,19 @@ internal sealed partial class FrameEffectHost : IDisposable
         _sourceMarkStyles = StaticStyleProjection.MarkStyles(snapshot);
         _sourceMaterials = sourceMaterials;
         _baseline = StaticStyleProjection.CreateBaseline(snapshot, sourceMaterials);
+        InitializeExitReplicas(timeline, cancellationToken);
     }
     private sealed record ActiveEffect(CompiledFrameEffect Definition, ScriptModule? Module, IKaraokeEffect Instance,
-        DeterministicRandom Random, ResolvedSourceSubscription? Subscription, string? TelemetryIdentity);
-    public void Load(bool semantic, CancellationToken cancellationToken)
+        DeterministicRandom Random, ResolvedSourceSubscription? Subscription, string? TelemetryIdentity, PureEffectRuntime? Pure = null);
+    public bool RequiresPureAtLegacyBoundaries { get; private set; }
+    public bool CanReuseBoundaryFrame => RequiresPureAtLegacyBoundaries || !_definitions.Any(static definition => definition.IsV2);
+    public void Load(bool semantic, CancellationToken cancellationToken, bool preservePure = false)
     {
-        Unload(); Diagnostics = new();
+        var retained = preservePure ? _instances.Where(static active => active.Pure is not null)
+            .ToDictionary(static active => active.Definition.Id) : [];
         try
         {
+            Unload(preservePure); _instances.Clear(); Diagnostics = new(); RequiresPureAtLegacyBoundaries = false;
             for (int index = 0; index < _definitions.Length; index++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -66,6 +72,12 @@ internal sealed partial class FrameEffectHost : IDisposable
                 ActiveEffect? active = null;
                 try
                 {
+                    if (definition.IsV2)
+                    {
+                        active = retained.Remove(definition.Id, out var prepared) ? prepared : LoadPure(definition, cancellationToken);
+                        _instances.Add(active);
+                        continue;
+                    }
                     IKaraokeEffect instance;
                     if (definition.PackageDeclaration is EffectGraphDefinition graph) instance = new DirectGraphEffect(graph);
                     else
@@ -78,6 +90,12 @@ internal sealed partial class FrameEffectHost : IDisposable
                         ? PerformanceTelemetry.CreateScriptIdentity($"{definition.RuntimeHash}|{definition.Id}|{definition.PackageIdentity}") : null;
                     active = new(definition, module, instance, new(definition.Seed, definition.Id), semantic ? _subscriptions[index] : null, telemetryIdentity);
                     _instances.Add(active);
+                    // Legacy consumers of final geometry inherit their existing replay
+                    // cost: their boundary inputs must include current pure text output.
+                    RequiresPureAtLegacyBoundaries |= HasOverride(instance, nameof(IKaraokeEffect.OnEvent))
+                        || HasOverride(instance, nameof(IKaraokeEffect.EvaluateEmitters))
+                        || HasOverride(instance, nameof(IKaraokeEffect.AdvanceVisuals))
+                        || HasOverride(instance, nameof(IKaraokeEffect.EvaluateVisuals));
                     if (!semantic)
                     {
                         var map = instance.GetType().GetInterfaceMap(typeof(IKaraokeEffect));
@@ -101,12 +119,21 @@ internal sealed partial class FrameEffectHost : IDisposable
                 }
             }
         }
-        catch { try { Unload(); } catch { /* 保留原始失败。 */ } throw; }
+        catch
+        {
+            // A failed legacy rebuild still owns every retained pure module, including
+            // definitions not reached yet. Drain them before returning the first error.
+            foreach (var active in retained.Values)
+                if (!_instances.Contains(active)) _instances.Add(active);
+            try { Unload(); } catch { /* 保留原始失败。 */ }
+            throw;
+        }
     }
     public void Advance(SimulationStep step, TimelineHistory history, CancellationToken cancellationToken)
     {
         foreach (var active in _instances)
         {
+            if (active.Pure is not null) continue;
             cancellationToken.ThrowIfCancellationRequested();
             var definition = active.Definition;
             InvokeContext(active, "Advance", step.StartUs, Diagnostics, (reporter, queries) => active.Instance.Advance(step, new()
@@ -115,16 +142,27 @@ internal sealed partial class FrameEffectHost : IDisposable
         }
     }
     public PreparedRenderFrame Evaluate(long timeUs, OutputMode outputMode, RenderTarget target, TimelineHistory? history,
-        RuntimeDiagnosticBuffer diagnostics, CancellationToken cancellationToken)
+        RuntimeDiagnosticBuffer diagnostics, CancellationToken cancellationToken, bool includePure = true)
     {
         SceneFrame scene = _geometry.GetSceneFrame(_snapshot, timeUs);
+        if (includePure) scene = ExtendExitReplicas(scene, cancellationToken);
         FrameBindingScope scope = new(scene);
-        var baseline = _snapshot.PresetApplications.Items.IsEmpty ? _baseline
+        bool hasExits = scene.Lines.Any(static line => line.ExitReplica is not null);
+        var baseline = _snapshot.PresetApplications.Items.IsEmpty && !hasExits ? _baseline
             : StaticStyleProjection.CreateBaseline(_snapshot, _sourceMaterials, scene);
-        var sourceStyles = _snapshot.PresetApplications.Items.IsEmpty ? _sourceStyles : StaticStyleProjection.SourceStyles(_snapshot, scene);
+        var loadedStyles = _snapshot.PresetApplications.Items.IsEmpty && !hasExits ? null
+            : StaticStyleProjection.LoadedSourceStyles(_snapshot, scene);
         var sourceMarkStyles = _snapshot.PresetApplications.Items.IsEmpty ? _sourceMarkStyles : StaticStyleProjection.MarkStyles(_snapshot, scene);
+        var activeBindings = scene.Lines.Where(static line => line.ExitReplica is null).Select(static line => line.BindingId!).ToHashSet(StringComparer.Ordinal);
+        var sourceGroupIds = scene.Elements.Where(static node => node.SourceNodeId is null).Select(static node => node.Id).ToHashSet(StringComparer.Ordinal);
+        var sourceGroups = scene.GroupGeometries.Where(group => sourceGroupIds.Contains(group.Target.NodeId.Value)).ToImmutableArray();
+        var legacyGroups = hasExits ? LegacyGroups(scene, scene.TokenGeometries, scene.MarkGeometries, sourceGroups, activeBindings) : sourceGroups;
         var allTokens = FrameProjection.Tokens(scene);
         Dictionary<TokenFamilyTarget, Affine2> combined = [];
+        Dictionary<BaseTokenTarget, Affine2> baseTransforms = [];
+        Dictionary<BaseTokenTarget, StyleUpdate> baseStyles = [];
+        Dictionary<V2.TextClusterTarget, Affine2> clusterTransforms = [];
+        Dictionary<V2.TextTarget, ActiveEffect> partitionOwners = [];
         Dictionary<TokenFamilyTarget, StyleUpdate> styles = [];
         Dictionary<TokenFamilyTarget, ActiveEffect> styleOwners = [];
         Dictionary<TextMarkTarget, Affine2> markTransforms = [];
@@ -144,35 +182,64 @@ internal sealed partial class FrameEffectHost : IDisposable
             else if (binding.Target is ImageEffectTarget.Mark mark) markStyles.TryAdd(mark.Target, new());
         foreach (var active in _instances)
         {
+            if (!includePure && active.Pure is not null) continue;
             cancellationToken.ThrowIfCancellationRequested();
             var definition = active.Definition;
-            var tokens = allTokens.Where(token => scope.ContainsToken(definition.Binding, token)).ToImmutableArray();
-            var lines = allLines.Where(line => scope.ContainsLine(definition.Binding, line)).ToImmutableArray();
+            var tokens = allTokens.Where(token => (active.Pure is not null || activeBindings.Contains(token.BindingId.Value))
+                && scope.ContainsToken(definition.Binding, token)).ToImmutableArray();
+            var lines = allLines.Where(line => (active.Pure is not null || activeBindings.Contains(line.BindingId.Value))
+                && scope.ContainsLine(definition.Binding, line)).ToImmutableArray();
             var marks = allMarks.Where(mark => scope.ContainsMark(definition.Binding, mark)).ToImmutableArray();
             var targets = tokens.Select(static token => token.WithRuby).ToHashSet();
             var scopedGeometry = scene.TokenGeometries.Where(item => targets.Contains(item.WithRuby)).ToImmutableArray();
             var scopedMarks = scene.MarkGeometries.Where(mark => marks.Any(item => item.Target == mark.Target)).ToImmutableArray();
             var scopedLines = scene.LineGeometries.Where(line => lines.Any(item => item.Target == line.Target)).ToImmutableArray();
             var writableLines = definition.Binding is EffectBinding.Tokens ? ImmutableArray<LineGeometrySample>.Empty : scopedLines;
-            var writableGroups = scene.GroupGeometries.Where(group => scope.ContainsGroup(definition.Binding, group.Target)).ToImmutableArray();
+            var frameGroups = active.Pure is null ? legacyGroups : sourceGroups;
+            var writableGroups = frameGroups.Where(group => scope.ContainsGroup(definition.Binding, group.Target)).ToImmutableArray();
             FrameWriter writer = new(scopedGeometry, definition.Capabilities, writableGroups, baseline, definition.Resources, scopedMarks, writableLines);
             FrameContext frame = new() { TimeUs = timeUs, Project = _project, Parameters = definition.Parameters,
                 Resources = definition.Resources, Random = active.Random, Baseline = baseline,
                 Presentations = new() { TokensInBinding = tokens, LinesInBinding = lines, MarksInBinding = marks, Groups = FrameProjection.Groups(scene) },
-                Geometry = scopedGeometry, LineGeometry = scopedLines, MarkGeometry = scopedMarks, GroupGeometry = scene.GroupGeometries, Binding = definition.Binding,
+                Geometry = scopedGeometry, LineGeometry = scopedLines, MarkGeometry = scopedMarks, GroupGeometry = frameGroups, Binding = definition.Binding,
                 OutputMode = outputMode, CancellationToken = cancellationToken };
             if (history is not null) frame = frame with { History = history };
             FrameOutput? output = null;
             try { InvokeContext(active, "Evaluate", timeUs, diagnostics, (reporter, queries) =>
                 {
                     using (MeasureAuthor(active, "Evaluate"))
-                        active.Instance.Evaluate(frame with { Diagnostics = reporter, GeometryQueries = queries }, writer);
-                    output = writer.Complete();
+                    {
+                        if (active.Pure is not null) output = EvaluatePure(active, frame, scene, writableGroups, cancellationToken);
+                        else
+                        {
+                            active.Instance.Evaluate(frame with { Diagnostics = reporter, GeometryQueries = queries }, writer);
+                            output = writer.Complete();
+                        }
+                    }
                 }, cancellationToken); }
             finally { writer.Invalidate(); }
             Invoke(active, "ComposeOutputs", timeUs, diagnostics, ignoredReporter =>
             {
                 ValidatePackageOutput(definition, output!);
+                foreach (var transform in output!.BaseTransforms)
+                {
+                    var matrix = transform.LocalMatrix.Compose(baseTransforms.GetValueOrDefault(transform.Target, Affine2.Identity));
+                    if (!matrix.TryInverse(out _)) throw new EffectOutputException("InvalidTransform", "跨实例基础字变换不可逆。");
+                    baseTransforms[transform.Target] = matrix;
+                    partitionOwners[new V2.TextTarget.Base(transform.Target)] = active;
+                }
+                foreach (var style in output.BaseStyles)
+                {
+                    baseStyles[style.Target] = baseStyles.TryGetValue(style.Target, out var previousBase) ? previousBase.Then(style.Update) : style.Update;
+                    partitionOwners[new V2.TextTarget.Base(style.Target)] = active;
+                }
+                foreach (var transform in output.ClusterTransforms)
+                {
+                    var matrix = transform.LocalMatrix.Compose(clusterTransforms.GetValueOrDefault(transform.Target, Affine2.Identity));
+                    if (!matrix.TryInverse(out _)) throw new EffectOutputException("InvalidTransform", "跨实例字簇变换不可逆。");
+                    clusterTransforms[transform.Target] = matrix;
+                    partitionOwners[new V2.TextTarget.Cluster(transform.Target)] = active;
+                }
                 foreach (var style in output!.TokenStyles)
                 {
                     styles[style.Target] = styles.TryGetValue(style.Target, out var previous) ? previous.Then(style.Update) : style.Update;
@@ -182,7 +249,7 @@ internal sealed partial class FrameEffectHost : IDisposable
                 }
                 foreach (var transform in output.TokenTransforms)
                 {
-                    var local = combined.GetValueOrDefault(transform.Target, Affine2.Identity).Compose(transform.LocalMatrix);
+                    var local = ComposeFor(active, combined.GetValueOrDefault(transform.Target, Affine2.Identity), transform.LocalMatrix);
                     if (!local.TryInverse(out _)) throw new EffectOutputException("InvalidTransform", "跨实例变换组合不可逆。");
                     var basis = scene.TokenGeometries.Single(item => item.WithRuby == transform.Target).FamilyGeometry;
                     _ = (basis with { BaseWorldMatrix = basis.BaseWorldMatrix.Compose(local) }).WorldInkCorners;
@@ -197,14 +264,14 @@ internal sealed partial class FrameEffectHost : IDisposable
                 }
                 foreach (var transform in output.MarkTransforms)
                 {
-                    var local = markTransforms.GetValueOrDefault(transform.Target, Affine2.Identity).Compose(transform.LocalMatrix);
+                    var local = ComposeFor(active, markTransforms.GetValueOrDefault(transform.Target, Affine2.Identity), transform.LocalMatrix);
                     if (!local.TryInverse(out _)) throw new EffectOutputException("InvalidTransform", "跨实例标记变换组合不可逆。");
                     var basis = scene.MarkGeometries.Single(item => item.Target == transform.Target).Geometry;
                     _ = (basis with { BaseWorldMatrix = basis.BaseWorldMatrix.Compose(local) }).WorldInkCorners;
                     markTransforms[transform.Target] = local;
                 }
-                ComposeLines(output.LineTransforms, lineTransforms, scene);
-                ComposeGroups(output.GroupTransforms, groupTransforms, scene);
+                ComposeLines(output.LineTransforms, lineTransforms, scene, active.Pure is not null);
+                ComposeGroups(output.GroupTransforms, groupTransforms, scene, active.Pure is not null);
                 foreach (var opacity in output.GroupOpacities)
                 {
                     double factor = groupOpacities.GetValueOrDefault(opacity.Target, 1) * opacity.Factor;
@@ -220,7 +287,8 @@ internal sealed partial class FrameEffectHost : IDisposable
         }
         // 只在所有实例合并后校验最终 alpha，允许先乘大于 1 再缩小。
         foreach (var pair in styles.Where(pair => styleOwners.ContainsKey(pair.Key)))
-            Invoke(styleOwners[pair.Key], "ComposeOutputs", timeUs, diagnostics, ignoredReporter => StaticStyleProjection.ApplyDrawingStyle(sourceStyles[pair.Key.TokenId], pair.Value, _sourceMaterials));
+            Invoke(styleOwners[pair.Key], "ComposeOutputs", timeUs, diagnostics, ignoredReporter => StaticStyleProjection.ApplyDrawingStyle(
+                loadedStyles is null ? _sourceStyles[pair.Key.TokenId] : loadedStyles[pair.Key], pair.Value, _sourceMaterials));
         foreach (var pair in markStyles.Where(pair => markOwners.ContainsKey(pair.Key)))
             Invoke(markOwners[pair.Key], "ComposeOutputs", timeUs, diagnostics, ignoredReporter => StaticStyleProjection.ApplyDrawingStyle(sourceMarkStyles[pair.Key.NodeId], pair.Value, _sourceMaterials));
         foreach (var pair in groupOpacities)
@@ -228,8 +296,8 @@ internal sealed partial class FrameEffectHost : IDisposable
             {
                 if (pair.Value is < 0 or > 1) throw new EffectOutputException("InvalidStyleOpacity", "最终组透明度必须在 [0,1]，不夹值。");
             });
-        return PreparedRenderFrame.CreateWithDiagnosticSnapshot(_snapshot, timeUs, outputMode, target, scene,
-            [.. combined.Select(static pair => new TokenFamilyTransform(pair.Key, pair.Value))],
+        var prepared = PreparedRenderFrame.CreateWithDiagnosticSnapshot(_snapshot, timeUs, outputMode, target, scene,
+            [.. combined.Where(static pair => pair.Value != Affine2.Identity).Select(static pair => new TokenFamilyTransform(pair.Key, pair.Value))],
             [.. styles.Select(static pair => new TokenFamilyStyle(pair.Key, pair.Value))], diagnostics.Snapshot(),
             [.. markTransforms.Where(static pair => pair.Value != Affine2.Identity).Select(static pair => new TextMarkTransform(pair.Key, pair.Value))],
             [.. markStyles.Select(static pair => new TextMarkStyle(pair.Key, pair.Value))],
@@ -239,13 +307,25 @@ internal sealed partial class FrameEffectHost : IDisposable
                 groupOpacityOwners[pair.Key].Definition.RuntimeHash, new(pair.Key, pair.Value))
                 { PackageIdentity = groupOpacityOwners[pair.Key].Definition.PackageIdentity })])
             .WithImageEffects([.. imageEffects]);
+        try
+        {
+            return prepared.WithTextPartitions([.. baseTransforms.Where(static pair => pair.Value != Affine2.Identity).Select(static pair => new V2.BaseTokenTransform(pair.Key, pair.Value))],
+                [.. baseStyles.Select(static pair => new V2.BaseTokenStyle(pair.Key, pair.Value))],
+                [.. clusterTransforms.Where(static pair => pair.Value != Affine2.Identity).Select(static pair => new V2.TextClusterTransform(pair.Key, pair.Value))]);
+        }
+        catch (PreparedFrameException error) when (error.TextTarget is { } partition && partitionOwners.ContainsKey(partition))
+        {
+            throw Failure(partitionOwners[error.TextTarget!].Definition, "ComposeOutputs", timeUs, error, diagnostics.Snapshot());
+        }
     }
-    public void Unload()
+    public void Unload(bool preservePure = false)
     {
         _pendingBursts.Clear(); _particles.Clear(); _bridgeEndpoints.Clear(); var owned = _instances.ToArray(); _instances.Clear(); List<Exception> failures = [];
         foreach (var active in owned)
         {
-            try { if (active.Module is { } module) module.Dispose(); else active.Instance.Dispose(); }
+            if (preservePure && active.Pure is not null) { _instances.Add(active); continue; }
+            active.Pure?.Source.Indexes.Invalidate();
+            try { if (active.Module is { } module) module.Dispose(); else active.Instance?.Dispose(); }
             catch (Exception error) { failures.Add(Failure(active.Definition, "Dispose", 0, error, Diagnostics.Snapshot())); }
         }
         if (failures.Count > 0)

@@ -55,9 +55,10 @@ public sealed class PreparedSourceMaterials
     public ImmutableArray<PreparedMaterialBinding> Bindings(SceneFrame scene)
     {
         var bindings = ImmutableArray.CreateBuilder<PreparedMaterialBinding>();
+        var loaded = scene.Lines.ToDictionary(static line => line.BindingId!, StringComparer.Ordinal);
         foreach (var geometry in scene.TokenGeometries)
             Add(new ImageEffectTarget.Token(geometry.WithRuby),
-                PresetSceneStyleProjection.Lyrics(_snapshot, geometry.LineId.Value, geometry.WithRuby.TokenId.Value, scene, _resolver));
+                PresetSceneStyleProjection.LyricsForBinding(_snapshot, loaded[geometry.WithRuby.BindingId.Value], geometry.WithRuby.TokenId.Value, scene, _resolver));
         foreach (var geometry in scene.MarkGeometries)
             Add(new ImageEffectTarget.Mark(geometry.Target),
                 PresetSceneStyleProjection.Mark(_snapshot, geometry.Target.NodeId.Value, scene, _resolver));
@@ -78,7 +79,7 @@ public sealed class PreparedSourceMaterials
         PresetStyleResolution? resolution = binding.Target switch
         {
             ImageEffectTarget.Token token when scene.TokenGeometries.FirstOrDefault(item => item.WithRuby == token.Target) is { } geometry
-                => PresetSceneStyleProjection.Lyrics(_snapshot, geometry.LineId.Value, token.Target.TokenId.Value, scene, _resolver),
+                => PresetSceneStyleProjection.LyricsForBinding(_snapshot, scene.Lines.Single(line => line.BindingId == token.Target.BindingId.Value), token.Target.TokenId.Value, scene, _resolver),
             ImageEffectTarget.Mark mark when scene.MarkGeometries.Any(item => item.Target == mark.Target)
                 => PresetSceneStyleProjection.Mark(_snapshot, mark.Target.NodeId.Value, scene, _resolver),
             _ => null,

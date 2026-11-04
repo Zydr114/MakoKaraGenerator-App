@@ -8,32 +8,24 @@ namespace MakoKaraGenerator.Rendering.Skia;
 
 public sealed partial class SkiaRenderPipeline
 {
-    private sealed record RubyLayout(string Id, int TokenIndex, ShapedLine Shaped, TextLayoutOptions Options,
+    internal sealed record RubyLayout(string Id, int TokenIndex, ShapedLine Shaped, TextLayoutOptions Options,
         float X, float Baseline, TextInkBounds Ink, ImmutableArray<RubyLayoutSegment> Segments);
 
-    private sealed record RubyLayoutSegment(string Id, float Left, float Right);
+    internal sealed record RubyLayoutSegment(string Id, float Left, float Right);
 
-    private sealed record LineLayout(ShapedLine Shaped, List<RubyLayout> Ruby, RubySpacingStatus SpacingStatus);
+    internal sealed record LineLayout(ShapedLine Shaped, ImmutableArray<RubyLayout> Ruby, RubySpacingStatus SpacingStatus);
 
     private LineLayout GetLineLayout(LyricLine line, LyricStyle style)
     {
         if (line.RubyAnnotations.IsEmpty) return BuildLineLayout(line, style);
-        lock (_rubyLayoutGate)
-        {
-            var key = (line, style);
-            if (_rubyLayouts.TryGetValue(key, out var cached)) return cached;
-            var layout = BuildLineLayout(line, style);
-            if (_rubyLayouts.Count >= 256) _rubyLayouts.Clear();
-            _rubyLayouts.Add(key, layout);
-            return layout;
-        }
+        return _layouts.GetRuby(line, style, _layoutEngine, () => BuildLineLayout(line, style));
     }
 
     private LineLayout BuildLineLayout(LyricLine line, LyricStyle style)
     {
         ShapedLine shaped = GetLayout(line.Text, LayoutOptionsFor(style));
         List<RubyLayout> ruby = MeasureRuby(line, style, shaped);
-        if (ruby.Count < 2) return new(shaped, ruby, RubySpacingStatus.Unchanged);
+        if (ruby.Count < 2) return new(shaped, [.. ruby], RubySpacingStatus.Unchanged);
         int offset = 0;
         TextSpan[] spans = [.. line.Tokens.Select(token =>
         {
@@ -50,7 +42,7 @@ public sealed partial class SkiaRenderPipeline
                     Ink = annotation.Ink with { Left = annotation.Ink.Left + shift, Right = annotation.Ink.Right + shift } };
             })];
         }
-        return new(solved.Basis, ruby, solved.Status);
+        return new(solved.Basis, [.. ruby], solved.Status);
     }
 
     private List<RubyLayout> MeasureRuby(LyricLine line, LyricStyle style, ShapedLine shaped)
@@ -127,7 +119,8 @@ public sealed partial class SkiaRenderPipeline
     }
 
     private void DrawRuby(SKCanvas canvas, IReadOnlyList<RubyLayout> ruby, LyricFrameSample sample,
-        LyricLine line, LyricStyle lineStyle, Composition composition, float origin, float baseline, bool antialias, LyricStyle? familyStyle = null, CapturePaint? capture = null)
+        LyricLine line, LyricStyle lineStyle, Composition composition, float origin, float baseline, bool antialias, LyricStyle? familyStyle = null,
+        CapturePaint? capture = null, ImmutableArray<int> drawUnitIndices = default)
     {
         if (familyStyle?.Glow is { IsEnabled: true } || familyStyle is null && (lineStyle.Glow is { IsEnabled: true }
             || ruby.Any(entry => line.Tokens[entry.TokenIndex].StyleOverride is { Glow.IsSet: true })))
@@ -136,7 +129,7 @@ public sealed partial class SkiaRenderPipeline
             LyricStyle style = familyStyle ?? (line.Tokens[entry.TokenIndex].StyleOverride is { } overlay
                 ? ResolveElementStyle(lineStyle, overlay) : lineStyle);
             DrawLineGlow(canvas, entry.Shaped, entry.Options, origin + entry.X, baseline + entry.Baseline,
-                style, antialias, capture: capture, ruby: true);
+                style, antialias, drawUnitIndices, capture, ruby: true);
         }
         foreach (RubyLayout entry in ruby)
         {
@@ -169,7 +162,7 @@ public sealed partial class SkiaRenderPipeline
                     DrawStyledLine(canvas, entry.Shaped, entry.Options, x, y,
                         sung ? style.SungFill.Color : style.UnsungFill.Color,
                         sung ? style.SungFill.Gradient : style.UnsungFill.Gradient,
-                        style, composition, antialias, capture: capture, sungPass: sung, rubyGlyph: true);
+                        style, composition, antialias, drawUnitIndices, capture, sungPass: sung, rubyGlyph: true);
                     canvas.Restore();
                 }
             }

@@ -15,10 +15,13 @@ internal sealed partial class FrameEffectHost
                 throw new EffectOutputException("UndeclaredPackageOutput", "输出类别未在固定包导出中声明：" + kind + "/" + target);
         }
         Require(!output.TokenTransforms.IsEmpty, "VisualTransform", "tokenFamily");
+        Require(!output.BaseTransforms.IsEmpty, "VisualTransform", "baseToken");
+        Require(!output.ClusterTransforms.IsEmpty, "VisualTransform", "cluster");
         Require(!output.LineTransforms.IsEmpty, "VisualTransform", "line");
         Require(!output.GroupTransforms.IsEmpty, "VisualTransform", "group");
         Require(!output.MarkTransforms.IsEmpty, "VisualTransform", "textMark");
         Require(!output.TokenStyles.IsEmpty, "StyleModulation", "tokenFamily");
+        Require(!output.BaseStyles.IsEmpty, "StyleModulation", "baseToken");
         Require(!output.MarkStyles.IsEmpty, "StyleModulation", "textMark");
         Require(!output.GroupOpacities.IsEmpty, "StyleModulation", "group");
         foreach (var binding in output.ImageEffects)

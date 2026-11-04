@@ -38,7 +38,7 @@ public sealed record GeometrySample
 public sealed record RubyGeometrySample(RubyId RubyId, GeometrySample Geometry);
 
 /// <summary>一个基础元素的完整只读绘制族；基础 Advance 保持，族墨迹可包含注音。</summary>
-public sealed record TokenGeometrySample
+public sealed partial record TokenGeometrySample
 {
     /// <summary>真实源分支。</summary>
     public required BranchId BranchId { get; init; }

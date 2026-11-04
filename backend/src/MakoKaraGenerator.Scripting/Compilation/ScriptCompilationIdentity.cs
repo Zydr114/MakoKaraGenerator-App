@@ -14,6 +14,10 @@ public sealed record ScriptCompilationIdentity(string CompilerVersion, string Op
     public const string PinnedCompilerVersion = "5.0.0.0";
     /// <summary>v1 无纯度分析器，仍为其规则明确建立身份以隔离后续 v2。</summary>
     public const string V1AnalysisRules = "v1-no-purity-analysis";
+    /// <summary>SDK v2 纯度分析规则；修改规则必须升版并使旧编译制品失效。</summary>
+    public const string V2AnalysisRules = "sdk2-purity-2";
+    /// <summary>开发并存部署的完整规则身份；Worker 无须加载 Roslyn 即可核验。</summary>
+    public const string CurrentAnalysisRules = V1AnalysisRules + "|" + V2AnalysisRules;
     /// <summary>固定 v1 编译选项；格式变更与旧缓存隔离。</summary>
     public const string V1Options = "csharp14|net10.0|release|nullable|deterministic|portable-pdb|unsafe:false|concurrentBuild:false|serial-emit-v1|artifact-format3";
     /// <summary>本部署的执行引擎身份，与固定工程封包一致。</summary>
@@ -23,7 +27,7 @@ public sealed record ScriptCompilationIdentity(string CompilerVersion, string Op
     public static ScriptCompilationIdentity ForDeployment(string referenceDirectory)
     {
         var references = ScriptReferenceIdentity.Read(referenceDirectory);
-        return new(PinnedCompilerVersion, V1Options, references.Identity, references.SdkIdentity, CurrentEngineIdentity, V1AnalysisRules);
+        return new(PinnedCompilerVersion, V1Options, references.Identity, references.SdkIdentity, CurrentEngineIdentity, CurrentAnalysisRules);
     }
 
     /// <summary>拒绝缺失或非规范的身份，不从 PE 文件名猜测部署兼容性。</summary>

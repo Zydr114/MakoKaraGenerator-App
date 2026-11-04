@@ -43,7 +43,8 @@ internal sealed class FrameSession(FrameEffectHost host, TimelineProjection? tim
                     }
                 }
                 PreparedRenderFrame result;
-                if (_boundaryFrame is { } frame && frame.TimeUs == timeUs && frame.OutputMode == outputMode && frame.Target == target)
+                if (host.CanReuseBoundaryFrame && _boundaryFrame is { } frame
+                    && frame.TimeUs == timeUs && frame.OutputMode == outputMode && frame.Target == target)
                     result = frame;
                 else
                 {
@@ -90,7 +91,10 @@ internal sealed class FrameSession(FrameEffectHost host, TimelineProjection? tim
             host.Dispatch(evt, _history, !_anchorQuery, cancellationToken);
         }
         _history = _eventTable!.Prefix(timeUs, _nextEvent);
-        var text = host.Evaluate(timeUs, outputMode, target, _history, host.Diagnostics, cancellationToken);
+        // Text-only legacy state never observes another author's final geometry. Skip
+        // pure calls on its replay grid, then evaluate all text once at the request.
+        var text = host.Evaluate(timeUs, outputMode, target, _history, host.Diagnostics, cancellationToken,
+            includePure: host.RequiresPureAtLegacyBoundaries);
         if (!_anchorQuery)
         {
             await host.EvaluateEmittersAsync(text, _history, NextBoundaryAfter(timeUs) ?? timeUs, host.Diagnostics, cancellationToken).ConfigureAwait(false);
@@ -107,7 +111,7 @@ internal sealed class FrameSession(FrameEffectHost host, TimelineProjection? tim
     {
         _reason = _anchorQuery ? ReplayReason.AnchorQuery : reason; _history = null; _eventTable = null; _nextEvent = 0;
         _lastBoundary = -1; _lastRequest = -1; _boundaryFrame = null;
-        host.Load(timeline is not null, cancellationToken);
+        host.Load(timeline is not null, cancellationToken, preservePure: !_poisoned);
         _eventTable = timeline?.CreateHistoryTable(_reason, cancellationToken);
         _poisoned = false;
     }

@@ -30,11 +30,16 @@ public static class SceneAffineProjection
         foreach (var transform in groupTransforms)
         {
             if (transform is null || transform.Target is null || !seenGroups.Add(transform.Target)
-                || !nodes.TryGetValue(transform.Target.NodeId.Value, out var node) || node.Kind != SceneElementKind.Group
+                || !nodes.TryGetValue(transform.Target.NodeId.Value, out var node) || node.Kind != SceneElementKind.Group || node.SourceNodeId is not null
                 || !scene.GroupGeometries.Any(group => group.Target == transform.Target))
                 throw new PreparedFrameException("InvalidPreparedGroupTarget", "组变换目标重复或缺少实际组节点／几何。");
             if (!transform.LocalMatrix.TryInverse(out _)) throw new PreparedFrameException("InvalidTransform", "组局部矩阵不可逆。");
-            if (transform.LocalMatrix != Fx.Affine2.Identity) own.Add(node.Id, transform.LocalMatrix);
+            if (transform.LocalMatrix != Fx.Affine2.Identity)
+            {
+                own.Add(node.Id, transform.LocalMatrix);
+                foreach (var alias in scene.Elements.Where(value => value.Kind == SceneElementKind.Group && value.SourceNodeId == node.Id))
+                    own.Add(alias.Id, transform.LocalMatrix);
+            }
         }
         HashSet<Fx.LineTarget> seen = [];
         foreach (var transform in transforms)
@@ -104,7 +109,8 @@ public static class SceneAffineProjection
             {
                 string id = byBinding[token.WithRuby.BindingId.Value].ElementId;
                 return Resolve(id).Delta == Fx.Affine2.Identity ? token : token with { BaseGeometry = Glyph(id, token.BaseGeometry),
-                    FamilyGeometry = Glyph(id, token.FamilyGeometry), Ruby = [.. token.Ruby.Select(ruby => ruby with { Geometry = Glyph(id, ruby.Geometry) })] };
+                    FamilyGeometry = Glyph(id, token.FamilyGeometry), Ruby = [.. token.Ruby.Select(ruby => ruby with { Geometry = Glyph(id, ruby.Geometry) })],
+                    Clusters = [.. token.Clusters.Select(cluster => cluster.WithGeometry(Glyph(id, cluster.Geometry)))] };
             })],
             MarkGeometries = [.. scene.MarkGeometries.Select(mark => Resolve(mark.Target.NodeId.Value).Delta == Fx.Affine2.Identity ? mark
                 : mark with { Geometry = Glyph(mark.Target.NodeId.Value, mark.Geometry) })],

@@ -21,15 +21,23 @@ public sealed partial class PreparedRenderFrame
     {
         if (outputs.IsDefault) throw new PreparedFrameException("InvalidPreparedGroupOpacity", "组透明度集合不能是 default。");
         HashSet<GroupTarget> seen = [];
+        var nodes = HierarchyScene.Elements.ToDictionary(static node => node.Id, StringComparer.Ordinal);
         foreach (var item in outputs)
         {
             if (item is null || !item.InstanceId.IsValid || string.IsNullOrWhiteSpace(item.ArtifactHash) || item.Opacity is not { Target: { } target } opacity
-                || !seen.Add(target) || !FinalGroupGeometry.Any(group => group.Target == target))
+                || !seen.Add(target) || !nodes.TryGetValue(target.NodeId.Value, out var node)
+                || node.Kind != SceneElementKind.Group || node.SourceNodeId is not null
+                || !FinalGroupGeometry.Any(group => group.Target == target))
                 throw new PreparedFrameException("InvalidPreparedGroupOpacity", "组透明度必须属于唯一真实组及固定实例。");
             if (!double.IsFinite(opacity.Factor) || opacity.Factor is < 0 or > 1)
                 throw new PreparedFrameException("InvalidStyleOpacity", "最终组透明度必须在 [0,1]，不夹值。");
         }
-        outputs = [.. outputs.Where(item => item.Opacity.Factor != 1)];
+        // Authors address source groups. Each frozen chain has its own runtime nodes so the
+        // same current group factor is applied exactly once along that replica's chain.
+        outputs = [.. outputs.Where(item => item.Opacity.Factor != 1).SelectMany(item =>
+            new[] { item }.Concat(HierarchyScene.Elements.Where(node => node.Kind == SceneElementKind.Group
+                && node.SourceNodeId == item.Opacity.Target.NodeId.Value).Select(node => item with
+                { Opacity = item.Opacity with { Target = new(new(node.Id)) } })))];
         if (outputs.SequenceEqual(GroupOpacities)) return this;
         return new(this, OverlayBatches, DiagnosticSnapshot, VisualBudget, Particles, EmissionSchedule) { GroupOpacities = outputs };
     }

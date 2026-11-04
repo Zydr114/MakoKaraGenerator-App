@@ -5,5 +5,7 @@
   <ItemGroup>
     <ProjectReference Include="../MakoKaraGenerator.Scripting/MakoKaraGenerator.Scripting.csproj" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <AdditionalFiles Include="AnalyzerReleases.Shipped.md" />
+    <AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />
   </ItemGroup>
 </Project>

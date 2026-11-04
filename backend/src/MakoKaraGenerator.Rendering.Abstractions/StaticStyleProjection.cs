@@ -8,12 +8,18 @@ namespace MakoKaraGenerator.Rendering;
 public static class StaticStyleProjection
 {
     /// <summary>固定全部源元素／行、文字标记和组的真实外观，各实例读取同一份基线。</summary>
-    public static Fx.BaselineStyles CreateBaseline(ProjectSnapshot snapshot, PreparedSourceMaterials? materials = null, SceneFrame? scene = null) => new(SourceStyles(snapshot, scene)
+    public static Fx.BaselineStyles CreateBaseline(ProjectSnapshot snapshot, PreparedSourceMaterials? materials = null, SceneFrame? scene = null)
+    {
+        var baseline = new Fx.BaselineStyles(SourceStyles(snapshot, scene)
         .Select(pair => new KeyValuePair<Fx.TokenId, Fx.StyleView>(pair.Key, View(pair.Value, materials))),
         LineStyles(snapshot, scene).Select(pair => new KeyValuePair<Fx.LineId, Fx.StyleView>(pair.Key, View(pair.Value, materials))),
         MarkStyles(snapshot, scene).Select(pair => new KeyValuePair<Fx.NodeId, Fx.StyleView>(pair.Key, View(pair.Value, materials))),
         SceneDefinitionBuilder.Build(snapshot).Elements.Where(static node => node.Kind == SceneElementKind.Group)
             .Select(static node => new KeyValuePair<Fx.NodeId, Fx.GroupStyleView>(new(node.Id), new(1))));
+        return scene is null ? baseline : baseline.WithLoaded(LoadedSourceStyles(snapshot, scene)
+            .Select(pair => new KeyValuePair<Fx.TokenFamilyTarget, Fx.StyleView>(pair.Key, View(pair.Value, materials))),
+            LoadedLineStyles(snapshot, scene).Select(pair => new KeyValuePair<Fx.LineTarget, Fx.StyleView>(pair.Key, View(pair.Value, materials))));
+    }
 
     /// <summary>完整源行的继承外观，包含无元素／当前不可见行。</summary>
     public static ImmutableDictionary<Fx.LineId, LyricStyle> LineStyles(ProjectSnapshot snapshot, SceneFrame? scene = null)
@@ -42,6 +48,25 @@ public static class StaticStyleProjection
         return snapshot.Lyrics.AllLines.SelectMany(line => line.Tokens.Select(token =>
             new KeyValuePair<Fx.TokenId, LyricStyle>(new(token.Id),
                 PresetSceneStyleProjection.Lyrics(snapshot, line.Id, token.Id, scene, resolver).Style))).ToImmutableDictionary();
+    }
+
+    /// <summary>按真实字族装载取得外观；同一源元素的并行退出与新装载可以保留不同父路径基线。</summary>
+    public static ImmutableDictionary<Fx.TokenFamilyTarget, LyricStyle> LoadedSourceStyles(ProjectSnapshot snapshot, SceneFrame scene)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot); ArgumentNullException.ThrowIfNull(scene);
+        var resolver = PresetSceneStyleProjection.Resolver(snapshot);
+        return scene.Lines.SelectMany(line => line.Frame.Line!.Tokens.Select(token =>
+            new KeyValuePair<Fx.TokenFamilyTarget, LyricStyle>(new(new(token.Id), new(line.BindingId!)),
+                PresetSceneStyleProjection.LyricsForBinding(snapshot, line, token.Id, scene, resolver).Style))).ToImmutableDictionary();
+    }
+
+    /// <summary>按真实行装载取得冻结或当前源行外观。</summary>
+    public static ImmutableDictionary<Fx.LineTarget, LyricStyle> LoadedLineStyles(ProjectSnapshot snapshot, SceneFrame scene)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot); ArgumentNullException.ThrowIfNull(scene);
+        var resolver = PresetSceneStyleProjection.Resolver(snapshot);
+        return scene.Lines.Select(line => new KeyValuePair<Fx.LineTarget, LyricStyle>(new(new(line.Frame.Line!.Id), new(line.BindingId!)),
+            PresetSceneStyleProjection.LyricsForBinding(snapshot, line, null, scene, resolver).Style)).ToImmutableDictionary();
     }
 
     /// <summary>无 Skia 类型的静态外观投影；渐变不会猜测纯色基色。</summary>
@@ -75,6 +100,7 @@ public static class StaticStyleProjection
             SungFill = result.SungMaterial == baseline.SungMaterial && !sourcePackage ? source.SungFill : DrawingMaterial(result.SungMaterial, geometrySeed),
             Stroke = result.Stroke == baseline.Stroke && !sourcePackage ? source.Stroke : Stroke(result.Stroke, geometrySeed),
             Shadow = result.Shadow == baseline.Shadow ? source.Shadow : Shadow(result.Shadow),
+            Glow = result.Glow == baseline.Glow ? source.Glow : Glow(result.Glow),
             Opacity = Native(result.Opacity),
         };
     }
@@ -145,4 +171,6 @@ public static class StaticStyleProjection
         Native(value.AngleDegrees * (Math.PI / 180));
         return ShadowSpec.Create(Color(value.Color), Native(value.Opacity), value.AngleDegrees, Native(value.DistancePx), Native(value.BlurRadiusPx));
     }
+    private static GlowSpec? Glow(Fx.GlowValue? value) => value is null ? null
+        : GlowSpec.Create(Color(value.Color), Native(value.Opacity), Native(value.BlurRadiusPx), Native(value.SpreadPx));
 }

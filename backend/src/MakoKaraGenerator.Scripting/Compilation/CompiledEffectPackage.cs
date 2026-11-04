@@ -75,7 +75,12 @@ public sealed partial class CompiledEffectPackage
             foreach (var controller in definition.Controllers)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                try { module.ValidateEntry<IKaraokeEffect>(controller.EntryType); }
+                try
+                {
+                    if (EffectPackageProfiles.IsV2(definition.Contents.Profile))
+                        module.ValidateEntry<V2.IPureKaraokeEffect>(controller.EntryType);
+                    else module.ValidateEntry<IKaraokeEffect>(controller.EntryType);
+                }
                 catch (Exception error) when (error is not OperationCanceledException)
                 { throw new EffectPackageException("PackageEntryInvalid", "exports." + controller.Id + ".entryType", "真实 DLL 入口缺失或不符合公共 SDK 构造合同。", error); }
             }
@@ -94,6 +99,8 @@ public sealed partial class CompiledEffectPackage
         EnsureSucceeded();
         if (Definition.GetExport(exportId) is EffectGraphDefinition graph)
         {
+            if (EffectPackageProfiles.IsV2(Definition.Contents.Profile))
+                throw new EffectPackageException("PackageWriterPending", "exports." + exportId, "SDK v2 直接图输出尚未接通。");
             DirectGraphEffectValidation.Validate(Definition, graph, binding);
             var graphParameters = ResolveParameters(exportId, parameterOverrides, cancellationToken);
             return new(instanceId, null, null, graphParameters, binding, EffectCapabilities.ImageEffects)
@@ -113,15 +120,26 @@ public sealed partial class CompiledEffectPackage
         foreach (var output in controller.Outputs)
         {
             string path = "exports." + exportId + ".outputs." + output.Id;
-            if (output.Requires.Any(requirement => requirement != "AudioFeatures")) throw new EffectPackageException("PackageRequirementUnsupported", path + ".requires", "当前控制器适配尚不能解析这些能力需求：" + string.Join(",", output.Requires));
-            requiresAudio |= output.Requires.Contains("AudioFeatures", StringComparer.Ordinal);
+            if (EffectPackageProfiles.IsV2(Definition.Contents.Profile))
+            {
+                if (output.Kind is not ("VisualTransform" or "StyleModulation"))
+                    throw new EffectPackageException("PackageWriterPending", path, "SDK v2 尚未接通此输出阶段：" + output.Kind);
+                // v2 的有限能力已由完整包解析器与包级 requires 共同校验。
+            }
+            else
+            {
+                if (output.Requires.Any(requirement => requirement != "AudioFeatures")) throw new EffectPackageException("PackageRequirementUnsupported", path + ".requires", "当前控制器适配尚不能解析这些能力需求：" + string.Join(",", output.Requires));
+                requiresAudio |= output.Requires.Contains("AudioFeatures", StringComparer.Ordinal);
+            }
             if (!output.DependsOn.IsEmpty) throw new EffectPackageException("PackageOutputPlanPending", path + ".dependsOn", "依赖已校验，但跨输出执行／旁路计划尚未接入。");
             if (output.Bypass is not null && output.Kind != "ImageGraph")
                 throw new EffectPackageException("PackageOutputPlanPending", path + ".bypass", "此旁路尚不能通过生产输出计划执行。");
             capabilities |= (output.Kind, output.Target) switch
             {
                 ("VisualTransform", "tokenFamily" or "line" or "group" or "textMark") => EffectCapabilities.Transforms,
+                ("VisualTransform", "baseToken" or "cluster") when EffectPackageProfiles.IsV2(Definition.Contents.Profile) => EffectCapabilities.Transforms,
                 ("StyleModulation", "tokenFamily" or "textMark" or "group") => EffectCapabilities.Style,
+                ("StyleModulation", "baseToken") when EffectPackageProfiles.IsV2(Definition.Contents.Profile) => EffectCapabilities.Style,
                 ("Overlay", "tokenFamily" or "line" or "textMark") => EffectCapabilities.Overlay,
                 ("ImageGraph", "tokenFamily" or "line" or "group" or "textMark") => EffectCapabilities.ImageEffects,
                 _ => throw new EffectPackageException("PackageWriterPending", path, "当前生产运行时尚未提供此输出和目标组合。"),

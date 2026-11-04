@@ -18,7 +18,13 @@ public sealed record SceneLineSample
     /// <summary>显示程序指定的容器；空值使用默认常规容器。</summary>
     public string? DisplayContainerId { get; init; }
     /// <summary>稳定源文本节点 ID。</summary>
-    public string ElementId => SceneDefinitionBuilder.TextId(Branch.Id, Frame.Line!.Id);
+    public string ElementId => RuntimeElementId ?? SourceElementId;
+    /// <summary>原始源文字节点身份；退出副本不会制造另一个源节点。</summary>
+    public string SourceElementId => SceneDefinitionBuilder.TextId(Branch.Id, Frame.Line!.Id);
+    /// <summary>仅绘制父树使用的装载别名；正常源装载为空。</summary>
+    public string? RuntimeElementId { get; init; }
+    /// <summary>隐藏左极限冻结的退出副本身份；不参与源布局、事件或播放头。</summary>
+    public ExitReplicaMetadata? ExitReplica { get; init; }
     /// <summary>帧中的实际父节点；双行文本绑定到稳定槽位。</summary>
     public string ParentId => ParentNodeId ?? (SlotId is { } slotId ? SceneDefinitionBuilder.SlotId(Branch.Id, slotId) : ContainerId);
     /// <summary>实际父节点；槽位引用原生树的稳定节点 ID。</summary>
@@ -69,12 +75,15 @@ public static partial class LyricSceneSampler
     public static ImmutableArray<SceneLineSample> Sample(ProjectSnapshot snapshot, long timeUs) => SampleFrame(snapshot, timeUs).Lines;
 
     /// <summary>重建统一场景帧。</summary>
-    public static SceneFrame SampleFrame(ProjectSnapshot snapshot, long timeUs)
+    public static SceneFrame SampleFrame(ProjectSnapshot snapshot, long timeUs, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
+        cancellationToken.ThrowIfCancellationRequested();
+        var identities = NeedsLoadIdentities(snapshot) ? LoadIdentities(snapshot, cancellationToken) : null;
         snapshot = snapshot with { LyricPresentation = snapshot.LyricPresentation.WithDefaultPrograms(snapshot.Lyrics) };
         var frame = SceneDefinitionBuilder.BindFrame(new() { Definition = SceneDefinitionBuilder.Build(snapshot),
-            TimeUs = timeUs, Lines = SampleLines(snapshot, timeUs) }, snapshot.Composition);
+            TimeUs = timeUs, Lines = identities is null ? SampleLines(snapshot, timeUs)
+                : identities.Apply(SampleLines(snapshot, timeUs), timeUs) }, snapshot.Composition);
         return frame with { LeadIns = SampleLeadIns(snapshot, frame) };
     }
 

@@ -108,7 +108,7 @@ public sealed class TimelineProjection
             var coreRange = new Core.Time.TimeRange(range.StartUs, range.EndUs);
             for (int step = 0; step <= contentNode.MarkNodeIds.Length; step++)
                 boundaries.Add(LeadInTiming.StepBoundary(coreRange, contentNode.MarkNodeIds.Length, step));
-            var frame = LyricSceneSampler.SampleFrame(snapshot, range.StartUs);
+            var frame = LyricSceneSampler.SampleFrame(snapshot, range.StartUs, cancellationToken);
             var target = FrameProjection.Lines(frame, scene).SingleOrDefault(line => line.LineId == cue.TargetLineId && line.CueId == cue.Id)
                 ?? throw new PreparedFrameException("InvalidLeadInTimeline", "前奏开始时共享场景没有目标装载：" + cue.Id.Value);
             var association = new LeadInEventTarget(cue, target, contentNode.MarkNodeIds.Length);
@@ -122,10 +122,10 @@ public sealed class TimelineProjection
         foreach (long boundary in boundaries)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var after = LyricSceneSampler.SampleFrame(snapshot, boundary);
+            var after = LyricSceneSampler.SampleFrame(snapshot, boundary, cancellationToken);
             var nextLines = FrameProjection.Lines(after, scene).ToDictionary(static line => line.BindingId);
             var nextElements = Elements(after, scene, content, tree);
-            var before = boundary == 0 ? null : LyricSceneSampler.SampleFrame(snapshot, boundary - 1);
+            var before = boundary == 0 ? null : LyricSceneSampler.SampleFrame(snapshot, boundary - 1, cancellationToken);
             var previousLines = before is null ? [] : FrameProjection.Lines(before, scene).ToDictionary(static line => line.BindingId);
             var previousElements = before is null ? [] : Elements(before, scene, content, tree);
             foreach (var pair in previousLines)

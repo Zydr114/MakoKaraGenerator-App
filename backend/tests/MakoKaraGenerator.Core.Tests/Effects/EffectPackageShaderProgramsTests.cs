@@ -6,6 +6,28 @@ namespace MakoKaraGenerator.Core.Tests.Effects;
 
 public sealed class EffectPackageShaderProgramsTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void v2执行profile与独立程序ABI分开验证(bool wrongProgramProfile)
+    {
+        var program = EffectPackageShaderFixture.Program();
+        if (wrongProgramProfile) program["profile"] = EffectPackageProfiles.V2.ShaderProfile;
+        var old = EffectPackageShaderFixture.Contents(program);
+        var manifest = JsonNode.Parse(old.Manifest.AsSpan())!;
+        manifest["packageVersion"] = EffectPackageProfiles.V2.PackageVersion;
+        manifest["sdkVersion"] = EffectPackageProfiles.V2.SdkVersion;
+        manifest["shaderProfile"] = EffectPackageProfiles.V2.ShaderProfile;
+        manifest["requires"] = new JsonArray();
+        manifest["lineExit"] = new JsonObject { ["durationUs"] = 0 };
+        manifest["emitters"] = new JsonArray();
+        var contents = EffectPackageContents.CreateSupported(Encoding.UTF8.GetBytes(manifest.ToJsonString()),
+            old.Files.Select(file => KeyValuePair.Create(file.Path, (ReadOnlyMemory<byte>)file.Content.ToArray())));
+        if (wrongProgramProfile)
+            Assert.Equal("PackageShaderProfileMismatch", Assert.Throws<EffectPackageException>(() => EffectPackageShaderPrograms.Read(contents)).Code);
+        else Assert.Equal(ShaderProgramDefinition.RasterProfile, Assert.Single(EffectPackageShaderPrograms.Read(contents)).Value.Profile);
+    }
+
     [Fact]
     public void 全部类型数组和两个child语义从固定闭包读取且不受调用者改变影响()
     {

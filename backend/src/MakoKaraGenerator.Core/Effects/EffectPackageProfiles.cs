@@ -13,7 +13,7 @@ public static class EffectPackageProfiles
     public static EffectPackageProfile V2 { get; } = new(3, "2.0.0", "skia-ganesh-3.119.4-v2");
     /// <summary>当前已接通的 v2 必须能力；后续能力在实际接通前明确拒绝。</summary>
     public static IReadOnlySet<string> SupportedV2Capabilities { get; } = ImmutableHashSet.Create(StringComparer.Ordinal,
-        "token.affine", "line.affine", "group.affine", "mark.affine", "token.opacity", "group.opacity",
+        "token.affine", "line.affine", "group.affine", "mark.affine", "cluster.affine", "token.opacity", "group.opacity",
         "style.fill", "style.stroke", "style.shadow", "style.glow", "timeline.index", "line.exit");
 
     /// <summary>是否属于已支持的 SDK v2 包身份；不只比较 SDK 数字。</summary>
@@ -23,6 +23,12 @@ public static class EffectPackageProfiles
     /// <summary>是否是明确支持的开发期 v1 或 v2 包身份。</summary>
     public static bool IsSupported(EffectPackageProfile profile)
         => profile == V1 || IsV2(profile);
+    /// <summary>当前包执行合同采用的独立 SkSL 程序 ABI；不将 v2 的 Vulkan 执行身份当作程序格式。</summary>
+    public static string ShaderProgramProfile(EffectPackageProfile profile)
+    {
+        RequireSupported(profile);
+        return ShaderProgramDefinition.RasterProfile;
+    }
     /// <summary>拒绝未知包／SDK／shader profile，不将未知身份回退成 v1。</summary>
     public static void RequireSupported(EffectPackageProfile profile)
     {

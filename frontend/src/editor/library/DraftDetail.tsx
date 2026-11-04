@@ -65,7 +65,8 @@ export function DraftDetail(props: { state: ComponentState; drafts: AuthorDraftS
   const saveAs = () => setNameDialog({ action: 'saveAs', id: draft.draftId, initial: editor?.state.value.name ?? configuration.name });
 
   return (
-    <div className="lib-detail draft-detail" data-draft-id={draft.draftId} data-save-state={saveState}>
+    <div className="lib-detail draft-detail" data-draft-id={draft.draftId} data-save-state={saveState}
+      data-author-source-revision={isV2AuthorDraft(draft, pkg) ? configuration.sourceRevision : undefined}>
       <header className="phead">
         <div className="phead-row">
           <h2 className="template-name">{configuration.name}</h2>
@@ -101,7 +102,7 @@ export function DraftDetail(props: { state: ComponentState; drafts: AuthorDraftS
         {originConfig ? `保存会更新组件“${originConfig.name}”。` : ''}草稿只在本标签页，没有恢复，请及时保存到组件库。
       </Note>
       {saveState === 'orphan' && <Note className="phead-note">{origin ? '来源组件已经不在组件库里了' : '不知道这个草稿来自哪个组件'}，只能另存为新组件。</Note>}
-      {isV2AuthorDraft(draft, pkg) && <Note className="phead-note" data-author-source-revision={configuration.sourceRevision}>
+      {isV2AuthorDraft(draft, pkg) && <Note className="phead-note">
         最新源码 {shortRevision(draft.currentSourceRevision)}；试样请求与保存使用在用修订 {shortRevision(configuration.sourceRevision)}。
         {draft.currentSourceRevision !== configuration.sourceRevision ? ' 新源码须编译通过并采用后才用于试样。' : ''}
         {' SDK 2 试样和验证需要 Vulkan，请在顶栏明确选择 GPU。'}

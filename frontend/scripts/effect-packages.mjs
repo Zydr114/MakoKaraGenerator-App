@@ -95,7 +95,7 @@ function listFiles(dir) {
 }
 
 /** 最小的 ZIP 写出：deflate、UTF-8 文件名、固定时间戳，同样的输入得到同样的字节。 */
-function zipFiles(files) {
+export function zipFiles(files) {
   const locals = [];
   const centrals = [];
   let offset = 0;

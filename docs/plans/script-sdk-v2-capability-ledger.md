@@ -1,6 +1,6 @@
 # D8 能力与样例核对台账
 
-日期：2026-11-03。范围：M00 源码核对；**v2 表达、作者流程和运行证据均待 M07 以后实施**。
+日期：2026-11-04。范围：M00 源码核对与 M07 首批有限证据；**完整 D8 尚未关闭**。
 本表落实[主计划 §5.9](script-sdk-v2-render-pipeline-plan.md#59-d8-能力矩阵与九样例验收)，
 不改变 D1–D17，不把现有测试入口、历史报告或候选类型写成当前版本运行通过。
 M01–M06 保持 v1 API／求值语义，不能据其性能优化关闭下表的 v2 项。
@@ -18,13 +18,27 @@ M01–M06 保持 v1 API／求值语义，不能据其性能优化关闭下表的
 | 确定性 T | 顺序、乱序、重复、memo 冷热／淘汰、重开与撤销的同输入输出对照 |
 | 性能 P | 编译／准备／seek／显示分开；近端、3 min、长时间；内存、资源与无仪表端到端对照 |
 
-下表“待”表示 E/A/X/D/T/P 全部尚未取得 v2 证据；源码路径只证明存在可核查实现或回归入口。
+下表“待”表示尚未完成该项全部 E/A/X/D/T/P；M07 已取得的有限子集另在下节登记，不能据此关闭整项。
 关闭时逐项填入证据目录及命令、环境、通过／失败／跳过数；缺字段保持未完成。
 公共作者链现有入口为 [DraftSourceTab](../../frontend/src/editor/library/DraftSourceTab.tsx)、
 [ParameterFields](../../frontend/src/editor/library/ParameterFields.tsx)、
 [DraftValidationTab](../../frontend/src/editor/library/DraftValidationTab.tsx) 与
 [ProjectSessionRegistry.Author](../../backend/src/MakoKaraGenerator.Backend.Hosting/ProjectSessionRegistry.Author.cs)。
-这些入口存在不等于 v2 已接线；新增 SVG／manifest／shader／图编辑和诊断视图另由 M11 验收。
+M07 的固定来源编译／显式采用和三例编辑预览已接线；新增 SVG／manifest／shader／图编辑和诊断视图另由 M11 验收。
+
+## M07 有限证据（产品 0.111.3）
+
+完整来源、命令、运行边界及性能候选失败见 [M07 记录](script-sdk-render-m07-evidence.md)。
+以下为分项增量，不把部分证据升级为整项关闭。
+
+| 关联 ID | 当前 E／X／D／T | 当前 A／P 与剩余项 |
+| --- | --- | --- |
+| C01／C02 | 纯文字 Transform／Style／Opacity、Base／Cluster、B*A、Ruby／父链与组隔离接入；shader profile、不可独立字簇、退场／重载、预算和取消有定向正反例；渲染43项、SDK105项通过 | 三例编辑预览可用；完整样式组合和 M09／M12 仍待，正式性能待确认 |
+| C04／C09 | Timeline／Presentation／Layout／Cursor 源索引与真实 ordinal 代替 Repeat 字段累加，固定范围、冷暖／淘汰／乱序／重开和装载去重有回归 | HTTP 编译／采用／历史／CAS及三例 UI 通过；任意字段状态用途仍须 M08／M13 逐项映射 |
+| C08 | v2 复用固定参数／音频／计数式随机只读输入，纯度分析与句柄限制已接入 | 粒子随机身份和新增出生轨由 M08 验收，完整音频驱动功能不在 M07 关闭 |
+| S01／S02及最小 ClusterExit | 实际 SDK2 包与 Vulkan；24组 v1/v2 单 token 像素对照差0，20组跨进程确定性通过；边界与多token语义另有定向回归 | UI 33／17／17检查、9张实际显示帧；保存库重开、完整验证与导出留 M11。加载／seek已测，正式阈值待确认且候选一项未达 |
+
+C03／C05–C07／C10及其余样例仍待所属节点；M08 已开放接口后的独立编码不构成运行通过。
 
 ## 全能力映射
 

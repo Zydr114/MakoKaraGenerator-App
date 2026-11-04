@@ -634,7 +634,7 @@ alphaMode默认opaque，允许opaque／straight；purpose默认preview，其他4
 {"expectedSourceRevision":"1","previewGeneration":"1","requestSeq":"1","timeUs":"1500000","intent":"playback","metadata":{"requestId":"frame-1","hostInstanceId":"host-H","validUntilUtc":"2026-10-13T10:01:00Z"}}
 ```
 
-202返回 `{"previewId":"preview-V","previewGeneration":"1","requestSeq":"1","timeUs":"1500000","state":"accepted","protocolVersion":"1"}`，不保证PNG已经完成。intent仅playback／seek；同代次requestSeq严格递增，seek提交时也须大于旧代次已接受序号。playback时间不后退，同代次连续前向帧复用Worker／Runtime；HTTP seek生成新generation并Invalidate排水／释放旧Runtime与Worker，下一帧重新open。客户端采用seek响应返回的新generation。私有Worker同snapshot支持直接后退时间不等于HTTP seek复用。旧代次／来源409、非递增或playback后退409 previewRequestOutOfOrder，非法时间／参数或超过固定工程时长400。
+202返回 `{"previewId":"preview-V","previewGeneration":"1","requestSeq":"1","timeUs":"1500000","state":"accepted","protocolVersion":"1"}`，不保证PNG已经完成。intent仅playback／seek；同代次requestSeq严格递增，seek提交时也须大于旧代次已接受序号。playback时间不后退，同代次连续前向帧复用Worker／Runtime；HTTP seek生成新generation；0.110.6 起，同一固定输入、输出规格与后端可继续使用原Worker。已验证的协作取消回执会先被完整消费，再在原Worker内用同一固定产物重开Runtime；未发出的请求取消不重开。硬超时、作者错误、IPC或设备失败仍使会话失效并排水，真实输入／规格／后端改变仍建立新Worker。客户端必须采用seek响应返回的新generation，旧代结果不能发布。v1回退仍可能从零重放时间线，不承诺任意时刻纯求值。旧代次／来源409、非递增或playback后退409 previewRequestOutOfOrder，非法时间／参数或超过固定工程时长400。
 
 `GET /api/v1/preview-sessions/preview-V`200返回 `{"session":<PreviewSessionResponse>,"failure":<可选错误>,"renderFailureCode":<可选稳定编号>}`。session.state可能idle／queued／rendering／ready／failed／closing／closed，ready包含latestRequestSeq／latestFrame：
 
@@ -1439,7 +1439,7 @@ ruby文本完整聚合整形和原segment cluster归属保持，独立segment时
 
 在唯一Writer中原子核对精确revision并捕获snapshot、对应audio asset身份和快速resource reservation；Worker握手、编码及脚本执行在Writer外。固定asset用于独立retention/runtime leases，工程音频后续替换/清除不使既有snapshot引用错配。包bytes一次open固定，逐帧不重读工程/库、不重编译；总4MiB、200000源值及原深度门禁不变，净IPC snapshot最多4194280字节。
 
-既有previewId/sourceRevision/requestSeq/代次规则保持。playback同代仅替换最新pending；seek采用响应新generation，Invalidate取消在途并排水旧Runtime/Worker；PUT input也切新固定输入。编辑不自动跟随，关闭工程后预览保独立lease。关闭/失败/取消/替换输入均完整归还本路径拥有引用。
+既有previewId/sourceRevision/requestSeq/代次规则保持。playback同代仅替换最新pending；seek采用响应新generation，同输入经验证软取消后复用Worker并重开Runtime；PUT input切新固定输入，排水旧会话。编辑不自动跟随，关闭工程后预览保独立lease。关闭/失败/取消/替换输入均完整归还本路径拥有引用。
 
 ### 20.3 完整公共诊断
 
@@ -1493,6 +1493,27 @@ W8 增加 profile 级恢复入口。`GET /api/v1/profile/author-drafts` 只返�
 `GET /api/v1/drafts/{id}/source-revisions` 在精确草稿修订下按仍保留的源码包修订返回有界历史页。每项可带保存时间和该源码修订的编译摘要；旧草稿无法证明保存时间时省略 `savedAtUtc`，未知或已清理游标返回404。`GET /api/v1/drafts/{id}/package` 与 `GET /api/v1/script-configurations/{id}/package` 分别按精确草稿/库修订返回认证 `.mkfx` 流；服务全局最多同时保留2个下载槽位，超额429；每次下载30秒期限，流关闭、断开或宿主停止释放临时归档和槽位。此入口仅支持完整 GET，不承诺 Range、HEAD 或条件304；返回 `Content-Disposition`、归档 SHA-256 ETag、长度及 `Cache-Control: no-store`。stale revision、owner ACL 和包结构错误在响应体开始前返回。
 
 `POST /api/v1/drafts/{id}/compilation-jobs` 绑定捕获的当前源码修订，独立执行脚本编译并返回完整诊断；编译失败是可读取的诊断结果，不改变源码修订。编译诊断最多256项且完整UTF-8回执最多48KiB，超限整次拒绝并保留原草稿状态。`POST /api/v1/drafts/{id}/adopt-source-revision` 同样要求精确草稿修订，显式选择已固定且导出身份有效的源码修订，采用动作不要求编译成功，返回前后修订身份。
+
+**0.110.3 编译缓存：** 作者编译使用当前 profile 的 `script-artifacts` 内容地址缓存。同键并发请求共享编译，
+各调用者独立取消；失败编译不发布可运行产物。缓存身份包括源码、入口、编译选项、编译器、SDK、
+引用集、引擎和规则版本，参数与种子不改变编译输入键。返回的 `artifactHash` 仍是不可解析的内容身份，
+不是 PE 字节摘要，也不构成公开的产物读取路径。内部缓存默认 256 MiB，PE／PDB 各 32 MiB、清单 1 MiB；
+配额、损坏摘要或读取失败沿既有编译任务失败路径处理，不能回退旧成功产物。磁盘在用租约保护淘汰，
+跨进程同键互斥和崩溃暂存回收不改变 owner／CAS／任务终态。此处是产物读写预算，不保证 Roslyn
+编译期间的峰值内存上限。
+
+**0.110.6 HTTP seek 与关闭恢复：** 公开请求 generation 与固定运行输入身份分离，保持旧帧、来源、
+序号、owner/CAS 与帧租约隔离。同输入成功帧之间不重建 Worker；仅协作取消 ACK 验证成功时允许原进程
+重新建立 Runtime，复用同一固定产物目录，不重新编译／复制。关闭或输入替换中的所属进程排水失败时，
+保留会话及资源引用，重试成功前不新建替代会话。预览关闭失败返回既有 `internalError`，状态保留 `closing`，
+不虚报 `closed` 或提前释放会话配额；同一来源／generation 可用新 requestId 重试关闭。
+私有输入目录删除失败同样保留最后引用并拒绝新借用，成功清理后才归还所有权。
+
+**0.110.5 固定产物消费：** 预览、验证、导出和场景测量复用 Host 的同一编译服务；
+渲染 Worker 校验固定产物字节、SDK／参考集／引擎及入口后加载，不再运行 Roslyn 编译。
+shader、图像、图、材质和作者运行诊断仍在原执行边界校验，公共请求、owner／CAS、来源 profile
+与终态语义保持。产物是私有 Worker 输入，不增加公共 DLL 路径或读取接口。详细预算及目录
+所有权见[固定产物架构](script-compilation-artifacts.md)。
 
 `DELETE /api/v1/drafts/{id}` 必须携带 `AuthorDraftDeleteRequest` 的精确 `expectedDraftRevision` 和metadata。成功返回 `AuthorDraftDeleteResponse`（200），删除草稿状态及其固定包，并释放客户端作者草稿的存储与回收保护；修订冲突返回409，跨客户端读取仍为401 `resourceUnauthorized`。删除是显式操作，不会自动修改个人模板库或工程历史；同一metadata重试返回原回执。
 
@@ -1552,7 +1573,7 @@ create/input 的固定输入失败使用既有错误 DTO，消息和字段不包
 
 异步解码失败通过 state 的 `renderFailureCode` 返回 `PackageImageDecodeFailed`，尺寸/解码预算为 `PackageImageBudgetExceeded`；通用 `failure` 沿既有 `internalError` 预览失败语义，不把它改成create的422。超时、包编译或Runtime Error继续复用 `WorkerPackageTimedOut`、`WorkerPackageCompilationFailed`、`WorkerRuntimeDiagnosticError`；失败无本次 latestFrame，不发布成功PNG，旧成功帧租约按原TTL保留。
 
-每个 Runtime session 独占 resolver/native bitmap；无效果、包编译失败、准备失败、取消和正常关闭均由原工厂/会话所有权链释放。连续 playback 复用既有持久Worker，seek、resize、透明切换和input换代沿原 generation/序列规则，旧Worker与native对象排水后不再发布迟到帧。图片factory保留原音频租约包装；无音轨工程也可使用。原会话关闭、客户端过期、工程关闭后固定预览、Host shutdown 和帧读取ACL/TTL规则保持。
+每个 Runtime session 独占 resolver/native bitmap；无效果、包编译失败、准备失败、取消和正常关闭均由原工厂/会话所有权链释放。连续 playback 与固定输入不变的 seek 可复用持久 Worker；seek 在途渲染获协作取消确认后重新创建 Runtime session，未获安全回执或协议失败则排水 Worker。resize、透明切换和 input 更新改变固定输入，旧会话排水；generation/序列规则继续阻止发布迟到帧。图片factory保留原音频租约包装；无音轨工程也可使用。原会话关闭、客户端过期、工程关闭后固定预览、Host shutdown 和帧读取ACL/TTL规则保持。
 
 ### 22.4 证据边界
 
@@ -1630,6 +1651,12 @@ Node保留显式 `includeDescendants`，允许原模型合法的高级模板和b
 `GET /api/v1/render-backends` 沿现有 client 鉴权，返回 `defaultBackend` 和 `backends`。每项包含 `renderBackend`、`available`、`api`（CPU 为 `raster`，GPU 为 `vulkan`）、可用时的设备摘要 `device`，以及不可用时的 `unavailableReason`。摘要仅含 vendor/device/driver/apiVersion，不提供主机文件路径或驱动环境变量。
 
 可用性来自隔离 Worker 的真实设备创建、表面绘制、提交和像素读回；与来源 profile、导出编码器及字体能力分别检查。它表示本次检查可运行，不保证后续设备故障、资源不足或来源执行永不失败。正式渲染 Worker 启动后也必须核对固定选择和设备能力，旧 Worker 不支持新核验时明确拒绝。
+
+0.110.7 起，配置桌面 GPU stream 的 Host 使用其现有已准备 Worker 核对同部署设备，避免在两个
+stream Worker 之外增开可用性 helper。备用准备包含真实 Vulkan／Skia 初始化及绘制，业务使用原设备；
+未配置桌面流的浏览器入口仍沿独立设备检查。GPU stream 的活动、备用、开启和未完成排水共用两个
+进程名额，最多一个未绑定备用；HTTP 静态帧、正式导出等其他 Worker 预算分别管理。
+备用不绑定作者输入，每输入代次仍使用新进程身份；TTL、部署内容失效及失败退避不改变公开 DTO／路由。
 
 部署默认在 Server 启动时从 `MAKO_RENDER_BACKEND=cpu|vulkan` 固定，未配置仍为 CPU。环境中的 `vulkan` 映射为公开 `gpu`；客户端不能把 `vulkan`、`auto`、空串或其他大小写作为公开枚举值。显式选择不修改 Host 环境、其它客户端、其它预览或已登记任务。
 

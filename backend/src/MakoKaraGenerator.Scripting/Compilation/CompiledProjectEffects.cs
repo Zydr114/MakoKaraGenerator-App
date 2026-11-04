@@ -26,33 +26,51 @@ public sealed class CompiledProjectEffects
     public PreparedSourceMaterials? SourceMaterials { get; private set; }
 
     /// <summary>固定整个工程的已接受分析及源实例，再由正式资源门禁编译。</summary>
-    public static async Task<CompiledProjectEffects> CompileAsync(Project project, IScriptCompilationService compiler,
+    public static Task<CompiledProjectEffects> CompileAsync(Project project, IScriptCompilationService compiler,
         IPackageImageValidator? images = null, IPackageShaderValidator? shaders = null, IPackageImageGraphValidator? graphs = null,
         IPackageMaterialValidator? materials = null, CancellationToken cancellationToken = default)
+        => CompileAsync(project, compiler, images, shaders, graphs, materials, null, cancellationToken);
+
+    /// <summary>固定工程并将完整 SVG 门禁传递给实际包编译，不允许项目入口绕过资源验证。</summary>
+    public static async Task<CompiledProjectEffects> CompileAsync(Project project, IScriptCompilationService compiler,
+        IPackageImageValidator? images, IPackageShaderValidator? shaders, IPackageImageGraphValidator? graphs,
+        IPackageMaterialValidator? materials, IPackageSvgValidator? svgValidator, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(project);
-        return await CompileAsync(ProjectSnapshot.FromProject(project), compiler, images, shaders, graphs, materials, cancellationToken).ConfigureAwait(false);
+        return await CompileAsync(ProjectSnapshot.FromProject(project), compiler, images, shaders, graphs, materials, svgValidator, cancellationToken).ConfigureAwait(false);
     }
     /// <summary>直接固定实际渲染快照及分析，不读取当前工作区或重建缺少字段的源工程。</summary>
-    public static async Task<CompiledProjectEffects> CompileAsync(ProjectSnapshot snapshot, IScriptCompilationService compiler,
+    public static Task<CompiledProjectEffects> CompileAsync(ProjectSnapshot snapshot, IScriptCompilationService compiler,
         IPackageImageValidator? images = null, IPackageShaderValidator? shaders = null, IPackageImageGraphValidator? graphs = null,
         IPackageMaterialValidator? materials = null, CancellationToken cancellationToken = default)
+        => CompileAsync(snapshot, compiler, images, shaders, graphs, materials, null, cancellationToken);
+
+    /// <summary>直接固定渲染快照，并对启用包与源材质闭包执行完整 SVG 验证。</summary>
+    public static async Task<CompiledProjectEffects> CompileAsync(ProjectSnapshot snapshot, IScriptCompilationService compiler,
+        IPackageImageValidator? images, IPackageShaderValidator? shaders, IPackageImageGraphValidator? graphs,
+        IPackageMaterialValidator? materials, IPackageSvgValidator? svgValidator, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         var audio = ProjectAudioProjection.Create(snapshot);
-        var compiled = await CompileCoreAsync(snapshot.Effects, compiler, images, shaders, graphs, materials,
+        var compiled = await CompileCoreAsync(snapshot.Effects, compiler, images, shaders, graphs, materials, svgValidator,
             SourceMaterialCatalog.Collect(snapshot.LyricStyle, snapshot.Lyrics, snapshot.LyricPresentation, snapshot.PresetApplications), snapshot, cancellationToken).ConfigureAwait(false);
         compiled._audio = audio; compiled._fingerprint = snapshot.EffectInputsFingerprint; return compiled;
     }
     /// <summary>根据固定工程字节离线编译，正式资源门禁由组合根提供。</summary>
-    public static async Task<CompiledProjectEffects> CompileAsync(ProjectEffects source, IScriptCompilationService compiler,
+    public static Task<CompiledProjectEffects> CompileAsync(ProjectEffects source, IScriptCompilationService compiler,
         IPackageImageValidator? images = null, IPackageShaderValidator? shaders = null, IPackageImageGraphValidator? graphs = null,
         IPackageMaterialValidator? materials = null, CancellationToken cancellationToken = default)
-        => await CompileCoreAsync(source, compiler, images, shaders, graphs, materials, [], null, cancellationToken).ConfigureAwait(false);
+        => CompileAsync(source, compiler, images, shaders, graphs, materials, null, cancellationToken);
+
+    /// <summary>根据固定工程效果闭包编译，并为每个实际包提供 SVG 门禁。</summary>
+    public static async Task<CompiledProjectEffects> CompileAsync(ProjectEffects source, IScriptCompilationService compiler,
+        IPackageImageValidator? images, IPackageShaderValidator? shaders, IPackageImageGraphValidator? graphs,
+        IPackageMaterialValidator? materials, IPackageSvgValidator? svgValidator, CancellationToken cancellationToken = default)
+        => await CompileCoreAsync(source, compiler, images, shaders, graphs, materials, svgValidator, [], null, cancellationToken).ConfigureAwait(false);
 
     private static async Task<CompiledProjectEffects> CompileCoreAsync(ProjectEffects source, IScriptCompilationService compiler,
         IPackageImageValidator? images, IPackageShaderValidator? shaders, IPackageImageGraphValidator? graphs,
-        IPackageMaterialValidator? materials, ImmutableArray<SourceMaterialReference> references, ProjectSnapshot? snapshot, CancellationToken cancellationToken)
+        IPackageMaterialValidator? materials, IPackageSvgValidator? svgValidator, ImmutableArray<SourceMaterialReference> references, ProjectSnapshot? snapshot, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(source); ArgumentNullException.ThrowIfNull(compiler);
         Dictionary<(string, string), CompiledEffectPackage> compiled = [];
@@ -63,7 +81,7 @@ public sealed class CompiledProjectEffects
             try
             {
                 compiled.Add(key, await CompiledEffectPackage.CompileAsync(EffectPackageDefinition.Read(source.GetPackage(key.PackageId, key.Revision), cancellationToken),
-                    compiler, images, shaders, graphs, materials, cancellationToken).ConfigureAwait(false));
+                    compiler, images, shaders, graphs, materials, svgValidator, cancellationToken).ConfigureAwait(false));
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {

@@ -1313,7 +1313,7 @@ layout模式为Auto、全部槽位及提示mark构建代表试样；representati
 
 仅 manifest 项提供 `packageClosure`：它包含 `manifestSizeBytes`、小写64字符 `manifestSha256`、`totalSizeBytes`、`fileCount`、`validatedFileCount`、`unsupportedFileCount` 与 `status`。这些大小均为十进制字符串；`status` 只有 `validated` 或 `unsupported`。`validatedFileCount` 表示当前可识别 role 的文件数，不能单独解释为所有身份、引用或运行检查均已通过。文件项的 `status` 逐项反映包闭包检查；未知 role 会保留原文件并标记 `unsupported`，不会被静默丢弃。package manifest/file 的资源清单状态与 package validation 的任务准入分开，不能把 `validated` 当成已编译、可执行或可下载。
 
-资源闭包检查会在内存中重建同一包并复核 manifest/files 身份、内容 SHA/长度、包定义引用和路径/内容预算；当前可识别 role 为 `asset`、`csharp`、`graph`、`image`、`shader`、`shaderProgram`。该检查不编译 C#、不执行作者代码、不解码图片、不打开媒体，也不枚举或授予外部图片、视频、字体路径；因此它不证明字体/媒体闭包、连续预览资源租约、导出、分析或场景测量已经支持。完整闭包先受本节的20000项/1MiB读模型预算，再受 package codec 的源/内容预算；超限整体拒绝，不返回截断清单。
+资源闭包检查会在内存中重建同一包并复核 manifest/files 身份、内容 SHA/长度、包定义引用和路径/内容预算；当前可识别 role 为 `asset`、`csharp`、`graph`、`image`、`shader`、`shaderProgram`、`svg`、`svgResource`。SVG 文件和描述的结构引用纳入闭包观察，完整 SVG 语义与图片解码仍在作者编译及正式运行资源准备边界校验。该检查不编译 C#、不执行作者代码、不解码图片、不打开媒体，也不枚举或授予外部图片、视频、字体路径；因此它不证明字体/媒体闭包、连续预览资源租约、导出、分析或场景测量已经支持。完整闭包先受本节的20000项/1MiB读模型预算，再受 package codec 的源/内容预算；超限整体拒绝，不返回截断清单。
 
 对已通过上述有限检查的包内 manifest/file，可调用 `POST /api/v1/project-sessions/{id}/resources/package-asset`，请求为 `expectedRevision/resourceId/metadata`。服务在当前客户端和精确工程修订下固定包文件字节，惰性复制到现有 `ResourceStore`，返回 `ProjectPackageResourceAssetResponse`，其中包含包身份、逻辑 `packagePath/packageRole`、受控 `asset` 摘要及认证 `contentUrl`。该操作沿客户端 receipt 幂等语义，同一工程、包修订和资源标识复用同一 asset；不接受裸路径、外部文件或未知/unsupported role。返回的 contentUrl 仍要求 Authorization 和当前 client，沿既有 GET/HEAD、Range、ETag、304、读取租约与未引用 TTL 规则；工程关闭、客户端回收或服务停止会释放工程持有的引用，正在进行的读取完成后再按 TTL 清理。该接口只证明固定原始字节可受控读取，不证明图片/视频/字体解码、脚本编译或运行能力。
 
@@ -1490,13 +1490,13 @@ SDK2 作者界面分别展示最新、最近编译通过、已采用和在用修
 
 W8 增加 profile 级恢复入口。`GET /api/v1/profile/author-drafts` 只返回当前状态根内的草稿摘要、当前 `draftRevision`、所有权修订和 `active`、`dormant`、`orphaned`、`ownedByCaller` 状态；支持按草稿身份的有界游标分页。`POST /api/v1/profile/author-drafts/{id}/claim` 必须同时提交发现时的 `expectedDraftRevision` 与 `expectedOwnershipRevision`，服务在草稿锁、客户端所有权 reservation 和存储发布边界内原子认领。活动 owner、在途操作、客户端回收、CAS 冲突或目标 client 的16草稿/256 MiB配额会拒绝；旧格式草稿只在成功 claim 时补写当前 schema。普通 `GET /api/v1/drafts` 与所有作者读写仍执行 owner ACL，profile 列表不泄露包内容。孤立草稿不会自动删除；认领成功后由新 owner 按精确草稿修订调用 DELETE 清理，既有 live job/preview 不随 claim 转移。
 
-`GET /api/v1/drafts/{id}/package-files?expectedDraftRevision=...&sourceRevision=...` 返回完整 manifest、文件角色、大小、SHA 和可编辑文本。`PUT /api/v1/drafts/{id}/package-files` 要求提交 manifest 及全部 `csharp`、`shader`、`shaderProgram`、`graph` 文本，服务在包结构、闭包、导出配置、路径和 UTF-8 预算检查完成后一次发布新源码修订；非文本文件的路径、角色、SHA 和字节集合必须保持不变。文本单文件最多4 MiB，文本与 manifest 合计最多16 MiB，最多256个文本文件，HTTP JSON最多32 MiB。原源码入口提交字节无变化时保留原草稿修订和最近编译摘要。
+`GET /api/v1/drafts/{id}/package-files?expectedDraftRevision=...&sourceRevision=...` 返回完整 manifest、文件角色、大小、SHA 和可编辑文本。`PUT /api/v1/drafts/{id}/package-files` 要求提交 manifest 及全部 `csharp`、`shader`、`shaderProgram`、`graph`、`svg`、`svgResource` 文本，服务在包结构、闭包、导出配置、路径和 UTF-8 预算检查完成后一次发布新源码修订；非文本文件的路径、角色、SHA 和字节集合必须保持不变。文本单文件最多4 MiB，文本与 manifest 合计最多16 MiB，最多256个文本文件，HTTP JSON最多32 MiB。原源码入口提交字节无变化时保留原草稿修订和最近编译摘要。
 
 包文本保存保持草稿的 SDK profile，不能通过清单降级。SDK2 包文本变更同样只推进最新修订；附带配置仍以原在用源码验证和保存，采用新包修订须经成功编译门禁。SDK1 保持原子迁移配置到新包的行为。纯资源包无需 C# 编译。
 
 `GET /api/v1/drafts/{id}/source-revisions` 在精确草稿修订下按仍保留的源码包修订返回有界历史页。每项可带保存时间和该源码修订的编译摘要；旧草稿无法证明保存时间时省略 `savedAtUtc`，未知或已清理游标返回404。`GET /api/v1/drafts/{id}/package` 与 `GET /api/v1/script-configurations/{id}/package` 分别按精确草稿/库修订返回认证 `.mkfx` 流；服务全局最多同时保留2个下载槽位，超额429；每次下载30秒期限，流关闭、断开或宿主停止释放临时归档和槽位。此入口仅支持完整 GET，不承诺 Range、HEAD 或条件304；返回 `Content-Disposition`、归档 SHA-256 ETag、长度及 `Cache-Control: no-store`。stale revision、owner ACL 和包结构错误在响应体开始前返回。
 
-`POST /api/v1/drafts/{id}/compilation-jobs` 可选 `sourceRevision`，仅接受该草稿保留的源码修订；省略或 null 绑定接受时的最新修订。服务独立执行脚本编译，真实 DLL 入口须符合包 SDK 身份，并返回完整诊断；编译失败是可读取的诊断结果，不改变源码修订。编译诊断最多256项且完整UTF-8回执最多48KiB，超限整次拒绝并保留原草稿状态。`POST /api/v1/drafts/{id}/adopt-source-revision` 同样要求精确草稿修订，显式选择已固定且导出身份有效的源码修订。SDK2 C# 目标要求此草稿历史中该精确源码的成功编译，未满足则返回 `commandRejected/AuthorSourceCompilationRequired`，纯资源包和 SDK1 保持原行为；成功返回实际前后在用修订身份。
+`POST /api/v1/drafts/{id}/compilation-jobs` 可选 `sourceRevision`，仅接受该草稿保留的源码修订；省略或 null 绑定接受时的最新修订。服务先对固定包的全部 SVG 执行正式静态语义与图片闭包校验（不创建 native Picture／GPU 资源），再独立执行脚本编译，真实 DLL 入口须符合包 SDK 身份，并返回完整诊断；编译失败是可读取的诊断结果，不改变源码修订。SVG 校验失败沿同一报告返回精确资源错误码与包内逻辑路径，行列为 0、artifactHash 为 `none`；不会编译部分 C# 或静默使用旧产物。包文件保存仍只验证结构与资源描述，允许保存可修复的无效 SVG 正文；修复文本生成新源码修订后须重新编译。编译诊断最多256项且完整UTF-8回执最多48KiB，超限整次拒绝并保留原草稿状态。`POST /api/v1/drafts/{id}/adopt-source-revision` 同样要求精确草稿修订，显式选择已固定且导出身份有效的源码修订。SDK2 C# 目标要求此草稿历史中该精确源码的成功编译，未满足则返回 `commandRejected/AuthorSourceCompilationRequired`，纯资源包和 SDK1 保持原行为；成功返回实际前后在用修订身份。
 
 **0.110.3 编译缓存：** 作者编译使用当前 profile 的 `script-artifacts` 内容地址缓存。同键并发请求共享编译，
 各调用者独立取消；失败编译不发布可运行产物。缓存身份包括源码、入口、编译选项、编译器、SDK、
@@ -1521,7 +1521,7 @@ shader、图像、图、材质和作者运行诊断仍在原执行边界校验�
 
 `DELETE /api/v1/drafts/{id}` 必须携带 `AuthorDraftDeleteRequest` 的精确 `expectedDraftRevision` 和metadata。成功返回 `AuthorDraftDeleteResponse`（200），删除草稿状态及其固定包，并释放客户端作者草稿的存储与回收保护；修订冲突返回409，跨客户端读取仍为401 `resourceUnauthorized`。删除是显式操作，不会自动修改个人模板库或工程历史；同一metadata重试返回原回执。
 
-`POST /api/v1/drafts/{id}/compilation-jobs` 可选 `executionMode:"async"` 返回 `202` 与普通 `JobResponse`；省略该字段或显式 `sync` 保持原同步 `200` 回执。异步任务在接受时固定 `draftId`、`draftRevision` 和所选 `sourceRevision`，沿用现有任务状态、事件/SSE、取消、保留期、客户端授权及前一宿主账本。`GET /api/v1/jobs/{id}/compilation-result` 只返回该任务固定源码修订的完整 `AuthorCompilationResponse`；草稿之后的源码或配置修订不会覆盖它。任务结果发布时 `stale` 比较其固定源与当时草稿最新源码，结果保留后不追改；草稿读取则相对当前最新源码计算 `stale`。草稿在任务期间改变时不覆盖最新编译摘要，但仍按原源码修订保存历史编译记录。任务进入提交阶段后取消按既有 `operationNotCancellable` 语义处理；取消、停止或重启造成的无结果终态从普通 job 查询读取，不能用空诊断伪造编译成功。N10只读取当前宿主的live job结果；sidecar与账本持久化不构成公开的编译结果恢复路由。
+`POST /api/v1/drafts/{id}/compilation-jobs` 可选 `executionMode:"async"` 返回 `202` 与普通 `JobResponse`；省略该字段或显式 `sync` 保持原同步 `200` 回执。异步任务在接受时固定 `draftId`、`draftRevision` 和所选 `sourceRevision`，沿用现有任务状态、事件/SSE、取消、保留期、客户端授权及前一宿主账本。`GET /api/v1/jobs/{id}/compilation-result` 只返回该任务固定源码修订的完整 `AuthorCompilationResponse`；异步任务成功产出失败编译报告时，job 仍为 `succeeded`，报告内 `succeeded:false` 才是编译失败事实；草稿之后的源码或配置修订不会覆盖它。任务结果发布时 `stale` 比较其固定源与当时草稿最新源码，结果保留后不追改；草稿读取则相对当前最新源码计算 `stale`。草稿在任务期间改变时不覆盖最新编译摘要，但仍按原源码修订保存历史编译记录。任务进入提交阶段后取消按既有 `operationNotCancellable` 语义处理；取消、停止或重启造成的无结果终态从普通 job 查询读取，不能用空诊断伪造编译成功。N10只读取当前宿主的live job结果；sidecar与账本持久化不构成公开的编译结果恢复路由。
 
 E14 authorDraft 预览复用既有 preview-sessions、帧、诊断与 close 生命周期。source 形状为 kind=authorDraft、sourceId=草稿ID、sourceRevision=草稿修订、authorSourceRevision=固定配置源码修订，并携带 templateSample 的 sampleId/targetKey/materialSlot；创建请求需 previewKind=authorDraft 且 committable=false，PUT input 保持同一draft ID，可更新draft/source修订及sample/target/materialSlot，并沿generation发布新的固定输入。N11/E15 的验证任务固定 640×360、30fps、12秒、360帧/输出；JobResponse 与报告分别回显草稿/源码/试样身份，sourceKind=authorDraft、sourceProfile=author-script-sample-v1。
 
@@ -1798,3 +1798,31 @@ BirthIndex。连续出生对原始 IEEE-754 速率作精确有理数积分和整
 
 业务终态仍从现有 preview／job 状态和完整诊断读取；HTTP 接收成功、合成样例通过或有限工具完成
 均不能替代真实帧／任务完成。取消继续沿 `OperationCanceledException` 和原任务取消语义传播。
+
+
+<a id="sdk2-m09-svg-warp"></a>
+## 27. SDK2 M09 Warp 与固定 SVG（0.112.8／合同1.45.0）
+
+正式准入 `token.warp`、`cluster.warp`、`mark.warp`、`visuals.paths`、
+`resources.svg.vector`、`resources.svg.atlas`。Warp 沿唯一文字映射同时作用于几何、
+最终锚点及像素；SVG vector 使用 `PathBatch`，atlas 使用 `AtlasSpriteBatch`，
+后者同时需要既有 `visuals.sprites`。两者声明为 controller 的 `Overlay/canvas`，
+绘制和资源 capability 均需声明。句柄固定包修订与 atlas variant，不接受跨修订句柄。
+
+SVG 的 `svgResourceVersion:1`、`mako-svg-static-1/grammar-2` 采用受控内存闭包。
+外部 URI、脚本、动画、文字／机器字体、未知语法和未声明图片均具名拒绝；
+clipPath 仅允许直接形状，clip 内 g/symbol/use 明确拒绝。包图片和 data 图片完整解码，
+图片、展开命令、filter、atlas padding/mip 和共享表面均计预算。
+固定 Picture／独立 atlas 页与 GPU 纹理按会话持有，渲染只借用；关闭与失败按资源所有权释放。
+半透明 tint 作用于整体矢量结果，atlas 使用完整仿射、独立 padding 页与 mip 采样。
+取消不转译成脚本错误，运行失败保留真实实例、包修订、导出与阶段。
+
+作者完整包文本读取／保存扩展详见§21.5。保存允许保留可修复的无效 SVG 正文，
+但正式同步／异步编译先验证全部 SVG，失败返回资源代码与包内路径，产物为 `none`。
+修复后生成新源码修订，必须重新编译并显式采用；历史失败报告和在用修订不被覆盖。
+该静态校验不创建 Picture 或 GPU 纹理，不替代实际 GPU 会话准备和像素验收。
+资源读模型把 svg/svgResource 识别为受支持角色，未知 role 仍标为 unsupported。
+
+本节未新增 HTTP 入口或 DTO。原浏览器静态预览协议、500ms 控制节奏和 v1 行为保持。
+图绑定、Base 材质、完整组调度、媒体轨和九样例仍按阶段计划单独验收；
+当前前端 C# 源码页的完整包文本编辑另行接线，不能把 HTTP 可编辑记为浏览器已可用。

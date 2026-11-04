@@ -108,8 +108,13 @@ public sealed class VisualOverlayRenderingTests
         await using var session = await VisualTestFixture.Pure([await VisualTestFixture.Definition(mode, "PureDots")]).CreateAsync(snapshot);
         var frame = await session.PrepareAsync(18_001, Fx.OutputMode.Transparent, VisualTestFixture.Target(snapshot));
         using SkiaRenderPipeline renderer = new();
-        Assert.Equal("UnsupportedNativeOverlay", Assert.Throws<PreparedFrameException>(() => renderer.Render(RenderRequest.At(snapshot, frame.TimeUs)
-            with { PreparedFrame = frame, TransparentBackground = true })).Code);
+        var error = Assert.Throws<EffectFailureException>(() => renderer.Render(RenderRequest.At(snapshot, frame.TimeUs)
+            with { PreparedFrame = frame, TransparentBackground = true }));
+        Assert.Equal("UnsupportedNativeOverlay", error.Code);
+        var owner = Assert.Single(frame.OverlayOwners);
+        Assert.Equal(owner.InstanceId, error.InstanceId); Assert.Equal(owner.ArtifactHash, error.ArtifactHash);
+        Assert.Equal("RenderOverlays", error.Stage); Assert.Equal(frame.TimeUs, error.TimeUs);
+        Assert.Equal(error.Code, Assert.IsType<PreparedFrameException>(error.InnerException).Code);
     }
     [Fact]
     public void 准备视觉输出保留文字闭包并拒绝伪造重复批次与Error诊断()

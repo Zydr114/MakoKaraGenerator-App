@@ -43,6 +43,7 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
     private readonly ImageSurfaceBudgetSession _surfaceBudget;
     private readonly bool _ownsSurfaceBudget;
     private readonly SceneImageEffectResources? _imageEffects;
+    private readonly SceneSvgEffectResources? _svgEffects;
     private readonly ISkiaRenderDevice _device;
     private readonly SkiaRenderDeviceLifetime? _deviceLifetime;
     private readonly SceneSpriteProgram? _spriteProgram;
@@ -69,12 +70,13 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
 
     /// <summary>创建借用帧外固定图资源的生产管线；资源集合由调用方在管线后释放。</summary>
     public SkiaRenderPipeline(SkiaTextLayoutEngine? layoutEngine, IBackgroundFrameSourceResolver? backgroundResolver,
-        ImageSurfaceBudgetSession? surfaceBudget, SceneImageEffectResources? imageEffects, bool ownsLayoutEngine = false)
-        : this(layoutEngine, backgroundResolver, surfaceBudget, imageEffects, ownsLayoutEngine, null, true) { }
+        ImageSurfaceBudgetSession? surfaceBudget, SceneImageEffectResources? imageEffects, bool ownsLayoutEngine = false,
+        SceneSvgEffectResources? svgEffects = null)
+        : this(layoutEngine, backgroundResolver, surfaceBudget, imageEffects, ownsLayoutEngine, null, true, svgEffects: svgEffects) { }
 
     internal SkiaRenderPipeline(SkiaTextLayoutEngine? layoutEngine, IBackgroundFrameSourceResolver? backgroundResolver,
         ImageSurfaceBudgetSession? surfaceBudget, SceneImageEffectResources? imageEffects, bool ownsLayoutEngine,
-        ISkiaRenderDevice? device, bool ownsDevice, LayoutCache? layouts = null)
+        ISkiaRenderDevice? device, bool ownsDevice, LayoutCache? layouts = null, SceneSvgEffectResources? svgEffects = null)
     {
         // Create the shared device before allocating any other native resource. A failed
         // explicit Vulkan initialization therefore cannot leak the layout engine or budget.
@@ -83,6 +85,7 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
         _ownsLayoutEngine = layoutEngine is null || ownsLayoutEngine;
         _ownsSurfaceBudget = surfaceBudget is null;
         _imageEffects = imageEffects;
+        _svgEffects = svgEffects;
         _layouts = layouts ?? new();
         _ownsLayouts = layouts is null;
         SkiaTextLayoutEngine? initializedLayout = null;
@@ -183,7 +186,7 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
             throw new InvalidOperationException($"渲染目标尺寸非法：{target.PixelWidth}×{target.PixelHeight}。");
         }
 
-        using var srgb = request.PreparedFrame is { } colorFrame && (!colorFrame.Materials.IsEmpty || !colorFrame.ImageEffects.IsEmpty || !colorFrame.GroupOpacities.IsEmpty || colorFrame.OverlayBatches.OfType<Scripting.SpriteBatch>().Any(batch => !batch.Sprites.IsEmpty)) ? SKColorSpace.CreateSrgb() : null;
+        using var srgb = request.PreparedFrame is { } colorFrame && (!colorFrame.Materials.IsEmpty || !colorFrame.ImageEffects.IsEmpty || !colorFrame.GroupOpacities.IsEmpty || colorFrame.OverlayBatches.Any(batch => batch.ItemCount > 0 && (batch is Scripting.SpriteBatch or Scripting.PathBatch or Scripting.AtlasSpriteBatch))) ? SKColorSpace.CreateSrgb() : null;
         SKImageInfo info = new(target.PixelWidth, target.PixelHeight, SKColorType.Bgra8888, SKAlphaType.Premul, srgb);
         ImmutableArray<RenderImageEffectDiagnostic> imageDiagnostics = [];
         ImmutableArray<RenderMaterialDiagnostic> materialDiagnostics = [];
@@ -214,14 +217,17 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
 
             using var frameResources = _surfaceBudget.BeginFrame();
             using var spriteImages = BorrowSpriteImages(request, frameResources);
-            DrawOverlays(canvas, request, Scripting.OverlayLayer.BehindText);
+            using var svgInputs = BorrowSvgInputs(request, frameResources);
+            var svgWork = new SvgRenderWorkBudget(_svgEffects?.MaximumFrameOperations ?? 200_000,
+                _svgEffects?.MaximumFrameFilterBytes ?? 128L * 1024 * 1024);
+            DrawOverlays(canvas, request, Scripting.OverlayLayer.BehindText, frameResources, svgWork);
             if (request.PreparedFrame is { } preparedScene && (!preparedScene.Materials.IsEmpty || !preparedScene.ImageEffects.IsEmpty || !preparedScene.GroupOpacities.IsEmpty))
             {
                 imageDiagnostics = DrawImageEffectScene(surface, request, frameResources, out var drawingDiagnostics, out materialDiagnostics);
                 sceneDiagnostics = sceneDiagnostics.Append(drawingDiagnostics);
             }
             else DrawLyrics(canvas, request, composition, measuredScene, frameResources);
-            DrawOverlays(canvas, request, Scripting.OverlayLayer.AboveText);
+            DrawOverlays(canvas, request, Scripting.OverlayLayer.AboveText, frameResources, svgWork);
 
             canvas.Restore();
             return output(surface, info, target, new(materialDiagnostics, imageDiagnostics, sceneDiagnostics));

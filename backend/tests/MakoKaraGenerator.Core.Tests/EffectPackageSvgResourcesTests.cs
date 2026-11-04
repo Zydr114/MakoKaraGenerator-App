@@ -29,15 +29,14 @@ public sealed class EffectPackageSvgResourcesTests
     }
 
     [Fact]
-    public void 静态描述验证不授予SVG执行能力且Definition返回前仍拒绝pending能力()
+    public void SVG能力准入后Definition保留全部描述而静态验证仍由编译边界执行()
     {
         var contents = Create(Files());
         Assert.Equal(2, EffectPackageSvgResources.Read(contents).ById.Count);
-        Assert.DoesNotContain(EffectPackageSvgResources.VectorCapability, EffectPackageProfiles.SupportedV2Capabilities);
-        Assert.DoesNotContain(EffectPackageSvgResources.AtlasCapability, EffectPackageProfiles.SupportedV2Capabilities);
-        var error = Assert.Throws<EffectPackageException>(() => EffectPackageDefinition.Read(contents));
-        Assert.Equal("PackageCapabilityUnsupported", error.Code);
-        Assert.Contains("resources.svg.", error.Message, StringComparison.Ordinal);
+        Assert.Contains(EffectPackageSvgResources.VectorCapability, EffectPackageProfiles.SupportedV2Capabilities);
+        Assert.Contains(EffectPackageSvgResources.AtlasCapability, EffectPackageProfiles.SupportedV2Capabilities);
+        Assert.Contains("visuals.paths", EffectPackageProfiles.SupportedV2Capabilities);
+        Assert.Equal(2, EffectPackageDefinition.Read(contents).SvgResources.ById.Count);
         Assert.Empty(EffectPackageDefinition.Read(SdkV2PackageFixture.Contents()).SvgResources.ById);
         Assert.Empty(EffectPackageDefinition.Read(EffectPackageFixture.Contents()).SvgResources.ById);
     }

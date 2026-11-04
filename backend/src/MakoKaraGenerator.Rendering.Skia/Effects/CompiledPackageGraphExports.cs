@@ -31,6 +31,8 @@ public sealed partial class CompiledPackageGraphExports : IDisposable
         ISkiaRenderDevice? device, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(definition); cancellationToken.ThrowIfCancellationRequested();
+        if (!definition.SvgResources.ById.IsEmpty)
+            PackageSvgValidation.Validate(definition.Contents, definition.SvgResources, new PackageSvgValidator(), cancellationToken);
         new PackageShaderValidator().Validate(definition.ShaderPrograms, cancellationToken);
         new PackageMaterialValidator().Validate(definition.Materials, cancellationToken);
         var images = device is null

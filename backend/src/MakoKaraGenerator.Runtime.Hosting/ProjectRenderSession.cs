@@ -6,7 +6,8 @@ namespace MakoKaraGenerator.Runtime.Hosting;
 
 internal sealed class ProjectRenderSession(ProjectSnapshot snapshot, SkiaRenderPipeline renderer, IEvaluatedFrameSource? source,
     SceneImageEffectResources? resources, IReadOnlyList<CompiledPackageGraphExports> natives, IReadOnlyList<SkiaGraphSurface> inputs,
-    ImageSurfaceBudgetSession? budget, IDisposable? fixedImages, ISkiaRenderDevice? device = null, bool enableGpuPreviewBenchmark = false) : IGpuRenderFrameSession, ISceneMeasurementSession
+    ImageSurfaceBudgetSession? budget, IDisposable? fixedImages, ISkiaRenderDevice? device = null, bool enableGpuPreviewBenchmark = false,
+    SceneSvgEffectResources? svgResources = null, IReadOnlyList<PackageSvgResources>? svgOwners = null) : IGpuRenderFrameSession, ISceneMeasurementSession
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly string _telemetrySession = Guid.NewGuid().ToString("N");
@@ -139,14 +140,15 @@ internal sealed class ProjectRenderSession(ProjectSnapshot snapshot, SkiaRenderP
         try
         {
             if (_disposed) return; _disposed = true;
-            await ReleaseAsync(source, renderer, resources, fixedImages, inputs, natives, budget, device).ConfigureAwait(false);
+            await ReleaseAsync(source, renderer, resources, fixedImages, inputs, natives, budget, device, svgResources, svgOwners).ConfigureAwait(false);
         }
         finally { _gate.Release(); }
     }
 
     internal static async ValueTask ReleaseAsync(IEvaluatedFrameSource? source, SkiaRenderPipeline? renderer,
         SceneImageEffectResources? resources, IDisposable? fixedImages, IReadOnlyList<SkiaGraphSurface> inputs,
-        IReadOnlyList<CompiledPackageGraphExports> natives, ImageSurfaceBudgetSession? budget, ISkiaRenderDevice? device = null)
+        IReadOnlyList<CompiledPackageGraphExports> natives, ImageSurfaceBudgetSession? budget, ISkiaRenderDevice? device = null,
+        SceneSvgEffectResources? svgResources = null, IReadOnlyList<PackageSvgResources>? svgOwners = null)
     {
         List<Exception> failures = [];
         try { if (source is not null) await source.DisposeAsync().ConfigureAwait(false); }
@@ -155,7 +157,9 @@ internal sealed class ProjectRenderSession(ProjectSnapshot snapshot, SkiaRenderP
         // Every synchronous shared-device owner is retired under its same gate.
         lock (device?.SynchronizationRoot ?? new object())
         {
-            Release(renderer); Release(resources); Release(fixedImages);
+            Release(renderer); Release(svgResources);
+            if (svgOwners is not null) foreach (var svg in svgOwners.Reverse()) Release(svg);
+            Release(resources); Release(fixedImages);
             foreach (var input in inputs) Release(input);
             foreach (var native in natives) Release(native);
             Release(budget);

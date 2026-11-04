@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace MakoKaraGenerator.Backend.Contracts;
 
-/// <summary>固定包文件描述；只有明确可编辑的文本 role 返回 text。</summary>
+/// <summary>固定包文件描述；csharp/shader/shaderProgram/graph/svg/svgResource 文本 role 返回 editable=true 和 text。</summary>
 public sealed record AuthorPackageFileDto(
     string Path,
     string Role,

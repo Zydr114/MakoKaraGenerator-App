@@ -124,9 +124,47 @@ SDK 增加 VectorHandle／SpriteHandle、PathBatch／AtlasSpriteBatch、固定�
 基础用例中的默认 GPU 测试会在未设置环境变量时提前返回，故 CPU 数量不能单独作为 GPU 证据。
 此切片还未接生产 typed overlay 分派／Runtime.Hosting，因此 SVG capability 保持关闭。
 
+## SVG 运行与作者编译接线（产品 0.112.8）
+
+正式开放 `visuals.paths`、`resources.svg.vector`、`resources.svg.atlas`。typed handle 固定
+包修订／档位；Runtime.Hosting 先持普通图片，再准备 SVG owner 与 scene leases，并把全部
+资源纳入同一 session/frame 预算。所有编译入口在发布目录前校验完整 inspection 与资源闭包。
+vector 整体 tint、atlas 完整 affine/mip 采样及后端 float 矩阵检查进入真实 Overlay 分派。
+绘制／准备失败保留真实 owner，取消原样传播，释放顺序在设备锁内完成。
+
+作者完整包编辑识别 `svg/svgResource`，要求完整文本集合和精确草稿 CAS。编译前验证全部
+SVG 正文，失败回执保留具体 code/path、artifactHash=none；异步 job 成功产生失败报告时
+job 为 succeeded 而报告 succeeded=false。修复生成新 source revision；编译不自动采用。
+资源读模型同时识别这两种角色，未知角色仍 unsupported，固定二进制字节不被改写。
+
+本地证据仍为 `.local/script-sdk-m09-20261105/`：
+
+- `svg-runtime-admission-red-02.log`：能力关闭时17失败／1通过；开放能力后
+  `svg-runtime-admission-green-02.log` **18/18**，显式 `MAKO_GPU_SMOKE=1`。
+  真实 v3 包覆盖四类 SVG×vector/atlas、乱序／重复／远时刻／Export reason 重开、取消恢复、
+  revision 双会话隔离、tint、native 失败真实 owner、CPU 拒绝／disabled、准备预算失败恢复。
+- `svg-integration-vulkan-03.log` **19/19**，显式 Vulkan；alpha≤2，预乘通道差≤2/255。
+  最初 fixture 在歌词上叠 tint、mip采样矩阵谐振导致失败，分别改为空歌词场景与非谐振矩阵；
+  未为这两项改生产绘制或放宽像素断言。原失败保留于 `svg-overlay-validation-01.log`、
+  `svg-overlay-vulkan-01.log`。
+- `svg-author-workflow-red-01.log` 新增10项全部失败；补 editable/closure role 后
+  `svg-author-workflow-green-01.log` **10/10**。包含vector/atlas×sync/async真实编译、
+  保存冲突、坏SVG诊断、历史源隔离、修复编译、缺完整文本拒绝、下载二进制不变及未知role拒绝。
+- `rendering-svg-integration-full-01.log` 1517通过／2失败：已有坐标错误现在携带真实owner外层。
+  旧断言更新为同时检查 EffectFailureException 的实例／产物／阶段／时间和内部原始错误码；
+  `rendering-svg-integration-full-02.log` **1519/1519**。
+- `build-svg-integration-final-01.log` 全解决方案 **0警告／0错误**；
+  `core-svg-integration-full-01.log` **1471/1471**；
+  `scripting-svg-integration-full-01.log` **492/492**；
+  `runtime-svg-integration-full-01.log` **153/153**；
+  `backend-svg-author-regression-01.log` **41/41**。
+  默认 Runtime/Rendering 数量不代表GPU执行，以上两个显式GPU记录单独归属。
+
+该切片测试证明包运行与宿主作者链；匹配发布、fresh HTTP、工程导出和前端包编辑继续独立验收。
+性能门槛按用户要求暂停，不据此声称性能通过。
+
 ## 未完成项
 
-- Warp 导出、HTTP 及作者工作流；真实包准入和像素接缝的有限证据见上。
-- SVG typed overlay／Runtime.Hosting 接入、完整 affine 与真实作者包；native／SDK 基础证据见上。
-- v2 graph／运行时 Transform 绑定、组图调度与 BackdropBelow。
+- Warp／SVG 的实际 HTTP、工程导出和浏览器完整作者工作流。
+- v2 graph／运行时 Transform 绑定、Base 材质、组图调度与 BackdropBelow。
 - M09 的匹配合同／发布／fresh HTTP；M10 和 M11 尚未关闭。

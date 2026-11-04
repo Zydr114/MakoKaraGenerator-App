@@ -1,3 +1,4 @@
+using MakoKaraGenerator.Core.Effects;
 using SkiaSharp;
 using Fx = MakoKaraGenerator.Scripting;
 
@@ -22,7 +23,7 @@ public sealed partial class SkiaRenderPipeline
         if ((float)source.Right <= (float)source.Left || (float)source.Bottom <= (float)source.Top)
             throw new PreparedFrameException("UnsupportedNativeOverlay", "精灵裁片低于后端精度，不能静默绘制空图。");
     }
-    private static T SpriteOperation<T>(PreparedRenderFrame frame, Fx.SpriteBatch batch, Func<T> action)
+    private static T OverlayOperation<T>(PreparedRenderFrame frame, Fx.OverlayBatch batch, string operation, Func<T> action)
     {
         try { return action(); }
         catch (OperationCanceledException) { throw; }
@@ -32,11 +33,11 @@ public sealed partial class SkiaRenderPipeline
             var owner = frame.OverlayOwners.SingleOrDefault(owner => owner.InstanceId == batch.InstanceId);
             if (owner is null) throw;
             string code = error switch { PreparedFrameException prepared => prepared.Code, ImageSurfaceBudgetException budget => budget.Code,
-                ShaderProgramException shader => shader.Code, _ => "SpriteRenderFailed" };
+                ShaderProgramException shader => shader.Code, EffectPackageException package => package.Code, _ => operation + "RenderFailed" };
             throw owner.Failure(frame.TimeUs, code, error);
         }
     }
-    private SpriteImageLeases BorrowSpriteImages(RenderRequest request, ImageSurfaceBudgetFrame resources)
+    private OverlayImageLeases BorrowSpriteImages(RenderRequest request, ImageSurfaceBudgetFrame resources)
     {
         List<IDisposable> leases = [];
         try
@@ -45,9 +46,9 @@ public sealed partial class SkiaRenderPipeline
                 foreach (var batch in frame.OverlayBatches.OfType<Fx.SpriteBatch>())
                 {
                     request.CancellationToken.ThrowIfCancellationRequested();
-                    leases.Add(SpriteOperation(frame, batch, () => resources.BorrowInputs(batch.Sprites.Select(SpriteImage))));
+                    leases.Add(OverlayOperation(frame, batch, "Sprite", () => resources.BorrowInputs(batch.Sprites.Select(SpriteImage))));
                 }
-            return new SpriteImageLeases(leases);
+            return new OverlayImageLeases(leases);
         }
         catch { foreach (var lease in leases) lease.Dispose(); throw; }
     }
@@ -77,7 +78,7 @@ public sealed partial class SkiaRenderPipeline
             finally { raster?.Dispose(); }
         }
     }
-    private sealed class SpriteImageLeases(List<IDisposable> leases) : IDisposable
+    private sealed class OverlayImageLeases(List<IDisposable> leases) : IDisposable
     {
         public void Dispose() { foreach (var lease in leases) lease.Dispose(); }
     }

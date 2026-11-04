@@ -77,7 +77,7 @@ public sealed partial class ProjectSessionRegistry
         { return AuthorReject<AuthorPackageFilesResponse>(BackendErrorCode.ProjectLoadFailed, "作者草稿固定包无法读取。", "sourceRevision", "AuthorDraftStorageFailed"); }
     }
 
-    /// <summary>原子保存完整清单与 csharp/shader/shaderProgram/graph 文本，检查结构与配置后才发布新修订。</summary>
+    /// <summary>原子保存完整清单与 csharp/shader/shaderProgram/graph/svg/svgResource 文本，检查结构与配置后才发布新修订。</summary>
     public Task<BackendOperationResult<AuthorDraftResponse>> SaveAuthorPackageFilesAsync(string clientId, string draftId,
         AuthorPackageFilesRequest request, CancellationToken cancellationToken = default)
     {
@@ -215,7 +215,7 @@ public sealed partial class ProjectSessionRegistry
         }, cancellationToken);
     }
 
-    private static bool IsEditableAuthorRole(string role) => role is "csharp" or "shader" or "shaderProgram" or "graph";
+    private static bool IsEditableAuthorRole(string role) => role is "csharp" or "shader" or "shaderProgram" or "graph" or "svg" or "svgResource";
 
     private static void EnsureUniqueAuthorPackageProperties(JsonElement value)
     {

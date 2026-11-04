@@ -375,3 +375,12 @@ atlas tier 超预算、无 mip 或相邻 tile 低 LOD 串色、device 丢失、�
 
 未执行：依赖恢复、NuGet 内容签名／最终传递版本检查、许可证 notice 产物、SVG 实编、图片／
 字体／filter 像素、内存／取消、mipmap 或设备上传测量。以上各项须作为实现与验收工作单保留。
+
+
+## 2026-11-05 运行切片落实
+
+产品0.112.8正式开放visuals.paths/resources.svg.vector/resources.svg.atlas；
+Scene资源、真实包运行、完整affine/tint/mip、共享预算与owner已接通。
+作者包文件入口及资源闭包读模型补入svg/svgResource，全部SVG在作者编译前校验。
+本文早期“当前源码”表为调研时快照；实现与当前证据以[M09记录](script-sdk-render-m09-evidence.md)为准。
+前端完整包编辑、HTTP／工程导出尚待独立验收，静态SVG profile不支持文字的边界保持。

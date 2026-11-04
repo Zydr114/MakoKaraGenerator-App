@@ -164,3 +164,12 @@ CPU 生产 v2 仍拒绝。完整证据及未关闭项见 [M09 记录](script-sdk
 租约和共享帧字节账已实现。解析前瞻、裁剪孔洞与作者吞预算异常均有先失败后通过的回归。
 本切片不开放 SVG capability；实际渲染消费者、组合根和作者包接线继续实施。详细日志与
 CPU／Vulkan 证据边界见 [M09 记录](script-sdk-render-m09-evidence.md)。
+
+### M09 SVG 运行及作者编译接线（产品 0.112.8）
+
+SVG 的三项 capability 已正式开放。完整闭包准入、Scene 租约、实际vector/atlas绘制、
+整体tint、完整affine、GPU mip采样、预算和真实失败归属已接通；作者包文本的svg/svgResource
+可按CAS保存，坏正文在编译前返回资源code/path，修复后仍须编译并显式采用。
+完整构建0警告／0错误，Rendering1519、Core1471、Scripting492、RuntimeHosting153、
+Backend作者41通过；显式Vulkan图元19／真实包18通过，详见[M09证据](script-sdk-render-m09-evidence.md)。
+当前前端仅C#编辑；完整包文本UI、fresh HTTP与工程导出在后续切片验收，M09未关闭。

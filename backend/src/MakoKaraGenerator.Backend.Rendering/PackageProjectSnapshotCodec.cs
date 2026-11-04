@@ -76,7 +76,7 @@ public static class PackageProjectSnapshotCodec
 
     /// <summary>当前资源读模型能够识别的包文件 role；未知 role 仍保留并标为 unsupported。</summary>
     public static IReadOnlySet<string> SupportedResourceRoles { get; } = new HashSet<string>([
-        "asset", "csharp", "graph", "image", "shader", "shaderProgram"], StringComparer.Ordinal);
+        "asset", "csharp", "graph", "image", "shader", "shaderProgram", "svg", "svgResource"], StringComparer.Ordinal);
 
     private static T Guard<T>(Func<T> operation)
     {

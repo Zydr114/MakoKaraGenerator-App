@@ -27,6 +27,7 @@ public sealed class ProjectRenderSessionFactory(IScriptCompilationService compil
     private async Task<IRenderFrameSession> CreateCoreAsync(ProjectSnapshot snapshot, CancellationToken token)
     {
         List<CompiledPackageGraphExports> natives = []; List<SkiaGraphSurface> inputs = [];
+        List<PackageSvgResources> svgOwners = []; SceneSvgEffectResources? svgResources = null;
         SceneImageEffectResources? resources = null; IEvaluatedFrameSource? source = null;
         IBackgroundFrameSourceResolver? resolver = null; SkiaRenderPipeline? renderer = null;
         ImageSurfaceBudgetSession? budget = null; IDisposable? fixedImages = null;
@@ -48,7 +49,7 @@ public sealed class ProjectRenderSessionFactory(IScriptCompilationService compil
             SkiaRenderPipeline.LayoutCache layouts = new();
             SkiaRenderPipeline Renderer(IBackgroundFrameSourceResolver? background = null, ImageSurfaceBudgetSession? surfaces = null,
                 SceneImageEffectResources? images = null) => new(fonts.Length == 0 ? null : new SkiaTextLayoutEngine(fonts),
-                    background, surfaces, images, ownsLayoutEngine: fonts.Length != 0, device, ownsDevice: false, layouts);
+                    background, surfaces, images, ownsLayoutEngine: fonts.Length != 0, device, ownsDevice: false, layouts, svgResources);
             resolver = backgroundResolverFactory is null ? new BackgroundFrameSourceResolver(videos)
                 : backgroundResolverFactory() ?? throw new InvalidOperationException("背景解析器工厂不能返回空值。");
             token.ThrowIfCancellationRequested();
@@ -59,7 +60,7 @@ public sealed class ProjectRenderSessionFactory(IScriptCompilationService compil
                 return new ProjectRenderSession(snapshot, renderer, null, null, [], [], null, null, device, enableGpuPreviewBenchmark);
             }
             var compiled = await CompiledProjectEffects.CompileAsync(snapshot, compiler, new PackageImageValidator(), new PackageShaderValidator(),
-                new PackageImageGraphValidator(), new PackageMaterialValidator(), token).ConfigureAwait(false);
+                new PackageImageGraphValidator(), new PackageMaterialValidator(), new PackageSvgValidator(), token).ConfigureAwait(false);
             if (!compiled.Succeeded)
                 throw new ProjectEffectCompilationException(compiled);
             budget = new(compiled.GraphBudget);
@@ -110,18 +111,29 @@ public sealed class ProjectRenderSessionFactory(IScriptCompilationService compil
             }
             resources = new(graphs, images, materials, materialImages, spriteImages);
             fixedImages = budget.HoldFixedImages(inputs);
+            // Existing role:image storage is registered first. SVG borrows the exact
+            // same decoded image and session allocation; data images remain SVG-owned.
+            for (int index = 0; index < compiled.Packages.Length; index++)
+            {
+                token.ThrowIfCancellationRequested();
+                var definition = compiled.Packages[index].Definition;
+                if (definition.SvgResources.ById.IsEmpty) continue;
+                svgOwners.Add(PackageSvgResources.LoadWithDevice(definition.Contents, definition.SvgResources,
+                    SvgResourceBudget.Default, device, budget, natives[index].Images, token));
+            }
+            if (svgOwners.Count != 0) svgResources = new(svgOwners, device);
             source = await compiled.CreateFactory(() => layoutReference || editingLineId is not null
                 ? new MeasurementGeometryProvider(Renderer(), layoutReference, editingLineId, editingCueId)
                 : Renderer(), reason).CreateAsync(snapshot, token).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
             renderer = Renderer(resolver, budget, resources);
             token.ThrowIfCancellationRequested();
-            return new ProjectRenderSession(snapshot, renderer, source, resources, natives, inputs, budget, fixedImages, device, enableGpuPreviewBenchmark);
+            return new ProjectRenderSession(snapshot, renderer, source, resources, natives, inputs, budget, fixedImages, device, enableGpuPreviewBenchmark, svgResources, svgOwners);
         }
         catch (Exception error)
         {
             List<Exception> cleanupFailures = [];
-            try { await ProjectRenderSession.ReleaseAsync(source, renderer, resources, fixedImages, inputs, natives, budget, device).ConfigureAwait(false); }
+            try { await ProjectRenderSession.ReleaseAsync(source, renderer, resources, fixedImages, inputs, natives, budget, device, svgResources, svgOwners).ConfigureAwait(false); }
             catch (Exception cleanup) { cleanupFailures.Add(cleanup); }
             // A successfully created pipeline owns its resolver. Before that transfer,
             // including compiler failure and cancellation, this method owns it.

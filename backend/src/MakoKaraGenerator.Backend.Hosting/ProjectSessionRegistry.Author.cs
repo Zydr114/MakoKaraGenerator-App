@@ -337,6 +337,7 @@ public sealed partial class ProjectSessionRegistry
             bool succeeded;
             try
             {
+                await PackageAuthorResourceValidator.ValidateSvgAsync(package, _authorStop?.Token ?? CancellationToken.None).ConfigureAwait(false);
                 EffectPackageDefinition definition = EffectPackageDefinition.Read(package, _authorStop?.Token ?? CancellationToken.None);
                 ScriptCompilationResult result = await _authorCompiler.CompileAsync(EffectPackageSources.Read(package),
                     definition.Controllers.Select(controller => controller.EntryType), _authorStop?.Token ?? CancellationToken.None).ConfigureAwait(false);
@@ -463,6 +464,7 @@ public sealed partial class ProjectSessionRegistry
         bool succeeded;
         try
         {
+            await PackageAuthorResourceValidator.ValidateSvgAsync(package, cancellationToken).ConfigureAwait(false);
             EffectPackageDefinition definition = EffectPackageDefinition.Read(package, cancellationToken);
             ScriptCompilationResult result = await _authorCompiler!.CompileAsync(EffectPackageSources.Read(package),
                 definition.Controllers.Select(controller => controller.EntryType), cancellationToken).ConfigureAwait(false);

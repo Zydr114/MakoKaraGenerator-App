@@ -40,9 +40,15 @@ public sealed partial class CompiledEffectPackage
         => CompileAsync(definition, compiler, imageValidator, shaderValidator, graphValidator, null, cancellationToken);
 
     /// <summary>验证全部程序、图、图片、材质回退和实际源码；纯资源包不需要假控制器。</summary>
-    public static async Task<CompiledEffectPackage> CompileAsync(EffectPackageDefinition definition, IScriptCompilationService compiler,
+    public static Task<CompiledEffectPackage> CompileAsync(EffectPackageDefinition definition, IScriptCompilationService compiler,
         IPackageImageValidator? imageValidator, IPackageShaderValidator? shaderValidator, IPackageImageGraphValidator? graphValidator,
         IPackageMaterialValidator? materialValidator, CancellationToken cancellationToken = default)
+        => CompileAsync(definition, compiler, imageValidator, shaderValidator, graphValidator, materialValidator, null, cancellationToken);
+
+    /// <summary>全部 SVG 描述包括未引用资源均须通过正式验证并核对闭包，才能发布固定资源目录。</summary>
+    public static async Task<CompiledEffectPackage> CompileAsync(EffectPackageDefinition definition, IScriptCompilationService compiler,
+        IPackageImageValidator? imageValidator, IPackageShaderValidator? shaderValidator, IPackageImageGraphValidator? graphValidator,
+        IPackageMaterialValidator? materialValidator, IPackageSvgValidator? svgValidator, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(definition); ArgumentNullException.ThrowIfNull(compiler);
         cancellationToken.ThrowIfCancellationRequested();
@@ -56,6 +62,7 @@ public sealed partial class CompiledEffectPackage
             throw new EffectPackageException("PackageMaterialValidatorMissing", "exports", "全部材质回退须由生产后端检查，不能只运行控制器部分。");
         await Task.Run(() =>
         {
+            PackageSvgValidation.Validate(definition.Contents, definition.SvgResources, svgValidator, cancellationToken);
             if (!definition.ShaderPrograms.IsEmpty) shaderValidator!.Validate(definition.ShaderPrograms, cancellationToken);
             foreach (var path in definition.ImagePaths)
             {

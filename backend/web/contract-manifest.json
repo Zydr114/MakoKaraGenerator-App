@@ -597,7 +597,7 @@
     "tools/backend-api-contract/w8_authoring_schema.py": "919b3b942a0dcff7bafb04f396072ac550f9378f870679256c82ec6f37bc348e"
   },
   "artifacts": {
-    "web/api-contract.md": "1813371fbf24b6b534728986b277697003d12b24cd66fc82bd42f3687caa0599",
+    "web/api-contract.md": "d7cfe8d4811b194ef71b55607b74216cb262500b2c8825d97ca2aced566c89c3",
     "web/api-index.md": "297faa95e3c9ef9da18f58cab5727ba0141ab4e81bfbf4cd8b3a457d41a55f73",
     "web/examples.json": "93ef143d2c92288034a3587656dd06a2bf0b9d618dcaad324b6a047f3ae3da7b",
     "web/openapi.json": "1d8f092f49a84040b37be6736fdd20e766a42b2887b965acba8010fb14b2a95c"

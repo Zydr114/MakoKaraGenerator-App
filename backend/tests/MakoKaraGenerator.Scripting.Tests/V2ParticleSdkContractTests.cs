@@ -165,7 +165,10 @@ public sealed class V2ParticleSdkContractTests
         var output = new VisualOutput(Owner, Capabilities, declarations, ResourceCatalog.Empty, new(1));
         Assert.Equal("UndeclaredPackageOutput", Assert.Throws<EffectOutputException>(() => output.DrawDots(new("dots"), [dot], OverlayLayer.BehindText)).Code);
         Assert.Equal("UndeclaredPackageOutput", Assert.Throws<EffectOutputException>(() => output.DrawSegments(new("dots"), [], OverlayLayer.AboveText)).Code);
-        Assert.Equal("VisualOutputBudgetExceeded", Assert.Throws<EffectOutputException>(() => output.DrawDots(new("dots"), [dot, dot], OverlayLayer.AboveText)).Code);
+        var overBudget = new VisualOutput(Owner, Capabilities, declarations, ResourceCatalog.Empty, new(1));
+        var failure = Assert.Throws<EffectOutputException>(() => overBudget.DrawDots(new("dots"), [dot, dot], OverlayLayer.AboveText));
+        Assert.Equal("VisualOutputBudgetExceeded", failure.Code);
+        Assert.Same(failure, Assert.Throws<EffectOutputException>(() => overBudget.Complete()));
         output.DrawDots(new("dots"), [dot], OverlayLayer.AboveText);
         Assert.Equal("DuplicateOverlayBatch", Assert.Throws<EffectOutputException>(() => output.DrawDots(new("dots"), [], OverlayLayer.AboveText)).Code);
         Assert.Single(output.Complete());

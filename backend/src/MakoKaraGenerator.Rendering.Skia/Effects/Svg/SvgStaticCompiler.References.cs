@@ -4,6 +4,39 @@ namespace MakoKaraGenerator.Rendering.Skia.Effects.Svg;
 
 internal sealed partial class SvgStaticCompiler
 {
+    private void NormalizeClipRules()
+    {
+        foreach (var clip in _nodes.Where(node => node.Name == "clipPath"))
+        {
+            // The pinned model otherwise prioritizes the container's explicit rule
+            // over each child's rule. Freeze each direct shape's computed inheritance
+            // first, then omit the container rule from SafeXml. Ordinary use stays intact.
+            foreach (var child in clip.Children)
+            {
+                _token.ThrowIfCancellationRequested();
+                string rule = "nonzero";
+                for (Node? ancestor = child; ancestor is not null; ancestor = ancestor.Parent)
+                    if (ancestor.Styles.TryGetValue("clip-rule", out var inherited)) { rule = inherited; break; }
+                child.Styles["clip-rule"] = rule;
+            }
+            clip.Styles.Remove("clip-rule");
+        }
+    }
+
+    private void ValidateClipContent()
+    {
+        // The pinned native model supports direct clip geometry. Reject containers and
+        // use before ordinary content validation, including unused definitions, rather
+        // than publishing a resource whose clip silently loses transforms or geometry.
+        foreach (var clip in _nodes.Where(node => node.Name == "clipPath"))
+            foreach (var child in clip.Children)
+            {
+                _token.ThrowIfCancellationRequested();
+                Check(Shapes.Contains(child.Name) && child.Children.Count == 0,
+                    "首期 clipPath 仅接受直接形状，不支持组、symbol 或 use。", child, "PackageSvgClipContentUnsupported");
+            }
+    }
+
     private void ValidateReferences(Node root)
     {
         foreach (var node in _nodes)
@@ -49,16 +82,6 @@ internal sealed partial class SvgStaticCompiler
         }
         // Start from every node, so a malicious unused definition also fails admission.
         foreach (var node in _nodes) Visit(node, 0);
-        int clipSteps = 0;
-        void ClipContent(Node node)
-        {
-            _token.ThrowIfCancellationRequested();
-            Check(++clipSteps <= _limits.MaximumExpandedElements, "clipPath 形状闭包展开超过预算。", node, "PackageSvgBudgetExceeded");
-            Check(Shapes.Contains(node.Name) || node.Name is "clipPath" or "g" or "symbol" or "use", "clipPath 的 use 闭包只允许形状。", node, "PackageSvgReferenceTypeMismatch");
-            foreach (var child in node.Children) ClipContent(child);
-            foreach (var reference in node.References.Where(r => r.Kind == ReferenceKind.Use)) ClipContent(_ids[reference.Id]);
-        }
-        foreach (var clip in _nodes.Where(n => n.Name == "clipPath")) ClipContent(clip);
         foreach (var gradient in _nodes.Where(n => n.Name is "linearGradient" or "radialGradient"))
         {
             Node effective = gradient; int depth = 0;

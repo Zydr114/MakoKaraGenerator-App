@@ -9,7 +9,12 @@ public sealed class PackageGraphImages : IDisposable
     private readonly Dictionary<string, SKImage> _images = new(StringComparer.Ordinal);
     private readonly ISkiaRenderDevice? _device;
     private bool _disposed;
-    private PackageGraphImages(ISkiaRenderDevice? device) { _device = device; }
+    private PackageGraphImages(EffectPackageContents contents, ISkiaRenderDevice? device)
+    { _device = device; PackageId = contents.PackageId; Revision = contents.Revision; }
+    internal string PackageId { get; }
+    internal string Revision { get; }
+    // Borrowers must retain this owner until their recorded pictures have retired.
+    internal SKImage BorrowImage(string path) => Get(path);
     /// <summary>完整解码所有图片，包括未使用项；逐项及总表面／字节预算在像素分配前检查。</summary>
     public static PackageGraphImages Load(EffectPackageContents contents, GraphExecutionBudget? budget = null, CancellationToken cancellationToken = default)
         => LoadCore(contents, budget, null, cancellationToken);
@@ -24,7 +29,7 @@ public sealed class PackageGraphImages : IDisposable
         ArgumentNullException.ThrowIfNull(contents); cancellationToken.ThrowIfCancellationRequested();
         var limits = budget ?? GraphExecutionBudget.Default;
         if (limits.MaximumBytes <= 0 || limits.MaximumSurfaces <= 0) throw new ArgumentException("图片集合预算必须为正。", nameof(budget));
-        var result = new PackageGraphImages(device); long bytes = 0;
+        var result = new PackageGraphImages(contents, device); long bytes = 0;
         try
         {
             foreach (var file in contents.Files.Where(file => file.Role == "image"))

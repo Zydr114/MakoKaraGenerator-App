@@ -173,7 +173,13 @@ internal sealed partial class SvgStaticCompiler
             while (_position < text.Length && char.IsAsciiLetter(text[_position])) _position++;
             owner.Check(_position > start, "缺少变换名称。", node); return text[start.._position];
         }
-        internal bool At(char value) { White(); return _position < text.Length && text[_position] == value; }
+        internal bool At(char value)
+        {
+            // Lookahead must preserve whitespace for Number's required separator check.
+            int position = _position;
+            while (position < text.Length && IsWhite(text[position])) position++;
+            return position < text.Length && text[position] == value;
+        }
         internal void Expect(char value)
         { White(); owner.Check(_position < text.Length && text[_position] == value, "语法缺少 " + value + "。", node); _position++; }
         private void Separator(bool comma, bool required = false)

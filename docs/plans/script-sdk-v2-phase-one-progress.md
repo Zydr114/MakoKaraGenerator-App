@@ -157,3 +157,10 @@ Warp capability 仍关闭，真实包门禁 10 项已确认拒绝；详细失败
 已开放 token／cluster／mark Warp；真实 v3 包 CPU 参考与 Vulkan 各 10/10，通过覆盖写入、
 null 关闭、真实包修订／产物归属、累计预算，以及三级 Warp 后的播放头和粒子锚点。
 CPU 生产 v2 仍拒绝。完整证据及未关闭项见 [M09 记录](script-sdk-render-m09-evidence.md)。
+
+### M09 SVG 基础切片（产品 0.112.7）
+
+固定 SVG 依赖及第三方声明、typed vector／atlas SDK、受控 native Picture／mip atlas、固定资源
+租约和共享帧字节账已实现。解析前瞻、裁剪孔洞与作者吞预算异常均有先失败后通过的回归。
+本切片不开放 SVG capability；实际渲染消费者、组合根和作者包接线继续实施。详细日志与
+CPU／Vulkan 证据边界见 [M09 记录](script-sdk-render-m09-evidence.md)。

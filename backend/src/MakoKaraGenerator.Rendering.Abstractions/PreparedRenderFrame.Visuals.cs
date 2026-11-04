@@ -59,18 +59,30 @@ public sealed partial class PreparedRenderFrame
         if (diagnostics.HasError)
             throw new PreparedFrameException("InvalidPreparedDiagnostics", "成功视觉帧不能包含无效或 Error 诊断。");
         HashSet<(EffectInstanceId, OutputId)> identities = [];
-        long count = 0;
+        long count = 0, bytes = 0;
         foreach (var batch in batches)
         {
             if (batch is null || !batch.InstanceId.IsValid || !batch.Id.IsValid || !Enum.IsDefined(batch.Layer)
                 || !batch.IsValid || !identities.Add((batch.InstanceId, batch.Id)))
                 throw new PreparedFrameException("InvalidPreparedOverlay", "图元批次身份／层级／数组或数值无效。");
-            count += batch.ItemCount;
+            count = checked(count + batch.ItemCount);
             if (count > budget.DrawItemLimit)
                 throw new PreparedFrameException("VisualOutputBudgetExceeded", $"全部实例绘制项请求 {count}，限制 {budget.DrawItemLimit}。");
+            long additional;
+            try { additional = OverlayMemoryCost.Estimate(batch); }
+            catch (OverflowException) { throw MemoryExceeded(batch); }
+            if (additional > Scripting.V2.ParticleLimits.MaximumFrameBytes - bytes) throw MemoryExceeded(batch);
+            bytes += additional;
         }
         if (owners.SequenceEqual(OverlayOwners) && batches.SequenceEqual(OverlayBatches) && ReferenceEquals(diagnostics, DiagnosticSnapshot) && budget == VisualBudget && particles.SequenceEqual(Particles) && ReferenceEquals(emissionSchedule, EmissionSchedule)) return this;
         return new(this, batches, diagnostics, budget, particles, emissionSchedule) { OverlayOwners = owners };
+
+        Exception MemoryExceeded(OverlayBatch batch)
+        {
+            var error = new PreparedFrameException("VisualOutputMemoryExceeded", "全部实例图元快照超过固定帧字节预算。");
+            var owner = owners.SingleOrDefault(item => item.InstanceId == batch.InstanceId);
+            return owner is null ? error : owner.Failure(TimeUs, error.Code, error);
+        }
     }
     private PreparedRenderFrame(PreparedRenderFrame source, ImmutableArray<OverlayBatch> batches,
         RuntimeDiagnosticSnapshot diagnostics, VisualOutputBudget budget, ImmutableArray<ParticleSample> particles, EmissionSchedule? emissionSchedule)

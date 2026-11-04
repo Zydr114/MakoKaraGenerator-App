@@ -97,6 +97,7 @@ public sealed class ImageSurfaceBudgetSession : IDisposable
     }
     private void Validate(ImageSurfaceBudgetFrame frame)
     {
+        if (!ReferenceEquals(frame.Session, this)) throw new InvalidOperationException("帧账不属于本会话，不能跨会话借用存储。");
         ObjectDisposedException.ThrowIf(_disposed, this); ObjectDisposedException.ThrowIf(frame.Closed, frame);
     }
     private bool Fits(ImageSurfaceBudgetFrame frame, int count, long bytes)
@@ -199,6 +200,7 @@ public sealed class ImageSurfaceBudgetFrame : IDisposable
     private readonly object _reclaimGate = new();
     private readonly List<ReclaimableRegistration> _reclaimable = [];
     internal ImageSurfaceBudgetFrame(ImageSurfaceBudgetSession session) => _session = session;
+    internal ImageSurfaceBudgetSession Session => _session;
     internal bool Closed { get; set; }
     internal int Surfaces { get; set; }
     internal long Bytes { get; set; }

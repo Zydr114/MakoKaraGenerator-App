@@ -92,10 +92,11 @@ internal static class PreparedEffectDeclaration
         foreach (var output in prepared.VisualOutputs)
         {
             token.ThrowIfCancellationRequested();
-            if (output is null || !output.Id.IsValid || !Enum.IsDefined(output.Primitive) || !Enum.IsDefined(output.Layer)
+            if (!IsValidVisualDeclaration(output)
                 || !visualIds.Add(output.Id) || manifest.ContainsKey(new EmitterId(output.Id.Value)))
                 throw new EffectOutputException("InvalidVisualDeclaration", "晚期输出需有唯一身份、明确类型和层，不能占用发射器保留身份。");
             RequireOutput(output.Id, VisualCapability(output.Primitive));
+            if (ResourceCapability(output.Resource) is { } resourceCapability) RequireOutput(output.Id, resourceCapability);
         }
         var sampling = prepared.GeometrySampling;
         if (!Enum.IsDefined(sampling.Mode) || sampling.ContinuousRanges.IsDefault || sampling.DiscontinuitiesUs.IsDefault)
@@ -159,8 +160,24 @@ internal static class PreparedEffectDeclaration
     {
         VisualPrimitiveKind.Dots => "visuals.dots", VisualPrimitiveKind.Segments => "visuals.segments",
         VisualPrimitiveKind.Trails => "visuals.trails", VisualPrimitiveKind.Sprites => "visuals.sprites",
+        VisualPrimitiveKind.Paths => "visuals.paths",
         _ => throw new EffectOutputException("InvalidVisualDeclaration", "未知晚期图元种类。"),
     };
+    internal static string? ResourceCapability(VisualResourceKind kind) => kind switch
+    {
+        VisualResourceKind.None => null,
+        VisualResourceKind.SvgVector => "resources.svg.vector",
+        VisualResourceKind.SvgAtlas => "resources.svg.atlas",
+        _ => throw new EffectOutputException("InvalidVisualDeclaration", "未知晚期资源种类。"),
+    };
+    internal static bool IsValidVisualDeclaration(VisualOutputDeclaration? output)
+        => output is not null && output.Id.IsValid && Enum.IsDefined(output.Primitive) && Enum.IsDefined(output.Layer)
+            && Enum.IsDefined(output.Resource) && (output.Primitive switch
+            {
+                VisualPrimitiveKind.Paths => output.Resource == VisualResourceKind.SvgVector,
+                VisualPrimitiveKind.Sprites => output.Resource is VisualResourceKind.None or VisualResourceKind.SvgAtlas,
+                _ => output.Resource == VisualResourceKind.None,
+            });
     private static EffectOutputException Invalid(string message) => new("InvalidParticleDeclaration", message);
     private static EffectOutputException Budget() => new("ParticlePrepareBudgetExceeded", "声明超过发射器、速率段、启用窗或 Burst 行的固定预算。");
 }

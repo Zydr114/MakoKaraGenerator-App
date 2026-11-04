@@ -175,7 +175,7 @@ mask／pattern 如不能在同轮明确计区域／展开和做像素证据，�
 | 样式 | 静态 fill/stroke、fill-rule、stroke-width／linecap／linejoin／miterlimit／dasharray／dashoffset、fill-opacity／stroke-opacity／opacity、display／visibility；sRGB 颜色与 local paint URI | CSS 动画、变量、动态状态、非缩放 stroke、外部 paint；所有数值有明确范围，dash 列表预算与全零退化规则固定 |
 | CSS | presentation 属性、`style` 属性与受限 `style` 元素；AST 只接受 type／单 ID／单 class selector，按固定 specificity／源顺序级联并输出 computed 属性 | at-rule、combinator、伪类／伪元素、属性 selector、selector list、`!important`；错误／未知声明即失败，不依赖上游忽略 |
 | 渐变 | `linearGradient/radialGradient/stop`；明确 gradientUnits、gradientTransform、spreadMethod、有限坐标和 stop-offset；本地 href 继承经类型图展开 | 外部渐变、循环／缺失 stop／非单调 offset、未列单位；继承顺序和缺省值固定在 profile 中 |
-| 本地复用与裁剪 | `symbol/use` 只引用同文档类型正确的 ID；`clipPath` 只由已支持形状／有界 use 组成；显式 clipPathUnits | 引用循环、跨 SVG use、超展开预算；mask／pattern 首期一律拒绝，不静默改成普通 clip |
+| 本地复用与裁剪 | 普通绘制的 `symbol/use` 只引用同文档类型正确的 ID；`clipPath` 只接受直接形状及其有限局部变换；显式 clipPathUnits | clip 内的 `g/symbol/use`（含有界本地引用）具名拒绝；引用循环、跨 SVG use、超展开预算；mask／pattern 首期一律拒绝，不静默改成普通 clip |
 | 图片 | 静态 `image`，仅 descriptor 白名单内同包 role:image 的 PNG/JPEG 或经完整解码验证的 PNG/JPEG data URI；x/y/width/height 与 preserveAspectRatio 固定 | 网络、file、包外、递归 SVG、动画图片、MIME 不符；加载失败必须使资源失败，不允许空图替代 |
 | 有限滤镜 | `filter` 加 `feGaussianBlur/feOffset/feColorMatrix/feMerge/feMergeNode`；colorMatrix 仅 matrix 且恰好 20 个有限值；输入仅 SourceGraphic／SourceAlpha／已定义 result | forward result、重复 result、循环、BackgroundImage／BackgroundAlpha／FillPaint／StrokePaint、其他 filter primitive；明确 filterUnits／primitiveUnits／有限 region，sigma 外扩和每 pass 预留预算 |
 | 非绘制元数据 | 受字符数／节点数预算的 `title/desc/metadata`，不参与资源解析 | 元数据中也不得接受 DTD、foreign namespace 或被重新解释为可执行内容 |
@@ -184,6 +184,13 @@ mask／pattern 如不能在同轮明确计区域／展开和做像素证据，�
 该范围需要用对应规范 grammar 完整列出长度／颜色／变换／viewport 的允许值。表中“固定”
 表示实现前必须落到可测试 schema／枚举，不授权 renderer 自选缺省值。允许的 `filter` 图同样
 只有静态 DAG，准备期完成结构与区域预算；每次绘制仍按实际变换后的物理区域检查总表面预算。
+
+2026-11-05 native 接入核查将应用规则提升为 `mako-svg-static-1/grammar-2`：固定上游的 clip
+编译接缝不能完整保留容器／use 的裁剪语义，首期以 `PackageSvgClipContentUnsupported` 明确拒绝，
+包括未引用 defs；普通绘制的 g／symbol／use 不受此限制。descriptor schema 与静态 profile 名称不变。
+同次修正 transform 参数前瞻误吞空白的问题；合法空白／逗号接受，缺分隔符与未消费尾串仍拒绝。
+受控 XML 还将每个直接裁剪形状的有效 `clip-rule` 固定为叶子属性，并移除 clip 本体的该属性，
+保留子级覆盖和祖先继承，避免固定上游反向用父级声明覆盖子级而填满孔洞；普通 use 不参与此转换。
 
 SVG 文字拒绝不影响主计划 §5.6 的固定 `font` 角色：包内字体仍须完成资源加载、实际歌词
 glyph／Ruby／shaping、Vulkan 上传与导出验证。D8 应分别列出“固定包字体渲染”和“SVG

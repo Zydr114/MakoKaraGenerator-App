@@ -44,6 +44,8 @@ internal interface ISkiaRenderDevice : IDisposable
     SKSurface CreateSurface(SKImageInfo imageInfo);
     void FlushAndSubmit(SKSurface surface);
     SKImage? RasterizeImage(SKImage image);
+    SKImage? CreateTextureImage(SKImage image, bool mipmapped)
+        => throw new NotSupportedException("当前设备不支持真实纹理及 mip 上传。");
     bool ReadPixels(SKSurface surface, SKImageInfo imageInfo, IntPtr destination, int rowBytes);
     bool ReadPixels(SKImage image, SKImageInfo imageInfo, IntPtr destination, int rowBytes);
     // Caller must own the snapshot and know that this device created it.
@@ -288,6 +290,19 @@ internal sealed class VulkanSkiaRenderDevice : ISkiaRenderDevice
     }
 
     internal readonly record struct DeviceCandidate(string Name, PhysicalDeviceType Type, int GraphicsQueueFamily);
+
+    public SKImage? CreateTextureImage(SKImage image, bool mipmapped)
+    {
+        ArgumentNullException.ThrowIfNull(image);
+        lock (SynchronizationRoot)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            var texture = image.ToTextureImage(_context, mipmapped, true);
+            if (texture is null || texture.IsTextureBacked) return texture;
+            if (!ReferenceEquals(texture, image)) texture.Dispose();
+            throw new InvalidOperationException("Vulkan 上传未返回真实纹理。");
+        }
+    }
 
     internal static int SelectGpuIndex(IReadOnlyList<DeviceCandidate> candidates)
     {

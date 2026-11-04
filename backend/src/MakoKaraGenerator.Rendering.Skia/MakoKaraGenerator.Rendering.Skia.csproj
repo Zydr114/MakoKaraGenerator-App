@@ -30,11 +30,18 @@
     <InternalsVisibleTo Include="SkiaGpuTargetProbe" />
     <PackageReference Include="SkiaSharp" />
     <PackageReference Include="SkiaSharp.HarfBuzz" />
+    <PackageReference Include="Svg.Skia" />
     <!-- 见 ADR-0007：Linux 的 native 资产必须显式引用，否则运行时 DllNotFoundException -->
     <PackageReference Include="SkiaSharp.NativeAssets.Linux" />
     <PackageReference Include="SkiaSharp.Vulkan.SharpVk" />
     <PackageReference Include="SharpVk" />
     <PackageReference Include="HarfBuzzSharp.NativeAssets.Linux" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="../../docs/third-party/svg-skia/*"
+             Link="third-party/svg-skia/%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

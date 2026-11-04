@@ -9,12 +9,12 @@ public sealed partial class CompiledPackageGraphExports : IDisposable
     private readonly EffectPackageDefinition _definition;
     private readonly Dictionary<string, CompiledImageGraph> _graphs = new(StringComparer.Ordinal);
     private readonly PackageGraphImages _images;
+    internal PackageGraphImages Images => _images;
     private bool _disposed;
     private CompiledPackageGraphExports(EffectPackageDefinition definition, PackageGraphImages images)
     {
         _definition = definition; _images = images;
-        Resources = new(definition.Contents.PackageId, definition.Contents.Revision, [.. definition.Materials.Select(material => material.Id)],
-            [.. definition.Graphs.Select(graph => graph.Id)], definition.ImagePaths);
+        Resources = EffectPackageResourceCatalog.Create(definition);
     }
     /// <summary>已经过本 native 集合完整资源门禁的固定目录；不代表作者源码已经编译或工程已启用。</summary>
     public ResourceCatalog Resources { get; }

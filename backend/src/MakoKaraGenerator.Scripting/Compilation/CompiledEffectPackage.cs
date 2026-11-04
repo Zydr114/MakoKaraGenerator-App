@@ -87,8 +87,7 @@ public sealed partial class CompiledEffectPackage
         }
         cancellationToken.ThrowIfCancellationRequested();
         return new(definition, artifact, artifact is { Succeeded: false } ? ResourceCatalog.Empty
-            : new(definition.Contents.PackageId, definition.Contents.Revision, [.. definition.Materials.Select(material => material.Id)],
-                [.. definition.Graphs.Select(graph => graph.Id)], definition.ImagePaths));
+            : EffectPackageResourceCatalog.Create(definition));
     }
 
     /// <summary>按导出建立生产帧描述；只接受当前真实 writer，未实施能力和跨输出旁路明确失败。</summary>

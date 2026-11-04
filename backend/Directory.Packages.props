@@ -13,6 +13,8 @@
   <ItemGroup Label="2D 渲染与文字整形">
     <PackageVersion Include="SkiaSharp" Version="3.119.4" />
     <PackageVersion Include="SkiaSharp.HarfBuzz" Version="3.119.4" />
+    <!-- SVG 4.9.1 固定依赖及 MIT/MS-PL notices 见 docs/plans/script-sdk-v2-m09-svg-notes.md。 -->
+    <PackageVersion Include="Svg.Skia" Version="4.9.1" />
     <PackageVersion Include="HarfBuzzSharp" Version="8.3.1.5" />
     <PackageVersion Include="SkiaSharp.NativeAssets.Linux" Version="3.119.4" />
     <PackageVersion Include="SkiaSharp.Vulkan.SharpVk" Version="3.119.4" />

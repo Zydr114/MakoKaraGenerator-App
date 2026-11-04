@@ -61,7 +61,7 @@ public sealed record GeometrySamplingPolicy(GeometrySamplingMode Mode,
     public static GeometrySamplingPolicy Exact { get; } = new(GeometrySamplingMode.Exact, [], []);
 }
 
-/// <summary>晚期具名输出的封闭图元种类；Paths 由后续 SVG 节点另行接入。</summary>
+/// <summary>晚期具名输出的封闭图元种类。</summary>
 public enum VisualPrimitiveKind
 {
     /// <summary>圆点批次。</summary>
@@ -72,10 +72,24 @@ public enum VisualPrimitiveKind
     Trails,
     /// <summary>保留完整仿射的图片精灵批次。</summary>
     Sprites,
+    /// <summary>固定 SVG 矢量资源的完整仿射批次。</summary>
+    Paths,
+}
+
+/// <summary>晚期输出使用的固定资源类型；与绘制图元能力独立核验。</summary>
+public enum VisualResourceKind
+{
+    /// <summary>不使用 SVG；普通图片 Sprite 仍由 ImageHandle 表达。</summary>
+    None,
+    /// <summary>SVG 矢量资源，仅用于 Paths。</summary>
+    SvgVector,
+    /// <summary>SVG atlas 档位，仅用于 Sprites。</summary>
+    SvgAtlas,
 }
 
 /// <summary>Declare 固定的具名晚期输出；实际类型和层必须与本声明一致。</summary>
-public sealed record VisualOutputDeclaration(OutputId Id, VisualPrimitiveKind Primitive, OverlayLayer Layer);
+public sealed record VisualOutputDeclaration(OutputId Id, VisualPrimitiveKind Primitive, OverlayLayer Layer,
+    VisualResourceKind Resource = VisualResourceKind.None);
 
 /// <summary>M08 固定数量和内存上限；宿主可以使用更严格的工程输出预算。</summary>
 public static class ParticleLimits

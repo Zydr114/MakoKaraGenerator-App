@@ -8,7 +8,7 @@ namespace MakoKaraGenerator.Rendering.Skia.Effects.Svg;
 /// <summary>The one application grammar before any Svg.Skia DOM or native compilation.</summary>
 internal sealed partial class SvgStaticCompiler
 {
-    internal const string RulesVersion = "mako-svg-static-1/grammar-1";
+    internal const string RulesVersion = "mako-svg-static-1/grammar-2";
     private const string SvgNamespace = "http://www.w3.org/2000/svg";
     private const string XlinkNamespace = "http://www.w3.org/1999/xlink";
     private const double MaximumNumber = 1_000_000;
@@ -73,9 +73,11 @@ internal sealed partial class SvgStaticCompiler
         // Reserve UTF-16 input plus the application tree/token working copy before creating either.
         _usage.Prepare(checked((long)_source.Content.Length * 4), _source.Path);
         Node root = ReadXml();
+        ValidateClipContent();
         foreach (Node node in _nodes) { _token.ThrowIfCancellationRequested(); ValidateNode(node, root); }
         ReadStyles();
         ApplyStyles(root);
+        NormalizeClipRules();
         ValidateReferences(root);
         CountExpanded(root, [], 0, true);
         ValidateFilters();

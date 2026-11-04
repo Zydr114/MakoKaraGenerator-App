@@ -71,9 +71,62 @@ playback cursor 与真实 CursorTrail 粒子出生锚点均纳入。
 
 此处完成的是包与渲染接缝；导出、HTTP、作者工作流和 M09 整体验收继续推进。
 
+## SVG native／SDK 基础（产品 0.112.7，能力门禁仍关闭）
+
+固定恢复 `Svg.Skia 4.9.1`；最终依赖保持 SkiaSharp `3.119.4`、HarfBuzzSharp `8.3.1.5`。
+还原日志 `svg-restore-01.log` 与本地 `svg-dependency-closure.json` 保留精确依赖／native 资产。
+第三方许可证见 [SVG notices](../../backend/docs/third-party/svg-skia/README.md)，随后端构建／发布复制；
+Svg.Custom 的 MS-PL 独立保留，未给 App 添加许可证。尚无 Windows/macOS 运行证据。
+
+native 只消费静态编译器的 SafeXml；受限 loader 按已验证 hash+bytes 查图片，禁止字体服务。
+Svg.Skia 负责 DOM／几何／filter 模型，应用窄 recorder 显式拥有临时 native 资源，不调用
+上游非确定释放的 Picture／paint 缓存。vector 保留真实 Picture；atlas 在原点内容表面绘制后，
+一比一复制到透明 padding page，再请求真实设备 mip 上传。内容／页／filter／上传并存量先预留。
+同包 role:image 借现有完整解码；data image 在包内按内容去重。Scene lease 退役与帧存储借用分开，
+最后租约才释放固定 native；跨会话帧账明确拒绝。
+
+SDK 增加 VectorHandle／SpriteHandle、PathBatch／AtlasSpriteBatch、固定档位目录、完整 affine
+与双 capability 校验。目录用同一元数据投影；作者纯度只开放值与句柄，不开放 DOM／IO／native。
+六类图元共用字节估算，含真实拖尾节点与 batch header；预算失败锁存，作者捕获异常也无法提交
+该帧。v1 已有图元与 v2 暂存共同计入共享帧账，失败 owner 保留实际跨线实例。
+
+本地证据（均在 `.local/script-sdk-m09-20261105/`）：
+
+- `build-svg-foundation-01..03.log` 保留取消参数顺序、API in/ref 和测试 analyzer 的首次编译失败；
+  `build-svg-foundation-04..06.log` 完整解决方案构建零警告／零错误，后续功能修正另行完整复验。
+- `svg-sdk-budget-red-01.log` 4 失败／7 通过，确认作者能吞预算错误；修复后
+  `svg-sdk-budget-green-03.log` SDK／纯度／相邻粒子合同 39/39。
+- `mixed-overlay-budget-red-01.log` 2/2 失败，确认混合 v1/v2 漏记；修复后两条 full/fast
+  路径纳入 `svg-native-cpu-04.log`，含同会话恢复、实际 owner 和精确上限成功。
+- `svg-native-cpu-01.log` 暴露 gradient clip 全空及 filter 色偏；诊断发现上游空可选 ClipPath
+  占位被当作空相交，以及上游 255 尺度 colorMatrix bias 与固定 Skia 的 0..1 单位不一致。
+  窄转换修正这两项，SaveLayer 沿完整 region；没有降低语义像素断言。
+- `svg-native-cpu-03.log` 仍有 gradient 边缘 alpha 差 4；原点绘制后复制到 padding page，
+  配合同一 sRGB 对照，`svg-native-cpu-04.log` 15/15。四类 fixture 各比较 vector／atlas，
+  仍要求 alpha 差≤2、预乘颜色差≤2/255，并有独立非空／颜色／孔洞／外扩断言。
+- `svg-native-vulkan-01.log` 13/13，明确设置 `MAKO_GPU_SMOKE=1`。实际 GPU 测试验证
+  texture-backed、设备身份、完整计划 mip 字节账及缩小时相对 no-mip 的高频混叠下降。
+  绑定未提供 mip 层查询：此证据是计划层数＋请求上传＋真实采样差异，不是直接枚举 native mip 层。
+
+- `scripting-svg-foundation-full-01.log` 492/492；`rendering-svg-foundation-full-01.log` 1427 通过、
+  15 个新 clip profile 用例失败。失败均属于新增用例：合法空白 transform 被误拒绝、clip use 未具名拒绝。
+- `svg-clip-transform-red-01.log` 21 失败／9 通过；修复非消费前瞻后
+  `svg-transform-green-clip-red-01.log` 23 通过／7 个尚待限制的 clip 内容失败。
+  grammar-2 只接受直接形状裁剪，包含未引用 defs；普通绘制的组／symbol／use 保持可用。
+- `svg-clip-rule-red-01.log` 3 失败／35 通过：上游 clip 父规则覆盖子显式规则导致孔洞错误。
+  受控 XML 固定叶子的有效规则后，`svg-clip-foundation-green-02.log` 53/53；包括显式空裁剪
+  与可选空占位的独立像素对照。第一次空裁剪断言误用 straight 透明白，已改为真实预乘透明黑。
+  SDK 纯度规则身份提升为 `sdk2-purity-4`，旧编译制品不会冒充新增白名单规则。
+- 最终 `build-svg-foundation-07.log` 完整解决方案零警告／零错误；
+  `scripting-svg-foundation-full-02.log` 492/492、`rendering-svg-foundation-full-02.log` 1465/1465。
+  `svg-native-vulkan-02.log` 51/51，显式开启 GPU 测试，再验 grammar-2 后资源／mip 路径。
+
+基础用例中的默认 GPU 测试会在未设置环境变量时提前返回，故 CPU 数量不能单独作为 GPU 证据。
+此切片还未接生产 typed overlay 分派／Runtime.Hosting，因此 SVG capability 保持关闭。
+
 ## 未完成项
 
 - Warp 导出、HTTP 及作者工作流；真实包准入和像素接缝的有限证据见上。
-- SVG 生产 Picture／atlas／实际 mip、资源生命周期及完整 affine Sprite；目前描述与静态验证已提交。
+- SVG typed overlay／Runtime.Hosting 接入、完整 affine 与真实作者包；native／SDK 基础证据见上。
 - v2 graph／运行时 Transform 绑定、组图调度与 BackdropBelow。
 - M09 的匹配合同／发布／fresh HTTP；M10 和 M11 尚未关闭。

@@ -44,7 +44,8 @@ internal sealed partial class SvgStaticCompiler
         limits.Validate(); token.ThrowIfCancellationRequested();
         // A descriptor from another immutable package must not authorize this package's source bytes.
         var owned = EffectPackageSvgResources.Read(contents, limits, token);
-        if (resources.ById.Count != owned.ById.Count || owned.ById.Any(pair =>
+        if (resources.PackageId != contents.PackageId || resources.Revision != contents.Revision
+            || resources.ById.Count != owned.ById.Count || owned.ById.Any(pair =>
             !resources.ById.TryGetValue(pair.Key, out var supplied) || !SameDefinition(pair.Value, supplied)))
             throw new EffectPackageException("PackageSvgResourceOwnershipMismatch", "manifest.json", "SVG 描述不属于当前固定内容闭包。");
         Usage usage = new(limits);

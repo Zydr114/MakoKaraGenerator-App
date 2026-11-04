@@ -101,6 +101,15 @@ public sealed partial class PackageSvgValidatorTests
     }
 
     [Fact]
+    public void 相同包身份和资源路径但源字节不同的索引仍不能跨修订复用()
+    {
+        var first = Package(Svg("<rect width='1' height='1'/>") );
+        var second = Package(Svg("<rect width='2' height='2'/>") );
+        Assert.Equal("PackageSvgResourceOwnershipMismatch", Assert.Throws<EffectPackageException>(() =>
+            new PackageSvgValidator().Validate(second, EffectPackageSvgResources.Read(first))).Code);
+    }
+
+    [Fact]
     public void 取消在任何XML或native工作前传播()
     {
         var contents = Package(Svg("<rect width='1' height='1'/>"));

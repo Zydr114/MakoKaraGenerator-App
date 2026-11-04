@@ -16,7 +16,7 @@ public sealed partial class EffectPackageSvgResources
         var files = contents.Files.ToImmutableDictionary(file => file.Path, StringComparer.Ordinal);
         var sources = contents.Files.Where(file => file.Role == "svg").ToArray();
         var descriptors = contents.Files.Where(file => file.Role == "svgResource").ToArray();
-        if (sources.Length == 0 && descriptors.Length == 0) return new(result.ToImmutable());
+        if (sources.Length == 0 && descriptors.Length == 0) return new(contents.PackageId, contents.Revision, result.ToImmutable());
         if (!EffectPackageProfiles.IsV2(contents.Profile))
             throw Error("PackageSvgProfileMismatch", "manifest.json.files", "SVG 资源只属于明确的 SDK v2 包合同。");
         if (descriptors.Length > budget.MaximumResources)
@@ -92,7 +92,7 @@ public sealed partial class EffectPackageSvgResources
             if (!covered.Contains(source.Path))
                 throw Error("PackageSvgSourceUnreferenced", source.Path, "每份 role:svg 都必须由描述覆盖并在启用前完成语义验证。");
         }
-        cancellationToken.ThrowIfCancellationRequested(); return new(result.ToImmutable());
+        cancellationToken.ThrowIfCancellationRequested(); return new(contents.PackageId, contents.Revision, result.ToImmutable());
     }
 
     private static ImmutableArray<SvgAtlasVariant> ReadAtlas(JsonElement atlas, string path, SvgResourceBudget budget,

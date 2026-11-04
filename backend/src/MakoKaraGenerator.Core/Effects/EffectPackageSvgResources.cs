@@ -74,7 +74,12 @@ public sealed partial class EffectPackageSvgResources
     public const string VectorCapability = "resources.svg.vector";
     /// <summary>固定 atlas 资源能力；只有执行器接通后才可加入 supported 集合。</summary>
     public const string AtlasCapability = "resources.svg.atlas";
-    private EffectPackageSvgResources(ImmutableDictionary<string, EffectSvgResourceDefinition> byId) { ById = byId; }
+    private EffectPackageSvgResources(string packageId, string revision, ImmutableDictionary<string, EffectSvgResourceDefinition> byId)
+    { PackageId = packageId; Revision = revision; ById = byId; }
+    /// <summary>生成该索引的固定包身份；外来资源索引不能授权另一包。</summary>
+    public string PackageId { get; }
+    /// <summary>生成该索引的完整内容修订；包括描述、源和图片字节。</summary>
+    public string Revision { get; }
     /// <summary>按 ordinal 资源 ID 索引的全包描述；包括未被任何导出引用的项。</summary>
     public ImmutableDictionary<string, EffectSvgResourceDefinition> ById { get; }
 

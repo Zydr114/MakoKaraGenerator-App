@@ -10,6 +10,49 @@ public sealed class TextFallbackCacheTests
     private static readonly TextLayoutOptions Options = new() { FamilyName = "DejaVu Sans", FontSizePx = 32f };
 
     [Fact]
+    public void 共享布局缓存不跨引擎复用动态回退字体且几何像素一致()
+    {
+        const string text = "A夜星";
+        var cache = new SkiaRenderPipeline.LayoutCache();
+        var key = new SkiaRenderPipeline.LayoutKey(text, Options.FamilyName, Options.FontSizePx, Options.FontWeight,
+            Options.IsBold, Options.IsItalic, Options.LetterSpacingPx, Options.FallbackFamilyNames);
+        using var first = new SkiaTextLayoutEngine();
+        using var second = new SkiaTextLayoutEngine();
+        using var reference = new SkiaTextLayoutEngine();
+        var firstLine = cache.GetOrAdd(key, first, text, Options);
+        Assert.True(firstLine.UsedFallbackFont);
+        var actual = cache.GetOrAdd(key, second, text, Options);
+        var expected = reference.Shape(text, Options);
+        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(Draw(reference, expected, Options), Draw(second, actual, Options));
+        Assert.Same(actual, cache.GetOrAdd(key, second, text, Options));
+    }
+
+    [Fact]
+    public void 显式回退字体布局仍可跨引擎共享并绘制一致()
+    {
+        const string text = "A夜星";
+        using var discover = new SkiaTextLayoutEngine();
+        var dynamicLine = discover.Shape(text, Options);
+        Assert.True(dynamicLine.UsedFallbackFont);
+        string family = dynamicLine.Elements.First(element => element.IsFallback).FamilyName;
+        var options = Options with { FallbackFamilyNames = [family] };
+        var key = new SkiaRenderPipeline.LayoutKey(text, options.FamilyName, options.FontSizePx, options.FontWeight,
+            options.IsBold, options.IsItalic, options.LetterSpacingPx, options.FallbackFamilyNames);
+        var cache = new SkiaRenderPipeline.LayoutCache();
+        using var first = new SkiaTextLayoutEngine();
+        using var second = new SkiaTextLayoutEngine();
+        using var reference = new SkiaTextLayoutEngine();
+        var shaped = cache.GetOrAdd(key, first, text, options);
+        var actual = cache.GetOrAdd(key, second, text, options);
+        var expected = reference.Shape(text, options);
+        Assert.True(shaped.UsedFallbackFont);
+        Assert.Same(shaped, actual);
+        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(Draw(reference, expected, options), Draw(second, actual, options));
+    }
+
+    [Fact]
     public void 重复回退与缺字不重复调用系统查找且字形诊断像素不变()
     {
         var lookups = new NativeLookups();

@@ -392,6 +392,81 @@ public sealed class ScriptV2PurityAnalyzerTests
         AssertError(Analyze(source), "MKV2007");
     }
 
+    [Fact]
+    public void 粒子封闭准备值与四类晚期图元调用属于确定子集()
+    {
+        const string source = """
+            public sealed record Data(ParticleSpec Spec, ParticleIdentity Id, ImmutableArray<FinalSceneGeometry> Frames) : PreparedEffect;
+            public sealed class Probe : IPureKaraokeEffect, IPureVisualEffect
+            {
+                public PreparedEffect Declare(DeclareContext source)
+                {
+                    var spec = new ParticleSpec { LifetimeUs = 100, SizePx = 1, Color = new(1, 1, 1, 1), SeedStreamKey = "fixed",
+                        Motion = new() { Opacity = new(1, 0, new CurveValue.Easing(EasingKind.Linear)) } };
+                    var id = new ParticleIdentity(source.InstanceId, new("cursor"), new ParticleOrigin.Continuous(new ParticleHead.Normal(new("track"), new("binding")), 0, 1));
+                    var selector = new TimelineSelector(TimelineEventKind.TokenStarted);
+                    var item = source.Timeline.Nth(selector, 0);
+                    if (item is TokenStarted token) _ = new BurstAnchor.SourceToken(token.TokenId);
+                    if (item is ElementVisible { Element: SceneElementIdentity.Mark mark }) _ = mark.NodeId;
+                    return new Data(spec, id, []) { VisualOutputs = [new(new("dots"), VisualPrimitiveKind.Dots, OverlayLayer.AboveText)] };
+                }
+                public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output) { }
+                public void EvaluateVisuals(in VisualFrame frame, PreparedEffect data, VisualOutput output)
+                {
+                    foreach (var particle in frame.Particles.Alive)
+                    {
+                        _ = particle.Birth.Spec.Motion; _ = frame.Particles.GetTrail(particle.Id);
+                        _ = frame.FinalGeometry.Playback.Cursors.Length;
+                    }
+                    output.DrawDots(new("dots"), [new(new(0, 0), 1, new(1, 1, 1, 1))], OverlayLayer.AboveText);
+                    output.DrawSegments(new("segments"), [], OverlayLayer.AboveText);
+                    output.DrawTrails(new("trails"), [new([new(new(0, 0), 0, new(1, 1, 1, 1)), new(new(1, 1), 1, new(1, 1, 1, 1))])], OverlayLayer.AboveText);
+                    output.DrawSprites(new("sprites"), [], OverlayLayer.AboveText);
+                }
+            }
+            """;
+        Assert.DoesNotContain(Analyze(source), static value => value.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error);
+    }
+
+    [Fact]
+    public void 粒子阶段句柄不能保存到准备结果或闭包()
+    {
+        const string source = """
+            public sealed record Data(ParticleFrame Value) : PreparedEffect;
+            public sealed class Probe : IPureKaraokeEffect, IPureVisualEffect
+            {
+                private ParticleFrame? _saved;
+                public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
+                public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output) { }
+                public void EvaluateVisuals(in VisualFrame frame, PreparedEffect data, VisualOutput output)
+                {
+                    _saved = frame.Particles;
+                    var particles = frame.Particles;
+                    Action later = () => { _ = particles.Alive; };
+                    later();
+                }
+            }
+            """;
+        var diagnostics = Analyze(source); AssertError(diagnostics, "MKV2004"); AssertError(diagnostics, "MKV2005");
+    }
+
+    [Theory]
+    [InlineData("_ = default(VisualFrame);", "MKV2001")]
+    [InlineData("_ = new VisualWriter(new(\"other\"), EffectCapabilities.Overlay);", "MKV2006")]
+    [InlineData("Action later = () => output.DrawDots(new(\"dots\"), [], OverlayLayer.AboveText); later();", "MKV2005")]
+    public void 晚期入口不能伪造阶段或回退旧生命周期(string body, string code)
+    {
+        string source = $$"""
+            public sealed class Probe : IPureKaraokeEffect, IPureVisualEffect
+            {
+                public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
+                public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output) { }
+                public void EvaluateVisuals(in VisualFrame frame, PreparedEffect data, VisualOutput output) { {{body}} }
+            }
+            """;
+        AssertError(Analyze(source), code);
+    }
+
     private static ImmutableArray<Diagnostic> Analyze(string source)
     {
         const string usings = "using System;\nusing System.Collections.Generic;\nusing System.Collections.Immutable;\nusing System.Collections.Frozen;\nusing System.Linq;\nusing MakoKaraGenerator.Scripting;\nusing MakoKaraGenerator.Scripting.V2;\n";

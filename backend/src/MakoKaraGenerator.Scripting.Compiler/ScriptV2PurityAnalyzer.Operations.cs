@@ -67,6 +67,12 @@ public static partial class ScriptV2PurityAnalyzer
                 base.Visit(operation);
             }
 
+            public override void VisitDefaultValue(IDefaultValueOperation operation)
+            {
+                if (IsStageHandle(operation.Type)) Report(Capability, operation, "宿主阶段句柄 default " + operation.Type!.Name);
+                base.VisitDefaultValue(operation);
+            }
+
             public override void VisitVariableDeclarator(IVariableDeclaratorOperation operation)
             {
                 // A managed reference can alias an instance field or array element;
@@ -219,7 +225,7 @@ public static partial class ScriptV2PurityAnalyzer
                 {
                     if (IsStageHandle(method.ContainingType) && method.MethodKind == MethodKind.Constructor)
                         Report(Capability, operation, "宿主阶段句柄构造 " + method.ContainingType.Name);
-                    if (method.ContainingType.Name is ("TextOutput" or "VisualOutput") && method.Name is ("Complete" or "Invalidate" or "Dispose"))
+                    if (method.ContainingType.Name is ("TextOutput" or "VisualOutput" or "ParticleFrame") && method.Name is ("Complete" or "Invalidate" or "Dispose"))
                         Report(Capability, operation, "宿主输出生命周期 " + method.Name);
                     return;
                 }

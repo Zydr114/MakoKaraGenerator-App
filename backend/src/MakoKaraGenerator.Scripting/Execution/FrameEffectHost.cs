@@ -142,7 +142,8 @@ internal sealed partial class FrameEffectHost : IDisposable
         }
     }
     public PreparedRenderFrame Evaluate(long timeUs, OutputMode outputMode, RenderTarget target, TimelineHistory? history,
-        RuntimeDiagnosticBuffer diagnostics, CancellationToken cancellationToken, bool includePure = true)
+        RuntimeDiagnosticBuffer diagnostics, CancellationToken cancellationToken, bool includePure = true,
+        bool pureTextOnly = false, V2AnchorQueryBudget? anchorBudget = null)
     {
         SceneFrame scene = _geometry.GetSceneFrame(_snapshot, timeUs);
         if (includePure) scene = ExtendExitReplicas(scene, cancellationToken);
@@ -182,8 +183,10 @@ internal sealed partial class FrameEffectHost : IDisposable
             else if (binding.Target is ImageEffectTarget.Mark mark) markStyles.TryAdd(mark.Target, new());
         foreach (var active in _instances)
         {
+            if (pureTextOnly && active.Pure is null) continue;
             if (!includePure && active.Pure is not null) continue;
             cancellationToken.ThrowIfCancellationRequested();
+            anchorBudget?.TextCall();
             var definition = active.Definition;
             var tokens = allTokens.Where(token => (active.Pure is not null || activeBindings.Contains(token.BindingId.Value))
                 && scope.ContainsToken(definition.Binding, token)).ToImmutableArray();
@@ -320,6 +323,10 @@ internal sealed partial class FrameEffectHost : IDisposable
     }
     public void Unload(bool preservePure = false)
     {
+        if (!preservePure)
+        {
+            _v2AnchorMemo.Clear(); _v2PrepareBudget = new(); _v2CursorCuts.Clear(); _v2CursorCutCount = 0; _v2AnchorBreakpoints = default;
+        }
         _pendingBursts.Clear(); _particles.Clear(); _bridgeEndpoints.Clear(); var owned = _instances.ToArray(); _instances.Clear(); List<Exception> failures = [];
         foreach (var active in owned)
         {

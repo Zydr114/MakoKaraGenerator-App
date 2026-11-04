@@ -11,10 +11,19 @@ public static class EffectPackageProfiles
     public static EffectPackageProfile V1 { get; } = new(2, "1.0.0", ShaderProgramDefinition.RasterProfile);
     /// <summary>纯求值 SDK v2 包合同；包 profile 与内部 shader 程序 profile 分别校验。</summary>
     public static EffectPackageProfile V2 { get; } = new(3, "2.0.0", "skia-ganesh-3.119.4-v2");
+    // 只由源码集成开通；不能由清单、环境变量或作者代码绕过未接通执行器。
+    internal const bool EnableV2ParticlesAndVisuals = true;
     /// <summary>当前已接通的 v2 必须能力；后续能力在实际接通前明确拒绝。</summary>
-    public static IReadOnlySet<string> SupportedV2Capabilities { get; } = ImmutableHashSet.Create(StringComparer.Ordinal,
+    public static IReadOnlySet<string> SupportedV2Capabilities { get; } = BuildV2Capabilities();
+
+    private static ImmutableHashSet<string> BuildV2Capabilities()
+    {
+        var text = ImmutableHashSet.Create(StringComparer.Ordinal,
         "token.affine", "line.affine", "group.affine", "mark.affine", "cluster.affine", "token.opacity", "group.opacity",
         "style.fill", "style.stroke", "style.shadow", "style.glow", "timeline.index", "line.exit");
+        return EnableV2ParticlesAndVisuals ? text.Union(["particles.continuous", "particles.burst", "visuals.dots",
+            "visuals.segments", "visuals.trails", "visuals.sprites"]) : text;
+    }
 
     /// <summary>是否属于已支持的 SDK v2 包身份；不只比较 SDK 数字。</summary>
     public static bool IsV2(EffectPackageProfile profile)

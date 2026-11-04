@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace MakoKaraGenerator.Scripting.V2;
 
 /// <summary>SDK v2 的文字纯求值入口；固定准备结果由宿主持有，任意时刻求值不推进共享状态。</summary>
@@ -15,6 +17,13 @@ public interface IPureKaraokeEffect
 /// <remarks>宿主按固定输入身份保留本值。不可在其中保存帧、输出、委托、可变集合或原生资源。</remarks>
 public abstract record PreparedEffect
 {
+    /// <summary>本次固定输入的声明式发射计划；宿主验证后固定，不逐帧修改。</summary>
+    public ParticleSchedule Particles { get; init; } = ParticleSchedule.Empty;
+    /// <summary>本实例全部文字输出的连续性声明；未证明连续的区段精确求值。</summary>
+    public GeometrySamplingPolicy GeometrySampling { get; init; } = GeometrySamplingPolicy.Exact;
+    /// <summary>本实例允许写入的具名晚期图元；自动发射器占用独立的同名保留输出。</summary>
+    public ImmutableArray<VisualOutputDeclaration> VisualOutputs { get; init; } = [];
+
     /// <summary>没有准备数据时的唯一默认值。</summary>
     public static PreparedEffect Empty { get; } = new EmptyPreparedEffect();
 

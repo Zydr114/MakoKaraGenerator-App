@@ -50,7 +50,7 @@ public sealed class EffectPackageV2AdmissionTests
     [InlineData("duplicate", "PackageReferenceDuplicate")]
     [InlineData("empty", "PackageParameterTypeMismatch")]
     [InlineData("type", "PackageParameterTypeMismatch")]
-    [InlineData("emitter", "PackageCapabilityUnsupported")]
+    [InlineData("emitter", "PackageManifestMissingField")]
     [InlineData("emitter-type", "PackageManifestType")]
     [InlineData("negative-exit", "PackageLineExitInvalid")]
     [InlineData("long-exit", "PackageLineExitInvalid")]

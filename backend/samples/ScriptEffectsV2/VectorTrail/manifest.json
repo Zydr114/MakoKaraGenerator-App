@@ -1,0 +1,262 @@
+{
+  "packageVersion": 3,
+  "packageId": "makokara.v2.vector-trail",
+  "name": "解析矢量拖尾",
+  "version": "2.0.0",
+  "sdkVersion": "2.0.0",
+  "shaderProfile": "skia-ganesh-3.119.4-v2",
+  "files": [
+    {
+      "path": "README.md",
+      "role": "asset",
+      "sha256": "5837b9e47df7a4399bf595b9c40d15a4038f4d257c9ffd6c99406f624344f808"
+    },
+    {
+      "path": "assets/spark.png",
+      "role": "image",
+      "sha256": "f34b27382844ec7d21b3275fbfd46684169a8dc3b183a69245437307477e2d28"
+    },
+    {
+      "path": "src/VectorTrail.cs",
+      "role": "csharp",
+      "sha256": "4bfeeeb8a1c68cbdda970a94557575bf8bdf16744a6abd88e42205d1fa873a42"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "mode",
+      "type": "enum",
+      "label": "Custom晚期绘制",
+      "default": "ribbon",
+      "values": [
+        {
+          "value": "ribbon",
+          "label": "带状拖尾"
+        },
+        {
+          "value": "segments",
+          "label": "平端线段"
+        },
+        {
+          "value": "sprites",
+          "label": "本包图片仿射"
+        }
+      ]
+    },
+    {
+      "id": "rate",
+      "type": "number",
+      "label": "每秒速率",
+      "default": 24,
+      "min": 0,
+      "max": 120,
+      "unit": "/s"
+    },
+    {
+      "id": "lifeUs",
+      "type": "duration",
+      "label": "粒子寿命",
+      "default": 600000,
+      "min": 1,
+      "max": 5000000,
+      "unit": "us"
+    },
+    {
+      "id": "sizePx",
+      "type": "number",
+      "label": "粒子直径",
+      "default": 6,
+      "min": 0.25,
+      "max": 64,
+      "unit": "px"
+    },
+    {
+      "id": "spreadPx",
+      "type": "number",
+      "label": "出生散布半宽",
+      "default": 0,
+      "min": 0,
+      "max": 64,
+      "unit": "px"
+    },
+    {
+      "id": "color",
+      "type": "color",
+      "label": "粒子颜色",
+      "default": {
+        "r": 1,
+        "g": 0.25,
+        "b": 0.08,
+        "a": 0.9
+      }
+    },
+    {
+      "id": "trailUs",
+      "type": "duration",
+      "label": "解析拖尾窗口",
+      "default": 250000,
+      "min": 0,
+      "max": 1000000,
+      "unit": "us"
+    },
+    {
+      "id": "showBirths",
+      "type": "boolean",
+      "label": "显示完整出生窗",
+      "default": true
+    },
+    {
+      "id": "sampling",
+      "type": "enum",
+      "label": "最终锚点采样",
+      "default": "exact",
+      "values": [
+        {
+          "value": "exact",
+          "label": "精确出生时刻"
+        },
+        {
+          "value": "grid",
+          "label": "连续段120Hz"
+        }
+      ]
+    },
+    {
+      "id": "transition",
+      "type": "enum",
+      "label": "真实后继策略",
+      "default": "jump",
+      "values": [
+        {
+          "value": "jump",
+          "label": "直接换点"
+        },
+        {
+          "value": "bridge",
+          "label": "桥接真实后继"
+        }
+      ]
+    },
+    {
+      "id": "bridgeUs",
+      "type": "duration",
+      "label": "桥接时长",
+      "default": 180000,
+      "min": 0,
+      "max": 2000000,
+      "unit": "us"
+    },
+    {
+      "id": "gapLimitUs",
+      "type": "duration",
+      "label": "桥接空档上限",
+      "default": 2000000,
+      "min": 0,
+      "max": 5000000,
+      "unit": "us"
+    }
+  ],
+  "exports": [
+    {
+      "id": "vector-trail",
+      "kind": "controller",
+      "name": "解析矢量拖尾",
+      "entryType": "VectorTrail",
+      "parameters": [
+        "mode",
+        "rate",
+        "lifeUs",
+        "sizePx",
+        "spreadPx",
+        "color",
+        "trailUs",
+        "showBirths",
+        "sampling",
+        "transition",
+        "bridgeUs",
+        "gapLimitUs"
+      ],
+      "bindingKinds": [
+        "project",
+        "branch",
+        "lines",
+        "tokens",
+        "clips",
+        "node"
+      ],
+      "outputs": [
+        {
+          "id": "cursor",
+          "kind": "Overlay",
+          "target": "canvas",
+          "requires": [
+            "particles.continuous"
+          ],
+          "dependsOn": []
+        },
+        {
+          "id": "heads",
+          "kind": "Overlay",
+          "target": "canvas",
+          "requires": [
+            "visuals.dots"
+          ],
+          "dependsOn": []
+        },
+        {
+          "id": "births",
+          "kind": "Overlay",
+          "target": "canvas",
+          "requires": [
+            "visuals.dots"
+          ],
+          "dependsOn": []
+        },
+        {
+          "id": "segments",
+          "kind": "Overlay",
+          "target": "canvas",
+          "requires": [
+            "visuals.segments"
+          ],
+          "dependsOn": []
+        },
+        {
+          "id": "ribbons",
+          "kind": "Overlay",
+          "target": "canvas",
+          "requires": [
+            "visuals.trails"
+          ],
+          "dependsOn": []
+        },
+        {
+          "id": "sprites",
+          "kind": "Overlay",
+          "target": "canvas",
+          "requires": [
+            "visuals.sprites"
+          ],
+          "dependsOn": []
+        }
+      ]
+    }
+  ],
+  "requires": [
+    "particles.continuous",
+    "visuals.dots",
+    "visuals.segments",
+    "visuals.trails",
+    "visuals.sprites"
+  ],
+  "lineExit": {
+    "durationUs": 0
+  },
+  "emitters": [
+    {
+      "id": "cursor",
+      "kind": "cursor",
+      "maxLifetimeUs": 5000000
+    }
+  ]
+}

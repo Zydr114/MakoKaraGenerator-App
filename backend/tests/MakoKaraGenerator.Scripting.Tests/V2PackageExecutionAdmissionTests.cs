@@ -9,7 +9,7 @@ public sealed class V2PackageExecutionAdmissionTests
 {
     [Theory]
     [InlineData("VisualTransform", true)]
-    [InlineData("Overlay", false)]
+    [InlineData("Overlay", true)]
     [InlineData("ImageGraph", false)]
     public async Task v2已支持输出能力进入执行且未实现阶段提前具名拒绝(string kind, bool supported)
     {
@@ -26,11 +26,13 @@ public sealed class V2PackageExecutionAdmissionTests
         manifest["packageVersion"] = EffectPackageProfiles.V2.PackageVersion;
         manifest["sdkVersion"] = EffectPackageProfiles.V2.SdkVersion;
         manifest["shaderProfile"] = EffectPackageProfiles.V2.ShaderProfile;
-        manifest["requires"] = new JsonArray("token.affine");
+        string capability = kind == "Overlay" ? "visuals.dots" : "token.affine";
+        manifest["requires"] = new JsonArray(capability);
         manifest["lineExit"] = new JsonObject { ["durationUs"] = 0 };
         manifest["emitters"] = new JsonArray();
         manifest["exports"]![0]!["outputs"]![0]!["kind"] = kind;
-        manifest["exports"]![0]!["outputs"]![0]!["requires"] = supported ? new JsonArray("token.affine") : new JsonArray();
+        if (kind == "Overlay") manifest["exports"]![0]!["outputs"]![0]!["target"] = "canvas";
+        manifest["exports"]![0]!["outputs"]![0]!["requires"] = supported ? new JsonArray(capability) : new JsonArray();
         var package = EffectPackageDefinition.Read(EffectPackageContents.CreateSupported(EffectPackageFixture.Bytes(manifest), EffectPackageFixture.Inputs(files)));
         var compiler = new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));
         var compiled = await CompiledEffectPackage.CompileAsync(package, compiler);

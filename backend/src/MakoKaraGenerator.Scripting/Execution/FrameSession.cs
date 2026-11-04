@@ -57,6 +57,11 @@ internal sealed class FrameSession(FrameEffectHost host, TimelineProjection? tim
                         result = host.EvaluateVisuals(result, _boundaryFrame, _history, diagnostics, cancellationToken);
                     }
                 }
+                if (!_anchorQuery)
+                {
+                    RuntimeDiagnosticBuffer diagnostics = new(result.DiagnosticSnapshot);
+                    result = host.PreparePureVisuals(result, diagnostics, cancellationToken);
+                }
                 cancellationToken.ThrowIfCancellationRequested();
                 _lastRequest = timeUs;
                 return result;

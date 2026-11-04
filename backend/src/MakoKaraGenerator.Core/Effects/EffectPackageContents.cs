@@ -70,7 +70,7 @@ public sealed class EffectPackageContents
     public ImmutableArray<string> Requires { get; }
     /// <summary>固定逐行退场寿命；v1 为零。</summary>
     public long LineExitDurationUs { get; }
-    /// <summary>已验证的固定发射器声明；M07 只接受空集合。</summary>
+    /// <summary>已验证的固定发射器声明；能力在执行器开通前明确拒绝。</summary>
     public ImmutableArray<EffectEmitterDefinition> Emitters { get; }
 
     /// <summary>按明确 v1／v2 身份分派后验证完整闭包，不将未知 SDK 回退为旧执行器。</summary>
@@ -105,7 +105,7 @@ public sealed class EffectPackageContents
         var actual = new EffectPackageProfile(packageVersion, Text(root, "sdkVersion", "manifest.json"), Text(root, "shaderProfile", "manifest.json"));
         if (!EffectPackageProfiles.Compatible(actual, expected))
             throw Error("PackageProfileMismatch", "manifest.json", "包版本、SDK 或 shader profile 与明确支持值不一致。");
-        ImmutableArray<string> requires = []; long lineExitDurationUs = 0;
+        ImmutableArray<string> requires = []; ImmutableArray<EffectEmitterDefinition> emitters = []; long lineExitDurationUs = 0;
         if (v2)
         {
             requires = EffectPackageJson.Strings(root.GetProperty("requires"), "manifest.json.requires");
@@ -116,10 +116,7 @@ public sealed class EffectPackageContents
                 throw Error("PackageLineExitInvalid", "manifest.json.lineExit.durationUs", "退场寿命须为 0 至 3000000 的整数微秒。");
             if (lineExitDurationUs > 0 && !requires.Contains("line.exit", StringComparer.Ordinal))
                 throw Error("PackageCapabilityMissing", "manifest.json.requires", "非零退场寿命必须声明 line.exit。");
-            if (root.GetProperty("emitters").ValueKind != JsonValueKind.Array)
-                throw Error("PackageManifestType", "manifest.json.emitters", "发射器声明必须为数组。");
-            if (root.GetProperty("emitters").GetArrayLength() != 0)
-                throw Error("PackageCapabilityUnsupported", "manifest.json.emitters", "发射器能力尚未接通，当前只接受空声明。");
+            emitters = ReadEmitters(root.GetProperty("emitters"), requires, cancellationToken);
         }
         string id = Text(root, "packageId", "manifest.json"), name = Text(root, "name", "manifest.json"), version = Text(root, "version", "manifest.json");
         foreach (string field in new[] { "parameters", "exports", "files" })
@@ -171,7 +168,35 @@ public sealed class EffectPackageContents
         }
         cancellationToken.ThrowIfCancellationRequested();
         return new(id, name, version, actual, normalized, [.. verified], "sha256:" + Convert.ToHexStringLower(digest.GetHashAndReset()),
-            requires, lineExitDurationUs, []);
+            requires, lineExitDurationUs, emitters);
+    }
+
+    private static ImmutableArray<EffectEmitterDefinition> ReadEmitters(JsonElement value, ImmutableArray<string> requires, CancellationToken token)
+    {
+        const string path = "manifest.json.emitters";
+        if (value.ValueKind != JsonValueKind.Array) throw Error("PackageManifestType", path, "发射器声明必须为数组。");
+        if (value.GetArrayLength() > 32) throw Error("PackageEmitterBudgetExceeded", path, "单包发射器不能超过 32 个。");
+        var result = ImmutableArray.CreateBuilder<EffectEmitterDefinition>(); HashSet<string> ids = new(StringComparer.Ordinal);
+        foreach (var entry in value.EnumerateArray())
+        {
+            token.ThrowIfCancellationRequested(); string itemPath = path + "[" + result.Count + "]";
+            Keys(entry, itemPath, ["id", "kind", "maxLifetimeUs"]);
+            string id = Text(entry, "id", itemPath), kind = Text(entry, "kind", itemPath);
+            if (!ids.Add(id)) throw Error("PackageEmitterDuplicate", itemPath + ".id", "发射器身份重复。");
+            string capability = kind switch
+            {
+                "cursor" => "particles.continuous", "burst" => "particles.burst",
+                _ => throw Error("PackageEmitterKindUnsupported", itemPath + ".kind", "发射器 kind 须明确为 cursor 或 burst。"),
+            };
+            var lifetime = entry.GetProperty("maxLifetimeUs");
+            if (lifetime.ValueKind != JsonValueKind.Number || !lifetime.TryGetInt64(out long maximum) || maximum is <= 0 or > 5_000_000)
+                throw Error("PackageEmitterLifetimeInvalid", itemPath + ".maxLifetimeUs", "最大寿命须为 1 至 5000000 的整数微秒。");
+            EffectPackageProfiles.RequireCapability(capability, itemPath);
+            if (!requires.Contains(capability, StringComparer.Ordinal))
+                throw Error("PackageCapabilityMissing", itemPath, "发射器必须同时在包 requires 中声明能力：" + capability);
+            result.Add(new(id, kind, maximum));
+        }
+        return result.ToImmutable();
     }
 
     /// <summary>检查跨平台相对逻辑路径，不将不合法路径规范化成另一路径。</summary>

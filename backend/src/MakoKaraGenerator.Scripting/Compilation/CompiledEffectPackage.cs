@@ -122,7 +122,7 @@ public sealed partial class CompiledEffectPackage
             string path = "exports." + exportId + ".outputs." + output.Id;
             if (EffectPackageProfiles.IsV2(Definition.Contents.Profile))
             {
-                if (output.Kind is not ("VisualTransform" or "StyleModulation"))
+                if (output.Kind is not ("VisualTransform" or "StyleModulation" or "Overlay"))
                     throw new EffectPackageException("PackageWriterPending", path, "SDK v2 尚未接通此输出阶段：" + output.Kind);
                 // v2 的有限能力已由完整包解析器与包级 requires 共同校验。
             }
@@ -141,6 +141,7 @@ public sealed partial class CompiledEffectPackage
                 ("StyleModulation", "tokenFamily" or "textMark" or "group") => EffectCapabilities.Style,
                 ("StyleModulation", "baseToken") when EffectPackageProfiles.IsV2(Definition.Contents.Profile) => EffectCapabilities.Style,
                 ("Overlay", "tokenFamily" or "line" or "textMark") => EffectCapabilities.Overlay,
+                ("Overlay", "canvas") when EffectPackageProfiles.IsV2(Definition.Contents.Profile) => EffectCapabilities.Overlay,
                 ("ImageGraph", "tokenFamily" or "line" or "group" or "textMark") => EffectCapabilities.ImageEffects,
                 _ => throw new EffectPackageException("PackageWriterPending", path, "当前生产运行时尚未提供此输出和目标组合。"),
             };

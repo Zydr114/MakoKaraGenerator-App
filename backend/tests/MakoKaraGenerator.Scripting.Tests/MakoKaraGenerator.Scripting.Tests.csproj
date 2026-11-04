@@ -23,4 +23,7 @@
     <Compile Include="../Shared/LeadInFixture.cs" Link="Shared/LeadInFixture.cs" />
     <Compile Include="../Shared/EffectPackageFixture.cs" Link="Shared/EffectPackageFixture.cs" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="../../samples/ScriptEffectsV2/**/*" Link="effect-packages-v2/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

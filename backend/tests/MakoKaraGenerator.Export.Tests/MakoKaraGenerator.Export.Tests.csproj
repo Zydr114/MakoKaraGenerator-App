@@ -34,4 +34,7 @@
     <ProjectReference Include="../../samples/TechnicalSpike/MakoKaraGenerator.Spike.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="../../samples/ScriptEffectsV2/**/*" Link="effect-packages-v2/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

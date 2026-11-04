@@ -43,6 +43,7 @@ public sealed partial class EffectPackageDefinition
                         if (!contents.Requires.Contains(capability, StringComparer.Ordinal))
                             throw Error("PackageCapabilityMissing", path + ".outputs." + output.Id + ".requires", "输出能力必须同时在包 requires 中声明。");
                     }
+            if (EffectPackageProfiles.IsV2(contents.Profile)) ValidateV2Stages(outputs, contents.Emitters, path);
             var ordered = Sort(outputs, path);
             if (kind == "controller")
             {
@@ -106,7 +107,9 @@ public sealed partial class EffectPackageDefinition
             if (kind is not ("StyleModulation" or "VisualTransform" or "GeometryMapping" or "ImageGraph" or "Overlay"))
                 throw Error("PackageOutputKindUnsupported", location + ".kind", "未知输出种类。");
             bool v2Target = v2 && exportKind == "controller" && (target == "baseToken" && (kind is "VisualTransform" or "StyleModulation")
-                || target == "cluster" && kind == "VisualTransform");
+                || target == "cluster" && kind == "VisualTransform" || target == "canvas" && kind == "Overlay");
+            if (v2 && kind == "Overlay" && (target != "canvas" || exportKind != "controller"))
+                throw Error("PackageOutputTargetUnsupported", location + ".target", "SDK v2 Overlay 必须明确使用 controller 的 canvas 目标。");
             if (target is not ("tokenFamily" or "line" or "group" or "textMark") && !(exportKind == "material" && target == "region") && !v2Target)
                 throw Error("PackageOutputTargetUnsupported", location + ".target", "须声明真实目标类别。");
             EffectOutputBypass? bypass = null;
@@ -118,6 +121,19 @@ public sealed partial class EffectPackageDefinition
             outputs.Add(new(id, kind, target, Strings(output.GetProperty("requires"), location + ".requires"), Strings(output.GetProperty("dependsOn"), location + ".dependsOn"), bypass));
         }
         return outputs.ToImmutable();
+    }
+
+    private static void ValidateV2Stages(ImmutableArray<EffectOutputDefinition> outputs,
+        ImmutableArray<EffectEmitterDefinition> emitters, string path)
+    {
+        var byId = outputs.ToDictionary(output => output.Id, StringComparer.Ordinal);
+        var emitterIds = emitters.Select(emitter => emitter.Id).ToHashSet(StringComparer.Ordinal);
+        foreach (var output in outputs)
+            foreach (string dependency in output.DependsOn)
+                if (byId.TryGetValue(dependency, out var parent) && parent.Kind == "Overlay"
+                    && (output.Kind != "Overlay" || emitterIds.Contains(output.Id)))
+                    throw Error("PackageOutputStageDependencyInvalid", path + ".outputs." + output.Id + ".dependsOn",
+                        "晚期图元输出不能成为文字输出或发射轨的输入。");
     }
     private static EffectOutputBypass ReadBypass(JsonElement value, string path)
     {

@@ -2,13 +2,15 @@ using System.Collections.Immutable;
 using MakoKaraGenerator.Rendering;
 using MakoKaraGenerator.Scripting.Loading;
 using MakoKaraGenerator.Scripting.Projection;
+using MakoKaraGenerator.Scripting.Particles.V2;
 using MakoKaraGenerator.Scripting.V2;
 
 namespace MakoKaraGenerator.Scripting.Execution;
 
 internal sealed partial class FrameEffectHost
 {
-    private sealed record PureEffectRuntime(IPureKaraokeEffect Instance, DeclareContext Source, PreparedEffect Prepared);
+    private sealed record PureEffectRuntime(IPureKaraokeEffect Instance, DeclareContext Source, PreparedEffect Prepared,
+        ParticleOwner? ParticleOwner = null, CompiledParticleSchedule? ParticleSchedule = null, EmissionSourceCatalog? ParticleSources = null);
 
     private ActiveEffect LoadPure(CompiledFrameEffect definition, CancellationToken token)
     {
@@ -35,7 +37,24 @@ internal sealed partial class FrameEffectHost
                 prepared = instance.Declare(source) ?? throw new EffectOutputException("PreparedEffectMissing", "Declare 必须返回递归只读准备结果。");
             });
             token.ThrowIfCancellationRequested();
-            return active with { Pure = new(instance, source, prepared!) };
+            var pure = new PureEffectRuntime(instance, source, prepared!);
+            Invoke(active, "PrepareParticles", 0, Diagnostics, _ =>
+            {
+                var package = definition.PackageDefinition!;
+                PreparedEffectDeclaration.Validate(prepared!, source, package.Contents.Requires,
+                    [.. package.Emitters.Select(static item => new ParticleEmitterDeclaration(new(item.Id), item.Kind, item.MaxLifetimeUs))],
+                    [.. definition.PackageDeclaration!.Outputs.Where(static item => item.Kind == "Overlay" && item.Target == "canvas")
+                        .Select(static item => new CanvasOutputDeclaration(new(item.Id), item.Requires))], token);
+                string inputs = _snapshot.EffectInputsFingerprint ?? throw new EffectOutputException("EffectInputsMismatch", "纯发射器缺少固定输入指纹。");
+                var owner = new ParticleOwner(definition.Id, definition.PackageIdentity, definition.RuntimeHash, definition.Seed,
+                    inputs, "m08-prepared-v1|" + inputs + "|" + definition.RuntimeHash + "|" + definition.Id.Value);
+                var sources = BuildV2EmissionSources(active, pure, token);
+                _v2PrepareBudget.ReserveBytes(owner, 256L * (sources.Continuous.Length + sources.Bursts.Length));
+                var schedule = CompiledParticleSchedule.Compile(prepared!.Particles, sources, owner, _v2PrepareBudget, token);
+                pure = pure with { ParticleOwner = owner, ParticleSchedule = schedule, ParticleSources = sources };
+            });
+            token.ThrowIfCancellationRequested();
+            return active with { Pure = pure };
         }
         catch (OperationCanceledException) { indexes?.Invalidate(); module?.Dispose(); throw; }
         catch (Exception error)

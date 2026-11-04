@@ -1,0 +1,219 @@
+{
+  "packageVersion": 3,
+  "packageId": "makokara.v2.event-burst",
+  "name": "真实事件粒子爆发",
+  "version": "2.0.0",
+  "sdkVersion": "2.0.0",
+  "shaderProfile": "skia-ganesh-3.119.4-v2",
+  "files": [
+    {
+      "path": "README.md",
+      "role": "asset",
+      "sha256": "7ce28279953ff1b45a7fda0260befdf8de57333597afaf9655f63c2c301c6c87"
+    },
+    {
+      "path": "src/EventBurst.cs",
+      "role": "csharp",
+      "sha256": "57ff0f91d39797ad3af9bde25048f1b4ff58c80ded94c63281c43e3bd55fbc4a"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "anchor",
+      "type": "enum",
+      "label": "真实事件锚点",
+      "default": "token",
+      "values": [
+        {
+          "value": "token",
+          "label": "源元素"
+        },
+        {
+          "value": "line",
+          "label": "源行"
+        },
+        {
+          "value": "mark",
+          "label": "前奏文字标记"
+        },
+        {
+          "value": "cursor",
+          "label": "绑定播放头与行回退"
+        }
+      ]
+    },
+    {
+      "id": "scope",
+      "type": "enum",
+      "label": "真实来源范围",
+      "default": "project",
+      "values": [
+        {
+          "value": "project",
+          "label": "工程订阅"
+        },
+        {
+          "value": "firstBranch",
+          "label": "首源分支"
+        },
+        {
+          "value": "firstOccurrence",
+          "label": "首真实演唱occurrence"
+        }
+      ]
+    },
+    {
+      "id": "matchText",
+      "type": "text",
+      "label": "精确原文（空为不限）",
+      "default": ""
+    },
+    {
+      "id": "everyNth",
+      "type": "integer",
+      "label": "真实occurrence间隔",
+      "default": 1,
+      "min": 1,
+      "max": 16
+    },
+    {
+      "id": "count",
+      "type": "integer",
+      "label": "每锚点数量",
+      "default": 3,
+      "min": 0,
+      "max": 64
+    },
+    {
+      "id": "minimumDurationUs",
+      "type": "duration",
+      "label": "最小真实演唱时长",
+      "default": 0,
+      "min": 0,
+      "max": 5000000,
+      "unit": "us"
+    },
+    {
+      "id": "lifeUs",
+      "type": "duration",
+      "label": "粒子寿命",
+      "default": 600000,
+      "min": 1,
+      "max": 5000000,
+      "unit": "us"
+    },
+    {
+      "id": "sizePx",
+      "type": "number",
+      "label": "粒子直径",
+      "default": 6,
+      "min": 0.25,
+      "max": 64,
+      "unit": "px"
+    },
+    {
+      "id": "spreadPx",
+      "type": "number",
+      "label": "出生散布半宽",
+      "default": 0,
+      "min": 0,
+      "max": 64,
+      "unit": "px"
+    },
+    {
+      "id": "color",
+      "type": "color",
+      "label": "粒子颜色",
+      "default": {
+        "r": 1,
+        "g": 0.25,
+        "b": 0.08,
+        "a": 0.9
+      }
+    }
+  ],
+  "exports": [
+    {
+      "id": "event-burst",
+      "kind": "controller",
+      "name": "真实事件粒子爆发",
+      "entryType": "EventBurst",
+      "parameters": [
+        "anchor",
+        "scope",
+        "matchText",
+        "everyNth",
+        "count",
+        "minimumDurationUs",
+        "lifeUs",
+        "sizePx",
+        "spreadPx",
+        "color"
+      ],
+      "bindingKinds": [
+        "project",
+        "branch",
+        "lines",
+        "tokens",
+        "clips",
+        "node"
+      ],
+      "outputs": [
+        {
+          "id": "token-burst",
+          "kind": "Overlay",
+          "target": "canvas",
+          "requires": [
+            "particles.burst",
+            "visuals.dots"
+          ],
+          "dependsOn": []
+        },
+        {
+          "id": "line-burst",
+          "kind": "Overlay",
+          "target": "canvas",
+          "requires": [
+            "particles.burst",
+            "visuals.dots"
+          ],
+          "dependsOn": []
+        },
+        {
+          "id": "mark-burst",
+          "kind": "Overlay",
+          "target": "canvas",
+          "requires": [
+            "particles.burst",
+            "visuals.dots"
+          ],
+          "dependsOn": []
+        }
+      ]
+    }
+  ],
+  "requires": [
+    "particles.burst",
+    "visuals.dots"
+  ],
+  "lineExit": {
+    "durationUs": 0
+  },
+  "emitters": [
+    {
+      "id": "token-burst",
+      "kind": "burst",
+      "maxLifetimeUs": 5000000
+    },
+    {
+      "id": "line-burst",
+      "kind": "burst",
+      "maxLifetimeUs": 5000000
+    },
+    {
+      "id": "mark-burst",
+      "kind": "burst",
+      "maxLifetimeUs": 5000000
+    }
+  ]
+}

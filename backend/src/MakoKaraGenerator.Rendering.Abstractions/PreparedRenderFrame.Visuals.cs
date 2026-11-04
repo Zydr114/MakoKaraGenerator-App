@@ -87,6 +87,7 @@ public sealed partial class PreparedRenderFrame
         FinalMarkGeometry = source.FinalMarkGeometry; FinalGroupGeometry = source.FinalGroupGeometry; Playback = source.Playback;
         DiagnosticSnapshot = diagnostics; OverlayOwners = source.OverlayOwners; OverlayBatches = batches; DotBatches = [.. batches.OfType<DotBatch>()]; Particles = particles; VisualBudget = budget; EmissionSchedule = emissionSchedule;
         ImageEffects = source.ImageEffects; Materials = source.Materials; SourceMaterials = source.SourceMaterials;
+        V2ParticleSnapshots = source.V2ParticleSnapshots; V2Particles = source.V2Particles; V2AnchorStatistics = source.V2AnchorStatistics;
         _appearances = source._appearances; _markAppearances = source._markAppearances;
     }
 }

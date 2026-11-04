@@ -236,7 +236,7 @@ public static partial class ScriptV2PurityAnalyzer
 
         private static bool IsStageHandle(ITypeSymbol? type)
             => type is not null && IsTrustedSdk(type) && type.ContainingNamespace.ToDisplayString() == V2Namespace
-                && type.Name is "DeclareContext" or "TextFrame" or "TextOutput" or "VisualFrame" or "VisualOutput"
+                && type.Name is "DeclareContext" or "TextFrame" or "TextOutput" or "VisualFrame" or "VisualOutput" or "ParticleFrame"
                     or "SourceIndexes" or "SourcePresentationIndex" or "SourceLayoutIndex" or "SourceCursorIndex";
 
         private static bool IsTrustedSdk(ITypeSymbol type) => type.ContainingAssembly?.Name == SdkAssembly;
@@ -244,7 +244,18 @@ public static partial class ScriptV2PurityAnalyzer
         private static bool IsSdkValue(ITypeSymbol type)
         {
             if (!IsTrustedSdk(type) || IsStageHandle(type)) return false;
-            if (type.ContainingNamespace.ToDisplayString() == V2Namespace) return type.Name is not ("IPureKaraokeEffect" or "IPureVisualEffect");
+            if (type.ContainingNamespace.ToDisplayString() == V2Namespace)
+            {
+                string valueName = type.ContainingType?.Name ?? type.Name;
+                return valueName is "PreparedEffect" or "TimelineIndex" or "TimelineIndexBudget" or "TimelineScope" or "TimelineSelector"
+                    or "SourcePresentationLoad" or "SourcePresentationSample" or "SourceCursorSegment" or "TextTarget" or "TextWrite"
+                    or "TextOutputSnapshot" or "TextLineLoad" or "TextClusterTarget" or "TextClusterGeometrySample"
+                    or "BaseTokenTransform" or "BaseTokenStyle" or "TextClusterTransform"
+                    or "RateSegment" or "RateTrack" or "ParticleSpec" or "BridgePolicy" or "CursorEmissionPlan" or "BurstEventRow"
+                    or "EventBurstPlan" or "ParticleSchedule" or "GeometrySamplingPolicy" or "VisualOutputDeclaration" or "ParticleLimits"
+                    or "ParticleHead" or "ParticleOrigin" or "ParticleIdentity" or "BirthWindow" or "ParticleBirth" or "ParticleView"
+                    or "ParticleBirthWindow" || type.TypeKind == TypeKind.Enum;
+            }
             // These are fixed projections or value identities. Existing lifecycle writers/queries are deliberately absent.
             string name = type.ContainingType?.Name ?? type.Name;
             return name is "ContentCatalog" or "SceneCatalog" or "ParameterValues" or "ParameterValue" or "AudioFeatures"
@@ -258,8 +269,19 @@ public static partial class ScriptV2PurityAnalyzer
                 or "StrokeValue" or "ShadowValue" or "GlowValue" or "GradientStop" or "GroupStyleView" or "PerformanceSample"
                 or "GeometrySample" or "RubyGeometrySample" or "TokenGeometrySample" or "LineGeometrySample" or "TextMarkGeometrySample"
                 or "GroupGeometrySample" or "SourceFilter" or "BaseSceneGeometry" or "AudioFeatureValues" or "AudioFeaturePoint" or "AudioFeatureSample" or "AudioFeatureRange"
-                or "TextProgressPath" or "PlaybackCursor" or "CursorGeometry"
+                or "TextProgressPath" or "PlaybackCursor" or "CursorGeometry" or "PlaybackFrame" or "CursorIdentity" or "FinalSceneGeometry"
+                or "SceneElementIdentity" or "EventSourceOrder" or "LeadInEventTarget"
+                or "ParticleDescription" or "ParticleMotion" or "ParticleAgeCurve" or "ParticleSource" or "BurstAnchor" or "ParticleTrailSample"
+                or "Dot" or "Segment" or "Trail" or "TrailPoint" or "Sprite"
+                || IsTimelineEventValue(type)
                 || type.Name.EndsWith("Id", StringComparison.Ordinal) || type.TypeKind == TypeKind.Enum;
+        }
+
+        private static bool IsTimelineEventValue(ITypeSymbol type)
+        {
+            for (INamedTypeSymbol? current = type as INamedTypeSymbol; current is not null; current = current.BaseType)
+                if (current.Name == "TimelineEvent" && IsTrustedSdk(current)) return true;
+            return false;
         }
 
         private static bool IsBclValue(ITypeSymbol type)

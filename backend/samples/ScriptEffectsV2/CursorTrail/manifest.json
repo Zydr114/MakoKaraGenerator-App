@@ -1,0 +1,206 @@
+{
+  "packageVersion": 3,
+  "packageId": "makokara.v2.cursor-trail",
+  "name": "解析连续播放头",
+  "version": "2.0.0",
+  "sdkVersion": "2.0.0",
+  "shaderProfile": "skia-ganesh-3.119.4-v2",
+  "files": [
+    {
+      "path": "README.md",
+      "role": "asset",
+      "sha256": "65f3232a5d629f28595a308cc1bc29b99f9dc3a8af1fe2e49be6abfb27ba0825"
+    },
+    {
+      "path": "src/CursorTrail.cs",
+      "role": "csharp",
+      "sha256": "64a3e40356f12f113c8787cbb68f4cb0efe4fe8f3ab361b0ab2b1b902676b4f4"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "rateShape",
+      "type": "enum",
+      "label": "歌曲时间速率轨",
+      "default": "fixed",
+      "values": [
+        {
+          "value": "fixed",
+          "label": "固定常速"
+        },
+        {
+          "value": "steps",
+          "label": "两段常速"
+        },
+        {
+          "value": "linear",
+          "label": "线性速率"
+        }
+      ]
+    },
+    {
+      "id": "rate",
+      "type": "number",
+      "label": "起始每秒速率",
+      "default": 60,
+      "min": 0,
+      "max": 240,
+      "unit": "/s"
+    },
+    {
+      "id": "finalRate",
+      "type": "number",
+      "label": "末段每秒速率",
+      "default": 30,
+      "min": 0,
+      "max": 240,
+      "unit": "/s"
+    },
+    {
+      "id": "splitUs",
+      "type": "duration",
+      "label": "分段时刻",
+      "default": 1000000,
+      "min": 1,
+      "max": 600000000,
+      "unit": "us"
+    },
+    {
+      "id": "lifeUs",
+      "type": "duration",
+      "label": "粒子寿命",
+      "default": 600000,
+      "min": 1,
+      "max": 5000000,
+      "unit": "us"
+    },
+    {
+      "id": "sizePx",
+      "type": "number",
+      "label": "粒子直径",
+      "default": 6,
+      "min": 0.25,
+      "max": 64,
+      "unit": "px"
+    },
+    {
+      "id": "spreadPx",
+      "type": "number",
+      "label": "出生散布半宽",
+      "default": 0,
+      "min": 0,
+      "max": 64,
+      "unit": "px"
+    },
+    {
+      "id": "color",
+      "type": "color",
+      "label": "粒子颜色",
+      "default": {
+        "r": 1,
+        "g": 0.25,
+        "b": 0.08,
+        "a": 0.9
+      }
+    },
+    {
+      "id": "trailUs",
+      "type": "duration",
+      "label": "解析拖尾窗口",
+      "default": 120000,
+      "min": 0,
+      "max": 1000000,
+      "unit": "us"
+    },
+    {
+      "id": "transition",
+      "type": "enum",
+      "label": "真实后继策略",
+      "default": "jump",
+      "values": [
+        {
+          "value": "jump",
+          "label": "直接换点"
+        },
+        {
+          "value": "bridge",
+          "label": "桥接真实后继"
+        }
+      ]
+    },
+    {
+      "id": "bridgeUs",
+      "type": "duration",
+      "label": "桥接时长",
+      "default": 180000,
+      "min": 0,
+      "max": 2000000,
+      "unit": "us"
+    },
+    {
+      "id": "gapLimitUs",
+      "type": "duration",
+      "label": "桥接空档上限",
+      "default": 2000000,
+      "min": 0,
+      "max": 5000000,
+      "unit": "us"
+    }
+  ],
+  "exports": [
+    {
+      "id": "cursor-trail",
+      "kind": "controller",
+      "name": "解析连续播放头",
+      "entryType": "CursorTrail",
+      "parameters": [
+        "rateShape",
+        "rate",
+        "finalRate",
+        "splitUs",
+        "lifeUs",
+        "sizePx",
+        "spreadPx",
+        "color",
+        "trailUs",
+        "transition",
+        "bridgeUs",
+        "gapLimitUs"
+      ],
+      "bindingKinds": [
+        "project",
+        "branch",
+        "lines",
+        "tokens",
+        "clips",
+        "node"
+      ],
+      "outputs": [
+        {
+          "id": "cursor",
+          "kind": "Overlay",
+          "target": "canvas",
+          "requires": [
+            "particles.continuous",
+            "visuals.dots"
+          ],
+          "dependsOn": []
+        }
+      ]
+    }
+  ],
+  "requires": [
+    "particles.continuous",
+    "visuals.dots"
+  ],
+  "lineExit": {
+    "durationUs": 0
+  },
+  "emitters": [
+    {
+      "id": "cursor",
+      "kind": "cursor",
+      "maxLifetimeUs": 5000000
+    }
+  ]
+}

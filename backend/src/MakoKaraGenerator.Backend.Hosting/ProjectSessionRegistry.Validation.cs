@@ -90,6 +90,8 @@ public sealed partial class ProjectSessionRegistry
             if (CheckPersistenceMutation(session, request.ExpectedRevision, allowReadOnly: true) is { } mutation)
                 return BackendOperationResult<JobResponse>.Rejected(mutation);
             ProjectSnapshot snapshot = ProjectSnapshot.FromProject(session.Workspace.Project);
+            if (ScriptBackendError(snapshot, request.RenderBackend) is { } scriptBackendError)
+                return BackendOperationResult<JobResponse>.Rejected(scriptBackendError);
             ValidateValidationPlan(snapshot, request.FramesPerOutput);
             string profile = ProjectPreviewSnapshotProfile.Select(snapshot);
             byte[] encoded = profile == PackageProjectSnapshotCodec.Profile
@@ -147,6 +149,8 @@ public sealed partial class ProjectSessionRegistry
                 if (CheckPersistenceMutation(session, request.ExpectedRevision, allowReadOnly: true) is { } mutation)
                     return BackendOperationResult<JobResponse>.Rejected(mutation);
                 snapshot = ProjectSnapshot.FromProject(session.Workspace.Project);
+                if (ScriptBackendError(snapshot, request.RenderBackend) is { } scriptBackendError)
+                    return BackendOperationResult<JobResponse>.Rejected(scriptBackendError);
                 ValidateValidationPlan(snapshot, request.FramesPerOutput);
                 lease = session.AcquireProjectRuntimeInput(snapshot);
                 if (!string.IsNullOrEmpty(session.AudioAssetId)) audio = _resources.AcquireReference(clientId, session.AudioAssetId);
@@ -218,6 +222,8 @@ public sealed partial class ProjectSessionRegistry
                 if (CheckPersistenceMutation(session, request.ExpectedRevision, allowReadOnly: true) is { } mutation)
                     return BackendOperationResult<JobResponse>.Rejected(mutation);
                 snapshot = ProjectSnapshot.FromProject(session.Workspace.Project);
+                if (ScriptBackendError(snapshot, request.RenderBackend) is { } scriptBackendError)
+                    return BackendOperationResult<JobResponse>.Rejected(scriptBackendError);
                 ValidateValidationPlan(snapshot, request.FramesPerOutput);
                 imageLease = session.AcquireProjectImageRead(snapshot);
                 if (!string.IsNullOrEmpty(session.AudioAssetId)) audio = _resources.AcquireReference(clientId, session.AudioAssetId);

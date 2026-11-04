@@ -52,7 +52,7 @@ export interface AuthorCompilationSummary {
 
 /**
  * 草稿里的四个修订（W8 设计 §0）：baseSourceRevision 是导入时的原包，currentSourceRevision 是最近保存的修订，
- * adoptedSourceRevision 是最近采用的修订，configuration.sourceRevision 是在用修订。保存源码时仅在用修订原为最新修订时跟随更新。
+ * adoptedSourceRevision 是最近采用的修订，configuration.sourceRevision 是在用修订。SDK2 保存源码不改变采用或在用修订；v1 保持原跟随规则。
  */
 export interface AuthorDraft {
   draftId: string;
@@ -69,6 +69,9 @@ export interface AuthorDraft {
   lastCompilation?: AuthorCompilationSummary;
   configuration?: AuthorDraftConfiguration;
   sampleOptions?: AuthorDraftSampleOptions;
+  /** 当前固定包的正式格式身份，用于 SDK1／SDK2 作者流程分派。 */
+  packageVersion?: number;
+  sdkVersion?: string;
   protocolVersion: '1';
 }
 
@@ -85,7 +88,7 @@ export type AuthorDraftCreateInput = { exportId: string; name: string } & (
 
 /**
  * PUT .../configuration 的完整配置（写法）：可空字段显式写 null。sourceRevision 可以是草稿保留的任一修订，
- * 这时采用标记不变。材质只能作用于 application，不能有种子和叠放层（AuthorConfigurationInvalid）。
+ * 这时采用标记不变；SDK2 C# 来源变更必须已有成功编译记录。材质只能作用于 application，不能有种子和叠放层（AuthorConfigurationInvalid）。
  */
 export interface AuthorDraftConfigurationInput {
   name: string;
@@ -139,7 +142,7 @@ export interface AuthorCompilationDiagnostic {
   column: number;
 }
 
-/** 编译的是草稿的最新修订（currentSourceRevision），不一定是在用修订。 */
+/** 编译结果属于请求捕获的源码修订；旧修订成功不表示最新修订成功。 */
 export interface AuthorCompilation {
   draftId: string;
   draftRevision: string;
@@ -151,7 +154,7 @@ export interface AuthorCompilation {
   protocolVersion: '1';
 }
 
-/** 采用：在用修订和采用标记都换成这个修订；不要求编译通过。 */
+/** 采用：在用修订和采用标记都换成这个修订；SDK2 C# 来源必须已有成功编译记录。 */
 export interface AuthorAdoptResponse {
   draftId: string;
   draftRevision: string;

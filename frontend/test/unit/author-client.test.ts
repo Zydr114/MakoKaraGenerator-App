@@ -81,6 +81,10 @@ describe('作者草稿', () => {
     const compile = lastBody(fake, 'POST', /\/compilation-jobs$/);
     expect(contract.validateNamed('AuthorCompilationRequest', compile)).toEqual([]);
     expect((compile as { executionMode: string }).executionMode).toBe('async');
+    await client.drafts.compile(DRAFT, REV, SRC);
+    const exactCompile = lastBody(fake, 'POST', /\/compilation-jobs$/);
+    expect(contract.validateNamed('AuthorCompilationRequest', exactCompile)).toEqual([]);
+    expect(exactCompile).toMatchObject({ expectedDraftRevision: REV, sourceRevision: SRC, executionMode: 'async' });
 
     await client.drafts.validate(DRAFT, REV, { sampleId: 'workshop-single-line-v1', targetKey: 'line', materialSlot: null, renderBackend: 'cpu' });
     expect(contract.validateNamed('AuthorValidationJobRequest', lastBody(fake, 'POST', /\/validation-jobs$/))).toEqual([]);

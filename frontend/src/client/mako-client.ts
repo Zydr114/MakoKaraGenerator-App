@@ -1361,9 +1361,9 @@ export class MakoClient extends Emitter<MakoClientEvents> {
       return data;
     },
 
-    /** 202：异步编译最新修订（author-compilation 任务），结果用 compilationResult 读。 */
-    compile: (draftId: string, expectedDraftRevision: string): Promise<JobResponse> =>
-      this.postJob(`/api/v1/drafts/${enc(draftId)}/compilation-jobs`, 'author-compilation', { expectedDraftRevision, executionMode: 'async' }),
+    /** 202：异步编译固定修订；省略 sourceRevision 取最新，结果用 compilationResult 读。 */
+    compile: (draftId: string, expectedDraftRevision: string, sourceRevision?: string): Promise<JobResponse> =>
+      this.postJob(`/api/v1/drafts/${enc(draftId)}/compilation-jobs`, 'author-compilation', { expectedDraftRevision, executionMode: 'async', ...(sourceRevision ? { sourceRevision } : {}) }),
 
     /** 最近一次编译；没编译过时 404。 */
     compilation: async (draftId: string): Promise<AuthorCompilation> =>
@@ -1376,7 +1376,7 @@ export class MakoClient extends Emitter<MakoClientEvents> {
     validate: (draftId: string, expectedDraftRevision: string, input: AuthorValidationInput): Promise<JobResponse> =>
       this.postJob(`/api/v1/drafts/${enc(draftId)}/validation-jobs`, 'author-validation', { expectedDraftRevision, ...input }),
 
-    /** 改用一个保留的修订：在用修订和采用标记都换成它，不要求编译通过。 */
+    /** 改用一个保留的修订；SDK2 C# 修订必须已有成功编译记录。 */
     adopt: async (draftId: string, expectedDraftRevision: string, sourceRevision: string): Promise<AuthorAdoptResponse> => {
       const receipt = this.requireConn().receipts.create('draft-adopt');
       const { data } = await this.send<AuthorAdoptResponse>(

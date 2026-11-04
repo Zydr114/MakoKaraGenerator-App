@@ -23,12 +23,13 @@ public sealed record AuthorSourceRevisionRequest(
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record AuthorSourceFileDto(string Path, string Text);
 
-/// <summary>固定当前源码修订并返回其编译诊断。</summary>
+/// <summary>固定指定保留源码修订并返回其编译诊断；省略源码修订时取最新修订。</summary>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record AuthorCompilationRequest(
     string ExpectedDraftRevision,
     RequestMetadataDto? Metadata = null,
-    string? ExecutionMode = null);
+    string? ExecutionMode = null,
+    string? SourceRevision = null);
 
 /// <summary>异步作者编译任务固定的草稿与源码修订。</summary>
 public sealed record AuthorCompilationJobInputDto(
@@ -85,7 +86,9 @@ public sealed record AuthorDraftResponse(
     AuthorCompilationSummaryDto? LastCompilation = null,
     string ProtocolVersion = BackendProtocol.Version,
     AuthorDraftConfigurationDto? Configuration = null,
-    AuthorDraftSampleOptionsDto? SampleOptions = null);
+    AuthorDraftSampleOptionsDto? SampleOptions = null,
+    int? PackageVersion = null,
+    string? SdkVersion = null);
 
 /// <summary>草稿列表；只包含当前客户端拥有的可恢复草稿。</summary>
 public sealed record AuthorDraftListResponse(

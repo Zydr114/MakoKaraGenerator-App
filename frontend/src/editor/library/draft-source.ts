@@ -9,8 +9,8 @@ import type { FullDraft } from './author-draft-store';
 
 export const DRAFT_REVISIONS_KEY = 'mako.author-draft-revisions';
 
-export type RevisionLabel = 'base' | 'latest' | 'saved' | 'adopted' | 'inUse';
-export const REVISION_LABEL: Record<RevisionLabel, string> = { base: '原包', latest: '最新', saved: '本页保存', adopted: '已采用', inUse: '在用' };
+export type RevisionLabel = 'base' | 'latest' | 'saved' | 'compiled' | 'adopted' | 'inUse';
+export const REVISION_LABEL: Record<RevisionLabel, string> = { base: '原包', latest: '最新', saved: '本页保存', compiled: '编译通过', adopted: '已采用', inUse: '在用' };
 
 export interface RevisionRow {
   revision: string;
@@ -18,21 +18,23 @@ export interface RevisionRow {
 }
 
 /**
- * 修订列表：最新在前，然后是本页保存的（新的在前）、在用和已采用的，原包在最后；同一修订合成一行。
+ * 修订列表：最新在前，然后是本页保存的（新的在前）、最近编译通过、在用和已采用的，原包在最后；同一修订合成一行。
  * “本页保存”只标在没有别的身份（原包、最新）的行上。
  */
 export function revisionRows(
-  draft: Pick<AuthorDraft, 'baseSourceRevision' | 'currentSourceRevision' | 'adoptedSourceRevision'> & { configuration: { sourceRevision: string } },
+  draft: Pick<AuthorDraft, 'baseSourceRevision' | 'currentSourceRevision' | 'adoptedSourceRevision' | 'lastCompilation'> & { configuration: { sourceRevision: string } },
   saved: readonly string[],
 ): RevisionRow[] {
   const inUse = draft.configuration.sourceRevision;
   const adopted = draft.adoptedSourceRevision ?? undefined;
-  const order = [draft.currentSourceRevision, ...[...saved].reverse(), inUse, ...(adopted ? [adopted] : []), draft.baseSourceRevision];
+  const compiled = draft.lastCompilation?.succeeded ? draft.lastCompilation.sourceRevision : undefined;
+  const order = [draft.currentSourceRevision, ...[...saved].reverse(), ...(compiled ? [compiled] : []), inUse, ...(adopted ? [adopted] : []), draft.baseSourceRevision];
   return [...new Set(order)].map((revision) => {
     const labels: RevisionLabel[] = [];
     if (revision === draft.baseSourceRevision) labels.push('base');
     if (revision === draft.currentSourceRevision) labels.push('latest');
     if (labels.length === 0 && saved.includes(revision)) labels.push('saved');
+    if (draft.lastCompilation?.succeeded && revision === draft.lastCompilation.sourceRevision) labels.push('compiled');
     if (revision === adopted) labels.push('adopted');
     if (revision === inUse) labels.push('inUse');
     return { revision, labels };
@@ -65,11 +67,13 @@ export interface DraftSourceState {
   saved: string[];
   /** 读进别的修订时加一：编辑器据此丢掉旧的撤销历史。 */
   generation: number;
-  /** 最近一次编译的结果（本页编译的，或打开页签时读到的上一次）。编译的是当时的最新修订。 */
+  /** 最近一次编译的固定源码结果（本页编译的，或打开页签时读到的上一次）。 */
   compilation?: AuthorCompilation;
   /** 编译任务进行中。 */
   compiling?: { jobId?: string; canCancel: boolean; cancelling: boolean };
   compileError?: string;
+  canUndoAdoption: boolean;
+  canRedoAdoption: boolean;
   /** 让编辑器跳到某处（点诊断或验证问题）；nonce 每次加一，编辑器跳过后清掉。 */
   reveal?: SourceLocation & { nonce: number };
 }
@@ -86,6 +90,10 @@ export type SourceResult = { kind: 'saved'; revision: string; created: boolean }
 
 export interface DraftSourcePort {
   current(): FullDraft | undefined;
+  /** 固定包 manifest 的 SDK2 身份；省略保持 v1 行为。 */
+  isV2?(): boolean;
+  /** 在改变采用来源前先提交待写配置。 */
+  settleConfiguration?(): Promise<boolean>;
   read(draft: FullDraft, revision: string): Promise<AuthorDraftSourcesResponse>;
   save(draft: FullDraft, files: AuthorSourceFile[]): Promise<AuthorSourceRevisionResponse>;
   adopt(draft: FullDraft, revision: string): Promise<unknown>;
@@ -96,8 +104,8 @@ export interface DraftSourcePort {
   /** 本页保存过的修订（sessionStorage）。 */
   savedRevisions(): string[];
   rememberSaved(revisions: string[]): void;
-  /** 202：异步编译最新修订。 */
-  compile(draft: FullDraft): Promise<JobResponse>;
+  /** 202：异步编译指定修订；省略时编译最新修订。 */
+  compile(draft: FullDraft, sourceRevision?: string): Promise<JobResponse>;
   waitJob(jobId: string, onProgress: (job: JobResponse | JobSummary) => void, signal: AbortSignal): Promise<JobResponse>;
   cancelJob(jobId: string): Promise<unknown>;
   compilationResult(jobId: string): Promise<AuthorCompilation>;
@@ -116,9 +124,11 @@ export class DraftSourceModel {
   private lastRead = false;
   /** 跳转的序号，一直递增（跳过后 reveal 会清掉，序号不能从头再来）。 */
   private revealNonce = 0;
+  private readonly undoAdoptions: { before: string; after: string }[] = [];
+  private readonly redoAdoptions: { before: string; after: string }[] = [];
 
   constructor(private readonly port: DraftSourcePort) {
-    this.state$ = new ObservableValue<DraftSourceState>({ status: 'idle', files: [], saved: port.savedRevisions(), generation: 0 });
+    this.state$ = new ObservableValue<DraftSourceState>({ status: 'idle', files: [], saved: port.savedRevisions(), generation: 0, canUndoAdoption: false, canRedoAdoption: false });
   }
 
   get state(): DraftSourceState {
@@ -129,6 +139,8 @@ export class DraftSourceModel {
   get dirty(): boolean {
     return this.state.files.some((f) => f.text !== f.saved);
   }
+
+  get isV2(): boolean { return this.port.isV2?.() ?? false; }
 
   /** 把一个修订读进编辑器；不给时读在用修订。编辑器里的改动会丢掉，由调用方先确认。 */
   async load(revision?: string): Promise<boolean> {
@@ -167,8 +179,8 @@ export class DraftSourceModel {
   }
 
   /**
-   * 保存修订：一次提交全部 C# 文件（G34），然后让试样用编辑器里的这份。
-   * 后端只在“在用修订原来就是最新修订”时让在用修订跟着换（§0）；在用的是别的修订（例如采用了原包）时，前端再提交一次配置把它换过来。
+   * 保存修订：一次提交全部 C# 文件（G34）；SDK2 只推进源码，编译后明确采用才改变试样来源。
+   * v1 后端在“在用修订原来就是最新修订”时跟随更新，否则前端再提交一次配置。
    * 内容和最新修订相同时后端不新建修订（no-op）。提交期间又改了的文件仍算没保存。
    */
   async save(): Promise<SourceResult> {
@@ -196,7 +208,7 @@ export class DraftSourceModel {
         this.port.rememberSaved(saved);
       }
       const fresh = created ? await this.port.refresh() : this.port.current();
-      if (fresh && fresh.configuration.sourceRevision !== revision) await this.withFreshDraft((draft) => this.port.use(draft, revision));
+      if (!this.isV2 && fresh && fresh.configuration.sourceRevision !== revision) await this.withFreshDraft((draft) => this.port.use(draft, revision));
       else if (!created) return { kind: 'unchanged' };
       return { kind: 'saved', revision, created };
     } catch (error) {
@@ -208,23 +220,55 @@ export class DraftSourceModel {
 
   /** 改用一个修订：在用修订和采用标记都换成它，试样跟着变。编辑器里没有改动时跟着读进这个修订。 */
   async adopt(revision: string): Promise<SourceResult> {
+    return this.changeAdoption(revision, 'adopt');
+  }
+
+  async undoAdoption(): Promise<SourceResult> {
+    const change = this.undoAdoptions.at(-1);
+    return change ? this.changeAdoption(change.before, 'undo', change.after) : { kind: 'unchanged' };
+  }
+
+  async redoAdoption(): Promise<SourceResult> {
+    const change = this.redoAdoptions.at(-1);
+    return change ? this.changeAdoption(change.after, 'redo', change.before) : { kind: 'unchanged' };
+  }
+
+  private async changeAdoption(revision: string, action: 'adopt' | 'undo' | 'redo', expectedSource?: string): Promise<SourceResult> {
     if (this.state.busy) return { kind: 'busy' };
     this.patch({ busy: 'adopting', error: undefined });
     try {
-      await this.withFreshDraft((draft) => this.port.adopt(draft, revision));
+      if (this.port.settleConfiguration && !(await this.port.settleConfiguration()))
+        throw new Error('配置还有未提交或被拒绝的改动，请先修正。');
+      const before = this.port.current()?.configuration.sourceRevision;
+      if (!before) throw new Error('草稿已关闭。');
+      if (expectedSource && before !== expectedSource) throw new Error('在用修订已被其他操作改变，请重新查看后再采用。');
+      if (before === revision) return { kind: 'unchanged' };
+      await this.withFreshDraft((draft) => {
+        if (draft.configuration.sourceRevision !== before) throw new Error('在用修订已被其他操作改变，本次采用未提交。');
+        return this.port.adopt(draft, revision);
+      });
       const fresh = await this.port.refresh();
+      if (fresh.configuration.sourceRevision !== revision) throw new Error('在用修订已被其他操作改变，请重新查看当前来源。');
+      if (this.isV2) {
+        if (action === 'undo') this.redoAdoptions.push(this.undoAdoptions.pop()!);
+        else if (action === 'redo') this.undoAdoptions.push(this.redoAdoptions.pop()!);
+        else { this.undoAdoptions.push({ before, after: revision }); this.redoAdoptions.length = 0; }
+        this.patch({ canUndoAdoption: this.undoAdoptions.length > 0, canRedoAdoption: this.redoAdoptions.length > 0 });
+      }
       this.patch({ busy: undefined });
       if (this.state.status === 'ready' && !this.dirty && this.state.revision !== fresh.configuration.sourceRevision) await this.load();
       return { kind: 'adopted', revision: fresh.configuration.sourceRevision };
     } catch (error) {
-      return { kind: 'failed', message: `改用修订失败：${errorText(error)}` };
+      const message = `${action === 'undo' ? '撤销采用' : action === 'redo' ? '重做采用' : '采用修订'}失败：${errorText(error)}`;
+      this.patch({ error: message });
+      return { kind: 'failed', message };
     } finally {
       this.patch({ busy: undefined });
     }
   }
 
   /**
-   * 编译最新修订（§0：编译只针对最新修订，不一定是试样在用的那份）。编辑器有改动时先保存，返回保存的结果供页面提示。
+   * SDK2 编译编辑器显示的固定修订，v1 编译最新修订。编辑器有改动时先保存。
    * 编译不通过时任务照样成功，结果里 succeeded 为 false。
    */
   async compile(): Promise<SourceResult | undefined> {
@@ -234,9 +278,10 @@ export class DraftSourceModel {
       saved = await this.save();
       if (saved.kind === 'failed' || saved.kind === 'busy') return saved;
     }
+    const sourceRevision = this.isV2 ? this.state.revision : undefined;
     this.patch({ compiling: { canCancel: false, cancelling: false }, compileError: undefined });
     try {
-      const accepted = await this.withFreshDraft((draft) => this.port.compile(draft));
+      const accepted = await this.withFreshDraft((draft) => this.port.compile(draft, sourceRevision));
       this.patch({ compiling: { jobId: accepted.jobId, canCancel: accepted.canCancel, cancelling: false } });
       const job = await this.port.waitJob(
         accepted.jobId,

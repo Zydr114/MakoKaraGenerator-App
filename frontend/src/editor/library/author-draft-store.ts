@@ -25,6 +25,13 @@ export type DraftSaveState = 'saved' | 'unsaved' | 'orphan' | 'checking';
 /** 带完整配置和试样选项的草稿（读取一定给出两者，列表和命令回执没有时补读）。 */
 export type FullDraft = AuthorDraft & { configuration: NonNullable<AuthorDraft['configuration']>; sampleOptions: NonNullable<AuthorDraft['sampleOptions']> };
 
+/** 由草稿正式 profile 分派；旧宿主可回读固定包清单。 */
+export function isV2AuthorDraft(draft: AuthorDraft | undefined, pkg?: EffectPackageInspectResponse): boolean {
+  if (draft?.packageVersion !== undefined || draft?.sdkVersion !== undefined)
+    return draft.packageVersion === 3 && draft.sdkVersion?.split('.')[0] === '2';
+  return pkg?.manifest.packageVersion === 3 && typeof pkg.manifest.sdkVersion === 'string' && pkg.manifest.sdkVersion.split('.')[0] === '2';
+}
+
 export interface DraftsState {
   status: 'idle' | 'loading' | 'ready' | 'failed';
   drafts: FullDraft[];
@@ -147,6 +154,8 @@ export class AuthorDraftStore {
     const clientId = () => this.client.state$.get().clientId;
     const model = new DraftSourceModel({
       current: () => this.draft(draftId),
+      isV2: () => isV2AuthorDraft(this.draft(draftId), this.state.packages[draftId]),
+      settleConfiguration: async () => (await this.editors.get(draftId)?.flush()) ?? true,
       read: (draft, revision) => this.client.drafts.sources(draftId, draft.draftRevision, revision),
       save: (draft, files) => this.client.drafts.saveSources(draftId, draft.draftRevision, files),
       adopt: (draft, revision) => this.client.drafts.adopt(draftId, draft.draftRevision, revision),
@@ -158,7 +167,7 @@ export class AuthorDraftStore {
         return next;
       },
       refresh: () => this.refreshDraft(draftId),
-      compile: (draft) => this.client.drafts.compile(draftId, draft.draftRevision),
+      compile: (draft, revision) => this.client.drafts.compile(draftId, draft.draftRevision, revision),
       waitJob: (jobId, onProgress, signal) => this.client.jobs.waitForTerminal(jobId, { signal, onProgress }),
       cancelJob: (jobId) => this.client.jobs.cancel(jobId),
       compilationResult: (jobId) => this.client.drafts.compilationResult(jobId),

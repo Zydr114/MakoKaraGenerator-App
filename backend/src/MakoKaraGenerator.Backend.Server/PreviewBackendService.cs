@@ -317,7 +317,8 @@ internal sealed partial class PreviewBackendService : IAsyncDisposable
         if (_factory is null) return new(null, RuntimeInfo.DisabledReason ?? new(BackendErrorCode.CommandNotSupported, "预览Worker未配置。"));
         if (source.Kind == "authorDraft")
         {
-            BackendOperationResult<AuthorPreviewCapture> author = await _projects.CaptureAuthorPreviewAsync(client, source).ConfigureAwait(false);
+            BackendOperationResult<AuthorPreviewCapture> author = await _projects.CaptureAuthorPreviewAsync(client, source,
+                renderBackend, _shutdown.Token).ConfigureAwait(false);
             if (!author.Accepted) return new(null, author.Error!);
             try
             {
@@ -382,6 +383,11 @@ internal sealed partial class PreviewBackendService : IAsyncDisposable
         {
             if (runtimeLease is null)
                 return new(null, new(BackendErrorCode.CommandNotSupported, "固定工程输入授权不可用。", "source"));
+            string renderBackend = (captured.Input!.Factory as IBackendPreviewRenderBackendFactory)?.RenderBackend
+                ?? captured.Input.RenderBackend;
+            if (renderBackend != "gpu" && ScriptBackendRequirement.RequiresVulkan(captured.Input.Snapshot))
+                return new(null, new(BackendErrorCode.CommandNotSupported, "SDK v2 效果要求 GPU 渲染后端。", "renderBackend",
+                    FailureCode: "PackageBackendUnsupported"));
             var result = await runtimeLease.PrepareAsync().ConfigureAwait(false);
             if (!result.Accepted) return new(null, result.Error);
             prepared = result.Response!;
@@ -403,7 +409,7 @@ internal sealed partial class PreviewBackendService : IAsyncDisposable
             BackendPreviewPinnedInput owned = captured.Input with { Factory = fixedFactory,
                 RetentionLease = new CombinedRetention(prepared, reservation), PreparedInput = prepared, VerifiedProfile = profile,
                 PackageClosure = PackageClosure(captured.Input.Snapshot),
-                RenderBackend = (fixedFactory as IBackendPreviewRenderBackendFactory)?.RenderBackend ?? captured.Input.RenderBackend };
+                RenderBackend = (fixedFactory as IBackendPreviewRenderBackendFactory)?.RenderBackend ?? renderBackend };
             prepared = null; reservation = null;
             return new(owned, null);
         }

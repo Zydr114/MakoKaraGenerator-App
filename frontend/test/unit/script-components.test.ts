@@ -249,5 +249,8 @@ describe('作者草稿与组件', () => {
     expect(compiledOk(compiled({}))).toBe(true);
     expect(compiledOk(compiled({ succeeded: false }))).toBe(false);
     expect(compiledOk(compiled({ sourceRevision: 'sha256:other' }))).toBe(false);
+    expect(compiledOk(compiled({ stale: true }))).toBe(false);
+    expect(compiledOk({ ...compiled({ stale: true }), packageVersion: 3, sdkVersion: '2.0.0', currentSourceRevision: 'sha256:new' })).toBe(true);
+    expect(compiledOk({ ...compiled({ stale: true, sourceRevision: 'sha256:other' }), packageVersion: 3, sdkVersion: '2.0.0' })).toBe(false);
   });
 });

@@ -714,7 +714,8 @@ public sealed partial class PreviewTransportTests
             LoadedWaveform? waveformOverride = null, WaveformCache? waveformCache = null, bool presetProfile = false,
             IBackendExportExecutor? injectedExportExecutor = null, BackendExportCapabilities? exportCapabilities = null,
             bool packageProfile = false, bool imageProfile = false,
-            long? maxAssetBytes = null, long? maxAssetQuotaBytes = null, int maxAssets = 4096)
+            long? maxAssetBytes = null, long? maxAssetQuotaBytes = null, int maxAssets = 4096,
+            BackendRenderBackendConfiguration? renderBackends = null)
         {
             Fixture fixture = new();
             BackendHostOptions options = new() { ResourceRoot = Path.Combine(fixture._directory.Path, "resources"), UnreferencedAssetLifetimeSeconds = 1,
@@ -765,7 +766,7 @@ public sealed partial class PreviewTransportTests
                 enabled ? null : new(BackendErrorCode.PreviewUnavailable, "Worker未部署。"),
                 SourceProfiles: previewProfiles);
             fixture.Service = new(fixture.Projects, fixture.Previews, fixture.Resources, fixture.Clients,
-                enabled ? injectedFactory ?? fixture.Factory : null, runtime);
+                enabled ? injectedFactory ?? fixture.Factory : null, runtime, renderBackends);
             WebApplicationBuilder builder = WebApplication.CreateBuilder(); builder.Logging.ClearProviders();
             builder.WebHost.UseUrls("http://127.0.0.1:0");
             builder.Services.ConfigureHttpJsonOptions(configure =>

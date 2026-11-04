@@ -48,6 +48,9 @@ internal sealed partial class PreviewBackendService
             bool transferred = false;
             try
             {
+                if (request.RenderBackend == "cpu" && ScriptBackendRequirement.RequiresVulkan(input.Snapshot))
+                    return BackendOperationResult<PreviewSessionResponse>.Rejected(new(BackendErrorCode.CommandNotSupported,
+                        "SDK v2 效果要求 GPU 渲染后端。", "renderBackend", FailureCode: "PackageBackendUnsupported"));
                 if (input.RenderBackend != request.RenderBackend)
                 {
                     var backend = await PrepareRenderBackendAsync(request.RenderBackend).ConfigureAwait(false);

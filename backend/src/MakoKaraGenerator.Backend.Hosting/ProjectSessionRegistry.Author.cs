@@ -13,6 +13,7 @@ using MakoKaraGenerator.Core.Persistence;
 using MakoKaraGenerator.Rendering;
 using MakoKaraGenerator.Runtime.Hosting.Authoring;
 using MakoKaraGenerator.Scripting.Compilation;
+using MakoKaraGenerator.Scripting.Loading;
 
 namespace MakoKaraGenerator.Backend.Hosting;
 
@@ -168,6 +169,10 @@ public sealed partial class ProjectSessionRegistry
                 AuthorDraftConfigurationDocument configuration = NormalizeConfiguration(document, request.Configuration);
                 EffectPackageContents package = await LoadPackageAsync(document.DraftId, configuration.SourceRevision,
                     _authorStop?.Token ?? CancellationToken.None).ConfigureAwait(false);
+                AuthorDraftConfigurationDocument previous = document.Configuration ?? DefaultConfiguration(document);
+                if (configuration.SourceRevision != previous.SourceRevision && !CanAdoptAuthorSource(document, package))
+                    return AuthorReject<AuthorDraftResponse>(BackendErrorCode.CommandRejected,
+                        "SDK2 源码修订须先编译通过，再明确采用。", "configuration.sourceRevision", "AuthorSourceCompilationRequired");
                 _ = BuildConfiguration(package, configuration);
                 AuthorDraftDocument updatedBase = document with { Configuration = configuration, Name = configuration.Name, ExportId = configuration.ExportId };
                 AuthorDraftDocument updated = updatedBase with { DraftRevision = ComputeDraftRevision(updatedBase, null) };
@@ -197,7 +202,7 @@ public sealed partial class ProjectSessionRegistry
             return BackendOperationResult<AuthorCompilationResponse>.Rejected(new(BackendErrorCode.ResourceNotFound, "作者草稿尚无编译结果。", "compilation"));
         AuthorCompilationSummaryDto summary = document.LastCompilation;
         return BackendOperationResult<AuthorCompilationResponse>.Success(new(document.DraftId, document.DraftRevision,
-            summary.SourceRevision, summary.Succeeded, summary.Stale, summary.ArtifactHash,
+            summary.SourceRevision, summary.Succeeded, summary.SourceRevision != document.CurrentSourceRevision, summary.ArtifactHash,
             document.LastCompilationDiagnostics ?? [], BackendProtocol.Version));
     }
 
@@ -229,7 +234,7 @@ public sealed partial class ProjectSessionRegistry
                 try
                 {
                     await File.WriteAllBytesAsync(temp, bytes, lifetime).ConfigureAwait(false);
-                    EffectPackageContents package = await EffectPackageTransfer.ReadArchiveAsync(temp, ProjectEffectsJson.PackageProfile, cancellationToken: lifetime).ConfigureAwait(false);
+                    EffectPackageContents package = await EffectPackageTransfer.ReadSupportedArchiveAsync(temp, cancellationToken: lifetime).ConfigureAwait(false);
                     _ = EffectPackageDefinition.Read(package, lifetime).GetExport(request.ExportId);
                     string draftId = "draft-" + Guid.NewGuid().ToString("N");
                     await _authorStorageGate.WaitAsync(lifetime).ConfigureAwait(false);
@@ -285,12 +290,14 @@ public sealed partial class ProjectSessionRegistry
                 return BackendOperationResult<AuthorSourceRevisionResponse>.Success(new(document.DraftId, document.DraftRevision,
                     document.PackageId, document.CurrentSourceRevision, [.. declared.Keys.Order(StringComparer.Ordinal)]));
             byte[] manifest = UpdateManifest(basePackage, files);
-            EffectPackageContents package = EffectPackageContents.Create(manifest, files.Where(pair => pair.Key != "manifest.json"), ProjectEffectsJson.PackageProfile);
+            EffectPackageContents package = EffectPackageContents.CreateSupported(manifest, files.Where(pair => pair.Key != "manifest.json"));
             await _authorStorageGate.WaitAsync(_authorStop?.Token ?? CancellationToken.None).ConfigureAwait(false);
             try
             {
                 AuthorDraftConfigurationDocument? configuration = document.Configuration;
-                if (configuration is null || string.Equals(configuration.SourceRevision, document.CurrentSourceRevision, StringComparison.Ordinal))
+                bool v2 = EffectPackageProfiles.IsV2(package.Profile);
+                if (v2) configuration ??= DefaultConfiguration(document);
+                if (!v2 && (configuration is null || string.Equals(configuration.SourceRevision, document.CurrentSourceRevision, StringComparison.Ordinal)))
                     configuration = (configuration ?? new(document.Name, document.PackageId, document.CurrentSourceRevision, document.ExportId,
                         EffectParameterOverrides.Empty.Json, nameof(ScriptRelativeTarget.Application), nameof(ScriptReadScope.BoundSources), null, null,
                         nameof(EffectOverlayLayer.Package))) with { PackageId = document.PackageId, SourceRevision = package.Revision };
@@ -298,8 +305,9 @@ public sealed partial class ProjectSessionRegistry
                 {
                     CurrentSourceRevision = package.Revision,
                     Configuration = configuration,
-                    LastCompilation = null,
-                    LastCompilationDiagnostics = null,
+                    LastCompilation = v2 && document.LastCompilation is { } previousCompilation
+                        ? previousCompilation with { Stale = previousCompilation.SourceRevision != package.Revision } : null,
+                    LastCompilationDiagnostics = v2 ? document.LastCompilationDiagnostics : null,
                 };
                 AuthorDraftDocument updated = updatedBase with { DraftRevision = ComputeDraftRevision(updatedBase, null) };
                 if (!TryPersistAuthorDocument(updated, package))
@@ -310,7 +318,7 @@ public sealed partial class ProjectSessionRegistry
             finally { _authorStorageGate.Release(); }
         }, cancellationToken);
 
-    /// <summary>独立编译当前固定源码修订并持久化最近结果摘要。</summary>
+    /// <summary>独立编译指定保留源码修订，省略时编译最新修订，并持久化最近结果摘要。</summary>
     public Task<BackendOperationResult<AuthorCompilationResponse>> CompileAuthorDraftAsync(string clientId,
         string draftId, AuthorCompilationRequest request, CancellationToken cancellationToken = default)
         => RunAuthorMutationAsync(clientId, draftId, request.Metadata, "POST /api/v1/drafts/compilation-jobs", request with { Metadata = null }, async document =>
@@ -318,7 +326,12 @@ public sealed partial class ProjectSessionRegistry
             if (!string.Equals(document.DraftRevision, request.ExpectedDraftRevision, StringComparison.Ordinal))
                 return AuthorReject<AuthorCompilationResponse>(BackendErrorCode.RevisionConflict, "作者草稿修订已经改变，请重新读取草稿。", "expectedDraftRevision");
             if (_authorCompiler is null) return AuthorReject<AuthorCompilationResponse>(BackendErrorCode.TaskUnavailable, "脚本编译参考集未部署。", "compiler");
-            EffectPackageContents package = await LoadPackageAsync(document.DraftId, document.CurrentSourceRevision, _authorStop?.Token ?? CancellationToken.None).ConfigureAwait(false);
+            string sourceRevision = request.SourceRevision ?? document.CurrentSourceRevision;
+            if (!ValidRevision(sourceRevision))
+                return AuthorReject<AuthorCompilationResponse>(BackendErrorCode.InvalidRequest, "源码修订无效。", "sourceRevision");
+            if (!ReadAuthorSourceHistory(document).Revisions.Any(revision => revision.SourceRevision == sourceRevision))
+                return AuthorReject<AuthorCompilationResponse>(BackendErrorCode.ResourceNotFound, "源码修订不属于此草稿的保留历史。", "sourceRevision");
+            EffectPackageContents package = await LoadPackageAsync(document.DraftId, sourceRevision, _authorStop?.Token ?? CancellationToken.None).ConfigureAwait(false);
             string artifactHash = "none";
             AuthorCompilationDiagnosticDto[] diagnostics;
             bool succeeded;
@@ -327,6 +340,7 @@ public sealed partial class ProjectSessionRegistry
                 EffectPackageDefinition definition = EffectPackageDefinition.Read(package, _authorStop?.Token ?? CancellationToken.None);
                 ScriptCompilationResult result = await _authorCompiler.CompileAsync(EffectPackageSources.Read(package),
                     definition.Controllers.Select(controller => controller.EntryType), _authorStop?.Token ?? CancellationToken.None).ConfigureAwait(false);
+                ValidateAuthorCompilationEntries(definition, result);
                 artifactHash = result.ArtifactHash;
                 diagnostics = [.. result.Diagnostics.Select(diagnostic => new AuthorCompilationDiagnosticDto(diagnostic.Code, diagnostic.Message,
                     diagnostic.IsError, diagnostic.Path, diagnostic.Line, diagnostic.Column))];
@@ -339,11 +353,11 @@ public sealed partial class ProjectSessionRegistry
             }
             DateTimeOffset completed = ServerTimeUtc;
             AuthorCompilationResponse response = new(document.DraftId, document.DraftRevision,
-                document.CurrentSourceRevision, succeeded, false, artifactHash, diagnostics);
+                sourceRevision, succeeded, sourceRevision != document.CurrentSourceRevision, artifactHash, diagnostics);
             if (diagnostics.Length > MaxCompilationDiagnostics
                 || JsonSerializer.SerializeToUtf8Bytes(response, AuthorJson).Length > MaxCompilationResponseBytes)
                 return AuthorReject<AuthorCompilationResponse>(BackendErrorCode.ResourceTooLarge, "编译完整响应超过作者回执预算。", "diagnostics");
-            AuthorCompilationSummaryDto summary = new(document.CurrentSourceRevision, succeeded, false, artifactHash, diagnostics.Length, completed);
+            AuthorCompilationSummaryDto summary = new(sourceRevision, succeeded, sourceRevision != document.CurrentSourceRevision, artifactHash, diagnostics.Length, completed);
             AuthorDraftDocument updated = document with { LastCompilation = summary, LastCompilationDiagnostics = diagnostics };
             await _authorStorageGate.WaitAsync(_authorStop?.Token ?? CancellationToken.None).ConfigureAwait(false);
             try
@@ -363,9 +377,13 @@ public sealed partial class ProjectSessionRegistry
             if (!string.Equals(document.DraftRevision, request.ExpectedDraftRevision, StringComparison.Ordinal))
                 return AuthorReject<JobResponse>(BackendErrorCode.RevisionConflict, "作者草稿修订已经改变，请重新读取草稿。", "expectedDraftRevision");
             if (_authorCompiler is null) return AuthorReject<JobResponse>(BackendErrorCode.TaskUnavailable, "脚本编译参考集未部署。", "compiler");
-            EffectPackageContents package = await LoadPackageAsync(document.DraftId, document.CurrentSourceRevision,
+            string sourceRevision = request.SourceRevision ?? document.CurrentSourceRevision;
+            if (!ValidRevision(sourceRevision))
+                return AuthorReject<JobResponse>(BackendErrorCode.InvalidRequest, "源码修订无效。", "sourceRevision");
+            if (!ReadAuthorSourceHistory(document).Revisions.Any(revision => revision.SourceRevision == sourceRevision))
+                return AuthorReject<JobResponse>(BackendErrorCode.ResourceNotFound, "源码修订不属于此草稿的保留历史。", "sourceRevision");
+            EffectPackageContents package = await LoadPackageAsync(document.DraftId, sourceRevision,
                 _authorStop?.Token ?? CancellationToken.None).ConfigureAwait(false);
-            string sourceRevision = document.CurrentSourceRevision;
             AuthorCompilationJobInputDto input = new(document.DraftId, document.DraftRevision, sourceRevision);
             lock (_jobGate) EnsureTaskScheduler();
             BackendTaskScheduler.Reservation? slot = _taskScheduler!.TryReserve(clientId, "author-draft:" + draftId);
@@ -375,7 +393,7 @@ public sealed partial class ProjectSessionRegistry
             {
                 PruneAuthorCompilationResults();
                 BackendOperationResult<JobResponse> accepted = StartJob(clientId, "author-compilation", null,
-                    job => RunAuthorCompilationJobAsync(clientId, new(input, package, slot), job),
+                    job => RunAuthorCompilationJobAsync(clientId, new(input, package, document.CurrentSourceRevision, slot), job),
                     cancelOnShutdown: true, deferRunning: true, authorCompilationInput: input);
                 transferred = accepted.Accepted;
                 return accepted;
@@ -383,7 +401,7 @@ public sealed partial class ProjectSessionRegistry
             finally { if (!transferred) slot.Dispose(); }
         }, cancellationToken);
 
-    private sealed record AuthorCompilationWork(AuthorCompilationJobInputDto Input, EffectPackageContents Package,
+    private sealed record AuthorCompilationWork(AuthorCompilationJobInputDto Input, EffectPackageContents Package, string LatestSourceRevision,
         BackendTaskScheduler.Reservation Slot);
 
     private async Task RunAuthorCompilationJobAsync(string clientId, AuthorCompilationWork work, BackendJob job)
@@ -397,21 +415,23 @@ public sealed partial class ProjectSessionRegistry
                 job.SetState("running", true);
             }
             AuthorCompilationResponse response = await CompileFixedAuthorSourceAsync(work.Input, work.Package, job.Cancellation).ConfigureAwait(false);
+            response = response with { Stale = response.SourceRevision != work.LatestSourceRevision };
             if (_authorCompilationResults is null) throw new IOException("作者编译结果存储未配置。");
             lock (_jobGate)
             {
                 if (!job.EnterCommitting()) throw new OperationCanceledException(job.Cancellation);
             }
-                SemaphoreSlim gate = _authorDraftLocks.GetOrAdd(work.Input.DraftId, static _ => new(1, 1));
-                await gate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
-                try
+            SemaphoreSlim gate = _authorDraftLocks.GetOrAdd(work.Input.DraftId, static _ => new(1, 1));
+            await gate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+            try
+            {
+                if (TryReadAuthorDraft(clientId, work.Input.DraftId, out AuthorDraftDocument? current, out _))
                 {
-                    if (TryReadAuthorDraft(clientId, work.Input.DraftId, out AuthorDraftDocument? current, out _))
-                    {
-                    AuthorCompilationSummaryDto summary = new(response.SourceRevision, response.Succeeded, false, response.ArtifactHash,
+                    response = response with { Stale = response.SourceRevision != current!.CurrentSourceRevision };
+                    AuthorCompilationSummaryDto summary = new(response.SourceRevision, response.Succeeded, response.Stale, response.ArtifactHash,
                         response.Diagnostics.Length, ServerTimeUtc);
-                    bool stillCurrent = current!.DraftRevision == work.Input.DraftRevision && current.CurrentSourceRevision == work.Input.SourceRevision;
-                    AuthorDraftDocument updated = stillCurrent
+                    bool sameDraft = current.DraftRevision == work.Input.DraftRevision;
+                    AuthorDraftDocument updated = sameDraft
                         ? current with { LastCompilation = summary, LastCompilationDiagnostics = response.Diagnostics }
                         : current;
                     await _authorStorageGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
@@ -421,9 +441,9 @@ public sealed partial class ProjectSessionRegistry
                             throw new IOException("作者编译历史超过草稿存储预算。");
                     }
                     finally { _authorStorageGate.Release(); }
-                    }
                 }
-                finally { gate.Release(); }
+            }
+            finally { gate.Release(); }
             lock (_jobGate)
             {
                 BackendJobReportReferenceDto reference = _authorCompilationResults.Publish(job.Id, response);
@@ -446,6 +466,7 @@ public sealed partial class ProjectSessionRegistry
             EffectPackageDefinition definition = EffectPackageDefinition.Read(package, cancellationToken);
             ScriptCompilationResult result = await _authorCompiler!.CompileAsync(EffectPackageSources.Read(package),
                 definition.Controllers.Select(controller => controller.EntryType), cancellationToken).ConfigureAwait(false);
+            ValidateAuthorCompilationEntries(definition, result);
             artifactHash = result.ArtifactHash;
             diagnostics = [.. result.Diagnostics.Select(diagnostic => new AuthorCompilationDiagnosticDto(diagnostic.Code, diagnostic.Message,
                 diagnostic.IsError, diagnostic.Path, diagnostic.Line, diagnostic.Column))];
@@ -493,7 +514,7 @@ public sealed partial class ProjectSessionRegistry
         }
     }
 
-    /// <summary>显式将已有包修订绑定到当前作者配置；不要求编译成功，也不改个人库。</summary>
+    /// <summary>显式将已有包修订绑定到当前作者配置；SDK2 C# 来源要求成功编译，不改个人库。</summary>
     public Task<BackendOperationResult<AuthorAdoptSourceRevisionResponse>> AdoptAuthorSourceRevisionAsync(string clientId,
         string draftId, AuthorAdoptSourceRevisionRequest request, CancellationToken cancellationToken = default)
         => RunAuthorMutationAsync(clientId, draftId, request.Metadata, "POST /api/v1/drafts/adopt-source-revision", request with { Metadata = null }, async document =>
@@ -503,7 +524,11 @@ public sealed partial class ProjectSessionRegistry
             try
             {
                 EffectPackageContents package = await LoadPackageAsync(document.DraftId, request.SourceRevision, _authorStop?.Token ?? CancellationToken.None).ConfigureAwait(false);
-                AuthorDraftConfigurationDocument configuration = (document.Configuration ?? DefaultConfiguration(document)) with
+                if (!CanAdoptAuthorSource(document, package))
+                    return AuthorReject<AuthorAdoptSourceRevisionResponse>(BackendErrorCode.CommandRejected,
+                        "SDK2 源码修订须先编译通过，再明确采用；可在源码页查看并编译该修订。", "sourceRevision", "AuthorSourceCompilationRequired");
+                AuthorDraftConfigurationDocument previousConfiguration = document.Configuration ?? DefaultConfiguration(document);
+                AuthorDraftConfigurationDocument configuration = previousConfiguration with
                 { SourceRevision = request.SourceRevision };
                 _ = BuildConfiguration(package, configuration);
                 AuthorDraftDocument adopted = document with { AdoptedSourceRevision = request.SourceRevision,
@@ -514,8 +539,10 @@ public sealed partial class ProjectSessionRegistry
                     Configuration = configuration,
                     ExportId = configuration.ExportId,
                     DraftRevision = ComputeDraftRevision(adopted, null),
-                    LastCompilation = document.LastCompilation is { SourceRevision: var source } && source == request.SourceRevision ? document.LastCompilation : null,
-                    LastCompilationDiagnostics = document.LastCompilation is { SourceRevision: var diagnosticSource } && diagnosticSource == request.SourceRevision
+                    LastCompilation = EffectPackageProfiles.IsV2(package.Profile)
+                        || document.LastCompilation is { SourceRevision: var source } && source == request.SourceRevision ? document.LastCompilation : null,
+                    LastCompilationDiagnostics = EffectPackageProfiles.IsV2(package.Profile)
+                        || document.LastCompilation is { SourceRevision: var diagnosticSource } && diagnosticSource == request.SourceRevision
                         ? document.LastCompilationDiagnostics : null,
                 };
                 await _authorStorageGate.WaitAsync(_authorStop?.Token ?? CancellationToken.None).ConfigureAwait(false);
@@ -526,7 +553,8 @@ public sealed partial class ProjectSessionRegistry
                 }
                 finally { _authorStorageGate.Release(); }
                 return BackendOperationResult<AuthorAdoptSourceRevisionResponse>.Success(new(updated.DraftId, updated.DraftRevision,
-                    updated.PackageId, document.AdoptedSourceRevision ?? document.CurrentSourceRevision, request.SourceRevision, updated.ExportId));
+                    updated.PackageId, EffectPackageProfiles.IsV2(package.Profile) ? previousConfiguration.SourceRevision
+                        : document.AdoptedSourceRevision ?? document.CurrentSourceRevision, request.SourceRevision, updated.ExportId));
             }
             catch (DirectoryNotFoundException)
             { return AuthorReject<AuthorAdoptSourceRevisionResponse>(BackendErrorCode.ResourceNotFound, "源码修订不存在。", "sourceRevision"); }
@@ -575,6 +603,8 @@ public sealed partial class ProjectSessionRegistry
             { return AuthorReject<T>(BackendErrorCode.InvalidRequest, argumentError.Message, "draftId"); }
             catch (OperationCanceledException) when (_authorStop?.IsCancellationRequested == true)
             { return AuthorReject<T>(BackendErrorCode.SessionClosing, "作者工作流正在停止。"); }
+            catch (JsonException)
+            { return AuthorReject<T>(BackendErrorCode.ProjectLoadFailed, "作者源码历史无法读取。", "sourceRevisions", "AuthorSourceHistoryInvalid"); }
             catch (Exception storageError) when (storageError is IOException or UnauthorizedAccessException)
             { return AuthorReject<T>(BackendErrorCode.ProjectLoadFailed, "作者草稿持久化或读取失败。", "draftId", "AuthorDraftStorageFailed"); }
             finally { if (entered) gate.Release(); }
@@ -637,7 +667,9 @@ public sealed partial class ProjectSessionRegistry
         return new(document.DraftId, document.DraftRevision, document.Name, document.PackageId, document.BaseSourceRevision,
             document.CurrentSourceRevision, document.ExportId, document.AdoptedSourceRevision,
             _authorCompiler is not null && currentPackage.Files.Any(file => file.Role == "csharp"), true,
-            document.LastCompilation, BackendProtocol.Version, configuration, samples);
+            document.LastCompilation is { } compilation
+                ? compilation with { Stale = compilation.SourceRevision != document.CurrentSourceRevision } : null,
+            BackendProtocol.Version, configuration, samples, package.Profile.PackageVersion, package.Profile.SdkVersion);
     }
 
     private static AuthorDraftConfigurationDocument NormalizeConfiguration(AuthorDraftDocument document,
@@ -748,6 +780,29 @@ public sealed partial class ProjectSessionRegistry
     }
 
     private string DocumentPath(string draftId) => Path.Combine(_authorRoot!, draftId, "draft.json");
+
+    private bool CanAdoptAuthorSource(AuthorDraftDocument document, EffectPackageContents package) =>
+        !EffectPackageProfiles.IsV2(package.Profile) || !package.Files.Any(file => file.Role == "csharp")
+        || ReadAuthorSourceHistory(document).Revisions.Any(revision => revision.SourceRevision == package.Revision
+            && revision.Compilation is { Succeeded: true });
+
+    private static void ValidateAuthorCompilationEntries(EffectPackageDefinition definition, ScriptCompilationResult compilation)
+    {
+        if (!compilation.Succeeded) return;
+        using ScriptModule module = new(compilation.PeImage.AsMemory(), compilation.PdbImage.AsMemory());
+        foreach (EffectControllerDefinition controller in definition.Controllers)
+        {
+            try
+            {
+                if (EffectPackageProfiles.IsV2(definition.Contents.Profile))
+                    module.ValidateEntry<MakoKaraGenerator.Scripting.V2.IPureKaraokeEffect>(controller.EntryType);
+                else module.ValidateEntry<MakoKaraGenerator.Scripting.IKaraokeEffect>(controller.EntryType);
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            { throw new EffectPackageException("PackageEntryInvalid", "exports." + controller.Id + ".entryType",
+                "真实 DLL 入口缺失或不符合此包声明的 SDK 构造合同。", error); }
+        }
+    }
     private string PackageDirectory(string draftId, string revision)
     {
         if (!ValidDraftId(draftId) || !ValidRevision(revision))
@@ -755,7 +810,7 @@ public sealed partial class ProjectSessionRegistry
         return Path.Combine(_authorRoot!, draftId, "packages", revision[7..]);
     }
     private Task<EffectPackageContents> LoadPackageAsync(string draftId, string revision, CancellationToken token)
-        => EffectPackageStorage.ReadDirectoryAsync(PackageDirectory(draftId, revision), ProjectEffectsJson.PackageProfile, cancellationToken: token);
+        => EffectPackageStorage.ReadSupportedDirectoryAsync(PackageDirectory(draftId, revision), cancellationToken: token);
 
     /// <summary>持久作者草稿保护客户端身份；显式删除后释放保护。</summary>
     public bool HasAuthorDraft(string clientId)

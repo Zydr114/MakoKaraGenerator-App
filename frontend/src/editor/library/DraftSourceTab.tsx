@@ -61,6 +61,8 @@ export function DraftSourceTab(props: { draft: FullDraft; model: DraftSourceMode
     const saved = await model.compile();
     if (saved) report(saved);
   };
+  const undoAdoption = async () => report(await model.undoAdoption());
+  const redoAdoption = async () => report(await model.redoAdoption());
 
   const latest = draft.currentSourceRevision;
   const compilation = state.compilation;
@@ -121,8 +123,8 @@ export function DraftSourceTab(props: { draft: FullDraft; model: DraftSourceMode
                 <IconButton
                   icon="check_circle"
                   size="sm"
-                  label={`改用修订 ${shortRevision(row.revision)}`}
-                  tooltip="改用此修订"
+                  label={`${model.isV2 ? '采用' : '改用'}修订 ${shortRevision(row.revision)}`}
+                  tooltip={model.isV2 ? '采用此修订（须编译通过）' : '改用此修订'}
                   className="source-revision-adopt"
                   isDisabled={busy || row.revision === inUse}
                   onPress={() => void adopt(row.revision)}
@@ -131,7 +133,8 @@ export function DraftSourceTab(props: { draft: FullDraft; model: DraftSourceMode
             </li>
           ))}
         </ul>
-        <Note className="srcside-note">后端不列出草稿保留的修订：这里只有原包、最新、已采用、在用和本页保存过的。</Note>
+        <Note className="srcside-note">这里列出原包、最新、已采用、在用和本页保存过的修订。</Note>
+        {model.isV2 && <Note className="srcside-note">保存和编译均不会改变在用修订。查看任一修订后可编译，编译通过再采用；撤销采用的目标也须先编译通过。</Note>}
       </aside>
       <div className="srcmain draft-source-main">
         <div className="srcbar">
@@ -144,11 +147,15 @@ export function DraftSourceTab(props: { draft: FullDraft; model: DraftSourceMode
             {dirty ? '，有改动没保存' : ''}
           </span>
           <span className="spacer" />
+          {model.isV2 && <>
+            <IconButton icon="undo" size="sm" label="撤销源码采用" isDisabled={busy || !state.canUndoAdoption} onPress={() => void undoAdoption()} />
+            <IconButton icon="redo" size="sm" label="重做源码采用" isDisabled={busy || !state.canRedoAdoption} onPress={() => void redoAdoption()} />
+          </>}
           <Button variant="filled" size="sm" icon="save" className="source-save" isPending={state.busy === 'saving'} isDisabled={busy || !dirty} onPress={() => void save()}>
             保存修订
           </Button>
           <Button variant="tonal" size="sm" icon="build" className="source-compile-button" isPending={!!state.compiling} isDisabled={busy || !!state.compiling} onPress={() => void compile()}>
-            {dirty ? '保存并编译' : '编译'}
+            {dirty ? '保存并编译' : model.isV2 ? '编译查看的修订' : '编译'}
           </Button>
         </div>
         {state.error && <Note error>{state.error}</Note>}
@@ -186,13 +193,15 @@ export function DraftSourceTab(props: { draft: FullDraft; model: DraftSourceMode
             <span className="source-compile-outcome">
               {compilation ? `编译 · 修订 ${shortRevision(compilation.sourceRevision)} · ${compileOutcomeText(compilation)}` : '还没有编译过'}
             </span>
-            {stale && <span className="diag-stale">已过期，需要重新编译</span>}
+            {stale && <span className="diag-stale">{model.isV2 ? '此结果属于旧修订，最新源码尚未由此结果验证' : '已过期，需要重新编译'}</span>}
             <span className="faint">
               {state.compiling
                 ? state.compiling.cancelling
                   ? '正在取消…'
                   : '正在编译…'
-                : inUse !== latest
+                : model.isV2
+                  ? `编译目标 ${shortRevision(state.revision ?? latest)}；在用 ${shortRevision(inUse)}`
+                  : inUse !== latest
                   ? `编译的是最新修订 ${shortRevision(latest)}；试样在用的是 ${shortRevision(inUse)}`
                   : ''}
             </span>
@@ -203,6 +212,11 @@ export function DraftSourceTab(props: { draft: FullDraft; model: DraftSourceMode
             )}
           </header>
           {state.compileError && <Note error>{state.compileError}</Note>}
+          {model.isV2 && compilation?.succeeded && compilation.sourceRevision !== inUse && (
+            <Button variant="tonal" size="sm" isDisabled={busy || !!state.compiling} onPress={() => void adopt(compilation.sourceRevision)}>
+              采用编译通过的修订 {shortRevision(compilation.sourceRevision)}
+            </Button>
+          )}
           {rowsOf.length > 0 && (
             <ul className="compile-rows">
               {rowsOf.map((row, i) => (

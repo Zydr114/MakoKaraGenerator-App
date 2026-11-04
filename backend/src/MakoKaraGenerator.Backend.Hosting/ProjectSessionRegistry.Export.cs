@@ -131,6 +131,8 @@ public sealed partial class ProjectSessionRegistry
             if (CheckPersistenceMutation(session, request.ExpectedRevision, allowReadOnly: true) is { } mutation)
                 return BackendOperationResult<JobResponse>.Rejected(mutation);
             ProjectSnapshot snapshot = ProjectSnapshot.FromProject(session.Workspace.Project);
+            if (ScriptBackendError(snapshot, request.RenderBackend) is { } scriptBackendError)
+                return BackendOperationResult<JobResponse>.Rejected(scriptBackendError);
             string profile = ProjectSnapshotSourceProfile.Select(snapshot);
             if (!_exportSourceProfiles.Contains(profile, StringComparer.Ordinal))
                 return Reject<JobResponse>(BackendErrorCode.TaskUnavailable, "实际导出Worker未提供所选来源能力。");
@@ -219,6 +221,8 @@ public sealed partial class ProjectSessionRegistry
                 if (CheckPersistenceMutation(session, request.ExpectedRevision, allowReadOnly: true) is { } mutation)
                     return BackendOperationResult<JobResponse>.Rejected(mutation);
                 snapshot = ProjectSnapshot.FromProject(session.Workspace.Project);
+                if (ScriptBackendError(snapshot, request.RenderBackend) is { } scriptBackendError)
+                    return BackendOperationResult<JobResponse>.Rejected(scriptBackendError);
                 string basis = ProjectSnapshotSourceProfile.Select(snapshot with { Background = BackgroundSource.Color });
                 if (!_exportSourceProfiles.Contains(basis, StringComparer.Ordinal))
                     return Reject<JobResponse>(BackendErrorCode.TaskUnavailable, "实际导出Worker未提供所选基础来源能力。");
@@ -346,6 +350,8 @@ public sealed partial class ProjectSessionRegistry
                 if (CheckPersistenceMutation(session, request.ExpectedRevision, allowReadOnly: true) is { } mutation)
                     return BackendOperationResult<JobResponse>.Rejected(mutation);
                 snapshot = ProjectSnapshot.FromProject(session.Workspace.Project);
+                if (ScriptBackendError(snapshot, request.RenderBackend) is { } scriptBackendError)
+                    return BackendOperationResult<JobResponse>.Rejected(scriptBackendError);
                 baseProfile = ProjectPreviewSnapshotProfile.Select(snapshot with { Background = BackgroundSource.Color });
                 if (_exportDeployment.ImageBaseProfiles is not { } bases || !bases.Contains(baseProfile, StringComparer.Ordinal))
                     return Reject<JobResponse>(BackendErrorCode.TaskUnavailable, "实际图片导出 Worker 未提供所选基础来源能力。");

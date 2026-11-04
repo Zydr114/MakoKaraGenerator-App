@@ -12,13 +12,21 @@ public sealed record AuthorPreviewCapture(PreviewSourceDto Source, ProjectSnapsh
 public sealed partial class ProjectSessionRegistry
 {
     public Task<BackendOperationResult<AuthorPreviewCapture>> CaptureAuthorPreviewAsync(
-        string clientId, PreviewSourceDto source, CancellationToken cancellationToken = default)
+        string clientId, PreviewSourceDto source, CancellationToken cancellationToken = default) =>
+        CaptureAuthorPreviewAsync(clientId, source, null, cancellationToken);
+
+    /// <summary>按可信组合根已解析的设备选择，在作者输入准备前核验 SDK 后端要求。</summary>
+    public Task<BackendOperationResult<AuthorPreviewCapture>> CaptureAuthorPreviewAsync(
+        string clientId, PreviewSourceDto source, string? renderBackend, CancellationToken cancellationToken = default)
     {
         if (source is null || source.Kind != "authorDraft")
             return Task.FromResult(BackendOperationResult<AuthorPreviewCapture>.Rejected(
                 new(BackendErrorCode.InvalidRequest, "作者预览来源必须是authorDraft。", "source.kind")));
+        string backend = renderBackend ?? _renderBackends?.DefaultBackend ?? "cpu";
+        if (backend is not ("cpu" or "gpu"))
+            return Task.FromResult(BackendOperationResult<AuthorPreviewCapture>.Rejected(InvalidRenderBackend()));
         return WithAuthorPreviewDraftAsync(clientId, source.SourceId,
-            document => CaptureAuthorPreviewCoreAsync(document, source), cancellationToken);
+            document => CaptureAuthorPreviewCoreAsync(document, source, backend), cancellationToken);
     }
 
     private async Task<BackendOperationResult<T>> WithAuthorPreviewDraftAsync<T>(string clientId, string draftId,
@@ -73,7 +81,7 @@ public sealed partial class ProjectSessionRegistry
         });
 
     private async Task<BackendOperationResult<AuthorPreviewCapture>> CaptureAuthorPreviewCoreAsync(
-        AuthorDraftDocument document, PreviewSourceDto source)
+        AuthorDraftDocument document, PreviewSourceDto source, string renderBackend)
     {
         if (!string.Equals(document.DraftRevision, source.SourceRevision, StringComparison.Ordinal))
             return AuthorReject<AuthorPreviewCapture>(BackendErrorCode.RevisionConflict,
@@ -95,6 +103,9 @@ public sealed partial class ProjectSessionRegistry
             EffectPackageContents package = await LoadPackageAsync(document.DraftId, saved.SourceRevision,
                 _authorStop?.Token ?? CancellationToken.None).ConfigureAwait(false);
             ScriptConfiguration configuration = BuildConfiguration(package, saved);
+            if (renderBackend != "gpu" && EffectPackageProfiles.IsV2(package.Profile))
+                return AuthorReject<AuthorPreviewCapture>(BackendErrorCode.CommandNotSupported,
+                    "SDK v2 效果仅支持 Vulkan；请显式选择 GPU 后端后再预览。", "renderBackend", "PackageBackendUnsupported");
             TemplateMaterialSlot slot = ParseMaterialSlot(sample.MaterialSlot, configuration);
             bool multiLine = sample.SampleId == TemplatePreviewLimits.MultiLineSampleId;
             TemplateSampleTarget? target = ScriptSampleBuilder.Targets(configuration, slot, multiLine)

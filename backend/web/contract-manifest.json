@@ -1,14 +1,14 @@
 {
-  "contractVersion": "1.44.0",
+  "contractVersion": "1.44.1",
   "httpProtocolVersion": "1",
-  "productVersion": "0.112.1",
-  "sourceBaselineCommit": "0f26db254bdf7562008ca7a573b2bc3fd6486bb1",
+  "productVersion": "0.112.2",
+  "sourceBaselineCommit": "c8c8a2432b840bd1fa5bf1075033706831106247",
   "frozenOn": "2026-11-04",
   "status": "frozen",
   "behaviorSource": "docs/architecture/backend-api.md",
   "scope": "Implemented public HTTP API with SDK2 exact continuous/burst particles and late dots/segments/trails/sprites on declared Overlay/canvas outputs. Fixed source compilation/adoption, GPU admission and existing author/preview/export lifecycles remain; no new HTTP DTO, route, schema or example. Source fingerprints include M08 preparation, query budgets, final anchors and runtime diagnostics. Contract generation, matched deployment, fresh HTTP/GPU frames and performance acceptance require separate evidence.",
   "files": {
-    "Directory.Build.props": "0025b3682e5f73ca2aa4f0df8f7a282cc99208149556bef628f8f54b232bbf5e",
+    "Directory.Build.props": "de236eb7fa3a61d172a5bd9342e0dcf6ef7e2138dcb7b35f61c661f670b76e28",
     "Directory.Packages.props": "73a39b80a81538299db0031c15eb45c9b3d304cb03c232e5a13e4b19d2d9929b",
     "docs/architecture/backend-api.md": "bc23a6e24bbdd3315525b9bfc686216fe76b4690919eef769480c00c06de830d",
     "docs/runtime-validation-and-layout-contract.md": "af88f95301baf372ea29fb5012f59ec11bd3141391566fa09400cefacbd2cb15",
@@ -579,7 +579,7 @@
     "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.Pure.cs": "80f5ae4e9eeb3d87dcc23233dfd7891ad5c8ec20c67c15cc83220b773b16e2ab",
     "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.Queries.cs": "cd0ef4e2997c5124472e97bf1725b7136d08b56cc92e8ca803667840795dbdb3",
     "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.V2Anchors.cs": "99ebcbd81c9a6a2c1af120170e7bdd82332b6fa8aea6aa926cbebda5ff6accdb",
-    "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.V2Particles.cs": "1995314121baba960bdb5e6081a6d66ac3bb2b89947731293a7dda2b23a454ec",
+    "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.V2Particles.cs": "31082417da8b74c5626c66a60170144f9d692ba65527a9293b568461e99034c3",
     "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.V2Sources.cs": "58b522c0847690e897b48b2dafbb82d8ea31babfa3c3027e90830e286f373501",
     "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.Visuals.cs": "88065de1e2e6f605834bc2108c7f657e14027e5fdd10bb4bfbdbea026d7e9f6d",
     "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.cs": "34076b072eba84e6d7e6e6729e71545be1de5d01d346eb8b0ec2d1be49d591ed",
@@ -650,7 +650,7 @@
     "tools/backend-api-contract/editing_completion_fixtures.py": "4b4da8347c0ab78b0354e7d8f81a14235bc5c5646a6377aca492c1e7f0243ca6",
     "tools/backend-api-contract/editing_completion_schema.py": "f182ca0aec1be18ff08afa3eea48aa2b9212bdd43fdb9f00ad9b46a7122e59ba",
     "tools/backend-api-contract/export_request_fixtures.py": "b221f6c1da6ee545b1df3d9c769e5ba8ad8119e8add86004e9b6947fed548321",
-    "tools/backend-api-contract/freeze.py": "6ee5756db2395b34b60fa82e04c8d1bf2fdfe0596001fe75697d1ac6eda674a2",
+    "tools/backend-api-contract/freeze.py": "80115a12a19104533bf53a5861325dc31039d0ec8eaf0f90a7c2bf2902759c8c",
     "tools/backend-api-contract/glow_style_fixtures.py": "b571abcdece9844c4e3a2a2d894a98ffce17c017c36345c6cb605653fd10d959",
     "tools/backend-api-contract/gpu_stream_fixtures.py": "8b7b832aa4e1efbd5ce97434ee5e6ed45865016552e08d92cdf0f79bc804fda0",
     "tools/backend-api-contract/node_creation_fixtures.py": "9fc813b46cbd66ed93dcb5396b79ae653dec2d44c2545de89ed8d4ba92b62bcd",
@@ -681,16 +681,16 @@
     "tools/backend-api-contract/static_style_schema.py": "b439e16df6fb8629c806481b137abdb054757d84eaed60a79933f7f68f09bf21",
     "tools/backend-api-contract/template_library_fixtures.py": "cf09d89a84809ab4fb131e421a04dc4371da931a1ead1669c696312874f8acfb",
     "tools/backend-api-contract/template_library_schema.py": "80866a5ecd26697dc48cfa1f1b6a442e3fbfa07589f25c44ffad81e18ca6520a",
-    "tools/backend-api-contract/validate.py": "63e0c473f0b4ff1cbcd3474693e6b46f4d5f6547723ce0583409e221100bfa67",
+    "tools/backend-api-contract/validate.py": "89ed2c9e4d7ace97a364ccbd6d2551134deac974b23068f169b136b99f02c212",
     "tools/backend-api-contract/validation_package_schema.py": "d85c38e65a017d369554b1d4e60b5468ff542879c81f6669b795f785e45164d1",
     "tools/backend-api-contract/w8_authoring_fixtures.py": "c15a138d932c98ba5f9acb4ebb99695f9827e967ce4fcaa1811eb4f4a27c6d13",
     "tools/backend-api-contract/w8_authoring_schema.py": "49c181bd9a09e7662e5915bc4d40afc891119e29f68b1c2afc44511c41deeff3"
   },
   "artifacts": {
-    "web/api-contract.md": "320b9b53b4158c428651e66fca52e26ee44a92bf2578684505edfe24152e0f06",
-    "web/api-index.md": "1526cd3297e8a408c9c0f4f90f2a26129bf5ee1b23f237a82d4d931ca386b824",
-    "web/examples.json": "c6d34fd30b86929bd5eab7b30315c07be7b13c691aa64e9538eb1fc3181474cc",
-    "web/openapi.json": "a4844e6b2ec800ac60b63686ddd52e69b4f852c62e194c8e97fba069a6152312"
+    "web/api-contract.md": "cf125a842106b55145bc2abc9b950274e4927f095cde9b6c8c7f5e0f3fcdf481",
+    "web/api-index.md": "a12b75280cc3e8736fbbbc6ba3b901478d74667200055a0d73b5794daa8979bb",
+    "web/examples.json": "19d87cfc083d756907bf1ac13075bedcca84be2f3e3e135fd2a960d8dbeeef8b",
+    "web/openapi.json": "871889032fcd756d647274466482a4e44353151f86200c11071cc7932f94a776"
   },
   "guards": "Source hashes require review even for behavior-preserving changes. They are drift alarms, not semantic proofs. Runtime/Media behavior still requires existing regression tests."
 }

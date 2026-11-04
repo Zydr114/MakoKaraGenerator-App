@@ -123,3 +123,10 @@ CursorTrail／VectorTrail／EventBurst、640×360 CJK/Ruby、0／180／600 秒�
 `build-15.log` 全方案零警告／零错误，`diagnostic-fastpath-01.log` 29/29；随后同一
 构建串行执行 `scripting-full-03.log` 442/442、`rendering-full-03.log` 1279/1279、
 `export-v2-03.log` 7/7。该修复尚待新的合同指纹、匹配发布与 fresh HTTP 预算负例复验。
+
+修复已提交为 `c8c8a2432b840bd1fa5bf1075033706831106247`。`contract-build-02.log`
+重新构建 metadata，零警告／零错误；首次 validate 因工具未登记新 patch 合同版本失败，
+补齐 1.44.1 的显式版本映射后，`contract-freeze-03.log` 与 `contract-validation-03.json`
+全部通过，仍为 112 路径／125 方法、597 schemas、3434 示例／2548 反例，产品 0.112.2。
+前端整体同步合同，`frontend-build-02.log` TypeScript／Vite 成功（保留原有 chunk 提示），
+`frontend-unit-02.log` 全部 44 文件／3937 单元用例通过；没有据此声明新的浏览器或 HTTP 验收。

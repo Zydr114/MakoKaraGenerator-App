@@ -11,6 +11,8 @@ public sealed partial record TokenGeometrySample
 
 public sealed partial record FrameOutput
 {
+    /// <summary>全部已验证网格写入，保留调用顺序及被后写覆盖的值，供全实例计账与归属。</summary>
+    public ImmutableArray<TextWrite.Warp> TextWarps { get; init; } = [];
     /// <summary>只影响基础字、不影响其 Ruby 的组合仿射。</summary>
     public ImmutableArray<BaseTokenTransform> BaseTransforms { get; init; } = [];
     /// <summary>只影响基础字、不影响其 Ruby 的合成外观。</summary>

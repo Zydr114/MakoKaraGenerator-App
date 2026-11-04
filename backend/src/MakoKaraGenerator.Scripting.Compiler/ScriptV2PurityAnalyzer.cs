@@ -279,6 +279,7 @@ public static partial class ScriptV2PurityAnalyzer
                 or "GeometrySample" or "RubyGeometrySample" or "TokenGeometrySample" or "LineGeometrySample" or "TextMarkGeometrySample"
                 or "GroupGeometrySample" or "SourceFilter" or "BaseSceneGeometry" or "AudioFeatureValues" or "AudioFeaturePoint" or "AudioFeatureSample" or "AudioFeatureRange"
                 or "TextProgressPath" or "PlaybackCursor" or "CursorGeometry" or "PlaybackFrame" or "CursorIdentity" or "FinalSceneGeometry"
+                or "GridWarp" or "TextGeometryMapping"
                 or "SceneElementIdentity" or "EventSourceOrder" or "LeadInEventTarget"
                 or "ParticleDescription" or "ParticleMotion" or "ParticleAgeCurve" or "ParticleSource" or "BurstAnchor" or "ParticleTrailSample"
                 or "Dot" or "Segment" or "Trail" or "TrailPoint" or "Sprite"

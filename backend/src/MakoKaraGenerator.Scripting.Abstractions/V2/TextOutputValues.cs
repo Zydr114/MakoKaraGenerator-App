@@ -43,7 +43,7 @@ public enum FillState
 }
 
 /// <summary>一条已校验的不可变文字输出；数组顺序即作者调用顺序，合成不得任意排序。</summary>
-public abstract record TextWrite
+public abstract partial record TextWrite
 {
     private protected TextWrite(TextTarget target) { Target = target; }
     /// <summary>已经验证属于本帧输出范围的真实目标。</summary>

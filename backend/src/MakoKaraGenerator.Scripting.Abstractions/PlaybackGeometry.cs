@@ -98,12 +98,16 @@ public sealed record CursorGeometry
     public required TextProgressPath Path { get; init; }
     /// <summary>与最终文字相同的逻辑到画布矩阵。</summary>
     public required Affine2 WorldMatrix { get; init; }
+    /// <summary>存在网格时的同一源到画布映射；为空保留 affine 快路。</summary>
+    public TextGeometryMapping? Mapping { get; init; }
     /// <summary>取得真实世界播放头，不再次乘父组。</summary>
     public PlaybackCursor At(CursorAnchorMode mode)
     {
-        var point = WorldMatrix.Map(Path.At(Progress, mode));
+        var local = Path.At(Progress, mode);
+        var point = Mapping?.MapPoint(local) ?? WorldMatrix.Map(local);
         double sign = Math.Sign((double)Path.EndX - Path.StartX);
-        double x = WorldMatrix.A * sign, y = WorldMatrix.B * sign;
+        var direction = Mapping?.MapVectorAt(local, new(sign, 0)) ?? new Vector2(WorldMatrix.A * sign, WorldMatrix.B * sign);
+        double x = direction.X, y = direction.Y;
         double magnitude = Math.Sqrt(x * x + y * y);
         if (!double.IsFinite(magnitude)) throw new EffectOutputException("InvalidCursorGeometry", "播放头方向运算溢出。");
         return new(TrackId, Identity, TimeUs, Progress, point,

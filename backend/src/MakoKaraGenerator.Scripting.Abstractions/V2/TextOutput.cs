@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 namespace MakoKaraGenerator.Scripting.V2;
 
 /// <summary>文字阶段的类型安全临时输出句柄；只写本实例输出，不读取最终全局值。</summary>
-public sealed class TextOutput
+public sealed partial class TextOutput
 {
     private readonly ImmutableHashSet<string> _capabilities;
     private readonly ImmutableHashSet<TextTarget> _allowed;
@@ -39,7 +39,11 @@ public sealed class TextOutput
             foreach (var line in frame.LineGeometry)
                 if (frame.LineLoads.Any(load => load.Target == line.Target)) allowed.Add(new TextTarget.Line(line.Target));
         foreach (var mark in frame.MarkGeometry)
-            if (frame.Presentations.MarksInBinding.Any(item => item.Target == mark.Target)) allowed.Add(new TextTarget.Mark(mark.Target));
+            if (frame.Presentations.MarksInBinding.Any(item => item.Target == mark.Target))
+            {
+                TextTarget target = new TextTarget.Mark(mark.Target);
+                allowed.Add(target); geometry.Add(target, mark.Geometry);
+            }
         foreach (var group in writableGroups.IsDefault ? [] : writableGroups)
         {
             if (group is null || !frame.GroupGeometry.Any(item => item.Target == group))

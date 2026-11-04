@@ -21,6 +21,16 @@ public sealed record GeometrySample
     public required Point2 Baseline { get; init; }
     /// <summary>已有父组／槽位／单句／进入动画最终矩阵，不再乘一次父组。</summary>
     public required Affine2 BaseWorldMatrix { get; init; }
+    /// <summary>含网格时的源逻辑到画布有序闭包；为空时保留原 affine 快路。</summary>
+    public TextGeometryMapping? Mapping { get; init; }
+    /// <summary>已经受全帧剪交账约束的最终墨迹投影；default 表示按原逻辑区域求值。</summary>
+    public ImmutableArray<Point2> MappedInkVertices { get; init; }
+    /// <summary>将源逻辑位置映射到实际画布；网格与 affine 共用此入口。</summary>
+    public Point2 MapPoint(Point2 point) => Mapping?.MapPoint(point) ?? BaseWorldMatrix.Map(point);
+    /// <summary>映射源点处的方向，不加入平移；网格使用同三角 Jacobian。</summary>
+    public Vector2 MapVectorAt(Point2 point, Vector2 vector) => Mapping?.MapVectorAt(point, vector)
+        ?? new(BaseWorldMatrix.A * vector.X + BaseWorldMatrix.C * vector.Y,
+            BaseWorldMatrix.B * vector.X + BaseWorldMatrix.D * vector.Y);
     /// <summary>整行唯一整形的真实绘制单元身份。</summary>
     public ImmutableArray<DrawUnitId> DrawUnits { get; init; } = [];
     /// <summary>是否所有字形完全落在所绑定源元素内；不是以 UTF-16 剪开的视觉区域。</summary>
@@ -28,9 +38,11 @@ public sealed record GeometrySample
     /// <summary>不能独立变形时的稳定诊断代码。</summary>
     public string? DiagnosticCode { get; init; }
     /// <summary>实际墨迹世界角点；空墨迹返回空，不隐式换成 Advance。</summary>
-    public ImmutableArray<Point2> WorldInkCorners => InkBounds is { } ink
-        ? [BaseWorldMatrix.Map(new(ink.Left, ink.Top)), BaseWorldMatrix.Map(new(ink.Right, ink.Top)),
-            BaseWorldMatrix.Map(new(ink.Right, ink.Bottom)), BaseWorldMatrix.Map(new(ink.Left, ink.Bottom))] : [];
+    public ImmutableArray<Point2> WorldInkCorners => !MappedInkVertices.IsDefault ? MappedInkVertices
+        : InkBounds is { } ink && Mapping is { } mapping ? mapping.MapRectangle(ink)
+        : InkBounds is { } plain
+        ? [BaseWorldMatrix.Map(new(plain.Left, plain.Top)), BaseWorldMatrix.Map(new(plain.Right, plain.Top)),
+            BaseWorldMatrix.Map(new(plain.Right, plain.Bottom)), BaseWorldMatrix.Map(new(plain.Left, plain.Bottom))] : [];
 }
 
 /// <summary>注音真实几何与身份；不拥有独立演唱进度或假 TokenId。</summary>
@@ -40,6 +52,20 @@ public sealed record RubyGeometrySample(RubyId RubyId, GeometrySample Geometry);
 /// <summary>一个基础元素的完整只读绘制族；基础 Advance 保持，族墨迹可包含注音。</summary>
 public sealed partial record TokenGeometrySample
 {
+    /// <summary>按原 Advance 的半开横向范围选择真实基础字簇；末端归最后单元，空白仍走基础字映射。</summary>
+    public GeometrySample GeometryAt(Point2 point)
+    {
+        var clusters = Clusters.Where(static cluster => cluster.Target.RubyId is null && cluster.OwnerTokens.Length == 1)
+            .OrderBy(static cluster => cluster.Geometry.AdvanceBounds.Left).ThenBy(static cluster => cluster.Target.UnitIndex).ToArray();
+        var selected = clusters.FirstOrDefault(cluster => point.X >= cluster.Geometry.AdvanceBounds.Left
+            && point.X < cluster.Geometry.AdvanceBounds.Right);
+        if (selected is null && clusters.Length > 0 && point.X == clusters[^1].Geometry.AdvanceBounds.Right) selected = clusters[^1];
+        return selected?.Geometry ?? BaseGeometry;
+    }
+    /// <summary>与最终 cursor 和字簇像素使用同一叶映射的位置。</summary>
+    public Point2 MapPoint(Point2 point) => GeometryAt(point).MapPoint(point);
+    /// <summary>与最终 cursor 和字簇像素使用同一叶映射的向量。</summary>
+    public Vector2 MapVectorAt(Point2 point, Vector2 vector) => GeometryAt(point).MapVectorAt(point, vector);
     /// <summary>真实源分支。</summary>
     public required BranchId BranchId { get; init; }
     /// <summary>真实源行。</summary>

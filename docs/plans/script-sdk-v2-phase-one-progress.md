@@ -144,3 +144,10 @@ SDK 首轮 `scripting-v2-01.log` 为 119 通过／19 失败：18 项算法夹具
 一致。HTTP 实测暴露预算错误 occurrence 丢失，正在修复；相同 M07 文字场景的正式
 性能回归有 6 项未达，仍须定位并复测，不能按确定性通过关闭节点。
 详见 [M08 证据](script-sdk-render-m08-evidence.md)，以上不构成 M08 通过。
+
+### M09 Warp 像素切片（2026-11-05）
+
+网格投影、Skia 源空间光栅化与最终映射已接通；CPU/Vulkan 各 21 项定向、Rendering 1400 项、
+Scripting 475 项通过。源表面密度、相邻字簇顺序、预算、取消和真实 owner 已纳入。
+Warp capability 仍关闭，真实包门禁 10 项已确认拒绝；详细失败与复验记录见
+[M09 证据](script-sdk-render-m09-evidence.md)。SVG native 与图组能力仍在实施，M09 未关闭。

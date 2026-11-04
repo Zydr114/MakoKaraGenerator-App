@@ -196,8 +196,8 @@ public sealed partial class SkiaRenderPipeline
                 var output = request.ResolveTarget();
                 CapturePaint? paint = ReferenceEquals(main, sceneSurface) ? null : new(GraphInputSource.TargetColor,
                     new(true, true, true, false, SceneCaptureRegion.FillAndStroke), null, resources, checked((long)output.PixelWidth * output.PixelHeight * 4));
-                if (item.Line is { } line) DrawSceneLine(main.Canvas, request, request.Project.Composition, line, paint);
-                else DrawTextMark(main.Canvas, request, request.Project.Composition, item.Mark!, paint);
+                if (item.Line is { } line) DrawSceneLine(main.Canvas, request, request.Project.Composition, line, paint, resources);
+                else DrawTextMark(main.Canvas, request, request.Project.Composition, item.Mark!, paint, resources);
             }
         }
     }

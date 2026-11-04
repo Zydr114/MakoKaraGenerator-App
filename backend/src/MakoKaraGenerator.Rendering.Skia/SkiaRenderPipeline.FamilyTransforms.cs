@@ -92,10 +92,11 @@ public sealed partial class SkiaRenderPipeline
                 throw new PreparedFrameException("UnsupportedNativeCoordinates", "效果矩阵转换到后端精度后不可逆，不能静默丢失文字。");
         }
     }
-    private void DrawChangedFamilies(SKCanvas canvas, PreparedRenderFrame? prepared, SceneLineSample scene,
+    private void DrawChangedFamilies(SKCanvas canvas, RenderRequest request, PreparedRenderFrame? prepared, SceneLineSample scene,
         ShapedLine shaped, TextLayoutOptions options, IReadOnlyList<RubyLayout> ruby,
         LyricStyle lineStyle, Composition composition, float origin, float baseline, bool antialias,
-        ImmutableArray<Fx.TokenFamilyTransform> transforms, ImmutableArray<Fx.TokenFamilyStyle> styles, CapturePaint? capture = null)
+        ImmutableArray<Fx.TokenFamilyTransform> transforms, ImmutableArray<Fx.TokenFamilyStyle> styles, CapturePaint? capture = null,
+        IReadOnlyDictionary<string, Fx.TokenGeometrySample>? warpedFamilies = null, ImageSurfaceBudgetFrame? resources = null)
     {
         var sample = scene.Frame; var line = sample.Line!;
         Dictionary<string, Fx.TokenFamilyTransform> byToken = transforms.ToDictionary(static item => item.Target.TokenId.Value, StringComparer.Ordinal);
@@ -120,8 +121,8 @@ public sealed partial class SkiaRenderPipeline
                     IncludeShadow = original.Recipe.IncludeShadow && part is SceneColorPart.BaseShadow or SceneColorPart.RubyShadow,
                     IncludeGlow = part is SceneColorPart.BaseGlow or SceneColorPart.RubyGlow,
                 };
-                DrawChangedFamilies(canvas, prepared, scene, shaped, options, ruby, lineStyle, composition, origin, baseline,
-                    antialias, transforms, styles, original with { Part = part, Recipe = recipe });
+                DrawChangedFamilies(canvas, request, prepared, scene, shaped, options, ruby, lineStyle, composition, origin, baseline,
+                    antialias, transforms, styles, original with { Part = part, Recipe = recipe }, warpedFamilies, resources);
             }
             return;
         }
@@ -141,15 +142,21 @@ public sealed partial class SkiaRenderPipeline
             }
             if (capture?.TokenId is { } selected && line.Tokens[i].Id != selected) continue;
             bool effect = capture?.TokenId == line.Tokens[i].Id || byToken.ContainsKey(line.Tokens[i].Id) || byStyle.ContainsKey(line.Tokens[i].Id)
-                || HasTextPartitions(prepared, scene.BindingId!, line.Tokens[i].Id);
+                || HasTextPartitions(prepared, scene.BindingId!, line.Tokens[i].Id)
+                || warpedFamilies?.ContainsKey(line.Tokens[i].Id) == true;
             if (!partitions[i].CanTransformIndependently && line.Tokens[i].StyleOverride is { } overlay
                 && (ResolveElementStyle(lineStyle, overlay).Glow != lineStyle.Glow
                     || lineStyle.Glow is { IsEnabled: true } && ResolveElementStyle(lineStyle, overlay).Opacity != lineStyle.Opacity))
                 throw new PreparedFrameException("UnsupportedGlyphPartition", "共享字簇不能独立应用元素外发光，不能将邻字纳入辉光蒙版。");
             bool source = TokenStyleSupport.HasDrawableOverride(line.Tokens[i].StyleOverride) && partitions[i].CanTransformIndependently;
             if (!effect && !source) continue;
-            if (!partitions[i].CanTransformIndependently && !byToken.ContainsKey(line.Tokens[i].Id) && !byStyle.ContainsKey(line.Tokens[i].Id)
-                && capture?.TokenId is null && HasOnlyRubyPartitions(prepared, scene.BindingId!, line.Tokens[i].Id))
+            if (!byToken.ContainsKey(line.Tokens[i].Id) && !byStyle.ContainsKey(line.Tokens[i].Id)
+                && capture?.TokenId is null
+                && prepared?.BaseStyles.Any(item => item.Target.BindingId.Value == scene.BindingId
+                    && item.Target.TokenId.Value == line.Tokens[i].Id) != true
+                && (HasOnlyRubyWarp(warpedFamilies?.GetValueOrDefault(line.Tokens[i].Id))
+                    || warpedFamilies?.ContainsKey(line.Tokens[i].Id) != true
+                        && HasOnlyRubyPartitions(prepared, scene.BindingId!, line.Tokens[i].Id)))
             {
                 changedTokens.Add(i); rubyOnlyTokens.Add(i); continue;
             }
@@ -195,19 +202,28 @@ public sealed partial class SkiaRenderPipeline
             if (capture?.ExcludedTokens?.Contains(id) == true) continue;
             var transform = byToken.GetValueOrDefault(id);
             var styleOutput = byStyle.GetValueOrDefault(id);
+            var warped = warpedFamilies?.GetValueOrDefault(id);
             var target = transform?.Target ?? styleOutput?.Target;
             if (target is not null && !prepared!.Scene.TokenGeometries.Single(item => item.WithRuby == target).BaseGeometry.CanTransformIndependently)
                 throw new PreparedFrameException("UnsupportedGlyphPartition", "准备帧禁止独立绘制共享字簇。");
             canvas.Save();
             var matrix = transform?.LocalMatrix ?? Fx.Affine2.Identity;
-            canvas.Concat(new SKMatrix((float)matrix.A, (float)matrix.C, (float)matrix.Tx,
-                (float)matrix.B, (float)matrix.D, (float)matrix.Ty, 0, 0, 1));
+            if (warped is null)
+                canvas.Concat(new SKMatrix((float)matrix.A, (float)matrix.C, (float)matrix.Tx,
+                    (float)matrix.B, (float)matrix.D, (float)matrix.Ty, 0, 0, 1));
             var token = sample.Tokens.Single(item => item.Index == index);
             var tokenSample = sample with { Tokens = [token] };
             var style = styleOutput is not null ? prepared!.GetTokenDrawingStyle(styleOutput.Target)
                 : ElementOverlay(line, token) is { } overlay ? ResolveElementStyle(lineStyle, overlay) : lineStyle;
+            if (warped is not null)
+            {
+                DrawWarpedPartitions(canvas, request, scene, shaped, options, ruby, tokenSample, index,
+                    style, lineStyle, composition, origin, baseline, antialias, capture, warped, resources, rubyOnlyTokens.Contains(index));
+                canvas.Restore(); continue;
+            }
             if (DrawTextPartitions(canvas, prepared, scene, shaped, options, ruby, tokenSample, index,
-                style, lineStyle, composition, origin, baseline, antialias, partitions[index].DrawUnitIndices, capture, rubyOnlyTokens.Contains(index)))
+                style, lineStyle, composition, origin, baseline, antialias, partitions[index].DrawUnitIndices, capture,
+                rubyOnlyTokens.Contains(index)))
             {
                 canvas.Restore(); continue;
             }

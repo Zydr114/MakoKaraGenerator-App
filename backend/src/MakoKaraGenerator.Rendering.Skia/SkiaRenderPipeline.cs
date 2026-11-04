@@ -220,7 +220,7 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
                 imageDiagnostics = DrawImageEffectScene(surface, request, frameResources, out var drawingDiagnostics, out materialDiagnostics);
                 sceneDiagnostics = sceneDiagnostics.Append(drawingDiagnostics);
             }
-            else DrawLyrics(canvas, request, composition, measuredScene);
+            else DrawLyrics(canvas, request, composition, measuredScene, frameResources);
             DrawOverlays(canvas, request, Scripting.OverlayLayer.AboveText);
 
             canvas.Restore();
@@ -357,17 +357,17 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
     /// </list>
     /// </para>
     /// </remarks>
-    private void DrawLyrics(SKCanvas canvas, RenderRequest request, Composition composition, SceneFrame? measuredScene = null)
+    private void DrawLyrics(SKCanvas canvas, RenderRequest request, Composition composition, SceneFrame? measuredScene = null, ImageSurfaceBudgetFrame? resources = null)
     {
         var frame = measuredScene ?? request.PreparedFrame?.HierarchyScene ?? GetSceneFrame(request.Project, request.TimeUs, request.LayoutLineId);
         foreach (var item in DrawItems(frame))
         {
-            if (item.Line is { } line) DrawSceneLine(canvas, request, composition, line);
-            else DrawTextMark(canvas, request, composition, item.Mark!);
+            if (item.Line is { } line) DrawSceneLine(canvas, request, composition, line, resources: resources);
+            else DrawTextMark(canvas, request, composition, item.Mark!, resources: resources);
         }
     }
 
-    private void DrawSceneLine(SKCanvas canvas, RenderRequest request, Composition composition, SceneLineSample scene, CapturePaint? capture = null)
+    private void DrawSceneLine(SKCanvas canvas, RenderRequest request, Composition composition, SceneLineSample scene, CapturePaint? capture = null, ImageSurfaceBudgetFrame? resources = null)
     {
         LyricFrameSample sample = scene.Frame;
         if (sample.Line is not { } line || string.IsNullOrEmpty(line.Text))
@@ -423,12 +423,16 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
             .Where(item => item.Target.BindingId.Value == scene.BindingId).ToImmutableArray() ?? [];
         var familyStyles = request.PreparedFrame?.TokenStyles
             .Where(item => item.Target.BindingId.Value == scene.BindingId).ToImmutableArray() ?? [];
+        var warpedFamilies = request.PreparedFrame?.FinalGeometry
+            .Where(item => item.WithRuby.BindingId.Value == scene.BindingId
+                && item.Clusters.Any(static cluster => HasEffectiveWarp(cluster.Geometry.Mapping)))
+            .ToDictionary(static item => item.WithRuby.TokenId.Value, StringComparer.Ordinal) ?? [];
         if (capture?.TokenId is not null || capture?.ExcludedTokens is { Count: > 0 } || !familyTransforms.IsEmpty || !familyStyles.IsEmpty
-            || HasTextPartitions(request.PreparedFrame, scene.BindingId!)
+            || warpedFamilies.Count != 0 || HasTextPartitions(request.PreparedFrame, scene.BindingId!)
             || sample.TokensMatchLineText && line.Tokens.Any(static token => TokenStyleSupport.HasDrawableOverride(token.StyleOverride)))
         {
-            DrawChangedFamilies(canvas, request.PreparedFrame, scene, shaped, options, ruby,
-                lineStyle, composition, originX, baselineY, antialias, familyTransforms, familyStyles, capture);
+            DrawChangedFamilies(canvas, request, request.PreparedFrame, scene, shaped, options, ruby,
+                lineStyle, composition, originX, baselineY, antialias, familyTransforms, familyStyles, capture, warpedFamilies, resources ?? capture?.Budget);
             RestoreAnimationLayer(canvas, animationLayer);
             canvas.Restore();
             return;

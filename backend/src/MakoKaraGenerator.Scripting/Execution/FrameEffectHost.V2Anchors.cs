@@ -98,11 +98,19 @@ internal sealed partial class FrameEffectHost
                 break;
             case ParticleSource.Token token:
                 var tokenGeometry = text.FinalGeometry.SingleOrDefault(item => item.WithRuby == token.Target);
-                if (tokenGeometry is not null) return Center(tokenGeometry.BaseGeometry);
+                if (tokenGeometry is not null) return tokenGeometry.MapPoint(tokenGeometry.BaseGeometry.AdvanceBounds.Center);
                 break;
             case ParticleSource.Line line:
                 var lineGeometry = text.FinalLineGeometry.SingleOrDefault(item => item.Target == line.Target);
-                if (lineGeometry is not null) return Center(lineGeometry.BaseGeometry);
+                if (lineGeometry is not null)
+                {
+                    var point = lineGeometry.BaseGeometry.AdvanceBounds.Center;
+                    var tokenAt = text.FinalGeometry.FirstOrDefault(item => item.WithRuby.BindingId == line.Target.BindingId
+                        && point.X >= item.BaseGeometry.AdvanceBounds.Left && point.X < item.BaseGeometry.AdvanceBounds.Right);
+                    return tokenAt?.BaseGeometry.Mapping is not null
+                        ? tokenAt.MapPoint(point)
+                        : Center(lineGeometry.BaseGeometry);
+                }
                 break;
             case ParticleSource.TextMark mark:
                 var markGeometry = text.FinalMarkGeometry.SingleOrDefault(item => item.Target == mark.Target);
@@ -110,7 +118,7 @@ internal sealed partial class FrameEffectHost
                 break;
         }
         throw new EffectOutputException("FinalParticleAnchorUnavailable", "真实出生或桥接端点没有匹配的最终文字锚点。");
-        static Point2 Center(GeometrySample geometry) => geometry.BaseWorldMatrix.Map(geometry.AdvanceBounds.Center);
+        static Point2 Center(GeometrySample geometry) => geometry.MapPoint(geometry.AdvanceBounds.Center);
     }
 
     private bool MayWriteV2Anchor(ActiveEffect active, ParticleSource source, SceneFrame scene)

@@ -19,20 +19,22 @@ public static class PlaybackProjection
         List<Fx.CursorGeometry> cursors = [];
         foreach (var source in Sources(snapshot, scene))
         {
-            Fx.TextProgressPath path; Fx.Affine2 world;
+            Fx.TextProgressPath path; Fx.Affine2 world; Fx.TextGeometryMapping? mapping;
             if (source.Identity.TokenId is { } tokenId)
             {
                 if (!tokens.TryGetValue(new(tokenId, source.Identity.BindingId), out var geometry) || geometry.ProgressPath is not { } tokenPath)
                     throw new PreparedFrameException("MissingCursorGeometry", "当前逐字装载缺少真实进度几何。");
-                path = tokenPath; world = geometry.BaseGeometry.BaseWorldMatrix;
+                path = tokenPath;
+                var selected = geometry.GeometryAt(path.At(source.Progress, Fx.CursorAnchorMode.Baseline));
+                world = selected.BaseWorldMatrix; mapping = selected.Mapping;
             }
             else
             {
                 var geometry = lines[new(source.Identity.LineId, source.Identity.BindingId)];
-                path = geometry.ProgressPath; world = geometry.BaseGeometry.BaseWorldMatrix;
+                path = geometry.ProgressPath; world = geometry.BaseGeometry.BaseWorldMatrix; mapping = geometry.BaseGeometry.Mapping;
             }
             cursors.Add(new() { TrackId = source.Track, Identity = source.Identity, TimeUs = scene.TimeUs,
-                Progress = source.Progress, Path = path, WorldMatrix = world });
+                Progress = source.Progress, Path = path, WorldMatrix = world, Mapping = mapping });
         }
         return new([.. cursors]);
     }

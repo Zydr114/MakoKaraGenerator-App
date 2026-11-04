@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Text.Json.Serialization;
 
 namespace MakoKaraGenerator.Scripting;
 
@@ -22,8 +23,10 @@ public sealed record GeometrySample
     /// <summary>已有父组／槽位／单句／进入动画最终矩阵，不再乘一次父组。</summary>
     public required Affine2 BaseWorldMatrix { get; init; }
     /// <summary>含网格时的源逻辑到画布有序闭包；为空时保留原 affine 快路。</summary>
+    [JsonIgnore]
     public TextGeometryMapping? Mapping { get; init; }
     /// <summary>已经受全帧剪交账约束的最终墨迹投影；default 表示按原逻辑区域求值。</summary>
+    [JsonIgnore]
     public ImmutableArray<Point2> MappedInkVertices { get; init; }
     /// <summary>将源逻辑位置映射到实际画布；网格与 affine 共用此入口。</summary>
     public Point2 MapPoint(Point2 point) => Mapping?.MapPoint(point) ?? BaseWorldMatrix.Map(point);

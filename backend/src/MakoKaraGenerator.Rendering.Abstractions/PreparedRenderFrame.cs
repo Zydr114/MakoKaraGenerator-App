@@ -160,7 +160,7 @@ public sealed partial class PreparedRenderFrame
     /// <summary>已验证并按实例组合的真实组局部仿射。</summary>
     public ImmutableArray<GroupTransform> GroupTransforms { get; }
     /// <summary>整行最终矩阵的固定几何，包括无逐字元素的行。</summary>
-    public ImmutableArray<LineGeometrySample> FinalLineGeometry { get; }
+    public ImmutableArray<LineGeometrySample> FinalLineGeometry { get; private init; }
     /// <summary>真实组最终参考矩阵和全部最终文字／注音／标记墨迹，包含独立族输出。</summary>
     public ImmutableArray<GroupGeometrySample> FinalGroupGeometry { get; private init; }
     /// <summary>按实例顺序组合、已验证的元素族局部变换。</summary>
@@ -185,7 +185,7 @@ public sealed partial class PreparedRenderFrame
     /// <summary>当前真实标记的有效两态外观。</summary>
     public ImmutableArray<TextMarkStyle> MarkStyles { get; }
     /// <summary>与生产标记绘制矩阵一致的最终固定字形几何。</summary>
-    public ImmutableArray<TextMarkGeometrySample> FinalMarkGeometry { get; }
+    public ImmutableArray<TextMarkGeometrySample> FinalMarkGeometry { get; private init; }
     /// <summary>读取已验证的最终标记外观；无有效修改不伪造写入。</summary>
     public LyricStyle GetMarkStyle(TextMarkTarget target) => HasMaterial(new ImageEffectTarget.Mark(target))
         ? throw new PreparedFrameException("MaterialAppearanceRequiresCoordinator", "包材质标记不能将几何种子视为最终颜色。")

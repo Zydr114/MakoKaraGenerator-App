@@ -165,6 +165,8 @@ internal sealed partial class FrameEffectHost : IDisposable
         Dictionary<BaseTokenTarget, StyleUpdate> baseStyles = [];
         Dictionary<V2.TextClusterTarget, Affine2> clusterTransforms = [];
         Dictionary<V2.TextTarget, ActiveEffect> partitionOwners = [];
+        Dictionary<V2.TextTarget, PreparedTextWarpBinding> textWarps = [];
+        TextWarpBudget warpBudget = new();
         Dictionary<TokenFamilyTarget, StyleUpdate> styles = [];
         Dictionary<TokenFamilyTarget, ActiveEffect> styleOwners = [];
         Dictionary<TextMarkTarget, Affine2> markTransforms = [];
@@ -225,6 +227,7 @@ internal sealed partial class FrameEffectHost : IDisposable
             Invoke(active, "ComposeOutputs", timeUs, diagnostics, ignoredReporter =>
             {
                 ValidatePackageOutput(definition, output!);
+                ComposeWarps(active, output!, warpBudget, textWarps);
                 foreach (var transform in output!.BaseTransforms)
                 {
                     var matrix = transform.LocalMatrix.Compose(baseTransforms.GetValueOrDefault(transform.Target, Affine2.Identity));
@@ -315,7 +318,14 @@ internal sealed partial class FrameEffectHost : IDisposable
         {
             return prepared.WithTextPartitions([.. baseTransforms.Where(static pair => pair.Value != Affine2.Identity).Select(static pair => new V2.BaseTokenTransform(pair.Key, pair.Value))],
                 [.. baseStyles.Select(static pair => new V2.BaseTokenStyle(pair.Key, pair.Value))],
-                [.. clusterTransforms.Where(static pair => pair.Value != Affine2.Identity).Select(static pair => new V2.TextClusterTransform(pair.Key, pair.Value))]);
+                [.. clusterTransforms.Where(static pair => pair.Value != Affine2.Identity).Select(static pair => new V2.TextClusterTransform(pair.Key, pair.Value))])
+                .WithTextWarps([.. textWarps.Values]);
+        }
+        catch (PreparedFrameException error) when (error.TextTarget is { } warpTarget && textWarps.ContainsKey(warpTarget))
+        {
+            var owner = textWarps[warpTarget];
+            var active = _instances.Single(item => item.Definition.Id == owner.InstanceId);
+            throw Failure(active.Definition, "ComposeOutputs", timeUs, error, diagnostics.Snapshot());
         }
         catch (PreparedFrameException error) when (error.TextTarget is { } partition && partitionOwners.ContainsKey(partition))
         {

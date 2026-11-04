@@ -92,8 +92,10 @@ internal sealed partial class FrameEffectHost
         Dictionary<TextTarget, Affine2> transforms = [];
         Dictionary<TextTarget, StyleUpdate> styles = [];
         Dictionary<GroupTarget, double> groupOpacity = [];
+        var warps = ImmutableArray.CreateBuilder<TextWrite.Warp>();
         foreach (var write in snapshot.Writes)
         {
+            if (write is TextWrite.Warp warp) { warps.Add(warp); continue; }
             if (write is TextWrite.Transform transform)
             {
                 transforms[write.Target] = transform.LocalMatrix.Compose(transforms.GetValueOrDefault(write.Target, Affine2.Identity));
@@ -120,6 +122,7 @@ internal sealed partial class FrameEffectHost
             transforms.Remove(target);
         return new()
         {
+            TextWarps = warps.ToImmutable(),
             TokenTransforms = [.. transforms.Where(static pair => pair.Key is TextTarget.Family)
                 .Select(static pair => new TokenFamilyTransform(((TextTarget.Family)pair.Key).Value, pair.Value))],
             LineTransforms = [.. transforms.Where(static pair => pair.Key is TextTarget.Line)

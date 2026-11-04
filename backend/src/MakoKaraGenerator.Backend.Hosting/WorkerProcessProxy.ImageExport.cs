@@ -30,6 +30,7 @@ public sealed partial class WorkerProcessProxy
             WorkerMessage response = await InvokeExportTaskAsync(request, 0, timeout, null, cancellationToken,
                 imageExport: true).ConfigureAwait(false);
             ProjectImageExportWorkerCapabilities value = ProjectImageExportWorkerContract.DecodeCapabilities(response.Payload);
+            WorkerPackageProfileAdmission.RequireCurrent(value.PackageCapabilities, "WorkerImageExportUnavailable");
             EffectPackageProfile profile = ProjectEffectsJson.PackageProfile;
             var expected = TryComputeScriptReferenceIdentity();
             if (value.EngineIdentity != StaticProjectSnapshotCodec.EngineIdentity

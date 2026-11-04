@@ -36,7 +36,7 @@ internal sealed class ProjectRuntimeInput : IDisposable
         foreach (var packageGrant in ProjectRuntimeInputCodec.ReadPackageGrants(bytes))
         {
             EnsureNoLinks(packageGrant.DirectoryPath, directory: true);
-            var package = await EffectPackageStorage.ReadDirectoryWithUsageAsync(packageGrant.DirectoryPath, ProjectEffectsJson.PackageProfile,
+            var package = await EffectPackageStorage.ReadSupportedDirectoryWithUsageAsync(packageGrant.DirectoryPath,
                 null, packageUsage, token).ConfigureAwait(false);
             if (package.PackageId != packageGrant.PackageId || package.Revision != packageGrant.Revision)
                 throw new WorkerProtocolException("固定包目录身份已改变。", "ProjectRuntimeSourceChanged");

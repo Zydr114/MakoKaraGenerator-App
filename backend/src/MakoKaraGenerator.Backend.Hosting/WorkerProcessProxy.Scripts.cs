@@ -8,18 +8,27 @@ using MakoKaraGenerator.Scripting.Compilation;
 
 namespace MakoKaraGenerator.Backend.Hosting;
 
-internal sealed record RetainedPreparedScriptInput(WorkerProcessProxy Owner, string OpenKind, ScriptPreparedInputLease Input);
+internal sealed record RetainedPreparedScriptInput(WorkerProcessProxy Owner, string OpenKind, ScriptPreparedInputLease Input,
+    EffectPackageProfile[] RequiredPackageProfiles);
 
 public sealed partial class WorkerProcessProxy
 {
     private async Task<StaticWorkerSessionHandle> OpenPreparedScriptSessionAsync(string kind, Guid id,
-        ReadOnlyMemory<byte> source, TimeSpan timeout, CancellationToken token, bool image = false)
+        ReadOnlyMemory<byte> source, TimeSpan timeout, PackageRenderWorkerCapabilities capabilities, CancellationToken token, bool image = false)
     {
         if (timeout <= TimeSpan.Zero || timeout > TimeSpan.FromMinutes(1)) throw new ArgumentOutOfRangeException(nameof(timeout));
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
         deadline.CancelAfter(timeout);
         ScriptPreparedInputLease prepared;
-        try { prepared = await PrepareScriptInputAsync(source, deadline.Token, image: image).ConfigureAwait(false); }
+        EffectPackageProfile[] requiredProfiles = [];
+        try
+        {
+            prepared = await PrepareScriptInputAsync(source, deadline.Token, image: image, captureProfiles: profiles =>
+            {
+                WorkerPackageProfileAdmission.RequireInput(capabilities, profiles);
+                requiredProfiles = profiles;
+            }).ConfigureAwait(false);
+        }
         catch (SnapshotContractException failure)
         {
             var translated = new WorkerProtocolException(failure.Message, failure.Code);
@@ -36,7 +45,7 @@ public sealed partial class WorkerProcessProxy
             await InvokeTimedMessageAsync(request, PackageRenderWorkerContract.SessionResultKind, timeout,
                 ValidateEmptyPackageSessionResult, deadline.Token, requirePackageRuntimeGuards: true).ConfigureAwait(false);
             RetainPreparedScriptInput(prepared);
-            return new(id, sourceHash) { PreparedInput = new(this, kind, prepared) };
+            return new(id, sourceHash) { PreparedInput = new(this, kind, prepared, requiredProfiles) };
         }
         catch (Exception primary)
         {
@@ -57,11 +66,12 @@ public sealed partial class WorkerProcessProxy
         lock (_preparedScriptInputs)
             if (!ReferenceEquals(retained.Owner, this) || !_preparedScriptInputs.Contains(retained.Input))
                 throw new InvalidOperationException("固定输入已释放或不属于此代理。");
-        if (retained.OpenKind == ProjectRuntimeInputWorkerContract.OpenKind)
-            await GetRuntimeInputCapabilitiesAsync(timeout, token).ConfigureAwait(false);
-        else if (retained.OpenKind == ProjectImagePreviewWorkerContract.OpenKind)
-            await GetImagePreviewCapabilitiesAsync(timeout, token).ConfigureAwait(false);
-        else await GetPackageCapabilitiesAsync(timeout, token).ConfigureAwait(false);
+        var capabilities = retained.OpenKind == ProjectRuntimeInputWorkerContract.OpenKind
+            ? await GetRuntimeInputCapabilitiesAsync(timeout, token).ConfigureAwait(false)
+            : retained.OpenKind == ProjectImagePreviewWorkerContract.OpenKind
+                ? (await GetImagePreviewCapabilitiesAsync(timeout, token).ConfigureAwait(false)).PackageCapabilities
+                : await GetPackageCapabilitiesAsync(timeout, token).ConfigureAwait(false);
+        WorkerPackageProfileAdmission.RequireInput(capabilities, retained.RequiredPackageProfiles);
         Guid id = Guid.NewGuid(); byte[] payload = PackageRenderWorkerContract.EncodeOpen(id, retained.Input.Envelope);
         string sourceHash = retained.Input.SourceSha256;
         WorkerMessage request = new(retained.OpenKind, Guid.NewGuid().ToString("N"), WorkerProtocol.ComputeSha256(payload), payload,
@@ -76,11 +86,14 @@ public sealed partial class WorkerProcessProxy
         Path.Combine(Path.GetTempPath(), "makokara-host-script-artifacts-" + Environment.ProcessId)));
     private readonly List<ScriptPreparedInputLease> _preparedScriptInputs = [];
 
-    private sealed class PreparedScriptCall(WorkerProcessProxy owner, ScriptPreparedInputLease input) : IDisposable
+    private sealed class PreparedScriptCall(WorkerProcessProxy owner, ScriptPreparedInputLease input, EffectPackageProfile[] requiredProfiles) : IDisposable
     {
         private bool _completed;
         private bool _disposed;
         public byte[] Envelope => input.Envelope;
+        public bool HasPackages => requiredProfiles.Length != 0;
+        public void RequirePackageProfiles(PackageRenderWorkerCapabilities capabilities)
+            => WorkerPackageProfileAdmission.RequireInput(capabilities, requiredProfiles);
         public void Complete() => _completed = true;
         public void Dispose()
         {
@@ -97,12 +110,16 @@ public sealed partial class WorkerProcessProxy
 
     private async Task<PreparedScriptCall> PrepareScriptCallAsync(ReadOnlyMemory<byte> source, CancellationToken token,
         ProjectSnapshot? snapshot = null, bool image = false)
-        => new(this, await PrepareScriptInputAsync(source, token, snapshot, image).ConfigureAwait(false));
+    {
+        EffectPackageProfile[] profiles = [];
+        var input = await PrepareScriptInputAsync(source, token, snapshot, image, values => profiles = values).ConfigureAwait(false);
+        return new(this, input, profiles);
+    }
 
     private readonly List<CancellationTokenSource> _scriptPreparations = [];
 
     private async Task<ScriptPreparedInputLease> PrepareScriptInputAsync(ReadOnlyMemory<byte> source,
-        CancellationToken token, ProjectSnapshot? fixedSnapshot = null, bool image = false)
+        CancellationToken token, ProjectSnapshot? fixedSnapshot = null, bool image = false, Action<EffectPackageProfile[]>? captureProfiles = null)
     {
         using var preparation = CancellationTokenSource.CreateLinkedTokenSource(token);
         lock (_lifecycleGate)
@@ -110,12 +127,12 @@ public sealed partial class WorkerProcessProxy
             ObjectDisposedException.ThrowIf(_disposed, this);
             _scriptPreparations.Add(preparation);
         }
-        try { return await PrepareScriptInputCoreAsync(source, fixedSnapshot, image, preparation.Token).ConfigureAwait(false); }
+        try { return await PrepareScriptInputCoreAsync(source, fixedSnapshot, image, captureProfiles, preparation.Token).ConfigureAwait(false); }
         finally { lock (_lifecycleGate) _scriptPreparations.Remove(preparation); }
     }
 
     private async Task<ScriptPreparedInputLease> PrepareScriptInputCoreAsync(ReadOnlyMemory<byte> source,
-        ProjectSnapshot? fixedSnapshot, bool image, CancellationToken token)
+        ProjectSnapshot? fixedSnapshot, bool image, Action<EffectPackageProfile[]>? captureProfiles, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
         ProjectSnapshot snapshot;
@@ -128,8 +145,8 @@ public sealed partial class WorkerProcessProxy
             foreach (var grant in ProjectRuntimeInputCodec.ReadPackageGrants(source))
             {
                 EnsureScriptGrantNoLinks(grant.DirectoryPath);
-                var contents = await EffectPackageStorage.ReadDirectoryWithUsageAsync(grant.DirectoryPath,
-                    ProjectEffectsJson.PackageProfile, null, usage, token).ConfigureAwait(false);
+                var contents = await EffectPackageStorage.ReadSupportedDirectoryWithUsageAsync(grant.DirectoryPath,
+                    null, usage, token).ConfigureAwait(false);
                 if (contents.PackageId != grant.PackageId || contents.Revision != grant.Revision)
                     throw new WorkerProtocolException("固定包目录身份已改变。", "ProjectRuntimeSourceChanged");
                 packages.Add((contents.PackageId, contents.Revision), contents);
@@ -137,6 +154,7 @@ public sealed partial class WorkerProcessProxy
             snapshot = ProjectRuntimeInputCodec.Decode(source, packages).Snapshot;
         }
         else snapshot = ProjectSnapshotSourceProfile.Decode(source);
+        captureProfiles?.Invoke([.. snapshot.Effects.Packages.Select(package => package.Profile).Distinct()]);
 
         var references = SourceMaterialCatalog.Collect(snapshot.LyricStyle, snapshot.Lyrics, snapshot.LyricPresentation, snapshot.PresetApplications);
         List<EffectPackageDefinition> definitions = [];

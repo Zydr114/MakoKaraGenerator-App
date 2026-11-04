@@ -122,7 +122,7 @@ public sealed partial class ProjectSessionRegistry
             // Acquire first: expiry/collection cannot remove the storage file until its full immutable copy is parsed.
             using var lease = _resources.AcquireReference(clientId, assetId);
             var asset = _resources.GetAuthorized(clientId, assetId);
-            var package = await EffectPackageTransfer.ReadArchiveAsync(asset.StoragePath, ProjectEffectsJson.PackageProfile,
+            var package = await EffectPackageTransfer.ReadSupportedArchiveAsync(asset.StoragePath,
                 cancellationToken: token).ConfigureAwait(false);
             return BackendOperationResult<EffectPackageContents>.Success(package);
         }

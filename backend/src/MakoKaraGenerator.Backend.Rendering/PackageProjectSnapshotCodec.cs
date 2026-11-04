@@ -50,9 +50,9 @@ public static class PackageProjectSnapshotCodec
                 MaximumFileBytes = MaximumBytes,
                 MaximumFiles = MaximumSourceValues,
             };
-            EffectPackageContents copy = EffectPackageContents.Create(package.Manifest.AsMemory(),
+            EffectPackageContents copy = EffectPackageContents.CreateSupported(package.Manifest.AsMemory(),
                 package.Files.Select(file => KeyValuePair.Create(file.Path, (ReadOnlyMemory<byte>)file.Content.ToArray())),
-                ProjectEffectsJson.PackageProfile, budget);
+                budget);
             identity = copy.PackageId == package.PackageId && copy.Revision == package.Revision
                 && copy.Manifest.AsSpan().SequenceEqual(package.Manifest.AsSpan())
                 && copy.Files.Length == package.Files.Length

@@ -12,6 +12,26 @@ namespace MakoKaraGenerator.Backend.Rendering.Tests;
 public sealed class PackageProjectSnapshotCodecTests
 {
     [Fact]
+    public void v2固定包闭包和快照保留实际SDK补丁及完整清单()
+    {
+        var files = EffectPackageFixture.Files(); var manifest = EffectPackageFixture.Manifest(files);
+        manifest["packageVersion"] = EffectPackageProfiles.V2.PackageVersion;
+        manifest["sdkVersion"] = "2.0.7";
+        manifest["shaderProfile"] = EffectPackageProfiles.V2.ShaderProfile;
+        manifest["requires"] = new JsonArray("token.affine");
+        manifest["lineExit"] = new JsonObject { ["durationUs"] = 0 };
+        manifest["emitters"] = new JsonArray();
+        var package = EffectPackageContents.CreateSupported(EffectPackageFixture.Bytes(manifest), EffectPackageFixture.Inputs(files));
+        var source = PackageSnapshotContractFixture.Fingerprint(StaticSnapshotFixture.Create() with { Effects = new([package], []) });
+        byte[] encoded = PackageProjectSnapshotCodec.Encode(source);
+        var restored = Assert.Single(PackageProjectSnapshotCodec.Decode(encoded).Effects.Packages);
+        Assert.Equal(package.Profile, restored.Profile); Assert.Equal("2.0.7", restored.Profile.SdkVersion);
+        Assert.Equal(package.Revision, restored.Revision); Assert.Equal(package.Manifest.ToArray(), restored.Manifest.ToArray());
+        Assert.True(PackageProjectSnapshotCodec.InspectResourceClosure(restored).IsValidated);
+        Assert.Equal(encoded, PackageProjectSnapshotCodec.Encode(PackageProjectSnapshotCodec.Decode(encoded)));
+    }
+
+    [Fact]
     public void 资源闭包摘要保留manifest文件身份大小摘要和实际role状态()
     {
         EffectPackageContents validPackage = EffectPackageFixture.Contents();

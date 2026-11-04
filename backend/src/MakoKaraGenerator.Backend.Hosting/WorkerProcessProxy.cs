@@ -339,6 +339,7 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
                 response =>
                 {
                     value = PackageRenderWorkerContract.DecodeCapabilities(response.Payload);
+                    WorkerPackageProfileAdmission.RequireCurrent(value, "WorkerPackageUnavailable");
                     EffectPackageProfile profile = ProjectEffectsJson.PackageProfile;
                     if (value.EngineIdentity != StaticProjectSnapshotCodec.EngineIdentity || value.CodecProfile != PackageProjectSnapshotCodec.Profile
                         || value.PackageVersion != profile.PackageVersion || value.SdkVersion != profile.SdkVersion || value.ShaderProfile != profile.ShaderProfile)
@@ -383,7 +384,7 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
                 && capabilities.SourceProfiles?.Contains(PackagePresetProjectSnapshotCodec.Profile, StringComparer.Ordinal) != true)
                 throw new WorkerProtocolException("包 Worker 未声明混合预设来源。", "WorkerPackageProfileMismatch");
         }
-        return await OpenPreparedScriptSessionAsync(PackageRenderWorkerContract.OpenKind, id, snapshotBytes, timeout, cancellationToken).ConfigureAwait(false);
+        return await OpenPreparedScriptSessionAsync(PackageRenderWorkerContract.OpenKind, id, snapshotBytes, timeout, capabilities, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>沿用固定 package 会话交付实际像素和完整 Runtime 诊断。</summary>

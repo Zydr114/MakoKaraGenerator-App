@@ -20,6 +20,7 @@ public sealed partial class WorkerProcessProxy
                 response =>
                 {
                     value = ProjectImagePreviewWorkerContract.DecodeCapabilities(response.Payload);
+                    WorkerPackageProfileAdmission.RequireCurrent(value.PackageCapabilities, "WorkerImagePreviewUnavailable");
                     var package = value.PackageCapabilities;
                     var profile = ProjectEffectsJson.PackageProfile;
                     if (value.EngineIdentity != StaticProjectSnapshotCodec.EngineIdentity
@@ -50,7 +51,7 @@ public sealed partial class WorkerProcessProxy
     {
         Guid id = Guid.NewGuid();
         _ = PackageRenderWorkerContract.EncodeOpen(id, snapshotBytes.Span);
-        await GetImagePreviewCapabilitiesAsync(timeout, cancellationToken).ConfigureAwait(false);
-        return await OpenPreparedScriptSessionAsync(ProjectImagePreviewWorkerContract.OpenKind, id, snapshotBytes, timeout, cancellationToken, image: true).ConfigureAwait(false);
+        var capabilities = await GetImagePreviewCapabilitiesAsync(timeout, cancellationToken).ConfigureAwait(false);
+        return await OpenPreparedScriptSessionAsync(ProjectImagePreviewWorkerContract.OpenKind, id, snapshotBytes, timeout, capabilities.PackageCapabilities, cancellationToken, image: true).ConfigureAwait(false);
     }
 }

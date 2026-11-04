@@ -574,7 +574,8 @@ internal static class Program
                         references.Identity, references.Count,
                         ValidationProfiles: [PackageRenderWorkerContract.ValidationProfile],
                         SourceProfiles: [PackageProjectSnapshotCodec.Profile, PackagePresetProjectSnapshotCodec.Profile],
-                        RuntimeInputProfile: request.Kind == ProjectRuntimeInputWorkerContract.CapabilitiesKind ? ProjectRuntimeInputWorkerContract.Profile : null);
+                        RuntimeInputProfile: request.Kind == ProjectRuntimeInputWorkerContract.CapabilitiesKind ? ProjectRuntimeInputWorkerContract.Profile : null,
+                        SupportedPackageProfiles: WorkerPackageProfiles.Current);
                     byte[] capabilityPayload = request.Kind == RuntimeValidationWorkerContract.CapabilitiesKind
                         ? RuntimeValidationWorkerContract.EncodeCapabilities(new(RuntimeValidationWorkerContract.Profile,
                             RuntimeValidationWorkerContract.MaximumInputBytes, WorkerValidationContract.MaximumReportBytes, capabilities))

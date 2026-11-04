@@ -14,6 +14,37 @@ namespace MakoKaraGenerator.Backend.Hosting.Tests;
 public sealed class BackendEffectPackageInspectTests
 {
     [Fact]
+    public async Task 非作者上传检查和配置库下载按实际v2身份读取且保留补丁清单()
+    {
+        using TemporaryDirectory directory = new();
+        var files = EffectPackageFixture.Files(); var manifest = EffectPackageFixture.Manifest(files);
+        manifest["packageVersion"] = EffectPackageProfiles.V2.PackageVersion;
+        manifest["sdkVersion"] = "2.0.7";
+        manifest["shaderProfile"] = EffectPackageProfiles.V2.ShaderProfile;
+        manifest["requires"] = new JsonArray("token.affine");
+        manifest["lineExit"] = new JsonObject { ["durationUs"] = 0 };
+        manifest["emitters"] = new JsonArray();
+        var package = EffectPackageContents.CreateSupported(EffectPackageFixture.Bytes(manifest), EffectPackageFixture.Inputs(files));
+        ResourceStore resources = new(new() { ResourceRoot = directory.FilePath("assets") });
+        var asset = await Upload(directory, resources, package);
+        string state = directory.FilePath("state");
+        ScriptConfigurationLibrary.Save(ScriptConfigurationLibrary.ResolvePath(state), [ScriptConfiguration.Create("v2", "SDK2", package, "scale")]);
+        await using ProjectSessionRegistry registry = new("host", resources, NewProjectPreparationService.CreateDefault());
+        registry.ConfigurePersistence(new() { StateRoot = state }); registry.ConfigureScriptConfigurations();
+        var inspected = Accepted(await registry.InspectEffectPackageAsync("client", new(asset.AssetId)));
+        Assert.True(inspected.StructureValid); Assert.Empty(inspected.Diagnostics);
+        Assert.Equal("2.0.7", inspected.Manifest.GetProperty("sdkVersion").GetString());
+        Assert.Equal(package.Revision, Accepted(await registry.ResolveEffectPackageReferenceAsync("client", inspected.Reference)).Revision);
+        var library = Accepted(registry.ReadScriptConfigurations());
+        using var lease = Accepted(await registry.OpenScriptConfigurationPackageAsync("v2", library.Revision));
+        string exported = directory.FilePath("exported.mkfx");
+        await using (var output = File.Create(exported)) await lease.Stream.CopyToAsync(output);
+        var restored = await EffectPackageTransfer.ReadSupportedArchiveAsync(exported);
+        Assert.Equal(package.Profile, restored.Profile); Assert.Equal(package.Revision, restored.Revision);
+        Assert.Equal(package.Manifest.ToArray(), restored.Manifest.ToArray());
+    }
+
+    [Fact]
     public void 合法带BOM图文件的输入声明完整保留()
     {
         var original = EffectPackageGraphFixture.Contents();

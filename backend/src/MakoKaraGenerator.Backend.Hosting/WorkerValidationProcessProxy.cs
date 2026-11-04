@@ -66,19 +66,19 @@ public sealed partial class WorkerProcessProxy
         // capability negotiation misleading.
         if (profile == PackageProjectSnapshotCodec.Profile)
         {
-            try { await GetPackageValidationCapabilitiesAsync(timeout, deadline.Token).ConfigureAwait(false); }
+            try { prepared.RequirePackageProfiles(await GetPackageValidationCapabilitiesAsync(timeout, deadline.Token).ConfigureAwait(false)); }
             catch (OperationCanceledException failure) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested)
             { throw new RenderSessionFailureException("WorkerTaskTimedOut", "固定帧计划 Worker 验证超过任务期限。", innerException: failure); }
         }
         if (image)
         {
-            try { await GetImageValidationCapabilitiesAsync(timeout, deadline.Token).ConfigureAwait(false); }
+            try { prepared.RequirePackageProfiles((await GetImageValidationCapabilitiesAsync(timeout, deadline.Token).ConfigureAwait(false)).PackageCapabilities); }
             catch (OperationCanceledException failure) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested)
             { throw new RenderSessionFailureException("WorkerTaskTimedOut", "图片背景验证超过任务期限。", innerException: failure); }
         }
         if (runtime)
         {
-            try { await GetRuntimeValidationCapabilitiesAsync(timeout, deadline.Token).ConfigureAwait(false); }
+            try { prepared.RequirePackageProfiles((await GetRuntimeValidationCapabilitiesAsync(timeout, deadline.Token).ConfigureAwait(false)).PackageCapabilities); }
             catch (OperationCanceledException failure) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested)
             { throw new RenderSessionFailureException("WorkerTaskTimedOut", "统一Runtime验证超过任务期限。", innerException: failure); }
         }

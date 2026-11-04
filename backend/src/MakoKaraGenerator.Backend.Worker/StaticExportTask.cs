@@ -65,7 +65,8 @@ internal static class StaticExportTask
                 PackageRenderWorkerCapabilities package = new(StaticProjectSnapshotCodec.EngineIdentity,
                     PackageProjectSnapshotCodec.Profile, ProjectEffectsJson.PackageProfile.PackageVersion,
                     ProjectEffectsJson.PackageProfile.SdkVersion, ProjectEffectsJson.PackageProfile.ShaderProfile,
-                    references.Identity, references.Count, ValidationProfiles: [PackageRenderWorkerContract.ValidationProfile]);
+                    references.Identity, references.Count, ValidationProfiles: [PackageRenderWorkerContract.ValidationProfile],
+                    SupportedPackageProfiles: WorkerPackageProfiles.Current);
                 var imageCapabilities = new ProjectImageExportWorkerCapabilities(StaticProjectSnapshotCodec.EngineIdentity,
                     ProjectImageExportWorkerContract.ExportProfile,
                     [BackendSnapshotProfiles.StaticLyricsScene, BackendSnapshotProfiles.StaticLyricsSceneAnalysis, BackendSnapshotProfiles.PackageLyricsScene],

@@ -72,7 +72,7 @@ public sealed partial class ProjectSessionRegistry
             string path = Path.Combine(directory.FullName, "package.mkfx");
             await EffectPackageTransfer.WriteArchiveAsync(path, package, lifetime.Token).ConfigureAwait(false);
             // Re-read the generated archive through the same closure validator used for import.
-            EffectPackageContents checkedPackage = await EffectPackageTransfer.ReadArchiveAsync(path, ProjectEffectsJson.PackageProfile,
+            EffectPackageContents checkedPackage = await EffectPackageTransfer.ReadSupportedArchiveAsync(path,
                 cancellationToken: lifetime.Token).ConfigureAwait(false);
             if (checkedPackage.Revision != package.Revision || checkedPackage.PackageId != package.PackageId) throw new IOException("export package identity changed");
             stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete, 81920, FileOptions.Asynchronous | FileOptions.DeleteOnClose);

@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Text;
+using System.Text.Json.Nodes;
 using MakoKaraGenerator.Backend.Contracts;
 using MakoKaraGenerator.Backend.Rendering;
 
@@ -69,6 +70,50 @@ public sealed class PackageWorkerContractTests
         Assert.Throws<WorkerProtocolException>(() => PackageRenderWorkerContract.EncodeCapabilities(value with { ValidationProfiles = ["unknown"] }));
         Assert.Throws<WorkerProtocolException>(() => PackageRenderWorkerContract.EncodeCapabilities(value with
         { ValidationProfiles = [PackageRenderWorkerContract.ValidationProfile, PackageRenderWorkerContract.ValidationProfile] }));
+    }
+
+    [Fact]
+    public void 支持包身份列表往返保留旧主字段且旧JSON仍可结构解码()
+    {
+        var legacy = new PackageRenderWorkerCapabilities("engine", PackageProjectSnapshotCodec.Profile, 2, "1.0.0", "v1-shader", new string('a', 64), 1);
+        var current = legacy with { SupportedPackageProfiles = WorkerPackageProfileAdmission.Current };
+        var decoded = PackageRenderWorkerContract.DecodeCapabilities(PackageRenderWorkerContract.EncodeCapabilities(current));
+        Assert.Equal(legacy, decoded with { SupportedPackageProfiles = null });
+        Assert.Equal(current.SupportedPackageProfiles, decoded.SupportedPackageProfiles);
+        Assert.Null(PackageRenderWorkerContract.DecodeCapabilities(PackageRenderWorkerContract.EncodeCapabilities(legacy)).SupportedPackageProfiles);
+    }
+
+    [Theory]
+    [InlineData("empty")]
+    [InlineData("duplicate")]
+    [InlineData("null-item")]
+    [InlineData("missing-version")]
+    [InlineData("missing-sdk")]
+    [InlineData("empty-shader")]
+    [InlineData("unknown-field")]
+    [InlineData("duplicate-field")]
+    [InlineData("too-many")]
+    public void 支持包身份列表拒绝空重复缺失未知及嵌套重复字段(string damage)
+    {
+        var value = new PackageRenderWorkerCapabilities("engine", PackageProjectSnapshotCodec.Profile, 2, "1.0.0", "v1-shader", new string('a', 64), 1,
+            SupportedPackageProfiles: WorkerPackageProfileAdmission.Current);
+        var json = JsonNode.Parse(PackageRenderWorkerContract.EncodeCapabilities(value))!.AsObject();
+        var profiles = json["supportedPackageProfiles"]!.AsArray();
+        switch (damage)
+        {
+            case "empty": profiles.Clear(); break;
+            case "duplicate": profiles.Add(profiles[0]!.DeepClone()); break;
+            case "null-item": profiles.Add((JsonNode?)null); break;
+            case "missing-version": profiles[0]!.AsObject().Remove("packageVersion"); break;
+            case "missing-sdk": profiles[0]!.AsObject().Remove("sdkVersion"); break;
+            case "empty-shader": profiles[0]!["shaderProfile"] = ""; break;
+            case "unknown-field": profiles[0]!["unexpected"] = true; break;
+            case "too-many": for (int i = 0; i < 15; i++) profiles.Add(new JsonObject { ["packageVersion"] = i + 4, ["sdkVersion"] = "future", ["shaderProfile"] = "future" }); break;
+        }
+        string encoded = json.ToJsonString();
+        if (damage == "duplicate-field") encoded = encoded.Replace("\"packageVersion\":3", "\"packageVersion\":3,\"PackageVersion\":3", StringComparison.Ordinal);
+        var error = Assert.Throws<WorkerProtocolException>(() => PackageRenderWorkerContract.DecodeCapabilities(Encoding.UTF8.GetBytes(encoded)));
+        Assert.Equal("WorkerPackageCapabilitiesInvalid", error.Code);
     }
 
     [Theory]

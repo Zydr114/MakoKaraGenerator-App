@@ -69,6 +69,8 @@ public sealed class WorkerProjectImageValidationCapabilityTests(ITestOutputHelpe
     [InlineData("shader")]
     [InlineData("refs-identity")]
     [InlineData("refs-count")]
+    [InlineData("missing-package-profiles")]
+    [InlineData("only-v1")]
     [InlineData("missing-local-refs")]
     public async Task 图片验证结构合法但与当前部署引擎包版本或实际refs不匹配拒绝并回收Worker(string mode)
     {
@@ -113,7 +115,8 @@ public sealed class WorkerProjectImageValidationCapabilityTests(ITestOutputHelpe
             probe.PackageCapabilities = new(StaticProjectSnapshotCodec.EngineIdentity, BackendSnapshotProfiles.PackageLyricsScene,
                 profile.PackageVersion, profile.SdkVersion, profile.ShaderProfile,
                 Convert.ToHexStringLower(hash.GetHashAndReset()), 2,
-                ValidationProfiles: [PackageRenderWorkerContract.ValidationProfile]);
+                ValidationProfiles: [PackageRenderWorkerContract.ValidationProfile],
+                SupportedPackageProfiles: WorkerPackageProfileAdmission.Current);
             ProjectImageValidationWorkerCapabilities image = new(StaticProjectSnapshotCodec.EngineIdentity,
                 ProjectImageValidationWorkerContract.ValidationProfile,
                 [BackendSnapshotProfiles.StaticLyricsScene, BackendSnapshotProfiles.StaticLyricsSceneAnalysis, BackendSnapshotProfiles.PackageLyricsScene],
@@ -124,6 +127,8 @@ public sealed class WorkerProjectImageValidationCapabilityTests(ITestOutputHelpe
                 WorkerPackageDiagnosticsContract.Version, probe.PackageCapabilities);
             image = mode switch
             {
+                "missing-package-profiles" => image with { PackageCapabilities = image.PackageCapabilities with { SupportedPackageProfiles = null } },
+                "only-v1" => image with { PackageCapabilities = image.PackageCapabilities with { SupportedPackageProfiles = [WorkerPackageProfileAdmission.Current[0]] } },
                 "engine" => image with { EngineIdentity = "other-engine", PackageCapabilities = image.PackageCapabilities with { EngineIdentity = "other-engine" } },
                 "package-version" => image with { PackageCapabilities = image.PackageCapabilities with { PackageVersion = profile.PackageVersion + 1 } },
                 "sdk" => image with { PackageCapabilities = image.PackageCapabilities with { SdkVersion = profile.SdkVersion + "-other" } },

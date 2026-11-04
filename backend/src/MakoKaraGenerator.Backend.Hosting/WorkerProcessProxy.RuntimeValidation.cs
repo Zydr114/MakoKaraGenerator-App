@@ -21,6 +21,7 @@ public sealed partial class WorkerProcessProxy
                 response =>
                 {
                     value = RuntimeValidationWorkerContract.DecodeCapabilities(response.Payload);
+                    WorkerPackageProfileAdmission.RequireCurrent(value.PackageCapabilities, "WorkerRuntimeValidationUnavailable");
                     EffectPackageProfile profile = ProjectEffectsJson.PackageProfile;
                     if (value.PackageCapabilities.EngineIdentity != StaticProjectSnapshotCodec.EngineIdentity
                         || value.PackageCapabilities.PackageVersion != profile.PackageVersion

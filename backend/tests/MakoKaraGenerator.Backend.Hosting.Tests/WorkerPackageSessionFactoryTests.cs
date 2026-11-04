@@ -57,6 +57,10 @@ public sealed class WorkerPackageSessionFactoryTests(ITestOutputHelper output)
     [InlineData("cap-missing-refs")]
     [InlineData("cap-missing-diagnostics-version")]
     [InlineData("cap-old-diagnostics-version")]
+    [InlineData("cap-missing-package-profiles")]
+    [InlineData("cap-only-v1")]
+    [InlineData("cap-v2-sdk")]
+    [InlineData("cap-v2-shader")]
     [InlineData("cap-foreign")]
     [InlineData("cap-foreign-session")]
     [InlineData("cap-missing-output-sha")]
@@ -82,6 +86,8 @@ public sealed class WorkerPackageSessionFactoryTests(ITestOutputHelper output)
     [InlineData("cap-engine", false)]
     [InlineData("cap-old-diagnostics-version", false)]
     [InlineData("cap-missing-diagnostics-version", false)]
+    [InlineData("cap-missing-package-profiles", false)]
+    [InlineData("cap-only-v1", false)]
     [InlineData("local-empty-refs", false)]
     public async Task 公共包能力门禁实际握手且不发送包open(string mode, bool supported)
     {
@@ -591,7 +597,8 @@ public sealed class WorkerPackageSessionFactoryTests(ITestOutputHelper output)
             var profile = ProjectEffectsJson.PackageProfile;
             return JsonSerializer.Serialize(new PackageRenderWorkerCapabilities(StaticProjectSnapshotCodec.EngineIdentity,
                 PackageProjectSnapshotCodec.Profile, profile.PackageVersion, profile.SdkVersion, profile.ShaderProfile,
-                Convert.ToHexStringLower(hash.GetHashAndReset()), referencePaths.Length), Json);
+                Convert.ToHexStringLower(hash.GetHashAndReset()), referencePaths.Length,
+                SupportedPackageProfiles: WorkerPackageProfileAdmission.Current), Json);
         }
 
         private static string ReferenceRoot()
@@ -672,6 +679,10 @@ public sealed class WorkerPackageSessionFactoryTests(ITestOutputHelper output)
                     if mode == 'cap-missing-refs': del cap['scriptRefsIdentity']
                     if mode == 'cap-missing-diagnostics-version': del cap['packageDiagnosticsVersion']
                     if mode == 'cap-old-diagnostics-version': cap['packageDiagnosticsVersion'] = 0
+                    if mode == 'cap-missing-package-profiles': del cap['supportedPackageProfiles']
+                    if mode == 'cap-only-v1': cap['supportedPackageProfiles'] = cap['supportedPackageProfiles'][:1]
+                    if mode == 'cap-v2-sdk': cap['supportedPackageProfiles'][1]['sdkVersion'] = '2.1.0'
+                    if mode == 'cap-v2-shader': cap['supportedPackageProfiles'][1]['shaderProfile'] = 'unknown-shader'
                     if kind == 'project-image-preview-capabilities-v1' and mode != 'image-old-worker':
                         cap = dict(engineIdentity=cap['engineIdentity'],codecProfile='project-image-preview-v1',
                             baseProfiles=['static-lyrics-scene-v1','static-lyrics-scene-analysis-v1','package-lyrics-scene-v1'],

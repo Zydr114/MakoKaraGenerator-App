@@ -13,6 +13,7 @@ public sealed partial class WorkerProcessProxy
         WorkerProtocol.Validate(request);
         using CancellationTokenSource deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(timeout);
+        Process? packageVerifiedProcess = null;
         try
         {
             using var prepared = request.Kind is WorkerExportContract.RequestKind or ProjectImageExportWorkerContract.RequestKind
@@ -41,6 +42,20 @@ public sealed partial class WorkerProcessProxy
                 try { payload = WorkerExportContract.EncodeInput(input.TaskId, input.Metadata, inputLease.Envelope); }
                 catch { inputLease.Dispose(); throw; }
             }
+            try
+            {
+                if (inputLease.HasPackages)
+                {
+                    PackageRenderWorkerCapabilities capabilities = imageExport
+                        ? (await GetImagePreviewCapabilitiesAsync(TimeSpan.FromSeconds(20), deadline.Token).ConfigureAwait(false)).PackageCapabilities
+                        : await GetRuntimeInputCapabilitiesAsync(TimeSpan.FromSeconds(20), deadline.Token).ConfigureAwait(false);
+                    inputLease.RequirePackageProfiles(capabilities);
+                    packageVerifiedProcess = imageExport ? _imagePreviewVerifiedProcess : _runtimeInputVerifiedProcess;
+                    if (packageVerifiedProcess is null)
+                        throw new WorkerProtocolException("导出包能力证明对应的实际 Worker 已释放。", "WorkerPackageProfileMismatch");
+                }
+            }
+            catch { inputLease.Dispose(); throw; }
             string sourceHash = imageExport ? ProjectImageExportWorkerContract.DecodeInput(payload).SourceSha256
                 : WorkerExportContract.DecodeInput(payload, false).SourceSha256;
             request = request with { Payload = payload, InputSha256 = WorkerProtocol.ComputeSha256(payload), SourceSha256 = sourceHash };
@@ -62,6 +77,8 @@ public sealed partial class WorkerProcessProxy
                 await _lifecycleGate.WaitAsync(call.Token).ConfigureAwait(false);
                 try
                 {
+                    if (packageVerifiedProcess is not null && !ReferenceEquals(_process, packageVerifiedProcess))
+                        throw new WorkerProtocolException("导出实际 Worker 代次与包能力证明不一致。", "WorkerPackageProfileMismatch");
                     if (_process is null || _process.HasExited || imageExport && request.Kind == ProjectImageExportWorkerContract.RequestKind
                         && !ReferenceEquals(_process, _imageExportVerifiedProcess))
                         throw new WorkerProtocolException("图片导出实际 Worker 代次没有通过独立能力协商。", "WorkerImageExportUnavailable");

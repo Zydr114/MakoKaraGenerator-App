@@ -87,6 +87,11 @@ public static class PackageRenderWorkerContract
             || value.SourceProfiles.Any(profile => profile is not (BackendSnapshotProfiles.PackageLyricsScene or BackendSnapshotProfiles.PackageLyricsScenePresets))
             || value.SourceProfiles.Distinct(StringComparer.Ordinal).Count() != value.SourceProfiles.Length))
             throw new WorkerProtocolException("包 Worker 来源能力 profile 无效。", "WorkerPackageCapabilitiesInvalid");
+        if (value.SupportedPackageProfiles is { } profiles && (profiles.Length is 0 or > 16
+            || profiles.Any(profile => profile is null || profile.PackageVersion <= 0
+                || string.IsNullOrWhiteSpace(profile.SdkVersion) || string.IsNullOrWhiteSpace(profile.ShaderProfile))
+            || profiles.Distinct().Count() != profiles.Length))
+            throw new WorkerProtocolException("包 Worker 支持的包身份列表无效或重复。", "WorkerPackageCapabilitiesInvalid");
     }
     /// <summary>复用静态会话的受验证 open 二进制形状。</summary>
     public static byte[] EncodeOpen(Guid sessionId, ReadOnlySpan<byte> snapshotBytes) => StaticRenderWorkerContract.EncodeOpen(sessionId, snapshotBytes);
@@ -134,4 +139,9 @@ public sealed record PackageRenderWorkerCapabilities(string EngineIdentity, stri
     string SdkVersion, string ShaderProfile, string ScriptRefsIdentity, int ScriptRefsCount,
     [property: JsonRequired] int PackageDiagnosticsVersion = WorkerPackageDiagnosticsContract.Version,
     string[]? ValidationProfiles = null, string[]? SourceProfiles = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? RuntimeInputProfile = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? RuntimeInputProfile = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] WorkerPackageProfileDto[]? SupportedPackageProfiles = null);
+
+/// <summary>实际 Worker 明确支持的一条包／SDK／shader 身份；私有 IPC 使用，不推断 HTTP 能力。</summary>
+/// <param name="PackageVersion">包格式。</param><param name="SdkVersion">已部署 SDK 合同。</param><param name="ShaderProfile">精确包后端合同。</param>
+public sealed record WorkerPackageProfileDto(int PackageVersion, string SdkVersion, string ShaderProfile);

@@ -18,7 +18,7 @@ internal static class SnapshotEffectSourceCodec
         int values = 0;
         foreach (EffectPackageContents package in effects.Packages)
         {
-            if (package.Profile != ProjectEffectsJson.PackageProfile)
+            if (!EffectPackageProfiles.IsSupported(package.Profile))
                 throw new SnapshotContractException("SnapshotPackageInvalid", "快照固定包能力版本不受支持。");
             Count(); Text(package.PackageId); Text(package.Revision); Binary(package.Manifest.Length);
             foreach (EffectPackageFile file in package.Files)
@@ -106,9 +106,9 @@ internal static class SnapshotEffectSourceCodec
             foreach (Package package in source.Packages)
             {
                 byte[] manifest = Convert.FromBase64String(package.Manifest);
-                EffectPackageContents contents = EffectPackageContents.Create(manifest,
+                EffectPackageContents contents = EffectPackageContents.CreateSupported(manifest,
                     package.Files.Select(file => new KeyValuePair<string, ReadOnlyMemory<byte>>(file.Path, Convert.FromBase64String(file.Content))),
-                    ProjectEffectsJson.PackageProfile, Budget);
+                    Budget);
                 if (contents.PackageId != package.PackageId || contents.Revision != package.Revision
                     || !manifest.AsSpan().SequenceEqual(contents.Manifest.AsSpan())) throw Invalid();
                 packages.Add(contents);

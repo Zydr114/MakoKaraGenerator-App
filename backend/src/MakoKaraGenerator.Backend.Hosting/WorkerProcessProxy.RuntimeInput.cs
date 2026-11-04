@@ -13,7 +13,7 @@ public sealed partial class WorkerProcessProxy
     {
         Guid id = Guid.NewGuid();
         _ = PackageRenderWorkerContract.EncodeOpen(id, sourceBytes.Span);
-        await GetRuntimeInputCapabilitiesAsync(timeout, cancellationToken).ConfigureAwait(false);
-        return await OpenPreparedScriptSessionAsync(ProjectRuntimeInputWorkerContract.OpenKind, id, sourceBytes, timeout, cancellationToken).ConfigureAwait(false);
+        var capabilities = await GetRuntimeInputCapabilitiesAsync(timeout, cancellationToken).ConfigureAwait(false);
+        return await OpenPreparedScriptSessionAsync(ProjectRuntimeInputWorkerContract.OpenKind, id, sourceBytes, timeout, capabilities, cancellationToken).ConfigureAwait(false);
     }
 }

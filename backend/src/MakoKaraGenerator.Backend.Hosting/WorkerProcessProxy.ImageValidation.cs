@@ -21,6 +21,7 @@ public sealed partial class WorkerProcessProxy
                 response =>
                 {
                     value = ProjectImageValidationWorkerContract.DecodeCapabilities(response.Payload);
+                    WorkerPackageProfileAdmission.RequireCurrent(value.PackageCapabilities, "WorkerImageValidationUnavailable");
                     EffectPackageProfile profile = ProjectEffectsJson.PackageProfile;
                     if (value.EngineIdentity != StaticProjectSnapshotCodec.EngineIdentity
                         || value.PackageCapabilities.PackageVersion != profile.PackageVersion

@@ -107,3 +107,14 @@ python3 -B backend/tools/backend-script-render-upgrade/compile_probe.py \
 python3 -B backend/tools/backend-script-render-upgrade/compile_probe.py --help
 python3 -c 'import ast,pathlib; ast.parse(pathlib.Path("backend/tools/backend-script-render-upgrade/compile_probe.py").read_text())'
 ```
+
+
+## M09 SVG／Warp 作者与导出
+
+`m09_author_probe.py --dist <匹配发布> --output <不存在的新证据目录>` 使用隔离profile及
+loopback验证真实v3 SVG vector／atlas和Base Warp包。完整包文本CAS、坏SVG同步／异步
+编译、修复后显式采用、Vulkan straight PNG、同t重复／seek、组合模板应用到受管Image背景工程、
+保存重开和48帧透明ProRes导出均检查真实终态和完整媒体。凭证仅驻内存、留档脱敏，收尾按
+本次PID/startTicks排水。`--skip-warp`／`--skip-export`只用于明确缩小一次运行，不能据passed
+声称被排除项通过。固定fixture从本仓库profile和Warp控制器读取；不使用兄弟仓库产物。
+SVG直接PNG内部块容差2/255，编码内部块12/255单独记载；无浏览器、跨平台或性能结论。

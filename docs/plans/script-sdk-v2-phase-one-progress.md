@@ -173,3 +173,8 @@ SVG 的三项 capability 已正式开放。完整闭包准入、Scene 租约、�
 完整构建0警告／0错误，Rendering1519、Core1471、Scripting492、RuntimeHosting153、
 Backend作者41通过；显式Vulkan图元19／真实包18通过，详见[M09证据](script-sdk-render-m09-evidence.md)。
 当前前端仅C#编辑；完整包文本UI、fresh HTTP与工程导出在后续切片验收，M09未关闭。
+
+
+0.112.8 的匹配Server/Worker及fresh HTTP已完成：314请求／2385断言，SVG vector／atlas与
+Base Warp的精确作者修订、13张透明GPU帧、保存重开后3×48帧透明ProRes严格导出均通过。
+合同1.45.0已同步，前端3937项单测通过。浏览器完整包编辑与图组仍待，M09不据此关闭。

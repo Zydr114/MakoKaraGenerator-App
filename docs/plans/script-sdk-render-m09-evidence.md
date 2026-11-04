@@ -163,8 +163,38 @@ job 为 succeeded 而报告 succeeded=false。修复生成新 source revision；
 该切片测试证明包运行与宿主作者链；匹配发布、fresh HTTP、工程导出和前端包编辑继续独立验收。
 性能门槛按用户要求暂停，不据此声称性能通过。
 
+## 匹配发布与 fresh HTTP（0.112.8／合同1.45.0）
+
+实现提交 `05dbe85` 已推送，合同提交 `36f3b6f` 已推送。新构建 CLR metadata 生成
+112 paths／125 methods／597 schemas，3434合成例（含2548反例）及漂移检查通过。
+前端同源合同副本、类型检查与3937项单元测试通过；这不是完整包编辑UI验收。
+
+匹配 self-contained Release/linux-x64 发布目录为
+`.local/script-sdk-m09-20261105/dist-svg-0.112.8-01`；Server/Worker 的
+`sourceCommit=05dbe8509cfd467b0f79e6a561e1a45ec8c0821d`、`sourceDirty=false`，
+完整源指纹及两端依赖匹配。两端均包含4份Svg第三方声明，发布日志无warning/error。
+
+`m09_author_probe.py` 的最终独立证据目录 `http-svg-04/`：**314请求／2385断言通过**。
+
+- SVG vector／atlas：完整包GET/PUT、精确CAS冲突拒绝、坏SVG的sync/async具名错误与路径、
+  禁止采用失败源码、第三修订修复、成功编译与显式采用。下载包逐文件SHA精确复核。
+- 13张实际Vulkan透明PNG完整解码；包含三个fixture的同t重复、离开／返回，以及Base Warp
+  同来源零位移反事实。SVG固定内部块每通道≤2/255，同t完整RGBA逐字节相同。
+- 每包建立组合模板并应用工程，受管Image背景保存、关闭、重开后正式GPU导出。
+  三个2秒／320×180／24fps的transparentProRes4444任务均抵达succeeded，报告严格验证，
+  各48/48帧写出与完整独立RGBA解码、零失败／丢帧。SVG编码内部块容差12/255，
+  此编码容差不替代直接PNG或渲染像素门禁。透明输出不绘制背景，但仍验证Image源闭包保留。
+- 当前合同离线复核295份JSON响应、85份成功JSON请求，覆盖36个操作；19份二进制／未映射按实际范围排除。
+- 13个硬件GPU Worker观测，843文件凭证扫描通过，HTTP排水无错误、无待终态任务，
+  launcher按本次PID/startTicks排水；没有按名称停止其他进程。
+- 前三轮保留为 `http-svg-01..03/`：探针先后误用alphaMode=transparent、缺模板metadata、
+  project-only包误装入line模板；分别改为合同straight、显式metadata、composite模板。
+  三处均为探针修正，未改生产实现以绕过服务门禁。
+
+本轮仅Linux有限输入；未证明浏览器包编辑、共享纹理、任意SVG/Warp组合、跨平台或性能通过。
+
 ## 未完成项
 
-- Warp／SVG 的实际 HTTP、工程导出和浏览器完整作者工作流。
+- SVG／图／manifest 前端完整包编辑与实际浏览器作者工作流。
 - v2 graph／运行时 Transform 绑定、Base 材质、组图调度与 BackdropBelow。
-- M09 的匹配合同／发布／fresh HTTP；M10 和 M11 尚未关闭。
+- M10 媒体轨与 M11 全样例／目标复杂样式仍待所属节点完整验收。

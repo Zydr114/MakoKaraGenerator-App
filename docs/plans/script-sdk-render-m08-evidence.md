@@ -56,10 +56,9 @@ cursor、mark 四类出生锚点、line fallback、实际可见图元像素，�
 
 ## 未完成门禁
 
-- 匹配 Server／Worker 发布。
-- 三个真实包的 HTTP 作者编译／显式采用、CAS、旧输入／租约与换代、GPU PNG、预算失败诊断。
-- 三轮九进程粒子矩阵及 M07 同场景正式性能回归。M07 ClusterExit 热查询准备仍有未通过记录，
-  不能由新粒子采样替代或调低门槛。
+- 三个真实包的 HTTP 作者编译／显式采用、CAS、旧输入／租约与换代、GPU PNG、预算失败诊断；
+  当前真实预算错误丢失 occurrence，必须修复后使用匹配新发布重验。
+- M07 同场景正式性能门禁仍有未通过记录，不能由新粒子采样替代或调低门槛。
 - 完整作者验证、保存库重开、九样例实际导出及 UI 调试等继续在 M11 验收。
 
 ## 合同与前端同步
@@ -75,3 +74,34 @@ cursor、mark 四类出生锚点、line fallback、实际可见图元像素，�
 `frontend-build-01.log` 的 TypeScript／Vite 构建通过，保留现有大 chunk 提示；
 `frontend-contract-01.log` 合同测试 3447/3447 通过。该轮没有重跑前端 integration
 全套，合同同步不能代替后续实际 HTTP 或浏览器显示证据。
+
+## 匹配发布及尚未通过的 HTTP
+
+`.local/backend-dist/script-sdk-m08-0.112.1-01/` 同时发布 self-contained Release/linux-x64
+Server 与 Worker；deployment 固定源码 `1432dc07d54939c5256d0e777572fb4a91e748b2`、
+产品 0.112.1、`sourceDirty=false`，脚本程序集字节一致。旧发布目录保留。
+
+`http-author-01` 在第 12 个请求停止：工具错误地要求请求中的可空 `branchInput:null`
+在响应中仍出现，而正式 DTO 省略 null。检查其余完整可写字段与 CAS 后修正工具，未放宽
+非空值保留或旧修订拒绝门禁。`http-author-02` 达到 138 请求／1018 已执行断言后失败：
+CursorTrail 的实际出生预算错误只有 `originKind:transportFailure`，丢失原实例、包、
+制品、时间与阶段 occurrence。该问题是生产诊断缺陷，不能删除精确归属断言绕过。
+两次失败均保留证据、隔离 profile，完成所属进程排水与凭证扫描；不计作 HTTP 通过。
+
+## 粒子确定性采样及文字场景性能回归
+
+`runner-build-03.log` 和 `m07-runner-build-01.log` 均为零警告／零错误。
+`performance-01` 使用当前固定二进制，串行三轮九个新进程，真实
+CursorTrail／VectorTrail／EventBurst、640×360 CJK/Ruby、0／180／600 秒三段，
+各自独立顺序／乱序会话与重复查询。30 组身份／确定性检查全部一致，累计 4896 次
+结构或预乘 BGRA 哈希比较一致，保留所有帧资产和完整输入／DLL 身份。
+该新粒子场景只报告原始耗时，没有获准的性能通过门槛；不是 v1 像素等价证据。
+
+`m07-performance-01` 在相同 M07 场景完成三轮 15 进程；24 组 v1/v2 像素比较和
+20 组跨进程确定性比较通过。以用户确认的固定历史基线执行 196 项正式耗时检查，
+**6 项失败**：WordEmphasis 编译中位数／p95 为 1097.6994／1130.7634 ms（限
+1074.86225／1085.990375 ms）；RepeatEmphasis 会话准备 p95 204.9605 ms（限
+204.47775 ms）；ClusterExit 热查询准备位置 7 中位数／p95 5.2014／10.2508 ms
+（限 5 ms），热绘制位置 0 p95 11.0588 ms（限 10 ms）。这不是正式性能通过。
+旧 0.111.3 的 runner 已独立保存在 `runner-before-m08-rebuild/` 并固定 294 个文件摘要，
+后续诊断构建、正式复测与历史证据分开。

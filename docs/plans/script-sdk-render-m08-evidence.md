@@ -56,8 +56,22 @@ cursor、mark 四类出生锚点、line fallback、实际可见图元像素，�
 
 ## 未完成门禁
 
-- 合同 1.44.0 的 fresh metadata 冻结／校验、前端合同同步、匹配 Server／Worker 发布。
+- 匹配 Server／Worker 发布。
 - 三个真实包的 HTTP 作者编译／显式采用、CAS、旧输入／租约与换代、GPU PNG、预算失败诊断。
 - 三轮九进程粒子矩阵及 M07 同场景正式性能回归。M07 ClusterExit 热查询准备仍有未通过记录，
   不能由新粒子采样替代或调低门槛。
 - 完整作者验证、保存库重开、九样例实际导出及 UI 调试等继续在 M11 验收。
+
+## 合同与前端同步
+
+生产修复提交为 `0f26db254bdf7562008ca7a573b2bc3fd6486bb1`。
+从该基线重新构建 ContractMetadata（`contract-build-01.log`，零警告／零错误），
+生成 `clr-metadata-01.json`，完成 freeze write／check 和仓库 venv 的 validate。
+`contract-validation-01.json` 为合同 1.44.0、产品 0.112.1：112 路径／125 方法、
+597 schemas、3434 示例／2548 反例。HTTP DTO 没有增加；上个合同以来 34 个生产
+源码变化路径全部进入 manifest 指纹。
+
+前端整体复制五件合同及行为文档，同步协议版本常量。
+`frontend-build-01.log` 的 TypeScript／Vite 构建通过，保留现有大 chunk 提示；
+`frontend-contract-01.log` 合同测试 3447/3447 通过。该轮没有重跑前端 integration
+全套，合同同步不能代替后续实际 HTTP 或浏览器显示证据。

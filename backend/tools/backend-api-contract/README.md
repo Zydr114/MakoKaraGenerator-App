@@ -1,6 +1,8 @@
 # 冻结 API 合同生成与校验
 
-从 `backend/` 执行。本工具构建 Contracts 引用的离线 CLI，不启动服务。当前产品 0.111.3／合同 1.43.0／协议 1，112 路径／125 方法／597 schemas、3434 例（2548 反例）。本轮加入 SDK2 草稿包身份及精确来源编译合同，保留历史样例门禁。源码基线为 `dc6a2e9`，静态门禁不替代匹配发布或 fresh HTTP；M07 进度见 App 根 `docs/plans/script-sdk-v2-phase-one-progress.md`。
+从 `backend/` 执行。本工具构建 Contracts 引用的离线 CLI，不启动服务。本轮冻结产品 0.112.1／合同 1.44.0／协议 1；HTTP DTO 未变，继续固定 112 路径／125 方法／597 schemas、3434 例（2548 反例），不增加 schema 或合成例。SDK2 连续／Burst 粒子和晚期图元改变真实包执行行为，生成物从匹配 metadata 冻结。`BASELINE` 为已提交的生产源码 `0f26db254bdf7562008ca7a573b2bc3fd6486bb1`；产品版本仍从 `Directory.Build.props` 读取。静态门禁不替代匹配发布、fresh HTTP 或性能验收；进度见 App 根 `docs/plans/script-sdk-v2-phase-one-progress.md`。
+
+1.44.0 保留 1.43.0 的 SDK2 草稿身份、精确来源编译／采用及 GPU 准入合同。包 `requires` 新实际执行 `particles.continuous/burst` 与 `visuals.dots/segments/trails/sprites`，具名晚期图元仍为 controller 的 `Overlay/canvas`；没有新增 HTTP 请求入口、粒子 DTO 或轮询节奏。运行预算和具名诊断详见[行为§26](../../docs/architecture/backend-api.md#sdk2-m08-particles)。`freeze.py` 显式纳入 M08 的 SDK 值、Declare 二次校验、精确积分／反解、结构身份、最终锚点／memo 和准备帧行为文件，缺失文件直接失败；`validate.py` 保留全部历史分支，并将 1.44.0 送入既有 SDK2 作者、GPU／辉光与样例门禁，同时固定上述数量。本次工具／人工源修改本身不代表已经生成、构建、测试、发布或通过 HTTP／性能验收。
 
 ## 检查当前合同
 

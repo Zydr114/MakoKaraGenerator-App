@@ -1,8 +1,8 @@
 # 当前后端 HTTP API
 
-更新：2026-11-01。当前产品 **0.110.0／HTTP协议1／合同1.42.0**，新增独立静态外辉光，贯通四层样式、模板、文字标记、Worker快照与颜色捕获；语义见§6.11和[辉光参考](../style-reference/glow.md)。既有W8作者工作流与桌面GPU流保持；历史证据保留原归属。接口和源码指纹以同一提交的[执行合同](../../web/api-contract.md)为准。
+更新：2026-11-04。当前 **0.112.1／HTTP协议1／合同1.44.0**，SDK2 精确连续／Burst 粒子与晚期画布图元见§26；合同按匹配 metadata 冻结，生产源码基线为 `0f26db254bdf7562008ca7a573b2bc3fd6486bb1`；发布与实机证据独立登记。静态外辉光继续贯通四层样式、模板、文字标记、Worker快照与颜色捕获，语义见§6.11和[辉光参考](../style-reference/glow.md)。既有作者工作流、浏览器预览与桌面GPU流保持；历史证据保留原归属。接口和源码指纹以同一提交重新冻结的[执行合同](../../web/api-contract.md)为准。
 
-当前合同为112路径／125方法／597 schemas、3431 examples（2547反例），以生成物和合同校验报告为准。公开 `renderBackend` 严格为 `cpu|gpu`，GPU实际API为Vulkan；创建/任务省略或null使用启动默认，已有预览更新省略或null保留当前选择，候选测量省略沿候选固定选择。各渲染任务在准入时固定选择，预览/帧/事件、job input、验证/导出报告及测量响应回显；历史缺失值表示未知。设备可用性不等同于业务渲染成功，202只表示接受，GPU失败不回落CPU。合同静态门禁、本机硬件、HTTP、浏览器、跨平台及性能分别验收。
+1.44.0 的 HTTP DTO 结构沿用 1.43.0，固定112路径／125方法／597 schemas、3434 examples（2548反例），以匹配生成物和合同校验报告为准。公开 `renderBackend` 严格为 `cpu|gpu`，GPU实际API为Vulkan；创建/任务省略或null使用启动默认，已有预览更新省略或null保留当前选择，候选测量省略沿候选固定选择。各渲染任务在准入时固定选择，预览/帧/事件、job input、验证/导出报告及测量响应回显；历史缺失值表示未知。设备可用性不等同于业务渲染成功，202只表示接受，GPU失败不回落CPU。合同静态门禁、本机硬件、HTTP、浏览器、跨平台及性能分别验收。
 
 §20 的0.98直接包预览、§10.1的0.100图片验证、§22的0.99图片预览及§11.5的0.101图片导出，均保留各自历史 profile 与证据归属；这些独立 profile 的旧限制不再是本轮统一输入的全局限制。0.99的1175请求／9760断言、0.100的1412请求／10582断言等历史数字不并入本轮。更早实现、失败过程与验收数字仍见 [实施记录](../backend-extraction-progress.md)。 原顶部历史摘要保持归属：0.75内部诊断各类256条/64KiB、合计512条/128KiB与真实0.74拒绝；0.72修复`1c70fae`后的775/775及HTTP699/4239、58终态、六恢复、七controls、四Server/172成员排水，repair1的753及失败HTTP137/987仍单列于原实施记录，不计本轮。运行能力必须采用实际部署的 Worker 握手与 capabilities，不能由产品版本推定；内部进程隔离不构成任意恶意脚本 OS sandbox，也不代表浏览器或跨平台验收。
 
@@ -1703,3 +1703,98 @@ stream Worker 之外增开可用性 helper。备用准备包含真实 Vulkan／S
 非法字段为400 `invalidRequest`；不支持、不可用、实际设备不匹配或核验回执错误通过 `field:renderBackend` 和稳定 failureCode 返回。当前设备层编号为 `RenderBackendUnavailable`、`RenderBackendUnsupported`、`RenderBackendMismatch`、`RenderBackendProtocolInvalid`；业务来源错误继续使用原 source/profile 编号。设备不可用不返回替代帧或成功任务。
 
 本批在当前Linux/RADV机器完成五类预览CPU→GPU→CPU、no-op/回执/旧generation/ACL、两client独立选择、固定来源在原工程修改/关闭后切换、input省略保留GPU、正式验证/短片导出及测量的有限HTTP矩阵。硬件采样对GPU帧和运行中任务绑定新鲜Worker身份；同步测量只定位请求区间内硬件Worker，不能精确区分探测和测量执行Worker。合同形状、CPU回归、HTTP、媒体和进程排水分别登记。本批不增加GPU视频编码接口，也不宣称浏览器、跨平台、性能、独立Runtime内容像素Oracle或CPU/GPU位级像素一致性。
+
+<a id="sdk2-m08-particles"></a>
+
+## 26. SDK2 M08 精确粒子与晚期画布输出（0.112.1／合同1.44.0）
+
+本节固定 M08 已接入的包执行行为，HTTP `protocolVersion` 仍为1。本轮没有新增路由、请求／响应
+DTO、HTTP 粒子表或工程命令，schema 与合成 wire 例继续为597和3434例（2548反例），112路径／
+125方法。C# SDK 的结构身份、出生窗和晚期视图属于 Worker 内的执行合同，不把这些值直接序列化成
+新的公共响应。包导入／检查、作者草稿／编译／采用、工程固定输入、浏览器预览、验证和导出沿现有
+入口、owner／CAS、修订、任务及代次规则执行。匹配生成物、Server／Worker 发布、fresh HTTP、
+GPU 像素和性能验收分别登记，本节不宣布这些验收已经通过。
+
+### 26.1 包声明、阶段与 GPU 准入
+
+SDK2 使用 `packageVersion:3`、`sdkVersion:2.0.x` 与 `shaderProfile:skia-ganesh-3.119.4-v2` 的明确
+profile；未知 profile 不回退 SDK1。`requires` 中以下能力已接入实际执行：
+
+| 包能力 | 固定执行用途 |
+|---|---|
+| `particles.continuous` | `cursor` 发射器的歌曲时间常速／线性速率轨，真实播放头与合法 Bridge 来源 |
+| `particles.burst` | `burst` 发射器的固定真实事件行，按源事件和明确锚点出生 |
+| `visuals.dots` | 自动粒子圆点与具名晚期圆点批次 |
+| `visuals.segments` | 具名晚期平端线段批次 |
+| `visuals.trails` | 具名晚期带状拖尾批次，每个节点计入绘制预算 |
+| `visuals.sprites` | 本固定包修订图片的完整仿射精灵批次 |
+
+这些是包清单能力名，不是 HTTP capabilities 的新增布尔字段。`emitters` 必须具有唯一 `id`、
+明确的 `cursor|burst` 种类以及1至5000000整数微秒的 `maxLifetimeUs`，并在包 `requires` 中声明
+相应粒子能力。controller 的具名画布输出使用 `kind:Overlay`、`target:canvas`，输出自身的
+`requires` 同样必须覆盖实际能力。连续／Burst 计划引用同名、同种类发射器；自动圆点的该输出还需
+`visuals.dots`。Declare 返回后再次核对固定计划、寿命、能力、具名输出的种类和层，不能仅凭清单
+通过或作者构造了合法对象跳过运行门禁。晚期 Overlay 不能作为文字输出或发射轨的依赖。
+
+顺序为固定 Declare／计划准备、当前文字、出生时刻最终文字锚点补算、解析存活粒子、可选
+`EvaluateVisuals`。晚期只能读取本实例粒子和最终几何并写声明的临时图元，不能反馈速率或改写文字；
+调用结束或失败后视图／writer 失效。精灵句柄必须属于该实例固定包修订。`Custom` 关闭自动粒子
+绘制，保留粒子运动、完整出生窗和所有预算。
+
+原 SDK2 GPU 门禁继续用于工程和作者预览、正式验证与导出：非 GPU 选择在运行输入准备前以
+`commandNotSupported/PackageBackendUnsupported`、`field:renderBackend` 拒绝；运行时仍验证实际
+Vulkan 设备，失败不回落 CPU。拒绝预览设备切换继续保留原固定输入、代次和已发布帧；HTTP `202`
+只表示已接受，不能据此认定脚本、粒子或绘制成功。
+
+### 26.2 出生、寿命与最终锚点
+
+粒子使用实际实例、发射器以及完整 Continuous／Burst 来源构成结构身份，不压缩为旧的稠密
+BirthIndex。连续出生对原始 IEEE-754 速率作精确有理数积分和整数阈值反解；普通 head 在同轨道、
+同装载的相接 token 间保留配额，真实 gap、disable 或 reload 重置；每个真实 Bridge 转换独立。
+同 head 的重叠 Current 来源以 `EmissionHeadAmbiguous` 拒绝。Burst 绑定真实固定事件、计划序号、
+实际锚点和粒内序号，不能仅凭时间相同冒充事件；相同边界保留既有源事件排序。
+
+当前存活条件为 `birthUs <= timeUs < deathUs`。每次查询同时固定闭出生窗
+`[max(0,timeUs-5000000),timeUs]`，其中已死亡粒子仍可读取，不能从 Alive 反推完整 Births；文字
+离场不提前杀死粒子。出生锚点取该真实出生时刻的最终文字、基础字／Ruby 分区及层次变换，之后
+散布、恒加速度、年龄外观与绝对歌曲120Hz拖尾节点按固定值解析，不逐帧积分。
+
+默认锚点采样为 `Exact`。只有完整必要文字依赖均声明同区段连续时，显式 `Continuous120Hz`
+才可在固定网格插值；断点和真实来源边界继续拆分。不能因耗时、预算或 memo 命中情况自动降低
+精度。若真实锚点依赖有状态 SDK1 文字输出，拒绝 `FinalAnchorLegacyDependencyUnsupported`；
+无关绑定的 SDK1 输出不扩大拒绝范围。memo 只保存完整成功查询的最终锚点，不保存半帧输出；
+取消和失败不发布新条目。
+
+### 26.3 独立预算与诊断
+
+准备／帧查询账本在宿主内按全部实例累计；作者不能放大以下硬限额。原工程绘制预算还会约束
+实际图元输出。数量和保守字节记账是完整性门禁，不是运行内存峰值或性能指标。
+
+| 范围 | 默认上限 |
+|---|---|
+| 单粒寿命／清单最大发射器数 | 5000000 µs／32 |
+| 准备账本 | 发射器32；速率段与启用窗合计4096；来源区段与 episode 合计200000；Burst 行50000；256 MiB |
+| 精确整数 | 4096 bits |
+| 一次帧查询 | 完整出生50000；Alive 20000；反解操作4000000；拖尾节点200000；64 MiB |
+| 最终锚点补算 | 唯一时刻4096；实际文字实例调用32768；寿命窗外／未来端点1024；累计补算耗时保护3000 ms |
+| 最终锚点 memo | 2048条目／64 MiB，达到保留预算按有界缓存策略淘汰 |
+
+3000 ms 是锚点补算失败保护，不是性能验收阈值，也不用于筛选粒子或改变采样算法。固定预算、
+取消、非法来源或非有限几何均失败，不截断出生表、不少画图元、不吞掉失败实例。
+
+包读取错误保留 `PackageEmitterBudgetExceeded`、`PackageEmitterDuplicate`、
+`PackageEmitterKindUnsupported`、`PackageEmitterLifetimeInvalid`、`PackageCapabilityMissing`、
+`PackageOutputTargetUnsupported`、`PackageOutputStageDependencyInvalid` 等具名原因；不支持的
+能力仍为 `PackageCapabilityUnsupported`。准备／查询和晚期失败通过现有 runtime 诊断载荷传播，
+保留实际 `instanceId`、artifact／包身份、阶段与时刻，新增原因不意味着新增顶层 HTTP `code`：
+
+| 阶段／范围 | 主要具名原因 |
+|---|---|
+| Declare／计划准备 | `InvalidParticleDeclaration`、`UndeclaredCapability`、`UndeclaredEmitter`、`UndeclaredPackageOutput`、`ParticleLifetimeExceeded`、`InvalidParticleRate`、`InvalidParticleSource`、`EmissionHeadAmbiguous` |
+| 准备预算与精确运算 | `ParticlePrepareBudgetExceeded`、`ParticlePrepareMemoryExceeded`、`ParticleIntegerBudgetExceeded`、`ParticleTimeOrIdentityOverflow` |
+| 帧粒子预算 | `EmissionRecordBudgetExceeded`、`LiveParticleBudgetExceeded`、`TrailSampleBudgetExceeded`、`ParticleInversionBudgetExceeded`、`ParticleFrameMemoryExceeded` |
+| 最终锚点 | `FinalParticleAnchorUnavailable`、`FinalAnchorLegacyDependencyUnsupported`、`FinalAnchorPrepareBudgetExceeded`、`FinalAnchorTimeBudgetExceeded`、`FinalAnchorTextCallBudgetExceeded`、`FinalAnchorFutureEndpointBudgetExceeded`、`FinalAnchorWallBudgetExceeded` |
+| 晚期图元／结构 | `InvalidVisualDeclaration`、`InvalidVisualOutputStage`、`InvalidParticleFrame`、`ParticleOutsideInstance`、`DuplicateOverlayBatch`、`InvalidOverlay`、`InvalidSpriteResource`、`VisualOutputBudgetExceeded` |
+
+业务终态仍从现有 preview／job 状态和完整诊断读取；HTTP 接收成功、合成样例通过或有限工具完成
+均不能替代真实帧／任务完成。取消继续沿 `OperationCanceledException` 和原任务取消语义传播。

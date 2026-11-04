@@ -1,6 +1,8 @@
 # 前后端 API 执行合同
 
-状态：**冻结1.43.0**，产品元数据与源码指纹更新于2026-11-04；产品 **0.111.3**，HTTP `protocolVersion:"1"`。SDK2 作者草稿区分最新、编译、已采用和在用源码；编译请求可固定保留历史中的 `sourceRevision`，保存与编译均不自动替换在用来源，采用 C# 修订须有该精确来源的成功编译记录，配置写入不能绕过门禁。SDK2 工程和作者预览、正式验证与导出要求 GPU；CPU 选择在运行输入准备前以 `commandNotSupported/PackageBackendUnsupported` 拒绝，字段为 `renderBackend`，失败的预览切换保留原固定输入、代次与帧。原 HTTP 入口、浏览器静态预览生命周期与 SDK1 行为保持。详细边界见[作者工作流与预览行为](../docs/architecture/backend-api.md)。固定基线与文件指纹见[manifest](contract-manifest.json)，合同、匹配发布、fresh HTTP 与浏览器验收分别登记。
+状态：**1.44.0 已按匹配 metadata 冻结**，更新于2026-11-04；产品 **0.112.1**，HTTP `protocolVersion:"1"`。本轮 SDK2 接通精确连续／Burst 粒子及晚期圆点、线段、拖尾和精灵，HTTP 路由、DTO、schema 与样例数量沿用 1.43.0。SDK2 作者草稿区分最新、编译、已采用和在用源码；编译请求可固定保留历史中的 `sourceRevision`，保存与编译均不自动替换在用来源，采用 C# 修订须有该精确来源的成功编译记录，配置写入不能绕过门禁。SDK2 工程和作者预览、正式验证与导出要求 GPU；CPU 选择在运行输入准备前以 `commandNotSupported/PackageBackendUnsupported` 拒绝，字段为 `renderBackend`，失败的预览切换保留原固定输入、代次与帧。详细边界见[作者工作流与预览行为](../docs/architecture/backend-api.md)。最终基线与文件指纹由重新生成的[manifest](contract-manifest.json)固定，合同生成、匹配发布、fresh HTTP、浏览器及性能验收分别登记。
+
+M08 包清单可实际声明 `particles.continuous`、`particles.burst`、`visuals.dots`、`visuals.segments`、`visuals.trails`、`visuals.sprites`；具名图元使用 controller 的 `Overlay/canvas` 输出，仍经过包能力、发射器、固定准备结果及运行输出校验。完整出生窗、半开寿命、最终文字锚点、独立预算与诊断使用现有运行通道，详见[行为§26](../docs/architecture/backend-api.md#sdk2-m08-particles)。这些能力名属于效果包清单，不是新增 HTTP 字段或可以据版本推定的运行成功。原 HTTP 入口、浏览器静态预览生命周期、GPU 准入及 SDK1 行为保持；本次合同冻结不证明 HTTP 或性能验收通过。
 
 GPU 流按精确修订创建、换来源、改变尺寸和关闭；创建受真实设备及分配能力限制。`registrationState` 是登记状态，`workerState` 来自 Worker 实时查询；`textureAlphaMode` 固定 `premultiplied`，`alphaMode` 仅控制背景透明度。桌面主进程的私有 claim 不属于公开 API。详细协议和失效语义见仓库根 `docs/architecture/gpu-preview-stream-v1.md`。
 

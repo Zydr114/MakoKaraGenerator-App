@@ -26,8 +26,8 @@ from static_style_schema import extend_static_style_schemas, style_query_paramet
 from template_library_schema import extend_template_library_schemas, query_parameters as template_query_parameters, LIMITS as TEMPLATE_LIMITS
 
 ROOT = Path(__file__).resolve().parents[2]
-CONTRACT = "1.43.0"
-BASELINE = "dc6a2e9065d36900b28548ec94606736092075fb"
+CONTRACT = "1.44.0"
+BASELINE = "0f26db254bdf7562008ca7a573b2bc3fd6486bb1"
 PRODUCT = re.search(r"<VersionPrefix>([^<]+)</VersionPrefix>", (ROOT / "Directory.Build.props").read_text()).group(1)
 FREEZE_DATE = "2026-11-04"
 BEHAVIOR = "docs/architecture/backend-api.md"
@@ -1498,10 +1498,50 @@ def manifest(outputs):
         if not source.is_file():
             raise ValueError("Missing reviewed SDK2 behavior source: " + filename)
         files.add(source)
+    # M08 exact v2 emission, complete birth windows, final-anchor supplements and
+    # late canvas primitives change execution without adding HTTP DTO fields.
+    # Keep every newly introduced production behavior file explicit; retain the
+    # shared value/rendering seams so a move cannot silently drop their hashes.
+    for filename in (
+            "src/MakoKaraGenerator.Rendering.Abstractions/PreparedRenderFrame.V2Particles.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/MakoKaraGenerator.Scripting.Abstractions.csproj",
+            "src/MakoKaraGenerator.Scripting.Abstractions/ParticleDescription.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/ParticleSource.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/ParticleSample.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/CursorEmitterDescriptor.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/CurveValue.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/DeterministicRandom.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/OverlayBatch.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/VisualWriter.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/VectorOverlays.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/SpriteOverlays.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/V2/ParticleIdentity.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/V2/ParticleSchedule.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/V2/PreparedEffectDeclaration.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/V2/VisualFrame.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/V2/VisualOutput.cs",
+            "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.V2Anchors.cs",
+            "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.V2Particles.cs",
+            "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.V2Sources.cs",
+            "src/MakoKaraGenerator.Scripting/Execution/V2FinalAnchorMemo.cs",
+            "src/MakoKaraGenerator.Scripting/Execution/V2RuntimeBudgetOptions.cs",
+            "src/MakoKaraGenerator.Scripting/Execution/V2RuntimeTestAccess.cs",
+            "src/MakoKaraGenerator.Scripting/Particles/V2/CompiledParticleSchedule.cs",
+            "src/MakoKaraGenerator.Scripting/Particles/V2/CompiledParticleSchedule.Read.cs",
+            "src/MakoKaraGenerator.Scripting/Particles/V2/CompiledParticleSchedule.Validation.cs",
+            "src/MakoKaraGenerator.Scripting/Particles/V2/ExactRateTrack.cs",
+            "src/MakoKaraGenerator.Scripting/Particles/V2/ParticleBudgets.cs",
+            "src/MakoKaraGenerator.Scripting/Particles/V2/ParticleIdentityEncoding.cs",
+            "src/MakoKaraGenerator.Scripting/Particles/V2/ParticleKinematics.cs",
+            "src/MakoKaraGenerator.Scripting/Particles/V2/ParticleScheduleContracts.cs"):
+        source = ROOT / filename
+        if not source.is_file():
+            raise ValueError("Missing reviewed SDK2 M08 behavior source: " + filename)
+        files.add(source)
     files.update(p for p in TOOL.iterdir() if p.is_file())
     return {"contractVersion": CONTRACT, "httpProtocolVersion": "1", "productVersion": PRODUCT, "sourceBaselineCommit": BASELINE,
             "frozenOn": FREEZE_DATE, "status": "frozen", "behaviorSource": BEHAVIOR,
-            "scope": "Implemented public HTTP API with SDK2 package admission, fixed source compilation and explicit adoption, plus early CPU rejection for enabled SDK2 effects; existing author, preview, export and static-style contracts remain. Contract shape, matched deployment, real Linux GPU/HTTP frames and lifecycle evidence remain separate; not browser, cross-platform or performance acceptance.",
+            "scope": "Implemented public HTTP API with SDK2 exact continuous/burst particles and late dots/segments/trails/sprites on declared Overlay/canvas outputs. Fixed source compilation/adoption, GPU admission and existing author/preview/export lifecycles remain; no new HTTP DTO, route, schema or example. Source fingerprints include M08 preparation, query budgets, final anchors and runtime diagnostics. Contract generation, matched deployment, fresh HTTP/GPU frames and performance acceptance require separate evidence.",
             "files": {str(p.relative_to(ROOT)): sha(p.read_bytes()) for p in sorted(files)},
             "artifacts": {name: sha(data) for name, data in sorted(outputs.items())},
             "guards": "Source hashes require review even for behavior-preserving changes. They are drift alarms, not semantic proofs. Runtime/Media behavior still requires existing regression tests."}

@@ -1,6 +1,6 @@
 # 脚本 SDK v2 与渲染管线重构计划
 
-状态：**M00–M04 通过；M05 实施中，用户授权本轮至 M06**。日期：2026-11-03。
+状态：**M00–M06 本轮有限范围通过；在 M06 收尾，M07 未开始**。更新日期：2026-11-04。
 此前设计修订仅涉及文档；当前授权覆盖 S0、S1 和 S2 的 M00–M06，
 暂不进入 M07／S3 的 SDK v2 与脚本求值系统改造。
 
@@ -14,8 +14,8 @@
 包 profile `packageVersion 2`／`sdkVersion "1.0.0"`／`skia-raster-3.119.4-v1`。
 
 本文中的 SDK 类型名、接口、错误码和性能门槛均为**候选设计**，不代表已实现的公共 API。
-源码事实与候选方案分开登记；历史性能数字仅引用原报告，本次没有重新测量。
-后续开工时复核版本和源码位置，不把本文基线当作届时最新版本。
+源码事实与候选方案分开登记；设计基线章节的历史性能数字仅引用原报告，后续实测分别登记在
+M00–M06 节点记录中。继续实施时复核版本和源码位置，不把本文基线当作届时最新版本。
 
 ## 0. 摘要与本次修订
 
@@ -102,7 +102,7 @@ S4 复杂样式与作者流程 → S5 执行计划深化 → S6 能力／合同�
   [gpu-preview-controller.ts](../../frontend/src/editor/preview/gpu-preview-controller.ts) 与
   [GPU 流协议](../architecture/gpu-preview-stream-v1.md)。
 - `PackageRenderSession.cs:54–58` 的编译缓存按 PID 放置，跨新 PID 通常重复编译；同进程仍可能命中。
-  [ScriptCompiler](../../backend/src/MakoKaraGenerator.Scripting/Compilation/ScriptCompiler.cs) 已按源码、
+  [ScriptCompiler](../../backend/src/MakoKaraGenerator.Scripting.Compiler/ScriptCompiler.cs)（M02 拆分后的当前位置）已按源码、
   编译选项、Roslyn／引用集和入口计算内容键，参数不在编译键内。
 - `ProjectSessionRegistry.Author.cs` 已持有长寿命作者编译器，尚未把持久产物交给渲染链消费。
   [ScriptArtifactStore](../../backend/src/MakoKaraGenerator.Scripting/Compilation/ScriptArtifactStore.cs)
@@ -828,3 +828,14 @@ M02 固定产物消费、依赖闭包、实际 HTTP 及三轮近端 seek A/B 已
 M03 同输入 seek、取消恢复、失败清理及三轮正式 A/B 通过，见 [M03 记录](script-sdk-render-m03-evidence.md)。
 
 M04 完整备用预热、双消费者、失败单次绑定与三轮有限动作 A/B 通过，见 [M04 记录](script-sdk-render-m04-evidence.md)。
+
+2026-11-04，M05 共享布局／Ruby 缓存及有限中间提交优化通过回归、有限 HTTP、像素和三轮正式
+A/B，12 个场景／后端组合均满足已确认门槛，见 [M05 记录](script-sdk-render-m05-evidence.md)。
+图颜色小结果校验与更激进的空捕获仍待 M12，整个 S2 未宣称完成。
+
+M06 在 0.110.10 修复实际 GPU 采样回归后通过本轮有限验收，见 [M06 记录](script-sdk-render-m06-evidence.md)：
+CPU 目标采样实际读取量为旧版 1/16，Vulkan／未知设备保持原尺寸以保留像素；两后端三轮视频
+A/B 均满足已确认门槛。GPU 目标采样收益仍未实现，峰值内存与 GPU 异步回读未作改善声明；
+编码重叠沿用原有有界队列，本轮修复拒帧所有权。桌面／浏览器通过的是有限功能验证，
+不把未达到的桌面 UI 交互候选值或不完整 P3 阶段矩阵记作正式性能通过。
+本轮止于 M06，保持 v1 API／求值语义；M07／SDK v2 与 D8 后续能力不在本轮实施范围。

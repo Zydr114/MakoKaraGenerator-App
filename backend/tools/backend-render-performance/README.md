@@ -21,7 +21,7 @@ python3 backend/tools/backend-render-performance/analyze.py --output EVIDENCE --
 
 M02 将 `ProjectRenderSessionFactory` 从路径构造切换为注入 `IScriptCompilationService`。当前 Runner 模板保留编译器项目引用和显式注入；`factory_layout.py` 只在隔离源码归档的工具副本中适配已识别的旧工厂：恢复路径构造调用并移除独立编译器引用。注入版直接使用相同模板。两侧都从工厂／编译服务构造以前开始计时。准备清单记录模板、各侧生成工具摘要、精确差异及工厂布局；构建前逐项复核，未知或混合签名直接失败。`instrument.py` 对旧版 `_compiler.Value` 与注入版 `compiler` 分别严格匹配并记录布局，零匹配不得忽略。
 
-M05 去除的是 `SkiaRenderPipeline.ImageScene.Surfaces.cs` 的 `_device.FlushAndSubmit(main)`，当前插桩没有匹配该调用；`graph.submit` 匹配的是 `Effects/CompiledImageGraph.Drawing.cs` 的另一处 `_device.FlushAndSubmit(surface)`，不能因 M05 改动直接删掉或把它误记为被移除的提交。其余严格匹配仍须按合并后的实际源码验证；若缺失或数量变化，准备阶段应失败，先审查新旧布局后再加具名分支。
+M05 去除的是 `SkiaRenderPipeline.ImageScene.Surfaces.cs` 的 `_device.FlushAndSubmit(main)`。插桩对旧版调用和新版无此调用的布局分别严格匹配，记录 `scene.mainSubmit` 和 `scene.backdropSnapshot`；`graph.submit` 匹配的是 `Effects/CompiledImageGraph.Drawing.cs` 的另一处 `_device.FlushAndSubmit(surface)`，不能把它误记为被移除的提交。未知布局或数量变化时准备阶段直接失败，须审查后增加具名分支。
 
 示例（在 App 根目录，先完成准备和构建；采样须独占设备）：
 
@@ -100,6 +100,17 @@ python3 tools/backend-render-performance/analyze.py --output /path/to/new-eviden
 ## 工具检查和归档
 
 `python3 tools/backend-render-performance/test_analysis.py` 用合成数据检查统计门禁，不渲染。`dotnet run --project tools/backend-render-performance/TraceCheck/TraceCheck.csproj -c Release` 只检查计时器的异步传播、嵌套和独占时间，不创建渲染设备。运行这些检查和构建时应暂停性能采样。
+
+M05/M06 的三轮无插桩 old/new 门禁在相应 `analyze.py` 成功后运行：
+
+```bash
+python3 backend/tools/backend-render-performance/timing_gate.py EVIDENCE --label main
+python3 backend/tools/backend-render-performance/test_timing_gate.py
+```
+
+该门禁核对完整三轮、结果设置、采样数量、有效 assessment、正常退出及无插桩；逐场景和后端合并帧后，
+median 用 `statistics.median`，p95 用 nearest rank，两项均须满足新版不大于旧版 × 110% + 5 ms。
+它生成 `nearest-rank-summary.json`，不替代分析器对同帧像素、诊断与设备的核验。
 
 全部标签分析通过后，`archive.py --output EVIDENCE --destination NEW_DOC_DIR` 复核两份源码、工具、示例、插桩补丁、构建指纹及进程退出，输出确定性 `evidence.tar.gz` 和逐文件摘要 `evidence-index.json`。归档保留逐帧 JSON、诊断、阶段统计和环境，完整源码副本、二进制、编译缓存及代表 PNG 留在本机证据目录；归档不能代替重新分析各批次。
 

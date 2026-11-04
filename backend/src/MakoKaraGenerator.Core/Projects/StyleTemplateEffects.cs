@@ -13,7 +13,7 @@ internal static class StyleTemplateEffects
             throw new ArgumentException("模板配方或包身份无效／重复。");
         var materials = SourceMaterialCatalog.Collect(style);
         var needed = recipes.Select(r => (r.PackageId, r.Revision)).Concat(materials.Select(r => (r.Material.PackageId, r.Material.Revision))).ToHashSet();
-        if (packages.Any(p => p.Profile != ProjectEffectsJson.PackageProfile)) throw new ArgumentException("模板包profile与当前程序不符。");
+        if (packages.Any(p => !EffectPackageProfiles.IsSupported(p.Profile))) throw new ArgumentException("模板包profile与当前程序不符。");
         if (!needed.SetEquals(packages.Select(p => (p.PackageId, p.Revision)))) throw new ArgumentException("模板必须携带恰好完整的材质／配方修订闭包。");
         var definitions = packages.ToDictionary(p => (p.PackageId, p.Revision), p => EffectPackageDefinition.Read(p));
         foreach (var reference in materials) SourceMaterialCatalog.Validate(reference, definitions[(reference.Material.PackageId, reference.Material.Revision)]);

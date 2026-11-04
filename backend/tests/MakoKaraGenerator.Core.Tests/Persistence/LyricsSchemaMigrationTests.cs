@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using MakoKaraGenerator.Core.Diagnostics;
+using MakoKaraGenerator.Core.Effects;
 using MakoKaraGenerator.Core.Lyrics;
 using MakoKaraGenerator.Core.Persistence;
 using MakoKaraGenerator.Core.Projects;
@@ -107,7 +108,7 @@ public sealed class LyricsSchemaMigrationTests : IDisposable
             ["lyricsFile"] = "data/lyrics/" + new string('0', 64) + ".json",
             ["media"] = JsonNode.Parse("{\"audio\":null,\"background\":null}"),
             ["audioAnalysis"] = JsonNode.Parse("{\"state\":\"noAudio\"}"),
-            ["effects"] = JsonNode.Parse("{\"contractVersion\":1,\"simulation\":{\"version\":1,\"stepHz\":120,\"random\":\"pcg32-v1\"},\"budgets\":{\"surfaceMemoryBytes\":536870912,\"liveParticles\":20000,\"trailSamples\":200000,\"emissionRecords\":100000,\"drawCommands\":100000},\"packages\":[],\"instances\":[]}"),
+            ["effects"] = JsonNode.Parse(ProjectEffectsJson.Encode(ProjectEffects.Empty)),
             ["presetApplications"] = JsonNode.Parse($"{{\"contractVersion\":1,\"templateSchemaVersion\":{StyleTemplateLibrary.CurrentSchemaVersion},\"items\":[]}}"),
             ["lyricPresentation"] = new JsonObject { ["nodes"] = new JsonArray(), ["programs"] = new JsonArray(), ["lineOverrides"] = new JsonArray() },
         };

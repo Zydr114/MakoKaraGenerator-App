@@ -35,6 +35,14 @@ public sealed partial class EffectPackageDefinition
             foreach (string reference in references)
                 if (!parameterIds.Contains(reference)) throw Error("PackageParameterMissing", path + ".parameters", "引用不存在的参数：" + reference);
             var outputs = ReadOutputs(item.GetProperty("outputs"), kind, path + ".outputs", cancellationToken);
+            if (EffectPackageProfiles.IsV2(contents.Profile))
+                foreach (var output in outputs)
+                    foreach (string capability in output.Requires)
+                    {
+                        EffectPackageProfiles.RequireCapability(capability, path + ".outputs." + output.Id + ".requires");
+                        if (!contents.Requires.Contains(capability, StringComparer.Ordinal))
+                            throw Error("PackageCapabilityMissing", path + ".outputs." + output.Id + ".requires", "输出能力必须同时在包 requires 中声明。");
+                    }
             var ordered = Sort(outputs, path);
             if (kind == "controller")
             {

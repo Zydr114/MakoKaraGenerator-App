@@ -46,7 +46,7 @@ public sealed record ScriptConfiguration
         ArgumentNullException.ThrowIfNull(package);
         ArgumentException.ThrowIfNullOrWhiteSpace(exportId);
         ArgumentNullException.ThrowIfNull(parameters);
-        if (package.Profile != ProjectEffectsJson.PackageProfile)
+        if (!EffectPackageProfiles.IsSupported(package.Profile))
             throw new ArgumentException("脚本配置包profile与当前宿主不符。", nameof(package));
         if (!Enum.IsDefined(target) || !Enum.IsDefined(readScope) || !Enum.IsDefined(overlayLayer))
             throw new ArgumentException("脚本配置的目标、读取范围或图元层无效。");

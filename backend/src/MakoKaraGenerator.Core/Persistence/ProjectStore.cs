@@ -46,6 +46,11 @@ public static class ProjectStore
         limits ??= new();
         if (!limits.IsValid) throw new ArgumentException("持久IO限额必须为正。", nameof(limits));
 
+        // 格式保护先于创建目录或发布任何资源；禁止把 v2 数据写入旧 schema。
+        if (project.SchemaVersion != Project.CurrentSchemaVersion)
+            throw new EffectPackageException("ProjectSchemaVersionUnsupported", "project.json.schemaVersion", "只允许保存当前工程格式；旧工程未更改。");
+        foreach (var package in project.Effects.Packages) EffectPackageProfiles.RequireSupported(package.Profile);
+
         SourceMaterialCatalog.RequireResources(project);
         PresetApplicationsJson.RequireResources(project);
         issues?.AddRange(PresentationValidator.Validate(project).Issues);
@@ -75,8 +80,6 @@ public static class ProjectStore
         // 先发布不可变歌词，再发布唯一入口。中途失败只留下未引用修订。
         foreach (var package in stored.Effects.Packages)
         {
-            if (package.Profile != ProjectEffectsJson.PackageProfile)
-                throw new EffectPackageException("EffectPackageProfileMismatch", "effects.packages", "工程包 profile 必须与当前宿主严格一致。");
             EffectPackageStorage.Publish(Path.Combine(directoryPath, ProjectEffectsJson.PackagePath(package.Revision)), package);
         }
         // 缺失修订不能发布为一个后来无法重新打开的工程；非法参数草稿仍允许保存。
@@ -220,8 +223,8 @@ public static class ProjectStore
         try
         {
             if (value is null) throw new EffectPackageException("EffectDataMissing", "project.json.effects", "工程缺少 effects 源数据，已取消打开。");
-            return ProjectEffectsJson.Read(value.Value, path => EffectPackageStorage.ReadDirectoryAsync(
-                Path.Combine(directory, path), ProjectEffectsJson.PackageProfile).GetAwaiter().GetResult());
+            return ProjectEffectsJson.Read(value.Value, path => EffectPackageStorage.ReadSupportedDirectoryAsync(
+                Path.Combine(directory, path)).GetAwaiter().GetResult());
         }
         catch (Exception error) when (error is EffectPackageException or IOException or UnauthorizedAccessException or ArgumentException or JsonException)
         {

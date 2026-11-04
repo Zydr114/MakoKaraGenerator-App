@@ -7,8 +7,12 @@ using System.Text.Json;
 namespace MakoKaraGenerator.Core.Effects;
 
 /// <summary>宿主明确支持的包合同；不从应用版本推断 SDK 或 profile。</summary>
-/// <param name="PackageVersion">精确包格式版本。</param><param name="SdkVersion">精确 SDK 合同。</param><param name="ShaderProfile">精确后端 profile。</param>
+/// <param name="PackageVersion">精确包格式版本。</param><param name="SdkVersion">实际 SDK 合同。</param><param name="ShaderProfile">精确后端 profile。</param>
 public sealed record EffectPackageProfile(int PackageVersion, string SdkVersion, string ShaderProfile);
+
+/// <summary>固定发射器声明；尚未接通的发射器不能以空实现获准执行。</summary>
+/// <param name="Id">包内唯一身份。</param><param name="Kind">已声明种类。</param><param name="MaxLifetimeUs">最大寿命。</param>
+public sealed record EffectEmitterDefinition(string Id, string Kind, long MaxLifetimeUs);
 
 /// <summary>内容闭包错误，路径为逻辑包路径，不泄漏机器资源引用。</summary>
 public sealed class EffectPackageException : Exception
@@ -44,8 +48,10 @@ public sealed class EffectPackageContents
 {
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
     private EffectPackageContents(string id, string name, string version, EffectPackageProfile profile,
-        ImmutableArray<byte> manifest, ImmutableArray<EffectPackageFile> files, string revision)
-    { PackageId = id; Name = name; Version = version; Profile = profile; Manifest = manifest; Files = files; Revision = revision; }
+        ImmutableArray<byte> manifest, ImmutableArray<EffectPackageFile> files, string revision,
+        ImmutableArray<string> requires, long lineExitDurationUs, ImmutableArray<EffectEmitterDefinition> emitters)
+    { PackageId = id; Name = name; Version = version; Profile = profile; Manifest = manifest; Files = files; Revision = revision;
+        Requires = requires; LineExitDurationUs = lineExitDurationUs; Emitters = emitters; }
     /// <summary>清单包身份。</summary>
     public string PackageId { get; }
     /// <summary>用户可读名称。</summary>
@@ -60,6 +66,22 @@ public sealed class EffectPackageContents
     public ImmutableArray<EffectPackageFile> Files { get; }
     /// <summary>包括清单及所有资源的 sha256 内容修订。</summary>
     public string Revision { get; }
+    /// <summary>包级必须能力；v1 没有此声明。</summary>
+    public ImmutableArray<string> Requires { get; }
+    /// <summary>固定逐行退场寿命；v1 为零。</summary>
+    public long LineExitDurationUs { get; }
+    /// <summary>已验证的固定发射器声明；M07 只接受空集合。</summary>
+    public ImmutableArray<EffectEmitterDefinition> Emitters { get; }
+
+    /// <summary>按明确 v1／v2 身份分派后验证完整闭包，不将未知 SDK 回退为旧执行器。</summary>
+    public static EffectPackageContents CreateSupported(ReadOnlyMemory<byte> manifest,
+        IEnumerable<KeyValuePair<string, ReadOnlyMemory<byte>>> files, EffectPackageContentBudget? budget = null,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        new EffectPackageContentUsage(budget).Claim("manifest.json", manifest.Length);
+        return Create(manifest, files, EffectPackageProfiles.SelectSupported(manifest), budget, cancellationToken);
+    }
 
     /// <summary>验证完整清单与文件集合，复制内容；缺失、额外文件、坏摘要及版本均失败。</summary>
     public static EffectPackageContents Create(ReadOnlyMemory<byte> manifest,
@@ -73,11 +95,32 @@ public sealed class EffectPackageContents
         EffectPackageContentUsage usage = new(budget); usage.Claim("manifest.json", manifest.Length);
         using var document = Parse(manifest.Span);
         var root = document.RootElement;
-        Keys(root, "manifest.json", ["packageVersion", "packageId", "name", "version", "sdkVersion", "shaderProfile", "files", "parameters", "exports"]);
+        bool v2 = EffectPackageProfiles.IsV2(expected);
+        Keys(root, "manifest.json", v2
+            ? ["packageVersion", "packageId", "name", "version", "sdkVersion", "shaderProfile", "requires", "lineExit", "emitters", "files", "parameters", "exports"]
+            : ["packageVersion", "packageId", "name", "version", "sdkVersion", "shaderProfile", "files", "parameters", "exports"]);
         if (root.GetProperty("packageVersion").ValueKind != JsonValueKind.Number
-            || !root.GetProperty("packageVersion").TryGetInt32(out int packageVersion) || packageVersion != expected.PackageVersion
-            || Text(root, "sdkVersion", "manifest.json") != expected.SdkVersion || Text(root, "shaderProfile", "manifest.json") != expected.ShaderProfile)
+            || !root.GetProperty("packageVersion").TryGetInt32(out int packageVersion))
             throw Error("PackageProfileMismatch", "manifest.json", "包版本、SDK 或 shader profile 与明确支持值不一致。");
+        var actual = new EffectPackageProfile(packageVersion, Text(root, "sdkVersion", "manifest.json"), Text(root, "shaderProfile", "manifest.json"));
+        if (!EffectPackageProfiles.Compatible(actual, expected))
+            throw Error("PackageProfileMismatch", "manifest.json", "包版本、SDK 或 shader profile 与明确支持值不一致。");
+        ImmutableArray<string> requires = []; long lineExitDurationUs = 0;
+        if (v2)
+        {
+            requires = EffectPackageJson.Strings(root.GetProperty("requires"), "manifest.json.requires");
+            foreach (string capability in requires) EffectPackageProfiles.RequireCapability(capability, "manifest.json.requires");
+            var exit = root.GetProperty("lineExit"); Keys(exit, "manifest.json.lineExit", ["durationUs"]);
+            if (exit.GetProperty("durationUs").ValueKind != JsonValueKind.Number
+                || !exit.GetProperty("durationUs").TryGetInt64(out lineExitDurationUs) || lineExitDurationUs is < 0 or > 3_000_000)
+                throw Error("PackageLineExitInvalid", "manifest.json.lineExit.durationUs", "退场寿命须为 0 至 3000000 的整数微秒。");
+            if (lineExitDurationUs > 0 && !requires.Contains("line.exit", StringComparer.Ordinal))
+                throw Error("PackageCapabilityMissing", "manifest.json.requires", "非零退场寿命必须声明 line.exit。");
+            if (root.GetProperty("emitters").ValueKind != JsonValueKind.Array)
+                throw Error("PackageManifestType", "manifest.json.emitters", "发射器声明必须为数组。");
+            if (root.GetProperty("emitters").GetArrayLength() != 0)
+                throw Error("PackageCapabilityUnsupported", "manifest.json.emitters", "发射器能力尚未接通，当前只接受空声明。");
+        }
         string id = Text(root, "packageId", "manifest.json"), name = Text(root, "name", "manifest.json"), version = Text(root, "version", "manifest.json");
         foreach (string field in new[] { "parameters", "exports", "files" })
             if (root.GetProperty(field).ValueKind != JsonValueKind.Array) throw Error("PackageManifestType", field, "清单集合必须为数组。");
@@ -127,7 +170,8 @@ public sealed class EffectPackageContents
             Add(digest, Convert.FromHexString(file.Sha256));
         }
         cancellationToken.ThrowIfCancellationRequested();
-        return new(id, name, version, expected, normalized, [.. verified], "sha256:" + Convert.ToHexStringLower(digest.GetHashAndReset()));
+        return new(id, name, version, actual, normalized, [.. verified], "sha256:" + Convert.ToHexStringLower(digest.GetHashAndReset()),
+            requires, lineExitDurationUs, []);
     }
 
     /// <summary>检查跨平台相对逻辑路径，不将不合法路径规范化成另一路径。</summary>

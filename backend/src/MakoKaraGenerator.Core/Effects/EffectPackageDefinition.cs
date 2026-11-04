@@ -121,6 +121,12 @@ public sealed partial class EffectPackageDefinition
     }
     /// <summary>原固定闭包；没有另一份机器路径。</summary>
     public EffectPackageContents Contents { get; }
+    /// <summary>包级必须能力，已在固定闭包时完成宿主准入。</summary>
+    public ImmutableArray<string> Requires => Contents.Requires;
+    /// <summary>声明的逐行退场寿命，单位微秒。</summary>
+    public long LineExitDurationUs => Contents.LineExitDurationUs;
+    /// <summary>固定发射器元数据，不含作者可变状态。</summary>
+    public ImmutableArray<EffectEmitterDefinition> Emitters => Contents.Emitters;
     /// <summary>按清单顺序的九类参数定义。</summary>
     public ImmutableArray<EffectParameterDefinition> Parameters { get; }
     /// <summary>跨种类唯一且按清单顺序的全部导出。</summary>

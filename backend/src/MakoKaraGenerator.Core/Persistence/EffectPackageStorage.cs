@@ -48,11 +48,28 @@ public static class EffectPackageStorage
         CancellationToken cancellationToken = default)
         => ReadDirectoryWithUsageAsync(directory, expected, budget, null, cancellationToken);
 
+    /// <summary>读取明确支持的 v1／v2 包目录；未知身份不会回退到旧执行器。</summary>
+    public static Task<EffectPackageContents> ReadSupportedDirectoryAsync(string directory, EffectPackageContentBudget? budget = null,
+        CancellationToken cancellationToken = default)
+        => ReadSupportedDirectoryWithUsageAsync(directory, budget, null, cancellationToken);
+
+    /// <summary>按开发期 v1／v2 合同固定目录，并复用调用方的完整闭包预算。</summary>
+    public static Task<EffectPackageContents> ReadSupportedDirectoryWithUsageAsync(string directory, EffectPackageContentBudget? budget,
+        EffectPackageContentUsage? aggregate, CancellationToken cancellationToken)
+        => ReadDirectoryCoreAsync(directory, null, budget, aggregate, cancellationToken);
+
     /// <summary>复用一次闭包的总预算账，在分配每个实际文件前同时登记单包和闭包预算。</summary>
-    public static async Task<EffectPackageContents> ReadDirectoryWithUsageAsync(string directory, EffectPackageProfile expected, EffectPackageContentBudget? budget,
+    public static Task<EffectPackageContents> ReadDirectoryWithUsageAsync(string directory, EffectPackageProfile expected, EffectPackageContentBudget? budget,
         EffectPackageContentUsage? aggregate, CancellationToken cancellationToken)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(directory); ArgumentNullException.ThrowIfNull(expected);
+        ArgumentNullException.ThrowIfNull(expected);
+        return ReadDirectoryCoreAsync(directory, expected, budget, aggregate, cancellationToken);
+    }
+
+    private static async Task<EffectPackageContents> ReadDirectoryCoreAsync(string directory, EffectPackageProfile? expected, EffectPackageContentBudget? budget,
+        EffectPackageContentUsage? aggregate, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(directory);
         cancellationToken.ThrowIfCancellationRequested(); EnsureNoLinks(directory); RejectLink(directory, "package");
         EffectPackageContentUsage usage = new(budget);
         Dictionary<string, ReadOnlyMemory<byte>> files = new(StringComparer.Ordinal);
@@ -78,12 +95,13 @@ public static class EffectPackageStorage
         }
     }
 
-    private static EffectPackageContents Complete(Dictionary<string, ReadOnlyMemory<byte>> files, EffectPackageProfile expected, EffectPackageContentBudget? budget,
+    private static EffectPackageContents Complete(Dictionary<string, ReadOnlyMemory<byte>> files, EffectPackageProfile? expected, EffectPackageContentBudget? budget,
         CancellationToken token)
     {
         if (!files.Remove("manifest.json", out var manifest))
             throw new EffectPackageException("PackageManifestMissing", "manifest.json", "包必须有根清单。");
-        return EffectPackageContents.Create(manifest, files, expected, budget, token);
+        return expected is null ? EffectPackageContents.CreateSupported(manifest, files, budget, token)
+            : EffectPackageContents.Create(manifest, files, expected, budget, token);
     }
     private static void RejectLink(string physical, string logical)
     {

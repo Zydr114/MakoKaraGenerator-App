@@ -28,9 +28,10 @@ public sealed record Project
     /// v12 增加可选的外部描边与方向阴影描述；v16 统一为规范嵌套样式对象。
     /// v18 集中保存歌词展示定义，v19 改为通用容器树与显示程序；v22 引用不可变歌词修订，
     /// v23 保存效果闭包，v24 增加完整媒体与分析修订，v25 增加模板来源与图元层；
-    /// v26 统一源材质，v27 保存固定组合预设应用，v28 保存片段调度上下文。仅支持当前程序版本，不转换旧工程。
+    /// v26 统一源材质，v27 保存固定组合预设应用，v28 保存片段调度上下文，v29 增加辉光，
+    /// v30 以效果合同 2 明确保存开发期 v1／v2 包身份。仅支持当前程序版本，不转换旧工程。
     /// </remarks>
-    public const int CurrentSchemaVersion = 29;
+    public const int CurrentSchemaVersion = 30;
 
     /// <summary>项目的 schema 版本。当前只接受当前程序版本和结构，不转换旧工程。</summary>
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;

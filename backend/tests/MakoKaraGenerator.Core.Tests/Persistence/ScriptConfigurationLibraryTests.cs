@@ -89,7 +89,7 @@ public sealed class ScriptConfigurationLibraryTests
         var item = root["configurations"]![0]!;
         switch (failure)
         {
-            case "version": root["schemaVersion"] = 2; break;
+            case "version": root["schemaVersion"] = ScriptConfigurationLibrary.CurrentSchemaVersion + 1; break;
             case "schema-type": root["schemaVersion"] = "one"; break;
             case "unknown": item["songId"] = "unexpected"; break;
             case "path": root["packages"]![0]!["path"] = "../outside"; break;

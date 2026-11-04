@@ -25,11 +25,11 @@ public sealed record StyleTemplateLibraryLoadResult(IReadOnlyList<StyleTemplate>
 public static partial class StyleTemplateLibrary
 {
     /// <summary>新库目录，旧templates.json保持原位。</summary>
-    public const string DirectoryName = "templates-v7";
+    public const string DirectoryName = "templates-v8";
     /// <summary>新库唯一入口。</summary>
     public const string FileName = "index.json";
     /// <summary>模板当前格式。</summary>
-    public const int CurrentSchemaVersion = 7;
+    public const int CurrentSchemaVersion = 8;
     /// <summary>完整规范入口字节限额；资源另受包预算限制。</summary>
     public const int MaximumIndexBytes = 16777216;
     /// <summary>静态只读内置模板。</summary>
@@ -90,13 +90,14 @@ public static partial class StyleTemplateLibrary
                 bool retained = Path.GetFileName(parent) == DirectoryName && (File.Exists(Path.Combine(Path.GetDirectoryName(parent!)!, "templates.json"))
                     || File.Exists(Path.Combine(Path.GetDirectoryName(parent!)!, "templates-v4", FileName))
                     || File.Exists(Path.Combine(Path.GetDirectoryName(parent!)!, "templates-v5", FileName))
-                    || File.Exists(Path.Combine(Path.GetDirectoryName(parent!)!, "templates-v6", FileName)));
+                    || File.Exists(Path.Combine(Path.GetDirectoryName(parent!)!, "templates-v6", FileName))
+                    || File.Exists(Path.Combine(Path.GetDirectoryName(parent!)!, "templates-v7", FileName)));
                 return new([], []) { LegacyLibraryRetained = retained };
             }
             revision = LibraryIndexRevision.FromBytes(bytes);
             var usage = new EffectPackageContentUsage(budget); usage.Claim(FileName, bytes.Length);
             string directory = Path.GetDirectoryName(Path.GetFullPath(path))!;
-            return Deserialize(new UTF8Encoding(false, true).GetString(bytes), relative => EffectPackageStorage.ReadDirectoryWithUsageAsync(Path.Combine(directory, relative), ProjectEffectsJson.PackageProfile, budget, usage, default).GetAwaiter().GetResult()) with { Revision = revision };
+            return Deserialize(new UTF8Encoding(false, true).GetString(bytes), relative => EffectPackageStorage.ReadSupportedDirectoryWithUsageAsync(Path.Combine(directory, relative), budget, usage, default).GetAwaiter().GetResult()) with { Revision = revision };
         }
         catch (Exception error) when (StorageError(error)) { return new([], [$"模板库无法读取：{error.Message}"]) { Revision = revision }; }
     }
@@ -122,7 +123,7 @@ public static partial class StyleTemplateLibrary
                 string id = RequiredText(item, "packageId", "packages"), revision = RequiredText(item, "revision", "packages"), relative = RequiredText(item, "path", "packages");
                 if (relative != PackagePath(revision)) throw new ArgumentException("模板包路径与内容修订不符。");
                 var content = readPackage?.Invoke(relative) ?? throw new ArgumentException("模板必须提供完整固定包闭包。");
-                if (content.Profile != ProjectEffectsJson.PackageProfile || content.PackageId != id || content.Revision != revision || !packages.TryAdd((id, revision), content))
+                if (!EffectPackageProfiles.IsSupported(content.Profile) || content.PackageId != id || content.Revision != revision || !packages.TryAdd((id, revision), content))
                     throw new ArgumentException("模板包身份、profile、修订不符或重复。");
             }
             List<StyleTemplate> templates = [];
@@ -143,7 +144,7 @@ public static partial class StyleTemplateLibrary
         if (items.Any(t => t is null || string.IsNullOrWhiteSpace(t.Id) || t.Id.StartsWith("builtin:", StringComparison.Ordinal)) || items.Select(t => t.Id).Distinct(StringComparer.Ordinal).Count() != items.Length)
             throw new ArgumentException("个人模板身份无效、重复或冒用内置身份。");
         foreach (var template in items) _ = StyleTemplate.Create(template.Id, template.Name, template.Kind, template.Style, template.Properties, template.EffectRecipes, template.Packages);
-        foreach (var package in Packages(items)) if (package.Profile != ProjectEffectsJson.PackageProfile) throw new ArgumentException("模板包profile与当前程序不符。");
+        foreach (var package in Packages(items)) if (!EffectPackageProfiles.IsSupported(package.Profile)) throw new ArgumentException("模板包profile与当前程序不符。");
         return items;
     }
     /// <summary>取得这些模板的独立资源闭包，按固定身份排序；包库存没有效果执行顺序。</summary>

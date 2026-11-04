@@ -71,8 +71,8 @@ public static class StyleTemplateTransfer
         {
             string prefix = relative + "/";
             if (!files.TryGetValue(prefix + "manifest.json", out var manifest)) throw new IOException("模板ZIP缺少包清单。");
-            return EffectPackageContents.Create(manifest, files.Where(pair => pair.Key.StartsWith(prefix, StringComparison.Ordinal) && pair.Key != prefix + "manifest.json")
-                .ToDictionary(pair => pair.Key[prefix.Length..], pair => pair.Value, StringComparer.Ordinal), ProjectEffectsJson.PackageProfile, budget, cancellationToken);
+            return EffectPackageContents.CreateSupported(manifest, files.Where(pair => pair.Key.StartsWith(prefix, StringComparison.Ordinal) && pair.Key != prefix + "manifest.json")
+                .ToDictionary(pair => pair.Key[prefix.Length..], pair => pair.Value, StringComparer.Ordinal), budget, cancellationToken);
         });
         if (loaded.Issues.Count != 0) throw new IOException(string.Join("；", loaded.Issues));
         var allowed = new HashSet<string>(StringComparer.Ordinal) { StyleTemplateLibrary.FileName };

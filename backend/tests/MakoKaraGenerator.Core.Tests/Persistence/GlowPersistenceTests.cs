@@ -33,10 +33,10 @@ public sealed class GlowPersistenceTests
         Assert.Null(restored.Lyrics.Lines[0].Tokens[1].StyleOverride!.Glow.Value);
         Assert.Equal(new GlowSpecOverride { Opacity = .2f }, restored.Lyrics.Lines[0].Tokens[2].StyleOverride!.Glow.Value);
         var json = JsonNode.Parse(File.ReadAllText(Path.Combine(directory.Path, ProjectJson.ProjectFileName)))!;
-        Assert.Equal(29, json["schemaVersion"]!.GetValue<int>());
+        Assert.Equal(Project.CurrentSchemaVersion, json["schemaVersion"]!.GetValue<int>());
         Assert.Equal("#0C223880", json["lyricStyle"]!["glow"]!["color"]!.GetValue<string>());
         var lyrics = JsonNode.Parse(ProjectFileFixture.ReadLyrics(directory.Path))!;
-        Assert.Equal(18, lyrics["schemaVersion"]!.GetValue<int>());
+        Assert.Equal(LyricsDocument.CurrentSchemaVersion, lyrics["schemaVersion"]!.GetValue<int>());
         Assert.Equal(.2f, lyrics["branches"]![0]!["lines"]![0]!["tokens"]![2]!["styleOverride"]!["glow"]!["opacity"]!.GetValue<float>());
     }
 
@@ -113,16 +113,18 @@ public sealed class GlowPersistenceTests
     public void 元素辉光模板保存全部字段且只应用选中叶字段及旧库保留()
     {
         using TemporaryDirectory directory = new(); string path = StyleTemplateLibrary.ResolvePath(directory.Path);
-        Assert.Contains("templates-v7", path, StringComparison.Ordinal);
+        Assert.Contains(StyleTemplateLibrary.DirectoryName, path, StringComparison.Ordinal);
         var template = StyleTemplate.Create("glow", "辉光", StyleTemplateKind.Token, LyricStyle.Default with { Glow = Glow },
             [LyricStyleProperty.GlowColor, LyricStyleProperty.GlowSpreadPx]);
         StyleTemplateLibrary.Save(path, [template]); var loaded = StyleTemplateLibrary.Load(path);
         Assert.Empty(loaded.Issues); Assert.Equal(Glow, Assert.Single(loaded.Templates).Style.Glow);
-        Assert.Equal(7, JsonNode.Parse(Encoding.UTF8.GetString(StyleTemplateLibrary.Encode([template])))!["schemaVersion"]!.GetValue<int>());
+        Assert.Equal(StyleTemplateLibrary.CurrentSchemaVersion, JsonNode.Parse(Encoding.UTF8.GetString(StyleTemplateLibrary.Encode([template])))!["schemaVersion"]!.GetValue<int>());
         var project = Project.Create("模板", lyrics: LyricsDocument.Create([LyricLine.Create("line", "甲", tokens: [LyricToken.Create("a", "甲")])]));
         Assert.True(StyleTemplateApplicator.TryApply(project, loaded.Templates[0], "line", "a", out var applied, out string reason), reason);
         Assert.Equal(new GlowSpecOverride { Color = Glow.Color, SpreadPx = Glow.SpreadPx }, applied.Lyrics.Lines[0].Tokens[0].StyleOverride!.Glow.Value);
-        string old = Encoding.UTF8.GetString(StyleTemplateLibrary.Encode([template])).Replace("\"schemaVersion\": 7", "\"schemaVersion\": 6", StringComparison.Ordinal);
+        var oldIndex = JsonNode.Parse(StyleTemplateLibrary.Encode([template]))!;
+        oldIndex["schemaVersion"] = StyleTemplateLibrary.CurrentSchemaVersion - 1;
+        string old = oldIndex.ToJsonString();
         Assert.True(StyleTemplateLibrary.Deserialize(old).VersionMismatch);
         File.Delete(path); string oldPath = Path.Combine(directory.Path, "templates-v6", StyleTemplateLibrary.FileName);
         Directory.CreateDirectory(Path.GetDirectoryName(oldPath)!); File.WriteAllText(oldPath, old);

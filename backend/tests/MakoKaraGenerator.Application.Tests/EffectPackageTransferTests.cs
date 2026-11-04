@@ -1,10 +1,39 @@
 using System.IO.Compression;
+using System.Text.Json.Nodes;
 using MakoKaraGenerator.Core.Effects;
 
 namespace MakoKaraGenerator.Application.Tests;
 
 public sealed class EffectPackageTransferTests
 {
+    [Fact]
+    public async Task 显式支持读取器对目录和归档分派v1v2且保留实际身份()
+    {
+        using TemporaryDirectory temp = new();
+        var files = EffectPackageFixture.Files(); var manifest = EffectPackageFixture.Manifest(files);
+        manifest["packageVersion"] = EffectPackageProfiles.V2.PackageVersion; manifest["sdkVersion"] = "2.0.7";
+        manifest["shaderProfile"] = EffectPackageProfiles.V2.ShaderProfile; manifest["requires"] = new JsonArray("token.affine");
+        manifest["lineExit"] = new JsonObject { ["durationUs"] = 0 }; manifest["emitters"] = new JsonArray();
+        var current = EffectPackageContents.CreateSupported(EffectPackageFixture.Bytes(manifest), EffectPackageFixture.Inputs(files));
+        string directory = temp.FilePath("v2-directory"); MakoKaraGenerator.Core.Persistence.EffectPackageStorage.Publish(directory, current);
+        var restoredDirectory = await EffectPackageTransfer.ReadSupportedDirectoryAsync(directory);
+        Assert.Equal(current.Revision, restoredDirectory.Revision); Assert.Equal("2.0.7", restoredDirectory.Profile.SdkVersion);
+        string zip = temp.FilePath("v2.mkfx"); await EffectPackageTransfer.WriteArchiveAsync(zip, current);
+        var restoredArchive = await EffectPackageTransfer.ReadSupportedArchiveAsync(zip);
+        Assert.Equal(current.Revision, restoredArchive.Revision); Assert.Equal(current.Profile, restoredArchive.Profile);
+        Assert.Equal("PackageFileBudgetExceeded", (await Assert.ThrowsAsync<EffectPackageException>(() =>
+            EffectPackageTransfer.ReadSupportedArchiveAsync(zip, new() { MaximumFileBytes = 1 }))).Code);
+        string legacy = temp.FilePath("v1.mkfx"); var old = EffectPackageFixture.Contents(); await EffectPackageTransfer.WriteArchiveAsync(legacy, old);
+        Assert.Equal(old.Revision, (await EffectPackageTransfer.ReadSupportedArchiveAsync(legacy)).Revision);
+        using (var archive = ZipFile.Open(zip, ZipArchiveMode.Update))
+        {
+            archive.GetEntry("manifest.json")!.Delete(); manifest["requires"] = new JsonArray("cluster.affine");
+            using var output = archive.CreateEntry("manifest.json").Open(); await output.WriteAsync(EffectPackageFixture.Bytes(manifest));
+        }
+        Assert.Equal("PackageCapabilityUnsupported", (await Assert.ThrowsAsync<EffectPackageException>(() =>
+            EffectPackageTransfer.ReadSupportedArchiveAsync(zip))).Code);
+    }
+
     [Fact]
     public async Task 混合导出真实目录和归档离开源目录后保留全部语义与回退()
     {

@@ -12,19 +12,36 @@ public static class EffectPackageTransfer
         CancellationToken cancellationToken = default)
         => MakoKaraGenerator.Core.Persistence.EffectPackageStorage.ReadDirectoryAsync(directory, expected, budget, cancellationToken);
 
-    /// <summary>直接固定 ZIP 条目；不先解压，也不使用外部目录补缺资源。</summary>
-    public static async Task<EffectPackageContents> ReadArchiveAsync(string path, EffectPackageProfile expected, EffectPackageContentBudget? budget = null,
+    /// <summary>按明确开发期 v1／v2 合同固定完整目录，未知身份不会被解释成旧包。</summary>
+    public static Task<EffectPackageContents> ReadSupportedDirectoryAsync(string directory, EffectPackageContentBudget? budget = null,
         CancellationToken cancellationToken = default)
+        => MakoKaraGenerator.Core.Persistence.EffectPackageStorage.ReadSupportedDirectoryAsync(directory, budget, cancellationToken);
+
+    /// <summary>直接固定 ZIP 条目；不先解压，也不使用外部目录补缺资源。</summary>
+    public static Task<EffectPackageContents> ReadArchiveAsync(string path, EffectPackageProfile expected, EffectPackageContentBudget? budget = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(expected);
+        return ReadArchiveGuardedAsync(path, expected, budget, cancellationToken);
+    }
+
+    /// <summary>按清单的明确 v1／v2 身份读取归档；同样执行全部路径、链接、预算与摘要门禁。</summary>
+    public static Task<EffectPackageContents> ReadSupportedArchiveAsync(string path, EffectPackageContentBudget? budget = null,
+        CancellationToken cancellationToken = default)
+        => ReadArchiveGuardedAsync(path, null, budget, cancellationToken);
+
+    private static async Task<EffectPackageContents> ReadArchiveGuardedAsync(string path, EffectPackageProfile? expected, EffectPackageContentBudget? budget,
+        CancellationToken cancellationToken)
     {
         try { return await ReadArchiveCoreAsync(path, expected, budget, cancellationToken).ConfigureAwait(false); }
         catch (InvalidDataException exception)
         { throw new EffectPackageException("PackageArchiveInvalid", "package.mkfx", "效果包不是完整有效的 ZIP。", exception); }
     }
 
-    private static async Task<EffectPackageContents> ReadArchiveCoreAsync(string path, EffectPackageProfile expected, EffectPackageContentBudget? budget,
+    private static async Task<EffectPackageContents> ReadArchiveCoreAsync(string path, EffectPackageProfile? expected, EffectPackageContentBudget? budget,
         CancellationToken cancellationToken)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(path); ArgumentNullException.ThrowIfNull(expected);
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
         cancellationToken.ThrowIfCancellationRequested(); RejectLink(path, "package.mkfx");
         using var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, FileOptions.Asynchronous);
         using var archive = new ZipArchive(input, ZipArchiveMode.Read, false, Encoding.UTF8);
@@ -85,12 +102,13 @@ public static class EffectPackageTransfer
         entry.LastWriteTime = new DateTimeOffset(2000, 1, 1, 0, 0, 0, TimeSpan.Zero); entry.ExternalAttributes = 0;
         using var stream = entry.Open(); await stream.WriteAsync(bytes, token).ConfigureAwait(false);
     }
-    private static EffectPackageContents Complete(Dictionary<string, ReadOnlyMemory<byte>> files, EffectPackageProfile expected, EffectPackageContentBudget? budget,
+    private static EffectPackageContents Complete(Dictionary<string, ReadOnlyMemory<byte>> files, EffectPackageProfile? expected, EffectPackageContentBudget? budget,
         CancellationToken token)
     {
         if (!files.Remove("manifest.json", out var manifest))
             throw new EffectPackageException("PackageManifestMissing", "manifest.json", "包必须有根清单。");
-        return EffectPackageContents.Create(manifest, files, expected, budget, token);
+        return expected is null ? EffectPackageContents.CreateSupported(manifest, files, budget, token)
+            : EffectPackageContents.Create(manifest, files, expected, budget, token);
     }
     private static void RejectLink(string physical, string logical)
     {

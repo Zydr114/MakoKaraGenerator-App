@@ -15,17 +15,19 @@ public sealed record ScriptConfigurationLibraryLoadResult(IReadOnlyList<ScriptCo
     public int? SchemaVersion { get; init; }
     /// <summary>版本不匹配，原文件保持。</summary>
     public bool VersionMismatch { get; init; }
+    /// <summary>旧目录的配置库仍原样保留，当前库未隐式迁移或清空它。</summary>
+    public bool LegacyLibraryRetained { get; init; }
 }
 
 /// <summary>歌曲无关的脚本配置与固定资源闭包；包先发布、入口最后替换。</summary>
 public static partial class ScriptConfigurationLibrary
 {
     /// <summary>与模板库独立的应用级目录。</summary>
-    public const string DirectoryName = "script-configurations-v1";
+    public const string DirectoryName = "script-configurations-v2";
     /// <summary>配置库入口。</summary>
     public const string FileName = "index.json";
     /// <summary>当前独立格式。</summary>
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
     /// <summary>配置元数据上限。</summary>
     public const int MaximumIndexBytes = 16777216;
 
@@ -86,13 +88,19 @@ public static partial class ScriptConfigurationLibrary
         try
         {
             byte[]? bytes = LibraryIndexRevision.ReadBytes(path, MaximumIndexBytes);
-            if (bytes is null) return new([], []);
+            if (bytes is null)
+            {
+                string? currentDirectory = Path.GetDirectoryName(Path.GetFullPath(path));
+                bool retained = Path.GetFileName(currentDirectory) == DirectoryName
+                    && File.Exists(Path.Combine(Path.GetDirectoryName(currentDirectory!)!, "script-configurations-v1", FileName));
+                return new([], []) { LegacyLibraryRetained = retained };
+            }
             revision = LibraryIndexRevision.FromBytes(bytes);
             var usage = new EffectPackageContentUsage(budget); usage.Claim(FileName, bytes.Length);
             string directory = Path.GetDirectoryName(Path.GetFullPath(path))!;
             return Deserialize(new UTF8Encoding(false, true).GetString(bytes), relative =>
-                EffectPackageStorage.ReadDirectoryWithUsageAsync(Path.Combine(directory, relative),
-                    ProjectEffectsJson.PackageProfile, budget, usage, default).GetAwaiter().GetResult()) with { Revision = revision };
+                EffectPackageStorage.ReadSupportedDirectoryWithUsageAsync(Path.Combine(directory, relative),
+                    budget, usage, default).GetAwaiter().GetResult()) with { Revision = revision };
         }
         catch (Exception error) when (StyleTemplateLibrary.StorageError(error))
         { return new([], [$"脚本配置库无效：{error.Message}"]) { Revision = revision }; }
@@ -121,7 +129,7 @@ public static partial class ScriptConfigurationLibrary
                 string id = RequiredText(item, "packageId", "package"), revision = RequiredText(item, "revision", "package"), relative = RequiredText(item, "path", "package");
                 if (relative != PackagePath(revision)) throw new ArgumentException("配置包路径与内容地址不一致。");
                 var package = readPackage?.Invoke(relative) ?? throw new ArgumentException("配置缺少完整固定包闭包。");
-                if (package.Profile != ProjectEffectsJson.PackageProfile || package.PackageId != id || package.Revision != revision || !packages.TryAdd((id, revision), package))
+                if (!EffectPackageProfiles.IsSupported(package.Profile) || package.PackageId != id || package.Revision != revision || !packages.TryAdd((id, revision), package))
                     throw new ArgumentException("配置包身份、profile或修订无效／重复。");
             }
             var items = Array(root.GetProperty("configurations"), "configurations").Select(item => ReadConfiguration(item, packages)).ToArray();

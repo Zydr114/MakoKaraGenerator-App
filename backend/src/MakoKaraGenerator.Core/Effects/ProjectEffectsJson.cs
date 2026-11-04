@@ -8,8 +8,10 @@ namespace MakoKaraGenerator.Core.Effects;
 public static class ProjectEffectsJson
 {
     private static readonly System.Buffers.SearchValues<char> HashCharacters = System.Buffers.SearchValues.Create("0123456789abcdef");
-    /// <summary>当前持久包 profile，独立于程序版本。</summary>
-    public static EffectPackageProfile PackageProfile { get; } = new(2, "1.0.0", ShaderProgramDefinition.RasterProfile);
+    /// <summary>保留的 v1 包 profile；消费者须显式选择 v1 或 v2，不能据此推断全部能力。</summary>
+    public static EffectPackageProfile PackageProfile => EffectPackageProfiles.V1;
+    /// <summary>当前工程效果源格式；明确声明开发期 v1／v2 并存。</summary>
+    public const int CurrentContractVersion = 2;
     /// <summary>规范包目录，仅接受完整小写修订。</summary>
     public static string PackagePath(string revision)
     {
@@ -22,10 +24,12 @@ public static class ProjectEffectsJson
     public static byte[] Encode(ProjectEffects effects)
     {
         ArgumentNullException.ThrowIfNull(effects);
+        foreach (var package in effects.Packages) EffectPackageProfiles.RequireSupported(package.Profile);
         using var stream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(stream))
         {
-            writer.WriteStartObject(); writer.WriteNumber("contractVersion", 1);
+            writer.WriteStartObject(); writer.WriteNumber("contractVersion", CurrentContractVersion);
+            // 仅供 v1 分派使用；v2 以固定时间直接求值，不消费此推进合同。
             writer.WriteStartObject("simulation"); writer.WriteNumber("version", 1); writer.WriteNumber("stepHz", 120); writer.WriteString("random", "pcg32-v1"); writer.WriteEndObject();
             writer.WriteStartObject("budgets"); writer.WriteNumber("surfaceMemoryBytes", effects.Budgets.SurfaceMemoryBytes);
             writer.WriteNumber("liveParticles", effects.Budgets.LiveParticles); writer.WriteNumber("trailSamples", effects.Budgets.TrailSamples);
@@ -75,7 +79,8 @@ public static class ProjectEffectsJson
         ArgumentNullException.ThrowIfNull(readPackage);
         const string path = "effects";
         Keys(value, path, ["contractVersion", "simulation", "budgets", "packages", "instances"], []);
-        if (Whole(value.GetProperty("contractVersion"), path) != 1) throw Range(path + ".contractVersion");
+        if (Whole(value.GetProperty("contractVersion"), path) != CurrentContractVersion)
+            throw Error("EffectContractVersionUnsupported", path + ".contractVersion", "工程效果源版本不受支持；旧数据未更改。");
         var simulation = value.GetProperty("simulation"); Keys(simulation, path + ".simulation", ["version", "stepHz", "random"], []);
         if (Whole(simulation.GetProperty("version"), path) != 1 || Whole(simulation.GetProperty("stepHz"), path) != 120
             || RequiredText(simulation, "random", path) != "pcg32-v1") throw Range(path + ".simulation");
@@ -95,6 +100,7 @@ public static class ProjectEffectsJson
             string relative = RequiredText(item, "path", path);
             if (relative != PackagePath(revision)) throw Error("EffectPackagePathInvalid", path + ".packages.path", "包目录与修订不符。");
             var contents = readPackage(relative);
+            EffectPackageProfiles.RequireSupported(contents.Profile);
             if (contents.PackageId != id || contents.Revision != revision) throw Error("EffectPackageIdentityMismatch", relative, "包实际身份或修订与工程入口不符。");
             packages.Add(contents);
         }

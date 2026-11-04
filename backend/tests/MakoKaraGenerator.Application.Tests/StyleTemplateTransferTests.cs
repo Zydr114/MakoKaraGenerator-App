@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Text.Json.Nodes;
 using MakoKaraGenerator.Core.Effects;
 using MakoKaraGenerator.Core.Persistence;
 using MakoKaraGenerator.Core.Projects;
@@ -7,6 +8,24 @@ namespace MakoKaraGenerator.Application.Tests;
 
 public sealed class StyleTemplateTransferTests
 {
+    [Fact]
+    public async Task 纯求值v2模板通过分享自核验后保留实际SDK身份和包闭包()
+    {
+        using TemporaryDirectory temp = new(); var files = EffectPackageFixture.Files(); var manifest = EffectPackageFixture.Manifest(files);
+        manifest["packageVersion"] = EffectPackageProfiles.V2.PackageVersion; manifest["sdkVersion"] = "2.0.7";
+        manifest["shaderProfile"] = EffectPackageProfiles.V2.ShaderProfile; manifest["requires"] = new JsonArray("token.affine");
+        manifest["lineExit"] = new JsonObject { ["durationUs"] = 0 }; manifest["emitters"] = new JsonArray();
+        var package = EffectPackageContents.CreateSupported(EffectPackageFixture.Bytes(manifest), EffectPackageFixture.Inputs(files));
+        var configuration = ScriptConfiguration.Create("pure", "纯求值", package, "scale", target: ScriptRelativeTarget.TokenFamily);
+        var template = StyleTemplate.Create("pure-template", "纯求值模板", StyleTemplateKind.Token, LyricStyle.Default, [],
+            [TemplateEffectRecipe.FromConfiguration("pure-recipe", configuration)], [package]);
+        string archive = temp.FilePath("pure.mktpl");
+        await StyleTemplateTransfer.WriteArchiveAsync(archive, [template]);
+        var restored = Assert.Single(await StyleTemplateTransfer.ReadArchiveAsync(archive));
+        Assert.Equal(template, restored); Assert.Equal("2.0.7", Assert.Single(restored.Packages).Profile.SdkVersion);
+        Assert.Empty(Directory.GetFiles(temp.Path, "*.tmp"));
+    }
+
     [Fact]
     public async Task 仅包材质模板分享后脱离原库且套用工程独立保存完整修订()
     {

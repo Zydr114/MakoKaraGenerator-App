@@ -90,3 +90,9 @@ SDK2 保存源码只推进最新修订；编译固定到指定保留修订，成
 `server-sdk2-03.log` 4 项通过；完整会话 wire 比较保持失败前后的全部字段约束。
 `frontend-author-03.log` 作者源码／配置／组件 43 项通过，前端类型检查已通过。
 其余 3 项发布依赖的 Ruby 回归留待匹配 Server／Worker 后重跑。
+
+`dc6a2e9` 已交付作者切片。新 CLR metadata 生成合同 1.43.0／产品 0.111.3，
+源码基线固定该提交，`contract-validation-02.json` 为 112 路径／125 方法／597 schemas、
+3434 例（2548 反例）；前端整体同步相同合同。`frontend-build-01.log` 构建通过
+（保留既有大 chunk 提示），`frontend-unit-01.log` 44 文件／3937 项通过。
+`runner-build-02.log` 采样工具零警告／零错误，实际 HTTP／UI 和正式性能仍待验收。

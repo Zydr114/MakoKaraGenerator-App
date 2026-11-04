@@ -119176,6 +119176,35 @@
       "valid": true
     },
     {
+      "name": "p4-author-compilation-exact-source",
+      "schema": "AuthorCompilationRequest",
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "metadata": {
+          "requestId": "p4-request",
+          "hostInstanceId": "host",
+          "validUntilUtc": "2026-10-25T12:00:00Z"
+        },
+        "executionMode": "async",
+        "sourceRevision": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+      },
+      "valid": true
+    },
+    {
+      "name": "p4-author-compilation-default-source",
+      "schema": "AuthorCompilationRequest",
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "metadata": {
+          "requestId": "p4-request",
+          "hostInstanceId": "host",
+          "validUntilUtc": "2026-10-25T12:00:00Z"
+        },
+        "sourceRevision": null
+      },
+      "valid": true
+    },
+    {
       "name": "p4-author-compilation-reject-unknown",
       "schema": "AuthorCompilationRequest",
       "value": {
@@ -119214,6 +119243,20 @@
           "validUntilUtc": "2026-10-25T12:00:00Z"
         },
         "workerPath": "/server/tool"
+      },
+      "valid": false
+    },
+    {
+      "name": "p4-author-compilation-reject-invalid-source",
+      "schema": "AuthorCompilationRequest",
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "metadata": {
+          "requestId": "p4-request",
+          "hostInstanceId": "host",
+          "validUntilUtc": "2026-10-25T12:00:00Z"
+        },
+        "sourceRevision": "latest"
       },
       "valid": false
     },
@@ -126826,5 +126869,5 @@
       }
     }
   ],
-  "contractVersion": "1.42.4"
+  "contractVersion": "1.43.0"
 }

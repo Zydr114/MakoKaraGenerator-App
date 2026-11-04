@@ -1,12 +1,12 @@
 # 前后端 API 执行合同
 
-状态：**冻结1.42.4**，产品元数据与源码指纹更新于2026-11-04；产品 **0.110.10**，HTTP `protocolVersion:"1"`。Host 共享编译缓存、Worker 固定产物消费及同输入 HTTP seek 复用已接通；严格软取消后可在原 Worker 重开 Runtime，硬失败仍排水。关闭失败保留 `closing` 和资源所有权，实际排水／清理成功后才返回 `closed`。桌面 GPU stream 在两个进程名额内最多保留一个完整预热备用，业务一次绑定原设备，每输入仍换 Worker。固定字体整形与注音布局缓存复用，并减少场景快照中间提交；CPU 背景视频仅在完整画面、均匀整数缩小且无显示变换时按目标采样；Vulkan 与其他设备保持原尺寸取帧，以保留主画面与局部捕获的像素语义；编码队列拒帧时归还帧所有权。公共路由、DTO、命令和 schema 保持；v1 时间线重放仍保留。详细边界见[预览行为](../docs/architecture/backend-api.md)。固定基线与文件指纹见[manifest](contract-manifest.json)，合同、匹配发布与 fresh HTTP 分别登记。
+状态：**冻结1.43.0**，产品元数据与源码指纹更新于2026-11-04；产品 **0.111.3**，HTTP `protocolVersion:"1"`。SDK2 作者草稿区分最新、编译、已采用和在用源码；编译请求可固定保留历史中的 `sourceRevision`，保存与编译均不自动替换在用来源，采用 C# 修订须有该精确来源的成功编译记录，配置写入不能绕过门禁。SDK2 工程和作者预览、正式验证与导出要求 GPU；CPU 选择在运行输入准备前以 `commandNotSupported/PackageBackendUnsupported` 拒绝，字段为 `renderBackend`，失败的预览切换保留原固定输入、代次与帧。原 HTTP 入口、浏览器静态预览生命周期与 SDK1 行为保持。详细边界见[作者工作流与预览行为](../docs/architecture/backend-api.md)。固定基线与文件指纹见[manifest](contract-manifest.json)，合同、匹配发布、fresh HTTP 与浏览器验收分别登记。
 
 GPU 流按精确修订创建、换来源、改变尺寸和关闭；创建受真实设备及分配能力限制。`registrationState` 是登记状态，`workerState` 来自 Worker 实时查询；`textureAlphaMode` 固定 `premultiplied`，`alphaMode` 仅控制背景透明度。桌面主进程的私有 claim 不属于公开 API。详细协议和失效语义见仓库根 `docs/architecture/gpu-preview-stream-v1.md`。
 
 **1.24.1／0.94.1修复：** `ExportJobRequest.format`透明格式与实际服务一致为`transparentProRes4444`；错误旧值`transparentMov`仍被服务拒绝。附着来源／前奏缺失分别带`TargetStale`及`command.branchId`／`command.leadInId`，错误容器带`ContainerInvalid`及`command.containerId`。无新路由、DTO或命令；匹配发布Server＋Worker后使用产品0.94.1。实际构建、HTTP与合同证据见[修复记录](../docs/backend-basic-business-bugfix-0941.md)。
 
-静态辉光新增 `glow` 及 color/opacity/blurRadiusPx/spreadPx 四叶，支持继承、显式关闭和 restore；颜色使用完整RGBA对象。工程/歌词/模板 schema 为29/18/7；具体语义及验收入口见[辉光参考](../docs/style-reference/glow.md)。
+静态辉光新增 `glow` 及 color/opacity/blurRadiusPx/spreadPx 四叶，支持继承、显式关闭和 restore；颜色使用完整RGBA对象。当前工程/歌词/模板 schema 为30/18/8；具体辉光语义及验收入口见[辉光参考](../docs/style-reference/glow.md)，SDK2 格式与来源门禁以当前源码及行为合同为准。
 
 ## 1. 执行依据与文件分工
 

@@ -1,6 +1,6 @@
 # 前端后端开发交接文档
 
-**当前工作：2026-11-01，产品0.110.0／API合同1.42.0／HTTP协议1。** 新增静态外辉光、四层继承、模板/文字标记及Worker渲染支持。合同为112路径、125显式方法、597 schemas、3431例；原工程命令种类不变。行为、实施和有限验收见[静态外辉光](../docs/style-reference/glow.md)，客户端入口见[样式系统参考](../docs/style-reference/README.md)。历史W8、GPU流及性能证据保持原归属。
+**当前工作：2026-11-04，产品0.111.3／API合同1.43.0／HTTP协议1。** SDK2 作者草稿固定最新、编译、已采用与在用源码身份；支持按保留的 `sourceRevision` 编译，成功后显式采用，配置写入不能绕过 C# 来源成功编译门禁。SDK2 工程和作者预览、正式验证与导出要求 GPU，CPU 选择返回 `commandNotSupported/PackageBackendUnsupported`（`field:renderBackend`）；失败的预览切换保留原输入与代次。工程/歌词/模板 schema 为30/18/8。合同为112路径、125显式方法、597 schemas、3434例；原工程命令种类不变。详细语义见[作者与预览行为](../docs/architecture/backend-api.md)，合同、匹配发布、fresh HTTP 与浏览器验收分别登记；历史W8、GPU流及性能证据保持原归属。
 
 历史合入：2026-10-27 将 `dev/gpu-render` 的 P3/P4/P5 及两批 GPU 工作快进纳入 `main`，完整保留 95 个提交；该次有定向回归，没有新生产修改、发布或 fresh HTTP，见[10月27日合入记录](../docs/archive/history/backend-main-integration-20261027.md)。2026-10-28 将 `dev/performance-optimization` 快进纳入 `main`，完整保留另外 19 个提交；该次仅作 Git 集成、入口文档和静态核验，见[10月28日合入记录](../docs/archive/history/backend-main-integration-20261028.md)。原版本的 HTTP、硬件、媒体和性能证据仍按各验收报告归属。
 

@@ -48,8 +48,8 @@ def extend(schemas, metadata):
     request["properties"]["manifestJson"] = copy.deepcopy(TEXT)
     request["properties"]["textFiles"].update(maxItems=256)
     schemas["AuthorPackageTextFileDtoInput"]["properties"]["path"] = copy.deepcopy(TEXT)
-    # Configuration is an explicit atomic migration onto the new package. The
-    # server derives packageId/sourceRevision and does not accept them here.
+    # The server derives packageId/sourceRevision. SDK1 preserves the atomic
+    # migration; SDK2 preserves the in-use source until compile and adoption.
     configuration = copy.deepcopy(schemas["AuthorDraftConfigurationInputDtoInput"])
     for field in ("packageId", "sourceRevision"):
         configuration["properties"].pop(field)

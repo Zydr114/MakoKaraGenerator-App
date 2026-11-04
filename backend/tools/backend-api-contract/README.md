@@ -1,6 +1,6 @@
 # 冻结 API 合同生成与校验
 
-从 `backend/` 执行。本工具构建Contracts引用的离线CLI，不启动服务。当前产品0.110.0／合同1.42.0／协议1，112路径／125方法／597 schemas、3431例（2547反例）。本轮新增静态外辉光合同；`glow_style_fixtures.py` 的23例独立追加，并以可逆的旧样例适配保留历史hash检查。静态门禁不替代匹配发布或fresh HTTP；本轮证据见[辉光参考](../../docs/style-reference/glow.md)。
+从 `backend/` 执行。本工具构建 Contracts 引用的离线 CLI，不启动服务。当前产品 0.111.3／合同 1.43.0／协议 1，112 路径／125 方法／597 schemas、3434 例（2548 反例）。本轮加入 SDK2 草稿包身份及精确来源编译合同，保留历史样例门禁。源码基线为 `dc6a2e9`，静态门禁不替代匹配发布或 fresh HTTP；M07 进度见 App 根 `docs/plans/script-sdk-v2-phase-one-progress.md`。
 
 ## 检查当前合同
 

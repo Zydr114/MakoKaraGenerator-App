@@ -86,10 +86,16 @@ def extend(schemas, metadata, schema_for):
         nullable=("branchInput", "fixedSeed"))
     schemas["AuthorDraftConfigurationInputDtoInput"] = configuration_rules(obj(configuration_properties()))
     schemas["AuthorDraftConfigurationRequest"]["properties"]["expectedDraftRevision"] = copy.deepcopy(REVISION)
-    audit(metadata, "AuthorCompilationRequest", dict(expectedDraftRevision="String", metadata="RequestMetadataDto", executionMode="String"),
-        nullable=("metadata", "executionMode"), optional=("metadata", "executionMode"))
+    audit(metadata, "AuthorCompilationRequest", dict(expectedDraftRevision="String", metadata="RequestMetadataDto", executionMode="String", sourceRevision="String"),
+        nullable=("metadata", "executionMode", "sourceRevision"), optional=("metadata", "executionMode", "sourceRevision"))
     schemas["AuthorCompilationRequest"]["properties"]["executionMode"] = nullable({"type": "string", "enum": ["sync", "async"]})
-    schemas["AuthorCompilationRequest"]["description"] = "省略/null/sync保持同步200；async返回202 JobResponse。任务捕获固定源码，不把旧结果改成最新草稿。"
+    schemas["AuthorCompilationRequest"]["properties"]["sourceRevision"] = nullable(copy.deepcopy(REVISION))
+    schemas["AuthorCompilationRequest"]["description"] = "省略/null/sync保持同步200；async返回202 JobResponse。sourceRevision可固定此草稿保留的任一修订，省略/null取最新修订；任务捕获固定源码，旧成功不验证最新源码。"
+    schemas["AuthorDraftConfigurationRequest"]["description"] = "完整配置按草稿CAS提交；SDK2 C#来源变更须先编译成功，不能绕过采用门禁。"
+    schemas["AuthorAdoptSourceRevisionRequest"]["description"] = "显式采用此草稿保留的修订；SDK2 C#目标须有成功编译记录，撤销来源也适用。"
+    schemas["AuthorDraftResponse"]["properties"]["packageVersion"]["description"] = "固定包的正式packageVersion；与sdkVersion共同分派作者流程，不能仅据能力标记推断。"
+    schemas["AuthorDraftResponse"]["properties"]["sdkVersion"]["description"] = "固定包的正式SDK版本；packageVersion=3且SDK主版本2采用SDK2流程。"
+    schemas["AuthorCompilationResponse"]["properties"]["stale"]["description"] = "结果源与提交结果时草稿最新源码不同；同一旧修订的编译成功仍只验证该固定源。"
     for name in ("AuthorDraftSourcesResponse", "AuthorCompilationJobInputDto", "AuthorValidationJobInputDto"):
         if name not in schemas:
             continue

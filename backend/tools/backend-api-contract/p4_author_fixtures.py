@@ -2,7 +2,8 @@
 import copy
 
 
-def fixtures():
+def fixtures(*, include_sdk_v2=True):
+    """Retain pre-1.43 cases exactly when auditing historical contracts."""
     cases = []
     def add(name, schema, value, valid=True):
         cases.append(dict(name="p4-author-" + name, schema=schema, value=copy.deepcopy(value), valid=valid))
@@ -27,9 +28,14 @@ def fixtures():
     compile_request = dict(expectedDraftRevision=revision, metadata=metadata)
     for name, fields in (("default", {}), ("null", {"executionMode":None}), ("sync", {"executionMode":"sync"}), ("async", {"executionMode":"async"})):
         add("compilation-" + name, "AuthorCompilationRequest", {**compile_request, **fields})
+    if include_sdk_v2:
+        add("compilation-exact-source", "AuthorCompilationRequest", {**compile_request, "executionMode":"async", "sourceRevision":"sha256:" + "e" * 64})
+        add("compilation-default-source", "AuthorCompilationRequest", {**compile_request, "sourceRevision":None})
     for name, fields in (("unknown", {"executionMode":"background"}), ("wrong-case", {"executionMode":"Async"}),
             ("worker-path", {"workerPath":"/server/tool"})):
         add("compilation-reject-" + name, "AuthorCompilationRequest", {**compile_request, **fields}, False)
+    if include_sdk_v2:
+        add("compilation-reject-invalid-source", "AuthorCompilationRequest", {**compile_request, "sourceRevision":"latest"}, False)
     validation = dict(expectedDraftRevision=revision, sampleId="workshop-single-line-v1", targetKey="line:0", metadata=metadata)
     for sample in ("workshop-single-line-v1", "workshop-multi-line-v1"):
         add("validation-" + sample, "AuthorValidationJobRequest", {**validation, "sampleId":sample})

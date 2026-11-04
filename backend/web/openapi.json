@@ -3,8 +3,8 @@
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "info": {
     "title": "MakoKaraGenerator local backend HTTP API",
-    "version": "1.42.4",
-    "description": "冻结合同1.42.4；HTTP协议1，产品0.110.10。只含当前公共HTTP，不含未来功能及私有Worker。与api-contract.md和其固定行为源共同执行。info.version是合同版本，不是产品/HTTP版本。普通响应可忽略未知字段；请求遵守声明字段及业务门禁。"
+    "version": "1.43.0",
+    "description": "冻结合同1.43.0；HTTP协议1，产品0.111.3。只含当前公共HTTP，不含未来功能及私有Worker。与api-contract.md和其固定行为源共同执行。info.version是合同版本，不是产品/HTTP版本。普通响应可忽略未知字段；请求遵守声明字段及业务门禁。"
   },
   "servers": [
     {
@@ -18,9 +18,9 @@
       }
     }
   ],
-  "x-product-version": "0.110.10",
+  "x-product-version": "0.111.3",
   "x-http-protocol-version": "1",
-  "x-source-baseline": "6284dddc1a020b30b519118cfab9cd4b5a845415",
+  "x-source-baseline": "dc6a2e9065d36900b28548ec94606736092075fb",
   "x-behavior-contract": "api-contract.md",
   "x-options": {
     "status": 204,
@@ -11331,7 +11331,8 @@
           "metadata"
         ],
         "additionalProperties": false,
-        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.AuthorAdoptSourceRevisionRequest"
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.AuthorAdoptSourceRevisionRequest",
+        "description": "显式采用此草稿保留的修订；SDK2 C#目标须有成功编译记录，撤销来源也适用。"
       },
       "AuthorAdoptSourceRevisionResponse": {
         "type": "object",
@@ -11464,6 +11465,17 @@
                 "type": "null"
               }
             ]
+          },
+          "sourceRevision": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -11472,7 +11484,7 @@
         ],
         "additionalProperties": false,
         "x-clr-type": "MakoKaraGenerator.Backend.Contracts.AuthorCompilationRequest",
-        "description": "省略/null/sync保持同步200；async返回202 JobResponse。任务捕获固定源码，不把旧结果改成最新草稿。"
+        "description": "省略/null/sync保持同步200；async返回202 JobResponse。sourceRevision可固定此草稿保留的任一修订，省略/null取最新修订；任务捕获固定源码，旧成功不验证最新源码。"
       },
       "AuthorCompilationResponse": {
         "type": "object",
@@ -11493,7 +11505,8 @@
             "type": "boolean"
           },
           "stale": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "结果源与提交结果时草稿最新源码不同；同一旧修订的编译成功仍只验证该固定源。"
           },
           "artifactHash": {
             "type": "string"
@@ -11785,7 +11798,8 @@
           "metadata"
         ],
         "additionalProperties": false,
-        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.AuthorDraftConfigurationRequest"
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.AuthorDraftConfigurationRequest",
+        "description": "完整配置按草稿CAS提交；SDK2 C#来源变更须先编译成功，不能绕过采用门禁。"
       },
       "AuthorDraftCreateRequest": {
         "type": "object",
@@ -12005,6 +12019,17 @@
           },
           "sampleOptions": {
             "$ref": "#/components/schemas/AuthorDraftSampleOptionsDto"
+          },
+          "packageVersion": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": -2147483648,
+            "maximum": 2147483647,
+            "description": "固定包的正式packageVersion；与sdkVersion共同分派作者流程，不能仅据能力标记推断。"
+          },
+          "sdkVersion": {
+            "type": "string",
+            "description": "固定包的正式SDK版本；packageVersion=3且SDK主版本2采用SDK2流程。"
           }
         },
         "required": [

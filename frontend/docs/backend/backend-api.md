@@ -1480,19 +1480,23 @@ P4 N07～N14/E12～E15 的历史实现与本批 W8 修复共同组成当前作�
 
 N07 `GET /api/v1/drafts` 只列出当前客户端拥有的草稿。N08 `GET /api/v1/drafts/{id}/sources?expectedDraftRevision=...&sourceRevision=...` 在精确草稿修订下返回指定保留源码修订的完整C#文件path/text及包身份；草稿修订冲突409，源码不存在404，包内逻辑路径不授予服务器文件读取能力。
 
-N09 `PUT /api/v1/drafts/{id}/configuration` 携带 `expectedDraftRevision/configuration/metadata`；配置包含name/packageId/sourceRevision/exportId/parametersJson/relativeTarget/readScope/branchInput/fixedSeed/overlayLayer。fixedSeed为UInt64十进制字符串或null，固定源码须属于该草稿。原ScriptConfiguration/参数验证通过后一次更新草稿，不要求成功编译，不写个人库或工程历史。E12的GET draft同时返回完整configuration和sampleOptions；kind/bindingKinds由领域配置派生。create可从已授权packageAssetId或精确configurationId/expectedConfigurationRevision建立草稿；配置来源要求packageAssetId为null，exportId须匹配保存的配置，name由本次请求明确提供。
+N09 `PUT /api/v1/drafts/{id}/configuration` 携带 `expectedDraftRevision/configuration/metadata`；配置包含name/packageId/sourceRevision/exportId/parametersJson/relativeTarget/readScope/branchInput/fixedSeed/overlayLayer。fixedSeed为UInt64十进制字符串或null，固定源码须属于该草稿。原ScriptConfiguration/参数验证通过后一次更新草稿，不写个人库或工程历史；SDK2 C# 来源发生变更时须有该草稿保留历史中的成功编译记录，否则拒绝 `commandRejected/AuthorSourceCompilationRequired`，普通配置 PUT 不能绕过此门禁。SDK1 保持原行为。E12的GET draft同时返回完整configuration和sampleOptions；kind/bindingKinds由领域配置派生。create可从已授权packageAssetId或精确configurationId/expectedConfigurationRevision建立草稿；配置来源要求packageAssetId为null，exportId须匹配保存的配置，name由本次请求明确提供。
 
-作者工作流固定一个已授权的效果包资源和导出身份，创建持久草稿。草稿只由当前所有者客户端操作，所有权仅通过显式 claim 转移；服务端将包内容写入自己的状态根并以 `sha256:<64位小写十六进制>` 作为不可变源码修订身份，不暴露主机路径。`GET /api/v1/drafts/{id}` 返回当前草稿修订、基础修订、当前源码修订、最近编译摘要和是否可编译/采用；`canCompile` 要求编译参考集可用且当前源码修订含 C# 文件，不按在用配置修订推断。`GET /api/v1/drafts/{id}/compilation` 只读取最近一次完整编译结果；没有编译结果返回404 `resourceNotFound`，读取不携带metadata且不改变草稿修订。
+作者工作流固定一个已授权的效果包资源和导出身份，创建持久草稿。草稿只由当前所有者客户端操作，所有权仅通过显式 claim 转移；服务端将包内容写入自己的状态根并以 `sha256:<64位小写十六进制>` 作为不可变源码修订身份，不暴露主机路径。`GET /api/v1/drafts/{id}` 返回当前草稿修订、基础修订、当前源码修订、最近编译摘要和是否可编译/采用，并以 `packageVersion/sdkVersion` 返回固定包的正式身份。`canCompile` 要求编译参考集可用且当前源码修订含 C# 文件，不按在用配置修订推断。`GET /api/v1/drafts/{id}/compilation` 只读取最近一次完整编译结果；没有编译结果返回404 `resourceNotFound`，读取不携带metadata且不改变草稿修订。
 
-`POST /api/v1/drafts/{id}/source-revision-jobs` 必须携带精确 `expectedDraftRevision`，一次提交当前包中全部且仅全部 C# 文件。服务重新计算清单哈希并固定新的包修订；源码内容实际变化后清除旧编译摘要并更新草稿修订；相同字节保留修订与摘要。缺文件、重复路径、越界文件或过大源码整批拒绝，历史不产生半成品。
+`POST /api/v1/drafts/{id}/source-revision-jobs` 必须携带精确 `expectedDraftRevision`，一次提交当前包中全部且仅全部 C# 文件。服务重新计算清单哈希并固定新的包修订；相同字节保留修订与摘要。SDK1 内容变化后保持原跟随/清除编译摘要行为。SDK2 只推进 `currentSourceRevision`，保留在用 `configuration.sourceRevision`、采用标记和旧编译身份；旧摘要的 `stale` 表示它不验证最新源码。缺文件、重复路径、越界文件或过大源码整批拒绝，历史不产生半成品。
+
+SDK2 作者界面分别展示最新、最近编译通过、已采用和在用修订。保存、编译均不改变试样与组件库保存所用的在用来源，成功编译后仍需显式采用。源码采用的撤销/重做使用独立历史，不混入参数配置撤销；撤销目标也必须先编译通过，CAS 或存储失败保留撤销记录。可以查看、编译原包或旧修订后再撤销采用。编译旧修订的成功只验证该固定源，不能把最新源码标成通过。该交互不声称预览已实际显示任何一帧，预览仍受既有来源/代次与帧响应协议约束。
 
 W8 增加 profile 级恢复入口。`GET /api/v1/profile/author-drafts` 只返回当前状态根内的草稿摘要、当前 `draftRevision`、所有权修订和 `active`、`dormant`、`orphaned`、`ownedByCaller` 状态；支持按草稿身份的有界游标分页。`POST /api/v1/profile/author-drafts/{id}/claim` 必须同时提交发现时的 `expectedDraftRevision` 与 `expectedOwnershipRevision`，服务在草稿锁、客户端所有权 reservation 和存储发布边界内原子认领。活动 owner、在途操作、客户端回收、CAS 冲突或目标 client 的16草稿/256 MiB配额会拒绝；旧格式草稿只在成功 claim 时补写当前 schema。普通 `GET /api/v1/drafts` 与所有作者读写仍执行 owner ACL，profile 列表不泄露包内容。孤立草稿不会自动删除；认领成功后由新 owner 按精确草稿修订调用 DELETE 清理，既有 live job/preview 不随 claim 转移。
 
 `GET /api/v1/drafts/{id}/package-files?expectedDraftRevision=...&sourceRevision=...` 返回完整 manifest、文件角色、大小、SHA 和可编辑文本。`PUT /api/v1/drafts/{id}/package-files` 要求提交 manifest 及全部 `csharp`、`shader`、`shaderProgram`、`graph` 文本，服务在包结构、闭包、导出配置、路径和 UTF-8 预算检查完成后一次发布新源码修订；非文本文件的路径、角色、SHA 和字节集合必须保持不变。文本单文件最多4 MiB，文本与 manifest 合计最多16 MiB，最多256个文本文件，HTTP JSON最多32 MiB。原源码入口提交字节无变化时保留原草稿修订和最近编译摘要。
 
+包文本保存保持草稿的 SDK profile，不能通过清单降级。SDK2 包文本变更同样只推进最新修订；附带配置仍以原在用源码验证和保存，采用新包修订须经成功编译门禁。SDK1 保持原子迁移配置到新包的行为。纯资源包无需 C# 编译。
+
 `GET /api/v1/drafts/{id}/source-revisions` 在精确草稿修订下按仍保留的源码包修订返回有界历史页。每项可带保存时间和该源码修订的编译摘要；旧草稿无法证明保存时间时省略 `savedAtUtc`，未知或已清理游标返回404。`GET /api/v1/drafts/{id}/package` 与 `GET /api/v1/script-configurations/{id}/package` 分别按精确草稿/库修订返回认证 `.mkfx` 流；服务全局最多同时保留2个下载槽位，超额429；每次下载30秒期限，流关闭、断开或宿主停止释放临时归档和槽位。此入口仅支持完整 GET，不承诺 Range、HEAD 或条件304；返回 `Content-Disposition`、归档 SHA-256 ETag、长度及 `Cache-Control: no-store`。stale revision、owner ACL 和包结构错误在响应体开始前返回。
 
-`POST /api/v1/drafts/{id}/compilation-jobs` 绑定捕获的当前源码修订，独立执行脚本编译并返回完整诊断；编译失败是可读取的诊断结果，不改变源码修订。编译诊断最多256项且完整UTF-8回执最多48KiB，超限整次拒绝并保留原草稿状态。`POST /api/v1/drafts/{id}/adopt-source-revision` 同样要求精确草稿修订，显式选择已固定且导出身份有效的源码修订，采用动作不要求编译成功，返回前后修订身份。
+`POST /api/v1/drafts/{id}/compilation-jobs` 可选 `sourceRevision`，仅接受该草稿保留的源码修订；省略或 null 绑定接受时的最新修订。服务独立执行脚本编译，真实 DLL 入口须符合包 SDK 身份，并返回完整诊断；编译失败是可读取的诊断结果，不改变源码修订。编译诊断最多256项且完整UTF-8回执最多48KiB，超限整次拒绝并保留原草稿状态。`POST /api/v1/drafts/{id}/adopt-source-revision` 同样要求精确草稿修订，显式选择已固定且导出身份有效的源码修订。SDK2 C# 目标要求此草稿历史中该精确源码的成功编译，未满足则返回 `commandRejected/AuthorSourceCompilationRequired`，纯资源包和 SDK1 保持原行为；成功返回实际前后在用修订身份。
 
 **0.110.3 编译缓存：** 作者编译使用当前 profile 的 `script-artifacts` 内容地址缓存。同键并发请求共享编译，
 各调用者独立取消；失败编译不发布可运行产物。缓存身份包括源码、入口、编译选项、编译器、SDK、
@@ -1517,9 +1521,11 @@ shader、图像、图、材质和作者运行诊断仍在原执行边界校验�
 
 `DELETE /api/v1/drafts/{id}` 必须携带 `AuthorDraftDeleteRequest` 的精确 `expectedDraftRevision` 和metadata。成功返回 `AuthorDraftDeleteResponse`（200），删除草稿状态及其固定包，并释放客户端作者草稿的存储与回收保护；修订冲突返回409，跨客户端读取仍为401 `resourceUnauthorized`。删除是显式操作，不会自动修改个人模板库或工程历史；同一metadata重试返回原回执。
 
-`POST /api/v1/drafts/{id}/compilation-jobs` 可选 `executionMode:"async"` 返回 `202` 与普通 `JobResponse`；省略该字段或显式 `sync` 保持原同步 `200` 回执。异步任务在接受时固定 `draftId`、`draftRevision` 和 `sourceRevision`，沿用现有任务状态、事件/SSE、取消、保留期、客户端授权及前一宿主账本。`GET /api/v1/jobs/{id}/compilation-result` 只返回该任务固定源码修订的完整 `AuthorCompilationResponse`；草稿之后的源码或配置修订不会覆盖它。任务进入提交阶段后取消按既有 `operationNotCancellable` 语义处理；取消、停止或重启造成的无结果终态从普通 job 查询读取，不能用空诊断伪造编译成功。N10只读取当前宿主的live job结果；sidecar与账本持久化不构成公开的编译结果恢复路由。
+`POST /api/v1/drafts/{id}/compilation-jobs` 可选 `executionMode:"async"` 返回 `202` 与普通 `JobResponse`；省略该字段或显式 `sync` 保持原同步 `200` 回执。异步任务在接受时固定 `draftId`、`draftRevision` 和所选 `sourceRevision`，沿用现有任务状态、事件/SSE、取消、保留期、客户端授权及前一宿主账本。`GET /api/v1/jobs/{id}/compilation-result` 只返回该任务固定源码修订的完整 `AuthorCompilationResponse`；草稿之后的源码或配置修订不会覆盖它。任务结果发布时 `stale` 比较其固定源与当时草稿最新源码，结果保留后不追改；草稿读取则相对当前最新源码计算 `stale`。草稿在任务期间改变时不覆盖最新编译摘要，但仍按原源码修订保存历史编译记录。任务进入提交阶段后取消按既有 `operationNotCancellable` 语义处理；取消、停止或重启造成的无结果终态从普通 job 查询读取，不能用空诊断伪造编译成功。N10只读取当前宿主的live job结果；sidecar与账本持久化不构成公开的编译结果恢复路由。
 
 E14 authorDraft 预览复用既有 preview-sessions、帧、诊断与 close 生命周期。source 形状为 kind=authorDraft、sourceId=草稿ID、sourceRevision=草稿修订、authorSourceRevision=固定配置源码修订，并携带 templateSample 的 sampleId/targetKey/materialSlot；创建请求需 previewKind=authorDraft 且 committable=false，PUT input 保持同一draft ID，可更新draft/source修订及sample/target/materialSlot，并沿generation发布新的固定输入。N11/E15 的验证任务固定 640×360、30fps、12秒、360帧/输出；JobResponse 与报告分别回显草稿/源码/试样身份，sourceKind=authorDraft、sourceProfile=author-script-sample-v1。
+
+SDK2 作者试样与验证要求 Vulkan。作者验证在配置固定后、排队和准备运行输入前拒绝非 GPU 选择，返回 `commandNotSupported/PackageBackendUnsupported`，字段为 `renderBackend`；界面提示在顶栏明确选择 GPU，保留用户设备选择。实际 Runtime 仍核验设备身份，成功接收请求不等于完成验证。
 
 N12 `GET /api/v1/script-configurations` 返回库revision和配置摘要，可选expectedRevision；N13 `GET /api/v1/script-configurations/{id}?expectedRevision=...` 返回完整配置与固定包检查结果，精确修订必填。N14 `POST /api/v1/script-configurations/commands` 使用严格的expectedRevision/metadata/command，支持create、replace、copy、rename、delete五种命令；copy/rename传configurationId和name，delete只传configurationId，create/replace携带完整configuration。库CAS与作者草稿修订分别管理，不混入工程历史。
 

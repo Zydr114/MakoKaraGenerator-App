@@ -24,7 +24,7 @@ public sealed partial class PreparedRenderFrame
         foreach (var output in bindings)
         {
             if (output is null || !output.InstanceId.IsValid || string.IsNullOrWhiteSpace(output.ArtifactHash) || output.Binding is not { } binding
-                || binding.Graph is null || binding.Parameters is null || binding.Target is null || !seen.Add((output.InstanceId, binding.Target)))
+                || binding.Graph is null || binding.Parameters is null || binding.Uniforms is null || binding.Transforms is null || binding.Target is null || !seen.Add((output.InstanceId, binding.Target)))
                 throw new PreparedFrameException("InvalidPreparedImageEffect", "图绑定身份、参数或重复目标无效。");
             bool present = binding.Target switch
             {

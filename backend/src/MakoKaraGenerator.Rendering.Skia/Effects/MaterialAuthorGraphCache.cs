@@ -45,7 +45,7 @@ internal sealed class MaterialAuthorGraphCache(ImageSurfaceBudgetFrame resources
             && Same(a.TargetBounds.Left, b.TargetBounds.Left) && Same(a.TargetBounds.Top, b.TargetBounds.Top)
             && Same(a.TargetBounds.Right, b.TargetBounds.Right) && Same(a.TargetBounds.Bottom, b.TargetBounds.Bottom)
             && Same(a.DensityX, b.DensityX) && Same(a.DensityY, b.DensityY) && a.Transparent == b.Transparent
-            && SameParameters(graph, a.Parameters, b.Parameters) && SameUniforms(a.Uniforms, b.Uniforms);
+            && SameParameters(graph, a.Parameters, b.Parameters) && SameUniforms(a.Uniforms, b.Uniforms) && a.Transforms.Equals(b.Transforms);
 
     private static bool SameParameters(CompiledImageGraph graph, ParameterValues a, ParameterValues b)
     {
@@ -63,9 +63,8 @@ internal sealed class MaterialAuthorGraphCache(ImageSurfaceBudgetFrame resources
                 EffectParameterConstraint.Choice => StringComparer.Ordinal.Equals(a.GetEnum(id), b.GetEnum(id)),
                 EffectParameterConstraint.Duration => a.GetDuration(id) == b.GetDuration(id),
                 EffectParameterConstraint.Text => StringComparer.Ordinal.Equals(a.GetText(id), b.GetText(id)),
-                // 不把未知的曲线／资源对象视作值相同；同一不可变参数集仍可走上面的引用快路。
-                EffectParameterConstraint.Curve => ReferenceEquals(a.GetCurve(id), b.GetCurve(id)),
-                EffectParameterConstraint.Asset => ReferenceEquals(a.GetAsset(id), b.GetAsset(id)),
+                EffectParameterConstraint.Curve => SameCurve(a.GetCurve(id), b.GetCurve(id)),
+                EffectParameterConstraint.Asset => a.GetAsset(id) == b.GetAsset(id),
                 _ => false,
             };
             if (!same) return false;
@@ -73,6 +72,15 @@ internal sealed class MaterialAuthorGraphCache(ImageSurfaceBudgetFrame resources
         return true;
     }
 
+    private static bool SameCurve(CurveValue a, CurveValue b) => (a, b) switch
+    {
+        (CurveValue.Easing x, CurveValue.Easing y) => x.Kind == y.Kind,
+        (CurveValue.CubicBezier x, CurveValue.CubicBezier y) => SamePoint(x.First, y.First) && SamePoint(x.Second, y.Second),
+        (CurveValue.ControlPoints x, CurveValue.ControlPoints y) => x.Points.Length == y.Points.Length
+            && x.Points.Zip(y.Points).All(pair => SamePoint(pair.First, pair.Second)),
+        _ => false,
+    };
+    private static bool SamePoint(Point2 a, Point2 b) => Same(a.X, b.X) && Same(a.Y, b.Y);
     private static bool SameColor(ColorRgba a, ColorRgba b)
         => Same(a.Red, b.Red) && Same(a.Green, b.Green) && Same(a.Blue, b.Blue) && Same(a.Alpha, b.Alpha);
     private static bool Same(double a, double b) => BitConverter.DoubleToInt64Bits(a) == BitConverter.DoubleToInt64Bits(b);

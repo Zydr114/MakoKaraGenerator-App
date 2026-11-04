@@ -70,8 +70,9 @@ public sealed partial class SkiaRenderPipeline
             var actual = request.ResolveTarget(); var composition = request.Project.Composition;
             double dx = actual.ScaleXOf(composition), dy = actual.ScaleYOf(composition);
             var context = new ImageGraphFrameContext(request.TimeUs, composition.CanvasWidth, composition.CanvasHeight, program.Bounds,
-                dx, dy, binding.Binding.Parameters, request.TransparentBackground);
-            ImageGraphBindings.ValidateParameters(program.Graph.Plan, binding.Binding.Parameters);
+                dx, dy, binding.Binding.Parameters, request.TransparentBackground)
+                { Uniforms = binding.Binding.Uniforms, Transforms = binding.Binding.Transforms };
+            program.Graph.ValidateFrameBindings(context, request.CancellationToken);
             var declarations = program.Graph.ActiveInputs(context);
             if (previousTarget is not null && program.HasPerInputRecipes && declarations.Any(input =>
                 (input.ChoiceParameter is { } parameter ? input.Choices[binding.Binding.Parameters.GetEnum(parameter)] : input.Source) == GraphInputSource.TargetColor))
@@ -152,7 +153,8 @@ public sealed partial class SkiaRenderPipeline
         catch (Exception error)
         {
             string code = error switch { PreparedFrameException frame => frame.Code, ImageGraphException graph => graph.Code,
-                ShaderProgramException shader => shader.Code, ImageSurfaceBudgetException resource => resource.Code, _ => "SceneImageGraphExecutionFailed" };
+                ShaderProgramException shader => shader.Code, ImageSurfaceBudgetException resource => resource.Code,
+                EffectOutputException output => output.Code, _ => "SceneImageGraphExecutionFailed" };
             throw new EffectFailureException(binding.InstanceId, binding.ArtifactHash, "ExecuteImageGraph", request.TimeUs, code, error, binding.PackageIdentity);
         }
         finally { externalReservations?.Dispose(); if (!transferred) foreach (var capture in captures) capture.Dispose(); }

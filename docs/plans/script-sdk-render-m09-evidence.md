@@ -198,3 +198,27 @@ job 为 succeeded 而报告 succeeded=false。修复生成新 source revision；
 - SVG／图／manifest 前端完整包编辑与实际浏览器作者工作流。
 - v2 graph／运行时 Transform 绑定、Base 材质、组图调度与 BackdropBelow。
 - M10 媒体轨与 M11 全样例／目标复杂样式仍待所属节点完整验收。
+## G1：完整图绑定与动态 Transform（0.112.9，2026-11-05）
+
+接通不可变 `GraphBindingValue`、完整参数内容身份、按位 uniform 身份及 Transform 覆盖。
+图的形状、分配前检查和实际绘制使用同一次原生 float32 矩阵解析；动态输出框、实际密度下
+逆采样范围、未执行节点和透明旁路均校验。保留固定 v1 Transform 的历史采样声明语义，
+Decal／Clamp／Repeat 使用完整源域。主画布与独立执行入口都保留真实 owner、取消及回收。
+本切片仍不开放 v2 `image.graph`，TextOutput 与真实包准入由 G2 接续。
+
+证据目录 `.local/script-sdk-m09-20261105/`：
+
+- `build-graph-g1-02.log`：完整 solution 构建，0 警告／0 错误。
+- `graph-g1-focused-cpu-01.log`：66 通过／1 失败，暴露重复节点且相等值未被拒绝；
+  ImmutableDictionary Builder 的 Add 会接受此情况，产品已增加显式重复检查。
+- 修复后 `graph-g1-focused-cpu-02.log` 与 `graph-g1-focused-gpu-01.log`：各 67/67。
+  后者设置 `MAKO_RENDER_BACKEND=vulkan`，图及渲染设备走实际 Vulkan 工厂，无 CPU 回退；
+  输入测试图片可为 CPU 图像。动态／固定图逐字节像素、非等比密度、边缘、缓存、预算和归属均覆盖。
+- `graph-g1-rendering-full-01.log`：1543 通过／1 失败，旧 SourceMaterialRuntimeTests 的
+  alpha 用例在 Roslyn `PopulateNestedClassTableRows` 内抛出 NullReferenceException。
+  `graph-g1-source-material-isolated-01.log` 同组 12/12；不改源码后的完整复验
+  `graph-g1-rendering-full-02.log` 为 1544/1544。首次失败保留，偶发编译稳定性另行调查，
+  不把复验通过表述为已修复该问题。
+- `graph-g1-scripting-full-01.log`：492/492。
+
+以上为图值与执行器切片证据，不是 M09 关闭、当前版本 HTTP 发布或性能验收。

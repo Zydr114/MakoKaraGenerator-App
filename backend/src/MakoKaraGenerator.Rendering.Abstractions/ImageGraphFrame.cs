@@ -17,6 +17,8 @@ public sealed record ImageGraphFrameContext(long TimeUs, double CanvasWidth, dou
 {
     /// <summary>明确节点／uniform 的本帧覆盖；默认保持图中原始绑定，不改参数真值。</summary>
     public GraphUniformValues Uniforms { get; init; } = GraphUniformValues.Empty;
+    /// <summary>明确 Transform 节点的完整本帧覆盖；默认沿用固定图矩阵和输出框。</summary>
+    public GraphTransformValues Transforms { get; init; } = GraphTransformValues.Empty;
 }
 /// <summary>输出模式造成的明确图旁路，不表示编译或资源错误。</summary>
 /// <param name="GraphId">图身份。</param><param name="InputId">造成背景依赖的输入。</param><param name="Reason">结构化原因。</param>

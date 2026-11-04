@@ -13,8 +13,9 @@ public sealed partial class SkiaRenderPipeline
             throw new PreparedFrameException("ImageEffectMappingPending", "实际图像映射尚未接入，不能将映射图当作颜色图执行。");
         var composition = request.Project.Composition; var output = request.ResolveTarget();
         var context = new ImageGraphFrameContext(request.TimeUs, composition.CanvasWidth, composition.CanvasHeight, program.Bounds,
-            output.ScaleXOf(composition), output.ScaleYOf(composition), binding.Binding.Parameters, request.TransparentBackground);
-        ImageGraphBindings.ValidateParameters(program.Graph.Plan, binding.Binding.Parameters);
+            output.ScaleXOf(composition), output.ScaleYOf(composition), binding.Binding.Parameters, request.TransparentBackground)
+                { Uniforms = binding.Binding.Uniforms, Transforms = binding.Binding.Transforms };
+        program.Graph.ValidateFrameBindings(context, request.CancellationToken);
         var declarations = program.Graph.ActiveInputs(context);
         Dictionary<string, SkiaGraphInput> inputs = new(StringComparer.Ordinal);
         Dictionary<(GraphInputSource, SceneCaptureRecipe), SkiaGraphSurface> captures = [];

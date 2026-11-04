@@ -7,7 +7,8 @@ namespace MakoKaraGenerator.Rendering.Skia;
 public sealed partial class CompiledImageGraph
 {
     private SkiaGraphSurface DrawNode(ImageGraphNode node, GraphRect shape, ImageGraphFrameContext frame,
-        Dictionary<GraphReference, SkiaGraphSurface> inputs, ImageSurfaceBudgetFrame resources, CancellationToken cancellationToken)
+        Dictionary<GraphReference, SkiaGraphSurface> inputs, Dictionary<string, ResolvedGraphTransform> transforms,
+        ImageSurfaceBudgetFrame resources, CancellationToken cancellationToken)
     {
         ShaderSurfaceKind kind = Plan.Types[GraphReference.Node(node.Id)];
         if (node is ImageGraphNode.RuntimeShader runtime)
@@ -34,7 +35,7 @@ public sealed partial class CompiledImageGraph
         }
         if (node is ImageGraphNode.Transform transform)
         {
-            using var input = InputShader(inputs[transform.Input], node.Bounds.Edge); using var shader = input.WithLocalMatrix(Matrix(transform.Matrix));
+            using var input = InputShader(inputs[transform.Input], node.Bounds.Edge); using var shader = input.WithLocalMatrix(transforms[node.Id].Matrix);
             return Raster(shape, frame, kind, canvas => Draw(canvas, shape, shader), resources, cancellationToken);
         }
         if (node is ImageGraphNode.Blend blend)

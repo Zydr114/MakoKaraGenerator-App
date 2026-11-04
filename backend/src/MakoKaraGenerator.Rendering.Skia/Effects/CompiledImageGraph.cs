@@ -73,9 +73,12 @@ public sealed partial class CompiledImageGraph : IDisposable
             var resources = surfaceBudget ?? ownFrame!;
             ValidateFrame(frame); ImageGraphBindings.ValidateParameters(Plan, frame.Parameters);
             MaterialUniformValidation.Validate(Plan, frame.Uniforms);
+            var active = ActiveReferences(Plan.Definition.Output, Plan.Definition.CompositeCoverage);
+            var ordered = Plan.Nodes.Where(node => active.Contains(GraphReference.Node(node.Id))).ToArray();
+            var transforms = ResolveTransforms(frame, ordered, cancellationToken);
+            var shapes = Shapes(frame, ordered, transforms, cancellationToken);
             var declarations = Plan.Definition.Inputs.ToDictionary(input => input.Id, StringComparer.Ordinal);
             foreach (string key in inputs.Keys) if (!declarations.ContainsKey(key)) throw Error("GraphInputUnknown", "inputs." + key, "输入未声明。");
-            var active = ActiveReferences(Plan.Definition.Output, Plan.Definition.CompositeCoverage);
             var backgrounds = declarations.Values.Where(input => active.Contains(GraphReference.Input(input.Id)) && input.BackgroundRequirement != GraphBackgroundRequirement.None).ToArray();
             if (frame.Transparent && backgrounds.Length > 0)
             {
@@ -87,10 +90,8 @@ public sealed partial class CompiledImageGraph : IDisposable
             }
             var surfaces = new Dictionary<GraphReference, SkiaGraphSurface>();
             foreach (var reference in active.Where(reference => reference.IsInput)) surfaces.Add(reference, ResolveInput(declarations[reference.Id], frame, inputs, cancellationToken));
-            var ordered = Plan.Nodes.Where(node => active.Contains(GraphReference.Node(node.Id))).ToArray();
-            var shapes = Shapes(frame, ordered);
             var uses = Uses(ordered, Plan.Definition.Output, Plan.Definition.CompositeCoverage);
-            var peaks = Preflight(frame, surfaces, ordered, shapes, uses);
+            var peaks = Preflight(frame, surfaces, ordered, shapes, uses, transforms, cancellationToken);
             ImageSurfaceReservations? inputReservations = resources.BorrowInputs(surfaces.Values);
             var owned = new HashSet<SkiaGraphSurface>();
             try
@@ -100,7 +101,7 @@ public sealed partial class CompiledImageGraph : IDisposable
                 foreach (var node in ordered)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    SkiaGraphSurface output = DrawNode(node, shapes[node.Id], frame, surfaces, resources, cancellationToken);
+                    SkiaGraphSurface output = DrawNode(node, shapes[node.Id], frame, surfaces, transforms, resources, cancellationToken);
                     owned.Add(output); surfaces.Add(GraphReference.Node(node.Id), output);
                     foreach (var reference in ImageGraphCompiler.References(node))
                         if (--uses[reference] == 0 && !reference.IsInput)
@@ -190,27 +191,31 @@ public sealed partial class CompiledImageGraph : IDisposable
         foreach (var node in nodes) foreach (var reference in ImageGraphCompiler.References(node)) Add(reference);
         Add(output); if (coverage.HasValue) Add(coverage.Value); return uses;
     }
-    private Dictionary<string, GraphRect> Shapes(ImageGraphFrameContext frame, ImageGraphNode[] nodes)
+    private Dictionary<string, GraphRect> Shapes(ImageGraphFrameContext frame, ImageGraphNode[] nodes,
+        Dictionary<string, ResolvedGraphTransform> transforms, CancellationToken cancellationToken)
     {
         var expansions = new Dictionary<GraphReference, double>(); var bounds = new Dictionary<string, GraphRect>(StringComparer.Ordinal);
         foreach (var input in Plan.Definition.Inputs) expansions.Add(GraphReference.Input(input.Id), 0);
         GraphRect limit = frame.TargetBounds.Expand(Plan.Definition.MaximumExpandPx);
         foreach (var node in nodes)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             double expand = ImageGraphBindings.Expansion(node.Bounds.Expand, frame.Parameters);
             double total = ImageGraphCompiler.References(node).Select(reference => expansions[reference]).DefaultIfEmpty(0).Max() + expand;
             if (!double.IsFinite(total) || expand > node.Bounds.MaximumExpandPx || total > Plan.Definition.MaximumExpandPx)
                 throw Error("GraphExpansionExceeded", "nodes." + node.Id, "当前值的累计外扩超过声明。");
             if (node is ImageGraphNode.Blur blur && expand < Math.Ceiling(3 * ImageGraphBindings.Number(blur.SigmaPx, frame.Parameters)))
                 throw Error("GraphBlurBoundsInsufficient", "nodes." + node.Id, "当前外扩不能覆盖 3σ。");
-            var shape = node is ImageGraphNode.Transform transform ? transform.OutputBounds : frame.TargetBounds.Expand(total);
+            var shape = node is ImageGraphNode.Transform ? transforms[node.Id].OutputBounds : frame.TargetBounds.Expand(total);
             if (!shape.IsValid || !limit.IsValid || !limit.Contains(shape)) throw Error("GraphBoundsExceeded", "nodes." + node.Id, "输出框超出目标最大外扩。");
-            expansions.Add(GraphReference.Node(node.Id), total); bounds.Add(node.Id, Aligned(shape, frame));
+            var physical = node is ImageGraphNode.Transform ? transforms[node.Id].PhysicalBounds : Aligned(shape, frame);
+            expansions.Add(GraphReference.Node(node.Id), total); bounds.Add(node.Id, physical);
         }
         return bounds;
     }
     private (int Surfaces, long Bytes) Preflight(ImageGraphFrameContext frame, Dictionary<GraphReference, SkiaGraphSurface> inputs, ImageGraphNode[] nodes,
-        Dictionary<string, GraphRect> shapes, Dictionary<GraphReference, int> useCounts)
+        Dictionary<string, GraphRect> shapes, Dictionary<GraphReference, int> useCounts,
+        Dictionary<string, ResolvedGraphTransform> transforms, CancellationToken cancellationToken)
     {
         var distinct = inputs.Values.DistinctBy(surface => surface.Image.Handle).ToArray();
         long bytes = distinct.Sum(Bytes); int count = distinct.Length, peakCount = count; long peakBytes = bytes;
@@ -218,6 +223,13 @@ public sealed partial class CompiledImageGraph : IDisposable
         // 输入由调用者拥有，在整个执行期间仍活动；节点在最后使用后及时释放。
         foreach (var node in nodes)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (node is ImageGraphNode.Transform transform)
+            {
+                var descriptor = transform.Input.IsInput ? inputs[transform.Input].Descriptor
+                    : new GraphSurfaceDescriptor(shapes[transform.Input.Id], GraphCoordinateSpace.Canvas, SceneMatrix.Identity, frame.DensityX, frame.DensityY);
+                PreflightTransformInput(transform, transforms[node.Id], descriptor, cancellationToken);
+            }
             long allocation = SizeBytes(shapes[node.Id], frame);
             int scratchCount = node is ImageGraphNode.Blur ? 2 : 0;
             long candidateBytes = checked(bytes + allocation * (1 + scratchCount)); int candidateCount = count + 1 + scratchCount;
@@ -231,7 +243,7 @@ public sealed partial class CompiledImageGraph : IDisposable
     private void ValidateFrame(ImageGraphFrameContext frame)
     {
         if (Plan.Definition.Space != GraphCoordinateSpace.Canvas) throw Error("UnsupportedGraphExecutionSpace", "space", "首个执行后端要求明确 Canvas 适配。");
-        if (frame.Parameters == null || frame.TimeUs < 0 || !frame.TargetBounds.IsValid || !Positive(frame.CanvasWidth) || !Positive(frame.CanvasHeight)
+        if (frame.Parameters == null || frame.Uniforms is null || frame.Transforms is null || frame.TimeUs < 0 || !frame.TargetBounds.IsValid || !Positive(frame.CanvasWidth) || !Positive(frame.CanvasHeight)
             || !Positive(frame.DensityX) || !Positive(frame.DensityY)) throw Error("InvalidGraphFrame", "frame", "固定帧、逻辑尺寸或密度无效。");
     }
     private void ValidateSurface(SkiaGraphSurface surface, ShaderSurfaceKind kind, string field, CancellationToken cancellationToken)

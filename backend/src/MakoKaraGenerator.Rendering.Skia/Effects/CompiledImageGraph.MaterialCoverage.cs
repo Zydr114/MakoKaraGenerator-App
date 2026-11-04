@@ -20,8 +20,9 @@ public sealed partial class CompiledImageGraph
             MaterialUniformValidation.Validate(Plan, frame.Uniforms);
             var active = ActiveReferences(Plan.Definition.Output, null);
             var ordered = Plan.Nodes.Where(node => active.Contains(GraphReference.Node(node.Id))).ToArray();
-            var shapes = Shapes(frame, ordered);
-            var peaks = Preflight(frame, [], ordered, shapes, Uses(ordered, Plan.Definition.Output, null));
+            var transforms = ResolveTransforms(frame, ordered, cancellationToken);
+            var shapes = Shapes(frame, ordered, transforms, cancellationToken);
+            var peaks = Preflight(frame, [], ordered, shapes, Uses(ordered, Plan.Definition.Output, null), transforms, cancellationToken);
             try { resources.CheckAdditional(peaks.Surfaces, peaks.Bytes, "ExecuteImageGraphPeak"); }
             catch (ImageSurfaceBudgetException) { return false; }
             return true;

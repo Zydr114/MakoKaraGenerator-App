@@ -116,6 +116,58 @@ public sealed class ParameterValues
             if (pair.Value is ParameterValue.Asset asset && !resources.Contains(asset.Value))
                 throw new EffectOutputException("InvalidParameterResource", "参数资源不属于固定包：" + pair.Key);
     }
+    // Internal binding identity only. Preserve the public reference Equals contract.
+    internal bool ContentEquals(ParameterValues other) => ReferenceEquals(this, other) || _ids.SequenceEqual(other._ids)
+        && _ids.All(id => ValueEquals(_values[id], other._values[id]));
+    internal int ContentHash()
+    {
+        HashCode hash = new();
+        foreach (string id in _ids) { hash.Add(id, StringComparer.Ordinal); AddValue(ref hash, _values[id]); }
+        return hash.ToHashCode();
+    }
+    private static bool Same(double a, double b) => BitConverter.DoubleToInt64Bits(a) == BitConverter.DoubleToInt64Bits(b);
+    private static bool SamePoint(Point2 a, Point2 b) => Same(a.X, b.X) && Same(a.Y, b.Y);
+    private static bool ValueEquals(ParameterValue a, ParameterValue b) => (a, b) switch
+    {
+        (ParameterValue.Number x, ParameterValue.Number y) => Same(x.Value, y.Value),
+        (ParameterValue.Color x, ParameterValue.Color y) => Same(x.Value.Red, y.Value.Red) && Same(x.Value.Green, y.Value.Green)
+            && Same(x.Value.Blue, y.Value.Blue) && Same(x.Value.Alpha, y.Value.Alpha),
+        (ParameterValue.Curve x, ParameterValue.Curve y) => CurveEquals(x.Value, y.Value),
+        // Closed scalar records, ordinal strings and full Asset ResourceIdentity.
+        _ => a.Equals(b),
+    };
+    private static bool CurveEquals(CurveValue a, CurveValue b) => (a, b) switch
+    {
+        (CurveValue.Easing x, CurveValue.Easing y) => x.Kind == y.Kind,
+        (CurveValue.CubicBezier x, CurveValue.CubicBezier y) => SamePoint(x.First, y.First) && SamePoint(x.Second, y.Second),
+        (CurveValue.ControlPoints x, CurveValue.ControlPoints y) => x.Points.Length == y.Points.Length
+            && x.Points.Zip(y.Points).All(pair => SamePoint(pair.First, pair.Second)),
+        _ => false,
+    };
+    private static void AddValue(ref HashCode hash, ParameterValue value)
+    {
+        hash.Add(value.GetType());
+        switch (value)
+        {
+            case ParameterValue.Number number: hash.Add(BitConverter.DoubleToInt64Bits(number.Value)); break;
+            case ParameterValue.Color color:
+                hash.Add(BitConverter.DoubleToInt64Bits(color.Value.Red)); hash.Add(BitConverter.DoubleToInt64Bits(color.Value.Green));
+                hash.Add(BitConverter.DoubleToInt64Bits(color.Value.Blue)); hash.Add(BitConverter.DoubleToInt64Bits(color.Value.Alpha)); break;
+            case ParameterValue.Curve curve:
+                hash.Add(curve.Value.GetType());
+                switch (curve.Value)
+                {
+                    case CurveValue.Easing easing: hash.Add(easing.Kind); break;
+                    case CurveValue.CubicBezier bezier: AddPoint(ref hash, bezier.First); AddPoint(ref hash, bezier.Second); break;
+                    case CurveValue.ControlPoints control:
+                        foreach (var point in control.Points) AddPoint(ref hash, point); break;
+                }
+                break;
+            default: hash.Add(value); break;
+        }
+    }
+    private static void AddPoint(ref HashCode hash, Point2 point)
+    { hash.Add(BitConverter.DoubleToInt64Bits(point.X)); hash.Add(BitConverter.DoubleToInt64Bits(point.Y)); }
     private T Require<T>(string id) where T : ParameterValue
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);

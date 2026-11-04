@@ -178,3 +178,10 @@ Backend作者41通过；显式Vulkan图元19／真实包18通过，详见[M09证
 0.112.8 的匹配Server/Worker及fresh HTTP已完成：314请求／2385断言，SVG vector／atlas与
 Base Warp的精确作者修订、13张透明GPU帧、保存重开后3×48帧透明ProRes严格导出均通过。
 合同1.45.0已同步，前端3937项单测通过。浏览器完整包编辑与图组仍待，M09不据此关闭。
+
+### M09 图绑定值与动态 Transform（产品 0.112.9）
+
+G1 完整值身份、动态矩阵／输出框、原生逆采样检查及两个渲染入口已接通。
+CPU／Vulkan 定向各67项、Rendering复验1544项、Scripting492项通过，完整构建0警告／0错误。
+首轮重复键缺陷已修复；完整回归中一次 Roslyn 空引用异常仍单独调查，未宣称已修复。
+v2 image.graph 能力仍关闭，G2 作者事务及真实包准入继续实施；详见[M09证据](script-sdk-render-m09-evidence.md)。

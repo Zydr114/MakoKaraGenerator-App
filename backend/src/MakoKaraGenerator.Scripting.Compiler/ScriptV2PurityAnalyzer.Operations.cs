@@ -24,7 +24,7 @@ public static partial class ScriptV2PurityAnalyzer
                 SyntaxNode declaration = reference.GetSyntax(_token);
                 if (declaration.DescendantTokens().Any(static value => value.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.UnsafeKeyword)))
                     Report(UnsupportedLanguage, declaration.GetLocation(), "unsafe");
-                SemanticModel model = _compilation.GetSemanticModel(declaration.SyntaxTree);
+                SemanticModel model = GetSemanticModel(declaration.SyntaxTree);
                 IOperation? operation = model.GetOperation(declaration, _token);
                 if (operation is null)
                 {

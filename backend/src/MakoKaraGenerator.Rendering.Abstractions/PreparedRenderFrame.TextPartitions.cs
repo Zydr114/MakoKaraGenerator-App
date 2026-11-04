@@ -35,7 +35,9 @@ public sealed partial class PreparedRenderFrame
             Independent(token.BaseGeometry, textTarget); Matrix(output.LocalMatrix, textTarget);
         }
         seen.Clear();
-        var sourceStyles = StaticStyleProjection.LoadedSourceStyles(Snapshot, HierarchyScene);
+        // 主构造已校验同一 HierarchyScene；仅基础字外观输出需要再次读取源外观。
+        var sourceStyles = baseStyles.IsEmpty ? ImmutableDictionary<TokenFamilyTarget, LyricStyle>.Empty
+            : StaticStyleProjection.LoadedSourceStyles(Snapshot, HierarchyScene);
         var drawing = ImmutableDictionary.CreateBuilder<BaseTokenTarget, LyricStyle>();
         foreach (var output in baseStyles)
         {

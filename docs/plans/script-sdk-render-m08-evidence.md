@@ -130,3 +130,19 @@ CursorTrail／VectorTrail／EventBurst、640×360 CJK/Ruby、0／180／600 秒�
 全部通过，仍为 112 路径／125 方法、597 schemas、3434 示例／2548 反例，产品 0.112.2。
 前端整体同步合同，`frontend-build-02.log` TypeScript／Vite 成功（保留原有 chunk 提示），
 `frontend-unit-02.log` 全部 44 文件／3937 单元用例通过；没有据此声明新的浏览器或 HTTP 验收。
+
+## 0.112.3 纯度与文字分区分配优化
+
+`PreparedRenderFrame.WithTextPartitions` 在没有基础字外观写入时不再重建未消费的
+`LoadedSourceStyles` 字典；主构造仍保留完整场景、冻结外观和父链校验。20 项文字分区／
+退场定向回归为绿，新增覆盖空与非空基础字样式、缺失冻结外观及父链循环。
+
+`ScriptV2PurityAnalyzer` 在一次分析内按 `SyntaxTree` 复用 `SemanticModel`，不改变规则、
+诊断排序、跨树 helper、取消和不同 `Compilation` 的隔离。Scripting 回归为 449/449，
+Rendering 全量为 1283/1283，v2 Export 为 7/7，解决方案构建零警告／零错误。
+
+未插桩正式矩阵 `m07-performance-04` 的 24 组像素比较和 20 组跨进程确定性比较全部通过；
+196 项门禁剩余 5 项：WordEmphasis 编译 p95 1219.1721 ms（限 1085.9904 ms）、准备会话
+中位数／p95 229.3775／252.4018 ms（限 210.5673／211.2953 ms），RepeatEmphasis 编译
+p95 1215.1332 ms（限 1189.1823 ms），以及 ClusterExit 热准备 index8 p95 10.2117 ms
+（限 5 ms）。这证明优化有实测收益但 M07 性能门禁仍未关闭。

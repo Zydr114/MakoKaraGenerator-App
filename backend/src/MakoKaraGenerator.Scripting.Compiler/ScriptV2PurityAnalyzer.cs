@@ -42,6 +42,7 @@ public static partial class ScriptV2PurityAnalyzer
         private readonly CSharpCompilation _compilation;
         private readonly CancellationToken _token;
         private readonly HashSet<string> _entries;
+        private readonly Dictionary<SyntaxTree, SemanticModel> _semanticModels = [];
         private readonly List<Diagnostic> _diagnostics = [];
         private readonly HashSet<string> _diagnosticKeys = new(StringComparer.Ordinal);
         private readonly HashSet<string> _visitedMethods = new(StringComparer.Ordinal);
@@ -63,6 +64,14 @@ public static partial class ScriptV2PurityAnalyzer
             _preparedBase = sdk?.GetTypeByMetadataName(V2Namespace + ".PreparedEffect");
         }
 
+        private SemanticModel GetSemanticModel(SyntaxTree tree)
+        {
+            if (_semanticModels.TryGetValue(tree, out SemanticModel? model)) return model;
+            model = _compilation.GetSemanticModel(tree);
+            _semanticModels.Add(tree, model);
+            return model;
+        }
+
         internal ImmutableArray<Diagnostic> Run()
         {
             if (_effectInterface is null) return [];
@@ -70,7 +79,7 @@ public static partial class ScriptV2PurityAnalyzer
             foreach (SyntaxTree tree in _compilation.SyntaxTrees)
             {
                 _token.ThrowIfCancellationRequested();
-                SemanticModel model = _compilation.GetSemanticModel(tree);
+                SemanticModel model = GetSemanticModel(tree);
                 foreach (BaseTypeDeclarationSyntax declaration in tree.GetRoot(_token).DescendantNodes().OfType<BaseTypeDeclarationSyntax>())
                 {
                     if (model.GetDeclaredSymbol(declaration, _token) is not INamedTypeSymbol type) continue;
@@ -103,7 +112,7 @@ public static partial class ScriptV2PurityAnalyzer
             var disposable = _compilation.GetTypeByMetadataName("System.IDisposable");
             foreach (SyntaxTree tree in _compilation.SyntaxTrees)
             {
-                SemanticModel model = _compilation.GetSemanticModel(tree);
+                SemanticModel model = GetSemanticModel(tree);
                 foreach (BaseTypeDeclarationSyntax declaration in tree.GetRoot(_token).DescendantNodes().OfType<BaseTypeDeclarationSyntax>())
                 {
                     if (model.GetDeclaredSymbol(declaration, _token) is not INamedTypeSymbol type) continue;
@@ -176,7 +185,7 @@ public static partial class ScriptV2PurityAnalyzer
 
         private void CheckExpression(ExpressionSyntax expression, bool evaluating)
         {
-            SemanticModel model = _compilation.GetSemanticModel(expression.SyntaxTree);
+            SemanticModel model = GetSemanticModel(expression.SyntaxTree);
             new Walker(this, null, evaluating, []).Visit(model.GetOperation(expression, _token));
         }
 

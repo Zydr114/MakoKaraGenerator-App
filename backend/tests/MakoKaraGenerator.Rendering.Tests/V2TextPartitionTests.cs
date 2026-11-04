@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using MakoKaraGenerator.Core.Lyrics;
 using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Rendering.Skia;
@@ -52,6 +53,46 @@ public sealed class V2TextPartitionTests
         using var actual = renderer.Render(RenderRequest.At(snapshot, scene.TimeUs) with { TransparentBackground = true, PreparedFrame = copied });
         Assert.True(Alpha(actual) < Alpha(plain)); Assert.True(Alpha(actual) > 0);
         AssertRubyPixelsEqual(plain, actual, token);
+    }
+
+    [Fact]
+    public void 非空基础字外观继续组合字族覆盖且Ruby保持父族像素()
+    {
+        var snapshot = Source(); using SkiaRenderPipeline renderer = new();
+        var scene = renderer.GetSceneFrame(snapshot, 2_000_000); var token = Assert.Single(scene.TokenGeometries);
+        var parent = new PreparedRenderFrame(snapshot, scene.TimeUs, Fx.OutputMode.Transparent,
+            RenderTarget.FromComposition(snapshot.Composition), scene, [], [new(token.WithRuby, new(opacityFactor: .5))]);
+        var prepared = parent.WithTextPartitions([], [new(token.BaseOnly, new(opacityFactor: .5))], []);
+        Assert.Equal(.25f, prepared.GetBaseDrawingStyle(token.BaseOnly).Opacity);
+        Assert.Equal(.5f, prepared.GetTokenStyle(token.WithRuby).Opacity);
+        using var plain = renderer.Render(RenderRequest.At(snapshot, scene.TimeUs) with { TransparentBackground = true, PreparedFrame = parent });
+        using var actual = renderer.Render(RenderRequest.At(snapshot, scene.TimeUs) with { TransparentBackground = true, PreparedFrame = prepared });
+        Assert.True(Alpha(actual) < Alpha(plain)); Assert.True(Alpha(actual) > 0);
+        AssertRubyPixelsEqual(plain, actual, token);
+    }
+
+    [Fact]
+    public void 空字族外观输出仍在准备帧主构造拒绝缺失冻结元素外观()
+    {
+        var snapshot = Source(); using SkiaRenderPipeline renderer = new();
+        var scene = renderer.GetSceneFrame(snapshot, 2_000_000); var line = Assert.Single(scene.Lines);
+        var metadata = new ExitReplicaMetadata(scene.TimeUs, 0, [],
+            PresetSceneStyleProjection.LyricsForBinding(snapshot, line, null, scene),
+            ImmutableDictionary<Fx.TokenId, PresetStyleResolution>.Empty);
+        var invalid = scene with { Lines = [line with { ExitReplica = metadata }] };
+        var error = Assert.Throws<PreparedFrameException>(() => Prepared(snapshot, invalid));
+        Assert.Equal("MissingBaselineTarget", error.Code);
+    }
+
+    [Fact]
+    public void 空字族外观输出仍在准备帧主构造拒绝实际样式父链循环()
+    {
+        var snapshot = Source(); using SkiaRenderPipeline renderer = new();
+        var scene = renderer.GetSceneFrame(snapshot, 2_000_000); var line = Assert.Single(scene.Lines);
+        var invalid = scene with { Elements = [.. scene.Elements.Select(node => node.Id == line.ElementId
+            ? node with { ParentId = node.Id } : node)] };
+        var error = Assert.Throws<PreparedFrameException>(() => Prepared(snapshot, invalid));
+        Assert.Equal("InvalidSceneTransform", error.Code);
     }
 
     [Fact]

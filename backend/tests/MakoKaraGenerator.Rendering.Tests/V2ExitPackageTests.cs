@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using MakoKaraGenerator.Core.Effects;
 using MakoKaraGenerator.Core.Lyrics;
@@ -9,11 +10,52 @@ using MakoKaraGenerator.Rendering.Skia;
 using MakoKaraGenerator.Scripting;
 using MakoKaraGenerator.Scripting.Compilation;
 using MakoKaraGenerator.Scripting.Execution;
+using V2 = MakoKaraGenerator.Scripting.V2;
 
 namespace MakoKaraGenerator.Rendering.Tests;
 
 public sealed class V2ExitPackageTests
 {
+    [Fact]
+    public async Task 真实退场空基础字外观与显式继承外观路径保持几何像素和来源一致()
+    {
+        var package = await Package(); var snapshot = Snapshot([package], [Instance(package, "exit")]);
+        var compiled = await Compile(snapshot, Compiler());
+        await using var session = await Factory(snapshot, compiled).CreateAsync(snapshot);
+        foreach (long time in new long[] { 1_000_001, 1_300_000, 1_599_999, 1_300_000 })
+        {
+            var frame = await Prepare(session, snapshot, time);
+            Assert.Empty(frame.BaseStyles); Assert.NotEmpty(frame.ClusterTransforms);
+            Assert.Contains(frame.ClusterTransforms, static item => item.Target.RubyId is null);
+            Assert.Contains(frame.ClusterTransforms, static item => item.Target.RubyId is not null);
+            var token = frame.HierarchyScene.TokenGeometries.First(token =>
+                token.Clusters.Any(cluster => frame.ClusterTransforms.Any(output => output.Target == cluster.Target)));
+
+            // An explicit inherited leaf appearance requires the full source-style
+            // projection, while the real sample has only family opacity/cluster writes.
+            // Reapplying these partitions starts from HierarchyScene, not FinalGeometry.
+            var reference = frame.WithTextPartitions(frame.BaseTransforms,
+                [new V2.BaseTokenStyle(token.BaseOnly, new())], frame.ClusterTransforms);
+            Assert.Same(frame.Scene, reference.Scene); Assert.Same(frame.HierarchyScene, reference.HierarchyScene);
+            Assert.Equal(frame.TokenStyles.ToArray(), reference.TokenStyles.ToArray());
+            Assert.Equal(frame.ClusterTransforms.ToArray(), reference.ClusterTransforms.ToArray());
+            Assert.Equal(JsonSerializer.Serialize(frame.FinalGeometry), JsonSerializer.Serialize(reference.FinalGeometry));
+            Assert.Equal(JsonSerializer.Serialize(frame.FinalGroupGeometry), JsonSerializer.Serialize(reference.FinalGroupGeometry));
+            Assert.Equal(JsonSerializer.Serialize(frame.Playback), JsonSerializer.Serialize(reference.Playback));
+            Assert.Same(frame.DiagnosticSnapshot, reference.DiagnosticSnapshot);
+            Assert.Equal(frame.OverlayOwners.ToArray(), reference.OverlayOwners.ToArray());
+            Assert.Equal(frame.V2ParticleSnapshots.ToArray(), reference.V2ParticleSnapshots.ToArray());
+            Assert.Same(frame.VisualBudget, reference.VisualBudget);
+            var pixels = Pixels(snapshot, frame);
+            Assert.Equal(pixels, Pixels(snapshot, reference));
+            if (time == 1_300_000)
+            {
+                Assert.True(Alpha(pixels) > 0);
+                Assert.Equal(frame.GetTokenStyle(token.WithRuby), reference.GetBaseDrawingStyle(token.BaseOnly));
+            }
+        }
+    }
+
     [Fact]
     public async Task 真实字簇退场包在半开边界乱序与重建后保持几何和像素一致()
     {

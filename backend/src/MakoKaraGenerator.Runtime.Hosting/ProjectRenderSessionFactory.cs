@@ -44,9 +44,10 @@ public sealed class ProjectRenderSessionFactory(IScriptCompilationService compil
                 throw new GpuPreviewException("GpuPreviewGpuBackendRequired", "Shared GPU preview requires an explicitly selected Vulkan backend.");
             ReadOnlyMemory<byte>[] fonts = [.. snapshot.Effects.Packages.SelectMany(package => package.Files)
                 .Where(file => file.Role == "font").Select(file => file.Content.AsMemory())];
+            SkiaRenderPipeline.LayoutCache layouts = new();
             SkiaRenderPipeline Renderer(IBackgroundFrameSourceResolver? background = null, ImageSurfaceBudgetSession? surfaces = null,
                 SceneImageEffectResources? images = null) => new(fonts.Length == 0 ? null : new SkiaTextLayoutEngine(fonts),
-                    background, surfaces, images, ownsLayoutEngine: fonts.Length != 0, device, ownsDevice: false);
+                    background, surfaces, images, ownsLayoutEngine: fonts.Length != 0, device, ownsDevice: false, layouts);
             resolver = backgroundResolverFactory is null ? new BackgroundFrameSourceResolver(videos)
                 : backgroundResolverFactory() ?? throw new InvalidOperationException("背景解析器工厂不能返回空值。");
             token.ThrowIfCancellationRequested();

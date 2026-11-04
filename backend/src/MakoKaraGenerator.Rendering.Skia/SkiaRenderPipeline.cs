@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 using MakoKaraGenerator.Core.Lyrics;
 using MakoKaraGenerator.Core.Media;
 using MakoKaraGenerator.Core.Projects;
@@ -46,7 +47,10 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
     private readonly SkiaRenderDeviceLifetime? _deviceLifetime;
     private readonly SceneSpriteProgram? _spriteProgram;
     private readonly Lazy<SceneOpacityProgram> _isolationResources = new(static () => new());
-    private readonly ConcurrentDictionary<LayoutKey, ShapedLine> _layouts = new();
+    private readonly LayoutCache _layouts;
+    private readonly bool _ownsLayouts;
+    private readonly object _rubyLayoutGate = new();
+    private readonly Dictionary<(LyricLine Line, LyricStyle Style), LineLayout> _rubyLayouts = [];
     private bool _disposed;
 
     /// <summary>创建一个渲染管线。</summary>
@@ -72,7 +76,7 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
 
     internal SkiaRenderPipeline(SkiaTextLayoutEngine? layoutEngine, IBackgroundFrameSourceResolver? backgroundResolver,
         ImageSurfaceBudgetSession? surfaceBudget, SceneImageEffectResources? imageEffects, bool ownsLayoutEngine,
-        ISkiaRenderDevice? device, bool ownsDevice)
+        ISkiaRenderDevice? device, bool ownsDevice, LayoutCache? layouts = null)
     {
         // Create the shared device before allocating any other native resource. A failed
         // explicit Vulkan initialization therefore cannot leak the layout engine or budget.
@@ -81,6 +85,8 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
         _ownsLayoutEngine = layoutEngine is null || ownsLayoutEngine;
         _ownsSurfaceBudget = surfaceBudget is null;
         _imageEffects = imageEffects;
+        _layouts = layouts ?? new();
+        _ownsLayouts = layouts is null;
         SkiaTextLayoutEngine? initializedLayout = null;
         ImageSurfaceBudgetSession? initializedBudget = null;
         IBackgroundFrameSourceResolver? initializedResolver = null;
@@ -297,7 +303,8 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
             return;
         }
 
-        _layouts.Clear();
+        if (_ownsLayouts) _layouts.Clear();
+        lock (_rubyLayoutGate) _rubyLayouts.Clear();
         if (_isolationResources.IsValueCreated) _isolationResources.Value.Dispose();
         _spriteProgram?.Dispose();
         if (_ownsSurfaceBudget) _surfaceBudget.Dispose();
@@ -367,8 +374,7 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
             return;
         }
 
-        var ruby = layout.Ruby;
-        if (capture?.Recipe.IncludeRuby == false) ruby.Clear();
+        List<RubyLayout> ruby = capture?.Recipe.IncludeRuby == false ? [] : layout.Ruby;
         TextInkBounds? groupInk = GroupInk(shaped.InkBounds, ruby);
         LineRenderGeometry geometry = scene.Geometry!;
         float originX = (float)geometry.OriginX;
@@ -651,12 +657,9 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
     private ShapedLine GetLayout(string text, TextLayoutOptions options)
     {
         LayoutKey key = new(text, options.FamilyName, options.FontSizePx, options.FontWeight,
-            options.IsBold, options.IsItalic, options.LetterSpacingPx);
+            options.IsBold, options.IsItalic, options.LetterSpacingPx, options.FallbackFamilyNames);
 
-        return _layouts.GetOrAdd(
-            key,
-            static (_, state) => state.Engine.Shape(state.Text, state.Options),
-            (Engine: _layoutEngine, Text: text, Options: options));
+        return _layouts.GetOrAdd(key, _layoutEngine, text, options);
     }
 
     private static SKColor ToSkColor(RgbaColor color) => new(color.Red, color.Green, color.Blue, color.Alpha);
@@ -780,6 +783,39 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
     }
 
     /// <summary>布局缓存的键：文本 + 字体 + 字号（与时刻无关）。</summary>
-    private readonly record struct LayoutKey(string Text, string? FamilyName, float FontSizePx,
-        int FontWeight, bool IsBold, bool IsItalic, float LetterSpacingPx);
+    internal readonly record struct LayoutKey(string Text, string? FamilyName, float FontSizePx,
+        int FontWeight, bool IsBold, bool IsItalic, float LetterSpacingPx, ImmutableArray<string> FallbackFamilyNames);
+
+    // The owner shares this only among renderers created for the same fixed font set.
+    internal sealed class LayoutCache
+    {
+        private readonly ConcurrentDictionary<LayoutKey, ShapedLine> _entries = new();
+        private readonly ConditionalWeakTable<SkiaTextLayoutEngine, ConcurrentDictionary<LayoutKey, ShapedLine>> _engineEntries = new();
+        private readonly object _gate = new();
+        internal int Count => _entries.Count;
+        internal void Clear() { _entries.Clear(); _engineEntries.Clear(); }
+
+        internal ShapedLine GetOrAdd(LayoutKey key, SkiaTextLayoutEngine engine, string text, TextLayoutOptions options)
+        {
+            if (_entries.TryGetValue(key, out var existing)) return existing;
+            var local = _engineEntries.GetOrCreateValue(engine);
+            if (local.TryGetValue(key, out existing)) return existing;
+            var shaped = engine.Shape(text, options);
+            if (!engine.CanShareLayout(shaped, options))
+            {
+                lock (local)
+                {
+                    if (local.TryGetValue(key, out existing)) return existing;
+                    if (local.Count >= 2048) return shaped;
+                    return local.GetOrAdd(key, shaped);
+                }
+            }
+            lock (_gate)
+            {
+                if (_entries.TryGetValue(key, out existing)) return existing;
+                if (_entries.Count >= 2048) return shaped;
+                return _entries.GetOrAdd(key, shaped);
+            }
+        }
+    }
 }

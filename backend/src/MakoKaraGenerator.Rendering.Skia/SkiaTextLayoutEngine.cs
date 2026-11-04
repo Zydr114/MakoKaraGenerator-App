@@ -201,6 +201,13 @@ public sealed class SkiaTextLayoutEngine : ITextLayoutEngine
         return new ShapedLine(text, elements, x, mappingIsExact, missingGlyphCount, ink, [.. units]);
     }
 
+    internal bool CanShareLayout(ShapedLine line, TextLayoutOptions options)
+    {
+        if (line.DrawUnits.IsEmpty) return true;
+        FontSet fonts = GetOrAddFontSet(options);
+        return line.DrawUnits.All(unit => fonts.IsFixedFamily(unit.FamilyName));
+    }
+
     /// <summary>
     /// 把一行已经布局好的文本画到画布上。
     /// </summary>
@@ -582,6 +589,10 @@ public sealed class SkiaTextLayoutEngine : ITextLayoutEngine
         private SKFontStyle RequestedStyle { get; }
 
         public FontEntry PrimaryEntry { get; }
+
+        public bool IsFixedFamily(string familyName) =>
+            string.Equals(PrimaryFamilyName, familyName, StringComparison.Ordinal)
+            || _fallbackEntries.Any(entry => string.Equals(entry.Typeface.FamilyName, familyName, StringComparison.Ordinal));
 
         /// <summary>为一个文本元素选出能完整覆盖它的字体。</summary>
         public FontEntry ResolveFontEntry(string element)

@@ -17,6 +17,20 @@ public sealed partial class SkiaRenderPipeline
 
     private LineLayout GetLineLayout(LyricLine line, LyricStyle style)
     {
+        if (line.RubyAnnotations.IsEmpty) return BuildLineLayout(line, style);
+        lock (_rubyLayoutGate)
+        {
+            var key = (line, style);
+            if (_rubyLayouts.TryGetValue(key, out var cached)) return cached;
+            var layout = BuildLineLayout(line, style);
+            if (_rubyLayouts.Count >= 256) _rubyLayouts.Clear();
+            _rubyLayouts.Add(key, layout);
+            return layout;
+        }
+    }
+
+    private LineLayout BuildLineLayout(LyricLine line, LyricStyle style)
+    {
         ShapedLine shaped = GetLayout(line.Text, LayoutOptionsFor(style));
         List<RubyLayout> ruby = MeasureRuby(line, style, shaped);
         if (ruby.Count < 2) return new(shaped, ruby, RubySpacingStatus.Unchanged);
@@ -42,16 +56,28 @@ public sealed partial class SkiaRenderPipeline
     private List<RubyLayout> MeasureRuby(LyricLine line, LyricStyle style, ShapedLine shaped)
     {
         List<RubyLayout> result = [];
+        if (line.RubyAnnotations.IsEmpty) return result;
         if (string.Concat(line.Tokens.Select(entry => entry.Text)) != line.Text) return result;
+        Dictionary<string, (int Index, int Offset)> tokens = new(StringComparer.Ordinal);
+        (int Index, int Offset)? nullToken = null;
+        int tokenOffset = 0;
+        for (int i = 0; i < line.Tokens.Length; i++)
+        {
+            var token = line.Tokens[i];
+            if (token.Id is null) nullToken ??= (i, tokenOffset);
+            else tokens.TryAdd(token.Id, (i, tokenOffset));
+            tokenOffset = checked(tokenOffset + token.Text.Length);
+        }
         TextInkBounds baseInk = shaped.InkBounds ?? new(0, -style.FontSizePx * .85f, shaped.Width, style.FontSizePx * .15f);
         foreach (RubyAnnotation annotation in line.RubyAnnotations)
         {
-            int index = Array.FindIndex(line.Tokens.ToArray(), token => token.Id == annotation.BaseTokenId);
-            if (!annotation.IsValid || index < 0) continue;
+            var found = annotation.BaseTokenId is null ? nullToken
+                : tokens.TryGetValue(annotation.BaseTokenId, out var match) ? match : ((int Index, int Offset)?)null;
+            if (!annotation.IsValid || found is null) continue;
+            (int index, int offset) = found.Value;
             TextLayoutOptions options = LayoutOptionsFor(style with { FontSizePx = style.FontSizePx * (float)annotation.RelativeScale });
             ShapedLine ruby = GetLayout(annotation.Text, options);
             if (ruby.InkBounds is not { } ink) continue;
-            int offset = line.Tokens.Take(index).Sum(token => token.Text.Length);
             float left = shaped.XAt(offset), right = shaped.XAt(offset + line.Tokens[index].Text.Length);
             float x = annotation.Alignment switch
             {

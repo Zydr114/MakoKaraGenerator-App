@@ -9,6 +9,54 @@ namespace MakoKaraGenerator.Rendering.Tests;
 public sealed class RubySpacingRenderingTests
 {
     [Fact]
+    public void No_ruby_does_not_build_token_index()
+    {
+        var tokens = Enumerable.Range(0, 1000).Select(i => MakoKaraGenerator.Core.Lyrics.LyricToken.Create("token-" + i, "a")).ToArray();
+        var line = MakoKaraGenerator.Core.Lyrics.LyricLine.Create("line", new string('a', tokens.Length), tokens: tokens);
+        using var pipeline = new SkiaRenderPipeline();
+        var method = typeof(SkiaRenderPipeline).GetMethod("MeasureRuby", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        object?[] arguments = [line, MakoKaraGenerator.Core.Projects.LyricStyle.Default, null];
+        method.Invoke(pipeline, arguments);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 100; i++) method.Invoke(pipeline, arguments);
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.True(allocated < 50_000, $"Empty ruby allocated {allocated} bytes for 100 calls.");
+    }
+
+    [Fact]
+    public void Shared_layouts_survive_renderer_disposal_and_ruby_styles_do_not_reuse_stale_geometry()
+    {
+        var source = RubySpacingFixture.Create();
+        var changed = source with { LyricStyle = source.LyricStyle with { FontSizePx = 62 } };
+        var cache = new SkiaRenderPipeline.LayoutCache();
+        byte[] expected;
+        using (var first = new SkiaRenderPipeline(null, null, null, null, false, null, true, cache))
+        using (var frame = first.Render(RenderRequest.At(source, 250_000) with { TransparentBackground = true }))
+            expected = frame.PixelMemory.ToArray();
+        int initialCount = cache.Count;
+        Assert.True(initialCount > 0);
+        using var reused = new SkiaRenderPipeline(null, null, null, null, false, null, true, cache);
+        using var actual = reused.Render(RenderRequest.At(source, 250_000) with { TransparentBackground = true });
+        Assert.Equal(expected, actual.PixelMemory.ToArray());
+        Assert.Equal(initialCount, cache.Count);
+        var fallbackChanged = source with { LyricStyle = source.LyricStyle with { FallbackFamilyNames = ["Noto Color Emoji"] } };
+        using var fallbackFrame = reused.Render(RenderRequest.At(fallbackChanged, 250_000) with { TransparentBackground = true });
+        Assert.True(cache.Count > initialCount);
+        var equivalentFallback = source with { LyricStyle = source.LyricStyle with { FallbackFamilyNames = System.Collections.Immutable.ImmutableArray.Create("Noto Color Emoji") } };
+        using var equivalentFrame = reused.Render(RenderRequest.At(equivalentFallback, 250_000) with { TransparentBackground = true });
+        Assert.Equal(fallbackFrame.PixelMemory.ToArray(), equivalentFrame.PixelMemory.ToArray());
+        using var changedFrame = reused.Render(RenderRequest.At(changed, 250_000) with { TransparentBackground = true });
+        using var independent = new SkiaRenderPipeline();
+        using var reference = independent.Render(RenderRequest.At(changed, 250_000) with { TransparentBackground = true });
+        Assert.Equal(reference.PixelMemory.ToArray(), changedFrame.PixelMemory.ToArray());
+        Assert.False(expected.AsSpan().SequenceEqual(changedFrame.PixelMemory.Span));
+        var endAligned = RubySpacingFixture.Create(alignment: RubyAlignment.End);
+        using var changedRuby = reused.Render(RenderRequest.At(endAligned, 250_000) with { TransparentBackground = true });
+        using var referenceRuby = independent.Render(RenderRequest.At(endAligned, 250_000) with { TransparentBackground = true });
+        Assert.Equal(referenceRuby.PixelMemory.ToArray(), changedRuby.PixelMemory.ToArray());
+    }
+
+    [Fact]
     public void Capturing_base_only_keeps_collision_spacing_and_family_translation()
     {
         var snapshot = RubySpacingFixture.Create();
@@ -19,8 +67,11 @@ public sealed class RubySpacingRenderingTests
             RenderTarget.FromComposition(snapshot.Composition), scene, [new(family.WithRuby, Fx.Affine2.Translation(10, 0))]);
         var request = RenderRequest.At(snapshot, scene.TimeUs) with { PreparedFrame = prepared, TransparentBackground = true };
         var recipe = new SceneCaptureRecipe(false, false, false, false, SceneCaptureRegion.FillAndStroke);
+        using var before = pipeline.Render(request);
         using var captured = pipeline.CaptureSceneTarget(request, new SceneCaptureTarget.Token(family.WithRuby), recipe,
             GraphInputSource.GlyphCoverage, new(0, 0, 640, 240), GraphExecutionBudget.Default);
+        using var after = pipeline.Render(request);
+        Assert.Equal(before.PixelMemory.ToArray(), after.PixelMemory.ToArray());
         using var bitmap = SKBitmap.FromImage(captured.Image);
         var corners = family.BaseGeometry.WorldInkCorners;
         double left = corners.Min(p => p.X) + 10, right = corners.Max(p => p.X) + 10;

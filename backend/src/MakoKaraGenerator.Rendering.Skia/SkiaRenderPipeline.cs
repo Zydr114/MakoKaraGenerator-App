@@ -264,8 +264,14 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
         if (!request.Project.Background.HasMedia) return null;
         var source = _backgroundResolver.Resolve(request.Project.Background, request.CancellationToken);
         if (source is null) return null;
-        var bitmap = source.GetFrame(request.TimeUs, request.Project.Composition, request.ResolveTarget(),
-            request.Project.Background.Fit, request.CancellationToken);
+        // Raster nearest sampling has a stable integer phase. Vulkan texture sampling at
+        // exact texel boundaries can choose either neighbour across the same draw, and a
+        // local capture changes that distribution. Keep its original pixels for both paths;
+        // one decoder size also prevents render/capture from repeatedly restarting FFmpeg.
+        var bitmap = _device is CpuSkiaRenderDevice
+            ? source.GetFrame(request.TimeUs, request.Project.Composition, request.ResolveTarget(),
+                request.Project.Background.Fit, request.CancellationToken)
+            : source.GetFrame(request.TimeUs, request.CancellationToken);
         return bitmap is null ? null : new BackgroundFrame(bitmap,
             source.SourceWidth > 0 ? source.SourceWidth : bitmap.Width,
             source.SourceHeight > 0 ? source.SourceHeight : bitmap.Height);

@@ -69,12 +69,12 @@ public sealed class VideoSamplingQualityTests(ITestOutputHelper output)
         var request = RenderRequest.At(ProjectSnapshot.FromProject(project), 0) with { Target = new RenderTarget { PixelWidth = targetWidth, PixelHeight = targetHeight } };
         using var engine = new SkiaTextLayoutEngine();
         var recorded = new RecordingProvider();
-        using var actualPipeline = new SkiaRenderPipeline(engine, new BackgroundFrameSourceResolver(recorded));
-        using var baselinePipeline = new SkiaRenderPipeline(engine, new BackgroundFrameSourceResolver(new FullSizeProvider()));
+        using var actualDevice = SkiaRenderDeviceFactory.Create();
+        using var baselineDevice = SkiaRenderDeviceFactory.Create();
+        using var actualPipeline = new SkiaRenderPipeline(engine, new BackgroundFrameSourceResolver(recorded), null, null, false, actualDevice, false);
+        using var baselinePipeline = new SkiaRenderPipeline(engine, new BackgroundFrameSourceResolver(new FullSizeProvider()), null, null, false, baselineDevice, false);
         using var actual = actualPipeline.Render(request);
         using var baseline = baselinePipeline.Render(request);
-        Assert.Equal(expectReduced ? targetWidth : width, recorded.Width);
-        Assert.Equal(expectReduced ? targetHeight : height, recorded.Height);
         byte[] a = actual.PixelMemory.ToArray(), b = baseline.PixelMemory.ToArray();
         int[] maximum = new int[4]; long[] sums = new long[4];
         for (int i = 0; i < a.Length; i++)
@@ -110,6 +110,14 @@ public sealed class VideoSamplingQualityTests(ITestOutputHelper output)
         using var actualColor = actualPipeline.CaptureSceneBackground(request, GraphInputSource.BackgroundColor, bounds, GraphExecutionBudget.Default)!;
         using var expectedColor = baselinePipeline.CaptureSceneBackground(request, GraphInputSource.BackgroundColor, bounds, GraphExecutionBudget.Default)!;
         Assert.Equal(SkiaTestReadback.Pixels(expectedColor.Image), SkiaTestReadback.Pixels(actualColor.Image));
+        bool reducedForDevice = expectReduced && actualDevice is CpuSkiaRenderDevice;
+        Assert.Equal(reducedForDevice ? targetWidth : width, recorded.Width);
+        Assert.Equal(reducedForDevice ? targetHeight : height, recorded.Height);
+        Assert.NotEmpty(recorded.RequestedSizes);
+        Assert.NotEmpty(recorded.ReturnedSizes);
+        Assert.All(recorded.RequestedSizes, size => Assert.Equal((recorded.Width, recorded.Height), size));
+        Assert.All(recorded.ReturnedSizes, size => Assert.Equal((recorded.Width, recorded.Height), size));
+        output.WriteLine($"actualBackend={actualPipeline.BackendName} reduced={reducedForDevice} requestedSizes={string.Join(',', recorded.RequestedSizes)}");
     }
 
     private sealed class RecordingProvider : IVideoFrameProvider
@@ -117,6 +125,8 @@ public sealed class VideoSamplingQualityTests(ITestOutputHelper output)
         private readonly FfmpegVideoFrameProvider _inner = new();
         public int Width { get; private set; }
         public int Height { get; private set; }
+        public List<(int Width, int Height)> RequestedSizes { get; } = [];
+        public List<(int Width, int Height)> ReturnedSizes { get; } = [];
         public IVideoFrameSource? Open(string path, out string? failureReason)
         {
             var source = _inner.Open(path, out failureReason);
@@ -130,11 +140,16 @@ public sealed class VideoSamplingQualityTests(ITestOutputHelper output)
             public int Width => inner.Width;
             public int Height => inner.Height;
             public string? LastError => inner.LastError;
-            public bool TryGetFrame(long time, out VideoFrame? frame) => inner.TryGetFrame(time, out frame);
+            public bool TryGetFrame(long time, out VideoFrame? frame) => TryGetFrame(time, out frame, CancellationToken.None);
+            public bool TryGetFrame(long time, out VideoFrame? frame, CancellationToken token)
+                => TryGetFrame(time, Width, Height, out frame, token);
             public bool TryGetFrame(long time, int width, int height, out VideoFrame? frame, CancellationToken token)
             {
                 owner.Width = width; owner.Height = height;
-                return inner.TryGetFrame(time, width, height, out frame, token);
+                owner.RequestedSizes.Add((width, height));
+                bool result = inner.TryGetFrame(time, width, height, out frame, token);
+                if (frame is not null) owner.ReturnedSizes.Add((frame.Width, frame.Height));
+                return result;
             }
             public void Dispose() => inner.Dispose();
         }

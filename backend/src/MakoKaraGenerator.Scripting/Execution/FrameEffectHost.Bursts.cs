@@ -11,7 +11,7 @@ internal sealed partial class FrameEffectHost
     {
         foreach (var active in _instances)
         {
-            if (active.Pure is not null) continue;
+            if (active.IsPureText) continue;
             cancellationToken.ThrowIfCancellationRequested();
             if (!active.Subscription!.Matches(evt)) continue;
             var definition = active.Definition;

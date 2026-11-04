@@ -105,8 +105,6 @@ public sealed partial class CompiledEffectPackage
         EnsureSucceeded();
         if (Definition.GetExport(exportId) is EffectGraphDefinition graph)
         {
-            if (EffectPackageProfiles.IsV2(Definition.Contents.Profile))
-                throw new EffectPackageException("PackageWriterPending", "exports." + exportId, "SDK v2 直接图输出尚未接通。");
             DirectGraphEffectValidation.Validate(Definition, graph, binding);
             var graphParameters = ResolveParameters(exportId, parameterOverrides, cancellationToken);
             return new(instanceId, null, null, graphParameters, binding, EffectCapabilities.ImageEffects)

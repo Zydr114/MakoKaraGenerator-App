@@ -86,16 +86,24 @@ public sealed partial class TextOutput
     /// <summary>替换明确演唱态的填充叶属性；包材质必须属于本实例固定资源修订。</summary>
     public void SetFill(TextTarget target, FillState state, MaterialValue material)
     {
-        RequireStyle(target, "style.fill");
-        if (!Enum.IsDefined(state)) throw new ArgumentOutOfRangeException(nameof(state));
-        ArgumentNullException.ThrowIfNull(material); ValidateMaterial(material);
-        _writes.Add(new TextWrite.Fill(target, state, material));
+        WriteMaterialReplacement(() =>
+        {
+            RequireStyle(target, "style.fill");
+            if (!Enum.IsDefined(state)) throw new ArgumentOutOfRangeException(nameof(state));
+            ArgumentNullException.ThrowIfNull(material); ValidateMaterial(material);
+            _graphBudget.ChargeMaterial(material, GraphCancellation);
+            _writes.Add(new TextWrite.Fill(target, state, material));
+        });
     }
     /// <summary>整体替换描边；null 明确关闭，与未写继承不同。</summary>
     public void SetStroke(TextTarget target, StrokeValue? value)
     {
-        RequireStyle(target, "style.stroke"); if (value is not null) ValidateMaterial(value.Material);
-        _writes.Add(new TextWrite.Stroke(target, value));
+        WriteMaterialReplacement(() =>
+        {
+            RequireStyle(target, "style.stroke"); if (value is not null) ValidateMaterial(value.Material);
+            _graphBudget.ChargeMaterial(value?.Material, GraphCancellation);
+            _writes.Add(new TextWrite.Stroke(target, value));
+        });
     }
     /// <summary>整体替换阴影；null 明确关闭，与未写继承不同。</summary>
     public void SetShadow(TextTarget target, ShadowValue? value)

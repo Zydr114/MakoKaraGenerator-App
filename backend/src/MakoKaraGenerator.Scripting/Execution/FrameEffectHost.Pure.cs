@@ -94,6 +94,7 @@ internal sealed partial class FrameEffectHost
         Dictionary<GroupTarget, double> groupOpacity = [];
         var warps = ImmutableArray.CreateBuilder<TextWrite.Warp>();
         var graphs = ImmutableArray.CreateBuilder<TextWrite.GraphBinding>();
+        var materialWrites = ImmutableArray.CreateBuilder<TextWrite>();
         Dictionary<ImageEffectTarget, ImageEffectBinding> graphBindings = [];
         foreach (var write in snapshot.Writes)
         {
@@ -107,6 +108,8 @@ internal sealed partial class FrameEffectHost
                 graphBindings[target] = new(target, graph.Value);
                 continue;
             }
+            if (write is TextWrite.Fill or TextWrite.Stroke or TextWrite.MaterialUniform) materialWrites.Add(write);
+            if (write is TextWrite.MaterialUniform) continue; // Final identity is a whole-frame host reduction.
             if (write is TextWrite.Warp warp) { warps.Add(warp); continue; }
             if (write is TextWrite.Transform transform)
             {
@@ -136,6 +139,7 @@ internal sealed partial class FrameEffectHost
         {
             TextWarps = warps.ToImmutable(),
             GraphWrites = graphs.ToImmutable(),
+            MaterialWrites = materialWrites.ToImmutable(),
             ImageEffects = [.. graphBindings.Values],
             TokenTransforms = [.. transforms.Where(static pair => pair.Key is TextTarget.Family)
                 .Select(static pair => new TokenFamilyTransform(((TextTarget.Family)pair.Key).Value, pair.Value))],

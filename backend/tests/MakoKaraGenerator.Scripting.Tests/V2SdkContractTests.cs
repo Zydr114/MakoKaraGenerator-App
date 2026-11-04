@@ -131,7 +131,7 @@ public sealed class V2SdkContractTests
             Assert.Equal("UnsupportedGlyphPartition", Assert.Throws<EffectOutputException>(() => sharedStyles.SetShadow(sharedTarget, null)).Code);
             Assert.Equal("UnsupportedGlyphPartition", Assert.Throws<EffectOutputException>(() => sharedStyles.SetGlow(sharedTarget, null)).Code);
         }
-        Assert.Empty(sharedStyles.Complete().Writes);
+        Assert.Equal("UnsupportedGlyphPartition", Assert.Throws<EffectOutputException>(() => sharedStyles.Complete()).Code);
     }
 
     [Fact]
@@ -144,7 +144,10 @@ public sealed class V2SdkContractTests
         scoped.AppendTransform(group, Affine2.Identity); scoped.MultiplyOpacity(group, .5);
         Assert.Equal("PropertyTargetUnsupported", Assert.Throws<EffectOutputException>(() => scoped.SetFill(group, FillState.Sung, MaterialValue.Solid(new(1, 1, 1, 1)))).Code);
         Assert.Equal("PropertyTargetUnsupported", Assert.Throws<EffectOutputException>(() => scoped.MultiplyOpacity(frame.LineLoads[0].Target, .5)).Code);
-        Assert.Equal(2, scoped.Complete().Writes.Length);
+        Assert.Equal("PropertyTargetUnsupported", Assert.Throws<EffectOutputException>(() => scoped.Complete()).Code);
+        var valid = new TextOutput(in frame, ["group.affine", "group.opacity"], [group]);
+        valid.AppendTransform(group, Affine2.Identity); valid.MultiplyOpacity(group, .5);
+        Assert.Equal(2, valid.Complete().Writes.Length);
     }
 
     [Fact]

@@ -66,8 +66,23 @@ Core `SupportedV2Capabilities` 已在关门红例与真实包 CPU／Vulkan 正�
 实际密度下的矩阵、输出框、逆采样与表面预算由 G1 图执行器复验。X／D／T 有限证据见
 [M09 记录](script-sdk-render-m09-evidence.md)；作者 UI／HTTP／导出图包链仍待。
 
-直接 v2 图、组图、实际 AnchorMap／GeometryMapping、跨输出依赖、owned Below 与材质 uniform reducer
-门禁继续保留。性能验收依用户指示暂停；本切片不关闭 C03。
+G2 当时保留的直接图和材质 uniform 门禁由下述 G3 接续。组图、实际 AnchorMap／GeometryMapping、
+跨输出依赖和 owned Below 仍待；性能验收依用户指示暂停，本切片不关闭 C03。
+
+## M09 G3 已开通增量：宿主直接图与 `material.uniform`（0.112.11）
+
+`image.graph` 现支持无 C#／DLL 的 host-owned v2 direct graph，按真实 scope／load 生成
+Family／Line／Mark ColorOnly 绑定，复用 G1/G2 验证及执行器，不进入 Declare 或旧生命周期。
+token 绑定扩大到整行仍拒绝。`material.uniform` 支持 Family／Mark 的明确部位与 owning handle。
+
+Fill／Stroke 完整替换和 uniform 保留全部原始写序列，逐次验证 intrinsic、资源、参数和预算。
+每次 Replace（包括相同 handle 和关闭描边）清除该部位旧覆盖；只有最终作用域存活 uniform
+验证安装材质／节点／名称／类型／数组，归属真实写入者。全部图／材质共用 256 次、65,536 标量、
+8 MiB 验证字节预算，作者捕获错误仍锁存，取消直接传播。旧 v1 即时语义和公开值 equality 保留。
+
+SDK24、真实包CPU／Vulkan各19、Scripting509、Rendering1575、RuntimeHosting153通过，
+详见[M09证据](script-sdk-render-m09-evidence.md)。Base包材质／uniform、Group、mapping、
+跨输出计划和owned Below仍待，C03与M09未关闭。
 
 ## 全能力映射
 

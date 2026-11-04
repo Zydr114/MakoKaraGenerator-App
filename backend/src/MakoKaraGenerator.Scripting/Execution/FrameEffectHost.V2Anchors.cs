@@ -47,7 +47,7 @@ internal sealed partial class FrameEffectHost
         var scene = _geometry.GetSceneFrame(_snapshot, timeUs);
         // No legacy instance is called during supplement queries. Reject only a
         // legacy geometry writer whose real output binding can affect this source.
-        foreach (var legacy in _instances.Where(static item => item.Pure is null))
+        foreach (var legacy in _instances.Where(static item => !item.IsPureText))
             if (MayWriteV2Anchor(legacy, source, scene))
                 throw new EffectOutputException("FinalAnchorLegacyDependencyUnsupported",
                     "最终锚点依赖有状态 v1 文字输出：" + legacy.Definition.Id.Value);

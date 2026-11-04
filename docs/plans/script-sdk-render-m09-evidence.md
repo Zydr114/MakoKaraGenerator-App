@@ -265,3 +265,23 @@ PID/startTicks 已排水。工具已保存为 `frontend/scripts/author-package-s
 
 本例不含二进制资源，二进制只读只获单测证据；透明 PNG 与跨编辑器 stale CAS 409 由前述 HTTP
 记录覆盖。此浏览器记录不包含共享纹理、浏览器 GPU、跨平台、导出或性能验收，不代表 M11 关闭。
+
+## G3：无 DLL 直接图与最终材质 uniform（0.112.11）
+
+已接通独立 HostDirectGraphRuntime，真实资源包无 C#、无 DLL、无作者生命周期，按真实
+Family／Line／Mark 发布固定绑定。正式开放 material.uniform：跨实例按原始 Replace／Uniform
+顺序归约，完整替换关闭旧作用域，最终兼容性检查与逐次 intrinsic／owning／参数检查分离。
+图／Fill／Stroke／uniform 共用写入、标量、字节预算与失败锁存；旧 v1 即时规则保留。
+
+`build-graph-g3-01/02.log` 先后暴露新 partial 缺 Projection using 和夹具 CA1861；修正后
+`build-graph-g3-05.log` 完整 solution 0 警告／0 错误。`graph-g3-sdk-01.log` 24/24；
+`graph-g3-direct-cpu-01.log` 4/4；`graph-g3-material-admission-red-01.log` 15 项被关闭的
+material.uniform 具名拒绝；开通后 `graph-g3-real-package-cpu-01.log`、
+`graph-g3-real-package-vulkan-01.log` 各19/19。覆盖无编译调用、资源图重复／远端／重开像素、
+材质替换／清除／重装、最终错误和实际 owner、跨实例预算及取消。
+
+首轮完整 Rendering `graph-g3-rendering-full-01.log` 1574/1575，暴露提前拒绝 Base 包材质
+时丢失 TextTarget 的回归。产品保留 PreparedFrameException 和真实 Base 目标后，
+`graph-g3-base-attribution-green-01.log` 2/2；`graph-g3-rendering-full-02.log` 1575/1575；
+`graph-g3-scripting-full-01.log` 509/509；`graph-g3-runtime-full-01.log` 153/153。
+首次失败日志保留，未放宽原归属断言。Base消费者、组图与owned Below仍待，M09未关闭。

@@ -13,7 +13,7 @@ namespace MakoKaraGenerator.Scripting.Tests;
 public sealed class DirectGraphEffectTests
 {
     [Fact]
-    public async Task v2直接图在未接通阶段提前拒绝而不误装载为CSharp入口()
+    public async Task v2直接图缺少能力声明时提前拒绝而不误装载为CSharp入口()
     {
         var original = Definition().Contents;
         var manifest = JsonNode.Parse(original.Manifest.AsSpan())!.AsObject();
@@ -27,7 +27,7 @@ public sealed class DirectGraphEffectTests
             original.Files.Select(file => KeyValuePair.Create(file.Path, (ReadOnlyMemory<byte>)file.Content.ToArray()))));
         var compiled = await Compile(definition);
         Assert.True(compiled.Succeeded);
-        Assert.Equal("PackageWriterPending", Assert.Throws<EffectPackageException>(() =>
+        Assert.Equal("PackageCapabilityMissing", Assert.Throws<EffectPackageException>(() =>
             compiled.CreateEffect(ExportId, new("v2-graph"), new EffectBinding.Project(), 0)).Code);
     }
 

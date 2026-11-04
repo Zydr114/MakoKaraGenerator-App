@@ -36,12 +36,13 @@ internal sealed partial class FrameEffectHost : IDisposable
         InitializeExitReplicas(timeline, cancellationToken);
     }
     private sealed record ActiveEffect(CompiledFrameEffect Definition, ScriptModule? Module, IKaraokeEffect Instance,
-        DeterministicRandom Random, ResolvedSourceSubscription? Subscription, string? TelemetryIdentity, PureEffectRuntime? Pure = null);
+        DeterministicRandom Random, ResolvedSourceSubscription? Subscription, string? TelemetryIdentity, PureEffectRuntime? Pure = null, HostDirectGraphRuntime? HostGraph = null)
+    { internal bool IsPureText => Pure is not null || HostGraph is not null; }
     public bool RequiresPureAtLegacyBoundaries { get; private set; }
     public bool CanReuseBoundaryFrame => RequiresPureAtLegacyBoundaries || !_definitions.Any(static definition => definition.IsV2);
     public void Load(bool semantic, CancellationToken cancellationToken, bool preservePure = false)
     {
-        var retained = preservePure ? _instances.Where(static active => active.Pure is not null)
+        var retained = preservePure ? _instances.Where(static active => active.IsPureText)
             .ToDictionary(static active => active.Definition.Id) : [];
         try
         {
@@ -74,7 +75,8 @@ internal sealed partial class FrameEffectHost : IDisposable
                 {
                     if (definition.IsV2)
                     {
-                        active = retained.Remove(definition.Id, out var prepared) ? prepared : LoadPure(definition, cancellationToken);
+                        active = retained.Remove(definition.Id, out var prepared) ? prepared
+                            : definition.PackageDeclaration is EffectGraphDefinition ? LoadHostDirectGraph(definition) : LoadPure(definition, cancellationToken);
                         _instances.Add(active);
                         continue;
                     }
@@ -134,7 +136,7 @@ internal sealed partial class FrameEffectHost : IDisposable
     {
         foreach (var active in _instances)
         {
-            if (active.Pure is not null) continue;
+            if (active.IsPureText) continue;
             cancellationToken.ThrowIfCancellationRequested();
             var definition = active.Definition;
             InvokeContext(active, "Advance", step.StartUs, Diagnostics, (reporter, queries) => active.Instance.Advance(step, new()
@@ -168,6 +170,7 @@ internal sealed partial class FrameEffectHost : IDisposable
         Dictionary<V2.TextTarget, PreparedTextWarpBinding> textWarps = [];
         TextWarpBudget warpBudget = new();
         GraphBindingBudget graphBudget = new();
+        MaterialUniformScopes materialScopes = new();
         Dictionary<TokenFamilyTarget, StyleUpdate> styles = [];
         Dictionary<TokenFamilyTarget, ActiveEffect> styleOwners = [];
         Dictionary<TextMarkTarget, Affine2> markTransforms = [];
@@ -187,14 +190,14 @@ internal sealed partial class FrameEffectHost : IDisposable
             else if (binding.Target is ImageEffectTarget.Mark mark) markStyles.TryAdd(mark.Target, new());
         foreach (var active in _instances)
         {
-            if (pureTextOnly && active.Pure is null) continue;
-            if (!includePure && active.Pure is not null) continue;
+            if (pureTextOnly && !active.IsPureText) continue;
+            if (!includePure && active.IsPureText) continue;
             cancellationToken.ThrowIfCancellationRequested();
             anchorBudget?.TextCall();
             var definition = active.Definition;
-            var tokens = allTokens.Where(token => (active.Pure is not null || activeBindings.Contains(token.BindingId.Value))
+            var tokens = allTokens.Where(token => (active.IsPureText || activeBindings.Contains(token.BindingId.Value))
                 && scope.ContainsToken(definition.Binding, token)).ToImmutableArray();
-            var lines = allLines.Where(line => (active.Pure is not null || activeBindings.Contains(line.BindingId.Value))
+            var lines = allLines.Where(line => (active.IsPureText || activeBindings.Contains(line.BindingId.Value))
                 && scope.ContainsLine(definition.Binding, line)).ToImmutableArray();
             var marks = allMarks.Where(mark => scope.ContainsMark(definition.Binding, mark)).ToImmutableArray();
             var targets = tokens.Select(static token => token.WithRuby).ToHashSet();
@@ -202,7 +205,7 @@ internal sealed partial class FrameEffectHost : IDisposable
             var scopedMarks = scene.MarkGeometries.Where(mark => marks.Any(item => item.Target == mark.Target)).ToImmutableArray();
             var scopedLines = scene.LineGeometries.Where(line => lines.Any(item => item.Target == line.Target)).ToImmutableArray();
             var writableLines = definition.Binding is EffectBinding.Tokens ? ImmutableArray<LineGeometrySample>.Empty : scopedLines;
-            var frameGroups = active.Pure is null ? legacyGroups : sourceGroups;
+            var frameGroups = !active.IsPureText ? legacyGroups : sourceGroups;
             var writableGroups = frameGroups.Where(group => scope.ContainsGroup(definition.Binding, group.Target)).ToImmutableArray();
             FrameWriter writer = new(scopedGeometry, definition.Capabilities, writableGroups, baseline, definition.Resources, scopedMarks, writableLines);
             FrameContext frame = new() { TimeUs = timeUs, Project = _project, Parameters = definition.Parameters,
@@ -216,7 +219,8 @@ internal sealed partial class FrameEffectHost : IDisposable
                 {
                     using (MeasureAuthor(active, "Evaluate"))
                     {
-                        if (active.Pure is not null) output = EvaluatePure(active, frame, scene, writableGroups, cancellationToken);
+                        if (active.HostGraph is not null) output = EvaluateHostDirectGraph(active, frame);
+                        else if (active.Pure is not null) output = EvaluatePure(active, frame, scene, writableGroups, cancellationToken);
                         else
                         {
                             active.Instance.Evaluate(frame with { Diagnostics = reporter, GeometryQueries = queries }, writer);
@@ -228,6 +232,7 @@ internal sealed partial class FrameEffectHost : IDisposable
             Invoke(active, "ComposeOutputs", timeUs, diagnostics, ignoredReporter =>
             {
                 ValidatePureGraphWrites(definition, output!, graphBudget, cancellationToken);
+                materialScopes.Observe(active, output!, graphBudget, cancellationToken);
                 ValidatePackageOutput(definition, output!, cancellationToken);
                 ComposeWarps(active, output!, warpBudget, textWarps);
                 foreach (var transform in output!.BaseTransforms)
@@ -294,6 +299,7 @@ internal sealed partial class FrameEffectHost : IDisposable
                 { PackageIdentity = definition.PackageIdentity }));
             });
         }
+        materialScopes.Complete(styles, markStyles, baseline, styleOwners, markOwners, materials, timeUs, diagnostics, cancellationToken);
         // 只在所有实例合并后校验最终 alpha，允许先乘大于 1 再缩小。
         foreach (var pair in styles.Where(pair => styleOwners.ContainsKey(pair.Key)))
             Invoke(styleOwners[pair.Key], "ComposeOutputs", timeUs, diagnostics, ignoredReporter => StaticStyleProjection.ApplyDrawingStyle(
@@ -343,7 +349,7 @@ internal sealed partial class FrameEffectHost : IDisposable
         _pendingBursts.Clear(); _particles.Clear(); _bridgeEndpoints.Clear(); var owned = _instances.ToArray(); _instances.Clear(); List<Exception> failures = [];
         foreach (var active in owned)
         {
-            if (preservePure && active.Pure is not null) { _instances.Add(active); continue; }
+            if (preservePure && active.IsPureText) { _instances.Add(active); continue; }
             active.Pure?.Source.Indexes.Invalidate();
             try { if (active.Module is { } module) module.Dispose(); else active.Instance?.Dispose(); }
             catch (Exception error) { failures.Add(Failure(active.Definition, "Dispose", 0, error, Diagnostics.Snapshot())); }

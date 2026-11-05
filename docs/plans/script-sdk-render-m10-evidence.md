@@ -207,3 +207,29 @@ unit；target内延迟求值修复。real-02首场景通过后暴露activating�
 AddRef保留结果后以inactive-or-failed收集，旧失败探针的单个owned失败unit在核验身份与
 无进程后精确reset；没有批量kill。以上均是Linux x64本机有限功能证据，不是decoder／
 颜色PTS、Server/Worker匹配发布、HTTP、跨平台、整个Worker RSS或性能验收。
+
+## 第十片：有界制品存储与真实 reader 寿命（产品0.112.25）
+
+Hosting新增内部MFT1 store，按完整owner／Job／source／artifact引用授权，不因内容命中跨owner
+授权。预留Core计算的spool＋candidate上界，单制品512MiB、单准备1GiB、总量2GiB、1024项；
+写入、seek和扩容均受限。producer从交出scratch前持有至builder／write source排水，关闭和
+清理等待在途I/O。Prepare流式写入后FlushAsync及同一writer的Flush(true)，关闭写句柄，再
+完整只读codec校验。Publish要求producer／prepare／stream全部排水，在调用方Job提交门内
+执行同文件系统目录rename；失败残留继续计账，不宣称目录fsync或断电事务保证。
+
+读取先pin，再完整校验；lease关闭等待真实codec查询结束才退pin，过期条目直到最后pin释放
+才删除并退磁盘账。重启只登记有界文件，必须由可信Job ledger的精确引用恢复，不能凭目录
+发现宣告Available。清理中断产生的空bundle标Missing，拒绝读取但允许后续prune，不阻断
+健康制品；额外文件、链接、错误身份和超额条目仍拒绝。
+
+独立审查发现Recover在异步校验期间被Prune过期后仍返回true；真实codec暂停验证测试
+`artifact-store-recovery-red-01.log`为1/1失败。锁内复查Expired后通过。另一个真实文件回归
+`artifact-store-missing-bundle-red-01.log`为1/1失败，空bundle登记Missing后通过。查询寿命
+测试暂停生产codec底层读，证实query／dispose／prune并发时文件和reader预算保留至读完。
+
+`build-artifact-store-04.log`完整solution零警告／零错误；最终定向
+`artifact-store-focused-02.log`20/20，Hosting全套`artifact-store-hosting-full-01.log`1606/1606。
+同构建Media全套`artifact-store-media-full-01.log`335/335。
+首两次构建分别修正DisposeAsync基类调用／具体类型和测试参数顺序／常量数组分析器问题，
+未抑制规则。03构建与18项定向是追加两项真实缺陷回归前的中间结果。本片尚未接Job执行器、
+Worker授权、恢复ledger或运行输入；内部测试不代表新版本fresh HTTP，media.features仍关闭。

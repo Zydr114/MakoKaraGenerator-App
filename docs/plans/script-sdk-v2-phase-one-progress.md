@@ -260,3 +260,12 @@ M09仅关闭上述Linux/本机硬件/指定输入功能范围；M10/M11与完整
 开始接入Core来源／颜色／工具／profile／artifact不可变值、严格身份和容量校验、精确有理PTS
 算术及presentation借用合同。完整solution零警告错误，35项定向通过；实际decoder、轨bytes、
 任务、SDK、输入换代及导出尚待，media.features继续具名拒绝。详见[M10记录](script-sdk-render-m10-evidence.md)。
+
+### M10 媒体轨、原生封套与制品存储（产品0.112.17–0.112.25）
+
+面积／时间统计、MFT1流式codec与同步读取、共享内存账、固定输入身份、Linux原生硬封套及
+内部制品store已逐片实现并验收。原生发布探针七场景通过且所属进程已排水；store完整构建
+零警告错误，20项定向与Hosting1606项通过，覆盖真实reader寿命及恢复／清理竞态。
+具体红绿历史、日志和有限证据边界见[M10记录](script-sdk-render-m10-evidence.md)。
+真实decoder、包查询／SDK、Job与Worker、运行换代及导出仍待接通；M10/M11未完成，
+HTTP合同仍为1.46.1／冻结产品0.112.15，不能将旧发布证据归于这些内部片。

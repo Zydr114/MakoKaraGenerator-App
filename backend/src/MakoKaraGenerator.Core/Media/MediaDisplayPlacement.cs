@@ -65,7 +65,8 @@ public sealed class MediaDisplayPlacement
     public (double X, double Y) SourceNormalizedToCanvas(double x, double y)
     {
         RequirePoint(x, y, 1, 1);
-        return (_fullX + x * _fullWidth, _fullY + y * _fullHeight);
+        return (MapSourceAxis(x, SourceNormalized.X, SourceNormalized.Width, Destination.X, Destination.Width, _fullX, _fullWidth),
+            MapSourceAxis(y, SourceNormalized.Y, SourceNormalized.Height, Destination.Y, Destination.Height, _fullY, _fullHeight));
     }
 
     /// <summary>Returns false for contain or original letterboxing; never clamps outside canvas or invalid coordinates.</summary>
@@ -82,8 +83,27 @@ public sealed class MediaDisplayPlacement
             return false;
         }
 
-        source = ((x - _fullX) / _fullWidth, (y - _fullY) / _fullHeight);
+        source = (MapCanvasAxis(x, Destination.X, Destination.Width, SourceNormalized.X, SourceNormalized.Width, _fullX, _fullWidth),
+            MapCanvasAxis(y, Destination.Y, Destination.Height, SourceNormalized.Y, SourceNormalized.Height, _fullY, _fullHeight));
         return true;
+    }
+
+    private static double MapCanvasAxis(double value, double destinationStart, double destinationLength,
+        double sourceStart, double sourceLength, double fullStart, double fullLength)
+    {
+        // Exact declared edges are correspondences, not near-edge values to clamp. Recomputing
+        // (start + length - start) / length can otherwise place an actual edge outside [0, 1].
+        if (value == destinationStart) return sourceStart;
+        if (value == destinationStart + destinationLength) return sourceStart + sourceLength;
+        return (value - fullStart) / fullLength;
+    }
+
+    private static double MapSourceAxis(double value, double sourceStart, double sourceLength,
+        double destinationStart, double destinationLength, double fullStart, double fullLength)
+    {
+        if (value == sourceStart) return destinationStart;
+        if (value == sourceStart + sourceLength) return destinationStart + destinationLength;
+        return fullStart + value * fullLength;
     }
 
     private static void RequirePoint(double x, double y, double width, double height)

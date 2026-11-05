@@ -90,6 +90,29 @@ public sealed class MediaRasterGeometryTests
         Assert.Equal(new BackgroundRect(160, 90, 320, 180), BackgroundPlacement.Compute(640, 360, 320, 180, BackgroundFit.Original).Source);
     }
 
+    [Theory]
+    [InlineData(18, 32, 2, 1, MediaQuarterTurn.Clockwise90)]
+    [InlineData(7, 13, 5, 3, MediaQuarterTurn.None)]
+    [InlineData(73, 101, 11, 7, MediaQuarterTurn.Clockwise270)]
+    [InlineData(1, 21, 7, 9, MediaQuarterTurn.None)]
+    public void 完整源的分数显示边界精确映射单位区间(int width, int height, int sarNumerator,
+        int sarDenominator, MediaQuarterTurn turn)
+    {
+        var geometry = MediaRasterGeometry.Create(width, height, sarNumerator, sarDenominator, turn, false);
+        var placement = MediaDisplayPlacement.Compute(geometry, 317, 239, BackgroundFit.Contain);
+        var destination = placement.Destination;
+        Assert.Equal(new MediaDisplayRect(0, 0, 1, 1), placement.SourceNormalized);
+        Assert.True(placement.TryCanvasToSourceNormalized(destination.X, destination.Y, out var first));
+        Assert.True(placement.TryCanvasToSourceNormalized(destination.X + destination.Width,
+            destination.Y + destination.Height, out var last));
+        Assert.Equal((0d, 0d), first);
+        Assert.Equal((1d, 1d), last);
+        Assert.Equal((destination.X, destination.Y), placement.SourceNormalizedToCanvas(0, 0));
+        Assert.Equal((destination.X + destination.Width, destination.Y + destination.Height),
+            placement.SourceNormalizedToCanvas(1, 1));
+        Assert.Throws<MediaAbException>(() => placement.TryCanvasToSourceNormalized(317.001, 239, out _));
+    }
+
     [Fact]
     public void 非法比值容量未知方向与非有限显示度量具名拒绝()
     {

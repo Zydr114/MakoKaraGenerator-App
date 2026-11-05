@@ -77,3 +77,24 @@ Exp/Log EOTF oracle均通过；还覆盖奇数尺寸／padding、透明／opaque
 同构建Core全套`presentation-core-full-01.log`为1520/1520，Media全套
 `presentation-media-full-01.log`为259/259。
 这些是受管转换功能证据，没有据此声称真实PNG/JPEG/video decoder、媒体背景呈现或GPU已接通。
+
+## 第四片：Canvas 面积查询与最终底色合成（产品0.112.19）
+
+`MediaCanvasMomentQuery`以double反映射当前placement的媒体交集，按完整查询面积平均七原量，
+合法留白贡献透明源；随后`MediaMomentComposer`统一source-over底色，再计算预乘亮度二阶量
+与方差。先统计再求方差，保留aYp和a²关联；唯一负方差归零界为13δ＋1e-12，不扩展到
+颜色、网格或GPU误差。现有Source float入口精确提升，复用同一个内部double积分内核。
+实际SDK的Rect2坐标为double，本片不要求作者先降为float；SDK服务仍未接线。
+
+真实定向回归先暴露旋转非方SAR显示右边缘被反映射为1.0000000000000002；新增独立
+端点回归`canvas-placement-endpoints-red-01.log`为3/3失败。明确边界对应修复后，第二轮
+发现未裁切源经乘除舍入仍可能宽于单位区间，`canvas-placement-endpoints-red-02.log`为
+3通过／1失败。现在完整未裁切源保持原extent，正反映射的声明边缘精确对应；非边缘点
+仍用原仿射式，无容差clamp，legacy int placement方法未改。像素oracle及容差未放宽。
+
+`build-canvas-moments-04.log`完整solution0警告／0错误；最终几何／legacy定向
+`canvas-placement-focused-01.log`为24/24；Media全套`canvas-media-full-01.log`为275/275，
+含16项Canvas／合成独立像素oracle及原Source回归；同构建Core全套
+`canvas-core-full-01.log`为1524/1524。首轮定向为32通过／1失败，上述几何修复后通过；
+首轮构建因测试数组切片触发CA1832，改AsSpan后通过，未关闭分析器。
+本片仍不包含GPU统计纹理、实际背景绘制、SDK、任务或HTTP验收。

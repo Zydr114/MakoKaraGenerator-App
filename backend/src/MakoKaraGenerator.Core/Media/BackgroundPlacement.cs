@@ -120,8 +120,10 @@ public sealed record BackgroundPlacement(BackgroundRect Source, BackgroundRect D
             new BackgroundDisplayRect(
                 ((displayedWidth - visibleWidth) / 2d / scale),
                 ((displayedHeight - visibleHeight) / 2d / scale),
-                (visibleWidth / scale),
-                (visibleHeight / scale)),
+                // An uncropped source keeps its declared extent exactly. Undoing a rounded
+                // multiply by division can otherwise move its normalized edge beyond one.
+                visibleWidth == displayedWidth ? imageWidth : visibleWidth / scale,
+                visibleHeight == displayedHeight ? imageHeight : visibleHeight / scale),
             new BackgroundDisplayRect(
                 (left + ((displayedWidth - visibleWidth) / 2d)),
                 (top + ((displayedHeight - visibleHeight) / 2d)),

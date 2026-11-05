@@ -144,22 +144,24 @@ public sealed class MediaMomentKernel : IMediaMomentKernel
     /// <exception cref="MediaAbException">The grid, moments or rectangle is invalid.</exception>
     /// <exception cref="OperationCanceledException">Cancellation is requested.</exception>
     public MediaMomentValues IntegrateSourceRect(ReadOnlySpan<MediaMomentValues> grid, MediaSourceRect rect, CancellationToken cancellationToken)
+        // Every binary32 endpoint promotes exactly. The public Source profile and its arithmetic order stay unchanged.
+        => IntegrateNormalizedRect(grid, new(rect.Left, rect.Top, rect.Right, rect.Bottom), cancellationToken);
+
+    /// <summary>Common CPU binary64 source-area integration; Canvas inverse mapping does not narrow its endpoints.</summary>
+    internal MediaMomentValues IntegrateNormalizedRect(ReadOnlySpan<MediaMomentValues> grid,
+        MediaNormalizedRect64 rect, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         RequireGridLength(grid.Length);
         ValidateRect(rect);
-        foreach (MediaMomentValues value in grid)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            ValidateMoments(value);
-        }
+        ValidateGrid(grid, cancellationToken);
 
-        // A binary32 coordinate times 32 or 18 is exactly representable in binary64.
-        // Working in grid units makes cell boundaries exact integers and avoids an approximate 1/18.
-        double left = (double)rect.Left * MediaTrackLayoutV1.Columns;
-        double right = (double)rect.Right * MediaTrackLayoutV1.Columns;
-        double top = (double)rect.Top * MediaTrackLayoutV1.Rows;
-        double bottom = (double)rect.Bottom * MediaTrackLayoutV1.Rows;
+        // Working in grid units keeps cell boundaries at exact integers. For Source's binary32 profile,
+        // multiplying by 32 or 18 is exact in binary64; Canvas endpoints use binary64 arithmetic throughout.
+        double left = rect.Left * MediaTrackLayoutV1.Columns;
+        double right = rect.Right * MediaTrackLayoutV1.Columns;
+        double top = rect.Top * MediaTrackLayoutV1.Rows;
+        double bottom = rect.Bottom * MediaTrackLayoutV1.Rows;
         double area = (right - left) * (bottom - top);
         Span<double> scratch = stackalloc double[4 * MediaTrackLayoutV1.Moments];
         scratch.Clear();
@@ -217,9 +219,9 @@ public sealed class MediaMomentKernel : IMediaMomentKernel
         }
     }
 
-    private static void ValidateRect(MediaSourceRect rect)
+    private static void ValidateRect(MediaNormalizedRect64 rect)
     {
-        if (!float.IsFinite(rect.Left) || !float.IsFinite(rect.Top) || !float.IsFinite(rect.Right) || !float.IsFinite(rect.Bottom) ||
+        if (!double.IsFinite(rect.Left) || !double.IsFinite(rect.Top) || !double.IsFinite(rect.Right) || !double.IsFinite(rect.Bottom) ||
             rect.Left < 0 || rect.Top < 0 || rect.Right > 1 || rect.Bottom > 1 || rect.Right <= rect.Left || rect.Bottom <= rect.Top)
         {
             throw new MediaAbException(MediaAbFailure.StatisticsInvalid, "Source rectangle must be finite nonempty and wholly inside the unit square.");
@@ -252,7 +254,18 @@ public sealed class MediaMomentKernel : IMediaMomentKernel
         return new(red, green, blue, alpha, luminance * luminance, alpha * luminance, alpha * alpha);
     }
 
-    private static void ValidateMoments(MediaMomentValues value)
+    internal static void ValidateGrid(ReadOnlySpan<MediaMomentValues> grid, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        RequireGridLength(grid.Length);
+        foreach (MediaMomentValues value in grid)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ValidateMoments(value);
+        }
+    }
+
+    internal static void ValidateMoments(MediaMomentValues value)
     {
         ValidateUnit(value.Rp);
         ValidateUnit(value.Gp);

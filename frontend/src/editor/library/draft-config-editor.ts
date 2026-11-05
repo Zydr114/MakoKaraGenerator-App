@@ -6,6 +6,7 @@
 import { BackendError, ObservableValue } from '../../client';
 import type { AuthorDraftConfigurationInput } from '../../protocol';
 import { configurationWith, editableOf, rejectionIssue, sameEditable, type ConfigIssue, type EditableConfiguration } from '../model/script-components';
+import type { CommitDraft } from '../ui/commit-drafts';
 import { errorText } from '../session/editor-session';
 import type { FullDraft } from './author-draft-store';
 
@@ -15,6 +16,7 @@ const MERGE_MS = 300;
 export interface ConfigEditorState {
   /** 页签里显示的值：可能还没提交，或本地校验没通过。 */
   value: EditableConfiguration;
+  inputDrafts: Record<string, CommitDraft>;
   /** 本地校验的问题。 */
   issues: ConfigIssue[];
   /** 后端没接受的原因；retryable 是网络等与取值无关的失败，保存前会再试。 */
@@ -23,6 +25,7 @@ export interface ConfigEditorState {
   pending: boolean;
   canUndo: boolean;
   canRedo: boolean;
+  adoptionUncertain?: boolean;
 }
 
 export interface ConfigEditorPort {
@@ -44,14 +47,19 @@ export class DraftConfigEditor {
   private timer: ReturnType<typeof setTimeout> | undefined;
   private running: Promise<void> | undefined;
   private disposed = false;
+  private schemaLocked = false;
+  private schemaUncertain = false;
+  private localChangePending = false;
+  private schemaIdentity: string;
 
   constructor(
     private readonly port: ConfigEditorPort,
     draft: FullDraft,
     private readonly mergeMs = MERGE_MS,
   ) {
+    this.schemaIdentity = schemaIdentity(draft);
     const value = editableOf(draft.configuration);
-    this.state$ = new ObservableValue<ConfigEditorState>({ value, issues: port.validate(value), pending: false, canUndo: false, canRedo: false });
+    this.state$ = new ObservableValue<ConfigEditorState>({ value, inputDrafts: {}, issues: port.validate(value), pending: false, canUndo: false, canRedo: false });
   }
 
   get state(): ConfigEditorState {
@@ -60,18 +68,34 @@ export class DraftConfigEditor {
 
   /** 页签里还有没进草稿的改动（等着提交、本地有问题或后端没接受）。 */
   get unsettled(): boolean {
-    return this.state.pending || this.state.issues.length > 0 || !!this.state.rejected;
+    return this.state.pending || Object.keys(this.state.inputDrafts).length > 0 || this.state.issues.length > 0 || !!this.state.rejected;
+  }
+
+  /** 字段尚未 Enter/blur 的原文也属于本地配置，metadata/页签卸载不能丢。 */
+  setInputDraft(key: string, draft: CommitDraft | undefined): void {
+    if (this.disposed || this.schemaLocked || this.schemaUncertain) return;
+    const inputDrafts = { ...this.state.inputDrafts };
+    if (draft) inputDrafts[key] = { ...draft }; else delete inputDrafts[key];
+    this.patch({ inputDrafts });
+    if (this.localChangePending) this.schedule();
+  }
+
+  clearInputDrafts(prefix: string): void {
+    if (this.disposed || this.schemaLocked || this.schemaUncertain) return;
+    this.patch({ inputDrafts: Object.fromEntries(Object.entries(this.state.inputDrafts).filter(([key]) => !key.startsWith(prefix))) });
+    if (this.localChangePending) this.schedule();
   }
 
   /** 控件提交了一个改动：记一步撤销，停一会儿再提交。 */
   change(next: EditableConfiguration): void {
-    if (this.disposed || sameEditable(next, this.state.value)) return;
+    if (this.disposed || this.schemaLocked || this.schemaUncertain || sameEditable(next, this.state.value)) return;
     this.undoStack.push(this.state.value);
     this.redoStack = [];
     this.set(next);
   }
 
   undo(): boolean {
+    if (this.schemaLocked || this.schemaUncertain || Object.keys(this.state.inputDrafts).length > 0) return false;
     const previous = this.undoStack.pop();
     if (!previous || this.disposed) return false;
     this.redoStack.push(this.state.value);
@@ -80,6 +104,7 @@ export class DraftConfigEditor {
   }
 
   redo(): boolean {
+    if (this.schemaLocked || this.schemaUncertain || Object.keys(this.state.inputDrafts).length > 0) return false;
     const next = this.redoStack.pop();
     if (!next || this.disposed) return false;
     this.undoStack.push(this.state.value);
@@ -89,16 +114,62 @@ export class DraftConfigEditor {
 
   /** 草稿在别处变了（另存为改名、保存源码、采用、自己的 PUT 回来）：页签里没有待提交的改动时跟着显示。 */
   serverChanged(draft: FullDraft): void {
-    if (this.disposed || this.timer || this.running || this.unsettled) return;
+    if (this.disposed || this.schemaLocked) return;
+    if (this.schemaUncertain) return;
+    if (this.schemaIdentity !== schemaIdentity(draft)) {
+      if (!this.localChangePending && !this.unsettled && !this.timer && !this.running) this.schemaBoundary(draft);
+      else {
+        clearTimeout(this.timer); this.timer = undefined;
+        this.schemaIdentity = schemaIdentity(draft);
+        this.undoStack = []; this.redoStack = [];
+        this.patch({ pending: !!this.running, canUndo: false, canRedo: false,
+          issues: this.port.validate(this.state.value), rejected: { message: '在用源码或类别已变化；本地值已保留，请按新声明比较后再编辑。' } });
+      }
+      return;
+    }
+    if (this.timer || this.running || this.unsettled) return;
     const value = editableOf(draft.configuration);
     if (!sameEditable(value, this.state.value)) this.patch({ value, issues: this.port.validate(value) });
   }
 
-  /** 包信息读到了：重新校验，没问题就提交。 */
+  /** metadata 只重验原值；仅恢复用户已编辑的普通队列，候选从不在此队列。 */
   revalidate(): void {
     if (this.disposed) return;
     this.patch({ issues: this.port.validate(this.state.value) });
-    this.schedule();
+    if (this.localChangePending && !this.state.rejected && !this.state.issues.length) this.schedule();
+  }
+
+  /** 采用期间冻结普通队列，防止旧 schema 的值随新 source 自动 PUT。 */
+  lockForAdoption(): () => void {
+    if (this.schemaLocked || this.schemaUncertain || this.unsettled || this.running || this.timer)
+      throw new Error('配置还有未提交的改动或采用结果待重读，请先修正。');
+    this.schemaLocked = true;
+    return () => { this.schemaLocked = false; };
+  }
+
+  /** 只在精确采用确认后设新历史边界；源码编辑器由另一个模型保留。 */
+  schemaBoundary(draft: FullDraft): void {
+    if (this.disposed) return;
+    clearTimeout(this.timer);
+    this.timer = undefined;
+    this.schemaUncertain = false;
+    this.schemaIdentity = schemaIdentity(draft);
+    this.localChangePending = false;
+    this.undoStack = [];
+    this.redoStack = [];
+    const value = editableOf(draft.configuration);
+    this.patch({ value, inputDrafts: {}, issues: this.port.validate(value), pending: false, rejected: undefined, adoptionUncertain: undefined, canUndo: false, canRedo: false });
+  }
+
+  /** 只有显式“重读采用结果并比较”才可解除不确定冻结，普通刷新不能调用。 */
+  confirmAdoptionComparison(draft: FullDraft): void {
+    if (this.schemaUncertain) this.schemaBoundary(draft);
+  }
+
+  /** POST 可能成功但尚未精确重读时，普通配置不能写旧 source。 */
+  adoptionUncertain(): void {
+    this.schemaUncertain = true;
+    this.patch({ adoptionUncertain: true, rejected: { message: '采用结果尚未确认，请明确重读采用结果并比较。' } });
   }
 
   /**
@@ -106,6 +177,7 @@ export class DraftConfigEditor {
    * 返回草稿是不是已经就是页签里的值。
    */
   async flush(): Promise<boolean> {
+    if (this.schemaLocked || this.schemaUncertain || Object.keys(this.state.inputDrafts).length > 0) return false;
     clearTimeout(this.timer);
     this.timer = undefined;
     if (this.state.rejected?.retryable) this.patch({ rejected: undefined });
@@ -121,6 +193,7 @@ export class DraftConfigEditor {
   }
 
   private set(value: EditableConfiguration): void {
+    this.localChangePending = true;
     this.patch({ value, issues: this.port.validate(value), rejected: undefined, canUndo: this.undoStack.length > 0, canRedo: this.redoStack.length > 0 });
     this.schedule();
   }
@@ -128,7 +201,7 @@ export class DraftConfigEditor {
   private schedule(): void {
     clearTimeout(this.timer);
     this.timer = undefined;
-    if (this.state.issues.length > 0 || this.state.rejected) {
+    if (this.schemaLocked || this.schemaUncertain || Object.keys(this.state.inputDrafts).length > 0 || this.state.issues.length > 0 || this.state.rejected) {
       this.patch({ pending: !!this.running });
       return;
     }
@@ -150,10 +223,12 @@ export class DraftConfigEditor {
   /** 一条接一条地提交，直到草稿就是页签里的值；本地有问题或后端没接受时停下。 */
   private async drain(): Promise<void> {
     let refreshed = false;
-    while (!this.disposed) {
+    while (!this.disposed && !this.schemaLocked && !this.schemaUncertain) {
       const { value, issues, rejected } = this.state;
       const draft = this.port.current();
-      if (issues.length > 0 || rejected || !draft || sameEditable(editableOf(draft.configuration), value)) return;
+      if (Object.keys(this.state.inputDrafts).length > 0 || issues.length > 0 || rejected || !draft) return;
+      if (this.schemaIdentity !== schemaIdentity(draft)) { this.serverChanged(draft); return; }
+      if (sameEditable(editableOf(draft.configuration), value)) { this.localChangePending = false; return; }
       try {
         await this.port.put(draft, configurationWith(draft.configuration, value));
         refreshed = false;
@@ -165,7 +240,13 @@ export class DraftConfigEditor {
           // 草稿修订过期（别处刚改过）：重读后用新修订再提交一次。
           refreshed = true;
           try {
-            await this.port.refresh();
+            const fresh = await this.port.refresh();
+            if (fresh.configuration.sourceRevision !== draft.configuration.sourceRevision || fresh.configuration.kind !== draft.configuration.kind) {
+              this.undoStack = [];
+              this.redoStack = [];
+              this.patch({ canUndo: false, canRedo: false, rejected: { message: '在用源码或配置类别已变化；本地配置已保留，请按新声明比较后再编辑。' } });
+              return;
+            }
             continue;
           } catch (refreshError) {
             error = refreshError;
@@ -188,4 +269,8 @@ export class DraftConfigEditor {
     }
     this.state$.set(next as unknown as ConfigEditorState);
   }
+}
+
+function schemaIdentity(draft: FullDraft): string {
+  return JSON.stringify([draft.packageId, draft.configuration.sourceRevision, draft.configuration.kind]);
 }

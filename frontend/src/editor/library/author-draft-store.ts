@@ -3,13 +3,14 @@
 // 后端不记录草稿来自哪个组件，对应关系记在 sessionStorage（按 client ID 区分）。
 
 import { BackendError, ObservableValue, type MakoClient } from '../../client';
-import { AUTHOR_DRAFT_LIMIT, type AuthorDraft, type EffectPackageInspectResponse, type ScriptConfigurationDetailResponse, type ScriptConfiguration } from '../../protocol';
+import { AUTHOR_DRAFT_LIMIT, type AuthorDraft, type AuthorSourceInspectionResponse, type EffectPackageInspectResponse, type ScriptConfigurationDetailResponse, type ScriptConfiguration } from '../../protocol';
 import { FOLLOW_DEFAULT, renderBackendField, type RenderBackendRequest } from '../model/render-device';
-import { componentFromDraft, configurationIssues, draftConfigurationInput, sameAsComponent } from '../model/script-components';
+import { componentFromDraft, configurationIssues, draftConfigurationInput, editableOf, sameAsComponent } from '../model/script-components';
 import { errorText } from '../session/editor-session';
 import type { ComponentLibraryStore } from './component-library-store';
+import { DraftAdoptionModel } from './draft-adoption';
 import { DraftConfigEditor } from './draft-config-editor';
-import { DraftSourceModel, readSavedRevisions, writeSavedRevisions } from './draft-source';
+import { DraftSourceModel, readSavedRevisions, sameEditableExact, writeSavedRevisions, type AuthorAdoptionExpectation } from './draft-source';
 import { DraftValidationModel, readValidationJob, writeValidationJob } from './draft-validation';
 import type { LibraryNotice } from './template-library-store';
 
@@ -26,15 +27,24 @@ export type DraftSaveState = 'saved' | 'unsaved' | 'orphan' | 'checking';
 export type FullDraft = AuthorDraft & { configuration: NonNullable<AuthorDraft['configuration']>; sampleOptions: NonNullable<AuthorDraft['sampleOptions']> };
 
 /** 由草稿正式 profile 分派；旧宿主可回读固定包清单。 */
-export function isV2AuthorDraft(draft: AuthorDraft | undefined, pkg?: EffectPackageInspectResponse): boolean {
+export function isV2AuthorDraft(draft: AuthorDraft | undefined, pkg?: EffectPackageInspectResponse | AuthorSourceInspectionResponse): boolean {
   if (draft?.packageVersion !== undefined || draft?.sdkVersion !== undefined)
     return draft.packageVersion === 3 && draft.sdkVersion?.split('.')[0] === '2';
+  if (pkg && 'packageVersion' in pkg) return pkg.packageVersion === 3 && pkg.sdkVersion.split('.')[0] === '2';
   return pkg?.manifest.packageVersion === 3 && typeof pkg.manifest.sdkVersion === 'string' && pkg.manifest.sdkVersion.split('.')[0] === '2';
 }
 
 /** 配置控件只使用在用源码的精确 metadata；来源组件同 packageId 不代表同内容。 */
-export function exactDraftPackage(draft: FullDraft, pkg: EffectPackageInspectResponse | undefined): EffectPackageInspectResponse | undefined {
+export function exactDraftPackage<T extends { packageId: string; packageRevision: string }>(draft: FullDraft, pkg: T | undefined): T | undefined {
   return pkg?.packageId === draft.packageId && pkg.packageRevision === draft.configuration.sourceRevision ? pkg : undefined;
+}
+
+export interface DraftSourceMetadataState {
+  status: 'loading' | 'ready' | 'failed';
+  expectedDraftRevision: string;
+  sourceRevision: string;
+  identity: string;
+  error?: string;
 }
 
 export interface DraftsState {
@@ -45,7 +55,8 @@ export interface DraftsState {
   /** 来源组件当前的配置；null 表示已不在库里；没有键表示还在读。 */
   originConfigs: Readonly<Record<string, ScriptConfiguration | null>>;
   /** 配置页所用的固定包元数据；必须精确匹配 configuration.sourceRevision，不能拿来源组件旧清单解释新包。 */
-  packages: Readonly<Record<string, EffectPackageInspectResponse>>;
+  packages: Readonly<Record<string, AuthorSourceInspectionResponse>>;
+  sourceMetadata: Readonly<Record<string, DraftSourceMetadataState>>;
   /** 各草稿停在哪个页签；没有键表示配置页签。 */
   tabs: Readonly<Record<string, DraftTab>>;
   /** 新建、关闭、保存进行中。 */
@@ -67,7 +78,7 @@ export function draftSaveState(state: DraftsState, draft: FullDraft): DraftSaveS
 }
 
 export class AuthorDraftStore {
-  readonly state$ = new ObservableValue<DraftsState>({ status: 'idle', drafts: [], origins: {}, originConfigs: {}, packages: {}, tabs: {}, busy: false });
+  readonly state$ = new ObservableValue<DraftsState>({ status: 'idle', drafts: [], origins: {}, originConfigs: {}, packages: {}, sourceMetadata: {}, tabs: {}, busy: false });
   private loading: Promise<void> | undefined;
   private libraryRevision: string | undefined;
   /** 各草稿配置页签的编辑器：撤销栈留在本页内存里，切草稿不丢。 */
@@ -76,6 +87,10 @@ export class AuthorDraftStore {
   private readonly sources = new Map<string, DraftSourceModel>();
   /** 各草稿验证页签的任务与报告；离开页签时任务不停。 */
   private readonly validations = new Map<string, DraftValidationModel>();
+  private readonly adoptions = new Map<string, DraftAdoptionModel>();
+  private readonly metadataGenerations = new Map<string, number>();
+  private readonly metadataCache = new Map<string, AuthorSourceInspectionResponse>();
+  private metadataGeneration = 0;
 
   constructor(
     private readonly client: MakoClient,
@@ -113,7 +128,8 @@ export class AuthorDraftStore {
     return (
       this.state.drafts.some((d) => this.saveState(d) !== 'saved') ||
       [...this.editors.values()].some((e) => e.unsettled) ||
-      [...this.sources.values()].some((m) => m.dirty)
+      [...this.sources.values()].some((m) => m.dirty) ||
+      [...this.adoptions.values()].some((m) => m.hasUnsaved)
     );
   }
 
@@ -136,7 +152,10 @@ export class AuthorDraftStore {
         current: () => this.draft(draftId),
         validate: (value) => {
           const current = this.draft(draftId) ?? draft;
-          return configurationIssues(value, current.configuration.kind, exactDraftPackage(current, this.state.packages[draftId]));
+          const pkg = this.state.sourceMetadata[draftId]?.status === 'ready' ? exactDraftPackage(current, this.state.packages[draftId]) : undefined;
+          const issues = configurationIssues(value, current.configuration.kind, pkg);
+          if (!pkg) issues.push({ message: '正在等待当前在用源码的精确 metadata；配置原值已保留。' });
+          return issues;
         },
         put: async (current, input) => {
           const next = await this.full(await this.client.drafts.setConfiguration(draftId, current.draftRevision, input));
@@ -169,7 +188,16 @@ export class AuthorDraftStore {
       },
       read: (draft, revision) => this.client.drafts.sources(draftId, draft.draftRevision, revision),
       save: (draft, files) => this.client.drafts.saveSources(draftId, draft.draftRevision, files),
-      adopt: (draft, revision) => this.client.drafts.adopt(draftId, draft.draftRevision, revision),
+      adopt: async (draft, revision, configuration) => {
+        const response = await this.client.drafts.adopt(draftId, draft.draftRevision, revision, configuration);
+        if (response.draftId !== draftId || response.packageId !== draft.packageId || response.adoptedSourceRevision !== revision
+          || response.previousSourceRevision !== draft.configuration.sourceRevision || !response.draftRevision)
+          throw new Error('采用回执身份不匹配，未更新页面；请重新读取并比较。');
+        return response;
+      },
+      lockConfiguration: () => this.configEditor(draftId)?.lockForAdoption() ?? (() => {}),
+      adoptionBoundary: (draft) => this.editors.get(draftId)?.schemaBoundary(draft),
+      adoptionUncertain: () => this.editors.get(draftId)?.adoptionUncertain(),
       use: async (draft, revision) => {
         const next = await this.full(
           await this.client.drafts.setConfiguration(draftId, draft.draftRevision, { ...draftConfigurationInput(draft.configuration), sourceRevision: revision }),
@@ -177,7 +205,7 @@ export class AuthorDraftStore {
         this.replace(next);
         return next;
       },
-      refresh: () => this.refreshDraft(draftId),
+      refresh: (expectedAdoption) => this.refreshDraft(draftId, expectedAdoption),
       compile: (draft, revision) => this.client.drafts.compile(draftId, draft.draftRevision, revision),
       waitJob: (jobId, onProgress, signal) => this.client.jobs.waitForTerminal(jobId, { signal, onProgress }),
       cancelJob: (jobId) => this.client.jobs.cancel(jobId),
@@ -202,6 +230,45 @@ export class AuthorDraftStore {
     this.sources.set(draftId, model);
     return model;
   }
+
+  /** 采用目标 metadata 和本地配置与普通自动提交编辑器完全分开。 */
+  adoptionModel(draftId: string): DraftAdoptionModel | undefined {
+    const existing = this.adoptions.get(draftId);
+    if (existing) return existing;
+    if (!this.draft(draftId)) return undefined;
+    const model = new DraftAdoptionModel({
+      identity: () => this.connectionIdentity(),
+      current: () => this.draft(draftId),
+      settleConfiguration: async () => (await this.configEditor(draftId)?.flush()) ?? false,
+      refresh: () => this.readAdoptionComparison(draftId),
+      inspect: (draft, sourceRevision) => this.client.drafts.inspectSource(draftId, draft.draftRevision, sourceRevision),
+      compiled: (revision) => this.sourceModel(draftId)?.hasSuccessfulCompilation(revision) ?? false,
+      adopt: async (candidate) => this.sourceModel(draftId)!.adoptCandidate(candidate.targetSourceRevision,
+        candidate.value, candidate.baseDraftRevision, candidate.before),
+    });
+    this.adoptions.set(draftId, model);
+    return model;
+  }
+
+  /** 显式用户比较入口：正常 reload/refresh/metadata arrival 都不能解除不确定采用冻结。 */
+  async readAdoptionComparison(draftId: string): Promise<FullDraft> {
+    const identity = this.connectionIdentity();
+    const fresh = await this.refreshDraft(draftId);
+    await this.loadSourceMetadata(draftId, true);
+    const current = this.draft(draftId);
+    if (identity !== this.connectionIdentity() || !current || current.draftRevision !== fresh.draftRevision
+      || this.state.sourceMetadata[draftId]?.status !== 'ready')
+      throw new Error('采用比较尚未获得同身份、同草稿的精确 metadata；保留冻结，请重试。');
+    const editor = this.editors.get(draftId);
+    if (editor?.state.adoptionUncertain) {
+      editor.confirmAdoptionComparison(current);
+      this.sources.get(draftId)?.clearAdoptionHistory();
+    }
+    return current;
+  }
+
+  /** 重试只读 metadata；不修改配置或源码。 */
+  retrySourceMetadata(draftId: string): void { void this.loadSourceMetadata(draftId, true); }
 
   /** 草稿验证页签的模型；第一次用时建（这时还不重读上一次的任务）。 */
   validationModel(draftId: string): DraftValidationModel | undefined {
@@ -264,6 +331,7 @@ export class AuthorDraftStore {
       );
       this.setOrigins({ ...this.state.origins, [created.draftId]: configurationId });
       this.patch({ drafts: [...this.state.drafts, created] });
+      void this.loadSourceMetadata(created.draftId);
       void this.refreshOrigins();
       this.components.selectDraft(created.draftId);
       return true;
@@ -355,7 +423,9 @@ export class AuthorDraftStore {
     if (pkg && !exactDraftPackage(draft, pkg)) delete packages[draft.draftId];
     this.patch({ drafts: this.state.drafts.map((d) => (d.draftId === draft.draftId ? draft : d)), packages });
     this.editors.get(draft.draftId)?.serverChanged(draft);
+    this.adoptions.get(draft.draftId)?.serverChanged(draft);
     if (pkg && !packages[draft.draftId]) this.editors.get(draft.draftId)?.revalidate();
+    void this.loadSourceMetadata(draft.draftId);
   }
 
   clearNotice(): void {
@@ -366,13 +436,27 @@ export class AuthorDraftStore {
   reset(reason: string): void {
     const had = this.state.drafts.length > 0;
     this.dropPageState(() => true);
+    this.metadataCache.clear();
+    this.metadataGenerations.clear();
     this.setOrigins({});
-    this.patch({ drafts: [], originConfigs: {}, packages: {}, tabs: {}, busy: false, notice: undefined, lost: had ? `${reason}，当前页面未提供草稿恢复；已保存组件仍可用。` : undefined });
+    this.patch({ drafts: [], originConfigs: {}, packages: {}, sourceMetadata: {}, tabs: {}, busy: false, notice: undefined, lost: had ? `${reason}，当前页面未提供草稿恢复；已保存组件仍可用。` : undefined });
   }
 
   /** 重读草稿并写回列表。 */
-  private async refreshDraft(draftId: string): Promise<FullDraft> {
+  private async refreshDraft(draftId: string, expectedAdoption?: AuthorAdoptionExpectation): Promise<FullDraft> {
+    const identity = this.connectionIdentity();
+    const previous = this.draft(draftId);
     const fresh = await this.full(await this.client.drafts.get(draftId));
+    const current = this.draft(draftId);
+    if (identity !== this.connectionIdentity() || !previous || !current || fresh.draftId !== draftId || fresh.packageId !== previous.packageId)
+      throw new Error('草稿或连接身份已变化，迟到的读取未写入页面。');
+    if (current.draftRevision !== previous.draftRevision && current.draftRevision !== fresh.draftRevision)
+      throw new Error('读取期间草稿已更新，迟到的读取未覆盖新修订；请重新比较。');
+    if (expectedAdoption && (fresh.draftId !== expectedAdoption.draftId || fresh.packageId !== expectedAdoption.packageId
+      || fresh.configuration.sourceRevision !== expectedAdoption.sourceRevision || fresh.configuration.packageRevision !== expectedAdoption.sourceRevision
+      || (expectedAdoption.draftRevision !== undefined && fresh.draftRevision !== expectedAdoption.draftRevision)
+      || !sameEditableExact(editableOf(fresh.configuration), expectedAdoption.configuration)))
+      throw new Error('采用后的读取与固定目标不一致，未替换在用配置；请重新读取并比较。');
     this.replace(fresh);
     return fresh;
   }
@@ -386,10 +470,14 @@ export class AuthorDraftStore {
   }
 
   private async reload(): Promise<void> {
+    const identity = this.connectionIdentity();
+    const previousDrafts = this.state.drafts;
     if (this.state.status !== 'ready') this.patch({ status: 'loading' });
     try {
       const list = await this.client.drafts.list();
       const drafts = await Promise.all(list.drafts.map((d) => this.full(d)));
+      // 列表读取期间的创建、替换、关闭或身份重置优先；旧快照不能复活/回退草稿。
+      if (identity !== this.connectionIdentity() || previousDrafts !== this.state.drafts) return;
       const stored = readOrigins(this.client.state$.get().clientId);
       const origins = Object.fromEntries(Object.entries({ ...stored, ...this.state.origins }).filter(([id]) => drafts.some((d) => d.draftId === id)));
       this.setOrigins(origins);
@@ -398,7 +486,11 @@ export class AuthorDraftStore {
         return pkg ? [[draft.draftId, pkg]] : [];
       })) });
       this.dropPageState((id) => !drafts.some((d) => d.draftId === id));
-      for (const draft of drafts) this.editors.get(draft.draftId)?.serverChanged(draft);
+      for (const draft of drafts) {
+        this.editors.get(draft.draftId)?.serverChanged(draft);
+        this.adoptions.get(draft.draftId)?.serverChanged(draft);
+        void this.loadSourceMetadata(draft.draftId);
+      }
     } catch (error) {
       this.patch({ status: this.state.status === 'ready' ? 'ready' : 'failed', notice: { level: 'error', message: `读取草稿失败：${errorText(error)}` } });
       return;
@@ -406,7 +498,7 @@ export class AuthorDraftStore {
     await this.refreshOrigins();
   }
 
-  /** 读来源组件当前的配置（组件库没读过时先读），顺带记下草稿的包信息。 */
+  /** 来源组件只用于保存状态比较；schema 由作者固定源码 inspection 提供。 */
   private async refreshOrigins(): Promise<void> {
     const ids = [...new Set(Object.values(this.state.origins))];
     if (ids.length === 0) return;
@@ -423,18 +515,7 @@ export class AuthorDraftStore {
     );
     const originConfigs: Record<string, ScriptConfiguration | null> = {};
     for (const [id, detail] of details) originConfigs[id] = detail?.configuration ?? null;
-    const packages = { ...this.state.packages };
-    for (const draft of this.state.drafts) if (!exactDraftPackage(draft, packages[draft.draftId])) delete packages[draft.draftId];
-    const arrived: string[] = [];
-    for (const draft of this.state.drafts) {
-      const pkg = details.get(this.state.origins[draft.draftId] ?? '')?.package;
-      if (!pkg || pkg.packageId !== draft.packageId || pkg.packageRevision !== draft.configuration.sourceRevision) continue;
-      if (!packages[draft.draftId]) arrived.push(draft.draftId);
-      packages[draft.draftId] = pkg;
-    }
-    this.patch({ originConfigs, packages });
-    // 包信息第一次读到：配置页签按参数表重新校验。
-    for (const id of arrived) this.editors.get(id)?.revalidate();
+    this.patch({ originConfigs });
   }
 
   /** 从列表去掉；关的是选中的草稿时改选它的来源组件（不在库里时清空选择）。 */
@@ -443,20 +524,70 @@ export class AuthorDraftStore {
     this.setOrigins(origins);
     const { [draftId]: _pkg, ...packages } = this.state.packages;
     const { [draftId]: _tab, ...tabs } = this.state.tabs;
+    const { [draftId]: _metadata, ...sourceMetadata } = this.state.sourceMetadata;
     this.dropPageState((id) => id === draftId);
-    this.patch({ drafts: this.state.drafts.filter((d) => d.draftId !== draftId), packages, tabs });
+    this.patch({ drafts: this.state.drafts.filter((d) => d.draftId !== draftId), packages, sourceMetadata, tabs });
     const selection = this.components.state.selection;
     if (selection?.kind === 'draft' && selection.draftId === draftId) void this.components.select(origin ?? null);
   }
 
   /** 丢掉草稿在本页内存里的页签状态（配置编辑器、源码、验证）。 */
   private dropPageState(which: (draftId: string) => boolean): void {
-    for (const map of [this.editors, this.sources, this.validations]) {
+    for (const map of [this.editors, this.sources, this.validations, this.adoptions]) {
       for (const [id, item] of map) {
         if (!which(id)) continue;
         item.dispose();
         map.delete(id);
+        this.metadataGenerations.delete(id);
+        for (const [key, cached] of this.metadataCache) if (cached.draftId === id) this.metadataCache.delete(key);
       }
+    }
+  }
+
+  private connectionIdentity(): string {
+    const state = this.client.state$.get();
+    return JSON.stringify([state.hostInstanceId ?? null, state.clientId ?? null]);
+  }
+
+  /** Cache 只缓存不可变 source 声明；每个新 draft CAS 仍重新验证 owner/retained。 */
+  private async loadSourceMetadata(draftId: string, force = false): Promise<void> {
+    const draft = this.draft(draftId);
+    if (!draft) return;
+    const sourceRevision = draft.configuration.sourceRevision;
+    const previous = this.state.sourceMetadata[draftId];
+    if (!force && previous?.expectedDraftRevision === draft.draftRevision && previous.sourceRevision === sourceRevision && previous.identity === this.connectionIdentity()) return;
+    const identity = this.connectionIdentity();
+    const cacheKey = JSON.stringify([identity, draftId, sourceRevision]);
+    const generation = ++this.metadataGeneration;
+    this.metadataGenerations.set(draftId, generation);
+    const cached = this.metadataCache.get(cacheKey);
+    const packages = { ...this.state.packages };
+    if (cached && exactDraftPackage(draft, cached)) packages[draftId] = cached;
+    this.patch({ packages, sourceMetadata: { ...this.state.sourceMetadata,
+      [draftId]: { status: 'loading', expectedDraftRevision: draft.draftRevision, sourceRevision, identity } } });
+    // 同 source 的缓存只保留控件；新 CAS 未验证 ready 前，普通队列也必须立即暂停。
+    this.editors.get(draftId)?.revalidate();
+    try {
+      const pkg = await this.client.drafts.inspectSource(draftId, draft.draftRevision, sourceRevision);
+      const current = this.draft(draftId);
+      if (!current || identity !== this.connectionIdentity() || this.metadataGenerations.get(draftId) !== generation) return;
+      if (current.draftRevision !== draft.draftRevision || current.packageId !== draft.packageId || current.configuration.sourceRevision !== sourceRevision) {
+        void this.loadSourceMetadata(draftId, true);
+        return;
+      }
+      if (pkg.draftId !== draftId || pkg.draftRevision !== draft.draftRevision || pkg.sourceRevision !== sourceRevision
+        || pkg.packageId !== draft.packageId || pkg.packageRevision !== sourceRevision)
+        throw new Error('固定源码 metadata 身份不匹配。');
+      this.metadataCache.set(cacheKey, pkg);
+      this.patch({ packages: { ...this.state.packages, [draftId]: pkg }, sourceMetadata: { ...this.state.sourceMetadata,
+        [draftId]: { status: 'ready', expectedDraftRevision: draft.draftRevision, sourceRevision, identity } } });
+      this.editors.get(draftId)?.revalidate();
+    } catch (error) {
+      const current = this.draft(draftId);
+      if (!current || identity !== this.connectionIdentity() || this.metadataGenerations.get(draftId) !== generation) return;
+      if (current.draftRevision !== draft.draftRevision) { void this.loadSourceMetadata(draftId, true); return; }
+      this.patch({ sourceMetadata: { ...this.state.sourceMetadata,
+        [draftId]: { status: 'failed', expectedDraftRevision: draft.draftRevision, sourceRevision, identity, error: errorText(error) } } });
     }
   }
 

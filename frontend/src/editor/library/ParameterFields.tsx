@@ -1,9 +1,10 @@
+import { CommitDraftGroup } from '../ui/commit-drafts';
 // 效果包参数控件（W7 设计 §2.4）：按导出的参数表生成，材质页签、效果页签和作者草稿的配置页签共用。
 // 取值以 JSON 原文为准；输入框只拦格式不对的输入，越界等问题照常写进草稿，由本地校验写在控件旁并停用“保存”。
 // 曲线用图形编辑，图片从包里 role=image 的文件里选（W8 设计 §2.9）。
 
 import { useMemo } from 'react';
-import type { EffectPackageFile, EffectPackageInspectResponse, EffectPackageParameter } from '../../protocol';
+import type { EffectPackageFile, EffectPackageSchema, EffectPackageParameter } from '../../protocol';
 import {
   colorFromJson,
   colorToJson,
@@ -30,7 +31,7 @@ import { CurveField } from './CurveField';
  * 末尾一格是“恢复默认”，参数改过时可用。
  */
 export function ParameterFields(props: {
-  pkg: EffectPackageInspectResponse;
+  pkg: EffectPackageSchema;
   exportId: string;
   parametersJson: string;
   onChange: (parametersJson: string) => void;
@@ -57,7 +58,7 @@ export function ParameterFields(props: {
         const range = rangeText(parameter);
         const unit = parameter.type === 'duration' ? '毫秒' : parameter.unit;
         return (
-          <div key={parameter.id} className={cls('prm', 'param-row', parameter.type === 'curve' && 'top')} data-param={parameter.id}>
+          <CommitDraftGroup key={parameter.id} name={`parameter/${parameter.id}`}><div className={cls('prm', 'param-row', parameter.type === 'curve' && 'top')} data-param={parameter.id}>
             <span className="prm-lbl" title={[parameter.label, unit && `单位 ${unit}`, range && `范围 ${range}`].filter(Boolean).join('，')}>
               {parameter.label}
             </span>
@@ -82,7 +83,7 @@ export function ParameterFields(props: {
                 {issue.message}
               </Note>
             ))}
-          </div>
+          </div></CommitDraftGroup>
         );
       })}
       {extra.map((id) => (

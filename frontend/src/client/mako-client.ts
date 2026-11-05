@@ -4,6 +4,7 @@
 // 一次“连接”绑定一个 Server 进程（hostInstanceId）。Server 重启后旧身份全部失效：
 // 状态变为 hostRestarted、清空队列并发出 reset，由页面调用 reinitialize() 重新取启动信息并登记。
 
+import type { AuthorPackageConfigurationInput, AuthorSourceInspectionResponse } from '../protocol/author-source-inspection';
 import type { AuthorPackageFilesInput, AuthorPackageFilesResponse } from '../protocol/author-package-files';
 import type { GpuPreviewCreateInput, GpuPreviewStreamState } from '../protocol';
 
@@ -1337,6 +1338,13 @@ export class MakoClient extends Emitter<MakoClientEvents> {
         query: { expectedDraftRevision, sourceRevision }, auth: 'access', label: 'drafts.packageFiles',
       })).data,
 
+    /** exact CAS 下读取此草稿 retained source 的声明；不创建 reference 或资源。 */
+    inspectSource: async (draftId: string, expectedDraftRevision: string, sourceRevision: string): Promise<AuthorSourceInspectionResponse> =>
+      (await this.send<AuthorSourceInspectionResponse>({
+        method: 'GET', path: `/api/v1/drafts/${enc(draftId)}/source-inspection`,
+        query: { expectedDraftRevision, sourceRevision }, auth: 'access', label: 'drafts.inspectSource',
+      })).data,
+
     /** 原子保存完整包文本；SDK2 不自动采用或改变在用来源，服务重算文本摘要。 */
     savePackageFiles: async (draftId: string, expectedDraftRevision: string, input: AuthorPackageFilesInput): Promise<AuthorDraft> => {
       const receipt = this.requireConn().receipts.create('draft-package-files');
@@ -1396,13 +1404,13 @@ export class MakoClient extends Emitter<MakoClientEvents> {
       this.postJob(`/api/v1/drafts/${enc(draftId)}/validation-jobs`, 'author-validation', { expectedDraftRevision, ...input }),
 
     /** 改用一个保留的修订；SDK2 C# 修订必须已有成功编译记录。 */
-    adopt: async (draftId: string, expectedDraftRevision: string, sourceRevision: string): Promise<AuthorAdoptResponse> => {
+    adopt: async (draftId: string, expectedDraftRevision: string, sourceRevision: string, configuration?: AuthorPackageConfigurationInput | null): Promise<AuthorAdoptResponse> => {
       const receipt = this.requireConn().receipts.create('draft-adopt');
       const { data } = await this.send<AuthorAdoptResponse>(
         {
           method: 'POST',
           path: `/api/v1/drafts/${enc(draftId)}/adopt-source-revision`,
-          json: { expectedDraftRevision, sourceRevision, metadata: toMetadata(receipt) },
+          json: { expectedDraftRevision, sourceRevision, metadata: toMetadata(receipt), ...(configuration === undefined ? {} : { configuration }) },
           auth: 'access',
           label: 'drafts.adopt',
         },

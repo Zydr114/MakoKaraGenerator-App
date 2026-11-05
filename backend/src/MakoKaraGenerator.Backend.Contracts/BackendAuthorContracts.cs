@@ -48,7 +48,8 @@ public sealed record AuthorDraftDeleteRequest(
 public sealed record AuthorAdoptSourceRevisionRequest(
     string ExpectedDraftRevision,
     string SourceRevision,
-    RequestMetadataDto? Metadata = null);
+    RequestMetadataDto? Metadata = null,
+    AuthorPackageConfigurationInputDto? Configuration = null);
 
 /// <summary>作者草稿配置写入；派生 kind/bindingKinds 不接受客户端覆盖。</summary>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]

@@ -218,7 +218,7 @@ describe('作者草稿与组件', () => {
   });
 
   it('是否已保存：没有对应关系或组件已删除时只能另存为，组件还在读时是“正在核对”', () => {
-    const state: DraftsState = { status: 'ready', drafts: [draft], origins: { 'draft-1': 'cfg-1' }, originConfigs: { 'cfg-1': component }, packages: {}, tabs: {}, busy: false };
+    const state: DraftsState = { status: 'ready', drafts: [draft], origins: { 'draft-1': 'cfg-1' }, originConfigs: { 'cfg-1': component }, packages: {}, sourceMetadata: {}, tabs: {}, busy: false };
     expect(draftSaveState(state, draft)).toBe('saved');
     expect(draftSaveState(state, { ...draft, configuration: { ...draft.configuration, name: '改过' } })).toBe('unsaved');
     expect(draftSaveState({ ...state, originConfigs: {} }, draft)).toBe('checking');

@@ -8,6 +8,7 @@ import type {
   EffectOverlayLayer,
   EffectPackageExport,
   EffectPackageInspectResponse,
+  EffectPackageSchema,
   EffectPackageParameter,
   FullTemplateDefinition,
   ScriptConfiguration,
@@ -313,7 +314,7 @@ export interface ConfigIssue {
 }
 
 /** 能换成的导出：同一个包里同类别的（效果是控制器和图，材质是材质）。 */
-export function sameKindExports(pkg: EffectPackageInspectResponse, kind: ScriptConfigurationKind): EffectPackageExport[] {
+export function sameKindExports(pkg: EffectPackageSchema, kind: ScriptConfigurationKind): EffectPackageExport[] {
   return kind === 'Material' ? pkg.exports.filter((e) => e.kind === 'material') : effectExports(pkg);
 }
 
@@ -321,7 +322,7 @@ export function sameKindExports(pkg: EffectPackageInspectResponse, kind: ScriptC
  * 提交前的本地校验（沿用 W7 的规则）：名称、参数、固定种子、“指定输入”要有输入名；效果还查作用于和叠放层。
  * 材质只有名称和参数（作用于、种子、叠放层后端固定）。包信息没读到时参数只查是不是 JSON 对象，其余留给后端。
  */
-export function configurationIssues(value: EditableConfiguration, kind: ScriptConfigurationKind, pkg: EffectPackageInspectResponse | undefined): ConfigIssue[] {
+export function configurationIssues(value: EditableConfiguration, kind: ScriptConfigurationKind, pkg: EffectPackageSchema | undefined): ConfigIssue[] {
   const issues: ConfigIssue[] = [];
   if (!value.name.trim()) issues.push({ field: 'name', message: '名称不能为空。' });
   const exp = pkg?.exports.find((e) => e.id === value.exportId);

@@ -65,7 +65,7 @@ function fakePort(options: { v2?: boolean; files?: Record<string, AuthorSourceFi
   };
   const bump = (patch: Partial<FullDraft> & { inUse?: string }) => {
     const { inUse, ...rest } = patch;
-    server = { ...server, ...rest, draftRevision: `r${++revisions}`, configuration: { ...server.configuration, sourceRevision: inUse ?? server.configuration.sourceRevision } };
+    server = { ...server, ...rest, draftRevision: `r${++revisions}`, configuration: { ...server.configuration, sourceRevision: inUse ?? server.configuration.sourceRevision, packageRevision: inUse ?? server.configuration.packageRevision } };
   };
   const port: DraftSourcePort = {
     current: () => local,
@@ -255,14 +255,15 @@ describe('源码页签', () => {
     expect(fake.calls.slice(-3)).toEqual(['save r3', 'refresh', 'use r4 sha256:v3']);
     expect(fake.port.current()).toMatchObject({ adoptedSourceRevision: BASE, currentSourceRevision: 'sha256:v3', configuration: { sourceRevision: 'sha256:v3' } });
 
-    // 再改用原包，把内容改成和最新修订相同：不新建修订，但试样改用它。
+    // 采用保留编辑器；明确查看原包后改成最新内容：不新建修订，但试样改用它。
     await model.adopt(BASE);
+    await model.load(BASE);
     model.edit('src/A.cs', 'v3');
     expect(await model.save()).toEqual({ kind: 'saved', revision: 'sha256:v3', created: false });
     expect(fake.port.current()!.configuration.sourceRevision).toBe('sha256:v3');
   });
 
-  it('改用修订：在用修订换掉后，编辑器没有改动就跟着读进它；有改动时不动编辑器', async () => {
+  it('采用保留查看修订、文本和视图；另一个明确查看操作才切换文件', async () => {
     const fake = fakePort({ files: { [BASE]: [{ path: 'src/A.cs', text: 'base' }] } });
     const model = new DraftSourceModel(fake.port);
     await model.load();
@@ -272,12 +273,12 @@ describe('源码页签', () => {
 
     expect(await model.adopt(BASE)).toEqual({ kind: 'adopted', revision: BASE });
     expect(fake.port.current()).toMatchObject({ adoptedSourceRevision: BASE, configuration: { sourceRevision: BASE } });
-    expect(model.state).toMatchObject({ revision: BASE });
-    expect(model.state.files[0]!.text).toBe('base');
+    expect(model.state).toMatchObject({ revision: 'sha256:v2' });
+    expect(model.state.files[0]!.text).toBe('v2');
 
     model.edit('src/A.cs', 'draft edit');
     await model.adopt('sha256:v2');
-    expect(model.state.revision).toBe(BASE);
+    expect(model.state.revision).toBe('sha256:v2');
     expect(model.state.files[0]!.text).toBe('draft edit');
   });
 });
@@ -333,7 +334,7 @@ describe('SDK2 保存、编译与采用', () => {
     expect(model.state).toMatchObject({ canUndoAdoption: false, canRedoAdoption: false });
   });
 
-  it('409 后发现别人已改变来源时停止采用，不能以重试覆盖对方来源', async () => {
+  it('409 直接交回且不重读重发，不能覆盖对方来源', async () => {
     const fake = fakePort({ v2: true });
     const model = new DraftSourceModel(fake.port);
     await model.load();
@@ -342,6 +343,8 @@ describe('SDK2 保存、编译与采用', () => {
     fake.changeSourceElsewhere('sha256:other');
     expect((await model.adopt('sha256:new')).kind).toBe('failed');
     expect(fake.calls.filter((call) => call.startsWith('adopt '))).toEqual(['adopt r2 sha256:new']);
+    expect(fake.port.current()!.configuration.sourceRevision).toBe(BASE);
+    await fake.port.refresh();
     expect(fake.port.current()!.configuration.sourceRevision).toBe('sha256:other');
     expect(model.state.canUndoAdoption).toBe(false);
   });

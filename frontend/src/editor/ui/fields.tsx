@@ -1,3 +1,4 @@
+import { useCommitDraftScope } from './commit-drafts';
 // 输入类控件（界面改版 §2.4）：填充式输入框、提交式输入框、数值、颜色、下拉选择、文件。
 // 标签有四种摆法：top 在框上方（对话框、表单），side 在左边一列（外观检查器），inside 在框内左边（编排检查器的紧凑网格），
 // none 不显示（工具栏，只作可访问名称）。
@@ -124,20 +125,38 @@ export interface CommitFieldProps extends FieldLayout {
  * 权威值变化（命令成功、撤销、别处修改）时用新值覆盖草稿。
  */
 export function CommitField({ value, onCommit, validate, ...rest }: CommitFieldProps) {
+  const scope = useCommitDraftScope();
+  const key = scope ? `${scope.prefix}/${rest.label}` : '';
+  const held = scope?.entries[key];
   const [draft, setDraft] = useState(value);
-  // Enter 之后紧接着失焦不再重复提交同一草稿。
+  const current = useRef(scope ? held?.text ?? value : draft);
   const sent = useRef<string | null>(null);
+  const shown = scope ? held?.text ?? value : draft;
+  current.current = shown;
   useEffect(() => {
     setDraft(value);
+    // 候选 held 原文由独立模型持有；metadata 到达、取消/重开都不能覆盖。
+    current.current = scope?.entries[key]?.text ?? value;
     sent.current = null;
   }, [value]);
-  const error = draft !== value ? validate?.(draft) : undefined;
-  const commit = () => {
-    if (draft === value || draft === sent.current || error) return;
-    sent.current = draft;
-    onCommit(draft);
+  const error = shown !== value ? validate?.(shown) : undefined;
+  const change = (text: string) => {
+    current.current = text;
+    setDraft(text);
+    if (scope) {
+      const problem = validate?.(text);
+      scope.set(key, text === value ? undefined : { text, base: value, ...(problem ? { problem } : {}) });
+    }
   };
-  return <TextField {...rest} value={draft} onChange={setDraft} onEnter={commit} onBlur={commit} onEscape={() => setDraft(value)} error={error} />;
+  const commit = () => {
+    const text = current.current;
+    if (text === value || text === sent.current || validate?.(text)) return;
+    sent.current = text;
+    onCommit(text);
+    scope?.set(key, undefined);
+  };
+  const escape = () => { current.current = value; setDraft(value); sent.current = null; scope?.set(key, undefined); };
+  return <TextField {...rest} value={shown} onChange={change} onEnter={commit} onBlur={commit} onEscape={escape} error={error} />;
 }
 
 /** 数值输入：提交式，按范围校验，不合法时写明原因且不提交；min／max 含端点，greaterThan 不含。单位写在框内。 */

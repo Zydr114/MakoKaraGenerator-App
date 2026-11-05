@@ -1472,11 +1472,11 @@ schema合成例不证明真实代码执行/完整性或性能。匹配Server/Wor
 <a id="backend-author-p4"></a>
 <a id="21-无-gui-作者草稿与源码采用0981合同1320"></a>
 
-## 21. 无 GUI 作者草稿、试样与个人配置库（0.108.0／合同1.40.0）
+## 21. 无 GUI 作者草稿、试样与个人配置库（0.112.14／合同1.46.0）
 
-本节原0.98.1切片的创建、源码固定、同步编译和删除保持 HTTP `200`/`201`；P4行为已纳入1.40.0合同，并在本批增加 profile 草稿发现/claim、包文本编辑、源码修订历史和精确包下载。真实HTTP验收与完整产品能力仍单独登记；匹配发布`6569bf1`的有限fresh HTTP已覆盖重启后的新client认领、继续预览/下载及删除，证据与限制见[W8修复记录](../backend-w8-authoring-fixes-20261030.md)。
+本节当前源码增加精确作者源码声明检查，以及采用源码时可选的完整配置迁移；既有创建、源码固定、同步编译和删除保持 HTTP `200`/`201`。P4行为已纳入历史1.40.0合同，W8增加的 profile 草稿发现/claim、包文本编辑、源码修订历史和精确包下载继续保留。真实HTTP验收与完整产品能力仍单独登记；历史匹配发布`6569bf1`的有限fresh HTTP已覆盖重启后的新client认领、继续预览/下载及删除，证据与限制见[W8修复记录](../backend-w8-authoring-fixes-20261030.md)。
 
-P4 N07～N14/E12～E15 的历史实现与本批 W8 修复共同组成当前作者闭包。合同1.40.0通过 fresh CLR metadata 生成、freeze 与 validate；静态合同门禁不代替匹配发布/fresh HTTP证据。
+P4 N07～N14/E12～E15 的历史实现与 W8 修复共同组成作者闭包。历史合同1.40.0已通过 fresh CLR metadata 生成、freeze 与 validate；1.46.0新增行为仍须从匹配生产源码重新导出metadata、freeze与validate，并单独登记匹配发布/fresh HTTP证据。本文描述源码规则，不将历史验收扩大为本批验收。
 
 N07 `GET /api/v1/drafts` 只列出当前客户端拥有的草稿。N08 `GET /api/v1/drafts/{id}/sources?expectedDraftRevision=...&sourceRevision=...` 在精确草稿修订下返回指定保留源码修订的完整C#文件path/text及包身份；草稿修订冲突409，源码不存在404，包内逻辑路径不授予服务器文件读取能力。
 
@@ -1492,11 +1492,23 @@ W8 增加 profile 级恢复入口。`GET /api/v1/profile/author-drafts` 只返�
 
 `GET /api/v1/drafts/{id}/package-files?expectedDraftRevision=...&sourceRevision=...` 返回完整 manifest、文件角色、大小、SHA 和可编辑文本。`PUT /api/v1/drafts/{id}/package-files` 要求提交 manifest 及全部 `csharp`、`shader`、`shaderProgram`、`graph`、`svg`、`svgResource` 文本，服务在包结构、闭包、导出配置、路径和 UTF-8 预算检查完成后一次发布新源码修订；非文本文件的路径、角色、SHA 和字节集合必须保持不变。文本单文件最多4 MiB，文本与 manifest 合计最多16 MiB，最多256个文本文件，HTTP JSON最多32 MiB。原源码入口提交字节无变化时保留原草稿修订和最近编译摘要。
 
-包文本保存保持草稿的 SDK profile，不能通过清单降级。SDK2 包文本变更同样只推进最新修订；附带配置仍以原在用源码验证和保存，采用新包修订须经成功编译门禁。SDK1 保持原子迁移配置到新包的行为。纯资源包无需 C# 编译。
+包文本保存保持草稿的 SDK profile，不能通过清单降级。SDK2 包文本变更同样只推进最新修订；附带配置仍以原在用源码验证和保存，采用新包修订须经成功编译门禁。SDK1 保持原子迁移配置到新包的行为。纯资源包无需 C# 编译。 因而跨参数schema或导出身份的迁移，应保存候选源码、编译该精确修订，再通过下述adopt完整配置一次采用；不能把候选配置提前交给SDK2 package-files并按新源码解释。
+
+`GET /api/v1/drafts/{id}/source-inspection?expectedDraftRevision=...&sourceRevision=...` 以能力 `author.drafts.source-inspection` 提供只读声明检查。两个query必须各出现一次、非空且为精确小写SHA修订；未知query或任何body均拒绝，不携带metadata、不创建回执或job。服务在草稿锁内核对当前owner、草稿CAS、所选源码的retained成员资格与固定包身份，未编译源码也可检查；检查不编译或执行作者，不准备native SVG或其它运行资源。成功与失败均设置 `Cache-Control: no-store`。
+
+`AuthorSourceInspectionResponse` 为独立、无reference的完整响应，返回 `draftId/draftRevision/sourceRevision/packageId/packageRevision/name/version/packageVersion/sdkVersion/shaderProfile/structureValid/parameters/exports/bindingKinds/inputs/files/diagnostics/protocolVersion`。`sourceRevision` 与 `packageRevision` 相等，`packageId` 为草稿固定包身份；SDK版本沿既有profile兼容规则保留，不将SDK2补丁版本限定为2.0.0。参数、导出、input、文件和结构诊断复用既有DTO；参数 `defaultValueJson/minimumJson/maximumJson` 仍为精确JSON文本字符串，保留超过2^53的整数，`unit/minimumJson/maximumJson` 为空时省略。`declaration/inputs` 保留原JSON值；文件长度字段为Int64 JSON number `size`，不是 `sizeBytes`。结构无效时可返回诊断与文件列表，typed参数/导出为空。普通响应保持可扩展，读取方忽略未来未知字段。原manifest文本仍由package-files读取，两次读取须核对相同 `draftId/draftRevision/sourceRevision/packageId/packageRevision`，并将检查响应的 `packageVersion/sdkVersion/shaderProfile` 与package-files的manifest原文身份对应；检查入口不把草稿加入公共 `EffectPackageReferenceDto` 的kind，公共kind仍仅为asset/library/configuration。
+
+响应按生产HTTP相同的Web JSON序列化、空值省略及UTF-8编码计算完整体积，最多 `8388608` 字节；超限整次拒绝，HTTP `413 resourceTooLarge`、`field=sourceRevision`、`failureCode=AuthorSourceInspectionTooLarge`，不返回截断数组。owner拒绝沿 `401 resourceUnauthorized`，草稿/保留源码缺失沿 `404 resourceNotFound`，草稿CAS沿 `409 revisionConflict`。固定源码或历史读取失败为 `422 projectLoadFailed/AuthorSourceInspectionReadFailed`，固定包身份不符为 `422 projectLoadFailed/AuthorSourceIdentityMismatch`，字段均为 `sourceRevision`；包结构读取拒绝保留原 `commandRejected`、failureCode与逻辑path。非法query或body沿 `400 invalidRequest`，客户端登记及宿主停止沿统一认证/生命周期错误。
+
 
 `GET /api/v1/drafts/{id}/source-revisions` 在精确草稿修订下按仍保留的源码包修订返回有界历史页。每项可带保存时间和该源码修订的编译摘要；旧草稿无法证明保存时间时省略 `savedAtUtc`，未知或已清理游标返回404。`GET /api/v1/drafts/{id}/package` 与 `GET /api/v1/script-configurations/{id}/package` 分别按精确草稿/库修订返回认证 `.mkfx` 流；服务全局最多同时保留2个下载槽位，超额429；每次下载30秒期限，流关闭、断开或宿主停止释放临时归档和槽位。此入口仅支持完整 GET，不承诺 Range、HEAD 或条件304；返回 `Content-Disposition`、归档 SHA-256 ETag、长度及 `Cache-Control: no-store`。stale revision、owner ACL 和包结构错误在响应体开始前返回。
 
 `POST /api/v1/drafts/{id}/compilation-jobs` 可选 `sourceRevision`，仅接受该草稿保留的源码修订；省略或 null 绑定接受时的最新修订。服务先对固定包的全部 SVG 执行正式静态语义与图片闭包校验（不创建 native Picture／GPU 资源），再独立执行脚本编译，真实 DLL 入口须符合包 SDK 身份，并返回完整诊断；编译失败是可读取的诊断结果，不改变源码修订。SVG 校验失败沿同一报告返回精确资源错误码与包内逻辑路径，行列为 0、artifactHash 为 `none`；不会编译部分 C# 或静默使用旧产物。包文件保存仍只验证结构与资源描述，允许保存可修复的无效 SVG 正文；修复文本生成新源码修订后须重新编译。编译诊断最多256项且完整UTF-8回执最多48KiB，超限整次拒绝并保留原草稿状态。`POST /api/v1/drafts/{id}/adopt-source-revision` 同样要求精确草稿修订，显式选择已固定且导出身份有效的源码修订。SDK2 C# 目标要求此草稿历史中该精确源码的成功编译，未满足则返回 `commandRejected/AuthorSourceCompilationRequired`，纯资源包和 SDK1 保持原行为；成功返回实际前后在用修订身份。
+
+采用请求保留 `expectedDraftRevision/sourceRevision/metadata`，新增可选 `configuration`；省略或显式null沿原配置采用行为。非null必须一次给齐 `name/exportId/parametersJson/relativeTarget/readScope/branchInput/fixedSeed/overlayLayer` 八字段，未知或重复配置字段拒绝；`branchInput/fixedSeed` 两字段可显式null但不可省略。包ID、源码修订、kind和bindingKinds由服务派生，不接受客户端覆盖。名称必须非空白且至多256个UTF-16码元，保存时trim；fixedSeed只接受UInt64十进制字符串 `0..18446744073709551615` 或null，允许前导零，拒绝JSON number、符号、空串和溢出。`readScope=branchInput` 时必须提供非空branchInput，其它scope必须null；源材质只允许application、boundSources、null seed和package overlay。
+
+服务按目标retained源码验证导出、参数、绑定与真实sampleOptions，全部通过后在同一次document发布中更新配置、名称、导出和采用标记；失败保留完整旧状态。SDK2 C#目标须在本草稿保留该精确sourceRevision的成功编译记录，编译A不能验证B。`currentSourceRevision` 保持最新候选含义，SDK2最近编译摘要仍代表最近一次编译的固定源，不因采用旧源而重标。相同有效状态保持no-op/CAS语义；回执指纹包含完整configuration，原样重放返回原结果，同requestId改payload按既有回执规则拒绝。配置格式或绑定错误沿 `invalidRequest/AuthorConfigurationInvalid` 及 `configuration.<字段>`；导出/参数包错误沿 `commandRejected`，保留原failureCode并定位配置字段。新对象完整性和原子性须由实际HTTP与存储失败回归验证，schema仅表达wire形状。
+
 
 **0.110.3 编译缓存：** 作者编译使用当前 profile 的 `script-artifacts` 内容地址缓存。同键并发请求共享编译，
 各调用者独立取消；失败编译不发布可运行产物。缓存身份包括源码、入口、编译选项、编译器、SDK、

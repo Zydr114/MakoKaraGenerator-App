@@ -26,7 +26,7 @@ public sealed record AuthorPackageFilesResponse(
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record AuthorPackageTextFileDto(string Path, string Text);
 
-/// <summary>包编辑时原子绑定新源码修订的完整作者配置；包身份和源码修订由服务派生。</summary>
+/// <summary>完整作者配置；包身份和源码修订由服务派生。采用命令按目标源码校验，SDK2 package-files 按当前在用源码校验。</summary>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record AuthorPackageConfigurationInputDto(
     string Name,
@@ -38,7 +38,7 @@ public sealed record AuthorPackageConfigurationInputDto(
     string? FixedSeed,
     TemplateEffectOverlayLayerDto OverlayLayer);
 
-/// <summary>按精确草稿修订保存清单与完整文本集合；配置可与包结构迁移原子提交。</summary>
+/// <summary>按精确草稿修订保存清单与完整文本集合；SDK2 只保存候选源码，可选配置仍按当前在用源码校验。迁移使用 adopt 的完整配置。</summary>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record AuthorPackageFilesRequest(
     string ExpectedDraftRevision,

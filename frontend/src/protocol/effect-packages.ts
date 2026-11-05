@@ -70,7 +70,15 @@ export type EffectPackageInspectInput =
  * POST /effect-packages/inspect：只解析包结构，不编译脚本、不运行、不解码图片。
  * 结构语义不合法时仍是 200，structureValid=false，原因在 diagnostics；包本身读不出来才是错误。
  */
-export interface EffectPackageInspectResponse {
+/** 控件只读的声明投影；作者草稿无需制造可分发包引用。 */
+export interface EffectPackageSchema {
+  structureValid: boolean;
+  parameters: EffectPackageParameter[];
+  exports: EffectPackageExport[];
+  files: EffectPackageFile[];
+}
+
+export interface EffectPackageInspectResponse extends EffectPackageSchema {
   /** 固定后的引用：上传的资源返回 asset 引用。 */
   reference: EffectPackageReference;
   packageId: string;

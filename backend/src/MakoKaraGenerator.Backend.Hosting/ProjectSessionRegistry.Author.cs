@@ -523,34 +523,42 @@ public sealed partial class ProjectSessionRegistry
         {
             if (!string.Equals(document.DraftRevision, request.ExpectedDraftRevision, StringComparison.Ordinal))
                 return AuthorReject<AuthorAdoptSourceRevisionResponse>(BackendErrorCode.RevisionConflict, "作者草稿修订已经改变，请重新读取草稿。", "expectedDraftRevision");
+            if (!ValidRevision(request.SourceRevision))
+                return AuthorReject<AuthorAdoptSourceRevisionResponse>(BackendErrorCode.InvalidRequest, "源码修订无效。", "sourceRevision");
             try
             {
+                if (!ReadAuthorSourceHistory(document).Revisions.Any(item => item.SourceRevision == request.SourceRevision))
+                    return AuthorReject<AuthorAdoptSourceRevisionResponse>(BackendErrorCode.ResourceNotFound, "源码修订不属于此草稿保留历史。", "sourceRevision");
                 EffectPackageContents package = await LoadPackageAsync(document.DraftId, request.SourceRevision, _authorStop?.Token ?? CancellationToken.None).ConfigureAwait(false);
+                if (package.PackageId != document.PackageId || package.Revision != request.SourceRevision)
+                    return AuthorReject<AuthorAdoptSourceRevisionResponse>(BackendErrorCode.ProjectLoadFailed,
+                        "固定源码包身份不一致。", "sourceRevision", "AuthorSourceIdentityMismatch");
                 if (!CanAdoptAuthorSource(document, package))
                     return AuthorReject<AuthorAdoptSourceRevisionResponse>(BackendErrorCode.CommandRejected,
                         "SDK2 源码修订须先编译通过，再明确采用；可在源码页查看并编译该修订。", "sourceRevision", "AuthorSourceCompilationRequired");
                 AuthorDraftConfigurationDocument previousConfiguration = document.Configuration ?? DefaultConfiguration(document);
-                AuthorDraftConfigurationDocument configuration = previousConfiguration with
-                { SourceRevision = request.SourceRevision };
-                _ = BuildConfiguration(package, configuration);
-                AuthorDraftDocument adopted = document with { AdoptedSourceRevision = request.SourceRevision,
-                    Configuration = configuration, ExportId = configuration.ExportId };
-                AuthorDraftDocument updated = document with
+                AuthorDraftConfigurationDocument configuration = request.Configuration is { } input
+                    ? NormalizeAdoptionConfiguration(document, request.SourceRevision, input)
+                    : previousConfiguration with { SourceRevision = request.SourceRevision };
+                // Full sample validation must precede every persistent state change.
+                _ = BuildSampleOptions(BuildAdoptionConfiguration(package, configuration));
+                AuthorDraftDocument adopted = document with
                 {
                     AdoptedSourceRevision = request.SourceRevision,
                     Configuration = configuration,
+                    Name = configuration.Name,
                     ExportId = configuration.ExportId,
-                    DraftRevision = ComputeDraftRevision(adopted, null),
                     LastCompilation = EffectPackageProfiles.IsV2(package.Profile)
                         || document.LastCompilation is { SourceRevision: var source } && source == request.SourceRevision ? document.LastCompilation : null,
                     LastCompilationDiagnostics = EffectPackageProfiles.IsV2(package.Profile)
                         || document.LastCompilation is { SourceRevision: var diagnosticSource } && diagnosticSource == request.SourceRevision
                         ? document.LastCompilationDiagnostics : null,
                 };
+                AuthorDraftDocument updated = adopted with { DraftRevision = ComputeDraftRevision(adopted, null) };
                 await _authorStorageGate.WaitAsync(_authorStop?.Token ?? CancellationToken.None).ConfigureAwait(false);
                 try
                 {
-                    if (!TryPersistAuthorDocument(updated))
+                    if (updated != document && !TryPersistAuthorDocument(updated))
                         return AuthorReject<AuthorAdoptSourceRevisionResponse>(BackendErrorCode.ResourceQuotaExceeded, "客户端作者草稿存储达到上限。", "sourceRevision");
                 }
                 finally { _authorStorageGate.Release(); }
@@ -558,6 +566,8 @@ public sealed partial class ProjectSessionRegistry
                     updated.PackageId, EffectPackageProfiles.IsV2(package.Profile) ? previousConfiguration.SourceRevision
                         : document.AdoptedSourceRevision ?? document.CurrentSourceRevision, request.SourceRevision, updated.ExportId));
             }
+            catch (AuthorAdoptionConfigurationException error)
+            { return AuthorReject<AuthorAdoptSourceRevisionResponse>(error.ErrorCode, error.Message, error.Field, error.FailureCode); }
             catch (DirectoryNotFoundException)
             { return AuthorReject<AuthorAdoptSourceRevisionResponse>(BackendErrorCode.ResourceNotFound, "源码修订不存在。", "sourceRevision"); }
             catch (EffectPackageException error)

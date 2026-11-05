@@ -11,6 +11,7 @@ internal static partial class ServerEndpoints
         app.MapGet("/api/v1/drafts", ReadAuthorDrafts);
         app.MapGet("/api/v1/drafts/{id}", ReadAuthorDraft);
         app.MapGet("/api/v1/drafts/{id}/sources", ReadAuthorSources);
+        app.MapGet("/api/v1/drafts/{id}/source-inspection", ReadAuthorSourceInspectionAsync);
         app.MapPut("/api/v1/drafts/{id}/configuration", SaveAuthorConfigurationAsync);
         app.MapGet("/api/v1/drafts/{id}/compilation", ReadAuthorCompilation);
         app.MapPost("/api/v1/drafts/{id}/source-revision-jobs", SaveAuthorSourceRevisionAsync);
@@ -89,7 +90,7 @@ internal static partial class ServerEndpoints
     private static async Task<IResult> AdoptAuthorSourceRevisionAsync(string id, HttpRequest request,
         ProjectSessionRegistry registry, AcceptedOperationTracker tracker)
     {
-        (AuthorAdoptSourceRevisionRequest? input, IResult? error) = await ReadJsonAsync<AuthorAdoptSourceRevisionRequest>(request);
+        (AuthorAdoptSourceRevisionRequest? input, IResult? error) = await ReadAuthorAdoptionRequestAsync(request);
         if (error is not null) return error;
         return Result(await tracker.RunAsync(() => registry.AdoptAuthorSourceRevisionAsync(Client(request), id, input!, CancellationToken.None)));
     }

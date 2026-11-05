@@ -4,7 +4,7 @@
 // boolean 是 true／false；enum 是选项里的字符串；text 是字符串；color 是 {"r","g","b","a"}，各分量 0～1；
 // 实例参数只能写导出声明过的参数（export.parameters）。curve 见 model/curves.ts；asset 是包内 role=image 文件的路径。
 
-import type { EffectPackageExport, EffectPackageFile, EffectPackageInspectResponse, EffectPackageParameter } from '../../protocol';
+import type { EffectPackageExport, EffectPackageFile, EffectPackageSchema, EffectPackageParameter } from '../../protocol';
 import { curveProblem } from './curves';
 import { compareJsonNumbers, isJsonInteger, isJsonNumber, parseObjectEntries, sameJsonValue, withEntry } from './json-text';
 import type { Rgba } from './settings';
@@ -72,7 +72,7 @@ export interface ParameterIssue {
 }
 
 /** 一个导出的整份参数：对象格式、多余的键、每个取值。 */
-export function parametersIssues(parametersJson: string, pkg: EffectPackageInspectResponse, exportId: string): ParameterIssue[] {
+export function parametersIssues(parametersJson: string, pkg: EffectPackageSchema, exportId: string): ParameterIssue[] {
   const entries = entriesOf(parametersJson);
   if (!entries) return [{ id: '', message: '参数不是合法的 JSON 对象。' }];
   const declared = pkg.exports.find((e) => e.id === exportId)?.parameterIds ?? [];
@@ -90,7 +90,7 @@ export function parametersIssues(parametersJson: string, pkg: EffectPackageInspe
 }
 
 /** 导出用到的参数，按导出里的顺序。 */
-export function exportParameters(pkg: EffectPackageInspectResponse, exp: EffectPackageExport): EffectPackageParameter[] {
+export function exportParameters(pkg: EffectPackageSchema, exp: EffectPackageExport): EffectPackageParameter[] {
   return exp.parameterIds.flatMap((id) => pkg.parameters.find((p) => p.id === id) ?? []);
 }
 

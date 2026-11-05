@@ -18,7 +18,7 @@ using MakoKaraGenerator.TestSupport;
 
 namespace MakoKaraGenerator.Backend.Server.Tests;
 
-public sealed class AuthorWorkflowTransportTests
+public sealed partial class AuthorWorkflowTransportTests
 {
     [Fact]
     public async Task HTTP作者草稿创建编译完整诊断读取删除并释放保护()
@@ -84,7 +84,7 @@ public sealed class AuthorWorkflowTransportTests
 
         internal RequestMetadataDto Metadata() => new(Guid.NewGuid().ToString("N"), Clients.HostInstanceId, DateTimeOffset.UtcNow.AddMinutes(1));
 
-        internal static async Task<Fixture> CreateAsync()
+        internal static async Task<Fixture> CreateAsync(Action<Microsoft.AspNetCore.Http.Json.JsonOptions>? configureJson = null)
         {
             TemporaryDirectory directory = new();
             try
@@ -107,7 +107,11 @@ public sealed class AuthorWorkflowTransportTests
                 WebApplicationBuilder builder = WebApplication.CreateBuilder();
                 builder.Logging.ClearProviders();
                 builder.WebHost.UseUrls("http://127.0.0.1:0");
-                builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase);
+                builder.Services.ConfigureHttpJsonOptions(options =>
+                {
+                    options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+                    configureJson?.Invoke(options);
+                });
                 builder.Services.AddSingleton(resources);
                 builder.Services.AddSingleton(clients);
                 builder.Services.AddSingleton(projects);

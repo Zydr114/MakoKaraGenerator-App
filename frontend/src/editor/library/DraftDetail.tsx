@@ -16,6 +16,7 @@ import { Note } from '../workspace/panel';
 import type { ComponentState } from './component-library-store';
 import { ComponentNameDialog, SAVE_STATE_TEXT, type NameDialog } from './ComponentsPane';
 import type { DraftConfigEditor } from './draft-config-editor';
+import { DraftAdoptionDialog } from './DraftAdoptionDialog';
 import { DraftConfigTab } from './DraftConfigTab';
 import type { DraftSourceModel } from './draft-source';
 import { DraftSourceTab } from './DraftSourceTab';
@@ -38,11 +39,14 @@ export function DraftDetail(props: { state: ComponentState; drafts: AuthorDraftS
   const editor = drafts.configEditor(draft.draftId);
   const source = drafts.sourceModel(draft.draftId);
   const validation = drafts.validationModel(draft.draftId);
+  const adoption = drafts.adoptionModel(draft.draftId);
   const tab = drafts.tab(draft.draftId);
   const saveState = draftSaveState(draftsState, draft);
   const origin = draftsState.origins[draft.draftId];
   const originConfig = origin ? draftsState.originConfigs[origin] : undefined;
+  const metadata = draftsState.sourceMetadata[draft.draftId];
   const pkg = draftsState.packages[draft.draftId];
+  const schema = pkg;
   const busy = draftsState.busy || props.state.busy;
   // 离开草稿时，没有别的详情接手画布（例如换成占位文字）就关掉它的试样会话。放到下一轮再看：
   // 接手的详情在同一轮里给画布换来源；同一轮里清空画布还会让它刚建的下拉框没初始化就被换掉。
@@ -54,7 +58,7 @@ export function DraftDetail(props: { state: ComponentState; drafts: AuthorDraftS
     if (await drafts.save(draft.draftId)) toast(`已保存到“${originConfig.name}”`);
   };
   const close = async () => {
-    if (saveState !== 'saved' || editor?.unsettled || source?.dirty) {
+    if (saveState !== 'saved' || editor?.unsettled || source?.dirty || adoption?.hasUnsaved) {
       const ok = await confirmAction({ headline: `关闭草稿“${configuration.name}”？`, description: '草稿里的修改没有保存到组件库，关闭后找不回来。', confirmText: '关闭', danger: true });
       if (!ok) return;
     }
@@ -122,8 +126,16 @@ export function DraftDetail(props: { state: ComponentState; drafts: AuthorDraftS
         {tab === 'config' && editor && <ConfigUndo editor={editor} disabled={busy} />}
       </div>
       <div className="pbody" data-tab={tab}>
-        {tab === 'config' && editor && <DraftConfigTab draft={draft} editor={editor} pkg={pkg} checking={saveState === 'checking'} disabled={busy} />}
-        {tab === 'source' && source && <DraftSourceTab key={draft.draftId} draft={draft} model={source} disabled={busy} />}
+        {tab === 'config' && metadata?.status === 'failed' && <Note error>
+          读取在用源码 metadata 失败：{metadata.error}
+          <Button variant="text" size="sm" onPress={() => drafts.retrySourceMetadata(draft.draftId)}>重试读取</Button>
+        </Note>}
+        {tab === 'config' && editor && <DraftConfigTab draft={draft} editor={editor} pkg={schema} checking={metadata?.status === 'loading'} disabled={busy} onCompareAdoption={() => void drafts.readAdoptionComparison(draft.draftId).catch((error) => toast(error instanceof Error ? error.message : String(error)))} />}
+        {tab === 'source' && source && <DraftSourceTab key={draft.draftId} draft={draft} model={source} disabled={busy} onPrepareAdoption={async (revision) => {
+          const existing = adoption?.state.candidate;
+          if (existing && existing.targetSourceRevision !== revision && !(await confirmAction({ headline: '准备另一个修订？', description: '当前采用候选的本地输入将由新候选替换。', confirmText: '准备新候选' }))) return;
+          await adoption?.prepare(revision);
+        }} />}
         {tab === 'validation' && validation && (
           <DraftValidationTab
             key={draft.draftId}
@@ -136,6 +148,7 @@ export function DraftDetail(props: { state: ComponentState; drafts: AuthorDraftS
           />
         )}
       </div>
+      {adoption && source && <DraftAdoptionDialog model={adoption} source={source} disabled={busy} />}
       <ComponentNameDialog
         dialog={nameDialog}
         busy={busy}

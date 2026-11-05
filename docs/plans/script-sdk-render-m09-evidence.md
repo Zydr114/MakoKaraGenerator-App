@@ -372,3 +372,42 @@ M09不据此关闭。性能仅记录，未执行门槛验收。
 `group-scripting-full-02.log` 515/515、`group-core-full-01.log` 1471/1471、
 `group-runtime-full-01.log` 153/153。Runtime套件含实际失控作者进程取消／期限排水，
 不将其当作新HTTP或桌面运行验收。
+
+
+## 作者精确声明与完整配置采用（0.112.14，2026-11-05）
+
+新增 `GET /api/v1/drafts/{id}/source-inspection`，只读当前 owner 草稿的 retained 精确来源。
+两个必填单值 query 同时固定草稿 CAS 与 source；锁内重新核对 owner、CAS、保留历史和包身份。
+独立 18 字段响应不含 reference、manifest 或源码；参数默认值／范围保留 JSON 文本，文件使用
+`size`。8MiB 按实际 HTTP null 省略和 UTF-8 编码完整计数，超限整次拒绝；读取可取消且不写盘。
+
+采用命令追加可选 `configuration`，非 null 时八字段全部显式提供，仅 branchInput/fixedSeed
+可空；旧省略／null 请求仍保持已有配置。通过精确 SDK2 C# 成功编译门禁后，目标配置及试样全部
+校验完成，再同次发布名称、export、source 与配置。错误归 `configuration.*`，Int64 参数原文
+不经浮点往返；保留回执、CAS、no-op 与配额失败不变性。这里是现有持久化机制的进程内原子发布，
+不宣称跨 document/history 两文件的断电事务。
+
+前端分别持有在用源声明与采用候选，独立请求身份／CAS／generation 守卫。候选不会进入普通配置
+PUT 合并队列；未 blur 输入原文在取消重开、metadata 迟到及页签往返时保留。完整采用 undo/redo
+同时包含来源与配置，并保留源码编辑器状态。POST 可能成功但结果未确认时冻结普通配置，只有
+显式重读并取得精确 metadata 才解锁；普通刷新不能自动解除。
+
+日志位于 `.local/script-sdk-m09-20261105/`。首轮后端构建暴露草稿的 nullable／分析器／using
+错误，修正后 `build-author-metadata-06.log` 为完整 solution 0 警告／0 错误。
+Hosting 作者定向 13/13、完整 Hosting `author-metadata-hosting-full-01.log` 1586/1586。
+兼容性 `author-metadata-compat-red-01.log` 中 UTF-16 两案为有效 400 红例，预算案当时因数值参数
+缺少必填范围提前失败，不计有效红例；改为合法 text 参数后 `compat-red-02.log` 三项全部到达
+目标失败。修复后 `author-metadata-server-focused-02.log` 作者传输 6/6，含实际 Kestrel 字节对照、
+8MiB 等号／+1 stream 边界与两种 UTF-16 旧请求。Hosting 另覆盖真实超大包整次拒绝。
+
+前端首轮类型失败为测试夹具显式 undefined，首轮定向失败为旧测试假设采用会重载源码；改为
+合法可省略字段及显式查看修订，保留原回归意图。`author-metadata-typecheck-02.log` 通过，
+`author-metadata-frontend-focused-02.log` 78/78，`author-metadata-frontend-full-01.log` 3962/3962。
+正式合同、新版本匹配发布、fresh HTTP／浏览器／导出仍继续执行；不由以上测试关闭 M09/M11，
+性能不作为本轮验收门槛。
+
+
+前端 `author-metadata-frontend-build-01.log` 生产构建通过，保留既有大chunk提示，未作性能优化。
+Server全套 `author-metadata-server-full-01.log` 为513通过／3失败：三项均为历史Ruby真实HTTP
+用例缺少默认路径的匹配self-contained发布，未执行到业务断言；本轮匹配发布完成后单独补跑。
+其余Server回归已完成，不能将这次全套结果写成516/516。

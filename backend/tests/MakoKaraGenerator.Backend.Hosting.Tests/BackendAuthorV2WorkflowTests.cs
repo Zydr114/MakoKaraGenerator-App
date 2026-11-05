@@ -11,7 +11,7 @@ using MakoKaraGenerator.TestSupport;
 
 namespace MakoKaraGenerator.Backend.Hosting.Tests;
 
-public sealed class BackendAuthorV2WorkflowTests
+public sealed partial class BackendAuthorV2WorkflowTests
 {
     private const string PureSource = """
         using MakoKaraGenerator.Scripting.V2;
@@ -229,7 +229,7 @@ public sealed class BackendAuthorV2WorkflowTests
         }
         internal Task<BackendOperationResult<AuthorAdoptSourceRevisionResponse>> AdoptAsync(string sourceRevision) => Registry.AdoptAuthorSourceRevisionAsync("client",
             _draftId, new(Read().DraftRevision, sourceRevision, Metadata()));
-        internal static async Task<Fixture> CreateAsync(string source = PureSource)
+        internal static async Task<Fixture> CreateAsync(string source = PureSource, Action<JsonObject>? configureManifest = null)
         {
             TemporaryDirectory directory = new();
             ResourceStore resources = new(new() { ResourceRoot = directory.FilePath("resources") });
@@ -248,6 +248,7 @@ public sealed class BackendAuthorV2WorkflowTests
                 manifest["lineExit"] = new JsonObject { ["durationUs"] = 0L };
                 manifest["emitters"] = new JsonArray();
                 manifest["exports"]![0]!["outputs"]![0]!["requires"] = new JsonArray("token.affine");
+                configureManifest?.Invoke(manifest);
                 EffectPackageContents package = EffectPackageContents.CreateSupported(EffectPackageFixture.Bytes(manifest), EffectPackageFixture.Inputs(files));
                 string archive = directory.FilePath("package.mkfx");
                 await EffectPackageTransfer.WriteArchiveAsync(archive, package);

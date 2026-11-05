@@ -20,7 +20,7 @@ let SourceEditor = loadEditor();
 
 export const NO_SOURCE_TEXT = '这个包没有 C# 源码，当前连接使用旧源码接口；完整包文件入口不可用。';
 
-export function DraftSourceTab(props: { draft: FullDraft; model: DraftSourceModel; disabled: boolean }) {
+export function DraftSourceTab(props: { draft: FullDraft; model: DraftSourceModel; disabled: boolean; onPrepareAdoption?: (revision: string) => void | Promise<void> }) {
   const { draft, model, disabled } = props;
   const state = useObservable(model.state$);
   useEffect(() => {
@@ -57,7 +57,10 @@ export function DraftSourceTab(props: { draft: FullDraft; model: DraftSourceMode
     if (model.dirty && !(await confirmLoseEdits('查看别的修订'))) return;
     await model.load(revision);
   };
-  const adopt = async (revision: string) => reportResult(await model.adopt(revision));
+  const adopt = async (revision: string) => {
+    if (props.onPrepareAdoption) await props.onPrepareAdoption(revision);
+    else reportResult(await model.adopt(revision));
+  };
   const compile = async () => {
     const saved = await model.compile();
     if (saved) reportResult(saved);

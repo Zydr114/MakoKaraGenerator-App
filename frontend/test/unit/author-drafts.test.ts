@@ -216,12 +216,16 @@ describe('配置页签的提交', () => {
     expect(h.current().configuration.name).toBe('强调 2');
   });
 
-  it('撤销把上一份快照再 PUT 一次，重做反过来；在用修订不跟着撤销', async () => {
+  it('schema 边界清旧历史；新普通撤销/重做保持当前在用来源', async () => {
     const h = harness();
     h.editor.change(v(h, { parametersJson: '{"peakScale":2}' }));
     await vi.advanceTimersByTimeAsync(300);
-    // 源码页签保存了新修订（在用修订跟着换）。
-    h.setCurrent(draft('r5', { parametersJson: '{"peakScale":2}', sourceRevision: 'sha256:fx2' }));
+    // 采用新 schema 后明确建立配置历史边界，旧参数快照不能在新源上重放。
+    h.setCurrent(draft('r5', { parametersJson: '{}', sourceRevision: 'sha256:fx2' }));
+    h.editor.schemaBoundary(h.current());
+    expect(h.editor.undo()).toBe(false);
+    h.editor.change(v(h, { parametersJson: '{"peakScale":2}' }));
+    await vi.advanceTimersByTimeAsync(300);
     expect(h.editor.undo()).toBe(true);
     expect(h.editor.state).toMatchObject({ canUndo: false, canRedo: true });
     await vi.advanceTimersByTimeAsync(300);

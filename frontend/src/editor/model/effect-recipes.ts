@@ -11,6 +11,7 @@ import type {
   EffectOverlayLayer,
   EffectPackageExport,
   EffectPackageInspectResponse,
+  EffectPackageSchema,
   EffectReadScope,
   EffectRecipeTarget,
   FullTemplateDefinition,
@@ -32,7 +33,7 @@ export interface ExportOutput {
 }
 
 /** 包里能做效果的导出（控制器或图）。 */
-export function effectExports(pkg: EffectPackageInspectResponse): EffectPackageExport[] {
+export function effectExports(pkg: EffectPackageSchema): EffectPackageExport[] {
   return pkg.exports.filter((e) => e.kind === 'controller' || e.kind === 'graph');
 }
 

@@ -4,9 +4,10 @@
 
 import type { AuthorPackageFilesInput, AuthorPackageFilesResponse } from '../../protocol/author-package-files';
 import { BackendError, ObservableValue } from '../../client';
-import type { AuthorCompilation, AuthorDraft, AuthorDraftSourcesResponse, AuthorSourceFile, AuthorSourceRevisionResponse, JobResponse, JobSummary } from '../../protocol';
+import type { AuthorAdoptResponse, AuthorDraftConfiguration, AuthorPackageConfigurationInput, AuthorCompilation, AuthorDraft, AuthorDraftSourcesResponse, AuthorSourceFile, AuthorSourceRevisionResponse, JobResponse, JobSummary } from '../../protocol';
 import { errorText } from '../session/editor-session';
 import type { FullDraft } from './author-draft-store';
+import { editableOf, rejectionIssue, type ConfigIssue } from '../model/script-components';
 
 export const DRAFT_REVISIONS_KEY = 'mako.author-draft-revisions';
 
@@ -94,7 +95,15 @@ export interface SourceLocation {
 }
 
 /** saved.created：新建了修订；否则内容和最新修订相同，只是试样改用了它。 */
-export type SourceResult = { kind: 'saved'; revision: string; created: boolean } | { kind: 'unchanged' } | { kind: 'adopted'; revision: string } | { kind: 'failed'; message: string } | { kind: 'busy' };
+export type SourceResult = { kind: 'saved'; revision: string; created: boolean } | { kind: 'unchanged' } | { kind: 'adopted'; revision: string } | { kind: 'failed'; message: string; conflict?: boolean; uncertain?: boolean; rejected?: ConfigIssue } | { kind: 'busy' };
+
+export interface AuthorAdoptionExpectation {
+  draftId: string;
+  packageId: string;
+  sourceRevision: string;
+  configuration: AuthorPackageConfigurationInput;
+  draftRevision?: string;
+}
 
 export interface DraftSourcePort {
   current(): FullDraft | undefined;
@@ -107,11 +116,14 @@ export interface DraftSourcePort {
   savePackage?(draft: FullDraft, input: AuthorPackageFilesInput): Promise<AuthorDraft>;
   read(draft: FullDraft, revision: string): Promise<AuthorDraftSourcesResponse>;
   save(draft: FullDraft, files: AuthorSourceFile[]): Promise<AuthorSourceRevisionResponse>;
-  adopt(draft: FullDraft, revision: string): Promise<unknown>;
+  adopt(draft: FullDraft, revision: string, configuration?: AuthorPackageConfigurationInput): Promise<unknown>;
+  lockConfiguration?(): () => void;
+  adoptionBoundary?(draft: FullDraft): void;
+  adoptionUncertain?(): void;
   /** 只把在用修订换成 revision（PUT 配置，采用标记不变），新草稿写回列表。 */
   use(draft: FullDraft, revision: string): Promise<FullDraft>;
   /** 重读草稿并写回列表。 */
-  refresh(): Promise<FullDraft>;
+  refresh(expectedAdoption?: AuthorAdoptionExpectation): Promise<FullDraft>;
   /** 本页保存过的修订（sessionStorage）。 */
   savedRevisions(): string[];
   rememberSaved(revisions: string[]): void;
@@ -124,6 +136,20 @@ export interface DraftSourcePort {
   lastCompilation(): Promise<AuthorCompilation | undefined>;
 }
 
+/** 每步采用都保留完整配置，parametersJson 原文不经过 JSON 数值解析。 */
+export function snapshotConfiguration(value: AuthorDraftConfiguration): AuthorDraftConfiguration {
+  return { ...value, bindingKinds: [...value.bindingKinds] };
+}
+
+export function sameConfiguration(a: AuthorDraftConfiguration, b: AuthorDraftConfiguration): boolean {
+  return a.packageId === b.packageId && a.packageRevision === b.packageRevision && a.sourceRevision === b.sourceRevision
+    && a.kind === b.kind && a.bindingKinds.length === b.bindingKinds.length && a.bindingKinds.every((kind, i) => kind === b.bindingKinds[i])
+    && a.name === b.name && a.exportId === b.exportId && a.parametersJson === b.parametersJson
+    && a.relativeTarget === b.relativeTarget && a.readScope === b.readScope && (a.branchInput ?? null) === (b.branchInput ?? null)
+    && (a.fixedSeed ?? null) === (b.fixedSeed ?? null) && a.overlayLayer === b.overlayLayer;
+}
+
+type AdoptionChange = { before: AuthorDraftConfiguration; after: AuthorDraftConfiguration };
 type StatePatch = { [K in keyof DraftSourceState]?: DraftSourceState[K] | undefined };
 
 export class DraftSourceModel {
@@ -137,8 +163,9 @@ export class DraftSourceModel {
   private packageBaseLatest: string | undefined;
   /** 跳转的序号，一直递增（跳过后 reveal 会清掉，序号不能从头再来）。 */
   private revealNonce = 0;
-  private readonly undoAdoptions: { before: string; after: string }[] = [];
-  private readonly redoAdoptions: { before: string; after: string }[] = [];
+  private readonly undoAdoptions: AdoptionChange[] = [];
+  private readonly redoAdoptions: AdoptionChange[] = [];
+  private readonly compiledSources = new Set<string>();
 
   constructor(private readonly port: DraftSourcePort) {
     this.state$ = new ObservableValue<DraftSourceState>({ status: 'idle', files: [], saved: port.savedRevisions(), generation: 0, canUndoAdoption: false, canRedoAdoption: false });
@@ -302,51 +329,94 @@ export class DraftSourceModel {
     }
   }
 
-  /** 改用一个修订：在用修订和采用标记都换成它，试样跟着变。编辑器里没有改动时跟着读进这个修订。 */
+  /** 不确定的历史命令经用户重读后不猜测是否生效，清空本地采用历史。 */
+  clearAdoptionHistory(): void {
+    this.undoAdoptions.length = 0; this.redoAdoptions.length = 0;
+    this.patch({ canUndoAdoption: false, canRedoAdoption: false });
+  }
+
+  /** 已知成功仅来自真实编译响应；后端仍核对 retained 的成功记录。 */
+  hasSuccessfulCompilation(revision: string): boolean {
+    const last = this.port.current()?.lastCompilation;
+    return this.compiledSources.has(revision) || (!!last && last.sourceRevision === revision && last.succeeded);
+  }
+
   async adopt(revision: string): Promise<SourceResult> {
     return this.changeAdoption(revision, 'adopt');
   }
 
+  /** 候选只用准备时的 exact CAS，不 flush、刷新或自动重发。 */
+  async adoptCandidate(revision: string, value: AuthorPackageConfigurationInput, expectedDraftRevision: string, expected: AuthorDraftConfiguration): Promise<SourceResult> {
+    return this.changeAdoption(revision, 'adopt', expected, value, expectedDraftRevision);
+  }
+
   async undoAdoption(): Promise<SourceResult> {
     const change = this.undoAdoptions.at(-1);
-    return change ? this.changeAdoption(change.before, 'undo', change.after) : { kind: 'unchanged' };
+    return change ? this.changeAdoption(change.before.sourceRevision, 'undo', change.after, editableOf(change.before)) : { kind: 'unchanged' };
   }
 
   async redoAdoption(): Promise<SourceResult> {
     const change = this.redoAdoptions.at(-1);
-    return change ? this.changeAdoption(change.after, 'redo', change.before) : { kind: 'unchanged' };
+    return change ? this.changeAdoption(change.after.sourceRevision, 'redo', change.before, editableOf(change.after)) : { kind: 'unchanged' };
   }
 
-  private async changeAdoption(revision: string, action: 'adopt' | 'undo' | 'redo', expectedSource?: string): Promise<SourceResult> {
+  private async changeAdoption(revision: string, action: 'adopt' | 'undo' | 'redo', expected?: AuthorDraftConfiguration,
+    configuration?: AuthorPackageConfigurationInput, expectedDraftRevision?: string): Promise<SourceResult> {
     if (this.state.busy) return { kind: 'busy' };
     this.patch({ busy: 'adopting', error: undefined });
+    let release: (() => void) | undefined;
+    let posted = false;
+    let confirmed = false;
     try {
-      if (this.port.settleConfiguration && !(await this.port.settleConfiguration()))
+      if (!expectedDraftRevision && this.port.settleConfiguration && !(await this.port.settleConfiguration()))
         throw new Error('配置还有未提交或被拒绝的改动，请先修正。');
-      const before = this.port.current()?.configuration.sourceRevision;
-      if (!before) throw new Error('草稿已关闭。');
-      if (expectedSource && before !== expectedSource) throw new Error('在用修订已被其他操作改变，请重新查看后再采用。');
-      if (before === revision) return { kind: 'unchanged' };
-      await this.withFreshDraft((draft) => {
-        if (draft.configuration.sourceRevision !== before) throw new Error('在用修订已被其他操作改变，本次采用未提交。');
-        return this.port.adopt(draft, revision);
-      });
-      const fresh = await this.port.refresh();
-      if (fresh.configuration.sourceRevision !== revision) throw new Error('在用修订已被其他操作改变，请重新查看当前来源。');
+      const draft = this.port.current();
+      if (!draft || this.disposed) throw new Error('草稿已关闭。');
+      if (expectedDraftRevision && draft.draftRevision !== expectedDraftRevision)
+        throw new Error('草稿已变化，候选输入已保留；请重新读取并比较。');
+      const before = snapshotConfiguration(draft.configuration);
+      if (expected && !sameConfiguration(before, expected))
+        throw new Error('当前完整配置已改变，本次操作不会覆盖后来的改动。');
+      if (before.sourceRevision === revision && !configuration) return { kind: 'unchanged' };
+      release = this.port.lockConfiguration?.();
+      // 专用原子采用从不经 withFreshDraft。409 交回用户，保持所有候选与文本。
+      posted = true;
+      const receipt = await this.port.adopt(draft, revision, configuration);
+      if (this.disposed) throw new Error('草稿已关闭。');
+      const adopted = receipt as Partial<AuthorAdoptResponse> | undefined;
+      if (adopted?.draftId !== undefined && (adopted.draftId !== draft.draftId || adopted.packageId !== draft.packageId || adopted.adoptedSourceRevision !== revision))
+        throw new Error('采用回执身份不匹配，请重新读取草稿确认。');
+      const target = configuration ?? editableOf(before);
+      const fresh = await this.port.refresh({ draftId: draft.draftId, packageId: draft.packageId, sourceRevision: revision,
+        configuration: target, ...(adopted?.draftRevision ? { draftRevision: adopted.draftRevision } : {}) });
+      if (this.disposed || fresh.draftId !== draft.draftId || fresh.packageId !== draft.packageId
+        || fresh.configuration.sourceRevision !== revision || fresh.configuration.packageRevision !== revision || fresh.configuration.packageId !== draft.packageId
+        || (adopted?.draftRevision !== undefined && fresh.draftRevision !== adopted.draftRevision)
+        || !sameEditableExact(editableOf(fresh.configuration), target))
+        throw new Error('采用后的草稿与目标完整配置不一致，请重新读取并比较。');
+      confirmed = true;
+      const after = snapshotConfiguration(fresh.configuration);
+      this.port.adoptionBoundary?.(fresh);
       if (this.isV2) {
         if (action === 'undo') this.redoAdoptions.push(this.undoAdoptions.pop()!);
         else if (action === 'redo') this.undoAdoptions.push(this.redoAdoptions.pop()!);
-        else { this.undoAdoptions.push({ before, after: revision }); this.redoAdoptions.length = 0; }
+        else { this.undoAdoptions.push({ before, after }); this.redoAdoptions.length = 0; }
         this.patch({ canUndoAdoption: this.undoAdoptions.length > 0, canRedoAdoption: this.redoAdoptions.length > 0 });
       }
-      this.patch({ busy: undefined });
-      if (this.state.status === 'ready' && !this.dirty && this.state.revision !== fresh.configuration.sourceRevision) await this.load();
-      return { kind: 'adopted', revision: fresh.configuration.sourceRevision };
+      // 保留显示的文件、cursor、undo 和 dirty；切到在用源仍由用户明确查看。
+      return { kind: 'adopted', revision };
     } catch (error) {
+      // 明确的后端拒绝没有发布；网络或回执/重读失败可能已发布，普通配置先冻结。
+      if (posted && !confirmed && !(error instanceof BackendError && (error.status === 400 || error.status === 403 || error.status === 404 || error.status === 409 || error.status === 422)))
+        this.port.adoptionUncertain?.();
       const message = `${action === 'undo' ? '撤销采用' : action === 'redo' ? '重做采用' : '采用修订'}失败：${errorText(error)}`;
       this.patch({ error: message });
-      return { kind: 'failed', message };
+      return { kind: 'failed', message,
+        ...(error instanceof BackendError && error.status === 409 ? { conflict: true } : {}),
+        ...(error instanceof BackendError ? { rejected: rejectionIssue(error.field?.replace(/^configuration\./, ''), error.message) } : {}),
+        ...(posted && !confirmed && !(error instanceof BackendError && [400, 403, 404, 409, 422].includes(error.status)) ? { uncertain: true } : {}) };
     } finally {
+      release?.();
       this.patch({ busy: undefined });
     }
   }
@@ -380,7 +450,9 @@ export class DraftSourceModel {
         this.abort.signal,
       );
       if (job.state === 'succeeded' && job.authorCompilationResult) {
-        this.patch({ compilation: await this.port.compilationResult(job.jobId) });
+        const result = await this.port.compilationResult(job.jobId);
+        if (result.succeeded) this.compiledSources.add(result.sourceRevision);
+        this.patch({ compilation: result });
         // 草稿的编译摘要（lastCompilation）跟着更新。
         await this.port.refresh().catch(() => undefined);
       } else this.patch({ compileError: job.state === 'cancelled' ? '已取消编译。' : `编译没有完成：${job.error?.message ?? job.state}` });
@@ -446,6 +518,7 @@ export class DraftSourceModel {
     this.lastRead = true;
     try {
       const last = await this.port.lastCompilation();
+      if (last?.succeeded) this.compiledSources.add(last.sourceRevision);
       if (last && !this.state.compilation) this.patch({ compilation: last });
     } catch {
       // 读不到就当没编译过，再编译一次即可。
@@ -526,4 +599,11 @@ export function sourceLanguage(file: Pick<SourceFile, 'role'>): SourceLanguage {
     case 'svg': return 'xml';
     default: return 'plain';
   }
+}
+
+/** 同一次提交后的完整字段核对；数值 JSON 原文必须逐字保留。 */
+export function sameEditableExact(a: AuthorPackageConfigurationInput, b: AuthorPackageConfigurationInput): boolean {
+  return a.name === b.name && a.exportId === b.exportId && a.parametersJson === b.parametersJson
+    && a.relativeTarget === b.relativeTarget && a.readScope === b.readScope && a.branchInput === b.branchInput
+    && a.fixedSeed === b.fixedSeed && a.overlayLayer === b.overlayLayer;
 }

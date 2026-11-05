@@ -21,6 +21,7 @@ export * from './orchestration';
 export * from './templates';
 export * from './effect-packages';
 export * from './author';
+export * from './author-source-inspection';
 export * from './script-configurations';
 export * from './fonts';
 export * from './template-transfer';

@@ -37,10 +37,15 @@ public sealed class DeclareContext
     public DeclareContext(ContentCatalog content, SceneCatalog scene, ParameterValues parameters,
         AudioFeatures audio, ResourceCatalog resources, ulong seed, TimelineIndex timeline, Vector2 canvasSize,
         EffectInstanceId instanceId, SourceIndexes? indexes = null)
+        : this(content, scene, parameters, audio, resources, seed, timeline, canvasSize, instanceId, indexes, MediaQueryCatalog.Empty) { }
+
+    internal DeclareContext(ContentCatalog content, SceneCatalog scene, ParameterValues parameters,
+        AudioFeatures audio, ResourceCatalog resources, ulong seed, TimelineIndex timeline, Vector2 canvasSize,
+        EffectInstanceId instanceId, SourceIndexes? indexes, MediaQueryCatalog media)
     {
         ArgumentNullException.ThrowIfNull(content); ArgumentNullException.ThrowIfNull(scene);
         ArgumentNullException.ThrowIfNull(parameters); ArgumentNullException.ThrowIfNull(audio);
-        ArgumentNullException.ThrowIfNull(resources); ArgumentNullException.ThrowIfNull(timeline);
+        ArgumentNullException.ThrowIfNull(resources); ArgumentNullException.ThrowIfNull(timeline); ArgumentNullException.ThrowIfNull(media);
         if (canvasSize.X <= 0 || canvasSize.Y <= 0) throw new ArgumentOutOfRangeException(nameof(canvasSize));
         parameters.ValidateResources(resources);
         Content = content; Scene = scene; Parameters = parameters; Audio = audio; Resources = resources;
@@ -48,6 +53,7 @@ public sealed class DeclareContext
         Random = new DeterministicRandom(seed, instanceId);
         Indexes = indexes ?? new(timeline);
         if (!ReferenceEquals(Indexes.Timeline, timeline)) throw new ArgumentException("源索引必须共用固定事件表。", nameof(indexes));
+        Media = media;
     }
 
     /// <summary>完整源歌词目录，不按实例输出范围裁剪。</summary>
@@ -58,6 +64,8 @@ public sealed class DeclareContext
     public ParameterValues Parameters { get; }
     /// <summary>固定分析修订和明确的不可用状态。</summary>
     public AudioFeatures Audio { get; }
+    /// <summary>精确固定导出的媒体元数据；本准备阶段没有采样入口。</summary>
+    public MediaQueryCatalog Media { get; }
     /// <summary>固定包修订的逻辑资源目录。</summary>
     public ResourceCatalog Resources { get; }
     /// <summary>固定宿主种子。</summary>

@@ -10,11 +10,13 @@ public static partial class ScriptV2PurityAnalyzer
 {
     private sealed partial class Analysis
     {
-        private void CheckMethod(IMethodSymbol method, bool evaluating, ImmutableArray<int> ownedParameters, Location callLocation)
+        private void CheckMethod(IMethodSymbol method, bool evaluating, ImmutableArray<int> ownedParameters, Location callLocation,
+            ImmutableArray<int> handleParameters = default)
         {
             _token.ThrowIfCancellationRequested();
             method = method.ReducedFrom ?? method;
-            string key = method.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + "|" + evaluating + "|" + string.Join(',', ownedParameters);
+            string key = method.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + "|" + evaluating + "|" + string.Join(',', ownedParameters)
+                + "|handles:" + (handleParameters.IsDefault ? "" : string.Join(',', handleParameters));
             if (!_visitedMethods.Add(key)) return;
             if (method.ContainingType is { } owner && owner.Locations.Any(static value => value.IsInSource)) CheckStaticState(owner);
             if (method.IsAsync || method.IsExtern || method.GetDllImportData() is not null)
@@ -37,14 +39,14 @@ public static partial class ScriptV2PurityAnalyzer
                     };
                     if (body is not null) operation = model.GetOperation(body, _token);
                 }
-                if (operation is not null) new Walker(this, method, evaluating, ownedParameters).Visit(operation);
+                if (operation is not null) new Walker(this, method, evaluating, ownedParameters, handleParameters).Visit(operation);
                 else if (!method.IsImplicitlyDeclared && declaration is not AccessorDeclarationSyntax { Body: null, ExpressionBody: null }
                     && declaration is not RecordDeclarationSyntax && declaration is not ParameterSyntax)
                     Report(Unsupported, callLocation, method.ToDisplayString());
             }
         }
 
-        private sealed class Walker : OperationWalker
+        private sealed partial class Walker : OperationWalker
         {
             private readonly Analysis _analysis;
             private readonly IMethodSymbol? _method;
@@ -54,11 +56,22 @@ public static partial class ScriptV2PurityAnalyzer
             private readonly HashSet<ISymbol> _knownInterfaceValues = new(SymbolEqualityComparer.Default);
             private readonly Dictionary<ISymbol, IOperation> _delegates = new(SymbolEqualityComparer.Default);
 
-            internal Walker(Analysis analysis, IMethodSymbol? method, bool evaluating, ImmutableArray<int> ownedParameters)
+            internal Walker(Analysis analysis, IMethodSymbol? method, bool evaluating, ImmutableArray<int> ownedParameters,
+                ImmutableArray<int> handleParameters = default)
             {
                 _analysis = analysis; _method = method; _evaluating = evaluating;
                 if (method is not null)
+                {
                     foreach (int index in ownedParameters) _owned.Add(method.Parameters[index]);
+                    if (!handleParameters.IsDefault)
+                        foreach (int index in handleParameters)
+                        {
+                            _handleAliases.Add(method.Parameters[index]);
+                            // Generic calls carry constructed symbols, while
+                            // GetOperation binds their source declaration body.
+                            _handleAliases.Add(method.OriginalDefinition.Parameters[index]);
+                        }
+                }
             }
 
             public override void Visit(IOperation? operation)
@@ -96,10 +109,10 @@ public static partial class ScriptV2PurityAnalyzer
                 if (operation.Target is ILocalReferenceOperation local)
                 {
                     if (Owned(operation.Value)) _owned.Add(local.Local); else _owned.Remove(local.Local);
-                    if (ContainsHandle(operation.Value)) _handleAliases.Add(local.Local); else _handleAliases.Remove(local.Local);
                     if (KnownMetadataInput(operation.Value)) _knownInterfaceValues.Add(local.Local); else _knownInterfaceValues.Remove(local.Local);
                     if (IsDelegate(operation.Value)) _delegates[local.Local] = operation.Value; else _delegates.Remove(local.Local);
                 }
+                AssignHandleAlias(operation.Target, ContainsHandle(operation.Value));
                 base.VisitSimpleAssignment(operation);
             }
 
@@ -218,14 +231,17 @@ public static partial class ScriptV2PurityAnalyzer
                     int offset = method.ReducedFrom is null ? 0 : 1;
                     ImmutableArray<int> owned = [.. arguments.Where(argument => argument.Parameter is not null && Owned(argument.Value))
                         .Select(argument => argument.Parameter!.Ordinal + offset), .. offset != 0 && Owned(instance) ? new[] { 0 } : []];
-                    _analysis.CheckMethod(method, _evaluating, owned, operation.Syntax.GetLocation());
+                    ImmutableArray<int> handles = [.. arguments.Where(argument => argument.Parameter is not null && ContainsHandle(argument.Value))
+                        .Select(argument => argument.Parameter!.Ordinal + offset),
+                        .. offset != 0 && instance is not null && ContainsHandle(instance) ? new[] { 0 } : []];
+                    _analysis.CheckMethod(method, _evaluating, owned, operation.Syntax.GetLocation(), handles);
                     return;
                 }
                 if (IsSdkCall(method))
                 {
                     if (IsStageHandle(method.ContainingType) && method.MethodKind == MethodKind.Constructor)
                         Report(Capability, operation, "宿主阶段句柄构造 " + method.ContainingType.Name);
-                    if (method.ContainingType.Name is ("TextOutput" or "VisualOutput" or "ParticleFrame") && method.Name is ("Complete" or "Invalidate" or "Dispose"))
+                    if (method.ContainingType.Name is ("TextOutput" or "VisualOutput" or "ParticleFrame" or "MediaFeatures") && method.Name is ("Complete" or "Invalidate" or "Dispose"))
                         Report(Capability, operation, "宿主输出生命周期 " + method.Name);
                     return;
                 }
@@ -306,21 +322,29 @@ public static partial class ScriptV2PurityAnalyzer
             public override void VisitAnonymousFunction(IAnonymousFunctionOperation operation)
             {
                 if (operation.Symbol.IsAsync) Report(UnsupportedLanguage, operation, "async lambda");
-                CheckCapture(operation);
+                CheckCapture(operation, operation.Symbol);
                 new Walker(_analysis, operation.Symbol, _evaluating, []).Visit(operation.Body);
             }
 
             public override void VisitLocalFunction(ILocalFunctionOperation operation)
             {
-                CheckCapture(operation);
+                CheckCapture(operation, operation.Symbol);
                 _analysis.CheckMethod(operation.Symbol, _evaluating, [], operation.Syntax.GetLocation());
             }
 
-            private void CheckCapture(IOperation operation)
+            private void CheckCapture(IOperation operation, IMethodSymbol function)
             {
                 foreach (IOperation child in operation.Descendants())
-                    if (child is ILocalReferenceOperation or IParameterReferenceOperation && ContainsHandle(child))
+                    if (child is ILocalReferenceOperation or IParameterReferenceOperation && ContainsHandle(child)
+                        && !DeclaredWithin(child is ILocalReferenceOperation local ? local.Local : ((IParameterReferenceOperation)child).Parameter, function))
                         Report(HandleEscape, child, "闭包捕获 " + child.Syntax);
+            }
+
+            private static bool DeclaredWithin(ISymbol symbol, IMethodSymbol function)
+            {
+                for (ISymbol? owner = symbol.ContainingSymbol; owner is not null; owner = owner.ContainingSymbol)
+                    if (Same(owner, function)) return true;
+                return false;
             }
 
             public override void VisitAwait(IAwaitOperation operation) { Report(UnsupportedLanguage, operation, "await"); base.VisitAwait(operation); }
@@ -337,7 +361,7 @@ public static partial class ScriptV2PurityAnalyzer
                     && (operation.LeftOperand.Type?.SpecialType is not (SpecialType.System_String or SpecialType.System_Char)
                         || operation.RightOperand.Type?.SpecialType is not (SpecialType.System_String or SpecialType.System_Char)))
                     Report(Unsupported, operation, "隐式文化格式化的字符串拼接");
-                base.VisitBinaryOperator(operation);
+                if (!VisitShortCircuitHandleFlow(operation)) base.VisitBinaryOperator(operation);
             }
             public override void VisitUnaryOperator(IUnaryOperation operation)
             {
@@ -395,7 +419,8 @@ public static partial class ScriptV2PurityAnalyzer
 
             private static IOperation Unwrap(IOperation operation)
             {
-                while (operation is IConversionOperation conversion) operation = conversion.Operand;
+                while (operation is IConversionOperation or IParenthesizedOperation)
+                    operation = operation is IConversionOperation conversion ? conversion.Operand : ((IParenthesizedOperation)operation).Operand;
                 return operation;
             }
 
@@ -403,9 +428,17 @@ public static partial class ScriptV2PurityAnalyzer
             {
                 if (IsStageHandle(operation.Type)) return true;
                 operation = Unwrap(operation);
-                return IsStageHandle(operation.Type) || operation.Type is INamedTypeSymbol named && named.TypeArguments.Any(IsStageHandle)
+                return ContainsStageHandleType(operation.Type)
                     || operation is ILocalReferenceOperation local && _handleAliases.Contains(local.Local)
-                    || operation is ITupleOperation tuple && tuple.Elements.Any(ContainsHandle);
+                    || operation is IParameterReferenceOperation parameter && _handleAliases.Contains(parameter.Parameter)
+                    || operation is ISimpleAssignmentOperation assignment && ContainsHandle(assignment.Value)
+                    || operation is ICoalesceAssignmentOperation coalesceAssignment
+                        && (ContainsHandle(coalesceAssignment.Target) || ContainsHandle(coalesceAssignment.Value))
+                    || operation is ITupleOperation tuple && tuple.Elements.Any(ContainsHandle)
+                    || operation is IConditionalOperation conditional && (ContainsHandle(conditional.WhenTrue)
+                        || conditional.WhenFalse is { } whenFalse && ContainsHandle(whenFalse))
+                    || operation is ICoalesceOperation coalesce && (ContainsHandle(coalesce.Value) || ContainsHandle(coalesce.WhenNull))
+                    || operation is ISwitchExpressionOperation selection && SwitchResultContainsHandle(selection);
             }
             private static bool IsDelegate(IOperation operation) => Unwrap(operation) is IDelegateCreationOperation or IAnonymousFunctionOperation or IMethodReferenceOperation;
             private static bool SourceMethod(ISymbol symbol) => symbol.Locations.Any(static value => value.IsInSource);

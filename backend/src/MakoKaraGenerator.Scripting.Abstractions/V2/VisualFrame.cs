@@ -14,11 +14,16 @@ public readonly struct VisualFrame
 {
     internal VisualFrame(DeclareContext source, long timeUs, EffectBinding binding, OutputMode outputMode,
         FinalSceneGeometry finalGeometry, ParticleFrame particles)
+        : this(source, timeUs, binding, outputMode, finalGeometry, particles, UnboundMedia(source)) { }
+
+    internal VisualFrame(DeclareContext source, long timeUs, EffectBinding binding, OutputMode outputMode,
+        FinalSceneGeometry finalGeometry, ParticleFrame particles, MediaFeatures media)
     {
         ArgumentNullException.ThrowIfNull(source); ArgumentNullException.ThrowIfNull(binding);
-        ArgumentNullException.ThrowIfNull(finalGeometry); ArgumentNullException.ThrowIfNull(particles);
+        ArgumentNullException.ThrowIfNull(finalGeometry); ArgumentNullException.ThrowIfNull(particles); ArgumentNullException.ThrowIfNull(media);
+        media.ValidateCatalog(source.Media, source.CanvasSize);
         if (timeUs < 0 || finalGeometry.TimeUs != timeUs || !Enum.IsDefined(outputMode)) throw new ArgumentOutOfRangeException(nameof(timeUs));
-        Source = source; TimeUs = timeUs; Binding = binding; OutputMode = outputMode; FinalGeometry = finalGeometry; Particles = particles;
+        Source = source; Media = media; TimeUs = timeUs; Binding = binding; OutputMode = outputMode; FinalGeometry = finalGeometry; Particles = particles;
     }
     /// <summary>所属固定输入的源服务。</summary>
     public DeclareContext Source { get; }
@@ -32,6 +37,8 @@ public readonly struct VisualFrame
     public FinalSceneGeometry FinalGeometry { get; }
     /// <summary>本实例存活、完整出生窗与解析拖尾的阶段视图。</summary>
     public ParticleFrame Particles { get; }
+    /// <summary>仅本次晚期调用有效的媒体采样句柄；可显式使用最终几何矩形。</summary>
+    public MediaFeatures Media { get; }
     /// <summary>固定参数。</summary>
     public ParameterValues Parameters => Source.Parameters;
     /// <summary>固定分析及其明确不可用状态。</summary>
@@ -46,6 +53,12 @@ public readonly struct VisualFrame
     public SourceIndexes Indexes => Source.Indexes;
     /// <summary>画布逻辑宽高。</summary>
     public Vector2 CanvasSize => Source.CanvasSize;
+
+    private static MediaFeatures UnboundMedia(DeclareContext source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        return new(source.Media, source.CanvasSize);
+    }
 }
 
 /// <summary>本次晚期调用有效的本实例粒子视图；不是可存入准备结果的固定值。</summary>

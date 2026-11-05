@@ -41,15 +41,19 @@ public sealed record TextLineLoad
     public double ExitProgress { get; }
 }
 
-/// <summary>SDK v2 文字阶段的只读帧；不公开 v1 历史、状态、诊断或可失效查询句柄。</summary>
+/// <summary>SDK v2 文字阶段的只读帧；不公开 v1 历史、状态或诊断。</summary>
 public readonly struct TextFrame
 {
     /// <summary>投影宿主已经采样的安全只读输入；退场时由宿主显式提供冻结后的装载和几何。</summary>
     public TextFrame(DeclareContext source, FrameContext frame, ImmutableArray<TextLineLoad> lineLoads = default)
+        : this(source, frame, lineLoads, UnboundMedia(source, frame)) { }
+
+    internal TextFrame(DeclareContext source, FrameContext frame, ImmutableArray<TextLineLoad> lineLoads, MediaFeatures media)
     {
-        ArgumentNullException.ThrowIfNull(source); ArgumentNullException.ThrowIfNull(frame);
+        ArgumentNullException.ThrowIfNull(source); ArgumentNullException.ThrowIfNull(frame); ArgumentNullException.ThrowIfNull(media);
+        media.ValidateCatalog(source.Media, source.CanvasSize);
         if (frame.TimeUs < 0) throw new ArgumentOutOfRangeException(nameof(frame));
-        Source = source; TimeUs = frame.TimeUs; Baseline = frame.Baseline;
+        Source = source; Media = media; TimeUs = frame.TimeUs; Baseline = frame.Baseline;
         Presentations = frame.Presentations; Geometry = frame.Geometry; LineGeometry = frame.LineGeometry;
         MarkGeometry = frame.MarkGeometry; GroupGeometry = frame.GroupGeometry; Binding = frame.Binding; OutputMode = frame.OutputMode;
         var presentations = frame.Presentations;
@@ -67,6 +71,8 @@ public readonly struct TextFrame
     public ParameterValues Parameters => Source.Parameters;
     /// <summary>固定音频分析；Missing 状态不伪造静音。</summary>
     public AudioFeatures Audio => Source.Audio;
+    /// <summary>仅本次文字调用有效的媒体采样句柄；使用明确基础几何矩形。</summary>
+    public MediaFeatures Media { get; }
     /// <summary>固定资源目录。</summary>
     public ResourceCatalog Resources => Source.Resources;
     /// <summary>计数式随机服务。</summary>
@@ -97,4 +103,10 @@ public readonly struct TextFrame
     public EffectBinding Binding { get; }
     /// <summary>当前输出的背景语义。</summary>
     public OutputMode OutputMode { get; }
+
+    private static MediaFeatures UnboundMedia(DeclareContext source, FrameContext frame)
+    {
+        ArgumentNullException.ThrowIfNull(source); ArgumentNullException.ThrowIfNull(frame);
+        return new(source.Media, source.CanvasSize, token: frame.CancellationToken);
+    }
 }

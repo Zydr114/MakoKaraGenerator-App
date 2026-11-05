@@ -186,6 +186,28 @@ export的每项引用为`query`和`fallback`，后者明确包含`pending`、`un
 三状态输出归属和精确包revision进入固定依赖摘要；不反向包含input revision、mapping、
 source key或状态，避免身份循环。源码编码见`Core/Effects/MediaDependencyEncoding.cs`。
 
+### 5.2 已实施的 SDK 查询表面与阶段句柄（0.112.28）
+
+`DeclareContext.Media` 为不可变 `MediaQueryCatalog`，仅含固定安全输入、当前export查询
+profile及不持资源的目录作用域；准备阶段没有Sample。`TextFrame.Media`／`VisualFrame.Media`
+新增本次调用的 `MediaFeatures.Sample(id, rect, projectTimeUs)`。查询id必须由当前目录颁发，
+default／另一目录同名id拒绝；窗口固定于profile，四double边与整数微秒显式传入。
+
+SDK输入四状态为NoMedia／Pending／Available／Unavailable；Core两种Available投影到同一
+状态，文件才有artifact摘要。Source／Canvas返回不同只读数值类型，非Available两者均空，
+仍拒绝非法query／矩形／时间。元数据仅允许安全摘要和诊断码，不含路径、reader或callback。
+保留旧构造器：无绑定时Catalog.Input=null且Profiles为空，Sample具名拒绝，不伪造NoMedia。
+
+服务内部以锁覆盖Sample与Invalidate，关闭时清除callback；采样前后检查取消及精确结果
+input／query／rect／time。目录、profile、id及数值快照可进只读prepared，服务不得保留。
+纯度规则身份提升到`sdk2-purity-6`：递归stage类型、helper参数别名、分支／循环／try和属性
+模式纳入检查；普通明确安全重赋值保留接受。goto明确拒绝，loop／try别名保守汇合；该有限
+确定性子集检查不是任意C#安全沙箱。没有扩大BCL权限或新增CPU capability。
+
+本片仅实现表面、内部绑定入口与句柄机制。实际Host每次调用finally关闭、精确owner投影、
+provider／factory／锚点和图消费者仍待接线；`media.features`继续known-pending。真实作者
+编译与相邻回归证据见[M10记录](script-sdk-render-m10-evidence.md)，不据本片宣称媒体可执行。
+
 ## 6. 源制品、映射与运行输入身份
 
 建议新增不可变 `MediaFeatureInput(State, SourceKey, InputRevision, Profile, Artifact?, Diagnostic?)`，状态限定如下。

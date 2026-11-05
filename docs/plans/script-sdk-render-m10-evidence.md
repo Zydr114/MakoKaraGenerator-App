@@ -289,3 +289,30 @@ owner拒绝均保持。`native-caller-cancel-cleanup-02.json`核7个unit消失�
 尚有独立静态审查提出ActiveState与ControlGroup顺序读取的另一个退出窗口，后续有限修订
 继续处理；本轮真实七案未覆盖全部manager交错。以上只证明Linux封套有限功能，不构成
 真实媒体decoder、完整Worker、HTTP、浏览器或M10完成；性能不作本轮门槛。
+
+
+## 第十三片：SDK 媒体值、阶段服务与纯度检查（产品0.112.28）
+
+SDK新增只读输入／目录／profile／query id及Source／Canvas数值快照；Declare只能固定目录，
+Text／Visual通过内部绑定入口持本次服务。旧构造签名保留，无绑定明确Input=null／空目录／
+采样拒绝。sample锁与Invalidate串行，关闭清callback；前后取消与精确input/query/rect/time
+验证保持。跨目录、default、非法矩形／时刻均拒绝，非Available不伪造黑色。见[M10细化§5.2](script-sdk-v2-m10-media-notes.md#52-已实施的-sdk-查询表面与阶段句柄011228)。
+
+纯值不含provider／reader／阶段服务；MediaFeatures列入stage集合，递归数组／泛型／字段／
+属性及source helper别名均检查。规则identity由sdk2-purity-5升至6。独立审查发现参数赋值、
+结构化分支／pattern丢别名及static local helper误判捕获；真实编译先跑
+`sdk-media-flow-red-01.log`，28项中20失败／8通过（18漏拒绝、2误拒绝）。修为结构化别名
+汇合、循环有限符号集固定点、try保守汇合和准确自由变量判定；goto具名拒绝。普通明确安全
+重赋值仍接受，不扩大BCL权限、不声称任意C#安全沙箱。
+
+root另发现属性模式可把frame.Media／Source.Indexes擦成object；
+`sdk-media-property-pattern-red-01.log`三项全部失败，按实际成员／子模式类型传播后通过，
+安全Catalog属性模式仍接受。01构建与38项定向通过是初稿表面结果；02构建／66项是追加
+上述三例之前的中间结果。最终`build-sdk-media-surface-03.log`完整solution零警告／零错误，
+`sdk-media-scripting-full-01.log`588/588，含最终69项新增SDK／真实作者编译正反例；
+`sdk-media-rendering-full-01.log`1703/1703；
+`sdk-media-runtime-hosting-full-01.log`153/153。
+
+实际Host finally关闭与精确owner投影、provider／factory／锚点、typed图／GPU、Job与运行
+换代仍未接通；capability保持known-pending。本片无新HTTP／匹配Server Worker／浏览器／
+导出或性能结论，M10/M11未完成。

@@ -174,13 +174,16 @@ public static partial class ScriptV2PurityAnalyzer
             if (!_checkedInitializers.Add(type)) return;
             foreach (IFieldSymbol field in type.GetMembers().OfType<IFieldSymbol>().Where(static value => !value.IsStatic && !value.IsConst))
             {
-                if (IsStageHandle(field.Type)) Report(HandleEscape, SourceLocation(field), field.ToDisplayString());
+                if (ContainsStageHandleType(field.Type)) Report(HandleEscape, SourceLocation(field), field.ToDisplayString());
                 foreach (SyntaxReference reference in field.DeclaringSyntaxReferences)
                     if (reference.GetSyntax(_token) is VariableDeclaratorSyntax { Initializer.Value: { } initializer }) CheckExpression(initializer, false);
             }
             foreach (IPropertySymbol property in type.GetMembers().OfType<IPropertySymbol>().Where(static value => !value.IsStatic))
+            {
+                if (ContainsStageHandleType(property.Type)) Report(HandleEscape, SourceLocation(property), property.ToDisplayString());
                 foreach (SyntaxReference reference in property.DeclaringSyntaxReferences)
                     if (reference.GetSyntax(_token) is PropertyDeclarationSyntax { Initializer.Value: { } initializer }) CheckExpression(initializer, false);
+            }
         }
 
         private void CheckExpression(ExpressionSyntax expression, bool evaluating)
@@ -246,9 +249,13 @@ public static partial class ScriptV2PurityAnalyzer
         private static bool IsStageHandle(ITypeSymbol? type)
             => type is not null && IsTrustedSdk(type) && type.ContainingNamespace.ToDisplayString() == V2Namespace
                 && type.Name is "DeclareContext" or "TextFrame" or "TextOutput" or "VisualFrame" or "VisualOutput" or "ParticleFrame"
-                    or "SourceIndexes" or "SourcePresentationIndex" or "SourceLayoutIndex" or "SourceCursorIndex";
+                    or "SourceIndexes" or "SourcePresentationIndex" or "SourceLayoutIndex" or "SourceCursorIndex" or "MediaFeatures";
 
         private static bool IsTrustedSdk(ITypeSymbol type) => type.ContainingAssembly?.Name == SdkAssembly;
+
+        private static bool ContainsStageHandleType(ITypeSymbol? type)
+            => IsStageHandle(type) || type is IArrayTypeSymbol array && ContainsStageHandleType(array.ElementType)
+                || type is INamedTypeSymbol named && named.TypeArguments.Any(ContainsStageHandleType);
 
         private static bool IsSdkValue(ITypeSymbol type)
         {
@@ -263,7 +270,9 @@ public static partial class ScriptV2PurityAnalyzer
                     or "RateSegment" or "RateTrack" or "ParticleSpec" or "BridgePolicy" or "CursorEmissionPlan" or "BurstEventRow"
                     or "EventBurstPlan" or "ParticleSchedule" or "GeometrySamplingPolicy" or "VisualOutputDeclaration" or "ParticleLimits"
                     or "ParticleHead" or "ParticleOrigin" or "ParticleIdentity" or "BirthWindow" or "ParticleBirth" or "ParticleView"
-                    or "ParticleBirthWindow" || type.TypeKind == TypeKind.Enum;
+                    or "ParticleBirthWindow" or "MediaQueryId" or "MediaQueryProfile" or "MediaFeatureInputInfo" or "MediaQueryCatalog"
+                    or "LinearPremulMean" or "SourceMediaFeatureValues" or "CanvasMediaFeatureValues" or "MediaFeatureSample"
+                    || type.TypeKind == TypeKind.Enum;
             }
             // These are fixed projections or value identities. Existing lifecycle writers/queries are deliberately absent.
             string name = type.ContainingType?.Name ?? type.Name;

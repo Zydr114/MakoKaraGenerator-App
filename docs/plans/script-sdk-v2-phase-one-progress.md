@@ -283,3 +283,12 @@ Scripting519全部通过；当前仍无本版本fresh HTTP／运行换代／导�
 竞态；完整构建零警告错误、Processes37项、native69个确定性场景及发布后真实七场景通过。
 准确owned unit/PID已排水，失败与有限范围见[M10记录](script-sdk-render-m10-evidence.md)。
 剩余manager顺序快照窗口与真实decoder／SDK／Job接线继续；M10/M11未完成，性能门槛暂缓。
+
+
+### M10 SDK 媒体表面与纯度修订（产品0.112.28）
+
+不可变查询目录、精确目录句柄、Text／Visual阶段媒体服务和分支数值快照已实现；无绑定明确
+拒绝采样。真实作者编译发现并修复参数／控制流／属性模式中的阶段句柄逃逸与static local
+helper误拒绝，原始红例保留。完整构建零警告错误，Scripting588、Rendering1703、
+Runtime.Hosting153全部通过，详见[M10记录](script-sdk-render-m10-evidence.md)。
+Host关闭、精确owner投影、provider／factory／图及Job换代继续；执行能力保持关闭，M10/M11未完成。

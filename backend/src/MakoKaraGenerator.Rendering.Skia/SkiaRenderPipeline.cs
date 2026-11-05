@@ -178,6 +178,13 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
             throw owner.Owner.Failure("RenderMaterials", request.TimeUs,
                 "MaterialResourcesRequired", new PreparedFrameException("MaterialResourcesRequired", "材质须提供真实固定程序集合，不能绘制白色种子。"));
         }
+        if (_imageEffects is null && request.PreparedFrame is { BaseMaterials.IsEmpty: false } baseMaterialFrame)
+        {
+            var binding = baseMaterialFrame.BaseMaterials[0];
+            throw binding.Owner.Failure("RenderMaterials", request.TimeUs, "MaterialResourcesRequired",
+                MaterialTargetError(new PreparedFrameException("MaterialResourcesRequired", "Base 材质须有固定程序集合。"),
+                    new Scripting.V2.TextTarget.Base(binding.Target), "MaterialResourcesRequired"));
+        }
         Composition composition = request.Project.Composition;
         RenderTarget target = request.ResolveTarget();
 
@@ -186,7 +193,7 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
             throw new InvalidOperationException($"渲染目标尺寸非法：{target.PixelWidth}×{target.PixelHeight}。");
         }
 
-        using var srgb = request.PreparedFrame is { } colorFrame && (!colorFrame.Materials.IsEmpty || !colorFrame.ImageEffects.IsEmpty || !colorFrame.GroupOpacities.IsEmpty || colorFrame.OverlayBatches.Any(batch => batch.ItemCount > 0 && (batch is Scripting.SpriteBatch or Scripting.PathBatch or Scripting.AtlasSpriteBatch))) ? SKColorSpace.CreateSrgb() : null;
+        using var srgb = request.PreparedFrame is { } colorFrame && (!colorFrame.Materials.IsEmpty || !colorFrame.BaseMaterials.IsEmpty || !colorFrame.ImageEffects.IsEmpty || !colorFrame.GroupOpacities.IsEmpty || colorFrame.OverlayBatches.Any(batch => batch.ItemCount > 0 && (batch is Scripting.SpriteBatch or Scripting.PathBatch or Scripting.AtlasSpriteBatch))) ? SKColorSpace.CreateSrgb() : null;
         SKImageInfo info = new(target.PixelWidth, target.PixelHeight, SKColorType.Bgra8888, SKAlphaType.Premul, srgb);
         ImmutableArray<RenderImageEffectDiagnostic> imageDiagnostics = [];
         ImmutableArray<RenderMaterialDiagnostic> materialDiagnostics = [];
@@ -221,7 +228,7 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
             var svgWork = new SvgRenderWorkBudget(_svgEffects?.MaximumFrameOperations ?? 200_000,
                 _svgEffects?.MaximumFrameFilterBytes ?? 128L * 1024 * 1024);
             DrawOverlays(canvas, request, Scripting.OverlayLayer.BehindText, frameResources, svgWork);
-            if (request.PreparedFrame is { } preparedScene && (!preparedScene.Materials.IsEmpty || !preparedScene.ImageEffects.IsEmpty || !preparedScene.GroupOpacities.IsEmpty))
+            if (request.PreparedFrame is { } preparedScene && (!preparedScene.Materials.IsEmpty || !preparedScene.BaseMaterials.IsEmpty || !preparedScene.ImageEffects.IsEmpty || !preparedScene.GroupOpacities.IsEmpty))
             {
                 imageDiagnostics = DrawImageEffectScene(surface, request, frameResources, out var drawingDiagnostics, out materialDiagnostics);
                 sceneDiagnostics = sceneDiagnostics.Append(drawingDiagnostics);

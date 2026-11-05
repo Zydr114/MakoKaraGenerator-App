@@ -6,7 +6,7 @@ namespace MakoKaraGenerator.Rendering.Skia;
 
 public sealed partial class SkiaRenderPipeline
 {
-    private ImageGraphResult ExecuteObjectMaterial(RenderRequest request, PreparedMaterialBinding binding, SceneMaterialProgram program,
+    private ImageGraphResult ExecuteObjectMaterial(RenderRequest request, ObjectMaterialBinding binding, SceneMaterialProgram program,
         SceneColorPart part, bool? sung, ImageObjectState state, SkiaGraphSurface below)
     {
         var output = request.ResolveTarget(); var composition = request.Project.Composition;
@@ -15,7 +15,7 @@ public sealed partial class SkiaRenderPipeline
             output.ScaleXOf(composition), output.ScaleYOf(composition), binding.Material.Parameters, request.TransparentBackground)
             { Uniforms = binding.Material.Uniforms };
         var definition = program.Package.GetMaterialDefinition(binding.Material.Handle);
-        using var captured = CaptureSceneMaterialRegion(request, CaptureTarget(binding.Target), part, definition.Fallback, sung,
+        using var captured = CaptureSceneMaterialRegion(request, binding.CaptureTarget, part, definition.Fallback, sung,
             state.Bounds, state.Budget, state.Resources);
         Dictionary<string, SkiaGraphInput> inputs = new(StringComparer.Ordinal);
         List<SkiaGraphSurface> owned = [];
@@ -33,7 +33,7 @@ public sealed partial class SkiaRenderPipeline
                     else if (SceneCaptureChannels.IsSupported(source))
                     {
                         var recipe = program.GetInputRecipe(input.Id, regionKind);
-                        var surface = CaptureSceneTarget(request, CaptureTarget(binding.Target), recipe, source, state.Bounds, state.Budget, state.Resources);
+                        var surface = CaptureSceneTargetCore(request, binding.CaptureTarget, recipe, source, state.Bounds, state.Budget, state.Resources, true);
                         owned.Add(surface); inputs.Add(input.Id, new(surface, source));
                     }
                     else if (source == GraphInputSource.BackdropBelow)
@@ -50,7 +50,12 @@ public sealed partial class SkiaRenderPipeline
                     else if (source == GraphInputSource.ResourceImage && images.TryGetValue(input.Id, out var image)) inputs.Add(input.Id, image);
                 }
             // 标记样式alpha已在共同opacity；元素自身alpha单独烘入颜色／擦除，各一次。
-            double opacity = binding.Target is ImageEffectTarget.Token token ? request.PreparedFrame!.GetTokenDrawingStyle(token.Target).Opacity : 1;
+            double opacity = binding.CaptureTarget switch
+            {
+                SceneCaptureTarget.Base basic => request.PreparedFrame!.GetBaseAppearance(basic.Target).Opacity,
+                SceneCaptureTarget.Token token => request.PreparedFrame!.GetTokenDrawingStyle(token.Target).Opacity,
+                _ => 1,
+            };
             return program.Package.ExecuteMaterialShared(binding.Material.Handle, regionKind, context, captured.Region, captured.TargetColor,
                 inputs, opacity, state.Resources, state.AuthorGraphs, request.CancellationToken);
         }
@@ -70,10 +75,22 @@ public sealed partial class SkiaRenderPipeline
     }
     private static void RejectRawMaterialColor(RenderRequest request, SceneCaptureTarget target, ImmutableArray<SceneDrawItem> selected = default)
     {
-        if (request.PreparedFrame is not { Materials.IsEmpty: false } prepared) return;
+        if (request.PreparedFrame is not { } prepared || prepared.Materials.IsEmpty && prepared.BaseMaterials.IsEmpty) return;
         if (selected.IsDefault) selected = SelectCaptureItems(prepared.HierarchyScene, target, new(true, true, true, true, SceneCaptureRegion.FillAndStroke));
-        if (prepared.Materials.Any(binding => target is SceneCaptureTarget.Token token
-            ? binding.Target == new ImageEffectTarget.Token(token.Target) : selected.Any(item => Belongs(binding.Target, item))))
+        bool baseMaterial = prepared.BaseMaterials.Any(binding => target switch
+        {
+            SceneCaptureTarget.Base basic => binding.Target == basic.Target,
+            SceneCaptureTarget.Token token => binding.Target == new BaseTokenTarget(token.Target.TokenId, token.Target.BindingId),
+            _ => selected.Any(item => item.Line?.BindingId == binding.Target.BindingId.Value),
+        });
+        bool familyMaterial = prepared.Materials.Any(binding => target switch
+        {
+            SceneCaptureTarget.Base basic => !prepared.BaseAppearances.ContainsKey(basic.Target)
+                && binding.Target == new ImageEffectTarget.Token(new(basic.Target.TokenId, basic.Target.BindingId)),
+            SceneCaptureTarget.Token token => binding.Target == new ImageEffectTarget.Token(token.Target),
+            _ => selected.Any(item => Belongs(binding.Target, item)),
+        });
+        if (baseMaterial || familyMaterial)
             throw new PreparedFrameException("MaterialProcessedCaptureRequired", "最终材质颜色须从主画布处理后的部件读取，原始捕获不能返回白色几何种子。");
     }
 }

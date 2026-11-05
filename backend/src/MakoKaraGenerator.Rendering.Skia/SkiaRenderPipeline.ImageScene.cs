@@ -11,7 +11,7 @@ public sealed partial class SkiaRenderPipeline
         SceneColorPart.RubyGlow, SceneColorPart.RubyStroke, SceneColorPart.RubyShadow, SceneColorPart.RubyFill];
     private const int MaxRetainedAlphaReadbackBytes = 16 * 1024 * 1024;
     private sealed record PartSource(ImageEffectTarget Member, SceneColorPart Part);
-    private sealed record SceneEffectOwner(PreparedMaterialOwner Origin, string Stage = "RenderImageEffects")
+    private sealed record SceneEffectOwner(PreparedMaterialOwner Origin, string Stage = "RenderImageEffects", Scripting.V2.TextTarget? TextTarget = null)
     {
         public SceneEffectOwner(PreparedImageEffectBinding binding)
             : this(new PreparedMaterialOwner.Script(binding.InstanceId, binding.ArtifactHash) { PackageIdentity = binding.PackageIdentity }) { }
@@ -59,16 +59,17 @@ public sealed partial class SkiaRenderPipeline
                 "GroupImageEffectUnsupported", GroupImageEffectUnsupported(), groupBinding.PackageIdentity);
         var diagnostics = ImmutableArray.CreateBuilder<RenderImageEffectDiagnostic>();
         var materialWarnings = ImmutableArray.CreateBuilder<RenderMaterialDiagnostic>();
-        HashSet<PreparedMaterialBinding> materialConsumed = [];
+        var allMaterials = prepared.Materials.Select(ObjectMaterialBinding.From).Concat(prepared.BaseMaterials.Select(ObjectMaterialBinding.From)).ToArray();
+        HashSet<ObjectMaterialBinding> materialConsumed = [];
         HashSet<PreparedImageEffectBinding> consumed = [];
         var sceneSurface = main;
         var sceneWarnings = ImmutableArray.CreateBuilder<RuntimeDiagnostic>();
         DrawIsolatedScene(main, request, resources, DrawObject, sceneWarnings);
         sceneDiagnostics = sceneWarnings.ToImmutable();
         materialDiagnostics = materialWarnings.Distinct().ToImmutableArray();
-        if (prepared.Materials.FirstOrDefault(binding => !materialConsumed.Contains(binding)) is { } missingMaterial)
+        if (allMaterials.FirstOrDefault(binding => !materialConsumed.Contains(binding)) is { } missingMaterial)
             throw missingMaterial.Owner.Failure("RenderMaterials", request.TimeUs,
-                "MaterialSceneTargetUnavailable", new PreparedFrameException("MaterialSceneTargetUnavailable", "材质目标未参与实际绘制。"));
+                "MaterialSceneTargetUnavailable", MaterialTargetError(new PreparedFrameException("MaterialSceneTargetUnavailable", "材质目标未参与实际绘制。"), missingMaterial.TextTarget, "MaterialSceneTargetUnavailable"));
         if (prepared.ImageEffects.FirstOrDefault(binding => !consumed.Contains(binding)) is { } unavailable)
             throw new EffectFailureException(unavailable.InstanceId, unavailable.ArtifactHash, "RenderImageEffects", request.TimeUs,
                 "ImageEffectSceneTargetUnavailable", new PreparedFrameException("ImageEffectSceneTargetUnavailable", "图目标未参与本帧绘制，不能悄悄丢弃绑定。"), unavailable.PackageIdentity);
@@ -78,18 +79,18 @@ public sealed partial class SkiaRenderPipeline
         {
             request.CancellationToken.ThrowIfCancellationRequested();
             var bindings = prepared.ImageEffects.Where(binding => Belongs(binding.Binding.Target, item)).ToArray();
-            var materials = prepared.Materials.Where(binding => Belongs(binding.Target, item)).ToArray();
+            var materials = allMaterials.Where(binding => Belongs(binding.Target, item)).ToArray();
             if (bindings.Length == 0 && materials.Length == 0) { DrawOriginal(); return; }
             consumed.UnionWith(bindings); materialConsumed.UnionWith(materials);
-            SceneEffectOwner owner = bindings.Length > 0 ? new(bindings[0]) : new(materials[0].Owner, "RenderMaterials");
+            SceneEffectOwner owner = bindings.Length > 0 ? new(bindings[0]) : new(materials[0].Owner, "RenderMaterials", materials[0].TextTarget);
             try
             {
                 var programs = bindings.Select(binding => { owner = new(binding); return _imageEffects!.GetProgram(binding.Binding.Graph); }).ToArray();
-                var materialPrograms = materials.Select(binding => { owner = new(binding.Owner, "RenderMaterials"); return _imageEffects!.GetMaterial(binding.Material.Handle); }).ToArray();
+                var materialPrograms = materials.Select(binding => { owner = new(binding.Owner, "RenderMaterials", binding.TextTarget); return _imageEffects!.GetMaterial(binding.Material.Handle); }).ToArray();
                 var bounds = programs.Select(program => program.Bounds.Expand(program.Graph.Plan.Definition.MaximumExpandPx))
                     .Concat(materialPrograms.Select(program => program.Bounds)).Aggregate(Union);
                 bool hasGlow = HasOriginalGlow(request, item);
-                if (hasGlow) bounds = IncludeOriginalGlowBounds(request, item, bounds);
+                if (hasGlow) bounds = IncludeOriginalGlowBounds(request, item, bounds, resources);
                 using var state = new ImageObjectState(bounds, _surfaceBudget.Limits, resources);
                 var target = item.Line is { } line
                     ? (ImageEffectTarget)new ImageEffectTarget.Line(new(new(line.Frame.Line!.Id), new(line.BindingId!)))
@@ -118,7 +119,11 @@ public sealed partial class SkiaRenderPipeline
                         var part = ColorPartOrder[partOrder];
                         if (!hasGlow && part is SceneColorPart.BaseGlow or SceneColorPart.RubyGlow) continue;
                         if (member is ImageEffectTarget.Mark && IsRuby(part)) continue;
-                        var slotBindings = materials.Where(binding => binding.Target == member && (part is SceneColorPart.BaseStroke or SceneColorPart.RubyStroke
+                        // An explicit Base appearance shadows the parent's slot even when it is Solid/Gradient/null.
+                        var captureTarget = member is ImageEffectTarget.Token token && !IsRuby(part)
+                            && prepared.BaseAppearances.ContainsKey(new(token.Target.TokenId, token.Target.BindingId))
+                            ? (SceneCaptureTarget)new SceneCaptureTarget.Base(new(token.Target.TokenId, token.Target.BindingId)) : CaptureTarget(member);
+                        var slotBindings = materials.Where(binding => binding.CaptureTarget == captureTarget && (part is SceneColorPart.BaseStroke or SceneColorPart.RubyStroke
                             ? binding.Slot == PreparedMaterialSlot.Stroke : part is SceneColorPart.BaseFill or SceneColorPart.RubyFill
                                 && binding.Slot != PreparedMaterialSlot.Stroke)).ToArray();
                         int order = partOrder * (tokenTargets.Length + 1) + memberOrder;
@@ -137,9 +142,9 @@ public sealed partial class SkiaRenderPipeline
                             var binding = slotBindings.SingleOrDefault(binding => binding.Slot == (sung ? PreparedMaterialSlot.SungFill : PreparedMaterialSlot.UnsungFill));
                             if (binding is null) AddOriginal(sung); else AddMaterial(binding, sung);
                         }
-                        void AddMaterial(PreparedMaterialBinding binding, bool? sung)
+                        void AddMaterial(ObjectMaterialBinding binding, bool? sung)
                         {
-                            owner = new(binding.Owner, "RenderMaterials");
+                            owner = new(binding.Owner, "RenderMaterials", binding.TextTarget);
                             var program = _imageEffects!.GetMaterial(binding.Material.Handle);
                             var result = state.Own(ExecuteObjectMaterial(request, binding, program, part, sung, state, below));
                             materialWarnings.AddRange(result.Diagnostics.Select(diagnostic => new RenderMaterialDiagnostic(binding.Owner,
@@ -189,7 +194,7 @@ public sealed partial class SkiaRenderPipeline
                     ImageSurfaceBudgetException e => e.Code, EffectPackageException e => e.Code, ShaderProgramException e => e.Code,
                     EffectOutputException e => e.Code,
                     _ => "SceneImageCompositionFailed" };
-                throw owner.Origin.Failure(owner.Stage, request.TimeUs, code, error);
+                throw SceneOwnerFailure(owner, owner.Stage, request.TimeUs, code, error);
             }
             void DrawOriginal()
             {
@@ -203,31 +208,39 @@ public sealed partial class SkiaRenderPipeline
     }
     private static bool HasOriginalGlow(RenderRequest request, SceneDrawItem item)
     {
-        if (item.Mark is { } mark) return mark.Appearance.Glow is { IsEnabled: true };
-        var line = item.Line!;
-        var basis = MakoKaraGenerator.Core.Projects.LyricStyleResolver.Resolve(request.Project.LyricStyle, preset: null,
-            lineOverride: line.Frame.Line!.StyleOverride, branchOverride: line.Branch.StyleOverride).Style;
-        return basis.Glow is { IsEnabled: true } || line.Frame.Line.Tokens.Any(token =>
-            token.StyleOverride is { Glow.IsSet: true } overlay && ResolveElementStyle(basis, overlay).Glow is { IsEnabled: true });
+        var prepared = request.PreparedFrame!;
+        if (item.Mark is { } mark)
+        {
+            var target = prepared.FinalMarkGeometry.Single(value => value.Target.NodeId.Value == mark.NodeId && value.Target.CueId.Value == mark.CueId
+                && value.Target.BindingId.Value == mark.Geometry.BindingId).Target;
+            return (prepared.MarkStyles.Any(output => output.Target == target) ? prepared.GetMarkDrawingStyle(target) : mark.Appearance.ToLyricStyle()).Glow is { IsEnabled: true };
+        }
+        var source = StaticStyleProjection.LoadedSourceStyles(request.Project, prepared.HierarchyScene);
+        return prepared.FinalGeometry.Where(token => token.WithRuby.BindingId.Value == item.Line!.BindingId).Any(token =>
+            FamilyStyle(token).Glow is { IsEnabled: true } || prepared.BaseAppearances.ContainsKey(token.BaseOnly)
+                && prepared.GetBaseDrawingStyle(token.BaseOnly).Glow is { IsEnabled: true });
+        MakoKaraGenerator.Core.Projects.LyricStyle FamilyStyle(TokenGeometrySample token)
+            => prepared.TokenStyles.Any(output => output.Target == token.WithRuby) ? prepared.GetTokenDrawingStyle(token.WithRuby) : source[token.WithRuby];
     }
-    private static GraphRect IncludeOriginalGlowBounds(RenderRequest request, SceneDrawItem item, GraphRect bounds)
+    private GraphRect IncludeOriginalGlowBounds(RenderRequest request, SceneDrawItem item, GraphRect bounds, ImageSurfaceBudgetFrame resources)
     {
         var prepared = request.PreparedFrame!;
+        var projection = _warpProjectionBudgets.GetValue(resources, static _ => new());
         if (item.Line is { } line)
         {
-            var basis = MakoKaraGenerator.Core.Projects.LyricStyleResolver.Resolve(request.Project.LyricStyle, preset: null,
-                lineOverride: line.Frame.Line!.StyleOverride, branchOverride: line.Branch.StyleOverride).Style;
-            if (basis.Glow is not { IsEnabled: true } && !line.Frame.Line.Tokens.Any(token => token.StyleOverride is { Glow.IsSet: true })) return bounds;
-            var geometry = line.Geometry!;
-            Add(basis, new(geometry.TopLeft.X, geometry.TopLeft.Y, geometry.BottomRight.X, geometry.BottomRight.Y),
-                new(geometry.WorldMatrix!.Value.A, geometry.WorldMatrix.Value.B, geometry.WorldMatrix.Value.C,
-                    geometry.WorldMatrix.Value.D, geometry.WorldMatrix.Value.Tx, geometry.WorldMatrix.Value.Ty));
+            var sources = StaticStyleProjection.LoadedSourceStyles(request.Project, prepared.HierarchyScene);
             foreach (var token in prepared.FinalGeometry.Where(token => token.WithRuby.BindingId.Value == line.BindingId))
             {
-                var source = line.Frame.Line.Tokens.First(value => value.Id == token.WithRuby.TokenId.Value);
-                var style = prepared.TokenStyles.Any(output => output.Target == token.WithRuby)
-                    ? prepared.GetTokenDrawingStyle(token.WithRuby) : source.StyleOverride is { } overlay ? ResolveElementStyle(basis, overlay) : basis;
-                if (token.FamilyGeometry.InkBounds is { } ink) Add(style, ink, token.FamilyGeometry.BaseWorldMatrix);
+                request.CancellationToken.ThrowIfCancellationRequested();
+                var family = prepared.TokenStyles.Any(output => output.Target == token.WithRuby)
+                    ? prepared.GetTokenDrawingStyle(token.WithRuby) : sources[token.WithRuby];
+                var basic = prepared.BaseAppearances.ContainsKey(token.BaseOnly) ? prepared.GetBaseDrawingStyle(token.BaseOnly) : family;
+                if (token.Clusters.IsEmpty)
+                {
+                    Add(basic, token.BaseGeometry);
+                    foreach (var ruby in token.Ruby) Add(family, ruby.Geometry);
+                }
+                else foreach (var cluster in token.Clusters) Add(cluster.Target.RubyId is null ? basic : family, cluster.Geometry);
             }
         }
         else
@@ -237,16 +250,18 @@ public sealed partial class SkiaRenderPipeline
                 && value.Target.CueId.Value == mark.CueId && value.Target.BindingId.Value == mark.Geometry.BindingId);
             var style = prepared.MarkStyles.Any(output => output.Target == final.Target)
                 ? prepared.GetMarkDrawingStyle(final.Target) : mark.Appearance.ToLyricStyle();
-            if (final.Geometry.InkBounds is { } ink) Add(style, ink, final.Geometry.BaseWorldMatrix);
+            Add(style, final.Geometry);
         }
         return bounds;
 
-        void Add(MakoKaraGenerator.Core.Projects.LyricStyle style, Rect2 ink, Affine2 matrix)
+        void Add(MakoKaraGenerator.Core.Projects.LyricStyle style, GeometrySample geometry)
         {
-            if (style.Glow is not { IsEnabled: true } glow) return;
-            double extent = ValidateGlow(glow) + 2;
-            Point2[] corners = [matrix.Map(new(ink.Left - extent, ink.Top - extent)), matrix.Map(new(ink.Right + extent, ink.Top - extent)),
-                matrix.Map(new(ink.Right + extent, ink.Bottom + extent)), matrix.Map(new(ink.Left - extent, ink.Bottom + extent))];
+            if (style.Glow is not { IsEnabled: true } glow || geometry.InkBounds is not { } ink) return;
+            double extent = ValidateGlow(glow);
+            Rect2 decorated = new(ink.Left - extent, ink.Top - extent, ink.Right + extent, ink.Bottom + extent);
+            var corners = geometry.Mapping is { } mapping ? mapping.MapRectangle(decorated, projection)
+                : new[] { new Point2(decorated.Left, decorated.Top), new(decorated.Right, decorated.Top), new(decorated.Right, decorated.Bottom), new(decorated.Left, decorated.Bottom) }
+                    .Select(geometry.BaseWorldMatrix.Map).ToImmutableArray();
             bounds = Union(bounds, new(corners.Min(point => point.X), corners.Min(point => point.Y), corners.Max(point => point.X), corners.Max(point => point.Y)));
         }
     }

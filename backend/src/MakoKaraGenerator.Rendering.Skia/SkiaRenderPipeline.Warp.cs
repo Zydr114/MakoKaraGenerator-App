@@ -24,7 +24,9 @@ public sealed partial class SkiaRenderPipeline
     {
         request.CancellationToken.ThrowIfCancellationRequested();
         try { Draw(); }
-        catch (Exception error) when (error is not (OperationCanceledException or EffectFailureException))
+        catch (Exception error) when (error is not (OperationCanceledException or EffectFailureException)
+            && (capture?.MaterialOperation != true || error is EffectOutputException
+                { Code: "WarpOutsideDomain" or "WarpGeometryBudgetExceeded" or "InvalidTextGeometryMapping" }))
         {
             string code = error switch
             {

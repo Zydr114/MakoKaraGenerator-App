@@ -21,7 +21,7 @@ public sealed partial class SkiaRenderPipeline
         PreparedRenderFrame.ValidateRequest(request); ValidateNativePreparedFrame(request.PreparedFrame);
         if (!Enum.IsDefined(part)) throw new PreparedFrameException("InvalidSceneColorPart", "部件类别无效。");
         bool ruby = part is SceneColorPart.RubyFill or SceneColorPart.RubyStroke or SceneColorPart.RubyShadow or SceneColorPart.RubyGlow;
-        if (target is SceneCaptureTarget.Group || target is SceneCaptureTarget.Mark && ruby)
+        if (target is SceneCaptureTarget.Group || (target is SceneCaptureTarget.Mark or SceneCaptureTarget.Base) && ruby)
             throw new PreparedFrameException("UnsupportedSceneColorPartTarget", "组没有自己的字形部件，文字标记没有注音部件。");
         var recipe = new SceneCaptureRecipe(ruby, part is SceneColorPart.BaseStroke or SceneColorPart.RubyStroke,
             part is SceneColorPart.BaseShadow or SceneColorPart.RubyShadow, false, SceneCaptureRegion.FillAndStroke, part is SceneColorPart.BaseGlow or SceneColorPart.RubyGlow);
@@ -34,7 +34,7 @@ public sealed partial class SkiaRenderPipeline
         byte opacityByte = ToOpacityByte((float)opacity);
         var surface = RasterSceneSurface(request, bounds, budget, ShaderSurfaceKind.Color, surfaceBudget, "CaptureSceneColorPart", (canvas, resources, bytes) =>
         {
-            var paint = new CapturePaint(GraphInputSource.TargetColor, recipe, target is SceneCaptureTarget.Token token ? token.Target.TokenId.Value : null,
+            var paint = new CapturePaint(GraphInputSource.TargetColor, recipe, CaptureTokenId(target),
                 resources, bytes, part, excludedTokens, RequestedSungPass: sungPass);
             if (item.Line is { } line) DrawSceneLine(canvas, request, request.Project.Composition, line, paint);
             else DrawTextMark(canvas, request, request.Project.Composition, item.Mark!, paint);

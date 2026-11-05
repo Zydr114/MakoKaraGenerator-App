@@ -4,6 +4,7 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="MakoKaraGenerator.Scripting" />
+    <InternalsVisibleTo Include="MakoKaraGenerator.Rendering.Abstractions" />
     <InternalsVisibleTo Include="MakoKaraGenerator.Scripting.Tests" />
   </ItemGroup>
 </Project>

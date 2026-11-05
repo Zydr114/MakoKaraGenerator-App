@@ -165,6 +165,7 @@ internal sealed partial class FrameEffectHost : IDisposable
         Dictionary<TokenFamilyTarget, Affine2> combined = [];
         Dictionary<BaseTokenTarget, Affine2> baseTransforms = [];
         Dictionary<BaseTokenTarget, StyleUpdate> baseStyles = [];
+        Dictionary<(BaseTokenTarget, MaterialSlot), ActiveEffect> baseMaterialOwners = [];
         Dictionary<V2.TextClusterTarget, Affine2> clusterTransforms = [];
         Dictionary<V2.TextTarget, ActiveEffect> partitionOwners = [];
         Dictionary<V2.TextTarget, PreparedTextWarpBinding> textWarps = [];
@@ -246,6 +247,7 @@ internal sealed partial class FrameEffectHost : IDisposable
                 {
                     baseStyles[style.Target] = baseStyles.TryGetValue(style.Target, out var previousBase) ? previousBase.Then(style.Update) : style.Update;
                     partitionOwners[new V2.TextTarget.Base(style.Target)] = active;
+                    foreach (var slot in MaterialSlots(style.Update)) baseMaterialOwners[(style.Target, slot)] = active;
                 }
                 foreach (var transform in output.ClusterTransforms)
                 {
@@ -299,7 +301,7 @@ internal sealed partial class FrameEffectHost : IDisposable
                 { PackageIdentity = definition.PackageIdentity }));
             });
         }
-        materialScopes.Complete(styles, markStyles, baseline, styleOwners, markOwners, materials, timeUs, diagnostics, cancellationToken);
+        materialScopes.Complete(styles, markStyles, baseStyles, baseMaterialOwners, baseline, styleOwners, markOwners, materials, timeUs, diagnostics, cancellationToken);
         // 只在所有实例合并后校验最终 alpha，允许先乘大于 1 再缩小。
         foreach (var pair in styles.Where(pair => styleOwners.ContainsKey(pair.Key)))
             Invoke(styleOwners[pair.Key], "ComposeOutputs", timeUs, diagnostics, ignoredReporter => StaticStyleProjection.ApplyDrawingStyle(
@@ -326,7 +328,8 @@ internal sealed partial class FrameEffectHost : IDisposable
         {
             return prepared.WithTextPartitions([.. baseTransforms.Where(static pair => pair.Value != Affine2.Identity).Select(static pair => new V2.BaseTokenTransform(pair.Key, pair.Value))],
                 [.. baseStyles.Select(static pair => new V2.BaseTokenStyle(pair.Key, pair.Value))],
-                [.. clusterTransforms.Where(static pair => pair.Value != Affine2.Identity).Select(static pair => new V2.TextClusterTransform(pair.Key, pair.Value))])
+                [.. clusterTransforms.Where(static pair => pair.Value != Affine2.Identity).Select(static pair => new V2.TextClusterTransform(pair.Key, pair.Value))],
+                ComposeBaseMaterials(prepared, baseStyles, baseMaterialOwners, timeUs, diagnostics, cancellationToken))
                 .WithTextWarps([.. textWarps.Values]);
         }
         catch (PreparedFrameException error) when (error.TextTarget is { } warpTarget && textWarps.ContainsKey(warpTarget))

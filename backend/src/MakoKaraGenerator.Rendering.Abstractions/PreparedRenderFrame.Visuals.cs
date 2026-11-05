@@ -93,7 +93,7 @@ public sealed partial class PreparedRenderFrame
         GroupOpacities = source.GroupOpacities;
         TokenTransforms = source.TokenTransforms; TokenStyles = source.TokenStyles; _styles = source._styles;
         BaseTransforms = source.BaseTransforms; BaseStyles = source.BaseStyles; ClusterTransforms = source.ClusterTransforms;
-        BaseDrawingStyles = source.BaseDrawingStyles;
+        BaseDrawingStyles = source.BaseDrawingStyles; BaseAppearances = source.BaseAppearances; BaseMaterials = source.BaseMaterials;
         TextWarps = source.TextWarps;
         MarkTransforms = source.MarkTransforms; MarkStyles = source.MarkStyles; _markStyles = source._markStyles;
         FinalLineGeometry = source.FinalLineGeometry; FinalGeometry = source.FinalGeometry;

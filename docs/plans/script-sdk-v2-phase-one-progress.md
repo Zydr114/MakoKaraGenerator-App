@@ -204,3 +204,11 @@ Rendering1556通过，完整构建0警告／0错误。无DLL直接图、材质un
 G3直接图独立宿主活动与material.uniform已接通。共享预算、每写验证、最终身份归约及Replace
 清作用域通过真实包CPU/Vulkan各19项；Scripting509、Rendering1575、RuntimeHosting153通过，
 完整构建0警告／0错误。首轮Base拒绝丢TextTarget的回归已由原断言发现并修复。Base与组消费者继续。
+
+
+### M09 Base 独立包材质（产品0.112.12）
+
+Base 两态填充／描边／uniform 已接通真实中立外观、逐部位 owner、独立捕获和主 Render，
+Ruby 保留父族；后继 Family／Line 图可消费实际颜色。真实CPU／显式Vulkan 34项通过，
+原像素oracle不等价与坏参数归属的红绿证据已分别保留，见[M09记录](script-sdk-render-m09-evidence.md)。
+现有Rendering1575和Scripting509通过；组图、owned Below与匹配HTTP／导出仍待。

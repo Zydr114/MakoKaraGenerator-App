@@ -17,11 +17,13 @@ public sealed partial class PreparedRenderFrame
 
     /// <summary>将 v2 基础字／真实字簇输出附加到已完成的父层级与字族计划；校验后才发布。</summary>
     public PreparedRenderFrame WithTextPartitions(ImmutableArray<BaseTokenTransform> baseTransforms,
-        ImmutableArray<BaseTokenStyle> baseStyles, ImmutableArray<TextClusterTransform> clusterTransforms)
+        ImmutableArray<BaseTokenStyle> baseStyles, ImmutableArray<TextClusterTransform> clusterTransforms,
+        ImmutableArray<PreparedBaseMaterialBinding> materialBindings = default)
     {
         if (baseTransforms.IsDefault || baseStyles.IsDefault || clusterTransforms.IsDefault)
             throw new PreparedFrameException("InvalidPreparedTextPartition", "文字分区输出需要明确不可变集合。");
-        if (baseTransforms.IsEmpty && baseStyles.IsEmpty && clusterTransforms.IsEmpty) return this;
+        if (materialBindings.IsDefault) materialBindings = [];
+        if (baseTransforms.IsEmpty && baseStyles.IsEmpty && clusterTransforms.IsEmpty && materialBindings.IsEmpty) return this;
         var tokens = HierarchyScene.TokenGeometries.ToDictionary(static item => item.BaseOnly);
         var clusters = HierarchyScene.TokenGeometries.SelectMany(static item => item.Clusters)
             .DistinctBy(static item => item.Target).ToDictionary(static item => item.Target);
@@ -39,6 +41,7 @@ public sealed partial class PreparedRenderFrame
         var sourceStyles = baseStyles.IsEmpty ? ImmutableDictionary<TokenFamilyTarget, LyricStyle>.Empty
             : StaticStyleProjection.LoadedSourceStyles(Snapshot, HierarchyScene);
         var drawing = ImmutableDictionary.CreateBuilder<BaseTokenTarget, LyricStyle>();
+        var appearances = ImmutableDictionary.CreateBuilder<BaseTokenTarget, StyleView>();
         foreach (var output in baseStyles)
         {
             if (output is null || output.Target is null || output.Update is null || !seen.Add(output.Target)
@@ -48,14 +51,17 @@ public sealed partial class PreparedRenderFrame
                     output?.Target is { } target ? new TextTarget.Base(target) : null);
             TextTarget textTarget = new TextTarget.Base(output.Target);
             Independent(token.BaseGeometry, textTarget);
-            var basis = _styles.GetValueOrDefault(token.WithRuby, source);
-            // 分区材质需要独立的协调器区域与归属；首版只接受已经能直接绘制的纯色和渐变。
-            if (ContainsPackageMaterial(output.Update) || !SourceMaterialCatalog.Collect(basis).IsEmpty || HasMaterial(new ImageEffectTarget.Token(token.WithRuby)))
-                throw PartitionError("UnsupportedPartitionMaterial", "基础字独立包材质需要分区协调器支持。", textTarget);
-            try { drawing.Add(output.Target, StaticStyleProjection.ApplyDrawingStyle(basis, output.Update, SourceMaterials)); }
+            var basis = _appearances.GetValueOrDefault(token.WithRuby) ?? StaticStyleProjection.View(source, SourceMaterials);
+            try
+            {
+                var appearance = output.Update.Apply(basis);
+                appearances.Add(output.Target, appearance);
+                drawing.Add(output.Target, StaticStyleProjection.DrawingAppearance(source, appearance, SourceMaterials));
+            }
             catch (EffectOutputException error) { throw PartitionError(error.Code, error.Message, textTarget); }
             catch (PreparedFrameException error) { throw PartitionError(error.Code, error.Message, error.TextTarget ?? textTarget); }
         }
+        var validatedMaterials = ResolveBaseMaterials(baseStyles, appearances.ToImmutable(), materialBindings);
         HashSet<TextClusterTarget> seenClusters = [];
         foreach (var output in clusterTransforms)
         {
@@ -83,7 +89,8 @@ public sealed partial class PreparedRenderFrame
         return new(this, OverlayBatches, DiagnosticSnapshot, VisualBudget, Particles, EmissionSchedule)
         {
             BaseTransforms = baseTransforms, BaseStyles = baseStyles, ClusterTransforms = clusterTransforms,
-            BaseDrawingStyles = drawing.ToImmutable(), FinalGeometry = final, Playback = playback,
+            BaseDrawingStyles = drawing.ToImmutable(), BaseAppearances = appearances.ToImmutable(), BaseMaterials = validatedMaterials,
+            FinalGeometry = final, Playback = playback,
             FinalGroupGeometry = GroupInkProjection.Create(HierarchyScene, final, FinalMarkGeometry),
         };
 

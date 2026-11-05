@@ -153,3 +153,12 @@ T01 的完整能力为：当前字强调；当前句退场时，具有稳定身�
 
 T01 关闭前必须给六字段各一份当前源码证据；任何未映射实际用途都进入 M13 阻塞清单。
 M14 删除 v1 以前，完整能力表、九样例与 T01 必须同时完成，且保留通用回归与历史证据。
+
+
+## M09 Base 独立包材质增量（0.112.12）
+
+`TextTarget.Base` 支持两态包材质、描边与material.uniform，完整继承最终Family外观后叶覆盖，
+逐slot Source／Script owner保持，Solid／Gradient／null遮蔽父材质。Base捕获排除Ruby；Family／Line
+消费真实处理颜色。没有开放Base图。CPU／显式Vulkan34项覆盖像素、确定性、Warp／Glow组合、
+资源账与错误归属；完整证据及共享几何oracle边界见[M09记录](script-sdk-render-m09-evidence.md)。
+尚无此增量匹配HTTP／作者UI／导出证据；C03与M09不据此关闭。

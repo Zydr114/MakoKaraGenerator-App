@@ -42,7 +42,7 @@ public sealed class V2FailureAttributionTests
     }
 
     [Fact]
-    public async Task 基础字包材质不支持失败保留实际写入实例和包归属()
+    public async Task 基础字包材质已准备但缺失原生资源仍保留实际写入实例和包归属()
     {
         var writer = MaterialPackage();
         var unrelated = await EffectPackageStorage.ReadSupportedDirectoryAsync(
@@ -55,11 +55,14 @@ public sealed class V2FailureAttributionTests
         await using var session = await new PureFrameSourceFactory(compiled.Effects, snapshot.EffectInputsFingerprint!,
             static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
 
-        var error = await Assert.ThrowsAsync<EffectFailureException>(async () =>
-            await session.PrepareAsync(500_000, OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition)));
+        var prepared = await session.PrepareAsync(500_000, OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition));
+        Assert.NotEmpty(prepared.BaseMaterials);
+        using var renderer = new SkiaRenderPipeline();
+        var error = Assert.Throws<EffectFailureException>(() => renderer.Render(RenderRequest.At(snapshot, 500_000)
+            with { TransparentBackground = true, PreparedFrame = prepared }));
 
-        AssertFailure(error, compiled, writer, "material-writer", "controller", "ComposeOutputs", 500_000,
-            "UnsupportedPartitionMaterial");
+        AssertFailure(error, compiled, writer, "material-writer", "controller", "RenderMaterials", 500_000,
+            "MaterialResourcesRequired");
         var cause = Assert.IsType<PreparedFrameException>(error.InnerException);
         var target = Assert.IsType<TextTarget.Base>(cause.TextTarget);
         Assert.Equal("word-0", target.Value.TokenId.Value);

@@ -5336,3 +5336,19 @@ FFmpeg 在 BGRA 颜色转换之后执行 point 采样；偶数倍补偿采样相
 重启不同尺寸的 FFmpeg。CPU 仍受 ADR-0249 的几何和显示变换限制，公共接口及脚本系统不变。
 本轮只主张 CPU 路径的输出字节缩减；GPU 目标采样需后续独立证明稳定等价后再开放。
 原 7 项失败完整保留，修复后继续执行相同主画面通道差和精确捕获断言。
+
+
+## ADR-0251：Base 材质保留中立继承与逐部位归属（2026-11-05）
+
+SDK v2 的 Base 外观在最终 Family 中立 StyleView 上归约，不能从白色 LyricStyle 绘制种子
+反推真实材质。新增 PreparedBaseMaterialBinding 与 SceneCaptureTarget.Base，保持 ImageEffectTarget
+原范围；Family／Line 图继续消费完整 Base＋Ruby 来源集合。Base 显式纯色、渐变或关闭描边遮蔽父部位，
+无材质写入则继承已验证的父 Source／Script owner；仅 opacity／affine 不改变该归属。
+
+父 uniform 先完成，Base uniform 再基于最终父材质归约。原始 Replace／Uniform 仍逐次校验并计费，
+最终存活写入才检查节点兼容性。材质捕获应用最终仿射／Warp一次，结果不再 Warp；实际材质预算／native
+错误保留材质 owner 和 Base TextTarget，Warp 几何错误与取消保留原责任。
+
+像素验收遵循既有区域合同的白色覆盖合并、一次着色与一次 alpha；独立 CPU 颜色合成对照公开 raw 几何，
+保留≤2/255全图门槛。普通逐字半透明描边的重叠不等价于已合并材质区域，不能用它要求材质重复叠加alpha。
+产品0.112.12；HTTP／导出／作者完整闭环证据仍按后继匹配版本分别验收，不由内部像素测试推定完成。

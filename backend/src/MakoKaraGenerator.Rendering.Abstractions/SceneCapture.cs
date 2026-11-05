@@ -11,6 +11,8 @@ public abstract record SceneCaptureTarget
     public sealed record Line(LineTarget Target) : SceneCaptureTarget;
     /// <summary>基础字及按配方纳入的注音。</summary><param name="Target">当前元素族装载。</param>
     public sealed record Token(TokenFamilyTarget Target) : SceneCaptureTarget;
+    /// <summary>仅真实基础字，不含注音或后代；不是新的 SDK 图绑定目标。</summary><param name="Target">当前基础字装载。</param>
+    public sealed record Base(BaseTokenTarget Target) : SceneCaptureTarget;
     /// <summary>当前前奏文字标记。</summary><param name="Target">节点、提示和目标装载。</param>
     public sealed record Mark(TextMarkTarget Target) : SceneCaptureTarget;
     /// <summary>真实容器组，不伪造文字材质。</summary><param name="Target">当前组节点。</param>

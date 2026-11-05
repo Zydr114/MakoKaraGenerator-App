@@ -41,7 +41,6 @@ public sealed class V2MaterialUniformOutputContractTests
     [Theory]
     [InlineData("slot", "InvalidMaterialSlot")]
     [InlineData("name", "InvalidMaterialUniformMetadata")]
-    [InlineData("base", "MaterialUniformTargetPending")]
     [InlineData("cap", "UndeclaredCapability")]
     [InlineData("foreign", "InvalidMaterialResource")]
     [InlineData("shared", "UnsupportedGlyphPartition")]
@@ -50,10 +49,23 @@ public sealed class V2MaterialUniformOutputContractTests
         var frame = Frame(kind != "shared"); var target = frame.Geometry[0].WithRuby;
         var output = new TextOutput(frame, kind == "cap" ? ["style.fill"] : ["material.uniform", "style.fill"]);
         var foreign = new ResourceCatalog("materials", "sha256:" + new string('b', 64), ["a"], [], []);
-        var error = Assert.Throws<EffectOutputException>(() => output.SetMaterialUniform(kind == "base" ? new TextTarget.Base(frame.Geometry[0].BaseOnly) : new TextTarget.Family(target),
+        var error = Assert.Throws<EffectOutputException>(() => output.SetMaterialUniform(new TextTarget.Family(target),
             kind == "slot" ? (MaterialSlot)99 : MaterialSlot.SungFill, (kind == "foreign" ? foreign : Resources).GetMaterial("a"), "shader", kind == "name" ? " " : "amount", UniformValue.Float(.5)));
         Assert.Equal(code, error.Code); Assert.Same(error, Assert.Throws<EffectOutputException>(() => output.SetStroke(target, null)));
         Assert.Same(error, Assert.Throws<EffectOutputException>(() => output.SetWarp(target, null))); Assert.Same(error, Assert.Throws<EffectOutputException>(() => output.Complete()));
+    }
+
+    [Fact]
+    public void BaseUniform保留真实Base身份并与Family作用域独立()
+    {
+        var frame = Frame(); var output = new TextOutput(frame, ["material.uniform"]);
+        output.SetMaterialUniform(new TextTarget.Base(frame.Geometry[0].BaseOnly), MaterialSlot.SungFill,
+            Resources.GetMaterial("a"), "shader", "amount", UniformValue.Float(.5));
+        output.SetMaterialUniform(new TextTarget.Family(frame.Geometry[0].WithRuby), MaterialSlot.SungFill,
+            Resources.GetMaterial("b"), "shader", "amount", UniformValue.Float(.75));
+        var writes = output.Complete().Writes;
+        Assert.IsType<TextTarget.Base>(Assert.IsType<TextWrite.MaterialUniform>(writes[0]).Target);
+        Assert.IsType<TextTarget.Family>(Assert.IsType<TextWrite.MaterialUniform>(writes[1]).Target);
     }
 
     [Fact]

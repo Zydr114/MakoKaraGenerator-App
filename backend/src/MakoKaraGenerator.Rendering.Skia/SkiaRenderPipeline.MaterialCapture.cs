@@ -18,7 +18,7 @@ public sealed partial class SkiaRenderPipeline
         bool stroke = part is SceneColorPart.BaseStroke or SceneColorPart.RubyStroke;
         bool ruby = part is SceneColorPart.RubyFill or SceneColorPart.RubyStroke;
         if (part is not (SceneColorPart.BaseFill or SceneColorPart.BaseStroke or SceneColorPart.RubyFill or SceneColorPart.RubyStroke)
-            || target is SceneCaptureTarget.Group || target is SceneCaptureTarget.Mark && ruby)
+            || target is SceneCaptureTarget.Group || (target is SceneCaptureTarget.Mark or SceneCaptureTarget.Base) && ruby)
             throw new PreparedFrameException("InvalidMaterialRegionTarget", "材质只绑定真实填充／外描边；组和阴影不是材质区域。");
         if (fallback is EffectMaterialFallback.Gradient gradient && !GradientSupport.IsSupported(gradient.Value))
             throw new PreparedFrameException("PackageMaterialFallbackUnsupported", GradientSupport.UnsupportedReason(gradient.Value)!);
@@ -40,8 +40,8 @@ public sealed partial class SkiaRenderPipeline
         SkiaGraphSurface Capture(GraphInputSource source, ShaderSurfaceKind kind, EffectMaterialFallback? appearance)
             => RasterSceneSurface(request, bounds, budget, kind, sharedBudget, "CaptureMaterialRegion", (canvas, resources, bytes) =>
             {
-                var paint = new CapturePaint(source, recipe, target is SceneCaptureTarget.Token token ? token.Target.TokenId.Value : null,
-                    resources, bytes, part, MaterialFallback: appearance, RequestedSungPass: sungPass);
+                var paint = new CapturePaint(source, recipe, CaptureTokenId(target),
+                    resources, bytes, part, MaterialFallback: appearance, RequestedSungPass: sungPass, MaterialOperation: true);
                 if (item.Line is { } line) DrawSceneLine(canvas, request, request.Project.Composition, line, paint);
                 else DrawTextMark(canvas, request, request.Project.Composition, item.Mark!, paint);
             });

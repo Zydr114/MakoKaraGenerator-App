@@ -285,3 +285,36 @@ material.uniform 具名拒绝；开通后 `graph-g3-real-package-cpu-01.log`、
 `graph-g3-base-attribution-green-01.log` 2/2；`graph-g3-rendering-full-02.log` 1575/1575；
 `graph-g3-scripting-full-01.log` 509/509；`graph-g3-runtime-full-01.log` 153/153。
 首次失败日志保留，未放宽原归属断言。Base消费者、组图与owned Below仍待，M09未关闭。
+
+
+## Base 独立包材质（0.112.12）
+
+Base 外观从最终 Family 中立 StyleView 继承，按真实部位保存 Source／Script owner；
+Solid／Gradient／Stroke=null 明确遮蔽父材质，后写 opacity／affine 不抢 owner。
+Base capture 不含 Ruby，Family 再 Line 图读取实际 Base＋Ruby 颜色；uniform 先归约父族后归约 Base，
+原始写入检查与最终兼容性检查保持区分。材质不重复 Warp，动态 Base／Family Glow 按最终 mapping
+计算范围。资源／预算／原生失败保留材质 owner 和 Base 目标，Warp 几何错误仍归 Warp，取消透传。
+
+`build-base-material-01/02.log` 暴露 fixture 命名空间与 JsonNode 类型错误，修正后完整构建通过；
+最终 `build-base-material-07.log` 为 0 警告／0 错误。首轮 `base-material-focused-01.log` 为73/82：
+8个像素参考失败，另1个原始坏参数未保留 Base TextTarget。后者已在每次原始材质事务上补
+BaseMaterialAction，保留原 failureCode／真实实例，未放宽归属断言。
+
+原像素参考把普通半透明 Solid 字形当作包材质。现有区域合同要求先合并白色覆盖再着色，
+普通描边逐字带 alpha 合成的重叠点可为135，而该包材质一次 alpha 应为80；
+直接有色 AA 也不等同于白色 raw 覆盖。`BaseMaterialPixelOracle` 改用公开原始白色几何捕获，
+独立 CPU 计算包色／两态／opacity／后继 tint 和 SrcOver，不读取材质执行器结果作期望。
+保留 Solid 遮蔽原参考，并增加独立重叠算术、不同两态 amount 和解析整数 Warp 平移检查。
+几何捕获与原 Glow 内核是共享输入；这不是整形／Blur 内核的独立验收。
+
+`base-material-vulkan-01/02.log` 保留中间失败。第二轮剩余6项是把整个 Ruby ink 矩形误认为
+只能包含 Ruby：Base 描边／Glow 可以实际覆盖该区域。相应用例改为独立父 Ruby 与 Base
+装饰／材质的全图合成参考；无装饰用例仍逐字节核对 Ruby。未裁边、未忽略 alpha、未放宽容差。
+`MAKO_GPU_SMOKE=1 MAKO_RENDER_BACKEND=vulkan` 的 `base-material-vulkan-03.log`：34/34，
+CPU和显式Vulkan分支实际执行，完整图像每通道≤2/255。覆盖半唱／全唱／600秒／乱序／重开、
+Base→Family→Line、仿射／Warp、动态Glow、源继承、取消和native失败后恢复、精确共享预算。
+
+`base-material-scripting-full-01.log` 509/509；`base-material-rendering-existing-01.log` 既有1575/1575。
+`base-material-rendering-full-01.log` 完整1609/1609；默认完整套件的GPU分支不作为实际GPU证明，
+实际GPU证据仅取前述显式环境的34项。本切片没有新HTTP／浏览器／导出或性能验收，
+组图与owned Below仍待，M09未关闭。

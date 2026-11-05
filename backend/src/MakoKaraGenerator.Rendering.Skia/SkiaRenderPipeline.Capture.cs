@@ -10,7 +10,7 @@ public sealed partial class SkiaRenderPipeline
 {
     private sealed record CapturePaint(GraphInputSource Source, SceneCaptureRecipe Recipe, string? TokenId,
         ImageSurfaceBudgetFrame? Budget = null, long PixelBytes = 0, SceneColorPart? Part = null, HashSet<string>? ExcludedTokens = null,
-        EffectMaterialFallback? MaterialFallback = null, bool? RequestedSungPass = null)
+        EffectMaterialFallback? MaterialFallback = null, bool? RequestedSungPass = null, bool MaterialOperation = false)
     {
         public bool IsCoverage => Source != GraphInputSource.TargetColor;
         public bool SungOnly => Source == GraphInputSource.SungCoverage;
@@ -18,7 +18,7 @@ public sealed partial class SkiaRenderPipeline
         public bool ShadowOnly => Part is SceneColorPart.BaseShadow or SceneColorPart.RubyShadow;
         public bool GlowOnly => Part is SceneColorPart.BaseGlow or SceneColorPart.RubyGlow;
         public bool StrokeOnly => Part is SceneColorPart.BaseStroke or SceneColorPart.RubyStroke;
-        public bool IncludesGlyph(bool ruby) => Part is null || ruby == (Part is SceneColorPart.RubyFill or SceneColorPart.RubyStroke or SceneColorPart.RubyShadow or SceneColorPart.RubyGlow);
+        public bool IncludesGlyph(bool ruby) => (!ruby || Recipe.IncludeRuby) && (Part is null || ruby == (Part is SceneColorPart.RubyFill or SceneColorPart.RubyStroke or SceneColorPart.RubyShadow or SceneColorPart.RubyGlow));
         public ImageSurfaceReservation? Layer(string operation) => Budget?.Reserve(1, PixelBytes, operation);
         public LyricStyle Style(LyricStyle source)
         {
@@ -59,6 +59,10 @@ public sealed partial class SkiaRenderPipeline
     /// <remarks>框为显式 Canvas 逻辑框；Coverage 不包含外观或入场 alpha。产物和显式 SaveLayer 接入固定会话／可共享帧账。</remarks>
     public SkiaGraphSurface CaptureSceneTarget(RenderRequest request, SceneCaptureTarget target, SceneCaptureRecipe recipe,
         GraphInputSource source, GraphRect bounds, GraphExecutionBudget budget, ImageSurfaceBudgetFrame? surfaceBudget = null)
+        => CaptureSceneTargetCore(request, target, recipe, source, bounds, budget, surfaceBudget, false);
+
+    private SkiaGraphSurface CaptureSceneTargetCore(RenderRequest request, SceneCaptureTarget target, SceneCaptureRecipe recipe,
+        GraphInputSource source, GraphRect bounds, GraphExecutionBudget budget, ImageSurfaceBudgetFrame? surfaceBudget, bool materialOperation)
     {
         ArgumentNullException.ThrowIfNull(request); ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(recipe); ArgumentNullException.ThrowIfNull(budget);
@@ -66,6 +70,7 @@ public sealed partial class SkiaRenderPipeline
         PreparedRenderFrame.ValidateRequest(request); ValidateNativePreparedFrame(request.PreparedFrame);
         if (!SceneCaptureChannels.IsSupported(source) || !Enum.IsDefined(recipe.Region))
             throw new PreparedFrameException("UnsupportedCaptureChannel", "捕获来源或目标区域无效；背景和包图片由独立生产器提供。");
+        recipe = BoundCaptureRecipe(target, recipe);
         var frame = request.PreparedFrame?.HierarchyScene ?? GetSceneFrame(request.Project, request.TimeUs, request.LayoutLineId);
         var selected = SelectCaptureItems(frame, target, recipe);
         if (source == GraphInputSource.TargetColor) RejectRawMaterialColor(request, target, selected);
@@ -94,7 +99,7 @@ public sealed partial class SkiaRenderPipeline
             source == GraphInputSource.TargetColor ? ShaderSurfaceKind.Color : ShaderSurfaceKind.Coverage,
             surfaceBudget, "CaptureSceneTarget", (canvas, resources, pixelBytes) =>
             {
-                var paint = new CapturePaint(source, recipe, target is SceneCaptureTarget.Token token ? token.Target.TokenId.Value : null, resources, pixelBytes);
+                var paint = new CapturePaint(source, recipe, CaptureTokenId(target), resources, pixelBytes, MaterialOperation: materialOperation);
                 foreach (var item in selected)
                 {
                     request.CancellationToken.ThrowIfCancellationRequested();
@@ -132,6 +137,14 @@ public sealed partial class SkiaRenderPipeline
                 throw new PreparedFrameException(geometry.BaseGeometry.DiagnosticCode ?? "UnsupportedGlyphPartition", "元素共享字簇，不能独立捕获。");
             return [items.Single(item => item.Line?.BindingId == token.BindingId.Value)];
         }
+        if (target is SceneCaptureTarget.Base { Target: { } basic } && basic.TokenId.IsValid && basic.BindingId.IsValid)
+        {
+            var geometry = frame.TokenGeometries.SingleOrDefault(item => item.BaseOnly == basic) ?? throw Missing();
+            if (!geometry.BaseGeometry.CanTransformIndependently)
+                throw new PreparedFrameException(geometry.BaseGeometry.DiagnosticCode ?? "UnsupportedGlyphPartition", "共享字簇不能独立捕获基础字。")
+                    { TextTarget = new Scripting.V2.TextTarget.Base(basic) };
+            return [items.Single(item => item.Line?.BindingId == basic.BindingId.Value)];
+        }
         if (target is SceneCaptureTarget.Mark { Target: { } mark } && mark.NodeId.IsValid && mark.CueId.IsValid && mark.BindingId.IsValid)
             return [items.SingleOrDefault(item => item.Mark?.NodeId == mark.NodeId.Value && item.Mark.CueId == mark.CueId.Value
                 && item.Mark.Geometry.BindingId == mark.BindingId.Value) ?? throw Missing()];
@@ -143,6 +156,10 @@ public sealed partial class SkiaRenderPipeline
         throw Missing();
         static PreparedFrameException Missing() => new("CaptureTargetUnavailable", "捕获目标不是本帧真实装载；不从旧 Binding／Cue 或任意 ID 猜测。");
     }
+    private static SceneCaptureRecipe BoundCaptureRecipe(SceneCaptureTarget target, SceneCaptureRecipe recipe)
+        => target is SceneCaptureTarget.Base ? recipe with { IncludeRuby = false, IncludeDescendantGroups = false } : recipe;
+    private static string? CaptureTokenId(SceneCaptureTarget target) => target switch
+    { SceneCaptureTarget.Token token => token.Target.TokenId.Value, SceneCaptureTarget.Base basic => basic.Target.TokenId.Value, _ => null };
     private static SKMatrix CaptureMatrix(SceneMatrix matrix)
     {
         var result = new SKMatrix((float)matrix.A, (float)matrix.C, (float)matrix.Tx, (float)matrix.B, (float)matrix.D, (float)matrix.Ty, 0, 0, 1);

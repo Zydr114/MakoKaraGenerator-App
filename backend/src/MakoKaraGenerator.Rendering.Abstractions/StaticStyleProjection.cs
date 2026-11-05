@@ -94,6 +94,16 @@ public static class StaticStyleProjection
         var baseline = View(source, materials); var result = update.Apply(baseline);
         bool sourcePackage = !SourceMaterialCatalog.Collect(source).IsEmpty;
         if (result == baseline && !(geometrySeed && sourcePackage)) return source;
+        return ProjectDrawingAppearance(source, baseline, result, geometrySeed, sourcePackage);
+    }
+    /// <summary>从最终中立外观生成固定字形种子；不从父层白色种子重建包材质。</summary>
+    public static LyricStyle DrawingAppearance(LyricStyle source, Fx.StyleView result, PreparedSourceMaterials? materials = null)
+    {
+        ArgumentNullException.ThrowIfNull(source); ArgumentNullException.ThrowIfNull(result);
+        return ProjectDrawingAppearance(source, View(source, materials), result, true, !SourceMaterialCatalog.Collect(source).IsEmpty);
+    }
+    private static LyricStyle ProjectDrawingAppearance(LyricStyle source, Fx.StyleView baseline, Fx.StyleView result, bool geometrySeed, bool sourcePackage)
+    {
         return source with
         {
             UnsungFill = result.UnsungMaterial == baseline.UnsungMaterial && !sourcePackage ? source.UnsungFill : DrawingMaterial(result.UnsungMaterial, geometrySeed),

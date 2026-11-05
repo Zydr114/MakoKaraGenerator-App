@@ -1,5 +1,21 @@
 # 区域材质的覆盖与生产接入合同
 
+## SDK v2 Base 独立材质增量（App 0.112.12）
+
+`TextTarget.Base` 可独立写入两态填充、外描边与 `material.uniform`，只修改真实基础字；
+Ruby 继续读取最终 Family 外观。Base 先继承最终 Family 中立 `StyleView`，再应用叶覆盖。
+显式 Solid／Gradient／Stroke=null 遮蔽同部位父包材质；仅 opacity／affine 写入不改变材质 owner。
+继承源材质保留真实源路径，Base Replace 或最终存活 uniform 记录实际脚本实例。
+
+Base 捕获不含 Ruby，Family 及后继 Line 图读取已处理的完整 Base＋Ruby 颜色；Base 不是
+新的图绑定目标。材质使用已经应用最终仿射／Warp 的区域，不二次变换输出，局部 alpha 只乘一次。
+共享预算／原生捕获失败归材质 owner，Warp 几何错误保留 Warp owner，取消保持原 token。
+
+像素参考遵循下述 raw 区域合同：先合并白色字形覆盖，再着色和应用 alpha。普通半透明
+有色字形逐个绘制，在抗锯齿和相邻描边重叠处可以与该区域语义不同，不能直接作为包材质的
+逐像素 oracle。当前增量的测试与实际流程证据见
+[M09 记录](../../docs/plans/script-sdk-render-m09-evidence.md)；历史版本结果仍归原版本。
+
 2026-10-04；依据已接受 R0／R3 和用户本轮三项答复。本文描述施工合同，实施证据在末尾更新。
 
 ## 1. 已确认的行为

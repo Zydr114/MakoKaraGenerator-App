@@ -38,55 +38,63 @@ internal sealed partial class FrameEffectHost
                     _ => throw new EffectOutputException("MaterialUniformTargetPending", "此材质目标的生产调度尚未接通。") };
                 if (definition.PackageDeclaration is not { } declaration || !declaration.Outputs.Any(item => item.Kind == "StyleModulation" && item.Target == target))
                     throw new EffectOutputException("UndeclaredPackageOutput", "材质写入须声明真实 StyleModulation 目标：" + target);
-                switch (write)
+                BaseMaterialAction(write.Target, () =>
                 {
-                    case TextWrite.Fill fill:
-                        Replacement(fill.Target, fill.State == FillState.Unsung ? MaterialSlot.UnsungFill : MaterialSlot.SungFill, fill.Material); break;
-                    case TextWrite.Stroke stroke:
-                        Replacement(stroke.Target, MaterialSlot.Stroke, stroke.Value?.Material); break;
-                    case TextWrite.MaterialUniform uniform:
-                        if (uniform.Target is not (TextTarget.Family or TextTarget.Mark))
-                            throw new EffectOutputException("MaterialUniformTargetPending", "uniform 首期只支持真实字族或标记。");
-                        if (!definition.PackageDefinition!.Contents.Requires.Contains("material.uniform", StringComparer.Ordinal))
-                            throw new EffectOutputException("UndeclaredCapability", "包未声明 material.uniform。");
-                        budget.ChargeMaterialUniform(uniform.Material, uniform.NodeId, uniform.Name, uniform.Value, token);
-                        ValidateMaterialExport(definition, uniform.Material, uniform.Slot, null);
-                        var key = (uniform.Target, uniform.Slot);
-                        if (!_scopes.TryGetValue(key, out var scope)) _scopes.Add(key, scope = []);
-                        scope[(uniform.Material, uniform.NodeId, uniform.Name)] = new(++_sequence, active, uniform);
-                        break;
-                    default: throw new EffectOutputException("InvalidMaterialWrite", "未知材质事务写入。");
-                }
-                void Replacement(TextTarget replacementTarget, MaterialSlot slot, MaterialValue? material)
-                {
-                    budget.ChargeMaterial(material, token);
-                    if (material is MaterialValue.PackageMaterial package)
+                    switch (write)
                     {
-                        if (replacementTarget is TextTarget.Base)
-                            throw new PreparedFrameException("UnsupportedPartitionMaterial", "Base 独立包材质生产执行尚未接通。")
-                            { TextTarget = replacementTarget };
-                        ValidateMaterialExport(definition, package.Handle, slot, package.Parameters);
+                        case TextWrite.Fill fill:
+                            Replacement(fill.Target, fill.State == FillState.Unsung ? MaterialSlot.UnsungFill : MaterialSlot.SungFill, fill.Material); break;
+                        case TextWrite.Stroke stroke:
+                            Replacement(stroke.Target, MaterialSlot.Stroke, stroke.Value?.Material); break;
+                        case TextWrite.MaterialUniform uniform:
+                            if (uniform.Target is not (TextTarget.Family or TextTarget.Base or TextTarget.Mark))
+                                throw new EffectOutputException("MaterialUniformTargetPending", "uniform 只支持真实字族、基础字或标记。");
+                            if (!definition.PackageDefinition!.Contents.Requires.Contains("material.uniform", StringComparer.Ordinal))
+                                throw new EffectOutputException("UndeclaredCapability", "包未声明 material.uniform。");
+                            budget.ChargeMaterialUniform(uniform.Material, uniform.NodeId, uniform.Name, uniform.Value, token);
+                            ValidateMaterialExport(definition, uniform.Material, uniform.Slot, null);
+                            var key = (uniform.Target, uniform.Slot);
+                            if (!_scopes.TryGetValue(key, out var scope)) _scopes.Add(key, scope = []);
+                            scope[(uniform.Material, uniform.NodeId, uniform.Name)] = new(++_sequence, active, uniform);
+                            break;
+                        default: throw new EffectOutputException("InvalidMaterialWrite", "未知材质事务写入。");
                     }
-                    Reset(replacementTarget, slot);
-                }
+                    void Replacement(TextTarget replacementTarget, MaterialSlot slot, MaterialValue? material)
+                    {
+                        budget.ChargeMaterial(material, token);
+                        if (material is MaterialValue.PackageMaterial package)
+                        {
+                            ValidateMaterialExport(definition, package.Handle, slot, package.Parameters);
+                        }
+                        Reset(replacementTarget, slot);
+                    }
+                });
             }
         }
         private void Reset(TextTarget target, MaterialSlot slot) => _scopes.Remove((target, slot));
 
         internal void Complete(Dictionary<TokenFamilyTarget, StyleUpdate> styles, Dictionary<TextMarkTarget, StyleUpdate> marks,
+            Dictionary<BaseTokenTarget, StyleUpdate> bases, Dictionary<(BaseTokenTarget, MaterialSlot), ActiveEffect> baseMaterialOwners,
             BaselineStyles baseline, Dictionary<TokenFamilyTarget, ActiveEffect> styleOwners, Dictionary<TextMarkTarget, ActiveEffect> markOwners,
             Dictionary<(ImageEffectTarget, PreparedMaterialSlot), PreparedMaterialBinding> materials, long timeUs,
             RuntimeDiagnosticBuffer diagnostics, CancellationToken token)
         {
-            foreach (var (key, scope) in _scopes)
+            // Resolve parent uniforms first, then Base leaf scopes against the final parent material.
+            foreach (var (key, scope) in _scopes.OrderBy(pair => pair.Key.Target is TextTarget.Base ? 1 : 0))
                 foreach (var pending in scope.Values.OrderBy(item => item.Order))
                 {
                     token.ThrowIfCancellationRequested(); var active = pending.Owner; var write = pending.Write;
-                    Invoke(active, "ComposeOutputs", timeUs, diagnostics, _ =>
+                    Invoke(active, "ComposeOutputs", timeUs, diagnostics, _ => BaseMaterialAction(key.Target, () =>
                     {
                         StyleUpdate update; StyleView source; ImageEffectTarget target;
                         if (key.Target is TextTarget.Family family)
                         { update = styles.GetValueOrDefault(family.Value) ?? new(); source = baseline.Get(family.Value); target = new ImageEffectTarget.Token(family.Value); }
+                        else if (key.Target is TextTarget.Base basic)
+                        {
+                            var familyTarget = new TokenFamilyTarget(basic.Value.TokenId, basic.Value.BindingId);
+                            source = (styles.GetValueOrDefault(familyTarget) ?? new()).ApplyMaterials(baseline.Get(familyTarget));
+                            update = bases.GetValueOrDefault(basic.Value) ?? new(); target = null!;
+                        }
                         else if (key.Target is TextTarget.Mark mark)
                         { update = marks.GetValueOrDefault(mark.Value) ?? new(); source = baseline.Get(mark.Value); target = new ImageEffectTarget.Mark(mark.Value); }
                         else throw new EffectOutputException("MaterialUniformTargetPending", "此 uniform 目标未接通。");
@@ -101,8 +109,13 @@ internal sealed partial class FrameEffectHost
                         update = update.Then(edit);
                         if (key.Target is TextTarget.Family tokenTarget) { styles[tokenTarget.Value] = update; styleOwners[tokenTarget.Value] = active; }
                         else if (key.Target is TextTarget.Mark markTarget) { marks[markTarget.Value] = update; markOwners[markTarget.Value] = active; }
-                        TrackMaterials(target, edit, update.ApplyMaterials(source), active, materials);
-                    });
+                        if (key.Target is TextTarget.Base basicTarget)
+                        {
+                            bases[basicTarget.Value] = update;
+                            baseMaterialOwners[(basicTarget.Value, key.Slot)] = active;
+                        }
+                        else TrackMaterials(target, edit, update.ApplyMaterials(source), active, materials);
+                    }));
                 }
         }
     }

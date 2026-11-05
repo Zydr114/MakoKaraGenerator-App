@@ -24,19 +24,24 @@ internal sealed partial class FrameEffectHost
     }
     private static void ValidateMaterialOutput(CompiledFrameEffect definition, FrameOutput output)
     {
-        foreach (var update in output.TokenStyles.Select(style => style.Update).Concat(output.MarkStyles.Select(style => style.Update)))
-            foreach (var edit in update.MaterialEdits)
-                switch (edit)
-                {
-                    case MaterialEdit.ReplaceMaterial { Material: MaterialValue.PackageMaterial material } set:
-                        ValidateMaterialExport(definition, material.Handle, set.Slot, material.Parameters);
-                        break;
-                    case MaterialEdit.Uniform uniform:
-                        var export = ValidateMaterialExport(definition, uniform.Handle, uniform.Slot, null);
-                        MaterialUniformValidation.Validate(definition.PackageDefinition!.ImageGraphs[export.GraphPath].Plan,
-                            uniform.NodeId, uniform.Name, uniform.Value);
-                        break;
-                }
+        foreach (var item in output.TokenStyles.Select(style => (Target: (V2.TextTarget?)null, style.Update))
+            .Concat(output.MarkStyles.Select(style => (Target: (V2.TextTarget?)null, style.Update)))
+            .Concat(output.BaseStyles.Select(style => (Target: (V2.TextTarget?)new V2.TextTarget.Base(style.Target), style.Update))))
+            BaseMaterialAction(item.Target, () =>
+            {
+                foreach (var edit in item.Update.MaterialEdits)
+                    switch (edit)
+                    {
+                        case MaterialEdit.ReplaceMaterial { Material: MaterialValue.PackageMaterial material } set:
+                            ValidateMaterialExport(definition, material.Handle, set.Slot, material.Parameters);
+                            break;
+                        case MaterialEdit.Uniform uniform:
+                            var export = ValidateMaterialExport(definition, uniform.Handle, uniform.Slot, null);
+                            MaterialUniformValidation.Validate(definition.PackageDefinition!.ImageGraphs[export.GraphPath].Plan,
+                                uniform.NodeId, uniform.Name, uniform.Value);
+                            break;
+                    }
+            });
     }
     private static EffectMaterialDefinition ValidateMaterialExport(CompiledFrameEffect definition, MaterialHandle handle, MaterialSlot slot, ParameterValues? parameters)
     {

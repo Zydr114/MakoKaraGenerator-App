@@ -36,7 +36,7 @@ public sealed partial class SkiaRenderPipeline
                     {
                         var owner = layer.Owner!;
                         string code = error switch { ImageGraphException e => e.Code, ImageSurfaceBudgetException e => e.Code, _ => "SceneImageCompositeFailed" };
-                        throw owner.Origin.Failure("CompositeImageGraph", request.TimeUs, code, error);
+                        throw SceneOwnerFailure(owner, "CompositeImageGraph", request.TimeUs, code, error);
                     }
                 }
                 else next = RasterSceneSurface(request, state.Bounds, state.Budget, ShaderSurfaceKind.Color, state.Resources, "SceneLayerAssembly", (canvas, _, _) =>

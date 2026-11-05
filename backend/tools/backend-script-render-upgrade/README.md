@@ -138,3 +138,12 @@ Int64、非法／缺失／重复配置、旧请求、no-op、回执与 undo／re
 每次HTTP/PNG/导出、终态、凭证扫描和所属PID/startTicks排水；不连接用户profile。
 Base Ruby断言只选原图未遮挡纯蓝样本，完整重叠语义由Base材质核心像素回归承担。
 PNG2/255与编码稳定内点12/255分开，完整RGBA重复/重开逐字节；无性能或跨平台结论。
+
+## M09 固定字体作者链
+
+`m09_font_author_probe.py --dist <匹配发布> --output <新证据目录> [--font <受控Noto TTC>]`
+复用图作者工具，给真实v3直接图包携带role:font；只改字体内固定等长family标记，不安装系统字体。
+完整源编辑后核对字体只读及SHA不变，CJK/Ruby样例、Vulkan PNG、参数控制、工程保存重开和
+48帧透明ProRes终态及全部解码均在新隔离profile执行，扫描凭证并按所属PID/startTicks排水。
+实际family选择及CPU全图oracle由`M09ResourceRuntimeTests`单独核对，不能仅凭HTTP保存了
+fontFamilyName就认定字体生效；PNG与编码容差沿图工具分别记录。无跨平台或性能结论。

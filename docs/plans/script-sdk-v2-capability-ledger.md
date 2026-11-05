@@ -102,7 +102,7 @@ M09 当前消费者增量（0.112.15／合同1.46.1）：C03、C05关联的组�
 Vulkan PNG及六件48帧成片。C03包含无DLL直接图、typed动态矩阵、Base填充/描边uniform、
 两层真实组和owned Below独立半透明参考。精确声明／完整采用通用UI另有140检查／7显示帧。
 详见[M09记录](script-sdk-render-m09-evidence.md)；未据此关闭命名九样例、T01或完整D8，
-固定font／普通Sprite／BackgroundMedia的当前v3证据仍分别核对。性能门槛暂缓。
+固定font／普通Sprite／BackgroundMedia的当前v3证据已补齐，见下节。性能门槛暂缓。
 
 路径前缀：`SA` = `backend/src/MakoKaraGenerator.Scripting.Abstractions`，
 `SE` = `backend/src/MakoKaraGenerator.Scripting/Execution`，
@@ -180,3 +180,12 @@ M14 删除 v1 以前，完整能力表、九样例与 T01 必须同时完成，�
 消费真实处理颜色。没有开放Base图。CPU／显式Vulkan34项覆盖像素、确定性、Warp／Glow组合、
 资源账与错误归属；完整证据及共享几何oracle边界见[M09记录](script-sdk-render-m09-evidence.md)。
 尚无此增量匹配HTTP／作者UI／导出证据；C03与M09不据此关闭。
+
+## M09 资源映射完成与有限关闭（2026-11-05）
+
+C07普通Sprite和C03／S09相邻的BackgroundMedia语义已有当前v3包显式Vulkan执行：
+`M09ResourceRuntimeTests`六项通过，含CPU字体oracle、硬件字体、三密度裁片／完整affine／Tint，
+以及独立媒体／下层控制和透明fallback owner诊断。固定font包未安装到系统，实际glyph family
+和Ruby已核对；183请求／1349断言的真实作者链保留字节身份，保存重开及48帧透明导出通过。
+详细证据与原始失败见[M09记录](script-sdk-render-m09-evidence.md)。本节点功能范围关闭；
+表内命名样例的完整E/A/X/D/T映射由M11汇总，P暂缓；不提前关闭完整D8、S05/S07/S08/S09或T01。

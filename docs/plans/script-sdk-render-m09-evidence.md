@@ -1,6 +1,6 @@
 # M09 SVG、Warp 与图资源证据
 
-2026-11-05，分支 `dev/script-sdk-render-upgrade`。本节点进行中，不代表 M09 或阶段一通过。
+2026-11-05，分支 `dev/script-sdk-render-upgrade`。**M09 在下述 Linux／Radeon 880M／指定输入的功能范围通过；阶段一与完整 D8 尚未完成。**
 按用户最新指示，性能门槛暂不作为验收标准；正确性、像素、确定性、预算、取消和实际作者链继续验收。
 
 ## 已交付的几何接缝
@@ -507,3 +507,45 @@ metadata链的426响应／31成功请求；二进制／未映射记录分别89�
 完整D8及M09固定字体／普通Sprite／BackgroundMedia证据映射继续核对，M10／M11尚未完成。
 前端整体同步1.46.1后，`scene-catalog-frontend-typecheck-01.log`类型检查通过，
 `scene-catalog-frontend-unit-01.log`4056/4056；只有合同版本常量及副本变化，无新增UI行为。
+
+## 固定资源映射及 M09 有限功能关闭（0.112.15，2026-11-05）
+
+最后补充 `M09ResourceRuntimeTests`，只给 Rendering.Tests 增加 Runtime.Hosting 测试引用，
+未修改后端生产源码和版本。`build-resource-tests-03.log` 完整 solution 为0警告／0错误；
+`resource-runtime-gpu-02.log` 显式 `MAKO_GPU_SMOKE=1` 执行 **6/6**，没有 GPU 提前返回：
+
+| 输入与独立参考 | 结果 |
+|---|---|
+| v3 role:font 纯资源包，CJK／Ruby | CPU 与 Vulkan 两例；字体等长重命名为 M09X Sans CJK SC、不安装到系统，核系统无同名、实际 shape 的全部 family、完整预乘像素与独立 CPU 管线差≤2/255、Ruby可见，重新创建会话逐字节相同 |
+| v3 controller 普通 ImageHandle Sprite | 320×180、640×360、640×180 三例；裁片、旋转、镜像、非等比／斜切及半透明 Tint，与独立 CPU 常色多边形参考比较。仅按 CPU 的5×5稳定区域选择全部内外像素，预乘差≤2/255；不按 GPU 差异筛选。重复／不同t逐字节一致，无材质／图诊断 |
+| v3 BackgroundMedia 与 BackdropBelow | 真实媒体红→蓝和第二 owner 下层绿→黄独立控制；主画布文字内部分别只响应所声明来源。透明时媒体按白色fallback并核真实包／修订／Source owner／input诊断；Below保留下层且无该诊断 |
+
+同一最终构建串行相邻回归：`resource-rendering-full-01.log` **1703/1703**，
+`resource-runtime-hosting-full-01.log` **153/153**。默认全套中的 GPU 提前返回不算硬件证明，
+由上述显式环境六例及此前各 GPU 专项单独承担。不是新一轮全后端全量验收。
+
+保留初始失败：`build-resource-tests-01.log` 缺 Rendering.Abstractions using，夹具另有
+var多变量声明一并修正；`resource-runtime-gpu-01.log` 为5通过／1失败，背景材质直接返回
+完整背景却沿用fixture默认masked声明，被生产MaterialOutputOutsideRegion正确拒绝。
+将此夹具明确声明为unmasked后通过，未更改生产蒙版或放宽像素断言。
+
+`m09_font_author_probe.py` 的 `http-font-02/summary.json` 为 **183请求／1349断言通过**，
+与图矩阵使用同一clean 0.112.15发布、源码 `48c1e7838dc6991e8de15c6fd58263e78e859533`。
+真实v3直接图包携带19,484,784B固定TTC；作者修改shader后字体仍只读且SHA相同，
+配置实际选择M09X family，CJK歌词与Ruby走真实Vulkan作者／Image工程、参数控制、同刻／seek、
+保存关闭重开和48帧透明ProRes完整解码。共12张PNG，编码对照42个稳定内点，
+PNG2/255和编码12/255保持分离；实际family由上表运行回归补证，不只凭HTTP字体字段。
+478文件凭证扫描通过，`m09-final-shutdown.json` 为exit0、remaining为空。
+`contract-1461/validation-font.json` 用当前合同离线核对169个JSON响应／46个成功请求；
+14个二进制或未映射项单独跳过，无未配对留档，不把这些跳过项算作schema验证。
+字体原始SHA为`b76b0433203017ca80401b2ee0dd69350349871c4b19d504c34dbdd80541690a`，
+固定SHA为`3efd78e7ad2c4e62ea66ef7ab470f046619790ee7692983ba3c00ad968e3f32b`。
+首轮`http-font-01`失败于探针将模板properties误写为对象数组（90请求／676断言后400）；
+按正式枚举字段和style.typography修正工具，无产品修改，失败留档。
+
+本记录各节合并证明M09的SVG安全资源／vector／atlas、Warp与锚点、完整Sprite affine、
+图参数与动态Transform、Base材质／uniform、真实组／owned Below、固定字体和作者实际消费者。
+合同与前端证据仍分别归1.46.1／0.112.15和前述实际浏览器发布，未把旧轮运行改归当前版本。
+M09有限功能范围据此关闭；SVG文字、通用mapping／跨输出dependsOn仍具名拒绝，
+CPU生产v2、跨平台、共享纹理、九命名样例、T01、M10／M11和完整D8未据此通过。
+性能门槛按用户指示暂缓，不记性能通过。

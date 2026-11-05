@@ -271,6 +271,7 @@ public static partial class ScriptV2PurityAnalyzer
                 or "ResourceCatalog" or "DeterministicRandom" or "CurveValue" or "Curves" or "ColorRgba" or "Vector2"
                 or "Point2" or "Rect2" or "Affine2" or "TimeRange" or "MaterialValue" or "MaterialUniforms" or "UniformValue"
                 or "GradientValue" or "GradientStopValue" or "SourceBranch" or "SourceLine" or "SourceToken" or "SourceRuby"
+                or "SourceNode" or "SourceProgram" or "SourceClip" or "SourceCue"
                 or "SourceRubySegment" or "SourceTimingStatus" or "FrameLine" or "FrameToken" or "FrameMark" or "FrameGroup"
                 or "EffectBinding" or "FramePresentations" or "StyleView" or "BaselineStyles" or "TokenFamilyTarget"
                 or "BaseTokenTarget" or "TextMarkTarget" or "LineTarget" or "GroupTarget" or "NodeTarget" or "ImageHandle" or "MaterialHandle"

@@ -455,3 +455,18 @@ Control 2 + Shift 8 = 10；run02 的 139 检查／7 帧后将 OPTIONS 预检误�
 为类型检查通过、4056/4056 单测通过和生产构建通过（保留既有大 chunk 提示）。首轮 final
 为 4055 通过／1 失败，原因是既有测试仍匹配已改为“配置声明”的旧 UI 文案；只更新文案断言，
 原有阻止 PUT 和本地值保留断言均保留。
+
+## 真实组作者编译修复（0.112.15，2026-11-05）
+
+图／材质／组探针在 `http-graph-04` 完成 direct-line、typed-dynamic 和 Base uniform 的作者、
+工程保存重开及透明导出后，发现组 controller 读取 `SourceProgram.RootNodeId` 被 MKV2006
+误拒绝。只读 SceneCatalog 已准入，但其 SourceNode／SourceProgram／SourceClip／SourceCue
+四种固定投影值漏入 SDK 纯度白名单。现补齐四类，仍要求真实 SDK 程序集身份；旧写者、
+进程随机哈希、IO 与阶段句柄门禁保持。
+
+新增真实作者编译回归覆盖四类所有字段、固定值 prepared record 与根组选择、可加载产物。
+`scene-catalog-purity-red-02.log` 修复前为1失败／3通过，失败明确来自 MKV2004／MKV2006；
+首轮 red-01 另有旧写者负例构造参数错误，修正为合法构造后才计入红绿证据。
+`build-scene-catalog-purity-01.log` 完整 solution 0警告／0错误，
+`scene-catalog-purity-green-01.log` 纯度相关75/75，`scene-catalog-scripting-full-01.log` 519/519。
+0.112.15 的新匹配发布和图组完整实链仍待后续；不将0.112.14的失败轮写成此修复已运行通过。

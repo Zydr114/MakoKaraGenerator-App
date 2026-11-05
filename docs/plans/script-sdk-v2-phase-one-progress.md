@@ -325,3 +325,10 @@ M10/M11未完成。
 完整构建零警告错误、Media423及Processes37通过。失败轮、独立oracle边界与精确清理见
 [M10记录第十七片](script-sdk-render-m10-evidence.md)。真实Worker/Host组合、输入换代和导出
 继续实施，能力仍关闭；本片不是HTTP、完整M10或性能验收。
+
+### M10 owner 媒体投影（产品0.112.33）
+
+精确owner、源path/region、完整typed参数和依赖映射已接到独立SDK目录及fresh stage。
+无query参数漏检先15项真实红例，修复后56项定向和Scripting644项通过，完整构建零警告错误。
+详见[M10记录第十八片](script-sdk-render-m10-evidence.md)；Host生命周期与真实执行继续集成，
+能力门禁保持关闭，M10/M11未完成。

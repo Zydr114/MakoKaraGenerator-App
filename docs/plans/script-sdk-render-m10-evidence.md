@@ -450,3 +450,23 @@ JPEG canonical 全通道误差保持2e-6：native YUV/GBR/gray参考平面经独
 本矩阵也不覆盖所有格式、OOM、动态源替换或性能。正确owner的排水已验证，wrong-owner token
 专门场景仍归既有EnvelopeProbe。本片没有接通store/Worker/HTTP/GPU完整媒体路径，能力门禁
 继续关闭，M10/M11未完成。
+
+## 第十八片：精确 owner 媒体投影（产品0.112.33）
+
+内部 `ProjectMediaFeatureProjection` 把正式固定依赖映射为独立 owner/session 目录与每次阶段
+的新句柄；逐项匹配真实实例或源材质 path/region、包修订、完整九类参数、query/window/回退输出。
+source 复用正式参数解析，metadata instance 接缝要求显式 actual expected 参数，compiled 入口
+复用完整 schema/resource 校验；无查询实例同样校验，不把空 owner 当作来源权限。
+
+回调绑定 exact input/dependency、四个 double endpoint bits 和时刻，重新核 sampler 固定对象，
+仅产生 detached SDK 数值与安全状态；不暴露路径、reader、provider 或错误 detail。stage 失效
+清除回调，外层资源所有权继续由后续 Host/factory 负责，能力门禁未打开。
+
+初始 tuple 推断和测试数组／token 分析器编译错误分别保留为
+`projection-noquery-red-01/02.log`，不记为行为红例；完成仅编译所需修正后，
+`projection-noquery-red-03.log`真实55项中15失败／40通过，捕获无query参数漏检。
+应用最小修订后 `projection-noquery-green-01.log`56/56；
+`build-projection-final-01.log`完整solution零警告／零错误，
+`projection-scripting-full-01.log`644/644。最终文件摘要见`projection-integration-01.json`。
+fake sampler只证明身份、分支和阶段句柄，不替代数值kernel、真实包执行、Host admission或native。
+当前仍无新HTTP／GPU／输入换代／导出结论，M10/M11未完成。

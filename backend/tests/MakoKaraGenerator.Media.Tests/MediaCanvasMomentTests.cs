@@ -53,7 +53,7 @@ public sealed class MediaCanvasMomentTests
     public void TinyCanvasRegionSurvivesWhenANormalizedFloatRectangleWouldCollapse()
     {
         var placement = MediaDisplayPlacement.Compute(MediaRasterGeometry.Create(32, 18, 1, 1, 0, false), 8, 8, BackgroundFit.Original);
-        // These canvas endpoints are already exactly representable in the future SDK's binary32 Rect2.
+        // The SDK Rect2 uses binary64; these simple canvas endpoints are exact as well.
         // Original crops both axes: [0, tiny] maps near normalized (.375, .2778), where an extra float cast collapses it.
         float tiny = MathF.ScaleB(1f, -30);
         var rect = new MediaCanvasRect(0f, 0f, tiny, tiny);

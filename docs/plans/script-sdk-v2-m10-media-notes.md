@@ -134,6 +134,9 @@ varianceY     = secondY - meanY²
 建议新增 SDK `MediaFeatures`／`MediaFeatureSample`／`MediaQueryProfile`；服务只读、无文件／任务／播放器句柄。
 `DeclareContext.Media` 固定状态、身份及允许的查询 profile；`TextFrame.Media` 与 `VisualFrame.Media` 复用同一输入。
 查询必须显式声明 `SourceNormalized` 或 `CanvasPixels`。矩形需有限非空；越出该空间合法范围时拒绝，不能静默裁剪。
+2026-11-05实施决定：SDK现有`Rect2`为binary64，CPU查询profile固定为
+`media-grid-area-binary64-v1`，不引入中间f32坐标舍入；既有float helper精确提升后是其子集。
+GPU RGBA32F数据路径仍单独验证数值范围和误差，不以CPU通过代替。
 Canvas 查询通过 `BackgroundPlacement.Compute` 反映射，cover 裁切、contain／original 留白和 alpha+底色都计入面积。
 Source 查询返回未摆放的源统计；Canvas 查询返回当前背景合成统计，类型和返回说明必须区分。
 文字早阶段只能查询明确的基础布局区域；最终几何区域留到晚阶段或材质求值，不能经最终样式反向形成布局循环。

@@ -150,3 +150,23 @@ I/O或continuation。stream读取块间与gate等待均检查取消；关闭等�
 生产budget与Dispose等待在途同步读，全部通过。前两轮构建均为CancellationToken参数
 顺序的CA1068失败（第二轮修订命令路径错误，未生效），修为token末参数后通过，未抑制规则。
 本片仍是受信Media读取接缝；实际SDK、缓存淘汰和作者链尚待接通。
+
+## 第八片：固定媒体输入与映射身份（产品0.112.23）
+
+新增不可变Mapping、纯色源和完整输入context；Pending、AvailableFile、AvailableSolid、
+Unavailable、NoMedia五个封闭分支分别校验所需字段。Pending／失败绑定固定请求身份；
+Available按内容复用，不带准备attempt；失败码和稳定failure身份进入摘要，受限人类诊断
+不进入。透明输出只接受显式NoMedia，不持文件源；普通纯色使用canonical mapping，避免
+重复合成底色。所有接收边界重算nested profile／source／mapping与最终input摘要。
+
+实际SDK Rect2已使用double，因此尚未开放的Query统一更正为
+`media-grid-area-binary64-v1`，拒绝旧f32标识，并更新独立profile／source摘要向量。
+既有float Source helper精确提升到同一double算法；GPU RGBA32F仍需单独验证，未开放
+第二套CPU能力。context先固定查询目录和依赖digest，其解析、运行快照及lease组合待后片。
+
+`build-fixed-input-03.log`完整solution0警告／0错误；`fixed-input-focused-01.log`31/31，
+包含16项新增输入测试及15项既有身份回归；`fixed-input-core-full-01.log`1540/1540，
+`fixed-input-media-full-01.log`335/335。独立BinaryWriter字节oracle和冻结向量覆盖五分支、
+double单bit、查询／依赖／映射变化、错绑定、重试、纯色、透明与反射模拟的伪造nested摘要。
+首次集成命令目录错误，未修改产品且只构建旧基线（01日志）；02构建仅因测试常量数组
+CA1861失败，改为static readonly后03通过，未抑制分析器。尚无本版本HTTP／GPU／作者链证明。

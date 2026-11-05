@@ -33,8 +33,8 @@ public static class MediaProfilesV1
     /// <summary>Canonical MFT1 artifact format.</summary>
     public const string Codec = "media-feature-track-mft1";
 
-    /// <summary>Source-grid area queries using binary32 coordinates.</summary>
-    public const string Query = "media-grid-area-f32-coordinates-v1";
+    /// <summary>CPU source and canvas grid-area queries using binary64 coordinates.</summary>
+    public const string Query = "media-grid-area-binary64-v1";
 
     /// <summary>RGBA32F GPU prefix sampling.</summary>
     public const string Gpu = "media-moments-prefix-rgba32f-v1";

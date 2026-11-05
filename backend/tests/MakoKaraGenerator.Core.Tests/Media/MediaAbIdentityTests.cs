@@ -13,13 +13,13 @@ public sealed class MediaAbIdentityTests
         MediaFeatureFileSource still = MediaFoundationFixtures.Source();
         Assert.Equal("2567cfc898490c08f9c60e1058d8a9f954596f5f122cb40e719f0225660fc588", still.Presentation.Color.Digest.LowerHex);
         Assert.Equal("b238b2c15097384fdd01a09aa112c36960d681b13710664d20e8fdcb335a134f", still.Tool.Digest.LowerHex);
-        Assert.Equal("3b31ee8417ee41d604dcd883f7247ddd0e241e94270a0644d8987f7ec47ed166", still.Profile.Digest.LowerHex);
+        Assert.Equal("943bb54376f97500fead16637f2c17d43d1f136f5a8ad724bd34d0eff77204b9", still.Profile.Digest.LowerHex);
         Assert.Equal("c71074ad0362323643fd15cf4f254ed247100e82389eee1ad7803bfb86505efc", still.Presentation.Digest.LowerHex);
-        Assert.Equal("80da215f808c484045c50aa2029a355e8255b731d74d60eb03d9de760c5044bd", still.Key.Digest.LowerHex);
+        Assert.Equal("1b6be1803c5ad307675fcc0342dd6cf07db16801c01bc8b496b6ea860f83911b", still.Key.Digest.LowerHex);
         var videoDescriptor = MediaFoundationFixtures.Descriptor(MediaSourceKind.Video, rotation: MediaQuarterTurn.Clockwise90, mirror: true);
         MediaFeatureFileSource video = MediaFoundationFixtures.Source(MediaSourceKind.Video, videoDescriptor);
         Assert.Equal("ed6529be97deade0dfd0333551b806f601eb6e764f1d29b154373bbff7f4d693", videoDescriptor.Digest.LowerHex);
-        Assert.Equal("3eef6f9c2b193fda5e7c3373011a8a26882add88a6776d1924a664b8dea66c6f", video.Key.Digest.LowerHex);
+        Assert.Equal("de2fb4ae76f131e56bb28aa37602466f3f57e6446a25e811fd61939d606a5cb1", video.Key.Digest.LowerHex);
     }
 
     /// <summary>Digest self-fields cannot introduce cycles, but accepted boundaries recompute them.</summary>

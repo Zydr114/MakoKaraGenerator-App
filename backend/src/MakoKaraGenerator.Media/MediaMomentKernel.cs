@@ -144,7 +144,7 @@ public sealed class MediaMomentKernel : IMediaMomentKernel
     /// <exception cref="MediaAbException">The grid, moments or rectangle is invalid.</exception>
     /// <exception cref="OperationCanceledException">Cancellation is requested.</exception>
     public MediaMomentValues IntegrateSourceRect(ReadOnlySpan<MediaMomentValues> grid, MediaSourceRect rect, CancellationToken cancellationToken)
-        // Every binary32 endpoint promotes exactly. The public Source profile and its arithmetic order stay unchanged.
+        // Every binary32 endpoint promotes exactly into the common binary64 query profile.
         => IntegrateNormalizedRect(grid, new(rect.Left, rect.Top, rect.Right, rect.Bottom), cancellationToken);
 
     /// <summary>Common CPU binary64 source-area integration; Canvas inverse mapping does not narrow its endpoints.</summary>
@@ -156,7 +156,7 @@ public sealed class MediaMomentKernel : IMediaMomentKernel
         ValidateRect(rect);
         ValidateGrid(grid, cancellationToken);
 
-        // Working in grid units keeps cell boundaries at exact integers. For Source's binary32 profile,
+        // Working in grid units keeps cell boundaries at exact integers. For binary32 Source helper inputs,
         // multiplying by 32 or 18 is exact in binary64; Canvas endpoints use binary64 arithmetic throughout.
         double left = rect.Left * MediaTrackLayoutV1.Columns;
         double right = rect.Right * MediaTrackLayoutV1.Columns;

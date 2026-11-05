@@ -1,0 +1,38 @@
+<Project>
+  <!-- Import only from the final executable project(s) that host A. Native
+       sources live in backend/native/media-envelope after integration. -->
+  <PropertyGroup>
+    <MakoMediaEnvelopeEnabled Condition="'$(MakoMediaEnvelopeEnabled)' == ''">false</MakoMediaEnvelopeEnabled>
+    <MakoMediaEnvelopeSourceDir Condition="'$(MakoMediaEnvelopeSourceDir)' == ''">$(MSBuildThisFileDirectory)../native/media-envelope</MakoMediaEnvelopeSourceDir>
+  </PropertyGroup>
+
+  <Target Name="BuildMakoMediaEnvelopeNative" BeforeTargets="CopyFilesToOutputDirectory"
+          Condition="'$(MakoMediaEnvelopeEnabled)' == 'true'">
+    <!-- SDK output paths are final only at target execution, after implicit SDK imports. -->
+    <PropertyGroup>
+      <MakoMediaEnvelopeBuildDir Condition="'$(MakoMediaEnvelopeBuildDir)' == ''">$(IntermediateOutputPath)media-envelope-native</MakoMediaEnvelopeBuildDir>
+      <MakoMediaEnvelopeToolDir Condition="'$(MakoMediaEnvelopeToolDir)' == ''">$(TargetDir)media-tools</MakoMediaEnvelopeToolDir>
+    </PropertyGroup>
+    <Error Condition="!$([MSBuild]::IsOSPlatform('Linux'))" Text="Media envelope native build requires Linux x64." />
+    <Error Condition="'$(RuntimeIdentifier)' != '' and '$(RuntimeIdentifier)' != 'linux-x64'"
+           Text="Media envelope native ABI supports only linux-x64." />
+    <Exec Command="cmake -S &quot;$(MakoMediaEnvelopeSourceDir)&quot; -B &quot;$(MakoMediaEnvelopeBuildDir)&quot; -DCMAKE_BUILD_TYPE=Release" />
+    <Exec Command="cmake --build &quot;$(MakoMediaEnvelopeBuildDir)&quot; --config Release --parallel 2" />
+    <ItemGroup>
+      <MakoMediaEnvelopeNativeFile Include="$(MakoMediaEnvelopeBuildDir)/libmkg_media_envelope.so;$(MakoMediaEnvelopeBuildDir)/mkg-media-exec-gate" />
+    </ItemGroup>
+    <MakeDir Directories="$(MakoMediaEnvelopeToolDir)" />
+    <Copy SourceFiles="@(MakoMediaEnvelopeNativeFile)" DestinationFolder="$(MakoMediaEnvelopeToolDir)" />
+  </Target>
+
+  <Target Name="PublishMakoMediaEnvelopeNative" BeforeTargets="ComputeFilesToPublish"
+          DependsOnTargets="BuildMakoMediaEnvelopeNative"
+          Condition="'$(MakoMediaEnvelopeEnabled)' == 'true'">
+    <ItemGroup>
+      <ResolvedFileToPublish Include="@(MakoMediaEnvelopeNativeFile)">
+        <RelativePath>media-tools/%(Filename)%(Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
+</Project>

@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RuntimeIdentifier>linux-x64</RuntimeIdentifier>
+    <MakoMediaEnvelopeEnabled>true</MakoMediaEnvelopeEnabled>
+    <MakoMediaEnvelopeSourceDir>$(MSBuildProjectDirectory)/../../../native/media-envelope</MakoMediaEnvelopeSourceDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../src/MakoKaraGenerator.Processes/MakoKaraGenerator.Processes.csproj" />
+  </ItemGroup>
+  <Import Project="../../../build/MakoMediaEnvelope.Native.targets" />
+  <Target Name="BuildProbeHelper" BeforeTargets="CopyFilesToOutputDirectory">
+    <PropertyGroup><ProbeHelperBuildDir>$(IntermediateOutputPath)probe-helper-native</ProbeHelperBuildDir></PropertyGroup>
+    <Exec Command="cmake -S &quot;$(MSBuildProjectDirectory)/native&quot; -B &quot;$(ProbeHelperBuildDir)&quot; -DCMAKE_BUILD_TYPE=Release" />
+    <Exec Command="cmake --build &quot;$(ProbeHelperBuildDir)&quot; --config Release --parallel 2" />
+    <MakeDir Directories="$(TargetDir)media-tools" />
+    <Copy SourceFiles="$(ProbeHelperBuildDir)/mkg-envelope-probe-helper" DestinationFolder="$(TargetDir)media-tools" />
+  </Target>
+  <Target Name="PublishProbeHelper" BeforeTargets="ComputeFilesToPublish" DependsOnTargets="BuildProbeHelper">
+    <ItemGroup>
+      <ResolvedFileToPublish Include="$(ProbeHelperBuildDir)/mkg-envelope-probe-helper">
+        <RelativePath>media-tools/mkg-envelope-probe-helper</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
+</Project>

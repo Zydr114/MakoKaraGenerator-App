@@ -170,3 +170,40 @@ Available按内容复用，不带准备attempt；失败码和稳定failure身份
 double单bit、查询／依赖／映射变化、错绑定、重试、纯色、透明与反射模拟的伪造nested摘要。
 首次集成命令目录错误，未修改产品且只构建旧基线（01日志）；02构建仅因测试常量数组
 CA1861失败，改为static readonly后03通过，未抑制分析器。尚无本版本HTTP／GPU／作者链证明。
+
+## 第九片：原生进程硬封套与本机实证（产品0.112.24）
+
+Processes新增不依赖Core的预算子账、一次性native lease、四管道owned session、同PID
+exec gate及Linux systemd backend。先固定MemoryMax／swap=0／OOM group，再核manager、
+kernel、InvocationID、PID/startTicks及固定cgroup inode；取消只写所固定cgroup的kill。
+consumer借用仍在途时先停止native，再等待callback和管道排水；无法证明排水则quarantine
+保留源和预算。成功排水保留原consumer异常或取消token。实际Media runner、decoder及
+生产Worker接线留后片，本片不宣称完整媒体分析可用。
+
+`build-native-envelope-04.log`完整solution0警告／0错误；Processes全套27/27，其中22项
+新封套／预算用例；Media全套335/335。移除single-use claim与active等待的变异使两项
+定向回归2/2失败（`native-envelope-regressions-red-01.log`），恢复后进入上述全绿结果。
+前两次构建分别发现ValueTask同步取值／取消检查和fake fixture清理规则问题，已修复，
+未抑制分析器。01 focused的21/21是增加active竞态测试前的中间结果。
+
+正式可复用探针位于`backend/tools/backend-script-render-upgrade/M10EnvelopeProbe/`，
+引用正式Processes源码与native target；`publish-native-envelope-probe-01.log`发布成功。
+`native-envelope-published-real-01/summary.json`七场景全部通过：
+
+- 放行前gate已完成exec且三输出静默；放行后同PID/startTicks，真实stdin/stdout/stderr/fd3。
+- 非零17自然退出；caller取消；2秒pipe stall具名超时。
+- 64MiB限额内父子分别触页40MiB，真实合计OOM，确认manager/kernel记录后才计CapacityExceeded。
+- borrow在途时独立kill，源和buffer保留至callback返回；错误InvocationID／PID／ticks／inode
+  四令牌均拒绝且原进程仍存活。
+
+每项终态、空／已移除cgroup、EOF、Unref与源预算释放均有事件记录。正式发布探针的
+7个owned unit均已消失，8个观察到的PID无同startTicks残留；见
+`native-envelope-published-cleanup-01.json`。source／DLL／native摘要见
+`native-envelope-provenance-01.json`；新源与有限证据43文件扫描无凭证模式命中。
+
+真实失败保留：real-01因MSBuild在SDK完成前求值TargetDir而把工具复制到错误位置，未启动
+unit；target内延迟求值修复。real-02首场景通过后暴露activating已报告PID但gate尚未exec
+的竞态；等待active修复，real-03七场景通过，再移入正式工具并完成上述发布复验。
+AddRef保留结果后以inactive-or-failed收集，旧失败探针的单个owned失败unit在核验身份与
+无进程后精确reset；没有批量kill。以上均是Linux x64本机有限功能证据，不是decoder／
+颜色PTS、Server/Worker匹配发布、HTTP、跨平台、整个Worker RSS或性能验收。

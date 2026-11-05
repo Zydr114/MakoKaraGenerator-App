@@ -127,3 +127,14 @@ Int64、非法／缺失／重复配置、旧请求、no-op、回执与 undo／re
 来源文字颜色、已打开预览的固定来源及显式输入替换。采用既有探针的隔离 profile、loopback、
 脱敏留档、凭证扫描及 PID/startTicks 排水；不连接用户实例。它不覆盖图组或工程导出。
 浏览器由前端 `smoke:author-metadata` 独立验收，不把 HTTP 请求数当界面证据。
+
+## M09 图、Base 材质与组消费者
+
+`m09_graph_author_probe.py --dist <匹配发布> --output <不存在的新证据目录>` 固定六种真实v3包：
+无DLL直接行图、typed动态图、Base填充/描边uniform、owned Below、真实父子组及无DLL直接组图。
+每件走完整源编辑/检查/编译或无DLL准入/采用、参数控制、Vulkan透明PNG、同t/seek、受管Image
+工程与Ruby、保存重开和48帧透明ProRes导出。owned Below用第二owner已知半透明绿作为独立参考。
+`--skip-export`仅缩小诊断范围，不能据其passed声称导出已过。输出保存固定包及脚本hash、
+每次HTTP/PNG/导出、终态、凭证扫描和所属PID/startTicks排水；不连接用户profile。
+Base Ruby断言只选原图未遮挡纯蓝样本，完整重叠语义由Base材质核心像素回归承担。
+PNG2/255与编码稳定内点12/255分开，完整RGBA重复/重开逐字节；无性能或跨平台结论。

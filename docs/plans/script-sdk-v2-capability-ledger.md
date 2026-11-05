@@ -97,6 +97,13 @@ Base独立包材质在0.112.12已有CPU／Vulkan34项有限像素证据。
 
 ## 全能力映射
 
+M09 当前消费者增量（0.112.15／合同1.46.1）：C03、C05关联的组、C07相关颜色与C10相邻资源链
+由`http-graph-05`取得六场景真实作者→保存重开→透明导出证据，1425请求／10173断言，76张
+Vulkan PNG及六件48帧成片。C03包含无DLL直接图、typed动态矩阵、Base填充/描边uniform、
+两层真实组和owned Below独立半透明参考。精确声明／完整采用通用UI另有140检查／7显示帧。
+详见[M09记录](script-sdk-render-m09-evidence.md)；未据此关闭命名九样例、T01或完整D8，
+固定font／普通Sprite／BackgroundMedia的当前v3证据仍分别核对。性能门槛暂缓。
+
 路径前缀：`SA` = `backend/src/MakoKaraGenerator.Scripting.Abstractions`，
 `SE` = `backend/src/MakoKaraGenerator.Scripting/Execution`，
 `ST` = `backend/tests/MakoKaraGenerator.Scripting.Tests`，

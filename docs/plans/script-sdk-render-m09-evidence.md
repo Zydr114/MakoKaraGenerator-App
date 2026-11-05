@@ -470,3 +470,40 @@ Control 2 + Shift 8 = 10；run02 的 139 检查／7 帧后将 OPTIONS 预检误�
 `build-scene-catalog-purity-01.log` 完整 solution 0警告／0错误，
 `scene-catalog-purity-green-01.log` 纯度相关75/75，`scene-catalog-scripting-full-01.log` 519/519。
 0.112.15 的新匹配发布和图组完整实链仍待后续；不将0.112.14的失败轮写成此修复已运行通过。
+
+## 图／Base 材质／真实组 HTTP 与导出矩阵（0.112.15，2026-11-05）
+
+`http-graph-05/summary.json` **1425 请求／10173 断言通过**。使用
+`.local/backend-dist/m09-scene-catalog-0.112.15-20261105` 的 clean self-contained Server／Worker，
+源码为 `48c1e7838dc6991e8de15c6fd58263e78e859533`。六个独立固定 v3 包均经真实导入、shader
+文本保存、精确 inspection、C# 成功编译或真实无 DLL 准入、完整配置采用后执行：
+
+| 场景 | 真实运行核对 |
+|---|---|
+| direct-line | 无 C#／DLL，图参数改变 RGB，全部 alpha 不变 |
+| typed-dynamic | 真实 typed controller、图 uniform 与动态 Transform |
+| base-uniform | Base 两态填充／描边 uniform 控制改变像素，未遮挡 Family 纯蓝 Ruby 的完整 RGBA 不变 |
+| group-owned | 自有蓝点开关改变原位置画面；远端 Below 条在两种控制下均为另一 owner 的半透明绿，透明作者无第二 owner 时为空 |
+| group-nested | HTTP 创建父／子普通组并 reparent 歌词容器，读取真实树核对，处理颜色和非根组 alpha 共存 |
+| group-direct | 无 C#／DLL 的直接组图，参数改变 RGB 且全部 alpha 不变 |
+
+每场景检查同刻重复／seek 返回、受管 Image 工程、真实 Ruby、保存关闭重开 RGBA 完全相同，
+再等待透明 ProRes 导出成功终态。六件导出各 48 帧全部解码，下载长度／hash／报告及接受时
+精确输入保持；独立 PNG 稳定内点与第30帧使用编码专用12/255容差，分别有272／256／384／
+284／12／272个稳定点。PNG语义门禁仍为2/255，重复及重开仍逐字节比较；编码容差不用于PNG。
+
+共76张真实Vulkan PNG，106个Worker身份记录；3603文件凭证扫描通过，所有任务／预览／工程
+释放，`m09-final-shutdown.json` 为exit0、remaining为空。此链不证明浏览器图包专用控件、
+共享纹理、跨平台或性能；通用作者浏览器仍归上一节0.112.14证据。
+
+失败目录01–04保留。01为source-save与project-save误复用requestId；02为参数JSON规范键序
+与探针原文相等断言不符；03的Base近蓝mask混入3个被正文描边覆盖的Ruby边缘，改为仅按原图
+选择精确纯蓝且alpha>150的61个未遮挡样本，未按两图差异筛点；04才是实际RootNodeId纯度缺陷，
+由0.112.15红绿修复解决。修复前04已完成前三场景，但整轮仍记失败。
+
+合同1.46.1从新构建metadata冻结，无HTTP形状增量，保持113／126／598与3528例（2623反例）。
+`contract-1461/validation-http.json` 离线核对graph05的1336响应／312成功请求，以及原作者
+metadata链的426响应／31成功请求；二进制／未映射记录分别89和5，不冒充JSON校验。
+完整D8及M09固定字体／普通Sprite／BackgroundMedia证据映射继续核对，M10／M11尚未完成。
+前端整体同步1.46.1后，`scene-catalog-frontend-typecheck-01.log`类型检查通过，
+`scene-catalog-frontend-unit-01.log`4056/4056；只有合同版本常量及副本变化，无新增UI行为。

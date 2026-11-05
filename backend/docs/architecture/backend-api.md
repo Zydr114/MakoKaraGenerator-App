@@ -1943,3 +1943,11 @@ G1～G4已有真实包、CPU参考、显式Vulkan、像素／确定性、预算�
 这些回归不等于匹配Server／Worker的fresh HTTP、浏览器或导出验收；0.112.8的历史HTTP和0.112.14
 作者metadata／adopt的HTTP结果也不自动覆盖图／材质／组同帧矩阵。该矩阵仍须独立收口，本节不宣布
 M09关闭；媒体轨、九样例及后续作者完整链继续按阶段计划登记，性能门槛按用户指示暂不验收。
+
+
+### 28.5 固定场景目录纯度准入（0.112.15／合同1.46.1）
+
+SDK2作者可读取固定SceneCatalog中的SourceNode、SourceProgram、SourceClip与SourceCue全部只读值，
+包括真实根组／默认容器、父节点、片段成员及前奏关联；这些固定值可进入递归只读PreparedEffect。
+纯度分析仍核对真实SDK程序集，不放行旧生命周期写者、GetHashCode或外部IO。该修复解决真实组
+作者读取RootNodeId时误报MKV2006；没有新增HTTP字段或更改owner、CAS和采用编译门禁。

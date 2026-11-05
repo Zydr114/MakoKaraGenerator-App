@@ -237,3 +237,11 @@ Vulkan环境组合153/153通过，详见[M09记录](script-sdk-render-m09-eviden
 schema切换、原文／编辑历史、undo／redo及显式交付故障恢复通过，所属进程排水及凭证扫描完成。
 Server此前缺发布的Ruby三案匹配补跑3/3；失败历史与范围详见[M09证据](script-sdk-render-m09-evidence.md)。
 图、Base材质和真实组的保存重开／导出矩阵继续验收，不由作者子集关闭M09；M10/M11未完成。
+
+### M09 图与组真实链（产品0.112.15／合同1.46.1）
+
+真实作者编译暴露并修复固定SceneCatalog值的纯度误拒绝，脚本519/519、纯度75/75、完整构建
+零警告错误。clean源码48c1e78匹配发布的六场景HTTP为1425请求／10173断言，76张Vulkan PNG，
+全部完成工程保存重开及各48帧透明导出；owned Below独立颜色控制、真实父树和Base/Ruby核对通过。
+合同与实际JSON留档校验通过，失败探针及红绿证据见[M09记录](script-sdk-render-m09-evidence.md)。
+固定字体、普通Sprite affine和BackgroundMedia的v3证据映射仍在收口；M09不提前关闭。

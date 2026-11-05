@@ -123,3 +123,15 @@ long极值、短源两百万圈有界I/O、512帧prefix路径、重新hash的坏
 首轮48通过／2失败是video夹具只预留100000B，少于一帧spool＋candidate的147904B；
 修为200000B后触达timebase／取消目标并通过，生产准入未放宽。首轮构建的两处CA1859
 仅在测试变量改用已知具体类型后解决，未抑制分析器。尚无真实decoder／SDK／GPU／HTTP证明。
+
+## 第六片：共享工作集原子账（产品0.112.21）
+
+`MediaWorkingSetBudget`实现同一owner下的原子准入／释放和固定七类一致快照，保存live／peak
+字节与reservation数；扣剩余后准入避免long加法溢出，handle分配先于记账，重复或并发
+Dispose只释放一次。非法参数属于调用合同错误，合法请求超额具名CapacityExceeded；
+owner仍须先排水再Dispose，GC不释放额度，本账也不是实际RSS测量或原生内存限制。
+
+`build-working-budget-01.log`完整solution0警告／0错误；`working-budget-and-codec-01.log`
+为57/57，其中7项新预算测试覆盖32并发争抢8槽、32并发释放不影响其他charge、并发
+churn快照守恒、容量等号／+1／longmax、失败不改账及复用，另50项codec回归通过。
+本片提供生产ledger实现，真实decoder／reader组合根仍待后续接入。

@@ -35,3 +35,21 @@ Core新增媒体来源／颜色／工具／profile／制品只读值与边界验
 后续顺序：七量面积kernel与MFT1流式codec；受控原生封套／同链PTS解码与SDR颜色／SAR；
 任务store与租约；SDK／typed GPU查询；固定输入换代与作者链；导出等待／钉住轨；T01样例。
 静态合同、匹配发布、fresh HTTP、浏览器和性能分别登记，当前没有据此宣称媒体能力已可用。
+
+## 第二片：七原量面积内核（产品0.112.17）
+
+`MediaMomentKernel`从真实canonical RGBA32F像素逐cell积分到32×18七量，整数有理重叠
+权重明确覆盖全部源像素；独立计算Yp²／aYp／a²，不以均值平方冒充二阶量。uint16量化
+使用固定half-up，非法／非预乘／隐藏透明RGB／非有限／负零先拒绝；不做隐式clamp。
+单帧贡献上界`(W+31)×(H+17)`，数值scratch固定224B，原像素及destination仍由owner另计。
+
+SourceNormalized分数矩形按七量网格的分段常量面积积分。对每个量同时补偿累计direct
+与complement，再用较近端点的等价表达式求均值，使全0／全1在double面积舍入下精确保留，
+没有通过容差截断掩盖错误。grid外坏值仍拒绝；取消原样传播、partial destination不可发布。
+这是相对于固定网格近似的积分，不宣称恢复任意子矩形的原始像素细节。
+
+`build-moment-kernel-02.log`完整solution0警告／0错误，`moment-kernel-focused-01.log`为
+23/23；相邻Media全套`moment-kernel-media-full-01.log`为232/232。独立BigInteger有理oracle覆盖1×1、2×1、17×13、37×23的全部量化分量；另有
+相同均值的棋盘／纯灰二阶差异、透明混合、分数／极小矩形、全1端点反例、预算与取消回归。
+首轮构建的可取消Solid overload未列入服务接口，触发CA1822；补完整可取消接口而非关闭
+分析器后通过。尚无decoder、轨codec、任务、SDK、GPU或作者运行证据。

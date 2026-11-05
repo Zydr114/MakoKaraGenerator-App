@@ -9,10 +9,24 @@ public sealed partial class EffectPackageDefinition
     /// <summary>完整读取控制器、材质、图及全部资源；不会部分接受坏导出或猜测缺少字段。</summary>
     public static EffectPackageDefinition Read(EffectPackageContents contents, CancellationToken cancellationToken = default)
     {
+        var structure = ReadStructure(contents, cancellationToken);
+        // Only this entry can produce Definition. A structural catalog never grants execution.
+        foreach (string capability in contents.Requires) EffectPackageProfiles.RequireCapability(capability, "manifest.json.requires");
+        if (EffectPackageProfiles.IsV2(contents.Profile))
+            foreach (var export in structure.Exports)
+                foreach (var output in export.Outputs)
+                    foreach (string capability in output.Requires)
+                        EffectPackageProfiles.RequireCapability(capability, "exports." + export.Id + ".outputs." + output.Id + ".requires");
+        return new(contents, structure.Parameters, structure.Exports, structure.Programs, structure.Graphs, structure.SvgResources);
+    }
+
+    internal static EffectPackageStructure ReadStructure(EffectPackageContents contents, CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(contents); cancellationToken.ThrowIfCancellationRequested();
         using var json = ReadJson(contents.Manifest.AsMemory(), "manifest.json");
         var files = contents.Files.ToImmutableDictionary(file => file.Path, StringComparer.Ordinal);
         var parameters = EffectPackageParameterParser.Read(json.RootElement.GetProperty("parameters"), files, cancellationToken);
+        var queries = EffectPackageMediaQueries.ReadDeclarations(contents, json.RootElement, parameters, cancellationToken);
         var programs = EffectPackageShaderPrograms.Read(contents, cancellationToken);
         var graphs = EffectPackageImageGraphs.Read(contents, parameters, programs, null, cancellationToken);
         var svgResources = EffectPackageSvgResources.Read(contents, cancellationToken);
@@ -29,7 +43,7 @@ public sealed partial class EffectPackageDefinition
                 "graph" => ["id", "kind", "name", "graph", "parameters", "bindingKinds", "outputs"],
                 _ => throw Error("PackageExportKindUnsupported", path + ".kind", "未知导出种类。"),
             };
-            Keys(item, path, fields, []);
+            Keys(item, path, fields, EffectPackageProfiles.IsV2(contents.Profile) ? ["mediaQueries"] : []);
             string id = RequiredText(item, "id", path), name = RequiredText(item, "name", path);
             if (!ids.Add(id)) throw Error("PackageExportDuplicate", path + ".id", "跨种类导出身份重复。");
             var references = Strings(item.GetProperty("parameters"), path + ".parameters");
@@ -40,15 +54,16 @@ public sealed partial class EffectPackageDefinition
                 foreach (var output in outputs)
                     foreach (string capability in output.Requires)
                     {
-                        EffectPackageProfiles.RequireCapability(capability, path + ".outputs." + output.Id + ".requires");
+                        EffectPackageProfiles.RequireKnownCapability(capability, path + ".outputs." + output.Id + ".requires");
                         if (!contents.Requires.Contains(capability, StringComparer.Ordinal))
                             throw Error("PackageCapabilityMissing", path + ".outputs." + output.Id + ".requires", "输出能力必须同时在包 requires 中声明。");
                     }
             if (EffectPackageProfiles.IsV2(contents.Profile)) ValidateV2Stages(outputs, contents.Emitters, path);
             var ordered = Sort(outputs, path);
+            var mediaQueries = EffectPackageMediaQueries.ReadReferences(item, kind, outputs, path, queries, references, cancellationToken);
             if (kind == "controller")
             {
-                exports.Add(new EffectControllerDefinition(id, name, RequiredText(item, "entryType", path), references, ReadBindings(item, path), outputs, ordered));
+                exports.Add(new EffectControllerDefinition(id, name, RequiredText(item, "entryType", path), references, ReadBindings(item, path), outputs, ordered, mediaQueries));
                 continue;
             }
             string graphPath = RequiredText(item, "graph", path);
@@ -70,7 +85,7 @@ public sealed partial class EffectPackageDefinition
                         "unmasked" => EffectMaterialCoverageMode.Unmasked,
                         "masked" => EffectMaterialCoverageMode.Masked,
                         _ => throw Error("PackageMaterialCoverageModeInvalid", path + ".coverageMode", "须明确声明 unmasked／masked 覆盖模式。"),
-                    }, outputs, ordered));
+                    }, outputs, ordered, mediaQueries));
             }
             else
             {
@@ -84,15 +99,14 @@ public sealed partial class EffectPackageDefinition
                     if (HasBackgroundDependency(graph.Plan) && output.Bypass is not EffectOutputBypass.GraphInput)
                         throw Error("PackageGraphBypassMissing", path + ".outputs." + output.Id + ".bypass", "背景依赖图须明确原输入／identity 旁路。");
                 }
-                exports.Add(new EffectGraphDefinition(id, name, graphPath, references, ReadBindings(item, path), outputs, ordered));
+                exports.Add(new EffectGraphDefinition(id, name, graphPath, references, ReadBindings(item, path), outputs, ordered, mediaQueries));
             }
         }
-        // known pending 只允许检查文件闭包；完整 Definition 返回前仍须通过真实执行能力门禁。
-        foreach (string capability in contents.Requires) EffectPackageProfiles.RequireCapability(capability, "manifest.json.requires");
+        EffectPackageMediaQueries.ValidateUsage(contents, queries, exports);
         if (contents.Requires.Contains("image.graph.group", StringComparer.Ordinal)
             && !contents.Requires.Contains("image.graph", StringComparer.Ordinal))
             throw Error("PackageCapabilityMissing", "manifest.json.requires", "image.graph.group 必须同时声明 image.graph。");
-        cancellationToken.ThrowIfCancellationRequested(); return new(contents, parameters, exports.ToImmutable(), programs, graphs, svgResources);
+        cancellationToken.ThrowIfCancellationRequested(); return new(parameters, exports.ToImmutable(), programs, graphs, svgResources, queries);
     }
     private static ImmutableArray<string> ReadBindings(JsonElement item, string path)
     {

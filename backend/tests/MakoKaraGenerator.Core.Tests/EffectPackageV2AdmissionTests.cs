@@ -36,7 +36,7 @@ public sealed class EffectPackageV2AdmissionTests
     [Theory]
     [InlineData("future.unknown")]
     [InlineData("path.svg")]
-    [InlineData("media.features")]
+    [InlineData("media.features.cpu")]
     [InlineData("unknown.required")]
     public void 尚未接通的必须能力在读取闭包时具名拒绝(string capability)
     {

@@ -7,6 +7,23 @@ namespace MakoKaraGenerator.Core.Effects;
 // 参数默认值与实例覆盖共用此验证器；控制器、材质和图不能各自转换类型。
 internal static class EffectPackageParameterParser
 {
+    internal static ImmutableDictionary<string, EffectParameterValue> Resolve(EffectExportDefinition export,
+        ImmutableDictionary<string, EffectParameterDefinition> parameters, ImmutableDictionary<string, EffectPackageFile> files,
+        ReadOnlyMemory<byte> overrides, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var values = export.ParameterIds.ToImmutableDictionary(id => id, id => parameters[id].DefaultValue, StringComparer.Ordinal).ToBuilder();
+        if (overrides.IsEmpty) return values.ToImmutable();
+        using var json = ReadJson(overrides, "parameters"); var root = json.RootElement;
+        Keys(root, "parameters", [], export.ParameterIds.ToArray());
+        foreach (var property in root.EnumerateObject())
+        {
+            cancellationToken.ThrowIfCancellationRequested(); var parameter = parameters[property.Name];
+            values[property.Name] = EffectPackageParameterParser.ReadValue(property.Value, parameter.Constraint, files, "parameters." + property.Name);
+        }
+        return values.ToImmutable();
+    }
+
     internal static ImmutableArray<EffectParameterDefinition> Read(JsonElement declarations,
         ImmutableDictionary<string, EffectPackageFile> files, CancellationToken cancellationToken)
     {

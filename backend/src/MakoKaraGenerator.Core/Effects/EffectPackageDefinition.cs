@@ -92,8 +92,9 @@ public sealed class EffectOutputDefinition
 public sealed class EffectControllerDefinition : EffectExportDefinition
 {
     internal EffectControllerDefinition(string id, string name, string entry, ImmutableArray<string> parameters,
-        ImmutableArray<string> bindings, ImmutableArray<EffectOutputDefinition> outputs, ImmutableArray<EffectOutputDefinition> ordered)
-        : base(id, name, parameters, outputs, ordered)
+        ImmutableArray<string> bindings, ImmutableArray<EffectOutputDefinition> outputs, ImmutableArray<EffectOutputDefinition> ordered,
+        ImmutableArray<EffectMediaQueryReference> mediaQueries)
+        : base(id, name, parameters, outputs, ordered, mediaQueries)
     { EntryType = entry; BindingKinds = bindings; }
     /// <summary>完整作者类型名；实际类型检查属于 DLL 加载层。</summary>
     public string EntryType { get; }
@@ -162,16 +163,6 @@ public sealed partial class EffectPackageDefinition
     public ImmutableDictionary<string, EffectParameterValue> ResolveParameters(string exportId, ReadOnlyMemory<byte> overrides = default,
         CancellationToken cancellationToken = default)
     {
-        cancellationToken.ThrowIfCancellationRequested(); var export = GetExport(exportId);
-        var values = export.ParameterIds.ToImmutableDictionary(id => id, id => _parameters[id].DefaultValue, StringComparer.Ordinal).ToBuilder();
-        if (overrides.IsEmpty) return values.ToImmutable();
-        using var json = ReadJson(overrides, "parameters"); var root = json.RootElement;
-        Keys(root, "parameters", [], export.ParameterIds.ToArray());
-        foreach (var property in root.EnumerateObject())
-        {
-            cancellationToken.ThrowIfCancellationRequested(); var parameter = _parameters[property.Name];
-            values[property.Name] = EffectPackageParameterParser.ReadValue(property.Value, parameter.Constraint, _files, "parameters." + property.Name);
-        }
-        return values.ToImmutable();
+        return EffectPackageParameterParser.Resolve(GetExport(exportId), _parameters, _files, overrides, cancellationToken);
     }
 }

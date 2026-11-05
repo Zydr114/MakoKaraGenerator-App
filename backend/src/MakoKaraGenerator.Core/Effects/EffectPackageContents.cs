@@ -98,7 +98,8 @@ public sealed class EffectPackageContents
         bool v2 = EffectPackageProfiles.IsV2(expected);
         Keys(root, "manifest.json", v2
             ? ["packageVersion", "packageId", "name", "version", "sdkVersion", "shaderProfile", "requires", "lineExit", "emitters", "files", "parameters", "exports"]
-            : ["packageVersion", "packageId", "name", "version", "sdkVersion", "shaderProfile", "files", "parameters", "exports"]);
+            : ["packageVersion", "packageId", "name", "version", "sdkVersion", "shaderProfile", "files", "parameters", "exports"],
+            v2 ? ["mediaQueries"] : []);
         if (root.GetProperty("packageVersion").ValueKind != JsonValueKind.Number
             || !root.GetProperty("packageVersion").TryGetInt32(out int packageVersion))
             throw Error("PackageProfileMismatch", "manifest.json", "包版本、SDK 或 shader profile 与明确支持值不一致。");
@@ -244,14 +245,14 @@ public sealed class EffectPackageContents
         }
         catch (JsonException exception) { throw Error("PackageManifestInvalid", "manifest.json", "清单不是合法 JSON。", exception); }
     }
-    private static void Keys(JsonElement value, string path, string[] allowed)
+    private static void Keys(JsonElement value, string path, string[] allowed, string[]? optional = null)
     {
         if (value.ValueKind != JsonValueKind.Object) throw Error("PackageManifestType", path, "清单字段必须为对象。");
         var names = new HashSet<string>(StringComparer.Ordinal);
         foreach (var property in value.EnumerateObject())
         {
             if (!names.Add(property.Name)) throw Error("PackageJsonDuplicateKey", path + "." + property.Name, "JSON 字段重复。");
-            if (!allowed.Contains(property.Name, StringComparer.Ordinal)) throw Error("PackageManifestUnknownField", path + "." + property.Name, "未知清单字段。");
+            if (!allowed.Contains(property.Name, StringComparer.Ordinal) && !(optional?.Contains(property.Name, StringComparer.Ordinal) ?? false)) throw Error("PackageManifestUnknownField", path + "." + property.Name, "未知清单字段。");
         }
         foreach (string field in allowed) if (!names.Contains(field)) throw Error("PackageManifestMissingField", path + "." + field, "清单缺字段。");
     }

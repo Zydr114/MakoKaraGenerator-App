@@ -1,8 +1,9 @@
 # M10 媒体特征轨接入研究
 
-日期：2026-11-04。范围：为[主计划 §5.7](script-sdk-v2-render-pipeline-plan.md#57-媒体特征轨与自适应描边)补充源码接缝、有限实现方案和验收门禁。
-本文件是候选设计，不是已开放 SDK／HTTP／Worker 合同；本轮只读源码并整理文档，没有构建、测试、解码运行或性能测量。
-M08 的合同源与工具保持冻结；M10 应在独立实现步骤中接通、生成合同并验收。
+初稿日期：2026-11-04；实施补充：2026-11-05。范围：为[主计划 §5.7](script-sdk-v2-render-pipeline-plan.md#57-媒体特征轨与自适应描边)补充源码接缝、有限实现方案和验收门禁。
+未明确标注实施的章节仍是候选设计，不是已开放 SDK／HTTP／Worker 合同。初稿只做源码研究，
+后续各片的构建、运行、红绿回归及边界统一见[M10证据](script-sdk-render-m10-evidence.md)。
+当前HTTP合同仍冻结于1.46.1／产品0.112.15；M10将在消费者接通后独立生成合同与验收。
 
 ## 1. 当前结论与实施边界
 
@@ -158,6 +159,33 @@ GPU 点查询使用与 CPU 相同的单元选择，区域查询使用相同面�
 `SkiaRenderPipeline.ImageScene.Materials.cs` 与 `.Binding.cs` 继续区分真实 BackgroundMedia、真实 BackdropBelow 和新统计输入。
 透明输出固定为 NoMedia 并执行已声明 fallback；不能偷偷采样不被渲染的工程背景。
 
+### 5.1 已实施的包查询声明与纯依赖计划（0.112.26）
+
+v2清单根和每个export可选`mediaQueries`；旧包不强加新字段，v1出现该字段拒绝。根目录每项
+为`id`、`space`（`sourceNormalized`／`canvasPixels`）和`window`：后者明确为
+`{"kind":"literal","durationUs":200000}`或`{"kind":"parameter","parameter":"window"}`。
+参数必须是同包Duration且当前export显式引用，完整允许范围与最终值均须在0..2000000µs。
+
+export的每项引用为`query`和`fallback`，后者明确包含`pending`、`unavailable`、`noMedia`。
+每种状态均含`kind`和`outputs`，首版要求精确覆盖当前export的全部输出；controller仅允许
+`authorBranch`，material／graph仅允许`outputBypass`并引用原来已验证的材质fallback／图原输入。
+不复制另一份颜色、图节点或旁路协议。未知、缺失、重复字段与未声明query均拒绝。
+
+`EffectPackageMediaQueries.Read`返回不可执行catalog，共用internal结构读取器；唯一可执行
+`EffectPackageDefinition.Read`仍检查全部包／输出能力。`media.features`仅known-pending，
+未开放执行；`media.features.cpu`仍是未知能力。声明存在不证明作者分支或渲染已接通。
+
+`ProjectMediaDependencyResolver`按启用实例及完整`SourceMaterialCatalog`（含不可见override）
+求闭包，固定精确包revision／export和唯一参数解析结果，保留真实owner path／region。
+未引用包及disabled实例不制造依赖；无查询owner仍严格验证其export和参数。所有依赖的窗口
+联合至多四种，batch64不充当包目录或owner数上限。
+
+身份分域为`mako.media.owner-parameters.v1`、`mako.media.query-catalog.v1`和
+`mako.media.dependency-plan.v1`：strict UTF8长度前缀、little-endian整数／double原位、显式
+集合数量和九类typed参数；query及参数按UTF8字节序，owner沿实际源执行顺序。完整参数、
+三状态输出归属和精确包revision进入固定依赖摘要；不反向包含input revision、mapping、
+source key或状态，避免身份循环。源码编码见`Core/Effects/MediaDependencyEncoding.cs`。
+
 ## 6. 源制品、映射与运行输入身份
 
 建议新增不可变 `MediaFeatureInput(State, SourceKey, InputRevision, Profile, Artifact?, Diagnostic?)`，状态限定如下。
@@ -296,5 +324,6 @@ HTTP／GPU 换代 → 导出依赖 pin → T01／作者链／性能。每片先�
 | 性能／资源 | 近端／3 min／更长时间分开记录准备、顺序／乱序 seek、显示、端到端、内存／GPU／上传；原始证据保留 |
 
 构建／定向回归、元数据生成合同与 validate、匹配 Server／Worker 的 fresh HTTP、GPU 实帧与浏览器作者链分别登记。
-正式性能门槛沿 M00 确认记录，本文件候选预算不关闭 D8／T01，也不证明安全边界内都满足实时要求。
-本轮仅完成静态研究与文档；未运行 ffmpeg、未建立媒体 Job、未替换预览、未导出、未提交或推送。
+按用户2026-11-05指示，性能门槛暂不参与本轮验收；正确性、像素、确定性及预算／寿命门禁
+继续执行。本文件候选预算不关闭D8／T01，也不证明安全边界内都满足实时要求。
+本页不单独声明实施验收结果，实际日志、提交范围与未完成接线见M10证据及阶段一进度记录。

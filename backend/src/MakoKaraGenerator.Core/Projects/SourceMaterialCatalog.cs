@@ -79,10 +79,16 @@ public static class SourceMaterialCatalog
     /// <summary>统一验证真实材质导出、区域及完整参数，不代替实际native编译门禁。</summary>
     public static void Validate(SourceMaterialReference reference, EffectPackageDefinition definition)
     {
-        if (definition.GetExport(reference.Material.ExportId) is not EffectMaterialDefinition material)
+        ValidateExport(reference, definition.GetExport(reference.Material.ExportId));
+        _ = definition.ResolveParameters(reference.Material.ExportId, reference.Material.Parameters.Encode());
+    }
+
+    internal static void ValidateExport(SourceMaterialReference reference, EffectExportDefinition export)
+    {
+        if (export is not EffectMaterialDefinition material)
             throw new EffectPackageException("SourceMaterialExportInvalid", reference.Path, "源材质引用必须指向材质导出。");
         if (!material.Regions.Contains(reference.Region, StringComparer.Ordinal))
             throw new EffectPackageException("SourceMaterialRegionUnsupported", reference.Path, "材质导出不支持该源绑定区域。");
-        _ = definition.ResolveParameters(reference.Material.ExportId, reference.Material.Parameters.Encode());
     }
+
 }

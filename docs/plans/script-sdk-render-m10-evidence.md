@@ -233,3 +233,26 @@ Hosting新增内部MFT1 store，按完整owner／Job／source／artifact引用�
 首两次构建分别修正DisposeAsync基类调用／具体类型和测试参数顺序／常量数组分析器问题，
 未抑制规则。03构建与18项定向是追加两项真实缺陷回归前的中间结果。本片尚未接Job执行器、
 Worker授权、恢复ledger或运行输入；内部测试不代表新版本fresh HTTP，media.features仍关闭。
+
+## 第十一片：包查询声明与纯依赖闭包（产品0.112.26）
+
+v2包新增可选媒体目录／export引用，固定SourceNormalized／CanvasPixels与literal／Duration
+参数窗口，三种非Available状态显式覆盖当前export所有输出。controller作者分支与材质／图
+既有旁路分别验证；strict共享结构读取仅产出不可执行catalog，唯一Definition仍检查全部
+包／输出能力。media.features仅known-pending，media.features.cpu仍未知，未开放运行。
+
+纯resolver复用完整SourceMaterialCatalog与唯一参数解析，覆盖启用实例及不可见源override，
+固定包revision／export、真实owner path／region、全部typed参数和fallback归属。窗口联合
+至多四种，不将batch64误用为目录或owner容量。三个分域摘要以strict UTF8／little-endian
+编码完整依赖，避免反向引用input／mapping。声明格式与编码边界见[M10细化§5.1](script-sdk-v2-m10-media-notes.md#51-已实施的包查询声明与纯依赖计划011226)。
+
+`build-query-plan-03.log`完整solution零警告／零错误；`query-plan-focused-02.log`52/52，
+含22项新增query／resolver用例和30项v2准入回归。独立BinaryWriter oracle与冻结空计划／
+参数向量验证九typed值、默认等价、UTF8排序、owner顺序和依赖身份；覆盖旧v1/v2、非法字段、
+三状态、隐藏材质、精确修订、四窗口及65owner／目录等边界。Core全套
+`query-plan-core-full-01.log`1562/1562；Scripting全套`query-plan-scripting-full-01.log`519/519。
+
+01构建仅两处测试常量数组触发CA1861，改static readonly；02构建通过。01定向51通过／1失败，
+是测试预期ImageGraphException而现有包reader按合同包装为EffectPackageException；改断言
+同时核外层InvalidGraphBypass与内层原异常后通过，未改生产拒绝策略。独立静态审查无新增
+阻断项，但不代替上述建测。本片不含SDK／provider／实际图统计／HTTP／导出接线，M10未关闭。

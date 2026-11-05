@@ -7,8 +7,9 @@ namespace MakoKaraGenerator.Core.Effects;
 public abstract class EffectExportDefinition
 {
     private protected EffectExportDefinition(string id, string name, ImmutableArray<string> parameters,
-        ImmutableArray<EffectOutputDefinition> outputs, ImmutableArray<EffectOutputDefinition> ordered)
-    { Id = id; Name = name; ParameterIds = parameters; Outputs = outputs; TopologicalOutputs = ordered; }
+        ImmutableArray<EffectOutputDefinition> outputs, ImmutableArray<EffectOutputDefinition> ordered,
+        ImmutableArray<EffectMediaQueryReference> mediaQueries)
+    { Id = id; Name = name; ParameterIds = parameters; Outputs = outputs; TopologicalOutputs = ordered; MediaQueries = mediaQueries; }
     /// <summary>在包内跨种类唯一的导出身份。</summary>
     public string Id { get; }
     /// <summary>用户可读名称。</summary>
@@ -19,6 +20,8 @@ public abstract class EffectExportDefinition
     public ImmutableArray<EffectOutputDefinition> Outputs { get; }
     /// <summary>稳定拓扑顺序；同层沿用清单顺序。</summary>
     public ImmutableArray<EffectOutputDefinition> TopologicalOutputs { get; }
+    /// <summary>本导出明确引用的固定媒体查询及三种状态的完整输出归属。</summary>
+    public ImmutableArray<EffectMediaQueryReference> MediaQueries { get; }
 }
 
 /// <summary>明确的透明输出替代，当前映射仅允许 identity。</summary>
@@ -55,7 +58,7 @@ public sealed class EffectMaterialDefinition : EffectExportDefinition
 {
     internal EffectMaterialDefinition(string id, string name, string graphPath, ImmutableArray<string> parameters,
         ImmutableArray<string> regions, EffectMaterialFallback fallback, EffectMaterialCoverageMode coverageMode, ImmutableArray<EffectOutputDefinition> outputs,
-        ImmutableArray<EffectOutputDefinition> ordered) : base(id, name, parameters, outputs, ordered)
+        ImmutableArray<EffectOutputDefinition> ordered, ImmutableArray<EffectMediaQueryReference> mediaQueries) : base(id, name, parameters, outputs, ordered, mediaQueries)
     { GraphPath = graphPath; Regions = regions; Fallback = fallback; CoverageMode = coverageMode; }
     /// <summary>同闭包 role:graph 路径。</summary>
     public string GraphPath { get; }
@@ -71,8 +74,9 @@ public sealed class EffectMaterialDefinition : EffectExportDefinition
 public sealed class EffectGraphDefinition : EffectExportDefinition
 {
     internal EffectGraphDefinition(string id, string name, string graphPath, ImmutableArray<string> parameters,
-        ImmutableArray<string> bindings, ImmutableArray<EffectOutputDefinition> outputs, ImmutableArray<EffectOutputDefinition> ordered)
-        : base(id, name, parameters, outputs, ordered) { GraphPath = graphPath; BindingKinds = bindings; }
+        ImmutableArray<string> bindings, ImmutableArray<EffectOutputDefinition> outputs, ImmutableArray<EffectOutputDefinition> ordered,
+        ImmutableArray<EffectMediaQueryReference> mediaQueries)
+        : base(id, name, parameters, outputs, ordered, mediaQueries) { GraphPath = graphPath; BindingKinds = bindings; }
     /// <summary>同闭包 role:graph 路径。</summary>
     public string GraphPath { get; }
     /// <summary>允许的六类绑定。</summary>

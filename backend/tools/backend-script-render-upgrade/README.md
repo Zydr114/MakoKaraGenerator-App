@@ -118,3 +118,12 @@ loopback验证真实v3 SVG vector／atlas和Base Warp包。完整包文本CAS、
 本次PID/startTicks排水。`--skip-warp`／`--skip-export`只用于明确缩小一次运行，不能据passed
 声称被排除项通过。固定fixture从本仓库profile和Warp控制器读取；不使用兄弟仓库产物。
 SVG直接PNG内部块容差2/255，编码内部块12/255单独记载；无浏览器、跨平台或性能结论。
+
+## M09 精确源声明与完整配置采用
+
+`author_metadata_probe.py --dist <匹配发布> --output <不存在的新证据目录>` 验证
+owner 草稿 retained 来源的只读 inspection、双修订 CAS、完整八字段原子采用、编译来源、
+Int64、非法／缺失／重复配置、旧请求、no-op、回执与 undo／redo。真实 Vulkan PNG 核对
+来源文字颜色、已打开预览的固定来源及显式输入替换。采用既有探针的隔离 profile、loopback、
+脱敏留档、凭证扫描及 PID/startTicks 排水；不连接用户实例。它不覆盖图组或工程导出。
+浏览器由前端 `smoke:author-metadata` 独立验收，不把 HTTP 请求数当界面证据。

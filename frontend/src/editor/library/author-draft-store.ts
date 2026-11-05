@@ -154,7 +154,7 @@ export class AuthorDraftStore {
           const current = this.draft(draftId) ?? draft;
           const pkg = this.state.sourceMetadata[draftId]?.status === 'ready' ? exactDraftPackage(current, this.state.packages[draftId]) : undefined;
           const issues = configurationIssues(value, current.configuration.kind, pkg);
-          if (!pkg) issues.push({ message: '正在等待当前在用源码的精确 metadata；配置原值已保留。' });
+          if (!pkg) issues.push({ message: '正在读取当前在用修订的配置声明；配置原值已保留。' });
           return issues;
         },
         put: async (current, input) => {
@@ -258,7 +258,7 @@ export class AuthorDraftStore {
     const current = this.draft(draftId);
     if (identity !== this.connectionIdentity() || !current || current.draftRevision !== fresh.draftRevision
       || this.state.sourceMetadata[draftId]?.status !== 'ready')
-      throw new Error('采用比较尚未获得同身份、同草稿的精确 metadata；保留冻结，请重试。');
+      throw new Error('尚未读到当前草稿修订的配置声明；配置暂时不能修改，请重试。');
     const editor = this.editors.get(draftId);
     if (editor?.state.adoptionUncertain) {
       editor.confirmAdoptionComparison(current);
@@ -577,7 +577,7 @@ export class AuthorDraftStore {
       }
       if (pkg.draftId !== draftId || pkg.draftRevision !== draft.draftRevision || pkg.sourceRevision !== sourceRevision
         || pkg.packageId !== draft.packageId || pkg.packageRevision !== sourceRevision)
-        throw new Error('固定源码 metadata 身份不匹配。');
+        throw new Error('返回的配置声明不属于当前在用修订。');
       this.metadataCache.set(cacheKey, pkg);
       this.patch({ packages: { ...this.state.packages, [draftId]: pkg }, sourceMetadata: { ...this.state.sourceMetadata,
         [draftId]: { status: 'ready', expectedDraftRevision: draft.draftRevision, sourceRevision, identity } } });

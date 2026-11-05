@@ -1835,6 +1835,111 @@ clipPath 仅允许直接形状，clip 内 g/symbol/use 明确拒绝。包图片�
 该静态校验不创建 Picture 或 GPU 纹理，不替代实际 GPU 会话准备和像素验收。
 资源读模型把 svg/svgResource 识别为受支持角色，未知 role 仍标为 unsupported。
 
-本节未新增 HTTP 入口或 DTO。原浏览器静态预览协议、500ms 控制节奏和 v1 行为保持。
-图绑定、Base 材质、完整组调度、媒体轨和九样例仍按阶段计划单独验收；
-当前前端 C# 源码页的完整包文本编辑另行接线，不能把 HTTP 可编辑记为浏览器已可用。
+本节的0.112.8历史切片未新增 HTTP 入口或 DTO，保留原浏览器静态预览协议与500ms控制节奏。
+当时图绑定、Base材质、完整组调度及浏览器完整包文本编辑尚未接通；后续0.112.9～0.112.13的
+图／材质／组实现见§28，作者精确声明与完整配置采用见§21。媒体轨和九样例继续按阶段计划独立验收，
+不能将本节0.112.8证据扩大到后续实现或浏览器可用性。
+
+
+<a id="sdk2-m09-graph-material-group"></a>
+
+## 28. SDK2 M09 图绑定、Base材质与真实组（0.112.9～0.112.13／合同1.46.0）
+
+本节记录已进入当前源码的G1～G4执行规则：0.112.9完整图值与动态Transform，0.112.10 typed
+controller图事务，0.112.11无DLL直接图与材质uniform，0.112.12独立Base包材质，以及0.112.13
+真实组调度与owned Below。它们沿现有包导入、作者、预览、验证、导出入口传递固定输入，不新增
+本节专用HTTP路由或DTO；1.46.0新增的作者声明检查与完整配置采用另见§21。包仍须为明确支持的
+v3／SDK2 profile，生产运行保留§25的Vulkan准入和实际设备核验，不因CPU参考执行器回归而允许
+公开路径回落CPU。SDK接口见[SDK v2参考§4](../../../docs/style-reference/script-sdk-v2.md#4-能力目标和输出顺序)，
+组像素与父树语义详见[组图合同](../scripting-group-image-composition-contract.md)，实施证据和剩余
+门禁见[M09记录](../../../docs/plans/script-sdk-render-m09-evidence.md)。
+
+### 28.1 完整图值、动态Transform与事务
+
+`GraphBindingValue` 固定本实例包修订中的GraphHandle、完整ParameterValues、逐节点uniform及
+Transform覆盖；每次`TextOutput.BindGraph`整体替换，不与上一绑定合并。值身份按参数曲线内容、
+uniform类型／数组及数值位、矩阵／输出框内容比较，保留shader可观察的正负零。同实例同目标
+最后绑定生效，跨实例沿工程顺序；每次原始写入仍检查固定资源、完整参数、声明与目标写权并计费。
+固有坏值和预算失败锁存，作者捕获异常也不能发布部分事务；最终图节点、uniform ABI及Transform
+节点兼容性只针对存活完整绑定，不能把旧图覆盖自动套到新图。
+
+Transform覆盖须指向固定图真实Transform节点，提供完整源至目标矩阵及语义输出框。形状预检、
+分配前核验和实际绘制共用原生float32解释，核对有限／可逆、非空框、声明外扩与当前密度对齐后的
+完整逆采样范围；未执行覆盖和透明旁路也不跳过校验。保留v1固定Transform的历史采样声明语义；
+Decal／Clamp／Repeat读取完整有限源域，不通过裁短输入改变边缘或周期。ColorOnly图改变实际颜色，
+不改写最终文字几何、播放头或粒子锚点映射；Mapping仍以`PackageGraphMappingPending`拒绝。
+
+`image.graph`已准入Family／Line／Mark，真实Group另须§28.3的双能力与父树门禁。controller及
+实际graph须各有唯一匹配的ImageGraph输出；同类别多输出、额外能力及跨输出依赖仍沿
+`PackageOutputPlanPending`拒绝。无DLL直接图采用独立宿主活动，不编译C#、不创建作者对象或调用
+Declare，按宿主实际授予的Family／Line／Mark／Group范围发布同样的固定绑定；token绑定不能扩大
+成整行，Base／Cluster图输出仍未开放。
+
+### 28.2 最终材质uniform与独立Base
+
+`material.uniform`通过`TextOutput.SetMaterialUniform`明确定位真实Family／Base／Mark、
+UnsungFill／SungFill／Stroke部位、固定MaterialHandle及`nodeId/name`。跨实例按原始材质替换与
+uniform调用顺序归约；完整替换清除旧覆盖作用域，后续覆盖必须匹配最终安装材质及真实节点ABI。
+每次原始写入的固有类型、资源、参数和float32范围均独立校验，不能由后写替换掩盖；未修改的
+opacity／affine不抢走材质错误owner。覆盖只属于本次帧，不修改包、工程参数或shader源码。
+
+自0.112.12起，Base包材质已接通两态填充、描边和uniform，不再沿早期BaseOnly拒绝说明处理。
+Base从最终Family中立外观继承，逐部位保存真实Source／Script owner；Solid／Gradient或
+Stroke=null明确遮蔽父材质。先归约父族uniform，再归约Base作用域；Base捕获不含Ruby，Ruby保留
+父族外观，后继Family／Line图消费实际Base＋Ruby颜色。材质不重复Warp，装饰范围由最终映射计算；
+资源、预算及native失败保留实际材质owner与Base TextTarget，Warp几何错误仍归Warp，取消透传。
+此处开放独立Base材质，并未开放Base图或独立Cluster材质输出。
+
+### 28.3 真实组、独立颜色／擦除与owned Below
+
+组图须同时声明`image.graph`与`image.graph.group`；controller和实际graph的唯一
+ImageGraph/group输出均须显式声明组能力。只允许Project或显式Node授予的真实运行父树范围，
+分支／行／元素／片段筛选不授予组写权。目标须为真实source Group、无SourceNodeId alias且有
+对应最终几何；冻结退场alias可参与渲染及读取，不能独立获写权。v1组输出与缺能力沿
+`GroupImageEffectUnsupported`等具名错误拒绝；不具备真实父树调度的旧单绑定执行入口仍拒绝组。
+
+主画布沿真实运行树隔离：子材质／子图／子组先完成，父图读取已处理部件。每层保留独立预乘颜色C
+与擦除E，对下层B按`C+B*(1-E)`应用；同目标历史replacement floor取max，独立孩子按绘制序合成。
+父图变透明也保留孩子已发生的擦除，不能用普通输出alpha替代历史floor。孩子共同透明度在父捕获前
+完成一次；有效部分保留来源与顺序，完整连续选择另用先合成C/E再乘alpha的产物，成功写入使触及
+的完整范围失效。每输入按自己的真实范围／部位配方选择，未选部分保留；已经融合的来源不能再拆选
+一部分，融合结果放在所选最高层。交错后代改为连续隔离单位时保留`GroupIsolationChangesOrder`诊断。
+
+父BackdropBelow固定为进入组时的组外前缀，孩子读取此前缀加已完成兄弟，普通前序leaf也参与；
+前缀保留完整C/E，不能用背景媒体或颜色alpha代替。真实背景在BehindText前只快照一次，
+Dots／Segments／Trails／Sprites／Paths／AtlasSprites六类批次按原序重绘：Script请求仅排除
+直接同实例BehindText，Source材质不排除脚本。图、Family材质和Base材质共享resolver，同一leaf
+各部位读取固定进入前缀；不同owner不复用过滤表面。最终主画布保留全部真实BehindText，已完成
+颜色曾主动采样的图元不递归净化，不重跑作者图或Below背景provider；显式BackgroundMedia沿原
+独立捕获协议，此切片不开放target owned-overlay捕获。
+
+隐藏但存在的组仍完整验证身份、参数、资源、声明、尺寸和图峰值预算。无实际可见孩子记录
+`GroupImageEffectNoVisibleChildren`并消费绑定，不执行图或生成凭空内容。非空组有active target
+输入但配方选择并集为空时，记录`GroupImageEffectNoSelectedChildren`且保留原C/E、来源与顺序；
+只有完全没有active target输入才选择整个scope。部分输入为空而并集非空时，空输入提供零颜色／覆盖。
+
+### 28.4 固定预算、诊断与证据范围
+
+图／Fill／Stroke／uniform在SDK调用事务及全部实例帧准入共用写入预算，包含后续被替换的原始值。
+捕获、颜色／擦除、有效层、Below、作者图与宿主合成产物共用会话／帧表面账，分配前检查，拥有资源
+在成功释放、失败或取消时归还；借用输入保持原所有权。默认门禁如下，逻辑记账不代表完整native RSS
+或性能上限：
+
+| 范围 | 固定限制 |
+|---|---|
+| 图／材质原始写入 | 256次、65536标量、8MiB保守验证字节 |
+| 组调度 | 32层递归、256层祖先、4096运行单元、256组绑定、256图结果 |
+| 活动来源与实际工作 | 512活动来源层、8192累计捕获／图／合成pass |
+| Below重绘 | 4096批次、200000实际图元／轨迹点；SVG继续扣原native工作账 |
+| 默认图／表面账 | 每图32 pass、每帧64活动表面、会话512MiB估算像素存储、表面每边8192像素 |
+
+来源层在实际捕获前逐层登记，真实分配入口累计pass；缺失背景、借用输入及缓存命中不虚计新pass。
+空组／空选择同样先作完整图峰值预检，层数、表面数、字节、取消分别生效。超限沿
+`GraphOutputBudgetExceeded`、`GroupCompositionBudgetExceeded`、`ImageSurfaceBudgetExceeded`等
+原具名诊断失败，不降质、截断或遗漏实例；诊断保留实际实例、固定包／artifact、阶段、时刻及目标。
+
+G1～G4已有真实包、CPU参考、显式Vulkan、像素／确定性、预算红绿、取消与资源恢复回归，具体版本、
+数量、设备和共享输入限制均以[M09记录](../../../docs/plans/script-sdk-render-m09-evidence.md)为准。
+这些回归不等于匹配Server／Worker的fresh HTTP、浏览器或导出验收；0.112.8的历史HTTP和0.112.14
+作者metadata／adopt的HTTP结果也不自动覆盖图／材质／组同帧矩阵。该矩阵仍须独立收口，本节不宣布
+M09关闭；媒体轨、九样例及后续作者完整链继续按阶段计划登记，性能门槛按用户指示暂不验收。

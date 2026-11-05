@@ -1,6 +1,6 @@
 # 前后端 API 执行合同
 
-状态：**1.45.0 按匹配 metadata 冻结**，更新于2026-11-05；产品 **0.112.8**，HTTP `protocolVersion:"1"`。本轮增加 SDK2 的 token／cluster／mark Warp 与固定 SVG vector／atlas 画布输出，作者完整包文件编辑纳入 `svg/svgResource`，编译前验证全部 SVG 并返回精确资源错误码和逻辑路径；资源闭包读模型识别两类角色。HTTP 路由、DTO、schema 与样例数量沿用 1.44.2。最新、编译、已采用和在用源码保持独立，保存／编译不自动采用。SDK2 的预览、正式验证与导出继续要求 GPU，CPU 选择以 `commandNotSupported/PackageBackendUnsupported` 拒绝。详见[行为§27](../docs/architecture/backend-api.md#sdk2-m09-svg-warp)。合同、匹配发布、fresh HTTP 和浏览器验证分别登记；按用户要求，性能门槛暂不作为本轮验收标准。
+状态：**1.46.0 按匹配 metadata 冻结**，更新于2026-11-05；产品 **0.112.14**，HTTP `protocolVersion:"1"`。本轮新增 `GET /api/v1/drafts/{id}/source-inspection`，只检查当前owner草稿retained固定源声明；采用接口可选完整八字段配置，按目标修订验证后与来源共同发布，原省略/null配置请求保持。最新、编译、已采用和在用源码保持独立，保存／编译不自动采用。前端声明候选、完整配置历史与原文保护已接入；预算、CAS、编译身份和错误见[行为§21](../docs/architecture/backend-api.md#backend-author-p4)。本次还固定图绑定、Base材质与组消费者生产源，SVG／Warp见[行为§27](../docs/architecture/backend-api.md#sdk2-m09-svg-warp)。合同为113路径／126方法／598 schemas，3528个合成例（2623反例）。SDK2仍要求GPU，CPU以 `commandNotSupported/PackageBackendUnsupported` 拒绝。合同、匹配发布、fresh HTTP、浏览器和导出分别登记；性能门槛暂不作为本轮验收标准。
 
 M08 包清单可实际声明 `particles.continuous`、`particles.burst`、`visuals.dots`、`visuals.segments`、`visuals.trails`、`visuals.sprites`；具名图元使用 controller 的 `Overlay/canvas` 输出，仍经过包能力、发射器、固定准备结果及运行输出校验。完整出生窗、半开寿命、最终文字锚点、独立预算与诊断使用现有运行通道，详见[行为§26](../docs/architecture/backend-api.md#sdk2-m08-particles)。这些能力名属于效果包清单，不是新增 HTTP 字段或可以据版本推定的运行成功。原 HTTP 入口、浏览器静态预览生命周期、GPU 准入及 SDK1 行为保持；本次合同冻结不证明 HTTP 或性能验收通过。
 
@@ -14,7 +14,7 @@ GPU 流按精确修订创建、换来源、改变尺寸和关闭；创建受真�
 
 | 文件 | 用途 |
 |---|---|
-| [api-index.md](api-index.md) | 全部112路径／125方法、认证、请求和响应清单；包含5兼容别名 |
+| [api-index.md](api-index.md) | 全部113路径／126方法、认证、请求和响应清单；包含5兼容别名 |
 | [openapi.json](openapi.json) | 固定OpenAPI 3.1.0机器规范，供类型生成、请求/响应校验和mock使用 |
 | [行为规范源](../docs/architecture/backend-api.md) | 认证、回执、修订、任务、SSE、字节读取及所有端点的详细语义，继续作为唯一详细行为正文 |
 | [contract-manifest.json](contract-manifest.json) | 固定上述文件、工具及当前Backend源码的SHA-256；绑定这一份行为源而不是任意未来版本 |

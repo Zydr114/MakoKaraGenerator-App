@@ -39,8 +39,8 @@ export function DraftAdoptionDialog(props: { model: DraftAdoptionModel; source: 
         {model.compiled() ? ' 固定目标的编译门禁已满足。' : ' 尚未确认此固定目标编译通过，请先在源码页编译后重新比较。'}</Note>
       {source.dirty && <Note>源码编辑器还有未保存的文本。本次只采用已保存并编译的固定修订；编辑器中的文本、光标和撤销历史保留。</Note>}
       {candidate.error && <Note error>{candidate.error}</Note>}
-      {candidate.status === 'loading' && <Note>正在读取目标源码的精确 metadata…</Note>}
-      {candidate.status === 'failed' && !stale && <Button variant="text" size="sm" isDisabled={busy} onPress={() => void model.retryMetadata()}>重试目标 metadata</Button>}
+      {candidate.status === 'loading' && <Note>正在读取此修订的配置声明…</Note>}
+      {candidate.status === 'failed' && !stale && <Button variant="text" size="sm" isDisabled={busy} onPress={() => void model.retryMetadata()}>重试读取配置声明</Button>}
       {stale && <Note>服务器草稿已变化。候选输入仍在；重读比较后再次明确确认。</Note>}
       <div className="ptabs-tools" aria-label="候选配置历史">
         <IconButton icon="undo" size="sm" label="撤销候选配置" isDisabled={busy || !model.canUndo} onPress={() => model.undo()} />

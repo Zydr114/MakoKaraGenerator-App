@@ -1,9 +1,10 @@
 # 冻结 API 合同生成与校验
 
-当前冻结合同为 **1.45.0／产品0.112.8**（2026-11-05）。M09 接通 Warp、固定 SVG vector／atlas、SVG 作者文本编辑与编译前校验；源指纹覆盖新增几何、资源、渲染及预算接缝。保留112 paths／125 methods／597 schemas／3434 examples及全部历史校验。下述1.44.0为粒子切片历史说明；当前行为见[§27](../../docs/architecture/backend-api.md#sdk2-m09-svg-warp)。
-从 `backend/` 执行。本工具构建 Contracts 引用的离线 CLI，不启动服务。本轮冻结产品 0.112.1／合同 1.44.0／协议 1；HTTP DTO 未变，继续固定 112 路径／125 方法／597 schemas、3434 例（2548 反例），不增加 schema 或合成例。SDK2 连续／Burst 粒子和晚期图元改变真实包执行行为，生成物从匹配 metadata 冻结。`BASELINE` 为已提交的生产源码 `0f26db254bdf7562008ca7a573b2bc3fd6486bb1`；产品版本仍从 `Directory.Build.props` 读取。静态门禁不替代匹配发布、fresh HTTP 或性能验收；进度见 App 根 `docs/plans/script-sdk-v2-phase-one-progress.md`。
+本轮工具源码目标为 **合同1.46.0／产品0.112.14／协议1**（2026-11-05）：新增owner草稿保留源码的精确声明检查，以及采用时可选的完整配置迁移。行为见[§21](../../docs/architecture/backend-api.md#21-无-gui-作者草稿与源码采用0981合同1320)。fresh metadata生成与validate已确认113 paths／126 methods／598 schemas、3528例（2623反例）；原3434例（2548反例）原序保留，增量94例（75反例）只追加 `author-metadata-` 例。下述旧版本材料保留历史归属；合同生成不替代匹配发布与fresh HTTP验收，分层证据见App根M09记录。
 
-1.44.0 保留 1.43.0 的 SDK2 草稿身份、精确来源编译／采用及 GPU 准入合同。包 `requires` 新实际执行 `particles.continuous/burst` 与 `visuals.dots/segments/trails/sprites`，具名晚期图元仍为 controller 的 `Overlay/canvas`；没有新增 HTTP 请求入口、粒子 DTO 或轮询节奏。运行预算和具名诊断详见[行为§26](../../docs/architecture/backend-api.md#sdk2-m08-particles)。`freeze.py` 显式纳入 M08 的 SDK 值、Declare 二次校验、精确积分／反解、结构身份、最终锚点／memo 和准备帧行为文件，缺失文件直接失败；`validate.py` 保留全部历史分支，并将 1.44.0 送入既有 SDK2 作者、GPU／辉光与样例门禁，同时固定上述数量。本次工具／人工源修改本身不代表已经生成、构建、测试、发布或通过 HTTP／性能验收。
+从 `backend/` 执行。本工具构建Contracts引用的离线CLI，不启动服务。`author_metadata_schema.py` 审阅真实CLR字段、nullable与构造默认值，复用现有 `AuthorPackageQuery` 和参数/导出/input/file/diagnostic DTO；检查响应独立且无reference，公共包引用kind继续仅为asset/library/configuration。采用配置采用inline完整八字段严格schema，避免改变package-files的既有配置语义；两个可空字段仍显式必填，UInt64种子采用十进制字符串并保留前导零。`author_metadata_fixtures.py` 覆盖精确整数、Int64 `files.size`、未来未知响应字段、完整采用、旧请求兼容和具名拒绝；运行期CAS/owner、重复JSON键、完整UTF-8预算、编译来源、原子存储和真实sampleOptions须由服务/HTTP核对。
+
+`freeze.py` 将新行为接缝显式纳入指纹，新增路径/响应和附加fixture；`validate.py` 保留历史SDK2、作者、GPU/辉光及全量样例门禁，并单独扣除本轮尾部增量后核对旧3434/2548基线。本轮 `BASELINE` 为已提交生产源码 `1e83e0d475abe10be462e2774621f0c17764457a`，已从该源码重建／导出metadata并生成检查；产品版本从 `Directory.Build.props` 读取。静态门禁不替代匹配发布、fresh HTTP或性能验收；进度见App根 `docs/plans/script-sdk-v2-phase-one-progress.md`。
 
 ## 检查当前合同
 
@@ -36,7 +37,7 @@ artifacts/api-contract/venv/bin/python tools/backend-api-contract/validate.py \
 - G11新增两个路径、三个方法：GET波形元数据、GET/HEAD峰值窗口。真实nullable DTO经显式oneOf覆盖：available=true全部音频/层级字段必填且不含reason；false仅session/available/reason/protocol四字段，reason精确noAudio/cacheBudgetExceeded/audioIdentityChanged。元数据不接受任何query；窗口waveformId/level/start/count四query全唯一必填，拒绝未知项，count1..8192，层末范围由Host核对。
 - 窗口是application/octet-stream，逐桶8字节Min/Max float32 little-endian（minmax-f32le-v1），不是JSON/PCM。HEAD所有状态无body、200保GET字节长度；ETag/If-None-Match可304且身份/归属先核，Range返回400 invalidRequest field=Range，不声明206/416。Host64MiB仅为已保留峰值payload，缓存不足不阻断create/open；source identity不绑歌词修订，也不承诺浏览器播放逐sample对齐。静态schema不证明float bits、缓存清理或时间基，须真实HTTP/Worker证据。
 - S1来源列表、歌词窗口及设置均声明必填expectedRevision；分页声明offset/limit范围、终页nextOffset省略及1MiB/20000条目的整体预算。schema只验证静态形状，跨页修订、offset不超过totalCount、合计条目与UTF-8字节预算继续由真实HTTP验证。
-- 源码中的显式MapGet/MapPost/MapPut/MapDelete/MapMethods与当前全部120个显式方法（108路径，含5个兼容别名）双向比较，未识别映射方式直接失败。未来路由组/其他映射风格须更新提取器并审阅，不能让遗漏变成空结果。
+- 源码中的显式MapGet/MapPost/MapPut/MapDelete/MapMethods与本轮预期126个显式方法（113路径，含5个兼容别名，精确值由fresh metadata生成后核对）双向比较，未识别映射方式直接失败。未来路由组/其他映射风格须更新提取器并审阅，不能让遗漏变成空结果。
 - 重生成内容与web/openapi.json、api-index.md及manifest逐字节一致；manifest覆盖行为正文、工具、Backend源码/项目及分析codec。内部无行为变化也会触发复核。
 - OpenAPI 3.1结构、全部引用、JSON Schema 2020-12、当前冻结的全部合成正反例（精确数量由validate报告固定；1.23历史1522例/1092反例，1.24迁移见下）、HEAD无body及操作身份唯一性；例子覆盖S2六命令、S3a十一命令、S3b四来源命令、五个元素结构命令、再次导入/粘贴追加两命令和预设五类目标／严格字段、完整元素/整行目标差别、微秒字符串、整数帧差、批次数量、分支无关字段拒绝、打点真实timingResult与内容feedback、来源branchResult和元素结构tokenResult。其余及旧五命令省略timingResult。
 
@@ -46,7 +47,7 @@ artifacts/api-contract/venv/bin/python tools/backend-api-contract/validate.py \
 
 ## 更新合同
 
-先按 [合同变更流程](../../web/api-contract.md#4-冻结后的双端变更流程)审阅实际行为差异；同步行为正文、工具映射/语义覆盖、合成例子及合同版本，再从当前代码导出metadata。当前合同1.40.0包含W8作者恢复、包文本编辑、源码历史与下载，并保留CPU/GPU选择与回显。P5合同1.38.1和0.105管线证据保留历史归属。显式写入：
+先按 [合同变更流程](../../web/api-contract.md#4-冻结后的双端变更流程)审阅实际行为差异；同步行为正文、工具映射/语义覆盖、合成例子及合同版本，再从当前代码导出metadata。本轮合同1.46.0增加精确作者源码声明检查与可选完整配置采用，并保留W8作者恢复、包文本编辑、源码历史/下载以及CPU/GPU选择与回显。P5合同1.38.1和0.105管线证据保留历史归属。显式写入：
 
 ```bash
 python3 tools/backend-api-contract/freeze.py \

@@ -21,7 +21,8 @@
     "smoke:lyrics": "node scripts/lyrics-smoke.mjs",
     "smoke:library": "node scripts/library-smoke.mjs",
     "smoke:author": "node scripts/author-smoke.mjs",
-    "smoke:author-package": "node scripts/author-package-smoke.mjs"
+    "smoke:author-package": "node scripts/author-package-smoke.mjs",
+    "smoke:author-metadata": "node scripts/author-metadata-smoke.mjs"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.1",

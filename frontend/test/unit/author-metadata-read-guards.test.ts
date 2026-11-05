@@ -50,7 +50,7 @@ describe('作者 metadata 整合读取守卫', () => {
     h.store.replace(draft('r2'));
     expect(h.store.state.sourceMetadata.d1?.status).toBe('loading');
     expect(h.store.state.packages.d1?.sourceRevision).toBe(A);
-    expect(editor.state.issues.some((issue) => issue.message.includes('精确 metadata'))).toBe(true);
+    expect(editor.state.issues.some((issue) => issue.message.includes('当前在用修订的配置声明'))).toBe(true);
     expect(await editor.flush()).toBe(false); expect(h.puts()).toBe(0);
     expect(editor.state.value.name).toBe('本地待提交');
     pending.resolve(schema('r2', A)); await settle();

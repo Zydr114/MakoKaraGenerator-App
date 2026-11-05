@@ -162,9 +162,10 @@ Cluster 是完整行或完整 RubyRun 的真实不可拆整形单元，`RubyId =
 跨 token 连字保留 `OwnerTokens` 的完整所属范围，`CanTransformIndependently == false`；独立变换或外观以
 `UnsupportedGlyphPartition`（或该几何的具体诊断）拒绝。可退回完整 `LineTarget` 变换，不能强拆共享连字。
 
-BaseOnly 外观目前只接通可直接绘制的纯色、渐变等现有描述；当独立外观更新、基础来源或绑定材质使用包材质时，
-准备帧以 `UnsupportedPartitionMaterial` 拒绝，避免未经实现的分区协调器。
-此门禁针对 BaseOnly 外观，不代表所有 BaseOnly 仿射都拒绝包材质。
+自0.112.12起，BaseOnly已支持独立未唱／已唱填充、描边及包材质uniform；从最终Family中立外观继承，
+逐部位保留Source／Script owner，Solid／Gradient或Stroke=null明确遮蔽父材质。Base捕获不含Ruby，
+Ruby保留父族；后继Family／Line图读取实际Base＋Ruby颜色。固定句柄、完整参数及最终uniform兼容性仍须校验，
+Base图输出仍未开放，详见[当前执行边界§28](../../backend/docs/architecture/backend-api.md#sdk2-m09-graph-material-group)。
 Cluster 当前只提供真实独立字簇仿射，不支持独立填充、透明度、描边、阴影或辉光；本轮验证范围为纯色／渐变。
 Cluster 仿射没有统一包材质拒绝门禁，与包材质协调器、捕获区域和部件绘制叠加的完整支持尚未验收，不作承诺。
 包材质仍须属于当前实例固定资源修订；未知资源报 `InvalidMaterialResource`。

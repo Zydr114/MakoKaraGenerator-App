@@ -127,7 +127,7 @@ export function DraftDetail(props: { state: ComponentState; drafts: AuthorDraftS
       </div>
       <div className="pbody" data-tab={tab}>
         {tab === 'config' && metadata?.status === 'failed' && <Note error>
-          读取在用源码 metadata 失败：{metadata.error}
+          读取在用修订的配置声明失败：{metadata.error}
           <Button variant="text" size="sm" onPress={() => drafts.retrySourceMetadata(draft.draftId)}>重试读取</Button>
         </Note>}
         {tab === 'config' && editor && <DraftConfigTab draft={draft} editor={editor} pkg={schema} checking={metadata?.status === 'loading'} disabled={busy} onCompareAdoption={() => void drafts.readAdoptionComparison(draft.draftId).catch((error) => toast(error instanceof Error ? error.message : String(error)))} />}

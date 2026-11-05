@@ -11,6 +11,7 @@ from p3_workshop_schema import extend as extend_p3_workshop, configure as config
 from p4_author_schema import extend as extend_p4_author, configure as configure_p4_author
 from render_backend_schema import extend as extend_render_backends, configure as configure_render_backends
 from w8_authoring_schema import extend as extend_w8_authoring, configure as configure_w8_authoring
+from author_metadata_schema import extend as extend_author_metadata, configure as configure_author_metadata
 from p1p2_runtime_schema import extend as extend_p1p2_runtime, configure as configure_p1p2_runtime, VIDEO_MIMES
 from package_preview_schema import extend_package_preview_schemas, LIMITS as PACKAGE_PREVIEW_LIMITS
 from project_image_preview_schema import extend_project_image_preview_schemas, configure_project_image_preview_operation
@@ -26,8 +27,8 @@ from static_style_schema import extend_static_style_schemas, style_query_paramet
 from template_library_schema import extend_template_library_schemas, query_parameters as template_query_parameters, LIMITS as TEMPLATE_LIMITS
 
 ROOT = Path(__file__).resolve().parents[2]
-CONTRACT = "1.45.0"
-BASELINE = "05dbe85"
+CONTRACT = "1.46.0"
+BASELINE = "1e83e0d475abe10be462e2774621f0c17764457a"
 PRODUCT = re.search(r"<VersionPrefix>([^<]+)</VersionPrefix>", (ROOT / "Directory.Build.props").read_text()).group(1)
 FREEZE_DATE = "2026-11-05"
 BEHAVIOR = "docs/architecture/backend-api.md"
@@ -135,6 +136,7 @@ POST|/api/v1/profile/author-drafts/{id}/claim|claimAuthorDraft|AuthorDraftClaimR
 GET|/api/v1/drafts/{id}/package-files|readAuthorPackageFiles|-|AuthorPackageFilesResponse|200|21|读取固定包清单与可编辑文本文件
 PUT|/api/v1/drafts/{id}/package-files|saveAuthorPackageFiles|AuthorPackageFilesRequest|AuthorDraftResponse|200|21|原子保存完整包文本及可选配置
 GET|/api/v1/drafts/{id}/source-revisions|readAuthorSourceRevisions|-|AuthorSourceRevisionsResponse|200|21|分页读取保留修订与保存时间编译摘要
+GET|/api/v1/drafts/{id}/source-inspection|inspectAuthorSource|-|AuthorSourceInspectionResponse|200|21|只读检查作者保留的精确源码声明
 GET|/api/v1/drafts/{id}/package|downloadAuthorPackage|-|packageArchive|200|21|按精确草稿与源码修订下载效果包
 GET|/api/v1/script-configurations/{id}/package|downloadScriptConfigurationPackage|-|packageArchive|200|21|按精确个人配置库修订下载效果包
 PUT|/api/v1/drafts/{id}/configuration|saveAuthorConfiguration|AuthorDraftConfigurationRequest|AuthorDraftResponse|200|21|更新固定源码的完整作者配置
@@ -426,6 +428,7 @@ def generate(metadata):
         configure_p4_author(op, item)
         configure_render_backends(op, item)
         configure_w8_authoring(op, item)
+        configure_author_metadata(op, item)
         if request == "upload":
             for h in ("X-Mako-Request-Id", "X-Mako-Host-Instance-Id", "X-Mako-Valid-Until-Utc"):
                 op["parameters"] = [p for p in op["parameters"] if not (h == "X-Mako-Host-Instance-Id" and p.get("$ref", "").endswith("/HostInstance"))]
@@ -974,6 +977,7 @@ def generate(metadata):
     extend_p4_author(schemas, metadata, schema_for)
     extend_render_backends(schemas, metadata)
     extend_w8_authoring(schemas, metadata)
+    extend_author_metadata(schemas, metadata)
 
     # GPU streams use a smaller device pool than ordinary PNG previews.
     schemas["GpuPreviewSizeInput"] = copy.deepcopy(schemas["PreviewSizeDtoInput"])
@@ -1589,10 +1593,112 @@ def manifest(outputs):
         if not source.is_file():
             raise ValueError("Missing reviewed SDK2 M09 behavior source: " + filename)
         files.add(source)
+    # M09 graph/material/source-group production seams introduced after the SVG/Warp freeze.
+    # Reviewed source delta 05dbe85..cc8b970: bind values, transforms/uniforms,
+    # exact source-group admission, composition/capture/budgets and package identity.
+    # Explicitly retain every changed production source, even when an earlier
+    # slice already fingerprints it; a moved/deleted seam must fail closed.
+    for filename in (
+            "src/MakoKaraGenerator.Core/Effects/EffectPackageDefinition.Parser.cs",
+            "src/MakoKaraGenerator.Core/Effects/EffectPackageProfiles.cs",
+            "src/MakoKaraGenerator.Rendering.Abstractions/ImageGraphFrame.cs",
+            "src/MakoKaraGenerator.Rendering.Abstractions/PreparedRenderFrame.BaseMaterials.cs",
+            "src/MakoKaraGenerator.Rendering.Abstractions/PreparedRenderFrame.ImageEffects.cs",
+            "src/MakoKaraGenerator.Rendering.Abstractions/PreparedRenderFrame.TextPartitions.cs",
+            "src/MakoKaraGenerator.Rendering.Abstractions/PreparedRenderFrame.Visuals.cs",
+            "src/MakoKaraGenerator.Rendering.Abstractions/SceneCapture.cs",
+            "src/MakoKaraGenerator.Rendering.Abstractions/StaticStyleProjection.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/Effects/CompiledImageGraph.Drawing.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/Effects/CompiledImageGraph.MaterialCoverage.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/Effects/CompiledImageGraph.ScenePreflight.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/Effects/CompiledImageGraph.Transforms.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/Effects/CompiledImageGraph.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/Effects/ImageSurfaceBudgetSession.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/Effects/MaterialAuthorGraphCache.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/Effects/SceneCompositionProgram.Drawing.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/Effects/SceneCompositionProgram.FrameBudget.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/Effects/SceneCompositionProgram.PayloadCapture.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/Effects/SceneCompositionProgram.PayloadComposition.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/Effects/SceneCompositionProgram.PayloadLayers.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/Effects/SceneCompositionProgram.Validation.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/Effects/SceneCompositionProgram.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.BaseMaterials.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.Capture.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.ColorParts.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.GroupComposition.Binding.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.GroupComposition.Budget.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.GroupComposition.ExactRanges.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.GroupComposition.Layers.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.GroupComposition.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.GroupIsolation.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.ImageEffects.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.ImageScene.Binding.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.ImageScene.Materials.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.ImageScene.Surfaces.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.ImageScene.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.MaterialCapture.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.SceneBackdrop.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.SceneCompositionPrefix.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.SceneSurfaces.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.Visuals.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.Warp.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/FrameOutput.Graphs.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/FrameOutput.Materials.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/FrameWriter.ImageEffects.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/GraphBindingBudget.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/GraphBindingValue.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/GraphTransformValues.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/MakoKaraGenerator.Scripting.Abstractions.csproj",
+            "src/MakoKaraGenerator.Scripting.Abstractions/ParameterValues.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/V2/TextOutput.Graphs.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/V2/TextOutput.MaterialUniforms.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/V2/TextOutput.cs",
+            "src/MakoKaraGenerator.Scripting.Compiler/ScriptV2PurityAnalyzer.cs",
+            "src/MakoKaraGenerator.Scripting/Compilation/CompiledEffectPackage.cs",
+            "src/MakoKaraGenerator.Scripting/Compilation/DirectGraphEffectValidation.cs",
+            "src/MakoKaraGenerator.Scripting/Compilation/GroupGraphEffectAdmission.cs",
+            "src/MakoKaraGenerator.Scripting/Compilation/ScriptCompilationIdentity.cs",
+            "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.BaseMaterials.cs",
+            "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.Bursts.cs",
+            "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.DirectGraphs.cs",
+            "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.Graphs.cs",
+            "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.MaterialUniforms.cs",
+            "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.Materials.cs",
+            "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.PackageOutputs.cs",
+            "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.Pure.cs",
+            "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.V2Anchors.cs",
+            "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.cs",
+    ):
+        source = ROOT / filename
+        if not source.is_file():
+            raise ValueError("Missing reviewed SDK2 M09 graph/material/group behavior source: " + filename)
+        files.add(source)
+    # Author inspection/adoption boundaries must remain explicit even though
+    # the Backend glob already includes them; moves and omissions fail closed.
+    for filename in (
+            "src/MakoKaraGenerator.Backend.Contracts/BackendAuthorInspectionContracts.cs",
+            "src/MakoKaraGenerator.Backend.Contracts/BackendAuthorContracts.cs",
+            "src/MakoKaraGenerator.Backend.Contracts/BackendAuthorPackageFilesContracts.cs",
+            "src/MakoKaraGenerator.Backend.Hosting/ProjectSessionRegistry.AuthorInspection.cs",
+            "src/MakoKaraGenerator.Backend.Hosting/ProjectSessionRegistry.AuthorAdoptionConfiguration.cs",
+            "src/MakoKaraGenerator.Backend.Hosting/ProjectSessionRegistry.EffectPackageProjection.cs",
+            "src/MakoKaraGenerator.Backend.Hosting/ProjectSessionRegistry.Author.cs",
+            "src/MakoKaraGenerator.Backend.Hosting/ProjectSessionRegistry.AuthorHistory.cs",
+            "src/MakoKaraGenerator.Backend.Hosting/ProjectSessionRegistry.ScriptConfigurations.cs",
+            "src/MakoKaraGenerator.Backend.Hosting/ProjectSessionRegistry.AuthorPackageFiles.cs",
+            "src/MakoKaraGenerator.Backend.Server/ServerEndpoints.Author.cs",
+            "src/MakoKaraGenerator.Backend.Server/ServerEndpoints.AuthorInspection.cs",
+            "src/MakoKaraGenerator.Backend.Server/ServerEndpoints.AuthorAdoption.cs",
+    ):
+        source = ROOT / filename
+        if not source.is_file():
+            raise ValueError("Missing reviewed author metadata behavior source: " + filename)
+        files.add(source)
     files.update(p for p in TOOL.iterdir() if p.is_file())
     return {"contractVersion": CONTRACT, "httpProtocolVersion": "1", "productVersion": PRODUCT, "sourceBaselineCommit": BASELINE,
             "frozenOn": FREEZE_DATE, "status": "frozen", "behaviorSource": BEHAVIOR,
-            "scope": "Implemented public HTTP API with SDK2 token/cluster/mark Warp and fixed static SVG vector/atlas canvas outputs. Author package files now edit svg/svgResource with exact revision CAS; compilation validates all SVG before C# and retains named resource diagnostics. Resource closure recognizes both SVG roles. Existing particles, GPU admission, source adoption, preview/export lifecycles and HTTP DTO/route/schema/example counts remain. Source fingerprints include M09 geometry, resource ownership, validation, render and budget seams. Contract generation, matched deployment, fresh HTTP/GPU frames and browser acceptance require separate evidence; performance thresholds are deferred by user instruction.",
+            "scope": "Implemented public HTTP API with owner-only exact retained-source inspection and optional complete configuration adoption. The inspection response is independent and reference-free; public package reference kinds remain asset/library/configuration. Adoption validates the exact successful source and complete target configuration before one document publication. SDK2 graph bindings, per-target material uniforms/base materials, exact source-group admission and scene composition/capture/budgets are fingerprinted together with Warp/SVG, particles, GPU and existing preview/export lifecycles; their finite boundaries remain. Generated contract, regression, matched deployment, fresh HTTP/GPU frames, browser and performance acceptance require separate evidence.",
             "files": {str(p.relative_to(ROOT)): sha(p.read_bytes()) for p in sorted(files)},
             "artifacts": {name: sha(data) for name, data in sorted(outputs.items())},
             "guards": "Source hashes require review even for behavior-preserving changes. They are drift alarms, not semantic proofs. Runtime/Media behavior still requires existing regression tests."}
@@ -1616,12 +1722,15 @@ def main():
     # metadata belongs to the final aggregate, not its historical base file.
     from w8_authoring_fixtures import append_to as append_w8, PREFIX as W8_PREFIX
     from gpu_stream_fixtures import append_to as append_gpu_stream
+    from author_metadata_fixtures import append_to as append_author_metadata, PREFIX as AUTHOR_METADATA_PREFIX
     from glow_style_fixtures import fixtures as glow_fixtures, migrate_legacy_cases as migrate_glow
     existing_examples = json.loads((ROOT / "web/examples.json").read_text())
+    existing_examples["cases"] = [case for case in existing_examples["cases"] if not case["name"].startswith(AUTHOR_METADATA_PREFIX)]
     existing_examples["cases"] = migrate_glow([case for case in existing_examples["cases"] if not case["name"].startswith("glow-")], upgrade=False)
     existing_examples["cases"] = [case for case in existing_examples["cases"] if not case["name"].startswith(W8_PREFIX)]
     example_document = append_gpu_stream(append_w8(append_to(existing_examples)))
     example_document["cases"] = migrate_glow(example_document["cases"]) + glow_fixtures()
+    example_document = append_author_metadata(example_document)
     example_document["contractVersion"] = CONTRACT
     examples = encoded(example_document)
     outputs = {"web/openapi.json": encoded(spec), "web/api-index.md": inventory(spec, operations), "web/api-contract.md": (ROOT / "web/api-contract.md").read_bytes(), "web/examples.json": examples}

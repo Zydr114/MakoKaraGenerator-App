@@ -1313,7 +1313,7 @@ layout模式为Auto、全部槽位及提示mark构建代表试样；representati
 
 仅 manifest 项提供 `packageClosure`：它包含 `manifestSizeBytes`、小写64字符 `manifestSha256`、`totalSizeBytes`、`fileCount`、`validatedFileCount`、`unsupportedFileCount` 与 `status`。这些大小均为十进制字符串；`status` 只有 `validated` 或 `unsupported`。`validatedFileCount` 表示当前可识别 role 的文件数，不能单独解释为所有身份、引用或运行检查均已通过。文件项的 `status` 逐项反映包闭包检查；未知 role 会保留原文件并标记 `unsupported`，不会被静默丢弃。package manifest/file 的资源清单状态与 package validation 的任务准入分开，不能把 `validated` 当成已编译、可执行或可下载。
 
-资源闭包检查会在内存中重建同一包并复核 manifest/files 身份、内容 SHA/长度、包定义引用和路径/内容预算；当前可识别 role 为 `asset`、`csharp`、`graph`、`image`、`shader`、`shaderProgram`。该检查不编译 C#、不执行作者代码、不解码图片、不打开媒体，也不枚举或授予外部图片、视频、字体路径；因此它不证明字体/媒体闭包、连续预览资源租约、导出、分析或场景测量已经支持。完整闭包先受本节的20000项/1MiB读模型预算，再受 package codec 的源/内容预算；超限整体拒绝，不返回截断清单。
+资源闭包检查会在内存中重建同一包并复核 manifest/files 身份、内容 SHA/长度、包定义引用和路径/内容预算；当前可识别 role 为 `asset`、`csharp`、`graph`、`image`、`shader`、`shaderProgram`、`svg`、`svgResource`。SVG 文件和描述的结构引用纳入闭包观察，完整 SVG 语义与图片解码仍在作者编译及正式运行资源准备边界校验。该检查不编译 C#、不执行作者代码、不解码图片、不打开媒体，也不枚举或授予外部图片、视频、字体路径；因此它不证明字体/媒体闭包、连续预览资源租约、导出、分析或场景测量已经支持。完整闭包先受本节的20000项/1MiB读模型预算，再受 package codec 的源/内容预算；超限整体拒绝，不返回截断清单。
 
 对已通过上述有限检查的包内 manifest/file，可调用 `POST /api/v1/project-sessions/{id}/resources/package-asset`，请求为 `expectedRevision/resourceId/metadata`。服务在当前客户端和精确工程修订下固定包文件字节，惰性复制到现有 `ResourceStore`，返回 `ProjectPackageResourceAssetResponse`，其中包含包身份、逻辑 `packagePath/packageRole`、受控 `asset` 摘要及认证 `contentUrl`。该操作沿客户端 receipt 幂等语义，同一工程、包修订和资源标识复用同一 asset；不接受裸路径、外部文件或未知/unsupported role。返回的 contentUrl 仍要求 Authorization 和当前 client，沿既有 GET/HEAD、Range、ETag、304、读取租约与未引用 TTL 规则；工程关闭、客户端回收或服务停止会释放工程持有的引用，正在进行的读取完成后再按 TTL 清理。该接口只证明固定原始字节可受控读取，不证明图片/视频/字体解码、脚本编译或运行能力。
 
@@ -1472,11 +1472,11 @@ schema合成例不证明真实代码执行/完整性或性能。匹配Server/Wor
 <a id="backend-author-p4"></a>
 <a id="21-无-gui-作者草稿与源码采用0981合同1320"></a>
 
-## 21. 无 GUI 作者草稿、试样与个人配置库（0.108.0／合同1.40.0）
+## 21. 无 GUI 作者草稿、试样与个人配置库（0.112.14／合同1.46.0）
 
-本节原0.98.1切片的创建、源码固定、同步编译和删除保持 HTTP `200`/`201`；P4行为已纳入1.40.0合同，并在本批增加 profile 草稿发现/claim、包文本编辑、源码修订历史和精确包下载。真实HTTP验收与完整产品能力仍单独登记；匹配发布`6569bf1`的有限fresh HTTP已覆盖重启后的新client认领、继续预览/下载及删除，证据与限制见[W8修复记录](../backend-w8-authoring-fixes-20261030.md)。
+本节当前源码增加精确作者源码声明检查，以及采用源码时可选的完整配置迁移；既有创建、源码固定、同步编译和删除保持 HTTP `200`/`201`。P4行为已纳入历史1.40.0合同，W8增加的 profile 草稿发现/claim、包文本编辑、源码修订历史和精确包下载继续保留。真实HTTP验收与完整产品能力仍单独登记；历史匹配发布`6569bf1`的有限fresh HTTP已覆盖重启后的新client认领、继续预览/下载及删除，证据与限制见[W8修复记录](../backend-w8-authoring-fixes-20261030.md)。
 
-P4 N07～N14/E12～E15 的历史实现与本批 W8 修复共同组成当前作者闭包。合同1.40.0通过 fresh CLR metadata 生成、freeze 与 validate；静态合同门禁不代替匹配发布/fresh HTTP证据。
+P4 N07～N14/E12～E15 的历史实现与 W8 修复共同组成作者闭包。历史合同1.40.0已通过 fresh CLR metadata 生成、freeze 与 validate；1.46.0新增行为仍须从匹配生产源码重新导出metadata、freeze与validate，并单独登记匹配发布/fresh HTTP证据。本文描述源码规则，不将历史验收扩大为本批验收。
 
 N07 `GET /api/v1/drafts` 只列出当前客户端拥有的草稿。N08 `GET /api/v1/drafts/{id}/sources?expectedDraftRevision=...&sourceRevision=...` 在精确草稿修订下返回指定保留源码修订的完整C#文件path/text及包身份；草稿修订冲突409，源码不存在404，包内逻辑路径不授予服务器文件读取能力。
 
@@ -1490,13 +1490,25 @@ SDK2 作者界面分别展示最新、最近编译通过、已采用和在用修
 
 W8 增加 profile 级恢复入口。`GET /api/v1/profile/author-drafts` 只返回当前状态根内的草稿摘要、当前 `draftRevision`、所有权修订和 `active`、`dormant`、`orphaned`、`ownedByCaller` 状态；支持按草稿身份的有界游标分页。`POST /api/v1/profile/author-drafts/{id}/claim` 必须同时提交发现时的 `expectedDraftRevision` 与 `expectedOwnershipRevision`，服务在草稿锁、客户端所有权 reservation 和存储发布边界内原子认领。活动 owner、在途操作、客户端回收、CAS 冲突或目标 client 的16草稿/256 MiB配额会拒绝；旧格式草稿只在成功 claim 时补写当前 schema。普通 `GET /api/v1/drafts` 与所有作者读写仍执行 owner ACL，profile 列表不泄露包内容。孤立草稿不会自动删除；认领成功后由新 owner 按精确草稿修订调用 DELETE 清理，既有 live job/preview 不随 claim 转移。
 
-`GET /api/v1/drafts/{id}/package-files?expectedDraftRevision=...&sourceRevision=...` 返回完整 manifest、文件角色、大小、SHA 和可编辑文本。`PUT /api/v1/drafts/{id}/package-files` 要求提交 manifest 及全部 `csharp`、`shader`、`shaderProgram`、`graph` 文本，服务在包结构、闭包、导出配置、路径和 UTF-8 预算检查完成后一次发布新源码修订；非文本文件的路径、角色、SHA 和字节集合必须保持不变。文本单文件最多4 MiB，文本与 manifest 合计最多16 MiB，最多256个文本文件，HTTP JSON最多32 MiB。原源码入口提交字节无变化时保留原草稿修订和最近编译摘要。
+`GET /api/v1/drafts/{id}/package-files?expectedDraftRevision=...&sourceRevision=...` 返回完整 manifest、文件角色、大小、SHA 和可编辑文本。`PUT /api/v1/drafts/{id}/package-files` 要求提交 manifest 及全部 `csharp`、`shader`、`shaderProgram`、`graph`、`svg`、`svgResource` 文本，服务在包结构、闭包、导出配置、路径和 UTF-8 预算检查完成后一次发布新源码修订；非文本文件的路径、角色、SHA 和字节集合必须保持不变。文本单文件最多4 MiB，文本与 manifest 合计最多16 MiB，最多256个文本文件，HTTP JSON最多32 MiB。原源码入口提交字节无变化时保留原草稿修订和最近编译摘要。
 
-包文本保存保持草稿的 SDK profile，不能通过清单降级。SDK2 包文本变更同样只推进最新修订；附带配置仍以原在用源码验证和保存，采用新包修订须经成功编译门禁。SDK1 保持原子迁移配置到新包的行为。纯资源包无需 C# 编译。
+包文本保存保持草稿的 SDK profile，不能通过清单降级。SDK2 包文本变更同样只推进最新修订；附带配置仍以原在用源码验证和保存，采用新包修订须经成功编译门禁。SDK1 保持原子迁移配置到新包的行为。纯资源包无需 C# 编译。 因而跨参数schema或导出身份的迁移，应保存候选源码、编译该精确修订，再通过下述adopt完整配置一次采用；不能把候选配置提前交给SDK2 package-files并按新源码解释。
+
+`GET /api/v1/drafts/{id}/source-inspection?expectedDraftRevision=...&sourceRevision=...` 以能力 `author.drafts.source-inspection` 提供只读声明检查。两个query必须各出现一次、非空且为精确小写SHA修订；未知query或任何body均拒绝，不携带metadata、不创建回执或job。服务在草稿锁内核对当前owner、草稿CAS、所选源码的retained成员资格与固定包身份，未编译源码也可检查；检查不编译或执行作者，不准备native SVG或其它运行资源。成功与失败均设置 `Cache-Control: no-store`。
+
+`AuthorSourceInspectionResponse` 为独立、无reference的完整响应，返回 `draftId/draftRevision/sourceRevision/packageId/packageRevision/name/version/packageVersion/sdkVersion/shaderProfile/structureValid/parameters/exports/bindingKinds/inputs/files/diagnostics/protocolVersion`。`sourceRevision` 与 `packageRevision` 相等，`packageId` 为草稿固定包身份；SDK版本沿既有profile兼容规则保留，不将SDK2补丁版本限定为2.0.0。参数、导出、input、文件和结构诊断复用既有DTO；参数 `defaultValueJson/minimumJson/maximumJson` 仍为精确JSON文本字符串，保留超过2^53的整数，`unit/minimumJson/maximumJson` 为空时省略。`declaration/inputs` 保留原JSON值；文件长度字段为Int64 JSON number `size`，不是 `sizeBytes`。结构无效时可返回诊断与文件列表，typed参数/导出为空。普通响应保持可扩展，读取方忽略未来未知字段。原manifest文本仍由package-files读取，两次读取须核对相同 `draftId/draftRevision/sourceRevision/packageId/packageRevision`，并将检查响应的 `packageVersion/sdkVersion/shaderProfile` 与package-files的manifest原文身份对应；检查入口不把草稿加入公共 `EffectPackageReferenceDto` 的kind，公共kind仍仅为asset/library/configuration。
+
+响应按生产HTTP相同的Web JSON序列化、空值省略及UTF-8编码计算完整体积，最多 `8388608` 字节；超限整次拒绝，HTTP `413 resourceTooLarge`、`field=sourceRevision`、`failureCode=AuthorSourceInspectionTooLarge`，不返回截断数组。owner拒绝沿 `401 resourceUnauthorized`，草稿/保留源码缺失沿 `404 resourceNotFound`，草稿CAS沿 `409 revisionConflict`。固定源码或历史读取失败为 `422 projectLoadFailed/AuthorSourceInspectionReadFailed`，固定包身份不符为 `422 projectLoadFailed/AuthorSourceIdentityMismatch`，字段均为 `sourceRevision`；包结构读取拒绝保留原 `commandRejected`、failureCode与逻辑path。非法query或body沿 `400 invalidRequest`，客户端登记及宿主停止沿统一认证/生命周期错误。
+
 
 `GET /api/v1/drafts/{id}/source-revisions` 在精确草稿修订下按仍保留的源码包修订返回有界历史页。每项可带保存时间和该源码修订的编译摘要；旧草稿无法证明保存时间时省略 `savedAtUtc`，未知或已清理游标返回404。`GET /api/v1/drafts/{id}/package` 与 `GET /api/v1/script-configurations/{id}/package` 分别按精确草稿/库修订返回认证 `.mkfx` 流；服务全局最多同时保留2个下载槽位，超额429；每次下载30秒期限，流关闭、断开或宿主停止释放临时归档和槽位。此入口仅支持完整 GET，不承诺 Range、HEAD 或条件304；返回 `Content-Disposition`、归档 SHA-256 ETag、长度及 `Cache-Control: no-store`。stale revision、owner ACL 和包结构错误在响应体开始前返回。
 
-`POST /api/v1/drafts/{id}/compilation-jobs` 可选 `sourceRevision`，仅接受该草稿保留的源码修订；省略或 null 绑定接受时的最新修订。服务独立执行脚本编译，真实 DLL 入口须符合包 SDK 身份，并返回完整诊断；编译失败是可读取的诊断结果，不改变源码修订。编译诊断最多256项且完整UTF-8回执最多48KiB，超限整次拒绝并保留原草稿状态。`POST /api/v1/drafts/{id}/adopt-source-revision` 同样要求精确草稿修订，显式选择已固定且导出身份有效的源码修订。SDK2 C# 目标要求此草稿历史中该精确源码的成功编译，未满足则返回 `commandRejected/AuthorSourceCompilationRequired`，纯资源包和 SDK1 保持原行为；成功返回实际前后在用修订身份。
+`POST /api/v1/drafts/{id}/compilation-jobs` 可选 `sourceRevision`，仅接受该草稿保留的源码修订；省略或 null 绑定接受时的最新修订。服务先对固定包的全部 SVG 执行正式静态语义与图片闭包校验（不创建 native Picture／GPU 资源），再独立执行脚本编译，真实 DLL 入口须符合包 SDK 身份，并返回完整诊断；编译失败是可读取的诊断结果，不改变源码修订。SVG 校验失败沿同一报告返回精确资源错误码与包内逻辑路径，行列为 0、artifactHash 为 `none`；不会编译部分 C# 或静默使用旧产物。包文件保存仍只验证结构与资源描述，允许保存可修复的无效 SVG 正文；修复文本生成新源码修订后须重新编译。编译诊断最多256项且完整UTF-8回执最多48KiB，超限整次拒绝并保留原草稿状态。`POST /api/v1/drafts/{id}/adopt-source-revision` 同样要求精确草稿修订，显式选择已固定且导出身份有效的源码修订。SDK2 C# 目标要求此草稿历史中该精确源码的成功编译，未满足则返回 `commandRejected/AuthorSourceCompilationRequired`，纯资源包和 SDK1 保持原行为；成功返回实际前后在用修订身份。
+
+采用请求保留 `expectedDraftRevision/sourceRevision/metadata`，新增可选 `configuration`；省略或显式null沿原配置采用行为。非null必须一次给齐 `name/exportId/parametersJson/relativeTarget/readScope/branchInput/fixedSeed/overlayLayer` 八字段，未知或重复配置字段拒绝；`branchInput/fixedSeed` 两字段可显式null但不可省略。包ID、源码修订、kind和bindingKinds由服务派生，不接受客户端覆盖。名称必须非空白且至多256个UTF-16码元，保存时trim；fixedSeed只接受UInt64十进制字符串 `0..18446744073709551615` 或null，允许前导零，拒绝JSON number、符号、空串和溢出。`readScope=branchInput` 时必须提供非空branchInput，其它scope必须null；源材质只允许application、boundSources、null seed和package overlay。
+
+服务按目标retained源码验证导出、参数、绑定与真实sampleOptions，全部通过后在同一次document发布中更新配置、名称、导出和采用标记；失败保留完整旧状态。SDK2 C#目标须在本草稿保留该精确sourceRevision的成功编译记录，编译A不能验证B。`currentSourceRevision` 保持最新候选含义，SDK2最近编译摘要仍代表最近一次编译的固定源，不因采用旧源而重标。相同有效状态保持no-op/CAS语义；回执指纹包含完整configuration，原样重放返回原结果，同requestId改payload按既有回执规则拒绝。配置格式或绑定错误沿 `invalidRequest/AuthorConfigurationInvalid` 及 `configuration.<字段>`；导出/参数包错误沿 `commandRejected`，保留原failureCode并定位配置字段。新对象完整性和原子性须由实际HTTP与存储失败回归验证，schema仅表达wire形状。
+
 
 **0.110.3 编译缓存：** 作者编译使用当前 profile 的 `script-artifacts` 内容地址缓存。同键并发请求共享编译，
 各调用者独立取消；失败编译不发布可运行产物。缓存身份包括源码、入口、编译选项、编译器、SDK、
@@ -1521,7 +1533,7 @@ shader、图像、图、材质和作者运行诊断仍在原执行边界校验�
 
 `DELETE /api/v1/drafts/{id}` 必须携带 `AuthorDraftDeleteRequest` 的精确 `expectedDraftRevision` 和metadata。成功返回 `AuthorDraftDeleteResponse`（200），删除草稿状态及其固定包，并释放客户端作者草稿的存储与回收保护；修订冲突返回409，跨客户端读取仍为401 `resourceUnauthorized`。删除是显式操作，不会自动修改个人模板库或工程历史；同一metadata重试返回原回执。
 
-`POST /api/v1/drafts/{id}/compilation-jobs` 可选 `executionMode:"async"` 返回 `202` 与普通 `JobResponse`；省略该字段或显式 `sync` 保持原同步 `200` 回执。异步任务在接受时固定 `draftId`、`draftRevision` 和所选 `sourceRevision`，沿用现有任务状态、事件/SSE、取消、保留期、客户端授权及前一宿主账本。`GET /api/v1/jobs/{id}/compilation-result` 只返回该任务固定源码修订的完整 `AuthorCompilationResponse`；草稿之后的源码或配置修订不会覆盖它。任务结果发布时 `stale` 比较其固定源与当时草稿最新源码，结果保留后不追改；草稿读取则相对当前最新源码计算 `stale`。草稿在任务期间改变时不覆盖最新编译摘要，但仍按原源码修订保存历史编译记录。任务进入提交阶段后取消按既有 `operationNotCancellable` 语义处理；取消、停止或重启造成的无结果终态从普通 job 查询读取，不能用空诊断伪造编译成功。N10只读取当前宿主的live job结果；sidecar与账本持久化不构成公开的编译结果恢复路由。
+`POST /api/v1/drafts/{id}/compilation-jobs` 可选 `executionMode:"async"` 返回 `202` 与普通 `JobResponse`；省略该字段或显式 `sync` 保持原同步 `200` 回执。异步任务在接受时固定 `draftId`、`draftRevision` 和所选 `sourceRevision`，沿用现有任务状态、事件/SSE、取消、保留期、客户端授权及前一宿主账本。`GET /api/v1/jobs/{id}/compilation-result` 只返回该任务固定源码修订的完整 `AuthorCompilationResponse`；异步任务成功产出失败编译报告时，job 仍为 `succeeded`，报告内 `succeeded:false` 才是编译失败事实；草稿之后的源码或配置修订不会覆盖它。任务结果发布时 `stale` 比较其固定源与当时草稿最新源码，结果保留后不追改；草稿读取则相对当前最新源码计算 `stale`。草稿在任务期间改变时不覆盖最新编译摘要，但仍按原源码修订保存历史编译记录。任务进入提交阶段后取消按既有 `operationNotCancellable` 语义处理；取消、停止或重启造成的无结果终态从普通 job 查询读取，不能用空诊断伪造编译成功。N10只读取当前宿主的live job结果；sidecar与账本持久化不构成公开的编译结果恢复路由。
 
 E14 authorDraft 预览复用既有 preview-sessions、帧、诊断与 close 生命周期。source 形状为 kind=authorDraft、sourceId=草稿ID、sourceRevision=草稿修订、authorSourceRevision=固定配置源码修订，并携带 templateSample 的 sampleId/targetKey/materialSlot；创建请求需 previewKind=authorDraft 且 committable=false，PUT input 保持同一draft ID，可更新draft/source修订及sample/target/materialSlot，并沿generation发布新的固定输入。N11/E15 的验证任务固定 640×360、30fps、12秒、360帧/输出；JobResponse 与报告分别回显草稿/源码/试样身份，sourceKind=authorDraft、sourceProfile=author-script-sample-v1。
 
@@ -1798,3 +1810,136 @@ BirthIndex。连续出生对原始 IEEE-754 速率作精确有理数积分和整
 
 业务终态仍从现有 preview／job 状态和完整诊断读取；HTTP 接收成功、合成样例通过或有限工具完成
 均不能替代真实帧／任务完成。取消继续沿 `OperationCanceledException` 和原任务取消语义传播。
+
+
+<a id="sdk2-m09-svg-warp"></a>
+## 27. SDK2 M09 Warp 与固定 SVG（0.112.8／合同1.45.0）
+
+正式准入 `token.warp`、`cluster.warp`、`mark.warp`、`visuals.paths`、
+`resources.svg.vector`、`resources.svg.atlas`。Warp 沿唯一文字映射同时作用于几何、
+最终锚点及像素；SVG vector 使用 `PathBatch`，atlas 使用 `AtlasSpriteBatch`，
+后者同时需要既有 `visuals.sprites`。两者声明为 controller 的 `Overlay/canvas`，
+绘制和资源 capability 均需声明。句柄固定包修订与 atlas variant，不接受跨修订句柄。
+
+SVG 的 `svgResourceVersion:1`、`mako-svg-static-1/grammar-2` 采用受控内存闭包。
+外部 URI、脚本、动画、文字／机器字体、未知语法和未声明图片均具名拒绝；
+clipPath 仅允许直接形状，clip 内 g/symbol/use 明确拒绝。包图片和 data 图片完整解码，
+图片、展开命令、filter、atlas padding/mip 和共享表面均计预算。
+固定 Picture／独立 atlas 页与 GPU 纹理按会话持有，渲染只借用；关闭与失败按资源所有权释放。
+半透明 tint 作用于整体矢量结果，atlas 使用完整仿射、独立 padding 页与 mip 采样。
+取消不转译成脚本错误，运行失败保留真实实例、包修订、导出与阶段。
+
+作者完整包文本读取／保存扩展详见§21.5。保存允许保留可修复的无效 SVG 正文，
+但正式同步／异步编译先验证全部 SVG，失败返回资源代码与包内路径，产物为 `none`。
+修复后生成新源码修订，必须重新编译并显式采用；历史失败报告和在用修订不被覆盖。
+该静态校验不创建 Picture 或 GPU 纹理，不替代实际 GPU 会话准备和像素验收。
+资源读模型把 svg/svgResource 识别为受支持角色，未知 role 仍标为 unsupported。
+
+本节的0.112.8历史切片未新增 HTTP 入口或 DTO，保留原浏览器静态预览协议与500ms控制节奏。
+当时图绑定、Base材质、完整组调度及浏览器完整包文本编辑尚未接通；后续0.112.9～0.112.13的
+图／材质／组实现见§28，作者精确声明与完整配置采用见§21。媒体轨和九样例继续按阶段计划独立验收，
+不能将本节0.112.8证据扩大到后续实现或浏览器可用性。
+
+
+<a id="sdk2-m09-graph-material-group"></a>
+
+## 28. SDK2 M09 图绑定、Base材质与真实组（0.112.9～0.112.13／合同1.46.0）
+
+本节记录已进入当前源码的G1～G4执行规则：0.112.9完整图值与动态Transform，0.112.10 typed
+controller图事务，0.112.11无DLL直接图与材质uniform，0.112.12独立Base包材质，以及0.112.13
+真实组调度与owned Below。它们沿现有包导入、作者、预览、验证、导出入口传递固定输入，不新增
+本节专用HTTP路由或DTO；1.46.0新增的作者声明检查与完整配置采用另见§21。包仍须为明确支持的
+v3／SDK2 profile，生产运行保留§25的Vulkan准入和实际设备核验，不因CPU参考执行器回归而允许
+公开路径回落CPU。SDK接口见[SDK v2参考§4](../../../docs/style-reference/script-sdk-v2.md#4-能力目标和输出顺序)，
+组像素与父树语义详见[组图合同](../scripting-group-image-composition-contract.md)，实施证据和剩余
+门禁见[M09记录](../../../docs/plans/script-sdk-render-m09-evidence.md)。
+
+### 28.1 完整图值、动态Transform与事务
+
+`GraphBindingValue` 固定本实例包修订中的GraphHandle、完整ParameterValues、逐节点uniform及
+Transform覆盖；每次`TextOutput.BindGraph`整体替换，不与上一绑定合并。值身份按参数曲线内容、
+uniform类型／数组及数值位、矩阵／输出框内容比较，保留shader可观察的正负零。同实例同目标
+最后绑定生效，跨实例沿工程顺序；每次原始写入仍检查固定资源、完整参数、声明与目标写权并计费。
+固有坏值和预算失败锁存，作者捕获异常也不能发布部分事务；最终图节点、uniform ABI及Transform
+节点兼容性只针对存活完整绑定，不能把旧图覆盖自动套到新图。
+
+Transform覆盖须指向固定图真实Transform节点，提供完整源至目标矩阵及语义输出框。形状预检、
+分配前核验和实际绘制共用原生float32解释，核对有限／可逆、非空框、声明外扩与当前密度对齐后的
+完整逆采样范围；未执行覆盖和透明旁路也不跳过校验。保留v1固定Transform的历史采样声明语义；
+Decal／Clamp／Repeat读取完整有限源域，不通过裁短输入改变边缘或周期。ColorOnly图改变实际颜色，
+不改写最终文字几何、播放头或粒子锚点映射；Mapping仍以`PackageGraphMappingPending`拒绝。
+
+`image.graph`已准入Family／Line／Mark，真实Group另须§28.3的双能力与父树门禁。controller及
+实际graph须各有唯一匹配的ImageGraph输出；同类别多输出、额外能力及跨输出依赖仍沿
+`PackageOutputPlanPending`拒绝。无DLL直接图采用独立宿主活动，不编译C#、不创建作者对象或调用
+Declare，按宿主实际授予的Family／Line／Mark／Group范围发布同样的固定绑定；token绑定不能扩大
+成整行，Base／Cluster图输出仍未开放。
+
+### 28.2 最终材质uniform与独立Base
+
+`material.uniform`通过`TextOutput.SetMaterialUniform`明确定位真实Family／Base／Mark、
+UnsungFill／SungFill／Stroke部位、固定MaterialHandle及`nodeId/name`。跨实例按原始材质替换与
+uniform调用顺序归约；完整替换清除旧覆盖作用域，后续覆盖必须匹配最终安装材质及真实节点ABI。
+每次原始写入的固有类型、资源、参数和float32范围均独立校验，不能由后写替换掩盖；未修改的
+opacity／affine不抢走材质错误owner。覆盖只属于本次帧，不修改包、工程参数或shader源码。
+
+自0.112.12起，Base包材质已接通两态填充、描边和uniform，不再沿早期BaseOnly拒绝说明处理。
+Base从最终Family中立外观继承，逐部位保存真实Source／Script owner；Solid／Gradient或
+Stroke=null明确遮蔽父材质。先归约父族uniform，再归约Base作用域；Base捕获不含Ruby，Ruby保留
+父族外观，后继Family／Line图消费实际Base＋Ruby颜色。材质不重复Warp，装饰范围由最终映射计算；
+资源、预算及native失败保留实际材质owner与Base TextTarget，Warp几何错误仍归Warp，取消透传。
+此处开放独立Base材质，并未开放Base图或独立Cluster材质输出。
+
+### 28.3 真实组、独立颜色／擦除与owned Below
+
+组图须同时声明`image.graph`与`image.graph.group`；controller和实际graph的唯一
+ImageGraph/group输出均须显式声明组能力。只允许Project或显式Node授予的真实运行父树范围，
+分支／行／元素／片段筛选不授予组写权。目标须为真实source Group、无SourceNodeId alias且有
+对应最终几何；冻结退场alias可参与渲染及读取，不能独立获写权。v1组输出与缺能力沿
+`GroupImageEffectUnsupported`等具名错误拒绝；不具备真实父树调度的旧单绑定执行入口仍拒绝组。
+
+主画布沿真实运行树隔离：子材质／子图／子组先完成，父图读取已处理部件。每层保留独立预乘颜色C
+与擦除E，对下层B按`C+B*(1-E)`应用；同目标历史replacement floor取max，独立孩子按绘制序合成。
+父图变透明也保留孩子已发生的擦除，不能用普通输出alpha替代历史floor。孩子共同透明度在父捕获前
+完成一次；有效部分保留来源与顺序，完整连续选择另用先合成C/E再乘alpha的产物，成功写入使触及
+的完整范围失效。每输入按自己的真实范围／部位配方选择，未选部分保留；已经融合的来源不能再拆选
+一部分，融合结果放在所选最高层。交错后代改为连续隔离单位时保留`GroupIsolationChangesOrder`诊断。
+
+父BackdropBelow固定为进入组时的组外前缀，孩子读取此前缀加已完成兄弟，普通前序leaf也参与；
+前缀保留完整C/E，不能用背景媒体或颜色alpha代替。真实背景在BehindText前只快照一次，
+Dots／Segments／Trails／Sprites／Paths／AtlasSprites六类批次按原序重绘：Script请求仅排除
+直接同实例BehindText，Source材质不排除脚本。图、Family材质和Base材质共享resolver，同一leaf
+各部位读取固定进入前缀；不同owner不复用过滤表面。最终主画布保留全部真实BehindText，已完成
+颜色曾主动采样的图元不递归净化，不重跑作者图或Below背景provider；显式BackgroundMedia沿原
+独立捕获协议，此切片不开放target owned-overlay捕获。
+
+隐藏但存在的组仍完整验证身份、参数、资源、声明、尺寸和图峰值预算。无实际可见孩子记录
+`GroupImageEffectNoVisibleChildren`并消费绑定，不执行图或生成凭空内容。非空组有active target
+输入但配方选择并集为空时，记录`GroupImageEffectNoSelectedChildren`且保留原C/E、来源与顺序；
+只有完全没有active target输入才选择整个scope。部分输入为空而并集非空时，空输入提供零颜色／覆盖。
+
+### 28.4 固定预算、诊断与证据范围
+
+图／Fill／Stroke／uniform在SDK调用事务及全部实例帧准入共用写入预算，包含后续被替换的原始值。
+捕获、颜色／擦除、有效层、Below、作者图与宿主合成产物共用会话／帧表面账，分配前检查，拥有资源
+在成功释放、失败或取消时归还；借用输入保持原所有权。默认门禁如下，逻辑记账不代表完整native RSS
+或性能上限：
+
+| 范围 | 固定限制 |
+|---|---|
+| 图／材质原始写入 | 256次、65536标量、8MiB保守验证字节 |
+| 组调度 | 32层递归、256层祖先、4096运行单元、256组绑定、256图结果 |
+| 活动来源与实际工作 | 512活动来源层、8192累计捕获／图／合成pass |
+| Below重绘 | 4096批次、200000实际图元／轨迹点；SVG继续扣原native工作账 |
+| 默认图／表面账 | 每图32 pass、每帧64活动表面、会话512MiB估算像素存储、表面每边8192像素 |
+
+来源层在实际捕获前逐层登记，真实分配入口累计pass；缺失背景、借用输入及缓存命中不虚计新pass。
+空组／空选择同样先作完整图峰值预检，层数、表面数、字节、取消分别生效。超限沿
+`GraphOutputBudgetExceeded`、`GroupCompositionBudgetExceeded`、`ImageSurfaceBudgetExceeded`等
+原具名诊断失败，不降质、截断或遗漏实例；诊断保留实际实例、固定包／artifact、阶段、时刻及目标。
+
+G1～G4已有真实包、CPU参考、显式Vulkan、像素／确定性、预算红绿、取消与资源恢复回归，具体版本、
+数量、设备和共享输入限制均以[M09记录](../../../docs/plans/script-sdk-render-m09-evidence.md)为准。
+这些回归不等于匹配Server／Worker的fresh HTTP、浏览器或导出验收；0.112.8的历史HTTP和0.112.14
+作者metadata／adopt的HTTP结果也不自动覆盖图／材质／组同帧矩阵。该矩阵仍须独立收口，本节不宣布
+M09关闭；媒体轨、九样例及后续作者完整链继续按阶段计划登记，性能门槛按用户指示暂不验收。

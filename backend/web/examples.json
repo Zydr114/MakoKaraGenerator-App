@@ -126867,7 +126867,3520 @@
           }
         ]
       }
+    },
+    {
+      "name": "author-metadata-inspection-query",
+      "schema": "AuthorPackageQuery",
+      "valid": true,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-query-missing-expectedDraftRevision",
+      "schema": "AuthorPackageQuery",
+      "valid": false,
+      "value": {
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-query-expectedDraftRevision-empty",
+      "schema": "AuthorPackageQuery",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-query-expectedDraftRevision-whitespace",
+      "schema": "AuthorPackageQuery",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": " ",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-query-expectedDraftRevision-number",
+      "schema": "AuthorPackageQuery",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": 1,
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-query-expectedDraftRevision-latest",
+      "schema": "AuthorPackageQuery",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "latest",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-query-expectedDraftRevision-uppercase",
+      "schema": "AuthorPackageQuery",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-query-missing-sourceRevision",
+      "schema": "AuthorPackageQuery",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-query-sourceRevision-empty",
+      "schema": "AuthorPackageQuery",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": ""
+      }
+    },
+    {
+      "name": "author-metadata-inspection-query-sourceRevision-whitespace",
+      "schema": "AuthorPackageQuery",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": " "
+      }
+    },
+    {
+      "name": "author-metadata-inspection-query-sourceRevision-number",
+      "schema": "AuthorPackageQuery",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": 1
+      }
+    },
+    {
+      "name": "author-metadata-inspection-query-sourceRevision-latest",
+      "schema": "AuthorPackageQuery",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "latest"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-query-sourceRevision-uppercase",
+      "schema": "AuthorPackageQuery",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-query-unknown",
+      "schema": "AuthorPackageQuery",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "packageId": "demo.closed"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-response-exact-integer",
+      "schema": "AuthorSourceInspectionResponse",
+      "valid": true,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "packageId": "demo.closed",
+        "packageRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "Demo",
+        "version": "1.0.0",
+        "packageVersion": 3,
+        "sdkVersion": "2.0.0",
+        "shaderProfile": "skia-ganesh-3.119.4-v2",
+        "structureValid": true,
+        "parameters": [
+          {
+            "id": "counter",
+            "type": "integer",
+            "label": "Counter",
+            "defaultValueJson": "9007199254740993",
+            "minimumJson": "-9223372036854775808",
+            "maximumJson": "9223372036854775807",
+            "options": []
+          }
+        ],
+        "exports": [
+          {
+            "id": "migrated",
+            "kind": "controller",
+            "name": "Migrated",
+            "parameterIds": [
+              "counter"
+            ],
+            "bindingKinds": [
+              "tokens"
+            ],
+            "declaration": {
+              "id": "migrated",
+              "kind": "controller",
+              "parameters": [
+                "counter"
+              ],
+              "bindingKinds": [
+                "tokens"
+              ],
+              "outputs": []
+            }
+          }
+        ],
+        "bindingKinds": [
+          "tokens"
+        ],
+        "inputs": [
+          {
+            "path": "graphs/tint.json",
+            "inputs": [
+              {
+                "id": "color",
+                "source": "TargetColor"
+              }
+            ]
+          }
+        ],
+        "files": [
+          {
+            "path": "src/PackEffect.cs",
+            "role": "csharp",
+            "size": 250,
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "diagnostics": [],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-response-structure-diagnostic",
+      "schema": "AuthorSourceInspectionResponse",
+      "valid": true,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "packageId": "demo.closed",
+        "packageRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "Demo",
+        "version": "1.0.0",
+        "packageVersion": 3,
+        "sdkVersion": "2.0.0",
+        "shaderProfile": "skia-ganesh-3.119.4-v2",
+        "structureValid": false,
+        "parameters": [],
+        "exports": [],
+        "bindingKinds": [],
+        "inputs": [],
+        "files": [
+          {
+            "path": "src/PackEffect.cs",
+            "role": "csharp",
+            "size": 250,
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "diagnostics": [
+          {
+            "code": "PackageParameterMissing",
+            "path": "exports.controller.parameters",
+            "message": "缺少参数声明。"
+          }
+        ],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-response-v1",
+      "schema": "AuthorSourceInspectionResponse",
+      "valid": true,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "packageId": "demo.closed",
+        "packageRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "Demo",
+        "version": "1.0.0",
+        "packageVersion": 2,
+        "sdkVersion": "1.0.0",
+        "shaderProfile": "skia-raster-3.119.4-v1",
+        "structureValid": true,
+        "parameters": [
+          {
+            "id": "counter",
+            "type": "integer",
+            "label": "Counter",
+            "defaultValueJson": "9007199254740993",
+            "minimumJson": "-9223372036854775808",
+            "maximumJson": "9223372036854775807",
+            "options": []
+          }
+        ],
+        "exports": [
+          {
+            "id": "migrated",
+            "kind": "controller",
+            "name": "Migrated",
+            "parameterIds": [
+              "counter"
+            ],
+            "bindingKinds": [
+              "tokens"
+            ],
+            "declaration": {
+              "id": "migrated",
+              "kind": "controller",
+              "parameters": [
+                "counter"
+              ],
+              "bindingKinds": [
+                "tokens"
+              ],
+              "outputs": []
+            }
+          }
+        ],
+        "bindingKinds": [
+          "tokens"
+        ],
+        "inputs": [
+          {
+            "path": "graphs/tint.json",
+            "inputs": [
+              {
+                "id": "color",
+                "source": "TargetColor"
+              }
+            ]
+          }
+        ],
+        "files": [
+          {
+            "path": "src/PackEffect.cs",
+            "role": "csharp",
+            "size": 250,
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "diagnostics": [],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-response-sdk2-patch",
+      "schema": "AuthorSourceInspectionResponse",
+      "valid": true,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "packageId": "demo.closed",
+        "packageRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "Demo",
+        "version": "1.0.0",
+        "packageVersion": 3,
+        "sdkVersion": "2.0.1",
+        "shaderProfile": "skia-ganesh-3.119.4-v2",
+        "structureValid": true,
+        "parameters": [
+          {
+            "id": "counter",
+            "type": "integer",
+            "label": "Counter",
+            "defaultValueJson": "9007199254740993",
+            "minimumJson": "-9223372036854775808",
+            "maximumJson": "9223372036854775807",
+            "options": []
+          }
+        ],
+        "exports": [
+          {
+            "id": "migrated",
+            "kind": "controller",
+            "name": "Migrated",
+            "parameterIds": [
+              "counter"
+            ],
+            "bindingKinds": [
+              "tokens"
+            ],
+            "declaration": {
+              "id": "migrated",
+              "kind": "controller",
+              "parameters": [
+                "counter"
+              ],
+              "bindingKinds": [
+                "tokens"
+              ],
+              "outputs": []
+            }
+          }
+        ],
+        "bindingKinds": [
+          "tokens"
+        ],
+        "inputs": [
+          {
+            "path": "graphs/tint.json",
+            "inputs": [
+              {
+                "id": "color",
+                "source": "TargetColor"
+              }
+            ]
+          }
+        ],
+        "files": [
+          {
+            "path": "src/PackEffect.cs",
+            "role": "csharp",
+            "size": 250,
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "diagnostics": [],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-response-future-field",
+      "schema": "AuthorSourceInspectionResponse",
+      "valid": true,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "packageId": "demo.closed",
+        "packageRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "Demo",
+        "version": "1.0.0",
+        "packageVersion": 3,
+        "sdkVersion": "2.0.0",
+        "shaderProfile": "skia-ganesh-3.119.4-v2",
+        "structureValid": true,
+        "parameters": [
+          {
+            "id": "counter",
+            "type": "integer",
+            "label": "Counter",
+            "defaultValueJson": "9007199254740993",
+            "minimumJson": "-9223372036854775808",
+            "maximumJson": "9223372036854775807",
+            "options": []
+          }
+        ],
+        "exports": [
+          {
+            "id": "migrated",
+            "kind": "controller",
+            "name": "Migrated",
+            "parameterIds": [
+              "counter"
+            ],
+            "bindingKinds": [
+              "tokens"
+            ],
+            "declaration": {
+              "id": "migrated",
+              "kind": "controller",
+              "parameters": [
+                "counter"
+              ],
+              "bindingKinds": [
+                "tokens"
+              ],
+              "outputs": []
+            }
+          }
+        ],
+        "bindingKinds": [
+          "tokens"
+        ],
+        "inputs": [
+          {
+            "path": "graphs/tint.json",
+            "inputs": [
+              {
+                "id": "color",
+                "source": "TargetColor"
+              }
+            ]
+          }
+        ],
+        "files": [
+          {
+            "path": "src/PackEffect.cs",
+            "role": "csharp",
+            "size": 250,
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "diagnostics": [],
+        "protocolVersion": "1",
+        "futureField": true
+      }
+    },
+    {
+      "name": "author-metadata-inspection-response-missing-draftId",
+      "schema": "AuthorSourceInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "packageId": "demo.closed",
+        "packageRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "Demo",
+        "version": "1.0.0",
+        "packageVersion": 3,
+        "sdkVersion": "2.0.0",
+        "shaderProfile": "skia-ganesh-3.119.4-v2",
+        "structureValid": true,
+        "parameters": [
+          {
+            "id": "counter",
+            "type": "integer",
+            "label": "Counter",
+            "defaultValueJson": "9007199254740993",
+            "minimumJson": "-9223372036854775808",
+            "maximumJson": "9223372036854775807",
+            "options": []
+          }
+        ],
+        "exports": [
+          {
+            "id": "migrated",
+            "kind": "controller",
+            "name": "Migrated",
+            "parameterIds": [
+              "counter"
+            ],
+            "bindingKinds": [
+              "tokens"
+            ],
+            "declaration": {
+              "id": "migrated",
+              "kind": "controller",
+              "parameters": [
+                "counter"
+              ],
+              "bindingKinds": [
+                "tokens"
+              ],
+              "outputs": []
+            }
+          }
+        ],
+        "bindingKinds": [
+          "tokens"
+        ],
+        "inputs": [
+          {
+            "path": "graphs/tint.json",
+            "inputs": [
+              {
+                "id": "color",
+                "source": "TargetColor"
+              }
+            ]
+          }
+        ],
+        "files": [
+          {
+            "path": "src/PackEffect.cs",
+            "role": "csharp",
+            "size": 250,
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "diagnostics": [],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-response-missing-draftRevision",
+      "schema": "AuthorSourceInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "packageId": "demo.closed",
+        "packageRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "Demo",
+        "version": "1.0.0",
+        "packageVersion": 3,
+        "sdkVersion": "2.0.0",
+        "shaderProfile": "skia-ganesh-3.119.4-v2",
+        "structureValid": true,
+        "parameters": [
+          {
+            "id": "counter",
+            "type": "integer",
+            "label": "Counter",
+            "defaultValueJson": "9007199254740993",
+            "minimumJson": "-9223372036854775808",
+            "maximumJson": "9223372036854775807",
+            "options": []
+          }
+        ],
+        "exports": [
+          {
+            "id": "migrated",
+            "kind": "controller",
+            "name": "Migrated",
+            "parameterIds": [
+              "counter"
+            ],
+            "bindingKinds": [
+              "tokens"
+            ],
+            "declaration": {
+              "id": "migrated",
+              "kind": "controller",
+              "parameters": [
+                "counter"
+              ],
+              "bindingKinds": [
+                "tokens"
+              ],
+              "outputs": []
+            }
+          }
+        ],
+        "bindingKinds": [
+          "tokens"
+        ],
+        "inputs": [
+          {
+            "path": "graphs/tint.json",
+            "inputs": [
+              {
+                "id": "color",
+                "source": "TargetColor"
+              }
+            ]
+          }
+        ],
+        "files": [
+          {
+            "path": "src/PackEffect.cs",
+            "role": "csharp",
+            "size": 250,
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "diagnostics": [],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-response-missing-sourceRevision",
+      "schema": "AuthorSourceInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "packageId": "demo.closed",
+        "packageRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "Demo",
+        "version": "1.0.0",
+        "packageVersion": 3,
+        "sdkVersion": "2.0.0",
+        "shaderProfile": "skia-ganesh-3.119.4-v2",
+        "structureValid": true,
+        "parameters": [
+          {
+            "id": "counter",
+            "type": "integer",
+            "label": "Counter",
+            "defaultValueJson": "9007199254740993",
+            "minimumJson": "-9223372036854775808",
+            "maximumJson": "9223372036854775807",
+            "options": []
+          }
+        ],
+        "exports": [
+          {
+            "id": "migrated",
+            "kind": "controller",
+            "name": "Migrated",
+            "parameterIds": [
+              "counter"
+            ],
+            "bindingKinds": [
+              "tokens"
+            ],
+            "declaration": {
+              "id": "migrated",
+              "kind": "controller",
+              "parameters": [
+                "counter"
+              ],
+              "bindingKinds": [
+                "tokens"
+              ],
+              "outputs": []
+            }
+          }
+        ],
+        "bindingKinds": [
+          "tokens"
+        ],
+        "inputs": [
+          {
+            "path": "graphs/tint.json",
+            "inputs": [
+              {
+                "id": "color",
+                "source": "TargetColor"
+              }
+            ]
+          }
+        ],
+        "files": [
+          {
+            "path": "src/PackEffect.cs",
+            "role": "csharp",
+            "size": 250,
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "diagnostics": [],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-response-missing-packageId",
+      "schema": "AuthorSourceInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "packageRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "Demo",
+        "version": "1.0.0",
+        "packageVersion": 3,
+        "sdkVersion": "2.0.0",
+        "shaderProfile": "skia-ganesh-3.119.4-v2",
+        "structureValid": true,
+        "parameters": [
+          {
+            "id": "counter",
+            "type": "integer",
+            "label": "Counter",
+            "defaultValueJson": "9007199254740993",
+            "minimumJson": "-9223372036854775808",
+            "maximumJson": "9223372036854775807",
+            "options": []
+          }
+        ],
+        "exports": [
+          {
+            "id": "migrated",
+            "kind": "controller",
+            "name": "Migrated",
+            "parameterIds": [
+              "counter"
+            ],
+            "bindingKinds": [
+              "tokens"
+            ],
+            "declaration": {
+              "id": "migrated",
+              "kind": "controller",
+              "parameters": [
+                "counter"
+              ],
+              "bindingKinds": [
+                "tokens"
+              ],
+              "outputs": []
+            }
+          }
+        ],
+        "bindingKinds": [
+          "tokens"
+        ],
+        "inputs": [
+          {
+            "path": "graphs/tint.json",
+            "inputs": [
+              {
+                "id": "color",
+                "source": "TargetColor"
+              }
+            ]
+          }
+        ],
+        "files": [
+          {
+            "path": "src/PackEffect.cs",
+            "role": "csharp",
+            "size": 250,
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "diagnostics": [],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-response-missing-packageRevision",
+      "schema": "AuthorSourceInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "packageId": "demo.closed",
+        "name": "Demo",
+        "version": "1.0.0",
+        "packageVersion": 3,
+        "sdkVersion": "2.0.0",
+        "shaderProfile": "skia-ganesh-3.119.4-v2",
+        "structureValid": true,
+        "parameters": [
+          {
+            "id": "counter",
+            "type": "integer",
+            "label": "Counter",
+            "defaultValueJson": "9007199254740993",
+            "minimumJson": "-9223372036854775808",
+            "maximumJson": "9223372036854775807",
+            "options": []
+          }
+        ],
+        "exports": [
+          {
+            "id": "migrated",
+            "kind": "controller",
+            "name": "Migrated",
+            "parameterIds": [
+              "counter"
+            ],
+            "bindingKinds": [
+              "tokens"
+            ],
+            "declaration": {
+              "id": "migrated",
+              "kind": "controller",
+              "parameters": [
+                "counter"
+              ],
+              "bindingKinds": [
+                "tokens"
+              ],
+              "outputs": []
+            }
+          }
+        ],
+        "bindingKinds": [
+          "tokens"
+        ],
+        "inputs": [
+          {
+            "path": "graphs/tint.json",
+            "inputs": [
+              {
+                "id": "color",
+                "source": "TargetColor"
+              }
+            ]
+          }
+        ],
+        "files": [
+          {
+            "path": "src/PackEffect.cs",
+            "role": "csharp",
+            "size": 250,
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "diagnostics": [],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-response-missing-name",
+      "schema": "AuthorSourceInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "packageId": "demo.closed",
+        "packageRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "version": "1.0.0",
+        "packageVersion": 3,
+        "sdkVersion": "2.0.0",
+        "shaderProfile": "skia-ganesh-3.119.4-v2",
+        "structureValid": true,
+        "parameters": [
+          {
+            "id": "counter",
+            "type": "integer",
+            "label": "Counter",
+            "defaultValueJson": "9007199254740993",
+            "minimumJson": "-9223372036854775808",
+            "maximumJson": "9223372036854775807",
+            "options": []
+          }
+        ],
+        "exports": [
+          {
+            "id": "migrated",
+            "kind": "controller",
+            "name": "Migrated",
+            "parameterIds": [
+              "counter"
+            ],
+            "bindingKinds": [
+              "tokens"
+            ],
+            "declaration": {
+              "id": "migrated",
+              "kind": "controller",
+              "parameters": [
+                "counter"
+              ],
+              "bindingKinds": [
+                "tokens"
+              ],
+              "outputs": []
+            }
+          }
+        ],
+        "bindingKinds": [
+          "tokens"
+        ],
+        "inputs": [
+          {
+            "path": "graphs/tint.json",
+            "inputs": [
+              {
+                "id": "color",
+                "source": "TargetColor"
+              }
+            ]
+          }
+        ],
+        "files": [
+          {
+            "path": "src/PackEffect.cs",
+            "role": "csharp",
+            "size": 250,
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "diagnostics": [],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-response-missing-version",
+      "schema": "AuthorSourceInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "packageId": "demo.closed",
+        "packageRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "Demo",
+        "packageVersion": 3,
+        "sdkVersion": "2.0.0",
+        "shaderProfile": "skia-ganesh-3.119.4-v2",
+        "structureValid": true,
+        "parameters": [
+          {
+            "id": "counter",
+            "type": "integer",
+            "label": "Counter",
+            "defaultValueJson": "9007199254740993",
+            "minimumJson": "-9223372036854775808",
+            "maximumJson": "9223372036854775807",
+            "options": []
+          }
+        ],
+        "exports": [
+          {
+            "id": "migrated",
+            "kind": "controller",
+            "name": "Migrated",
+            "parameterIds": [
+              "counter"
+            ],
+            "bindingKinds": [
+              "tokens"
+            ],
+            "declaration": {
+              "id": "migrated",
+              "kind": "controller",
+              "parameters": [
+                "counter"
+              ],
+              "bindingKinds": [
+                "tokens"
+              ],
+              "outputs": []
+            }
+          }
+        ],
+        "bindingKinds": [
+          "tokens"
+        ],
+        "inputs": [
+          {
+            "path": "graphs/tint.json",
+            "inputs": [
+              {
+                "id": "color",
+                "source": "TargetColor"
+              }
+            ]
+          }
+        ],
+        "files": [
+          {
+            "path": "src/PackEffect.cs",
+            "role": "csharp",
+            "size": 250,
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "diagnostics": [],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-response-missing-packageVersion",
+      "schema": "AuthorSourceInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "packageId": "demo.closed",
+        "packageRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "Demo",
+        "version": "1.0.0",
+        "sdkVersion": "2.0.0",
+        "shaderProfile": "skia-ganesh-3.119.4-v2",
+        "structureValid": true,
+        "parameters": [
+          {
+            "id": "counter",
+            "type": "integer",
+            "label": "Counter",
+            "defaultValueJson": "9007199254740993",
+            "minimumJson": "-9223372036854775808",
+            "maximumJson": "9223372036854775807",
+            "options": []
+          }
+        ],
+        "exports": [
+          {
+            "id": "migrated",
+            "kind": "controller",
+            "name": "Migrated",
+            "parameterIds": [
+              "counter"
+            ],
+            "bindingKinds": [
+              "tokens"
+            ],
+            "declaration": {
+              "id": "migrated",
+              "kind": "controller",
+              "parameters": [
+                "counter"
+              ],
+              "bindingKinds": [
+                "tokens"
+              ],
+              "outputs": []
+            }
+          }
+        ],
+        "bindingKinds": [
+          "tokens"
+        ],
+        "inputs": [
+          {
+            "path": "graphs/tint.json",
+            "inputs": [
+              {
+                "id": "color",
+                "source": "TargetColor"
+              }
+            ]
+          }
+        ],
+        "files": [
+          {
+            "path": "src/PackEffect.cs",
+            "role": "csharp",
+            "size": 250,
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "diagnostics": [],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-response-missing-sdkVersion",
+      "schema": "AuthorSourceInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "packageId": "demo.closed",
+        "packageRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "Demo",
+        "version": "1.0.0",
+        "packageVersion": 3,
+        "shaderProfile": "skia-ganesh-3.119.4-v2",
+        "structureValid": true,
+        "parameters": [
+          {
+            "id": "counter",
+            "type": "integer",
+            "label": "Counter",
+            "defaultValueJson": "9007199254740993",
+            "minimumJson": "-9223372036854775808",
+            "maximumJson": "9223372036854775807",
+            "options": []
+          }
+        ],
+        "exports": [
+          {
+            "id": "migrated",
+            "kind": "controller",
+            "name": "Migrated",
+            "parameterIds": [
+              "counter"
+            ],
+            "bindingKinds": [
+              "tokens"
+            ],
+            "declaration": {
+              "id": "migrated",
+              "kind": "controller",
+              "parameters": [
+                "counter"
+              ],
+              "bindingKinds": [
+                "tokens"
+              ],
+              "outputs": []
+            }
+          }
+        ],
+        "bindingKinds": [
+          "tokens"
+        ],
+        "inputs": [
+          {
+            "path": "graphs/tint.json",
+            "inputs": [
+              {
+                "id": "color",
+                "source": "TargetColor"
+              }
+            ]
+          }
+        ],
+        "files": [
+          {
+            "path": "src/PackEffect.cs",
+            "role": "csharp",
+            "size": 250,
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "diagnostics": [],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-response-missing-shaderProfile",
+      "schema": "AuthorSourceInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "packageId": "demo.closed",
+        "packageRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "Demo",
+        "version": "1.0.0",
+        "packageVersion": 3,
+        "sdkVersion": "2.0.0",
+        "structureValid": true,
+        "parameters": [
+          {
+            "id": "counter",
+            "type": "integer",
+            "label": "Counter",
+            "defaultValueJson": "9007199254740993",
+            "minimumJson": "-9223372036854775808",
+            "maximumJson": "9223372036854775807",
+            "options": []
+          }
+        ],
+        "exports": [
+          {
+            "id": "migrated",
+            "kind": "controller",
+            "name": "Migrated",
+            "parameterIds": [
+              "counter"
+            ],
+            "bindingKinds": [
+              "tokens"
+            ],
+            "declaration": {
+              "id": "migrated",
+              "kind": "controller",
+              "parameters": [
+                "counter"
+              ],
+              "bindingKinds": [
+                "tokens"
+              ],
+              "outputs": []
+            }
+          }
+        ],
+        "bindingKinds": [
+          "tokens"
+        ],
+        "inputs": [
+          {
+            "path": "graphs/tint.json",
+            "inputs": [
+              {
+                "id": "color",
+                "source": "TargetColor"
+              }
+            ]
+          }
+        ],
+        "files": [
+          {
+            "path": "src/PackEffect.cs",
+            "role": "csharp",
+            "size": 250,
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "diagnostics": [],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-response-missing-structureValid",
+      "schema": "AuthorSourceInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "packageId": "demo.closed",
+        "packageRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "Demo",
+        "version": "1.0.0",
+        "packageVersion": 3,
+        "sdkVersion": "2.0.0",
+        "shaderProfile": "skia-ganesh-3.119.4-v2",
+        "parameters": [
+          {
+            "id": "counter",
+            "type": "integer",
+            "label": "Counter",
+            "defaultValueJson": "9007199254740993",
+            "minimumJson": "-9223372036854775808",
+            "maximumJson": "9223372036854775807",
+            "options": []
+          }
+        ],
+        "exports": [
+          {
+            "id": "migrated",
+            "kind": "controller",
+            "name": "Migrated",
+            "parameterIds": [
+              "counter"
+            ],
+            "bindingKinds": [
+              "tokens"
+            ],
+            "declaration": {
+              "id": "migrated",
+              "kind": "controller",
+              "parameters": [
+                "counter"
+              ],
+              "bindingKinds": [
+                "tokens"
+              ],
+              "outputs": []
+            }
+          }
+        ],
+        "bindingKinds": [
+          "tokens"
+        ],
+        "inputs": [
+          {
+            "path": "graphs/tint.json",
+            "inputs": [
+              {
+                "id": "color",
+                "source": "TargetColor"
+              }
+            ]
+          }
+        ],
+        "files": [
+          {
+            "path": "src/PackEffect.cs",
+            "role": "csharp",
+            "size": 250,
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "diagnostics": [],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-response-missing-parameters",
+      "schema": "AuthorSourceInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "packageId": "demo.closed",
+        "packageRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "Demo",
+        "version": "1.0.0",
+        "packageVersion": 3,
+        "sdkVersion": "2.0.0",
+        "shaderProfile": "skia-ganesh-3.119.4-v2",
+        "structureValid": true,
+        "exports": [
+          {
+            "id": "migrated",
+            "kind": "controller",
+            "name": "Migrated",
+            "parameterIds": [
+              "counter"
+            ],
+            "bindingKinds": [
+              "tokens"
+            ],
+            "declaration": {
+              "id": "migrated",
+              "kind": "controller",
+              "parameters": [
+                "counter"
+              ],
+              "bindingKinds": [
+                "tokens"
+              ],
+              "outputs": []
+            }
+          }
+        ],
+        "bindingKinds": [
+          "tokens"
+        ],
+        "inputs": [
+          {
+            "path": "graphs/tint.json",
+            "inputs": [
+              {
+                "id": "color",
+                "source": "TargetColor"
+              }
+            ]
+          }
+        ],
+        "files": [
+          {
+            "path": "src/PackEffect.cs",
+            "role": "csharp",
+            "size": 250,
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "diagnostics": [],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-response-missing-exports",
+      "schema": "AuthorSourceInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "packageId": "demo.closed",
+        "packageRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "Demo",
+        "version": "1.0.0",
+        "packageVersion": 3,
+        "sdkVersion": "2.0.0",
+        "shaderProfile": "skia-ganesh-3.119.4-v2",
+        "structureValid": true,
+        "parameters": [
+          {
+            "id": "counter",
+            "type": "integer",
+            "label": "Counter",
+            "defaultValueJson": "9007199254740993",
+            "minimumJson": "-9223372036854775808",
+            "maximumJson": "9223372036854775807",
+            "options": []
+          }
+        ],
+        "bindingKinds": [
+          "tokens"
+        ],
+        "inputs": [
+          {
+            "path": "graphs/tint.json",
+            "inputs": [
+              {
+                "id": "color",
+                "source": "TargetColor"
+              }
+            ]
+          }
+        ],
+        "files": [
+          {
+            "path": "src/PackEffect.cs",
+            "role": "csharp",
+            "size": 250,
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "diagnostics": [],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-response-missing-bindingKinds",
+      "schema": "AuthorSourceInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "packageId": "demo.closed",
+        "packageRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "Demo",
+        "version": "1.0.0",
+        "packageVersion": 3,
+        "sdkVersion": "2.0.0",
+        "shaderProfile": "skia-ganesh-3.119.4-v2",
+        "structureValid": true,
+        "parameters": [
+          {
+            "id": "counter",
+            "type": "integer",
+            "label": "Counter",
+            "defaultValueJson": "9007199254740993",
+            "minimumJson": "-9223372036854775808",
+            "maximumJson": "9223372036854775807",
+            "options": []
+          }
+        ],
+        "exports": [
+          {
+            "id": "migrated",
+            "kind": "controller",
+            "name": "Migrated",
+            "parameterIds": [
+              "counter"
+            ],
+            "bindingKinds": [
+              "tokens"
+            ],
+            "declaration": {
+              "id": "migrated",
+              "kind": "controller",
+              "parameters": [
+                "counter"
+              ],
+              "bindingKinds": [
+                "tokens"
+              ],
+              "outputs": []
+            }
+          }
+        ],
+        "inputs": [
+          {
+            "path": "graphs/tint.json",
+            "inputs": [
+              {
+                "id": "color",
+                "source": "TargetColor"
+              }
+            ]
+          }
+        ],
+        "files": [
+          {
+            "path": "src/PackEffect.cs",
+            "role": "csharp",
+            "size": 250,
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "diagnostics": [],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-response-missing-inputs",
+      "schema": "AuthorSourceInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "packageId": "demo.closed",
+        "packageRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "Demo",
+        "version": "1.0.0",
+        "packageVersion": 3,
+        "sdkVersion": "2.0.0",
+        "shaderProfile": "skia-ganesh-3.119.4-v2",
+        "structureValid": true,
+        "parameters": [
+          {
+            "id": "counter",
+            "type": "integer",
+            "label": "Counter",
+            "defaultValueJson": "9007199254740993",
+            "minimumJson": "-9223372036854775808",
+            "maximumJson": "9223372036854775807",
+            "options": []
+          }
+        ],
+        "exports": [
+          {
+            "id": "migrated",
+            "kind": "controller",
+            "name": "Migrated",
+            "parameterIds": [
+              "counter"
+            ],
+            "bindingKinds": [
+              "tokens"
+            ],
+            "declaration": {
+              "id": "migrated",
+              "kind": "controller",
+              "parameters": [
+                "counter"
+              ],
+              "bindingKinds": [
+                "tokens"
+              ],
+              "outputs": []
+            }
+          }
+        ],
+        "bindingKinds": [
+          "tokens"
+        ],
+        "files": [
+          {
+            "path": "src/PackEffect.cs",
+            "role": "csharp",
+            "size": 250,
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "diagnostics": [],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-response-missing-files",
+      "schema": "AuthorSourceInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "packageId": "demo.closed",
+        "packageRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "Demo",
+        "version": "1.0.0",
+        "packageVersion": 3,
+        "sdkVersion": "2.0.0",
+        "shaderProfile": "skia-ganesh-3.119.4-v2",
+        "structureValid": true,
+        "parameters": [
+          {
+            "id": "counter",
+            "type": "integer",
+            "label": "Counter",
+            "defaultValueJson": "9007199254740993",
+            "minimumJson": "-9223372036854775808",
+            "maximumJson": "9223372036854775807",
+            "options": []
+          }
+        ],
+        "exports": [
+          {
+            "id": "migrated",
+            "kind": "controller",
+            "name": "Migrated",
+            "parameterIds": [
+              "counter"
+            ],
+            "bindingKinds": [
+              "tokens"
+            ],
+            "declaration": {
+              "id": "migrated",
+              "kind": "controller",
+              "parameters": [
+                "counter"
+              ],
+              "bindingKinds": [
+                "tokens"
+              ],
+              "outputs": []
+            }
+          }
+        ],
+        "bindingKinds": [
+          "tokens"
+        ],
+        "inputs": [
+          {
+            "path": "graphs/tint.json",
+            "inputs": [
+              {
+                "id": "color",
+                "source": "TargetColor"
+              }
+            ]
+          }
+        ],
+        "diagnostics": [],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-response-missing-diagnostics",
+      "schema": "AuthorSourceInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "packageId": "demo.closed",
+        "packageRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "Demo",
+        "version": "1.0.0",
+        "packageVersion": 3,
+        "sdkVersion": "2.0.0",
+        "shaderProfile": "skia-ganesh-3.119.4-v2",
+        "structureValid": true,
+        "parameters": [
+          {
+            "id": "counter",
+            "type": "integer",
+            "label": "Counter",
+            "defaultValueJson": "9007199254740993",
+            "minimumJson": "-9223372036854775808",
+            "maximumJson": "9223372036854775807",
+            "options": []
+          }
+        ],
+        "exports": [
+          {
+            "id": "migrated",
+            "kind": "controller",
+            "name": "Migrated",
+            "parameterIds": [
+              "counter"
+            ],
+            "bindingKinds": [
+              "tokens"
+            ],
+            "declaration": {
+              "id": "migrated",
+              "kind": "controller",
+              "parameters": [
+                "counter"
+              ],
+              "bindingKinds": [
+                "tokens"
+              ],
+              "outputs": []
+            }
+          }
+        ],
+        "bindingKinds": [
+          "tokens"
+        ],
+        "inputs": [
+          {
+            "path": "graphs/tint.json",
+            "inputs": [
+              {
+                "id": "color",
+                "source": "TargetColor"
+              }
+            ]
+          }
+        ],
+        "files": [
+          {
+            "path": "src/PackEffect.cs",
+            "role": "csharp",
+            "size": 250,
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-response-missing-protocolVersion",
+      "schema": "AuthorSourceInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "packageId": "demo.closed",
+        "packageRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "Demo",
+        "version": "1.0.0",
+        "packageVersion": 3,
+        "sdkVersion": "2.0.0",
+        "shaderProfile": "skia-ganesh-3.119.4-v2",
+        "structureValid": true,
+        "parameters": [
+          {
+            "id": "counter",
+            "type": "integer",
+            "label": "Counter",
+            "defaultValueJson": "9007199254740993",
+            "minimumJson": "-9223372036854775808",
+            "maximumJson": "9223372036854775807",
+            "options": []
+          }
+        ],
+        "exports": [
+          {
+            "id": "migrated",
+            "kind": "controller",
+            "name": "Migrated",
+            "parameterIds": [
+              "counter"
+            ],
+            "bindingKinds": [
+              "tokens"
+            ],
+            "declaration": {
+              "id": "migrated",
+              "kind": "controller",
+              "parameters": [
+                "counter"
+              ],
+              "bindingKinds": [
+                "tokens"
+              ],
+              "outputs": []
+            }
+          }
+        ],
+        "bindingKinds": [
+          "tokens"
+        ],
+        "inputs": [
+          {
+            "path": "graphs/tint.json",
+            "inputs": [
+              {
+                "id": "color",
+                "source": "TargetColor"
+              }
+            ]
+          }
+        ],
+        "files": [
+          {
+            "path": "src/PackEffect.cs",
+            "role": "csharp",
+            "size": 250,
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "diagnostics": []
+      }
+    },
+    {
+      "name": "author-metadata-inspection-response-invalid-draftRevision",
+      "schema": "AuthorSourceInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "latest",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "packageId": "demo.closed",
+        "packageRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "Demo",
+        "version": "1.0.0",
+        "packageVersion": 3,
+        "sdkVersion": "2.0.0",
+        "shaderProfile": "skia-ganesh-3.119.4-v2",
+        "structureValid": true,
+        "parameters": [
+          {
+            "id": "counter",
+            "type": "integer",
+            "label": "Counter",
+            "defaultValueJson": "9007199254740993",
+            "minimumJson": "-9223372036854775808",
+            "maximumJson": "9223372036854775807",
+            "options": []
+          }
+        ],
+        "exports": [
+          {
+            "id": "migrated",
+            "kind": "controller",
+            "name": "Migrated",
+            "parameterIds": [
+              "counter"
+            ],
+            "bindingKinds": [
+              "tokens"
+            ],
+            "declaration": {
+              "id": "migrated",
+              "kind": "controller",
+              "parameters": [
+                "counter"
+              ],
+              "bindingKinds": [
+                "tokens"
+              ],
+              "outputs": []
+            }
+          }
+        ],
+        "bindingKinds": [
+          "tokens"
+        ],
+        "inputs": [
+          {
+            "path": "graphs/tint.json",
+            "inputs": [
+              {
+                "id": "color",
+                "source": "TargetColor"
+              }
+            ]
+          }
+        ],
+        "files": [
+          {
+            "path": "src/PackEffect.cs",
+            "role": "csharp",
+            "size": 250,
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "diagnostics": [],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-response-invalid-sourceRevision",
+      "schema": "AuthorSourceInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "latest",
+        "packageId": "demo.closed",
+        "packageRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "Demo",
+        "version": "1.0.0",
+        "packageVersion": 3,
+        "sdkVersion": "2.0.0",
+        "shaderProfile": "skia-ganesh-3.119.4-v2",
+        "structureValid": true,
+        "parameters": [
+          {
+            "id": "counter",
+            "type": "integer",
+            "label": "Counter",
+            "defaultValueJson": "9007199254740993",
+            "minimumJson": "-9223372036854775808",
+            "maximumJson": "9223372036854775807",
+            "options": []
+          }
+        ],
+        "exports": [
+          {
+            "id": "migrated",
+            "kind": "controller",
+            "name": "Migrated",
+            "parameterIds": [
+              "counter"
+            ],
+            "bindingKinds": [
+              "tokens"
+            ],
+            "declaration": {
+              "id": "migrated",
+              "kind": "controller",
+              "parameters": [
+                "counter"
+              ],
+              "bindingKinds": [
+                "tokens"
+              ],
+              "outputs": []
+            }
+          }
+        ],
+        "bindingKinds": [
+          "tokens"
+        ],
+        "inputs": [
+          {
+            "path": "graphs/tint.json",
+            "inputs": [
+              {
+                "id": "color",
+                "source": "TargetColor"
+              }
+            ]
+          }
+        ],
+        "files": [
+          {
+            "path": "src/PackEffect.cs",
+            "role": "csharp",
+            "size": 250,
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "diagnostics": [],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-response-invalid-packageRevision",
+      "schema": "AuthorSourceInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "packageId": "demo.closed",
+        "packageRevision": "latest",
+        "name": "Demo",
+        "version": "1.0.0",
+        "packageVersion": 3,
+        "sdkVersion": "2.0.0",
+        "shaderProfile": "skia-ganesh-3.119.4-v2",
+        "structureValid": true,
+        "parameters": [
+          {
+            "id": "counter",
+            "type": "integer",
+            "label": "Counter",
+            "defaultValueJson": "9007199254740993",
+            "minimumJson": "-9223372036854775808",
+            "maximumJson": "9223372036854775807",
+            "options": []
+          }
+        ],
+        "exports": [
+          {
+            "id": "migrated",
+            "kind": "controller",
+            "name": "Migrated",
+            "parameterIds": [
+              "counter"
+            ],
+            "bindingKinds": [
+              "tokens"
+            ],
+            "declaration": {
+              "id": "migrated",
+              "kind": "controller",
+              "parameters": [
+                "counter"
+              ],
+              "bindingKinds": [
+                "tokens"
+              ],
+              "outputs": []
+            }
+          }
+        ],
+        "bindingKinds": [
+          "tokens"
+        ],
+        "inputs": [
+          {
+            "path": "graphs/tint.json",
+            "inputs": [
+              {
+                "id": "color",
+                "source": "TargetColor"
+              }
+            ]
+          }
+        ],
+        "files": [
+          {
+            "path": "src/PackEffect.cs",
+            "role": "csharp",
+            "size": 250,
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "diagnostics": [],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-response-default-number",
+      "schema": "AuthorSourceInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "packageId": "demo.closed",
+        "packageRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "Demo",
+        "version": "1.0.0",
+        "packageVersion": 3,
+        "sdkVersion": "2.0.0",
+        "shaderProfile": "skia-ganesh-3.119.4-v2",
+        "structureValid": true,
+        "parameters": [
+          {
+            "id": "counter",
+            "type": "integer",
+            "label": "Counter",
+            "defaultValueJson": 9007199254740993,
+            "minimumJson": "-9223372036854775808",
+            "maximumJson": "9223372036854775807",
+            "options": []
+          }
+        ],
+        "exports": [
+          {
+            "id": "migrated",
+            "kind": "controller",
+            "name": "Migrated",
+            "parameterIds": [
+              "counter"
+            ],
+            "bindingKinds": [
+              "tokens"
+            ],
+            "declaration": {
+              "id": "migrated",
+              "kind": "controller",
+              "parameters": [
+                "counter"
+              ],
+              "bindingKinds": [
+                "tokens"
+              ],
+              "outputs": []
+            }
+          }
+        ],
+        "bindingKinds": [
+          "tokens"
+        ],
+        "inputs": [
+          {
+            "path": "graphs/tint.json",
+            "inputs": [
+              {
+                "id": "color",
+                "source": "TargetColor"
+              }
+            ]
+          }
+        ],
+        "files": [
+          {
+            "path": "src/PackEffect.cs",
+            "role": "csharp",
+            "size": 250,
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "diagnostics": [],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-response-minimum-number",
+      "schema": "AuthorSourceInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "packageId": "demo.closed",
+        "packageRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "Demo",
+        "version": "1.0.0",
+        "packageVersion": 3,
+        "sdkVersion": "2.0.0",
+        "shaderProfile": "skia-ganesh-3.119.4-v2",
+        "structureValid": true,
+        "parameters": [
+          {
+            "id": "counter",
+            "type": "integer",
+            "label": "Counter",
+            "defaultValueJson": "9007199254740993",
+            "minimumJson": -9223372036854775808,
+            "maximumJson": "9223372036854775807",
+            "options": []
+          }
+        ],
+        "exports": [
+          {
+            "id": "migrated",
+            "kind": "controller",
+            "name": "Migrated",
+            "parameterIds": [
+              "counter"
+            ],
+            "bindingKinds": [
+              "tokens"
+            ],
+            "declaration": {
+              "id": "migrated",
+              "kind": "controller",
+              "parameters": [
+                "counter"
+              ],
+              "bindingKinds": [
+                "tokens"
+              ],
+              "outputs": []
+            }
+          }
+        ],
+        "bindingKinds": [
+          "tokens"
+        ],
+        "inputs": [
+          {
+            "path": "graphs/tint.json",
+            "inputs": [
+              {
+                "id": "color",
+                "source": "TargetColor"
+              }
+            ]
+          }
+        ],
+        "files": [
+          {
+            "path": "src/PackEffect.cs",
+            "role": "csharp",
+            "size": 250,
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "diagnostics": [],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-response-maximum-number",
+      "schema": "AuthorSourceInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "packageId": "demo.closed",
+        "packageRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "Demo",
+        "version": "1.0.0",
+        "packageVersion": 3,
+        "sdkVersion": "2.0.0",
+        "shaderProfile": "skia-ganesh-3.119.4-v2",
+        "structureValid": true,
+        "parameters": [
+          {
+            "id": "counter",
+            "type": "integer",
+            "label": "Counter",
+            "defaultValueJson": "9007199254740993",
+            "minimumJson": "-9223372036854775808",
+            "maximumJson": 9223372036854775807,
+            "options": []
+          }
+        ],
+        "exports": [
+          {
+            "id": "migrated",
+            "kind": "controller",
+            "name": "Migrated",
+            "parameterIds": [
+              "counter"
+            ],
+            "bindingKinds": [
+              "tokens"
+            ],
+            "declaration": {
+              "id": "migrated",
+              "kind": "controller",
+              "parameters": [
+                "counter"
+              ],
+              "bindingKinds": [
+                "tokens"
+              ],
+              "outputs": []
+            }
+          }
+        ],
+        "bindingKinds": [
+          "tokens"
+        ],
+        "inputs": [
+          {
+            "path": "graphs/tint.json",
+            "inputs": [
+              {
+                "id": "color",
+                "source": "TargetColor"
+              }
+            ]
+          }
+        ],
+        "files": [
+          {
+            "path": "src/PackEffect.cs",
+            "role": "csharp",
+            "size": 250,
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "diagnostics": [],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-response-sizeBytes-is-not-size",
+      "schema": "AuthorSourceInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "packageId": "demo.closed",
+        "packageRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "Demo",
+        "version": "1.0.0",
+        "packageVersion": 3,
+        "sdkVersion": "2.0.0",
+        "shaderProfile": "skia-ganesh-3.119.4-v2",
+        "structureValid": true,
+        "parameters": [
+          {
+            "id": "counter",
+            "type": "integer",
+            "label": "Counter",
+            "defaultValueJson": "9007199254740993",
+            "minimumJson": "-9223372036854775808",
+            "maximumJson": "9223372036854775807",
+            "options": []
+          }
+        ],
+        "exports": [
+          {
+            "id": "migrated",
+            "kind": "controller",
+            "name": "Migrated",
+            "parameterIds": [
+              "counter"
+            ],
+            "bindingKinds": [
+              "tokens"
+            ],
+            "declaration": {
+              "id": "migrated",
+              "kind": "controller",
+              "parameters": [
+                "counter"
+              ],
+              "bindingKinds": [
+                "tokens"
+              ],
+              "outputs": []
+            }
+          }
+        ],
+        "bindingKinds": [
+          "tokens"
+        ],
+        "inputs": [
+          {
+            "path": "graphs/tint.json",
+            "inputs": [
+              {
+                "id": "color",
+                "source": "TargetColor"
+              }
+            ]
+          }
+        ],
+        "files": [
+          {
+            "path": "src/PackEffect.cs",
+            "role": "csharp",
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "sizeBytes": 250
+          }
+        ],
+        "diagnostics": [],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-response-size-int64",
+      "schema": "AuthorSourceInspectionResponse",
+      "valid": true,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "packageId": "demo.closed",
+        "packageRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "Demo",
+        "version": "1.0.0",
+        "packageVersion": 3,
+        "sdkVersion": "2.0.0",
+        "shaderProfile": "skia-ganesh-3.119.4-v2",
+        "structureValid": true,
+        "parameters": [
+          {
+            "id": "counter",
+            "type": "integer",
+            "label": "Counter",
+            "defaultValueJson": "9007199254740993",
+            "minimumJson": "-9223372036854775808",
+            "maximumJson": "9223372036854775807",
+            "options": []
+          }
+        ],
+        "exports": [
+          {
+            "id": "migrated",
+            "kind": "controller",
+            "name": "Migrated",
+            "parameterIds": [
+              "counter"
+            ],
+            "bindingKinds": [
+              "tokens"
+            ],
+            "declaration": {
+              "id": "migrated",
+              "kind": "controller",
+              "parameters": [
+                "counter"
+              ],
+              "bindingKinds": [
+                "tokens"
+              ],
+              "outputs": []
+            }
+          }
+        ],
+        "bindingKinds": [
+          "tokens"
+        ],
+        "inputs": [
+          {
+            "path": "graphs/tint.json",
+            "inputs": [
+              {
+                "id": "color",
+                "source": "TargetColor"
+              }
+            ]
+          }
+        ],
+        "files": [
+          {
+            "path": "src/PackEffect.cs",
+            "role": "csharp",
+            "size": 9007199254740993,
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "diagnostics": [],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-metadata-inspection-response-size-string",
+      "schema": "AuthorSourceInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "packageId": "demo.closed",
+        "packageRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "Demo",
+        "version": "1.0.0",
+        "packageVersion": 3,
+        "sdkVersion": "2.0.0",
+        "shaderProfile": "skia-ganesh-3.119.4-v2",
+        "structureValid": true,
+        "parameters": [
+          {
+            "id": "counter",
+            "type": "integer",
+            "label": "Counter",
+            "defaultValueJson": "9007199254740993",
+            "minimumJson": "-9223372036854775808",
+            "maximumJson": "9223372036854775807",
+            "options": []
+          }
+        ],
+        "exports": [
+          {
+            "id": "migrated",
+            "kind": "controller",
+            "name": "Migrated",
+            "parameterIds": [
+              "counter"
+            ],
+            "bindingKinds": [
+              "tokens"
+            ],
+            "declaration": {
+              "id": "migrated",
+              "kind": "controller",
+              "parameters": [
+                "counter"
+              ],
+              "bindingKinds": [
+                "tokens"
+              ],
+              "outputs": []
+            }
+          }
+        ],
+        "bindingKinds": [
+          "tokens"
+        ],
+        "inputs": [
+          {
+            "path": "graphs/tint.json",
+            "inputs": [
+              {
+                "id": "color",
+                "source": "TargetColor"
+              }
+            ]
+          }
+        ],
+        "files": [
+          {
+            "path": "src/PackEffect.cs",
+            "role": "csharp",
+            "size": "250",
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "diagnostics": [],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-metadata-adopt-legacy-three-fields",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": true,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-null-configuration",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": true,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": null
+      }
+    },
+    {
+      "name": "author-metadata-adopt-complete-configuration",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": true,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": "Migrated config",
+          "exportId": "migrated",
+          "parametersJson": "{\"counter\":9007199254740993}",
+          "relativeTarget": "tokenFamily",
+          "readScope": "project",
+          "branchInput": null,
+          "fixedSeed": "18446744073709551615",
+          "overlayLayer": "package"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-missing-name",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "exportId": "migrated",
+          "parametersJson": "{\"counter\":9007199254740993}",
+          "relativeTarget": "tokenFamily",
+          "readScope": "project",
+          "branchInput": null,
+          "fixedSeed": "18446744073709551615",
+          "overlayLayer": "package"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-missing-exportId",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": "Migrated config",
+          "parametersJson": "{\"counter\":9007199254740993}",
+          "relativeTarget": "tokenFamily",
+          "readScope": "project",
+          "branchInput": null,
+          "fixedSeed": "18446744073709551615",
+          "overlayLayer": "package"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-missing-parametersJson",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": "Migrated config",
+          "exportId": "migrated",
+          "relativeTarget": "tokenFamily",
+          "readScope": "project",
+          "branchInput": null,
+          "fixedSeed": "18446744073709551615",
+          "overlayLayer": "package"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-missing-relativeTarget",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": "Migrated config",
+          "exportId": "migrated",
+          "parametersJson": "{\"counter\":9007199254740993}",
+          "readScope": "project",
+          "branchInput": null,
+          "fixedSeed": "18446744073709551615",
+          "overlayLayer": "package"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-missing-readScope",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": "Migrated config",
+          "exportId": "migrated",
+          "parametersJson": "{\"counter\":9007199254740993}",
+          "relativeTarget": "tokenFamily",
+          "branchInput": null,
+          "fixedSeed": "18446744073709551615",
+          "overlayLayer": "package"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-missing-branchInput",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": "Migrated config",
+          "exportId": "migrated",
+          "parametersJson": "{\"counter\":9007199254740993}",
+          "relativeTarget": "tokenFamily",
+          "readScope": "project",
+          "fixedSeed": "18446744073709551615",
+          "overlayLayer": "package"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-missing-fixedSeed",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": "Migrated config",
+          "exportId": "migrated",
+          "parametersJson": "{\"counter\":9007199254740993}",
+          "relativeTarget": "tokenFamily",
+          "readScope": "project",
+          "branchInput": null,
+          "overlayLayer": "package"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-missing-overlayLayer",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": "Migrated config",
+          "exportId": "migrated",
+          "parametersJson": "{\"counter\":9007199254740993}",
+          "relativeTarget": "tokenFamily",
+          "readScope": "project",
+          "branchInput": null,
+          "fixedSeed": "18446744073709551615"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-server-field-packageId",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": "Migrated config",
+          "exportId": "migrated",
+          "parametersJson": "{\"counter\":9007199254740993}",
+          "relativeTarget": "tokenFamily",
+          "readScope": "project",
+          "branchInput": null,
+          "fixedSeed": "18446744073709551615",
+          "overlayLayer": "package",
+          "packageId": "forbidden"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-server-field-sourceRevision",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": "Migrated config",
+          "exportId": "migrated",
+          "parametersJson": "{\"counter\":9007199254740993}",
+          "relativeTarget": "tokenFamily",
+          "readScope": "project",
+          "branchInput": null,
+          "fixedSeed": "18446744073709551615",
+          "overlayLayer": "package",
+          "sourceRevision": "forbidden"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-server-field-kind",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": "Migrated config",
+          "exportId": "migrated",
+          "parametersJson": "{\"counter\":9007199254740993}",
+          "relativeTarget": "tokenFamily",
+          "readScope": "project",
+          "branchInput": null,
+          "fixedSeed": "18446744073709551615",
+          "overlayLayer": "package",
+          "kind": "forbidden"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-server-field-bindingKinds",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": "Migrated config",
+          "exportId": "migrated",
+          "parametersJson": "{\"counter\":9007199254740993}",
+          "relativeTarget": "tokenFamily",
+          "readScope": "project",
+          "branchInput": null,
+          "fixedSeed": "18446744073709551615",
+          "overlayLayer": "package",
+          "bindingKinds": "forbidden"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-parameters-object",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": "Migrated config",
+          "exportId": "migrated",
+          "parametersJson": {},
+          "relativeTarget": "tokenFamily",
+          "readScope": "project",
+          "branchInput": null,
+          "fixedSeed": "18446744073709551615",
+          "overlayLayer": "package"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-name-empty",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": "",
+          "exportId": "migrated",
+          "parametersJson": "{\"counter\":9007199254740993}",
+          "relativeTarget": "tokenFamily",
+          "readScope": "project",
+          "branchInput": null,
+          "fixedSeed": "18446744073709551615",
+          "overlayLayer": "package"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-name-whitespace",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": " ",
+          "exportId": "migrated",
+          "parametersJson": "{\"counter\":9007199254740993}",
+          "relativeTarget": "tokenFamily",
+          "readScope": "project",
+          "branchInput": null,
+          "fixedSeed": "18446744073709551615",
+          "overlayLayer": "package"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-name-too-long",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+          "exportId": "migrated",
+          "parametersJson": "{\"counter\":9007199254740993}",
+          "relativeTarget": "tokenFamily",
+          "readScope": "project",
+          "branchInput": null,
+          "fixedSeed": "18446744073709551615",
+          "overlayLayer": "package"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-export-empty",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": "Migrated config",
+          "exportId": "",
+          "parametersJson": "{\"counter\":9007199254740993}",
+          "relativeTarget": "tokenFamily",
+          "readScope": "project",
+          "branchInput": null,
+          "fixedSeed": "18446744073709551615",
+          "overlayLayer": "package"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-target-invalid",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": "Migrated config",
+          "exportId": "migrated",
+          "parametersJson": "{\"counter\":9007199254740993}",
+          "relativeTarget": "group",
+          "readScope": "project",
+          "branchInput": null,
+          "fixedSeed": "18446744073709551615",
+          "overlayLayer": "package"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-scope-invalid",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": "Migrated config",
+          "exportId": "migrated",
+          "parametersJson": "{\"counter\":9007199254740993}",
+          "relativeTarget": "tokenFamily",
+          "readScope": "unknown",
+          "branchInput": null,
+          "fixedSeed": "18446744073709551615",
+          "overlayLayer": "package"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-layer-invalid",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": "Migrated config",
+          "exportId": "migrated",
+          "parametersJson": "{\"counter\":9007199254740993}",
+          "relativeTarget": "tokenFamily",
+          "readScope": "project",
+          "branchInput": null,
+          "fixedSeed": "18446744073709551615",
+          "overlayLayer": "unknown"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-unused-branch",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": "Migrated config",
+          "exportId": "migrated",
+          "parametersJson": "{\"counter\":9007199254740993}",
+          "relativeTarget": "tokenFamily",
+          "readScope": "project",
+          "branchInput": "translation",
+          "fixedSeed": "18446744073709551615",
+          "overlayLayer": "package"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-branch-null",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": "Migrated config",
+          "exportId": "migrated",
+          "parametersJson": "{\"counter\":9007199254740993}",
+          "relativeTarget": "tokenFamily",
+          "readScope": "branchInput",
+          "branchInput": null,
+          "fixedSeed": "18446744073709551615",
+          "overlayLayer": "package"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-branch-empty",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": "Migrated config",
+          "exportId": "migrated",
+          "parametersJson": "{\"counter\":9007199254740993}",
+          "relativeTarget": "tokenFamily",
+          "readScope": "branchInput",
+          "branchInput": "",
+          "fixedSeed": "18446744073709551615",
+          "overlayLayer": "package"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-seed-number",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": "Migrated config",
+          "exportId": "migrated",
+          "parametersJson": "{\"counter\":9007199254740993}",
+          "relativeTarget": "tokenFamily",
+          "readScope": "project",
+          "branchInput": null,
+          "fixedSeed": 18446744073709551615,
+          "overlayLayer": "package"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-seed-empty",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": "Migrated config",
+          "exportId": "migrated",
+          "parametersJson": "{\"counter\":9007199254740993}",
+          "relativeTarget": "tokenFamily",
+          "readScope": "project",
+          "branchInput": null,
+          "fixedSeed": "",
+          "overlayLayer": "package"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-seed-negative",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": "Migrated config",
+          "exportId": "migrated",
+          "parametersJson": "{\"counter\":9007199254740993}",
+          "relativeTarget": "tokenFamily",
+          "readScope": "project",
+          "branchInput": null,
+          "fixedSeed": "-1",
+          "overlayLayer": "package"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-seed-plus",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": "Migrated config",
+          "exportId": "migrated",
+          "parametersJson": "{\"counter\":9007199254740993}",
+          "relativeTarget": "tokenFamily",
+          "readScope": "project",
+          "branchInput": null,
+          "fixedSeed": "+1",
+          "overlayLayer": "package"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-seed-space",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": "Migrated config",
+          "exportId": "migrated",
+          "parametersJson": "{\"counter\":9007199254740993}",
+          "relativeTarget": "tokenFamily",
+          "readScope": "project",
+          "branchInput": null,
+          "fixedSeed": " 1",
+          "overlayLayer": "package"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-seed-final-newline",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": "Migrated config",
+          "exportId": "migrated",
+          "parametersJson": "{\"counter\":9007199254740993}",
+          "relativeTarget": "tokenFamily",
+          "readScope": "project",
+          "branchInput": null,
+          "fixedSeed": "1\n",
+          "overlayLayer": "package"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-seed-decimal",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": "Migrated config",
+          "exportId": "migrated",
+          "parametersJson": "{\"counter\":9007199254740993}",
+          "relativeTarget": "tokenFamily",
+          "readScope": "project",
+          "branchInput": null,
+          "fixedSeed": "1.0",
+          "overlayLayer": "package"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-seed-exponent",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": "Migrated config",
+          "exportId": "migrated",
+          "parametersJson": "{\"counter\":9007199254740993}",
+          "relativeTarget": "tokenFamily",
+          "readScope": "project",
+          "branchInput": null,
+          "fixedSeed": "1e1",
+          "overlayLayer": "package"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-seed-overflow",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": "Migrated config",
+          "exportId": "migrated",
+          "parametersJson": "{\"counter\":9007199254740993}",
+          "relativeTarget": "tokenFamily",
+          "readScope": "project",
+          "branchInput": null,
+          "fixedSeed": "18446744073709551616",
+          "overlayLayer": "package"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-seed-large-overflow",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": "Migrated config",
+          "exportId": "migrated",
+          "parametersJson": "{\"counter\":9007199254740993}",
+          "relativeTarget": "tokenFamily",
+          "readScope": "project",
+          "branchInput": null,
+          "fixedSeed": "999999999999999999999",
+          "overlayLayer": "package"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-seed-null",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": true,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": "Migrated config",
+          "exportId": "migrated",
+          "parametersJson": "{\"counter\":9007199254740993}",
+          "relativeTarget": "tokenFamily",
+          "readScope": "project",
+          "branchInput": null,
+          "fixedSeed": null,
+          "overlayLayer": "package"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-seed-zero",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": true,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": "Migrated config",
+          "exportId": "migrated",
+          "parametersJson": "{\"counter\":9007199254740993}",
+          "relativeTarget": "tokenFamily",
+          "readScope": "project",
+          "branchInput": null,
+          "fixedSeed": "0",
+          "overlayLayer": "package"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-seed-leading-zero",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": true,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": "Migrated config",
+          "exportId": "migrated",
+          "parametersJson": "{\"counter\":9007199254740993}",
+          "relativeTarget": "tokenFamily",
+          "readScope": "project",
+          "branchInput": null,
+          "fixedSeed": "00018446744073709551615",
+          "overlayLayer": "package"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-configuration-branch",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": true,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "configuration": {
+          "name": "Migrated config",
+          "exportId": "migrated",
+          "parametersJson": "{\"counter\":9007199254740993}",
+          "relativeTarget": "tokenFamily",
+          "readScope": "branchInput",
+          "branchInput": "translation",
+          "fixedSeed": "18446744073709551615",
+          "overlayLayer": "package"
+        }
+      }
+    },
+    {
+      "name": "author-metadata-adopt-no-metadata",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    },
+    {
+      "name": "author-metadata-adopt-unknown-envelope",
+      "schema": "AuthorAdoptSourceRevisionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "metadata": {
+          "requestId": "author-metadata-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-05T12:01:00Z"
+        },
+        "packageId": "forbidden"
+      }
+    },
+    {
+      "name": "author-metadata-public-reference-authorDraft-rejected",
+      "schema": "EffectPackageReferenceDtoInput",
+      "valid": false,
+      "value": {
+        "kind": "authorDraft",
+        "packageId": "demo.closed",
+        "packageRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "draftId": "draft-dddddddddddddddddddddddddddddddd"
+      }
+    },
+    {
+      "name": "author-metadata-error-inspection-budget",
+      "schema": "BackendErrorResponse",
+      "valid": true,
+      "value": {
+        "code": "resourceTooLarge",
+        "message": "具名拒绝；完整操作未发布。",
+        "field": "sourceRevision",
+        "failureCode": "AuthorSourceInspectionTooLarge",
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-metadata-error-inspection-read",
+      "schema": "BackendErrorResponse",
+      "valid": true,
+      "value": {
+        "code": "projectLoadFailed",
+        "message": "具名拒绝；完整操作未发布。",
+        "field": "sourceRevision",
+        "failureCode": "AuthorSourceInspectionReadFailed",
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-metadata-error-inspection-identity",
+      "schema": "BackendErrorResponse",
+      "valid": true,
+      "value": {
+        "code": "projectLoadFailed",
+        "message": "具名拒绝；完整操作未发布。",
+        "field": "sourceRevision",
+        "failureCode": "AuthorSourceIdentityMismatch",
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-metadata-error-adopt-uncompiled",
+      "schema": "BackendErrorResponse",
+      "valid": true,
+      "value": {
+        "code": "commandRejected",
+        "message": "具名拒绝；完整操作未发布。",
+        "field": "sourceRevision",
+        "failureCode": "AuthorSourceCompilationRequired",
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-metadata-error-adopt-configuration",
+      "schema": "BackendErrorResponse",
+      "valid": true,
+      "value": {
+        "code": "invalidRequest",
+        "message": "具名拒绝；完整操作未发布。",
+        "field": "configuration.fixedSeed",
+        "failureCode": "AuthorConfigurationInvalid",
+        "protocolVersion": "1"
+      }
     }
   ],
-  "contractVersion": "1.45.0"
+  "contractVersion": "1.46.0"
 }

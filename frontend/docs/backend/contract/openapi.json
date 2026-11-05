@@ -3,8 +3,8 @@
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "info": {
     "title": "MakoKaraGenerator local backend HTTP API",
-    "version": "1.45.0",
-    "description": "冻结合同1.45.0；HTTP协议1，产品0.112.8。只含当前公共HTTP，不含未来功能及私有Worker。与api-contract.md和其固定行为源共同执行。info.version是合同版本，不是产品/HTTP版本。普通响应可忽略未知字段；请求遵守声明字段及业务门禁。"
+    "version": "1.46.0",
+    "description": "冻结合同1.46.0；HTTP协议1，产品0.112.14。只含当前公共HTTP，不含未来功能及私有Worker。与api-contract.md和其固定行为源共同执行。info.version是合同版本，不是产品/HTTP版本。普通响应可忽略未知字段；请求遵守声明字段及业务门禁。"
   },
   "servers": [
     {
@@ -18,9 +18,9 @@
       }
     }
   ],
-  "x-product-version": "0.112.8",
+  "x-product-version": "0.112.14",
   "x-http-protocol-version": "1",
-  "x-source-baseline": "05dbe85",
+  "x-source-baseline": "1e83e0d475abe10be462e2774621f0c17764457a",
   "x-behavior-contract": "api-contract.md",
   "x-options": {
     "status": 204,
@@ -970,7 +970,7 @@
         "tags": [
           "section-21"
         ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §21。",
+        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §21。 可选完整configuration按目标retained源码的声明原子采用，省略/null沿用既有配置。SDK2 C#必须此草稿精确源编译成功；无效新配置不部分切换，CurrentSourceRevision和最近编译报告保持原义。同值no-op；receipt指纹含完整配置，原样重放返回原结果，改payload复用requestId拒绝。配置格式/绑定失败为invalidRequest/AuthorConfigurationInvalid，field=configuration.<字段>；export/参数包错误为commandRejected并保留原failureCode与精确配置field。",
         "x-behavior-section": "21",
         "parameters": [
           {
@@ -1413,7 +1413,7 @@
         "tags": [
           "section-21"
         ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §21。 完整csharp/shader/shaderProgram/graph/svg/svgResource文本集合与manifest原子保存；图片、字体等非文本原始字节保持固定。可选configuration绑定新修订；结构/配置失败不发布。保存不代表编译或渲染通过。",
+        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §21。 完整csharp/shader/shaderProgram/graph/svg/svgResource文本集合与manifest原子保存；图片、字体等非文本原始字节保持固定。可选configuration绑定新修订；结构/配置失败不发布。保存不代表编译或渲染通过。 SDK2只推进候选currentSourceRevision；可选configuration仍按当前在用源码验证。跨schema迁移须先编译目标修订，再在adopt-source-revision提交完整configuration；SDK1保持原规则。",
         "x-behavior-section": "21",
         "parameters": [
           {
@@ -1478,6 +1478,165 @@
           }
         },
         "x-receipt-location": "metadata"
+      }
+    },
+    "/api/v1/drafts/{id}/source-inspection": {
+      "get": {
+        "operationId": "inspectAuthorSource",
+        "summary": "只读检查作者保留的精确源码声明",
+        "tags": [
+          "section-21"
+        ],
+        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §21。 两个query必须非空且各出现一次；不接受未知query或body。锁内核对owner、草稿CAS、retained成员与完整包身份。未编译源码也可检查，不编译/执行作者、不准备native SVG、不创建资源。响应独立且reference-free，manifest原文继续从package-files读取，两次读取核对相同完整身份tuple。8MiB完整UTF-8响应超限整次拒绝；no-store。",
+        "x-behavior-section": "21",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^draft-[0-9a-f]{32}$"
+            },
+            "description": "采用服务返回的实际身份；不可由数组下标或本机路径推导。"
+          },
+          {
+            "$ref": "#/components/parameters/HostInstance"
+          },
+          {
+            "name": "expectedDraftRevision",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            }
+          },
+          {
+            "name": "sourceRevision",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "统一BackendErrorResponse。HTTP状态/code映射及端点主要拒绝见行为§1.4与对应章节；不是RFC Problem Details。已开始的SSE/字节流若中断不保证还能返回JSON。",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackendErrorResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "成功；任务state及失败报告仍须检查。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorSourceInspectionResponse"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalidRequest：非法draft/revision、缺失/重复/空白/未知query或请求body；field为draftId、对应query名称或body。",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackendErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "resourceUnauthorized：不是草稿当前owner；登记/令牌失败沿统一认证错误。",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackendErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "resourceNotFound：草稿或所选源码不存在，或源码不属于此草稿retained历史；field为draftId/sourceRevision。",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackendErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "revisionConflict：expectedDraftRevision过期；作者停止时sessionClosing，宿主停止全局拒绝可为503。",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackendErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "resourceTooLarge：完整Web UTF-8响应超过8388608字节；field=sourceRevision，failureCode=AuthorSourceInspectionTooLarge。",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackendErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "projectLoadFailed：读取失败AuthorSourceInspectionReadFailed或身份不符AuthorSourceIdentityMismatch；field=sourceRevision。包结构读取拒绝沿commandRejected及原failureCode/path。",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackendErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-query-policy": {
+          "allowUnknown": false,
+          "allPresentExactlyOnce": true,
+          "caseSensitiveNames": true,
+          "required": [
+            "expectedDraftRevision",
+            "sourceRevision"
+          ],
+          "allowed": [
+            "expectedDraftRevision",
+            "sourceRevision"
+          ]
+        },
+        "x-query-schema": {
+          "$ref": "#/components/schemas/AuthorPackageQuery"
+        },
+        "x-request-body-policy": "forbidden",
+        "x-capability": "author.drafts.source-inspection",
+        "x-author-inspection-limits": {
+          "maxResponseBytes": 8388608,
+          "encoding": "web-json-utf8",
+          "truncate": false
+        },
+        "x-receipt-location": "none"
       }
     },
     "/api/v1/drafts/{id}/source-revision-jobs": {
@@ -11323,6 +11482,106 @@
           },
           "metadata": {
             "$ref": "#/components/schemas/RequestMetadataDtoInput"
+          },
+          "configuration": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "\\S",
+                    "maxLength": 256
+                  },
+                  "exportId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "\\S"
+                  },
+                  "parametersJson": {
+                    "type": "string",
+                    "contentMediaType": "application/json",
+                    "description": "完整JSON文本，客户端保留十进制整数原文；对象语法与包参数语义由服务验证。"
+                  },
+                  "relativeTarget": {
+                    "$ref": "#/components/schemas/TemplateEffectTargetDto"
+                  },
+                  "readScope": {
+                    "$ref": "#/components/schemas/TemplateScriptReadScopeDto"
+                  },
+                  "branchInput": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "pattern": "\\S"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "fixedSeed": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^0*(?:[0-9]{1,19}|18446744073709551615|0[0-9]{19}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|18446744073709550[0-9]{3}|18446744073709551[0-5][0-9]{2}|1844674407370955160[0-9]{1}|1844674407370955161[0-4][0-9]{0})$(?![\\s\\S])",
+                        "x-uint64-string": true,
+                        "description": "UInt64十进制字符串0..18446744073709551615，允许前导零；禁止JSON number、符号和空串。"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "overlayLayer": {
+                    "$ref": "#/components/schemas/TemplateEffectOverlayLayerDto"
+                  }
+                },
+                "required": [
+                  "name",
+                  "exportId",
+                  "parametersJson",
+                  "relativeTarget",
+                  "readScope",
+                  "branchInput",
+                  "fixedSeed",
+                  "overlayLayer"
+                ],
+                "additionalProperties": false,
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": {
+                        "readScope": {
+                          "const": "branchInput"
+                        }
+                      }
+                    },
+                    "then": {
+                      "properties": {
+                        "branchInput": {
+                          "type": "string",
+                          "minLength": 1,
+                          "pattern": "\\S"
+                        }
+                      }
+                    },
+                    "else": {
+                      "properties": {
+                        "branchInput": {
+                          "type": "null"
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -11332,7 +11591,7 @@
         ],
         "additionalProperties": false,
         "x-clr-type": "MakoKaraGenerator.Backend.Contracts.AuthorAdoptSourceRevisionRequest",
-        "description": "显式采用此草稿保留的修订；SDK2 C#目标须有成功编译记录，撤销来源也适用。"
+        "description": "显式采用此草稿retained修订；SDK2 C#目标须有此草稿该精确sourceRevision的成功编译记录。configuration省略/null沿用旧配置；非null必须显式给完整八字段，branchInput/fixedSeed允许null但不可省略，未知/重复字段拒绝。name非空白且至多256个UTF-16码元，保存时trim；按目标包验证export/参数/绑定和真实sample options，再同一次document发布配置、名称、导出与采用标记。CurrentSourceRevision与最近一次编译摘要保持原意；同值no-op、CAS及包含完整configuration的receipt语义保持。"
       },
       "AuthorAdoptSourceRevisionResponse": {
         "type": "object",
@@ -12402,6 +12661,122 @@
         ],
         "additionalProperties": false,
         "x-clr-type": "MakoKaraGenerator.Backend.Contracts.AuthorSourceFileDto"
+      },
+      "AuthorSourceInspectionResponse": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string",
+            "pattern": "^draft-[0-9a-f]{32}$"
+          },
+          "draftRevision": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "sourceRevision": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "packageId": {
+            "type": "string"
+          },
+          "packageRevision": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "packageVersion": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": -2147483648,
+            "maximum": 2147483647,
+            "enum": [
+              2,
+              3
+            ]
+          },
+          "sdkVersion": {
+            "type": "string",
+            "description": "固定包声明的SDK版本；沿现有profile兼容规则，SDK2补丁版本不收窄为2.0.0。"
+          },
+          "shaderProfile": {
+            "type": "string",
+            "enum": [
+              "skia-raster-3.119.4-v1",
+              "skia-ganesh-3.119.4-v2"
+            ]
+          },
+          "structureValid": {
+            "type": "boolean"
+          },
+          "parameters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EffectPackageParameterSchemaDto"
+            }
+          },
+          "exports": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EffectPackageExportSchemaDto"
+            }
+          },
+          "bindingKinds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "inputs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EffectPackageInputsDto"
+            }
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EffectPackageFileSummaryDto"
+            }
+          },
+          "diagnostics": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EffectPackageStructureDiagnosticDto"
+            }
+          },
+          "protocolVersion": {
+            "type": "string",
+            "const": "1"
+          }
+        },
+        "required": [
+          "draftId",
+          "draftRevision",
+          "sourceRevision",
+          "packageId",
+          "packageRevision",
+          "name",
+          "version",
+          "packageVersion",
+          "sdkVersion",
+          "shaderProfile",
+          "structureValid",
+          "parameters",
+          "exports",
+          "bindingKinds",
+          "inputs",
+          "files",
+          "diagnostics",
+          "protocolVersion"
+        ],
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.AuthorSourceInspectionResponse",
+        "description": "owner草稿保留的精确源码声明完整投影；sourceRevision等于packageRevision，packageId固定为草稿包身份。独立响应复用参数/导出/input/file/diagnostic DTO，不包含reference、manifest/manifestJson、源码或机器路径。parameters的*Json是保留整数原文的JSON文本字符串，declaration/inputs保留JSON值；unit/minimumJson/maximumJson为null时省略。files使用size而非sizeBytes。全响应最多8388608个Web UTF-8字节，超限整次拒绝。普通响应继续允许忽略未来未知字段。"
       },
       "AuthorSourceRevisionDto": {
         "type": "object",

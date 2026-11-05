@@ -411,3 +411,47 @@ Hosting 作者定向 13/13、完整 Hosting `author-metadata-hosting-full-01.log
 Server全套 `author-metadata-server-full-01.log` 为513通过／3失败：三项均为历史Ruby真实HTTP
 用例缺少默认路径的匹配self-contained发布，未执行到业务断言；本轮匹配发布完成后单独补跑。
 其余Server回归已完成，不能将这次全套结果写成516/516。
+
+## 作者合同与匹配 HTTP／浏览器验收（0.112.14，2026-11-05）
+
+生产源码固定为 `1e83e0d475abe10be462e2774621f0c17764457a`。新构建的 CLR metadata
+生成合同 **1.46.0**：113 paths／126 methods／598 schemas，3528 例（2623 反例）；
+旧 3434 例原序保留，新增 94 例（75 反例）。图、材质、真实组和预算的 70 份生产行为源
+显式进入冻结指纹；前端整体同步五份合同文件和行为正文。最终生成检查及 schema 校验见
+`author-metadata-contract-check-03.log`、`author-metadata-contract-validate-03.log` 与
+`contract-1460/validation-final.json`，不以 schema 校验替代运行验收。
+
+匹配 self-contained Server／Worker 发布位于
+`.local/backend-dist/m09-author-metadata-0.112.14-20261105`，部署清单记录上述完整 SHA、
+`sourceDirty=false`、空源码 diff 和 1084 份源码输入。当前切片未再次更改后端生产源码。
+此前缺发布前置的 Ruby HTTP 三案使用这份发布补跑，`author-metadata-ruby-http-01.log`
+为 3/3 通过；保留原 513 通过／3 未到业务断言的全套日志，不重写历史结果。
+
+`http-author-metadata-01/summary.json` 为 **431 请求／4183 断言通过**，包含精确 inspection、
+owner／CAS／retained、Int64 原文、A 编译不能放行 B、失败 C 不覆盖成功 B、完整八字段采用、
+19 类语义非法／缺失／重复字段、legacy／null、no-op、回执重放／复用、undo／redo。
+5 张透明 Vulkan PNG 证明 A 红／B 蓝来源像素变化、原预览固定 A 和显式换输入 B。
+记录 26 个 Worker 身份观察、921 文件凭证扫描及所属进程排水；本探针不含新图组或导出。
+
+真实浏览器 `ui-author-metadata-03/` 为 **140 检查／7 张实际显示 GPU 帧通过**，
+浏览器留档 23 文件凭证扫描通过；启动器 `backendExit=0`、`serverDrained=true`。
+隔离 profile、Vite 和匹配发布均来自本仓库；输入复用旧 SVG 包的固定 fixture 字节，
+没有复用旧发布运行结果。覆盖 manifest/export/schema 的 A→B→C 修订、迟到的真实 B 响应、
+未 blur 非法原文跨页／取消重开、真实 400 字段错误、完整采用 C、普通新 schema 控件提交、
+完整配置与来源 undo／redo，以及 dirty 源码、光标和实际 Ctrl+Z／Ctrl+Shift+Z 历史保留。
+
+恢复场景只对一个逻辑 GET 的首次读取及三次重试注入客户端交付故障：后端真实 adopt 200，
+四次 GET 也均返回真实 200，随后向 UI 抛出 TypeError；恢复读取和 inspection 完全真实。
+这是明确的交付故障注入，不称服务断网。结果未知时禁止普通配置写入，显式重读后恢复。
+普通刷新不能解锁已有单测覆盖；该 UI 无普通刷新入口，烟测未调用私有 store 冒充用户操作。
+
+前两轮浏览器失败保留：run01 的 108 检查／4 帧后快捷键 modifiers 错用 3，工具改为
+Control 2 + Shift 8 = 10；run02 的 139 检查／7 帧后将 OPTIONS 预检误判为 GET，工具改为
+分别识别 GET／OPTIONS 并对两者检查 exact query 和无 body。运行中没有产品行为修复。
+本节不关闭 M09 图组真实链、M10 媒体轨或 M11 九样例；性能门槛不参与本轮验收。
+
+同步新合同后的前端最终 `author-metadata-typecheck-final2.log`、
+`author-metadata-frontend-full-final2.log`、`author-metadata-frontend-build-final2.log`
+为类型检查通过、4056/4056 单测通过和生产构建通过（保留既有大 chunk 提示）。首轮 final
+为 4055 通过／1 失败，原因是既有测试仍匹配已改为“配置声明”的旧 UI 文案；只更新文案断言，
+原有阻止 PUT 和本地值保留断言均保留。

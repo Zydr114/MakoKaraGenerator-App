@@ -198,7 +198,7 @@ export class DraftAdoptionModel {
     }
     if (this.hasInputDrafts) return { kind: 'failed', message: '输入框还有未提交原文，请先按 Enter 提交或按 Esc 撤回。' };
     if (candidate.status !== 'ready' || candidate.rejected || candidate.issues.length || !candidate.metadata || !this.compiled(candidate))
-      return { kind: 'failed', message: '请先读取精确 metadata、修正配置，并确认目标修订编译通过。' };
+      return { kind: 'failed', message: '请先读取此修订的配置声明、修正配置，并确认编译通过。' };
     this.update({ ...candidate, status: 'submitting', error: undefined, rejected: undefined });
     try {
       const result = await this.port.adopt(candidate);
@@ -246,7 +246,7 @@ export class DraftAdoptionModel {
       if (metadata.draftId !== candidate.draftId || metadata.draftRevision !== candidate.baseDraftRevision
         || metadata.packageId !== candidate.packageId || metadata.sourceRevision !== candidate.targetSourceRevision
         || metadata.packageRevision !== candidate.targetSourceRevision)
-        throw new Error('目标 metadata 身份不匹配，未用于配置。');
+        throw new Error('返回的配置声明不属于所选修订，未用于配置。');
       this.update({ ...local, metadata, status: 'ready', issues: adoptionIssues(local.value, metadata), error: undefined });
     } catch (error) {
       const local = this.state.candidate;

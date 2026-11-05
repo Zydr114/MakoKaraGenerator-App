@@ -77,4 +77,68 @@ public sealed record BackgroundPlacement(BackgroundRect Source, BackgroundRect D
                 (float)visibleWidth,
                 (float)visibleHeight));
     }
+
+    /// <summary>Computes the same centered fit from positive finite display metrics without integer SAR rounding.</summary>
+    /// <param name="imageWidth">The positive finite display width.</param>
+    /// <param name="imageHeight">The positive finite display height.</param>
+    /// <param name="canvasWidth">The positive canvas width.</param>
+    /// <param name="canvasHeight">The positive canvas height.</param>
+    /// <param name="fit">The existing project fit policy.</param>
+    /// <returns>Double precision source display and destination canvas rectangles.</returns>
+    public static BackgroundDisplayPlacement Compute(double imageWidth, double imageHeight,
+        int canvasWidth, int canvasHeight, BackgroundFit fit)
+    {
+        if (!double.IsFinite(imageWidth) || imageWidth <= 0) throw new ArgumentOutOfRangeException(nameof(imageWidth));
+        if (!double.IsFinite(imageHeight) || imageHeight <= 0) throw new ArgumentOutOfRangeException(nameof(imageHeight));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(canvasWidth);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(canvasHeight);
+
+        double scale = fit switch
+        {
+            BackgroundFit.Contain => Math.Min(canvasWidth / (double)imageWidth, canvasHeight / (double)imageHeight),
+            BackgroundFit.Cover => Math.Max(canvasWidth / (double)imageWidth, canvasHeight / (double)imageHeight),
+            BackgroundFit.Original => 1d,
+            _ => throw new MediaAbException(MediaAbFailure.PresentationInvalid, "Background fit is not supported by display geometry."),
+        };
+
+        double displayedWidth = imageWidth * scale;
+        double displayedHeight = imageHeight * scale;
+        if (!double.IsFinite(scale) || scale <= 0 || !double.IsFinite(displayedWidth) || displayedWidth <= 0 ||
+            !double.IsFinite(displayedHeight) || displayedHeight <= 0)
+        {
+            throw new MediaAbException(MediaAbFailure.PresentationInvalid, "Display metrics cannot produce a reliable finite placement.");
+        }
+
+        double left = (canvasWidth - displayedWidth) / 2d;
+        double top = (canvasHeight - displayedHeight) / 2d;
+
+        // 画布之外的部分不画：目标矩形缩到可见范围，源矩形同步缩到对应的那一块。
+        double visibleWidth = Math.Min(displayedWidth, canvasWidth);
+        double visibleHeight = Math.Min(displayedHeight, canvasHeight);
+
+        return new BackgroundDisplayPlacement(
+            new BackgroundDisplayRect(
+                ((displayedWidth - visibleWidth) / 2d / scale),
+                ((displayedHeight - visibleHeight) / 2d / scale),
+                (visibleWidth / scale),
+                (visibleHeight / scale)),
+            new BackgroundDisplayRect(
+                (left + ((displayedWidth - visibleWidth) / 2d)),
+                (top + ((displayedHeight - visibleHeight) / 2d)),
+                visibleWidth,
+                visibleHeight));
+    }
 }
+
+
+/// <summary>A source display or destination canvas rectangle without binary32 rounding.</summary>
+/// <param name="X">The left coordinate.</param>
+/// <param name="Y">The top coordinate.</param>
+/// <param name="Width">The positive extent along the horizontal axis.</param>
+/// <param name="Height">The positive extent along the vertical axis.</param>
+public readonly record struct BackgroundDisplayRect(double X, double Y, double Width, double Height);
+
+/// <summary>Shared fit math result retaining positive finite display metrics.</summary>
+/// <param name="Source">The visible rectangle in source display units.</param>
+/// <param name="Destination">The corresponding canvas rectangle.</param>
+public sealed record BackgroundDisplayPlacement(BackgroundDisplayRect Source, BackgroundDisplayRect Destination);

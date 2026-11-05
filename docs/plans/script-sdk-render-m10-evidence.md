@@ -53,3 +53,27 @@ SourceNormalized分数矩形按七量网格的分段常量面积积分。对每�
 相同均值的棋盘／纯灰二阶差异、透明混合、分数／极小矩形、全1端点反例、预算与取消回归。
 首轮构建的可取消Solid overload未列入服务接口，触发CA1822；补完整可取消接口而非关闭
 分析器后通过。尚无decoder、轨codec、任务、SDK、GPU或作者运行证据。
+
+## 第三片：SDR 转换与正交／SAR 几何（产品0.112.18）
+
+`MediaRasterGeometry`保持encoded像素网格，先镜像再quarter-turn精确重排；SAR正约分只改变
+显示度量，720×576的16:15显示为768×576、旋转90°后576×768，无整数宽度舍入或隐式
+重采样。`BackgroundPlacement`新增double显示入口，现有int入口完整方法保持原计算顺序
+与最终float，未知fit的旧行为不变；新入口严格拒绝未知fit。contain／cover／original及
+canonical source↔canvas映射共用新入口。
+
+`MediaSdrFrameConverter`从明确packed/planar原生分量转换为linear-premul RGBA32F，
+验证完整固定来源、位深、正stride／padding、10bit高位、输出长度与输入输出不重叠。
+RGB8/16、BT709 full/limited YUV8/10 420/422/444和明确JPEG601/full/sRGB按固定样本中心、
+bilinear chroma及EOTF执行；唯一规范saturate在YUV矩阵后，不掩盖非法标签或alpha。
+颜色用double运算、每通道一次float写入，alpha0输出正零；缓冲所有权及native强制封套
+仍由调用者控制，不把本片容量算术当真实解码器已受限。
+
+`build-presentation-color-01.log`完整solution0警告／0错误。几何及既有placement定向
+`presentation-geometry-focused-01.log`为20/20；`presentation-color-focused-01.log`为27/27。
+独立8方向像素表、精确SAR／三fit、legacy矩形，以及独立Kr/Kb矩阵、样本中心tent权重和
+Exp/Log EOTF oracle均通过；还覆盖奇数尺寸／padding、透明／opaque、颜色分段边界、
+短plane／负stride／高位／额外plane／别名／取消和容量等号／+1。
+同构建Core全套`presentation-core-full-01.log`为1520/1520，Media全套
+`presentation-media-full-01.log`为259/259。
+这些是受管转换功能证据，没有据此声称真实PNG/JPEG/video decoder、媒体背景呈现或GPU已接通。

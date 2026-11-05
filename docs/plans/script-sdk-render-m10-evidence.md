@@ -316,3 +316,33 @@ root另发现属性模式可把frame.Media／Source.Indexes擦成object；
 实际Host finally关闭与精确owner投影、provider／factory／锚点、typed图／GPU、Job与运行
 换代仍未接通；capability保持known-pending。本片无新HTTP／匹配Server Worker／浏览器／
 导出或性能结论，M10/M11未完成。
+
+
+## 第十四片：固定输入的同步媒体采样器（产品0.112.29）
+
+Rendering.Abstractions新增中立binding／detached sample，Media新增固定input／exact plan
+的同步CPU sampler；Source保留七矩中的alpha相关量，Canvas按canonical SAR／rotation／fit
+积分并只合成一次底色。直接调用正式ReadTemporalGrid，四个window至多四个精确time槽；
+Solid复用正式量化grid。非Available不读、不分配grid，也不隐藏非法query／rect／time。
+
+所有retained grid先从与reader相同的外部runtime ledger预留；构造失败退账，query失败不
+发布partial或旧cache key。Dispose关闭admission后等待同步调用排水，只退自身charge，
+不关闭borrowed reader。正式validated reader来源、同ledger和外层session／ReadLease排水
+仍须后续组合根保证；metadata核对不冒充这些证明。binding提供显式snapshot闭包／画布／
+output复核，尚未宣称所有factory已调用。
+
+`media-provider-focused-01.log`15/15，正式builder→codec→OpenValidated→sampler与独立
+u16量化、时间权重、cell overlap、七矩合成oracle核对；覆盖Source／Canvas、still、透明
+相关矩、pooled variance、fit／crop／letterbox／SAR／rotation、tiny double rect及并发时刻。
+ControlledReader只用于读取次数、失败、取消、gate／预算和Dispose，不作为数值证明。
+
+独立审查指出Dispose测试尚未证明Task已实际开始关闭；补为主动观察closing的拒绝后再核
+active reader期间预算保留。`media-provider-drain-mutation-red-01.log`在故意提前退charge的
+变异上1/1断言失败，恢复后全套通过；它是验收强度变异，不是已存在产品缺陷。
+最终`build-media-provider-04.log`完整solution零警告／零错误；
+`media-provider-media-full-01.log`350/350，`media-provider-rendering-full-01.log`1703/1703。
+01构建两处测试错误为primary constructor捕获及CA2016；02因修订脚本路径错误仍留前者，
+修正后03构建及定向通过，04为恢复变异后的最终构建，未抑制规则。
+
+provider尚未接Host／图／GPU／Job，media.features保持关闭；当前HTTP合同与冻结发布不变，
+无本版本fresh HTTP／浏览器／导出或性能结论，M10/M11未完成。

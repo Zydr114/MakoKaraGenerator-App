@@ -292,3 +292,11 @@ Scripting519全部通过；当前仍无本版本fresh HTTP／运行换代／导�
 helper误拒绝，原始红例保留。完整构建零警告错误，Scripting588、Rendering1703、
 Runtime.Hosting153全部通过，详见[M10记录](script-sdk-render-m10-evidence.md)。
 Host关闭、精确owner投影、provider／factory／图及Job换代继续；执行能力保持关闭，M10/M11未完成。
+
+
+### M10 同步媒体采样器（产品0.112.29）
+
+中立binding、正式轨的Source／Canvas七矩采样、固定状态及有界精确time/window缓存已接通。
+完整构建零警告错误，15项定向、Media350和Rendering1703通过；提前退预算的变异被强化
+并发测试捕获。Host／provider owner／图／Worker接线继续，执行能力未开放，M10/M11未完成；
+证据与失败历史见[M10记录](script-sdk-render-m10-evidence.md)。

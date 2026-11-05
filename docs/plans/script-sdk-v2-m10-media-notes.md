@@ -349,3 +349,21 @@ HTTP／GPU 换代 → 导出依赖 pin → T01／作者链／性能。每片先�
 按用户2026-11-05指示，性能门槛暂不参与本轮验收；正确性、像素、确定性及预算／寿命门禁
 继续执行。本文件候选预算不关闭D8／T01，也不证明安全边界内都满足实时要求。
 本页不单独声明实施验收结果，实际日志、提交范围与未完成接线见M10证据及阶段一进度记录。
+
+
+### 5.3 已实施的中立 binding 与同步采样器（0.112.29）
+
+`IProjectMediaFeatureSampler`固定完整input和唯一plan，Sample要求exact dependency引用、
+四double边界和显式工程微秒，返回无grid／reader／lease的数值快照。binding复核input摘要，
+并提供重新resolve完整snapshot闭包、canvas与output的显式入口；后续factory必须调用。
+reader必须来自完整codec/store验证并与provider使用同runtime ledger，这由受信组合根保障。
+
+文件每个distinct window只保留一个最近精确时刻槽，至多四槽；同time/window跨owner和
+space共享。Source直接积分七raw矩，Canvas复用实际SAR／rotation后的placement与一次底色
+合成；Solid以正式量化kernel建立唯一timeless grid。Pending／Unavailable／NoMedia固定
+返回无数值状态，不读文件也不分配grid。所有请求先校验身份、rect和time，失败不伪造黑色。
+
+预算公式为checked的`slots * 576 * 7 * 8 + 512 + slots * 64 + WorkingBufferBytes`，
+Solid再计固定quantized scratch；分配前预留、失败回滚。Dispose先停query admission，再
+等gate排水后退自身预算；借入reader由外层owner在session/provider排水后唯一关闭。
+该片仅内部CPU接缝，未开放执行capability；有限数值与寿命证据见[M10记录](script-sdk-render-m10-evidence.md)。

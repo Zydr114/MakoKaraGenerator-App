@@ -256,3 +256,36 @@ v2包新增可选媒体目录／export引用，固定SourceNormalized／CanvasPi
 是测试预期ImageGraphException而现有包reader按合同包装为EffectPackageException；改断言
 同时核外层InvalidGraphBypass与内层原异常后通过，未改生产拒绝策略。独立静态审查无新增
 阻断项，但不代替上述建测。本片不含SDK／provider／实际图统计／HTTP／导出接线，M10未关闭。
+
+
+## 第十二片：取消归因与正常退出竞态（产品0.112.27）
+
+封套在实际owned drain成功后，才把自身start／consumer linked token归一到原caller；独立
+consumer token原样保留。start自身超时具名CapacityUnsupported，已确定的ownership／stall
+失败不被迟到caller取消覆盖；drain失败仍优先保留源和预算。正式探针增加两个取消场景的
+原caller token精确断言，probe自有pump link在其边界先归一，避免测试混淆链层。
+
+真实首次复验发现正常exit17期间顺序读取的ActiveState仍为active，而/proc进程已消失。
+保留全部unit／InvocationID／nonce／cgroup device/inode及非零PID检查，允许已捕获owner的
+零PID过渡快照；零PID本身不构成terminal或drained。相邻native修复在stat后cgroup文件消失时
+不发布半份ticks/member；pinned kill控制消失时只从同一FD复核events缺失，才作no-op。
+其他I/O错误保留，短写具名失败；初始exec gate与最终terminal／empty／三EOF／Unref门未放宽。
+
+红例分别是`native-caller-cancel-red-01.log`3/3、`native-start-cancel-red-01.log`2/2、
+`native-exit-snapshot-red-01.log`2/2失败。native两组`native-exit-c-red-01.log`均失败；该红片
+仅机械提取原kill I/O helper以运行同一测试，未改变旧行为，不能称为原始字节基线构建。
+正式native以-Wall/-Wextra/-Werror构建，`native-exit-c-green-01.log`两组共69场景通过。
+最终`build-native-caller-cancel-05.log`完整solution零警告／零错误，
+`native-caller-cancel-processes-full-03.log`37/37；04构建／36项是新增零PID不能提前排水
+用例前的中间结果。02构建曾因CA2250失败，修为ThrowIfCancellationRequested后通过。
+
+`publish-native-exit-probe-02.log`发布成功；`native-caller-cancel-published-real-02/summary.json`
+七场景全部通过，两个取消场景精确caller token、源与buffer借用、OOM、具名stall及四种错误
+owner拒绝均保持。`native-caller-cancel-cleanup-02.json`核7个unit消失、含探针的9个PID均无
+同startTicks残留；源码／发布DLL／native摘要与34文件凭证模式扫描另行留档，未命中。
+
+失败历史保留：caller-cancel probe首次发布有变量同名编译错误，修名后发布；real-01第二案
+因上述active／零PID过渡误报而失败，后续核该轮2个unit、含probe的3个PID全部消失。
+尚有独立静态审查提出ActiveState与ControlGroup顺序读取的另一个退出窗口，后续有限修订
+继续处理；本轮真实七案未覆盖全部manager交错。以上只证明Linux封套有限功能，不构成
+真实媒体decoder、完整Worker、HTTP、浏览器或M10完成；性能不作本轮门槛。

@@ -153,6 +153,60 @@ public sealed class OwnedNativeEnvelopeTests
         await fixture.Budget.ReleaseSourceAsync();
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(17)]
+    public async Task ExitedPidBeforeManagerTerminalStateRetainsPinnedOwner(int exitStatus)
+    {
+        await using var fixture = new Fixture();
+        int transitionalObservations = 0;
+        Task<EnvelopeCompletion> run = fixture.Owner.RunAsync(fixture.Budget.BeginNative(0), Command, (_, _) =>
+        {
+            fixture.Session.Transform = snapshot =>
+            {
+                if (Interlocked.Increment(ref transitionalObservations) == 1)
+                    return snapshot with { MainPid = 0, MainStartTicks = 0, MainInControlGroup = false };
+                fixture.Session.Transform = null;
+                fixture.Session.Complete(exitStatus == 0 ? "success" : "exit-code", exitStatus);
+                return snapshot with { MainPid = 0, MainStartTicks = 0, MainInControlGroup = false,
+                    ActiveState = exitStatus == 0 ? "inactive" : "failed", CgroupPopulated = false,
+                    Result = exitStatus == 0 ? "success" : "exit-code", ExecMainStatus = exitStatus };
+            };
+            return Task.CompletedTask;
+        }, CancellationToken.None);
+        if (exitStatus == 0) Assert.Equal(0, (await run).ExitCode);
+        else
+        {
+            EnvelopeException error = await Assert.ThrowsAsync<EnvelopeException>(() => run);
+            Assert.Equal(EnvelopeFailure.DecodeFailed, error.Failure);
+            Assert.Equal("native-decoder-unsuccessful", error.SafeCode);
+        }
+        Assert.Equal(2, transitionalObservations);
+        Assert.Equal(0, fixture.Session.Kills);
+        Assert.True(fixture.Session.Unreferenced); Assert.True(fixture.Session.Disposed);
+        Assert.Empty(fixture.Quarantine.Records);
+        await fixture.Budget.ReleaseSourceAsync(); Assert.Equal(1, fixture.Source.Releases);
+    }
+
+    [Fact]
+    public async Task ZeroMainPidDoesNotCountAsTerminalOrDrained()
+    {
+        await using var fixture = new Fixture();
+        EnvelopeException error = await Assert.ThrowsAsync<EnvelopeException>(() => fixture.Owner.RunAsync(
+            fixture.Budget.BeginNative(0), Command, (_, _) =>
+            {
+                fixture.Session.Transform = snapshot => snapshot.Terminal ? snapshot
+                    : snapshot with { MainPid = 0, MainStartTicks = 0, MainInControlGroup = false };
+                return Task.CompletedTask;
+            }, CancellationToken.None));
+        Assert.Equal(EnvelopeFailure.DecodeFailed, error.Failure);
+        Assert.Equal("native-natural-exit-timeout", error.SafeCode);
+        Assert.Equal(1, fixture.Session.Kills);
+        Assert.True(fixture.Session.Unreferenced); Assert.True(fixture.Session.Disposed);
+        Assert.Empty(fixture.Quarantine.Records);
+        await fixture.Budget.ReleaseSourceAsync(); Assert.Equal(1, fixture.Source.Releases);
+    }
+
     [Fact]
     /// <summary>Checks ConsumerNamedExceptionIsRethrownAfterOwnedDrain.</summary>
     public async Task ConsumerNamedExceptionIsRethrownAfterOwnedDrain()
@@ -180,6 +234,86 @@ public sealed class OwnedNativeEnvelopeTests
         Assert.Equal(independent.Token, actual.CancellationToken);
         Assert.True(fixture.Session.Unreferenced);
         await fixture.Budget.ReleaseSourceAsync();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task HeldStartCancellationDistinguishesActualCallerFromOwnedDeadlineAfterDrain(bool callerCanceled)
+    {
+        await using var fixture = new Fixture(); using var caller = new CancellationTokenSource();
+        CancellationToken observed = default;
+        fixture.Session.StartCallback = async startToken =>
+        {
+            observed = startToken; Assert.NotEqual(caller.Token, startToken);
+            if (callerCanceled) caller.Cancel();
+            await Task.Delay(Timeout.InfiniteTimeSpan, startToken);
+        };
+        var policy = Policy with { StartTimeout = TimeSpan.FromMilliseconds(20) };
+        var owner = new OwnedNativeEnvelope(fixture.Backend, fixture.Quarantine, policy, new FakeClock());
+        Task<EnvelopeCompletion> run = owner.RunAsync(fixture.Budget.BeginNative(0), Command,
+            (_, _) => throw new InvalidOperationException("held start must not reach consumer"), caller.Token);
+        if (callerCanceled)
+        {
+            OperationCanceledException actual = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run);
+            Assert.Equal(caller.Token, actual.CancellationToken);
+        }
+        else
+        {
+            EnvelopeException actual = await Assert.ThrowsAsync<EnvelopeException>(() => run);
+            Assert.Equal(EnvelopeFailure.CapacityUnsupported, actual.Failure); Assert.Equal("native-gate-start-timeout", actual.SafeCode);
+            Assert.False(caller.IsCancellationRequested);
+        }
+        Assert.True(observed.IsCancellationRequested); Assert.False(fixture.Session.GateReleased);
+        Assert.True(fixture.Session.Disposed); Assert.True(fixture.Session.Unreferenced); Assert.Equal(1, fixture.Session.Kills);
+        Assert.Empty(fixture.Quarantine.Records); await fixture.Budget.ReleaseSourceAsync(); Assert.Equal(1, fixture.Source.Releases);
+    }
+
+    [Fact]
+    public async Task CallerLinkedCancellationReturnsOriginalCallerTokenAfterSuccessfulOwnedDrain()
+    {
+        await using var fixture = new Fixture(); using var caller = new CancellationTokenSource();
+        OperationCanceledException actual = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => fixture.Owner.RunAsync(
+            fixture.Budget.BeginNative(0), Command, (_, linked) =>
+            {
+                Assert.NotEqual(caller.Token, linked); caller.Cancel();
+                fixture.Session.Complete(); linked.ThrowIfCancellationRequested(); return Task.CompletedTask;
+            }, caller.Token));
+        Assert.Equal(caller.Token, actual.CancellationToken);
+        Assert.True(fixture.Session.Disposed); Assert.True(fixture.Session.Unreferenced);
+        Assert.Empty(fixture.Quarantine.Records); await fixture.Budget.ReleaseSourceAsync(); Assert.Equal(1, fixture.Source.Releases);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task EstablishedSupervisionFailureBeatsLateCallerCancellation(bool ownershipLost)
+    {
+        await using var fixture = new Fixture(); using var caller = new CancellationTokenSource();
+        int replaceOnce = 0;
+        fixture.Session.Transform = snapshot =>
+        {
+            return Interlocked.Exchange(ref replaceOnce, 0) == 0 ? snapshot : snapshot with { InvocationId = new string('b', 32) };
+        };
+        var policy = Policy with { IdleTimeout = ownershipLost ? TimeSpan.FromDays(1) : TimeSpan.FromMilliseconds(1) };
+        var clock = new ConsumerStartedClock();
+        var owner = new OwnedNativeEnvelope(fixture.Backend, fixture.Quarantine, policy, clock);
+        EnvelopeException actual = await Assert.ThrowsAsync<EnvelopeException>(() => owner.RunAsync(
+            fixture.Budget.BeginNative(0), Command, async (_, linked) =>
+            {
+                Interlocked.Exchange(ref replaceOnce, ownershipLost ? 1 : 0); clock.BeginConsumer();
+                try { await Task.Delay(Timeout.InfiniteTimeSpan, linked); }
+                catch (OperationCanceledException)
+                {
+                    // Supervision already selected the named cause before this
+                    // late caller cancellation; cleanup sees a stable owner.
+                    caller.Cancel(); fixture.Session.Complete(); throw;
+                }
+            }, caller.Token));
+        Assert.Equal(ownershipLost ? EnvelopeFailure.OwnershipLost : EnvelopeFailure.DecodeFailed, actual.Failure);
+        Assert.Equal(ownershipLost ? "native-envelope-owner-changed" : "native-pipe-progress-timeout", actual.SafeCode);
+        Assert.True(fixture.Session.Disposed); Assert.True(fixture.Session.Unreferenced);
+        Assert.Empty(fixture.Quarantine.Records); await fixture.Budget.ReleaseSourceAsync(); Assert.Equal(1, fixture.Source.Releases);
     }
 
     [Fact]
@@ -215,6 +349,8 @@ public sealed class OwnedNativeEnvelopeTests
     [InlineData("pid")]
     [InlineData("ticks")]
     [InlineData("cgroup")]
+    [InlineData("invocation-no-main")]
+    [InlineData("cgroup-no-main")]
     /// <summary>Checks ReplacedOwnerIsNeverKilledAndRemainsQuarantined.</summary>
     public async Task ReplacedOwnerIsNeverKilledAndRemainsQuarantined(string replacement)
     {
@@ -227,6 +363,10 @@ public sealed class OwnedNativeEnvelopeTests
                     "invocation" => value with { InvocationId = new string('b', 32) },
                     "pid" => value with { MainPid = value.MainPid + 1 },
                     "ticks" => value with { MainStartTicks = value.MainStartTicks + 1 },
+                    "invocation-no-main" => value with { MainPid = 0, MainStartTicks = 0, MainInControlGroup = false,
+                        InvocationId = new string('b', 32) },
+                    "cgroup-no-main" => value with { MainPid = 0, MainStartTicks = 0, MainInControlGroup = false,
+                        CgroupInode = value.CgroupInode + 1 },
                     _ => value with { CgroupInode = value.CgroupInode + 1 },
                 };
                 throw new NamedPresentationException();
@@ -319,6 +459,20 @@ public sealed class OwnedNativeEnvelopeTests
         { cancellationToken.ThrowIfCancellationRequested(); OpenCount++; return ValueTask.FromResult<IEnvelopeSession>(session); }
     }
 
+    private sealed class ConsumerStartedClock : IEnvelopeClock
+    {
+        private readonly TaskCompletionSource _started = NewSignal();
+        private long _milliseconds;
+        internal void BeginConsumer() => _started.TrySetResult();
+        public long Timestamp => Interlocked.Read(ref _milliseconds);
+        public TimeSpan Elapsed(long before) => TimeSpan.FromMilliseconds(Timestamp - before);
+        public async ValueTask DelayAsync(TimeSpan delay, CancellationToken token)
+        {
+            await _started.Task.WaitAsync(token); token.ThrowIfCancellationRequested();
+            Interlocked.Add(ref _milliseconds, (long)delay.TotalMilliseconds); await Task.Yield(); token.ThrowIfCancellationRequested();
+        }
+    }
+
     private sealed class FakeClock : IEnvelopeClock
     {
         private long _milliseconds;
@@ -360,6 +514,7 @@ public sealed class OwnedNativeEnvelopeTests
         internal bool GateReleased, Unreferenced, Disposed, IgnoreKill, FailAfterAcceptedStart, ConsumerDone;
         internal int Kills, CompleteAfterObservations;
         internal Func<EnvelopeSnapshot, EnvelopeSnapshot>? Transform;
+        internal Func<CancellationToken, Task>? StartCallback;
         internal readonly TaskCompletionSource Killed = NewSignal();
 
         public ValueTask StartHeldAsync(EnvelopeStart start, CancellationToken cancellationToken)
@@ -369,6 +524,7 @@ public sealed class OwnedNativeEnvelopeTests
                 "/user.slice/" + start.UnitName, 424242, 991, 31, 47, true, true, true, false,
                 start.NativeLimitBytes, start.NativeLimitBytes, 0, start.NativeLimitBytes, 0, true, true, false,
                 "exec", "control-group", "no", "kill", "active", "success", 1, 0, 0, true, true);
+            if (StartCallback is not null) return new ValueTask(StartCallback(cancellationToken));
             if (FailAfterAcceptedStart) throw new EnvelopeException(EnvelopeFailure.CapacityUnsupported, "fake-start-timeout");
             return ValueTask.CompletedTask;
         }

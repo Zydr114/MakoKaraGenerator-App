@@ -22,3 +22,13 @@ target_compile_options(mkg-media-exec-gate PRIVATE -Wall -Wextra -Werror)
 install(TARGETS mkg_media_envelope mkg-media-exec-gate
   LIBRARY DESTINATION .
   RUNTIME DESTINATION .)
+
+include(CTest)
+if(BUILD_TESTING)
+  add_executable(mkg-envelope-exit-tests tests/mkg-envelope-exit-tests.c)
+  target_compile_features(mkg-envelope-exit-tests PRIVATE c_std_11)
+  target_compile_options(mkg-envelope-exit-tests PRIVATE -Wall -Wextra -Werror)
+  target_link_libraries(mkg-envelope-exit-tests PRIVATE PkgConfig::SYSTEMD Threads::Threads)
+  add_test(NAME mkg-envelope-exit-proc-tests COMMAND mkg-envelope-exit-tests proc)
+  add_test(NAME mkg-envelope-exit-kill-tests COMMAND mkg-envelope-exit-tests kill)
+endif()

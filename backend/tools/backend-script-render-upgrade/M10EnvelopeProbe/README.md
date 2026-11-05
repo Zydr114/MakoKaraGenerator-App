@@ -18,6 +18,7 @@ systemd manager及已委派的cgroup v2 memory控制器。缺失能力具名拒�
 
 七场景依次验证：执行前gate与真实stdin/stdout/stderr/fd3；自然非零退出17；caller取消；
 2秒管道停滞；父子合计OOM；borrow在途取消与排水；四种错误owner令牌拒绝。
+两个caller取消场景额外要求公开异常持原始调用token，不能只凭异常类型判通过。
 只对捕获的InvocationID、PID/startTicks、cgroup inode做动作，不按进程名称批量清理。
 所有场景必须terminal、空/已移除cgroup、输出EOF、Unref和源预算释放后才算通过。
 

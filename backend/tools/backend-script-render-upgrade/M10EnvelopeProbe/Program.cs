@@ -141,6 +141,13 @@ internal static class Program
                     }
                     await pumps.All.ConfigureAwait(false);
                 }
+                catch (OperationCanceledException error) when (error.CancellationToken == pumpsStop.Token && token.IsCancellationRequested)
+                {
+                    // This probe owns its pump-local link; return the envelope's
+                    // consumer token so the public caller attribution is testable.
+                    token.ThrowIfCancellationRequested();
+                    throw;
+                }
                 finally
                 {
                     pumpsStop.Cancel();
@@ -154,6 +161,7 @@ internal static class Program
         AuditedEnvelopeBackend.Session? observed = backend.Opened;
         journal.Write(name, "owner-returned", new { durationMs = duration.ElapsedMilliseconds, completion,
             error = outcome is null ? null : SafeError(outcome), quarantineCount = quarantine.Count,
+            cancellationTokenMatches = outcome is OperationCanceledException canceled && canceled.CancellationToken == scenario.Token,
             sourceReleased = source.Released, budget.ActiveBorrows, budget.LiveManagedBytes,
             lastSnapshot = observed?.Last });
         if (outcome is EnvelopeException { Failure: EnvelopeFailure.CapacityUnsupported })
@@ -173,6 +181,11 @@ internal static class Program
             || !(last.CgroupExists || last.CgroupRemoved))
             throw new ProbeFailure("probe-final-cgroup-not-drained");
         VerifyExpectedOutcome(name, outcome, observed);
+        if (name is "caller-cancel" or "cancel-during-borrow")
+        {
+            if (outcome is not OperationCanceledException callerCancellation || callerCancellation.CancellationToken != scenario.Token)
+                throw new ProbeFailure("probe-public-cancellation-token-mismatch");
+        }
         if (name == "cancel-during-borrow" && !borrowKillObserved)
             throw new ProbeFailure("probe-borrow-cancel-evidence-missing");
         if (mode is "echo" or "nonzero")

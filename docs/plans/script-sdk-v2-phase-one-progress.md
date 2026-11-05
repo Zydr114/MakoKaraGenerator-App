@@ -275,3 +275,11 @@ HTTP合同仍为1.46.1／冻结产品0.112.15，不能将旧发布证据归于�
 包查询目录、三状态输出回退声明、精确实例／源材质依赖计划及规范摘要已接通；执行能力
 继续关闭，后续SDK和图消费者共用该计划。完整构建零警告错误，定向52、Core1562、
 Scripting519全部通过；当前仍无本版本fresh HTTP／运行换代／导出证明，详见[M10记录](script-sdk-render-m10-evidence.md)。
+
+
+### M10 原生取消与退出修正（产品0.112.27）
+
+已修正linked取消token归因、迟到取消覆盖监督失败及正常退出的零PID／proc／pinned kill
+竞态；完整构建零警告错误、Processes37项、native69个确定性场景及发布后真实七场景通过。
+准确owned unit/PID已排水，失败与有限范围见[M10记录](script-sdk-render-m10-evidence.md)。
+剩余manager顺序快照窗口与真实decoder／SDK／Job接线继续；M10/M11未完成，性能门槛暂缓。

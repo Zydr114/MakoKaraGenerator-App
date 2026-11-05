@@ -54,7 +54,7 @@ public sealed class OwnedNativeEnvelope
         DecodeOperationBudget.ManagedLease? transport = null;
         bool released = false;
         Exception? primary = null;
-        bool consumerFailed = false;
+        bool consumerFailed = false; CancellationToken actualConsumerToken = default, actualStartToken = default;
         string nonce = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(16));
         string unit = "mako-media-" + nonce + ".service";
         try
@@ -66,6 +66,7 @@ public sealed class OwnedNativeEnvelope
             if (session.PipeBackingBytes != DecodeOperationBudget.RequiredPipeBackingPerProducer)
                 throw new EnvelopeException(EnvelopeFailure.CapacityUnsupported, "pipe-capacity-profile-unavailable");
             using var startDeadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            actualStartToken = startDeadline.Token;
             startDeadline.CancelAfter(_policy.StartTimeout);
             await session.StartHeldAsync(new(nonce, unit, checked((ulong)reservation.Bytes), command), startDeadline.Token).ConfigureAwait(false);
             last = await AwaitHeldAsync(session, startDeadline.Token).ConfigureAwait(false);
@@ -76,6 +77,7 @@ public sealed class OwnedNativeEnvelope
             released = true;
 
             using var consumerAbort = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            actualConsumerToken = consumerAbort.Token;
             using var stopSupervision = new CancellationTokenSource();
             Task<EnvelopeException?> supervision = SuperviseAsync(session, identity, consumerAbort,
                 cancellationToken, stopSupervision.Token);
@@ -165,8 +167,25 @@ public sealed class OwnedNativeEnvelope
             transport?.Dispose();
         }
 
-        if (primary is OperationCanceledException) ExceptionDispatchInfo.Capture(primary).Throw();
-        cancellationToken.ThrowIfCancellationRequested();
+        if (primary is OperationCanceledException canceled)
+        {
+            if (actualStartToken.CanBeCanceled && canceled.CancellationToken == actualStartToken && actualStartToken.IsCancellationRequested)
+            {
+                // The start deadline is our own linked token. Classify it only
+                // after the exact held owner and all pipes drained successfully.
+                cancellationToken.ThrowIfCancellationRequested();
+                throw new EnvelopeException(EnvelopeFailure.CapacityUnsupported, "native-gate-start-timeout");
+            }
+            // This direct consumer token is linked to our caller. Only normalize
+            // that known chain, and only after owned drain succeeded above.
+            if (cancellationToken.IsCancellationRequested && actualConsumerToken.CanBeCanceled &&
+                canceled.CancellationToken == actualConsumerToken)
+                throw new OperationCanceledException(cancellationToken);
+            ExceptionDispatchInfo.Capture(canceled).Throw();
+        }
+        // A late caller cancellation cannot replace an already established
+        // supervision/ownership/timeout or named consumer failure.
+        if (primary is null) cancellationToken.ThrowIfCancellationRequested();
         if (last?.Oom == true)
             throw new EnvelopeException(EnvelopeFailure.CapacityExceeded, "native-memory-envelope-exhausted");
         if (consumerFailed && primary is not null) ExceptionDispatchInfo.Capture(primary).Throw();
@@ -280,11 +299,14 @@ public sealed class OwnedNativeEnvelope
 
     internal static void VerifyIdentity(EnvelopeSnapshot value, EnvelopeIdentity identity)
     {
+        // Manager properties and /proc are observed sequentially. The pinned
+        // process may exit after ActiveState was read, leaving a zero PID while
+        // that earlier state still says active. Keep checking every fixed owner
+        // token and any live PID; only the separate drain gate proves completion.
         if (value.UnitName != identity.UnitName || value.UnitPath != identity.UnitPath || value.InvocationId != identity.InvocationId
             || value.Description != "Mako media envelope " + identity.Nonce || value.ControlGroup != identity.ControlGroup
             || value.CgroupDevice != identity.CgroupDevice || value.CgroupInode != identity.CgroupInode
-            || value.MainPid != 0 && (value.MainPid != identity.MainPid || value.MainStartTicks != identity.StartTicks || !value.MainInControlGroup)
-            || value.MainPid == 0 && !value.Terminal && !value.CgroupRemoved)
+            || value.MainPid != 0 && (value.MainPid != identity.MainPid || value.MainStartTicks != identity.StartTicks || !value.MainInControlGroup))
             throw new EnvelopeException(EnvelopeFailure.OwnershipLost, "native-envelope-owner-changed");
     }
 

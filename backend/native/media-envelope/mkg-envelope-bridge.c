@@ -385,13 +385,20 @@ static int uint_file(ctx *c, const char *name, uint64_t *out) {
 static int proc_identity(uint32_t pid, const char *group, uint64_t *ticks,
                          int *member) {
   char path[128], buf[8192];
+  /* Publish a live sample only after both proc files were read. A process can
+   * disappear between them; no partial start tick may escape that gone case. */
+  *ticks = 0;
+  *member = 0;
   snprintf(path, sizeof(path), "/proc/%u/stat", pid);
   int fd = open(path, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
   if (fd < 0)
     return errno == ENOENT ? 0 : -errno;
   ssize_t n = read(fd, buf, sizeof(buf) - 1);
+  int saved = errno;
   close(fd);
-  if (n <= 0)
+  if (n < 0)
+    return -saved;
+  if (!n)
     return -EIO;
   buf[n] = 0;
   char *end = strrchr(buf, ')');
@@ -402,18 +409,22 @@ static int proc_identity(uint32_t pid, const char *group, uint64_t *ticks,
     part = strtok_r(NULL, " ", &save);
   if (!part)
     return -EPROTO;
-  *ticks = strtoull(part, NULL, 10);
+  uint64_t observed_ticks = strtoull(part, NULL, 10);
   snprintf(path, sizeof(path), "/proc/%u/cgroup", pid);
   fd = open(path, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
   if (fd < 0)
-    return -errno;
+    return errno == ENOENT ? 0 : -errno;
   n = read(fd, buf, sizeof(buf) - 1);
+  saved = errno;
   close(fd);
-  if (n <= 0)
+  if (n < 0)
+    return -saved;
+  if (!n)
     return -EIO;
   buf[n] = 0;
   char expected[2100];
   snprintf(expected, sizeof(expected), "0::%s\n", group);
+  *ticks = observed_ticks;
   *member = !strcmp(buf, expected);
   return 0;
 }
@@ -593,6 +604,31 @@ static int verify(ctx *c, const char *id, uint64_t device, uint64_t inode) {
              ? 0
              : -ESTALE;
 }
+static int kill_pinned_cgroup(ctx *c) {
+  /* Pinned inode: even if unit-name lookup races, no replacement cgroup is hit.
+   */
+  int fd = openat(c->cg, "cgroup.kill", O_WRONLY | O_CLOEXEC | O_NOFOLLOW);
+  if (fd < 0) {
+    int saved = errno;
+    if (saved != ENOENT)
+      return -saved;
+    /* The cgroup can disappear after the last snapshot. Only absence of its
+     * events file through the SAME pinned directory proves this no-op kill.
+     * A missing kill control on an existing cgroup remains an error. This says
+     * nothing about manager terminal state, pipe EOF or completed drain. */
+    char events[4096];
+    int r = read_file_at(c->cg, "cgroup.events", events, sizeof(events));
+    if (r == -ENOENT) {
+      c->removed = 1;
+      return 0;
+    }
+    return r < 0 ? r : -saved;
+  }
+  ssize_t n = write(fd, "1\n", 2);
+  int saved = errno;
+  close(fd);
+  return n == 2 ? 0 : n < 0 ? -saved : -EIO;
+}
 int mkg_envelope_kill(void *context, const char *id, uint64_t device,
                       uint64_t inode) {
   ctx *c = context;
@@ -601,15 +637,7 @@ int mkg_envelope_kill(void *context, const char *id, uint64_t device,
     return r;
   if (c->cg < 0)
     return 0;
-  /* Pinned inode: even if unit-name lookup races, no replacement cgroup is hit.
-   */
-  int fd = openat(c->cg, "cgroup.kill", O_WRONLY | O_CLOEXEC | O_NOFOLLOW);
-  if (fd < 0)
-    return errno == ENOENT && c->removed ? 0 : -errno;
-  ssize_t n = write(fd, "1\n", 2);
-  int e = errno;
-  close(fd);
-  return n == 2 ? 0 : -e;
+  return kill_pinned_cgroup(c);
 }
 int mkg_envelope_unref(void *context, const char *id, uint64_t device,
                        uint64_t inode) {

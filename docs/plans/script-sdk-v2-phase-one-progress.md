@@ -300,3 +300,11 @@ Host关闭、精确owner投影、provider／factory／图及Job换代继续；�
 完整构建零警告错误，15项定向、Media350和Rendering1703通过；提前退预算的变异被强化
 并发测试捕获。Host／provider owner／图／Worker接线继续，执行能力未开放，M10/M11未完成；
 证据与失败历史见[M10记录](script-sdk-render-m10-evidence.md)。
+
+
+### M10 原生顺序快照与 OOM 历史（产品0.112.30）
+
+已pin cgroup的正常退出空路径不再误判，替换路径不污染owner，OOM历史不因退出中读失败
+丢失。两组旧语义红例后native共157个确定性场景、Processes37、发布探针真实七场景通过；
+完整构建零警告错误，7unit／9PID已核排水。有限边界见[M10记录](script-sdk-render-m10-evidence.md)。
+真实decoder、媒体Host／图／Job／输入换代仍继续，M10/M11未完成。

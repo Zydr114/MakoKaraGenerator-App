@@ -346,3 +346,28 @@ active reader期间预算保留。`media-provider-drain-mutation-red-01.log`在�
 
 provider尚未接Host／图／GPU／Job，media.features保持关闭；当前HTTP合同与冻结发布不变，
 无本版本fresh HTTP／浏览器／导出或性能结论，M10/M11未完成。
+
+
+## 第十五片：manager 顺序快照与 OOM 历史（产品0.112.30）
+
+已pin的cgroup在ActiveState仍active而稍后ControlGroup变空时保留原路径，继续从同一FD核
+inode／events／live PID；不制造terminal或drained。不同非空group拒绝且不污染原ctx，
+回填路径在返回前重读InvocationID并要求等于本次起始值；managed仍核固定owner全部令牌。
+无pin启动与最终terminal／empty／EOF／Unref门不变。memory.events读失败或读到较低计数时
+保持已观察last_oom单调；读取错误保留原best-effort政策，不用计数替代owned排水证明。
+
+`native-snapshot-red-01.log`和`native-oom-history-red-01.log`分别在第一对应语义案例稳定
+失败。红片只从旧正式实现机械提取同签名helper，未修正行为，不是原始字节基线构建。
+正式-Wall/-Wextra/-Werror构建后，`native-snapshot-green-01.log`四组通过：原proc33／kill36，
+新增snapshot58／OOM history30。snapshot测试只覆盖真实group决策helper，OOM测试通过
+受控openat/pread/close运行真实counter helper；均不冒充完整D-Bus交错或实际OOM。
+
+`build-native-snapshot-01.log`完整solution零警告／零错误，
+`native-snapshot-processes-full-01.log`37/37；`publish-native-snapshot-probe-01.log`正式探针
+发布成功，`native-snapshot-real-01/summary.json`真实七场景通过，含正常／非零退出、原caller
+取消、borrow取消、stall、父子aggregate OOM及四种owner拒绝。源和预算释放保持。
+`native-snapshot-cleanup-01.json`复核7个unit全部not-found、含探针9个PID无同startTicks残留；
+`native-snapshot-provenance-01.json`固定源码与发布DLL／native摘要。
+
+实机七场景未穷举manager属性的全部读取交错或实际unit替换；末尾InvocationID复核仍由源审
+及有限实机链支持。该片不证明真实presentation decoder、Worker／HTTP或完整M10；性能暂不验收。

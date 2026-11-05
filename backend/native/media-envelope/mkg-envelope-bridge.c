@@ -428,6 +428,46 @@ static int proc_identity(uint32_t pid, const char *group, uint64_t *ticks,
   *member = !strcmp(buf, expected);
   return 0;
 }
+/* Returns the original I/O status. Snapshot intentionally treats this counter
+ * as best-effort; it must still verify owner, controls and independent drain. */
+static int observe_oom_history(ctx *c, mkg_snapshot *s, char *events, size_t size) {
+  /* Snapshot starts zeroed. A later missing/unreadable counter cannot undo an
+   * OOM already observed for this pinned owner, nor may a lower sample do so. */
+  s->oom_kills = c->last_oom;
+  int r = read_file_at(c->cg, "memory.events", events, size);
+  if (r < 0)
+    return r;
+  char *p = strstr(events, "oom_kill ");
+  if (p) {
+    uint64_t observed = strtoull(p + 9, NULL, 10);
+    if (observed > c->last_oom)
+      c->last_oom = observed;
+  }
+  s->oom_kills = c->last_oom;
+  return r;
+}
+/* Pure selection step: 1 skips cgroup I/O for the existing failed-start case,
+ * 0 continues through the pinned kernel controls, negative errno rejects. */
+static int select_snapshot_group(ctx *c, mkg_snapshot *s, int terminal) {
+  if (c->cg >= 0 && !c->group[0])
+    return -ESTALE;
+  if (s->cgroup[0]) {
+    if (c->cg >= 0 && strcmp(s->cgroup, c->group))
+      return -ESTALE;
+    return copy(c->group, sizeof(c->group), s->cgroup);
+  }
+  /* ActiveState was read before ControlGroup. The process can exit and the
+   * manager can clear that property in between. A prior pin still names the
+   * exact directory; keep the earlier active state and prove drain separately.
+   * No unpinned start is admitted through this fallback. */
+  if (c->cg >= 0)
+    return copy(s->cgroup, sizeof(s->cgroup), c->group);
+  if (terminal && !s->main_pid) {
+    s->cg_removed = 1;
+    return 1;
+  }
+  return -EPROTO;
+}
 int mkg_envelope_snapshot(void *context, mkg_snapshot *s) {
   ctx *c = context;
   int r = 0;
@@ -447,17 +487,11 @@ int mkg_envelope_snapshot(void *context, mkg_snapshot *s) {
   CHECK(property(c, SERVICE, "ExecMainStatus", 'i', &s->exec_status));
   CHECK(text(c, SERVICE, "ControlGroup", s->cgroup, sizeof(s->cgroup)));
   int terminal = !strcmp(s->active, "inactive") || !strcmp(s->active, "failed");
-  if (s->cgroup[0]) {
-    CHECK(copy(c->group, sizeof(c->group), s->cgroup));
-  } else if (c->cg >= 0 && terminal)
-    CHECK(copy(s->cgroup, sizeof(s->cgroup), c->group));
-  else if (terminal && !s->main_pid) {
-    s->cg_removed = 1;
+  int retained_group = !s->cgroup[0] && c->cg >= 0;
+  r = select_snapshot_group(c, s, terminal);
+  CHECK(r);
+  if (r == 1)
     goto controls;
-  } else {
-    r = -EPROTO;
-    goto fail;
-  }
   r = pin_cgroup(c, s->cgroup);
   if (r == -ENOENT && terminal && !s->main_pid && c->cg < 0) {
     s->cgroup[0] = 0;
@@ -491,15 +525,8 @@ int mkg_envelope_snapshot(void *context, mkg_snapshot *s) {
     close(kill_fd);
   }
   s->cg_populated = strstr(events, "populated 1\n") != NULL;
-  r = read_file_at(c->cg, "memory.events", events, sizeof(events));
-  if (r >= 0) {
-    char *p = strstr(events, "oom_kill ");
-    if (p) {
-      s->oom_kills = strtoull(p + 9, NULL, 10);
-      if (s->oom_kills > c->last_oom)
-        c->last_oom = s->oom_kills;
-    }
-  }
+  /* Preserve the existing best-effort memory.events error policy. */
+  (void)observe_oom_history(c, s, events, sizeof(events));
 controls:
   /* A missing capability must not prevent owner capture and safe gate drain. */
   s->controls_complete = 1;
@@ -534,6 +561,17 @@ controls:
     else if (!c->captured_pid) {
       c->captured_pid = s->main_pid;
       c->captured_ticks = s->start_ticks;
+    }
+  }
+  if (retained_group) {
+    /* Do not combine the old invocation with a later cleared group from a
+     * replacement invocation. Keep every original sample field, including
+     * ActiveState and live PID, and reject if its invocation changed. */
+    char current_invocation[33];
+    CHECK(invocation(c, current_invocation));
+    if (strcmp(current_invocation, s->invocation)) {
+      r = -ESTALE;
+      goto fail;
     }
   }
   r = 0;

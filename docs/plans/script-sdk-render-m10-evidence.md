@@ -98,3 +98,28 @@ Exp/Log EOTF oracle均通过；还覆盖奇数尺寸／padding、透明／opaque
 `canvas-core-full-01.log`为1524/1524。首轮定向为32通过／1失败，上述几何修复后通过；
 首轮构建因测试数组切片触发CA1832，改AsSpan后通过，未关闭分析器。
 本片仍不包含GPU统计纹理、实际背景绘制、SDK、任务或HTTP验收。
+
+## 第五片：MFT1 流式编解码与时间查询（产品0.112.20）
+
+`MediaFeatureTrackCodec`接严格F/I串行builder、有界三section spool、流式writer及完整校验
+reader；builder只留一个待配对量化grid，不留借用像素。所有数组在owner账准入后分配，
+交接write source前同时计入两份活跃buffer。spool＋candidate磁盘账由调用方预留；本片
+只定义接缝，尚未实现生产文件store／Job发布，writer返回身份不等于已经提交制品。
+
+reader先校验完整hash、唯一布局、保留字段、全部raw rational与canonical区间、逐帧
+stream timebase及重算prefix，再接管只读stream。重新hash不能隐藏错误布局或中途
+timebase变化；最终可信endpoint允许另一约分timebase。输入外部不可变及授权lease由
+运行owner保证；CanWrite=false本身不是外部文件不可变证明。
+
+查询按64帧prefix差及两侧最多各64帧做整数累计，零窗按半开区间选帧，跨零保持首帧，
+freeze尾部保持末帧，loop整圈相乘；Int128先计算窗口起点，接受long两端而不溢出。
+静态图没有虚构duration。取消后可重查；reader Dispose与在途查询串行排水，失败open
+不夺走caller stream，成功open才转所有权。
+
+`build-track-codec-03.log`完整solution0警告／0错误；`track-codec-focused-02.log`为50/50，
+同构建Media全套`track-codec-media-full-01.log`为325/325。独立手写wire／SHA／prefix及
+逐微秒oracle覆盖65帧非均匀duration的builder→writer→reader全字节、64帧边界与尾块、
+long极值、短源两百万圈有界I/O、512帧prefix路径、重新hash的坏结构与生命周期负例。
+首轮48通过／2失败是video夹具只预留100000B，少于一帧spool＋candidate的147904B；
+修为200000B后触达timebase／取消目标并通过，生产准入未放宽。首轮构建的两处CA1859
+仅在测试变量改用已知具体类型后解决，未抑制分析器。尚无真实decoder／SDK／GPU／HTTP证明。

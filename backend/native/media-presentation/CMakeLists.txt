@@ -1,0 +1,18 @@
+cmake_minimum_required(VERSION 3.24)
+project(mkg_presentation C)
+set(CMAKE_C_STANDARD 17)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(AV REQUIRED IMPORTED_TARGET libavformat>=63 libavcodec>=63 libavutil>=61)
+add_executable(mkg-presentation mkg_presentation.c)
+target_compile_options(mkg-presentation PRIVATE -Wall -Wextra -fstack-protector-strong)
+target_link_libraries(mkg-presentation PRIVATE PkgConfig::AV ${CMAKE_DL_LIBS})
+# Root must build against a pinned controlled bundle and publish its complete manifest.
+
+include(CTest)
+if(BUILD_TESTING)
+  add_executable(mkg-presentation-side-data-tests tests/mkg_presentation_side_data_tests.c)
+  target_compile_options(mkg-presentation-side-data-tests PRIVATE -Wall -Wextra -fstack-protector-strong)
+  target_link_libraries(mkg-presentation-side-data-tests PRIVATE PkgConfig::AV ${CMAKE_DL_LIBS})
+  add_test(NAME mkg-presentation-side-data-tests COMMAND mkg-presentation-side-data-tests)
+endif()

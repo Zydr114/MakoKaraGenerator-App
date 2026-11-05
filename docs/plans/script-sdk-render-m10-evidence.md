@@ -1,6 +1,6 @@
 # M10 媒体轨实施与验收记录
 
-2026-11-05，`dev/script-sdk-render-upgrade`。**实施中，M10未关闭，media.features能力门禁仍关闭。**
+2026-11-06，`dev/script-sdk-render-upgrade`。**实施中，M10未关闭，media.features能力门禁仍关闭。**
 本轮功能优先，性能门槛不参与验收；身份、预算、数值、像素、取消、生命周期及真实作者链仍须验证。
 证据根为`.local/script-sdk-m10-20261105/`，各失败轮保留。
 
@@ -77,6 +77,9 @@ Exp/Log EOTF oracle均通过；还覆盖奇数尺寸／padding、透明／opaque
 同构建Core全套`presentation-core-full-01.log`为1520/1520，Media全套
 `presentation-media-full-01.log`为259/259。
 这些是受管转换功能证据，没有据此声称真实PNG/JPEG/video decoder、媒体背景呈现或GPU已接通。
+原259/259的`presentation-media-full-01.log`在第十七片执行时因同名被覆盖，原始日志未能恢复；
+此处保留既有记录结论并明确证据缺失，不以新版本结果替代。新412/412日志已移为
+`decoder-media-full-01.log`，后续日志使用decoder前缀。
 
 ## 第四片：Canvas 面积查询与最终底色合成（产品0.112.19）
 
@@ -400,3 +403,50 @@ Hosting全套01／02均1632通过／1失败：既有作者编译source案例超�
 `store-worker-stage-hosting-full-04.log`1633/1633。失败历史保留，不当性能通过。
 真正Worker adapter／跨Worker native监督、Job／source capture／恢复ledger和运行输入仍待；
 本片不授新HTTP或包执行能力，M10/M11未完成。
+
+## 第十七片：真实 presentation decoder 与有限 Linux 验收（产品0.112.32）
+
+正式 `MediaPresentationDecoder` 接入固定 libav helper、实际 AVPacket opaque→AVFrame 链、
+包位置／内容 hash、原生平面及完整 flush；MOV sample 表与 Matroska 真实 block 分别提供
+独立时间权威。非尾帧以实际 next PTS 定区间，尾帧必须有真实正 duration，不用帧率或容器
+总时长估算。完整 loaded ELF type4/type5 闭包与每 epoch 核验绑定 Tool identity；原生硬封套、
+原子 managed 预算、borrow callback、真实 source hold 与 ExactSequentialSource 单次执行／
+Dispose join 共同约束寿命。native 构建默认关闭，专用 probe 显式启用，不启动 Server/Worker。
+
+集成后先修正类型推断与分析器问题，以及取消测试 FastClock 误触超时的夹具错误；失败日志
+保留。五组真实红测试分别捕获 packet 位置、原 caller token、next PTS、分配失败回滚及
+exact source 寿命，见 `presentation-red-01.json`；其中两组为兼容现签名的旧语义变异，
+不能说成全部精确旧版本。native frame guard 旧函数及 packet guard 移除分别使 CTest 红，
+恢复后 `presentation-native-ctest-01.log` 1/1。红测副本及恢复摘要均保留。
+
+真实验收揭露并修复两项固定 decoder 适配：PNG libav 把 pHYs 的 x/y 密度写入 SAR，
+仅该格式取倒数后与结构宽高比严格对账；RGB JPEG 的实际 GBRP→RGB24 组件受结构确认，
+允许固定 MJPEG 初始化的 matrix=5，不把它误作实际 YCbCr 分量，仍要求独立色彩权威。
+两项均进入 NormalizedPipeline 身份。PNG 先3红／2正，RGB先1红／5正，修复后解释层14/14。
+没有放宽其他视频标签或 RGB 缺权威规则。
+
+正式探针 `M10PresentationProbe` 的 caller/linked token 断言、PID I/O fail-open 及 summary
+独立摘要检查已修订；在途回调抛实际 linked token，最终异常须保留原 caller token。
+实际 owned kill 期间 pixels/source/budget 保持借用，释放回调并完整排水后才归零。
+逐 interval 独立编码64B并累计摘要，未借产品 MFT1 编码器充当 oracle。
+
+最终夹具为 `presentation-jpeg-fixtures-04/`，包含 PNG8/16、SAR2:1+Exif90、六帧 H264 B-frame、
+VP9 Matroska DefaultDuration 与尾 BlockDuration，以及 baseline/progressive 各420/422/444/RGB/gray
+十种 JPEG。原 VP8 容器／码流矩阵冲突和 H264 缺显式 tags 均如实拒绝；生成器改用明确一致
+的 VP9、H264 编码参数并逐帧核标签，未用 override 绕过矛盾。
+
+- `presentation-probe-publish-09.log` 发布成功；`presentation-jpeg-discovery-04/` 仅为实际闭包发现。
+- `presentation-jpeg-verification-05/summary.json`：16正例／32完整及在途取消场景通过；
+  精确PTS、像素、区间、tail、完整摘要与owned排水均核验。前四轮失败证据保留。
+- `presentation-jpeg-rejection-01/summary.json`：16结构／请求负例及3闭包场景通过。闭包分别为
+  过期helper hash、漏列实际libavcodec、真实首帧后有界metadata故障注入；后者不冒称物理late dlopen。
+- `build-decoder-final-01.log`：完整solution零警告／零错误；`decoder-media-full-02.log`423/423，
+  `decoder-processes-full-01.log`37/37。包含新增73项Media测试。
+- `presentation-cleanup-01.json`：覆盖失败轮和H264诊断轮，237个精确PID/startTicks无残留，
+  225个unit全部not-found；`decoder-provenance-01.json`固定源码、发布及验收摘要，42源文件凭证扫描无匹配。
+
+JPEG canonical 全通道误差保持2e-6：native YUV/GBR/gray参考平面经独立Python颜色运算，
+但codec参考与实际helper共享FFmpeg祖先，不独立证明IDCT。结构负例不证明真实复杂ICC/APNG内容，
+本矩阵也不覆盖所有格式、OOM、动态源替换或性能。正确owner的排水已验证，wrong-owner token
+专门场景仍归既有EnvelopeProbe。本片没有接通store/Worker/HTTP/GPU完整媒体路径，能力门禁
+继续关闭，M10/M11未完成。

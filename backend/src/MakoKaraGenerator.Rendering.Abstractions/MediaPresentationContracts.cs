@@ -210,13 +210,13 @@ public interface IMediaPresentationSink
 {
     /// <summary>Consumes one borrowed canonical frame while its memory remains valid.</summary>
     /// <param name="frame">The exact observed frame and callback-scoped pixels.</param>
-    /// <param name="cancellationToken">Cancellation propagated unchanged through the consumer.</param>
+    /// <param name="cancellationToken">Operation-linked cancellation, including caller and native supervision cancellation.</param>
     /// <returns>Completion of all uses of the borrowed frame memory.</returns>
     ValueTask OnFrameAsync(PresentationFrameBorrow frame, CancellationToken cancellationToken);
 
     /// <summary>Consumes the interval of the immediately preceding frame.</summary>
     /// <param name="interval">The fully validated exact interval.</param>
-    /// <param name="cancellationToken">Cancellation propagated unchanged.</param>
+    /// <param name="cancellationToken">Operation-linked cancellation, including caller and native supervision cancellation.</param>
     /// <returns>Completion of interval consumption.</returns>
     ValueTask OnIntervalAsync(PresentationInterval interval, CancellationToken cancellationToken);
 }
@@ -251,7 +251,7 @@ public interface IMediaPresentationFrameSource : IAsyncDisposable
     /// <summary>Reads and verifies the exact ordinal, raw PTS, dimensions and color before invoking the consumer.</summary>
     /// <param name="id">The exact validated presentation ordinal.</param>
     /// <param name="consume">The awaited callback; it cannot retain the borrowed memory.</param>
-    /// <param name="cancellationToken">Cancellation propagated unchanged through decode and consumption.</param>
+    /// <param name="cancellationToken">Caller cancellation is propagated; consumers receive the operation-linked cancellation token.</param>
     /// <returns>Completion of the verified frame callback and all borrowed pixel uses.</returns>
     ValueTask ReadFrameAsync(PresentationFrameId id,
         Func<PresentationFrameBorrow, CancellationToken, ValueTask> consume, CancellationToken cancellationToken);
@@ -321,7 +321,7 @@ public interface ICanonicalBackgroundFrameConsumer
     /// <summary>Draws the exact canonical background with the accepted source display geometry.</summary>
     /// <param name="request">The explicit accepted draw request.</param>
     /// <param name="frame">The exact paired callback-scoped canonical pixels.</param>
-    /// <param name="cancellationToken">Cancellation propagated unchanged.</param>
+    /// <param name="cancellationToken">Operation-linked cancellation, including caller and native supervision cancellation.</param>
     /// <returns>Completion of drawing and all borrowed pixel uses.</returns>
     ValueTask DrawAsync(CanonicalBackgroundFrameRequest request, PresentationFrameBorrow frame,
         CancellationToken cancellationToken);

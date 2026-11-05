@@ -1,0 +1,43 @@
+<Project>
+  <!-- Import only from an explicitly opted-in executable. This target builds
+       the reviewed presentation helper; it does not admit a package capability. -->
+  <PropertyGroup>
+    <MakoMediaPresentationEnabled Condition="'$(MakoMediaPresentationEnabled)' == ''">false</MakoMediaPresentationEnabled>
+    <MakoMediaPresentationSourceDir Condition="'$(MakoMediaPresentationSourceDir)' == ''">$(MSBuildThisFileDirectory)../native/media-presentation</MakoMediaPresentationSourceDir>
+  </PropertyGroup>
+
+  <Target Name="BuildMakoMediaPresentationNative" BeforeTargets="CopyFilesToOutputDirectory"
+          Condition="'$(MakoMediaPresentationEnabled)' == 'true'">
+    <!-- SDK output paths are final only at target execution, after implicit SDK imports. -->
+    <PropertyGroup>
+      <MakoMediaPresentationBuildDir Condition="'$(MakoMediaPresentationBuildDir)' == ''">$(IntermediateOutputPath)media-presentation-native</MakoMediaPresentationBuildDir>
+      <MakoMediaPresentationToolDir Condition="'$(MakoMediaPresentationToolDir)' == ''">$(TargetDir)media-tools</MakoMediaPresentationToolDir>
+    </PropertyGroup>
+    <Error Condition="!$([MSBuild]::IsOSPlatform('Linux'))" Text="Media presentation native build requires Linux x64." />
+    <Error Condition="'$(RuntimeIdentifier)' != 'linux-x64'"
+           Text="Media presentation native ABI requires explicit RuntimeIdentifier=linux-x64." />
+    <Exec Command="uname -m" ConsoleToMSBuild="true" StandardOutputImportance="Low">
+      <Output TaskParameter="ConsoleOutput" PropertyName="MakoMediaPresentationHostArchitecture" />
+    </Exec>
+    <Error Condition="'$(MakoMediaPresentationHostArchitecture)' != 'x86_64'"
+           Text="Media presentation helper must be built on a Linux x86_64 host; cross-compilation is not configured." />
+    <Exec Command="cmake -S &quot;$(MakoMediaPresentationSourceDir)&quot; -B &quot;$(MakoMediaPresentationBuildDir)&quot; -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF" />
+    <Exec Command="cmake --build &quot;$(MakoMediaPresentationBuildDir)&quot; --config Release --target mkg-presentation --parallel 2" />
+    <ItemGroup>
+      <MakoMediaPresentationNativeFile Include="$(MakoMediaPresentationBuildDir)/mkg-presentation" />
+    </ItemGroup>
+    <MakeDir Directories="$(MakoMediaPresentationToolDir)" />
+    <Copy SourceFiles="@(MakoMediaPresentationNativeFile)" DestinationFolder="$(MakoMediaPresentationToolDir)" />
+  </Target>
+
+  <Target Name="PublishMakoMediaPresentationNative" BeforeTargets="ComputeFilesToPublish"
+          DependsOnTargets="BuildMakoMediaPresentationNative"
+          Condition="'$(MakoMediaPresentationEnabled)' == 'true'">
+    <ItemGroup>
+      <ResolvedFileToPublish Include="@(MakoMediaPresentationNativeFile)">
+        <RelativePath>media-tools/%(Filename)%(Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
+</Project>

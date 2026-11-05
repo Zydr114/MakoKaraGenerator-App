@@ -53,6 +53,9 @@ public sealed class MediaFeatureTrackCodecTests
         await reader.ReadTemporalGridAsync(new(time, window, playback), actual, CancellationToken.None);
         double[] expected = Oracle(fixture, time, window, playback);
         Assert.All(actual, cell => Assert.Equal(expected, Components(cell)));
+        var synchronous = new MediaMomentValues[576];
+        reader.ReadTemporalGrid(new(time, window, playback), synchronous, CancellationToken.None);
+        Assert.Equal(actual, synchronous);
     }
 
     [Fact]
@@ -90,6 +93,9 @@ public sealed class MediaFeatureTrackCodecTests
         var output = new MediaMomentValues[576];
         await reader.ReadTemporalGridAsync(new(long.MinValue, 2_000_000, BackgroundPlaybackMode.Loop), output, CancellationToken.None);
         Assert.Equal(Mft1IndependentFixture.Q(0, 0) / 65535d, output[575].Rp);
+        var synchronous = new MediaMomentValues[576];
+        reader.ReadTemporalGrid(new(long.MaxValue, 2_000_000, BackgroundPlaybackMode.FreezeLastFrame), synchronous, CancellationToken.None);
+        Assert.Equal(output, synchronous);
     }
 
     [Theory]

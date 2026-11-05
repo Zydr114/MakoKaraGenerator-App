@@ -171,4 +171,11 @@ public interface IMediaFeatureTrackReader : IMediaPresentationIndex, IAsyncDispo
     /// <param name="cancellationToken">Cancellation propagated without wrapping.</param>
     ValueTask ReadTemporalGridAsync(MediaTemporalQuery query, Memory<MediaMomentValues> destination,
         CancellationToken cancellationToken);
+    /// <summary>Reads the same bounded temporal grid using direct synchronous storage I/O for synchronous effect evaluation.</summary>
+    /// <remarks>Shares numerical rules, backing and the operation gate with the asynchronous entry. It never waits for an asynchronous read continuation.</remarks>
+    /// <param name="query">A recognized policy and bounded engineering-time window.</param>
+    /// <param name="destination">Exactly 576 cells; discard partial results after failure or cancellation.</param>
+    /// <param name="cancellationToken">Checked while acquiring the gate and between bounded reads.</param>
+    void ReadTemporalGrid(MediaTemporalQuery query, Memory<MediaMomentValues> destination,
+        CancellationToken cancellationToken);
 }

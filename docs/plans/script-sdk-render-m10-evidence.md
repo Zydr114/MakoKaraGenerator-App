@@ -135,3 +135,18 @@ owner仍须先排水再Dispose，GC不释放额度，本账也不是实际RSS测
 为57/57，其中7项新预算测试覆盖32并发争抢8槽、32并发释放不影响其他charge、并发
 churn快照守恒、容量等号／+1／longmax、失败不改账及复用，另50项codec回归通过。
 本片提供生产ledger实现，真实decoder／reader组合根仍待后续接入。
+
+## 第七片：同步效果求值的有界轨读取（产品0.112.22）
+
+reader新增同步`ReadTemporalGrid`，与异步入口共用整数时间算法、backing及gate。
+同步模式直接执行有界Stream.Read；内部ValueTask只在确认已完成后取结果，不等待异步
+I/O或continuation。stream读取块间与gate等待均检查取消；关闭等待两种在途查询，
+不会为同步作者接口另开任务、decoder或一份全轨内存。
+
+`build-sync-track-reader-03.log`完整solution0警告／0错误；
+`sync-track-reader-focused-01.log`为60/60，Media全套
+`sync-track-reader-media-full-01.log`为335/335。原独立逐微秒oracle同时验证同步和异步
+结果；新增禁止异步I/O的stream验证乱序／重复／long极值，31B短读取消后恢复，实际
+生产budget与Dispose等待在途同步读，全部通过。前两轮构建均为CancellationToken参数
+顺序的CA1068失败（第二轮修订命令路径错误，未生效），修为token末参数后通过，未抑制规则。
+本片仍是受信Media读取接缝；实际SDK、缓存淘汰和作者链尚待接通。

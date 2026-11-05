@@ -43,8 +43,6 @@ internal sealed partial class FrameEffectHost
         var package = definition.PackageDefinition ?? throw new EffectOutputException("PackageDefinitionMissing", "真实图绑定须有完整固定包定义。");
         if (definition.IsV2)
         {
-            if (binding.Target is ImageEffectTarget.Group)
-                throw new EffectOutputException("GroupImageEffectUnsupported", "组图的真实调度尚未接通。");
             if (!package.Contents.Requires.Contains("image.graph", StringComparer.Ordinal))
                 throw new EffectOutputException("UndeclaredCapability", "包未声明能力：image.graph");
         }
@@ -56,8 +54,17 @@ internal sealed partial class FrameEffectHost
         if (declared.Length != 1 || declaration.Outputs.Count(item => item.Kind == "ImageGraph" && item.Target == target) != 1)
             throw new EffectOutputException("PackageOutputPlanPending", "多个同类别具名输出须接入完整执行计划，不能猜测。");
         bool RequiresPending(EffectOutputDefinition output) => !output.Requires.IsEmpty
-            && (!definition.IsV2 || output.Requires.Any(requirement => requirement != "image.graph"));
+            && (!definition.IsV2 || output.Requires.Any(requirement => !GroupGraphEffectAdmission.IsAllowedRequirement(output, requirement)));
         var controllerOutput = declaration.Outputs.Single(item => item.Kind == "ImageGraph" && item.Target == target);
+        if (binding.Target is ImageEffectTarget.Group)
+        {
+            try
+            {
+                GroupGraphEffectAdmission.Validate(package, controllerOutput, definition.Binding, "exports." + declaration.Id);
+                GroupGraphEffectAdmission.Validate(package, declared[0], definition.Binding, "exports." + graph.Id);
+            }
+            catch (EffectPackageException error) { throw new EffectOutputException(error.Code, error.Message); }
+        }
         if (RequiresPending(declared[0]) || !declared[0].DependsOn.IsEmpty
             || (definition.IsV2 && (RequiresPending(controllerOutput) || !controllerOutput.DependsOn.IsEmpty)))
             throw new EffectOutputException("PackageOutputPlanPending", "图导出或控制器的额外能力／跨输出执行计划尚未接通。");

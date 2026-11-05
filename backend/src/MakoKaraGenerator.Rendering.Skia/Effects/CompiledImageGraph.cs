@@ -213,12 +213,24 @@ public sealed partial class CompiledImageGraph : IDisposable
         }
         return bounds;
     }
+    private sealed record BudgetInput(object Identity, GraphSurfaceDescriptor Descriptor, long Bytes);
+
     private (int Surfaces, long Bytes) Preflight(ImageGraphFrameContext frame, Dictionary<GraphReference, SkiaGraphSurface> inputs, ImageGraphNode[] nodes,
         Dictionary<string, GraphRect> shapes, Dictionary<GraphReference, int> useCounts,
         Dictionary<string, ResolvedGraphTransform> transforms, CancellationToken cancellationToken)
+        => PreflightLayout(frame, inputs.ToDictionary(pair => pair.Key,
+            pair => new BudgetInput(pair.Value.Image.Handle, pair.Value.Descriptor, Bytes(pair.Value))),
+            nodes, shapes, useCounts, transforms, cancellationToken);
+
+    // Shared lifetime arithmetic for real Execute inputs and zero-allocation
+    // empty-group admission layouts. No native image or surface is fabricated.
+    private (int Surfaces, long Bytes) PreflightLayout(ImageGraphFrameContext frame,
+        Dictionary<GraphReference, BudgetInput> inputs, ImageGraphNode[] nodes,
+        Dictionary<string, GraphRect> shapes, Dictionary<GraphReference, int> useCounts,
+        Dictionary<string, ResolvedGraphTransform> transforms, CancellationToken cancellationToken)
     {
-        var distinct = inputs.Values.DistinctBy(surface => surface.Image.Handle).ToArray();
-        long bytes = distinct.Sum(Bytes); int count = distinct.Length, peakCount = count; long peakBytes = bytes;
+        var distinct = inputs.Values.DistinctBy(input => input.Identity).ToArray();
+        long bytes = distinct.Sum(input => input.Bytes); int count = distinct.Length, peakCount = count; long peakBytes = bytes;
         var uses = new Dictionary<GraphReference, int>(useCounts); var activeBytes = new Dictionary<GraphReference, long>();
         // 输入由调用者拥有，在整个执行期间仍活动；节点在最后使用后及时释放。
         foreach (var node in nodes)

@@ -7,7 +7,7 @@ namespace MakoKaraGenerator.Rendering.Skia;
 public sealed partial class SkiaRenderPipeline
 {
     private ImageGraphResult ExecuteObjectMaterial(RenderRequest request, ObjectMaterialBinding binding, SceneMaterialProgram program,
-        SceneColorPart part, bool? sung, ImageObjectState state, SkiaGraphSurface below)
+        SceneColorPart part, bool? sung, ImageObjectState state, SkiaGraphSurface? below)
     {
         var output = request.ResolveTarget(); var composition = request.Project.Composition;
         var regionKind = binding.Slot == PreparedMaterialSlot.Stroke ? SceneCaptureRegion.Stroke : SceneCaptureRegion.Fill;
@@ -38,9 +38,7 @@ public sealed partial class SkiaRenderPipeline
                     }
                     else if (source == GraphInputSource.BackdropBelow)
                     {
-                        if (binding.Owner is PreparedMaterialOwner.Script script && request.PreparedFrame!.OverlayBatches.Any(batch => batch.InstanceId == script.InstanceId && batch.Layer == OverlayLayer.BehindText && batch.ItemCount > 0))
-                            throw new PreparedFrameException("ImageEffectOwnedBackdropPending", "材质下层尚不能排除自身后置粒子。");
-                        inputs.Add(input.Id, new(below, source));
+                        inputs.Add(input.Id, new(ResolveImageBelow(request, state, binding.Owner, below), source));
                     }
                     else if (source is GraphInputSource.BackgroundColor or GraphInputSource.BackgroundMedia)
                     {

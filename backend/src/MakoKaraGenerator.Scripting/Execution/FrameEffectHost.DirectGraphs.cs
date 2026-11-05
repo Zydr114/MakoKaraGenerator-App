@@ -21,7 +21,8 @@ internal sealed partial class FrameEffectHost
         return new(definition, null, null!, new(definition.Seed, definition.Id), scope, null, HostGraph: new(graph, binding));
     }
 
-    private static FrameOutput EvaluateHostDirectGraph(ActiveEffect active, FrameContext frame)
+    private static FrameOutput EvaluateHostDirectGraph(ActiveEffect active, FrameContext frame,
+        ImmutableArray<GroupGeometrySample> writableGroups)
     {
         var graph = active.HostGraph ?? throw new EffectOutputException("InvalidDirectGraphActivity", "缺少宿主直接图活动。");
         var writes = ImmutableArray.CreateBuilder<TextWrite.GraphBinding>();
@@ -50,6 +51,11 @@ internal sealed partial class FrameEffectHost
                 case "textMark":
                     foreach (var mark in frame.Presentations.MarksInBinding)
                         if (frame.MarkGeometry.Any(item => item.Target == mark.Target)) Add(new TextTarget.Mark(mark.Target));
+                    break;
+                case "group":
+                    // Global read geometry is not permission. This host-computed
+                    // list has already excluded exit aliases and out-of-scope nodes.
+                    foreach (var group in writableGroups) Add(new TextTarget.Group(group.Target));
                     break;
                 default: throw new EffectOutputException("PackageWriterPending", "此直接图目标的执行器未接通。");
             }

@@ -196,7 +196,7 @@ public sealed partial class MainCanvasImageEffectsTests
     }
 
     [Fact]
-    public void R3Core明确拒绝父组图绑定而不静默丢弃()
+    public void 正式组调度消费显式空配方而单绑定入口继续独立拒绝()
     {
         var request = Request(Snapshot());
         string root = request.Project.LyricPresentation.FindProgram("primary")!.RootContainerId;
@@ -204,13 +204,17 @@ public sealed partial class MainCanvasImageEffectsTests
         using var resources = new SceneImageEffectResources([new(Catalog.GetGraph("first"), graph, Whole, Bounds)]);
         using var renderer = new SkiaRenderPipeline(null, null, null, resources);
 
-        var error = Assert.Throws<EffectFailureException>(() => renderer.Render(Bindings(request,
-            Bind("group", new Fx.ImageEffectTarget.Group(new(new(root)))))));
-
-        Assert.Equal("GroupImageEffectUnsupported", error.Code);
-        Assert.Equal("RenderImageEffects", error.Stage);
-        Assert.Equal(new Fx.EffectInstanceId("group"), error.InstanceId);
-        Assert.Contains("R3 Core", error.InnerException!.Message);
+        // The full main-canvas scheduler now owns group composition. The
+        // single-binding ExecuteSceneImageEffect API below stays explicitly gated.
+        // Whole has no descendant groups, so this real root receives empty source
+        // selection: consume with Info and keep its descendants unchanged.
+        using var expected = renderer.Render(request);
+        using var actual = renderer.Render(Bindings(request,
+            Bind("group", new Fx.ImageEffectTarget.Group(new(new(root))))));
+        Close(expected.PixelMemory.ToArray(), actual.PixelMemory.ToArray(), 2);
+        var diagnostic = Assert.Single(actual.SceneDiagnostics.Where(item => item.Diagnostic.Code == "GroupImageEffectNoSelectedChildren"));
+        Assert.Equal(new Fx.EffectInstanceId("group"), diagnostic.InstanceId);
+        Assert.Equal(Fx.DiagnosticSeverity.Info, diagnostic.Diagnostic.Severity);
     }
 
     [Fact]
@@ -294,19 +298,18 @@ public sealed partial class MainCanvasImageEffectsTests
     }
 
     [Fact]
-    public void 同实例自身后置粒子下层捕获在隔离实现前明确拒绝()
+    public void 同实例自身后置粒子下层捕获在异处采样明确排除()
     {
-        var request = Request(Snapshot()); var binding = Bind("same", Line(request));
+        var request = OwnedRequest(); var binding = Bind("same", Line(request));
         var prepared = request.PreparedFrame!.WithVisualOutput([new(binding.InstanceId, new("dots"), Fx.OverlayLayer.BehindText,
             [new(new(20, 20), 5, new(1, 0, 0, 1))])], []);
-        var definition = new ImageGraphDefinition("below", ImageGraphDefinition.CurrentVersion,
-            [new("below", GraphInputSource.BackdropBelow, ShaderSurfaceKind.Color, true, GraphBackgroundRequirement.None, GraphCoordinateSpace.Canvas)], [], [],
-            GraphReference.Input("below"), GraphCoordinateSpace.Canvas, 0, GraphAnchorMode.ColorOnly, GraphCompositeMode.SourceOver);
-        using var graph = CompiledImageGraph.Compile(ImageGraphCompiler.Compile(definition, [], []));
+        using var graph = OwnedProbe("below", 480);
         using var resources = new SceneImageEffectResources([new(Catalog.GetGraph("first"), graph, Whole, Bounds)]);
         using var renderer = new SkiaRenderPipeline(null, null, null, resources);
-        var error = Assert.Throws<EffectFailureException>(() => renderer.Render(request with { PreparedFrame = prepared.WithImageEffects([binding]) }));
-        Assert.Equal("ImageEffectOwnedBackdropPending", error.Code); Assert.Equal(binding.InstanceId, error.InstanceId);
+        using var actual = renderer.Render(request with { PreparedFrame = prepared.WithImageEffects([binding]) });
+        OwnedPixelNear(actual, 484, 20, 0, 0, 0, 0);
+        Assert.True(OwnedPixel(actual, 20, 20)[2] > 240);
+        Assert.Empty(actual.ImageEffectDiagnostics);
     }
 
     [Fact]

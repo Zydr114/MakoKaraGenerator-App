@@ -17,6 +17,26 @@ public sealed class GroupImageEffectHostTests
     private static readonly Lazy<Task<CompiledEffectPackage>> Package = new(() => Compile());
     private const string Source = """
         using MakoKaraGenerator.Scripting;
+        using MakoKaraGenerator.Scripting.V2;
+        public sealed record GroupData(string Node, double Amount) : PreparedEffect;
+        public sealed class PackEffect : IPureKaraokeEffect
+        {
+            public PreparedEffect Declare(DeclareContext c) => new GroupData(c.Parameters.GetText("node"), c.Parameters.GetNumber("amount"));
+            public void Evaluate(in TextFrame f, PreparedEffect p, TextOutput o)
+            {
+                var d = (GroupData)p;
+                var target = new TextTarget.Group(new(new(d.Node)));
+                var graph = f.Resources.GetGraph("tint");
+                GraphBindingValue Value(double amount) => new(graph, new ParameterValues(new[] {
+                    new System.Collections.Generic.KeyValuePair<string, ParameterValue>("amount", new ParameterValue.Number(amount))
+                }), GraphUniformValues.Empty, GraphTransformValues.Empty);
+                o.BindGraph(target, Value(.25));
+                o.BindGraph(target, Value(d.Amount));
+            }
+        }
+        """;
+    private const string LegacySource = """
+        using MakoKaraGenerator.Scripting;
         public sealed class PackEffect : EffectBase
         {
             public override void Evaluate(FrameContext frame, FrameWriter output)
@@ -29,9 +49,9 @@ public sealed class GroupImageEffectHostTests
             }
         }
         """;
-    private static async Task<CompiledEffectPackage> Compile(string controllerTarget = "group", string graphTarget = "group", bool graphAllowsNode = true)
+    private static async Task<CompiledEffectPackage> Compile(string controllerTarget = "group", string graphTarget = "group", bool graphAllowsNode = true, bool legacy = false)
     {
-        var contents = MixedEffectPackageFixture.Contents(manifest =>
+        var original = MixedEffectPackageFixture.Contents(manifest =>
         {
             manifest["parameters"]!.AsArray().Add(new JsonObject { ["id"] = "node", ["type"] = "text", ["label"] = "目标组", ["default"] = "" });
             var controller = manifest["exports"]!.AsArray().Single(item => item!["kind"]!.GetValue<string>() == "controller")!;
@@ -39,7 +59,25 @@ public sealed class GroupImageEffectHostTests
             var graph = manifest["exports"]!.AsArray().Single(item => item!["kind"]!.GetValue<string>() == "graph")!;
             graph["outputs"]![0]!["target"] = graphTarget;
             if (!graphAllowsNode) graph["bindingKinds"] = new JsonArray("project");
-        }, controllerSource: Source);
+        }, controllerSource: legacy ? LegacySource : Source);
+        var contents = original;
+        if (!legacy)
+        {
+            var manifest = JsonNode.Parse(original.Manifest.AsSpan())!.AsObject();
+            manifest["packageVersion"] = 3; manifest["sdkVersion"] = "2.0.0"; manifest["shaderProfile"] = "skia-ganesh-3.119.4-v2";
+            manifest["requires"] = new JsonArray("image.graph", "image.graph.group");
+            manifest["lineExit"] = new JsonObject { ["durationUs"] = 0 }; manifest["emitters"] = new JsonArray();
+            var exports = manifest["exports"]!.AsArray();
+            for (int index = exports.Count - 1; index >= 0; index--)
+                if (exports[index]!["kind"]!.GetValue<string>() == "material") exports.RemoveAt(index);
+            foreach (var export in exports)
+            {
+                var output = export!["outputs"]![0]!;
+                output["requires"] = output["target"]!.GetValue<string>() == "group" ? new JsonArray("image.graph.group") : new JsonArray();
+            }
+            contents = EffectPackageContents.CreateSupported(EffectPackageFixture.Bytes(manifest), original.Files.Select(file =>
+                KeyValuePair.Create(file.Path, (ReadOnlyMemory<byte>)file.Content.ToArray())));
+        }
         var package = await CompiledEffectPackage.CompileAsync(EffectPackageDefinition.Read(contents),
             new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")), new PackageImageValidator(),
             new PackageShaderValidator(), new PackageImageGraphValidator(), new PackageMaterialValidator());
@@ -75,17 +113,29 @@ public sealed class GroupImageEffectHostTests
             "branch" => new Fx.EffectBinding.Branch(new("primary")), "lines" => new Fx.EffectBinding.Lines([new("first")]),
             "tokens" => new Fx.EffectBinding.Tokens([new("first-a")]), _ => new Fx.EffectBinding.Clips([new("chorus-clip")]),
         };
-        var effect = Effect(await Package.Value, "group", binding, root); Assert.Equal(Fx.EffectCapabilities.ImageEffects, effect.Capabilities);
-        await using var source = await Factory(effect).CreateAsync(snapshot);
+        var package = await Package.Value;
         if (!allowed)
         {
-            var failure = await Assert.ThrowsAsync<EffectFailureException>(async () => await source.PrepareAsync(10_000_000,
-                Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition)));
-            Assert.Equal("TargetOutsideBinding", failure.Code); Assert.Equal("group", failure.InstanceId.Value); return;
+            var failure = Assert.Throws<EffectPackageException>(() => Effect(package, "group", binding, root));
+            Assert.Equal("PackageBindingNotAllowed", failure.Code); return;
         }
+        var effect = Effect(package, "group", binding, root); Assert.Equal(Fx.EffectCapabilities.ImageEffects, effect.Capabilities);
+        await using var source = await Factory(effect).CreateAsync(snapshot);
         var frame = await source.PrepareAsync(10_000_000, Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition));
         var output = Assert.Single(frame.ImageEffects); Assert.Equal(new Fx.ImageEffectTarget.Group(new(new(root))), output.Binding.Target);
         Assert.Equal(.5, output.Binding.Parameters.GetNumber("amount")); Assert.Equal(effect.Artifact!.ArtifactHash, output.ArtifactHash);
+    }
+
+    [Fact]
+    public async Task 旧v1组图在准备阶段具名拒绝并保留真实实例和产物归因()
+    {
+        var snapshot = Snapshot(); var package = await Compile(legacy: true);
+        var effect = Effect(package, "legacy-group", new Fx.EffectBinding.Project(), Root(snapshot));
+        await using var source = await Factory(effect).CreateAsync(snapshot);
+        var failure = await Assert.ThrowsAsync<EffectFailureException>(async () => await source.PrepareAsync(10_000_000,
+            Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition)));
+        Assert.Equal("GroupImageEffectUnsupported", failure.Code); Assert.Equal("ComposeOutputs", failure.Stage);
+        Assert.Equal("legacy-group", failure.InstanceId.Value); Assert.Equal(effect.Artifact!.ArtifactHash, failure.ArtifactHash);
     }
 
     [Theory]

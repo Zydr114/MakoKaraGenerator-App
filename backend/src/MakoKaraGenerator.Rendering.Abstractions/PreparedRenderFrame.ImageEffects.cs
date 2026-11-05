@@ -31,7 +31,9 @@ public sealed partial class PreparedRenderFrame
                 ImageEffectTarget.Token token => FinalGeometry.Any(item => item.WithRuby == token.Target && item.BaseGeometry.CanTransformIndependently),
                 ImageEffectTarget.Line line => FinalLineGeometry.Any(item => item.Target == line.Target),
                 ImageEffectTarget.Mark mark => FinalMarkGeometry.Any(item => item.Target == mark.Target),
-                ImageEffectTarget.Group group => FinalGroupGeometry.Any(item => item.Target == group.Target),
+                ImageEffectTarget.Group group => FinalGroupGeometry.Any(item => item.Target == group.Target)
+                    && HierarchyScene.Elements.Any(item => item.Id == group.Target.NodeId.Value
+                        && item.Kind == SceneElementKind.Group && item.SourceNodeId is null),
                 _ => false,
             };
             if (!present) throw new PreparedFrameException("InvalidPreparedImageEffectTarget", "图绑定必须是本准备帧的真实装载，元素族须独立。");

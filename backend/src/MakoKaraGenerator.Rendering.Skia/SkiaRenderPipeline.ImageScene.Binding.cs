@@ -7,7 +7,7 @@ namespace MakoKaraGenerator.Rendering.Skia;
 public sealed partial class SkiaRenderPipeline
 {
     private void ApplyImageObjectBinding(RenderRequest request, PreparedImageEffectBinding binding, SceneImageGraphProgram program,
-        ImageObjectState state, SkiaGraphSurface below, ImmutableArray<RenderImageEffectDiagnostic>.Builder diagnostics)
+        ImageObjectState state, SkiaGraphSurface? below, ImmutableArray<RenderImageEffectDiagnostic>.Builder diagnostics)
     {
         if (program.Graph.Plan.Definition.AnchorMode != GraphAnchorMode.ColorOnly)
             throw new PreparedFrameException("ImageEffectMappingPending", "实际图像映射尚未接入，不能将映射图当作颜色图执行。");
@@ -46,9 +46,8 @@ public sealed partial class SkiaRenderPipeline
             }
             else if (source == GraphInputSource.BackdropBelow)
             {
-                if (request.PreparedFrame!.OverlayBatches.Any(batch => batch.InstanceId == binding.InstanceId && batch.Layer == OverlayLayer.BehindText && batch.ItemCount > 0))
-                    throw new PreparedFrameException("ImageEffectOwnedBackdropPending", "下层排除本实例拥有的后置粒子尚未接入，不能让效果采样自身粒子。");
-                inputs.Add(declaration.Id, new(below, source));
+                var owner = new PreparedMaterialOwner.Script(binding.InstanceId, binding.ArtifactHash) { PackageIdentity = binding.PackageIdentity };
+                inputs.Add(declaration.Id, new(ResolveImageBelow(request, state, owner, below), source));
             }
             else if (source is GraphInputSource.BackgroundColor or GraphInputSource.BackgroundMedia)
             {
@@ -77,6 +76,7 @@ public sealed partial class SkiaRenderPipeline
         var history = chosen.SelectMany(layer => layer.History).Distinct().Append(result).ToImmutableArray();
         state.Layers.RemoveAll(layer => chosen.Contains(layer));
         state.Layers.Add(new(chosen.Max(layer => layer.Order), selected.ToImmutableHashSet(), result.Output, history, program.Graph, new(binding)));
+        state.SetLayerBudget(state.Layers.Count);
         state.Changed = true;
     }
     private static ColorLayer[] SelectImageLayers(ImageObjectState state, ImageEffectTarget scope, SceneCaptureRecipe recipe, GraphInputSource source)

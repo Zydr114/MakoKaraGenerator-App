@@ -84,6 +84,17 @@ SDK24、真实包CPU／Vulkan各19、Scripting509、Rendering1575、RuntimeHosti
 详见[M09证据](script-sdk-render-m09-evidence.md)。Base包材质／uniform、Group、mapping、
 跨输出计划和owned Below仍待，C03与M09未关闭。
 
+## M09 G4 增量：真实组图与 owned Below（0.112.13）
+
+`image.graph.group` 要求同时声明 `image.graph`，controller／direct只可写宿主授予的真实source组。
+C03已增加组完整C/E、独立孩子擦除、部分配方、透明旁路、两级alpha及真实父树范围的E/X/D/T证据；
+C05／S09增加六类直接owner BehindText排除、固定父前缀／兄弟前缀和Family/Base材质共享resolver。
+默认Rendering1697、显式Vulkan环境组合153通过；组预算及空选择有红绿证据，像素容差仍2/255。
+Base独立包材质在0.112.12已有CPU／Vulkan34项有限像素证据。
+
+作者A、匹配HTTP／导出X以及完整样例仍待后继验收；Mapping／跨输出计划保持门禁，
+不由本切片关闭C03／C05、S09或T01。详见[M09记录](script-sdk-render-m09-evidence.md)。
+
 ## 全能力映射
 
 路径前缀：`SA` = `backend/src/MakoKaraGenerator.Scripting.Abstractions`，

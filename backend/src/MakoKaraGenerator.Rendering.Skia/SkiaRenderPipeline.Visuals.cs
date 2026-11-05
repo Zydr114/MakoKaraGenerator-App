@@ -59,41 +59,47 @@ public sealed partial class SkiaRenderPipeline
         foreach (var batch in frame.OverlayBatches.Where(batch => batch.Layer == layer))
         {
             request.CancellationToken.ThrowIfCancellationRequested();
-            switch (batch)
-            {
-                case Fx.DotBatch dots:
-                    paint.Style = SKPaintStyle.Fill;
-                    foreach (var dot in dots.Dots)
-                    {
-                        request.CancellationToken.ThrowIfCancellationRequested(); paint.Color = OverlayColor(dot.Color);
-                        canvas.DrawCircle((float)dot.Position.X, (float)dot.Position.Y, (float)dot.Radius, paint);
-                    }
-                    break;
-                case Fx.SegmentBatch segments:
-                    paint.Style = SKPaintStyle.Stroke; paint.StrokeCap = SKStrokeCap.Butt;
-                    foreach (var segment in segments.Segments)
-                    {
-                        request.CancellationToken.ThrowIfCancellationRequested(); paint.Color = OverlayColor(segment.Color); paint.StrokeWidth = (float)segment.Width;
-                        canvas.DrawLine((float)segment.Start.X, (float)segment.Start.Y, (float)segment.End.X, (float)segment.End.Y, paint);
-                    }
-                    break;
-                case Fx.SpriteBatch sprites:
-                    OverlayOperation(frame, sprites, "Sprite", () => { DrawSprites(canvas, sprites, request); return true; });
-                    break;
-                case Fx.PathBatch paths:
-                    OverlayOperation(frame, paths, "SvgVector", () => { DrawPaths(canvas, paths, request, resources, svgWork); return true; });
-                    break;
-                case Fx.AtlasSpriteBatch atlas:
-                    OverlayOperation(frame, atlas, "SvgAtlas", () => { DrawAtlasSprites(canvas, atlas, request, svgWork); return true; });
-                    break;
-                case Fx.TrailBatch trails:
-                    paint.Style = SKPaintStyle.Fill; paint.Color = SKColors.White;
-                    foreach (var trail in trails.Trails) DrawTrail(canvas, trail, paint, request.CancellationToken);
-                    break;
-                default:
-                    OverlayOperation<bool>(frame, batch, "Overlay", () => throw new PreparedFrameException("UnsupportedOverlayBatch", "后端不认识此封闭图元批次，不能忽略输出。"));
-                    break;
-            }
+            DrawOverlayBatch(canvas, request, frame, batch, paint, resources, svgWork);
+        }
+    }
+    private void DrawOverlayBatch(SKCanvas canvas, RenderRequest request, PreparedRenderFrame frame, Fx.OverlayBatch batch,
+        SKPaint paint, ImageSurfaceBudgetFrame resources, SvgRenderWorkBudget svgWork)
+    {
+        request.CancellationToken.ThrowIfCancellationRequested();
+        switch (batch)
+        {
+            case Fx.DotBatch dots:
+                paint.Style = SKPaintStyle.Fill;
+                foreach (var dot in dots.Dots)
+                {
+                    request.CancellationToken.ThrowIfCancellationRequested(); paint.Color = OverlayColor(dot.Color);
+                    canvas.DrawCircle((float)dot.Position.X, (float)dot.Position.Y, (float)dot.Radius, paint);
+                }
+                break;
+            case Fx.SegmentBatch segments:
+                paint.Style = SKPaintStyle.Stroke; paint.StrokeCap = SKStrokeCap.Butt;
+                foreach (var segment in segments.Segments)
+                {
+                    request.CancellationToken.ThrowIfCancellationRequested(); paint.Color = OverlayColor(segment.Color); paint.StrokeWidth = (float)segment.Width;
+                    canvas.DrawLine((float)segment.Start.X, (float)segment.Start.Y, (float)segment.End.X, (float)segment.End.Y, paint);
+                }
+                break;
+            case Fx.SpriteBatch sprites:
+                OverlayOperation(frame, sprites, "Sprite", () => { DrawSprites(canvas, sprites, request); return true; });
+                break;
+            case Fx.PathBatch paths:
+                OverlayOperation(frame, paths, "SvgVector", () => { DrawPaths(canvas, paths, request, resources, svgWork); return true; });
+                break;
+            case Fx.AtlasSpriteBatch atlas:
+                OverlayOperation(frame, atlas, "SvgAtlas", () => { DrawAtlasSprites(canvas, atlas, request, svgWork); return true; });
+                break;
+            case Fx.TrailBatch trails:
+                paint.Style = SKPaintStyle.Fill; paint.Color = SKColors.White;
+                foreach (var trail in trails.Trails) DrawTrail(canvas, trail, paint, request.CancellationToken);
+                break;
+            default:
+                OverlayOperation<bool>(frame, batch, "Overlay", () => throw new PreparedFrameException("UnsupportedOverlayBatch", "后端不认识此封闭图元批次，不能忽略输出。"));
+                break;
         }
     }
 }

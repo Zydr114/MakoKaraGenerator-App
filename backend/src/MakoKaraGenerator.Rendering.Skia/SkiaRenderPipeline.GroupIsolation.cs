@@ -11,6 +11,8 @@ public sealed partial class SkiaRenderPipeline
     private sealed class IsolationUnit(PreparedGroupOpacity? opacity = null, SceneDrawItem? item = null)
     {
         internal PreparedGroupOpacity? Opacity { get; } = opacity;
+        internal string? GroupId { get; init; }
+        internal ImmutableArray<PreparedImageEffectBinding> GroupBindings { get; init; } = [];
         internal SceneDrawItem? Item { get; } = item;
         internal List<IsolationUnit> Children { get; } = [];
         internal List<int> Indices { get; } = [];

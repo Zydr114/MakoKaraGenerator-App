@@ -220,7 +220,7 @@ internal sealed partial class FrameEffectHost : IDisposable
                 {
                     using (MeasureAuthor(active, "Evaluate"))
                     {
-                        if (active.HostGraph is not null) output = EvaluateHostDirectGraph(active, frame);
+                        if (active.HostGraph is not null) output = EvaluateHostDirectGraph(active, frame, writableGroups);
                         else if (active.Pure is not null) output = EvaluatePure(active, frame, scene, writableGroups, cancellationToken);
                         else
                         {

@@ -5,7 +5,8 @@
 进度以[阶段一执行记录](../plans/script-sdk-v2-phase-one-progress.md)和[验收清单](../plans/script-sdk-v2-render-acceptance.md)为准。
 
 旧入口继续见 [SDK v1 参考](../../backend/docs/style-reference/script-sdk.md)及[类型索引](../../backend/docs/style-reference/script-sdk-types.md)。
-主计划中的晚期视觉、粒子、最终锚点 memo、Warp、SVG 和媒体特征轨属于后续节点；本文不把这些候选设计列为 M07 API。
+本文主体保留 M07 文字接口的范围；M08 粒子与晚期视觉、M09 Warp／SVG／图与材质已按切片接入，
+其证据与剩余门禁见 [能力台账](../plans/script-sdk-v2-capability-ledger.md)。媒体特征轨仍待 M10。
 
 ## 1. 包身份、设备与开发并存
 
@@ -117,7 +118,10 @@ M07 没有另一个已接通的 `IPureVisualEffect`、`VisualFrame` 或 `VisualO
 
 顶层 `requires` 是有限能力列表；未知值读取时以 `PackageCapabilityUnsupported` 拒绝。
 当前白名单是：`token.affine`、`line.affine`、`group.affine`、`mark.affine`、`cluster.affine`、
-`token.opacity`、`group.opacity`、`style.fill`、`style.stroke`、`style.shadow`、`style.glow`、`timeline.index`、`line.exit`。
+`token.opacity`、`group.opacity`、`style.fill`、`style.stroke`、`style.shadow`、`style.glow`、`timeline.index`、`line.exit`，
+以及 M08/M09 增加的 `particles.continuous`、`particles.burst`、`visuals.dots`、`visuals.segments`、
+`visuals.trails`、`visuals.sprites`、`visuals.paths`、`token.warp`、`cluster.warp`、`mark.warp`、
+`resources.svg.vector`、`resources.svg.atlas`、`image.graph`、`image.graph.group`、`material.uniform`。
 `timeline.index` 表示包声明依赖索引；当前查询没有逐方法独立能力门禁，不能把它解释为扩大 `SourceSubscription`。
 
 `TextTarget` 是封闭目标类型，现有目标可隐式转换；用真实当前目标，不自己制造编号。
@@ -134,6 +138,12 @@ M07 没有另一个已接通的 `IPureVisualEffect`、`VisualFrame` 或 `VisualO
 包导出的 `bindingKinds`、输出 `kind`／`target`／`requires` 也必须与入口行为匹配。
 读取全局组几何不授予写权；组写范围由真实运行父树和本实例输出绑定决定。`EffectBinding.Tokens` 不授予整行目标。
 范围外目标报 `TargetOutsideBinding`，缺能力报 `UndeclaredCapability`，不支持的属性／目标组合报 `PropertyTargetUnsupported`。
+
+M09 的 `BindGraph(target, GraphBindingValue)` 支持 Family／Line／Mark 的 `image.graph`，以及同时
+声明 `image.graph.group` 的真实 Group。controller 和实际 graph 输出均须明确 `ImageGraph/group`
+及新能力；组写权限于 Project 或显式 Node 的真实父树范围。退场 alias 没有独立写权。
+无 DLL 直接图使用相同准入；Base 图、Mapping、跨输出依赖仍拒绝。父图读取已处理的孩子颜色与
+独立擦除，部分捕获不能拆开已经融合的来源。详情见[组图合同](../../backend/docs/scripting-group-image-composition-contract.md)。
 
 `AppendTransform(target, matrix)` 在目标局部逻辑空间追加，先写 A 再写 B，累计为 `B * A`。
 矩阵须有限、可逆，并在后端 float 精度下仍然可逆。不同层级由宿主统一合成，不依赖作者遍历顺序推导父链。

@@ -48,6 +48,7 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
     private readonly SkiaRenderDeviceLifetime? _deviceLifetime;
     private readonly SceneSpriteProgram? _spriteProgram;
     private readonly Lazy<SceneOpacityProgram> _isolationResources = new(static () => new());
+    private readonly SceneCompositionProgram _compositionProgram;
     private readonly LayoutCache _layouts;
     private readonly bool _ownsLayouts;
     private bool _disposed;
@@ -97,9 +98,11 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
             _backgroundResolver = initializedResolver = backgroundResolver ?? new BackgroundFrameSourceResolver();
             _surfaceBudget = initializedBudget = surfaceBudget ?? new();
             if (imageEffects is { HasSpriteImages: true }) _spriteProgram = new();
+            _compositionProgram = new(_device, _surfaceBudget.Limits, _deviceLifetime);
         }
         catch
         {
+            _spriteProgram?.Dispose();
             if (_ownsLayoutEngine) initializedLayout?.Dispose();
             if (_ownsSurfaceBudget) initializedBudget?.Dispose();
             if (backgroundResolver is null) initializedResolver?.Dispose();
@@ -227,10 +230,11 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
             using var svgInputs = BorrowSvgInputs(request, frameResources);
             var svgWork = new SvgRenderWorkBudget(_svgEffects?.MaximumFrameOperations ?? 200_000,
                 _svgEffects?.MaximumFrameFilterBytes ?? 128L * 1024 * 1024);
+            using var backdropFrame = CaptureSceneBackdrop(surface, request, frameResources, svgWork);
             DrawOverlays(canvas, request, Scripting.OverlayLayer.BehindText, frameResources, svgWork);
             if (request.PreparedFrame is { } preparedScene && (!preparedScene.Materials.IsEmpty || !preparedScene.BaseMaterials.IsEmpty || !preparedScene.ImageEffects.IsEmpty || !preparedScene.GroupOpacities.IsEmpty))
             {
-                imageDiagnostics = DrawImageEffectScene(surface, request, frameResources, out var drawingDiagnostics, out materialDiagnostics);
+                imageDiagnostics = DrawImageEffectScene(surface, request, frameResources, backdropFrame, out var drawingDiagnostics, out materialDiagnostics);
                 sceneDiagnostics = sceneDiagnostics.Append(drawingDiagnostics);
             }
             else DrawLyrics(canvas, request, composition, measuredScene, frameResources);
@@ -335,6 +339,7 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
         }
 
         if (_ownsLayouts) _layouts.Clear();
+        _compositionProgram.Dispose();
         if (_isolationResources.IsValueCreated) _isolationResources.Value.Dispose();
         _spriteProgram?.Dispose();
         if (_ownsSurfaceBudget) _surfaceBudget.Dispose();

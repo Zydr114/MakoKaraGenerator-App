@@ -54,6 +54,7 @@ public sealed partial class SkiaRenderPipeline
         var resources = surfaceBudget ?? ownFrame!;
         long pixelBytes = checked((long)width * (long)height * 4);
         validateAllocation?.Invoke(pixelBytes);
+        resources.ChargeScenePass(request.CancellationToken);
         ImageSurfaceReservation? reservation = resources.Reserve(1, pixelBytes, operation);
         try
         {

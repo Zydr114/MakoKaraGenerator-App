@@ -212,3 +212,11 @@ Base 两态填充／描边／uniform 已接通真实中立外观、逐部位 own
 Ruby 保留父族；后继 Family／Line 图可消费实际颜色。真实CPU／显式Vulkan 34项通过，
 原像素oracle不等价与坏参数归属的红绿证据已分别保留，见[M09记录](script-sdk-render-m09-evidence.md)。
 现有Rendering1575和Scripting509通过；组图、owned Below与匹配HTTP／导出仍待。
+
+### M09 真实组图与 owned Below（产品0.112.13）
+
+组controller／无DLL直接图以双cap和真实source父树准入；完整C/E、partial、共同alpha、父固定
+Below／孩子前序兄弟、六类直接owner过滤与Base材质接通。逐输入活动层、实际pass和空组图峰值
+门禁均有红绿证据。缩放透明像素误差已修复，默认64表面限制保留；Rendering1697/1697与显式
+Vulkan环境组合153/153通过，详见[M09记录](script-sdk-render-m09-evidence.md)。
+作者精确源metadata与配置原子采用、匹配HTTP／UI／导出以及M10/M11仍待；M09未关闭。

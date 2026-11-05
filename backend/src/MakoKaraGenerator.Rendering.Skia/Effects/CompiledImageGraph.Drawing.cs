@@ -58,6 +58,7 @@ public sealed partial class CompiledImageGraph
     private SkiaGraphSurface Raster(GraphRect shape, ImageGraphFrameContext frame, ShaderSurfaceKind kind, Action<SKCanvas> draw,
         ImageSurfaceBudgetFrame resources, CancellationToken cancellationToken)
     {
+        resources.ChargeScenePass(cancellationToken);
         using var performance = PerformanceTelemetry.Measure(PerformancePhase.Raster);
         int width = checked((int)Math.Round(shape.Width * frame.DensityX)), height = checked((int)Math.Round(shape.Height * frame.DensityY));
         ImageSurfaceReservation? reservation = resources.Reserve(1, checked((long)width * height * 4), "ImageGraphRaster");

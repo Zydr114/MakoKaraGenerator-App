@@ -5,19 +5,21 @@ namespace MakoKaraGenerator.Scripting.V2;
 public sealed partial class TextOutput
 {
     private const string ImageGraphCapability = "image.graph";
+    private const string GroupImageGraphCapability = "image.graph.group";
     private readonly GraphBindingBudget _graphBudget = new();
     private ExceptionDispatchInfo? _graphFailure;
     internal CancellationToken GraphCancellation { private get; init; }
 
-    /// <summary>整体替换真实字族、整行或提示标记的 ColorOnly 图绑定；不合并上一绑定的覆盖。</summary>
+    /// <summary>整体替换真实字族、整行、提示标记或授权源组的 ColorOnly 图绑定；不合并上一绑定的覆盖。</summary>
     public void BindGraph(TextTarget target, GraphBindingValue binding)
     {
         RequireOpen();
         try
         {
             ArgumentNullException.ThrowIfNull(target); ArgumentNullException.ThrowIfNull(binding);
-            if (target is not (TextTarget.Family or TextTarget.Line or TextTarget.Mark)) throw Unsupported();
+            if (target is not (TextTarget.Family or TextTarget.Line or TextTarget.Mark or TextTarget.Group)) throw Unsupported();
             Require(target, ImageGraphCapability);
+            if (target is TextTarget.Group) Require(target, GroupImageGraphCapability);
             if (target is TextTarget.Family && _tokenGeometry.TryGetValue(target, out var geometry) && !geometry.CanTransformIndependently)
                 throw new EffectOutputException(geometry.DiagnosticCode ?? "UnsupportedGlyphPartition", "共享字形不能独立绑定图效果。");
             if (!_resources.Contains(binding.Graph)) throw new EffectOutputException("InvalidGraphResource", "图导出不属于本实例固定包修订。");

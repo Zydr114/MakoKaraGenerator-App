@@ -9,7 +9,8 @@ internal sealed partial class FrameEffectHost
         TextTarget.Family family => new ImageEffectTarget.Token(family.Value),
         TextTarget.Line line => new ImageEffectTarget.Line(line.Value),
         TextTarget.Mark mark => new ImageEffectTarget.Mark(mark.Value),
-        _ => throw new EffectOutputException("PropertyTargetUnsupported", "纯图绑定只支持真实字族、整行和提示标记。"),
+        TextTarget.Group group => new ImageEffectTarget.Group(group.Value),
+        _ => throw new EffectOutputException("PropertyTargetUnsupported", "纯图绑定只支持真实字族、整行、提示标记和授权源组。"),
     };
 
     private static void ValidatePureGraphWrites(CompiledFrameEffect definition, FrameOutput output,

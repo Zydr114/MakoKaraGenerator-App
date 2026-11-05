@@ -11,6 +11,7 @@ public sealed partial class SkiaRenderPipeline
         var output = request.ResolveTarget(); var composition = request.Project.Composition;
         long bytes = checked((long)output.PixelWidth * output.PixelHeight * 4);
         using var scratch = state.Resources.Reserve(1, bytes, "SceneBackdropSnapshot");
+        state.Resources.ChargeScenePass(request.CancellationToken);
         using var snapshot = main.Snapshot();
         using var wrapped = SkiaGraphSurface.Borrow(snapshot, new(new(0, 0, composition.CanvasWidth, composition.CanvasHeight), GraphCoordinateSpace.Canvas,
             SceneMatrix.Identity, output.ScaleXOf(composition), output.ScaleYOf(composition)), ShaderSurfaceKind.Color, _device);

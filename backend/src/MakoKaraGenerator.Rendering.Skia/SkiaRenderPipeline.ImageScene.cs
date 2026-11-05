@@ -17,21 +17,37 @@ public sealed partial class SkiaRenderPipeline
             : this(new PreparedMaterialOwner.Script(binding.InstanceId, binding.ArtifactHash) { PackageIdentity = binding.PackageIdentity }) { }
     }
     private sealed record ColorLayer(int Order, ImmutableHashSet<PartSource> Sources, SkiaGraphSurface Surface,
-        ImmutableArray<ImageGraphResult> History, CompiledImageGraph? Graph, SceneEffectOwner? Owner);
+        ImmutableArray<ImageGraphResult> History, CompiledImageGraph? Graph, SceneEffectOwner? Owner)
+    {
+        // ClosedPayload and InheritedPayload borrow from this state's Owned list.
+        // Child exports clear History/Graph/ChainTarget; only this target's live chain
+        // may retain History and the original independent-child inheritance floor.
+        internal ImageCompositionPayload? ClosedPayload { get; init; }
+        internal ImageEffectTarget? ChainTarget { get; init; }
+        internal ImageCompositionPayload? InheritedPayload { get; init; }
+    }
     private sealed class ImageObjectState(GraphRect bounds, GraphExecutionBudget budget, ImageSurfaceBudgetFrame resources) : IDisposable
     {
         internal GraphRect Bounds { get; } = bounds;
         internal GraphExecutionBudget Budget { get; } = budget;
         internal ImageSurfaceBudgetFrame Resources { get; } = resources;
         internal List<ColorLayer> Layers { get; } = [];
+        internal List<ClosedLayerRange> ExactRanges { get; } = [];
         internal List<IDisposable> Owned { get; } = [];
         internal double Opacity { get; set; }
         internal bool Changed { get; set; }
+        internal GroupCompositionBudget? ScopeBudget { get; init; }
+        internal SceneBackdropFrame? Backdrop { get; init; }
+        internal SceneCompositionPrefix? OutsidePrefix { get; init; }
+        internal Dictionary<string, SkiaGraphSurface> ResolvedBelow { get; } = new(StringComparer.Ordinal);
+        internal SceneEffectOwner? CompositionOwner { get; init; }
+        private int _accountedLayers;
+        internal void SetLayerBudget(int count) => ScopeBudget?.ActiveLayers(ref _accountedLayers, count);
         internal SkiaGraphSurface? Empty { get; set; }
         internal OriginalAlphaReadbackBuffer AlphaReadback { get; } = new();
         internal MaterialAuthorGraphCache AuthorGraphs { get; } = new(resources);
         internal T Own<T>(T value) where T : IDisposable { Owned.Add(value); return value; }
-        public void Dispose() { AuthorGraphs.Dispose(); AlphaReadback.Dispose(); for (int i = Owned.Count - 1; i >= 0; i--) Owned[i].Dispose(); }
+        public void Dispose() { try { AuthorGraphs.Dispose(); AlphaReadback.Dispose(); for (int i = Owned.Count - 1; i >= 0; i--) Owned[i].Dispose(); } finally { SetLayerBudget(0); } }
     }
 
     internal sealed class OriginalAlphaReadbackBuffer : IDisposable
@@ -51,12 +67,9 @@ public sealed partial class SkiaRenderPipeline
         public void Dispose() => _retained = null;
     }
 
-    private ImmutableArray<RenderImageEffectDiagnostic> DrawImageEffectScene(SKSurface main, RenderRequest request, ImageSurfaceBudgetFrame resources, out ImmutableArray<RuntimeDiagnostic> sceneDiagnostics, out ImmutableArray<RenderMaterialDiagnostic> materialDiagnostics)
+    private ImmutableArray<RenderImageEffectDiagnostic> DrawImageEffectScene(SKSurface main, RenderRequest request, ImageSurfaceBudgetFrame resources, SceneBackdropFrame? backdropFrame, out ImmutableArray<RuntimeDiagnostic> sceneDiagnostics, out ImmutableArray<RenderMaterialDiagnostic> materialDiagnostics)
     {
         var prepared = request.PreparedFrame!;
-        if (prepared.ImageEffects.FirstOrDefault(binding => binding.Binding.Target is ImageEffectTarget.Group) is { } groupBinding)
-            throw new EffectFailureException(groupBinding.InstanceId, groupBinding.ArtifactHash, "RenderImageEffects", request.TimeUs,
-                "GroupImageEffectUnsupported", GroupImageEffectUnsupported(), groupBinding.PackageIdentity);
         var diagnostics = ImmutableArray.CreateBuilder<RenderImageEffectDiagnostic>();
         var materialWarnings = ImmutableArray.CreateBuilder<RenderMaterialDiagnostic>();
         var allMaterials = prepared.Materials.Select(ObjectMaterialBinding.From).Concat(prepared.BaseMaterials.Select(ObjectMaterialBinding.From)).ToArray();
@@ -64,7 +77,10 @@ public sealed partial class SkiaRenderPipeline
         HashSet<PreparedImageEffectBinding> consumed = [];
         var sceneSurface = main;
         var sceneWarnings = ImmutableArray.CreateBuilder<RuntimeDiagnostic>();
-        DrawIsolatedScene(main, request, resources, DrawObject, sceneWarnings);
+        if (backdropFrame is not null)
+            DrawGroupCompositionScene(main, request, resources, backdropFrame, (surface, item, export, prefix) => DrawObject(surface, item, export, prefix),
+                consumed, diagnostics, sceneWarnings);
+        else DrawIsolatedScene(main, request, resources, (surface, item) => DrawObject(surface, item), sceneWarnings);
         sceneDiagnostics = sceneWarnings.ToImmutable();
         materialDiagnostics = materialWarnings.Distinct().ToImmutableArray();
         if (allMaterials.FirstOrDefault(binding => !materialConsumed.Contains(binding)) is { } missingMaterial)
@@ -75,30 +91,35 @@ public sealed partial class SkiaRenderPipeline
                 "ImageEffectSceneTargetUnavailable", new PreparedFrameException("ImageEffectSceneTargetUnavailable", "图目标未参与本帧绘制，不能悄悄丢弃绑定。"), unavailable.PackageIdentity);
         return diagnostics.ToImmutable();
 
-        void DrawObject(SKSurface main, SceneDrawItem item)
+        void DrawObject(SKSurface main, SceneDrawItem item, ImageObjectState? export = null, SceneCompositionPrefix? outsidePrefix = null)
         {
             request.CancellationToken.ThrowIfCancellationRequested();
             var bindings = prepared.ImageEffects.Where(binding => Belongs(binding.Binding.Target, item)).ToArray();
             var materials = allMaterials.Where(binding => Belongs(binding.Target, item)).ToArray();
-            if (bindings.Length == 0 && materials.Length == 0) { DrawOriginal(); return; }
+            if (bindings.Length == 0 && materials.Length == 0 && export is null) { DrawOriginal(); return; }
             consumed.UnionWith(bindings); materialConsumed.UnionWith(materials);
-            SceneEffectOwner owner = bindings.Length > 0 ? new(bindings[0]) : new(materials[0].Owner, "RenderMaterials", materials[0].TextTarget);
+            SceneEffectOwner owner = bindings.Length > 0 ? new(bindings[0]) : materials.Length > 0
+                ? new(materials[0].Owner, "RenderMaterials", materials[0].TextTarget) : export!.CompositionOwner!;
             try
             {
                 var programs = bindings.Select(binding => { owner = new(binding); return _imageEffects!.GetProgram(binding.Binding.Graph); }).ToArray();
                 var materialPrograms = materials.Select(binding => { owner = new(binding.Owner, "RenderMaterials", binding.TextTarget); return _imageEffects!.GetMaterial(binding.Material.Handle); }).ToArray();
-                var bounds = programs.Select(program => program.Bounds.Expand(program.Graph.Plan.Definition.MaximumExpandPx))
+                var bounds = export?.Bounds ?? programs.Select(program => program.Bounds.Expand(program.Graph.Plan.Definition.MaximumExpandPx))
                     .Concat(materialPrograms.Select(program => program.Bounds)).Aggregate(Union);
                 bool hasGlow = HasOriginalGlow(request, item);
                 if (hasGlow) bounds = IncludeOriginalGlowBounds(request, item, bounds, resources);
-                using var state = new ImageObjectState(bounds, _surfaceBudget.Limits, resources);
+                using var state = new ImageObjectState(bounds, _surfaceBudget.Limits, resources)
+                { ScopeBudget = export?.ScopeBudget, Backdrop = backdropFrame, OutsidePrefix = outsidePrefix };
                 var target = item.Line is { } line
                     ? (ImageEffectTarget)new ImageEffectTarget.Line(new(new(line.Frame.Line!.Id), new(line.BindingId!)))
                     : new ImageEffectTarget.Mark(new(new(item.Mark!.NodeId), new(item.Mark.CueId), new(item.Mark.Geometry.BindingId!)));
                 var tokenTargets = bindings.Select(binding => binding.Binding.Target).Concat(materials.Select(binding => binding.Target)).OfType<ImageEffectTarget.Token>()
                     .Distinct().OrderBy(token => Array.FindIndex(item.Line!.Frame.Line!.Tokens.ToArray(), source => source.Id == token.Target.TokenId.Value)).ToArray();
                 HashSet<string> excluded = tokenTargets.Select(token => token.Target.TokenId.Value).ToHashSet(StringComparer.Ordinal);
-                using var below = SnapshotSceneBelow(main, request, bounds, state);
+                // Prefix scheduling exports C/E and resolves Below lazily per owner.
+                // Legacy scheduling retains its real destination snapshot.
+                using var capturedBelow = backdropFrame is null ? SnapshotSceneBelow(main, request, bounds, state) : null;
+                var below = capturedBelow;
                 AddParts(target, excluded, 0);
                 for (int i = 0; i < tokenTargets.Length; i++) AddParts(tokenTargets[i], null, i + 1);
 
@@ -106,10 +127,11 @@ public sealed partial class SkiaRenderPipeline
                 foreach (var token in tokenTargets)
                     foreach (var binding in bindings.Where(binding => binding.Binding.Target == token)) Apply(binding);
                 foreach (var binding in bindings.Where(binding => binding.Binding.Target == target)) Apply(binding);
-                if (!state.Changed) { DrawOriginal(); return; }
+                if (!state.Changed && export is null) { DrawOriginal(); return; }
+                if (export is not null) { state.SetLayerBudget(state.Layers.Count); ExportClosedImageObject(request, state, export); return; }
 
-                using var processed = AssembleImageLayers(request, state, state.Layers, below);
-                using var final = ApplyImageObjectOpacity(request, state, processed, below);
+                using var processed = AssembleImageLayers(request, state, state.Layers, below!);
+                using var final = ApplyImageObjectOpacity(request, state, processed, below!);
                 DrawGraphSurface(main.Canvas, final, SKBlendMode.Src);
 
                 void AddParts(ImageEffectTarget member, HashSet<string>? exclusions, int memberOrder)
@@ -146,6 +168,9 @@ public sealed partial class SkiaRenderPipeline
                         {
                             owner = new(binding.Owner, "RenderMaterials", binding.TextTarget);
                             var program = _imageEffects!.GetMaterial(binding.Material.Handle);
+                            // Admit the actual additional source layer before any material input is captured.
+                            state.SetLayerBudget(checked(state.Layers.Count + 1));
+                            state.ScopeBudget?.Result();
                             var result = state.Own(ExecuteObjectMaterial(request, binding, program, part, sung, state, below));
                             materialWarnings.AddRange(result.Diagnostics.Select(diagnostic => new RenderMaterialDiagnostic(binding.Owner,
                                 binding.Material.Handle, diagnostic.InputId, diagnostic.Reason)));
@@ -155,6 +180,8 @@ public sealed partial class SkiaRenderPipeline
                         }
                         void AddOriginal(bool? sung)
                         {
+                            // Empty parts are still real source layers; admission must precede capture.
+                            state.SetLayerBudget(checked(state.Layers.Count + 1));
                             var captured = CaptureColorPart(request, CaptureTarget(member), part, bounds, state.Budget, resources, exclusions, sung);
                             state.Own(captured);
                             SetOpacity(captured.QuantizedOpacity);
@@ -182,7 +209,9 @@ public sealed partial class SkiaRenderPipeline
                 void Apply(PreparedImageEffectBinding binding)
                 {
                     owner = new(binding);
-                    ApplyImageObjectBinding(request, binding, _imageEffects!.GetProgram(binding.Binding.Graph), state, below, diagnostics);
+                    var program = _imageEffects!.GetProgram(binding.Binding.Graph);
+                    state.ScopeBudget?.Result();
+                    ApplyImageObjectBinding(request, binding, program, state, below, diagnostics);
                 }
             }
             catch (OperationCanceledException) { throw; }

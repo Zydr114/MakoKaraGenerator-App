@@ -188,7 +188,7 @@
 | `void Bind(LineTarget target, GraphHandle graph, ParameterValues parameters)` | 可用；当前真实整行，Tokens 绑定不授权 |
 | `void Bind(TokenFamilyTarget target, GraphHandle graph, ParameterValues parameters)` | 可用；必须独立字簇，注音捕获依包配方 |
 | `void Bind(TextMarkTarget target, GraphHandle graph, ParameterValues parameters)` | 可用；当前真实标记 |
-| `void Bind(GroupTarget target, GraphHandle graph, ParameterValues parameters)` | **writer 可记录授权组，正式 Skia 渲染仍拒绝** `GroupImageEffectUnsupported` |
+| `void Bind(GroupTarget target, GraphHandle graph, ParameterValues parameters)` | **v1 writer 可记录授权组，准备输出阶段拒绝** `GroupImageEffectUnsupported`；v2 组能力见新参考 |
 
 全部要求 `ImageEffects` 能力和本实例固定修订的图资源。单实例同目标最后一次 Bind **整体替换**（含参数），跨实例按工程顺序串接。绑定的图导出自身也须允许实例 binding kind 和目标，当前目标只能有一个具名 ImageGraph 输出；非空依赖/额外需求、同类别多输出、旁路不一致均不猜测执行。只接受 `ColorOnly`，`MappedWarp/ImageOnly` 报 `PackageGraphMappingPending`。直接 graph 导出也先经独立门禁，组更早拒绝。参考 [writer](../../src/MakoKaraGenerator.Scripting.Abstractions/FrameWriter.ImageEffects.cs)、[包输出验证](../../src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.PackageOutputs.cs)、[直接图门禁](../../src/MakoKaraGenerator.Scripting/Compilation/DirectGraphEffectValidation.cs)、[Skia 正式画布](../../src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.ImageScene.cs)、[执行器](../../src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.ImageEffects.cs)。图 JSON、shader ABI 和捕获配方是包资源合同，不是 SDK 对任意图像/文件路径的访问接口。
 
@@ -244,13 +244,13 @@
 | controller `StyleModulation` → `tokenFamily/textMark/group` | 元素/标记样式及组透明度可执行；`line` 无样式 writer，报 `PackageWriterPending` |
 | controller `Overlay` → `tokenFamily/line/textMark` | 发射器/Burst/视觉批次可用，输出 ID 必须与清单 Overlay ID 匹配；`group` 组合未提供 |
 | controller `ImageGraph` → `tokenFamily/line/textMark` | 真实 Bind + ColorOnly + 完整图/参数/配方门禁 |
-| `ImageGraph/group` | 控制器和 writer 可形成描述，正式画布拒绝；直接 graph 导出更早拒绝 |
+| `ImageGraph/group` | v1 控制器/writer 描述在准备输出阶段拒绝；v2 双能力声明已开放，见 [组合同](../scripting-group-image-composition-contract.md) |
 | `GeometryMapping`、`AnchorMap` | parser/中立类型存在，生产无 writer，`PackageWriterPending`；无 `Mappings` 属性 |
 | `MappedWarp/ImageOnly` | 图数据可描述，实际包绑定/材质/正式图路径拒绝 `PackageGraphMappingPending` |
 | `requires` | 控制器仅 `AudioFeatures`，其他需求报 `PackageRequirementUnsupported`；图/材质额外需求仍 `PackageOutputPlanPending` |
 | `dependsOn`/同类别多个具名图输出 | parser 可校验拓扑，不等于跨输出执行；正式路径 `PackageOutputPlanPending` |
 | `bypass` | parser 仅 ImageGraph、显式 identity mapping；graphInput/materialFallback 仍按实际图/材质可用性及匹配规则执行，不是通用跨输出旁路 |
-| target capture / owned overlay | `IncludeInTargetCapture` 明确拒绝；画布 Overlay 不因此进入目标图捕获；父组捕获/重组不可推定可用 |
+| target capture / owned overlay | `IncludeInTargetCapture` 明确拒绝；画布 Overlay 不因此进入目标图捕获；v2 父组捕获/重组及直接 owner Below 排除见组合同 |
 
 帧输出会再核对清单类别/目标；不能只用较宽 capability flag 越过导出声明。Overlay ID 会精确核对；图同目标后写替换不允许绕过图导出声明、资源修订或参数校验。参考 [CreateEffect](../../src/MakoKaraGenerator.Scripting/Compilation/CompiledEffectPackage.cs)、[帧输出校验](../../src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.PackageOutputs.cs)、[材质门禁](../../src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.Materials.cs)。
 

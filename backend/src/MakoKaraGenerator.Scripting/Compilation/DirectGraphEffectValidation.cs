@@ -2,7 +2,7 @@ using MakoKaraGenerator.Core.Effects;
 
 namespace MakoKaraGenerator.Scripting.Compilation;
 
-/// <summary>直接图进入现有生产 writer 前的固定能力门禁，不建立跨输出或组捕获计划。</summary>
+/// <summary>直接图进入现有生产 writer 前的固定能力门禁，不建立跨输出或映射计划。</summary>
 internal static class DirectGraphEffectValidation
 {
     internal static void Validate(EffectPackageDefinition package, EffectGraphDefinition graph, EffectBinding binding)
@@ -13,12 +13,12 @@ internal static class DirectGraphEffectValidation
             throw new EffectPackageException("PackageCapabilityMissing", path, "v2 直接图必须声明 image.graph。");
         if (!graph.BindingKinds.Contains(PackageSdkParameters.BindingKind(binding), StringComparer.Ordinal))
             throw new EffectPackageException("PackageBindingNotAllowed", path + ".bindingKinds", "图导出未允许此绑定类别。");
-        if (graph.Outputs.Any(output => output.Target == "group"))
-            throw new EffectPackageException("GroupImageEffectUnsupported", path + ".outputs", "当前正式画布不支持父组图像效果。");
+        foreach (var output in graph.Outputs.Where(output => output.Kind == "ImageGraph" && output.Target == "group"))
+            GroupGraphEffectAdmission.Validate(package, output, binding, path + ".outputs." + output.Id);
         if (graph.Outputs.IsEmpty || graph.Outputs.Any(output => output.Kind != "ImageGraph"
-                || output.Target is not ("tokenFamily" or "line" or "textMark")))
-            throw new EffectPackageException("PackageWriterPending", path + ".outputs", "当前直接图只支持元素族、整行或提示标记图输出。");
-        if (graph.Outputs.Any(output => (v2 ? output.Requires.Any(requirement => requirement != "image.graph") : !output.Requires.IsEmpty) || !output.DependsOn.IsEmpty)
+                || output.Target is not ("tokenFamily" or "line" or "textMark" or "group")))
+            throw new EffectPackageException("PackageWriterPending", path + ".outputs", "当前直接图只支持元素族、整行、提示标记或准入源组图输出。");
+        if (graph.Outputs.Any(output => (v2 ? output.Requires.Any(requirement => !GroupGraphEffectAdmission.IsAllowedRequirement(output, requirement)) : !output.Requires.IsEmpty) || !output.DependsOn.IsEmpty)
             || graph.Outputs.GroupBy(output => output.Target, StringComparer.Ordinal).Any(outputs => outputs.Count() != 1))
             throw new EffectPackageException("PackageOutputPlanPending", path + ".outputs", "额外能力、跨输出及同类别多输出执行计划尚未接通。");
         if (v2 && binding is EffectBinding.Tokens && graph.Outputs.Any(output => output.Target == "line"))

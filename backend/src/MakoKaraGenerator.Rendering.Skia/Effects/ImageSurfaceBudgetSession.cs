@@ -210,6 +210,33 @@ public sealed class ImageSurfaceBudgetFrame : IDisposable
     public ImageSurfaceUsage Usage => _session.FrameUsage(this);
     internal ImageSurfaceReservation Reserve(int count, long bytes, string operation) => _session.Reserve(this, count, bytes, operation);
     internal void CheckAdditional(int count, long bytes, string operation) => _session.CheckAdditional(this, count, bytes, operation);
+    // Actual scene capture/author/host rasters share one callback and one frame identity.
+    // A lease spans the first background snapshot through all group/owned-Below work.
+    private Action? _scenePass;
+    internal IDisposable BeginScenePassBudget(Action charge)
+    {
+        ObjectDisposedException.ThrowIf(Closed, this); ArgumentNullException.ThrowIfNull(charge);
+        if (Interlocked.CompareExchange(ref _scenePass, charge, null) is not null)
+            throw new InvalidOperationException("同一帧不能重复安装场景 pass 预算。");
+        return new ScenePassLease(this, charge);
+    }
+    internal void ChargeScenePass(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ObjectDisposedException.ThrowIf(Closed, this);
+        Volatile.Read(ref _scenePass)?.Invoke();
+        cancellationToken.ThrowIfCancellationRequested();
+    }
+    private sealed class ScenePassLease(ImageSurfaceBudgetFrame frame, Action charge) : IDisposable
+    {
+        private ImageSurfaceBudgetFrame? _frame = frame;
+        public void Dispose()
+        {
+            var value = Interlocked.Exchange(ref _frame, null);
+            if (value is not null) Interlocked.CompareExchange(ref value._scenePass, null, charge);
+        }
+    }
+
     // 仅同步对象绘制中的可选缓存使用；回调释放图像及原 reservation，不只减账。
     internal IDisposable RegisterReclaimable(nint image, Action release)
     {

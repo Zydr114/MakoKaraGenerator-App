@@ -128,10 +128,16 @@ public sealed partial class CompiledEffectPackage
             {
                 if (output.Kind is not ("VisualTransform" or "StyleModulation" or "Overlay" or "ImageGraph"))
                     throw new EffectPackageException("PackageWriterPending", path, "SDK v2 尚未接通此输出阶段：" + output.Kind);
-                if (output.Kind == "ImageGraph" && output.Target is not ("tokenFamily" or "line" or "textMark"))
+                if (output.Kind == "ImageGraph" && output.Target is not ("tokenFamily" or "line" or "textMark" or "group"))
                     throw new EffectPackageException("PackageWriterPending", path, "SDK v2 此图目标的生产调度尚未接通。");
                 if (output.Kind == "ImageGraph" && !Definition.Contents.Requires.Contains("image.graph", StringComparer.Ordinal))
                     throw new EffectPackageException("PackageCapabilityMissing", path, "图控制器必须声明 image.graph 能力。");
+                if (output.Kind == "ImageGraph" && output.Target == "group")
+                {
+                    GroupGraphEffectAdmission.Validate(Definition, output, binding, path);
+                    if (controller.Outputs.Count(item => item.Kind == "ImageGraph" && item.Target == "group") != 1)
+                        throw new EffectPackageException("PackageOutputPlanPending", path, "组图须有唯一同类别输出，不能猜测执行计划。");
+                }
                 // v2 的有限能力已由完整包解析器与包级 requires 共同校验。
             }
             else

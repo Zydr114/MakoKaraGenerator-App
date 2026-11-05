@@ -89,6 +89,9 @@ public sealed partial class EffectPackageDefinition
         }
         // known pending 只允许检查文件闭包；完整 Definition 返回前仍须通过真实执行能力门禁。
         foreach (string capability in contents.Requires) EffectPackageProfiles.RequireCapability(capability, "manifest.json.requires");
+        if (contents.Requires.Contains("image.graph.group", StringComparer.Ordinal)
+            && !contents.Requires.Contains("image.graph", StringComparer.Ordinal))
+            throw Error("PackageCapabilityMissing", "manifest.json.requires", "image.graph.group 必须同时声明 image.graph。");
         cancellationToken.ThrowIfCancellationRequested(); return new(contents, parameters, exports.ToImmutable(), programs, graphs, svgResources);
     }
     private static ImmutableArray<string> ReadBindings(JsonElement item, string path)

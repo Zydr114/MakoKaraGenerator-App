@@ -318,3 +318,57 @@ Base→Family→Line、仿射／Warp、动态Glow、源继承、取消和native�
 `base-material-rendering-full-01.log` 完整1609/1609；默认完整套件的GPU分支不作为实际GPU证明，
 实际GPU证据仅取前述显式环境的34项。本切片没有新HTTP／浏览器／导出或性能验收，
 组图与owned Below仍待，M09未关闭。
+
+## G4：真实组图、完整 C/E 与 owned Below（0.112.13）
+
+v3／SDK v2 新增精确能力 `image.graph.group`，同时要求 `image.graph`；typed controller 与无 DLL
+直接图均复核自身及实际图的唯一 ImageGraph/group 输出。只授予 Project／显式 Node 真实父树
+范围，退场 alias 不获写权。ColorOnly、Base 图及 Mapping／跨输出门禁保持；v1 组描述在准备
+输出阶段具名拒绝，旧单绑定渲染入口仍拒绝组，真实主画布采用新调度。
+
+孩子提供独立颜色 C 与完整擦除 E；跨孩子顺序合成，同父图链保留原 replacement floor，不能
+固化前一普通输出 alpha。共同透明度后保留有效部分；完整连续选择同时使用先合成再乘 alpha
+的独立产物，成功写入失效触及范围。父 Below 固定在进入组时，孩子加已完成兄弟，普通前序
+leaf 也参与前缀。真实背景只快照一次，六类 BehindText 按原序重绘，Script 仅排除直接同实例
+批次，Source 材质不排除；图／Family／Base 共用 resolver，不重跑作者图或 Below 背景 provider。
+最终画布保留全部真实图元，不递归净化已完成颜色中主动采样的图元。
+
+固定32递归／256祖先／4096单元／256组绑定／256结果／512活动来源层／8192实际pass；重绘
+另有4096批／200000图元点，并复用原 SVG 工作账。来源层在实际捕获前逐层登记；捕获、作者图、
+宿主 C/E 的实际分配入口共用帧 pass 租约，缺失背景、借用输入及缓存命中不假计 pass。
+空组与显式空选择先复核节点、参数、资源、尺寸及图峰值预算，再 Info 消费而不 Execute；
+显式空选择不扩大成整个组。层数、表面数、字节与取消独立生效。
+
+全部日志位于 `.local/script-sdk-m09-20261105/`。`build-group-owned-01/02.log` 暴露草稿 API／
+required 字段及分析器问题，修正后完整构建通过。`group-owned-focused-01.log` 为104/114：
+v2材质fixture缺顶层字段、探针采样整数而非像素中心、Node未包含行导致无退场、父recipe未选
+descendant，以及旧组拒绝预期分别修正；没有取消有效断言。材料与探针5项在
+`group-owned-fixture-01.log` 通过。
+
+原缩放透明 G1 为70/73，超过2/255；Nearest试验无效并已撤回，失败记录
+`group-identity-diagnosis-01/02.log` 保留。完整 C/E 聚合修复后 `group-exact-focused-01.log`
+8/8，仍比较旧直绘和 line identity，容差保持2。完整回归 `group-rendering-full-01.log`
+1661/1673 暴露新增完整产物使B9三例触及默认64表面，以及旧v1正例前置已过期；提前释放已由
+独立C/E复制接管的原始叶子输入，默认限额不变，B9恢复。v2正例继续覆盖全部原权限、运行附着、
+顺序和重放意图，新增独立v1具名拒绝例。
+
+红绿证据：`group-layer-red-01.log` 的旧估计报1040/512，修复后真实第513层输入前拒绝并保持
+Base材质owner；`group-pass-red-01.log` 的真实捕获不计费／8193仍分配／回调取消仍分配三项失败；
+`group-preflight-red-01.log` 9项证明空组峰值预检遗漏。修复后的
+`group-preflight-focused-01.log` 64/64，含预算与部分→完整捕获、透明旁路、两级alpha、真实复制
+中段取消／native／字节压力及同renderer恢复；G8另修正opaque捕获不能沿用透明PreparedFrame的
+测试前置。所有失败日志保留。
+
+显式 `MAKO_GPU_SMOKE=1 MAKO_RENDER_BACKEND=vulkan` 的 `group-vulkan-focused-01.log`
+153/153：默认设备路径真实Vulkan，少数故障注入与独立宿主测试明确使用CPU设备；不把153全部
+说成纯GPU。覆盖六图元owner过滤、四种Family/Base×Script/Source材质、provider一次、作者图
+节点仅执行一次、资源预算与恢复、包准入／乱序／重开、完整像素≤2/255及独立96%擦除。
+最终默认完整 Rendering `group-rendering-full-02.log` 1697/1697。
+
+此切片尚无0.112.13匹配HTTP／浏览器／导出证据，生成合同仍留待作者metadata一并冻结；
+M09不据此关闭。性能仅记录，未执行门槛验收。
+
+最终 `build-group-final-01.log` 完整solution为0警告／0错误；
+`group-scripting-full-02.log` 515/515、`group-core-full-01.log` 1471/1471、
+`group-runtime-full-01.log` 153/153。Runtime套件含实际失控作者进程取消／期限排水，
+不将其当作新HTTP或桌面运行验收。

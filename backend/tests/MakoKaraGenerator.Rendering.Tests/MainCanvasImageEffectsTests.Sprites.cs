@@ -29,21 +29,20 @@ public sealed partial class MainCanvasImageEffectsTests
         Assert.Equal(0, budget.Usage.ActiveSurfaces); Assert.Equal(0, budget.Usage.EstimatedBytes);
     }
     [Fact]
-    public void 自身BehindText精灵仍拒绝读取自身下层不因新类型漏过门禁()
+    public void 自身BehindText精灵异处采样排除自身且真实位置仍显示()
     {
-        var request = Request(Snapshot()); var binding = Bind("same", Line(request));
+        var request = OwnedRequest(); var binding = Bind("same", Line(request));
         var handle = new Fx.ResourceCatalog("sprites", "sha256:" + new string('a', 64), [], [], ["spark.png"]).GetImage("spark.png");
         using var bitmap = new SKBitmap(4, 4); bitmap.Erase(SKColors.Red); using var image = SKImage.FromBitmap(bitmap);
         using var input = SkiaGraphSurface.Borrow(image, new(new(0, 0, 4, 4), GraphCoordinateSpace.Canvas, SceneMatrix.Identity, 1, 1), ShaderSurfaceKind.Color);
-        var definition = new ImageGraphDefinition("below", ImageGraphDefinition.CurrentVersion,
-            [new("below", GraphInputSource.BackdropBelow, ShaderSurfaceKind.Color, true, GraphBackgroundRequirement.None, GraphCoordinateSpace.Canvas)], [], [],
-            GraphReference.Input("below"), GraphCoordinateSpace.Canvas, 0, GraphAnchorMode.ColorOnly, GraphCompositeMode.SourceOver);
-        using var graph = CompiledImageGraph.Compile(ImageGraphCompiler.Compile(definition, [], []));
+        using var graph = OwnedProbe("below", 480);
         using var resources = new SceneImageEffectResources([Program("first", graph)], null, [], null, [KeyValuePair.Create(handle, input)]);
         using var renderer = new SkiaRenderPipeline(null, null, null, resources);
         var prepared = request.PreparedFrame!.WithOverlayOutput([new Fx.SpriteBatch(binding.InstanceId, new("spark"), Fx.OverlayLayer.BehindText,
             [new(handle, new(20, 0, 0, 20, 20, 20), new(1, 1, 1, 1))])], []).WithImageEffects([binding]);
-        var error = Assert.Throws<EffectFailureException>(() => renderer.Render(request with { PreparedFrame = prepared }));
-        Assert.Equal("ImageEffectOwnedBackdropPending", error.Code); Assert.Equal(binding.InstanceId, error.InstanceId);
+        using var actual = renderer.Render(request with { PreparedFrame = prepared });
+        OwnedPixelNear(actual, 484, 20, 0, 0, 0, 0);
+        Assert.True(OwnedPixel(actual, 30, 20)[2] > 240);
+        Assert.Empty(actual.ImageEffectDiagnostics);
     }
 }

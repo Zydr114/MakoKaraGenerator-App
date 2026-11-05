@@ -254,3 +254,9 @@ Server此前缺发布的Ruby三案匹配补跑3/3；失败历史与范围详见[
 固定font真实作者HTTP为183请求／1349断言、12张Vulkan PNG，保存重开和48帧透明导出通过；
 所属进程排水及凭证扫描完成。最后相邻回归和各切片汇总见[M09记录](script-sdk-render-m09-evidence.md)。
 M09仅关闭上述Linux/本机硬件/指定输入功能范围；M10/M11与完整D8仍未完成，性能门槛继续暂缓。
+
+### M10 固定基础片（产品0.112.16）
+
+开始接入Core来源／颜色／工具／profile／artifact不可变值、严格身份和容量校验、精确有理PTS
+算术及presentation借用合同。完整solution零警告错误，35项定向通过；实际decoder、轨bytes、
+任务、SDK、输入换代及导出尚待，media.features继续具名拒绝。详见[M10记录](script-sdk-render-m10-evidence.md)。

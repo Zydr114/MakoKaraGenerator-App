@@ -6,7 +6,7 @@ namespace MakoKaraGenerator.Backend.Hosting;
 internal sealed partial class BackendMediaFeatureArtifactStore
 {
     /// <summary>C holds AcquireProducer from before handing scratch to B until decoder, builder and write source drain.</summary>
-    internal sealed class Reservation : IMediaTrackScratchReservation
+    internal sealed partial class Reservation : IMediaTrackScratchReservation
     {
         private readonly BackendMediaFeatureArtifactStore _owner;
         private readonly object _lifetime = new();
@@ -44,8 +44,8 @@ internal sealed partial class BackendMediaFeatureArtifactStore
         {
             lock (_lifetime)
             {
-                Require(!_closing && !_producerAcquired && _state == State.Building, "Media producer scope is closed or already acquired.");
-                _producerAcquired = true; _producers++; _operations++; return new Operation(this, producer: true);
+                Require(!_closing && !_producerAcquired && _mode == WriteMode.None && _state == State.Building, "Media producer scope is closed or already acquired.");
+                _mode = WriteMode.InProcess; _producerAcquired = true; _producers++; _operations++; return new Operation(this, producer: true);
             }
         }
 
@@ -54,7 +54,7 @@ internal sealed partial class BackendMediaFeatureArtifactStore
             cancellationToken.ThrowIfCancellationRequested();
             lock (_lifetime)
             {
-                Require(_state == State.Building && _producers == 1 && !_sections.ContainsKey(section),
+                Require(_mode == WriteMode.InProcess && _state == State.Building && _producers == 1 && !_sections.ContainsKey(section),
                     "Scratch section requires the live producer and may open only once.");
                 (string name, long limit, int slot) = section switch
                 {
@@ -73,7 +73,7 @@ internal sealed partial class BackendMediaFeatureArtifactStore
         {
             lock (_lifetime)
             {
-                Require(owner == _owner && !_closing && _state == State.Building && _producers == 1 && _sections.Count == 3,
+                Require(owner == _owner && !_closing && _mode == WriteMode.InProcess && _state == State.Building && _producers == 1 && _sections.Count == 3,
                     "Media reservation is not owned and ready for one preparation.");
                 _state = State.Preparing; _operations++; return new Operation(this, producer: false);
             }
@@ -83,7 +83,7 @@ internal sealed partial class BackendMediaFeatureArtifactStore
         {
             lock (_lifetime)
             {
-                Require(_state == State.Preparing && _candidate is null, "Candidate can be created only once while preparing.");
+                Require(_mode == WriteMode.InProcess && _state == State.Preparing && _candidate is null, "Candidate can be created only once while preparing.");
                 _candidate = OpenBounded("candidate.mft", _candidateLimit, 3); return _candidate;
             }
         }
@@ -114,8 +114,9 @@ internal sealed partial class BackendMediaFeatureArtifactStore
         {
             lock (_lifetime)
             {
-                Require(owner == _owner && !_closing && _state == State.Prepared && _operations == 0 &&
-                    _sections.Values.All(stream => stream.Closed) && _candidate is { Closed: true },
+                Require(owner == _owner && !_closing && _state == State.Prepared && _operations == 0 && _producers == 0 &&
+                    (_mode == WriteMode.Worker ? _workerDrained :
+                        _mode == WriteMode.InProcess && _sections.Values.All(stream => stream.Closed) && _candidate is { Closed: true }),
                     "Publishing requires all producer operations and section streams to drain.");
                 _state = State.Publishing; _operations++; return new Operation(this, producer: false);
             }

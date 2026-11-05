@@ -308,3 +308,12 @@ Host关闭、精确owner投影、provider／factory／图及Job换代继续；�
 丢失。两组旧语义红例后native共157个确定性场景、Processes37、发布探针真实七场景通过；
 完整构建零警告错误，7unit／9PID已核排水。有限边界见[M10记录](script-sdk-render-m10-evidence.md)。
 真实decoder、媒体Host／图／Job／输入换代仍继续，M10/M11未完成。
+
+
+### M10 Worker 制品写入边界（产品0.112.31）
+
+单次Worker grant、写前文件预算、可信排水后Host完整只读导入接入既有store；27项新增和
+18项store回归通过，最终完整构建零警告错误、Hosting1633/1633。父提交复现的编译等待及
+保存终态／Completion测试竞态已修fixture，生产语义保持，详见[M10记录](script-sdk-render-m10-evidence.md)。
+该片仍为local writer／Host导入，真实Worker IPC及systemd native跨Worker监督后续实现，
+M10/M11未完成。

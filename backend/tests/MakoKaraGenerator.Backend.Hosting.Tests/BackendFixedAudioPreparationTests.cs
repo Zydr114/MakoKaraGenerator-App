@@ -239,10 +239,19 @@ public sealed class BackendFixedAudioPreparationTests
         }
         internal async Task<string> SavedAndClosed()
         {
-            ProjectSession project = (await CreateProject()).Session!;
-            string handle = (await Registry.CreateFileHandleAsync("a", new("projects", "saved", Metadata: Meta()))).Response!.HandleId;
-            Assert.Equal("succeeded", (await Terminal((await Registry.StartSaveAsync("a", project.ProjectSessionId, new("0", handle, Meta()))).Response!.JobId)).State);
-            Assert.Equal("succeeded", (await Terminal((await Registry.StartCloseAsync("a", project.ProjectSessionId, new("0", Metadata: Meta()))).Response!.JobId)).State);
+            ProjectSessionCreateResult created = await CreateProject();
+            Assert.True(created.Accepted, created.Error?.Message);
+            ProjectSession project = created.Session!;
+            var handleResult = await Registry.CreateFileHandleAsync("a", new("projects", "saved", Metadata: Meta()));
+            Assert.True(handleResult.Accepted, handleResult.Error?.Message);
+            string handle = handleResult.Response!.HandleId;
+            var saved = await Registry.StartSaveAsync("a", project.ProjectSessionId, new("0", handle, Meta()));
+            Assert.True(saved.Accepted, saved.Error?.Message);
+            Assert.Equal("succeeded", (await Terminal(saved.Response!.JobId)).State);
+            // Terminal publication precedes the save's final cleanup and Completion.
+            var closed = await Registry.StartCloseAsync("a", project.ProjectSessionId, new("0", ActiveJobs: "wait", Metadata: Meta()));
+            Assert.True(closed.Accepted, closed.Error?.Message);
+            Assert.Equal("succeeded", (await Terminal(closed.Response!.JobId)).State);
             return handle;
         }
         internal async Task<JobResponse> Open(string handle) => await Terminal((await Registry.StartOpenAsync("a", new(handle, Metadata: Meta()))).Response!.JobId);

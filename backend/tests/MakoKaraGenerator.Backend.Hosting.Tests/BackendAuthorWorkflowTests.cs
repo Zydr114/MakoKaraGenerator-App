@@ -109,7 +109,8 @@ public sealed class BackendAuthorWorkflowTests(ITestOutputHelper output)
     private async Task WaitForCompilationAsync(ProjectSessionRegistry registry, string jobId, BackendTaskScheduler? scheduler = null)
     {
         // A real Roslyn compilation can wait behind the process-wide compilation gate.
-        // Keep this budget separate from the short cancellation and resource-drain checks.
+        // Keep this bounded functional wait separate from short cancellation/drain checks.
+        // Whole-suite parallel work can queue this compilation behind other real Roslyn calls.
         Stopwatch elapsed = Stopwatch.StartNew();
         bool reportedOriginalBudget = false;
         while (true)
@@ -126,8 +127,8 @@ public sealed class BackendAuthorWorkflowTests(ITestOutputHelper output)
                 output.WriteLine($"Real author compilation exceeded the old 2 s polling budget; {diagnostic}.");
                 reportedOriginalBudget = true;
             }
-            Assert.True(elapsed.Elapsed < TimeSpan.FromSeconds(8),
-                $"Real author compilation did not finish within 8 s ({elapsed.Elapsed}); {diagnostic}.");
+            Assert.True(elapsed.Elapsed < TimeSpan.FromSeconds(30),
+                $"Real author compilation did not finish within 30 s ({elapsed.Elapsed}); {diagnostic}.");
             await Task.Delay(20);
         }
     }

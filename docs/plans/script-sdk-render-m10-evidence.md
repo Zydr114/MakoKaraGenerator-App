@@ -371,3 +371,32 @@ inode／events／live PID；不制造terminal或drained。不同非空group拒�
 
 实机七场景未穷举manager属性的全部读取交错或实际unit替换；末尾InvocationID复核仍由源审
 及有限实机链支持。该片不证明真实presentation decoder、Worker／HTTP或完整M10；性能暂不验收。
+
+
+## 第十六片：Worker 制品写入授权与 Host 导入（产品0.112.31）
+
+既有reservation新增互斥的Worker写入模式：单次私有grant限定四文件和Core精确ceiling，
+写前per-file／combined高水位检查，缩短或失败不退admitted量。scope不能由using退出伪造
+drain；可信executor实际排水后显式attest，Host才可按exact scope、文件集合／长度和正式
+只读完整codec导入Prepared，继续沿原Publish／ReadLease／恢复协议。普通错误／取消后同scope
+不可重导入。该片local writer只是有界文件适配器，不是已完成真实Worker IPC或native监督。
+
+独立审查后增加失败／取消再导入及reserve129、actual63／64／65帧的正式builder／codec测试，
+核实际prefix文件全部576×7累计、2／2／3边界、发布实际字节账及64→65帧采样。27项新增与
+18项既有store定向合计`store-worker-stage-focused-01.log`45/45。首轮CA1001发现grant保存创建
+的disposable writer，改为真实writer所有权交executor，grant仅持非owning drain信号；全部流
+成功关闭后才发布该信号，独立复核其构造失败、锁序和attest边界，未抑制规则。
+
+Hosting全套01／02均1632通过／1失败：既有作者编译source案例超过8秒，单独
+`store-worker-stage-author-recheck-01.log`10/10。保存待交付源码后恢复精确父提交be133e0，
+`store-worker-parent-hosting-baseline-01.log`复现相同超时（1604通过／2失败），并出现既有
+音频fixture在保存终态后立即默认reject关闭导致Response空引用。源码确认编译存在进程级
+串行gate；测试调整真实编译功能等待为30秒，保留2秒观察及取消／排水短门槛。音频fixture
+明确ActiveJobs=wait并逐次核Accepted，遵守现有“终态可读早于Completion排水”合同，未改变
+生产保存／关闭语义。父提交完整构建0/0，精确待交付源码随后已核hash还原。
+
+03构建0/0、全套1633/1633是音频fixture修订前结果；最终
+`build-store-worker-stage-04.log`完整solution零警告／零错误，
+`store-worker-stage-hosting-full-04.log`1633/1633。失败历史保留，不当性能通过。
+真正Worker adapter／跨Worker native监督、Job／source capture／恢复ledger和运行输入仍待；
+本片不授新HTTP或包执行能力，M10/M11未完成。

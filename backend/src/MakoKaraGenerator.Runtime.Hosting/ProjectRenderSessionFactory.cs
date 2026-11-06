@@ -13,7 +13,8 @@ namespace MakoKaraGenerator.Runtime.Hosting;
 public sealed class ProjectRenderSessionFactory(IScriptCompilationService compiler, IVideoFrameProvider videos, ReplayReason reason,
     Func<IBackgroundFrameSourceResolver>? backgroundResolverFactory = null,
     bool layoutReference = false, string? editingLineId = null, string? editingCueId = null,
-    string? renderBackend = null, bool enableGpuPreview = false, bool enableGpuPreviewBenchmark = false, RuntimeGpuPreparation? gpuPreparation = null)
+    string? renderBackend = null, bool enableGpuPreview = false, bool enableGpuPreviewBenchmark = false, RuntimeGpuPreparation? gpuPreparation = null,
+    ProjectMediaFeatureBinding? mediaBinding = null)
     : IRenderFrameSessionFactory
 {
     private readonly SkiaRenderBackendOptions? _renderBackendOptions = renderBackend is null ? null : SkiaRenderBackendOptions.Parse(renderBackend);
@@ -124,7 +125,7 @@ public sealed class ProjectRenderSessionFactory(IScriptCompilationService compil
             if (svgOwners.Count != 0) svgResources = new(svgOwners, device);
             source = await compiled.CreateFactory(() => layoutReference || editingLineId is not null
                 ? new MeasurementGeometryProvider(Renderer(), layoutReference, editingLineId, editingCueId)
-                : Renderer(), reason).CreateAsync(snapshot, token).ConfigureAwait(false);
+                : Renderer(), reason, mediaBinding).CreateAsync(snapshot, token).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
             renderer = Renderer(resolver, budget, resources);
             token.ThrowIfCancellationRequested();

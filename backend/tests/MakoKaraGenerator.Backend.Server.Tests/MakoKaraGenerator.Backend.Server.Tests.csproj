@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><RootNamespace>MakoKaraGenerator.Backend.Server.Tests</RootNamespace></PropertyGroup>
+  <PropertyGroup><RootNamespace>MakoKaraGenerator.Backend.Server.Tests</RootNamespace><AllowMissingPrunePackageData>true</AllowMissingPrunePackageData></PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />

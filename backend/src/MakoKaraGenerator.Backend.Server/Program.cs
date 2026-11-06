@@ -54,6 +54,11 @@ ProjectPersistenceOptions persistenceOptions = new()
     AutoSaveInterval = TimeSpan.FromSeconds(ServerEndpoints.ResolveInt("MAKO_BACKEND_AUTOSAVE_SECONDS", 30)),
 };
 sessions.ConfigurePersistence(persistenceOptions);
+BackendMediaFeatureService? mediaFeatures = null;
+try { mediaFeatures = BackendMediaFeatureService.TryCreate(persistenceOptions.StateRoot); }
+catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+{ Console.Error.WriteLine($"BACKEND_MEDIA_FEATURES_UNAVAILABLE {error.GetType().Name}"); }
+sessions.ConfigureMediaFeatures(mediaFeatures);
 string scriptReferences = Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0");
 IScriptCompilationService? scriptCompiler = null;
 if (Directory.Exists(scriptReferences))
@@ -157,6 +162,15 @@ await audioPreparationShutdown.ConfigureAwait(false);
 await accepted.DrainAsync().ConfigureAwait(false);
 if (!await ServerShutdown.DisposeAsync(previewService.DisposeAsync, sessions.DisposeAsync, renderBackends.Dispose,
     Console.Error).ConfigureAwait(false)) Environment.ExitCode = 1;
+if (mediaFeatures is not null)
+{
+    try { await mediaFeatures.DisposeAsync().ConfigureAwait(false); }
+    catch (Exception error)
+    {
+        Console.Error.WriteLine($"BACKEND_SHUTDOWN_FAILED media-features {error.GetType().Name}");
+        Environment.ExitCode = 1;
+    }
+}
 
 static long? OptionalPositiveLong(string variable)
 {

@@ -3,9 +3,11 @@ using MakoKaraGenerator.Backend.Contracts;
 using MakoKaraGenerator.Backend.Rendering;
 using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Core.Effects;
+using MakoKaraGenerator.Core.Media;
 using MakoKaraGenerator.Core.Persistence;
 using MakoKaraGenerator.Media;
 using MakoKaraGenerator.Rendering;
+using MakoKaraGenerator.Rendering.Abstractions;
 using MakoKaraGenerator.Rendering.Skia;
 using MakoKaraGenerator.Runtime.Hosting;
 using MakoKaraGenerator.Scripting;
@@ -18,9 +20,10 @@ internal sealed class ProjectRuntimeInput : IDisposable
 {
     private readonly FfmpegVideoFrameProvider _videos = FfmpegVideoFrameProvider.CreateSelfContained();
     private readonly ProjectRuntimeBackgroundGrant? _grant;
+    private readonly MediaBindingOwner? _media;
     private ProjectRuntimeInput(ProjectSnapshot snapshot, string profile, ProjectRuntimeBackgroundGrant? grant,
-        ReadOnlyMemory<byte> source, IScriptCompilationService compiler)
-    { Snapshot = snapshot; SourceProfile = profile; _grant = grant; Source = source; Compiler = compiler; }
+        ReadOnlyMemory<byte> source, IScriptCompilationService compiler, MediaBindingOwner? media)
+    { Snapshot = snapshot; SourceProfile = profile; _grant = grant; Source = source; Compiler = compiler; _media = media; }
     internal ProjectSnapshot Snapshot { get; }
     internal string SourceProfile { get; }
     internal ReadOnlyMemory<byte> Source { get; }
@@ -55,15 +58,73 @@ internal sealed class ProjectRuntimeInput : IDisposable
             if (grant.Kind == BackgroundKind.Video)
                 _ = FfmpegVideoFrameProvider.ValidateSelfContainedInput(grant.FilePath, token);
         }
-        token.ThrowIfCancellationRequested(); return new(input.Snapshot, input.SourceProfile, input.Grant, bytes, prepared.Compiler);
+        token.ThrowIfCancellationRequested();
+        MediaBindingOwner? media = input.Snapshot.MediaFeatureInput is { } mediaInput
+            ? await MediaBindingOwner.OpenAsync(input.Snapshot, mediaInput, ProjectRuntimeInputCodec.ReadMediaGrant(bytes)?.ArtifactPath, token).ConfigureAwait(false)
+            : null;
+        return new(input.Snapshot, input.SourceProfile, input.Grant, bytes, prepared.Compiler, media);
     }
 
     internal ProjectRenderSessionFactory CreateFactory(ReplayReason reason,
         bool layoutReference = false, string? editingLineId = null, string? editingCueId = null, string? renderBackend = null,
         bool enableGpuPreview = false, bool enableGpuPreviewBenchmark = false, RuntimeGpuPreparation? gpuPreparation = null)
         => new(Compiler, _videos, reason,
-            _grant is null ? null : () => new GrantedBackgroundResolver(_grant, _videos), layoutReference, editingLineId, editingCueId, renderBackend, enableGpuPreview, enableGpuPreviewBenchmark, gpuPreparation);
-    public void Dispose() => _videos.Dispose();
+            _grant is null ? null : () => new GrantedBackgroundResolver(_grant, _videos), layoutReference, editingLineId, editingCueId, renderBackend, enableGpuPreview, enableGpuPreviewBenchmark, gpuPreparation,
+            _media?.Binding);
+    public void Dispose()
+    {
+        try { _media?.Dispose(); }
+        finally { _videos.Dispose(); }
+    }
+
+    /// <summary>Owns the validated artifact reader and the bounded sampler for this fixed runtime input only.</summary>
+    private sealed class MediaBindingOwner : IDisposable
+    {
+        private static readonly MediaFeatureTrackCodec Codec = new(new MediaMomentKernel(), new MediaAbValueValidator());
+        private readonly MediaFeatureSampler _sampler;
+        private readonly IMediaFeatureTrackReader? _reader;
+        private MediaBindingOwner(MediaFeatureSampler sampler, IMediaFeatureTrackReader? reader)
+        { _sampler = sampler; _reader = reader; Binding = new(sampler); }
+        internal ProjectMediaFeatureBinding Binding { get; }
+
+        internal static async Task<MediaBindingOwner> OpenAsync(ProjectSnapshot snapshot, MediaFeatureInput input,
+            string? artifactPath, CancellationToken token)
+        {
+            var plan = ProjectMediaDependencyResolver.Resolve(snapshot.Effects, snapshot.LyricStyle, snapshot.Lyrics,
+                snapshot.LyricPresentation, snapshot.PresetApplications, token);
+            var budget = new MediaWorkingSetBudget(MediaAbCapacityV1.MaximumRuntimeCpuCacheBytes);
+            IMediaFeatureTrackReader? reader = null;
+            try
+            {
+                if (input is MediaFeatureInput.AvailableFile file)
+                {
+                    if (artifactPath is null) throw new WorkerProtocolException("固定媒体特征缺少制品授权。", "ProjectRuntimeSourceUnavailable");
+                    EnsureNoLinks(artifactPath);
+                    var stream = new FileStream(artifactPath, FileMode.Open, FileAccess.Read, FileShare.Read, 1,
+                        FileOptions.Asynchronous | FileOptions.RandomAccess);
+                    try { reader = await Codec.OpenValidatedAsync(stream, file.Source, file.Artifact, budget, token).ConfigureAwait(false); }
+                    catch { await stream.DisposeAsync().ConfigureAwait(false); throw; }
+                }
+                return new(new MediaFeatureSampler(input, plan, reader, budget, token), reader);
+            }
+            catch (MediaAbException error)
+            {
+                if (reader is not null) await reader.DisposeAsync().ConfigureAwait(false);
+                throw new WorkerProtocolException("固定媒体特征制品不可用：" + error.Failure, "ProjectRuntimeSourceChanged");
+            }
+            catch
+            {
+                if (reader is not null) await reader.DisposeAsync().ConfigureAwait(false);
+                throw;
+            }
+        }
+
+        public void Dispose()
+        {
+            try { _sampler.Dispose(); }
+            finally { _reader?.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
+        }
+    }
 
     private sealed class GrantedBackgroundResolver(ProjectRuntimeBackgroundGrant grant, FfmpegVideoFrameProvider videos) : IBackgroundFrameSourceResolver
     {

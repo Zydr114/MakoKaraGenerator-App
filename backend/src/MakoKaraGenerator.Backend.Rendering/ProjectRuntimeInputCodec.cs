@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using MakoKaraGenerator.Backend.Contracts;
 using MakoKaraGenerator.Core.Effects;
+using MakoKaraGenerator.Core.Media;
 using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Rendering;
 
@@ -27,7 +28,7 @@ public static class ProjectRuntimeInputCodec
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase, UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
         RespectRequiredConstructorParameters = true, MaxDepth = 16,
-        Converters = { new JsonStringEnumConverter(allowIntegerValues: false) },
+        Converters = { new JsonStringEnumConverter(allowIntegerValues: false), new CoreMediaValueJsonConverterFactory() },
     };
 
     /// <summary>检查二进制固定运行输入标记。</summary>
@@ -42,13 +43,21 @@ public static class ProjectRuntimeInputCodec
         => snapshot.Effects.Packages.Any(package => package.Files.Any(file => file.Role is "font" or "image" or "video"));
 
     /// <summary>媒体字节通过固定 grant 读取，领域 snapshot 原字节直接内嵌，避免 base64 放大。</summary>
-    public static byte[] Encode(ProjectSnapshot snapshot, ProjectRuntimeBackgroundGrant? grant, ProjectRuntimePackageGrant[]? packageGrants = null)
+    /// <param name="snapshot">完整固定源；其媒体特征输入随私有授权传输。</param>
+    /// <param name="grant">固定背景媒体授权。</param>
+    /// <param name="packageGrants">固定包目录授权。</param>
+    /// <param name="mediaArtifactPath">AvailableFile 媒体输入的私有只读特征轨文件。</param>
+    public static byte[] Encode(ProjectSnapshot snapshot, ProjectRuntimeBackgroundGrant? grant, ProjectRuntimePackageGrant[]? packageGrants = null,
+        string? mediaArtifactPath = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        RejectMediaInput(snapshot);
         packageGrants ??= [];
         ValidatePackages(packageGrants);
-        if (grant is null && packageGrants.Length == 0)
+        ProjectRuntimeMediaGrant? mediaGrant;
+        try { mediaGrant = snapshot.MediaFeatureInput is { } input ? ProjectRuntimeMediaGrant.From(input, mediaArtifactPath) : null; }
+        catch (Exception error) when (error is MediaAbException or ArgumentException) { throw Invalid(); }
+        if (mediaGrant is null && mediaArtifactPath is not null) throw Invalid();
+        if (grant is null && packageGrants.Length == 0 && mediaGrant is null)
         {
             if (snapshot.Background != BackgroundSource.Color) throw Invalid();
             return ProjectSnapshotSourceProfile.Encode(snapshot);
@@ -64,13 +73,13 @@ public static class ProjectRuntimeInputCodec
         if (packageGrants.Length != 0 && !packageGrants.Select(value => (value.PackageId, value.Revision)).ToHashSet()
             .SetEquals(snapshot.Effects.Packages.Select(value => (value.PackageId, value.Revision)))) throw Invalid();
         if (snapshot.EffectInputsFingerprint != Fingerprint(snapshot)) throw FingerprintInvalid();
-        var basis = snapshot with { Background = BackgroundSource.Color };
+        var basis = snapshot with { Background = BackgroundSource.Color, MediaFeatureInput = null };
         basis = basis with { EffectInputsFingerprint = Fingerprint(basis) };
         string baseProfile = ProjectSnapshotSourceProfile.Select(basis);
         byte[] source = packageGrants.Length == 0 ? ProjectSnapshotSourceProfile.Encode(basis)
             : StaticProjectSnapshotCodec.EncodeCore(basis, baseProfile, true, !basis.PresetApplications.Items.IsEmpty, externalPackages: true);
         byte[] metadata = JsonSerializer.SerializeToUtf8Bytes(new Metadata(Profile, StaticProjectSnapshotCodec.EngineIdentity,
-            baseProfile, grant, snapshot.EffectInputsFingerprint, packageGrants), Options);
+            baseProfile, grant, snapshot.EffectInputsFingerprint, packageGrants, mediaGrant), Options);
         if ((long)source.Length + metadata.Length + 8 > MaximumBytes) throw Size();
         byte[] bytes = new byte[source.Length + metadata.Length + 8];
         Magic.CopyTo(bytes); BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(4), metadata.Length);
@@ -105,12 +114,17 @@ public static class ProjectRuntimeInputCodec
                 Media = new(grant.Sha256, grant.ByteLength, grant.OriginalName), Fit = grant.Fit, Playback = grant.Playback } };
             source = source with { EffectInputsFingerprint = Fingerprint(source) };
             if (source.EffectInputsFingerprint != metadata.EffectInputsFingerprint) throw FingerprintInvalid();
+            if (metadata.Media is { } media) source = source with { MediaFeatureInput = media.ToInput() };
             return (source, Profile, grant);
         }
         catch (SnapshotContractException) { throw; }
-        catch (Exception error) when (error is JsonException or ArgumentException or InvalidOperationException or NullReferenceException or OverflowException or EffectPackageException)
+        catch (Exception error) when (error is JsonException or ArgumentException or InvalidOperationException or NullReferenceException or OverflowException or EffectPackageException or MediaAbException)
         { throw Invalid(); }
     }
+
+    /// <summary>读取媒体特征输入的私有传输；不执行IO，不重建输入。</summary>
+    public static ProjectRuntimeMediaGrant? ReadMediaGrant(ReadOnlyMemory<byte> bytes)
+        => IsRuntimeInput(bytes.Span) ? ReadMetadata(bytes).Media : null;
 
     /// <summary>只检查Host私有授权结构，不读取文件。</summary>
     public static void ValidateGrant(ProjectRuntimeBackgroundGrant grant)
@@ -133,21 +147,22 @@ public static class ProjectRuntimeInputCodec
     /// <summary>只用已持有的固定快照重编码授权引用，核对完整wire；不读取私有目录。</summary>
     public static void ValidateSnapshot(ReadOnlyMemory<byte> bytes, ProjectSnapshot snapshot)
     {
-        ArgumentNullException.ThrowIfNull(snapshot); RejectMediaInput(snapshot);
+        ArgumentNullException.ThrowIfNull(snapshot);
         byte[] expected;
         if (IsRuntimeInput(bytes.Span))
         {
             var metadata = ReadMetadata(bytes);
-            expected = Encode(snapshot, metadata.Background, metadata.PackageGrants);
+            // The Host-derived media input is attested by its own grant; the source identity excludes it.
+            ProjectSnapshot withMedia = snapshot;
+            if (snapshot.MediaFeatureInput is null && metadata.Media is { } media)
+            {
+                try { withMedia = snapshot with { MediaFeatureInput = media.ToInput() }; }
+                catch (MediaAbException) { throw Invalid(); }
+            }
+            expected = Encode(withMedia, metadata.Background, metadata.PackageGrants, metadata.Media?.ArtifactPath);
         }
         else expected = ProjectSnapshotSourceProfile.Encode(snapshot);
         if (!bytes.Span.SequenceEqual(expected)) throw new SnapshotContractException("ProjectRuntimeSourceMismatch", "固定运行输入不属于同一源快照。");
-    }
-
-    private static void RejectMediaInput(ProjectSnapshot snapshot)
-    {
-        if (snapshot.MediaFeatureInput is not null)
-            throw new SnapshotContractException("SnapshotMediaFeatureInputUnsupported", "当前运行输入协议不能传输固定媒体运行输入。");
     }
 
     /// <summary>读取待Worker加载的固定包目录授权；不执行IO。</summary>
@@ -212,7 +227,8 @@ public static class ProjectRuntimeInputCodec
         else if (value.ValueKind == JsonValueKind.Array) foreach (var item in value.EnumerateArray()) RejectDuplicateFields(item);
     }
     private sealed record Metadata(string Profile, string EngineIdentity, string BaseProfile,
-        ProjectRuntimeBackgroundGrant? Background, string? EffectInputsFingerprint, ProjectRuntimePackageGrant[] PackageGrants);
+        ProjectRuntimeBackgroundGrant? Background, string? EffectInputsFingerprint, ProjectRuntimePackageGrant[] PackageGrants,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ProjectRuntimeMediaGrant? Media = null);
     private static SnapshotContractException Invalid() => new("ProjectRuntimeInputInvalid", "固定运行输入或私有媒体授权无效。");
     private static SnapshotContractException Size() => new("SnapshotSizeExceeded", "固定运行输入超过 Worker payload 预算。");
     private static SnapshotContractException FingerprintInvalid() => new("SnapshotFingerprintMismatch", "固定运行输入与效果源指纹不匹配。");

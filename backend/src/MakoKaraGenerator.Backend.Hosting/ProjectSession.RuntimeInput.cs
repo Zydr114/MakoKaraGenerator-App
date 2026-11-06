@@ -95,6 +95,15 @@ public sealed class BackendProjectRuntimeInputLease : IDisposable
     internal BackendProjectRuntimeInputLease(ProjectSnapshot snapshot, string? directory, bool assetPath, Action release)
     { _snapshot = snapshot; _directory = directory; _assetPath = assetPath; _release = release; }
 
+    /// <summary>Host背景媒体特征分析服务；未安装时媒体查询得到无背景贡献输入。</summary>
+    public BackendMediaFeatureService? MediaFeatures { get; set; }
+
+    /// <summary>消费者以透明背景输出；媒体查询得到透明输出无背景贡献输入。</summary>
+    public bool TransparentOutput { get; set; }
+
+    /// <summary>导出等最终消费者等待背景分析完成，而不是固定为分析中输入。</summary>
+    public bool WaitForMediaFeatures { get; set; }
+
     /// <summary>独立模板样本没有工程文件句柄，仅允许Color背景并复用完整固定包闭包准备。</summary>
     public static BackendProjectRuntimeInputLease CreateDetached(ProjectSnapshot snapshot)
     {
@@ -150,7 +159,8 @@ public sealed class BackendProjectRuntimeInputLease : IDisposable
             }
             if (_snapshot.Background == BackgroundSource.Color)
             {
-                var result = new BackendPreparedProjectRuntimeInput(_snapshot, ProjectRuntimeInputCodec.Encode(_snapshot, null, packageGrants), null, temporary);
+                var (solid, _) = await BackendMediaFeatureInputs.AttachAsync(_snapshot, null, MediaFeatures, TransparentOutput, WaitForMediaFeatures, token).ConfigureAwait(false);
+                var result = new BackendPreparedProjectRuntimeInput(_snapshot, ProjectRuntimeInputCodec.Encode(solid, null, packageGrants), null, temporary);
                 temporary = null; return BackendOperationResult<BackendPreparedProjectRuntimeInput>.Success(result);
             }
             if (_directory is null || _snapshot.Background is not { Media: { } media, Path: { } path } background
@@ -182,7 +192,8 @@ public sealed class BackendProjectRuntimeInputLease : IDisposable
             if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(output, UnixFileMode.UserRead);
             var grant = new ProjectRuntimeBackgroundGrant(background.Kind, media.RelativePath, output, media.Hash,
                 media.ByteLength, media.OriginalName, background.Fit, background.Playback);
-            var prepared = new BackendPreparedProjectRuntimeInput(_snapshot, ProjectRuntimeInputCodec.Encode(_snapshot, grant, packageGrants), grant, temporary);
+            var (attached, artifact) = await BackendMediaFeatureInputs.AttachAsync(_snapshot, output, MediaFeatures, TransparentOutput, WaitForMediaFeatures, token).ConfigureAwait(false);
+            var prepared = new BackendPreparedProjectRuntimeInput(_snapshot, ProjectRuntimeInputCodec.Encode(attached, grant, packageGrants, artifact), grant, temporary);
             temporary = null; return BackendOperationResult<BackendPreparedProjectRuntimeInput>.Success(prepared);
         }
         catch (SnapshotContractException error)
@@ -213,6 +224,9 @@ public sealed class BackendProjectRuntimeInputLease : IDisposable
 
 public sealed partial class ProjectSession
 {
+    /// <summary>Registry-installed background media-feature analysis; never owned by this session.</summary>
+    internal BackendMediaFeatureService? MediaFeatures { get; set; }
+
     // Only under Writer after owner/revision/close checks. No IO or Worker operation.
     internal BackendProjectRuntimeInputLease AcquireProjectRuntimeInput(ProjectSnapshot snapshot)
     {
@@ -224,7 +238,7 @@ public sealed partial class ProjectSession
         {
             if (assetPath) assetReference = _backgroundHistory[snapshot.Background.Path!].AcquireReference();
             return new(snapshot, assetPath ? Path.GetDirectoryName(snapshot.Background.Path) : PinnedInputDirectory,
-                assetPath, () => { try { assetReference?.Dispose(); } finally { ReleaseProjectImageRead(); } });
+                assetPath, () => { try { assetReference?.Dispose(); } finally { ReleaseProjectImageRead(); } }) { MediaFeatures = MediaFeatures };
         }
         catch { ReleaseProjectImageRead(); throw; }
     }

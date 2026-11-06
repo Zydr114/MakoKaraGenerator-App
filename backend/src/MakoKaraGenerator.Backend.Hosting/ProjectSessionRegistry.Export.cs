@@ -230,6 +230,8 @@ public sealed partial class ProjectSessionRegistry
                     return Reject<JobResponse>(BackendErrorCode.ExportInputRejected, "工程存在阻断导出的领域错误。");
                 plan = ValidateExportPlan(snapshot, request.Format);
                 inputLease = session.AcquireProjectRuntimeInput(snapshot);
+                inputLease.TransparentOutput = request.Format == "transparentProRes4444";
+                inputLease.WaitForMediaFeatures = true;
                 if (!string.IsNullOrEmpty(session.AudioAssetId))
                 {
                     audioPin = _resources.AcquireReference(clientId, session.AudioAssetId);

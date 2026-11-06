@@ -28,15 +28,15 @@ public sealed class ProjectMediaDependencyTests
     }
 
     [Fact]
-    public void PendingCapabilityHasStrictCatalogButNeverAnExecutableDefinition()
+    public void MediaCapabilityHasStrictCatalogAndExecutableDefinition()
     {
         var package = MediaQueryPackageFixture.Controller(); var catalog = EffectPackageMediaQueries.Read(package);
         var query = Assert.Single(catalog.Queries); Assert.IsType<EffectMediaWindow.Parameter>(query.Window);
         Assert.Equal(EffectMediaCoordinateSpace.CanvasPixels, query.Space);
         Assert.Single(catalog.GetExport("scale").MediaQueries);
-        Assert.False(EffectPackageProfiles.SupportedV2Capabilities.Contains("media.features"));
+        Assert.True(EffectPackageProfiles.SupportedV2Capabilities.Contains("media.features"));
         Assert.False(EffectPackageProfiles.SupportedV2Capabilities.Contains("media.features.cpu"));
-        Assert.Equal("PackageCapabilityUnsupported", Assert.Throws<EffectPackageException>(() => EffectPackageDefinition.Read(package)).Code);
+        Assert.NotNull(EffectPackageDefinition.Read(package));
         Assert.Throws<EffectPackageException>(() => MediaQueryPackageFixture.Controller(m => m["requires"]!.AsArray().Add("media.features.cpu")));
         Assert.DoesNotContain(typeof(EffectPackageMediaQueryCatalog).GetMethods(), method => method.ReturnType == typeof(EffectPackageDefinition));
         Oracle(Plan(package));
@@ -133,9 +133,9 @@ public sealed class ProjectMediaDependencyTests
         Reject(m => Export(m).AsObject().Remove("mediaQueries"));
         Reject(m => Export(m)["outputs"]![0]!["requires"] = new JsonArray("style.fill"));
         Reject(m => Export(m)["outputs"]![0]!["requires"] = new JsonArray("future.unknown"));
-        var pendingOutput = MediaQueryPackageFixture.Controller(m => Export(m)["outputs"]![0]!["requires"] = new JsonArray("media.features"));
-        Assert.NotNull(EffectPackageMediaQueries.Read(pendingOutput));
-        Assert.Equal("PackageCapabilityUnsupported", Assert.Throws<EffectPackageException>(() => EffectPackageDefinition.Read(pendingOutput)).Code);
+        var mediaOutput = MediaQueryPackageFixture.Controller(m => Export(m)["outputs"]![0]!["requires"] = new JsonArray("media.features"));
+        Assert.NotNull(EffectPackageMediaQueries.Read(mediaOutput));
+        Assert.NotNull(EffectPackageDefinition.Read(mediaOutput));
         var old = SdkV2PackageFixture.Contents(m => m["exports"]![0]!["outputs"]![0]!["requires"] = new JsonArray("style.fill"));
         Assert.Equal("PackageCapabilityMissing", Assert.Throws<EffectPackageException>(() => EffectPackageDefinition.Read(old)).Code);
     }

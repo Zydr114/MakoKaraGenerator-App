@@ -7,15 +7,21 @@ namespace MakoKaraGenerator.Backend.Rendering.Tests;
 public sealed class MediaRuntimeSnapshotCodecRejectionTests
 {
     [Fact]
-    public void 旧source和runtime协议明确拒绝媒体值而不丢字段()
+    public void 旧source拒绝媒体值而runtime输入以固定授权完整往返()
     {
         var legacy = StaticSnapshotFixture.Create(); byte[] bytes = StaticProjectSnapshotCodec.Encode(legacy);
         Assert.Equal(bytes, StaticProjectSnapshotCodec.Encode(StaticProjectSnapshotCodec.Decode(bytes)));
         var snapshot = legacy with { MediaFeatureInput = Input(legacy) };
         Assert.True(ProjectRuntimeInputCodec.RequiresPreparation(snapshot));
         Assert.Equal("SnapshotMediaFeatureInputUnsupported", Assert.Throws<SnapshotContractException>(() => StaticProjectSnapshotCodec.Encode(snapshot)).Code);
-        Assert.Equal("SnapshotMediaFeatureInputUnsupported", Assert.Throws<SnapshotContractException>(() => ProjectRuntimeInputCodec.Encode(snapshot, null)).Code);
         Assert.Equal("SnapshotMediaFeatureInputUnsupported", Assert.Throws<SnapshotContractException>(() => ProjectRuntimeInputCodec.ValidateSnapshot(bytes, snapshot)).Code);
+        byte[] runtime = ProjectRuntimeInputCodec.Encode(snapshot, null);
+        var decoded = ProjectRuntimeInputCodec.Decode(runtime).Snapshot;
+        Assert.Equal(snapshot.MediaFeatureInput!.InputRevision, decoded.MediaFeatureInput!.InputRevision);
+        Assert.Null(ProjectRuntimeInputCodec.ReadMediaGrant(runtime)!.ArtifactPath);
+        ProjectRuntimeInputCodec.ValidateSnapshot(runtime, snapshot);
+        ProjectRuntimeInputCodec.ValidateSnapshot(runtime, legacy);
+        Assert.Throws<SnapshotContractException>(() => ProjectRuntimeInputCodec.Encode(snapshot, null, null, "/tmp/unexpected.mft"));
     }
 
     private static MediaFeatureInput.NoMedia Input(ProjectSnapshot snapshot)

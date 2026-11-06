@@ -203,6 +203,18 @@ internal sealed partial class BackendMediaFeatureArtifactStore
         }
     }
 
+    /// <summary>The private read-only track file of a published, still registered reference.</summary>
+    internal string ArtifactFilePath(BackendMediaFeatureArtifactReference reference)
+    {
+        ValidateReference(reference);
+        lock (_gate)
+        {
+            Require(_entries.TryGetValue(reference.ArtifactId, out Entry? entry) && entry.Verified && !entry.Expired
+                && entry.Reference == reference, "Media reference is not authorized or retained.");
+            return Path.Combine(entry!.Path, "track.mft");
+        }
+    }
+
     internal void Prune(IEnumerable<BackendMediaFeatureArtifactReference> retained)
     {
         ArgumentNullException.ThrowIfNull(retained);

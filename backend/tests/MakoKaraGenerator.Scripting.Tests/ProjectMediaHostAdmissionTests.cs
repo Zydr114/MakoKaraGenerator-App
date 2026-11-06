@@ -101,7 +101,7 @@ public sealed class ProjectMediaHostAdmissionTests
     }
 
     [Fact]
-    public void 真实源材质专用闭包在无控制器时仍经过正式能力门禁()
+    public void 真实源材质专用闭包在无控制器时经过正式门禁并接受固定绑定()
     {
         var (basis, plan, source, context) = Fixed(sourceOnly: true);
         var input = MediaFeatureInput.CreatePending(context, source, new(Hash('a')));
@@ -112,8 +112,7 @@ public sealed class ProjectMediaHostAdmissionTests
         var references = SourceMaterialCatalog.Collect(snapshot.LyricStyle, snapshot.Lyrics, snapshot.LyricPresentation, snapshot.PresetApplications);
         var prepared = new PreparedSourceMaterials(snapshot, references.Select(reference => KeyValuePair.Create(reference, material)));
         var binding = new ProjectMediaFeatureBinding(new Sampler(input, plan));
-        Assert.Equal("PackageCapabilityUnsupported", Assert.Throws<EffectPackageException>(() =>
-            ProjectMediaFeatureAdmission.Validate(snapshot, [], prepared, binding, default)).Code);
+        ProjectMediaFeatureAdmission.Validate(snapshot, [], prepared, binding, default);
     }
 
     [Fact]
@@ -202,10 +201,10 @@ public sealed class ProjectMediaHostAdmissionTests
     }
 
     [Fact]
-    public void 正式媒体包能力仍关闭()
+    public void 正式媒体包能力已开放()
     {
         Assert.NotEmpty(EffectPackageMediaQueries.Read(Package()).Queries);
-        Assert.Equal("PackageCapabilityUnsupported", Assert.Throws<EffectPackageException>(() => EffectPackageDefinition.Read(Package())).Code);
+        Assert.NotNull(EffectPackageDefinition.Read(Package()));
     }
 
     private static (ProjectSnapshot Snapshot, ProjectMediaDependencyPlan Plan, MediaFeatureFileSource Source, MediaInputContext Context) Fixed(bool sourceOnly = false)

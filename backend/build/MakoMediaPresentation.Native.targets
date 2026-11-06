@@ -14,8 +14,10 @@
       <MakoMediaPresentationToolDir Condition="'$(MakoMediaPresentationToolDir)' == ''">$(TargetDir)media-tools</MakoMediaPresentationToolDir>
     </PropertyGroup>
     <Error Condition="!$([MSBuild]::IsOSPlatform('Linux'))" Text="Media presentation native build requires Linux x64." />
-    <Error Condition="'$(RuntimeIdentifier)' != 'linux-x64'"
-           Text="Media presentation native ABI requires explicit RuntimeIdentifier=linux-x64." />
+    <!-- Host-RID application builds (empty RuntimeIdentifier) are accepted on the
+         checked x86_64 Linux host below; any other explicit RID is refused. -->
+    <Error Condition="'$(RuntimeIdentifier)' != '' and '$(RuntimeIdentifier)' != 'linux-x64'"
+           Text="Media presentation native ABI supports only linux-x64." />
     <Exec Command="uname -m" ConsoleToMSBuild="true" StandardOutputImportance="Low">
       <Output TaskParameter="ConsoleOutput" PropertyName="MakoMediaPresentationHostArchitecture" />
     </Exec>

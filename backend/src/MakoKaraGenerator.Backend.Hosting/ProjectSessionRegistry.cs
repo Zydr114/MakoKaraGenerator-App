@@ -534,6 +534,7 @@ public sealed partial class ProjectSessionRegistry : IDisposable, IAsyncDisposab
             if (Volatile.Read(ref _stopping) != 0) return false;
             if (_sessions.Values.Count(item => item.OwnerClientId == session.OwnerClientId && !item.IsClosed) >= _lifecycleOptions.MaxSessionsPerClient)
                 return false;
+            session.MediaFeatures = MediaFeatures;
             if (!_sessions.TryAdd(session.ProjectSessionId, session)) return false;
             session.PublishEvent("project.opened");
             return true;

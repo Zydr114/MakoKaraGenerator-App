@@ -187,7 +187,7 @@ public sealed class MediaFeatureSamplerTests
             ProjectMediaDependencyResolver.Resolve(Project(parameters: "{\"peak\":1.75}")), ProjectMediaDependencyResolver.Resolve(Project(material: true)) })
             Assert.Throws<MediaAbException>(() => sampler.Sample(foreign.Dependencies[0], new(0, 0, 1, 1), 0, default));
         Assert.Equal(0, reader.Reads);
-        Assert.False(EffectPackageProfiles.SupportedV2Capabilities.Contains("media.features"));
+        Assert.True(EffectPackageProfiles.SupportedV2Capabilities.Contains("media.features"));
     }
 
     [Fact]

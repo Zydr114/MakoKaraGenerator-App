@@ -22,7 +22,7 @@ public static class EffectPackageProfiles
         "token.affine", "line.affine", "group.affine", "mark.affine", "cluster.affine", "token.opacity", "group.opacity",
         "style.fill", "style.stroke", "style.shadow", "style.glow", "timeline.index", "line.exit",
         "token.warp", "cluster.warp", "mark.warp", "visuals.paths", "image.graph", "image.graph.group", "material.uniform",
-        EffectPackageSvgResources.VectorCapability, EffectPackageSvgResources.AtlasCapability);
+        EffectPackageSvgResources.VectorCapability, EffectPackageSvgResources.AtlasCapability, EffectPackageMediaQueries.Capability);
         return EnableV2ParticlesAndVisuals ? text.Union(["particles.continuous", "particles.burst", "visuals.dots",
             "visuals.segments", "visuals.trails", "visuals.sprites"]) : text;
     }

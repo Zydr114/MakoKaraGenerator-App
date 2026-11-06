@@ -54,11 +54,11 @@ public sealed class ProjectMediaFeatureProjectionTests
     private static long Bits(double value) => BitConverter.DoubleToInt64Bits(value);
 
     [Fact]
-    public void RealCatalogAndResolverKeepPendingCapabilityClosed()
+    public void RealCatalogAndResolverAdmitMediaCapability()
     {
         Rig rig = Create();
-        Assert.False(EffectPackageProfiles.SupportedV2Capabilities.Contains("media.features"));
-        Assert.Equal("PackageCapabilityUnsupported", Assert.Throws<EffectPackageException>(() => EffectPackageDefinition.Read(rig.Package)).Code);
+        Assert.True(EffectPackageProfiles.SupportedV2Capabilities.Contains("media.features"));
+        Assert.NotNull(EffectPackageDefinition.Read(rig.Package));
         Assert.Equal(2, rig.Plan.Owners.Length); Assert.Equal(4, rig.Plan.Dependencies.Length);
         Assert.All(rig.Plan.Owners, owner => Assert.Equal(9, owner.Parameters.Count));
         ProjectMediaFeatureProjection projection = Instance(rig);

@@ -500,3 +500,18 @@ Rendering首次1702通过／1失败为旧反射夹具少传新增可选参数；
 阶段测试通过可信测试程序集注入保留句柄的作者，执行真实Host方法；不是放开pending包或
 实际完整作者流程。当前Worker/runtime媒体wire、provider外层寿命、图消费者、HTTP和导出
 仍待组合，media.features能力关闭，M10/M11未完成。
+
+## 第二十片：跨进程 native 封套 observer（产品0.112.35）
+
+Processes 新增独立 observer：Host 可对他进程持有的 systemd 封套单元做只读观测、pin cgroup
+kill 与引用核验，native bridge 增加对应接口与 C 测试。完整构建零警告零错误，Processes 52、
+Media 423 通过（`build-observer-final-01.log`、`observer-*-full-*.log`）。
+
+首次真实探针 `observer-real-01` 失败并保留现场：systemd 262 经 `systemd-executor` 启动
+MainPid，单元启动返回时尚未 exec 成 gate，探针立即读 `/proc/<pid>/exe` 得 EACCES；
+第二轮暴露 `Type=exec` 单元在 exec 前为 `activating`。两处均为探针取证时序问题，
+探针改为有界等待 gate 镜像与 active 后再取 held 证据。`observer-real-03.log` 四场景
+（错误 token 拒绝、owner 先 Unref、Host 先 Unref、owner 被 SIGKILL 后 Host 接管排水）
+全部通过并关闭全部 owner。11-06 首轮遗留的探针进程与 failed 单元未由本轮清理。
+
+2026-11-07 起按用户指示，M10/M11 以功能接通为主，回归与性能不再逐片扩张，仅排查数量级崩坏。

@@ -14,6 +14,7 @@
     <MakoMediaEnvelopeSourceDir>$(MSBuildProjectDirectory)/../../../native/media-envelope</MakoMediaEnvelopeSourceDir>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Remove="tests/**/*.cs" />
     <ProjectReference Include="../../../src/MakoKaraGenerator.Processes/MakoKaraGenerator.Processes.csproj" />
   </ItemGroup>
   <Import Project="../../../build/MakoMediaEnvelope.Native.targets" />
@@ -23,11 +24,16 @@
     <Exec Command="cmake --build &quot;$(ProbeHelperBuildDir)&quot; --config Release --parallel 2" />
     <MakeDir Directories="$(TargetDir)media-tools" />
     <Copy SourceFiles="$(ProbeHelperBuildDir)/mkg-envelope-probe-helper" DestinationFolder="$(TargetDir)media-tools" />
+    <Copy SourceFiles="$(ProbeHelperBuildDir)/libmkg_probe_diagnostics.so" DestinationFolder="$(TargetDir)media-tools" />
   </Target>
   <Target Name="PublishProbeHelper" BeforeTargets="ComputeFilesToPublish" DependsOnTargets="BuildProbeHelper">
     <ItemGroup>
       <ResolvedFileToPublish Include="$(ProbeHelperBuildDir)/mkg-envelope-probe-helper">
         <RelativePath>media-tools/mkg-envelope-probe-helper</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+      <ResolvedFileToPublish Include="$(ProbeHelperBuildDir)/libmkg_probe_diagnostics.so">
+        <RelativePath>media-tools/libmkg_probe_diagnostics.so</RelativePath>
         <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       </ResolvedFileToPublish>
     </ItemGroup>

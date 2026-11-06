@@ -18,6 +18,8 @@ internal static class Program
 
     public static async Task<int> Main(string[] arguments)
     {
+        if (arguments.Length > 0 && arguments[0] is "--observer-evidence" or "--observer-owner")
+            return await ObserverProbe.DispatchAsync(arguments).ConfigureAwait(false);
         if (arguments.Length != 2 || arguments[0] != "--evidence" || !Path.IsPathFullyQualified(arguments[1]))
         {
             Console.Error.WriteLine("usage: M10.NativeEnvelope.Probe --evidence <new-absolute-private-directory>");

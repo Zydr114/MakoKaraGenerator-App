@@ -21,6 +21,7 @@ internal sealed class ProbePumps
     internal byte[] Stdout { get; private set; } = [];
     internal byte[] Stderr { get; private set; } = [];
     internal Task All => _all ?? throw new InvalidOperationException();
+    internal bool CompleteSeen { get; private set; }
     internal bool MetadataEof { get; private set; }
     internal bool StdoutEof { get; private set; }
     internal bool StderrEof { get; private set; }
@@ -132,5 +133,6 @@ internal sealed class ProbePumps
             Hello.TrySetResult(value);
         }
         else if (kind == "waiting") Waiting.TrySetResult();
+        else if (kind == "complete") CompleteSeen = true;
     }
 }

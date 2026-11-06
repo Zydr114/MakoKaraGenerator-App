@@ -39,7 +39,18 @@ typedef struct {
   int referenced, start_attempted, removed, start_rejected;
   uint32_t captured_pid;
   uint64_t captured_ticks;
+  int observer, observer_attempted, observer_verified, observer_ref_state;
+  uint64_t observer_limit;
+  mkg_observer_identity observer_expected;
 } ctx;
+
+enum observer_reference_state {
+  OBSERVER_REF_NONE = 0,
+  OBSERVER_REF_UNCERTAIN = 1,
+  OBSERVER_REF_HELD = 2,
+  OBSERVER_UNREF_UNCERTAIN = 3,
+  OBSERVER_REF_RELEASED = 4
+};
 
 static int copy(char *to, size_t size, const char *s) {
   if (!s || strlen(s) >= size)
@@ -231,7 +242,7 @@ int mkg_envelope_start(void *context, const char *nonce, const char *gate,
   sd_bus_message *m = NULL, *reply = NULL;
   int r = 0, yes = 1, no = 0;
   uint64_t zero = 0, stop = 2000000;
-  if (!c || c->start_attempted || !nonce || strlen(nonce) != 32 || !gate ||
+  if (!c || c->observer || c->start_attempted || !nonce || strlen(nonce) != 32 || !gate ||
       gate[0] != '/' || !tool || tool[0] != '/' || count > 128 || !limit ||
       limit % 4096)
     return -EINVAL;
@@ -472,7 +483,7 @@ int mkg_envelope_snapshot(void *context, mkg_snapshot *s) {
   ctx *c = context;
   int r = 0;
   memset(s, 0, sizeof(*s));
-  if (!c || !c->start_attempted)
+  if (!c || (!c->start_attempted && !c->observer_attempted))
     return -EINVAL;
   CHECK(lookup(c));
   CHECK(copy(s->unit, sizeof(s->unit), c->unit));
@@ -580,6 +591,8 @@ fail:
 }
 int mkg_envelope_start_absent(void *context) {
   ctx *c = context;
+  if (c && c->observer)
+    return -EINVAL;
   if (!c || !c->start_attempted)
     return 1;
   if (c->start_rejected)
@@ -670,6 +683,8 @@ static int kill_pinned_cgroup(ctx *c) {
 int mkg_envelope_kill(void *context, const char *id, uint64_t device,
                       uint64_t inode) {
   ctx *c = context;
+  if (c && c->observer)
+    return -EINVAL;
   int r = verify(c, id, device, inode);
   if (r < 0)
     return r;
@@ -680,6 +695,8 @@ int mkg_envelope_kill(void *context, const char *id, uint64_t device,
 int mkg_envelope_unref(void *context, const char *id, uint64_t device,
                        uint64_t inode) {
   ctx *c = context;
+  if (c && c->observer)
+    return -EINVAL;
   int r = verify(c, id, device, inode);
   if (r < 0)
     return r;
@@ -693,13 +710,229 @@ int mkg_envelope_unref(void *context, const char *id, uint64_t device,
 }
 void mkg_envelope_close(void *context) {
   ctx *c = context;
-  if (!c)
-    return;
+  if (!c || c->observer)
+    return; /* observer close has a checked, own-reference-only contract */
   close_children(c);
   if (c->cg >= 0)
     close(c->cg);
   sd_bus_close_unref(c->bus);
   free(c);
+}
+
+/* Independent Host observer. Worker AddRef/start state is never reused. */
+static int observer_hex(const char *value) {
+  if (strlen(value) != 32)
+    return 0;
+  for (int i = 0; i < 32; i++)
+    if (!((value[i] >= '0' && value[i] <= '9') ||
+          (value[i] >= 'a' && value[i] <= 'f')))
+      return 0;
+  return 1;
+}
+static int observer_object_path(const char *path) {
+  if (path[0] != '/' || !path[1])
+    return 0;
+  for (size_t i = 1; path[i]; i++) {
+    unsigned char ch = (unsigned char)path[i];
+    if (ch == '/') {
+      if (path[i - 1] == '/' || !path[i + 1])
+        return 0;
+    } else if (!((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
+                 (ch >= '0' && ch <= '9') || ch == '_'))
+      return 0;
+  }
+  return 1;
+}
+static int observer_expected_valid(const mkg_observer_identity *e,
+                                    uint64_t limit) {
+  if (!e || !memchr(e->nonce, 0, sizeof(e->nonce)) ||
+      !memchr(e->unit, 0, sizeof(e->unit)) ||
+      !memchr(e->path, 0, sizeof(e->path)) ||
+      !memchr(e->invocation, 0, sizeof(e->invocation)) ||
+      !memchr(e->group, 0, sizeof(e->group)))
+    return 0;
+  if (!observer_hex(e->nonce) || !observer_hex(e->invocation) ||
+      !strcmp(e->invocation, "00000000000000000000000000000000") ||
+      !observer_object_path(e->path) || !e->main_pid || !e->start_ticks ||
+      !e->cg_inode || !limit || limit % 4096)
+    return 0;
+  char unit[256];
+  snprintf(unit, sizeof(unit), "mako-media-%s.service", e->nonce);
+  size_t group_len = strlen(e->group), unit_len = strlen(unit);
+  return !strcmp(e->unit, unit) && e->group[0] == '/' &&
+         group_len <= 2000 && group_len > unit_len &&
+         !strstr(e->group, "..") && !strstr(e->group, "//") &&
+         e->group[group_len - unit_len - 1] == '/' &&
+         !strcmp(e->group + group_len - unit_len, unit);
+}
+/* Exact existing managed owner rule, including its sequential exit-race
+ * allowance: PID zero alone does NOT prove drain or permit a replacement. */
+static int observer_snapshot_matches(const ctx *c, const mkg_snapshot *s) {
+  const mkg_observer_identity *e = &c->observer_expected;
+  char description[128];
+  snprintf(description, sizeof(description), "Mako media envelope %s", e->nonce);
+  if (strcmp(s->unit, e->unit) || strcmp(s->path, e->path) ||
+      strcmp(s->invocation, e->invocation) ||
+      strcmp(s->description, description) || strcmp(s->cgroup, e->group) ||
+      s->cg_device != e->cg_device || s->cg_inode != e->cg_inode ||
+      (s->main_pid &&
+       (s->main_pid != e->main_pid || s->start_ticks != e->start_ticks ||
+        !s->main_in_group)))
+    return -ESTALE;
+  return 0;
+}
+/* Mirrors EnvelopeSnapshotValidator.ValidateControls; the managed policy is
+ * independently applied again to the attach sample before Host ACK. */
+static int observer_controls_match(const mkg_snapshot *s, uint64_t limit) {
+  return s->controls_complete && s->kill_available && s->main_pid &&
+         s->start_ticks && s->main_in_group && s->cg_exists && s->cg_inode &&
+         s->memory_max == limit && s->kernel_max == limit && s->effective_max &&
+         s->effective_max <= limit && !s->swap_max && !s->kernel_swap &&
+         s->oom_group && s->accounting && !s->delegate &&
+         !strcmp(s->type, "exec") && !strcmp(s->kill_mode, "control-group") &&
+         !strcmp(s->restart, "no") && !strcmp(s->oom_policy, "kill") &&
+         !strcmp(s->active, "active");
+}
+static int observer_verified_snapshot(ctx *c, mkg_snapshot *out) {
+  if (!c || !c->observer || !c->observer_attempted || c->cg < 0)
+    return -EINVAL;
+  const mkg_observer_identity *e = &c->observer_expected;
+  /* A failed initial pin is never replaced by a later manager lookup. */
+  if (c->device != e->cg_device || c->inode != e->cg_inode)
+    return -ESTALE;
+  int r = mkg_envelope_snapshot(c, out);
+  if (r < 0)
+    return r; /* NoSuchUnit is an error, never a cross-bus Start fence. */
+  r = observer_snapshot_matches(c, out);
+  return r < 0 ? r : verify(c, e->invocation, e->cg_device, e->cg_inode);
+}
+/* Set uncertainty immediately before sd_bus_call, after message creation.
+ * Neither caller cancellation nor an error reply may close this context. */
+static int observer_reference_call(ctx *c, int releasing) {
+  sd_bus_message *m = NULL, *reply = NULL;
+  int r = sd_bus_message_new_method_call(c->bus, &m, DEST, c->path, UNIT,
+                                         releasing ? "Unref" : "Ref");
+  if (r < 0)
+    goto fail;
+  c->observer_ref_state = releasing ? OBSERVER_UNREF_UNCERTAIN
+                                    : OBSERVER_REF_UNCERTAIN;
+  r = call(c, m, &reply);
+  if (r >= 0)
+    c->observer_ref_state = releasing ? OBSERVER_REF_RELEASED : OBSERVER_REF_HELD;
+fail:
+  sd_bus_message_unref(reply);
+  sd_bus_message_unref(m);
+  return r;
+}
+
+int mkg_envelope_observer_identity_abi_size(void) {
+  return (int)sizeof(mkg_observer_identity);
+}
+int mkg_envelope_observer_open(void **out,
+                               const mkg_observer_identity *expected,
+                               uint64_t limit) {
+  if (!out)
+    return -EINVAL;
+  *out = NULL;
+  if (!observer_expected_valid(expected, limit))
+    return -EINVAL;
+  ctx *c = calloc(1, sizeof(*c));
+  if (!c)
+    return -ENOMEM;
+  c->cg = -1;
+  for (int i = 0; i < 4; i++)
+    c->child[i] = -1;
+  c->observer = 1;
+  c->observer_expected = *expected;
+  c->observer_limit = limit;
+  c->captured_pid = expected->main_pid;
+  c->captured_ticks = expected->start_ticks;
+  copy(c->nonce, sizeof(c->nonce), expected->nonce);
+  copy(c->unit, sizeof(c->unit), expected->unit);
+  copy(c->path, sizeof(c->path), expected->path);
+  copy(c->group, sizeof(c->group), expected->group);
+  int r = sd_bus_open_user(&c->bus); /* fresh independent connection, no pipes */
+  if (r < 0)
+    goto fail;
+  CHECK(sd_bus_set_allow_interactive_authorization(c->bus, 0));
+  CHECK(sd_bus_set_method_call_timeout(c->bus, 100000));
+  *out = c;
+  return 0;
+fail:
+  c->observer = 0; /* No Ref was possible; ordinary close is safe here only. */
+  mkg_envelope_close(c);
+  return r;
+}
+int mkg_envelope_observer_attach(void *context, mkg_snapshot *out) {
+  ctx *c = context;
+  if (!c || !c->observer || c->observer_attempted || !out)
+    return -EINVAL;
+  c->observer_attempted = 1;
+  /* Pin the caller's original path FIRST. Never select a new pin from the
+   * manager's potentially replaced ControlGroup. The pin remains immutable. */
+  int r = pin_cgroup(c, c->observer_expected.group);
+  if (r < 0)
+    return r;
+  r = observer_verified_snapshot(c, out);
+  if (r < 0)
+    return r;
+  if (!observer_controls_match(out, c->observer_limit))
+    return -ENOTSUP;
+  r = observer_reference_call(c, 0);
+  if (r < 0)
+    return r; /* context is retained even when Ref may already be accepted */
+  r = observer_verified_snapshot(c, out);
+  if (r < 0)
+    return r;
+  if (!observer_controls_match(out, c->observer_limit))
+    return -ENOTSUP;
+  c->observer_verified = 1;
+  return 0;
+}
+int mkg_envelope_observer_snapshot(void *context, mkg_snapshot *out) {
+  if (!out)
+    return -EINVAL;
+  return observer_verified_snapshot(context, out);
+}
+int mkg_envelope_observer_kill(void *context) {
+  ctx *c = context;
+  mkg_snapshot s;
+  int r = observer_verified_snapshot(c, &s);
+  return r < 0 ? r : kill_pinned_cgroup(c);
+}
+static int observer_drain_confirmed(const mkg_snapshot *s) {
+  return (!strcmp(s->active, "inactive") || !strcmp(s->active, "failed")) &&
+         !s->cg_populated && (s->cg_exists || s->cg_removed);
+}
+int mkg_envelope_observer_unref(void *context) {
+  ctx *c = context;
+  if (!c || !c->observer)
+    return -EINVAL;
+  if (c->observer_ref_state == OBSERVER_REF_NONE ||
+      c->observer_ref_state == OBSERVER_REF_RELEASED)
+    return 0; /* This connection has no outstanding own reference. */
+  if (c->observer_ref_state != OBSERVER_REF_HELD)
+    return -EBUSY; /* Never duplicate an ambiguous Ref or Unref request. */
+  mkg_snapshot s;
+  int r = observer_verified_snapshot(c, &s);
+  if (r < 0)
+    return r;
+  if (!observer_drain_confirmed(&s))
+    return -EBUSY;
+  return observer_reference_call(c, 1);
+}
+int mkg_envelope_observer_close(void *context) {
+  ctx *c = context;
+  if (!c)
+    return 0;
+  if (!c->observer)
+    return -EINVAL;
+  if (c->observer_ref_state != OBSERVER_REF_NONE &&
+      c->observer_ref_state != OBSERVER_REF_RELEASED)
+    return -EBUSY; /* Preserve bus, exact identity and original cgroup FD. */
+  c->observer = 0;
+  mkg_envelope_close(c);
+  return 0;
 }
 
 int mkg_pipe_io(int fd, void *buffer, uint32_t count, int writing,

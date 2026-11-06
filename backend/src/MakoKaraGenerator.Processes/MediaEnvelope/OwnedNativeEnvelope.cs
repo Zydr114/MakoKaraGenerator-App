@@ -276,41 +276,14 @@ public sealed class OwnedNativeEnvelope
     }
 
     private static void ValidateControls(EnvelopeSnapshot value, ulong limit)
-    {
-        if (!value.ControlsComplete || !value.KernelKillAvailable || value.MainPid == 0 || value.MainStartTicks == 0 || !value.MainInControlGroup
-            || !value.CgroupExists || value.CgroupInode == 0 || value.MemoryMax != limit || value.KernelMemoryMax != limit
-            || value.EffectiveMemoryMax == 0 || value.EffectiveMemoryMax > limit || value.MemorySwapMax != 0 || value.KernelSwapMax != 0
-            || !value.KernelOomGroup || !value.MemoryAccounting || value.Delegate || value.Type != "exec"
-            || value.KillMode != "control-group" || value.Restart != "no" || value.OomPolicy != "kill")
-            throw new EnvelopeException(EnvelopeFailure.CapacityUnsupported, "native-envelope-controls-unverified");
-    }
+        => EnvelopeSnapshotValidator.ValidateControls(value, limit);
 
     private static EnvelopeIdentity CaptureOwner(EnvelopeSnapshot value, string nonce, string unit)
-    {
-        if (!IsHex(nonce) || value.UnitName != unit || value.UnitPath.Length == 0
-            || value.Description != "Mako media envelope " + nonce || !IsHex(value.InvocationId)
-            || value.InvocationId.All(c => c == '0')
-            || value.ControlGroup.Length == 0 && !(value.Terminal && value.MainPid == 0 && value.CgroupRemoved)
-            || value.ControlGroup.Length != 0 && (!value.ControlGroup.EndsWith('/' + unit, StringComparison.Ordinal) || value.CgroupInode == 0))
-            throw new EnvelopeException(EnvelopeFailure.OwnershipLost, "unconfirmed-native-start-owner");
-        return new(nonce, unit, value.UnitPath, value.InvocationId, value.ControlGroup, value.MainPid,
-            value.MainStartTicks, value.CgroupDevice, value.CgroupInode);
-    }
+        => EnvelopeSnapshotValidator.CaptureOwner(value, nonce, unit);
 
     internal static void VerifyIdentity(EnvelopeSnapshot value, EnvelopeIdentity identity)
-    {
-        // Manager properties and /proc are observed sequentially. The pinned
-        // process may exit after ActiveState was read, leaving a zero PID while
-        // that earlier state still says active. Keep checking every fixed owner
-        // token and any live PID; only the separate drain gate proves completion.
-        if (value.UnitName != identity.UnitName || value.UnitPath != identity.UnitPath || value.InvocationId != identity.InvocationId
-            || value.Description != "Mako media envelope " + identity.Nonce || value.ControlGroup != identity.ControlGroup
-            || value.CgroupDevice != identity.CgroupDevice || value.CgroupInode != identity.CgroupInode
-            || value.MainPid != 0 && (value.MainPid != identity.MainPid || value.MainStartTicks != identity.StartTicks || !value.MainInControlGroup))
-            throw new EnvelopeException(EnvelopeFailure.OwnershipLost, "native-envelope-owner-changed");
-    }
+        => EnvelopeSnapshotValidator.VerifyIdentity(value, identity);
 
-    private static bool IsHex(string value) => value.Length == 32 && value.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f');
     private static async Task DiscardAsync(Stream stream, CancellationToken token)
     {
         byte[] scratch = new byte[4096];

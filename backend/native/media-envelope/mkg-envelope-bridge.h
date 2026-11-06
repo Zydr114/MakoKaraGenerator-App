@@ -14,6 +14,28 @@ typedef struct {
       controls_complete;
 } mkg_snapshot;
 
+/* The observer ABI binds the complete captured Worker owner. It owns no pipe
+ * endpoints, Start request, gate, or same-bus Start-absence evidence. */
+typedef struct {
+  char nonce[33], unit[256], path[512], invocation[33], group[2048];
+  uint32_t main_pid;
+  uint64_t start_ticks, cg_device, cg_inode;
+} mkg_observer_identity;
+
+int mkg_envelope_observer_identity_abi_size(void);
+/* open has no Ref side effect; failure leaves *out NULL. Attach must be joined
+ * and its context retained on every failure after Ref may have been sent. */
+int mkg_envelope_observer_open(void **out,
+                               const mkg_observer_identity *expected,
+                               uint64_t limit);
+int mkg_envelope_observer_attach(void *context, mkg_snapshot *out);
+int mkg_envelope_observer_snapshot(void *context, mkg_snapshot *out);
+int mkg_envelope_observer_kill(void *context);
+/* Own connection only. Ambiguous Ref/Unref is -EBUSY and is never retried. */
+int mkg_envelope_observer_unref(void *context);
+/* Never implicit Unref. -EBUSY retains the SAME fully usable context. */
+int mkg_envelope_observer_close(void *context);
+
 /* Fixed Linux-x64 ABI. Negative errno values only; no native error text is
  * exported. */
 int mkg_envelope_abi_size(void);

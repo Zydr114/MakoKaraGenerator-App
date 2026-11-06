@@ -61,16 +61,24 @@ internal sealed class AuditedEnvelopeBackend(IEnvelopeBackend backend, EvidenceJ
             return absent;
         }
 
-        public async ValueTask ReleaseExecGateAsync(CancellationToken cancellationToken)
+        internal async ValueTask CaptureHeldProofAsync(CancellationToken cancellationToken)
         {
             EnvelopeStart start = _start ?? throw new ProbeFailure("probe-start-missing");
             Held = await ObserveAsync(cancellationToken).ConfigureAwait(false);
             RequireHeldControls(Held, start, expectedLimit);
             Identity = Capture(Held, start.Nonce);
-            string executable = new FileInfo("/proc/" + Held.MainPid.ToString(CultureInfo.InvariantCulture) + "/exe")
-                .ResolveLinkTarget(returnFinalTarget: false)?.FullName ?? throw new ProbeFailure("probe-gate-executable-unreadable");
-            if (Path.GetFullPath(executable) != Path.GetFullPath(start.Command.GateExecutable))
-                throw new ProbeFailure("probe-real-tool-execed-before-gate-release");
+            await WaitGateImageAsync(Held.MainPid, start.Command, cancellationToken).ConfigureAwait(false);
+            // Type=exec units report "activating" until the manager observes the
+            // exec; re-observe (bounded) so the held proof is the live active gate.
+            var activeDeadline = DateTime.UtcNow + TimeSpan.FromSeconds(3);
+            while (Held.ActiveState != "active")
+            {
+                if (Held.Terminal || DateTime.UtcNow >= activeDeadline) throw new ProbeFailure("probe-held-gate-not-active");
+                await Task.Delay(20, cancellationToken).ConfigureAwait(false);
+                Held = await ObserveAsync(cancellationToken).ConfigureAwait(false);
+            }
+            RequireHeldControls(Held, start, expectedLimit);
+            if (Capture(Held, start.Nonce) != Identity) throw new ProbeFailure("probe-held-identity-changed");
             journal.Write(scenario, "gate-held-kernel-controls-proven", new { identity = Identity, snapshot = Held,
                 process = ReadProc(Held.MainPid) });
             // The gate must not have execed the helper or emitted any of its
@@ -79,9 +87,42 @@ internal sealed class AuditedEnvelopeBackend(IEnvelopeBackend backend, EvidenceJ
                 ProveNoByteAsync(Metadata, "metadata", cancellationToken),
                 ProveNoByteAsync(Diagnostics, "stderr", cancellationToken)).ConfigureAwait(false);
             if (exerciseWrongIdentity) await RejectWrongIdentitiesAsync(Identity, cancellationToken).ConfigureAwait(false);
+        }
+
+        public async ValueTask ReleaseExecGateAsync(CancellationToken cancellationToken)
+        {
+            await CaptureHeldProofAsync(cancellationToken).ConfigureAwait(false);
             await inner.ReleaseExecGateAsync(cancellationToken).ConfigureAwait(false);
             GateReleased = true;
             journal.Write(scenario, "gate-released", Identity);
+        }
+
+        // systemd>=255 forks MainPid through systemd-executor; until that image execs the
+        // gate, /proc/<pid>/exe may be another image or temporarily non-dumpable (EACCES).
+        // Wait a bounded time for the held gate image; the helper image is still fatal.
+        private async Task WaitGateImageAsync(uint pid, EnvelopeCommand command, CancellationToken token)
+        {
+            string gate = Path.GetFullPath(command.GateExecutable), helper = Path.GetFullPath(command.Executable);
+            string link = "/proc/" + pid.ToString(CultureInfo.InvariantCulture) + "/exe";
+            var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(3);
+            int attempts = 0;
+            while (true)
+            {
+                attempts++;
+                string? actual = null;
+                try { actual = new FileInfo(link).ResolveLinkTarget(returnFinalTarget: false)?.FullName; }
+                catch (UnauthorizedAccessException) { }
+                catch (IOException) { }
+                if (actual is not null && Path.GetFullPath(actual) == gate)
+                {
+                    journal.Write(scenario, "gate-image-observed", new { attempts });
+                    return;
+                }
+                if (actual is not null && Path.GetFullPath(actual) == helper)
+                    throw new ProbeFailure("probe-real-tool-execed-before-gate-release");
+                if (DateTime.UtcNow >= deadline) throw new ProbeFailure("probe-gate-executable-unreadable");
+                await Task.Delay(20, token).ConfigureAwait(false);
+            }
         }
 
         private async Task ProveNoByteAsync(Stream stream, string pipe, CancellationToken caller)

@@ -34,7 +34,7 @@ public static class ProjectRuntimeInputCodec
     public static bool IsRuntimeInput(ReadOnlySpan<byte> bytes) => bytes.StartsWith(Magic);
 
     /// <summary>媒体与固定包二进制资源须经同一私有运行输入准备。</summary>
-    public static bool RequiresPreparation(ProjectSnapshot snapshot) => snapshot.Background.Kind != BackgroundKind.Color
+    public static bool RequiresPreparation(ProjectSnapshot snapshot) => snapshot.MediaFeatureInput is not null || snapshot.Background.Kind != BackgroundKind.Color
         || RequiresPackagePreparation(snapshot);
 
     /// <summary>固定包图片、视频与字体沿原包闭包授权，避免将资源base64挤入消息预算。</summary>
@@ -45,6 +45,7 @@ public static class ProjectRuntimeInputCodec
     public static byte[] Encode(ProjectSnapshot snapshot, ProjectRuntimeBackgroundGrant? grant, ProjectRuntimePackageGrant[]? packageGrants = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
+        RejectMediaInput(snapshot);
         packageGrants ??= [];
         ValidatePackages(packageGrants);
         if (grant is null && packageGrants.Length == 0)
@@ -132,6 +133,7 @@ public static class ProjectRuntimeInputCodec
     /// <summary>只用已持有的固定快照重编码授权引用，核对完整wire；不读取私有目录。</summary>
     public static void ValidateSnapshot(ReadOnlyMemory<byte> bytes, ProjectSnapshot snapshot)
     {
+        ArgumentNullException.ThrowIfNull(snapshot); RejectMediaInput(snapshot);
         byte[] expected;
         if (IsRuntimeInput(bytes.Span))
         {
@@ -140,6 +142,12 @@ public static class ProjectRuntimeInputCodec
         }
         else expected = ProjectSnapshotSourceProfile.Encode(snapshot);
         if (!bytes.Span.SequenceEqual(expected)) throw new SnapshotContractException("ProjectRuntimeSourceMismatch", "固定运行输入不属于同一源快照。");
+    }
+
+    private static void RejectMediaInput(ProjectSnapshot snapshot)
+    {
+        if (snapshot.MediaFeatureInput is not null)
+            throw new SnapshotContractException("SnapshotMediaFeatureInputUnsupported", "当前运行输入协议不能传输固定媒体运行输入。");
     }
 
     /// <summary>读取待Worker加载的固定包目录授权；不执行IO。</summary>

@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using MakoKaraGenerator.Rendering;
+using MakoKaraGenerator.Rendering.Abstractions;
 using MakoKaraGenerator.Scripting.Compilation;
 using MakoKaraGenerator.Scripting.Loading;
 using MakoKaraGenerator.Scripting.Projection;
@@ -44,8 +45,8 @@ public sealed class PureFrameSourceFactory : IEvaluatedFrameSourceFactory
     private readonly FrameSessionFactory _factory;
     /// <summary>固定输入和后端；指纹须包含参数／绑定／订阅／代次／资源／种子／音频修订与 required 声明／视觉预算。</summary>
     public PureFrameSourceFactory(ImmutableArray<CompiledFrameEffect> effects, string inputsFingerprint,
-        Func<ILineGeometryProvider> geometryFactory, AudioFeatures? audio = null, VisualOutputBudget? visualBudget = null, PreparedSourceMaterials? sourceMaterials = null)
-        => _factory = new(effects, inputsFingerprint, geometryFactory, audio, null, visualBudget, sourceMaterials: sourceMaterials);
+        Func<ILineGeometryProvider> geometryFactory, AudioFeatures? audio = null, VisualOutputBudget? visualBudget = null, PreparedSourceMaterials? sourceMaterials = null, ProjectMediaFeatureBinding? mediaBinding = null)
+        => _factory = new(effects, inputsFingerprint, geometryFactory, audio, null, visualBudget, sourceMaterials: sourceMaterials, mediaBinding: mediaBinding);
     /// <inheritdoc/>
     public ValueTask<IEvaluatedFrameSource> CreateAsync(ProjectSnapshot snapshot, CancellationToken cancellationToken = default)
         => _factory.CreateAsync(snapshot, cancellationToken);

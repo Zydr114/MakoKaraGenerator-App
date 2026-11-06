@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using MakoKaraGenerator.Core.Effects;
 using MakoKaraGenerator.Rendering;
+using MakoKaraGenerator.Rendering.Abstractions;
 using MakoKaraGenerator.Scripting.Projection;
 
 namespace MakoKaraGenerator.Scripting.Execution;
@@ -16,10 +17,11 @@ internal sealed class FrameSessionFactory
     private readonly ParticleSimulationBudget _particleBudget;
     private readonly PreparedSourceMaterials? _sourceMaterials;
     private readonly V2RuntimeBudgetOptions _v2Budgets;
+    private readonly ProjectMediaFeatureBinding? _mediaBinding;
     public FrameSessionFactory(ImmutableArray<CompiledFrameEffect> effects, string fingerprint,
         Func<ILineGeometryProvider> geometryFactory, AudioFeatures? audio, ReplayReason? reason, VisualOutputBudget? visualBudget = null,
         ParticleSimulationBudget? particleBudget = null, PreparedSourceMaterials? sourceMaterials = null,
-        V2RuntimeBudgetOptions? v2Budgets = null)
+        V2RuntimeBudgetOptions? v2Budgets = null, ProjectMediaFeatureBinding? mediaBinding = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fingerprint); ArgumentNullException.ThrowIfNull(geometryFactory);
         if (effects.IsDefault || effects.IsEmpty && sourceMaterials is null || effects.Any(static item => item is null || !item.Id.IsValid || !HasExecutable(item)
@@ -31,6 +33,7 @@ internal sealed class FrameSessionFactory
         _audio = audio ?? AudioFeatures.NotAnalyzed; _reason = reason;
         _visualBudget = visualBudget ?? VisualOutputBudget.Default;
         _particleBudget = particleBudget ?? ParticleSimulationBudget.Default; _sourceMaterials = sourceMaterials;
+        _mediaBinding = mediaBinding;
         _v2Budgets = v2Budgets ?? V2RuntimeBudgetOptions.Default;
     }
     private static bool HasExecutable(CompiledFrameEffect effect) => effect.PackageDeclaration is EffectGraphDefinition graph
@@ -41,8 +44,9 @@ internal sealed class FrameSessionFactory
     public ValueTask<IEvaluatedFrameSource> CreateAsync(ProjectSnapshot snapshot, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(snapshot); cancellationToken.ThrowIfCancellationRequested();
-        if (!StringComparer.Ordinal.Equals(snapshot.EffectInputsFingerprint, _fingerprint))
+        if (!StringComparer.Ordinal.Equals(ProjectRuntimeEffectInputs.Fingerprint(snapshot), _fingerprint))
             throw new PreparedFrameException("EffectInputsMismatch", "快照效果输入指纹不匹配固定会话。");
+        ProjectMediaFeatureAdmission.Validate(snapshot, _effects, _sourceMaterials, _mediaBinding, cancellationToken);
         _sourceMaterials?.ValidateSnapshot(snapshot);
         var timeline = _reason is not null || _effects.Any(static effect => effect.IsV2)
             ? TimelineProjection.Create(snapshot, _reason ?? ReplayReason.Initial, _audio, cancellationToken) : null;
@@ -58,8 +62,8 @@ internal sealed class FrameSessionFactory
         try
         {
             var query = _reason is not null && _reason != ReplayReason.AnchorQuery
-                ? new SemanticAnchorQuery(snapshot, _effects, _fingerprint, _geometryFactory, _audio, _sourceMaterials) : null;
-            host = new(snapshot, project, geometry, _effects, subscriptions, _visualBudget, _particleBudget, _sourceMaterials, timeline, query, cancellationToken)
+                ? new SemanticAnchorQuery(snapshot, _effects, _fingerprint, _geometryFactory, _audio, _sourceMaterials, _mediaBinding) : null;
+            host = new(snapshot, project, geometry, _effects, subscriptions, _visualBudget, _particleBudget, _sourceMaterials, timeline, query, _mediaBinding, cancellationToken)
             { V2Budgets = _v2Budgets };
             // v2 的事件表仅供只读索引，不能再由目标绝对时间推进 120 Hz 作者状态。
             bool replayLegacy = _reason is not null && timeline is not null && _effects.Any(static effect => !effect.IsV2);

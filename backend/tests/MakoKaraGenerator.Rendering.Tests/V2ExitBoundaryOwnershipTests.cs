@@ -62,7 +62,7 @@ public sealed class V2ExitBoundaryOwnershipTests
         var hostConstructor = Assert.Single(hostType.GetConstructors());
         var wrapper = Assert.Throws<TargetInvocationException>(() => hostConstructor.Invoke([snapshot, context, geometry,
             compiled.Effects, ImmutableArray<ResolvedSourceSubscription>.Empty, VisualOutputBudget.Default, ParticleSimulationBudget.Default,
-            null, corrupt, null, CancellationToken.None]));
+            null, corrupt, null, null, CancellationToken.None]));
         var error = Assert.IsType<EffectFailureException>(wrapper.InnerException);
         Assert.Equal("InvalidPresentationIndex", error.Code); Assert.Equal("InitializeExitReplica", error.Stage);
         Assert.Equal(0, error.TimeUs); Assert.Equal("initialization-owner", error.InstanceId.Value);

@@ -22,6 +22,7 @@ public sealed class CompiledProjectEffects
     public bool Succeeded => Packages.All(p => p.Succeeded);
     private AudioFeatures? _audio;
     private string? _fingerprint;
+    private ProjectSnapshot? _snapshot;
     /// <summary>会话前解析的全部源材质，纯资源工程也保留真实固定投影。</summary>
     public PreparedSourceMaterials? SourceMaterials { get; private set; }
 
@@ -54,7 +55,7 @@ public sealed class CompiledProjectEffects
         var audio = ProjectAudioProjection.Create(snapshot);
         var compiled = await CompileCoreAsync(snapshot.Effects, compiler, images, shaders, graphs, materials, svgValidator,
             SourceMaterialCatalog.Collect(snapshot.LyricStyle, snapshot.Lyrics, snapshot.LyricPresentation, snapshot.PresetApplications), snapshot, cancellationToken).ConfigureAwait(false);
-        compiled._audio = audio; compiled._fingerprint = snapshot.EffectInputsFingerprint; return compiled;
+        compiled._audio = audio; compiled._snapshot = snapshot; compiled._fingerprint = ProjectRuntimeEffectInputs.Fingerprint(snapshot); return compiled;
     }
     /// <summary>根据固定工程字节离线编译，正式资源门禁由组合根提供。</summary>
     public static Task<CompiledProjectEffects> CompileAsync(ProjectEffects source, IScriptCompilationService compiler,
@@ -136,12 +137,15 @@ public sealed class CompiledProjectEffects
     private static PreparedMaterialOwner.Source SourceOwner(SourceMaterialReference reference) => new(reference,
         reference.Region == "stroke" ? PreparedMaterialSlot.Stroke : (reference.Path.EndsWith(".sungFill", StringComparison.Ordinal) || reference.Path.EndsWith(".elapsedFill", StringComparison.Ordinal)) ? PreparedMaterialSlot.SungFill : PreparedMaterialSlot.UnsungFill);
     /// <summary>为固定闭包和分析创建独立重放会话，使用工程真实视觉／粒子预算。</summary>
-    public TimelineFrameSourceFactory CreateFactory(Func<ILineGeometryProvider> geometryFactory, ReplayReason reason)
+    public TimelineFrameSourceFactory CreateFactory(Func<ILineGeometryProvider> geometryFactory, ReplayReason reason,
+        MakoKaraGenerator.Rendering.Abstractions.ProjectMediaFeatureBinding? mediaBinding = null)
     {
         if (!Succeeded) throw new EffectPackageException("ProjectEffectsCompilationFailed", "effects.instances", "工程效果编译失败；不能使用旧 DLL 导出。");
         if (Effects.IsEmpty && SourceMaterials is null) throw new EffectPackageException("ProjectEffectsNotEnabled", "effects.instances", "没有启用实例或源材质，无需创建准备会话。");
+        if (_snapshot is { } snapshot) ProjectMediaFeatureAdmission.Validate(snapshot, Effects, SourceMaterials, mediaBinding, default);
+        else if (mediaBinding is not null) throw new EffectOutputException("MediaFeatureBindingMismatch", "独立效果源编译未固定完整媒体快照。");
         return new(Effects, _fingerprint ?? Source.InputsFingerprint!, geometryFactory, reason, audio: _audio, visualBudget: new(Source.Budgets.DrawCommands),
-            particleBudget: new(Source.Budgets.LiveParticles, Source.Budgets.TrailSamples, Source.Budgets.EmissionRecords), sourceMaterials: SourceMaterials);
+            particleBudget: new(Source.Budgets.LiveParticles, Source.Budgets.TrailSamples, Source.Budgets.EmissionRecords), sourceMaterials: SourceMaterials, mediaBinding: mediaBinding);
     }
     /// <summary>中间表面执行使用工程持久限额；其余图限制沿用已接受固定默认值。</summary>
     public GraphExecutionBudget GraphBudget => new() { MaximumBytes = Source.Budgets.SurfaceMemoryBytes };

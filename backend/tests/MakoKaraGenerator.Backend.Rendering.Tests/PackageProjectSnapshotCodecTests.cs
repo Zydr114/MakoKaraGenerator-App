@@ -112,7 +112,7 @@ public sealed class PackageProjectSnapshotCodecTests
         Assert.Equal(encoded, PackageProjectSnapshotCodec.Encode(copy));
         JsonObject wire = JsonNode.Parse(encoded)!.AsObject();
         Assert.Equal("package-lyrics-scene-v1", wire["profile"]!.GetValue<string>());
-        Assert.Equal(typeof(ProjectSnapshot).GetProperties().Where(property => property.SetMethod is not null)
+        Assert.Equal(typeof(ProjectSnapshot).GetProperties().Where(property => property.SetMethod is not null && property.Name != nameof(ProjectSnapshot.MediaFeatureInput))
             .Select(property => JsonNamingPolicy.CamelCase.ConvertName(property.Name)).Order(StringComparer.Ordinal),
             wire["snapshot"]!.AsObject().Select(pair => pair.Key).Order(StringComparer.Ordinal));
     }

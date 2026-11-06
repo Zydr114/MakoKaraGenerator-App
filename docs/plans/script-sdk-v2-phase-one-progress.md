@@ -332,3 +332,11 @@ M10/M11未完成。
 无query参数漏检先15项真实红例，修复后56项定向和Scripting644项通过，完整构建零警告错误。
 详见[M10记录第十八片](script-sdk-render-m10-evidence.md)；Host生命周期与真实执行继续集成，
 能力门禁保持关闭，M10/M11未完成。
+
+### M10 Host 固定媒体输入与阶段寿命（产品0.112.34）
+
+运行身份、完整实例／源准入、fresh Text/Visual生命周期及媒体祖先组Exact依赖已集成。
+闭包先13项真实红例，修复后Host定向56、Scripting700、Backend.Rendering282、
+Runtime.Hosting153、Rendering1703通过，完整构建零警告错误。旧反射测试参数修正及完整
+边界见[M10记录第十九片](script-sdk-render-m10-evidence.md)。旧wire明确拒绝媒体值；
+Worker与外层资源owner继续实施，能力门禁未开放，M10/M11未完成。

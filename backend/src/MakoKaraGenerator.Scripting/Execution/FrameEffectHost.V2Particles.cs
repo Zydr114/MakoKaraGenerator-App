@@ -85,22 +85,11 @@ internal sealed partial class FrameEffectHost
                     }
                 }
                 if (pure.Instance is not IPureVisualEffect visual) return;
-                ParticleFrame particles = new(active.Definition.Id, text.TimeUs, snapshot.Alive, snapshot.Births,
-                    id => trails[id], token);
-                VisualOutput output = new(active.Definition.Id, active.Definition.PackageDefinition!.Contents.Requires,
-                    pure.Prepared.VisualOutputs, active.Definition.Resources, _visualBudget,
-                    bytes => particleBudget.ReserveBytes(owner, bytes, text.TimeUs), token);
-                try
-                {
-                    pure.Source.Indexes.SetQueryCancellation(token);
-                    VisualFrame frame = new(pure.Source, text.TimeUs, active.Definition.Binding, text.OutputMode,
-                        FinalGeometryFor(active, text), particles);
-                    using (MeasureAuthor(active, "EvaluateVisuals")) visual.EvaluateVisuals(in frame, pure.Prepared, output);
-                    token.ThrowIfCancellationRequested();
-                    foreach (var original in output.Complete())
-                        AddBatch(active.Definition.OverlayLayerOverride is { } layer ? original with { Layer = layer } : original, reserveItems: true);
-                }
-                finally { output.Invalidate(); particles.Invalidate(); }
+                EvaluatePureVisualStage(active, visual, text.TimeUs, text.OutputMode, snapshot.Alive, snapshot.Births,
+                    id => trails[id], bytes => particleBudget.ReserveBytes(owner, bytes, text.TimeUs),
+                    () => FinalGeometryFor(active, text), original =>
+                        AddBatch(active.Definition.OverlayLayerOverride is { } layer ? original with { Layer = layer } : original, reserveItems: true),
+                    _visualBudget, token);
 
                 void AddBatch(OverlayBatch batch, bool reserveItems)
                 {
@@ -170,7 +159,7 @@ internal sealed partial class FrameEffectHost
             // Legacy output remains live while pure particles/visuals are prepared.
             // Its original owner must be retained if this allocation crosses the cap.
             ParticleOwner owner = new(definition.Id, definition.PackageIdentity, definition.RuntimeHash,
-                definition.Seed, _snapshot.EffectInputsFingerprint ?? "", "existing-overlay");
+                definition.Seed, _runtimeInputsFingerprint ?? "", "existing-overlay");
             budget.ReserveBytes(owner, OverlayMemoryCost.Estimate(batch), frame.TimeUs);
         }
     }

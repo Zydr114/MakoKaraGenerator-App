@@ -10,7 +10,8 @@ namespace MakoKaraGenerator.Scripting.Execution;
 internal sealed partial class FrameEffectHost
 {
     private sealed record PureEffectRuntime(IPureKaraokeEffect Instance, DeclareContext Source, PreparedEffect Prepared,
-        ParticleOwner? ParticleOwner = null, CompiledParticleSchedule? ParticleSchedule = null, EmissionSourceCatalog? ParticleSources = null);
+        ParticleOwner? ParticleOwner = null, CompiledParticleSchedule? ParticleSchedule = null, EmissionSourceCatalog? ParticleSources = null,
+        ProjectMediaFeatureProjection? MediaProjection = null);
 
     private ActiveEffect LoadPure(CompiledFrameEffect definition, CancellationToken token)
     {
@@ -22,11 +23,12 @@ internal sealed partial class FrameEffectHost
             var artifact = definition.Artifact ?? throw new EffectOutputException("PackageEntryInvalid", "纯文字入口缺少固定编译产物。");
             module = new(artifact.PeImage.AsMemory(), artifact.PdbImage.AsMemory());
             var instance = module.CreateInstance<IPureKaraokeEffect>(definition.EntryType!);
+            var mediaProjection = _mediaBinding is null ? null : ProjectMediaFeatureProjection.ResolveInstance(_mediaBinding, definition, token);
             var timeline = _timeline ?? throw new EffectOutputException("PureSourceIndexRequired", "纯求值需要固定源索引。");
             var scope = ResolvedSourceSubscription.Create(timeline, definition.Binding, definition.Subscription);
             indexes = PureSourceIndexes.Create(_snapshot, timeline, _geometry, definition.Binding, definition.Subscription, token);
             var source = new DeclareContext(_project.Content, _project.Scene, definition.Parameters, _project.Audio,
-                definition.Resources, definition.Seed, indexes.Timeline, _project.CanvasSize, definition.Id, indexes);
+                definition.Resources, definition.Seed, indexes.Timeline, _project.CanvasSize, definition.Id, indexes, mediaProjection?.Catalog ?? MediaQueryCatalog.Empty);
             string? telemetry = PerformanceTelemetry.IsEnabled
                 ? PerformanceTelemetry.CreateScriptIdentity($"{definition.RuntimeHash}|{definition.Id}|{definition.PackageIdentity}") : null;
             var active = new ActiveEffect(definition, module, null!, new(definition.Seed, definition.Id), scope, telemetry);
@@ -37,7 +39,7 @@ internal sealed partial class FrameEffectHost
                 prepared = instance.Declare(source) ?? throw new EffectOutputException("PreparedEffectMissing", "Declare 必须返回递归只读准备结果。");
             });
             token.ThrowIfCancellationRequested();
-            var pure = new PureEffectRuntime(instance, source, prepared!);
+            var pure = new PureEffectRuntime(instance, source, prepared!, MediaProjection: mediaProjection);
             Invoke(active, "PrepareParticles", 0, Diagnostics, _ =>
             {
                 var package = definition.PackageDefinition!;
@@ -45,7 +47,7 @@ internal sealed partial class FrameEffectHost
                     [.. package.Emitters.Select(static item => new ParticleEmitterDeclaration(new(item.Id), item.Kind, item.MaxLifetimeUs))],
                     [.. definition.PackageDeclaration!.Outputs.Where(static item => item.Kind == "Overlay" && item.Target == "canvas")
                         .Select(static item => new CanvasOutputDeclaration(new(item.Id), item.Requires))], token);
-                string inputs = _snapshot.EffectInputsFingerprint ?? throw new EffectOutputException("EffectInputsMismatch", "纯发射器缺少固定输入指纹。");
+                string inputs = _runtimeInputsFingerprint ?? throw new EffectOutputException("EffectInputsMismatch", "纯发射器缺少固定输入指纹。");
                 var owner = new ParticleOwner(definition.Id, definition.PackageIdentity, definition.RuntimeHash, definition.Seed,
                     inputs, "m08-prepared-v1|" + inputs + "|" + definition.RuntimeHash + "|" + definition.Id.Value);
                 var sources = BuildV2EmissionSources(active, pure, token);
@@ -74,17 +76,23 @@ internal sealed partial class FrameEffectHost
     {
         var pure = active.Pure!;
         pure.Source.Indexes.SetQueryCancellation(token);
-        TextFrame input = new(pure.Source, frame, PresentationIndex.LineLoads(scene,
-            frame.Presentations.LinesInBinding, active.Definition.PackageDefinition!.Contents.LineExitDurationUs));
-        TextOutput output = new(input, active.Definition.PackageDefinition!.Contents.Requires,
-            [.. writableGroups.Select(static group => group.Target)]) { GraphCancellation = token };
+        MediaFeatures media = pure.MediaProjection?.CreateStage(token) ?? new(pure.Source.Media, pure.Source.CanvasSize, token: token);
         try
         {
-            pure.Instance.Evaluate(in input, pure.Prepared, output);
-            token.ThrowIfCancellationRequested();
-            return ComposePureOutput(output.Complete(), token);
+            TextOutput? output = null;
+            try
+            {
+                TextFrame input = new(pure.Source, frame, PresentationIndex.LineLoads(scene,
+                    frame.Presentations.LinesInBinding, active.Definition.PackageDefinition!.Contents.LineExitDurationUs), media);
+                output = new(input, active.Definition.PackageDefinition!.Contents.Requires,
+                    [.. writableGroups.Select(static group => group.Target)]) { GraphCancellation = token };
+                pure.Instance.Evaluate(in input, pure.Prepared, output);
+                token.ThrowIfCancellationRequested();
+                return ComposePureOutput(output.Complete(), token);
+            }
+            finally { output?.Invalidate(); }
         }
-        finally { output.Invalidate(); }
+        finally { media.Invalidate(); }
     }
 
     private static FrameOutput ComposePureOutput(TextOutputSnapshot snapshot, CancellationToken token)

@@ -25,6 +25,9 @@ public sealed record ProjectSnapshot
     /// <summary>冻结效果输入闭包的指纹；非空时渲染必须消费匹配准备帧。R4 由持久实例投影填入。</summary>
     public string? EffectInputsFingerprint { get; init; }
 
+    /// <summary>组合根固定的完整媒体输入值；不包含采样器、租约或媒体资源授权。</summary>
+    public MakoKaraGenerator.Core.Media.MediaFeatureInput? MediaFeatureInput { get; init; }
+
     /// <summary>持久效果源闭包，不包含运行状态。</summary>
     public MakoKaraGenerator.Core.Effects.ProjectEffects Effects { get; init; } = MakoKaraGenerator.Core.Effects.ProjectEffects.Empty;
 

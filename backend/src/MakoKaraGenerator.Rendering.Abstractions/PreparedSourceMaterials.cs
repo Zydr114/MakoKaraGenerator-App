@@ -47,6 +47,21 @@ public sealed class PreparedSourceMaterials
         if (snapshot.EffectInputsFingerprint != Fingerprint)
             throw new PreparedFrameException("SourceMaterialInputsMismatch", "源材质固定集合与快照身份不一致。");
     }
+
+    /// <summary>媒体绑定入口核对捕获的引用全集和样式解析源；不重算或更换旧源指纹。</summary>
+    public void ValidateSourceClosure(ProjectSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ValidateSnapshot(snapshot);
+        var references = SourceMaterialCatalog.Collect(snapshot.LyricStyle, snapshot.Lyrics, snapshot.LyricPresentation, snapshot.PresetApplications);
+        // Resolve(Material) alone cannot prove path/region membership or absence
+        // of removed references. Bindings also reads the captured immutable tree
+        // and resolver, so compare those complete value inputs before reuse.
+        if (!_references.SetEquals(references) || _snapshot.LyricStyle != snapshot.LyricStyle
+            || _snapshot.Lyrics != snapshot.Lyrics || _snapshot.LyricPresentation != snapshot.LyricPresentation
+            || !_snapshot.PresetApplications.Equals(snapshot.PresetApplications))
+            throw new PreparedFrameException("SourceMaterialClosureMismatch", "源材质引用全集或捕获的样式解析源与当前快照不一致。");
+    }
     /// <summary>读取会话前解析的完整参数，帧内不解析包JSON。</summary>
     public MaterialValue.PackageMaterial Resolve(MaterialSpec.PackageMaterial material) => _values.TryGetValue(material, out var value) ? value
         : throw new PreparedFrameException("SourceMaterialResourcesRequired", "没有当前源材质的固定参数与资源投影。");

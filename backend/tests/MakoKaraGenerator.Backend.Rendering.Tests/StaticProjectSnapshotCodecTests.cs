@@ -48,7 +48,7 @@ public sealed class StaticProjectSnapshotCodecTests
         JsonObject root = Root();
         JsonObject source = root["snapshot"]!.AsObject();
         Assert.Equal(15, source.Count);
-        Assert.Equal(typeof(ProjectSnapshot).GetProperties().Where(property => property.SetMethod is not null)
+        Assert.Equal(typeof(ProjectSnapshot).GetProperties().Where(property => property.SetMethod is not null && property.Name != nameof(ProjectSnapshot.MediaFeatureInput))
             .Select(property => System.Text.Json.JsonNamingPolicy.CamelCase.ConvertName(property.Name)).Order(StringComparer.Ordinal),
             source.Select(pair => pair.Key).Order(StringComparer.Ordinal));
         Assert.Equal(["audioAnalysis", "audioMedia", "audioPath", "background", "composition", "effectInputsFingerprint",

@@ -126,7 +126,7 @@ public sealed partial class PreparedRenderFrame
             appearances.Add(style.Target, style.Update.Apply(StaticStyleProjection.View(basis, sourceMaterials)));
         }
         _styles = resolved.ToImmutable(); _appearances = appearances.ToImmutable(); TokenStyles = effective.ToImmutable();
-        Snapshot = snapshot; TimeUs = timeUs; OutputMode = outputMode; Target = target;
+        Snapshot = snapshot; RuntimeInputsFingerprint = ProjectRuntimeEffectInputs.Fingerprint(snapshot); TimeUs = timeUs; OutputMode = outputMode; Target = target;
         Scene = scene; TokenTransforms = transforms;
         var byTarget = transforms.ToDictionary(static item => item.Target, static item => item.LocalMatrix);
         FinalGeometry = [.. HierarchyScene.TokenGeometries.Select(item =>
@@ -145,6 +145,8 @@ public sealed partial class PreparedRenderFrame
     }
     /// <summary>精确固定快照；引用身份和效果输入指纹均属于渲染门禁。</summary>
     public ProjectSnapshot Snapshot { get; }
+    /// <summary>固定源和媒体输入共用的派生运行身份。</summary>
+    public string? RuntimeInputsFingerprint { get; }
     /// <summary>目标时刻。</summary>
     public long TimeUs { get; }
     /// <summary>背景输出语义。</summary>
@@ -200,11 +202,12 @@ public sealed partial class PreparedRenderFrame
             throw new PreparedFrameException("SourceMaterialResourcesRequired", "源包材质必须先准备真实固定资源与来源，不能绘制几何种子。");
         if (request.PreparedFrame is not { } prepared)
         {
-            if (request.Project.EffectInputsFingerprint is not null)
+            if (ProjectRuntimeEffectInputs.Fingerprint(request.Project) is not null)
                 throw new PreparedFrameException("MissingPreparedFrame", "工程启用效果，必须先完成准备帧。");
             return;
         }
-        if (!ReferenceEquals(prepared.Snapshot, request.Project)
+        if (!StringComparer.Ordinal.Equals(prepared.RuntimeInputsFingerprint, ProjectRuntimeEffectInputs.Fingerprint(request.Project))
+            || !ReferenceEquals(prepared.Snapshot, request.Project)
             || prepared.TimeUs != request.TimeUs || prepared.Target != request.ResolveTarget()
             || prepared.OutputMode != (request.TransparentBackground ? OutputMode.Transparent : OutputMode.Opaque)
             || request.LayoutLineId is not null)

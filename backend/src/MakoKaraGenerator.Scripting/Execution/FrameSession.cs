@@ -27,6 +27,7 @@ internal sealed class FrameSession(FrameEffectHost host, TimelineProjection? tim
             ObjectDisposedException.ThrowIf(_disposed, this); cancellationToken.ThrowIfCancellationRequested();
             try
             {
+                host.ValidateMediaOutput(outputMode);
                 bool changedOutput = timeline is not null && _boundaryFrame is { } previousOutput
                     && (previousOutput.OutputMode != outputMode || previousOutput.Target != target);
                 if (_poisoned || timeline is not null && timeUs < _lastRequest || changedOutput)

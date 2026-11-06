@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using MakoKaraGenerator.Core.Effects;
 using MakoKaraGenerator.Rendering;
+using MakoKaraGenerator.Rendering.Abstractions;
 using MakoKaraGenerator.Scripting.Compilation;
 using MakoKaraGenerator.Scripting.Loading;
 using MakoKaraGenerator.Scripting.Projection;
@@ -10,6 +11,8 @@ namespace MakoKaraGenerator.Scripting.Execution;
 internal sealed partial class FrameEffectHost : IDisposable
 {
     private readonly ProjectSnapshot _snapshot;
+    private readonly ProjectMediaFeatureBinding? _mediaBinding;
+    private readonly string? _runtimeInputsFingerprint;
     private readonly ProjectContext _project;
     private readonly ILineGeometryProvider _geometry;
     private readonly ImmutableArray<CompiledFrameEffect> _definitions;
@@ -25,8 +28,10 @@ internal sealed partial class FrameEffectHost : IDisposable
     public FrameEffectHost(ProjectSnapshot snapshot, ProjectContext project, ILineGeometryProvider geometry,
         ImmutableArray<CompiledFrameEffect> definitions, ImmutableArray<ResolvedSourceSubscription> subscriptions, VisualOutputBudget visualBudget,
         ParticleSimulationBudget particleBudget, PreparedSourceMaterials? sourceMaterials = null, TimelineProjection? timeline = null,
-        SemanticAnchorQuery? anchorQuery = null, CancellationToken cancellationToken = default)
+        SemanticAnchorQuery? anchorQuery = null, ProjectMediaFeatureBinding? mediaBinding = null, CancellationToken cancellationToken = default)
     {
+        ProjectMediaFeatureAdmission.Validate(snapshot, definitions, sourceMaterials, mediaBinding, cancellationToken);
+        _mediaBinding = mediaBinding; _runtimeInputsFingerprint = ProjectRuntimeEffectInputs.Fingerprint(snapshot);
         _snapshot = snapshot; _project = project; _geometry = geometry; _definitions = definitions; _subscriptions = subscriptions;
         _visualBudget = visualBudget; _particles = new(particleBudget); _timeline = timeline; _anchorQuery = anchorQuery;
         _sourceStyles = StaticStyleProjection.SourceStyles(snapshot);
@@ -35,6 +40,7 @@ internal sealed partial class FrameEffectHost : IDisposable
         _baseline = StaticStyleProjection.CreateBaseline(snapshot, sourceMaterials);
         InitializeExitReplicas(timeline, cancellationToken);
     }
+    internal void ValidateMediaOutput(OutputMode outputMode) => ProjectMediaFeatureAdmission.ValidateOutput(_mediaBinding, outputMode);
     private sealed record ActiveEffect(CompiledFrameEffect Definition, ScriptModule? Module, IKaraokeEffect Instance,
         DeterministicRandom Random, ResolvedSourceSubscription? Subscription, string? TelemetryIdentity, PureEffectRuntime? Pure = null, HostDirectGraphRuntime? HostGraph = null)
     { internal bool IsPureText => Pure is not null || HostGraph is not null; }
@@ -148,6 +154,7 @@ internal sealed partial class FrameEffectHost : IDisposable
         RuntimeDiagnosticBuffer diagnostics, CancellationToken cancellationToken, bool includePure = true,
         bool pureTextOnly = false, V2AnchorQueryBudget? anchorBudget = null)
     {
+        ValidateMediaOutput(outputMode);
         SceneFrame scene = _geometry.GetSceneFrame(_snapshot, timeUs);
         if (includePure) scene = ExtendExitReplicas(scene, cancellationToken);
         FrameBindingScope scope = new(scene);

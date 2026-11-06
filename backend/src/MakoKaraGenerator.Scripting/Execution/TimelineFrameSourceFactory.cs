@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using MakoKaraGenerator.Rendering;
+using MakoKaraGenerator.Rendering.Abstractions;
 
 namespace MakoKaraGenerator.Scripting.Execution;
 
@@ -9,10 +10,10 @@ public sealed class TimelineFrameSourceFactory : IEvaluatedFrameSourceFactory
     private readonly FrameSessionFactory _factory;
     /// <summary>固定闭包；更改输入或重放原因须新建工厂／会话，指纹须覆盖订阅、音频修订与 required 声明及视觉／粒子预算。</summary>
     public TimelineFrameSourceFactory(ImmutableArray<CompiledFrameEffect> effects, string inputsFingerprint,
-        Func<ILineGeometryProvider> geometryFactory, ReplayReason reason, AudioFeatures? audio = null, VisualOutputBudget? visualBudget = null, ParticleSimulationBudget? particleBudget = null, PreparedSourceMaterials? sourceMaterials = null)
+        Func<ILineGeometryProvider> geometryFactory, ReplayReason reason, AudioFeatures? audio = null, VisualOutputBudget? visualBudget = null, ParticleSimulationBudget? particleBudget = null, PreparedSourceMaterials? sourceMaterials = null, ProjectMediaFeatureBinding? mediaBinding = null)
     {
         if (!Enum.IsDefined(reason)) throw new ArgumentOutOfRangeException(nameof(reason));
-        _factory = new(effects, inputsFingerprint, geometryFactory, audio, reason, visualBudget, particleBudget, sourceMaterials);
+        _factory = new(effects, inputsFingerprint, geometryFactory, audio, reason, visualBudget, particleBudget, sourceMaterials, mediaBinding: mediaBinding);
     }
     /// <inheritdoc/>
     public ValueTask<IEvaluatedFrameSource> CreateAsync(ProjectSnapshot snapshot, CancellationToken cancellationToken = default)

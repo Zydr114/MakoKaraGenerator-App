@@ -133,12 +133,14 @@ internal sealed partial class FrameEffectHost
         if (token is not null)
         {
             var frameToken = FrameProjection.Tokens(scene).SingleOrDefault(item => item.WithRuby == token);
-            return frameToken is not null && scope.ContainsToken(binding, frameToken);
+            return frameToken is not null && (scope.ContainsToken(binding, frameToken)
+                || MayWriteV2AncestorGroup(active, scope, scene, scene.Lines.Single(item => item.BindingId == token.BindingId.Value).ElementId));
         }
         if (source is ParticleSource.TextMark mark)
         {
             var frameMark = FrameProjection.Marks(scene, _project.Scene).SingleOrDefault(item => item.Target == mark.Target);
-            return frameMark is not null && scope.ContainsMark(binding, frameMark);
+            return frameMark is not null && (scope.ContainsMark(binding, frameMark)
+                || MayWriteV2AncestorGroup(active, scope, scene, mark.Target.NodeId.Value));
         }
         LineTarget? line = source switch
         {
@@ -146,7 +148,33 @@ internal sealed partial class FrameEffectHost
             ParticleSource.Line value => value.Target, _ => null,
         };
         var frameLine = FrameProjection.Lines(scene, _project.Scene).SingleOrDefault(item => item.Target == line);
-        return frameLine is not null && binding is not EffectBinding.Tokens && scope.ContainsLine(binding, frameLine);
+        return frameLine is not null && (binding is not EffectBinding.Tokens && scope.ContainsLine(binding, frameLine)
+            || MayWriteV2AncestorGroup(active, scope, scene, scene.Lines.Single(item => item.BindingId == frameLine.BindingId.Value).ElementId));
+    }
+
+    private static bool MayWriteV2AncestorGroup(ActiveEffect active, FrameBindingScope scope, SceneFrame scene, string nodeId)
+    {
+        // SceneAffineProjection applies a real group's local matrix both to that
+        // node and to its direct runtime aliases, then inherits it down ParentId.
+        // Node(group, false) can therefore affect text outside its direct scope.
+        if (active.Definition.PackageDeclaration is { } declaration
+            && !declaration.Outputs.Any(output => output.Kind == "VisualTransform" && output.Target == "group")) return false;
+        var nodes = scene.Elements.ToDictionary(node => node.Id, StringComparer.Ordinal);
+        HashSet<string> visited = new(StringComparer.Ordinal);
+        string? current = nodeId;
+        while (current is not null)
+        {
+            if (!visited.Add(current) || !nodes.TryGetValue(current, out var node))
+                throw new PreparedFrameException("InvalidSceneTransform", "最终锚点的运行父树循环或缺少真实节点。");
+            if (node.Kind == SceneElementKind.Group)
+            {
+                var target = new GroupTarget(new(node.SourceNodeId ?? node.Id));
+                if (scene.GroupGeometries.Any(group => group.Target == target)
+                    && scope.ContainsGroup(active.Definition.Binding, target)) return true;
+            }
+            current = node.ParentId;
+        }
+        return false;
     }
 
     private (bool Continuous, long Start, long End) V2AnchorRegion(ActiveEffect owner, ParticleSource source,
@@ -166,7 +194,9 @@ internal sealed partial class FrameEffectHost
         foreach (var dependency in _instances.Where(item => item.Pure is not null
             && (ReferenceEquals(item, owner) || MayWriteV2Anchor(item, source, scene))))
         {
-            var policy = dependency.Pure!.Prepared.GeometrySampling;
+            // Media may vary at any exact project time even when author policy claims continuity.
+            if (dependency.Pure!.MediaProjection?.Owner is not null) return (false, timeUs, timeUs);
+            var policy = dependency.Pure.Prepared.GeometrySampling;
             if (policy.Mode != GeometrySamplingMode.Continuous120Hz) return (false, timeUs, timeUs);
             var range = policy.ContinuousRanges.FirstOrDefault(item => item.Contains(timeUs));
             if (!range.IsValid) return (false, timeUs, timeUs);

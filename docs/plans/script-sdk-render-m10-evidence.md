@@ -470,3 +470,33 @@ source 复用正式参数解析，metadata instance 接缝要求显式 actual ex
 `projection-scripting-full-01.log`644/644。最终文件摘要见`projection-integration-01.json`。
 fake sampler只证明身份、分支和阶段句柄，不替代数值kernel、真实包执行、Host admission或native。
 当前仍无新HTTP／GPU／输入换代／导出结论，M10/M11未完成。
+
+## 第十九片：Host 固定媒体输入与阶段寿命（产品0.112.34）
+
+快照增加只存纯值的媒体输入；唯一 `ProjectRuntimeEffectInputs` 派生运行身份，无媒体时保持
+原源指纹。准备帧、复制、消费门禁、粒子及锚点均绑定该身份；源材质指纹保留原来源职责。
+旧source/runtime wire显式拒绝非空媒体输入，完整新协议未接通前不会静默丢字段。
+
+factory／Host在几何和Declare前核真实启用实例全集、包／导出、九类实际参数、binding／seed／
+subscription／overlay及源path/region闭包。每次Prepare先核输出模式及sampler固定对象。
+Text和Visual均创建fresh媒体阶段并立即覆盖完整try/finally；构造、作者、取消、Complete、
+预算及发布异常都关闭相应句柄。外层provider/reader仍由后续组合根持有，不在此片提前释放。
+
+媒体相关几何强制Exact；实际ParentId祖先组和一层SourceNodeId运行别名同样纳入依赖，
+无关组及非媒体连续组不被全局降级。源材质绑定还核捕获的完整样式／歌词／展示树／预设及
+引用集合，拒绝保留旧指纹却篡改源输入的trusted入口误用。
+
+`host-closure-red-04.log`：22项中13失败／9通过，分别捕获4项祖先组遗漏及9项源闭包误配；
+修订后 `host-focused-green-01.log`56/56。初始patch新文件头不完整，未应用；逐项核23文件
+基线与草稿摘要后复制整合。缺using、token参数顺序、必要ProgressPath和测试返回类型的编译
+问题已修，01–03的零测试／编译失败保留，不记为行为红例。
+
+`build-host-media-final-01.log`完整solution零警告／零错误；Scripting700/700、
+Backend.Rendering282/282、Runtime.Hosting153/153分别见`host-*-full-01.log`。
+Rendering首次1702通过／1失败为旧反射夹具少传新增可选参数；补null媒体绑定后原错误归属
+断言保持，定向2/2、最终`host-rendering-full-02.log`1703/1703。文件摘要与28源文件凭证
+扫描无匹配见`host-media-integration-01.json`。
+
+阶段测试通过可信测试程序集注入保留句柄的作者，执行真实Host方法；不是放开pending包或
+实际完整作者流程。当前Worker/runtime媒体wire、provider外层寿命、图消费者、HTTP和导出
+仍待组合，media.features能力关闭，M10/M11未完成。

@@ -87,7 +87,7 @@ public sealed partial class PreparedRenderFrame
     private PreparedRenderFrame(PreparedRenderFrame source, ImmutableArray<OverlayBatch> batches,
         RuntimeDiagnosticSnapshot diagnostics, VisualOutputBudget budget, ImmutableArray<ParticleSample> particles, EmissionSchedule? emissionSchedule)
     {
-        Snapshot = source.Snapshot; TimeUs = source.TimeUs; OutputMode = source.OutputMode; Target = source.Target;
+        Snapshot = source.Snapshot; RuntimeInputsFingerprint = source.RuntimeInputsFingerprint; TimeUs = source.TimeUs; OutputMode = source.OutputMode; Target = source.Target;
         Scene = source.Scene; HierarchyScene = source.HierarchyScene; LineTransforms = source.LineTransforms;
         GroupTransforms = source.GroupTransforms;
         GroupOpacities = source.GroupOpacities;

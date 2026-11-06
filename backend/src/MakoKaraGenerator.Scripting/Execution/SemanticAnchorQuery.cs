@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using MakoKaraGenerator.Rendering;
+using MakoKaraGenerator.Rendering.Abstractions;
 using MakoKaraGenerator.Scripting.Projection;
 
 namespace MakoKaraGenerator.Scripting.Execution;
@@ -13,13 +14,14 @@ public sealed class SemanticAnchorQuery
     private readonly AudioFeatures? _audio;
     /// <summary>冻结与主会话相同的输入；后端工厂每次须产生独立实例。</summary>
     public SemanticAnchorQuery(ProjectSnapshot snapshot, ImmutableArray<CompiledFrameEffect> effects, string inputsFingerprint,
-        Func<ILineGeometryProvider> geometryFactory, AudioFeatures? audio = null, PreparedSourceMaterials? sourceMaterials = null)
+        Func<ILineGeometryProvider> geometryFactory, AudioFeatures? audio = null, PreparedSourceMaterials? sourceMaterials = null, ProjectMediaFeatureBinding? mediaBinding = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        if (!StringComparer.Ordinal.Equals(snapshot.EffectInputsFingerprint, inputsFingerprint))
+        if (!StringComparer.Ordinal.Equals(ProjectRuntimeEffectInputs.Fingerprint(snapshot), inputsFingerprint))
             throw new PreparedFrameException("EffectInputsMismatch", "端点查询必须冻结相同效果输入。");
+        ProjectMediaFeatureAdmission.Validate(snapshot, effects, sourceMaterials, mediaBinding, default);
         _snapshot = snapshot; _content = ContentProjection.Create(snapshot); _audio = audio;
-        _factory = new(effects, inputsFingerprint, geometryFactory, ReplayReason.AnchorQuery, audio, sourceMaterials: sourceMaterials);
+        _factory = new(effects, inputsFingerprint, geometryFactory, ReplayReason.AnchorQuery, audio, sourceMaterials: sourceMaterials, mediaBinding: mediaBinding);
     }
     /// <summary>独立重放共享语义及文字求值，不绘制背景／粒子／图像，也不写主会话历史。</summary>
     public async ValueTask<CursorEndpoint> ResolveAsync(CursorIdentity identity, CursorEndpointKind kind, CursorAnchorMode anchorMode,

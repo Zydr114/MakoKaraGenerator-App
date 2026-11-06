@@ -141,9 +141,11 @@ public static class StaticProjectSnapshotCodec
     {
         JsonSerializerOptions options = SelectOptions(profile, packages, presets);
         ArgumentNullException.ThrowIfNull(snapshot);
+        if (snapshot.MediaFeatureInput is not null)
+            throw new SnapshotContractException("SnapshotMediaFeatureInputUnsupported", "此源快照协议不能传输固定媒体运行输入。");
         if (!IsSupported(profile, packages, presets))
             throw new SnapshotContractException("SnapshotVersionMismatch", "快照能力不受支持。");
-        string[] modelMembers = typeof(ProjectSnapshot).GetProperties().Where(property => property.SetMethod is not null).Select(property => property.Name).ToArray();
+        string[] modelMembers = typeof(ProjectSnapshot).GetProperties().Where(property => property.SetMethod is not null && property.Name != nameof(ProjectSnapshot.MediaFeatureInput)).Select(property => property.Name).ToArray();
         if (!modelMembers.ToHashSet(StringComparer.Ordinal).SetEquals(typeof(Source).GetProperties().Select(property => property.Name)))
             throw new SnapshotContractException("SnapshotTypeUnsupported", "Snapshot源字段与专用合同不匹配。");
         if (snapshot.Effects is null || snapshot.PresetApplications is null || snapshot.Background is null

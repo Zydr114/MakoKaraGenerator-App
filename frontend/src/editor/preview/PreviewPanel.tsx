@@ -79,6 +79,7 @@ function StaticPreviewPanel(props: {
   useEffect(() => {
     controller?.setRenderBackend({ request: choice.request, target: choice.target });
   }, [controller, choice.request, choice.target]);
+  useEffect(() => onMediaFeaturesChanged(session.projectSessionId, () => controller?.refreshInput()), [controller, session]);
 
   // 每 250 毫秒看一次：暂停时播放头或修订变了就请求；播放中按间隔请求。没有音频时只看 0 时刻。换成别的图时不请求。
   const last = useRef({ timeUs: -1, revision: '', at: 0 });
@@ -193,6 +194,7 @@ function GpuPreviewPanel(props: Parameters<typeof StaticPreviewPanel>[0]) {
     return()=>next.dispose();
   },[available,props.session,size]);
   useEffect(()=>{controller?.setEnabled(visible&&!props.replacement);},[controller,visible,props.replacement]);
+  useEffect(()=>onMediaFeaturesChanged(props.session.projectSessionId,()=>controller?.refreshInput()),[controller,props.session]);
   useEffect(()=>{
     if(!controller)return;
     const audio=props.audio;
@@ -260,4 +262,11 @@ function RetryButton(props: { onRetry: () => void }) {
       重试
     </Button>
   );
+}
+
+/** 宿主背景媒体特征分析推进时，按同一修订刷新该工程的固定预览输入。 */
+function onMediaFeaturesChanged(projectSessionId: string, refresh: () => void): () => void {
+  return client.on('event', (event) => {
+    if (event.type === 'project.mediaFeaturesChanged' && event.summary?.projectSessionId === projectSessionId) refresh();
+  });
 }

@@ -13,6 +13,8 @@ export const BACKEND_EVENT_TYPES = [
   'project.changed',
   'project.saved',
   'project.closed',
+  /** 宿主背景媒体特征分析推进：修订不变，固定预览输入需按同一修订重新捕获。 */
+  'project.mediaFeaturesChanged',
   'job.changed',
   'job.progress',
   'job.terminal',

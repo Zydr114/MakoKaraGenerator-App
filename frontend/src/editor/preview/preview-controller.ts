@@ -60,6 +60,8 @@ export class PreviewController {
   /** 会话固定的设备（回执里的 renderBackend）。 */
   private sessionBackend: RenderBackend | undefined;
   private blocked: RenderBackendBlocked | undefined;
+  /** 背景媒体特征分析推进后，同一修订的固定输入需要重新捕获。 */
+  private inputStale = false;
   private running = false;
   private disposed = false;
   /** 释放时中止：停止创建的退避重试、等帧和读帧。 */
@@ -87,6 +89,14 @@ export class PreviewController {
     this.retry();
   }
 
+  /** 背景媒体特征分析推进：按同一修订重新固定输入，再画最近的时刻。 */
+  refreshInput(): void {
+    if (this.disposed || !this.previewId) return;
+    this.inputStale = true;
+    this.want ??= this.lastWant;
+    if (this.want && !this.running) void this.pump();
+  }
+
   /** 设备错误后再试一次（创建或换设备）。 */
   retry(): void {
     if (this.disposed) return;
@@ -103,7 +113,7 @@ export class PreviewController {
         this.want = undefined;
         const current = this.state$.get();
         const sameBackend = this.choice.target === undefined || current.frameBackend === this.choice.target;
-        if (current.status === 'ready' && current.frameTimeUs === want.timeUs && current.frameRevision === want.revision && sameBackend) continue;
+        if (current.status === 'ready' && current.frameTimeUs === want.timeUs && current.frameRevision === want.revision && sameBackend && !this.inputStale) continue;
         if (this.blocked) {
           this.patch({ status: 'error', error: this.blocked.message, deviceBlocked: true });
           continue;
@@ -176,7 +186,8 @@ export class PreviewController {
       this.lastTimeUs = undefined;
       if (this.disposed) return;
     }
-    if (this.sourceRevision !== want.revision) {
+    if (this.sourceRevision !== want.revision || this.inputStale) {
+      this.inputStale = false;
       const replaced = await this.client.preview.replaceInput(this.previewId, {
         expectedPreviewGeneration: this.generation!,
         expectedSourceRevision: this.sourceRevision!,

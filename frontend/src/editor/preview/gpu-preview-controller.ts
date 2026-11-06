@@ -26,6 +26,8 @@ export class GpuPreviewController {
   private blocked = false;
   private attached = false;
   private needsRecreate = false;
+  /** 背景媒体特征分析推进后，同一修订的固定输入需要重新捕获。 */
+  private inputStale = false;
   private readonly timings:{kind:string;streamId:string;inputGeneration:string;sourceRevision:string;rendererPerformanceMs:number}[]=[];
   private inputEffective(kind:string):void {
     if(!this.stream)return;
@@ -59,6 +61,8 @@ export class GpuPreviewController {
   show(revision: Revision, playback: GpuPlaybackState): void {if(this.disposed)return;this.want={revision,playback};this.pump();}
   setEnabled(value: boolean): void {if(this.enabled===value)return;this.enabled=value;this.sent=undefined;this.pump();}
   retry(): void {this.blocked=false;this.sent=undefined;this.pump();}
+  /** 背景媒体特征分析推进：按同一修订替换固定输入。 */
+  refreshInput(): void {if(this.disposed||!this.stream)return;this.inputStale=true;this.sent=undefined;this.pump();}
   dispose(): void {this.disposed=true;this.unsubscribe();if(acceptanceOwner===this){acceptanceOwner=undefined;delete window.makoGpuPreviewAcceptance;}this.pump();}
   private resizeForAcceptance(width:number,height:number):Promise<GpuPreviewStreamState> {
     if(!Number.isInteger(width)||!Number.isInteger(height)||width<64||height<64||width>2560||height>1440)return Promise.reject(new Error('Invalid acceptance preview size'));
@@ -106,7 +110,8 @@ export class GpuPreviewController {
           if(this.disposed||!this.enabled)continue;
           await this.bridge.attachPreview(this.stream.streamId,this.stream.inputGeneration);
           this.attached=true;
-        }else if(this.stream.source.sourceRevision!==want.revision){
+        }else if(this.stream.source.sourceRevision!==want.revision||this.inputStale){
+          this.inputStale=false;
           await this.bridge.detachPreview();
           this.attached=false;
           this.stream=await this.client.gpuPreview.replaceInput(this.stream.streamId,{expectedStreamRevision:this.stream.streamRevision,source:{kind:'project',sourceId:this.projectSessionId,sourceRevision:want.revision}});

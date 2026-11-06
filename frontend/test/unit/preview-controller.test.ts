@@ -53,6 +53,11 @@ function fakeClient(
         await Promise.race([options.frameGate, aborted]);
         return { renderBackend: backend, content: { contentUrl: '/frame' } };
       },
+      replaceInput: async (_id: string, input: { expectedPreviewGeneration: string; expectedSourceRevision: string; source: { sourceRevision: string } }) => {
+        calls.push(`replace ${input.expectedPreviewGeneration} ${input.expectedSourceRevision}->${input.source.sourceRevision}`);
+        generation++;
+        return { previewGeneration: String(generation) };
+      },
       closeBestEffort: async (id: string, input: { expectedPreviewGeneration: string }) => {
         calls.push(`close ${id} ${input.expectedPreviewGeneration}`);
       },
@@ -76,6 +81,18 @@ describe('成片预览换设备', () => {
     controller.setRenderBackend({ request: 'gpu', target: 'gpu' });
     await vi.waitFor(() => expect(controller.state$.get().frameBackend).toBe('gpu'));
     expect(calls).toEqual(['create cpu', 'frame 1 playback', 'switch 1 gpu', 'frame 2 playback']);
+    controller.dispose();
+  });
+
+  it('媒体特征分析推进：同一修订重新固定输入并重画当前时刻', async () => {
+    const { client, calls } = fakeClient();
+    const controller = new PreviewController(client, 'p1', { width: 320, height: 180 });
+    controller.refreshInput();
+    controller.show(250_000, revision('3'));
+    await settled(controller);
+    controller.refreshInput();
+    await vi.waitFor(() => expect(calls).toContain('frame 2 playback'));
+    expect(calls).toEqual(['create 默认', 'frame 1 playback', 'replace 1 3->3', 'frame 2 playback']);
     controller.dispose();
   });
 

@@ -1603,3 +1603,14 @@
 }
 .source-binary dt { color: var(--on-surface-variant); }
 .source-binary dd { margin: 0; overflow-wrap: anywhere; font-family: var(--font-mono); }
+
+/* 可恢复的草稿：普通列表，每行右侧是“恢复”按钮。 */
+.recovery-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.recovery-row {
+  display: flex;
+  padding: 6px 4px 6px 6px;
+}

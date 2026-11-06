@@ -1,9 +1,9 @@
-// 作者草稿（W8 设计 §2.4）：本标签页的草稿列表、草稿与来源组件的对应、编辑（新建草稿）、关闭、是否已保存、保存与另存为。
-// 不依赖 React。本页使用创建它的 client 读写草稿；后端可持久恢复草稿，本页尚未提供恢复入口。
+// 作者草稿（W8 设计 §2.4）：本客户端的草稿列表、草稿与来源组件的对应、编辑（新建草稿）、关闭、是否已保存、保存与另存为。
+// 不依赖 React。本页使用创建它的 client 读写草稿；别的客户端留下的草稿（Server 重启、换标签页）列为可恢复，显式认领后接着编辑。
 // 后端不记录草稿来自哪个组件，对应关系记在 sessionStorage（按 client ID 区分）。
 
 import { BackendError, ObservableValue, type MakoClient } from '../../client';
-import { AUTHOR_DRAFT_LIMIT, type AuthorDraft, type AuthorSourceInspectionResponse, type EffectPackageInspectResponse, type ScriptConfigurationDetailResponse, type ScriptConfiguration } from '../../protocol';
+import { AUTHOR_DRAFT_LIMIT, type AuthorDraft, type ProfileAuthorDraft, type AuthorSourceInspectionResponse, type EffectPackageInspectResponse, type ScriptConfigurationDetailResponse, type ScriptConfiguration } from '../../protocol';
 import { FOLLOW_DEFAULT, renderBackendField, type RenderBackendRequest } from '../model/render-device';
 import { componentFromDraft, configurationIssues, draftConfigurationInput, editableOf, sameAsComponent } from '../model/script-components';
 import { errorText } from '../session/editor-session';
@@ -16,6 +16,10 @@ import type { LibraryNotice } from './template-library-store';
 
 export const DRAFT_ORIGINS_KEY = 'mako.author-draft-origins';
 export const DRAFT_LIMIT_TEXT = `草稿已有 ${AUTHOR_DRAFT_LIMIT} 个，先关闭不用的草稿。`;
+/** 完整修订历史最多读的页数。 */
+const HISTORY_PAGE_LIMIT = 20;
+/** 可恢复草稿最多读的页数（每页 100 个）。 */
+const RECOVERY_PAGE_LIMIT = 5;
 
 /** 草稿详情的页签。 */
 export type DraftTab = 'config' | 'source' | 'validation';
@@ -62,8 +66,12 @@ export interface DraftsState {
   /** 新建、关闭、保存进行中。 */
   busy: boolean;
   notice?: LibraryNotice;
-  /** 连接身份重置（Server 重启等）后，说明当前页面尚无恢复入口。 */
+  /** 连接身份重置（Server 重启等）后的说明。 */
   lost?: string;
+  /** profile 里别的客户端留下、可以认领的草稿（不含本客户端的）。 */
+  recoverable: ProfileAuthorDraft[];
+  /** 正在认领的草稿。 */
+  claiming?: string;
 }
 
 type DraftsPatch = { [K in keyof DraftsState]?: DraftsState[K] | undefined };
@@ -78,7 +86,7 @@ export function draftSaveState(state: DraftsState, draft: FullDraft): DraftSaveS
 }
 
 export class AuthorDraftStore {
-  readonly state$ = new ObservableValue<DraftsState>({ status: 'idle', drafts: [], origins: {}, originConfigs: {}, packages: {}, sourceMetadata: {}, tabs: {}, busy: false });
+  readonly state$ = new ObservableValue<DraftsState>({ status: 'idle', drafts: [], origins: {}, originConfigs: {}, packages: {}, sourceMetadata: {}, tabs: {}, busy: false, recoverable: [] });
   private loading: Promise<void> | undefined;
   private libraryRevision: string | undefined;
   /** 各草稿配置页签的编辑器：撤销栈留在本页内存里，切草稿不丢。 */
@@ -218,6 +226,19 @@ export class AuthorDraftStore {
           throw error;
         }
       },
+      retainedRevisions: async (draft) => {
+        // 有界分页：后端保留修订有总量预算，超出页数时只列前面的。
+        const all: string[] = [];
+        let after: string | undefined;
+        for (let page = 0; page < HISTORY_PAGE_LIMIT; page++) {
+          const response = await this.client.drafts.sourceRevisions(draftId, draft.draftRevision, after);
+          all.push(...response.revisions.map((entry) => entry.sourceRevision));
+          if (!response.nextAfterSourceRevision) break;
+          after = response.nextAfterSourceRevision;
+        }
+        return all;
+      },
+      downloadPackage: (draft, revision) => this.client.drafts.downloadPackage(draftId, draft.draftRevision, revision),
       savedRevisions: () => readSavedRevisions(clientId(), draftId),
       rememberSaved: (revisions) =>
         writeSavedRevisions(
@@ -439,7 +460,60 @@ export class AuthorDraftStore {
     this.metadataCache.clear();
     this.metadataGenerations.clear();
     this.setOrigins({});
-    this.patch({ drafts: [], originConfigs: {}, packages: {}, sourceMetadata: {}, tabs: {}, busy: false, notice: undefined, lost: had ? `${reason}，当前页面未提供草稿恢复；已保存组件仍可用。` : undefined });
+    // 回到 idle：新身份就绪后重读草稿列表和可恢复的草稿。
+    this.patch({ status: 'idle', drafts: [], originConfigs: {}, packages: {}, sourceMetadata: {}, tabs: {}, busy: false, notice: undefined, recoverable: [], claiming: undefined,
+      lost: had ? `${reason}，原来的草稿可在“可恢复的草稿”里认领；已保存组件仍可用。` : undefined });
+  }
+
+  /** 读 profile 里别的客户端留下的草稿；失败时保持旧列表，不影响本客户端的草稿。 */
+  async loadRecoverable(): Promise<void> {
+    const identity = this.connectionIdentity();
+    try {
+      const found: ProfileAuthorDraft[] = [];
+      let after: string | undefined;
+      for (let page = 0; page < RECOVERY_PAGE_LIMIT; page++) {
+        const response = await this.client.profileDrafts.list(after);
+        found.push(...response.drafts);
+        if (!response.nextAfterDraftId) break;
+        after = response.nextAfterDraftId;
+      }
+      if (identity !== this.connectionIdentity()) return;
+      const mine = new Set(this.state.drafts.map((d) => d.draftId));
+      this.patch({ recoverable: found.filter((d) => d.ownershipState !== 'ownedByCaller' && !mine.has(d.draftId)) });
+    } catch (error) {
+      if (identity === this.connectionIdentity()) this.patch({ notice: { level: 'warning', message: `读取可恢复的草稿失败：${errorText(error)}` } });
+    }
+  }
+
+  /** 认领一个可恢复的草稿：按发现时的两个修订提交；成功后加入列表并选中。 */
+  async claim(draftId: string): Promise<boolean> {
+    const entry = this.state.recoverable.find((d) => d.draftId === draftId);
+    if (!entry || this.state.busy || this.state.claiming) return false;
+    if (this.state.drafts.length >= AUTHOR_DRAFT_LIMIT) {
+      this.patch({ notice: { level: 'warning', message: DRAFT_LIMIT_TEXT } });
+      return false;
+    }
+    const identity = this.connectionIdentity();
+    this.patch({ claiming: draftId, notice: undefined });
+    try {
+      const response = await this.client.profileDrafts.claim(draftId, entry.draftRevision, entry.ownershipRevision);
+      const claimed = await this.full(response.draft);
+      if (identity !== this.connectionIdentity()) return false;
+      this.patch({ drafts: [...this.state.drafts.filter((d) => d.draftId !== claimed.draftId), claimed],
+        recoverable: this.state.recoverable.filter((d) => d.draftId !== draftId), lost: undefined });
+      void this.loadSourceMetadata(claimed.draftId);
+      this.components.selectDraft(claimed.draftId);
+      return true;
+    } catch (error) {
+      const changed = error instanceof BackendError && error.status === 409;
+      this.patch({ notice: { level: 'warning', message: changed
+        ? '这个草稿已被修改或已被别的客户端认领，已重新读取可恢复的草稿。'
+        : `认领草稿失败：${errorText(error)}` } });
+      if (changed) void this.loadRecoverable();
+      return false;
+    } finally {
+      if (this.state.claiming === draftId) this.patch({ claiming: undefined });
+    }
   }
 
   /** 重读草稿并写回列表。 */
@@ -481,7 +555,8 @@ export class AuthorDraftStore {
       const stored = readOrigins(this.client.state$.get().clientId);
       const origins = Object.fromEntries(Object.entries({ ...stored, ...this.state.origins }).filter(([id]) => drafts.some((d) => d.draftId === id)));
       this.setOrigins(origins);
-      this.patch({ status: 'ready', drafts, packages: Object.fromEntries(drafts.flatMap((draft) => {
+      this.patch({ status: 'ready', drafts, recoverable: this.state.recoverable.filter((d) => !drafts.some((mine) => mine.draftId === d.draftId)),
+        packages: Object.fromEntries(drafts.flatMap((draft) => {
         const pkg = exactDraftPackage(draft, this.state.packages[draft.draftId]);
         return pkg ? [[draft.draftId, pkg]] : [];
       })) });
@@ -495,7 +570,7 @@ export class AuthorDraftStore {
       this.patch({ status: this.state.status === 'ready' ? 'ready' : 'failed', notice: { level: 'error', message: `读取草稿失败：${errorText(error)}` } });
       return;
     }
-    await this.refreshOrigins();
+    await Promise.all([this.refreshOrigins(), this.loadRecoverable()]);
   }
 
   /** 来源组件只用于保存状态比较；schema 由作者固定源码 inspection 提供。 */

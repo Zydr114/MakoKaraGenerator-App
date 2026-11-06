@@ -28,8 +28,10 @@ export const SAVE_STATE_TEXT: Record<DraftSaveState, string> = { saved: '已保�
 
 const kindIcon = (kind: string) => (kind === 'Material' ? 'texture' : 'wand_stars');
 
-/** 左栏：本标签页的草稿和组件库，一行一个（图标、名称、种类）。 */
-export function ComponentList(props: { store: ComponentLibraryStore; state: ComponentState; draftsState: DraftsState; query: string }) {
+const OWNERSHIP_TEXT: Record<string, string> = { active: '别的客户端在用', dormant: '原客户端已不活动', orphaned: '原客户端已不存在' };
+
+/** 左栏：本客户端的草稿、可恢复的草稿和组件库，一行一个（图标、名称、种类）。 */
+export function ComponentList(props: { store: ComponentLibraryStore; state: ComponentState; drafts?: AuthorDraftStore; draftsState: DraftsState; query: string }) {
   const { store, state, draftsState } = props;
   const configurations = state.configurations;
   const shown = useMemo(() => filterByName(configurations ?? [], props.query), [configurations, props.query]);
@@ -45,7 +47,7 @@ export function ComponentList(props: { store: ComponentLibraryStore; state: Comp
           <h3 className="grouphead">
             草稿
             <span>
-              只在本标签页 · {draftsState.drafts.length}/{AUTHOR_DRAFT_LIMIT}
+              本客户端 · {draftsState.drafts.length}/{AUTHOR_DRAFT_LIMIT}
             </span>
           </h3>
           {draftsState.lost && (
@@ -85,6 +87,34 @@ export function ComponentList(props: { store: ComponentLibraryStore; state: Comp
               }}
             </List>
           )}
+        </section>
+      )}
+      {draftsState.recoverable.length > 0 && props.drafts && (
+        <section className="template-list draft-recovery" aria-label="可恢复的草稿">
+          <h3 className="grouphead">
+            可恢复的草稿
+            <span>{draftsState.recoverable.length}</span>
+          </h3>
+          <ul className="tlist recovery-list">
+            {draftsState.recoverable.map((d) => (
+              <li key={d.draftId} className="crow recovery-row" data-draft-id={d.draftId} data-ownership={d.ownershipState}>
+                <span className="crow-body">
+                  <span className="cic">
+                    <Icon name="history" />
+                  </span>
+                  <span className="crow-text">
+                    <b>{d.name}</b>
+                    <span className="small faint">{OWNERSHIP_TEXT[d.ownershipState] ?? d.ownershipState}</span>
+                  </span>
+                  <Button variant="text" size="sm" className="recovery-claim" isPending={draftsState.claiming === d.draftId}
+                    isDisabled={!d.canClaim || draftsState.busy || !!draftsState.claiming}
+                    onPress={() => void props.drafts!.claim(d.draftId).then((ok) => ok && toast(`已恢复草稿“${d.name}”`))}>
+                    {d.canClaim ? '恢复' : '不能恢复'}
+                  </Button>
+                </span>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
       <section className="template-list component-list" aria-label="我的效果组件">

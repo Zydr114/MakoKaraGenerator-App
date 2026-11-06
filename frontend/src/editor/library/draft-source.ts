@@ -1,6 +1,6 @@
 // 作者草稿的源码页签：完整包文件编辑与旧 C# 源码接口兼容；修订、CAS、编译和显式采用。不依赖 React 和 CodeMirror。
 // 编辑器的状态（撤销历史、光标）由 SourceEditor 寄存在这里，切文件、切页签、切草稿都不丢；读进别的修订时清空。
-// 后端没有列出草稿保留了哪些修订（G35）：本页保存过的修订记在 sessionStorage，按 client 和草稿区分。
+// 完整保留修订由 source-revisions 分页读出；本页保存过的修订另记在 sessionStorage，按 client 和草稿区分。
 
 import type { AuthorPackageFilesInput, AuthorPackageFilesResponse } from '../../protocol/author-package-files';
 import { BackendError, ObservableValue } from '../../client';
@@ -11,8 +11,8 @@ import { editableOf, rejectionIssue, type ConfigIssue } from '../model/script-co
 
 export const DRAFT_REVISIONS_KEY = 'mako.author-draft-revisions';
 
-export type RevisionLabel = 'base' | 'latest' | 'saved' | 'compiled' | 'adopted' | 'inUse';
-export const REVISION_LABEL: Record<RevisionLabel, string> = { base: '原包', latest: '最新', saved: '本页保存', compiled: '编译通过', adopted: '已采用', inUse: '在用' };
+export type RevisionLabel = 'base' | 'latest' | 'saved' | 'retained' | 'compiled' | 'adopted' | 'inUse';
+export const REVISION_LABEL: Record<RevisionLabel, string> = { base: '原包', latest: '最新', saved: '本页保存', retained: '历史', compiled: '编译通过', adopted: '已采用', inUse: '在用' };
 
 export interface RevisionRow {
   revision: string;
@@ -20,22 +20,25 @@ export interface RevisionRow {
 }
 
 /**
- * 修订列表：最新在前，然后是本页保存的（新的在前）、最近编译通过、在用和已采用的，原包在最后；同一修订合成一行。
- * “本页保存”只标在没有别的身份（原包、最新）的行上。
+ * 修订列表：最新在前，然后是本页保存的（新的在前）、最近编译通过、在用和已采用的，再是其余保留的历史修订，原包在最后；同一修订合成一行。
+ * “本页保存”“历史”只标在没有别的身份（原包、最新）的行上。
  */
 export function revisionRows(
   draft: Pick<AuthorDraft, 'baseSourceRevision' | 'currentSourceRevision' | 'adoptedSourceRevision' | 'lastCompilation'> & { configuration: { sourceRevision: string } },
   saved: readonly string[],
+  retained: readonly string[] = [],
 ): RevisionRow[] {
   const inUse = draft.configuration.sourceRevision;
   const adopted = draft.adoptedSourceRevision ?? undefined;
   const compiled = draft.lastCompilation?.succeeded ? draft.lastCompilation.sourceRevision : undefined;
-  const order = [draft.currentSourceRevision, ...[...saved].reverse(), ...(compiled ? [compiled] : []), inUse, ...(adopted ? [adopted] : []), draft.baseSourceRevision];
+  const order = [draft.currentSourceRevision, ...[...saved].reverse(), ...(compiled ? [compiled] : []), inUse, ...(adopted ? [adopted] : []),
+    ...retained.filter((revision) => revision !== draft.baseSourceRevision), draft.baseSourceRevision];
   return [...new Set(order)].map((revision) => {
     const labels: RevisionLabel[] = [];
     if (revision === draft.baseSourceRevision) labels.push('base');
     if (revision === draft.currentSourceRevision) labels.push('latest');
     if (labels.length === 0 && saved.includes(revision)) labels.push('saved');
+    else if (labels.length === 0 && retained.includes(revision)) labels.push('retained');
     if (draft.lastCompilation?.succeeded && revision === draft.lastCompilation.sourceRevision) labels.push('compiled');
     if (revision === adopted) labels.push('adopted');
     if (revision === inUse) labels.push('inUse');
@@ -74,6 +77,10 @@ export interface DraftSourceState {
   error?: string;
   /** 本页保存过的修订，旧的在前。 */
   saved: string[];
+  /** 后端保留的全部源码修订（完整历史）；没读到时为空。 */
+  retained: string[];
+  /** 读取完整历史失败的原因；修订列表仍显示已知的修订。 */
+  historyError?: string;
   /** 读进别的修订时加一：编辑器据此丢掉旧的撤销历史。 */
   generation: number;
   /** 最近一次编译的固定源码结果（本页编译的，或打开页签时读到的上一次）。 */
@@ -124,6 +131,10 @@ export interface DraftSourcePort {
   use(draft: FullDraft, revision: string): Promise<FullDraft>;
   /** 重读草稿并写回列表。 */
   refresh(expectedAdoption?: AuthorAdoptionExpectation): Promise<FullDraft>;
+  /** 后端保留的全部源码修订；不提供时只列已知身份。 */
+  retainedRevisions?(draft: FullDraft): Promise<string[]>;
+  /** 下载某个保留修订的完整 .mkfx。 */
+  downloadPackage?(draft: FullDraft, revision: string): Promise<Blob>;
   /** 本页保存过的修订（sessionStorage）。 */
   savedRevisions(): string[];
   rememberSaved(revisions: string[]): void;
@@ -168,7 +179,7 @@ export class DraftSourceModel {
   private readonly compiledSources = new Set<string>();
 
   constructor(private readonly port: DraftSourcePort) {
-    this.state$ = new ObservableValue<DraftSourceState>({ status: 'idle', files: [], saved: port.savedRevisions(), generation: 0, canUndoAdoption: false, canRedoAdoption: false });
+    this.state$ = new ObservableValue<DraftSourceState>({ status: 'idle', files: [], saved: port.savedRevisions(), retained: [], generation: 0, canUndoAdoption: false, canRedoAdoption: false });
   }
 
   get state(): DraftSourceState {
@@ -201,6 +212,7 @@ export class DraftSourceModel {
         this.patch({ status: 'ready', packageFiles: true, revision: response.sourceRevision, files, active,
           error: undefined, reveal: undefined, generation: this.state.generation + 1 });
         void this.readLastCompilation();
+        void this.loadHistory();
         return true;
       }
       const response = await this.withFreshDraft((draft) => this.port.read(draft, revision ?? draft.configuration.sourceRevision));
@@ -210,6 +222,7 @@ export class DraftSourceModel {
       this.views.clear();
       this.patch({ status: 'ready', revision: response.sourceRevision, files, active, error: undefined, generation: this.state.generation + 1 });
       void this.readLastCompilation();
+      void this.loadHistory();
       return true;
     } catch (error) {
       // 在用修订没有 C# 文件：包里本来就没有（不能加文件，G34），以后也不会有。
@@ -220,6 +233,25 @@ export class DraftSourceModel {
     } finally {
       this.patch({ busy: undefined });
     }
+  }
+
+  /** 重读后端保留的完整修订历史；失败只记原因，不影响编辑。 */
+  async loadHistory(): Promise<void> {
+    const read = this.port.retainedRevisions;
+    if (!read) return;
+    try {
+      const retained = await this.withFreshDraft((draft) => read.call(this.port, draft));
+      if (!this.disposed) this.patch({ retained, historyError: undefined });
+    } catch (error) {
+      if (!this.disposed) this.patch({ historyError: `读取完整修订历史失败：${errorText(error)}` });
+    }
+  }
+
+  /** 下载某个保留修订的完整包；不改变编辑器或草稿。 */
+  async downloadPackage(revision: string): Promise<Blob> {
+    const download = this.port.downloadPackage;
+    if (!download) throw new Error('当前连接不提供效果包下载。');
+    return this.withFreshDraft((draft) => download.call(this.port, draft, revision));
   }
 
   select(path: string): void {

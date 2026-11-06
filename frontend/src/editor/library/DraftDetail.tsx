@@ -1,4 +1,4 @@
-// 作者草稿的详情（W8 设计 §2.4、§2.5、§2.8）：是否已保存到组件库、保存与另存为、关闭；本页尚未提供跨客户端草稿恢复。
+// 作者草稿的详情（W8 设计 §2.4、§2.5、§2.8）：是否已保存到组件库、保存与另存为、关闭；跨客户端恢复见左栏“可恢复的草稿”。
 // 上面是草稿的试样画布（每个草稿一个预览会话，改动后换输入），下面是配置、源码和验证页签。
 
 import { useEffect, useState } from 'react';
@@ -103,7 +103,7 @@ export function DraftDetail(props: { state: ComponentState; drafts: AuthorDraftS
         </div>
       </header>
       <Note className="phead-note draft-scope">
-        {originConfig ? `保存会更新组件“${originConfig.name}”。` : ''}草稿只在本标签页，没有恢复，请及时保存到组件库。
+        {originConfig ? `保存会更新组件“${originConfig.name}”。` : ''}草稿保存在本机，Server 重启或换标签页后可在“可恢复的草稿”里认领；仍请及时保存到组件库。
       </Note>
       {saveState === 'orphan' && <Note className="phead-note">{origin ? '来源组件已经不在组件库里了' : '不知道这个草稿来自哪个组件'}，只能另存为新组件。</Note>}
       {isV2AuthorDraft(draft, pkg) && <Note className="phead-note">

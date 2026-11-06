@@ -1,7 +1,7 @@
 // 作者草稿的源码页签（W8 设计 §2.6）：修订标签、读取与没有 C# 的包、保存修订（no-op、提交期间又改、409 重读、在用修订跟上）、改用修订；
 // 编译：诊断的排序去重与位置、保存并编译、取消、跳到诊断所在的修订和文件。
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { BackendError } from '../../src/client';
 import type { FullDraft } from '../../src/editor/library/author-draft-store';
 import { DraftSourceModel, revisionLabelText, revisionRows, type DraftSourcePort } from '../../src/editor/library/draft-source';
@@ -165,6 +165,29 @@ describe('修订列表', () => {
     } }), []);
     expect(rows.find((row) => row.revision === 'sha256:old')?.labels).toContain('compiled');
     expect(rows[0]!.labels).toEqual(['latest', 'inUse']);
+  });
+
+  it('后端保留的完整历史排在已知身份之后、原包之前，已在别处列出的不重复', () => {
+    const d = draft({ currentSourceRevision: 'sha256:c' });
+    const rows = revisionRows(d, ['sha256:b'], [BASE, 'sha256:a', 'sha256:b', 'sha256:c', 'sha256:d']);
+    expect(rows.map((r) => [r.revision, revisionLabelText(r.labels)])).toEqual([
+      ['sha256:c', '最新 · 在用'],
+      ['sha256:b', '本页保存'],
+      ['sha256:a', '历史'],
+      ['sha256:d', '历史'],
+      [BASE, '原包'],
+    ]);
+  });
+
+  it('打开页签后读完整历史；读取失败只记原因', async () => {
+    const fake = fakePort();
+    const model = new DraftSourceModel({ ...fake.port, retainedRevisions: async () => [BASE, 'sha256:old'] });
+    expect(await model.load()).toBe(true);
+    await vi.waitFor(() => expect(model.state.retained).toEqual([BASE, 'sha256:old']));
+    const failing = new DraftSourceModel({ ...fake.port, retainedRevisions: async () => { throw new Error('断开'); } });
+    expect(await failing.load()).toBe(true);
+    await vi.waitFor(() => expect(failing.state.historyError).toContain('断开'));
+    expect(failing.state.retained).toEqual([]);
   });
 });
 

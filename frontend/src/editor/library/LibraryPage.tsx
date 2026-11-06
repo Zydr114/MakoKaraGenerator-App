@@ -188,7 +188,7 @@ export function LibraryPage(props: {
         <div className="ltools">
           <TextField label="搜索效果组件" labelPlacement="none" size="sm" icon="search" placeholder="搜索效果组件" value={componentQuery} onChange={setComponentQuery} className="library-search" />
         </div>
-        <ComponentList store={components} state={componentState} draftsState={draftsState} query={componentQuery} />
+        <ComponentList store={components} state={componentState} drafts={drafts} draftsState={draftsState} query={componentQuery} />
         <div className="listfoot">
           <FileButton
             label="导入效果包…"

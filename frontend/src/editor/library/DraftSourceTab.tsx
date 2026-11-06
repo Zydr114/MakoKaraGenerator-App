@@ -7,6 +7,7 @@ import { shortRevision } from '../model/full-template';
 import { Button, IconButton } from '../ui/Button';
 import { cls } from '../ui/cls';
 import { confirmAction } from '../ui/dialogs';
+import { saveBlob } from '../ui/download';
 import { toast } from '../ui/feedback';
 import { useObservable } from '../ui/hooks';
 import { Icon } from '../ui/Icon';
@@ -45,7 +46,7 @@ export function DraftSourceTab(props: { draft: FullDraft; model: DraftSourceMode
     );
 
   const inUse = draft.configuration.sourceRevision;
-  const rows = revisionRows(draft, state.saved);
+  const rows = revisionRows(draft, state.saved, state.retained);
   const shown = rows.find((r) => r.revision === state.revision);
   const active = state.files.find((f) => f.path === state.active);
   const dirty = model.dirty;
@@ -64,6 +65,13 @@ export function DraftSourceTab(props: { draft: FullDraft; model: DraftSourceMode
   const compile = async () => {
     const saved = await model.compile();
     if (saved) reportResult(saved);
+  };
+  const download = async (revision: string) => {
+    try {
+      saveBlob(await model.downloadPackage(revision), packageFileName(draft.configuration.name, revision));
+    } catch (error) {
+      toast(`下载效果包失败：${error instanceof Error ? error.message : String(error)}`);
+    }
   };
   const undoAdoption = async () => reportResult(await model.undoAdoption());
   const redoAdoption = async () => reportResult(await model.redoAdoption());
@@ -126,6 +134,15 @@ export function DraftSourceTab(props: { draft: FullDraft; model: DraftSourceMode
                   onPress={() => void view(row.revision)}
                 />
                 <IconButton
+                  icon="download"
+                  size="sm"
+                  label={`下载修订 ${shortRevision(row.revision)} 的效果包`}
+                  tooltip="下载 .mkfx"
+                  className="source-revision-download"
+                  isDisabled={disabled}
+                  onPress={() => void download(row.revision)}
+                />
+                <IconButton
                   icon="check_circle"
                   size="sm"
                   label={`${model.isV2 ? '采用' : '改用'}修订 ${shortRevision(row.revision)}`}
@@ -138,7 +155,9 @@ export function DraftSourceTab(props: { draft: FullDraft; model: DraftSourceMode
             </li>
           ))}
         </ul>
-        <Note className="srcside-note">这里列出原包、最新、已采用、在用和本页保存过的修订。</Note>
+        <Note className="srcside-note">这里列出草稿保留的全部修订，可查看、采用或下载为 .mkfx。</Note>
+        {state.historyError && <Note error className="srcside-note">{state.historyError}
+          <Button variant="text" size="sm" onPress={() => void model.loadHistory()}>重试</Button></Note>}
         {model.isV2 && <Note className="srcside-note">保存不会改变在用修订。{draft.canCompile
           ? '查看任一修订后可编译，编译通过再采用；撤销采用的目标也须先编译通过。'
           : '纯资源修订可按包门禁显式采用，实际运行使用验证页签。'}</Note>}
@@ -297,6 +316,12 @@ function report(result: SourceResult, explicitAdoption = false): void {
     case 'busy':
       break;
   }
+}
+
+/** 下载文件名：组件名＋修订短号；去掉文件名里不能用的字符。 */
+export function packageFileName(name: string, revision: string): string {
+  const safe = name.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').trim() || 'effect';
+  return `${safe}-${shortRevision(revision)}.mkfx`;
 }
 
 function baseName(path: string): string {

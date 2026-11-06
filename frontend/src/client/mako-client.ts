@@ -6,6 +6,7 @@
 
 import type { AuthorPackageConfigurationInput, AuthorSourceInspectionResponse } from '../protocol/author-source-inspection';
 import type { AuthorPackageFilesInput, AuthorPackageFilesResponse } from '../protocol/author-package-files';
+import type { AuthorDraftClaimResponse, AuthorSourceRevisionsResponse, ProfileAuthorDraftListResponse } from '../protocol/author-history';
 import type { GpuPreviewCreateInput, GpuPreviewStreamState } from '../protocol';
 
 import {
@@ -1338,6 +1339,23 @@ export class MakoClient extends Emitter<MakoClientEvents> {
         query: { expectedDraftRevision, sourceRevision }, auth: 'access', label: 'drafts.packageFiles',
       })).data,
 
+    /** 精确草稿修订下的一页保留源码修订（字典序）；after 为上一页的 nextAfterSourceRevision。 */
+    sourceRevisions: async (draftId: string, expectedDraftRevision: string, after?: string): Promise<AuthorSourceRevisionsResponse> =>
+      (await this.send<AuthorSourceRevisionsResponse>({
+        method: 'GET', path: `/api/v1/drafts/${enc(draftId)}/source-revisions`,
+        query: { expectedDraftRevision, ...(after ? { afterSourceRevision: after } : {}) }, auth: 'access', label: 'drafts.sourceRevisions',
+      })).data,
+
+    /** 下载草稿保留的某个源码修订的完整 .mkfx 包。 */
+    downloadPackage: async (draftId: string, expectedDraftRevision: string, sourceRevision: string): Promise<Blob> => {
+      const { data } = await this.send<Blob | null>({
+        method: 'GET', path: `/api/v1/drafts/${enc(draftId)}/package`,
+        query: { expectedDraftRevision, sourceRevision }, auth: 'access', response: 'blob', label: 'drafts.downloadPackage',
+      });
+      if (!data) throw new Error('后端没有返回效果包内容。');
+      return data;
+    },
+
     /** exact CAS 下读取此草稿 retained source 的声明；不创建 reference 或资源。 */
     inspectSource: async (draftId: string, expectedDraftRevision: string, sourceRevision: string): Promise<AuthorSourceInspectionResponse> =>
       (await this.send<AuthorSourceInspectionResponse>({
@@ -1436,6 +1454,26 @@ export class MakoClient extends Emitter<MakoClientEvents> {
   };
 
   /** 个人配置库（界面叫效果组件库，规范 §21）：属于 profile；命令带库修订做 CAS，409 时重读再决定。 */
+  /** profile 里的作者草稿：跨客户端发现与显式认领（Server 重启、换标签页后恢复）。 */
+  readonly profileDrafts = {
+    list: async (after?: string): Promise<ProfileAuthorDraftListResponse> =>
+      (await this.send<ProfileAuthorDraftListResponse>({
+        method: 'GET', path: '/api/v1/profile/author-drafts', ...(after ? { query: { afterDraftId: after } } : {}),
+        auth: 'access', label: 'profileDrafts.list',
+      })).data,
+
+    /** 按发现时的内容修订和所有权修订认领；活动 owner、CAS 冲突或配额满时拒绝。 */
+    claim: async (draftId: string, expectedDraftRevision: string, expectedOwnershipRevision: string): Promise<AuthorDraftClaimResponse> => {
+      const receipt = this.requireConn().receipts.create('draft-claim');
+      const { data } = await this.send<AuthorDraftClaimResponse>({
+        method: 'POST', path: `/api/v1/profile/author-drafts/${enc(draftId)}/claim`,
+        json: { expectedDraftRevision, expectedOwnershipRevision, metadata: toMetadata(receipt) },
+        auth: 'access', label: 'profileDrafts.claim',
+      }, receipt);
+      return data;
+    },
+  };
+
   readonly scriptConfigurations = {
     list: async (): Promise<ScriptConfigurationListResponse> =>
       (await this.send<ScriptConfigurationListResponse>({ method: 'GET', path: '/api/v1/script-configurations', auth: 'access', label: 'scriptConfigurations.list' })).data,

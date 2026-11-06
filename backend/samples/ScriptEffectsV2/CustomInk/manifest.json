@@ -1,0 +1,112 @@
+{
+  "packageVersion": 3,
+  "packageId": "makokara.v2.custom-ink",
+  "name": "自定义波纹材质",
+  "version": "2.0.0",
+  "sdkVersion": "2.0.0",
+  "shaderProfile": "skia-ganesh-3.119.4-v2",
+  "files": [
+    {
+      "path": "README.md",
+      "role": "asset",
+      "sha256": "66aa268adfd351e7f126c574dd1a8677f7db635435bc0d471b9b31f843286ca4"
+    },
+    {
+      "path": "graphs/wave.graph.json",
+      "role": "graph",
+      "sha256": "34d7f2a70f34bc2d2346425a8c888421ec7ef01866c146069daa5578a1d52d1c"
+    },
+    {
+      "path": "shaders/wave.program.json",
+      "role": "shaderProgram",
+      "sha256": "cc5b6dbc6ae21ed7906753e931fcdff838ab30f81fdf484e79446ad3796ff339"
+    },
+    {
+      "path": "shaders/wave.sksl",
+      "role": "shader",
+      "sha256": "c58c3da65f5aa8b9575f8ba3a048933cf12b36fe79280be0ba8c68c61cb189d2"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "frequencyHz",
+      "type": "number",
+      "label": "波纹频率",
+      "default": 2,
+      "min": 0,
+      "max": 20,
+      "unit": "Hz"
+    },
+    {
+      "id": "amplitude",
+      "type": "number",
+      "label": "混色波纹幅度",
+      "default": 0.15,
+      "min": 0,
+      "max": 0.5
+    },
+    {
+      "id": "colorA",
+      "type": "color",
+      "label": "主色",
+      "default": {
+        "r": 0.15,
+        "g": 0.4,
+        "b": 0.85,
+        "a": 1
+      }
+    },
+    {
+      "id": "colorB",
+      "type": "color",
+      "label": "次色",
+      "default": {
+        "r": 0.4,
+        "g": 0.9,
+        "b": 0.95,
+        "a": 1
+      }
+    }
+  ],
+  "exports": [
+    {
+      "id": "custom-ink",
+      "kind": "material",
+      "name": "双色波纹",
+      "graph": "graphs/wave.graph.json",
+      "parameters": [
+        "frequencyHz",
+        "amplitude",
+        "colorA",
+        "colorB"
+      ],
+      "regions": [
+        "fill",
+        "stroke"
+      ],
+      "fallback": {
+        "kind": "solid",
+        "color": "#3380CCBF"
+      },
+      "coverageMode": "unmasked",
+      "outputs": [
+        {
+          "id": "color",
+          "kind": "ImageGraph",
+          "target": "region",
+          "requires": [],
+          "dependsOn": [],
+          "bypass": {
+            "kind": "materialFallback",
+            "mapping": "identity"
+          }
+        }
+      ]
+    }
+  ],
+  "requires": [],
+  "lineExit": {
+    "durationUs": 0
+  },
+  "emitters": []
+}

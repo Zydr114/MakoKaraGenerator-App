@@ -1,0 +1,84 @@
+{
+  "graphVersion": 1,
+  "id": "glass-ink-backdrop",
+  "inputs": [
+    {
+      "id": "coverage",
+      "source": "TargetRegionCoverage",
+      "type": "coverage",
+      "availability": "required",
+      "backgroundRequirement": "none",
+      "space": "canvas",
+      "capture": {
+        "includeRuby": true,
+        "includeStroke": true,
+        "includeShadow": false,
+        "includeDescendantGroups": false,
+        "includeOwnedOverlay": false,
+        "region": "materialRegion"
+      }
+    },
+    {
+      "id": "background",
+      "source": "BackdropBelow",
+      "type": "color",
+      "availability": "required",
+      "backgroundRequirement": "opaqueCanvas",
+      "space": "canvas"
+    }
+  ],
+  "parameters": [
+    "blurPx",
+    "refractionPx",
+    "frequencyHz",
+    "highlight",
+    "opacity"
+  ],
+  "nodes": [
+    {
+      "id": "blur",
+      "op": "Blur",
+      "input": "input:background",
+      "sigmaPx": "parameter:blurPx",
+      "bounds": {
+        "expandPx": "ceil(3 * parameter:blurPx)",
+        "maxExpandPx": 24,
+        "maxSampleOffsetPx": 24
+      },
+      "edge": "clamp"
+    },
+    {
+      "id": "glass",
+      "op": "RuntimeShader",
+      "program": "shaders/glass.program.json",
+      "children": {
+        "background": "node:blur",
+        "coverage": "input:coverage"
+      },
+      "uniforms": {
+        "timeSeconds": "host:timeSeconds",
+        "refractionPx": "parameter:refractionPx",
+        "frequencyHz": "parameter:frequencyHz",
+        "highlight": "parameter:highlight",
+        "opacity": "parameter:opacity"
+      },
+      "outputType": "color",
+      "bounds": {
+        "expandPx": "ceil(1 * parameter:refractionPx)",
+        "maxExpandPx": 8,
+        "maxSampleOffsetPx": 8
+      },
+      "edge": "transparent"
+    }
+  ],
+  "output": "node:glass",
+  "anchorMode": "ColorOnly",
+  "bounds": {
+    "space": "canvas",
+    "source": "targetRegion",
+    "maxExpandPx": 32
+  },
+  "composite": {
+    "mode": "sourceOver"
+  }
+}

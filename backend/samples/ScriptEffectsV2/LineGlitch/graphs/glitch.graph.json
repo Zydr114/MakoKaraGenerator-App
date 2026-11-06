@@ -1,0 +1,60 @@
+{
+  "graphVersion": 1,
+  "id": "whole-line-glitch",
+  "inputs": [
+    {
+      "id": "original",
+      "source": "TargetColor",
+      "type": "color",
+      "availability": "required",
+      "backgroundRequirement": "none",
+      "space": "canvas",
+      "capture": {
+        "includeRuby": true,
+        "includeStroke": true,
+        "includeShadow": true,
+        "includeDescendantGroups": false,
+        "includeOwnedOverlay": false,
+        "region": "fillAndStroke"
+      }
+    }
+  ],
+  "parameters": [
+    "strengthPx",
+    "sliceHeightPx",
+    "frequencyHz"
+  ],
+  "nodes": [
+    {
+      "id": "glitch",
+      "op": "RuntimeShader",
+      "program": "shaders/glitch.program.json",
+      "children": {
+        "original": "input:original"
+      },
+      "uniforms": {
+        "timeSeconds": "host:timeSeconds",
+        "strengthPx": "parameter:strengthPx",
+        "sliceHeightPx": "parameter:sliceHeightPx",
+        "frequencyHz": "parameter:frequencyHz"
+      },
+      "outputType": "color",
+      "bounds": {
+        "expandPx": "ceil(1 * parameter:strengthPx)",
+        "maxExpandPx": 12,
+        "maxSampleOffsetPx": 12
+      },
+      "edge": "transparent"
+    }
+  ],
+  "output": "node:glitch",
+  "anchorMode": "ColorOnly",
+  "bounds": {
+    "space": "canvas",
+    "source": "targetRegion",
+    "maxExpandPx": 12
+  },
+  "composite": {
+    "mode": "sourceOver"
+  }
+}

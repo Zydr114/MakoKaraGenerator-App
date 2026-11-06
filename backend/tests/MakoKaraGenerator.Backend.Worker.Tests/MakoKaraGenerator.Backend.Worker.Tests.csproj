@@ -13,6 +13,7 @@
   <ItemGroup>
     <Compile Include="../Shared/*.cs" LinkBase="Shared" />
     <Compile Include="../Shared/Rendering/TimedRubyFixture.cs" Link="Shared/TimedRubyFixture.cs" />
+    <None Include="../../samples/ScriptEffectsV2/AdaptiveStroke/**/*" Link="effect-packages-v2/AdaptiveStroke/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Fixtures/GpuStreamWorkerWire.json" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Fixtures/AudioPreparationBaseline/*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

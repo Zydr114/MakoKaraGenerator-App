@@ -17,6 +17,13 @@ C05 与 T01 关联的 SVG vector／atlas typed输出、固定资源、完整affi
 详见[M09证据](script-sdk-render-m09-evidence.md)。HTTP、导出、前端完整包编辑、图组和媒体轨仍待；
 本增量不关闭C03／C05／C10、样例S05/S07–S09或T01。
 
+## M10 媒体特征轨功能接通（产品0.112.36）
+
+`media.features` 已开放：宿主分析、固定运行输入、Worker 绑定、SDK `frame.Media.Sample`、
+预览换代与导出等待均已接通；AdaptiveStroke 示例经真实 HTTP Pending→Available 换代验证。
+详见[M10证据第二十一片](script-sdk-render-m10-evidence.md)。按 2026-11-07 用户指示，
+性能与全量回归不阻塞本轮；T01 复杂样式、图消费者查询和作者链 720 帧验证归 M11。
+
 ## 证据登记方式
 
 每项由稳定 ID 跟踪六类证据，禁止只凭九样例完成而省略能力：

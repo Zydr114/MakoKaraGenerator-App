@@ -515,3 +515,22 @@ MainPid，单元启动返回时尚未 exec 成 gate，探针立即读 `/proc/<pi
 全部通过并关闭全部 owner。11-06 首轮遗留的探针进程与 failed 单元未由本轮清理。
 
 2026-11-07 起按用户指示，M10/M11 以功能接通为主，回归与性能不再逐片扩张，仅排查数量级崩坏。
+
+## 第二十一片：功能接通与真实 HTTP 闭环（产品0.112.36）
+
+- `3b04134`：Server 启动时创建宿主背景分析服务（失败只记 `BACKEND_MEDIA_FEATURES_UNAVAILABLE`，
+  不阻止启动），每个运行输入经 `BackendMediaFeatureInputs.AttachAsync` 固定媒体输入；预览只等检查，
+  导出等完整制品。KRI1 元数据携带私有制品授权，Worker 由授权路径重建 reader／sampler／binding。
+  Core 媒体值改用严格构造器 JSON 转换器（结构体默认构造会绕过摘要校验）。`media.features` 能力开放。
+- `671311e`：前端订阅 `project.mediaFeaturesChanged`，静态预览与 GPU 流都以同一工程修订重新固定输入。
+- `6e94a3d`／`af29234`：AdaptiveStroke v2 示例（按字后亮度切换深／浅描边，方差加宽；
+  Pending／Unavailable／NoMedia 沿用工程描边；共享字簇的字跳过）。
+- `0bd59ad`：Worker 从 KRI1 授权重建绑定，缺媒体输入时以 `MediaFeatureBindingRequired` 拒绝。
+- `aeb6096`：`tools/backend-script-render-upgrade/m10_media_probe.py` 真实 HTTP 闭环：
+  本仓库 fresh publish → 隔离 profile／loopback → 上传白色 PNG 背景＋AdaptiveStroke 模板 →
+  GPU 预览首帧（分析中，无描边）→ SSE 收到事件 → `PUT input` 同修订重固 → 新帧像素不同（深色描边）。
+  首轮暴露并修复两项：探针每次新开 SSE 撞每客户端连接上限（429），拉丁连字 fi 使示例整帧
+  `UnsupportedGlyphPartition`。第三轮通过，所拥有进程全部按身份排空。
+
+已知限制：透明预览（Straight）遇媒体依赖包会因输出模式不符被拒，前端始终用 opaque 暂不处理；
+作者草稿预览无宿主分析服务，纯色背景可得结果，文件背景为 NoMedia；分析失败在本次 Server 运行内不重试。

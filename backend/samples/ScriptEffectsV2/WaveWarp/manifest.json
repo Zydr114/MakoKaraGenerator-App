@@ -1,0 +1,106 @@
+{
+  "packageVersion": 3,
+  "packageId": "makokara.v2.wave-warp",
+  "name": "演唱波动网格",
+  "version": "2.0.0",
+  "sdkVersion": "2.0.0",
+  "shaderProfile": "skia-ganesh-3.119.4-v2",
+  "files": [
+    {
+      "path": "src/WaveWarp.cs",
+      "role": "csharp",
+      "sha256": "4e1a27a2d3c81bc2e6b76d6a04f4fdd3c519903cfddffbd894e01ed0463affe3"
+    },
+    {
+      "path": "README.md",
+      "role": "asset",
+      "sha256": "195320b4d8fedc8cb82bc8e1d1d8389072b5ec207e9c6b14998a6b330b4537cb"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "amplitudePx",
+      "type": "number",
+      "label": "起伏幅度",
+      "default": 6,
+      "min": 0,
+      "max": 16,
+      "unit": "px"
+    },
+    {
+      "id": "frequencyHz",
+      "type": "number",
+      "label": "起伏频率",
+      "default": 1.5,
+      "min": 0,
+      "max": 8,
+      "unit": "Hz"
+    },
+    {
+      "id": "wavelengthPx",
+      "type": "number",
+      "label": "波长",
+      "default": 240,
+      "min": 32,
+      "max": 2048,
+      "unit": "px"
+    },
+    {
+      "id": "riseUs",
+      "type": "duration",
+      "label": "升起时长",
+      "default": 120000,
+      "min": 0,
+      "max": 2000000,
+      "unit": "us"
+    },
+    {
+      "id": "settleUs",
+      "type": "duration",
+      "label": "回落时长",
+      "default": 400000,
+      "min": 0,
+      "max": 4000000,
+      "unit": "us"
+    }
+  ],
+  "exports": [
+    {
+      "id": "wave-warp",
+      "kind": "controller",
+      "name": "演唱波动网格",
+      "entryType": "WaveWarp",
+      "parameters": [
+        "amplitudePx",
+        "frequencyHz",
+        "wavelengthPx",
+        "riseUs",
+        "settleUs"
+      ],
+      "bindingKinds": [
+        "project",
+        "branch",
+        "lines",
+        "tokens",
+        "clips",
+        "node"
+      ],
+      "outputs": [
+        {
+          "id": "wave",
+          "kind": "VisualTransform",
+          "target": "tokenFamily",
+          "requires": [],
+          "dependsOn": []
+        }
+      ]
+    }
+  ],
+  "requires": [
+    "token.warp"
+  ],
+  "lineExit": {
+    "durationUs": 0
+  },
+  "emitters": []
+}

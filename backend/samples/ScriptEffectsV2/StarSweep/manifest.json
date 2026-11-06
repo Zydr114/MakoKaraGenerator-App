@@ -1,0 +1,120 @@
+{
+  "packageVersion": 3,
+  "packageId": "makokara.v2.star-sweep",
+  "name": "SVG 星星扫句",
+  "version": "2.0.0",
+  "sdkVersion": "2.0.0",
+  "shaderProfile": "skia-ganesh-3.119.4-v2",
+  "files": [
+    {
+      "path": "src/StarSweep.cs",
+      "role": "csharp",
+      "sha256": "f66cf523de6ae61799ebf4abb11996eff1b384ba4c408783571b3b77772eb932"
+    },
+    {
+      "path": "assets/star.svg",
+      "role": "svg",
+      "sha256": "9d401b03a7178b5aacffcd955067788fc7a71295a66226e09537f4836d90fb83"
+    },
+    {
+      "path": "resources/star.json",
+      "role": "svgResource",
+      "sha256": "7fd6424168900310b4f106b9ac972ffc5fc2029241cc432080edaf4aa7d92a38"
+    },
+    {
+      "path": "README.md",
+      "role": "asset",
+      "sha256": "2bd305538a499e6e8dbf2167f8f4e2d5a3bb809ae1859a3e646e826ed76b8d16"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "sizePx",
+      "type": "number",
+      "label": "星芒大小",
+      "default": 28,
+      "min": 4,
+      "max": 96,
+      "unit": "px"
+    },
+    {
+      "id": "spinHz",
+      "type": "number",
+      "label": "旋转速度",
+      "default": 0.5,
+      "min": 0,
+      "max": 4,
+      "unit": "Hz"
+    },
+    {
+      "id": "color",
+      "type": "color",
+      "label": "星芒色",
+      "default": {
+        "r": 1,
+        "g": 1,
+        "b": 1,
+        "a": 1
+      }
+    },
+    {
+      "id": "tailCount",
+      "type": "integer",
+      "label": "尾星数量",
+      "default": 3,
+      "min": 0,
+      "max": 8
+    },
+    {
+      "id": "tailStep",
+      "type": "number",
+      "label": "尾星间隔（进度）",
+      "default": 0.06,
+      "min": 0.01,
+      "max": 0.25
+    }
+  ],
+  "exports": [
+    {
+      "id": "star-sweep",
+      "kind": "controller",
+      "name": "SVG 星星扫句",
+      "entryType": "StarSweep",
+      "parameters": [
+        "sizePx",
+        "spinHz",
+        "color",
+        "tailCount",
+        "tailStep"
+      ],
+      "bindingKinds": [
+        "project",
+        "branch",
+        "lines",
+        "tokens",
+        "clips",
+        "node"
+      ],
+      "outputs": [
+        {
+          "id": "stars",
+          "kind": "Overlay",
+          "target": "canvas",
+          "requires": [
+            "visuals.paths",
+            "resources.svg.vector"
+          ],
+          "dependsOn": []
+        }
+      ]
+    }
+  ],
+  "requires": [
+    "visuals.paths",
+    "resources.svg.vector"
+  ],
+  "lineExit": {
+    "durationUs": 0
+  },
+  "emitters": []
+}

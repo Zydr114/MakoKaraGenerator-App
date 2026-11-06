@@ -340,3 +340,11 @@ M10/M11未完成。
 Runtime.Hosting153、Rendering1703通过，完整构建零警告错误。旧反射测试参数修正及完整
 边界见[M10记录第十九片](script-sdk-render-m10-evidence.md)。旧wire明确拒绝媒体值；
 Worker与外层资源owner继续实施，能力门禁未开放，M10/M11未完成。
+
+### M11 样例、复杂样式与作者流程（产品0.112.37）
+
+13 个 v2 样例（原九样例加 ClusterExit、AdaptiveStroke、StarSweep、WaveWarp）都已重写。
+目标复杂样式经单元测试和真实 HTTP／Vulkan 探针验证。透明半程与透明预览改用透明无媒体输入，
+修复了媒体依赖包的输出模式不符。全样例作者验证 13／13 通过，共 9360 帧，单例 2.5～15 s。
+前端接入完整修订历史、`.mkfx` 下载和草稿认领恢复。资源导入事务、调试叠加层、成本视图等
+尚未完成，详见[M11证据](script-sdk-render-m11-evidence.md)；完整 D8 未关闭。

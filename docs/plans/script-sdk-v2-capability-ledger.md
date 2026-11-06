@@ -24,6 +24,13 @@ C05 与 T01 关联的 SVG vector／atlas typed输出、固定资源、完整affi
 详见[M10证据第二十一片](script-sdk-render-m10-evidence.md)。按 2026-11-07 用户指示，
 性能与全量回归不阻塞本轮；T01 复杂样式、图消费者查询和作者链 720 帧验证归 M11。
 
+## M11 样例与作者链功能证据（产品0.112.37）
+
+S01–S09 均已有 v2 包，附加 ClusterExit、AdaptiveStroke、StarSweep、WaveWarp。
+13 例作者验证均 360＋360 帧通过（真实 HTTP、Vulkan）。T01 的组合（退场、Ruby、Warp 锚点、
+粒子、SVG 星星、媒体描边）已有单元测试和 HTTP 实帧。详见[M11证据](script-sdk-render-m11-evidence.md)。
+逐项 E/A/X/D/T 尚未填写，P 暂缓；资源导入、调试叠加层和成本视图未完成，完整 D8 不据此关闭。
+
 ## 证据登记方式
 
 每项由稳定 ID 跟踪六类证据，禁止只凭九样例完成而省略能力：

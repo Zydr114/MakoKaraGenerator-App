@@ -12,6 +12,7 @@ using MakoKaraGenerator.Scripting;
 using MakoKaraGenerator.Scripting.Compilation;
 using MakoKaraGenerator.Scripting.Execution;
 using MakoKaraGenerator.Scripting.V2;
+using SkiaSharp;
 
 namespace MakoKaraGenerator.Rendering.Tests;
 
@@ -24,6 +25,7 @@ public sealed class V2ParticlePackageTests
     [InlineData("CursorTrail")]
     [InlineData("VectorTrail")]
     [InlineData("EventBurst")]
+    [InlineData("SpriteTrail")]
     public async Task 真实粒子包的近端三分钟与十分钟乱序重复和重开保持结构与像素(string sample)
     {
         var package = await Package(sample);
@@ -167,6 +169,30 @@ public sealed class V2ParticlePackageTests
     }
 
     [Fact]
+    public async Task SpriteTrail以包内图片绘制旋转星芒且拖尾样本按时间淡出()
+    {
+        var package = await Package("SpriteTrail");
+        var snapshot = Snapshot([package], [Instance(package, "sprites", "{\"rate\":24,\"trailUs\":250000}")]);
+        var compiled = await Compile(snapshot, Compiler());
+        await using var session = await Factory(snapshot, compiled).CreateAsync(snapshot);
+        var frame = await Prepare(session, snapshot, 1_250_000);
+        var particles = Assert.Single(frame.V2ParticleSnapshots);
+        Assert.NotEmpty(particles.Alive);
+        Assert.DoesNotContain(frame.DotBatches, batch => batch.Id.Value == "cursor"); // Custom 关闭自动圆点。
+        var sprites = Assert.Single(frame.OverlayBatches.OfType<SpriteBatch>()).Sprites;
+        Assert.True(sprites.Length > particles.Alive.Length); // 头部之外还有拖尾样本。
+        Assert.All(sprites, sprite =>
+        {
+            Assert.Equal(package.Revision, sprite.Image.Identity.Revision);
+            Assert.Equal("assets/spark.png", sprite.Image.Identity.ExportId);
+            Assert.True(sprite.UnitToWorld.TryInverse(out _));
+        });
+        double headAlpha = particles.Alive.Max(item => item.Color.Alpha);
+        Assert.Contains(sprites, sprite => sprite.Tint.Alpha < headAlpha * .25 + 1e-9);
+        Assert.Contains(Pixels(snapshot, frame).Where((_, index) => index % 4 == 3), alpha => alpha > 0);
+    }
+
+    [Fact]
     public async Task 冷热与超出memo容量后重算仍精确且取消不污染下一次查询()
     {
         var package = await Package("CursorTrail");
@@ -257,9 +283,28 @@ public sealed class V2ParticlePackageTests
     });
     private static byte[] Pixels(ProjectSnapshot snapshot, PreparedRenderFrame frame)
     {
-        using SkiaRenderPipeline renderer = new();
-        using var pixels = renderer.Render(RenderRequest.At(snapshot, frame.TimeUs) with { TransparentBackground = true, PreparedFrame = frame });
-        return pixels.PixelMemory.ToArray();
+        // Sprites read a fixed decoded image set supplied outside the frame, decoded here from the package closure.
+        var handles = frame.OverlayBatches.OfType<SpriteBatch>().SelectMany(batch => batch.Sprites).Select(sprite => sprite.Image).Distinct().ToArray();
+        List<IDisposable> owned = [];
+        try
+        {
+            var inputs = handles.Select(handle =>
+            {
+                var file = snapshot.Effects.Packages.Single(package => package.PackageId == handle.Identity.PackageId).Files
+                    .Single(item => item.Path == handle.Identity.ExportId);
+                var image = SKImage.FromEncodedData(file.Content.ToArray()); owned.Add(image);
+                var surface = SkiaGraphSurface.Borrow(image, new(new(0, 0, image.Width, image.Height), GraphCoordinateSpace.Canvas,
+                    SceneMatrix.Identity, 1, 1), ShaderSurfaceKind.Color);
+                owned.Add(surface);
+                return KeyValuePair.Create(handle, surface);
+            }).ToArray();
+            var resources = handles.Length == 0 ? null : new SceneImageEffectResources([], null, [], null, inputs);
+            if (resources is not null) owned.Add(resources);
+            using var renderer = new SkiaRenderPipeline(null, null, null, resources);
+            using var pixels = renderer.Render(RenderRequest.At(snapshot, frame.TimeUs) with { TransparentBackground = true, PreparedFrame = frame });
+            return pixels.PixelMemory.ToArray();
+        }
+        finally { for (int index = owned.Count - 1; index >= 0; index--) owned[index].Dispose(); }
     }
     private static void Close(Point2 expected, Point2 actual)
     { Assert.InRange(Math.Abs(expected.X - actual.X), 0, 1e-7); Assert.InRange(Math.Abs(expected.Y - actual.Y), 0, 1e-7); }

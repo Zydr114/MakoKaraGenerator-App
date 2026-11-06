@@ -71,10 +71,39 @@ internal sealed class ProjectRuntimeInput : IDisposable
         => new(Compiler, _videos, reason,
             _grant is null ? null : () => new GrantedBackgroundResolver(_grant, _videos), layoutReference, editingLineId, editingCueId, renderBackend, enableGpuPreview, enableGpuPreviewBenchmark, gpuPreparation,
             _media?.Binding);
+    /// <summary>
+    /// 双输出验证的透明半程：固定输入属于普通输出时，按同一快照另建透明无媒体输入和会话工厂；
+    /// 没有媒体输入或已是透明输入时返回 null，沿用原工厂。
+    /// </summary>
+    internal async Task<TransparentRuntimeOutput?> CreateTransparentOutputAsync(ReplayReason reason, string? renderBackend, CancellationToken token)
+    {
+        if (Snapshot.MediaFeatureInput is not { } input || input.Context.Mapping.OutputMode == MediaOutputMode.Transparent) return null;
+        var basis = Snapshot with { MediaFeatureInput = null };
+        var transparent = ProjectRuntimeMediaOutputs.TransparentNoMedia(basis, token)
+            ?? throw new WorkerProtocolException("固定媒体输入没有对应的媒体依赖。", "ProjectRuntimeSourceMismatch");
+        var snapshot = basis with { MediaFeatureInput = transparent };
+        var media = await MediaBindingOwner.OpenAsync(snapshot, transparent, null, token).ConfigureAwait(false);
+        try
+        {
+            ProjectRenderSessionFactory factory = new(Compiler, _videos, reason,
+                _grant is null ? null : () => new GrantedBackgroundResolver(_grant, _videos), renderBackend: renderBackend,
+                mediaBinding: media.Binding);
+            return new(snapshot, factory, media);
+        }
+        catch { media.Dispose(); throw; }
+    }
+
     public void Dispose()
     {
         try { _media?.Dispose(); }
         finally { _videos.Dispose(); }
+    }
+
+    /// <summary>透明半程的快照、工厂及其媒体绑定所有权。</summary>
+    internal sealed class TransparentRuntimeOutput(ProjectSnapshot snapshot, ProjectRenderSessionFactory factory, IDisposable owner) : IDisposable
+    {
+        internal RuntimeTransparentOutput Output { get; } = new(snapshot, factory);
+        public void Dispose() => owner.Dispose();
     }
 
     /// <summary>Owns the validated artifact reader and the bounded sampler for this fixed runtime input only.</summary>

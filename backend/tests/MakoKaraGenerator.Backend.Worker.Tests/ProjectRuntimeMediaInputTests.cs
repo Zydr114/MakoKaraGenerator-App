@@ -43,6 +43,18 @@ public sealed class ProjectRuntimeMediaInputTests
         // 工厂准入要求同一固定输入的宿主绑定：能建会话即证明 Worker 已从授权重建绑定。
         await using (var session = await runtime.CreateFactory(ReplayReason.Initial, renderBackend: "vulkan").CreateAsync(runtime.Snapshot)) { }
 
+        // 双输出验证的透明半程：另建透明无媒体输入，与 Host 透明导出得到同一固定输入。
+        using (var transparent = await runtime.CreateTransparentOutputAsync(ReplayReason.Initial, "vulkan", CancellationToken.None))
+        {
+            Assert.NotNull(transparent);
+            var absent = Assert.IsType<MediaFeatureInput.NoMedia>(transparent.Output.Snapshot.MediaFeatureInput);
+            Assert.Equal(MediaNoMediaReason.TransparentOutput, absent.Reason);
+            Assert.Equal(ProjectRuntimeMediaOutputs.TransparentNoMedia(basis)!.InputRevision, absent.InputRevision);
+            await using var session = await transparent.Output.Sessions.CreateAsync(transparent.Output.Snapshot);
+            using var frame = await session.RenderAsync(RenderRequest.At(transparent.Output.Snapshot, 200_000) with { TransparentBackground = true });
+            Assert.Equal(640, frame.Width);
+        }
+
         using var missing = await ProjectRuntimeInput.OpenAsync(ProjectRuntimeInputCodec.Encode(basis, null), CancellationToken.None, compiler);
         var error = await Assert.ThrowsAsync<EffectOutputException>(async () =>
             await missing.CreateFactory(ReplayReason.Initial, renderBackend: "vulkan").CreateAsync(missing.Snapshot));

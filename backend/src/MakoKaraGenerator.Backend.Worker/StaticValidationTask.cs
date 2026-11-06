@@ -75,6 +75,8 @@ internal static class StaticValidationTask
             ?? (imageValidation || sessions is null
             ? new ProjectRenderSessionFactory(prepared.Compiler, new FfmpegVideoFrameProvider(), ReplayReason.Initial, imageResolverFactory, renderBackend: renderBackend)
             : sessions);
+        using var transparentRuntime = runtime is null ? null
+            : await runtime.CreateTransparentOutputAsync(ReplayReason.Initial, renderBackend, token).ConfigureAwait(false);
         int reportBytes = 2048; // Complete report object, counts, arrays and separators are reserved before items.
         RuntimeValidationBudget budget = new(WorkerValidationContract.MaximumIssues, WorkerValidationContract.MaximumOccurrences,
             issue => Reserve(MapIssue(issue, packageProfile)), diagnostic => Reserve(MapDiagnostic(diagnostic)));
@@ -86,7 +88,7 @@ internal static class StaticValidationTask
         Exception? primary = null;
         try
         {
-            var result = await new RuntimeFrameValidator(factory).ValidateAsync(snapshot, new(input.FramesPerOutput),
+            var result = await new RuntimeFrameValidator(factory, transparentRuntime?.Output).ValidateAsync(snapshot, new(input.FramesPerOutput),
                 new InlineProgress(value => channel.Writer.TryWrite((++sequence, value))), budget, operation.Token).ConfigureAwait(false);
             operation.Token.ThrowIfCancellationRequested();
             channel.Writer.TryComplete();

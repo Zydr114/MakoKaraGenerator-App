@@ -63,7 +63,8 @@ internal sealed partial class PreviewBackendService : IAsyncDisposable
                 if (size is not null) return BackendOperationResult<PreviewSessionResponse>.Rejected(size);
                 var backend = await PrepareRenderBackendAsync(request.RenderBackend).ConfigureAwait(false);
                 if (!backend.Accepted) return BackendOperationResult<PreviewSessionResponse>.Rejected(backend.Error!);
-                BackendPreviewInputCaptureResult captured = await CaptureAsync(client, request.Source, backend.Response!).ConfigureAwait(false);
+                BackendPreviewInputCaptureResult captured = await CaptureAsync(client, request.Source, backend.Response!,
+                    request.AlphaMode == PreviewAlphaMode.Straight).ConfigureAwait(false);
                 if (captured.Error is not null) return BackendOperationResult<PreviewSessionResponse>.Rejected(captured.Error);
                 BackendPreviewSessionResult result;
                 try
@@ -148,7 +149,8 @@ internal sealed partial class PreviewBackendService : IAsyncDisposable
                     BackendPreviewPinnedInput sample = new(TemplateSourceIdentity(request.Source), snapshot,
                         SelectFactory(_factory!, backend.Response!)) { RenderBackend = backend.Response! };
                     BackendPreviewInputCaptureResult captured = await CompleteCaptureAsync(new(sample, null,
-                        RuntimeInput: BackendProjectRuntimeInputLease.CreateDetached(snapshot)), null).ConfigureAwait(false);
+                        RuntimeInput: BackendProjectRuntimeInputLease.CreateDetached(snapshot)), null,
+                        request.AlphaMode == PreviewAlphaMode.Straight).ConfigureAwait(false);
                     if (captured.Error is not null) return BackendOperationResult<PreviewSessionResponse>.Rejected(captured.Error);
                     BackendPreviewPinnedInput input = captured.Input!;
                     PreviewSessionRequest previewRequest = new(input.Source, request.Size, request.AlphaMode,
@@ -252,7 +254,8 @@ internal sealed partial class PreviewBackendService : IAsyncDisposable
                     return Reject<PreviewSessionResponse>(BackendErrorCode.PreviewGenerationConflict, "预览输入基线已改变。");
                 var backend = await PrepareRenderBackendAsync(request.RenderBackend, existing.Status.Session.RenderBackend).ConfigureAwait(false);
                 if (!backend.Accepted) return BackendOperationResult<PreviewSessionResponse>.Rejected(backend.Error!);
-                BackendPreviewInputCaptureResult captured = await CaptureAsync(client, request.Source, backend.Response!).ConfigureAwait(false);
+                BackendPreviewInputCaptureResult captured = await CaptureAsync(client, request.Source, backend.Response!,
+                    existing.Status.Session.AlphaMode == PreviewAlphaMode.Straight).ConfigureAwait(false);
                 if (captured.Error is not null) return BackendOperationResult<PreviewSessionResponse>.Rejected(captured.Error);
                 BackendPreviewSessionResult result;
                 try
@@ -309,7 +312,8 @@ internal sealed partial class PreviewBackendService : IAsyncDisposable
         finally { _membership.Release(); }
     }
 
-    private async Task<BackendPreviewInputCaptureResult> CaptureAsync(string client, PreviewSourceDto? source, string renderBackend)
+    private async Task<BackendPreviewInputCaptureResult> CaptureAsync(string client, PreviewSourceDto? source, string renderBackend,
+        bool transparentOutput = false)
     {
         if (source is null || source.Kind is not ("project" or "authorDraft") || string.IsNullOrWhiteSpace(source.SourceId)
             || string.IsNullOrWhiteSpace(source.SourceRevision))
@@ -357,7 +361,7 @@ internal sealed partial class PreviewBackendService : IAsyncDisposable
                     CaptureResourceFactory(client, audioAssetId, out reservation, renderBackend), captureImageSource: false, captureRuntimeSource: true).ConfigureAwait(false);
             if (captured.Error is not null) return captured;
             IDisposable? ownedReservation = reservation; reservation = null;
-            return await CompleteCaptureAsync(captured, ownedReservation).ConfigureAwait(false);
+            return await CompleteCaptureAsync(captured, ownedReservation, transparentOutput).ConfigureAwait(false);
         }
         catch (SnapshotContractException error)
         { return new(null, error.Code == "WorkerImagePreviewProfileMismatch"
@@ -375,7 +379,7 @@ internal sealed partial class PreviewBackendService : IAsyncDisposable
     }
 
     private async Task<BackendPreviewInputCaptureResult> CompleteCaptureAsync(BackendPreviewInputCaptureResult captured,
-        IDisposable? reservation)
+        IDisposable? reservation, bool transparentOutput = false)
     {
         BackendPreparedProjectRuntimeInput? prepared = null;
         using BackendProjectRuntimeInputLease? runtimeLease = captured.RuntimeInput;
@@ -388,6 +392,8 @@ internal sealed partial class PreviewBackendService : IAsyncDisposable
             if (renderBackend != "gpu" && ScriptBackendRequirement.RequiresVulkan(captured.Input.Snapshot))
                 return new(null, new(BackendErrorCode.CommandNotSupported, "SDK v2 效果要求 GPU 渲染后端。", "renderBackend",
                     FailureCode: "PackageBackendUnsupported"));
+            // 透明预览不读背景：媒体依赖固定为透明无媒体输入，与透明导出一致。
+            runtimeLease.TransparentOutput = transparentOutput;
             var result = await runtimeLease.PrepareAsync().ConfigureAwait(false);
             if (!result.Accepted) return new(null, result.Error);
             prepared = result.Response!;

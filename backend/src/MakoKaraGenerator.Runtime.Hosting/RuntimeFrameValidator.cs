@@ -4,8 +4,14 @@ using MakoKaraGenerator.Scripting;
 
 namespace MakoKaraGenerator.Runtime.Hosting;
 
+/// <summary>
+/// 透明半程使用的独立快照与会话工厂：固定媒体输入的输出模式属于输入本身，透明输出须用自己的无媒体输入。
+/// 快照只允许媒体输入不同，画布、帧率与时长须与普通输出一致。
+/// </summary>
+public sealed record RuntimeTransparentOutput(ProjectSnapshot Snapshot, IRenderFrameSessionFactory Sessions);
+
 /// <summary>固定试样的完整双输出正式渲染；调用者必须等待取消和资源释放完成。</summary>
-public sealed class RuntimeFrameValidator(IRenderFrameSessionFactory sessions)
+public sealed class RuntimeFrameValidator(IRenderFrameSessionFactory sessions, RuntimeTransparentOutput? transparentOutput = null)
 {
     /// <summary>严格执行固定快照及帧计划，保留完整结构化诊断并等待会话释放。</summary>
     public Task<RuntimeValidationResult> ValidateAsync(ProjectSnapshot snapshot, RuntimeValidationPlan plan,
@@ -18,6 +24,8 @@ public sealed class RuntimeFrameValidator(IRenderFrameSessionFactory sessions)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         ArgumentNullException.ThrowIfNull(plan);
+        if (transparentOutput is not null && transparentOutput.Snapshot.Composition != snapshot.Composition)
+            throw new ArgumentException("透明半程快照的画布与帧计划必须与普通输出一致。", nameof(snapshot));
         int framesPerOutput = plan.FramesPerOutput;
         int totalFrames = plan.TotalFrames;
         int opaque = 0, transparent = 0;
@@ -36,7 +44,9 @@ public sealed class RuntimeFrameValidator(IRenderFrameSessionFactory sessions)
                 time = 0;
                 cancellationToken.ThrowIfCancellationRequested();
                 // 两个独立会话，不用普通输出的求值状态冒充透明输出。
-                await using var lifetime = new ValidationSessionScope(await sessions.CreateAsync(snapshot, cancellationToken).ConfigureAwait(false));
+                var (outputSnapshot, outputSessions) = output && transparentOutput is not null
+                    ? (transparentOutput.Snapshot, transparentOutput.Sessions) : (snapshot, sessions);
+                await using var lifetime = new ValidationSessionScope(await outputSessions.CreateAsync(outputSnapshot, cancellationToken).ConfigureAwait(false));
                 var session = lifetime.Session;
                 cursor = new();
                 try
@@ -47,7 +57,7 @@ public sealed class RuntimeFrameValidator(IRenderFrameSessionFactory sessions)
                     time = (long)index * 1_000_000 * snapshot.Composition.FrameRate.Denominator
                         / snapshot.Composition.FrameRate.Numerator;
                     cancellationToken.ThrowIfCancellationRequested();
-                    using RenderFrame frame = await session.RenderAsync(RenderRequest.At(snapshot, time) with
+                    using RenderFrame frame = await session.RenderAsync(RenderRequest.At(outputSnapshot, time) with
                     { TransparentBackground = output, Quality = RenderQuality.Final }, cancellationToken).ConfigureAwait(false);
                     // 真实像素所有权和尺寸也须有效，不接受其他试样或已释放的帧。
                     if (frame.Width != snapshot.Composition.CanvasWidth || frame.Height != snapshot.Composition.CanvasHeight || frame.TimeUs != time

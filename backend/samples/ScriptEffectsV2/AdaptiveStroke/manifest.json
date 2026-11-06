@@ -9,12 +9,12 @@
     {
       "path": "src/AdaptiveStroke.cs",
       "role": "csharp",
-      "sha256": "7cf4153a834f9251c87368594f8a514c4a399d0a95acb25a3d09ea0ef8ff9ad0"
+      "sha256": "be613ebc01869e760467084f13acb368025ceb07a3a036e2d5870bfade9fc04f"
     },
     {
       "path": "README.md",
       "role": "asset",
-      "sha256": "4d82c8b4f083bdd9fe328b2db28a8b92a0b7efaf9904e84b1b1cd3874991e0f1"
+      "sha256": "abef933529ca23fe2806562a3a126c85173791db42967c43e02d9aa9bcc5ca92"
     }
   ],
   "parameters": [

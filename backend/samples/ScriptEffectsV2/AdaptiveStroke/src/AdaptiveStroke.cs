@@ -19,6 +19,8 @@ public sealed class AdaptiveStroke : IPureKaraokeEffect
         var settings = (StrokeData)data;
         foreach (var token in frame.Geometry)
         {
+            // 与邻字共享字簇（如连字）时不能单独改外观，保持工程描边。
+            if (!token.BaseGeometry.CanTransformIndependently) continue;
             if (Area(token.BaseGeometry, settings.Canvas) is not { } area) continue;
             var sample = frame.Media.Sample(settings.Behind, area, frame.TimeUs);
             // Pending／Unavailable／NoMedia 不写入：沿用工程样式里的描边。

@@ -58,7 +58,7 @@ public sealed record PreviewInspectionRubyDto(string RubyId, double[]? Ink);
 /// <summary>行装载的最终 Advance 外框。</summary>
 public sealed record PreviewInspectionLineDto(string LineId, string BindingId, double[]? Bounds);
 
-/// <summary>演唱光标：当前位置、进度路径起止和进度来源（token、rubySegment 或 line）。</summary>
+/// <summary>演唱光标：当前位置、进度路径起止和进度来源（fromToken、fromRubySegment、fromLine 或 unavailable）。</summary>
 public sealed record PreviewInspectionCursorDto(
     string LineId,
     string BindingId,

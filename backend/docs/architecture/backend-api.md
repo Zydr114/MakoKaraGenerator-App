@@ -75,7 +75,7 @@ HTTP断开不撤销已接受操作。202只表示任务／帧请求已接受，�
 | 400 | invalidRequest、resourceEmpty、resourcePathNotAllowed、pathNotAllowed、diagnosticLimitExceeded等未另映射错误 |
 | 401 | unauthorizedClient、clientTokenExpired、resourceUnauthorized |
 | 403 | readOnlySession；Host／Origin、预检Origin或其他client身份门禁可显式返回unauthorizedClient／403 |
-| 404 | resourceNotFound、sessionNotFound、jobNotFound、previewSessionNotFound、previewFrameNotFound、exportArtifactNotFound；不存在歌词来源可为commandRejected／404 |
+| 404 | resourceNotFound、sessionNotFound、jobNotFound、previewSessionNotFound、previewFrameNotFound、previewInspectionUnavailable、exportArtifactNotFound；不存在歌词来源可为commandRejected／404 |
 | 409 | hostRestarted、sessionConflict、revisionConflict、requestExpired、requestIdReuse、writeLeaseConflict、sessionClosing、dirtySession、activeJobs、operationNotCancellable、previewGenerationConflict、previewRequestOutOfOrder、diagnosticCursorExpired |
 | 410 | resourceExpired、previewFrameExpired、exportArtifactExpired |
 | 413／415 | resourceTooLarge／unsupportedMediaType |
@@ -151,6 +151,7 @@ HTTP断开不撤销已接受操作。202只表示任务／帧请求已接受，�
 | GET | `/api/v1/preview-sessions/{id}` | C | 200，§9 |
 | POST | `/api/v1/preview-sessions/{id}/close` | C | 200，§9 |
 | GET／HEAD | `/api/v1/preview-frames/{id}/content` | C | 200／206／304，§9 |
+| GET | `/api/v1/preview-frames/{id}/inspection` | C | 200，§29 |
 | GET | `/api/v1/preview-sessions/{id}/diagnostics` | C | 200，§9 |
 
 上表保留早期56个路由模板（51个v1＋5个兼容别名）、62个显式方法；当前合同1.40.0的完整范围为108路径／120方法，以[生成清单](../../web/api-index.md)为准，阶段变更见[目标目录](../backend-api-target-catalog.md)。GET／HEAD分别计方法，全局OPTIONS不计。
@@ -1982,3 +1983,45 @@ fallback。作者在纯函数中用 `frame.Media.Sample(query, rect, timeUs)` �
 **限制。** 作者草稿预览与候选试看没有宿主分析，纯色背景可得结果，文件背景为 NoMedia，也不区分
 透明输出；分析失败在本次Server运行内不重试。没有新增路由或DTO字段，路径、方法、schema与
 例子计数沿用1.46.1。
+
+<a id="preview-frame-inspection"></a>
+## 29. 预览帧检查投影与单帧成本（0.112.38／合同1.48.0）
+
+**开启。** `POST /api/v1/preview-sessions/{id}/frame-requests` 正文可带可选 `inspect`（boolean，可为null）。
+省略、null 或 false 时与以前完全相同，不采集；true 时这一帧额外生成只读检查投影。所有静态预览会话
+（工程、编辑候选、预设候选、模板试样、作者草稿）都接受该字段；GPU 共享纹理流、正式验证和导出不支持。
+`inspect` 属于回执正文，同一 requestId 改变 inspect 视为重用冲突。
+
+**生成。** Worker 在同一次准备与渲染后，从同一个准备帧生成投影，与 PNG 同输入、代次、时刻和来源修订；
+不另跑一次准备，Host 也不重新整形。投影不改变像素、导出、缓存指纹或工程内容，打开与关闭检查得到的 PNG
+字节相同。生成失败只会没有投影，帧照常发布。
+
+**读取。** 成功时帧元数据多一个 `inspectionUrl`（`/api/v1/preview-frames/{frameId}/inspection`），SSE 帧事件和
+GET 状态都带它。`GET` 该地址返回 `PreviewFrameInspectionResponse`：帧身份（frameId、previewId、
+previewGeneration、sourceRevision、timeUs、width、height、renderBackend）、`inspection` 与 `host`。
+投影与 PNG 放在同一保留条目，到期、淘汰、换代和关闭都同时失效。错误：未开启或没有生成
+404 `previewInspectionUnavailable`；帧不存在或已淘汰 404 `previewFrameNotFound`；到期 410
+`previewFrameExpired`；非 owner 401 `resourceUnauthorized`。
+
+**内容。** 坐标是工程画布坐标（`inspection.canvas`），客户端按图片实际显示尺寸缩放（可以非等比）。
+多边形是 x0,y0,x1,y1,… 的扁平数组；Warp 后可多于 4 点，超过 16 点时退为外接四边形，不可得时省略。
+
+- `tokens[]`：基础字的最终墨迹、能否独立变形与原因码；`clusters[]` 为真实整形单元（`ownerTokenIds`
+  多于一个即跨元素，`independent=false`）；`ruby[]` 为该字注音的墨迹。
+- `lines[]`：行的最终 Advance 外框。`cursors[]`：演唱光标当前位置、进度、进度来源和该行进度路径的起止点。
+- `particles[]`：每个实例本帧出生数、存活数、拖尾采样数与出生锚点。
+- `effects[]`：实例的包身份、导出、SDK 主版本、绑定种类、绑定源行和 `scriptId`。
+- `cost`：Worker 内各阶段耗时、脚本调用数与按实例和阶段拆开的脚本耗时（最多16项，其余计入
+  `scriptOverflow`）、锚点补算与 memo 命中、读回字节、全进程分配增量、GC 次数、会话打开耗时。
+  各阶段是 Host 墙钟包含时间，可能重叠，不能相加，也不是 GPU 硬件时间；热路径 Evaluate 不单独计时。
+- `host`：Host 侧渲染往返（不含会话打开）、PNG 编码耗时与 PNG 字节数。
+
+**预算。** 投影的 Web UTF-8 JSON 最多 262144 字节。默认上限：tokens 1000、每字 clusters 16、ruby 8、
+lines 256、cursors 64、每实例出生点 256、effects 64、每效果源行 64。超出字节预算时按比例收紧上限重建，
+仍超出时只保留成本与计数。省略数量记在 `truncated` 和各条目的 `omitted*` 字段，不会无声地只画一半。
+
+**Worker 接缝。** Host 到 Worker 的二进制帧请求第 7 字节（原保留位）为检查位，只允许 0 或 1；
+未请求检查的帧回执携带投影会被拒绝。Host 与 Worker 总是同一发布，不存在混合版本。
+
+**计数。** 新增 1 个路径和 1 个方法，15 个 schema；合同为 114 路径／127 方法／613 schemas，
+3561 个合成例（2646 反例）。

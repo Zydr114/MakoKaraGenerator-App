@@ -12,6 +12,7 @@ from p4_author_schema import extend as extend_p4_author, configure as configure_
 from render_backend_schema import extend as extend_render_backends, configure as configure_render_backends
 from w8_authoring_schema import extend as extend_w8_authoring, configure as configure_w8_authoring
 from author_metadata_schema import extend as extend_author_metadata, configure as configure_author_metadata
+from preview_inspection_schema import extend as extend_preview_inspection, configure as configure_preview_inspection
 from p1p2_runtime_schema import extend as extend_p1p2_runtime, configure as configure_p1p2_runtime, VIDEO_MIMES
 from package_preview_schema import extend_package_preview_schemas, LIMITS as PACKAGE_PREVIEW_LIMITS
 from project_image_preview_schema import extend_project_image_preview_schemas, configure_project_image_preview_operation
@@ -27,8 +28,8 @@ from static_style_schema import extend_static_style_schemas, style_query_paramet
 from template_library_schema import extend_template_library_schemas, query_parameters as template_query_parameters, LIMITS as TEMPLATE_LIMITS
 
 ROOT = Path(__file__).resolve().parents[2]
-CONTRACT = "1.47.0"
-BASELINE = "e36ca6210d6a523f2837fc70a046a7b827e7836f"
+CONTRACT = "1.48.0"
+BASELINE = "ce57e1a259ba09ee68c1d00074c26d3ffb11aafe"
 PRODUCT = re.search(r"<VersionPrefix>([^<]+)</VersionPrefix>", (ROOT / "Directory.Build.props").read_text()).group(1)
 FREEZE_DATE = "2026-11-07"
 BEHAVIOR = "docs/architecture/backend-api.md"
@@ -110,6 +111,7 @@ POST|/api/v1/preview-sessions/{id}/frame-requests|requestPreviewFrame|PreviewFra
 GET|/api/v1/preview-sessions/{id}|previewState|-|PreviewSessionStateResponse|200|9|读取预览权威状态与最新帧身份
 POST|/api/v1/preview-sessions/{id}/close|closePreview|ClosePreviewSessionRequest|PreviewSessionStateResponse|200|9|关闭预览并等待排水
 GET,HEAD|/api/v1/preview-frames/{id}/content|previewFrameContent|-|png|200|9|读取短租约PNG
+GET|/api/v1/preview-frames/{id}/inspection|previewFrameInspection|-|PreviewFrameInspectionResponse|200|9|读取与帧同寿命的检查投影
 GET|/api/v1/preview-sessions/{id}/diagnostics|previewDiagnostics|-|PreviewDiagnosticsPageDto|200|9|读取当前预览诊断页
 GET|/api/v1/validation-capabilities|validationCapabilities|-|ValidationTaskCapabilitiesDto|200|10|读取正式验证能力
 POST|/api/v1/project-sessions/{id}/validation-jobs|validateProject|ValidationJobRequest|JobResponse|202|10|接受固定输入正式验证
@@ -429,6 +431,7 @@ def generate(metadata):
         configure_render_backends(op, item)
         configure_w8_authoring(op, item)
         configure_author_metadata(op, item)
+        configure_preview_inspection(op, item)
         if request == "upload":
             for h in ("X-Mako-Request-Id", "X-Mako-Host-Instance-Id", "X-Mako-Valid-Until-Utc"):
                 op["parameters"] = [p for p in op["parameters"] if not (h == "X-Mako-Host-Instance-Id" and p.get("$ref", "").endswith("/HostInstance"))]
@@ -978,6 +981,7 @@ def generate(metadata):
     extend_render_backends(schemas, metadata)
     extend_w8_authoring(schemas, metadata)
     extend_author_metadata(schemas, metadata)
+    extend_preview_inspection(schemas, metadata)
 
     # GPU streams use a smaller device pool than ordinary PNG previews.
     schemas["GpuPreviewSizeInput"] = copy.deepcopy(schemas["PreviewSizeDtoInput"])
@@ -1712,10 +1716,30 @@ def manifest(outputs):
         if not source.is_file():
             raise ValueError("Missing reviewed media feature behavior source: " + filename)
         files.add(source)
+    # 1.48.0 per-frame inspection: projection builder, single-frame capture,
+    # Worker flag/result, Host retention and the read endpoint.
+    for filename in (
+            "src/MakoKaraGenerator.Rendering.Abstractions/RenderFrameInspection.cs",
+            "src/MakoKaraGenerator.Rendering.Abstractions/PerformanceTelemetry.cs",
+            "src/MakoKaraGenerator.Runtime.Hosting/ProjectRenderSession.cs",
+            "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.Inspection.cs",
+            "src/MakoKaraGenerator.Backend.Contracts/BackendPreviewInspectionContracts.cs",
+            "src/MakoKaraGenerator.Backend.Contracts/StaticRenderWorkerContract.cs",
+            "src/MakoKaraGenerator.Backend.Rendering/FrameInspectionMapper.cs",
+            "src/MakoKaraGenerator.Backend.Worker/StaticRenderSession.cs",
+            "src/MakoKaraGenerator.Backend.Worker/PackageRenderSession.cs",
+            "src/MakoKaraGenerator.Backend.Hosting/PreviewFrameHandleStore.cs",
+            "src/MakoKaraGenerator.Backend.Hosting/BackendPreviewSessionRegistry.cs",
+            "src/MakoKaraGenerator.Backend.Server/ServerEndpoints.Streaming.cs",
+    ):
+        source = ROOT / filename
+        if not source.is_file():
+            raise ValueError("Missing reviewed preview inspection behavior source: " + filename)
+        files.add(source)
     files.update(p for p in TOOL.iterdir() if p.is_file())
     return {"contractVersion": CONTRACT, "httpProtocolVersion": "1", "productVersion": PRODUCT, "sourceBaselineCommit": BASELINE,
             "frozenOn": FREEZE_DATE, "status": "frozen", "behaviorSource": BEHAVIOR,
-            "scope": "Implemented public HTTP API with owner-only exact retained-source inspection and optional complete configuration adoption. The Host media feature track publishes project.mediaFeaturesChanged without changing revision, fixes media input per run (preview waits for checks, validation/export for complete artifacts) and pins transparent output to NoMedia. The inspection response is independent and reference-free; public package reference kinds remain asset/library/configuration. Adoption validates the exact successful source and complete target configuration before one document publication. SDK2 graph bindings, per-target material uniforms/base materials, exact source-group admission and scene composition/capture/budgets are fingerprinted together with Warp/SVG, particles, GPU and existing preview/export lifecycles; their finite boundaries remain. Generated contract, regression, matched deployment, fresh HTTP/GPU frames, browser and performance acceptance require separate evidence.",
+            "scope": "Implemented public HTTP API with owner-only exact retained-source inspection and optional complete configuration adoption. The Host media feature track publishes project.mediaFeaturesChanged without changing revision, fixes media input per run (preview waits for checks, validation/export for complete artifacts) and pins transparent output to NoMedia. Preview frames may opt in to a read-only inspection projection (geometry, cursors, particle anchors, effect catalog and single-frame cost) built from the same prepared frame, retained with the frame and read separately; PNG and export are unchanged. The inspection response is independent and reference-free; public package reference kinds remain asset/library/configuration. Adoption validates the exact successful source and complete target configuration before one document publication. SDK2 graph bindings, per-target material uniforms/base materials, exact source-group admission and scene composition/capture/budgets are fingerprinted together with Warp/SVG, particles, GPU and existing preview/export lifecycles; their finite boundaries remain. Generated contract, regression, matched deployment, fresh HTTP/GPU frames, browser and performance acceptance require separate evidence.",
             "files": {str(p.relative_to(ROOT)): sha(p.read_bytes()) for p in sorted(files)},
             "artifacts": {name: sha(data) for name, data in sorted(outputs.items())},
             "guards": "Source hashes require review even for behavior-preserving changes. They are drift alarms, not semantic proofs. Runtime/Media behavior still requires existing regression tests."}
@@ -1740,14 +1764,16 @@ def main():
     from w8_authoring_fixtures import append_to as append_w8, PREFIX as W8_PREFIX
     from gpu_stream_fixtures import append_to as append_gpu_stream
     from author_metadata_fixtures import append_to as append_author_metadata, PREFIX as AUTHOR_METADATA_PREFIX
+    from preview_inspection_fixtures import append_to as append_preview_inspection, PREFIX as PREVIEW_INSPECTION_PREFIX
     from glow_style_fixtures import fixtures as glow_fixtures, migrate_legacy_cases as migrate_glow
     existing_examples = json.loads((ROOT / "web/examples.json").read_text())
-    existing_examples["cases"] = [case for case in existing_examples["cases"] if not case["name"].startswith(AUTHOR_METADATA_PREFIX)]
+    existing_examples["cases"] = [case for case in existing_examples["cases"]
+        if not case["name"].startswith((AUTHOR_METADATA_PREFIX, PREVIEW_INSPECTION_PREFIX))]
     existing_examples["cases"] = migrate_glow([case for case in existing_examples["cases"] if not case["name"].startswith("glow-")], upgrade=False)
     existing_examples["cases"] = [case for case in existing_examples["cases"] if not case["name"].startswith(W8_PREFIX)]
     example_document = append_gpu_stream(append_w8(append_to(existing_examples)))
     example_document["cases"] = migrate_glow(example_document["cases"]) + glow_fixtures()
-    example_document = append_author_metadata(example_document)
+    example_document = append_preview_inspection(append_author_metadata(example_document))
     example_document["contractVersion"] = CONTRACT
     examples = encoded(example_document)
     outputs = {"web/openapi.json": encoded(spec), "web/api-index.md": inventory(spec, operations), "web/api-contract.md": (ROOT / "web/api-contract.md").read_bytes(), "web/examples.json": examples}

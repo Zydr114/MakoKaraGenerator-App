@@ -3,8 +3,8 @@
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "info": {
     "title": "MakoKaraGenerator local backend HTTP API",
-    "version": "1.47.0",
-    "description": "冻结合同1.47.0；HTTP协议1，产品0.112.37。只含当前公共HTTP，不含未来功能及私有Worker。与api-contract.md和其固定行为源共同执行。info.version是合同版本，不是产品/HTTP版本。普通响应可忽略未知字段；请求遵守声明字段及业务门禁。"
+    "version": "1.48.0",
+    "description": "冻结合同1.48.0；HTTP协议1，产品0.112.38。只含当前公共HTTP，不含未来功能及私有Worker。与api-contract.md和其固定行为源共同执行。info.version是合同版本，不是产品/HTTP版本。普通响应可忽略未知字段；请求遵守声明字段及业务门禁。"
   },
   "servers": [
     {
@@ -18,9 +18,9 @@
       }
     }
   ],
-  "x-product-version": "0.112.37",
+  "x-product-version": "0.112.38",
   "x-http-protocol-version": "1",
-  "x-source-baseline": "e36ca6210d6a523f2837fc70a046a7b827e7836f",
+  "x-source-baseline": "ce57e1a259ba09ee68c1d00074c26d3ffb11aafe",
   "x-behavior-contract": "api-contract.md",
   "x-options": {
     "status": 204,
@@ -4620,6 +4620,71 @@
               }
             }
           }
+        },
+        "x-receipt-location": "none"
+      }
+    },
+    "/api/v1/preview-frames/{id}/inspection": {
+      "get": {
+        "operationId": "previewFrameInspection",
+        "summary": "读取与帧同寿命的检查投影",
+        "tags": [
+          "section-9"
+        ],
+        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §9。 只在帧请求带inspect=true且投影生成成功时可读，帧元数据给出inspectionUrl；与帧PNG同一保留条目和到期时间。未开启或未生成返回404 previewInspectionUnavailable，帧不存在404 previewFrameNotFound，帧到期410 previewFrameExpired，非owner 401 resourceUnauthorized。投影不改变PNG、导出或缓存。",
+        "x-behavior-section": "9",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "采用服务返回的实际身份；不可由数组下标或本机路径推导。"
+          },
+          {
+            "$ref": "#/components/parameters/HostInstance"
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "统一BackendErrorResponse。HTTP状态/code映射及端点主要拒绝见行为§1.4与对应章节；不是RFC Problem Details。已开始的SSE/字节流若中断不保证还能返回JSON。",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackendErrorResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "成功；任务state及失败报告仍须检查。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewFrameInspectionResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-capability": "preview-frames.inspection",
+        "x-preview-inspection-limits": {
+          "maxProjectionBytes": 262144,
+          "encoding": "web-json-utf8",
+          "tokens": 1000,
+          "clustersPerToken": 16,
+          "rubyPerToken": 8,
+          "lines": 256,
+          "cursors": 64,
+          "birthPointsPerInstance": 256,
+          "effects": 64,
+          "lineIdsPerEffect": 64,
+          "polygonPoints": 16,
+          "scripts": 16,
+          "retainedWithFrame": true
         },
         "x-receipt-location": "none"
       }
@@ -14246,7 +14311,8 @@
           "exportInputRejected",
           "exportAudioUnsupported",
           "exportArtifactNotFound",
-          "exportArtifactExpired"
+          "exportArtifactExpired",
+          "previewInspectionUnavailable"
         ]
       },
       "BackendErrorResponse": {
@@ -23495,6 +23561,16 @@
           },
           "metadata": {
             "$ref": "#/components/schemas/RequestMetadataDtoInput"
+          },
+          "inspect": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -23507,6 +23583,75 @@
         ],
         "additionalProperties": false,
         "x-clr-type": "MakoKaraGenerator.Backend.Contracts.PreviewFrameCommandRequest"
+      },
+      "PreviewFrameInspectionResponse": {
+        "type": "object",
+        "properties": {
+          "frameId": {
+            "type": "string"
+          },
+          "previewId": {
+            "type": "string"
+          },
+          "previewGeneration": {
+            "type": "string",
+            "pattern": "^[0-9]+$",
+            "x-int64-string": true,
+            "description": "十进制Int64字符串；范围与领域关系由服务校验。前端保留字符串/BigInt。"
+          },
+          "sourceRevision": {
+            "type": "string"
+          },
+          "timeUs": {
+            "type": "string",
+            "pattern": "^[0-9]+$",
+            "x-int64-string": true
+          },
+          "width": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          },
+          "height": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          },
+          "renderBackend": {
+            "type": "string",
+            "enum": [
+              "cpu",
+              "gpu"
+            ]
+          },
+          "inspection": {
+            "$ref": "#/components/schemas/PreviewInspectionDto"
+          },
+          "host": {
+            "$ref": "#/components/schemas/PreviewInspectionHostCostDto"
+          },
+          "protocolVersion": {
+            "type": "string",
+            "const": "1"
+          }
+        },
+        "required": [
+          "frameId",
+          "previewId",
+          "previewGeneration",
+          "sourceRevision",
+          "timeUs",
+          "width",
+          "height",
+          "renderBackend",
+          "inspection",
+          "host",
+          "protocolVersion"
+        ],
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.PreviewFrameInspectionResponse",
+        "description": "与帧同寿命的只读检查投影：frameId/previewGeneration/sourceRevision/timeUs与帧元数据一致，几何与像素来自同一次准备。坐标为工程画布坐标（inspection.canvas），客户端按显示尺寸缩放。只含身份、数值与代码，不含作者对象、源码或本机路径。inspection的完整Web UTF-8 JSON最多262144字节，超出时按比例收紧条目上限，省略数记在truncated与各条目的omitted*字段。"
       },
       "PreviewFrameMetadataDto": {
         "type": "object",
@@ -23571,6 +23716,9 @@
               "cpu",
               "gpu"
             ]
+          },
+          "inspectionUrl": {
+            "type": "string"
           }
         },
         "required": [
@@ -23587,6 +23735,677 @@
           "renderBackend"
         ],
         "x-clr-type": "MakoKaraGenerator.Backend.Contracts.PreviewFrameMetadataDto"
+      },
+      "PreviewInspectionAnchorsDto": {
+        "type": "object",
+        "properties": {
+          "uniqueTimes": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          },
+          "textCalls": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          },
+          "futureEndpoints": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          },
+          "memoHits": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          },
+          "memoMisses": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          }
+        },
+        "required": [
+          "uniqueTimes",
+          "textCalls",
+          "futureEndpoints",
+          "memoHits",
+          "memoMisses"
+        ],
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.PreviewInspectionAnchorsDto"
+      },
+      "PreviewInspectionCanvasDto": {
+        "type": "object",
+        "properties": {
+          "width": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          },
+          "height": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          }
+        },
+        "required": [
+          "width",
+          "height"
+        ],
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.PreviewInspectionCanvasDto"
+      },
+      "PreviewInspectionClusterDto": {
+        "type": "object",
+        "properties": {
+          "unitIndex": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          },
+          "ownerTokenIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "independent": {
+            "type": "boolean"
+          },
+          "diagnosticCode": {
+            "type": "string"
+          },
+          "ink": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "maxItems": 32,
+            "description": "工程画布坐标的闭合多边形 x0,y0,x1,y1,…；Warp 后可多于 4 点，超过 16 点时退为外接四边形。不可得时省略。"
+          }
+        },
+        "required": [
+          "unitIndex",
+          "ownerTokenIds",
+          "independent"
+        ],
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.PreviewInspectionClusterDto"
+      },
+      "PreviewInspectionCostDto": {
+        "type": "object",
+        "properties": {
+          "wallMs": {
+            "type": "number",
+            "format": "double"
+          },
+          "prepareMs": {
+            "type": "number",
+            "format": "double"
+          },
+          "scriptMs": {
+            "type": "number",
+            "format": "double"
+          },
+          "graphMs": {
+            "type": "number",
+            "format": "double"
+          },
+          "materialMs": {
+            "type": "number",
+            "format": "double"
+          },
+          "particleMs": {
+            "type": "number",
+            "format": "double"
+          },
+          "rasterMs": {
+            "type": "number",
+            "format": "double"
+          },
+          "validationMs": {
+            "type": "number",
+            "format": "double"
+          },
+          "readbackMs": {
+            "type": "number",
+            "format": "double"
+          },
+          "scriptCalls": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": -9223372036854775808,
+            "maximum": 9223372036854775807
+          },
+          "readbackBytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": -9223372036854775808,
+            "maximum": 9223372036854775807
+          },
+          "allocatedBytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": -9223372036854775808,
+            "maximum": 9223372036854775807
+          },
+          "gc0": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          },
+          "gc1": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          },
+          "gc2": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          },
+          "scripts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PreviewInspectionScriptDto"
+            },
+            "maxItems": 16
+          },
+          "scriptOverflow": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": -9223372036854775808,
+            "maximum": 9223372036854775807
+          },
+          "anchors": {
+            "$ref": "#/components/schemas/PreviewInspectionAnchorsDto"
+          },
+          "sessionOpenMs": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "required": [
+          "wallMs",
+          "prepareMs",
+          "scriptMs",
+          "graphMs",
+          "materialMs",
+          "particleMs",
+          "rasterMs",
+          "validationMs",
+          "readbackMs",
+          "scriptCalls",
+          "readbackBytes",
+          "allocatedBytes",
+          "gc0",
+          "gc1",
+          "gc2",
+          "scripts",
+          "scriptOverflow",
+          "anchors"
+        ],
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.PreviewInspectionCostDto",
+        "description": "Worker内本帧各阶段Host墙钟包含时间（毫秒），彼此可能重叠，不能相加当作总耗时，也不是GPU硬件时间。allocatedBytes是全进程增量。脚本只计Declare/Advance/OnEvent等阶段，热路径Evaluate不单独计时。sessionOpenMs为固定会话打开耗时。"
+      },
+      "PreviewInspectionCursorDto": {
+        "type": "object",
+        "properties": {
+          "lineId": {
+            "type": "string"
+          },
+          "bindingId": {
+            "type": "string"
+          },
+          "tokenId": {
+            "type": "string"
+          },
+          "progress": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "progressSource": {
+            "type": "string",
+            "enum": [
+              "unavailable",
+              "fromLine",
+              "fromToken",
+              "fromRubySegment"
+            ]
+          },
+          "point": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "start": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "end": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 2,
+            "maxItems": 2
+          }
+        },
+        "required": [
+          "lineId",
+          "bindingId",
+          "progress",
+          "progressSource",
+          "point",
+          "start",
+          "end"
+        ],
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.PreviewInspectionCursorDto"
+      },
+      "PreviewInspectionDto": {
+        "type": "object",
+        "properties": {
+          "canvas": {
+            "$ref": "#/components/schemas/PreviewInspectionCanvasDto"
+          },
+          "prepared": {
+            "type": "boolean"
+          },
+          "tokens": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PreviewInspectionTokenDto"
+            }
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PreviewInspectionLineDto"
+            }
+          },
+          "cursors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PreviewInspectionCursorDto"
+            }
+          },
+          "particles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PreviewInspectionParticlesDto"
+            }
+          },
+          "effects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PreviewInspectionEffectDto"
+            }
+          },
+          "cost": {
+            "$ref": "#/components/schemas/PreviewInspectionCostDto"
+          },
+          "truncated": {
+            "$ref": "#/components/schemas/PreviewInspectionTruncationDto"
+          }
+        },
+        "required": [
+          "canvas",
+          "prepared",
+          "tokens",
+          "lines",
+          "cursors",
+          "particles",
+          "effects",
+          "cost",
+          "truncated"
+        ],
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.PreviewInspectionDto",
+        "description": "prepared=false表示本帧没有效果准备结果（无效果或仅静态），此时tokens/lines/cursors/particles为空。"
+      },
+      "PreviewInspectionEffectDto": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string"
+          },
+          "packageId": {
+            "type": "string"
+          },
+          "packageRevision": {
+            "type": "string"
+          },
+          "exportId": {
+            "type": "string"
+          },
+          "sdkMajor": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": -2147483648,
+            "maximum": 2147483647,
+            "enum": [
+              1,
+              2
+            ]
+          },
+          "bindingKind": {
+            "type": "string",
+            "enum": [
+              "project",
+              "branch",
+              "lines",
+              "tokens",
+              "clips",
+              "node",
+              "unknown"
+            ]
+          },
+          "lineIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "scriptId": {
+            "type": "string",
+            "pattern": "^[0-9A-F]{16}$",
+            "description": "对应cost.scripts[].scriptId；未计时的实例省略。"
+          },
+          "omittedLines": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          }
+        },
+        "required": [
+          "instanceId",
+          "sdkMajor",
+          "bindingKind",
+          "lineIds",
+          "omittedLines"
+        ],
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.PreviewInspectionEffectDto"
+      },
+      "PreviewInspectionHostCostDto": {
+        "type": "object",
+        "properties": {
+          "renderRoundTripMs": {
+            "type": "number",
+            "format": "double"
+          },
+          "encodeMs": {
+            "type": "number",
+            "format": "double"
+          },
+          "pngBytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": -9223372036854775808,
+            "maximum": 9223372036854775807
+          }
+        },
+        "required": [
+          "renderRoundTripMs",
+          "encodeMs",
+          "pngBytes"
+        ],
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.PreviewInspectionHostCostDto",
+        "description": "Host侧：从提交渲染到收到帧的往返耗时（不含会话打开）、PNG编码耗时与PNG字节数。"
+      },
+      "PreviewInspectionLineDto": {
+        "type": "object",
+        "properties": {
+          "lineId": {
+            "type": "string"
+          },
+          "bindingId": {
+            "type": "string"
+          },
+          "bounds": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "maxItems": 32,
+            "description": "工程画布坐标的闭合多边形 x0,y0,x1,y1,…；Warp 后可多于 4 点，超过 16 点时退为外接四边形。不可得时省略。"
+          }
+        },
+        "required": [
+          "lineId",
+          "bindingId"
+        ],
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.PreviewInspectionLineDto"
+      },
+      "PreviewInspectionParticlesDto": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string"
+          },
+          "births": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          },
+          "alive": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          },
+          "trailSamples": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          },
+          "birthPoints": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "format": "double"
+            },
+            "maxItems": 512,
+            "description": "出生锚点 x0,y0,x1,y1,…（工程画布坐标），每个实例最多 256 点。"
+          },
+          "omittedBirthPoints": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          }
+        },
+        "required": [
+          "instanceId",
+          "births",
+          "alive",
+          "trailSamples",
+          "birthPoints",
+          "omittedBirthPoints"
+        ],
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.PreviewInspectionParticlesDto"
+      },
+      "PreviewInspectionRubyDto": {
+        "type": "object",
+        "properties": {
+          "rubyId": {
+            "type": "string"
+          },
+          "ink": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "maxItems": 32,
+            "description": "工程画布坐标的闭合多边形 x0,y0,x1,y1,…；Warp 后可多于 4 点，超过 16 点时退为外接四边形。不可得时省略。"
+          }
+        },
+        "required": [
+          "rubyId"
+        ],
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.PreviewInspectionRubyDto"
+      },
+      "PreviewInspectionScriptDto": {
+        "type": "object",
+        "properties": {
+          "scriptId": {
+            "type": "string",
+            "pattern": "^[0-9A-F]{16}$"
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "Initialize",
+              "Advance",
+              "Evaluate",
+              "OnEvent",
+              "AdvanceVisuals",
+              "EvaluateVisuals",
+              "EvaluateEmitters",
+              "other"
+            ]
+          },
+          "calls": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": -9223372036854775808,
+            "maximum": 9223372036854775807
+          },
+          "wallMs": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxMs": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "required": [
+          "scriptId",
+          "stage",
+          "calls",
+          "wallMs",
+          "maxMs"
+        ],
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.PreviewInspectionScriptDto"
+      },
+      "PreviewInspectionTokenDto": {
+        "type": "object",
+        "properties": {
+          "tokenId": {
+            "type": "string"
+          },
+          "bindingId": {
+            "type": "string"
+          },
+          "lineId": {
+            "type": "string"
+          },
+          "independent": {
+            "type": "boolean"
+          },
+          "diagnosticCode": {
+            "type": "string"
+          },
+          "ink": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "maxItems": 32,
+            "description": "工程画布坐标的闭合多边形 x0,y0,x1,y1,…；Warp 后可多于 4 点，超过 16 点时退为外接四边形。不可得时省略。"
+          },
+          "clusters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PreviewInspectionClusterDto"
+            }
+          },
+          "ruby": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PreviewInspectionRubyDto"
+            }
+          },
+          "omittedClusters": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          }
+        },
+        "required": [
+          "tokenId",
+          "bindingId",
+          "lineId",
+          "independent",
+          "clusters",
+          "ruby",
+          "omittedClusters"
+        ],
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.PreviewInspectionTokenDto"
+      },
+      "PreviewInspectionTruncationDto": {
+        "type": "object",
+        "properties": {
+          "tokens": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          },
+          "lines": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          },
+          "cursors": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          },
+          "particles": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          },
+          "effects": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          }
+        },
+        "required": [
+          "tokens",
+          "lines",
+          "cursors",
+          "particles",
+          "effects"
+        ],
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.PreviewInspectionTruncationDto"
       },
       "PreviewLeadInGenerationCommandDtoInput": {
         "type": "object",

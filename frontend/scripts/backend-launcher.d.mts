@@ -6,6 +6,7 @@ export const DEFAULT_BOOTSTRAP_FILE: string;
 export const DEFAULT_PROFILE: string;
 export const DEV_ORIGINS: string[];
 export const EXPECTED_PRODUCT_VERSION: string;
+export function compatibleProductVersion(version: string, expected?: string): boolean;
 
 export interface BackendInfo {
   baseUrl: string;

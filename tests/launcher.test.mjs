@@ -66,6 +66,15 @@ try {
     try { assert.throws(() => resolveDist(dist), /产品版本不一致/); }
     finally { await writeFile(join(dist, 'deployment.json'), JSON.stringify({ version: productVersion })); }
   });
+  await test('同次版本的更新补丁放行，次版本不同仍拒绝', async () => {
+    const [major, minor, patch] = productVersion.split('.').map(Number);
+    try {
+      await writeFile(join(dist, 'deployment.json'), JSON.stringify({ version: `${major}.${minor}.${patch + 22}` }));
+      assert.equal(resolveDist(dist).version, `${major}.${minor}.${patch + 22}`);
+      await writeFile(join(dist, 'deployment.json'), JSON.stringify({ version: `${major}.${minor + 1}.0` }));
+      assert.throws(() => resolveDist(dist), /产品版本不一致/);
+    } finally { await writeFile(join(dist, 'deployment.json'), JSON.stringify({ version: productVersion })); }
+  });
 } finally {
   mock.restoreAll();
   await rm(dist, { recursive: true, force: true });

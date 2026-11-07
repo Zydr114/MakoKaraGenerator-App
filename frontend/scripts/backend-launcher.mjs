@@ -24,6 +24,17 @@ export const EXPECTED_PRODUCT_VERSION = JSON.parse(
   readFileSync(new URL('../docs/backend/contract/contract-manifest.json', import.meta.url), 'utf8'),
 ).productVersion;
 
+/**
+ * 部署版本能否运行：与合同产品版本同一 MAJOR.MINOR，且补丁号不低于合同。
+ * 补丁版本只修程序、不改 HTTP 合同，所以更新的补丁可以放行（启动时警告）；更旧或次版本不同的一律拒绝。
+ */
+export function compatibleProductVersion(version, expected = EXPECTED_PRODUCT_VERSION) {
+  const parse = (value) => /^(\d+)\.(\d+)\.(\d+)$/.exec(String(value))?.slice(1).map(Number);
+  const actual = parse(version);
+  const contract = parse(expected);
+  return !!actual && !!contract && actual[0] === contract[0] && actual[1] === contract[1] && actual[2] >= contract[2];
+}
+
 const READY_TIMEOUT_MS = 120_000;
 const STOP_TIMEOUT_MS = 120_000;
 
@@ -47,7 +58,9 @@ export function resolveDist(explicit) {
   if (!dist.startsWith(localRoot + '/')) throw new Error('App 后端部署必须位于本仓库 .local/backend-dist/。');
   if (!existsSync(join(dist, 'deployment.json'))) throw new Error(`后端部署不完整：${dist}`);
   const manifest = JSON.parse(readFileSync(join(dist, 'deployment.json'), 'utf8'));
-  if (manifest.version !== EXPECTED_PRODUCT_VERSION) throw new Error('App 后端部署与固定合同产品版本不一致。');
+  if (!compatibleProductVersion(manifest.version)) {
+    throw new Error(`App 后端部署与固定合同产品版本不一致：部署 ${manifest.version}，合同 ${EXPECTED_PRODUCT_VERSION}（只接受同一次版本、补丁号不低于合同的部署）。`);
+  }
   return { dist, version: manifest.version };
 }
 
@@ -80,7 +93,7 @@ export async function startBackend(options = {}) {
   }
   const { dist, version } = resolveDist(options.dist);
   if (version !== EXPECTED_PRODUCT_VERSION) {
-    log(`[backend] 警告：部署版本 ${version} 与本项目固定的合同产品版本 ${EXPECTED_PRODUCT_VERSION} 不一致。`);
+    log(`[backend] 警告：部署版本 ${version} 高于本项目固定的合同产品版本 ${EXPECTED_PRODUCT_VERSION}，按补丁兼容放行；合同尚未重新冻结。`);
   }
   const profile = resolve(options.profile ?? DEFAULT_PROFILE);
   const bootstrapFile = resolve(options.bootstrapFile ?? DEFAULT_BOOTSTRAP_FILE);

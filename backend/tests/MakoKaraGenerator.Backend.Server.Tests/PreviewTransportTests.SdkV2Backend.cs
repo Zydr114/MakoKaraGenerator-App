@@ -133,7 +133,7 @@ public sealed partial class PreviewTransportTests
         ControlledRetention reservation = new(false);
         BackendPreviewInputCaptureResult captured = new(new(new("project", "source", "0"), snapshot, fixture.Factory), null, RuntimeInput: runtime);
         MethodInfo complete = typeof(PreviewBackendService).GetMethod("CompleteCaptureAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
-        BackendPreviewInputCaptureResult result = await (Task<BackendPreviewInputCaptureResult>)complete.Invoke(fixture.Service, [captured, reservation])!;
+        BackendPreviewInputCaptureResult result = await (Task<BackendPreviewInputCaptureResult>)complete.Invoke(fixture.Service, [captured, reservation, false])!;
         Assert.Equal("PackageBackendUnsupported", result.Error!.FailureCode);
         Assert.Equal(1, reservation.Count);
         await Assert.ThrowsAsync<ObjectDisposedException>(() => runtime.PrepareAsync());

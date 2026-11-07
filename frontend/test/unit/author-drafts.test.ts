@@ -287,7 +287,7 @@ describe('草稿试样', () => {
         closeBestEffort: async (previewId: string) => void log.closes.push(previewId),
       },
     } as unknown as MakoClient;
-    return { client, log };
+    return { client, log, failNext: (error: PreviewFailedError) => void (fail = error) };
   }
 
   const settle = () => new Promise((r) => setTimeout(r, 0));
@@ -337,6 +337,55 @@ describe('草稿试样', () => {
     await settle();
     expect(log.creates).toHaveLength(2);
     expect(workshop.state.frame).toMatchObject({ status: 'ready' });
+    workshop.dispose();
+  });
+
+  it('成功之后失败：照旧带着上一张成功帧的修订与时刻，状态仍是失败；再成功后不再带旧帧；换草稿清掉', async () => {
+    const { client, failNext } = fakeClient();
+    const workshop = new TemplateWorkshop(client, undefined, 0);
+    workshop.show(author('dr1'), 'draft|d1');
+    await settle();
+    expect(workshop.state.frame).toMatchObject({ status: 'ready', sha256: 'v1#1', revision: 'sha256:fx1', timeUs: 3_000_000 });
+    expect(workshop.state.frame).not.toHaveProperty('lastGood');
+
+    failNext(new PreviewFailedError(undefined, 'ScriptExecutionFailed'));
+    workshop.seek(1_000_000);
+    await settle();
+    expect(workshop.state.frame).toMatchObject({ status: 'error', failureCode: 'ScriptExecutionFailed', lastGood: { sha256: 'v1#1', revision: 'sha256:fx1', timeUs: 3_000_000 } });
+    expect(workshop.state.frame).not.toHaveProperty('frame');
+
+    workshop.seek(2_000_000);
+    expect(workshop.state.frame).toMatchObject({ status: 'error' });
+    await settle();
+    expect(workshop.state.frame).toMatchObject({ status: 'ready', timeUs: 2_000_000 });
+    expect(workshop.state.frame).not.toHaveProperty('lastGood');
+
+    failNext(new PreviewFailedError(undefined, 'ScriptExecutionFailed'));
+    workshop.show({ ...author('x1'), draftId: 'd2' }, 'draft|d2');
+    await settle();
+    expect(workshop.state.frame).toMatchObject({ status: 'error' });
+    expect(workshop.state.frame).not.toHaveProperty('lastGood');
+    workshop.dispose();
+  });
+
+  it('失败时按页读完预览诊断', async () => {
+    const { client } = fakeClient(new PreviewFailedError(undefined, 'WorkerPackageCompilationFailed'));
+    const cursors: (string | undefined)[] = [];
+    const pages = [
+      { diagnostics: [COMPILE[0]!], hasMore: true, nextCursor: 'c1' },
+      { diagnostics: [{ ...COMPILE[0]!, source: source(12, 'a') }], hasMore: true, nextCursor: 'c2' },
+      { diagnostics: [{ ...COMPILE[0]!, source: source(14, 'a') }], hasMore: false },
+    ];
+    (client.preview as unknown as { diagnostics: unknown }).diagnostics = async (_id: string, cursor?: string) => {
+      cursors.push(cursor);
+      return pages[cursors.length - 1];
+    };
+    const workshop = new TemplateWorkshop(client, undefined, 0);
+    workshop.show(author('dr1'), 'draft|d1');
+    await settle();
+    await settle();
+    expect(cursors).toEqual([undefined, 'c1', 'c2']);
+    expect(workshop.state.frame!.message!.split('\n')).toHaveLength(4);
     workshop.dispose();
   });
 

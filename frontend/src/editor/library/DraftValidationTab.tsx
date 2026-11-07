@@ -1,7 +1,7 @@
 // 作者草稿的验证页签（W8 设计 §2.7）：运行条件（默认跟随试样画布）、固定规格、进度与取消、报告、问题与诊断、需重新验证。
 // 有路径和行的问题点击后跳到源码页签的对应行；运行时异常没有行号，点击只打开验证的修订。
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import type { TemplateMaterialSlot, TemplateWorkshopSampleId } from '../../protocol';
 import { JobProgressView } from '../export/RenderJobCards';
 import { SLOT_LABEL, shortRevision } from '../model/full-template';
@@ -32,8 +32,8 @@ import {
 import { confirmLoseEdits } from './DraftSourceTab';
 import { SAMPLE_LABEL, targetLabel, type TemplateWorkshop, type WorkshopState } from './template-workshop';
 
-/** 问题列表最多显示多少条；其余只写数量。 */
-const MAX_LISTED = 50;
+/** 问题和诊断每次多显示多少条。报告里是完整列表，只是分批显示。 */
+const PAGE = 50;
 
 const NO_CANVAS = { subscribe: () => () => undefined, get: (): WorkshopState | undefined => undefined };
 
@@ -154,7 +154,7 @@ export function DraftValidationTab(props: {
         {job && <Note className="job-device">渲染设备：{recordedBackendText(job.input?.renderBackend)}</Note>}
         {job && !terminal && <JobProgressView job={job} cancelling={state.cancelling} error={state.error} onCancel={() => void model.cancel()} />}
         {terminal && !state.settled && <Note className="job-result">正在读取验证报告……</Note>}
-        {terminal && state.settled && <ValidationResult state={state} stale={stale} onOpen={(row) => void openIssue(row)} canOpen={!!source} />}
+        {terminal && state.settled && <ValidationResult key={job.jobId} state={state} stale={stale} onOpen={(row) => void openIssue(row)} canOpen={!!source} />}
       </Group>
     </section>
   );
@@ -165,6 +165,8 @@ function ValidationResult(props: { state: DraftValidationModel['state']; stale: 
   const report = state.report;
   const rows = report ? validationIssueRows(report) : [];
   const extra = report ? extraDiagnostics(report) : [];
+  const [issueCount, setIssueCount] = useState(PAGE);
+  const [diagnosticCount, setDiagnosticCount] = useState(PAGE);
   return (
     <div className="job-result validation-result" data-outcome={report ? (report.succeeded ? 'passed' : 'failed') : undefined}>
       {props.stale && <Note error className="validation-stale">草稿已经改过，结果对应旧版本，需要重新验证。</Note>}
@@ -194,7 +196,7 @@ function ValidationResult(props: { state: DraftValidationModel['state']; stale: 
       {report && state.error && <Note error>{state.error}</Note>}
       {rows.length > 0 && (
         <ul className="iss-list validation-issues">
-          {rows.slice(0, MAX_LISTED).map((row) => {
+          {rows.slice(0, issueCount).map((row) => {
             const open = props.canOpen && row.script;
             return (
               <li key={row.key} className={cls('iss', 'validation-issue', row.isError ? 'e' : 'w')} data-severity={row.isError ? 'error' : 'warning'}>
@@ -220,17 +222,30 @@ function ValidationResult(props: { state: DraftValidationModel['state']; stale: 
           })}
         </ul>
       )}
-      {rows.length > MAX_LISTED && <Note>还有 {rows.length - MAX_LISTED} 个问题没有列出。</Note>}
+      {rows.length > issueCount && <MoreRows rest={rows.length - issueCount} unit="个问题" className="validation-more-issues" onMore={() => setIssueCount((n) => n + PAGE)} />}
       {extra.length > 0 && (
         <details className="validation-diagnostics">
           <summary>其他诊断（{extra.length} 条）</summary>
           <ul className="job-issues">
-            {extra.slice(0, MAX_LISTED).map((d, i) => (
+            {extra.slice(0, diagnosticCount).map((d, i) => (
               <li key={i}>{`${d.transparent ? '透明 · ' : ''}${diagnosticText(d.diagnostic)}`}</li>
             ))}
           </ul>
+          {extra.length > diagnosticCount && <MoreRows rest={extra.length - diagnosticCount} unit="条诊断" className="validation-more-diagnostics" onMore={() => setDiagnosticCount((n) => n + PAGE)} />}
         </details>
       )}
+    </div>
+  );
+}
+
+/** 列表没显示完时：写明还剩多少，再显示一批。 */
+function MoreRows(props: { rest: number; unit: string; className: string; onMore: () => void }) {
+  return (
+    <div className={cls('row-actions', props.className)}>
+      <span className="note">还有 {props.rest} {props.unit}没有显示。</span>
+      <Button variant="text" size="sm" onPress={props.onMore}>
+        再显示 {Math.min(PAGE, props.rest)} {props.unit}
+      </Button>
     </div>
   );
 }

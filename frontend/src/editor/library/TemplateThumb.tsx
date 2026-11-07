@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, type CSSProperties, type ReactNod
 import { createPortal } from 'react-dom';
 import { Button as AriaButton } from 'react-aria-components';
 import { TEMPLATE_WORKSHOP_SAMPLE_IDS, type TemplateLibraryId, type TemplateSummary } from '../../protocol';
-import { SLOT_LABEL } from '../model/full-template';
+import { shortRevision, SLOT_LABEL } from '../model/full-template';
 import { Button } from '../ui/Button';
 import { SliderField, Switch } from '../ui/choices';
 import { Select } from '../ui/fields';
@@ -122,6 +122,7 @@ export function SampleView(props: { workshop: TemplateWorkshop; blocked?: string
       <div className="sample-stage">
         <SampleImage frame={state.frame} className="preview-frame" style={{ aspectRatio: `${SAMPLE_SIZE.width} / ${SAMPLE_SIZE.height}` }} blocked={props.blocked} />
       </div>
+      <FrameIdentity frame={state.frame} />
       {link && state.frame?.status === 'error' && state.frame.failureCode === link.code && (
         <div className="sample-failure">
           <Button variant="text" size="sm" icon="code" className="sample-failure-link" onPress={() => link.onClick()}>
@@ -163,15 +164,37 @@ export function SampleView(props: { workshop: TemplateWorkshop; blocked?: string
 
 function SampleImage(props: { frame: SampleFrame | undefined; className: string; compact?: boolean; style?: CSSProperties; blocked?: string | undefined }) {
   const { frame } = props;
-  const url = useObjectUrl(frame?.frame);
+  // 失败时画面仍是上一张成功的帧（变淡，叠上失败原因）；它不是这次请求的结果，状态保持 error。
+  const stale = frame?.status === 'error' && !props.compact ? frame.lastGood : undefined;
+  const shown = stale ?? frame;
+  const url = useObjectUrl(shown?.frame);
   const overlay = props.blocked ?? overlayText(frame, !!props.compact);
   const tone = frame?.status === 'error' ? ' error' : frame?.status === 'unsupported' ? ' unsupported' : '';
   return (
-    <span className={`${props.className}${tone}`} style={props.style} title={frame?.message} data-status={frame?.status} data-blocked={props.blocked ? '' : undefined}>
-      {url && <img src={url} alt={props.compact ? '' : '试样画面'} data-sha={frame?.sha256} data-time={frame?.timeUs} />}
+    <span className={`${props.className}${tone}`} style={props.style} title={frame?.message} data-status={frame?.status} data-blocked={props.blocked ? '' : undefined} data-stale={stale ? '' : undefined}>
+      {url && <img src={url} alt={props.compact ? '' : stale ? '上一张成功的试样画面' : '试样画面'} data-sha={shown?.sha256} data-time={shown?.timeUs} data-revision={shown?.revision} data-stale={stale ? '' : undefined} />}
       {overlay && <span className="preview-overlay">{overlay}</span>}
     </span>
   );
+}
+
+/** 画布下方写明显示的是哪一帧：作者草稿成功时写修订与时刻；失败仍显示旧帧时写明那是上一张成功的帧。 */
+function FrameIdentity(props: { frame: SampleFrame | undefined }) {
+  const { frame } = props;
+  const stale = frame?.status === 'error' ? frame.lastGood : undefined;
+  if (stale) {
+    return (
+      <p className="sample-identity stale" data-stale="">
+        这次没有新画面；画布仍是上一张成功的帧：{identityText(stale)}
+      </p>
+    );
+  }
+  if (frame?.status === 'ready' && frame.revision && frame.timeUs !== undefined) return <p className="sample-identity">当前帧：{identityText({ revision: frame.revision, timeUs: frame.timeUs })}</p>;
+  return null;
+}
+
+function identityText(frame: { revision?: string; timeUs: number }): string {
+  return [...(frame.revision ? [`修订 ${shortRevision(frame.revision)}`] : []), seconds(frame.timeUs)].join(' · ');
 }
 
 function overlayText(frame: SampleFrame | undefined, compact: boolean): string | undefined {

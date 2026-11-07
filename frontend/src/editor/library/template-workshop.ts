@@ -29,7 +29,7 @@ import { FOLLOW_DEFAULT, renderBackendField, type RenderBackendRequest } from '.
 import { formatTime, toMicros } from '../model/time';
 import { renderBackendErrorText } from '../preview/render-device';
 import { errorText } from '../session/editor-session';
-import { draftSource, sampleFailure, savedSource, SAMPLE_SIZE, TEMPLATE_PREVIEW, type AuthorSampleSource, type SampleFrame, type SampleSource } from './template-thumbnails';
+import { draftSource, sampleFailure, savedSource, SAMPLE_SIZE, TEMPLATE_PREVIEW, type AuthorSampleSource, type LastGoodFrame, type SampleFrame, type SampleSource } from './template-thumbnails';
 
 export const TEMPLATE_PREVIEW_OPTIONS = 'template-preview-options.read';
 export const WORKSHOP_DEFAULT_SAMPLE: TemplateWorkshopSampleId = 'workshop-single-line-v1';
@@ -43,6 +43,8 @@ const DRAFT_DEBOUNCE_MS = 300;
 const PLAYBACK_INTERVAL_MS = 40;
 /** 编译失败时在画面上列出的诊断条数。 */
 const COMPILE_LINES = 3;
+/** 试样失败时最多读几页预览诊断。 */
+const DIAGNOSTIC_PAGES = 8;
 
 export const SAMPLE_LABEL: Record<TemplateWorkshopSampleId, string> = {
   'workshop-single-line-v1': '单行样本',
@@ -131,6 +133,8 @@ export class TemplateWorkshop {
   private running = false;
   /** 已经显示的帧：同一输入、同一时刻不再请求。 */
   private shown: { key: string; timeUs: number; frame: SampleFrame } | undefined;
+  /** 这个画布范围内上一张成功的帧：失败时照旧显示并写明身份，换范围时清掉。 */
+  private lastGood: LastGoodFrame | undefined;
   private clock: { startedAt: number; fromUs: number } | undefined;
   private tick: ReturnType<typeof setTimeout> | undefined;
   private lastRequestAt = 0;
@@ -156,7 +160,10 @@ export class TemplateWorkshop {
     this.sourceKey = key;
     this.scope = scope;
     this.cancelLoading();
-    if (!sameScope) this.pause();
+    if (!sameScope) {
+      this.pause();
+      this.lastGood = undefined;
+    }
     if (!source || !key) {
       this.source = undefined;
       this.closeSession();
@@ -288,7 +295,7 @@ export class TemplateWorkshop {
       this.closeSession();
       this.pause();
       const kind = source.kind === 'saved' ? source.summary.kind : source.definition.kind;
-      this.patch({ frame: sampleFailure(error, kind) });
+      this.patch({ frame: this.withLastGood(sampleFailure(error, kind)) });
     } finally {
       if (this.loading === abort) this.loading = undefined;
     }
@@ -367,7 +374,9 @@ export class TemplateWorkshop {
           const frame = await this.render(session, timeUs);
           // 取帧期间换了来源或选择（新会话要到下一轮才建）：这一帧已经过时，不显示。
           if (session !== this.session || this.input()?.key !== input.key) continue;
-          this.shown = { key: input.key, timeUs, frame: { status: 'ready', frame: frame.blob, sha256: frame.sha256, timeUs } };
+          const revision = input.request.kind === 'authorDraft' ? input.request.authorSourceRevision : undefined;
+          this.lastGood = { frame: frame.blob, sha256: frame.sha256, timeUs, ...(revision ? { revision } : {}) };
+          this.shown = { key: input.key, timeUs, frame: { status: 'ready', ...this.lastGood } };
           this.patch({ frame: this.shown.frame });
         } catch (error) {
           let failed: SampleFrame | undefined;
@@ -384,7 +393,7 @@ export class TemplateWorkshop {
             continue;
           }
           this.pause();
-          this.patch({ frame: failed ?? frameFailure(error) });
+          this.patch({ frame: this.withLastGood(failed ?? frameFailure(error)) });
           continue;
         }
         this.scheduleTick();
@@ -442,13 +451,26 @@ export class TemplateWorkshop {
     this.patch({ echoedSlot: updated.source.templateSample?.materialSlot });
   }
 
-  /** 失败会话的诊断（第一页）；读不到时为空。 */
+  /** 失败会话的诊断：按页读完（最多 DIAGNOSTIC_PAGES 页）；中途读不到时用已经读到的。 */
   private async diagnosticsOf(session: Session): Promise<BackendDiagnostic[]> {
+    const all: BackendDiagnostic[] = [];
+    let cursor: string | undefined;
     try {
-      return (await this.client.preview.diagnostics(session.previewId)).diagnostics;
+      for (let page = 0; page < DIAGNOSTIC_PAGES; page++) {
+        const read = await this.client.preview.diagnostics(session.previewId, cursor);
+        all.push(...read.diagnostics);
+        if (!read.hasMore || !read.nextCursor) break;
+        cursor = read.nextCursor;
+      }
     } catch {
-      return [];
+      // 读到多少用多少。
     }
+    return all;
+  }
+
+  /** 失败结果带上这个范围内上一张成功的帧（有的话），画布照旧显示它，并写明它不是这次的结果。 */
+  private withLastGood(frame: SampleFrame): SampleFrame {
+    return this.lastGood ? { ...frame, lastGood: this.lastGood } : frame;
   }
 
   private async render(session: Session, timeUs: number): Promise<{ blob: Blob; sha256: string }> {
@@ -547,9 +569,10 @@ function targetFor(options: TemplatePreviewOptionsResponse | undefined, sampleId
   return targets.some((t) => t.key === current) ? current : targets[0]?.key;
 }
 
-/** 等新帧时留着上一张（变淡显示），避免闪烁。 */
+/** 等新帧时留着上一张（变淡显示），避免闪烁；上一次失败时留着失败前那张成功的帧。 */
 function loading(previous: SampleFrame | undefined): SampleFrame {
-  return { status: 'loading', ...(previous?.frame ? { frame: previous.frame } : {}), ...(previous?.sha256 ? { sha256: previous.sha256 } : {}) };
+  const shown = previous?.frame ? previous : previous?.lastGood;
+  return { status: 'loading', ...(shown?.frame ? { frame: shown.frame } : {}), ...(shown?.sha256 ? { sha256: shown.sha256 } : {}) };
 }
 
 function clampTime(timeUs: number): number {

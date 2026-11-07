@@ -39,6 +39,18 @@ export interface SampleFrame {
   libraryRevision?: string;
   /** 作者草稿试样失败时后端的失败编号（例如 WorkerPackageCompilationFailed）。 */
   failureCode?: string;
+  /** 作者草稿的帧：出自哪个源码修订。 */
+  revision?: string;
+  /** 失败时仍显示的上一张成功帧（同一画布范围内）：只作参照，不是这次请求的结果。 */
+  lastGood?: LastGoodFrame;
+}
+
+/** 上一张成功帧的身份：画面、时刻和（作者草稿的）源码修订。 */
+export interface LastGoodFrame {
+  frame: Blob;
+  sha256: string;
+  timeUs: number;
+  revision?: string;
 }
 
 export interface ThumbnailsState {

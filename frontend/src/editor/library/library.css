@@ -295,6 +295,24 @@
   color: var(--stage-ink2);
 }
 .sample-stage .preview-frame.error .preview-overlay {
+  white-space: pre-line;
+  color: var(--error);
+}
+.sample-stage [data-stale] img {
+  opacity: 0.4;
+}
+.sample-stage .preview-frame[data-stale] .preview-overlay {
+  background: color-mix(in srgb, var(--stage-high) 70%, transparent);
+}
+.sample-identity {
+  flex: none;
+  margin: 0;
+  padding: 0 24px 2px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--stage-ink2);
+}
+.sample-identity.stale {
   color: var(--error);
 }
 .sample-failure {

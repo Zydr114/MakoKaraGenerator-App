@@ -1,12 +1,12 @@
 // 后端协议的手写 TypeScript 类型，对应后端仓库 src/MakoKaraGenerator.Backend.Contracts，
-// 形状以冻结合同 docs/backend/contract（OpenAPI 1.47.0，产品 0.112.37）为准。
+// 形状以冻结合同 docs/backend/contract（OpenAPI 1.48.0，产品 0.112.38）为准。
 // 设计约定见 docs/web-client-w0-design.md §5。本目录不依赖任何其他模块。
 
 /** 后端 BackendProtocol.Version。 */
 export const PROTOCOL_VERSION = '1';
 /** 本项目固定消费的冻结 API 合同版本与对应产品版本。 */
-export const CONTRACT_VERSION = '1.47.0';
-export const CONTRACT_PRODUCT_VERSION = '0.112.37';
+export const CONTRACT_VERSION = '1.48.0';
+export const CONTRACT_PRODUCT_VERSION = '0.112.38';
 
 export * from './int64';
 export * from './errors';
@@ -31,5 +31,6 @@ export * from './jobs';
 export * from './render-jobs';
 export * from './lyrics-export';
 export * from './preview';
+export * from './preview-inspection';
 export * from './gpu-preview';
 export * from './events';

@@ -133,6 +133,8 @@ export interface PreviewFrameMetadata {
   eventSeq?: Sequence;
   /** 这一帧实际用的设备。 */
   renderBackend: RenderBackend;
+  /** 取帧时带了 inspect: true 且投影可用时才有（合同 1.48.0），见 preview-inspection.ts。 */
+  inspectionUrl?: string;
 }
 
 export interface PreviewSessionResponse {
@@ -197,6 +199,8 @@ export interface PreviewFrameRequestInput {
   /** 非负微秒。 */
   timeUs: Micros;
   intent: PreviewIntent;
+  /** 同时生成按帧检查投影（合同 1.48.0）；不影响画面。 */
+  inspect?: boolean | null;
 }
 
 export interface PreviewFrameAcceptedResponse {

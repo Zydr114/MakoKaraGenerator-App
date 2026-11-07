@@ -1,10 +1,10 @@
 # 冻结 API 清单
 
-合同 **1.47.0** · HTTP **1** · 产品 **0.112.37** · 基线 `e36ca6210d6a523f2837fc70a046a7b827e7836f` · 2026-11-07。
+合同 **1.48.0** · HTTP **1** · 产品 **0.112.38** · 基线 `ce57e1a259ba09ee68c1d00074c26d3ffb11aafe` · 2026-11-07。
 
 执行入口：[行为合同](api-contract.md)；机器规范：[openapi.json](openapi.json)；指纹：[contract-manifest.json](contract-manifest.json)。本表由核对过的路由定义生成，不能手工单独扩表。
 
-共 **113 个路径、126 个显式方法**（含 5 个兼容别名；HEAD 单计，全局 OPTIONS 不计）。业务成功状态仅表示HTTP操作结果，202须等待job或preview状态。
+共 **114 个路径、127 个显式方法**（含 5 个兼容别名；HEAD 单计，全局 OPTIONS 不计）。业务成功状态仅表示HTTP操作结果，202须等待job或preview状态。
 
 | 方法 | 路径 | 认证 | 请求 | 成功响应 | 行为源章节 |
 |---|---|---|---|---|---|
@@ -85,6 +85,7 @@
 | POST | `/api/v1/preview-sessions/{id}/close` | access + clientId | ClosePreviewSessionRequest | 200 · PreviewSessionStateResponse | §9 |
 | GET | `/api/v1/preview-frames/{id}/content` | access + clientId | - | 200 · png<br>206 · png | §9 |
 | HEAD | `/api/v1/preview-frames/{id}/content` | access + clientId | - | 200 · png（无body）<br>206 · png（无body） | §9 |
+| GET | `/api/v1/preview-frames/{id}/inspection` | access + clientId | - | 200 · PreviewFrameInspectionResponse | §9 |
 | GET | `/api/v1/preview-sessions/{id}/diagnostics` | access + clientId | - | 200 · PreviewDiagnosticsPageDto | §9 |
 | GET | `/api/v1/validation-capabilities` | access + clientId | - | 200 · ValidationTaskCapabilitiesDto | §10 |
 | POST | `/api/v1/project-sessions/{id}/validation-jobs` | access + clientId | ValidationJobRequest | 202 · JobResponse | §10 |

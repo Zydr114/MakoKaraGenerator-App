@@ -54,6 +54,7 @@ export const BACKEND_ERROR_CODES = [
   'exportAudioUnsupported',
   'exportArtifactNotFound',
   'exportArtifactExpired',
+  'previewInspectionUnavailable',
 ] as const;
 
 export type BackendErrorCode = (typeof BACKEND_ERROR_CODES)[number];
@@ -85,6 +86,7 @@ const CATEGORY: Partial<Record<BackendErrorCode, ErrorCategory>> = {
   diagnosticCursorExpired: 'recoverable',
   resourceExpired: 'recoverable',
   exportArtifactExpired: 'recoverable',
+  previewInspectionUnavailable: 'recoverable',
 
   resourceQuotaExceeded: 'userAction',
   requestQuotaExceeded: 'userAction',

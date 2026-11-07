@@ -35,8 +35,11 @@ public sealed class StaticWorkerContractTests
         var close = StaticRenderWorkerContract.DecodeClose(StaticRenderWorkerContract.EncodeClose(frame.SessionId, frame.SourceSha256, 2));
         Assert.Equal(frame.SessionId, close.SessionId); Assert.Equal(frame.SourceSha256, close.SourceSha256); Assert.Equal(2, close.Sequence);
         byte[] bytes = StaticRenderWorkerContract.EncodeFrame(frame);
-        bytes[7] = 1;
+        bytes[7] = 2;
         Assert.Throws<WorkerProtocolException>(() => StaticRenderWorkerContract.DecodeFrame(bytes));
+        bytes[7] = 1;
+        Assert.True(StaticRenderWorkerContract.DecodeFrame(bytes).Inspect);
+        Assert.Equal(frame with { Inspect = true }, StaticRenderWorkerContract.DecodeFrame(StaticRenderWorkerContract.EncodeFrame(frame with { Inspect = true })));
         bytes[7] = 0;
         BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(56), int.MaxValue);
         Assert.Equal("WorkerFrameBudgetExceeded", Assert.Throws<WorkerProtocolException>(() => StaticRenderWorkerContract.DecodeFrame(bytes)).Code);

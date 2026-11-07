@@ -74,8 +74,10 @@ public enum BackendPreviewUpdateState
 /// </summary>
 public sealed record BackendPreviewFrame
 {
-    internal BackendPreviewFrame(BackendPreviewRequest request, long requestSequence, RenderFrame frame)
+    internal BackendPreviewFrame(BackendPreviewRequest request, long requestSequence, RenderFrame frame, double renderMs = 0)
     {
+        Inspection = frame.Inspection;
+        RenderRoundTripMs = renderMs;
         Request = request;
         RequestSequence = requestSequence;
         Pixels = frame.PixelMemory.ToArray();
@@ -89,6 +91,12 @@ public sealed record BackendPreviewFrame
 
     /// <summary>生成本帧的请求（包含代次与来源修订）。</summary>
     public BackendPreviewRequest Request { get; }
+
+    /// <summary>请求开启检查时随帧返回的只读投影；未开启或生成失败时为空。</summary>
+    public RenderFrameInspection? Inspection { get; }
+
+    /// <summary>Host 侧从提交到收到帧的渲染往返耗时（毫秒），不含会话打开。</summary>
+    public double RenderRoundTripMs { get; }
 
     /// <summary>协调器分配的单调请求序号。</summary>
     public long RequestSequence { get; }
@@ -278,9 +286,11 @@ public sealed class BackendPreviewCoordinator : IAsyncDisposable
                     }
 
                     token.ThrowIfCancellationRequested();
+                    long started = System.Diagnostics.Stopwatch.GetTimestamp();
                     using RenderFrame frame = await _session.RenderAsync(work.Request.RenderRequest, token).ConfigureAwait(false);
+                    double renderMs = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
                     token.ThrowIfCancellationRequested();
-                    BackendPreviewFrame result = new(work.Request, work.Sequence, frame);
+                    BackendPreviewFrame result = new(work.Request, work.Sequence, frame, renderMs);
                     Publish(new(work.Request, work.Sequence, BackendPreviewUpdateState.Ready, result));
                 }
                 catch (OperationCanceledException error) when (

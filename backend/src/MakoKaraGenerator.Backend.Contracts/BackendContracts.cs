@@ -111,6 +111,8 @@ public enum BackendErrorCode
     ExportAudioUnsupported,
     ExportArtifactNotFound,
     ExportArtifactExpired,
+    /// <summary>预览帧存在，但请求时没有开启检查，或检查投影没有生成。</summary>
+    PreviewInspectionUnavailable,
 }
 
 /// <summary>统一错误响应；Detail 只用于安全的字段级诊断。</summary>

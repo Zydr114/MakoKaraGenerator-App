@@ -276,7 +276,7 @@ internal sealed partial class PreviewBackendService : IAsyncDisposable
             request with { Metadata = null }, () => MutateAsync(client, () =>
             {
                 BackendPreviewFrameRequestResult result = _previews.RequestFrame(client, id, request.ExpectedSourceRevision,
-                    new(request.PreviewGeneration, request.RequestSeq, request.TimeUs, request.Intent));
+                    new(request.PreviewGeneration, request.RequestSeq, request.TimeUs, request.Intent, Inspect: request.Inspect));
                 return Task.FromResult(result.Accepted ? BackendOperationResult<PreviewFrameAcceptedResponse>.Success(result.Response!)
                     : BackendOperationResult<PreviewFrameAcceptedResponse>.Rejected(result.Error!));
             }));

@@ -106,12 +106,14 @@ public static class PerformanceTelemetry
         return new RequestScope(previous);
     }
 
-    public static FrameScope BeginFrame(string session, string backend, long sequence, int width, int height)
+    /// <summary>开始一帧。capture 为 true 时即使全局收集器关闭也采集本帧，供检查投影用 <see cref="FrameScope.Capture"/> 读取，不进入日志。</summary>
+    public static FrameScope BeginFrame(string session, string backend, long sequence, int width, int height, bool capture = false)
     {
         Collector? collector = Volatile.Read(ref _collector);
-        if (collector is null) return default;
+        if (collector is null && !capture) return default;
+        bool logSampled = collector?.Sample() ?? false;
         FrameState state = new(collector, Current.Value, Request.Value ?? "none", SafeId(session),
-            backend is "cpu" or "gpu" ? backend : "unknown", sequence, width, height, collector.Sample());
+            backend is "cpu" or "gpu" ? backend : "unknown", sequence, width, height, capture || logSampled, logSampled);
         Current.Value = state;
         return new FrameScope(state);
     }
@@ -159,17 +161,18 @@ public static class PerformanceTelemetry
     }
     private sealed class EmptyScope : IDisposable { public static EmptyScope Instance { get; } = new(); public void Dispose() { } }
 
-    internal sealed class FrameState(Collector collector, FrameState? previous, string request, string session,
-        string backend, long sequence, int width, int height, bool sampled)
+    internal sealed class FrameState(Collector? collector, FrameState? previous, string request, string session,
+        string backend, long sequence, int width, int height, bool sampled, bool logSampled)
     {
-        internal readonly Collector Collector = collector;
+        internal readonly Collector? Collector = collector;
+        internal readonly bool LogSampled = logSampled;
         internal readonly FrameState? Previous = previous;
         internal readonly string Request = request, Session = session, Backend = backend;
         internal readonly long Sequence = sequence, Started = Stopwatch.GetTimestamp(), Allocated = GC.GetTotalAllocatedBytes(false);
         internal readonly int Width = width, Height = height, Gc0 = GC.CollectionCount(0), Gc1 = GC.CollectionCount(1), Gc2 = GC.CollectionCount(2);
         internal readonly long[] Ticks = new long[8];
         internal readonly bool Sampled = sampled;
-        internal readonly int ActiveSlot = collector.StartFrame();
+        internal readonly int ActiveSlot = collector?.StartFrame() ?? -1;
         internal readonly Dictionary<(string, string), PerformanceScript> Scripts = [];
         internal long ScriptOverflow;
         internal long ScriptCalls, ImageReads, ImageBytes, SurfaceReads, SurfaceBytes;
@@ -181,25 +184,38 @@ public static class PerformanceTelemetry
         private readonly FrameState? _state;
         internal FrameScope(FrameState state) => _state = state;
         public void SetOutcome(string outcome) { if (_state is not null) _state.Outcome = outcome == "ok" ? 1 : outcome == "cancelled" ? 2 : 0; }
+        /// <summary>读取本帧到目前为止的采集结果；没有开始采集时为 null。</summary>
+        public PerformanceEvent? Capture()
+        {
+            FrameState? state = _state;
+            if (state is null) return null;
+            try { return Snapshot(state); }
+            catch { return null; }
+        }
         public void Dispose()
         {
             FrameState? state = _state;
             if (state is null || Interlocked.Exchange(ref state.Closed, 1) != 0) return;
-            state.Collector.EndFrame(state.ActiveSlot);
+            state.Collector?.EndFrame(state.ActiveSlot);
             if (ReferenceEquals(Current.Value, state))
             {
                 FrameState? previous = state.Previous;
                 while (previous is not null && Volatile.Read(ref previous.Closed) != 0) previous = previous.Previous;
                 Current.Value = previous;
             }
-            try
-            {
+            if (state.Collector is not { } collector) return;
+            try { collector.Enqueue(Snapshot(state)); }
+            catch { /* Telemetry must not replace the render outcome. */ }
+        }
+
+        private static PerformanceEvent Snapshot(FrameState state)
+        {
                 double ms = 1000d / Stopwatch.Frequency;
                 PerformanceScript[] scripts;
                 long overflow;
                 lock (state.Scripts) { scripts = state.Scripts.Values.ToArray(); overflow = state.ScriptOverflow; }
                 double wallMs = (Stopwatch.GetTimestamp() - state.Started) * ms;
-                state.Collector.Enqueue(new PerformanceEvent { Kind = "frame", Backend = state.Backend, Request = state.Request,
+                return new PerformanceEvent { Kind = "frame", Backend = state.Backend, Request = state.Request,
                     Session = state.Session, Sequence = state.Sequence, Width = state.Width, Height = state.Height, Frames = 1,
                     Errors = state.Outcome == 0 ? 1 : 0, Cancelled = state.Outcome == 2 ? 1 : 0,
                     WallMs = wallMs, MaxWallMs = wallMs, PrepareMs = state.Ticks[0] * ms,
@@ -209,9 +225,7 @@ public static class PerformanceTelemetry
                     ImageBytes = state.ImageBytes, SurfaceReads = state.SurfaceReads, SurfaceBytes = state.SurfaceBytes,
                     ProcessAllocatedBytes = Math.Max(0, GC.GetTotalAllocatedBytes(false) - state.Allocated),
                     Gc0 = GC.CollectionCount(0) - state.Gc0, Gc1 = GC.CollectionCount(1) - state.Gc1, Gc2 = GC.CollectionCount(2) - state.Gc2,
-                    DetailEvery = state.Sampled ? state.Collector.DetailEvery : 0, Scripts = scripts, ScriptOverflow = overflow });
-            }
-            catch { /* Telemetry must not replace the render outcome. */ }
+                    DetailEvery = state.LogSampled ? state.Collector?.DetailEvery ?? 0 : 0, Scripts = scripts, ScriptOverflow = overflow };
         }
     }
 

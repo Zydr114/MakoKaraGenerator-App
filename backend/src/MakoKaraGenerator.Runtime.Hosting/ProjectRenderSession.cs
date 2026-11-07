@@ -41,7 +41,8 @@ internal sealed class ProjectRenderSession(ProjectSnapshot snapshot, SkiaRenderP
             if (!ReferenceEquals(request.Project, snapshot)) throw new PreparedFrameException("RenderSessionInputsMismatch", "像素会话不属于当前快照。");
             var target = request.ResolveTarget();
             using var frameScope = PerformanceTelemetry.BeginFrame(_telemetrySession,
-                device?.Info.Backend == "vulkan" ? "gpu" : "cpu", Interlocked.Increment(ref _telemetrySequence), target.PixelWidth, target.PixelHeight);
+                device?.Info.Backend == "vulkan" ? "gpu" : "cpu", Interlocked.Increment(ref _telemetrySequence), target.PixelWidth, target.PixelHeight,
+                capture: request.Inspect);
             try
             {
                 PreparedRenderFrame? prepared;
@@ -50,11 +51,23 @@ internal sealed class ProjectRenderSession(ProjectSnapshot snapshot, SkiaRenderP
                         request.TransparentBackground ? OutputMode.Transparent : OutputMode.Opaque, target, linked.Token).ConfigureAwait(false);
                 RenderFrame frame = renderer.Render(request with { PreparedFrame = prepared, CancellationToken = linked.Token });
                 frameScope.SetOutcome("ok");
+                if (request.Inspect) Inspect(frame, prepared, frameScope.Capture());
                 return frame;
             }
             catch (OperationCanceledException) { frameScope.SetOutcome("cancelled"); throw; }
         }
         finally { _gate.Release(); }
+    }
+
+    // 检查投影只服务调试显示：生成失败时不附加，像素帧照常返回。
+    private void Inspect(RenderFrame frame, PreparedRenderFrame? prepared, PerformanceEvent? cost)
+    {
+        try
+        {
+            var effects = (source as IEvaluatedFrameInspectionSource)?.DescribeEffects() ?? [];
+            frame.AttachInspection(RenderFrameInspection.Build(snapshot, prepared, effects, cost, sessionOpenMs: null));
+        }
+        catch (Exception error) when (error is not OperationCanceledException) { }
     }
 
     public ValueTask<GpuRenderFrame> RenderGpuAsync(RenderRequest request, CancellationToken cancellationToken = default)

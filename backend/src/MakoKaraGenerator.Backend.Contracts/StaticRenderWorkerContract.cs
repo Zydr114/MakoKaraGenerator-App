@@ -101,6 +101,7 @@ public static class StaticRenderWorkerContract
         byte[] bytes = Header(FrameMagic, FrameRequestBytes, request.SessionId);
         bytes[5] = request.TransparentBackground ? (byte)1 : (byte)0;
         bytes[6] = (byte)request.Quality;
+        bytes[7] = request.Inspect ? (byte)1 : (byte)0;
         WriteHash(bytes.AsSpan(24, 32), request.SourceSha256);
         BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(56), request.Width);
         BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(60), request.Height);
@@ -115,7 +116,7 @@ public static class StaticRenderWorkerContract
         if (bytes.Length != FrameRequestBytes) throw new WorkerProtocolException("静态会话帧输入长度错误。");
         var request = new StaticWorkerFrameRequest(ReadHeader(bytes, FrameMagic, true), Hash(bytes.Slice(24, 32)),
             BinaryPrimitives.ReadInt32LittleEndian(bytes[56..]), BinaryPrimitives.ReadInt32LittleEndian(bytes[60..]),
-            BinaryPrimitives.ReadInt64LittleEndian(bytes[64..]), bytes[5] == 1, BinaryPrimitives.ReadInt64LittleEndian(bytes[72..]), bytes[6]);
+            BinaryPrimitives.ReadInt64LittleEndian(bytes[64..]), bytes[5] == 1, BinaryPrimitives.ReadInt64LittleEndian(bytes[72..]), bytes[6], bytes[7] == 1);
         ValidateFrameRequest(request);
         return request;
     }
@@ -169,6 +170,8 @@ public static class StaticRenderWorkerContract
             || message.Payload.Length != request.Width * request.Height * 4 || message.OutputSha256 is null
             || message.Diagnostics is null)
             throw new WorkerProtocolException("静态会话帧回执不属于固定输入或缺少真实诊断。");
+        if (message.FrameInspection is not null && !request.Inspect)
+            throw new WorkerProtocolException("未请求检查的帧回执携带了检查投影。", "WorkerInspectionInvalid");
         WorkerDiagnosticsSnapshotDto.Validate(message.Diagnostics);
         if (message.Diagnostics.HasError)
             throw new WorkerProtocolException("Runtime Error 诊断禁止成功像素帧。", "WorkerRuntimeDiagnosticError", message.Diagnostics);
@@ -185,7 +188,7 @@ public static class StaticRenderWorkerContract
     private static Guid ReadHeader(ReadOnlySpan<byte> bytes, uint magic, bool flags)
     {
         if (bytes.Length < OpenHeaderBytes || BinaryPrimitives.ReadUInt32LittleEndian(bytes) != magic || bytes[4] != 1
-            || bytes[5] > (flags ? 1 : 0) || bytes[6] > (flags ? 2 : 0) || bytes[7] != 0)
+            || bytes[5] > (flags ? 1 : 0) || bytes[6] > (flags ? 2 : 0) || bytes[7] > (flags ? 1 : 0))
             throw new WorkerProtocolException("静态会话 magic/version/保留字段错误。");
         Guid id = new(bytes.Slice(8, 16)); ValidateSession(id); return id;
     }
@@ -205,9 +208,9 @@ public static class StaticRenderWorkerContract
 /// <summary>Worker 运行时实际编译并允许打开的静态 snapshot 来源。</summary>
 public sealed record StaticWorkerCapabilitiesDto(string[] SourceProfiles);
 
-/// <summary>绑定固定会话与快照 SHA 的有界帧输入。</summary>
+/// <summary>绑定固定会话与快照 SHA 的有界帧输入；Inspect 使用原保留字节，请求只读检查投影。</summary>
 public sealed record StaticWorkerFrameRequest(Guid SessionId, string SourceSha256, int Width, int Height,
-    long TimeUs, bool TransparentBackground, long Sequence, int Quality = 1);
+    long TimeUs, bool TransparentBackground, long Sequence, int Quality = 1, bool Inspect = false);
 
 /// <summary>完整实际 Runtime 发生快照；超预算明确拒绝，不截断或重新分配发生身份。</summary>
 public sealed record WorkerDiagnosticsSnapshotDto(WorkerRuntimeDiagnosticOccurrenceDto[] Occurrences, bool HasError)

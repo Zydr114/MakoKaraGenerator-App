@@ -16,6 +16,7 @@ internal sealed class StaticRenderSession(string? renderBackend = null) : IAsync
     private Guid _id;
     private string? _sourceHash;
     private long _sequence;
+    private double _openMs;
 
     public async Task<WorkerMessage> ExecuteAsync(WorkerMessage request, CancellationToken token)
     {
@@ -30,7 +31,9 @@ internal sealed class StaticRenderSession(string? renderBackend = null) : IAsync
                 ProjectSnapshot snapshot = StaticProjectSnapshotCodec.Decode(input.SnapshotBytes);
                 var factory = new ProjectRenderSessionFactory(WorkerScriptInputs.Empty,
                     new FfmpegVideoFrameProvider(), ReplayReason.Initial, renderBackend: renderBackend);
+                long opened = System.Diagnostics.Stopwatch.GetTimestamp();
                 IRenderFrameSession session = await factory.CreateAsync(snapshot, token).ConfigureAwait(false);
+                _openMs = System.Diagnostics.Stopwatch.GetElapsedTime(opened).TotalMilliseconds;
                 try { token.ThrowIfCancellationRequested(); }
                 catch { await session.DisposeAsync().ConfigureAwait(false); throw; }
                 _id = input.SessionId; _sourceHash = input.SourceSha256; _sequence = 0;
@@ -49,6 +52,7 @@ internal sealed class StaticRenderSession(string? renderBackend = null) : IAsync
                 {
                     Target = new() { PixelWidth = input.Width, PixelHeight = input.Height },
                     TransparentBackground = input.TransparentBackground, Quality = (RenderQuality)input.Quality, CancellationToken = token,
+                    Inspect = input.Inspect,
                 }, token).ConfigureAwait(false);
                 token.ThrowIfCancellationRequested();
                 WorkerDiagnosticsSnapshotDto diagnostics = EncodeDiagnostics(frame.DiagnosticSnapshot);
@@ -63,7 +67,8 @@ internal sealed class StaticRenderSession(string? renderBackend = null) : IAsync
                     pixels, outputSha256: WorkerProtocol.ComputeSha256(pixels), frameWidth: frame.Width, frameHeight: frame.Height,
                     frameStride: frame.Stride, frameTimeUs: frame.TimeUs, frameFormat: RenderFrameV1WorkerResult.RequiredPixelFormat,
                     sessionId: _id.ToString("N"), sourceSha256: _sourceHash, frameSequence: input.Sequence,
-                    frameTransparentBackground: input.TransparentBackground, diagnostics: diagnostics, frameQuality: input.Quality);
+                    frameTransparentBackground: input.TransparentBackground, diagnostics: diagnostics, frameQuality: input.Quality,
+                    frameInspection: EncodeInspection(input, frame, _openMs));
                 StaticRenderWorkerContract.ValidateFrameResult(input, result);
                 return result;
             }
@@ -81,6 +86,12 @@ internal sealed class StaticRenderSession(string? renderBackend = null) : IAsync
         }
         finally { _gate.Release(); }
     }
+
+    /// <summary>检查帧的投影带上会话打开耗时后编码；未请求或生成失败时为空。</summary>
+    internal static PreviewInspectionDto? EncodeInspection(StaticWorkerFrameRequest input, RenderFrame frame, double openMs) =>
+        input.Inspect && frame.Inspection is { } inspection
+            ? FrameInspectionMapper.Encode(inspection with { Cost = inspection.Cost with { SessionOpenMs = Math.Round(openMs, 3) } })
+            : null;
 
     public async ValueTask DisposeAsync()
     {

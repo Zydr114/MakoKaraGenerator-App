@@ -61,6 +61,41 @@ public sealed class PerformanceTelemetryTests
     }
 
     [Fact]
+    public async Task 单帧捕获不依赖全局收集器且不写日志()
+    {
+        await PerformanceTelemetry.ShutdownAsync();
+        Assert.False(PerformanceTelemetry.IsEnabled);
+        using (var off = PerformanceTelemetry.BeginFrame("s", "cpu", 1, 2, 2)) Assert.Null(off.Capture());
+        PerformanceEvent captured;
+        using (var frame = PerformanceTelemetry.BeginFrame("s", "cpu", 2, 2, 2, capture: true))
+        {
+            using (PerformanceTelemetry.Measure(PerformancePhase.Prepare)) Thread.Sleep(5);
+            using (PerformanceTelemetry.MeasureScriptIdentity(PerformanceTelemetry.CreateScriptIdentity("hash|fx|pkg"), "Advance")) { }
+            frame.SetOutcome("ok");
+            captured = frame.Capture()!;
+        }
+        Assert.NotNull(captured);
+        Assert.True(captured.PrepareMs >= 4);
+        Assert.Equal(1, captured.ScriptCalls);
+        Assert.Equal(PerformanceTelemetry.CreateScriptIdentity("hash|fx|pkg"), Assert.Single(captured.Scripts).Identity);
+        Assert.False(PerformanceTelemetry.IsEnabled);
+
+        ConcurrentBag<string> lines = [];
+        PerformanceTelemetry.Configure(lines.Add, intervalSeconds: 1, maxEventsPerSecond: 100);
+        try
+        {
+            using (var frame = PerformanceTelemetry.BeginFrame("s", "cpu", 3, 2, 2, capture: true))
+            {
+                frame.SetOutcome("ok");
+                Assert.NotNull(frame.Capture());
+            }
+        }
+        finally { await PerformanceTelemetry.ShutdownAsync(); }
+        // 单帧捕获照常计入全局摘要，但不额外产生明细行（detailEvery=0）。
+        Assert.DoesNotContain(lines, line => Decode(line).Kind == "frame");
+    }
+
+    [Fact]
     public async Task HeartbeatCoversIdleAndActiveFrames()
     {
         ConcurrentBag<string> lines = [];

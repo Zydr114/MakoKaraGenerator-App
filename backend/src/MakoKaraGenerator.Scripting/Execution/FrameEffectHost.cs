@@ -94,7 +94,7 @@ internal sealed partial class FrameEffectHost : IDisposable
                         module = new ScriptModule(artifact.PeImage.AsMemory(), artifact.PdbImage.AsMemory());
                         instance = module.CreateInstance<IKaraokeEffect>(definition.EntryType!);
                     }
-                    string? telemetryIdentity = module is not null && PerformanceTelemetry.IsEnabled
+                    string? telemetryIdentity = module is not null
                         ? PerformanceTelemetry.CreateScriptIdentity($"{definition.RuntimeHash}|{definition.Id}|{definition.PackageIdentity}") : null;
                     active = new(definition, module, instance, new(definition.Seed, definition.Id), semantic ? _subscriptions[index] : null, telemetryIdentity);
                     _instances.Add(active);

@@ -91,14 +91,15 @@ public sealed record PreviewInputRequest(
     RequestMetadataDto? Metadata = null,
     string? RenderBackend = null);
 
-/// <summary>请求一个时间点的异步帧；TimeUs 与序号均按十进制字符串传输。</summary>
+/// <summary>请求一个时间点的异步帧；TimeUs 与序号均按十进制字符串传输。Inspect=true 时同时生成只读检查投影。</summary>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record PreviewFrameRequest(
     string PreviewGeneration,
     string RequestSeq,
     string TimeUs,
     string Intent,
-    RequestMetadataDto? Metadata = null);
+    RequestMetadataDto? Metadata = null,
+    bool? Inspect = null);
 
 /// <summary>帧请求已进入有界队列，不代表像素已经生成。</summary>
 public sealed record PreviewFrameAcceptedResponse(
@@ -133,7 +134,8 @@ public sealed record PreviewFrameMetadataDto(
     PreviewBinaryHandleDto Content,
     string? DiagnosticsCursor = null,
     string? EventSeq = null,
-    string RenderBackend = "cpu");
+    string RenderBackend = "cpu",
+    string? InspectionUrl = null);
 
 /// <summary>按固定预览代次读取的诊断页；游标失效时不能拼接不同修订的页。</summary>
 public sealed record PreviewDiagnosticsPageDto(

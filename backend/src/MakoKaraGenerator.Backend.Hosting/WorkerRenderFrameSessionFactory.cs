@@ -130,7 +130,7 @@ public sealed class WorkerRenderFrameSessionFactory : IRenderFrameSessionFactory
                 if (_failed) throw new PreparedFrameException("WorkerSessionFailed", "Worker 会话已失败，请重新建立固定输入会话。");
                 // Rejected user geometry never invalidates or starts native rendering.
                 StaticRenderWorkerContract.ValidateFrameRequest(new(handle.SessionId, handle.SourceSha256, target.PixelWidth,
-                    target.PixelHeight, request.TimeUs, request.TransparentBackground, checked(_sequence + 1), (int)request.Quality));
+                    target.PixelHeight, request.TimeUs, request.TransparentBackground, checked(_sequence + 1), (int)request.Quality, request.Inspect));
                 linked.Token.ThrowIfCancellationRequested();
                 try
                 {
@@ -143,14 +143,14 @@ public sealed class WorkerRenderFrameSessionFactory : IRenderFrameSessionFactory
                     }
                     if (linked.IsCancellationRequested) throw new WorkerInvocationNotStartedException(linked.Token);
                     var input = new StaticWorkerFrameRequest(handle.SessionId, handle.SourceSha256, target.PixelWidth,
-                        target.PixelHeight, request.TimeUs, request.TransparentBackground, checked(++_sequence), (int)request.Quality);
+                        target.PixelHeight, request.TimeUs, request.TransparentBackground, checked(++_sequence), (int)request.Quality, request.Inspect);
                     WorkerMessage result = await proxy.RenderStaticSessionAsync(input, timeout, linked.Token).ConfigureAwait(false);
                     linked.Token.ThrowIfCancellationRequested();
                     RuntimeDiagnosticSnapshot diagnostics = DecodeDiagnostics(result.Diagnostics!);
                     if (diagnostics.HasError)
                         throw new WorkerProtocolException("Error 诊断禁止成功帧。", "WorkerRuntimeDiagnosticError", result.Diagnostics);
-                    return new(result.Payload, target, PixelFormat.Bgra8888Premultiplied, request.TimeUs)
-                    { DiagnosticSnapshot = diagnostics };
+                    return AttachInspection(new(result.Payload, target, PixelFormat.Bgra8888Premultiplied, request.TimeUs)
+                    { DiagnosticSnapshot = diagnostics }, result);
                 }
                 catch (WorkerCooperativeCancellationException) when (linked.IsCancellationRequested && !_closing.IsCancellationRequested)
                 {
@@ -213,6 +213,13 @@ public sealed class WorkerRenderFrameSessionFactory : IRenderFrameSessionFactory
             finally { _gate.Release(); }
             // Managed gates/tokens remain valid for already queued callers to observe closure.
         }
+    }
+
+    /// <summary>把 Worker 回执里的检查投影核对后挂到帧上；帧请求未开启检查时回执校验已拒绝该字段。</summary>
+    internal static RenderFrame AttachInspection(RenderFrame frame, WorkerMessage result)
+    {
+        if (result.FrameInspection is { } inspection) frame.AttachInspection(FrameInspectionMapper.Decode(inspection));
+        return frame;
     }
 
     internal static RuntimeDiagnosticSnapshot DecodeDiagnostics(WorkerDiagnosticsSnapshotDto snapshot)

@@ -927,7 +927,9 @@ public sealed partial class PreviewTransportTests
                 TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
                 owner.Calls.Writer.TryWrite(new(release, cancellationToken));
                 await release.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
-                return new RenderFrame([0, 0, 255, 255], request.ResolveTarget(), PixelFormat.Bgra8888Premultiplied, request.TimeUs);
+                RenderFrame frame = new([0, 0, 255, 255], request.ResolveTarget(), PixelFormat.Bgra8888Premultiplied, request.TimeUs);
+                if (request.Inspect) frame.AttachInspection(InspectionSample());
+                return frame;
             }
             public ValueTask DisposeAsync() { Interlocked.Increment(ref owner.Disposed); return ValueTask.CompletedTask; }
         }

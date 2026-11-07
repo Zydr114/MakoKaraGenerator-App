@@ -77,6 +77,10 @@ internal static partial class ServerEndpoints
             metadata.Content.Sha256, "X-Mako-Preview-Expires-At");
     }
 
+    private static IResult ReadPreviewInspection(string id, HttpRequest request, PreviewFrameHandleStore store) =>
+        store.TryReadInspection(Client(request), id, DateTimeOffset.UtcNow, out PreviewFrameInspectionResponse? inspection,
+            out BackendErrorResponse? error) ? Results.Json(inspection) : Error(error!);
+
     private static async Task ReadImmutableContentAsync(HttpRequest request, HttpResponse response, Stream input, long size,
         string contentType, string sha256, string? additionalExposedHeader = null)
     {

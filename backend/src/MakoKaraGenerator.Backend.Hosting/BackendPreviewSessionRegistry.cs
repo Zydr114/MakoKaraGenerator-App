@@ -339,6 +339,7 @@ public sealed class BackendPreviewSessionRegistry : IAsyncDisposable
                 {
                     Target = new() { PixelWidth = current.Session.Size.Width, PixelHeight = current.Session.Size.Height },
                     TransparentBackground = current.Session.AlphaMode == PreviewAlphaMode.Straight,
+                    Inspect = request.Inspect == true,
                 },
             };
             current.Requests.Add(render, request with { PreviewGeneration = current.Session.PreviewGeneration });
@@ -480,6 +481,8 @@ public sealed class BackendPreviewSessionRegistry : IAsyncDisposable
         }
         byte[] png;
         BackendDiagnosticDto[] diagnostics;
+        PreviewInspectionDto? inspection = null;
+        double encodeMs = 0;
         try
         {
             BackendPreviewFrame frame = update.Frame ?? throw new InvalidOperationException("Missing ready frame.");
@@ -492,7 +495,12 @@ public sealed class BackendPreviewSessionRegistry : IAsyncDisposable
                 throw new RenderSessionFailureException("PreviewRuntimeDiagnosticError", "渲染存在实际Error报告。", frame.DiagnosticSnapshot)
                     { ImageEffectDiagnostics = frame.ImageEffectDiagnostics, MaterialDiagnostics = frame.MaterialDiagnostics };
             diagnostics = ProjectDiagnostics(frame.DiagnosticSnapshot, current.Limits, image: frame.ImageEffectDiagnostics, material: frame.MaterialDiagnostics);
+            long encodeStarted = System.Diagnostics.Stopwatch.GetTimestamp();
             png = _encoder.Encode(frame) ?? throw new InvalidOperationException("Missing PNG content.");
+            encodeMs = System.Diagnostics.Stopwatch.GetElapsedTime(encodeStarted).TotalMilliseconds;
+            // 检查投影只是附加信息：转换失败时照常发布帧，只是没有 inspectionUrl。
+            if (update.Request.RenderRequest.Inspect && frame.Inspection is { } projected)
+                try { inspection = FrameInspectionMapper.ToDto(projected); } catch (Exception) { inspection = null; }
         }
         catch (RenderSessionFailureException failure)
         {
@@ -515,13 +523,17 @@ public sealed class BackendPreviewSessionRegistry : IAsyncDisposable
                 current.Source.SourceRevision, transport.RequestSeq, transport.TimeUs, current.Size.Width, current.Size.Height,
                 current.AlphaMode, new("handle-" + Guid.NewGuid().ToString("N"), "image/png", png.LongLength,
                     Convert.ToHexStringLower(SHA256.HashData(png)), now.AddSeconds(current.Limits.FrameLeaseLifetimeSeconds),
-                    "/api/v1/preview-frames/" + id + "/content"), RenderBackend: current.RenderBackend);
+                    "/api/v1/preview-frames/" + id + "/content"), RenderBackend: current.RenderBackend,
+                InspectionUrl: inspection is null ? null : "/api/v1/preview-frames/" + id + "/inspection");
+            PreviewFrameInspectionResponse? inspectionResponse = inspection is null ? null : new(id, current.PreviewId,
+                current.PreviewGeneration, current.Source.SourceRevision, transport.TimeUs, current.Size.Width, current.Size.Height,
+                current.RenderBackend, inspection, new(Math.Round(update.Frame!.RenderRoundTripMs, 3), Math.Round(encodeMs, 3), png.LongLength));
             BackendErrorResponse? error;
             try
             {
                 error = PublishDiagnostics(entry, diagnostics);
                 if (error is null) error = _frames.Publish(entry.ClientId, entry.Session, transport, metadata, png,
-                    entry.LastPublishedSequence, now);
+                    entry.LastPublishedSequence, now, inspectionResponse);
             }
             catch (Exception) { error = new(BackendErrorCode.InternalError, "预览帧发布失败。"); }
             if (error is not null) { Fail(entry, error); return; }

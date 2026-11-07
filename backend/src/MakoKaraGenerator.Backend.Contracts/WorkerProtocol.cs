@@ -67,6 +67,8 @@ public static class WorkerProtocol
             throw new WorkerProtocolException("Worker 输出 SHA-256 不匹配。");
         if (message.DelayMilliseconds is < 0 or > 60_000)
             throw new WorkerProtocolException("Worker 延迟参数超出范围。");
+        if (message.FrameInspection is not null && message.Kind is not (StaticRenderWorkerContract.FrameResultKind or PackageRenderWorkerContract.FrameResultKind))
+            throw new WorkerProtocolException("帧检查投影只能属于帧回执。", "WorkerInspectionInvalid");
         if (message.AnalysisProgress is not null && message.Kind != WorkerAnalysisContract.ProgressKind)
             throw new WorkerProtocolException("分析进度不能混入其他回执。", "WorkerAnalysisProtocolInvalid");
         if (message.PackageDiagnostics is not null)
@@ -172,7 +174,8 @@ public sealed record WorkerMessage
         BackendJobProgressDto? validationProgress = null, string? exportFormat = null, bool? exportIncludeAudio = null,
         BackendJobProgressDto? exportProgress = null, int? processGroupId = null, long? mediaFileSizeLimitBytes = null,
         WorkerDiagnosticsSnapshotDto? exportDiagnostics = null, string? exportDiagnosticsFailureCode = null,
-        BackendAnalysisProgressDto? analysisProgress = null, WorkerPackageDiagnosticsDto? packageDiagnostics = null)
+        BackendAnalysisProgressDto? analysisProgress = null, WorkerPackageDiagnosticsDto? packageDiagnostics = null,
+        PreviewInspectionDto? frameInspection = null)
     {
         Kind = kind;
         RequestId = requestId;
@@ -196,7 +199,7 @@ public sealed record WorkerMessage
         ExportFormat = exportFormat; ExportIncludeAudio = exportIncludeAudio; ExportProgress = exportProgress;
         ProcessGroupId = processGroupId; MediaFileSizeLimitBytes = mediaFileSizeLimitBytes;
         ExportDiagnostics = exportDiagnostics; ExportDiagnosticsFailureCode = exportDiagnosticsFailureCode;
-        AnalysisProgress = analysisProgress; PackageDiagnostics = packageDiagnostics;
+        AnalysisProgress = analysisProgress; PackageDiagnostics = packageDiagnostics; FrameInspection = frameInspection;
     }
 
     public string Kind { get; init; }
@@ -254,6 +257,8 @@ public sealed record WorkerMessage
     /// <summary>真实实际解码样本进度；不是渲染帧或最终特征。</summary>
     public BackendAnalysisProgressDto? AnalysisProgress { get; init; }
     public WorkerPackageDiagnosticsDto? PackageDiagnostics { get; init; }
+    /// <summary>请求检查的帧回执附带的只读投影；Host 另行核对字节预算。</summary>
+    public PreviewInspectionDto? FrameInspection { get; init; }
 }
 
 /// <summary>Worker 协议违反版本、长度或哈希约束时抛出。</summary>

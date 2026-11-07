@@ -4,8 +4,10 @@ using MakoKaraGenerator.Scripting.Projection;
 namespace MakoKaraGenerator.Scripting.Execution;
 
 internal sealed class FrameSession(FrameEffectHost host, TimelineProjection? timeline, ReplayReason? initialReason,
-    CancellationToken initialCancellationToken) : IEvaluatedFrameSource
+    CancellationToken initialCancellationToken) : IEvaluatedFrameSource, IEvaluatedFrameInspectionSource
 {
+    /// <inheritdoc/>
+    public System.Collections.Immutable.ImmutableArray<RenderEffectInstanceInfo> DescribeEffects() => host.DescribeEffects();
     private readonly SemaphoreSlim _serial = new(1, 1);
     private TimelineHistory.ValidatedEventTable? _eventTable = timeline?.CreateHistoryTable(initialReason ?? ReplayReason.Initial, initialCancellationToken);
     private TimelineHistory? _history;

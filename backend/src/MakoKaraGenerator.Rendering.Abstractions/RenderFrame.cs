@@ -85,6 +85,17 @@ public sealed class RenderFrame : IDisposable
     /// <summary>像素格式。</summary>
     public PixelFormat Format { get; }
 
+    /// <summary>请求检查时附加的只读投影；未请求时为 null，不影响像素。</summary>
+    public RenderFrameInspection? Inspection { get; private set; }
+
+    /// <summary>附加本帧的检查投影；每帧只能附加一次。</summary>
+    public void AttachInspection(RenderFrameInspection inspection)
+    {
+        ArgumentNullException.ThrowIfNull(inspection);
+        if (Inspection is not null) throw new InvalidOperationException("检查投影已经附加。");
+        Inspection = inspection;
+    }
+
     /// <summary>宽度（像素）。</summary>
     public int Width => Target.PixelWidth;
 

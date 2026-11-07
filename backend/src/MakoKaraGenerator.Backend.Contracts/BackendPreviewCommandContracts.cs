@@ -12,9 +12,13 @@ public sealed record PreviewProjectInputRequest(string ExpectedPreviewGeneration
 public sealed record PreviewRenderBackendRequest(string ExpectedPreviewGeneration, string RenderBackend,
     RequestMetadataDto? Metadata = null);
 
+/// <summary>
+/// 请求一个时间点的异步帧。Inspect=true 时 Worker 从同一准备帧生成只读检查投影，帧元数据带 inspectionUrl；
+/// 省略或 false 时不采集，像素与不检查时一致。
+/// </summary>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record PreviewFrameCommandRequest(string ExpectedSourceRevision, string PreviewGeneration,
-    string RequestSeq, string TimeUs, string Intent, RequestMetadataDto? Metadata = null);
+    string RequestSeq, string TimeUs, string Intent, RequestMetadataDto? Metadata = null, bool? Inspect = null);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record ClosePreviewSessionRequest(string ExpectedPreviewGeneration, string ExpectedSourceRevision,

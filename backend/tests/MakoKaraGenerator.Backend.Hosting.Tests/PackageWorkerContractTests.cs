@@ -127,7 +127,7 @@ public sealed class PackageWorkerContractTests
         byte[] frame = PackageRenderWorkerContract.EncodeFrame(request);
         if (damage == "session") frame.AsSpan(8, 16).Clear();
         if (damage == "version") frame[4] = 2;
-        if (damage == "reserved") frame[7] = 1;
+        if (damage == "reserved") frame[7] = 2;
         if (damage == "size") frame = [.. frame, 0];
         Assert.Throws<WorkerProtocolException>(() => PackageRenderWorkerContract.DecodeFrame(frame));
         Assert.Equal(request, PackageRenderWorkerContract.DecodeFrame(PackageRenderWorkerContract.EncodeFrame(request)));

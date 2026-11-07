@@ -185,7 +185,7 @@ public sealed class WorkerPackageRenderFrameSessionFactory : IRenderFrameSession
                 ObjectDisposedException.ThrowIf(_disposed, this);
                 if (_failed) throw new PreparedFrameException("WorkerPackageSessionFailed", "包 Worker 会话已失败，请重新建立固定输入会话。");
                 PackageRenderWorkerContract.ValidateFrameRequest(new(handle.SessionId, handle.SourceSha256, target.PixelWidth, target.PixelHeight,
-                    request.TimeUs, request.TransparentBackground, checked(_sequence + 1), (int)request.Quality));
+                    request.TimeUs, request.TransparentBackground, checked(_sequence + 1), (int)request.Quality, request.Inspect));
                 linked.Token.ThrowIfCancellationRequested();
                 try
                 {
@@ -199,7 +199,7 @@ public sealed class WorkerPackageRenderFrameSessionFactory : IRenderFrameSession
                     }
                     if (linked.IsCancellationRequested) throw new WorkerInvocationNotStartedException(linked.Token);
                     var input = new StaticWorkerFrameRequest(handle.SessionId, handle.SourceSha256, target.PixelWidth, target.PixelHeight,
-                        request.TimeUs, request.TransparentBackground, checked(++_sequence), (int)request.Quality);
+                        request.TimeUs, request.TransparentBackground, checked(++_sequence), (int)request.Quality, request.Inspect);
                     WorkerMessage result;
                     try { result = await proxy.RenderPackageSessionAsync(input, timeout, linked.Token).ConfigureAwait(false); }
                     catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && !request.CancellationToken.IsCancellationRequested && !_closing.IsCancellationRequested)
@@ -208,8 +208,8 @@ public sealed class WorkerPackageRenderFrameSessionFactory : IRenderFrameSession
                     RuntimeDiagnosticSnapshot diagnostics = WorkerRenderFrameSessionFactory.DecodeDiagnostics(result.Diagnostics!);
                     if (diagnostics.HasError) throw new WorkerProtocolException("Error 诊断禁止成功帧。", "WorkerRuntimeDiagnosticError", result.Diagnostics, result.PackageDiagnostics);
                     var package = mapper.DecodeFrame(result.PackageDiagnostics!);
-                    return new(result.Payload, target, PixelFormat.Bgra8888Premultiplied, request.TimeUs)
-                    { DiagnosticSnapshot = diagnostics, ImageEffectDiagnostics = package.Image, MaterialDiagnostics = package.Material };
+                    return WorkerRenderFrameSessionFactory.AttachInspection(new(result.Payload, target, PixelFormat.Bgra8888Premultiplied, request.TimeUs)
+                    { DiagnosticSnapshot = diagnostics, ImageEffectDiagnostics = package.Image, MaterialDiagnostics = package.Material }, result);
                 }
                 catch (WorkerCooperativeCancellationException) when (linked.IsCancellationRequested && !_closing.IsCancellationRequested)
                 {

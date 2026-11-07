@@ -186,6 +186,48 @@ public sealed class V2WarpPackageTests
     }
 
     [Fact]
+    public async Task 检查投影取自同一准备帧并按上限计入省略数()
+    {
+        var warp = Package();
+        var cursor = await EffectPackageStorage.ReadSupportedDirectoryAsync(
+            Path.Combine(AppContext.BaseDirectory, "effect-packages-v2", "CursorTrail"));
+        var snapshot = Snapshot([cursor, warp], [Instance(cursor, "cursor", new { rate = 2, lifeUs = 5_000_000, trailUs = 0 }),
+            Instance(warp, "warp", new { target = 4, dx = 1 })]);
+        var compiled = await Compile(snapshot, Compiler());
+        await using var session = await Factory(snapshot, compiled).CreateAsync(snapshot);
+        var frame = await Prepare(session, snapshot, TimeUs);
+        var effects = Assert.IsAssignableFrom<IEvaluatedFrameInspectionSource>(session).DescribeEffects();
+        var inspection = RenderFrameInspection.Build(snapshot, frame, effects, null, 12.5);
+
+        Assert.True(inspection.Prepared);
+        Assert.Equal(new RenderInspectionCanvas(snapshot.Composition.CanvasWidth, snapshot.Composition.CanvasHeight), inspection.Canvas);
+        var final = Assert.Single(frame.FinalGeometry);
+        var token = Assert.Single(inspection.Tokens);
+        Assert.Equal(final.WithRuby.TokenId.Value, token.TokenId);
+        Assert.Equal(final.Clusters.Count(cluster => cluster.Target.RubyId is null), token.Clusters.Length);
+        Assert.Equal(final.Ruby.Select(ruby => ruby.RubyId.Value), token.Ruby.Select(ruby => ruby.RubyId));
+        Assert.All(token.Clusters, cluster => Assert.Contains(token.TokenId, cluster.OwnerTokenIds));
+        Assert.InRange(token.Ink!.Length, 8, 32);
+        Assert.Equal(0, token.Ink.Length % 2);
+        var position = Assert.Single(frame.Playback.GetCursors(CursorAnchorMode.AdvanceCenter));
+        var cursorItem = Assert.Single(inspection.Cursors);
+        Assert.Equal([Math.Round(position.Position.X, 2), Math.Round(position.Position.Y, 2)], cursorItem.Point);
+        var particles = Assert.Single(inspection.Particles, item => item.InstanceId == "cursor");
+        Assert.Equal(2, particles.Births);
+        Assert.Equal(4, particles.BirthPoints.Length);
+        Assert.Equal(["cursor", "warp"], inspection.Effects.Select(effect => effect.InstanceId).Order());
+        Assert.All(inspection.Effects, effect => Assert.Equal(2, effect.SdkMajor));
+        Assert.All(inspection.Effects, effect => Assert.NotEmpty(effect.LineIds));
+        Assert.Equal(12.5, inspection.Cost.SessionOpenMs);
+        Assert.True(inspection.SerializedBytes() <= RenderFrameInspection.MaximumBytes);
+
+        var tight = RenderFrameInspection.Build(snapshot, frame, effects, null, null, new(1, 1, 1, 1, 1, 1, 1, 1, 4));
+        Assert.Equal(1, Assert.Single(tight.Particles, item => item.InstanceId == "cursor").OmittedBirthPoints);
+        Assert.Single(tight.Effects);
+        Assert.Equal(1, tight.Truncated.Effects);
+    }
+
+    [Fact]
     public void 手工CPU像素参照不授予生产v2准入且未启用Warp包保留CPU路径()
     {
         var package = Package();

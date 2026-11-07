@@ -8,11 +8,12 @@ namespace MakoKaraGenerator.Backend.Hosting;
 /// </summary>
 public sealed class PreviewFrameHandleStore
 {
-    private sealed class Entry(string clientId, PreviewFrameMetadataDto metadata, byte[] content)
+    private sealed class Entry(string clientId, PreviewFrameMetadataDto metadata, byte[] content, PreviewFrameInspectionResponse? inspection)
     {
         public string ClientId { get; } = clientId;
         public PreviewFrameMetadataDto Metadata { get; } = metadata;
         public byte[] Content { get; } = content;
+        public PreviewFrameInspectionResponse? Inspection { get; } = inspection;
         public int Readers { get; set; }
         public bool Retained { get; set; } = true;
     }
@@ -86,7 +87,10 @@ public sealed class PreviewFrameHandleStore
         }
     }
 
-    /// <summary>发布单帧；<paramref name="lastRequestSequence"/> 是当前会话已接受的前一序号。</summary>
+    /// <summary>
+    /// 发布单帧；<paramref name="lastRequestSequence"/> 是当前会话已接受的前一序号。
+    /// <paramref name="inspection"/> 与帧同寿命，已由 Worker 和 Host 两侧限制在固定字节预算内，不计入 PNG 保留预算。
+    /// </summary>
     public BackendErrorResponse? Publish(
         string clientId,
         PreviewSessionResponse session,
@@ -94,7 +98,8 @@ public sealed class PreviewFrameHandleStore
         PreviewFrameMetadataDto metadata,
         ReadOnlySpan<byte> content,
         long lastRequestSequence,
-        DateTimeOffset nowUtc)
+        DateTimeOffset nowUtc,
+        PreviewFrameInspectionResponse? inspection = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(clientId);
         ArgumentNullException.ThrowIfNull(session);
@@ -108,6 +113,10 @@ public sealed class PreviewFrameHandleStore
         if (integrity is not null) return integrity;
         if (string.IsNullOrWhiteSpace(metadata.FrameId))
             return new(BackendErrorCode.InvalidRequest, "预览帧标识不能为空。", "frameId");
+        if ((inspection is null) != (metadata.InspectionUrl is null)
+            || inspection is not null && (inspection.FrameId != metadata.FrameId || inspection.PreviewGeneration != metadata.PreviewGeneration
+                || inspection.SourceRevision != metadata.SourceRevision || inspection.TimeUs != metadata.TimeUs))
+            return new(BackendErrorCode.InvalidRequest, "检查投影与预览帧身份不一致。", "inspectionUrl");
 
         lock (_gate)
         {
@@ -142,7 +151,7 @@ public sealed class PreviewFrameHandleStore
             // Allocate only after reserving the store budget under the same gate.
             byte[] copy = content.ToArray();
             foreach (var prior in priorFrames.Take(evictions)) Remove(prior.Key, prior.Value);
-            _frames.Add(metadata.FrameId, new(clientId, metadata, copy));
+            _frames.Add(metadata.FrameId, new(clientId, metadata, copy, inspection));
             _retainedBytes += copy.LongLength;
         }
         return null;
@@ -210,6 +219,43 @@ public sealed class PreviewFrameHandleStore
             _activeReaders++;
             _activeReadBytes += entry.Content.LongLength;
             lease = new(entry.Metadata, new MemoryStream(entry.Content, writable: false), () => Release(entry));
+            error = null;
+            return true;
+        }
+    }
+
+    /// <summary>读取与帧同寿命的检查投影；帧不存在、不属于客户端或到期时与读取帧内容的错误一致。</summary>
+    public bool TryReadInspection(string clientId, string frameId, DateTimeOffset nowUtc,
+        out PreviewFrameInspectionResponse? inspection, out BackendErrorResponse? error)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(clientId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(frameId);
+        inspection = null;
+        lock (_gate)
+        {
+            if (!_frames.TryGetValue(frameId, out Entry? entry))
+            {
+                RemoveExpired(nowUtc);
+                error = new(BackendErrorCode.PreviewFrameNotFound, "预览帧不存在。", "frameId");
+                return false;
+            }
+            if (!string.Equals(entry.ClientId, clientId, StringComparison.Ordinal))
+            {
+                error = new(BackendErrorCode.ResourceUnauthorized, "预览帧不属于当前客户端。", "frameId");
+                return false;
+            }
+            if (entry.Metadata.Content.ExpiresAtUtc <= nowUtc)
+            {
+                Remove(frameId, entry);
+                error = new(BackendErrorCode.PreviewFrameExpired, "预览帧句柄已经到期。", "expiresAtUtc");
+                return false;
+            }
+            if (entry.Inspection is null)
+            {
+                error = new(BackendErrorCode.PreviewInspectionUnavailable, "这一帧请求时没有开启检查，或检查投影没有生成。", "frameId");
+                return false;
+            }
+            inspection = entry.Inspection;
             error = null;
             return true;
         }

@@ -83,6 +83,9 @@ public sealed record RenderRequest
     /// <summary>取消令牌。</summary>
     public CancellationToken CancellationToken { get; init; }
 
+    /// <summary>是否为本帧生成只读检查投影（调试叠加层与成本）；不改变像素，导出不设置此值。</summary>
+    public bool Inspect { get; init; }
+
     /// <summary>取得本次渲染实际使用的目标尺寸。</summary>
     /// <returns>请求指定的目标，或按合成设置的整画布目标。</returns>
     public RenderTarget ResolveTarget() => Target ?? RenderTarget.FromComposition(Project.Composition);

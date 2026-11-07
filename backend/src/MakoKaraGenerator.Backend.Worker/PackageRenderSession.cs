@@ -18,6 +18,7 @@ internal sealed class PackageRenderSession(string? renderBackend = null, bool en
     private Guid _id;
     private string? _sourceHash;
     private long _sequence;
+    private double _openMs;
     private GpuStreamSession? _gpuStream;
     private GpuStreamWorkerOpen? _gpuOpen;
 
@@ -59,6 +60,7 @@ internal sealed class PackageRenderSession(string? renderBackend = null, bool en
                     new FfmpegVideoFrameProvider(), ReplayReason.Initial, imageResolverFactory, renderBackend: renderBackend,
                     enableGpuPreview: enableGpuPreview, enableGpuPreviewBenchmark: enableGpuPreviewBenchmark, gpuPreparation: preparedGpu);
                 IRenderFrameSession session;
+                long opened = System.Diagnostics.Stopwatch.GetTimestamp();
                 try { session = await factory.CreateAsync(snapshot, token).ConfigureAwait(false); }
                 catch (ProjectEffectCompilationException failure)
                 {
@@ -71,6 +73,7 @@ internal sealed class PackageRenderSession(string? renderBackend = null, bool en
                 try { token.ThrowIfCancellationRequested(); }
                 catch { try { await session.DisposeAsync().ConfigureAwait(false); } finally { runtimeInput?.Dispose(); } throw; }
                 _id = input.SessionId; _sourceHash = sourceHash; _sequence = 0; _snapshot = snapshot; _session = session; _runtimeInput = runtimeInput;
+                _openMs = System.Diagnostics.Stopwatch.GetElapsedTime(opened).TotalMilliseconds;
                 return SessionResult(request);
             }
             if (request.Kind is GpuStreamWorkerContract.OpenKind or GpuStreamWorkerContract.CloseKind or GpuStreamWorkerContract.ReadKind)
@@ -134,6 +137,7 @@ internal sealed class PackageRenderSession(string? renderBackend = null, bool en
                 {
                     Target = new() { PixelWidth = input.Width, PixelHeight = input.Height },
                     TransparentBackground = input.TransparentBackground, Quality = (RenderQuality)input.Quality, CancellationToken = token,
+                    Inspect = input.Inspect,
                 }, token).ConfigureAwait(false);
                 token.ThrowIfCancellationRequested();
                 WorkerPackageDiagnosticsDto packageDiagnostics = PackageRenderDiagnosticsMapper.EncodeFrame(frame);
@@ -145,7 +149,8 @@ internal sealed class PackageRenderSession(string? renderBackend = null, bool en
                     outputSha256: WorkerProtocol.ComputeSha256(pixels), frameWidth: frame.Width, frameHeight: frame.Height,
                     frameStride: frame.Stride, frameTimeUs: frame.TimeUs, frameFormat: RenderFrameV1WorkerResult.RequiredPixelFormat,
                     sessionId: _id.ToString("N"), sourceSha256: _sourceHash, frameSequence: input.Sequence,
-                    frameTransparentBackground: input.TransparentBackground, diagnostics: diagnostics, frameQuality: input.Quality, packageDiagnostics: packageDiagnostics);
+                    frameTransparentBackground: input.TransparentBackground, diagnostics: diagnostics, frameQuality: input.Quality, packageDiagnostics: packageDiagnostics,
+                    frameInspection: StaticRenderSession.EncodeInspection(input, frame, _openMs));
                 PackageRenderWorkerContract.ValidateFrameResult(input, result);
                 return result;
             }

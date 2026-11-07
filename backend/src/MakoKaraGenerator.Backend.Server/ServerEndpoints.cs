@@ -92,6 +92,7 @@ internal static partial class ServerEndpoints
         app.MapPost("/api/v1/assets", UploadAssetAsync);
         app.MapMethods("/api/v1/assets/{id}/content", ["GET", "HEAD"], ReadAssetAsync);
         app.MapMethods("/api/v1/preview-frames/{id}/content", ["GET", "HEAD"], ReadPreviewFrameAsync);
+        app.MapGet("/api/v1/preview-frames/{id}/inspection", ReadPreviewInspection);
         app.MapGet("/api/v1/preview-sessions/{id}/diagnostics", ReadPreviewDiagnosticsAsync);
         app.MapPost("/project-sessions", CreateSessionAsync);
         app.MapPost("/api/v1/project-sessions", CreateSessionAsync);
@@ -332,7 +333,8 @@ internal static partial class ServerEndpoints
     {
         BackendErrorCode.UnauthorizedClient or BackendErrorCode.ClientTokenExpired or BackendErrorCode.ResourceUnauthorized => 401,
         BackendErrorCode.ResourceNotFound or BackendErrorCode.SessionNotFound or BackendErrorCode.JobNotFound => 404,
-        BackendErrorCode.PreviewSessionNotFound or BackendErrorCode.PreviewFrameNotFound or BackendErrorCode.ExportArtifactNotFound => 404,
+        BackendErrorCode.PreviewSessionNotFound or BackendErrorCode.PreviewFrameNotFound or BackendErrorCode.ExportArtifactNotFound
+            or BackendErrorCode.PreviewInspectionUnavailable => 404,
         BackendErrorCode.ResourceExpired => 410,
         BackendErrorCode.PreviewFrameExpired or BackendErrorCode.ExportArtifactExpired => 410,
         BackendErrorCode.ResourceTooLarge => 413,

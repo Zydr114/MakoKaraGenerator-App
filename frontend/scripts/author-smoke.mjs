@@ -57,6 +57,9 @@ const selectTemplate = async (id, expected) => {
 
 async function source(text) {
   await page.waitFor(`!!document.querySelector('.cm-content')`, '源码编辑器');
+  // 源码页签列出包内全部可编辑文件，默认停在 manifest.json；先切到 C# 文件。
+  await clickAt(`.source-file[data-path$=".cs"]`);
+  await page.waitFor(`document.querySelector('.source-file[aria-current=true]')?.dataset.path?.endsWith('.cs')`, '切到 C# 文件');
   await page.eval(`document.querySelector('.cm-content').focus()`);
   for (const type of ['keyDown', 'keyUp']) await page.send('Input.dispatchKeyEvent', { type, key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65 });
   await page.send('Input.insertText', { text });

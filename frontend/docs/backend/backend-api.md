@@ -215,7 +215,7 @@ data: {"eventSeq":"7","eventCursor":"host-H:client-C:7","type":"project.changed"
 
 ```
 
-`data`为BackendEventResponse：固定公共身份／时间，加可选summary、changeSet、job或preview小投影。已生产事件包括 `project.opened, project.changed, project.saved, project.closed, job.changed, job.progress, job.terminal, preview.stateChanged, preview.frameReady, preview.failed, preview.closed`；新建发布也使用project.opened，不携带像素、完整工程或完整日志。
+`data`为BackendEventResponse：固定公共身份／时间，加可选summary、changeSet、job或preview小投影。已生产事件包括 `project.opened, project.changed, project.saved, project.closed, job.changed, job.progress, job.terminal, preview.stateChanged, preview.frameReady, preview.failed, preview.closed, project.mediaFeaturesChanged`（宿主媒体分析完成，见§28.6）；新建发布也使用project.opened，不携带像素、完整工程或完整日志。
 
 游标不匹配、超前或重放窗口缺口时，流发 `event: resync.required`，data为 `{"eventCursor":"...","events":[],"resyncRequired":true}` 后关闭；重新GET client state和需要的preview／job，再以新游标连接。访问凭证过期时发 `event: client.expired` 和错误DTO后关闭；先恢复登记再重连。SSE输出 `id`为eventSeq，事件data同时保留完整eventCursor；断线不取消已接受操作。预览提示另有128条有界advisory队列，可能丢旧提示，GET状态始终权威。
 
@@ -1951,3 +1951,34 @@ SDK2作者可读取固定SceneCatalog中的SourceNode、SourceProgram、SourceCl
 包括真实根组／默认容器、父节点、片段成员及前奏关联；这些固定值可进入递归只读PreparedEffect。
 纯度分析仍核对真实SDK程序集，不放行旧生命周期写者、GetHashCode或外部IO。该修复解决真实组
 作者读取RootNodeId时误报MKV2006；没有新增HTTP字段或更改owner、CAS和采用编译门禁。
+
+<a id="sdk2-m10-media-features"></a>
+### 28.6 宿主媒体特征轨（0.112.37／合同1.47.0）
+
+**包能力。** v2包在 `manifest.json.requires` 声明 `media.features` 后，可在清单根写 `mediaQueries`
+（每项 `id`、`space` 为 `sourceNormalized|canvasPixels`、`window` 为字面量或同包Duration参数，
+0..2000000µs），在export中引用查询并为 `pending`、`unavailable`、`noMedia` 三种状态各写
+fallback。作者在纯函数中用 `frame.Media.Sample(query, rect, timeUs)` 读取固定结果。v1包出现
+`mediaQueries` 被拒绝；输出 `requires` 中的能力未在包 `requires` 声明时为 `PackageCapabilityMissing`。
+能力名属于包清单，不是新增HTTP字段。
+
+**宿主分析与固定输入。** Server启动时创建宿主背景分析服务，创建失败只在日志记
+`BACKEND_MEDIA_FEATURES_UNAVAILABLE`，不阻止启动，依赖媒体的包走fallback。每个运行输入（预览、
+一次性渲染、正式验证、导出）在准入时固定媒体输入：预览只等待检查，未完成的分析按 `pending`
+处理；正式验证与导出等待完整分析制品后再开始。Worker按Host私有授权重建采样绑定，HTTP不暴露
+制品路径或授权。透明输出（straight透明预览、正式验证的透明半程、透明导出）固定为显式 NoMedia，
+不采样不会被渲染的工程背景；与普通输出共用同一工程修订，互不借用对方的媒体输入。
+
+**事件。** 分析完成只改变Host派生的输入，不改变工程修订、dirty和撤销历史。此时Server对每个
+打开的工程会话发 `project.mediaFeaturesChanged`，data只带公共身份和summary，没有changeSet。
+客户端收到后可用同一精确修订重新固定预览输入（`PUT /api/v1/preview-sessions/{id}/input`，或GPU流 `PUT .../source`）；已接受的验证
+和导出任务不受影响。该事件与其他工程事件共用重放窗口与resync规则，GET状态始终权威。
+
+**失败码。** 以下错误出现在预览失败、作者验证报告与任务诊断中，均不回落为无媒体渲染：
+`MediaFeatureOutputMismatch`（输出模式与固定媒体输入不符）、`MediaFeatureBindingRequired`
+（需要媒体闭包时缺少同一固定输入和宿主绑定）、`MediaFeatureBindingMismatch`（绑定不属于本次
+快照、owner、参数或依赖闭包）、`MediaFeatureResultMismatch`（结果未保留固定查询身份或数值分支）。
+
+**限制。** 作者草稿预览与候选试看没有宿主分析，纯色背景可得结果，文件背景为 NoMedia，也不区分
+透明输出；分析失败在本次Server运行内不重试。没有新增路由或DTO字段，路径、方法、schema与
+例子计数沿用1.46.1。

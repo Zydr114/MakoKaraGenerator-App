@@ -26,6 +26,7 @@ import {
   type CloseProjectInput,
   type CreatePreviewInput,
   type PresetApplicationPreviewInput,
+  type PreviewFrameInspectionResponse,
   type TemplatePreviewInput,
   type CreateProjectSessionInput,
   type EditableLyricLine,
@@ -1812,6 +1813,30 @@ export class MakoClient extends Emitter<MakoClientEvents> {
       if (!result.blob) throw new Error(`预览帧没有正文（HTTP ${result.status}）。`);
       const sha256 = await sha256Hex(result.blob);
       return { blob: result.blob, sha256, verified: sha256 === frame.content.sha256 && result.blob.size === frame.content.sizeBytes };
+    },
+
+    /**
+     * 读取一帧的检查投影（合同 1.48.0）。帧元数据没有 inspectionUrl（取帧时没带 inspect）时返回 undefined；
+     * 回执与帧身份（frameId、代次、来源修订、时刻）不一致时抛错。投影与帧同寿命：过期是 410 previewFrameExpired。
+     */
+    readInspection: async (frame: PreviewFrameMetadata, signal?: AbortSignal): Promise<PreviewFrameInspectionResponse | undefined> => {
+      if (!frame.inspectionUrl) return undefined;
+      const { data } = await this.send<PreviewFrameInspectionResponse>({
+        method: 'GET',
+        path: frame.inspectionUrl,
+        auth: 'access',
+        label: 'preview.inspection',
+        ...(signal ? { signal } : {}),
+      });
+      if (
+        data.frameId !== frame.frameId ||
+        data.previewId !== frame.previewId ||
+        data.previewGeneration !== frame.previewGeneration ||
+        data.sourceRevision !== frame.sourceRevision ||
+        data.timeUs !== frame.timeUs
+      )
+        throw new Error('检查投影与帧身份不一致。');
+      return data;
     },
 
     /**

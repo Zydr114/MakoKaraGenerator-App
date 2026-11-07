@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Button as AriaButton } from 'react-aria-components';
-import { TEMPLATE_WORKSHOP_SAMPLE_IDS, type TemplateLibraryId, type TemplateSummary } from '../../protocol';
+import { TEMPLATE_WORKSHOP_SAMPLE_IDS, type PreviewFrameInspectionResponse, type TemplateLibraryId, type TemplateSummary } from '../../protocol';
 import { shortRevision, SLOT_LABEL } from '../model/full-template';
 import { Button } from '../ui/Button';
 import { SliderField, Switch } from '../ui/choices';
@@ -12,6 +12,8 @@ import { useObjectUrl, useObservable } from '../ui/hooks';
 import { Note } from '../workspace/panel';
 import { SAMPLE_SIZE, thumbnailKey, type SampleFrame, type SampleSource, type TemplateThumbnails } from './template-thumbnails';
 import { SAMPLE_LABEL, targetLabel, workshopTitle, WORKSHOP_DURATION_US, type TemplateWorkshop } from './template-workshop';
+import { CostPanel, InspectionLegend, InspectionOverlay, useInspectionPrefs } from './SampleInspection';
+import type { InspectionLayer } from './sample-inspection';
 
 /** 模板缩略图（G17）：固定试样上的一帧；后端没有开放试样时不占位。 */
 export function TemplateThumb(props: { thumbnails: TemplateThumbnails; libraryId: TemplateLibraryId; libraryRevision: string; summary: TemplateSummary }) {
@@ -68,6 +70,7 @@ const seconds = (us: number) => `${(us / 1_000_000).toFixed(2)} s`;
 export function SampleView(props: { workshop: TemplateWorkshop; blocked?: string | undefined; sourceNote?: string | undefined; failureLink?: SampleFailureLink | undefined }) {
   const { workshop } = props;
   const state = useObservable(workshop.state$);
+  const [inspect, setInspect] = useInspectionPrefs(workshop);
   if (state.available === false) return <Note className="sample-unavailable">后端没有开放模板试样，应用到工程后可在外观页看成片预览。</Note>;
   const samples = state.options?.samples ?? [];
   const targets = samples.find((s) => s.sampleId === state.sampleId)?.targets ?? [];
@@ -76,6 +79,10 @@ export function SampleView(props: { workshop: TemplateWorkshop; blocked?: string
   const idle = !state.options || !!props.blocked;
   const link = props.failureLink;
   const note = props.sourceNote ?? (state.source === 'draft' ? '未保存的修改，' : '');
+  // 失败时画面是上一张成功的帧：不画叠加层，成本也不算它的。
+  const stale = state.frame?.status === 'error' && !!state.frame.lastGood;
+  const inspection = stale ? undefined : state.frame?.inspection;
+  const inspectionError = stale ? undefined : state.frame?.inspectionError;
   return (
     <section className="template-sample" aria-label="试样" data-focus={state.echoedSlot} data-title={workshopTitle(state)}>
       <div className="canvasbar">
@@ -120,8 +127,24 @@ export function SampleView(props: { workshop: TemplateWorkshop; blocked?: string
         )}
       </div>
       <div className="sample-stage">
-        <SampleImage frame={state.frame} className="preview-frame" style={{ aspectRatio: `${SAMPLE_SIZE.width} / ${SAMPLE_SIZE.height}` }} blocked={props.blocked} />
+        <SampleImage
+          frame={state.frame}
+          className="preview-frame"
+          style={{ aspectRatio: `${SAMPLE_SIZE.width} / ${SAMPLE_SIZE.height}` }}
+          blocked={props.blocked}
+          {...(inspect.overlay && inspection ? { inspection, hidden: inspect.hidden } : {})}
+        />
       </div>
+      {inspect.overlay && !idle && (
+        <InspectionLegend
+          inspection={inspection}
+          error={inspectionError}
+          stale={stale}
+          waiting={state.frame?.status === 'loading'}
+          hidden={inspect.hidden}
+          onHiddenChange={(hidden) => setInspect({ hidden })}
+        />
+      )}
       <FrameIdentity frame={state.frame} />
       {link && state.frame?.status === 'error' && state.frame.failureCode === link.code && (
         <div className="sample-failure">
@@ -157,12 +180,24 @@ export function SampleView(props: { workshop: TemplateWorkshop; blocked?: string
           disabled={idle || !state.targetKey}
         />
         <Switch label="循环" checked={state.loop} onChange={(loop) => workshop.setLoop(loop)} />
+        <Switch label="叠加层" className="sample-inspect-overlay" checked={inspect.overlay} onChange={(overlay) => setInspect({ overlay })} />
+        <Switch label="成本" className="sample-inspect-cost" checked={inspect.cost} onChange={(cost) => setInspect({ cost })} />
       </div>
+      {inspect.cost && !idle && <CostPanel inspection={inspection} error={inspectionError} stale={stale} />}
     </section>
   );
 }
 
-function SampleImage(props: { frame: SampleFrame | undefined; className: string; compact?: boolean; style?: CSSProperties; blocked?: string | undefined }) {
+function SampleImage(props: {
+  frame: SampleFrame | undefined;
+  className: string;
+  compact?: boolean;
+  style?: CSSProperties;
+  blocked?: string | undefined;
+  /** 与画面同一帧的检查投影；给了才画叠加层。 */
+  inspection?: PreviewFrameInspectionResponse;
+  hidden?: readonly InspectionLayer[];
+}) {
   const { frame } = props;
   // 失败时画面仍是上一张成功的帧（变淡，叠上失败原因）；它不是这次请求的结果，状态保持 error。
   const stale = frame?.status === 'error' && !props.compact ? frame.lastGood : undefined;
@@ -173,6 +208,7 @@ function SampleImage(props: { frame: SampleFrame | undefined; className: string;
   return (
     <span className={`${props.className}${tone}`} style={props.style} title={frame?.message} data-status={frame?.status} data-blocked={props.blocked ? '' : undefined} data-stale={stale ? '' : undefined}>
       {url && <img src={url} alt={props.compact ? '' : stale ? '上一张成功的试样画面' : '试样画面'} data-sha={shown?.sha256} data-time={shown?.timeUs} data-revision={shown?.revision} data-stale={stale ? '' : undefined} />}
+      {url && !stale && props.inspection && <InspectionOverlay inspection={props.inspection} hidden={props.hidden ?? []} />}
       {overlay && <span className="preview-overlay">{overlay}</span>}
     </span>
   );

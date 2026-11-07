@@ -6,6 +6,7 @@ import {
   micros,
   type AuthorDraftSampleOptions,
   type FullTemplateDefinition,
+  type PreviewFrameInspectionResponse,
   type PreviewSize,
   type TemplateKind,
   type TemplateLibraryId,
@@ -43,6 +44,10 @@ export interface SampleFrame {
   revision?: string;
   /** 失败时仍显示的上一张成功帧（同一画布范围内）：只作参照，不是这次请求的结果。 */
   lastGood?: LastGoodFrame;
+  /** 这一帧的检查投影（试样画布打开叠加层或成本时才取）；等新帧时跟着旧画面留着。 */
+  inspection?: PreviewFrameInspectionResponse;
+  /** 帧成功但投影没取到时的原因。 */
+  inspectionError?: string;
 }
 
 /** 上一张成功帧的身份：画面、时刻和（作者草稿的）源码修订。 */

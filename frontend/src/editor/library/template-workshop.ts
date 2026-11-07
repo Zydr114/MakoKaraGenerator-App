@@ -5,6 +5,7 @@
 // 作者草稿的会话失败后出不了新帧：读完诊断就关掉，下次取帧重建（运行时出错之前的时刻还能看）。
 // 取帧规则同 PreviewController：同时只有一条请求在途，只处理最新想看的时刻；时间前进用 playback，后退用 seek。
 // 试播按本地时钟取帧，两帧之间至少隔 PLAYBACK_INTERVAL_MS。
+// 检查（叠加层或成本打开时）：取帧带 inspect，帧到了再读投影，和画面一起放进 frame；投影读不到不影响画面。
 
 import { authorDraftSource, BackendError, ObservableValue, PreviewFailedError, type MakoClient } from '../../client';
 import {
@@ -14,6 +15,7 @@ import {
   type BackendDiagnostic,
   type BackendSourceDiagnostic,
   type Generation,
+  type PreviewFrameInspectionResponse,
   type PreviewSessionResponse,
   type PreviewSourceRevision,
   type RenderBackend,
@@ -139,6 +141,8 @@ export class TemplateWorkshop {
   private tick: ReturnType<typeof setTimeout> | undefined;
   private lastRequestAt = 0;
   private disposed = false;
+  /** 取帧时是否要检查投影。 */
+  private inspecting = false;
 
   constructor(
     private readonly client: MakoClient,
@@ -231,6 +235,23 @@ export class TemplateWorkshop {
 
   setLoop(loop: boolean): void {
     if (loop !== this.state.loop) this.patch({ loop });
+  }
+
+  /**
+   * 叠加层或成本打开时要检查投影。打开时当前帧没有投影就按当前时刻重取一帧；
+   * 关闭时去掉当前帧上的投影，之后的帧也不再带。
+   */
+  setInspect(on: boolean): void {
+    if (on === this.inspecting || this.disposed) return;
+    this.inspecting = on;
+    const frame = this.state.frame;
+    if (!on) {
+      if (this.shown) this.shown = { ...this.shown, frame: withoutInspection(this.shown.frame) };
+      if (frame && (frame.inspection || frame.inspectionError)) this.patch({ frame: withoutInspection(frame) });
+      return;
+    }
+    // 在途的帧没带 inspect：它回来后按当前时刻再取一帧（shown 没有投影，不会被当成已显示）。
+    if ((frame?.status === 'ready' && !frame.inspection) || frame?.status === 'loading') this.request(this.state.timeUs);
   }
 
   /** 渲染设备偏好变了：设备不同就重建会话。 */
@@ -357,7 +378,7 @@ export class TemplateWorkshop {
         this.want = undefined;
         const input = this.input();
         if (!input) break;
-        if (this.shown?.key === input.key && this.shown.timeUs === timeUs) {
+        if (this.shown?.key === input.key && this.shown.timeUs === timeUs && (!this.inspecting || this.shown.frame.inspection)) {
           // 例如草稿改回了原样：会话没换，把“正在生成”换回已有的帧。
           if (this.state.frame !== this.shown.frame) this.patch({ frame: this.shown.frame });
           this.scheduleTick();
@@ -376,7 +397,9 @@ export class TemplateWorkshop {
           if (session !== this.session || this.input()?.key !== input.key) continue;
           const revision = input.request.kind === 'authorDraft' ? input.request.authorSourceRevision : undefined;
           this.lastGood = { frame: frame.blob, sha256: frame.sha256, timeUs, ...(revision ? { revision } : {}) };
-          this.shown = { key: input.key, timeUs, frame: { status: 'ready', ...this.lastGood } };
+          // 取帧期间关掉了检查：投影不放进来。
+          const inspected = this.inspecting ? { ...(frame.inspection ? { inspection: frame.inspection } : {}), ...(frame.inspectionError ? { inspectionError: frame.inspectionError } : {}) } : {};
+          this.shown = { key: input.key, timeUs, frame: { status: 'ready', ...this.lastGood, ...inspected } };
           this.patch({ frame: this.shown.frame });
         } catch (error) {
           let failed: SampleFrame | undefined;
@@ -473,8 +496,12 @@ export class TemplateWorkshop {
     return this.lastGood ? { ...frame, lastGood: this.lastGood } : frame;
   }
 
-  private async render(session: Session, timeUs: number): Promise<{ blob: Blob; sha256: string }> {
+  private async render(
+    session: Session,
+    timeUs: number,
+  ): Promise<{ blob: Blob; sha256: string; inspection?: PreviewFrameInspectionResponse; inspectionError?: string }> {
     const intent = session.lastTimeUs === undefined || timeUs >= session.lastTimeUs ? 'playback' : 'seek';
+    const inspect = this.inspecting;
     session.seq = nextSequence(session.seq);
     const requestSeq = session.seq;
     this.lastRequestAt = this.now();
@@ -484,6 +511,7 @@ export class TemplateWorkshop {
       requestSeq,
       timeUs: toMicros(timeUs),
       intent,
+      ...(inspect ? { inspect: true } : {}),
     });
     session.generation = accepted.previewGeneration;
     session.lastTimeUs = timeUs;
@@ -492,7 +520,16 @@ export class TemplateWorkshop {
       { generation: accepted.previewGeneration, sourceRevision: session.sourceRevision, requestSeq },
       { signal: session.abort.signal },
     );
-    return this.client.preview.fetchFrame(frame, session.abort.signal);
+    const content = await this.client.preview.fetchFrame(frame, session.abort.signal);
+    if (!inspect) return content;
+    if (!frame.inspectionUrl) return { ...content, inspectionError: '后端没有返回这一帧的检查投影' };
+    try {
+      const inspection = await this.client.preview.readInspection(frame, session.abort.signal);
+      return inspection ? { ...content, inspection } : content;
+    } catch (error) {
+      if (session.abort.signal.aborted) throw error;
+      return { ...content, inspectionError: `检查投影读取失败：${errorText(error)}` };
+    }
   }
 
   /** 试播中：按本地时钟排下一帧；到结尾时循环或停在最后一帧。 */
@@ -569,10 +606,24 @@ function targetFor(options: TemplatePreviewOptionsResponse | undefined, sampleId
   return targets.some((t) => t.key === current) ? current : targets[0]?.key;
 }
 
-/** 等新帧时留着上一张（变淡显示），避免闪烁；上一次失败时留着失败前那张成功的帧。 */
+/**
+ * 等新帧时留着上一张（变淡显示），避免闪烁；上一次失败时留着失败前那张成功的帧。
+ * 留着的画面带着它自己的投影（叠加层仍和画面对得上）；失败前那张没有投影。
+ */
 function loading(previous: SampleFrame | undefined): SampleFrame {
   const shown = previous?.frame ? previous : previous?.lastGood;
-  return { status: 'loading', ...(shown?.frame ? { frame: shown.frame } : {}), ...(shown?.sha256 ? { sha256: shown.sha256 } : {}) };
+  const inspection = previous?.frame ? previous.inspection : undefined;
+  return {
+    status: 'loading',
+    ...(shown?.frame ? { frame: shown.frame } : {}),
+    ...(shown?.sha256 ? { sha256: shown.sha256 } : {}),
+    ...(inspection ? { inspection } : {}),
+  };
+}
+
+function withoutInspection(frame: SampleFrame): SampleFrame {
+  const { inspection: _inspection, inspectionError: _error, ...rest } = frame;
+  return rest;
 }
 
 function clampTime(timeUs: number): number {

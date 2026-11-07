@@ -1,6 +1,8 @@
 # 前后端 API 执行合同
 
-状态：**1.46.1 按匹配 metadata 冻结**，更新于2026-11-05；产品 **0.112.15**，HTTP `protocolVersion:"1"`。本轮新增 `GET /api/v1/drafts/{id}/source-inspection`，只检查当前owner草稿retained固定源声明；采用接口可选完整八字段配置，按目标修订验证后与来源共同发布，原省略/null配置请求保持。最新、编译、已采用和在用源码保持独立，保存／编译不自动采用。前端声明候选、完整配置历史与原文保护已接入；预算、CAS、编译身份和错误见[行为§21](../docs/architecture/backend-api.md#backend-author-p4)。本次还固定图绑定、Base材质与组消费者生产源，SVG／Warp见[行为§27](../docs/architecture/backend-api.md#sdk2-m09-svg-warp)。合同为113路径／126方法／598 schemas，3528个合成例（2623反例）。SDK2仍要求GPU，CPU以 `commandNotSupported/PackageBackendUnsupported` 拒绝。合同、匹配发布、fresh HTTP、浏览器和导出分别登记；性能门槛暂不作为本轮验收标准。
+状态：**1.47.0 按匹配 metadata 冻结**，更新于2026-11-07；产品 **0.112.37**，HTTP `protocolVersion:"1"`。本轮新增 `GET /api/v1/drafts/{id}/source-inspection`，只检查当前owner草稿retained固定源声明；采用接口可选完整八字段配置，按目标修订验证后与来源共同发布，原省略/null配置请求保持。最新、编译、已采用和在用源码保持独立，保存／编译不自动采用。前端声明候选、完整配置历史与原文保护已接入；预算、CAS、编译身份和错误见[行为§21](../docs/architecture/backend-api.md#backend-author-p4)。本次还固定图绑定、Base材质与组消费者生产源，SVG／Warp见[行为§27](../docs/architecture/backend-api.md#sdk2-m09-svg-warp)。合同为113路径／126方法／598 schemas，3528个合成例（2623反例）。SDK2仍要求GPU，CPU以 `commandNotSupported/PackageBackendUnsupported` 拒绝。合同、匹配发布、fresh HTTP、浏览器和导出分别登记；性能门槛暂不作为本轮验收标准。
+
+1.47.0 接通宿主媒体特征轨：v2包声明 `media.features` 与 `mediaQueries` 后可用 `frame.Media.Sample` 读取背景特征；宿主分析完成时对打开的工程会话发 SSE `project.mediaFeaturesChanged`（只带summary，不改修订和dirty），客户端可按同一修订重新固定预览输入。预览只等检查，正式验证与导出等完整分析制品；透明预览、验证透明半程和透明导出固定为 NoMedia。新增失败码 `MediaFeatureOutputMismatch`、`MediaFeatureBindingRequired`、`MediaFeatureBindingMismatch`、`MediaFeatureResultMismatch`。没有新增路由或DTO字段，计数沿用1.46.1；详见[行为§28.6](../docs/architecture/backend-api.md#sdk2-m10-media-features)。
 
 1.46.1 补齐 SDK2 只读场景目录值的纯度准入，SourceNode／SourceProgram／SourceClip／SourceCue 可在固定上下文读取并保留为只读准备值；没有新增路由或字段，仍拒绝旧写者、外部IO与进程随机哈希。
 

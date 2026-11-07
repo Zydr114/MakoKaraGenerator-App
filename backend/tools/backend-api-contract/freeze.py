@@ -27,10 +27,10 @@ from static_style_schema import extend_static_style_schemas, style_query_paramet
 from template_library_schema import extend_template_library_schemas, query_parameters as template_query_parameters, LIMITS as TEMPLATE_LIMITS
 
 ROOT = Path(__file__).resolve().parents[2]
-CONTRACT = "1.46.1"
-BASELINE = "48c1e7838dc6991e8de15c6fd58263e78e859533"
+CONTRACT = "1.47.0"
+BASELINE = "e36ca6210d6a523f2837fc70a046a7b827e7836f"
 PRODUCT = re.search(r"<VersionPrefix>([^<]+)</VersionPrefix>", (ROOT / "Directory.Build.props").read_text()).group(1)
-FREEZE_DATE = "2026-11-05"
+FREEZE_DATE = "2026-11-07"
 BEHAVIOR = "docs/architecture/backend-api.md"
 TOOL = Path(__file__).resolve().parent
 
@@ -1695,10 +1695,27 @@ def manifest(outputs):
         if not source.is_file():
             raise ValueError("Missing reviewed author metadata behavior source: " + filename)
         files.add(source)
+    # 1.47.0 media feature track: package capability, fixed runtime input,
+    # transparent NoMedia and the SSE hint. Explicit so moves fail closed.
+    for filename in (
+            "src/MakoKaraGenerator.Core/Effects/EffectPackageMediaQueries.cs",
+            "src/MakoKaraGenerator.Core/Effects/EffectPackageProfiles.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/V2/MediaFeatures.cs",
+            "src/MakoKaraGenerator.Scripting/Execution/ProjectMediaFeatureAdmission.cs",
+            "src/MakoKaraGenerator.Scripting/Projection/ProjectMediaFeatureProjection.cs",
+            "src/MakoKaraGenerator.Backend.Rendering/ProjectRuntimeMediaOutputs.cs",
+            "src/MakoKaraGenerator.Backend.Hosting/BackendMediaFeatureInputs.cs",
+            "src/MakoKaraGenerator.Backend.Hosting/BackendMediaFeatureService.cs",
+            "src/MakoKaraGenerator.Backend.Hosting/ProjectSessionRegistry.MediaFeatures.cs",
+    ):
+        source = ROOT / filename
+        if not source.is_file():
+            raise ValueError("Missing reviewed media feature behavior source: " + filename)
+        files.add(source)
     files.update(p for p in TOOL.iterdir() if p.is_file())
     return {"contractVersion": CONTRACT, "httpProtocolVersion": "1", "productVersion": PRODUCT, "sourceBaselineCommit": BASELINE,
             "frozenOn": FREEZE_DATE, "status": "frozen", "behaviorSource": BEHAVIOR,
-            "scope": "Implemented public HTTP API with owner-only exact retained-source inspection and optional complete configuration adoption. The inspection response is independent and reference-free; public package reference kinds remain asset/library/configuration. Adoption validates the exact successful source and complete target configuration before one document publication. SDK2 graph bindings, per-target material uniforms/base materials, exact source-group admission and scene composition/capture/budgets are fingerprinted together with Warp/SVG, particles, GPU and existing preview/export lifecycles; their finite boundaries remain. Generated contract, regression, matched deployment, fresh HTTP/GPU frames, browser and performance acceptance require separate evidence.",
+            "scope": "Implemented public HTTP API with owner-only exact retained-source inspection and optional complete configuration adoption. The Host media feature track publishes project.mediaFeaturesChanged without changing revision, fixes media input per run (preview waits for checks, validation/export for complete artifacts) and pins transparent output to NoMedia. The inspection response is independent and reference-free; public package reference kinds remain asset/library/configuration. Adoption validates the exact successful source and complete target configuration before one document publication. SDK2 graph bindings, per-target material uniforms/base materials, exact source-group admission and scene composition/capture/budgets are fingerprinted together with Warp/SVG, particles, GPU and existing preview/export lifecycles; their finite boundaries remain. Generated contract, regression, matched deployment, fresh HTTP/GPU frames, browser and performance acceptance require separate evidence.",
             "files": {str(p.relative_to(ROOT)): sha(p.read_bytes()) for p in sorted(files)},
             "artifacts": {name: sha(data) for name, data in sorted(outputs.items())},
             "guards": "Source hashes require review even for behavior-preserving changes. They are drift alarms, not semantic proofs. Runtime/Media behavior still requires existing regression tests."}

@@ -63,6 +63,33 @@ static void sha(const uint8_t *p,size_t n,uint8_t out[32]) {
     struct AVSHA *h=av_sha_alloc(); if(!h||av_sha_init(h,256)<0)die("presentation-hash-unavailable");
     av_sha_update(h,p,n);av_sha_final(h,out);av_free(h);
 }
+/* The closure is re-reported before every frame, but an unchanged file is hashed once per run: about 120 loaded
+ * images (~190 MB) re-hashed per frame made a 1080p30 minute take over ten minutes. Any change of device, inode,
+ * size, mtime or ctime invalidates the entry; a write always advances ctime, so a modified image is re-hashed. */
+typedef struct LoadedImageHash { char *path; struct stat identity; uint8_t hash[32]; } LoadedImageHash;
+static LoadedImageHash image_hashes[1024];
+static unsigned image_hash_count;
+static uint64_t image_hash_reads; /* images actually read and hashed; source-level regressions observe the cache */
+static int same_image(const struct stat *a,const struct stat *b) {
+    return a->st_dev==b->st_dev&&a->st_ino==b->st_ino&&a->st_size==b->st_size&&
+        a->st_mtim.tv_sec==b->st_mtim.tv_sec&&a->st_mtim.tv_nsec==b->st_mtim.tv_nsec&&
+        a->st_ctim.tv_sec==b->st_ctim.tv_sec&&a->st_ctim.tv_nsec==b->st_ctim.tv_nsec;
+}
+static void image_hash(const char *resolved,int fd,const struct stat *before,uint8_t out[32]) {
+    LoadedImageHash *entry=NULL;
+    for(unsigned i=0;i<image_hash_count;i++) if(!strcmp(image_hashes[i].path,resolved)){entry=&image_hashes[i];break;}
+    if(entry&&same_image(&entry->identity,before)){memcpy(out,entry->hash,32);return;}
+    struct AVSHA *h=av_sha_alloc();if(!h||av_sha_init(h,256)<0)die("presentation-hash-unavailable");
+    uint8_t buffer[8192];ssize_t n;
+    while((n=read(fd,buffer,sizeof buffer))!=0){if(n<0&&errno==EINTR)continue;if(n<0)die("presentation-loaded-image-read-failed");av_sha_update(h,buffer,(size_t)n);}
+    struct stat after;if(fstat(fd,&after)||!same_image(before,&after))die("presentation-loaded-image-changed");
+    av_sha_final(h,out);av_free(h);image_hash_reads++;
+    if(!entry) {
+        if(image_hash_count>=sizeof image_hashes/sizeof image_hashes[0])die("presentation-loaded-image-capacity");
+        entry=&image_hashes[image_hash_count];entry->path=strdup(resolved);if(!entry->path)die("presentation-native-allocation-failed");image_hash_count++;
+    }
+    entry->identity=*before;memcpy(entry->hash,out,32);
+}
 static int loaded_file(struct dl_phdr_info *info,size_t size,void *state) {
     (void)size;(void)state;
     if(++loaded_count>1024)die("presentation-loaded-image-capacity");
@@ -71,13 +98,9 @@ static int loaded_file(struct dl_phdr_info *info,size_t size,void *state) {
     if(!name||!name[0]) { ssize_t n=readlink("/proc/self/exe",executable,sizeof executable-1);if(n<=0)die("presentation-self-image-unavailable");executable[n]=0;name=executable; }
     if(!strcmp(name,"linux-vdso.so.1")) return 0; /* kernel pseudo-image; no filesystem content */
     char resolved[PATH_MAX];if(!realpath(name,resolved))die("presentation-loaded-image-unresolved");
-    int fd=open(resolved,O_RDONLY|O_CLOEXEC|O_NOFOLLOW);struct stat before,after;
+    int fd=open(resolved,O_RDONLY|O_CLOEXEC|O_NOFOLLOW);struct stat before;
     if(fd<0||fstat(fd,&before)||!S_ISREG(before.st_mode)||before.st_size<0)die("presentation-loaded-image-invalid");
-    struct AVSHA *h=av_sha_alloc();if(!h||av_sha_init(h,256)<0)die("presentation-hash-unavailable");
-    uint8_t buffer[8192];ssize_t n;
-    while((n=read(fd,buffer,sizeof buffer))!=0){if(n<0&&errno==EINTR)continue;if(n<0)die("presentation-loaded-image-read-failed");av_sha_update(h,buffer,(size_t)n);}
-    if(fstat(fd,&after)||before.st_ino!=after.st_ino||before.st_dev!=after.st_dev||before.st_size!=after.st_size||before.st_mtim.tv_sec!=after.st_mtim.tv_sec||before.st_mtim.tv_nsec!=after.st_mtim.tv_nsec)die("presentation-loaded-image-changed");
-    close(fd);uint8_t body[48+PATH_MAX];memset(body,0,sizeof body);put64(body,(uint64_t)before.st_size);av_sha_final(h,body+8);av_free(h);
+    uint8_t body[48+PATH_MAX];memset(body,0,sizeof body);put64(body,(uint64_t)before.st_size);image_hash(resolved,fd,&before,body+8);close(fd);
     size_t length=strlen(resolved);put32(body+40,(uint32_t)length);memcpy(body+44,resolved,length);record(4,body,(uint32_t)(44+length));return 0;
 }
 static void loaded_closure(void) { loaded_count=0;if(dl_iterate_phdr(loaded_file,NULL)<0)die("presentation-loaded-image-enumeration-failed");record(5,NULL,0); }

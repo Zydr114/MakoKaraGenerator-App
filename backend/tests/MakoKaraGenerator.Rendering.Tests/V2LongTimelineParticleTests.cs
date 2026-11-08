@@ -16,7 +16,7 @@ public sealed class V2LongTimelineParticleTests
     private const string Fingerprint = "v2-long-timeline-particles";
 
     [Fact]
-    public async Task 默认CursorTrail逐行应用到三分钟六十行时可准备并读取远端帧()
+    public async Task 默认CursorTrail逐行应用到三分钟六十行时可准备远端帧且锚点补算只调用在场实例()
     {
         var package = await EffectPackageStorage.ReadSupportedDirectoryAsync(Path.Combine(AppContext.BaseDirectory, "effect-packages-v2", "CursorTrail"));
         var compiled = await CompiledEffectPackage.CompileAsync(EffectPackageDefinition.Read(package),
@@ -40,10 +40,16 @@ public sealed class V2LongTimelineParticleTests
         await using var session = await new TimelineFrameSourceFactory(effects, Fingerprint,
             static () => new SkiaRenderPipeline(), ReplayReason.Initial).CreateAsync(snapshot);
         var target = RenderTarget.FromComposition(snapshot.Composition);
+        int supplemented = 0;
         foreach (long time in new long[] { 500_000, 180_000_000, 1_000_000, 180_000_000 })
         {
             var frame = await session.PrepareAsync(time, OutputMode.Transparent, target);
             Assert.NotEmpty(frame.V2Particles);
+            // 锚点补算只调用该时刻绑定范围内有目标的实例；远处行的实例不能写文字，不随总行数线性计费。
+            var anchors = frame.V2AnchorStatistics;
+            Assert.True(anchors.TextCalls <= anchors.UniqueTimes * 3, $"t={time} times={anchors.UniqueTimes} textCalls={anchors.TextCalls}");
+            supplemented += anchors.UniqueTimes;
         }
+        Assert.True(supplemented > 0);
     }
 }

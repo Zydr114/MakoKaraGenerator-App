@@ -201,20 +201,26 @@ internal sealed partial class FrameEffectHost : IDisposable
             if (pureTextOnly && !active.IsPureText) continue;
             if (!includePure && active.IsPureText) continue;
             cancellationToken.ThrowIfCancellationRequested();
-            anchorBudget?.TextCall();
             var definition = active.Definition;
             var tokens = allTokens.Where(token => (active.IsPureText || activeBindings.Contains(token.BindingId.Value))
                 && scope.ContainsToken(definition.Binding, token)).ToImmutableArray();
             var lines = allLines.Where(line => (active.IsPureText || activeBindings.Contains(line.BindingId.Value))
                 && scope.ContainsLine(definition.Binding, line)).ToImmutableArray();
             var marks = allMarks.Where(mark => scope.ContainsMark(definition.Binding, mark)).ToImmutableArray();
+            var frameGroups = !active.IsPureText ? legacyGroups : sourceGroups;
+            var writableGroups = frameGroups.Where(group => scope.ContainsGroup(definition.Binding, group.Target)).ToImmutableArray();
+            if (anchorBudget is not null)
+            {
+                // 锚点补算只需要最终文字；本时刻绑定范围内没有任何目标的纯实例不能写文字
+                // （越界写入一律拒绝），不调用也不计入实际文字实例调用，避免随全曲行数线性放大。
+                if (tokens.IsEmpty && lines.IsEmpty && marks.IsEmpty && writableGroups.IsEmpty) continue;
+                anchorBudget.TextCall();
+            }
             var targets = tokens.Select(static token => token.WithRuby).ToHashSet();
             var scopedGeometry = scene.TokenGeometries.Where(item => targets.Contains(item.WithRuby)).ToImmutableArray();
             var scopedMarks = scene.MarkGeometries.Where(mark => marks.Any(item => item.Target == mark.Target)).ToImmutableArray();
             var scopedLines = scene.LineGeometries.Where(line => lines.Any(item => item.Target == line.Target)).ToImmutableArray();
             var writableLines = definition.Binding is EffectBinding.Tokens ? ImmutableArray<LineGeometrySample>.Empty : scopedLines;
-            var frameGroups = !active.IsPureText ? legacyGroups : sourceGroups;
-            var writableGroups = frameGroups.Where(group => scope.ContainsGroup(definition.Binding, group.Target)).ToImmutableArray();
             FrameWriter writer = new(scopedGeometry, definition.Capabilities, writableGroups, baseline, definition.Resources, scopedMarks, writableLines);
             FrameContext frame = new() { TimeUs = timeUs, Project = _project, Parameters = definition.Parameters,
                 Resources = definition.Resources, Random = active.Random, Baseline = baseline,

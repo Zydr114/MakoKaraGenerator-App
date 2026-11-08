@@ -194,7 +194,7 @@ export function CostPanel(props: { inspection: PreviewFrameInspectionResponse | 
       </p>
       {model.truncated && <p className="cost-note">{model.truncated}</p>}
       <p className="cost-note">
-        各阶段是墙钟包含时间，不能相加当作总耗时，也不是 GPU 硬件时间；分配量是全进程增量；SDK v1 的 Evaluate 不单独计时。同一帧重复取也有抖动，只看量级。
+        各阶段是墙钟包含时间，不能相加当作总耗时，也不是 GPU 硬件时间；分配量是全进程增量。同一帧重复取也有抖动，只看量级。
       </p>
     </section>
   );

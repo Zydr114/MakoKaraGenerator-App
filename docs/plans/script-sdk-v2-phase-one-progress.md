@@ -414,7 +414,7 @@ SVG 可以用文件替换编辑器里的文本。不新增、删除、改名文�
 - 真实 Server 集成测试：替换图片、字体，格式不同被拒，下载回读；
 - 真实 Chrome 冒烟：SDK2 SpriteTrail 换图后，编译、采用，试样帧随之改变。
 
-详见[设计 §7～§8](script-sdk-v2-asset-replacement-design.md)。待用户验收。
+详见[设计 §7～§8](script-sdk-v2-asset-replacement-design.md)。2026-11-08 用户验收通过。
 
 本项后续仍按 2026-11-08 确认的顺序推进：
 1. 作者草稿透明输出与宿主分析、Ruby HTTP 探针；

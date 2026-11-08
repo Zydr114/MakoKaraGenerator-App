@@ -22,6 +22,7 @@
     "smoke:library": "node scripts/library-smoke.mjs",
     "smoke:author": "node scripts/author-smoke.mjs",
     "smoke:author-package": "node scripts/author-package-smoke.mjs",
+    "smoke:author-replacement": "node scripts/author-replacement-smoke.mjs",
     "smoke:author-metadata": "node scripts/author-metadata-smoke.mjs"
   },
   "dependencies": {

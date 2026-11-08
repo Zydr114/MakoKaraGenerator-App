@@ -187,8 +187,11 @@ class M12Probe(m11.M11ComplexProbe):
             "templateId": self.template["templateId"], "templateRevision": self.template["revision"],
             "targets": [{"kind": "line", "branchId": "primary", "lineId": line["id"]} for line in lines]})
         source = {"kind": "project", "sourceId": created["projectSessionId"], "sourceRevision": self.active_project["revision"]}
+        # 预览尺寸受 1280x720 限制；导出可测更大画布，预览只用于等待媒体输入，按比例缩入上限。
+        scale = min(1.0, 1280 / self.args.width, 720 / self.args.height)
         preview = self.request(name + "-preview", "POST", "/api/v1/preview-sessions", status=201, value={"source": source,
-            "size": {"width": self.args.width, "height": self.args.height}, "alphaMode": "opaque", "purpose": "preview",
+            "size": {"width": max(64, int(self.args.width * scale)), "height": max(64, int(self.args.height * scale))},
+            "alphaMode": "opaque", "purpose": "preview",
             "renderBackend": "gpu"})
         self.active_preview = preview.get("session", preview)
         self.sequence = 0
@@ -202,6 +205,15 @@ class M12Probe(m11.M11ComplexProbe):
                     self.sse.close()
                     self.sse = None
         return len(lines)
+
+    def refresh_input(self, name):
+        # 导出画布可能大于预览上限，预览已按比例缩小；重捕获沿用会话实际尺寸。
+        size = (self.args.width, self.args.height)
+        self.args.width, self.args.height = self.active_preview["size"]["width"], self.active_preview["size"]["height"]
+        try:
+            super().refresh_input(name)
+        finally:
+            self.args.width, self.args.height = size
 
     def next_sequence(self):
         self.sequence += 1

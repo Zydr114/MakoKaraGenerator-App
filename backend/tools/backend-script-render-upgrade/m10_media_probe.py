@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""M10 real HTTP media-feature probe: image background -> Host analysis -> event -> same-revision input refresh."""
+"""M10 real HTTP media-feature probe: image or video background -> Host analysis -> event -> same-revision input refresh.
+
+Without --background a generated white PNG is used; --background takes a real still or video file.
+"""
 import argparse
 import hashlib
 import importlib.util
@@ -23,6 +26,8 @@ base = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(base)
 save_json = base.save_json
 SAMPLE = ROOT / "samples" / "ScriptEffectsV2" / "AdaptiveStroke"
+VIDEO_TYPES = {".mp4": "video/mp4", ".mov": "video/quicktime", ".mkv": "video/x-matroska", ".webm": "video/webm"}
+IMAGE_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg"}
 
 
 def solid_png(width, height, rgb):
@@ -40,6 +45,7 @@ class M10MediaProbe(base.SeekProbe):
         self.frames = []
         self.media_events = []
         self.background = None
+        self.background_kind = "image"
         self.sse = None
 
     def prepare_template(self):
@@ -80,8 +86,14 @@ class M10MediaProbe(base.SeekProbe):
         # Insert the background before the template is applied and the preview is captured.
         if name.endswith("-apply-script") and self.background is not None:
             super().send(name + "-background", {"type": "composition.setBackgroundAsset",
-                "assetId": self.background["assetId"], "kind": "image"})
+                "assetId": self.background["assetId"], "kind": self.background_kind})
         return super().send(name, command)
+
+    def binary(self, name, path, **kwargs):
+        headers, data = super().binary(name, path, **kwargs)
+        if name.endswith("-png"):
+            (self.output / (name[:-4] + ".png")).write_bytes(data)
+        return headers, data
 
     def wait_media_event(self, cursor, deadline):
         """Read one persistent client SSE stream until project.mediaFeaturesChanged arrives."""
@@ -133,12 +145,19 @@ class M10MediaProbe(base.SeekProbe):
         self.stage = "prepare-template"
         self.prepare_template()
         self.stage = "background"
-        self.background = self.upload("m10-background", "m10-white.png", "image/png",
-            solid_png(self.args.width, self.args.height, (255, 255, 255)))
+        if self.args.background is None:
+            self.background = self.upload("m10-background", "m10-white.png", "image/png",
+                solid_png(self.args.width, self.args.height, (255, 255, 255)))
+        else:
+            suffix = self.args.background.suffix.lower()
+            self.background_kind = "video" if suffix in VIDEO_TYPES else "image"
+            self.background = self.upload("m10-background", "m10-background" + suffix,
+                VIDEO_TYPES.get(suffix) or IMAGE_TYPES[suffix], self.args.background.read_bytes())
         self.stage = "project"
         self.create_project("m10", 2_000_000)
         deadline = time.monotonic() + self.args.timeout_seconds
         self.stage = "frame-initial"
+        started = time.monotonic_ns()
         first = self.sample("m10-initial", 1, 500_000, {})
         self.frames = [first["rgbaSha256"]]
         cursor, sequence = "0", 1
@@ -156,7 +175,8 @@ class M10MediaProbe(base.SeekProbe):
             self.frames.append(self.sample("m10-refreshed-" + str(sequence), sequence, 500_000, {})["rgbaSha256"])
         differ = self.frames[-1] != first["rgbaSha256"]
         self.scenarios.append({"name": "m10-media-refresh", "status": "passed" if differ else "inconclusive",
-            "framesDiffer": differ, "mediaEvents": self.media_events})
+            "background": self.background_kind, "framesDiffer": differ, "mediaEvents": self.media_events,
+            "changedAfterMs": (time.monotonic_ns() - started) / 1e6 if differ else None})
         self.sse.close()
         self.sse = None
         self.close_resources("m10")
@@ -173,6 +193,7 @@ def arguments():
     parser.add_argument("--backend", choices=("cpu", "gpu"), default="gpu")
     parser.add_argument("--icd", type=Path, default=Path("/usr/share/vulkan/icd.d/radeon_icd.json"))
     parser.add_argument("--ffmpeg", default="/usr/bin/ffmpeg")
+    parser.add_argument("--background", type=Path, help="real still (.png/.jpg) or video (.mp4/.mov/.mkv/.webm) background")
     args = parser.parse_args()
     args.count, args.require_reuse, args.scenario = 2, False, "m10"
     args.dist, args.output = args.dist.resolve(), args.output.resolve()

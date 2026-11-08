@@ -102,24 +102,28 @@ export function DraftSourceTab(props: { draft: FullDraft; model: DraftSourceMode
       <aside className="srcside draft-source-side">
         <h5>文件</h5>
         <ul className="source-files">
-          {state.files.map((file) => (
-            <li key={file.path}>
-              <button
-                type="button"
-                className={cls('fitem', 'source-file', file.path === state.active && 'active')}
-                data-path={file.path}
-                data-dirty={file.text !== file.saved || file.replacement ? '' : undefined}
-                aria-current={file.path === state.active ? 'true' : undefined}
-                title={`${file.path}${file.role ? ` · ${file.role}` : ''}${file.replacement ? ` · 待替换为 ${file.replacement.fileName}` : file.editable === false ? ' · 只读' : ''}`}
-                aria-label={`${file.path}${file.replacement ? '，待替换' : file.editable === false ? '，只读' : ''}`}
-                onClick={() => model.select(file.path)}
-              >
-                <Icon name={file.replacement ? 'swap_horiz' : file.editable === false ? 'lock' : 'code'} />
-                <span className="fitem-name">{baseName(file.path)}</span>
-                {(file.text !== file.saved || file.replacement) && <i className="udot source-dot" aria-label="改过" />}
-              </button>
-            </li>
-          ))}
+          {state.files.map((file) => {
+            const replaceable = model.replaceKind(file) === 'binary';
+            const status = file.replacement ? '待替换' : replaceable ? '可替换' : file.editable === false ? '只读' : '';
+            return (
+              <li key={file.path}>
+                <button
+                  type="button"
+                  className={cls('fitem', 'source-file', file.path === state.active && 'active')}
+                  data-path={file.path}
+                  data-dirty={file.text !== file.saved || file.replacement ? '' : undefined}
+                  aria-current={file.path === state.active ? 'true' : undefined}
+                  title={`${file.path}${file.role ? ` · ${file.role}` : ''}${file.replacement ? ` · 待替换为 ${file.replacement.fileName}` : status ? ` · ${status}` : ''}`}
+                  aria-label={`${file.path}${status ? `，${status}` : ''}`}
+                  onClick={() => model.select(file.path)}
+                >
+                  <Icon name={file.replacement ? 'swap_horiz' : replaceable ? (file.role === 'font' ? 'font_download' : 'image') : file.editable === false ? 'lock' : 'code'} />
+                  <span className="fitem-name">{baseName(file.path)}</span>
+                  {(file.text !== file.saved || file.replacement) && <i className="udot source-dot" aria-label="改过" />}
+                </button>
+              </li>
+            );
+          })}
         </ul>
         <h5>修订</h5>
         <ul className="source-revisions">

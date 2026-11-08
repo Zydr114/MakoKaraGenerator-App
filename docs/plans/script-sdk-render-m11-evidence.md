@@ -119,3 +119,4 @@ loopback，在 640×360 下开 GPU。每个样例依次打包上传、检查、�
 - 正式性能矩阵与门槛。
 
 2026-11-08 补记：调试叠加层与成本视图已经补齐，见[检查投影设计 §8～§10](script-sdk-v2-inspection-cost-design.md)。
+同日用户实测结论：**叠加层和成本视图均测试无问题，验收通过**（[检查投影设计 §11](script-sdk-v2-inspection-cost-design.md)）。

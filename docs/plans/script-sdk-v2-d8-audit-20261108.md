@@ -144,3 +144,20 @@ v1 向作者暴露 `CancellationToken`，v2 改为宿主在查询与输出处检
 7. T01：组合导出、组合作者链与撤销、组合 ±1 µs、组合夹具补全、复杂背景、容差测量与可读性目检。
 
 完整 D8 不因本轮关闭；P 暂缓，其余字段待上述缺口按用户决定处理后再核。
+
+## 后续处理（同日，产品 0.112.43）
+
+按用户决定：
+
+- G-CAP-2 已补：`DeclareContext.ProjectDurationUs`（`long?`，整数微秒），`TextFrame`／`VisualFrame` 提供同名快捷属性。
+  - 值来自工程成片时长固定输入；工程未设置成片时长时为 `null`，宿主不按最后一行歌词或媒体时长代填。
+  - 修改成片时长会重新准备，旧准备结果读不到新值。
+  - 测试：`V2ProjectDurationTests`（宿主把时长交给 `Declare` 与逐帧读取，覆盖 2.5 s、7 s、未设置三种，并含 seek 回 0 再前进）、
+    `V2SdkContractTests` 新增一项（只接受正值或未知）。去掉宿主传参的变异会让前者失败。
+  - 提交 `f8429d4`。
+- G-CAP-1 暂不补：v2 纯函数逐帧求值，作者警告无法去重，会挤满导出／验证 512 条诊断预算。作者目前仍只能抛异常。
+- G-UI 已修（提交 `18a2231`）：
+  - `author-v2-smoke.mjs` 改为先切到 C# 入口，保存走完整包 PUT 并核对规范 GET，采用经「采用修订并配置」对话框确认；
+  - `author-package-smoke.mjs` 的显式采用同样经该对话框确认；
+  - fresh publish 0.112.43 实跑：WordEmphasis 35 项、RepeatEmphasis 18 项、ClusterExit 18 项、author-package 83 项，全部通过。
+- 其余证据缺口 2～7 按用户指示暂不补，下一步进入 M12。

@@ -506,3 +506,14 @@ SVG 可以用文件替换编辑器里的文本。不新增、删除、改名文�
   失败，原因是脚本仍等旧的 `/sources` 读取和直接采用请求，UI 已改为 package-files 和原子采用对话框，不是产品回归。
 - 逐项结果、v1→v2 能力差异（作者诊断通道、工程时长）与证据缺口见
   [D8 逐项核对记录](script-sdk-v2-d8-audit-20261108.md)。完整 D8 未关闭。
+
+### 2026-11-08 D8 后续：工程时长与冒烟脚本（产品 0.112.43）
+
+用户决定：只补工程总时长，作者自定义诊断暂不补，证据缺口除冒烟脚本外暂不补，之后进入 M12。
+
+- `DeclareContext.ProjectDurationUs`（`long?`）及 `TextFrame`／`VisualFrame` 快捷属性；
+  未设置为 `null`，修改时长重新准备（`f8429d4`）。
+- 构建 0 警告；Scripting.Tests 701、Rendering.Tests v2 类 163 通过；去掉宿主传参的变异会让新测试失败。
+- `author-v2-smoke.mjs`、`author-package-smoke.mjs` 跟随 package-files 读写与原子采用对话框（`18a2231`）；
+  fresh publish 0.112.43 实跑 author-v2 三例与 author-package 全部通过；前端 typecheck、单测 4160 通过。
+- 详见 [D8 逐项核对记录](script-sdk-v2-d8-audit-20261108.md)「后续处理」。

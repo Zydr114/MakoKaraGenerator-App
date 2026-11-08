@@ -1,6 +1,6 @@
 # SDK v2 调试叠加层与成本视图：设计
 
-日期：2026-11-07。属于阶段一 M11 的遗留项（[M11证据 §7](script-sdk-render-m11-evidence.md)）。要求来自
+日期：2026-11-07；2026-11-08 实施完成，按实现修订 §3，实施记录与验证见 §8～§10。属于阶段一 M11 的遗留项（[M11证据 §7](script-sdk-render-m11-evidence.md)）。要求来自
 [主计划 §8](script-sdk-v2-render-pipeline-plan.md)、[验收表 M11](script-sdk-v2-render-acceptance.md)
 和[作者流程笔记 §4](script-sdk-v2-m11-author-notes.md)。验收按 M10／M11 的放宽口径：先保证功能接通、
 真实可用，只排除数量级的性能崩坏。
@@ -41,35 +41,47 @@
 
 ## 3. 投影内容与预算
 
-坐标统一用工程画布坐标（`canvas.width×height`），前端按图片的实际显示尺寸缩放。四边形用 4 个点表示，
-因为 Warp 和旋转后不一定是轴对齐矩形。投影只包含身份、数值和代码，不含作者对象、句柄、本机路径或凭证。
+坐标统一用工程画布坐标（`canvas.width×height`），前端按图片的实际显示尺寸缩放。多边形是平铺的
+`[x0,y0,x1,y1,…]`，点数不固定：Warp 和旋转后不一定是轴对齐矩形，变形后的轮廓最多保留 16 个点，
+更多时退回包围四边形。投影只包含身份、数值和代码，不含作者对象、句柄、本机路径或凭证。
 
 ```text
 PreviewFrameInspectionResponse
   frameId, previewId, previewGeneration, sourceRevision, timeUs, width, height, renderBackend
   canvas {width, height}
-  tokens[]     tokenId, bindingId, lineId, ink(quad|null), independent, diagnosticCode?
-               clusters[] unitIndex, ownerTokenIds[], independent, ink(quad|null)
-               ruby[]     rubyId, ink(quad|null)
-  lines[]      lineId, bindingId, bounds(quad|null)
-  cursors[]    lineId, bindingId, tokenId?, progress, progressSource, point, start, end
-  particles[]  instanceId, births, alive, trailSamples, birthPoints[]（有上限）
-  effects[]    instanceId, packageId?, packageRevision?, exportId?, sdk(1|2), lineIds[], scriptId?
-  cost         wallMs, prepareMs, scriptMs, graphMs, materialMs, particleMs, rasterMs, validationMs, readbackMs,
-               scriptCalls, readbackBytes, allocatedBytes, gc0/1/2, scripts[] {scriptId, stage, calls, wallMs, maxMs},
-               scriptOverflow, anchors {uniqueTimes, textCalls, futureEndpoints, memoHits, memoMisses},
-               sessionOpenMs?, host {renderRoundTripMs, encodeMs, pngBytes}
-  truncated {tokens, clusters, lines, cursors, birthPoints, effects}（各自被省略的数量）
+  inspection
+    canvas {width, height}, prepared
+    tokens[]     tokenId, bindingId, lineId, ink?(多边形), independent, diagnosticCode?, omittedClusters
+                 clusters[] unitIndex, ownerTokenIds[], independent, diagnosticCode?, ink?
+                 ruby[]     rubyId, ink?
+    lines[]      lineId, bindingId, bounds?
+    cursors[]    lineId, bindingId, tokenId?, progress, progressSource, point, start, end
+    particles[]  instanceId, births, alive, trailSamples, birthPoints[], omittedBirthPoints
+    effects[]    instanceId, packageId?, packageRevision?, exportId?, sdkMajor(1|2), bindingKind, lineIds[],
+                 scriptId?, omittedLines
+    cost         wallMs, prepareMs, scriptMs, graphMs, materialMs, particleMs, rasterMs, validationMs, readbackMs,
+                 scriptCalls, readbackBytes, allocatedBytes, gc0/1/2, scripts[] {scriptId, stage, calls, wallMs, maxMs},
+                 scriptOverflow, anchors {uniqueTimes, textCalls, futureEndpoints, memoHits, memoMisses}, sessionOpenMs?
+    truncated    {tokens, lines, cursors, particles, effects}（整类被省略的数量）
+  host           {renderRoundTripMs, encodeMs, pngBytes}
 ```
 
-预算：tokens 2000、每个 token 的 clusters 32、lines 256、cursors 64、每个实例的 birthPoints 512、
-effects 64，scripts 沿用遥测的 16 项。序列化后最大 256 KiB，超出就从末尾整类截断并计入 `truncated`，
-不会无声地只画一半。
+- `prepared` 表示这一帧经过了效果准备阶段。没有脚本效果的静态模板不建准备帧，`prepared=false`，
+  几何数组为空，只有成本。
+- `progressSource` 沿用 LyricSampler 的精度档：`fromToken`、`fromRubySegment`、`fromLine`；
+  源缺时间与映射不可用都写 `unavailable`。
+- 预算（`RenderFrameInspection.Limits.Default`）：tokens 1000、每个 token 的 clusters 16、每个 token 的
+  ruby 8、lines 256、cursors 64、每个实例的 birthPoints 256 个点、effects 64、每个效果的 lineIds 64、
+  多边形 16 个点；scripts 沿用遥测的 16 项。超出上限的整类条目计入 `truncated`，单项内的字簇、出生点、
+  行计入各自的 `omitted*`。
+- 序列化后最大 256 KiB：超出时按比例缩小上限再试（最多 8 次），仍超出就只保留成本与计数，
+  不会无声地只画一半。
 
 成本口径（写进页签说明）：
 - 各阶段是 Host 墙钟的包含时间，不能相加当作总耗时，也不是 GPU 硬件时间。
 - 分配量是全进程增量，不是某个作者的精确分配。
-- 脚本只计 Declare、Advance、OnEvent 等阶段，热路径 Evaluate 不单独计时，与现有遥测一致。
+- 脚本按实例和阶段计时：Initialize、Advance、Evaluate、OnEvent，以及 v2 的 AdvanceVisuals、
+  EvaluateVisuals、EvaluateEmitters；Declare 归入 `other`。（原稿说热路径 Evaluate 不计时，实际已计时。）
 
 ## 4. 数据流
 
@@ -104,3 +116,48 @@ HTTP 新增 1 个路径和 1 个方法；`PreviewFrameRequest` 多一个可选�
   两帧 PNG 的 SHA 必须一致，投影字段非空，关闭时读取投影返回 404。
 - 浏览器：真实 Chrome 打开作者草稿试样，开关叠加层和成本，截图并确认页面没有异常。
 - 性能只看数量级：开启检查后单帧耗时不能成倍增加。
+
+## 8. 实施记录（2026-11-08）
+
+| 提交 | 内容 |
+| --- | --- |
+| `ce57e1a` | 后端：帧请求 `inspect`、Worker 第 7 字节、单帧捕获、`RenderFrameInspection`、Host 投影保留与 `GET …/inspection`（产品 0.112.38） |
+| `2fc058b` | 修正透明输出参数加入后旧反射测试的实参 |
+| `2406703` | 冻结合同 1.48.0：1 个路径、15 个新 schema、33 组正反例 |
+| `40fa308` | 前端同步合同 1.48.0，协议类型与错误码 `previewInspectionUnavailable` |
+| `1559780` | 前端：`preview.readInspection`、试样画布的叠加层、图例与单帧成本面板 |
+| `b99ebf8` | 修复：播放头 `progressSource` 原样输出脚本侧枚举名，与合同不符，改为显式映射 |
+| `423e0b8` | 真实 Server 集成测试与浏览器验收脚本 `frontend/scripts/inspection-smoke.mjs` |
+
+前端落点：
+- `TemplateWorkshop.setInspect` 决定帧请求是否带 `inspect`。帧到了再读投影，和画面一起放进 `SampleFrame`。
+  等新帧时，留着的旧画面带着它自己的投影；投影读不到不影响画面，只在图例里写明原因。
+- 模型在 `sample-inspection.ts`，不依赖 React；组件在 `SampleInspection.tsx`。开关与图例隐藏的类别
+  记在 `localStorage` 的 `mako.sampleInspection`，不含凭证。
+- 叠加层是 `pointer-events:none` 的 SVG，坐标按 viewBox 缩放；失败仍显示旧帧时不画。
+- 成本面板把 `effects[].scriptId` 对回“包 · 导出名”，Worker 与 Host 分开写，并附上 §3 的口径说明。
+
+## 9. 验证（2026-11-08）
+
+- 单元测试：后端 Rendering 1717、Backend.Hosting 1636 全部通过，完整构建零警告。前端 4102 个通过，
+  其中新增 7 个：手写类型对冻结 schema、客户端读取与身份核对、试样开关、叠加层与成本模型、偏好。
+- 真实 Server（fresh publish `20261108T080504111Z`，隔离 profile `.dev/it-*`，只绑定 loopback）：
+  - 静态模板：开启与关闭检查的同一时刻 PNG 的 SHA 相同；`prepared=false`，只有成本；
+    未开启的帧读取投影返回 404 `previewInspectionUnavailable`。
+  - 含脚本效果的工坊试样：有字簇、播放头和效果实例；真实响应经冻结 OpenAPI 校验通过。
+    用旧发布跑这条测试复现了 `progressSource` 不符，修复后通过。
+- 真实 Chrome（`inspection-smoke.mjs`，SDK2 SpriteTrail，GPU 作者草稿试样）：18 项检查全部通过，
+  证据在 `.local/acceptance/inspection-20261108T160845/`。包括：
+  - 默认不带 `inspect`；打开叠加层后按当前时刻重取，前后 PNG 相同；
+  - 叠加层画的是同一帧的投影：字簇 4、注音 1、播放头 1、出生点 72、效果 1；
+  - 图例隐藏后记在本机；打开成本时不重取；关闭后不再带 `inspect`；
+  - URL 不含凭证，页面没有异常。
+- 性能只看量级：静态模板 640×360（CPU）连续 20 帧的中位数，关闭检查 19.7 ms，开启 21.3 ms（含多读
+  一次投影），没有成倍增加。GPU 作者试样的单帧投影约 3 KB，Worker 内 51 ms（含首帧准备）。
+
+## 10. 已知限制
+
+- 静态模板（没有脚本效果）只有成本，没有几何可画；图例会写明。
+- GPU 帧的“栅格”阶段计为 0：GPU 路径的绘制不在这个计时点里，各阶段也都不是 GPU 硬件时间。
+- 只在样式库试样画布提供入口；工程预览、GPU 共享纹理流、正式导出和验证任务都不带检查。
+- 证据记录工具会把字段名含 token 的值脱敏，浏览器验收的几何数量取自页面图例。

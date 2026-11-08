@@ -29,7 +29,8 @@ C05 与 T01 关联的 SVG vector／atlas typed输出、固定资源、完整affi
 S01–S09 均已有 v2 包，附加 ClusterExit、AdaptiveStroke、StarSweep、WaveWarp。
 13 例作者验证均 360＋360 帧通过（真实 HTTP、Vulkan）。T01 的组合（退场、Ruby、Warp 锚点、
 粒子、SVG 星星、媒体描边）已有单元测试和 HTTP 实帧。详见[M11证据](script-sdk-render-m11-evidence.md)。
-逐项 E/A/X/D/T 尚未填写，P 暂缓；资源导入、调试叠加层和成本视图未完成，完整 D8 不据此关闭。
+逐项 E/A/X/D/T 尚未填写，P 暂缓；调试叠加层和成本视图 2026-11-08 已补齐（[检查投影设计](script-sdk-v2-inspection-cost-design.md)），
+资源导入未完成，完整 D8 不据此关闭。
 
 ## 证据登记方式
 

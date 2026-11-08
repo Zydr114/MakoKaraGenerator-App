@@ -2,16 +2,20 @@ using System.Numerics;
 
 namespace MakoKaraGenerator.Scripting.Particles.V2;
 
-/// <summary>宿主准备操作的共享硬限额；构造参数只允许收紧默认值。</summary>
+/// <summary>
+/// 宿主准备操作的共享硬限额；构造参数只允许收紧默认值。发射器数按实例计（与包清单上限一致），
+/// 速率段、启用窗、来源区段、episode、Burst 行和字节在全部实例间累计。
+/// </summary>
 public sealed class ParticlePrepareBudget
 {
-    private int _emitters, _rateEntries, _intervals, _episodes, _burstRows;
+    private int _rateEntries, _intervals, _episodes, _burstRows;
+    private readonly Dictionary<EffectInstanceId, int> _instanceEmitters = [];
     private long _bytes;
     internal int MaximumBits { get; }
     private readonly int _emitterLimit, _rateEntryLimit, _intervalLimit, _episodeLimit, _burstRowLimit;
     private readonly long _byteLimit;
 
-    /// <summary>建立准备预算；时间轨段与启用窗合计，源区段与 episode 也合计计数。</summary>
+    /// <summary>建立准备预算；发射器为单实例上限，时间轨段与启用窗合计，源区段与 episode 也合计计数。</summary>
     public ParticlePrepareBudget(int emitterLimit = 32, int rateEntryLimit = 4096, int intervalLimit = 200_000,
         int episodeLimit = 200_000, int burstRowLimit = 50_000, int maximumBits = 4096, long byteLimit = 256L * 1024 * 1024)
     {
@@ -32,12 +36,15 @@ public sealed class ParticlePrepareBudget
 
     internal void Reserve(ParticleOwner owner, int emitters = 0, int rateEntries = 0, int intervals = 0, int episodes = 0, int burstRows = 0)
     {
-        if (Exceeds(_emitters, emitters, _emitterLimit) || Exceeds(_rateEntries, rateEntries, _rateEntryLimit)
+        // 模板逐行应用会为每行建立实例；发射器上限约束单实例声明，真实资源由下列累计项约束。
+        int instanceEmitters = _instanceEmitters.GetValueOrDefault(owner.InstanceId);
+        if (Exceeds(instanceEmitters, emitters, _emitterLimit) || Exceeds(_rateEntries, rateEntries, _rateEntryLimit)
             || Exceeds(_intervals, intervals, _intervalLimit) || Exceeds(_episodes, episodes, _episodeLimit)
             || Exceeds(_intervals + _episodes, intervals + episodes, Math.Min(_intervalLimit, _episodeLimit))
             || Exceeds(_burstRows, burstRows, _burstRowLimit))
             throw owner.Failure("PrepareParticles", 0, "ParticlePrepareBudgetExceeded", "粒子计划、源区段、episode 或 Burst 行超过准备预算。");
-        _emitters += emitters; _rateEntries += rateEntries; _intervals += intervals; _episodes += episodes; _burstRows += burstRows;
+        if (emitters != 0) _instanceEmitters[owner.InstanceId] = instanceEmitters + emitters;
+        _rateEntries += rateEntries; _intervals += intervals; _episodes += episodes; _burstRows += burstRows;
     }
 
     private static bool Exceeds(int used, int count, int limit) => count < 0 || count > limit - used;

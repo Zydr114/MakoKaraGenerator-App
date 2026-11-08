@@ -221,6 +221,11 @@ public sealed class V2ExactParticleScheduleTests
         var prepare = new ParticlePrepareBudget(intervalLimit: 1, episodeLimit: 1);
         Assert.Equal("ParticlePrepareBudgetExceeded", Assert.Throws<EffectFailureException>(() =>
             CompiledParticleSchedule.Compile(plan, catalog, Owner, prepare)).Code);
+        // 发射器上限按实例计：不同实例共享账本仍可各自声明，同一实例重复准备照常超限。
+        var emitters = new ParticlePrepareBudget(emitterLimit: 1);
+        CompiledParticleSchedule.Compile(plan, catalog, Owner, emitters); CompiledParticleSchedule.Compile(plan, catalog, otherOwner, emitters);
+        Assert.Equal("ParticlePrepareBudgetExceeded", Assert.Throws<EffectFailureException>(() =>
+            CompiledParticleSchedule.Compile(plan, catalog, Owner, emitters)).Code);
     }
 
     [Theory]

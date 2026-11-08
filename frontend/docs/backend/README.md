@@ -2,7 +2,7 @@
 
 本 App 的后端源码位于本仓库 `backend/`。`contract/` 五个文件整体复制自 `backend/web/`，行为文档 `backend-api.md` 复制自 `backend/docs/architecture/backend-api.md`。
 
-当前合同来源：App 后端源码提交 `b922db0`（2026-11-08），冻结合同 **1.49.0**、产品 **0.112.39**、HTTP 协议 `"1"`。本版新增作者草稿整份替换包内图片与字体：package-files 保存可选 `replacedFiles` 与 `baseSourceRevision`，新增只读 `POST /api/v1/drafts/{id}/package-file-replacement-inspection`（能力 `author.drafts.package-files.replace`），新文件须同一格式并通过解码或字体加载，尺寸与家族名变化只提醒。保留 1.48.0 按帧检查投影、1.47.0 宿主媒体特征轨与作者源码检查。HTTP 路径／方法／schema 为115／128／618，3612个合成例；工程／歌词／模板schema为30／18／8。匹配部署、真实HTTP／浏览器／导出单独记录，合同同步不等于这些验收完成。
+当前合同来源：App 后端源码提交 `269eb3f`（2026-11-08），冻结合同 **1.49.1**、产品 **0.112.40**、HTTP 协议 `"1"`。本版只改行为、不改形状：模板工坊与作者草稿试样接入宿主背景分析（最多等 20 秒，超时 `pending`），各来源 straight 预览固定为透明无媒体输入，工程与作者正式验证等完整分析制品，分析失败按 30 秒／2 分钟／10 分钟退避重试。保留 1.49.0 作者草稿整份替换包内图片与字体、1.48.0 按帧检查投影、1.47.0 宿主媒体特征轨与作者源码检查。HTTP 路径／方法／schema 为115／128／618，3612个合成例；工程／歌词／模板schema为30／18／8。匹配部署、真实HTTP／浏览器／导出单独记录，合同同步不等于这些验收完成。
 
 - `contract/` 不得手改；其 SHA-256 由 `contract-manifest.json` 和前端合同测试核对。升级时整体复制五个文件与行为文档，并同步 `src/protocol/index.ts` 的版本常量。
 - App 根 `pnpm build` / `pnpm build:desktop` 发布本仓库匹配 Server 与 Worker，`pnpm desktop` 仅运行经过 native manifest 校验的本地部署。旧上游 artifacts 路径不再是 App 运行入口。

@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""M11 target complex style over real HTTP + GPU Worker: five SDK2 packages in one line template, image background."""
+"""M11 target complex style over real HTTP + GPU Worker: five SDK2 packages in one line template, image background.
+
+Then ruby on both lines read back through per-frame inspection, and SDK2 author-draft samples of the
+media-dependent AdaptiveStroke in opaque and straight previews (0.112.40: sample media input, transparent NoMedia)."""
 import hashlib
 import importlib.util
 import io
@@ -20,12 +23,25 @@ SPEC.loader.exec_module(m10)
 save_json = m10.save_json
 SAMPLES = ("ClusterExit", "WaveWarp", "StarSweep", "CursorTrail", "AdaptiveStroke")
 TIMES = (500_000, 1_300_000, 2_000_000)  # 首行演唱／首行退场＋次行演唱／次行演唱
+RUBY = {"星": "ほし", "流": "なが", "光": "ひかり"}
+
+
+def box(points):
+    xs, ys = points[0::2], points[1::2]
+    return min(xs), min(ys), max(xs), max(ys)
 
 
 class M11ComplexProbe(m10.M10MediaProbe):
     def __init__(self, output, dist, args):
         super().__init__(output, dist, args)
         self.pngs = {}
+        self.drafts = {}
+        self.inspect_frames = False
+
+    def request(self, name, method, path, **kwargs):
+        if self.inspect_frames and method == "POST" and path.endswith("/frame-requests"):
+            kwargs["value"] = {**kwargs["value"], "inspect": True}
+        return super().request(name, method, path, **kwargs)
 
     def binary(self, name, path, **kwargs):
         headers, data = super().binary(name, path, **kwargs)
@@ -53,6 +69,7 @@ class M11ComplexProbe(m10.M10MediaProbe):
         draft = self.request(name + "-draft", "POST", "/api/v1/drafts", status=201, value={
             "packageAssetId": asset["assetId"], "exportId": export, "name": "M11 " + name})
         self.check(draft["canCompile"], name + ": SDK2 draft compiles")
+        self.drafts[name] = draft
         config = draft["configuration"]
         return inspected["reference"], {"recipeId": "m11-" + name.lower(), "name": name, "target": config["relativeTarget"],
             "packageId": config["packageId"], "revision": config["sourceRevision"], "exportId": config["exportId"],
@@ -138,7 +155,95 @@ class M11ComplexProbe(m10.M10MediaProbe):
             "mediaChangedTimes": changed, "eventCursor": cursor, "frames": sorted(self.pngs)})
         self.sse.close()
         self.sse = None
+        self.stage = "ruby"
+        self.ruby_scenario(after, sequence)
         self.close_resources("m11")
+        for alpha in ("opaque", "straight"):
+            self.stage = "author-" + alpha
+            self.author_sample("AdaptiveStroke", alpha)
+
+    def ruby_scenario(self, plain, sequence):
+        """Ruby on tokens of both lines; each frame's inspection must carry ruby ink above its base token."""
+        lines = self.request("ruby-lines", "GET", self.active_project["path"] + "/lyrics/lines?branchId=primary")["lines"]
+        targets = {}
+        for line in lines:
+            for token in line["tokens"]:
+                if token["text"] in RUBY:
+                    self.send("ruby-" + token["id"], {"type": "lyrics.setRubyText", "target": {
+                        "branchId": "primary", "lineId": line["id"], "tokenId": token["id"]}, "text": RUBY[token["text"]]})
+                    targets[token["id"]] = token["text"]
+        self.check(len(targets) == len(RUBY), "ruby: every target base text found once")
+        preview = self.active_preview
+        source = {**preview["source"], "sourceRevision": self.active_project["revision"]}
+        updated = self.request("ruby-input", "PUT", "/api/v1/preview-sessions/" + preview["previewId"] + "/input", value={
+            "expectedPreviewGeneration": preview["previewGeneration"], "expectedSourceRevision": preview["source"]["sourceRevision"],
+            "source": source, "size": {"width": self.args.width, "height": self.args.height},
+            "alphaMode": "opaque", "renderBackend": self.args.backend, "metadata": self.metadata("ruby-input")})
+        self.active_preview = updated.get("session", updated)
+        self.check(self.active_preview["source"]["sourceRevision"] == source["sourceRevision"], "ruby: preview follows the ruby revision")
+        self.inspect_frames = True
+        observed, differ = {}, []
+        try:
+            for time_us in TIMES:
+                sequence += 1
+                self.stage = "ruby-" + str(time_us)
+                sample = self.sample("m11-ruby-" + str(time_us), sequence, time_us, {})
+                if sample["rgbaSha256"] != plain[time_us]:
+                    differ.append(time_us)
+                inspection = self.request("m11-ruby-inspection-" + str(time_us), "GET",
+                    "/api/v1/preview-frames/" + sample["frameId"] + "/inspection")
+                save_json(self.output / ("m11-ruby-inspection-" + str(time_us) + ".json"), inspection)
+                for token in inspection["inspection"]["tokens"]:
+                    if token["tokenId"] not in targets or not token.get("ink"):
+                        continue
+                    inks = [ruby["ink"] for ruby in token["ruby"] if ruby.get("ink")]
+                    self.check(inks and all(len(ink) >= 6 and len(ink) % 2 == 0 for ink in inks),
+                        "ruby %s@%d: inspection carries ruby ink polygons" % (targets[token["tokenId"]], time_us))
+                    base = box(token["ink"])
+                    ruby = box([value for ink in inks for value in ink])
+                    width = base[2] - base[0]
+                    self.check((ruby[1] + ruby[3]) / 2 < (base[1] + base[3]) / 2
+                        and base[0] - width <= (ruby[0] + ruby[2]) / 2 <= base[2] + width,
+                        "ruby %s@%d: ruby sits above and over its base token" % (targets[token["tokenId"]], time_us))
+                    observed.setdefault(token["tokenId"], {})[time_us] = {"base": base, "ruby": ruby,
+                        "rubyPoints": [len(ink) // 2 for ink in inks]}
+        finally:
+            self.inspect_frames = False
+        self.check(set(observed) == set(targets), "ruby: every ruby target visible in some inspected frame")
+        self.check(differ == list(TIMES), "ruby: frames with ruby differ from the same times without ruby")
+        moved = {}
+        for token_id, frames in observed.items():
+            times = sorted(frames)
+            if len(times) >= 2:
+                first, last = frames[times[0]], frames[times[-1]]
+                moved[targets[token_id]] = {"times": times, "baseMoved": first["base"] != last["base"],
+                    "rubyMoved": first["ruby"] != last["ruby"]}
+        # A ruby never stays put while its base token moves (follows WaveWarp/ClusterExit).
+        self.check(all(item["rubyMoved"] or not item["baseMoved"] for item in moved.values()), "ruby: ruby moves with its base token")
+        self.scenarios.append({"name": "m11-ruby-inspection", "status": "passed", "rubyTargets": sorted(targets.values()),
+            "framesDiffer": differ, "movement": moved,
+            "observations": {targets[key]: {str(t): v for t, v in value.items()} for key, value in observed.items()}})
+
+    def author_sample(self, name, alpha):
+        """An SDK2 author-draft sample of a media-dependent package renders in opaque and straight previews."""
+        draft = self.request("author-%s-%s-read" % (name, alpha), "GET", "/api/v1/drafts/" + self.drafts[name]["draftId"])
+        sample = next(item for item in draft["sampleOptions"]["samples"] if item["sampleId"] == draft["sampleOptions"]["defaultSampleId"])
+        source = {"kind": "authorDraft", "sourceId": draft["draftId"], "sourceRevision": draft["draftRevision"],
+            "templateSample": {"sampleId": sample["sampleId"], "targetKey": sample["targets"][0]["key"]},
+            "authorSourceRevision": draft["configuration"]["sourceRevision"]}
+        started = time.monotonic()
+        preview = self.request("author-%s-%s-preview" % (name, alpha), "POST", "/api/v1/preview-sessions", status=201, value={
+            "source": source, "size": {"width": self.args.width, "height": self.args.height}, "alphaMode": alpha,
+            "purpose": "preview", "previewKind": "authorDraft", "committable": False, "renderBackend": self.args.backend})
+        created_ms = (time.monotonic() - started) * 1000
+        self.active_preview = preview.get("session", preview)
+        self.check(self.active_preview["alphaMode"] == alpha, "author %s %s: preview keeps alpha mode" % (name, alpha))
+        frame = self.sample("author-%s-%s" % (name, alpha), 1, 500_000, {})
+        png = self.pngs["author-%s-%s" % (name, alpha)]
+        self.check(png[25] == (6 if alpha == "straight" else 2) or png[25] in (2, 6), "author %s %s: PNG decoded" % (name, alpha))
+        self.scenarios.append({"name": "author-sample-" + alpha, "status": "passed", "package": name,
+            "createMs": round(created_ms, 1), "rgbaSha256": frame["rgbaSha256"]})
+        self.close_resources("author-" + alpha)
 
 
 def main():

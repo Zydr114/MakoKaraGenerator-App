@@ -100,7 +100,14 @@ async function recordDraft(label, expectedSource, expectedLatest) {
   return draft;
 }
 
+async function selectSourceFile() {
+  // 完整包编辑器默认可能停在 manifest.json；源码编辑只改本样例唯一 C# 入口。
+  await ui.click(page, `.source-file[data-path=${JSON.stringify(sourceFile.name)}]`, null);
+  await page.waitFor(`document.querySelector('.source-file[aria-current=true]')?.dataset.path === ${JSON.stringify(sourceFile.name)}`, '切换到 C# 入口文件');
+}
+
 async function replaceSource(text) {
+  await selectSourceFile();
   await page.waitFor(`!!document.querySelector('.cm-content')`, 'CodeMirror 源码编辑器');
   await page.eval(`document.querySelector('.cm-content').focus()`);
   for (const type of ['keyDown', 'keyUp']) await page.send('Input.dispatchKeyEvent', { type, key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65 });
@@ -111,12 +118,18 @@ async function replaceSource(text) {
 async function saveSource(label, expectedText) {
   const before = network.mark();
   await ui.click(page, 'button', '保存修订', { scope: '.srcbar' });
-  const saved = await network.wait((record) => record.method === 'POST' && record.path === `/api/v1/drafts/${draftId}/source-revision-jobs`
+  const saved = await network.wait((record) => record.method === 'PUT' && record.path === `/api/v1/drafts/${draftId}/package-files`
     && record.status === 200, label, before);
-  check(saved.input.files.length === 1 && saved.input.files[0].path === sourceFile.name
-    && saved.input.files[0].textSha256 === sha(expectedText), label + ' 从 UI 提交本样例实际 C# 入口及编辑后字节');
-  await page.waitFor(`${sourceShown} === ${JSON.stringify(saved.body.sourceRevision)} && !document.querySelector('.draft-source[data-dirty]')`, label + ' 的编辑器固定修订');
-  return saved.body.sourceRevision;
+  // manifest 由服务派生文件 SHA，编辑器提交的是上次规范化原文，这里只核对 C# 入口字节。
+  check(saved.input.textFiles.some((file) => file.path === sourceFile.name && file.textSha256 === sha(expectedText)),
+    label + ' 从 UI 完整包提交本样例实际 C# 入口编辑后字节');
+  const revision = saved.body.currentSourceRevision;
+  const canonical = await network.wait((record) => record.method === 'GET' && record.path === `/api/v1/drafts/${draftId}/package-files`
+    && record.status === 200 && record.body?.sourceRevision === revision, label + ' 保存后的规范完整包', before);
+  check(canonical.body.files.some((file) => file.path === sourceFile.name && file.textSha256 === sha(expectedText)),
+    label + ' 规范完整包保留编辑后的 C# 字节');
+  await page.waitFor(`${sourceShown} === ${JSON.stringify(revision)} && !document.querySelector('.draft-source[data-dirty]')`, label + ' 的编辑器固定修订');
+  return revision;
 }
 
 async function compileShown(label, source, succeeded) {
@@ -264,10 +277,10 @@ try {
   await ui.click(page, 'tab', '源码', { scope: '.draft-tabs' });
   await page.waitFor(`${sourceShown} === ${JSON.stringify(sourceA)} && !!document.querySelector('.cm-content')`, '读取本样例实际源码');
   const loadedSource = await network.wait((record) => record.method === 'GET' && record.status === 200
-    && record.path === `/api/v1/drafts/${draftId}/sources` && record.body?.sourceRevision === sourceA,
-  '实际源码读取身份');
-  check(loadedSource.body.files.length === 1 && loadedSource.body.files[0].path === sourceFile.name
-    && loadedSource.body.files[0].textSha256 === sha(sourceFile.data), '源码 UI 读取本样例真实 manifest 对应 C# 内容');
+    && record.path === `/api/v1/drafts/${draftId}/package-files` && record.body?.sourceRevision === sourceA,
+  '实际完整包读取身份');
+  check(loadedSource.body.files.length === files.length && loadedSource.body.files.some((file) => file.path === sourceFile.name
+    && file.role === 'csharp' && file.editable && file.textSha256 === sha(sourceFile.data)), '源码 UI 读取本样例真实 manifest 对应 C# 内容');
 
   if (fullAuthor) {
     stage = 'save-and-failed-compile';
@@ -299,8 +312,11 @@ try {
     '成功编译 B 的真实摘要保持源码身份，在用来源仍为 A');
   const adoptMark = network.mark();
   await ui.click(page, 'button', '采用编译通过的修订', { partial: true, scope: '.source-compile' });
+  await ui.waitDialog(page, '采用修订并配置', { partial: true });
+  await ui.clickInDialog(page, '采用源码与配置');
   const adopted = await network.wait((record) => record.method === 'POST' && record.path === `/api/v1/drafts/${draftId}/adopt-source-revision`
     && record.status === 200, '显式采用 B', adoptMark);
+  await ui.waitDialogClosed(page, '采用修订并配置', { partial: true });
   check(adopted.input.sourceRevision === sourceB && adopted.body.previousSourceRevision === sourceA
     && adopted.body.adoptedSourceRevision === sourceB, '显式采用按钮才提交 A→B 的来源切换');
   const adoptedDraft = await recordDraft('adopted-B', sourceB, sourceB);

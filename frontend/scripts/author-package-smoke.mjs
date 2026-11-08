@@ -338,8 +338,11 @@ try {
   await displayedFrame('compiled-B-still-A', sourceA, savedB.draftRevision, fixture.initialColor);
   const adoptMark = network.mark();
   await ui.click(page, 'button', '采用编译通过的修订', { partial: true, scope: '.source-compile' });
+  await ui.waitDialog(page, '采用修订并配置', { partial: true });
+  await ui.clickInDialog(page, '采用源码与配置');
   const adopted = await network.wait((record) => record.method === 'POST' && record.path === `/api/v1/drafts/${draftId}/adopt-source-revision`
     && record.status === 200, '显式采用 B', adoptMark);
+  await ui.waitDialogClosed(page, '采用修订并配置', { partial: true });
   check(adopted.input.expectedDraftRevision === savedB.draftRevision && adopted.input.sourceRevision === sourceB
     && adopted.body.previousSourceRevision === sourceA && adopted.body.adoptedSourceRevision === sourceB,
   '只有显式采用按钮才以精确 CAS 把在用来源 A 切换到 B');

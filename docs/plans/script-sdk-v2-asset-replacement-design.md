@@ -103,3 +103,56 @@
 - 每个修订存一份完整包，反复替换大字体会较快用满客户端 256 MiB 作者存储；超出时沿用现有的配额拒绝。
 - 只比较格式，不检查新图片是否满足效果对尺寸的假设；尺寸变化只提醒。
 - 字体只读第一层信息（家族名），不检查是否覆盖工程里实际用到的字。
+
+## 7. 实施记录（2026-11-08）
+
+| 提交 | 内容 |
+| --- | --- |
+| `76f1b8c` | 本设计 |
+| `60393bd` | 后端：`replacedFiles`、`baseSourceRevision`、只读检查接口，能力 `author.drafts.package-files.replace`，产品 0.112.39 |
+| `b922db0` | 合同 1.49.0：新增 5 个 schema、51 个示例（37 个负例），§21 行为正文 |
+| `fa7832b` | 前端同步合同 1.49.0，`src/protocol` 与 `MakoClient` 增加检查和替换字段 |
+| `3343e7a` | 前端：源码页签的「替换…」、待保存摘要与提醒、「撤销替换」，SVG「用文件替换…」 |
+| `da94980` | 真实 Server 集成测试 |
+| `c9c1151` | 真实 Chrome 冒烟 `pnpm smoke:author-replacement` |
+| `1931878` | 文件列表里可替换的图片、字体改用各自图标，读作“可替换”（原来与只读文件一样显示锁） |
+
+与设计的差别：
+- 检查失败时，`field` 按检查请求写 `path`／`assetId`；保存失败写 `replacedFiles[i].path`／`replacedFiles[i].assetId`。
+- 前端在检查进行中禁止保存；检查期间读进了别的修订，就丢掉这次检查结果，不记待替换。
+
+## 8. 验证
+
+- **后端**：
+  - `dotnet build` 零警告；
+  - `BackendAuthorPackageReplacementTests` 覆盖 §5 全部后端条目，外加同样字节再保存是 no-op、`baseSourceRevision` 不存在为 404、格式错为 400；
+  - 全量测试中 Hosting 1640 项通过。失败的 3 项 Ruby HTTP 测试缺少 `artifacts/ttml-ruby/publish/server`；2 项 Worker 取消测试在负载下不稳定，重跑通过。两者都与本项无关。
+- **合同**：
+  - 元数据由工具重新生成；
+  - `freeze.py`、`validate.py` 通过；
+  - 前端整份替换合同副本，单元测试按 OpenAPI 校验检查与保存的请求、响应。
+- **前端单元**：`author-package-replacement.test.ts` 共 6 项：
+  - 哪些文件可替换；
+  - 待保存与保存后清掉；
+  - 格式不同的提示与撤销；
+  - 检查期间换修订、检查期间保存；
+  - 旧修订作为基准；
+  - SVG 严格 UTF-8。
+  - 全量 4160 项通过。
+- **真实 Server**（`test/integration/author-replacement.test.ts`，部署 `.local/backend-dist/20261108T093013131Z`，0.112.39）：
+  - **图片**：SpriteTrail 的 16×16 PNG 换 32×24 PNG。
+    - 检查返回 `imageSizeChanged`；
+    - 换 GIF 被拒，检查与保存都是 `AuthorReplacementFormatMismatch`，保存失败后草稿修订不变；
+    - 保存后清单与文件摘要都是新字节；
+    - 下载的 `.mkfx` 再上传检查，结构有效，图片摘要正确。
+  - **字体**：在 WordEmphasis 上加 `fonts/a.ttf`。
+    - Liberation Serif 换 Liberation Mono，返回 `fontFamilyChanged`，可以保存；
+    - 换成 OpenType 被拒。
+  - 所有响应都经冻结 OpenAPI 校验。
+- **真实 Chrome**（`pnpm smoke:author-replacement`，独立后端 profile 与临时 Chrome profile，GPU）：
+  - 从界面导入 SDK2 SpriteTrail；
+  - 换 GIF 时写明原因，不记待替换；
+  - 换 32×24 PNG 时摘要写出 16×16→32×24 和尺寸提醒，文件标为已改；
+  - 保存提交了 `replacedFiles` 与所看修订，在用修订不变；
+  - 编译通过、显式采用后，试样帧随之改变：红色小火花变成整块图片；
+  - 从界面关闭草稿、删除组件，页面没有未处理异常，请求 URL 不带凭证。

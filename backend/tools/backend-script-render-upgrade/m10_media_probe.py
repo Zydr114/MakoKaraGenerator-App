@@ -166,7 +166,8 @@ class M10MediaProbe(base.SeekProbe):
         while self.frames[-1] == first["rgbaSha256"] and time.monotonic() < deadline:
             self.stage = "event-" + str(sequence)
             try:
-                cursor = self.wait_media_event(cursor, min(deadline, time.monotonic() + 30))
+                # A long video can analyse for minutes between inspection and completion; wait to the overall deadline.
+                cursor = self.wait_media_event(cursor, deadline)
             except TimeoutError:
                 break
             sequence += 1

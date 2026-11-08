@@ -508,11 +508,14 @@ def arguments():
     parser.add_argument("--timeout-seconds", type=float, default=300)
     parser.add_argument("--poll-ms", type=int, default=10)
     parser.add_argument("--telemetry", choices=("off", "summary", "detailed"), default="off")
+    # Host 每 Worker 每秒只转发前 10 行；逐帧事件应低于该速率，否则保留的样本偏向慢帧。
+    parser.add_argument("--detail-every", type=int, default=1)
     parser.add_argument("--icd", type=Path, default=Path("/usr/share/vulkan/icd.d/radeon_icd.json"))
     parser.add_argument("--ffmpeg", default="/usr/bin/ffmpeg")
     args = parser.parse_args()
     if not (64 <= args.width <= 3840 and 64 <= args.height <= 2160 and 2 <= args.count <= 100 and 2 <= args.source_count <= 50
-            and 1 <= args.export_seconds <= 600 and 1 <= args.export_rounds <= 10 and 10 <= args.poll_ms <= 1000):
+            and 1 <= args.export_seconds <= 600 and 1 <= args.export_rounds <= 10 and 10 <= args.poll_ms <= 1000
+            and 1 <= args.detail_every <= 1000):
         parser.error("arguments outside finite probe bounds")
     if any(kind not in ("near", "180s", "360s") for kind in args.scenarios.split(",")):
         parser.error("scenarios must be near, 180s or 360s")
@@ -530,7 +533,7 @@ def main():
         del os.environ[key]
     os.environ["MAKO_PERFORMANCE_MODE"] = args.telemetry
     if args.telemetry != "off":
-        os.environ.update(MAKO_PERFORMANCE_INTERVAL_SECONDS="1", MAKO_PERFORMANCE_DETAIL_EVERY="1",
+        os.environ.update(MAKO_PERFORMANCE_INTERVAL_SECONDS="1", MAKO_PERFORMANCE_DETAIL_EVERY=str(args.detail_every),
                           MAKO_PERFORMANCE_MAX_EVENTS_PER_SECOND="100")
     probe = M12Probe(args.output, args.dist, args)
     sampler = ResourceSampler(probe, args.output / "resources.jsonl")
@@ -556,6 +559,7 @@ def main():
         sampler.join()
         summary = {"status": "passed" if not failures and probe.results and all(r["status"] == "passed" for r in probe.results) else "failed",
             "mode": args.mode, "samples": list(probe.names), "size": [args.width, args.height], "telemetryMode": args.telemetry,
+            "detailEvery": args.detail_every if args.telemetry == "detailed" else None,
             "failures": failures, "results": probe.results, "windows": probe.windows, "resources": sampler.summary(),
             "scope": "Real HTTP + GPU Worker on this machine; poll resolution and JSON evidence I/O included in ready times; "
                      "no UI-visible, desktop shared-texture or display timing."}

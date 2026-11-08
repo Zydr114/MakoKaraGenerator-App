@@ -161,4 +161,5 @@ fontFamilyName就认定字体生效；PNG与编码容差沿图工具分别记录
 后台线程每 0.5 秒按所属 PID/startTicks 采样 Server/Worker 的 RSS、FD 与 DRM VRAM/GTT 写入 `resources.jsonl`，
 按场景汇总峰值与首末值。`--telemetry summary|detailed` 打开 Worker 性能遥测并从 server.log 解析
 `telemetry.jsonl` 与按窗口、按尺寸的分项统计；detailed 约有一成开销，计时轮次应使用默认 `off`。
+Host 每 Worker 每秒只转发前 10 行遥测，detailed 须用 `--detail-every N` 把逐帧事件压到约每秒 5 条以下（N≈导出 fps/5），否则超额帧被丢弃、分位数失真；summary.json 的 `detailEvery` 与 drain 行的 `rateDropped` 用于核对。
 结论只对应当前机器状态，不构成跨平台或门槛结论；门槛由用户按实测确认。

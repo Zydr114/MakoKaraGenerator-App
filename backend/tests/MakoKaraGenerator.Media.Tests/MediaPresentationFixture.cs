@@ -94,11 +94,11 @@ internal static class MediaPresentationFixture
         foreach (byte b in content) { crc ^= b; for (int i = 0; i < 8; i++) crc = (crc >> 1) ^ ((crc & 1) == 0 ? 0 : 0xEDB88320u); }
         return Cat(Be((uint)data.Length), content, Be(crc ^ 0xFFFFFFFF));
     }
-    internal static byte[] Jpeg(bool jfif = true, bool progressive = false, int bits = 8, bool icc = false, byte sampling = 0x22, bool cmyk = false)
+    internal static byte[] Jpeg(bool jfif = true, bool progressive = false, int bits = 8, bool icc = false, byte sampling = 0x22, bool cmyk = false, byte chroma = 0x11)
     {
         byte[] Marker(byte id, byte[] data) => Cat([0xFF, id, (byte)((data.Length + 2) >> 8), (byte)(data.Length + 2)], data);
         byte[] ids = cmyk ? [(byte)bits, 0, 1, 0, 1, 4, 1, sampling, 0, 2, 0x11, 0, 3, 0x11, 0, 4, 0x11, 0]
-            : [(byte)bits, 0, 1, 0, 1, 3, 1, sampling, 0, 2, 0x11, 0, 3, 0x11, 0];
+            : [(byte)bits, 0, 1, 0, 1, 3, 1, sampling, 0, 2, chroma, 0, 3, chroma, 0];
         return Cat([0xFF, 0xD8], jfif ? Marker(0xE0, Cat("JFIF\0"u8.ToArray(), [1, 2, 0, 0, 1, 0, 1, 0, 0])) : [],
             icc ? Marker(0xE2, Cat("ICC_PROFILE\0"u8.ToArray(), [1, 1])) : [], Marker(progressive ? (byte)0xC2 : (byte)0xC0, ids),
             Marker(0xDA, [1, 1, 0, 0, 63, 0]), [0, 0xFF, 0, 0, 0xFF, 0xD9]);

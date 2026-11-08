@@ -24,14 +24,27 @@ public sealed class MediaStillStructureTests
         Assert.Throws<MediaAbException>(() => MediaStillStructure.Read(source, 3, budget, default)); Assert.Equal(0, budget.Live);
     }
     [Theory]
-    [InlineData(false, 0x22, 420)]
-    [InlineData(true, 0x21, 422)]
-    [InlineData(true, 0x11, 444)]
-    public void Jpeg_AcceptsJfifBaselineAndProgressiveNativeSampling(bool progressive, int sampling, int expected)
+    [InlineData(false, 0x22, 0x11, 420)]
+    [InlineData(true, 0x21, 0x11, 422)]
+    [InlineData(true, 0x11, 0x11, 444)]
+    [InlineData(false, 0x12, 0x12, 444)]
+    [InlineData(false, 0x22, 0x22, 444)]
+    [InlineData(false, 0x42, 0x21, 420)]
+    public void Jpeg_AcceptsJfifBaselineAndProgressiveNativeSampling(bool progressive, int sampling, int chroma, int expected)
     {
-        using var source = new MemoryStream(Jpeg(progressive: progressive, sampling: (byte)sampling)); var budget = new Budget();
+        using var source = new MemoryStream(Jpeg(progressive: progressive, sampling: (byte)sampling, chroma: (byte)chroma)); var budget = new Budget();
         MediaStillStructure value = MediaStillStructure.Read(source, 4, budget, default);
         Assert.True(value.HasColorAuthority); Assert.Equal(expected, value.Subsampling); Assert.Equal(MediaMatrix.Bt601Jpeg, value.Matrix); Assert.False(value.HasAlpha); Assert.Equal(0, budget.Live);
+    }
+    [Theory]
+    [InlineData(0x41, 0x11)]
+    [InlineData(0x32, 0x21)]
+    [InlineData(0x11, 0x22)]
+    [InlineData(0x22, 0x01)]
+    public void Jpeg_RefusesUnsupportedSamplingRatios(int sampling, int chroma)
+    {
+        using var source = new MemoryStream(Jpeg(sampling: (byte)sampling, chroma: (byte)chroma)); var budget = new Budget();
+        Assert.Throws<MediaAbException>(() => MediaStillStructure.Read(source, 4, budget, default)); Assert.Equal(0, budget.Live);
     }
     [Theory]
     [InlineData(12, false, false)]

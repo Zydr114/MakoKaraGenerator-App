@@ -137,8 +137,13 @@ internal sealed class MediaStillStructure
                 if (count == 1) { Need(value[7] == 0x11, "JPEG grayscale sampling is unsupported."); sampling = 0; }
                 else
                 {
-                    id1 = value[9]; id2 = value[12]; Need(id0 != id1 && id0 != id2 && id1 != id2 && value[10] == 0x11 && value[13] == 0x11, "JPEG chroma sampling factors or component IDs are unsupported.");
-                    sampling = value[7] switch { 0x11 => 444, 0x21 => 422, 0x22 => 420, _ => throw Color("JPEG supports only 420 422 and 444 native sampling.") };
+                    // Native sampling is the luma-to-chroma factor ratio, not the absolute factors: encoders such as
+                    // FFmpeg write full-resolution chroma as 1x2 or 2x2 on every component.
+                    id1 = value[9]; id2 = value[12]; int lumaH = value[7] >> 4, lumaV = value[7] & 15, chromaH = value[10] >> 4, chromaV = value[10] & 15;
+                    Need(id0 != id1 && id0 != id2 && id1 != id2 && value[13] == value[10] && lumaH is >= 1 and <= 4 && lumaV is >= 1 and <= 4 &&
+                        chromaH is >= 1 and <= 4 && chromaV is >= 1 and <= 4, "JPEG chroma sampling factors or component IDs are unsupported.");
+                    sampling = lumaH % chromaH != 0 || lumaV % chromaV != 0 ? 0 : (lumaH / chromaH, lumaV / chromaV) switch { (1, 1) => 444, (2, 1) => 422, (2, 2) => 420, _ => 0 };
+                    if (sampling == 0) throw Color("JPEG supports only 420 422 and 444 native sampling.");
                 }
             }
             else if (marker is >= 0xC0 and <= 0xCF && marker is not (0xC4)) throw Color("JPEG lossless arithmetic hierarchical or non-8-bit frame mode is unsupported.");

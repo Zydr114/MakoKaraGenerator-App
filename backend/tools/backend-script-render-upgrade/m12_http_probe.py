@@ -22,6 +22,7 @@ import threading
 import time
 from urllib.parse import urlencode
 import wave
+import zipfile
 
 sys.dont_write_bytecode = True
 HERE = Path(__file__).resolve().parent
@@ -143,15 +144,56 @@ class M12Probe(m11.M11ComplexProbe):
         self.sequence = 0
 
     # ---- shared fixture ----
+    def import_sample(self, name):
+        """Controller samples keep the M11 path; graph packages become recipes through a resource draft and
+        material packages fill the template's unsung/sung slots (first/last material export)."""
+        directory = m10.ROOT / "samples" / "ScriptEffectsV2" / name
+        raw = (directory / "manifest.json").read_bytes()
+        manifest = json.loads(raw)
+        if any(item["kind"] == "controller" for item in manifest["exports"]):
+            return super().import_sample(name)
+        files = {item["path"]: (directory / item["path"]).read_bytes() for item in manifest["files"]}
+        self.check(all(hashlib.sha256(files[item["path"]]).hexdigest() == item["sha256"] for item in manifest["files"]),
+            name + ": repository bytes match manifest")
+        archive = io.BytesIO()
+        with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as package:
+            package.writestr("manifest.json", raw)
+            for path, data in files.items():
+                package.writestr(path, data)
+        asset = self.upload(name + "-package", "m12-" + name + ".mkfx", "application/octet-stream", archive.getvalue())
+        inspected = self.request(name + "-inspect", "POST", "/api/v1/effect-packages/inspect", value={"packageAssetId": asset["assetId"]})
+        self.check(inspected["structureValid"], name + ": package admitted")
+        materials = [item["id"] for item in manifest["exports"] if item["kind"] == "material"]
+        if materials:
+            self.materials.extend({"kind": "package", "packageId": inspected["packageId"], "revision": inspected["packageRevision"],
+                "exportId": export, "parametersJson": "{}"} for export in materials)
+            return inspected["reference"], None
+        export = next(item["id"] for item in manifest["exports"] if item["kind"] == "graph")
+        draft = self.request(name + "-draft", "POST", "/api/v1/drafts", status=201, value={
+            "packageAssetId": asset["assetId"], "exportId": export, "name": "M12 " + name})
+        config = draft["configuration"]
+        return inspected["reference"], {"recipeId": "m12-" + name.lower(), "name": name, "target": config["relativeTarget"],
+            "packageId": config["packageId"], "revision": config["sourceRevision"], "exportId": config["exportId"],
+            "parametersJson": config["parametersJson"], "enabled": True, "overlayLayer": config["overlayLayer"],
+            "readScope": config["readScope"], "branchInput": config.get("branchInput"), "fixedSeed": config.get("fixedSeed"),
+            "configurationId": None}
+
     def prepare_template(self):
+        self.materials = []
         imported = [self.import_sample(name) for name in self.names]
         builtin = self.request("template-builtin", "GET", "/api/v1/template-libraries/builtin/templates")
         line = next(item for item in builtin["templates"] if item["kind"] == "line")
         detail = self.request("template-detail", "GET", "/api/v1/template-libraries/builtin/templates/detail?" + urlencode({
             "expectedRevision": builtin["revision"], "templateId": line["templateId"]}))
         definition = dict(detail["definition"])
-        definition.update(name="M12 " + "+".join(self.names), kind="line", properties=["opacity"],
-            packages=[reference for reference, _ in imported], effectRecipes=[recipe for _, recipe in imported])
+        properties = ["opacity"]
+        if self.materials:
+            definition["style"] = dict(definition["style"], unsungFill={"material": self.materials[0]},
+                sungFill={"material": self.materials[-1]})
+            properties += ["unsungColor", "sungColor"]
+        definition.update(name="M12 " + "+".join(self.names), kind="line", properties=properties,
+            packages=[reference for reference, _ in imported],
+            effectRecipes=[recipe for _, recipe in imported if recipe is not None])
         library = self.request("template-personal", "GET", "/api/v1/template-libraries/personal/templates")
         self.template = self.request("template-create", "POST", "/api/v1/template-libraries/personal/commands", value={
             "expectedRevision": library["revision"], "metadata": self.metadata("template-create"),

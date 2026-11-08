@@ -155,6 +155,7 @@ fontFamilyName就认定字体生效；PNG与编码容差沿图工具分别记录
 
 - `seek`：`near`（8 秒工程，0.5/1/2/3 秒）与 `180s`/`360s`（0.5 秒↔远端交替）场景，每行逐行应用模板，
   记录首帧与重复的 readyMs、下载完成 ms，`--count` 为每场景轮数。
+- 样例按包导出种类接入模板：controller 沿 M11 作者草稿配方；graph（LineGlitch）经纯资源草稿生成配方；material（CustomInk、GlassInk）以包材质写入模板未唱／已唱填充（取首个／末个材质导出）。
 - `export`：GPU `opaqueMp4` 无音轨导出 `--export-seconds` 秒 × `--export-rounds` 轮，记录墙钟、fps 与 ms/帧。
 - `author`：WordEmphasis 作者草稿的参数修改、源码修改（编译＋采用）、已编译修订互换到匹配帧的分段与总耗时。
 

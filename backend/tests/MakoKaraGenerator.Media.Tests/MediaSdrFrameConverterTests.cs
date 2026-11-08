@@ -122,6 +122,24 @@ public sealed class MediaSdrFrameConverterTests
     }
 
     [Theory]
+    [InlineData(0, false)] [InlineData(1, false)] [InlineData(2, true)] [InlineData(3, true)]
+    public void 分带并行转换与顺序转换跨带边界和旋转逐位一致(int turn, bool mirror)
+    {
+        const int width = 7, height = 37; int cw = (width + 1) / 2, ch = (height + 1) / 2;
+        byte[] yPlane = MediaSdrFixture.Plane(width, height, 1, 3, (x, y) => (x * 53 + y * 29) % 256);
+        byte[] cbPlane = MediaSdrFixture.Plane(cw, ch, 1, 1, (x, y) => (x * 71 + y * 13) % 256);
+        byte[] crPlane = MediaSdrFixture.Plane(cw, ch, 1, 1, (x, y) => (255 - x * 37 - y * 11 + 512) % 256);
+        var frame = new MediaNativeFrameBorrow(new(yPlane, width + 3), new(cbPlane, cw + 1), new(crPlane, cw + 1));
+        var source = MediaSdrFixture.Source(MediaNativePixelFormat.Yuv420P8, width, height, MediaMatrix.Bt709, MediaTransfer.Bt709,
+            MediaRange.Limited, chroma: MediaChromaLocation.Left, turn: (MediaQuarterTurn)turn, mirror: mirror);
+        float[] sequential = new float[width * height * 4], parallel = new float[width * height * 4];
+        Array.Fill(parallel, float.NaN);
+        MediaSdrFrameConverter.Convert(source, frame, sequential);
+        MediaSdrFrameConverter.ConvertParallel(source, frame, parallel);
+        Assert.Equal(sequential, parallel);
+    }
+
+    [Theory]
     [InlineData(0, false, new[] { 0, 1, 2, 3, 4, 5 })]
     [InlineData(1, false, new[] { 3, 0, 4, 1, 5, 2 })]
     [InlineData(2, false, new[] { 5, 4, 3, 2, 1, 0 })]

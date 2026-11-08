@@ -100,7 +100,7 @@ internal static class MediaPresentationDecodePump
                 buffers.Verify(frame);
                 await buffers.ReadAsync(session.Output, cancellationToken).ConfigureAwait(false);
                 long ownPixels = buffers.ByteCapacity;
-                MediaSdrFrameConverter.Convert(source, buffers.Native, buffers.Canonical,
+                MediaSdrFrameConverter.ConvertParallel(source, buffers.Native, buffers.Canonical,
                     checked(budget.PlannedBytes - ownPixels), cancellationToken);
                 var observation = new PresentationFrameObservation(new(count), source.Kind == MediaSourceKind.Video ? frame.Pts : null,
                     source.Presentation.CanonicalWidth, source.Presentation.CanonicalHeight, source.Presentation.Color.Digest);

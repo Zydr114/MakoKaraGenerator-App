@@ -1,10 +1,12 @@
+using System.Buffers;
 using MakoKaraGenerator.Core.Media;
 using MakoKaraGenerator.Rendering.Abstractions;
 
 namespace MakoKaraGenerator.Media;
 
-/// <summary>Allocation-free exact-area construction and bounded source-grid integration of seven SDR moments.</summary>
-/// <remarks>Only callback-local spans are used. The instance never keeps pixels, destinations, grids or frame metadata. Input and output backing are charged by their owner; this class checks its fixed scratch requirement separately.</remarks>
+/// <summary>Exact-area construction and bounded source-grid integration of seven SDR moments.</summary>
+/// <remarks>Grid rows are integrated concurrently into a pooled result that is copied out on success; no per-frame allocation.
+/// Only callback-local spans are used. The instance never keeps pixels, destinations, grids or frame metadata. Input and output backing are charged by their owner; this class checks its fixed scratch requirement separately.</remarks>
 public sealed class MediaMomentKernel : IMediaMomentKernel
 {
     /// <summary>The exact numerical scratch backing for seven means, seven complementary means and their compensation values.</summary>
@@ -49,63 +51,75 @@ public sealed class MediaMomentKernel : IMediaMomentKernel
         }
 
         _ = GetMaximumPixelContributions(width, height);
-        ReadOnlySpan<float> pixels = frame.LinearPremulRgba.Span;
         cancellationToken.ThrowIfCancellationRequested();
+        // Cell rows are independent and each keeps its own sequential summation order, so the grid is bit-identical to a
+        // sequential pass. The pooled row-major result is copied out only after every row succeeded.
+        QuantizedMediaMoments[] cells = ArrayPool<QuantizedMediaMoments>.Shared.Rent(MediaTrackLayoutV1.Cells);
+        try
+        {
+            ReadOnlyMemory<float> pixels = frame.LinearPremulRgba;
+            MediaAnalysisParallel.For(MediaTrackLayoutV1.Rows, cellY => BuildRow(pixels.Span, width, height, cellY, cells, cancellationToken),
+                cancellationToken);
+            cells.AsSpan(0, MediaTrackLayoutV1.Cells).CopyTo(destination);
+        }
+        finally { ArrayPool<QuantizedMediaMoments>.Shared.Return(cells); }
+
+        cancellationToken.ThrowIfCancellationRequested();
+    }
+
+    private static void BuildRow(ReadOnlySpan<float> pixels, int width, int height, int cellY, QuantizedMediaMoments[] cells,
+        CancellationToken cancellationToken)
+    {
         Span<double> scratch = stackalloc double[4 * MediaTrackLayoutV1.Moments];
         Span<double> sums = scratch[..(2 * MediaTrackLayoutV1.Moments)];
         Span<double> compensation = scratch[(2 * MediaTrackLayoutV1.Moments)..];
         long cellWeight = checked((long)width * height);
-        for (int cellY = 0; cellY < MediaTrackLayoutV1.Rows; cellY++)
+        int top = checked(cellY * height);
+        int bottom = checked((cellY + 1) * height);
+        int firstY = top / MediaTrackLayoutV1.Rows;
+        int endY = checked((bottom + MediaTrackLayoutV1.Rows - 1) / MediaTrackLayoutV1.Rows);
+        for (int cellX = 0; cellX < MediaTrackLayoutV1.Columns; cellX++)
         {
-            int top = checked(cellY * height);
-            int bottom = checked((cellY + 1) * height);
-            int firstY = top / MediaTrackLayoutV1.Rows;
-            int endY = checked((bottom + MediaTrackLayoutV1.Rows - 1) / MediaTrackLayoutV1.Rows);
-            for (int cellX = 0; cellX < MediaTrackLayoutV1.Columns; cellX++)
+            cancellationToken.ThrowIfCancellationRequested();
+            sums.Clear();
+            compensation.Clear();
+            int left = checked(cellX * width);
+            int right = checked((cellX + 1) * width);
+            int firstX = left / MediaTrackLayoutV1.Columns;
+            int endX = checked((right + MediaTrackLayoutV1.Columns - 1) / MediaTrackLayoutV1.Columns);
+            long contributedWeight = 0;
+            for (int y = firstY; y < endY; y++)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                sums.Clear();
-                compensation.Clear();
-                int left = checked(cellX * width);
-                int right = checked((cellX + 1) * width);
-                int firstX = left / MediaTrackLayoutV1.Columns;
-                int endX = checked((right + MediaTrackLayoutV1.Columns - 1) / MediaTrackLayoutV1.Columns);
-                long contributedWeight = 0;
-                for (int y = firstY; y < endY; y++)
+                int overlapY = checked(Math.Min(bottom, (y + 1) * MediaTrackLayoutV1.Rows) - Math.Max(top, y * MediaTrackLayoutV1.Rows));
+                for (int x = firstX; x < endX; x++)
                 {
-                    int overlapY = checked(Math.Min(bottom, (y + 1) * MediaTrackLayoutV1.Rows) - Math.Max(top, y * MediaTrackLayoutV1.Rows));
-                    for (int x = firstX; x < endX; x++)
+                    cancellationToken.ThrowIfCancellationRequested();
+                    int overlapX = checked(Math.Min(right, (x + 1) * MediaTrackLayoutV1.Columns) - Math.Max(left, x * MediaTrackLayoutV1.Columns));
+                    long weight = checked((long)overlapX * overlapY);
+                    if (weight <= 0)
                     {
-                        cancellationToken.ThrowIfCancellationRequested();
-                        int overlapX = checked(Math.Min(right, (x + 1) * MediaTrackLayoutV1.Columns) - Math.Max(left, x * MediaTrackLayoutV1.Columns));
-                        long weight = checked((long)overlapX * overlapY);
-                        if (weight <= 0)
-                        {
-                            throw new MediaAbException(MediaAbFailure.StatisticsInvalid, "Canonical pixel overlap must be strictly positive.");
-                        }
-
-                        contributedWeight = checked(contributedWeight + weight);
-                        int offset = checked(checked(y * width + x) * 4);
-                        double red = pixels[offset];
-                        double green = pixels[offset + 1];
-                        double blue = pixels[offset + 2];
-                        double alpha = pixels[offset + 3];
-                        ValidatePixel(red, green, blue, alpha);
-                        AddMoments(sums, compensation, ComputeMoments(red, green, blue, alpha), weight);
+                        throw new MediaAbException(MediaAbFailure.StatisticsInvalid, "Canonical pixel overlap must be strictly positive.");
                     }
-                }
 
-                if (contributedWeight != cellWeight)
-                {
-                    throw new MediaAbException(MediaAbFailure.StatisticsInvalid, "Canonical cell overlap does not cover its exact rational area.");
+                    contributedWeight = checked(contributedWeight + weight);
+                    int offset = checked(checked(y * width + x) * 4);
+                    double red = pixels[offset];
+                    double green = pixels[offset + 1];
+                    double blue = pixels[offset + 2];
+                    double alpha = pixels[offset + 3];
+                    ValidatePixel(red, green, blue, alpha);
+                    AddMoments(sums, compensation, ComputeMoments(red, green, blue, alpha), weight);
                 }
-
-                MediaMomentValues means = Normalize(sums, cellWeight);
-                destination[checked(cellY * MediaTrackLayoutV1.Columns + cellX)] = Quantize(means);
             }
-        }
 
-        cancellationToken.ThrowIfCancellationRequested();
+            if (contributedWeight != cellWeight)
+            {
+                throw new MediaAbException(MediaAbFailure.StatisticsInvalid, "Canonical cell overlap does not cover its exact rational area.");
+            }
+
+            MediaMomentValues means = Normalize(sums, cellWeight);
+            cells[checked(cellY * MediaTrackLayoutV1.Columns + cellX)] = Quantize(means);
+        }
     }
 
     /// <inheritdoc/>

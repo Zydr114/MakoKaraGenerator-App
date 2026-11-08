@@ -26,6 +26,35 @@ public static class MediaSdrFrameConverter
     public static void Convert(MediaFeatureFileSource source, MediaNativeFrameBorrow native, Span<float> destination,
         long otherSimultaneousBytes = 0, CancellationToken cancellationToken = default)
     {
+        Conversion conversion = Prepare(source, native, destination, otherSimultaneousBytes, cancellationToken);
+        ConvertRows(conversion, native, destination, 0, conversion.Height, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+    }
+
+    /// <summary>
+    /// The same validation and conversion as <see cref="Convert"/>, with independent row bands converted concurrently.
+    /// Every encoded pixel writes only its own canonical pixel with unchanged arithmetic, so output is bit-identical.
+    /// </summary>
+    /// <param name="source">The completely validated source identity fixed by the inspector.</param>
+    /// <param name="native">The borrowed native planes with complete charged backing slices.</param>
+    /// <param name="destination">Exactly one canonical frame of exclusive caller-owned float backing.</param>
+    /// <param name="otherSimultaneousBytes">All other live decode backing already reserved by the owner, including native envelope and queues.</param>
+    /// <param name="cancellationToken">Cancellation propagated unchanged, checked before validation and during every row scan.</param>
+    public static void ConvertParallel(MediaFeatureFileSource source, MediaNativeFrameBorrow native, Memory<float> destination,
+        long otherSimultaneousBytes = 0, CancellationToken cancellationToken = default)
+    {
+        Conversion conversion = Prepare(source, native, destination.Span, otherSimultaneousBytes, cancellationToken);
+        int bands = (conversion.Height + RowsPerBand - 1) / RowsPerBand;
+        MediaAnalysisParallel.For(bands, band => ConvertRows(conversion, native, destination.Span, band * RowsPerBand,
+            Math.Min(conversion.Height, (band + 1) * RowsPerBand), cancellationToken), cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+    }
+
+    private const int RowsPerBand = 16;
+
+    private static Conversion Prepare(MediaFeatureFileSource source, MediaNativeFrameBorrow native, Span<float> destination,
+        long otherSimultaneousBytes, CancellationToken cancellationToken)
+    {
         cancellationToken.ThrowIfCancellationRequested();
         new MediaAbValueValidator().ValidateSource(source);
         var descriptor = source.Presentation;
@@ -78,8 +107,17 @@ public static class MediaSdrFrameConverter
             ScanTenBit(native.Cr, chromaWidth, chromaHeight, cancellationToken);
         }
 
-        var interpretation = descriptor.Color;
-        for (int y = 0; y < height; y++)
+        return new(geometry, format, descriptor.Color, width, height);
+    }
+
+    // Plane spans are taken once per call; per-pixel arithmetic is unchanged.
+    private static void ConvertRows(Conversion conversion, MediaNativeFrameBorrow native, Span<float> destination,
+        int startY, int endY, CancellationToken cancellationToken)
+    {
+        var (geometry, format, interpretation, width, height) = conversion;
+        ReadOnlySpan<byte> first = native.First.Bytes.Span, cbPlane = native.Cb.Bytes.Span, crPlane = native.Cr.Bytes.Span;
+        int firstStride = native.First.StrideBytes, cbStride = native.Cb.StrideBytes, crStride = native.Cr.StrideBytes;
+        for (int y = startY; y < endY; y++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             for (int x = 0; x < width; x++)
@@ -88,18 +126,18 @@ public static class MediaSdrFrameConverter
                 double red, green, blue, alpha;
                 if (!format.Planar)
                 {
-                    int offset = checked(y * native.First.StrideBytes + x * format.Bytes * format.Components);
+                    int offset = checked(y * firstStride + x * format.Bytes * format.Components);
                     double maximum = format.Bytes == 1 ? 255 : 65535;
-                    red = Sample(native.First, offset, format.Bytes) / maximum;
-                    green = Sample(native.First, offset + format.Bytes, format.Bytes) / maximum;
-                    blue = Sample(native.First, offset + 2 * format.Bytes, format.Bytes) / maximum;
-                    alpha = interpretation.Alpha == MediaAlpha.Opaque ? 1 : Sample(native.First, offset + 3 * format.Bytes, format.Bytes) / maximum;
+                    red = Sample(first, offset, format.Bytes) / maximum;
+                    green = Sample(first, offset + format.Bytes, format.Bytes) / maximum;
+                    blue = Sample(first, offset + 2 * format.Bytes, format.Bytes) / maximum;
+                    alpha = interpretation.Alpha == MediaAlpha.Opaque ? 1 : Sample(first, offset + 3 * format.Bytes, format.Bytes) / maximum;
                 }
                 else
                 {
-                    double lumaCode = Sample(native.First, checked(y * native.First.StrideBytes + x * format.Bytes), format.Bytes);
-                    double cbCode = Chroma(native.Cb, x, y, width, height, format, interpretation.ChromaLocation);
-                    double crCode = Chroma(native.Cr, x, y, width, height, format, interpretation.ChromaLocation);
+                    double lumaCode = Sample(first, checked(y * firstStride + x * format.Bytes), format.Bytes);
+                    double cbCode = Chroma(cbPlane, cbStride, x, y, width, height, format, interpretation.ChromaLocation);
+                    double crCode = Chroma(crPlane, crStride, x, y, width, height, format, interpretation.ChromaLocation);
                     int bits = format.Bytes == 1 ? 8 : 10;
                     double maximum = (1 << bits) - 1, center = 1 << (bits - 1), scale = 1 << (bits - 8);
                     double luma = interpretation.Range == MediaRange.Full ? lumaCode / maximum : (lumaCode - 16 * scale) / (219 * scale);
@@ -121,9 +159,10 @@ public static class MediaSdrFrameConverter
                 Store(destination.Slice(output, 4), red, green, blue, alpha, interpretation.Transfer);
             }
         }
-
-        cancellationToken.ThrowIfCancellationRequested();
     }
+
+    private readonly record struct Conversion(MediaRasterGeometry Geometry, PixelLayout Format,
+        MediaColorInterpretation Interpretation, int Width, int Height);
 
     private static void Store(Span<float> output, double red, double green, double blue, double alpha, MediaTransfer transfer)
     {
@@ -155,10 +194,10 @@ public static class MediaSdrFrameConverter
 
     private static float PositiveZero(float value) => value == 0 ? 0 : value;
 
-    private static double Chroma(MediaNativePlaneBorrow plane, int x, int y, int width, int height, PixelLayout format, MediaChromaLocation location)
+    private static double Chroma(ReadOnlySpan<byte> plane, int stride, int x, int y, int width, int height, PixelLayout format, MediaChromaLocation location)
     {
         if (format.SubsampleX == 1 && format.SubsampleY == 1)
-            return Sample(plane, checked(y * plane.StrideBytes + x * format.Bytes), format.Bytes);
+            return Sample(plane, checked(y * stride + x * format.Bytes), format.Bytes);
         double horizontal = ((x + .5) - (location == MediaChromaLocation.Left ? .5 : 1)) / format.SubsampleX;
         double vertical = format.SubsampleY == 1 ? y : ((y + .5) - 1) / format.SubsampleY;
         int floorX = (int)Math.Floor(horizontal), floorY = (int)Math.Floor(vertical);
@@ -167,17 +206,17 @@ public static class MediaSdrFrameConverter
         int chromaHeight = (height + format.SubsampleY - 1) / format.SubsampleY;
         int x0 = Math.Clamp(floorX, 0, chromaWidth - 1), x1 = Math.Clamp(floorX + 1, 0, chromaWidth - 1);
         int y0 = Math.Clamp(floorY, 0, chromaHeight - 1), y1 = Math.Clamp(floorY + 1, 0, chromaHeight - 1);
-        double topLeft = Sample(plane, checked(y0 * plane.StrideBytes + x0 * format.Bytes), format.Bytes);
-        double topRight = Sample(plane, checked(y0 * plane.StrideBytes + x1 * format.Bytes), format.Bytes);
-        double bottomLeft = Sample(plane, checked(y1 * plane.StrideBytes + x0 * format.Bytes), format.Bytes);
-        double bottomRight = Sample(plane, checked(y1 * plane.StrideBytes + x1 * format.Bytes), format.Bytes);
+        double topLeft = Sample(plane, checked(y0 * stride + x0 * format.Bytes), format.Bytes);
+        double topRight = Sample(plane, checked(y0 * stride + x1 * format.Bytes), format.Bytes);
+        double bottomLeft = Sample(plane, checked(y1 * stride + x0 * format.Bytes), format.Bytes);
+        double bottomRight = Sample(plane, checked(y1 * stride + x1 * format.Bytes), format.Bytes);
         double top = topLeft + (topRight - topLeft) * fractionX;
         double bottom = bottomLeft + (bottomRight - bottomLeft) * fractionX;
         return top + (bottom - top) * fractionY;
     }
 
-    private static int Sample(MediaNativePlaneBorrow plane, int offset, int bytes)
-        => bytes == 1 ? plane.Bytes.Span[offset] : BinaryPrimitives.ReadUInt16LittleEndian(plane.Bytes.Span.Slice(offset, 2));
+    private static int Sample(ReadOnlySpan<byte> plane, int offset, int bytes)
+        => bytes == 1 ? plane[offset] : BinaryPrimitives.ReadUInt16LittleEndian(plane.Slice(offset, 2));
 
     private static void ValidatePlane(MediaNativePlaneBorrow plane, int rowBytes, int height, int sampleBytes)
     {
@@ -197,7 +236,7 @@ public static class MediaSdrFrameConverter
             for (int x = 0; x < width; x++)
             {
                 if ((x & 255) == 0) cancellationToken.ThrowIfCancellationRequested();
-                if (Sample(plane, checked(y * plane.StrideBytes + x * 2), 2) > 1023)
+                if (Sample(plane.Bytes.Span, checked(y * plane.StrideBytes + x * 2), 2) > 1023)
                     throw new MediaAbException(MediaAbFailure.ColorUnsupported, "Ten bit native samples contain nonzero unsupported high bits.");
             }
         }

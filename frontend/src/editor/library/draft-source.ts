@@ -2,7 +2,12 @@
 // 编辑器的状态（撤销历史、光标）由 SourceEditor 寄存在这里，切文件、切页签、切草稿都不丢；读进别的修订时清空。
 // 完整保留修订由 source-revisions 分页读出；本页保存过的修订另记在 sessionStorage，按 client 和草稿区分。
 
-import type { AuthorPackageFilesInput, AuthorPackageFilesResponse } from '../../protocol/author-package-files';
+import type {
+  AuthorPackageFileReplacementInspection,
+  AuthorPackageFileReplacementInspectionInput,
+  AuthorPackageFilesInput,
+  AuthorPackageFilesResponse,
+} from '../../protocol/author-package-files';
 import { BackendError, ObservableValue } from '../../client';
 import type { AuthorAdoptResponse, AuthorDraftConfiguration, AuthorPackageConfigurationInput, AuthorCompilation, AuthorDraft, AuthorDraftSourcesResponse, AuthorSourceFile, AuthorSourceRevisionResponse, JobResponse, JobSummary } from '../../protocol';
 import { errorText } from '../session/editor-session';
@@ -61,7 +66,19 @@ export interface SourceFile {
   saved: string;
   /** 编辑器里的内容。 */
   text: string;
+  /** 待保存的整份替换（图片、字体）；读进别的修订或保存成功后清掉。 */
+  replacement?: PendingReplacement;
 }
+
+/** 已上传并通过只读检查的新文件；保存时按 path 提交 assetId。 */
+export interface PendingReplacement {
+  fileName: string;
+  assetId: string;
+  inspection: AuthorPackageFileReplacementInspection;
+}
+
+/** binary：图片、字体按字节整份替换；svg：读成文本放进编辑器，按文本保存。 */
+export type ReplaceKind = 'binary' | 'svg';
 
 export interface DraftSourceState {
   /** none：包里没有 C# 源码（材质、图），整个页签只写原因（R10，不看 canCompile）。 */
@@ -75,6 +92,10 @@ export interface DraftSourceState {
   busy?: 'loading' | 'saving' | 'adopting';
   /** 读取失败的原因。 */
   error?: string;
+  /** 正在上传、检查替换文件的路径。 */
+  replacing?: string;
+  /** 最近一次替换失败；换文件仍可查看。 */
+  replaceError?: { path: string; message: string };
   /** 本页保存过的修订，旧的在前。 */
   saved: string[];
   /** 后端保留的全部源码修订（完整历史）；没读到时为空。 */
@@ -121,6 +142,10 @@ export interface DraftSourcePort {
   /** 配对提供时启用完整包编辑；未提供时保留旧 C# 源码流程。 */
   readPackage?(draft: FullDraft, revision: string): Promise<AuthorPackageFilesResponse>;
   savePackage?(draft: FullDraft, input: AuthorPackageFilesInput): Promise<AuthorDraft>;
+  /** 与 inspectReplacement 配对提供时可整份替换图片、字体：上传后返回 assetId。 */
+  uploadAsset?(file: Blob, fileName: string): Promise<string>;
+  /** 只读检查替换；不改变草稿。 */
+  inspectReplacement?(draft: FullDraft, input: AuthorPackageFileReplacementInspectionInput): Promise<AuthorPackageFileReplacementInspection>;
   read(draft: FullDraft, revision: string): Promise<AuthorDraftSourcesResponse>;
   save(draft: FullDraft, files: AuthorSourceFile[]): Promise<AuthorSourceRevisionResponse>;
   adopt(draft: FullDraft, revision: string, configuration?: AuthorPackageConfigurationInput): Promise<unknown>;
@@ -186,9 +211,9 @@ export class DraftSourceModel {
     return this.state$.get();
   }
 
-  /** 编辑器里有没保存成修订的改动。 */
+  /** 编辑器里有没保存成修订的改动（含待保存的替换）。 */
   get dirty(): boolean {
-    return this.state.files.some((f) => f.editable !== false && f.text !== f.saved);
+    return this.state.files.some((f) => (f.editable !== false && f.text !== f.saved) || !!f.replacement);
   }
 
   get isV2(): boolean { return this.port.isV2?.() ?? false; }
@@ -210,7 +235,7 @@ export class DraftSourceModel {
         this.packageBaseLatest = latestAtRead;
         this.views.clear();
         this.patch({ status: 'ready', packageFiles: true, revision: response.sourceRevision, files, active,
-          error: undefined, reveal: undefined, generation: this.state.generation + 1 });
+          error: undefined, replaceError: undefined, reveal: undefined, generation: this.state.generation + 1 });
         void this.readLastCompilation();
         void this.loadHistory();
         return true;
@@ -266,13 +291,78 @@ export class DraftSourceModel {
     this.patch({ files: files.map((f, i) => (i === index ? { ...f, text } : f)) });
   }
 
+  /** 这个文件能不能在本页替换；只有包模式下的图片、字体（字节）和 SVG（文本）可以。 */
+  replaceKind(file: Pick<SourceFile, 'role' | 'editable'>): ReplaceKind | undefined {
+    if (!this.state.packageFiles) return undefined;
+    if (file.editable !== false) return file.role === 'svg' ? 'svg' : undefined;
+    return (file.role === 'image' || file.role === 'font') && this.port.uploadAsset && this.port.inspectReplacement ? 'binary' : undefined;
+  }
+
+  /**
+   * 用一个本机文件替换包内文件。图片、字体先上传再按编辑器所看的修订只读检查，通过后记为待保存；
+   * 格式不同、解码失败等由服务拒绝，尺寸、家族名变化只提醒。SVG 按严格 UTF-8 读成文本放进编辑器。
+   */
+  async replaceFile(path: string, file: Blob, fileName: string): Promise<boolean> {
+    const target = this.state.files.find((candidate) => candidate.path === path);
+    if (!target || this.state.busy || this.state.replacing || this.state.status !== 'ready') return false;
+    const kind = this.replaceKind(target);
+    if (kind === 'svg') return this.replaceSvgText(path, file);
+    if (kind !== 'binary' || !this.state.revision) return false;
+    const generation = this.state.generation;
+    const sourceRevision = this.state.revision;
+    const current = () => !this.disposed && this.state.generation === generation && this.state.revision === sourceRevision;
+    this.patch({ replacing: path, replaceError: undefined });
+    try {
+      const assetId = await this.port.uploadAsset!(file, fileName);
+      const inspection = await this.withFreshDraft((draft) => this.port.inspectReplacement!(draft, { sourceRevision, path, assetId }));
+      if (!current()) return false;
+      if (inspection.path !== path || inspection.sourceRevision !== sourceRevision) throw new Error('检查结果与要替换的文件不一致。');
+      this.patch({ files: this.state.files.map((candidate) => (candidate.path === path ? { ...candidate, replacement: { fileName, assetId, inspection } } : candidate)) });
+      return true;
+    } catch (error) {
+      if (current()) this.patch({ replaceError: { path, message: `替换 ${baseName(path)} 失败：${errorText(error)}` } });
+      return false;
+    } finally {
+      this.patch({ replacing: undefined });
+    }
+  }
+
+  /** 撤销一个待保存的替换。 */
+  revertReplacement(path: string): void {
+    if (this.state.busy === 'saving') return;
+    const files = this.state.files;
+    if (!files.some((file) => file.path === path && file.replacement)) return;
+    this.patch({ files: files.map((file) => {
+      if (file.path !== path) return file;
+      const { replacement: _dropped, ...rest } = file;
+      return rest;
+    }), replaceError: undefined });
+  }
+
+  private async replaceSvgText(path: string, file: Blob): Promise<boolean> {
+    this.patch({ replaceError: undefined });
+    let text: string;
+    try {
+      text = new TextDecoder('utf-8', { fatal: true }).decode(await file.arrayBuffer());
+    } catch {
+      this.patch({ replaceError: { path, message: `替换 ${baseName(path)} 失败：文件不是 UTF-8 文本。` } });
+      return false;
+    }
+    if (!/<svg[\s>]/i.test(text)) {
+      this.patch({ replaceError: { path, message: `替换 ${baseName(path)} 失败：文件里没有 <svg> 元素。` } });
+      return false;
+    }
+    this.edit(path, text);
+    return true;
+  }
+
   /**
    * 保存修订：一次提交全部 C# 文件（G34）；SDK2 只推进源码，编译后明确采用才改变试样来源。
    * v1 后端在“在用修订原来就是最新修订”时跟随更新，否则前端再提交一次配置。
    * 内容和最新修订相同时后端不新建修订（no-op）。提交期间又改了的文件仍算没保存。
    */
   async save(): Promise<SourceResult> {
-    if (this.state.busy) return { kind: 'busy' };
+    if (this.state.busy || this.state.replacing) return { kind: 'busy' };
     if (this.state.status !== 'ready' || !this.dirty) return { kind: 'unchanged' };
     if (this.state.packageFiles) return this.savePackageRevision();
     const submitted = this.state.files.map((f) => ({ path: f.path, text: f.text }));
@@ -307,12 +397,17 @@ export class DraftSourceModel {
     }
   }
 
-  /** 保存完整文本集合；内容冲突保留本地缓冲，只有配置 CAS 漂移可重试。 */
+  /**
+   * 保存完整文本集合与待保存的替换；内容冲突保留本地缓冲，只有配置 CAS 漂移可重试。
+   * 不可编辑文件取自编辑器所看的修订（baseSourceRevision），清单里的摘要由服务按替换后的字节重算。
+   */
   private async savePackageRevision(): Promise<SourceResult> {
     const submitted = this.state.files.filter((file) => file.editable !== false).map((file) => ({ path: file.path, text: file.text }));
     const manifest = submitted.find((file) => file.path === 'manifest.json');
-    if (!manifest || !this.port.savePackage || !this.port.readPackage) return { kind: 'failed', message: '完整包编辑入口不可用。' };
-    const input: AuthorPackageFilesInput = { manifestJson: manifest.text, textFiles: submitted.filter((file) => file.path !== 'manifest.json') };
+    if (!manifest || !this.port.savePackage || !this.port.readPackage || !this.state.revision) return { kind: 'failed', message: '完整包编辑入口不可用。' };
+    const replacedFiles = this.state.files.flatMap((file) => (file.replacement ? [{ path: file.path, assetId: file.replacement.assetId }] : []));
+    const input: AuthorPackageFilesInput = { manifestJson: manifest.text, textFiles: submitted.filter((file) => file.path !== 'manifest.json'),
+      baseSourceRevision: this.state.revision, ...(replacedFiles.length > 0 ? { replacedFiles } : {}) };
     this.patch({ busy: 'saving', error: undefined });
     try {
       if (this.port.settleConfiguration && !(await this.port.settleConfiguration()))
@@ -341,7 +436,7 @@ export class DraftSourceModel {
         await this.port.refresh();
         const canonical = await this.withFreshDraft((draft) => this.port.readPackage!(draft, revision));
         if (this.disposed) return { kind: 'failed', message: '草稿已关闭。' };
-        // 服务派生 manifest SHA；未继续编辑的文本换成固定源原文，保存期间的新输入完整保留。
+        // 服务派生 manifest SHA；未继续编辑的文本换成固定源原文，保存期间的新输入完整保留；替换已写进新修订。
         const files = packageSourceFiles(canonical).map((file) => {
           const local = this.state.files.find((candidate) => candidate.path === file.path);
           const sent = submitted.find((candidate) => candidate.path === file.path);
@@ -619,6 +714,11 @@ function packageSourceFiles(response: AuthorPackageFilesResponse): SourceFile[] 
       saved: file.editable ? file.text! : '', text: file.editable ? file.text! : '' });
   }
   return files;
+}
+
+/** 包内路径的文件名部分。 */
+export function baseName(path: string): string {
+  return path.slice(path.lastIndexOf('/') + 1);
 }
 
 export type SourceLanguage = 'csharp' | 'shader' | 'json' | 'xml' | 'plain';

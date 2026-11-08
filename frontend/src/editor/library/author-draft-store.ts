@@ -14,6 +14,9 @@ import { DraftSourceModel, readSavedRevisions, sameEditableExact, writeSavedRevi
 import { DraftValidationModel, readValidationJob, writeValidationJob } from './draft-validation';
 import type { LibraryNotice } from './template-library-store';
 
+/** 作者草稿整份替换包内图片、字体（合同 1.49.0）。 */
+const REPLACE_FEATURE = 'author.drafts.package-files.replace';
+
 export const DRAFT_ORIGINS_KEY = 'mako.author-draft-origins';
 export const DRAFT_LIMIT_TEXT = `草稿已有 ${AUTHOR_DRAFT_LIMIT} 个，先关闭不用的草稿。`;
 /** 完整修订历史最多读的页数。 */
@@ -194,6 +197,11 @@ export class AuthorDraftStore {
         this.replace(next);
         return next;
       },
+      uploadAsset: async (file, fileName) => {
+        if (!(await this.client.capabilities()).features.includes(REPLACE_FEATURE)) throw new Error('当前后端不支持替换包内素材。');
+        return (await this.client.assets.upload(file, { fileName })).assetId;
+      },
+      inspectReplacement: (draft, input) => this.client.drafts.inspectPackageFileReplacement(draftId, draft.draftRevision, input),
       read: (draft, revision) => this.client.drafts.sources(draftId, draft.draftRevision, revision),
       save: (draft, files) => this.client.drafts.saveSources(draftId, draft.draftRevision, files),
       adopt: async (draft, revision, configuration) => {

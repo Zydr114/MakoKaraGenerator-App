@@ -7,13 +7,14 @@ import { shortRevision } from '../model/full-template';
 import { Button, IconButton } from '../ui/Button';
 import { cls } from '../ui/cls';
 import { confirmAction } from '../ui/dialogs';
+import { FileButton } from '../ui/fields';
 import { saveBlob } from '../ui/download';
 import { toast } from '../ui/feedback';
 import { useObservable } from '../ui/hooks';
 import { Icon } from '../ui/Icon';
 import { Note, ReadError } from '../workspace/panel';
 import type { FullDraft } from './author-draft-store';
-import { revisionLabelText, revisionRows, sourceLanguage, type DraftSourceModel, type SourceResult } from './draft-source';
+import { baseName, revisionLabelText, revisionRows, sourceLanguage, type DraftSourceModel, type SourceFile, type SourceResult } from './draft-source';
 
 const loadEditor = () => lazy(() => import('./SourceEditor'));
 /** lazy 会记住失败的加载，重试时换一个新的。 */
@@ -73,6 +74,11 @@ export function DraftSourceTab(props: { draft: FullDraft; model: DraftSourceMode
       toast(`下载效果包失败：${error instanceof Error ? error.message : String(error)}`);
     }
   };
+  const replace = async (path: string, file: File) => {
+    const target = state.files.find((f) => f.path === path);
+    const svg = !!target && model.replaceKind(target) === 'svg';
+    if ((await model.replaceFile(path, file, file.name)) && svg) toast(`已把 ${file.name} 的内容放进编辑器，保存修订后生效。`);
+  };
   const undoAdoption = async () => reportResult(await model.undoAdoption());
   const redoAdoption = async () => reportResult(await model.redoAdoption());
 
@@ -102,15 +108,15 @@ export function DraftSourceTab(props: { draft: FullDraft; model: DraftSourceMode
                 type="button"
                 className={cls('fitem', 'source-file', file.path === state.active && 'active')}
                 data-path={file.path}
-                data-dirty={file.text !== file.saved ? '' : undefined}
+                data-dirty={file.text !== file.saved || file.replacement ? '' : undefined}
                 aria-current={file.path === state.active ? 'true' : undefined}
-                title={`${file.path}${file.role ? ` · ${file.role}` : ''}${file.editable === false ? ' · 只读' : ''}`}
-                aria-label={`${file.path}${file.editable === false ? '，只读' : ''}`}
+                title={`${file.path}${file.role ? ` · ${file.role}` : ''}${file.replacement ? ` · 待替换为 ${file.replacement.fileName}` : file.editable === false ? ' · 只读' : ''}`}
+                aria-label={`${file.path}${file.replacement ? '，待替换' : file.editable === false ? '，只读' : ''}`}
                 onClick={() => model.select(file.path)}
               >
-                <Icon name={file.editable === false ? 'lock' : 'code'} />
+                <Icon name={file.replacement ? 'swap_horiz' : file.editable === false ? 'lock' : 'code'} />
                 <span className="fitem-name">{baseName(file.path)}</span>
-                {file.text !== file.saved && <i className="udot source-dot" aria-label="改过" />}
+                {(file.text !== file.saved || file.replacement) && <i className="udot source-dot" aria-label="改过" />}
               </button>
             </li>
           ))}
@@ -161,7 +167,7 @@ export function DraftSourceTab(props: { draft: FullDraft; model: DraftSourceMode
         {model.isV2 && <Note className="srcside-note">保存不会改变在用修订。{draft.canCompile
           ? '查看任一修订后可编译，编译通过再采用；撤销采用的目标也须先编译通过。'
           : '纯资源修订可按包门禁显式采用，实际运行使用验证页签。'}</Note>}
-        {state.packageFiles && <Note className="srcside-note">manifest 与可编辑文本一起保存；图片、字体等二进制只读。保存会检查包结构，编译或资源运行结果另行显示。</Note>}
+        {state.packageFiles && <Note className="srcside-note">manifest 与可编辑文本一起保存；图片、字体可整份换成同一格式的文件，SVG 可用文件替换文本，其余二进制只读。保存会检查包结构，编译或资源运行结果另行显示。</Note>}
       </aside>
       <div className="srcmain draft-source-main">
         <div className="srcbar">
@@ -174,6 +180,10 @@ export function DraftSourceTab(props: { draft: FullDraft; model: DraftSourceMode
             {dirty ? '，有改动没保存' : ''}
           </span>
           <span className="spacer" />
+          {active && model.replaceKind(active) === 'svg' && (
+            <FileButton label="用文件替换…" accept=".svg,image/svg+xml" variant="text" size="sm" icon="upload_file" disabled={busy || !!state.replacing}
+              onPick={(file) => void replace(active.path, file)} />
+          )}
           {model.isV2 && <>
             <IconButton icon="undo" size="sm" label="撤销源码采用" isDisabled={busy || !state.canUndoAdoption} onPress={() => void undoAdoption()} />
             <IconButton icon="redo" size="sm" label="重做源码采用" isDisabled={busy || !state.canRedoAdoption} onPress={() => void redoAdoption()} />
@@ -186,13 +196,11 @@ export function DraftSourceTab(props: { draft: FullDraft; model: DraftSourceMode
           </Button>
         </div>
         {state.error && <Note error>{state.error}</Note>}
+        {state.replaceError && active?.editable !== false && state.replaceError.path === active?.path && <Note error>{state.replaceError.message}</Note>}
         <div className="source-editor-frame">
           {active?.editable === false ? (
-            <div className="source-binary" aria-label="只读包资源">
-              <Note>这个文件以固定原始字节保留，当前包文本入口只读。</Note>
-              <dl><dt>路径</dt><dd>{active.path}</dd><dt>角色</dt><dd>{active.role}</dd>
-                <dt>大小</dt><dd>{active.sizeBytes} 字节</dd><dt>SHA-256</dt><dd>{active.sha256}</dd></dl>
-            </div>
+            <BinaryPane file={active} model={model} replacing={state.replacing} replaceError={state.replaceError}
+              disabled={busy} onReplace={(file) => void replace(active.path, file)} />
           ) : active ? (
             <EditorBoundary>
               <Suspense fallback={<Note className="pintro">正在加载编辑器…</Note>}>
@@ -319,14 +327,79 @@ function report(result: SourceResult, explicitAdoption = false): void {
 }
 
 /** 下载文件名：组件名＋修订短号；去掉文件名里不能用的字符。 */
-export function packageFileName(name: string, revision: string): string {
+export const REPLACE_ACCEPT: Record<string, string> = {
+  image: 'image/*,.png,.jpg,.jpeg,.webp,.gif,.bmp',
+  font: '.ttf,.otf,.ttc,.otc,font/*',
+};
+
+/** 包内二进制文件：图片、字体可整份替换成同一格式的本机文件，保存修订时一起提交；其余只读。 */
+function BinaryPane(props: { file: SourceFile; model: DraftSourceModel; replacing: string | undefined; replaceError: { path: string; message: string } | undefined;
+  disabled: boolean; onReplace: (file: File) => void }) {
+  const { file, model } = props;
+  const replaceable = model.replaceKind(file) === 'binary';
+  const pending = file.replacement;
+  const working = props.replacing === file.path;
+  return (
+    <div className="source-binary" aria-label={replaceable ? '包资源' : '只读包资源'} data-replaced={pending ? '' : undefined}>
+      <Note>{replaceable
+        ? '可以整份换成同一格式的本机文件（不能改格式、改名或删除），保存修订时与文本一起提交。'
+        : '这个文件以固定原始字节保留，当前包文本入口只读。'}</Note>
+      <dl><dt>路径</dt><dd>{file.path}</dd><dt>角色</dt><dd>{file.role}</dd>
+        <dt>大小</dt><dd>{file.sizeBytes} 字节</dd><dt>SHA-256</dt><dd>{file.sha256}</dd></dl>
+      {replaceable && (
+        <div className="source-replace-actions">
+          <FileButton label={pending ? '换一个文件…' : '替换…'} accept={REPLACE_ACCEPT[file.role ?? ''] ?? '*/*'} size="sm" icon="upload_file"
+            disabled={props.disabled || !!props.replacing} onPick={props.onReplace} />
+          {pending && <Button variant="text" size="sm" icon="undo" className="source-replace-revert" isDisabled={props.disabled}
+            onPress={() => model.revertReplacement(file.path)}>撤销替换</Button>}
+          {working && <span className="small faint">正在上传并检查…</span>}
+        </div>
+      )}
+      {props.replaceError?.path === file.path && <Note error>{props.replaceError.message}</Note>}
+      {pending && <ReplacementSummary pending={pending} />}
+    </div>
+  );
+}
+
+function ReplacementSummary(props: { pending: NonNullable<SourceFile['replacement']> }) {
+  const { inspection, fileName } = props.pending;
+  const rows: [string, string, string][] = [
+    ['格式', inspection.current.format, inspection.replacement.format],
+    ['大小', `${inspection.current.sizeBytes} 字节`, `${inspection.replacement.sizeBytes} 字节`],
+    ...(inspection.role === 'image'
+      ? [['尺寸', dimensions(inspection.current), dimensions(inspection.replacement)] as [string, string, string]]
+      : [['字体家族', (inspection.current.familyNames ?? []).join('、'), (inspection.replacement.familyNames ?? []).join('、')] as [string, string, string]]),
+    ['SHA-256', inspection.current.sha256.slice(0, 12), inspection.replacement.sha256.slice(0, 12)],
+  ];
+  return (
+    <section className="source-replace-summary" aria-label="待保存的替换">
+      <h6>待保存：换成 {fileName}</h6>
+      <table>
+        <thead><tr><th /><th>原文件</th><th>新文件</th></tr></thead>
+        <tbody>{rows.map(([label, before, after]) => (
+          <tr key={label} data-changed={before !== after ? '' : undefined}><th>{label}</th><td>{before}</td><td>{after}</td></tr>
+        ))}</tbody>
+      </table>
+      {inspection.warnings.length > 0 && (
+        <ul className="source-replace-warnings">
+          {inspection.warnings.map((warning) => (
+            <li key={warning.code} data-code={warning.code}><Icon name="warning" />{warning.message}</li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function dimensions(info: { width?: number; height?: number }): string {
+  return info.width !== undefined && info.height !== undefined ? `${info.width}×${info.height}` : '?';
+}
+
+function packageFileName(name: string, revision: string): string {
   const safe = name.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').trim() || 'effect';
   return `${safe}-${shortRevision(revision)}.mkfx`;
 }
 
-function baseName(path: string): string {
-  return path.slice(path.lastIndexOf('/') + 1);
-}
 
 /** 编辑器里有没保存成修订的改动时先确认。 */
 export function confirmLoseEdits(action: string): Promise<boolean> {

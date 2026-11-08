@@ -1852,6 +1852,47 @@
 }
 .source-binary dt { color: var(--on-surface-variant); }
 .source-binary dd { margin: 0; overflow-wrap: anywhere; font-family: var(--font-mono); }
+.source-replace-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.source-replace-summary {
+  margin-top: 12px;
+  font-size: 12px;
+}
+.source-replace-summary h6 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.source-replace-summary table { border-collapse: collapse; }
+.source-replace-summary th,
+.source-replace-summary td {
+  padding: 3px 12px 3px 0;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.source-replace-summary thead th,
+.source-replace-summary tbody th { color: var(--on-surface-variant); font-weight: 500; }
+.source-replace-summary tbody td { font-family: var(--font-mono); }
+.source-replace-summary tr[data-changed] td:last-child { color: var(--primary); }
+.source-replace-warnings {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.source-replace-warnings li {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  color: var(--on-surface-variant);
+}
+.source-replace-warnings .ic { flex: none; color: var(--warn); }
 
 /* 可恢复的草稿：普通列表，每行右侧是“恢复”按钮。 */
 .recovery-list {

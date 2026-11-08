@@ -152,7 +152,7 @@ export interface PreviewInspectionTruncation {
 
 export interface PreviewInspection {
   canvas: PreviewInspectionCanvas;
-  /** 帧是否经过完整准备（几何可信）。 */
+  /** 这一帧有没有经过效果准备阶段；没有脚本效果的静态模板为 false，这时没有几何，只有成本。 */
   prepared: boolean;
   tokens: PreviewInspectionToken[];
   lines: PreviewInspectionLine[];

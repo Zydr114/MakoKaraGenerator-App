@@ -141,7 +141,7 @@ export function overlayModel(inspection: PreviewInspection, hidden: readonly Ins
       const [px, py] = cursor.point;
       if (sx !== undefined && sy !== undefined && ex !== undefined && ey !== undefined) shapes.push({ layer: 'cursors', kind: 'line', x1: sx, y1: sy, x2: ex, y2: ey, tone: 'track' });
       if (px === undefined || py === undefined) continue;
-      const text = `${Math.round(cursor.progress * 100)}% ${PROGRESS_SOURCE_LABEL[cursor.progressSource]}`;
+      const text = `${Math.round(cursor.progress * 100)}% ${PROGRESS_SOURCE_LABEL[cursor.progressSource] ?? cursor.progressSource}`;
       shapes.push({ layer: 'cursors', kind: 'dot', x: px, y: py, tone: 'cursor', title: [cursor.lineId, cursor.tokenId ?? '', text].filter(Boolean).join(' ') });
       shapes.push({ layer: 'cursors', kind: 'label', x: px + fontSize * 0.5, y: py - fontSize * 0.5, text, tone: 'cursor' });
     }

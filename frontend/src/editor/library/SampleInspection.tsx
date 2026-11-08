@@ -88,7 +88,7 @@ export function InspectionLegend(props: {
     ...(props.stale ? ['画面是上一张成功的帧，不画叠加层'] : []),
     ...(props.error ? [props.error] : []),
     ...(!props.stale && !props.error && !inspection && !props.waiting ? ['等下一帧带上检查投影'] : []),
-    ...(inspection && !inspection.inspection.prepared ? ['这一帧没有经过完整准备，几何只作参考'] : []),
+    ...(inspection && !inspection.inspection.prepared ? ['没有脚本效果，这一帧不经过效果准备，没有几何可画'] : []),
   ];
   return (
     <div className="inspection-legend" role="group" aria-label="叠加层图例">

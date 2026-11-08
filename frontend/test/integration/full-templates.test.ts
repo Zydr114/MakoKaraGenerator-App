@@ -13,6 +13,7 @@ import { withSlotMaterial } from '../../src/editor/model/full-template';
 import { withEntry } from '../../src/editor/model/json-text';
 import {
   micros,
+  sequence,
   type EffectPackageInspectResponse,
   type FullPackageMaterial,
   type FullTemplateDefinition,
@@ -171,6 +172,29 @@ describe.skipIf(!samples)('完整模板（真实 Server）', () => {
     expect(same.sha256).toBe(frame.sha256);
     const red = await still(draft('{"frequencyHz":4.5,"colorA":{"r":1,"g":0,"b":0,"a":1},"colorB":{"r":1,"g":0.2,"b":0,"a":1}}'));
     expect(red.sha256).not.toBe(frame.sha256);
+
+    // 按帧检查投影（合同 1.48.0）：含脚本效果的试样经过效果准备，有几何；响应由 recorder 按冻结 OpenAPI 校验。
+    const live = await client.preview.createTemplatePreview({ source: saved, sampleId: 'workshop-single-line-v1', targetKey: 'line', materialSlot: 'sungFill', size });
+    try {
+      const accepted = await client.preview.requestFrame(live.previewId, {
+        expectedSourceRevision: live.source.sourceRevision,
+        previewGeneration: live.previewGeneration,
+        requestSeq: sequence(1),
+        timeUs: micros(3_000_000),
+        intent: 'seek',
+        inspect: true,
+      });
+      const inspected = await client.preview.waitForFrame(live.previewId, { generation: accepted.previewGeneration, sourceRevision: live.source.sourceRevision, requestSeq: sequence(1) });
+      expect((await client.preview.fetchFrame(inspected)).sha256).toBe(frame.sha256);
+      const read = (await client.preview.readInspection(inspected))!;
+      expect(read.inspection.prepared).toBe(true);
+      expect(read.inspection.tokens.length).toBeGreaterThan(0);
+      expect(read.inspection.cursors.length).toBeGreaterThan(0);
+      expect(read.inspection.effects.length).toBeGreaterThan(0);
+      for (const cursor of read.inspection.cursors) expect(['unavailable', 'fromLine', 'fromToken', 'fromRubySegment']).toContain(cursor.progressSource);
+    } finally {
+      await client.preview.closeBestEffort(live.previewId, { expectedPreviewGeneration: live.previewGeneration, expectedSourceRevision: live.source.sourceRevision });
+    }
   });
 
   describe('用在工程里', () => {

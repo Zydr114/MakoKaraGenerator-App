@@ -1,9 +1,10 @@
-// 连真实 Server 的模板库（合同 1.9.0，规范 §13.1～§13.2；W3 设计 §2.3、§2.4）与模板固定试样（G17，合同 1.16.0，规范 §13.7）。
+// 连真实 Server 的模板库（合同 1.9.0，规范 §13.1～§13.2；W3 设计 §2.3、§2.4）与模板固定试样（G17，合同 1.16.0，规范 §13.7），
+// 以及按帧检查投影（合同 1.48.0）。
 // 个人库属于本次运行的独立测试 profile（.dev/it-templates-*）；结束时删掉本文件创建的模板，目录留作证据。
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { BackendError, MakoClient, MemoryIdentityStore } from '../../src/client';
-import { micros, revision, TEMPLATE_PREVIEW_SAMPLE_ID, type StaticTemplateDefinition, type TemplatePreviewSource, type TemplateSummary } from '../../src/protocol';
+import { micros, nextSequence, revision, TEMPLATE_PREVIEW_SAMPLE_ID, type Sequence, type StaticTemplateDefinition, type TemplatePreviewSource, type TemplateSummary } from '../../src/protocol';
 import { ContractRecorder, startTestBackend, type TestBackend } from '../support/backend';
 
 let backend: TestBackend;
@@ -142,6 +143,58 @@ describe('模板库（真实 Server）', () => {
     await expect(
       client.preview.createTemplatePreview({ source: { kind: 'savedTemplate', libraryId: 'builtin', libraryRevision: 'f'.repeat(64), templateId: classic.templateId, templateRevision: classic.templateRevision }, sampleId: TEMPLATE_PREVIEW_SAMPLE_ID, size }),
     ).rejects.toMatchObject({ status: 409 });
+  });
+
+  it('按帧检查投影（合同 1.48.0）：开启与关闭检查的同一时刻 PNG 相同；投影与帧身份一致；未开启的帧读取投影 404', async (ctx) => {
+    const runtime = await client.preview.runtimeInfo();
+    if (!runtime.enabled) {
+      console.warn(`[skipped] 预览不可用：${runtime.disabledReason?.code ?? runtime.status}`);
+      ctx.skip();
+    }
+    const builtin = await client.templates.listAll('builtin');
+    const classic = builtin.templates.find((t) => t.templateId === 'builtin:line-classic')!;
+    const live = await client.preview.createTemplatePreview({
+      source: { kind: 'savedTemplate', libraryId: 'builtin', libraryRevision: builtin.revision, templateId: classic.templateId, templateRevision: classic.templateRevision },
+      sampleId: TEMPLATE_PREVIEW_SAMPLE_ID,
+      size: { width: 320, height: 180 },
+    });
+    let generation = live.previewGeneration;
+    let seq: Sequence | undefined;
+    const frameAt = async (inspect: boolean) => {
+      seq = nextSequence(seq);
+      const accepted = await client.preview.requestFrame(live.previewId, {
+        expectedSourceRevision: live.source.sourceRevision,
+        previewGeneration: generation,
+        requestSeq: seq,
+        timeUs: micros(650_000),
+        intent: 'seek',
+        ...(inspect ? { inspect: true } : {}),
+      });
+      generation = accepted.previewGeneration;
+      const frame = await client.preview.waitForFrame(live.previewId, { generation, sourceRevision: live.source.sourceRevision, requestSeq: seq });
+      return { frame, content: await client.preview.fetchFrame(frame) };
+    };
+    try {
+      const inspected = await frameAt(true);
+      expect(inspected.frame.inspectionUrl).toBe(`/api/v1/preview-frames/${inspected.frame.frameId}/inspection`);
+      const read = (await client.preview.readInspection(inspected.frame))!;
+      expect(read).toMatchObject({ frameId: inspected.frame.frameId, timeUs: '650000', width: 320, height: 180, renderBackend: inspected.frame.renderBackend });
+      // 静态模板没有脚本效果，不经过效果准备阶段：没有几何，只有成本。几何由作者草稿试样的浏览器验收覆盖。
+      expect(read.inspection).toMatchObject({ prepared: false, tokens: [], lines: [], effects: [] });
+      expect(read.inspection.cost.wallMs).toBeGreaterThan(0);
+      expect(read.inspection.cost.sessionOpenMs).toBeGreaterThan(0);
+      expect(read.host.pngBytes).toBe(inspected.frame.content.sizeBytes);
+
+      const plain = await frameAt(false);
+      expect(plain.frame.inspectionUrl).toBeUndefined();
+      expect(plain.content.sha256).toBe(inspected.content.sha256);
+      await expect(client.preview.readInspection({ ...plain.frame, inspectionUrl: `/api/v1/preview-frames/${plain.frame.frameId}/inspection` })).rejects.toMatchObject({
+        status: 404,
+        code: 'previewInspectionUnavailable',
+      });
+    } finally {
+      await client.preview.close(live.previewId, { expectedPreviewGeneration: generation, expectedSourceRevision: live.source.sourceRevision });
+    }
   });
 
   it('JSON 响应符合冻结 OpenAPI（R5 已在 1.18.0 修复：预览来源修订是不透明字符串）', () => {

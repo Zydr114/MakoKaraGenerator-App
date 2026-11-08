@@ -53,6 +53,8 @@ public readonly struct VisualFrame
     public SourceIndexes Indexes => Source.Indexes;
     /// <summary>画布逻辑宽高。</summary>
     public Vector2 CanvasSize => Source.CanvasSize;
+    /// <summary>工程已确定的成片时长；未设置时为 null。</summary>
+    public long? ProjectDurationUs => Source.ProjectDurationUs;
 
     private static MediaFeatures UnboundMedia(DeclareContext source)
     {

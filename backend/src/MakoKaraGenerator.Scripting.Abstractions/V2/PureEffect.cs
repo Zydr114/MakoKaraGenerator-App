@@ -33,20 +33,22 @@ public abstract record PreparedEffect
 /// <summary>一次固定输入的只读准备上下文；没有历史推进、文件路径、设备或输出句柄。</summary>
 public sealed class DeclareContext
 {
-    /// <summary>固定宿主已经解析的目录、参数、分析、资源、种子和源事件索引。</summary>
+    /// <summary>固定宿主已经解析的目录、参数、分析、资源、种子、源事件索引和工程成片时长。</summary>
     public DeclareContext(ContentCatalog content, SceneCatalog scene, ParameterValues parameters,
         AudioFeatures audio, ResourceCatalog resources, ulong seed, TimelineIndex timeline, Vector2 canvasSize,
-        EffectInstanceId instanceId, SourceIndexes? indexes = null)
-        : this(content, scene, parameters, audio, resources, seed, timeline, canvasSize, instanceId, indexes, MediaQueryCatalog.Empty) { }
+        EffectInstanceId instanceId, SourceIndexes? indexes = null, long? projectDurationUs = null)
+        : this(content, scene, parameters, audio, resources, seed, timeline, canvasSize, instanceId, indexes, MediaQueryCatalog.Empty, projectDurationUs) { }
 
     internal DeclareContext(ContentCatalog content, SceneCatalog scene, ParameterValues parameters,
         AudioFeatures audio, ResourceCatalog resources, ulong seed, TimelineIndex timeline, Vector2 canvasSize,
-        EffectInstanceId instanceId, SourceIndexes? indexes, MediaQueryCatalog media)
+        EffectInstanceId instanceId, SourceIndexes? indexes, MediaQueryCatalog media, long? projectDurationUs = null)
     {
         ArgumentNullException.ThrowIfNull(content); ArgumentNullException.ThrowIfNull(scene);
         ArgumentNullException.ThrowIfNull(parameters); ArgumentNullException.ThrowIfNull(audio);
         ArgumentNullException.ThrowIfNull(resources); ArgumentNullException.ThrowIfNull(timeline); ArgumentNullException.ThrowIfNull(media);
         if (canvasSize.X <= 0 || canvasSize.Y <= 0) throw new ArgumentOutOfRangeException(nameof(canvasSize));
+        if (projectDurationUs is <= 0) throw new ArgumentOutOfRangeException(nameof(projectDurationUs), "工程成片时长必须为正整数微秒或未知。");
+        ProjectDurationUs = projectDurationUs;
         parameters.ValidateResources(resources);
         Content = content; Scene = scene; Parameters = parameters; Audio = audio; Resources = resources;
         Seed = seed; Timeline = timeline; CanvasSize = canvasSize; InstanceId = instanceId;
@@ -80,4 +82,7 @@ public sealed class DeclareContext
     public SourceIndexes Indexes { get; }
     /// <summary>画布逻辑像素宽高。</summary>
     public Vector2 CanvasSize { get; }
+    /// <summary>工程已确定的成片时长（整数微秒）；未设置时为 null，不用最后一行歌词或媒体时长推算。</summary>
+    /// <remarks>属于固定输入：修改成片时长会建立新的准备结果，不会让旧准备结果读到新值。</remarks>
+    public long? ProjectDurationUs { get; }
 }

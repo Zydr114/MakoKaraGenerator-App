@@ -83,6 +83,8 @@ public readonly struct TextFrame
     public SourceIndexes Indexes => Source.Indexes;
     /// <summary>逻辑画布宽高。</summary>
     public Vector2 CanvasSize => Source.CanvasSize;
+    /// <summary>工程已确定的成片时长；未设置时为 null。</summary>
+    public long? ProjectDurationUs => Source.ProjectDurationUs;
     /// <summary>全实例共享的静态继承基线，退场使用宿主冻结源基线；不含任何作者输出。</summary>
     public BaselineStyles Baseline { get; }
     /// <summary>真实当前目标；Token 的 Performance 保留 nullable 进度、LocalTime、Current、Sung 与 ProgressSource。</summary>

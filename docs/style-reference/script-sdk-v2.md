@@ -57,10 +57,11 @@ public sealed class Example : IPureKaraokeEffect
 固定参数改变后重新准备，seek 不通过修改字段推进状态。`Evaluate(in TextFrame, PreparedEffect, TextOutput)` 直接描述目标时刻的文字输出。
 M07 没有另一个已接通的 `IPureVisualEffect`、`VisualFrame` 或 `VisualOutput`；分析器中为后续入口保留的元数据识别不等于运行能力。
 
-`DeclareContext` 提供 `Content`、`Scene`、`Parameters`、`Audio`、`Resources`、`Seed`、`InstanceId`、`Random`、`Timeline`、`Indexes` 和 `CanvasSize`。
+`DeclareContext` 提供 `Content`、`Scene`、`Parameters`、`Audio`、`Resources`、`Seed`、`InstanceId`、`Random`、`Timeline`、`Indexes`、`CanvasSize` 和 `ProjectDurationUs`。
+`ProjectDurationUs` 是工程已确定的成片时长（`long?`，整数微秒）；工程未设置成片时长时为 `null`，宿主不会用最后一行歌词或背景媒体时长代填。它属于固定输入，修改成片时长会重新准备，旧准备结果不会读到新值。
 `Content`／`Scene` 是完整固定源目录；源索引另受实例 `SourceSubscription` 约束。读取目录不会授予输出权限。
 
-`TextFrame` 提供 `Source`、`TimeUs`，以及 `Parameters`、`Audio`、`Resources`、`Random`、`Timeline`、`Indexes`、`CanvasSize` 快捷属性：
+`TextFrame` 提供 `Source`、`TimeUs`，以及 `Parameters`、`Audio`、`Resources`、`Random`、`Timeline`、`Indexes`、`CanvasSize`、`ProjectDurationUs` 快捷属性（`VisualFrame` 同样提供 `ProjectDurationUs`）：
 
 | 成员 | 语义 |
 | --- | --- |

@@ -28,7 +28,7 @@ internal sealed partial class FrameEffectHost
             var scope = ResolvedSourceSubscription.Create(timeline, definition.Binding, definition.Subscription);
             indexes = PureSourceIndexes.Create(_snapshot, timeline, _geometry, definition.Binding, definition.Subscription, token);
             var source = new DeclareContext(_project.Content, _project.Scene, definition.Parameters, _project.Audio,
-                definition.Resources, definition.Seed, indexes.Timeline, _project.CanvasSize, definition.Id, indexes, mediaProjection?.Catalog ?? MediaQueryCatalog.Empty);
+                definition.Resources, definition.Seed, indexes.Timeline, _project.CanvasSize, definition.Id, indexes, mediaProjection?.Catalog ?? MediaQueryCatalog.Empty, _project.DurationUs);
             string? telemetry = PerformanceTelemetry.CreateScriptIdentity($"{definition.RuntimeHash}|{definition.Id}|{definition.PackageIdentity}");
             var active = new ActiveEffect(definition, module, null!, new(definition.Seed, definition.Id), scope, telemetry);
             PreparedEffect? prepared = null;

@@ -169,6 +169,19 @@ public sealed class V2SdkContractTests
         Assert.Equal(cluster, Assert.Single(frame.Clusters).Target);
     }
 
+    [Fact]
+    public void 工程成片时长作为固定输入公开且只接受正值或未知()
+    {
+        var legacy = LegacyFrame();
+        DeclareContext Source(long? duration) => new(legacy.Project.Content, legacy.Project.Scene, ParameterValues.Empty,
+            AudioFeatures.NotAnalyzed, ResourceCatalog.Empty, 42, TimelineIndex.Empty, new(1920, 1080), new("test"), projectDurationUs: duration);
+        Assert.Null(Frame().ProjectDurationUs); Assert.Null(new TextFrame(Source(null), legacy).Source.ProjectDurationUs);
+        var known = new TextFrame(Source(180_000_000), legacy);
+        Assert.Equal(180_000_000, known.Source.ProjectDurationUs); Assert.Equal(180_000_000, known.ProjectDurationUs);
+        foreach (long invalid in new long[] { 0, -1, long.MinValue })
+            Assert.Equal("projectDurationUs", Assert.Throws<ArgumentOutOfRangeException>(() => Source(invalid)).ParamName);
+    }
+
     private sealed record TestPrepared(ImmutableArray<int> Ordinals) : PreparedEffect;
 
     private static TokenStarted Start(string token, string branch, string line, long startUs, int branchOrder)

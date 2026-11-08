@@ -1,10 +1,12 @@
 # 冻结 API 合同生成与校验
 
-本轮工具源码目标为 **合同1.49.0／产品0.112.39／协议1**（2026-11-08）：作者草稿整份替换包内图片与字体。行为见[§21](../../docs/architecture/backend-api.md#author-package-replacement)。fresh metadata生成与validate已确认115 paths／128 methods／618 schemas、3612例（2683反例）；1.48.0的3561例原序保留，增量51例（37反例）只追加 `author-replacement-` 例。下述旧版本材料保留历史归属；合同生成不替代匹配发布与fresh HTTP验收。
+本轮工具源码目标为 **合同1.49.1／产品0.112.40／协议1**（2026-11-08）：试样接入宿主背景分析、straight预览固定透明无媒体、分析失败退避重试，只改行为不改形状。行为见[§28.6](../../docs/architecture/backend-api.md#sdk2-m10-media-features)。fresh metadata生成与validate沿用1.49.0的115 paths／128 methods／618 schemas、3612例（2683反例）。下述旧版本材料保留历史归属；合同生成不替代匹配发布与fresh HTTP验收。
 
 从 `backend/` 执行。本工具构建Contracts引用的离线CLI，不启动服务。`author_metadata_schema.py` 审阅真实CLR字段、nullable与构造默认值，复用现有 `AuthorPackageQuery` 和参数/导出/input/file/diagnostic DTO；检查响应独立且无reference，公共包引用kind继续仅为asset/library/configuration。采用配置采用inline完整八字段严格schema，避免改变package-files的既有配置语义；两个可空字段仍显式必填，UInt64种子采用十进制字符串并保留前导零。`author_metadata_fixtures.py` 覆盖精确整数、Int64 `files.size`、未来未知响应字段、完整采用、旧请求兼容和具名拒绝；运行期CAS/owner、重复JSON键、完整UTF-8预算、编译来源、原子存储和真实sampleOptions须由服务/HTTP核对。
 
 `freeze.py` 将新行为接缝显式纳入指纹，新增路径/响应和附加fixture；`validate.py` 保留历史SDK2、作者、GPU/辉光及全量样例门禁，并单独扣除本轮尾部增量后核对旧3434/2548基线。本轮 `BASELINE` 为已提交生产源码 `60393bd`（完整哈希见 `freeze.py`），已从该源码重建／导出metadata并生成检查；产品版本从 `Directory.Build.props` 读取。静态门禁不替代匹配发布、fresh HTTP或性能验收；进度见App根 `docs/plans/script-sdk-v2-phase-one-progress.md`。
+
+1.49.1 是行为补丁：变化的接缝（宿主分析服务与输入固定、试样与候选捕获、作者与工程正式验证）都已在既有指纹清单内，`freeze.py` 只改版本、基线与scope；`validate.py` 把1.49.1并入现行门禁，历史1.49.0对应0.112.39。
 
 1.49.0 新增作者草稿整份替换：`author_replacement_schema.py` 审阅 `AuthorPackageFilesRequest` 新增的可空 `replacedFiles`/`baseSourceRevision`、检查请求与响应、资源信息和提醒DTO的CLR字段，收紧修订、草稿身份、role、格式名、摘要、正尺寸与提醒码；`author_replacement_fixtures.py` 覆盖旧请求兼容、基准修订省略/null、替换项缺字段与未知字段、检查请求缺字段、图片/字体响应、未来未知字段与具名失败码。检查接口只读、无回执。`freeze.py` 把Host检查/保存接缝、共用图片/字体检查与Skia字体家族读取纳入指纹；`validate.py` 先扣除尾部增量，再核对1.48.0基线计数。历史1.48.0仍对应0.112.38。
 

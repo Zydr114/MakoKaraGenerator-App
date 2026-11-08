@@ -158,7 +158,7 @@ internal static class StaticExportTask
             ? runtimeInput!.CreateFactory(ReplayReason.Initial, renderBackend: renderBackend)
             : imageExport ? new ProjectRenderSessionFactory(prepared.Compiler, new FfmpegVideoFrameProvider(), ReplayReason.Initial,
                 imageResolverFactory, renderBackend: renderBackend) : sessions!;
-        var strict = new StrictFactory(factory, metadata);
+        var strict = new StrictFactory(factory, metadata, snapshot.MediaFeatureInput);
         var probe = new StrictProbe(new FfmpegMediaProbe(metadata.FfprobePath), metadata, plan, snapshot.Composition, decodedAudio);
         var encoder = new StrictEncoder(new FfmpegMediaEncoder(metadata.FfmpegPath), metadata, plan);
         var channel = Channel.CreateBounded<(long Sequence, ExportProgress Progress)>(new BoundedChannelOptions(1)
@@ -429,11 +429,19 @@ internal static class StaticExportTask
             Produced = value; return value;
         }
     }
-    private sealed class StrictFactory(IRenderFrameSessionFactory inner, WorkerExportMetadata metadata) : IRenderFrameSessionFactory
+    private sealed class StrictFactory(IRenderFrameSessionFactory inner, WorkerExportMetadata metadata,
+        MakoKaraGenerator.Core.Media.MediaFeatureInput? media) : IRenderFrameSessionFactory
     {
         public async ValueTask<IRenderFrameSession> CreateAsync(ProjectSnapshot snapshot, CancellationToken cancellationToken = default)
-            => new Session(await inner.CreateAsync(snapshot, cancellationToken).ConfigureAwait(false), metadata);
-        private sealed class Session(IRenderFrameSession inner, WorkerExportMetadata metadata) : IRenderFrameSession
+        {
+            // 原导出器从 Project 重建快照，固定媒体输入只存在于运行输入快照；按同一固定输入补回，
+            // 不同输入仍由会话准入按宿主绑定拒绝。逐帧请求携带原导出器快照，同样换成补回后的实例。
+            ProjectSnapshot exporter = snapshot;
+            if (media is not null && snapshot.MediaFeatureInput is null) snapshot = snapshot with { MediaFeatureInput = media };
+            return new Session(await inner.CreateAsync(snapshot, cancellationToken).ConfigureAwait(false), metadata, exporter, snapshot);
+        }
+        private sealed class Session(IRenderFrameSession inner, WorkerExportMetadata metadata,
+            ProjectSnapshot exporter, ProjectSnapshot fixedInput) : IRenderFrameSession
         {
             private readonly RuntimeDiagnosticCursor _cursor = new(); private int _occurrences, _bytes;
             public async ValueTask<RenderFrame> RenderAsync(RenderRequest request, CancellationToken cancellationToken = default)
@@ -441,6 +449,7 @@ internal static class StaticExportTask
                 RenderFrame? frame = null;
                 try
                 {
+                    if (!ReferenceEquals(exporter, fixedInput) && ReferenceEquals(request.Project, exporter)) request = request with { Project = fixedInput };
                     frame = await inner.RenderAsync(request, cancellationToken).ConfigureAwait(false);
                     if (frame.DiagnosticSnapshot.HasError) throw new RenderSessionFailureException("WorkerRuntimeDiagnosticError", "实际Error禁止导出。", frame.DiagnosticSnapshot);
                     if (!frame.MaterialDiagnostics.IsEmpty || !frame.ImageEffectDiagnostics.IsEmpty) throw Fail("WorkerExportDiagnosticsUnsupported");

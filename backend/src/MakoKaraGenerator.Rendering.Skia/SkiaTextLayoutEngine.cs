@@ -69,9 +69,17 @@ public sealed class SkiaTextLayoutEngine : ITextLayoutEngine
 
     private SkiaTextLayoutEngine(FixedFontCatalog fonts) : this(fonts.MatchCharacter, fonts.MatchFamily) { }
 
+    /// <summary>
+    /// 用与固定包字体目录相同的加载规则读出一份字体文件里每个字形的家族名（按出现顺序去重）。
+    /// 无法加载时抛 <see cref="InvalidDataException" />，与渲染时拒绝同一份字体的条件一致。
+    /// </summary>
+    public static IReadOnlyList<string> ReadFixedFontFamilies(ReadOnlyMemory<byte> font)
+        => [.. new FixedFontCatalog([font]).Families.Distinct(StringComparer.Ordinal)];
+
     private sealed class FixedFontCatalog
     {
         private readonly Entry[] _entries;
+        internal IEnumerable<string> Families => _entries.Select(entry => entry.Family);
         internal FixedFontCatalog(IEnumerable<ReadOnlyMemory<byte>> fonts)
         {
             ArgumentNullException.ThrowIfNull(fonts);

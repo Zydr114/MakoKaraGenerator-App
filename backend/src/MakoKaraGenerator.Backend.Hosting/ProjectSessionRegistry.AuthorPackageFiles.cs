@@ -77,14 +77,20 @@ public sealed partial class ProjectSessionRegistry
         { return AuthorReject<AuthorPackageFilesResponse>(BackendErrorCode.ProjectLoadFailed, "作者草稿固定包无法读取。", "sourceRevision", "AuthorDraftStorageFailed"); }
     }
 
-    /// <summary>原子保存完整清单与 csharp/shader/shaderProgram/graph/svg/svgResource 文本，检查结构与配置后才发布新修订。</summary>
+    /// <summary>
+    /// 原子保存完整清单与 csharp/shader/shaderProgram/graph/svg/svgResource 文本，检查结构与配置后才发布新修订。
+    /// 不可编辑文件取自 baseSourceRevision（省略时为最新修订）；replacedFiles 列出的图片或字体整份换成新字节，
+    /// 清单里仍写基准修订的 sha256，由服务重算。
+    /// </summary>
     public Task<BackendOperationResult<AuthorDraftResponse>> SaveAuthorPackageFilesAsync(string clientId, string draftId,
         AuthorPackageFilesRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
         AuthorPackageTextFileDto[]? snapshotFiles = request.TextFiles?.Select(file => file is null
             ? null! : new AuthorPackageTextFileDto(file.Path, file.Text)).ToArray();
-        AuthorPackageFilesRequest snapshot = request with { Metadata = null, TextFiles = snapshotFiles! };
+        AuthorPackageFileReplacementDto[]? snapshotReplacements = request.ReplacedFiles?.Select(file => file is null
+            ? null! : new AuthorPackageFileReplacementDto(file.Path, file.AssetId)).ToArray();
+        AuthorPackageFilesRequest snapshot = request with { Metadata = null, TextFiles = snapshotFiles!, ReplacedFiles = snapshotReplacements };
         return RunAuthorMutationAsync(clientId, draftId, request.Metadata, "PUT /api/v1/drafts/package-files",
             snapshot, async document =>
         {
@@ -121,12 +127,24 @@ public sealed partial class ProjectSessionRegistry
                 if (json.RootElement.ValueKind != JsonValueKind.Object
                     || !json.RootElement.TryGetProperty("files", out JsonElement entries) || entries.ValueKind != JsonValueKind.Array)
                     return AuthorReject<AuthorDraftResponse>(BackendErrorCode.InvalidRequest, "清单必须包含files数组。", "manifestJson");
-                EffectPackageContents original = await LoadPackageAsync(document.DraftId, document.CurrentSourceRevision, lifetime).ConfigureAwait(false);
+                // 不可编辑文件取自编辑器所看的修订：替换以后，各修订的图片、字体可能不同。
+                string baseRevision = snapshot.BaseSourceRevision ?? document.CurrentSourceRevision;
+                if (snapshot.BaseSourceRevision is not null)
+                {
+                    if (!ValidRevision(baseRevision))
+                        return AuthorReject<AuthorDraftResponse>(BackendErrorCode.InvalidRequest, "基准源码修订无效。", "baseSourceRevision");
+                    if (!ReadAuthorSourceHistory(document).Revisions.Any(item => item.SourceRevision == baseRevision))
+                        return AuthorReject<AuthorDraftResponse>(BackendErrorCode.ResourceNotFound, "基准源码修订不属于此草稿保留历史。", "baseSourceRevision");
+                }
+                EffectPackageContents original = await LoadPackageAsync(document.DraftId, baseRevision, lifetime).ConfigureAwait(false);
                 if (!json.RootElement.TryGetProperty("packageId", out JsonElement packageId)
                     || packageId.ValueKind != JsonValueKind.String || packageId.GetString() != document.PackageId)
                     return AuthorReject<AuthorDraftResponse>(BackendErrorCode.InvalidRequest, "packageId必须保持当前草稿的固定包身份。", "manifestJson.packageId");
                 Dictionary<string, EffectPackageFile> fixedFiles = original.Files.Where(file => !IsEditableAuthorRole(file.Role))
                     .ToDictionary(file => file.Path, StringComparer.Ordinal);
+                (Dictionary<string, byte[]>? replacements, BackendErrorResponse? replacementError) =
+                    await ReadAuthorReplacementsAsync(clientId, snapshot.ReplacedFiles, fixedFiles, lifetime).ConfigureAwait(false);
+                if (replacementError is not null) return BackendOperationResult<AuthorDraftResponse>.Rejected(replacementError);
                 Dictionary<string, ReadOnlyMemory<byte>> contents = new(StringComparer.Ordinal);
                 HashSet<string> seenFixedFiles = new(StringComparer.Ordinal);
                 HashSet<string> seenTextFiles = new(StringComparer.Ordinal);
@@ -153,7 +171,7 @@ public sealed partial class ProjectSessionRegistry
                             || prior.Role != role || !entry.TryGetProperty("sha256", out JsonElement hashValue)
                             || hashValue.ValueKind != JsonValueKind.String || hashValue.GetString() != prior.Sha256)
                             return AuthorReject<AuthorDraftResponse>(BackendErrorCode.InvalidRequest, "非文本文件的path、role和sha256必须保持不变。", "manifestJson.files");
-                        bytes = prior.Content.ToArray();
+                        bytes = replacements!.TryGetValue(path, out byte[]? replaced) ? replaced : prior.Content.ToArray();
                     }
                     if (!contents.TryAdd(path, bytes))
                         return AuthorReject<AuthorDraftResponse>(BackendErrorCode.InvalidRequest, "清单文件路径重复。", "manifestJson.files");

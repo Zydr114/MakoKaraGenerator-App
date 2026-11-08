@@ -10,6 +10,18 @@ internal static partial class ServerEndpoints
     {
         app.MapGet("/api/v1/drafts/{id}/package-files", ReadAuthorPackageFiles);
         app.MapPut("/api/v1/drafts/{id}/package-files", SaveAuthorPackageFilesAsync);
+        app.MapPost("/api/v1/drafts/{id}/package-file-replacement-inspection", InspectAuthorPackageFileReplacementAsync);
+    }
+
+    private static async Task<IResult> InspectAuthorPackageFileReplacementAsync(string id, HttpRequest request, ProjectSessionRegistry registry)
+    {
+        if (request.Query.Count != 0)
+            return Error(new(BackendErrorCode.InvalidRequest, "替换检查不接受查询参数。", "query"));
+        if (request.ContentLength is > 64 * 1024)
+            return Error(new(BackendErrorCode.ResourceTooLarge, "替换检查请求JSON超过64KiB。", "body"), 413);
+        (AuthorPackageFileReplacementInspectionRequest? input, IResult? error) = await ReadJsonAsync<AuthorPackageFileReplacementInspectionRequest>(request);
+        if (error is not null) return error;
+        return Result(await registry.InspectAuthorPackageFileReplacementAsync(Client(request), id, input!, request.HttpContext.RequestAborted));
     }
 
     private static IResult ReadAuthorPackageFiles(string id, HttpRequest request, ProjectSessionRegistry registry)

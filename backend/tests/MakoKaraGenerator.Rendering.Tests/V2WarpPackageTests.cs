@@ -212,6 +212,14 @@ public sealed class V2WarpPackageTests
         var position = Assert.Single(frame.Playback.GetCursors(CursorAnchorMode.AdvanceCenter));
         var cursorItem = Assert.Single(inspection.Cursors);
         Assert.Equal([Math.Round(position.Position.X, 2), Math.Round(position.Position.Y, 2)], cursorItem.Point);
+        // 合同 1.48.0 的 progressSource 枚举，不直接写脚本侧枚举名。
+        Assert.Equal(position.Identity.ProgressSource switch
+        {
+            MakoKaraGenerator.Scripting.ProgressSource.Token => "fromToken",
+            MakoKaraGenerator.Scripting.ProgressSource.RubySegment => "fromRubySegment",
+            MakoKaraGenerator.Scripting.ProgressSource.Line => "fromLine",
+            _ => "unavailable",
+        }, cursorItem.ProgressSource);
         var particles = Assert.Single(inspection.Particles, item => item.InstanceId == "cursor");
         Assert.Equal(2, particles.Births);
         Assert.Equal(4, particles.BirthPoints.Length);

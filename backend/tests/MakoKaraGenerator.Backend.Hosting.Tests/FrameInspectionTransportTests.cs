@@ -69,7 +69,7 @@ public sealed class FrameInspectionTransportTests
         [new("token-1", "binding-1", "line-1", false, "ClusterSpansElements", [0, 0, 10, 0, 10, 10, 0, 10],
             [new(0, ["token-1", "token-2"], false, "ClusterSpansElements", [0, 0, 5, 0, 5, 10, 0, 10])], [new("ruby-1", null)], 2)],
         [new("line-1", "binding-1", [0, 0, 100, 0, 100, 20, 0, 20])],
-        [new("line-1", "binding-1", "token-1", 0.5, "token", [5, 5], [0, 5], [10, 5])],
+        [new("line-1", "binding-1", "token-1", 0.5, "fromToken", [5, 5], [0, 5], [10, 5])],
         [new("cursor", 2, 1, 3, [1, 2, 3, 4], 1)],
         [new("cursor", "pkg", "rev", "main", 2, "lines", ["line-1"], "ABCDEF0123456789", 0)],
         new(12.5, 3, 1.5, 0, 0, 0.25, 4, 0, 0.5, 3, 2048, 4096, 0, 0, 0,

@@ -141,7 +141,7 @@ public sealed record RenderFrameInspection(RenderInspectionCanvas Canvas, bool P
             var start = (cursor with { Progress = 0 }).At(CursorAnchorMode.AdvanceCenter).Position;
             var end = (cursor with { Progress = 1 }).At(CursorAnchorMode.AdvanceCenter).Position;
             return new RenderInspectionCursor(cursor.Identity.LineId.Value, cursor.Identity.BindingId.Value, cursor.Identity.TokenId?.Value,
-                Round(cursor.Progress, 4), Camel(cursor.Identity.ProgressSource.ToString()), Point(at.Position), Point(start), Point(end));
+                Round(cursor.Progress, 4), ProgressSourceName(cursor.Identity.ProgressSource), Point(at.Position), Point(start), Point(end));
         }).ToArray();
         var particles = prepared.V2ParticleSnapshots.Select(snapshotItem =>
         {
@@ -189,4 +189,13 @@ public sealed record RenderFrameInspection(RenderInspectionCanvas Canvas, bool P
     private static double Ms(double value) => Round(value, 3);
     private static double? Ms(double? value) => value is { } ms ? Round(ms, 3) : null;
     private static string Camel(string value) => value.Length == 0 ? value : char.ToLowerInvariant(value[0]) + value[1..];
+
+    // 合同 1.48.0 的 progressSource 沿用 LyricSampler 的三档精度加“不可用”：源缺时间与映射不可用都写 unavailable。
+    private static string ProgressSourceName(MakoKaraGenerator.Scripting.ProgressSource source) => source switch
+    {
+        MakoKaraGenerator.Scripting.ProgressSource.Token => "fromToken",
+        MakoKaraGenerator.Scripting.ProgressSource.RubySegment => "fromRubySegment",
+        MakoKaraGenerator.Scripting.ProgressSource.Line => "fromLine",
+        _ => "unavailable",
+    };
 }

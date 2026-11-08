@@ -36,7 +36,8 @@ internal sealed partial class PreviewBackendService
                     audio => CaptureResourceFactory(client, audio, out reservation, backend.Response!)).ConfigureAwait(false);
                 if (captured.Error is not null) return BackendOperationResult<PreviewSessionResponse>.Rejected(captured.Error);
                 IDisposable? ownedReservation = reservation; reservation = null;
-                captured = await CompleteCaptureAsync(captured, ownedReservation).ConfigureAwait(false);
+                captured = await CompleteCaptureAsync(captured, ownedReservation,
+                    request.AlphaMode == PreviewAlphaMode.Straight).ConfigureAwait(false);
             }
             catch (ResourceStoreException error)
             { return BackendOperationResult<PreviewSessionResponse>.Rejected(new(error.Code, error.Message, "source")); }

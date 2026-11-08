@@ -35,7 +35,7 @@ public sealed class BackendMediaFeatureServiceRealToolTests
             await using BackendMediaFeatureService service = BackendMediaFeatureService.TryCreate(Path.Combine(root, "state"), tools)!;
             using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2));
             BackendMediaFeatureResolution resolution = await service.ResolveAsync(image, content, MediaSourceKind.Still,
-                waitForCompletion: true, timeout.Token);
+                completionWait: Timeout.InfiniteTimeSpan, timeout.Token);
             Assert.Null(resolution.Failure);
             MediaFeatureFileSource source = Assert.IsType<MediaFeatureFileSource>(resolution.Source);
             BackendMediaFeatureArtifactReference artifact = Assert.IsType<BackendMediaFeatureArtifactReference>(resolution.Artifact);

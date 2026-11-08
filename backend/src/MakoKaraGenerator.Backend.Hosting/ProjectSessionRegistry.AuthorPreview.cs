@@ -17,7 +17,15 @@ public sealed partial class ProjectSessionRegistry
 
     /// <summary>按可信组合根已解析的设备选择，在作者输入准备前核验 SDK 后端要求。</summary>
     public Task<BackendOperationResult<AuthorPreviewCapture>> CaptureAuthorPreviewAsync(
-        string clientId, PreviewSourceDto source, string? renderBackend, CancellationToken cancellationToken = default)
+        string clientId, PreviewSourceDto source, string? renderBackend, CancellationToken cancellationToken = default) =>
+        CaptureAuthorPreviewAsync(clientId, source, renderBackend, transparentOutput: false, cancellationToken);
+
+    /// <summary>
+    /// 同上，并按预览的 alpha 模式固定媒体输入：透明预览不读背景，媒体依赖固定为透明无媒体输入；
+    /// 不透明预览经宿主分析试样背景，最多等待试样上限后退回分析中输入。
+    /// </summary>
+    public Task<BackendOperationResult<AuthorPreviewCapture>> CaptureAuthorPreviewAsync(string clientId, PreviewSourceDto source,
+        string? renderBackend, bool transparentOutput, CancellationToken cancellationToken = default)
     {
         if (source is null || source.Kind != "authorDraft")
             return Task.FromResult(BackendOperationResult<AuthorPreviewCapture>.Rejected(
@@ -26,7 +34,7 @@ public sealed partial class ProjectSessionRegistry
         if (backend is not ("cpu" or "gpu"))
             return Task.FromResult(BackendOperationResult<AuthorPreviewCapture>.Rejected(InvalidRenderBackend()));
         return WithAuthorPreviewDraftAsync(clientId, source.SourceId,
-            document => CaptureAuthorPreviewCoreAsync(document, source, backend), cancellationToken);
+            document => CaptureAuthorPreviewCoreAsync(document, source, backend, transparentOutput), cancellationToken);
     }
 
     private async Task<BackendOperationResult<T>> WithAuthorPreviewDraftAsync<T>(string clientId, string draftId,
@@ -81,7 +89,7 @@ public sealed partial class ProjectSessionRegistry
         });
 
     private async Task<BackendOperationResult<AuthorPreviewCapture>> CaptureAuthorPreviewCoreAsync(
-        AuthorDraftDocument document, PreviewSourceDto source, string renderBackend)
+        AuthorDraftDocument document, PreviewSourceDto source, string renderBackend, bool transparentOutput)
     {
         if (!string.Equals(document.DraftRevision, source.SourceRevision, StringComparison.Ordinal))
             return AuthorReject<AuthorPreviewCapture>(BackendErrorCode.RevisionConflict,
@@ -114,8 +122,8 @@ public sealed partial class ProjectSessionRegistry
                 return AuthorReject<AuthorPreviewCapture>(BackendErrorCode.InvalidRequest,
                     "作者预览目标不属于固定样本。", "source.templateSample.targetKey");
             ScriptSampleRequest request = new(configuration, target, slot, multiLine);
-            BackendPreparedProjectRuntimeInput prepared = await AuthorSampleRuntimeInput.PrepareAsync(request,
-                _authorStop?.Token ?? CancellationToken.None).ConfigureAwait(false);
+            BackendPreparedProjectRuntimeInput prepared = await AuthorSampleRuntimeInput.PrepareAsync(request, MediaFeatures,
+                transparentOutput, waitForCompletion: false, _authorStop?.Token ?? CancellationToken.None).ConfigureAwait(false);
             return BackendOperationResult<AuthorPreviewCapture>.Success(new(source, prepared.Snapshot, prepared));
         }
         catch (DirectoryNotFoundException)

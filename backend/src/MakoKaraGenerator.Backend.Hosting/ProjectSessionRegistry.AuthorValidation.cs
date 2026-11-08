@@ -57,7 +57,7 @@ public sealed partial class ProjectSessionRegistry
             try
             {
                 work = await AuthorValidationWork.PrepareAsync(runtimeExecutor, new(configuration, target, slot, multiLine),
-                    reservation, _authorStop?.Token ?? CancellationToken.None).ConfigureAwait(false);
+                    MediaFeatures, reservation, _authorStop?.Token ?? CancellationToken.None).ConfigureAwait(false);
                 ProjectSnapshot sampleSnapshot = work.Input.Snapshot;
                 ValidateValidationPlan(sampleSnapshot, ScriptSampleValidator.FramesPerOutput);
                 if (work.Input.SourceBytes.Length > RuntimeValidationWorkerContract.MaximumInputBytes)
@@ -142,9 +142,12 @@ public sealed partial class ProjectSessionRegistry
         internal Task<ValidationReportDto> ValidateAsync(IProgress<BackendJobProgressDto> progress, CancellationToken token) =>
             Executor.ExecuteRuntimeAsync(Input.SourceBytes, ScriptSampleValidator.FramesPerOutput, progress, token);
         internal static async Task<AuthorValidationWork> PrepareAsync(IBackendRuntimeValidationExecutor executor,
-            ScriptSampleRequest request, BackendTaskScheduler.Reservation reservation, CancellationToken token)
+            ScriptSampleRequest request, BackendMediaFeatureService? mediaFeatures, BackendTaskScheduler.Reservation reservation,
+            CancellationToken token)
         {
-            BackendPreparedProjectRuntimeInput input = await AuthorSampleRuntimeInput.PrepareAsync(request, token).ConfigureAwait(false);
+            // 正式验证与导出一样是最终消费者：等背景分析完成，透明半程由 Worker 另建透明无媒体输入。
+            BackendPreparedProjectRuntimeInput input = await AuthorSampleRuntimeInput.PrepareAsync(request, mediaFeatures,
+                transparentOutput: false, waitForCompletion: true, token).ConfigureAwait(false);
             return new(executor, input, reservation);
         }
         public async ValueTask DisposeAsync()

@@ -104,6 +104,21 @@ public sealed class BackendProjectRuntimeInputLease : IDisposable
     /// <summary>导出等最终消费者等待背景分析完成，而不是固定为分析中输入。</summary>
     public bool WaitForMediaFeatures { get; set; }
 
+    /// <summary>
+    /// 非最终消费者最多等待背景分析完成的时长；超时后按检查结果固定为分析中输入。
+    /// 默认零（只等检查）；<see cref="WaitForMediaFeatures"/>为真时不限时等待。
+    /// </summary>
+    public TimeSpan MediaFeatureCompletionWait
+    {
+        get => _completionWait;
+        set => _completionWait = value >= TimeSpan.Zero ? value : throw new ArgumentOutOfRangeException(nameof(value));
+    }
+
+    /// <summary>服务自有试样背景是确定的生成图片，分析一次后本次运行内复用；首个试样最多等这么久拿到最终结果。</summary>
+    internal static readonly TimeSpan TemplateSampleMediaFeatureWait = TimeSpan.FromSeconds(20);
+    private TimeSpan _completionWait;
+    private TimeSpan CompletionWait => WaitForMediaFeatures ? Timeout.InfiniteTimeSpan : _completionWait;
+
     /// <summary>独立模板样本没有工程文件句柄，仅允许Color背景并复用完整固定包闭包准备。</summary>
     public static BackendProjectRuntimeInputLease CreateDetached(ProjectSnapshot snapshot)
     {
@@ -112,7 +127,10 @@ public sealed class BackendProjectRuntimeInputLease : IDisposable
         return new(snapshot, null, false, static () => { });
     }
 
-    /// <summary>可信组合根生成的自有工坊媒体；准备结束前调用者持有其目录，仍复制并核验内容。</summary>
+    /// <summary>
+    /// 可信组合根生成的自有工坊媒体；准备结束前调用者持有其目录，仍复制并核验内容。
+    /// 背景分析最多等待<see cref="TemplateSampleMediaFeatureWait"/>拿到最终结果。
+    /// </summary>
     public static BackendProjectRuntimeInputLease CreateOwnedTemplateSample(ProjectSnapshot snapshot, string directory)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
@@ -120,7 +138,7 @@ public sealed class BackendProjectRuntimeInputLease : IDisposable
         if (snapshot.Background is not { Kind: BackgroundKind.Image, Media: not null, Path: { } path }
             || Path.GetFullPath(Path.GetDirectoryName(path)!) != root)
             throw new ArgumentException("试样背景必须属于其独立自有媒体目录。", nameof(snapshot));
-        return new(snapshot, root, true, static () => { });
+        return new(snapshot, root, true, static () => { }) { MediaFeatureCompletionWait = TemplateSampleMediaFeatureWait };
     }
 
     /// <summary>复制已授权媒体，完整校验后发布独立固定输入。</summary>
@@ -159,7 +177,7 @@ public sealed class BackendProjectRuntimeInputLease : IDisposable
             }
             if (_snapshot.Background == BackgroundSource.Color)
             {
-                var (solid, _) = await BackendMediaFeatureInputs.AttachAsync(_snapshot, null, MediaFeatures, TransparentOutput, WaitForMediaFeatures, token).ConfigureAwait(false);
+                var (solid, _) = await BackendMediaFeatureInputs.AttachAsync(_snapshot, null, MediaFeatures, TransparentOutput, CompletionWait, token).ConfigureAwait(false);
                 var result = new BackendPreparedProjectRuntimeInput(_snapshot, ProjectRuntimeInputCodec.Encode(solid, null, packageGrants), null, temporary);
                 temporary = null; return BackendOperationResult<BackendPreparedProjectRuntimeInput>.Success(result);
             }
@@ -192,7 +210,7 @@ public sealed class BackendProjectRuntimeInputLease : IDisposable
             if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(output, UnixFileMode.UserRead);
             var grant = new ProjectRuntimeBackgroundGrant(background.Kind, media.RelativePath, output, media.Hash,
                 media.ByteLength, media.OriginalName, background.Fit, background.Playback);
-            var (attached, artifact) = await BackendMediaFeatureInputs.AttachAsync(_snapshot, output, MediaFeatures, TransparentOutput, WaitForMediaFeatures, token).ConfigureAwait(false);
+            var (attached, artifact) = await BackendMediaFeatureInputs.AttachAsync(_snapshot, output, MediaFeatures, TransparentOutput, CompletionWait, token).ConfigureAwait(false);
             var prepared = new BackendPreparedProjectRuntimeInput(_snapshot, ProjectRuntimeInputCodec.Encode(attached, grant, packageGrants, artifact), grant, temporary);
             temporary = null; return BackendOperationResult<BackendPreparedProjectRuntimeInput>.Success(prepared);
         }

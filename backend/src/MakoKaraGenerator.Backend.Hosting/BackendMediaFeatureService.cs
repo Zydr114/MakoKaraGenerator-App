@@ -9,7 +9,7 @@ namespace MakoKaraGenerator.Backend.Hosting;
 
 /// <summary>One fixed analysis observation for a background source; never mutates in place.</summary>
 /// <param name="Source">The inspected accepted file source; null when the source could not be inspected.</param>
-/// <param name="Request">The analysis attempt identity, stable for the service lifetime.</param>
+/// <param name="Request">The analysis attempt identity; a retried attempt after a failure gets a new identity.</param>
 /// <param name="Artifact">The published track when available.</param>
 /// <param name="ArtifactPath">The private read-only artifact file when available.</param>
 /// <param name="Failure">The fixed failure when decoding or building failed after inspection.</param>
@@ -25,7 +25,10 @@ public sealed class BackendMediaFeatureService : IAsyncDisposable
     private const long NativeBytes = 128L * 1024 * 1024;
     private const string Owner = "host-media-features";
     private static readonly TimeSpan InspectionWait = TimeSpan.FromSeconds(45);
+    // A failed attempt is retried lazily by the next caller once its delay elapsed; the last failure stays fixed for the run.
+    internal static readonly TimeSpan[] RetryDelays = [TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(2), TimeSpan.FromMinutes(10)];
     private readonly string _tools, _sources;
+    private readonly TimeProvider _time;
     private readonly BackendMediaFeatureArtifactStore _store;
     private readonly MediaFeatureTrackCodec _codec = new(new MediaMomentKernel(), new MediaAbValueValidator());
     private readonly EnvelopeQuarantineStore _quarantine = new();
@@ -37,9 +40,9 @@ public sealed class BackendMediaFeatureService : IAsyncDisposable
     private Task<MediaPresentationDeployment>? _deployment;
     private long _generation;
 
-    private BackendMediaFeatureService(string stateRoot, string tools)
+    private BackendMediaFeatureService(string stateRoot, string tools, TimeProvider time)
     {
-        _tools = tools;
+        _tools = tools; _time = time;
         _store = new BackendMediaFeatureArtifactStore(stateRoot);
         // No durable job ledger owns earlier artifacts; reclaim them instead of charging the quota.
         _store.Prune([]);
@@ -56,8 +59,11 @@ public sealed class BackendMediaFeatureService : IAsyncDisposable
     {
         string tools = toolDirectory ?? Path.Combine(AppContext.BaseDirectory, "media-tools");
         if (!MediaPresentationDeploymentDiscovery.IsInstalled(tools)) return null;
-        return new BackendMediaFeatureService(stateRoot, tools);
+        return new BackendMediaFeatureService(stateRoot, tools, TimeProvider.System);
     }
+
+    /// <summary>Test seam: an explicit tool directory, installed or not, and a controllable clock for retry delays.</summary>
+    internal static BackendMediaFeatureService Create(string stateRoot, string tools, TimeProvider time) => new(stateRoot, tools, time);
 
     /// <summary>Monotonic counter advanced whenever any analysis reaches a new fixed state.</summary>
     public long Generation => Interlocked.Read(ref _generation);
@@ -65,24 +71,33 @@ public sealed class BackendMediaFeatureService : IAsyncDisposable
     /// <summary>Raised after <see cref="Generation"/> advances.</summary>
     public event Action? Changed;
 
-    /// <summary>Starts or joins analysis of one authorized private file and waits only for its inspection.</summary>
+    /// <summary>
+    /// Starts, joins or retries analysis of one authorized private file. A failed attempt is replaced by a new attempt
+    /// on the first call after its retry delay; earlier callers keep the fixed failure they observed.
+    /// </summary>
     /// <param name="trustedPath">A private, hash-verified local copy that remains valid until this call returns.</param>
     /// <param name="content">The exact verified content identity.</param>
     /// <param name="kind">Still or video.</param>
-    /// <param name="waitForCompletion">Export waits for the final artifact or failure instead of inspection only.</param>
+    /// <param name="completionWait">
+    /// How long to wait for the final artifact or failure: <see cref="Timeout.InfiniteTimeSpan"/> for final consumers
+    /// such as export, zero to wait for inspection only; after a bounded wait the caller still waits for inspection.
+    /// </param>
     /// <param name="cancellationToken">Cancels only this caller's wait.</param>
     internal async Task<BackendMediaFeatureResolution> ResolveAsync(string trustedPath, MediaFileContent content,
-        MediaSourceKind kind, bool waitForCompletion, CancellationToken cancellationToken)
+        MediaSourceKind kind, TimeSpan completionWait, CancellationToken cancellationToken)
     {
+        if (completionWait < TimeSpan.Zero && completionWait != Timeout.InfiniteTimeSpan)
+            throw new ArgumentOutOfRangeException(nameof(completionWait));
         string key = content.Sha256.LowerHex + ":" + content.ByteLength.ToString(System.Globalization.CultureInfo.InvariantCulture) + ":" + kind;
-        Entry entry; bool created = false;
+        Entry entry; Entry? previous = null; bool created = false;
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_stop.IsCancellationRequested, this);
-            if (!_entries.TryGetValue(key, out entry!))
+            if (!_entries.TryGetValue(key, out entry!) || RetryDue(entry))
             {
-                entry = new Entry(RequestId(key));
-                _entries.Add(key, entry); created = true;
+                previous = entry;
+                entry = new Entry(RequestId(key), previous is null ? 0 : previous.Attempt + 1);
+                _entries[key] = entry; created = true;
             }
         }
         if (created)
@@ -92,7 +107,15 @@ public sealed class BackendMediaFeatureService : IAsyncDisposable
             try { copy = await CopyAsync(trustedPath, content, cancellationToken).ConfigureAwait(false); }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException or MediaAbException or OperationCanceledException)
             {
-                lock (_gate) _entries.Remove(key);
+                // This caller's copy failed, not the analysis: restore the earlier attempt so its retry budget is kept.
+                lock (_gate)
+                {
+                    if (_entries.TryGetValue(key, out Entry? current) && ReferenceEquals(current, entry))
+                    {
+                        if (previous is null) _entries.Remove(key);
+                        else _entries[key] = previous;
+                    }
+                }
                 entry.Inspected.TrySetResult(null); entry.Completed.TrySetResult();
                 throw;
             }
@@ -101,12 +124,23 @@ public sealed class BackendMediaFeatureService : IAsyncDisposable
         }
         try
         {
-            if (waitForCompletion) await entry.Completed.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
-            else await entry.Inspected.Task.WaitAsync(InspectionWait, cancellationToken).ConfigureAwait(false);
+            if (completionWait == Timeout.InfiniteTimeSpan) await entry.Completed.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+            else
+            {
+                if (completionWait > TimeSpan.Zero)
+                    try { await entry.Completed.Task.WaitAsync(completionWait, cancellationToken).ConfigureAwait(false); }
+                    catch (TimeoutException) { }
+                if (!entry.Completed.Task.IsCompleted)
+                    await entry.Inspected.Task.WaitAsync(InspectionWait, cancellationToken).ConfigureAwait(false);
+            }
         }
         catch (TimeoutException) { }
         return entry.Snapshot(_store);
     }
+
+    // Under _gate. Only a finished attempt without an artifact is retried, at most RetryDelays.Length times.
+    private bool RetryDue(Entry entry) => entry.FailedAt is { } failed && entry.Attempt < RetryDelays.Length
+        && _time.GetElapsedTime(failed) >= RetryDelays[entry.Attempt];
 
     private async Task RunAsync(Entry entry, string copy, MediaFileContent content, MediaSourceKind kind)
     {
@@ -146,6 +180,7 @@ public sealed class BackendMediaFeatureService : IAsyncDisposable
         }
         finally
         {
+            if (!token.IsCancellationRequested) entry.FinishAttempt(_time.GetTimestamp());
             entry.Inspected.TrySetResult(null); entry.Completed.TrySetResult();
             try { BackendPreparedProjectRuntimeInput.DeletePreparedDirectory(Path.GetDirectoryName(copy)!); }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
@@ -289,13 +324,18 @@ public sealed class BackendMediaFeatureService : IAsyncDisposable
         catch (Exception) { /* Shutdown continues; retained envelopes remain systemd-owned. */ }
     }
 
-    private sealed class Entry(MediaPreparationRequestId request)
+    private sealed class Entry(MediaPreparationRequestId request, int attempt)
     {
         private readonly object _gate = new();
         private MediaFeatureFileSource? _source;
         private BackendMediaFeatureArtifactReference? _artifact;
         private MediaFailure? _failure;
+        private long? _failedAt;
         internal MediaPreparationRequestId Request { get; } = request;
+        internal int Attempt { get; } = attempt;
+        /// <summary>Timestamp of the finished attempt when it produced no artifact.</summary>
+        internal long? FailedAt { get { lock (_gate) return _failedAt; } }
+        internal void FinishAttempt(long timestamp) { lock (_gate) if (_artifact is null) _failedAt = timestamp; }
         internal TaskCompletionSource<MediaFeatureFileSource?> Inspected { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal TaskCompletionSource Completed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal void SetSource(MediaFeatureFileSource? source) { lock (_gate) _source ??= source; Inspected.TrySetResult(source); }

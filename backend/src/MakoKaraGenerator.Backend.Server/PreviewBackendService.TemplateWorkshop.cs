@@ -97,8 +97,11 @@ internal sealed partial class PreviewBackendService
             { TemplateSample = new(request.SampleId, target.Key, request.MaterialSlot) };
             BackendPreviewPinnedInput sample = new(source, snapshot, SelectFactory(_factory!, request.RenderBackend!))
                 { RenderBackend = request.RenderBackend! };
-            BackendPreviewInputCaptureResult captured = await CompleteCaptureAsync(new(sample, null,
-                RuntimeInput: BackendProjectRuntimeInputLease.CreateOwnedTemplateSample(snapshot, media.DirectoryPath)), null).ConfigureAwait(false);
+            // 工坊试样与作者试样同样经宿主分析固定背景；透明预览固定为透明无媒体输入。
+            BackendProjectRuntimeInputLease runtimeInput = BackendProjectRuntimeInputLease.CreateOwnedTemplateSample(snapshot, media.DirectoryPath);
+            runtimeInput.MediaFeatures = _projects.MediaFeatures;
+            BackendPreviewInputCaptureResult captured = await CompleteCaptureAsync(new(sample, null, RuntimeInput: runtimeInput), null,
+                request.AlphaMode == PreviewAlphaMode.Straight).ConfigureAwait(false);
             if (captured.Error is not null) return BackendOperationResult<PreviewSessionResponse>.Rejected(captured.Error);
             BackendPreviewPinnedInput input = captured.Input!;
             PreviewSessionRequest previewRequest = new(source, request.Size, request.AlphaMode,

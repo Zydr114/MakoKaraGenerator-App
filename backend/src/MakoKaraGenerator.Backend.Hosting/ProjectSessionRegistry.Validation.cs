@@ -153,6 +153,8 @@ public sealed partial class ProjectSessionRegistry
                     return BackendOperationResult<JobResponse>.Rejected(scriptBackendError);
                 ValidateValidationPlan(snapshot, request.FramesPerOutput);
                 lease = session.AcquireProjectRuntimeInput(snapshot);
+                // 正式验证与导出一样等背景分析完成，不把分析中输入当作最终结果。
+                lease.WaitForMediaFeatures = true;
                 if (!string.IsNullOrEmpty(session.AudioAssetId)) audio = _resources.AcquireReference(clientId, session.AudioAssetId);
                 reservation = _taskScheduler!.TryReserve(clientId, session.ProjectSessionId);
                 if (reservation is null) return Reject<JobResponse>(BackendErrorCode.RequestQuotaExceeded, "验证任务排队配额已满。");

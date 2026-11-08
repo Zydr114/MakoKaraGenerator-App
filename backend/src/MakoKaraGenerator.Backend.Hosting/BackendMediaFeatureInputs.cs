@@ -16,11 +16,11 @@ internal static class BackendMediaFeatureInputs
     /// <param name="backgroundCopy">The private verified background copy, valid for this call.</param>
     /// <param name="service">The Host analysis service when installed.</param>
     /// <param name="transparentOutput">Whether the consumer renders without a background.</param>
-    /// <param name="waitForCompletion">Whether to wait for the final analysis instead of returning a pending input.</param>
+    /// <param name="completionWait">How long to wait for the final analysis; infinite for final consumers, zero for inspection only.</param>
     /// <param name="token">Cancels this caller's wait only.</param>
     /// <returns>The snapshot with its fixed input and the private artifact path of an available file.</returns>
     internal static async Task<(ProjectSnapshot Snapshot, string? ArtifactPath)> AttachAsync(ProjectSnapshot snapshot,
-        string? backgroundCopy, BackendMediaFeatureService? service, bool transparentOutput, bool waitForCompletion, CancellationToken token)
+        string? backgroundCopy, BackendMediaFeatureService? service, bool transparentOutput, TimeSpan completionWait, CancellationToken token)
     {
         if (snapshot.MediaFeatureInput is not null) return (snapshot, null);
         ProjectMediaDependencyPlan plan;
@@ -58,7 +58,7 @@ internal static class BackendMediaFeatureInputs
         try
         {
             resolution = await service.ResolveAsync(backgroundCopy, new(new(media.Hash), media.ByteLength),
-                background.Kind == BackgroundKind.Image ? MediaSourceKind.Still : MediaSourceKind.Video, waitForCompletion, token).ConfigureAwait(false);
+                background.Kind == BackgroundKind.Image ? MediaSourceKind.Still : MediaSourceKind.Video, completionWait, token).ConfigureAwait(false);
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or MediaAbException or ObjectDisposedException)
         { return (snapshot with { MediaFeatureInput = none }, null); }

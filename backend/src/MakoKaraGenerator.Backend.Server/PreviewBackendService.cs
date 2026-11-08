@@ -322,7 +322,7 @@ internal sealed partial class PreviewBackendService : IAsyncDisposable
         if (source.Kind == "authorDraft")
         {
             BackendOperationResult<AuthorPreviewCapture> author = await _projects.CaptureAuthorPreviewAsync(client, source,
-                renderBackend, _shutdown.Token).ConfigureAwait(false);
+                renderBackend, transparentOutput, _shutdown.Token).ConfigureAwait(false);
             if (!author.Accepted) return new(null, author.Error!);
             try
             {
@@ -460,7 +460,8 @@ internal sealed partial class PreviewBackendService : IAsyncDisposable
                 captureResourceFactory: audioAssetId => CaptureResourceFactory(client, audioAssetId, out reservation, renderBackend)).ConfigureAwait(false);
             if (captured.Error is not null) return captured;
             IDisposable? ownedReservation = reservation; reservation = null;
-            return await CompleteCaptureAsync(captured, ownedReservation).ConfigureAwait(false);
+            return await CompleteCaptureAsync(captured, ownedReservation,
+                request.AlphaMode == PreviewAlphaMode.Straight).ConfigureAwait(false);
         }
         catch (SnapshotContractException error)
         {

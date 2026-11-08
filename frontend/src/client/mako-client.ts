@@ -5,7 +5,12 @@
 // 状态变为 hostRestarted、清空队列并发出 reset，由页面调用 reinitialize() 重新取启动信息并登记。
 
 import type { AuthorPackageConfigurationInput, AuthorSourceInspectionResponse } from '../protocol/author-source-inspection';
-import type { AuthorPackageFilesInput, AuthorPackageFilesResponse } from '../protocol/author-package-files';
+import type {
+  AuthorPackageFileReplacementInspection,
+  AuthorPackageFileReplacementInspectionInput,
+  AuthorPackageFilesInput,
+  AuthorPackageFilesResponse,
+} from '../protocol/author-package-files';
 import type { AuthorDraftClaimResponse, AuthorSourceRevisionsResponse, ProfileAuthorDraftListResponse } from '../protocol/author-history';
 import type { GpuPreviewCreateInput, GpuPreviewStreamState } from '../protocol';
 
@@ -1364,7 +1369,23 @@ export class MakoClient extends Emitter<MakoClientEvents> {
         query: { expectedDraftRevision, sourceRevision }, auth: 'access', label: 'drafts.inspectSource',
       })).data,
 
-    /** 原子保存完整包文本；SDK2 不自动采用或改变在用来源，服务重算文本摘要。 */
+    /**
+     * 只读检查：草稿某个保留修订里的图片或字体换成已上传资源会怎样（合同 1.49.0）。
+     * 与保存同一套校验；格式不同、解码失败等以 BackendError 拒绝，尺寸、家族名变化只在 warnings 里提醒。
+     */
+    inspectPackageFileReplacement: async (
+      draftId: string,
+      expectedDraftRevision: string,
+      input: AuthorPackageFileReplacementInspectionInput,
+      signal?: AbortSignal,
+    ): Promise<AuthorPackageFileReplacementInspection> =>
+      (await this.send<AuthorPackageFileReplacementInspection>({
+        method: 'POST', path: `/api/v1/drafts/${enc(draftId)}/package-file-replacement-inspection`,
+        json: { expectedDraftRevision, ...input }, auth: 'access', label: 'drafts.inspectPackageFileReplacement',
+        ...(signal ? { signal } : {}),
+      })).data,
+
+    /** 原子保存完整包文本及可选的图片/字体替换；SDK2 不自动采用或改变在用来源，服务重算摘要。 */
     savePackageFiles: async (draftId: string, expectedDraftRevision: string, input: AuthorPackageFilesInput): Promise<AuthorDraft> => {
       const receipt = this.requireConn().receipts.create('draft-package-files');
       const { data } = await this.send<AuthorDraft>({

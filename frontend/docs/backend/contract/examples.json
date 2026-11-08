@@ -134932,7 +134932,1237 @@
         "field": "frameId",
         "protocolVersion": "1"
       }
+    },
+    {
+      "name": "author-replacement-save-legacy",
+      "schema": "AuthorPackageFilesRequest",
+      "valid": true,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "manifestJson": "{\"files\":[]}",
+        "textFiles": [
+          {
+            "path": "src/PackEffect.cs",
+            "text": "// effect"
+          }
+        ],
+        "metadata": {
+          "requestId": "author-replacement-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-08T12:01:00Z"
+        }
+      }
+    },
+    {
+      "name": "author-replacement-save-replaced",
+      "schema": "AuthorPackageFilesRequest",
+      "valid": true,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "manifestJson": "{\"files\":[]}",
+        "textFiles": [
+          {
+            "path": "src/PackEffect.cs",
+            "text": "// effect"
+          }
+        ],
+        "metadata": {
+          "requestId": "author-replacement-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-08T12:01:00Z"
+        },
+        "replacedFiles": [
+          {
+            "path": "assets/spark.png",
+            "assetId": "asset-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+          }
+        ],
+        "baseSourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    },
+    {
+      "name": "author-replacement-save-replaced-latest-base",
+      "schema": "AuthorPackageFilesRequest",
+      "valid": true,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "manifestJson": "{\"files\":[]}",
+        "textFiles": [
+          {
+            "path": "src/PackEffect.cs",
+            "text": "// effect"
+          }
+        ],
+        "metadata": {
+          "requestId": "author-replacement-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-08T12:01:00Z"
+        },
+        "replacedFiles": [
+          {
+            "path": "assets/spark.png",
+            "assetId": "asset-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+          }
+        ]
+      }
+    },
+    {
+      "name": "author-replacement-save-base-only",
+      "schema": "AuthorPackageFilesRequest",
+      "valid": true,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "manifestJson": "{\"files\":[]}",
+        "textFiles": [
+          {
+            "path": "src/PackEffect.cs",
+            "text": "// effect"
+          }
+        ],
+        "metadata": {
+          "requestId": "author-replacement-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-08T12:01:00Z"
+        },
+        "baseSourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    },
+    {
+      "name": "author-replacement-save-null-fields",
+      "schema": "AuthorPackageFilesRequest",
+      "valid": true,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "manifestJson": "{\"files\":[]}",
+        "textFiles": [
+          {
+            "path": "src/PackEffect.cs",
+            "text": "// effect"
+          }
+        ],
+        "metadata": {
+          "requestId": "author-replacement-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-08T12:01:00Z"
+        },
+        "replacedFiles": null,
+        "baseSourceRevision": null
+      }
+    },
+    {
+      "name": "author-replacement-save-empty-replacements",
+      "schema": "AuthorPackageFilesRequest",
+      "valid": true,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "manifestJson": "{\"files\":[]}",
+        "textFiles": [
+          {
+            "path": "src/PackEffect.cs",
+            "text": "// effect"
+          }
+        ],
+        "metadata": {
+          "requestId": "author-replacement-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-08T12:01:00Z"
+        },
+        "replacedFiles": []
+      }
+    },
+    {
+      "name": "author-replacement-save-base-latest",
+      "schema": "AuthorPackageFilesRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "manifestJson": "{\"files\":[]}",
+        "textFiles": [
+          {
+            "path": "src/PackEffect.cs",
+            "text": "// effect"
+          }
+        ],
+        "metadata": {
+          "requestId": "author-replacement-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-08T12:01:00Z"
+        },
+        "baseSourceRevision": "latest"
+      }
+    },
+    {
+      "name": "author-replacement-save-base-number",
+      "schema": "AuthorPackageFilesRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "manifestJson": "{\"files\":[]}",
+        "textFiles": [
+          {
+            "path": "src/PackEffect.cs",
+            "text": "// effect"
+          }
+        ],
+        "metadata": {
+          "requestId": "author-replacement-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-08T12:01:00Z"
+        },
+        "baseSourceRevision": 1
+      }
+    },
+    {
+      "name": "author-replacement-save-base-uppercase",
+      "schema": "AuthorPackageFilesRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "manifestJson": "{\"files\":[]}",
+        "textFiles": [
+          {
+            "path": "src/PackEffect.cs",
+            "text": "// effect"
+          }
+        ],
+        "metadata": {
+          "requestId": "author-replacement-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-08T12:01:00Z"
+        },
+        "baseSourceRevision": "sha256:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+      }
+    },
+    {
+      "name": "author-replacement-save-replacements-object",
+      "schema": "AuthorPackageFilesRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "manifestJson": "{\"files\":[]}",
+        "textFiles": [
+          {
+            "path": "src/PackEffect.cs",
+            "text": "// effect"
+          }
+        ],
+        "metadata": {
+          "requestId": "author-replacement-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-08T12:01:00Z"
+        },
+        "replacedFiles": {
+          "path": "assets/spark.png",
+          "assetId": "asset-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        }
+      }
+    },
+    {
+      "name": "author-replacement-save-replacement-missing-path",
+      "schema": "AuthorPackageFilesRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "manifestJson": "{\"files\":[]}",
+        "textFiles": [
+          {
+            "path": "src/PackEffect.cs",
+            "text": "// effect"
+          }
+        ],
+        "metadata": {
+          "requestId": "author-replacement-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-08T12:01:00Z"
+        },
+        "replacedFiles": [
+          {
+            "assetId": "asset-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+          }
+        ]
+      }
+    },
+    {
+      "name": "author-replacement-save-replacement-missing-asset",
+      "schema": "AuthorPackageFilesRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "manifestJson": "{\"files\":[]}",
+        "textFiles": [
+          {
+            "path": "src/PackEffect.cs",
+            "text": "// effect"
+          }
+        ],
+        "metadata": {
+          "requestId": "author-replacement-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-08T12:01:00Z"
+        },
+        "replacedFiles": [
+          {
+            "path": "assets/spark.png"
+          }
+        ]
+      }
+    },
+    {
+      "name": "author-replacement-save-replacement-empty-path",
+      "schema": "AuthorPackageFilesRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "manifestJson": "{\"files\":[]}",
+        "textFiles": [
+          {
+            "path": "src/PackEffect.cs",
+            "text": "// effect"
+          }
+        ],
+        "metadata": {
+          "requestId": "author-replacement-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-08T12:01:00Z"
+        },
+        "replacedFiles": [
+          {
+            "path": "",
+            "assetId": "asset-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+          }
+        ]
+      }
+    },
+    {
+      "name": "author-replacement-save-replacement-whitespace-asset",
+      "schema": "AuthorPackageFilesRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "manifestJson": "{\"files\":[]}",
+        "textFiles": [
+          {
+            "path": "src/PackEffect.cs",
+            "text": "// effect"
+          }
+        ],
+        "metadata": {
+          "requestId": "author-replacement-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-08T12:01:00Z"
+        },
+        "replacedFiles": [
+          {
+            "path": "assets/spark.png",
+            "assetId": " "
+          }
+        ]
+      }
+    },
+    {
+      "name": "author-replacement-save-replacement-unknown-field",
+      "schema": "AuthorPackageFilesRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "manifestJson": "{\"files\":[]}",
+        "textFiles": [
+          {
+            "path": "src/PackEffect.cs",
+            "text": "// effect"
+          }
+        ],
+        "metadata": {
+          "requestId": "author-replacement-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-08T12:01:00Z"
+        },
+        "replacedFiles": [
+          {
+            "path": "assets/spark.png",
+            "assetId": "asset-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ]
+      }
+    },
+    {
+      "name": "author-replacement-save-replacement-null-item",
+      "schema": "AuthorPackageFilesRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "manifestJson": "{\"files\":[]}",
+        "textFiles": [
+          {
+            "path": "src/PackEffect.cs",
+            "text": "// effect"
+          }
+        ],
+        "metadata": {
+          "requestId": "author-replacement-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-08T12:01:00Z"
+        },
+        "replacedFiles": [
+          null
+        ]
+      }
+    },
+    {
+      "name": "author-replacement-inspect-request",
+      "schema": "AuthorPackageFileReplacementInspectionRequest",
+      "valid": true,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "path": "assets/spark.png",
+        "assetId": "asset-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+      }
+    },
+    {
+      "name": "author-replacement-inspect-request-missing-expectedDraftRevision",
+      "schema": "AuthorPackageFileReplacementInspectionRequest",
+      "valid": false,
+      "value": {
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "path": "assets/spark.png",
+        "assetId": "asset-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+      }
+    },
+    {
+      "name": "author-replacement-inspect-request-missing-sourceRevision",
+      "schema": "AuthorPackageFileReplacementInspectionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "path": "assets/spark.png",
+        "assetId": "asset-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+      }
+    },
+    {
+      "name": "author-replacement-inspect-request-missing-path",
+      "schema": "AuthorPackageFileReplacementInspectionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "assetId": "asset-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+      }
+    },
+    {
+      "name": "author-replacement-inspect-request-missing-assetId",
+      "schema": "AuthorPackageFileReplacementInspectionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "path": "assets/spark.png"
+      }
+    },
+    {
+      "name": "author-replacement-inspect-request-revision-latest",
+      "schema": "AuthorPackageFileReplacementInspectionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "latest",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "path": "assets/spark.png",
+        "assetId": "asset-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+      }
+    },
+    {
+      "name": "author-replacement-inspect-request-source-number",
+      "schema": "AuthorPackageFileReplacementInspectionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": 1,
+        "path": "assets/spark.png",
+        "assetId": "asset-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+      }
+    },
+    {
+      "name": "author-replacement-inspect-request-path-empty",
+      "schema": "AuthorPackageFileReplacementInspectionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "path": "",
+        "assetId": "asset-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+      }
+    },
+    {
+      "name": "author-replacement-inspect-request-asset-whitespace",
+      "schema": "AuthorPackageFileReplacementInspectionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "path": "assets/spark.png",
+        "assetId": " "
+      }
+    },
+    {
+      "name": "author-replacement-inspect-request-unknown",
+      "schema": "AuthorPackageFileReplacementInspectionRequest",
+      "valid": false,
+      "value": {
+        "expectedDraftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "path": "assets/spark.png",
+        "assetId": "asset-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "metadata": {
+          "requestId": "author-replacement-example",
+          "hostInstanceId": "host-example",
+          "validUntilUtc": "2026-11-08T12:01:00Z"
+        }
+      }
+    },
+    {
+      "name": "author-replacement-inspect-image",
+      "schema": "AuthorPackageFileReplacementInspectionResponse",
+      "valid": true,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "path": "assets/spark.png",
+        "role": "image",
+        "current": {
+          "format": "png",
+          "sizeBytes": 120,
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "width": 8,
+          "height": 8
+        },
+        "replacement": {
+          "format": "png",
+          "sizeBytes": 9007199254740993,
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "width": 16,
+          "height": 12
+        },
+        "warnings": [
+          {
+            "code": "imageSizeChanged",
+            "message": "尺寸从 8×8 变为 16×12；按像素裁切或假定尺寸的效果可能需要调整。"
+          }
+        ],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-replacement-inspect-image-same-size",
+      "schema": "AuthorPackageFileReplacementInspectionResponse",
+      "valid": true,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "path": "assets/spark.png",
+        "role": "image",
+        "current": {
+          "format": "png",
+          "sizeBytes": 120,
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "width": 8,
+          "height": 8
+        },
+        "replacement": {
+          "format": "png",
+          "sizeBytes": 9007199254740993,
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "width": 8,
+          "height": 8
+        },
+        "warnings": [],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-replacement-inspect-font",
+      "schema": "AuthorPackageFileReplacementInspectionResponse",
+      "valid": true,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "path": "fonts/fixed-cjk.ttc",
+        "role": "font",
+        "current": {
+          "format": "collection",
+          "sizeBytes": 4096,
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "familyNames": [
+            "Mako Sans CJK SC",
+            "Mako Sans CJK JP"
+          ]
+        },
+        "replacement": {
+          "format": "collection",
+          "sizeBytes": 4096,
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "familyNames": [
+            "Noto Sans CJK SC"
+          ]
+        },
+        "warnings": [
+          {
+            "code": "fontFamilyChanged",
+            "message": "字体家族从「Mako Sans CJK SC」变为「Noto Sans CJK SC」。"
+          }
+        ],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-replacement-inspect-future-field",
+      "schema": "AuthorPackageFileReplacementInspectionResponse",
+      "valid": true,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "path": "assets/spark.png",
+        "role": "image",
+        "current": {
+          "format": "png",
+          "sizeBytes": 120,
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "width": 8,
+          "height": 8
+        },
+        "replacement": {
+          "format": "png",
+          "sizeBytes": 9007199254740993,
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "width": 16,
+          "height": 12
+        },
+        "warnings": [
+          {
+            "code": "imageSizeChanged",
+            "message": "尺寸从 8×8 变为 16×12；按像素裁切或假定尺寸的效果可能需要调整。"
+          }
+        ],
+        "protocolVersion": "1",
+        "futureField": true
+      }
+    },
+    {
+      "name": "author-replacement-inspect-response-missing-draftId",
+      "schema": "AuthorPackageFileReplacementInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "path": "assets/spark.png",
+        "role": "image",
+        "current": {
+          "format": "png",
+          "sizeBytes": 120,
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "width": 8,
+          "height": 8
+        },
+        "replacement": {
+          "format": "png",
+          "sizeBytes": 9007199254740993,
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "width": 16,
+          "height": 12
+        },
+        "warnings": [
+          {
+            "code": "imageSizeChanged",
+            "message": "尺寸从 8×8 变为 16×12；按像素裁切或假定尺寸的效果可能需要调整。"
+          }
+        ],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-replacement-inspect-response-missing-draftRevision",
+      "schema": "AuthorPackageFileReplacementInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "path": "assets/spark.png",
+        "role": "image",
+        "current": {
+          "format": "png",
+          "sizeBytes": 120,
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "width": 8,
+          "height": 8
+        },
+        "replacement": {
+          "format": "png",
+          "sizeBytes": 9007199254740993,
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "width": 16,
+          "height": 12
+        },
+        "warnings": [
+          {
+            "code": "imageSizeChanged",
+            "message": "尺寸从 8×8 变为 16×12；按像素裁切或假定尺寸的效果可能需要调整。"
+          }
+        ],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-replacement-inspect-response-missing-sourceRevision",
+      "schema": "AuthorPackageFileReplacementInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "path": "assets/spark.png",
+        "role": "image",
+        "current": {
+          "format": "png",
+          "sizeBytes": 120,
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "width": 8,
+          "height": 8
+        },
+        "replacement": {
+          "format": "png",
+          "sizeBytes": 9007199254740993,
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "width": 16,
+          "height": 12
+        },
+        "warnings": [
+          {
+            "code": "imageSizeChanged",
+            "message": "尺寸从 8×8 变为 16×12；按像素裁切或假定尺寸的效果可能需要调整。"
+          }
+        ],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-replacement-inspect-response-missing-path",
+      "schema": "AuthorPackageFileReplacementInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "role": "image",
+        "current": {
+          "format": "png",
+          "sizeBytes": 120,
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "width": 8,
+          "height": 8
+        },
+        "replacement": {
+          "format": "png",
+          "sizeBytes": 9007199254740993,
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "width": 16,
+          "height": 12
+        },
+        "warnings": [
+          {
+            "code": "imageSizeChanged",
+            "message": "尺寸从 8×8 变为 16×12；按像素裁切或假定尺寸的效果可能需要调整。"
+          }
+        ],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-replacement-inspect-response-missing-role",
+      "schema": "AuthorPackageFileReplacementInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "path": "assets/spark.png",
+        "current": {
+          "format": "png",
+          "sizeBytes": 120,
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "width": 8,
+          "height": 8
+        },
+        "replacement": {
+          "format": "png",
+          "sizeBytes": 9007199254740993,
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "width": 16,
+          "height": 12
+        },
+        "warnings": [
+          {
+            "code": "imageSizeChanged",
+            "message": "尺寸从 8×8 变为 16×12；按像素裁切或假定尺寸的效果可能需要调整。"
+          }
+        ],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-replacement-inspect-response-missing-current",
+      "schema": "AuthorPackageFileReplacementInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "path": "assets/spark.png",
+        "role": "image",
+        "replacement": {
+          "format": "png",
+          "sizeBytes": 9007199254740993,
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "width": 16,
+          "height": 12
+        },
+        "warnings": [
+          {
+            "code": "imageSizeChanged",
+            "message": "尺寸从 8×8 变为 16×12；按像素裁切或假定尺寸的效果可能需要调整。"
+          }
+        ],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-replacement-inspect-response-missing-replacement",
+      "schema": "AuthorPackageFileReplacementInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "path": "assets/spark.png",
+        "role": "image",
+        "current": {
+          "format": "png",
+          "sizeBytes": 120,
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "width": 8,
+          "height": 8
+        },
+        "warnings": [
+          {
+            "code": "imageSizeChanged",
+            "message": "尺寸从 8×8 变为 16×12；按像素裁切或假定尺寸的效果可能需要调整。"
+          }
+        ],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-replacement-inspect-response-missing-warnings",
+      "schema": "AuthorPackageFileReplacementInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "path": "assets/spark.png",
+        "role": "image",
+        "current": {
+          "format": "png",
+          "sizeBytes": 120,
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "width": 8,
+          "height": 8
+        },
+        "replacement": {
+          "format": "png",
+          "sizeBytes": 9007199254740993,
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "width": 16,
+          "height": 12
+        },
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-replacement-inspect-response-role-svg",
+      "schema": "AuthorPackageFileReplacementInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "path": "assets/spark.png",
+        "role": "svg",
+        "current": {
+          "format": "png",
+          "sizeBytes": 120,
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "width": 8,
+          "height": 8
+        },
+        "replacement": {
+          "format": "png",
+          "sizeBytes": 9007199254740993,
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "width": 16,
+          "height": 12
+        },
+        "warnings": [
+          {
+            "code": "imageSizeChanged",
+            "message": "尺寸从 8×8 变为 16×12；按像素裁切或假定尺寸的效果可能需要调整。"
+          }
+        ],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-replacement-inspect-response-protocol",
+      "schema": "AuthorPackageFileReplacementInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "path": "assets/spark.png",
+        "role": "image",
+        "current": {
+          "format": "png",
+          "sizeBytes": 120,
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "width": 8,
+          "height": 8
+        },
+        "replacement": {
+          "format": "png",
+          "sizeBytes": 9007199254740993,
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "width": 16,
+          "height": 12
+        },
+        "warnings": [
+          {
+            "code": "imageSizeChanged",
+            "message": "尺寸从 8×8 变为 16×12；按像素裁切或假定尺寸的效果可能需要调整。"
+          }
+        ],
+        "protocolVersion": "2"
+      }
+    },
+    {
+      "name": "author-replacement-inspect-response-warning-code",
+      "schema": "AuthorPackageFileReplacementInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "path": "assets/spark.png",
+        "role": "image",
+        "current": {
+          "format": "png",
+          "sizeBytes": 120,
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "width": 8,
+          "height": 8
+        },
+        "replacement": {
+          "format": "png",
+          "sizeBytes": 9007199254740993,
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "width": 16,
+          "height": 12
+        },
+        "warnings": [
+          {
+            "code": "formatChanged",
+            "message": "x"
+          }
+        ],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-replacement-inspect-response-warnings-too-many",
+      "schema": "AuthorPackageFileReplacementInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "path": "assets/spark.png",
+        "role": "image",
+        "current": {
+          "format": "png",
+          "sizeBytes": 120,
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "width": 8,
+          "height": 8
+        },
+        "replacement": {
+          "format": "png",
+          "sizeBytes": 9007199254740993,
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "width": 16,
+          "height": 12
+        },
+        "warnings": [
+          {
+            "code": "imageSizeChanged",
+            "message": "尺寸从 8×8 变为 16×12；按像素裁切或假定尺寸的效果可能需要调整。"
+          },
+          {
+            "code": "imageSizeChanged",
+            "message": "尺寸从 8×8 变为 16×12；按像素裁切或假定尺寸的效果可能需要调整。"
+          },
+          {
+            "code": "imageSizeChanged",
+            "message": "尺寸从 8×8 变为 16×12；按像素裁切或假定尺寸的效果可能需要调整。"
+          }
+        ],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-replacement-inspect-response-size-string",
+      "schema": "AuthorPackageFileReplacementInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "path": "assets/spark.png",
+        "role": "image",
+        "current": {
+          "format": "png",
+          "sizeBytes": "120",
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "width": 8,
+          "height": 8
+        },
+        "replacement": {
+          "format": "png",
+          "sizeBytes": 9007199254740993,
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "width": 16,
+          "height": 12
+        },
+        "warnings": [
+          {
+            "code": "imageSizeChanged",
+            "message": "尺寸从 8×8 变为 16×12；按像素裁切或假定尺寸的效果可能需要调整。"
+          }
+        ],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-replacement-inspect-response-size-zero",
+      "schema": "AuthorPackageFileReplacementInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "path": "assets/spark.png",
+        "role": "image",
+        "current": {
+          "format": "png",
+          "sizeBytes": 0,
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "width": 8,
+          "height": 8
+        },
+        "replacement": {
+          "format": "png",
+          "sizeBytes": 9007199254740993,
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "width": 16,
+          "height": 12
+        },
+        "warnings": [
+          {
+            "code": "imageSizeChanged",
+            "message": "尺寸从 8×8 变为 16×12；按像素裁切或假定尺寸的效果可能需要调整。"
+          }
+        ],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-replacement-inspect-response-sha-prefixed",
+      "schema": "AuthorPackageFileReplacementInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "path": "assets/spark.png",
+        "role": "image",
+        "current": {
+          "format": "png",
+          "sizeBytes": 120,
+          "sha256": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "width": 8,
+          "height": 8
+        },
+        "replacement": {
+          "format": "png",
+          "sizeBytes": 9007199254740993,
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "width": 16,
+          "height": 12
+        },
+        "warnings": [
+          {
+            "code": "imageSizeChanged",
+            "message": "尺寸从 8×8 变为 16×12；按像素裁切或假定尺寸的效果可能需要调整。"
+          }
+        ],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-replacement-inspect-response-format-uppercase",
+      "schema": "AuthorPackageFileReplacementInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "path": "assets/spark.png",
+        "role": "image",
+        "current": {
+          "format": "PNG",
+          "sizeBytes": 120,
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "width": 8,
+          "height": 8
+        },
+        "replacement": {
+          "format": "png",
+          "sizeBytes": 9007199254740993,
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "width": 16,
+          "height": 12
+        },
+        "warnings": [
+          {
+            "code": "imageSizeChanged",
+            "message": "尺寸从 8×8 变为 16×12；按像素裁切或假定尺寸的效果可能需要调整。"
+          }
+        ],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-replacement-inspect-response-width-zero",
+      "schema": "AuthorPackageFileReplacementInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "path": "assets/spark.png",
+        "role": "image",
+        "current": {
+          "format": "png",
+          "sizeBytes": 120,
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "width": 0,
+          "height": 8
+        },
+        "replacement": {
+          "format": "png",
+          "sizeBytes": 9007199254740993,
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "width": 16,
+          "height": 12
+        },
+        "warnings": [
+          {
+            "code": "imageSizeChanged",
+            "message": "尺寸从 8×8 变为 16×12；按像素裁切或假定尺寸的效果可能需要调整。"
+          }
+        ],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-replacement-inspect-response-family-empty",
+      "schema": "AuthorPackageFileReplacementInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "path": "assets/spark.png",
+        "role": "image",
+        "current": {
+          "format": "collection",
+          "sizeBytes": 4096,
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "familyNames": []
+        },
+        "replacement": {
+          "format": "png",
+          "sizeBytes": 9007199254740993,
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "width": 16,
+          "height": 12
+        },
+        "warnings": [
+          {
+            "code": "imageSizeChanged",
+            "message": "尺寸从 8×8 变为 16×12；按像素裁切或假定尺寸的效果可能需要调整。"
+          }
+        ],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-replacement-error-AuthorReplacementTargetInvalid",
+      "schema": "BackendErrorResponse",
+      "valid": true,
+      "value": {
+        "code": "invalidRequest",
+        "message": "替换被拒绝。",
+        "field": "replacedFiles[0].path",
+        "failureCode": "AuthorReplacementTargetInvalid",
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-replacement-error-AuthorReplacementFormatMismatch",
+      "schema": "BackendErrorResponse",
+      "valid": true,
+      "value": {
+        "code": "invalidRequest",
+        "message": "替换被拒绝。",
+        "field": "replacedFiles[0].assetId",
+        "failureCode": "AuthorReplacementFormatMismatch",
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "author-replacement-error-AuthorReplacementFontInvalid",
+      "schema": "BackendErrorResponse",
+      "valid": true,
+      "value": {
+        "code": "invalidRequest",
+        "message": "替换被拒绝。",
+        "field": "assetId",
+        "failureCode": "AuthorReplacementFontInvalid",
+        "protocolVersion": "1"
+      }
     }
   ],
-  "contractVersion": "1.48.0"
+  "contractVersion": "1.49.0"
 }

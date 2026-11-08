@@ -1,6 +1,8 @@
 # 前后端 API 执行合同
 
-状态：**1.48.0 按匹配 metadata 冻结**，更新于2026-11-07；产品 **0.112.38**，HTTP `protocolVersion:"1"`。本轮新增按帧检查投影：帧请求可选 `inspect`，帧元数据可选 `inspectionUrl`，新增 `GET /api/v1/preview-frames/{id}/inspection`，见[行为§29](../docs/architecture/backend-api.md#preview-frame-inspection)。1.46.0 起的owner草稿源码检查与完整配置采用保持，见[行为§21](../docs/architecture/backend-api.md#backend-author-p4)；图绑定、Base材质与组消费者见[行为§27](../docs/architecture/backend-api.md#sdk2-m09-svg-warp)。合同为114路径／127方法／613 schemas，3561个合成例（2646反例）。SDK2仍要求GPU，CPU以 `commandNotSupported/PackageBackendUnsupported` 拒绝。合同、匹配发布、fresh HTTP、浏览器和导出分别登记；性能门槛暂不作为本轮验收标准。
+状态：**1.49.0 按匹配 metadata 冻结**，更新于2026-11-08；产品 **0.112.39**，HTTP `protocolVersion:"1"`。本轮新增作者草稿整份替换包内图片与字体：保存 package-files 可选 `replacedFiles` 与 `baseSourceRevision`，新增只读 `POST /api/v1/drafts/{id}/package-file-replacement-inspection`，见[行为§21](../docs/architecture/backend-api.md#author-package-replacement)。1.48.0 按帧检查投影见[行为§29](../docs/architecture/backend-api.md#preview-frame-inspection)；1.46.0 起的owner草稿源码检查与完整配置采用保持，见[行为§21](../docs/architecture/backend-api.md#backend-author-p4)；图绑定、Base材质与组消费者见[行为§27](../docs/architecture/backend-api.md#sdk2-m09-svg-warp)。合同为115路径／128方法／618 schemas，3612个合成例（2683反例）。SDK2仍要求GPU，CPU以 `commandNotSupported/PackageBackendUnsupported` 拒绝。合同、匹配发布、fresh HTTP、浏览器和导出分别登记；性能门槛暂不作为本轮验收标准。
+
+1.49.0 允许在作者草稿里把已有包的 `image`/`font` 文件整份换成已上传资源：新文件须与原文件同一格式，并通过与渲染相同的解码或字体加载；不可编辑文件取自 `baseSourceRevision`（省略为最新修订），清单哈希由服务重算。检查接口返回原/新文件的格式、大小、摘要、宽高或字体家族名，`imageSizeChanged`、`fontFamilyChanged` 只提醒。新增失败码 `AuthorReplacementTargetInvalid`、`AuthorReplacementFormatMismatch`、`AuthorReplacementFontInvalid`。
 
 1.48.0 接通调试叠加层与成本视图的数据源：帧请求带 `inspect:true` 时，Worker 从同一准备帧生成只读投影（字簇与注音墨迹、行框、播放头、粒子出生点、效果实例目录与单帧成本），与 PNG 同寿命保存，经 `inspectionUrl` 单独读取。省略或 false 时行为不变；PNG、导出与缓存不受影响。未开启时读取返回 404 `previewInspectionUnavailable`，帧到期沿用 410 `previewFrameExpired`。投影 JSON 最多 262144 字节，超出时按比例截断并计入 `truncated`。
 

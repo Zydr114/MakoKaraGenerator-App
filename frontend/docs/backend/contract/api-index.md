@@ -1,10 +1,10 @@
 # 冻结 API 清单
 
-合同 **1.48.0** · HTTP **1** · 产品 **0.112.38** · 基线 `ce57e1a259ba09ee68c1d00074c26d3ffb11aafe` · 2026-11-07。
+合同 **1.49.0** · HTTP **1** · 产品 **0.112.39** · 基线 `60393bd6fe7a2e8f33c83d7162f3fe5449c4b4e7` · 2026-11-08。
 
 执行入口：[行为合同](api-contract.md)；机器规范：[openapi.json](openapi.json)；指纹：[contract-manifest.json](contract-manifest.json)。本表由核对过的路由定义生成，不能手工单独扩表。
 
-共 **114 个路径、127 个显式方法**（含 5 个兼容别名；HEAD 单计，全局 OPTIONS 不计）。业务成功状态仅表示HTTP操作结果，202须等待job或preview状态。
+共 **115 个路径、128 个显式方法**（含 5 个兼容别名；HEAD 单计，全局 OPTIONS 不计）。业务成功状态仅表示HTTP操作结果，202须等待job或preview状态。
 
 | 方法 | 路径 | 认证 | 请求 | 成功响应 | 行为源章节 |
 |---|---|---|---|---|---|
@@ -115,6 +115,7 @@
 | POST | `/api/v1/profile/author-drafts/{id}/claim` | access + clientId | AuthorDraftClaimRequest | 200 · AuthorDraftClaimResponse | §21 |
 | GET | `/api/v1/drafts/{id}/package-files` | access + clientId | - | 200 · AuthorPackageFilesResponse | §21 |
 | PUT | `/api/v1/drafts/{id}/package-files` | access + clientId | AuthorPackageFilesRequest | 200 · AuthorDraftResponse | §21 |
+| POST | `/api/v1/drafts/{id}/package-file-replacement-inspection` | access + clientId | AuthorPackageFileReplacementInspectionRequest | 200 · AuthorPackageFileReplacementInspectionResponse | §21 |
 | GET | `/api/v1/drafts/{id}/source-revisions` | access + clientId | - | 200 · AuthorSourceRevisionsResponse | §21 |
 | GET | `/api/v1/drafts/{id}/source-inspection` | access + clientId | - | 200 · AuthorSourceInspectionResponse | §21 |
 | GET | `/api/v1/drafts/{id}/package` | access + clientId | - | 200 · packageArchive | §21 |

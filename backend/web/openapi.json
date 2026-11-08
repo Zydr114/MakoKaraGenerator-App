@@ -3,8 +3,8 @@
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "info": {
     "title": "MakoKaraGenerator local backend HTTP API",
-    "version": "1.48.0",
-    "description": "冻结合同1.48.0；HTTP协议1，产品0.112.38。只含当前公共HTTP，不含未来功能及私有Worker。与api-contract.md和其固定行为源共同执行。info.version是合同版本，不是产品/HTTP版本。普通响应可忽略未知字段；请求遵守声明字段及业务门禁。"
+    "version": "1.49.0",
+    "description": "冻结合同1.49.0；HTTP协议1，产品0.112.39。只含当前公共HTTP，不含未来功能及私有Worker。与api-contract.md和其固定行为源共同执行。info.version是合同版本，不是产品/HTTP版本。普通响应可忽略未知字段；请求遵守声明字段及业务门禁。"
   },
   "servers": [
     {
@@ -18,9 +18,9 @@
       }
     }
   ],
-  "x-product-version": "0.112.38",
+  "x-product-version": "0.112.39",
   "x-http-protocol-version": "1",
-  "x-source-baseline": "ce57e1a259ba09ee68c1d00074c26d3ffb11aafe",
+  "x-source-baseline": "60393bd6fe7a2e8f33c83d7162f3fe5449c4b4e7",
   "x-behavior-contract": "api-contract.md",
   "x-options": {
     "status": 204,
@@ -1323,6 +1323,84 @@
         "x-receipt-location": "none"
       }
     },
+    "/api/v1/drafts/{id}/package-file-replacement-inspection": {
+      "post": {
+        "operationId": "inspectAuthorPackageFileReplacement",
+        "summary": "只读检查包内图片或字体换成已上传资源",
+        "tags": [
+          "section-21"
+        ],
+        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §21。 只读POST，无回执；锁内核对owner、草稿CAS与保留修订，解码在锁外。path须是该修订里role为image或font的文件；新文件须同一格式（图片按编码，字体按TrueType/OpenType/集合文件头）并通过完整解码或字体加载。目标不对invalidRequest/AuthorReplacementTargetInvalid field=path；格式不同AuthorReplacementFormatMismatch、字体无法加载AuthorReplacementFontInvalid、图片PackageImageDecodeFailed/PackageImageBudgetExceeded、单文件超预算PackageFileBudgetExceeded，field=assetId；资源不存在/过期/非本客户端沿资源错误。请求JSON超过64KiB为413。",
+        "x-behavior-section": "21",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^draft-[0-9a-f]{32}$"
+            },
+            "description": "采用服务返回的实际身份；不可由数组下标或本机路径推导。"
+          },
+          {
+            "$ref": "#/components/parameters/HostInstance"
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "统一BackendErrorResponse。HTTP状态/code映射及端点主要拒绝见行为§1.4与对应章节；不是RFC Problem Details。已开始的SSE/字节流若中断不保证还能返回JSON。",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackendErrorResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "成功；任务state及失败报告仍须检查。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorPackageFileReplacementInspectionResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-capability": "author.drafts.package-files.replace",
+        "x-author-replacement-limits": {
+          "roles": [
+            "image",
+            "font"
+          ],
+          "sameFormat": true,
+          "maxRequestBytes": 65536,
+          "maxFileBytes": 67108864,
+          "warningsBlockSave": false
+        },
+        "x-query-policy": {
+          "allowUnknown": false,
+          "allPresentExactlyOnce": true,
+          "caseSensitiveNames": true,
+          "required": [],
+          "allowed": []
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthorPackageFileReplacementInspectionRequest"
+              }
+            }
+          }
+        },
+        "x-receipt-location": "none"
+      }
+    },
     "/api/v1/drafts/{id}/package-files": {
       "get": {
         "operationId": "readAuthorPackageFiles",
@@ -1413,7 +1491,7 @@
         "tags": [
           "section-21"
         ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §21。 完整csharp/shader/shaderProgram/graph/svg/svgResource文本集合与manifest原子保存；图片、字体等非文本原始字节保持固定。可选configuration绑定新修订；结构/配置失败不发布。保存不代表编译或渲染通过。 SDK2只推进候选currentSourceRevision；可选configuration仍按当前在用源码验证。跨schema迁移须先编译目标修订，再在adopt-source-revision提交完整configuration；SDK1保持原规则。",
+        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §21。 完整csharp/shader/shaderProgram/graph/svg/svgResource文本集合与manifest原子保存；图片、字体等非文本原始字节保持固定。可选configuration绑定新修订；结构/配置失败不发布。保存不代表编译或渲染通过。 SDK2只推进候选currentSourceRevision；可选configuration仍按当前在用源码验证。跨schema迁移须先编译目标修订，再在adopt-source-revision提交完整configuration；SDK1保持原规则。 能力author.drafts.package-files.replace存在时可选replacedFiles整份替换基准修订（baseSourceRevision，省略为最新）里的图片或字体，校验同替换检查；失败field为replacedFiles[i].path或replacedFiles[i].assetId，不发布修订。",
         "x-behavior-section": "21",
         "parameters": [
           {
@@ -12565,6 +12643,116 @@
         ],
         "x-clr-type": "MakoKaraGenerator.Backend.Contracts.AuthorPackageFileDto"
       },
+      "AuthorPackageFileReplacementDtoInput": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "assetId": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        },
+        "required": [
+          "path",
+          "assetId"
+        ],
+        "additionalProperties": false,
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.AuthorPackageFileReplacementDto"
+      },
+      "AuthorPackageFileReplacementInspectionRequest": {
+        "type": "object",
+        "properties": {
+          "expectedDraftRevision": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "sourceRevision": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "assetId": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        },
+        "required": [
+          "expectedDraftRevision",
+          "sourceRevision",
+          "path",
+          "assetId"
+        ],
+        "additionalProperties": false,
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.AuthorPackageFileReplacementInspectionRequest",
+        "description": "只读检查：sourceRevision里的path换成assetId会怎样；与保存同一套校验，不改变草稿、不创建资源。"
+      },
+      "AuthorPackageFileReplacementInspectionResponse": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string",
+            "pattern": "^draft-[0-9a-f]{32}$"
+          },
+          "draftRevision": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "sourceRevision": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "path": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "image",
+              "font"
+            ]
+          },
+          "current": {
+            "$ref": "#/components/schemas/AuthorPackageResourceInfoDto"
+          },
+          "replacement": {
+            "$ref": "#/components/schemas/AuthorPackageResourceInfoDto"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuthorPackageReplacementWarningDto"
+            },
+            "maxItems": 2
+          },
+          "protocolVersion": {
+            "type": "string",
+            "const": "1"
+          }
+        },
+        "required": [
+          "draftId",
+          "draftRevision",
+          "sourceRevision",
+          "path",
+          "role",
+          "current",
+          "replacement",
+          "warnings",
+          "protocolVersion"
+        ],
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.AuthorPackageFileReplacementInspectionResponse",
+        "description": "原文件与新文件的格式、大小、摘要，以及图片宽高或字体家族名；warnings只是提醒，不阻止保存。"
+      },
       "AuthorPackageFilesRequest": {
         "type": "object",
         "properties": {
@@ -12596,6 +12784,32 @@
           },
           "metadata": {
             "$ref": "#/components/schemas/RequestMetadataDtoInput"
+          },
+          "replacedFiles": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AuthorPackageFileReplacementDtoInput"
+                },
+                "description": "整份替换基准修订里的图片或字体；每个path最多一次，新字节取自本客户端上传且未过期的资源。省略/null/空数组不替换。"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "baseSourceRevision": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "不可编辑文件取自的保留修订（编辑器所看的修订）；省略/null为当前最新修订。须属于此草稿保留历史，否则404。"
           }
         },
         "required": [
@@ -12605,7 +12819,8 @@
           "metadata"
         ],
         "additionalProperties": false,
-        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.AuthorPackageFilesRequest"
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.AuthorPackageFilesRequest",
+        "description": "manifestJson里非文本文件的path/role/sha256须与基准修订一致；replacedFiles列出的图片或字体换成新字节，清单sha256由服务重算。新文件须与原文件同一格式并通过与渲染相同的解码或字体加载；尺寸、家族名变化不阻止保存。"
       },
       "AuthorPackageFilesResponse": {
         "type": "object",
@@ -12672,6 +12887,72 @@
           "sourceRevision"
         ],
         "additionalProperties": false
+      },
+      "AuthorPackageReplacementWarningDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "imageSizeChanged",
+              "fontFamilyChanged"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.AuthorPackageReplacementWarningDto"
+      },
+      "AuthorPackageResourceInfoDto": {
+        "type": "object",
+        "properties": {
+          "format": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+$",
+            "description": "图片为Skia识别的编码名小写（png、jpeg、webp等）；字体为truetype、opentype、collection。"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "maximum": 9223372036854775807
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "width": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "height": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "familyNames": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          }
+        },
+        "required": [
+          "format",
+          "sizeBytes",
+          "sha256"
+        ],
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.AuthorPackageResourceInfoDto",
+        "description": "图片带width/height，字体带familyNames（去重、按出现顺序）；另一类字段省略。"
       },
       "AuthorPackageTextFileDtoInput": {
         "type": "object",

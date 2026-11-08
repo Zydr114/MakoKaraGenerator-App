@@ -13,6 +13,7 @@ from render_backend_schema import extend as extend_render_backends, configure as
 from w8_authoring_schema import extend as extend_w8_authoring, configure as configure_w8_authoring
 from author_metadata_schema import extend as extend_author_metadata, configure as configure_author_metadata
 from preview_inspection_schema import extend as extend_preview_inspection, configure as configure_preview_inspection
+from author_replacement_schema import extend as extend_author_replacement, configure as configure_author_replacement
 from p1p2_runtime_schema import extend as extend_p1p2_runtime, configure as configure_p1p2_runtime, VIDEO_MIMES
 from package_preview_schema import extend_package_preview_schemas, LIMITS as PACKAGE_PREVIEW_LIMITS
 from project_image_preview_schema import extend_project_image_preview_schemas, configure_project_image_preview_operation
@@ -28,10 +29,10 @@ from static_style_schema import extend_static_style_schemas, style_query_paramet
 from template_library_schema import extend_template_library_schemas, query_parameters as template_query_parameters, LIMITS as TEMPLATE_LIMITS
 
 ROOT = Path(__file__).resolve().parents[2]
-CONTRACT = "1.48.0"
-BASELINE = "ce57e1a259ba09ee68c1d00074c26d3ffb11aafe"
+CONTRACT = "1.49.0"
+BASELINE = "60393bd6fe7a2e8f33c83d7162f3fe5449c4b4e7"
 PRODUCT = re.search(r"<VersionPrefix>([^<]+)</VersionPrefix>", (ROOT / "Directory.Build.props").read_text()).group(1)
-FREEZE_DATE = "2026-11-07"
+FREEZE_DATE = "2026-11-08"
 BEHAVIOR = "docs/architecture/backend-api.md"
 TOOL = Path(__file__).resolve().parent
 
@@ -137,6 +138,7 @@ GET|/api/v1/profile/author-drafts|readProfileAuthorDrafts|-|ProfileAuthorDraftLi
 POST|/api/v1/profile/author-drafts/{id}/claim|claimAuthorDraft|AuthorDraftClaimRequest|AuthorDraftClaimResponse|200|21|按内容及所有权修订显式认领可恢复草稿
 GET|/api/v1/drafts/{id}/package-files|readAuthorPackageFiles|-|AuthorPackageFilesResponse|200|21|读取固定包清单与可编辑文本文件
 PUT|/api/v1/drafts/{id}/package-files|saveAuthorPackageFiles|AuthorPackageFilesRequest|AuthorDraftResponse|200|21|原子保存完整包文本及可选配置
+POST|/api/v1/drafts/{id}/package-file-replacement-inspection|inspectAuthorPackageFileReplacement|AuthorPackageFileReplacementInspectionRequest|AuthorPackageFileReplacementInspectionResponse|200|21|只读检查包内图片或字体换成已上传资源
 GET|/api/v1/drafts/{id}/source-revisions|readAuthorSourceRevisions|-|AuthorSourceRevisionsResponse|200|21|分页读取保留修订与保存时间编译摘要
 GET|/api/v1/drafts/{id}/source-inspection|inspectAuthorSource|-|AuthorSourceInspectionResponse|200|21|只读检查作者保留的精确源码声明
 GET|/api/v1/drafts/{id}/package|downloadAuthorPackage|-|packageArchive|200|21|按精确草稿与源码修订下载效果包
@@ -432,6 +434,7 @@ def generate(metadata):
         configure_w8_authoring(op, item)
         configure_author_metadata(op, item)
         configure_preview_inspection(op, item)
+        configure_author_replacement(op, item)
         if request == "upload":
             for h in ("X-Mako-Request-Id", "X-Mako-Host-Instance-Id", "X-Mako-Valid-Until-Utc"):
                 op["parameters"] = [p for p in op["parameters"] if not (h == "X-Mako-Host-Instance-Id" and p.get("$ref", "").endswith("/HostInstance"))]
@@ -444,7 +447,7 @@ def generate(metadata):
         elif request != "-":
             body_schema = schema_for(request, "request")
             op["requestBody"] = {"required": True, "content": {"application/json": {"schema": body_schema}}}
-            op["x-receipt-location"] = "none" if request in ("ClientRegistrationRequest", "SceneMeasurementRequest", "LyricsImportPlanRequest", "FontInspectRequest", "EffectPackageInspectRequest", "TemplatePreviewOptionsRequest") else "body" if request in ("ProjectCommandRequest", "RequestMetadataDto") else "metadata"
+            op["x-receipt-location"] = "none" if request in ("ClientRegistrationRequest", "SceneMeasurementRequest", "LyricsImportPlanRequest", "FontInspectRequest", "EffectPackageInspectRequest", "TemplatePreviewOptionsRequest", "AuthorPackageFileReplacementInspectionRequest") else "body" if request in ("ProjectCommandRequest", "RequestMetadataDto") else "metadata"
         else:
             op["x-receipt-location"] = "none"
         paths.setdefault(path, {})[method.lower()] = op
@@ -982,6 +985,7 @@ def generate(metadata):
     extend_w8_authoring(schemas, metadata)
     extend_author_metadata(schemas, metadata)
     extend_preview_inspection(schemas, metadata)
+    extend_author_replacement(schemas, metadata)
 
     # GPU streams use a smaller device pool than ordinary PNG previews.
     schemas["GpuPreviewSizeInput"] = copy.deepcopy(schemas["PreviewSizeDtoInput"])
@@ -1716,6 +1720,21 @@ def manifest(outputs):
         if not source.is_file():
             raise ValueError("Missing reviewed media feature behavior source: " + filename)
         files.add(source)
+    # 1.49.0 author replacement: Host inspection/save seams, the shared
+    # image/font checks and the Skia font family reader.
+    for filename in (
+            "src/MakoKaraGenerator.Backend.Contracts/BackendAuthorPackageFilesContracts.cs",
+            "src/MakoKaraGenerator.Backend.Hosting/ProjectSessionRegistry.AuthorPackageFiles.cs",
+            "src/MakoKaraGenerator.Backend.Hosting/ProjectSessionRegistry.AuthorPackageReplacement.cs",
+            "src/MakoKaraGenerator.Runtime.Hosting/Authoring/PackageAuthorReplacementInspector.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/PackageImageValidator.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaTextLayoutEngine.cs",
+            "src/MakoKaraGenerator.Backend.Server/ServerEndpoints.AuthorPackageFiles.cs",
+    ):
+        source = ROOT / filename
+        if not source.is_file():
+            raise ValueError("Missing reviewed author replacement behavior source: " + filename)
+        files.add(source)
     # 1.48.0 per-frame inspection: projection builder, single-frame capture,
     # Worker flag/result, Host retention and the read endpoint.
     for filename in (
@@ -1739,7 +1758,7 @@ def manifest(outputs):
     files.update(p for p in TOOL.iterdir() if p.is_file())
     return {"contractVersion": CONTRACT, "httpProtocolVersion": "1", "productVersion": PRODUCT, "sourceBaselineCommit": BASELINE,
             "frozenOn": FREEZE_DATE, "status": "frozen", "behaviorSource": BEHAVIOR,
-            "scope": "Implemented public HTTP API with owner-only exact retained-source inspection and optional complete configuration adoption. The Host media feature track publishes project.mediaFeaturesChanged without changing revision, fixes media input per run (preview waits for checks, validation/export for complete artifacts) and pins transparent output to NoMedia. Preview frames may opt in to a read-only inspection projection (geometry, cursors, particle anchors, effect catalog and single-frame cost) built from the same prepared frame, retained with the frame and read separately; PNG and export are unchanged. The inspection response is independent and reference-free; public package reference kinds remain asset/library/configuration. Adoption validates the exact successful source and complete target configuration before one document publication. SDK2 graph bindings, per-target material uniforms/base materials, exact source-group admission and scene composition/capture/budgets are fingerprinted together with Warp/SVG, particles, GPU and existing preview/export lifecycles; their finite boundaries remain. Generated contract, regression, matched deployment, fresh HTTP/GPU frames, browser and performance acceptance require separate evidence.",
+            "scope": "Implemented public HTTP API with owner-only exact retained-source inspection and optional complete configuration adoption. The Host media feature track publishes project.mediaFeaturesChanged without changing revision, fixes media input per run (preview waits for checks, validation/export for complete artifacts) and pins transparent output to NoMedia. Preview frames may opt in to a read-only inspection projection (geometry, cursors, particle anchors, effect catalog and single-frame cost) built from the same prepared frame, retained with the frame and read separately; PNG and export are unchanged. Author drafts may replace an image or font file whole with an uploaded asset of the same format after full decode/font load, taking fixed files from an explicit retained base revision; size and family-name changes only warn. The inspection response is independent and reference-free; public package reference kinds remain asset/library/configuration. Adoption validates the exact successful source and complete target configuration before one document publication. SDK2 graph bindings, per-target material uniforms/base materials, exact source-group admission and scene composition/capture/budgets are fingerprinted together with Warp/SVG, particles, GPU and existing preview/export lifecycles; their finite boundaries remain. Generated contract, regression, matched deployment, fresh HTTP/GPU frames, browser and performance acceptance require separate evidence.",
             "files": {str(p.relative_to(ROOT)): sha(p.read_bytes()) for p in sorted(files)},
             "artifacts": {name: sha(data) for name, data in sorted(outputs.items())},
             "guards": "Source hashes require review even for behavior-preserving changes. They are drift alarms, not semantic proofs. Runtime/Media behavior still requires existing regression tests."}
@@ -1765,15 +1784,16 @@ def main():
     from gpu_stream_fixtures import append_to as append_gpu_stream
     from author_metadata_fixtures import append_to as append_author_metadata, PREFIX as AUTHOR_METADATA_PREFIX
     from preview_inspection_fixtures import append_to as append_preview_inspection, PREFIX as PREVIEW_INSPECTION_PREFIX
+    from author_replacement_fixtures import append_to as append_author_replacement, PREFIX as AUTHOR_REPLACEMENT_PREFIX
     from glow_style_fixtures import fixtures as glow_fixtures, migrate_legacy_cases as migrate_glow
     existing_examples = json.loads((ROOT / "web/examples.json").read_text())
     existing_examples["cases"] = [case for case in existing_examples["cases"]
-        if not case["name"].startswith((AUTHOR_METADATA_PREFIX, PREVIEW_INSPECTION_PREFIX))]
+        if not case["name"].startswith((AUTHOR_METADATA_PREFIX, PREVIEW_INSPECTION_PREFIX, AUTHOR_REPLACEMENT_PREFIX))]
     existing_examples["cases"] = migrate_glow([case for case in existing_examples["cases"] if not case["name"].startswith("glow-")], upgrade=False)
     existing_examples["cases"] = [case for case in existing_examples["cases"] if not case["name"].startswith(W8_PREFIX)]
     example_document = append_gpu_stream(append_w8(append_to(existing_examples)))
     example_document["cases"] = migrate_glow(example_document["cases"]) + glow_fixtures()
-    example_document = append_preview_inspection(append_author_metadata(example_document))
+    example_document = append_author_replacement(append_preview_inspection(append_author_metadata(example_document)))
     example_document["contractVersion"] = CONTRACT
     examples = encoded(example_document)
     outputs = {"web/openapi.json": encoded(spec), "web/api-index.md": inventory(spec, operations), "web/api-contract.md": (ROOT / "web/api-contract.md").read_bytes(), "web/examples.json": examples}

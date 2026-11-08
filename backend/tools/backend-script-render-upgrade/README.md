@@ -147,3 +147,18 @@ PNG2/255与编码稳定内点12/255分开，完整RGBA重复/重开逐字节；�
 48帧透明ProRes终态及全部解码均在新隔离profile执行，扫描凭证并按所属PID/startTicks排水。
 实际family选择及CPU全图oracle由`M09ResourceRuntimeTests`单独核对，不能仅凭HTTP保存了
 fontFamilyName就认定字体生效；PNG与编码容差沿图工具分别记录。无跨平台或性能结论。
+
+## M12 HTTP 性能矩阵
+
+`m12_http_probe.py --dist <匹配发布> --output <新证据目录> --mode seek|export|author [--samples t01|名1,名2]`
+复用 M11 复杂样式探针与模板流程，在新隔离 profile 中按模式测量：
+
+- `seek`：`near`（8 秒工程，0.5/1/2/3 秒）与 `180s`/`360s`（0.5 秒↔远端交替）场景，每行逐行应用模板，
+  记录首帧与重复的 readyMs、下载完成 ms，`--count` 为每场景轮数。
+- `export`：GPU `opaqueMp4` 无音轨导出 `--export-seconds` 秒 × `--export-rounds` 轮，记录墙钟、fps 与 ms/帧。
+- `author`：WordEmphasis 作者草稿的参数修改、源码修改（编译＋采用）、已编译修订互换到匹配帧的分段与总耗时。
+
+后台线程每 0.5 秒按所属 PID/startTicks 采样 Server/Worker 的 RSS、FD 与 DRM VRAM/GTT 写入 `resources.jsonl`，
+按场景汇总峰值与首末值。`--telemetry summary|detailed` 打开 Worker 性能遥测并从 server.log 解析
+`telemetry.jsonl` 与按窗口、按尺寸的分项统计；detailed 约有一成开销，计时轮次应使用默认 `off`。
+结论只对应当前机器状态，不构成跨平台或门槛结论；门槛由用户按实测确认。

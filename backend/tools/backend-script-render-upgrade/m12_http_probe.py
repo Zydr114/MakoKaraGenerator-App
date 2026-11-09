@@ -408,7 +408,8 @@ class M12Probe(m11.M11ComplexProbe):
             self.begin("author-parameter")
             parameters = json.loads(draft["configuration"]["parametersJson"])
             for index in range(self.args.count):
-                parameters["peakScale"] = round(1.3 + 0.1 * index, 2)
+                # 清单区间 1～4：在 1.3～3.7 间循环，相邻两次总不相同，次数超过 25 也不越界。
+                parameters["peakScale"] = round(1.3 + 0.1 * (index % 25), 2)
                 name = f"author-parameter-{index + 1:02d}"
                 started = time.monotonic_ns()
                 configuration = {key: draft["configuration"].get(key) for key in ("name", "packageId", "sourceRevision", "exportId",

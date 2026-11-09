@@ -1,8 +1,9 @@
 // P3 GPU 流的 SDK2 内容：经生产界面在样式库建一个含 SDK2 效果的行模板，再在外观页一次应用到全部歌词行。
-// 只用界面操作与文件输入，不读取凭证、不直接发 HTTP；包取本仓库 backend/samples/ScriptEffectsV2 并校验清单 SHA。
+// 只用界面操作与文件输入，不读取凭证、不直接发 HTTP；包取本仓库 backend/samples/ScriptEffectsV2 或
+// backend/tests/Fixtures/ScriptEffectsV2Perf（M12 测速用测试包）并校验清单 SHA。
 // 材质包与 M12 HTTP 探针一致：全部材质导出按顺序排开，未唱填充用第一个、已唱填充用最后一个。
 import { createHash } from 'node:crypto';
-import { appendFile, readFile, writeFile } from 'node:fs/promises';
+import { access, appendFile, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { zipFiles } from '../frontend/scripts/effect-packages.mjs';
 import { resolveBackendRepo } from '../frontend/scripts/backend-launcher.mjs';
@@ -19,14 +20,52 @@ export function v2SampleNames(value) {
   return names;
 }
 
-/** 把样例目录打成 .mkfx 写到输出目录；字节须与清单 SHA 一致。包须含控制器、图或材质导出。 */
-export async function packV2Samples(output, names) {
+/** --v2-params：逗号分隔、不重复的「参数=数值」，打包时改所选包里同名数值参数的默认值。 */
+export function v2ParamOverrides(value) {
+  const overrides = {};
+  for (const item of value === undefined ? [] : value.split(',')) {
+    const match = /^([A-Za-z][A-Za-z0-9]{0,63})=(-?\d+(?:\.\d+)?)$/.exec(item);
+    if (!match || Object.hasOwn(overrides, match[1])) fail('--v2-params 须为逗号分隔、不重复的 参数=数值');
+    overrides[match[1]] = Number(match[2]);
+  }
+  return overrides;
+}
+
+const PACKAGE_SOURCES = { samples: ['samples', 'ScriptEffectsV2'], 'perf-fixtures': ['tests', 'Fixtures', 'ScriptEffectsV2Perf'] };
+
+/** 包目录须恰好出现在样例与测速夹具两处之一，同名时报错而不是择一。 */
+async function packageRoot(name) {
+  const found = [];
+  for (const [source, parts] of Object.entries(PACKAGE_SOURCES)) {
+    const root = join(resolveBackendRepo(), ...parts, name);
+    if (await access(join(root, 'manifest.json')).then(() => true, () => false)) found.push({ source, root });
+  }
+  if (found.length !== 1) fail(`${name} 须恰好在样例或测速夹具目录之一（找到 ${found.length} 处）`);
+  return found[0];
+}
+
+/**
+ * 把包目录打成 .mkfx 写到输出目录；文件字节须与清单 SHA 一致。包须含控制器、图或材质导出。
+ * overrides 改清单里同名数值参数的默认值（须在其范围内），每个覆盖至少要被一个包用到；清单本身不在 SHA 闭包内。
+ */
+export async function packV2Samples(output, names, overrides = {}) {
   const packages = [];
+  const used = new Set();
   for (const name of names) {
-    const root = join(resolveBackendRepo(), 'samples', 'ScriptEffectsV2', name);
-    const raw = await readFile(join(root, 'manifest.json'));
+    const { source, root } = await packageRoot(name);
+    let raw = await readFile(join(root, 'manifest.json'));
     const manifest = JSON.parse(raw.toString('utf8'));
     if (manifest.packageVersion !== 3 || !String(manifest.sdkVersion).startsWith('2.')) fail(`${name} 不是 package3/SDK2`);
+    const parameterOverrides = {};
+    for (const [id, value] of Object.entries(overrides)) {
+      const parameter = manifest.parameters.find((item) => item.id === id);
+      if (!parameter) continue;
+      if (parameter.type !== 'number' || value < parameter.min || value > parameter.max) fail(`${name}.${id} 不是数值参数或 ${value} 超出 ${parameter.min}～${parameter.max}`);
+      parameter.default = value;
+      parameterOverrides[id] = value;
+      used.add(id);
+    }
+    if (Object.keys(parameterOverrides).length > 0) raw = Buffer.from(JSON.stringify(manifest, null, 2) + '\n', 'utf8');
     const files = [];
     for (const entry of manifest.files) {
       const data = await readFile(join(root, entry.path));
@@ -39,9 +78,11 @@ export async function packV2Samples(output, names) {
     const archive = zipFiles([{ name: 'manifest.json', data: raw }, ...files]);
     const path = join(output, `v2-${name}.mkfx`);
     await writeFile(path, archive, { mode: 0o600 });
-    packages.push({ name, path, packageId: manifest.packageId, packageName: manifest.name, effects: effects.map((item) => ({ id: item.id, name: item.name })),
-      materials: materials.map((item) => ({ id: item.id, name: item.name })), archiveSha256: createHash('sha256').update(archive).digest('hex') });
+    packages.push({ name, source, path, packageId: manifest.packageId, packageName: manifest.name, effects: effects.map((item) => ({ id: item.id, name: item.name })),
+      materials: materials.map((item) => ({ id: item.id, name: item.name })), parameterOverrides, archiveSha256: createHash('sha256').update(archive).digest('hex') });
   }
+  const unused = Object.keys(overrides).filter((id) => !used.has(id));
+  if (unused.length > 0) fail(`--v2-params 里的 ${unused.join('、')} 没有任何所选包声明`);
   return packages;
 }
 
@@ -108,11 +149,11 @@ export function materialSlotPlan(packages) {
 }
 
 /** 样式库复制“经典整行”，导入各包、逐个加效果并填好材质部位后保存；外观页 Shift 选中全部行一次应用。 */
-export async function applyV2Template(page, output, names, lineCount) {
-  return withFailureEvidence(page, output, () => buildAndApply(page, output, names, lineCount));
+export async function applyV2Template(page, output, names, lineCount, overrides = {}) {
+  return withFailureEvidence(page, output, () => buildAndApply(page, output, names, lineCount, overrides));
 }
 
-async function buildAndApply(page, output, names, lineCount) {
+async function buildAndApply(page, output, names, lineCount, overrides) {
   // 每步耗时写到 v2-content-steps.jsonl，便于定位慢步骤；只在计时阶段之前。
   let mark = Date.now();
   const step = async (label) => {
@@ -120,7 +161,7 @@ async function buildAndApply(page, output, names, lineCount) {
     await appendFile(join(output, 'v2-content-steps.jsonl'), JSON.stringify({ step: label, ms: now - mark, at: new Date(now).toISOString() }) + '\n');
     mark = now;
   };
-  const packages = await packV2Samples(output, names);
+  const packages = await packV2Samples(output, names, overrides);
   const name = `P3 SDK2 ${names.join('+')}`;
   const started = Date.now();
   await shell.goto(page, 'library');
@@ -222,7 +263,8 @@ async function buildAndApply(page, output, names, lineCount) {
   await page.waitFor(`${revision} === ${before + 1}`, `应用「${name}」到 ${lineCount} 行`, 120_000);
   await step('应用到全部行');
   return { templateName: name, samples: names, appliedLines: lineCount, projectRevision: before + 1, setupMs: Date.now() - started,
-    packages: packages.map(({ name: sample, packageId, archiveSha256, effects, materials }) => ({ sample, packageId, archiveSha256, exports: effects.map((item) => item.id), materials: materials.map((item) => item.id) })),
+    packages: packages.map(({ name: sample, source, packageId, archiveSha256, effects, materials, parameterOverrides }) => ({ sample, source, packageId, archiveSha256,
+      exports: effects.map((item) => item.id), materials: materials.map((item) => item.id), parameterOverrides })),
     materialSlots: Object.fromEntries(materialSlotPlan(packages).map((item) => [item.slot, `${item.packageId}/${item.id}`])),
     boundary: 'Template built and applied through production UI before timing; setup time is not part of any interaction metric.' };
 }

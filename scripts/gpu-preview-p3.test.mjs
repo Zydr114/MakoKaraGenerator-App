@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { analyze, leaseKey, percentile, slidingWindows, ozoneArguments, parseSchedulerStat, auditPipelineScheduler, currentCompletedFrames, timedPlan, resolutionCycleQuality } from './gpu-preview-p3.mjs';
-import { materialSlotPlan } from './gpu-preview-v2-content.mjs';
+import { materialSlotPlan, packV2Samples, v2ParamOverrides } from './gpu-preview-v2-content.mjs';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 const N=1_000_000_000n;
 const frame=(seq,time,extra={})=>({streamId:'stream',hostInstanceId:'host',producerEpoch:'1',inputGeneration:'1',consumerEpoch:'1',timelineEpoch:'1',poolGeneration:'1',slotId:seq%3,slotEpoch:String(seq),frameSeq:seq,
@@ -247,4 +250,20 @@ test('material slots use the first and last material export across packages like
 test('resolution recreate always switches away from the last timed phase first',()=>{
   assert.deepEqual([0,1,2].map(index=>resolutionCycleQuality('1440p30',index)),['720p24','1440p30','720p24']);
   assert.deepEqual([0,1,2].map(index=>resolutionCycleQuality('720p24',index)),['1440p30','720p24','1440p30']);
+});
+test('SDK2 packing finds perf fixtures and rewrites declared number defaults only',async()=>{
+  assert.deepEqual(v2ParamOverrides(undefined),{});
+  assert.deepEqual(v2ParamOverrides('blurPx=8,tintAmount=0.5'),{blurPx:8,tintAmount:.5});
+  for(const bad of ['blurPx','blurPx=8,blurPx=4','blurPx=x'])assert.throws(()=>v2ParamOverrides(bad),/参数=数值/);
+  const output=await mkdtemp(join(tmpdir(),'p3-pack-'));
+  try{
+    const [plain,blurred]=[await packV2Samples(output,['MaterialBackdrop']),await packV2Samples(output,['MaterialBackdrop','GraphPassthrough'],{blurPx:8})];
+    assert.equal(plain[0].source,'perf-fixtures');assert.deepEqual(plain[0].parameterOverrides,{});
+    assert.deepEqual(blurred.map(item=>item.parameterOverrides),[{blurPx:8},{}]);
+    assert.notEqual(plain[0].archiveSha256,blurred[0].archiveSha256);
+    assert.equal((await packV2Samples(output,['LineGlitch']))[0].source,'samples');
+    await assert.rejects(packV2Samples(output,['GraphPassthrough'],{blurPx:8}),/没有任何所选包声明/);
+    await assert.rejects(packV2Samples(output,['MaterialBackdrop'],{blurPx:9}),/超出/);
+    await assert.rejects(packV2Samples(output,['NoSuchPackage']),/找到 0 处/);
+  }finally{await rm(output,{recursive:true,force:true});}
 });

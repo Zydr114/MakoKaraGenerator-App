@@ -6,6 +6,8 @@
 // Quiet transport benchmark: node scripts/gpu-preview-p3.mjs --provider synthetic
 // Reanalyze: node scripts/gpu-preview-p3.mjs --analyze .local/gpu-preview-p3/<run>
 // SDK2 content: add --v2-samples t01|<names> [--v2-lines 72] to --finite/--debug; lyrics shrink to N lines every 5 s
+//   names come from backend/samples/ScriptEffectsV2 or backend/tests/Fixtures/ScriptEffectsV2Perf; --v2-params blurPx=8 rewrites package parameter defaults when packing.
+// Background image: --background-image <png> uploads it through project settings before SDK2 content (default: solid colour only).
 // and a UI-built SDK2 line template is applied to all of them before any timed phase.
 // G1 targets: add --phases 720p24 --measure-seconds 60 to --finite/--debug (phase subset and per-phase timing; formal runs keep the full matrix).
 // --connect reuses an explicitly CDP-enabled App without owning its shutdown.
@@ -20,7 +22,7 @@ import { release, platform, arch } from 'node:os';
 import { Cdp, Page } from '../frontend/scripts/cdp.mjs';
 import { shell, ui } from '../frontend/scripts/ui-query.mjs';
 import { verifyDesktopDeployment } from './desktop-build.mjs';
-import { applyV2Template, v2SampleNames } from './gpu-preview-v2-content.mjs';
+import { applyV2Template, v2ParamOverrides, v2SampleNames } from './gpu-preview-v2-content.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const NS = 1_000_000_000n;
@@ -386,6 +388,17 @@ const QUALITY_LABEL={'720p24':'720p · 24 fps','1440p30':'1440p · 30 fps'};
 async function setQuality(page,name) {
   await ui.choose(page,'GPU 预览规格',QUALITY_LABEL[name]);
 }
+/** 工程设置里经「选择图片或视频…」上传背景图片（只读取该文件），等缩略图出现后关闭面板；在计时与 SDK2 内容之前。 */
+async function setBackgroundImage(page,path) {
+  const bytes=await readFile(path);
+  await ui.click(page,'button','工程设置',{scope:'.app-bar'});
+  await page.waitFor(`!!document.querySelector('.project-settings:not([data-exiting])')`,'Project settings open');
+  await ui.setFile(page,'选择图片或视频…',path);
+  await page.waitFor(`!!document.querySelector('img.background-thumb')`,'Background image thumbnail',60_000);
+  await ui.click(page,'button','关闭工程设置');
+  await page.waitFor(`!document.querySelector('.project-settings')`,'Project settings closed');
+  return {kind:'image',path,sizeBytes:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex'),setBefore:'SDK2 content and all timed phases'};
+}
 export async function createProject(page,fixture) {
   await shell.newProject(page,{audio:fixture.audio,lyrics:fixture.lyrics,name:'P3 GPU production benchmark'});
   await shell.goto(page,'orchestration');
@@ -429,6 +442,10 @@ async function run(values) {
   const v2Lines=v2Names?Number(values['v2-lines']??'72'):null;
   invariant(!v2Names||(Number.isSafeInteger(v2Lines)&&v2Lines>=2&&v2Lines<=360),'--v2-lines must be 2..360');
   invariant(!v2Names||((values.debug||values.finite)&&!values['reuse-project']&&values.provider==='runtime'),'--v2-samples needs --debug/--finite, a new project and the runtime provider');
+  const v2Params=v2ParamOverrides(values['v2-params']);
+  invariant(!values['v2-params']||v2Names,'--v2-params needs --v2-samples');
+  const backgroundImage=values['background-image']?resolve(values['background-image']):null;
+  invariant(!backgroundImage||(/\.png$/i.test(backgroundImage)&&!values['reuse-project']&&(values.debug||values.finite)),'--background-image needs a .png, a new project and --debug/--finite');
   const sessionName=values.connect?null:(values['session-name']??`p3-${new Date().toISOString().replaceAll(/[^0-9TZ]/g,'').toLowerCase()}`);
   if(sessionName!==null)invariant(/^[a-z0-9][a-z0-9-]{0,63}$/.test(sessionName),'Invalid isolated desktop session name');
   const output=resolve(values.output??join(ROOT,'.local/gpu-preview-p3',new Date().toISOString().replaceAll(':','-')));
@@ -561,9 +578,10 @@ async function run(values) {
     manifest.schedulerBaseline.initialOwnedProcesses=await processSnapshot(initial);
     manifest.concurrentAppObservation=await concurrentAppEvidence(initial.mainPid);
     if(!values['reuse-project'])manifest.fixture=await makeFixtures(output,v2Lines??360).then(async fixture=>{await createProject(page,fixture);return fixture;});
+    if(!values['reuse-project'])manifest.background=backgroundImage?await setBackgroundImage(page,backgroundImage):{kind:'solid'};
     if(v2Names){
       // SDK2 内容在计时前经界面建模板并应用到全部行；之后回到编排页重新等 GPU 预览就绪。
-      manifest.v2Content=await applyV2Template(page,output,v2Names,v2Lines);
+      manifest.v2Content=await applyV2Template(page,output,v2Names,v2Lines,v2Params);
       const appliedAt=Date.now();
       await shell.goto(page,'orchestration');
       await ui.wait(page,'select','GPU 预览规格',{what:'Production GPU preview',timeout:180_000});
@@ -728,7 +746,7 @@ async function run(values) {
 }
 async function main() {
   const {values}=parseArgs({options:{'cdp-port':{type:'string',default:'9223'},port:{type:'string',default:'5174'},output:{type:'string'},provider:{type:'string',default:'runtime'},
-    connect:{type:'boolean'},'ordinary-scheduling':{type:'boolean'},'session-name':{type:'string'},'reuse-project':{type:'boolean'},'dry-run':{type:'boolean'},debug:{type:'boolean'},finite:{type:'boolean'},'correctness-snapshot':{type:'boolean'},analyze:{type:'string'},'v2-samples':{type:'string'},'v2-lines':{type:'string'},phases:{type:'string'},'measure-seconds':{type:'string'}}});
+    connect:{type:'boolean'},'ordinary-scheduling':{type:'boolean'},'session-name':{type:'string'},'reuse-project':{type:'boolean'},'dry-run':{type:'boolean'},debug:{type:'boolean'},finite:{type:'boolean'},'correctness-snapshot':{type:'boolean'},analyze:{type:'string'},'v2-samples':{type:'string'},'v2-lines':{type:'string'},'v2-params':{type:'string'},'background-image':{type:'string'},phases:{type:'string'},'measure-seconds':{type:'string'}}});
   invariant(['runtime','synthetic'].includes(values.provider),'provider must be runtime or synthetic');
   if(values.analyze){const directory=resolve(values.analyze);const records=(await readFile(join(directory,'events.jsonl'),'utf8')).trim().split('\n').filter(Boolean).map(line=>JSON.parse(line));
     const manifest=JSON.parse(await readFile(join(directory,'manifest.json'),'utf8'));const report=analyze(records,manifest);

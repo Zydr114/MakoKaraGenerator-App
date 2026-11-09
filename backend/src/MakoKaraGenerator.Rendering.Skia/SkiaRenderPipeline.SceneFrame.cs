@@ -58,7 +58,7 @@ public sealed partial class SkiaRenderPipeline
             if (definition.SourceBinding.RubyId is { } rubyId)
             {
                 var line = sample.Frame.Line!;
-                var style = LyricStyleResolver.Resolve(snapshot.LyricStyle, lineOverride: line.StyleOverride, branchOverride: sample.Branch.StyleOverride).Style;
+                var style = LineBaseStyle(snapshot.LyricStyle, line, sample.Branch);
                 var annotation = line.RubyAnnotations.First(item => item.Id == rubyId);
                 var ruby = GetLineLayout(line, style).Ruby.FirstOrDefault(item => item.Id == annotation.Id);
                 if (ruby is null) continue;

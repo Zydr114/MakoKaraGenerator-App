@@ -1,6 +1,7 @@
 using MakoKaraGenerator.Core.Lyrics;
 using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Core.Time;
+using MakoKaraGenerator.Rendering.Skia;
 
 namespace MakoKaraGenerator.Rendering.Tests;
 
@@ -61,5 +62,29 @@ public sealed class SceneStaticCacheTests
         }
         Assert.NotEqual(SceneContainerGeometryResolver.Resolve(definition, small.Composition)[LyricSceneSampler.SampleFrame(small, 500_000).Lines[0].ParentId].Width,
             SceneContainerGeometryResolver.Resolve(definition, large.Composition)[LyricSceneSampler.SampleFrame(large, 500_000).Lines[0].ParentId].Width);
+    }
+
+    [Fact]
+    public void 行基础样式按行对象记忆_工程样式或分支覆盖变化即重算()
+    {
+        var project = Project.Create("style", Composition.Create(1920, 1080, FrameRate.Fps30), LyricsDocument.Create([Line("line-0", 0)]));
+        var snapshot = ProjectSnapshot.FromProject(project);
+        var branch = snapshot.Lyrics.Branches[0];
+        var larger = snapshot with { LyricStyle = snapshot.LyricStyle with { FontSizePx = snapshot.LyricStyle.FontSizePx * 2 } };
+        var overridden = snapshot with { Lyrics = snapshot.Lyrics with { Branches = [branch with
+            { StyleOverride = new LyricStyleOverride { FontSizePx = snapshot.LyricStyle.FontSizePx * 3 } }] } };
+        // 三个快照共用同一行对象，记忆只能在工程样式与分支覆盖也相同时命中。
+        Assert.Same(branch.Lines[0], larger.Lyrics.Branches[0].Lines[0]);
+        Assert.Same(branch.Lines[0], overridden.Lyrics.Branches[0].Lines[0]);
+        using var pipeline = new SkiaRenderPipeline();
+        double Width(ProjectSnapshot value)
+        {
+            var corners = Assert.Single(pipeline.GetSceneFrame(value, 500_000).Lines).Geometry!.Corners();
+            return corners.Max(static point => point.X) - corners.Min(static point => point.X);
+        }
+        double baseline = Width(snapshot);
+        Assert.Equal(baseline * 2, Width(larger), baseline * 0.2);
+        Assert.Equal(baseline * 3, Width(overridden), baseline * 0.3);
+        Assert.Equal(baseline, Width(snapshot), 1e-6);
     }
 }

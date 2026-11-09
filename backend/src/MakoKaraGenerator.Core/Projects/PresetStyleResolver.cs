@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using MakoKaraGenerator.Core.Effects;
 using MakoKaraGenerator.Core.Lyrics;
@@ -43,6 +44,11 @@ public sealed class PresetStyleResolver
     private readonly LyricStyle _style;
     private readonly PresetApplications _applications;
     private readonly ImmutableDictionary<string, (LyricBranch Branch, LyricLine Line)> _lines;
+    // 解析器只读不可变输入，同一参数的结果恒定：逐帧与每次锚点补算重复解析同一行／文字对象时复用，
+    // 不再逐次叠加各层并分配来源表。上限只防异常的路径组合失控，超出后照常解析不再记忆。
+    private const int MaximumLyricsMemo = 16_384;
+    private readonly ConcurrentDictionary<LyricsKey, PresetStyleResolution> _lyricsMemo = new(LyricsKeyComparer.Instance);
+    private int _lyricsMemoCount;
 
     /// <summary>捕获不可变源引用，不保存另一份编辑工程。</summary>
     public PresetStyleResolver(LyricStyle style, LyricsDocument lyrics, PresetApplications applications)
@@ -61,6 +67,19 @@ public sealed class PresetStyleResolver
         string? clipId = null, IReadOnlyList<string>? nodePath = null)
     {
         if (!_lines.TryGetValue(lineId, out var source)) throw new ArgumentException("歌词行已失效。", nameof(lineId));
+        // 场景路径通常就是不可变数组（拆箱不复制）；其他列表复制一次，记忆键不引用可变输入。
+        var path = nodePath switch { null => default, ImmutableArray<string> array => array, _ => [.. nodePath] };
+        var key = new LyricsKey(lineId, tokenId, clipId, path);
+        if (_lyricsMemo.TryGetValue(key, out var cached)) return cached;
+        var resolved = ResolveLyrics(source, lineId, tokenId, clipId, nodePath);
+        if (Volatile.Read(ref _lyricsMemoCount) < MaximumLyricsMemo && _lyricsMemo.TryAdd(key, resolved))
+            Interlocked.Increment(ref _lyricsMemoCount);
+        return resolved;
+    }
+
+    private PresetStyleResolution ResolveLyrics((LyricBranch Branch, LyricLine Line) source, string lineId, string? tokenId,
+        string? clipId, IReadOnlyList<string>? nodePath)
+    {
         var layers = new Layers(_style, "lyricStyle");
         Apply(layers, new(ProjectEffectBindingKind.Project));
         string branchPath = "lyrics.branches." + source.Branch.Id;
@@ -108,6 +127,31 @@ public sealed class PresetStyleResolver
             var target = new ProjectEffectBinding(ProjectEffectBindingKind.Node, id: path[index]);
             if (_applications.Find(target) is { } application &&
                 (index == path.Count - 1 || application.Target.IncludeDescendants)) Apply(layers, target);
+        }
+    }
+
+    // 路径为 default 表示未给出场景路径，与空路径区分。
+    private readonly record struct LyricsKey(string LineId, string? TokenId, string? ClipId, ImmutableArray<string> Path);
+
+    private sealed class LyricsKeyComparer : IEqualityComparer<LyricsKey>
+    {
+        public static readonly LyricsKeyComparer Instance = new();
+
+        public bool Equals(LyricsKey x, LyricsKey y)
+            => string.Equals(x.LineId, y.LineId, StringComparison.Ordinal) && string.Equals(x.TokenId, y.TokenId, StringComparison.Ordinal)
+                && string.Equals(x.ClipId, y.ClipId, StringComparison.Ordinal)
+                && (x.Path.IsDefault ? y.Path.IsDefault : !y.Path.IsDefault && x.Path.AsSpan().SequenceEqual(y.Path.AsSpan()));
+
+        public int GetHashCode(LyricsKey key)
+        {
+            HashCode hash = new();
+            hash.Add(key.LineId, StringComparer.Ordinal);
+            hash.Add(key.TokenId ?? string.Empty, StringComparer.Ordinal);
+            hash.Add(key.ClipId ?? string.Empty, StringComparer.Ordinal);
+            hash.Add(key.Path.IsDefault ? -1 : key.Path.Length);
+            if (!key.Path.IsDefault)
+                foreach (string id in key.Path) hash.Add(id, StringComparer.Ordinal);
+            return hash.ToHashCode();
         }
     }
 

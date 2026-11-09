@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using MakoKaraGenerator.Core.Projects;
@@ -12,6 +13,30 @@ public static class PresetSceneStyleProjection
     private static readonly ConditionalWeakTable<LyricPresentationDefinition, Dictionary<string, string?>> TreeParents = new();
     private static readonly ConditionalWeakTable<SceneDefinition, Dictionary<string, string?>> DefinitionParents = new();
     private static readonly ConditionalWeakTable<SceneFrame, ParentIndex> FrameParents = new();
+    // 同一解析器下同一源行对象在同一（片段，实际父链）的投影行恒定：逐帧与每次锚点补算复用同一投影行对象，
+    // 免去重复解析与样式复制，也让下游按行对象记忆的测量命中。上限只防异常的路径组合失控。
+    private const int MaximumAppliedLines = 8_192;
+    private sealed class AppliedLineMemo
+    {
+        internal ConcurrentDictionary<AppliedLineKey, Core.Lyrics.LyricLine> Lines { get; } = new(AppliedLineKeyComparer.Instance);
+        internal int Count;
+    }
+    private readonly record struct AppliedLineKey(Core.Lyrics.LyricLine Source, string? ClipId, ImmutableArray<string> Path);
+    private sealed class AppliedLineKeyComparer : IEqualityComparer<AppliedLineKey>
+    {
+        internal static readonly AppliedLineKeyComparer Instance = new();
+        public bool Equals(AppliedLineKey x, AppliedLineKey y) => ReferenceEquals(x.Source, y.Source)
+            && string.Equals(x.ClipId, y.ClipId, StringComparison.Ordinal) && x.Path.AsSpan().SequenceEqual(y.Path.AsSpan());
+        public int GetHashCode(AppliedLineKey key)
+        {
+            HashCode hash = new();
+            hash.Add(RuntimeHelpers.GetHashCode(key.Source));
+            hash.Add(key.ClipId ?? string.Empty, StringComparer.Ordinal);
+            foreach (string id in key.Path) hash.Add(id, StringComparer.Ordinal);
+            return hash.ToHashCode();
+        }
+    }
+    private static readonly ConditionalWeakTable<PresetStyleResolver, AppliedLineMemo> AppliedLines = new();
 
     /// <summary>创建只读源解析器，不生成编辑工程；同一不可变快照复用同一解析器。</summary>
     public static PresetStyleResolver Resolver(ProjectSnapshot snapshot)
@@ -74,25 +99,37 @@ public static class PresetSceneStyleProjection
     {
         if (snapshot.PresetApplications.Items.IsEmpty) return frame;
         var resolver = Resolver(snapshot);
+        var memo = AppliedLines.GetValue(resolver, static _ => new());
         ParentIndex? parents = null;
         return frame with { Lines = [.. frame.Lines.Select(sample =>
         {
             var source = sample.Frame.Line!;
+            if (sample.ExitReplica is { } exit)
+                return sample with { Frame = sample.Frame with { Line = Project(source, tokenId => ExitStyle(exit, tokenId)) } };
             // 同一装载的行与各文字对象共用一条实际父链，每行只求一次。
-            var path = sample.ExitReplica is null ? (parents ??= Parents(snapshot, frame)).Path(sample.ElementId) : default;
-            PresetStyleResolution Resolve(string? tokenId) => sample.ExitReplica is { } exit ? ExitStyle(exit, tokenId)
-                : resolver.ResolveLyrics(source.Id, tokenId, sample.DisplayClipId, path);
-            var lineStyle = Resolve(null).Style;
-            var tokens = source.Tokens.Select(token =>
+            var path = (parents ??= Parents(snapshot, frame)).Path(sample.ElementId);
+            AppliedLineKey key = new(source, sample.DisplayClipId, path);
+            if (!memo.Lines.TryGetValue(key, out var line))
             {
-                var style = Resolve(token.Id).Style;
-                return token with { StyleOverride = style == lineStyle ? null :
-                    StyleBatchEditor.CopyProperties(LyricStyleOverride.Empty, style, TokenStyleSupport.SupportedAtTokenLevel) };
-            }).ToImmutableArray();
-            var line = source with { StyleOverride = StyleBatchEditor.CopyProperties(LyricStyleOverride.Empty,
-                lineStyle, LyricStylePropertyExtensions.All), Tokens = tokens };
+                line = Project(source, tokenId => resolver.ResolveLyrics(source.Id, tokenId, sample.DisplayClipId, path));
+                if (Volatile.Read(ref memo.Count) < MaximumAppliedLines && memo.Lines.TryAdd(key, line))
+                    Interlocked.Increment(ref memo.Count);
+            }
             return sample with { Frame = sample.Frame with { Line = line } };
         })] };
+    }
+
+    private static Core.Lyrics.LyricLine Project(Core.Lyrics.LyricLine source, Func<string?, PresetStyleResolution> resolve)
+    {
+        var lineStyle = resolve(null).Style;
+        var tokens = source.Tokens.Select(token =>
+        {
+            var style = resolve(token.Id).Style;
+            return token with { StyleOverride = style == lineStyle ? null :
+                StyleBatchEditor.CopyProperties(LyricStyleOverride.Empty, style, TokenStyleSupport.SupportedAtTokenLevel) };
+        }).ToImmutableArray();
+        return source with { StyleOverride = StyleBatchEditor.CopyProperties(LyricStyleOverride.Empty,
+            lineStyle, LyricStylePropertyExtensions.All), Tokens = tokens };
     }
 
     private static PresetStyleResolution ExitStyle(ExitReplicaMetadata exit, string? tokenId)

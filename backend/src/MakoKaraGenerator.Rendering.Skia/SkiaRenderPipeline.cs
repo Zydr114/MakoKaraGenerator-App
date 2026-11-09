@@ -393,11 +393,7 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
             return;
         }
 
-        LyricStyle lineStyle = LyricStyleResolver.Resolve(
-            request.Project.LyricStyle,
-            preset: null,
-            lineOverride: line.StyleOverride,
-            branchOverride: scene.Branch.StyleOverride).Style;
+        LyricStyle lineStyle = LineBaseStyle(request.Project.LyricStyle, line, scene.Branch);
 
         lineStyle = StaticStyleProjection.DrawingSeed(lineStyle);
         TextLayoutOptions options = LayoutOptionsFor(lineStyle);

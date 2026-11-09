@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using MakoKaraGenerator.Core.Lyrics;
 using MakoKaraGenerator.Core.Projects;
 
@@ -58,11 +59,29 @@ public sealed partial class SkiaRenderPipeline
         return result;
     }
 
+    // 行基础样式只由工程样式、分支覆盖与不可变行对象决定；源行与预设投影行（按解析器复用）逐帧是同一对象，
+    // 按行对象记忆并以引用核对另两项输入，测量、布局与绘制各处不再重复逐层合并与校验。
+    private sealed class LineBaseStyleMemo(LyricStyle style, LyricStyleOverride? branchOverride, LyricStyle result)
+    {
+        internal LyricStyle Style { get; } = style;
+        internal LyricStyleOverride? BranchOverride { get; } = branchOverride;
+        internal LyricStyle Result { get; } = result;
+    }
+    private static readonly ConditionalWeakTable<LyricLine, LineBaseStyleMemo> LineBaseStyles = new();
+
+    private static LyricStyle LineBaseStyle(LyricStyle style, LyricLine line, LyricBranch branch)
+    {
+        if (LineBaseStyles.TryGetValue(line, out var memo) && ReferenceEquals(memo.Style, style)
+            && ReferenceEquals(memo.BranchOverride, branch.StyleOverride)) return memo.Result;
+        var result = LyricStyleResolver.Resolve(style, lineOverride: line.StyleOverride, branchOverride: branch.StyleOverride).Style;
+        LineBaseStyles.AddOrUpdate(line, new(style, branch.StyleOverride, result));
+        return result;
+    }
+
     private static double SceneDecorationPadding(ProjectSnapshot snapshot, SceneLineSample scene)
     {
         var line = scene.Frame.Line!;
-        var style = LyricStyleResolver.Resolve(snapshot.LyricStyle, lineOverride: line.StyleOverride,
-            branchOverride: scene.Branch.StyleOverride).Style;
+        var style = LineBaseStyle(snapshot.LyricStyle, line, scene.Branch);
         return line.Tokens.Select(token => token.StyleOverride is { } overlay ? ElementPadding(style, overlay) : DecorationExtent(style))
             .Prepend(DecorationExtent(style)).Max();
     }
@@ -70,8 +89,7 @@ public sealed partial class SkiaRenderPipeline
     private LineRenderGeometry? MeasureSceneGeometry(ProjectSnapshot snapshot, SceneLineSample scene, Composition composition, bool includeWorld = false)
     {
         if (scene.Frame.Line is not { } line || string.IsNullOrEmpty(line.Text)) return null;
-        LyricStyle style = LyricStyleResolver.Resolve(snapshot.LyricStyle, lineOverride: line.StyleOverride,
-            branchOverride: scene.Branch.StyleOverride).Style;
+        LyricStyle style = LineBaseStyle(snapshot.LyricStyle, line, scene.Branch);
         var layout = GetLineLayout(line, style);
         var shaped = layout.Shaped;
         return BuildGeometry(line.Id, style, shaped, composition, scene.Placement,

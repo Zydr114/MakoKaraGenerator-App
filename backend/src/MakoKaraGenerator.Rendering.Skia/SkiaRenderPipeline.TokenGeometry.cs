@@ -26,8 +26,7 @@ public sealed partial class SkiaRenderPipeline
         return [.. frame.Lines.Select(sample =>
         {
             var line = sample.Frame.Line!;
-            var style = LyricStyleResolver.Resolve(snapshot.LyricStyle, lineOverride: line.StyleOverride,
-                branchOverride: sample.Branch.StyleOverride).Style;
+            var style = LineBaseStyle(snapshot.LyricStyle, line, sample.Branch);
             ShapedLine shaped = GetLineLayout(line, style).Shaped;
             var geometry = sample.Geometry!; SceneMatrix matrix = geometry.WorldMatrix!.Value;
             Fx.Affine2 world = new(matrix.A, matrix.B, matrix.C, matrix.D, matrix.Tx, matrix.Ty);
@@ -50,8 +49,7 @@ public sealed partial class SkiaRenderPipeline
         {
             var line = sample.Frame.Line!;
             if (line.Tokens.IsEmpty) continue;
-            var style = LyricStyleResolver.Resolve(snapshot.LyricStyle, lineOverride: line.StyleOverride,
-                branchOverride: sample.Branch.StyleOverride).Style;
+            var style = LineBaseStyle(snapshot.LyricStyle, line, sample.Branch);
             var layout = GetLineLayout(line, style);
             ShapedLine shaped = layout.Shaped;
             var lineGeometry = sample.Geometry!;

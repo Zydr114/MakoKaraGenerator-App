@@ -1,0 +1,51 @@
+{
+  "graphVersion": 1,
+  "id": "perf-graph-passthrough",
+  "inputs": [
+    {
+      "id": "original",
+      "source": "TargetColor",
+      "type": "color",
+      "availability": "required",
+      "backgroundRequirement": "none",
+      "space": "canvas",
+      "capture": {
+        "includeRuby": true,
+        "includeStroke": true,
+        "includeShadow": true,
+        "includeDescendantGroups": false,
+        "includeOwnedOverlay": false,
+        "region": "fillAndStroke"
+      }
+    }
+  ],
+  "parameters": [],
+  "nodes": [
+    {
+      "id": "passthrough",
+      "op": "RuntimeShader",
+      "program": "shaders/passthrough.program.json",
+      "children": {
+        "original": "input:original"
+      },
+      "uniforms": {},
+      "outputType": "color",
+      "bounds": {
+        "expandPx": 0,
+        "maxExpandPx": 0,
+        "maxSampleOffsetPx": 0
+      },
+      "edge": "transparent"
+    }
+  ],
+  "output": "node:passthrough",
+  "anchorMode": "ColorOnly",
+  "bounds": {
+    "space": "canvas",
+    "source": "targetRegion",
+    "maxExpandPx": 0
+  },
+  "composite": {
+    "mode": "sourceOver"
+  }
+}

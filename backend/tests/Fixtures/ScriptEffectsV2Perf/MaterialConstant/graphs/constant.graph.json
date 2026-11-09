@@ -1,0 +1,36 @@
+{
+  "graphVersion": 1,
+  "id": "perf-material-constant",
+  "inputs": [],
+  "parameters": [
+    "color"
+  ],
+  "nodes": [
+    {
+      "id": "constant",
+      "op": "RuntimeShader",
+      "program": "shaders/constant.program.json",
+      "children": {},
+      "uniforms": {
+        "color": "parameter:color"
+      },
+      "outputType": "color",
+      "bounds": {
+        "expandPx": 0,
+        "maxExpandPx": 0,
+        "maxSampleOffsetPx": 0
+      },
+      "edge": "transparent"
+    }
+  ],
+  "output": "node:constant",
+  "anchorMode": "ColorOnly",
+  "bounds": {
+    "space": "canvas",
+    "source": "targetRegion",
+    "maxExpandPx": 0
+  },
+  "composite": {
+    "mode": "sourceOver"
+  }
+}

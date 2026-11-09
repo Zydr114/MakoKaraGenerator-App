@@ -1,0 +1,55 @@
+{
+  "graphVersion": 1,
+  "id": "perf-material-coverage",
+  "inputs": [
+    {
+      "id": "coverage",
+      "source": "TargetRegionCoverage",
+      "type": "coverage",
+      "availability": "required",
+      "backgroundRequirement": "none",
+      "space": "canvas",
+      "capture": {
+        "includeRuby": true,
+        "includeStroke": true,
+        "includeShadow": false,
+        "includeDescendantGroups": false,
+        "includeOwnedOverlay": false,
+        "region": "materialRegion"
+      }
+    }
+  ],
+  "parameters": [
+    "color"
+  ],
+  "nodes": [
+    {
+      "id": "coverage-color",
+      "op": "RuntimeShader",
+      "program": "shaders/region-coverage.program.json",
+      "children": {
+        "coverage": "input:coverage"
+      },
+      "uniforms": {
+        "color": "parameter:color"
+      },
+      "outputType": "color",
+      "bounds": {
+        "expandPx": 0,
+        "maxExpandPx": 0,
+        "maxSampleOffsetPx": 0
+      },
+      "edge": "transparent"
+    }
+  ],
+  "output": "node:coverage-color",
+  "anchorMode": "ColorOnly",
+  "bounds": {
+    "space": "canvas",
+    "source": "targetRegion",
+    "maxExpandPx": 0
+  },
+  "composite": {
+    "mode": "sourceOver"
+  }
+}

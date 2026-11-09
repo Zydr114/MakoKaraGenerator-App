@@ -1,0 +1,12 @@
+{
+  "programVersion": 1,
+  "source": "shaders/passthrough.sksl",
+  "profile": "skia-raster-3.119.4-v1",
+  "uniforms": [],
+  "children": [
+    {
+      "name": "original",
+      "type": "color"
+    }
+  ]
+}

@@ -1,0 +1,79 @@
+{
+  "graphVersion": 1,
+  "id": "perf-media-optional",
+  "inputs": [
+    {
+      "id": "coverage",
+      "source": "TargetRegionCoverage",
+      "type": "coverage",
+      "availability": "required",
+      "backgroundRequirement": "none",
+      "space": "canvas",
+      "capture": {
+        "includeRuby": true,
+        "includeStroke": true,
+        "includeShadow": false,
+        "includeDescendantGroups": false,
+        "includeOwnedOverlay": false,
+        "region": "materialRegion"
+      }
+    },
+    {
+      "id": "background",
+      "source": "BackgroundMedia",
+      "type": "color",
+      "availability": "optional",
+      "backgroundRequirement": "media",
+      "space": "canvas"
+    }
+  ],
+  "parameters": [
+    "blurPx",
+    "tint",
+    "tintAmount"
+  ],
+  "nodes": [
+    {
+      "id": "blur",
+      "op": "Blur",
+      "input": "input:background",
+      "sigmaPx": "parameter:blurPx",
+      "bounds": {
+        "expandPx": "ceil(3 * parameter:blurPx)",
+        "maxExpandPx": 24,
+        "maxSampleOffsetPx": 24
+      },
+      "edge": "clamp"
+    },
+    {
+      "id": "tint",
+      "op": "RuntimeShader",
+      "program": "shaders/tint.program.json",
+      "children": {
+        "background": "node:blur",
+        "coverage": "input:coverage"
+      },
+      "uniforms": {
+        "tint": "parameter:tint",
+        "tintAmount": "parameter:tintAmount"
+      },
+      "outputType": "color",
+      "bounds": {
+        "expandPx": 0,
+        "maxExpandPx": 0,
+        "maxSampleOffsetPx": 0
+      },
+      "edge": "transparent"
+    }
+  ],
+  "output": "node:tint",
+  "anchorMode": "ColorOnly",
+  "bounds": {
+    "space": "canvas",
+    "source": "targetRegion",
+    "maxExpandPx": 24
+  },
+  "composite": {
+    "mode": "sourceOver"
+  }
+}

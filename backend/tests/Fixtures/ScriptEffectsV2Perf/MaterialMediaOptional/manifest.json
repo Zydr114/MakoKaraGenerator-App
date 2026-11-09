@@ -1,0 +1,95 @@
+{
+  "packageVersion": 3,
+  "packageId": "makokara.test.perf.material-media-optional",
+  "name": "测试 材质-背景媒体可选",
+  "version": "1.0.0",
+  "sdkVersion": "2.0.0",
+  "shaderProfile": "skia-ganesh-3.119.4-v2",
+  "files": [
+    {
+      "path": "graphs/tint.graph.json",
+      "role": "graph",
+      "sha256": "ddf4d220c9259d8b2bceb2ade0bc1f69e90be32a40ee2224d9135ba488849ffd"
+    },
+    {
+      "path": "shaders/tint.program.json",
+      "role": "shaderProgram",
+      "sha256": "789ee040d4bfa5ab58c28cbf05728a21a397994b1735f8a29d2da53e142e421f"
+    },
+    {
+      "path": "shaders/tint.sksl",
+      "role": "shader",
+      "sha256": "a66d43ba4353832168765b154f9953158916daa1d16af3118c4e440dd85cef31"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "blurPx",
+      "type": "number",
+      "label": "模糊 sigma",
+      "default": 0,
+      "min": 0,
+      "max": 8,
+      "unit": "px"
+    },
+    {
+      "id": "tint",
+      "type": "color",
+      "label": "着色",
+      "default": {
+        "r": 0.95,
+        "g": 0.55,
+        "b": 0.2,
+        "a": 1
+      }
+    },
+    {
+      "id": "tintAmount",
+      "type": "number",
+      "label": "着色比例",
+      "default": 0.35,
+      "min": 0,
+      "max": 1
+    }
+  ],
+  "exports": [
+    {
+      "id": "media-optional",
+      "kind": "material",
+      "name": "背景媒体可选",
+      "graph": "graphs/tint.graph.json",
+      "parameters": [
+        "blurPx",
+        "tint",
+        "tintAmount"
+      ],
+      "regions": [
+        "fill",
+        "stroke"
+      ],
+      "fallback": {
+        "kind": "solid",
+        "color": "#3366CCFF"
+      },
+      "coverageMode": "masked",
+      "outputs": [
+        {
+          "id": "color",
+          "kind": "ImageGraph",
+          "target": "region",
+          "requires": [],
+          "dependsOn": [],
+          "bypass": {
+            "kind": "materialFallback",
+            "mapping": "identity"
+          }
+        }
+      ]
+    }
+  ],
+  "requires": [],
+  "lineExit": {
+    "durationUs": 0
+  },
+  "emitters": []
+}

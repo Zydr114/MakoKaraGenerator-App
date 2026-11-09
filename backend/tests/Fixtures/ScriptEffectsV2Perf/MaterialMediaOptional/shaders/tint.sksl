@@ -1,0 +1,10 @@
+layout(color) uniform float4 tint;
+uniform float tintAmount;
+uniform shader background;
+uniform shader coverage;
+half4 main(float2 p) {
+    float alpha = clamp(float(coverage.eval(p).a), 0.0, 1.0);
+    float4 below = float4(background.eval(p));
+    float4 tinted = mix(below, float4(tint.rgb * tint.a, tint.a), tintAmount);
+    return half4(tinted * alpha);
+}

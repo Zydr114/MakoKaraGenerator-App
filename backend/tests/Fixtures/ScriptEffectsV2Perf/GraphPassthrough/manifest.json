@@ -1,0 +1,58 @@
+{
+  "packageVersion": 3,
+  "packageId": "makokara.test.perf.graph-passthrough",
+  "name": "测试 图-直通",
+  "version": "1.0.0",
+  "sdkVersion": "2.0.0",
+  "shaderProfile": "skia-ganesh-3.119.4-v2",
+  "files": [
+    {
+      "path": "graphs/passthrough.graph.json",
+      "role": "graph",
+      "sha256": "a69b08a95fbddba4de4b10e1d304fe97c0aa10fe2cef4a7789cc40e75842683e"
+    },
+    {
+      "path": "shaders/passthrough.program.json",
+      "role": "shaderProgram",
+      "sha256": "82c261e519d2b088022b529e0933780f49dc636cbb5a9be9e1281e06d0b9b5f7"
+    },
+    {
+      "path": "shaders/passthrough.sksl",
+      "role": "shader",
+      "sha256": "5ef89015cb1c111bc27609af025eaf8d46b2fab24bcd843913202dd05c6d67af"
+    }
+  ],
+  "parameters": [],
+  "exports": [
+    {
+      "id": "passthrough",
+      "kind": "graph",
+      "name": "直通",
+      "graph": "graphs/passthrough.graph.json",
+      "parameters": [],
+      "bindingKinds": [
+        "project",
+        "branch",
+        "lines",
+        "clips",
+        "node"
+      ],
+      "outputs": [
+        {
+          "id": "line-color",
+          "kind": "ImageGraph",
+          "target": "line",
+          "requires": [],
+          "dependsOn": []
+        }
+      ]
+    }
+  ],
+  "requires": [
+    "image.graph"
+  ],
+  "lineExit": {
+    "durationUs": 0
+  },
+  "emitters": []
+}

@@ -1,0 +1,6 @@
+layout(color) uniform float4 color;
+uniform shader coverage;
+half4 main(float2 p) {
+    float alpha = clamp(float(coverage.eval(p).a), 0.0, 1.0) * color.a;
+    return half4(color.rgb * alpha, alpha);
+}

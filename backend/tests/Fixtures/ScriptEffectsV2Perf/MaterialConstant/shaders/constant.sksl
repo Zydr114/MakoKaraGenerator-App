@@ -1,0 +1,4 @@
+layout(color) uniform float4 color;
+half4 main(float2 p) {
+    return half4(color.rgb * color.a, color.a);
+}

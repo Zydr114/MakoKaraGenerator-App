@@ -1,0 +1,4 @@
+uniform shader original;
+half4 main(float2 p) {
+    return original.eval(p);
+}

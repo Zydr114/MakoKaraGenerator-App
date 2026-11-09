@@ -1,0 +1,76 @@
+{
+  "packageVersion": 3,
+  "packageId": "makokara.test.perf.material-constant",
+  "name": "测试 材质-常量色",
+  "version": "1.0.0",
+  "sdkVersion": "2.0.0",
+  "shaderProfile": "skia-ganesh-3.119.4-v2",
+  "files": [
+    {
+      "path": "graphs/constant.graph.json",
+      "role": "graph",
+      "sha256": "3743b0d7d2a3081dcfa6eca1fecf4f6a19685119a7d5f1994ed6c4918dbc4a5b"
+    },
+    {
+      "path": "shaders/constant.program.json",
+      "role": "shaderProgram",
+      "sha256": "4977d5105268ceb8d3ac0621e2b789f8fa78690c0a225315ce77479f8934ae1f"
+    },
+    {
+      "path": "shaders/constant.sksl",
+      "role": "shader",
+      "sha256": "5e4397f749f7b5adddb994cb7e8e12ad78aa7c2d86f7c757db6304ef07b05f41"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "color",
+      "type": "color",
+      "label": "颜色",
+      "default": {
+        "r": 0.95,
+        "g": 0.55,
+        "b": 0.2,
+        "a": 1
+      }
+    }
+  ],
+  "exports": [
+    {
+      "id": "constant",
+      "kind": "material",
+      "name": "常量色",
+      "graph": "graphs/constant.graph.json",
+      "parameters": [
+        "color"
+      ],
+      "regions": [
+        "fill",
+        "stroke"
+      ],
+      "fallback": {
+        "kind": "solid",
+        "color": "#3366CCFF"
+      },
+      "coverageMode": "unmasked",
+      "outputs": [
+        {
+          "id": "color",
+          "kind": "ImageGraph",
+          "target": "region",
+          "requires": [],
+          "dependsOn": [],
+          "bypass": {
+            "kind": "materialFallback",
+            "mapping": "identity"
+          }
+        }
+      ]
+    }
+  ],
+  "requires": [],
+  "lineExit": {
+    "durationUs": 0
+  },
+  "emitters": []
+}

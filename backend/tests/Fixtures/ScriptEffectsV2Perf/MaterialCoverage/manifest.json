@@ -1,0 +1,76 @@
+{
+  "packageVersion": 3,
+  "packageId": "makokara.test.perf.material-coverage",
+  "name": "测试 材质-区域覆盖",
+  "version": "1.0.0",
+  "sdkVersion": "2.0.0",
+  "shaderProfile": "skia-ganesh-3.119.4-v2",
+  "files": [
+    {
+      "path": "graphs/region-coverage.graph.json",
+      "role": "graph",
+      "sha256": "f8722d8d5d1493c17074ac4570db70d86f6a3cede70ea19ba7f655f67a01ab02"
+    },
+    {
+      "path": "shaders/region-coverage.program.json",
+      "role": "shaderProgram",
+      "sha256": "8574f44506f8c2bd6c7b412078826645622b62e2018328324869b2275e2ef651"
+    },
+    {
+      "path": "shaders/region-coverage.sksl",
+      "role": "shader",
+      "sha256": "e309fead950b060919bc5481026389962e454d5d3282cd7f80b6adc03bbd9c99"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "color",
+      "type": "color",
+      "label": "颜色",
+      "default": {
+        "r": 0.95,
+        "g": 0.55,
+        "b": 0.2,
+        "a": 1
+      }
+    }
+  ],
+  "exports": [
+    {
+      "id": "coverage",
+      "kind": "material",
+      "name": "区域覆盖",
+      "graph": "graphs/region-coverage.graph.json",
+      "parameters": [
+        "color"
+      ],
+      "regions": [
+        "fill",
+        "stroke"
+      ],
+      "fallback": {
+        "kind": "solid",
+        "color": "#3366CCFF"
+      },
+      "coverageMode": "masked",
+      "outputs": [
+        {
+          "id": "color",
+          "kind": "ImageGraph",
+          "target": "region",
+          "requires": [],
+          "dependsOn": [],
+          "bypass": {
+            "kind": "materialFallback",
+            "mapping": "identity"
+          }
+        }
+      ]
+    }
+  ],
+  "requires": [],
+  "lineExit": {
+    "durationUs": 0
+  },
+  "emitters": []
+}

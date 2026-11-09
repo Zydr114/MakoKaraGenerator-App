@@ -1,0 +1,70 @@
+{
+  "packageVersion": 3,
+  "packageId": "makokara.test.perf.graph-blur",
+  "name": "测试 图-模糊",
+  "version": "1.0.0",
+  "sdkVersion": "2.0.0",
+  "shaderProfile": "skia-ganesh-3.119.4-v2",
+  "files": [
+    {
+      "path": "graphs/blur.graph.json",
+      "role": "graph",
+      "sha256": "151770085edfb6cebcbefe0a51449f0e660ab21de43e89ecbaf6984227720be8"
+    },
+    {
+      "path": "shaders/passthrough.program.json",
+      "role": "shaderProgram",
+      "sha256": "82c261e519d2b088022b529e0933780f49dc636cbb5a9be9e1281e06d0b9b5f7"
+    },
+    {
+      "path": "shaders/passthrough.sksl",
+      "role": "shader",
+      "sha256": "5ef89015cb1c111bc27609af025eaf8d46b2fab24bcd843913202dd05c6d67af"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "blurPx",
+      "type": "number",
+      "label": "模糊 sigma",
+      "default": 0,
+      "min": 0,
+      "max": 8,
+      "unit": "px"
+    }
+  ],
+  "exports": [
+    {
+      "id": "blur",
+      "kind": "graph",
+      "name": "模糊",
+      "graph": "graphs/blur.graph.json",
+      "parameters": [
+        "blurPx"
+      ],
+      "bindingKinds": [
+        "project",
+        "branch",
+        "lines",
+        "clips",
+        "node"
+      ],
+      "outputs": [
+        {
+          "id": "line-color",
+          "kind": "ImageGraph",
+          "target": "line",
+          "requires": [],
+          "dependsOn": []
+        }
+      ]
+    }
+  ],
+  "requires": [
+    "image.graph"
+  ],
+  "lineExit": {
+    "durationUs": 0
+  },
+  "emitters": []
+}

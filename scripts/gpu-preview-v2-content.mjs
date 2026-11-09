@@ -161,9 +161,16 @@ async function buildAndApply(page, output, names, lineCount) {
   const firstClick = await clickWith(page, `.appearance-targets .at[data-target-key="${first}"]`);
   await page.waitFor(`document.querySelector(${JSON.stringify(`.appearance-targets .at[data-target-key="${first}"]`)})?.getAttribute('aria-selected') === 'true'
     || !!document.querySelector(${JSON.stringify(`.appearance-targets .at.on[data-target-key="${first}"]`)})`, '选中第 1 行', 10_000).catch(() => {});
-  const lastClick = await clickWith(page, `.appearance-targets .at[data-target-key="${last}"]`, 8);
-  const selectedRows = await page.eval(`${lineRows}.length && [...${lineRows}].filter((row) => row.getAttribute('aria-selected') === 'true' || row.classList.contains('on')).length`);
-  await appendFile(join(output, 'v2-content-steps.jsonl'), JSON.stringify({ step: 'Shift 选择诊断', first, last, firstClick, lastClick, selectedRows }) + '\n');
+  const selected = `[...${lineRows}].filter((row) => row.getAttribute('aria-selected') === 'true' || row.classList.contains('on')).length`;
+  // 偶发只选中前一段（例如 24 行里选中 20 行）：等选择落定，不全就再 Shift 点一次末行，最多三次。
+  let lastClick, selectedRows = 0;
+  for (let attempt = 1; attempt <= 3 && selectedRows !== lineCount; attempt++) {
+    lastClick = await clickWith(page, `.appearance-targets .at[data-target-key="${last}"]`, 8);
+    await page.waitFor(`${selected} === ${lineCount}`, `Shift 选中 ${lineCount} 行`, 5_000).catch(() => {});
+    selectedRows = await page.eval(selected);
+    await appendFile(join(output, 'v2-content-steps.jsonl'), JSON.stringify({ step: 'Shift 选择诊断', attempt, first, last, firstClick, lastClick, selectedRows }) + '\n');
+  }
+  if (selectedRows !== lineCount) fail(`Shift 只选中 ${selectedRows}／${lineCount} 行`);
   await side(page, '模板与覆盖');
   await ui.click(page, 'button', '选择模板…', { scope: '.template-grp' });
   await ui.waitDialog(page, '选择模板');

@@ -1,4 +1,6 @@
+using System.Collections.Concurrent;
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 using MakoKaraGenerator.Core.Lyrics;
 using MakoKaraGenerator.Core.Time;
 
@@ -55,8 +57,8 @@ public static class LyricDisplaySegmentResolver
         long Boundary(string? id, bool previous)
         {
             if (id is null) return previous ? 0 : long.MaxValue;
-            int index = Array.FindIndex(branch.Lines.ToArray(), line => line.Id == id);
-            int memberIndex = Array.FindIndex(branch.Lines.ToArray(), line => line.Id == context.LineIds[previous ? 0 : context.LineIds.Length - 1]);
+            int index = IndexOf(branch, id);
+            int memberIndex = IndexOf(branch, context.LineIds[previous ? 0 : context.LineIds.Length - 1]);
             if (index < 0 || (previous ? index >= memberIndex : index <= memberIndex) || branch.Lines[index].Time is not { IsValid: true })
                 throw new InvalidOperationException("默认调度边界需要有序、有效的相邻源行。");
             return previous ? branch.Lines[index].Time!.Value.EndUs : branch.Lines[index].Time!.Value.StartUs;
@@ -86,7 +88,7 @@ public static class LyricDisplaySegmentResolver
     public static ImmutableArray<LyricLine> Members(LyricBranch branch, LyricDisplayClip clip)
     {
         if (clip.LineIds.IsDefaultOrEmpty) throw new InvalidOperationException("片段没有源成员：" + clip.Id);
-        int start = Array.FindIndex(branch.Lines.ToArray(), line => line.Id == clip.LineIds[0]);
+        int start = IndexOf(branch, clip.LineIds[0]);
         if (start < 0 || start + clip.LineIds.Length > branch.Lines.Length)
             throw new InvalidOperationException("片段源成员不存在：" + clip.Id);
         var lines = branch.Lines.Skip(start).Take(clip.LineIds.Length).ToImmutableArray();
@@ -107,9 +109,21 @@ public static class LyricDisplaySegmentResolver
         return new(members[0].Time!.Value.StartUs, members[^1].Time!.Value.EndUs);
     }
 
-    /// <summary>解析活动片段，显式片段与默认片段的轮换互相隔离。</summary>
-    public static LyricDisplaySegment Resolve(LyricBranch branch, LyricDisplayProgram program, long timeUs)
+    // 片段跨度与校验只依赖不可变的分支与展示程序：按分支对象记忆（程序以引用或值相同核对），逐帧与每次锚点补算
+    // 只按时刻挑选跨度，默认段成员按（起，止）复用，不再随全曲行数逐次复制、校验与过滤。校验失败不记忆、照旧抛出。
+    private sealed class ResolvedProgram(LyricDisplayProgram program, LyricDisplaySegment[] spans, HashSet<string> assigned)
     {
+        internal LyricDisplayProgram Program { get; } = program;
+        internal LyricDisplaySegment[] Spans { get; } = spans;
+        internal HashSet<string> Assigned { get; } = assigned;
+        internal ConcurrentDictionary<(long Start, long End), LyricDisplaySegment> Defaults { get; } = new();
+    }
+    private static readonly ConditionalWeakTable<LyricBranch, ResolvedProgram> Programs = new();
+
+    private static ResolvedProgram Prepare(LyricBranch branch, LyricDisplayProgram program)
+    {
+        if (Programs.TryGetValue(branch, out var resolved)
+            && (ReferenceEquals(resolved.Program, program) || resolved.Program.Equals(program))) return resolved;
         var spans = program.Clips.Select(clip => (Clip: clip, Members: Members(branch, clip), Range: Range(branch, clip))).ToArray();
         HashSet<string> assigned = new(StringComparer.Ordinal);
         foreach (var span in spans)
@@ -123,14 +137,37 @@ public static class LyricDisplaySegmentResolver
             for (int j = i + 1; j < spans.Length; j++)
                 if (spans[i].Range.StartUs < spans[j].Range.EndUs && spans[j].Range.StartUs < spans[i].Range.EndUs)
                     throw new InvalidOperationException("展示片段区间重叠。");
+        resolved = new(program, [.. spans.Select(static span => new LyricDisplaySegment(span.Range.StartUs, span.Range.EndUs, span.Clip, span.Members))],
+            assigned);
+        Programs.AddOrUpdate(branch, resolved);
+        return resolved;
+    }
+
+    /// <summary>解析活动片段，显式片段与默认片段的轮换互相隔离。</summary>
+    public static LyricDisplaySegment Resolve(LyricBranch branch, LyricDisplayProgram program, long timeUs)
+    {
+        ArgumentNullException.ThrowIfNull(branch);
+        ArgumentNullException.ThrowIfNull(program);
+        var resolved = Prepare(branch, program);
         long start = 0, end = long.MaxValue;
-        foreach (var span in spans)
+        foreach (var span in resolved.Spans)
         {
-            if (span.Range.Contains(timeUs)) return new(span.Range.StartUs, span.Range.EndUs, span.Clip, span.Members);
-            if (span.Range.EndUs <= timeUs) start = Math.Max(start, span.Range.EndUs);
-            if (span.Range.StartUs > timeUs) end = Math.Min(end, span.Range.StartUs);
+            if (span.StartUs <= timeUs && timeUs < span.EndUs) return span;
+            if (span.EndUs <= timeUs) start = Math.Max(start, span.EndUs);
+            if (span.StartUs > timeUs) end = Math.Min(end, span.StartUs);
         }
-        return new(start, end, null, [.. branch.Lines.Where(line => !assigned.Contains(line.Id)
-            && (line.Time is not { IsValid: true } time || time.StartUs >= start && time.EndUs <= end))]);
+        return resolved.Defaults.GetOrAdd((start, end), static (range, state) => new(range.Start, range.End, null,
+            [.. state.Branch.Lines.Where(line => !state.Assigned.Contains(line.Id)
+                && (line.Time is not { IsValid: true } time || time.StartUs >= range.Start && time.EndUs <= range.End))]),
+            (Branch: branch, resolved.Assigned));
+    }
+
+    /// <summary>按行 ID 在分支中定位源行，不复制分支行数组；不存在时返回 -1。</summary>
+    public static int IndexOf(LyricBranch branch, string lineId)
+    {
+        ArgumentNullException.ThrowIfNull(branch);
+        for (int index = 0; index < branch.Lines.Length; index++)
+            if (branch.Lines[index].Id == lineId) return index;
+        return -1;
     }
 }

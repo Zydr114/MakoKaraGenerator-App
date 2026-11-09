@@ -39,7 +39,7 @@ public static class LyricDisplayScheduleBuilder
             var line = branch.Lines.First(source => source.Id == cue.TargetLineId);
             return (Cue: cue, Range: LeadInTiming.Range(line, cue.DurationUs)
                 ?? throw new InvalidOperationException("前奏区间无效：" + cue.Id),
-                Index: Array.FindIndex(branch.Lines.ToArray(), source => source.Id == line.Id));
+                Index: LyricDisplaySegmentResolver.IndexOf(branch, line.Id));
         }).ToArray();
         List<LyricDisplayOccurrence> schedule = [];
         foreach (var segment in segments)
@@ -60,7 +60,7 @@ public static class LyricDisplayScheduleBuilder
                 var line = members[occurrence.LineIndex];
                 if (!assigned.Contains(line.Id)) continue;
                 var cue = prepared.FirstOrDefault(item => item.Cue.TargetLineId == line.Id);
-                schedule.Add(new() { Line = line, SourceIndex = Array.FindIndex(branch.Lines.ToArray(), source => source.Id == line.Id),
+                schedule.Add(new() { Line = line, SourceIndex = LyricDisplaySegmentResolver.IndexOf(branch, line.Id),
                     Segment = segment, SlotIndex = occurrence.SlotIndex,
                     RevealTimeUs = cue.Cue is null ? Math.Max(clock.StartUs, occurrence.RevealTimeUs) : occurrence.RevealTimeUs,
                     HideTimeUs = Math.Min(clock.EndUs, occurrence.HideTimeUs), LeadIn = cue.Cue,

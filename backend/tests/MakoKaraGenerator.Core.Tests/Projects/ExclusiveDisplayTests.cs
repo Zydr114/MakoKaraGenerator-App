@@ -117,4 +117,34 @@ public sealed class ExclusiveDisplayTests
         Assert.Single(changed.LyricPresentation.Programs[0].Clips);
         Assert.Same(project.Lyrics, changed.Lyrics);
     }
+
+    [Fact]
+    public void 片段解析按分支与程序复用_程序变化即重新解析_校验失败每次抛出()
+    {
+        var project = ExclusiveDisplayFixture.Create();
+        var branch = project.Lyrics.PrimaryBranch!;
+        var program = project.LyricPresentation.Programs[0];
+        static string[] Ids(LyricDisplaySegment segment) => [.. segment.Lines.Select(static line => line.Id)];
+        // 旧实现每次调用都按全曲重建跨度、校验并复制成员；同一（分支，程序）及值相同的程序副本必须复用同一段对象。
+        var first = LyricDisplaySegmentResolver.Resolve(branch, program, 1_000_000);
+        Assert.Same(first, LyricDisplaySegmentResolver.Resolve(branch, program, 3_000_000));
+        Assert.Equal(["line-0", "line-1"], Ids(first));
+        var clip = LyricDisplaySegmentResolver.Resolve(branch, program, 5_000_000);
+        Assert.Equal(ExclusiveDisplayFixture.ClipId, clip.Clip?.Id);
+        Assert.Same(clip, LyricDisplaySegmentResolver.Resolve(branch, program with { }, 4_500_000));
+        Assert.Equal(["line-3", "line-4"], Ids(LyricDisplaySegmentResolver.Resolve(branch, program, 9_000_000)));
+
+        // 同一分支换程序：新增片段占走 line-0，默认段随之改变；换回原程序也按原程序解析。
+        var changed = program with { Clips = program.Clips.Add(new()
+            { Id = "first-clip", LineIds = ["line-0"], ContainerId = ExclusiveDisplayFixture.CenterId }) };
+        Assert.Equal("first-clip", LyricDisplaySegmentResolver.Resolve(branch, changed, 1_000_000).Clip?.Id);
+        Assert.Equal(["line-1"], Ids(LyricDisplaySegmentResolver.Resolve(branch, changed, 3_000_000)));
+        Assert.Equal(["line-0", "line-1"], Ids(LyricDisplaySegmentResolver.Resolve(branch, program, 1_000_000)));
+
+        // 校验失败不记忆：同一源行重复分配的程序每次都抛出。
+        var duplicated = program with { Clips = program.Clips.Add(new()
+            { Id = "duplicate-clip", LineIds = ["line-2"], ContainerId = ExclusiveDisplayFixture.CenterId }) };
+        for (int attempt = 0; attempt < 2; attempt++)
+            Assert.Throws<InvalidOperationException>(() => LyricDisplaySegmentResolver.Resolve(branch, duplicated, 0));
+    }
 }

@@ -98,7 +98,7 @@ public static partial class LyricSceneSampler
         LyricBranchPresentation presentation, SlotSequenceAnimationProfile profile, SlotSequenceSample entry, long timeUs)
     {
         var line = segment.Lines[entry.LineIndex];
-        int sourceIndex = Array.FindIndex(branch.Lines.ToArray(), source => source.Id == line.Id);
+        int sourceIndex = LyricDisplaySegmentResolver.IndexOf(branch, line.Id);
         var lineAnimation = presentation.FindLine(line.Id)?.EnterAnimation;
         long enterDuration = lineAnimation?.DurationUs ?? profile.EnterDurationUs;
         long exitDuration = profile.ExitDurationUs;

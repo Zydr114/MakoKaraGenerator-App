@@ -133,7 +133,7 @@ public static partial class LyricSceneSampler
                 .Select(entry => CreateSlotSample(snapshot, branch, segment, presentation, profile, entry, timeUs))];
         LyricFrameSample frame = LyricSampler.Sample(new LyricsDocument { Lines = segment.Lines }, timeUs);
         if (!frame.HasLine) return [];
-        frame = frame with { LineIndex = Array.FindIndex(branch.Lines.ToArray(), line => line.Id == frame.Line!.Id) };
+        frame = frame with { LineIndex = LyricDisplaySegmentResolver.IndexOf(branch, frame.Line!.Id) };
         SceneLineSample sample = CreateSample(snapshot, branch, frame) with
         { DisplayContainerId = containerId, Presentation = presentation, DisplayClipId = segment.Clip?.Id,
             Placement = presentation.DefaultPlacement,

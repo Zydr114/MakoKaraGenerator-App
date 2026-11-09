@@ -24,6 +24,11 @@ export class Cdp {
     this.nextId = 1;
     this.pending = new Map();
     this.listeners = [];
+    // 连接关闭后仍在等待或新发出的请求必须立即失败；否则 Node 事件循环清空时调用方会静默以 0 退出。
+    ws.addEventListener('close', () => {
+      for (const { reject } of this.pending.values()) reject(new Error('CDP 连接已关闭'));
+      this.pending.clear();
+    });
     ws.addEventListener('message', (event) => {
       const message = JSON.parse(event.data);
       if (message.id && this.pending.has(message.id)) {
@@ -45,6 +50,7 @@ export class Cdp {
     return new Cdp(ws);
   }
   send(method, params = {}, sessionId) {
+    if (this.ws.readyState !== WebSocket.OPEN) return Promise.reject(new Error('CDP 连接已关闭'));
     const id = this.nextId++;
     this.ws.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
     return new Promise((resolve, reject) => this.pending.set(id, { resolve, reject }));

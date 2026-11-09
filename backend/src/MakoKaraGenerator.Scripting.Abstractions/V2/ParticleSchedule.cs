@@ -128,6 +128,10 @@ public static class ParticleLimits
     public const long MaximumPrepareBytes = 256L * 1024 * 1024;
     /// <summary>帧查询临时内存字节上限。</summary>
     public const long MaximumFrameBytes = 64L * 1024 * 1024;
-    /// <summary>累计锚点补算失败保护上限，不参与粒子筛选或精度选择。</summary>
-    public const long MaximumAnchorWallMilliseconds = 3000;
+    /// <summary>
+    /// 累计锚点补算的挂死保护时长，只拦异常长时间补算；正常内容是否失败由时刻、文字调用、未来端点等
+    /// 确定的次数预算决定，结果不随机器快慢变化。低于 Worker 单帧 20 秒操作期限，失败时仍能给出诊断。
+    /// 不参与粒子筛选或精度选择。
+    /// </summary>
+    public const long MaximumAnchorWallMilliseconds = 15_000;
 }

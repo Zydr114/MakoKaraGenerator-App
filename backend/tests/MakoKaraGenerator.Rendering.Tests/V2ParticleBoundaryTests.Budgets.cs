@@ -30,7 +30,7 @@ public sealed partial class V2ParticleBoundaryTests
         geometry.OnFrame = timeUs =>
         {
             if (timeUs != 10_000) return;
-            if (kind == "wall") clock.Advance(3001);
+            if (kind == "wall") clock.Advance(ParticleLimits.MaximumAnchorWallMilliseconds + 1);
             if (kind == "cancel") cancellation.Cancel();
         };
         if (kind == "cancel")
@@ -90,22 +90,24 @@ public sealed partial class V2ParticleBoundaryTests
     }
 
     [Fact]
-    public void 内部限额只允许收紧且单调计时仅累计补算作用域并保留三秒整数边界()
+    public void 内部限额只允许收紧且单调计时仅累计补算作用域并只在挂死保护整数边界失败()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new V2RuntimeBudgetOptions(frameBytes: ParticleLimits.MaximumFrameBytes + 1));
         Assert.Throws<ArgumentOutOfRangeException>(() => new V2RuntimeBudgetOptions(anchorTimes: ParticleLimits.MaximumAnchorTimes + 1));
         Assert.Throws<ArgumentOutOfRangeException>(() => new V2RuntimeBudgetOptions(textCalls: ParticleLimits.MaximumTextCalls + 1));
         Assert.Throws<ArgumentOutOfRangeException>(() => new V2RuntimeBudgetOptions(futureEndpoints: ParticleLimits.MaximumFutureEndpoints + 1));
         Assert.Throws<ArgumentOutOfRangeException>(() => new V2RuntimeBudgetOptions(wallMilliseconds: ParticleLimits.MaximumAnchorWallMilliseconds + 1));
+        long limit = ParticleLimits.MaximumAnchorWallMilliseconds;
         MillisecondClock clock = new();
         var budget = new V2RuntimeBudgetOptions(timeProvider: clock).CreateAnchorQuery(CancellationToken.None);
         clock.Advance(50_000); budget.Check();
-        using (budget.Measure()) { clock.Advance(1000); budget.Check(); }
+        // 1440p 冷启动补齐寿命窗内锚点实测 3～5 秒：只要没到挂死保护就不失败，结果不随机器快慢变化。
+        using (budget.Measure()) { clock.Advance(5000); budget.Check(); }
         clock.Advance(50_000); budget.Check();
         using (budget.Measure())
         {
             clock.Advance(1000);
-            using (budget.Measure()) { clock.Advance(1000); budget.Check(); }
+            using (budget.Measure()) { clock.Advance(limit - 6000); budget.Check(); }
             budget.Check();
             clock.Advance(1);
             Assert.Equal("FinalAnchorWallBudgetExceeded", Assert.Throws<EffectOutputException>(budget.Check).Code);

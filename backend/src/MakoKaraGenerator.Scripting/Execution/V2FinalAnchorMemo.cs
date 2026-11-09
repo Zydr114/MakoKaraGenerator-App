@@ -90,7 +90,7 @@ internal sealed class V2AnchorQueryBudget(CancellationToken token,
         token.ThrowIfCancellationRequested();
         var elapsed = _elapsed + (_depth > 0 ? _time.GetElapsedTime(_started, _time.GetTimestamp()) : TimeSpan.Zero);
         if (elapsed.Ticks / TimeSpan.TicksPerMillisecond > wallLimitMs)
-            throw new EffectOutputException("FinalAnchorWallBudgetExceeded", "完整文字锚点补算超过固定耗时保护；未降低采样精度。");
+            throw new EffectOutputException("FinalAnchorWallBudgetExceeded", "完整文字锚点补算超过挂死保护时长；未降低采样精度。");
     }
     public void Time(long timeUs)
     {

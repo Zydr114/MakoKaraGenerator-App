@@ -245,9 +245,8 @@ internal sealed class GpuStreamSession : IAsyncDisposable
                 _ => null,
             };
             if (actual is not null) _diagnostics = GpuStreamDiagnostics.Summarize(actual);
-            _failureCode = failure is WorkerProtocolException protocol ? protocol.Code :
-                failure is GpuPreviewException gpu ? gpu.Code : failure is EffectFailureException effect ? effect.Code :
-                failure is RenderSessionFailureException session ? session.Code : "WorkerGpuStreamFailed";
+            GpuStreamFailure detail = GpuStreamFailure.From(failure);
+            _failureCode = detail.Code;
             if (rendering is not null)
             {
                 try { (await rendering.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false)).Frame.Dispose(); }
@@ -274,7 +273,8 @@ internal sealed class GpuStreamSession : IAsyncDisposable
             {
                 try { Send(new { type = "failed", protocolVersion = 1, _open.StreamId, _open.HostInstanceId,
                     producerEpoch = ProducerEpoch, _open.InputGeneration, consumerEpoch = _consumerEpoch,
-                    code = _failureCode, drained = false, diagnostics = _diagnostics }); } catch { }
+                    code = _failureCode, failureType = detail.Type, failureSite = detail.Site, failureDetail = detail.Detail,
+                    drained = false, diagnostics = _diagnostics }); } catch { }
             }
             return false;
         }

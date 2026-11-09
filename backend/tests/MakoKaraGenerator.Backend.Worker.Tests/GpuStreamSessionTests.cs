@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text.Json;
 using Microsoft.Win32.SafeHandles;
 using MakoKaraGenerator.Backend.Contracts;
+using MakoKaraGenerator.Core.Effects;
 using MakoKaraGenerator.Rendering;
 using MakoKaraGenerator.Scripting;
 
@@ -243,6 +244,23 @@ public sealed class GpuStreamSessionTests
         Assert.True(lease.ExportedHandle!.IsClosed);
         Assert.Equal("WorkerGpuConsumerTimeout", stream.ReadState().FailureCode);
         Assert.False(stream.ReadState().Drained);
+    }
+
+    [Fact]
+    public async Task HardRenderFailureReportsWrappedEngineCodeAndRootType()
+    {
+        // 桌面日志此前只能看到笼统 WorkerGpuStreamFailed；包装内的引擎代码、根异常类型与引擎文本必须随 failed 送出。
+        using var channel = new Channel();
+        await using var stream = new GpuStreamSession(Open, Pool, channel, (_, _, _) => throw new InvalidOperationException("wrapper",
+            new ImageGraphException("GraphRequiredInputUnavailable", "glass-media", "background", "missing")), false);
+        channel.Control(1);
+        var failure = await channel.Wait("failed", 1);
+        Assert.False(failure.GetProperty("drained").GetBoolean());
+        Assert.Equal("GraphRequiredInputUnavailable", failure.GetProperty("code").GetString());
+        Assert.Equal("ImageGraphException", failure.GetProperty("failureType").GetString());
+        Assert.Contains("glass-media background", failure.GetProperty("failureDetail").GetString());
+        Assert.False(await stream.StopAsync(CancellationToken.None));
+        Assert.Equal("GraphRequiredInputUnavailable", stream.ReadState().FailureCode);
     }
 
     [Fact]

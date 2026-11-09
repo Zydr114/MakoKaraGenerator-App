@@ -17,4 +17,10 @@ function validateWorkerMessage(m,s,config){
   if(['frame','state','control-applied'].includes(m.type)&&m.poolGeneration!==s.poolGeneration)throw new Error('Worker pool identity mismatch');
   if(!['frame','state','control-applied','stopped','failed'].includes(m.type))throw new Error('Unknown Worker response');
 }
-module.exports={validateWorkerMessage};
+// 硬失败只把稳定代码、根异常类型／抛出方法与引擎文本带进日志；格式不符的字段整体丢弃，不回显原值。
+const workerToken=(value,max)=>typeof value==='string'&&value.length>0&&value.length<=max&&/^[A-Za-z0-9_.<>`|+-]+$/.test(value)?value:undefined;
+function workerFailureSummary(m){
+  const detail=typeof m?.failureDetail==='string'&&m.failureDetail.length<=512&&!/[\u0000-\u001f\u007f]/.test(m.failureDetail)?m.failureDetail:undefined;
+  return {code:workerToken(m?.code,128),type:workerToken(m?.failureType,128),site:workerToken(m?.failureSite,256),detail,drained:m?.drained===true};
+}
+module.exports={validateWorkerMessage,workerFailureSummary};

@@ -5,7 +5,7 @@ const path = require('node:path');
 const { createHash } = require('node:crypto');
 const { readLaunchConfig } = require('./gpu-preview/launch-contract.cjs');
 const { importAndTransferFrame } = require('./gpu-preview/import-consumer.cjs');
-const { validateWorkerMessage } = require('./gpu-preview/wire.cjs');
+const { validateWorkerMessage, workerFailureSummary } = require('./gpu-preview/wire.cjs');
 const { prepareDesktopSession } = require('./gpu-preview/session-paths.cjs');
 
 const root = fs.realpathSync(path.join(__dirname,'..'));
@@ -46,7 +46,7 @@ function failStop(code='gpuConsumerFailure') {
   // reusing any lease, then terminate this whole Electron instance.
   if(stream?.connection) {try{broker.close(stream.connection);}catch{}stream.connection=null;}
   clearInterval(stream?.poll);
-  try { safeState({type:'failed',code}); console.error(JSON.stringify({type:'desktop-fail-stop',code,unknownOutstanding:stream?.imports.size??0,counters:sTelemetry})); }
+  try { safeState({type:'failed',code}); console.error(JSON.stringify({type:'desktop-fail-stop',code,workerFailure:stream?.workerFailure,unknownOutstanding:stream?.imports.size??0,counters:sTelemetry})); }
   finally { app.exit(1); }
 }
 function authorize(event) {
@@ -166,6 +166,8 @@ function packet(s,p) {
   if(m.type==='state'){diagnostics(m.diagnostics);s.workerState={...m,mainObservedMonotonicNs:process.hrtime.bigint().toString()};safeState(m);return;}
   if(m.type==='stopped'){if(m.drained!==true||s.imports.size!==0)throw new Error('Worker stopped before exact lease drain');s.stopped=true;completeStop(s);return;}
   if(m.type==='failed'){
+    // 先记下 Worker 自带的失败身份，诊断摘要无效或完成未知时日志仍能给出真实原因。
+    s.workerFailure=workerFailureSummary(m);
     const summary=diagnostics(m.diagnostics);
     if(m.drained===true&&s.imports.size===0){
       s.stopping=true;s.stopped=true;s.pending=null;s.executing=null;
@@ -174,7 +176,7 @@ function packet(s,p) {
       safeState({type:'failed',...controlIdentity(s),code:m.code??m.failureCode??'gpuRenderFailed',diagnostics:summary});
       return;
     }
-    safeState({type:'failed',...controlIdentity(s),code:'gpuWorkerFailed',diagnostics:summary});
+    safeState({type:'failed',...controlIdentity(s),code:'gpuWorkerFailed',workerCode:s.workerFailure.code,diagnostics:summary});
     throw new Error('Worker GPU completion unknown');
   }
   throw new Error('Unknown Worker GPU packet');
@@ -217,7 +219,7 @@ async function attach(streamId,expectedInputGeneration) {
       catch(error){
         const known=['Worker response identity mismatch','Worker pool identity mismatch','Invalid Worker hello','Invalid calibrated clock','Worker stopped before exact lease drain','Unexpected applied control','peer disconnected; outstanding leases unknown','recvmsg failed','closed connection','Worker GPU completion unknown'];
         const cause=known.includes(error?.message)?error.message:'invalidWorkerPacket';
-        console.error(JSON.stringify({type:'desktop-broker-error',stage:s.lastPacketType??'receive',cause,stopping:!!s.stopping,stopped:!!s.stopped,outstanding:s.imports.size}));
+        console.error(JSON.stringify({type:'desktop-broker-error',stage:s.lastPacketType??'receive',cause,stopping:!!s.stopping,stopped:!!s.stopped,outstanding:s.imports.size,worker:s.workerFailure}));
         failStop('gpuBrokerProtocolFailed');
       }
       finally{if(pollStarted!==null){const end=process.hrtime.bigint();if(end-pollStarted>=10000000n)performanceDiagnostics.add('main-poll',pollStarted,end,{lease:performanceDiagnostics.identity(s.lastFrameMetadata)});}}

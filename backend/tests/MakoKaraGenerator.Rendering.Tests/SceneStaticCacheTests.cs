@@ -87,4 +87,66 @@ public sealed class SceneStaticCacheTests
         Assert.Equal(baseline * 3, Width(overridden), baseline * 0.3);
         Assert.Equal(baseline, Width(snapshot), 1e-6);
     }
+
+    [Fact]
+    public void 行与逐字几何按行对象记忆_原点或世界矩阵变化即重测_与新管线逐项相同()
+    {
+        // 入场缩放只改变世界矩阵（原点不变）；换合成尺寸改变行原点与基线。两者都共用同一批行对象。
+        var project = Project.Create("measure", Composition.Create(1920, 1080, FrameRate.Fps30),
+            LyricsDocument.Create([Line("line-0", 0), Line("line-1", 2_000_000)]))
+            with { EnterAnimation = LineAnimation.Default with { StartScale = 0.5f, StartOffsetPx = 0 } };
+        var large = ProjectSnapshot.FromProject(project);
+        var small = large with { Composition = Composition.Create(1280, 720, FrameRate.Fps30) };
+        Assert.Same(large.Lyrics.Branches[0].Lines[0], small.Lyrics.Branches[0].Lines[0]);
+        using var pipeline = new SkiaRenderPipeline();
+        var first = pipeline.GetSceneFrame(large, 500_000);
+        var again = pipeline.GetSceneFrame(large, 900_000);
+        // 行静止：两次补算复用同一不可变测量结果（旧实现每次重排并重建身份字符串）。
+        Assert.Same(first.TokenGeometries[0].Clusters[0], again.TokenGeometries[0].Clusters[0]);
+        Assert.Same(first.LineGeometries[0].BaseGeometry, again.LineGeometries[0].BaseGeometry);
+        foreach (var (snapshot, time) in new[] { (large, 100_000L), (large, 200_000L), (small, 200_000L), (large, 2_100_000L), (small, 2_500_000L), (large, 500_000L) })
+        {
+            using var fresh = new SkiaRenderPipeline();
+            var actual = pipeline.GetSceneFrame(snapshot, time);
+            var expected = fresh.GetSceneFrame(snapshot, time);
+            Assert.Equal(expected.LineGeometries.Length, actual.LineGeometries.Length);
+            for (int i = 0; i < expected.LineGeometries.Length; i++)
+            {
+                Assert.Equal(expected.LineGeometries[i].Target, actual.LineGeometries[i].Target);
+                AssertGeometry(expected.LineGeometries[i].BaseGeometry, actual.LineGeometries[i].BaseGeometry);
+                Assert.Equal(expected.LineGeometries[i].ProgressPath, actual.LineGeometries[i].ProgressPath);
+            }
+            Assert.Equal(expected.TokenGeometries.Length, actual.TokenGeometries.Length);
+            for (int i = 0; i < expected.TokenGeometries.Length; i++)
+            {
+                var (want, got) = (expected.TokenGeometries[i], actual.TokenGeometries[i]);
+                Assert.Equal(want.WithRuby, got.WithRuby);
+                Assert.Equal(want.ProgressPath, got.ProgressPath);
+                AssertGeometry(want.BaseGeometry, got.BaseGeometry);
+                AssertGeometry(want.FamilyGeometry, got.FamilyGeometry);
+                Assert.Equal(want.Clusters.Length, got.Clusters.Length);
+                for (int c = 0; c < want.Clusters.Length; c++)
+                {
+                    Assert.Equal(want.Clusters[c].Target, got.Clusters[c].Target);
+                    AssertGeometry(want.Clusters[c].Geometry, got.Clusters[c].Geometry);
+                }
+            }
+        }
+        Assert.NotEqual(pipeline.GetSceneFrame(large, 100_000).LineGeometries[0].BaseGeometry.BaseWorldMatrix,
+            pipeline.GetSceneFrame(large, 200_000).LineGeometries[0].BaseGeometry.BaseWorldMatrix);
+        Assert.Equal(pipeline.GetSceneFrame(large, 100_000).LineGeometries[0].BaseGeometry.AdvanceBounds,
+            pipeline.GetSceneFrame(large, 200_000).LineGeometries[0].BaseGeometry.AdvanceBounds);
+        Assert.NotEqual(pipeline.GetSceneFrame(large, 500_000).LineGeometries[0].BaseGeometry.AdvanceBounds,
+            pipeline.GetSceneFrame(small, 500_000).LineGeometries[0].BaseGeometry.AdvanceBounds);
+    }
+
+    private static void AssertGeometry(Scripting.GeometrySample expected, Scripting.GeometrySample actual)
+    {
+        Assert.Equal(expected.AdvanceBounds, actual.AdvanceBounds);
+        Assert.Equal(expected.InkBounds, actual.InkBounds);
+        Assert.Equal(expected.Baseline, actual.Baseline);
+        Assert.Equal(expected.BaseWorldMatrix, actual.BaseWorldMatrix);
+        Assert.Equal(expected.DrawUnits.ToArray(), actual.DrawUnits.ToArray());
+        Assert.Equal(expected.CanTransformIndependently, actual.CanTransformIndependently);
+    }
 }

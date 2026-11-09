@@ -1,5 +1,7 @@
 using System.Collections.Immutable;
 using System.Globalization;
+using System.Runtime.CompilerServices;
+using MakoKaraGenerator.Core.Lyrics;
 using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Text;
 using Fx = MakoKaraGenerator.Scripting;
@@ -21,19 +23,50 @@ public sealed partial class SkiaRenderPipeline
             return new Fx.TextMarkGeometrySample(target, geometry);
         })];
 
+    // 整行与逐字／字簇几何只由行对象、行基础样式（按行对象记忆，引用稳定）、装载身份与本帧行原点、基线、世界矩阵决定。
+    // 行静止时各次锚点补算得到相同输入：按行对象记忆最近一次结果（每个管线各自一份，排版引擎不跨管线共享），
+    // 命中即复用不可变测量结果，不再逐次重排字簇、重建绘制单元身份字符串。
+    private readonly record struct LineMeasureKey(LyricStyle Style, string BranchId, string? BindingId, bool TokensMatchLineText,
+        double OriginX, double BaselineY, SceneMatrix World);
+    private sealed class LineMeasure<T>(LineMeasureKey key, T value)
+    {
+        internal LineMeasureKey Key { get; } = key;
+        internal T Value { get; } = value;
+    }
+    private readonly ConditionalWeakTable<LyricLine, LineMeasure<Fx.LineGeometrySample>> _lineMeasures = new();
+    private readonly ConditionalWeakTable<LyricLine, LineMeasure<ImmutableArray<Fx.TokenGeometrySample>>> _tokenMeasures = new();
+
+    private static LineMeasureKey MeasureKey(LyricStyle style, SceneLineSample sample)
+    {
+        var geometry = sample.Geometry!;
+        return new(style, sample.Branch.Id, sample.BindingId, sample.Frame.TokensMatchLineText, geometry.OriginX, geometry.BaselineY,
+            geometry.WorldMatrix!.Value);
+    }
+
+    private static T Remember<T>(ConditionalWeakTable<LyricLine, LineMeasure<T>> table, LyricLine line, LineMeasureKey key, Func<T> measure)
+    {
+        if (table.TryGetValue(line, out var memo) && memo.Key == key) return memo.Value;
+        var value = measure();
+        table.AddOrUpdate(line, new(key, value));
+        return value;
+    }
+
     private ImmutableArray<Fx.LineGeometrySample> MeasureLineGeometries(ProjectSnapshot snapshot, SceneFrame frame)
     {
         return [.. frame.Lines.Select(sample =>
         {
             var line = sample.Frame.Line!;
             var style = LineBaseStyle(snapshot.LyricStyle, line, sample.Branch);
-            ShapedLine shaped = GetLineLayout(line, style).Shaped;
-            var geometry = sample.Geometry!; SceneMatrix matrix = geometry.WorldMatrix!.Value;
-            Fx.Affine2 world = new(matrix.A, matrix.B, matrix.C, matrix.D, matrix.Tx, matrix.Ty);
-            var basis = MeasureUnits(shaped, [.. Enumerable.Range(0, shaped.DrawUnits.Length)], geometry.OriginX,
-                geometry.BaselineY, world, sample.BindingId!, "base", true);
-            return new Fx.LineGeometrySample { BranchId = new(sample.Branch.Id), Target = new(new(line.Id), new(sample.BindingId!)),
-                BaseGeometry = basis, ProgressPath = ProgressPath(shaped, 0, line.Text.Length, geometry, basis) };
+            return Remember(_lineMeasures, line, MeasureKey(style, sample), () =>
+            {
+                ShapedLine shaped = GetLineLayout(line, style).Shaped;
+                var geometry = sample.Geometry!; SceneMatrix matrix = geometry.WorldMatrix!.Value;
+                Fx.Affine2 world = new(matrix.A, matrix.B, matrix.C, matrix.D, matrix.Tx, matrix.Ty);
+                var basis = MeasureUnits(shaped, [.. Enumerable.Range(0, shaped.DrawUnits.Length)], geometry.OriginX,
+                    geometry.BaselineY, world, sample.BindingId!, "base", true);
+                return new Fx.LineGeometrySample { BranchId = new(sample.Branch.Id), Target = new(new(line.Id), new(sample.BindingId!)),
+                    BaseGeometry = basis, ProgressPath = ProgressPath(shaped, 0, line.Text.Length, geometry, basis) };
+            });
         })];
     }
 
@@ -50,70 +83,77 @@ public sealed partial class SkiaRenderPipeline
             var line = sample.Frame.Line!;
             if (line.Tokens.IsEmpty) continue;
             var style = LineBaseStyle(snapshot.LyricStyle, line, sample.Branch);
-            var layout = GetLineLayout(line, style);
-            ShapedLine shaped = layout.Shaped;
-            var lineGeometry = sample.Geometry!;
-            SceneMatrix matrix = lineGeometry.WorldMatrix!.Value;
-            Fx.Affine2 world = new(matrix.A, matrix.B, matrix.C, matrix.D, matrix.Tx, matrix.Ty);
-            var annotations = layout.Ruby;
-            int offset = 0;
-            TextSpan[] spans = [.. line.Tokens.Select(token =>
+            result.AddRange(Remember(_tokenMeasures, line, MeasureKey(style, sample), () => MeasureLineTokens(sample, line, style)));
+        }
+        return [.. result];
+    }
+
+    private ImmutableArray<Fx.TokenGeometrySample> MeasureLineTokens(SceneLineSample sample, LyricLine line, LyricStyle style)
+    {
+        List<Fx.TokenGeometrySample> result = [];
+        var layout = GetLineLayout(line, style);
+        ShapedLine shaped = layout.Shaped;
+        var lineGeometry = sample.Geometry!;
+        SceneMatrix matrix = lineGeometry.WorldMatrix!.Value;
+        Fx.Affine2 world = new(matrix.A, matrix.B, matrix.C, matrix.D, matrix.Tx, matrix.Ty);
+        var annotations = layout.Ruby;
+        int offset = 0;
+        TextSpan[] spans = [.. line.Tokens.Select(token =>
+        {
+            var span = new TextSpan(offset, token.Text.Length); offset = span.End; return span;
+        })];
+        bool validMapping = sample.Frame.TokensMatchLineText && spans.All(static span => span.Length > 0);
+        var partitions = validMapping ? GlyphPartitioner.Partition(shaped, spans) : [];
+        for (int i = 0; i < line.Tokens.Length; i++)
+        {
+            var token = line.Tokens[i];
+            ImmutableArray<int> unitIndices = validMapping ? partitions[i].DrawUnitIndices : [];
+            bool independent = validMapping && partitions[i].CanTransformIndependently;
+            Fx.GeometrySample basis = MeasureUnits(shaped, unitIndices, lineGeometry.OriginX, lineGeometry.BaselineY,
+                world, sample.BindingId!, "base", independent);
+            List<Fx.RubyGeometrySample> ruby = [];
+            foreach (RubyLayout annotation in annotations.Where(annotation => annotation.TokenIndex == i))
             {
-                var span = new TextSpan(offset, token.Text.Length); offset = span.End; return span;
-            })];
-            bool validMapping = sample.Frame.TokensMatchLineText && spans.All(static span => span.Length > 0);
-            var partitions = validMapping ? GlyphPartitioner.Partition(shaped, spans) : [];
-            for (int i = 0; i < line.Tokens.Length; i++)
-            {
-                var token = line.Tokens[i];
-                ImmutableArray<int> unitIndices = validMapping ? partitions[i].DrawUnitIndices : [];
-                bool independent = validMapping && partitions[i].CanTransformIndependently;
-                Fx.GeometrySample basis = MeasureUnits(shaped, unitIndices, lineGeometry.OriginX, lineGeometry.BaselineY,
-                    world, sample.BindingId!, "base", independent);
-                List<Fx.RubyGeometrySample> ruby = [];
-                foreach (RubyLayout annotation in annotations.Where(annotation => annotation.TokenIndex == i))
-                {
-                    var measured = MeasureUnits(annotation.Shaped, [.. Enumerable.Range(0, annotation.Shaped.DrawUnits.Length)],
-                        lineGeometry.OriginX + annotation.X, lineGeometry.BaselineY + annotation.Baseline,
-                        world, sample.BindingId!, "ruby/" + annotation.Id, independent);
-                    ruby.Add(new(new(annotation.Id), measured));
-                }
-                Fx.GeometrySample family = basis with
-                {
-                    InkBounds = Union(basis.InkBounds, ruby.Select(static item => item.Geometry.InkBounds)),
-                    DrawUnits = [.. basis.DrawUnits, .. ruby.SelectMany(static item => item.Geometry.DrawUnits)],
-                };
-                Fx.TokenId tokenId = new(token.Id); Fx.BindingId bindingId = new(sample.BindingId!);
-                List<V2.TextClusterGeometrySample> clusters = [];
-                if (validMapping)
-                {
-                    foreach (int unitIndex in unitIndices)
-                    {
-                        var unit = shaped.DrawUnits[unitIndex];
-                        var owners = line.Tokens.Select((item, index) => (item, index))
-                            .Where(item => spans[item.index].Start < unit.Utf16End && unit.Utf16Start < spans[item.index].End)
-                            .Select(static item => new Fx.TokenId(item.item.Id)).ToImmutableArray();
-                        var measured = MeasureUnits(shaped, [unitIndex], lineGeometry.OriginX, lineGeometry.BaselineY,
-                            world, sample.BindingId!, "base", owners.Length == 1 && shaped.MappingIsExact);
-                        var target = new V2.TextClusterTarget(owners[0], bindingId, measured.DrawUnits[0], unitIndex);
-                        clusters.Add(new(target, owners, unit.Utf16Start, unit.Utf16Length, measured));
-                    }
-                    foreach (RubyLayout annotation in annotations.Where(annotation => annotation.TokenIndex == i))
-                    for (int unitIndex = 0; unitIndex < annotation.Shaped.DrawUnits.Length; unitIndex++)
-                    {
-                        var unit = annotation.Shaped.DrawUnits[unitIndex];
-                        var measured = MeasureUnits(annotation.Shaped, [unitIndex], lineGeometry.OriginX + annotation.X,
-                            lineGeometry.BaselineY + annotation.Baseline, world, sample.BindingId!, "ruby/" + annotation.Id,
-                            annotation.Shaped.MappingIsExact);
-                        var target = new V2.TextClusterTarget(tokenId, bindingId, measured.DrawUnits[0], unitIndex, new(annotation.Id));
-                        clusters.Add(new(target, [tokenId], unit.Utf16Start, unit.Utf16Length, measured));
-                    }
-                }
-                result.Add(new() { BranchId = new(sample.Branch.Id), LineId = new(line.Id), WithRuby = new(tokenId, bindingId),
-                    BaseOnly = new(tokenId, bindingId), BaseGeometry = basis, FamilyGeometry = family, Ruby = [.. ruby],
-                    Clusters = [.. clusters],
-                    ProgressPath = validMapping ? ProgressPath(shaped, spans[i].Start, spans[i].End, lineGeometry, basis) : null });
+                var measured = MeasureUnits(annotation.Shaped, [.. Enumerable.Range(0, annotation.Shaped.DrawUnits.Length)],
+                    lineGeometry.OriginX + annotation.X, lineGeometry.BaselineY + annotation.Baseline,
+                    world, sample.BindingId!, "ruby/" + annotation.Id, independent);
+                ruby.Add(new(new(annotation.Id), measured));
             }
+            Fx.GeometrySample family = basis with
+            {
+                InkBounds = Union(basis.InkBounds, ruby.Select(static item => item.Geometry.InkBounds)),
+                DrawUnits = [.. basis.DrawUnits, .. ruby.SelectMany(static item => item.Geometry.DrawUnits)],
+            };
+            Fx.TokenId tokenId = new(token.Id); Fx.BindingId bindingId = new(sample.BindingId!);
+            List<V2.TextClusterGeometrySample> clusters = [];
+            if (validMapping)
+            {
+                foreach (int unitIndex in unitIndices)
+                {
+                    var unit = shaped.DrawUnits[unitIndex];
+                    var owners = line.Tokens.Select((item, index) => (item, index))
+                        .Where(item => spans[item.index].Start < unit.Utf16End && unit.Utf16Start < spans[item.index].End)
+                        .Select(static item => new Fx.TokenId(item.item.Id)).ToImmutableArray();
+                    var measured = MeasureUnits(shaped, [unitIndex], lineGeometry.OriginX, lineGeometry.BaselineY,
+                        world, sample.BindingId!, "base", owners.Length == 1 && shaped.MappingIsExact);
+                    var target = new V2.TextClusterTarget(owners[0], bindingId, measured.DrawUnits[0], unitIndex);
+                    clusters.Add(new(target, owners, unit.Utf16Start, unit.Utf16Length, measured));
+                }
+                foreach (RubyLayout annotation in annotations.Where(annotation => annotation.TokenIndex == i))
+                for (int unitIndex = 0; unitIndex < annotation.Shaped.DrawUnits.Length; unitIndex++)
+                {
+                    var unit = annotation.Shaped.DrawUnits[unitIndex];
+                    var measured = MeasureUnits(annotation.Shaped, [unitIndex], lineGeometry.OriginX + annotation.X,
+                        lineGeometry.BaselineY + annotation.Baseline, world, sample.BindingId!, "ruby/" + annotation.Id,
+                        annotation.Shaped.MappingIsExact);
+                    var target = new V2.TextClusterTarget(tokenId, bindingId, measured.DrawUnits[0], unitIndex, new(annotation.Id));
+                    clusters.Add(new(target, [tokenId], unit.Utf16Start, unit.Utf16Length, measured));
+                }
+            }
+            result.Add(new() { BranchId = new(sample.Branch.Id), LineId = new(line.Id), WithRuby = new(tokenId, bindingId),
+                BaseOnly = new(tokenId, bindingId), BaseGeometry = basis, FamilyGeometry = family, Ruby = [.. ruby],
+                Clusters = [.. clusters],
+                ProgressPath = validMapping ? ProgressPath(shaped, spans[i].Start, spans[i].End, lineGeometry, basis) : null });
         }
         return [.. result];
     }

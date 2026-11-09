@@ -517,3 +517,15 @@ SVG 可以用文件替换编辑器里的文本。不新增、删除、改名文�
 - `author-v2-smoke.mjs`、`author-package-smoke.mjs` 跟随 package-files 读写与原子采用对话框（`18a2231`）；
   fresh publish 0.112.43 实跑 author-v2 三例与 author-package 全部通过；前端 typecheck、单测 4160 通过。
 - 详见 [D8 逐项核对记录](script-sdk-v2-d8-audit-20261108.md)「后续处理」。
+
+### 2026-11-08～09 M12 性能矩阵测量（产品 0.112.46，未关闭）
+
+用户决定范围为「回归＋重场景」七项，先备好工具、在当前机器状态下正式测量，再提门槛，确认后才优化。
+
+- 测量中修复三处功能缺陷：v2 媒体特征导出失败（0.112.44）、粒子发射器上限改按实例计（0.112.45，用户决定）、
+  最终锚点补算只调用在场实例（0.112.46）。新增 `m12_http_probe.py`，P3 运行器支持经界面应用 SDK2 模板（`b45e980`）。
+- ①～⑦ 已全部测完：M07 回归 195/196（ClusterExit 已登记项）；M08 确定性全等；1080p 导出与逐帧、HTTP seek、
+  作者改动、GPU 流、内存与 FD 均有数据。
+- 主要问题：SDK2 成本随全曲行数线性增长；GPU 流每次换源整份重开 Runtime 输入；含 CursorTrail 的 T01
+  在 1440p 起播时报 `FinalAnchorWallBudgetExceeded`（固定 3 s 墙钟保护）；材质／图读回偏重。
+- 数据、发现、15 项门槛候选与 6 项优化候选见 [M12 测量记录](script-sdk-render-m12-evidence.md)，待用户确认。

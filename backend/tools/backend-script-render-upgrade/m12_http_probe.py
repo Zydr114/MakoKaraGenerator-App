@@ -142,6 +142,8 @@ class M12Probe(m11.M11ComplexProbe):
         self.current_scenario = "setup"
         self.windows = []
         self.sequence = 0
+        # 背景分析按内容缓存：同一背景只在首个工程完成时发一次 mediaFeaturesChanged，之后的工程直接取已完成结果。
+        self.media_ready = False
 
     # ---- shared fixture ----
     def import_sample(self, name):
@@ -202,6 +204,11 @@ class M12Probe(m11.M11ComplexProbe):
     def create_project(self, name, duration_us, period_us=1_250_000, length_us=1_150_000):
         """Lines every period across the whole duration, so every sought time has a live SDK2 line."""
         count = duration_us // period_us
+        wait_media = "AdaptiveStroke" in self.names and not self.media_ready
+        if wait_media:
+            # 从当前游标等待本工程的媒体完成事件，避免早期事件滑出重放窗口时 resync。
+            state = self.request(name + "-event-cursor", "GET", "/api/v1/clients/" + self.client + "/state")
+            cursor = state["eventCursor"].rsplit(":", 1)[1]
         stream = io.BytesIO()
         with wave.open(stream, "wb") as audio:
             audio.setnchannels(1); audio.setsampwidth(2); audio.setframerate(8000)
@@ -237,11 +244,12 @@ class M12Probe(m11.M11ComplexProbe):
             "renderBackend": "gpu"})
         self.active_preview = preview.get("session", preview)
         self.sequence = 0
-        if "AdaptiveStroke" in self.names:
+        if wait_media:
             # Measure against the completed media input, not the transient analysing state.
             try:
-                self.wait_media_event("0", time.monotonic() + 90)
+                self.wait_media_event(cursor, time.monotonic() + 90)
                 self.refresh_input(name + "-media-refresh")
+                self.media_ready = True
             finally:
                 if self.sse is not None:
                     self.sse.close()

@@ -47,11 +47,12 @@ internal sealed partial class FrameEffectHost
         var scene = _geometry.GetSceneFrame(_snapshot, timeUs);
         // No legacy instance is called during supplement queries. Reject only a
         // legacy geometry writer whose real output binding can affect this source.
+        V2AnchorWriters writers = new(this, source, scene);
         foreach (var legacy in _instances.Where(static item => !item.IsPureText))
-            if (MayWriteV2Anchor(legacy, source, scene))
+            if (writers.May(legacy))
                 throw new EffectOutputException("FinalAnchorLegacyDependencyUnsupported",
                     "最终锚点依赖有状态 v1 文字输出：" + legacy.Definition.Id.Value);
-        var (continuous, start, end) = V2AnchorRegion(owner, source, timeUs, scene, token);
+        var (continuous, start, end) = V2AnchorRegionCore(owner, source, timeUs, scene, writers, token);
         if (!continuous) return At(timeUs, timeUs, timeUs);
         long grid = SemanticSimulationGrid.IndexAtOrBefore(timeUs);
         long left = Math.Max(start, SemanticSimulationGrid.TimeAt(grid));
@@ -121,64 +122,92 @@ internal sealed partial class FrameEffectHost
         static Point2 Center(GeometrySample geometry) => geometry.MapPoint(geometry.AdvanceBounds.Center);
     }
 
-    private bool MayWriteV2Anchor(ActiveEffect active, ParticleSource source, SceneFrame scene)
+    /// <summary>
+    /// 同一锚点来源在同一帧上对各实例的写入判定。绑定范围、来源对应的帧对象、运行父树与组几何只建一次，
+    /// 逐实例只做范围查询；旧做法每个实例都重建整帧投影，模板逐行应用时随实例数×在场元素数增长。
+    /// </summary>
+    private sealed class V2AnchorWriters(FrameEffectHost host, ParticleSource source, SceneFrame scene)
     {
-        if (!active.Definition.Capabilities.HasFlag(EffectCapabilities.Transforms)) return false;
-        FrameBindingScope scope = new(scene); var binding = active.Definition.Binding;
-        TokenFamilyTarget? token = source switch
-        {
-            ParticleSource.Cursor { Identity.TokenId: { } id } cursor => new(id, cursor.Identity.BindingId),
-            ParticleSource.Token value => value.Target, _ => null,
-        };
-        if (token is not null)
-        {
-            var frameToken = FrameProjection.Tokens(scene).SingleOrDefault(item => item.WithRuby == token);
-            return frameToken is not null && (scope.ContainsToken(binding, frameToken)
-                || MayWriteV2AncestorGroup(active, scope, scene, scene.Lines.Single(item => item.BindingId == token.BindingId.Value).ElementId));
-        }
-        if (source is ParticleSource.TextMark mark)
-        {
-            var frameMark = FrameProjection.Marks(scene, _project.Scene).SingleOrDefault(item => item.Target == mark.Target);
-            return frameMark is not null && (scope.ContainsMark(binding, frameMark)
-                || MayWriteV2AncestorGroup(active, scope, scene, mark.Target.NodeId.Value));
-        }
-        LineTarget? line = source switch
-        {
-            ParticleSource.Cursor cursor => new(cursor.Identity.LineId, cursor.Identity.BindingId),
-            ParticleSource.Line value => value.Target, _ => null,
-        };
-        var frameLine = FrameProjection.Lines(scene, _project.Scene).SingleOrDefault(item => item.Target == line);
-        return frameLine is not null && (binding is not EffectBinding.Tokens && scope.ContainsLine(binding, frameLine)
-            || MayWriteV2AncestorGroup(active, scope, scene, scene.Lines.Single(item => item.BindingId == frameLine.BindingId.Value).ElementId));
-    }
+        private FrameBindingScope? _scope;
+        private bool _resolved;
+        private TokenFamilyTarget? _sourceToken;
+        private FrameToken? _token;
+        private FrameMark? _mark;
+        private FrameLine? _line;
+        private string? _ancestorStart;
+        private Dictionary<string, SceneElementFrame>? _nodes;
+        private HashSet<GroupTarget>? _groups;
 
-    private static bool MayWriteV2AncestorGroup(ActiveEffect active, FrameBindingScope scope, SceneFrame scene, string nodeId)
-    {
-        // SceneAffineProjection applies a real group's local matrix both to that
-        // node and to its direct runtime aliases, then inherits it down ParentId.
-        // Node(group, false) can therefore affect text outside its direct scope.
-        if (active.Definition.PackageDeclaration is { } declaration
-            && !declaration.Outputs.Any(output => output.Kind == "VisualTransform" && output.Target == "group")) return false;
-        var nodes = scene.Elements.ToDictionary(node => node.Id, StringComparer.Ordinal);
-        HashSet<string> visited = new(StringComparer.Ordinal);
-        string? current = nodeId;
-        while (current is not null)
+        internal bool May(ActiveEffect active)
         {
-            if (!visited.Add(current) || !nodes.TryGetValue(current, out var node))
-                throw new PreparedFrameException("InvalidSceneTransform", "最终锚点的运行父树循环或缺少真实节点。");
-            if (node.Kind == SceneElementKind.Group)
+            if (!active.Definition.Capabilities.HasFlag(EffectCapabilities.Transforms)) return false;
+            var scope = _scope ??= new(scene); var binding = active.Definition.Binding;
+            Resolve();
+            if (_sourceToken is not null)
+                return _token is not null && (scope.ContainsToken(binding, _token)
+                    || Ancestor(active, scope, _ancestorStart ??= scene.Lines.Single(item => item.BindingId == _sourceToken.BindingId.Value).ElementId));
+            if (source is ParticleSource.TextMark mark)
+                return _mark is not null && (scope.ContainsMark(binding, _mark) || Ancestor(active, scope, mark.Target.NodeId.Value));
+            return _line is not null && (binding is not EffectBinding.Tokens && scope.ContainsLine(binding, _line)
+                || Ancestor(active, scope, _ancestorStart ??= scene.Lines.Single(item => item.BindingId == _line.BindingId.Value).ElementId));
+        }
+
+        private void Resolve()
+        {
+            if (_resolved) return;
+            _sourceToken = source switch
             {
-                var target = new GroupTarget(new(node.SourceNodeId ?? node.Id));
-                if (scene.GroupGeometries.Any(group => group.Target == target)
-                    && scope.ContainsGroup(active.Definition.Binding, target)) return true;
+                ParticleSource.Cursor { Identity.TokenId: { } id } cursor => new(id, cursor.Identity.BindingId),
+                ParticleSource.Token value => value.Target, _ => null,
+            };
+            if (_sourceToken is not null) _token = FrameProjection.Tokens(scene).SingleOrDefault(item => item.WithRuby == _sourceToken);
+            else if (source is ParticleSource.TextMark mark)
+                _mark = FrameProjection.Marks(scene, host._project.Scene).SingleOrDefault(item => item.Target == mark.Target);
+            else
+            {
+                LineTarget? line = source switch
+                {
+                    ParticleSource.Cursor cursor => new(cursor.Identity.LineId, cursor.Identity.BindingId),
+                    ParticleSource.Line value => value.Target, _ => null,
+                };
+                _line = FrameProjection.Lines(scene, host._project.Scene).SingleOrDefault(item => item.Target == line);
             }
-            current = node.ParentId;
+            _resolved = true;
         }
-        return false;
+
+        private bool Ancestor(ActiveEffect active, FrameBindingScope scope, string nodeId)
+        {
+            // SceneAffineProjection applies a real group's local matrix both to that
+            // node and to its direct runtime aliases, then inherits it down ParentId.
+            // Node(group, false) can therefore affect text outside its direct scope.
+            if (active.Definition.PackageDeclaration is { } declaration
+                && !declaration.Outputs.Any(output => output.Kind == "VisualTransform" && output.Target == "group")) return false;
+            var nodes = _nodes ??= scene.Elements.ToDictionary(node => node.Id, StringComparer.Ordinal);
+            var groups = _groups ??= [.. scene.GroupGeometries.Select(static group => group.Target)];
+            HashSet<string> visited = new(StringComparer.Ordinal);
+            string? current = nodeId;
+            while (current is not null)
+            {
+                if (!visited.Add(current) || !nodes.TryGetValue(current, out var node))
+                    throw new PreparedFrameException("InvalidSceneTransform", "最终锚点的运行父树循环或缺少真实节点。");
+                if (node.Kind == SceneElementKind.Group)
+                {
+                    var target = new GroupTarget(new(node.SourceNodeId ?? node.Id));
+                    if (groups.Contains(target) && scope.ContainsGroup(active.Definition.Binding, target)) return true;
+                }
+                current = node.ParentId;
+            }
+            return false;
+        }
     }
 
+    // 单次区段查询入口（白盒测试按名反射调用）；正式补算路径与 v1 写入检查共用同一判定对象，走 Core。
     private (bool Continuous, long Start, long End) V2AnchorRegion(ActiveEffect owner, ParticleSource source,
         long timeUs, SceneFrame scene, CancellationToken token)
+        => V2AnchorRegionCore(owner, source, timeUs, scene, new(this, source, scene), token);
+
+    private (bool Continuous, long Start, long End) V2AnchorRegionCore(ActiveEffect owner, ParticleSource source,
+        long timeUs, SceneFrame scene, V2AnchorWriters writers, CancellationToken token)
     {
         long start = 0, end = long.MaxValue;
         var load = owner.Pure!.Source.Indexes.Presentations.Get(source.BindingId);
@@ -192,7 +221,7 @@ internal sealed partial class FrameEffectHost
         // The requesting policy chooses Exact by default. Every real text
         // dependency must independently prove continuity over the whole cell.
         foreach (var dependency in _instances.Where(item => item.Pure is not null
-            && (ReferenceEquals(item, owner) || MayWriteV2Anchor(item, source, scene))))
+            && (ReferenceEquals(item, owner) || writers.May(item))))
         {
             // Media may vary at any exact project time even when author policy claims continuity.
             if (dependency.Pure!.MediaProjection?.Owner is not null) return (false, timeUs, timeUs);

@@ -109,8 +109,8 @@ public sealed class BaselineStyles
     private readonly ImmutableDictionary<LineId, StyleView> _lines;
     private readonly ImmutableDictionary<NodeId, StyleView> _marks;
     private readonly ImmutableDictionary<NodeId, GroupStyleView> _groups;
-    private ImmutableDictionary<TokenFamilyTarget, StyleView> _loadedTokens = ImmutableDictionary<TokenFamilyTarget, StyleView>.Empty;
-    private ImmutableDictionary<LineTarget, StyleView> _loadedLines = ImmutableDictionary<LineTarget, StyleView>.Empty;
+    private readonly ImmutableDictionary<TokenFamilyTarget, StyleView> _loadedTokens = ImmutableDictionary<TokenFamilyTarget, StyleView>.Empty;
+    private readonly ImmutableDictionary<LineTarget, StyleView> _loadedLines = ImmutableDictionary<LineTarget, StyleView>.Empty;
     /// <summary>复制真实源元素基线，拒绝空值和重复身份。</summary>
     public BaselineStyles(IEnumerable<KeyValuePair<TokenId, StyleView>> tokens)
         : this(tokens, [], [], []) { }
@@ -137,7 +137,32 @@ public sealed class BaselineStyles
         if (loadedTokens.Any(static pair => pair.Key is null || !pair.Key.BindingId.IsValid || !pair.Key.TokenId.IsValid || pair.Value is null)
             || loadedLines.Any(static pair => pair.Key is null || !pair.Key.BindingId.IsValid || !pair.Key.LineId.IsValid || pair.Value is null))
             throw new ArgumentException("装载基线须包含真实身份和只读外观。");
-        return new(_tokens, _lines, _marks, _groups) { _loadedTokens = loadedTokens, _loadedLines = loadedLines };
+        return new(_tokens, _lines, _marks, _groups, loadedTokens, loadedLines);
+    }
+    // 已校验的源部分原样共享，不再逐项复核（逐帧附加装载时避免随全曲元素数重复校验）。
+    private BaselineStyles(ImmutableDictionary<TokenId, StyleView> tokens, ImmutableDictionary<LineId, StyleView> lines,
+        ImmutableDictionary<NodeId, StyleView> marks, ImmutableDictionary<NodeId, GroupStyleView> groups,
+        ImmutableDictionary<TokenFamilyTarget, StyleView> loadedTokens, ImmutableDictionary<LineTarget, StyleView> loadedLines)
+    {
+        _tokens = tokens; _lines = lines; _marks = marks; _groups = groups; _loadedTokens = loadedTokens; _loadedLines = loadedLines;
+    }
+    /// <summary>
+    /// 宿主逐帧派生：替换给定源元素／行外观并整体换用标记基线，组基线不变、装载基线清空。
+    /// 替换项须为已有源身份；只校验新值，成本随替换项而非全曲元素数增长。
+    /// </summary>
+    internal BaselineStyles WithSources(IEnumerable<KeyValuePair<TokenId, StyleView>> tokens,
+        IEnumerable<KeyValuePair<LineId, StyleView>> lines, IEnumerable<KeyValuePair<NodeId, StyleView>> marks)
+    {
+        ArgumentNullException.ThrowIfNull(tokens); ArgumentNullException.ThrowIfNull(lines); ArgumentNullException.ThrowIfNull(marks);
+        var tokenItems = tokens.ToArray(); var lineItems = lines.ToArray(); var markItems = marks.ToImmutableDictionary();
+        if (tokenItems.Any(pair => !pair.Key.IsValid || pair.Value is null || !_tokens.ContainsKey(pair.Key)))
+            throw new ArgumentException("基线需要真实元素和非空外观。", nameof(tokens));
+        if (lineItems.Any(pair => !pair.Key.IsValid || pair.Value is null || !_lines.ContainsKey(pair.Key)))
+            throw new ArgumentException("行基线身份或外观无效。", nameof(lines));
+        if (markItems.Any(static pair => !pair.Key.IsValid || pair.Value is null)) throw new ArgumentException("标记基线身份或外观无效。", nameof(marks));
+        if (_groups.Keys.Any(markItems.ContainsKey)) throw new ArgumentException("组基线身份或角色无效。", nameof(marks));
+        return new(_tokens.SetItems(tokenItems), _lines.SetItems(lineItems), markItems, _groups,
+            ImmutableDictionary<TokenFamilyTarget, StyleView>.Empty, ImmutableDictionary<LineTarget, StyleView>.Empty);
     }
     /// <summary>无源元素的明确空基线。</summary>
     public static BaselineStyles Empty { get; } = new([]);

@@ -159,11 +159,12 @@ internal sealed partial class FrameEffectHost : IDisposable
         if (includePure) scene = ExtendExitReplicas(scene, cancellationToken);
         FrameBindingScope scope = new(scene);
         bool hasExits = scene.Lines.Any(static line => line.ExitReplica is not null);
-        var baseline = _snapshot.PresetApplications.Items.IsEmpty && !hasExits ? _baseline
-            : StaticStyleProjection.CreateBaseline(_snapshot, _sourceMaterials, scene);
-        var loadedStyles = _snapshot.PresetApplications.Items.IsEmpty && !hasExits ? null
-            : StaticStyleProjection.LoadedSourceStyles(_snapshot, scene);
+        bool sessionStyles = _snapshot.PresetApplications.Items.IsEmpty && !hasExits;
+        var loadedStyles = sessionStyles ? null : StaticStyleProjection.LoadedSourceStyles(_snapshot, scene);
         var sourceMarkStyles = _snapshot.PresetApplications.Items.IsEmpty ? _sourceMarkStyles : StaticStyleProjection.MarkStyles(_snapshot, scene);
+        // 本帧基线由会话基线派生：不在场行与场景无关、原样共享，只重算在场行与标记，并复用上面已解析的标记与装载外观。
+        var baseline = sessionStyles ? _baseline : StaticStyleProjection.CreateFrameBaseline(_baseline, _snapshot, _sourceMaterials, scene,
+            _snapshot.PresetApplications.Items.IsEmpty ? null : sourceMarkStyles, loadedStyles);
         var activeBindings = scene.Lines.Where(static line => line.ExitReplica is null).Select(static line => line.BindingId!).ToHashSet(StringComparer.Ordinal);
         var sourceGroupIds = scene.Elements.Where(static node => node.SourceNodeId is null).Select(static node => node.Id).ToHashSet(StringComparer.Ordinal);
         var sourceGroups = scene.GroupGeometries.Where(group => sourceGroupIds.Contains(group.Target.NodeId.Value)).ToImmutableArray();

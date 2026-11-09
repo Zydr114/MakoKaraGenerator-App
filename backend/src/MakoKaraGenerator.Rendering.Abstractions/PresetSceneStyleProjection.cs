@@ -11,6 +11,7 @@ public static class PresetSceneStyleProjection
     private static readonly ConditionalWeakTable<ProjectSnapshot, PresetStyleResolver> Resolvers = new();
     private static readonly ConditionalWeakTable<LyricPresentationDefinition, Dictionary<string, string?>> TreeParents = new();
     private static readonly ConditionalWeakTable<SceneDefinition, Dictionary<string, string?>> DefinitionParents = new();
+    private static readonly ConditionalWeakTable<SceneFrame, ParentIndex> FrameParents = new();
 
     /// <summary>创建只读源解析器，不生成编辑工程；同一不可变快照复用同一解析器。</summary>
     public static PresetStyleResolver Resolver(ProjectSnapshot snapshot)
@@ -21,7 +22,16 @@ public static class PresetSceneStyleProjection
 
     /// <summary>实际文本节点的完整根到对象链，包含动态槽位及附着后的父关系。</summary>
     public static ImmutableArray<string> NodePath(ProjectSnapshot snapshot, string nodeId, SceneFrame? frame = null)
-        => new ParentIndex(snapshot, frame).Path(nodeId);
+        => Parents(snapshot, frame).Path(nodeId);
+
+    // 同一帧的多次查询（逐行、逐文字对象、逐标记）共用一份帧层父关系；帧与展示输入都不可变。
+    private static ParentIndex Parents(ProjectSnapshot snapshot, SceneFrame? frame)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        if (frame is null) return new(snapshot, null);
+        var index = FrameParents.GetValue(frame, source => new(snapshot, source));
+        return index.Serves(snapshot) ? index : new(snapshot, frame);
+    }
 
     /// <summary>解析当前真实行／元素，未装载的源不猜测未来槽位。</summary>
     public static PresetStyleResolution Lyrics(ProjectSnapshot snapshot, string lineId, string? tokenId = null,
@@ -69,7 +79,7 @@ public static class PresetSceneStyleProjection
         {
             var source = sample.Frame.Line!;
             // 同一装载的行与各文字对象共用一条实际父链，每行只求一次。
-            var path = sample.ExitReplica is null ? (parents ??= new(snapshot, frame)).Path(sample.ElementId) : default;
+            var path = sample.ExitReplica is null ? (parents ??= Parents(snapshot, frame)).Path(sample.ElementId) : default;
             PresetStyleResolution Resolve(string? tokenId) => sample.ExitReplica is { } exit ? ExitStyle(exit, tokenId)
                 : resolver.ResolveLyrics(source.Id, tokenId, sample.DisplayClipId, path);
             var lineStyle = Resolve(null).Style;
@@ -95,12 +105,15 @@ public static class PresetSceneStyleProjection
     /// </summary>
     private sealed class ParentIndex
     {
+        private readonly LyricPresentationDefinition _presentation;
+        private readonly Core.Lyrics.LyricsDocument _lyrics;
         private readonly Dictionary<string, string?> _tree;
         private readonly Dictionary<string, string?>? _definition;
         private readonly Dictionary<string, string?>? _frame;
 
         internal ParentIndex(ProjectSnapshot snapshot, SceneFrame? frame)
         {
+            _presentation = snapshot.LyricPresentation; _lyrics = snapshot.Lyrics;
             _tree = TreeParents.GetValue(snapshot.LyricPresentation.WithDefaultPrograms(snapshot.Lyrics),
                 static tree => tree.Nodes.ToDictionary(node => node.Id, node => node.ParentId, StringComparer.Ordinal));
             if (frame is null) return;
@@ -117,6 +130,10 @@ public static class PresetSceneStyleProjection
                     _frame[cue.ContainerId] = cue.TargetElementId;
             foreach (var node in frame.Elements) _frame[node.Id] = node.ParentId;
         }
+
+        /// <summary>父关系只读取快照的展示树与歌词；两者引用相同即可复用。</summary>
+        internal bool Serves(ProjectSnapshot snapshot)
+            => ReferenceEquals(_presentation, snapshot.LyricPresentation) && ReferenceEquals(_lyrics, snapshot.Lyrics);
 
         internal ImmutableArray<string> Path(string nodeId)
         {

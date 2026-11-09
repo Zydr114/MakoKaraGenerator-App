@@ -21,6 +21,35 @@ public static class StaticStyleProjection
             LoadedLineStyles(snapshot, scene).Select(pair => new KeyValuePair<Fx.LineTarget, Fx.StyleView>(pair.Key, View(pair.Value, materials))));
     }
 
+    /// <summary>
+    /// 在会话基线（同一快照与材质、不带场景的 <see cref="CreateBaseline"/> 结果）上派生本帧基线：
+    /// 不在场的行与元素和场景无关、原样共享，只重算本帧装载行及其元素并整体重算标记，
+    /// 结果与带场景的 <see cref="CreateBaseline"/> 相同，成本随在场行而非全曲行数增长。
+    /// 调用方已算好的本帧标记与装载元素外观可直接传入，避免重复解析。
+    /// </summary>
+    public static Fx.BaselineStyles CreateFrameBaseline(Fx.BaselineStyles session, ProjectSnapshot snapshot,
+        PreparedSourceMaterials? materials, SceneFrame scene, ImmutableDictionary<Fx.NodeId, LyricStyle>? marks = null,
+        ImmutableDictionary<Fx.TokenFamilyTarget, LyricStyle>? loadedTokens = null)
+    {
+        ArgumentNullException.ThrowIfNull(session); ArgumentNullException.ThrowIfNull(snapshot); ArgumentNullException.ThrowIfNull(scene);
+        var resolver = PresetSceneStyleProjection.Resolver(snapshot);
+        var present = scene.Lines.Select(static line => line.Frame.Line!.Id).ToHashSet(StringComparer.Ordinal);
+        List<KeyValuePair<Fx.TokenId, Fx.StyleView>> tokens = [];
+        List<KeyValuePair<Fx.LineId, Fx.StyleView>> lines = [];
+        foreach (var line in snapshot.Lyrics.AllLines)
+        {
+            if (!present.Contains(line.Id)) continue;
+            lines.Add(new(new(line.Id), View(PresetSceneStyleProjection.Lyrics(snapshot, line.Id, frame: scene, resolver: resolver).Style, materials)));
+            foreach (var token in line.Tokens)
+                tokens.Add(new(new(token.Id), View(PresetSceneStyleProjection.Lyrics(snapshot, line.Id, token.Id, scene, resolver).Style, materials)));
+        }
+        return session.WithSources(tokens, lines, (marks ?? MarkStyles(snapshot, scene))
+                .Select(pair => new KeyValuePair<Fx.NodeId, Fx.StyleView>(pair.Key, View(pair.Value, materials))))
+            .WithLoaded((loadedTokens ?? LoadedSourceStyles(snapshot, scene))
+                .Select(pair => new KeyValuePair<Fx.TokenFamilyTarget, Fx.StyleView>(pair.Key, View(pair.Value, materials))),
+                LoadedLineStyles(snapshot, scene).Select(pair => new KeyValuePair<Fx.LineTarget, Fx.StyleView>(pair.Key, View(pair.Value, materials))));
+    }
+
     /// <summary>完整源行的继承外观，包含无元素／当前不可见行。</summary>
     public static ImmutableDictionary<Fx.LineId, LyricStyle> LineStyles(ProjectSnapshot snapshot, SceneFrame? scene = null)
     {

@@ -5,6 +5,8 @@
 // Finite real-content acceptance: node scripts/gpu-preview-p3.mjs --finite --provider runtime
 // Quiet transport benchmark: node scripts/gpu-preview-p3.mjs --provider synthetic
 // Reanalyze: node scripts/gpu-preview-p3.mjs --analyze .local/gpu-preview-p3/<run>
+// SDK2 content: add --v2-samples t01|<names> [--v2-lines 72] to --finite/--debug; lyrics shrink to N lines every 5 s
+// and a UI-built SDK2 line template is applied to all of them before any timed phase.
 // --connect reuses an explicitly CDP-enabled App without owning its shutdown.
 // Formal timing excludes fixture creation, correctness probes and pixel readbacks.
 import { spawn } from 'node:child_process';
@@ -17,6 +19,7 @@ import { release, platform, arch } from 'node:os';
 import { Cdp, Page } from '../frontend/scripts/cdp.mjs';
 import { shell, ui } from '../frontend/scripts/ui-query.mjs';
 import { verifyDesktopDeployment } from './desktop-build.mjs';
+import { applyV2Template, v2SampleNames } from './gpu-preview-v2-content.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const NS = 1_000_000_000n;
@@ -326,12 +329,12 @@ async function seekTimeline(page,xOffset) {
   await page.send('Input.dispatchMouseEvent',{type:'mousePressed',x:point.x,y:point.y,button:'left',clickCount:1});
   await page.send('Input.dispatchMouseEvent',{type:'mouseReleased',x:point.x,y:point.y,button:'left',clickCount:1});
 }
-export async function makeFixtures(output) {
+export async function makeFixtures(output,lineCount=360) {
   const seconds=1800,rate=8000,bytes=seconds*rate*2,header=Buffer.alloc(44),audio=join(output,'silence-1800s.wav');
   header.write('RIFF');header.writeUInt32LE(36+bytes,4);header.write('WAVEfmt ',8);header.writeUInt32LE(16,16);header.writeUInt16LE(1,20);header.writeUInt16LE(1,22);header.writeUInt32LE(rate,24);header.writeUInt32LE(rate*2,28);header.writeUInt16LE(2,32);header.writeUInt16LE(16,34);header.write('data',36);header.writeUInt32LE(bytes,40);
   await writeFile(audio,Buffer.concat([header,Buffer.alloc(bytes)]));
   const lyrics=join(output,'production-lyrics.lrc');
-  await writeFile(lyrics,Array.from({length:360},(_,index)=>`[${String(Math.floor(index*5/60)).padStart(2,'0')}:${String(index*5%60).padStart(2,'0')}.00]持续 GPU 预览 · 第 ${index+1} 行 · unique frame consumption`).join('\n'));
+  await writeFile(lyrics,Array.from({length:lineCount},(_,index)=>`[${String(Math.floor(index*5/60)).padStart(2,'0')}:${String(index*5%60).padStart(2,'0')}.00]持续 GPU 预览 · 第 ${index+1} 行 · unique frame consumption`).join('\n'));
   return {audio,lyrics,audioSeconds:seconds,audioSha256:createHash('sha256').update(await readFile(audio)).digest('hex')};
 }
 async function commandOutput(executable,args) {
@@ -405,6 +408,10 @@ export async function connectPage(port) {
 }
 async function run(values) {
   invariant(!values['correctness-snapshot']||values.debug||values.finite,'Correctness screenshot must stay outside formal timed runs');
+  const v2Names=values['v2-samples']?v2SampleNames(values['v2-samples']):null;
+  const v2Lines=v2Names?Number(values['v2-lines']??'72'):null;
+  invariant(!v2Names||(Number.isSafeInteger(v2Lines)&&v2Lines>=2&&v2Lines<=360),'--v2-lines must be 2..360');
+  invariant(!v2Names||((values.debug||values.finite)&&!values['reuse-project']&&values.provider==='runtime'),'--v2-samples needs --debug/--finite, a new project and the runtime provider');
   const sessionName=values.connect?null:(values['session-name']??`p3-${new Date().toISOString().replaceAll(/[^0-9TZ]/g,'').toLowerCase()}`);
   if(sessionName!==null)invariant(/^[a-z0-9][a-z0-9-]{0,63}$/.test(sessionName),'Invalid isolated desktop session name');
   const output=resolve(values.output??join(ROOT,'.local/gpu-preview-p3',new Date().toISOString().replaceAll(':','-')));
@@ -496,13 +503,19 @@ async function run(values) {
     invariant(matching(),'Interaction did not yield a matching drawn/native-completed frame');
     return after;
   };
+  // SDK2 重内容下每次换源/重建都要在新 Worker 里完整重开 Runtime 输入，等待上限放宽到 120 秒。
+  const streamDeadlineMs=v2Names?120_000:30_000;
   const waitCurrentFrames=async({since='0',count=3,previous,expectedSize,predicate=()=>true}={})=>{
-    const deadline=Date.now()+30_000;
+    const deadline=Date.now()+streamDeadlineMs;
     while(Date.now()<deadline){
       const state=await sample(),active=state.activeStream;
       const current=await page.eval('window.makoGpuPreviewAcceptance?.current()??null');
       const exact=active&&current&&['streamId','producerEpoch','inputGeneration','poolGeneration'].every(key=>active[key]===current[key])&&
         active.size?.width===current.size?.width&&active.size?.height===current.size?.height;
+      // 渲染端已收到当前流的 failed 事件时立即带失败码与诊断摘要结束，避免空等到期限、也避免进程随后 fail-stop 后丢掉原因。
+      const failed=await page.eval(`(window.__makoP3Events??[]).map(value=>value.event).filter(event=>event?.type==='failed').at(-1)??null`);
+      if(failed&&(!current||failed.streamId===undefined||failed.streamId===current.streamId))
+        throw new Error(`GPU stream failed: ${JSON.stringify(failed)}`);
       const completed=currentCompletedFrames(state,observedSamples.values(),since);
       if(exact&&Number.isSafeInteger(state.workerPid)&&state.workerPid>0&&(!previous||replacedStream(previous,active))&&
         (!expectedSize||active.size.width===expectedSize.width&&active.size.height===expectedSize.height)&&
@@ -531,7 +544,18 @@ async function run(values) {
     manifest.platformEvidence=await actualWaylandEvidence(page,cdp,{...initial,cdpPort:values['cdp-port']});
     manifest.schedulerBaseline.initialOwnedProcesses=await processSnapshot(initial);
     manifest.concurrentAppObservation=await concurrentAppEvidence(initial.mainPid);
-    if(!values['reuse-project'])manifest.fixture=await makeFixtures(output).then(async fixture=>{await createProject(page,fixture);return fixture;});
+    if(!values['reuse-project'])manifest.fixture=await makeFixtures(output,v2Lines??360).then(async fixture=>{await createProject(page,fixture);return fixture;});
+    if(v2Names){
+      // SDK2 内容在计时前经界面建模板并应用到全部行；之后回到编排页重新等 GPU 预览就绪。
+      manifest.v2Content=await applyV2Template(page,output,v2Names,v2Lines);
+      const appliedAt=Date.now();
+      await shell.goto(page,'orchestration');
+      await ui.wait(page,'select','GPU 预览规格',{what:'Production GPU preview',timeout:180_000});
+      await page.waitFor(`!!document.querySelector('[aria-label="播放"]:not([disabled])')`,'Real audio playback ready',180_000);
+      // 应用后到 GPU 流首个精确代次完成帧的墙钟时间，含换源、回编排页重建流与 Runtime 输入重开。
+      await waitCurrentFrames({count:1});
+      manifest.v2Content.streamReadyAfterApplyMs=Date.now()-appliedAt;
+    }
     if(values['reuse-project']){invariant(await page.eval(shell.projectOpen),'--reuse-project requires an already-open project in the live App');await shell.goto(page,'orchestration');await selectGpu(page);}
     await writeFile(join(output,'manifest.json'),JSON.stringify(manifest,null,2)+'\n');
     await page.eval(`(()=>{window.__makoP3Events=[];window.makoDesktopPreview.onPreviewState(event=>{window.__makoP3Events.push({event,rendererPerformanceMs:performance.now()});if(window.__makoP3Events.length>4096)window.__makoP3Events.shift();});})()`);
@@ -565,7 +589,7 @@ async function run(values) {
       const bracket=await mainClockBracket(),invocation=process.hrtime.bigint()+bracket.offset;
       const old=await page.eval('window.makoGpuPreviewAcceptance.current()');
       const edited=await page.eval(`window.makoGpuPreviewAcceptance.setBackground(${index%2?24:48},16,32,255)`);
-      const deadline=Date.now()+30_000;let current;
+      const deadline=Date.now()+streamDeadlineMs;let current;
       do{current=await page.eval('window.makoGpuPreviewAcceptance.current()');if(current?.source?.sourceRevision===edited.sourceRevision&&current.inputGeneration!==old.inputGeneration)break;await sample();await pause(20);}while(Date.now()<deadline);
       invariant(current?.streamId===old.streamId&&current.source.sourceRevision===edited.sourceRevision&&current.inputGeneration!==old.inputGeneration,'Real project input did not replace exact public generation');
       const after=await waitCurrentFrames({since:String(invocation),count:1,predicate:state=>state.activeStream.streamId===current.streamId&&state.activeStream.inputGeneration===current.inputGeneration});
@@ -633,7 +657,12 @@ async function run(values) {
     // Flush delayed drawn reports; original completion times are unchanged.
     for(let index=0;index<3;index++){await pause(1000);await sample();}
     await record({type:'renderer-observations',events:await page.eval('window.__makoP3Events')});
-  }catch(error){manifest.runError=error.message;throw error;}finally{
+  }catch(error){
+    manifest.runError=error.message;
+    // 失败时留下渲染端收到的 failed 事件（含 Worker 失败码与诊断摘要），页面已断开时跳过。
+    try{manifest.runFailureEvents=await Promise.race([page.eval(`(window.__makoP3Events??[]).filter(value=>value.event?.type==='failed').slice(-8)`),pause(5000).then(()=>'timeout')]);}catch{}
+    throw error;
+  }finally{
     manifest.finishedAt=new Date().toISOString();
     await writeFile(join(output,'manifest.json'),JSON.stringify(manifest,null,2)+'\n');
     let report;
@@ -683,7 +712,7 @@ async function run(values) {
 }
 async function main() {
   const {values}=parseArgs({options:{'cdp-port':{type:'string',default:'9223'},port:{type:'string',default:'5174'},output:{type:'string'},provider:{type:'string',default:'runtime'},
-    connect:{type:'boolean'},'ordinary-scheduling':{type:'boolean'},'session-name':{type:'string'},'reuse-project':{type:'boolean'},'dry-run':{type:'boolean'},debug:{type:'boolean'},finite:{type:'boolean'},'correctness-snapshot':{type:'boolean'},analyze:{type:'string'}}});
+    connect:{type:'boolean'},'ordinary-scheduling':{type:'boolean'},'session-name':{type:'string'},'reuse-project':{type:'boolean'},'dry-run':{type:'boolean'},debug:{type:'boolean'},finite:{type:'boolean'},'correctness-snapshot':{type:'boolean'},analyze:{type:'string'},'v2-samples':{type:'string'},'v2-lines':{type:'string'}}});
   invariant(['runtime','synthetic'].includes(values.provider),'provider must be runtime or synthetic');
   if(values.analyze){const directory=resolve(values.analyze);const records=(await readFile(join(directory,'events.jsonl'),'utf8')).trim().split('\n').filter(Boolean).map(line=>JSON.parse(line));
     const manifest=JSON.parse(await readFile(join(directory,'manifest.json'),'utf8'));const report=analyze(records,manifest);

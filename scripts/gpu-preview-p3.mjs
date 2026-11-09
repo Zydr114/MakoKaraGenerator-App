@@ -418,6 +418,11 @@ export function timedPlan(values) {
   invariant(Number.isSafeInteger(measureSeconds)&&measureSeconds>=5&&measureSeconds<=600,'--measure-seconds must be 5..600');
   return {warmupSeconds:short?2:10,measureSeconds,stabilitySeconds:short?5:600,phases:names.map(name=>PHASES[name])};
 }
+/** 分辨率重建第 index 次要切到的档位：从计时阶段最后一档出发交替，第一次必须真的换档。 */
+export function resolutionCycleQuality(lastPhase,index){
+  invariant(Object.hasOwn(PHASES,lastPhase),'Unknown phase');
+  return (index%2===0)===(lastPhase==='1440p30')?'720p24':'1440p30';
+}
 async function run(values) {
   invariant(!values['correctness-snapshot']||values.debug||values.finite,'Correctness screenshot must stay outside formal timed runs');
   const v2Names=values['v2-samples']?v2SampleNames(values['v2-samples']):null;
@@ -609,7 +614,7 @@ async function run(values) {
     }
     // A resolution selector replacement is reported separately from public resize.
     for(let index=0;index<(values.debug?1:10);index++){
-      const before=await waitCurrentFrames({count:1}),quality=index%2?'1440p30':'720p24';
+      const before=await waitCurrentFrames({count:1}),quality=resolutionCycleQuality(manifest.phases.at(-1).name,index);
       const expectedSize=quality==='720p24'?{width:1280,height:720}:{width:2560,height:1440};
       const oldWorker=await readProc(before.workerPid,'retired-worker');
       invariant(!oldWorker.exited&&typeof oldWorker.startTicks==='string','Resolution cycle requires a live exact previous Worker identity');

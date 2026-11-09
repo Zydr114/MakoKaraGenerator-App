@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { analyze, leaseKey, percentile, slidingWindows, ozoneArguments, parseSchedulerStat, auditPipelineScheduler, currentCompletedFrames, timedPlan } from './gpu-preview-p3.mjs';
+import { analyze, leaseKey, percentile, slidingWindows, ozoneArguments, parseSchedulerStat, auditPipelineScheduler, currentCompletedFrames, timedPlan, resolutionCycleQuality } from './gpu-preview-p3.mjs';
 import { materialSlotPlan } from './gpu-preview-v2-content.mjs';
 
 const N=1_000_000_000n;
@@ -243,4 +243,8 @@ test('material slots use the first and last material export across packages like
   assert.deepEqual(one.map(item=>[item.slot,item.label,item.packageId,item.id]),[['unsungFill','未唱填充','ink','custom-ink'],['sungFill','已唱填充','ink','custom-ink']]);
   const many=materialSlotPlan([pkg('glass',['glass-media','glass-backdrop']),pkg('fx',[]),pkg('ink',['custom-ink'])]);
   assert.deepEqual(many.map(item=>`${item.packageName}/${item.name}`),['GLASS/glass-media-name','INK/custom-ink-name']);
+});
+test('resolution recreate always switches away from the last timed phase first',()=>{
+  assert.deepEqual([0,1,2].map(index=>resolutionCycleQuality('1440p30',index)),['720p24','1440p30','720p24']);
+  assert.deepEqual([0,1,2].map(index=>resolutionCycleQuality('720p24',index)),['1440p30','720p24','1440p30']);
 });

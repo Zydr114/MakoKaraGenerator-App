@@ -235,7 +235,7 @@ Server 在作者源码改动阶段随新编译修订从约 390 MiB 升到 460 Mi
 
 | # | 项 | 要求 | 现状 |
 |---|---|---|---|
-| H1 | 功能：G1 各内容组在 720p、1440p 中途起播、暂停／seek、换分辨率 | 0 次失败 | T01 24 行 O2 后通过（1 次）；72 行与其他组未测 |
+| H1 | 功能：G1 各内容组在 720p、1440p 中途起播、暂停／seek、换分辨率 | 0 次失败 | 72 行（0.112.58）C／P／G 通过；CustomInk、X 切 1440p 首帧超表面预算，GlassInk 一帧未出 ✗（§5.3） |
 | H2 | 正确性：M07 像素与结构、M08 跨进程确定性 | 沿用原门槛 | 通过（M07 仅 ClusterExit 准备 p95 一项属观察） |
 | H3 | O4 关闭检查后的像素 | 与开启检查时逐像素相同；调试模式下原有负例仍报 `GraphColorNotPremultiplied`、`MaterialOutputOutsideRegion` 等原诊断 | 通过（0.112.57，见 §5.2 O4） |
 | H4 | 内存与资源：≥6 min 浸泡 | 后半斜率 ≤10 MiB/min，FD 平稳，旧 Worker 全部退出 | +4.3 MiB/min ✓ |
@@ -247,14 +247,14 @@ Server 在作者源码改动阶段随新编译修订从约 390 MiB 升到 460 Mi
 
 | # | 项 | 目标 | 现状 |
 |---|---|---|---|
-| G1-C | 控制器：ClusterExit＋WaveWarp＋StarSweep＋AdaptiveStroke | 完成帧率 ≥95%（≥22.8 fps），Render p95 ≤40 ms，>250 ms 卡顿 0 次 | 24 行 24.02 fps、p95 30.6 ✓；72 行未测 |
-| G1-P | 粒子：CursorTrail | 同上 | 单独未测；T01 24 行 9.54 fps、p95 131 ✗ |
-| G1-G | 图：LineGlitch | 同上 | 未测（1080p 导出 Wall p95 O4 前 42.8，后 21.6） |
-| G1-M | 材质：CustomInk、GlassInk 各一组 | 同上 | 未测（1080p 导出 Wall 中位 O4 前 140／496，后 26／50） |
-| G1-X | 混合：T01＋LineGlitch＋CustomInk | 同上 | 未测 |
+| G1-C | 控制器：ClusterExit＋WaveWarp＋StarSweep＋AdaptiveStroke | 完成帧率 ≥95%（≥22.8 fps），Render p95 ≤40 ms，>250 ms 卡顿 0 次 | 72 行 23.74 fps（98.9%）、p95 13.4、卡顿 0 ✓（测速脚本最差 5 s 窗口 116／118 帧） |
+| G1-P | 粒子：CursorTrail | 同上 | 72 行 24.01 fps、p95 14.6、卡顿 0 ✓ |
+| G1-G | 图：LineGlitch | 同上 | 72 行 24.01 fps、p95 7.9、卡顿 0 ✓ |
+| G1-M | 材质：CustomInk、GlassInk 各一组 | 同上 | CustomInk 72 行 23.49 fps（97.9%）、p95 48.7 ✗；GlassInk 0 帧 ✗（§5.3） |
+| G1-X | 混合：T01＋LineGlitch＋CustomInk | 同上 | 实测组为 C＋P＋G＋CustomInk：12.13 fps（50.5%）、p95 147、卡顿 2 次 ✗ |
 | G2 | 行数无关：T01 1080p 导出 96 行 ÷ 8 行 Wall 中位 | ≤1.25 | O1 前 3.3，后 1.04 ✓（0.112.55） |
-| G3 | GPU 流暂停／seek（G1-X） | p95 ≤150 ms，p99 ≤250 ms | 无粒子 SDK2 64／39 ✓；带粒子单次 275／174 |
-| G4 | GPU 流 SDK2 内容换源（latest-input） | p95 ≤2 s | 6665 ms ✗ |
+| G3 | GPU 流暂停／seek（G1-X） | p95 ≤150 ms，p99 ≤250 ms | G1-X 暂停 p95 202 ✗、seek p95 133；无粒子 SDK2 64／39 ✓ |
+| G4 | GPU 流 SDK2 内容换源（latest-input） | p95 ≤2 s | 72 行 C 545、P 447、G 281、CustomInk 361 ms ✓；X 2025 ms ✗ |
 
 **观察**（不设门槛）：原 T1～T4 的 1080p 导出逐帧、T6～T8 的 HTTP seek 与首帧、T9／T10 的作者改动到新帧、
 1440p30 帧率、M07 ClusterExit 热查询准备 p95。
@@ -443,7 +443,31 @@ X 与重现没有报告，数据由 `events.jsonl` 经测速脚本 `analyze` 离
 2. 测速增加带图片背景的版本，图片用 `/mnt/Data/Program/MakoKaraGenerator-MKFXSample/assets/test-patterns/` 下已有的
    彩色棋盘格（`checker-gradient-*.png`，按画布尺寸选用；只读取，不修改该仓库）。
 3. 1440p 按收紧捕获框修复：材质与图的捕获框从整张画布改为目标实际区域（含描边、辉光与图声明的最大外扩），不采用放大预算。
-4. 用户提出的风险：此项改动触及核心渲染接口；若有材质需要对全图做分析，收紧后可能出问题，修复前须说明影响与处理办法。
+4. 用户提出的风险：此项改动触及核心渲染接口；若有材质需要对全图做分析，收紧后可能出问题。已答复并确认处理办法，见下方「O7 设计」。
+5. 2026-11-10 确认 O7 设计（下方）；全图分析类能力现在不做。
+
+**O7 设计（2026-11-10 确认，尚未实施）**
+- **现状**：`ProjectRenderSessionFactory.cs:76` 以整张画布为捕获框，`:97` 建图程序、`:102` 建材质程序都用它；
+  `SkiaRenderPipeline.ImageScene.cs:107` 一行的工作框取各程序框的并集，因而也是整屏，区域捕获、目标原色、背景捕获、
+  作者图输出和覆盖产物都按此分配。
+- **合同不变**：包格式本就只接受图根 `bounds.source = targetRegion`（`EffectPackageImageGraphs.cs:67`，
+  [图语义合同](../../backend/docs/scripting-package-graph-semantics-contract.md) 第 54 行），整屏是实现偏离声明；
+  修复让实现回到声明，前端与 HTTP 合同不变。改动在 Rendering.Skia 内部：捕获框改为按帧、按行的实际区域计算，
+  `CreateMaterialProgram(handle, bounds)`、`CreateProgram(handle, bounds)` 等公开 C# 成员需相应调整。
+- **区域**：目标实际绘制范围（含描边、阴影、辉光、注音）加图根与节点声明的外扩，再与画布相交。
+- **全图分析**：按合同，图只能取得目标区域加声明外扩，节点须声明外扩与最大采样偏移（上限 256 px，
+  `GraphExecutionBudget.MaximumExpandPx`），模糊须声明完整 3σ；输入没有整张画布，也没有求平均或统计的节点。
+  因此合规包写不出全图分析。着色器实际采样超出自己声明范围的包按违约处理，收紧后越界部分按边缘规则读到透明或钳位值，
+  不保证效果。现有 CustomInk（不采样输入）、GlassInk（折射 ≤8 px＋模糊外扩 24 px，声明 32 px）、
+  LineGlitch（位移 ≤12 px，声明 12 px）都在声明内。
+- **以后如需全图分析**：作为显式能力另行设计，例如包主动声明的整屏捕获框选项（自担预算），
+  或宿主每帧算一次背景统计（如平均色）作为参数传入；现在都不做。
+- **验证**：像素回归确认着色器坐标仍为画布坐标（CustomInk 一类随位置变化的图案不偏移）、区域内像素与修复前一致；
+  测试包与现有样例在 720p、1440p 复测。
+- **取舍**：CustomInk 现在因各行框相同，可经 `MaterialAuthorGraphCache` 在同帧各行复用同一份作者输出；
+  收紧后每行各算一次，但只算本行面积。
+- **测试包注意**：可选输入缺失目前也会报 `GraphOptionalInputPolicyPending`（`CompiledImageGraph.cs:167`），
+  「材质-背景媒体」可选版在无背景时的结果需按此预期。
 
 **测试包初稿**（每包一个导出，参数可调，同一模板、72 行，在 720p 与 1440p、纯色与棋盘格背景下各测）
 
@@ -462,6 +486,8 @@ X 与重现没有报告，数据由 `events.jsonl` 经测速脚本 `analyze` 离
 3. 实施 O7：收紧捕获框，像素回归确认区域内结果不变；测试包与现有样例复测，含 1440p。
 4. 缺背景时的行为（兜底或拒绝应用）另行决定。
 5. 之后按原计划做 O3、合同冻结。
+
+新对话从[交接文档](script-sdk-render-m12-handoff.md)开始。
 
 ## 附录 A：原门槛候选 T1～T15（2026-11-09 第一次决定，已被 §5.1 取代）
 

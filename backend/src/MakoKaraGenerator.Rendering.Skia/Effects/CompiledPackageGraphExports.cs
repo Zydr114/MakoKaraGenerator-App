@@ -24,11 +24,11 @@ public sealed partial class CompiledPackageGraphExports : IDisposable
         => CompileCore(definition, imageBudget, null, cancellationToken);
 
     internal static CompiledPackageGraphExports CompileWithDevice(EffectPackageDefinition definition, GraphExecutionBudget? imageBudget,
-        ISkiaRenderDevice device, CancellationToken cancellationToken = default)
-        => CompileCore(definition, imageBudget, device, cancellationToken);
+        ISkiaRenderDevice device, bool pixelChecks = true, CancellationToken cancellationToken = default)
+        => CompileCore(definition, imageBudget, device, cancellationToken, pixelChecks);
 
     private static CompiledPackageGraphExports CompileCore(EffectPackageDefinition definition, GraphExecutionBudget? imageBudget,
-        ISkiaRenderDevice? device, CancellationToken cancellationToken)
+        ISkiaRenderDevice? device, CancellationToken cancellationToken, bool pixelChecks = true)
     {
         ArgumentNullException.ThrowIfNull(definition); cancellationToken.ThrowIfCancellationRequested();
         if (!definition.SvgResources.ById.IsEmpty)
@@ -47,7 +47,7 @@ public sealed partial class CompiledPackageGraphExports : IDisposable
                 cancellationToken.ThrowIfCancellationRequested();
                 try { result._graphs.Add(pair.Key, device is null
                     ? CompiledImageGraph.Compile(pair.Value.Plan, cancellationToken)
-                    : CompiledImageGraph.Compile(pair.Value.Plan, device, cancellationToken)); }
+                    : CompiledImageGraph.Compile(pair.Value.Plan, device, pixelChecks, cancellationToken)); }
                 catch (ShaderProgramException error) { throw new EffectPackageException(error.Code, pair.Key + "." + error.Field, error.Message, error); }
                 catch (ImageGraphException error) { throw new EffectPackageException(error.Code, pair.Key + "." + error.Field, error.Message, error); }
             }

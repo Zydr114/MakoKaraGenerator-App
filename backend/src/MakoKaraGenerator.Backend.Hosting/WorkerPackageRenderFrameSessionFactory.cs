@@ -111,11 +111,13 @@ public sealed class WorkerPackageRenderFrameSessionFactory : IRenderFrameSession
         {
             if (!ReferenceEquals(snapshot, input.Snapshot)) throw new PreparedFrameException("WorkerRuntimeInputsMismatch", "固定工程输入对象不匹配。");
             IDisposable reference = input.AcquireReference();
-            return new(owner.CreateCoreAsync(snapshot, input.SourceBytes.ToArray(), ProjectRuntimeInputWorkerContract.OpenKind, cancellationToken, reference));
+            return new(owner.CreateCoreAsync(snapshot, input.SourceBytes.ToArray(), ProjectRuntimeInputWorkerContract.OpenKind, cancellationToken, reference,
+                input.GraphPixelChecks));
         }
     }
 
-    private async Task<IRenderFrameSession> CreateCoreAsync(ProjectSnapshot snapshot, byte[] bytes, string openKind, CancellationToken token, IDisposable? retention = null)
+    private async Task<IRenderFrameSession> CreateCoreAsync(ProjectSnapshot snapshot, byte[] bytes, string openKind, CancellationToken token, IDisposable? retention = null,
+        bool graphPixelChecks = false)
     {
         PackageRenderDiagnosticsMapper mapper = new(snapshot);
         WorkerProcessProxy proxy = new(_options);
@@ -123,7 +125,7 @@ public sealed class WorkerPackageRenderFrameSessionFactory : IRenderFrameSession
         {
             StaticWorkerSessionHandle handle;
             try { handle = openKind == ProjectRuntimeInputWorkerContract.OpenKind
-                ? await proxy.OpenRuntimeInputSessionAsync(bytes, _timeout, token).ConfigureAwait(false)
+                ? await proxy.OpenRuntimeInputSessionAsync(bytes, _timeout, graphPixelChecks, token).ConfigureAwait(false)
                 : openKind == ProjectImagePreviewWorkerContract.OpenKind
                 ? await proxy.OpenImagePreviewSessionAsync(bytes, _timeout, token).ConfigureAwait(false)
                 : await proxy.OpenPackageSessionAsync(bytes, _timeout, token).ConfigureAwait(false); }

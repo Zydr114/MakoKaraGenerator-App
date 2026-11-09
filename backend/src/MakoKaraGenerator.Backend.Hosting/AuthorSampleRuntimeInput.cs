@@ -27,6 +27,8 @@ internal static class AuthorSampleRuntimeInput
         lease.MediaFeatures = mediaFeatures;
         lease.TransparentOutput = transparentOutput;
         lease.WaitForMediaFeatures = waitForCompletion;
+        // 作者草稿预览开启图／材质逐像素检查；正式验证任务在 Worker 内始终检查。
+        lease.GraphPixelChecks = true;
         BackendOperationResult<BackendPreparedProjectRuntimeInput> prepared = await lease.PrepareAsync(token).ConfigureAwait(false);
         if (!prepared.Accepted) throw new AuthorSamplePreparationException(prepared.Error!);
         // Prepared input owns the copied media closure; the generated source directory can now be removed.

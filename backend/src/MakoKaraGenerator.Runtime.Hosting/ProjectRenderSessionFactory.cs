@@ -10,11 +10,15 @@ using MakoKaraGenerator.Scripting.Compilation;
 namespace MakoKaraGenerator.Runtime.Hosting;
 
 /// <summary>组合根实际装配：固定包、分析和native资源到独立异步像素会话。</summary>
+/// <remarks>
+/// <paramref name="graphPixelChecks"/> 控制图／材质逐像素检查（颜色预乘、材质区域越界）：作者草稿、包验证与测试开启（默认），
+/// 已采用包的正式预览与导出关闭；关闭时节点之间不为检查同步提交或读回，像素与开启时相同。
+/// </remarks>
 public sealed class ProjectRenderSessionFactory(IScriptCompilationService compiler, IVideoFrameProvider videos, ReplayReason reason,
     Func<IBackgroundFrameSourceResolver>? backgroundResolverFactory = null,
     bool layoutReference = false, string? editingLineId = null, string? editingCueId = null,
     string? renderBackend = null, bool enableGpuPreview = false, bool enableGpuPreviewBenchmark = false, RuntimeGpuPreparation? gpuPreparation = null,
-    ProjectMediaFeatureBinding? mediaBinding = null)
+    ProjectMediaFeatureBinding? mediaBinding = null, bool graphPixelChecks = true)
     : IRenderFrameSessionFactory
 {
     private readonly SkiaRenderBackendOptions? _renderBackendOptions = renderBackend is null ? null : SkiaRenderBackendOptions.Parse(renderBackend);
@@ -50,7 +54,7 @@ public sealed class ProjectRenderSessionFactory(IScriptCompilationService compil
             SkiaRenderPipeline.LayoutCache layouts = new();
             SkiaRenderPipeline Renderer(IBackgroundFrameSourceResolver? background = null, ImageSurfaceBudgetSession? surfaces = null,
                 SceneImageEffectResources? images = null) => new(fonts.Length == 0 ? null : new SkiaTextLayoutEngine(fonts),
-                    background, surfaces, images, ownsLayoutEngine: fonts.Length != 0, device, ownsDevice: false, layouts, svgResources);
+                    background, surfaces, images, ownsLayoutEngine: fonts.Length != 0, device, ownsDevice: false, layouts, svgResources, graphPixelChecks);
             resolver = backgroundResolverFactory is null ? new BackgroundFrameSourceResolver(videos)
                 : backgroundResolverFactory() ?? throw new InvalidOperationException("背景解析器工厂不能返回空值。");
             token.ThrowIfCancellationRequested();
@@ -77,7 +81,7 @@ public sealed class ProjectRenderSessionFactory(IScriptCompilationService compil
                 if (package.Definition.ImagePaths.Length > compiled.GraphBudget.MaximumSurfaces - imageCount)
                     throw new EffectPackageException("PackageImageBudgetExceeded", "files", "工程固定图片超过总表面预算。");
                 var native = CompiledPackageGraphExports.CompileWithDevice(package.Definition,
-                    compiled.GraphBudget with { MaximumBytes = compiled.GraphBudget.MaximumBytes - imageBytes }, device, token);
+                    compiled.GraphBudget with { MaximumBytes = compiled.GraphBudget.MaximumBytes - imageBytes }, device, graphPixelChecks, token);
                 natives.Add(native);
                 foreach (var path in package.Definition.ImagePaths)
                 {

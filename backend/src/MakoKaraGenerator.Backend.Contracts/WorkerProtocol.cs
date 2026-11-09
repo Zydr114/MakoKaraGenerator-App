@@ -67,6 +67,9 @@ public static class WorkerProtocol
             throw new WorkerProtocolException("Worker 输出 SHA-256 不匹配。");
         if (message.DelayMilliseconds is < 0 or > 60_000)
             throw new WorkerProtocolException("Worker 延迟参数超出范围。");
+        if (message.GraphPixelChecks is not null && message.Kind is not (PackageRenderWorkerContract.OpenKind
+                or ProjectImagePreviewWorkerContract.OpenKind or ProjectRuntimeInputWorkerContract.OpenKind))
+            throw new WorkerProtocolException("图像素检查开关只能属于会话打开请求。");
         if (message.FrameInspection is not null && message.Kind is not (StaticRenderWorkerContract.FrameResultKind or PackageRenderWorkerContract.FrameResultKind))
             throw new WorkerProtocolException("帧检查投影只能属于帧回执。", "WorkerInspectionInvalid");
         if (message.AnalysisProgress is not null && message.Kind != WorkerAnalysisContract.ProgressKind)
@@ -259,6 +262,11 @@ public sealed record WorkerMessage
     public WorkerPackageDiagnosticsDto? PackageDiagnostics { get; init; }
     /// <summary>请求检查的帧回执附带的只读投影；Host 另行核对字节预算。</summary>
     public PreviewInspectionDto? FrameInspection { get; init; }
+    /// <summary>
+    /// 仅包／图片／运行输入会话打开请求可带：true 时会话内图与材质执行逐像素检查（作者草稿）；
+    /// 缺省或 false 为正式使用，不为检查读回。验证任务始终检查，不读此字段。
+    /// </summary>
+    public bool? GraphPixelChecks { get; init; }
 }
 
 /// <summary>Worker 协议违反版本、长度或哈希约束时抛出。</summary>

@@ -16,22 +16,25 @@ public sealed partial class CompiledImageGraph : IDisposable
     private readonly ImageSurfaceBudgetSession _surfaceBudget;
     private readonly ISkiaRenderDevice _device;
     private readonly SkiaRenderDeviceLifetime? _deviceLifetime;
+    // 逐像素检查（颜色预乘、材质区域越界）只在作者草稿、包验证与测试中开启；
+    // 关闭时节点之间不为检查同步提交或读回，产物留在设备上。
+    private readonly bool _pixelChecks;
     private bool _disposed;
     private CompiledImageGraph(CompiledImageGraphDefinition plan, CompiledRuntimeShader mask, CompiledRuntimeShader replace,
         CompiledRuntimeShader coverageUnion, CompiledRuntimeShader chainReplace, CompositionPayloadPrograms payloadPrograms,
-        ISkiaRenderDevice device, bool ownsDevice)
-    { Plan = plan; _mask = mask; _replace = replace; _coverageUnion = coverageUnion; _chainReplace = chainReplace; _payloadPrograms = payloadPrograms; _surfaceBudget = new(); _device = device; _deviceLifetime = ownsDevice ? new(device) : null; }
+        ISkiaRenderDevice device, bool ownsDevice, bool pixelChecks)
+    { Plan = plan; _mask = mask; _replace = replace; _coverageUnion = coverageUnion; _chainReplace = chainReplace; _payloadPrograms = payloadPrograms; _surfaceBudget = new(); _device = device; _deviceLifetime = ownsDevice ? new(device) : null; _pixelChecks = pixelChecks; }
     /// <summary>固定中立图计划。</summary>
     public CompiledImageGraphDefinition Plan { get; }
     /// <summary>验证全部节点的 native 程序，包括透明模式不执行的源码。</summary>
     public static CompiledImageGraph Compile(CompiledImageGraphDefinition plan, CancellationToken cancellationToken = default)
-        => CompileCore(plan, null, cancellationToken);
+        => CompileCore(plan, null, true, cancellationToken);
 
     internal static CompiledImageGraph Compile(CompiledImageGraphDefinition plan, ISkiaRenderDevice device,
-        CancellationToken cancellationToken = default)
-        => CompileCore(plan, device, cancellationToken);
+        bool pixelChecks = true, CancellationToken cancellationToken = default)
+        => CompileCore(plan, device, pixelChecks, cancellationToken);
 
-    private static CompiledImageGraph CompileCore(CompiledImageGraphDefinition plan, ISkiaRenderDevice? device,
+    private static CompiledImageGraph CompileCore(CompiledImageGraphDefinition plan, ISkiaRenderDevice? device, bool pixelChecks,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(plan); cancellationToken.ThrowIfCancellationRequested();
@@ -50,7 +53,7 @@ public sealed partial class CompiledImageGraph : IDisposable
                 [new("result", ShaderSurfaceKind.Color), new("below", ShaderSurfaceKind.Color), new("coverage", ShaderSurfaceKind.Coverage)]), cancellationToken: cancellationToken);
             payloadPrograms = new(cancellationToken);
             createdDevice = device is null ? SkiaRenderDeviceFactory.Create() : null;
-            graph = new(plan, mask, replace, coverageUnion, chainReplace, payloadPrograms, device ?? createdDevice!, device is null);
+            graph = new(plan, mask, replace, coverageUnion, chainReplace, payloadPrograms, device ?? createdDevice!, device is null, pixelChecks);
             foreach (var pair in plan.Programs.OrderBy(pair => pair.Key, StringComparer.Ordinal))
                 graph._programs.Add(pair.Key, CompiledRuntimeShader.Compile(pair.Value, plan.Budget.MaximumUniformScalars, cancellationToken));
             return graph;
@@ -271,7 +274,7 @@ public sealed partial class CompiledImageGraph : IDisposable
         if (kind == ShaderSurfaceKind.Color)
         {
             if (image.ColorSpace?.IsSrgb != true) throw Error("GraphColorSpaceMismatch", field, "v1 颜色输入须明确采用 sRGB 编码。");
-            ValidateColorPixels(surface, field, cancellationToken);
+            if (_pixelChecks) ValidateColorPixels(surface, field, cancellationToken);
         }
     }
     private GraphRect Aligned(GraphRect bounds, ImageGraphFrameContext frame)

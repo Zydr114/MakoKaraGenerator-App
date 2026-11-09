@@ -10,8 +10,11 @@ public sealed partial class SkiaRenderPipeline
 {
     private sealed record CapturePaint(GraphInputSource Source, SceneCaptureRecipe Recipe, string? TokenId,
         ImageSurfaceBudgetFrame? Budget = null, long PixelBytes = 0, SceneColorPart? Part = null, HashSet<string>? ExcludedTokens = null,
-        EffectMaterialFallback? MaterialFallback = null, bool? RequestedSungPass = null, bool MaterialOperation = false)
+        EffectMaterialFallback? MaterialFallback = null, bool? RequestedSungPass = null, bool MaterialOperation = false,
+        CaptureDrawProbe? Probe = null)
     {
+        /// <summary>即将在未被剪空的画布上发起部件绘制时记录；未记录即可证明捕获面仍是初始透明。</summary>
+        public void MarkDrawn(SKCanvas canvas) { if (Probe is { } probe && !canvas.IsClipEmpty) probe.Drew = true; }
         public bool IsCoverage => Source != GraphInputSource.TargetColor;
         public bool SungOnly => Source == GraphInputSource.SungCoverage;
         public bool SuppressCommonOpacity => Part.HasValue;
@@ -41,6 +44,8 @@ public sealed partial class SkiaRenderPipeline
                 Stroke = stroke && source.Stroke is { IsValid: true, WidthPx: > 0 } spec ? spec with { Material = new MaterialSpec.Solid(RgbaColor.White) } : null, Shadow = null, Glow = null };
         }
     }
+    // 记录同一捕获的全部 with 副本（含网格源面）是否真正发起过绘制；保守：任何可能着色的绘制都记为已绘制。
+    private sealed class CaptureDrawProbe { public bool Drew { get; set; } }
     private sealed record SceneDrawItem(string NodeId, SceneLineSample? Line, SceneTextMarkSample? Mark);
     private static IEnumerable<SceneDrawItem> DrawItems(SceneFrame frame)
     {

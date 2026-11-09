@@ -92,6 +92,39 @@ public sealed partial class MainCanvasImageEffectsTests
         Close(ExpectedParts(request, Whole, graph), exact.Pixels.ToArray());
     }
 
+    // O4：关闭检查时空部件判定不读回；未发起绘制的部件仍共享空表面（保留 6／7 精确边界），已绘制的装饰不被当作空。
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void 关闭像素检查时空原始部件不读回_未绘制部件仍共享空表面且装饰不丢(bool decorated)
+    {
+        var request = Request(WithoutRuby(Snapshot(decorated)));
+        using var graph = Tint("first");
+        using var resources = new SceneImageEffectResources([Program("first", graph)]);
+        using var onDevice = new CountingDevice();
+        using var onRenderer = new SkiaRenderPipeline(null, null, null, resources, false, onDevice, false);
+        using var on = onRenderer.Render(Bindings(request, Bind("on", Line(request))));
+        Assert.True(onDevice.ImageReads > 0);
+
+        using var offDevice = new CountingDevice();
+        using var offGraph = CompiledImageGraph.Compile(graph.Plan, offDevice, false);
+        using var offResources = new SceneImageEffectResources([Program("first", offGraph)]);
+        using var offRenderer = new SkiaRenderPipeline(null, null, null, offResources, false, offDevice, false, graphPixelChecks: false);
+        using var off = offRenderer.Render(Bindings(request, Bind("off", Line(request))));
+        Assert.Equal(0, offDevice.ImageReads);
+        Assert.Equal(on.Pixels.ToArray(), off.Pixels.ToArray());
+        if (decorated) return;
+
+        using var belowBudget = new ImageSurfaceBudgetSession(new() { MaximumSurfaces = 6 });
+        using var belowRenderer = new SkiaRenderPipeline(null, null, belowBudget, offResources, false, offDevice, false, graphPixelChecks: false);
+        Assert.Equal("ImageSurfaceBudgetExceeded", Assert.Throws<EffectFailureException>(
+            () => belowRenderer.Render(Bindings(request, Bind("below", Line(request))))).Code);
+        using var exactBudget = new ImageSurfaceBudgetSession(new() { MaximumSurfaces = 7 });
+        using var exactRenderer = new SkiaRenderPipeline(null, null, exactBudget, offResources, false, offDevice, false, graphPixelChecks: false);
+        using var exact = exactRenderer.Render(Bindings(request, Bind("exact", Line(request))));
+        Assert.Equal(on.Pixels.ToArray(), exact.Pixels.ToArray());
+        Assert.Equal(0, offDevice.ImageReads);
+    }
+
     [Fact]
     public void AlphaReadbackFailureDoesNotPoisonTheNextRender()
     {

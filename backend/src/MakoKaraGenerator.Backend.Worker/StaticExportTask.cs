@@ -155,9 +155,9 @@ internal static class StaticExportTask
         CheckPath(metadata.CandidatePath!, isDirectory: false, mayBeMissing: true);
         if (File.Exists(metadata.CandidatePath)) throw Fail("WorkerExportCandidateExists");
         IRenderFrameSessionFactory factory = !imageExport && (sessions is null || metadata.CodecProfile == ProjectRuntimeInputCodec.Profile)
-            ? runtimeInput!.CreateFactory(ReplayReason.Initial, renderBackend: renderBackend)
+            ? runtimeInput!.CreateFactory(ReplayReason.Initial, renderBackend: renderBackend, graphPixelChecks: false)
             : imageExport ? new ProjectRenderSessionFactory(prepared.Compiler, new FfmpegVideoFrameProvider(), ReplayReason.Initial,
-                imageResolverFactory, renderBackend: renderBackend) : sessions!;
+                imageResolverFactory, renderBackend: renderBackend, graphPixelChecks: false) : sessions!;
         var strict = new StrictFactory(factory, metadata, snapshot.MediaFeatureInput);
         var probe = new StrictProbe(new FfmpegMediaProbe(metadata.FfprobePath), metadata, plan, snapshot.Composition, decodedAudio);
         var encoder = new StrictEncoder(new FfmpegMediaEncoder(metadata.FfmpegPath), metadata, plan);

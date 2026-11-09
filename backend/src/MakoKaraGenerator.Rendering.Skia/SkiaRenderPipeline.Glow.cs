@@ -18,6 +18,7 @@ public sealed partial class SkiaRenderPipeline
         if (style.Glow is not { IsEnabled: true } glow || style.Opacity == 0 || units is { IsDefault: false, IsEmpty: true }) return;
         ValidateGlow(glow);
         using var outerReservation = capture?.Layer("CaptureGlowExteriorLayer");
+        capture?.MarkDrawn(canvas);
         int exterior = canvas.SaveLayer();
         using var maskReservation = capture?.Layer("CaptureGlowMaskLayer");
         using var blur = glow.BlurRadiusPx > 0 ? SKImageFilter.CreateBlur(glow.BlurRadiusPx, glow.BlurRadiusPx) : null;

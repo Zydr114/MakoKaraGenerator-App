@@ -22,6 +22,11 @@ public sealed class BackendPreparedProjectRuntimeInput : IDisposable
     public ReadOnlyMemory<byte> SourceBytes { get; }
     /// <summary>固定媒体私有授权，无背景时为空。</summary>
     public ProjectRuntimeBackgroundGrant? Grant { get; }
+    /// <summary>
+    /// 作者草稿输入为 true：Worker 会话内图与材质执行逐像素检查（颜色预乘、材质区域越界）。
+    /// 工程正式预览、模板库预览与导出为 false，不为检查读回。
+    /// </summary>
+    public bool GraphPixelChecks { get; internal init; }
     /// <summary>实际固定输入能力。</summary>
     public string SourceProfile => ProjectRuntimeInputCodec.IsRuntimeInput(SourceBytes.Span) ? ProjectRuntimeInputCodec.Profile : ProjectSnapshotSourceProfile.Select(Snapshot);
     /// <summary>调用者须在持有现有引用或注册表闸门时取得独立所有权。</summary>
@@ -104,6 +109,9 @@ public sealed class BackendProjectRuntimeInputLease : IDisposable
     /// <summary>导出等最终消费者等待背景分析完成，而不是固定为分析中输入。</summary>
     public bool WaitForMediaFeatures { get; set; }
 
+    /// <summary>作者草稿输入要求 Worker 会话执行图／材质逐像素检查；见 <see cref="BackendPreparedProjectRuntimeInput.GraphPixelChecks"/>。</summary>
+    internal bool GraphPixelChecks { get; set; }
+
     /// <summary>
     /// 非最终消费者最多等待背景分析完成的时长；超时后按检查结果固定为分析中输入。
     /// 默认零（只等检查）；<see cref="WaitForMediaFeatures"/>为真时不限时等待。
@@ -178,7 +186,8 @@ public sealed class BackendProjectRuntimeInputLease : IDisposable
             if (_snapshot.Background == BackgroundSource.Color)
             {
                 var (solid, _) = await BackendMediaFeatureInputs.AttachAsync(_snapshot, null, MediaFeatures, TransparentOutput, CompletionWait, token).ConfigureAwait(false);
-                var result = new BackendPreparedProjectRuntimeInput(_snapshot, ProjectRuntimeInputCodec.Encode(solid, null, packageGrants), null, temporary);
+                var result = new BackendPreparedProjectRuntimeInput(_snapshot, ProjectRuntimeInputCodec.Encode(solid, null, packageGrants), null, temporary)
+                    { GraphPixelChecks = GraphPixelChecks };
                 temporary = null; return BackendOperationResult<BackendPreparedProjectRuntimeInput>.Success(result);
             }
             if (_directory is null || _snapshot.Background is not { Media: { } media, Path: { } path } background
@@ -211,7 +220,8 @@ public sealed class BackendProjectRuntimeInputLease : IDisposable
             var grant = new ProjectRuntimeBackgroundGrant(background.Kind, media.RelativePath, output, media.Hash,
                 media.ByteLength, media.OriginalName, background.Fit, background.Playback);
             var (attached, artifact) = await BackendMediaFeatureInputs.AttachAsync(_snapshot, output, MediaFeatures, TransparentOutput, CompletionWait, token).ConfigureAwait(false);
-            var prepared = new BackendPreparedProjectRuntimeInput(_snapshot, ProjectRuntimeInputCodec.Encode(attached, grant, packageGrants, artifact), grant, temporary);
+            var prepared = new BackendPreparedProjectRuntimeInput(_snapshot, ProjectRuntimeInputCodec.Encode(attached, grant, packageGrants, artifact), grant, temporary)
+                { GraphPixelChecks = GraphPixelChecks };
             temporary = null; return BackendOperationResult<BackendPreparedProjectRuntimeInput>.Success(prepared);
         }
         catch (SnapshotContractException error)

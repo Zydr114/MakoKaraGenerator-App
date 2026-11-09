@@ -9,12 +9,13 @@ using MakoKaraGenerator.Scripting.Compilation;
 namespace MakoKaraGenerator.Backend.Hosting;
 
 internal sealed record RetainedPreparedScriptInput(WorkerProcessProxy Owner, string OpenKind, ScriptPreparedInputLease Input,
-    EffectPackageProfile[] RequiredPackageProfiles);
+    EffectPackageProfile[] RequiredPackageProfiles, bool GraphPixelChecks = false);
 
 public sealed partial class WorkerProcessProxy
 {
     private async Task<StaticWorkerSessionHandle> OpenPreparedScriptSessionAsync(string kind, Guid id,
-        ReadOnlyMemory<byte> source, TimeSpan timeout, PackageRenderWorkerCapabilities capabilities, CancellationToken token, bool image = false)
+        ReadOnlyMemory<byte> source, TimeSpan timeout, PackageRenderWorkerCapabilities capabilities, CancellationToken token, bool image = false,
+        bool graphPixelChecks = false)
     {
         if (timeout <= TimeSpan.Zero || timeout > TimeSpan.FromMinutes(1)) throw new ArgumentOutOfRangeException(nameof(timeout));
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -41,11 +42,11 @@ public sealed partial class WorkerProcessProxy
             byte[] payload = PackageRenderWorkerContract.EncodeOpen(id, prepared.Envelope);
             string sourceHash = prepared.SourceSha256;
             WorkerMessage request = new(kind, Guid.NewGuid().ToString("N"), WorkerProtocol.ComputeSha256(payload), payload,
-                sessionId: id.ToString("N"), sourceSha256: sourceHash, frameSequence: 0);
+                sessionId: id.ToString("N"), sourceSha256: sourceHash, frameSequence: 0) { GraphPixelChecks = graphPixelChecks ? true : null };
             await InvokeTimedMessageAsync(request, PackageRenderWorkerContract.SessionResultKind, timeout,
                 ValidateEmptyPackageSessionResult, deadline.Token, requirePackageRuntimeGuards: true).ConfigureAwait(false);
             RetainPreparedScriptInput(prepared);
-            return new(id, sourceHash) { PreparedInput = new(this, kind, prepared, requiredProfiles) };
+            return new(id, sourceHash) { PreparedInput = new(this, kind, prepared, requiredProfiles, graphPixelChecks) };
         }
         catch (Exception primary)
         {
@@ -75,7 +76,7 @@ public sealed partial class WorkerProcessProxy
         Guid id = Guid.NewGuid(); byte[] payload = PackageRenderWorkerContract.EncodeOpen(id, retained.Input.Envelope);
         string sourceHash = retained.Input.SourceSha256;
         WorkerMessage request = new(retained.OpenKind, Guid.NewGuid().ToString("N"), WorkerProtocol.ComputeSha256(payload), payload,
-            sessionId: id.ToString("N"), sourceSha256: sourceHash, frameSequence: 0);
+            sessionId: id.ToString("N"), sourceSha256: sourceHash, frameSequence: 0) { GraphPixelChecks = retained.GraphPixelChecks ? true : null };
         await InvokeTimedMessageAsync(request, PackageRenderWorkerContract.SessionResultKind, timeout,
             ValidateEmptyPackageSessionResult, token, requirePackageRuntimeGuards: true).ConfigureAwait(false);
         return new(id, sourceHash) { PreparedInput = retained };

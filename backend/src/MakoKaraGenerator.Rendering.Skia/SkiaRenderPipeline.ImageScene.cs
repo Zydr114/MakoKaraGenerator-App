@@ -182,16 +182,23 @@ public sealed partial class SkiaRenderPipeline
                         {
                             // Empty parts are still real source layers; admission must precede capture.
                             state.SetLayerBudget(checked(state.Layers.Count + 1));
-                            var captured = CaptureColorPart(request, CaptureTarget(member), part, bounds, state.Budget, resources, exclusions, sung);
+                            // 检查关闭时不为共享空表面同步读回：未发起任何部件绘制即可证明仍是初始透明；
+                            // 其余按非空保留独立表面，像素不变，只可能比开启时多占表面账。
+                            var probe = _graphPixelChecks ? null : new CaptureDrawProbe();
+                            var captured = CaptureColorPart(request, CaptureTarget(member), part, bounds, state.Budget, resources, exclusions, sung, probe);
                             state.Own(captured);
                             SetOpacity(captured.QuantizedOpacity);
                             var surface = captured.Surface;
                             bool empty = IsRuby(part) && item.Line?.Frame.Line?.RubyAnnotations.IsEmpty == true;
-                            if (!empty)
+                            if (!empty && probe is null)
                             {
                                 empty = IsEmptyOriginalSurface(surface, state, request.CancellationToken);
                             }
-                            else request.CancellationToken.ThrowIfCancellationRequested();
+                            else
+                            {
+                                empty |= probe?.Drew == false;
+                                request.CancellationToken.ThrowIfCancellationRequested();
+                            }
                             if (empty)
                             {
                                 if (state.Empty is null) state.Empty = surface;

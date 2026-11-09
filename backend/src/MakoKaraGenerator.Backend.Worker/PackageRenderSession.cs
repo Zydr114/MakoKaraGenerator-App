@@ -55,10 +55,14 @@ internal sealed class PackageRenderSession(string? renderBackend = null, bool en
                     if (!ProjectSnapshotSourceProfile.IsPackage(ProjectSnapshotSourceProfile.Select(snapshot)))
                         throw new SnapshotContractException("SnapshotVersionMismatch", "包会话必须携带包来源。");
                 }
+                // 正式预览不为逐像素检查读回；Host 只对作者草稿请求开启。
+                bool pixelChecks = request.GraphPixelChecks == true;
                 var factory = runtimeInput?.CreateFactory(ReplayReason.Initial, renderBackend: renderBackend,
-                    enableGpuPreview: enableGpuPreview, enableGpuPreviewBenchmark: enableGpuPreviewBenchmark, gpuPreparation: preparedGpu) ?? new ProjectRenderSessionFactory(prepared.Compiler,
+                    enableGpuPreview: enableGpuPreview, enableGpuPreviewBenchmark: enableGpuPreviewBenchmark, gpuPreparation: preparedGpu,
+                    graphPixelChecks: pixelChecks) ?? new ProjectRenderSessionFactory(prepared.Compiler,
                     new FfmpegVideoFrameProvider(), ReplayReason.Initial, imageResolverFactory, renderBackend: renderBackend,
-                    enableGpuPreview: enableGpuPreview, enableGpuPreviewBenchmark: enableGpuPreviewBenchmark, gpuPreparation: preparedGpu);
+                    enableGpuPreview: enableGpuPreview, enableGpuPreviewBenchmark: enableGpuPreviewBenchmark, gpuPreparation: preparedGpu,
+                    graphPixelChecks: pixelChecks);
                 IRenderFrameSession session;
                 long opened = System.Diagnostics.Stopwatch.GetTimestamp();
                 try { session = await factory.CreateAsync(snapshot, token).ConfigureAwait(false); }

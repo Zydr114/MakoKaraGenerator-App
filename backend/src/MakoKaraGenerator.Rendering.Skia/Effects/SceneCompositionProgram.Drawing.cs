@@ -21,14 +21,15 @@ internal sealed partial class SceneCompositionProgram
             var canvas = surface.Canvas; canvas.ClipRect(new(0, 0, width, height)); canvas.Clear(SKColors.Transparent);
             canvas.SetMatrix(Matrix(new(frame.DensityX, 0, 0, frame.DensityY, -shape.Left * frame.DensityX, -shape.Top * frame.DensityY)));
             cancellationToken.ThrowIfCancellationRequested(); draw(canvas); cancellationToken.ThrowIfCancellationRequested();
-            _device.FlushAndSubmit(surface);
+            if (_pixelChecks) _device.FlushAndSubmit(surface);
             var image = surface.Snapshot();
             if (image == null) throw Error("GraphSurfaceSnapshotFailed", "bounds", "无法固定产物。");
             try
             {
-                if (kind == ShaderSurfaceKind.Color) ValidateColorPixels(image, "output", cancellationToken);
+                bool check = _pixelChecks && kind == ShaderSurfaceKind.Color;
+                if (check) ValidateColorPixels(image, "output", cancellationToken);
                 var result = SkiaGraphSurface.Own(image, new(shape, GraphCoordinateSpace.Canvas, SceneMatrix.Identity, frame.DensityX, frame.DensityY), kind, _device, reservation, AcquireDeviceLease());
-                if (kind == ShaderSurfaceKind.Color) result.MarkColorPixelsValidated(_device);
+                if (check) result.MarkColorPixelsValidated(_device);
                 reservation = null; return result;
             }
             catch { image.Dispose(); throw; }

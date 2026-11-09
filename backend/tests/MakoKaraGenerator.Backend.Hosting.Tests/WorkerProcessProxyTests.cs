@@ -216,6 +216,20 @@ public sealed class WorkerProcessProxyTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public async Task Protocol_graph_pixel_checks_only_belong_to_session_open_requests()
+    {
+        byte[] payload = [1];
+        WorkerMessage Message(string kind) => new(kind, "pixel-checks", WorkerProtocol.ComputeSha256(payload), payload) { GraphPixelChecks = true };
+        foreach (string kind in (string[])[PackageRenderWorkerContract.OpenKind, ProjectImagePreviewWorkerContract.OpenKind, ProjectRuntimeInputWorkerContract.OpenKind])
+            WorkerProtocol.Validate(Message(kind));
+        foreach (string kind in (string[])[PackageRenderWorkerContract.RenderKind, WorkerExportContract.RequestKind, RuntimeValidationWorkerContract.RequestKind])
+            Assert.Throws<WorkerProtocolException>(() => WorkerProtocol.Validate(Message(kind)));
+        await using MemoryStream stream = new();
+        await WorkerProtocol.WriteAsync(stream, Message(ProjectRuntimeInputWorkerContract.OpenKind)); stream.Position = 0;
+        Assert.True((await WorkerProtocol.ReadAsync(stream))!.GraphPixelChecks);
+    }
+
+    [Fact]
     public async Task Real_worker_rejects_malformed_frame_input_and_proxy_recovers()
     {
         await using WorkerProcessProxy proxy = NewProxy();

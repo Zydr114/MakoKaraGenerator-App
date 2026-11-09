@@ -51,6 +51,8 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
     private readonly SceneCompositionProgram _compositionProgram;
     private readonly LayoutCache _layouts;
     private readonly bool _ownsLayouts;
+    // 关闭时（正式预览／导出）图、材质与空原始部件判定都不为检查同步提交或读回中间产物。
+    private readonly bool _graphPixelChecks;
     private bool _disposed;
 
     /// <summary>创建一个渲染管线。</summary>
@@ -77,7 +79,8 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
 
     internal SkiaRenderPipeline(SkiaTextLayoutEngine? layoutEngine, IBackgroundFrameSourceResolver? backgroundResolver,
         ImageSurfaceBudgetSession? surfaceBudget, SceneImageEffectResources? imageEffects, bool ownsLayoutEngine,
-        ISkiaRenderDevice? device, bool ownsDevice, LayoutCache? layouts = null, SceneSvgEffectResources? svgEffects = null)
+        ISkiaRenderDevice? device, bool ownsDevice, LayoutCache? layouts = null, SceneSvgEffectResources? svgEffects = null,
+        bool graphPixelChecks = true)
     {
         // Create the shared device before allocating any other native resource. A failed
         // explicit Vulkan initialization therefore cannot leak the layout engine or budget.
@@ -89,6 +92,7 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
         _svgEffects = svgEffects;
         _layouts = layouts ?? new();
         _ownsLayouts = layouts is null;
+        _graphPixelChecks = graphPixelChecks;
         SkiaTextLayoutEngine? initializedLayout = null;
         ImageSurfaceBudgetSession? initializedBudget = null;
         IBackgroundFrameSourceResolver? initializedResolver = null;
@@ -98,7 +102,7 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
             _backgroundResolver = initializedResolver = backgroundResolver ?? new BackgroundFrameSourceResolver();
             _surfaceBudget = initializedBudget = surfaceBudget ?? new();
             if (imageEffects is { HasSpriteImages: true }) _spriteProgram = new();
-            _compositionProgram = new(_device, _surfaceBudget.Limits, _deviceLifetime);
+            _compositionProgram = new(_device, _surfaceBudget.Limits, _deviceLifetime, pixelChecks: graphPixelChecks);
         }
         catch
         {

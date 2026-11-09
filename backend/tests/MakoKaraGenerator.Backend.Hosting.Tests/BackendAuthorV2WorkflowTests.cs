@@ -204,6 +204,20 @@ public sealed partial class BackendAuthorV2WorkflowTests
         { Calls++; throw new InvalidOperationException("SDK2 CPU请求不应准备或执行验证。"); }
     }
 
+    // O4：作者草稿试样为调试场景，准备输入开启图／材质逐像素检查；正式项目输入默认关闭。
+    [Fact]
+    public async Task 作者试样准备输入开启图像素检查()
+    {
+        await using Fixture fixture = await Fixture.CreateAsync();
+        AuthorDraftResponse draft = fixture.Read();
+        PreviewSourceDto source = new("authorDraft", draft.DraftId, draft.DraftRevision,
+            new(TemplatePreviewLimits.SingleLineSampleId, "token"), draft.Configuration!.SourceRevision);
+        BackendOperationResult<AuthorPreviewCapture> captured = await fixture.Registry.CaptureAuthorPreviewAsync("client", source, "gpu", true);
+        Assert.True(captured.Accepted, captured.Error?.Message);
+        using BackendPreparedProjectRuntimeInput prepared = captured.Response!.PreparedInput;
+        Assert.True(prepared.GraphPixelChecks);
+    }
+
     private sealed class Fixture : IAsyncDisposable
     {
         private readonly TemporaryDirectory _directory;

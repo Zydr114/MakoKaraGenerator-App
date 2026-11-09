@@ -58,7 +58,8 @@ public sealed class GpuStreamWorkerSession : IAsyncDisposable
         try
         {
             Directory.CreateDirectory(directory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
-            var session = await proxy.OpenRuntimeInputSessionAsync(input.SourceBytes, TimeSpan.FromSeconds(20), token).ConfigureAwait(false);
+            var session = await proxy.OpenRuntimeInputSessionAsync(input.SourceBytes, TimeSpan.FromSeconds(20),
+                input.GraphPixelChecks, token).ConfigureAwait(false);
             var request = new GpuStreamWorkerOpen(streamId, hostInstanceId, inputGeneration, width, height,
                 transparent, maximumAllocationBytes, mainPid, path, handshake);
             var opened = await proxy.OpenGpuStreamAsync(session, request, TimeSpan.FromSeconds(20), token).ConfigureAwait(false);

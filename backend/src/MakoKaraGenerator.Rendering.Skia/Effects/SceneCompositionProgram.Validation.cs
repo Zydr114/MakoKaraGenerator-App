@@ -24,7 +24,7 @@ internal sealed partial class SceneCompositionProgram
         if (kind == ShaderSurfaceKind.Color)
         {
             if (image.ColorSpace?.IsSrgb != true) throw Error("GraphColorSpaceMismatch", field, "v1 颜色输入须明确采用 sRGB 编码。");
-            ValidateColorPixels(surface, field, cancellationToken);
+            if (_pixelChecks) ValidateColorPixels(surface, field, cancellationToken);
         }
     }
     private GraphRect Aligned(GraphRect bounds, ImageGraphFrameContext frame)

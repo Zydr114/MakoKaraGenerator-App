@@ -14,6 +14,7 @@ public sealed class ProjectRuntimePreviewInputTests
     {
         using TemporaryDirectory directory = new();
         var (project, prepared) = await Prepare(directory.Path);
+        Assert.False(prepared.GraphPixelChecks); // 正式项目预览不为检查读回中间产物。
         string path = prepared.Grant!.FilePath;
         var factory = new WorkerPackageRenderFrameSessionFactory(Options());
         await using (var probe = new WorkerProcessProxy(Options()))

@@ -62,6 +62,7 @@ public sealed partial class SkiaRenderPipeline
             using var strokeReservation = capture?.Layer("CaptureStrokeLayer");
             // 在独立图层画外扩轮廓，再用不透明字形遮罩减去内部。
             // 遮罩不读取填充透明度，因此透明填充也不会露出内半边描边。
+            capture?.MarkDrawn(canvas);
             int strokeLayer = canvas.SaveLayer();
             _layoutEngine.DrawLine(
                 canvas, shaped, options, originX, baselineY,
@@ -94,6 +95,7 @@ public sealed partial class SkiaRenderPipeline
         {
             // Raw 材质区域与基础外观使用同一离屏字形路径，避免 GPU 对直接和 SaveLayer 字形采用不同栅格原点。
             using var materialLayerReservation = capture.Layer("CaptureMaterialFallbackLayer");
+            capture.MarkDrawn(canvas);
             int materialLayer = canvas.SaveLayer();
             _layoutEngine.DrawLine(canvas, shaped, options, originX, baselineY, SKColors.White, antialias,
                 drawUnitIndices: drawUnitIndices);
@@ -106,6 +108,7 @@ public sealed partial class SkiaRenderPipeline
             if (shadowSpec is { IsEnabled: true }) throw new PreparedFrameException("CaptureShadowFilterUnavailable", "无法创建真实 shadow-only 滤镜，不能当作没有阴影。");
             return;
         }
+        capture?.MarkDrawn(canvas);
         _layoutEngine.DrawLine(
             canvas, shaped, options, originX, baselineY,
             // shader 色标已包含样式 alpha；画笔不能再乘历史纯色 alpha 或样式 alpha。

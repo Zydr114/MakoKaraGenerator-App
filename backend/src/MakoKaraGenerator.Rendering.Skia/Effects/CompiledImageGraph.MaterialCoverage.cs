@@ -58,7 +58,7 @@ public sealed partial class CompiledImageGraph
             ValidateDensity(region); ValidateDensity(result.Output);
             if (result.Coverage is { } coverage)
             { ValidateSurface(coverage, ShaderSurfaceKind.Coverage, "material.coverage", cancellationToken); ValidateDensity(coverage); }
-            if (mode == EffectMaterialCoverageMode.Masked)
+            if (mode == EffectMaterialCoverageMode.Masked && _pixelChecks)
             {
                 ValidateInsideRegion(result.Output, region, "material.output", cancellationToken);
                 if (result.Coverage is { } mask) ValidateInsideRegion(mask, region, "material.coverage", cancellationToken);

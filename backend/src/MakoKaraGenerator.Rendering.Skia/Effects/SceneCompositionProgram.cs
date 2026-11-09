@@ -16,14 +16,16 @@ internal sealed partial class SceneCompositionProgram : IDisposable
     private readonly ImageSurfaceBudgetSession _surfaceBudget;
     private readonly CompositionPayloadPrograms _payloadPrograms;
     private readonly CompiledRuntimeShader _replace, _coverageUnion;
+    // 与 CompiledImageGraph 同一开关：关闭时不为颜色预乘检查同步提交或读回。
+    private readonly bool _pixelChecks;
     private bool _disposed;
 
     internal SceneCompositionProgram(ISkiaRenderDevice device, GraphExecutionBudget budget,
-        SkiaRenderDeviceLifetime? lifetime = null, CancellationToken cancellationToken = default)
+        SkiaRenderDeviceLifetime? lifetime = null, bool pixelChecks = true, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(device); ArgumentNullException.ThrowIfNull(budget);
         cancellationToken.ThrowIfCancellationRequested();
-        _device = device; _deviceLifetime = lifetime; _budget = budget;
+        _device = device; _deviceLifetime = lifetime; _budget = budget; _pixelChecks = pixelChecks;
         CompositionPayloadPrograms? payload = null;
         CompiledRuntimeShader? replace = null, union = null;
         ImageSurfaceBudgetSession? surfaceBudget = null;

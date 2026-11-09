@@ -209,13 +209,11 @@ internal sealed partial class FrameEffectHost : IDisposable
             var marks = allMarks.Where(mark => scope.ContainsMark(definition.Binding, mark)).ToImmutableArray();
             var frameGroups = !active.IsPureText ? legacyGroups : sourceGroups;
             var writableGroups = frameGroups.Where(group => scope.ContainsGroup(definition.Binding, group.Target)).ToImmutableArray();
-            if (anchorBudget is not null)
-            {
-                // 锚点补算只需要最终文字；本时刻绑定范围内没有任何目标的纯实例不能写文字
-                // （越界写入一律拒绝），不调用也不计入实际文字实例调用，避免随全曲行数线性放大。
-                if (tokens.IsEmpty && lines.IsEmpty && marks.IsEmpty && writableGroups.IsEmpty) continue;
-                anchorBudget.TextCall();
-            }
+            // 本时刻绑定范围内没有任何目标的纯实例（含宿主直接图）不能写文字或图绑定（越界写入一律拒绝），
+            // 纯求值又没有跨帧状态（随机数按流键取值），输出必为空：正式帧与锚点补算都不调用，
+            // 也不计入锚点文字调用，避免逐行应用模板时随全曲行数线性放大。v1 实例保留原调用。
+            if (active.IsPureText && tokens.IsEmpty && lines.IsEmpty && marks.IsEmpty && writableGroups.IsEmpty) continue;
+            anchorBudget?.TextCall();
             var targets = tokens.Select(static token => token.WithRuby).ToHashSet();
             var scopedGeometry = scene.TokenGeometries.Where(item => targets.Contains(item.WithRuby)).ToImmutableArray();
             var scopedMarks = scene.MarkGeometries.Where(mark => marks.Any(item => item.Target == mark.Target)).ToImmutableArray();

@@ -131,10 +131,11 @@ internal sealed partial class ProjectMediaFeatureProjection
     private static bool FallbackEqual(EffectMediaFallbackReference left, EffectMediaFallbackReference right)
         => left.GetType() == right.GetType() && left.OutputIds.SequenceEqual(right.OutputIds, StringComparer.Ordinal);
 
+    // 绑定构造时已完整校验输入与计划（会话借用时 ValidateSnapshot 再校验一次），两者都是深度不可变对象；
+    // 逐阶段、逐采样只核对采样器仍暴露同一对象，不再重算整份身份摘要（每实例每帧重复，随行数线性放大）。
     private static void RequireFixed(ProjectMediaFeatureBinding binding)
     {
         ArgumentNullException.ThrowIfNull(binding);
-        ProjectMediaFeatureBinding.ValidateInputPlan(binding.Input, binding.Plan);
         if (!ReferenceEquals(binding.Sampler.Input, binding.Input) || !ReferenceEquals(binding.Sampler.Plan, binding.Plan)) throw Mismatch();
     }
 

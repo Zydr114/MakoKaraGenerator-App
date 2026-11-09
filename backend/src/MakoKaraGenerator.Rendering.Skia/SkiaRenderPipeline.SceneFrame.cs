@@ -8,14 +8,17 @@ public sealed partial class SkiaRenderPipeline
     {
         frame = MeasureTextMarks(snapshot, frame, out var groups, out var references);
         List<SceneElementFrame> elements = [];
-        var parents = frame.Definition.Elements.ToDictionary(node => node.Id, node => node.ParentId, StringComparer.Ordinal);
-        foreach (var line in frame.Lines) parents[line.ElementId] = line.ParentId;
+        // 定义层父关系按不可变定义缓存（含全曲每行），本帧装载与提示附着放在小覆盖层，不再逐帧复制整表。
+        var definitionParents = SceneDefinitionBuilder.ElementParents(frame.Definition);
+        Dictionary<string, string?> runtimeParents = new(StringComparer.Ordinal);
+        foreach (var line in frame.Lines) runtimeParents[line.ElementId] = line.ParentId;
         foreach (var cue in frame.LeadIns)
-            if (references.ContainsKey(cue.ContainerId)) parents[cue.ContainerId] = cue.TargetElementId;
+            if (references.ContainsKey(cue.ContainerId)) runtimeParents[cue.ContainerId] = cue.TargetElementId;
+        string? Parent(string id) => runtimeParents.TryGetValue(id, out var parent) ? parent : definitionParents[id];
         bool Inside(string? current, string id)
         {
             while (current is not null)
-            { if (current == id) return true; current = parents[current]; }
+            { if (current == id) return true; current = Parent(current); }
             return false;
         }
         // 定义含全曲每行及注音；按（分支，行）一次建立在场行索引，取各行在帧中的第一个装载，
@@ -32,7 +35,7 @@ public sealed partial class SkiaRenderPipeline
                 var reference = references.GetValueOrDefault(definition.Id)
                     ?? (definition.ParentId is { } parentId ? groups[parentId]
                         : new SceneTreeGeometry(snapshot.Composition.CanvasWidth, snapshot.Composition.CanvasHeight, SceneMatrix.Identity, new(0, 0)));
-                elements.Add(new() { Id = definition.Id, ParentId = parents[definition.Id], SourceBinding = definition.SourceBinding,
+                elements.Add(new() { Id = definition.Id, ParentId = Parent(definition.Id), SourceBinding = definition.SourceBinding,
                     Kind = definition.Kind, IsVisible = bound.Length > 0 || marks.Length > 0, Pivot = container.Pivot, WorldMatrix = container.WorldMatrix,
                     PlacementReference = reference,
                     WorldCorners = [.. bound.Where(sample => sample.Geometry is not null).SelectMany(sample => sample.Geometry!.Corners()),

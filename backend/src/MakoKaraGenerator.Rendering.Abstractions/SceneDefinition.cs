@@ -140,11 +140,36 @@ public static class SceneDefinitionBuilder
         return new() { Elements = [.. elements] };
     }
 
+    // 容器定义与几何只由不可变定义和合成尺寸决定；逐帧（含每次锚点补算）复用，不再遍历全曲定义重算。
+    private sealed class BoundContainers(Composition composition, Dictionary<string, SceneElementDefinition> definitions,
+        IReadOnlyDictionary<string, SceneContainerGeometry> geometry)
+    {
+        internal Composition Composition { get; } = composition;
+        internal Dictionary<string, SceneElementDefinition> Definitions { get; } = definitions;
+        internal IReadOnlyDictionary<string, SceneContainerGeometry> Geometry { get; } = geometry;
+    }
+    private static readonly ConditionalWeakTable<SceneDefinition, BoundContainers> Containers = new();
+
+    private static readonly ConditionalWeakTable<SceneDefinition, IReadOnlyDictionary<string, string?>> ElementParentTables = new();
+
+    /// <summary>定义元素的持久父关系（重复身份照旧抛出）；同一不可变定义复用同一只读表。</summary>
+    public static IReadOnlyDictionary<string, string?> ElementParents(SceneDefinition definition)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        return ElementParentTables.GetValue(definition, static source
+            => source.Elements.ToDictionary(node => node.Id, node => node.ParentId, StringComparer.Ordinal));
+    }
+
     /// <summary>把采样绑定到场景树，统一容器变换的唯一来源。</summary>
     public static SceneFrame BindFrame(SceneFrame frame, Composition composition)
     {
-        var definitions = frame.Definition.Elements.Where(node => node.Kind == SceneElementKind.Group).ToDictionary(node => node.Id, StringComparer.Ordinal);
-        var geometry = SceneContainerGeometryResolver.Resolve(frame.Definition, composition);
+        if (!Containers.TryGetValue(frame.Definition, out var bound) || bound.Composition != composition)
+        {
+            bound = new(composition, frame.Definition.Elements.Where(node => node.Kind == SceneElementKind.Group).ToDictionary(node => node.Id, StringComparer.Ordinal),
+                SceneContainerGeometryResolver.Resolve(frame.Definition, composition));
+            Containers.AddOrUpdate(frame.Definition, bound);
+        }
+        var definitions = bound.Definitions; var geometry = bound.Geometry;
         return frame with { Lines = [.. frame.Lines.Select(sample =>
         {
             var container = geometry[sample.ContainerId];

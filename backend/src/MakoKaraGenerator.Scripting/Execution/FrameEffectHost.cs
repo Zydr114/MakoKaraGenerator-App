@@ -191,6 +191,17 @@ internal sealed partial class FrameEffectHost : IDisposable
         Dictionary<GroupTarget, ActiveEffect> groupOpacityOwners = [];
         var allLines = FrameProjection.Lines(scene, _project.Scene);
         var allMarks = FrameProjection.Marks(scene, _project.Scene);
+        // 模板逐行应用时实例按行／元素绑定、数量随全曲行数增长。Lines／Tokens 绑定的四类范围只经由行身份／元素身份判定
+        // （Tokens 不含标记与组，Lines 不含组），绑定的行或元素都不在本帧时范围必为空，免去逐目标扫描与分配。
+        HashSet<LineId>? frameLineIds = null; HashSet<TokenId>? frameTokenIds = null;
+        bool OutsideFrame(EffectBinding binding) => binding switch
+        {
+            EffectBinding.Lines bound => !bound.Ids.Any((frameLineIds ??= [.. allTokens.Select(static token => token.LineId),
+                .. allLines.Select(static line => line.LineId), .. allMarks.Select(static mark => mark.TargetLine.LineId)]).Contains),
+            EffectBinding.Tokens bound => !bound.Ids.Any((frameTokenIds ??= [.. allTokens.Select(static token => token.TokenId),
+                .. scene.Lines.SelectMany(static line => line.Frame.Line?.Tokens ?? []).Select(static token => new TokenId(token.Id))]).Contains),
+            _ => false,
+        };
         List<PreparedImageEffectBinding> imageEffects = [];
         var sourceBindings = _sourceMaterials?.Bindings(scene) ?? [];
         Dictionary<(ImageEffectTarget, PreparedMaterialSlot), PreparedMaterialBinding> materials = sourceBindings.ToDictionary(binding => (binding.Target, binding.Slot));
@@ -203,13 +214,14 @@ internal sealed partial class FrameEffectHost : IDisposable
             if (!includePure && active.IsPureText) continue;
             cancellationToken.ThrowIfCancellationRequested();
             var definition = active.Definition;
-            var tokens = allTokens.Where(token => (active.IsPureText || activeBindings.Contains(token.BindingId.Value))
+            bool outside = OutsideFrame(definition.Binding);
+            var tokens = outside ? [] : allTokens.Where(token => (active.IsPureText || activeBindings.Contains(token.BindingId.Value))
                 && scope.ContainsToken(definition.Binding, token)).ToImmutableArray();
-            var lines = allLines.Where(line => (active.IsPureText || activeBindings.Contains(line.BindingId.Value))
+            var lines = outside ? [] : allLines.Where(line => (active.IsPureText || activeBindings.Contains(line.BindingId.Value))
                 && scope.ContainsLine(definition.Binding, line)).ToImmutableArray();
-            var marks = allMarks.Where(mark => scope.ContainsMark(definition.Binding, mark)).ToImmutableArray();
+            var marks = outside ? [] : allMarks.Where(mark => scope.ContainsMark(definition.Binding, mark)).ToImmutableArray();
             var frameGroups = !active.IsPureText ? legacyGroups : sourceGroups;
-            var writableGroups = frameGroups.Where(group => scope.ContainsGroup(definition.Binding, group.Target)).ToImmutableArray();
+            var writableGroups = outside ? [] : frameGroups.Where(group => scope.ContainsGroup(definition.Binding, group.Target)).ToImmutableArray();
             // 本时刻绑定范围内没有任何目标的纯实例（含宿主直接图）不能写文字或图绑定（越界写入一律拒绝），
             // 纯求值又没有跨帧状态（随机数按流键取值），输出必为空：正式帧与锚点补算都不调用，
             // 也不计入锚点文字调用，避免逐行应用模板时随全曲行数线性放大。v1 实例保留原调用。

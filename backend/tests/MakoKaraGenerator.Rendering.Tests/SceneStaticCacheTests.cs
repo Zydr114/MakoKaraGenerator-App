@@ -4,7 +4,7 @@ using MakoKaraGenerator.Core.Time;
 
 namespace MakoKaraGenerator.Rendering.Tests;
 
-/// <summary>逐帧共用的静态场景定义与样式解析器按不可变输入复用，输入一变即重建。</summary>
+/// <summary>逐帧共用的静态场景定义、样式解析器与容器几何按不可变输入复用，输入一变即重建。</summary>
 public sealed class SceneStaticCacheTests
 {
     private static LyricLine Line(string id, long start)
@@ -38,5 +38,28 @@ public sealed class SceneStaticCacheTests
         var withNode = SceneDefinitionBuilder.Build(snapshot with { LyricPresentation = moreNodes });
         Assert.Contains(withNode.Elements, element => element.Id == "extra-group");
         Assert.DoesNotContain(SceneDefinitionBuilder.Build(snapshot).Elements, element => element.Id == "extra-group");
+    }
+
+    [Fact]
+    public void 容器几何与父关系按定义复用_合成尺寸变化即重算()
+    {
+        var project = Project.Create("bind", Composition.Create(320, 180, FrameRate.Fps30),
+            LyricsDocument.Create([Line("line-0", 0), Line("line-1", 2_000_000)]));
+        var small = ProjectSnapshot.FromProject(project);
+        var large = small with { Composition = Composition.Create(640, 360, FrameRate.Fps30) };
+        var definition = SceneDefinitionBuilder.Build(small);
+        Assert.Same(definition, SceneDefinitionBuilder.Build(large));
+        Assert.Same(SceneDefinitionBuilder.ElementParents(definition), SceneDefinitionBuilder.ElementParents(definition));
+        // 同一定义交替绑定两种合成尺寸：每次都必须取当前尺寸的容器几何，缓存不得沿用上一尺寸。
+        foreach (var snapshot in new[] { small, large, small })
+        {
+            var sample = Assert.Single(LyricSceneSampler.SampleFrame(snapshot, 500_000).Lines);
+            var expected = SceneContainerGeometryResolver.Resolve(definition, snapshot.Composition)[sample.ParentId];
+            Assert.Equal(expected.Width, sample.ParentReferenceWidth);
+            Assert.Equal(expected.Height, sample.ParentReferenceHeight);
+            Assert.Equal(expected.WorldMatrix, sample.ParentMatrix);
+        }
+        Assert.NotEqual(SceneContainerGeometryResolver.Resolve(definition, small.Composition)[LyricSceneSampler.SampleFrame(small, 500_000).Lines[0].ParentId].Width,
+            SceneContainerGeometryResolver.Resolve(definition, large.Composition)[LyricSceneSampler.SampleFrame(large, 500_000).Lines[0].ParentId].Width);
     }
 }

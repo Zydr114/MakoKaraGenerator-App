@@ -7,6 +7,7 @@
 // Reanalyze: node scripts/gpu-preview-p3.mjs --analyze .local/gpu-preview-p3/<run>
 // SDK2 content: add --v2-samples t01|<names> [--v2-lines 72] to --finite/--debug; lyrics shrink to N lines every 5 s
 // and a UI-built SDK2 line template is applied to all of them before any timed phase.
+// G1 targets: add --phases 720p24 --measure-seconds 60 to --finite/--debug (phase subset and per-phase timing; formal runs keep the full matrix).
 // --connect reuses an explicitly CDP-enabled App without owning its shutdown.
 // Formal timing excludes fixture creation, correctness probes and pixel readbacks.
 import { spawn } from 'node:child_process';
@@ -406,6 +407,17 @@ export async function connectPage(port) {
   }
   throw new Error('Loopback Electron CDP page did not become ready');
 }
+const PHASES={'720p24':{name:'720p24',width:1280,height:720,targetFps:24},'1440p30':{name:'1440p30',width:2560,height:1440,targetFps:30}};
+/** 计时计划：正式运行固定两档 180 s；debug／finite 可用 --phases 选子集、--measure-seconds 改每档计时（5..600 s）。 */
+export function timedPlan(values) {
+  const short=!!(values.debug||values.finite);
+  invariant(short||(values.phases===undefined&&values['measure-seconds']===undefined),'--phases/--measure-seconds only apply to --debug/--finite runs');
+  const names=values.phases===undefined?Object.keys(PHASES):values.phases.split(',');
+  invariant(names.length>0&&names.every(name=>Object.hasOwn(PHASES,name))&&new Set(names).size===names.length,'--phases must be a comma list of 720p24,1440p30');
+  const measureSeconds=values['measure-seconds']===undefined?(short?5:180):Number(values['measure-seconds']);
+  invariant(Number.isSafeInteger(measureSeconds)&&measureSeconds>=5&&measureSeconds<=600,'--measure-seconds must be 5..600');
+  return {warmupSeconds:short?2:10,measureSeconds,stabilitySeconds:short?5:600,phases:names.map(name=>PHASES[name])};
+}
 async function run(values) {
   invariant(!values['correctness-snapshot']||values.debug||values.finite,'Correctness screenshot must stay outside formal timed runs');
   const v2Names=values['v2-samples']?v2SampleNames(values['v2-samples']):null;
@@ -419,8 +431,7 @@ async function run(values) {
   await mkdir(output,{recursive:true,mode:0o700});
   const manifest={schemaVersion:1,startedAt:new Date().toISOString(),platform:platform(),arch:arch(),kernel:release(),provider:values.provider,sessionName,connectionOwnership:values.connect?'existing-explicit-CDP-session':'owned-isolated-session',
     runClass:values.debug?'short-debug-not-performance-acceptance':values.finite?'finite-correctness-not-performance-acceptance':'formal-p3',
-    warmupSeconds:values.debug||values.finite?2:10,measureSeconds:values.debug||values.finite?5:180,stabilitySeconds:values.debug||values.finite?5:600,readbacks:values['correctness-snapshot']?'one validation-only screenshot before warmup; no screenshots/pixel extraction in timed phases':'none; no screenshots/pixel extraction in timed runner',
-    phases:[{name:'720p24',width:1280,height:720,targetFps:24},{name:'1440p30',width:2560,height:1440,targetFps:30}],
+    ...timedPlan(values),readbacks:values['correctness-snapshot']?'one validation-only screenshot before warmup; no screenshots/pixel extraction in timed phases':'none; no screenshots/pixel extraction in timed runner',
     thresholds:{overallRatio:.99,sliding5sRatio:.98,intervalP95Periods:2,intervalP99Periods:3,maxUnexplainedStallMs:250,interactionP95Ms:150,interactionP99Ms:250},
     lifecycle:{attachDetach:20,publicResizeSeek:10,uiResolutionRecreate:10},command:process.argv};
   manifest.schedulerBaseline={kernel:await schedulerKernelState(),runner:await readProc(process.pid,'p3-runner'),runnerParent:await readProc(process.ppid,'runner-parent'),explicitOrdinaryScheduling:values['ordinary-scheduling']===true,requiredFormalPolicy:'Explicit acceptance-only wrapper for newly spawned App/host: actual Electron main/renderer/GPU/utility and Worker SCHED_OTHER (0), Worker nice=0; Chromium may adjust its own nice. Runner/launcher actual scheduler is recorded continuously but excluded from pipeline gate; their external policy changes are an observation of the probe environment'};
@@ -712,7 +723,7 @@ async function run(values) {
 }
 async function main() {
   const {values}=parseArgs({options:{'cdp-port':{type:'string',default:'9223'},port:{type:'string',default:'5174'},output:{type:'string'},provider:{type:'string',default:'runtime'},
-    connect:{type:'boolean'},'ordinary-scheduling':{type:'boolean'},'session-name':{type:'string'},'reuse-project':{type:'boolean'},'dry-run':{type:'boolean'},debug:{type:'boolean'},finite:{type:'boolean'},'correctness-snapshot':{type:'boolean'},analyze:{type:'string'},'v2-samples':{type:'string'},'v2-lines':{type:'string'}}});
+    connect:{type:'boolean'},'ordinary-scheduling':{type:'boolean'},'session-name':{type:'string'},'reuse-project':{type:'boolean'},'dry-run':{type:'boolean'},debug:{type:'boolean'},finite:{type:'boolean'},'correctness-snapshot':{type:'boolean'},analyze:{type:'string'},'v2-samples':{type:'string'},'v2-lines':{type:'string'},phases:{type:'string'},'measure-seconds':{type:'string'}}});
   invariant(['runtime','synthetic'].includes(values.provider),'provider must be runtime or synthetic');
   if(values.analyze){const directory=resolve(values.analyze);const records=(await readFile(join(directory,'events.jsonl'),'utf8')).trim().split('\n').filter(Boolean).map(line=>JSON.parse(line));
     const manifest=JSON.parse(await readFile(join(directory,'manifest.json'),'utf8'));const report=analyze(records,manifest);
@@ -722,6 +733,7 @@ async function main() {
   for(const option of ['cdp-port','port'])invariant(/^\d+$/.test(values[option])&&Number(values[option])>=1024&&Number(values[option])<=65535,`Invalid ${option}`);
   if(!values.debug&&!values.finite&&!values.connect)values['ordinary-scheduling']=true;
   invariant(!values.connect||!values['ordinary-scheduling'],'--ordinary-scheduling requires a newly owned isolated session');
+  timedPlan(values);
   await run(values);
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href)main().catch(error=>{console.error(error.message);process.exitCode=1;});

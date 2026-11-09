@@ -1,5 +1,6 @@
 // P3 GPU 流的 SDK2 内容：经生产界面在样式库建一个含 SDK2 效果的行模板，再在外观页一次应用到全部歌词行。
 // 只用界面操作与文件输入，不读取凭证、不直接发 HTTP；包取本仓库 backend/samples/ScriptEffectsV2 并校验清单 SHA。
+// 材质包与 M12 HTTP 探针一致：全部材质导出按顺序排开，未唱填充用第一个、已唱填充用最后一个。
 import { createHash } from 'node:crypto';
 import { appendFile, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -18,7 +19,7 @@ export function v2SampleNames(value) {
   return names;
 }
 
-/** 把样例目录打成 .mkfx 写到输出目录；字节须与清单 SHA 一致。只接入含控制器或图导出的包。 */
+/** 把样例目录打成 .mkfx 写到输出目录；字节须与清单 SHA 一致。包须含控制器、图或材质导出。 */
 export async function packV2Samples(output, names) {
   const packages = [];
   for (const name of names) {
@@ -33,12 +34,13 @@ export async function packV2Samples(output, names) {
       files.push({ name: entry.path, data });
     }
     const effects = manifest.exports.filter((item) => EFFECT_KINDS.has(item.kind));
-    if (effects.length === 0) fail(`${name} 没有控制器或图导出；材质包不在本流程范围`);
+    const materials = manifest.exports.filter((item) => item.kind === 'material');
+    if (effects.length === 0 && materials.length === 0) fail(`${name} 没有控制器、图或材质导出`);
     const archive = zipFiles([{ name: 'manifest.json', data: raw }, ...files]);
     const path = join(output, `v2-${name}.mkfx`);
     await writeFile(path, archive, { mode: 0o600 });
     packages.push({ name, path, packageId: manifest.packageId, packageName: manifest.name, effects: effects.map((item) => ({ id: item.id, name: item.name })),
-      archiveSha256: createHash('sha256').update(archive).digest('hex') });
+      materials: materials.map((item) => ({ id: item.id, name: item.name })), archiveSha256: createHash('sha256').update(archive).digest('hex') });
   }
   return packages;
 }
@@ -99,7 +101,13 @@ async function withFailureEvidence(page, output, step) {
   }
 }
 
-/** 样式库复制“经典整行”，导入各包并逐个加效果后保存；外观页 Shift 选中全部行一次应用。 */
+/** 未唱填充用全部材质导出里的第一个、已唱填充用最后一个（只有一个时两处相同）；没有材质导出时不动材质。 */
+export function materialSlotPlan(packages) {
+  const all = packages.flatMap((item) => item.materials.map((material) => ({ ...material, packageName: item.packageName, packageId: item.packageId })));
+  return all.length === 0 ? [] : [{ slot: 'unsungFill', label: '未唱填充', ...all[0] }, { slot: 'sungFill', label: '已唱填充', ...all.at(-1) }];
+}
+
+/** 样式库复制“经典整行”，导入各包、逐个加效果并填好材质部位后保存；外观页 Shift 选中全部行一次应用。 */
 export async function applyV2Template(page, output, names, lineCount) {
   return withFailureEvidence(page, output, () => buildAndApply(page, output, names, lineCount));
 }
@@ -147,6 +155,33 @@ async function buildAndApply(page, output, names, lineCount) {
       await step(`加效果 ${effect.id}`);
     }
   }
+  const slots = materialSlotPlan(packages);
+  if (slots.length > 0) {
+    await ui.click(page, 'tab', '材质');
+    await page.waitFor(`!!document.querySelector('.slot-material')`, '材质页签');
+  }
+  for (const target of slots) {
+    const slotMaterial = `document.querySelector('.slot-material[data-slot=${target.slot}]')`;
+    await ui.click(page, 'button', target.label, { scope: '.slot-buttons' });
+    await page.waitFor(`!!${slotMaterial}`, `部位 ${target.label}`);
+    if ((await page.eval(`${slotMaterial}.dataset.kind`)) !== 'package') {
+      await ui.click(page, 'button', '效果包', { scope: '.slot-material .material-kind' });
+      await page.waitFor(`${slotMaterial}?.dataset.kind === 'package'`, `${target.label}换成包材质`);
+    }
+    // 选项文字是“名称 版本（修订）”，按名称前缀选；材质导出按名称精确选。
+    const chosen = (field) => `document.querySelector('.slot-material .${field} .select-value')?.textContent.trim()`;
+    const pkgLabel = await page.eval(chosen('material-package'));
+    if (!pkgLabel?.startsWith(`${target.packageName} `)) {
+      await ui.click(page, 'select', '效果包', { scope: '.material-package' });
+      await ui.click(page, 'option', `${target.packageName} `, { partial: true, what: `${target.label}的效果包「${target.packageName}」` });
+    }
+    await ui.choose(page, '材质', target.name, { scope: '.material-export' });
+    await page.waitFor(`${chosen('material-package')}?.startsWith(${JSON.stringify(`${target.packageName} `)}) && ${chosen('material-export')} === ${JSON.stringify(target.name)}`,
+      `${target.label}用「${target.packageName}／${target.name}」`);
+    // 模板不包含该部位时材质不会生效，计时结果会失真，直接失败。
+    if (await page.eval(`!!${slotMaterial}?.querySelector('.material-off')`)) fail(`模板不包含${target.label}，材质不会生效`);
+    await step(`${target.label} ${target.packageId}/${target.id}`);
+  }
   await page.waitFor(`!document.querySelector('.template-problem')`, '模板没有问题提示', 30_000);
   await ui.click(page, 'button', '保存', { scope: '.template-actions' });
   await page.waitFor(`${detailTags}[0] === '我的模板' && !${detailTags}.includes('未保存')`, '模板保存完成', 60_000);
@@ -187,6 +222,7 @@ async function buildAndApply(page, output, names, lineCount) {
   await page.waitFor(`${revision} === ${before + 1}`, `应用「${name}」到 ${lineCount} 行`, 120_000);
   await step('应用到全部行');
   return { templateName: name, samples: names, appliedLines: lineCount, projectRevision: before + 1, setupMs: Date.now() - started,
-    packages: packages.map(({ name: sample, packageId, archiveSha256, effects }) => ({ sample, packageId, archiveSha256, exports: effects.map((item) => item.id) })),
+    packages: packages.map(({ name: sample, packageId, archiveSha256, effects, materials }) => ({ sample, packageId, archiveSha256, exports: effects.map((item) => item.id), materials: materials.map((item) => item.id) })),
+    materialSlots: Object.fromEntries(materialSlotPlan(packages).map((item) => [item.slot, `${item.packageId}/${item.id}`])),
     boundary: 'Template built and applied through production UI before timing; setup time is not part of any interaction metric.' };
 }

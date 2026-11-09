@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { analyze, leaseKey, percentile, slidingWindows, ozoneArguments, parseSchedulerStat, auditPipelineScheduler, currentCompletedFrames } from './gpu-preview-p3.mjs';
+import { analyze, leaseKey, percentile, slidingWindows, ozoneArguments, parseSchedulerStat, auditPipelineScheduler, currentCompletedFrames, timedPlan } from './gpu-preview-p3.mjs';
+import { materialSlotPlan } from './gpu-preview-v2-content.mjs';
 
 const N=1_000_000_000n;
 const frame=(seq,time,extra={})=>({streamId:'stream',hostInstanceId:'host',producerEpoch:'1',inputGeneration:'1',consumerEpoch:'1',timelineEpoch:'1',poolGeneration:'1',slotId:seq%3,slotEpoch:String(seq),frameSeq:seq,
@@ -223,4 +224,23 @@ test('interaction matching respects all recorded active stream identities',()=>{
     const report=analyze([snapshot(2n*N,[frame(1,1_010_000_000n),frame(2,1_120_000_000n,{[key]:'2'})],2),action]);
     assert.equal(report.interactions[0].uiInvocationToMatchingCompletionMs,120,key);
   }
+});
+test('timed plan keeps the formal matrix fixed and lets short runs pick phases and timing',()=>{
+  const formal=timedPlan({});
+  assert.deepEqual([formal.phases.map(phase=>phase.name),formal.measureSeconds,formal.stabilitySeconds],[['720p24','1440p30'],180,600]);
+  assert.throws(()=>timedPlan({phases:'720p24'}),/only apply/);
+  assert.throws(()=>timedPlan({'measure-seconds':'60'}),/only apply/);
+  const g1=timedPlan({finite:true,phases:'720p24','measure-seconds':'60'});
+  assert.deepEqual([g1.phases,g1.measureSeconds,g1.warmupSeconds],[[{name:'720p24',width:1280,height:720,targetFps:24}],60,2]);
+  assert.equal(timedPlan({debug:true}).measureSeconds,5);
+  for(const phases of ['','480p24','720p24,720p24'])assert.throws(()=>timedPlan({debug:true,phases}),/--phases/);
+  for(const seconds of ['4','601','60.5','x'])assert.throws(()=>timedPlan({debug:true,'measure-seconds':seconds}),/--measure-seconds/);
+});
+test('material slots use the first and last material export across packages like the HTTP probe',()=>{
+  const pkg=(packageId,ids)=>({packageId,packageName:packageId.toUpperCase(),materials:ids.map(id=>({id,name:`${id}-name`}))});
+  assert.deepEqual(materialSlotPlan([pkg('fx',[])]),[]);
+  const one=materialSlotPlan([pkg('ink',['custom-ink'])]);
+  assert.deepEqual(one.map(item=>[item.slot,item.label,item.packageId,item.id]),[['unsungFill','未唱填充','ink','custom-ink'],['sungFill','已唱填充','ink','custom-ink']]);
+  const many=materialSlotPlan([pkg('glass',['glass-media','glass-backdrop']),pkg('fx',[]),pkg('ink',['custom-ink'])]);
+  assert.deepEqual(many.map(item=>`${item.packageName}/${item.name}`),['GLASS/glass-media-name','INK/custom-ink-name']);
 });

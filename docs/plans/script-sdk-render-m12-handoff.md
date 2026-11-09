@@ -1,7 +1,7 @@
 # M12 交接：材质路径与 1440p（2026-11-10）
 
 分支 `dev/script-sdk-render-upgrade`，产品 0.112.59，已推送到私有远程。详细数据与决定原文见
-[M12 测量记录](script-sdk-render-m12-evidence.md) §5（§5.3 为本轮）。
+[M12 测量记录](script-sdk-render-m12-evidence.md) §5（§5.3 为 G1 与 O7 设计，§5.4 为测试包基线）。
 
 ## 1. 当前状态
 
@@ -11,7 +11,11 @@
   - `frontend/scripts/cdp.mjs`：CDP 连接关闭后请求立即失败，测速脚本不再静默以 0 退出。
 - **G1 实测**（72 行，720p24 计时 60 s）：C、P、G 达到目标；CustomInk 720p 偏慢（p95 48.7 ms），
   切 1440p 首帧超表面预算；X 同样在 1440p 失败，720p 只有 12 fps；GlassInk 一帧未出。
-- **未开工**：测试效果包、测速棋盘格背景、O7、O3、合同冻结。
+- **测试包与基线（2026-11-10，已完成）**：七个测试包在 `backend/tests/Fixtures/ScriptEffectsV2Perf/`（`PerfFixturePackageTests`）；
+  测速新增 `--v2-params`、`--background-image`；基线见记录 §5.4。要点：不读输入的常量色材质 Render p50 已 36 ms
+  （图-直通 6 ms），1440p 失败占用与 CustomInk 逐字相同（36 张整屏），确认问题在材质路径的整屏分配而非着色器；
+  背景媒体输入比同结构读下层多约 64 ms，原因未查；缺背景时必需／可选两版都首帧整条流失败。
+- **未开工**：O7、缺背景行为决定、O3、合同冻结。
 
 ## 2. 用户决定
 
@@ -29,14 +33,16 @@
 
 ## 3. 下一步（建议顺序）
 
-1. 写测试包，放 `backend/tests/Fixtures/ScriptEffectsV2Perf/`，格式同样例（清单＋SHA），每包一个导出：
+1. ~~写测试包~~（已完成），放 `backend/tests/Fixtures/ScriptEffectsV2Perf/`，格式同样例（清单＋SHA），每包一个导出：
    材质-常量色、材质-区域覆盖、材质-下层（模糊 σ 可调）、材质-背景媒体必需、材质-背景媒体可选、图-直通、图-模糊。
    加一条 C# 测试验准入与原生编译，常量色包加最小像素检查。注意 σ=0 时模糊节点仍分配两张临时表面，
    读下层的开销要与「区域覆盖」对比得出；可选输入缺失目前报 `GraphOptionalInputPolicyPending`，纯色背景下两版预计都失败。
-2. 测速：`--v2-samples` 能取到夹具包；新增 `--background checker` 经界面「选择图片或视频…」上传棋盘格（步骤同
-   `frontend/scripts/project-smoke.mjs`），等背景媒体分析落定后再计时；新增 `--v2-params`。
-   然后在当前版本测基线（需桌面窗口在屏，运行前先问用户）。
-3. 实施 O7，像素回归确认画布坐标不变、区域内像素一致，再复测测试包与现有样例。
+2. 测速（已完成）：`--v2-samples` 能取到夹具包（与样例同名即报错）；`--background-image <png>` 在 SDK2 内容与计时之前
+   经工程设置「选择图片或视频…」上传背景；`--v2-params` 打包时改参数默认值。
+   然后在当前版本测基线（已完成，见记录 §5.4；`.local/script-sdk-m12-20261110/run-baseline.sh`，
+   `BASE_OUT=<目录> bash run-baseline.sh [solid|checker [组名...]]`，汇总 `aggregate-p3.py <目录>`）。
+3. 实施 O7（2026-11-10 用户说暂不动，等用户恢复），像素回归确认画布坐标不变、区域内像素一致，再复测测试包与现有样例；
+   回归测试可直接读 `ImageSurfaceBudgetSession.Usage` 补上基线缺的成功帧占用。背景媒体输入多出约 64 ms 的原因可在 O7 前后另查。
 4. 决定缺背景行为；之后做 O3、合同冻结（当前合同 1.49.1）与前端合同同步。
 
 ## 4. 参考文件

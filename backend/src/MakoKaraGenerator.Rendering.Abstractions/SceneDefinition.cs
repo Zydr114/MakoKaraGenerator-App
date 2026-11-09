@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 using MakoKaraGenerator.Core.Lyrics;
 using MakoKaraGenerator.Core.Projects;
 
@@ -82,18 +83,34 @@ public static class SceneDefinitionBuilder
         var anchor = SceneMatrix.Anchor(slot.Anchor, 1, 1);
         return ScenePlacement.Create(new(anchor.X, anchor.Y), slot.Anchor);
     }
-    /// <summary>生成当前工程定义；不依赖播放时间。</summary>
+    // 定义只由歌词与补默认程序后的展示树决定，两者不可变：同一对引用复用同一定义，避免逐帧按全曲行数重建。
+    private sealed class BuiltDefinition(LyricPresentationDefinition tree, SceneDefinition definition)
+    {
+        internal LyricPresentationDefinition Tree { get; } = tree;
+        internal SceneDefinition Definition { get; } = definition;
+    }
+    private static readonly ConditionalWeakTable<LyricsDocument, BuiltDefinition> Definitions = new();
+
+    /// <summary>生成当前工程定义；不依赖播放时间。同一歌词与展示树引用返回同一不可变定义。</summary>
     public static SceneDefinition Build(ProjectSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         var tree = snapshot.LyricPresentation.WithDefaultPrograms(snapshot.Lyrics);
+        if (Definitions.TryGetValue(snapshot.Lyrics, out var built) && ReferenceEquals(built.Tree, tree)) return built.Definition;
+        var definition = Build(snapshot.Lyrics, tree);
+        Definitions.AddOrUpdate(snapshot.Lyrics, new(tree, definition));
+        return definition;
+    }
+
+    private static SceneDefinition Build(LyricsDocument lyrics, LyricPresentationDefinition tree)
+    {
         List<SceneElementDefinition> elements = [];
         foreach (var node in tree.Nodes)
         {
             var program = tree.Programs.FirstOrDefault(item => item.RootContainerId == node.Id || item.DefaultContainerId == node.Id
                 || item.Clips.Any(clip => clip.ContainerId == node.Id)
                 || tree.FindNode(item.DefaultContainerId)?.Layout?.SlotIds.Contains(node.Id) == true);
-            var branch = snapshot.Lyrics.Branches.FirstOrDefault(source => source.Id == program?.BranchId);
+            var branch = lyrics.Branches.FirstOrDefault(source => source.Id == program?.BranchId);
             var layout = node.Layout?.Kind == LyricContainerLayoutKind.SlotSequence ? SceneLocalLayout.SlotSequence
                 : node.Layout is null ? SceneLocalLayout.None
                 : branch is not null && tree.Resolve(branch.Id).PolicyFor(branch) == LyricBranchAnimationPolicy.Static ? SceneLocalLayout.TranslationFlow : SceneLocalLayout.FreeLine;
@@ -101,7 +118,7 @@ public static class SceneDefinitionBuilder
                 SourceBinding = new(program?.BranchId), Placement = node.Placement, ReferenceRect = node.ReferenceRect,
                 LocalLayout = layout, Order = elements.Count, Content = node.Content, Attachment = node.Attachment });
         }
-        foreach (var branch in snapshot.Lyrics.Branches)
+        foreach (var branch in lyrics.Branches)
         {
             var program = tree.FindProgram(branch.Id)!;
             var presentation = tree.Resolve(branch.Id);

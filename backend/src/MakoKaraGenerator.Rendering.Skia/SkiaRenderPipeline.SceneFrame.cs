@@ -18,9 +18,12 @@ public sealed partial class SkiaRenderPipeline
             { if (current == id) return true; current = parents[current]; }
             return false;
         }
+        // 定义含全曲每行及注音；按（分支，行）一次建立在场行索引，取各行在帧中的第一个装载，
+        // 不再对每个定义扫描、复制在场行（旧做法随全曲行数×在场行数增长）。
+        Dictionary<(string? Branch, string? Line), SceneLineSample> present = [];
+        foreach (var line in frame.Lines) present.TryAdd((line.Branch.Id, line.Frame.Line!.Id), line);
         foreach (var definition in frame.Definition.Elements)
         {
-            var samples = frame.Lines.Where(line => line.Branch.Id == definition.SourceBinding.BranchId).ToArray();
             if (definition.Kind == SceneElementKind.Group)
             {
                 var container = groups[definition.Id];
@@ -46,7 +49,7 @@ public sealed partial class SkiaRenderPipeline
                         PlacementReference = groups[mark.ContainerId], WorldCorners = [.. mark.Geometry.Corners()] });
                 continue;
             }
-            var sample = samples.FirstOrDefault(line => line.Frame.Line!.Id == definition.SourceBinding.LineId);
+            var sample = present.GetValueOrDefault((definition.SourceBinding.BranchId, definition.SourceBinding.LineId));
             if (sample?.Geometry is not { } geometry) continue;
             var corners = geometry.Corners();
             if (definition.SourceBinding.RubyId is { } rubyId)

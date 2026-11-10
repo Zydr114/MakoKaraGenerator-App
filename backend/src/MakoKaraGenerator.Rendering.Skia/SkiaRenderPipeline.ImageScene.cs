@@ -126,6 +126,8 @@ public sealed partial class SkiaRenderPipeline
                 // Legacy scheduling retains its real destination snapshot.
                 using var capturedBelow = backdropFrame is null ? SnapshotSceneBelow(main, request, bounds, state) : null;
                 var below = capturedBelow;
+                var knownEmpty = SkipKnownEmptyParts ? ObjectKnownEmptyParts(request, item) : default;
+                bool opacityKnown = false;
                 AddParts(target, excluded, 0);
                 for (int i = 0; i < tokenTargets.Length; i++) AddParts(tokenTargets[i], null, i + 1);
                 state.Backgrounds.Dispose();
@@ -156,6 +158,13 @@ public sealed partial class SkiaRenderPipeline
                             ? binding.Slot == PreparedMaterialSlot.Stroke : part is SceneColorPart.BaseFill or SceneColorPart.RubyFill
                                 && binding.Slot != PreparedMaterialSlot.Stroke)).ToArray();
                         int order = partOrder * (tokenTargets.Length + 1) + memberOrder;
+                        // F3：本帧必然为空的部件先判空再分配，不捕获、不执行材质，只占共享空层；层数与层序不变。
+                        if (knownEmpty.Contains(part, slotBindings.Length > 0))
+                        {
+                            if (slotBindings.Length > 0 && part is SceneColorPart.BaseFill or SceneColorPart.RubyFill) { AddEmpty(false); AddEmpty(true); }
+                            else AddEmpty(null);
+                            continue;
+                        }
                         if (slotBindings.Length > 0)
                         {
                             if (part is SceneColorPart.BaseFill or SceneColorPart.RubyFill)
@@ -185,7 +194,7 @@ public sealed partial class SkiaRenderPipeline
                             state.Layers.Add(new(order, [new(member, part)], result.Output, [result], program.Graph, owner));
                             state.Changed = true;
                         }
-                        void AddOriginal(bool? sung)
+                        bool AddOriginal(bool? sung)
                         {
                             // Empty parts are still real source layers; admission must precede capture.
                             state.SetLayerBudget(checked(state.Layers.Count + 1));
@@ -212,11 +221,27 @@ public sealed partial class SkiaRenderPipeline
                                 else { captured.Dispose(); surface = state.Empty; }
                             }
                             state.Layers.Add(new(order, [new(member, part)], surface, [], null, null));
+                            return empty;
+                        }
+                        void AddEmpty(bool? sung)
+                        {
+                            // 检查模式按原样部件捕获（表面与读回同原来）并核对判空条件没有漏掉样式来源；注音材质同样不执行。
+                            if (_graphPixelChecks)
+                            {
+                                if (!AddOriginal(sung))
+                                    throw new PreparedFrameException("SceneColorPartKnownEmptyMismatch", "预判为空的对象部件实际有像素。");
+                                return;
+                            }
+                            state.SetLayerBudget(checked(state.Layers.Count + 1));
+                            state.Empty ??= state.Own(RasterSceneSurface(request, bounds, state.Budget, ShaderSurfaceKind.Color, resources,
+                                "CaptureSceneColorPart", static (_, _, _) => { }));
+                            state.Layers.Add(new(order, [new(member, part)], state.Empty, [], null, null));
                         }
                     }
+                    // 每个成员的填充部件从不预判为空，共同透明度总能取到；跳过的空层不参与核对。
                     void SetOpacity(double value)
                     {
-                        if (state.Layers.Count == 0) state.Opacity = value;
+                        if (!opacityKnown) { state.Opacity = value; opacityKnown = true; }
                         else if (state.Opacity != value) throw new PreparedFrameException("SceneColorPartFrameMismatch", "对象部件共同透明度不一致。");
                     }
                 }

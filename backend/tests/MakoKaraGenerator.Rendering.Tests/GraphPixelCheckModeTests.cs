@@ -110,9 +110,10 @@ public sealed class GraphPixelCheckModeTests
         public int ImageReads { get; private set; }
         public int Submits { get; private set; }
         public int SubmitsWithoutWait { get; private set; }
+        public int Surfaces { get; private set; }
         public object SynchronizationRoot => _inner.SynchronizationRoot;
         public SkiaRenderDeviceInfo Info => _inner.Info;
-        public SKSurface CreateSurface(SKImageInfo imageInfo) => _inner.CreateSurface(imageInfo);
+        public SKSurface CreateSurface(SKImageInfo imageInfo) { Surfaces++; return _inner.CreateSurface(imageInfo); }
         public void FlushAndSubmit(SKSurface surface) { Submits++; _inner.FlushAndSubmit(surface); }
         public void SubmitWithoutWait(SKSurface surface) { SubmitsWithoutWait++; _inner.SubmitWithoutWait(surface); }
         public SKImage? RasterizeImage(SKImage image) => _inner.RasterizeImage(image);

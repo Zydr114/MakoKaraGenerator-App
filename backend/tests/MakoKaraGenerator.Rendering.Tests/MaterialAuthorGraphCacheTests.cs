@@ -275,7 +275,8 @@ public sealed class MaterialAuthorGraphCacheTests
         using var device = new CountingDevice(gpu);
         var expected = Render(true, null); var actual = Render(false, null);
         Assert.Null(expected.Failure); Assert.Null(actual.Failure); Assert.Equal(expected.Pixels, actual.Pixels);
-        Assert.Equal(15, expected.Created - actual.Created);
+        // 无注音行只执行 8 个基础字填充（F3 起注音填充不再执行），共享省下其中 7 次作者图输出。
+        Assert.Equal(7, expected.Created - actual.Created);
         var repeat = Render(false, null); Assert.Equal(actual.Pixels, repeat.Pixels); Assert.Equal(actual.Created, repeat.Created);
         foreach (int maximum in Enumerable.Range(1, 64))
             Compare(new() { MaximumSurfaces = maximum });

@@ -18,7 +18,7 @@ public sealed partial class SkiaRenderPipeline
         HashSet<PartSource> selected = [];
         bool hasTargetInput = false;
         var external = _imageEffects!.GetImages(program.Handle);
-        foreach (var declaration in program.Graph.ActiveInputs(context))
+        foreach (var declaration in program.Graph.ActiveInputs(context, () => BackgroundMediaAvailable(request)))
         {
             request.CancellationToken.ThrowIfCancellationRequested();
             var source = declaration.ChoiceParameter is { } choice ? declaration.Choices[binding.Binding.Parameters.GetEnum(choice)] : declaration.Source;
@@ -51,12 +51,7 @@ public sealed partial class SkiaRenderPipeline
             }
             else if (source is GraphInputSource.BackgroundColor or GraphInputSource.BackgroundMedia)
             {
-                if (!backgrounds.TryGetValue(source, out var surface))
-                {
-                    surface = CaptureSceneBackground(request, source, state.Bounds, program.Graph.Plan.Budget, state.Resources);
-                    backgrounds.Add(source, surface); if (surface is not null) state.Own(surface);
-                }
-                if (surface is not null) inputs.Add(declaration.Id, new(surface, source));
+                if (BackgroundInput(declaration, source, Background) is { } background) inputs.Add(declaration.Id, background);
             }
             else if (source == GraphInputSource.ResourceImage && external.TryGetValue(declaration.Id, out var image)) inputs.Add(declaration.Id, image);
         }
@@ -117,5 +112,15 @@ public sealed partial class SkiaRenderPipeline
             { ClosedPayload = closed, ChainTarget = scope, InheritedPayload = inherited });
         state.SetLayerBudget(state.Layers.Count);
         state.Changed = true;
+
+        SkiaGraphSurface? Background(GraphInputSource source)
+        {
+            if (!backgrounds.TryGetValue(source, out var surface))
+            {
+                surface = CaptureSceneBackground(request, source, state.Bounds, program.Graph.Plan.Budget, state.Resources);
+                backgrounds.Add(source, surface); if (surface is not null) state.Own(surface);
+            }
+            return surface;
+        }
     }
 }

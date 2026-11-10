@@ -54,7 +54,7 @@
 - 图根 bounds 的 source 当前只接受 `targetRegion`；space 保留 token／line／node／canvas。JSON 可以声明四种空间，实际执行适配未完成的空间必须报不支持，不能按 canvas 执行。图参数只能引用清单的同一参数定义，导出必须包含图所需参数。
 - 图根可选 `bypassInput:"input:original"`，仅指向同图 required／none 的 TargetColor 输入，按已接受透明旁路合同执行。普通无背景依赖图不要求旁路；背景依赖整行／组图必须声明它。
 - RuntimeShader 的 uniform 字面量由所引用程序的声明类型解析：标量为数值，向量／矩阵／定长数组为展开数组；color 为已确认的精度 RGBA 对象，color 数组为 RGBA 对象数组。参数／宿主绑定保留原 `parameter:`／`host:` 封闭字符串，不引入表达式解释器。
-- 节点端口、拓扑、参数类型／范围、采样／累计外扩和资源预算使用已有唯一图编译器。optional 输入缺失行为仍待之前的问题答复，本批不选择默认策略。
+- 节点端口、拓扑、参数类型／范围、采样／累计外扩和资源预算使用已有唯一图编译器。optional 输入缺失行为仍待之前的问题答复，本批不选择默认策略；唯一例外是 BackgroundMedia（0.112.61 起，2026-11-10 用户确认）：不透明输出缺背景媒体时，optional 输入以工程底色（BackgroundColor 捕获）代替，required 输入与透明输出同路旁路（材质退回包内基础外观），诊断原因为 `BackgroundMediaUnavailable`。
 
 ## 4. 已确认 C：导出与材质回退编码
 

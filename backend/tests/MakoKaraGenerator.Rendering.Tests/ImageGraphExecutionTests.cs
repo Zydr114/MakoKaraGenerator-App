@@ -210,7 +210,8 @@ public sealed class ImageGraphExecutionTests
         Assert.Equal(SKColors.Green, Pixel(switched.Output, 8, 8));
         using var alpha = graph.Execute(Frame(parameters: mediaParams, transparent: true), Inputs(("target", target, GraphInputSource.TargetColor)));
         Assert.Same(target.Value, alpha.Output); Assert.Single(alpha.Diagnostics); Assert.Equal(SKColors.Red, Pixel(alpha.Output, 8, 8));
-        Assert.Equal("GraphRequiredInputUnavailable", Code(() => graph.Execute(Frame(parameters: mediaParams), Inputs(("target", target, GraphInputSource.TargetColor)))));
+        using var missing = graph.Execute(Frame(parameters: mediaParams), Inputs(("target", target, GraphInputSource.TargetColor)));
+        Assert.Same(target.Value, missing.Output); Assert.Equal("BackgroundMediaUnavailable", Assert.Single(missing.Diagnostics).Reason);
         Assert.Equal("GraphInputSourceMismatch", Code(() => graph.Execute(Frame(parameters: mediaParams), Inputs(("background", below, GraphInputSource.BackdropBelow)))));
         using var next = Compile(Definition([new ImageGraphNode.Transform("move", GraphReference.Input("target"), SceneMatrix.Identity, new(0,0,16,16), Bounds())], GraphReference.Node("move")));
         using var following = next.Execute(Frame(transparent: true), new Dictionary<string, SkiaGraphInput> { ["target"] = new(alpha.Output, GraphInputSource.TargetColor) });

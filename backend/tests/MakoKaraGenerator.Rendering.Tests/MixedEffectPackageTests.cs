@@ -108,6 +108,26 @@ public sealed partial class MixedEffectPackageTests
         Assert.Equal(Bytes(original), Bytes(result.GraphResult.Output));
     }
 
+    [Fact]
+    public async Task 背景依赖实际混合导出不透明缺背景媒体时同路旁路并说明原因()
+    {
+        var compiled = await Compile(MixedEffectPackageFixture.Contents(background: true));
+        var snapshot = Snapshot(); var factory = new PureFrameSourceFactory([compiled.CreateEffect("controller", new("bypass"), new Fx.EffectBinding.Project(), 1)],
+            Fingerprint, static () => new SkiaRenderPipeline());
+        await using var session = await factory.CreateAsync(snapshot);
+        var prepared = await session.PrepareAsync(1_000_000, Fx.OutputMode.Opaque, RenderTarget.FromComposition(snapshot.Composition));
+        var binding = Assert.Single(prepared.ImageEffects); using var native = CompiledPackageGraphExports.Compile(compiled.Definition);
+        var program = native.CreateProgram(binding.Binding.Graph, new(0, 0, 640, 360));
+        using SkiaRenderPipeline renderer = new(); var request = RenderRequest.At(snapshot, prepared.TimeUs) with { PreparedFrame = prepared };
+        // 工程没有背景媒体：旧实现报 GraphRequiredInputUnavailable 使整帧失败。
+        using var result = renderer.ExecuteSceneImageEffect(request, binding, program, new Dictionary<string, SkiaGraphInput>(), null);
+        var diagnostic = Assert.Single(result.GraphResult.Diagnostics);
+        Assert.Equal(("background", "BackgroundMediaUnavailable"), (diagnostic.InputId, diagnostic.Reason));
+        using var original = renderer.CaptureSceneTarget(request, new SceneCaptureTarget.Line(Assert.Single(prepared.FinalLineGeometry).Target),
+            program.GetInputRecipe("original"), GraphInputSource.TargetColor, program.Bounds, program.Graph.Plan.Budget);
+        Assert.Equal(Bytes(original), Bytes(result.GraphResult.Output));
+    }
+
     [Theory]
     [InlineData("missing", "PackageParameterSetMismatch")]
     [InlineData("extra", "PackageParameterSetMismatch")]

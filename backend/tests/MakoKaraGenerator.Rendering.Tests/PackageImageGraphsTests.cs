@@ -68,7 +68,9 @@ public sealed class PackageImageGraphsTests
         using var image = SKImage.FromBitmap(bitmap); using var original = SkiaGraphSurface.Borrow(image, new(new(0, 0, 16, 16), GraphCoordinateSpace.Canvas, SceneMatrix.Identity, 1, 1), ShaderSurfaceKind.Color);
         var inputs = new Dictionary<string, SkiaGraphInput> { ["original"] = new(original, GraphInputSource.TargetColor) };
         using var result = graph.Execute(Frame(true), inputs); Assert.Same(original, result.Output); Assert.Single(result.Diagnostics);
-        Assert.Equal("GraphRequiredInputUnavailable", Assert.Throws<ImageGraphException>(() => graph.Execute(Frame(), inputs)).Code);
+        // 不透明却没有背景媒体（2026-11-10 用户确认）：与透明同路旁路，原因写明缺背景媒体，不再使整帧失败。
+        using var missing = graph.Execute(Frame(), inputs); Assert.Same(original, missing.Output);
+        Assert.Equal(("background", "BackgroundMediaUnavailable"), (Assert.Single(missing.Diagnostics).InputId, missing.Diagnostics[0].Reason));
         var bad = EffectPackageImageGraphs.Read(EffectPackageGraphFixture.Contents(json, source: "bad shader"));
         var error = Assert.Throws<EffectPackageException>(() => new PackageImageGraphValidator().Validate(bad));
         Assert.Equal("ShaderCompilationFailed", error.Code); Assert.StartsWith(EffectPackageGraphFixture.GraphPath, error.Path, StringComparison.Ordinal);

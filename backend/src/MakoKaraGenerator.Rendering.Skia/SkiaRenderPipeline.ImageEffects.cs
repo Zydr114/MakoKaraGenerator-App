@@ -49,6 +49,7 @@ public sealed partial class SkiaRenderPipeline
         ArgumentNullException.ThrowIfNull(request); ArgumentNullException.ThrowIfNull(binding); ArgumentNullException.ThrowIfNull(program);
         ArgumentNullException.ThrowIfNull(externalInputs); ObjectDisposedException.ThrowIf(_disposed, this);
         using var ownFrame = surfaceBudget is null ? _surfaceBudget.BeginFrame() : null;
+        using var backgroundScope = BeginBackgroundFrameScope(request); // 可用性判断与捕获共用本帧背景，不重复取帧
         var resources = surfaceBudget ?? ownFrame!;
         ImageSurfaceReservations? externalReservations = null;
         List<SkiaGraphSurface> captures = []; bool transferred = false;
@@ -73,7 +74,7 @@ public sealed partial class SkiaRenderPipeline
                 dx, dy, binding.Binding.Parameters, request.TransparentBackground)
                 { Uniforms = binding.Binding.Uniforms, Transforms = binding.Binding.Transforms };
             program.Graph.ValidateFrameBindings(context, request.CancellationToken);
-            var declarations = program.Graph.ActiveInputs(context);
+            var declarations = program.Graph.ActiveInputs(context, () => BackgroundMediaAvailable(request), externalInputs);
             if (previousTarget is not null && program.HasPerInputRecipes && declarations.Any(input =>
                 (input.ChoiceParameter is { } parameter ? input.Choices[binding.Binding.Parameters.GetEnum(parameter)] : input.Source) == GraphInputSource.TargetColor))
                 throw new PreparedFrameException("ImageEffectCaptureReassemblyPending", "逐输入配方须从真实部件重新组装，不能将上一张整体产物替代全部输入；混合配方协调器尚未接入。");
@@ -92,7 +93,7 @@ public sealed partial class SkiaRenderPipeline
                     throw new PreparedFrameException("CaptureInputOverrideForbidden", "真实目标捕获输入不能由外部图片覆盖：" + id);
             }
             Dictionary<string, SkiaGraphInput> inputs = new(StringComparer.Ordinal);
-            Dictionary<GraphInputSource, SkiaGraphSurface> reused = [];
+            Dictionary<GraphInputSource, SkiaGraphSurface?> reused = [];
             Dictionary<(GraphInputSource Source, SceneCaptureRecipe Recipe), SkiaGraphSurface> reusedCaptures = [];
             HashSet<nint> handles = []; long bytes = 0;
             foreach (var declaration in declarations)
@@ -104,13 +105,9 @@ public sealed partial class SkiaRenderPipeline
                 { inputs.Add(declaration.Id, external); Charge(external.Surface); continue; }
                 if (source is GraphInputSource.BackgroundMedia or GraphInputSource.BackgroundColor)
                 {
-                    if (!reused.TryGetValue(source, out var background))
-                    {
-                        background = CaptureSceneBackground(request, source, program.Bounds, program.Graph.Plan.Budget, resources);
-                        if (background is null) continue; // 缺失策略由唯一图执行器报告。
-                        reused.Add(source, background); captures.Add(background);
-                    }
-                    inputs.Add(declaration.Id, new(background, source)); Charge(background);
+                    // 必需背景媒体缺失时留空，由唯一图执行器旁路并报告；可选的以工程底色代替。
+                    if (BackgroundInput(declaration, source, Background) is not { } background) continue;
+                    inputs.Add(declaration.Id, background); Charge(background.Surface);
                 }
             }
             foreach (var declaration in declarations)
@@ -137,6 +134,15 @@ public sealed partial class SkiaRenderPipeline
             }
             var result = program.Graph.Execute(context, inputs, resources, request.CancellationToken);
             transferred = true; return new(binding, result, [.. captures]);
+            SkiaGraphSurface? Background(GraphInputSource kind)
+            {
+                if (!reused.TryGetValue(kind, out var background))
+                {
+                    background = CaptureSceneBackground(request, kind, program.Bounds, program.Graph.Plan.Budget, resources);
+                    reused.Add(kind, background); if (background is not null) captures.Add(background);
+                }
+                return background;
+            }
             void Charge(SkiaGraphSurface surface)
             {
                 if (!handles.Add(surface.Image.Handle)) return;

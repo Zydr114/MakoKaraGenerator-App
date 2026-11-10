@@ -100,15 +100,74 @@ public sealed class PerfFixturePackageTests
         Assert.DoesNotContain(((byte)255, (byte)255, (byte)255, (byte)255), pixels);
     }
 
+    [Fact]
+    public async Task 必需背景媒体缺失时材质退回包内兜底并说明原因()
+    {
+        // 设置了视频背景但该时刻无帧（文件丢失、解码失败同理）：旧实现报 GraphRequiredInputUnavailable 使整帧失败。
+        var (image, diagnostics) = await RenderMediaMaterial("MaterialMediaRequired", "media-required",
+            BackgroundSource.ForVideo("/tmp/perf-fixture-background.mp4"), new CountingBackground(null));
+        using (image)
+        {
+            Assert.NotEmpty(diagnostics);
+            Assert.All(diagnostics, diagnostic => Assert.Equal(("background", "BackgroundMediaUnavailable"), (diagnostic.InputId, diagnostic.Code)));
+            Assert.Contains(((byte)204, (byte)102, (byte)51, (byte)255), Pixels(image.PixelMemory.ToArray())); // 兜底色 #3366CC
+        }
+    }
+
+    [Fact]
+    public async Task 可选背景媒体缺失时以工程底色代替且不报诊断()
+    {
+        // 没有背景媒体时画面背景就是底色：与「必需输入读到一张底色铺满的媒体」逐字节一致。
+        var (optional, optionalDiagnostics) = await RenderMediaMaterial("MaterialMediaOptional", "media-optional", BackgroundSource.Color, null);
+        var color = Composition.Create(640, 360, FrameRate.Fps30).BackgroundColor;
+        var (required, requiredDiagnostics) = await RenderMediaMaterial("MaterialMediaRequired", "media-required",
+            BackgroundSource.ForVideo("/tmp/perf-fixture-background.mp4"), new CountingBackground(new SKColor(color.Red, color.Green, color.Blue, color.Alpha)));
+        using (optional) using (required)
+        {
+            Assert.Empty(optionalDiagnostics); Assert.Empty(requiredDiagnostics);
+            Assert.Equal(required.PixelMemory.ToArray(), optional.PixelMemory.ToArray());
+            Assert.DoesNotContain(((byte)204, (byte)102, (byte)51, (byte)255), Pixels(optional.PixelMemory.ToArray()));
+        }
+    }
+
+    private static async Task<(RenderFrame Image, RenderMaterialDiagnostic[] Diagnostics)> RenderMediaMaterial(string name, string export,
+        BackgroundSource backgroundSource, IBackgroundFrameSourceResolver? resolver)
+    {
+        var package = await Read(name);
+        var material = new MaterialSpec.PackageMaterial(package.PackageId, package.Revision, export, EffectParameterOverrides.Parse("{}"));
+        var project = Plain(package, []);
+        project = project with
+        {
+            Background = backgroundSource,
+            LyricStyle = project.LyricStyle with { UnsungFill = new() { Material = material }, SungFill = new() { Material = material } },
+        };
+        var compiled = await Compile(project);
+        var snapshot = ProjectSnapshot.FromProject(project);
+        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), ReplayReason.Export).CreateAsync(snapshot);
+        var frame = await session.PrepareAsync(TimeUs, OutputMode.Opaque, RenderTarget.FromComposition(snapshot.Composition));
+        var compiledPackage = Assert.Single(compiled.Packages);
+        using var native = CompiledPackageGraphExports.Compile(compiledPackage.Definition);
+        using var resources = new SceneImageEffectResources([], null, [native.CreateMaterialProgram(compiledPackage.Resources.GetMaterial(export), Canvas)]);
+        using var renderer = new SkiaRenderPipeline(null, resolver, null, resources);
+        var image = renderer.Render(RenderRequest.At(snapshot, TimeUs) with { PreparedFrame = frame });
+        return (image, [.. image.MaterialDiagnostics]);
+    }
+
     /// <summary>像视频一样每次返回同一张可变位图，并记下被取帧的次数。</summary>
+    /// <remarks>颜色为 null 时模拟「该时刻无帧」。</remarks>
     private sealed class CountingBackground : IBackgroundFrameSourceResolver, IBackgroundFrameSource
     {
-        private readonly SKBitmap _bitmap = new(new SKImageInfo(64, 36, SKColorType.Bgra8888, SKAlphaType.Unpremul));
-        public CountingBackground(SKColor color) => _bitmap.Erase(color);
+        private readonly SKBitmap? _bitmap;
+        public CountingBackground(SKColor? color)
+        {
+            if (color is not { } value) return;
+            _bitmap = new(new SKImageInfo(64, 36, SKColorType.Bgra8888, SKAlphaType.Unpremul));
+            _bitmap.Erase(value);
+        }
         public int Calls { get; private set; }
         public IBackgroundFrameSource? Resolve(BackgroundSource background) => this;
         public SKBitmap? GetFrame(long timeUs) { Calls++; return _bitmap; }
-        public void Dispose() => _bitmap.Dispose();
+        public void Dispose() => _bitmap?.Dispose();
     }
 
     [Fact]

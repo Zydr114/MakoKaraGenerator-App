@@ -32,6 +32,22 @@ public sealed partial class SkiaRenderPipeline
         });
     }
 
+    /// <summary>本帧背景媒体是否可画（按请求缓存，见 ResolveBackgroundFrame）；透明输出不画背景。</summary>
+    private bool BackgroundMediaAvailable(RenderRequest request)
+        => !request.TransparentBackground && ResolveBackgroundFrame(request) is not null;
+
+    /// <summary>图／材质的背景输入；<paramref name="capture"/> 按来源取（调用方缓存）本帧背景捕获。</summary>
+    /// <remarks>
+    /// 不透明输出缺背景媒体（未设置、文件丢失、解码失败或该时刻无帧）时，可选输入以工程底色代替——此时画面的实际背景就是底色；
+    /// 必需输入留空，由图执行器与透明输出同路退回包内兜底／旁路，并给出 <c>BackgroundMediaUnavailable</c> 诊断，不让整帧失败。
+    /// </remarks>
+    private static SkiaGraphInput? BackgroundInput(GraphInputDefinition declaration, GraphInputSource source, Func<GraphInputSource, SkiaGraphSurface?> capture)
+    {
+        if (capture(source) is { } surface) return new(surface, source);
+        if (source != GraphInputSource.BackgroundMedia || declaration.Required) return null;
+        return capture(GraphInputSource.BackgroundColor) is { } color ? new(color, GraphInputSource.BackgroundColor) : null;
+    }
+
     private SkiaGraphSurface RasterSceneSurface(RenderRequest request, GraphRect bounds, GraphExecutionBudget budget,
         ShaderSurfaceKind kind, ImageSurfaceBudgetFrame? surfaceBudget, string operation, Action<SKCanvas, ImageSurfaceBudgetFrame, long> draw,
         Action<long>? validateAllocation = null)

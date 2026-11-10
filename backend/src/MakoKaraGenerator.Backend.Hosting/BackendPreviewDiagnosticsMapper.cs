@@ -39,10 +39,10 @@ internal static class BackendPreviewDiagnosticsMapper
             values.Add(new(s.Code, s.IsError ? "error" : "warning", s.Message, null, OriginKind: "compileSource",
                 Source: new(s.PackageId, s.Revision, s.InstanceId, s.ExportId, s.Code, s.Message, s.IsError, s.Path, s.Line, s.Column)));
         foreach (var i in image)
-            values.Add(new(i.Code, "warning", "图效果使用了已声明的降级行为。", null, OriginKind: "imageEffect",
+            values.Add(new(i.Code, "warning", i.Code == "BackgroundMediaUnavailable" ? "背景媒体不可用（未设置、文件丢失或该时刻无帧），图效果已旁路为原样。" : "图效果使用了已声明的降级行为。", null, OriginKind: "imageEffect",
                 ImageEffect: new(i.InstanceId.Value, i.ArtifactHash, Resource(i.Graph.Identity), i.InputId, i.Code)));
         foreach (var m in material)
-            values.Add(new(m.Code, "warning", "材质使用了已声明的降级行为。", null, OriginKind: "material",
+            values.Add(new(m.Code, "warning", m.Code == "BackgroundMediaUnavailable" ? "背景媒体不可用（未设置、文件丢失或该时刻无帧），材质已退回包内兜底外观。" : "材质使用了已声明的降级行为。", null, OriginKind: "material",
                 Material: new(Owner(m.Owner), Resource(m.Material.Identity), m.InputId, m.Code)));
         BackendDiagnosticDto[] result = [.. values];
         if (JsonSerializer.SerializeToUtf8Bytes(result, PublicJsonOptions).Length > BackendPreviewDiagnosticsLimits.MaximumJsonBytes) throw Budget();

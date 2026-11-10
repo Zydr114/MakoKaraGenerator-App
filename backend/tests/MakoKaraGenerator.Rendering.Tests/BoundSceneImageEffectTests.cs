@@ -238,7 +238,7 @@ public sealed class BoundSceneImageEffectTests
     }
 
     [Fact]
-    public async Task 真实绑定透明旁路保有捕获生命周期而不透明必需媒体缺失带实例失败()
+    public async Task 真实绑定透明旁路保有捕获生命周期且不透明缺必需媒体同路旁路()
     {
         var snapshot = Snapshot(); await using var session = await (await Factory("line", [1])).CreateAsync(snapshot);
         using SkiaRenderPipeline renderer = new();
@@ -254,8 +254,13 @@ public sealed class BoundSceneImageEffectTests
         var program = Program(graph); var target = RenderTarget.FromComposition(snapshot.Composition);
         var opaque = await session.PrepareAsync(1_000_000, Fx.OutputMode.Opaque, target);
         var request = RenderRequest.At(snapshot, opaque.TimeUs) with { PreparedFrame = opaque };
-        var error = Assert.Throws<EffectFailureException>(() => renderer.ExecuteSceneImageEffect(request, Assert.Single(opaque.ImageEffects), program, new Dictionary<string, SkiaGraphInput>(), null));
-        Assert.Equal("GraphRequiredInputUnavailable", error.Code); Assert.Equal(new Fx.EffectInstanceId("image-0"), error.InstanceId);
+        using (var missing = renderer.ExecuteSceneImageEffect(request, Assert.Single(opaque.ImageEffects), program, new Dictionary<string, SkiaGraphInput>(), null))
+        {
+            Assert.Equal(("media", "BackgroundMediaUnavailable"), Assert.Single(missing.GraphResult.Diagnostics) is var item ? (item.InputId, item.Reason) : default);
+            using var unchanged = renderer.CaptureSceneTarget(request, new SceneCaptureTarget.Line(Assert.Single(opaque.FinalLineGeometry).Target), program.Recipe,
+                GraphInputSource.TargetColor, program.Bounds, graph.Plan.Budget);
+            Assert.Equal(Bytes(unchanged), Bytes(missing.GraphResult.Output));
+        }
         var transparent = await session.PrepareAsync(1_000_000, Fx.OutputMode.Transparent, target);
         request = request with { PreparedFrame = transparent, TransparentBackground = true };
         using var result = renderer.ExecuteSceneImageEffect(request, Assert.Single(transparent.ImageEffects), program, new Dictionary<string, SkiaGraphInput>(), null);

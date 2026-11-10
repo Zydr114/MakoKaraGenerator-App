@@ -43,13 +43,7 @@ public sealed partial class SkiaRenderPipeline
                     }
                     else if (source is GraphInputSource.BackgroundColor or GraphInputSource.BackgroundMedia)
                     {
-                        // 同一对象各次执行的捕获框与请求相同，背景捕获可共用（见 ObjectBackgroundCache）。
-                        if (!backgrounds.TryGetValue(source, out var surface))
-                        {
-                            surface = state.Backgrounds.Take(source) ?? CaptureSceneBackground(request, source, state.Bounds, state.Budget, state.Resources);
-                            if (surface is not null) backgrounds.Add(source, surface);
-                        }
-                        if (surface is not null) inputs.Add(input.Id, new(surface, source));
+                        if (BackgroundInput(input, source, Background) is { } background) inputs.Add(input.Id, background);
                     }
                     else if (source == GraphInputSource.ResourceImage && images.TryGetValue(input.Id, out var image)) inputs.Add(input.Id, image);
                 }
@@ -67,6 +61,17 @@ public sealed partial class SkiaRenderPipeline
         {
             foreach (var surface in owned) surface.Dispose();
             foreach (var (source, surface) in backgrounds) state.Backgrounds.Return(source, surface);
+        }
+
+        // 同一对象各次执行的捕获框与请求相同，背景捕获可共用（见 ObjectBackgroundCache）。
+        SkiaGraphSurface? Background(GraphInputSource source)
+        {
+            if (!backgrounds.TryGetValue(source, out var surface))
+            {
+                surface = state.Backgrounds.Take(source) ?? CaptureSceneBackground(request, source, state.Bounds, state.Budget, state.Resources);
+                if (surface is not null) backgrounds.Add(source, surface);
+            }
+            return surface;
         }
     }
 

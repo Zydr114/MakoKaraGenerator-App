@@ -51,6 +51,30 @@ public sealed class PackageDiagnosticsMappingTests
         Assert.True(catalog.Contains(restored.Material[0].Material));
     }
 
+    [Theory]
+    [InlineData("BackgroundMediaUnavailable", true)]
+    [InlineData("GraphRequiredInputUnavailable", false)]
+    public void 缺背景媒体原因可跨进程还原而未协商原因仍拒绝(string reason, bool accepted)
+    {
+        var (snapshot, catalog) = Fixture();
+        using RenderFrame frame = new(new byte[16], new() { PixelWidth = 2, PixelHeight = 2 }, PixelFormat.Bgra8888Premultiplied, 0)
+        {
+            ImageEffectDiagnostics = [new(new("instance"), new string('a', 64), catalog.GetGraph("tint"), "background", reason)],
+            MaterialDiagnostics = [new(new PreparedMaterialOwner.Script(new("instance"), new string('b', 64))
+                { PackageIdentity = new(catalog.PackageId!, catalog.Revision!, "controller") }, catalog.GetMaterial("ink"), "background", reason)],
+        };
+        var wire = PackageRenderDiagnosticsMapper.EncodeFrame(frame);
+        var mapper = new PackageRenderDiagnosticsMapper(snapshot);
+        if (!accepted)
+        {
+            Assert.Equal("WorkerPackageDiagnosticsInvalid", Assert.Throws<WorkerProtocolException>(() => mapper.DecodeFrame(wire)).Code);
+            return;
+        }
+        var restored = mapper.DecodeFrame(wire);
+        Assert.Equal(frame.ImageEffectDiagnostics.ToArray(), restored.Image.ToArray());
+        Assert.Equal(frame.MaterialDiagnostics.ToArray(), restored.Material.ToArray());
+    }
+
     [Fact]
     public void 源材质保留原完整参数路径区域及slot()
     {

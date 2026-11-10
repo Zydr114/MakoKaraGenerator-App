@@ -117,8 +117,16 @@ public sealed class PackageRenderDiagnosticsMapper
     {
         var definition = Package(id).Definition;
         string path = material ? definition.GetMaterial(id.ExportId).GraphPath : definition.GetGraph(id.ExportId).GraphPath;
-        if (code != "TransparentBackgroundDependency" || !definition.ImageGraphs[path].Plan.Definition.Inputs.Any(i => i.Id == inputId
-            && i.BackgroundRequirement != GraphBackgroundRequirement.None)) throw Invalid();
+        // 透明输出跳过背景依赖；不透明缺背景媒体时同路旁路／兜底（只可能是声明了媒体依赖的必需输入）。
+        bool valid = code switch
+        {
+            "TransparentBackgroundDependency" => definition.ImageGraphs[path].Plan.Definition.Inputs.Any(i => i.Id == inputId
+                && i.BackgroundRequirement != GraphBackgroundRequirement.None),
+            "BackgroundMediaUnavailable" => definition.ImageGraphs[path].Plan.Definition.Inputs.Any(i => i.Id == inputId
+                && i.Required && i.BackgroundRequirement == GraphBackgroundRequirement.Media),
+            _ => false,
+        };
+        if (!valid) throw Invalid();
     }
     private ProjectEffectInstance Instance(string id, WorkerPackageResourceDto resource)
     {

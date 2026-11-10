@@ -83,15 +83,19 @@ public sealed partial class CompiledImageGraph : IDisposable
             var declarations = Plan.Definition.Inputs.ToDictionary(input => input.Id, StringComparer.Ordinal);
             foreach (string key in inputs.Keys) if (!declarations.ContainsKey(key)) throw Error("GraphInputUnknown", "inputs." + key, "输入未声明。");
             var backgrounds = declarations.Values.Where(input => active.Contains(GraphReference.Input(input.Id)) && input.BackgroundRequirement != GraphBackgroundRequirement.None).ToArray();
-            if (frame.Transparent && backgrounds.Length > 0)
+            if (frame.Transparent && backgrounds.Length > 0) return Bypass(backgrounds, "TransparentBackgroundDependency");
+            // 不透明却缺必需背景媒体（未设置、文件丢失、该时刻无帧）：与透明输出同走旁路，不让整帧失败。
+            var missingMedia = MissingRequiredMedia(frame, backgrounds, inputs);
+            if (missingMedia.Length > 0) return Bypass(missingMedia, BackgroundMediaUnavailable);
+            var surfaces = new Dictionary<GraphReference, SkiaGraphSurface>();
+            ImageGraphResult Bypass(GraphInputDefinition[] skipped, string reason)
             {
-                if (Plan.Definition.BypassInput is not { } bypass) throw Error("GraphBackgroundBypassMissing", "bypassInput", "透明背景依赖输出须明确旁路。");
+                if (Plan.Definition.BypassInput is not { } bypass) throw Error("GraphBackgroundBypassMissing", "bypassInput", "背景依赖输出须明确旁路。");
                 var original = ResolveInput(declarations[bypass.Id], frame, inputs, cancellationToken);
                 CheckBudget(1, Bytes(original));
                 var borrowed = resources.BorrowInputs([original]);
-                return new(Plan, original, null, false, false, frame, [.. backgrounds.Select(input => new ImageGraphBypassDiagnostic(Plan.Definition.Id, input.Id, "TransparentBackgroundDependency"))], 1, Bytes(original), borrowed, AcquireDeviceLease());
+                return new(Plan, original, null, false, false, frame, [.. skipped.Select(input => new ImageGraphBypassDiagnostic(Plan.Definition.Id, input.Id, reason))], 1, Bytes(original), borrowed, AcquireDeviceLease());
             }
-            var surfaces = new Dictionary<GraphReference, SkiaGraphSurface>();
             foreach (var reference in active.Where(reference => reference.IsInput)) surfaces.Add(reference, ResolveInput(declarations[reference.Id], frame, inputs, cancellationToken));
             var uses = Uses(ordered, Plan.Definition.Output, Plan.Definition.CompositeCoverage);
             var peaks = Preflight(frame, surfaces, ordered, shapes, uses, transforms, cancellationToken);
@@ -167,10 +171,19 @@ public sealed partial class CompiledImageGraph : IDisposable
             throw Error(declaration.Required ? "GraphRequiredInputUnavailable" : "GraphOptionalInputPolicyPending", "inputs." + declaration.Id,
                 declaration.Required ? "必需的真实输入缺失，不伪造空图像。" : "可选输入缺失策略尚待用户确认。");
         var source = declaration.ChoiceParameter is { } parameter ? declaration.Choices[frame.Parameters.GetEnum(parameter)] : declaration.Source;
-        if (input.Source != source || (source == GraphInputSource.ResourceImage && input.ResourceId != declaration.ResourceId))
+        // 可选背景媒体缺失时宿主以工程底色代替（见 SkiaRenderPipeline.BackgroundInput）。
+        bool colorForMedia = !declaration.Required && source == GraphInputSource.BackgroundMedia && input.Source == GraphInputSource.BackgroundColor;
+        if (input.Source != source && !colorForMedia || (source == GraphInputSource.ResourceImage && input.ResourceId != declaration.ResourceId))
             throw Error("GraphInputSourceMismatch", "inputs." + declaration.Id, "真实来源或固定资源身份与声明不同。");
         ValidateSurface(input.Surface, declaration.Kind, "inputs." + declaration.Id, cancellationToken); return input.Surface;
     }
+    /// <summary>不透明输出缺背景媒体时的诊断原因；图旁路、材质退回包内兜底。</summary>
+    internal const string BackgroundMediaUnavailable = "BackgroundMediaUnavailable";
+    /// <summary>宿主未提供的必需背景媒体输入（按本帧参数解析选择来源）。</summary>
+    internal static GraphInputDefinition[] MissingRequiredMedia(ImageGraphFrameContext frame, IEnumerable<GraphInputDefinition> declarations,
+        IReadOnlyDictionary<string, SkiaGraphInput> inputs)
+        => [.. declarations.Where(input => input.Required && !inputs.ContainsKey(input.Id)
+            && (input.ChoiceParameter is { } choice ? input.Choices[frame.Parameters.GetEnum(choice)] : input.Source) == GraphInputSource.BackgroundMedia)];
     private HashSet<GraphReference> ActiveReferences(GraphReference output, GraphReference? coverage)
     {
         var nodes = Plan.Nodes.ToDictionary(node => node.Id, StringComparer.Ordinal); var active = new HashSet<GraphReference>();
@@ -187,6 +200,18 @@ public sealed partial class CompiledImageGraph : IDisposable
         }
         return [.. Plan.Definition.Inputs.Where(input => active.Contains(GraphReference.Input(input.Id)))];
     }
+    /// <summary>宿主据本帧背景媒体是否可用决定要捕获的输入：不透明却缺必需背景媒体时，与透明输出一样只需旁路输入。</summary>
+    /// <remarks><paramref name="backgroundMediaAvailable"/> 仅在仍需宿主捕获必需背景媒体时求值，免得无关图解码背景；
+    /// <paramref name="provided"/> 为调用方显式提供的输入，不需捕获。</remarks>
+    internal ImmutableArray<GraphInputDefinition> ActiveInputs(ImageGraphFrameContext frame, Func<bool> backgroundMediaAvailable,
+        IReadOnlyDictionary<string, SkiaGraphInput>? provided = null)
+    {
+        var declarations = ActiveInputs(frame);
+        if (frame.Transparent || MissingRequiredMedia(frame, declarations, provided ?? EmptyInputs).Length == 0 || backgroundMediaAvailable()) return declarations;
+        if (Plan.Definition.BypassInput is not { } bypass) throw Error("GraphBackgroundBypassMissing", "bypassInput", "背景依赖须明确旁路。");
+        return [Plan.Definition.Inputs.Single(input => input.Id == bypass.Id)];
+    }
+    private static readonly IReadOnlyDictionary<string, SkiaGraphInput> EmptyInputs = new Dictionary<string, SkiaGraphInput>();
     private static Dictionary<GraphReference, int> Uses(ImageGraphNode[] nodes, GraphReference output, GraphReference? coverage)
     {
         var uses = new Dictionary<GraphReference, int>();

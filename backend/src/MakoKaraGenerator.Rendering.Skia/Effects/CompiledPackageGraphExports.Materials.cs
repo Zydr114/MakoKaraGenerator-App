@@ -72,6 +72,12 @@ public sealed partial class CompiledPackageGraphExports
             return graph.MaterialFallback(frame, fallback, region,
                 [.. backgrounds.Select(input => new ImageGraphBypassDiagnostic(graph.Plan.Definition.Id, input.Id, "TransparentBackgroundDependency"))],
                 surfaceBudget, cancellationToken, opacity);
+        // 不透明却缺必需背景媒体：与透明输出同路退回包内兜底，不让整帧失败。
+        var missingMedia = CompiledImageGraph.MissingRequiredMedia(frame, declarations, inputs);
+        if (missingMedia.Length > 0)
+            return graph.MaterialFallback(frame, fallback, region,
+                [.. missingMedia.Select(input => new ImageGraphBypassDiagnostic(graph.Plan.Definition.Id, input.Id, CompiledImageGraph.BackgroundMediaUnavailable))],
+                surfaceBudget, cancellationToken, opacity);
         // 所有 TargetColor 端口都读同一包基础外观；不能从调用者旧样式输入产生反馈。
         var resolved = inputs.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
         foreach (var input in declarations)

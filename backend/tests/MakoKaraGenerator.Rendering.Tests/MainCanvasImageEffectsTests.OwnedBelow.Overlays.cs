@@ -17,7 +17,7 @@ public sealed partial class MainCanvasImageEffectsTests
     [InlineData("sprite")] [InlineData("path")] [InlineData("atlas")]
     public void B6_六类实际图元按owner过滤并复用生产渲染与真实资源(string kind)
     {
-        var request = OwnedRequest(); using var graph = OwnedProbe("a", 480);
+        var request = OwnedRequest(); var spot = OwnedLineSpot(request); using var graph = OwnedProbe("a", spot);
         using var device = new CpuSkiaRenderDevice(); using var budget = new ImageSurfaceBudgetSession();
         var contents = OwnedSvgPackage(); var svgDefinition = EffectPackageSvgResources.Read(contents);
         using var package = PackageSvgResources.LoadReferenceWithSession(contents, svgDefinition, SvgResourceBudget.Default, budget, null, default);
@@ -47,8 +47,8 @@ public sealed partial class MainCanvasImageEffectsTests
         using var expected = renderer.Render(request with { PreparedFrame = request.PreparedFrame!.WithOverlayOutput([other], []) });
         using var actual = renderer.Render(request with { PreparedFrame = request.PreparedFrame!.WithOverlayOutput([other, owned], [])
             .WithImageEffects([OwnedBind("read", Line(request), "a")]) });
-        Close(OwnedPixel(expected, 30, 20), OwnedPixel(actual, 484, 20), 3);
-        Assert.True(OwnedPixel(actual, 484, 20)[1] > 80); Assert.True(OwnedPixel(actual, 484, 20)[2] < 5);
+        Close(OwnedPixel(expected, 30, 20), OwnedStripe(actual, spot), 3);
+        Assert.True(OwnedStripe(actual, spot)[1] > 80); Assert.True(OwnedStripe(actual, spot)[2] < 5);
         Assert.True(OwnedPixel(actual, 30, 20)[2] > 240); // Actual main retains owned red.
         Assert.Empty(actual.ImageEffectDiagnostics);
     }

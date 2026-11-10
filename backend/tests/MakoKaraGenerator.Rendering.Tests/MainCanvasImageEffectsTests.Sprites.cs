@@ -35,13 +35,13 @@ public sealed partial class MainCanvasImageEffectsTests
         var handle = new Fx.ResourceCatalog("sprites", "sha256:" + new string('a', 64), [], [], ["spark.png"]).GetImage("spark.png");
         using var bitmap = new SKBitmap(4, 4); bitmap.Erase(SKColors.Red); using var image = SKImage.FromBitmap(bitmap);
         using var input = SkiaGraphSurface.Borrow(image, new(new(0, 0, 4, 4), GraphCoordinateSpace.Canvas, SceneMatrix.Identity, 1, 1), ShaderSurfaceKind.Color);
-        using var graph = OwnedProbe("below", 480);
+        var spot = OwnedLineSpot(request); using var graph = OwnedProbe("below", spot);
         using var resources = new SceneImageEffectResources([Program("first", graph)], null, [], null, [KeyValuePair.Create(handle, input)]);
         using var renderer = new SkiaRenderPipeline(null, null, null, resources);
         var prepared = request.PreparedFrame!.WithOverlayOutput([new Fx.SpriteBatch(binding.InstanceId, new("spark"), Fx.OverlayLayer.BehindText,
             [new(handle, new(20, 0, 0, 20, 20, 20), new(1, 1, 1, 1))])], []).WithImageEffects([binding]);
         using var actual = renderer.Render(request with { PreparedFrame = prepared });
-        OwnedPixelNear(actual, 484, 20, 0, 0, 0, 0);
+        OwnedStripeNear(actual, spot, 0, 0, 0, 0);
         Assert.True(OwnedPixel(actual, 30, 20)[2] > 240);
         Assert.Empty(actual.ImageEffectDiagnostics);
     }

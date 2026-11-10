@@ -12,7 +12,9 @@ public sealed partial class SkiaRenderPipeline
         if (program.Graph.Plan.Definition.AnchorMode != GraphAnchorMode.ColorOnly)
             throw new PreparedFrameException("ImageEffectMappingPending", "实际图像映射尚未接入，不能将映射图当作颜色图执行。");
         var composition = request.Project.Composition; var output = request.ResolveTarget();
-        var context = new ImageGraphFrameContext(request.TimeUs, composition.CanvasWidth, composition.CanvasHeight, program.Bounds,
+        // 第 12 条：目标框取绑定目标的实际区域（见 GraphTargetBounds），捕获与下层仍按对象工作框。
+        var targetBounds = state.GraphTargets is { } targets && targets.TryGetValue(binding, out var tight) ? tight : program.Bounds;
+        var context = new ImageGraphFrameContext(request.TimeUs, composition.CanvasWidth, composition.CanvasHeight, targetBounds,
             output.ScaleXOf(composition), output.ScaleYOf(composition), binding.Binding.Parameters, request.TransparentBackground)
                 { Uniforms = binding.Binding.Uniforms, Transforms = binding.Binding.Transforms };
         program.Graph.ValidateFrameBindings(context, request.CancellationToken);

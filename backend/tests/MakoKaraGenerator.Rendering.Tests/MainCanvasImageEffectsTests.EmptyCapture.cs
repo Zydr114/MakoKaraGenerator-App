@@ -168,7 +168,8 @@ public sealed partial class MainCanvasImageEffectsTests
         using var graph = Tint("first");
         using var resources = new SceneImageEffectResources([Program("first", graph)]);
         using var device = new CountingDevice();
-        using var renderer = new SkiaRenderPipeline(null, null, null, resources, false, device, false);
+        // 要整屏大小（超过 16 MiB）的部件表面，关闭对象区域收紧（O7／第 12 条）。
+        using var renderer = new SkiaRenderPipeline(null, null, null, resources, false, device, false) { TightObjectRegions = false };
         using var actual = renderer.Render(Bindings(request, Bind("oversized", Line(request))));
         int bytes = checked(4097 * 1024 * 4);
         Assert.True(bytes > 16 * 1024 * 1024);

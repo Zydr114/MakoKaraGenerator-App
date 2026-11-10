@@ -18,15 +18,16 @@ public sealed partial class MainCanvasImageEffectsTests
         => CompiledImageGraph.Compile(ImageGraphCompiler.Compile(new("identity", ImageGraphDefinition.CurrentVersion,
             [new("color", GraphInputSource.TargetColor, ShaderSurfaceKind.Color, true, GraphBackgroundRequirement.None, GraphCoordinateSpace.Canvas)],
             [], [], GraphReference.Input("color"), GraphCoordinateSpace.Canvas, 0, GraphAnchorMode.ColorOnly, GraphCompositeMode.SourceOver), [], []));
-    private static CompiledImageGraph Transparent80()
+    /// <param name="expandPx">声明外扩。图按目标实际区域执行（第 12 条），擦除只覆盖目标区域加此外扩。</param>
+    private static CompiledImageGraph Transparent80(double expandPx = 0)
     {
-        var nodeBounds = new GraphNodeBounds(new GraphExpansion.Literal(0), 0, 0, GraphEdgeMode.Transparent);
+        var nodeBounds = new GraphNodeBounds(new GraphExpansion.Literal(expandPx), expandPx, 0, GraphEdgeMode.Transparent);
         var color = new ShaderProgramDefinition("transparent.sksl", "half4 main(float2 p) { return half4(0); }", ShaderProgramDefinition.RasterProfile, [], []);
         var mask = new ShaderProgramDefinition("eighty.sksl", "half4 main(float2 p) { return half4(0,0,0,.8); }", ShaderProgramDefinition.RasterProfile, [], []);
         return CompiledImageGraph.Compile(ImageGraphCompiler.Compile(new("transparent80", ImageGraphDefinition.CurrentVersion, [], [],
             [new ImageGraphNode.RuntimeShader("color", "color", ShaderSurfaceKind.Color, [], [], nodeBounds),
                 new ImageGraphNode.RuntimeShader("mask", "mask", ShaderSurfaceKind.Coverage, [], [], nodeBounds)],
-            GraphReference.Node("color"), GraphCoordinateSpace.Canvas, 0, GraphAnchorMode.ColorOnly, GraphCompositeMode.ReplaceCoveredBackdrop,
+            GraphReference.Node("color"), GraphCoordinateSpace.Canvas, expandPx, GraphAnchorMode.ColorOnly, GraphCompositeMode.ReplaceCoveredBackdrop,
             GraphReference.Node("mask")), [], [new("color", color), new("mask", mask)]));
     }
 
@@ -50,7 +51,8 @@ public sealed partial class MainCanvasImageEffectsTests
     public void G2_两个独立孩子透明替换经父identity仍顺序擦除96百分比()
     {
         var request = Request(Snapshot(false, true), false, time: 3_000_000);
-        using var child = Transparent80(); using var identity = GroupIdentity();
+        // 两个孩子各自外扩 24 px，在两字交界的墨迹上方重叠。
+        using var child = Transparent80(24); using var identity = GroupIdentity();
         using var resources = new SceneImageEffectResources([new(Catalog.GetGraph("first"), child, Whole, Bounds),
             new(Catalog.GetGraph("last"), identity, GroupWhole, Bounds)]);
         using var budget = new ImageSurfaceBudgetSession(); using var renderer = GroupRenderer(resources, budget);
@@ -59,8 +61,11 @@ public sealed partial class MainCanvasImageEffectsTests
         using var expected = renderer.Render(children);
         using var actual = renderer.Render(Bindings(request, Bind("child-a", targets[0]), Bind("child-b", targets[1]), Bind("parent", GroupRoot(request), "last")));
         Close(expected.Pixels.ToArray(), actual.Pixels.ToArray(), 2);
-        // Far outside real glyph ink, only the two full-frame .8 masks affect B.
-        Assert.InRange(actual.Pixels[3], (byte)9, (byte)12);
+        // Above the shared edge, outside real glyph and ruby ink, only the two overlapping .8 masks affect B.
+        var geometry = request.PreparedFrame!.FinalGeometry;
+        int x = (int)Math.Floor(geometry[1].BaseGeometry.WorldInkCorners.Min(point => point.X)) - 2;
+        int y = (int)Math.Floor(geometry[0].BaseGeometry.WorldInkCorners.Min(point => point.Y)) - 6;
+        Assert.InRange(OwnedPixel(actual, x, y)[3], (byte)9, (byte)12);
         Assert.Equal(0, budget.Usage.ActiveSurfaces); Assert.Equal(0, budget.Usage.EstimatedBytes);
     }
 

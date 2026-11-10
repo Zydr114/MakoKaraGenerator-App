@@ -1,7 +1,7 @@
 # M12 交接：材质路径与 1440p（2026-11-10）
 
-分支 `dev/script-sdk-render-upgrade`，产品 0.112.63，已推送到私有远程。详细数据与决定原文见
-[M12 测量记录](script-sdk-render-m12-evidence.md) §5（§5.3 为 G1 与 O7 设计，§5.4 为测试包基线，§5.7 为 F1 与缺背景实施，§5.8 为 F2 与 O7 实施）。
+分支 `dev/script-sdk-render-upgrade`，产品 0.112.64，已推送到私有远程。详细数据与决定原文见
+[M12 测量记录](script-sdk-render-m12-evidence.md) §5（§5.3 为 G1 与 O7 设计，§5.4 为测试包基线，§5.7 为 F1 与缺背景实施，§5.8 为 F2 与 O7 实施，§5.9 为 F3 实施）。
 
 ## 1. 当前状态
 
@@ -33,7 +33,9 @@
   - **图导出未收紧，偏离 §5.3 设计（用户已同意后做，见第 12 条）**：只在独立对象上收紧图，会与组合调度路径结果不一致；
     两条路径一起收紧，则需要重写下层与组合测试（探针画在目标区外）。图路径本身不慢，1440p 也不超预算。
   - 偶发：切到 1440p 时新流处于暂停（前端音频已暂停），测速等帧超时；背景媒体组 5 次出现 1 次，原因未查（记录 §5.8 ①）。
-- **未开工**：F3、F4、F6，O3，合同冻结。
+- **F3（0.112.64，已完成）**：先判空再分配，无注音行跳过注音部件与注音材质，样式没有描边（阴影）时不捕获。
+  同时段 A/B 三组 Render p50 降 37%～41%（常量色 16 → 10 ms，读下层 σ8 25 → 15 ms，背景媒体 17～21 → 11～13 ms），1440p 全部到 30 fps。
+- **未开工**：F4、F6，O3，合同冻结。
 
 ## 2. 用户决定
 
@@ -66,10 +68,11 @@
    `BASE_OUT=<目录> bash run-baseline.sh [solid|checker [组名...]]`，汇总 `aggregate-p3.py <目录>`）。
 3. ~~排查材质路径与背景媒体~~（已完成，记录 §5.5）。2026-11-10 用户恢复 O7，并要求先按结构问题排查、制定计划。
 4. ~~F1~~（0.112.60）、~~缺背景行为~~（0.112.61）已完成，见记录 §5.7。
-5. ~~F2~~（0.112.62）、~~F5（O7，材质部分）~~（0.112.63）已完成，见记录 §5.8。下一项依次 F3、F4、F6：
-   - F3：先判空再分配，没有注音的行跳过注音部件与注音材质，样式没有描边或阴影时不捕获。
-   - F4：相邻的无历史层在同一张表面上依次绘制。
-   - F6：内部捕获不再重复 `ValidateRequest`。
+5. ~~F2~~（0.112.62）、~~F5（O7，材质部分）~~（0.112.63）已完成，见记录 §5.8；~~F3~~（0.112.64）已完成，见记录 §5.9。下一项依次 F4、F6：
+   - F4：相邻的无历史层在同一张表面上依次绘制，共享空层直接跳过（`SkiaRenderPipeline.ImageScene.Surfaces.cs` 的 `AssembleImageLayers`，
+     目前每层整张复制一次；图绑定的 TargetColor 输入也走它）。
+   - F6：内部捕获不再重复 `ValidateRequest`（每次都扫全工程源材质并算输入指纹）与 `ValidateNativePreparedFrame`；
+     请求与准备帧不可变，可按请求实例只校验一次。
    每项一个 PATCH，像素回归，再复测。复测须先提交，测速期间不改 `backend/src`。
    对比用同时段 A/B：`bash .local/script-sdk-m12-20261110/ab-run.sh <输出目录> <旧提交> <旧发布物> <新发布物> <轮数> "<背景> <组...>" ...`，
    它交替检出旧／新 `backend/src` 并切换 `backend-current.json`；发布物先用 `node scripts/app.mjs build:desktop` 构建。
@@ -87,6 +90,8 @@
   `SkiaRenderPipeline.ImageScene.Region.cs`（`ObjectTargetRegion`、`MaterialTargetBounds`、`AlignToOutputPixels`）；
   `SkiaRenderPipeline.ImageScene.Surfaces.cs:13`：每个对象预留一屏下层快照。
 - 测试：`backend/tests/MakoKaraGenerator.Rendering.Tests/PerfFixturePackageTests.Regions.cs`（区域一致、1440p 峰值）。
+- F3：`SkiaRenderPipeline.ImageScene.Parts.cs`（`ObjectKnownEmptyParts`、`SkipKnownEmptyParts` 对照开关）、`ImageScene.cs` 的 `AddEmpty`；
+  测试 `PerfFixturePackageTests.Parts.cs`（表面计数用 `GraphPixelCheckModeTests.CountingDevice.Surfaces`）。
 - `MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.ImageScene.Materials.cs:9`（`ExecuteObjectMaterial`）、`:71`（背景捕获，经对象内 `ObjectBackgroundCache` 复用）。
 - `MakoKaraGenerator.Rendering.Skia/Effects/CompiledPackageGraphExports.Materials.cs:9`（`CreateMaterialProgram`）、
   `:71`、`:78`（透明背景或缺必需背景媒体时退回兜底）；`CompiledPackageGraphExports.cs:59`（`CreateProgram`）。
@@ -120,7 +125,7 @@
 
 ## 5. 工作约定摘要
 
-- 程序改动：`backend/Directory.Build.props` 递增 PATCH（下一版 0.112.64），并在上面的版本说明段落追加一句；
+- 程序改动：`backend/Directory.Build.props` 递增 PATCH（下一版 0.112.65），并在上面的版本说明段落追加一句；
   `flock -o /tmp/mkg-gpu-render-dotnet.lock dotnet build MakoKaraGenerator.slnx` 零警告；新回归须在旧代码上失败。
 - 前端改动先过 `pnpm typecheck`、`pnpm test:unit`；不手改 `docs/backend/contract/`。
 - 桌面测速前 `pnpm build:desktop` 重新发布后端；测速期间不并行构建或占用 GPU。

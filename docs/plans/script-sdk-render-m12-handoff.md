@@ -1,7 +1,7 @@
 # M12 交接：材质路径与 1440p（2026-11-10）
 
-分支 `dev/script-sdk-render-upgrade`，产品 0.112.61，已推送到私有远程。详细数据与决定原文见
-[M12 测量记录](script-sdk-render-m12-evidence.md) §5（§5.3 为 G1 与 O7 设计，§5.4 为测试包基线，§5.7 为 F1 与缺背景实施）。
+分支 `dev/script-sdk-render-upgrade`，产品 0.112.63，已推送到私有远程。详细数据与决定原文见
+[M12 测量记录](script-sdk-render-m12-evidence.md) §5（§5.3 为 G1 与 O7 设计，§5.4 为测试包基线，§5.7 为 F1 与缺背景实施，§5.8 为 F2 与 O7 实施）。
 
 ## 1. 当前状态
 
@@ -25,7 +25,15 @@
 - **缺背景行为（0.112.61，已完成）**：不透明缺背景媒体时，必需输入旁路／材质兜底，诊断 `BackgroundMediaUnavailable`；
   可选输入用工程底色代替。Worker 静态导出与静态渲染会话仍拒绝任何材质／图诊断，缺背景在这两条路径上仍失败，待用户决定；
   前端编辑时提示未做。
-- **未开工**：F2、F5（O7）、F3、F4、F6，O3，合同冻结。
+- **F2（0.112.62，已完成）**：场景表面只提交、不逐张等待 GPU。同时段 A/B 三组 Render p50 约减半，
+  读下层 σ8 与背景媒体两组 720p 从 15～21 fps 升到 23.5 fps 以上。
+- **O7（0.112.63，已完成，只做了材质）**：行与文字标记上的材质按本帧对象区域执行，独立对象的工作框随之收紧。
+  - 1440p 首次全部能出帧（23～28 fps）；同时段 A/B 常量色 Render p50 由 17～18 ms 降到 13～15 ms，读下层 σ8 由 33 ms 降到 23 ms。
+  - CPU 像素逐字节不变；Vulkan 模糊有 1～3／255 的差异。
+  - **图导出未收紧，偏离 §5.3 设计，待用户确认**：只在独立对象上收紧图，会与组合调度路径结果不一致；
+    两条路径一起收紧，则需要重写下层与组合测试（探针画在目标区外）。图路径本身不慢，1440p 也不超预算。
+  - 偶发：切到 1440p 时新流处于暂停（前端音频已暂停），测速等帧超时；背景媒体组 5 次出现 1 次，原因未查（记录 §5.8 ①）。
+- **未开工**：F3、F4、F6，O3，合同冻结。
 
 ## 2. 用户决定
 
@@ -57,12 +65,17 @@
    `BASE_OUT=<目录> bash run-baseline.sh [solid|checker [组名...]]`，汇总 `aggregate-p3.py <目录>`）。
 3. ~~排查材质路径与背景媒体~~（已完成，记录 §5.5）。2026-11-10 用户恢复 O7，并要求先按结构问题排查、制定计划。
 4. ~~F1~~（0.112.60）、~~缺背景行为~~（0.112.61）已完成，见记录 §5.7。
-5. 下一项 F2：`RasterSceneSurface` 只在需要 CPU 读回时同步（像素检查开启、空表面读回），其余只提交不等待，帧交付保持现有同步。
-   回归用设备包装计数：像素检查关闭时，每帧不再逐张 `Submit(true)`。之后依次 F5（O7）、F3、F4、F6。
-   每项一个 PATCH，像素回归确认画布坐标不变、区域内像素一致，再复测。
-   复测须先提交，测速期间不改 `backend/src`。对比用同时段 A/B：参考本地 `.local/script-sdk-m12-20261110/ab-f1.sh`，
-   交替切换 `backend-current.json` 指向新旧发布物。O7 的回归测试读 `ImageSurfaceBudgetSession.Usage`，补上基线缺的成功帧占用。
-6. 待用户决定：Worker 静态导出／静态渲染会话遇到材质／图诊断时是否放开、如何随结果上报（现为整体失败，透明背景依赖同样受影响）。
+5. ~~F2~~（0.112.62）、~~F5（O7，材质部分）~~（0.112.63）已完成，见记录 §5.8。下一项依次 F3、F4、F6：
+   - F3：先判空再分配，没有注音的行跳过注音部件与注音材质，样式没有描边或阴影时不捕获。
+   - F4：相邻的无历史层在同一张表面上依次绘制。
+   - F6：内部捕获不再重复 `ValidateRequest`。
+   每项一个 PATCH，像素回归，再复测。复测须先提交，测速期间不改 `backend/src`。
+   对比用同时段 A/B：`bash .local/script-sdk-m12-20261110/ab-run.sh <输出目录> <旧提交> <旧发布物> <新发布物> <轮数> "<背景> <组...>" ...`，
+   它交替检出旧／新 `backend/src` 并切换 `backend-current.json`；发布物先用 `node scripts/app.mjs build:desktop` 构建。
+   O7 后续（需用户确认后再排）：图导出按目标区域收紧（重写探针测试）；组合调度的工作框；每对象一屏的下层快照。
+6. 待用户决定：
+   - 图导出是否按合同收紧到目标区域（见上，O7 只做了材质）。
+   - Worker 静态导出／静态渲染会话遇到材质／图诊断时是否放开、如何随结果上报（现为整体失败，透明背景依赖同样受影响）。
    待实施：前端编辑时提示（套用背景依赖材质、移除背景）。
 7. 之后做 O3、合同冻结（当前合同 1.49.1）与前端合同同步。
 
@@ -70,7 +83,10 @@
 
 **O7 相关代码**（`backend/src/`）
 - `MakoKaraGenerator.Runtime.Hosting/ProjectRenderSessionFactory.cs:76`、`:97`、`:102`：整屏捕获框，以及用它创建图与材质程序。
-- `MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.ImageScene.cs:107`：一行的工作框取各程序框的并集。
+- `MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.ImageScene.cs:111`～`:116`：对象区域与工作框（材质收紧、图仍按程序框）；
+  `SkiaRenderPipeline.ImageScene.Region.cs`（`ObjectTargetRegion`、`MaterialTargetBounds`、`AlignToOutputPixels`）；
+  `SkiaRenderPipeline.ImageScene.Surfaces.cs:13`：每个对象预留一屏下层快照。
+- 测试：`backend/tests/MakoKaraGenerator.Rendering.Tests/PerfFixturePackageTests.Regions.cs`（区域一致、1440p 峰值）。
 - `MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.ImageScene.Materials.cs:9`（`ExecuteObjectMaterial`）、`:71`（背景捕获，经对象内 `ObjectBackgroundCache` 复用）。
 - `MakoKaraGenerator.Rendering.Skia/Effects/CompiledPackageGraphExports.Materials.cs:9`（`CreateMaterialProgram`）、
   `:71`、`:78`（透明背景或缺必需背景媒体时退回兜底）；`CompiledPackageGraphExports.cs:59`（`CreateProgram`）。
@@ -79,8 +95,8 @@
   缺必需背景媒体旁路；`SkiaRenderPipeline.SceneSurfaces.cs`（`BackgroundInput`）：可选媒体以底色代替。
 - `MakoKaraGenerator.Rendering.Skia/Effects/MaterialAuthorGraphCache.cs`：同帧作者输出复用。
 - `MakoKaraGenerator.Core/Effects/ImageGraphCompiler.cs:17`、`:21`：会话 512 MiB、外扩上限 256 px。
-- `MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.SceneSurfaces.cs:11`（背景捕获）、`:81`（逐张 `FlushAndSubmit`，F2 改这里）；
-  `SkiaRenderBackend.cs:358`（Vulkan 为 `Submit(true)`）；`SkiaRenderPipeline.cs:290`～`:365`（本帧背景作用域、背景位图解析与 `DrawBitmap`）；
+- `MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.SceneSurfaces.cs:11`（背景捕获）、`:83`（F2 起只提交不等待）；
+  `SkiaRenderBackend.cs:48`、`:364`（`SubmitWithoutWait`，Vulkan 为 `Submit(false)`）；`SkiaRenderPipeline.cs:290`～`:365`（本帧背景作用域、背景位图解析与 `DrawBitmap`）；
   `SkiaRenderPipeline.ImageScene.Surfaces.cs`（下层快照、层组装、透明度）；`SkiaRenderPipeline.MaterialCapture.cs`（材质区域两张捕获）。
 - 排查工具（本地）：`.local/script-sdk-m12-20261110/trace-o7.sh`（测速期间栈采样＋GPU 忙碌率）、`speedscope-o7.py`、`busy-o7.py`、`SurfaceBench/`。
 - `MakoKaraGenerator.Core/Effects/EffectPackageImageGraphs.cs:67`：图根 `bounds.source` 只接受 `targetRegion`。
@@ -104,10 +120,11 @@
 
 ## 5. 工作约定摘要
 
-- 程序改动：`backend/Directory.Build.props` 递增 PATCH（下一版 0.112.62），并在上面的版本说明段落追加一句；
+- 程序改动：`backend/Directory.Build.props` 递增 PATCH（下一版 0.112.64），并在上面的版本说明段落追加一句；
   `flock -o /tmp/mkg-gpu-render-dotnet.lock dotnet build MakoKaraGenerator.slnx` 零警告；新回归须在旧代码上失败。
 - 前端改动先过 `pnpm typecheck`、`pnpm test:unit`；不手改 `docs/backend/contract/`。
 - 桌面测速前 `pnpm build:desktop` 重新发布后端；测速期间不并行构建或占用 GPU。
-- Rendering 全量测试偶发 MixedEffectPackageTests／SourceMaterialRuntimeTests 失败，单独重跑通过即视为非回归。
+- Rendering 全量测试偶发 MixedEffectPackageTests／SourceMaterialRuntimeTests 失败，或 Roslyn 内部 NullReferenceException，单独重跑通过即视为非回归。
+- GPU 用例需 `MAKO_GPU_SMOKE=1`；Vulkan 下模糊结果随表面尺寸与原点变化，换框类改动需按实测设容差。
 - 中文 `type(scope): 摘要` 提交，按路径暂存；不碰未跟踪的 `.VSCodeCounter/`、`backend/tools/backend-script-render-upgrade/M07DiagnosticRunner/`、
   `TraceRead/`、`docs/plans/script-sdk-v2-m11-author-notes.md`。

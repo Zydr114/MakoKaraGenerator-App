@@ -49,7 +49,8 @@ public sealed class BaseMaterialRuntimeTests
             {
                 double amount = mode == 8 ? .75 : .5;
                 byte[] expected = BaseMaterialPixelOracle.Expected(renderer, snapshot, frame, amount, amount, .5, strokeOnly: mode == 10);
-                BaseMaterialPixelOracle.Compare(expected, actual, 2);
+                // 参考辉光在整屏表面上捕获；材质对象的辉光画在本行区域的表面上，Skia GPU 模糊随表面尺寸与原点差 1～3。
+                BaseMaterialPixelOracle.Compare(expected, actual, gpu && mode is 12 or 13 ? 4 : 2);
             }
             if (mode == 3) Assert.Empty(frame.BaseMaterials); else Assert.NotEmpty(frame.BaseMaterials);
             Assert.Equal(.5, frame.GetBaseAppearance(token.BaseOnly).Opacity);

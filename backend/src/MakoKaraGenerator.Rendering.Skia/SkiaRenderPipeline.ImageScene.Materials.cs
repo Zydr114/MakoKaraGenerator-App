@@ -11,7 +11,8 @@ public sealed partial class SkiaRenderPipeline
     {
         var output = request.ResolveTarget(); var composition = request.Project.Composition;
         var regionKind = binding.Slot == PreparedMaterialSlot.Stroke ? SceneCaptureRegion.Stroke : SceneCaptureRegion.Fill;
-        var context = new ImageGraphFrameContext(request.TimeUs, composition.CanvasWidth, composition.CanvasHeight, program.Bounds,
+        var context = new ImageGraphFrameContext(request.TimeUs, composition.CanvasWidth, composition.CanvasHeight,
+            MaterialTargetBounds(state.TargetRegion, program),
             output.ScaleXOf(composition), output.ScaleYOf(composition), binding.Material.Parameters, request.TransparentBackground)
             { Uniforms = binding.Material.Uniforms };
         var definition = program.Package.GetMaterialDefinition(binding.Material.Handle);

@@ -39,6 +39,8 @@ public sealed partial class SkiaRenderPipeline
         internal GroupCompositionBudget? ScopeBudget { get; init; }
         internal SceneBackdropFrame? Backdrop { get; init; }
         internal SceneCompositionPrefix? OutsidePrefix { get; init; }
+        /// <summary>本帧对象实际区域（O7），材质据此执行；null 时沿用程序框。</summary>
+        internal GraphRect? TargetRegion { get; init; }
         internal Dictionary<string, SkiaGraphSurface> ResolvedBelow { get; } = new(StringComparer.Ordinal);
         internal SceneEffectOwner? CompositionOwner { get; init; }
         private int _accountedLayers;
@@ -105,12 +107,15 @@ public sealed partial class SkiaRenderPipeline
             {
                 var programs = bindings.Select(binding => { owner = new(binding); return _imageEffects!.GetProgram(binding.Binding.Graph); }).ToArray();
                 var materialPrograms = materials.Select(binding => { owner = new(binding.Owner, "RenderMaterials", binding.TextTarget); return _imageEffects!.GetMaterial(binding.Material.Handle); }).ToArray();
+                // O7：材质按本帧对象实际区域执行，两条调度路径一致；独立对象的工作框随之收紧，组合导出沿用调度器给定的框。
+                var region = materials.Length > 0 ? ObjectTargetRegion(request, item, resources) : null;
                 var bounds = export?.Bounds ?? programs.Select(program => program.Bounds.Expand(program.Graph.Plan.Definition.MaximumExpandPx))
-                    .Concat(materialPrograms.Select(program => program.Bounds)).Aggregate(Union);
+                    .Concat(materialPrograms.Select(program => MaterialWorkBounds(region, program))).Aggregate(Union);
                 bool hasGlow = HasOriginalGlow(request, item);
                 if (hasGlow) bounds = IncludeOriginalGlowBounds(request, item, bounds, resources);
+                if (export is null && region is not null) bounds = AlignToOutputPixels(request, bounds);
                 using var state = new ImageObjectState(bounds, _surfaceBudget.Limits, resources)
-                { ScopeBudget = export?.ScopeBudget, Backdrop = backdropFrame, OutsidePrefix = outsidePrefix };
+                { ScopeBudget = export?.ScopeBudget, Backdrop = backdropFrame, OutsidePrefix = outsidePrefix, TargetRegion = region };
                 var target = item.Line is { } line
                     ? (ImageEffectTarget)new ImageEffectTarget.Line(new(new(line.Frame.Line!.Id), new(line.BindingId!)))
                     : new ImageEffectTarget.Mark(new(new(item.Mark!.NodeId), new(item.Mark.CueId), new(item.Mark.Geometry.BindingId!)));

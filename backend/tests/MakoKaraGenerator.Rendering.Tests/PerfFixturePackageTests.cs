@@ -13,7 +13,7 @@ using SkiaSharp;
 namespace MakoKaraGenerator.Rendering.Tests;
 
 /// <summary>M12 测速用测试包（tests/Fixtures/ScriptEffectsV2Perf）：准入、原生编译与最小像素检查。</summary>
-public sealed class PerfFixturePackageTests
+public sealed partial class PerfFixturePackageTests
 {
     private const long TimeUs = 1_250_000;
     private static readonly GraphRect Canvas = new(0, 0, 640, 360);

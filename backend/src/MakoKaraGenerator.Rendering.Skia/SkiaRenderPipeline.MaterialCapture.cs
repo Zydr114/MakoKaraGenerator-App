@@ -14,7 +14,7 @@ public sealed partial class SkiaRenderPipeline
     {
         ArgumentNullException.ThrowIfNull(request); ArgumentNullException.ThrowIfNull(target); ArgumentNullException.ThrowIfNull(fallback);
         ArgumentNullException.ThrowIfNull(budget); ObjectDisposedException.ThrowIf(_disposed, this);
-        request.CancellationToken.ThrowIfCancellationRequested(); PreparedRenderFrame.ValidateRequest(request); ValidateNativePreparedFrame(request.PreparedFrame);
+        request.CancellationToken.ThrowIfCancellationRequested(); ValidateRequestOnce(request); ValidateNativeOnce(request.PreparedFrame);
         bool stroke = part is SceneColorPart.BaseStroke or SceneColorPart.RubyStroke;
         bool ruby = part is SceneColorPart.RubyFill or SceneColorPart.RubyStroke;
         if (part is not (SceneColorPart.BaseFill or SceneColorPart.BaseStroke or SceneColorPart.RubyFill or SceneColorPart.RubyStroke)

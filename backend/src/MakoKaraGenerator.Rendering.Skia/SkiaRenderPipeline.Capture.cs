@@ -72,7 +72,7 @@ public sealed partial class SkiaRenderPipeline
         ArgumentNullException.ThrowIfNull(request); ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(recipe); ArgumentNullException.ThrowIfNull(budget);
         ObjectDisposedException.ThrowIf(_disposed, this); request.CancellationToken.ThrowIfCancellationRequested();
-        PreparedRenderFrame.ValidateRequest(request); ValidateNativePreparedFrame(request.PreparedFrame);
+        ValidateRequestOnce(request); ValidateNativeOnce(request.PreparedFrame);
         if (!SceneCaptureChannels.IsSupported(source) || !Enum.IsDefined(recipe.Region))
             throw new PreparedFrameException("UnsupportedCaptureChannel", "捕获来源或目标区域无效；背景和包图片由独立生产器提供。");
         recipe = BoundCaptureRecipe(target, recipe);

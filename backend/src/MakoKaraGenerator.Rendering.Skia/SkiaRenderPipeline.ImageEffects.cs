@@ -17,7 +17,7 @@ public sealed partial class SkiaRenderPipeline
         var owner = results[^1].Binding;
         try
         {
-            PreparedRenderFrame.ValidateRequest(request);
+            ValidateRequestOnce(request);
             if (request.PreparedFrame is not { } prepared || !prepared.ImageEffects.Where(binding => binding.Binding.Target == owner.Binding.Target)
                 .SequenceEqual(results.Select(result => result.Binding)))
                 throw new PreparedFrameException("ImageEffectChainBindingMismatch", "合成链必须按本帧实际顺序包含该目标所有实例。");
@@ -55,7 +55,7 @@ public sealed partial class SkiaRenderPipeline
         List<SkiaGraphSurface> captures = []; bool transferred = false;
         try
         {
-            request.CancellationToken.ThrowIfCancellationRequested(); PreparedRenderFrame.ValidateRequest(request);
+            request.CancellationToken.ThrowIfCancellationRequested(); ValidateRequestOnce(request);
             if (request.PreparedFrame is not { } prepared || !prepared.ImageEffects.Contains(binding))
                 throw new PreparedFrameException("ImageEffectBindingUnavailable", "执行请求必须属于本帧实际脚本输出。");
             if (binding.Binding.Graph != program.Handle)

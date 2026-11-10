@@ -19,7 +19,7 @@ public sealed partial class SkiaRenderPipeline
     {
         ArgumentNullException.ThrowIfNull(request); ArgumentNullException.ThrowIfNull(target); ArgumentNullException.ThrowIfNull(budget);
         ObjectDisposedException.ThrowIf(_disposed, this); request.CancellationToken.ThrowIfCancellationRequested();
-        PreparedRenderFrame.ValidateRequest(request); ValidateNativePreparedFrame(request.PreparedFrame);
+        ValidateRequestOnce(request); ValidateNativeOnce(request.PreparedFrame);
         if (!Enum.IsDefined(part)) throw new PreparedFrameException("InvalidSceneColorPart", "部件类别无效。");
         bool ruby = part is SceneColorPart.RubyFill or SceneColorPart.RubyStroke or SceneColorPart.RubyShadow or SceneColorPart.RubyGlow;
         if (target is SceneCaptureTarget.Group || (target is SceneCaptureTarget.Mark or SceneCaptureTarget.Base) && ruby)

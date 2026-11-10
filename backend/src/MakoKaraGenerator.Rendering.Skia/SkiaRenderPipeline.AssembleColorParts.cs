@@ -12,7 +12,7 @@ public sealed partial class SkiaRenderPipeline
     {
         ArgumentNullException.ThrowIfNull(request); ArgumentNullException.ThrowIfNull(orderedParts); ArgumentNullException.ThrowIfNull(budget);
         ObjectDisposedException.ThrowIf(_disposed, this); request.CancellationToken.ThrowIfCancellationRequested();
-        PreparedRenderFrame.ValidateRequest(request); ValidateNativePreparedFrame(request.PreparedFrame);
+        ValidateRequestOnce(request); ValidateNativeOnce(request.PreparedFrame);
         if (orderedParts.Count == 0 || orderedParts.Any(part => part is null))
             throw new PreparedFrameException("SceneColorPartsEmpty", "重组必须提供实际部件和明确顺序。");
         var first = orderedParts[0];

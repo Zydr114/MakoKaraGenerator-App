@@ -13,7 +13,7 @@ public sealed partial class SkiaRenderPipeline
     {
         ArgumentNullException.ThrowIfNull(request); ArgumentNullException.ThrowIfNull(budget);
         ObjectDisposedException.ThrowIf(_disposed, this); request.CancellationToken.ThrowIfCancellationRequested();
-        PreparedRenderFrame.ValidateRequest(request); ValidateNativePreparedFrame(request.PreparedFrame);
+        ValidateRequestOnce(request); ValidateNativeOnce(request.PreparedFrame);
         if (source is not (GraphInputSource.BackgroundMedia or GraphInputSource.BackgroundColor))
             throw new PreparedFrameException("UnsupportedBackgroundCaptureSource", "只允许真实媒体或底色；下层快照必须由场景调度器提供。");
         if (request.TransparentBackground) return null;

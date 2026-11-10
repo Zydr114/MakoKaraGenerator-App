@@ -172,8 +172,8 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         request.CancellationToken.ThrowIfCancellationRequested();
-        PreparedRenderFrame.ValidateRequest(request);
-        ValidateNativePreparedFrame(request.PreparedFrame);
+        ValidateRequestOnce(request);
+        ValidateNativeOnce(request.PreparedFrame);
         if (_imageEffects is null && request.PreparedFrame is { ImageEffects.IsEmpty: false } pending)
         {
             var owner = pending.ImageEffects[0];

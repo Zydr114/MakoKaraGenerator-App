@@ -8,6 +8,7 @@ using MakoKaraGenerator.Rendering.Skia;
 using MakoKaraGenerator.Scripting;
 using MakoKaraGenerator.Scripting.Compilation;
 using MakoKaraGenerator.Scripting.Execution;
+using SkiaSharp;
 
 namespace MakoKaraGenerator.Rendering.Tests;
 
@@ -69,6 +70,45 @@ public sealed class PerfFixturePackageTests
         // 默认色 (0.95, 0.55, 0.2, 1) 的 BGRA 预乘字节；原本的白色填充不应残留。
         Assert.Contains(((byte)51, (byte)140, (byte)242, (byte)255), pixels);
         Assert.DoesNotContain(((byte)255, (byte)255, (byte)255, (byte)255), pixels);
+    }
+
+    [Fact]
+    public async Task 背景媒体材质每帧只向背景来源取一次帧()
+    {
+        var package = await Read("MaterialMediaRequired");
+        var material = new MaterialSpec.PackageMaterial(package.PackageId, package.Revision, "media-required", EffectParameterOverrides.Parse("{}"));
+        var project = Plain(package, []);
+        project = project with
+        {
+            Background = BackgroundSource.ForVideo("/tmp/perf-fixture-background.mp4"),
+            LyricStyle = project.LyricStyle with { UnsungFill = new() { Material = material }, SungFill = new() { Material = material } },
+        };
+        var compiled = await Compile(project);
+        var snapshot = ProjectSnapshot.FromProject(project);
+        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), ReplayReason.Export).CreateAsync(snapshot);
+        var frame = await session.PrepareAsync(TimeUs, OutputMode.Opaque, RenderTarget.FromComposition(snapshot.Composition));
+        var compiledPackage = Assert.Single(compiled.Packages);
+        using var native = CompiledPackageGraphExports.Compile(compiledPackage.Definition);
+        using var resources = new SceneImageEffectResources([], null, [native.CreateMaterialProgram(compiledPackage.Resources.GetMaterial("media-required"), Canvas)]);
+        var background = new CountingBackground(new SKColor(0, 224, 64));
+        using var renderer = new SkiaRenderPipeline(null, background, null, resources);
+        using var image = renderer.Render(RenderRequest.At(snapshot, TimeUs) with { PreparedFrame = frame });
+        // 主画布背景与未唱／已唱、正文／注音四次材质执行共用同一帧；旧实现每次执行各取一次（共 5 次）。
+        Assert.Equal(1, background.Calls);
+        var pixels = Pixels(image.PixelMemory.ToArray());
+        Assert.DoesNotContain(((byte)204, (byte)102, (byte)51, (byte)255), pixels); // 兜底色 #3366CC 不应出现
+        Assert.DoesNotContain(((byte)255, (byte)255, (byte)255, (byte)255), pixels);
+    }
+
+    /// <summary>像视频一样每次返回同一张可变位图，并记下被取帧的次数。</summary>
+    private sealed class CountingBackground : IBackgroundFrameSourceResolver, IBackgroundFrameSource
+    {
+        private readonly SKBitmap _bitmap = new(new SKImageInfo(64, 36, SKColorType.Bgra8888, SKAlphaType.Unpremul));
+        public CountingBackground(SKColor color) => _bitmap.Erase(color);
+        public int Calls { get; private set; }
+        public IBackgroundFrameSource? Resolve(BackgroundSource background) => this;
+        public SKBitmap? GetFrame(long timeUs) { Calls++; return _bitmap; }
+        public void Dispose() => _bitmap.Dispose();
     }
 
     [Fact]

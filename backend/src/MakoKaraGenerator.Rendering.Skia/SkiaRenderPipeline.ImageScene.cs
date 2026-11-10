@@ -46,8 +46,9 @@ public sealed partial class SkiaRenderPipeline
         internal SkiaGraphSurface? Empty { get; set; }
         internal OriginalAlphaReadbackBuffer AlphaReadback { get; } = new();
         internal MaterialAuthorGraphCache AuthorGraphs { get; } = new(resources);
+        internal ObjectBackgroundCache Backgrounds { get; } = new(resources);
         internal T Own<T>(T value) where T : IDisposable { Owned.Add(value); return value; }
-        public void Dispose() { try { AuthorGraphs.Dispose(); AlphaReadback.Dispose(); for (int i = Owned.Count - 1; i >= 0; i--) Owned[i].Dispose(); } finally { SetLayerBudget(0); } }
+        public void Dispose() { try { Backgrounds.Dispose(); AuthorGraphs.Dispose(); AlphaReadback.Dispose(); for (int i = Owned.Count - 1; i >= 0; i--) Owned[i].Dispose(); } finally { SetLayerBudget(0); } }
     }
 
     internal sealed class OriginalAlphaReadbackBuffer : IDisposable
@@ -122,6 +123,7 @@ public sealed partial class SkiaRenderPipeline
                 var below = capturedBelow;
                 AddParts(target, excluded, 0);
                 for (int i = 0; i < tokenTargets.Length; i++) AddParts(tokenTargets[i], null, i + 1);
+                state.Backgrounds.Dispose();
 
                 // 子元素先完成，再把真实产物交给整行图；每个目标内保留工程实例顺序。
                 foreach (var token in tokenTargets)

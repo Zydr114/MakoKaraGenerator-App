@@ -86,6 +86,7 @@ public sealed class MemoryImageBackgroundFrameSourceResolver : IBackgroundFrameS
             if (bitmap.GetPixels() == IntPtr.Zero || codec.GetPixels(info, bitmap.GetPixels()) != SKCodecResult.Success)
                 throw new ImageBackgroundDecodeException("PackageImageDecodeFailed", "固定图片像素解码不完整或失败。");
             token.ThrowIfCancellationRequested();
+            bitmap.SetImmutable(); // 只读共享：绘制复用同一纹理，见 ImageBackgroundFrameSource。
             SKBitmap result = bitmap;
             bitmap = null;
             return result;

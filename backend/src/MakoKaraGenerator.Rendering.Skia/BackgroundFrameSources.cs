@@ -120,6 +120,9 @@ public sealed class ImageBackgroundFrameSource : IBackgroundFrameSource, IDispos
                 {
                     LoadError = File.Exists(_path) ? "图片无法解码。" : "图片文件不存在。";
                 }
+
+                // 解码后不再改写：标为不可变，绘制时共享像素引用，GPU 纹理跨绘制、跨帧复用而非每次复制上传。
+                _bitmap?.SetImmutable();
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {

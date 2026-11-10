@@ -53,6 +53,8 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
     private readonly bool _ownsLayouts;
     // 关闭时（正式预览／导出）图、材质与空原始部件判定都不为检查同步提交或读回中间产物。
     private readonly bool _graphPixelChecks;
+    // 只在设备锁内的单次 RenderToOutput 期间存在：主画布与各材质／图背景输入共用同一背景帧。
+    private BackgroundFrameScope? _backgroundScope;
     private bool _disposed;
 
     /// <summary>创建一个渲染管线。</summary>
@@ -202,6 +204,7 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
 
         using var srgb = request.PreparedFrame is { } colorFrame && (!colorFrame.Materials.IsEmpty || !colorFrame.BaseMaterials.IsEmpty || !colorFrame.ImageEffects.IsEmpty || !colorFrame.GroupOpacities.IsEmpty || colorFrame.OverlayBatches.Any(batch => batch.ItemCount > 0 && (batch is Scripting.SpriteBatch or Scripting.PathBatch or Scripting.AtlasSpriteBatch))) ? SKColorSpace.CreateSrgb() : null;
         SKImageInfo info = new(target.PixelWidth, target.PixelHeight, SKColorType.Bgra8888, SKAlphaType.Premul, srgb);
+        using var backgroundScope = BeginBackgroundFrameScope(request);
         ImmutableArray<RenderImageEffectDiagnostic> imageDiagnostics = [];
         ImmutableArray<RenderMaterialDiagnostic> materialDiagnostics = [];
         RuntimeDiagnosticSnapshot sceneDiagnostics = request.PreparedFrame?.DiagnosticSnapshot ?? RuntimeDiagnosticSnapshot.Empty;
@@ -278,9 +281,50 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
 
     private sealed record BackgroundFrame(SKBitmap Bitmap, int SourceWidth, int SourceHeight);
 
+    /// <summary>本次渲染内每个请求只向来源取一次背景帧（来源接口约定「每帧只问一次」）。</summary>
+    /// <remarks>
+    /// 可变位图（视频每帧复用的那张）每次 DrawBitmap 都会复制像素并以新身份上传纹理；
+    /// 这里固定一份不可变副本，本帧所有背景绘制共享同一像素引用，GPU 纹理缓存可以命中。
+    /// 图片来源解码后即不可变，直接共享，且跨帧命中。
+    /// </remarks>
     private BackgroundFrame? ResolveBackgroundFrame(RenderRequest request)
     {
         if (!request.Project.Background.HasMedia) return null;
+        if (_backgroundScope is not { } scope || !ReferenceEquals(scope.Request, request)) return ResolveBackgroundFrameCore(request);
+        if (scope.Resolved) return scope.Frame;
+        var frame = ResolveBackgroundFrameCore(request);
+        if (frame is { Bitmap.IsImmutable: false })
+        {
+            var copy = frame.Bitmap.Copy() ?? throw new InvalidOperationException("无法固定本帧背景位图。");
+            copy.SetImmutable();
+            scope.Copy = copy;
+            frame = frame with { Bitmap = copy };
+        }
+        scope.Frame = frame; scope.Resolved = true;
+        return frame;
+    }
+
+    private BackgroundFrameScope? BeginBackgroundFrameScope(RenderRequest request)
+    {
+        if (_backgroundScope is not null) return null;
+        return _backgroundScope = new(this, request);
+    }
+
+    private sealed class BackgroundFrameScope(SkiaRenderPipeline owner, RenderRequest request) : IDisposable
+    {
+        internal RenderRequest Request { get; } = request;
+        internal bool Resolved { get; set; }
+        internal BackgroundFrame? Frame { get; set; }
+        internal SKBitmap? Copy { get; set; }
+        public void Dispose()
+        {
+            if (ReferenceEquals(owner._backgroundScope, this)) owner._backgroundScope = null;
+            Frame = null; Copy?.Dispose(); Copy = null;
+        }
+    }
+
+    private BackgroundFrame? ResolveBackgroundFrameCore(RenderRequest request)
+    {
         var source = _backgroundResolver.Resolve(request.Project.Background, request.CancellationToken);
         if (source is null) return null;
         // Raster nearest sampling has a stable integer phase. Vulkan texture sampling at

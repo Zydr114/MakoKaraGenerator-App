@@ -19,6 +19,7 @@ public sealed partial class SkiaRenderPipeline
             state.Bounds, state.Budget, state.Resources);
         Dictionary<string, SkiaGraphInput> inputs = new(StringComparer.Ordinal);
         List<SkiaGraphSurface> owned = [];
+        Dictionary<GraphInputSource, SkiaGraphSurface> backgrounds = [];
         var images = _imageEffects!.GetMaterialImages(binding.Material.Handle);
         try
         {
@@ -42,8 +43,13 @@ public sealed partial class SkiaRenderPipeline
                     }
                     else if (source is GraphInputSource.BackgroundColor or GraphInputSource.BackgroundMedia)
                     {
-                        var surface = CaptureSceneBackground(request, source, state.Bounds, state.Budget, state.Resources);
-                        if (surface is not null) { owned.Add(surface); inputs.Add(input.Id, new(surface, source)); }
+                        // 同一对象各次执行的捕获框与请求相同，背景捕获可共用（见 ObjectBackgroundCache）。
+                        if (!backgrounds.TryGetValue(source, out var surface))
+                        {
+                            surface = state.Backgrounds.Take(source) ?? CaptureSceneBackground(request, source, state.Bounds, state.Budget, state.Resources);
+                            if (surface is not null) backgrounds.Add(source, surface);
+                        }
+                        if (surface is not null) inputs.Add(input.Id, new(surface, source));
                     }
                     else if (source == GraphInputSource.ResourceImage && images.TryGetValue(input.Id, out var image)) inputs.Add(input.Id, image);
                 }
@@ -57,7 +63,47 @@ public sealed partial class SkiaRenderPipeline
             return program.Package.ExecuteMaterialShared(binding.Material.Handle, regionKind, context, captured.Region, captured.TargetColor,
                 inputs, opacity, state.Resources, state.AuthorGraphs, request.CancellationToken);
         }
-        finally { foreach (var surface in owned) surface.Dispose(); }
+        finally
+        {
+            foreach (var surface in owned) surface.Dispose();
+            foreach (var (source, surface) in backgrounds) state.Backgrounds.Return(source, surface);
+        }
+    }
+
+    /// <summary>同一行／标记的多次材质执行（未唱／已唱、正文／注音）共用背景捕获，而非每次重画整框背景。</summary>
+    /// <remarks>
+    /// 执行期间取出独占；空闲时登记为可回收，预算不足时先被释放，因此不新增预算失败。
+    /// 对象的部件全部加入后即清空，不把占用带进图效果与层组装阶段。
+    /// </remarks>
+    private sealed class ObjectBackgroundCache(ImageSurfaceBudgetFrame resources) : IDisposable
+    {
+        private readonly Dictionary<GraphInputSource, (SkiaGraphSurface Surface, IDisposable Reclaim)> _idle = [];
+
+        internal SkiaGraphSurface? Take(GraphInputSource source)
+        {
+            if (!_idle.Remove(source, out var entry)) return null;
+            entry.Reclaim.Dispose();
+            return entry.Surface;
+        }
+
+        internal void Return(GraphInputSource source, SkiaGraphSurface surface)
+        {
+            if (_idle.ContainsKey(source) || resources.Closed) { surface.Dispose(); return; }
+            var reclaim = resources.RegisterReclaimable(surface.Image.Handle, () => Evict(source, surface));
+            _idle.Add(source, (surface, reclaim));
+        }
+
+        private void Evict(GraphInputSource source, SkiaGraphSurface surface)
+        {
+            if (_idle.TryGetValue(source, out var entry) && ReferenceEquals(entry.Surface, surface)) _idle.Remove(source);
+            surface.Dispose();
+        }
+
+        public void Dispose()
+        {
+            foreach (var (surface, reclaim) in _idle.Values) { reclaim.Dispose(); surface.Dispose(); }
+            _idle.Clear();
+        }
     }
     private static double MaterialCommonOpacity(RenderRequest request, ImageEffectTarget member)
     {

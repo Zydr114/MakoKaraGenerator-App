@@ -72,6 +72,31 @@ public sealed class PerfFixturePackageTests
         Assert.DoesNotContain(((byte)255, (byte)255, (byte)255, (byte)255), pixels);
     }
 
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task 关闭像素检查时材质帧的场景表面只提交不逐张等待GPU(bool gpu)
+    {
+        if (gpu && Environment.GetEnvironmentVariable("MAKO_GPU_SMOKE") != "1") return;
+        var package = await Read("MaterialConstant");
+        var material = new MaterialSpec.PackageMaterial(package.PackageId, package.Revision, "constant", EffectParameterOverrides.Parse("{}"));
+        var project = Plain(package, []);
+        project = project with { LyricStyle = project.LyricStyle with { UnsungFill = new() { Material = material }, SungFill = new() { Material = material } } };
+        var compiled = await Compile(project);
+        var snapshot = ProjectSnapshot.FromProject(project);
+        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), ReplayReason.Export).CreateAsync(snapshot);
+        var frame = await session.PrepareAsync(TimeUs, OutputMode.Opaque, RenderTarget.FromComposition(snapshot.Composition));
+        var compiledPackage = Assert.Single(compiled.Packages);
+        using var device = new GraphPixelCheckModeTests.CountingDevice(BaseMaterialRuntimeTests.Device(gpu));
+        using var native = CompiledPackageGraphExports.CompileWithDevice(compiledPackage.Definition, null, device, pixelChecks: false);
+        using var resources = new SceneImageEffectResources([], null, [native.CreateMaterialProgram(compiledPackage.Resources.GetMaterial("constant"), Canvas)]);
+        using var renderer = new SkiaRenderPipeline(null, null, null, resources, false, device, false, graphPixelChecks: false);
+        using var image = renderer.Render(RenderRequest.At(snapshot, TimeUs) with { PreparedFrame = frame });
+        // 只有帧交付读回前同步一次；下层快照、部件、材质区域、层组装等场景表面都只提交不等待（旧实现逐张 Submit(true)）。
+        Assert.Equal(1, device.Submits);
+        Assert.True(device.SubmitsWithoutWait >= 10, $"不等待提交 {device.SubmitsWithoutWait} 次");
+        Assert.Contains(((byte)51, (byte)140, (byte)242, (byte)255), Pixels(image.PixelMemory.ToArray()));
+    }
+
     [Fact]
     public async Task 背景媒体材质每帧只向背景来源取一次帧()
     {

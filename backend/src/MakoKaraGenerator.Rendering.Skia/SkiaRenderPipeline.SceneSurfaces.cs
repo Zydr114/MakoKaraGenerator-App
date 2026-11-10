@@ -78,7 +78,9 @@ public sealed partial class SkiaRenderPipeline
             using var surface = _device.CreateSurface(new SKImageInfo(checked((int)width), checked((int)height), SKColorType.Bgra8888, SKAlphaType.Premul, srgb));
             var canvas = surface.Canvas; canvas.ClipRect(new(0, 0, (float)width, (float)height)); canvas.Clear(SKColors.Transparent); canvas.SetMatrix(local);
             request.CancellationToken.ThrowIfCancellationRequested(); draw(canvas, resources, pixelBytes); request.CancellationToken.ThrowIfCancellationRequested();
-            _device.FlushAndSubmit(surface);
+            // 只提交不等待：后续绘制同设备按序执行，需要读回的路径（像素检查、空部件读回）由读回函数自行同步，
+            // 帧交付（RenderCore 读回、GPU 帧复制）保持同步。逐张等待会让 CPU 与 GPU 轮流空等。
+            _device.SubmitWithoutWait(surface);
             var image = surface.Snapshot() ?? throw new PreparedFrameException("CaptureSurfaceUnavailable", "无法固定捕获产物。");
             try
             {

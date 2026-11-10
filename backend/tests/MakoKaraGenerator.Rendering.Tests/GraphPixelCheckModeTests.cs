@@ -103,16 +103,18 @@ public sealed class GraphPixelCheckModeTests
         public void Dispose() { Value.Dispose(); image.Dispose(); }
     }
 
-    /// <summary>委托给实际设备，只计数同步提交与图像读回；CPU 与 Vulkan 共用。</summary>
+    /// <summary>委托给实际设备，计数同步提交、不等待提交与图像读回；CPU 与 Vulkan 共用。</summary>
     internal sealed class CountingDevice(ISkiaRenderDevice? inner = null) : ISkiaRenderDevice
     {
         private readonly ISkiaRenderDevice _inner = inner ?? new CpuSkiaRenderDevice();
         public int ImageReads { get; private set; }
         public int Submits { get; private set; }
+        public int SubmitsWithoutWait { get; private set; }
         public object SynchronizationRoot => _inner.SynchronizationRoot;
         public SkiaRenderDeviceInfo Info => _inner.Info;
         public SKSurface CreateSurface(SKImageInfo imageInfo) => _inner.CreateSurface(imageInfo);
         public void FlushAndSubmit(SKSurface surface) { Submits++; _inner.FlushAndSubmit(surface); }
+        public void SubmitWithoutWait(SKSurface surface) { SubmitsWithoutWait++; _inner.SubmitWithoutWait(surface); }
         public SKImage? RasterizeImage(SKImage image) => _inner.RasterizeImage(image);
         public SKImage? CreateTextureImage(SKImage image, bool mipmapped) => _inner.CreateTextureImage(image, mipmapped);
         public bool ReadPixels(SKSurface surface, SKImageInfo imageInfo, IntPtr destination, int rowBytes)

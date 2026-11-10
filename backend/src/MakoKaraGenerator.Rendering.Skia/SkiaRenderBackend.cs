@@ -43,6 +43,9 @@ internal interface ISkiaRenderDevice : IDisposable
     SkiaRenderDeviceInfo Info { get; }
     SKSurface CreateSurface(SKImageInfo imageInfo);
     void FlushAndSubmit(SKSurface surface);
+    /// <summary>提交本表面已记录的绘制，不等待 GPU 完成。同设备后续绘制按提交顺序执行，读回函数各自先同步再读。</summary>
+    /// <remarks>未覆盖的实现（如测试包装）保守地退回 <see cref="FlushAndSubmit"/>。</remarks>
+    void SubmitWithoutWait(SKSurface surface) => FlushAndSubmit(surface);
     SKImage? RasterizeImage(SKImage image);
     SKImage? CreateTextureImage(SKImage image, bool mipmapped)
         => throw new NotSupportedException("当前设备不支持真实纹理及 mip 上传。");
@@ -356,6 +359,15 @@ internal sealed class VulkanSkiaRenderDevice : ISkiaRenderDevice
         surface.Flush();
         _context.Flush();
         _context.Submit(true);
+    }
+
+    public void SubmitWithoutWait(SKSurface surface)
+    {
+        ArgumentNullException.ThrowIfNull(surface);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        surface.Flush();
+        _context.Flush();
+        _context.Submit(false);
     }
 
     public SKImage? RasterizeImage(SKImage image)

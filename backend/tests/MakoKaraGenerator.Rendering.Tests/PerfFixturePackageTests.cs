@@ -92,8 +92,9 @@ public sealed partial class PerfFixturePackageTests
         using var renderer = new SkiaRenderPipeline(null, null, null, resources, false, device, false, graphPixelChecks: false);
         using var image = renderer.Render(RenderRequest.At(snapshot, TimeUs) with { PreparedFrame = frame });
         // 只有帧交付读回前同步一次；下层快照、部件、材质区域、层组装等场景表面都只提交不等待（旧实现逐张 Submit(true)）。
+        // F3、F4 之后本帧场景表面约 9 张（F2 时 ≥10）。
         Assert.Equal(1, device.Submits);
-        Assert.True(device.SubmitsWithoutWait >= 10, $"不等待提交 {device.SubmitsWithoutWait} 次");
+        Assert.True(device.SubmitsWithoutWait >= 5, $"不等待提交 {device.SubmitsWithoutWait} 次");
         Assert.Contains(((byte)51, (byte)140, (byte)242, (byte)255), Pixels(image.PixelMemory.ToArray()));
     }
 

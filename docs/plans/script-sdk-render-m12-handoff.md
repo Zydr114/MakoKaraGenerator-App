@@ -15,7 +15,11 @@
   测速新增 `--v2-params`、`--background-image`；基线见记录 §5.4。要点：不读输入的常量色材质 Render p50 已 36 ms
   （图-直通 6 ms），1440p 失败占用与 CustomInk 逐字相同（36 张整屏），确认问题在材质路径的整屏分配而非着色器；
   背景媒体输入比同结构读下层多约 64 ms，原因未查；缺背景时必需／可选两版都首帧整条流失败。
-- **未开工**：O7、缺背景行为决定、O3、合同冻结。
+- **材质路径排查（2026-11-10，已完成，未改代码）**：见记录 §5.5、§5.6。
+  - 场景表面分配占材质渲染的 87%，着色器只占约 3%。
+  - 慢的原因有三：每张整屏表面都同步等 GPU（`Submit(true)`）；每行约 19 张整屏表面，其中约 8 张是空活；层组装逐层新建表面。
+  - 背景媒体多出约 64 ms：每次材质执行都重捕背景，且可变位图每次都重新上传。
+- **未开工**：修复项 F1～F6（含 O7，草案待用户确认）、缺背景行为决定（已给建议，待确认）、O3、合同冻结。
 
 ## 2. 用户决定
 
@@ -41,9 +45,13 @@
    经工程设置「选择图片或视频…」上传背景；`--v2-params` 打包时改参数默认值。
    然后在当前版本测基线（已完成，见记录 §5.4；`.local/script-sdk-m12-20261110/run-baseline.sh`，
    `BASE_OUT=<目录> bash run-baseline.sh [solid|checker [组名...]]`，汇总 `aggregate-p3.py <目录>`）。
-3. 实施 O7（2026-11-10 用户说暂不动，等用户恢复），像素回归确认画布坐标不变、区域内像素一致，再复测测试包与现有样例；
-   回归测试可直接读 `ImageSurfaceBudgetSession.Usage` 补上基线缺的成功帧占用。背景媒体输入多出约 64 ms 的原因可在 O7 前后另查。
-4. 决定缺背景行为；之后做 O3、合同冻结（当前合同 1.49.1）与前端合同同步。
+3. ~~排查材质路径与背景媒体~~（已完成，记录 §5.5）。2026-11-10 用户恢复 O7，并要求先按结构问题排查、制定计划。
+4. 等用户确认记录 §5.6 的修复计划后，按建议顺序 F1 → F2 → F5（O7）→ F3、F4、F6 实施。
+   每项一个 PATCH，像素回归确认画布坐标不变、区域内像素一致，再用 `run-baseline.sh` 复测。
+   O7 的回归测试读 `ImageSurfaceBudgetSession.Usage`，补上基线缺的成功帧占用。
+5. 缺背景行为：用户原话「拒绝应用，明确表示在透明背景下背景依赖材质不会生效」，要求先判断合理性。
+   建议见记录 §5.6：渲染时一律兜底并给诊断，编辑时只提示；可选输入缺失时用工程底色代替还是兜底，待用户确认。
+   之后做 O3、合同冻结（当前合同 1.49.1）与前端合同同步。
 
 ## 4. 参考文件
 
@@ -57,6 +65,10 @@
 - `MakoKaraGenerator.Rendering.Skia/Effects/CompiledImageGraph.cs:167`：必需输入缺失报错，可选输入缺失报 `GraphOptionalInputPolicyPending`。
 - `MakoKaraGenerator.Rendering.Skia/Effects/MaterialAuthorGraphCache.cs`：同帧作者输出复用。
 - `MakoKaraGenerator.Core/Effects/ImageGraphCompiler.cs:17`、`:21`：会话 512 MiB、外扩上限 256 px。
+- `MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.SceneSurfaces.cs:11`（背景捕获）、`:65`（逐张 `FlushAndSubmit`）；
+  `SkiaRenderBackend.cs:352`（Vulkan 为 `Submit(true)`）；`SkiaRenderPipeline.cs:281`～`:325`（背景位图解析与 `DrawBitmap`）；
+  `SkiaRenderPipeline.ImageScene.Surfaces.cs`（下层快照、层组装、透明度）；`SkiaRenderPipeline.MaterialCapture.cs`（材质区域两张捕获）。
+- 排查工具（本地）：`.local/script-sdk-m12-20261110/trace-o7.sh`（测速期间栈采样＋GPU 忙碌率）、`speedscope-o7.py`、`busy-o7.py`、`SurfaceBench/`。
 - `MakoKaraGenerator.Core/Effects/EffectPackageImageGraphs.cs:67`：图根 `bounds.source` 只接受 `targetRegion`。
 
 **失败可观测性**

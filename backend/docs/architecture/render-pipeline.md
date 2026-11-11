@@ -4,6 +4,44 @@
 
 本轮暂停功能开发，只读调查生产调用链、接口、现有测试和相关合同，新增调查文档。没有运行构建、测试、原生窗口、性能采样或渲染实验。下面的执行顺序来自源码；成本分析是待测量的结构判断。
 
+> **2026-11-12 说明（产品 0.112.72）**：本文及四个详细章节是 0.70.1 时的只读调查记录，正文保持原样。此后的主要变化——
+> SDK v2 纯求值、Vulkan 后端与桌面 GPU 共享纹理、图与材质的区域收紧——见
+> [主计划](../../../docs/plans/script-sdk-v2-render-pipeline-plan.md)与[阶段二路线](../../../docs/plans/script-sdk-v2-phase-two-roadmap.md)。
+> Skia 层在 0.112.69～0.112.72 做过一次结构整理，现状写在下面的 §0；§4 的函数表与 §7 的导航已按现状更正。
+
+## 0. Skia 层的当前结构（2026-11-12，0.112.72）
+
+`MakoKaraGenerator.Rendering.Skia` 里原来由 `SkiaRenderPipeline` 一个类兼任的职责，现在分成三层：
+
+| 层 | 类型与文件 | 职责 |
+|---|---|---|
+| 几何 | `SkiaSceneGeometry`（`SkiaSceneGeometry*.cs`） | 整行整形、注音与文字标记布局、场景帧与逐行／逐元素测量、描边／阴影／辉光的外扩量。实现 `ILineGeometryProvider`，只持有排版引擎与布局缓存，不依赖渲染设备 |
+| 对象计划 | `ObjectRenderPlan`（`SkiaRenderPipeline.ObjectPlan.cs`） | 图像效果场景里一个对象（一行或一个文字标记）本帧怎么画：部件清单、图的执行序列与目标框、工作框、下层来源、层组装方式。只含数据 |
+| 绘制 | `SkiaRenderPipeline`（其余 `SkiaRenderPipeline*.cs`） | 背景、歌词直绘、叠加图元、图像效果场景的调度与执行、CPU 读回或 GPU 帧输出 |
+
+**几何与绘制的关系。** 绘制管线持有一个几何实例，在同一份布局上绘制，并把 `ILineGeometryProvider` 的调用转交给它。
+脚本宿主需要几何时由 `ProjectRenderSessionFactory` 给它单独的 `SkiaSceneGeometry`，不再为此另建绘制管线，一个会话只有一个绘制管线。
+几何与绘制可能用到同一个排版引擎（native 字体对象不能跨线程），因此共用渲染设备的同步对象；布局缓存按「可跨引擎共享」与「属于某个引擎」分开存放。
+
+**一帧怎么画。** `RenderToOutput` 依次画背景、文字下方的叠加图元、歌词、文字上方的叠加图元。准备帧里没有图、材质或组透明度时走直绘（`DrawLyrics`）；
+有其中任何一种时走图像效果场景（`DrawImageEffectScene`）。
+
+**图像效果场景。** 两个调度器只决定对象的先后、隔离与下层来源，每个对象都交给同一个入口 `DrawSceneObject`：
+
+- 遗留调度（`DrawIsolatedScene`）：按绘制顺序逐个对象画到目标表面，组透明度用临时表面隔离；对象开始前对目标表面取一次快照作为下层。
+- 前缀调度（`DrawGroupCompositionScene`）：帧里有组图，或有图／材质读取下层且其属主画了文字下方的图元时启用。对象不直接写目标表面，
+  而是把闭合的层（前景与擦除量）导出给调度器，调度器维护「到目前为止的前景」前缀，下层按属主从前缀惰性解析。
+
+`DrawSceneObject` 对没有图、材质且不在组合导出中的对象原样绘制；否则先建计划再执行：
+
+1. `BuildObjectPlan` 分步建计划，每步只改计划：基本计划（身份、程序、图的执行序列，区域取程序框）→ 区域收紧（材质按对象实际区域、
+   图按绑定目标的实际区域）→ 工作框定稿（辉光外扩、像素对齐）→ 部件清单（原样或材质）→ 判空（本帧必然没有像素的部件不捕获）→ 层组装方式。
+   后三个优化各有一个内部开关，供回归对照时单独关闭。
+2. `ExecuteObjectPlan` 只照计划执行：分配对象状态、按需取下层快照、逐部件捕获或执行材质、按序执行图、最后合成写回或导出闭合层。
+
+对象只能读到自己工作框内的下层与输入。工作框由图目标框加声明外扩、材质工作框得出；组合导出时还并入对象自身范围与声明的取样偏移，
+且不超出调度器给定的框。
+
 ## 1. 结论与阅读入口
 
 工程已有不依赖 Avalonia 的正式渲染组合根：`ProjectRenderSessionFactory.CreateAsync(snapshot)` 建立会话，`IRenderFrameSession.RenderAsync(RenderRequest.At(snapshot, timeUs))` 请求某一时刻的画面。原 Runtime 可组合固定效果包、C# 控制器、原分析数据、材质、图片图和背景媒体；调用者仍须提供有效资源、字体和运行环境。
@@ -105,8 +143,9 @@ flowchart TD
 | `FrameEffectHost.Load` | 固定实例／工程上下文 → 初始化后的控制器集合 | 建立实例并调用 `Initialize`，重放重建也会再经过这里 |
 | `FrameSession.PrepareAsync` | 微秒时刻、输出模式、目标 → 中立 prepared frame | 管理重放、事件边界、状态推进与请求时刻求值 |
 | `FrameEffectHost.Evaluate` | 时间、历史、几何与绑定 → 组合后的中立输出 | 调用控制器 `Evaluate`，收集并组合 `FrameWriter` 的输出 |
-| `SkiaRenderPipeline.GetSceneFrame` | 快照与时间 → 场景采样及几何 | 将歌词、样式和场景层级转成脚本与绘制共同使用的几何 |
-| `SkiaRenderPipeline.Render` | `RenderRequest` 及可选 prepared frame → `RenderFrame` | CPU 光栅绘制，组织背景、场景、图效果和叠加层 |
+| `SkiaSceneGeometry.GetSceneFrame` | 快照与时间 → 场景采样及几何 | 将歌词、样式和场景层级转成脚本与绘制共同使用的几何（0.112.69 起；`SkiaRenderPipeline` 上的同名方法只是转交） |
+| `SkiaRenderPipeline.Render`／`RenderGpu` | `RenderRequest` 及可选 prepared frame → `RenderFrame` 或 GPU 帧租约 | 组织背景、场景、图效果和叠加层；CPU 读回或输出共享 GPU 帧 |
+| `SkiaRenderPipeline.BuildObjectPlan`／`ExecuteObjectPlan` | 对象及其图、材质绑定 → `ObjectRenderPlan` → 像素或闭合层 | 图像效果场景里单个对象先建计划再执行（0.112.70 起，见 §0） |
 | `RenderFrame.Dispose` | 持有的帧 | 结束像素所有权；池化缓冲区归还后不能继续借用其内存 |
 
 ## 5. 像素出口与当前独立后端边界
@@ -154,7 +193,10 @@ HTTP 预览的 Worker 返回裸 BGRA，而不是在 Worker 内生成 PNG。Host 
 - 主组合根：[ProjectRenderSessionFactory](../../src/MakoKaraGenerator.Runtime.Hosting/ProjectRenderSessionFactory.cs)、[ProjectRenderSession](../../src/MakoKaraGenerator.Runtime.Hosting/ProjectRenderSession.cs)。
 - 效果闭包：[CompiledProjectEffects](../../src/MakoKaraGenerator.Scripting/Compilation/CompiledProjectEffects.cs)。
 - 状态与逐帧求值：[FrameSession](../../src/MakoKaraGenerator.Scripting/Execution/FrameSession.cs)、[FrameEffectHost](../../src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.cs)。
-- CPU 绘制：[SkiaRenderPipeline](../../src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.cs)。
+- 几何：[SkiaSceneGeometry](../../src/MakoKaraGenerator.Rendering.Skia/SkiaSceneGeometry.cs)。
+- 绘制：[SkiaRenderPipeline](../../src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.cs)；对象计划见
+  [ObjectPlan](../../src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.ObjectPlan.cs) 与
+  [ObjectPlan.Execute](../../src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.ObjectPlan.Execute.cs)。
 - 当前独立预览入口：[WorkerRenderFrameSessionFactory](../../src/MakoKaraGenerator.Backend.Hosting/WorkerRenderFrameSessionFactory.cs)、[StaticRenderSession](../../src/MakoKaraGenerator.Backend.Worker/StaticRenderSession.cs)。
 
 详细章节以同一源码基线逐项解释调用者、输入、输出、所有权和错误边界。旧实施记录和现有测试仅作为已有合同的查阅入口，不算本轮重新运行的验收证据。

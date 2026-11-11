@@ -4,7 +4,7 @@
   "info": {
     "title": "MakoKaraGenerator local backend HTTP API",
     "version": "1.49.2",
-    "description": "冻结合同1.49.2；HTTP协议1，产品0.112.68。只含当前公共HTTP，不含未来功能及私有Worker。与api-contract.md和其固定行为源共同执行。info.version是合同版本，不是产品/HTTP版本。普通响应可忽略未知字段；请求遵守声明字段及业务门禁。"
+    "description": "冻结合同1.49.2；HTTP协议1，产品0.112.72。只含当前公共HTTP，不含未来功能及私有Worker。与api-contract.md和其固定行为源共同执行。info.version是合同版本，不是产品/HTTP版本。普通响应可忽略未知字段；请求遵守声明字段及业务门禁。"
   },
   "servers": [
     {
@@ -18,9 +18,9 @@
       }
     }
   ],
-  "x-product-version": "0.112.68",
+  "x-product-version": "0.112.72",
   "x-http-protocol-version": "1",
-  "x-source-baseline": "795ba4befcf1b619c31ea3b9149bae3ca1a2ca92",
+  "x-source-baseline": "54ccae6695e26af65734f8f4d52eb775f05a1833",
   "x-behavior-contract": "api-contract.md",
   "x-options": {
     "status": 204,

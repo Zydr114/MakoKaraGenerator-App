@@ -184,6 +184,8 @@ P2、P3 不与其他改 `ImageScene*.cs`、`GroupComposition*.cs` 的工作并�
   `对象计划的三个优化各自只改写自己的字段`。没有改动任何既有测试的断言。
 - **M07 矩阵**：只有编译、准备会话两类耗时门槛超出（第 3 刀 4 项），同一时段在 0.112.68 的工作树上结果相同（5 项），属机器状态，渲染阶段的门槛全部通过。
 - **行为差异（第 1 刀起）**：部件判空提前到建计划时；仅当计划期错误与下层快照预算失败同时成立时，先报前者。
+- **合同**：公共 HTTP 不变，合同仍为 1.49.2；指纹更新到产品 0.112.72、基线 `54ccae6`，前端副本已同步（`974e558`、`0c5f98f`）。
+  冻结工具 `freeze.py` 按文件名登记渲染源码，A 改名后默认检查报缺文件，收尾时才发现并把清单改到新文件名。
 - **性能**：桌面流同时段 A/B，旧 0.112.68（`795ba4b`）对 0.112.72，纯色背景，720p24 各 60 s，两轮；第 1 刀（0.112.70）此前按同样方式比过，结论相同。
   四组新旧都是 24.0 fps、完成比 1.000、无超过 250 ms 的卡顿，1440p 30 fps，暂停／跳转／改输入延迟与 Worker 内存、显存峰值持平。
 
@@ -196,7 +198,7 @@ P2、P3 不与其他改 `ImageScene*.cs`、`GroupComposition*.cs` 的工作并�
 
   MaterialBackdrop 的 p95 新侧高约 3 ms，逐帧按 5 s 分段看是每轮各一段零星尖峰、位置不固定；单独加跑三轮，旧 14.3／17.2／17.6，新 16.3／16.6／17.5，
   p50 都是 10.4～10.7。五轮合计旧 14.3～17.6、新 16.3～19.6，第 1 刀那次旧侧还出现过 18.0 与 23.8，判为噪声，不算回退。
-  这次的收益在表面占用而不是耗时：组合导出对象不再按整块导出框分配工作表面。
+  第 3 刀的工作框收紧由 G8 用例按计划内容与像素确认；这四组的耗时与 Worker 内存、显存峰值都没有可测的变化。
   旧侧第一轮 C2 的 1440p 阶段一次未取到足够的当前代次帧（0.112.68 上，第二轮正常），与本次改动无关，按偶发记录。
 
 ## 6. P3 样式完善
@@ -335,6 +337,8 @@ P2、P3 不与其他改 `ImageScene*.cs`、`GroupComposition*.cs` 的工作并�
   `docs/plans/script-sdk-v2-m11-author-notes.md`；不改两个兄弟源仓库（棋盘格图只读取）。
 - 程序改动：`backend/Directory.Build.props` 递增 PATCH，在 `backend/docs/architecture/backend-api.md` 第 1789 行的版本说明段落追加一句；
   `flock -o /tmp/mkg-gpu-render-dotnet.lock dotnet build MakoKaraGenerator.slnx` 零警告；新缺陷回归须在旧代码上失败（变异验证）。
+  改名、拆分或新增 `backend/src` 下的渲染、宿主源文件后，跑一次合同工具的默认检查（`backend/tools/backend-api-contract/README.md`），
+  它按文件名登记行为源，缺文件会直接报错；后端全量测试不覆盖这一项。
 - 测试：GPU 用例需 `MAKO_GPU_SMOKE=1`；Server 的 `RubyTimelineTransportTests` 三项需要已发布的 Server／Worker
   （`MAKO_RUBY_HTTP_SERVER_PATH`／`MAKO_RUBY_HTTP_WORKER_PATH` 指向 `.local/backend-dist/<目录>/server|worker` 下的可执行文件）；Rendering 全量偶发 Roslyn 内部异常或遥测计数失败，单独重跑通过即非回归；
   Vulkan 模糊随表面尺寸与原点变化，换框类改动按实测设容差。前端改动先过 `pnpm typecheck`、`pnpm test:unit`；不手改 `docs/backend/contract/`。

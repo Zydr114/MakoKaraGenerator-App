@@ -2,11 +2,16 @@ namespace MakoKaraGenerator.Backend.Worker;
 
 internal sealed class GpuClockCalibration
 {
+    /// <summary>一次流内最多发起的校准次数；对端一时繁忙使往返过长时重试，用尽后才回报未校准。</summary>
+    internal const int MaximumAttempts = 8;
     private long? _sent;
+    private int _attempts;
     internal bool Calibrated { get; private set; }
+    /// <summary>上一次校准不确定度过大且还有剩余次数时为真；调用方应重新发起一次 ping。</summary>
+    internal bool ShouldRetry => !Calibrated && _sent is null && _attempts < MaximumAttempts;
     internal long WorkerMinusSenderNs { get; private set; }
     internal long UncertaintyNs { get; private set; }
-    internal void Begin(long workerNs) => _sent = workerNs;
+    internal void Begin(long workerNs) { _sent = workerNs; _attempts++; }
     internal void Complete(GpuClockPong packet, long receivedNs)
     {
         long sent = GpuStreamProtocol.CanonicalClock(packet.EchoWorkerMonotonicNs);

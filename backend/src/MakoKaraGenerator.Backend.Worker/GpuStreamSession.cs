@@ -121,8 +121,7 @@ internal sealed class GpuStreamSession : IAsyncDisposable
             _ = GpuStreamProtocol.CanonicalClock(hello.SenderMonotonicNs);
             _consumerEpoch = hello.ConsumerEpoch;
             SendBytes(GpuStreamProtocol.HelloAccepted(_open, _pool, hello, GpuStreamProtocol.MonotonicNs(), Provider));
-            long ping = GpuStreamProtocol.MonotonicNs(); _clock.Begin(ping);
-            Send(new { type = "clock-ping", workerMonotonicNs = GpuStreamProtocol.Decimal(ping) });
+            SendClockPing();
             while (true)
             {
                 _lifetime.Token.ThrowIfCancellationRequested();
@@ -291,12 +290,20 @@ internal sealed class GpuStreamSession : IAsyncDisposable
         _failureCode = code; _runtimeFailed = true;
         Interlocked.Exchange(ref _stop, 1);
     }
+    private void SendClockPing()
+    {
+        long ping = GpuStreamProtocol.MonotonicNs(); _clock.Begin(ping);
+        Send(new { type = "clock-ping", workerMonotonicNs = GpuStreamProtocol.Decimal(ping) });
+    }
     private void Process(byte[] packet, bool executingRender, bool pendingRenderTarget)
     {
         switch (GpuStreamProtocol.Type(packet))
         {
             case "clock-pong":
                 _clock.Complete(GpuStreamWorkerContract.Decode<GpuClockPong>(packet), GpuStreamProtocol.MonotonicNs());
+                // 对端一时繁忙（如换源时主进程忙于接入新流）会让单次往返超出不确定度上限。此时重新校准，
+                // 不回报未校准：桌面端在收到 clock-calibrated 之前不会下发播放控制，用尽次数后才按原样回报。
+                if (_clock.ShouldRetry) { SendClockPing(); break; }
                 Send(new { type = "clock-calibrated", workerMinusSenderNs = GpuStreamProtocol.Decimal(_clock.WorkerMinusSenderNs),
                     uncertaintyNs = GpuStreamProtocol.Decimal(_clock.UncertaintyNs), calibrated = _clock.Calibrated });
                 break;

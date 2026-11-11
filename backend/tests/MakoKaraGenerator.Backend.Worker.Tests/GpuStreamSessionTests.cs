@@ -164,6 +164,34 @@ public sealed class GpuStreamSessionTests
     }
 
     [Fact]
+    public async Task SlowClockPongIsRetriedInsteadOfReportingUncalibrated()
+    {
+        using var channel = new Channel { AutoReleaseFrames = true, SlowPongs = 2 };
+        await using var stream = new GpuStreamSession(Open, Pool, channel, (time, seq, _) => ValueTask.FromResult(Frame(new Lease(seq), time)), false);
+        var calibrated = await channel.Wait("clock-calibrated", 1);
+        Assert.True(calibrated.GetProperty("calibrated").GetBoolean());
+        Assert.Equal(3, channel.Packets.Count(packet => packet.GetProperty("type").GetString() == "clock-ping"));
+        channel.Control(1, mode: "playing");
+        Assert.Equal(1, (await channel.Wait("frame", 1)).GetProperty("controlSeq").GetInt64());
+        Assert.Equal(1, channel.Packets.Count(packet => packet.GetProperty("type").GetString() == "clock-calibrated"));
+        Assert.True(await stream.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(3)));
+    }
+
+    [Fact]
+    public async Task ClockStillUncalibratedAfterAllAttemptsIsReportedOnce()
+    {
+        using var channel = new Channel { SlowPongs = int.MaxValue };
+        await using var stream = new GpuStreamSession(Open, Pool, channel, (time, seq, _) => ValueTask.FromResult(Frame(new Lease(seq), time)), false);
+        var calibrated = await channel.Wait("clock-calibrated", 1);
+        Assert.False(calibrated.GetProperty("calibrated").GetBoolean());
+        Assert.Equal(GpuClockCalibration.MaximumAttempts, channel.Packets.Count(packet => packet.GetProperty("type").GetString() == "clock-ping"));
+        await Task.Delay(150);
+        Assert.Equal(GpuClockCalibration.MaximumAttempts, channel.Packets.Count(packet => packet.GetProperty("type").GetString() == "clock-ping"));
+        Assert.Equal(1, channel.Packets.Count(packet => packet.GetProperty("type").GetString() == "clock-calibrated"));
+        Assert.True(await stream.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(3)));
+    }
+
+    [Fact]
     public async Task PauseDiscardsInflightPlayingFrameOnSameTimeline()
     {
         using var channel = new Channel { AutoReleaseFrames = true };
@@ -333,6 +361,8 @@ public sealed class GpuStreamSessionTests
         internal readonly ConcurrentQueue<byte[]> Incoming = new();
         internal readonly ConcurrentQueue<JsonElement> Packets = new();
         internal bool BlockFrames, AutoReleaseFrames;
+        /// <summary>前若干次 clock-ping 的回应延后 60 ms 送达，模拟对端一时繁忙（不确定度超过 25 ms）。</summary>
+        internal int SlowPongs;
         public Channel() => Incoming.Enqueue(GpuStreamWorkerContract.Encode(new
         {
             type = "hello", protocolVersion = 1, consumerId = "fixture", consumerEpoch = "1", Open.StreamId,
@@ -352,9 +382,11 @@ public sealed class GpuStreamSessionTests
             if (outgoing.GetProperty("type").GetString() == "clock-ping")
             {
                 string sender = GpuStreamProtocol.Decimal(GpuStreamProtocol.MonotonicNs());
-                Incoming.Enqueue(GpuStreamWorkerContract.Encode(new { type = "clock-pong",
+                byte[] pong = GpuStreamWorkerContract.Encode(new { type = "clock-pong",
                     echoWorkerMonotonicNs = outgoing.GetProperty("workerMonotonicNs").GetString(),
-                    senderReceiveMonotonicNs = sender, senderMonotonicNs = sender }));
+                    senderReceiveMonotonicNs = sender, senderMonotonicNs = sender });
+                if (Interlocked.Decrement(ref SlowPongs) >= 0) _ = Task.Delay(60).ContinueWith(_ => Incoming.Enqueue(pong), TaskScheduler.Default);
+                else Incoming.Enqueue(pong);
             }
             if (descriptor is not null && AutoReleaseFrames) Release(outgoing);
             return true;

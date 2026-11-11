@@ -37,4 +37,24 @@ public sealed class GpuClockCalibrationTests
         Assert.False(clock.Calibrated);
         Assert.Throws<WorkerProtocolException>(() => clock.MediaTime(new(1,"playing",0,1,30,"initial",0,"1"), 100_000_002));
     }
+    [Fact]
+    public void ExcessiveUncertaintyAsksForRetryUntilAttemptsRunOut()
+    {
+        var clock = new GpuClockCalibration();
+        for (int attempt = 1; attempt <= GpuClockCalibration.MaximumAttempts; attempt++)
+        {
+            clock.Begin(1);
+            Assert.False(clock.ShouldRetry);
+            clock.Complete(new("clock-pong", "1", "1", "1"), 100_000_001);
+            Assert.False(clock.Calibrated);
+            Assert.Equal(attempt < GpuClockCalibration.MaximumAttempts, clock.ShouldRetry);
+        }
+        var recovered = new GpuClockCalibration(); recovered.Begin(1);
+        recovered.Complete(new("clock-pong", "1", "1", "1"), 100_000_001);
+        Assert.True(recovered.ShouldRetry);
+        recovered.Begin(200_000_000);
+        recovered.Complete(new("clock-pong", "200000000", "5", "5"), 200_000_100);
+        Assert.True(recovered.Calibrated);
+        Assert.False(recovered.ShouldRetry);
+    }
 }

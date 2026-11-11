@@ -18,7 +18,7 @@ public sealed partial class SkiaRenderPipeline
         return RasterSceneSurface(request, bounds, state.Budget, ShaderSurfaceKind.Color, state.Resources, "SceneBackdropBelow",
             (canvas, _, _) => DrawGraphSurface(canvas, wrapped, SKBlendMode.Src));
     }
-    /// <summary>F4：相邻的无历史层在同一张表面上依次绘制；关闭时逐层复制，供回归对照。</summary>
+    /// <summary>F4：相邻的无历史层在同一张表面上依次绘制；关闭时逐层复制，供回归对照。建计划时写入对象计划的组装方式。</summary>
     internal bool SinglePassLayerAssembly { get; set; } = true;
 
     /// <remarks>无历史层按源序 SrcOver 叠加：同一张表面上依次绘制与逐层复制再叠加逐字节相同（复制是 Src 原样拷贝）。
@@ -26,7 +26,7 @@ public sealed partial class SkiaRenderPipeline
     private SkiaGraphSurface AssembleImageLayers(RenderRequest request, ImageObjectState state, IEnumerable<ColorLayer> layers, SkiaGraphSurface? below)
     {
         var ordered = layers.OrderBy(layer => layer.Order).ToArray();
-        if (!SinglePassLayerAssembly) return AssembleImageLayersPerLayer(request, state, ordered, below);
+        if (state.Assembly == ObjectLayerAssembly.PerLayer) return AssembleImageLayersPerLayer(request, state, ordered, below);
         SkiaGraphSurface? current = null;
         try
         {

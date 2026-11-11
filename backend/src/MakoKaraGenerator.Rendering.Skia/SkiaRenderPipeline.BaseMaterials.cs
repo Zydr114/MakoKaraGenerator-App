@@ -6,7 +6,7 @@ namespace MakoKaraGenerator.Rendering.Skia;
 public sealed partial class SkiaRenderPipeline
 {
     // Keep composition membership on the existing Family object. Capture identity alone becomes Base.
-    private sealed record ObjectMaterialBinding(PreparedMaterialOwner Owner, ImageEffectTarget Target,
+    internal sealed record ObjectMaterialBinding(PreparedMaterialOwner Owner, ImageEffectTarget Target,
         SceneCaptureTarget CaptureTarget, PreparedMaterialSlot Slot, MaterialValue.PackageMaterial Material)
     {
         internal TextTarget? TextTarget => CaptureTarget is SceneCaptureTarget.Base basic ? new TextTarget.Base(basic.Target) : null;

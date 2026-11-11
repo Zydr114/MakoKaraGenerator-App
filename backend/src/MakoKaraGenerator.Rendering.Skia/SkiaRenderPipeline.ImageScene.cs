@@ -12,7 +12,7 @@ public sealed partial class SkiaRenderPipeline
         SceneColorPart.RubyGlow, SceneColorPart.RubyStroke, SceneColorPart.RubyShadow, SceneColorPart.RubyFill];
     private const int MaxRetainedAlphaReadbackBytes = 16 * 1024 * 1024;
     private sealed record PartSource(ImageEffectTarget Member, SceneColorPart Part);
-    private sealed record SceneEffectOwner(PreparedMaterialOwner Origin, string Stage = "RenderImageEffects", Scripting.V2.TextTarget? TextTarget = null)
+    internal sealed record SceneEffectOwner(PreparedMaterialOwner Origin, string Stage = "RenderImageEffects", Scripting.V2.TextTarget? TextTarget = null)
     {
         public SceneEffectOwner(PreparedImageEffectBinding binding)
             : this(new PreparedMaterialOwner.Script(binding.InstanceId, binding.ArtifactHash) { PackageIdentity = binding.PackageIdentity }) { }
@@ -44,6 +44,8 @@ public sealed partial class SkiaRenderPipeline
         internal GraphRect? TargetRegion { get; init; }
         /// <summary>各图绑定本次执行的目标框（第 12 条）；缺项时沿用程序框。</summary>
         internal IReadOnlyDictionary<PreparedImageEffectBinding, GraphRect>? GraphTargets { get; init; }
+        /// <summary>无历史层的组装方式，取自对象计划（F4）。</summary>
+        internal ObjectLayerAssembly Assembly { get; init; }
         internal Dictionary<string, SkiaGraphSurface> ResolvedBelow { get; } = new(StringComparer.Ordinal);
         internal SceneEffectOwner? CompositionOwner { get; init; }
         private int _accountedLayers;

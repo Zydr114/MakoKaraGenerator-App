@@ -73,7 +73,7 @@ public sealed partial class SkiaRenderPipeline
         using var state = new ImageObjectState(bounds, _surfaceBudget.Limits, resources)
         {
             ScopeBudget = export?.ScopeBudget, Backdrop = run.Backdrop, OutsidePrefix = outsidePrefix, TargetRegion = plan.TargetRegion,
-            GraphTargets = plan.GraphTargets,
+            GraphTargets = plan.GraphTargets, Assembly = plan.Assembly,
         };
         // Prefix scheduling exports C/E and resolves Below lazily per owner.
         // Legacy scheduling retains its real destination snapshot.

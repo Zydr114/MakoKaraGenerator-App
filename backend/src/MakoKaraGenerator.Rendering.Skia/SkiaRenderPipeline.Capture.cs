@@ -47,7 +47,7 @@ public sealed partial class SkiaRenderPipeline
     }
     // 记录同一捕获的全部 with 副本（含网格源面）是否真正发起过绘制；保守：任何可能着色的绘制都记为已绘制。
     private sealed class CaptureDrawProbe { public bool Drew { get; set; } }
-    private sealed record SceneDrawItem(string NodeId, SceneLineSample? Line, SceneTextMarkSample? Mark);
+    internal sealed record SceneDrawItem(string NodeId, SceneLineSample? Line, SceneTextMarkSample? Mark);
     private static IEnumerable<SceneDrawItem> DrawItems(SceneFrame frame)
     {
         Dictionary<string, int> last = new(StringComparer.Ordinal);

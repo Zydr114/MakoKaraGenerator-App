@@ -1,12 +1,12 @@
 # 冻结 API 合同生成与校验
 
-本轮工具源码目标为 **合同1.49.2／产品0.112.68／协议1**（2026-11-11）：不透明预览缺背景媒体时旁路／兜底并给出 `BackgroundMediaUnavailable` 诊断，只改行为不改形状。行为见[§20.3](../../docs/architecture/backend-api.md)。fresh metadata生成与validate沿用1.49.0的115 paths／128 methods／618 schemas、3612例（2683反例）。下述旧版本材料保留历史归属；合同生成不替代匹配发布与fresh HTTP验收。
+本轮工具源码目标为 **合同1.49.2／产品0.112.72／协议1**（2026-11-12）：不透明预览缺背景媒体时旁路／兜底并给出 `BackgroundMediaUnavailable` 诊断，只改行为不改形状。行为见[§20.3](../../docs/architecture/backend-api.md)。fresh metadata生成与validate沿用1.49.0的115 paths／128 methods／618 schemas、3612例（2683反例）。下述旧版本材料保留历史归属；合同生成不替代匹配发布与fresh HTTP验收。
 
 从 `backend/` 执行。本工具构建Contracts引用的离线CLI，不启动服务。`author_metadata_schema.py` 审阅真实CLR字段、nullable与构造默认值，复用现有 `AuthorPackageQuery` 和参数/导出/input/file/diagnostic DTO；检查响应独立且无reference，公共包引用kind继续仅为asset/library/configuration。采用配置采用inline完整八字段严格schema，避免改变package-files的既有配置语义；两个可空字段仍显式必填，UInt64种子采用十进制字符串并保留前导零。`author_metadata_fixtures.py` 覆盖精确整数、Int64 `files.size`、未来未知响应字段、完整采用、旧请求兼容和具名拒绝；运行期CAS/owner、重复JSON键、完整UTF-8预算、编译来源、原子存储和真实sampleOptions须由服务/HTTP核对。
 
 `freeze.py` 将新行为接缝显式纳入指纹，新增路径/响应和附加fixture；`validate.py` 保留历史SDK2、作者、GPU/辉光及全量样例门禁，并单独扣除本轮尾部增量后核对旧3434/2548基线。本轮 `BASELINE` 为已提交生产源码 `60393bd`（完整哈希见 `freeze.py`），已从该源码重建／导出metadata并生成检查；产品版本从 `Directory.Build.props` 读取。静态门禁不替代匹配发布、fresh HTTP或性能验收；进度见App根 `docs/plans/script-sdk-v2-phase-one-progress.md`。
 
-1.49.2 是行为补丁（M12 收口）：0.112.41～0.112.67 的渲染与宿主优化不改公共HTTP，唯一对外可见的变化是缺背景媒体的预览诊断（预览诊断映射与Worker包诊断映射，均在既有指纹清单内）。`freeze.py` 只改版本、基线与scope（首次冻结于产品0.112.67、基线 `6e68996`；同日0.112.68只改GPU流Worker时钟校准重试，合同版本不变，基线更新为 `795ba4b` 并重生成指纹）；`validate.py` 把1.49.2并入现行门禁，历史1.49.1对应0.112.40。
+1.49.2 是行为补丁（M12 收口）：0.112.41～0.112.67 的渲染与宿主优化不改公共HTTP，唯一对外可见的变化是缺背景媒体的预览诊断（预览诊断映射与Worker包诊断映射，均在既有指纹清单内）。`freeze.py` 只改版本、基线与scope（首次冻结于产品0.112.67、基线 `6e68996`；同日0.112.68只改GPU流Worker时钟校准重试，合同版本不变，基线更新为 `795ba4b` 并重生成指纹；2026-11-12 的0.112.69～0.112.72是渲染层结构整理，几何侧源码由 `SkiaRenderPipeline.*` 移到 `SkiaSceneGeometry.*`、对象绘制移到 `SkiaRenderPipeline.ObjectPlan*.cs`，指纹清单按新文件名更新，合同版本不变，基线更新为 `54ccae6`）；`validate.py` 把1.49.2并入现行门禁，历史1.49.1对应0.112.40。
 
 1.49.1 是行为补丁：变化的接缝（宿主分析服务与输入固定、试样与候选捕获、作者与工程正式验证）都已在既有指纹清单内，`freeze.py` 只改版本、基线与scope；`validate.py` 把1.49.1并入现行门禁，历史1.49.0对应0.112.39。
 

@@ -30,9 +30,9 @@ from template_library_schema import extend_template_library_schemas, query_param
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTRACT = "1.49.2"
-BASELINE = "795ba4befcf1b619c31ea3b9149bae3ca1a2ca92"
+BASELINE = "54ccae6695e26af65734f8f4d52eb775f05a1833"
 PRODUCT = re.search(r"<VersionPrefix>([^<]+)</VersionPrefix>", (ROOT / "Directory.Build.props").read_text()).group(1)
-FREEZE_DATE = "2026-11-11"
+FREEZE_DATE = "2026-11-12"
 BEHAVIOR = "docs/architecture/backend-api.md"
 TOOL = Path(__file__).resolve().parent
 
@@ -1194,10 +1194,12 @@ def manifest(outputs):
             "src/MakoKaraGenerator.Rendering.Abstractions/LayoutReferenceScene.cs",
             "src/MakoKaraGenerator.Rendering.Abstractions/MeasuredRenderFrame.cs",
             "src/MakoKaraGenerator.Rendering.Abstractions/SceneAttachmentReferences.cs",
-            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.Geometry.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaSceneGeometry.Geometry.cs",
             "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.TextMarks.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaSceneGeometry.TextMarks.cs",
             "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.Measurements.cs",
             "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaSceneGeometry.cs",
             "src/MakoKaraGenerator.Runtime.Hosting/ProjectRenderSession.cs",
             "src/MakoKaraGenerator.Runtime.Hosting/ProjectRenderSessionFactory.cs"):
         source = ROOT / filename
@@ -1263,7 +1265,9 @@ def manifest(outputs):
             "src/MakoKaraGenerator.Application/Editing/LyricTokenEditUseCase.cs",
             "src/MakoKaraGenerator.Rendering.Abstractions/ProjectSnapshot.cs",
             "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.Ruby.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaSceneGeometry.Ruby.cs",
             "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaSceneGeometry.cs",
             "src/MakoKaraGenerator.Scripting/Projection/TimelineProjection.cs"):
         source = ROOT / filename
         if not source.is_file():
@@ -1276,11 +1280,13 @@ def manifest(outputs):
             "src/MakoKaraGenerator.Text/ShapedLine.cs",
             "src/MakoKaraGenerator.Rendering.Skia/SkiaTextLayoutEngine.cs",
             "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.Ruby.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaSceneGeometry.Ruby.cs",
             "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.cs",
-            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.Geometry.cs",
-            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.SceneLayout.cs",
-            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.SceneFrame.cs",
-            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.TokenGeometry.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaSceneGeometry.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaSceneGeometry.Geometry.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaSceneGeometry.SceneLayout.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaSceneGeometry.SceneFrame.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaSceneGeometry.TokenGeometry.cs",
             "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.FamilyTransforms.cs",
             "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.TextPainting.cs"):
         source = ROOT / filename
@@ -1337,6 +1343,8 @@ def manifest(outputs):
             "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.AssembleColorParts.cs",
             "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.GroupIsolation.cs",
             "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.ImageScene.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.ObjectPlan.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.ObjectPlan.Execute.cs",
             "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.ImageScene.Surfaces.cs",
             "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.SceneSurfaces.cs",
             "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.Sprites.cs",
@@ -1387,6 +1395,8 @@ def manifest(outputs):
             "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.Capture.cs",
             "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.ColorParts.cs",
             "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.ImageScene.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.ObjectPlan.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.ObjectPlan.Execute.cs",
             "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.ImageScene.Binding.cs",
             "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.MaterialCapture.cs",
             "src/MakoKaraGenerator.Rendering.Skia/Effects/SceneImageGraphProgram.cs",
@@ -1461,9 +1471,11 @@ def manifest(outputs):
             "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.FamilyTransforms.cs",
             "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.GroupIsolation.cs",
             "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.Ruby.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaSceneGeometry.Ruby.cs",
             "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.TextPartitions.cs",
-            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.TokenGeometry.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaSceneGeometry.TokenGeometry.cs",
             "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaSceneGeometry.cs",
             "src/MakoKaraGenerator.Runtime.Hosting/ProjectRenderSessionFactory.cs",
             "src/MakoKaraGenerator.Scripting.Abstractions/FrameWriter.cs",
             "src/MakoKaraGenerator.Scripting.Abstractions/GeometrySamples.cs",
@@ -1644,6 +1656,8 @@ def manifest(outputs):
             "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.ImageScene.Materials.cs",
             "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.ImageScene.Surfaces.cs",
             "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.ImageScene.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.ObjectPlan.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.ObjectPlan.Execute.cs",
             "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.MaterialCapture.cs",
             "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.SceneBackdrop.cs",
             "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.SceneCompositionPrefix.cs",

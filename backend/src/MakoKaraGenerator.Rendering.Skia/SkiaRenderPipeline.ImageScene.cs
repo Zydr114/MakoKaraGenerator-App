@@ -76,213 +76,23 @@ public sealed partial class SkiaRenderPipeline
     private ImmutableArray<RenderImageEffectDiagnostic> DrawImageEffectScene(SKSurface main, RenderRequest request, ImageSurfaceBudgetFrame resources, SceneBackdropFrame? backdropFrame, out ImmutableArray<RuntimeDiagnostic> sceneDiagnostics, out ImmutableArray<RenderMaterialDiagnostic> materialDiagnostics)
     {
         var prepared = request.PreparedFrame!;
-        var diagnostics = ImmutableArray.CreateBuilder<RenderImageEffectDiagnostic>();
-        var materialWarnings = ImmutableArray.CreateBuilder<RenderMaterialDiagnostic>();
         var allMaterials = prepared.Materials.Select(ObjectMaterialBinding.From).Concat(prepared.BaseMaterials.Select(ObjectMaterialBinding.From)).ToArray();
-        HashSet<ObjectMaterialBinding> materialConsumed = [];
-        HashSet<PreparedImageEffectBinding> consumed = [];
-        var sceneSurface = main;
+        var run = new ImageSceneRun(request, resources, backdropFrame, main, allMaterials);
         var sceneWarnings = ImmutableArray.CreateBuilder<RuntimeDiagnostic>();
+        // 两个调度器只决定对象的先后、隔离与下层来源；每个对象怎么画由 DrawSceneObject 建计划并执行（见 ObjectPlan）。
         if (backdropFrame is not null)
-            DrawGroupCompositionScene(main, request, resources, backdropFrame, (surface, item, export, prefix) => DrawObject(surface, item, export, prefix),
-                consumed, diagnostics, sceneWarnings);
-        else DrawIsolatedScene(main, request, resources, (surface, item) => DrawObject(surface, item), sceneWarnings);
+            DrawGroupCompositionScene(main, request, resources, backdropFrame, (surface, item, export, prefix) => DrawSceneObject(run, surface, item, export, prefix),
+                run.Consumed, run.Diagnostics, sceneWarnings);
+        else DrawIsolatedScene(main, request, resources, (surface, item) => DrawSceneObject(run, surface, item), sceneWarnings);
         sceneDiagnostics = sceneWarnings.ToImmutable();
-        materialDiagnostics = materialWarnings.Distinct().ToImmutableArray();
-        if (allMaterials.FirstOrDefault(binding => !materialConsumed.Contains(binding)) is { } missingMaterial)
+        materialDiagnostics = run.MaterialWarnings.Distinct().ToImmutableArray();
+        if (allMaterials.FirstOrDefault(binding => !run.MaterialConsumed.Contains(binding)) is { } missingMaterial)
             throw missingMaterial.Owner.Failure("RenderMaterials", request.TimeUs,
                 "MaterialSceneTargetUnavailable", MaterialTargetError(new PreparedFrameException("MaterialSceneTargetUnavailable", "材质目标未参与实际绘制。"), missingMaterial.TextTarget, "MaterialSceneTargetUnavailable"));
-        if (prepared.ImageEffects.FirstOrDefault(binding => !consumed.Contains(binding)) is { } unavailable)
+        if (prepared.ImageEffects.FirstOrDefault(binding => !run.Consumed.Contains(binding)) is { } unavailable)
             throw new EffectFailureException(unavailable.InstanceId, unavailable.ArtifactHash, "RenderImageEffects", request.TimeUs,
                 "ImageEffectSceneTargetUnavailable", new PreparedFrameException("ImageEffectSceneTargetUnavailable", "图目标未参与本帧绘制，不能悄悄丢弃绑定。"), unavailable.PackageIdentity);
-        return diagnostics.ToImmutable();
-
-        void DrawObject(SKSurface main, SceneDrawItem item, ImageObjectState? export = null, SceneCompositionPrefix? outsidePrefix = null)
-        {
-            request.CancellationToken.ThrowIfCancellationRequested();
-            var bindings = prepared.ImageEffects.Where(binding => Belongs(binding.Binding.Target, item)).ToArray();
-            var materials = allMaterials.Where(binding => Belongs(binding.Target, item)).ToArray();
-            if (bindings.Length == 0 && materials.Length == 0 && export is null) { DrawOriginal(); return; }
-            consumed.UnionWith(bindings); materialConsumed.UnionWith(materials);
-            SceneEffectOwner owner = bindings.Length > 0 ? new(bindings[0]) : materials.Length > 0
-                ? new(materials[0].Owner, "RenderMaterials", materials[0].TextTarget) : export!.CompositionOwner!;
-            try
-            {
-                var programs = bindings.Select(binding => { owner = new(binding); return _imageEffects!.GetProgram(binding.Binding.Graph); }).ToArray();
-                var materialPrograms = materials.Select(binding => { owner = new(binding.Owner, "RenderMaterials", binding.TextTarget); return _imageEffects!.GetMaterial(binding.Material.Handle); }).ToArray();
-                var target = item.Line is { } line
-                    ? (ImageEffectTarget)new ImageEffectTarget.Line(new(new(line.Frame.Line!.Id), new(line.BindingId!)))
-                    : new ImageEffectTarget.Mark(new(new(item.Mark!.NodeId), new(item.Mark.CueId), new(item.Mark.Geometry.BindingId!)));
-                var tokenTargets = bindings.Select(binding => binding.Binding.Target).Concat(materials.Select(binding => binding.Target)).OfType<ImageEffectTarget.Token>()
-                    .Distinct().OrderBy(token => Array.FindIndex(item.Line!.Frame.Line!.Tokens.ToArray(), source => source.Id == token.Target.TokenId.Value)).ToArray();
-                HashSet<string> excluded = tokenTargets.Select(token => token.Target.TokenId.Value).ToHashSet(StringComparer.Ordinal);
-                // 实际执行顺序：各元素族的图在前（按行内顺序），整行或标记的图在后；每个目标内保留工程实例顺序。
-                var sequence = tokenTargets.SelectMany(token => bindings.Where(binding => binding.Binding.Target == token))
-                    .Concat(bindings.Where(binding => binding.Binding.Target == target)).ToArray();
-                // O7：材质按本帧对象实际区域执行；第 12 条：图按绑定目标的实际区域执行。两者都只由本帧几何决定，两条调度路径一致；
-                // 独立对象的工作框随之收紧，组合导出沿用调度器给定的框。
-                var region = materials.Length > 0 ? ObjectTargetRegion(request, item, resources) : null;
-                var graphTargets = GraphTargetBounds(request, item, target, sequence.Select(binding => (binding, programs[Array.IndexOf(bindings, binding)])), resources);
-                bool tightened = region is not null || bindings.Select((binding, index) => graphTargets[binding] != programs[index].Bounds).Any(changed => changed);
-                var bounds = export?.Bounds ?? bindings.Select((binding, index) => graphTargets[binding].Expand(programs[index].Graph.Plan.Definition.MaximumExpandPx))
-                    .Concat(materialPrograms.Select(program => MaterialWorkBounds(region, program))).Aggregate(Union);
-                bool hasGlow = HasOriginalGlow(request, item);
-                if (hasGlow) bounds = IncludeOriginalGlowBounds(request, item, bounds, resources);
-                if (export is null && tightened) bounds = AlignToOutputPixels(request, bounds);
-                using var state = new ImageObjectState(bounds, _surfaceBudget.Limits, resources)
-                {
-                    ScopeBudget = export?.ScopeBudget, Backdrop = backdropFrame, OutsidePrefix = outsidePrefix, TargetRegion = region,
-                    GraphTargets = graphTargets,
-                };
-                // Prefix scheduling exports C/E and resolves Below lazily per owner.
-                // Legacy scheduling retains its real destination snapshot.
-                using var capturedBelow = backdropFrame is null ? SnapshotSceneBelow(main, request, bounds, state) : null;
-                var below = capturedBelow;
-                var knownEmpty = SkipKnownEmptyParts ? ObjectKnownEmptyParts(request, item) : default;
-                bool opacityKnown = false;
-                AddParts(target, excluded, 0);
-                for (int i = 0; i < tokenTargets.Length; i++) AddParts(tokenTargets[i], null, i + 1);
-                state.Backgrounds.Dispose();
-
-                // 子元素先完成，再把真实产物交给整行图；每个目标内保留工程实例顺序。
-                foreach (var binding in sequence) Apply(binding);
-                if (!state.Changed && export is null) { DrawOriginal(); return; }
-                if (export is not null) { state.SetLayerBudget(state.Layers.Count); ExportClosedImageObject(request, state, export); return; }
-
-                using var processed = AssembleImageLayers(request, state, state.Layers, below!);
-                using var final = ApplyImageObjectOpacity(request, state, processed, below!);
-                DrawGraphSurface(main.Canvas, final, SKBlendMode.Src);
-
-                void AddParts(ImageEffectTarget member, HashSet<string>? exclusions, int memberOrder)
-                {
-                    for (int partOrder = 0; partOrder < ColorPartOrder.Length; partOrder++)
-                    {
-                        var part = ColorPartOrder[partOrder];
-                        if (!hasGlow && part is SceneColorPart.BaseGlow or SceneColorPart.RubyGlow) continue;
-                        if (member is ImageEffectTarget.Mark && IsRuby(part)) continue;
-                        // An explicit Base appearance shadows the parent's slot even when it is Solid/Gradient/null.
-                        var captureTarget = member is ImageEffectTarget.Token token && !IsRuby(part)
-                            && prepared.BaseAppearances.ContainsKey(new(token.Target.TokenId, token.Target.BindingId))
-                            ? (SceneCaptureTarget)new SceneCaptureTarget.Base(new(token.Target.TokenId, token.Target.BindingId)) : CaptureTarget(member);
-                        var slotBindings = materials.Where(binding => binding.CaptureTarget == captureTarget && (part is SceneColorPart.BaseStroke or SceneColorPart.RubyStroke
-                            ? binding.Slot == PreparedMaterialSlot.Stroke : part is SceneColorPart.BaseFill or SceneColorPart.RubyFill
-                                && binding.Slot != PreparedMaterialSlot.Stroke)).ToArray();
-                        int order = partOrder * (tokenTargets.Length + 1) + memberOrder;
-                        // F3：本帧必然为空的部件先判空再分配，不捕获、不执行材质，只占共享空层；层数与层序不变。
-                        if (knownEmpty.Contains(part, slotBindings.Length > 0))
-                        {
-                            if (slotBindings.Length > 0 && part is SceneColorPart.BaseFill or SceneColorPart.RubyFill) { AddEmpty(false); AddEmpty(true); }
-                            else AddEmpty(null);
-                            continue;
-                        }
-                        if (slotBindings.Length > 0)
-                        {
-                            if (part is SceneColorPart.BaseFill or SceneColorPart.RubyFill)
-                            {
-                                AddSide(false); AddSide(true);
-                            }
-                            else AddMaterial(slotBindings[0], null);
-                            continue;
-                        }
-                        AddOriginal(null);
-                        void AddSide(bool sung)
-                        {
-                            var binding = slotBindings.SingleOrDefault(binding => binding.Slot == (sung ? PreparedMaterialSlot.SungFill : PreparedMaterialSlot.UnsungFill));
-                            if (binding is null) AddOriginal(sung); else AddMaterial(binding, sung);
-                        }
-                        void AddMaterial(ObjectMaterialBinding binding, bool? sung)
-                        {
-                            owner = new(binding.Owner, "RenderMaterials", binding.TextTarget);
-                            var program = _imageEffects!.GetMaterial(binding.Material.Handle);
-                            // Admit the actual additional source layer before any material input is captured.
-                            state.SetLayerBudget(checked(state.Layers.Count + 1));
-                            state.ScopeBudget?.Result();
-                            var result = state.Own(ExecuteObjectMaterial(request, binding, program, part, sung, state, below));
-                            materialWarnings.AddRange(result.Diagnostics.Select(diagnostic => new RenderMaterialDiagnostic(binding.Owner,
-                                binding.Material.Handle, diagnostic.InputId, diagnostic.Reason)));
-                            SetOpacity(MaterialCommonOpacity(request, member));
-                            state.Layers.Add(new(order, [new(member, part)], result.Output, [result], program.Graph, owner));
-                            state.Changed = true;
-                        }
-                        bool AddOriginal(bool? sung)
-                        {
-                            // Empty parts are still real source layers; admission must precede capture.
-                            state.SetLayerBudget(checked(state.Layers.Count + 1));
-                            // 检查关闭时不为共享空表面同步读回：未发起任何部件绘制即可证明仍是初始透明；
-                            // 其余按非空保留独立表面，像素不变，只可能比开启时多占表面账。
-                            var probe = _graphPixelChecks ? null : new CaptureDrawProbe();
-                            var captured = CaptureColorPart(request, CaptureTarget(member), part, bounds, state.Budget, resources, exclusions, sung, probe);
-                            state.Own(captured);
-                            SetOpacity(captured.QuantizedOpacity);
-                            var surface = captured.Surface;
-                            bool empty = IsRuby(part) && item.Line?.Frame.Line?.RubyAnnotations.IsEmpty == true;
-                            if (!empty && probe is null)
-                            {
-                                empty = IsEmptyOriginalSurface(surface, state, request.CancellationToken);
-                            }
-                            else
-                            {
-                                empty |= probe?.Drew == false;
-                                request.CancellationToken.ThrowIfCancellationRequested();
-                            }
-                            if (empty)
-                            {
-                                if (state.Empty is null) state.Empty = surface;
-                                else { captured.Dispose(); surface = state.Empty; }
-                            }
-                            state.Layers.Add(new(order, [new(member, part)], surface, [], null, null));
-                            return empty;
-                        }
-                        void AddEmpty(bool? sung)
-                        {
-                            // 检查模式按原样部件捕获（表面与读回同原来）并核对判空条件没有漏掉样式来源；注音材质同样不执行。
-                            if (_graphPixelChecks)
-                            {
-                                if (!AddOriginal(sung))
-                                    throw new PreparedFrameException("SceneColorPartKnownEmptyMismatch", "预判为空的对象部件实际有像素。");
-                                return;
-                            }
-                            state.SetLayerBudget(checked(state.Layers.Count + 1));
-                            state.Empty ??= state.Own(RasterSceneSurface(request, bounds, state.Budget, ShaderSurfaceKind.Color, resources,
-                                "CaptureSceneColorPart", static (_, _, _) => { }));
-                            state.Layers.Add(new(order, [new(member, part)], state.Empty, [], null, null));
-                        }
-                    }
-                    // 每个成员的填充部件从不预判为空，共同透明度总能取到；跳过的空层不参与核对。
-                    void SetOpacity(double value)
-                    {
-                        if (!opacityKnown) { state.Opacity = value; opacityKnown = true; }
-                        else if (state.Opacity != value) throw new PreparedFrameException("SceneColorPartFrameMismatch", "对象部件共同透明度不一致。");
-                    }
-                }
-                void Apply(PreparedImageEffectBinding binding)
-                {
-                    owner = new(binding);
-                    var program = _imageEffects!.GetProgram(binding.Binding.Graph);
-                    state.ScopeBudget?.Result();
-                    ApplyImageObjectBinding(request, binding, program, state, below, diagnostics);
-                }
-            }
-            catch (OperationCanceledException) { throw; }
-            catch (EffectFailureException) { throw; }
-            catch (SourceMaterialFailureException) { throw; }
-            catch (Exception error)
-            {
-                string code = error switch { PreparedFrameException e => e.Code, ImageGraphException e => e.Code,
-                    ImageSurfaceBudgetException e => e.Code, EffectPackageException e => e.Code, ShaderProgramException e => e.Code,
-                    EffectOutputException e => e.Code,
-                    _ => "SceneImageCompositionFailed" };
-                throw SceneOwnerFailure(owner, owner.Stage, request.TimeUs, code, error);
-            }
-            void DrawOriginal()
-            {
-                var output = request.ResolveTarget();
-                CapturePaint? paint = ReferenceEquals(main, sceneSurface) ? null : new(GraphInputSource.TargetColor,
-                    new(true, true, true, false, SceneCaptureRegion.FillAndStroke), null, resources, checked((long)output.PixelWidth * output.PixelHeight * 4));
-                if (item.Line is { } line) DrawSceneLine(main.Canvas, request, request.Project.Composition, line, paint, resources);
-                else DrawTextMark(main.Canvas, request, request.Project.Composition, item.Mark!, paint, resources);
-            }
-        }
+        return run.Diagnostics.ToImmutable();
     }
     private static bool HasOriginalGlow(RenderRequest request, SceneDrawItem item)
     {

@@ -1456,6 +1456,8 @@ ruby文本完整聚合整形和原segment cluster归属保持，独立segment时
 
 每项恰有与origin对应的payload，compileSource/imageEffect/material不能带occurrence。source顶层code/message保持原值，severity由isError映射error/warning。图/材质顶层severity为warning；message分别固定“图效果使用了已声明的降级行为。”/“材质使用了已声明的降级行为。”，payload保真实code/owner，不用格式化message替代结构身份。
 
+**缺背景媒体（0.112.61／合同1.49.2）。** 不透明输出的工程没有可用背景媒体（未设置、文件丢失、解码失败或视频该时刻无帧）时，预览不再整帧失败：声明必需 `BackgroundMedia` 输入的图效果旁路为原样、材质退回包内基础外观，各给一条 `code:"BackgroundMediaUnavailable"` 的warning，payload的 `inputId` 为该输入；message改为写明原因的“背景媒体不可用（未设置、文件丢失或该时刻无帧），图效果已旁路为原样。”与“背景媒体不可用（未设置、文件丢失或该时刻无帧），材质已退回包内兜底外观。”，其余code的message不变。可选的 `BackgroundMedia` 输入以工程底色代替，照常执行、没有诊断。该code只对声明了媒体依赖的必需输入有效，Worker包诊断映射拒绝其他来源。透明输出仍按 `TransparentBackgroundDependency` 处理。静态渲染会话与导出任务沿用原规则，出现任何图／材质诊断即失败（`WorkerDiagnosticsUnsupported`／`WorkerExportDiagnosticsUnsupported`），缺背景媒体的工程在这两条路径上仍不出片。DTO、schema与例子不变。
+
 material.owner是互斥union：`{kind:"script",script:{instanceId,artifactHash,packageIdentity?}}`或`{kind:"source",source:{path,region,slot,sourceMaterial,parametersJson}}`。资源身份均为packageId/revision/exportId；source.slot为0..2整数。source Path/InstanceId/ExportId和script PackageIdentity可空时按原响应省略null语义。来源路径只用包内或源样式逻辑位置，不加入服务端私有路径。
 
 compile failure、runtime Error失败路径保留全部实际报告及同期图/材质旁报。私有回执的基础shape、包帧合同和proxy操作关联均严格校验：open编译失败仅有非空source、无runtime/image/material；render的runtime Error允许HasError=true、source为空的完整image/material旁报，不能混入像素/geometry或伪装编译失败。此处复用已有私有封包字段，不新增公共Worker wire；compileSource没有epoch/sequence/time，不得制造runtime occurrence。任何source IsError或runtime Error禁止新像素，failed状态无latestFrame。图/材质合法旁路warning不等于Error；非法owner/handle拒帧。新PNG只有完整诊断shape/身份/Error/预算均验证通过才可放入可读取frame store；失败不能泄露本次新帧。此前成功frame lease按原TTL保留，不能因failed仍可读取旧frame而误判失败。

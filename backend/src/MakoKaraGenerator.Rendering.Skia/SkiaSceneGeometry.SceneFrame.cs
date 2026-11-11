@@ -2,7 +2,7 @@ using MakoKaraGenerator.Core.Projects;
 
 namespace MakoKaraGenerator.Rendering.Skia;
 
-public sealed partial class SkiaRenderPipeline
+public sealed partial class SkiaSceneGeometry
 {
     private SceneFrame MeasureFrameElements(ProjectSnapshot snapshot, SceneFrame frame)
     {

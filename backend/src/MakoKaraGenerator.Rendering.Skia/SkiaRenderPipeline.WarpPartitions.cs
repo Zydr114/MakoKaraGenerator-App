@@ -4,6 +4,7 @@ using MakoKaraGenerator.Scripting;
 using MakoKaraGenerator.Scripting.V2;
 using MakoKaraGenerator.Text;
 using SkiaSharp;
+using static MakoKaraGenerator.Rendering.Skia.SkiaSceneGeometry;
 
 namespace MakoKaraGenerator.Rendering.Skia;
 

@@ -1,13 +1,12 @@
 using System.Buffers;
-using System.Collections.Concurrent;
 using System.Collections.Immutable;
-using System.Runtime.CompilerServices;
 using MakoKaraGenerator.Core.Lyrics;
 using MakoKaraGenerator.Core.Media;
 using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Rendering;
 using MakoKaraGenerator.Text;
 using SkiaSharp;
+using static MakoKaraGenerator.Rendering.Skia.SkiaSceneGeometry;
 
 namespace MakoKaraGenerator.Rendering.Skia;
 
@@ -30,15 +29,19 @@ namespace MakoKaraGenerator.Rendering.Skia;
 /// 样式现在属于工程数据，"用哪一份样式"因此只有唯一来源（ADR-0024）。
 /// </para>
 /// <para>
-/// 本类型不保存任何与帧有关的可变状态，因此可以从界面线程（预览）与后台线程（导出）
-/// 各持一个实例安全调用。布局引擎本身不跨线程共享（native 字体对象，
+/// 除单次渲染期间的本帧背景作用域外，本类型不保存与帧有关的可变状态，因此可以从界面线程（预览）与
+/// 后台线程（导出）各持一个实例安全调用。布局引擎本身不跨线程共享（native 字体对象，
 /// docs/decisions.md ADR-0007 的教训）。
+/// </para>
+/// <para>
+/// 整形、布局与测量在 <see cref="SkiaSceneGeometry" /> 里；本类型只负责绘制，持有一个与渲染设备共用同步对象的
+/// 几何实例，并把 <see cref="ILineGeometryProvider" /> 的调用转交给它。只需要几何的调用方应直接使用
+/// <see cref="SkiaSceneGeometry" />，不必为此创建绘制管线。
 /// </para>
 /// </remarks>
 public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryProvider, IDisposable
 {
-    private readonly SkiaTextLayoutEngine _layoutEngine;
-    private readonly bool _ownsLayoutEngine;
+    private readonly SkiaSceneGeometry _geometry;
     private readonly IBackgroundFrameSourceResolver _backgroundResolver;
     private readonly ImageSurfaceBudgetSession _surfaceBudget;
     private readonly bool _ownsSurfaceBudget;
@@ -49,8 +52,6 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
     private readonly SceneSpriteProgram? _spriteProgram;
     private readonly Lazy<SceneOpacityProgram> _isolationResources = new(static () => new());
     private readonly SceneCompositionProgram _compositionProgram;
-    private readonly LayoutCache _layouts;
-    private readonly bool _ownsLayouts;
     // 关闭时（正式预览／导出）图、材质与空原始部件判定都不为检查同步提交或读回中间产物。
     private readonly bool _graphPixelChecks;
     // 只在设备锁内的单次 RenderToOutput 期间存在：主画布与各材质／图背景输入共用同一背景帧。
@@ -81,26 +82,24 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
 
     internal SkiaRenderPipeline(SkiaTextLayoutEngine? layoutEngine, IBackgroundFrameSourceResolver? backgroundResolver,
         ImageSurfaceBudgetSession? surfaceBudget, SceneImageEffectResources? imageEffects, bool ownsLayoutEngine,
-        ISkiaRenderDevice? device, bool ownsDevice, LayoutCache? layouts = null, SceneSvgEffectResources? svgEffects = null,
+        ISkiaRenderDevice? device, bool ownsDevice, SkiaSceneGeometry.LayoutCache? layouts = null, SceneSvgEffectResources? svgEffects = null,
         bool graphPixelChecks = true)
     {
         // Create the shared device before allocating any other native resource. A failed
         // explicit Vulkan initialization therefore cannot leak the layout engine or budget.
         _device = device ?? SkiaRenderDeviceFactory.Create();
         _deviceLifetime = device is null || ownsDevice ? new(_device) : null;
-        _ownsLayoutEngine = layoutEngine is null || ownsLayoutEngine;
         _ownsSurfaceBudget = surfaceBudget is null;
         _imageEffects = imageEffects;
         _svgEffects = svgEffects;
-        _layouts = layouts ?? new();
-        _ownsLayouts = layouts is null;
         _graphPixelChecks = graphPixelChecks;
-        SkiaTextLayoutEngine? initializedLayout = null;
+        SkiaSceneGeometry? initializedGeometry = null;
         ImageSurfaceBudgetSession? initializedBudget = null;
         IBackgroundFrameSourceResolver? initializedResolver = null;
         try
         {
-            _layoutEngine = initializedLayout = layoutEngine ?? new SkiaTextLayoutEngine();
+            // 几何与绘制共用排版引擎，因此也共用渲染设备的同步对象。
+            _geometry = initializedGeometry = new(layoutEngine, ownsLayoutEngine, layouts, _device.SynchronizationRoot);
             _backgroundResolver = initializedResolver = backgroundResolver ?? new BackgroundFrameSourceResolver();
             _surfaceBudget = initializedBudget = surfaceBudget ?? new();
             if (imageEffects is { HasSpriteImages: true }) _spriteProgram = new();
@@ -109,7 +108,7 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
         catch
         {
             _spriteProgram?.Dispose();
-            if (_ownsLayoutEngine) initializedLayout?.Dispose();
+            initializedGeometry?.Dispose();
             if (_ownsSurfaceBudget) initializedBudget?.Dispose();
             if (backgroundResolver is null) initializedResolver?.Dispose();
             _deviceLifetime?.Dispose();
@@ -373,6 +372,26 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
         new(rect.X, rect.Y, rect.X + rect.Width, rect.Y + rect.Height);
 
     /// <inheritdoc/>
+    public LineRenderGeometry? GetLineGeometry(ProjectSnapshot snapshot, string lineId) => _geometry.GetLineGeometry(snapshot, lineId);
+
+    /// <inheritdoc/>
+    public SceneFrame GetSceneFrame(ProjectSnapshot snapshot, long timeUs, string? editingLineId = null)
+        => _geometry.GetSceneFrame(snapshot, timeUs, editingLineId);
+
+    /// <inheritdoc/>
+    public LineRenderGeometry? GetNodeGeometry(ProjectSnapshot snapshot, string nodeId, string? editingLineId = null)
+        => _geometry.GetNodeGeometry(snapshot, nodeId, editingLineId);
+
+    /// <inheritdoc/>
+    public LineRenderGeometry? GetLocalTransformGeometry(ProjectSnapshot snapshot, string lineId)
+        => _geometry.GetLocalTransformGeometry(snapshot, lineId);
+
+    /// <summary>同一几何后端的测量采样接缝；效果会话可使用布局代表或固定编辑行。</summary>
+    public SceneFrame GetMeasurementSceneFrame(ProjectSnapshot snapshot, long timeUs, bool layoutReference,
+        string? editingLineId = null, string? editingCueId = null)
+        => _geometry.GetMeasurementSceneFrame(snapshot, timeUs, layoutReference, editingLineId, editingCueId);
+
+    /// <inheritdoc/>
     public void Dispose()
     {
         lock (_device.SynchronizationRoot) DisposeCore();
@@ -386,17 +405,13 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
             return;
         }
 
-        if (_ownsLayouts) _layouts.Clear();
         _compositionProgram.Dispose();
         if (_isolationResources.IsValueCreated) _isolationResources.Value.Dispose();
         _spriteProgram?.Dispose();
         if (_ownsSurfaceBudget) _surfaceBudget.Dispose();
         _backgroundResolver.Dispose();
 
-        if (_ownsLayoutEngine)
-        {
-            _layoutEngine.Dispose();
-        }
+        _geometry.Dispose();
 
         _deviceLifetime?.Dispose();
 
@@ -425,7 +440,7 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
     /// </remarks>
     private void DrawLyrics(SKCanvas canvas, RenderRequest request, Composition composition, SceneFrame? measuredScene = null, ImageSurfaceBudgetFrame? resources = null)
     {
-        var frame = measuredScene ?? request.PreparedFrame?.HierarchyScene ?? GetSceneFrame(request.Project, request.TimeUs, request.LayoutLineId);
+        var frame = measuredScene ?? request.PreparedFrame?.HierarchyScene ?? _geometry.GetSceneFrame(request.Project, request.TimeUs, request.LayoutLineId);
         foreach (var item in DrawItems(frame))
         {
             if (item.Line is { } line) DrawSceneLine(canvas, request, composition, line, resources: resources);
@@ -445,7 +460,7 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
 
         lineStyle = StaticStyleProjection.DrawingSeed(lineStyle);
         TextLayoutOptions options = LayoutOptionsFor(lineStyle);
-        var layout = GetLineLayout(line, lineStyle);
+        var layout = _geometry.GetLineLayout(line, lineStyle);
         ShapedLine shaped = layout.Shaped;
 
         if (shaped.Elements.Count == 0)
@@ -618,35 +633,6 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
             ? line.Tokens[token.Index].StyleOverride
             : null;
 
-    /// <summary>按元素覆盖解析出的样式。</summary>
-    private static LyricStyle ResolveElementStyle(LyricStyle lineStyle, LyricStyleOverride overlay) =>
-        StaticStyleProjection.DrawingSeed(LyricStyleResolver.Resolve(lineStyle, preset: null, lineOverride: null, tokenOverride: overlay).Style);
-
-    /// <summary>元素区域要连同装饰一起占用的外扩量（描边外半宽、阴影偏移与模糊）。</summary>
-    /// <param name="lineStyle">整行样式。</param>
-    /// <param name="overlay">元素覆盖。</param>
-    /// <returns>像素数。</returns>
-    /// <remarks>
-    /// 描边与阴影会画到字框之外：只按字框排除时，整行那一遍仍会把元素的描边外沿画出来，
-    /// 元素即使明确关闭了描边也擦不掉它（实测表现为字框边界上一列基线颜色）。
-    /// 这里取"整行样式"与"元素样式"两者外扩量的较大者，因为整行那一遍画的是整行样式，
-    /// 而元素那一遍要能覆盖同一片区域。
-    /// </remarks>
-    private static float ElementPadding(LyricStyle lineStyle, LyricStyleOverride overlay) =>
-        MathF.Max(DecorationExtent(lineStyle), DecorationExtent(ResolveElementStyle(lineStyle, overlay)));
-
-    /// <summary>一个样式会画到字框之外的像素数。</summary>
-    private static float DecorationExtent(LyricStyle style)
-    {
-        StrokeSpec? strokeSpec = LyricStyleEffects.GetStroke(style);
-        ShadowSpec? shadowSpec = EffectiveShadow(style);
-        float stroke = strokeSpec is { IsEnabled: true } ? MathF.Max(strokeSpec.WidthPx, 0f) : 0f;
-        float shadow = shadowSpec is { IsEnabled: true }
-            ? MathF.Max(MathF.Abs(shadowSpec.OffsetXPx), MathF.Abs(shadowSpec.OffsetYPx)) + MathF.Max(shadowSpec.BlurRadiusPx, 0f) : 0f;
-        float legacy = MathF.Min(stroke + shadow + 2f, 64f);
-        return style.Glow is { IsEnabled: true } glow ? Math.Max(legacy, (float)(ValidateGlow(glow) + 2)) : legacy;
-    }
-
     /// <summary>元素的像素对齐字框；"排除基线"与"重画元素"两遍共用同一个矩形。</summary>
     /// <param name="originX">整行左端横坐标。</param>
     /// <param name="shaped">整行布局。</param>
@@ -729,21 +715,6 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
         using var pixels = new SKRegion();
         pixels.SetPath(devicePath, clipBounds);
         canvas.ClipRegion(pixels, operation);
-    }
-
-    /// <summary>
-    /// 取得（并缓存）一行文本的布局结果。
-    /// </summary>
-    /// <remarks>
-    /// 布局只与"文本 + 字体 + 字号"有关，与时刻无关——这正是"高亮时整行不跳动"的根据：
-    /// 同一行在不同时刻复用同一份元素位置。
-    /// </remarks>
-    private ShapedLine GetLayout(string text, TextLayoutOptions options)
-    {
-        LayoutKey key = new(text, options.FamilyName, options.FontSizePx, options.FontWeight,
-            options.IsBold, options.IsItalic, options.LetterSpacingPx, options.FallbackFamilyNames);
-
-        return _layouts.GetOrAdd(key, _layoutEngine, text, options);
     }
 
     private static SKColor ToSkColor(RgbaColor color) => new(color.Red, color.Green, color.Blue, color.Alpha);
@@ -866,67 +837,4 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
             SKShaderTileMode.Clamp);
     }
 
-    /// <summary>布局缓存的键：文本 + 字体 + 字号（与时刻无关）。</summary>
-    internal readonly record struct LayoutKey(string Text, string? FamilyName, float FontSizePx,
-        int FontWeight, bool IsBold, bool IsItalic, float LetterSpacingPx, ImmutableArray<string> FallbackFamilyNames);
-
-    // The owner shares this only among renderers created for the same fixed font set.
-    internal sealed class LayoutCache
-    {
-        private readonly ConcurrentDictionary<LayoutKey, ShapedLine> _entries = new();
-        private readonly ConditionalWeakTable<SkiaTextLayoutEngine, ConcurrentDictionary<LayoutKey, ShapedLine>> _engineEntries = new();
-        private readonly object _gate = new();
-        private readonly object _rubyGate = new();
-        private readonly Dictionary<(LyricLine, LyricStyle), LineLayout> _ruby = [];
-        private readonly ConditionalWeakTable<SkiaTextLayoutEngine, Dictionary<(LyricLine, LyricStyle), LineLayout>> _engineRuby = new();
-        internal int Count => _entries.Count;
-        internal int RubyBuildCount { get; private set; }
-        internal void Clear()
-        {
-            _entries.Clear(); _engineEntries.Clear();
-            lock (_rubyGate) { _ruby.Clear(); _engineRuby.Clear(); }
-        }
-
-        internal LineLayout GetRuby(LyricLine line, LyricStyle style, SkiaTextLayoutEngine engine, Func<LineLayout> build)
-        {
-            lock (_rubyGate)
-            {
-                var key = (line, style);
-                if (_ruby.TryGetValue(key, out var result)) return result;
-                var local = _engineRuby.GetOrCreateValue(engine);
-                if (local.TryGetValue(key, out result)) return result;
-                result = build(); RubyBuildCount++;
-                // 动态回退字体的字形身份属于原引擎；只有全部布局可共享时才跨管线复用解算。
-                bool share = engine.CanShareLayout(result.Shaped, LayoutOptionsFor(style))
-                    && result.Ruby.All(ruby => engine.CanShareLayout(ruby.Shaped, ruby.Options));
-                var entries = share ? _ruby : local;
-                if (entries.Count >= 256) entries.Clear();
-                entries.Add(key, result);
-                return result;
-            }
-        }
-
-        internal ShapedLine GetOrAdd(LayoutKey key, SkiaTextLayoutEngine engine, string text, TextLayoutOptions options)
-        {
-            if (_entries.TryGetValue(key, out var existing)) return existing;
-            var local = _engineEntries.GetOrCreateValue(engine);
-            if (local.TryGetValue(key, out existing)) return existing;
-            var shaped = engine.Shape(text, options);
-            if (!engine.CanShareLayout(shaped, options))
-            {
-                lock (local)
-                {
-                    if (local.TryGetValue(key, out existing)) return existing;
-                    if (local.Count >= 2048) return shaped;
-                    return local.GetOrAdd(key, shaped);
-                }
-            }
-            lock (_gate)
-            {
-                if (_entries.TryGetValue(key, out existing)) return existing;
-                if (_entries.Count >= 2048) return shaped;
-                return _entries.GetOrAdd(key, shaped);
-            }
-        }
-    }
 }

@@ -13,8 +13,8 @@ public sealed class TextFallbackCacheTests
     public void 共享布局缓存不跨引擎复用动态回退字体且几何像素一致()
     {
         const string text = "A夜星";
-        var cache = new SkiaRenderPipeline.LayoutCache();
-        var key = new SkiaRenderPipeline.LayoutKey(text, Options.FamilyName, Options.FontSizePx, Options.FontWeight,
+        var cache = new SkiaSceneGeometry.LayoutCache();
+        var key = new SkiaSceneGeometry.LayoutKey(text, Options.FamilyName, Options.FontSizePx, Options.FontWeight,
             Options.IsBold, Options.IsItalic, Options.LetterSpacingPx, Options.FallbackFamilyNames);
         using var first = new SkiaTextLayoutEngine();
         using var second = new SkiaTextLayoutEngine();
@@ -37,9 +37,9 @@ public sealed class TextFallbackCacheTests
         Assert.True(dynamicLine.UsedFallbackFont);
         string family = dynamicLine.Elements.First(element => element.IsFallback).FamilyName;
         var options = Options with { FallbackFamilyNames = [family] };
-        var key = new SkiaRenderPipeline.LayoutKey(text, options.FamilyName, options.FontSizePx, options.FontWeight,
+        var key = new SkiaSceneGeometry.LayoutKey(text, options.FamilyName, options.FontSizePx, options.FontWeight,
             options.IsBold, options.IsItalic, options.LetterSpacingPx, options.FallbackFamilyNames);
-        var cache = new SkiaRenderPipeline.LayoutCache();
+        var cache = new SkiaSceneGeometry.LayoutCache();
         using var first = new SkiaTextLayoutEngine();
         using var second = new SkiaTextLayoutEngine();
         using var reference = new SkiaTextLayoutEngine();

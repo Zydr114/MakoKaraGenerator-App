@@ -4,6 +4,7 @@ using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Text;
 using SkiaSharp;
 using Fx = MakoKaraGenerator.Scripting;
+using static MakoKaraGenerator.Rendering.Skia.SkiaSceneGeometry;
 
 namespace MakoKaraGenerator.Rendering.Skia;
 
@@ -53,7 +54,7 @@ public sealed partial class SkiaRenderPipeline
         {
             var style = prepared.GetTokenDrawingStyle(output.Target);
             var line = prepared.Scene.Lines.Single(item => item.BindingId == output.Target.BindingId.Value).Frame.Line!;
-            var layout = GetLineLayout(line, style);
+            var layout = _geometry.GetLineLayout(line, style);
             var shaped = layout.Shaped;
             ValidateGradients(style, shaped.Width);
             foreach (var ruby in layout.Ruby) ValidateGradients(style, ruby.Shaped.Width);
@@ -63,13 +64,13 @@ public sealed partial class SkiaRenderPipeline
             var style = prepared.GetMarkDrawingStyle(output.Target);
             var mark = prepared.Scene.TextMarks.Single(item => item.NodeId == output.Target.NodeId.Value && item.CueId == output.Target.CueId.Value
                 && item.Geometry.BindingId == output.Target.BindingId.Value);
-            ValidateGradients(style, GetLayout(mark.Text, LayoutOptionsFor(style)).Width);
+            ValidateGradients(style, _geometry.GetLayout(mark.Text, LayoutOptionsFor(style)).Width);
         }
         foreach (var output in prepared.BaseStyles)
         {
             var style = prepared.GetBaseDrawingStyle(output.Target);
             var line = prepared.Scene.Lines.Single(item => item.BindingId == output.Target.BindingId.Value).Frame.Line!;
-            ValidateGradients(style, GetLineLayout(line, style).Shaped.Width);
+            ValidateGradients(style, _geometry.GetLineLayout(line, style).Shaped.Width);
         }
         void ValidateGradients(LyricStyle style, float lineWidth)
         {

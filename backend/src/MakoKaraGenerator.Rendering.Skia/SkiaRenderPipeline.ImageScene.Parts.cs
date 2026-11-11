@@ -1,4 +1,5 @@
 using MakoKaraGenerator.Core.Projects;
+using static MakoKaraGenerator.Rendering.Skia.SkiaSceneGeometry;
 
 namespace MakoKaraGenerator.Rendering.Skia;
 

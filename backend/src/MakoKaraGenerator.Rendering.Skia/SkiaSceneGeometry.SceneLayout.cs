@@ -4,7 +4,7 @@ using MakoKaraGenerator.Core.Projects;
 
 namespace MakoKaraGenerator.Rendering.Skia;
 
-public sealed partial class SkiaRenderPipeline
+public sealed partial class SkiaSceneGeometry
 {
     private SceneLineSample[] ArrangeStaticRows(ProjectSnapshot snapshot,
         IReadOnlyList<SceneLineSample> scene, Composition composition)
@@ -69,7 +69,7 @@ public sealed partial class SkiaRenderPipeline
     }
     private static readonly ConditionalWeakTable<LyricLine, LineBaseStyleMemo> LineBaseStyles = new();
 
-    private static LyricStyle LineBaseStyle(LyricStyle style, LyricLine line, LyricBranch branch)
+    internal static LyricStyle LineBaseStyle(LyricStyle style, LyricLine line, LyricBranch branch)
     {
         if (LineBaseStyles.TryGetValue(line, out var memo) && ReferenceEquals(memo.Style, style)
             && ReferenceEquals(memo.BranchOverride, branch.StyleOverride)) return memo.Result;

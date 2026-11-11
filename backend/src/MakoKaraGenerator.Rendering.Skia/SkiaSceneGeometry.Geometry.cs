@@ -5,7 +5,7 @@ using MakoKaraGenerator.Text;
 
 namespace MakoKaraGenerator.Rendering.Skia;
 
-public sealed partial class SkiaRenderPipeline
+public sealed partial class SkiaSceneGeometry
 {
     /// <inheritdoc/>
     public LineRenderGeometry? GetLineGeometry(ProjectSnapshot snapshot, string lineId)
@@ -19,9 +19,15 @@ public sealed partial class SkiaRenderPipeline
         return MeasureSceneFrame(snapshot, timeUs, editingLineId, false);
     }
 
-    private SceneFrame MeasureSceneFrame(ProjectSnapshot snapshot, long timeUs, string? editingLineId, bool layoutReference, string? editingCueId = null)
+    /// <summary>同一几何后端的测量采样接缝；效果会话可使用布局代表或固定编辑行。</summary>
+    public SceneFrame GetMeasurementSceneFrame(ProjectSnapshot snapshot, long timeUs, bool layoutReference,
+        string? editingLineId = null, string? editingCueId = null)
+        => MeasureSceneFrame(layoutReference ? LayoutReferenceScene.CreateSnapshot(snapshot) : snapshot,
+            timeUs, editingLineId, layoutReference, editingCueId);
+
+    internal SceneFrame MeasureSceneFrame(ProjectSnapshot snapshot, long timeUs, string? editingLineId, bool layoutReference, string? editingCueId = null)
     {
-        lock (_device.SynchronizationRoot)
+        lock (_synchronizationRoot)
             return MeasureSceneFrameCore(snapshot, timeUs, editingLineId, layoutReference, editingCueId);
     }
 
@@ -98,7 +104,7 @@ public sealed partial class SkiaRenderPipeline
     public LineRenderGeometry? GetLocalTransformGeometry(ProjectSnapshot snapshot,string lineId)
         => SceneEditorGeometry.ForLine(snapshot,GetSceneFrame(snapshot,0,lineId),lineId);
 
-    private static TextLayoutOptions LayoutOptionsFor(LyricStyle style) => new()
+    internal static TextLayoutOptions LayoutOptionsFor(LyricStyle style) => new()
     {
         FamilyName = style.FontFamilyName, FontSizePx = style.FontSizePx,
         FallbackFamilyNames = style.Typography.FallbackFamilyNames,

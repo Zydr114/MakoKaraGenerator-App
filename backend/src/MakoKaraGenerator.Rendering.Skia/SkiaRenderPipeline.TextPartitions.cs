@@ -3,6 +3,7 @@ using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Text;
 using SkiaSharp;
 using Fx = MakoKaraGenerator.Scripting;
+using static MakoKaraGenerator.Rendering.Skia.SkiaSceneGeometry;
 
 namespace MakoKaraGenerator.Rendering.Skia;
 

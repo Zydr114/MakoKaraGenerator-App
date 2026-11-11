@@ -1,50 +1,11 @@
 using MakoKaraGenerator.Core.Projects;
 using SkiaSharp;
+using static MakoKaraGenerator.Rendering.Skia.SkiaSceneGeometry;
 
 namespace MakoKaraGenerator.Rendering.Skia;
 
 public sealed partial class SkiaRenderPipeline
 {
-    private SceneFrame MeasureTextMarks(ProjectSnapshot snapshot, SceneFrame frame,
-        out IReadOnlyDictionary<string, SceneTreeGeometry> geometry,
-        out Dictionary<string, SceneTreeGeometry> references)
-    {
-        var tree = snapshot.LyricPresentation.WithDefaultPrograms(snapshot.Lyrics);
-        references = SceneAttachmentReferences.Resolve(snapshot, frame);
-        geometry = SceneTreeGeometryResolver.Resolve(tree.Nodes, snapshot.Composition.CanvasWidth, snapshot.Composition.CanvasHeight, references);
-        List<SceneTextMarkSample> marks = [];
-        foreach (var cue in frame.LeadIns)
-        {
-            var group = tree.FindNode(cue.ContainerId)!;
-            var sequence = (CountdownSequenceContent)group.Content!;
-            var target = frame.Lines.Single(line => line.ElementId == cue.TargetElementId && line.BindingId == cue.TargetBindingId);
-            double opacity = group.Attachment?.Mode == SceneAttachmentMode.CueTargetText ? target.Transform.Opacity : 1;
-            for (int i = 0; i < sequence.MarkNodeIds.Length; i++)
-            {
-                var node = tree.FindNode(sequence.MarkNodeIds[i])!;
-                var text = (TextMarkContent)node.Content!;
-                var appearance = snapshot.PresetApplications.Items.IsEmpty ? sequence.Appearance.Resolve(text.AppearanceOverride)
-                    : SceneTextAppearance.FromStyle(PresetSceneStyleProjection.Mark(snapshot, node.Id, frame).Style);
-                var style = appearance.ToLyricStyle();
-                var shaped = GetLayout(text.Text, LayoutOptionsFor(style));
-                var nodeGeometry = geometry[node.Id];
-                // 节点位置及旋转已在其参考矩形矩阵中，文字在固定矩形中心整形。
-                var ink = shaped.InkBounds;
-                double left = ink?.Left ?? 0, right = ink?.Right ?? shaped.Width;
-                double top = ink?.Top ?? -style.FontSizePx * .85, bottom = ink?.Bottom ?? style.FontSizePx * .15;
-                double origin = nodeGeometry.Width / 2 - (left + right) / 2;
-                double baseline = nodeGeometry.Height / 2 - (top + bottom) / 2;
-                var measured = new LineRenderGeometry { LineId = string.Empty, ElementId = node.Id, ContainerId = group.Id,
-                    BindingId = cue.TargetBindingId, Placement = node.Placement, OriginX = origin, BaselineY = baseline,
-                    WorldMatrix = nodeGeometry.WorldMatrix, Pivot = nodeGeometry.Pivot,
-                    TopLeft = new(origin + left, baseline + top), BottomRight = new(origin + right, baseline + bottom) };
-                marks.Add(new() { NodeId = node.Id, ContainerId = group.Id, CueId = cue.CueId,
-                    Text = text.Text, Appearance = appearance, IsElapsed = i < cue.ElapsedMarks, Opacity = opacity, Geometry = measured });
-            }
-        }
-        return frame with { TextMarks = [.. marks] };
-    }
-
     private void DrawTextMark(SKCanvas canvas, RenderRequest request, Composition composition, SceneTextMarkSample mark, CapturePaint? capture = null, ImageSurfaceBudgetFrame? resources = null)
     {
         // 全部装饰统一应用一次节点透明度，避免阴影过滤器再次乘入填充透明度。
@@ -55,7 +16,7 @@ public sealed partial class SkiaRenderPipeline
         var style = effectiveStyle with { Opacity = 1 };
         double opacity = capture?.IsCoverage == true || capture?.SuppressCommonOpacity == true ? 1 : mark.Opacity * effectiveStyle.Opacity;
         var options = LayoutOptionsFor(style);
-        var shaped = GetLayout(mark.Text, options);
+        var shaped = _geometry.GetLayout(mark.Text, options);
         var geometry = mark.Geometry;
         var finalMark = prepared?.FinalMarkGeometry.SingleOrDefault(item => item.Target == target);
         var warpMapping = finalMark?.Geometry.Mapping is { } mapped

@@ -23,7 +23,7 @@ public sealed partial class SkiaRenderPipeline
         if (fallback is EffectMaterialFallback.Gradient gradient && !GradientSupport.IsSupported(gradient.Value))
             throw new PreparedFrameException("PackageMaterialFallbackUnsupported", GradientSupport.UnsupportedReason(gradient.Value)!);
         var recipe = new SceneCaptureRecipe(ruby, stroke, false, false, stroke ? SceneCaptureRegion.Stroke : SceneCaptureRegion.Fill, IncludeGlow: false);
-        var frame = request.PreparedFrame?.HierarchyScene ?? GetSceneFrame(request.Project, request.TimeUs, request.LayoutLineId);
+        var frame = request.PreparedFrame?.HierarchyScene ?? _geometry.GetSceneFrame(request.Project, request.TimeUs, request.LayoutLineId);
         var item = SelectCaptureItems(frame, target, recipe).Single();
         _ = CaptureMatrix(item.Line?.Geometry?.WorldMatrix ?? item.Mark!.Geometry.WorldMatrix!.Value);
         using var ownFrame = surfaceBudget is null ? _surfaceBudget.BeginFrame() : null;

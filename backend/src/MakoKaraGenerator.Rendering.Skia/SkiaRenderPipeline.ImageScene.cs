@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using MakoKaraGenerator.Core.Effects;
 using MakoKaraGenerator.Scripting;
 using SkiaSharp;
+using static MakoKaraGenerator.Rendering.Skia.SkiaSceneGeometry;
 
 namespace MakoKaraGenerator.Rendering.Skia;
 

@@ -4,12 +4,6 @@ namespace MakoKaraGenerator.Rendering.Skia;
 
 public sealed partial class SkiaRenderPipeline
 {
-    /// <summary>同一几何后端的测量采样接缝；效果会话可使用布局代表或固定编辑行。</summary>
-    public SceneFrame GetMeasurementSceneFrame(ProjectSnapshot snapshot, long timeUs, bool layoutReference,
-        string? editingLineId = null, string? editingCueId = null)
-        => MeasureSceneFrame(layoutReference ? LayoutReferenceScene.CreateSnapshot(snapshot) : snapshot,
-            timeUs, editingLineId, layoutReference, editingCueId);
-
     /// <summary>一次真实整形测量，并将同一 SceneFrame 直接交给绘制，不重采样。</summary>
     public MeasuredRenderFrame MeasureAndRender(RenderRequest request, bool layoutReference, string? editingLineId = null, string? editingCueId = null)
     {
@@ -63,7 +57,7 @@ public sealed partial class SkiaRenderPipeline
         if (request.Project.EffectInputsFingerprint is not null)
             throw new PreparedFrameException("SceneMeasurementUnsupported", "效果测量需要同一 Runtime 准备帧。");
         var snapshot = layoutReference ? LayoutReferenceScene.CreateSnapshot(request.Project) : request.Project;
-        var scene = MeasureSceneFrame(snapshot, request.TimeUs, editingLineId, layoutReference, editingCueId);
+        var scene = _geometry.MeasureSceneFrame(snapshot, request.TimeUs, editingLineId, layoutReference, editingCueId);
         var references = SceneAttachmentReferences.Resolve(snapshot, scene);
         var nodes = SceneTreeGeometryResolver.Resolve(snapshot.LyricPresentation.WithDefaultPrograms(snapshot.Lyrics).Nodes,
             snapshot.Composition.CanvasWidth, snapshot.Composition.CanvasHeight, references);

@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Text;
 using SkiaSharp;
+using static MakoKaraGenerator.Rendering.Skia.SkiaSceneGeometry;
 
 namespace MakoKaraGenerator.Rendering.Skia;
 
@@ -35,21 +36,11 @@ public sealed partial class SkiaRenderPipeline
         void DrawMask(bool expanded)
         {
             canvas.Save();
-            _layoutEngine.DrawLine(canvas, shaped, options, origin, baseline, SKColors.White, antialias,
+            _geometry.LayoutEngine.DrawLine(canvas, shaped, options, origin, baseline, SKColors.White, antialias,
                 expanded && glow.SpreadPx > 0 ? SKPaintStyle.StrokeAndFill : SKPaintStyle.Fill,
                 expanded ? glow.SpreadPx * 2 : 0, strokeJoin: SKStrokeJoin.Round,
                 blendMode: expanded ? SKBlendMode.SrcOver : SKBlendMode.DstOut, drawUnitIndices: units);
             canvas.Restore();
         }
-    }
-
-    private static double ValidateGlow(GlowSpec glow)
-    {
-        double extent = (double)glow.SpreadPx + 3d * glow.BlurRadiusPx;
-        // Skia 的滤镜和描边最终使用整数像素边界；不允许 float 转换或内部边界溢出。
-        if (!glow.IsValid || !float.IsFinite((float)extent) || extent > int.MaxValue / 4d
-            || !float.IsFinite(glow.SpreadPx * 2))
-            throw new PreparedFrameException("UnsupportedNativeStyleValues", "外发光扩张或 Gaussian 范围超出后端有限像素范围，不能夹值。");
-        return extent;
     }
 }

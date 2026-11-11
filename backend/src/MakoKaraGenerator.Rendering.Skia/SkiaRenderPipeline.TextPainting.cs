@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Text;
 using SkiaSharp;
+using static MakoKaraGenerator.Rendering.Skia.SkiaSceneGeometry;
 
 namespace MakoKaraGenerator.Rendering.Skia;
 
@@ -64,7 +65,7 @@ public sealed partial class SkiaRenderPipeline
             // 遮罩不读取填充透明度，因此透明填充也不会露出内半边描边。
             capture?.MarkDrawn(canvas);
             int strokeLayer = canvas.SaveLayer();
-            _layoutEngine.DrawLine(
+            _geometry.LayoutEngine.DrawLine(
                 canvas, shaped, options, originX, baselineY,
                 capture?.MaterialFallback is not null || strokeShader is not null ? SKColors.White : ToSkColorWithOpacity(strokeColor, style.Opacity), antialias,
                 SKPaintStyle.Stroke, strokeSpec.WidthPx * 2f,
@@ -78,7 +79,7 @@ public sealed partial class SkiaRenderPipeline
                 });
             // Raw 覆盖减除与 GlyphCoverage 同样的白色字形；锁定后端的黑／白抗锯齿边缘并不完全相同。
             // 常规 TargetColor 保留原黑色减除，确保已有预览和捕获像素一致。
-            _layoutEngine.DrawLine(canvas, shaped, options, originX, baselineY,
+            _geometry.LayoutEngine.DrawLine(canvas, shaped, options, originX, baselineY,
                 capture?.IsCoverage == true || capture?.MaterialFallback is not null ? SKColors.White : SKColors.Black, antialias,
                 blendMode: SKBlendMode.DstOut, drawUnitIndices: drawUnitIndices);
             if (capture?.MaterialFallback is not null)
@@ -97,7 +98,7 @@ public sealed partial class SkiaRenderPipeline
             using var materialLayerReservation = capture.Layer("CaptureMaterialFallbackLayer");
             capture.MarkDrawn(canvas);
             int materialLayer = canvas.SaveLayer();
-            _layoutEngine.DrawLine(canvas, shaped, options, originX, baselineY, SKColors.White, antialias,
+            _geometry.LayoutEngine.DrawLine(canvas, shaped, options, originX, baselineY, SKColors.White, antialias,
                 drawUnitIndices: drawUnitIndices);
             using var regionColor = new SKPaint { BlendMode = SKBlendMode.SrcIn, Shader = shader,
                 Color = shader is null ? ToSkColorWithOpacity(color, 1) : SKColors.White };
@@ -109,7 +110,7 @@ public sealed partial class SkiaRenderPipeline
             return;
         }
         capture?.MarkDrawn(canvas);
-        _layoutEngine.DrawLine(
+        _geometry.LayoutEngine.DrawLine(
             canvas, shaped, options, originX, baselineY,
             // shader 色标已包含样式 alpha；画笔不能再乘历史纯色 alpha 或样式 alpha。
             shader is null ? ToSkColorWithOpacity(color, style.Opacity) : SKColors.White, antialias,
@@ -127,12 +128,6 @@ public sealed partial class SkiaRenderPipeline
         if (!float.IsFinite((float)rx) || !float.IsFinite((float)ry) || rx < 1e-4 || ry < 1e-4
             || !float.IsFinite((float)(gradient.CenterX * width)) || !float.IsFinite((float)(gradient.CenterY * height)))
             throw new PreparedFrameException("UnsupportedNativeStyleValues", "渐变实际径向中心或半径超出后端范围，不能夹值绘制。");
-    }
-
-    /// <summary>取得样式实际使用的阴影描述。</summary>
-    private static ShadowSpec? EffectiveShadow(LyricStyle style)
-    {
-        return style.Shadow;
     }
 
     private static SKImageFilter? CreateTextShadow(ShadowSpec? spec, float styleOpacity, bool shadowOnly)

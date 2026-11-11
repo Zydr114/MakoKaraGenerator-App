@@ -13,8 +13,8 @@ public sealed class RubySpacingRenderingTests
     {
         var tokens = Enumerable.Range(0, 1000).Select(i => MakoKaraGenerator.Core.Lyrics.LyricToken.Create("token-" + i, "a")).ToArray();
         var line = MakoKaraGenerator.Core.Lyrics.LyricLine.Create("line", new string('a', tokens.Length), tokens: tokens);
-        using var pipeline = new SkiaRenderPipeline();
-        var method = typeof(SkiaRenderPipeline).GetMethod("MeasureRuby", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        using var pipeline = new SkiaSceneGeometry();
+        var method = typeof(SkiaSceneGeometry).GetMethod("MeasureRuby", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
         object?[] arguments = [line, MakoKaraGenerator.Core.Projects.LyricStyle.Default, null];
         method.Invoke(pipeline, arguments);
         long before = GC.GetAllocatedBytesForCurrentThread();
@@ -28,7 +28,7 @@ public sealed class RubySpacingRenderingTests
     {
         var source = RubySpacingFixture.Create();
         var changed = source with { LyricStyle = source.LyricStyle with { FontSizePx = 62 } };
-        var cache = new SkiaRenderPipeline.LayoutCache();
+        var cache = new SkiaSceneGeometry.LayoutCache();
         byte[] expected;
         using (var first = new SkiaRenderPipeline(null, null, null, null, false, null, true, cache))
         using (var frame = first.Render(RenderRequest.At(source, 250_000) with { TransparentBackground = true }))
@@ -63,7 +63,7 @@ public sealed class RubySpacingRenderingTests
     public void 共享注音解算淘汰后重算且动态回退不跨引擎复用()
     {
         var source = RubySpacingFixture.Create();
-        var cache = new SkiaRenderPipeline.LayoutCache();
+        var cache = new SkiaSceneGeometry.LayoutCache();
         using var first = new SkiaRenderPipeline(null, null, null, null, false, null, true, cache);
         using var second = new SkiaRenderPipeline(null, null, null, null, false, null, true, cache);
         using var initial = first.Render(RenderRequest.At(source, 250_000) with { TransparentBackground = true });

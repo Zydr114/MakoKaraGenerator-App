@@ -3,6 +3,7 @@ using MakoKaraGenerator.Core.Effects;
 using MakoKaraGenerator.Core.Projects;
 using SkiaSharp;
 using Fx = MakoKaraGenerator.Scripting;
+using static MakoKaraGenerator.Rendering.Skia.SkiaSceneGeometry;
 
 namespace MakoKaraGenerator.Rendering.Skia;
 
@@ -76,7 +77,7 @@ public sealed partial class SkiaRenderPipeline
         if (!SceneCaptureChannels.IsSupported(source) || !Enum.IsDefined(recipe.Region))
             throw new PreparedFrameException("UnsupportedCaptureChannel", "捕获来源或目标区域无效；背景和包图片由独立生产器提供。");
         recipe = BoundCaptureRecipe(target, recipe);
-        var frame = request.PreparedFrame?.HierarchyScene ?? GetSceneFrame(request.Project, request.TimeUs, request.LayoutLineId);
+        var frame = request.PreparedFrame?.HierarchyScene ?? _geometry.GetSceneFrame(request.Project, request.TimeUs, request.LayoutLineId);
         var selected = SelectCaptureItems(frame, target, recipe);
         if (source == GraphInputSource.TargetColor) RejectRawMaterialColor(request, target, selected);
         if (source == GraphInputSource.TargetColor && request.PreparedFrame is { GroupOpacities.IsEmpty: false } prepared)

@@ -82,7 +82,7 @@ public sealed class RuntimeGpuPreparation : IDisposable
         // These are the actual implementation assemblies selected by the Worker
         // host. Never Assembly.Load the BCL reference-only script-refs directory.
         Type[] required = [typeof(TokenId), typeof(ProjectSnapshot), typeof(RenderRequest),
-            typeof(IRenderFrameSession), typeof(SkiaRenderPipeline), typeof(ProjectRenderSessionFactory),
+            typeof(IRenderFrameSession), typeof(SkiaRenderPipeline), typeof(SkiaSceneGeometry), typeof(ProjectRenderSessionFactory),
             typeof(ScriptArtifactDescriptor), typeof(IVideoFrameProvider), typeof(SKSurface), typeof(SharpVk.Device)];
         foreach (Type type in required) RuntimeHelpers.RunClassConstructor(type.TypeHandle);
         // Prepare a bounded author-free runtime entry point. Business package ALC,

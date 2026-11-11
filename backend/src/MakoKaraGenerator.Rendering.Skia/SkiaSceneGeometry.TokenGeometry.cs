@@ -9,7 +9,7 @@ using V2 = MakoKaraGenerator.Scripting.V2;
 
 namespace MakoKaraGenerator.Rendering.Skia;
 
-public sealed partial class SkiaRenderPipeline
+public sealed partial class SkiaSceneGeometry
 {
     private ImmutableArray<Fx.TextMarkGeometrySample> MeasureMarkGeometries(SceneFrame frame)
         => [.. frame.TextMarks.Select(mark =>

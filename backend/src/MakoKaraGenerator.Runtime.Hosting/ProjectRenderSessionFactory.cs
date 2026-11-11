@@ -51,10 +51,14 @@ public sealed class ProjectRenderSessionFactory(IScriptCompilationService compil
             ScriptBackendRequirement.RequireSupported(snapshot, device is VulkanSkiaRenderDevice);
             ReadOnlyMemory<byte>[] fonts = [.. snapshot.Effects.Packages.SelectMany(package => package.Files)
                 .Where(file => file.Role == "font").Select(file => file.Content.AsMemory())];
-            SkiaRenderPipeline.LayoutCache layouts = new();
+            SkiaSceneGeometry.LayoutCache layouts = new();
+            SkiaTextLayoutEngine? LayoutEngine() => fonts.Length == 0 ? null : new SkiaTextLayoutEngine(fonts);
+            // 一个会话只有一个绘制管线。脚本宿主每次要几何时拿到的是只含排版引擎的几何实例（由宿主释放），
+            // 与绘制管线共用布局缓存和渲染设备的同步对象，各自持有排版引擎。
             SkiaRenderPipeline Renderer(IBackgroundFrameSourceResolver? background = null, ImageSurfaceBudgetSession? surfaces = null,
-                SceneImageEffectResources? images = null) => new(fonts.Length == 0 ? null : new SkiaTextLayoutEngine(fonts),
+                SceneImageEffectResources? images = null) => new(LayoutEngine(),
                     background, surfaces, images, ownsLayoutEngine: fonts.Length != 0, device, ownsDevice: false, layouts, svgResources, graphPixelChecks);
+            SkiaSceneGeometry Geometry() => new(LayoutEngine(), ownsLayoutEngine: fonts.Length != 0, layouts, device.SynchronizationRoot);
             resolver = backgroundResolverFactory is null ? new BackgroundFrameSourceResolver(videos)
                 : backgroundResolverFactory() ?? throw new InvalidOperationException("背景解析器工厂不能返回空值。");
             token.ThrowIfCancellationRequested();
@@ -128,8 +132,8 @@ public sealed class ProjectRenderSessionFactory(IScriptCompilationService compil
             }
             if (svgOwners.Count != 0) svgResources = new(svgOwners, device);
             source = await compiled.CreateFactory(() => layoutReference || editingLineId is not null
-                ? new MeasurementGeometryProvider(Renderer(), layoutReference, editingLineId, editingCueId)
-                : Renderer(), reason, mediaBinding).CreateAsync(snapshot, token).ConfigureAwait(false);
+                ? new MeasurementGeometryProvider(Geometry(), layoutReference, editingLineId, editingCueId)
+                : Geometry(), reason, mediaBinding).CreateAsync(snapshot, token).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
             renderer = Renderer(resolver, budget, resources);
             token.ThrowIfCancellationRequested();
@@ -152,13 +156,13 @@ public sealed class ProjectRenderSessionFactory(IScriptCompilationService compil
         }
     }
 
-    private sealed class MeasurementGeometryProvider(SkiaRenderPipeline renderer, bool layout,
+    private sealed class MeasurementGeometryProvider(SkiaSceneGeometry geometry, bool layout,
         string? lineId, string? cueId) : ILineGeometryProvider, IDisposable
     {
         public SceneFrame GetSceneFrame(ProjectSnapshot snapshot, long timeUs, string? editingLineId = null)
-            => renderer.GetMeasurementSceneFrame(snapshot, timeUs, layout, lineId ?? editingLineId, cueId);
+            => geometry.GetMeasurementSceneFrame(snapshot, timeUs, layout, lineId ?? editingLineId, cueId);
         public LineRenderGeometry? GetLineGeometry(ProjectSnapshot snapshot, string id)
             => GetSceneFrame(snapshot, 0, id).Lines.FirstOrDefault(line => line.Frame.Line?.Id == id)?.Geometry;
-        public void Dispose() => renderer.Dispose();
+        public void Dispose() => geometry.Dispose();
     }
 }

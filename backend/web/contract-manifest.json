@@ -1,16 +1,16 @@
 {
   "contractVersion": "1.49.2",
   "httpProtocolVersion": "1",
-  "productVersion": "0.112.67",
-  "sourceBaselineCommit": "6e689960e8b9d9c8f6617ab1d1528630d774172e",
+  "productVersion": "0.112.68",
+  "sourceBaselineCommit": "795ba4befcf1b619c31ea3b9149bae3ca1a2ca92",
   "frozenOn": "2026-11-11",
   "status": "frozen",
   "behaviorSource": "docs/architecture/backend-api.md",
   "scope": "Implemented public HTTP API with owner-only exact retained-source inspection and optional complete configuration adoption. The Host media feature track publishes project.mediaFeaturesChanged without changing revision, fixes media input per run (project previews and candidates wait for checks, template-workshop and author-draft samples up to 20 s for complete artifacts, project/author validation and export for complete artifacts), retries failed analyses lazily with bounded backoff and pins every straight/transparent output to NoMedia. Opaque preview output without usable background media no longer fails the frame: required BackgroundMedia graph inputs are bypassed and materials fall back to the package base appearance with a BackgroundMediaUnavailable warning that states the cause, optional inputs capture the project base colour; static render sessions and export still reject any image-effect/material diagnostic. Preview frames may opt in to a read-only inspection projection (geometry, cursors, particle anchors, effect catalog and single-frame cost) built from the same prepared frame, retained with the frame and read separately; PNG and export are unchanged. Author drafts may replace an image or font file whole with an uploaded asset of the same format after full decode/font load, taking fixed files from an explicit retained base revision; size and family-name changes only warn. The inspection response is independent and reference-free; public package reference kinds remain asset/library/configuration. Adoption validates the exact successful source and complete target configuration before one document publication. SDK2 graph bindings, per-target material uniforms/base materials, exact source-group admission and scene composition/capture/budgets are fingerprinted together with Warp/SVG, particles, GPU and existing preview/export lifecycles; their finite boundaries remain. Generated contract, regression, matched deployment, fresh HTTP/GPU frames, browser and performance acceptance require separate evidence.",
   "files": {
-    "Directory.Build.props": "fdd315251e50b43514f1dd25e6e2f5f51bb4c8baf9ee5105e204f8dfb1a1098f",
+    "Directory.Build.props": "9a49a40bcd7cefe74d3b296a9b26dba644f9bd080d47da485df9a7804fdc14a4",
     "Directory.Packages.props": "95ba7ddb785d3972483c541f3d4ec0ff6e29dda6e9a8ff073431624ee92dfde1",
-    "docs/architecture/backend-api.md": "c2027233d03accf3058089cad0d5e5d8a8692c91bb2011a5f4c0929c0d63a897",
+    "docs/architecture/backend-api.md": "709502e430b14832859933e1b625188a7a98ba1b1747955a7f5c4039e096b80d",
     "docs/runtime-validation-and-layout-contract.md": "af88f95301baf372ea29fb5012f59ec11bd3141391566fa09400cefacbd2cb15",
     "docs/style-reference/glow.md": "8ffd187f62d1246cb4d715bfc90715b185620d888a1ba3a055e3d86ac6968c45",
     "docs/third-party/svg-skia/ExCSS-MIT.txt": "fe201d8ad7c9f2122b4813fe0811075b63fbac9f4fb0c9075f49f38718a728ad",
@@ -369,13 +369,13 @@
     "src/MakoKaraGenerator.Backend.Server/ServerShutdown.cs": "752a2dbf0b91e20de246da8f66aac239ddf338d75fe0a850eed948095c2cee2c",
     "src/MakoKaraGenerator.Backend.Server/TransportLimits.cs": "ee01286e825b1067a0c7505075cc2c37f93f39210afed0b539209073c79910ca",
     "src/MakoKaraGenerator.Backend.Worker/AudioPreparationTask.cs": "ef99f98259be711daae958a1207f6d39c24d11e4c9ab84d7a4e726bf1297e2e4",
-    "src/MakoKaraGenerator.Backend.Worker/GpuClockCalibration.cs": "138ceb89b7240d8cf245e9d811359359baf02d92dd71226434e3288c86da5a0b",
+    "src/MakoKaraGenerator.Backend.Worker/GpuClockCalibration.cs": "1059c572cf802a8bfcb10873b706148d86d223a3442c40491787ffb98266a9fc",
     "src/MakoKaraGenerator.Backend.Worker/GpuNativeChannel.cs": "50e871d6953c2492a46052d7259b53375f2de3392367807028f491350e3646cd",
     "src/MakoKaraGenerator.Backend.Worker/GpuPlaybackControl.cs": "36da4e574682af51b35f26af890f14156fef70be5093f2277c64226b42989235",
     "src/MakoKaraGenerator.Backend.Worker/GpuStreamDiagnostics.cs": "3f2234870d3f20268e7196a42da1710bf4fa1e7a81e406f5df97a53053ec74aa",
     "src/MakoKaraGenerator.Backend.Worker/GpuStreamFailure.cs": "0a2bd89dbcb0eaec6bc4358d09bf3a7d301d53563858dfed7361a7bb36dfc82b",
     "src/MakoKaraGenerator.Backend.Worker/GpuStreamProtocol.cs": "fb0c3330bad50382971489124708bfcd5f5704a475ab1043d6cd5a8cd3fb4e0e",
-    "src/MakoKaraGenerator.Backend.Worker/GpuStreamSession.cs": "1d0d39e828645e9b4bb9310e3c26a33f3820ee1eb2071baf7bfabe353aa2e36a",
+    "src/MakoKaraGenerator.Backend.Worker/GpuStreamSession.cs": "0191a0bda3951f8f7f660e9e71ca2bdd5edf2f2e9285b495c9f9e49895bfff27",
     "src/MakoKaraGenerator.Backend.Worker/GpuWorkerPreparationState.cs": "7208f6f438c411aa7089e57054e4f50f15418f77e9ef97610b2d2b468d05d206",
     "src/MakoKaraGenerator.Backend.Worker/MakoKaraGenerator.Backend.Worker.csproj": "968292d54801b102b71f0461fd18c45158c1a1ffd6cb044210bc6275a841832f",
     "src/MakoKaraGenerator.Backend.Worker/PackageRenderSession.cs": "67785a9046b0718adc70c797e4a39e5a1bc091eb642a52611eb587c0cb511ca7",
@@ -752,7 +752,7 @@
     "src/MakoKaraGenerator.Text/ShapedLine.cs": "26e27be9b816c4b877f0cb2e4c2e8ff020427887b3bc509dc0c86b43f030ca9f",
     "tools/backend-api-contract/ContractMetadata.csproj": "f1b0c2924cd2f9a979deffada49a2096d6345ffe6e53f06dc0954c781c92cc0e",
     "tools/backend-api-contract/Program.cs": "97bb06e2252c936456c137927b79095ee0a8abde7cbf6408525135d88ad447b6",
-    "tools/backend-api-contract/README.md": "f4c3d71939664db847168f71d91f4065f04d99382c47fc2f1a232231043885cc",
+    "tools/backend-api-contract/README.md": "6aa3b9f221c053f6541496c38348afda46183116bda5a8084845ba0492d2e629",
     "tools/backend-api-contract/author_metadata_fixtures.py": "c764a8e7a01da7019da73ad0442e405de3542f8bfc283423cc3cff1cbe1b1896",
     "tools/backend-api-contract/author_metadata_schema.py": "67ca4d583dc73be2eddbdf8c47497d7dd85d5722b12611f6744a207464b4586b",
     "tools/backend-api-contract/author_replacement_fixtures.py": "a97631f957dc485ed6a0c0579c6737af0fe30031da67b565f1419b9ed9945d88",
@@ -762,7 +762,7 @@
     "tools/backend-api-contract/editing_completion_fixtures.py": "4b4da8347c0ab78b0354e7d8f81a14235bc5c5646a6377aca492c1e7f0243ca6",
     "tools/backend-api-contract/editing_completion_schema.py": "f182ca0aec1be18ff08afa3eea48aa2b9212bdd43fdb9f00ad9b46a7122e59ba",
     "tools/backend-api-contract/export_request_fixtures.py": "b221f6c1da6ee545b1df3d9c769e5ba8ad8119e8add86004e9b6947fed548321",
-    "tools/backend-api-contract/freeze.py": "3440f0a39bc02a02d379e86fb63d09a40d423f90885ee20793b9d4f1cf893780",
+    "tools/backend-api-contract/freeze.py": "76b077498a1683b090c902e5e47e302f558dd437dfc397c0045970b2633419bb",
     "tools/backend-api-contract/glow_style_fixtures.py": "b571abcdece9844c4e3a2a2d894a98ffce17c017c36345c6cb605653fd10d959",
     "tools/backend-api-contract/gpu_stream_fixtures.py": "8b7b832aa4e1efbd5ce97434ee5e6ed45865016552e08d92cdf0f79bc804fda0",
     "tools/backend-api-contract/node_creation_fixtures.py": "9fc813b46cbd66ed93dcb5396b79ae653dec2d44c2545de89ed8d4ba92b62bcd",
@@ -801,10 +801,10 @@
     "tools/backend-api-contract/w8_authoring_schema.py": "f3e445f8bdeb63dcce7331f17eeb16a4e6714535bf26a4eb4c05120dc5416992"
   },
   "artifacts": {
-    "web/api-contract.md": "f2feb046f3325b06b053015216a6e8ab4fb90d44d4e7162de9680d155d34d920",
-    "web/api-index.md": "d25a0fef0fc8ce6cc29d24f33307b5e2c90b08c6492fdf0d8936df6d52ad34d2",
+    "web/api-contract.md": "ad45cb8695294ad13575bdf55971d27afc93905b130f623f71431186321b7c35",
+    "web/api-index.md": "8cfc48c03dbc5baf909f5e32f29537d6b783db994e7c71b08657881974045c01",
     "web/examples.json": "cd52c0ad821d96924f4ed3b4101f797cc4680a8fe8f6c2be3a9d7c2499e28b81",
-    "web/openapi.json": "39eed25d7ba61bed7dfd47c6d2a061b97d30741b1bb4b99f9c2d3bf13a09e34f"
+    "web/openapi.json": "620536b3276a9da2766dc1169ec05272ea70dddea494ab91dae08ce91a6ec905"
   },
   "guards": "Source hashes require review even for behavior-preserving changes. They are drift alarms, not semantic proofs. Runtime/Media behavior still requires existing regression tests."
 }

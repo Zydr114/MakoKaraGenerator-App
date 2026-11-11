@@ -3,7 +3,7 @@
 > **阶段二的下一步已移到[阶段二路线](script-sdk-v2-phase-two-roadmap.md)，新对话从那里开始。**
 > 本文保留 M12 优化期的状态、决定与参考文件。
 
-分支 `dev/script-sdk-render-upgrade`，产品 0.112.67，已推送到私有远程。**M12 已于 2026-11-11 关闭**（记录 §6），合同 1.49.2。详细数据与决定原文见
+分支 `dev/script-sdk-render-upgrade`，产品 0.112.68，已推送到私有远程。**M12 已于 2026-11-11 关闭**（记录 §6），合同 1.49.2。详细数据与决定原文见
 [M12 测量记录](script-sdk-render-m12-evidence.md) §5（§5.3 为 G1 与 O7 设计，§5.4 为测试包基线，§5.7 为 F1 与缺背景实施，§5.8 为 F2 与 O7 实施，§5.9 为 F3 实施，§5.10 为 F4 实施，§5.11 为 F6 实施，§5.12 为 F1～F6 之后的测试包基线，§5.13 为图导出按目标区域收紧，§5.14 为架构审查之后的范围决定）。
 
 ## 1. 当前状态
@@ -52,7 +52,7 @@
   与对象级渲染计划第 1～3 刀（审查 C）；M13 前做完整基础样式与 SDK 表面（审查 B 第 2 层）。
 - **M12 收口（2026-11-11，已完成）**：测试包 18 组、G1 七组、G2、H2、H3、H4 与观察项在 0.112.67 复测并登记（记录 §6），门禁全部通过；
   合同冻结到 1.49.2，前端副本同步；S5 余项的例外经用户确认写入验收表，M12 关闭。
-  复测中发现新 Worker 时钟校准一次失败即停流（记录 §6.6 ①），用户决定在结构整理之前单独修（路线 §4.5）。
+  复测中发现新 Worker 时钟校准一次失败即停流（记录 §6.6 ①），已在 0.112.68 修复（路线 §4.5）。
 
 ## 2. 用户决定
 
@@ -147,11 +147,11 @@
 - `backend/samples/ScriptEffectsV2/`：CustomInk、GlassInk 为材质，LineGlitch 为图，其余为控制器。
 - `backend/tests/MakoKaraGenerator.Rendering.Tests/V2ResourceSamplePackageTests.cs`：样例只验准入与编译，GlassInk 没有像素测试。
 - `backend/docs/scripting-package-graph-semantics-contract.md` 第 54 行：图框来源只接受 `targetRegion`。
-- `backend/docs/architecture/backend-api.md:1787`：版本说明段落，每次程序改动追加一句。
+- `backend/docs/architecture/backend-api.md:1789`：版本说明段落，每次程序改动追加一句。
 
 ## 5. 工作约定摘要
 
-- 程序改动：`backend/Directory.Build.props` 递增 PATCH（下一版 0.112.68），并在上面的版本说明段落追加一句；
+- 程序改动：`backend/Directory.Build.props` 递增 PATCH（下一版 0.112.69），并在上面的版本说明段落追加一句；
   `flock -o /tmp/mkg-gpu-render-dotnet.lock dotnet build MakoKaraGenerator.slnx` 零警告；新回归须在旧代码上失败。
 - 前端改动先过 `pnpm typecheck`、`pnpm test:unit`；不手改 `docs/backend/contract/`。
 - 桌面测速前 `pnpm build:desktop` 重新发布后端；测速期间不并行构建或占用 GPU。

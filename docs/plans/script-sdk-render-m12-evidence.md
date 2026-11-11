@@ -1053,7 +1053,7 @@ M07 ClusterExit 热查询准备 p95 本次在门槛内（§3 ① 为 8.26 ms，�
 以 `gpuBrokerProtocolFailed` 停流。原因：Worker 启动时只发一次 `clock-ping`，往返扣除对端处理时间后超过 50 ms
 （不确定度 >25 ms）就发 `calibrated:false`（`GpuClockCalibration.cs:21`）；桌面端把 `calibrated!==true` 当协议错误
 （`desktop/gpu-preview/wire.cjs:9`），Worker 也不重试。与渲染内容无关；此前留存的约 190 份测速日志（每次 20 次改输入）中没有出现过。
-修法是 Worker 在未校准时重发 ping、桌面端容许未校准的回报，属 GPU 流协议改动；用户决定在结构整理之前单独修（0.112.68）。
+用户决定在结构整理之前单独修：0.112.68（`795ba4b`）起 Worker 在不确定度过大时重新校准，一次流内最多 8 次，桌面端不用改（路线 §4.5）。
 
 ② 切到 1440p 时偶发新流停在暂停（§5.8 ①）：本轮跑完两档的 26 次运行中未出现。
 

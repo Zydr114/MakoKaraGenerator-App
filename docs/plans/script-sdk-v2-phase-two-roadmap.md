@@ -1,6 +1,6 @@
 # 阶段二路线与交接（M12 收口 → M14，2026-11-10，11-11 更新）
 
-分支 `dev/script-sdk-render-upgrade`，产品 0.112.67，HTTP 合同 1.49.2，已推送到私有远程。**P1（M12 收口）已于 2026-11-11 完成，M12 关闭；下一步是时钟校准修复（§4.5），然后 P2。**
+分支 `dev/script-sdk-render-upgrade`，产品 0.112.68，HTTP 合同 1.49.2，已推送到私有远程。**P1（M12 收口）已于 2026-11-11 完成，M12 关闭；时钟校准修复（§4.5）同日完成。下一步是 P2 结构整理，从 §5.1 几何拆出开始。**
 
 **本文是阶段二唯一的计划入口。** 新对话从这里开始；其他文档只作背景、证据或原始约束：
 
@@ -49,14 +49,14 @@
 | 阶段 | 内容 | 出口 |
 |---|---|---|
 | **P1 M12 收口**（已完成） | 回归基线、门禁与观察项复测，补 S5 报告类数据，合同冻结，写回验收表 | 2026-11-11 关闭，M12 记录 §6 |
-| **时钟校准修复** | 新 Worker 时钟校准失败后重试，桌面端不因一次未校准停流（§4.5） | 一个 PATCH，带回归 |
+| **时钟校准修复**（已完成） | 新 Worker 时钟校准失败后重试，不因一次往返过长停流（§4.5） | 0.112.68，`795ba4b` |
 | **P2 结构整理** | A 几何拆出；C 第 1～3 刀 | 每步像素与结构不变；一个会话一个绘制管线；两个调度器共用执行器 |
 | **P3 样式完善** | 已唱／未唱外观分离、走字线羽化、SDK 2.0 表面整理（含 B 第 2 层）、格式与合同、前端 | 新能力有像素与结构回归；未使用新能力的内容像素与性能不变 |
 | **P4 文字优化** | S5 余项，开工前与用户确认范围 | 按确认范围 |
 | **M13** | 能力、版本、合同的发布候选验收，冻结 SDK 2.0 与格式 | 验收表 M13 行 |
 | **M14** | 删除 v1 与最终验收 | 验收表 M14 行 |
 
-P2、P3 不与其他改 `ImageScene*.cs`、`GroupComposition*.cs` 的工作并行。每个程序改动一个 PATCH（下一版 0.112.68，用于时钟校准修复）。
+P2、P3 不与其他改 `ImageScene*.cs`、`GroupComposition*.cs` 的工作并行。每个程序改动一个 PATCH（下一版 0.112.69）。
 
 ## 4. P1 M12 收口（已完成，2026-11-11）
 
@@ -111,14 +111,18 @@ P2、P3 不与其他改 `ImageScene*.cs`、`GroupComposition*.cs` 的工作并�
 
 以上四项已于 2026-11-11 完成；S5 余项的例外登记经用户确认。
 
-### 4.5 时钟校准修复（P2 之前，用户 2026-11-11 决定）
+### 4.5 时钟校准修复（已完成，0.112.68；用户 2026-11-11 决定在 P2 之前单独修）
 
 - **现象**：收口复测中 G1 图组有一次运行在改输入（换新 Worker）时停流，桌面主进程报 `Invalid calibrated clock`、
   `gpuBrokerProtocolFailed`（M12 记录 §6.6 ①）。约 190 份历史测速日志中没有出现过，重跑两次通过。
 - **原因**：Worker 启动时只发一次 `clock-ping`（`GpuStreamSession.cs:124`），往返超过 50 ms 就回报 `calibrated:false`
   （`GpuClockCalibration.cs:21`）；桌面端把 `calibrated!==true` 当协议错误（`desktop/gpu-preview/wire.cjs:9`），双方都不重试。
-- **修法**：Worker 未校准时重发 ping（有次数或时间上限），桌面端容许未校准的回报并等下一次；仍校准不了时保持现有失败码。
-  一个 PATCH（0.112.68），带 Worker 与桌面两侧的回归；属 GPU 流私有协议，不涉及 HTTP 合同。
+- **修复**（`795ba4b`）：只改 Worker。单次往返不确定度超过 25 ms 时重新发 ping，一次流内最多 8 次，校准成功才发 `clock-calibrated`，
+  用尽后才按原样回报 `calibrated:false`。桌面端在收到 `clock-calibrated` 之前本就不下发播放控制（`desktop/main.cjs` 的 `flushControl`），
+  所以桌面端与消息形状都不用改。回归三项（`GpuStreamSessionTests` 两项、`GpuClockCalibrationTests` 一项），去掉重试后会话两项失败。
+- **验证**：全量构建零警告；Worker、Hosting、Runtime.Hosting 测试与桌面协议测试通过；0.112.68 发布物上 G1 图组、粒子组各跑一遍正常
+  （24.01 fps，1440p 30.0／29.2 fps）。原问题约 190 次才出现一次，实机无法直接复现，靠回归覆盖。
+- 合同版本仍为 1.49.2，产品版本与源码指纹更新到 0.112.68，前端副本同步。
 
 ## 5. P2 结构整理
 
@@ -267,7 +271,6 @@ P2、P3 不与其他改 `ImageScene*.cs`、`GroupComposition*.cs` 的工作并�
 
 **已知问题**
 - 切到 1440p 时偶发新流停在暂停（5 次 1 次，原因未查，M12 记录 §5.8 ①）；收口复测 26 次运行未出现。
-- 新 Worker 时钟校准一次失败即停流（§4.5，待修）。
 - Hosting 两项真实 Worker 用例在全量首轮偶发失败，单独重跑通过（M12 记录 §6.1）。
 - 个别组最差 5 s 窗口 115～117 帧（目标 118），按机器抖动记录。
 - G1 混合组 Render p95 44.2 ms（目标 40），约为四组内容之和，无单独异常项，按目标未达登记。
@@ -278,7 +281,7 @@ P2、P3 不与其他改 `ImageScene*.cs`、`GroupComposition*.cs` 的工作并�
 - Git：每步一个中文 `type(scope): 摘要` 提交，按路径暂存，里程碑推送到私有远程，提交尾行 `Co-Authored-By`。
   不碰未跟踪的 `.VSCodeCounter/`、`backend/tools/backend-script-render-upgrade/M07DiagnosticRunner/`、`TraceRead/`、
   `docs/plans/script-sdk-v2-m11-author-notes.md`；不改两个兄弟源仓库（棋盘格图只读取）。
-- 程序改动：`backend/Directory.Build.props` 递增 PATCH，在 `backend/docs/architecture/backend-api.md` 第 1787 行的版本说明段落追加一句；
+- 程序改动：`backend/Directory.Build.props` 递增 PATCH，在 `backend/docs/architecture/backend-api.md` 第 1789 行的版本说明段落追加一句；
   `flock -o /tmp/mkg-gpu-render-dotnet.lock dotnet build MakoKaraGenerator.slnx` 零警告；新缺陷回归须在旧代码上失败（变异验证）。
 - 测试：GPU 用例需 `MAKO_GPU_SMOKE=1`；Server 的 `RubyTimelineTransportTests` 三项需要已发布的 Server／Worker
   （`MAKO_RUBY_HTTP_SERVER_PATH`／`MAKO_RUBY_HTTP_WORKER_PATH` 指向 `.local/backend-dist/<目录>/server|worker` 下的可执行文件）；Rendering 全量偶发 Roslyn 内部异常或遥测计数失败，单独重跑通过即非回归；

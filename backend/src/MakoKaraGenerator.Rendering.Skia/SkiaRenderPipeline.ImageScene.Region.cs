@@ -117,7 +117,7 @@ public sealed partial class SkiaRenderPipeline
 
     /// <summary>
     /// 材质工作框：目标框加图声明外扩，不超出程序框（与收紧前整框一致的上限）。
-    /// sampleReachPx 是另外并入的取样距离（见 <see cref="GraphSampleReachPx" />），独立对象不并入。
+    /// sampleReachPx 是另外并入的取样距离（见 <see cref="GraphSampleReachPx" />）；收紧前的整框不并入。
     /// </summary>
     private static GraphRect MaterialWorkBounds(GraphRect? region, SceneMaterialProgram program, double sampleReachPx = 0)
     {
@@ -129,8 +129,15 @@ public sealed partial class SkiaRenderPipeline
     /// <summary>
     /// 图内各节点声明的最大取样偏移之和：节点可以在这个距离内读取输入，是「输入须覆盖到目标框之外多远」的保守上界。
     /// 它不计入图的最大外扩（外扩只约束输出框）。
+    /// 只有声明了下层、背景底色或背景媒体输入（含可选来源）的图才需要：这些输入按工作框捕获，框外另有像素；
+    /// 对象自身的捕获（颜色、各类覆盖）在目标框外本来就是透明的，包图片不按工作框裁剪。
     /// </summary>
-    private static double GraphSampleReachPx(CompiledImageGraph graph) => graph.Plan.Nodes.Sum(node => node.Bounds.MaximumSampleOffsetPx);
+    private static double GraphSampleReachPx(CompiledImageGraph graph)
+        => graph.Plan.Definition.Inputs.Any(input => ReadsOutsideObject(input.Source) || input.Choices.Values.Any(ReadsOutsideObject))
+            ? graph.Plan.Nodes.Sum(node => node.Bounds.MaximumSampleOffsetPx) : 0;
+
+    private static bool ReadsOutsideObject(GraphInputSource source)
+        => source is GraphInputSource.BackdropBelow or GraphInputSource.BackgroundColor or GraphInputSource.BackgroundMedia;
 
     /// <summary>
     /// 把逻辑工作框按实际输出密度外扩到整像素边界，与 <c>RasterSceneSurface</c> 分配的像素框一致。

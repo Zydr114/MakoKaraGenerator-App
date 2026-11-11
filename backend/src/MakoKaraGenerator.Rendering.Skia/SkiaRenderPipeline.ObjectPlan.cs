@@ -132,22 +132,31 @@ public sealed partial class SkiaRenderPipeline
             export is not null, ObjectLayerAssembly.PerLayer, owner.Value);
     }
 
-    /// <summary>各图目标框加声明外扩、各材质工作框的并集；组合导出先取调度器给定的框，收紧见 <see cref="TightenObjectRegions" />。</summary>
+    /// <summary>收紧前的工作框：各图程序框加声明外扩、各材质程序框的并集；组合导出取调度器给定的框。收紧见 <see cref="TightenObjectRegions" />。</summary>
     private static GraphRect ObjectWorkBounds(ImmutableArray<ObjectGraphStep> graphs,
         ImmutableArray<(ObjectMaterialBinding Binding, SceneMaterialProgram Program)> materials, GraphRect? region, ImageObjectState? export)
         => export?.Bounds ?? graphs.Select(step => step.TargetBounds.Expand(step.Program.Graph.Plan.Definition.MaximumExpandPx))
             .Concat(materials.Select(material => MaterialWorkBounds(region, material.Program))).Aggregate(Union);
 
     /// <summary>
+    /// 收紧后各图与材质要求的工作范围：图目标框加声明外扩与取样距离，材质工作框同样并入取样距离。
+    /// 节点可在声明的取样偏移内读取目标框之外的输入（下层、背景），工作框须包住这段距离，否则读到的是框外的透明或边缘像素。
+    /// </summary>
+    private static IEnumerable<GraphRect> SampledWorkBounds(ImmutableArray<ObjectGraphStep> graphs,
+        ImmutableArray<(ObjectMaterialBinding Binding, SceneMaterialProgram Program)> materials, GraphRect? region)
+        => graphs.Select(step => step.TargetBounds.Expand(step.Program.Graph.Plan.Definition.MaximumExpandPx + GraphSampleReachPx(step.Program.Graph)))
+            .Concat(materials.Select(material => MaterialWorkBounds(region, material.Program, GraphSampleReachPx(material.Program.Graph))));
+
+    /// <summary>
     /// 区域收紧：材质按本帧对象实际区域执行（O7），图按绑定目标的实际区域执行（第 12 条）。
     /// 两者都只由本帧几何决定，两条调度路径一致；工作框随之收紧。
     /// </summary>
     /// <remarks>
-    /// 独立对象的工作框是各图目标框加外扩与各材质工作框的并集。组合导出的对象没有图或材质时也要捕获全部部件，
-    /// 工作框另并入对象自身的范围；这个范围按调度器给定的框裁剪而不是按画布（组图可能把画布外的像素移进画面），
-    /// 并且只在逐元素几何能代表整个对象时使用，否则沿用调度器的框。
-    /// 组合导出此前在调度器的整框内捕获输入，图与材质按声明的取样偏移读到目标框之外的下层；收紧后把声明的取样距离并入工作框，
-    /// 这类读取照旧成立。独立对象的工作框沿用原算法（只含外扩），本步不改。
+    /// 收紧前，输入在整框（独立对象为程序框加外扩，组合导出为调度器的框）内捕获，图与材质按声明的取样偏移读到目标框之外的下层或背景；
+    /// 收紧后两条路径都把声明的取样距离并入工作框（<see cref="SampledWorkBounds" />），这类读取照旧成立。
+    /// 工作框不超出收紧前的整框：整框之外本来就没有捕获的像素，越界读取在两种框下都落到同一条边上，像素与整框一致。
+    /// 组合导出的对象没有图或材质时也要捕获全部部件，工作框另并入对象自身的范围；这个范围按调度器给定的框裁剪而不是按画布
+    /// （组图可能把画布外的像素移进画面），并且只在逐元素几何能代表整个对象时使用，否则沿用调度器的框。
     /// 没有材质的对象若带网格映射（Warp），求范围要动用本帧共享的投影工作账，为不新增预算失败，同样沿用调度器的框。
     /// </remarks>
     private ObjectRenderPlan TightenObjectRegions(ImageSceneRun run, ObjectRenderPlan plan, ImageObjectState? export)
@@ -160,11 +169,16 @@ public sealed partial class SkiaRenderPipeline
         var region = hasMaterials ? ClampObjectRegion(ink, new(0, 0, composition.CanvasWidth, composition.CanvasHeight)) : null;
         var targets = GraphTargetBounds(request, plan.Item, plan.Target, plan.Graphs.Select(step => (step.Binding, step.Program)), run.Resources);
         var graphs = plan.Graphs.Select(step => step with { TargetBounds = targets[step.Binding] }).ToImmutableArray();
+        var whole = plan.WorkBounds;
         plan = plan with { TargetRegion = region, GraphTargets = targets, Graphs = graphs };
-        if (export is null) return plan with { WorkBounds = ObjectWorkBounds(graphs, plan.Materials, region, null) };
+        if (export is null)
+        {
+            // 独立对象至少有一个图或材质；收紧后的目标框都在程序框内，相交结果不会为空。
+            var sampled = Intersect(SampledWorkBounds(graphs, plan.Materials, region).Aggregate(Union), whole);
+            return sampled.IsValid ? plan with { WorkBounds = sampled } : plan;
+        }
         if (!wholeObject || ClampObjectRegion(ink, export.Bounds) is not { } own) return plan;
-        var clipped = Intersect(graphs.Select(step => step.TargetBounds.Expand(step.Program.Graph.Plan.Definition.MaximumExpandPx + GraphSampleReachPx(step.Program.Graph)))
-            .Concat(plan.Materials.Select(material => MaterialWorkBounds(region, material.Program, GraphSampleReachPx(material.Program.Graph)))).Aggregate(own, Union), export.Bounds);
+        var clipped = Intersect(SampledWorkBounds(graphs, plan.Materials, region).Aggregate(own, Union), export.Bounds);
         return clipped.IsValid ? plan with { WorkBounds = clipped } : plan;
     }
 

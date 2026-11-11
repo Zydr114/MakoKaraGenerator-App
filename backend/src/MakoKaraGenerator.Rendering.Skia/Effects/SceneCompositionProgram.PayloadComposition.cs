@@ -76,16 +76,20 @@ internal sealed partial class SceneCompositionProgram
     }
 
     /// <summary>将可传递产物应用到真实下层，保留独立擦除量；可再应用一层共同透明度。</summary>
-    /// <remarks>借用产物和下层，返回拥有的实际合成表面；不编译作者源码。</remarks>
+    /// <remarks>
+    /// 借用产物和下层，返回拥有的实际合成表面；不编译作者源码。结果与下层同框。
+    /// 默认要求下层框包住产物，避免无意裁掉前景或擦除；<paramref name="clipToBelow" /> 为真时调用方只要下层框内的结果
+    /// （对象在自己的工作框内读取下层），产物落在框外的部分不参与。
+    /// </remarks>
     internal SkiaGraphSurface CompositePayload(ImageCompositionPayload payload, SkiaGraphSurface below,
-        ImageSurfaceBudgetFrame? surfaceBudget = null, double opacity = 1, CancellationToken cancellationToken = default)
+        ImageSurfaceBudgetFrame? surfaceBudget = null, double opacity = 1, bool clipToBelow = false, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(payload); ArgumentNullException.ThrowIfNull(below);
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this); cancellationToken.ThrowIfCancellationRequested(); ValidateCompositionOpacity(opacity);
             ValidatePayload(payload, cancellationToken); ValidateSurface(below, ShaderSurfaceKind.Color, "payload.below", cancellationToken);
-            if (!below.Descriptor.Bounds.Contains(payload.Color.Descriptor.Bounds) || !below.Descriptor.Bounds.Contains(payload.Erasure.Descriptor.Bounds))
+            if (!clipToBelow && (!below.Descriptor.Bounds.Contains(payload.Color.Descriptor.Bounds) || !below.Descriptor.Bounds.Contains(payload.Erasure.Descriptor.Bounds)))
                 throw Error("GraphCompositeBoundsExceeded", "payload", "下层框不能裁掉前景或真实擦除范围。");
             using var ownFrame = surfaceBudget is null ? _surfaceBudget.BeginFrame() : null;
             var resources = surfaceBudget ?? ownFrame!;

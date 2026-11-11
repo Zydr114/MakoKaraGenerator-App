@@ -71,7 +71,7 @@ public sealed partial class SkiaRenderPipeline
     /// <param name="WorkBounds">对象的工作框：部件捕获、下层与层组装的范围。</param>
     /// <param name="HasGlow">对象有外发光；没有时不列辉光部件。</param>
     /// <param name="Below">下层来源。</param>
-    /// <param name="ClosedExport">为真时不写目标表面，把闭合的层导出给组合调度器，工作框由调度器给定。</param>
+    /// <param name="ClosedExport">为真时不写目标表面，把闭合的层导出给组合调度器；工作框不超出调度器给定的框。</param>
     /// <param name="Assembly">无历史层的组装方式。</param>
     /// <param name="ExecutionOwner">执行开始时的失败属主（建计划期间为核对归属推进过的属主在此复位）。</param>
     internal sealed record ObjectRenderPlan(SceneDrawItem Item, ImageEffectTarget Target, ImmutableArray<ImageEffectTarget.Token> TokenTargets,
@@ -92,7 +92,7 @@ public sealed partial class SkiaRenderPipeline
     /// <summary>为带图或材质、或处在组合导出中的对象建立计划。</summary>
     /// <remarks>
     /// 只读取本帧准备结果、几何与图声明（Warp 映射会记入本帧投影工作账），不分配表面。
-    /// 目标框与工作框只由本帧几何和声明决定，不看调度器；组合导出时工作框沿用调度器给定的框。
+    /// 目标框只由本帧几何和声明决定，不看调度器；组合导出时工作框以调度器给定的框为上限。
     /// </remarks>
     private ObjectRenderPlan BuildObjectPlan(ImageSceneRun run, SceneDrawItem item, PreparedImageEffectBinding[] bindings,
         ObjectMaterialBinding[] materials, ImageObjectState? export, ObjectOwnerCell owner)
@@ -132,7 +132,7 @@ public sealed partial class SkiaRenderPipeline
             export is not null, ObjectLayerAssembly.PerLayer, owner.Value);
     }
 
-    /// <summary>各图目标框加声明外扩、各材质工作框的并集；组合导出沿用调度器给定的框。</summary>
+    /// <summary>各图目标框加声明外扩、各材质工作框的并集；组合导出先取调度器给定的框，收紧见 <see cref="TightenObjectRegions" />。</summary>
     private static GraphRect ObjectWorkBounds(ImmutableArray<ObjectGraphStep> graphs,
         ImmutableArray<(ObjectMaterialBinding Binding, SceneMaterialProgram Program)> materials, GraphRect? region, ImageObjectState? export)
         => export?.Bounds ?? graphs.Select(step => step.TargetBounds.Expand(step.Program.Graph.Plan.Definition.MaximumExpandPx))
@@ -140,25 +140,52 @@ public sealed partial class SkiaRenderPipeline
 
     /// <summary>
     /// 区域收紧：材质按本帧对象实际区域执行（O7），图按绑定目标的实际区域执行（第 12 条）。
-    /// 两者都只由本帧几何决定，两条调度路径一致；独立对象的工作框随之收紧。
+    /// 两者都只由本帧几何决定，两条调度路径一致；工作框随之收紧。
     /// </summary>
+    /// <remarks>
+    /// 独立对象的工作框是各图目标框加外扩与各材质工作框的并集。组合导出的对象没有图或材质时也要捕获全部部件，
+    /// 工作框另并入对象自身的范围；这个范围按调度器给定的框裁剪而不是按画布（组图可能把画布外的像素移进画面），
+    /// 并且只在逐元素几何能代表整个对象时使用，否则沿用调度器的框。
+    /// 组合导出此前在调度器的整框内捕获输入，图与材质按声明的取样偏移读到目标框之外的下层；收紧后把声明的取样距离并入工作框，
+    /// 这类读取照旧成立。独立对象的工作框沿用原算法（只含外扩），本步不改。
+    /// 没有材质的对象若带网格映射（Warp），求范围要动用本帧共享的投影工作账，为不新增预算失败，同样沿用调度器的框。
+    /// </remarks>
     private ObjectRenderPlan TightenObjectRegions(ImageSceneRun run, ObjectRenderPlan plan, ImageObjectState? export)
     {
-        var request = run.Request;
-        var region = plan.Materials.Length > 0 ? ObjectTargetRegion(request, plan.Item, run.Resources) : null;
+        var request = run.Request; var composition = request.Project.Composition;
+        bool hasMaterials = plan.Materials.Length > 0;
+        bool wholeObject = export is not null && ObjectInkCoversWholeObject(request, plan.Item);
+        // 对象的墨迹范围只算一次：材质区域按画布裁剪，组合导出的对象范围按调度器的框裁剪。
+        var ink = hasMaterials || wholeObject ? ObjectInkRegion(request, plan.Item, run.Resources, projectWarp: hasMaterials) : null;
+        var region = hasMaterials ? ClampObjectRegion(ink, new(0, 0, composition.CanvasWidth, composition.CanvasHeight)) : null;
         var targets = GraphTargetBounds(request, plan.Item, plan.Target, plan.Graphs.Select(step => (step.Binding, step.Program)), run.Resources);
         var graphs = plan.Graphs.Select(step => step with { TargetBounds = targets[step.Binding] }).ToImmutableArray();
-        return plan with { TargetRegion = region, GraphTargets = targets, Graphs = graphs, WorkBounds = ObjectWorkBounds(graphs, plan.Materials, region, export) };
+        plan = plan with { TargetRegion = region, GraphTargets = targets, Graphs = graphs };
+        if (export is null) return plan with { WorkBounds = ObjectWorkBounds(graphs, plan.Materials, region, null) };
+        if (!wholeObject || ClampObjectRegion(ink, export.Bounds) is not { } own) return plan;
+        var clipped = Intersect(graphs.Select(step => step.TargetBounds.Expand(step.Program.Graph.Plan.Definition.MaximumExpandPx + GraphSampleReachPx(step.Program.Graph)))
+            .Concat(plan.Materials.Select(material => MaterialWorkBounds(region, material.Program, GraphSampleReachPx(material.Program.Graph)))).Aggregate(own, Union), export.Bounds);
+        return clipped.IsValid ? plan with { WorkBounds = clipped } : plan;
     }
 
-    /// <summary>工作框定稿：并入原样辉光的外扩；独立对象的框一旦被收紧，按输出像素对齐。</summary>
+    /// <summary>工作框定稿：并入原样辉光的外扩；框一旦被收紧，按输出像素对齐（组合导出时仍不超出调度器的框）。</summary>
     private ObjectRenderPlan FinishObjectWorkBounds(ImageSceneRun run, ObjectRenderPlan plan, ImageObjectState? export)
     {
         var request = run.Request; var bounds = plan.WorkBounds;
-        bool tightened = plan.TargetRegion is not null || plan.Graphs.Any(step => step.TargetBounds != step.Program.Bounds);
+        bool tightened = export is null
+            ? plan.TargetRegion is not null || plan.Graphs.Any(step => step.TargetBounds != step.Program.Bounds)
+            : bounds != export.Bounds;
         bool hasGlow = HasOriginalGlow(request, plan.Item);
         if (hasGlow) bounds = IncludeOriginalGlowBounds(request, plan.Item, bounds, run.Resources);
-        if (export is null && tightened) bounds = AlignToOutputPixels(request, bounds);
+        if (tightened)
+        {
+            bounds = AlignToOutputPixels(request, bounds);
+            if (export is not null)
+            {
+                var clipped = Intersect(bounds, export.Bounds);
+                bounds = clipped.IsValid ? clipped : export.Bounds;
+            }
+        }
         return plan with { WorkBounds = bounds, HasGlow = hasGlow };
     }
 

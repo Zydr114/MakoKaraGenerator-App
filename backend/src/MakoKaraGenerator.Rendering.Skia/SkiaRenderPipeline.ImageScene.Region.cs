@@ -23,9 +23,21 @@ public sealed partial class SkiaRenderPipeline
     private GraphRect? ObjectTargetRegion(RenderRequest request, SceneDrawItem item, ImageSurfaceBudgetFrame resources, TokenFamilyTarget? family = null)
     {
         if (!TightObjectRegions) return null;
+        var composition = request.Project.Composition;
+        return ClampObjectRegion(ObjectInkRegion(request, item, resources, family), new(0, 0, composition.CanvasWidth, composition.CanvasHeight));
+    }
+
+    /// <summary>
+    /// 对象（或一个元素族）本帧墨迹与装饰外扩映射到画布后的范围，未加余量、未裁剪；没有可绘制墨迹时为 null。
+    /// <paramref name="projectWarp" /> 为假时遇到网格映射（Warp）即放弃并返回 null，不动用本帧的投影工作账。
+    /// </summary>
+    private GraphRect? ObjectInkRegion(RenderRequest request, SceneDrawItem item, ImageSurfaceBudgetFrame resources, TokenFamilyTarget? family = null,
+        bool projectWarp = true)
+    {
         var prepared = request.PreparedFrame!;
         var projection = _warpProjectionBudgets.GetValue(resources, static _ => new());
         GraphRect? region = null;
+        bool abandoned = false;
         if (item.Line is { } line)
         {
             var sources = StaticStyleProjection.LoadedSourceStyles(request.Project, prepared.HierarchyScene);
@@ -50,15 +62,12 @@ public sealed partial class SkiaRenderPipeline
                 ? prepared.GetMarkDrawingStyle(final.Target) : mark.Appearance.ToLyricStyle();
             Add(style, final.Geometry);
         }
-        if (region is not { } value) return null;
-        var composition = request.Project.Composition;
-        double left = Math.Max(0, value.Left - ObjectRegionMarginPx), top = Math.Max(0, value.Top - ObjectRegionMarginPx);
-        double right = Math.Min(composition.CanvasWidth, value.Right + ObjectRegionMarginPx), bottom = Math.Min(composition.CanvasHeight, value.Bottom + ObjectRegionMarginPx);
-        if (!(right > left && bottom > top)) return null; // 完全在画布外：沿用程序框，行为与收紧前相同。
-        return new GraphRect(left, top, right, bottom);
+        return abandoned ? null : region;
 
         void Add(LyricStyle style, GeometrySample geometry)
         {
+            if (abandoned) return;
+            if (!projectWarp && geometry.Mapping is not null) { abandoned = true; return; }
             var source = geometry.InkBounds is { } ink ? UnionRect(ink, geometry.AdvanceBounds) : geometry.AdvanceBounds;
             double extent = RegionDecorationExtent(style);
             Rect2 decorated = new(source.Left - extent, source.Top - extent, source.Right + extent, source.Bottom + extent);
@@ -71,6 +80,31 @@ public sealed partial class SkiaRenderPipeline
         }
     }
 
+    /// <summary>墨迹范围加抗锯齿余量后与界限相交；完全落在界限外时为 null（调用方沿用原框，行为与收紧前相同）。</summary>
+    private static GraphRect? ClampObjectRegion(GraphRect? ink, GraphRect limit)
+    {
+        if (ink is not { } value) return null;
+        double left = Math.Max(limit.Left, value.Left - ObjectRegionMarginPx), top = Math.Max(limit.Top, value.Top - ObjectRegionMarginPx);
+        double right = Math.Min(limit.Right, value.Right + ObjectRegionMarginPx), bottom = Math.Min(limit.Bottom, value.Bottom + ObjectRegionMarginPx);
+        if (!(right > left && bottom > top)) return null;
+        return new GraphRect(left, top, right, bottom);
+    }
+
+    /// <summary>
+    /// 逐元素几何能否代表整个对象：行的全部绘制单元都要落在某个元素的基础字几何里（与测量侧取整行墨迹的规则相同）。
+    /// 元素拼不回行文本、行没有元素时不成立，调用方不收紧。文字标记只有一份几何，总是成立。
+    /// </summary>
+    private static bool ObjectInkCoversWholeObject(RenderRequest request, SceneDrawItem item)
+    {
+        if (item.Line is not { } line) return true;
+        var prepared = request.PreparedFrame!;
+        var whole = prepared.FinalLineGeometry.FirstOrDefault(sample => sample.Target.BindingId.Value == line.BindingId);
+        if (whole is null || whole.BaseGeometry.DrawUnits.IsEmpty) return false;
+        var units = prepared.FinalGeometry.Where(token => token.WithRuby.BindingId.Value == line.BindingId)
+            .SelectMany(token => token.BaseGeometry.DrawUnits).ToHashSet();
+        return whole.BaseGeometry.DrawUnits.All(units.Contains);
+    }
+
     /// <summary>描边（斜接按上限）＋阴影（偏移＋3σ）与辉光（扩张＋3σ）中较大者，单位为元素本地逻辑像素。</summary>
     private static double RegionDecorationExtent(LyricStyle style)
     {
@@ -81,13 +115,22 @@ public sealed partial class SkiaRenderPipeline
         return Math.Max(stroke + shadow, glow);
     }
 
-    /// <summary>材质工作框：目标框加图声明外扩，不超出程序框（与收紧前整框一致的上限）。</summary>
-    private static GraphRect MaterialWorkBounds(GraphRect? region, SceneMaterialProgram program)
+    /// <summary>
+    /// 材质工作框：目标框加图声明外扩，不超出程序框（与收紧前整框一致的上限）。
+    /// sampleReachPx 是另外并入的取样距离（见 <see cref="GraphSampleReachPx" />），独立对象不并入。
+    /// </summary>
+    private static GraphRect MaterialWorkBounds(GraphRect? region, SceneMaterialProgram program, double sampleReachPx = 0)
     {
         if (region is null) return program.Bounds;
-        var clipped = Intersect(MaterialTargetBounds(region, program).Expand(program.Graph.Plan.Definition.MaximumExpandPx), program.Bounds);
+        var clipped = Intersect(MaterialTargetBounds(region, program).Expand(program.Graph.Plan.Definition.MaximumExpandPx + sampleReachPx), program.Bounds);
         return clipped.IsValid ? clipped : program.Bounds;
     }
+
+    /// <summary>
+    /// 图内各节点声明的最大取样偏移之和：节点可以在这个距离内读取输入，是「输入须覆盖到目标框之外多远」的保守上界。
+    /// 它不计入图的最大外扩（外扩只约束输出框）。
+    /// </summary>
+    private static double GraphSampleReachPx(CompiledImageGraph graph) => graph.Plan.Nodes.Sum(node => node.Bounds.MaximumSampleOffsetPx);
 
     /// <summary>
     /// 把逻辑工作框按实际输出密度外扩到整像素边界，与 <c>RasterSceneSurface</c> 分配的像素框一致。

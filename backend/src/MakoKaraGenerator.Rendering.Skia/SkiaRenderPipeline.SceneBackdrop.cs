@@ -29,8 +29,10 @@ public sealed partial class SkiaRenderPipeline
             GraphRect bounds, ImageGraphFrameContext context, GroupCompositionBudget work)
         {
             _request.CancellationToken.ThrowIfCancellationRequested();
-            if (!ReferenceEquals(work, Work) || outsidePrefix is not null && outsidePrefix.Context != context)
-                throw new PreparedFrameException("SceneBackdropContextMismatch", "下层只能借用同帧、同框、同密度的进入前缀与共享预算。");
+            // 对象的工作框可以比进入前缀的框小（对象级计划收紧）：只要求同帧、同画布、同密度与输出模式，
+            // 下层只在请求的框内解析，前缀落在框外的部分与这个对象无关。
+            if (!ReferenceEquals(work, Work) || outsidePrefix is not null && outsidePrefix.Context with { TargetBounds = context.TargetBounds } != context)
+                throw new PreparedFrameException("SceneBackdropContextMismatch", "下层只能借用同帧、同画布、同密度的进入前缀与共享预算。");
             EffectInstanceId? excluded = requester is PreparedMaterialOwner.Script script ? script.InstanceId : null;
             var backdrop = _pipeline.RasterSceneSurface(_request, bounds, _pipeline._surfaceBudget.Limits,
                 ShaderSurfaceKind.Color, _resources, "SceneOwnedBackdrop", (canvas, _, _) =>
@@ -59,7 +61,7 @@ public sealed partial class SkiaRenderPipeline
             if (outsidePrefix?.Payload is not { } foreground) return backdrop;
             using (backdrop)
                 return _pipeline._compositionProgram.CompositePayload(foreground, backdrop, _resources,
-                    cancellationToken: _request.CancellationToken);
+                    cancellationToken: _request.CancellationToken, clipToBelow: bounds != outsidePrefix.Context.TargetBounds);
         }
 
         public void Dispose() { try { _background.Dispose(); } finally { _passLease.Dispose(); } }

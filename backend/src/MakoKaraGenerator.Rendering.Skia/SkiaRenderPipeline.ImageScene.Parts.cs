@@ -12,24 +12,27 @@ public sealed partial class SkiaRenderPipeline
     /// <param name="Ruby">本行没有注音。</param>
     /// <param name="Stroke">所有可能参与绘制的样式在两态都没有启用描边。</param>
     /// <param name="Shadow">所有可能参与绘制的样式在两态都没有启用阴影。</param>
-    private readonly record struct KnownEmptyParts(bool Ruby, bool Stroke, bool Shadow)
+    /// <param name="OuterStroke">所有可能参与绘制的样式在两态都没有第 2 层起会绘制的描边（P3 设计 §6.3）。</param>
+    private readonly record struct KnownEmptyParts(bool Ruby, bool Stroke, bool Shadow, bool OuterStroke)
     {
         /// <summary>注音部件（含注音材质）一律可跳；描边只跳原样部件，描边材质仍按自身区域执行。</summary>
         internal bool Contains(SceneColorPart part, bool material) => Ruby && IsRuby(part)
             || Stroke && !material && part is SceneColorPart.BaseStroke or SceneColorPart.RubyStroke
+            || (Stroke || OuterStroke) && part is SceneColorPart.BaseOuterStroke or SceneColorPart.RubyOuterStroke
             || Shadow && part is SceneColorPart.BaseShadow or SceneColorPart.RubyShadow;
     }
 
     private static KnownEmptyParts ObjectKnownEmptyParts(RenderRequest request, SceneDrawItem item)
     {
-        bool stroke = false, shadow = false;
+        bool stroke = false, shadow = false, outer = false;
         foreach (var style in ObjectPartStyles(request, item))
         {
-            stroke |= EitherState(style, static state => state.Stroke is { IsEnabled: true });
+            stroke |= EitherState(style, static state => state.Unsung.Strokes.IsEnabled);
+            outer |= EitherState(style, static state => state.Unsung.Strokes.Skip(1).Any(static layer => layer.IsEnabled));
             shadow |= EitherState(style, static state => state.Shadow is { IsEnabled: true });
-            if (stroke && shadow) break;
+            if (stroke && shadow && outer) break;
         }
-        return new(item.Line?.Frame.Line?.RubyAnnotations.IsEmpty == true, !stroke, !shadow);
+        return new(item.Line?.Frame.Line?.RubyAnnotations.IsEmpty == true, !stroke, !shadow, !outer);
     }
 
     /// <summary>对象绘制时可能用到的全部样式，保守取并集：任一来源启用描边／阴影就照常捕获。</summary>

@@ -54,8 +54,8 @@ public sealed class SceneColorPartTests
     {
         var project = Project(); var request = Request(project, width: width, height: height); using var renderer = new SkiaRenderPipeline();
         var target = Target(renderer.GetSceneFrame(request.Project, request.TimeUs));
-        // 依照原生产顺序：基础外描边、阴影、填充，再绘制注音。
-        SceneColorPart[] order = [SceneColorPart.BaseStroke, SceneColorPart.BaseShadow, SceneColorPart.BaseFill, SceneColorPart.RubyStroke, SceneColorPart.RubyShadow, SceneColorPart.RubyFill];
+        // 依照生产顺序：基础阴影、描边、填充，再绘制注音（D-P3-9 起阴影在描边之下）。
+        SceneColorPart[] order = [SceneColorPart.BaseShadow, SceneColorPart.BaseStroke, SceneColorPart.BaseFill, SceneColorPart.RubyShadow, SceneColorPart.RubyStroke, SceneColorPart.RubyFill];
         List<SceneColorPartResult> parts = [];
         try
         {
@@ -134,8 +134,9 @@ public sealed class SceneColorPartTests
         Assert.True(Alpha(Bytes(fill.Surface)) > 0); Assert.True(Alpha(Bytes(stroke.Surface)) > 0); Assert.True(Alpha(Bytes(shadow.Surface)) > 0);
         Assert.Equal(fixedParent ? .25 : .125, fill.CommonOpacity, 6); Assert.Equal(fill.OpacityByte, stroke.OpacityByte);
         using var full = renderer.CaptureSceneTarget(request, target, new(false, true, true, false, SceneCaptureRegion.FillAndStroke), GraphInputSource.TargetColor, Canvas, GraphExecutionBudget.Default);
-        Close(Bytes(full), Combine([stroke, shadow, fill]));
-        Assert.False(Combine([stroke, shadow, fill]).SequenceEqual(Combine([stroke, shadow, fill], false)));
+        // 阴影以整体轮廓为来源并在描边之下（D-P3-9）。
+        Close(Bytes(full), Combine([shadow, stroke, fill]));
+        Assert.False(Combine([shadow, stroke, fill]).SequenceEqual(Combine([shadow, stroke, fill], false)));
         Assert.Equal("UnsupportedSceneColorPartTarget", Assert.Throws<PreparedFrameException>(() => Part(renderer, request, target, SceneColorPart.RubyFill)).Code);
     }
 
@@ -192,9 +193,9 @@ public sealed class SceneColorPartTests
         using var ledger = new ImageSurfaceBudgetSession(); using var renderer = new SkiaRenderPipeline(surfaceBudget: ledger);
         var request = Request(Project()); var target = Target(renderer.GetSceneFrame(request.Project, request.TimeUs));
         using var fill = Part(renderer, request, target, SceneColorPart.BaseFill); using var stroke = Part(renderer, request, target, SceneColorPart.BaseStroke); using var shadow = Part(renderer, request, target, SceneColorPart.BaseShadow);
-        using var assembled = renderer.AssembleSceneColorParts(request, [stroke, shadow, fill], Canvas, GraphExecutionBudget.Default);
+        using var assembled = renderer.AssembleSceneColorParts(request, [shadow, stroke, fill], Canvas, GraphExecutionBudget.Default);
         Assert.Equal(target, assembled.Target); Assert.Equal(request.TimeUs, assembled.TimeUs); Assert.Equal(fill.CommonOpacity, assembled.CommonOpacity); Assert.Equal(fill.OpacityByte, assembled.OpacityByte);
-        Assert.Equal(new[] { SceneColorPart.BaseStroke, SceneColorPart.BaseShadow, SceneColorPart.BaseFill }, assembled.Parts);
+        Assert.Equal(new[] { SceneColorPart.BaseShadow, SceneColorPart.BaseStroke, SceneColorPart.BaseFill }, assembled.Parts);
         var expectedRequest = request with { Project = request.Project with { EnterAnimation = null } };
         using var expected = renderer.CaptureSceneTarget(expectedRequest, target, new(false, true, true, false, SceneCaptureRegion.FillAndStroke), GraphInputSource.TargetColor, Canvas, GraphExecutionBudget.Default);
         Close(Bytes(expected), Bytes(assembled.Surface)); expected.Dispose();

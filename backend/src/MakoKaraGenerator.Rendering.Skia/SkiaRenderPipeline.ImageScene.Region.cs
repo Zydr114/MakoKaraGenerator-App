@@ -105,7 +105,10 @@ public sealed partial class SkiaRenderPipeline
         return whole.BaseGeometry.DrawUnits.All(units.Contains);
     }
 
-    /// <summary>描边（斜接按上限）＋阴影（偏移＋3σ）与辉光（扩张＋3σ）中较大者，单位为元素本地逻辑像素；两态不同时取较大者。</summary>
+    /// <summary>
+    /// 整体轮廓外扩（各层累计描边宽度，斜接按上限）＋阴影（偏移＋3σ）与辉光（扩张＋3σ）中较大者，单位为元素本地逻辑像素；
+    /// 两态不同时取较大者。阴影与辉光都以整体轮廓为来源（D-P3-9，P3 设计 §10.6 第 4 条）。
+    /// </summary>
     private static double RegionDecorationExtent(LyricStyle style)
     {
         var sung = style.ForState(true);
@@ -114,11 +117,24 @@ public sealed partial class SkiaRenderPipeline
 
     private static double StateExtent(LyricStyle style)
     {
-        double stroke = style.Stroke is { IsEnabled: true } outline ? outline.WidthPx * (outline.Join == MakoKaraGenerator.Core.Projects.StrokeJoin.Miter ? StrokeMiterLimit : 1) : 0;
+        double outline = OutlineExtent(style.Unsung.Strokes);
         double shadow = style.Shadow is { IsEnabled: true } shade
             ? Math.Max(Math.Abs(shade.OffsetXPx), Math.Abs(shade.OffsetYPx)) + 3d * shade.BlurRadiusPx : 0;
         double glow = style.Glow is { IsEnabled: true } halo ? halo.SpreadPx + 3d * halo.BlurRadiusPx : 0;
-        return Math.Max(stroke + shadow, glow);
+        return outline + Math.Max(Math.Max(shadow, glow), 0);
+    }
+
+    /// <summary>整体轮廓画到字框之外的像素数：各层累计宽度乘该层拐角系数（斜接按上限）的最大值；不绘制时为 0。</summary>
+    private static double OutlineExtent(MakoKaraGenerator.Core.Projects.StrokeLayers strokes)
+    {
+        if (!strokes.IsEnabled) return 0;
+        double outline = 0, reach = 0;
+        foreach (var layer in strokes)
+        {
+            reach += layer.WidthPx;
+            outline = Math.Max(outline, reach * (layer.Join == MakoKaraGenerator.Core.Projects.StrokeJoin.Miter ? StrokeMiterLimit : 1));
+        }
+        return outline;
     }
 
     /// <summary>

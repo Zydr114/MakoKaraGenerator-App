@@ -135,11 +135,13 @@ public static class StaticStyleProjection
     private static LyricStyle ProjectDrawingAppearance(LyricStyle source, Fx.StyleView baseline, Fx.StyleView result, bool geometrySeed, bool sourcePackage)
     {
         // 未改动的成员保留源对象（含多层描边与已唱一侧的跟随）；改动的描边整表换成脚本给出的单层。
+        // 含源包材质而描边未改动时只替换最内层（包材质换成几何种子），外圈各层原样保留（P3 设计 §6）。
         bool stroke = result.Stroke != baseline.Stroke, shadow = result.Shadow != baseline.Shadow, glow = result.Glow != baseline.Glow;
         TextAppearance unsung = source.Unsung with
         {
             Fill = result.UnsungMaterial == baseline.UnsungMaterial && !sourcePackage ? source.Unsung.Fill : DrawingMaterial(result.UnsungMaterial, geometrySeed),
-            Strokes = !stroke && !sourcePackage ? source.Unsung.Strokes : StrokeLayers.FromStroke(Stroke(result.Stroke, geometrySeed)),
+            Strokes = stroke ? StrokeLayers.FromStroke(Stroke(result.Stroke, geometrySeed))
+                : sourcePackage ? WithInnermost(source.Unsung.Strokes, Stroke(result.Stroke, geometrySeed)) : source.Unsung.Strokes,
             Shadow = shadow ? Shadow(result.Shadow) : source.Unsung.Shadow,
             Glow = glow ? Glow(result.Glow) : source.Unsung.Glow,
         };
@@ -187,6 +189,8 @@ public static class StaticStyleProjection
     };
     private static FillSpec SeedFill(FillSpec fill) => fill.Material is MaterialSpec.PackageMaterial ? new() { Color = RgbaColor.White } : fill;
     // 包材质只允许用在最内层（P3 设计 §10.5），其余层原样保留。
+    private static StrokeLayers WithInnermost(StrokeLayers strokes, StrokeSpec? innermost) =>
+        strokes.Count <= 1 || innermost is null ? StrokeLayers.FromStroke(innermost) : StrokeLayers.From([innermost, .. strokes.Skip(1)]);
     private static StrokeLayers SeedStrokes(StrokeLayers strokes) => strokes.Innermost is { Material: MaterialSpec.PackageMaterial } innermost
         ? StrokeLayers.From([innermost with { Material = new MaterialSpec.Solid(RgbaColor.White) }, .. strokes.Skip(1)]) : strokes;
     private static Fx.GradientValue Gradient(GradientSpec value) => new(

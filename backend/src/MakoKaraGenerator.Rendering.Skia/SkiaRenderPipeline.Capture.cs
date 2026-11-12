@@ -21,8 +21,10 @@ public sealed partial class SkiaRenderPipeline
         public bool SuppressCommonOpacity => Part.HasValue;
         public bool ShadowOnly => Part is SceneColorPart.BaseShadow or SceneColorPart.RubyShadow;
         public bool GlowOnly => Part is SceneColorPart.BaseGlow or SceneColorPart.RubyGlow;
-        public bool StrokeOnly => Part is SceneColorPart.BaseStroke or SceneColorPart.RubyStroke;
-        public bool IncludesGlyph(bool ruby) => (!ruby || Recipe.IncludeRuby) && (Part is null || ruby == (Part is SceneColorPart.RubyFill or SceneColorPart.RubyStroke or SceneColorPart.RubyShadow or SceneColorPart.RubyGlow));
+        public bool StrokeOnly => Part is SceneColorPart.BaseStroke or SceneColorPart.RubyStroke || OuterStrokeOnly;
+        /// <summary>外圈描边部件：只画第 2 层起的各圈（D-P3-9）。</summary>
+        public bool OuterStrokeOnly => Part is SceneColorPart.BaseOuterStroke or SceneColorPart.RubyOuterStroke;
+        public bool IncludesGlyph(bool ruby) => (!ruby || Recipe.IncludeRuby) && (Part is null || ruby == IsRuby(Part.Value));
         public ImageSurfaceReservation? Layer(string operation) => Budget?.Reserve(1, PixelBytes, operation);
         public LyricStyle Style(LyricStyle source)
         {
@@ -37,12 +39,19 @@ public sealed partial class SkiaRenderPipeline
                 return source with { UnsungFill = materialFill, SungFill = materialFill, Opacity = 1, Shadow = null, Glow = null,
                     Stroke = Recipe.IncludeStroke && source.Stroke is { } outline ? outline with { Material = materialFill.Material } : null };
             }
-            if (!IsCoverage) return source with { Stroke = Recipe.IncludeStroke ? source.Stroke : null, Shadow = Recipe.IncludeShadow ? source.Shadow : null, Glow = Recipe.IncludeGlow ? source.Glow : null };
+            if (!IsCoverage) return source with { Unsung = source.Unsung with { Strokes = Recipe.IncludeStroke ? source.Unsung.Strokes : StrokeLayers.Empty,
+                Shadow = Recipe.IncludeShadow ? source.Shadow : null, Glow = Recipe.IncludeGlow ? source.Glow : null } };
             bool stroke = Source == GraphInputSource.StrokeCoverage || Source == GraphInputSource.TargetRegionCoverage && Recipe.Region is SceneCaptureRegion.Stroke or SceneCaptureRegion.FillAndStroke;
             bool fill = Source != GraphInputSource.StrokeCoverage && (Source != GraphInputSource.TargetRegionCoverage || Recipe.Region != SceneCaptureRegion.Stroke);
             var color = fill ? RgbaColor.White : new RgbaColor(0, 0, 0, 0);
-            return source with { UnsungFill = new() { Color = color }, SungFill = new() { Color = color }, Opacity = 1,
-                Stroke = stroke && source.Stroke is { IsValid: true, WidthPx: > 0 } spec ? spec with { Material = new MaterialSpec.Solid(RgbaColor.White) } : null, Shadow = null, Glow = null };
+            // 描边覆盖是全部描边圈的并集（D-P3-9）；描边材质的区域只是最内层一圈。
+            var white = new MaterialSpec.Solid(RgbaColor.White);
+            var strokes = !stroke ? StrokeLayers.Empty
+                : MaterialOperation && Part is SceneColorPart.BaseStroke or SceneColorPart.RubyStroke
+                    ? StrokeLayers.FromStroke(source.Unsung.Strokes.Innermost is { IsValid: true, WidthPx: > 0 } spec ? spec with { Material = white } : null)
+                    : StrokeLayers.From(source.Unsung.Strokes.Where(static layer => layer.IsValid && layer.WidthPx > 0).Select(layer => layer with { Material = white }));
+            return source with { SungFill = new() { Color = color }, Opacity = 1,
+                Unsung = source.Unsung with { Fill = new() { Color = color }, Strokes = strokes, Shadow = null, Glow = null } };
         }
     }
     // 记录同一捕获的全部 with 副本（含网格源面）是否真正发起过绘制；保守：任何可能着色的绘制都记为已绘制。
@@ -184,7 +193,8 @@ public sealed partial class SkiaRenderPipeline
         float Extent(LyricStyle state)
         {
             var style = capture.Style(state);
-            double stroke = style.Stroke is { IsEnabled: true } outline ? outline.WidthPx : 0;
+            // S 为累计描边宽度（P3 设计 §10.6 第 1 条），单层时就是原宽度。
+            double stroke = style.Unsung.Strokes is { IsEnabled: true } strokes ? strokes.TotalWidthPx : 0;
             double shadow = style.Shadow is { IsEnabled: true } spec
                 ? Math.Max(Math.Abs((double)spec.OffsetXPx), Math.Abs((double)spec.OffsetYPx)) + 3 * (double)spec.BlurRadiusPx : 0;
             double total = stroke + shadow + 2;

@@ -55,8 +55,18 @@ public sealed record LyricStyle
         return sung ? this with { Unsung = ResolveSung() with { Fill = Unsung.Fill }, Sung = following } : this with { Sung = following };
     }
 
-    /// <summary>两态展开后的辉光是否不同；相同时整段只画一次辉光。</summary>
-    public bool GlowDiffersByState => !Sung.Glow.FollowsUnsung && Sung.Glow.Value != Unsung.Glow;
+    /// <summary>两态展开后的辉光或其来源轮廓是否不同；都相同时整段只画一次辉光。</summary>
+    /// <remarks>辉光以整体轮廓（字形加全部描边）为来源（D-P3-9），两态辉光参数相同而描边总宽或外圈拐角不同时也按态绘制。</remarks>
+    public bool GlowDiffersByState
+    {
+        get
+        {
+            GlowSpec? sung = Sung.Glow.Resolve(Unsung.Glow);
+            if (sung != Unsung.Glow) return true;
+            return Unsung.Glow is { IsEnabled: true } && !Sung.Strokes.FollowsUnsung
+                && !(Sung.Strokes.Value ?? StrokeLayers.Empty).SameOutline(Unsung.Strokes);
+        }
+    }
 
     /// <summary>两态展开后的描边、阴影或辉光是否不同。</summary>
     /// <remarks>不同时已唱区域按扫字线延到行的两端之外，字框外的装饰随之切换（P3 设计 §4）。</remarks>

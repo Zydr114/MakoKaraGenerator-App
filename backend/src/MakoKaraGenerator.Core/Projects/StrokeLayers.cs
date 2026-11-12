@@ -73,6 +73,22 @@ public sealed class StrokeLayers : IReadOnlyList<StrokeSpec>, IEquatable<StrokeL
     /// <summary>是否至少有一层会画出东西。</summary>
     public bool IsEnabled => _items.Any(static item => item.IsEnabled);
 
+    /// <summary>最外层的拐角；整体轮廓（字形加全部描边）的外缘按它绘制。无描边时为圆角。</summary>
+    public StrokeJoin OuterJoin => _items.IsEmpty ? StrokeJoin.Round : _items[^1].Join;
+
+    /// <summary>
+    /// 两份描边围出的整体轮廓是否相同：都不绘制，或都绘制且总宽与最外层拐角相同。
+    /// 阴影与辉光以整体轮廓为来源（D-P3-9），轮廓相同时两态的阴影与辉光形状相同，与各层颜色无关。
+    /// </summary>
+    /// <param name="other">另一份描边。</param>
+    /// <returns>轮廓相同时为 <see langword="true"/>。</returns>
+    public bool SameOutline(StrokeLayers other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        if (!IsEnabled || !other.IsEnabled) return IsEnabled == other.IsEnabled;
+        return TotalWidthPx == other.TotalWidthPx && OuterJoin == other.OuterJoin;
+    }
+
     /// <summary>
     /// 结构是否有效：至多 <see cref="MaxCount"/> 层；每层有效且宽度为正的有限数；
     /// 包材质只允许用在第 0 层（D-P3-9）。

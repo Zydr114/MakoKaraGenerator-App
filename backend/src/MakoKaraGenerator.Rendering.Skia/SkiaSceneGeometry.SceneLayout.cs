@@ -82,8 +82,8 @@ public sealed partial class SkiaSceneGeometry
     {
         var line = scene.Frame.Line!;
         var style = LineBaseStyle(snapshot.LyricStyle, line, scene.Branch);
-        return line.Tokens.Select(token => token.StyleOverride is { } overlay ? ElementPadding(style, overlay) : DecorationExtent(style))
-            .Prepend(DecorationExtent(style)).Max();
+        return line.Tokens.Select(token => token.StyleOverride is { } overlay ? LayoutElementPadding(style, overlay) : LayoutDecorationExtent(style))
+            .Prepend(LayoutDecorationExtent(style)).Max();
     }
 
     private LineRenderGeometry? MeasureSceneGeometry(ProjectSnapshot snapshot, SceneLineSample scene, Composition composition, bool includeWorld = false)

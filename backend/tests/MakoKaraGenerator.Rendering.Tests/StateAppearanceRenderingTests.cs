@@ -113,8 +113,8 @@ public sealed class StateAppearanceRenderingTests
         var (unsung, sung) = Appearances(split);
         var q = Request(Project(unsung, SungAppearance.Explicit(sung), ruby: true));
         using var r = new SkiaRenderPipeline(); var target = Target(r, q);
-        SceneColorPart[] kinds = [SceneColorPart.BaseGlow, SceneColorPart.BaseStroke, SceneColorPart.BaseShadow, SceneColorPart.BaseFill,
-            SceneColorPart.RubyGlow, SceneColorPart.RubyStroke, SceneColorPart.RubyShadow, SceneColorPart.RubyFill];
+        SceneColorPart[] kinds = [SceneColorPart.BaseGlow, SceneColorPart.BaseShadow, SceneColorPart.BaseStroke, SceneColorPart.BaseFill,
+            SceneColorPart.RubyGlow, SceneColorPart.RubyShadow, SceneColorPart.RubyStroke, SceneColorPart.RubyFill];
         var parts = kinds.Select(k => r.CaptureSceneColorPart(q, target, k, Canvas, GraphExecutionBudget.Default)).ToArray();
         try
         {

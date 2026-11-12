@@ -74,7 +74,9 @@ public sealed partial class SkiaRenderPipeline
         }
         void ValidateGradients(LyricStyle style, ShapedLine shaped, LineSpan? span = null)
         {
-            foreach (var gradient in new[] { style.UnsungFill.Gradient, style.SungFill.Gradient, style.Stroke?.Gradient, style.ForState(true).Stroke?.Gradient })
+            // 两态各层描边的渐变都要校验（多重描边每层可用渐变，P3 设计 §6.2）。
+            var strokeGradients = style.Unsung.Strokes.Concat(style.ForState(true).Unsung.Strokes).Select(static layer => layer.Gradient);
+            foreach (var gradient in strokeGradients.Prepend(style.SungFill.Gradient).Prepend(style.UnsungFill.Gradient))
             {
                 if (gradient is not null && GradientSupport.IsSupported(gradient))
                     ValidateNativeGradient(gradient, shaped, style, prepared.Snapshot.Composition, span);
@@ -116,6 +118,8 @@ public sealed partial class SkiaRenderPipeline
                 new(true, true, true, false, SceneCaptureRegion.FillAndStroke), null);
             foreach (var part in ColorPartOrder)
             {
+                // 原样描边部件已含全部各圈，外圈部件只供描边槽有材质的图场景单独捕获。
+                if (part is SceneColorPart.BaseOuterStroke or SceneColorPart.RubyOuterStroke) continue;
                 var recipe = original.Recipe with
                 {
                     IncludeStroke = original.Recipe.IncludeStroke && part is SceneColorPart.BaseStroke or SceneColorPart.RubyStroke,

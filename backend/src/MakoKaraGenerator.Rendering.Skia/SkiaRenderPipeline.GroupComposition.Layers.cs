@@ -95,7 +95,7 @@ public sealed partial class SkiaRenderPipeline
     {
         if (IsRuby(part.Part) && !recipe.IncludeRuby) return false;
         bool fill = part.Part is SceneColorPart.BaseFill or SceneColorPart.RubyFill;
-        bool stroke = part.Part is SceneColorPart.BaseStroke or SceneColorPart.RubyStroke;
+        bool stroke = IsStrokePart(part.Part);
         bool glow = part.Part is SceneColorPart.BaseGlow or SceneColorPart.RubyGlow;
         bool shadow = part.Part is SceneColorPart.BaseShadow or SceneColorPart.RubyShadow;
         return source switch

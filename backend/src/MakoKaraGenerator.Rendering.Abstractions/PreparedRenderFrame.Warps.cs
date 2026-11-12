@@ -169,12 +169,13 @@ public sealed partial class PreparedRenderFrame
         return new(ink.Left - extent, ink.Top - extent, ink.Right + extent, ink.Bottom + extent);
     }
 
+    /// <summary>累计描边宽度 S 加阴影与辉光中较大者：两者都以整体轮廓为来源（D-P3-9，P3 设计 §10.6）。</summary>
     private static double DecorationExtent(LyricStyle style)
     {
-        double stroke = style.Stroke is { IsEnabled: true } outline ? outline.WidthPx : 0;
+        double stroke = style.Unsung.Strokes is { IsEnabled: true } strokes ? strokes.TotalWidthPx : 0;
         double shadow = style.Shadow is { IsEnabled: true } shade
             ? Math.Max(Math.Abs(shade.OffsetXPx), Math.Abs(shade.OffsetYPx)) + 3d * shade.BlurRadiusPx : 0;
         double glow = style.Glow is { IsEnabled: true } halo ? halo.SpreadPx + 3d * halo.BlurRadiusPx : 0;
-        return Math.Max(stroke + shadow, glow);
+        return stroke + Math.Max(shadow, glow);
     }
 }

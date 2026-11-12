@@ -223,10 +223,16 @@ public sealed partial class SkiaRenderPipeline
                 var captureTarget = member is ImageEffectTarget.Token token && !IsRuby(part)
                     && prepared.BaseAppearances.ContainsKey(new(token.Target.TokenId, token.Target.BindingId))
                     ? (SceneCaptureTarget)new SceneCaptureTarget.Base(new(token.Target.TokenId, token.Target.BindingId)) : CaptureTarget(member);
-                var slot = plan.Materials.Where(material => material.Binding.CaptureTarget == captureTarget && (part is SceneColorPart.BaseStroke or SceneColorPart.RubyStroke
+                var slot = plan.Materials.Where(material => material.Binding.CaptureTarget == captureTarget && (IsStrokePart(part)
                     ? material.Binding.Slot == PreparedMaterialSlot.Stroke : part is SceneColorPart.BaseFill or SceneColorPart.RubyFill
                         && material.Binding.Slot != PreparedMaterialSlot.Stroke)).ToArray();
                 int order = partOrder * (plan.TokenTargets.Length + 1) + memberOrder;
+                if (part is SceneColorPart.BaseOuterStroke or SceneColorPart.RubyOuterStroke)
+                {
+                    // 描边材质的区域只是最内层一圈；外圈只在这时单独原样捕获，其余情况由原样描边部件一并画出，层数不变（P3 设计 §6.3）。
+                    if (slot.Length > 0) parts.Add(new(member, part, order, ObjectPartKind.Original, null, false));
+                    continue;
+                }
                 if (slot.Length == 0) { parts.Add(new(member, part, order, ObjectPartKind.Original, null, false)); continue; }
                 if (part is SceneColorPart.BaseFill or SceneColorPart.RubyFill) { AddSide(false); AddSide(true); }
                 else AddMaterial(slot[0], null);

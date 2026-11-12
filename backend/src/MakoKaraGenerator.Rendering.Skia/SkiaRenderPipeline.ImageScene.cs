@@ -8,8 +8,10 @@ namespace MakoKaraGenerator.Rendering.Skia;
 
 public sealed partial class SkiaRenderPipeline
 {
-    private static readonly SceneColorPart[] ColorPartOrder = [SceneColorPart.BaseGlow, SceneColorPart.BaseStroke, SceneColorPart.BaseShadow, SceneColorPart.BaseFill,
-        SceneColorPart.RubyGlow, SceneColorPart.RubyStroke, SceneColorPart.RubyShadow, SceneColorPart.RubyFill];
+    // 层序与直接绘制一致：辉光 → 阴影 → 外圈描边 → 描边 → 填充（D-P3-9；外圈描边只在描边槽有材质时单独成部件）。
+    private static readonly SceneColorPart[] ColorPartOrder = [SceneColorPart.BaseGlow, SceneColorPart.BaseShadow, SceneColorPart.BaseOuterStroke,
+        SceneColorPart.BaseStroke, SceneColorPart.BaseFill,
+        SceneColorPart.RubyGlow, SceneColorPart.RubyShadow, SceneColorPart.RubyOuterStroke, SceneColorPart.RubyStroke, SceneColorPart.RubyFill];
     private const int MaxRetainedAlphaReadbackBytes = 16 * 1024 * 1024;
     private sealed record PartSource(ImageEffectTarget Member, SceneColorPart Part);
     internal sealed record SceneEffectOwner(PreparedMaterialOwner Origin, string Stage = "RenderImageEffects", Scripting.V2.TextTarget? TextTarget = null)
@@ -157,7 +159,9 @@ public sealed partial class SkiaRenderPipeline
                     .Select(geometry.BaseWorldMatrix.Map).ToImmutableArray();
             bounds = Union(bounds, new(corners.Min(point => point.X), corners.Min(point => point.Y), corners.Max(point => point.X), corners.Max(point => point.Y)));
         }
-        static double? GlowExtent(MakoKaraGenerator.Core.Projects.LyricStyle style) => style.Glow is { IsEnabled: true } glow ? ValidateGlow(glow) : null;
+        // 辉光从整体轮廓起算（D-P3-9）。
+        static double? GlowExtent(MakoKaraGenerator.Core.Projects.LyricStyle style) => style.Glow is { IsEnabled: true } glow
+            ? OutlineExtent(style.Unsung.Strokes) + ValidateGlow(glow) : null;
     }
     private static bool Belongs(ImageEffectTarget target, SceneDrawItem item) => target switch
     {
@@ -177,7 +181,10 @@ public sealed partial class SkiaRenderPipeline
     private static GraphRect Union(GraphRect a, GraphRect b) => new(Math.Min(a.Left, b.Left), Math.Min(a.Top, b.Top), Math.Max(a.Right, b.Right), Math.Max(a.Bottom, b.Bottom));
     private static PreparedFrameException GroupImageEffectUnsupported() => new("GroupImageEffectUnsupported",
         "R3 Core 当前不执行父组图像效果；请将组图绑定留到 R3.1 父级合成阶段。");
-    private static bool IsRuby(SceneColorPart part) => part is SceneColorPart.RubyStroke or SceneColorPart.RubyShadow or SceneColorPart.RubyFill or SceneColorPart.RubyGlow;
+    private static bool IsRuby(SceneColorPart part) => part is SceneColorPart.RubyStroke or SceneColorPart.RubyOuterStroke
+        or SceneColorPart.RubyShadow or SceneColorPart.RubyFill or SceneColorPart.RubyGlow;
+    private static bool IsStrokePart(SceneColorPart part) => part is SceneColorPart.BaseStroke or SceneColorPart.RubyStroke
+        or SceneColorPart.BaseOuterStroke or SceneColorPart.RubyOuterStroke;
     private unsafe bool IsEmptyOriginalSurface(SkiaGraphSurface surface, ImageObjectState state, CancellationToken cancellationToken)
     {
         var image = surface.Image;

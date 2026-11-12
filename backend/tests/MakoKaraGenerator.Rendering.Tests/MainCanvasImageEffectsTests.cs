@@ -14,7 +14,7 @@ public sealed partial class MainCanvasImageEffectsTests
     private static readonly Fx.ResourceCatalog Catalog = new("canvas-test", "sha256:" + new string('b', 64), [], ["first", "last"], []);
     private static readonly SceneCaptureRecipe Fill = new(false, false, false, false, SceneCaptureRegion.Fill);
     private static readonly SceneCaptureRecipe Whole = new(true, true, true, false, SceneCaptureRegion.FillAndStroke);
-    private static readonly SceneColorPart[] Order = [SceneColorPart.BaseStroke, SceneColorPart.BaseShadow, SceneColorPart.BaseFill, SceneColorPart.RubyStroke, SceneColorPart.RubyShadow, SceneColorPart.RubyFill];
+    private static readonly SceneColorPart[] Order = [SceneColorPart.BaseShadow, SceneColorPart.BaseStroke, SceneColorPart.BaseFill, SceneColorPart.RubyShadow, SceneColorPart.RubyStroke, SceneColorPart.RubyFill];
     private static ProjectSnapshot Snapshot(bool decorated = true, bool secondToken = false) => ProjectSnapshot.FromProject(Project.Create("主画布", Composition.Create(640, 360, Core.Time.FrameRate.Fps30, new(25, 40, 60), 5_000_000),
         LyricsDocument.Create([LyricLine.Create("line", secondToken ? "歌詞" : "歌", new(0, 5_000_000), TimingStatus.Edited,
             secondToken ? [LyricToken.Create("token", "歌", new(0, 2_000_000), TimingStatus.Edited), LyricToken.Create("token-2", "詞", new(2_000_000, 4_000_000), TimingStatus.Edited)]

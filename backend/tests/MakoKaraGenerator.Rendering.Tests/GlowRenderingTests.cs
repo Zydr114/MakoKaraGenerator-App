@@ -80,8 +80,8 @@ public sealed class GlowRenderingTests
             LyricStyle = p.LyricStyle with { UnsungColor = new(20, 40, 180, 100), SungColor = new(180, 20, 40, 140), Opacity = .7f,
                 Stroke = StrokeSpec.Create(new(0, 180, 20, 160), 3), Shadow = ShadowSpec.Create(new(180, 0, 20, 140), blurRadiusPx: 3) } };
         using var r = new SkiaRenderPipeline(); var q = Request(p) with { Target = new() { PixelWidth = width, PixelHeight = height } }; var target = Target(r, q);
-        SceneColorPart[] kinds = [SceneColorPart.BaseGlow, SceneColorPart.BaseStroke, SceneColorPart.BaseShadow, SceneColorPart.BaseFill,
-            SceneColorPart.RubyGlow, SceneColorPart.RubyStroke, SceneColorPart.RubyShadow, SceneColorPart.RubyFill];
+        SceneColorPart[] kinds = [SceneColorPart.BaseGlow, SceneColorPart.BaseShadow, SceneColorPart.BaseStroke, SceneColorPart.BaseFill,
+            SceneColorPart.RubyGlow, SceneColorPart.RubyShadow, SceneColorPart.RubyStroke, SceneColorPart.RubyFill];
         var parts = kinds.Select(k => r.CaptureSceneColorPart(q, target, k, Canvas, GraphExecutionBudget.Default)).ToArray();
         try
         {
@@ -140,8 +140,8 @@ public sealed class GlowRenderingTests
         p = p with { LyricStyle = p.LyricStyle with { UnsungColor = RgbaColor.White, SungColor = RgbaColor.White, Glow = GlowSpec.Create(new(255, 0, 0), blurRadiusPx: 8, spreadPx: 20) },
             Lyrics = LyricsDocument.Create([line with { Tokens = line.Tokens.SetItem(1, line.Tokens[1] with { StyleOverride = new() { Glow = new GlowSpecOverride { Color = new(0, 0, 255) } } }) }]) };
         using var r = new SkiaRenderPipeline(); var q = Request(p); var target = Target(r, q);
-        SceneColorPart[] order = [SceneColorPart.BaseGlow, SceneColorPart.BaseStroke, SceneColorPart.BaseShadow, SceneColorPart.BaseFill,
-            SceneColorPart.RubyGlow, SceneColorPart.RubyStroke, SceneColorPart.RubyShadow, SceneColorPart.RubyFill];
+        SceneColorPart[] order = [SceneColorPart.BaseGlow, SceneColorPart.BaseShadow, SceneColorPart.BaseStroke, SceneColorPart.BaseFill,
+            SceneColorPart.RubyGlow, SceneColorPart.RubyShadow, SceneColorPart.RubyStroke, SceneColorPart.RubyFill];
         var parts = order.Select(kind => r.CaptureSceneColorPart(q, target, kind, Canvas, GraphExecutionBudget.Default)).ToArray();
         try { using var combined = r.AssembleSceneColorParts(q, parts, Canvas, GraphExecutionBudget.Default); using var actual = Capture(r, q); Close(Pixels(actual), Pixels(combined.Surface)); }
         finally { foreach (var part in parts) part.Dispose(); }

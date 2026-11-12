@@ -23,8 +23,15 @@ public sealed partial class SkiaSceneGeometry
     internal static float ElementPadding(LyricStyle lineStyle, LyricStyleOverride overlay) =>
         MathF.Max(DecorationExtent(lineStyle), DecorationExtent(ResolveElementStyle(lineStyle, overlay)));
 
+    /// <summary>排版留白用的元素外扩：与 <see cref="ElementPadding"/> 相同，只是辉光项不加描边宽度（P3 设计 §10.6 第 3 条）。</summary>
+    internal static float LayoutElementPadding(LyricStyle lineStyle, LyricStyleOverride overlay) =>
+        MathF.Max(LayoutDecorationExtent(lineStyle), LayoutDecorationExtent(ResolveElementStyle(lineStyle, overlay)));
+
     /// <summary>一个样式会画到字框之外的像素数；两态装饰不同时取较大者（P3 设计 §4）。</summary>
-    internal static float DecorationExtent(LyricStyle style) => MaxOverStates(style, StateDecorationExtent);
+    internal static float DecorationExtent(LyricStyle style) => MaxOverStates(style, static state => StateDecorationExtent(state, layout: false));
+
+    /// <summary>排版留白用的装饰外扩：辉光项保持 P3 之前的扩张 + 3σ + 2，已有工程的行距不变（P3 设计 §10.6 第 3 条）。</summary>
+    internal static float LayoutDecorationExtent(LyricStyle style) => MaxOverStates(style, static state => StateDecorationExtent(state, layout: true));
 
     /// <summary>两态中任一态满足条件；已唱装饰全部跟随时只看一次。</summary>
     /// <param name="style">可含两态装饰的样式。</param>
@@ -49,15 +56,17 @@ public sealed partial class SkiaSceneGeometry
     internal static bool HasGlow(LyricStyle style) => style.Glow is { IsEnabled: true }
         || style.GlowDiffersByState && style.ResolveSung().Glow is { IsEnabled: true };
 
-    private static float StateDecorationExtent(LyricStyle style)
+    /// <summary>单态外扩：旧式部分 min(S + 阴影 + 2, 64)，S 为累计描边宽度；辉光从整体轮廓起算（D-P3-9），排版留白除外。</summary>
+    private static float StateDecorationExtent(LyricStyle style, bool layout)
     {
-        StrokeSpec? strokeSpec = LyricStyleEffects.GetStroke(style);
+        StrokeLayers strokes = style.Unsung.Strokes;
         ShadowSpec? shadowSpec = EffectiveShadow(style);
-        float stroke = strokeSpec is { IsEnabled: true } ? MathF.Max(strokeSpec.WidthPx, 0f) : 0f;
+        float stroke = strokes.IsEnabled ? MathF.Max(strokes.TotalWidthPx, 0f) : 0f;
         float shadow = shadowSpec is { IsEnabled: true }
             ? MathF.Max(MathF.Abs(shadowSpec.OffsetXPx), MathF.Abs(shadowSpec.OffsetYPx)) + MathF.Max(shadowSpec.BlurRadiusPx, 0f) : 0f;
         float legacy = MathF.Min(stroke + shadow + 2f, 64f);
-        return style.Glow is { IsEnabled: true } glow ? Math.Max(legacy, (float)(ValidateGlow(glow) + 2)) : legacy;
+        return style.Glow is { IsEnabled: true } glow
+            ? Math.Max(legacy, (float)(ValidateGlow(glow) + 2 + (layout ? 0d : stroke))) : legacy;
     }
 
     /// <summary>取得样式实际使用的阴影描述。</summary>

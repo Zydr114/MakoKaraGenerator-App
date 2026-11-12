@@ -75,7 +75,7 @@ public sealed class BackendScriptConfigurationTests
             detail.Configuration.PackageId, detail.Configuration.PackageRevision, detail.Configuration.ExportId, detail.Configuration.ParametersJson,
             detail.Configuration.OverlayLayer, true, detail.Configuration.ReadScope, detail.Configuration.BranchInput, detail.Configuration.FixedSeed, created.ConfigurationId);
         var template = Accepted(await f.Registry.ExecuteTemplateLibraryCommandAsync("client", "personal", new("missing", f.Metadata(),
-            new CreateTemplateCommandDto(new FullTemplateDefinitionDto("fixed", TemplateKind.Composite, style, [TemplateProperty.FontSizePx], [recipe], [detail.Package.Reference]), "full"))));
+            new CreateTemplateCommandDto(new FullTemplateDefinitionDto("fixed", TemplateKind.Composite, style, ["typography.fontSizePx"], [recipe], [detail.Package.Reference]), "full"))));
         Accepted(await f.Registry.ExecuteScriptConfigurationCommandAsync("client", f.Request(created.Revision, new ScriptConfigurationDeleteCommandDto("delete", created.ConfigurationId))));
         var fixedTemplate = Accepted(await f.Registry.ReadTemplateAsync("personal", template.Revision, template.TemplateId, "full"));
         Assert.Equal(saved.SourceRevision, Assert.Single(fixedTemplate.PackageClosureDetails!).PackageRevision);

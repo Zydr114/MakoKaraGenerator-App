@@ -89,24 +89,38 @@ public sealed class StyleChangeJsonConverter : JsonConverter<StyleChangeDto>
             case StyleBoldChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
             case StyleItalicChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
             case StyleLetterSpacingChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
-            case StyleUnsungMaterialChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
-            case StyleSungMaterialChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
-            case StyleStrokeChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
-            case StyleStrokeMaterialChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
-            case StyleStrokeWidthChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
-            case StyleStrokeJoinChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
-            case StyleStrokePositionChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
-            case StyleShadowChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
-            case StyleShadowColorChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
-            case StyleShadowOpacityChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
-            case StyleShadowAngleChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
-            case StyleShadowDistanceChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
-            case StyleShadowBlurChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
-            case StyleGlowChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
-            case StyleGlowColorChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
-            case StyleGlowOpacityChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
-            case StyleGlowBlurChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
-            case StyleGlowSpreadChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleUnsungFillChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleSungFillChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleUnsungStrokesChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleSungStrokesChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleUnsungShadowChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleUnsungShadowColorChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleUnsungShadowOpacityChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleUnsungShadowAngleChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleUnsungShadowDistanceChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleUnsungShadowBlurChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleSungShadowChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleSungShadowColorChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleSungShadowOpacityChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleSungShadowAngleChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleSungShadowDistanceChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleSungShadowBlurChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleUnsungGlowChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleUnsungGlowColorChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleUnsungGlowOpacityChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleUnsungGlowBlurChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleUnsungGlowSpreadChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleSungGlowChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleSungGlowColorChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleSungGlowOpacityChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleSungGlowBlurChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleSungGlowSpreadChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleWipeFeatherChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleWipeHighlightChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleWipeHighlightColorChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleWipeHighlightWidthChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleWipeHighlightOpacityChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleWipeHighlightBlendChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
             case StyleVerticalCenterChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
             case StyleAlignmentChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
             case StyleOpacityChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
@@ -117,8 +131,55 @@ public sealed class StyleChangeJsonConverter : JsonConverter<StyleChangeDto>
     }
 }
 
+/// <summary>已唱描边的跟随／显式联合。</summary>
+public sealed class StyleSungStrokesJsonConverter : JsonConverter<StyleSungStrokesDto>
+{
+    /// <inheritdoc />
+    public override StyleSungStrokesDto Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        using var document = JsonDocument.ParseValue(ref reader); return StyleCommandJson.SungStrokes(document.RootElement);
+    }
+    /// <inheritdoc />
+    public override void Write(Utf8JsonWriter writer, StyleSungStrokesDto value, JsonSerializerOptions options)
+    {
+        if (value.Kind == StyleFollowKind.Set && value.Value is null) throw new JsonException("显式已唱描边必须是数组。");
+        StyleCommandJson.WriteFollowable(writer, value.Kind, value.Value, options);
+    }
+}
+/// <summary>已唱阴影的跟随／显式联合。</summary>
+public sealed class StyleSungShadowJsonConverter : JsonConverter<StyleSungShadowDto>
+{
+    /// <inheritdoc />
+    public override StyleSungShadowDto Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        using var document = JsonDocument.ParseValue(ref reader); return StyleCommandJson.SungShadow(document.RootElement);
+    }
+    /// <inheritdoc />
+    public override void Write(Utf8JsonWriter writer, StyleSungShadowDto value, JsonSerializerOptions options)
+        => StyleCommandJson.WriteFollowable(writer, value.Kind, value.Value, options);
+}
+/// <summary>已唱辉光的跟随／显式联合。</summary>
+public sealed class StyleSungGlowJsonConverter : JsonConverter<StyleSungGlowDto>
+{
+    /// <inheritdoc />
+    public override StyleSungGlowDto Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        using var document = JsonDocument.ParseValue(ref reader); return StyleCommandJson.SungGlow(document.RootElement);
+    }
+    /// <inheritdoc />
+    public override void Write(Utf8JsonWriter writer, StyleSungGlowDto value, JsonSerializerOptions options)
+        => StyleCommandJson.WriteFollowable(writer, value.Kind, value.Value, options);
+}
+
 internal static class StyleCommandJson
 {
+    internal static void WriteFollowable<T>(Utf8JsonWriter writer, StyleFollowKind kind, T? value, JsonSerializerOptions options) where T : class
+    {
+        if (!System.Enum.IsDefined(kind) || kind == StyleFollowKind.Follow && value is not null) throw new JsonException("跟随项不能携带 value。");
+        writer.WriteStartObject(); writer.WriteString("kind", JsonNamingPolicy.CamelCase.ConvertName(kind.ToString()));
+        if (kind == StyleFollowKind.Set) { writer.WritePropertyName("value"); JsonSerializer.Serialize(writer, value, options); }
+        writer.WriteEndObject();
+    }
     internal static readonly string[] Properties =
     [
         "typography.fontFamilyName",
@@ -128,24 +189,42 @@ internal static class StyleCommandJson
         "typography.isBold",
         "typography.isItalic",
         "typography.letterSpacingPx",
-        "unsungFill.material",
-        "sungFill.material",
-        "stroke",
-        "stroke.material",
-        "stroke.widthPx",
-        "stroke.join",
-        "stroke.position",
-        "shadow",
-        "shadow.color",
-        "shadow.opacity",
-        "shadow.angleDegrees",
-        "shadow.distancePx",
-        "shadow.blurRadiusPx",
+        "unsung.fill",
+        "sung.fill",
+        "unsung.strokes",
+        "sung.strokes",
+        "unsung.shadow",
+        "unsung.shadow.color",
+        "unsung.shadow.opacity",
+        "unsung.shadow.angleDegrees",
+        "unsung.shadow.distancePx",
+        "unsung.shadow.blurRadiusPx",
+        "sung.shadow",
+        "sung.shadow.color",
+        "sung.shadow.opacity",
+        "sung.shadow.angleDegrees",
+        "sung.shadow.distancePx",
+        "sung.shadow.blurRadiusPx",
+        "unsung.glow",
+        "unsung.glow.color",
+        "unsung.glow.opacity",
+        "unsung.glow.blurRadiusPx",
+        "unsung.glow.spreadPx",
+        "sung.glow",
+        "sung.glow.color",
+        "sung.glow.opacity",
+        "sung.glow.blurRadiusPx",
+        "sung.glow.spreadPx",
+        "wipe.featherRatio",
+        "wipe.highlight",
+        "wipe.highlight.color",
+        "wipe.highlight.widthRatio",
+        "wipe.highlight.opacity",
+        "wipe.highlight.blend",
         "verticalCenterRatio",
         "horizontalAlignment",
         "opacity",
         "scale",
-        "glow", "glow.color", "glow.opacity", "glow.blurRadiusPx", "glow.spreadPx",
     ];
     internal static Dictionary<string, JsonElement> Fields(JsonElement root, params string[] keys)
     {
@@ -179,14 +258,55 @@ internal static class StyleCommandJson
     }
     internal static CanonicalStyleDto CanonicalStyle(JsonElement root, bool fullTemplate = false)
     {
-        var f = Fields(root, "typography", "unsungFill", "sungFill", "stroke", "shadow", "verticalCenterRatio", "horizontalAlignment", "opacity", "scale", "glow");
-        var t = Fields(f["typography"], "fontFamilyName", "fallbackFamilyNames", "fontSizePx", "fontWeight", "isBold", "isItalic", "letterSpacingPx");
-        var unsung = Fields(f["unsungFill"], "material"); var sung = Fields(f["sungFill"], "material");
-        return new(new(NullableString(t["fontFamilyName"]), Strings(t["fallbackFamilyNames"]), Float(t["fontSizePx"]), Integer(t["fontWeight"]),
-                Boolean(t["isBold"]), Boolean(t["isItalic"]), Float(t["letterSpacingPx"])),
-            new(Material(unsung["material"], fullTemplate)), new(Material(sung["material"], fullTemplate)), f["stroke"].ValueKind == JsonValueKind.Null ? null : Stroke(f["stroke"], fullTemplate),
-            f["shadow"].ValueKind == JsonValueKind.Null ? null : Shadow(f["shadow"]), Number(f["verticalCenterRatio"]),
-            Enum<StyleHorizontalAlignment>(f["horizontalAlignment"]), Float(f["opacity"]), Float(f["scale"]), f["glow"].ValueKind == JsonValueKind.Null ? null : Glow(f["glow"]));
+        var f = Fields(root, "typography", "unsung", "sung", "wipe", "verticalCenterRatio", "horizontalAlignment", "opacity", "scale");
+        return new(Typography(f["typography"]), Appearance(f["unsung"], fullTemplate), SungAppearance(f["sung"], fullTemplate), Wipe(f["wipe"]),
+            Number(f["verticalCenterRatio"]), Enum<StyleHorizontalAlignment>(f["horizontalAlignment"]), Float(f["opacity"]), Float(f["scale"]));
+    }
+    internal static StyleTypographyDto Typography(JsonElement root)
+    {
+        var t = Fields(root, "fontFamilyName", "fallbackFamilyNames", "fontSizePx", "fontWeight", "isBold", "isItalic", "letterSpacingPx");
+        return new(NullableString(t["fontFamilyName"]), Strings(t["fallbackFamilyNames"]), Float(t["fontSizePx"]), Integer(t["fontWeight"]),
+            Boolean(t["isBold"]), Boolean(t["isItalic"]), Float(t["letterSpacingPx"]));
+    }
+    internal static StyleAppearanceDto Appearance(JsonElement root, bool fullTemplate = false)
+    {
+        var f = Fields(root, "fill", "strokes", "shadow", "glow");
+        return new(Material(f["fill"], fullTemplate), Strokes(f["strokes"], fullTemplate), NullOr(f["shadow"], Shadow), NullOr(f["glow"], Glow));
+    }
+    internal static StyleSungAppearanceDto SungAppearance(JsonElement root, bool fullTemplate = false)
+    {
+        var f = Fields(root, "fill", "strokes", "shadow", "glow");
+        return new(Material(f["fill"], fullTemplate), SungStrokes(f["strokes"], fullTemplate), SungShadow(f["shadow"]), SungGlow(f["glow"]));
+    }
+    internal static StyleWipeDto Wipe(JsonElement root)
+    {
+        var f = Fields(root, "featherRatio", "highlight"); return new(Number(f["featherRatio"]), NullOr(f["highlight"], Highlight));
+    }
+    internal static StyleWipeHighlightDto Highlight(JsonElement root)
+    {
+        var f = Fields(root, "color", "widthRatio", "opacity", "blend");
+        return new(Color(f["color"]), Number(f["widthRatio"]), Float(f["opacity"]), Enum<StyleWipeHighlightBlend>(f["blend"]));
+    }
+    internal static T? NullOr<T>(JsonElement value, Func<JsonElement, T> read) where T : class => value.ValueKind == JsonValueKind.Null ? null : read(value);
+    // 跟随只写 kind；显式取值必须同时写 value（阴影、辉光的 value 可为 null，描边为数组）。
+    private static (StyleFollowKind Kind, JsonElement Value) Followable(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("kind", out var kind)) throw new JsonException("已唱跟随项必须提供 kind。");
+        StyleFollowKind value = Enum<StyleFollowKind>(kind);
+        if (value == StyleFollowKind.Follow) { Fields(root, "kind"); return (value, default); }
+        return (value, Fields(root, "kind", "value")["value"]);
+    }
+    internal static StyleSungStrokesDto SungStrokes(JsonElement root, bool fullTemplate = false)
+    {
+        var (kind, value) = Followable(root); return kind == StyleFollowKind.Follow ? new(kind) : new(kind, Strokes(value, fullTemplate));
+    }
+    internal static StyleSungShadowDto SungShadow(JsonElement root)
+    {
+        var (kind, value) = Followable(root); return kind == StyleFollowKind.Follow ? new(kind) : new(kind, NullOr(value, Shadow));
+    }
+    internal static StyleSungGlowDto SungGlow(JsonElement root)
+    {
+        var (kind, value) = Followable(root); return kind == StyleFollowKind.Follow ? new(kind) : new(kind, NullOr(value, Glow));
     }
 
     internal static StyleChangeDto Change(JsonElement root)
@@ -201,24 +321,38 @@ internal static class StyleCommandJson
             "typography.isBold" => new StyleBoldChangeDto(Boolean(v)),
             "typography.isItalic" => new StyleItalicChangeDto(Boolean(v)),
             "typography.letterSpacingPx" => new StyleLetterSpacingChangeDto(Float(v)),
-            "unsungFill.material" => new StyleUnsungMaterialChangeDto(Material(v)),
-            "sungFill.material" => new StyleSungMaterialChangeDto(Material(v)),
-            "stroke" => new StyleStrokeChangeDto(v.ValueKind == JsonValueKind.Null ? null : Stroke(v)),
-            "stroke.material" => new StyleStrokeMaterialChangeDto(Material(v)),
-            "stroke.widthPx" => new StyleStrokeWidthChangeDto(Float(v)),
-            "stroke.join" => new StyleStrokeJoinChangeDto(Enum<StyleStrokeJoin>(v)),
-            "stroke.position" => new StyleStrokePositionChangeDto(Enum<StyleStrokePosition>(v)),
-            "shadow" => new StyleShadowChangeDto(v.ValueKind == JsonValueKind.Null ? null : Shadow(v)),
-            "shadow.color" => new StyleShadowColorChangeDto(Color(v)),
-            "shadow.opacity" => new StyleShadowOpacityChangeDto(Float(v)),
-            "shadow.angleDegrees" => new StyleShadowAngleChangeDto(Number(v)),
-            "shadow.distancePx" => new StyleShadowDistanceChangeDto(Float(v)),
-            "shadow.blurRadiusPx" => new StyleShadowBlurChangeDto(Float(v)),
-            "glow" => new StyleGlowChangeDto(v.ValueKind == JsonValueKind.Null ? null : Glow(v)),
-            "glow.color" => new StyleGlowColorChangeDto(Color(v)),
-            "glow.opacity" => new StyleGlowOpacityChangeDto(Float(v)),
-            "glow.blurRadiusPx" => new StyleGlowBlurChangeDto(Float(v)),
-            "glow.spreadPx" => new StyleGlowSpreadChangeDto(Float(v)),
+            "unsung.fill" => new StyleUnsungFillChangeDto(Material(v)),
+            "sung.fill" => new StyleSungFillChangeDto(Material(v)),
+            "unsung.strokes" => new StyleUnsungStrokesChangeDto(Strokes(v)),
+            "sung.strokes" => new StyleSungStrokesChangeDto(SungStrokes(v)),
+            "unsung.shadow" => new StyleUnsungShadowChangeDto(NullOr(v, Shadow)),
+            "unsung.shadow.color" => new StyleUnsungShadowColorChangeDto(Color(v)),
+            "unsung.shadow.opacity" => new StyleUnsungShadowOpacityChangeDto(Float(v)),
+            "unsung.shadow.angleDegrees" => new StyleUnsungShadowAngleChangeDto(Number(v)),
+            "unsung.shadow.distancePx" => new StyleUnsungShadowDistanceChangeDto(Float(v)),
+            "unsung.shadow.blurRadiusPx" => new StyleUnsungShadowBlurChangeDto(Float(v)),
+            "sung.shadow" => new StyleSungShadowChangeDto(SungShadow(v)),
+            "sung.shadow.color" => new StyleSungShadowColorChangeDto(Color(v)),
+            "sung.shadow.opacity" => new StyleSungShadowOpacityChangeDto(Float(v)),
+            "sung.shadow.angleDegrees" => new StyleSungShadowAngleChangeDto(Number(v)),
+            "sung.shadow.distancePx" => new StyleSungShadowDistanceChangeDto(Float(v)),
+            "sung.shadow.blurRadiusPx" => new StyleSungShadowBlurChangeDto(Float(v)),
+            "unsung.glow" => new StyleUnsungGlowChangeDto(NullOr(v, Glow)),
+            "unsung.glow.color" => new StyleUnsungGlowColorChangeDto(Color(v)),
+            "unsung.glow.opacity" => new StyleUnsungGlowOpacityChangeDto(Float(v)),
+            "unsung.glow.blurRadiusPx" => new StyleUnsungGlowBlurChangeDto(Float(v)),
+            "unsung.glow.spreadPx" => new StyleUnsungGlowSpreadChangeDto(Float(v)),
+            "sung.glow" => new StyleSungGlowChangeDto(SungGlow(v)),
+            "sung.glow.color" => new StyleSungGlowColorChangeDto(Color(v)),
+            "sung.glow.opacity" => new StyleSungGlowOpacityChangeDto(Float(v)),
+            "sung.glow.blurRadiusPx" => new StyleSungGlowBlurChangeDto(Float(v)),
+            "sung.glow.spreadPx" => new StyleSungGlowSpreadChangeDto(Float(v)),
+            "wipe.featherRatio" => new StyleWipeFeatherChangeDto(Number(v)),
+            "wipe.highlight" => new StyleWipeHighlightChangeDto(NullOr(v, Highlight)),
+            "wipe.highlight.color" => new StyleWipeHighlightColorChangeDto(Color(v)),
+            "wipe.highlight.widthRatio" => new StyleWipeHighlightWidthChangeDto(Number(v)),
+            "wipe.highlight.opacity" => new StyleWipeHighlightOpacityChangeDto(Float(v)),
+            "wipe.highlight.blend" => new StyleWipeHighlightBlendChangeDto(Enum<StyleWipeHighlightBlend>(v)),
             "verticalCenterRatio" => new StyleVerticalCenterChangeDto(Number(v)),
             "horizontalAlignment" => new StyleAlignmentChangeDto(Enum<StyleHorizontalAlignment>(v)),
             "opacity" => new StyleOpacityChangeDto(Float(v)),
@@ -257,7 +391,12 @@ internal static class StyleCommandJson
     }
     internal static StyleStrokeDto Stroke(JsonElement root, bool fullTemplate = false)
     {
-        var f = Fields(root, "material", "widthPx", "join", "position"); return new(Material(f["material"], fullTemplate), Float(f["widthPx"]), Enum<StyleStrokeJoin>(f["join"]), Enum<StyleStrokePosition>(f["position"]));
+        var f = Fields(root, "material", "widthPx", "join"); return new(Material(f["material"], fullTemplate), Float(f["widthPx"]), Enum<StyleStrokeJoin>(f["join"]));
+    }
+    internal static StyleStrokeDto[] Strokes(JsonElement root, bool fullTemplate = false)
+    {
+        if (root.ValueKind != JsonValueKind.Array || root.GetArrayLength() > StyleEditingLimits.MaxStrokes) throw new JsonException("描边必须是至多4层的数组。");
+        return [.. root.EnumerateArray().Select(item => Stroke(item, fullTemplate))];
     }
     internal static StyleShadowDto Shadow(JsonElement root)
     {
@@ -292,7 +431,7 @@ internal static class StyleCommandJson
         string[] names;
         if (patch)
         {
-            if (f["changes"].ValueKind != JsonValueKind.Array || f["changes"].GetArrayLength() is < 1 or > 29) throw new JsonException("changes 必须是非空闭合属性数组。");
+            if (f["changes"].ValueKind != JsonValueKind.Array || f["changes"].GetArrayLength() is < 1 or > StyleEditingLimits.PropertyCount) throw new JsonException("changes 必须是非空闭合属性数组。");
             // Resource checks precede materialization of new arrays and names; old GET values have no such input limits.
             foreach (var item in f["changes"].EnumerateArray()) CheckNewValue(item);
             var changes = f["changes"].EnumerateArray().Select(Change).ToArray(); names = changes.Select(c => c.Property).ToArray();
@@ -301,7 +440,7 @@ internal static class StyleCommandJson
         else
         {
             names = Strings(f["properties"]);
-            if (names.Length is < 1 or > 29 || names.Any(n => !Properties.Contains(n, StringComparer.Ordinal))) throw new JsonException("properties 必须包含已知属性。");
+            if (names.Length is < 1 or > StyleEditingLimits.PropertyCount || names.Any(n => !Properties.Contains(n, StringComparer.Ordinal))) throw new JsonException("properties 必须包含已知属性。");
             result = new RestoreStylesCommandDto(targets, names);
         }
         if (names.Distinct(StringComparer.Ordinal).Count() != names.Length || names.Any(a => names.Any(b => b.StartsWith(a + ".", StringComparison.Ordinal)))) throw new JsonException("属性重复或父子冲突。");
@@ -317,8 +456,15 @@ internal static class StyleCommandJson
             if (value.GetArrayLength() > StyleEditingLimits.MaxFallbacks) throw new StyleCommandBudgetExceededException();
             foreach (var name in value.EnumerateArray()) if (name.ValueKind == JsonValueKind.String && name.GetString()!.Length > StyleEditingLimits.MaxFontLength) throw new StyleCommandBudgetExceededException();
         }
-        if (property is "unsungFill.material" or "sungFill.material" or "stroke.material") MaterialInput(value);
-        if (property == "stroke" && value.ValueKind == JsonValueKind.Object && value.TryGetProperty("material", out var material)) MaterialInput(material);
+        if (property is "unsung.fill" or "sung.fill") MaterialInput(value);
+        if (property == "unsung.strokes") StrokesInput(value);
+        if (property == "sung.strokes" && value.ValueKind == JsonValueKind.Object && value.TryGetProperty("value", out var strokes)) StrokesInput(strokes);
+    }
+    private static void StrokesInput(JsonElement value)
+    {
+        if (value.ValueKind != JsonValueKind.Array) return;
+        foreach (var stroke in value.EnumerateArray())
+            if (stroke.ValueKind == JsonValueKind.Object && stroke.TryGetProperty("material", out var material)) MaterialInput(material);
     }
     private static void MaterialInput(JsonElement value)
     {

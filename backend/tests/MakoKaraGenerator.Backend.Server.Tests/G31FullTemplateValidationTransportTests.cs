@@ -37,7 +37,7 @@ public sealed partial class PreviewTransportTests
         TemplateEffectRecipeDto recipe = new("recipe", "配方", TemplateEffectTargetDto.TokenFamily,
             package.PackageId, package.Revision, "scale", "{}", TemplateEffectOverlayLayerDto.Package, true,
             TemplateScriptReadScopeDto.BoundSources, null, null, null);
-        FullTemplateDefinitionDto valid = new("完整模板", TemplateKind.Composite, style, [TemplateProperty.Opacity],
+        FullTemplateDefinitionDto valid = new("完整模板", TemplateKind.Composite, style, ["opacity"],
             [recipe], [reference]);
         using var baselineResponse = await TemplatePost(f, "missing",
             JsonSerializer.Serialize<TemplateLibraryCommandDto>(new CreateTemplateCommandDto(valid, "full"), Json));
@@ -118,8 +118,8 @@ public sealed partial class PreviewTransportTests
         var reference = await G31UploadPackage(f, package, "material.mkfx");
         var style = ProjectSessionRegistry.ExportFullTemplateStyleForPreview(StyleTemplate.Create("style", "样式",
             StyleTemplateKind.Composite, LyricStyle.Default, [LyricStyleProperty.Opacity]));
-        style = style with { UnsungFill = new(new PackageStyleMaterialDto(package.PackageId, package.Revision, "ink", "{\"amount\":2}")) };
-        FullTemplateDefinitionDto invalid = new("未选材质", TemplateKind.Composite, style, [TemplateProperty.Opacity], [], [reference]);
+        style = style with { Unsung = style.Unsung with { Fill = new PackageStyleMaterialDto(package.PackageId, package.Revision, "ink", "{\"amount\":2}") } };
+        FullTemplateDefinitionDto invalid = new("未选材质", TemplateKind.Composite, style, ["opacity"], [], [reference]);
         using var preview = await f.Http.PostAsJsonAsync("/api/v1/template-preview-options",
             new TemplatePreviewOptionsRequest(new("draft", DraftRevision: "g31-material", Definition: invalid,
                 DefinitionFormat: "full")), Json);

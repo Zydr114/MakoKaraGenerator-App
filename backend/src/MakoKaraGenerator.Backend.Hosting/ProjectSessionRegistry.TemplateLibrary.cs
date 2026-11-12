@@ -106,7 +106,7 @@ public sealed partial class ProjectSessionRegistry
         {
             StyleTemplate template = StyleTemplate.Create("draft:" + draftRevision, definition.Name,
                 (StyleTemplateKind)definition.Kind, ProjectSession.ImportTemplateLibraryStyle(definition.Style),
-                LegacyStylePropertyMap.Import(definition.Properties));
+                ProjectSession.ImportTemplateProperties(definition.Properties));
             if (!TemplateLibraryEditService.IsStatic(template))
                 return TemplateReject<StyleTemplate>(BackendErrorCode.CommandNotSupported,
                     "草稿含包材质或效果闭包，模板试样暂不开放。", "source.definition");
@@ -222,7 +222,7 @@ public sealed partial class ProjectSessionRegistry
     };
     private static StaticTemplateDefinition LibraryDefinition(StaticTemplateDefinitionDto definition) => new(definition.Name,
         (StyleTemplateKind)definition.Kind, ProjectSession.ImportTemplateLibraryStyle(definition.Style),
-        LegacyStylePropertyMap.Import(definition.Properties));
+        ProjectSession.ImportTemplateProperties(definition.Properties));
     private static bool TryTemplateCatalog(string id, out TemplateLibraryCatalog catalog)
     { catalog = id == "builtin" ? TemplateLibraryCatalog.BuiltIn : TemplateLibraryCatalog.Personal; return id is "builtin" or "personal"; }
     private static string TemplateRevision(TemplateLibrarySnapshot snapshot) => snapshot.Revision.Sha256 ?? "missing";
@@ -230,7 +230,7 @@ public sealed partial class ProjectSessionRegistry
         expected != "missing" && (expected.Length != 64 || expected.Any(c => !char.IsAsciiHexDigitLower(c)))
             ? new(BackendErrorCode.InvalidRequest, "修订必须是missing或小写64位摘要。", "expectedRevision")
             : expected != TemplateRevision(snapshot) ? new(BackendErrorCode.RevisionConflict, "模板库已改变，请重新读取。", "expectedRevision") : null;
-    private static TemplateProperty[] TemplateProperties(StyleTemplate template) => LegacyStylePropertyMap.Export(template.Properties);
+    private static string[] TemplateProperties(StyleTemplate template) => ProjectSession.ExportTemplateProperties(template.Properties);
     private static bool TemplateRuntimeSupported(StyleTemplate template) => Enum.IsDefined(template.Kind);
     private static string TemplateDefinitionAvailability(StyleTemplate template) => TemplateLibraryEditService.IsStatic(template)
         ? "staticAvailable" : TemplateRuntimeSupported(template) ? "advancedRuntimeAvailable" : "advancedUnsupported";

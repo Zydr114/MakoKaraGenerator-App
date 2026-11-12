@@ -27,7 +27,7 @@ public enum ProjectStyleEditErrorCode
 /// <param name="Property">存在问题的规范成员。</param>
 /// <param name="Detail">领域原因。</param>
 public sealed record ProjectStyleEditError(ProjectStyleEditErrorCode Code, int? TargetIndex = null,
-    StyleEditProperty? Property = null, string? Detail = null);
+    LyricStyleProperty? Property = null, string? Detail = null);
 
 /// <summary>共享样式的纯候选或实际提交结果。</summary>
 public sealed record ProjectStyleEditResult

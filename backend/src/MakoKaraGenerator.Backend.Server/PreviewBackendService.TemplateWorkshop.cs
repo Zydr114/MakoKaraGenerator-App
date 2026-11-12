@@ -21,9 +21,10 @@ internal sealed partial class PreviewBackendService
         CanonicalStyleDto style = ProjectSessionRegistry.ExportFullTemplateStyleForPreview(template);
         TemplateMaterialSlotOptionDto[] slots =
         [
-            Slot(TemplateMaterialSlot.UnsungFill, style.UnsungFill.Material, LyricStyleProperty.UnsungFill),
-            Slot(TemplateMaterialSlot.SungFill, style.SungFill.Material, LyricStyleProperty.SungFill),
-            Slot(TemplateMaterialSlot.Stroke, style.Stroke?.Material, LyricStyleProperty.UnsungStrokes),
+            Slot(TemplateMaterialSlot.UnsungFill, style.Unsung.Fill, LyricStyleProperty.UnsungFill),
+            Slot(TemplateMaterialSlot.SungFill, style.Sung.Fill, LyricStyleProperty.SungFill),
+            // 工坊的描边槽是未唱最内层一圈；包材质只允许在第 0 层（D-P3-9）。
+            Slot(TemplateMaterialSlot.Stroke, style.Unsung.Strokes.FirstOrDefault()?.Material, LyricStyleProperty.UnsungStrokes),
         ];
         TemplateSampleOptionDto[] samples =
         [

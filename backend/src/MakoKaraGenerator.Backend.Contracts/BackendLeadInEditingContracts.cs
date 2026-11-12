@@ -18,10 +18,8 @@ public sealed record AddOrchestrationMarkCommandDto(string? ContainerId, string?
 public sealed record SetOrchestrationMarkTextCommandDto(string? NodeId, string? Text) : ProjectCommandDto("orchestration.setMarkText");
 public sealed record ReorderOrchestrationMarksCommandDto(string? ContainerId, string[]? OrderedIds) : ProjectCommandDto("orchestration.reorderMarks");
 public sealed record SpaceOrchestrationMarksCommandDto(string? ContainerId) : ProjectCommandDto("orchestration.spaceMarks");
-public sealed record SceneTextAppearanceDto(StyleTypographyDto Typography, StyleFillDto PendingFill, StyleFillDto ElapsedFill,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] StyleStrokeDto? Stroke,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] StyleShadowDto? Shadow, float Opacity,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] StyleGlowDto? Glow = null);
+/// <summary>文字标记的完整外观：字形、待唱与已过两态外观、不透明度；不含扫字样式与布局。</summary>
+public sealed record SceneTextAppearanceDto(StyleTypographyDto Typography, StyleAppearanceDto Pending, StyleSungAppearanceDto Elapsed, float Opacity);
 public sealed record SetCountdownAppearanceCommandDto(string? ContainerId, SceneTextAppearanceDto? Appearance)
     : ProjectCommandDto("orchestration.setCountdownAppearance");
 public sealed record SetMarkAppearanceCommandDto(string? NodeId, StyleChangeDto[]? Changes)

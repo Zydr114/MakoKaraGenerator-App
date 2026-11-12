@@ -1,5 +1,7 @@
 # API 补齐代表 HTTP 流程
 
+> 合同 1.50.0（产品 0.112.85）起样式改为两态形状。本探针按 1.49.x 及更早的单态样式编写（`unsungFill`／`stroke`／`shadow`／`glow` 与旧模板属性名），只能对照当时的发布物运行，没有随 1.50.0 迁移。
+
 复用 `backend-basic-business-http-probe` 的上传、二进制请求记录、工程命令、保存/重开和凭证扫描，沿其继承链使用 `backend-web-host/smoke.py` 与 `host.py` 的匹配部署校验、随机 loopback、bootstrap、认证、进程身份观察和正常停机。没有第二套启动器或请求框架；完整歌曲只将既有 job 轮询模式延长，并每30秒 heartbeat 延续默认凭证/lease。`--phase p3` 和 `--phase p4` 只运行各自增量，不重放 P1/P2。
 
 先准备并提交探针，等待本轮匹配 Server/Worker 发布后再运行：

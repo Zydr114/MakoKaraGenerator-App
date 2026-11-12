@@ -132,9 +132,13 @@ public sealed class BasicStyleClipTests
         Assert.Equal(actual.ParentId, model.Context.NodeId); Assert.Equal(actual.ElementId, model.Context.TextNodeId);
         Assert.Equal(PresetSceneStyleProjection.NodePath(snapshot, actual.ElementId, frame), model.Context.NodePath);
         Assert.Equal(PresetSceneStyleProjection.Lyrics(snapshot, "line/1", "token/1", frame).Style, expected.Style);
-        // 过渡期（P3 第 2～6 步）来源仍按旧合同的 26 项输出，每项取主属性的来源。
-        Assert.Equal(Enum.GetValues<TemplateProperty>().Length, model.Sources.Length);
-        Assert.All(model.Sources, entry => Assert.Equal(expected.Sources[LegacyStylePropertyMap.Primary(Enum.Parse<TemplateProperty>(entry.Property, true))], entry.SourcePath));
+        // 来源按 43 条样式属性路径逐项输出。
+        Assert.Equal(LyricStylePropertyExtensions.All.Select(LyricStylePropertyExtensions.ToJsonName), model.Sources.Select(entry => entry.Property));
+        Assert.All(model.Sources, entry =>
+        {
+            Assert.True(LyricStylePropertyExtensions.TryParseJsonName(entry.Property, out var property));
+            Assert.Equal(expected.Sources[property], entry.SourcePath);
+        });
         Assert.EndsWith(source.PresetApplications.Items[^1].Id + ".snapshot.style", model.Sources.Single(item => item.Property == "opacity").SourcePath);
         var old = (await f.Registry.ReadStyleAsync("client", f.Id, "0", new TokenStyleTargetDto("primary", "line/1", "token/1"))).Response!;
         Assert.Equal("staticHierarchy", old.Resolution); Assert.Equal(source.LyricStyle.Opacity, old.StaticHierarchy.Opacity);

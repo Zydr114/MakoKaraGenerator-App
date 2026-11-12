@@ -63,25 +63,17 @@ internal static class LeadInEditingCommandJson
     }
     private static SceneTextAppearanceDto Appearance(JsonElement value, JsonSerializerOptions options)
     {
-        Fields(value, ["typography", "pendingFill", "elapsedFill", "stroke", "shadow", "opacity", "glow"]);
-        Fields(value.GetProperty("typography"), ["fontFamilyName", "fallbackFamilyNames", "fontSizePx", "fontWeight", "isBold", "isItalic", "letterSpacingPx"]);
-        Fields(value.GetProperty("pendingFill"), ["material"]); Fields(value.GetProperty("elapsedFill"), ["material"]);
-        if (value.GetProperty("stroke") is var stroke && stroke.ValueKind != JsonValueKind.Null) Fields(stroke, ["material", "widthPx", "join", "position"]);
-        var typography = value.GetProperty("typography");
-        var t = new StyleTypographyDto(StyleCommandJson.NullableString(typography.GetProperty("fontFamilyName")),
-            StyleCommandJson.Strings(typography.GetProperty("fallbackFamilyNames")), StyleCommandJson.Float(typography.GetProperty("fontSizePx")),
-            StyleCommandJson.Integer(typography.GetProperty("fontWeight")), StyleCommandJson.Boolean(typography.GetProperty("isBold")),
-            StyleCommandJson.Boolean(typography.GetProperty("isItalic")), StyleCommandJson.Float(typography.GetProperty("letterSpacingPx")));
-        var shadow = value.GetProperty("shadow");
-        return new(t, new(StyleCommandJson.Material(value.GetProperty("pendingFill").GetProperty("material"))),
-            new(StyleCommandJson.Material(value.GetProperty("elapsedFill").GetProperty("material"))),
-            stroke.ValueKind == JsonValueKind.Null ? null : StyleCommandJson.Stroke(stroke),
-            shadow.ValueKind == JsonValueKind.Null ? null : StyleCommandJson.Shadow(shadow), StyleCommandJson.Float(value.GetProperty("opacity")),
-            value.GetProperty("glow").ValueKind == JsonValueKind.Null ? null : StyleCommandJson.Glow(value.GetProperty("glow")));
+        Fields(value, ["typography", "pending", "elapsed", "opacity"]);
+        return new(StyleCommandJson.Typography(value.GetProperty("typography")), StyleCommandJson.Appearance(value.GetProperty("pending")),
+            StyleCommandJson.SungAppearance(value.GetProperty("elapsed")), StyleCommandJson.Float(value.GetProperty("opacity")));
     }
+    // 文字标记外观可写的属性：除扫字样式与 verticalCenterRatio、horizontalAlignment、scale 之外的 34 条路径。
+    internal static readonly int MarkPropertyCount = StyleCommandJson.Properties.Count(IsMarkProperty);
+    internal static bool IsMarkProperty(string property) => !property.StartsWith("wipe.", StringComparison.Ordinal)
+        && property is not ("verticalCenterRatio" or "horizontalAlignment" or "scale");
     private static StyleChangeDto[] Changes(JsonElement value, JsonSerializerOptions options)
     {
-        if (value.ValueKind != JsonValueKind.Array || value.GetArrayLength() > 26) throw new JsonException("changes必须是最多26项的完整覆盖列表。");
+        if (value.ValueKind != JsonValueKind.Array || value.GetArrayLength() > MarkPropertyCount) throw new JsonException("changes必须是最多34项的完整覆盖列表。");
         return value.Deserialize<StyleChangeDto[]>(options) ?? throw new JsonException();
     }
     private static string[] Strings(JsonElement value)

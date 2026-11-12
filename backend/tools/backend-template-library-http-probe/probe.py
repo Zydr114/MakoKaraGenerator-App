@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Real HTTP acceptance for independent profile-shared template libraries."""
+"""Real HTTP acceptance for independent profile-shared template libraries.
+
+Written for the single-state style shape of contract 1.49.x and earlier; contract 1.50.0
+(product 0.112.85) switched to two-state styles and this probe was not migrated.
+"""
 import argparse
 import copy
 import fcntl

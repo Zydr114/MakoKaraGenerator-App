@@ -10,20 +10,21 @@ namespace MakoKaraGenerator.Application.Tests;
 
 public sealed class ProjectStyleEditValidationTests
 {
+    public static TheoryData<LyricStyleProperty> AllProperties => [.. LyricStylePropertyExtensions.All];
+    public static TheoryData<LyricStyleProperty> TokenUnsupported => [.. TokenStyleSupport.UnsupportedAtTokenLevel];
+    public static TheoryData<LyricStyleProperty> TokenSupported => [.. TokenStyleSupport.SupportedAtTokenLevel];
+
     [Theory]
-    [InlineData(0)] [InlineData(1)] [InlineData(2)] [InlineData(3)] [InlineData(4)] [InlineData(5)]
-    [InlineData(6)] [InlineData(7)] [InlineData(8)] [InlineData(9)] [InlineData(11)]
-    [InlineData(14)] [InlineData(15)] [InlineData(16)] [InlineData(17)]
-    [InlineData(18)] [InlineData(19)] [InlineData(20)] [InlineData(21)] [InlineData(22)] [InlineData(23)]
-    [InlineData(24)] [InlineData(25)] [InlineData(26)] [InlineData(27)] [InlineData(28)]
-    public void 规范成员独立写入且恢复不会留下未选覆盖(int property)
+    [MemberData(nameof(AllProperties))]
+    public void 规范成员独立写入且恢复不会留下未选覆盖(LyricStyleProperty property)
     {
         var workspace = Workspace(); var target = Target(StyleEditTargetKind.Branch);
         var change = Change(property);
-        Assert.Equal((StyleEditProperty)property, change.Property);
+        Assert.Equal(property, change.Property);
         var result = Commit(workspace, target, change);
         Assert.True(result.Accepted); Assert.True(result.Changed);
         Assert.NotNull(Own(result.Project, target)); Assert.False(Own(result.Project, target)!.IsEmpty);
+        Assert.Contains(property, TokenStyleSupport.SetProperties(Own(result.Project, target)));
         var restored = ProjectStyleEditUseCase.PrepareRestore(workspace, [target], [change.Property]);
         Assert.True(restored.Result.Accepted); Assert.True(restored.Result.Changed);
         Assert.Null(Own(restored.Result.Project, target)); Assert.Same(result.Project, workspace.Project);
@@ -32,50 +33,65 @@ public sealed class ProjectStyleEditValidationTests
         Assert.Same(result.Project, workspace.Undo());
     }
 
-    [Theory]
-    [InlineData(10)] [InlineData(12)] [InlineData(13)]
-    public void 过渡期描边叶在无描边时写成关闭且位置写入不改工程(int property)
+    [Fact]
+    public void 描边整表写入保层序且重放无变化()
     {
-        // 过渡期（P3 第 2～6 步）：描边整表覆盖，零宽的一层即无描边；位置字段已删去。
         var workspace = Workspace(); var target = Target(StyleEditTargetKind.Branch);
-        var change = Change(property);
-        var result = Commit(workspace, target, change);
-        Assert.True(result.Accepted);
-        if (property == 13) { Assert.False(result.Changed); Assert.Null(Own(result.Project, target)); return; }
-        Assert.True(result.Changed); Assert.Equal(StrokeLayers.Empty, Own(result.Project, target)!.UnsungStrokes);
-        Assert.False(ProjectStyleEditUseCase.PrepareRestore(workspace, [target], [change.Property]).Result.Changed);
-        var restored = ProjectStyleEditUseCase.PrepareRestore(workspace, [target], [StyleEditProperty.Stroke]);
-        Assert.True(restored.Result.Changed); Assert.Null(Own(restored.Result.Project, target));
-        var fresh = Workspace().Project;
-        var stroked = ProjectWorkspace.Adopt(fresh with { LyricStyle = fresh.LyricStyle with { Stroke = StrokeSpec.Create(RgbaColor.Black, 4) } });
-        var layer = Commit(stroked, target, change);
-        Assert.True(layer.Changed); Assert.Equal(4, Own(layer.Project, target)!.Stroke.Value!.WidthPx);
-        var back = ProjectStyleEditUseCase.PrepareRestore(stroked, [target], [change.Property]);
-        Assert.True(back.Result.Changed); Assert.Null(Own(back.Result.Project, target));
+        var layers = TwoLayers();
+        var first = Commit(workspace, target, new StyleEditChange.UnsungStrokes(layers));
+        Assert.True(first.Changed); Assert.Equal(layers, Own(first.Project, target)!.UnsungStrokes);
+        Assert.Equal(StrokeJoin.Bevel, Resolve(first.Project, target).Unsung.Strokes[1].Join);
+        Assert.False(Commit(workspace, target, new StyleEditChange.UnsungStrokes(TwoLayers())).Changed);
+        var off = Commit(workspace, target, new StyleEditChange.UnsungStrokes(StrokeLayers.Empty));
+        Assert.True(off.Changed); Assert.Empty(Resolve(off.Project, target).Unsung.Strokes);
     }
 
     [Fact]
-    public void 过渡期同批描边分量先合成一层且重放无变化()
+    public void 已唱跟随与显式取值互转且跟随项分量写成只含该分量的显式部分值()
     {
-        // 逐项写入时先写的材质会落在零宽层上（即无描边）而丢失，重放同一批又会改变工程。
-        var workspace = Workspace(); var target = Target(StyleEditTargetKind.Branch);
-        StyleEditChange[] changes = [new StyleEditChange.StrokeMaterial(new MaterialSpec.Gradient(Gradient())),
-            new StyleEditChange.StrokeWidth(3), new StyleEditChange.StrokeJoin(StrokeJoin.Bevel)];
-        var first = Commit(workspace, target, changes);
-        Assert.True(first.Changed);
-        var stroke = Own(first.Project, target)!.Stroke.Value!;
-        Assert.IsType<MaterialSpec.Gradient>(stroke.Material); Assert.Equal(3, stroke.WidthPx); Assert.Equal(StrokeJoin.Bevel, stroke.Join);
-        Assert.False(Commit(workspace, target, changes).Changed);
+        var fresh = Workspace().Project;
+        var parent = new ShadowSpec { Color = RgbaColor.White, Opacity = .6f, AngleDegrees = 30, DistancePx = 5, BlurRadiusPx = 2 };
+        var workspace = ProjectWorkspace.Adopt(fresh with { LyricStyle = fresh.LyricStyle with { Shadow = parent } });
+        var target = Target(StyleEditTargetKind.Line);
+        Assert.Equal(parent, Resolve(workspace.Project, target).Sung.Shadow.Resolve(parent));
+        var leaf = Commit(workspace, target, new StyleEditChange.EffectNumber(LyricStyleProperty.SungShadowOpacity, .2));
+        Assert.True(leaf.Changed);
+        var own = Own(leaf.Project, target)!.Sung!.Shadow.Value;
+        Assert.False(own.FollowsUnsung); Assert.Equal(.2f, own.Value!.Opacity); Assert.Null(own.Value.Color);
+        var resolved = Resolve(leaf.Project, target).Sung.Shadow;
+        Assert.False(resolved.FollowsUnsung); Assert.Equal(parent with { Opacity = .2f }, resolved.Value);
+        Assert.Equal(parent, Resolve(leaf.Project, target).Unsung.Shadow);
+        var follow = Commit(workspace, target, new StyleEditChange.SungShadow(Followable.Follow<ShadowSpec?>()));
+        Assert.True(follow.Changed); Assert.True(Resolve(follow.Project, target).Sung.Shadow.FollowsUnsung);
+        var strokes = Commit(workspace, target, new StyleEditChange.SungStrokes(Followable.Set(TwoLayers())));
+        Assert.Equal(TwoLayers(), Resolve(strokes.Project, target).Sung.Strokes.Value);
+        Assert.Empty(Resolve(strokes.Project, target).Unsung.Strokes);
+    }
+
+    [Fact]
+    public void 扫字线高亮叶从透明基准合并且整体关闭后恢复回到上层()
+    {
+        var workspace = Workspace(); var target = Target(StyleEditTargetKind.Line);
+        var leaf = Commit(workspace, target, new StyleEditChange.EffectNumber(LyricStyleProperty.WipeHighlightWidthRatio, .25),
+            new StyleEditChange.HighlightBlend(WipeHighlightBlend.Add), new StyleEditChange.WipeFeather(.2));
+        Assert.True(leaf.Changed);
+        var wipe = Resolve(leaf.Project, target).Wipe;
+        Assert.Equal(.2, wipe.FeatherRatio); Assert.Equal(.25, wipe.Highlight!.WidthRatio); Assert.Equal(WipeHighlightBlend.Add, wipe.Highlight.Blend);
+        var off = Commit(workspace, target, new StyleEditChange.WipeHighlight(null));
+        Assert.Null(Resolve(off.Project, target).Wipe.Highlight);
+        var leafRestore = ProjectStyleEditUseCase.PrepareRestore(workspace, [target], [LyricStyleProperty.WipeHighlightOpacity]);
+        Assert.True(leafRestore.Result.Accepted); Assert.False(leafRestore.Result.Changed); Assert.Same(off.Project, leafRestore.Result.Project);
+        var restored = ProjectStyleEditUseCase.PrepareRestore(workspace, [target], [LyricStyleProperty.WipeHighlight, LyricStyleProperty.WipeFeatherRatio]);
+        Assert.True(restored.Result.Changed); Assert.Null(Own(restored.Result.Project, target));
     }
 
     [Theory]
-    [InlineData(0)] [InlineData(1)] [InlineData(2)] [InlineData(3)] [InlineData(4)] [InlineData(5)]
-    [InlineData(6)] [InlineData(20)] [InlineData(21)] [InlineData(23)]
-    public void 元素不允许字体布局和缩放且拒绝不改工程(int property)
+    [MemberData(nameof(TokenUnsupported))]
+    public void 元素不允许字体布局和缩放且拒绝不改工程(LyricStyleProperty property)
     {
         var workspace = Workspace(); var source = workspace.Project; var target = Target(StyleEditTargetKind.Token);
         var patch = ProjectStyleEditUseCase.PreparePatch(workspace, [target], [Change(property)]);
-        var restore = ProjectStyleEditUseCase.PrepareRestore(workspace, [target], [(StyleEditProperty)property]);
+        var restore = ProjectStyleEditUseCase.PrepareRestore(workspace, [target], [property]);
         foreach (var prepared in new[] { patch, restore })
         {
             Assert.False(prepared.Result.Accepted); Assert.Equal(ProjectStyleEditErrorCode.UnsupportedProperty, prepared.Result.Error!.Code);
@@ -85,10 +101,8 @@ public sealed class ProjectStyleEditValidationTests
     }
 
     [Theory]
-    [InlineData(7)] [InlineData(8)] [InlineData(9)] [InlineData(10)] [InlineData(11)] [InlineData(12)]
-    [InlineData(14)] [InlineData(15)] [InlineData(16)] [InlineData(17)] [InlineData(18)] [InlineData(19)] [InlineData(22)]
-    [InlineData(24)] [InlineData(25)] [InlineData(26)] [InlineData(27)] [InlineData(28)]
-    public void 元素仅接受原领域支持的绘制属性(int property)
+    [MemberData(nameof(TokenSupported))]
+    public void 元素仅接受原领域支持的绘制属性(LyricStyleProperty property)
     {
         var workspace = Workspace(); var result = Commit(workspace, Target(StyleEditTargetKind.Token), Change(property));
         Assert.True(result.Accepted); Assert.True(result.Changed);
@@ -98,7 +112,7 @@ public sealed class ProjectStyleEditValidationTests
 
     [Theory]
     [InlineData(0)] [InlineData(1)] [InlineData(2)] [InlineData(3)] [InlineData(4)] [InlineData(5)]
-    [InlineData(6)] [InlineData(7)] [InlineData(8)] [InlineData(9)] [InlineData(10)]
+    [InlineData(6)] [InlineData(7)] [InlineData(8)] [InlineData(9)] [InlineData(10)] [InlineData(11)] [InlineData(12)] [InlineData(13)]
     public void 非法规范值整批拒绝且观察器不会看到部分候选(int invalid)
     {
         var workspace = Workspace(); var source = workspace.Project;
@@ -108,13 +122,16 @@ public sealed class ProjectStyleEditValidationTests
             1 => new StyleEditChange.FontWeight(99),
             2 => new StyleEditChange.FallbackFamilyNames(["A", "A"]),
             3 => new StyleEditChange.FallbackFamilyNames(default),
-            4 => new StyleEditChange.UnsungMaterial(Package()),
-            5 => new StyleEditChange.Stroke(new() { Material = Package() }),
-            6 => new StyleEditChange.StrokeWidth(-1),
-            7 => new StyleEditChange.ShadowDistance(-1),
+            4 => new StyleEditChange.Fill(false, Package()),
+            5 => new StyleEditChange.UnsungStrokes(StrokeLayers.FromStroke(new() { Material = Package(), WidthPx = 2 })),
+            6 => new StyleEditChange.SungStrokes(Followable.Set(StrokeLayers.FromStroke(new() { WidthPx = -1 }))),
+            7 => new StyleEditChange.EffectNumber(LyricStyleProperty.UnsungShadowDistancePx, -1),
             8 => new StyleEditChange.Opacity(float.PositiveInfinity),
-            9 => new StyleEditChange.UnsungMaterial(new MaterialSpec.Gradient(Gradient() with { Stops = [new(0, RgbaColor.White), new(.9, RgbaColor.Black), new(.1, RgbaColor.White), new(1, RgbaColor.Black)] })),
-            _ => new StyleEditChange.Opacity(.5f) with { Property = StyleEditProperty.Scale },
+            9 => new StyleEditChange.Fill(false, new MaterialSpec.Gradient(Gradient() with { Stops = [new(0, RgbaColor.White), new(.9, RgbaColor.Black), new(.1, RgbaColor.White), new(1, RgbaColor.Black)] })),
+            10 => new StyleEditChange.Opacity(.5f) with { Property = LyricStyleProperty.Scale },
+            11 => new StyleEditChange.EffectNumber(LyricStyleProperty.UnsungShadowColor, 1),
+            12 => new StyleEditChange.EffectNumber(LyricStyleProperty.WipeHighlightWidthRatio, double.NaN),
+            _ => new StyleEditChange.WipeFeather(-.1),
         };
         int observed = 0;
         var prepared = ProjectStyleEditUseCase.PreparePatch(workspace, [Target(StyleEditTargetKind.Line)], [new StyleEditChange.IsItalic(true), change], (_, _) => observed++);
@@ -145,7 +162,7 @@ public sealed class ProjectStyleEditValidationTests
     }
 
     [Theory]
-    [InlineData(0)] [InlineData(1)] [InlineData(2)] [InlineData(3)] [InlineData(4)]
+    [InlineData(0)] [InlineData(1)] [InlineData(2)] [InlineData(3)] [InlineData(4)] [InlineData(5)]
     public void 空重复未知或父子冲突属性拒绝且工程不能恢复上层(int shape)
     {
         var workspace = Workspace(); var target = Target(StyleEditTargetKind.Line);
@@ -153,12 +170,13 @@ public sealed class ProjectStyleEditValidationTests
         {
             0 => ProjectStyleEditUseCase.PreparePatch(workspace, [target], []),
             1 => ProjectStyleEditUseCase.PreparePatch(workspace, [target], [new StyleEditChange.Opacity(.4f), new StyleEditChange.Opacity(.5f)]),
-            2 => ProjectStyleEditUseCase.PreparePatch(workspace, [target], [new StyleEditChange.Stroke(null), new StyleEditChange.StrokeWidth(2)]),
-            3 => ProjectStyleEditUseCase.PrepareRestore(workspace, [target], [StyleEditProperty.Shadow, StyleEditProperty.ShadowOpacity]),
-            _ => ProjectStyleEditUseCase.PrepareRestore(workspace, [target], [(StyleEditProperty)100]),
+            2 => ProjectStyleEditUseCase.PreparePatch(workspace, [target], [new StyleEditChange.SungGlow(Followable.Follow<GlowSpec?>()), new StyleEditChange.EffectNumber(LyricStyleProperty.SungGlowSpreadPx, 2)]),
+            3 => ProjectStyleEditUseCase.PrepareRestore(workspace, [target], [LyricStyleProperty.UnsungShadow, LyricStyleProperty.UnsungShadowOpacity]),
+            4 => ProjectStyleEditUseCase.PrepareRestore(workspace, [target], [LyricStyleProperty.WipeHighlight, LyricStyleProperty.WipeHighlightBlend]),
+            _ => ProjectStyleEditUseCase.PrepareRestore(workspace, [target], [(LyricStyleProperty)100]),
         };
         Assert.False(prepared.Result.Accepted); Assert.Equal(ProjectStyleEditErrorCode.InvalidProperty, prepared.Result.Error!.Code);
-        var project = ProjectStyleEditUseCase.PrepareRestore(workspace, [Target(StyleEditTargetKind.Project)], [StyleEditProperty.Opacity]);
+        var project = ProjectStyleEditUseCase.PrepareRestore(workspace, [Target(StyleEditTargetKind.Project)], [LyricStyleProperty.Opacity]);
         Assert.False(project.Result.Accepted); Assert.Equal(ProjectStyleEditErrorCode.UnsupportedProperty, project.Result.Error!.Code);
         Assert.Equal(0, workspace.History.UndoCount);
     }
@@ -167,7 +185,7 @@ public sealed class ProjectStyleEditValidationTests
     public void 完整渐变保持所有几何和色彩选项与重复色标顺序()
     {
         var workspace = Workspace(); var gradient = Gradient(); var target = Target(StyleEditTargetKind.Line);
-        var result = Commit(workspace, target, new StyleEditChange.SungMaterial(new MaterialSpec.Gradient(gradient)));
+        var result = Commit(workspace, target, new StyleEditChange.Fill(true, new MaterialSpec.Gradient(gradient)));
         Assert.True(result.Accepted);
         var actual = Assert.IsType<MaterialSpec.Gradient>(Own(result.Project, target)!.SungFill.Value!.Material.Value);
         Assert.Same(gradient, actual.Value); Assert.Equal(gradient, Resolve(result.Project, target).SungFill.Gradient);
@@ -204,7 +222,7 @@ public sealed class ProjectStyleEditValidationTests
         var source = workspace.Project;
         var noop = ProjectStyleEditUseCase.PreparePatch(workspace, [target], [new StyleEditChange.FallbackFamilyNames(names.ToArray().ToImmutableArray())]);
         Assert.True(noop.Result.Accepted); Assert.False(noop.Result.Changed); Assert.Same(source, noop.Result.Project);
-        var restore = ProjectStyleEditUseCase.PrepareRestore(workspace, [target], [StyleEditProperty.TypographyFallbackFamilyNames]);
+        var restore = ProjectStyleEditUseCase.PrepareRestore(workspace, [target], [LyricStyleProperty.FallbackFamilyNames]);
         Assert.True(restore.Result.Accepted); Assert.Null(Own(restore.Result.Project, target));
         Assert.Same(source.Lyrics.Branches[0], restore.Result.Project.Lyrics.Branches[0]);
     }
@@ -227,23 +245,41 @@ public sealed class ProjectStyleEditValidationTests
         Assert.Equal(1, workspace.History.UndoCount); Assert.Same(source, workspace.Undo());
     }
 
-    private static StyleEditChange Change(int property) => property switch
+    private static StrokeLayers TwoLayers() => StrokeLayers.Create(
+        [StrokeSpec.Create(RgbaColor.Black, 3), new StrokeSpec { Material = new MaterialSpec.Gradient(Gradient()), WidthPx = 2, Join = StrokeJoin.Bevel }]);
+
+    private static StyleEditChange Change(LyricStyleProperty property) => property switch
     {
-        0 => new StyleEditChange.FontFamilyName(null), 1 => new StyleEditChange.FallbackFamilyNames(["A", "B"]),
-        2 => new StyleEditChange.FontSize(87), 3 => new StyleEditChange.FontWeight(437),
-        4 => new StyleEditChange.IsBold(true), 5 => new StyleEditChange.IsItalic(true),
-        6 => new StyleEditChange.LetterSpacing(3), 7 => new StyleEditChange.UnsungMaterial(new MaterialSpec.Gradient(Gradient())),
-        8 => new StyleEditChange.SungMaterial(new MaterialSpec.Solid(RgbaColor.White)),
-        9 => new StyleEditChange.Stroke(null), 10 => new StyleEditChange.StrokeMaterial(new MaterialSpec.Gradient(Gradient())),
-        11 => new StyleEditChange.StrokeWidth(9), 12 => new StyleEditChange.StrokeJoin(StrokeJoin.Bevel),
-        13 => new StyleEditChange.StrokePosition(), 14 => new StyleEditChange.Shadow(null),
-        15 => new StyleEditChange.ShadowColor(RgbaColor.Black), 16 => new StyleEditChange.ShadowOpacity(.3f),
-        17 => new StyleEditChange.ShadowAngle(27), 18 => new StyleEditChange.ShadowDistance(3),
-        19 => new StyleEditChange.ShadowBlur(6), 20 => new StyleEditChange.VerticalCenter(.3),
-        21 => new StyleEditChange.HorizontalAlignment(LyricHorizontalAlignment.Left),
-        22 => new StyleEditChange.Opacity(.7f), 23 => new StyleEditChange.Scale(2),
-        24 => new StyleEditChange.Glow(null), 25 => new StyleEditChange.GlowColor(RgbaColor.White),
-        26 => new StyleEditChange.GlowOpacity(.3f), 27 => new StyleEditChange.GlowBlur(6),
-        28 => new StyleEditChange.GlowSpread(2), _ => throw new ArgumentOutOfRangeException(nameof(property)),
+        LyricStyleProperty.FontFamilyName => new StyleEditChange.FontFamilyName(null),
+        LyricStyleProperty.FallbackFamilyNames => new StyleEditChange.FallbackFamilyNames(["A", "B"]),
+        LyricStyleProperty.FontSizePx => new StyleEditChange.FontSize(87),
+        LyricStyleProperty.FontWeight => new StyleEditChange.FontWeight(437),
+        LyricStyleProperty.IsBold => new StyleEditChange.IsBold(true),
+        LyricStyleProperty.IsItalic => new StyleEditChange.IsItalic(true),
+        LyricStyleProperty.LetterSpacingPx => new StyleEditChange.LetterSpacing(3),
+        LyricStyleProperty.UnsungFill => new StyleEditChange.Fill(false, new MaterialSpec.Gradient(Gradient())),
+        LyricStyleProperty.SungFill => new StyleEditChange.Fill(true, new MaterialSpec.Solid(RgbaColor.White)),
+        LyricStyleProperty.UnsungStrokes => new StyleEditChange.UnsungStrokes(TwoLayers()),
+        LyricStyleProperty.SungStrokes => new StyleEditChange.SungStrokes(Followable.Set(StrokeLayers.Empty)),
+        LyricStyleProperty.UnsungShadow => new StyleEditChange.UnsungShadow(null),
+        LyricStyleProperty.SungShadow => new StyleEditChange.SungShadow(Followable.Set<ShadowSpec?>(null)),
+        LyricStyleProperty.UnsungGlow => new StyleEditChange.UnsungGlow(null),
+        LyricStyleProperty.SungGlow => new StyleEditChange.SungGlow(Followable.Set<GlowSpec?>(new() { Color = RgbaColor.White, Opacity = .5f, BlurRadiusPx = 4 })),
+        LyricStyleProperty.WipeFeatherRatio => new StyleEditChange.WipeFeather(.2),
+        LyricStyleProperty.WipeHighlight => new StyleEditChange.WipeHighlight(new() { Color = RgbaColor.White, WidthRatio = .25, Opacity = .8f, Blend = WipeHighlightBlend.Screen }),
+        LyricStyleProperty.WipeHighlightBlend => new StyleEditChange.HighlightBlend(WipeHighlightBlend.Add),
+        LyricStyleProperty.VerticalCenterRatio => new StyleEditChange.VerticalCenter(.3),
+        LyricStyleProperty.HorizontalAlignment => new StyleEditChange.HorizontalAlignment(LyricHorizontalAlignment.Left),
+        LyricStyleProperty.Opacity => new StyleEditChange.Opacity(.7f),
+        LyricStyleProperty.Scale => new StyleEditChange.Scale(2),
+        _ => LyricStylePropertyExtensions.Component(property) switch
+        {
+            LyricStyleEffectComponent.Color => new StyleEditChange.EffectColor(property, RgbaColor.Black),
+            LyricStyleEffectComponent.Opacity => new StyleEditChange.EffectNumber(property, .3),
+            LyricStyleEffectComponent.AngleDegrees => new StyleEditChange.EffectNumber(property, 27),
+            LyricStyleEffectComponent.WidthRatio => new StyleEditChange.EffectNumber(property, .3),
+            LyricStyleEffectComponent.None => throw new ArgumentOutOfRangeException(nameof(property)),
+            _ => new StyleEditChange.EffectNumber(property, 3),
+        },
     };
 }

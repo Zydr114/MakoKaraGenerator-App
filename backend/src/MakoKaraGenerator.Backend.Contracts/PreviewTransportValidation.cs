@@ -143,7 +143,7 @@ public static class PreviewTransportValidation
             return Text(script.InstanceId) && Artifact(script.ArtifactHash) && (script.PackageIdentity is null || Resource(script.PackageIdentity));
         if (owner is { Kind: "source", Script: null, Source: { } source })
         {
-            if (!Text(source.Path) || !Text(source.Region) || source.Slot is < 0 or > 2 || !Resource(source.SourceMaterial) || source.ParametersJson is null) return false;
+            if (!Text(source.Path) || !Text(source.Region) || source.Slot is < 0 or > 3 || !Resource(source.SourceMaterial) || source.ParametersJson is null) return false;
             try { using var json = System.Text.Json.JsonDocument.Parse(source.ParametersJson); return json.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object; }
             catch (System.Text.Json.JsonException) { return false; }
         }

@@ -217,23 +217,32 @@ internal static class TemplateLibraryJson
         if (f["effectRecipes"].EnumerateArray().Any(value => value.ValueKind != JsonValueKind.Object)
             || f["packages"].EnumerateArray().Any(value => value.ValueKind != JsonValueKind.Object))
             throw new JsonException("配方与包引用成员必须是对象。");
-        TemplateProperty[] properties = [.. f["properties"].EnumerateArray().Select(StyleCommandJson.Enum<TemplateProperty>)];
-        if (properties.Distinct().Count() != properties.Length) throw new JsonException("模板属性不能重复。");
+        string[] properties = Properties(f["properties"]);
         return new(StyleCommandJson.String(f["name"]), StyleCommandJson.Enum<TemplateKind>(f["kind"]),
             StyleCommandJson.CanonicalStyle(f["style"], fullTemplate: true), properties,
             JsonSerializer.Deserialize<TemplateEffectRecipeDto[]>(f["effectRecipes"], options)!,
             JsonSerializer.Deserialize<EffectPackageReferenceDto[]>(f["packages"], options)!);
     }
+    // 与 styles.patch／restore 相同的 43 条属性路径；不排序，拒绝重复与未知路径。
+    internal static string[] Properties(JsonElement value)
+    {
+        if (value.ValueKind != JsonValueKind.Array || value.GetArrayLength() > StyleEditingLimits.PropertyCount) throw new JsonException("模板属性必须是至多43项的数组。");
+        string[] properties = [.. value.EnumerateArray().Select(StyleCommandJson.String)];
+        if (properties.Distinct(StringComparer.Ordinal).Count() != properties.Length
+            || properties.Any(property => !StyleCommandJson.Properties.Contains(property, StringComparer.Ordinal))) throw new JsonException("模板属性重复或未知。");
+        return properties;
+    }
+    internal static bool HasPackageMaterial(CanonicalStyleDto style) => style.Unsung.Fill is PackageStyleMaterialDto || style.Sung.Fill is PackageStyleMaterialDto
+        || style.Unsung.Strokes.Any(stroke => stroke.Material is PackageStyleMaterialDto)
+        || style.Sung.Strokes.Value?.Any(stroke => stroke.Material is PackageStyleMaterialDto) == true;
     internal static StaticTemplateDefinitionDto Definition(JsonElement root)
     {
         var f = StyleCommandJson.Fields(root, "name", "kind", "style", "properties");
-        if (f["properties"].ValueKind != JsonValueKind.Array || f["properties"].GetArrayLength() is < 1 or > 26)
-            throw new JsonException("静态模板 properties 必须包含1..26个模板属性。");
-        TemplateProperty[] properties = [.. f["properties"].EnumerateArray().Select(StyleCommandJson.Enum<TemplateProperty>)];
-        if (properties.Distinct().Count() != properties.Length) throw new JsonException("模板属性不能重复。");
+        if (f["properties"].ValueKind != JsonValueKind.Array || f["properties"].GetArrayLength() is < 1 or > StyleEditingLimits.PropertyCount)
+            throw new JsonException("静态模板 properties 必须包含1..43个样式属性路径。");
+        string[] properties = Properties(f["properties"]);
         CanonicalStyleDto style = StyleCommandJson.CanonicalStyle(f["style"]);
-        if (style.UnsungFill.Material is PackageStyleMaterialDto || style.SungFill.Material is PackageStyleMaterialDto || style.Stroke?.Material is PackageStyleMaterialDto)
-            throw new JsonException("静态定义不接受包材质，包括未选字段。");
+        if (HasPackageMaterial(style)) throw new JsonException("静态定义不接受包材质，包括未选字段。");
         return new(StyleCommandJson.String(f["name"]), StyleCommandJson.Enum<TemplateKind>(f["kind"]), style, properties);
     }
     internal static TemplateLibraryCommandDto Command(JsonElement root, JsonSerializerOptions options)
@@ -276,7 +285,7 @@ internal static class TemplateLibraryJson
     private static void CheckNewDefinition(JsonElement definition)
     {
         var d = StyleCommandJson.Fields(definition, "name", "kind", "style", "properties"); CheckName(StyleCommandJson.String(d["name"]));
-        var s = StyleCommandJson.Fields(d["style"], "typography", "unsungFill", "sungFill", "stroke", "shadow", "verticalCenterRatio", "horizontalAlignment", "opacity", "scale", "glow");
+        var s = StyleCommandJson.Fields(d["style"], "typography", "unsung", "sung", "wipe", "verticalCenterRatio", "horizontalAlignment", "opacity", "scale");
         var t = StyleCommandJson.Fields(s["typography"], "fontFamilyName", "fallbackFamilyNames", "fontSizePx", "fontWeight", "isBold", "isItalic", "letterSpacingPx");
         if (t["fontFamilyName"].ValueKind == JsonValueKind.String && t["fontFamilyName"].GetString()!.Length > StyleEditingLimits.MaxFontLength) throw new TemplateLibraryBudgetExceededException();
         if (t["fallbackFamilyNames"].ValueKind == JsonValueKind.Array)
@@ -285,9 +294,17 @@ internal static class TemplateLibraryJson
             foreach (var name in t["fallbackFamilyNames"].EnumerateArray())
                 if (name.ValueKind == JsonValueKind.String && name.GetString()!.Length > StyleEditingLimits.MaxFontLength) throw new TemplateLibraryBudgetExceededException();
         }
-        CheckMaterial(StyleCommandJson.Fields(s["unsungFill"], "material")["material"]);
-        CheckMaterial(StyleCommandJson.Fields(s["sungFill"], "material")["material"]);
-        if (s["stroke"].ValueKind != JsonValueKind.Null) CheckMaterial(StyleCommandJson.Fields(s["stroke"], "material", "widthPx", "join", "position")["material"]);
+        foreach (string side in (string[])["unsung", "sung"])
+        {
+            var appearance = StyleCommandJson.Fields(s[side], "fill", "strokes", "shadow", "glow");
+            CheckMaterial(appearance["fill"]);
+            var strokes = appearance["strokes"];
+            // 已唱一侧的显式描边在 value 里；跟随没有描边材质。
+            if (side == "sung") strokes = strokes.ValueKind == JsonValueKind.Object && strokes.TryGetProperty("value", out var set) ? set : default;
+            if (strokes.ValueKind == JsonValueKind.Array)
+                foreach (var stroke in strokes.EnumerateArray())
+                    if (stroke.ValueKind == JsonValueKind.Object && stroke.TryGetProperty("material", out var material)) CheckMaterial(material);
+        }
     }
     private static void CheckMaterial(JsonElement material)
     {

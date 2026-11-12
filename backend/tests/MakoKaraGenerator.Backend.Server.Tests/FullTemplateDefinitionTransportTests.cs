@@ -56,7 +56,7 @@ public sealed partial class PreviewTransportTests
         Assert.Equal(["first", "second"], definition.EffectRecipes.Select(value => value.RecipeId));
         Assert.Equal("18446744073709551615", definition.EffectRecipes[0].FixedSeed);
         Assert.Contains("9007199254740993", definition.EffectRecipes[0].ParametersJson);
-        Assert.Equal("{\"amount\":0.12345678901234567890123456789}", Assert.IsType<PackageStyleMaterialDto>(definition.Style.UnsungFill.Material).ParametersJson);
+        Assert.Equal("{\"amount\":0.12345678901234567890123456789}", Assert.IsType<PackageStyleMaterialDto>(definition.Style.Unsung.Fill).ParametersJson);
         Assert.Equal("未选字体", definition.Style.Typography.FontFamilyName); Assert.Equal(2, definition.Packages.Length);
         Assert.All(definition.Packages, value => Assert.Equal("library", value.Kind));
         Assert.Equal(2, detail.PackageClosureDetails!.Length);

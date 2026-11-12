@@ -186,7 +186,7 @@ public sealed class BackendTemplateLibraryPathTests
     }
     private static TemplateLibraryCommandRequest Create(string revision) => new(revision,
         new(Guid.NewGuid().ToString("N"), "host", DateTimeOffset.UtcNow.AddMinutes(1)),
-        new CreateTemplateCommandDto(new("新模板", TemplateKind.Line, ProjectSession.ExportTemplateLibraryStyle(LyricStyle.Default), [TemplateProperty.FontSizePx])));
+        new CreateTemplateCommandDto(new("新模板", TemplateKind.Line, ProjectSession.ExportTemplateLibraryStyle(LyricStyle.Default), ["typography.fontSizePx"])));
     private static T Accepted<T>(BackendOperationResult<T> result) { Assert.True(result.Accepted, result.Error?.ToString()); return result.Response!; }
     private static void Invalid<T>(BackendOperationResult<T> result) { Assert.False(result.Accepted); Assert.Equal("LibraryInvalid", result.Error?.FailureCode); }
     private static Dictionary<string, byte[]> Files(string directory) => Directory.GetFiles(directory, "*", SearchOption.AllDirectories)

@@ -38,7 +38,7 @@ public sealed partial class PreviewTransportTests
         var list = await TemplateList(f); Assert.Equal(created.TemplateId, Assert.Single(list.Templates).TemplateId); Assert.Equal("我的模板", list.Templates[0].Name);
         string detailPath = TemplateRoot + "/personal/templates/detail?expectedRevision=" + list.Revision + "&templateId=" + Uri.EscapeDataString(created.TemplateId);
         var detail = (await f.Http.GetFromJsonAsync<TemplateDetailResponse>(detailPath, Json))!;
-        Assert.Equal("staticAvailable", detail.DefinitionAvailability); Assert.NotNull(detail.Definition); Assert.Null(detail.Definition.Style.Stroke); Assert.Null(detail.Definition.Style.Typography.FontFamilyName);
+        Assert.Equal("staticAvailable", detail.DefinitionAvailability); Assert.NotNull(detail.Definition); Assert.Empty(detail.Definition.Style.Unsung.Strokes); Assert.Null(detail.Definition.Style.Typography.FontFamilyName);
         using var replacedResponse = await TemplatePost(f, list.Revision, "{\"type\":\"replace\",\"templateId\":\"" + created.TemplateId + "\",\"definition\":" + TemplateLibraryWireTests.Definition("新定义") + "}");
         var replaced = await TemplateSuccess(replacedResponse); Assert.Equal(created.TemplateId, replaced.TemplateId); Assert.True(replaced.Changed);
         using var renamedResponse = await TemplatePost(f, replaced.Revision, "{\"type\":\"rename\",\"templateId\":\"" + created.TemplateId + "\",\"name\":\"新名字\"}");

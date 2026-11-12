@@ -148,13 +148,14 @@ public sealed partial class ProjectSession
     {
         StyleMaterialDto? CloneMaterial(StyleMaterialDto? material) => material is GradientStyleMaterialDto { Gradient: { } g } gradient
             ? gradient with { Gradient = g with { Stops = g.Stops?.ToArray()! } } : material;
+        StyleStrokeDto[]? CloneStrokes(StyleStrokeDto[]? strokes) => strokes?.Select(s => s is null ? s! : s with { Material = CloneMaterial(s.Material)! }).ToArray();
         StyleChangeDto? CloneChange(StyleChangeDto? change) => change switch
         {
             StyleFallbackFamiliesChangeDto f => f with { Value = f.Value?.ToArray()! },
-            StyleUnsungMaterialChangeDto m => m with { Value = CloneMaterial(m.Value)! },
-            StyleSungMaterialChangeDto m => m with { Value = CloneMaterial(m.Value)! },
-            StyleStrokeMaterialChangeDto m => m with { Value = CloneMaterial(m.Value)! },
-            StyleStrokeChangeDto { Value: { } s } stroke => stroke with { Value = s with { Material = CloneMaterial(s.Material)! } },
+            StyleUnsungFillChangeDto m => m with { Value = CloneMaterial(m.Value)! },
+            StyleSungFillChangeDto m => m with { Value = CloneMaterial(m.Value)! },
+            StyleUnsungStrokesChangeDto s => s with { Value = CloneStrokes(s.Value)! },
+            StyleSungStrokesChangeDto { Value: { } strokes } s => s with { Value = strokes with { Value = CloneStrokes(strokes.Value) } },
             _ => change,
         };
         return command switch

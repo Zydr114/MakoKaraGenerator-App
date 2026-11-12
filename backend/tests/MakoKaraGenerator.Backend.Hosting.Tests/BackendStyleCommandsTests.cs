@@ -21,14 +21,14 @@ public sealed class BackendStyleCommandsTests
     {
         using var f = await Fixture.Create();
         f.Replace(f.Workspace.Project with { LyricStyle = f.Workspace.Project.LyricStyle with { Glow = new() { BlurRadiusPx = 9, SpreadPx = 2 } } });
-        Accepted(await f.Command("0", Patch(Line, new StyleGlowChangeDto(null))));
+        Accepted(await f.Command("0", Patch(Line, new StyleUnsungGlowChangeDto(null))));
         var read = await f.Read(Line, "1");
-        Assert.Null(read.StaticHierarchy.Glow); Assert.Contains(read.Local, x => x is StyleGlowChangeDto { Value: null });
-        Assert.False(Accepted(await f.Command("1", new RestoreStylesCommandDto([Line], ["glow.blurRadiusPx"]))).Changed);
-        Accepted(await f.Command("1", Patch(Line, new StyleGlowOpacityChangeDto(.4f))));
-        read = await f.Read(Line, "2"); Assert.Equal(9, read.StaticHierarchy.Glow!.BlurRadiusPx); Assert.Equal(.4f, read.StaticHierarchy.Glow.Opacity);
-        Accepted(await f.Command("2", new RestoreStylesCommandDto([Line], ["glow"])));
-        Assert.Equal(2, (await f.Read(Line, "3")).StaticHierarchy.Glow!.SpreadPx);
+        Assert.Null(read.StaticHierarchy.Unsung.Glow); Assert.Contains(read.Local, x => x is StyleUnsungGlowChangeDto { Value: null });
+        Assert.False(Accepted(await f.Command("1", new RestoreStylesCommandDto([Line], ["unsung.glow.blurRadiusPx"]))).Changed);
+        Accepted(await f.Command("1", Patch(Line, new StyleUnsungGlowOpacityChangeDto(.4f))));
+        read = await f.Read(Line, "2"); Assert.Equal(9, read.StaticHierarchy.Unsung.Glow!.BlurRadiusPx); Assert.Equal(.4f, read.StaticHierarchy.Unsung.Glow.Opacity);
+        Accepted(await f.Command("2", new RestoreStylesCommandDto([Line], ["unsung.glow"])));
+        Assert.Equal(2, (await f.Read(Line, "3")).StaticHierarchy.Unsung.Glow!.SpreadPx);
     }
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
         { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull, Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) } };
@@ -62,29 +62,57 @@ public sealed class BackendStyleCommandsTests
     }
 
     [Fact]
-    public async Task 三态和关闭后叶设置继承真实上层描边且未选包材质参数保持原引用()
+    public async Task 三态和关闭后叶设置继承真实上层阴影且未选包材质描边保持原引用()
     {
         using var f = await Fixture.Create();
         var package = new MaterialSpec.PackageMaterial("test.package", "sha256:" + new string('a', 64), "material", EffectParameterOverrides.Parse("{\"strength\":0.1234567890123456789,\"source\":\"preserve\"}"));
-        var baseline = f.Workspace.Project.LyricStyle with { Stroke = new() { Material = package, WidthPx = 7, Join = StrokeJoin.Bevel } };
+        var baseline = f.Workspace.Project.LyricStyle with { Stroke = new() { Material = package, WidthPx = 7, Join = StrokeJoin.Bevel }, Shadow = new() { DistancePx = 5, BlurRadiusPx = 2 } };
         f.Replace(f.Workspace.Project with { LyricStyle = baseline });
-        Accepted(await f.Command("0", Patch(Line, new StyleFontFamilyChangeDto(null), new StyleStrokeChangeDto(null), new StyleShadowChangeDto(null))));
+        Accepted(await f.Command("0", Patch(Line, new StyleFontFamilyChangeDto(null), new StyleUnsungStrokesChangeDto([]), new StyleUnsungShadowChangeDto(null))));
         var read = await f.Read(Line, "1");
         string wire = JsonSerializer.Serialize(read, Json);
         Assert.Contains("\"property\":\"typography.fontFamilyName\",\"value\":null", wire, StringComparison.Ordinal);
-        Assert.Contains("\"property\":\"stroke\",\"value\":null", wire, StringComparison.Ordinal);
-        Assert.Null(read.StaticHierarchy.Stroke); Assert.Null(read.StaticHierarchy.Shadow); Assert.Null(read.StaticHierarchy.Typography.FontFamilyName);
-        Assert.IsType<PackageStyleMaterialDto>(read.Baseline.Stroke!.Material);
+        Assert.Contains("\"property\":\"unsung.strokes\",\"value\":[]", wire, StringComparison.Ordinal);
+        Assert.Contains("\"property\":\"unsung.shadow\",\"value\":null", wire, StringComparison.Ordinal);
+        Assert.Empty(read.StaticHierarchy.Unsung.Strokes); Assert.Null(read.StaticHierarchy.Unsung.Shadow); Assert.Null(read.StaticHierarchy.Typography.FontFamilyName);
+        Assert.Equal(StyleFollowKind.Follow, read.StaticHierarchy.Sung.Strokes.Kind); Assert.Equal(StyleFollowKind.Follow, read.StaticHierarchy.Sung.Shadow.Kind);
+        Assert.IsType<PackageStyleMaterialDto>(read.Baseline.Unsung.Strokes[0].Material);
         Assert.DoesNotContain("parameters", wire, StringComparison.Ordinal);
-        var noop = Accepted(await f.Command("1", new RestoreStylesCommandDto([Line], ["stroke.widthPx"]))); Assert.False(noop.Changed);
-        Accepted(await f.Command("1", Patch(Line, new StyleStrokeWidthChangeDto(3))));
-        var current = f.Workspace.Project.Lyrics.Branches.Single(b => b.Id == "secondary").Lines[0].StyleOverride!;
-        Assert.Same(package, current.Stroke.Value!.Material); Assert.Same(package, f.Workspace.Project.LyricStyle.Stroke!.Material);
-        read = await f.Read(Line, "2"); Assert.Equal(3, read.StaticHierarchy.Stroke!.WidthPx); Assert.Equal(StyleStrokeJoin.Bevel, read.StaticHierarchy.Stroke.Join);
-        Assert.IsType<PackageStyleMaterialDto>(read.StaticHierarchy.Stroke.Material);
-        Accepted(await f.Command("2", new RestoreStylesCommandDto([Line], ["stroke", "typography.fontFamilyName"])));
-        read = await f.Read(Line, "3"); Assert.Equal(7, read.StaticHierarchy.Stroke!.WidthPx);
-        Assert.DoesNotContain(read.Local, value => value.Property is "stroke" or "stroke.widthPx" or "typography.fontFamilyName");
+        var noop = Accepted(await f.Command("1", new RestoreStylesCommandDto([Line], ["unsung.shadow.opacity", "sung.shadow.opacity"]))); Assert.False(noop.Changed);
+        Accepted(await f.Command("1", Patch(Line, new StyleUnsungShadowOpacityChangeDto(.3f))));
+        read = await f.Read(Line, "2"); Assert.Equal(.3f, read.StaticHierarchy.Unsung.Shadow!.Opacity); Assert.Equal(5, read.StaticHierarchy.Unsung.Shadow.DistancePx);
+        Assert.Contains(read.Local, value => value is StyleUnsungShadowOpacityChangeDto { Value: .3f });
+        Assert.DoesNotContain(read.Local, value => value.Property == "unsung.shadow");
+        Assert.Same(package, f.Workspace.Project.LyricStyle.Stroke!.Material);
+        Accepted(await f.Command("2", new RestoreStylesCommandDto([Line], ["unsung.strokes", "typography.fontFamilyName"])));
+        read = await f.Read(Line, "3"); Assert.Equal(7, read.StaticHierarchy.Unsung.Strokes[0].WidthPx); Assert.Equal(StyleStrokeJoin.Bevel, read.StaticHierarchy.Unsung.Strokes[0].Join);
+        Assert.IsType<PackageStyleMaterialDto>(read.StaticHierarchy.Unsung.Strokes[0].Material);
+        Assert.DoesNotContain(read.Local, value => value.Property is "unsung.strokes" or "typography.fontFamilyName");
+    }
+
+    [Fact]
+    public async Task 已唱跟随与显式值读写往返且跟随项分量写成显式部分值()
+    {
+        using var f = await Fixture.Create();
+        f.Replace(f.Workspace.Project with { LyricStyle = f.Workspace.Project.LyricStyle with { Glow = new() { Color = new(9, 8, 7, 255), Opacity = .6f, BlurRadiusPx = 4 } } });
+        StyleStrokeDto[] layers = [new(new SolidStyleMaterialDto(new(1, 2, 3, 255)), 3, StyleStrokeJoin.Round), new(new SolidStyleMaterialDto(new(4, 5, 6, 255)), 2, StyleStrokeJoin.Bevel)];
+        Accepted(await f.Command("0", Patch(Line, new StyleSungStrokesChangeDto(new(StyleFollowKind.Set, layers)), new StyleSungGlowSpreadChangeDto(2))));
+        var read = await f.Read(Line, "1");
+        Assert.Equal(StyleFollowKind.Set, read.StaticHierarchy.Sung.Strokes.Kind); Assert.Equal(layers, read.StaticHierarchy.Sung.Strokes.Value);
+        Assert.Empty(read.StaticHierarchy.Unsung.Strokes);
+        var glow = read.StaticHierarchy.Sung.Glow; Assert.Equal(StyleFollowKind.Set, glow.Kind);
+        Assert.Equal(2, glow.Value!.SpreadPx); Assert.Equal(4, glow.Value.BlurRadiusPx); Assert.Equal(.6f, glow.Value.Opacity);
+        Assert.Contains(read.Local, value => value is StyleSungGlowSpreadChangeDto { Value: 2 });
+        string wire = JsonSerializer.Serialize(read.StaticHierarchy, Json);
+        Assert.Contains("\"shadow\":{\"kind\":\"follow\"}", wire, StringComparison.Ordinal);
+        var follow = Accepted(await f.Command("1", Patch(Line, new StyleSungStrokesChangeDto(new(StyleFollowKind.Follow)))));
+        Assert.True(follow.Changed);
+        read = await f.Read(Line, "2"); Assert.Equal(StyleFollowKind.Follow, read.StaticHierarchy.Sung.Strokes.Kind);
+        Assert.Contains(read.Local, value => value is StyleSungStrokesChangeDto { Value.Kind: StyleFollowKind.Follow });
+        Accepted(await f.Command("2", Patch(Line, new StyleWipeFeatherChangeDto(.2), new StyleWipeHighlightBlendChangeDto(StyleWipeHighlightBlend.Add))));
+        read = await f.Read(Line, "3"); Assert.Equal(.2, read.StaticHierarchy.Wipe.FeatherRatio);
+        Assert.Equal(StyleWipeHighlightBlend.Add, read.StaticHierarchy.Wipe.Highlight!.Blend); Assert.Equal(.25, read.StaticHierarchy.Wipe.Highlight.WidthRatio);
+        Assert.Contains("\"blend\":\"add\"", JsonSerializer.Serialize(read.StaticHierarchy, Json), StringComparison.Ordinal);
     }
 
     [Theory]
@@ -104,16 +132,13 @@ public sealed class BackendStyleCommandsTests
         var gradient = new StyleGradientDto(StyleGradientKind.Linear, 123, -3, 4, -5, -6, StyleGradientCoordinateSpace.Glyph,
             StyleGradientColorSpace.Oklch, StyleGradientHuePath.Decreasing,
             [new(0, new(1, 2, 3, 4)), new(.5, new(5, 6, 7, 8)), new(.5, new(9, 10, 11, 12)), new(1, new(13, 14, 15, 16))]);
-        var command = Patch(Line, new StyleUnsungMaterialChangeDto(new GradientStyleMaterialDto(gradient)), new StyleFallbackFamiliesChangeDto(["A", "B"]));
+        var command = Patch(Line, new StyleUnsungFillChangeDto(new GradientStyleMaterialDto(gradient)), new StyleFallbackFamiliesChangeDto(["A", "B"]));
         Accepted(await f.Command("0", command)); var before = f.Workspace.Project;
         var copied = (PatchStylesCommandDto)JsonSerializer.Deserialize<ProjectCommandDto>(JsonSerializer.Serialize<ProjectCommandDto>(command, Json), Json)!;
         var result = Accepted(await f.Command("1", copied)); Assert.False(result.Changed); Assert.Same(before, f.Workspace.Project);
-        var read = await f.Read(Line, "1"); var actual = Assert.IsType<GradientStyleMaterialDto>(read.StaticHierarchy.UnsungFill.Material).Gradient;
+        var read = await f.Read(Line, "1"); var actual = Assert.IsType<GradientStyleMaterialDto>(read.StaticHierarchy.Unsung.Fill).Gradient;
         Assert.Equal(gradient, actual with { Stops = gradient.Stops }); Assert.Equal(gradient.Stops, actual.Stops);
         Assert.Equal(1, (await f.History()).UndoCount);
-        // 0.112.74 起 Core 删去进度坐标（D-P3-7），过渡期 HTTP 仍可提交该枚举值，按领域规则拒绝且不改工程。
-        var progress = Patch(Line, new StyleUnsungMaterialChangeDto(new GradientStyleMaterialDto(gradient with { CoordinateSpace = StyleGradientCoordinateSpace.Progress })));
-        Assert.Equal(BackendErrorCode.CommandRejected, (await f.Command("1", progress)).Error!.Code); Assert.Same(before, f.Workspace.Project);
     }
 
     [Fact]
@@ -281,7 +306,7 @@ public sealed class BackendStyleCommandsTests
         using var f = await Fixture.Create(); var source = f.Workspace.Project;
         var gradient = new StyleGradientDto(StyleGradientKind.Linear, value, .5, .5, .5, .5, StyleGradientCoordinateSpace.Line,
             StyleGradientColorSpace.LinearRgb, StyleGradientHuePath.Shorter, [new(0, new(1,2,3,4)), new(1, new(5,6,7,8))]);
-        foreach (StyleChangeDto change in new StyleChangeDto[] { new StyleScaleChangeDto(value), new StyleShadowChangeDto(new(new(1,2,3,4), value, 0, 1, 2)), new StyleUnsungMaterialChangeDto(new GradientStyleMaterialDto(gradient)) })
+        foreach (StyleChangeDto change in new StyleChangeDto[] { new StyleScaleChangeDto(value), new StyleUnsungShadowChangeDto(new(new(1,2,3,4), value, 0, 1, 2)), new StyleUnsungFillChangeDto(new GradientStyleMaterialDto(gradient)) })
         {
             var request = f.Request("0", Patch(new ProjectStyleTargetDto(), change));
             Assert.Equal(BackendErrorCode.InvalidRequest, (await f.Execute(request)).Error!.Code);
@@ -299,7 +324,7 @@ public sealed class BackendStyleCommandsTests
         var style = f.Workspace.Project.LyricStyle with { Typography = f.Workspace.Project.LyricStyle.Typography with
             { FontFamilyName = new string('f', 300), FallbackFamilyNames = [.. Enumerable.Range(0, 33).Select(i => "fallback" + i)] }, UnsungFill = new() { Material = new MaterialSpec.Gradient(g) } };
         f.Replace(f.Workspace.Project with { LyricStyle = style });
-        var read = await f.Read(Line, "0"); Assert.Equal(300, Assert.IsType<GradientStyleMaterialDto>(read.StaticHierarchy.UnsungFill.Material).Gradient.Stops.Length);
+        var read = await f.Read(Line, "0"); Assert.Equal(300, Assert.IsType<GradientStyleMaterialDto>(read.StaticHierarchy.Unsung.Fill).Gradient.Stops.Length);
         Assert.Equal(33, read.StaticHierarchy.Typography.FallbackFamilyNames.Length);
         Accepted(await f.Command("0", Patch(Line, new StyleOpacityChangeDto(.3f))));
         Assert.Same(style, f.Workspace.Project.LyricStyle); Assert.Same(g, ((MaterialSpec.Gradient)f.Workspace.Project.LyricStyle.UnsungFill.Material).Value);
@@ -339,9 +364,9 @@ public sealed class BackendStyleCommandsTests
         using var f = await Fixture.Create(); var writer = (SemaphoreSlim)Get(f.Session, "Writer")!; await writer.WaitAsync();
         var stops = new StyleGradientStopDto[] { new(0, new(1,2,3,4)), new(.5, new(5,6,7,8)), new(1, new(9,10,11,12)) };
         var gradient = new StyleGradientDto(StyleGradientKind.Linear, 0, .5, .5, .5, .5, StyleGradientCoordinateSpace.Line, StyleGradientColorSpace.LinearRgb, StyleGradientHuePath.Shorter, stops);
-        var task = f.Command("0", Patch(Line, new StyleUnsungMaterialChangeDto(new GradientStyleMaterialDto(gradient))));
+        var task = f.Command("0", Patch(Line, new StyleUnsungFillChangeDto(new GradientStyleMaterialDto(gradient))));
         stops[1] = new(.8, new(100,101,102,103)); writer.Release(); Accepted(await task);
-        var actual = Assert.IsType<GradientStyleMaterialDto>((await f.Read(Line, "1")).StaticHierarchy.UnsungFill.Material).Gradient;
+        var actual = Assert.IsType<GradientStyleMaterialDto>((await f.Read(Line, "1")).StaticHierarchy.Unsung.Fill).Gradient;
         Assert.Equal(.5, actual.Stops[1].Offset); Assert.Equal(new StyleColorDto(5,6,7,8), actual.Stops[1].Color);
     }
 

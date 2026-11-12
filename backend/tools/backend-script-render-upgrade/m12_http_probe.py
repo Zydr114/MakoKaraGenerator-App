@@ -190,9 +190,17 @@ class M12Probe(m11.M11ComplexProbe):
         definition = dict(detail["definition"])
         properties = ["opacity"]
         if self.materials:
-            definition["style"] = dict(definition["style"], unsungFill={"material": self.materials[0]},
-                sungFill={"material": self.materials[-1]})
-            properties += ["unsungColor", "sungColor"]
+            style = definition["style"]
+            if "unsung" in style:
+                # 合同 1.50.0 起两态形状：填充直接是材质，模板属性为路径。
+                definition["style"] = dict(style, unsung=dict(style["unsung"], fill=self.materials[0]),
+                    sung=dict(style["sung"], fill=self.materials[-1]))
+                properties += ["unsung.fill", "sung.fill"]
+            else:
+                # 1.49.x 及更早的发布物（A/B 与帧摘要对照仍会用到）。
+                definition["style"] = dict(style, unsungFill={"material": self.materials[0]},
+                    sungFill={"material": self.materials[-1]})
+                properties += ["unsungColor", "sungColor"]
         definition.update(name="M12 " + "+".join(self.names), kind="line", properties=properties,
             packages=[reference for reference, _ in imported],
             effectRecipes=[recipe for _, recipe in imported if recipe is not None])

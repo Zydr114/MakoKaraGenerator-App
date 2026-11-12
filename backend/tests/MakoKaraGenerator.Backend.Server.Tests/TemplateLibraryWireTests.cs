@@ -5,8 +5,8 @@ namespace MakoKaraGenerator.Backend.Server.Tests;
 
 public sealed class TemplateLibraryWireTests
 {
-    internal const string Style = """{"typography":{"fontFamilyName":null,"fallbackFamilyNames":[],"fontSizePx":48,"fontWeight":400,"isBold":false,"isItalic":false,"letterSpacingPx":0},"unsungFill":{"material":{"kind":"solid","color":{"red":1,"green":2,"blue":3,"alpha":255}}},"sungFill":{"material":{"kind":"solid","color":{"red":4,"green":5,"blue":6,"alpha":255}}},"stroke":null,"shadow":null,"glow":null,"verticalCenterRatio":0.5,"horizontalAlignment":"center","opacity":1,"scale":1}""";
-    internal static string Definition(string name = "模板") => "{\"name\":" + JsonSerializer.Serialize(name) + ",\"kind\":\"line\",\"style\":" + Style + ",\"properties\":[\"fontSizePx\"]}";
+    internal const string Style = """{"typography":{"fontFamilyName":null,"fallbackFamilyNames":[],"fontSizePx":48,"fontWeight":400,"isBold":false,"isItalic":false,"letterSpacingPx":0},"unsung":{"fill":{"kind":"solid","color":{"red":1,"green":2,"blue":3,"alpha":255}},"strokes":[],"shadow":null,"glow":null},"sung":{"fill":{"kind":"solid","color":{"red":4,"green":5,"blue":6,"alpha":255}},"strokes":{"kind":"follow"},"shadow":{"kind":"follow"},"glow":{"kind":"follow"}},"wipe":{"featherRatio":0,"highlight":null},"verticalCenterRatio":0.5,"horizontalAlignment":"center","opacity":1,"scale":1}""";
+    internal static string Definition(string name = "模板") => "{\"name\":" + JsonSerializer.Serialize(name) + ",\"kind\":\"line\",\"style\":" + Style + ",\"properties\":[\"typography.fontSizePx\"]}";
     internal static string Request(string command, string deadline = "2030-01-01T00:00:00Z") => "{\"expectedRevision\":\"missing\",\"metadata\":{\"requestId\":\"request\",\"hostInstanceId\":\"host\",\"validUntilUtc\":" + JsonSerializer.Serialize(deadline) + "},\"command\":" + command + "}";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private static readonly JsonSerializerOptions IgnoreNullJson = new(Json) { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull };
@@ -44,7 +44,7 @@ public sealed class TemplateLibraryWireTests
         string serialized = JsonSerializer.Serialize(first, Json);
         Assert.Equal(serialized, JsonSerializer.Serialize(TemplateLibraryCommandCodec.Capture(first), Json));
         if (first.Command is CreateTemplateCommandDto or ReplaceTemplateCommandDto)
-        { Assert.Contains("\"fontFamilyName\":null", serialized); Assert.Contains("\"stroke\":null", serialized); Assert.Contains("\"shadow\":null", serialized); Assert.Contains("\"glow\":null", serialized); }
+        { Assert.Contains("\"fontFamilyName\":null", serialized); Assert.Contains("\"strokes\":[]", serialized); Assert.Contains("\"highlight\":null", serialized); Assert.Contains("\"glow\":{\"kind\":\"follow\"}", serialized); Assert.Contains("\"shadow\":null", serialized); Assert.Contains("\"glow\":null", serialized); }
     }
     public static IEnumerable<object[]> InvalidShapes()
     {
@@ -58,13 +58,16 @@ public sealed class TemplateLibraryWireTests
             ("\"metadata\":{", "\"metadata\":{\"unexpected\":null,"), ("\"type\":\"create\"", "\"type\":\"Create\""),
             ("\"type\":\"create\"", "\"type\":\"create\",\"templateId\":null"), ("\"type\":\"create\"", "\"type\":\"create\",\"type\":\"create\""),
             ("\"kind\":\"line\"", "\"kind\":0"), ("\"kind\":\"line\"", "\"kind\":\"Line\""),
-            ("\"properties\":[\"fontSizePx\"]", "\"properties\":[]"), ("\"properties\":[\"fontSizePx\"]", "\"properties\":[\"fontSizePx\",\"fontSizePx\"]"),
-            ("\"properties\":[\"fontSizePx\"]", "\"properties\":[\"typography.fontSizePx\"]"),
+            ("\"properties\":[\"typography.fontSizePx\"]", "\"properties\":[]"), ("\"properties\":[\"typography.fontSizePx\"]", "\"properties\":[\"typography.fontSizePx\",\"typography.fontSizePx\"]"),
+            ("\"properties\":[\"typography.fontSizePx\"]", "\"properties\":[\"fontSizePx\"]"), ("\"properties\":[\"typography.fontSizePx\"]", "\"properties\":[\"stroke\"]"),
             ("\"fontFamilyName\":null,", ""), ("\"fontWeight\":400", "\"fontWeight\":400.5"),
             ("\"isBold\":false", "\"isBold\":null"), ("\"scale\":1", "\"scale\":\"1\""),
             ("\"horizontalAlignment\":\"center\"", "\"horizontalAlignment\":\"Center\""),
             ("\"alpha\":255", "\"alpha\":256"), ("\"red\":1", "\"red\":1,\"red\":2"),
-            ("\"stroke\":null,", ""), ("\"shadow\":null", "\"shadow\":{}"), ("\"glow\":null,", ""),
+            ("\"strokes\":[],", ""), ("\"strokes\":[]", "\"strokes\":null"), ("\"shadow\":null", "\"shadow\":{}"), ("\"glow\":null}", "}"),
+            ("\"strokes\":{\"kind\":\"follow\"}", "\"strokes\":{\"kind\":\"follow\",\"value\":[]}"), ("\"shadow\":{\"kind\":\"follow\"}", "\"shadow\":null"),
+            ("\"glow\":{\"kind\":\"follow\"}", "\"glow\":{\"kind\":\"set\"}"), ("\"featherRatio\":0", "\"featherRatio\":null"),
+            ("\"wipe\":{\"featherRatio\":0,\"highlight\":null},", ""), ("\"highlight\":null", "\"highlight\":{}"),
             ("\"fallbackFamilyNames\":[]", "\"fallbackFamilyNames\":[null]"),
             ("\"opacity\":1", "\"opacity\":1e309"),
         }) yield return [request.Replace(pair.From, pair.To, StringComparison.Ordinal)];
@@ -88,8 +91,8 @@ public sealed class TemplateLibraryWireTests
     {
         var request = JsonSerializer.Deserialize<TemplateLibraryCommandRequest>(Request("{\"type\":\"create\",\"definition\":" + Definition() + "}"), Json)!;
         var captured = TemplateLibraryCommandCodec.Capture(request);
-        ((CreateTemplateCommandDto)request.Command).Definition.Properties[0] = TemplateProperty.Scale;
-        Assert.Equal(TemplateProperty.FontSizePx, ((CreateTemplateCommandDto)captured.Command).Definition.Properties[0]);
+        ((CreateTemplateCommandDto)request.Command).Definition.Properties[0] = "scale";
+        Assert.Equal("typography.fontSizePx", ((CreateTemplateCommandDto)captured.Command).Definition.Properties[0]);
         Assert.Throws<JsonException>(() => TemplateLibraryCommandCodec.Capture(request with { Command = new DeleteTemplateCommandDto("x") with { Type = "rename" } }));
         var create = (CreateTemplateCommandDto)captured.Command;
         foreach (float value in new[] { float.NaN, float.PositiveInfinity, float.NegativeInfinity })
@@ -100,17 +103,17 @@ public sealed class TemplateLibraryWireTests
     public void 完整三渐变大于旧64KiB仍合法且保持所有几何与属性选择()
     {
         string stop = "{\"offset\":0.12345678901234567,\"color\":{\"red\":255,\"green\":254,\"blue\":253,\"alpha\":252}}";
-        string material = "{\"kind\":\"gradient\",\"gradient\":{\"kind\":\"linear\",\"angleDegrees\":123.45678901234567,\"centerX\":-3,\"centerY\":4,\"radiusX\":-5,\"radiusY\":-6,\"coordinateSpace\":\"progress\",\"colorSpace\":\"oklch\",\"huePath\":\"decreasing\",\"stops\":[" + string.Join(',', Enumerable.Repeat(stop,256)) + "]}}";
+        string material = "{\"kind\":\"gradient\",\"gradient\":{\"kind\":\"linear\",\"angleDegrees\":123.45678901234567,\"centerX\":-3,\"centerY\":4,\"radiusX\":-5,\"radiusY\":-6,\"coordinateSpace\":\"glyph\",\"colorSpace\":\"oklch\",\"huePath\":\"decreasing\",\"stops\":[" + string.Join(',', Enumerable.Repeat(stop,256)) + "]}}";
         string style = Style.Replace("{\"kind\":\"solid\",\"color\":{\"red\":1,\"green\":2,\"blue\":3,\"alpha\":255}}", material, StringComparison.Ordinal)
             .Replace("{\"kind\":\"solid\",\"color\":{\"red\":4,\"green\":5,\"blue\":6,\"alpha\":255}}", material, StringComparison.Ordinal)
-            .Replace("\"stroke\":null", "\"stroke\":{\"material\":" + material + ",\"widthPx\":3,\"join\":\"bevel\",\"position\":\"outside\"}", StringComparison.Ordinal);
+            .Replace("\"strokes\":[]", "\"strokes\":[{\"material\":" + material + ",\"widthPx\":3,\"join\":\"bevel\"}]", StringComparison.Ordinal);
         string definition = Definition().Replace(Style, style, StringComparison.Ordinal);
         var command = JsonSerializer.Deserialize<TemplateLibraryCommandDto>("{\"type\":\"create\",\"definition\":" + definition + "}", Json)!;
         byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(command, Json); Assert.True(bytes.Length > 64 * 1024); Assert.True(bytes.Length <= TemplateLibraryLimits.MaxIntentBytes);
-        var gradient = Assert.IsType<GradientStyleMaterialDto>(Assert.IsType<CreateTemplateCommandDto>(command).Definition.Style.Stroke!.Material).Gradient;
+        var gradient = Assert.IsType<GradientStyleMaterialDto>(Assert.IsType<CreateTemplateCommandDto>(command).Definition.Style.Unsung.Strokes[0].Material).Gradient;
         Assert.Equal(256, gradient.Stops.Length); Assert.Equal(-5, gradient.RadiusX); Assert.Equal(StyleGradientColorSpace.Oklch, gradient.ColorSpace);
-        string properties = JsonSerializer.Serialize(Enum.GetValues<TemplateProperty>(), Json);
-        Assert.Equal(26, JsonSerializer.Deserialize<StaticTemplateDefinitionDto>(Definition().Replace("[\"fontSizePx\"]",properties,StringComparison.Ordinal),Json)!.Properties.Length);
+        string properties = JsonSerializer.Serialize(MakoKaraGenerator.Core.Projects.LyricStylePropertyExtensions.All.Select(MakoKaraGenerator.Core.Projects.LyricStylePropertyExtensions.ToJsonName), Json);
+        Assert.Equal(43, JsonSerializer.Deserialize<StaticTemplateDefinitionDto>(Definition().Replace("[\"typography.fontSizePx\"]",properties,StringComparison.Ordinal),Json)!.Properties.Length);
         Assert.Throws<TemplateLibraryBudgetExceededException>(() => JsonSerializer.Deserialize<TemplateLibraryCommandDto>("{\"type\":\"create\",\"definition\":" + definition.Replace(string.Join(',',Enumerable.Repeat(stop,256)),string.Join(',',Enumerable.Repeat(stop,257)),StringComparison.Ordinal) + "}",Json));
     }
     [Fact]
@@ -122,7 +125,7 @@ public sealed class TemplateLibraryWireTests
     [Fact]
     public void 高级Detail必需null不被全局忽略规则吞掉()
     {
-        var summary = new TemplateSummaryDto("x", "高级", TemplateKind.Line, new string('a',64), [TemplateProperty.Scale], true, false, true);
+        var summary = new TemplateSummaryDto("x", "高级", TemplateKind.Line, new string('a',64), ["scale"], true, false, true);
         string raw = JsonSerializer.Serialize(new TemplateDetailResponse("personal", "missing", summary, "advancedUnsupported", null), IgnoreNullJson);
         using var doc = JsonDocument.Parse(raw); Assert.Equal(JsonValueKind.Null, doc.RootElement.GetProperty("definition").ValueKind);
     }

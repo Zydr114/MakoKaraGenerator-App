@@ -53,8 +53,7 @@ internal static class BackendPreviewDiagnosticsMapper
     {
         PreparedMaterialOwner.Script s => new("script", Script: new(s.InstanceId.Value, s.ArtifactHash,
             s.PackageIdentity is null ? null : new(s.PackageIdentity.PackageId, s.PackageIdentity.Revision, s.PackageIdentity.ExportId))),
-        // HTTP 合同 1.49 的诊断槽只有 0～2：已唱描边（3）暂按描边（2）报告，P3 第 7 步合同放宽到 0～3。
-        PreparedMaterialOwner.Source s => new("source", Source: new(s.Reference.Path, s.Reference.Region, Math.Min((int)s.Slot, 2),
+        PreparedMaterialOwner.Source s => new("source", Source: new(s.Reference.Path, s.Reference.Region, (int)s.Slot,
             new(s.Reference.Material.PackageId, s.Reference.Material.Revision, s.Reference.Material.ExportId), s.Reference.Material.Parameters.Json)),
         _ => throw new RenderSessionFailureException("PreviewDiagnosticsInvalid", "材质诊断缺少真实来源。"),
     };

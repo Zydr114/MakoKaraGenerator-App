@@ -23,152 +23,58 @@ public enum StyleEditTargetKind
 /// <param name="TokenId">行内的元素标识。</param>
 public sealed record StyleEditTarget(StyleEditTargetKind Kind, string? BranchId = null, string? LineId = null, string? TokenId = null);
 
-/// <summary>闭合的规范静态样式成员；不使用颜色兼容访问外观。</summary>
-public enum StyleEditProperty
+/// <summary>有类型的规范样式成员值；<see cref="Property"/> 是 Core 的 43 项属性之一，与 HTTP 属性路径一一对应。</summary>
+/// <param name="Property">写入的属性。</param>
+public abstract record StyleEditChange(LyricStyleProperty Property)
 {
-    /// <summary>字体族。</summary>
-    TypographyFontFamilyName,
+    /// <summary>字体族；null 为未指定。</summary>
+    public sealed record FontFamilyName(string? Value) : StyleEditChange(LyricStyleProperty.FontFamilyName);
     /// <summary>有序字体回退链。</summary>
-    TypographyFallbackFamilyNames,
+    public sealed record FallbackFamilyNames(ImmutableArray<string> Value) : StyleEditChange(LyricStyleProperty.FallbackFamilyNames);
     /// <summary>字号。</summary>
-    TypographyFontSizePx,
+    public sealed record FontSize(float Value) : StyleEditChange(LyricStyleProperty.FontSizePx);
     /// <summary>字重。</summary>
-    TypographyFontWeight,
+    public sealed record FontWeight(int Value) : StyleEditChange(LyricStyleProperty.FontWeight);
     /// <summary>粗体。</summary>
-    TypographyIsBold,
+    public sealed record IsBold(bool Value) : StyleEditChange(LyricStyleProperty.IsBold);
     /// <summary>斜体。</summary>
-    TypographyIsItalic,
+    public sealed record IsItalic(bool Value) : StyleEditChange(LyricStyleProperty.IsItalic);
     /// <summary>字距。</summary>
-    TypographyLetterSpacingPx,
-    /// <summary>未唱材质。</summary>
-    UnsungMaterial,
-    /// <summary>已唱材质。</summary>
-    SungMaterial,
-    /// <summary>完整描边或关闭。</summary>
-    Stroke,
-    /// <summary>描边材质。</summary>
-    StrokeMaterial,
-    /// <summary>描边宽度。</summary>
-    StrokeWidthPx,
-    /// <summary>描边连接。</summary>
-    StrokeJoin,
-    /// <summary>描边位置（过渡期保留路径，写入与恢复都不改变工程）。</summary>
-    StrokePosition,
-    /// <summary>完整阴影或关闭。</summary>
-    Shadow,
-    /// <summary>阴影颜色。</summary>
-    ShadowColor,
-    /// <summary>阴影透明度。</summary>
-    ShadowOpacity,
-    /// <summary>阴影角度。</summary>
-    ShadowAngleDegrees,
-    /// <summary>阴影距离。</summary>
-    ShadowDistancePx,
-    /// <summary>阴影模糊半径。</summary>
-    ShadowBlurRadiusPx,
+    public sealed record LetterSpacing(float Value) : StyleEditChange(LyricStyleProperty.LetterSpacingPx);
+    /// <summary>一态的填充材质；只接受静态纯色或渐变。</summary>
+    public sealed record Fill(bool Sung, MaterialSpec Value) : StyleEditChange(Sung ? LyricStyleProperty.SungFill : LyricStyleProperty.UnsungFill);
+    /// <summary>未唱描边整表；空表为无描边。</summary>
+    public sealed record UnsungStrokes(StrokeLayers Value) : StyleEditChange(LyricStyleProperty.UnsungStrokes);
+    /// <summary>已唱描边：跟随未唱，或整表。</summary>
+    public sealed record SungStrokes(Followable<StrokeLayers> Value) : StyleEditChange(LyricStyleProperty.SungStrokes);
+    /// <summary>完整未唱阴影；null 为关闭。</summary>
+    public sealed record UnsungShadow(ShadowSpec? Value) : StyleEditChange(LyricStyleProperty.UnsungShadow);
+    /// <summary>完整已唱阴影：跟随、关闭或显式值。</summary>
+    public sealed record SungShadow(Followable<ShadowSpec?> Value) : StyleEditChange(LyricStyleProperty.SungShadow);
+    /// <summary>完整未唱辉光；null 为关闭。</summary>
+    public sealed record UnsungGlow(GlowSpec? Value) : StyleEditChange(LyricStyleProperty.UnsungGlow);
+    /// <summary>完整已唱辉光：跟随、关闭或显式值。</summary>
+    public sealed record SungGlow(Followable<GlowSpec?> Value) : StyleEditChange(LyricStyleProperty.SungGlow);
+    /// <summary>阴影、辉光或扫字线高亮的颜色分量。</summary>
+    /// <param name="Leaf">颜色分量属性。</param>
+    /// <param name="Value">颜色。</param>
+    public sealed record EffectColor(LyricStyleProperty Leaf, RgbaColor Value) : StyleEditChange(Leaf);
+    /// <summary>阴影、辉光或扫字线高亮的数值分量（不透明度、角度、距离、模糊、扩散、宽度比例）。</summary>
+    /// <param name="Leaf">数值分量属性。</param>
+    /// <param name="Value">数值；单精度分量按单精度保存。</param>
+    public sealed record EffectNumber(LyricStyleProperty Leaf, double Value) : StyleEditChange(Leaf);
+    /// <summary>扫字羽化比例。</summary>
+    public sealed record WipeFeather(double Value) : StyleEditChange(LyricStyleProperty.WipeFeatherRatio);
+    /// <summary>完整扫字线高亮；null 为关闭。</summary>
+    public sealed record WipeHighlight(WipeHighlightSpec? Value) : StyleEditChange(LyricStyleProperty.WipeHighlight);
+    /// <summary>扫字线高亮的混合方式。</summary>
+    public sealed record HighlightBlend(WipeHighlightBlend Value) : StyleEditChange(LyricStyleProperty.WipeHighlightBlend);
     /// <summary>纵向中心比例。</summary>
-    VerticalCenterRatio,
+    public sealed record VerticalCenter(double Value) : StyleEditChange(LyricStyleProperty.VerticalCenterRatio);
     /// <summary>水平对齐。</summary>
-    HorizontalAlignment,
-    /// <summary>整体透明度。</summary>
-    Opacity,
-    /// <summary>整体缩放。</summary>
-    Scale,
-    /// <summary>完整辉光或关闭。</summary>
-    Glow,
-    /// <summary>辉光颜色。</summary>
-    GlowColor,
-    /// <summary>辉光透明度。</summary>
-    GlowOpacity,
-    /// <summary>辉光模糊半径。</summary>
-    GlowBlurRadiusPx,
-    /// <summary>辉光扩散半径。</summary>
-    GlowSpreadPx,
-}
-
-/// <summary>只携带对应成员真实类型的样式意图。</summary>
-/// <param name="Property">规范成员。</param>
-public abstract record StyleEditChange(StyleEditProperty Property)
-{
-    /// <summary>设置完整辉光或关闭。</summary>
-    public sealed record Glow(GlowSpec? Value) : StyleEditChange(StyleEditProperty.Glow);
-    /// <summary>设置辉光颜色。</summary>
-    public sealed record GlowColor(RgbaColor Value) : StyleEditChange(StyleEditProperty.GlowColor);
-    /// <summary>设置辉光透明度。</summary>
-    public sealed record GlowOpacity(float Value) : StyleEditChange(StyleEditProperty.GlowOpacity);
-    /// <summary>设置辉光模糊半径。</summary>
-    public sealed record GlowBlur(float Value) : StyleEditChange(StyleEditProperty.GlowBlurRadiusPx);
-    /// <summary>设置辉光扩散半径。</summary>
-    public sealed record GlowSpread(float Value) : StyleEditChange(StyleEditProperty.GlowSpreadPx);
-    /// <summary>设置 TypographyFontFamilyName；空值仅具有该成员的明确语义。</summary>
-    /// <param name="Value">成员新值。</param>
-    public sealed record FontFamilyName(string? Value) : StyleEditChange(StyleEditProperty.TypographyFontFamilyName);
-    /// <summary>设置 TypographyFallbackFamilyNames；空值仅具有该成员的明确语义。</summary>
-    /// <param name="Value">成员新值。</param>
-    public sealed record FallbackFamilyNames(ImmutableArray<string> Value) : StyleEditChange(StyleEditProperty.TypographyFallbackFamilyNames);
-    /// <summary>设置 TypographyFontSizePx；空值仅具有该成员的明确语义。</summary>
-    /// <param name="Value">成员新值。</param>
-    public sealed record FontSize(float Value) : StyleEditChange(StyleEditProperty.TypographyFontSizePx);
-    /// <summary>设置 TypographyFontWeight；空值仅具有该成员的明确语义。</summary>
-    /// <param name="Value">成员新值。</param>
-    public sealed record FontWeight(int Value) : StyleEditChange(StyleEditProperty.TypographyFontWeight);
-    /// <summary>设置 TypographyIsBold；空值仅具有该成员的明确语义。</summary>
-    /// <param name="Value">成员新值。</param>
-    public sealed record IsBold(bool Value) : StyleEditChange(StyleEditProperty.TypographyIsBold);
-    /// <summary>设置 TypographyIsItalic；空值仅具有该成员的明确语义。</summary>
-    /// <param name="Value">成员新值。</param>
-    public sealed record IsItalic(bool Value) : StyleEditChange(StyleEditProperty.TypographyIsItalic);
-    /// <summary>设置 TypographyLetterSpacingPx；空值仅具有该成员的明确语义。</summary>
-    /// <param name="Value">成员新值。</param>
-    public sealed record LetterSpacing(float Value) : StyleEditChange(StyleEditProperty.TypographyLetterSpacingPx);
-    /// <summary>设置 UnsungMaterial；空值仅具有该成员的明确语义。</summary>
-    /// <param name="Value">成员新值。</param>
-    public sealed record UnsungMaterial(MaterialSpec Value) : StyleEditChange(StyleEditProperty.UnsungMaterial);
-    /// <summary>设置 SungMaterial；空值仅具有该成员的明确语义。</summary>
-    /// <param name="Value">成员新值。</param>
-    public sealed record SungMaterial(MaterialSpec Value) : StyleEditChange(StyleEditProperty.SungMaterial);
-    /// <summary>设置 Stroke；空值仅具有该成员的明确语义。</summary>
-    /// <param name="Value">成员新值。</param>
-    public sealed record Stroke(StrokeSpec? Value) : StyleEditChange(StyleEditProperty.Stroke);
-    /// <summary>设置 StrokeMaterial；空值仅具有该成员的明确语义。</summary>
-    /// <param name="Value">成员新值。</param>
-    public sealed record StrokeMaterial(MaterialSpec Value) : StyleEditChange(StyleEditProperty.StrokeMaterial);
-    /// <summary>设置 StrokeWidthPx；空值仅具有该成员的明确语义。</summary>
-    /// <param name="Value">成员新值。</param>
-    public sealed record StrokeWidth(float Value) : StyleEditChange(StyleEditProperty.StrokeWidthPx);
-    /// <summary>设置 StrokeJoin；空值仅具有该成员的明确语义。</summary>
-    /// <param name="Value">成员新值。</param>
-    public sealed record StrokeJoin(global::MakoKaraGenerator.Core.Projects.StrokeJoin Value) : StyleEditChange(StyleEditProperty.StrokeJoin);
-    /// <summary>过渡期的描边位置写入：位置已从样式模型删除，各层位置由层序决定（P3 设计 §10.5）；该写入不改变工程，P3 第 7 步随合同移除。</summary>
-    public sealed record StrokePosition() : StyleEditChange(StyleEditProperty.StrokePosition);
-    /// <summary>设置 Shadow；空值仅具有该成员的明确语义。</summary>
-    /// <param name="Value">成员新值。</param>
-    public sealed record Shadow(ShadowSpec? Value) : StyleEditChange(StyleEditProperty.Shadow);
-    /// <summary>设置 ShadowColor；空值仅具有该成员的明确语义。</summary>
-    /// <param name="Value">成员新值。</param>
-    public sealed record ShadowColor(RgbaColor Value) : StyleEditChange(StyleEditProperty.ShadowColor);
-    /// <summary>设置 ShadowOpacity；空值仅具有该成员的明确语义。</summary>
-    /// <param name="Value">成员新值。</param>
-    public sealed record ShadowOpacity(float Value) : StyleEditChange(StyleEditProperty.ShadowOpacity);
-    /// <summary>设置 ShadowAngleDegrees；空值仅具有该成员的明确语义。</summary>
-    /// <param name="Value">成员新值。</param>
-    public sealed record ShadowAngle(double Value) : StyleEditChange(StyleEditProperty.ShadowAngleDegrees);
-    /// <summary>设置 ShadowDistancePx；空值仅具有该成员的明确语义。</summary>
-    /// <param name="Value">成员新值。</param>
-    public sealed record ShadowDistance(float Value) : StyleEditChange(StyleEditProperty.ShadowDistancePx);
-    /// <summary>设置 ShadowBlurRadiusPx；空值仅具有该成员的明确语义。</summary>
-    /// <param name="Value">成员新值。</param>
-    public sealed record ShadowBlur(float Value) : StyleEditChange(StyleEditProperty.ShadowBlurRadiusPx);
-    /// <summary>设置 VerticalCenterRatio；空值仅具有该成员的明确语义。</summary>
-    /// <param name="Value">成员新值。</param>
-    public sealed record VerticalCenter(double Value) : StyleEditChange(StyleEditProperty.VerticalCenterRatio);
-    /// <summary>设置 HorizontalAlignment；空值仅具有该成员的明确语义。</summary>
-    /// <param name="Value">成员新值。</param>
-    public sealed record HorizontalAlignment(LyricHorizontalAlignment Value) : StyleEditChange(StyleEditProperty.HorizontalAlignment);
-    /// <summary>设置 Opacity；空值仅具有该成员的明确语义。</summary>
-    /// <param name="Value">成员新值。</param>
-    public sealed record Opacity(float Value) : StyleEditChange(StyleEditProperty.Opacity);
-    /// <summary>设置 Scale；空值仅具有该成员的明确语义。</summary>
-    /// <param name="Value">成员新值。</param>
-    public sealed record Scale(float Value) : StyleEditChange(StyleEditProperty.Scale);
+    public sealed record HorizontalAlignment(LyricHorizontalAlignment Value) : StyleEditChange(LyricStyleProperty.HorizontalAlignment);
+    /// <summary>整体不透明度。</summary>
+    public sealed record Opacity(float Value) : StyleEditChange(LyricStyleProperty.Opacity);
+    /// <summary>样式基础缩放。</summary>
+    public sealed record Scale(float Value) : StyleEditChange(LyricStyleProperty.Scale);
 }

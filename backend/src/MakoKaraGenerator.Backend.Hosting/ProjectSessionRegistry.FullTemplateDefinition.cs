@@ -69,7 +69,7 @@ public sealed partial class ProjectSessionRegistry
                 recipes.Add(ImportTemplateRecipe(definition.EffectRecipes[index]));
             }
             full = new(definition.Name, (StyleTemplateKind)definition.Kind, style,
-                LegacyStylePropertyMap.Import(definition.Properties),
+                ProjectSession.ImportTemplateProperties(definition.Properties),
                 [.. recipes], [.. packages]);
             field = "definition";
             // The same domain factory validates preview and save before the library service can flatten its errors.

@@ -19,7 +19,7 @@ public sealed partial class PreviewTransportTests
         f.Projects.ConfigureTemplateLibrary();
         string definition = TemplateLibraryWireTests.Definition("标记透明度")
             .Replace("\"opacity\":1", "\"opacity\":0.2", StringComparison.Ordinal)
-            .Replace("\"properties\":[\"fontSizePx\"]", "\"properties\":[\"opacity\"]", StringComparison.Ordinal);
+            .Replace("\"properties\":[\"typography.fontSizePx\"]", "\"properties\":[\"opacity\"]", StringComparison.Ordinal);
         using (HttpResponseMessage created = await TemplatePost(f, "missing", "{\"type\":\"create\",\"definition\":" + definition + "}"))
             Assert.Equal(HttpStatusCode.OK, created.StatusCode);
         TemplateListResponse personal = (await f.Http.GetFromJsonAsync<TemplateListResponse>("/api/v1/template-libraries/personal/templates", Json))!;

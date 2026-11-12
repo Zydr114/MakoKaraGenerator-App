@@ -109,6 +109,16 @@ public sealed class BackendPreviewTransportValidationTests
             { Content = Frame().Content with { Sha256 = null! } }, Now)?.Code);
     }
 
+    [Theory]
+    [InlineData(0, true)] [InlineData(3, true)] [InlineData(4, false)] [InlineData(-1, false)]
+    public void 材质诊断源归属槽覆盖已唱描边且越界拒绝(int slot, bool valid)
+    {
+        BackendDiagnosticResourceDto material = new("package", "sha256:" + new string('a', 64), "ink");
+        BackendDiagnosticDto diagnostic = new("BackgroundMediaUnavailable", "warning", "降级", null, OriginKind: "material",
+            Material: new(new("source", Source: new("lyrics.style", "sung.strokes", slot, material, "{}")), material, "background", "BackgroundMediaUnavailable"));
+        Assert.Equal(valid, PreviewTransportValidation.ValidateDiagnosticsPage(Session(), Page(diagnostic)) is null);
+    }
+
     private static BackendDiagnosticOccurrenceDto Occurrence() => new(Guid.NewGuid(), "1", "actual-instance", "actual-artifact",
         "render", "123", new("logical.cs", 1, 2), new("package", "opaque-revision", "export"));
     private static PreviewDiagnosticsPageDto Page(BackendDiagnosticDto diagnostic) => new(

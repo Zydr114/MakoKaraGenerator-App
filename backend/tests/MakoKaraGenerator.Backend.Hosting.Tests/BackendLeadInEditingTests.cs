@@ -101,16 +101,16 @@ public sealed class BackendLeadInEditingTests
         string group = created.LeadInResult!.IndicatorContainerId!; string mark = created.LeadInResult.MarkNodeIds![0];
         var model = (await f.Registry.ReadOrchestrationAsync("client", f.Id, "1")).Response!;
         var baseline = model.Nodes.Single(n => n.Id == group).Content!.Appearance!;
-        var stroke = new StyleStrokeDto(new SolidStyleMaterialDto(new(1,2,3,255)), 2, StyleStrokeJoin.Round, StyleStrokePosition.Outside);
+        var stroke = new StyleStrokeDto(new SolidStyleMaterialDto(new(1,2,3,255)), 2, StyleStrokeJoin.Round);
         var glow = new StyleGlowDto(new(255, 255, 255, 255), .7f, 8, 2);
-        Accepted(await f.Command("1", new SetCountdownAppearanceCommandDto(group, baseline with { Stroke = stroke, Glow = glow, Opacity = .8f })));
-        var set = new SetMarkAppearanceCommandDto(mark, [new StyleStrokeChangeDto(null), new StyleFontSizeChangeDto(48), new StyleGlowChangeDto(null)]);
+        Accepted(await f.Command("1", new SetCountdownAppearanceCommandDto(group, baseline with { Pending = baseline.Pending with { Strokes = [stroke], Glow = glow }, Opacity = .8f })));
+        var set = new SetMarkAppearanceCommandDto(mark, [new StyleUnsungStrokesChangeDto([]), new StyleFontSizeChangeDto(48), new StyleUnsungGlowChangeDto(null)]);
         Accepted(await f.Command("2", set));
         Assert.False(Accepted(await f.Command("3", set)).Changed);
         var updated = (await f.Registry.ReadOrchestrationAsync("client", f.Id, "3")).Response!;
-        Assert.Equal(glow, updated.Nodes.Single(n => n.Id == group).Content!.Appearance!.Glow);
+        Assert.Equal(glow, updated.Nodes.Single(n => n.Id == group).Content!.Appearance!.Pending.Glow);
         Assert.Contains(updated.Nodes.Single(n => n.Id == mark).Content!.AppearanceOverride!,
-            change => change is StyleGlowChangeDto { Value: null });
+            change => change is StyleUnsungGlowChangeDto { Value: null });
         var sequence = (CountdownSequenceContent)f.Workspace.Project.LyricPresentation.FindNode(group)!.Content!;
         var text = (TextMarkContent)f.Workspace.Project.LyricPresentation.FindNode(mark)!.Content!;
         Assert.NotNull(text.AppearanceOverride!.Pending!.Strokes); Assert.Null(sequence.Appearance.Resolve(text.AppearanceOverride).Stroke);
@@ -122,7 +122,7 @@ public sealed class BackendLeadInEditingTests
         Assert.Null(((TextMarkContent)f.Workspace.Project.LyricPresentation.FindNode(mark)!.Content!).AppearanceOverride);
         Assert.NotNull(sequence.Appearance.Resolve(null).Stroke);
         var cleared = (await f.Registry.ReadOrchestrationAsync("client", f.Id, "4")).Response!;
-        Assert.DoesNotContain(cleared.Nodes.Single(n => n.Id == mark).Content!.AppearanceOverride!, change => change.Property == "glow");
+        Assert.DoesNotContain(cleared.Nodes.Single(n => n.Id == mark).Content!.AppearanceOverride!, change => change.Property == "unsung.glow");
     }
     [Fact]
     public async Task 分析回执数组隔离与规范时间重试_并发及陈旧目标拒绝()

@@ -17,6 +17,10 @@ public static class StyleEditingLimits
     public const int MaxFallbacks = 32;
     /// <summary>新渐变色标长度。</summary>
     public const int MaxStops = 256;
+    /// <summary>一态描边层数上限。</summary>
+    public const int MaxStrokes = 4;
+    /// <summary>属性路径总数，即单次 patch／restore 的条目上限。</summary>
+    public const int PropertyCount = 43;
 }
 /// <summary>稳定样式目标，派生类定义唯一合法 ID 组合。</summary>
 [JsonConverter(typeof(StyleTargetJsonConverter))]
@@ -47,83 +51,135 @@ public sealed record GradientStyleMaterialDto(StyleGradientDto Gradient) : Style
 /// <summary>只读包身份；不传输、执行或改写参数。</summary>
 public sealed record PackageStyleMaterialDto(string PackageId, string Revision, string ExportId,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ParametersJson = null) : StyleMaterialDto("package");
-/// <summary>完整 canonical 填充。</summary>
-public sealed record StyleFillDto(StyleMaterialDto Material);
-/// <summary>完整描边，不使用平面颜色访问外观。</summary>
-public sealed record StyleStrokeDto(StyleMaterialDto Material, float WidthPx, StyleStrokeJoin Join, StyleStrokePosition Position);
+/// <summary>完整描边层；由内向外排列，层序决定位置。</summary>
+public sealed record StyleStrokeDto(StyleMaterialDto Material, float WidthPx, StyleStrokeJoin Join);
 /// <summary>完整阴影。</summary>
 public sealed record StyleShadowDto(StyleColorDto Color, float Opacity, double AngleDegrees, float DistancePx, float BlurRadiusPx);
 /// <summary>完整辉光。</summary>
 public sealed record StyleGlowDto(StyleColorDto Color, float Opacity, float BlurRadiusPx, float SpreadPx);
+/// <summary>一态的完整外观（未唱或待唱）；空描边表为无描边，null 阴影／辉光为关闭。</summary>
+public sealed record StyleAppearanceDto(StyleMaterialDto Fill, StyleStrokeDto[] Strokes,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] StyleShadowDto? Shadow,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] StyleGlowDto? Glow);
+/// <summary>已唱一侧可跟随未唱的项是跟随，还是显式取值。</summary>
+[JsonConverter(typeof(StyleEnumJsonConverter<StyleFollowKind>))]
+public enum StyleFollowKind
+{
+    /// <summary>跟随未唱一侧；JSON 不写 value。</summary>
+    Follow,
+    /// <summary>显式取值；JSON 必须写 value。</summary>
+    Set,
+}
+/// <summary>已唱描边：跟随未唱，或显式描边表（可为空表）。</summary>
+[JsonConverter(typeof(StyleSungStrokesJsonConverter))]
+public sealed record StyleSungStrokesDto(StyleFollowKind Kind, StyleStrokeDto[]? Value = null);
+/// <summary>已唱阴影：跟随未唱，或显式阴影（null 为关闭）。</summary>
+[JsonConverter(typeof(StyleSungShadowJsonConverter))]
+public sealed record StyleSungShadowDto(StyleFollowKind Kind, StyleShadowDto? Value = null);
+/// <summary>已唱辉光：跟随未唱，或显式辉光（null 为关闭）。</summary>
+[JsonConverter(typeof(StyleSungGlowJsonConverter))]
+public sealed record StyleSungGlowDto(StyleFollowKind Kind, StyleGlowDto? Value = null);
+/// <summary>已唱或已过一侧的完整外观；填充必填，描边、阴影、辉光可跟随未唱。</summary>
+public sealed record StyleSungAppearanceDto(StyleMaterialDto Fill, StyleSungStrokesDto Strokes, StyleSungShadowDto Shadow, StyleSungGlowDto Glow);
+/// <summary>完整扫字线高亮。</summary>
+public sealed record StyleWipeHighlightDto(StyleColorDto Color, double WidthRatio, float Opacity, StyleWipeHighlightBlend Blend);
+/// <summary>完整扫字样式；两态共享，文字标记不使用。</summary>
+public sealed record StyleWipeDto(double FeatherRatio,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] StyleWipeHighlightDto? Highlight);
 /// <summary>完整排版；fontFamilyName 的 null 必须保留。</summary>
 public sealed record StyleTypographyDto([property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? FontFamilyName,
     string[] FallbackFamilyNames, float FontSizePx, int FontWeight, bool IsBold, bool IsItalic, float LetterSpacingPx);
-/// <summary>完整 canonical 静态样式；null 描边/阴影必须保留。</summary>
-public sealed record CanonicalStyleDto(StyleTypographyDto Typography, StyleFillDto UnsungFill, StyleFillDto SungFill,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] StyleStrokeDto? Stroke,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] StyleShadowDto? Shadow,
-    double VerticalCenterRatio, StyleHorizontalAlignment HorizontalAlignment, float Opacity, float Scale,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] StyleGlowDto? Glow = null);
+/// <summary>完整 canonical 静态样式：字形、未唱与已唱两态外观、扫字样式及整体布局。</summary>
+public sealed record CanonicalStyleDto(StyleTypographyDto Typography, StyleAppearanceDto Unsung, StyleSungAppearanceDto Sung,
+    StyleWipeDto Wipe, double VerticalCenterRatio, StyleHorizontalAlignment HorizontalAlignment, float Opacity, float Scale);
 /// <summary>单属性闭合 typed 联合，value 必须显式提供。</summary>
 [JsonConverter(typeof(StyleChangeJsonConverter))]
 public abstract record StyleChangeDto(string Property);
-/// <summary>修改完整辉光。</summary>
-public sealed record StyleGlowChangeDto(StyleGlowDto? Value) : StyleChangeDto("glow");
-/// <summary>修改辉光颜色。</summary>
-public sealed record StyleGlowColorChangeDto(StyleColorDto Value) : StyleChangeDto("glow.color");
-/// <summary>修改辉光透明度。</summary>
-public sealed record StyleGlowOpacityChangeDto(float Value) : StyleChangeDto("glow.opacity");
-/// <summary>修改辉光模糊。</summary>
-public sealed record StyleGlowBlurChangeDto(float Value) : StyleChangeDto("glow.blurRadiusPx");
-/// <summary>修改辉光扩散。</summary>
-public sealed record StyleGlowSpreadChangeDto(float Value) : StyleChangeDto("glow.spreadPx");
 /// <summary>修改 typography.fontFamilyName；value 与缺失不同。</summary>
 public sealed record StyleFontFamilyChangeDto(string? Value) : StyleChangeDto("typography.fontFamilyName");
-/// <summary>修改 typography.fallbackFamilyNames；value 与缺失不同。</summary>
+/// <summary>修改 typography.fallbackFamilyNames。</summary>
 public sealed record StyleFallbackFamiliesChangeDto(string[] Value) : StyleChangeDto("typography.fallbackFamilyNames");
-/// <summary>修改 typography.fontSizePx；value 与缺失不同。</summary>
+/// <summary>修改 typography.fontSizePx。</summary>
 public sealed record StyleFontSizeChangeDto(float Value) : StyleChangeDto("typography.fontSizePx");
-/// <summary>修改 typography.fontWeight；value 与缺失不同。</summary>
+/// <summary>修改 typography.fontWeight。</summary>
 public sealed record StyleFontWeightChangeDto(int Value) : StyleChangeDto("typography.fontWeight");
-/// <summary>修改 typography.isBold；value 与缺失不同。</summary>
+/// <summary>修改 typography.isBold。</summary>
 public sealed record StyleBoldChangeDto(bool Value) : StyleChangeDto("typography.isBold");
-/// <summary>修改 typography.isItalic；value 与缺失不同。</summary>
+/// <summary>修改 typography.isItalic。</summary>
 public sealed record StyleItalicChangeDto(bool Value) : StyleChangeDto("typography.isItalic");
-/// <summary>修改 typography.letterSpacingPx；value 与缺失不同。</summary>
+/// <summary>修改 typography.letterSpacingPx。</summary>
 public sealed record StyleLetterSpacingChangeDto(float Value) : StyleChangeDto("typography.letterSpacingPx");
-/// <summary>修改 unsungFill.material；value 与缺失不同。</summary>
-public sealed record StyleUnsungMaterialChangeDto(StyleMaterialDto Value) : StyleChangeDto("unsungFill.material");
-/// <summary>修改 sungFill.material；value 与缺失不同。</summary>
-public sealed record StyleSungMaterialChangeDto(StyleMaterialDto Value) : StyleChangeDto("sungFill.material");
-/// <summary>修改 stroke；value 与缺失不同。</summary>
-public sealed record StyleStrokeChangeDto(StyleStrokeDto? Value) : StyleChangeDto("stroke");
-/// <summary>修改 stroke.material；value 与缺失不同。</summary>
-public sealed record StyleStrokeMaterialChangeDto(StyleMaterialDto Value) : StyleChangeDto("stroke.material");
-/// <summary>修改 stroke.widthPx；value 与缺失不同。</summary>
-public sealed record StyleStrokeWidthChangeDto(float Value) : StyleChangeDto("stroke.widthPx");
-/// <summary>修改 stroke.join；value 与缺失不同。</summary>
-public sealed record StyleStrokeJoinChangeDto(StyleStrokeJoin Value) : StyleChangeDto("stroke.join");
-/// <summary>修改 stroke.position；value 与缺失不同。</summary>
-public sealed record StyleStrokePositionChangeDto(StyleStrokePosition Value) : StyleChangeDto("stroke.position");
-/// <summary>修改 shadow；value 与缺失不同。</summary>
-public sealed record StyleShadowChangeDto(StyleShadowDto? Value) : StyleChangeDto("shadow");
-/// <summary>修改 shadow.color；value 与缺失不同。</summary>
-public sealed record StyleShadowColorChangeDto(StyleColorDto Value) : StyleChangeDto("shadow.color");
-/// <summary>修改 shadow.opacity；value 与缺失不同。</summary>
-public sealed record StyleShadowOpacityChangeDto(float Value) : StyleChangeDto("shadow.opacity");
-/// <summary>修改 shadow.angleDegrees；value 与缺失不同。</summary>
-public sealed record StyleShadowAngleChangeDto(double Value) : StyleChangeDto("shadow.angleDegrees");
-/// <summary>修改 shadow.distancePx；value 与缺失不同。</summary>
-public sealed record StyleShadowDistanceChangeDto(float Value) : StyleChangeDto("shadow.distancePx");
-/// <summary>修改 shadow.blurRadiusPx；value 与缺失不同。</summary>
-public sealed record StyleShadowBlurChangeDto(float Value) : StyleChangeDto("shadow.blurRadiusPx");
-/// <summary>修改 verticalCenterRatio；value 与缺失不同。</summary>
+/// <summary>修改 unsung.fill。</summary>
+public sealed record StyleUnsungFillChangeDto(StyleMaterialDto Value) : StyleChangeDto("unsung.fill");
+/// <summary>修改 sung.fill。</summary>
+public sealed record StyleSungFillChangeDto(StyleMaterialDto Value) : StyleChangeDto("sung.fill");
+/// <summary>整表修改 unsung.strokes；空表为无描边。</summary>
+public sealed record StyleUnsungStrokesChangeDto(StyleStrokeDto[] Value) : StyleChangeDto("unsung.strokes");
+/// <summary>整表修改 sung.strokes，或改为跟随未唱。</summary>
+public sealed record StyleSungStrokesChangeDto(StyleSungStrokesDto Value) : StyleChangeDto("sung.strokes");
+/// <summary>修改完整 unsung.shadow；null 为关闭。</summary>
+public sealed record StyleUnsungShadowChangeDto(StyleShadowDto? Value) : StyleChangeDto("unsung.shadow");
+/// <summary>修改 unsung.shadow.color。</summary>
+public sealed record StyleUnsungShadowColorChangeDto(StyleColorDto Value) : StyleChangeDto("unsung.shadow.color");
+/// <summary>修改 unsung.shadow.opacity。</summary>
+public sealed record StyleUnsungShadowOpacityChangeDto(float Value) : StyleChangeDto("unsung.shadow.opacity");
+/// <summary>修改 unsung.shadow.angleDegrees。</summary>
+public sealed record StyleUnsungShadowAngleChangeDto(double Value) : StyleChangeDto("unsung.shadow.angleDegrees");
+/// <summary>修改 unsung.shadow.distancePx。</summary>
+public sealed record StyleUnsungShadowDistanceChangeDto(float Value) : StyleChangeDto("unsung.shadow.distancePx");
+/// <summary>修改 unsung.shadow.blurRadiusPx。</summary>
+public sealed record StyleUnsungShadowBlurChangeDto(float Value) : StyleChangeDto("unsung.shadow.blurRadiusPx");
+/// <summary>修改完整 sung.shadow：跟随、关闭或显式阴影。</summary>
+public sealed record StyleSungShadowChangeDto(StyleSungShadowDto Value) : StyleChangeDto("sung.shadow");
+/// <summary>修改 sung.shadow.color。</summary>
+public sealed record StyleSungShadowColorChangeDto(StyleColorDto Value) : StyleChangeDto("sung.shadow.color");
+/// <summary>修改 sung.shadow.opacity。</summary>
+public sealed record StyleSungShadowOpacityChangeDto(float Value) : StyleChangeDto("sung.shadow.opacity");
+/// <summary>修改 sung.shadow.angleDegrees。</summary>
+public sealed record StyleSungShadowAngleChangeDto(double Value) : StyleChangeDto("sung.shadow.angleDegrees");
+/// <summary>修改 sung.shadow.distancePx。</summary>
+public sealed record StyleSungShadowDistanceChangeDto(float Value) : StyleChangeDto("sung.shadow.distancePx");
+/// <summary>修改 sung.shadow.blurRadiusPx。</summary>
+public sealed record StyleSungShadowBlurChangeDto(float Value) : StyleChangeDto("sung.shadow.blurRadiusPx");
+/// <summary>修改完整 unsung.glow；null 为关闭。</summary>
+public sealed record StyleUnsungGlowChangeDto(StyleGlowDto? Value) : StyleChangeDto("unsung.glow");
+/// <summary>修改 unsung.glow.color。</summary>
+public sealed record StyleUnsungGlowColorChangeDto(StyleColorDto Value) : StyleChangeDto("unsung.glow.color");
+/// <summary>修改 unsung.glow.opacity。</summary>
+public sealed record StyleUnsungGlowOpacityChangeDto(float Value) : StyleChangeDto("unsung.glow.opacity");
+/// <summary>修改 unsung.glow.blurRadiusPx。</summary>
+public sealed record StyleUnsungGlowBlurChangeDto(float Value) : StyleChangeDto("unsung.glow.blurRadiusPx");
+/// <summary>修改 unsung.glow.spreadPx。</summary>
+public sealed record StyleUnsungGlowSpreadChangeDto(float Value) : StyleChangeDto("unsung.glow.spreadPx");
+/// <summary>修改完整 sung.glow：跟随、关闭或显式辉光。</summary>
+public sealed record StyleSungGlowChangeDto(StyleSungGlowDto Value) : StyleChangeDto("sung.glow");
+/// <summary>修改 sung.glow.color。</summary>
+public sealed record StyleSungGlowColorChangeDto(StyleColorDto Value) : StyleChangeDto("sung.glow.color");
+/// <summary>修改 sung.glow.opacity。</summary>
+public sealed record StyleSungGlowOpacityChangeDto(float Value) : StyleChangeDto("sung.glow.opacity");
+/// <summary>修改 sung.glow.blurRadiusPx。</summary>
+public sealed record StyleSungGlowBlurChangeDto(float Value) : StyleChangeDto("sung.glow.blurRadiusPx");
+/// <summary>修改 sung.glow.spreadPx。</summary>
+public sealed record StyleSungGlowSpreadChangeDto(float Value) : StyleChangeDto("sung.glow.spreadPx");
+/// <summary>修改 wipe.featherRatio。</summary>
+public sealed record StyleWipeFeatherChangeDto(double Value) : StyleChangeDto("wipe.featherRatio");
+/// <summary>修改完整 wipe.highlight；null 为关闭。</summary>
+public sealed record StyleWipeHighlightChangeDto(StyleWipeHighlightDto? Value) : StyleChangeDto("wipe.highlight");
+/// <summary>修改 wipe.highlight.color。</summary>
+public sealed record StyleWipeHighlightColorChangeDto(StyleColorDto Value) : StyleChangeDto("wipe.highlight.color");
+/// <summary>修改 wipe.highlight.widthRatio。</summary>
+public sealed record StyleWipeHighlightWidthChangeDto(double Value) : StyleChangeDto("wipe.highlight.widthRatio");
+/// <summary>修改 wipe.highlight.opacity。</summary>
+public sealed record StyleWipeHighlightOpacityChangeDto(float Value) : StyleChangeDto("wipe.highlight.opacity");
+/// <summary>修改 wipe.highlight.blend。</summary>
+public sealed record StyleWipeHighlightBlendChangeDto(StyleWipeHighlightBlend Value) : StyleChangeDto("wipe.highlight.blend");
+/// <summary>修改 verticalCenterRatio。</summary>
 public sealed record StyleVerticalCenterChangeDto(double Value) : StyleChangeDto("verticalCenterRatio");
-/// <summary>修改 horizontalAlignment；value 与缺失不同。</summary>
+/// <summary>修改 horizontalAlignment。</summary>
 public sealed record StyleAlignmentChangeDto(StyleHorizontalAlignment Value) : StyleChangeDto("horizontalAlignment");
-/// <summary>修改 opacity；value 与缺失不同。</summary>
+/// <summary>修改 opacity。</summary>
 public sealed record StyleOpacityChangeDto(float Value) : StyleChangeDto("opacity");
-/// <summary>修改 scale；value 与缺失不同。</summary>
+/// <summary>修改 scale。</summary>
 public sealed record StyleScaleChangeDto(float Value) : StyleChangeDto("scale");
 /// <summary>同种稳定目标的原子局部样式修改。</summary>
 public sealed record PatchStylesCommandDto(StyleTargetDto[] Targets, StyleChangeDto[] Changes) : ProjectCommandDto("styles.patch");
@@ -152,10 +208,8 @@ public enum StyleGradientCoordinateSpace
     Canvas,
     /// <summary>Line。</summary>
     Line,
-    /// <summary>Glyph。</summary>
+    /// <summary>Glyph：按单字字框。</summary>
     Glyph,
-    /// <summary>Progress。</summary>
-    Progress,
 }
 /// <summary>canonical GradientColorSpace 值。</summary>
 [JsonConverter(typeof(StyleEnumJsonConverter<StyleGradientColorSpace>))]
@@ -192,12 +246,16 @@ public enum StyleStrokeJoin
     /// <summary>Bevel。</summary>
     Bevel,
 }
-/// <summary>canonical StrokePosition 值。</summary>
-[JsonConverter(typeof(StyleEnumJsonConverter<StyleStrokePosition>))]
-public enum StyleStrokePosition
+/// <summary>扫字线高亮的混合方式。</summary>
+[JsonConverter(typeof(StyleEnumJsonConverter<StyleWipeHighlightBlend>))]
+public enum StyleWipeHighlightBlend
 {
-    /// <summary>Outside。</summary>
-    Outside,
+    /// <summary>普通叠加。</summary>
+    Normal,
+    /// <summary>滤色。</summary>
+    Screen,
+    /// <summary>相加。</summary>
+    Add,
 }
 /// <summary>canonical HorizontalAlignment 值。</summary>
 [JsonConverter(typeof(StyleEnumJsonConverter<StyleHorizontalAlignment>))]

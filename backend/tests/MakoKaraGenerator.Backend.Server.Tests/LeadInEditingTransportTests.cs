@@ -47,7 +47,7 @@ public sealed partial class PreviewTransportTests
         await Send(new SetOrchestrationMarkTextCommandDto(mark, "起"));
         var model = await Model(); var appearance = model.Nodes.Single(n => n.Id == group).Content!.Appearance!;
         await Send(new SetCountdownAppearanceCommandDto(group, appearance with { Opacity = .6f }));
-        await Send(new SetMarkAppearanceCommandDto(mark, [new StyleOpacityChangeDto(.4f), new StyleStrokeChangeDto(null)]));
+        await Send(new SetMarkAppearanceCommandDto(mark, [new StyleOpacityChangeDto(.4f), new StyleUnsungStrokesChangeDto([])]));
         model = await Model();
         Assert.Equal(.6f, model.Nodes.Single(n => n.Id == group).Content!.Appearance!.Opacity);
         Assert.Equal(2, model.Nodes.Single(n => n.Id == mark).Content!.AppearanceOverride!.Length);
@@ -55,7 +55,7 @@ public sealed partial class PreviewTransportTests
         model = await Model(); Assert.Empty(model.Programs.Single(p => p.BranchId == "primary").LeadIns!);
         Assert.Contains(line.Id, model.Programs.Single(p => p.BranchId == "primary").LeadInGeneration!.ExcludedLineIds);
         await Send(new ProjectCommandDto("history.undo"));
-        var noop = await Send(new SetMarkAppearanceCommandDto(mark, [new StyleOpacityChangeDto(.4f), new StyleStrokeChangeDto(null)]));
+        var noop = await Send(new SetMarkAppearanceCommandDto(mark, [new StyleOpacityChangeDto(.4f), new StyleUnsungStrokesChangeDto([])]));
         Assert.False(noop.Changed); Assert.True(noop.CanRedo);
         await Send(new ProjectCommandDto("history.redo"));
         await Send(new SetLeadInGenerationCommandDto("primary", null));

@@ -15,12 +15,12 @@ public sealed class BackendTemplateLibraryTests
     {
         var style = Style with
         {
-            UnsungFill = new(new PackageStyleMaterialDto("pkg", "rev", "mat", "{\"large\":18446744073709551615}")),
+            Unsung = Style.Unsung with { Fill = new PackageStyleMaterialDto("pkg", "rev", "mat", "{\"large\":18446744073709551615}") },
         };
         var recipe = new TemplateEffectRecipeDto("r", "配方", TemplateEffectTargetDto.Line, "pkg", "rev", "fx",
             "{\"large\":18446744073709551615}", TemplateEffectOverlayLayerDto.Package, true,
             TemplateScriptReadScopeDto.BoundSources, null, "18446744073709551615", null);
-        var source = new FullTemplateDefinitionDto("完整", TemplateKind.Line, style, [TemplateProperty.UnsungColor], [recipe], []);
+        var source = new FullTemplateDefinitionDto("完整", TemplateKind.Line, style, ["unsung.fill"], [recipe], []);
         var options = new JsonSerializerOptions(JsonSerializerDefaults.Web) { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull };
         string json = JsonSerializer.Serialize<StaticTemplateDefinitionDto>(source, options);
         Assert.Contains("effectRecipes", json); Assert.Contains("parametersJson", json); Assert.Contains("18446744073709551615", json);
@@ -28,7 +28,7 @@ public sealed class BackendTemplateLibraryTests
         Assert.Equal(source.Name, roundTrip.Name);
         Assert.Equal(source.EffectRecipes[0].FixedSeed, roundTrip.EffectRecipes[0].FixedSeed);
         Assert.Equal(source.EffectRecipes[0].ParametersJson, roundTrip.EffectRecipes[0].ParametersJson);
-        Assert.Equal(source.Style.UnsungFill, roundTrip.Style.UnsungFill);
+        Assert.Equal(source.Style.Unsung.Fill, roundTrip.Style.Unsung.Fill);
     }
 
     [Fact]
@@ -36,13 +36,13 @@ public sealed class BackendTemplateLibraryTests
     {
         await using Fixture f = new();
         var glow = new StyleGlowDto(new(20, 30, 40, 255), .7f, 9, 3);
-        var definition = new FullTemplateDefinitionDto("full静态", TemplateKind.Line, Style with { Glow = glow }, [TemplateProperty.FontSizePx, TemplateProperty.GlowSpec], [], []);
+        var definition = new FullTemplateDefinitionDto("full静态", TemplateKind.Line, Style with { Unsung = Style.Unsung with { Glow = glow } }, ["typography.fontSizePx", "unsung.glow"], [], []);
         var created = Accepted(await f.Command(f.Request("missing", new CreateTemplateCommandDto(definition, "full"))));
         var detail = Accepted(await f.Registry.ReadTemplateAsync("personal", created.Revision, created.TemplateId, "full"));
         Assert.Equal("full", detail.DefinitionFormat);
         var full = Assert.IsType<FullTemplateDefinitionDto>(detail.Definition);
         Assert.Equal(definition.Name, full.Name);
-        Assert.Equal(glow, full.Style.Glow); Assert.Contains(TemplateProperty.GlowSpec, full.Properties);
+        Assert.Equal(glow, full.Style.Unsung.Glow); Assert.Contains("unsung.glow", full.Properties);
         Assert.Empty(full.EffectRecipes);
         Assert.Empty(full.Packages);
     }
@@ -52,18 +52,18 @@ public sealed class BackendTemplateLibraryTests
     {
         await using Fixture f = new();
         var glow = new StyleGlowDto(new(10, 20, 30, 255), .6f, 7, 2);
-        var definition = new StaticTemplateDefinitionDto("辉光", TemplateKind.Token, Style with { Glow = glow }, [TemplateProperty.GlowSpec]);
+        var definition = new StaticTemplateDefinitionDto("辉光", TemplateKind.Token, Style with { Unsung = Style.Unsung with { Glow = glow } }, ["unsung.glow"]);
         var created = Accepted(await f.Command(f.Request("missing", new CreateTemplateCommandDto(definition))));
         var detail = Accepted(await f.Registry.ReadTemplateAsync("personal", created.Revision, created.TemplateId));
-        Assert.Equal(glow, detail.Definition!.Style.Glow); Assert.Contains(TemplateProperty.GlowSpec, detail.Definition.Properties);
-        var replacement = definition with { Style = definition.Style with { Glow = glow with { SpreadPx = 5 } } };
+        Assert.Equal(glow, detail.Definition!.Style.Unsung.Glow); Assert.Contains("unsung.glow", detail.Definition.Properties);
+        var replacement = definition with { Style = definition.Style with { Unsung = definition.Style.Unsung with { Glow = glow with { SpreadPx = 5 } } } };
         var replaced = Accepted(await f.Command(f.Request(created.Revision, new ReplaceTemplateCommandDto(created.TemplateId, replacement))));
         var reread = Accepted(await f.Registry.ReadTemplateAsync("personal", replaced.Revision, created.TemplateId));
-        Assert.Equal(5, reread.Definition!.Style.Glow!.SpreadPx);
+        Assert.Equal(5, reread.Definition!.Style.Unsung.Glow!.SpreadPx);
     }
 
     private static CanonicalStyleDto Style => ProjectSession.ExportTemplateLibraryStyle(LyricStyle.Default);
-    private static StaticTemplateDefinitionDto Definition(string name = "静态模板") => new(name, TemplateKind.Line, Style, [TemplateProperty.FontSizePx]);
+    private static StaticTemplateDefinitionDto Definition(string name = "静态模板") => new(name, TemplateKind.Line, Style, ["typography.fontSizePx"]);
     private static StyleGradientDto Gradient(StyleGradientCoordinateSpace coordinateSpace, StyleGradientColorSpace colorSpace,
         StyleGradientHuePath huePath) => new(StyleGradientKind.Linear, 0, .5, .5, .5, .5, coordinateSpace, colorSpace, huePath,
         [new(0, new(0, 0, 0, 255)), new(1, new(255, 255, 255, 255))]);
@@ -71,32 +71,35 @@ public sealed class BackendTemplateLibraryTests
         StyleGradientColorSpace colorSpace, StyleGradientHuePath huePath) => new(name, TemplateKind.Line,
         Style with
         {
-            UnsungFill = new(new GradientStyleMaterialDto(Gradient(StyleGradientCoordinateSpace.Line, colorSpace, huePath))),
-            SungFill = new(new GradientStyleMaterialDto(Gradient(StyleGradientCoordinateSpace.Line, colorSpace,
-                huePath == StyleGradientHuePath.Shorter ? StyleGradientHuePath.Longer : huePath))),
-            Stroke = new(new GradientStyleMaterialDto(Gradient(coordinateSpace, StyleGradientColorSpace.LinearRgb, huePath)), 2, StyleStrokeJoin.Round, StyleStrokePosition.Outside),
-        }, [TemplateProperty.UnsungGradientSpec, TemplateProperty.SungGradientSpec]);
+            Unsung = Style.Unsung with
+            {
+                Fill = new GradientStyleMaterialDto(Gradient(StyleGradientCoordinateSpace.Line, colorSpace, huePath)),
+                Strokes = [new(new GradientStyleMaterialDto(Gradient(coordinateSpace, StyleGradientColorSpace.LinearRgb, huePath)), 2, StyleStrokeJoin.Round)],
+            },
+            Sung = Style.Sung with { Fill = new GradientStyleMaterialDto(Gradient(StyleGradientCoordinateSpace.Line, colorSpace,
+                huePath == StyleGradientHuePath.Shorter ? StyleGradientHuePath.Longer : huePath)) },
+        }, ["unsung.fill", "sung.fill"]);
     private static T Accepted<T>(BackendOperationResult<T> result) { Assert.True(result.Accepted, result.Error?.ToString()); return result.Response!; }
 
     [Fact]
-    public void 模板种类与Core一致且过渡期属性换算覆盖全集并完整canonical逐字段回环()
+    public void 模板种类与Core一致且属性路径保序回环并完整canonical逐字段回环()
     {
         Assert.Equal(Enum.GetValues<StyleTemplateKind>().Select(x => ((int)x, x.ToString())), Enum.GetValues<TemplateKind>().Select(x => ((int)x, x.ToString())));
-        foreach (var legacy in Enum.GetValues<TemplateProperty>())
-            Assert.Contains(legacy is TemplateProperty.StrokeColor or TemplateProperty.StrokeWidthPx ? TemplateProperty.StrokeSpec : legacy,
-                LegacyStylePropertyMap.Export(LegacyStylePropertyMap.Import(legacy)));
-        LyricStyleProperty[] wipe = [LyricStyleProperty.WipeFeatherRatio, .. LyricStylePropertyExtensions.WipeHighlightProperties];
-        foreach (var property in Enum.GetValues<LyricStyleProperty>())
-            Assert.Equal(wipe.Contains(property), LegacyStylePropertyMap.Export([property]).Length == 0);
+        LyricStyleProperty[] all = [.. LyricStylePropertyExtensions.All.Reverse()];
+        string[] paths = ProjectSession.ExportTemplateProperties(all);
+        Assert.Equal(all.Select(LyricStylePropertyExtensions.ToJsonName), paths); Assert.Equal(all, ProjectSession.ImportTemplateProperties(paths));
+        Assert.ThrowsAny<Exception>(() => ProjectSession.ImportTemplateProperties(["opacity", "opacity"]));
+        Assert.ThrowsAny<Exception>(() => ProjectSession.ImportTemplateProperties(["stroke"]));
         var gradient = new GradientSpec { Kind = GradientKind.Radial, AngleDegrees = 7.1234567890123, CenterX = .7, CenterY = .8,
             RadiusX = .4, RadiusY = .5, CoordinateSpace = GradientCoordinateSpace.Canvas, ColorSpace = GradientColorSpace.Oklch,
             HuePath = GradientHuePath.Decreasing, Stops = [new(0, new(1,2,3,4)), new(1, new(5,6,7,8))] };
         var source = LyricStyle.Default with { Typography = new() { FontFamilyName = "测试font", FallbackFamilyNames = ["甲", "乙"], FontSizePx = 63,
             FontWeight = 333, IsBold = true, IsItalic = true, LetterSpacingPx = -3 }, UnsungFill = new() { Material = new MaterialSpec.Gradient(gradient) },
             SungFill = new() { Material = new MaterialSpec.Solid(new(10,20,30,40)) }, Stroke = new() { Material = new MaterialSpec.Gradient(gradient),
-                WidthPx = 3.75f, Join = StrokeJoin.Bevel }, Shadow = new() { Color = new(50,60,70,80), Opacity = .4f,
+                WidthPx = 3.75f, Join = StrokeJoin.Bevel }, Wipe = new() { FeatherRatio = .2, Highlight = new() { Color = new(9,9,9,9), WidthRatio = .25, Opacity = .7f, Blend = WipeHighlightBlend.Add } }, Shadow = new() { Color = new(50,60,70,80), Opacity = .4f,
                 AngleDegrees = -123.123456789, DistancePx = 7.2f, BlurRadiusPx = 8.5f }, Glow = new() { Color = new(1,2,3,4), Opacity = .4f, BlurRadiusPx = 6, SpreadPx = 2 }, Opacity = .6f, Scale = 1.3f, VerticalCenterRatio = .3,
             HorizontalAlignment = LyricHorizontalAlignment.Right };
+        source = source with { Sung = source.Sung with { Strokes = Followable.Set(StrokeLayers.Empty), Shadow = Followable.Set<ShadowSpec?>(null) } };
         Assert.Equal(source, ProjectSession.ImportTemplateLibraryStyle(ProjectSession.ExportTemplateLibraryStyle(source)));
         foreach (var property in Enum.GetValues<LyricStyleProperty>())
         {
@@ -138,8 +141,8 @@ public sealed class BackendTemplateLibraryTests
         Assert.Single(page.Templates);
         var detail = Accepted(await f.Registry.ReadTemplateAsync("personal", created.Revision, created.TemplateId));
         Assert.Equal("staticAvailable", detail.DefinitionAvailability);
-        Assert.Equal(StyleGradientColorSpace.Oklch, ((GradientStyleMaterialDto)detail.Definition!.Style.UnsungFill.Material).Gradient.ColorSpace);
-        Assert.Equal(StyleGradientCoordinateSpace.Glyph, ((GradientStyleMaterialDto)detail.Definition.Style.Stroke!.Material).Gradient.CoordinateSpace);
+        Assert.Equal(StyleGradientColorSpace.Oklch, ((GradientStyleMaterialDto)detail.Definition!.Style.Unsung.Fill).Gradient.ColorSpace);
+        Assert.Equal(StyleGradientCoordinateSpace.Glyph, ((GradientStyleMaterialDto)detail.Definition.Style.Unsung.Strokes[0].Material).Gradient.CoordinateSpace);
 
         StaticTemplateDefinitionDto replacement = GradientDefinition("替换", StyleGradientCoordinateSpace.Canvas,
             StyleGradientColorSpace.Oklch, StyleGradientHuePath.Longer);
@@ -147,7 +150,7 @@ public sealed class BackendTemplateLibraryTests
             new ReplaceTemplateCommandDto(created.TemplateId, replacement))));
         var replacedDetail = Accepted(await f.Registry.ReadTemplateAsync("personal", replaced.Revision, created.TemplateId));
         Assert.Equal("替换", replacedDetail.Summary.Name);
-        Assert.Equal(StyleGradientCoordinateSpace.Canvas, ((GradientStyleMaterialDto)replacedDetail.Definition!.Style.Stroke!.Material).Gradient.CoordinateSpace);
+        Assert.Equal(StyleGradientCoordinateSpace.Canvas, ((GradientStyleMaterialDto)replacedDetail.Definition!.Style.Unsung.Strokes[0].Material).Gradient.CoordinateSpace);
 
         var deleted = Accepted(await f.Command(f.Request(replaced.Revision, new DeleteTemplateCommandDto(created.TemplateId))));
         Assert.Empty(Accepted(await f.Registry.ReadTemplatesAsync("personal", deleted.Revision)).Templates);
@@ -206,14 +209,14 @@ public sealed class BackendTemplateLibraryTests
     public async Task accepted锁等待固定数组且取消与关闭排水后才释放profile()
     {
         await using Fixture f = new(); using var lease = LibraryCommitLease.TryEnter(f.Index);
-        string[] fallback = ["原字体"]; TemplateProperty[] properties = [TemplateProperty.FontSizePx];
+        string[] fallback = ["原字体"]; string[] properties = ["typography.fontSizePx"];
         var definition = Definition() with { Style = Style with { Typography = Style.Typography with { FallbackFamilyNames = fallback } }, Properties = properties };
         var request = f.Request("missing", new CreateTemplateCommandDto(definition));
         var replayRequest = TemplateLibraryCommandCodec.Capture(request);
         using var cancellation = new CancellationTokenSource();
         var command = f.Registry.ExecuteTemplateLibraryCommandAsync("client", "personal", request, cancellation.Token);
         Assert.True(f.Registry.Receipts.HasUnexpiredReceipt("client", request.Metadata.RequestId));
-        fallback[0] = "后来修改"; properties[0] = TemplateProperty.Scale; cancellation.Cancel();
+        fallback[0] = "后来修改"; properties[0] = "scale"; cancellation.Cancel();
         // Builtin reads remain available while the personal owner waits on its external commit lease.
         Assert.Equal(2, Accepted(await f.Registry.ReadTemplatesAsync("builtin", null).WaitAsync(TimeSpan.FromSeconds(2))).TotalCount);
         var stop = f.Registry.ShutdownAsync().AsTask(); Assert.False(stop.IsCompleted);

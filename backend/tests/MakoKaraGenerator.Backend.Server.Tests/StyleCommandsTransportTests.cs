@@ -21,17 +21,19 @@ public sealed partial class PreviewTransportTests
         string path = $"/api/v1/project-sessions/{f.Project.ProjectSessionId}";
         var lyrics = (await f.Http.GetFromJsonAsync<ProjectLyricsWindowResponse>(path + "/lyrics/window?branchId=primary&expectedRevision=0", Json))!;
         string target = JsonSerializer.Serialize(new TokenStyleTargetDto("primary", lyrics.Lines[0].Id, lyrics.Lines[0].Tokens[0].Id), Json);
-        using var set = await PostRawEditing(f, "0", $$"""{"type":"styles.patch","targets":[{{target}}],"changes":[{"property":"glow.blurRadiusPx","value":6},{"property":"glow.spreadPx","value":2}]}""");
+        using var set = await PostRawEditing(f, "0", $$"""{"type":"styles.patch","targets":[{{target}}],"changes":[{"property":"unsung.glow.blurRadiusPx","value":6},{"property":"unsung.glow.spreadPx","value":2}]}""");
         Assert.Equal(HttpStatusCode.OK, set.StatusCode);
         string route = path + "/style?expectedRevision=1&kind=token&branchId=primary&lineId=" + Uri.EscapeDataString(lyrics.Lines[0].Id) + "&tokenId=" + Uri.EscapeDataString(lyrics.Lines[0].Tokens[0].Id);
         using var read = await f.Http.GetAsync(route); Assert.Equal(HttpStatusCode.OK, read.StatusCode);
         using var document = JsonDocument.Parse(await read.Content.ReadAsStringAsync());
-        Assert.Equal(6, document.RootElement.GetProperty("staticHierarchy").GetProperty("glow").GetProperty("blurRadiusPx").GetSingle());
-        using var close = await PostRawEditing(f, "1", $$"""{"type":"styles.patch","targets":[{{target}}],"changes":[{"property":"glow","value":null}]}""");
+        var hierarchy = document.RootElement.GetProperty("staticHierarchy");
+        Assert.Equal(6, hierarchy.GetProperty("unsung").GetProperty("glow").GetProperty("blurRadiusPx").GetSingle());
+        Assert.Equal("{\"kind\":\"follow\"}", hierarchy.GetProperty("sung").GetProperty("glow").GetRawText());
+        using var close = await PostRawEditing(f, "1", $$$"""{"type":"styles.patch","targets":[{{{target}}}],"changes":[{"property":"unsung.glow","value":null},{"property":"sung.glow","value":{"kind":"set","value":null}}]}""");
         Assert.Equal(HttpStatusCode.OK, close.StatusCode);
-        using var restore = await PostRawEditing(f, "2", $$"""{"type":"styles.restore","targets":[{{target}}],"properties":["glow"]}""");
+        using var restore = await PostRawEditing(f, "2", $$"""{"type":"styles.restore","targets":[{{target}}],"properties":["unsung.glow","sung.glow"]}""");
         Assert.Equal(HttpStatusCode.OK, restore.StatusCode);
-        using var invalid = await PostRawEditing(f, "3", $$"""{"type":"styles.patch","targets":[{{target}}],"changes":[{"property":"glow.opacity","value":null}]}""");
+        using var invalid = await PostRawEditing(f, "3", $$"""{"type":"styles.patch","targets":[{{target}}],"changes":[{"property":"unsung.glow.opacity","value":null}]}""");
         Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
     }
     [Fact]
@@ -41,7 +43,7 @@ public sealed partial class PreviewTransportTests
         string path = $"/api/v1/project-sessions/{f.Project.ProjectSessionId}";
         var lyrics = (await f.Http.GetFromJsonAsync<ProjectLyricsWindowResponse>(path + "/lyrics/window?branchId=primary&expectedRevision=0", Json))!;
         var line = lyrics.Lines[0]; string target = JsonSerializer.Serialize(new LineStyleTargetDto("primary", line.Id), Json);
-        string command = $$"""{"type":"styles.patch","targets":[{{target}}],"changes":[{"property":"typography.fontFamilyName","value":null},{"property":"stroke","value":null},{"property":"shadow","value":null},{"property":"opacity","value":0.5}]}""";
+        string command = $$"""{"type":"styles.patch","targets":[{{target}}],"changes":[{"property":"typography.fontFamilyName","value":null},{"property":"unsung.strokes","value":[]},{"property":"unsung.shadow","value":null},{"property":"opacity","value":0.5}]}""";
         using var applied = await PostRawEditing(f, "0", command); Assert.Equal(HttpStatusCode.OK, applied.StatusCode);
         var response = (await applied.Content.ReadFromJsonAsync<ProjectCommandResponse>(Json))!;
         Assert.Equal(1, response.StyleResult!.ChangedTargetCount); Assert.True(response.ChangeSet.RequiresFullRefresh);
@@ -51,14 +53,16 @@ public sealed partial class PreviewTransportTests
         string text = await read.Content.ReadAsStringAsync(); using var document = JsonDocument.Parse(text); var root = document.RootElement;
         Assert.Equal("staticHierarchy", root.GetProperty("resolution").GetString()); Assert.Equal("1", root.GetProperty("protocolVersion").GetString());
         Assert.Equal(JsonValueKind.Null, root.GetProperty("staticHierarchy").GetProperty("typography").GetProperty("fontFamilyName").ValueKind);
-        foreach (string effect in new[] { "stroke", "shadow" }) Assert.Equal(JsonValueKind.Null, root.GetProperty("staticHierarchy").GetProperty(effect).ValueKind);
-        foreach (string property in new[] { "typography.fontFamilyName", "stroke", "shadow" })
+        var unsung = root.GetProperty("staticHierarchy").GetProperty("unsung");
+        Assert.Equal(0, unsung.GetProperty("strokes").GetArrayLength()); Assert.Equal(JsonValueKind.Null, unsung.GetProperty("shadow").ValueKind);
+        foreach (string property in new[] { "typography.fontFamilyName", "unsung.shadow" })
             Assert.Equal(JsonValueKind.Null, root.GetProperty("local").EnumerateArray().Single(v => v.GetProperty("property").GetString() == property).GetProperty("value").ValueKind);
+        Assert.Equal(0, root.GetProperty("local").EnumerateArray().Single(v => v.GetProperty("property").GetString() == "unsung.strokes").GetProperty("value").GetArrayLength());
         foreach (string query in new[] { "kind=project", "kind=branch&branchId=primary", "kind=token&branchId=primary&lineId=" + line.Id + "&tokenId=" + line.Tokens[0].Id })
         {
             using var layer = await f.Http.GetAsync(path + "/style?expectedRevision=1&" + query); Assert.Equal(HttpStatusCode.OK, layer.StatusCode);
         }
-        using var restored = await PostRawEditing(f, "1", $$"""{"type":"styles.restore","targets":[{{target}}],"properties":["typography.fontFamilyName","stroke","shadow","opacity"]}""");
+        using var restored = await PostRawEditing(f, "1", $$"""{"type":"styles.restore","targets":[{{target}}],"properties":["typography.fontFamilyName","unsung.strokes","unsung.shadow","opacity"]}""");
         Assert.Equal(HttpStatusCode.OK, restored.StatusCode); Assert.Equal("styles.restore", (await restored.Content.ReadFromJsonAsync<ProjectCommandResponse>(Json))!.UndoName);
         using var undo = await PostRawEditing(f, "2", "{\"type\":\"history.undo\"}"); Assert.Equal(HttpStatusCode.OK, undo.StatusCode);
         var undone = (await undo.Content.ReadFromJsonAsync<ProjectCommandResponse>(Json))!; Assert.Null(undone.StyleResult); Assert.Equal(["project"], undone.ChangeSet.Areas); Assert.True(undone.ChangeSet.RequiresFullRefresh);
@@ -69,26 +73,42 @@ public sealed partial class PreviewTransportTests
     }
 
     [Fact]
-    public async Task HTTP二十四属性完整typedwire保渐变几何且新枚举准确大小写()
+    public async Task HTTP全部叶与整表属性完整typedwire保渐变几何且新枚举准确大小写()
     {
         await using var f = await Fixture.Create();
         var line = (await f.Http.GetFromJsonAsync<ProjectLyricsWindowResponse>($"/api/v1/project-sessions/{f.Project.ProjectSessionId}/lyrics/window?branchId=primary&expectedRevision=0", Json))!.Lines[0];
         string target = JsonSerializer.Serialize(new LineStyleTargetDto("primary", line.Id), Json);
         const string material = "{\"kind\":\"gradient\",\"gradient\":{\"kind\":\"linear\",\"angleDegrees\":123,\"centerX\":-3,\"centerY\":4,\"radiusX\":-5,\"radiusY\":-6,\"coordinateSpace\":\"glyph\",\"colorSpace\":\"oklch\",\"huePath\":\"decreasing\",\"stops\":[{\"offset\":0,\"color\":{\"red\":1,\"green\":2,\"blue\":3,\"alpha\":4}},{\"offset\":0,\"color\":{\"red\":5,\"green\":6,\"blue\":7,\"alpha\":8}},{\"offset\":1,\"color\":{\"red\":9,\"green\":10,\"blue\":11,\"alpha\":12}}]}}";
-        string[] properties = ["typography.fontFamilyName", "typography.fallbackFamilyNames", "typography.fontSizePx", "typography.fontWeight", "typography.isBold", "typography.isItalic", "typography.letterSpacingPx", "unsungFill.material", "sungFill.material", "stroke.material", "stroke.widthPx", "stroke.join", "stroke.position", "shadow.color", "shadow.opacity", "shadow.angleDegrees", "shadow.distancePx", "shadow.blurRadiusPx", "verticalCenterRatio", "horizontalAlignment", "opacity", "scale"];
-        string[] values = ["\"   \"", "[\"A\",\"B\"]", "88.5", "425", "true", "true", "-1.5", material, material, material, "3.25", "\"bevel\"", "\"outside\"", "{\"red\":20,\"green\":30,\"blue\":40,\"alpha\":50}", "0.75", "321.5", "4.5", "9.25", "0.6", "\"right\"", "0.8", "1.25"];
-        string changes = string.Join(',', properties.Zip(values, (property, value) => "{\"property\":\"" + property + "\",\"value\":" + value + "}"));
+        const string color = "{\"red\":20,\"green\":30,\"blue\":40,\"alpha\":50}";
+        string strokes = "[{\"material\":" + material + ",\"widthPx\":3.25,\"join\":\"bevel\"},{\"material\":{\"kind\":\"solid\",\"color\":" + color + "},\"widthPx\":2,\"join\":\"miter\"}]";
+        (string Property, string Value)[] pairs = [
+            ("typography.fontFamilyName", "\"   \""), ("typography.fallbackFamilyNames", "[\"A\",\"B\"]"), ("typography.fontSizePx", "88.5"), ("typography.fontWeight", "425"),
+            ("typography.isBold", "true"), ("typography.isItalic", "true"), ("typography.letterSpacingPx", "-1.5"), ("unsung.fill", material), ("sung.fill", material),
+            ("unsung.strokes", strokes), ("sung.strokes", "{\"kind\":\"set\",\"value\":" + strokes + "}"),
+            ("unsung.shadow.color", color), ("unsung.shadow.opacity", "0.75"), ("unsung.shadow.angleDegrees", "321.5"), ("unsung.shadow.distancePx", "4.5"), ("unsung.shadow.blurRadiusPx", "9.25"),
+            ("sung.shadow.color", color), ("sung.shadow.opacity", "0.5"), ("sung.shadow.angleDegrees", "21.5"), ("sung.shadow.distancePx", "1.5"), ("sung.shadow.blurRadiusPx", "2.25"),
+            ("unsung.glow.color", color), ("unsung.glow.opacity", "0.25"), ("unsung.glow.blurRadiusPx", "6"), ("unsung.glow.spreadPx", "2"),
+            ("sung.glow.color", color), ("sung.glow.opacity", "0.35"), ("sung.glow.blurRadiusPx", "7"), ("sung.glow.spreadPx", "3"),
+            ("wipe.featherRatio", "0.2"), ("wipe.highlight.color", color), ("wipe.highlight.widthRatio", "0.25"), ("wipe.highlight.opacity", "0.8"), ("wipe.highlight.blend", "\"screen\""),
+            ("verticalCenterRatio", "0.6"), ("horizontalAlignment", "\"right\""), ("opacity", "0.8"), ("scale", "1.25")];
+        string changes = string.Join(',', pairs.Select(pair => "{\"property\":\"" + pair.Property + "\",\"value\":" + pair.Value + "}"));
         string command = $$"""{"type":"styles.patch","targets":[{{target}}],"changes":[{{changes}}]}""";
         using var first = await PostRawEditing(f, "0", command); Assert.Equal(HttpStatusCode.OK, first.StatusCode);
         using var second = await PostRawEditing(f, "1", command); Assert.Equal(HttpStatusCode.OK, second.StatusCode); Assert.False((await second.Content.ReadFromJsonAsync<ProjectCommandResponse>(Json))!.Changed);
-        string whole = $$$"""{"type":"styles.patch","targets":[{{{target}}}],"changes":[{"property":"stroke","value":{"material":{{{material}}},"widthPx":7,"join":"round","position":"outside"}},{"property":"shadow","value":{"color":{"red":1,"green":2,"blue":3,"alpha":4},"opacity":0.5,"angleDegrees":45,"distancePx":2,"blurRadiusPx":3}}]}""";
+        using var leaves = await f.Http.GetAsync($"/api/v1/project-sessions/{f.Project.ProjectSessionId}/style?kind=line&branchId=primary&lineId={line.Id}&expectedRevision=1");
+        var local = (await leaves.Content.ReadFromJsonAsync<ProjectStyleResponse>(Json))!.Local;
+        Assert.Equal(pairs.Select(pair => pair.Property), local.Select(value => value.Property));
+        string whole = $$$"""{"type":"styles.patch","targets":[{{{target}}}],"changes":[{"property":"unsung.strokes","value":[{"material":{{{material}}},"widthPx":7,"join":"round"}]},{"property":"unsung.shadow","value":{"color":{"red":1,"green":2,"blue":3,"alpha":4},"opacity":0.5,"angleDegrees":45,"distancePx":2,"blurRadiusPx":3}}]}""";
         using var full = await PostRawEditing(f, "1", whole); Assert.Equal(HttpStatusCode.OK, full.StatusCode);
         using var read = await f.Http.GetAsync($"/api/v1/project-sessions/{f.Project.ProjectSessionId}/style?kind=line&branchId=primary&lineId={line.Id}&expectedRevision=2");
         Assert.Equal(HttpStatusCode.OK, read.StatusCode); var style = (await read.Content.ReadFromJsonAsync<ProjectStyleResponse>(Json))!;
-        var gradient = Assert.IsType<GradientStyleMaterialDto>(style.StaticHierarchy.UnsungFill.Material).Gradient;
+        var gradient = Assert.IsType<GradientStyleMaterialDto>(style.StaticHierarchy.Unsung.Fill).Gradient;
         Assert.Equal(-5, gradient.RadiusX); Assert.Equal(-3, gradient.CenterX); Assert.Equal(0, gradient.Stops[1].Offset); Assert.Equal(StyleGradientColorSpace.Oklch, gradient.ColorSpace);
         Assert.Equal(425, style.StaticHierarchy.Typography.FontWeight); Assert.Equal("   ", style.StaticHierarchy.Typography.FontFamilyName);
-        Assert.DoesNotContain(style.Local, value => value.Property is "stroke" or "shadow"); Assert.Equal(7, style.StaticHierarchy.Stroke!.WidthPx);
+        Assert.DoesNotContain(style.Local, value => value.Property == "unsung.shadow"); Assert.Contains(style.Local, value => value.Property == "unsung.shadow.blurRadiusPx");
+        Assert.Equal(7, Assert.Single(style.StaticHierarchy.Unsung.Strokes).WidthPx);
+        Assert.Equal(StyleStrokeJoin.Miter, style.StaticHierarchy.Sung.Strokes.Value![1].Join); Assert.Equal(StyleWipeHighlightBlend.Screen, style.StaticHierarchy.Wipe.Highlight!.Blend);
+        Assert.Equal(3, style.StaticHierarchy.Sung.Glow.Value!.SpreadPx);
     }
 
     [Theory]
@@ -116,10 +136,16 @@ public sealed partial class PreviewTransportTests
             "{\"property\":\"opacity\"}", "{\"property\":\"opacity\",\"value\":null}", "{\"property\":\"opacity\",\"value\":\"0.5\"}",
             "{\"property\":\"opacity\",\"value\":0.5,\"value\":0.5}", "{\"property\":\"Opacity\",\"value\":0.5}", "{\"property\":\"opacity\",\"value\":0.5,\"x\":1}",
             "{\"property\":\"horizontalAlignment\",\"value\":\"Right\"}", "{\"property\":\"horizontalAlignment\",\"value\":2}",
-            "{\"property\":\"stroke\",\"value\":{\"material\":{\"kind\":\"solid\",\"color\":{\"red\":0,\"green\":0,\"blue\":0,\"alpha\":255}},\"widthPx\":1,\"join\":\"ROUND\",\"position\":\"outside\"}}",
-            "{\"property\":\"shadow.color\",\"value\":{\"red\":0,\"green\":0,\"blue\":0}}", "{\"property\":\"shadow.color\",\"value\":{\"red\":0,\"green\":0,\"blue\":0,\"alpha\":255,\"extra\":1}}",
-            "{\"property\":\"shadow.color\",\"value\":{\"red\":\"0\",\"green\":0,\"blue\":0,\"alpha\":255}}", "{\"property\":\"shadow.color\",\"value\":{\"red\":0,\"red\":1,\"green\":0,\"blue\":0,\"alpha\":255}}",
-            "{\"property\":\"unsungFill.material\",\"value\":null}", "{\"property\":\"unsungFill.material\",\"value\":{\"kind\":\"package\",\"packageId\":\"p\",\"revision\":\"r\",\"exportId\":\"e\"}}",
+            "{\"property\":\"unsung.strokes\",\"value\":[{\"material\":{\"kind\":\"solid\",\"color\":{\"red\":0,\"green\":0,\"blue\":0,\"alpha\":255}},\"widthPx\":1,\"join\":\"ROUND\"}]}",
+            "{\"property\":\"unsung.strokes\",\"value\":[{\"material\":{\"kind\":\"solid\",\"color\":{\"red\":0,\"green\":0,\"blue\":0,\"alpha\":255}},\"widthPx\":1,\"join\":\"round\",\"position\":\"outside\"}]}",
+            "{\"property\":\"unsung.strokes\",\"value\":null}", "{\"property\":\"stroke\",\"value\":null}", "{\"property\":\"unsung.strokes\",\"value\":[" + string.Join(',', Enumerable.Repeat("{\"material\":{\"kind\":\"solid\",\"color\":{\"red\":0,\"green\":0,\"blue\":0,\"alpha\":255}},\"widthPx\":1,\"join\":\"round\"}", 5)) + "]}",
+            "{\"property\":\"sung.strokes\",\"value\":{\"kind\":\"set\"}}", "{\"property\":\"sung.shadow\",\"value\":{\"kind\":\"follow\",\"value\":null}}",
+            "{\"property\":\"sung.glow\",\"value\":null}", "{\"property\":\"sung.shadow\",\"value\":{\"kind\":\"Follow\"}}", "{\"property\":\"wipe.highlight.blend\",\"value\":\"Screen\"}",
+            "{\"property\":\"sung.strokes\",\"value\":{\"kind\":\"set\",\"value\":[{\"material\":{\"kind\":\"package\",\"packageId\":\"p\",\"revision\":\"r\",\"exportId\":\"e\"},\"widthPx\":1,\"join\":\"round\"}]}}",
+            "{\"property\":\"unsung.fill\",\"value\":{\"kind\":\"gradient\",\"gradient\":{\"kind\":\"linear\",\"angleDegrees\":0,\"centerX\":0.5,\"centerY\":0.5,\"radiusX\":0.5,\"radiusY\":0.5,\"coordinateSpace\":\"progress\",\"colorSpace\":\"oklch\",\"huePath\":\"shorter\",\"stops\":[{\"offset\":0,\"color\":{\"red\":1,\"green\":2,\"blue\":3,\"alpha\":4}},{\"offset\":1,\"color\":{\"red\":1,\"green\":2,\"blue\":3,\"alpha\":4}}]}}}",
+            "{\"property\":\"unsung.shadow.color\",\"value\":{\"red\":0,\"green\":0,\"blue\":0}}", "{\"property\":\"unsung.shadow.color\",\"value\":{\"red\":0,\"green\":0,\"blue\":0,\"alpha\":255,\"extra\":1}}",
+            "{\"property\":\"unsung.shadow.color\",\"value\":{\"red\":\"0\",\"green\":0,\"blue\":0,\"alpha\":255}}", "{\"property\":\"unsung.shadow.color\",\"value\":{\"red\":0,\"red\":1,\"green\":0,\"blue\":0,\"alpha\":255}}",
+            "{\"property\":\"unsung.fill\",\"value\":null}", "{\"property\":\"unsung.fill\",\"value\":{\"kind\":\"package\",\"packageId\":\"p\",\"revision\":\"r\",\"exportId\":\"e\"}}",
             "{\"property\":\"typography.fallbackFamilyNames\",\"value\":[null]}", "{\"property\":\"typography.isBold\",\"value\":1}", "{\"property\":\"typography.fontWeight\",\"value\":425.5}",
         ];
         return values.Select(v => new object[] { v });
@@ -139,8 +165,8 @@ public sealed partial class PreviewTransportTests
     [InlineData("{\"type\":\"styles.patch\",\"targets\":[{\"kind\":\"project\"},{\"kind\":\"project\"}],\"changes\":[{\"property\":\"opacity\",\"value\":0.5}]}")]
     [InlineData("{\"type\":\"styles.patch\",\"targets\":[{\"kind\":\"project\"},{\"kind\":\"branch\",\"branchId\":\"primary\"}],\"changes\":[{\"property\":\"opacity\",\"value\":0.5}]}")]
     [InlineData("{\"type\":\"styles.patch\",\"targets\":[{\"kind\":\"project\"}],\"changes\":[{\"property\":\"opacity\",\"value\":0.5},{\"property\":\"opacity\",\"value\":0.5}]}")]
-    [InlineData("{\"type\":\"styles.patch\",\"targets\":[{\"kind\":\"project\"}],\"changes\":[{\"property\":\"stroke\",\"value\":null},{\"property\":\"stroke.widthPx\",\"value\":3}]}")]
-    [InlineData("{\"type\":\"styles.restore\",\"targets\":[{\"kind\":\"branch\",\"branchId\":\"primary\"}],\"properties\":[\"shadow\",\"shadow.color\"]}")]
+    [InlineData("{\"type\":\"styles.patch\",\"targets\":[{\"kind\":\"project\"}],\"changes\":[{\"property\":\"unsung.glow\",\"value\":null},{\"property\":\"unsung.glow.spreadPx\",\"value\":3}]}")]
+    [InlineData("{\"type\":\"styles.restore\",\"targets\":[{\"kind\":\"branch\",\"branchId\":\"primary\"}],\"properties\":[\"sung.shadow\",\"sung.shadow.color\"]}")]
     [InlineData("{\"type\":\"styles.restore\",\"targets\":[{\"kind\":\"branch\",\"branchId\":\"primary\"}],\"properties\":[\"opacity\",\"opacity\"]}")]
     [InlineData("{\"type\":\"styles.patch\",\"targets\":[],\"changes\":[]}")]
     [InlineData("{\"type\":\"styles.restore\",\"targets\":[{\"kind\":\"project\"}],\"properties\":[]}")]

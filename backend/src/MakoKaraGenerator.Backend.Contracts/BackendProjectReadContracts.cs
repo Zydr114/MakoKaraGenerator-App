@@ -111,7 +111,7 @@ public sealed record ProjectPresetApplicationTargetDto(string Kind,
 
 /// <summary>固定预设快照的有界摘要；不暴露效果包、脚本或运行身份闭包。</summary>
 public sealed record ProjectPresetApplicationSnapshotDto(string TemplateId, string Name, TemplateKind Kind,
-    TemplateProperty[] Properties, bool HasEffectRecipes, bool HasPackageMaterials, bool HasPackages);
+    string[] Properties, bool HasEffectRecipes, bool HasPackageMaterials, bool HasPackages);
 
 /// <summary>当前模型没有保存模板库来源修订；显式报告不可比较，禁止把定义哈希当作库修订。</summary>
 public sealed record ProjectPresetApplicationSourceDto(

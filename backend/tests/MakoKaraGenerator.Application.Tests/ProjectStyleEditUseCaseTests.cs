@@ -17,15 +17,15 @@ public sealed class ProjectStyleEditUseCaseTests
         var parent = new GlowSpec { Color = RgbaColor.White, Opacity = .8f, BlurRadiusPx = 8, SpreadPx = 2 };
         var workspace = ProjectWorkspace.Adopt(initial with { LyricStyle = initial.LyricStyle with { Glow = parent } });
         var target = Target((StyleEditTargetKind)kind);
-        var set = Commit(workspace, target, new StyleEditChange.GlowBlur(4));
+        var set = Commit(workspace, target, new StyleEditChange.EffectNumber(LyricStyleProperty.UnsungGlowBlurRadiusPx, 4));
         Assert.True(set.Accepted); Assert.Equal(4, Resolve(set.Project, target).Glow!.BlurRadiusPx);
         Assert.Equal(2, Resolve(set.Project, target).Glow!.SpreadPx);
         if (kind == 0) return;
-        Commit(workspace, target, new StyleEditChange.Glow(null));
+        Commit(workspace, target, new StyleEditChange.UnsungGlow(null));
         Assert.Null(Resolve(workspace.Project, target).Glow);
-        var noOp = ProjectStyleEditUseCase.PrepareRestore(workspace, [target], [StyleEditProperty.GlowBlurRadiusPx]);
+        var noOp = ProjectStyleEditUseCase.PrepareRestore(workspace, [target], [LyricStyleProperty.UnsungGlowBlurRadiusPx]);
         Assert.True(noOp.Result.Accepted); Assert.False(noOp.Result.Changed);
-        var restored = ProjectStyleEditUseCase.PrepareRestore(workspace, [target], [StyleEditProperty.Glow]);
+        var restored = ProjectStyleEditUseCase.PrepareRestore(workspace, [target], [LyricStyleProperty.UnsungGlow]);
         Assert.True(restored.Result.Accepted); Assert.Equal(parent, Resolve(restored.Result.Project, target).Glow);
     }
 
@@ -33,13 +33,13 @@ public sealed class ProjectStyleEditUseCaseTests
     public void 辉光无父级从透明种子合并且校验原子性()
     {
         var workspace = Workspace(); var target = Target(StyleEditTargetKind.Token);
-        var result = Commit(workspace, target, new StyleEditChange.GlowOpacity(.5f));
+        var result = Commit(workspace, target, new StyleEditChange.EffectNumber(LyricStyleProperty.UnsungGlowOpacity, .5));
         var glow = Resolve(result.Project, target).Glow!;
         Assert.Equal(RgbaColor.Transparent, glow.Color); Assert.Equal(.5f, glow.Opacity);
         Assert.Equal(0, glow.BlurRadiusPx); Assert.Equal(0, glow.SpreadPx);
-        var bad = ProjectStyleEditUseCase.PreparePatch(workspace, [target], [new StyleEditChange.GlowSpread(-1)]);
+        var bad = ProjectStyleEditUseCase.PreparePatch(workspace, [target], [new StyleEditChange.EffectNumber(LyricStyleProperty.UnsungGlowSpreadPx, -1)]);
         Assert.False(bad.Result.Accepted); Assert.Same(result.Project, workspace.Project);
-        var conflict = ProjectStyleEditUseCase.PreparePatch(workspace, [target], [new StyleEditChange.Glow(null), new StyleEditChange.GlowColor(RgbaColor.White)]);
+        var conflict = ProjectStyleEditUseCase.PreparePatch(workspace, [target], [new StyleEditChange.UnsungGlow(null), new StyleEditChange.EffectColor(LyricStyleProperty.UnsungGlowColor, RgbaColor.White)]);
         Assert.False(conflict.Result.Accepted); Assert.Same(result.Project, workspace.Project);
     }
     [Theory]
@@ -81,7 +81,7 @@ public sealed class ProjectStyleEditUseCaseTests
         source = source with { LyricStyle = source.LyricStyle with { UnsungFill = new() { Material = package }, Stroke = new() { Material = package, WidthPx = 9, Join = StrokeJoin.Bevel } } };
         workspace = ProjectWorkspace.Adopt(source);
         var target = Target((StyleEditTargetKind)kind);
-        var prepared = ProjectStyleEditUseCase.PreparePatch(workspace, [target], [new StyleEditChange.ShadowAngle(128)]);
+        var prepared = ProjectStyleEditUseCase.PreparePatch(workspace, [target], [new StyleEditChange.EffectNumber(LyricStyleProperty.UnsungShadowAngleDegrees, 128)]);
         Assert.True(prepared.Result.Accepted);
         var resolved = Resolve(prepared.Result.Project, target);
         Assert.Same(package, resolved.UnsungFill.Material); Assert.Same(package, resolved.Stroke!.Material);
@@ -100,15 +100,15 @@ public sealed class ProjectStyleEditUseCaseTests
         var workspace = Workspace(); var source = workspace.Project;
         source = source with { LyricStyle = source.LyricStyle with { FontFamilyName = "Parent", Stroke = new() { WidthPx = 8 }, Shadow = new() { DistancePx = 9 } } };
         workspace = ProjectWorkspace.Adopt(source); var target = Target(StyleEditTargetKind.Line);
-        var result = Commit(workspace, target, new StyleEditChange.FontFamilyName(null), new StyleEditChange.Stroke(null), new StyleEditChange.Shadow(null));
+        var result = Commit(workspace, target, new StyleEditChange.FontFamilyName(null), new StyleEditChange.UnsungStrokes(StrokeLayers.Empty), new StyleEditChange.UnsungShadow(null));
         Assert.True(result.Changed); var own = Own(result.Project, target)!;
         Assert.True(own.Typography!.FontFamilyName.IsSet); Assert.Null(own.Typography.FontFamilyName.Value);
         Assert.True(own.Stroke.IsSet); Assert.Null(own.Stroke.Value); Assert.True(own.Shadow.IsSet); Assert.Null(own.Shadow.Value);
         Assert.Null(Resolve(result.Project, target).FontFamilyName); Assert.Null(Resolve(result.Project, target).Stroke);
         Assert.Null(Resolve(result.Project, target).Shadow);
-        var noChange = ProjectStyleEditUseCase.PrepareRestore(workspace, [target], [StyleEditProperty.StrokeWidthPx, StyleEditProperty.ShadowColor]);
+        var noChange = ProjectStyleEditUseCase.PrepareRestore(workspace, [target], [LyricStyleProperty.UnsungShadowColor, LyricStyleProperty.SungShadowOpacity]);
         Assert.True(noChange.Result.Accepted); Assert.False(noChange.Result.Changed); Assert.Same(result.Project, noChange.Result.Project);
-        var restore = ProjectStyleEditUseCase.PrepareRestore(workspace, [target], [StyleEditProperty.TypographyFontFamilyName, StyleEditProperty.Stroke, StyleEditProperty.Shadow]);
+        var restore = ProjectStyleEditUseCase.PrepareRestore(workspace, [target], [LyricStyleProperty.FontFamilyName, LyricStyleProperty.UnsungStrokes, LyricStyleProperty.UnsungShadow]);
         Assert.True(restore.Result.Accepted); Assert.Null(Own(restore.Result.Project, target));
         Assert.Equal("Parent", Resolve(restore.Result.Project, target).FontFamilyName);
         Assert.Equal(8, Resolve(restore.Result.Project, target).Stroke!.WidthPx);
@@ -120,42 +120,41 @@ public sealed class ProjectStyleEditUseCaseTests
     public void 关闭后设置叶转部分覆盖并从上层解析而非默认白色新效果(bool parentEnabled)
     {
         var workspace = Workspace(); var source = workspace.Project;
-        MaterialSpec.PackageMaterial package = Package();
         source = source with { LyricStyle = source.LyricStyle with
         {
-            Stroke = parentEnabled ? new() { Material = package, WidthPx = 7, Join = StrokeJoin.Bevel } : null,
             Shadow = parentEnabled ? new() { Color = RgbaColor.White, AngleDegrees = 76, DistancePx = 8, BlurRadiusPx = 6 } : null,
         } };
         workspace = ProjectWorkspace.Adopt(source); var target = Target(StyleEditTargetKind.Line);
-        Commit(workspace, target, new StyleEditChange.Stroke(null), new StyleEditChange.Shadow(null));
-        var result = Commit(workspace, target, new StyleEditChange.StrokeWidth(4), new StyleEditChange.ShadowOpacity(.4f));
+        Commit(workspace, target, new StyleEditChange.UnsungShadow(null));
+        var result = Commit(workspace, target, new StyleEditChange.EffectNumber(LyricStyleProperty.UnsungShadowOpacity, .4));
         var own = Own(result.Project, target)!;
-        Assert.Equal(4, own.Stroke.Value!.WidthPx);
         Assert.Null(own.Shadow.Value!.Color); Assert.Null(own.Shadow.Value.DistancePx);
         var resolved = Resolve(result.Project, target);
-        Assert.Equal(4, resolved.Stroke!.WidthPx); Assert.Equal(.4f, resolved.Shadow!.Opacity);
+        Assert.Equal(.4f, resolved.Shadow!.Opacity);
         if (parentEnabled)
         {
-            Assert.Same(package, resolved.Stroke.Material); Assert.Equal(StrokeJoin.Bevel, resolved.Stroke.Join);
             Assert.Equal(RgbaColor.White, resolved.Shadow.Color); Assert.Equal(76, resolved.Shadow.AngleDegrees);
             Assert.Equal(8, resolved.Shadow.DistancePx); Assert.Equal(6, resolved.Shadow.BlurRadiusPx);
         }
         else
         {
-            Assert.Equal(new MaterialSpec.Solid(RgbaColor.Transparent), resolved.Stroke.Material);
             Assert.Equal(RgbaColor.Transparent, resolved.Shadow.Color); Assert.Equal(0, resolved.Shadow.DistancePx);
             Assert.Equal(0, resolved.Shadow.BlurRadiusPx);
         }
     }
 
     [Fact]
-    public void 工程基线空效果设置叶沿Core透明零宽基准且零宽描边即无描边()
+    public void 工程基线空效果设置叶沿Core透明零值基准()
     {
         var workspace = Workspace(); var target = Target(StyleEditTargetKind.Project);
-        var result = Commit(workspace, target, new StyleEditChange.StrokeJoin(StrokeJoin.Bevel), new StyleEditChange.ShadowAngle(20));
+        var result = Commit(workspace, target, new StyleEditChange.EffectNumber(LyricStyleProperty.UnsungShadowAngleDegrees, 20),
+            new StyleEditChange.EffectNumber(LyricStyleProperty.WipeHighlightOpacity, .5));
         Assert.True(result.Accepted); var style = result.Project.LyricStyle;
-        Assert.Null(style.Stroke); Assert.Empty(style.Unsung.Strokes);
+        Assert.Empty(style.Unsung.Strokes);
         Assert.Equal(RgbaColor.Transparent, style.Shadow!.Color); Assert.Equal(0, style.Shadow.DistancePx); Assert.Equal(0, style.Shadow.BlurRadiusPx);
+        Assert.Equal(20, style.Shadow.AngleDegrees); Assert.True(style.Sung.Shadow.FollowsUnsung);
+        // 扫字线高亮沿 Core 透明基准：颜色透明，宽度与混合取默认（零宽高亮无效）。
+        Assert.Equal(new WipeHighlightSpec { Color = RgbaColor.Transparent, Opacity = .5f }, style.Wipe.Highlight);
     }
 
     [Theory]
@@ -163,12 +162,12 @@ public sealed class ProjectStyleEditUseCaseTests
     public void 等值数组和渐变不产生历史并保redo和旧预设标识(int kind)
     {
         var workspace = Workspace(); var target = Target((StyleEditTargetKind)kind);
-        Commit(workspace, target, new StyleEditChange.UnsungMaterial(new MaterialSpec.Gradient(Gradient())));
+        Commit(workspace, target, new StyleEditChange.Fill(false, new MaterialSpec.Gradient(Gradient())));
         if (kind != 3) Commit(workspace, target, new StyleEditChange.FallbackFamilyNames(["A", "B"]));
         var source = workspace.Project with { LyricStylePresetId = "old-preset" };
         workspace = ProjectWorkspace.Adopt(source);
         workspace.Execute(ProjectCommand.Create("rename", p => p with { Name = "new" })); workspace.Undo();
-        List<StyleEditChange> changes = [new StyleEditChange.UnsungMaterial(new MaterialSpec.Gradient(Gradient()))];
+        List<StyleEditChange> changes = [new StyleEditChange.Fill(false, new MaterialSpec.Gradient(Gradient()))];
         if (kind != 3) changes.Add(new StyleEditChange.FallbackFamilyNames(["A", "B"]));
         int observed = 0;
         var prepared = ProjectStyleEditUseCase.PreparePatch(workspace, [target], changes, (_, _) => observed++);
@@ -241,7 +240,7 @@ public sealed class ProjectStyleEditUseCaseTests
     }
 
     [Fact]
-    public void 字体透明度和描边宽度叶更新保非空高精度包参数及未选材质身份()
+    public void 字体透明度和阴影叶更新保非空高精度包参数及未选材质身份()
     {
         MaterialSpec.PackageMaterial package = Package();
         byte[] originalParameters = package.Parameters.Encode().ToArray();
@@ -255,15 +254,15 @@ public sealed class ProjectStyleEditUseCaseTests
         } };
         source = source with { Lyrics = source.Lyrics.ReplaceBranch(branch with { Lines = branch.Lines.SetItem(0, line) }) };
         workspace = ProjectWorkspace.Adopt(source); var target = Target(StyleEditTargetKind.Line);
-        var result = Commit(workspace, target, new StyleEditChange.FontSize(82), new StyleEditChange.Opacity(.4f), new StyleEditChange.StrokeWidth(3));
+        var result = Commit(workspace, target, new StyleEditChange.FontSize(82), new StyleEditChange.Opacity(.4f), new StyleEditChange.EffectNumber(LyricStyleProperty.UnsungShadowOpacity, .3));
         Assert.True(result.Accepted); var own = Own(result.Project, target)!;
         Assert.Same(package, own.UnsungFill.Value!.Material.Value); Assert.Same(package, own.SungFill.Value!.Material.Value);
         var actual = Assert.IsType<MaterialSpec.PackageMaterial>(own.Stroke.Value!.Material);
         Assert.Same(package, actual); Assert.Same(package.Parameters, actual.Parameters);
         Assert.Equal(originalParameters, actual.Parameters.Encode().ToArray());
         Assert.Contains("0.12345678901234567890123456789", actual.Parameters.Json, StringComparison.Ordinal);
-        Assert.Equal(StrokeJoin.Bevel, own.Stroke.Value.Join); Assert.Equal(3, own.Stroke.Value.WidthPx);
-        var replaced = Commit(workspace, target, new StyleEditChange.SungMaterial(new MaterialSpec.Solid(RgbaColor.White)));
+        Assert.Equal(StrokeJoin.Bevel, own.Stroke.Value.Join); Assert.Equal(8, own.Stroke.Value.WidthPx); Assert.Equal(.3f, own.Shadow.Value!.Opacity);
+        var replaced = Commit(workspace, target, new StyleEditChange.Fill(true, new MaterialSpec.Solid(RgbaColor.White)));
         Assert.True(replaced.Accepted); own = Own(replaced.Project, target)!;
         Assert.IsType<MaterialSpec.Solid>(own.SungFill.Value!.Material.Value);
         Assert.Same(package, own.UnsungFill.Value!.Material.Value); Assert.Same(package, own.Stroke.Value!.Material);

@@ -27,73 +27,18 @@ public enum TemplateKind
     /// <summary>组合模板。</summary>
     Composite,
 }
-/// <summary>完整模板属性选择，独立于样式 patch 路径。</summary>
-[JsonConverter(typeof(StyleEnumJsonConverter<TemplateProperty>))]
-public enum TemplateProperty
-{
-    /// <summary>字体族。</summary>
-    FontFamilyName,
-    /// <summary>回退字体链。</summary>
-    FallbackFamilyNames,
-    /// <summary>字号。</summary>
-    FontSizePx,
-    /// <summary>字重。</summary>
-    FontWeight,
-    /// <summary>粗体。</summary>
-    IsBold,
-    /// <summary>斜体。</summary>
-    IsItalic,
-    /// <summary>字距。</summary>
-    LetterSpacingPx,
-    /// <summary>纵向中心比例。</summary>
-    VerticalCenterRatio,
-    /// <summary>水平对齐。</summary>
-    HorizontalAlignment,
-    /// <summary>未唱材质。</summary>
-    UnsungColor,
-    /// <summary>已唱材质。</summary>
-    SungColor,
-    /// <summary>未唱渐变材质。</summary>
-    UnsungGradientSpec,
-    /// <summary>已唱渐变材质。</summary>
-    SungGradientSpec,
-    /// <summary>描边材质。</summary>
-    StrokeColor,
-    /// <summary>描边宽度。</summary>
-    StrokeWidthPx,
-    /// <summary>完整描边。</summary>
-    StrokeSpec,
-    /// <summary>阴影颜色。</summary>
-    ShadowColor,
-    /// <summary>阴影模糊。</summary>
-    ShadowBlurPx,
-    /// <summary>完整阴影。</summary>
-    ShadowSpec,
-    /// <summary>透明度。</summary>
-    Opacity,
-    /// <summary>缩放。</summary>
-    Scale,
-    /// <summary>完整辉光。</summary>
-    GlowSpec,
-    /// <summary>辉光颜色。</summary>
-    GlowColor,
-    /// <summary>辉光透明度。</summary>
-    GlowOpacity,
-    /// <summary>辉光模糊半径。</summary>
-    GlowBlurRadiusPx,
-    /// <summary>辉光扩散半径。</summary>
-    GlowSpreadPx,
-}
 /// <summary>有界模板摘要；能力检查覆盖完整未选样式。</summary>
+/// <remarks>Properties 是与 styles.patch 相同的样式属性路径。</remarks>
 public sealed record TemplateSummaryDto(string TemplateId, string Name, TemplateKind Kind, string TemplateRevision,
-    TemplateProperty[] Properties, bool HasEffectRecipes, bool HasPackageMaterials, bool HasPackages);
+    string[] Properties, bool HasEffectRecipes, bool HasPackageMaterials, bool HasPackages);
 /// <summary>完整静态定义；没有包、配方、运行身份或磁盘路径。</summary>
+/// <remarks>Properties 是与 styles.patch 相同的样式属性路径。</remarks>
 [JsonConverter(typeof(StaticTemplateDefinitionJsonConverter))]
-public record StaticTemplateDefinitionDto(string Name, TemplateKind Kind, CanonicalStyleDto Style, TemplateProperty[] Properties);
+public record StaticTemplateDefinitionDto(string Name, TemplateKind Kind, CanonicalStyleDto Style, string[] Properties);
 /// <summary>完整可编辑定义；包内容由精确服务端引用固定，分享仍使用原mktpl格式。</summary>
 [JsonConverter(typeof(FullTemplateDefinitionJsonConverter))]
 public sealed record FullTemplateDefinitionDto(string Name, TemplateKind Kind, CanonicalStyleDto Style,
-    TemplateProperty[] Properties, TemplateEffectRecipeDto[] EffectRecipes, EffectPackageReferenceDto[] Packages)
+    string[] Properties, TemplateEffectRecipeDto[] EffectRecipes, EffectPackageReferenceDto[] Packages)
     : StaticTemplateDefinitionDto(Name, Kind, Style, Properties);
 /// <summary>原模板配方的完整值；种子用十进制字符串保持UInt64精度。</summary>
 [JsonConverter(typeof(TemplateEffectRecipeJsonConverter))]

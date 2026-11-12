@@ -24,10 +24,10 @@ public static partial class ProjectStyleEditUseCase
         Project source = workspace.Project; long generation = workspace.Generation;
         if (targets.Count is < 1 or > 1000)
             return new(workspace, generation, source, Reject(source, new(ProjectStyleEditErrorCode.InvalidTarget)), "styles.patch");
-        if (changes.Count is < 1 or > 29)
+        if (changes.Count is < 1 or > MaxProperties)
             return new(workspace, generation, source, Reject(source, new(ProjectStyleEditErrorCode.InvalidProperty)), "styles.patch");
         StyleEditTarget[] fixedTargets = [.. targets]; StyleEditChange[] fixedChanges = [.. changes];
-        var properties = fixedChanges.Select(change => change?.Property ?? (StyleEditProperty)(-1)).ToArray();
+        var properties = fixedChanges.Select(change => change?.Property ?? (LyricStyleProperty)(-1)).ToArray();
         ProjectStyleEditResult result = Prepare(source, fixedTargets, properties, fixedChanges, onChangedTarget);
         return new(workspace, generation, source, result, "styles.patch");
     }
@@ -39,14 +39,14 @@ public static partial class ProjectStyleEditUseCase
     /// <param name="onChangedTarget">新目标完整投影进入累计候选之前的纯预算检查。</param>
     /// <returns>绑定源工程与工作区的固定候选。</returns>
     public static PreparedProjectStyleEdit PrepareRestore(ProjectWorkspace workspace, IReadOnlyList<StyleEditTarget> targets,
-        IReadOnlyList<StyleEditProperty> properties, Action<Project, StyleEditTarget>? onChangedTarget = null)
+        IReadOnlyList<LyricStyleProperty> properties, Action<Project, StyleEditTarget>? onChangedTarget = null)
     {
         ArgumentNullException.ThrowIfNull(workspace); ArgumentNullException.ThrowIfNull(targets);
         ArgumentNullException.ThrowIfNull(properties);
         Project source = workspace.Project; long generation = workspace.Generation;
         if (targets.Count is < 1 or > 1000)
             return new(workspace, generation, source, Reject(source, new(ProjectStyleEditErrorCode.InvalidTarget)), "styles.restore");
-        if (properties.Count is < 1 or > 29)
+        if (properties.Count is < 1 or > MaxProperties)
             return new(workspace, generation, source, Reject(source, new(ProjectStyleEditErrorCode.InvalidProperty)), "styles.restore");
         ProjectStyleEditResult result = Prepare(source, [.. targets], [.. properties], null, onChangedTarget);
         return new(workspace, generation, source, result, "styles.restore");
@@ -70,7 +70,7 @@ public static partial class ProjectStyleEditUseCase
         return prepared.Result;
     }
 
-    private static ProjectStyleEditResult Prepare(Project source, StyleEditTarget[] targets, StyleEditProperty[] properties,
+    private static ProjectStyleEditResult Prepare(Project source, StyleEditTarget[] targets, LyricStyleProperty[] properties,
         StyleEditChange[]? changes, Action<Project, StyleEditTarget>? observer)
     {
         if (ValidateTargets(source, targets) is { } targetError) return Reject(source, targetError);
@@ -135,33 +135,38 @@ public static partial class ProjectStyleEditUseCase
         _ => false,
     };
 
-    private static ProjectStyleEditError? ValidateProperties(StyleEditTargetKind kind, StyleEditProperty[] properties, bool restore)
+    private static ProjectStyleEditError? ValidateProperties(StyleEditTargetKind kind, LyricStyleProperty[] properties, bool restore)
     {
         if (properties.Length == 0) return new(ProjectStyleEditErrorCode.InvalidProperty);
         if (restore && kind == StyleEditTargetKind.Project) return new(ProjectStyleEditErrorCode.UnsupportedProperty);
-        HashSet<StyleEditProperty> seen = [];
+        HashSet<LyricStyleProperty> seen = [];
         foreach (var property in properties)
         {
             if (!Enum.IsDefined(property) || !seen.Add(property)) return new(ProjectStyleEditErrorCode.InvalidProperty, Property: property);
-            if (kind == StyleEditTargetKind.Token && !TokenStyleSupport.IsSupported(ToCoreProperty(property)))
+            if (kind == StyleEditTargetKind.Token && !TokenStyleSupport.IsSupported(property))
                 return new(ProjectStyleEditErrorCode.UnsupportedProperty, Property: property);
         }
-        if (seen.Contains(StyleEditProperty.Stroke) && properties.Any(IsStrokeLeaf)
-            || seen.Contains(StyleEditProperty.Shadow) && properties.Any(IsShadowLeaf)
-            || seen.Contains(StyleEditProperty.Glow) && properties.Any(IsGlowLeaf))
-            return new(ProjectStyleEditErrorCode.InvalidProperty);
+        // 整体项与其分量不能同批出现（阴影、辉光按态，扫字线高亮）。
+        foreach (IReadOnlyList<LyricStyleProperty> group in EffectGroups)
+            if (seen.Contains(group[0]) && group.Skip(1).Any(seen.Contains)) return new(ProjectStyleEditErrorCode.InvalidProperty);
         return null;
     }
 
-    private static bool IsStrokeLeaf(StyleEditProperty property) => property is >= StyleEditProperty.StrokeMaterial and <= StyleEditProperty.StrokePosition;
-    private static bool IsShadowLeaf(StyleEditProperty property) => property is >= StyleEditProperty.ShadowColor and <= StyleEditProperty.ShadowBlurRadiusPx;
-    private static bool IsGlowLeaf(StyleEditProperty property) => property is >= StyleEditProperty.GlowColor and <= StyleEditProperty.GlowSpreadPx;
+    private const int MaxProperties = 43;
 
-    private static Project UpdateTarget(Project project, StyleEditTarget target, StyleEditProperty[] properties, StyleEditChange[]? changes)
+    // 每组第一项是整体项，其余是它的分量。
+    private static readonly IReadOnlyList<LyricStyleProperty>[] EffectGroups =
+    [
+        LyricStylePropertyExtensions.UnsungShadowProperties, LyricStylePropertyExtensions.SungShadowProperties,
+        LyricStylePropertyExtensions.UnsungGlowProperties, LyricStylePropertyExtensions.SungGlowProperties,
+        LyricStylePropertyExtensions.WipeHighlightProperties,
+    ];
+
+    private static Project UpdateTarget(Project project, StyleEditTarget target, LyricStyleProperty[] properties, StyleEditChange[]? changes)
     {
         if (target.Kind == StyleEditTargetKind.Project)
         {
-            LyricStyleOverride patch = ApplyChanges(LyricStyleOverride.Empty, properties, changes, project.LyricStyle);
+            LyricStyleOverride patch = ApplyChanges(LyricStyleOverride.Empty, properties, changes);
             LyricStyle updated = LyricStyleResolver.Resolve(project.LyricStyle, lineOverride: patch).Style;
             return updated == project.LyricStyle ? project : LyricStyleEditor.SetBaseline(project, updated);
         }
@@ -169,7 +174,7 @@ public static partial class ProjectStyleEditUseCase
         var branch = project.Lyrics.Branches[branchIndex];
         if (target.Kind == StyleEditTargetKind.Branch)
         {
-            var overlay = UpdateOverlay(branch.StyleOverride, properties, changes, project.LyricStyle);
+            var overlay = UpdateOverlay(branch.StyleOverride, properties, changes);
             if (overlay == branch.StyleOverride) return project;
             branch = branch with { StyleOverride = overlay };
         }
@@ -179,8 +184,7 @@ public static partial class ProjectStyleEditUseCase
             var line = branch.Lines[lineIndex];
             if (target.Kind == StyleEditTargetKind.Line)
             {
-                var overlay = UpdateOverlay(line.StyleOverride, properties, changes,
-                    LyricStyleResolver.Resolve(project.LyricStyle, branchOverride: branch.StyleOverride).Style);
+                var overlay = UpdateOverlay(line.StyleOverride, properties, changes);
                 if (overlay == line.StyleOverride) return project;
                 line = line with { StyleOverride = overlay };
             }
@@ -188,8 +192,7 @@ public static partial class ProjectStyleEditUseCase
             {
                 int tokenIndex = IndexOf(line.Tokens, token => token.Id == target.TokenId);
                 var token = line.Tokens[tokenIndex];
-                var overlay = UpdateOverlay(token.StyleOverride, properties, changes, LyricStyleResolver.Resolve(project.LyricStyle,
-                    branchOverride: branch.StyleOverride, lineOverride: line.StyleOverride).Style);
+                var overlay = UpdateOverlay(token.StyleOverride, properties, changes);
                 if (overlay == token.StyleOverride) return project;
                 line = line with { Tokens = line.Tokens.SetItem(tokenIndex, token with { StyleOverride = overlay }) };
             }

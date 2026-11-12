@@ -1,5 +1,7 @@
 # 静态 Glow 真实 HTTP 探针
 
+> 合同 1.50.0（产品 0.112.85）起样式改为两态形状。本探针按 1.49.x 及更早的单态样式编写（`unsungFill`／`stroke`／`shadow`／`glow` 与旧模板属性名），只能对照当时的发布物运行，没有随 1.50.0 迁移。
+
 本探针使用匹配发布的真实 Server/Worker、新建隔离 profile 与自有 WAV/LRC 工程。它复用 `backend-web-host/smoke.py` 和 `backend-preset-assignment-http-probe/probe.py` 的启动、认证、工程、保存重开及 PID/startTicks 排水辅助，不运行旧探针的完整测试集。输出目录必须是 `backend/artifacts/` 下尚不存在的新目录；不修改用户工程或 profile。
 
 从 `backend/` 目录执行：

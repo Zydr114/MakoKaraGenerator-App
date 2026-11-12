@@ -519,17 +519,16 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
 
         // 每个区域只绘制一次最终样式。已唱区域由每个有时间的元素各自贡献，
         // 因此夹在两个已定时元素之间的未定时元素不会被连续填充误染成已唱色。
-        using SKPath sungRegions = BuildSungRegions(sample, shaped, originX, canvas.LocalClipBounds, lineStyle.DecorationsDifferByState);
-        bool hasSungRegions = !sungRegions.IsEmpty;
-        DrawStylePass(false);
-        if (hasSungRegions) DrawStylePass(true);
+        // 羽化时过渡带内两态交叉淡化，元素各按自己的羽化比例（P3 设计 §10.1）。
+        SKRect bounds = canvas.LocalClipBounds;
+        using WipePartition wipe = BuildWipe(sample, shaped, originX, bounds, lineStyle.DecorationsDifferByState,
+            token => FeatherRatio(lineStyle, line, token), options.FontSizePx);
+        DrawWiped(canvas, wipe, () => WipeStatesDiffer(lineStyle, capture)
+            || line.Tokens.Any(token => token.StyleOverride is { } overlay && WipeStatesDiffer(ResolveElementStyle(lineStyle, overlay), capture)),
+            capture, DrawStylePass);
 
         void DrawStylePass(bool sung)
         {
-            canvas.Save();
-            SKRect bounds = canvas.LocalClipBounds;
-            if (hasSungRegions)
-                ClipSungRegions(canvas, sungRegions, sung);
             DrawLineGlow(canvas, shaped, options, originX, baselineY, lineStyle, antialias, capture: capture, state: sung);
 
             canvas.Save();
@@ -547,7 +546,6 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
             canvas.Restore();
             DrawTokenOverrides(canvas, shaped, options, sample, line, originX, baselineY,
                 antialias, lineStyle, composition, sung, capture: capture);
-            canvas.Restore();
         }
 
         DrawRuby(canvas, ruby, sample, line, lineStyle, composition, originX, baselineY, antialias, capture: capture);
@@ -633,6 +631,11 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
         token.Index < line.Tokens.Length && TokenStyleSupport.HasDrawableOverride(line.Tokens[token.Index].StyleOverride)
             ? line.Tokens[token.Index].StyleOverride
             : null;
+
+    /// <summary>元素解析后的羽化比例：元素覆盖写了就用覆盖的值，否则用行样式的。</summary>
+    private static double FeatherRatio(LyricStyle lineStyle, LyricLine line, TokenSample token) =>
+        token.Index < line.Tokens.Length && line.Tokens[token.Index].StyleOverride?.Wipe?.FeatherRatio is { } ratio
+            ? ratio : lineStyle.Wipe.FeatherRatio;
 
     /// <summary>元素的像素对齐字框；"排除基线"与"重画元素"两遍共用同一个矩形。</summary>
     /// <param name="originX">整行左端横坐标。</param>

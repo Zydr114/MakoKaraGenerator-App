@@ -161,8 +161,8 @@ public static partial class LyricSceneSampler
         Branch = branch, DisplayContainerId = snapshot.LyricPresentation.FindProgram(branch.Id)!.DefaultContainerId, Presentation = snapshot.LyricPresentation.Resolve(branch.Id), Frame = snapshot.LyricPresentation.Resolve(branch.Id).PolicyFor(branch) != LyricBranchAnimationPolicy.Karaoke ? frame with
         {
             LineProgress = 0, CurrentTokenIndex = -1,
-            Tokens = [.. frame.Tokens.Select(token => token with { Progress = 0, IsCurrent = false, Source = ProgressSource.Unavailable })],
-            RubySegments = [.. frame.RubySegments.Select(segment => segment with { Progress = 0, IsCurrent = false, Source = ProgressSource.Unavailable })],
+            Tokens = [.. frame.Tokens.Select(token => token with { Progress = 0, IsCurrent = false, Source = ProgressSource.Unavailable, Time = null })],
+            RubySegments = [.. frame.RubySegments.Select(segment => segment with { Progress = 0, IsCurrent = false, Source = ProgressSource.Unavailable, Time = null })],
         } : frame,
         Placement = snapshot.LyricPresentation.Resolve(branch.Id).DefaultPlacement,
         };

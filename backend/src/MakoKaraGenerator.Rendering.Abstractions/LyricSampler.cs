@@ -48,6 +48,10 @@ public readonly record struct RubyTextSegmentSample(
 
     /// <summary>是否完全没有可用时间。</summary>
     public bool IsUnavailable => Source == ProgressSource.Unavailable;
+
+    /// <summary>进度所依据的时间段：分段自己的时间，或跟随元素时元素的时间；没有可用时间、或进度被置零时为空。</summary>
+    /// <remarks>扫字羽化据此按帧时刻求不夹值的演唱位置（P3 设计 §10.1 第 6、8 条）。</remarks>
+    public TimeRange? Time { get; init; }
 }
 
 /// <summary>某个时刻下一个元素的状态。</summary>
@@ -73,6 +77,10 @@ public readonly record struct TokenSample(
 
     /// <summary>是否完全没有可用时间。</summary>
     public bool IsUnavailable => Source == ProgressSource.Unavailable;
+
+    /// <summary>元素自己的时间段，只在进度来自元素时间时提供；进度被置零时为空。</summary>
+    /// <remarks>扫字羽化据此按帧时刻求不夹值的演唱位置（P3 设计 §10.1 第 8 条）；脚本可见的演唱采样不变。</remarks>
+    public TimeRange? Time { get; init; }
 }
 
 /// <summary>
@@ -289,7 +297,7 @@ public static class LyricSampler
                     length,
                     Clamp01(Ratio(timeUs - start, end - start)),
                     ProgressSource.FromToken,
-                    IsCurrent: timeUs >= start && timeUs < end);
+                    IsCurrent: timeUs >= start && timeUs < end) { Time = new TimeRange(start, end) };
             }
             else
             {
@@ -320,17 +328,18 @@ public static class LyricSampler
                 ProgressSource source = ProgressSource.Unavailable;
                 double progress = 0d;
                 bool current = false;
+                TimeRange? time = null;
                 if (segment.TimingStatus == TimingStatus.Missing && segment.Time is null && tokenIndex >= 0)
                 {
-                    progress = tokenSample.Progress; source = tokenSample.Source; current = tokenSample.IsCurrent;
+                    progress = tokenSample.Progress; source = tokenSample.Source; current = tokenSample.IsCurrent; time = tokenSample.Time;
                 }
                 else if (segment.TimingStatus is TimingStatus.Imported or TimingStatus.Estimated or TimingStatus.Edited or TimingStatus.Confirmed
                     && TryGetUsableRange(segment.Time, out long start, out long end))
                 {
                     progress = Clamp01(Ratio(timeUs - start, end - start));
-                    source = ProgressSource.FromRubySegment; current = timeUs >= start && timeUs < end;
+                    source = ProgressSource.FromRubySegment; current = timeUs >= start && timeUs < end; time = new TimeRange(start, end);
                 }
-                result.Add(new(annotation.Id, segment.Id, segmentIndex++, offset, segment.Text.Length, progress, source, current));
+                result.Add(new(annotation.Id, segment.Id, segmentIndex++, offset, segment.Text.Length, progress, source, current) { Time = time });
                 offset += segment.Text.Length;
             }
         }

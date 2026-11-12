@@ -66,18 +66,15 @@ public sealed partial class SkiaRenderPipeline
         {
             if (indices.IsEmpty) return;
             DrawLineGlow(canvas, shaped, options, origin, baseline, style, antialias, indices, capture);
-            using SKPath regions = BuildSungRegions(tokenSample, shaped, origin, canvas.LocalClipBounds, style.DecorationsDifferByState);
-            bool hasSung = !regions.IsEmpty;
-            Draw(false); if (hasSung) Draw(true);
-            void Draw(bool sung)
+            using WipePartition wipe = BuildWipe(tokenSample, shaped, origin, canvas.LocalClipBounds, style.DecorationsDifferByState,
+                _ => style.Wipe.FeatherRatio, options.FontSizePx);
+            DrawWiped(canvas, wipe, () => WipeStatesDiffer(style, capture), capture, sung =>
             {
-                canvas.Save(); if (hasSung) ClipSungRegions(canvas, regions, sung);
                 DrawLineGlow(canvas, shaped, options, origin, baseline, style, antialias, indices, capture, state: sung);
                 DrawStyledLine(canvas, shaped, options, origin, baseline,
                     sung ? style.SungColor : style.UnsungColor, sung ? style.SungFill.Gradient : style.UnsungFill.Gradient,
                     style, composition, antialias, indices, capture, sung);
-                canvas.Restore();
-            }
+            });
         }
         void Concat(Fx.Affine2 matrix) => canvas.Concat(new SKMatrix((float)matrix.A, (float)matrix.C, (float)matrix.Tx,
             (float)matrix.B, (float)matrix.D, (float)matrix.Ty, 0, 0, 1));

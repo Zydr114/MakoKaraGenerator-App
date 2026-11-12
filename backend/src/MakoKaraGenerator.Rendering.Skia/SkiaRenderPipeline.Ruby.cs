@@ -49,6 +49,20 @@ public sealed partial class SkiaRenderPipeline
                 SKRect clip = canvas.LocalClipBounds;
                 float left = segment.Left == 0 ? clip.Left : start;
                 float right = segment.Right == entry.Shaped.Width ? clip.Right : end;
+                // 羽化：带宽按注音字号；分段区间与硬切换相同（单段时取整个注音宽度），首段向左、两态装饰不同时末段向右的延伸取端点处的 m。
+                if (FeatheredSegment(state, sample.TimeUs, entry.Segments.Length == 1 ? x : start, entry.Segments.Length == 1 ? x + entry.Shaped.Width : end,
+                    (float)(style.Wipe.FeatherRatio * entry.Options.FontSizePx), new(left, clip.Top, right, clip.Bottom),
+                    segment.Left == 0, edges && segment.Right == entry.Shaped.Width) is { } wipe)
+                {
+                    using (wipe)
+                    {
+                        canvas.Save();
+                        canvas.ClipRect(new(left, clip.Top, right, clip.Bottom), antialias: false);
+                        DrawWiped(canvas, wipe, () => WipeStatesDiffer(style, capture), capture, Draw);
+                        canvas.Restore();
+                    }
+                    continue;
+                }
                 // 两态装饰不同时，末段唱完后已唱一侧延到右边界，与正文行尾一致（行首本来就延到左边界）。
                 if (edges && progress >= 1d && segment.Right == entry.Shaped.Width) split = right;
                 DrawPart(false);
@@ -58,6 +72,11 @@ public sealed partial class SkiaRenderPipeline
                     canvas.Save();
                     canvas.ClipRect(sung ? new(left, clip.Top, Math.Min(right, split), clip.Bottom)
                         : new(Math.Max(left, progress > 0d ? split : left), clip.Top, right, clip.Bottom), antialias: false);
+                    Draw(sung);
+                    canvas.Restore();
+                }
+                void Draw(bool sung)
+                {
                     if (glow)
                         DrawLineGlow(canvas, entry.Shaped, entry.Options, x, y, style, antialias, drawUnitIndices, capture, ruby: true, state: sung);
                     else
@@ -66,9 +85,35 @@ public sealed partial class SkiaRenderPipeline
                             sung ? style.SungFill.Gradient : style.UnsungFill.Gradient,
                             style, composition, antialias, drawUnitIndices, capture, sungPass: sung, rubyGlyph: true,
                             lineSpan: new LineSpan(origin, entry.BaseWidth));
-                    canvas.Restore();
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// 注音分段的扫字分区（P3 设计 §10.1 第 6 条）；没有过渡带时为空，照原来的硬切换绘制。
+    /// </summary>
+    /// <param name="state">分段采样：分段有时间时用分段时间，跟随元素时用元素时间。</param>
+    /// <param name="timeUs">帧时刻。</param>
+    /// <param name="start">分段区间的起点（进度 0）。</param>
+    /// <param name="end">分段区间的终点（进度 1）。</param>
+    /// <param name="width">带宽。</param>
+    /// <param name="bounds">分段的裁剪框（首段左延、末段右延到画布边界）。</param>
+    /// <param name="before">首段：起点之前取起点处的 m。</param>
+    /// <param name="after">末段且两态装饰不同：终点之后取终点处的 m；否则终点之后是未唱。</param>
+    private static WipePartition? FeatheredSegment(RubyTextSegmentSample state, long timeUs, float start, float end, float width,
+        SKRect bounds, bool before, bool after)
+    {
+        if (state.Source == ProgressSource.Unavailable
+            || SungPosition(state.Time, state.Progress, timeUs, start, end, width) is not { } position)
+            return null;
+        WipePartition wipe = new(new SKPath());
+        AddRamp(wipe, bounds, start, end, position, width);
+        if (before) AddConstant(wipe, new(bounds.Left, bounds.Top, start, bounds.Bottom), Mask(start));
+        if (after) AddConstant(wipe, new(end, bounds.Top, bounds.Right, bounds.Bottom), Mask(end));
+        if (wipe.Band.Count != 0) return wipe;
+        wipe.Dispose();
+        return null;
+        float Mask(float x) => Math.Clamp(.5f + (position - x) / width, 0f, 1f);
     }
 }

@@ -234,7 +234,13 @@ public sealed partial class SkiaRenderPipeline
                     continue;
                 }
                 if (slot.Length == 0) { parts.Add(new(member, part, order, ObjectPartKind.Original, null, false)); continue; }
-                if (part is SceneColorPart.BaseFill or SceneColorPart.RubyFill) { AddSide(false); AddSide(true); }
+                if (part is SceneColorPart.BaseFill or SceneColorPart.RubyFill)
+                {
+                    // 羽化后两侧在过渡带内重叠，须先按 m 合并成一对再叠（P3 设计 §10.2），第 5 步第二部分接入；此前明确拒绝。
+                    if (Feathered(plan.Item))
+                        throw new PreparedFrameException("WipeFeatherMaterialPending", "填充包材质按两态拆侧时暂不支持扫字羽化，不能让两侧在过渡带内重叠。");
+                    AddSide(false); AddSide(true);
+                }
                 else AddMaterial(slot[0], null);
 
                 void AddSide(bool sung)
@@ -252,6 +258,11 @@ public sealed partial class SkiaRenderPipeline
                 }
             }
         }
+
+        // 行样式或任一元素覆盖的羽化比例大于 0；文字标记按整体切换，不羽化。
+        bool Feathered(SceneDrawItem item) => item.Line is { Frame.Line: { } line } scene
+            && (SkiaSceneGeometry.LineBaseStyle(request.Project.LyricStyle, line, scene.Branch).Wipe.FeatherRatio > 0d
+                || line.Tokens.Any(static token => token.StyleOverride?.Wipe?.FeatherRatio > 0d));
     }
 
     /// <summary>

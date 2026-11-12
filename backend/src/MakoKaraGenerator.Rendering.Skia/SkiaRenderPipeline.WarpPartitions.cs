@@ -50,23 +50,16 @@ public sealed partial class SkiaRenderPipeline
                 bounds, resources ?? capture?.Budget, capture, (source, sourceCapture) =>
                 {
                     DrawLineGlow(source, shaped, options, origin, baseline, style, antialias, indices, sourceCapture);
-                    using var regions = BuildSungRegions(tokenSample, shaped, origin, source.LocalClipBounds, style.DecorationsDifferByState);
-                    bool hasSung = !regions.IsEmpty;
-                    Draw(false); if (hasSung) Draw(true);
-                    void Draw(bool sung)
+                    using var wipe = BuildWipe(tokenSample, shaped, origin, source.LocalClipBounds, style.DecorationsDifferByState,
+                        _ => style.Wipe.FeatherRatio, options.FontSizePx);
+                    DrawWiped(source, wipe, () => WipeStatesDiffer(style, sourceCapture), sourceCapture, sung =>
                     {
-                        source.Save();
-                        try
-                        {
-                            if (hasSung) ClipSungRegions(source, regions, sung);
-                            DrawLineGlow(source, shaped, options, origin, baseline, style, antialias, indices, sourceCapture, state: sung);
-                            DrawStyledLine(source, shaped, options, origin, baseline,
-                                sung ? style.SungColor : style.UnsungColor,
-                                sung ? style.SungFill.Gradient : style.UnsungFill.Gradient,
-                                style, composition, antialias, indices, sourceCapture, sung);
-                        }
-                        finally { source.Restore(); }
-                    }
+                        DrawLineGlow(source, shaped, options, origin, baseline, style, antialias, indices, sourceCapture, state: sung);
+                        DrawStyledLine(source, shaped, options, origin, baseline,
+                            sung ? style.SungColor : style.UnsungColor,
+                            sung ? style.SungFill.Gradient : style.UnsungFill.Gradient,
+                            style, composition, antialias, indices, sourceCapture, sung);
+                    });
                 });
         }
         foreach (var annotation in ruby.Where(item => item.TokenIndex == tokenIndex))

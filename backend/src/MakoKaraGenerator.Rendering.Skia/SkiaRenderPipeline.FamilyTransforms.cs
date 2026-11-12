@@ -173,16 +173,14 @@ public sealed partial class SkiaRenderPipeline
         var remaining = Enumerable.Range(0, shaped.DrawUnits.Length).Where(index => !excludedUnits.Contains(index)).ToImmutableArray();
         HashSet<int> changedBaseTokens = [.. changedTokens.Except(rubyOnlyTokens)];
         // 未受影响的文字仍走同一两态样式规则，但不再包含被移走的 glyph。
-        if (capture?.TokenId is null) using (SKPath sungRegions = BuildSungRegions(sample, shaped, origin, canvas.LocalClipBounds, lineStyle.DecorationsDifferByState))
+        if (capture?.TokenId is null) using (WipePartition wipe = BuildWipe(sample, shaped, origin, canvas.LocalClipBounds, lineStyle.DecorationsDifferByState,
+            token => FeatherRatio(lineStyle, line, token), options.FontSizePx))
         {
             DrawLineGlow(canvas, shaped, options, origin, baseline, lineStyle, antialias, remaining, capture);
-            bool hasSung = !sungRegions.IsEmpty;
-            DrawRemaining(false);
-            if (hasSung) DrawRemaining(true);
+            DrawWiped(canvas, wipe, () => WipeStatesDiffer(lineStyle, capture) || line.Tokens.Any(token => token.StyleOverride is { } overlay
+                && WipeStatesDiffer(ResolveElementStyle(lineStyle, overlay), capture)), capture, DrawRemaining);
             void DrawRemaining(bool sung)
             {
-                canvas.Save();
-                if (hasSung) ClipSungRegions(canvas, sungRegions, sung);
                 DrawLineGlow(canvas, shaped, options, origin, baseline, lineStyle, antialias, remaining, capture, state: sung);
                 canvas.Save();
                 foreach (TokenSample token in sample.Tokens)
@@ -197,7 +195,6 @@ public sealed partial class SkiaRenderPipeline
                     lineStyle, composition, antialias, remaining, capture, sung);
                 canvas.Restore();
                 DrawTokenOverrides(canvas, shaped, options, sample, line, origin, baseline, antialias, lineStyle, composition, sung, remaining, changedBaseTokens, capture);
-                canvas.Restore();
             }
         }
         if (capture?.TokenId is null) DrawRuby(canvas, ruby.Where(entry => !changedTokens.Contains(entry.TokenIndex)).ToArray(), sample,
@@ -235,22 +232,17 @@ public sealed partial class SkiaRenderPipeline
                 canvas.Restore(); continue;
             }
             DrawLineGlow(canvas, shaped, options, origin, baseline, style, antialias, partitions[index].DrawUnitIndices, capture);
-            using (SKPath regions = BuildSungRegions(tokenSample, shaped, origin, canvas.LocalClipBounds, style.DecorationsDifferByState))
+            using (WipePartition wipe = BuildWipe(tokenSample, shaped, origin, canvas.LocalClipBounds, style.DecorationsDifferByState,
+                _ => style.Wipe.FeatherRatio, options.FontSizePx))
             {
-                bool hasSung = !regions.IsEmpty;
-                DrawPart(false);
-                if (hasSung) DrawPart(true);
-                void DrawPart(bool sung)
+                DrawWiped(canvas, wipe, () => WipeStatesDiffer(style, capture), capture, sung =>
                 {
-                    canvas.Save();
-                    if (hasSung) ClipSungRegions(canvas, regions, sung);
                     DrawLineGlow(canvas, shaped, options, origin, baseline, style, antialias, partitions[index].DrawUnitIndices, capture, state: sung);
                     DrawStyledLine(canvas, shaped, options, origin, baseline,
                         sung ? style.SungColor : style.UnsungColor,
                         sung ? style.SungFill.Gradient : style.UnsungFill.Gradient,
                         style, composition, antialias, partitions[index].DrawUnitIndices, capture, sung);
-                    canvas.Restore();
-                }
+                });
             }
             DrawRuby(canvas, ruby.Where(entry => entry.TokenIndex == index).ToArray(), sample,
                 line, lineStyle, composition, origin, baseline, antialias, style, capture);

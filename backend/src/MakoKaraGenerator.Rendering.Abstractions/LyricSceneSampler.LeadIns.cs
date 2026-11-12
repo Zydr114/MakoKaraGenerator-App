@@ -84,9 +84,9 @@ public static partial class LyricSceneSampler
             if (occurrence.Preparation is not { } range || !range.Contains(timeUs)) return sample;
             return sample with { DisplayPhase = SceneDisplayPhase.Preparation, Frame = sample.Frame with
             { LineProgress = 0, LineProgressSource = ProgressSource.Unavailable, CurrentTokenIndex = -1,
-                Tokens = [.. sample.Frame.Tokens.Select(token => token with { Progress = 0, IsCurrent = false })],
+                Tokens = [.. sample.Frame.Tokens.Select(token => token with { Progress = 0, IsCurrent = false, Time = null })],
                 RubySegments = [.. sample.Frame.RubySegments.Select(segment => segment with
-                    { Progress = 0, IsCurrent = false, Source = ProgressSource.Unavailable })] } };
+                    { Progress = 0, IsCurrent = false, Source = ProgressSource.Unavailable, Time = null })] } };
         })];
     }
 

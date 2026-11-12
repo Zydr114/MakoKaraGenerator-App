@@ -143,8 +143,8 @@ public sealed class FrozenExitGeometry
         return line.AnimationPolicy == LyricBranchAnimationPolicy.Karaoke ? frame : frame with
         {
             LineProgress = 0, CurrentTokenIndex = -1,
-            Tokens = [.. frame.Tokens.Select(static token => token with { Progress = 0, IsCurrent = false, Source = Rendering.ProgressSource.Unavailable })],
-            RubySegments = [.. frame.RubySegments.Select(static segment => segment with { Progress = 0, IsCurrent = false, Source = Rendering.ProgressSource.Unavailable })],
+            Tokens = [.. frame.Tokens.Select(static token => token with { Progress = 0, IsCurrent = false, Source = Rendering.ProgressSource.Unavailable, Time = null })],
+            RubySegments = [.. frame.RubySegments.Select(static segment => segment with { Progress = 0, IsCurrent = false, Source = Rendering.ProgressSource.Unavailable, Time = null })],
         };
     }
 }

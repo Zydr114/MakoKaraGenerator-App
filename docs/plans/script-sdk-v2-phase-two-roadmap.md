@@ -1,6 +1,6 @@
 # 阶段二路线与交接（M12 收口 → M14，2026-11-10，11-12 更新）
 
-分支 `dev/script-sdk-phase-two-structure`（2026-11-11 自 main 开出；此前的 `dev/script-sdk-render-upgrade` 已快进合并到 main），产品 0.112.73，HTTP 合同 1.49.2，已推送到私有远程。**P1（M12 收口）与时钟校准修复（§4.5）于 2026-11-11 完成，M12 关闭；P2 结构整理（A 与 C 第 1～3 刀）于 2026-11-12 完成（§5.4）。下一步是 P3 样式完善：设计已于 2026-11-12 与用户确认，见 [P3 样式设计](script-sdk-v2-p3-style-design.md)；新会话从该文 §11「开发方向」开始；第 0 步前置修复（0.112.73）已于 2026-11-12 完成，接着做第 1 步。**
+分支 `dev/script-sdk-phase-two-structure`（2026-11-11 自 main 开出；此前的 `dev/script-sdk-render-upgrade` 已快进合并到 main），产品 0.112.73，HTTP 合同 1.49.2，已推送到私有远程。**P1（M12 收口）与时钟校准修复（§4.5）于 2026-11-11 完成，M12 关闭；P2 结构整理（A 与 C 第 1～3 刀）于 2026-11-12 完成（§5.4）。下一步是 P3 样式完善：设计已于 2026-11-12 与用户确认，见 [P3 样式设计](script-sdk-v2-p3-style-design.md)；新会话从该文 §11「开发方向」开始；第 0 步前置修复（0.112.73）与第 1 步定稿细节已于 2026-11-12 完成，接着做第 2 步（Core 模型与格式）。**
 
 **本文是阶段二唯一的计划入口。** 新对话从这里开始；其他文档只作背景、证据或原始约束：
 
@@ -11,7 +11,7 @@
 | [M12 测量记录](script-sdk-render-m12-evidence.md) | M12 全部数据与决定原文（§3 起始测量，§5 门槛与修复，§5.14 审查后决定，§6 收口复测与关闭；§6.3 为 P2、P3 的回归基准） |
 | [M12 交接](script-sdk-render-m12-handoff.md) | M12 优化期的状态与参考文件，「下一步」已移到本文 |
 | [架构审查](../reviews/2026-11-10-architecture-review.md) | 结构整理 A～D 的依据（§3～§4、§8.1） |
-| [P3 样式设计](script-sdk-v2-p3-style-design.md) | **P3 的设计依据与实施顺序**（2026-11-12 用户确认）：三层属性、两态外观、通用 Fill、多重描边、注音、扫字、SDK 表面。与 §6 不一致处以该文为准 |
+| [P3 样式设计](script-sdk-v2-p3-style-design.md) | **P3 的设计依据与实施顺序**（2026-11-12 用户确认）：三层属性、两态外观、通用 Fill、多重描边、注音、扫字、SDK 表面。§6 只留摘要与进度 |
 
 ## 1. 当前状态
 
@@ -50,9 +50,9 @@
 9. **缺背景**：渲染时退回兜底并给诊断，编辑时只提示不阻止，可选背景媒体缺失用工程底色（M12 记录 §5.7，已实施，前端提示未做）。
 10. **测速**期间电脑空闲，可直接测；**G1（`run-g1.sh`）须先问用户**。
 11. **导出遇到图／材质诊断时放开并上报**（2026-11-11）：导出（视频、图片）与预览一致，用兜底外观继续，
-    警告随导出结果返回，前端提示；静态渲染会话与场景测量按同一规则处理。排在 P3 第 6 步，与合同次版本一起做（§6.6）。
+    警告随导出结果返回，前端提示；静态渲染会话与场景测量按同一规则处理。排在 P3 第 7 步，与合同次版本一起做（§6.3）。
 12. **独立对象路径的工作框并入声明的取样偏移**（2026-11-12）：作为 P3 的前置修复，单独一个 PATCH（0.112.73），
-    在 P3 设计定稿之后、P3 写代码之前做（§6.6 第 0 步）。**已完成（0.112.73）**。
+    在 P3 设计定稿之后、P3 写代码之前做（§6.2 第 0 步）。**已完成（0.112.73）**。
 
 ## 3. 路线总览
 
@@ -207,98 +207,51 @@ P2、P3 不与其他改 `ImageScene*.cs`、`GroupComposition*.cs` 的工作并�
 
 ## 6. P3 样式完善
 
-> **2026-11-12：本节是旧稿，已被 [P3 样式设计](script-sdk-v2-p3-style-design.md)取代。** 用户已决定外观两态全部独立（推翻 §2 第 6 条的「形状共享」），
-> 并追加通用 Fill（硬边分层、按单字坐标）、扫字线高亮与脚本写入、多重描边、注音样式；实施顺序见该文 §11。
-> 下面保留旧稿供对照，其中 §6.6 第 0 步（前置修复）与第 6 步的导出诊断放开仍然有效。该文第 1 步会把本节改写为摘要。
+设计与实施顺序以 [P3 样式设计](script-sdk-v2-p3-style-design.md) 为准：需求 §1、决定 §2（D-P3-1～13）、定稿细节 §10、步骤 §11。
+本节只留摘要、进度和仍在本文维护的一条（导出诊断放开）。2026-11-12 之前的旧稿（两态共享形状、单层描边等）已被该文取代，
+对照请看 `e1306e4` 及更早的版本。
 
-### 6.1 模型
+### 6.1 摘要
 
-| 部分 | 已唱、未唱共享（形状） | 已唱、未唱各一份（外观） |
+- **三层属性**：字形与布局两态共享；外观（填充、描边、阴影、辉光）未唱、已唱各一套，参数全部独立，
+  已唱的描边／阴影／辉光默认跟随未唱；扫字（羽化、高亮）叠在最上。
+- **通用 Fill**：硬边分层（重合色标），坐标可选按单字、整行、画布；删除进度坐标。
+- **多重描边**：0～4 层；阴影与辉光以整体轮廓为来源、画在所有描边之下；包材质只用于最内层描边。
+- **注音**：继承所属元素的两态外观与扫字样式，装饰按比例缩放。
+- **SDK**：外观写入带状态参数，新增 `SetStrokes`、`SetWipe`；同步完成审查 B 第 2 层（§2 第 5 条）。
+- **格式与合同**：工程 31、歌词 19、模板库 9，旧版本明确拒绝；HTTP 合同 1.50.0。
+- **验收**：不用新能力的内容 CPU 像素逐字节不变、Vulkan 在既有容差内、表面数与耗时不变；
+  已接受的观感变化只有 D-P3-8／9／10 三处。
+
+### 6.2 进度
+
+| 步 | 内容 | 状态 |
 |---|---|---|
-| 字体排版 | 字体、字号、字重、斜体、字距、对齐 | — |
-| 填充 | — | 材质（纯色／渐变／包材质）；现有 `UnsungFill`／`SungFill` 已是这样 |
-| 描边 | 宽度、位置（外／中／内）、拐角；开关 | 材质（含颜色、渐变） |
-| 阴影 | 角度、距离、模糊半径；开关 | 颜色、不透明度 |
-| 辉光 | 模糊半径、扩张；开关 | 颜色、不透明度 |
-| 整体 | 不透明度（`LyricStyle.Opacity`）、缩放 | — |
-| 羽化（新增） | 宽度（字号的比例），0 为硬边 | — |
+| 0 | 前置修复：独立对象工作框并入声明的取样偏移（§2 第 12 条） | 已完成，0.112.73（`d063618`） |
+| 1 | 定稿细节（文档） | 已完成，见 P3 设计 §10 |
+| 2～8 | Core 与格式 → 渲染分态 → Fill／多重描边／注音 → 羽化 → 高亮与 SDK → 合同与前端 → 复测 | 未开始，见 P3 设计 §11 |
 
-- 开关属于形状：两态同时开或同时关。两态外观完全相同时视为未分开，绘制只做一份。
-- 元素覆盖、预设、模板沿用同一划分；`LyricStyleProperty` 的外观属性按已唱／未唱各一个。
-- 现状：`LyricStyle` 只有填充分两态，描边、阴影、辉光各一份（`Core/Projects/LyricStyle.cs`、`StrokeSpec.cs`、`ShadowSpec.cs`、`GlowSpec.cs`）。
+第 0 步说明：
+- 取样距离只对声明了下层、背景底色或背景媒体输入的图与材质并入，两条调度路径一致。
+  只读对象自身输入的图（如高分辨率下的 GraphBlur）不并入：按全部节点偏移外扩会使峰值越过既有上限，而框外本来就透明。
+- 样例包中只有 GlassInk 受影响，各边 +32 px。
+- 回归 `G9_独立对象工作框并入取样偏移且像素与整框一致`（图、材质两例），已做变异验证。
+- 验证（2026-11-12，发布物 `20261111T200628582Z`）：
+  - 后端各测试项目全部通过（含 GPU 用例与 3 条注音 HTTP 传输测试）；M07 196 项通过，M08 判定一致。
+  - 五个样例（t01、WordEmphasis、CustomInk、GlassInk、LineGlitch）与上一发布物各 40 帧，RGBA 摘要全同。
+  - 同时段 A/B（720p24，60 s，两轮）四组均为 24 fps，5 s 滑窗最低 23.8，无 250 ms 以上停顿。
+    GlassInk 渲染 p50 约 11.1 → 11.5 ms、p95 约 18 → 21～23 ms（工作框各边 +32 px 的预期代价）；
+    LineGlitch、MaterialBackdrop σ8、GraphBlur σ8 在噪声内。
 
-### 6.2 走字线羽化
+### 6.3 导出诊断放开（§2 第 11 条，P3 第 7 步）
 
-- **现状**：直绘路径按已唱区域画两遍，未唱一遍、已唱一遍，两遍用互补的硬裁剪
-  （`SkiaRenderPipeline.cs` 的 `BuildSungRegions`、`ClipSungRegions`；Vulkan 下用整数像素区域保证互补）。
-- **做法**：改为软遮罩混合，结果 = 未唱 ×（1−m）＋ 已唱 × m，m 沿走字方向线性过渡，宽度 = 比例 × 该元素字号。
-  两态共享形状，覆盖范围完全相同，过渡带内不会出现晕圈或缝隙。实现上两态各画进一张层再按遮罩合成，每行多一到两张层表面。
-- **羽化为 0 时走原来的硬裁剪**，像素逐字节不变，作为回归。
-- 只在正在推进的边上过渡；已唱区域仍由每个已定时元素各自贡献，夹在中间的未定时元素不被染色。
-- 进度与遮罩的映射（开始、结束、跨元素衔接时不跳变；元素级覆盖导致相邻元素宽度不同时的衔接）在 P3 第 1 步定稿并用测试覆盖。
-- 文字标记按整体已唱／未唱切换（`mark.IsElapsed`），不羽化。
-- 图场景路径的已唱覆盖输入（`SungCoverage`）与两态材质的合成用同一遮罩。
-
-### 6.3 SDK 2.0 表面（含审查 B 第 2 层）
-
-- **样式写入**：现在 `TextOutput.SetFill(target, FillState, material)` 已分两态，`SetStroke`／`SetShadow`／`SetGlow` 不分
-  （`Scripting.Abstractions/V2/TextOutput.cs:87`～`:114`，值类型在 `StyleView.cs`）。改为形状与外观分开写：
-  形状每个目标写一次，外观按 `FillState` 写，使「两态形状不同」在接口上无法表达。另加羽化写入。具体签名在第 1 步定稿。
-- **B 第 2 层**（审查 §4.2 S3／S4、§8.1.3）：
-  - 能力名集中定义（现约 40 个字符串字面量散在 SDK、宿主与 Core 清单解析），新增样式能力从同一处登记；
-  - `TextOutput` 等句柄的构造器、`Complete()`、`Invalidate()` 改为内部成员；
-  - `Evaluate` 的准备结果改泛型，去掉强转（审查 S6）。
-- 宿主侧：`FrameEffectHost.Pure.cs` 的 `ComposePureOutput` 与跨实例合成按新写入调整（表驱动重写属 B 第 1 层，M14 之后）。
-- 纯度分析器白名单、能力清单校验、样例与夹具中的 `SetStroke`／`SetShadow`／`SetGlow`（3 个文件）、D8 能力台账同步更新。
-
-### 6.4 改动面
-
-| 层 | 位置 |
-|---|---|
-| Core 样式 | `LyricStyle.cs`、`LyricStyleOverride.cs`、`LyricStyleProperty.cs`（现 26 个属性）、`LyricStyleResolver.cs`、`StyleBatchEditor.cs`、`TokenStyleSupport.cs`、`SceneTextAppearance.cs`、`SourceMaterialCatalog.cs`、预设相关 |
-| 格式 | 工程 `Project.CurrentSchemaVersion` 30、模板库 `StyleTemplateLibrary.CurrentSchemaVersion` 8；`Persistence/PersistenceDtos.cs` |
-| 准备帧 | `PreparedRenderFrame`（`BaseStyles`、`GetBaseDrawingStyle`）、材质槽 `PreparedMaterialSlot`（现为未唱填充、已唱填充、描边，描边拆两态） |
-| 直绘 | `SkiaRenderPipeline.cs`（辉光现每行只画一次且在两遍之前，`DrawLineGlow`；两遍绘制与裁剪）、`TextPainting.cs`、`Ruby.cs`、`TextMarks.cs`、`TextPartitions.cs`、`WarpPartitions.cs`、`FamilyTransforms.cs` |
-| 图场景 | `ImageScene.cs`（`ColorPartOrder`：底字／注音 × 辉光、描边、阴影、填充）、`ColorParts.cs`、`Capture.cs`、材质捕获；P2 之后在计划上增加两态部件 |
-| HTTP 合同 | 样式属性 typed union（`static_style_schema.py`，现 24 个属性）、模板与预设 DTO；合同次版本升级 |
-| 前端 | `protocol/style.ts`、`protocol/templates.ts`、`editor/model/style-overrides.ts`、`style-sources.ts`、`full-template.ts`、`editor/library/TemplateEditor.tsx`、`MaterialTab.tsx`、`draft-validation.ts` |
-
-### 6.5 格式
-
-旧文件不做兼容、不写迁移。工程格式升到 31、模板库升到 9，旧版本按现有机制明确拒绝（`UnsupportedSchemaVersion`），
-而不是读到一半报字段错误；验收表 M13 行的「工程 30／模板库 8」相应改写。效果合同 2、脚本库 2、包 v3 不受影响。
-
-### 6.6 实施步骤（每步一个或多个 PATCH）
-
-0. **前置修复（0.112.73，§2 第 12 条，用户 2026-11-12 确认；待 P3 设计讨论结束后执行）**：独立对象路径的工作框只含声明的外扩，
-   不含节点声明的取样偏移（`MaximumSampleOffsetPx`），声明了取样偏移却没有同样大外扩、且读取下层或背景的图／材质读不到目标框之外的像素。
-   做法与 P2 第 3 刀对组合导出对象的处理一致（`GraphSampleReachPx` 并入 `ObjectWorkBounds`）。现有样例包偏移等于外扩，
-   工作框各边多 12～32 px；Vulkan 模糊在容差内变化，帧摘要基准重取；补一个「取样偏移大于外扩」的回归并做变异验证。
-   **已完成（0.112.73，2026-11-12）**：取样距离只对声明了下层、背景底色或背景媒体输入的图与材质并入，两条路径一致
-   （只读对象自身输入的图，例如高分辨率下的 GraphBlur，按全部节点偏移外扩会使峰值越过既有上限，且框外本就透明）；
-   样例包中只有 GlassInk 受影响（各边 +32 px）。回归 `G9_独立对象工作框并入取样偏移且像素与整框一致`（图、材质两例），已做变异验证。
-1. **设计定稿（文档）**：SDK 写入签名、羽化进度映射、格式字段、合同变化。SDK 签名请用户确认后再写代码。
-2. **Core 模型与格式**：样式、覆盖、解析、预设、模板，格式升版并拒绝旧版。
-3. **渲染分态**：直绘与图场景按两态取外观，两态相同只画一份；描边材质槽拆两态；注音、文字标记、元素族、Warp 同步。
-4. **羽化**：直绘与图场景两条路径；羽化为 0 的逐字节回归。
-5. **SDK 表面与宿主**：§6.3 全部，样例、夹具、分析器、能力台账。
-6. **合同与前端**：合同次版本、前端协议与样式／模板编辑器；顺带做缺背景的编辑时提示（§2 第 9 条）。
-   **导出诊断放开**（§2 第 11 条）也在这一步：
-   - 现状：`StaticExportTask.cs:455`（视频与图片导出）、`StaticRenderSession.cs:62`、`SceneMeasurementWorker.cs:52` 遇到任何图／材质诊断即失败
-     （`WorkerExportDiagnosticsUnsupported`／`WorkerDiagnosticsUnsupported`）。诊断只有两种，都已有兜底：
-     `TransparentBackgroundDependency`（透明输出）与 `BackgroundMediaUnavailable`（不透明缺背景媒体）。
-     后果是依赖背景的材质缺背景时不能导出，并且永远不能出透明片。
-   - 目标：导出照预览用兜底外观继续；警告去重后随导出结果返回（导出报告与任务结果加字段，有数量与字节上限），
-     前端在导出前或导出后提示有几处用了兜底外观。静态渲染会话与场景测量同样放开，不静默丢弃。
-   - 验收：缺背景与透明两种场景的导出成功且报告含对应警告；没有这类依赖的工程导出字节不变；合同例子覆盖新字段。
-7. **复测**：测试包基线加「样式-分态」「样式-羽化」两组（纯色、棋盘格）；不用新能力的 18 组与 P1 基线比较，应在噪声内。
-
-### 6.7 验收
-
-- 两态外观相同、羽化为 0 的内容：CPU 像素逐字节不变，Vulkan 在既有容差内，表面数与 Render 时间不变。
-- 分态与羽化：像素回归覆盖直绘与图场景两条路径、注音、元素覆盖、材质两态、透明输出；新回归须在旧代码上失败。
-- SDK：形状无法按状态写入；能力缺失时按现有诊断拒绝。
-- 格式：新格式保存重开一致，旧格式明确拒绝；合同 `freeze.py`／`validate.py` 通过；前端 `pnpm typecheck`、`pnpm test:unit` 通过。
+- 现状：`StaticExportTask.cs:455`（视频与图片导出）、`StaticRenderSession.cs:62`、`SceneMeasurementWorker.cs:52` 遇到任何图／材质诊断即失败
+  （`WorkerExportDiagnosticsUnsupported`／`WorkerDiagnosticsUnsupported`）。诊断只有两种，都已有兜底：
+  `TransparentBackgroundDependency`（透明输出）与 `BackgroundMediaUnavailable`（不透明缺背景媒体）。
+  后果是依赖背景的材质缺背景时不能导出，并且永远不能出透明片。
+- 目标：导出照预览用兜底外观继续；警告去重后随导出结果返回（导出报告与任务结果加字段，有数量与字节上限），
+  前端在导出前或导出后提示有几处用了兜底外观。静态渲染会话与场景测量同样放开，不静默丢弃。
+- 验收：缺背景与透明两种场景的导出成功且报告含对应警告；没有这类依赖的工程导出字节不变；合同例子覆盖新字段。
 
 ## 7. P4 文字优化（S5 余项）
 
@@ -331,6 +284,7 @@ P2、P3 不与其他改 `ImageScene*.cs`、`GroupComposition*.cs` 的工作并�
 
 **待用户决定**
 - P4 范围。
+- P3 扫字线高亮的作用范围与混合方式（P3 设计 §10.3，第 6 步出样张后请用户选）。
 
 **已知问题**
 - 切到 1440p 时偶发新流停在暂停（5 次 1 次，原因未查，M12 记录 §5.8 ①）；收口复测 26 次运行未出现。
@@ -350,7 +304,7 @@ P2、P3 不与其他改 `ImageScene*.cs`、`GroupComposition*.cs` 的工作并�
   改名、拆分或新增 `backend/src` 下的渲染、宿主源文件后，跑一次合同工具的默认检查（`backend/tools/backend-api-contract/README.md`），
   它按文件名登记行为源，缺文件会直接报错；后端全量测试不覆盖这一项。
 - 测试：GPU 用例需 `MAKO_GPU_SMOKE=1`；Server 的 `RubyTimelineTransportTests` 三项需要已发布的 Server／Worker
-  （`MAKO_RUBY_HTTP_SERVER_PATH`／`MAKO_RUBY_HTTP_WORKER_PATH` 指向 `.local/backend-dist/<目录>/server|worker` 下的可执行文件）；Rendering 全量偶发 Roslyn 内部异常或遥测计数失败，单独重跑通过即非回归；
+  （`MAKO_RUBY_HTTP_SERVER_PATH`／`MAKO_RUBY_HTTP_WORKER_PATH` 指向 `.local/backend-dist/<目录>/server|worker` 下的可执行文件）；Rendering 全量偶发 Roslyn 内部异常、遥测计数或 `EmptyRubyCapturesPreservePixels…` 的读回指针断言失败，单独重跑通过即非回归；
   Vulkan 模糊随表面尺寸与原点变化，换框类改动按实测设容差。前端改动先过 `pnpm typecheck`、`pnpm test:unit`；不手改 `docs/backend/contract/`。
 - 测速：先提交再测，测速期间不改 `backend/src`、`Directory.Build.props` 等会触发重建的文件；不并行构建或占用 GPU。
   比较用同时段 A/B：`bash .local/script-sdk-m12-20261110/ab-run.sh <输出目录名> <旧提交> <旧发布物> <新发布物> <轮数> "<背景> <组...>"`，

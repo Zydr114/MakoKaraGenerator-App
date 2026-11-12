@@ -1,16 +1,8 @@
 """Reviewed independent template-library transport; never mutates 0.83 style schemas."""
 import copy
 
-from static_style_schema import audit, obj, ref
+from static_style_schema import PROPERTIES, TOKEN_PROPERTIES, audit, followable, obj, ref, strokes_array
 
-PROPERTIES = ('fontFamilyName', 'fallbackFamilyNames', 'fontSizePx', 'fontWeight', 'isBold', 'isItalic',
-              'letterSpacingPx', 'verticalCenterRatio', 'horizontalAlignment', 'unsungColor', 'sungColor',
-              'unsungGradientSpec', 'sungGradientSpec', 'strokeColor', 'strokeWidthPx', 'strokeSpec',
-              'shadowColor', 'shadowBlurPx', 'shadowSpec', 'opacity', 'scale',
-              'glowSpec', 'glowColor', 'glowOpacity', 'glowBlurRadiusPx', 'glowSpreadPx')
-TOKEN_PROPERTIES = tuple(p for p in PROPERTIES if p not in (
-    'fontFamilyName', 'fallbackFamilyNames', 'fontSizePx', 'fontWeight', 'isBold', 'isItalic',
-    'letterSpacingPx', 'verticalCenterRatio', 'horizontalAlignment', 'scale'))
 REVISION = {'type': 'string', 'pattern': '^(missing|[0-9a-f]{64})$'}
 IDENTIFIER = {'type': 'string', 'minLength': 1, 'pattern': r'\S'}
 NEW_NAME = {**IDENTIFIER, 'maxLength': 256, 'x-max-utf16-code-units': 256}
@@ -33,7 +25,7 @@ def query_parameters(detail=False):
 
 
 def add_canonical_style(schemas):
-    """Complete static values need a separate input object, not 24 patch paths.
+    """Complete static values need a separate input object, not 43 patch paths.
 
     Read clones deliberately preserve legal legacy lengths. Every package slot,
     including an unselected one, makes a template advanced and is not a public
@@ -42,28 +34,33 @@ def add_canonical_style(schemas):
     before = copy.deepcopy(schemas)
     static_material = {'oneOf': [ref('SolidStyleMaterialDto'), ref('GradientStyleMaterialDto')]}
     schemas['TemplateLibraryStaticMaterial'] = static_material
-    schemas['TemplateLibraryStaticFill'] = obj({'material': ref('TemplateLibraryStaticMaterial')})
     for suffix in ('', 'Input'):
+        material = ref('StyleMaterialDtoInput') if suffix else ref('TemplateLibraryStaticMaterial')
         source = copy.deepcopy(schemas['CanonicalStyleDto'])
         typography = copy.deepcopy(schemas['StyleTypographyDto'])
-        fill = obj({'material': ref('StyleMaterialDtoInput') if suffix else ref('TemplateLibraryStaticMaterial')})
         stroke = copy.deepcopy(schemas['StyleStrokeDto' + suffix])
-        stroke['properties']['material'] = ref('StyleMaterialDtoInput') if suffix else ref('TemplateLibraryStaticMaterial')
+        stroke['properties']['material'] = copy.deepcopy(material)
+        strokes = strokes_array(ref('TemplateLibraryStroke' + suffix), response=False)
+        unsung = copy.deepcopy(schemas['StyleAppearanceDto' + suffix])
+        unsung['properties'].update(fill=copy.deepcopy(material), strokes=copy.deepcopy(strokes))
+        sung = copy.deepcopy(schemas['StyleSungAppearanceDto' + suffix])
+        sung['properties'].update(fill=copy.deepcopy(material), strokes=followable(strokes, response=False))
+        for value in (unsung, sung):
+            value.pop('x-clr-type', None)
         if suffix:
             font = {'type': 'string', 'maxLength': 256, 'x-max-utf16-code-units': 256}
             typography['properties']['fontFamilyName'] = {'anyOf': [font, {'type': 'null'}]}
             typography['properties']['fallbackFamilyNames'] = {'type': 'array', 'maxItems': 32, 'uniqueItems': True,
                 'items': {**copy.deepcopy(font), 'minLength': 1, 'pattern': r'\S'}}
         schemas['TemplateLibraryTypography' + suffix] = typography
-        schemas['TemplateLibraryFill' + suffix] = fill
         schemas['TemplateLibraryStroke' + suffix] = stroke
+        schemas['TemplateLibraryAppearance' + suffix] = unsung
+        schemas['TemplateLibrarySungAppearance' + suffix] = sung
         source['properties']['typography'] = ref('TemplateLibraryTypography' + suffix)
-        for field in ('unsungFill', 'sungFill'):
-            source['properties'][field] = ref('TemplateLibraryFill' + suffix)
-        source['properties']['stroke'] = {'anyOf': [ref('TemplateLibraryStroke' + suffix), {'type': 'null'}]}
-        source['properties']['shadow'] = {'anyOf': [ref('StyleShadowDto' + suffix), {'type': 'null'}]}
-        source['properties']['glow'] = {'anyOf': [ref('StyleGlowDto' + suffix), {'type': 'null'}]}
-        source['description'] = '完整静态canonical style，所有字段必填；字体/描边/阴影允许显式null；不携带包身份的残缺高级定义。'
+        source['properties']['unsung'] = ref('TemplateLibraryAppearance' + suffix)
+        source['properties']['sung'] = ref('TemplateLibrarySungAppearance' + suffix)
+        source['properties']['wipe'] = ref('StyleWipeDto' + suffix)
+        source['description'] = '完整静态两态canonical style，所有字段必填；字体/阴影/辉光/扫字线高亮允许显式null；不携带包身份的残缺高级定义。'
         schemas['TemplateLibraryStyle' + suffix] = source
     assert all(schemas[name] == value for name, value in before.items()), 'Template extension changed an older schema'
 
@@ -78,10 +75,12 @@ def definition_constraints(properties):
 
 def extend_template_library_schemas(schemas, metadata, schema_for):
     previous = copy.deepcopy(schemas)
-    for name, values in [('TemplateKind', ['line', 'token', 'composite']), ('TemplateProperty', list(PROPERTIES))]:
+    for name, values in [('TemplateKind', ['line', 'token', 'composite'])]:
         if metadata[name] != {'kind': 'enum', 'values': values}:
             raise ValueError('Unreviewed template enum: ' + name)
         schemas[name] = {'type': 'string', 'enum': values}
+    if 'TemplateProperty' in metadata:
+        raise ValueError('Template properties are style property paths, not a separate enum')
     add_canonical_style(schemas)
     library_id = {'type': 'string', 'enum': ['builtin', 'personal']}
     hash_revision = {'type': 'string', 'pattern': '^[0-9a-f]{64}$'}
@@ -98,13 +97,14 @@ def extend_template_library_schemas(schemas, metadata, schema_for):
     discovery = typed('TemplateLibrariesResponse', {'libraries': 'TemplateLibraryDescriptorDto[]', 'protocolVersion': 'String'}, optional=('protocolVersion',))
     discovery['properties']['libraries'].update(minItems=2, maxItems=2)
     discovery['properties']['protocolVersion']['const'] = '1'
-    properties = {'type': 'array', 'maxItems': 26, 'uniqueItems': True, 'items': ref('TemplateProperty')}
+    properties = {'type': 'array', 'maxItems': len(PROPERTIES), 'uniqueItems': True, 'items': ref('StylePropertyPath'),
+                  'description': '与styles.patch相同的样式属性路径；不排序，拒绝重复与未知路径。'}
     summary = typed('TemplateSummaryDto', {'templateId': 'String', 'name': 'String', 'kind': 'TemplateKind', 'templateRevision': 'String',
-        'properties': 'TemplateProperty[]', 'hasEffectRecipes': 'Boolean', 'hasPackageMaterials': 'Boolean', 'hasPackages': 'Boolean'})
+        'properties': 'String[]', 'hasEffectRecipes': 'Boolean', 'hasPackageMaterials': 'Boolean', 'hasPackages': 'Boolean'})
     summary['properties']['templateId'] = copy.deepcopy(IDENTIFIER)
     summary['properties']['templateRevision'] = hash_revision
     summary['properties']['properties'] = copy.deepcopy(properties)
-    audit(metadata, 'StaticTemplateDefinitionDto', {'name': 'String', 'kind': 'TemplateKind', 'style': 'CanonicalStyleDto', 'properties': 'TemplateProperty[]'})
+    audit(metadata, 'StaticTemplateDefinitionDto', {'name': 'String', 'kind': 'TemplateKind', 'style': 'CanonicalStyleDto', 'properties': 'String[]'})
     for suffix in ('', 'Input'):
         selected = {**copy.deepcopy(properties), 'minItems': 1}
         definition = obj({'name': copy.deepcopy(NEW_NAME if suffix else IDENTIFIER), 'kind': ref('TemplateKind'),

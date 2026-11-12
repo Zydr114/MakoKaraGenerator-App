@@ -158,9 +158,13 @@ def extend_basic_response_schemas(schemas, metadata, schema_for):
     resolved["properties"]["resolution"]["const"] = "staticPresetHierarchy"
     resolved["properties"]["finalPixelAppearance"]["const"] = False
     source = schemas["ResolvedStylePropertySourceDto"]
-    source["properties"]["property"]["enum"] = list(PROPERTIES)
-    resolved["properties"]["sources"].update(minItems=26, maxItems=26,
+    source["properties"]["property"] = ref("StylePropertyPath")
+    resolved["properties"]["sources"].update(minItems=len(PROPERTIES), maxItems=len(PROPERTIES),
         prefixItems=[{"allOf": [ref("ResolvedStylePropertySourceDto"), {"properties": {"property": {"const": prop}}}]} for prop in PROPERTIES])
+    # Fixed preset snapshots select style property paths, like template definitions.
+    snapshot = schemas["ProjectPresetApplicationSnapshotDto"]["properties"]["properties"]
+    assert snapshot == {"type": "array", "items": {"type": "string"}}, "Unreviewed preset snapshot properties"
+    snapshot.update(maxItems=len(PROPERTIES), uniqueItems=True, items=ref("StylePropertyPath"))
     result = schemas["OrchestrationClipMembersCommandResultDto"]["properties"]
     result["operation"]["enum"] = ["setClipMembers", "splitClip", "mergeClips"]
     for name in ("removedClipIds", "createdApplicationIds", "removedApplicationIds"):

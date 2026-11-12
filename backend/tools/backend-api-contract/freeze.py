@@ -29,10 +29,10 @@ from static_style_schema import extend_static_style_schemas, style_query_paramet
 from template_library_schema import extend_template_library_schemas, query_parameters as template_query_parameters, LIMITS as TEMPLATE_LIMITS
 
 ROOT = Path(__file__).resolve().parents[2]
-CONTRACT = "1.49.2"
-BASELINE = "54ccae6695e26af65734f8f4d52eb775f05a1833"
+CONTRACT = "1.50.0"
+BASELINE = "a929faa601ca40fc27918b7acdbc24fc04726b7f"
 PRODUCT = re.search(r"<VersionPrefix>([^<]+)</VersionPrefix>", (ROOT / "Directory.Build.props").read_text()).group(1)
-FREEZE_DATE = "2026-11-12"
+FREEZE_DATE = "2026-11-13"
 BEHAVIOR = "docs/architecture/backend-api.md"
 TOOL = Path(__file__).resolve().parent
 
@@ -1169,7 +1169,8 @@ def manifest(outputs):
     for pattern in ("src/MakoKaraGenerator.Application/Editing/*Style*.cs", "src/MakoKaraGenerator.Core/Projects/LyricStyle*.cs",
                     *["src/MakoKaraGenerator.Core/Projects/" + name + ".cs" for name in
                       ("TypographySpec", "FillSpec", "MaterialSpec", "GradientSpec", "StrokeSpec", "ShadowSpec", "GlowSpec", "GlowSpecOverride", "EffectSpecOverride", "TokenStyleSupport",
-                       "RgbaColor", "OptionalValue", "LyricHorizontalAlignment")]):
+                       "RgbaColor", "OptionalValue", "LyricHorizontalAlignment", "Followable", "StrokeLayers", "WipeSpec",
+                       "TextAppearance", "TextAppearanceOverride", "SceneTextAppearance")]):
         files.update(ROOT.glob(pattern))
     for pattern in ("src/MakoKaraGenerator.Application/*TemplateLibrary*.cs",
                     "src/MakoKaraGenerator.Application/LibraryRepository.cs", "src/MakoKaraGenerator.Application/LibraryCommitLease.cs",
@@ -1772,10 +1773,38 @@ def manifest(outputs):
     files.update(p for p in TOOL.iterdir() if p.is_file())
     return {"contractVersion": CONTRACT, "httpProtocolVersion": "1", "productVersion": PRODUCT, "sourceBaselineCommit": BASELINE,
             "frozenOn": FREEZE_DATE, "status": "frozen", "behaviorSource": BEHAVIOR,
-            "scope": "Implemented public HTTP API with owner-only exact retained-source inspection and optional complete configuration adoption. The Host media feature track publishes project.mediaFeaturesChanged without changing revision, fixes media input per run (project previews and candidates wait for checks, template-workshop and author-draft samples up to 20 s for complete artifacts, project/author validation and export for complete artifacts), retries failed analyses lazily with bounded backoff and pins every straight/transparent output to NoMedia. Opaque preview output without usable background media no longer fails the frame: required BackgroundMedia graph inputs are bypassed and materials fall back to the package base appearance with a BackgroundMediaUnavailable warning that states the cause, optional inputs capture the project base colour; static render sessions and export still reject any image-effect/material diagnostic. Preview frames may opt in to a read-only inspection projection (geometry, cursors, particle anchors, effect catalog and single-frame cost) built from the same prepared frame, retained with the frame and read separately; PNG and export are unchanged. Author drafts may replace an image or font file whole with an uploaded asset of the same format after full decode/font load, taking fixed files from an explicit retained base revision; size and family-name changes only warn. The inspection response is independent and reference-free; public package reference kinds remain asset/library/configuration. Adoption validates the exact successful source and complete target configuration before one document publication. SDK2 graph bindings, per-target material uniforms/base materials, exact source-group admission and scene composition/capture/budgets are fingerprinted together with Warp/SVG, particles, GPU and existing preview/export lifecycles; their finite boundaries remain. Generated contract, regression, matched deployment, fresh HTTP/GPU frames, browser and performance acceptance require separate evidence.",
+            "scope": "Implemented public HTTP API. Contract 1.50.0 replaces the single-state style surface with two-state static styles (unsung/sung appearances where sung strokes, shadow and glow follow or set; up to four stroke layers; wipe feather and highlight; 43 property paths shared by styles.patch/restore, template properties, resolved sources and lead-in marks) and removes progress gradients; it is incompatible with 1.49.x clients although httpProtocolVersion stays 1. It keeps owner-only exact retained-source inspection and optional complete configuration adoption. The Host media feature track publishes project.mediaFeaturesChanged without changing revision, fixes media input per run (project previews and candidates wait for checks, template-workshop and author-draft samples up to 20 s for complete artifacts, project/author validation and export for complete artifacts), retries failed analyses lazily with bounded backoff and pins every straight/transparent output to NoMedia. Opaque preview output without usable background media no longer fails the frame: required BackgroundMedia graph inputs are bypassed and materials fall back to the package base appearance with a BackgroundMediaUnavailable warning that states the cause, optional inputs capture the project base colour; static render sessions and export still reject any image-effect/material diagnostic. Preview frames may opt in to a read-only inspection projection (geometry, cursors, particle anchors, effect catalog and single-frame cost) built from the same prepared frame, retained with the frame and read separately; PNG and export are unchanged. Author drafts may replace an image or font file whole with an uploaded asset of the same format after full decode/font load, taking fixed files from an explicit retained base revision; size and family-name changes only warn. The inspection response is independent and reference-free; public package reference kinds remain asset/library/configuration. Adoption validates the exact successful source and complete target configuration before one document publication. SDK2 graph bindings, per-target material uniforms/base materials, exact source-group admission and scene composition/capture/budgets are fingerprinted together with Warp/SVG, particles, GPU and existing preview/export lifecycles; their finite boundaries remain. Generated contract, regression, matched deployment, fresh HTTP/GPU frames, browser and performance acceptance require separate evidence.",
             "files": {str(p.relative_to(ROOT)): sha(p.read_bytes()) for p in sorted(files)},
             "artifacts": {name: sha(data) for name, data in sorted(outputs.items())},
             "guards": "Source hashes require review even for behavior-preserving changes. They are drift alarms, not semantic proofs. Runtime/Media behavior still requires existing regression tests."}
+
+
+def legacy_examples(existing_examples):
+    """The reviewed 1.49.2 corpus, rebuilt from any later frozen corpus and refreshed slices."""
+    from style_v2_fixtures import LEGACY_CONTRACT, PREFIX as STYLE_V2_PREFIX, restore_legacy
+    if existing_examples["contractVersion"] != LEGACY_CONTRACT:
+        cases = existing_examples["cases"]
+        current = [case for case in cases if not case["name"].startswith(STYLE_V2_PREFIX)]
+        assert cases[:len(current)] == current, "style-v2 cases must stay the corpus tail"
+        existing_examples = {**existing_examples, "cases": restore_legacy(current)}
+    from render_backend_fixtures import append_to
+    # The frozen file preserves the reviewed historical corpus; append_to
+    # deterministically refreshes tagged P3/P4/render-backend fixture slices. Version
+    # metadata belongs to the final aggregate, not its historical base file.
+    from w8_authoring_fixtures import append_to as append_w8, PREFIX as W8_PREFIX
+    from gpu_stream_fixtures import append_to as append_gpu_stream
+    from author_metadata_fixtures import append_to as append_author_metadata, PREFIX as AUTHOR_METADATA_PREFIX
+    from preview_inspection_fixtures import append_to as append_preview_inspection, PREFIX as PREVIEW_INSPECTION_PREFIX
+    from author_replacement_fixtures import append_to as append_author_replacement, PREFIX as AUTHOR_REPLACEMENT_PREFIX
+    from glow_style_fixtures import fixtures as glow_fixtures, migrate_legacy_cases as migrate_glow
+    existing_examples = copy.deepcopy(existing_examples)
+    existing_examples["cases"] = [case for case in existing_examples["cases"]
+        if not case["name"].startswith((AUTHOR_METADATA_PREFIX, PREVIEW_INSPECTION_PREFIX, AUTHOR_REPLACEMENT_PREFIX))]
+    existing_examples["cases"] = migrate_glow([case for case in existing_examples["cases"] if not case["name"].startswith("glow-")], upgrade=False)
+    existing_examples["cases"] = [case for case in existing_examples["cases"] if not case["name"].startswith(W8_PREFIX)]
+    example_document = append_gpu_stream(append_w8(append_to(existing_examples)))
+    example_document["cases"] = migrate_glow(example_document["cases"]) + glow_fixtures()
+    return append_author_replacement(append_preview_inspection(append_author_metadata(example_document)))
 
 
 def main():
@@ -1790,24 +1819,11 @@ def main():
         raise SystemExit(f"Route mismatch: undocumented={sorted(actual - listed)}, nonexistent={sorted(listed - actual)}")
     if len(actual) != len(operations):
         raise SystemExit("Duplicate operation")
-    from render_backend_fixtures import append_to
-    # The frozen file preserves the reviewed historical corpus; append_to
-    # deterministically refreshes tagged P3/P4/render-backend fixture slices. Version
-    # metadata belongs to the final aggregate, not its historical base file.
-    from w8_authoring_fixtures import append_to as append_w8, PREFIX as W8_PREFIX
-    from gpu_stream_fixtures import append_to as append_gpu_stream
-    from author_metadata_fixtures import append_to as append_author_metadata, PREFIX as AUTHOR_METADATA_PREFIX
-    from preview_inspection_fixtures import append_to as append_preview_inspection, PREFIX as PREVIEW_INSPECTION_PREFIX
-    from author_replacement_fixtures import append_to as append_author_replacement, PREFIX as AUTHOR_REPLACEMENT_PREFIX
-    from glow_style_fixtures import fixtures as glow_fixtures, migrate_legacy_cases as migrate_glow
-    existing_examples = json.loads((ROOT / "web/examples.json").read_text())
-    existing_examples["cases"] = [case for case in existing_examples["cases"]
-        if not case["name"].startswith((AUTHOR_METADATA_PREFIX, PREVIEW_INSPECTION_PREFIX, AUTHOR_REPLACEMENT_PREFIX))]
-    existing_examples["cases"] = migrate_glow([case for case in existing_examples["cases"] if not case["name"].startswith("glow-")], upgrade=False)
-    existing_examples["cases"] = [case for case in existing_examples["cases"] if not case["name"].startswith(W8_PREFIX)]
-    example_document = append_gpu_stream(append_w8(append_to(existing_examples)))
-    example_document["cases"] = migrate_glow(example_document["cases"]) + glow_fixtures()
-    example_document = append_author_replacement(append_preview_inspection(append_author_metadata(example_document)))
+    example_document = {**legacy_examples(json.loads((ROOT / "web/examples.json").read_text()))}
+    # Contract 1.50.0 replaced the single-state style surface: the reviewed 1.49.2 corpus
+    # is migrated forward and the new two-state cases are appended (style_v2_fixtures).
+    from style_v2_fixtures import migrate_cases as migrate_style_v2, fixtures as style_v2_fixtures
+    example_document["cases"] = migrate_style_v2(example_document["cases"]) + style_v2_fixtures()
     example_document["contractVersion"] = CONTRACT
     examples = encoded(example_document)
     outputs = {"web/openapi.json": encoded(spec), "web/api-index.md": inventory(spec, operations), "web/api-contract.md": (ROOT / "web/api-contract.md").read_bytes(), "web/examples.json": examples}

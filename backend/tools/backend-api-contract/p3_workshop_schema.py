@@ -1,6 +1,6 @@
 """Reviewed P3 package inspection, full template definitions and workshop workflow."""
 import copy
-from static_style_schema import audit, obj, ref
+from static_style_schema import audit, followable, obj, ref, strokes_array
 from template_library_schema import IDENTIFIER, REVISION, PROPERTIES, definition_constraints
 from editing_completion_schema import preset_target_union
 
@@ -64,17 +64,25 @@ def extend(schemas, metadata, schema_for):
     package = obj(dict(kind={"const": "package", "type": "string"}, packageId=TEXT, revision=PACKAGE_REVISION, exportId=TEXT, parametersJson=copy.deepcopy(JSON_TEXT)))
     schemas["FullTemplatePackageMaterial"] = package
     schemas["FullTemplateMaterial"] = {"oneOf": [ref("SolidStyleMaterialDto"), ref("GradientStyleMaterialDto"), ref("FullTemplatePackageMaterial")]}
-    schemas["FullTemplateFill"] = obj({"material": ref("FullTemplateMaterial")})
     stroke = copy.deepcopy(schemas["StyleStrokeDto"])
     stroke["properties"]["material"] = ref("FullTemplateMaterial")
     schemas["FullTemplateStroke"] = stroke
+    # Package materials are admitted in fills and stroke layer 0 only (D-P3-9).
+    strokes = strokes_array(ref("FullTemplateStroke"), response=True)
+    strokes["description"] = "从内到外至多4层；包材质只允许在第0层。"
+    unsung = copy.deepcopy(schemas["StyleAppearanceDto"])
+    unsung["properties"].update(fill=ref("FullTemplateMaterial"), strokes=copy.deepcopy(strokes))
+    sung = copy.deepcopy(schemas["StyleSungAppearanceDto"])
+    sung["properties"].update(fill=ref("FullTemplateMaterial"), strokes=followable(strokes, response=False))
+    for value in (unsung, sung):
+        value.pop("x-clr-type", None)
+    schemas["FullTemplateAppearance"] = unsung
+    schemas["FullTemplateSungAppearance"] = sung
     style = copy.deepcopy(schemas["CanonicalStyleDto"])
-    for name in ("unsungFill", "sungFill"): style["properties"][name] = ref("FullTemplateFill")
-    style["properties"]["stroke"] = nullable(ref("FullTemplateStroke"))
-    style["properties"]["shadow"] = nullable(ref("StyleShadowDto"))
-    style["properties"]["glow"] = nullable(ref("StyleGlowDto"))
+    style["properties"]["unsung"] = ref("FullTemplateAppearance")
+    style["properties"]["sung"] = ref("FullTemplateSungAppearance")
     schemas["FullTemplateStyle"] = style
-    audit(metadata, "FullTemplateDefinitionDto", dict(name="String", kind="TemplateKind", style="CanonicalStyleDto", properties="TemplateProperty[]", effectRecipes="TemplateEffectRecipeDto[]", packages="EffectPackageReferenceDto[]"), base="StaticTemplateDefinitionDto")
+    audit(metadata, "FullTemplateDefinitionDto", dict(name="String", kind="TemplateKind", style="CanonicalStyleDto", properties="String[]", effectRecipes="TemplateEffectRecipeDto[]", packages="EffectPackageReferenceDto[]"), base="StaticTemplateDefinitionDto")
     recipe_fields = dict(recipeId=TEXT, name=TEXT, target=ref("TemplateEffectTargetDto"), packageId=TEXT, revision=PACKAGE_REVISION,
         exportId=TEXT, parametersJson=copy.deepcopy(JSON_TEXT), overlayLayer=ref("TemplateEffectOverlayLayerDto"), enabled={"type": "boolean"},
         readScope=ref("TemplateScriptReadScopeDto"), branchInput=nullable(TEXT), fixedSeed=nullable({"type": "string", "pattern": r"^[0-9]+$", "x-uint64-string": True, "description": "UInt64十进制字符串，范围0..18446744073709551615由服务校验。"}), configurationId=nullable(TEXT))
@@ -82,7 +90,7 @@ def extend(schemas, metadata, schema_for):
     recipe = obj(recipe_fields)
     recipe["allOf"] = [{"if": {"properties": {"readScope": {"const": "branchInput"}}}, "then": {"properties": {"branchInput": TEXT}}, "else": {"properties": {"branchInput": {"type": "null"}}}}]
     for suffix in ("", "Input"): schemas["TemplateEffectRecipeDto" + suffix] = copy.deepcopy(recipe)
-    props = dict(name=TEXT, kind=ref("TemplateKind"), style=ref("FullTemplateStyle"), properties={"type": "array", "maxItems": 26, "uniqueItems": True, "items": ref("TemplateProperty")},
+    props = dict(name=TEXT, kind=ref("TemplateKind"), style=ref("FullTemplateStyle"), properties={"type": "array", "maxItems": len(PROPERTIES), "uniqueItems": True, "items": ref("StylePropertyPath")},
         effectRecipes={"type": "array", "items": ref("TemplateEffectRecipeDto")}, packages={"type": "array", "items": ref("EffectPackageReferenceDtoInput")})
     for suffix in ("", "Input"):
         definition = obj(copy.deepcopy(props))

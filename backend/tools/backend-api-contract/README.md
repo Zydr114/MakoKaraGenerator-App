@@ -1,10 +1,12 @@
 # 冻结 API 合同生成与校验
 
-本轮工具源码目标为 **合同1.49.2／产品0.112.72／协议1**（2026-11-12）：不透明预览缺背景媒体时旁路／兜底并给出 `BackgroundMediaUnavailable` 诊断，只改行为不改形状。行为见[§20.3](../../docs/architecture/backend-api.md)。fresh metadata生成与validate沿用1.49.0的115 paths／128 methods／618 schemas、3612例（2683反例）。下述旧版本材料保留历史归属；合同生成不替代匹配发布与fresh HTTP验收。
+本轮工具源码目标为 **合同1.50.0／产品0.112.85／协议1**（2026-11-13）：P3 两态样式的不兼容形状改版，行为见[§6.11](../../docs/architecture/backend-api.md)。fresh metadata生成与validate为115 paths／128 methods／661 schemas、3877例（2804反例）。下述旧版本材料保留历史归属；合同生成不替代匹配发布与fresh HTTP验收。
 
 从 `backend/` 执行。本工具构建Contracts引用的离线CLI，不启动服务。`author_metadata_schema.py` 审阅真实CLR字段、nullable与构造默认值，复用现有 `AuthorPackageQuery` 和参数/导出/input/file/diagnostic DTO；检查响应独立且无reference，公共包引用kind继续仅为asset/library/configuration。采用配置采用inline完整八字段严格schema，避免改变package-files的既有配置语义；两个可空字段仍显式必填，UInt64种子采用十进制字符串并保留前导零。`author_metadata_fixtures.py` 覆盖精确整数、Int64 `files.size`、未来未知响应字段、完整采用、旧请求兼容和具名拒绝；运行期CAS/owner、重复JSON键、完整UTF-8预算、编译来源、原子存储和真实sampleOptions须由服务/HTTP核对。
 
 `freeze.py` 将新行为接缝显式纳入指纹，新增路径/响应和附加fixture；`validate.py` 保留历史SDK2、作者、GPU/辉光及全量样例门禁，并单独扣除本轮尾部增量后核对旧3434/2548基线。本轮 `BASELINE` 为已提交生产源码 `60393bd`（完整哈希见 `freeze.py`），已从该源码重建／导出metadata并生成检查；产品版本从 `Directory.Build.props` 读取。静态门禁不替代匹配发布、fresh HTTP或性能验收；进度见App根 `docs/plans/script-sdk-v2-phase-one-progress.md`。
+
+1.50.0 改样式形状（P3 第 7 步）：`static_style_schema.py` 改为43项属性路径表（`CHANGES`／`PROPERTIES`，另有元素可用的 `TOKEN_PROPERTIES` 与文字标记可用的 `MARK_PROPERTIES`），审阅两态外观、跟随联合（`followable`）、0..4层描边（`strokes_array`，响应侧 package 材质只在第0层，用 `prefixItems` 表达）、扫字样式与 `StylePropertyPath` 枚举，并收紧patch／restore的父叶冲突；`template_library_schema.py`、`p3_workshop_schema.py`、`basic_business_schema.py`、`editing_completion_schema.py` 改为引用这张表，模板 `properties` 与解析来源改为路径字符串，前奏外观改为两态。旧形状例子的处理在 `style_v2_fixtures.py`：`migrate_cases` 把1.49.2例子按新形状改写（旧属性名经原 `LegacyStylePropertyMap` 的映射表换为路径），主体已删除的例子退役；每个改写或退役例子的1.49.2原文按序号存于 `style_v2_legacy_cases.json`，`restore_legacy` 据此逐字节还原1.49.2例子集并核对其SHA-256。`fixtures()` 生成 `style-v2-` 前缀的新增例子。`freeze.py` 先还原1.49.2例子集、跑原有历史流水线，再迁移并追加新例子；`validate.py` 对1.50.0先扣除尾部新增例子、还原1.49.2例子集交给原有历史门禁，当前例子集（迁移后加新增）单独按新spec校验。旧的单态增量打印脚本 `static_style_fixtures.py` 已移除（其例子早已冻结在1.49.2例子集中，可从git历史取回）。
 
 1.49.2 是行为补丁（M12 收口）：0.112.41～0.112.67 的渲染与宿主优化不改公共HTTP，唯一对外可见的变化是缺背景媒体的预览诊断（预览诊断映射与Worker包诊断映射，均在既有指纹清单内）。`freeze.py` 只改版本、基线与scope（首次冻结于产品0.112.67、基线 `6e68996`；同日0.112.68只改GPU流Worker时钟校准重试，合同版本不变，基线更新为 `795ba4b` 并重生成指纹；2026-11-12 的0.112.69～0.112.72是渲染层结构整理，几何侧源码由 `SkiaRenderPipeline.*` 移到 `SkiaSceneGeometry.*`、对象绘制移到 `SkiaRenderPipeline.ObjectPlan*.cs`，指纹清单按新文件名更新，合同版本不变，基线更新为 `54ccae6`）；`validate.py` 把1.49.2并入现行门禁，历史1.49.1对应0.112.40。
 

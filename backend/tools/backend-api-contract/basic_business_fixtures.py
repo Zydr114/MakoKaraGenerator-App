@@ -3,8 +3,9 @@
 import copy
 import json
 from template_library_fixtures import static_definition
-from template_library_schema import PROPERTIES as CURRENT_PROPERTIES
-PROPERTIES = CURRENT_PROPERTIES[:21]
+# Historical generator: contract 1.50.0 migrates these cases forward (style_v2_fixtures).
+from style_v2_fixtures import LEGACY_TEMPLATE_PROPERTIES
+PROPERTIES = LEGACY_TEMPLATE_PROPERTIES[:21]
 
 
 def fixtures():

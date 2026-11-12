@@ -1,7 +1,7 @@
 """Reviewed G20–G24 completion wire overlays. Fixtures do not prove Runtime behavior."""
 import copy
 from orchestration_properties_schema import int64_pattern
-from static_style_schema import CHANGES
+from static_style_schema import CHANGES, MARK_PROPERTIES, PARENTS
 
 
 def ref(name):
@@ -39,15 +39,15 @@ def extend_editing_completion_schemas(schemas, metadata, schema_for, variants, b
         expected = {
             "ProjectLineEnterAnimationDto": {"durationUs": "String", "easing": "String", "startOpacity": "Single", "startScale": "Single", "startOffsetPx": "Single"},
             "LeadInGenerationSettingsDto": {"includeOpening": "Boolean", "includeLongGaps": "Boolean", "gapThresholdUs": "String", "durationUs": "String", "indicatorContainerId": "String", "excludedLineIds": "String[]"},
-            "SceneTextAppearanceDto": {"typography": "StyleTypographyDto", "pendingFill": "StyleFillDto", "elapsedFill": "StyleFillDto", "stroke": "StyleStrokeDto", "shadow": "StyleShadowDto", "opacity": "Single", "glow": "StyleGlowDto"},
+            "SceneTextAppearanceDto": {"typography": "StyleTypographyDto", "pending": "StyleAppearanceDto", "elapsed": "StyleSungAppearanceDto", "opacity": "Single"},
             "SceneMeasurementRequest": {"expectedRevision": "String", "mode": "String", "timeUs": "String", "width": "Int32", "height": "Int32", "alphaMode": "String", "previewId": "String", "expectedPreviewGeneration": "String", "candidateRevision": "String"},
         }[name]
-        nullable_fields = {"LeadInGenerationSettingsDto": {"indicatorContainerId"}, "SceneTextAppearanceDto": {"stroke", "shadow", "glow"}, "SceneMeasurementRequest": {"timeUs", "previewId", "expectedPreviewGeneration", "candidateRevision"}}.get(name, set())
+        nullable_fields = {"LeadInGenerationSettingsDto": {"indicatorContainerId"}, "SceneMeasurementRequest": {"timeUs", "previewId", "expectedPreviewGeneration", "candidateRevision"}}.get(name, set())
         if render_field:
             expected["renderBackend"] = "String"
             nullable_fields.add("renderBackend")
         if any(p["type"] != expected[p["name"]] or p["nullable"] != (p["name"] in nullable_fields)
-               or p["optional"] != ((name == "SceneMeasurementRequest" and p["name"] in {"previewId", "expectedPreviewGeneration", "candidateRevision", "renderBackend"}) or (name == "SceneTextAppearanceDto" and p["name"] == "glow"))
+               or p["optional"] != ((name == "SceneMeasurementRequest" and p["name"] in {"previewId", "expectedPreviewGeneration", "candidateRevision", "renderBackend"}))
                or p["defaultValue"] is not None for p in metadata[name]["properties"]):
             raise ValueError("Unreviewed editing DTO types/nullability/defaults: " + name)
         component = schema_for(name, mode)["$ref"].split("/")[-1]
@@ -73,17 +73,17 @@ def extend_editing_completion_schemas(schemas, metadata, schema_for, variants, b
     typography["properties"]["fontFamilyName"] = nullable({"type": "string", "maxLength": 256})
     typography["properties"]["fallbackFamilyNames"].update(maxItems=32, items={"type": "string", "maxLength": 256})
     appearance = dto("SceneTextAppearanceDto", {
-        "typography": typography, "pendingFill": obj({"material": ref("StyleMaterialDtoInput")}),
-        "elapsedFill": obj({"material": ref("StyleMaterialDtoInput")}),
-        "stroke": nullable(ref("StyleStrokeDtoInput")), "shadow": nullable(ref("StyleShadowDtoInput")), "glow": nullable(ref("StyleGlowDtoInput")),
+        "typography": typography, "pending": ref("StyleAppearanceDtoInput"), "elapsed": ref("StyleSungAppearanceDtoInput"),
         "opacity": {"type": "number", "minimum": 0, "maximum": 1}})
-    dto("SceneTextAppearanceDto", {"typography": ref("StyleTypographyDto"), "pendingFill": ref("StyleFillDto"),
-        "elapsedFill": ref("StyleFillDto"), "stroke": nullable(ref("StyleStrokeDto")), "shadow": nullable(ref("StyleShadowDto")), "glow": nullable(ref("StyleGlowDto")),
-        "opacity": {"type": "number", "minimum": 0, "maximum": 1}}, "response")
-    mark_changes = [ref(clr + "Input") for prop, clr, *_ in CHANGES if prop not in ("scale", "verticalCenterRatio", "horizontalAlignment")]
+    dto("SceneTextAppearanceDto", {"typography": ref("StyleTypographyDto"), "pending": ref("StyleAppearanceDto"),
+        "elapsed": ref("StyleSungAppearanceDto"), "opacity": {"type": "number", "minimum": 0, "maximum": 1}}, "response")
+    for suffix in ("", "Input"):
+        schemas["SceneTextAppearanceDto" + suffix]["description"] = "文字标记完整外观：字形、待唱/已过两态外观与不透明度；不含扫字样式与布局，材质只接受静态solid/gradient。"
+    # Marks reuse the style change records except wipe style and line layout (34 paths).
+    mark_changes = [ref(clr + "Input") for prop, clr, *_ in CHANGES if prop in MARK_PROPERTIES]
     schemas["MarkAppearanceChangeInput"] = {"oneOf": mark_changes}
-    schemas["MarkAppearanceChange"] = {"oneOf": [ref(clr) for prop, clr, *_ in CHANGES if prop not in ("scale", "verticalCenterRatio", "horizontalAlignment")]}
-    schemas["ProjectOrchestrationContentDto"]["properties"]["appearanceOverride"] = {"type": "array", "items": ref("MarkAppearanceChange")}
+    schemas["MarkAppearanceChange"] = {"oneOf": [ref(clr) for prop, clr, *_ in CHANGES if prop in MARK_PROPERTIES]}
+    schemas["ProjectOrchestrationContentDto"]["properties"]["appearanceOverride"] = {"type": "array", "maxItems": len(MARK_PROPERTIES), "items": ref("MarkAppearanceChange")}
     commands = [
         ("setLayoutKind", "SetOrchestrationLayoutKindCommandDto", {"containerId": stable, "kind": {"type": "string", "enum": ["Auto", "SlotSequence"]},
             "slotIds": {**ids, "maxItems": 64}, "newSlotCount": {"type": "integer", "minimum": 0, "maximum": 64}}),
@@ -100,9 +100,19 @@ def extend_editing_completion_schemas(schemas, metadata, schema_for, variants, b
         ("reorderMarks", "ReorderOrchestrationMarksCommandDto", {"containerId": stable, "orderedIds": {**ids, "maxItems": 64}}),
         ("spaceMarks", "SpaceOrchestrationMarksCommandDto", {"containerId": stable}),
         ("setCountdownAppearance", "SetCountdownAppearanceCommandDto", {"containerId": stable, "appearance": appearance}),
-        ("setMarkAppearance", "SetMarkAppearanceCommandDto", {"nodeId": stable, "changes": {"type": "array", "maxItems": 26,
-            "items": ref("MarkAppearanceChangeInput"), "description": "完整本层override；空数组清除，property不得重复。"}}),
+        ("setMarkAppearance", "SetMarkAppearanceCommandDto", {"nodeId": stable, "changes": {"type": "array", "maxItems": len(MARK_PROPERTIES),
+            "items": ref("MarkAppearanceChangeInput"), "description": "完整本层override；空数组清除，property不得重复，整体项与其分量不能同批出现。"}}),
     ]
+    # Marks share the patch batch rules: one change per path, never a whole member with its leaves.
+    mark_rules = [{"contains": {"properties": {"property": {"const": prop}}, "required": ["property"]}, "minContains": 0, "maxContains": 1}
+                  for prop in MARK_PROPERTIES]
+    for parent in PARENTS:
+        children = [prop for prop in MARK_PROPERTIES if prop.startswith(parent + ".")]
+        if children:
+            mark_rules.append({"not": {"allOf": [{"contains": {"properties": {"property": {"const": parent}}, "required": ["property"]}},
+                {"contains": {"properties": {"property": {"enum": children}}, "required": ["property"]}}]}})
+    assert commands[-1][0] == "setMarkAppearance"
+    commands[-1][2]["changes"]["allOf"] = mark_rules
     for operation, clr, fields in commands:
         info = metadata[clr]
         if info.get("baseType") != "ProjectCommandDto" or {p["name"] for p in info["properties"]} != set(base_command["properties"]) | set(fields):

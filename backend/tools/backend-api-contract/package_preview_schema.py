@@ -44,7 +44,7 @@ def extend_package_preview_schemas(schemas, metadata):
         {"properties": {"kind": {"const": "script"}}, "required": ["script"], **absent("source")},
         {"properties": {"kind": {"const": "source"}}, "required": ["source"], **absent("script")},
     ]
-    schemas["BackendDiagnosticSourceOwnerDto"]["properties"]["slot"].update(minimum=0, maximum=2)
+    schemas["BackendDiagnosticSourceOwnerDto"]["properties"]["slot"].update(minimum=0, maximum=3)
     schemas["BackendDiagnosticSourceOwnerDto"]["properties"]["parametersJson"]["description"] = "JSON object encoded as string; object syntax/validity checked by service."
     diagnostic = schemas["BackendDiagnosticDto"]
     branches = []

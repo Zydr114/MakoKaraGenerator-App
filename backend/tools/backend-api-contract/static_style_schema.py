@@ -12,7 +12,8 @@ def obj(properties, required=None):
             "required": list(properties) if required is None else required, "additionalProperties": False}
 
 
-# Canonical property identity, reflected positional record, CLR value type, nullable value.
+# Canonical property path, reflected positional record, CLR value type, nullable value.
+# Paths, order and token support mirror LyricStyleProperty (Core) and StyleCommandJson.Properties.
 CHANGES = [
     ("typography.fontFamilyName", "StyleFontFamilyChangeDto", "String", True),
     ("typography.fallbackFamilyNames", "StyleFallbackFamiliesChangeDto", "String[]", False),
@@ -21,43 +22,63 @@ CHANGES = [
     ("typography.isBold", "StyleBoldChangeDto", "Boolean", False),
     ("typography.isItalic", "StyleItalicChangeDto", "Boolean", False),
     ("typography.letterSpacingPx", "StyleLetterSpacingChangeDto", "Single", False),
-    ("unsungFill.material", "StyleUnsungMaterialChangeDto", "StyleMaterialDto", False),
-    ("sungFill.material", "StyleSungMaterialChangeDto", "StyleMaterialDto", False),
-    ("stroke", "StyleStrokeChangeDto", "StyleStrokeDto", True),
-    ("stroke.material", "StyleStrokeMaterialChangeDto", "StyleMaterialDto", False),
-    ("stroke.widthPx", "StyleStrokeWidthChangeDto", "Single", False),
-    ("stroke.join", "StyleStrokeJoinChangeDto", "StyleStrokeJoin", False),
-    ("stroke.position", "StyleStrokePositionChangeDto", "StyleStrokePosition", False),
-    ("shadow", "StyleShadowChangeDto", "StyleShadowDto", True),
-    ("shadow.color", "StyleShadowColorChangeDto", "StyleColorDto", False),
-    ("shadow.opacity", "StyleShadowOpacityChangeDto", "Single", False),
-    ("shadow.angleDegrees", "StyleShadowAngleChangeDto", "Double", False),
-    ("shadow.distancePx", "StyleShadowDistanceChangeDto", "Single", False),
-    ("shadow.blurRadiusPx", "StyleShadowBlurChangeDto", "Single", False),
+    ("unsung.fill", "StyleUnsungFillChangeDto", "StyleMaterialDto", False),
+    ("sung.fill", "StyleSungFillChangeDto", "StyleMaterialDto", False),
+    ("unsung.strokes", "StyleUnsungStrokesChangeDto", "StyleStrokeDto[]", False),
+    ("sung.strokes", "StyleSungStrokesChangeDto", "StyleSungStrokesDto", False),
+    ("unsung.shadow", "StyleUnsungShadowChangeDto", "StyleShadowDto", True),
+    ("unsung.shadow.color", "StyleUnsungShadowColorChangeDto", "StyleColorDto", False),
+    ("unsung.shadow.opacity", "StyleUnsungShadowOpacityChangeDto", "Single", False),
+    ("unsung.shadow.angleDegrees", "StyleUnsungShadowAngleChangeDto", "Double", False),
+    ("unsung.shadow.distancePx", "StyleUnsungShadowDistanceChangeDto", "Single", False),
+    ("unsung.shadow.blurRadiusPx", "StyleUnsungShadowBlurChangeDto", "Single", False),
+    ("sung.shadow", "StyleSungShadowChangeDto", "StyleSungShadowDto", False),
+    ("sung.shadow.color", "StyleSungShadowColorChangeDto", "StyleColorDto", False),
+    ("sung.shadow.opacity", "StyleSungShadowOpacityChangeDto", "Single", False),
+    ("sung.shadow.angleDegrees", "StyleSungShadowAngleChangeDto", "Double", False),
+    ("sung.shadow.distancePx", "StyleSungShadowDistanceChangeDto", "Single", False),
+    ("sung.shadow.blurRadiusPx", "StyleSungShadowBlurChangeDto", "Single", False),
+    ("unsung.glow", "StyleUnsungGlowChangeDto", "StyleGlowDto", True),
+    ("unsung.glow.color", "StyleUnsungGlowColorChangeDto", "StyleColorDto", False),
+    ("unsung.glow.opacity", "StyleUnsungGlowOpacityChangeDto", "Single", False),
+    ("unsung.glow.blurRadiusPx", "StyleUnsungGlowBlurChangeDto", "Single", False),
+    ("unsung.glow.spreadPx", "StyleUnsungGlowSpreadChangeDto", "Single", False),
+    ("sung.glow", "StyleSungGlowChangeDto", "StyleSungGlowDto", False),
+    ("sung.glow.color", "StyleSungGlowColorChangeDto", "StyleColorDto", False),
+    ("sung.glow.opacity", "StyleSungGlowOpacityChangeDto", "Single", False),
+    ("sung.glow.blurRadiusPx", "StyleSungGlowBlurChangeDto", "Single", False),
+    ("sung.glow.spreadPx", "StyleSungGlowSpreadChangeDto", "Single", False),
+    ("wipe.featherRatio", "StyleWipeFeatherChangeDto", "Double", False),
+    ("wipe.highlight", "StyleWipeHighlightChangeDto", "StyleWipeHighlightDto", True),
+    ("wipe.highlight.color", "StyleWipeHighlightColorChangeDto", "StyleColorDto", False),
+    ("wipe.highlight.widthRatio", "StyleWipeHighlightWidthChangeDto", "Double", False),
+    ("wipe.highlight.opacity", "StyleWipeHighlightOpacityChangeDto", "Single", False),
+    ("wipe.highlight.blend", "StyleWipeHighlightBlendChangeDto", "StyleWipeHighlightBlend", False),
     ("verticalCenterRatio", "StyleVerticalCenterChangeDto", "Double", False),
     ("horizontalAlignment", "StyleAlignmentChangeDto", "StyleHorizontalAlignment", False),
     ("opacity", "StyleOpacityChangeDto", "Single", False),
     ("scale", "StyleScaleChangeDto", "Single", False),
 ]
-LEGACY_CHANGES = CHANGES.copy()
-CHANGES += [
-    ("glow", "StyleGlowChangeDto", "StyleGlowDto", True),
-    ("glow.color", "StyleGlowColorChangeDto", "StyleColorDto", False),
-    ("glow.opacity", "StyleGlowOpacityChangeDto", "Single", False),
-    ("glow.blurRadiusPx", "StyleGlowBlurChangeDto", "Single", False),
-    ("glow.spreadPx", "StyleGlowSpreadChangeDto", "Single", False),
-]
-TOKEN_PROPERTIES = [p for p, *_ in CHANGES if not p.startswith("typography.")
+PROPERTIES = [p for p, *_ in CHANGES]
+TOKEN_PROPERTIES = [p for p in PROPERTIES if not p.startswith("typography.")
                     and p not in ("verticalCenterRatio", "horizontalAlignment", "scale")]
+# Lead-in marks carry no wipe style and no line layout.
+MARK_PROPERTIES = [p for p in PROPERTIES if not p.startswith("wipe.")
+                   and p not in ("verticalCenterRatio", "horizontalAlignment", "scale")]
+# Whole members whose leaves cannot be written in the same batch.
+PARENTS = ("unsung.shadow", "sung.shadow", "unsung.glow", "sung.glow", "wipe.highlight")
+MAX_STROKES = 4
 ENUMS = {
     "StyleGradientKind": ["linear", "radial"],
-    "StyleGradientCoordinateSpace": ["canvas", "line", "glyph", "progress"],
+    "StyleGradientCoordinateSpace": ["canvas", "line", "glyph"],
     "StyleGradientColorSpace": ["linearRgb", "hsv", "oklch"],
     "StyleGradientHuePath": ["shorter", "longer", "increasing", "decreasing"],
     "StyleStrokeJoin": ["miter", "round", "bevel"],
-    "StyleStrokePosition": ["outside"],
     "StyleHorizontalAlignment": ["left", "center", "right"],
+    "StyleFollowKind": ["follow", "set"],
+    "StyleWipeHighlightBlend": ["normal", "screen", "add"],
 }
+assert len(CHANGES) == 43 and len(TOKEN_PROPERTIES) == 33 and len(MARK_PROPERTIES) == 34
 TARGETS = [("project", "ProjectStyleTargetDto", []), ("branch", "BranchStyleTargetDto", ["branchId"]),
            ("line", "LineStyleTargetDto", ["branchId", "lineId"]),
            ("token", "TokenStyleTargetDto", ["branchId", "lineId", "tokenId"])]
@@ -89,6 +110,26 @@ def style_query_parameters():
     ]
 
 
+def strokes_array(item, *, response):
+    """Ordered stroke layers, innermost first; package identity only on layer 0 of reads."""
+    value = {"type": "array", "maxItems": MAX_STROKES, "items": copy.deepcopy(item),
+             "description": "从内到外至多4层；空数组表示无描边。"}
+    if response:
+        value["items"] = {"allOf": [copy.deepcopy(item), {"properties": {"material": {"not": {
+            "properties": {"kind": {"const": "package"}}, "required": ["kind"]}}}}]}
+        value["prefixItems"] = [copy.deepcopy(item)]
+        value["description"] += "只读包材质只会出现在第0层。"
+    return value
+
+
+def followable(value, *, response, null_only=False):
+    """Sung member: follow the unsung side, or carry an explicit value."""
+    follow = obj({"kind": {"type": "string", "const": "follow"}})
+    explicit = obj({"kind": {"type": "string", "const": "set"}, "value": {"type": "null"} if null_only else copy.deepcopy(value)})
+    return {"oneOf": [follow, explicit],
+            "description": "follow只写kind并跟随未唱一侧；set必须写value。" + ("原始local投影的非null显式值按实际存在叶属性展开，此处只出现null。" if null_only else "")}
+
+
 def extend_static_style_schemas(schemas, metadata, schema_for, command_variants):
     def typed(name, fields, *, nullable=(), optional=(), modes=("response", "request")):
         audit(metadata, name, fields, nullable=nullable, optional=optional)
@@ -99,6 +140,8 @@ def extend_static_style_schemas(schemas, metadata, schema_for, command_variants)
             properties = {}
             for field, clr in fields.items():
                 value = schema_for(clr, mode)
+                if clr == "StyleStrokeDto[]":
+                    value = strokes_array(value["items"], response=mode == "response")
                 if field in nullable:
                     value = {"anyOf": [value, {"type": "null"}]}
                 properties[field] = value
@@ -113,15 +156,32 @@ def extend_static_style_schemas(schemas, metadata, schema_for, command_variants)
     typed("StyleGradientDto", {"kind": "StyleGradientKind", "angleDegrees": "Double", "centerX": "Double", "centerY": "Double",
           "radiusX": "Double", "radiusY": "Double", "coordinateSpace": "StyleGradientCoordinateSpace",
           "colorSpace": "StyleGradientColorSpace", "huePath": "StyleGradientHuePath", "stops": "StyleGradientStopDto[]"})
-    typed("StyleFillDto", {"material": "StyleMaterialDto"}, modes=("response",))
-    typed("StyleStrokeDto", {"material": "StyleMaterialDto", "widthPx": "Single", "join": "StyleStrokeJoin", "position": "StyleStrokePosition"})
+    typed("StyleStrokeDto", {"material": "StyleMaterialDto", "widthPx": "Single", "join": "StyleStrokeJoin"})
     typed("StyleShadowDto", {"color": "StyleColorDto", "opacity": "Single", "angleDegrees": "Double", "distancePx": "Single", "blurRadiusPx": "Single"})
     typed("StyleGlowDto", {"color": "StyleColorDto", "opacity": "Single", "blurRadiusPx": "Single", "spreadPx": "Single"})
+    typed("StyleWipeHighlightDto", {"color": "StyleColorDto", "widthRatio": "Double", "opacity": "Single", "blend": "StyleWipeHighlightBlend"})
+    typed("StyleWipeDto", {"featherRatio": "Double", "highlight": "StyleWipeHighlightDto"}, nullable=("highlight",))
+    for name, clr in (("StyleSungStrokesDto", "StyleStrokeDto[]"), ("StyleSungShadowDto", "StyleShadowDto"), ("StyleSungGlowDto", "StyleGlowDto")):
+        audit(metadata, name, {"kind": "StyleFollowKind", "value": clr}, nullable=("value",), optional=("value",))
+        for mode in ("response", "request"):
+            component = schema_for(name, mode)["$ref"].split("/")[-1]
+            value = schema_for(clr, mode)
+            value = strokes_array(value["items"], response=mode == "response") if clr.endswith("[]") else {"anyOf": [value, {"type": "null"}]}
+            schemas[component] = {**followable(value, response=mode == "response"), "x-clr-type": "MakoKaraGenerator.Backend.Contracts." + name}
+    typed("StyleAppearanceDto", {"fill": "StyleMaterialDto", "strokes": "StyleStrokeDto[]", "shadow": "StyleShadowDto", "glow": "StyleGlowDto"},
+          nullable=("shadow", "glow"))
+    typed("StyleSungAppearanceDto", {"fill": "StyleMaterialDto", "strokes": "StyleSungStrokesDto", "shadow": "StyleSungShadowDto", "glow": "StyleSungGlowDto"})
     typed("StyleTypographyDto", {"fontFamilyName": "String", "fallbackFamilyNames": "String[]", "fontSizePx": "Single",
           "fontWeight": "Int32", "isBold": "Boolean", "isItalic": "Boolean", "letterSpacingPx": "Single"}, nullable=("fontFamilyName",), modes=("response",))
-    typed("CanonicalStyleDto", {"typography": "StyleTypographyDto", "unsungFill": "StyleFillDto", "sungFill": "StyleFillDto",
-          "stroke": "StyleStrokeDto", "shadow": "StyleShadowDto", "verticalCenterRatio": "Double",
-          "horizontalAlignment": "StyleHorizontalAlignment", "opacity": "Single", "scale": "Single", "glow": "StyleGlowDto"}, nullable=("stroke", "shadow", "glow"), optional=("glow",), modes=("response",))
+    typed("CanonicalStyleDto", {"typography": "StyleTypographyDto", "unsung": "StyleAppearanceDto", "sung": "StyleSungAppearanceDto",
+          "wipe": "StyleWipeDto", "verticalCenterRatio": "Double", "horizontalAlignment": "StyleHorizontalAlignment",
+          "opacity": "Single", "scale": "Single"}, modes=("response",))
+    for suffix in ("", "Input"):
+        schemas["StyleAppearanceDto" + suffix]["description"] = "未唱一侧的完整外观：填充、描边列表、阴影与辉光（null关闭）。"
+        schemas["StyleSungAppearanceDto" + suffix]["description"] = "已唱一侧：填充独立；描边、阴影、辉光可跟随未唱一侧或显式设置。"
+    schemas["CanonicalStyleDto"]["description"] = "完整两态样式：字形、未唱/已唱外观、扫字样式与布局。"
+    schemas["StylePropertyPath"] = {"type": "string", "enum": [p for p, *_ in CHANGES],
+        "description": "样式属性路径；styles.patch/restore、模板属性与解析来源共用，按此规范顺序。"}
 
     audit(metadata, "StyleTargetDto", {"kind": "String"})
     for kind, name, fields in TARGETS:
@@ -159,11 +219,13 @@ def extend_static_style_schemas(schemas, metadata, schema_for, command_variants)
         gradient["allOf"] = [{"if": {"properties": {"kind": {"const": "radial"}}, "required": ["kind"]},
             "then": {"properties": {"centerX": {"minimum": 0, "maximum": 1}, "centerY": {"minimum": 0, "maximum": 1},
                                     "radiusX": {"exclusiveMinimum": 0}, "radiusY": {"exclusiveMinimum": 0}}}}]
-        gradient["description"] = "完整十字段渐变；色标可相等offset，须非降序且首0尾1，关系由Core校验；不排序或归一化。所有数值必须有限。"
+        gradient["description"] = "完整十字段渐变；色标可相等offset，须非降序且首0尾1，关系由Core校验；不排序或归一化。所有数值必须有限。坐标系canvas/line/glyph（glyph按单字）。"
         for name, bounds in (("StyleTypographyDto", {"fontSizePx": {"exclusiveMinimum": 0}, "fontWeight": {"minimum": 100, "maximum": 900}}),
                              ("StyleStrokeDto", {"widthPx": {"minimum": 0}}),
                              ("StyleShadowDto", {"opacity": {"minimum": 0, "maximum": 1}, "distancePx": {"minimum": 0}, "blurRadiusPx": {"minimum": 0}}),
                              ("StyleGlowDto", {"opacity": {"minimum": 0, "maximum": 1}, "blurRadiusPx": {"minimum": 0}, "spreadPx": {"minimum": 0}}),
+                             ("StyleWipeHighlightDto", {"widthRatio": {"exclusiveMinimum": 0, "maximum": 2}, "opacity": {"minimum": 0, "maximum": 1}}),
+                             ("StyleWipeDto", {"featherRatio": {"minimum": 0, "maximum": 2}}),
                              ("CanonicalStyleDto", {"verticalCenterRatio": {"minimum": 0, "maximum": 1}, "opacity": {"minimum": 0, "maximum": 1}, "scale": {"exclusiveMinimum": 0}})):
             for field, limits in bounds.items():
                 if name + suffix in schemas:
@@ -172,17 +234,22 @@ def extend_static_style_schemas(schemas, metadata, schema_for, command_variants)
     font = {"type": "string", "maxLength": 256, "x-max-utf16-code-units": 256,
             "description": "新名称最多256 UTF-16 code units；JSON Schema maxLength仅提供必要的code-point上限。"}
 
+    # Property-level numeric constraints also apply when canonical objects are not sent.
+    limits = {"typography.fontSizePx": {"exclusiveMinimum": 0}, "typography.fontWeight": {"minimum": 100, "maximum": 900},
+              "wipe.featherRatio": {"minimum": 0, "maximum": 2}, "wipe.highlight.widthRatio": {"exclusiveMinimum": 0, "maximum": 2},
+              "wipe.highlight.opacity": {"minimum": 0, "maximum": 1},
+              "verticalCenterRatio": {"minimum": 0, "maximum": 1}, "opacity": {"minimum": 0, "maximum": 1}, "scale": {"exclusiveMinimum": 0}}
+    for side in ("unsung", "sung"):
+        limits.update({side + ".shadow.opacity": {"minimum": 0, "maximum": 1}, side + ".shadow.distancePx": {"minimum": 0},
+                       side + ".shadow.blurRadiusPx": {"minimum": 0}, side + ".glow.opacity": {"minimum": 0, "maximum": 1},
+                       side + ".glow.blurRadiusPx": {"minimum": 0}, side + ".glow.spreadPx": {"minimum": 0}})
     audit(metadata, "StyleChangeDto", {"property": "String"})
     for property_name, name, clr, nullable in CHANGES:
         audit(metadata, name, {"property": "String", "value": clr}, base="StyleChangeDto", nullable=("value",) if nullable else ())
         for mode, suffix in (("response", ""), ("request", "Input")):
             value = schema_for(clr, mode)
-            # Property-level numeric constraints also apply when canonical objects are not sent.
-            limits = {"typography.fontSizePx": {"exclusiveMinimum": 0}, "typography.fontWeight": {"minimum": 100, "maximum": 900},
-                      "stroke.widthPx": {"minimum": 0}, "shadow.opacity": {"minimum": 0, "maximum": 1},
-                      "shadow.distancePx": {"minimum": 0}, "shadow.blurRadiusPx": {"minimum": 0},
-                      "glow.opacity": {"minimum": 0, "maximum": 1}, "glow.blurRadiusPx": {"minimum": 0}, "glow.spreadPx": {"minimum": 0},
-                      "verticalCenterRatio": {"minimum": 0, "maximum": 1}, "opacity": {"minimum": 0, "maximum": 1}, "scale": {"exclusiveMinimum": 0}}
+            if clr == "StyleStrokeDto[]":
+                value = strokes_array(value["items"], response=mode == "response")
             value.update(limits.get(property_name, {}))
             if mode == "request" and property_name == "typography.fontFamilyName":
                 value = copy.deepcopy(font)
@@ -190,8 +257,10 @@ def extend_static_style_schemas(schemas, metadata, schema_for, command_variants)
                 value.update(maxItems=32, uniqueItems=True, items={**copy.deepcopy(font), "minLength": 1, "pattern": r"\S"})
             if nullable:
                 value = {"anyOf": [value, {"type": "null"}]}
-            if mode == "response" and property_name in ("stroke", "shadow", "glow"):
+            if mode == "response" and property_name in ("unsung.shadow", "unsung.glow", "wipe.highlight"):
                 value = {"type": "null", "description": "原始local投影仅用whole null关闭效果；非null部分效果按实际存在叶属性展开。"}
+            if mode == "response" and property_name in ("sung.shadow", "sung.glow"):
+                value = followable(None, response=True, null_only=True)
             schemas[name + suffix] = {**obj({"property": {"type": "string", "const": property_name}, "value": value}),
                                      "x-clr-type": "MakoKaraGenerator.Backend.Contracts." + name}
     for suffix in ("", "Input"):
@@ -207,15 +276,15 @@ def extend_static_style_schemas(schemas, metadata, schema_for, command_variants)
         targets = {"oneOf": [{"type": "array", "minItems": 1, "maxItems": 1 if kind == "project" else 1000,
                               "uniqueItems": True, "items": ref(target + "Input")} for kind, target in target_kinds]}
         member = "changes" if typ == "styles.patch" else "properties"
-        values = {"type": "array", "minItems": 1, "maxItems": 29,
-                  "items": ref("StyleChangeDtoInput") if member == "changes" else {"type": "string", "enum": [p for p, *_ in CHANGES]}}
+        values = {"type": "array", "minItems": 1, "maxItems": len(CHANGES),
+                  "items": ref("StyleChangeDtoInput") if member == "changes" else ref("StylePropertyPath")}
         if member == "properties":
             values["uniqueItems"] = True
         else:
             values["allOf"] = [{"contains": {"properties": {"property": {"const": prop}}, "required": ["property"]},
                                 "minContains": 0, "maxContains": 1} for prop, *_ in CHANGES]
         # Parent/child conflicts are schema-expressible even though array item order is free.
-        for parent in ("stroke", "shadow", "glow"):
+        for parent in PARENTS:
             selected = lambda condition: {"properties": {"property": condition}, "required": ["property"]} if member == "changes" else condition
             values.setdefault("allOf", []).append({"not": {"allOf": [
                 {"contains": selected({"const": parent})}, {"contains": selected({"enum": [p for p, *_ in CHANGES if p.startswith(parent + ".")]})}]}})
@@ -224,7 +293,7 @@ def extend_static_style_schemas(schemas, metadata, schema_for, command_variants)
             "then": {"properties": {member: {"items": ref("StyleTokenChangeInput") if member == "changes" else {"enum": TOKEN_PROPERTIES}}}}}]
         schema["x-clr-type"] = "MakoKaraGenerator.Backend.Contracts." + name
         schema["x-style-editing-limits"] = {"maxIntentBytes": 65536, "maxTargets": 1000, "maxFontUtf16CodeUnits": 256,
-            "maxFallbacks": 32, "maxGradientStops": 256, "maxExpandedNewValueBytes": 16777216,
+            "maxFallbacks": 32, "maxGradientStops": 256, "maxStrokes": MAX_STROKES, "maxExpandedNewValueBytes": 16777216,
             "maxReadBytes": 1048576, "maxReadItems": 20000,
             "description": "64KiB按完整command DTO canonical JSON计，不含request metadata；patch的完整canonical changes数组字节数×目标数最多16MiB，restore无新增值展开。每个真实改变目标完整GET投影1MiB/20000项且累计16MiB，no-op不复制旧大投影。不是总heap/耗时保证；完整候选及实际回执提交前校验，整批失败不改工程。"}
         schemas[name + "Input"] = schema
@@ -241,13 +310,13 @@ def extend_static_style_schemas(schemas, metadata, schema_for, command_variants)
     audit(metadata, "ProjectStyleResponse", response_fields, optional=("resolution", "protocolVersion"))
     schemas["ProjectStyleResponse"] = {**obj({field: schema_for(clr) for field, clr in response_fields.items()}),
         "x-clr-type": "MakoKaraGenerator.Backend.Contracts.ProjectStyleResponse",
-        "description": "baseline完整基线、local仅本层原始存在字段（显式null保留）、staticHierarchy四层静态继承；不是当前帧effective样式。"}
+        "description": "baseline完整基线、local仅本层原始存在字段（显式null保留，按属性路径规范顺序）、staticHierarchy四层静态继承；不是当前帧effective样式。"}
     schemas["ProjectStyleResponse"]["properties"]["resolution"]["const"] = "staticHierarchy"
-    schemas["ProjectStyleResponse"]["properties"]["local"]["maxItems"] = 29
+    schemas["ProjectStyleResponse"]["properties"]["local"]["maxItems"] = len(CHANGES)
     schemas["ProjectStyleResponse"]["allOf"] = [{"if": {"properties": {"target": {"properties": {"kind": {"const": "project"}}, "required": ["kind"]}}, "required": ["target"]},
         "then": {"properties": {"local": {"maxItems": 0}}}}]
     # Format is advisory to most JSON Schema validators. Enforce representable finite CLR ranges
-    # only inside the new reviewed style components, leaving all old component bytes unchanged.
+    # only inside the reviewed style components.
     style_components = {"ProjectStyleResponse", "CanonicalStyleDto", "StyleTokenChangeInput"}
     style_components.update(name + suffix for name in metadata if name.startswith(("Style", "SolidStyle", "GradientStyle", "PackageStyle"))
                             or name.endswith("StyleTargetDto") for suffix in ("", "Input"))

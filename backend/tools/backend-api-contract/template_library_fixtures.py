@@ -3,9 +3,10 @@
 import copy
 import json
 
-from template_library_schema import PROPERTIES as CURRENT_PROPERTIES, TOKEN_PROPERTIES as CURRENT_TOKEN_PROPERTIES
-PROPERTIES = CURRENT_PROPERTIES[:21]
-TOKEN_PROPERTIES = tuple(p for p in PROPERTIES if p in CURRENT_TOKEN_PROPERTIES)
+# Historical generator: contract 1.50.0 migrates these cases forward (style_v2_fixtures).
+from style_v2_fixtures import LEGACY_TEMPLATE_PROPERTIES, LEGACY_TEMPLATE_TOKEN_PROPERTIES
+PROPERTIES = LEGACY_TEMPLATE_PROPERTIES[:21]
+TOKEN_PROPERTIES = tuple(p for p in PROPERTIES if p in LEGACY_TEMPLATE_TOKEN_PROPERTIES)
 
 
 def static_definition(name='  自有模板 e\u0301 🎵  ', kind='line', properties=None):

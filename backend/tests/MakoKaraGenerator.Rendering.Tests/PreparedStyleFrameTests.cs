@@ -43,11 +43,18 @@ public sealed class PreparedStyleFrameTests
                             output.Style.MultiplyOpacity(target, .5);
                             if (mode == "scale") output.Transforms.ScaleTokenFamily(target, 1.4, Pivot.BaseAdvanceCenter);
                         }
+                        else if (mode == "bands")
+                        {
+                            var bands = GradientValue.Bands([new(1, 0, 0, 1), new(0, 1, 0, 180/255d), new(0, 0, 1, 1)], [.3, .6], GradientKind.Linear, 25,
+                                GradientCoordinateSpace.Glyph);
+                            output.Style.SetSungMaterial(target, MaterialValue.Gradient(bands)); output.Style.SetUnsungMaterial(target, MaterialValue.Gradient(bands));
+                        }
                         else
                         {
                             var gradient = new GradientValue([new(0, new(1, 0, 0, 1)), new(.3, new(0, 1, 0, 180/255d)), new(1, new(0, 0, 1, 1))],
                                 (mode == "radial" || mode == "strokeRadial") ? GradientKind.Radial : GradientKind.Linear, 25,
-                                (mode == "canvas" || mode == "strokeCanvas") ? GradientCoordinateSpace.Canvas : GradientCoordinateSpace.Line,
+                                (mode == "canvas" || mode == "strokeCanvas") ? GradientCoordinateSpace.Canvas
+                                    : (mode == "glyph" || mode == "strokeGlyph") ? GradientCoordinateSpace.Glyph : GradientCoordinateSpace.Line,
                                 (mode == "unsupported" || mode == "strokeUnsupported") ? GradientColorSpace.Oklch : GradientColorSpace.Hsv, GradientHuePath.Longer, .3, .7, .4, .8);
                             if (mode.StartsWith("stroke", StringComparison.Ordinal)) output.Style.SetStroke(target, new(4, MaterialValue.Gradient(gradient),
                                 mode == "strokeMiter" ? StrokeJoin.Miter : mode == "strokeBevel" ? StrokeJoin.Bevel : StrokeJoin.Round));
@@ -82,9 +89,18 @@ public sealed class PreparedStyleFrameTests
             SungFill = new() { Color = new(200, 40, 220, 170) }, Stroke = StrokeSpec.Create(new(20, 80, 230, 210), 4, StrokeJoin.Bevel),
             Shadow = ShadowSpec.Create(new(200, 160, 20, 120), .5f, 110, 7, 3), Opacity = source.Opacity * .5f };
         if (mode == "off") return source with { Stroke = null, Shadow = null, UnsungFill = new() { Color = RgbaColor.Transparent }, SungFill = new() { Color = RgbaColor.Transparent } };
+        if (mode == "bands")
+        {
+            // 分层便捷工厂（P3 设计 §5.1）：每层首尾各一个色标，分界处位置相同的两个色标即硬边。
+            var bands = GradientSpec.Create([new(0, new(255, 0, 0)), new(.3, new(255, 0, 0)), new(.3, new(0, 255, 0, 180)), new(.6, new(0, 255, 0, 180)),
+                new(.6, new(0, 0, 255)), new(1, new(0, 0, 255))], GradientKind.Linear, 25, GradientCoordinateSpace.Glyph);
+            return source with { UnsungFill = new() { Color = new(255, 0, 0), Gradient = bands }, SungFill = new() { Color = new(255, 0, 0), Gradient = bands } };
+        }
         var gradient = GradientSpec.Create([new(0, new(255, 0, 0)), new(.3, new(0, 255, 0, 180)), new(1, new(0, 0, 255))],
             (mode == "radial" || mode == "strokeRadial") ? GradientKind.Radial : GradientKind.Linear, 25,
-            (mode == "canvas" || mode == "strokeCanvas") ? GradientCoordinateSpace.Canvas : GradientCoordinateSpace.Line, GradientColorSpace.Hsv, GradientHuePath.Longer, .3, .7, .4, .8);
+            (mode == "canvas" || mode == "strokeCanvas") ? GradientCoordinateSpace.Canvas
+                : (mode == "glyph" || mode == "strokeGlyph") ? GradientCoordinateSpace.Glyph : GradientCoordinateSpace.Line,
+            GradientColorSpace.Hsv, GradientHuePath.Longer, .3, .7, .4, .8);
         if (mode.StartsWith("stroke", StringComparison.Ordinal)) return source with { Stroke = StrokeSpec.Create(null, 4,
             mode == "strokeMiter" ? StrokeJoin.Miter : mode == "strokeBevel" ? StrokeJoin.Bevel : StrokeJoin.Round) with { Gradient = gradient } };
         return source with { UnsungFill = new() { Color = new(255, 0, 0), Gradient = gradient }, SungFill = new() { Color = new(255, 0, 0), Gradient = gradient } };
@@ -97,8 +113,9 @@ public sealed class PreparedStyleFrameTests
     [InlineData("linear", 2_000_000L)]
     [InlineData("radial", 2_000_000L)]
     [InlineData("canvas", 2_000_000L)]
+    [InlineData("glyph", 2_000_000L)] [InlineData("bands", 500_000L)] [InlineData("bands", 2_000_000L)]
     [InlineData("strokeGradient", 500_000L)] [InlineData("strokeGradient", 2_000_000L)] [InlineData("strokeGradient", 3_500_000L)]
-    [InlineData("strokeRadial", 2_000_000L)] [InlineData("strokeCanvas", 2_000_000L)]
+    [InlineData("strokeRadial", 2_000_000L)] [InlineData("strokeCanvas", 2_000_000L)] [InlineData("strokeGlyph", 2_000_000L)]
     [InlineData("strokeMiter", 2_000_000L)] [InlineData("strokeBevel", 2_000_000L)]
     public async Task 实际作者改色描边阴影透明度和渐变的像素等于静态外观且注音跟随(string mode, long time)
     {

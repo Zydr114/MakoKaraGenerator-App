@@ -76,6 +76,26 @@ public sealed class StyleWriterContractTests
         Assert.Throws<ArgumentOutOfRangeException>(() => new GradientStop(double.NaN, default));
     }
     [Fact]
+    public void 分层渐变按颜色与分界展开为硬边色标且坐标只有画布整行按单字()
+    {
+        ColorRgba red = new(1, 0, 0, 1), green = new(0, 1, 0, .5), blue = new(0, 0, 1, 1);
+        var bands = GradientValue.Bands([red, green, blue], [.25, .75], GradientKind.Radial, 10, GradientCoordinateSpace.Glyph, .4, .6, .3, .2);
+        Assert.Equal(new GradientValue([new(0, red), new(.25, red), new(.25, green), new(.75, green), new(.75, blue), new(1, blue)],
+            GradientKind.Radial, 10, GradientCoordinateSpace.Glyph, GradientColorSpace.LinearRgb, GradientHuePath.Shorter, .4, .6, .3, .2), bands);
+        // 单层即整段纯色的两个色标。
+        Assert.Equal(new GradientValue([new(0, red), new(1, red)]), GradientValue.Bands([red], []));
+        Assert.Throws<ArgumentException>(() => GradientValue.Bands([], []));
+        Assert.Throws<ArgumentException>(() => GradientValue.Bands([red, blue], []));
+        Assert.Throws<ArgumentException>(() => GradientValue.Bands([red, blue], [0]));
+        Assert.Throws<ArgumentException>(() => GradientValue.Bands([red, blue], [1]));
+        Assert.Throws<ArgumentException>(() => GradientValue.Bands([red, blue], [double.NaN]));
+        Assert.Throws<ArgumentException>(() => GradientValue.Bands([red, green, blue], [.5, .5]));
+        Assert.Throws<ArgumentException>(() => GradientValue.Bands([red, green, blue], [.6, .4]));
+        // 「演唱进度」坐标已删除（D-P3-7）：枚举只剩三档，旧数值不再是合法坐标。
+        Assert.Equal([GradientCoordinateSpace.Canvas, GradientCoordinateSpace.Line, GradientCoordinateSpace.Glyph], Enum.GetValues<GradientCoordinateSpace>());
+        Assert.Throws<ArgumentOutOfRangeException>(() => new GradientValue([new(0, red), new(1, blue)], coordinateSpace: (GradientCoordinateSpace)3));
+    }
+    [Fact]
     public void 包材质仅可引用固定资源修订()
     {
         var handle = new ResourceCatalog("package", "sha256:" + new string('a', 64), ["glass"], [], []).GetMaterial("glass");

@@ -10,17 +10,15 @@ public enum GradientKind
     /// <summary>径向渐变。</summary>
     Radial,
 }
-/// <summary>渐变坐标空间；支持情况由具体后端报告。</summary>
+/// <summary>渐变坐标空间（参考框）。</summary>
 public enum GradientCoordinateSpace
 {
     /// <summary>画布逻辑坐标。</summary>
     Canvas,
-    /// <summary>整行逻辑坐标。</summary>
+    /// <summary>整行：参考框为整行宽度 × 字体上升部到下降部。</summary>
     Line,
-    /// <summary>字形空间。</summary>
+    /// <summary>按单字：每个字簇以自己的字框（字簇宽度 × 字体上升部到下降部）为参考框；描边同理，相邻字的描边重叠处按绘制顺序覆盖。</summary>
     Glyph,
-    /// <summary>演唱进度空间。</summary>
-    Progress,
 }
 /// <summary>渐变颜色插值空间。</summary>
 public enum GradientColorSpace
@@ -73,6 +71,40 @@ public sealed record GradientValue
             throw new ArgumentOutOfRangeException(nameof(radiusX));
         Stops = stops; Kind = kind; AngleDegrees = angleDegrees; CoordinateSpace = coordinateSpace; ColorSpace = colorSpace;
         HuePath = huePath; CenterX = centerX; CenterY = centerY; RadiusX = radiusX; RadiusY = radiusY;
+    }
+    /// <summary>
+    /// 按「颜色＋分界」构造硬边分层渐变：第 i 层颜色占 [分界 i−1, 分界 i)，首层从 0 起、末层到 1 止，
+    /// 相邻两层在分界处是位置相同的两个色标（硬边），层内同色。
+    /// </summary>
+    /// <param name="colors">由起点到终点的各层颜色，至少一层。</param>
+    /// <param name="boundaries">层与层之间的分界，个数比颜色少一，严格递增且都在 (0,1) 内。</param>
+    /// <param name="kind">类型。</param>
+    /// <param name="angleDegrees">线性渐变的画布顺时针方向角，度。</param>
+    /// <param name="coordinateSpace">坐标空间。</param>
+    /// <param name="centerX">径向中心横坐标。</param>
+    /// <param name="centerY">径向中心纵坐标。</param>
+    /// <param name="radiusX">径向横半径。</param>
+    /// <param name="radiusY">径向纵半径。</param>
+    /// <returns>色标为每层首尾各一个的渐变；层内同色，插值空间不影响结果，取线性 RGB。</returns>
+    /// <exception cref="ArgumentException">没有颜色、分界个数不对、分界不在 (0,1) 内或未严格递增时抛出。</exception>
+    public static GradientValue Bands(ImmutableArray<ColorRgba> colors, ImmutableArray<double> boundaries, GradientKind kind = GradientKind.Linear,
+        double angleDegrees = 0, GradientCoordinateSpace coordinateSpace = GradientCoordinateSpace.Line, double centerX = .5, double centerY = .5,
+        double radiusX = .5, double radiusY = .5)
+    {
+        if (colors.IsDefaultOrEmpty) throw new ArgumentException("分层渐变至少需要一层颜色。", nameof(colors));
+        if (boundaries.IsDefault || boundaries.Length != colors.Length - 1)
+            throw new ArgumentException("分界个数必须比颜色少一。", nameof(boundaries));
+        for (int i = 0; i < boundaries.Length; i++)
+            if (!double.IsFinite(boundaries[i]) || boundaries[i] <= 0 || boundaries[i] >= 1 || i > 0 && boundaries[i] <= boundaries[i - 1])
+                throw new ArgumentException("分界必须严格递增且都在 (0,1) 内。", nameof(boundaries));
+        var stops = ImmutableArray.CreateBuilder<GradientStop>(colors.Length * 2);
+        for (int i = 0; i < colors.Length; i++)
+        {
+            stops.Add(new(i == 0 ? 0 : boundaries[i - 1], colors[i]));
+            stops.Add(new(i == colors.Length - 1 ? 1 : boundaries[i], colors[i]));
+        }
+        return new(stops.MoveToImmutable(), kind, angleDegrees, coordinateSpace, GradientColorSpace.LinearRgb, GradientHuePath.Shorter,
+            centerX, centerY, radiusX, radiusY);
     }
     /// <summary>固定色标。</summary>
     public ImmutableArray<GradientStop> Stops { get; }

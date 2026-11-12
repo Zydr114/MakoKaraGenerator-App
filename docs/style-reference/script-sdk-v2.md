@@ -14,7 +14,7 @@
 | --- | --- |
 | 包 profile | `packageVersion: 3`、`sdkVersion: "2.0.0"`、`shaderProfile: "skia-ganesh-3.119.4-v2"` |
 | SDK 补丁号 | 当前解析器接受规范的 `2.0.x`；未知主版本、次版本和其他 shader profile 拒绝，不回退到 v1 |
-| 作者入口 | `MakoKaraGenerator.Scripting.V2.IPureKaraokeEffect` |
+| 作者入口 | `MakoKaraGenerator.Scripting.V2.IPureKaraokeEffect<TPrepared>`（0.112.84 起推荐）或非泛型 `IPureKaraokeEffect` |
 | 共用值类型 | `MakoKaraGenerator.Scripting` 中的身份、参数、曲线、音频、材质、矩阵和几何 |
 | 执行后端 | 实际使用 v2 的工程要求 Vulkan；CPU 返回 `PackageBackendUnsupported`，调用方须明确选择 GPU |
 | v1 开发兼容 | 包 v2／SDK `1.0.0`／`skia-raster-3.119.4-v1` 仍显式分派到 `IKaraokeEffect`／`EffectBase` 路径；尚未执行 M14 删除 |
@@ -35,14 +35,13 @@ using MakoKaraGenerator.Scripting.V2;
 
 public sealed record Settings(double Scale) : PreparedEffect;
 
-public sealed class Example : IPureKaraokeEffect
+public sealed class Example : IPureKaraokeEffect<Settings>
 {
-    public PreparedEffect Declare(DeclareContext source)
+    public Settings Declare(DeclareContext source)
         => new Settings(source.Parameters.GetNumber("scale"));
 
-    public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
+    public void Evaluate(in TextFrame frame, Settings settings, TextOutput output)
     {
-        var settings = (Settings)data;
         foreach (var geometry in frame.Geometry)
             if (geometry.BaseGeometry.CanTransformIndependently)
                 output.AppendTransform(geometry.WithRuby,
@@ -52,6 +51,11 @@ public sealed class Example : IPureKaraokeEffect
 ```
 
 示例只展示作者接口；实际包还须提供匹配的参数、输出、绑定和 `requires: ["token.affine"]` 声明。
+
+**泛型入口（0.112.84 起）。** `IPureKaraokeEffect<TPrepared>` 让 `Declare` 直接返回作者的准备记录，`Evaluate` 直接收到同一记录，不必再写 `(Settings)data` 强转。
+宿主仍经非泛型 `IPureKaraokeEffect` 调用，非泛型成员由 SDK 接口的默认实现转发，作者不需要也不应再实现；纯度分析器检查作者实际写的泛型成员。
+晚期入口对应 `IPureVisualEffect<TPrepared>`，它继承同一 `TPrepared` 的文字入口，因此两个入口的准备记录类型必然一致，写成不同类型会在编译时报错。
+非泛型写法（返回 `PreparedEffect`、自行强转）继续可用，适合 `Evaluate` 不读准备结果的效果，如 CursorTrail、EventBurst 样例。
 
 `Declare(DeclareContext)` 为固定输入准备递归只读的 `PreparedEffect`；无数据时返回 `PreparedEffect.Empty`。
 固定参数改变后重新准备，seek 不通过修改字段推进状态。`Evaluate(in TextFrame, PreparedEffect, TextOutput)` 直接描述目标时刻的文字输出。
@@ -122,7 +126,8 @@ M07 没有另一个已接通的 `IPureVisualEffect`、`VisualFrame` 或 `VisualO
 `token.opacity`、`group.opacity`、`style.fill`、`style.stroke`、`style.shadow`、`style.glow`、`style.wipe`、`timeline.index`、`line.exit`，
 以及 M08/M09 增加的 `particles.continuous`、`particles.burst`、`visuals.dots`、`visuals.segments`、
 `visuals.trails`、`visuals.sprites`、`visuals.paths`、`token.warp`、`cluster.warp`、`mark.warp`、
-`resources.svg.vector`、`resources.svg.atlas`、`image.graph`、`image.graph.group`、`material.uniform`。
+`resources.svg.vector`、`resources.svg.atlas`、`image.graph`、`image.graph.group`、`material.uniform`，以及 M10 的 `media.features`。
+0.112.84 起这些名字集中为 `CapabilityNames` 常量（如 `CapabilityNames.StyleWipe`，`CapabilityNames.All` 为全集），SDK 写入检查与宿主准入共用；清单 JSON 仍写字符串本身。
 `timeline.index` 表示包声明依赖索引；当前查询没有逐方法独立能力门禁，不能把它解释为扩大 `SourceSubscription`。
 
 `TextTarget` 是封闭目标类型，现有目标可隐式转换；用真实当前目标，不自己制造编号。
@@ -165,7 +170,7 @@ M09 的 `BindGraph(target, GraphBindingValue)` 支持 Family／Line／Mark 的 `
 两态描边绑定同一份包材质时照旧按一个部件执行，不同时按两态拆开、过渡带内交叉淡化。
 
 每个实例只读源基线与源几何，不读取前一实例输出；宿主按固定实例顺序组合。
-输出是本次调用事务，成功返回后才发布；作者不能调用宿主 `Complete()`／`Invalidate()`，也不能保存 `TextOutput`。
+输出是本次调用事务，成功返回后才发布；`TextOutput` 的构造与 `Complete()`／`Invalidate()` 是宿主内部成员（0.112.84 起作者不可见，`TextFrame`、`DeclareContext` 的构造同样只由宿主调用），作者也不能保存 `TextOutput`。
 
 ### 基础字、Ruby、字簇和材质限制
 

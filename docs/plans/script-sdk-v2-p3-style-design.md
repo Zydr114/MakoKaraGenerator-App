@@ -225,6 +225,13 @@ text.SetWipe(target, wipe);                         // 新增：羽化宽度、�
 
 **实现注（0.112.83，`5e691b1`）**：分层工厂为 `GradientValue.Bands(colors, boundaries, kind, angleDegrees, coordinateSpace, centerX, centerY, radiusX, radiusY)`：n 层颜色配 n−1 个严格递增、在 (0,1) 内的分界，每层首尾各一个色标，分界处是位置相同的两个色标；层内同色，插值空间取线性 RGB。`GradientCoordinateSpace` 删去 `Progress`，SDK 的 `Glyph` 与工程样式的按单字坐标走同一绘制。HTTP 合同的坐标枚举到第 7 步再删。
 
+**实现注（0.112.84，`9e97063`）**：B 第 2 层只改作者可见表面，像素与时序不变。
+- 能力名集中为 `V2.CapabilityNames` 常量与全集 `All`；SDK 写入检查（`TextOutput`、`VisualOutput`、`PreparedEffectDeclaration`）和宿主准入（包输出、材质 uniform、组图、直接图校验、编译包）改用常量。Core 清单解析不引用 SDK 程序集，保留自己的 `EffectPackageProfiles.SupportedV2Capabilities`，由测试保证两者集合相同。
+- `TextOutput` 的构造、`Complete()`、`Invalidate()`，`TextFrame` 与 `DeclareContext` 的构造改为 `internal`（`VisualOutput` 早已如此）；分析器原有「调用 `output.Complete()` 报错」的用例随之变为编译期不可达，改由反射测试锚定。
+- 准备结果泛型：新增 `IPureKaraokeEffect<TPrepared>`（`new TPrepared Declare`、`Evaluate(in TextFrame, TPrepared, TextOutput)`）与 `IPureVisualEffect<TPrepared>`（继承同一 `TPrepared` 的文字入口，两入口类型不一致即编译错误）。非泛型成员由接口默认实现转发，宿主调用路径不变。
+  默认实现只在元数据里，分析器原先只按非泛型契约找实现，会漏查作者写的泛型成员；现按泛型契约的原始定义一并识别（变异：去掉泛型契约识别，5 个泛型入口用例全部失败）。
+- 8 个读准备结果的样例（AdaptiveStroke、ClusterExit、RepeatEmphasis、WordEmphasis、StarSweep、SpriteTrail、WaveWarp、VectorTrail）改为泛型入口并去掉强转；CursorTrail、EventBurst 的 `Evaluate` 不读准备结果，保留非泛型写法作示例。
+
 ## 10. 定稿细节（第 1 步，2026-11-12）
 
 第 1、2、5、6 条已定稿，做法如下；第 3 条有观感取舍，第 6 步给出效果后请用户选；第 4 条不在 P3 做。
@@ -477,7 +484,7 @@ wipe.highlight：null｜{ color, widthRatio, opacity, blend }   // widthRatio �
 | 3 | **渲染：外观分态**，已完成（0.112.75） | 每遍读各自一态；辉光改每态一次；外扩取两态最大；判空按两态。描边材质槽拆两态挪到第 6 步：材质槽是 SDK 公开表面（`MaterialSlot` 与 `StyleView` 同步），随 SDK 两态读写一起改；此前已唱显式描边与未唱用不同材质且其中一侧是包材质时，准备帧明确拒绝（`SungStrokeMaterialPending`）。期间脚本的描边、阴影写入两态一起生效。两态装饰不同时已唱区域按扫字线延到行两端之外，字框外的装饰不被竖直切开。提交 `20d1966`，验证见路线 §6.2 |
 | 4 | **渲染：Fill、多重描边、注音**，已完成（0.112.76～0.112.78） | 硬边取样；按单字着色器；参考框改字体度量；多重描边与阴影／辉光来源、层序（§6）；注音装饰缩放与参考框（§7）。分三个 PATCH：渐变（0.112.76，`3fa9db9`，同版修复径向渐变半径取了倒数的旧缺陷）、多重描边与装饰来源（0.112.77，`f029e28`，图场景新增外圈描边部件）、注音装饰缩放（0.112.78，`6e79073`，缩放放在 Core 的 `LyricStyle.ScaleDecorations`，绘制、区域与网格校验共用）。验证见路线 §6.2 |
 | 5 | **渲染：羽化**，已完成（0.112.79～0.112.80） | 先直绘，再图场景与包材质；羽化为 0 的逐字节回归；Vulkan 三块区域互补。分两个 PATCH：直绘与原样捕获（0.112.79，`5ec2c23`）、图场景拆侧部件按 m 合并（0.112.80，`47e7436`，实现注见 §10.2）。从右向左排版的元素区间沿用硬切换的 `XAt`（整体错开一个字形），另立项。验证见路线 §6.2 |
-| 6 | **高亮与 SDK**，进行中 | 扫字线高亮已完成（0.112.81，`a5a25c8`，参数由用户按样张选定，见 §10.3）；SDK 两态读写与描边材质槽拆两态（自第 3 步挪来）已完成（0.112.82，`5ed3cff`，实现注见 §9、§10.2）；其余分两个 PATCH：渐变便捷工厂、按单字坐标与去掉进度坐标已完成（0.112.83，`5e691b1`），B 第 2 层（0.112.84）；宿主、分析器、样例、夹具、能力台账随各版同步 |
+| 6 | **高亮与 SDK**，已完成 | 扫字线高亮已完成（0.112.81，`a5a25c8`，参数由用户按样张选定，见 §10.3）；SDK 两态读写与描边材质槽拆两态（自第 3 步挪来）已完成（0.112.82，`5ed3cff`，实现注见 §9、§10.2）；其余分两个 PATCH：渐变便捷工厂、按单字坐标与去掉进度坐标已完成（0.112.83，`5e691b1`），B 第 2 层已完成（0.112.84，`9e97063`，实现注见 §9）；宿主、分析器、样例、夹具、能力台账随各版同步 |
 | 7 | **合同与前端** | 合同次版本；前端协议、样式与模板编辑器（两态外观与跟随、分层编辑、坐标选项、多层描边、扫字样式）；缺背景的编辑时提示；导出诊断放开（路线 §2 第 11 条、§6.3） |
 | 8 | **复测** | 测试包基线加分态、分层、多重描边、羽化几组（纯色、棋盘格）；其余组与 P1 基线（M12 记录 §6.3）比较 |
 

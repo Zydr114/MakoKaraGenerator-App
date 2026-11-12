@@ -177,3 +177,17 @@ C02 的写法随 P3 设计 §9 改为分态（实现注见该节）：
 - 诊断映射：`PackageDiagnosticsMappingTests` 一项（已唱描边槽的属主可指向未唱描边路径，不可指向填充路径）。
 
 台账的缺口不变；C02 的「SetShadow 仅输出合同测试，无像素证据」仍成立。
+
+## P3 第 6 步 SDK 表面收口（2026-11-13，产品 0.112.84）
+
+作者入口与能力名的写法变化（P3 设计 §9 实现注），不改能力范围和像素：
+- 新增泛型入口 `IPureKaraokeEffect<TPrepared>`／`IPureVisualEffect<TPrepared>`，`Evaluate`／`EvaluateVisuals` 直接收到准备记录；非泛型入口保留。
+- 能力名集中为 `CapabilityNames` 常量，Core 清单集合与之由测试保证一致；`TextOutput`、`TextFrame`、`DeclareContext` 的构造与 `TextOutput.Complete`／`Invalidate` 改为宿主内部。
+- 样例同步：AdaptiveStroke、ClusterExit、RepeatEmphasis、WordEmphasis、StarSweep、SpriteTrail、WaveWarp、VectorTrail 改用泛型入口并去掉强转，manifest 源码摘要随之更新；CursorTrail、EventBurst 不读准备结果，保持非泛型写法。
+
+新增证据：
+- 合同：`V2SdkContractTests` 一项（能力名无重复且与 Core 集合相同；三个句柄无公开构造、`Complete`／`Invalidate` 不公开）。
+- 分析器：`ScriptV2PurityAnalyzerTests` 泛型入口 5 项（`Declare`／`Evaluate`／`EvaluateVisuals` 中的墙钟与跨调用状态均报错）与干净泛型入口 1 项。
+- 运行：迁移后的真实样例经既有 `V2*` 渲染测试（含强制晚期路径时在泛型文字入口上追加非泛型晚期入口）。
+
+台账的缺口不变。

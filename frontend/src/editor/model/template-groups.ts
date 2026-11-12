@@ -9,6 +9,7 @@ import {
   TOKEN_TEMPLATE_PROPERTIES,
   type CanonicalStyle,
   type FullTemplateDefinition,
+  type FullTemplateMaterial,
   type StaticMaterial,
   type StyleColor,
   type StyleGlow,
@@ -74,13 +75,14 @@ export const TEMPLATE_GROUPS: readonly TemplateGroup[] = [
   { id: 'weight', label: '字重与字形', properties: ['typography.fontWeight', 'typography.isBold', 'typography.isItalic'] },
   { id: 'spacing', label: '字距', properties: ['typography.letterSpacingPx'] },
   { id: 'position', label: '位置', properties: ['verticalCenterRatio', 'horizontalAlignment'] },
+  // 按状态排（与模板编辑器的分组一致）：未唱四项，再已唱四项。
   { id: 'unsung', label: '未唱填充', properties: ['unsung.fill'] },
-  { id: 'sung', label: '已唱填充', properties: ['sung.fill'] },
   { id: 'stroke', label: '未唱描边', properties: ['unsung.strokes'] },
-  { id: 'sungStroke', label: '已唱描边', properties: ['sung.strokes'] },
   { id: 'shadow', label: '未唱阴影', properties: withLeaves('unsung.shadow', SHADOW_LEAVES) },
-  { id: 'sungShadow', label: '已唱阴影', properties: withLeaves('sung.shadow', SHADOW_LEAVES) },
   { id: 'glow', label: '未唱辉光', properties: withLeaves('unsung.glow', GLOW_LEAVES) },
+  { id: 'sung', label: '已唱填充', properties: ['sung.fill'] },
+  { id: 'sungStroke', label: '已唱描边', properties: ['sung.strokes'] },
+  { id: 'sungShadow', label: '已唱阴影', properties: withLeaves('sung.shadow', SHADOW_LEAVES) },
   { id: 'sungGlow', label: '已唱辉光', properties: withLeaves('sung.glow', GLOW_LEAVES) },
   { id: 'feather', label: '擦除羽化', properties: ['wipe.featherRatio'] },
   { id: 'highlight', label: '擦除高亮', properties: withLeaves('wipe.highlight', HIGHLIGHT_LEAVES) },
@@ -346,6 +348,41 @@ export function setTemplateEffect<G extends EffectGroupId>(
   const next = writeEffect(definition, group, value);
   if (definition.properties.includes(parent)) return next;
   return { ...next, properties: sortProperties([...definition.properties, leaf ? (`${parent}.${leaf}` as TemplateProperty) : parent]) };
+}
+
+// ── 描边层列表：由内到外，最多 4 层；效果包材质只能在最内层 ──
+
+type StrokeLayers = readonly StyleStroke<FullTemplateMaterial>[];
+export const PACKAGE_INNER_TEXT = '效果包材质只能用在最内层描边。';
+
+/** 加一层外圈：沿用最外层的宽度、连接方式与静态材质（最外层是包材质或没有层时取默认黑色描边）。满 4 层时原样返回。 */
+export function addStrokeLayer(layers: StrokeLayers): StyleStroke<FullTemplateMaterial>[] {
+  if (layers.length >= MAX_STROKE_LAYERS) return [...layers];
+  const last = layers.at(-1);
+  if (!last) return [DEFAULT_STROKE];
+  return [...layers, { ...last, material: last.material.kind === 'package' ? DEFAULT_STROKE.material : last.material }];
+}
+
+export function removeStrokeLayer(layers: StrokeLayers, index: number): StyleStroke<FullTemplateMaterial>[] {
+  return layers.filter((_, i) => i !== index);
+}
+
+/** 第 index 层向外（+1）或向内（−1）移一层不能做的原因；能移时返回 undefined。 */
+export function strokeMoveProblem(layers: StrokeLayers, index: number, delta: 1 | -1): string | undefined {
+  const target = index + delta;
+  if (target < 0) return '已经是最内层。';
+  if (target >= layers.length) return '已经是最外层。';
+  const isPackage = (i: number) => layers[i]!.material.kind === 'package';
+  if ((isPackage(index) && target !== 0) || (isPackage(target) && index !== 0)) return PACKAGE_INNER_TEXT;
+  return undefined;
+}
+
+/** 和相邻一层对调；不能移时原样返回。 */
+export function moveStrokeLayer(layers: StrokeLayers, index: number, delta: 1 | -1): StyleStroke<FullTemplateMaterial>[] {
+  const next = [...layers];
+  if (strokeMoveProblem(layers, index, delta)) return next;
+  [next[index], next[index + delta]] = [next[index + delta]!, next[index]!];
+  return next;
 }
 
 // ── 校验与初值 ──

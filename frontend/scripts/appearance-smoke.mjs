@@ -659,8 +659,9 @@ try {
     const copyOf = `${waveName}（副本）`;
     await page.waitFor(`!!document.querySelector('.library-return') && ${templateName} === ${JSON.stringify(copyOf)}`, '跳到样式库编辑副本', 30_000);
     const bar = await page.eval(`document.querySelector('.library-return').innerText`);
-    const stroke = await ui.exists(page, 'textbox', '描边宽度');
-    if (stroke) await ui.fill(page, '描边宽度', '9', { enter: true });
+    const innerStroke = { scope: '[data-group="stroke"] [data-layer="0"]' };
+    const stroke = await ui.exists(page, 'textbox', '宽度', innerStroke);
+    if (stroke) await ui.fill(page, '宽度', '9', { ...innerStroke, enter: true });
     else await ui.fill(page, '已唱颜色', '#ff2020', { enter: true });
     await page.waitFor(dirty, '副本有修改');
     await ui.click(page, 'button', '保存并返回试看', { scope: '.library-return' });

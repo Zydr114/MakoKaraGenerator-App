@@ -2,24 +2,25 @@
 // 每次提交给 onChange 一份完整的新定义，由样式库状态记成草稿的一步历史。
 // 用了效果包材质的部位只写一行链接，在“材质”页签编辑（W7 设计 §2.3）。
 // 两态（合同 1.50.0）：未唱、已唱各有填充、描边、阴影、辉光，已唱的描边、阴影、辉光可跟随未唱；擦除的羽化与高亮两态共享。
-// 描边这里只编辑最内层，更外的层原样保留。
+// 外观按状态分组（2026-11-13 用户选定）：未唱、已唱各一组；描边是由内到外的层列表，最多 4 层，效果包材质只能在最内层。
 
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
-import type {
-  FullTemplateDefinition,
-  FullTemplateMaterial,
-  FullTemplateStyle,
-  HorizontalAlignment,
-  StaticMaterial,
-  StyleGradient,
-  StyleGlow,
-  StyleShadow,
-  StyleStroke,
-  StyleTypography,
-  StyleWipeHighlight,
-  StyleWipeHighlightBlend,
-  TemplateMaterialSlot,
-  TemplateProperty,
+import {
+  MAX_STROKE_LAYERS,
+  type FullTemplateDefinition,
+  type FullTemplateMaterial,
+  type FullTemplateStyle,
+  type HorizontalAlignment,
+  type StaticMaterial,
+  type StyleGradient,
+  type StyleGlow,
+  type StyleShadow,
+  type StyleStroke,
+  type StyleTypography,
+  type StyleWipeHighlight,
+  type StyleWipeHighlightBlend,
+  type TemplateMaterialSlot,
+  type TemplateProperty,
 } from '../../protocol';
 import { addStop, gradientProblem, MAX_GRADIENT_STOPS, removeStop, setStopColor, setStopOffset } from '../model/gradient';
 import {
@@ -27,6 +28,7 @@ import {
   DEFAULT_HIGHLIGHT,
   DEFAULT_SHADOW,
   DEFAULT_STROKE,
+  addStrokeLayer,
   gradientFrom,
   groupAllowed,
   groupIncluded,
@@ -34,9 +36,13 @@ import {
   KIND_LIMIT_TEXT,
   materialCss,
   materialText,
+  moveStrokeLayer,
+  PACKAGE_INNER_TEXT,
+  removeStrokeLayer,
   setGroupIncluded,
   setTemplateEffect,
   solidFrom,
+  strokeMoveProblem,
   templateEffectEditing,
   TEMPLATE_GROUPS,
   type EffectGroupId,
@@ -48,7 +54,7 @@ import { SliderField, Switch } from '../ui/choices';
 import { cls } from '../ui/cls';
 import { ColorField, CommitField, NumberField, Select } from '../ui/fields';
 import { Icon } from '../ui/Icon';
-import { Group, Note } from '../workspace/panel';
+import { Group, Note, ToolButton } from '../workspace/panel';
 import { FallbackFonts, FontCheck, FontPicker } from './FontFields';
 import { checkTemplateName } from './template-library-store';
 
@@ -82,25 +88,26 @@ const percent = (value: number) => `${Math.round(value * 100)}%`;
 /** 外观页签的分组，每组里按 TEMPLATE_GROUPS 的顺序列出用途允许的项。 */
 const SECTIONS: readonly { title: string; ids: readonly TemplateGroupId[] }[] = [
   { title: '文字', ids: ['font', 'size', 'weight', 'spacing'] },
-  { title: '颜色与描边', ids: ['unsung', 'sung', 'stroke', 'sungStroke', 'shadow', 'sungShadow', 'glow', 'sungGlow'] },
+  { title: '未唱', ids: ['unsung', 'stroke', 'shadow', 'glow'] },
+  { title: '已唱', ids: ['sung', 'sungStroke', 'sungShadow', 'sungGlow'] },
   { title: '擦除', ids: ['feather', 'highlight'] },
   { title: '位置与透明', ids: ['position', 'opacity', 'scale'] },
 ];
-/** 行首的短名称（完整名称作开关的可访问名称）。 */
+/** 行首的短名称（所在组已写明状态；完整名称作开关的可访问名称）。 */
 const ROW_LABEL: Record<TemplateGroupId, string> = {
   font: '字体',
   size: '字号',
   weight: '字重',
   spacing: '字距',
   position: '位置',
-  unsung: '未唱填充',
-  sung: '已唱填充',
-  stroke: '未唱描边',
-  sungStroke: '已唱描边',
-  shadow: '未唱阴影',
-  sungShadow: '已唱阴影',
-  glow: '未唱辉光',
-  sungGlow: '已唱辉光',
+  unsung: '填充',
+  sung: '填充',
+  stroke: '描边',
+  sungStroke: '描边',
+  shadow: '阴影',
+  sungShadow: '阴影',
+  glow: '辉光',
+  sungGlow: '辉光',
   feather: '羽化',
   highlight: '高亮',
   opacity: '透明度',
@@ -277,10 +284,12 @@ function rowFields(
     case 'sung':
       return materialRow('已唱颜色', 'sungFill', style.sung.fill, (fill) => setStyle({ sung: { ...style.sung, fill } }), onOpenMaterial, disabled);
     case 'stroke':
-      return strokeRow('未唱描边', style.unsung.strokes, (strokes) => strokes !== 'follow' && setStyle({ unsung: { ...style.unsung, strokes } }), onOpenMaterial, disabled);
+      return strokeRow('未唱描边', style.unsung.strokes, (strokes) => strokes !== 'follow' && setStyle({ unsung: { ...style.unsung, strokes } }), { onOpenMaterial: () => onOpenMaterial('stroke') }, disabled);
     case 'sungStroke': {
       const value = style.sung.strokes.kind === 'follow' ? 'follow' : style.sung.strokes.value;
-      return strokeRow('已唱描边', value, (strokes) => setStyle({ sung: { ...style.sung, strokes: strokes === 'follow' ? { kind: 'follow' } : { kind: 'set', value: strokes } } }), undefined, disabled);
+      const write = (strokes: StyleStroke<FullTemplateMaterial>[] | 'follow') =>
+        setStyle({ sung: { ...style.sung, strokes: strokes === 'follow' ? { kind: 'follow' } : { kind: 'set', value: strokes } } });
+      return strokeRow('已唱描边', value, write, { followFrom: style.unsung.strokes }, disabled);
     }
     case 'shadow':
     case 'sungShadow':
@@ -371,71 +380,112 @@ function PackageMaterialLink(props: { material: Extract<FullTemplateMaterial, { 
 }
 
 const FOLLOW_OPTION = { value: 'follow', label: '跟随未唱' } as const;
-const STROKE_KINDS = [{ value: 'none', label: '不描边' }, ...STATIC_KINDS] as const;
-const BLACK = { red: 0, green: 0, blue: 0, alpha: 255 };
+/** 已唱一侧的描边、阴影、辉光：跟随未唱放第一项（2026-11-13 用户选定）。 */
+const SUNG_OPTIONS = [FOLLOW_OPTION, { value: 'on', label: '单独设置' }, { value: 'off', label: '关闭' }] as const;
+const UNSUNG_STROKE_OPTIONS = [
+  { value: 'on', label: '有描边' },
+  { value: 'off', label: '不描边' },
+] as const;
 
 /**
- * 描边：“不描边”是明确关闭（空表，不是继承）；已唱一侧还可跟随未唱。开着时只编辑最内层，宽度与转角在下面一行，更外的层原样保留。
- * onOpenMaterial 省略时（已唱描边没有工坊槽）包材质只显示，不能编辑。
+ * 描边：未唱一侧“有描边／不描边”，已唱一侧“跟随未唱／单独设置／关闭”；“不描边”“关闭”是明确的空表，不是继承。
+ * 开着时下面是层列表；已唱改为单独设置时从未唱的各层起步。
  */
 function strokeRow(
   label: string,
   strokes: StyleStroke<FullTemplateMaterial>[] | 'follow',
   onChange: (strokes: StyleStroke<FullTemplateMaterial>[] | 'follow') => void,
-  onOpenMaterial: ((slot: TemplateMaterialSlot) => void) | undefined,
+  options: { followFrom?: StyleStroke<FullTemplateMaterial>[]; onOpenMaterial?: () => void },
   disabled: boolean,
 ): { ctl: ReactNode; sub?: ReactNode } {
-  const canFollow = label.startsWith('已唱');
+  const sung = options.followFrom !== undefined;
   const layers = strokes === 'follow' ? [] : strokes;
-  const [stroke, ...rest] = layers;
-  const material = stroke?.material;
-  const kind = strokes === 'follow' ? 'follow' : !stroke ? 'none' : material!.kind;
-  const setFirst = (next: StyleStroke<FullTemplateMaterial>) => onChange([next, ...rest]);
-  const shape = stroke && (
-    <>
-      <div className="ctl-row">
-        <NumberField label={`${label}宽度`} labelPlacement="inside" size="sm" suffix="px" value={stroke.widthPx} min={0} onCommit={(widthPx) => setFirst({ ...stroke, widthPx })} disabled={disabled} />
-        <Select label="转角" labelPlacement="inside" size="sm" value={stroke.join} options={JOIN_OPTIONS} onChange={(join) => setFirst({ ...stroke, join })} disabled={disabled} />
-      </div>
-      {rest.length > 0 && <Note>另有 {rest.length} 层外圈描边，原样保留。</Note>}
-    </>
-  );
-  if (material?.kind === 'package') {
-    return { ctl: <PackageMaterialLink material={material} {...(onOpenMaterial ? { onOpen: () => onOpenMaterial('stroke') } : {})} />, sub: shape };
-  }
-  const options = canFollow ? [FOLLOW_OPTION, ...STROKE_KINDS] : STROKE_KINDS;
+  const mode = strokes === 'follow' ? 'follow' : layers.length > 0 ? 'on' : 'off';
   return {
     ctl: (
       <>
         <Select
-          label={`${label}的类型`}
+          label={`${label}开关`}
           labelPlacement="none"
           size="sm"
           className="w"
-          value={kind}
-          options={options}
+          value={mode}
+          options={sung ? SUNG_OPTIONS : UNSUNG_STROKE_OPTIONS}
           onChange={(next) => {
             if (next === 'follow') onChange('follow');
-            else if (next === 'none') onChange([]);
-            else if (!stroke) onChange([next === 'gradient' ? { ...DEFAULT_STROKE, material: gradientFrom(BLACK) } : DEFAULT_STROKE]);
-            else if (material) setFirst({ ...stroke, material: next === 'gradient' && material.kind === 'solid' ? gradientFrom(material.color) : solidFrom(material) });
+            else if (next === 'off') onChange([]);
+            else if (mode !== 'on') onChange(options.followFrom?.length ? [...options.followFrom] : [DEFAULT_STROKE]);
           }}
           disabled={disabled}
         />
-        {stroke && material ? (
-          <StaticMaterialValue label={`${label}颜色`} material={material} onChange={(m) => setFirst({ ...stroke, material: m })} disabled={disabled} compact />
-        ) : (
-          <span className="small inherit">{kind === 'follow' ? '与未唱相同' : '明确关闭，不是继承'}</span>
-        )}
+        <span className="small inherit">{mode === 'follow' ? '与未唱相同' : mode === 'off' ? '明确关闭，不是继承' : `共 ${layers.length} 层，由内到外`}</span>
       </>
     ),
-    sub: stroke && (
-      <>
-        {shape}
-        {material?.kind === 'gradient' && <GradientFields gradient={material.gradient} onChange={(gradient) => setFirst({ ...stroke, material: { kind: 'gradient', gradient } })} disabled={disabled} />}
-      </>
-    ),
+    ...(mode === 'on' ? { sub: <StrokeLayerList label={label} layers={layers} onChange={onChange} onOpenMaterial={options.onOpenMaterial} disabled={disabled} /> } : {}),
   };
+}
+
+/**
+ * 描边层列表：每层一块，上面一行是材质（类型与颜色，包材质只写链接），下面是宽度、转角与移动、删除，渐变参数再往下。
+ * 包材质只能在最内层，移动会把它换到外圈时按钮停用并写明原因。onOpenMaterial 省略时（已唱描边没有工坊槽）包材质只显示。
+ */
+function StrokeLayerList(props: {
+  label: string;
+  layers: StyleStroke<FullTemplateMaterial>[];
+  onChange: (layers: StyleStroke<FullTemplateMaterial>[]) => void;
+  onOpenMaterial: (() => void) | undefined;
+  disabled: boolean;
+}) {
+  const { label, layers, disabled } = props;
+  const set = (i: number, layer: StyleStroke<FullTemplateMaterial>) => props.onChange(layers.map((l, j) => (j === i ? layer : l)));
+  const packageInner = layers.length > 1 && layers[0]!.material.kind === 'package';
+  return (
+    <div className="stroke-layers" role="group" aria-label={`${label}各层`}>
+      {layers.map((layer, i) => {
+        const name = `${label}第 ${i + 1} 层`;
+        const material = layer.material;
+        return (
+          <div key={i} className="stroke-layer" data-layer={i}>
+            <div className="stroke-layer-head">
+              <span className="sub-lbl">第 {i + 1} 层</span>
+              {material.kind === 'package' ? (
+                <PackageMaterialLink material={material} {...(props.onOpenMaterial ? { onOpen: props.onOpenMaterial } : {})} />
+              ) : (
+                <>
+                  <Select
+                    label={`${name}的类型`}
+                    labelPlacement="none"
+                    size="sm"
+                    className="w"
+                    value={material.kind}
+                    options={STATIC_KINDS}
+                    onChange={(kind) => set(i, { ...layer, material: kind === 'gradient' && material.kind === 'solid' ? gradientFrom(material.color) : solidFrom(material) })}
+                    disabled={disabled}
+                  />
+                  <StaticMaterialValue label={`${name}颜色`} material={material} onChange={(m) => set(i, { ...layer, material: m })} disabled={disabled} compact />
+                </>
+              )}
+            </div>
+            <div className="stroke-layer-shape">
+              <NumberField label="宽度" labelPlacement="inside" size="sm" suffix="px" value={layer.widthPx} greaterThan={0} onCommit={(widthPx) => set(i, { ...layer, widthPx })} disabled={disabled} />
+              <Select label="转角" labelPlacement="inside" size="sm" value={layer.join} options={JOIN_OPTIONS} onChange={(join) => set(i, { ...layer, join })} disabled={disabled} />
+              <ToolButton icon="arrow_upward" label={`${name}向内移`} reason={strokeMoveProblem(layers, i, -1)} disabled={disabled} onPress={() => props.onChange(moveStrokeLayer(layers, i, -1))} />
+              <ToolButton icon="arrow_downward" label={`${name}向外移`} reason={strokeMoveProblem(layers, i, 1)} disabled={disabled} onPress={() => props.onChange(moveStrokeLayer(layers, i, 1))} />
+              <IconButton icon="delete" size="sm" label={`删除${name}`} isDisabled={disabled} onPress={() => props.onChange(removeStrokeLayer(layers, i))} />
+            </div>
+            {material.kind === 'gradient' && <GradientFields gradient={material.gradient} onChange={(gradient) => set(i, { ...layer, material: { kind: 'gradient', gradient } })} disabled={disabled} />}
+          </div>
+        );
+      })}
+      <div className="stroke-layer-actions">
+        <Button variant="text" size="sm" icon="add" isDisabled={disabled || layers.length >= MAX_STROKE_LAYERS} onPress={() => props.onChange(addStrokeLayer(layers))}>
+          加一层外圈
+        </Button>
+        <span className="faint small">由内到外，最多 {MAX_STROKE_LAYERS} 层</span>
+      </div>
+      {packageInner && <Note>最内层用了效果包材质。{PACKAGE_INNER_TEXT}外圈只能用纯色与渐变。</Note>}
+    </div>
+  );
 }
 
 const EFFECT_TEXT: Record<'shadow' | 'glow' | 'highlight', { name: string; off: string; on: string; initial: StyleShadow | StyleGlow | StyleWipeHighlight }> = {
@@ -449,7 +499,7 @@ function effectKind(group: EffectGroupId): 'shadow' | 'glow' | 'highlight' {
 }
 
 /**
- * 阴影、辉光（两态）与擦除高亮：右侧包含开关控制继承；这里的“无…”写入显式 null（已唱一侧是 set null），
+ * 阴影、辉光（两态）与擦除高亮：右侧包含开关控制继承；这里的“无…”“关闭”写入显式 null（已唱一侧是 set null），
  * 已唱一侧的“跟随未唱”写入 follow。只含叶时是部分覆盖：改哪一项就把那一项写进模板。
  */
 function effectRow(d: FullTemplateDefinition, group: EffectGroupId, onChange: (next: FullTemplateDefinition) => void, disabled: boolean): { ctl: ReactNode; sub?: ReactNode } {
@@ -461,9 +511,12 @@ function effectRow(d: FullTemplateDefinition, group: EffectGroupId, onChange: (n
   const set = (next: StyleShadow | StyleGlow | StyleWipeHighlight | null | 'follow', leaf?: string) => onChange(setTemplateEffect(d, group, next as never, leaf as never));
   const options = [
     ...(mode === 'partial' ? [{ value: 'partial', label: '部分覆盖' }] : []),
-    ...(sungSide ? [FOLLOW_OPTION] : []),
-    { value: 'off', label: text.off },
-    { value: 'on', label: text.on },
+    ...(sungSide
+      ? SUNG_OPTIONS
+      : [
+          { value: 'off', label: text.off },
+          { value: 'on', label: text.on },
+        ]),
   ];
   const editable = value && mode !== 'follow' ? value : undefined;
   return {
@@ -477,8 +530,9 @@ function effectRow(d: FullTemplateDefinition, group: EffectGroupId, onChange: (n
           value={mode}
           options={options}
           onChange={(v) => {
+            // 已唱从跟随改为单独设置时，从当前生效的未唱取值起步。
             if (v === 'follow') set('follow');
-            else if (v === 'on') set(value ?? text.initial);
+            else if (v === 'on' && mode !== 'on') set(value ?? text.initial);
             else if (v === 'off') set(null);
           }}
           disabled={disabled}

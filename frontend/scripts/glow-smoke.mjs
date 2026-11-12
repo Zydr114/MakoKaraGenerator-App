@@ -1,4 +1,5 @@
-// 隔离 Server profile 上运行：复制模板、编辑辉光、保存重读并应用到新工程。
+// 隔离 Server profile 上运行：复制模板、编辑辉光、保存重读并应用到新工程；
+// 两态（合同 1.50.0）：已唱辉光跟随／单独设置，未唱描边层列表的添加、移动与删除。
 // node scripts/glow-smoke.mjs --url http://127.0.0.1:PORT [--screenshot /tmp/glow.png] [--headed]
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
@@ -29,12 +30,13 @@ const properties = ['unsung.glow', 'unsung.glow.color', 'unsung.glow.opacity', '
 const click = (page, selector) => ui.click(page, selector, null);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function check(condition, message) { if (!condition) throw new Error(message); console.log(`✓ ${message}`); }
-async function includeGlow(page, checked) {
-  const selector = '[data-group="glow"] [role="switch"]';
-  await page.waitFor(`!!document.querySelector(${JSON.stringify(selector)})`, '辉光属性组开关');
+async function includeGroup(page, group, checked) {
+  const selector = `[data-group="${group}"] [role="switch"]`;
+  await page.waitFor(`!!document.querySelector(${JSON.stringify(selector)})`, `${group} 属性组开关`);
   if ((await page.eval(`document.querySelector(${JSON.stringify(selector)}).checked`)) !== checked) await click(page, selector);
-  await page.waitFor(`document.querySelector(${JSON.stringify(selector)})?.checked === ${checked}`, '辉光属性组状态');
+  await page.waitFor(`document.querySelector(${JSON.stringify(selector)})?.checked === ${checked}`, `${group} 属性组状态`);
 }
+const includeGlow = (page, checked) => includeGroup(page, 'glow', checked);
 async function definition(page) {
   await ui.click(page, 'tab', '高级');
   await page.waitFor(`!!document.querySelector('.template-json')`, '完整定义');
@@ -49,6 +51,14 @@ async function frame(page) {
   const rev = await page.eval(revision);
   await page.waitFor(`!!${playhead} && (document.querySelector('.preview-title')?.textContent ?? '').includes('修订 ${rev} ·') && (document.querySelector('.preview-title')?.textContent ?? '').includes(${playhead}) && !(document.querySelector('.preview-title')?.textContent ?? '').includes('渲染中') && !!document.querySelector('.preview-frame img')`, '预览帧', 60000);
   return page.eval(`(async () => { const bytes = await (await fetch(document.querySelector('.preview-frame img').src)).arrayBuffer(); const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)); return [...hash].slice(0,8).map(x => x.toString(16).padStart(2,'0')).join(''); })()`);
+}
+async function shot(page, group, suffix) {
+  await page.eval(`document.querySelector('[data-group="${group}"]').scrollIntoView({ block: 'center' })`);
+  const path = values.screenshot.replace(/\.png$/i, '') + `-${suffix}.png`;
+  await sleep(500); await writeFile(path, await page.screenshot()); console.log(`截图：${path}`);
+}
+async function strokeWidths(page) {
+  return (await definition(page)).style.unsung.strokes.map((l) => l.widthPx);
 }
 async function screenshot(page, suffix) {
   await page.eval(`document.querySelector('[data-group="glow"]').scrollIntoView({ block: 'center' })`);
@@ -90,8 +100,8 @@ try {
   await page.waitFor(`!!${sample}`, '原始试样', 60000);
   const initial = await page.eval(sample);
   await includeGlow(page, true);
-  await ui.choose(page, '辉光开关', '有辉光');
-  await ui.fill(page, '辉光颜色', '#ff20c0', { enter: true });
+  await ui.choose(page, '未唱辉光开关', '有辉光');
+  await ui.fill(page, '未唱辉光颜色', '#ff20c0', { enter: true });
   await ui.fill(page, '扩张', '8', { scope: '[data-group="glow"]', enter: true });
   await ui.fill(page, '模糊', '18', { scope: '[data-group="glow"]', enter: true });
   const sliderPoint = await page.eval(`(() => { const el = document.querySelector('[data-group="glow"] .slider'); el.scrollIntoView({block:'center'}); const r = el.getBoundingClientRect(); return {x:r.left+r.width*0.65, y:r.top+r.height/2}; })()`);
@@ -111,6 +121,44 @@ try {
   await screenshot(page, 'dark-narrow');
   await page.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
   await page.waitFor(`document.querySelector('.library')?.dataset.width !== 'bothOverlay'`, '恢复宽屏布局');
+  // 已唱辉光：单独设置从未唱取值起步，再改回跟随。
+  await includeGroup(page, 'sungGlow', true);
+  await ui.choose(page, '已唱辉光开关', '单独设置');
+  d = await definition(page);
+  check(d.properties.includes('sung.glow') && d.style.sung.glow.kind === 'set' && isDeepStrictEqual(d.style.sung.glow.value, glow), '已唱辉光单独设置从未唱取值起步');
+  await appearance(page);
+  await ui.choose(page, '已唱辉光开关', '跟随未唱');
+  d = await definition(page);
+  check(d.style.sung.glow.kind === 'follow', '已唱辉光改回跟随未唱');
+  await appearance(page);
+  await includeGroup(page, 'sungGlow', false);
+  // 未唱描边层列表：加外圈沿用最外层，改宽度、向内移、删除；满 4 层不能再加。
+  const beforeStroke = await page.eval(sample);
+  await includeGroup(page, 'stroke', true);
+  await ui.choose(page, '未唱描边开关', '有描边');
+  let widths = await strokeWidths(page);
+  await appearance(page);
+  const n = widths.length;
+  await ui.click(page, 'button', '加一层外圈', { scope: '[data-group="stroke"]' });
+  await ui.fill(page, '宽度', '9', { scope: `[data-group="stroke"] [data-layer="${n}"]`, enter: true });
+  widths = await strokeWidths(page);
+  check(widths.length === n + 1 && widths[n] === 9, `加一层外圈并改宽度（${widths.join('/')} px）`);
+  await appearance(page);
+  if (n > 0) {
+    await ui.click(page, 'button', `未唱描边第 ${n + 1} 层向内移`, { scope: '[data-group="stroke"]' });
+    const moved = await strokeWidths(page);
+    check(moved[n - 1] === 9 && moved[n] === widths[n - 1], `外圈向内移一层（${moved.join('/')} px）`);
+    await appearance(page);
+  }
+  while ((await page.eval(`document.querySelectorAll('[data-group="stroke"] .stroke-layer').length`)) < 4) await ui.click(page, 'button', '加一层外圈', { scope: '[data-group="stroke"]' });
+  check(await page.eval(`document.querySelector('[data-group="stroke"] .stroke-layer-actions button').disabled || document.querySelector('[data-group="stroke"] .stroke-layer-actions button').getAttribute('aria-disabled') === 'true' || document.querySelector('[data-group="stroke"] .stroke-layer-actions button').hasAttribute('data-disabled')`), '满 4 层后不能再加');
+  await page.waitFor(`!!${sample} && ${sample} !== ${JSON.stringify(beforeStroke)}`, '多层描边试样', 60000);
+  check(true, '多层描边改变试样');
+  await shot(page, 'stroke', 'stroke-layers');
+  await ui.click(page, 'button', '删除未唱描边第 4 层', { scope: '[data-group="stroke"]' });
+  check((await strokeWidths(page)).length === 3, '删除一层描边');
+  await appearance(page);
+  await includeGroup(page, 'stroke', false);
   await save(page);
   await click(page, '[role=row]:has([data-template-id="builtin:line-classic"])');
   await click(page, `[role=row]:has([data-template-id="${createdId}"])`);
@@ -123,12 +171,12 @@ try {
   check(properties.every(p => !d.properties.includes(p)), '关闭属性组后辉光不写入模板');
   await appearance(page);
   await includeGlow(page, true);
-  await ui.choose(page, '辉光开关', '无辉光');
+  await ui.choose(page, '未唱辉光开关', '无辉光');
   d = await definition(page);
   check(properties.every(p => d.properties.includes(p)) && d.style.unsung.glow === null, '组内关闭保留属性并写入 null');
   await appearance(page);
-  await ui.choose(page, '辉光开关', '有辉光');
-  await ui.fill(page, '辉光颜色', '#ff20c0', { enter: true });
+  await ui.choose(page, '未唱辉光开关', '有辉光');
+  await ui.fill(page, '未唱辉光颜色', '#ff20c0', { enter: true });
   await ui.fill(page, '扩张', '8', { scope: '[data-group="glow"]', enter: true });
   await ui.fill(page, '模糊', '18', { scope: '[data-group="glow"]', enter: true });
   await save(page);

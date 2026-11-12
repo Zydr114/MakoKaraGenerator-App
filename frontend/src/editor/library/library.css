@@ -708,6 +708,56 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
 }
+/* 描边层列表：每层一块，由内到外 */
+.stroke-layers {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.stroke-layer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+.stroke-layer:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+.stroke-layer-head,
+.stroke-layer-shape {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.stroke-layer-head > *,
+.stroke-layer-shape > * {
+  flex: 1;
+  min-width: 0;
+}
+.stroke-layer-head > .sub-lbl {
+  flex: none;
+  width: 40px;
+  font-size: 12px;
+  color: var(--on-surface-variant);
+}
+.stroke-layer-head > .w {
+  flex: none;
+  width: 96px;
+}
+.stroke-layer-shape > .btn,
+.stroke-layer-shape > .tool-wrap {
+  flex: none;
+}
+.stroke-layer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.stroke-layer-actions .btn.text:first-child {
+  margin-left: -8px;
+}
 .islider {
   display: flex;
   align-items: center;

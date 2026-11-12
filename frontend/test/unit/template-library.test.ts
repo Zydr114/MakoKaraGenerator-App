@@ -4,12 +4,30 @@ import { NEW_TEMPLATE_NAME, NEW_TEMPLATE_SOURCE, TemplateLibraryStore } from '..
 import { SAMPLE_SIZE, SAMPLE_TIME_US, TEMPLATE_PREVIEW, TemplateThumbnails, THUMBNAIL_SAMPLE_ID, THUMBNAIL_SIZE } from '../../src/editor/library/template-thumbnails';
 import { TEMPLATE_PREVIEW_OPTIONS, TemplateWorkshop, workshopTitle, WORKSHOP_DURATION_US } from '../../src/editor/library/template-workshop';
 import { addStop, gradientProblem, removeStop, setStopOffset } from '../../src/editor/model/gradient';
-import { changeKind, definitionProblem, gradientFrom, groupAllowed, groupValueText, propertySummary, setGroupIncluded, setTemplateEffect, templateEffectEditing, TEMPLATE_GROUPS } from '../../src/editor/model/template-groups';
+import {
+  addStrokeLayer,
+  changeKind,
+  DEFAULT_STROKE,
+  definitionProblem,
+  gradientFrom,
+  groupAllowed,
+  groupValueText,
+  moveStrokeLayer,
+  PACKAGE_INNER_TEXT,
+  propertySummary,
+  removeStrokeLayer,
+  setGroupIncluded,
+  setTemplateEffect,
+  strokeMoveProblem,
+  templateEffectEditing,
+  TEMPLATE_GROUPS,
+} from '../../src/editor/model/template-groups';
 import {
   TEMPLATE_PROPERTIES,
   type EffectPackageInspectResponse,
   type EffectPackageReference,
   type FullTemplateDefinition,
+  type FullTemplateMaterial,
   type TemplateLibraryCommand,
   type TemplateLibraryId,
   type TemplatePreviewInput,
@@ -374,7 +392,7 @@ describe('样式库状态', () => {
 describe('模板属性分组', () => {
   it('用途限制：文本单元包含两态外观与擦除；组合不能有位置', () => {
     const ids = (kind: 'line' | 'token' | 'composite') => TEMPLATE_GROUPS.filter((g) => groupAllowed(g, kind)).map((g) => g.id);
-    expect(ids('token')).toEqual(['unsung', 'sung', 'stroke', 'sungStroke', 'shadow', 'sungShadow', 'glow', 'sungGlow', 'feather', 'highlight', 'opacity']);
+    expect(ids('token')).toEqual(['unsung', 'stroke', 'shadow', 'glow', 'sung', 'sungStroke', 'sungShadow', 'sungGlow', 'feather', 'highlight', 'opacity']);
     expect(ids('composite')).not.toContain('position');
     expect(ids('line')).toHaveLength(17);
     expect(TEMPLATE_GROUPS.flatMap((g) => g.properties).sort()).toEqual([...TEMPLATE_PROPERTIES].sort());
@@ -417,6 +435,31 @@ describe('模板属性分组', () => {
     expect(groupValueText('feather', STYLE)).toBe('硬边');
     expect(groupValueText('highlight', style)).toBe('#ffffff · 宽 0.25 倍字号 · 强度 80% · 滤色');
     expect(definitionProblem(definition({ name: 'x', kind: 'line', style: { ...style, unsung: { ...style.unsung, strokes: Array(5).fill(style.unsung.strokes[0]) } }, properties: ['opacity'] }))).toMatch('最多 4 层');
+  });
+
+  it('描边层列表：加外圈沿用最外层，满 4 层不再加；包材质不能换到外圈', () => {
+    const red = { kind: 'solid' as const, color: { red: 255, green: 0, blue: 0, alpha: 255 } };
+    const pkg = { kind: 'package' as const, packageId: 'p', materialId: 'm', parametersJson: '{}' } as unknown as FullTemplateMaterial;
+    const one = addStrokeLayer([]);
+    expect(one).toEqual([DEFAULT_STROKE]);
+    const two = addStrokeLayer([{ material: red, widthPx: 6, join: 'miter' }]);
+    expect(two[1]).toEqual({ material: red, widthPx: 6, join: 'miter' });
+    const full = addStrokeLayer(addStrokeLayer(two));
+    expect(full).toHaveLength(4);
+    expect(addStrokeLayer(full)).toHaveLength(4);
+    expect(removeStrokeLayer(full, 0)).toHaveLength(3);
+
+    const layers = [{ material: pkg, widthPx: 3, join: 'round' as const }, ...two];
+    expect(addStrokeLayer([layers[0]!])[1]!.material).toEqual(DEFAULT_STROKE.material);
+    expect(strokeMoveProblem(layers, 0, -1)).toBe('已经是最内层。');
+    expect(strokeMoveProblem(layers, 2, 1)).toBe('已经是最外层。');
+    expect(strokeMoveProblem(layers, 0, 1)).toBe(PACKAGE_INNER_TEXT);
+    expect(strokeMoveProblem(layers, 1, -1)).toBe(PACKAGE_INNER_TEXT);
+    expect(moveStrokeLayer(layers, 0, 1)).toEqual(layers);
+    expect(strokeMoveProblem(layers, 1, 1)).toBeUndefined();
+    expect(moveStrokeLayer(layers, 2, -1).map((l) => l.widthPx)).toEqual([3, 6, 6]);
+    const plain = [two[0]!, { ...two[0]!, widthPx: 2 }];
+    expect(moveStrokeLayer(plain, 0, 1).map((l) => l.widthPx)).toEqual([2, 6]);
   });
 });
 

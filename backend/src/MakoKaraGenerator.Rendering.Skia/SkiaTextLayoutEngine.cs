@@ -233,6 +233,7 @@ public sealed class SkiaTextLayoutEngine : ITextLayoutEngine
     /// <param name="strokeJoin">描边连接方式。</param>
     /// <param name="blendMode">文字与目标图层的混合方式；字形遮罩使用 DstOut。</param>
     /// <param name="drawUnitIndices">可选完整字簇索引；默认绘制全部，空集合不画。不会重新整形或按字符串切字形。</param>
+    /// <param name="unitShader">可选按绘制单元取的着色器（按单字渐变，P3 设计 §5.2）；给出时替代 <paramref name="shader"/>。</param>
     /// <exception cref="ArgumentNullException">任一引用参数为 <see langword="null"/> 时抛出。</exception>
     /// <exception cref="ObjectDisposedException">已释放时抛出。</exception>
     /// <remarks>
@@ -260,7 +261,8 @@ public sealed class SkiaTextLayoutEngine : ITextLayoutEngine
         SKImageFilter? imageFilter = null,
         SKStrokeJoin strokeJoin = SKStrokeJoin.Round,
         SKBlendMode blendMode = SKBlendMode.SrcOver,
-        ImmutableArray<int> drawUnitIndices = default)
+        ImmutableArray<int> drawUnitIndices = default,
+        Func<ShapedDrawUnit, SKShader?>? unitShader = null)
     {
         ArgumentNullException.ThrowIfNull(canvas);
         ArgumentNullException.ThrowIfNull(line);
@@ -291,7 +293,10 @@ public sealed class SkiaTextLayoutEngine : ITextLayoutEngine
         IEnumerable<ShapedDrawUnit> selected = drawUnitIndices.IsDefault ? line.DrawUnits
             : drawUnitIndices.Select(index => line.DrawUnits[index]);
         foreach (ShapedDrawUnit unit in selected)
+        {
+            if (unitShader is not null) paint.Shader = unitShader(unit);
             DrawShapedText(canvas, unit.Glyphs, fonts.GetEntry(unit.FamilyName).Font, originX, baselineY, paint);
+        }
     }
 
     // 与 SkiaSharp.HarfBuzz CanvasExtensions 的最终路径一致；使用已有 Result 的 ID／位置。

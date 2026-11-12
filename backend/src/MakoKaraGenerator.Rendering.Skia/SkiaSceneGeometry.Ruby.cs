@@ -7,8 +7,9 @@ namespace MakoKaraGenerator.Rendering.Skia;
 
 public sealed partial class SkiaSceneGeometry
 {
+    /// <summary>一条注音的布局；<paramref name="BaseWidth"/> 是所属底字整行的宽度，整行渐变的横向参考取它（P3 设计 §7.2）。</summary>
     internal sealed record RubyLayout(string Id, int TokenIndex, ShapedLine Shaped, TextLayoutOptions Options,
-        float X, float Baseline, TextInkBounds Ink, ImmutableArray<RubyLayoutSegment> Segments);
+        float X, float Baseline, TextInkBounds Ink, ImmutableArray<RubyLayoutSegment> Segments, float BaseWidth = 0f);
 
     internal sealed record RubyLayoutSegment(string Id, float Left, float Right);
 
@@ -24,7 +25,7 @@ public sealed partial class SkiaSceneGeometry
     {
         ShapedLine shaped = GetLayout(line.Text, LayoutOptionsFor(style));
         List<RubyLayout> ruby = MeasureRuby(line, style, shaped);
-        if (ruby.Count < 2) return new(shaped, [.. ruby], RubySpacingStatus.Unchanged);
+        if (ruby.Count < 2) return new(shaped, [.. ruby.Select(annotation => annotation with { BaseWidth = shaped.Width })], RubySpacingStatus.Unchanged);
         int offset = 0;
         TextSpan[] spans = [.. line.Tokens.Select(token =>
         {
@@ -41,7 +42,7 @@ public sealed partial class SkiaSceneGeometry
                     Ink = annotation.Ink with { Left = annotation.Ink.Left + shift, Right = annotation.Ink.Right + shift } };
             })];
         }
-        return new(solved.Basis, [.. ruby], solved.Status);
+        return new(solved.Basis, [.. ruby.Select(annotation => annotation with { BaseWidth = solved.Basis.Width })], solved.Status);
     }
 
     private List<RubyLayout> MeasureRuby(LyricLine line, LyricStyle style, ShapedLine shaped)

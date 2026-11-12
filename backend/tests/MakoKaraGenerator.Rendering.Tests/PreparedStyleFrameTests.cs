@@ -47,8 +47,8 @@ public sealed class PreparedStyleFrameTests
                         {
                             var gradient = new GradientValue([new(0, new(1, 0, 0, 1)), new(.3, new(0, 1, 0, 180/255d)), new(1, new(0, 0, 1, 1))],
                                 (mode == "radial" || mode == "strokeRadial") ? GradientKind.Radial : GradientKind.Linear, 25,
-                                (mode == "canvas" || mode == "strokeCanvas") ? GradientCoordinateSpace.Canvas : (mode == "unsupported" || mode == "strokeUnsupported") ? GradientCoordinateSpace.Glyph : GradientCoordinateSpace.Line,
-                                GradientColorSpace.Hsv, GradientHuePath.Longer, .3, .7, .4, .8);
+                                (mode == "canvas" || mode == "strokeCanvas") ? GradientCoordinateSpace.Canvas : GradientCoordinateSpace.Line,
+                                (mode == "unsupported" || mode == "strokeUnsupported") ? GradientColorSpace.Oklch : GradientColorSpace.Hsv, GradientHuePath.Longer, .3, .7, .4, .8);
                             if (mode.StartsWith("stroke", StringComparison.Ordinal)) output.Style.SetStroke(target, new(4, MaterialValue.Gradient(gradient),
                                 mode == "strokeMiter" ? StrokeJoin.Miter : mode == "strokeBevel" ? StrokeJoin.Bevel : StrokeJoin.Round));
                             else { output.Style.SetSungMaterial(target, MaterialValue.Gradient(gradient)); output.Style.SetUnsungMaterial(target, MaterialValue.Gradient(gradient)); }
@@ -186,7 +186,8 @@ public sealed class PreparedStyleFrameTests
     [Fact]
     public async Task 不支持的源渐变原样读取且无变化写入不改变画面或真实首色标()
     {
-        var project = Single(); var gradient = GradientSpec.Create([new(0, RgbaColor.White), new(1, RgbaColor.Black)], coordinateSpace: GradientCoordinateSpace.Glyph);
+        var project = Single(); var gradient = GradientSpec.Create([new(0, RgbaColor.White), new(1, RgbaColor.Black)], coordinateSpace: GradientCoordinateSpace.Glyph,
+            colorSpace: GradientColorSpace.Oklch);
         var style = project.LyricStyle with { SungFill = new() { Color = new(20, 40, 80, 120), Gradient = gradient } };
         var snapshot = ProjectSnapshot.FromProject(project with { LyricStyle = style }) with { EffectInputsFingerprint = Fingerprint };
         Assert.Same(style, StaticStyleProjection.Apply(style, new()));

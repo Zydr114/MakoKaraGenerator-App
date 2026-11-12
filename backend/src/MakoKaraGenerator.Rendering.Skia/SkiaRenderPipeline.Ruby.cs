@@ -63,7 +63,8 @@ public sealed partial class SkiaRenderPipeline
                         DrawStyledLine(canvas, entry.Shaped, entry.Options, x, y,
                             sung ? style.SungFill.Color : style.UnsungFill.Color,
                             sung ? style.SungFill.Gradient : style.UnsungFill.Gradient,
-                            style, composition, antialias, drawUnitIndices, capture, sungPass: sung, rubyGlyph: true);
+                            style, composition, antialias, drawUnitIndices, capture, sungPass: sung, rubyGlyph: true,
+                            lineSpan: new LineSpan(origin, entry.BaseWidth));
                     canvas.Restore();
                 }
             }

@@ -179,7 +179,8 @@ public sealed class StyleValidationTests
     {
         GradientSpec unsupported = GradientSpec.Create(
             [new GradientStop(0d, RgbaColor.Black), new GradientStop(1d, RgbaColor.White)],
-            coordinateSpace: GradientCoordinateSpace.Glyph);
+            coordinateSpace: GradientCoordinateSpace.Glyph,
+            colorSpace: GradientColorSpace.Oklch);
         Project project = BuildProject(
             new LyricStyleOverride { UnsungGradientSpec = unsupported },
             null,
@@ -189,7 +190,7 @@ public sealed class StyleValidationTests
 
         ProjectIssue issue = Assert.Single(
             report.Issues.Where(static item => item.Code == DiagnosticCode.InvalidStyleValue));
-        Assert.Contains("按单字坐标", issue.Message, StringComparison.Ordinal);
+        Assert.Contains("Oklch", issue.Message, StringComparison.Ordinal);
         Assert.True(GradientSupport.IsSupported(GradientSpec.Create(
             [new GradientStop(0d, RgbaColor.Black), new GradientStop(1d, RgbaColor.White)])));
         Assert.False(GradientSupport.IsSupported(unsupported));

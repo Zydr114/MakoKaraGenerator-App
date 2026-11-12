@@ -61,6 +61,43 @@ public static class GradientSampler
         return SampleStops(gradient, position);
     }
 
+    /// <summary>渐变是否含重合色标（硬边，P3 设计 §5.1）。</summary>
+    /// <param name="gradient">有效的渐变描述。</param>
+    /// <returns>任意相邻两个色标位置相同且颜色不同时为 <see langword="true"/>。</returns>
+    public static bool HasHardEdges(GradientSpec gradient)
+    {
+        ArgumentNullException.ThrowIfNull(gradient);
+        System.Collections.Immutable.ImmutableArray<GradientStop> stops = gradient.Stops;
+        for (int index = 1; index < stops.Length; index++)
+        {
+            if (stops[index].Offset == stops[index - 1].Offset && stops[index].Color != stops[index - 1].Color) return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>在相邻两个色标之间按渐变的插值空间取色。</summary>
+    /// <param name="gradient">有效的渐变描述。</param>
+    /// <param name="leftIndex">左侧色标的下标；右侧是下一个色标。</param>
+    /// <param name="amount">两色标之间的比例，0 为左侧颜色，1 为右侧颜色。</param>
+    /// <returns>插值颜色。</returns>
+    /// <exception cref="ArgumentOutOfRangeException">下标不在相邻色标对的范围内，或比例不是 0 到 1 的有限数。</exception>
+    /// <exception cref="NotSupportedException">Oklch 插值尚未实现。</exception>
+    public static RgbaColor SampleBetween(GradientSpec gradient, int leftIndex, double amount)
+    {
+        ArgumentNullException.ThrowIfNull(gradient);
+        if (leftIndex < 0 || leftIndex + 1 >= gradient.Stops.Length)
+            throw new ArgumentOutOfRangeException(nameof(leftIndex), leftIndex, "须指向一对相邻色标。");
+        if (!double.IsFinite(amount) || amount is < 0d or > 1d)
+            throw new ArgumentOutOfRangeException(nameof(amount), amount, "比例必须是 0 到 1 的有限数。");
+        if (gradient.ColorSpace == GradientColorSpace.Oklch)
+            throw new NotSupportedException("Oklch 渐变采样将在感知色空间接入阶段实现。");
+        GradientStop left = gradient.Stops[leftIndex], right = gradient.Stops[leftIndex + 1];
+        return gradient.ColorSpace == GradientColorSpace.Hsv
+            ? InterpolateHsv(left.Color, right.Color, amount, gradient.HuePath)
+            : InterpolateLinearRgb(left.Color, right.Color, amount);
+    }
+
     private static RgbaColor SampleStops(GradientSpec gradient, double position)
     {
         double normalized = Math.Clamp(position, 0d, 1d);

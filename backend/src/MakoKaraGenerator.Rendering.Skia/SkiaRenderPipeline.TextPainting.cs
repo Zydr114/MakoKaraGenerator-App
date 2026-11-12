@@ -19,7 +19,8 @@ public sealed partial class SkiaRenderPipeline
         LyricStyle style,
         Composition composition,
         bool antialias,
-        ImmutableArray<int> drawUnitIndices = default, CapturePaint? capture = null, bool sungPass = false, bool rubyGlyph = false)
+        ImmutableArray<int> drawUnitIndices = default, CapturePaint? capture = null, bool sungPass = false, bool rubyGlyph = false,
+        LineSpan? lineSpan = null)
     {
         if (capture?.IncludesGlyph(rubyGlyph) == false || capture?.GlowOnly == true) return;
         if (capture?.RequestedSungPass is { } requested && requested != sungPass) return;
@@ -29,21 +30,16 @@ public sealed partial class SkiaRenderPipeline
         if (capture is not null)
         {
             style = capture.Style(style);
-            var fill = sungPass ? style.SungFill : style.UnsungFill; color = fill.Color; gradient = fill.Gradient;
+            var stateFill = sungPass ? style.SungFill : style.UnsungFill; color = stateFill.Color; gradient = stateFill.Gradient;
         }
         if (capture?.MaterialFallback is not null && gradient is not null)
         {
-            ValidateNativeGradient(gradient, shaped.Width, style, composition);
+            ValidateNativeGradient(gradient, shaped, style, composition, lineSpan);
         }
         // 不支持的渐变组合明确拒绝使用，保持纯色基色；绝不伪装成旧端点渐变。
-        using SKShader? shader = CreateGradientShader(
-            gradient,
-            shaped,
-            originX,
-            baselineY,
-            style,
-            composition);
-        if (capture?.MaterialFallback is not null && gradient is not null && shader is null)
+        var device = canvas.TotalMatrix;
+        using var fill = CreateTextShading(gradient, shaped, originX, baselineY, style, composition, device, lineSpan);
+        if (capture?.MaterialFallback is not null && gradient is not null && fill.IsEmpty)
             throw new PreparedFrameException("PackageMaterialFallbackUnsupported", "不能将材质基础渐变静默降级为停止点颜色。");
 
         ShadowSpec? shadowSpec = EffectiveShadow(style);
@@ -57,11 +53,13 @@ public sealed partial class SkiaRenderPipeline
             {
                 if (!GradientSupport.IsSupported(strokeGradient))
                     throw new PreparedFrameException("UnsupportedEffectGradient", "描边渐变尚未接入后端：" + GradientSupport.UnsupportedReason(strokeGradient));
-                ValidateNativeGradient(strokeGradient, shaped.Width, style, composition);
+                ValidateNativeGradient(strokeGradient, shaped, style, composition, lineSpan);
             }
-            using var strokeShader = CreateGradientShader(strokeSpec.Gradient, shaped, originX, baselineY, style, composition);
-            if (strokeSpec.Gradient is not null && strokeShader is null)
+            using var strokeShading = CreateTextShading(strokeSpec.Gradient, shaped, originX, baselineY, style, composition, device, lineSpan);
+            if (strokeSpec.Gradient is not null && strokeShading.IsEmpty)
                 throw new PreparedFrameException("GradientShaderUnavailable", "无法创建实际描边渐变，不能改用纯色或隐藏描边。");
+            // 材质基础外观先画白色轮廓再按区域上色；按单字时每个字簇的颜色不同，改为直接带各自的着色器绘制。
+            bool regionColored = capture?.MaterialFallback is not null && strokeShading.UnitShader is null;
             using var strokeReservation = capture?.Layer("CaptureStrokeLayer");
             // 在独立图层画外扩轮廓，再用不透明字形遮罩减去内部。
             // 遮罩不读取填充透明度，因此透明填充也不会露出内半边描边。
@@ -69,10 +67,10 @@ public sealed partial class SkiaRenderPipeline
             int strokeLayer = canvas.SaveLayer();
             _geometry.LayoutEngine.DrawLine(
                 canvas, shaped, options, originX, baselineY,
-                capture?.MaterialFallback is not null || strokeShader is not null ? SKColors.White : ToSkColorWithOpacity(strokeColor, style.Opacity), antialias,
+                regionColored || !strokeShading.IsEmpty ? SKColors.White : ToSkColorWithOpacity(strokeColor, style.Opacity), antialias,
                 SKPaintStyle.Stroke, strokeSpec.WidthPx * 2f,
-                shader: capture?.MaterialFallback is not null ? null : strokeShader,
-                drawUnitIndices: drawUnitIndices,
+                shader: regionColored ? null : strokeShading.Shared,
+                drawUnitIndices: drawUnitIndices, unitShader: strokeShading.UnitShader,
                 strokeJoin: strokeSpec.Join switch
                 {
                     StrokeJoin.Miter => SKStrokeJoin.Miter,
@@ -84,10 +82,10 @@ public sealed partial class SkiaRenderPipeline
             _geometry.LayoutEngine.DrawLine(canvas, shaped, options, originX, baselineY,
                 capture?.IsCoverage == true || capture?.MaterialFallback is not null ? SKColors.White : SKColors.Black, antialias,
                 blendMode: SKBlendMode.DstOut, drawUnitIndices: drawUnitIndices);
-            if (capture?.MaterialFallback is not null)
+            if (regionColored)
             {
-                using var regionColor = new SKPaint { BlendMode = SKBlendMode.SrcIn, Shader = strokeShader,
-                    Color = strokeShader is null ? ToSkColorWithOpacity(strokeColor, 1) : SKColors.White };
+                using var regionColor = new SKPaint { BlendMode = SKBlendMode.SrcIn, Shader = strokeShading.Shared,
+                    Color = strokeShading.Shared is null ? ToSkColorWithOpacity(strokeColor, 1) : SKColors.White };
                 canvas.DrawPaint(regionColor);
             }
             canvas.RestoreToCount(strokeLayer);
@@ -101,10 +99,14 @@ public sealed partial class SkiaRenderPipeline
             capture.MarkDrawn(canvas);
             int materialLayer = canvas.SaveLayer();
             _geometry.LayoutEngine.DrawLine(canvas, shaped, options, originX, baselineY, SKColors.White, antialias,
-                drawUnitIndices: drawUnitIndices);
-            using var regionColor = new SKPaint { BlendMode = SKBlendMode.SrcIn, Shader = shader,
-                Color = shader is null ? ToSkColorWithOpacity(color, 1) : SKColors.White };
-            canvas.DrawPaint(regionColor); canvas.RestoreToCount(materialLayer); return;
+                drawUnitIndices: drawUnitIndices, unitShader: fill.UnitShader);
+            if (fill.UnitShader is null)
+            {
+                using var regionColor = new SKPaint { BlendMode = SKBlendMode.SrcIn, Shader = fill.Shared,
+                    Color = fill.Shared is null ? ToSkColorWithOpacity(color, 1) : SKColors.White };
+                canvas.DrawPaint(regionColor);
+            }
+            canvas.RestoreToCount(materialLayer); return;
         }
         if (capture?.ShadowOnly == true && shadow is null)
         {
@@ -115,21 +117,8 @@ public sealed partial class SkiaRenderPipeline
         _geometry.LayoutEngine.DrawLine(
             canvas, shaped, options, originX, baselineY,
             // shader 色标已包含样式 alpha；画笔不能再乘历史纯色 alpha 或样式 alpha。
-            shader is null ? ToSkColorWithOpacity(color, style.Opacity) : SKColors.White, antialias,
-            SKPaintStyle.Fill, 0f, shader, shadow, drawUnitIndices: drawUnitIndices);
-    }
-
-    private static void ValidateNativeGradient(GradientSpec gradient, float lineWidth, LyricStyle style, Composition composition)
-    {
-        if (!float.IsFinite((float)(gradient.AngleDegrees * Math.PI / 180)))
-            throw new PreparedFrameException("UnsupportedNativeStyleValues", "渐变角度超出后端有限精度范围。");
-        if (gradient.Kind != GradientKind.Radial) return;
-        double width = gradient.CoordinateSpace == GradientCoordinateSpace.Canvas ? composition.CanvasWidth : Math.Max(1, lineWidth);
-        double height = gradient.CoordinateSpace == GradientCoordinateSpace.Canvas ? composition.CanvasHeight : Math.Max(1, style.FontSizePx);
-        double rx = gradient.RadiusX * width, ry = gradient.RadiusY * height;
-        if (!float.IsFinite((float)rx) || !float.IsFinite((float)ry) || rx < 1e-4 || ry < 1e-4
-            || !float.IsFinite((float)(gradient.CenterX * width)) || !float.IsFinite((float)(gradient.CenterY * height)))
-            throw new PreparedFrameException("UnsupportedNativeStyleValues", "渐变实际径向中心或半径超出后端范围，不能夹值绘制。");
+            fill.IsEmpty ? ToSkColorWithOpacity(color, style.Opacity) : SKColors.White, antialias,
+            SKPaintStyle.Fill, 0f, fill.Shared, shadow, drawUnitIndices: drawUnitIndices, unitShader: fill.UnitShader);
     }
 
     private static SKImageFilter? CreateTextShadow(ShadowSpec? spec, float styleOpacity, bool shadowOnly)

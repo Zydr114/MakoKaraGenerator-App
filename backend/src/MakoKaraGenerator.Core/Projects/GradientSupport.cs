@@ -16,7 +16,7 @@ public static class GradientSupport
     public static bool IsSupported(GradientSpec? gradient) =>
         gradient is { IsValid: true }
         && gradient.Kind is GradientKind.Linear or GradientKind.Radial
-        && gradient.CoordinateSpace is GradientCoordinateSpace.Canvas or GradientCoordinateSpace.Line
+        && gradient.CoordinateSpace is GradientCoordinateSpace.Canvas or GradientCoordinateSpace.Line or GradientCoordinateSpace.Glyph
         && gradient.ColorSpace is GradientColorSpace.LinearRgb or GradientColorSpace.Hsv;
 
     /// <summary>返回不可用组合的用户可见原因；可用时返回空值。</summary>
@@ -32,11 +32,6 @@ public static class GradientSupport
         if (!gradient.IsValid)
         {
             return "渐变描述本身无效。";
-        }
-
-        if (gradient.CoordinateSpace is GradientCoordinateSpace.Glyph)
-        {
-            return "按单字坐标的渲染在 P3 第 4 步接入。";
         }
 
         if (gradient.ColorSpace == GradientColorSpace.Oklch)

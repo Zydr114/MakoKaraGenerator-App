@@ -56,28 +56,28 @@ public sealed partial class SkiaRenderPipeline
             var line = prepared.Scene.Lines.Single(item => item.BindingId == output.Target.BindingId.Value).Frame.Line!;
             var layout = _geometry.GetLineLayout(line, style);
             var shaped = layout.Shaped;
-            ValidateGradients(style, shaped.Width);
-            foreach (var ruby in layout.Ruby) ValidateGradients(style, ruby.Shaped.Width);
+            ValidateGradients(style, shaped);
+            foreach (var ruby in layout.Ruby) ValidateGradients(style, ruby.Shaped, new LineSpan(0f, shaped.Width));
         }
         foreach (var output in prepared.MarkStyles)
         {
             var style = prepared.GetMarkDrawingStyle(output.Target);
             var mark = prepared.Scene.TextMarks.Single(item => item.NodeId == output.Target.NodeId.Value && item.CueId == output.Target.CueId.Value
                 && item.Geometry.BindingId == output.Target.BindingId.Value);
-            ValidateGradients(style, _geometry.GetLayout(mark.Text, LayoutOptionsFor(style)).Width);
+            ValidateGradients(style, _geometry.GetLayout(mark.Text, LayoutOptionsFor(style)));
         }
         foreach (var output in prepared.BaseStyles)
         {
             var style = prepared.GetBaseDrawingStyle(output.Target);
             var line = prepared.Scene.Lines.Single(item => item.BindingId == output.Target.BindingId.Value).Frame.Line!;
-            ValidateGradients(style, _geometry.GetLineLayout(line, style).Shaped.Width);
+            ValidateGradients(style, _geometry.GetLineLayout(line, style).Shaped);
         }
-        void ValidateGradients(LyricStyle style, float lineWidth)
+        void ValidateGradients(LyricStyle style, ShapedLine shaped, LineSpan? span = null)
         {
             foreach (var gradient in new[] { style.UnsungFill.Gradient, style.SungFill.Gradient, style.Stroke?.Gradient, style.ForState(true).Stroke?.Gradient })
             {
                 if (gradient is not null && GradientSupport.IsSupported(gradient))
-                    ValidateNativeGradient(gradient, lineWidth, style, prepared.Snapshot.Composition);
+                    ValidateNativeGradient(gradient, shaped, style, prepared.Snapshot.Composition, span);
             }
         }
         static void Matrix(Fx.Affine2 matrix)

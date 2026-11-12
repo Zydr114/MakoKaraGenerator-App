@@ -10,10 +10,11 @@ namespace MakoKaraGenerator.Rendering.Tests;
 public sealed partial class MixedEffectPackageTests
 {
     [Theory]
-    [InlineData("solid")] [InlineData("linear")] [InlineData("radial")]
+    [InlineData("solid")] [InlineData("linear")] [InlineData("radial")] [InlineData("glyph")]
     public async Task 包内显式回退投影与静态规范外观真实像素一致(string kind)
     {
-        JsonObject? json = kind == "solid" ? null : MixedEffectPackageFixture.Gradient(kind: kind == "linear" ? "Linear" : "Radial");
+        JsonObject? json = kind == "solid" ? null : MixedEffectPackageFixture.Gradient(space: kind == "glyph" ? "Glyph" : "Line",
+            kind: kind == "radial" ? "Radial" : "Linear");
         var compiled = await Compile(MixedEffectPackageFixture.Contents(pure: true, fallback: json));
         var value = compiled.GetMaterialFallback(compiled.Resources.GetMaterial("ink"));
         var fallback = compiled.Definition.GetMaterial("ink").Fallback;
@@ -39,7 +40,7 @@ public sealed partial class MixedEffectPackageTests
     }
 
     [Theory]
-    [InlineData("Glyph", "Hsv")] [InlineData("Line", "Oklch")]
+    [InlineData("Glyph", "Oklch")] [InlineData("Line", "Oklch")]
     public async Task 生产未支持的回退不能部分启用混合控制器(string space, string colorSpace)
     {
         var definition = EffectPackageDefinition.Read(MixedEffectPackageFixture.Contents(fallback: MixedEffectPackageFixture.Gradient(space, colorSpace)));

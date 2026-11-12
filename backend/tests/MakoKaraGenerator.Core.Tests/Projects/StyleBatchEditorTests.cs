@@ -13,14 +13,14 @@ public sealed class StyleBatchEditorTests
     {
         var project = CreateProject();
         var style = project.LyricStyle with { UnsungColor = new(200, 10, 30), FontSizePx = 300 };
-        var changed = StyleBatchEditor.Apply(project, StyleTargetLevel.Token, [new(0, 0), new(1, 1), new(0, 0)], style, [LyricStyleProperty.UnsungColor]);
+        var changed = StyleBatchEditor.Apply(project, StyleTargetLevel.Token, [new(0, 0), new(1, 1), new(0, 0)], style, [LyricStyleProperty.UnsungFill]);
         Assert.Same(project.LyricStyle, changed.LyricStyle);
         Assert.Equal(project.Lyrics.Lines[0].StyleOverride, changed.Lyrics.Lines[0].StyleOverride);
         Assert.Equal(style.UnsungColor, changed.Lyrics.Lines[0].Tokens[0].StyleOverride!.UnsungColor);
         Assert.Equal(style.UnsungColor, changed.Lyrics.Lines[1].Tokens[1].StyleOverride!.UnsungColor);
         Assert.Null(changed.Lyrics.Lines[0].Tokens[1].StyleOverride);
         Assert.Null(changed.Lyrics.Lines[0].Tokens[0].StyleOverride!.FontSizePx);
-        Assert.Same(changed, StyleBatchEditor.Apply(changed, StyleTargetLevel.Token, [new(0, 0), new(1, 1)], style, [LyricStyleProperty.UnsungColor]));
+        Assert.Same(changed, StyleBatchEditor.Apply(changed, StyleTargetLevel.Token, [new(0, 0), new(1, 1)], style, [LyricStyleProperty.UnsungFill]));
     }
 
     [Fact]
@@ -38,17 +38,17 @@ public sealed class StyleBatchEditorTests
     {
         var style = LyricStyle.Default with { FontFamilyName = "Noto Sans CJK SC", FontSizePx = 91, Opacity = .6f, Scale = 1.3f,
             UnsungColor = new(200, 10, 30), SungColor = new(20, 230, 40), HorizontalAlignment = LyricHorizontalAlignment.Left,
-            VerticalCenterRatio = .7, StrokeWidthPx = 3, Shadow = new ShadowSpec
+            VerticalCenterRatio = .7, Stroke = StrokeSpec.Create(new RgbaColor(255, 255, 255), 3f), Shadow = new ShadowSpec
             {
                 Color = new RgbaColor(0, 0, 0, 160), AngleDegrees = Math.Atan2(5d, 2d) * 180d / Math.PI,
                 DistancePx = (float)Math.Sqrt(29d), BlurRadiusPx = 4f,
-            } };
+            },
+            Wipe = new() { FeatherRatio = .5d, Highlight = new() { WidthRatio = .3d } } };
+        style = style with { Sung = style.Sung with { Glow = Followable.Set<GlowSpec?>(GlowSpec.Create(new RgbaColor(255, 220, 0), .7f, 6f, 1f)) } };
         foreach (var property in LyricStylePropertyExtensions.All)
         {
             var overlay = StyleBatchEditor.CopyProperties(LyricStyleOverride.Empty, style, [property]);
-            var set = TokenStyleSupport.SetProperties(overlay);
-            Assert.Contains(property, set);
-            Assert.Equal(property is LyricStyleProperty.UnsungColor or LyricStyleProperty.UnsungGradientSpec or LyricStyleProperty.SungColor or LyricStyleProperty.SungGradientSpec ? 2 : property == LyricStyleProperty.GlowSpec ? 5 : 1, set.Count);
+            Assert.Contains(property, TokenStyleSupport.SetProperties(overlay));
             Assert.False(overlay.IsEmpty);
             Assert.True(StyleBatchEditor.CopyProperties(overlay, style, [property], restoreInheritance: true).IsEmpty);
         }
@@ -57,17 +57,31 @@ public sealed class StyleBatchEditorTests
     }
 
     [Fact]
+    public void 整体项与分量同选时已唱保持跟随而只选分量时写成显式值()
+    {
+        var style = LyricStyle.Default with { Shadow = ShadowSpec.Create(new RgbaColor(0, 0, 0), .5f, 45d, 4f, 3f) };
+        var full = StyleBatchEditor.CopyProperties(LyricStyleOverride.Empty, style, LyricStylePropertyExtensions.All);
+        Assert.True(full.Sung!.Shadow.Value.FollowsUnsung);
+        Assert.True(full.Sung.Glow.Value.FollowsUnsung);
+        Assert.True(LyricStyleResolver.Resolve(LyricStyle.Default, lineOverride: full).Style.Sung.Shadow.FollowsUnsung);
+        var leaf = StyleBatchEditor.CopyProperties(LyricStyleOverride.Empty, style, [LyricStyleProperty.SungShadowColor]);
+        Assert.False(leaf.Sung!.Shadow.Value.FollowsUnsung);
+        Assert.Equal(style.Shadow!.Color, leaf.Sung.Shadow.Value.Value!.Color);
+    }
+
+    [Fact]
     public void 明确关闭与恢复继承不同且不清除其他属性()
     {
-        GradientSpec gradient = new() { Stops = [new GradientStop(0, new(255, 0, 0)), new GradientStop(1, new(0, 255, 0))] };
-        var project = CreateProject() with { LyricStyle = LyricStyle.Default with { UnsungGradientSpec = gradient } };
-        var off = StyleBatchEditor.Apply(project, StyleTargetLevel.Line, [new(0), new(1)], LyricStyle.Default, [LyricStyleProperty.UnsungGradientSpec]);
+        ShadowSpec shadow = ShadowSpec.Create(new RgbaColor(0, 0, 0), .5f, 45d, 4f, 3f);
+        var project = CreateProject() with { LyricStyle = LyricStyle.Default with { Shadow = shadow } };
+        var off = StyleBatchEditor.Apply(project, StyleTargetLevel.Line, [new(0), new(1)], LyricStyle.Default, [LyricStyleProperty.UnsungShadow]);
         var overlay = off.Lyrics.Lines[0].StyleOverride!;
-        Assert.True(overlay.UnsungGradientSpec.IsSet);
-        Assert.Null(LyricStyleResolver.Resolve(off.LyricStyle, lineOverride: overlay).Style.UnsungGradientSpec);
-        var restored = StyleBatchEditor.Apply(off, StyleTargetLevel.Line, [new(0)], LyricStyle.Default, [LyricStyleProperty.UnsungGradientSpec], restoreInheritance: true);
-        Assert.False(restored.Lyrics.Lines[0].StyleOverride?.UnsungGradientSpec.IsSet ?? false);
-        Assert.Equal(project.LyricStyle.UnsungGradientSpec, LyricStyleResolver.Resolve(restored.LyricStyle, lineOverride: restored.Lyrics.Lines[0].StyleOverride).Style.UnsungGradientSpec);
+        Assert.True(overlay.Shadow.IsSet);
+        Assert.Null(LyricStyleResolver.Resolve(off.LyricStyle, lineOverride: overlay).Style.Shadow);
+        var restored = StyleBatchEditor.Apply(off, StyleTargetLevel.Line, [new(0)], LyricStyle.Default, [LyricStyleProperty.UnsungShadow], restoreInheritance: true);
+        Assert.False(restored.Lyrics.Lines[0].StyleOverride?.Shadow.IsSet ?? false);
+        Assert.Equal(shadow, LyricStyleResolver.Resolve(restored.LyricStyle, lineOverride: restored.Lyrics.Lines[0].StyleOverride).Style.Shadow);
+        Assert.True(restored.Lyrics.Lines[1].StyleOverride!.Shadow.IsSet);
     }
 
     [Fact]
@@ -89,19 +103,18 @@ public sealed class StyleBatchEditorTests
     }
 
     [Fact]
-    public void 六种可选颜色三态保存重开不丢失()
+    public void 关闭与跟随的元素覆盖保存重开不丢失()
     {
         using TemporaryDirectory directory = new();
         var project = CreateProject();
-        var optional = new[] { LyricStyleProperty.UnsungGradientSpec, LyricStyleProperty.SungGradientSpec,
-            LyricStyleProperty.StrokeColor, LyricStyleProperty.ShadowColor };
+        var optional = new[] { LyricStyleProperty.UnsungStrokes, LyricStyleProperty.SungStrokes,
+            LyricStyleProperty.UnsungShadow, LyricStyleProperty.SungGlow };
         var off = StyleBatchEditor.Apply(project, StyleTargetLevel.Token, [new(0, 0)], LyricStyle.Default, optional);
         ProjectStore.Save(off, directory.Path);
         string json = ProjectFileFixture.ReadLyrics(directory.Path);
-        Assert.Contains("\"unsungFill\"", json, StringComparison.Ordinal);
-        Assert.Contains("\"sungFill\"", json, StringComparison.Ordinal);
-        Assert.Contains("\"stroke\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"strokes\"", json, StringComparison.Ordinal);
         Assert.Contains("\"shadow\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"follow\"", json, StringComparison.Ordinal);
         Assert.DoesNotContain("unsungGradientStartColor", json, StringComparison.Ordinal);
         Assert.DoesNotContain("shadowOffsetXPx", json, StringComparison.Ordinal);
         var loaded = ProjectStore.Load(directory.Path);

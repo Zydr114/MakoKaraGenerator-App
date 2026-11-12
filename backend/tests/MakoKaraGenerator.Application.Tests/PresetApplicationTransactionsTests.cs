@@ -12,7 +12,7 @@ public sealed class PresetApplicationTransactionsTests
         var package = EffectPackageFixture.GroupTransform();
         var config = ScriptConfiguration.Create("group-config", "工程变换", package, "group-transform", readScope: ScriptReadScope.Project, fixedSeed: ulong.MaxValue);
         return StyleTemplate.Create("combined", "固定组合", StyleTemplateKind.Composite, LyricStyle.Default with { SungColor = RgbaColor.Black },
-            [LyricStyleProperty.SungColor], [TemplateEffectRecipe.FromConfiguration("group", config)], [package]);
+            [LyricStyleProperty.SungFill], [TemplateEffectRecipe.FromConfiguration("group", config)], [package]);
     }
 
     [Fact]

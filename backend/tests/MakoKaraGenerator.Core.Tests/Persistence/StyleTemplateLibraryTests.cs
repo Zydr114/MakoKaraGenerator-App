@@ -16,9 +16,9 @@ public sealed class StyleTemplateLibraryTests
         StyleTemplate[] templates =
         [
             StyleTemplate.Create("line-1", "蓝行", StyleTemplateKind.Line, LyricStyle.Default,
-                [LyricStyleProperty.FontSizePx, LyricStyleProperty.SungColor]),
+                [LyricStyleProperty.FontSizePx, LyricStyleProperty.SungFill]),
             StyleTemplate.Create("token-1", "亮字", StyleTemplateKind.Token, LyricStyle.Default,
-                [LyricStyleProperty.SungColor]),
+                [LyricStyleProperty.SungFill]),
         ];
 
         StyleTemplateLibrary.Save(templatesPath, templates);
@@ -45,7 +45,7 @@ public sealed class StyleTemplateLibraryTests
         GradientSpec oklchShorter = Gradient(GradientCoordinateSpace.Line, GradientColorSpace.Oklch, GradientHuePath.Shorter);
         GradientSpec oklchLonger = Gradient(GradientCoordinateSpace.Line, GradientColorSpace.Oklch, GradientHuePath.Longer);
         GradientSpec glyph = Gradient(GradientCoordinateSpace.Glyph, GradientColorSpace.LinearRgb, GradientHuePath.Increasing);
-        GradientSpec progress = Gradient(GradientCoordinateSpace.Progress, GradientColorSpace.Hsv, GradientHuePath.Decreasing);
+        GradientSpec progress = Gradient(GradientCoordinateSpace.Canvas, GradientColorSpace.Hsv, GradientHuePath.Decreasing);
         LyricStyle style = LyricStyle.Default with
         {
             UnsungFill = new() { Material = new MaterialSpec.Gradient(oklchShorter) },
@@ -53,10 +53,10 @@ public sealed class StyleTemplateLibraryTests
             Stroke = new() { Material = new MaterialSpec.Gradient(glyph), WidthPx = 2f },
         };
         StyleTemplate template = StyleTemplate.Create("gradient-variants", "渐变变体", StyleTemplateKind.Line, style,
-            [LyricStyleProperty.UnsungGradientSpec, LyricStyleProperty.SungGradientSpec]);
+            [LyricStyleProperty.UnsungFill, LyricStyleProperty.SungFill]);
         StyleTemplate progressTemplate = StyleTemplate.Create("gradient-progress", "进度渐变", StyleTemplateKind.Line,
             LyricStyle.Default with { UnsungFill = new() { Material = new MaterialSpec.Gradient(progress) } },
-            [LyricStyleProperty.UnsungGradientSpec]);
+            [LyricStyleProperty.UnsungFill]);
 
         StyleTemplateLibrary.Save(path, [template, progressTemplate]);
         StyleTemplateLibraryLoadResult loaded = StyleTemplateLibrary.Load(path);
@@ -127,9 +127,9 @@ public sealed class StyleTemplateLibraryTests
         ];
         EffectPackageContents[] inventory = [controller, material, otherController, newerController];
         var mixed = StyleTemplate.Create("mixed", "完整模板", StyleTemplateKind.Line, style,
-            [LyricStyleProperty.SungColor, LyricStyleProperty.UnsungColor], recipes, inventory);
+            [LyricStyleProperty.SungFill, LyricStyleProperty.UnsungFill], recipes, inventory);
         var materialOnly = StyleTemplate.Create("material", "源材质", StyleTemplateKind.Token, style,
-            [LyricStyleProperty.UnsungColor], packages: [material]);
+            [LyricStyleProperty.UnsungFill], packages: [material]);
         var controllerOnly = StyleTemplate.Create("controller", "控制器", StyleTemplateKind.Token,
             LyricStyle.Default, [], [recipes[0]], [newerController]);
         StyleTemplate[] templates = [materialOnly, mixed, controllerOnly];

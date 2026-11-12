@@ -21,10 +21,9 @@ internal sealed partial class PreviewBackendService
         CanonicalStyleDto style = ProjectSessionRegistry.ExportFullTemplateStyleForPreview(template);
         TemplateMaterialSlotOptionDto[] slots =
         [
-            Slot(TemplateMaterialSlot.UnsungFill, style.UnsungFill.Material, LyricStyleProperty.UnsungColor, LyricStyleProperty.UnsungGradientSpec),
-            Slot(TemplateMaterialSlot.SungFill, style.SungFill.Material, LyricStyleProperty.SungColor, LyricStyleProperty.SungGradientSpec),
-            Slot(TemplateMaterialSlot.Stroke, style.Stroke?.Material, LyricStyleProperty.StrokeColor,
-                LyricStyleProperty.StrokeWidthPx, LyricStyleProperty.StrokeSpec),
+            Slot(TemplateMaterialSlot.UnsungFill, style.UnsungFill.Material, LyricStyleProperty.UnsungFill),
+            Slot(TemplateMaterialSlot.SungFill, style.SungFill.Material, LyricStyleProperty.SungFill),
+            Slot(TemplateMaterialSlot.Stroke, style.Stroke?.Material, LyricStyleProperty.UnsungStrokes),
         ];
         TemplateSampleOptionDto[] samples =
         [

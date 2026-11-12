@@ -31,20 +31,18 @@ public sealed class SourceMaterialTests
     }
 
     [Theory]
-    [InlineData(LyricStyleProperty.UnsungColor)]
-    [InlineData(LyricStyleProperty.UnsungGradientSpec)]
+    [InlineData(LyricStyleProperty.UnsungFill)]
     public void 任一材质编辑地址整体复制包引用且恢复整项继承(LyricStyleProperty property)
     {
         var package = MixedEffectPackageFixture.Contents(); var project = Source(package);
         var applied = StyleBatchEditor.Apply(project, StyleTargetLevel.Token, [new(0, 0)], project.LyricStyle, [property]);
         var overlay = applied.Lyrics.Lines[0].Tokens[0].StyleOverride!;
         Assert.Equal(project.LyricStyle.UnsungFill.Material, overlay.UnsungFill.Value!.Material.Value);
-        Assert.Equal(2, TokenStyleSupport.SetProperties(overlay).Count);
+        Assert.Single(TokenStyleSupport.SetProperties(overlay));
         Assert.True(TokenStyleSupport.HasDrawableOverride(overlay));
         var resolved = LyricStyleResolver.Resolve(lineOverride: new() { UnsungColor = RgbaColor.Black }, tokenOverride: overlay);
         Assert.Equal(project.LyricStyle.UnsungFill.Material, resolved.Style.UnsungFill.Material);
-        Assert.Equal(LyricStyleSource.Token, resolved.Sources[LyricStyleProperty.UnsungColor]);
-        Assert.Equal(LyricStyleSource.Token, resolved.Sources[LyricStyleProperty.UnsungGradientSpec]);
+        Assert.Equal(LyricStyleSource.Token, resolved.Sources[LyricStyleProperty.UnsungFill]);
         var restored = StyleBatchEditor.Apply(applied, StyleTargetLevel.Token, [new(0, 0)], project.LyricStyle, [property], restoreInheritance: true);
         Assert.Null(restored.Lyrics.Lines[0].Tokens[0].StyleOverride);
     }
@@ -66,9 +64,9 @@ public sealed class SourceMaterialTests
         using TemporaryDirectory directory = new(); var package = MixedEffectPackageFixture.Contents(); var project = Source(package);
         var stroke = new StrokeSpec { Material = Material(package), WidthPx = 4, Join = StrokeJoin.Bevel };
         project = project with { LyricStyle = project.LyricStyle with { SungFill = new() { Material = new MaterialSpec.Gradient(Gradient) }, Stroke = stroke } };
-        project = StyleBatchEditor.Apply(project, StyleTargetLevel.Token, [new(0, 0)], project.LyricStyle, [LyricStyleProperty.UnsungColor, LyricStyleProperty.StrokeSpec]);
+        project = StyleBatchEditor.Apply(project, StyleTargetLevel.Token, [new(0, 0)], project.LyricStyle, [LyricStyleProperty.UnsungFill, LyricStyleProperty.UnsungStrokes]);
         var token = project.Lyrics.Lines[0].Tokens[0]; var line = project.Lyrics.Lines[0]; var branch = project.Lyrics.PrimaryBranch!;
-        token = token with { StyleOverride = token.StyleOverride! with { StrokeWidthPx = 8 } };
+        token = token with { StyleOverride = token.StyleOverride! with { UnsungStrokes = StrokeLayers.FromStroke(stroke with { WidthPx = 8 }) } };
         project = project with { Lyrics = project.Lyrics with { Branches = project.Lyrics.Branches.Replace(branch, branch with
             { Lines = branch.Lines.Replace(line, line with { Tokens = line.Tokens.Replace(line.Tokens[0], token) }) }) } };
         ProjectStore.Save(project, directory.Path); var loaded = ProjectStore.Load(directory.Path); Assert.NotNull(loaded.Project);
@@ -77,11 +75,11 @@ public sealed class SourceMaterialTests
         Assert.Equal(stroke.Material, resolved.Stroke!.Material); Assert.Equal(8, resolved.Stroke.WidthPx);
         Assert.Equal(EffectParameterOverrides.Parse("{\"amount\":0.12345678901234567}"), ((MaterialSpec.PackageMaterial)resolved.UnsungFill.Material).Parameters);
         var root = JsonNode.Parse(File.ReadAllText(Path.Combine(directory.Path, "project.json")))!;
-        Assert.Equal("packageMaterial", root["lyricStyle"]!["unsungFill"]!["kind"]!.GetValue<string>());
-        Assert.Null(root["lyricStyle"]!["unsungFill"]!["color"]);
-        Assert.Equal("gradient", root["lyricStyle"]!["sungFill"]!["kind"]!.GetValue<string>());
-        Assert.Null(root["lyricStyle"]!["stroke"]!["color"]);
-        Assert.Equal(4, root["lyricStyle"]!["stroke"]!["geometry"]!["widthPx"]!.GetValue<int>());
+        Assert.Equal("packageMaterial", root["lyricStyle"]!["unsung"]!["fill"]!["kind"]!.GetValue<string>());
+        Assert.Null(root["lyricStyle"]!["unsung"]!["fill"]!["color"]);
+        Assert.Equal("gradient", root["lyricStyle"]!["sung"]!["fill"]!["kind"]!.GetValue<string>());
+        Assert.Null(root["lyricStyle"]!["unsung"]!["strokes"]![0]!["color"]);
+        Assert.Equal(4, root["lyricStyle"]!["unsung"]!["strokes"]![0]!["widthPx"]!.GetValue<int>());
         Assert.Equal(Project.CurrentSchemaVersion, root["schemaVersion"]!.GetValue<int>());
         Assert.Equal(LyricsDocument.CurrentSchemaVersion, JsonNode.Parse(ProjectFileFixture.ReadLyrics(directory.Path))!["schemaVersion"]!.GetValue<int>());
     }
@@ -102,7 +100,7 @@ public sealed class SourceMaterialTests
     {
         using TemporaryDirectory directory = new(); ProjectStore.Save(Project.Create("严格"), directory.Path);
         string path = Path.Combine(directory.Path, "project.json"); var root = JsonNode.Parse(File.ReadAllText(path))!;
-        root["lyricStyle"]!["unsungFill"] = fault switch
+        root["lyricStyle"]!["unsung"]!["fill"] = fault switch
         {
             "legacy" => JsonNode.Parse("{\"color\":\"#FFFFFFFF\",\"gradient\":null}"),
             "mixed" => JsonNode.Parse("{\"kind\":\"solid\",\"color\":\"#FFFFFFFF\",\"packageId\":\"x\"}"),
@@ -118,7 +116,7 @@ public sealed class SourceMaterialTests
             if (fault == "nullGradientKind") gradient["kind"] = null;
             if (fault == "numericGradientKind") gradient["kind"] = "0";
             if (fault == "unsortedGradient") gradient["stops"]![1]!["offset"] = -.1;
-            root["lyricStyle"]!["unsungFill"] = fallback;
+            root["lyricStyle"]!["unsung"]!["fill"] = fallback;
         }
         string bytes = root.ToJsonString();
         if (fault == "duplicate") bytes = bytes.Replace("\"kind\":\"solid\"", "\"kind\":\"solid\",\"kind\":\"solid\"", StringComparison.Ordinal);
@@ -143,7 +141,7 @@ public sealed class SourceMaterialTests
         project = project with { LyricStyle = project.LyricStyle with { UnsungFill = new() { Material = Material(package, "{\"amount\":\"bad\"}") } } };
         ProjectStore.Save(project, directory.Path); var loaded = ProjectStore.Load(directory.Path); Assert.NotNull(loaded.Project);
         Assert.Equal(project.LyricStyle, loaded.Project.LyricStyle);
-        Assert.Contains(loaded.Report.Issues, issue => issue.Code == DiagnosticCode.InvalidEffectInstance && issue.Location!.StartsWith("lyricStyle.unsungFill", StringComparison.Ordinal));
+        Assert.Contains(loaded.Report.Issues, issue => issue.Code == DiagnosticCode.InvalidEffectInstance && issue.Location!.StartsWith("lyricStyle.unsung.fill", StringComparison.Ordinal));
         Assert.True(ProjectValidator.Validate(loaded.Project, ValidationContext.Export).HasErrors);
     }
 
@@ -161,7 +159,7 @@ public sealed class SourceMaterialTests
         Assert.Throws<EffectPackageException>(() => StyleTemplate.Create("bad", "坏引用", StyleTemplateKind.Line, style, [LyricStyleProperty.FontSizePx], packages: [package]));
         var project = Source(package) with { LyricStyle = style };
         Assert.Contains(ProjectValidator.Validate(project, ValidationContext.Open).Issues, issue => issue.Code == DiagnosticCode.InvalidEffectInstance
-            && issue.Location!.StartsWith("lyricStyle.unsungFill", StringComparison.Ordinal));
+            && issue.Location!.StartsWith("lyricStyle.unsung.fill", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -191,8 +189,8 @@ public sealed class SourceMaterialTests
         using TemporaryDirectory directory = new(); string old = Path.Combine(directory.Path, "templates-v4", "index.json");
         Directory.CreateDirectory(Path.GetDirectoryName(old)!); File.WriteAllText(old, "旧库");
         var package = MixedEffectPackageFixture.Contents(); var style = Source(package).LyricStyle;
-        Assert.Throws<ArgumentException>(() => StyleTemplate.Create("own", "材质", StyleTemplateKind.Token, style, [LyricStyleProperty.UnsungColor]));
-        var template = StyleTemplate.Create("own", "材质", StyleTemplateKind.Token, style, [LyricStyleProperty.UnsungColor], packages: [package]);
+        Assert.Throws<ArgumentException>(() => StyleTemplate.Create("own", "材质", StyleTemplateKind.Token, style, [LyricStyleProperty.UnsungFill]));
+        var template = StyleTemplate.Create("own", "材质", StyleTemplateKind.Token, style, [LyricStyleProperty.UnsungFill], packages: [package]);
         string path = StyleTemplateLibrary.ResolvePath(directory.Path); Assert.Contains(StyleTemplateLibrary.DirectoryName, path, StringComparison.Ordinal);
         Assert.True(StyleTemplateLibrary.Load(path).LegacyLibraryRetained);
         StyleTemplateLibrary.Save(path, [template]); var loaded = StyleTemplateLibrary.Load(path); Assert.Empty(loaded.Issues);

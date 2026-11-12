@@ -7,7 +7,7 @@ namespace MakoKaraGenerator.Application.Tests;
 
 public sealed class PresetApplicationsEditUseCaseTests
 {
-    private static StyleTemplate Template() => StyleTemplate.Create("static", "静态", StyleTemplateKind.Composite, LyricStyle.Default, [LyricStyleProperty.SungColor]);
+    private static StyleTemplate Template() => StyleTemplate.Create("static", "静态", StyleTemplateKind.Composite, LyricStyle.Default, [LyricStyleProperty.SungFill]);
 
     [Fact]
     public void ApplyUndoRedoAndNoOpKeepRedo()

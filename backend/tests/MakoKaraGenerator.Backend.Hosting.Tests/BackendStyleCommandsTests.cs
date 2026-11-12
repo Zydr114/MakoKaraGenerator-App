@@ -79,7 +79,7 @@ public sealed class BackendStyleCommandsTests
         var noop = Accepted(await f.Command("1", new RestoreStylesCommandDto([Line], ["stroke.widthPx"]))); Assert.False(noop.Changed);
         Accepted(await f.Command("1", Patch(Line, new StyleStrokeWidthChangeDto(3))));
         var current = f.Workspace.Project.Lyrics.Branches.Single(b => b.Id == "secondary").Lines[0].StyleOverride!;
-        Assert.False(current.Stroke.Value!.Material.IsSet); Assert.Same(package, f.Workspace.Project.LyricStyle.Stroke!.Material);
+        Assert.Same(package, current.Stroke.Value!.Material); Assert.Same(package, f.Workspace.Project.LyricStyle.Stroke!.Material);
         read = await f.Read(Line, "2"); Assert.Equal(3, read.StaticHierarchy.Stroke!.WidthPx); Assert.Equal(StyleStrokeJoin.Bevel, read.StaticHierarchy.Stroke.Join);
         Assert.IsType<PackageStyleMaterialDto>(read.StaticHierarchy.Stroke.Material);
         Accepted(await f.Command("2", new RestoreStylesCommandDto([Line], ["stroke", "typography.fontFamilyName"])));
@@ -101,7 +101,7 @@ public sealed class BackendStyleCommandsTests
     public async Task 完整渐变几何等位置色标与数组内容相等不制造历史()
     {
         using var f = await Fixture.Create();
-        var gradient = new StyleGradientDto(StyleGradientKind.Linear, 123, -3, 4, -5, -6, StyleGradientCoordinateSpace.Progress,
+        var gradient = new StyleGradientDto(StyleGradientKind.Linear, 123, -3, 4, -5, -6, StyleGradientCoordinateSpace.Glyph,
             StyleGradientColorSpace.Oklch, StyleGradientHuePath.Decreasing,
             [new(0, new(1, 2, 3, 4)), new(.5, new(5, 6, 7, 8)), new(.5, new(9, 10, 11, 12)), new(1, new(13, 14, 15, 16))]);
         var command = Patch(Line, new StyleUnsungMaterialChangeDto(new GradientStyleMaterialDto(gradient)), new StyleFallbackFamiliesChangeDto(["A", "B"]));
@@ -111,6 +111,9 @@ public sealed class BackendStyleCommandsTests
         var read = await f.Read(Line, "1"); var actual = Assert.IsType<GradientStyleMaterialDto>(read.StaticHierarchy.UnsungFill.Material).Gradient;
         Assert.Equal(gradient, actual with { Stops = gradient.Stops }); Assert.Equal(gradient.Stops, actual.Stops);
         Assert.Equal(1, (await f.History()).UndoCount);
+        // 0.112.74 起 Core 删去进度坐标（D-P3-7），过渡期 HTTP 仍可提交该枚举值，按领域规则拒绝且不改工程。
+        var progress = Patch(Line, new StyleUnsungMaterialChangeDto(new GradientStyleMaterialDto(gradient with { CoordinateSpace = StyleGradientCoordinateSpace.Progress })));
+        Assert.Equal(BackendErrorCode.CommandRejected, (await f.Command("1", progress)).Error!.Code); Assert.Same(before, f.Workspace.Project);
     }
 
     [Fact]

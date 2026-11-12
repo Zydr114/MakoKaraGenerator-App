@@ -99,13 +99,14 @@ public static class StaticStyleProjection
     }
 
     /// <summary>无 Skia 类型的静态外观投影；渐变不会猜测纯色基色。</summary>
+    /// <remarks>SDK 表面在 P3 第 6 步改为两态与多层；此前描边、阴影、辉光只投影未唱一态的最内层，描边位置固定为外侧。</remarks>
     public static Fx.StyleView View(LyricStyle style, PreparedSourceMaterials? materials = null)
     {
         ArgumentNullException.ThrowIfNull(style);
         return new(Material(style.UnsungFill.Material, materials), Material(style.SungFill.Material, materials),
             style.Stroke is { } stroke ? new(stroke.WidthPx,
                 Material(stroke.Material, materials),
-                (Fx.StrokeJoin)stroke.Join, (Fx.StrokePosition)stroke.Position) : null,
+                (Fx.StrokeJoin)stroke.Join, Fx.StrokePosition.Outside) : null,
             style.Shadow is { } shadow ? new(Color(shadow.Color), shadow.Opacity, shadow.AngleDegrees, shadow.DistancePx, shadow.BlurRadiusPx) : null,
             style.Opacity, style.Glow is { } glow ? new(Color(glow.Color), glow.Opacity, glow.BlurRadiusPx, glow.SpreadPx) : null);
     }
@@ -133,13 +134,18 @@ public static class StaticStyleProjection
     }
     private static LyricStyle ProjectDrawingAppearance(LyricStyle source, Fx.StyleView baseline, Fx.StyleView result, bool geometrySeed, bool sourcePackage)
     {
+        // 未改动的成员保留源对象（含多层描边与已唱一侧的跟随）；改动的描边整表换成脚本给出的单层。
+        TextAppearance unsung = source.Unsung with
+        {
+            Fill = result.UnsungMaterial == baseline.UnsungMaterial && !sourcePackage ? source.Unsung.Fill : DrawingMaterial(result.UnsungMaterial, geometrySeed),
+            Strokes = result.Stroke == baseline.Stroke && !sourcePackage ? source.Unsung.Strokes : StrokeLayers.FromStroke(Stroke(result.Stroke, geometrySeed)),
+            Shadow = result.Shadow == baseline.Shadow ? source.Unsung.Shadow : Shadow(result.Shadow),
+            Glow = result.Glow == baseline.Glow ? source.Unsung.Glow : Glow(result.Glow),
+        };
         return source with
         {
-            UnsungFill = result.UnsungMaterial == baseline.UnsungMaterial && !sourcePackage ? source.UnsungFill : DrawingMaterial(result.UnsungMaterial, geometrySeed),
+            Unsung = unsung,
             SungFill = result.SungMaterial == baseline.SungMaterial && !sourcePackage ? source.SungFill : DrawingMaterial(result.SungMaterial, geometrySeed),
-            Stroke = result.Stroke == baseline.Stroke && !sourcePackage ? source.Stroke : Stroke(result.Stroke, geometrySeed),
-            Shadow = result.Shadow == baseline.Shadow ? source.Shadow : Shadow(result.Shadow),
-            Glow = result.Glow == baseline.Glow ? source.Glow : Glow(result.Glow),
             Opacity = Native(result.Opacity),
         };
     }
@@ -164,10 +170,17 @@ public static class StaticStyleProjection
     /// <summary>仅供固定字形几何／区域绘制的源种子；不提供最终颜色或材质回退。</summary>
     public static LyricStyle DrawingSeed(LyricStyle style) => style with
     {
-        UnsungFill = style.UnsungFill.Material is MaterialSpec.PackageMaterial ? new() { Color = RgbaColor.White } : style.UnsungFill,
-        SungFill = style.SungFill.Material is MaterialSpec.PackageMaterial ? new() { Color = RgbaColor.White } : style.SungFill,
-        Stroke = style.Stroke is { Material: MaterialSpec.PackageMaterial } stroke ? stroke with { Material = new MaterialSpec.Solid(RgbaColor.White) } : style.Stroke,
+        Unsung = style.Unsung with { Fill = SeedFill(style.Unsung.Fill), Strokes = SeedStrokes(style.Unsung.Strokes) },
+        Sung = style.Sung with
+        {
+            Fill = SeedFill(style.Sung.Fill),
+            Strokes = style.Sung.Strokes is { FollowsUnsung: false, Value: { } strokes } ? Followable.Set(SeedStrokes(strokes)) : style.Sung.Strokes,
+        },
     };
+    private static FillSpec SeedFill(FillSpec fill) => fill.Material is MaterialSpec.PackageMaterial ? new() { Color = RgbaColor.White } : fill;
+    // 包材质只允许用在最内层（P3 设计 §10.5），其余层原样保留。
+    private static StrokeLayers SeedStrokes(StrokeLayers strokes) => strokes.Innermost is { Material: MaterialSpec.PackageMaterial } innermost
+        ? StrokeLayers.From([innermost with { Material = new MaterialSpec.Solid(RgbaColor.White) }, .. strokes.Skip(1)]) : strokes;
     private static Fx.GradientValue Gradient(GradientSpec value) => new(
         [.. value.Stops.Select(static stop => new Fx.GradientStop(stop.Offset, Color(stop.Color)))],
         (Fx.GradientKind)value.Kind, value.AngleDegrees, (Fx.GradientCoordinateSpace)value.CoordinateSpace,
@@ -197,12 +210,12 @@ public static class StaticStyleProjection
     {
         if (value is null) return null;
         if (geometrySeed && value.Material is Fx.MaterialValue.PackageMaterial)
-            return StrokeSpec.Create(RgbaColor.White, Native(value.WidthPx), (StrokeJoin)value.Join, (StrokePosition)value.Position);
+            return StrokeSpec.Create(RgbaColor.White, Native(value.WidthPx), (StrokeJoin)value.Join);
         if (value.Material is Fx.MaterialValue.PackageMaterial)
             throw new PreparedFrameException("UnsupportedStrokeMaterial", "包描边须由材质协调器执行，不能作为普通绘制外观。");
         var material = Fill(value.Material);
         return StrokeSpec.Create(material.Gradient is null ? material.Color : null, Native(value.WidthPx),
-            (StrokeJoin)value.Join, (StrokePosition)value.Position) with { Gradient = material.Gradient };
+            (StrokeJoin)value.Join) with { Gradient = material.Gradient };
     }
     private static ShadowSpec? Shadow(Fx.ShadowValue? value)
     {

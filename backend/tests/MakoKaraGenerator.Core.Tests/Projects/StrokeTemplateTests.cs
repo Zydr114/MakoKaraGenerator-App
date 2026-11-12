@@ -23,8 +23,8 @@ public sealed class StrokeTemplateTests
             Assert.Equal(kind == StyleTemplateKind.Line ? 2 : 3, preview.ChangedCount);
             Assert.All(preview.Result.Lyrics.Lines, line =>
             {
-                if (kind == StyleTemplateKind.Line) Assert.Equal(Outline, line.StyleOverride!.StrokeSpec.Value);
-                else Assert.All(line.Tokens, token => Assert.Equal(Outline, token.StyleOverride!.StrokeSpec.Value));
+                if (kind == StyleTemplateKind.Line) Assert.Equal(Outline, line.StyleOverride!.Stroke.Value);
+                else Assert.All(line.Tokens, token => Assert.Equal(Outline, token.StyleOverride!.Stroke.Value));
             });
             Assert.True(StyleTemplateApplicator.TryPreview(preview.Result, template, null, null, true,
                 out StyleTemplateApplyPreview repeated, out reason), reason);
@@ -41,31 +41,32 @@ public sealed class StrokeTemplateTests
             LyricStyle = LyricStyle.Default with { Stroke = Outline },
         };
         Assert.Equal(Outline, LyricStyleEffects.GetStroke(LyricStyleResolver.Resolve(project.LyricStyle).Style));
-        LyricStyleOverride off = new() { StrokeSpec = OptionalValue.Set<StrokeSpec?>(null) };
+        LyricStyleOverride off = new() { Stroke = OptionalValue.Set<StrokeSpec?>(null) };
         LyricStyle resolved = LyricStyleResolver.Resolve(project.LyricStyle, tokenOverride: off).Style;
         Assert.Null(LyricStyleEffects.GetStroke(resolved));
         Assert.False(LyricStyleEffects.IsEnabled(resolved, LyricStyleEffectKind.Stroke));
         Assert.Equal(LyricStyleSource.Token,
-            LyricStyleResolver.Resolve(project.LyricStyle, tokenOverride: off).SourceOf(LyricStyleProperty.StrokeSpec));
+            LyricStyleResolver.Resolve(project.LyricStyle, tokenOverride: off).SourceOf(LyricStyleProperty.UnsungStrokes));
 
         Project disabled = StyleBatchEditor.Apply(project, StyleTargetLevel.Token, [new StyleTarget(0, 0)],
-            LyricStyle.Default, [LyricStyleProperty.StrokeSpec]);
-        Assert.True(disabled.Lyrics.Lines[0].Tokens[0].StyleOverride!.StrokeSpec.IsSet);
+            LyricStyle.Default, [LyricStyleProperty.UnsungStrokes]);
+        Assert.True(disabled.Lyrics.Lines[0].Tokens[0].StyleOverride!.Stroke.IsSet);
         Project restored = StyleBatchEditor.Apply(disabled, StyleTargetLevel.Token, [new StyleTarget(0, 0)],
-            LyricStyle.Default, [LyricStyleProperty.StrokeSpec], restoreInheritance: true);
+            LyricStyle.Default, [LyricStyleProperty.UnsungStrokes], restoreInheritance: true);
         Assert.Null(restored.Lyrics.Lines[0].Tokens[0].StyleOverride);
         Assert.Equal(Outline, LyricStyleEffects.GetStroke(LyricStyleResolver.Resolve(restored.LyricStyle).Style));
     }
 
     [Fact]
-    public void 基础描边属性覆盖完整对象时仍生效且保留连接方式()
+    public void 描边整表覆盖替换父描边且空表关闭()
     {
-        LyricStyle style = LyricStyle.Default with { StrokeSpec = Outline };
+        LyricStyle style = LyricStyle.Default with { Stroke = Outline };
+        StrokeSpec replacement = Outline with { Color = RgbaColor.Black, WidthPx = 2f };
         LyricStyle changed = LyricStyleResolver.Resolve(style,
-            tokenOverride: new LyricStyleOverride { StrokeColor = RgbaColor.Black, StrokeWidthPx = 2f }).Style;
-        Assert.Equal(Outline with { Color = RgbaColor.Black, WidthPx = 2f }, LyricStyleEffects.GetStroke(changed));
+            tokenOverride: new LyricStyleOverride { Stroke = replacement }).Style;
+        Assert.Equal(replacement, LyricStyleEffects.GetStroke(changed));
         Assert.False(LyricStyleEffects.IsEnabled(LyricStyleResolver.Resolve(style,
-            tokenOverride: new LyricStyleOverride { StrokeColor = OptionalValue.Set<RgbaColor?>(null) }).Style,
+            tokenOverride: new LyricStyleOverride { UnsungStrokes = StrokeLayers.Empty }).Style,
             LyricStyleEffectKind.Stroke));
     }
 
@@ -75,13 +76,13 @@ public sealed class StrokeTemplateTests
         Project project = CreateProject();
         StrokeSpec invalid = Outline with { WidthPx = float.NaN };
         Project bad = LyricStyleEditor.SetTokenOverride(project, 0, 0,
-            new LyricStyleOverride { StrokeSpec = invalid });
+            new LyricStyleOverride { Stroke = invalid });
         Assert.Contains(ProjectValidator.Validate(bad, ValidationContext.Open).Issues, issue =>
-            issue.Code == DiagnosticCode.InvalidStyleValue && issue.Location!.EndsWith(".stroke", StringComparison.Ordinal));
+            issue.Code == DiagnosticCode.InvalidStyleValue && issue.Location!.EndsWith(".unsung.strokes", StringComparison.Ordinal));
         StyleTemplate valid = Template(StyleTemplateKind.Token, Outline);
         Assert.False(StyleTemplateApplicator.TryPreview(project, valid with
         {
-            Style = valid.Style with { StrokeSpec = invalid },
+            Style = valid.Style with { Stroke = invalid },
         }, null, null, true, out StyleTemplateApplyPreview preview, out string reason));
         Assert.Same(project, preview.Result);
         Assert.NotEmpty(reason);
@@ -97,9 +98,9 @@ public sealed class StrokeTemplateTests
         StyleTemplateLibrary.Save(path, [on, off]);
         StyleTemplateLibraryLoadResult loaded = StyleTemplateLibrary.Load(path);
         Assert.Empty(loaded.Issues);
-        Assert.Equal(Outline, loaded.Templates[0].Style.StrokeSpec);
-        Assert.Equal(LyricStyleProperty.StrokeSpec, Assert.Single(loaded.Templates[0].Properties));
-        Assert.Null(loaded.Templates[1].Style.StrokeSpec);
+        Assert.Equal(Outline, loaded.Templates[0].Style.Stroke);
+        Assert.Equal(LyricStyleProperty.UnsungStrokes, Assert.Single(loaded.Templates[0].Properties));
+        Assert.Null(loaded.Templates[1].Style.Stroke);
     }
 
     private static Project CreateProject() => Project.Create("描边", lyrics: LyricsDocument.Create([
@@ -139,5 +140,5 @@ public sealed class StrokeTemplateTests
 
     private static StyleTemplate Template(StyleTemplateKind kind, StrokeSpec? stroke) =>
         StyleTemplate.Create("stroke-" + kind, "描边", kind,
-            LyricStyle.Default with { StrokeSpec = stroke }, [LyricStyleProperty.StrokeSpec]);
+            LyricStyle.Default with { Stroke = stroke }, [LyricStyleProperty.UnsungStrokes]);
 }

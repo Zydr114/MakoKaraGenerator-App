@@ -155,7 +155,7 @@ public sealed class PackageDiagnosticsMappingTests
         {
             "parameters" => owner with { ParametersJson = "{\"amount\":0.2}" },
             "slot" => owner with { Slot = (int)PreparedMaterialSlot.SungFill },
-            "path" => owner with { Path = "missing.unsungFill" },
+            "path" => owner with { Path = "missing.unsung.fill" },
             "region" => owner with { Region = "stroke" },
             _ => owner,
         };

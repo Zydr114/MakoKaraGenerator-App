@@ -84,12 +84,12 @@ public sealed class TemplateLibraryEditServiceTests
         LyricStyle style = LyricStyle.Default with
         {
             UnsungFill = new() { Material = new MaterialSpec.Gradient(Gradient(GradientCoordinateSpace.Glyph, GradientColorSpace.Oklch, GradientHuePath.Shorter)) },
-            SungFill = new() { Material = new MaterialSpec.Gradient(Gradient(GradientCoordinateSpace.Progress, GradientColorSpace.Oklch, GradientHuePath.Longer)) },
+            SungFill = new() { Material = new MaterialSpec.Gradient(Gradient(GradientCoordinateSpace.Canvas, GradientColorSpace.Oklch, GradientHuePath.Longer)) },
         };
         var service = new TemplateLibraryEditService(new(path));
         var created = await service.CommitPreparedAsync(service.Prepare(service.Read(TemplateLibraryCatalog.Personal),
             new TemplateLibraryEdit.Create(new("变体", StyleTemplateKind.Line, style,
-                [LyricStyleProperty.UnsungGradientSpec, LyricStyleProperty.SungGradientSpec]))));
+                [LyricStyleProperty.UnsungFill, LyricStyleProperty.SungFill]))));
         var loaded = service.Read(TemplateLibraryCatalog.Personal);
         Assert.Equal(style, Assert.Single(loaded.Templates).Style);
 
@@ -98,7 +98,7 @@ public sealed class TemplateLibraryEditServiceTests
             UnsungFill = new() { Material = new MaterialSpec.Gradient(Gradient(GradientCoordinateSpace.Line, GradientColorSpace.LinearRgb, GradientHuePath.Shorter)) },
         };
         var replaced = service.Prepare(loaded, new TemplateLibraryEdit.Replace(Assert.Single(loaded.Templates).Id,
-            new("替换", StyleTemplateKind.Line, replacement, [LyricStyleProperty.UnsungGradientSpec])));
+            new("替换", StyleTemplateKind.Line, replacement, [LyricStyleProperty.UnsungFill])));
         var committed = await service.CommitPreparedAsync(replaced);
         Assert.Equal(replacement, Assert.Single(committed.Templates).Style);
         Assert.Empty(service.Read(TemplateLibraryCatalog.Personal).Templates

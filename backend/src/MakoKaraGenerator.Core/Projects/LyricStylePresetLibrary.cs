@@ -89,8 +89,7 @@ public sealed class LyricStylePresetLibrary
                 unsungColor: new RgbaColor(0xF2, 0xF4, 0xF8),
                 sungColor: new RgbaColor(0xFF, 0xD1, 0x66)) with
             {
-                StrokeColor = new RgbaColor(0x10, 0x12, 0x18),
-                StrokeWidthPx = 6f,
+                Stroke = StrokeSpec.Create(new RgbaColor(0x10, 0x12, 0x18), 6f),
                 Shadow = new ShadowSpec
                 {
                     Color = new RgbaColor(0x00, 0x00, 0x00, 0xAA),

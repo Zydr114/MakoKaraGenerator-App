@@ -65,7 +65,6 @@ public static class StyleBatchEditor
         if (selected.Length == 0 && !includeAnimation) return project;
 
         LyricStyleOverride patch = CopyProperties(LyricStyleOverride.Empty, style, selected, restoreInheritance);
-        // DEBUG
         Project result = project;
         if (level == StyleTargetLevel.Project)
         {
@@ -94,59 +93,189 @@ public static class StyleBatchEditor
     }
 
     /// <summary>把选中属性写入现有覆盖；恢复继承时只清除这些属性。</summary>
+    /// <remarks>
+    /// 已唱的整体项按原样复制「跟随」；已唱的分量项以 <paramref name="style"/> 展开跟随后的已唱值为来源，
+    /// 写入后该项在目标层变为显式值（设计 §10.5）。整体项与其分量同时选中时以整体项为准，分量不再单独写入。
+    /// </remarks>
     public static LyricStyleOverride CopyProperties(LyricStyleOverride overlay, LyricStyle style,
         IEnumerable<LyricStyleProperty> properties, bool restoreInheritance = false)
     {
         ArgumentNullException.ThrowIfNull(overlay);
         ArgumentNullException.ThrowIfNull(style);
         ArgumentNullException.ThrowIfNull(properties);
-        foreach (LyricStyleProperty property in properties)
+        bool restore = restoreInheritance;
+        TextAppearance sung = style.ResolveSung();
+        LyricStyleProperty[] selected = [.. properties];
+        foreach (LyricStyleProperty property in selected)
         {
+            if (WholeOf(property) is { } whole && whole != property && selected.Contains(whole)) continue;
+            LyricStyleEffectComponent component = LyricStylePropertyExtensions.Component(property);
             overlay = property switch
             {
-                LyricStyleProperty.FontFamilyName => overlay with { FontFamilyName = restoreInheritance ? default(OptionalValue<string?>) : OptionalValue.Set<string?>(style.FontFamilyName) },
-                LyricStyleProperty.FallbackFamilyNames => overlay with { FallbackFamilyNames = restoreInheritance ? null : style.FallbackFamilyNames },
-                LyricStyleProperty.FontSizePx => overlay with { FontSizePx = restoreInheritance ? null : style.FontSizePx },
-                LyricStyleProperty.FontWeight => overlay with { FontWeight = restoreInheritance ? null : style.FontWeight },
-                LyricStyleProperty.IsBold => overlay with { IsBold = restoreInheritance ? null : style.IsBold },
-                LyricStyleProperty.IsItalic => overlay with { IsItalic = restoreInheritance ? null : style.IsItalic },
-                LyricStyleProperty.LetterSpacingPx => overlay with { LetterSpacingPx = restoreInheritance ? null : style.LetterSpacingPx },
-                LyricStyleProperty.VerticalCenterRatio => overlay with { VerticalCenterRatio = restoreInheritance ? null : style.VerticalCenterRatio },
-                LyricStyleProperty.HorizontalAlignment => overlay with { HorizontalAlignment = restoreInheritance ? null : style.HorizontalAlignment },
-                LyricStyleProperty.UnsungColor => overlay with { UnsungFill = restoreInheritance ? default : OptionalValue.Set<FillSpecOverride?>(new() { Material = style.UnsungFill.Material }) },
-                LyricStyleProperty.SungColor => overlay with { SungFill = restoreInheritance ? default : OptionalValue.Set<FillSpecOverride?>(new() { Material = style.SungFill.Material }) },
-                LyricStyleProperty.UnsungGradientSpec => overlay with { UnsungFill = restoreInheritance ? default : OptionalValue.Set<FillSpecOverride?>(new() { Material = style.UnsungFill.Material }) },
-                LyricStyleProperty.SungGradientSpec => overlay with { SungFill = restoreInheritance ? default : OptionalValue.Set<FillSpecOverride?>(new() { Material = style.SungFill.Material }) },
-                LyricStyleProperty.StrokeColor => overlay with { Stroke = OptionalValue.Set<StrokeSpecOverride?>((overlay.Stroke.Value ?? new StrokeSpecOverride()) with { Material = restoreInheritance ? default : OptionalValue.Set<MaterialSpec?>(style.Stroke?.Material ?? new MaterialSpec.Solid(RgbaColor.Transparent)) }) },
-                LyricStyleProperty.StrokeWidthPx => overlay with { StrokeWidthPx = restoreInheritance ? null : style.StrokeWidthPx },
-                LyricStyleProperty.StrokeSpec => overlay with { StrokeSpec = restoreInheritance ? default(OptionalValue<StrokeSpec?>) : OptionalValue.Set<StrokeSpec?>(LyricStyleEffects.GetStroke(style)) },
-                LyricStyleProperty.ShadowColor => overlay with { ShadowColor = restoreInheritance ? default(OptionalValue<RgbaColor?>) : OptionalValue.Set<RgbaColor?>(style.ShadowColor) },
-                LyricStyleProperty.ShadowBlurPx => overlay with { ShadowBlurPx = restoreInheritance ? null : style.ShadowBlurPx },
-                LyricStyleProperty.ShadowSpec => overlay with { ShadowSpec = restoreInheritance ? default(OptionalValue<ShadowSpec?>) : OptionalValue.Set<ShadowSpec?>(style.ShadowSpec) },
-                LyricStyleProperty.Opacity => overlay with { Opacity = restoreInheritance ? null : style.Opacity },
-                LyricStyleProperty.Scale => overlay with { Scale = restoreInheritance ? null : style.Scale },
-                LyricStyleProperty.GlowSpec => overlay with { Glow = restoreInheritance ? default : OptionalValue.Set<GlowSpecOverride?>(style.Glow is { } glow ? GlowSpecOverride.FromSpec(glow) : null) },
-                LyricStyleProperty.GlowColor or LyricStyleProperty.GlowOpacity or LyricStyleProperty.GlowBlurRadiusPx or LyricStyleProperty.GlowSpreadPx => CopyGlowLeaf(overlay, style, property, restoreInheritance),
+                LyricStyleProperty.FontFamilyName => overlay with { FontFamilyName = restore ? default(OptionalValue<string?>) : OptionalValue.Set<string?>(style.FontFamilyName) },
+                LyricStyleProperty.FallbackFamilyNames => overlay with { FallbackFamilyNames = restore ? null : style.FallbackFamilyNames },
+                LyricStyleProperty.FontSizePx => overlay with { FontSizePx = restore ? null : style.FontSizePx },
+                LyricStyleProperty.FontWeight => overlay with { FontWeight = restore ? null : style.FontWeight },
+                LyricStyleProperty.IsBold => overlay with { IsBold = restore ? null : style.IsBold },
+                LyricStyleProperty.IsItalic => overlay with { IsItalic = restore ? null : style.IsItalic },
+                LyricStyleProperty.LetterSpacingPx => overlay with { LetterSpacingPx = restore ? null : style.LetterSpacingPx },
+                LyricStyleProperty.VerticalCenterRatio => overlay with { VerticalCenterRatio = restore ? null : style.VerticalCenterRatio },
+                LyricStyleProperty.HorizontalAlignment => overlay with { HorizontalAlignment = restore ? null : style.HorizontalAlignment },
+                LyricStyleProperty.Opacity => overlay with { Opacity = restore ? null : style.Opacity },
+                LyricStyleProperty.Scale => overlay with { Scale = restore ? null : style.Scale },
+                LyricStyleProperty.UnsungFill => overlay with { UnsungFill = restore ? default : OptionalValue.Set<FillSpecOverride?>(new() { Material = style.Unsung.Fill.Material }) },
+                LyricStyleProperty.SungFill => overlay with { SungFill = restore ? default : OptionalValue.Set<FillSpecOverride?>(new() { Material = style.Sung.Fill.Material }) },
+                LyricStyleProperty.UnsungStrokes => overlay with { UnsungStrokes = restore ? null : style.Unsung.Strokes },
+                LyricStyleProperty.SungStrokes => WithSung(overlay, value => value with { Strokes = restore ? default : OptionalValue.Set(style.Sung.Strokes) }),
+                LyricStyleProperty.UnsungShadow => WithUnsung(overlay, value => value with
+                {
+                    Shadow = restore ? default : OptionalValue.Set<ShadowSpecOverride?>(style.Unsung.Shadow is { } shadow ? ShadowSpecOverride.FromSpec(shadow) : null),
+                }),
+                LyricStyleProperty.SungShadow => WithSung(overlay, value => value with
+                {
+                    Shadow = restore ? default : OptionalValue.Set<Followable<ShadowSpecOverride?>>(style.Sung.Shadow.FollowsUnsung ? Followable.Follow<ShadowSpecOverride?>()
+                        : Followable.Set<ShadowSpecOverride?>(style.Sung.Shadow.Value is { } shadow ? ShadowSpecOverride.FromSpec(shadow) : null)),
+                }),
+                LyricStyleProperty.UnsungGlow => WithUnsung(overlay, value => value with
+                {
+                    Glow = restore ? default : OptionalValue.Set<GlowSpecOverride?>(style.Unsung.Glow is { } glow ? GlowSpecOverride.FromSpec(glow) : null),
+                }),
+                LyricStyleProperty.SungGlow => WithSung(overlay, value => value with
+                {
+                    Glow = restore ? default : OptionalValue.Set<Followable<GlowSpecOverride?>>(style.Sung.Glow.FollowsUnsung ? Followable.Follow<GlowSpecOverride?>()
+                        : Followable.Set<GlowSpecOverride?>(style.Sung.Glow.Value is { } glow ? GlowSpecOverride.FromSpec(glow) : null)),
+                }),
+                LyricStyleProperty.UnsungShadowColor or LyricStyleProperty.UnsungShadowOpacity or LyricStyleProperty.UnsungShadowAngleDegrees
+                    or LyricStyleProperty.UnsungShadowDistancePx or LyricStyleProperty.UnsungShadowBlurRadiusPx
+                    => WithUnsung(overlay, value => value with { Shadow = CopyLeaf(value.Shadow, style.Unsung.Shadow, restore, current => CopyShadowLeaf(current, style.Unsung.Shadow, component, restore)) }),
+                LyricStyleProperty.SungShadowColor or LyricStyleProperty.SungShadowOpacity or LyricStyleProperty.SungShadowAngleDegrees
+                    or LyricStyleProperty.SungShadowDistancePx or LyricStyleProperty.SungShadowBlurRadiusPx
+                    => WithSung(overlay, value => value with { Shadow = CopySungLeaf(value.Shadow, sung.Shadow, restore, current => CopyShadowLeaf(current, sung.Shadow, component, restore)) }),
+                LyricStyleProperty.UnsungGlowColor or LyricStyleProperty.UnsungGlowOpacity or LyricStyleProperty.UnsungGlowBlurRadiusPx
+                    or LyricStyleProperty.UnsungGlowSpreadPx
+                    => WithUnsung(overlay, value => value with { Glow = CopyLeaf(value.Glow, style.Unsung.Glow, restore, current => CopyGlowLeaf(current, style.Unsung.Glow, component, restore)) }),
+                LyricStyleProperty.SungGlowColor or LyricStyleProperty.SungGlowOpacity or LyricStyleProperty.SungGlowBlurRadiusPx
+                    or LyricStyleProperty.SungGlowSpreadPx
+                    => WithSung(overlay, value => value with { Glow = CopySungLeaf(value.Glow, sung.Glow, restore, current => CopyGlowLeaf(current, sung.Glow, component, restore)) }),
+                LyricStyleProperty.WipeFeatherRatio => WithWipe(overlay, value => value with { FeatherRatio = restore ? null : style.Wipe.FeatherRatio }),
+                LyricStyleProperty.WipeHighlight => WithWipe(overlay, value => value with
+                {
+                    Highlight = restore ? default : OptionalValue.Set<WipeHighlightOverride?>(style.Wipe.Highlight is { } highlight ? WipeHighlightOverride.FromSpec(highlight) : null),
+                }),
+                LyricStyleProperty.WipeHighlightColor or LyricStyleProperty.WipeHighlightWidthRatio or LyricStyleProperty.WipeHighlightOpacity
+                    or LyricStyleProperty.WipeHighlightBlend
+                    => WithWipe(overlay, value => value with { Highlight = CopyLeaf(value.Highlight, style.Wipe.Highlight, restore, current => CopyHighlightLeaf(current, style.Wipe.Highlight, component, restore)) }),
                 _ => throw new ArgumentOutOfRangeException(nameof(properties)),
             };
         }
         return overlay;
     }
 
-    private static LyricStyleOverride CopyGlowLeaf(LyricStyleOverride overlay, LyricStyle style, LyricStyleProperty property, bool restore)
+    private static LyricStyleProperty? WholeOf(LyricStyleProperty property)
     {
-        if (overlay.Glow.Value is null && (restore || overlay.Glow.IsSet && style.Glow is null)) return overlay;
-        GlowSpecOverride value = overlay.Glow.Value ?? new();
-        GlowSpec basis = style.Glow ?? new() { Color = RgbaColor.Transparent, BlurRadiusPx = 0, SpreadPx = 0 };
-        value = property switch
+        foreach (IReadOnlyList<LyricStyleProperty> group in EffectGroups)
+            if (group.Contains(property)) return group[0];
+        return null;
+    }
+
+    // 每组第一项是整体项，其余是它的分量。
+    private static readonly IReadOnlyList<LyricStyleProperty>[] EffectGroups =
+    [
+        LyricStylePropertyExtensions.UnsungShadowProperties, LyricStylePropertyExtensions.SungShadowProperties,
+        LyricStylePropertyExtensions.UnsungGlowProperties, LyricStylePropertyExtensions.SungGlowProperties,
+        LyricStylePropertyExtensions.WipeHighlightProperties,
+    ];
+
+    private static LyricStyleOverride WithUnsung(LyricStyleOverride overlay, Func<TextAppearanceOverride, TextAppearanceOverride> change)
+    {
+        TextAppearanceOverride value = change(overlay.Unsung ?? new());
+        return overlay with { Unsung = value.IsEmpty ? null : value };
+    }
+
+    private static LyricStyleOverride WithSung(LyricStyleOverride overlay, Func<SungAppearanceOverride, SungAppearanceOverride> change)
+    {
+        SungAppearanceOverride value = change(overlay.Sung ?? new());
+        return overlay with { Sung = value.IsEmpty ? null : value };
+    }
+
+    private static LyricStyleOverride WithWipe(LyricStyleOverride overlay, Func<WipeSpecOverride, WipeSpecOverride> change)
+    {
+        WipeSpecOverride value = change(overlay.Wipe ?? new());
+        return overlay with { Wipe = value.IsEmpty ? null : value };
+    }
+
+    /// <summary>
+    /// 分量复制：目标层已显式关闭时，恢复继承不动它，来源也关闭时同样不动；
+    /// 其余情况在现有部分覆盖上写入或清除这一分量，清空后视为未设置。
+    /// </summary>
+    private static OptionalValue<TOverride?> CopyLeaf<TOverride, TSpec>(OptionalValue<TOverride?> current, TSpec? source, bool restore,
+        Func<TOverride?, TOverride> change) where TOverride : class where TSpec : class
+    {
+        if (current.Value is null && (restore || current.IsSet && source is null)) return current;
+        TOverride value = change(current.Value);
+        return IsEmptyLeaf(value) ? default : OptionalValue.Set<TOverride?>(value);
+    }
+
+    /// <summary>已唱分量复制：目标层是「跟随」时，恢复继承不动它；写入时从空的部分覆盖开始，以展开后的已唱值为来源。</summary>
+    private static OptionalValue<Followable<TOverride?>> CopySungLeaf<TOverride, TSpec>(OptionalValue<Followable<TOverride?>> current,
+        TSpec? source, bool restore, Func<TOverride?, TOverride> change) where TOverride : class where TSpec : class
+    {
+        if (current is { IsSet: true, Value.FollowsUnsung: true } && restore) return current;
+        OptionalValue<TOverride?> inner = current is { IsSet: true, Value.FollowsUnsung: false } ? OptionalValue.Set<TOverride?>(current.Value.Value) : default;
+        OptionalValue<TOverride?> result = CopyLeaf(inner, source, restore, change);
+        return result.IsSet ? OptionalValue.Set(Followable.Set<TOverride?>(result.Value)) : default;
+    }
+
+    private static bool IsEmptyLeaf(object value) => value switch
+    {
+        ShadowSpecOverride shadow => shadow.IsEmpty,
+        GlowSpecOverride glow => glow.IsEmpty,
+        WipeHighlightOverride highlight => highlight.IsEmpty,
+        _ => false,
+    };
+
+    private static ShadowSpecOverride CopyShadowLeaf(ShadowSpecOverride? current, ShadowSpec? source, LyricStyleEffectComponent component, bool restore)
+    {
+        ShadowSpecOverride value = current ?? new();
+        ShadowSpec basis = source ?? new() { Color = RgbaColor.Transparent, DistancePx = 0, BlurRadiusPx = 0, AngleDegrees = 0 };
+        return component switch
         {
-            LyricStyleProperty.GlowColor => value with { Color = restore ? null : basis.Color },
-            LyricStyleProperty.GlowOpacity => value with { Opacity = restore ? null : basis.Opacity },
-            LyricStyleProperty.GlowBlurRadiusPx => value with { BlurRadiusPx = restore ? null : basis.BlurRadiusPx },
-            LyricStyleProperty.GlowSpreadPx => value with { SpreadPx = restore ? null : basis.SpreadPx },
-            _ => throw new ArgumentOutOfRangeException(nameof(property)),
+            LyricStyleEffectComponent.Color => value with { Color = restore ? null : basis.Color },
+            LyricStyleEffectComponent.Opacity => value with { Opacity = restore ? null : basis.Opacity },
+            LyricStyleEffectComponent.AngleDegrees => value with { AngleDegrees = restore ? null : basis.AngleDegrees },
+            LyricStyleEffectComponent.DistancePx => value with { DistancePx = restore ? null : basis.DistancePx },
+            LyricStyleEffectComponent.BlurRadiusPx => value with { BlurRadiusPx = restore ? null : basis.BlurRadiusPx },
+            _ => throw new ArgumentOutOfRangeException(nameof(component)),
         };
-        return overlay with { Glow = value.IsEmpty ? default : OptionalValue.Set<GlowSpecOverride?>(value) };
+    }
+
+    private static GlowSpecOverride CopyGlowLeaf(GlowSpecOverride? current, GlowSpec? source, LyricStyleEffectComponent component, bool restore)
+    {
+        GlowSpecOverride value = current ?? new();
+        GlowSpec basis = source ?? new() { Color = RgbaColor.Transparent, BlurRadiusPx = 0, SpreadPx = 0 };
+        return component switch
+        {
+            LyricStyleEffectComponent.Color => value with { Color = restore ? null : basis.Color },
+            LyricStyleEffectComponent.Opacity => value with { Opacity = restore ? null : basis.Opacity },
+            LyricStyleEffectComponent.BlurRadiusPx => value with { BlurRadiusPx = restore ? null : basis.BlurRadiusPx },
+            LyricStyleEffectComponent.SpreadPx => value with { SpreadPx = restore ? null : basis.SpreadPx },
+            _ => throw new ArgumentOutOfRangeException(nameof(component)),
+        };
+    }
+
+    private static WipeHighlightOverride CopyHighlightLeaf(WipeHighlightOverride? current, WipeHighlightSpec? source,
+        LyricStyleEffectComponent component, bool restore)
+    {
+        WipeHighlightOverride value = current ?? new();
+        WipeHighlightSpec basis = source ?? new() { Color = RgbaColor.Transparent };
+        return component switch
+        {
+            LyricStyleEffectComponent.Color => value with { Color = restore ? null : basis.Color },
+            LyricStyleEffectComponent.WidthRatio => value with { WidthRatio = restore ? null : basis.WidthRatio },
+            LyricStyleEffectComponent.Opacity => value with { Opacity = restore ? null : basis.Opacity },
+            LyricStyleEffectComponent.Blend => value with { Blend = restore ? null : basis.Blend },
+            _ => throw new ArgumentOutOfRangeException(nameof(component)),
+        };
     }
 
     /// <summary>检查非有限数值；领域解析器另外负责样式范围校验。</summary>
@@ -155,11 +284,8 @@ public static class StyleBatchEditor
         ArgumentNullException.ThrowIfNull(style);
         if (!float.IsFinite(style.FontSizePx) || !float.IsFinite(style.LetterSpacingPx)
             || style.FontWeight is < 100 or > 900 || !double.IsFinite(style.VerticalCenterRatio)
-            || !float.IsFinite(style.StrokeWidthPx) || !float.IsFinite(style.ShadowBlurPx)
             || !float.IsFinite(style.Opacity) || !float.IsFinite(style.Scale)
-            || style.UnsungFill is not { IsValid: true } || style.SungFill is not { IsValid: true }
-            || (style.StrokeSpec is { IsValid: false })
-            || (style.ShadowSpec is { IsValid: false }) || (style.Glow is { IsValid: false }))
+            || style.Unsung is not { IsValid: true } || style.Sung is not { IsValid: true } || style.Wipe is not { IsValid: true })
             throw new ArgumentOutOfRangeException(nameof(style), "样式数值必须是有限数。");
     }
 

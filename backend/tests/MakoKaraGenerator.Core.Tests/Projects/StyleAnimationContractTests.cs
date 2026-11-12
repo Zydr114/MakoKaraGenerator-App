@@ -258,14 +258,11 @@ public sealed class StyleAnimationContractTests
 
         Assert.True(LyricStyleEffects.IsEnabled(enabled, LyricStyleEffectKind.Shadow));
         Assert.Equal(
-            [LyricStyleProperty.ShadowColor, LyricStyleProperty.ShadowBlurPx,
-                LyricStyleProperty.ShadowSpec],
+            [.. LyricStylePropertyExtensions.UnsungShadowProperties, .. LyricStylePropertyExtensions.SungShadowProperties],
             LyricStyleEffects.Properties(LyricStyleEffectKind.Shadow));
 
         LyricStyle disabled = LyricStyleEffects.Disable(enabled, LyricStyleEffectKind.Shadow);
         Assert.False(LyricStyleEffects.IsEnabled(disabled, LyricStyleEffectKind.Shadow));
-        Assert.Null(disabled.ShadowColor);
-        Assert.Equal(0f, disabled.ShadowBlurPx);
         Assert.Null(disabled.Shadow);
     }
 
@@ -274,16 +271,17 @@ public sealed class StyleAnimationContractTests
     {
         LyricStyle style = LyricStyle.Default with
         {
-            StrokeSpec = StrokeSpec.Create(RgbaColor.White, 4f),
-            ShadowSpec = ShadowSpec.Create(RgbaColor.Black, distancePx: 6f),
+            Stroke = StrokeSpec.Create(RgbaColor.White, 4f),
+            Shadow = ShadowSpec.Create(RgbaColor.Black, distancePx: 6f),
         };
 
         LyricStyle disabled = LyricStyleEffects.Disable(
             LyricStyleEffects.Disable(style, LyricStyleEffectKind.Stroke),
             LyricStyleEffectKind.Shadow);
 
-        Assert.Null(disabled.StrokeSpec);
-        Assert.Null(disabled.ShadowSpec);
+        Assert.Null(disabled.Stroke);
+        Assert.Empty(disabled.Unsung.Strokes);
+        Assert.Null(disabled.Shadow);
         Assert.False(LyricStyleEffects.IsEnabled(disabled, LyricStyleEffectKind.Stroke));
         Assert.False(LyricStyleEffects.IsEnabled(disabled, LyricStyleEffectKind.Shadow));
     }

@@ -31,38 +31,32 @@ internal static partial class ProjectDtoMapper
             return new TextMarkContent { Text = dto.Text ?? string.Empty,
                 AppearanceOverride = overlay is null ? null : new SceneTextAppearanceOverride
                 { Typography = MapTypographyOverride(overlay.Typography, path + ".typography", issues),
-                    PendingFill = MapOptionalFillOverride(overlay.PendingFill, path + ".pendingFill", issues),
-                    ElapsedFill = MapOptionalFillOverride(overlay.ElapsedFill, path + ".elapsedFill", issues),
-                    Stroke = MapOptionalStrokeOverride(overlay.Stroke, path + ".stroke", issues),
-                    Shadow = MapOptionalShadowOverride(overlay.Shadow, path + ".shadow", issues),
-                    Glow = MapOptionalGlowOverride(overlay.Glow, path + ".glow", issues), Opacity = overlay.Opacity } };
+                    Pending = MapAppearanceOverride(overlay.Pending, path + ".pending", issues),
+                    Elapsed = MapSungAppearanceOverride(overlay.Elapsed, path + ".elapsed", issues),
+                    Opacity = overlay.Opacity } };
         }
         DiagnosticList.Add(issues, DiagnosticCode.InvalidDisplayProgram, IssueSeverity.Error, "未知场景内容类型：" + dto.Kind, path);
         return null;
     }
     private static SceneTextAppearanceDto ToDto(SceneTextAppearance appearance) => new()
     {
-        Typography = ToDto(appearance.ToLyricStyle()).Typography, PendingFill = ToDto(appearance.PendingFill),
-        ElapsedFill = ToDto(appearance.ElapsedFill), Stroke = ToDto(appearance.Stroke), Shadow = ToDto(appearance.Shadow), Glow = ToDto(appearance.Glow), Opacity = appearance.Opacity,
+        Typography = ToDto(appearance.ToLyricStyle()).Typography, Pending = ToDto(appearance.Pending),
+        Elapsed = ToDto(appearance.Elapsed), Opacity = appearance.Opacity,
     };
     private static SceneTextAppearance MapAppearance(SceneTextAppearanceDto? dto, string path, List<ProjectIssue> issues)
     {
         var basis = SceneTextAppearance.Default;
         if (dto is null) return basis;
         return new() { Typography = dto.Typography is null ? basis.Typography : MapTypographySpec(dto.Typography, basis.Typography, path + ".typography", issues),
-            PendingFill = new FillSpec { Material = ReadMaterial(dto.PendingFill, path + ".pendingFill", issues) },
-            ElapsedFill = new FillSpec { Material = ReadMaterial(dto.ElapsedFill, path + ".elapsedFill", issues) },
-            Stroke = dto.Stroke is null ? null : MapStrokeSpec(dto.Stroke, path + ".stroke", issues),
-            Shadow = dto.Shadow is null ? null : MapShadowSpec(dto.Shadow, path + ".shadow", issues),
-            Glow = dto.Glow is null ? null : MapGlowSpec(dto.Glow, path + ".glow", issues),
+            Pending = MapAppearance(dto.Pending, path + ".pending", issues),
+            Elapsed = MapSungAppearance(dto.Elapsed, path + ".elapsed", issues),
             Opacity = MapRatio(dto.Opacity, basis.Opacity, path + ".opacity", issues) };
     }
     private static SceneTextAppearanceOverrideDto? ToDto(SceneTextAppearanceOverride? overlay)
     {
         if (overlay is null) return null;
         return new() { Typography = overlay.Typography is null ? null : ToDto(overlay.Typography),
-            PendingFill = ToOptionalFillOverrideDto(overlay.PendingFill), ElapsedFill = ToOptionalFillOverrideDto(overlay.ElapsedFill),
-            Stroke = ToOptionalStrokeDto(overlay.Stroke), Shadow = ToOptionalShadowDto(overlay.Shadow), Glow = ToOptionalGlowDto(overlay.Glow), Opacity = overlay.Opacity };
+            Pending = ToDto(overlay.Pending), Elapsed = ToDto(overlay.Elapsed), Opacity = overlay.Opacity };
     }
     private static LyricLeadInDto ToDto(LyricLeadIn cue) => new() { Id = cue.Id, Name = cue.Name, Enabled = cue.Enabled,
         TargetLineId = cue.TargetLineId, IndicatorContainerId = cue.IndicatorContainerId, DurationUs = cue.DurationUs, Origin = cue.Origin.ToString() };

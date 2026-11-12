@@ -44,8 +44,9 @@ public sealed record LyricsDocument
 
     /// <summary>当前实现支持的歌词修订 schema 版本。</summary>
     /// <remarks>v11 显式保存主分支与分支容器、稳定关联、注音和动态布局配置。
+    /// v19 的样式覆盖改为两态外观、多重描边与扫字样式（P3）。
     /// 工程与歌词的版本线独立；当前格式不自动转换旧工程（ADR-0050）。</remarks>
-    public const int CurrentSchemaVersion = 18;
+    public const int CurrentSchemaVersion = 19;
 
     /// <summary>文档的 schema 版本。当前程序只接受当前格式（ADR-0050）；历史迁移器不参与新格式转换。</summary>
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;

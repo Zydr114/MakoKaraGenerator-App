@@ -49,7 +49,7 @@ public sealed partial class LibraryRepositoryTests
         var package = MixedEffectPackageFixture.MaterialContents();
         var candidate = StyleTemplate.Create("candidate", "资源", StyleTemplateKind.Line,
             LyricStyle.Default with { UnsungFill = new() { Material = new MaterialSpec.PackageMaterial(package.PackageId, package.Revision, "ink") } },
-            [LyricStyleProperty.UnsungColor], packages: [package]);
+            [LyricStyleProperty.UnsungFill], packages: [package]);
         using var lease = LibraryCommitLease.TryEnter(path);
         Assert.Throws<LibraryRevisionConflictException>(() => StyleTemplateLibrary.Save(path, [candidate], expected));
         Assert.Equal(external, File.ReadAllBytes(path));
@@ -91,7 +91,7 @@ public sealed partial class LibraryRepositoryTests
         Directory.CreateDirectory(Path.GetDirectoryName(blocked)!); File.WriteAllText(blocked, "blocked resource location");
         var candidate = StyleTemplate.Create("candidate", "资源", StyleTemplateKind.Line,
             LyricStyle.Default with { UnsungFill = new() { Material = new MaterialSpec.PackageMaterial(package.PackageId, package.Revision, "ink") } },
-            [LyricStyleProperty.UnsungColor], packages: [package]);
+            [LyricStyleProperty.UnsungFill], packages: [package]);
         Assert.ThrowsAny<IOException>(() => repo.Save(first.Revision, [.. first.Templates, candidate]));
         Assert.Equal(bytes, File.ReadAllBytes(repo.Path)); Assert.Equal(0, notices);
     }

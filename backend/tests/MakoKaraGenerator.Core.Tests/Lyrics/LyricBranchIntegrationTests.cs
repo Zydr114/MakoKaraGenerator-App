@@ -98,7 +98,7 @@ public sealed class LyricBranchIntegrationTests
             lineOverride: new() { FontSizePx = 50 }, tokenOverride: new() { UnsungColor = RgbaColor.White });
         Assert.Equal(50, result.Style.FontSizePx);
         Assert.Equal(LyricStyleSource.Line, result.SourceOf(LyricStyleProperty.FontSizePx));
-        Assert.Equal(LyricStyleSource.Token, result.SourceOf(LyricStyleProperty.UnsungColor));
+        Assert.Equal(LyricStyleSource.Token, result.SourceOf(LyricStyleProperty.UnsungFill));
         Assert.Equal(LyricStyleSource.Branch, LyricStyleResolver.Resolve(branchOverride: new() { Opacity = .5f }).SourceOf(LyricStyleProperty.Opacity));
     }
 

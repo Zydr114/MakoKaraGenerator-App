@@ -19,7 +19,7 @@ public sealed partial class ProjectSession
         UnsungFill = new() { Material = TemplateMaterial(style.UnsungFill.Material, fullTemplate) },
         SungFill = new() { Material = TemplateMaterial(style.SungFill.Material, fullTemplate) },
         Stroke = style.Stroke is not { } stroke ? null : new()
-        { Material = TemplateMaterial(stroke.Material, fullTemplate), WidthPx = stroke.WidthPx, Join = (StrokeJoin)stroke.Join, Position = (StrokePosition)stroke.Position },
+        { Material = TemplateMaterial(stroke.Material, fullTemplate), WidthPx = stroke.WidthPx, Join = (StrokeJoin)stroke.Join },
         Shadow = CoreShadow(style.Shadow), Glow = CoreGlow(style.Glow),
         VerticalCenterRatio = style.VerticalCenterRatio, HorizontalAlignment = (LyricHorizontalAlignment)style.HorizontalAlignment,
         Opacity = style.Opacity, Scale = style.Scale,

@@ -533,7 +533,7 @@ public sealed class SkiaRenderPipelineTests : IDisposable
 
         using RenderFrame plain = _pipeline.Render(CreateRequest(Us(2_000_000)));
         using RenderFrame outlined = RenderWith(
-            new LyricStyleOverride { StrokeColor = strokeColor, StrokeWidthPx = 8f },
+            new LyricStyleOverride { Stroke = StrokeSpec.Create(strokeColor, 8f) },
             Us(2_000_000));
 
         Assert.True(
@@ -550,7 +550,7 @@ public sealed class SkiaRenderPipelineTests : IDisposable
         {
             UnsungColor = RgbaColor.White,
             SungColor = RgbaColor.White,
-            StrokeSpec = StrokeSpec.Create(new RgbaColor(0xFF, 0x80, 0x10), 8f, StrokeJoin.Round),
+            Stroke = StrokeSpec.Create(new RgbaColor(0xFF, 0x80, 0x10), 8f, StrokeJoin.Round),
         };
 
         using RenderFrame plain = _pipeline.Render(CreateRequest(Us(2_000_000)));
@@ -570,8 +570,8 @@ public sealed class SkiaRenderPipelineTests : IDisposable
         LyricStyle plainStyle = CreateStyle();
         using RenderFrame plain = _pipeline.Render(RenderRequest.At(CreateSnapshot(style: plainStyle), Us(3_500_000)));
         using RenderFrame disabled = _pipeline.Render(RenderRequest.At(CreateSnapshot(
-            style: plainStyle with { StrokeSpec = StrokeSpec.Create(new RgbaColor(240, 40, 20), 10f) },
-            tokenOverride: new LyricStyleOverride { StrokeSpec = OptionalValue.Set<StrokeSpec?>(null) }), Us(3_500_000)));
+            style: plainStyle with { Stroke = StrokeSpec.Create(new RgbaColor(240, 40, 20), 10f) },
+            tokenOverride: new LyricStyleOverride { Stroke = OptionalValue.Set<StrokeSpec?>(null) }), Us(3_500_000)));
         int[] starts = TokenStartColumns();
         int changed = 0;
         for (int y = 0; y < CanvasHeight; y++)
@@ -606,7 +606,7 @@ public sealed class SkiaRenderPipelineTests : IDisposable
         using RenderFrame plain = _pipeline.Render(RenderRequest.At(CreateSnapshot(style: fill), Us(2_000_000)));
         using RenderFrame outlined = _pipeline.Render(RenderRequest.At(CreateSnapshot(style: fill with
         {
-            StrokeSpec = StrokeSpec.Create(new RgbaColor(250, 20, 30), 8f),
+            Stroke = StrokeSpec.Create(new RgbaColor(250, 20, 30), 8f),
         }), Us(2_000_000)));
         int interior = 0;
         int changed = 0;
@@ -645,12 +645,10 @@ public sealed class SkiaRenderPipelineTests : IDisposable
         using RenderFrame shadowed = RenderWith(
             new LyricStyleOverride
             {
-                ShadowColor = shadowColor,
                 ShadowSpec = OptionalValue.Set<ShadowSpec?>(new ShadowSpec
                 {
-                    Color = shadowColor, AngleDegrees = 90d, DistancePx = 24f,
+                    Color = shadowColor, AngleDegrees = 90d, DistancePx = 24f, BlurRadiusPx = 6f,
                 }),
-                ShadowBlurPx = 6f,
             },
             Us(2_000_000));
 
@@ -664,7 +662,7 @@ public sealed class SkiaRenderPipelineTests : IDisposable
     {
         LyricStyle style = CreateStyle() with
         {
-            ShadowSpec = ShadowSpec.Create(
+            Shadow = ShadowSpec.Create(
                 new RgbaColor(0x00, 0xD0, 0xFF, 220),
                 opacity: 0.9f,
                 angleDegrees: 90d,
@@ -723,8 +721,7 @@ public sealed class SkiaRenderPipelineTests : IDisposable
                 CreateSnapshot(
                     tokenOverride: new LyricStyleOverride
                     {
-                        StrokeColor = new RgbaColor(0xFF, 0xFF, 0xFF),
-                        StrokeWidthPx = 8f,
+                        Stroke = StrokeSpec.Create(new RgbaColor(0xFF, 0xFF, 0xFF), 8f),
                     }),
                 Us(2_000_000)));
 
@@ -750,10 +747,8 @@ public sealed class SkiaRenderPipelineTests : IDisposable
         };
         LyricStyleOverride off = new()
         {
-            StrokeColor = OptionalValue.Set<RgbaColor?>(null),
-            StrokeWidthPx = 0f,
-            ShadowColor = OptionalValue.Set<RgbaColor?>(null),
-            ShadowBlurPx = 0f,
+            UnsungStrokes = StrokeLayers.Empty,
+            Shadow = OptionalValue.Set<ShadowSpecOverride?>(null),
         };
 
         using RenderFrame baseline = _pipeline.Render(RenderRequest.At(
@@ -816,7 +811,7 @@ public sealed class SkiaRenderPipelineTests : IDisposable
     {
         LyricStyle style = CreateStyle() with
         {
-            ShadowSpec = ShadowSpec.Create(new RgbaColor(255, 30, 30), angleDegrees: 0d,
+            Shadow = ShadowSpec.Create(new RgbaColor(255, 30, 30), angleDegrees: 0d,
                 distancePx: 18f, blurRadiusPx: 6f),
         };
         LyricStyleOverride token = new()

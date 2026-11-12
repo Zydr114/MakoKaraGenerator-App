@@ -45,8 +45,7 @@ internal static class ProjectMediaFeatureAdmission
             token.ThrowIfCancellationRequested();
             if (sourceMaterials is null) throw new EffectOutputException("SourceMaterialResourcesRequired", "源材质媒体闭包缺少固定材质投影。");
             var slot = reference.Region == "stroke" ? PreparedMaterialSlot.Stroke
-                : reference.Path.EndsWith(".sungFill", StringComparison.Ordinal) || reference.Path.EndsWith(".elapsedFill", StringComparison.Ordinal)
-                    ? PreparedMaterialSlot.SungFill : PreparedMaterialSlot.UnsungFill;
+                : SourceMaterialCatalog.IsSung(reference) ? PreparedMaterialSlot.SungFill : PreparedMaterialSlot.UnsungFill;
             var contents = snapshot.Effects.GetPackage(reference.Material.PackageId, reference.Material.Revision);
             // PreparedSourceMaterials is public and proves no executable capability.
             // Keep the formal Definition gate on this controller-free path too.

@@ -83,7 +83,7 @@ public sealed partial class ProjectSession
         budget.Text(target.Kind, target.BranchId, target.LineId, target.TokenId, target.NodeId);
         if (target.ClipIds is { } clips) { budget.Item(clips.Length); budget.Text(clips); }
         budget.Item(item.BranchInputs.Count); budget.Text(item.BranchInputs.Keys.ToArray()); budget.Text(item.BranchInputs.Values.ToArray());
-        TemplateProperty[] properties = [.. item.Snapshot.Properties.Select(property => (TemplateProperty)property)];
+        TemplateProperty[] properties = LegacyStylePropertyMap.Export(item.Snapshot.Properties);
         budget.Item(properties.Length); budget.Text(properties.Select(property => property.ToString()).ToArray());
         var snapshot = new ProjectPresetApplicationSnapshotDto(item.Snapshot.Id, item.Snapshot.Name,
             (TemplateKind)item.Snapshot.Kind, properties, !item.Snapshot.EffectRecipes.IsEmpty,

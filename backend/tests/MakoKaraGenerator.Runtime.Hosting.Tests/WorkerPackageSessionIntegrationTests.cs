@@ -207,12 +207,12 @@ public sealed class WorkerPackageSessionIntegrationTests(ITestOutputHelper outpu
                     if (kind == "material")
                     {
                         PreparedMaterialOwner.Source owner = Assert.IsType<PreparedMaterialOwner.Source>(d.Owner);
-                        Assert.True(owner.Reference.Path is "lyricStyle.unsungFill" or "lyricStyle.sungFill", owner.Reference.Path);
+                        Assert.True(owner.Reference.Path is "lyricStyle.unsung.fill" or "lyricStyle.sung.fill", owner.Reference.Path);
                         Assert.Equal("fill", owner.Reference.Region);
                         Assert.Equal(new MaterialSpec.PackageMaterial(source.Effects.Packages[0].PackageId,
                             source.Effects.Packages[0].Revision, "ink", EffectParameterOverrides.Parse("{\"amount\":0.3}")), owner.Reference.Material);
                         Assert.Equal("{\"amount\":0.3}", owner.Reference.Material.Parameters.Json);
-                        Assert.Equal(owner.Reference.Path.EndsWith(".sungFill", StringComparison.Ordinal) ? PreparedMaterialSlot.SungFill : PreparedMaterialSlot.UnsungFill, owner.Slot);
+                        Assert.Equal(owner.Reference.Path.EndsWith(".sung.fill", StringComparison.Ordinal) ? PreparedMaterialSlot.SungFill : PreparedMaterialSlot.UnsungFill, owner.Slot);
                     }
                     else
                     {

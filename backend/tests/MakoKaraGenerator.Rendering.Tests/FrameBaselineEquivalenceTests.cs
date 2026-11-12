@@ -15,10 +15,10 @@ public sealed class FrameBaselineEquivalenceTests
         var program = source.LyricPresentation.FindProgram("primary")!;
         var slot = source.LyricPresentation.FindNode(program.DefaultContainerId)!.Layout!.SlotIds[0];
         Assert.True(PresetApplicationsEditor.TryApply(source, StyleTemplate.Create("slot", "slot", StyleTemplateKind.Composite,
-            source.LyricStyle with { FontSizePx = 52, SungColor = new(30, 240, 90, 255) }, [LyricStyleProperty.FontSizePx, LyricStyleProperty.SungColor]),
+            source.LyricStyle with { FontSizePx = 52, SungColor = new(30, 240, 90, 255) }, [LyricStyleProperty.FontSizePx, LyricStyleProperty.SungFill]),
             [new(ProjectEffectBindingKind.Node, id: slot, includeDescendants: true)], null, out var applied, out var reason), reason);
         Assert.True(PresetApplicationsEditor.TryApply(applied, StyleTemplate.Create("clip", "clip", StyleTemplateKind.Composite,
-            source.LyricStyle with { UnsungColor = new(200, 70, 180, 255) }, [LyricStyleProperty.UnsungColor]),
+            source.LyricStyle with { UnsungColor = new(200, 70, 180, 255) }, [LyricStyleProperty.UnsungFill]),
             [new(ProjectEffectBindingKind.Clips, ids: ["chorus-clip"])], null, out applied, out reason), reason);
         var snapshot = ProjectSnapshot.FromProject(applied);
         var session = StaticStyleProjection.CreateBaseline(snapshot);

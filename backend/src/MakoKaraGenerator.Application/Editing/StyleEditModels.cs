@@ -52,7 +52,7 @@ public enum StyleEditProperty
     StrokeWidthPx,
     /// <summary>描边连接。</summary>
     StrokeJoin,
-    /// <summary>描边位置。</summary>
+    /// <summary>描边位置（过渡期保留路径，写入与恢复都不改变工程）。</summary>
     StrokePosition,
     /// <summary>完整阴影或关闭。</summary>
     Shadow,
@@ -139,9 +139,8 @@ public abstract record StyleEditChange(StyleEditProperty Property)
     /// <summary>设置 StrokeJoin；空值仅具有该成员的明确语义。</summary>
     /// <param name="Value">成员新值。</param>
     public sealed record StrokeJoin(global::MakoKaraGenerator.Core.Projects.StrokeJoin Value) : StyleEditChange(StyleEditProperty.StrokeJoin);
-    /// <summary>设置 StrokePosition；空值仅具有该成员的明确语义。</summary>
-    /// <param name="Value">成员新值。</param>
-    public sealed record StrokePosition(global::MakoKaraGenerator.Core.Projects.StrokePosition Value) : StyleEditChange(StyleEditProperty.StrokePosition);
+    /// <summary>过渡期的描边位置写入：位置已从样式模型删除，各层位置由层序决定（P3 设计 §10.5）；该写入不改变工程，P3 第 7 步随合同移除。</summary>
+    public sealed record StrokePosition() : StyleEditChange(StyleEditProperty.StrokePosition);
     /// <summary>设置 Shadow；空值仅具有该成员的明确语义。</summary>
     /// <param name="Value">成员新值。</param>
     public sealed record Shadow(ShadowSpec? Value) : StyleEditChange(StyleEditProperty.Shadow);

@@ -23,7 +23,7 @@ public sealed class CompositePresetDefinitionTests
         var recipe = TemplateEffectRecipe.FromConfiguration("global", config);
         var style = LyricStyle.Default with { UnsungFill = new() { Material = ScriptConfiguration.Create("glass", "玻璃", material, "ink").ToMaterial() } };
         var preset = StyleTemplate.Create("composite", "玻璃与强调", StyleTemplateKind.Composite, style,
-            [LyricStyleProperty.UnsungColor], [recipe], [controller, material]);
+            [LyricStyleProperty.UnsungFill], [recipe], [controller, material]);
         string path = StyleTemplateLibrary.ResolvePath(directory.Path); StyleTemplateLibrary.Save(path, [preset]);
         string configs = ScriptConfigurationLibrary.ResolvePath(directory.Path); ScriptConfigurationLibrary.Save(configs, [config]);
         ScriptConfigurationLibrary.Save(configs, []); Directory.Delete(Path.GetDirectoryName(configs)!, true);

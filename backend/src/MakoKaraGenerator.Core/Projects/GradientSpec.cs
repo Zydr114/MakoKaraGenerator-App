@@ -22,11 +22,8 @@ public enum GradientCoordinateSpace
     /// <summary>以当前歌词行为坐标空间。</summary>
     Line = 1,
 
-    /// <summary>以当前字形边界为坐标空间。</summary>
+    /// <summary>按单字：每个字簇以自己的字框（字簇宽度 × 字体上升部到下降部）为坐标空间（D-P3-4）。</summary>
     Glyph = 2,
-
-    /// <summary>以逐字演唱进度为坐标空间。</summary>
-    Progress = 3,
 }
 
 /// <summary>渐变颜色插值空间。</summary>

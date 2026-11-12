@@ -53,11 +53,11 @@ public static class ScriptSampleBuilder
             (style, properties) = slot switch
             {
                 TemplateMaterialSlot.UnsungFill => (style with { UnsungFill = new() { Material = material } },
-                    new LyricStyleProperty[] { LyricStyleProperty.UnsungColor }),
+                    new LyricStyleProperty[] { LyricStyleProperty.UnsungFill }),
                 TemplateMaterialSlot.SungFill => (style with { SungFill = new() { Material = material } },
-                    new LyricStyleProperty[] { LyricStyleProperty.SungColor }),
+                    new LyricStyleProperty[] { LyricStyleProperty.SungFill }),
                 TemplateMaterialSlot.Stroke => (style with { Stroke = new() { Material = material, WidthPx = 3 } },
-                    new LyricStyleProperty[] { LyricStyleProperty.StrokeColor, LyricStyleProperty.StrokeWidthPx }),
+                    new LyricStyleProperty[] { LyricStyleProperty.UnsungStrokes }),
                 _ => throw new ArgumentOutOfRangeException(nameof(slot)),
             };
         }

@@ -22,14 +22,21 @@ internal static class SnapshotJsonContract
         [typeof(LyricToken)] = ["Id", "Text", "Time", "TimingStatus", "StyleOverride"],
         [typeof(RubyAnnotation)] = ["Id", "BaseTokenId", "Text", "Segments", "Language", "RelativeScale", "GapPx", "Alignment"],
         [typeof(RubyTextSegment)] = ["Id", "Text", "Time", "TimingStatus"],
-        [typeof(LyricStyle)] = ["Typography", "UnsungFill", "SungFill", "Stroke", "Shadow", "Glow", "VerticalCenterRatio", "HorizontalAlignment", "Opacity", "Scale"],
-        [typeof(LyricStyleOverride)] = ["Typography", "UnsungFill", "SungFill", "Stroke", "Shadow", "Glow", "VerticalCenterRatio", "HorizontalAlignment", "Opacity", "Scale"],
+        [typeof(LyricStyle)] = ["Typography", "Unsung", "Sung", "Wipe", "VerticalCenterRatio", "HorizontalAlignment", "Opacity", "Scale"],
+        [typeof(LyricStyleOverride)] = ["Typography", "Unsung", "Sung", "Wipe", "VerticalCenterRatio", "HorizontalAlignment", "Opacity", "Scale"],
+        [typeof(TextAppearance)] = ["Fill", "Strokes", "Shadow", "Glow"],
+        [typeof(SungAppearance)] = ["Fill", "Strokes", "Shadow", "Glow"],
+        [typeof(TextAppearanceOverride)] = ["Fill", "Strokes", "Shadow", "Glow"],
+        [typeof(SungAppearanceOverride)] = ["Fill", "Strokes", "Shadow", "Glow"],
+        [typeof(WipeSpec)] = ["FeatherRatio", "Highlight"],
+        [typeof(WipeSpecOverride)] = ["FeatherRatio", "Highlight"],
+        [typeof(WipeHighlightSpec)] = ["Color", "WidthRatio", "Opacity", "Blend"],
+        [typeof(WipeHighlightOverride)] = ["Color", "WidthRatio", "Opacity", "Blend"],
         [typeof(TypographySpec)] = ["FontFamilyName", "FallbackFamilyNames", "FontSizePx", "FontWeight", "IsBold", "IsItalic", "LetterSpacingPx"],
         [typeof(TypographySpecOverride)] = ["FontFamilyName", "FallbackFamilyNames", "FontSizePx", "FontWeight", "IsBold", "IsItalic", "LetterSpacingPx"],
         [typeof(FillSpec)] = ["Material"],
         [typeof(FillSpecOverride)] = ["Material"],
-        [typeof(StrokeSpec)] = ["Material", "WidthPx", "Join", "Position"],
-        [typeof(StrokeSpecOverride)] = ["Material", "WidthPx", "Join", "Position"],
+        [typeof(StrokeSpec)] = ["Material", "WidthPx", "Join"],
         [typeof(ShadowSpec)] = ["Color", "Opacity", "AngleDegrees", "DistancePx", "BlurRadiusPx"],
         [typeof(ShadowSpecOverride)] = ["Color", "Opacity", "AngleDegrees", "DistancePx", "BlurRadiusPx"],
         [typeof(GlowSpec)] = ["Color", "Opacity", "BlurRadiusPx", "SpreadPx"],
@@ -56,8 +63,8 @@ internal static class SnapshotJsonContract
         [typeof(SceneContent)] = [],
         [typeof(CountdownSequenceContent)] = ["MarkNodeIds", "Appearance"],
         [typeof(TextMarkContent)] = ["Text", "AppearanceOverride"],
-        [typeof(SceneTextAppearance)] = ["Typography", "PendingFill", "ElapsedFill", "Stroke", "Shadow", "Glow", "Opacity"],
-        [typeof(SceneTextAppearanceOverride)] = ["Typography", "PendingFill", "ElapsedFill", "Stroke", "Shadow", "Glow", "Opacity"],
+        [typeof(SceneTextAppearance)] = ["Typography", "Pending", "Elapsed", "Opacity"],
+        [typeof(SceneTextAppearanceOverride)] = ["Typography", "Pending", "Elapsed", "Opacity"],
         [typeof(SceneAttachment)] = ["Mode"],
         [typeof(LyricDisplayProgram)] = ["Id", "BranchId", "RootContainerId", "DefaultContainerId", "AnimationPolicy", "Clips", "LeadIns", "LeadInGeneration"],
         [typeof(LyricDisplayClip)] = ["Id", "Name", "LineIds", "ContainerId", "ScheduleContext"],
@@ -68,19 +75,20 @@ internal static class SnapshotJsonContract
         [typeof(LyricLocalTransform)] = ["OffsetXRatio", "OffsetYRatio", "RotationDegrees", "Scale"],
     };
 
-    private static readonly string[] StyleFacades = ["FontFamilyName", "FallbackFamilyNames", "FontSizePx", "FontWeight",
-        "IsBold", "IsItalic", "LetterSpacingPx", "UnsungColor", "UnsungGradientSpec", "SungColor", "SungGradientSpec",
-        "StrokeSpec", "StrokeColor", "StrokeWidthPx", "ShadowSpec", "ShadowColor", "ShadowBlurPx"];
+    private static readonly string[] TypographyFacades = ["FontFamilyName", "FallbackFamilyNames", "FontSizePx", "FontWeight",
+        "IsBold", "IsItalic", "LetterSpacingPx"];
+    private static readonly string[] FillFacades = ["UnsungFill", "SungFill", "UnsungColor", "UnsungGradientSpec", "SungColor", "SungGradientSpec"];
 
     private static readonly Dictionary<Type, string[]> Facades = new()
     {
         [typeof(LyricsDocument)] = ["Language", "Lines"],
-        [typeof(LyricStyle)] = StyleFacades,
-        [typeof(LyricStyleOverride)] = StyleFacades,
+        [typeof(LyricStyle)] = [.. TypographyFacades, .. FillFacades, "Stroke", "Shadow", "Glow"],
+        [typeof(LyricStyleOverride)] = [.. TypographyFacades, .. FillFacades, "UnsungStrokes", "Stroke", "Shadow", "Glow", "ShadowSpec"],
+        [typeof(SceneTextAppearance)] = ["PendingFill", "ElapsedFill", "Stroke", "Shadow", "Glow"],
+        [typeof(SceneTextAppearanceOverride)] = ["PendingFill", "ElapsedFill"],
         [typeof(FillSpec)] = ["Color", "Gradient"],
         [typeof(FillSpecOverride)] = ["Color", "Gradient"],
         [typeof(StrokeSpec)] = ["Color", "Gradient"],
-        [typeof(StrokeSpecOverride)] = ["Color", "Gradient"],
     };
 
     internal static JsonSerializerOptions CreateOptions(bool packageMaterials = false, bool strictEnums = false)
@@ -100,6 +108,8 @@ internal static class SnapshotJsonContract
         options.Converters.Add(new FrameRateConverter());
         options.Converters.Add(new MediaRevisionConverter());
         options.Converters.Add(new OptionalValueConverterFactory());
+        options.Converters.Add(new FollowableConverterFactory());
+        options.Converters.Add(new StrokeLayersConverter());
         options.Converters.Add(strictEnums ? new ExactEnumConverterFactory() : new JsonStringEnumConverter(allowIntegerValues: false));
         return options;
     }
@@ -254,7 +264,8 @@ internal static class SnapshotJsonContract
                 foreach (object? item in collection) Visit(item, depth + 1);
                 return;
             }
-            if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(OptionalValue<>))
+            if (type.IsGenericType && (type.GetGenericTypeDefinition() == typeof(OptionalValue<>)
+                || type.GetGenericTypeDefinition() == typeof(Followable<>)))
             {
                 Visit(type.GetProperty("Value")!.GetValue(value), depth + 1);
                 return;
@@ -347,5 +358,41 @@ internal static class SnapshotJsonContract
         }
         public override void Write(Utf8JsonWriter writer, OptionalValue<T> value, JsonSerializerOptions options)
             => JsonSerializer.Serialize(writer, new ValueSource(value.IsSet, value.Value), options);
+    }
+
+    private sealed class FollowableConverterFactory : JsonConverterFactory
+    {
+        public override bool CanConvert(Type typeToConvert) => typeToConvert.IsGenericType
+            && typeToConvert.GetGenericTypeDefinition() == typeof(Followable<>);
+        public override JsonConverter CreateConverter(Type typeToConvert, JsonSerializerOptions options) =>
+            (JsonConverter)Activator.CreateInstance(typeof(FollowableConverter<>).MakeGenericType(typeToConvert.GetGenericArguments()))!;
+    }
+
+    /// <summary>「跟随未唱」与「设置」两种取值；跟随不能携带值。</summary>
+    private sealed class FollowableConverter<T> : JsonConverter<Followable<T>>
+    {
+        private sealed record ValueSource(bool FollowsUnsung, T? Value);
+        public override Followable<T> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            ValueSource source = JsonSerializer.Deserialize<ValueSource>(ref reader, options) ?? throw new JsonException("跟随值不能为空。");
+            if (source.FollowsUnsung && !EqualityComparer<T?>.Default.Equals(source.Value, default))
+                throw new JsonException("跟随未唱不能携带值。");
+            return source.FollowsUnsung ? Followable.Follow<T>() : Followable.Set(source.Value);
+        }
+        public override void Write(Utf8JsonWriter writer, Followable<T> value, JsonSerializerOptions options)
+            => JsonSerializer.Serialize(writer, new ValueSource(value.FollowsUnsung, value.Value), options);
+    }
+
+    /// <summary>描边列表按层数组读写，读取后仍要通过列表规则校验。</summary>
+    private sealed class StrokeLayersConverter : JsonConverter<StrokeLayers>
+    {
+        public override StrokeLayers Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            StrokeSpec[] layers = JsonSerializer.Deserialize<StrokeSpec[]>(ref reader, options) ?? throw new JsonException("描边列表不能为空。");
+            StrokeLayers result = StrokeLayers.Create(layers);
+            return result.IsValid ? result : throw new JsonException("描边列表无效。");
+        }
+        public override void Write(Utf8JsonWriter writer, StrokeLayers value, JsonSerializerOptions options)
+            => JsonSerializer.Serialize(writer, value.AsImmutableArray(), options);
     }
 }

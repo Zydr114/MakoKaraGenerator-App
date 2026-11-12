@@ -13,7 +13,7 @@ public sealed class StyleTemplateApplicatorTests
         Project project = CreateProject();
         StyleTemplate template = StyleTemplate.Create("line-blue", "蓝色行", StyleTemplateKind.Line,
             project.LyricStyle with { SungColor = new RgbaColor(5, 60, 170) },
-            [LyricStyleProperty.SungColor]);
+            [LyricStyleProperty.SungFill]);
 
         Assert.True(StyleTemplateApplicator.TryPreview(project, template, null, null, true,
             out StyleTemplateApplyPreview preview, out string reason), reason);
@@ -34,7 +34,7 @@ public sealed class StyleTemplateApplicatorTests
         Project project = CreateProject();
         StyleTemplate template = StyleTemplate.Create("token-blue", "蓝色元素", StyleTemplateKind.Token,
             project.LyricStyle with { UnsungColor = new RgbaColor(6, 70, 180) },
-            [LyricStyleProperty.UnsungColor]);
+            [LyricStyleProperty.UnsungFill]);
 
         Assert.True(StyleTemplateApplicator.TryPreview(project, template, null, null, true,
             out StyleTemplateApplyPreview preview, out string reason), reason);
@@ -50,7 +50,7 @@ public sealed class StyleTemplateApplicatorTests
     {
         Project project = CreateProject();
         StyleTemplate template = StyleTemplate.Create("token-blue", "蓝色元素", StyleTemplateKind.Token,
-            project.LyricStyle, [LyricStyleProperty.UnsungColor]) with
+            project.LyricStyle, [LyricStyleProperty.UnsungFill]) with
         {
             Properties = ImmutableArray.Create(LyricStyleProperty.FontSizePx),
         };
@@ -74,7 +74,7 @@ public sealed class StyleTemplateApplicatorTests
         StyleTemplate template = StyleTemplate.Create("line-selected", "行选项",
             StyleTemplateKind.Line,
             project.LyricStyle with { SungColor = new RgbaColor(5, 60, 170) },
-            [LyricStyleProperty.SungColor]);
+            [LyricStyleProperty.SungFill]);
 
         Assert.True(StyleTemplateApplicator.TryPreview(project, template, null, null, true,
             out StyleTemplateApplyPreview preview, out string reason), reason);

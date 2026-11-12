@@ -79,17 +79,22 @@ public sealed class BackendTemplateLibraryTests
     private static T Accepted<T>(BackendOperationResult<T> result) { Assert.True(result.Accepted, result.Error?.ToString()); return result.Response!; }
 
     [Fact]
-    public void 模板原21枚举与Core数值名称全集相同且完整canonical逐字段回环()
+    public void 模板种类与Core一致且过渡期属性换算覆盖全集并完整canonical逐字段回环()
     {
         Assert.Equal(Enum.GetValues<StyleTemplateKind>().Select(x => ((int)x, x.ToString())), Enum.GetValues<TemplateKind>().Select(x => ((int)x, x.ToString())));
-        Assert.Equal(Enum.GetValues<LyricStyleProperty>().Select(x => ((int)x, x.ToString())), Enum.GetValues<TemplateProperty>().Select(x => ((int)x, x.ToString())));
+        foreach (var legacy in Enum.GetValues<TemplateProperty>())
+            Assert.Contains(legacy is TemplateProperty.StrokeColor or TemplateProperty.StrokeWidthPx ? TemplateProperty.StrokeSpec : legacy,
+                LegacyStylePropertyMap.Export(LegacyStylePropertyMap.Import(legacy)));
+        LyricStyleProperty[] wipe = [LyricStyleProperty.WipeFeatherRatio, .. LyricStylePropertyExtensions.WipeHighlightProperties];
+        foreach (var property in Enum.GetValues<LyricStyleProperty>())
+            Assert.Equal(wipe.Contains(property), LegacyStylePropertyMap.Export([property]).Length == 0);
         var gradient = new GradientSpec { Kind = GradientKind.Radial, AngleDegrees = 7.1234567890123, CenterX = .7, CenterY = .8,
-            RadiusX = .4, RadiusY = .5, CoordinateSpace = GradientCoordinateSpace.Progress, ColorSpace = GradientColorSpace.Oklch,
+            RadiusX = .4, RadiusY = .5, CoordinateSpace = GradientCoordinateSpace.Canvas, ColorSpace = GradientColorSpace.Oklch,
             HuePath = GradientHuePath.Decreasing, Stops = [new(0, new(1,2,3,4)), new(1, new(5,6,7,8))] };
         var source = LyricStyle.Default with { Typography = new() { FontFamilyName = "测试font", FallbackFamilyNames = ["甲", "乙"], FontSizePx = 63,
             FontWeight = 333, IsBold = true, IsItalic = true, LetterSpacingPx = -3 }, UnsungFill = new() { Material = new MaterialSpec.Gradient(gradient) },
             SungFill = new() { Material = new MaterialSpec.Solid(new(10,20,30,40)) }, Stroke = new() { Material = new MaterialSpec.Gradient(gradient),
-                WidthPx = 3.75f, Join = StrokeJoin.Bevel, Position = StrokePosition.Outside }, Shadow = new() { Color = new(50,60,70,80), Opacity = .4f,
+                WidthPx = 3.75f, Join = StrokeJoin.Bevel }, Shadow = new() { Color = new(50,60,70,80), Opacity = .4f,
                 AngleDegrees = -123.123456789, DistancePx = 7.2f, BlurRadiusPx = 8.5f }, Glow = new() { Color = new(1,2,3,4), Opacity = .4f, BlurRadiusPx = 6, SpreadPx = 2 }, Opacity = .6f, Scale = 1.3f, VerticalCenterRatio = .3,
             HorizontalAlignment = LyricHorizontalAlignment.Right };
         Assert.Equal(source, ProjectSession.ImportTemplateLibraryStyle(ProjectSession.ExportTemplateLibraryStyle(source)));
@@ -136,13 +141,13 @@ public sealed class BackendTemplateLibraryTests
         Assert.Equal(StyleGradientColorSpace.Oklch, ((GradientStyleMaterialDto)detail.Definition!.Style.UnsungFill.Material).Gradient.ColorSpace);
         Assert.Equal(StyleGradientCoordinateSpace.Glyph, ((GradientStyleMaterialDto)detail.Definition.Style.Stroke!.Material).Gradient.CoordinateSpace);
 
-        StaticTemplateDefinitionDto replacement = GradientDefinition("替换", StyleGradientCoordinateSpace.Progress,
+        StaticTemplateDefinitionDto replacement = GradientDefinition("替换", StyleGradientCoordinateSpace.Canvas,
             StyleGradientColorSpace.Oklch, StyleGradientHuePath.Longer);
         var replaced = Accepted(await f.Command(f.Request(created.Revision,
             new ReplaceTemplateCommandDto(created.TemplateId, replacement))));
         var replacedDetail = Accepted(await f.Registry.ReadTemplateAsync("personal", replaced.Revision, created.TemplateId));
         Assert.Equal("替换", replacedDetail.Summary.Name);
-        Assert.Equal(StyleGradientCoordinateSpace.Progress, ((GradientStyleMaterialDto)replacedDetail.Definition!.Style.Stroke!.Material).Gradient.CoordinateSpace);
+        Assert.Equal(StyleGradientCoordinateSpace.Canvas, ((GradientStyleMaterialDto)replacedDetail.Definition!.Style.Stroke!.Material).Gradient.CoordinateSpace);
 
         var deleted = Accepted(await f.Command(f.Request(replaced.Revision, new DeleteTemplateCommandDto(created.TemplateId))));
         Assert.Empty(Accepted(await f.Registry.ReadTemplatesAsync("personal", deleted.Revision)).Templates);

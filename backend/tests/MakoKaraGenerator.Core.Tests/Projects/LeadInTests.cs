@@ -40,7 +40,7 @@ public sealed class LeadInTests
         var sequence = (CountdownSequenceContent)group.Content!;
         var mark = project.LyricPresentation.FindNode(sequence.MarkNodeIds[0])!;
         Assert.True(SceneTreeEditor.TrySetNode(project, mark with { Content = new TextMarkContent { Text = "★",
-            AppearanceOverride = new() { Stroke = OptionalValue.Set<StrokeSpecOverride?>(null), Opacity = .5f,
+            AppearanceOverride = new() { Pending = new() { Strokes = StrokeLayers.Empty }, Opacity = .5f,
                 Typography = new() { FontSizePx = 48 }, PendingFill = OptionalValue.Set<FillSpecOverride?>(new() { Color = OptionalValue.Set<RgbaColor?>(new(255,0,0,255)) }) } } }, out project, out _));
         project = Add(project, Cue(indicator));
         Assert.Same(sourceLyrics, project.Lyrics);

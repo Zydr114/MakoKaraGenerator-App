@@ -18,7 +18,7 @@ namespace MakoKaraGenerator.Scripting.Tests;
 public sealed class ProjectMediaFeatureProjectionTests
 {
     private static readonly string[] QueryIds = ["canvas", "source"];
-    private static readonly string[] SourcePaths = ["lyricStyle.unsungFill", "lyricStyle.sungFill", "lyricStyle.stroke.material"];
+    private static readonly string[] SourcePaths = ["lyricStyle.unsung.fill", "lyricStyle.sung.fill", "lyricStyle.unsung.strokes.0.material"];
     private static readonly string[] SourceRegions = ["fill", "fill", "stroke"];
     private sealed record Rig(EffectPackageContents Package, Project Project, EffectPackageMediaQueryCatalog Catalog,
         ProjectMediaDependencyPlan Plan, F.Sampler Sampler, ProjectMediaFeatureBinding Binding);

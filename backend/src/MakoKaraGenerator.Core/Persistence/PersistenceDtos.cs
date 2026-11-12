@@ -101,29 +101,61 @@ internal sealed class BackgroundDto
     public string? Playback { get; set; }
 }
 
-/// <summary><c>project.json</c> 中的歌词样式基线。</summary>
+/// <summary><c>project.json</c> 中的歌词样式基线（schema v31 起为三层结构）。</summary>
 /// <remarks>
-/// 字体等旧字段保留原诊断；材质必须为完整判别对象，非法结构取消读取。
+/// 字形与布局的旧字段保留原诊断；外观的材质、描边列表与已唱「跟随」判别对象必须完整，非法结构取消读取。
 /// 源材质颜色严格采用 <c>#RRGGBBAA</c>。
 /// </remarks>
 internal sealed class LyricStyleDto
 {
     /// <summary>规范字体对象（schema v16 起）。</summary>
     public TypographySpecDto? Typography { get; set; }
-    /// <summary>完整未唱材质（schema v26 起）。</summary>
-    public System.Text.Json.JsonElement UnsungFill { get; set; }
-    /// <summary>完整已唱材质（schema v26 起）。</summary>
-    public System.Text.Json.JsonElement SungFill { get; set; }
-    /// <summary>规范描边对象（schema v16 起）。</summary>
-    public StrokeSpecDto? Stroke { get; set; }
-    /// <summary>规范阴影对象（schema v16 起）。</summary>
-    public ShadowSpecDto? Shadow { get; set; }
-    /// <summary>静态辉光（schema v29 起）。</summary>
-    public GlowSpecDto? Glow { get; set; }
+    /// <summary>未唱外观（schema v31 起）。</summary>
+    public TextAppearanceDto? Unsung { get; set; }
+    /// <summary>已唱外观（schema v31 起）。</summary>
+    public SungAppearanceDto? Sung { get; set; }
+    /// <summary>扫字样式（schema v31 起）。</summary>
+    public WipeSpecDto? Wipe { get; set; }
     public double? VerticalCenterRatio { get; set; }
     public string? HorizontalAlignment { get; set; }
     public float? Opacity { get; set; }
     public float? Scale { get; set; }
+}
+
+/// <summary>一态的完整外观：填充材质、由内向外的描边列表、阴影与辉光。</summary>
+internal sealed class TextAppearanceDto
+{
+    /// <summary>完整填充材质。</summary>
+    public System.Text.Json.JsonElement Fill { get; set; }
+    /// <summary>由内向外的描边列表；空表为无描边。</summary>
+    public System.Text.Json.JsonElement Strokes { get; set; }
+    public ShadowSpecDto? Shadow { get; set; }
+    public GlowSpecDto? Glow { get; set; }
+}
+
+/// <summary>已唱外观：填充必填；描边、阴影、辉光为 <c>{"kind":"follow"}</c> 或 <c>{"kind":"set","value":…}</c>。</summary>
+internal sealed class SungAppearanceDto
+{
+    public System.Text.Json.JsonElement Fill { get; set; }
+    public System.Text.Json.JsonElement Strokes { get; set; }
+    public System.Text.Json.JsonElement Shadow { get; set; }
+    public System.Text.Json.JsonElement Glow { get; set; }
+}
+
+/// <summary>扫字样式的 JSON 形态。</summary>
+internal sealed class WipeSpecDto
+{
+    public double? FeatherRatio { get; set; }
+    public WipeHighlightDto? Highlight { get; set; }
+}
+
+/// <summary>扫字线高亮的 JSON 形态；完整值与部分覆盖同形。</summary>
+internal sealed class WipeHighlightDto
+{
+    public string? Color { get; set; }
+    public double? WidthRatio { get; set; }
+    public float? Opacity { get; set; }
+    public string? Blend { get; set; }
 }
 
 /// <summary>规范字体对象的 JSON 形态。</summary>
@@ -170,27 +202,12 @@ internal sealed class GradientStopDto
     public string? Color { get; set; }
 }
 
-/// <summary>外部描边描述的 JSON 形态（schema v12 起）。</summary>
-internal sealed class StrokeSpecDto
+/// <summary>描边列表中一层的 JSON 形态（schema v31 起）；三个字段都必须提供。</summary>
+internal sealed class StrokeLayerDto
 {
-    public StrokeGeometryDto? Geometry { get; set; }
     public System.Text.Json.JsonElement Material { get; set; }
-}
-
-/// <summary>描边几何，完整样式必须提供全部字段，覆盖可按项提供。</summary>
-internal sealed class StrokeGeometryDto
-{
     public float? WidthPx { get; set; }
     public string? Join { get; set; }
-    public string? Position { get; set; }
-}
-
-/// <summary>描边几何部分覆盖与整体材质覆盖。</summary>
-internal sealed class StrokeSpecOverrideDto
-{
-    public StrokeGeometryDto? Geometry { get; set; }
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
-    public System.Text.Json.JsonElement Material { get; set; }
 }
 
 /// <summary>完整静态辉光的 JSON 形态。</summary>
@@ -236,32 +253,57 @@ internal sealed class ShadowSpecDto
 }
 
 /// <summary>
-/// 行级或元素级的样式覆盖。
+/// 分支、行级或元素级的样式覆盖。
 /// </summary>
-/// <remarks>键缺失表示不覆盖，规范对象只保存实际参与覆盖的成员。</remarks>
+/// <remarks>键缺失表示不覆盖，规范对象只保存实际参与覆盖的成员（schema v31 起为三层结构）。</remarks>
 internal sealed class LyricStyleOverrideDto
 {
     /// <summary>规范字体部分覆盖（schema v13 起）。</summary>
     public TypographySpecOverrideDto? Typography { get; set; }
-    /// <summary>规范未唱填充部分覆盖（schema v13 起）。</summary>
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
-    public System.Text.Json.JsonElement UnsungFill { get; set; }
-    /// <summary>规范已唱填充部分覆盖（schema v13 起）。</summary>
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
-    public System.Text.Json.JsonElement SungFill { get; set; }
-    /// <summary>规范描边覆盖（schema v13 起）。</summary>
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
-    public System.Text.Json.JsonElement Stroke { get; set; }
-    /// <summary>规范阴影覆盖（schema v13 起）。</summary>
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
-    public System.Text.Json.JsonElement Shadow { get; set; }
-    /// <summary>静态辉光覆盖（schema v18 起）。</summary>
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
-    public System.Text.Json.JsonElement Glow { get; set; }
+    /// <summary>未唱外观部分覆盖。</summary>
+    public TextAppearanceOverrideDto? Unsung { get; set; }
+    /// <summary>已唱外观部分覆盖。</summary>
+    public SungAppearanceOverrideDto? Sung { get; set; }
+    /// <summary>扫字样式部分覆盖。</summary>
+    public WipeSpecOverrideDto? Wipe { get; set; }
     public double? VerticalCenterRatio { get; set; }
     public string? HorizontalAlignment { get; set; }
     public float? Opacity { get; set; }
     public float? Scale { get; set; }
+}
+
+/// <summary>一态外观的部分覆盖：填充为完整材质，描边为整表，阴影与辉光为 <c>null</c>（关闭）或部分对象。</summary>
+internal sealed class TextAppearanceOverrideDto
+{
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public System.Text.Json.JsonElement Fill { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public System.Text.Json.JsonElement Strokes { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public System.Text.Json.JsonElement Shadow { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public System.Text.Json.JsonElement Glow { get; set; }
+}
+
+/// <summary>已唱外观的部分覆盖；描边、阴影、辉光写成「跟随」或「设置」判别对象。</summary>
+internal sealed class SungAppearanceOverrideDto
+{
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public System.Text.Json.JsonElement Fill { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public System.Text.Json.JsonElement Strokes { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public System.Text.Json.JsonElement Shadow { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public System.Text.Json.JsonElement Glow { get; set; }
+}
+
+/// <summary>扫字样式的部分覆盖；高亮为 <c>null</c>（关闭）或部分对象。</summary>
+internal sealed class WipeSpecOverrideDto
+{
+    public double? FeatherRatio { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public System.Text.Json.JsonElement Highlight { get; set; }
 }
 
 /// <summary>规范字体部分覆盖的 JSON 形态。</summary>

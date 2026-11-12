@@ -19,8 +19,8 @@ internal static class PresetSnapshotFixture
         [
             App("project", new(ProjectEffectBindingKind.Project), style with { Opacity = .8f }, LyricStyleProperty.Opacity),
             App("branch", new(ProjectEffectBindingKind.Branch, "primary"), style with { Scale = 1.1f }, LyricStyleProperty.Scale),
-            App("line", new(ProjectEffectBindingKind.Lines, ids: ["first"]), style with { UnsungColor = new(30, 220, 70, 190) }, LyricStyleProperty.UnsungColor),
-            App("token", new(ProjectEffectBindingKind.Tokens, ids: ["first-a"]), style with { SungColor = new(20, 100, 240, 170) }, LyricStyleProperty.SungColor),
+            App("line", new(ProjectEffectBindingKind.Lines, ids: ["first"]), style with { UnsungColor = new(30, 220, 70, 190) }, LyricStyleProperty.UnsungFill),
+            App("token", new(ProjectEffectBindingKind.Tokens, ids: ["first-a"]), style with { SungColor = new(20, 100, 240, 170) }, LyricStyleProperty.SungFill),
             App("clip", new(ProjectEffectBindingKind.Clips, ids: ["chorus-clip"]), style with { FontSizePx = 64 }, LyricStyleProperty.FontSizePx),
             App("node", new(ProjectEffectBindingKind.Node, slot, includeDescendants: true), style with { Opacity = .3f }, LyricStyleProperty.Opacity),
             App("mark", new(ProjectEffectBindingKind.Node, mark.Id), style with { Opacity = .35f }, LyricStyleProperty.Opacity),

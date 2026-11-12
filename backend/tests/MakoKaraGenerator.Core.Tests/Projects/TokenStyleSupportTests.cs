@@ -32,26 +32,58 @@ public sealed class TokenStyleSupportTests
         [LyricStyleProperty.LetterSpacingPx] = new() { LetterSpacingPx = 4f },
         [LyricStyleProperty.VerticalCenterRatio] = new() { VerticalCenterRatio = 0.5d },
         [LyricStyleProperty.HorizontalAlignment] = new() { HorizontalAlignment = LyricHorizontalAlignment.Center },
-        [LyricStyleProperty.UnsungColor] = new() { UnsungColor = new RgbaColor(0x11, 0x22, 0x33) },
-        [LyricStyleProperty.SungColor] = new() { SungColor = new RgbaColor(0x44, 0x55, 0x66) },
-        [LyricStyleProperty.UnsungGradientSpec] = new() { UnsungGradientSpec = GradientSpec.Create(
-            [new GradientStop(0d, new RgbaColor(0x11, 0x22, 0x33)),
-                new GradientStop(1d, new RgbaColor(0x44, 0x55, 0x66))]) },
-        [LyricStyleProperty.SungGradientSpec] = new() { SungFill = new FillSpecOverride { Material = new MaterialSpec.Solid(RgbaColor.White) } },
-        [LyricStyleProperty.StrokeColor] = new() { StrokeColor = new RgbaColor(0x55, 0x66, 0x77) },
-        [LyricStyleProperty.StrokeWidthPx] = new() { StrokeWidthPx = 3f },
-        [LyricStyleProperty.StrokeSpec] = new() { StrokeSpec = StrokeSpec.Create(RgbaColor.White, 3f) },
-        [LyricStyleProperty.ShadowColor] = new() { ShadowColor = new RgbaColor(0x88, 0x99, 0xAA) },
-        [LyricStyleProperty.ShadowBlurPx] = new() { ShadowBlurPx = 4f },
-        [LyricStyleProperty.ShadowSpec] = new() { ShadowSpec = ShadowSpec.Create(RgbaColor.Black) },
+        [LyricStyleProperty.UnsungFill] = new() { UnsungColor = new RgbaColor(0x11, 0x22, 0x33) },
+        [LyricStyleProperty.SungFill] = new() { SungFill = new FillSpecOverride { Material = new MaterialSpec.Solid(RgbaColor.White) } },
+        [LyricStyleProperty.UnsungStrokes] = new() { UnsungStrokes = StrokeLayers.FromStroke(StrokeSpec.Create(RgbaColor.White, 3f)) },
+        [LyricStyleProperty.SungStrokes] = new() { Sung = new() { Strokes = OptionalValue.Set(Followable.Set(StrokeLayers.Empty)) } },
+        [LyricStyleProperty.UnsungShadow] = new() { Shadow = OptionalValue.Set<ShadowSpecOverride?>(null) },
+        [LyricStyleProperty.UnsungShadowColor] = Shadow(new() { Color = new RgbaColor(0x88, 0x99, 0xAA) }),
+        [LyricStyleProperty.UnsungShadowOpacity] = Shadow(new() { Opacity = .5f }),
+        [LyricStyleProperty.UnsungShadowAngleDegrees] = Shadow(new() { AngleDegrees = 30d }),
+        [LyricStyleProperty.UnsungShadowDistancePx] = Shadow(new() { DistancePx = 3f }),
+        [LyricStyleProperty.UnsungShadowBlurRadiusPx] = Shadow(new() { BlurRadiusPx = 4f }),
+        [LyricStyleProperty.SungShadow] = new() { Sung = new() { Shadow = OptionalValue.Set(Followable.Follow<ShadowSpecOverride?>()) } },
+        [LyricStyleProperty.SungShadowColor] = SungShadow(new() { Color = new RgbaColor(0x88, 0x99, 0xAA) }),
+        [LyricStyleProperty.SungShadowOpacity] = SungShadow(new() { Opacity = .5f }),
+        [LyricStyleProperty.SungShadowAngleDegrees] = SungShadow(new() { AngleDegrees = 30d }),
+        [LyricStyleProperty.SungShadowDistancePx] = SungShadow(new() { DistancePx = 3f }),
+        [LyricStyleProperty.SungShadowBlurRadiusPx] = SungShadow(new() { BlurRadiusPx = 4f }),
+        [LyricStyleProperty.UnsungGlow] = new() { Glow = OptionalValue.Set<GlowSpecOverride?>(GlowSpecOverride.FromSpec(new())) },
+        [LyricStyleProperty.UnsungGlowColor] = Glow(new() { Color = RgbaColor.White }),
+        [LyricStyleProperty.UnsungGlowOpacity] = Glow(new() { Opacity = .5f }),
+        [LyricStyleProperty.UnsungGlowBlurRadiusPx] = Glow(new() { BlurRadiusPx = 3f }),
+        [LyricStyleProperty.UnsungGlowSpreadPx] = Glow(new() { SpreadPx = 2f }),
+        [LyricStyleProperty.SungGlow] = new() { Sung = new() { Glow = OptionalValue.Set(Followable.Set<GlowSpecOverride?>(null)) } },
+        [LyricStyleProperty.SungGlowColor] = SungGlow(new() { Color = RgbaColor.White }),
+        [LyricStyleProperty.SungGlowOpacity] = SungGlow(new() { Opacity = .5f }),
+        [LyricStyleProperty.SungGlowBlurRadiusPx] = SungGlow(new() { BlurRadiusPx = 3f }),
+        [LyricStyleProperty.SungGlowSpreadPx] = SungGlow(new() { SpreadPx = 2f }),
+        [LyricStyleProperty.WipeFeatherRatio] = new() { Wipe = new() { FeatherRatio = .5d } },
+        [LyricStyleProperty.WipeHighlight] = new() { Wipe = new() { Highlight = OptionalValue.Set<WipeHighlightOverride?>(null) } },
+        [LyricStyleProperty.WipeHighlightColor] = Highlight(new() { Color = RgbaColor.White }),
+        [LyricStyleProperty.WipeHighlightWidthRatio] = Highlight(new() { WidthRatio = .3d }),
+        [LyricStyleProperty.WipeHighlightOpacity] = Highlight(new() { Opacity = .5f }),
+        [LyricStyleProperty.WipeHighlightBlend] = Highlight(new() { Blend = WipeHighlightBlend.Screen }),
         [LyricStyleProperty.Opacity] = new() { Opacity = 0.5f },
         [LyricStyleProperty.Scale] = new() { Scale = 1.5f },
-        [LyricStyleProperty.GlowSpec] = new() { Glow = OptionalValue.Set<GlowSpecOverride?>(GlowSpecOverride.FromSpec(new())) },
-        [LyricStyleProperty.GlowColor] = new() { Glow = OptionalValue.Set<GlowSpecOverride?>(new() { Color = RgbaColor.White }) },
-        [LyricStyleProperty.GlowOpacity] = new() { Glow = OptionalValue.Set<GlowSpecOverride?>(new() { Opacity = .5f }) },
-        [LyricStyleProperty.GlowBlurRadiusPx] = new() { Glow = OptionalValue.Set<GlowSpecOverride?>(new() { BlurRadiusPx = 3f }) },
-        [LyricStyleProperty.GlowSpreadPx] = new() { Glow = OptionalValue.Set<GlowSpecOverride?>(new() { SpreadPx = 2f }) },
     };
+
+    private static readonly IReadOnlyList<LyricStyleProperty>[] EffectGroups =
+    [
+        LyricStylePropertyExtensions.UnsungShadowProperties, LyricStylePropertyExtensions.SungShadowProperties,
+        LyricStylePropertyExtensions.UnsungGlowProperties, LyricStylePropertyExtensions.SungGlowProperties,
+        LyricStylePropertyExtensions.WipeHighlightProperties,
+    ];
+
+    private static LyricStyleOverride Shadow(ShadowSpecOverride value) => new() { Shadow = OptionalValue.Set<ShadowSpecOverride?>(value) };
+
+    private static LyricStyleOverride SungShadow(ShadowSpecOverride value) => new() { Sung = new() { Shadow = OptionalValue.Set(Followable.Set<ShadowSpecOverride?>(value)) } };
+
+    private static LyricStyleOverride Glow(GlowSpecOverride value) => new() { Glow = OptionalValue.Set<GlowSpecOverride?>(value) };
+
+    private static LyricStyleOverride SungGlow(GlowSpecOverride value) => new() { Sung = new() { Glow = OptionalValue.Set(Followable.Set<GlowSpecOverride?>(value)) } };
+
+    private static LyricStyleOverride Highlight(WipeHighlightOverride value) => new() { Wipe = new() { Highlight = OptionalValue.Set<WipeHighlightOverride?>(value) } };
 
     [Fact]
     public void 每种属性都有测试样本且覆盖全部属性()
@@ -72,11 +104,8 @@ public sealed class TokenStyleSupportTests
         {
             IReadOnlyList<LyricStyleProperty> set = TokenStyleSupport.SetProperties(Single[property]);
 
-            var expected = property is LyricStyleProperty.UnsungColor or LyricStyleProperty.UnsungGradientSpec
-                ? new[] { LyricStyleProperty.UnsungColor, LyricStyleProperty.UnsungGradientSpec }
-                : property is LyricStyleProperty.SungColor or LyricStyleProperty.SungGradientSpec
-                    ? new[] { LyricStyleProperty.SungColor, LyricStyleProperty.SungGradientSpec } : property == LyricStyleProperty.GlowSpec
-                        ? new[] { LyricStyleProperty.GlowSpec, LyricStyleProperty.GlowColor, LyricStyleProperty.GlowOpacity, LyricStyleProperty.GlowBlurRadiusPx, LyricStyleProperty.GlowSpreadPx } : [property];
+            // 整体项（关闭、跟随或完整替换）同时记到全部分量；其余属性只记自己。
+            IReadOnlyList<LyricStyleProperty> expected = EffectGroups.FirstOrDefault(group => group[0] == property) ?? [property];
             Assert.Equal(expected, set);
         }
     }
@@ -146,8 +175,9 @@ public sealed class TokenStyleSupportTests
     public void 颜色族与描边阴影都算会改变画面()
     {
         Assert.True(TokenStyleSupport.HasDrawableOverride(new LyricStyleOverride { SungColor = new RgbaColor(1, 2, 3) }));
-        Assert.True(TokenStyleSupport.HasDrawableOverride(new LyricStyleOverride { StrokeWidthPx = 2f }));
-        Assert.True(TokenStyleSupport.HasDrawableOverride(new LyricStyleOverride { ShadowBlurPx = 2f }));
+        Assert.True(TokenStyleSupport.HasDrawableOverride(new LyricStyleOverride { UnsungStrokes = StrokeLayers.FromStroke(StrokeSpec.Create(RgbaColor.White, 2f)) }));
+        Assert.True(TokenStyleSupport.HasDrawableOverride(Shadow(new() { BlurRadiusPx = 2f })));
+        Assert.True(TokenStyleSupport.HasDrawableOverride(new LyricStyleOverride { Wipe = new() { FeatherRatio = .2d } }));
         Assert.True(TokenStyleSupport.HasDrawableOverride(new LyricStyleOverride { Opacity = 0.5f }));
     }
 }

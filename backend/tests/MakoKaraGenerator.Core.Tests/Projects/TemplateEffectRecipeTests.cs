@@ -18,7 +18,7 @@ public sealed class TemplateEffectRecipeTests
     {
         var package = EffectPackageFixture.Contents(resource);
         return StyleTemplate.Create(id, "效果", line ? StyleTemplateKind.Line : StyleTemplateKind.Token, LyricStyle.Default,
-            [LyricStyleProperty.SungColor], (recipes ?? ["first"]).Select(r => new TemplateEffectRecipe(r, r, TemplateEffectTarget.TokenFamily,
+            [LyricStyleProperty.SungFill], (recipes ?? ["first"]).Select(r => new TemplateEffectRecipe(r, r, TemplateEffectTarget.TokenFamily,
                 package.PackageId, package.Revision, "scale", EffectParameterOverrides.Parse($"{{\"peak\":{peak}}}"))), [package]);
     }
     private static StyleTemplateApplyPreview Apply(Project source, StyleTemplate template, bool all = false)

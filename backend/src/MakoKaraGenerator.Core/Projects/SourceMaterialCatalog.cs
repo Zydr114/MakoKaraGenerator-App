@@ -36,8 +36,7 @@ public static class SourceMaterialCatalog
         foreach (var node in presentation.Nodes)
         {
             string path = "lyricPresentation.nodes." + node.Id + ".content";
-            if (node.Content is CountdownSequenceContent sequence) values.AddRange(Collect(sequence.Appearance.ToLyricStyle(), path + ".appearance").Select(reference => reference with
-                { Path = reference.Path.Replace(".unsungFill", ".pendingFill", StringComparison.Ordinal).Replace(".sungFill", ".elapsedFill", StringComparison.Ordinal) }));
+            if (node.Content is CountdownSequenceContent sequence) values.AddRange(Collect(sequence.Appearance.ToLyricStyle(), path + ".appearance", scene: true));
             if (node.Content is TextMarkContent mark) Add(mark.AppearanceOverride?.ToStyleOverride(), path + ".appearanceOverride", scene: true);
         }
         if (applications is not null)
@@ -47,23 +46,50 @@ public static class SourceMaterialCatalog
         void Add(LyricStyleOverride? overlay, string path, bool scene = false)
         {
             if (overlay is null) return;
-            AddMaterial(overlay.UnsungFill.Value?.Material.Value, path + (scene ? ".pendingFill" : ".unsungFill"), "fill");
-            AddMaterial(overlay.SungFill.Value?.Material.Value, path + (scene ? ".elapsedFill" : ".sungFill"), "fill");
-            AddMaterial(overlay.Stroke.Value?.Material.Value, path + ".stroke.material", "stroke");
+            AddMaterial(overlay.Unsung?.Fill.Value?.Material.Value, path + Suffix(false, scene, FillMember), "fill");
+            AddMaterial(overlay.Sung?.Fill.Value?.Material.Value, path + Suffix(true, scene, FillMember), "fill");
+            AddMaterial(overlay.Unsung?.Strokes?.Innermost?.Material, path + Suffix(false, scene, StrokeMember), "stroke");
+            if (overlay.Sung?.Strokes is { IsSet: true, Value.FollowsUnsung: false } sung)
+                AddMaterial(sung.Value.Value?.Innermost?.Material, path + Suffix(true, scene, StrokeMember), "stroke");
         }
         void AddMaterial(MaterialSpec? material, string path, string region)
         { if (material is MaterialSpec.PackageMaterial package) values.Add(new(path, region, package)); }
     }
 
     /// <summary>模板完整样式的固定材质引用，包括未勾选的存储属性。</summary>
-    public static ImmutableArray<SourceMaterialReference> Collect(LyricStyle style, string path = "style")
+    /// <param name="style">完整样式。</param>
+    /// <param name="path">样式所在路径。</param>
+    /// <param name="scene">是否文字标记外观（两态名为 pending／elapsed）。</param>
+    /// <returns>包材质引用：两态填充与两态最内层描边（已唱描边跟随时不重复列出）。</returns>
+    public static ImmutableArray<SourceMaterialReference> Collect(LyricStyle style, string path = "style", bool scene = false)
     {
         ArgumentNullException.ThrowIfNull(style); List<SourceMaterialReference> values = [];
-        Add(style.UnsungFill.Material, path + ".unsungFill", "fill"); Add(style.SungFill.Material, path + ".sungFill", "fill");
-        if (style.Stroke is { } stroke) Add(stroke.Material, path + ".stroke.material", "stroke");
+        Add(style.Unsung.Fill.Material, path + Suffix(false, scene, FillMember), "fill");
+        Add(style.Sung.Fill.Material, path + Suffix(true, scene, FillMember), "fill");
+        Add(style.Unsung.Strokes.Innermost?.Material, path + Suffix(false, scene, StrokeMember), "stroke");
+        if (!style.Sung.Strokes.FollowsUnsung) Add(style.Sung.Strokes.Value?.Innermost?.Material, path + Suffix(true, scene, StrokeMember), "stroke");
         return [.. values];
-        void Add(MaterialSpec material, string location, string region)
+        void Add(MaterialSpec? material, string location, string region)
         { if (material is MaterialSpec.PackageMaterial package) values.Add(new(location, region, package)); }
+    }
+
+    internal const string FillMember = "fill";
+    internal const string StrokeMember = "strokes.0.material";
+
+    /// <summary>材质引用路径的后缀，如 <c>.sung.strokes.0.material</c>；文字标记的两态名为 pending／elapsed。</summary>
+    internal static string Suffix(bool sung, bool scene, string member)
+        => "." + (scene ? sung ? "elapsed" : "pending" : sung ? "sung" : "unsung") + "." + member;
+
+    private static readonly string[] SungSuffixes =
+        [Suffix(true, false, FillMember), Suffix(true, true, FillMember), Suffix(true, false, StrokeMember), Suffix(true, true, StrokeMember)];
+
+    /// <summary>引用是否属于已唱一态（文字标记为已过一态）。</summary>
+    /// <param name="reference">源材质引用。</param>
+    /// <returns>已唱／已过返回 <see langword="true"/>。</returns>
+    public static bool IsSung(SourceMaterialReference reference)
+    {
+        ArgumentNullException.ThrowIfNull(reference);
+        return SungSuffixes.Any(suffix => reference.Path.EndsWith(suffix, StringComparison.Ordinal));
     }
 
     /// <summary>缺失完整修订不能保存或打开；参数草稿由语义校验保留。</summary>

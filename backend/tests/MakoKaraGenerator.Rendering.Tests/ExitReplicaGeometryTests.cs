@@ -204,7 +204,7 @@ public sealed class ExitReplicaGeometryTests
         project = project with { LyricPresentation = tree };
         var style = project.LyricStyle with { SungColor = new(20, 180, 220, 255), UnsungColor = new(240, 100, 30, 255), Opacity = .625f };
         var preset = StyleTemplate.Create("frozen-source", "冻结源", StyleTemplateKind.Composite, style,
-            [LyricStyleProperty.SungColor, LyricStyleProperty.UnsungColor, LyricStyleProperty.Opacity]);
+            [LyricStyleProperty.SungFill, LyricStyleProperty.UnsungFill, LyricStyleProperty.Opacity]);
         Assert.True(PresetApplicationsEditor.TryApply(project, preset,
             [new(ProjectEffectBindingKind.Node, id: "bridge", includeDescendants: true)], null, out project, out var reason), reason);
         return ProjectSnapshot.FromProject(project);

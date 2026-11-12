@@ -113,8 +113,8 @@ public sealed class BackendLeadInEditingTests
             change => change is StyleGlowChangeDto { Value: null });
         var sequence = (CountdownSequenceContent)f.Workspace.Project.LyricPresentation.FindNode(group)!.Content!;
         var text = (TextMarkContent)f.Workspace.Project.LyricPresentation.FindNode(mark)!.Content!;
-        Assert.True(text.AppearanceOverride!.Stroke.IsSet); Assert.Null(sequence.Appearance.Resolve(text.AppearanceOverride).Stroke);
-        Assert.True(text.AppearanceOverride.Glow.IsSet); Assert.Null(sequence.Appearance.Resolve(text.AppearanceOverride).Glow);
+        Assert.NotNull(text.AppearanceOverride!.Pending!.Strokes); Assert.Null(sequence.Appearance.Resolve(text.AppearanceOverride).Stroke);
+        Assert.True(text.AppearanceOverride.Pending.Glow.IsSet); Assert.Null(sequence.Appearance.Resolve(text.AppearanceOverride).Glow);
         Assert.Equal(2, sequence.Appearance.Glow!.SpreadPx);
         Assert.Equal(48, sequence.Appearance.Resolve(text.AppearanceOverride).Typography.FontSizePx);
         Assert.Equal(BackendErrorCode.InvalidRequest, (await f.Command("3", new SetMarkAppearanceCommandDto(mark, [new StyleScaleChangeDto(2)]))).Error!.Code);

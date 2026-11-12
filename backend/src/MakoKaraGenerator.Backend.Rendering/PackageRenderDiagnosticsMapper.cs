@@ -99,7 +99,7 @@ public sealed class PackageRenderDiagnosticsMapper
         if (parameters.Json != owner.ParametersJson) throw Invalid();
         var reference = new SourceMaterialReference(owner.Path!, owner.Region!, new(id.PackageId, id.Revision, id.ExportId, parameters));
         PreparedMaterialSlot slot = reference.Region == "stroke" ? PreparedMaterialSlot.Stroke
-            : reference.Path.EndsWith(".sungFill", StringComparison.Ordinal) || reference.Path.EndsWith(".elapsedFill", StringComparison.Ordinal) ? PreparedMaterialSlot.SungFill : PreparedMaterialSlot.UnsungFill;
+            : SourceMaterialCatalog.IsSung(reference) ? PreparedMaterialSlot.SungFill : PreparedMaterialSlot.UnsungFill;
         if (!_sources.Contains(reference) || owner.Slot != (int)slot || id != material) throw Invalid();
         SourceMaterialCatalog.Validate(reference, Package(id).Definition);
         return new PreparedMaterialOwner.Source(reference, slot);

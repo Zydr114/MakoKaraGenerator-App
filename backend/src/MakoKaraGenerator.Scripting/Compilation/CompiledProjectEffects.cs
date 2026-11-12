@@ -135,7 +135,7 @@ public sealed class CompiledProjectEffects
         }
     }
     private static PreparedMaterialOwner.Source SourceOwner(SourceMaterialReference reference) => new(reference,
-        reference.Region == "stroke" ? PreparedMaterialSlot.Stroke : (reference.Path.EndsWith(".sungFill", StringComparison.Ordinal) || reference.Path.EndsWith(".elapsedFill", StringComparison.Ordinal)) ? PreparedMaterialSlot.SungFill : PreparedMaterialSlot.UnsungFill);
+        reference.Region == "stroke" ? PreparedMaterialSlot.Stroke : SourceMaterialCatalog.IsSung(reference) ? PreparedMaterialSlot.SungFill : PreparedMaterialSlot.UnsungFill);
     /// <summary>为固定闭包和分析创建独立重放会话，使用工程真实视觉／粒子预算。</summary>
     public TimelineFrameSourceFactory CreateFactory(Func<ILineGeometryProvider> geometryFactory, ReplayReason reason,
         MakoKaraGenerator.Rendering.Abstractions.ProjectMediaFeatureBinding? mediaBinding = null)

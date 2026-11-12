@@ -94,7 +94,6 @@ public static class LyricStyleResolver
                     LetterSpacingPx = typography.LetterSpacingPx ?? current.Typography.LetterSpacingPx,
                 },
             };
-            MarkTypographySources(typography, source, sources);
         }
 
         result = result with
@@ -105,43 +104,45 @@ public static class LyricStyleResolver
             Scale = overlay.Scale ?? current.Scale,
         };
 
-        if (overlay.UnsungFill.IsSet)
-        {
-            result = SetFill(result, overlay.UnsungFill.Value
-                ?? throw new ArgumentException("未唱填充覆盖不能设置为空。", nameof(overlay)), sung: false);
-            MarkFillSources(overlay.UnsungFill.Value, sung: false, source, sources);
-        }
+        // 先叠未唱，再叠已唱：已唱的分量覆盖若落在「跟随」上，以同一层叠完的未唱值为基线（设计 §10.5）。
+        if (overlay.Unsung is { } unsung) result = result with { Unsung = unsung.Apply(result.Unsung) };
+        if (overlay.Sung is { } sung) result = result with { Sung = sung.Apply(result.Sung, result.Unsung) };
+        if (overlay.Wipe is { } wipe) result = result with { Wipe = wipe.Apply(result.Wipe) };
 
-        if (overlay.SungFill.IsSet)
-        {
-            result = SetFill(result, overlay.SungFill.Value
-                ?? throw new ArgumentException("已唱填充覆盖不能设置为空。", nameof(overlay)), sung: true);
-            MarkFillSources(overlay.SungFill.Value, sung: true, source, sources);
-        }
+        MarkSources(overlay, source, sources);
+        return result;
+    }
 
-        if (overlay.Stroke.IsSet)
-        {
-            StrokeSpec? stroke = overlay.Stroke.Value?.Apply(current.Stroke);
-            result = result with { Stroke = stroke };
-            MarkStrokeSources(overlay.Stroke.Value, source, sources);
-        }
+    /// <summary>列出一份覆盖<b>写了</b>的属性，判定与来源追踪完全相同。</summary>
+    /// <param name="overlay">样式覆盖。</param>
+    /// <returns>写了的属性，按 <see cref="LyricStylePropertyExtensions.All"/> 的顺序。</returns>
+    internal static IReadOnlyList<LyricStyleProperty> SetProperties(LyricStyleOverride? overlay)
+    {
+        if (overlay is null) return [];
+        Dictionary<LyricStyleProperty, LyricStyleSource> marked = [];
+        MarkSources(overlay, LyricStyleSource.Line, marked);
+        return [.. LyricStylePropertyExtensions.All.Where(marked.ContainsKey)];
+    }
 
-        if (overlay.Shadow.IsSet)
+    private static void MarkSources(LyricStyleOverride overlay, LyricStyleSource source,
+        Dictionary<LyricStyleProperty, LyricStyleSource> sources)
+    {
+        if (overlay.Typography is { } typography) MarkTypographySources(typography, source, sources);
+        if (overlay.Unsung is { } unsung) MarkUnsungSources(unsung, source, sources);
+        if (overlay.Sung is { } sung) MarkSungSources(sung, source, sources);
+        if (overlay.Wipe is { } wipe)
         {
-            ShadowSpec? shadow = overlay.Shadow.Value?.Apply(current.Shadow);
-            result = result with { Shadow = shadow };
-            MarkShadowSources(overlay.Shadow.Value, source, sources);
-        }
-
-        if (overlay.Glow.IsSet)
-        {
-            result = result with { Glow = overlay.Glow.Value?.Apply(current.Glow) };
-            GlowSpecOverride? glow = overlay.Glow.Value;
-            if (glow is null || glow.IsComplete) sources[LyricStyleProperty.GlowSpec] = source;
-            if (glow is null || glow.Color is not null) sources[LyricStyleProperty.GlowColor] = source;
-            if (glow is null || glow.Opacity is not null) sources[LyricStyleProperty.GlowOpacity] = source;
-            if (glow is null || glow.BlurRadiusPx is not null) sources[LyricStyleProperty.GlowBlurRadiusPx] = source;
-            if (glow is null || glow.SpreadPx is not null) sources[LyricStyleProperty.GlowSpreadPx] = source;
+            if (wipe.FeatherRatio is not null) sources[LyricStyleProperty.WipeFeatherRatio] = source;
+            if (wipe.Highlight.IsSet)
+                MarkEffectSources(LyricStylePropertyExtensions.WipeHighlightProperties, wipe.Highlight.Value is not { } highlight || highlight.IsComplete,
+                    component => wipe.Highlight.Value is { } value && component switch
+                    {
+                        LyricStyleEffectComponent.Color => value.Color is not null,
+                        LyricStyleEffectComponent.WidthRatio => value.WidthRatio is not null,
+                        LyricStyleEffectComponent.Opacity => value.Opacity is not null,
+                        LyricStyleEffectComponent.Blend => value.Blend is not null,
+                        _ => false,
+                    }, source, sources);
         }
 
         if (overlay.VerticalCenterRatio is not null)
@@ -152,8 +153,63 @@ public static class LyricStyleResolver
             sources[LyricStyleProperty.Opacity] = source;
         if (overlay.Scale is not null)
             sources[LyricStyleProperty.Scale] = source;
+    }
 
-        return result;
+    private static void MarkUnsungSources(TextAppearanceOverride unsung, LyricStyleSource source,
+        Dictionary<LyricStyleProperty, LyricStyleSource> sources)
+    {
+        if (unsung.Fill.Value is { Material.IsSet: true }) sources[LyricStyleProperty.UnsungFill] = source;
+        if (unsung.Strokes is not null) sources[LyricStyleProperty.UnsungStrokes] = source;
+        if (unsung.Shadow.IsSet)
+            MarkShadowSources(LyricStylePropertyExtensions.UnsungShadowProperties, unsung.Shadow.Value, follows: false, source, sources);
+        if (unsung.Glow.IsSet)
+            MarkGlowSources(LyricStylePropertyExtensions.UnsungGlowProperties, unsung.Glow.Value, follows: false, source, sources);
+    }
+
+    private static void MarkSungSources(SungAppearanceOverride sung, LyricStyleSource source,
+        Dictionary<LyricStyleProperty, LyricStyleSource> sources)
+    {
+        if (sung.Fill.Value is { Material.IsSet: true }) sources[LyricStyleProperty.SungFill] = source;
+        if (sung.Strokes.IsSet) sources[LyricStyleProperty.SungStrokes] = source;
+        if (sung.Shadow.IsSet)
+            MarkShadowSources(LyricStylePropertyExtensions.SungShadowProperties, sung.Shadow.Value.Value, sung.Shadow.Value.FollowsUnsung, source, sources);
+        if (sung.Glow.IsSet)
+            MarkGlowSources(LyricStylePropertyExtensions.SungGlowProperties, sung.Glow.Value.Value, sung.Glow.Value.FollowsUnsung, source, sources);
+    }
+
+    private static void MarkShadowSources(IReadOnlyList<LyricStyleProperty> properties, ShadowSpecOverride? shadow, bool follows,
+        LyricStyleSource source, Dictionary<LyricStyleProperty, LyricStyleSource> sources)
+        => MarkEffectSources(properties, follows || shadow is null || shadow.IsComplete, component => shadow is not null && component switch
+        {
+            LyricStyleEffectComponent.Color => shadow.Color is not null,
+            LyricStyleEffectComponent.Opacity => shadow.Opacity is not null,
+            LyricStyleEffectComponent.AngleDegrees => shadow.AngleDegrees is not null,
+            LyricStyleEffectComponent.DistancePx => shadow.DistancePx is not null,
+            LyricStyleEffectComponent.BlurRadiusPx => shadow.BlurRadiusPx is not null,
+            _ => false,
+        }, source, sources);
+
+    private static void MarkGlowSources(IReadOnlyList<LyricStyleProperty> properties, GlowSpecOverride? glow, bool follows,
+        LyricStyleSource source, Dictionary<LyricStyleProperty, LyricStyleSource> sources)
+        => MarkEffectSources(properties, follows || glow is null || glow.IsComplete, component => glow is not null && component switch
+        {
+            LyricStyleEffectComponent.Color => glow.Color is not null,
+            LyricStyleEffectComponent.Opacity => glow.Opacity is not null,
+            LyricStyleEffectComponent.BlurRadiusPx => glow.BlurRadiusPx is not null,
+            LyricStyleEffectComponent.SpreadPx => glow.SpreadPx is not null,
+            _ => false,
+        }, source, sources);
+
+    /// <summary>关闭、跟随与完整替换记到整体项与全部分量；部分覆盖只记写了的分量。</summary>
+    private static void MarkEffectSources(IReadOnlyList<LyricStyleProperty> properties, bool whole,
+        Func<LyricStyleEffectComponent, bool> componentSet, LyricStyleSource source,
+        Dictionary<LyricStyleProperty, LyricStyleSource> sources)
+    {
+        foreach (LyricStyleProperty property in properties)
+        {
+            LyricStyleEffectComponent component = LyricStylePropertyExtensions.Component(property);
+            if (whole || component != LyricStyleEffectComponent.None && componentSet(component)) sources[property] = source;
+        }
     }
 
     private static void MarkTypographySources(
@@ -168,60 +224,6 @@ public static class LyricStyleResolver
         if (typography.IsBold is not null) sources[LyricStyleProperty.IsBold] = source;
         if (typography.IsItalic is not null) sources[LyricStyleProperty.IsItalic] = source;
         if (typography.LetterSpacingPx is not null) sources[LyricStyleProperty.LetterSpacingPx] = source;
-    }
-
-    private static void MarkFillSources(
-        FillSpecOverride? fill,
-        bool sung,
-        LyricStyleSource source,
-        Dictionary<LyricStyleProperty, LyricStyleSource> sources)
-    {
-        if (fill is null) return;
-        LyricStyleProperty color = sung ? LyricStyleProperty.SungColor : LyricStyleProperty.UnsungColor;
-        LyricStyleProperty gradient = sung ? LyricStyleProperty.SungGradientSpec : LyricStyleProperty.UnsungGradientSpec;
-        if (fill.Material.IsSet) { sources[color] = source; sources[gradient] = source; }
-    }
-
-    private static void MarkStrokeSources(
-        StrokeSpecOverride? stroke,
-        LyricStyleSource source,
-        Dictionary<LyricStyleProperty, LyricStyleSource> sources)
-    {
-        if (stroke is null)
-        {
-            sources[LyricStyleProperty.StrokeSpec] = source;
-            return;
-        }
-        if (stroke.Material.IsSet) sources[LyricStyleProperty.StrokeColor] = source;
-        if (stroke.WidthPx is not null) sources[LyricStyleProperty.StrokeWidthPx] = source;
-        if (stroke.IsComplete || stroke.Join is not null || stroke.Position is not null)
-            sources[LyricStyleProperty.StrokeSpec] = source;
-    }
-
-    private static void MarkShadowSources(
-        ShadowSpecOverride? shadow,
-        LyricStyleSource source,
-        Dictionary<LyricStyleProperty, LyricStyleSource> sources)
-    {
-        if (shadow is null)
-        {
-            sources[LyricStyleProperty.ShadowSpec] = source;
-            return;
-        }
-        if (shadow.Color is not null) sources[LyricStyleProperty.ShadowColor] = source;
-        if (shadow.AngleDegrees is not null || shadow.DistancePx is not null)
-        {
-            sources[LyricStyleProperty.ShadowSpec] = source;
-        }
-        if (shadow.BlurRadiusPx is not null) sources[LyricStyleProperty.ShadowBlurPx] = source;
-        if (shadow.IsComplete) sources[LyricStyleProperty.ShadowSpec] = source;
-    }
-
-    private static LyricStyle SetFill(LyricStyle style, FillSpecOverride overlay, bool sung)
-    {
-        if (!overlay.Material.IsSet) return style;
-        var fill = new FillSpec { Material = overlay.Material.Value ?? throw new ArgumentException("填充材质不能null。") };
-        return sung ? style with { SungFill = fill } : style with { UnsungFill = fill };
     }
 
     private static void EnsureValid(LyricStyle style, string parameterName, string layerName)
@@ -255,23 +257,10 @@ public static class LyricStyleResolver
                 $"{layerName}产生的纵向中心比例不在 0 到 1 之间。");
         }
 
-        if (style.StrokeWidthPx < 0f || style.ShadowBlurPx < 0f)
+        if (!style.Unsung.Strokes.IsValid || !style.Sung.Strokes.FollowsUnsung && style.Sung.Strokes.Value is not { IsValid: true })
         {
-            throw new ArgumentOutOfRangeException(parameterName, "描边宽度与阴影模糊半径不能为负数。");
+            throw new ArgumentException($"{layerName}产生了无效的描边列表（至多 {StrokeLayers.MaxCount} 层、宽度为正、包材质只用于最内层）。", parameterName);
         }
-
-        if (style.StrokeSpec is { IsValid: false })
-        {
-            throw new ArgumentException($"{layerName}产生了无效的描边描述。", parameterName);
-        }
-
-        if (style.ShadowSpec is { IsValid: false })
-        {
-            throw new ArgumentException($"{layerName}产生了无效的阴影描述。", parameterName);
-        }
-
-        if (style.Glow is { IsValid: false })
-            throw new ArgumentException($"{layerName}产生了无效的辉光描述。", parameterName);
 
         if (style.Opacity is < 0f or > 1f)
         {
@@ -283,22 +272,12 @@ public static class LyricStyleResolver
             throw new ArgumentOutOfRangeException(parameterName, style.Scale, "缩放必须为正数。");
         }
 
-        if (style.UnsungGradientSpec is { IsValid: false })
+        if (!style.Wipe.IsValid)
         {
-            throw new ArgumentException(
-                $"{layerName}产生了无效的未唱渐变描述。",
-                parameterName);
+            throw new ArgumentException($"{layerName}产生了无效的扫字样式。", parameterName);
         }
 
-        if (style.SungGradientSpec is { IsValid: false })
-        {
-            throw new ArgumentException(
-                $"{layerName}产生了无效的已唱渐变描述。",
-                parameterName);
-        }
-
-        if (!style.Typography.IsValid || !style.UnsungFill.IsValid || !style.SungFill.IsValid
-            || style.Stroke is { IsValid: false } || style.Shadow is { IsValid: false })
+        if (!style.Typography.IsValid || !style.Unsung.IsValid || !style.Sung.IsValid)
         {
             throw new ArgumentException($"{layerName}产生了无效的规范样式对象。", parameterName);
         }

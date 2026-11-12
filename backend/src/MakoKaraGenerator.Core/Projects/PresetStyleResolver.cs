@@ -20,21 +20,25 @@ public sealed record PresetStyleResolution
     }
 
     /// <summary>包材质的真实源引用；普通材质返回空。</summary>
+    /// <param name="property">填充或描边属性：<c>unsung.fill</c>、<c>sung.fill</c>、<c>unsung.strokes</c>、<c>sung.strokes</c>。</param>
+    /// <returns>引用；路径与 <see cref="SourceMaterialCatalog"/> 收集的一致。</returns>
+    /// <remarks>包材质只允许用在最内层描边；已唱描边跟随未唱时引用未唱一侧的来源。</remarks>
     public SourceMaterialReference? MaterialReference(LyricStyleProperty property)
     {
-        var (material, suffix, region) = property switch
+        if (property == LyricStyleProperty.SungStrokes && Style.Sung.Strokes.FollowsUnsung)
+            property = LyricStyleProperty.UnsungStrokes;
+        var (material, state, member, region) = property switch
         {
-            LyricStyleProperty.UnsungColor => (Style.UnsungFill.Material, ".unsungFill", "fill"),
-            LyricStyleProperty.SungColor => (Style.SungFill.Material, ".sungFill", "fill"),
-            LyricStyleProperty.StrokeColor => (Style.Stroke?.Material, ".stroke.material", "stroke"),
+            LyricStyleProperty.UnsungFill => (Style.Unsung.Fill.Material, false, SourceMaterialCatalog.FillMember, "fill"),
+            LyricStyleProperty.SungFill => (Style.Sung.Fill.Material, true, SourceMaterialCatalog.FillMember, "fill"),
+            LyricStyleProperty.UnsungStrokes => (Style.Unsung.Strokes.Innermost?.Material, false, SourceMaterialCatalog.StrokeMember, "stroke"),
+            LyricStyleProperty.SungStrokes => (Style.Sung.Strokes.Value?.Innermost?.Material, true, SourceMaterialCatalog.StrokeMember, "stroke"),
             _ => throw new ArgumentOutOfRangeException(nameof(property)),
         };
         if (material is not MaterialSpec.PackageMaterial package) return null;
         string path = Sources[property];
-        if (path.StartsWith("lyricPresentation.", StringComparison.Ordinal))
-            suffix = property == LyricStyleProperty.UnsungColor ? ".pendingFill"
-                : property == LyricStyleProperty.SungColor ? ".elapsedFill" : suffix;
-        return new(path + suffix, region, package);
+        bool scene = path.StartsWith("lyricPresentation.", StringComparison.Ordinal);
+        return new(path + SourceMaterialCatalog.Suffix(state, scene, member), region, package);
     }
 }
 

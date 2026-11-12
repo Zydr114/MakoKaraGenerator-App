@@ -172,7 +172,7 @@ public sealed class LyricTimingEditorTests
 
         LyricStyle tokenStyle = style with { SungColor = new RgbaColor(1, 2, 3) };
         StyleTemplate token = StyleTemplate.Create("t", "元素", StyleTemplateKind.Token, tokenStyle,
-            [LyricStyleProperty.SungColor]);
+            [LyricStyleProperty.SungFill]);
         Assert.True(StyleTemplateApplicator.TryApply(withRow, token, "line", "b",
             out Project withToken, out string tokenReason), tokenReason);
         Assert.Equal(new RgbaColor(1, 2, 3), withToken.Lyrics.Lines[0].Tokens[1].StyleOverride!.SungColor);

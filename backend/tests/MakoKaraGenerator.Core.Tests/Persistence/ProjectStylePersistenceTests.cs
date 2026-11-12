@@ -46,8 +46,7 @@ public sealed class ProjectStylePersistenceTests : IDisposable
                     new GradientStop(1d, RgbaColor.Parse("#AABBCC")),
                 ]),
             },
-            StrokeColor = RgbaColor.Parse("#FFFFFF"),
-            StrokeWidthPx = 3f,
+            Stroke = StrokeSpec.Create(RgbaColor.Parse("#FFFFFF"), 3f),
             Shadow = new ShadowSpec
             {
                 Color = RgbaColor.Parse("#00000080"),
@@ -81,27 +80,27 @@ public sealed class ProjectStylePersistenceTests : IDisposable
             [
                 LyricToken.Create("a", "甲"),
                 LyricToken.Create("b", "乙", styleOverride: new LyricStyleOverride
-                { StrokeSpec = OptionalValue.Set<StrokeSpec?>(null) }),
-                LyricToken.Create("c", "丙", styleOverride: new LyricStyleOverride { StrokeSpec = stroke }),
-            ], styleOverride: new LyricStyleOverride { StrokeSpec = stroke }),
+                { Stroke = OptionalValue.Set<StrokeSpec?>(null) }),
+                LyricToken.Create("c", "丙", styleOverride: new LyricStyleOverride { Stroke = stroke }),
+            ], styleOverride: new LyricStyleOverride { Stroke = stroke }),
         ]));
         Project reloaded = RoundTrip(project);
-        Assert.Equal(stroke, reloaded.Lyrics.Lines[0].StyleOverride!.StrokeSpec.Value);
+        Assert.Equal(stroke, reloaded.Lyrics.Lines[0].StyleOverride!.Stroke.Value);
         Assert.Null(reloaded.Lyrics.Lines[0].Tokens[0].StyleOverride);
-        Assert.True(reloaded.Lyrics.Lines[0].Tokens[1].StyleOverride!.StrokeSpec.IsSet);
-        Assert.Null(reloaded.Lyrics.Lines[0].Tokens[1].StyleOverride!.StrokeSpec.Value);
-        Assert.Equal(stroke, reloaded.Lyrics.Lines[0].Tokens[2].StyleOverride!.StrokeSpec.Value);
+        Assert.True(reloaded.Lyrics.Lines[0].Tokens[1].StyleOverride!.Stroke.IsSet);
+        Assert.Null(reloaded.Lyrics.Lines[0].Tokens[1].StyleOverride!.Stroke.Value);
+        Assert.Equal(stroke, reloaded.Lyrics.Lines[0].Tokens[2].StyleOverride!.Stroke.Value);
         string json = ProjectFileFixture.ReadLyrics(_directory.Path);
-        Assert.Contains("\"stroke\": null", json, StringComparison.Ordinal);
+        Assert.Contains("\"strokes\": []", json, StringComparison.Ordinal);
         Assert.Contains("\"widthPx\": 6.25", json, StringComparison.Ordinal);
 
         JsonObject root = JsonNode.Parse(json)!.AsObject();
-        root["branches"]![0]!["lines"]![0]!["tokens"]![2]!["styleOverride"]!["stroke"]!["join"] = "Unknown";
+        root["branches"]![0]!["lines"]![0]!["tokens"]![2]!["styleOverride"]!["unsung"]!["strokes"]![0]!["join"] = "Unknown";
         ProjectFileFixture.PublishLyrics(_directory.Path, root.ToJsonString());
         ProjectLoadResult malformed = ProjectStore.Load(_directory.Path);
         Assert.True(malformed.Report.HasErrors);
         Assert.Contains(malformed.Report.Issues, issue => issue.Code == DiagnosticCode.InvalidStyleValue
-            && issue.Location!.EndsWith(".stroke.join", StringComparison.Ordinal));
+            && issue.Location!.EndsWith(".unsung.strokes.0.join", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -147,9 +146,9 @@ public sealed class ProjectStylePersistenceTests : IDisposable
             LyricLine.Create("l1", "夜", tokens: [token])]));
         project = StyleBatchEditor.Apply(project, StyleTargetLevel.Line, [new StyleTarget(0)],
             LyricStyle.Default with { UnsungGradientSpec = gradient },
-            [LyricStyleProperty.UnsungGradientSpec]);
+            [LyricStyleProperty.UnsungFill]);
         project = StyleBatchEditor.Apply(project, StyleTargetLevel.Token, [new StyleTarget(0, 0)],
-            LyricStyle.Default, [LyricStyleProperty.UnsungGradientSpec]);
+            LyricStyle.Default, [LyricStyleProperty.UnsungFill]);
 
         Project reloaded = RoundTrip(project);
 
@@ -160,7 +159,7 @@ public sealed class ProjectStylePersistenceTests : IDisposable
             lineOverride: reloaded.Lyrics.Lines[0].StyleOverride,
             tokenOverride: reloaded.Lyrics.Lines[0].Tokens[0].StyleOverride).Style.UnsungGradientSpec);
         string lyricsJson = ProjectFileFixture.ReadLyrics(_directory.Path);
-        Assert.Contains("\"unsungFill\"", lyricsJson, StringComparison.Ordinal);
+        Assert.Contains("\"unsung\"", lyricsJson, StringComparison.Ordinal);
         Assert.Contains("\"gradient\"", lyricsJson, StringComparison.Ordinal);
         Assert.Contains("\"angleDegrees\": 75", lyricsJson, StringComparison.Ordinal);
     }
@@ -170,8 +169,8 @@ public sealed class ProjectStylePersistenceTests : IDisposable
     {
         LyricStyle style = LyricStyle.Default with
         {
-            StrokeSpec = StrokeSpec.Create(new RgbaColor(255, 200, 80, 220), 7f, StrokeJoin.Bevel),
-            ShadowSpec = ShadowSpec.Create(
+            Stroke = StrokeSpec.Create(new RgbaColor(255, 200, 80, 220), 7f, StrokeJoin.Bevel),
+            Shadow = ShadowSpec.Create(
                 new RgbaColor(4, 8, 16, 200),
                 opacity: 0.65f,
                 angleDegrees: 135d,
@@ -183,7 +182,7 @@ public sealed class ProjectStylePersistenceTests : IDisposable
 
         Assert.Equal(style, reloaded.LyricStyle);
         string projectJson = File.ReadAllText(Path.Combine(_directory.Path, ProjectJson.ProjectFileName));
-        Assert.Contains("\"stroke\"", projectJson, StringComparison.Ordinal);
+        Assert.Contains("\"strokes\"", projectJson, StringComparison.Ordinal);
         Assert.Contains("\"shadow\"", projectJson, StringComparison.Ordinal);
     }
 
@@ -226,7 +225,7 @@ public sealed class ProjectStylePersistenceTests : IDisposable
         Assert.Null(chip.ShadowSpec.Value);
         Assert.Equal(300, LyricStyleResolver.Resolve(reloaded.LyricStyle, lineOverride: row).Style.FontWeight);
         Assert.Null(LyricStyleResolver.Resolve(reloaded.LyricStyle, lineOverride: row,
-            tokenOverride: chip).Style.ShadowSpec);
+            tokenOverride: chip).Style.Shadow);
     }
 
     [Fact]

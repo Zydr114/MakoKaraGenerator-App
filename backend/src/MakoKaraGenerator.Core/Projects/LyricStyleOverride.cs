@@ -16,28 +16,22 @@ public enum LyricStyleSource
 }
 
 /// <summary>规范嵌套样式的部分覆盖。</summary>
-/// <remarks>平面属性只直接读写规范对象，不维护第二份字段。</remarks>
+/// <remarks>
+/// 结构与 <see cref="LyricStyle"/> 相同：字形、未唱外观、已唱外观、扫字样式与整体。
+/// 平面属性只直接读写规范对象，不维护第二份字段。
+/// </remarks>
 public sealed record LyricStyleOverride
 {
     /// <summary>空覆盖。</summary>
     public static LyricStyleOverride Empty { get; } = new();
     /// <summary>字体部分覆盖。</summary>
     public TypographySpecOverride? Typography { get; init; }
-    /// <summary>未唱填充部分覆盖；整个对象为空是非法数据。</summary>
-    public OptionalValue<FillSpecOverride?> UnsungFill { get; init; }
-    /// <summary>已唱填充部分覆盖；整个对象为空是非法数据。</summary>
-    public OptionalValue<FillSpecOverride?> SungFill { get; init; }
-    /// <summary>描边部分覆盖；显式空关闭整个效果。</summary>
-    public OptionalValue<StrokeSpecOverride?> Stroke { get; init; }
-    /// <summary>阴影部分覆盖；显式空关闭整个效果。</summary>
-    public OptionalValue<ShadowSpecOverride?> Shadow { get; init; }
-    /// <summary>辉光部分覆盖；显式空关闭整个效果。</summary>
-    public OptionalValue<GlowSpecOverride?> Glow
-    {
-        get => _glow;
-        init => _glow = value is { IsSet: true, Value: { IsEmpty: true } } ? default : value;
-    }
-    private readonly OptionalValue<GlowSpecOverride?> _glow;
+    /// <summary>未唱外观部分覆盖。</summary>
+    public TextAppearanceOverride? Unsung { get; init; }
+    /// <summary>已唱外观部分覆盖。</summary>
+    public SungAppearanceOverride? Sung { get; init; }
+    /// <summary>扫字样式部分覆盖。</summary>
+    public WipeSpecOverride? Wipe { get; init; }
     /// <summary>默认排版纵向中心覆盖。</summary>
     public double? VerticalCenterRatio { get; init; }
     /// <summary>水平对齐覆盖。</summary>
@@ -48,12 +42,8 @@ public sealed record LyricStyleOverride
     public float? Scale { get; init; }
     /// <summary>是否没有覆盖成员。</summary>
     public bool IsEmpty => (Typography is null || Typography.IsEmpty)
-        && IsEmptyFill(UnsungFill) && IsEmptyFill(SungFill)
-        && (!Stroke.IsSet || Stroke.Value is { IsEmpty: true })
-        && (!Shadow.IsSet || Shadow.Value is { IsEmpty: true })
-        && (!Glow.IsSet || Glow.Value is { IsEmpty: true })
+        && (Unsung is null || Unsung.IsEmpty) && (Sung is null || Sung.IsEmpty) && (Wipe is null || Wipe.IsEmpty)
         && VerticalCenterRatio is null && HorizontalAlignment is null && Opacity is null && Scale is null;
-    private static bool IsEmptyFill(OptionalValue<FillSpecOverride?> fill) => !fill.IsSet || fill.Value is { IsEmpty: true };
     /// <summary>字体 FontFamilyName 覆盖的源码访问外观。</summary>
     public OptionalValue<string?> FontFamilyName { get => Typography?.FontFamilyName ?? default; init => Typography = (Typography ?? new TypographySpecOverride()) with { FontFamilyName = value }; }
     /// <summary>字体回退族名链覆盖的源码访问外观。</summary>
@@ -72,6 +62,10 @@ public sealed record LyricStyleOverride
     public bool? IsItalic { get => Typography?.IsItalic; init => Typography = (Typography ?? new TypographySpecOverride()) with { IsItalic = value }; }
     /// <summary>字体 LetterSpacingPx 覆盖的源码访问外观。</summary>
     public float? LetterSpacingPx { get => Typography?.LetterSpacingPx; init => Typography = (Typography ?? new TypographySpecOverride()) with { LetterSpacingPx = value }; }
+    /// <summary>未唱填充覆盖的源码访问外观。</summary>
+    public OptionalValue<FillSpecOverride?> UnsungFill { get => Unsung?.Fill ?? default; init => Unsung = (Unsung ?? new()) with { Fill = value }; }
+    /// <summary>已唱填充覆盖的源码访问外观。</summary>
+    public OptionalValue<FillSpecOverride?> SungFill { get => Sung?.Fill ?? default; init => Sung = (Sung ?? new()) with { Fill = value }; }
     /// <summary>Unsung 填充颜色覆盖的源码访问外观。</summary>
     public RgbaColor? UnsungColor
     {
@@ -96,44 +90,28 @@ public sealed record LyricStyleOverride
         get => SungFill.Value?.Gradient ?? default;
         init => SungFill = OptionalValue.Set<FillSpecOverride?>(Fill(SungFill) with { Gradient = value });
     }
-    /// <summary>完整描边覆盖的源码访问外观。</summary>
-    public OptionalValue<StrokeSpec?> StrokeSpec
+    /// <summary>未唱描边整表覆盖的源码访问外观；<see langword="null"/> 为继承，空表为关闭。</summary>
+    public StrokeLayers? UnsungStrokes { get => Unsung?.Strokes; init => Unsung = (Unsung ?? new()) with { Strokes = value }; }
+    /// <summary>未唱单层描边覆盖的源码访问外观：设置为单层或关闭（空表）。读取时只在整表恰为单层或空表时给出值。</summary>
+    public OptionalValue<StrokeSpec?> Stroke
     {
-        get => !Stroke.IsSet || Stroke.Value is { IsComplete: false } ? default
-            : OptionalValue.Set<StrokeSpec?>(Stroke.Value?.Apply(null));
-        init => Stroke = !value.IsSet ? default : OptionalValue.Set<StrokeSpecOverride?>(value.Value is { } spec ? StrokeSpecOverride.FromSpec(spec) : null);
+        get => Unsung?.Strokes is { Count: <= 1 } strokes ? OptionalValue.Set<StrokeSpec?>(strokes.Innermost) : default;
+        init => UnsungStrokes = value.IsSet ? StrokeLayers.FromStroke(value.Value) : null;
     }
-    /// <summary>描边颜色部分覆盖的源码访问外观。</summary>
-    public OptionalValue<RgbaColor?> StrokeColor
+    /// <summary>未唱阴影覆盖的源码访问外观。</summary>
+    public OptionalValue<ShadowSpecOverride?> Shadow { get => Unsung?.Shadow ?? default; init => Unsung = (Unsung ?? new()) with { Shadow = value }; }
+    /// <summary>未唱辉光覆盖的源码访问外观；空的部分覆盖视为未设置。</summary>
+    public OptionalValue<GlowSpecOverride?> Glow
     {
-        get => Stroke.Value is { IsComplete: false } partial ? partial.Color : default;
-        init => Stroke = OptionalValue.Set<StrokeSpecOverride?>((Stroke.Value ?? new StrokeSpecOverride()) with { Color = value });
+        get => Unsung?.Glow ?? default;
+        init => Unsung = (Unsung ?? new()) with { Glow = value is { IsSet: true, Value: { IsEmpty: true } } ? default : value };
     }
-    /// <summary>描边宽度部分覆盖的源码访问外观。</summary>
-    public float? StrokeWidthPx
-    {
-        get => Stroke.Value is { IsComplete: false } partial ? partial.WidthPx : null;
-        init => Stroke = OptionalValue.Set<StrokeSpecOverride?>((Stroke.Value ?? new StrokeSpecOverride()) with { WidthPx = value });
-    }
-    /// <summary>完整阴影覆盖的源码访问外观。</summary>
+    /// <summary>完整未唱阴影覆盖的源码访问外观。</summary>
     public OptionalValue<ShadowSpec?> ShadowSpec
     {
         get => !Shadow.IsSet || Shadow.Value is { IsComplete: false } ? default
             : OptionalValue.Set<ShadowSpec?>(Shadow.Value?.Apply(null));
         init => Shadow = !value.IsSet ? default : OptionalValue.Set<ShadowSpecOverride?>(value.Value is { } spec ? ShadowSpecOverride.FromSpec(spec) : null);
-    }
-    /// <summary>阴影颜色部分覆盖的源码访问外观。</summary>
-    public OptionalValue<RgbaColor?> ShadowColor
-    {
-        get => Shadow.Value is { IsComplete: false, Color: { } color } ? OptionalValue.Set<RgbaColor?>(color) : default;
-        init => Shadow = !value.IsSet ? OptionalValue.Set<ShadowSpecOverride?>((Shadow.Value ?? new ShadowSpecOverride()) with { Color = null })
-            : value.Value is { } color ? OptionalValue.Set<ShadowSpecOverride?>((Shadow.Value ?? new ShadowSpecOverride()) with { Color = color }) : OptionalValue.Set<ShadowSpecOverride?>(null);
-    }
-    /// <summary>阴影模糊半径部分覆盖的源码访问外观。</summary>
-    public float? ShadowBlurPx
-    {
-        get => Shadow.Value is { IsComplete: false } partial ? partial.BlurRadiusPx : null;
-        init => Shadow = OptionalValue.Set<ShadowSpecOverride?>((Shadow.Value ?? new ShadowSpecOverride()) with { BlurRadiusPx = value });
     }
     private static FillSpecOverride Fill(OptionalValue<FillSpecOverride?> value) => value.Value ?? new FillSpecOverride();
 }

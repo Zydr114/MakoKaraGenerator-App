@@ -168,9 +168,9 @@ public sealed class PreparedStyleFrameTests
     public void 完整静态基线按分支行元素继承且未定时隐藏源仍可读()
     {
         var project = Single(); var branch = project.Lyrics.PrimaryBranch!; var line = branch.Lines[0];
-        var token = line.Tokens[0] with { StyleOverride = new() { SungColor = new(10, 20, 30, 180), StrokeWidthPx = 7 } };
+        var token = line.Tokens[0] with { StyleOverride = new() { SungColor = new(10, 20, 30, 180), Stroke = StrokeSpec.Create(null, 7f) } };
         line = line with { Tokens = [token], StyleOverride = new() { UnsungColor = new(20, 40, 60, 150), Opacity = .4f } };
-        branch = branch with { Lines = [line], StyleOverride = new() { SungColor = new(80, 90, 100, 200), ShadowBlurPx = 5 } };
+        branch = branch with { Lines = [line], StyleOverride = new() { SungColor = new(80, 90, 100, 200), Shadow = OptionalValue.Set<ShadowSpecOverride?>(new() { BlurRadiusPx = 5 }) } };
         var hidden = LyricBranch.Create("hidden", "hidden", LyricBranchRole.Custom) with
             { Lines = [LyricLine.Create("hidden-row", "字", tokens: [LyricToken.Create("missing", "字")])] };
         var snapshot = ProjectSnapshot.FromProject(project with { Lyrics = project.Lyrics with { Branches = [branch, hidden] } });
@@ -269,7 +269,7 @@ public sealed class PreparedStyleFrameTests
         }
         var expectedStyle = Expected(snapshot.LyricStyle, "rgba") with { SungFill = new() { Color = new(0, 0, 255) } };
         var overriddenToken = tokens[1] with { StyleOverride = new() { UnsungColor = expectedStyle.UnsungColor, SungColor = expectedStyle.SungColor,
-            StrokeSpec = OptionalValue.Set<StrokeSpec?>(expectedStyle.Stroke), ShadowSpec = OptionalValue.Set<ShadowSpec?>(expectedStyle.Shadow), Opacity = expectedStyle.Opacity } };
+            Stroke = OptionalValue.Set<StrokeSpec?>(expectedStyle.Stroke), ShadowSpec = OptionalValue.Set<ShadowSpec?>(expectedStyle.Shadow), Opacity = expectedStyle.Opacity } };
         var expectedLine = line with { Tokens = line.Tokens.Replace(tokens[1], overriddenToken) };
         using var expected = renderer.Render(RenderRequest.At(snapshot with { EffectInputsFingerprint = null, Lyrics = snapshot.Lyrics with { Lines = [expectedLine] } }, prepared.TimeUs) with { TransparentBackground = true });
         Assert.Equal(expected.PixelMemory.ToArray(), actual.PixelMemory.ToArray());

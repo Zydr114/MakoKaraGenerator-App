@@ -206,7 +206,7 @@ public sealed class SceneCaptureTests
     {
         var line = LyricLine.Create("row", "office", new(0, 6_000_000), TimingStatus.Edited,
             [.. "office".Select((c, i) => LyricToken.Create("t" + i, c.ToString(), new(i * 1_000_000, (i + 1) * 1_000_000), TimingStatus.Edited))]);
-        line = line with { Tokens = line.Tokens.SetItem(1, line.Tokens[1] with { StyleOverride = new() { StrokeWidthPx = 100, StrokeColor = OptionalValue.Set<RgbaColor?>(RgbaColor.White) } }) };
+        line = line with { Tokens = line.Tokens.SetItem(1, line.Tokens[1] with { StyleOverride = new() { Stroke = StrokeSpec.Create(RgbaColor.White, 100f) } }) };
         var snapshot = ProjectSnapshot.FromProject(Single() with { Lyrics = LyricsDocument.Create([line]),
             LyricStyle = LyricStyle.Default with { FontFamilyName = "DejaVu Sans", FontSizePx = 56, Stroke = null, Shadow = null } });
         using SkiaRenderPipeline pipeline = new(); var scene = pipeline.GetSceneFrame(snapshot, 500_000);

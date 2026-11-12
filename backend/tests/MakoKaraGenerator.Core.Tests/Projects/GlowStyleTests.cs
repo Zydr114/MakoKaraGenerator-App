@@ -42,10 +42,10 @@ public sealed class GlowStyleTests
             lineOverride: new() { Glow = OptionalValue.Set<GlowSpecOverride?>(new() { BlurRadiusPx = 7 }) },
             tokenOverride: new() { Glow = OptionalValue.Set<GlowSpecOverride?>(new() { SpreadPx = 3 }) });
         Assert.Equal(presetGlow with { Color = RgbaColor.White, BlurRadiusPx = 7, SpreadPx = 3 }, result.Style.Glow);
-        Assert.Equal(LyricStyleSource.Branch, result.SourceOf(LyricStyleProperty.GlowColor));
-        Assert.Equal(LyricStyleSource.Line, result.SourceOf(LyricStyleProperty.GlowBlurRadiusPx));
-        Assert.Equal(LyricStyleSource.Token, result.SourceOf(LyricStyleProperty.GlowSpreadPx));
-        Assert.Equal(LyricStyleSource.Preset, result.SourceOf(LyricStyleProperty.GlowOpacity));
+        Assert.Equal(LyricStyleSource.Branch, result.SourceOf(LyricStyleProperty.UnsungGlowColor));
+        Assert.Equal(LyricStyleSource.Line, result.SourceOf(LyricStyleProperty.UnsungGlowBlurRadiusPx));
+        Assert.Equal(LyricStyleSource.Token, result.SourceOf(LyricStyleProperty.UnsungGlowSpreadPx));
+        Assert.Equal(LyricStyleSource.Preset, result.SourceOf(LyricStyleProperty.UnsungGlowOpacity));
         var seeded = new GlowSpecOverride { Opacity = .4f }.Apply(null);
         Assert.Equal(new GlowSpec { Color = RgbaColor.Transparent, Opacity = .4f, BlurRadiusPx = 0, SpreadPx = 0 }, seeded);
         Assert.False(seeded.IsEnabled);
@@ -57,7 +57,7 @@ public sealed class GlowStyleTests
         var basis = LyricStyle.Default with { Glow = new() };
         var disabled = LyricStyleResolver.Resolve(basis, tokenOverride: new() { Glow = OptionalValue.Set<GlowSpecOverride?>(null) });
         Assert.Null(disabled.Style.Glow);
-        foreach (var key in LyricStyleEffects.Properties(LyricStyleEffectKind.Glow))
+        foreach (var key in LyricStylePropertyExtensions.UnsungGlowProperties)
         { Assert.Equal(LyricStyleSource.Token, disabled.SourceOf(key)); Assert.True(TokenStyleSupport.IsSupported(key)); }
         var empty = new LyricStyleOverride { Glow = OptionalValue.Set<GlowSpecOverride?>(new()) };
         Assert.True(empty.IsEmpty); Assert.False(empty.Glow.IsSet);
@@ -70,13 +70,13 @@ public sealed class GlowStyleTests
     {
         var basis = LyricStyle.Default with { Glow = new() { Color = RgbaColor.Black, BlurRadiusPx = 12, SpreadPx = 2 } };
         var overlay = new LyricStyleOverride { Glow = OptionalValue.Set<GlowSpecOverride?>(new() { Opacity = .3f, SpreadPx = 5 }) };
-        var copied = StyleBatchEditor.CopyProperties(overlay, basis, [LyricStyleProperty.GlowBlurRadiusPx]);
+        var copied = StyleBatchEditor.CopyProperties(overlay, basis, [LyricStyleProperty.UnsungGlowBlurRadiusPx]);
         Assert.Equal(new GlowSpecOverride { Opacity = .3f, SpreadPx = 5, BlurRadiusPx = 12 }, copied.Glow.Value);
-        var restored = StyleBatchEditor.CopyProperties(copied, basis, [LyricStyleProperty.GlowBlurRadiusPx], true);
+        var restored = StyleBatchEditor.CopyProperties(copied, basis, [LyricStyleProperty.UnsungGlowBlurRadiusPx], true);
         Assert.Equal(overlay, restored);
         var disabled = overlay with { Glow = OptionalValue.Set<GlowSpecOverride?>(null) };
-        Assert.Equal(disabled, StyleBatchEditor.CopyProperties(disabled, basis, [LyricStyleProperty.GlowOpacity], true));
-        Assert.False(StyleBatchEditor.CopyProperties(copied, basis, [LyricStyleProperty.GlowSpec], true).Glow.IsSet);
+        Assert.Equal(disabled, StyleBatchEditor.CopyProperties(disabled, basis, [LyricStyleProperty.UnsungGlowOpacity], true));
+        Assert.False(StyleBatchEditor.CopyProperties(copied, basis, [LyricStyleProperty.UnsungGlow], true).Glow.IsSet);
     }
 
     [Fact]
@@ -88,10 +88,10 @@ public sealed class GlowStyleTests
         Assert.Null(LyricStyleEffects.Disable(enabled, LyricStyleEffectKind.Glow).Glow);
         var appearance = SceneTextAppearance.FromStyle(enabled);
         Assert.Equal(enabled.Glow, appearance.ToLyricStyle().Glow);
-        Assert.Same(appearance, appearance.Resolve(new() { Glow = OptionalValue.Set<GlowSpecOverride?>(new()) }));
+        Assert.Same(appearance, appearance.Resolve(new() { Pending = new() { Glow = OptionalValue.Set<GlowSpecOverride?>(new()) } }));
         var patch = new LyricStyleOverride { Glow = OptionalValue.Set<GlowSpecOverride?>(new() { SpreadPx = 4 }) };
         Assert.Equal(patch.Glow, SceneTextAppearanceOverride.FromStyleOverride(patch).ToStyleOverride().Glow);
         Assert.Equal(4, appearance.Resolve(SceneTextAppearanceOverride.FromStyleOverride(patch)).Glow!.SpreadPx);
-        Assert.Null(appearance.Resolve(new() { Glow = OptionalValue.Set<GlowSpecOverride?>(null) }).Glow);
+        Assert.Null(appearance.Resolve(new() { Pending = new() { Glow = OptionalValue.Set<GlowSpecOverride?>(null) } }).Glow);
     }
 }

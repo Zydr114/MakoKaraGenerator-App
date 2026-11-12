@@ -142,10 +142,8 @@ public sealed class StyleValidationTests
     {
         LyricStyleOverride tokenOverride = new()
         {
-            StrokeColor = RgbaColor.Parse("#FFFFFF"),
-            StrokeWidthPx = 4f,
-            ShadowColor = RgbaColor.Parse("#00000080"),
-            ShadowBlurPx = 6f,
+            Stroke = StrokeSpec.Create(RgbaColor.Parse("#FFFFFF"), 4f),
+            Shadow = OptionalValue.Set<ShadowSpecOverride?>(new() { Color = RgbaColor.Parse("#00000080"), BlurRadiusPx = 6f }),
             Opacity = 0.8f,
             SungGradientSpec = GradientSpec.Create([
                 new GradientStop(0d, RgbaColor.Parse("#00E0FF")),
@@ -191,7 +189,7 @@ public sealed class StyleValidationTests
 
         ProjectIssue issue = Assert.Single(
             report.Issues.Where(static item => item.Code == DiagnosticCode.InvalidStyleValue));
-        Assert.Contains("字形坐标", issue.Message, StringComparison.Ordinal);
+        Assert.Contains("按单字坐标", issue.Message, StringComparison.Ordinal);
         Assert.True(GradientSupport.IsSupported(GradientSpec.Create(
             [new GradientStop(0d, RgbaColor.Black), new GradientStop(1d, RgbaColor.White)])));
         Assert.False(GradientSupport.IsSupported(unsupported));

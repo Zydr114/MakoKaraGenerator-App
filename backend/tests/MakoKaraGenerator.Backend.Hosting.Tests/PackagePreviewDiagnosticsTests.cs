@@ -20,7 +20,7 @@ public sealed class PackagePreviewDiagnosticsTests
     private static ImmutableArray<RenderMaterialDiagnostic> Materials() =>
     [
         new(new PreparedMaterialOwner.Script(new("instance"), Artifact) { PackageIdentity = new("package", Revision, "controller") }, Catalog.GetMaterial("material"), "background", "TransparentBackgroundDependency"),
-        new(new PreparedMaterialOwner.Source(new("lyrics.lines[0].style.unsungFill", "fill", new MaterialSpec.PackageMaterial("package", Revision, "material", EffectParameterOverrides.Parse("{\"amount\":0.1234567890123456789}"))), PreparedMaterialSlot.UnsungFill), Catalog.GetMaterial("material"), "background", "TransparentBackgroundDependency"),
+        new(new PreparedMaterialOwner.Source(new("lyrics.lines[0].style.unsung.fill", "fill", new MaterialSpec.PackageMaterial("package", Revision, "material", EffectParameterOverrides.Parse("{\"amount\":0.1234567890123456789}"))), PreparedMaterialSlot.UnsungFill), Catalog.GetMaterial("material"), "background", "TransparentBackgroundDependency"),
     ];
     [Fact]
     public void 完整来源投影保留零位置资源身份及两类材质owner()
@@ -32,7 +32,7 @@ public sealed class PackagePreviewDiagnosticsTests
         Assert.Equal(new BackendDiagnosticResourceDto("package", Revision, "graph"), result[1].ImageEffect!.Graph);
         Assert.Equal(new BackendDiagnosticResourceDto("package", Revision, "controller"), result[2].Material!.Owner.Script!.PackageIdentity);
         var owner = result[3].Material!.Owner.Source!;
-        Assert.Equal("lyrics.lines[0].style.unsungFill", owner.Path);
+        Assert.Equal("lyrics.lines[0].style.unsung.fill", owner.Path);
         Assert.Equal("fill", owner.Region); Assert.Equal(0, owner.Slot);
         Assert.Equal("{\"amount\":0.1234567890123456789}", owner.ParametersJson);
         Assert.Null(PreviewTransportValidation.ValidateDiagnosticsPage(Session(), new("preview", "1", "1", result, null, false)));

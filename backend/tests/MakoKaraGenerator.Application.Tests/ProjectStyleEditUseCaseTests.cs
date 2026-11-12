@@ -130,7 +130,7 @@ public sealed class ProjectStyleEditUseCaseTests
         Commit(workspace, target, new StyleEditChange.Stroke(null), new StyleEditChange.Shadow(null));
         var result = Commit(workspace, target, new StyleEditChange.StrokeWidth(4), new StyleEditChange.ShadowOpacity(.4f));
         var own = Own(result.Project, target)!;
-        Assert.False(own.Stroke.Value!.Material.IsSet); Assert.Null(own.Stroke.Value.Join);
+        Assert.Equal(4, own.Stroke.Value!.WidthPx);
         Assert.Null(own.Shadow.Value!.Color); Assert.Null(own.Shadow.Value.DistancePx);
         var resolved = Resolve(result.Project, target);
         Assert.Equal(4, resolved.Stroke!.WidthPx); Assert.Equal(.4f, resolved.Shadow!.Opacity);
@@ -149,12 +149,12 @@ public sealed class ProjectStyleEditUseCaseTests
     }
 
     [Fact]
-    public void 工程基线空效果设置叶沿Core透明零宽基准()
+    public void 工程基线空效果设置叶沿Core透明零宽基准且零宽描边即无描边()
     {
         var workspace = Workspace(); var target = Target(StyleEditTargetKind.Project);
         var result = Commit(workspace, target, new StyleEditChange.StrokeJoin(StrokeJoin.Bevel), new StyleEditChange.ShadowAngle(20));
         Assert.True(result.Accepted); var style = result.Project.LyricStyle;
-        Assert.Equal(new MaterialSpec.Solid(RgbaColor.Transparent), style.Stroke!.Material); Assert.Equal(0, style.Stroke.WidthPx);
+        Assert.Null(style.Stroke); Assert.Empty(style.Unsung.Strokes);
         Assert.Equal(RgbaColor.Transparent, style.Shadow!.Color); Assert.Equal(0, style.Shadow.DistancePx); Assert.Equal(0, style.Shadow.BlurRadiusPx);
     }
 
@@ -251,14 +251,14 @@ public sealed class ProjectStyleEditUseCaseTests
         {
             UnsungFill = OptionalValue.Set<FillSpecOverride?>(new() { Material = package }),
             SungFill = OptionalValue.Set<FillSpecOverride?>(new() { Material = package }),
-            Stroke = OptionalValue.Set<StrokeSpecOverride?>(new() { Material = package, WidthPx = 8, Join = StrokeJoin.Bevel }),
+            Stroke = OptionalValue.Set<StrokeSpec?>(new StrokeSpec { Material = package, WidthPx = 8, Join = StrokeJoin.Bevel }),
         } };
         source = source with { Lyrics = source.Lyrics.ReplaceBranch(branch with { Lines = branch.Lines.SetItem(0, line) }) };
         workspace = ProjectWorkspace.Adopt(source); var target = Target(StyleEditTargetKind.Line);
         var result = Commit(workspace, target, new StyleEditChange.FontSize(82), new StyleEditChange.Opacity(.4f), new StyleEditChange.StrokeWidth(3));
         Assert.True(result.Accepted); var own = Own(result.Project, target)!;
         Assert.Same(package, own.UnsungFill.Value!.Material.Value); Assert.Same(package, own.SungFill.Value!.Material.Value);
-        var actual = Assert.IsType<MaterialSpec.PackageMaterial>(own.Stroke.Value!.Material.Value);
+        var actual = Assert.IsType<MaterialSpec.PackageMaterial>(own.Stroke.Value!.Material);
         Assert.Same(package, actual); Assert.Same(package.Parameters, actual.Parameters);
         Assert.Equal(originalParameters, actual.Parameters.Encode().ToArray());
         Assert.Contains("0.12345678901234567890123456789", actual.Parameters.Json, StringComparison.Ordinal);
@@ -266,7 +266,7 @@ public sealed class ProjectStyleEditUseCaseTests
         var replaced = Commit(workspace, target, new StyleEditChange.SungMaterial(new MaterialSpec.Solid(RgbaColor.White)));
         Assert.True(replaced.Accepted); own = Own(replaced.Project, target)!;
         Assert.IsType<MaterialSpec.Solid>(own.SungFill.Value!.Material.Value);
-        Assert.Same(package, own.UnsungFill.Value!.Material.Value); Assert.Same(package, own.Stroke.Value!.Material.Value);
+        Assert.Same(package, own.UnsungFill.Value!.Material.Value); Assert.Same(package, own.Stroke.Value!.Material);
         Assert.Equal(originalParameters, package.Parameters.Encode().ToArray());
     }
 
@@ -312,7 +312,7 @@ public sealed class ProjectStyleEditUseCaseTests
     internal static GradientSpec Gradient() => new()
     {
         Kind = GradientKind.Radial, CenterX = .2, CenterY = .7, RadiusX = .3, RadiusY = .8, AngleDegrees = 26,
-        CoordinateSpace = GradientCoordinateSpace.Progress, ColorSpace = GradientColorSpace.Hsv, HuePath = GradientHuePath.Longer,
+        CoordinateSpace = GradientCoordinateSpace.Glyph, ColorSpace = GradientColorSpace.Hsv, HuePath = GradientHuePath.Longer,
         Stops = [new(0, RgbaColor.White), new(.3, RgbaColor.Black), new(.3, RgbaColor.Transparent), new(1, RgbaColor.White)],
     };
 }

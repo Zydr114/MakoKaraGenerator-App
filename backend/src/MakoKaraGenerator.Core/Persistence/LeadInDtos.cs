@@ -1,6 +1,3 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
-
 namespace MakoKaraGenerator.Core.Persistence;
 
 internal sealed class SceneContentDto
@@ -13,29 +10,20 @@ internal sealed class SceneContentDto
     public SceneTextAppearanceOverrideDto? AppearanceOverride { get; set; }
 }
 internal sealed class SceneAttachmentDto { public string? Mode { get; set; } }
+/// <summary>场景标记外观（schema v31 起）：字形、待唱外观、已过外观与不透明度。</summary>
 internal sealed class SceneTextAppearanceDto
 {
     public TypographySpecDto? Typography { get; set; }
-    public JsonElement PendingFill { get; set; }
-    public JsonElement ElapsedFill { get; set; }
-    public StrokeSpecDto? Stroke { get; set; }
-    public ShadowSpecDto? Shadow { get; set; }
-    public GlowSpecDto? Glow { get; set; }
+    public TextAppearanceDto? Pending { get; set; }
+    public SungAppearanceDto? Elapsed { get; set; }
     public float? Opacity { get; set; }
 }
+/// <summary>文字标记的部分外观覆盖（schema v31 起）。</summary>
 internal sealed class SceneTextAppearanceOverrideDto
 {
     public TypographySpecOverrideDto? Typography { get; set; }
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public JsonElement PendingFill { get; set; }
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public JsonElement ElapsedFill { get; set; }
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public JsonElement Stroke { get; set; }
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public JsonElement Shadow { get; set; }
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public JsonElement Glow { get; set; }
+    public TextAppearanceOverrideDto? Pending { get; set; }
+    public SungAppearanceOverrideDto? Elapsed { get; set; }
     public float? Opacity { get; set; }
 }
 internal sealed class LyricLeadInDto

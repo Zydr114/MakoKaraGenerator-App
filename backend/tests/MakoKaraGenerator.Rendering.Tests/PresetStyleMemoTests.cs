@@ -13,10 +13,10 @@ public sealed class PresetStyleMemoTests
         var slots = source.LyricPresentation.FindNode(program.DefaultContainerId)!.Layout!.SlotIds.ToArray();
         Assert.True(slots.Length >= 2);
         Assert.True(PresetApplicationsEditor.TryApply(source, StyleTemplate.Create("slot", "slot", StyleTemplateKind.Composite,
-            source.LyricStyle with { FontSizePx = 52, SungColor = new(30, 240, 90, 255) }, [LyricStyleProperty.FontSizePx, LyricStyleProperty.SungColor]),
+            source.LyricStyle with { FontSizePx = 52, SungColor = new(30, 240, 90, 255) }, [LyricStyleProperty.FontSizePx, LyricStyleProperty.SungFill]),
             [new(ProjectEffectBindingKind.Node, id: slots[0], includeDescendants: true)], null, out var applied, out var reason), reason);
         Assert.True(PresetApplicationsEditor.TryApply(applied, StyleTemplate.Create("clip", "clip", StyleTemplateKind.Composite,
-            source.LyricStyle with { UnsungColor = new(200, 70, 180, 255) }, [LyricStyleProperty.UnsungColor]),
+            source.LyricStyle with { UnsungColor = new(200, 70, 180, 255) }, [LyricStyleProperty.UnsungFill]),
             [new(ProjectEffectBindingKind.Clips, ids: ["chorus-clip"])], null, out applied, out reason), reason);
         return (ProjectSnapshot.FromProject(applied), slots);
     }

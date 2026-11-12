@@ -71,13 +71,13 @@ public sealed partial class PreviewTransportTests
         var material = new MaterialSpec.PackageMaterial(package.PackageId, package.Revision, "ink",
             EffectParameterOverrides.Parse("{\"amount\":0.12345678901234567}"));
         var advanced = StyleTemplate.Create("advanced", "完整高级", StyleTemplateKind.Line,
-            LyricStyle.Default with { UnsungFill = new() { Material = material } }, [LyricStyleProperty.UnsungColor], packages: [package]);
+            LyricStyle.Default with { UnsungFill = new() { Material = material } }, [LyricStyleProperty.UnsungFill], packages: [package]);
         var recipePackage = EffectPackageFixture.Contents();
         var recipe = StyleTemplate.Create("recipe", "完整配方", StyleTemplateKind.Token, LyricStyle.Default, [],
             [new("r", "缩放", TemplateEffectTarget.TokenFamily, recipePackage.PackageId, recipePackage.Revision, "scale")], [recipePackage]);
         var plain = StyleTemplate.Create("static", "透明静态", StyleTemplateKind.Line,
             LyricStyle.Default with { Opacity = .3f, Stroke = null, Shadow = null,
-                Typography = LyricStyle.Default.Typography with { FontFamilyName = null } }, [LyricStyleProperty.Opacity, LyricStyleProperty.StrokeSpec]);
+                Typography = LyricStyle.Default.Typography with { FontFamilyName = null } }, [LyricStyleProperty.Opacity, LyricStyleProperty.UnsungStrokes]);
         StyleTemplate[] originals = [advanced, recipe, plain];
         var preflight = await TransferPreflight(f, await TransferBytes(originals));
         Assert.Equal(["advancedRuntimeAvailable", "advancedRuntimeAvailable", "staticAvailable"], preflight.Templates.Select(item => item.DefinitionAvailability));

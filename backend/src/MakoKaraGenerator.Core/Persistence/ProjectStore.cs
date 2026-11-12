@@ -197,7 +197,7 @@ public static class ProjectStore
         }
         catch (Exception error) when (ResourceError(error))
         {
-            Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, $"源材质读取失败：{error.Message}",
+            Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, $"样式读取失败：{error.Message}",
                 error is EffectPackageException package ? package.Path : "lyricStyle");
             return Failure(issues);
         }
@@ -320,7 +320,7 @@ public static class ProjectStore
         try { return dto is null ? null : ProjectDtoMapper.MapLyrics(dto, LyricsDocument.CurrentSchemaVersion, issues); }
         catch (Exception error) when (ResourceError(error))
         {
-            Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, $"歌词源材质读取失败：{error.Message}",
+            Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, $"歌词样式读取失败：{error.Message}",
                 error is EffectPackageException package ? package.Path : reference);
             return null;
         }

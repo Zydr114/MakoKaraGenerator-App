@@ -94,7 +94,7 @@ public sealed class LyricBranchEditUseCaseTests
         var package = EffectPackageFixture.Contents();
         var effect = new ProjectEffectInstance { Id = "direct", Name = "直接效果", PackageId = package.PackageId, Revision = package.Revision,
             ExportId = "scale", Binding = new(ProjectEffectBindingKind.Tokens, ids: ["translated-token"]) };
-        var preset = StyleTemplate.Create("preset", "固定样式", StyleTemplateKind.Composite, source.LyricStyle, [LyricStyleProperty.SungColor]);
+        var preset = StyleTemplate.Create("preset", "固定样式", StyleTemplateKind.Composite, source.LyricStyle, [LyricStyleProperty.SungFill]);
         source = source with { Effects = new([package], [effect]), PresetApplications = new([new("application",
             new(ProjectEffectBindingKind.Branch, "translation"), preset)]) };
         ProjectWorkspace workspace = ProjectWorkspace.Adopt(source);

@@ -140,18 +140,18 @@ public sealed class SourceMaterialRuntimeTests
         var project = SourceProject(MixedEffectPackageFixture.Contents(pure: true));
         var primary = project.Lyrics.PrimaryBranch!; var line = primary.Lines[0]; var token = line.Tokens[0];
         var material = project.LyricStyle.UnsungFill.Material;
-        token = token with { StyleOverride = new() { SungFill = OptionalValue.Set<FillSpecOverride?>(new() { Material = OptionalValue.Set<MaterialSpec?>(material) }), StrokeWidthPx = 8 } };
+        token = token with { StyleOverride = new() { SungFill = OptionalValue.Set<FillSpecOverride?>(new() { Material = OptionalValue.Set<MaterialSpec?>(material) }), Stroke = new StrokeSpec { Material = material, WidthPx = 8, Join = StrokeJoin.Bevel } } };
         line = line with { Tokens = line.Tokens.Replace(line.Tokens[0], token), StyleOverride = new() { UnsungFill = OptionalValue.Set<FillSpecOverride?>(new() { Material = OptionalValue.Set<MaterialSpec?>(material) }) } };
-        primary = primary with { Lines = primary.Lines.Replace(primary.Lines[0], line), StyleOverride = new() { Stroke = OptionalValue.Set<StrokeSpecOverride?>(new() { Material = OptionalValue.Set<MaterialSpec?>(material) }) } };
+        primary = primary with { Lines = primary.Lines.Replace(primary.Lines[0], line), StyleOverride = new() { Stroke = new StrokeSpec { Material = material, WidthPx = 4, Join = StrokeJoin.Bevel } } };
         project = project with { Lyrics = project.Lyrics with { Branches = project.Lyrics.Branches.Replace(project.Lyrics.PrimaryBranch!, primary) } };
         var compiled = await Compile(project); var snapshot = ProjectSnapshot.FromProject(project);
         await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), Fx.ReplayReason.Initial).CreateAsync(snapshot);
         var prepared = await session.PrepareAsync(12_500_000, Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition));
         var bindings = prepared.Materials.Where(binding => binding.Target is Fx.ImageEffectTarget.Token t && t.Target.TokenId.Value == token.Id).ToArray();
         Assert.Equal(3, bindings.Length);
-        Assert.EndsWith(".lines.first.styleOverride.unsungFill", ((PreparedMaterialOwner.Source)bindings.Single(binding => binding.Slot == PreparedMaterialSlot.UnsungFill).Owner).Reference.Path);
-        Assert.EndsWith(".tokens.first-a.styleOverride.sungFill", ((PreparedMaterialOwner.Source)bindings.Single(binding => binding.Slot == PreparedMaterialSlot.SungFill).Owner).Reference.Path);
-        Assert.EndsWith(".styleOverride.stroke.material", ((PreparedMaterialOwner.Source)bindings.Single(binding => binding.Slot == PreparedMaterialSlot.Stroke).Owner).Reference.Path);
+        Assert.EndsWith(".lines.first.styleOverride.unsung.fill", ((PreparedMaterialOwner.Source)bindings.Single(binding => binding.Slot == PreparedMaterialSlot.UnsungFill).Owner).Reference.Path);
+        Assert.EndsWith(".tokens.first-a.styleOverride.sung.fill", ((PreparedMaterialOwner.Source)bindings.Single(binding => binding.Slot == PreparedMaterialSlot.SungFill).Owner).Reference.Path);
+        Assert.EndsWith(".styleOverride.unsung.strokes.0.material", ((PreparedMaterialOwner.Source)bindings.Single(binding => binding.Slot == PreparedMaterialSlot.Stroke).Owner).Reference.Path);
         Assert.Equal(8, prepared.GetTokenDrawingStyle(((Fx.ImageEffectTarget.Token)bindings[0].Target).Target).Stroke!.WidthPx);
         using var missing = new SkiaRenderPipeline();
         var error = Assert.Throws<SourceMaterialFailureException>(() => { using var unexpected = missing.Render(RenderRequest.At(snapshot, prepared.TimeUs) with { PreparedFrame = prepared, TransparentBackground = true }); });
@@ -193,11 +193,11 @@ public sealed class SourceMaterialRuntimeTests
     {
         var contents = MixedEffectPackageFixture.Contents(pure: true); var project = SourceProject(contents);
         var absent = await Assert.ThrowsAsync<SourceMaterialFailureException>(() => CompiledProjectEffects.CompileAsync(project, new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"))));
-        Assert.Equal("PackageShaderValidatorMissing", absent.Code); Assert.Equal("lyricStyle.unsungFill", absent.Owner.Reference.Path);
+        Assert.Equal("PackageShaderValidatorMissing", absent.Code); Assert.Equal("lyricStyle.unsung.fill", absent.Owner.Reference.Path);
         var badMaterial = new MaterialSpec.PackageMaterial(contents.PackageId, contents.Revision, "ink", EffectParameterOverrides.Parse("{\"amount\":2}"));
         var bad = project with { LyricStyle = project.LyricStyle with { UnsungFill = new() { Material = badMaterial } } };
         var error = await Assert.ThrowsAsync<SourceMaterialFailureException>(() => Compile(bad));
-        Assert.Equal("PackageParameterOutOfRange", error.Code); Assert.Equal("lyricStyle.unsungFill", error.Owner.Reference.Path);
+        Assert.Equal("PackageParameterOutOfRange", error.Code); Assert.Equal("lyricStyle.unsung.fill", error.Owner.Reference.Path);
     }
 
     [Fact]
@@ -236,9 +236,9 @@ public sealed class SourceMaterialRuntimeTests
         var prepared = await session.PrepareAsync(10_000_000, Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition));
         var bindings = prepared.Materials.Where(binding => binding.Target is Fx.ImageEffectTarget.Mark target && target.Target.NodeId.Value == node.Id).ToArray();
         Assert.Equal(3, bindings.Length);
-        Assert.Equal("lyricPresentation.nodes." + node.Id + ".content.appearanceOverride.pendingFill",
+        Assert.Equal("lyricPresentation.nodes." + node.Id + ".content.appearanceOverride.pending.fill",
             ((PreparedMaterialOwner.Source)bindings.Single(binding => binding.Slot == PreparedMaterialSlot.UnsungFill).Owner).Reference.Path);
-        Assert.EndsWith(".content.appearance.elapsedFill", ((PreparedMaterialOwner.Source)bindings.Single(binding => binding.Slot == PreparedMaterialSlot.SungFill).Owner).Reference.Path);
+        Assert.EndsWith(".content.appearance.elapsed.fill", ((PreparedMaterialOwner.Source)bindings.Single(binding => binding.Slot == PreparedMaterialSlot.SungFill).Owner).Reference.Path);
         using var native = CompiledPackageGraphExports.Compile(package.Definition); using var resources = Resources(native, package);
         using var renderer = new SkiaRenderPipeline(null, null, null, resources); var cached = new CachedRenderPipeline(renderer);
         var request = RenderRequest.At(snapshot, prepared.TimeUs) with { PreparedFrame = prepared, TransparentBackground = true };

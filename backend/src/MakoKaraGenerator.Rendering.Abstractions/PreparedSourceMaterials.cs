@@ -107,9 +107,9 @@ public sealed class PreparedSourceMaterials
     {
         var property = slot switch
         {
-            PreparedMaterialSlot.UnsungFill => LyricStyleProperty.UnsungColor,
-            PreparedMaterialSlot.SungFill => LyricStyleProperty.SungColor,
-            PreparedMaterialSlot.Stroke => LyricStyleProperty.StrokeColor,
+            PreparedMaterialSlot.UnsungFill => LyricStyleProperty.UnsungFill,
+            PreparedMaterialSlot.SungFill => LyricStyleProperty.SungFill,
+            PreparedMaterialSlot.Stroke => LyricStyleProperty.UnsungStrokes,
             _ => throw new ArgumentOutOfRangeException(nameof(slot)),
         };
         var reference = resolution.MaterialReference(property);

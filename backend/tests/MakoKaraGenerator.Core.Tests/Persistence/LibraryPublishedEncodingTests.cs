@@ -26,7 +26,7 @@ public sealed class LibraryPublishedEncodingTests
         {
             string path = StyleTemplateLibrary.ResolvePath(directory.Path);
             var item = StyleTemplate.Create("template", "完整中文模板", StyleTemplateKind.Line,
-                LyricStyle.Default, [LyricStyleProperty.SungColor]);
+                LyricStyle.Default, [LyricStyleProperty.SungFill]);
             Verify(item, path, StyleTemplateLibrary.Encode,
                 (items, expected) => StyleTemplateLibrary.Save(path, items, expected));
         }

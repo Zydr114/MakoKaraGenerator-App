@@ -2,6 +2,8 @@
 
 本文原以 App 提交 `f3fdfdf`、后端 `0.109.0` 为基线；辉光按后续 `0.110.0` 工作树源码补充。它是源码核对结果，未执行构建、HTTP 或像素验收。场景位置和动画查[动画、场景与预设](animation-scene-presets.md)，运行时输出查[脚本 SDK](script-sdk.md)，请求封装查[HTTP 编辑与作者入口](http-authoring.md)。
 
+> 0.112.74 起 Core 样式改为未唱／已唱两态外观、多层描边（无 position）与扫字样式，渐变删去 `progress` 坐标，属性来源由 26 项增至 43 项，工程／歌词／模板 schema 为 31／19／9。本文关于 Core 的单层描边、`StrokeSpecOverride` 与来源表的描述已过时，HTTP 部分仍是过渡期的现行视图（见[行为合同 §6.11](../architecture/backend-api.md#611-四层静态样式读写0830110-新增外辉光)）；本文随 P3 第 7 步合同改版整体改写。
+
 必须区分三层能力：**Core 可表达**表示领域模型能保存该值；**HTTP 可编辑**表示当前 `styles.patch`/`styles.restore` 接受该意图；**渲染支持**表示实际消费者实现该语义。前两项成立不自动意味着第三项成立，渐变的 `glyph`、`progress`、`oklch` 就是现成反例。
 
 ## 1. 对象、作用域与继承

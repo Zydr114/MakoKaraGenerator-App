@@ -33,7 +33,7 @@ public sealed partial class LibraryRepositoryTests
         var package = MixedEffectPackageFixture.MaterialContents();
         var template = StyleTemplate.Create("material", "包模板", StyleTemplateKind.Line,
             LyricStyle.Default with { UnsungFill = new() { Material = new MaterialSpec.PackageMaterial(package.PackageId, package.Revision, "ink") } },
-            [LyricStyleProperty.UnsungColor], packages: [package]);
+            [LyricStyleProperty.UnsungFill], packages: [package]);
         var repo = new TemplateLibraryRepository(path); repo.Save(repo.Read().Revision, [template]);
         await using var catalogue = new TemplateLibraryCatalogue(repo); using var active = catalogue.Activate(); await catalogue.WaitForIdleAsync();
         Assert.True(catalogue.Snapshot.CanApply); var revision = catalogue.Snapshot.Library.Revision;

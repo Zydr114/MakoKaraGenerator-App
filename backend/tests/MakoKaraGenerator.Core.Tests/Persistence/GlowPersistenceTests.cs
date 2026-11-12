@@ -34,10 +34,10 @@ public sealed class GlowPersistenceTests
         Assert.Equal(new GlowSpecOverride { Opacity = .2f }, restored.Lyrics.Lines[0].Tokens[2].StyleOverride!.Glow.Value);
         var json = JsonNode.Parse(File.ReadAllText(Path.Combine(directory.Path, ProjectJson.ProjectFileName)))!;
         Assert.Equal(Project.CurrentSchemaVersion, json["schemaVersion"]!.GetValue<int>());
-        Assert.Equal("#0C223880", json["lyricStyle"]!["glow"]!["color"]!.GetValue<string>());
+        Assert.Equal("#0C223880", json["lyricStyle"]!["unsung"]!["glow"]!["color"]!.GetValue<string>());
         var lyrics = JsonNode.Parse(ProjectFileFixture.ReadLyrics(directory.Path))!;
         Assert.Equal(LyricsDocument.CurrentSchemaVersion, lyrics["schemaVersion"]!.GetValue<int>());
-        Assert.Equal(.2f, lyrics["branches"]![0]!["lines"]![0]!["tokens"]![2]!["styleOverride"]!["glow"]!["opacity"]!.GetValue<float>());
+        Assert.Equal(.2f, lyrics["branches"]![0]!["lines"]![0]!["tokens"]![2]!["styleOverride"]!["unsung"]!["glow"]!["opacity"]!.GetValue<float>());
     }
 
     [Theory]
@@ -51,12 +51,12 @@ public sealed class GlowPersistenceTests
             lyricStyle: LyricStyle.Default with { Glow = Glow });
         ProjectStore.Save(project, directory.Path);
         string path = Path.Combine(directory.Path, ProjectJson.ProjectFileName);
-        var root = JsonNode.Parse(File.ReadAllText(path))!; root["lyricStyle"]!["glow"]![field] = value;
+        var root = JsonNode.Parse(File.ReadAllText(path))!; root["lyricStyle"]!["unsung"]!["glow"]![field] = value;
         File.WriteAllText(path, root.ToJsonString());
-        Assert.Contains(ProjectStore.Load(directory.Path).Report.Issues, i => i.Code == DiagnosticCode.InvalidStyleValue && i.Location == "lyricStyle.glow");
+        Assert.Contains(ProjectStore.Load(directory.Path).Report.Issues, i => i.Code == DiagnosticCode.InvalidStyleValue && i.Location == "lyricStyle.unsung.glow");
         ProjectStore.Save(project, directory.Path);
         var lyrics = JsonNode.Parse(ProjectFileFixture.ReadLyrics(directory.Path))!;
-        lyrics["branches"]![0]!["lines"]![0]!["tokens"]![0]!["styleOverride"]!["glow"]![field] = value;
+        lyrics["branches"]![0]!["lines"]![0]!["tokens"]![0]!["styleOverride"]!["unsung"]!["glow"]![field] = value;
         ProjectFileFixture.PublishLyrics(directory.Path, lyrics.ToJsonString());
         Assert.Contains(ProjectStore.Load(directory.Path).Report.Issues, i => i.Code == DiagnosticCode.InvalidStyleValue && i.Location!.EndsWith(".glow", StringComparison.Ordinal));
     }
@@ -70,7 +70,7 @@ public sealed class GlowPersistenceTests
             styleOverride: new() { Opacity = .5f })]));
         ProjectStore.Save(project, directory.Path);
         var lyrics = JsonNode.Parse(ProjectFileFixture.ReadLyrics(directory.Path))!;
-        lyrics["branches"]![0]!["lines"]![0]!["styleOverride"]!["glow"] = JsonNode.Parse(invalid);
+        lyrics["branches"]![0]!["lines"]![0]!["styleOverride"]!["unsung"] = new JsonObject { ["glow"] = JsonNode.Parse(invalid) };
         ProjectFileFixture.PublishLyrics(directory.Path, lyrics.ToJsonString());
         var loaded = ProjectStore.Load(directory.Path);
         Assert.True(loaded.Report.HasErrors);
@@ -104,7 +104,7 @@ public sealed class GlowPersistenceTests
         {
             var node = project.LyricPresentation.FindNode(entry.nodeId)!; var mark = (TextMarkContent)node.Content!;
             GlowSpecOverride? patch = entry.index == 0 ? null : new() { SpreadPx = 5 };
-            Assert.True(SceneTreeEditor.TrySetNode(project, node with { Content = mark with { AppearanceOverride = new() { Glow = OptionalValue.Set<GlowSpecOverride?>(patch) } } }, out project, out _));
+            Assert.True(SceneTreeEditor.TrySetNode(project, node with { Content = mark with { AppearanceOverride = new() { Pending = new() { Glow = OptionalValue.Set<GlowSpecOverride?>(patch) } } } }, out project, out _));
         }
         Assert.Equal(project, RoundTrip(project, directory.Path));
     }
@@ -115,7 +115,7 @@ public sealed class GlowPersistenceTests
         using TemporaryDirectory directory = new(); string path = StyleTemplateLibrary.ResolvePath(directory.Path);
         Assert.Contains(StyleTemplateLibrary.DirectoryName, path, StringComparison.Ordinal);
         var template = StyleTemplate.Create("glow", "辉光", StyleTemplateKind.Token, LyricStyle.Default with { Glow = Glow },
-            [LyricStyleProperty.GlowColor, LyricStyleProperty.GlowSpreadPx]);
+            [LyricStyleProperty.UnsungGlowColor, LyricStyleProperty.UnsungGlowSpreadPx]);
         StyleTemplateLibrary.Save(path, [template]); var loaded = StyleTemplateLibrary.Load(path);
         Assert.Empty(loaded.Issues); Assert.Equal(Glow, Assert.Single(loaded.Templates).Style.Glow);
         Assert.Equal(StyleTemplateLibrary.CurrentSchemaVersion, JsonNode.Parse(Encoding.UTF8.GetString(StyleTemplateLibrary.Encode([template])))!["schemaVersion"]!.GetValue<int>());

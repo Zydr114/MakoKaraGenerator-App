@@ -73,7 +73,7 @@ public sealed class PresetStaticProjectSnapshotCodecTests
         Assert.Equal(properties.ToArray(), actual.Properties.ToArray());
         Assert.Equal(snapshot.Style, actual.Style);
         var json = Root(source)["snapshot"]!["presetApplications"]!["items"]![0]!["snapshot"]!["style"]!;
-        Assert.True(json.AsObject().ContainsKey("stroke")); Assert.Null(json["stroke"]);
+        Assert.Empty(json["unsung"]!["strokes"]!.AsArray()); Assert.True(json["unsung"]!.AsObject().ContainsKey("shadow")); Assert.Null(json["unsung"]!["shadow"]);
         Assert.True(json["typography"]!.AsObject().ContainsKey("fontFamilyName")); Assert.Null(json["typography"]!["fontFamilyName"]);
     }
 
@@ -100,7 +100,7 @@ public sealed class PresetStaticProjectSnapshotCodecTests
             case "missing-style": snapshot.AsObject().Remove("style"); break;
             case "null-style": snapshot["style"] = null; break;
             case "missing-opacity": style.AsObject().Remove("opacity"); break;
-            case "missing-stroke": style.AsObject().Remove("stroke"); break;
+            case "missing-stroke": style["unsung"]!.AsObject().Remove("strokes"); break;
             case "missing-font": style["typography"]!.AsObject().Remove("fontFamilyName"); break;
             case "unknown-style": style["extra"] = true; break;
             case "wrong-case-style": style["Opacity"] = style["opacity"]!.DeepClone(); style.AsObject().Remove("opacity"); break;
@@ -125,10 +125,10 @@ public sealed class PresetStaticProjectSnapshotCodecTests
             case "wrong-version": applications["templateSchemaVersion"] = StyleTemplateLibrary.CurrentSchemaVersion + 1; break;
             case "trimmed-name": snapshot["name"] = " trailing "; break;
             case "numeric-string": style["opacity"] = "0.8"; break;
-            case "color-overflow": style["sungFill"]!["material"]!["color"]!["red"] = 256; break;
-            case "unknown-gradient": style["unsungFill"]!["material"]!["value"]!["extra"] = true; break;
-            case "gradient-enum-case": style["unsungFill"]!["material"]!["value"]!["kind"] = "linear"; break;
-            case "null-gradient-stop": style["unsungFill"]!["material"]!["value"]!["stops"]![0] = null; break;
+            case "color-overflow": style["sung"]!["fill"]!["material"]!["color"]!["red"] = 256; break;
+            case "unknown-gradient": style["unsung"]!["fill"]!["material"]!["value"]!["extra"] = true; break;
+            case "gradient-enum-case": style["unsung"]!["fill"]!["material"]!["value"]!["kind"] = "linear"; break;
+            case "null-gradient-stop": style["unsung"]!["fill"]!["material"]!["value"]!["stops"]![0] = null; break;
             case "null-target": first["target"] = null; break;
             case "unknown-template": snapshot["extra"] = 1; break;
             case "missing-recipes": snapshot.AsObject().Remove("effectRecipes"); break;

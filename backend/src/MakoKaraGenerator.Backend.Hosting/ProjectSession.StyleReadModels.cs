@@ -97,7 +97,7 @@ public sealed partial class ProjectSession
         }
     }
     private static StyleStrokeDto? ProjectStroke(StrokeSpec? stroke, ReadModelBudget budget) => stroke is null ? null
-        : new(ProjectMaterial(stroke.Material, budget), stroke.WidthPx, (StyleStrokeJoin)stroke.Join, (StyleStrokePosition)stroke.Position);
+        : new(ProjectMaterial(stroke.Material, budget), stroke.WidthPx, (StyleStrokeJoin)stroke.Join, StyleStrokePosition.Outside);
     private static StyleShadowDto? ProjectShadow(ShadowSpec? shadow) => shadow is null ? null
         : new(StyleColor(shadow.Color), shadow.Opacity, shadow.AngleDegrees, shadow.DistancePx, shadow.BlurRadiusPx);
     private static StyleGlowDto? ProjectGlow(GlowSpec? glow) => glow is null ? null
@@ -132,15 +132,17 @@ public sealed partial class ProjectSession
         }
         if (own.UnsungFill.IsSet && own.UnsungFill.Value?.Material.IsSet == true) values.Add(new StyleUnsungMaterialChangeDto(ProjectMaterial(own.UnsungFill.Value.Material.Value!, budget)));
         if (own.SungFill.IsSet && own.SungFill.Value?.Material.IsSet == true) values.Add(new StyleSungMaterialChangeDto(ProjectMaterial(own.SungFill.Value.Material.Value!, budget)));
-        if (own.Stroke.IsSet)
+        // 过渡期（P3 第 2～6 步）：描边改为整表覆盖，HTTP 仍是单层描边。本层描边按最内层展开为全部四叶（位置恒为外侧），
+        // 空表报告为关闭；已唱一侧的显式描边、阴影、辉光在第 7 步随合同开放。
+        if (own.UnsungStrokes is { } strokes)
         {
-            if (own.Stroke.Value is not { } stroke) values.Add(new StyleStrokeChangeDto(null));
+            if (strokes.Innermost is not { } stroke) values.Add(new StyleStrokeChangeDto(null));
             else
             {
-                if (stroke.Material.IsSet) values.Add(new StyleStrokeMaterialChangeDto(ProjectMaterial(stroke.Material.Value!, budget)));
-                if (stroke.WidthPx is { } width) values.Add(new StyleStrokeWidthChangeDto(width));
-                if (stroke.Join is { } join) values.Add(new StyleStrokeJoinChangeDto((StyleStrokeJoin)join));
-                if (stroke.Position is { } position) values.Add(new StyleStrokePositionChangeDto((StyleStrokePosition)position));
+                values.Add(new StyleStrokeMaterialChangeDto(ProjectMaterial(stroke.Material, budget)));
+                values.Add(new StyleStrokeWidthChangeDto(stroke.WidthPx));
+                values.Add(new StyleStrokeJoinChangeDto((StyleStrokeJoin)stroke.Join));
+                values.Add(new StyleStrokePositionChangeDto(StyleStrokePosition.Outside));
             }
         }
         if (own.Shadow.IsSet)
@@ -186,7 +188,7 @@ public sealed partial class ProjectSession
         _ => throw new JsonException("新材质必须是完整静态 solid 或 gradient。"),
     };
     private static StrokeSpec? CoreStroke(StyleStrokeDto? stroke) => stroke is null ? null : new()
-        { Material = CoreMaterial(stroke.Material), WidthPx = stroke.WidthPx, Join = (StrokeJoin)stroke.Join, Position = (StrokePosition)stroke.Position };
+        { Material = CoreMaterial(stroke.Material), WidthPx = stroke.WidthPx, Join = (StrokeJoin)stroke.Join };
     private static ShadowSpec? CoreShadow(StyleShadowDto? shadow) => shadow is null ? null : new()
         { Color = CoreColor(shadow.Color), Opacity = shadow.Opacity, AngleDegrees = shadow.AngleDegrees, DistancePx = shadow.DistancePx, BlurRadiusPx = shadow.BlurRadiusPx };
     private static GlowSpec? CoreGlow(StyleGlowDto? glow) => glow is null ? null : new()
@@ -215,7 +217,7 @@ public sealed partial class ProjectSession
             StyleStrokeMaterialChangeDto v => new StyleEditChange.StrokeMaterial(CoreMaterial(v.Value)),
             StyleStrokeWidthChangeDto v => new StyleEditChange.StrokeWidth(v.Value),
             StyleStrokeJoinChangeDto v => new StyleEditChange.StrokeJoin((StrokeJoin)v.Value),
-            StyleStrokePositionChangeDto v => new StyleEditChange.StrokePosition((StrokePosition)v.Value),
+            StyleStrokePositionChangeDto => new StyleEditChange.StrokePosition(),
             StyleShadowChangeDto v => new StyleEditChange.Shadow(CoreShadow(v.Value)),
             StyleShadowColorChangeDto v => new StyleEditChange.ShadowColor(CoreColor(v.Value)),
             StyleShadowOpacityChangeDto v => new StyleEditChange.ShadowOpacity(v.Value),

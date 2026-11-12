@@ -134,11 +134,9 @@ internal static partial class ProjectDtoMapper
                 IsItalic = style.Typography.IsItalic,
                 LetterSpacingPx = style.Typography.LetterSpacingPx,
             },
-            UnsungFill = ToDto(style.UnsungFill),
-            SungFill = ToDto(style.SungFill),
-            Stroke = ToDto(style.Stroke),
-            Shadow = ToDto(style.Shadow),
-            Glow = ToDto(style.Glow),
+            Unsung = ToDto(style.Unsung),
+            Sung = ToDto(style.Sung),
+            Wipe = ToDto(style.Wipe),
             VerticalCenterRatio = style.VerticalCenterRatio,
             HorizontalAlignment = style.HorizontalAlignment.ToString(),
             Opacity = style.Opacity,
@@ -184,11 +182,9 @@ internal static partial class ProjectDtoMapper
         return new LyricStyleOverrideDto
         {
             Typography = styleOverride.Typography is { } typography ? ToDto(typography) : null,
-            UnsungFill = ToOptionalFillOverrideDto(styleOverride.UnsungFill),
-            SungFill = ToOptionalFillOverrideDto(styleOverride.SungFill),
-            Stroke = ToOptionalStrokeDto(styleOverride.Stroke),
-            Shadow = ToOptionalShadowDto(styleOverride.Shadow),
-            Glow = ToOptionalGlowDto(styleOverride.Glow),
+            Unsung = ToDto(styleOverride.Unsung),
+            Sung = ToDto(styleOverride.Sung),
+            Wipe = ToDto(styleOverride.Wipe),
             VerticalCenterRatio = styleOverride.VerticalCenterRatio,
             HorizontalAlignment = styleOverride.HorizontalAlignment?.ToString(),
             Opacity = styleOverride.Opacity,
@@ -623,8 +619,8 @@ internal static partial class ProjectDtoMapper
         TypographySpec typography = dto.Typography is { } typographyDto
             ? MapTypographySpec(typographyDto, fallback.Typography, "lyricStyle.typography", issues)
             : MissingStyleObject(fallback.Typography, "lyricStyle.typography", issues);
-        FillSpec unsung = new() { Material = ReadMaterial(dto.UnsungFill, "lyricStyle.unsungFill", issues, allowUnsupportedGradients) };
-        FillSpec sung = new() { Material = ReadMaterial(dto.SungFill, "lyricStyle.sungFill", issues, allowUnsupportedGradients) };
+        TextAppearance unsung = MapAppearance(dto.Unsung, "lyricStyle.unsung", issues, allowUnsupportedGradients);
+        SungAppearance sung = MapSungAppearance(dto.Sung, "lyricStyle.sung", issues, allowUnsupportedGradients);
 
         double ratio = dto.VerticalCenterRatio ?? fallback.VerticalCenterRatio;
         if (ratio is < 0d or > 1d)
@@ -637,11 +633,9 @@ internal static partial class ProjectDtoMapper
         return new LyricStyle
         {
             Typography = typography,
-            UnsungFill = unsung,
-            SungFill = sung,
-            Stroke = dto.Stroke is null ? null : MapStrokeSpec(dto.Stroke, "lyricStyle.stroke", issues, allowUnsupportedGradients),
-            Shadow = dto.Shadow is null ? null : MapShadowSpec(dto.Shadow, "lyricStyle.shadow", issues),
-            Glow = dto.Glow is null ? null : MapGlowSpec(dto.Glow, "lyricStyle.glow", issues),
+            Unsung = unsung,
+            Sung = sung,
+            Wipe = MapWipe(dto.Wipe, "lyricStyle.wipe", issues),
             VerticalCenterRatio = ratio,
             HorizontalAlignment = MapAlignment(dto.HorizontalAlignment, fallback.HorizontalAlignment,
                 "lyricStyle.horizontalAlignment", issues),
@@ -685,11 +679,9 @@ internal static partial class ProjectDtoMapper
         LyricStyleOverride result = new()
         {
             Typography = MapTypographyOverride(dto.Typography, location + ".typography", issues),
-            UnsungFill = MapOptionalFillOverride(dto.UnsungFill, location + ".unsungFill", issues),
-            SungFill = MapOptionalFillOverride(dto.SungFill, location + ".sungFill", issues),
-            Stroke = MapOptionalStrokeOverride(dto.Stroke, location + ".stroke", issues),
-            Shadow = MapOptionalShadowOverride(dto.Shadow, location + ".shadow", issues),
-            Glow = MapOptionalGlowOverride(dto.Glow, location + ".glow", issues),
+            Unsung = MapAppearanceOverride(dto.Unsung, location + ".unsung", issues),
+            Sung = MapSungAppearanceOverride(dto.Sung, location + ".sung", issues),
+            Wipe = MapWipeOverride(dto.Wipe, location + ".wipe", issues),
             VerticalCenterRatio = dto.VerticalCenterRatio,
             HorizontalAlignment = MapOptionalAlignment(dto.HorizontalAlignment, location + ".horizontalAlignment", issues),
             Opacity = dto.Opacity,
@@ -697,9 +689,6 @@ internal static partial class ProjectDtoMapper
         };
         return result.IsEmpty ? null : result;
     }
-
-
-
 
     private static OptionalValue<ShadowSpecOverride?> MapOptionalShadowOverride(
         System.Text.Json.JsonElement value, string location, List<ProjectIssue> issues)

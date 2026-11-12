@@ -39,13 +39,22 @@ public sealed partial class MixedEffectPackageTests
     }
 
     [Theory]
-    [InlineData("Glyph", "Hsv")] [InlineData("Progress", "Hsv")] [InlineData("Line", "Oklch")]
+    [InlineData("Glyph", "Hsv")] [InlineData("Line", "Oklch")]
     public async Task 生产未支持的回退不能部分启用混合控制器(string space, string colorSpace)
     {
         var definition = EffectPackageDefinition.Read(MixedEffectPackageFixture.Contents(fallback: MixedEffectPackageFixture.Gradient(space, colorSpace)));
         var error = await Assert.ThrowsAsync<EffectPackageException>(() => Compile(definition.Contents));
         Assert.Equal("PackageMaterialFallbackUnsupported", error.Code); Assert.Equal("exports.ink.fallback", error.Path);
         Assert.Equal(error.Code, Assert.Throws<EffectPackageException>(() => CompiledPackageGraphExports.Compile(definition)).Code);
+    }
+
+    [Fact]
+    public void 回退渐变的进度坐标已删去而在读取时拒绝()
+    {
+        // 0.112.74 起 Core 删去进度坐标（P3 D-P3-7）；此前它能读取、编译时才报不支持。
+        var error = Assert.Throws<EffectPackageException>(() => EffectPackageDefinition.Read(
+            MixedEffectPackageFixture.Contents(fallback: MixedEffectPackageFixture.Gradient("Progress", "Hsv"))));
+        Assert.Equal("PackageMaterialFallbackInvalid", error.Code); Assert.EndsWith(".fallback.gradient.coordinateSpace", error.Path, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -257,11 +257,11 @@ public sealed class PackageProjectSnapshotCodecRejectionTests
         });
         byte[] valid = PackageProjectSnapshotCodec.Encode(source);
         JsonObject wire = JsonNode.Parse(valid)!.AsObject();
-        JsonObject material = wire["snapshot"]!["lyricStyle"]!["unsungFill"]!["material"]!.AsObject();
+        JsonObject material = wire["snapshot"]!["lyricStyle"]!["unsung"]!["fill"]!["material"]!.AsObject();
         Assert.True(material.Remove(field));
         Reject(wire);
         wire = JsonNode.Parse(valid)!.AsObject();
-        wire["snapshot"]!["lyricStyle"]!["unsungFill"]!["material"]!["extra"] = true;
+        wire["snapshot"]!["lyricStyle"]!["unsung"]!["fill"]!["material"]!["extra"] = true;
         Reject(wire);
     }
 

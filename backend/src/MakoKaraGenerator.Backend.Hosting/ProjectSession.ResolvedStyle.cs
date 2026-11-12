@@ -69,9 +69,10 @@ public sealed partial class ProjectSession
                 { budget.Text(application.Id); budget.Item(application.Identities.Length + application.Snapshot.Properties.Length); }
                 var resolved = new PresetStyleResolver(project.LyricStyle, project.Lyrics, project.PresetApplications)
                     .ResolveLyrics(line.Id, tokenId, clip?.Id, path);
-                ResolvedStylePropertySourceDto[] sources = [.. LyricStylePropertyExtensions.All.Select(property =>
+                // 过渡期仍按旧合同的 26 项输出来源，每项取其主属性的来源（P3 第 7 步改版）。
+                ResolvedStylePropertySourceDto[] sources = [.. Enum.GetValues<TemplateProperty>().Select(property =>
                 {
-                    string name = LyricStylePropertyExtensions.ToJsonName(property), source = resolved.Sources[property];
+                    string name = LegacyStylePropertyMap.JsonName(property), source = resolved.Sources[LegacyStylePropertyMap.Primary(property)];
                     budget.Item(); budget.Text(name, source); return new ResolvedStylePropertySourceDto(name, source);
                 })];
                 return BoundedReadModel(new ProjectResolvedStyleResponse(ProjectSessionId, RevisionText,

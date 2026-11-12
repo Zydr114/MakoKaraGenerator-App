@@ -20,7 +20,7 @@ public sealed class GlowSnapshotTests
         Assert.Equal(source.LyricPresentation, copy.LyricPresentation);
         Assert.Equal(bytes, StaticProjectSnapshotCodec.Encode(copy));
         var wire = JsonNode.Parse(bytes)!;
-        var glow = wire["snapshot"]!["lyricStyle"]!["glow"]!.AsObject();
+        var glow = wire["snapshot"]!["lyricStyle"]!["unsung"]!["glow"]!.AsObject();
         Assert.Equal(["blurRadiusPx", "color", "opacity", "spreadPx"], glow.Select(x => x.Key).Order(StringComparer.Ordinal));
         Assert.False(glow.ContainsKey("isEnabled"));
         Assert.False(glow.ContainsKey("isValid"));
@@ -32,8 +32,8 @@ public sealed class GlowSnapshotTests
         var source = PresetSnapshotFixture.Create();
         source = source with { PresetApplications = new(source.PresetApplications!.Items.Select(item => new PresetApplication(item.Id, item.Target, StyleTemplate.Create(item.Snapshot.Id, item.Snapshot.Name, StyleTemplateKind.Line,
                 item.Snapshot.Style with { Glow = Glow },
-                [LyricStyleProperty.GlowSpec, LyricStyleProperty.GlowColor, LyricStyleProperty.GlowOpacity,
-                    LyricStyleProperty.GlowBlurRadiusPx, LyricStyleProperty.GlowSpreadPx]), enabled: item.Enabled))) };
+                [LyricStyleProperty.UnsungGlow, LyricStyleProperty.UnsungGlowColor, LyricStyleProperty.UnsungGlowOpacity,
+                    LyricStyleProperty.UnsungGlowBlurRadiusPx, LyricStyleProperty.UnsungGlowSpreadPx]), enabled: item.Enabled))) };
         byte[] bytes = StaticProjectSnapshotCodec.Encode(source, StaticProjectSnapshotCodec.PresetsProfile);
         var copy = StaticProjectSnapshotCodec.Decode(bytes);
         Assert.Equal(source.PresetApplications, copy.PresetApplications);
@@ -47,7 +47,7 @@ public sealed class GlowSnapshotTests
     public void 辉光快照拒绝缺字段未知字段及非法数值(string mutation)
     {
         var root = JsonNode.Parse(StaticProjectSnapshotCodec.Encode(Source()))!;
-        var glow = root["snapshot"]!["lyricStyle"]!["glow"]!.AsObject();
+        var glow = root["snapshot"]!["lyricStyle"]!["unsung"]!["glow"]!.AsObject();
         if (mutation == "missing") glow.Remove("spreadPx");
         else if (mutation == "unknown") glow["angleDegrees"] = 20;
         else glow["blurRadiusPx"] = -1;
@@ -76,7 +76,7 @@ public sealed class GlowSnapshotTests
                     Content = node.Content switch
                     {
                         CountdownSequenceContent sequence => sequence with { Appearance = sequence.Appearance with { Glow = Glow } },
-                        TextMarkContent mark => mark with { AppearanceOverride = new() { Glow = OptionalValue.Set<GlowSpecOverride?>(new() { Opacity = .4f }) } },
+                        TextMarkContent mark => mark with { AppearanceOverride = new() { Pending = new() { Glow = OptionalValue.Set<GlowSpecOverride?>(new() { Opacity = .4f }) } } },
                         _ => node.Content,
                     }
                 })]

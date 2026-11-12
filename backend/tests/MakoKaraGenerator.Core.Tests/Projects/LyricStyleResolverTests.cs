@@ -22,7 +22,7 @@ public sealed class LyricStyleResolverTests
         Assert.Equal("Token", result.Style.FontFamilyName);
         Assert.Equal(LyricStyleSource.Line, result.SourceOf(LyricStyleProperty.FontSizePx));
         Assert.Equal(LyricStyleSource.Token, result.SourceOf(LyricStyleProperty.FontFamilyName));
-        Assert.Equal(LyricStyleSource.Preset, result.SourceOf(LyricStyleProperty.SungColor));
+        Assert.Equal(LyricStyleSource.Preset, result.SourceOf(LyricStyleProperty.SungFill));
     }
 
     [Fact]
@@ -157,11 +157,11 @@ public sealed class LyricStyleResolverTests
     {
         LyricStyle resolved = LyricStyleResolver.Resolve(
             defaultStyle: new LyricStyle { Opacity = 0.8f, Scale = 1.2f },
-            lineOverride: new LyricStyleOverride { Opacity = 0.5f, StrokeWidthPx = 4f }).Style;
+            lineOverride: new LyricStyleOverride { Opacity = 0.5f, Stroke = StrokeSpec.Create(RgbaColor.White, 4f) }).Style;
 
         Assert.Equal(0.5f, resolved.Opacity);
         Assert.Equal(1.2f, resolved.Scale);
-        Assert.Equal(4f, resolved.StrokeWidthPx);
+        Assert.Equal(4f, resolved.Stroke!.WidthPx);
     }
 
     [Fact]

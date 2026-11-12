@@ -45,12 +45,12 @@ public sealed class TokenStyleOverrideTests
             project,
             0,
             1,
-            overlay => (overlay ?? new LyricStyleOverride()) with { StrokeWidthPx = 3f });
+            overlay => (overlay ?? new LyricStyleOverride()) with { Stroke = StrokeSpec.Create(RgbaColor.White, 3f) });
 
         LyricStyleOverride result = edited.Lyrics.Lines[0].Tokens[1].StyleOverride!;
 
         Assert.Equal(0.5f, result.Opacity);
-        Assert.Equal(3f, result.StrokeWidthPx);
+        Assert.Equal(3f, result.Stroke.Value!.WidthPx);
     }
 
     [Fact]

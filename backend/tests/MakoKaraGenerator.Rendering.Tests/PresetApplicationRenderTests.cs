@@ -39,8 +39,8 @@ public sealed class PresetApplicationRenderTests
         var color = new RgbaColor(30, 120, 240, 180);
         var global = source.LyricStyle with { FontSizePx = 44, UnsungColor = color };
         var local = source.LyricStyle with { UnsungColor = new(220, 60, 40, 160), Opacity = .5f };
-        var actual = Apply(source, Static("global", global, LyricStyleProperty.FontSizePx, LyricStyleProperty.UnsungColor), new(ProjectEffectBindingKind.Project));
-        actual = Apply(actual, Static("local", local, LyricStyleProperty.UnsungColor, LyricStyleProperty.Opacity),
+        var actual = Apply(source, Static("global", global, LyricStyleProperty.FontSizePx, LyricStyleProperty.UnsungFill), new(ProjectEffectBindingKind.Project));
+        actual = Apply(actual, Static("local", local, LyricStyleProperty.UnsungFill, LyricStyleProperty.Opacity),
             new(ProjectEffectBindingKind.Tokens, ids: ["first-a"]));
         var expected = source with { LyricStyle = global, LyricPresentation = source.LyricPresentation with
         { Nodes = [.. source.LyricPresentation.Nodes.Select(node => node.Content is CountdownSequenceContent sequence ? node with
@@ -67,9 +67,9 @@ public sealed class PresetApplicationRenderTests
         var slot = source.LyricPresentation.FindNode(program.DefaultContainerId)!.Layout!.SlotIds[0];
         var slotStyle = source.LyricStyle with { FontSizePx = 52, SungColor = new(30, 240, 90, 255) };
         var clipStyle = source.LyricStyle with { FontSizePx = 64, UnsungColor = new(200, 70, 180, 255) };
-        var actual = Apply(source, Static("slot", slotStyle, LyricStyleProperty.FontSizePx, LyricStyleProperty.SungColor),
+        var actual = Apply(source, Static("slot", slotStyle, LyricStyleProperty.FontSizePx, LyricStyleProperty.SungFill),
             new(ProjectEffectBindingKind.Node, id: slot, includeDescendants: true));
-        actual = Apply(actual, Static("clip", clipStyle, LyricStyleProperty.FontSizePx, LyricStyleProperty.UnsungColor),
+        actual = Apply(actual, Static("clip", clipStyle, LyricStyleProperty.FontSizePx, LyricStyleProperty.UnsungFill),
             new(ProjectEffectBindingKind.Clips, ids: ["chorus-clip"]));
         using var a = new SkiaRenderPipeline(); using var b = new SkiaRenderPipeline();
         var plain = b.GetSceneFrame(ProjectSnapshot.FromProject(source), time);
@@ -121,13 +121,13 @@ public sealed class PresetApplicationRenderTests
         var localStyle = source.LyricStyle with { FontSizePx = 38, UnsungFill = new() { Material = material },
             Stroke = new() { Material = material, WidthPx = 4, Join = StrokeJoin.Bevel } };
         actual = Apply(actual, StyleTemplate.Create("local", "local", StyleTemplateKind.Composite, localStyle,
-            [LyricStyleProperty.FontSizePx, LyricStyleProperty.UnsungColor, LyricStyleProperty.StrokeSpec], packages: [package]),
+            [LyricStyleProperty.FontSizePx, LyricStyleProperty.UnsungFill, LyricStyleProperty.UnsungStrokes], packages: [package]),
             new(ProjectEffectBindingKind.Lines, ids: ["first"]));
         var identity = Assert.Single(actual.PresetApplications.Items[0].Identities);
         var expected = source with { Effects = new([package], [new() { Id = identity.InstanceId, Name = "全局效果", PackageId = package.PackageId,
             Revision = package.Revision, ExportId = "controller", Seed = identity.Seed, Subscription = new("project") }]) };
         expected = WithLine(expected, "first", line => line with { StyleOverride = new() { FontSizePx = 38,
-            UnsungFill = OptionalValue.Set<FillSpecOverride?>(new() { Material = material }), StrokeSpec = OptionalValue.Set<StrokeSpec?>(localStyle.Stroke) } });
+            UnsungFill = OptionalValue.Set<FillSpecOverride?>(new() { Material = material }), Stroke = OptionalValue.Set<StrokeSpec?>(localStyle.Stroke) } });
         var compiled = await SourceMaterialRuntimeTests.Compile(actual);
         Assert.True(compiled.Succeeded); Assert.Single(compiled.Effects); Assert.NotNull(compiled.SourceMaterials);
         var expectedCompiled = await SourceMaterialRuntimeTests.Compile(expected); Assert.True(expectedCompiled.Succeeded);
@@ -143,7 +143,7 @@ public sealed class PresetApplicationRenderTests
         var firstBinding = prepared.Materials[0];
         var owner = Assert.IsType<PreparedMaterialOwner.Source>(firstBinding.Owner);
         Assert.False(compiled.SourceMaterials.MatchesSource(firstBinding with { Owner = owner with
-            { Reference = owner.Reference with { Path = "presetApplications.wrong.snapshot.style.unsungFill" } } }, prepared.HierarchyScene));
+            { Reference = owner.Reference with { Path = "presetApplications.wrong.snapshot.style.unsung.fill" } } }, prepared.HierarchyScene));
         Assert.All(prepared.Materials, binding => Assert.StartsWith("presetApplications.", Assert.IsType<PreparedMaterialOwner.Source>(binding.Owner).Reference.Path));
         using var native = CompiledPackageGraphExports.Compile(Assert.Single(compiled.Packages).Definition);
         using var resources = SourceMaterialRuntimeTests.Resources(native, Assert.Single(compiled.Packages));

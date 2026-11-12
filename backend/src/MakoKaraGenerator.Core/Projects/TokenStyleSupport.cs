@@ -41,7 +41,8 @@ public static class TokenStyleSupport
     /// <remarks>
     /// <para>
     /// 这是"覆盖里有什么"的<b>唯一</b>入口：支持范围判断、元素级拦截、渲染是否需要重画
-    /// 全部由它派生。因此"新加一个样式属性"只需要在这里补一行。
+    /// 全部由它派生。判定与样式解析的来源追踪是同一份代码（<see cref="LyricStyleResolver"/>），
+    /// 因此"新加一个样式属性"只需要在解析器的来源标记里补一处。
     /// </para>
     /// <para>
     /// 忘了补会被 <c>TokenStyleSupportTests</c> 的覆盖度检查当场抓住——它遍历
@@ -50,45 +51,7 @@ public static class TokenStyleSupport
     /// </para>
     /// </remarks>
     public static IReadOnlyList<LyricStyleProperty> SetProperties(LyricStyleOverride? styleOverride)
-    {
-        if (styleOverride is null)
-        {
-            return [];
-        }
-
-        List<LyricStyleProperty> set = [];
-
-        Add(set, LyricStyleProperty.FontFamilyName, styleOverride.FontFamilyName.IsSet);
-        Add(set, LyricStyleProperty.FallbackFamilyNames, styleOverride.FallbackFamilyNames is not null);
-        Add(set, LyricStyleProperty.FontSizePx, styleOverride.FontSizePx is not null);
-        Add(set, LyricStyleProperty.FontWeight, styleOverride.FontWeight is not null);
-        Add(set, LyricStyleProperty.IsBold, styleOverride.IsBold is not null);
-        Add(set, LyricStyleProperty.IsItalic, styleOverride.IsItalic is not null);
-        Add(set, LyricStyleProperty.LetterSpacingPx, styleOverride.LetterSpacingPx is not null);
-        Add(set, LyricStyleProperty.VerticalCenterRatio, styleOverride.VerticalCenterRatio is not null);
-        Add(set, LyricStyleProperty.HorizontalAlignment, styleOverride.HorizontalAlignment is not null);
-        Add(set, LyricStyleProperty.UnsungColor, styleOverride.UnsungFill.Value?.Material.IsSet == true);
-        Add(set, LyricStyleProperty.SungColor, styleOverride.SungFill.Value?.Material.IsSet == true);
-        Add(set, LyricStyleProperty.UnsungGradientSpec, styleOverride.UnsungGradientSpec.IsSet);
-        Add(set, LyricStyleProperty.SungGradientSpec, styleOverride.SungGradientSpec.IsSet);
-        Add(set, LyricStyleProperty.StrokeColor, styleOverride.Stroke.Value is { IsComplete: false, Material.IsSet: true });
-        Add(set, LyricStyleProperty.StrokeWidthPx, styleOverride.StrokeWidthPx is not null);
-        Add(set, LyricStyleProperty.StrokeSpec, styleOverride.StrokeSpec.IsSet);
-        Add(set, LyricStyleProperty.ShadowColor, styleOverride.ShadowColor.IsSet);
-        Add(set, LyricStyleProperty.ShadowBlurPx, styleOverride.ShadowBlurPx is not null);
-        Add(set, LyricStyleProperty.ShadowSpec, styleOverride.Shadow.IsSet && (styleOverride.Shadow.Value is null || styleOverride.Shadow.Value.IsComplete
-            || styleOverride.Shadow.Value.AngleDegrees is not null || styleOverride.Shadow.Value.DistancePx is not null
-            || styleOverride.Shadow.Value.Opacity is not null));
-        Add(set, LyricStyleProperty.Opacity, styleOverride.Opacity is not null);
-        Add(set, LyricStyleProperty.Scale, styleOverride.Scale is not null);
-        Add(set, LyricStyleProperty.GlowSpec, styleOverride.Glow.IsSet && (styleOverride.Glow.Value is null || styleOverride.Glow.Value.IsComplete));
-        Add(set, LyricStyleProperty.GlowColor, styleOverride.Glow.IsSet && (styleOverride.Glow.Value is null || styleOverride.Glow.Value.Color is not null));
-        Add(set, LyricStyleProperty.GlowOpacity, styleOverride.Glow.IsSet && (styleOverride.Glow.Value is null || styleOverride.Glow.Value.Opacity is not null));
-        Add(set, LyricStyleProperty.GlowBlurRadiusPx, styleOverride.Glow.IsSet && (styleOverride.Glow.Value is null || styleOverride.Glow.Value.BlurRadiusPx is not null));
-        Add(set, LyricStyleProperty.GlowSpreadPx, styleOverride.Glow.IsSet && (styleOverride.Glow.Value is null || styleOverride.Glow.Value.SpreadPx is not null));
-
-        return set;
-    }
+        => LyricStyleResolver.SetProperties(styleOverride);
 
     /// <summary>列出这份覆盖里"元素级不支持"的那些属性。</summary>
     /// <param name="styleOverride">样式覆盖；为 <see langword="null"/> 时返回空表。</param>
@@ -111,14 +74,6 @@ public static class TokenStyleSupport
     /// </remarks>
     public static bool HasDrawableOverride(LyricStyleOverride? styleOverride) =>
         SetProperties(styleOverride).Any(IsSupported);
-
-    private static void Add(List<LyricStyleProperty> set, LyricStyleProperty property, bool isSet)
-    {
-        if (isSet)
-        {
-            set.Add(property);
-        }
-    }
 
     /// <summary>某个属性能否用在元素级覆盖上。</summary>
     /// <param name="property">样式属性。</param>

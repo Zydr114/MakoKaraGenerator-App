@@ -13,20 +13,13 @@ public enum StrokeJoin
     Bevel = 2,
 }
 
-/// <summary>描边相对字形的位置。</summary>
-public enum StrokePosition
-{
-    /// <summary>完全位于字形外部；当前实现唯一支持的语义。</summary>
-    Outside = 0,
-}
-
 /// <summary>
-/// 文字描边的绘制描述。
+/// 多重描边中的一层。
 /// </summary>
 /// <remarks>
-/// 描边的位置语义固定为外部：渲染器先画外扩轮廓，再减去不透明字形遮罩，
-/// 因而半透明或透明填充也不会露出轮廓内侧。提供 <see cref="Gradient"/> 时使用其颜色，
-/// 否则使用 <see cref="Color"/>；渐变不叠乘纯色透明度。
+/// 层的位置由它在 <see cref="StrokeLayers"/> 里的顺序决定（由内向外），本身不记位置。
+/// 渲染器先画外扩轮廓，再减去不透明字形遮罩，因而半透明或透明填充也不会露出轮廓内侧。
+/// 提供 <see cref="Gradient"/> 时使用其颜色，否则使用 <see cref="Color"/>；渐变不叠乘纯色透明度。
 /// </remarks>
 public sealed record StrokeSpec
 {
@@ -37,20 +30,16 @@ public sealed record StrokeSpec
     /// <summary>静态渐变访问外观；包材质须明确整体替换。</summary>
     public GradientSpec? Gradient { get => (Material as MaterialSpec.Gradient)?.Value; init => Material = Material.WithGradient(value); }
 
-    /// <summary>描边宽度（画布像素）。</summary>
+    /// <summary>本层宽度（画布像素）；放进描边列表时须为正。</summary>
     public float WidthPx { get; init; } = 2f;
 
     /// <summary>描边连接方式。</summary>
     public StrokeJoin Join { get; init; } = StrokeJoin.Round;
 
-    /// <summary>描边位置；当前固定为外部。</summary>
-    public StrokePosition Position { get; init; } = StrokePosition.Outside;
-
     /// <summary>描边描述是否有效。</summary>
     public bool IsValid => float.IsFinite(WidthPx)
         && WidthPx >= 0f
         && Enum.IsDefined(Join)
-        && Enum.IsDefined(Position)
         && Material is { IsValid: true };
 
     /// <summary>有效且非零宽的描边是否有颜色或渐变。</summary>
@@ -58,18 +47,16 @@ public sealed record StrokeSpec
         && WidthPx > 0f
         && Material is not MaterialSpec.Solid { Color.Alpha: 0 };
 
-    /// <summary>创建并校验一份描边描述。</summary>
-    /// <param name="color">描边颜色；为空且未提供渐变时关闭描边。</param>
+    /// <summary>创建并校验一层描边。</summary>
+    /// <param name="color">描边颜色；为空且未提供渐变时为透明。</param>
     /// <param name="widthPx">描边宽度，必须为非负有限数。</param>
     /// <param name="join">描边连接方式。</param>
-    /// <param name="position">描边位置；当前必须为外部。</param>
     /// <returns>新的描边描述。</returns>
     /// <exception cref="ArgumentOutOfRangeException">宽度或连接方式无效。</exception>
     public static StrokeSpec Create(
         RgbaColor? color,
         float widthPx,
-        StrokeJoin join = StrokeJoin.Round,
-        StrokePosition position = StrokePosition.Outside)
+        StrokeJoin join = StrokeJoin.Round)
     {
         if (!float.IsFinite(widthPx) || widthPx < 0f)
         {
@@ -81,11 +68,6 @@ public sealed record StrokeSpec
             throw new ArgumentOutOfRangeException(nameof(join), join, "描边连接方式无效。");
         }
 
-        if (!Enum.IsDefined(position))
-        {
-            throw new ArgumentOutOfRangeException(nameof(position), position, "描边位置无效。");
-        }
-
-        return new StrokeSpec { Color = color, WidthPx = widthPx, Join = join, Position = position };
+        return new StrokeSpec { Color = color, WidthPx = widthPx, Join = join };
     }
 }

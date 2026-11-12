@@ -30,7 +30,7 @@ public sealed class PresetApplicationsTests
         var recipe = new TemplateEffectRecipe("global", "工程强调", TemplateEffectTarget.Application, package.PackageId, package.Revision, "scale",
             enabled: enabled, readScope: ScriptReadScope.Project, fixedSeed: seed);
         return StyleTemplate.Create("global", "全局组合", StyleTemplateKind.Composite,
-            LyricStyle.Default with { SungColor = RgbaColor.Black }, [LyricStyleProperty.SungColor], extra ? [recipe,
+            LyricStyle.Default with { SungColor = RgbaColor.Black }, [LyricStyleProperty.SungFill], extra ? [recipe,
                 new("added", "新增配方", TemplateEffectTarget.Application, package.PackageId, package.Revision, "scale")] : [recipe], [package]);
     }
 
@@ -46,7 +46,7 @@ public sealed class PresetApplicationsTests
         var source = Source(); var global = Apply(source, Global(), new(ProjectEffectBindingKind.Project));
         var package = MixedEffectPackageFixture.MaterialContents(); var glass = new MaterialSpec.PackageMaterial(package.PackageId, package.Revision, "ink");
         var local = StyleTemplate.Create("glass", "局部玻璃", StyleTemplateKind.Composite,
-            LyricStyle.Default with { UnsungFill = new() { Material = glass } }, [LyricStyleProperty.UnsungColor], packages: [package]);
+            LyricStyle.Default with { UnsungFill = new() { Material = glass } }, [LyricStyleProperty.UnsungFill], packages: [package]);
         var project = Apply(global, local, new(ProjectEffectBindingKind.Lines, ids: ["l1"]));
         Assert.Equal(source.LyricStyle, project.LyricStyle); Assert.Equal(source.Lyrics, project.Lyrics);
         var style = PresetApplicationsProjection.ResolveLyrics(project, "l1", "t1"); Assert.Equal(glass, style.UnsungFill.Material); Assert.Equal(RgbaColor.Black, style.SungColor);
@@ -67,15 +67,15 @@ public sealed class PresetApplicationsTests
         var project = Apply(source, Static("token", white, LyricStyleProperty.Opacity), new(ProjectEffectBindingKind.Tokens, ids: ["t1"]));
         project = Apply(project, Global(), new(ProjectEffectBindingKind.Project));
         project = Apply(project, Static("branch", white, LyricStyleProperty.FontSizePx), new(ProjectEffectBindingKind.Branch, id: "primary"));
-        project = Apply(project, Static("node", red, LyricStyleProperty.SungColor), new(ProjectEffectBindingKind.Node, id: root, includeDescendants: true));
+        project = Apply(project, Static("node", red, LyricStyleProperty.SungFill), new(ProjectEffectBindingKind.Node, id: root, includeDescendants: true));
         var context = new[] { root, regular }; var style = PresetApplicationsProjection.ResolveLyrics(project, "l1", "t1", nodePath: context);
         Assert.Equal(red, style.SungColor); Assert.Equal(88, style.FontSizePx); Assert.Equal(.5f, style.Opacity);
-        project = Apply(project, Static("clip", blue, LyricStyleProperty.SungColor), new(ProjectEffectBindingKind.Clips, ids: ["clip"]));
+        project = Apply(project, Static("clip", blue, LyricStyleProperty.SungFill), new(ProjectEffectBindingKind.Clips, ids: ["clip"]));
         Assert.Equal(blue, PresetApplicationsProjection.ResolveLyrics(project, "l1", "t1", "clip", context).SungColor);
-        project = Apply(project, Static("line", white, LyricStyleProperty.SungColor), new(ProjectEffectBindingKind.Lines, ids: ["l1"]));
+        project = Apply(project, Static("line", white, LyricStyleProperty.SungFill), new(ProjectEffectBindingKind.Lines, ids: ["l1"]));
         Assert.Equal(white, PresetApplicationsProjection.ResolveLyrics(project, "l1", "t1", "clip", context).SungColor);
         Assert.Equal(red, PresetApplicationsProjection.ResolveMark(project, SceneTextAppearance.Default.ToLyricStyle(), context).SungColor);
-        var noDescendants = Apply(Source(), Static("self", red, LyricStyleProperty.SungColor), new(ProjectEffectBindingKind.Node, id: root));
+        var noDescendants = Apply(Source(), Static("self", red, LyricStyleProperty.SungFill), new(ProjectEffectBindingKind.Node, id: root));
         Assert.Equal(Source().LyricStyle.SungColor, PresetApplicationsProjection.ResolveLyrics(noDescendants, "l1", nodePath: context).SungColor);
         Assert.Equal(red, PresetApplicationsProjection.ResolveLyrics(noDescendants, "l1", nodePath: [root]).SungColor);
     }
@@ -93,8 +93,8 @@ public sealed class PresetApplicationsTests
         Assert.All(PresetApplicationsProjection.Effects(updated).Instances, instance => Assert.False(instance.Enabled));
         Assert.True(PresetApplicationsEditor.TryUpdate(updated, item.Id, Global(enabled: true, seed: 20, extra: true), null, out var repeated, out reason), reason);
         Assert.Same(updated, repeated); Assert.Same(updated, PresetApplicationsEditor.SetEnabled(updated, item.Id, false));
-        Assert.False(PresetApplicationsEditor.TryUpdate(updated, item.Id, Static("different", RgbaColor.Black, LyricStyleProperty.SungColor), null, out var rejected, out _)); Assert.Same(updated, rejected);
-        var replaced = Apply(updated, Static("different", RgbaColor.Black, LyricStyleProperty.SungColor), new(ProjectEffectBindingKind.Project));
+        Assert.False(PresetApplicationsEditor.TryUpdate(updated, item.Id, Static("different", RgbaColor.Black, LyricStyleProperty.SungFill), null, out var rejected, out _)); Assert.Same(updated, rejected);
+        var replaced = Apply(updated, Static("different", RgbaColor.Black, LyricStyleProperty.SungFill), new(ProjectEffectBindingKind.Project));
         Assert.Single(replaced.PresetApplications.Items); Assert.Empty(PresetApplicationsProjection.Effects(replaced).Instances);
     }
 

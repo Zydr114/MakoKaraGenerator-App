@@ -212,8 +212,8 @@ public sealed partial class ProjectSession
                         if (!baseline.IsValid) { error = LeadInInvalid("提示基线外观无效。"); return; }
                         accepted = SceneTreeEditor.TrySetNode(input, node with { Content = ((CountdownSequenceContent)node.Content!) with { Appearance = baseline } }, out after, out report); break;
                     case SetMarkAppearanceCommandDto appearance:
-                        var overlay = CoreMarkAppearance(appearance.Changes);
                         var owner = tree.Nodes.FirstOrDefault(n => n.Content is CountdownSequenceContent seq && seq.MarkNodeIds.Contains(nodeId!));
+                        var overlay = CoreMarkAppearance(appearance.Changes, (owner?.Content as CountdownSequenceContent)?.Appearance);
                         if (owner?.Content is not CountdownSequenceContent own || !own.Appearance.Resolve(overlay).IsValid)
                         { error = LeadInInvalid("标记覆盖外观无效。"); return; }
                         accepted = SceneTreeEditor.TrySetNode(input, node with { Content = ((TextMarkContent)node.Content!) with { AppearanceOverride = overlay } }, out after, out report); break;

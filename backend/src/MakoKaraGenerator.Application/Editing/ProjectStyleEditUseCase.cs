@@ -161,7 +161,7 @@ public static partial class ProjectStyleEditUseCase
     {
         if (target.Kind == StyleEditTargetKind.Project)
         {
-            LyricStyleOverride patch = ApplyChanges(LyricStyleOverride.Empty, properties, changes);
+            LyricStyleOverride patch = ApplyChanges(LyricStyleOverride.Empty, properties, changes, project.LyricStyle);
             LyricStyle updated = LyricStyleResolver.Resolve(project.LyricStyle, lineOverride: patch).Style;
             return updated == project.LyricStyle ? project : LyricStyleEditor.SetBaseline(project, updated);
         }
@@ -169,7 +169,7 @@ public static partial class ProjectStyleEditUseCase
         var branch = project.Lyrics.Branches[branchIndex];
         if (target.Kind == StyleEditTargetKind.Branch)
         {
-            var overlay = UpdateOverlay(branch.StyleOverride, properties, changes);
+            var overlay = UpdateOverlay(branch.StyleOverride, properties, changes, project.LyricStyle);
             if (overlay == branch.StyleOverride) return project;
             branch = branch with { StyleOverride = overlay };
         }
@@ -179,7 +179,8 @@ public static partial class ProjectStyleEditUseCase
             var line = branch.Lines[lineIndex];
             if (target.Kind == StyleEditTargetKind.Line)
             {
-                var overlay = UpdateOverlay(line.StyleOverride, properties, changes);
+                var overlay = UpdateOverlay(line.StyleOverride, properties, changes,
+                    LyricStyleResolver.Resolve(project.LyricStyle, branchOverride: branch.StyleOverride).Style);
                 if (overlay == line.StyleOverride) return project;
                 line = line with { StyleOverride = overlay };
             }
@@ -187,7 +188,8 @@ public static partial class ProjectStyleEditUseCase
             {
                 int tokenIndex = IndexOf(line.Tokens, token => token.Id == target.TokenId);
                 var token = line.Tokens[tokenIndex];
-                var overlay = UpdateOverlay(token.StyleOverride, properties, changes);
+                var overlay = UpdateOverlay(token.StyleOverride, properties, changes, LyricStyleResolver.Resolve(project.LyricStyle,
+                    branchOverride: branch.StyleOverride, lineOverride: line.StyleOverride).Style);
                 if (overlay == token.StyleOverride) return project;
                 line = line with { Tokens = line.Tokens.SetItem(tokenIndex, token with { StyleOverride = overlay }) };
             }

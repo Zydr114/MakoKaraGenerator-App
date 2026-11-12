@@ -44,10 +44,8 @@ public sealed class LyricStylePresetLibraryTests
     {
         Assert.True(LyricStylePresetLibrary.Default.TryFind("karaoke-outline", out LyricStylePreset outline));
 
-        Assert.NotNull(outline.Style.StrokeColor);
-        Assert.True(outline.Style.StrokeWidthPx > 0f);
-        Assert.NotNull(outline.Style.ShadowColor);
-        Assert.True(outline.Style.ShadowBlurPx > 0f);
+        Assert.True(outline.Style.Stroke!.WidthPx > 0f);
+        Assert.True(outline.Style.Shadow!.BlurRadiusPx > 0f);
     }
 
     [Fact]

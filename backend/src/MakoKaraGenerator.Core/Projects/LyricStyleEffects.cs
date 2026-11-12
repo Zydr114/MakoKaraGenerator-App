@@ -30,33 +30,25 @@ public static class LyricStyleEffects
 {
     private static readonly ImmutableArray<LyricStyleProperty> UnsungGradientProperties =
     [
-        LyricStyleProperty.UnsungGradientSpec,
+        LyricStyleProperty.UnsungFill,
     ];
 
     private static readonly ImmutableArray<LyricStyleProperty> SungGradientProperties =
     [
-        LyricStyleProperty.SungGradientSpec,
+        LyricStyleProperty.SungFill,
     ];
 
     private static readonly ImmutableArray<LyricStyleProperty> StrokeProperties =
     [
-        LyricStyleProperty.StrokeColor,
-        LyricStyleProperty.StrokeWidthPx,
-        LyricStyleProperty.StrokeSpec,
+        LyricStyleProperty.UnsungStrokes,
+        LyricStyleProperty.SungStrokes,
     ];
 
     private static readonly ImmutableArray<LyricStyleProperty> ShadowProperties =
-    [
-        LyricStyleProperty.ShadowColor,
-        LyricStyleProperty.ShadowBlurPx,
-        LyricStyleProperty.ShadowSpec,
-    ];
+        [.. LyricStylePropertyExtensions.UnsungShadowProperties, .. LyricStylePropertyExtensions.SungShadowProperties];
 
     private static readonly ImmutableArray<LyricStyleProperty> GlowProperties =
-    [
-        LyricStyleProperty.GlowSpec, LyricStyleProperty.GlowColor, LyricStyleProperty.GlowOpacity,
-        LyricStyleProperty.GlowBlurRadiusPx, LyricStyleProperty.GlowSpreadPx,
-    ];
+        [.. LyricStylePropertyExtensions.UnsungGlowProperties, .. LyricStylePropertyExtensions.SungGlowProperties];
 
     /// <summary>读取效果是否拥有足够参数可以绘制。</summary>
     /// <param name="style">要检查的样式。</param>
@@ -70,9 +62,9 @@ public static class LyricStyleEffects
         {
             LyricStyleEffectKind.UnsungGradient => style.UnsungFill.Gradient?.IsValid == true,
             LyricStyleEffectKind.SungGradient => style.SungFill.Gradient?.IsValid == true,
-            LyricStyleEffectKind.Stroke => GetStroke(style)?.IsEnabled == true,
-            LyricStyleEffectKind.Shadow => style.Shadow?.IsEnabled == true,
-            LyricStyleEffectKind.Glow => style.Glow?.IsEnabled == true,
+            LyricStyleEffectKind.Stroke => style.Unsung.Strokes.IsEnabled || style.ResolveSung().Strokes.IsEnabled,
+            LyricStyleEffectKind.Shadow => style.Unsung.Shadow?.IsEnabled == true || style.ResolveSung().Shadow?.IsEnabled == true,
+            LyricStyleEffectKind.Glow => style.Unsung.Glow?.IsEnabled == true || style.ResolveSung().Glow?.IsEnabled == true,
             _ => throw UnknownEffect(effect),
         };
     }
@@ -153,13 +145,19 @@ public static class LyricStyleEffects
             },
             LyricStyleEffectKind.Stroke => style with
             {
-                Stroke = null,
+                Unsung = style.Unsung with { Strokes = StrokeLayers.Empty },
+                Sung = style.Sung with { Strokes = Followable.Follow<StrokeLayers>() },
             },
             LyricStyleEffectKind.Shadow => style with
             {
-                Shadow = null,
+                Unsung = style.Unsung with { Shadow = null },
+                Sung = style.Sung with { Shadow = Followable.Follow<ShadowSpec?>() },
             },
-            LyricStyleEffectKind.Glow => style with { Glow = null },
+            LyricStyleEffectKind.Glow => style with
+            {
+                Unsung = style.Unsung with { Glow = null },
+                Sung = style.Sung with { Glow = Followable.Follow<GlowSpec?>() },
+            },
             _ => throw UnknownEffect(effect),
         };
     }
@@ -175,7 +173,7 @@ public static class LyricStyleEffects
 
     private static LyricStyle EnableStroke(LyricStyle style)
     {
-        if (IsEnabled(style, LyricStyleEffectKind.Stroke)) return style;
+        if (style.Unsung.Strokes.IsEnabled) return style;
         StrokeSpec stroke = GetStroke(style) ?? new StrokeSpec();
         return style with
         {

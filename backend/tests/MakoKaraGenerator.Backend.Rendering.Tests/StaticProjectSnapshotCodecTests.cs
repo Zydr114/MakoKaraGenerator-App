@@ -59,8 +59,9 @@ public sealed class StaticProjectSnapshotCodecTests
         Assert.Null(style["fontFamilyName"]);
         Assert.Null(style["unsungColor"]);
         Assert.Null(style["isValid"]);
-        Assert.Equal(["material"], style["unsungFill"]!.AsObject().Select(pair => pair.Key));
-        Assert.Null(style["shadow"]!["offsetXPx"]);
+        Assert.Equal(["material"], style["unsung"]!["fill"]!.AsObject().Select(pair => pair.Key));
+        Assert.Null(style["shadow"]); Assert.Null(style["stroke"]);
+        Assert.Null(style["unsung"]!["shadow"]?["offsetXPx"]);
         Assert.Null(source["composition"]!["frameRate"]!["value"]);
         Assert.Null(source["background"]!["hasMedia"]);
         Assert.Null(source["lyrics"]!["lines"]);
@@ -120,7 +121,7 @@ public sealed class StaticProjectSnapshotCodecTests
             case "snapshot": source["extra"] = true; break;
             case "style": source["lyricStyle"]!["extra"] = true; break;
             case "lyrics": source["lyrics"]!["lines"] = new JsonArray(); break;
-            case "sourceFacade": source["lyricStyle"]!["unsungFill"]!["color"] = "#FFFFFF"; break;
+            case "sourceFacade": source["lyricStyle"]!["unsung"]!["fill"]!["color"] = "#FFFFFF"; break;
             case "computed": source["composition"]!["isValid"] = true; break;
         }
         AssertCode("SnapshotInvalid", root);
@@ -177,7 +178,7 @@ public sealed class StaticProjectSnapshotCodecTests
             case "time": source["lyrics"]!["branches"]![0]!["lines"]![0]!["time"]!["endUs"] = 0; break;
             case "frameRate": source["composition"]!["frameRate"]!["denominator"] = 0; break;
             case "unreducedFrameRate": source["composition"]!["frameRate"]!["numerator"] = 60000; source["composition"]!["frameRate"]!["denominator"] = 2002; break;
-            case "materialKind": source["lyricStyle"]!["unsungFill"]!["material"]!["kind"] = "future"; break;
+            case "materialKind": source["lyricStyle"]!["unsung"]!["fill"]!["material"]!["kind"] = "future"; break;
             case "sceneKind": source["lyricPresentation"]!["nodes"]!.AsArray().First(node => node!["content"] is not null)!["content"]!["kind"] = "future"; break;
         }
         AssertCode(where == "schema" ? "SnapshotVersionMismatch" : "SnapshotInvalid", root);
@@ -259,7 +260,7 @@ public sealed class StaticProjectSnapshotCodecTests
     {
         JsonObject root = Root();
         JsonNode line = root["snapshot"]!["lyrics"]!["branches"]![0]!["lines"]![0]!;
-        line["styleOverride"]!["sungFill"]!["value"] = line["styleOverride"]!["unsungFill"]!["value"]!.DeepClone();
+        line["styleOverride"]!["unsung"]!["fill"]!["isSet"] = false;
         AssertCode("SnapshotInvalid", root);
     }
 

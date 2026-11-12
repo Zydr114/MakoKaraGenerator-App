@@ -658,7 +658,7 @@ public sealed class BackendPreviewSessionRegistryTests
         Factory factory = new()
         {
             Image = [new(new("instance"), revision, resources.GetGraph("graph"), "input", "TransparentBackgroundDependency")],
-            Material = [new(new PreparedMaterialOwner.Source(new("style.unsungFill", "fill", new MaterialSpec.PackageMaterial("package", revision, "material", EffectParameterOverrides.Empty)), PreparedMaterialSlot.UnsungFill), resources.GetMaterial("material"), "input", "TransparentBackgroundDependency")],
+            Material = [new(new PreparedMaterialOwner.Source(new("style.unsung.fill", "fill", new MaterialSpec.PackageMaterial("package", revision, "material", EffectParameterOverrides.Empty)), PreparedMaterialSlot.UnsungFill), resources.GetMaterial("material"), "input", "TransparentBackgroundDependency")],
         };
         PreviewSessionResponse session = fixture.Create(Input(factory));
         Assert.True(fixture.Request(session, 1, 1).Accepted); (await factory.Next()).Release.SetResult();
@@ -666,7 +666,7 @@ public sealed class BackendPreviewSessionRegistryTests
         Assert.True(fixture.Diagnostics.TryRead("client", session.PreviewId, null, null, out PreviewDiagnosticsPageDto? page, out _));
         Assert.Equal(2, page!.Diagnostics.Length);
         Assert.Equal("graph", page.Diagnostics[0].ImageEffect!.Graph.ExportId);
-        Assert.Equal("style.unsungFill", page.Diagnostics[1].Material!.Owner.Source!.Path);
+        Assert.Equal("style.unsung.fill", page.Diagnostics[1].Material!.Owner.Source!.Path);
         factory.Error = true; factory.DiagnosticCount = 1;
         Assert.True(fixture.Request(session, 2, 2).Accepted); (await factory.Next()).Release.SetResult();
         var failed = await fixture.Wait(session.PreviewId, status => status.Session.State == "failed");

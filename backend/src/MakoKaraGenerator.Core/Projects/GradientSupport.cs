@@ -34,9 +34,9 @@ public static class GradientSupport
             return "渐变描述本身无效。";
         }
 
-        if (gradient.CoordinateSpace is GradientCoordinateSpace.Glyph or GradientCoordinateSpace.Progress)
+        if (gradient.CoordinateSpace is GradientCoordinateSpace.Glyph)
         {
-            return "字形坐标和逐字进度坐标将在后续版本接入。";
+            return "按单字坐标的渲染在 P3 第 4 步接入。";
         }
 
         if (gradient.ColorSpace == GradientColorSpace.Oklch)

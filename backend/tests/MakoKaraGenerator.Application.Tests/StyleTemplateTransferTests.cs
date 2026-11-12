@@ -33,7 +33,7 @@ public sealed class StyleTemplateTransferTests
         var material = new MaterialSpec.PackageMaterial(package.PackageId, package.Revision, "ink",
             EffectParameterOverrides.Parse("{\"amount\":0.12345678901234567}"));
         var template = StyleTemplate.Create("material", "材质分享", StyleTemplateKind.Line,
-            LyricStyle.Default with { UnsungFill = new() { Material = material } }, [LyricStyleProperty.UnsungColor], packages: [package]);
+            LyricStyle.Default with { UnsungFill = new() { Material = material } }, [LyricStyleProperty.UnsungFill], packages: [package]);
         string index = StyleTemplateLibrary.ResolvePath(temp.Path); StyleTemplateLibrary.Save(index, [template]);
         string archive = temp.FilePath("source-material.mktpl");
         await StyleTemplateTransfer.WriteArchiveAsync(archive, StyleTemplateLibrary.Load(index).Templates);
@@ -63,7 +63,7 @@ public sealed class StyleTemplateTransferTests
         await StyleTemplateTransfer.WriteArchiveAsync(file, loaded); await StyleTemplateTransfer.WriteArchiveAsync(other, loaded);
         Assert.Equal(File.ReadAllBytes(file), File.ReadAllBytes(other)); Directory.Delete(Path.GetDirectoryName(index)!, true);
         var restored = await StyleTemplateTransfer.ReadArchiveAsync(file); Assert.Equal(StyleTemplateLibrary.Encode(loaded), StyleTemplateLibrary.Encode(restored));
-        var staticTemplate = StyleTemplate.Create("static", "静态", StyleTemplateKind.Line, LyricStyle.Default, [LyricStyleProperty.SungColor]);
+        var staticTemplate = StyleTemplate.Create("static", "静态", StyleTemplateKind.Line, LyricStyle.Default, [LyricStyleProperty.SungFill]);
         await StyleTemplateTransfer.WriteArchiveAsync(other, [staticTemplate]); Assert.Empty(Assert.Single(await StyleTemplateTransfer.ReadArchiveAsync(other)).EffectRecipes);
         Assert.Empty(Directory.GetFiles(temp.Path, "*.tmp"));
     }

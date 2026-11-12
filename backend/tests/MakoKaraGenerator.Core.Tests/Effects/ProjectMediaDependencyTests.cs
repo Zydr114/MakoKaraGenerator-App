@@ -173,7 +173,7 @@ public sealed class ProjectMediaDependencyTests
         Assert.IsType<EffectOutputBypass.MaterialFallback>(Assert.Single(material.Outputs).Bypass);
         var project = MediaQueryPackageFixture.Project([package], source: package);
         var plan = ProjectMediaDependencyResolver.Resolve(project); var owner = Assert.Single(plan.Owners);
-        Assert.Equal(ProjectMediaDependencyOwnerKind.SourceMaterial, owner.Kind); Assert.Equal("lyricStyle.unsungFill", owner.Path);
+        Assert.Equal(ProjectMediaDependencyOwnerKind.SourceMaterial, owner.Kind); Assert.Equal("lyricStyle.unsung.fill", owner.Path);
         Assert.Equal("fill", owner.Region); Assert.Empty(project.Effects.Instances);
         Assert.IsType<EffectMediaFallbackReference.OutputBypass>(Assert.Single(plan.Dependencies).Reference.NoMedia);
         Oracle(plan);
@@ -250,7 +250,7 @@ public sealed class ProjectMediaDependencyTests
         var plan = ProjectMediaDependencyResolver.Resolve(project); Assert.Equal(new long[] { 0, 1, 2, 3 }, plan.DistinctWindowsUs);
         Assert.Equal(9, plan.Dependencies.Length); Assert.Equal(5, plan.Owners.Length); Oracle(plan);
         var failed = Assert.Throws<ProjectMediaDependencyException>(() => ProjectMediaDependencyResolver.Resolve(MediaQueryPackageFixture.Project([controller, material], instances, material, "{\"window\":4}")));
-        Assert.Equal("ProjectMediaWindowCapacityExceeded", failed.Code); Assert.Equal("lyricStyle.unsungFill", failed.Owner.Path);
+        Assert.Equal("ProjectMediaWindowCapacityExceeded", failed.Code); Assert.Equal("lyricStyle.unsung.fill", failed.Owner.Path);
         Assert.Equal(ProjectMediaDependencyOwnerKind.SourceMaterial, failed.Owner.Kind);
     }
 
@@ -288,7 +288,7 @@ public sealed class ProjectMediaDependencyTests
         var material = MediaQueryPackageFixture.PureMaterial();
         var badParameter = MediaQueryPackageFixture.Project([material], source: material, sourceParameters: "{\"window\":\"bad\"}");
         var error = Assert.Throws<ProjectMediaDependencyException>(() => ProjectMediaDependencyResolver.Resolve(badParameter));
-        Assert.Equal("lyricStyle.unsungFill", error.Owner.Path); Assert.Equal("fill", error.Owner.Region); Assert.Equal(material.Revision, error.Owner.Revision);
+        Assert.Equal("lyricStyle.unsung.fill", error.Owner.Path); Assert.Equal("fill", error.Owner.Region); Assert.Equal(material.Revision, error.Owner.Revision);
         Assert.Equal("PackageParameterTypeMismatch", error.Code); Assert.Equal("parameters.window", error.Path);
         var restricted = MediaQueryPackageFixture.PureMaterial(m => m["exports"]![0]!["regions"] = new JsonArray("stroke"));
         error = Assert.Throws<ProjectMediaDependencyException>(() => ProjectMediaDependencyResolver.Resolve(MediaQueryPackageFixture.Project([restricted], source: restricted)));

@@ -318,22 +318,10 @@ public static partial class ProjectValidator
     {
         if (style.Typography is not { IsValid: true })
             Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "字体排版参数无效。", location + ".typography");
-        if (style.UnsungFill is not { IsValid: true })
-            Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "未唱填充无效。", location + ".unsungFill");
-        else
-            ValidateGradientSupport(style.UnsungFill.Gradient, location + ".unsungFill.gradient", issues);
-        if (style.SungFill is not { IsValid: true })
-            Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "已唱填充无效。", location + ".sungFill");
-        else
-            ValidateGradientSupport(style.SungFill.Gradient, location + ".sungFill.gradient", issues);
-        if (style.Stroke is { IsValid: false })
-            Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "描边描述无效。", location + ".stroke");
-        else if (style.Stroke?.Gradient is { } strokeGradient)
-            ValidateGradientSupport(strokeGradient, location + ".stroke.gradient", issues);
-        if (style.Shadow is { IsValid: false })
-            Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "阴影描述无效。", location + ".shadow");
-        if (style.Glow is { IsValid: false })
-            Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "辉光描述无效。", location + ".glow");
+        ValidateAppearance(style.Unsung, location + ".unsung", issues);
+        ValidateSungAppearance(style.Sung, location + ".sung", issues);
+        if (style.Wipe is not { IsValid: true })
+            Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "扫字样式无效：羽化比例须在 0 到 2 之间，高亮宽度须为正。", location + ".wipe");
         if (!double.IsFinite(style.VerticalCenterRatio) || style.VerticalCenterRatio is < 0 or > 1)
             Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "纵向中心比例必须是 0 到 1 之间的有限数。", location + ".verticalCenterRatio");
         if (!Enum.IsDefined(style.HorizontalAlignment))
@@ -368,8 +356,32 @@ public static partial class ProjectValidator
             return;
         }
 
-        ValidateFillOverride(styleOverride.UnsungFill, location + ".unsungFill", issues);
-        ValidateFillOverride(styleOverride.SungFill, location + ".sungFill", issues);
+        if (styleOverride.Unsung is { } unsung)
+        {
+            ValidateFillOverride(unsung.Fill, location + ".unsung.fill", issues);
+            if (unsung.Strokes is { } strokes) ValidateStrokes(strokes, location + ".unsung.strokes", issues);
+            if (unsung.Shadow is { IsSet: true, Value: { IsValid: false } })
+                Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "阴影覆盖描述无效。", location + ".unsung.shadow");
+            if (unsung.Glow is { IsSet: true, Value: { IsValid: false } })
+                Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "辉光覆盖描述无效。", location + ".unsung.glow");
+        }
+
+        if (styleOverride.Sung is { } sung)
+        {
+            ValidateFillOverride(sung.Fill, location + ".sung.fill", issues);
+            if (sung.Strokes is { IsSet: true, Value.FollowsUnsung: false } strokes)
+            {
+                if (strokes.Value.Value is { } layers) ValidateStrokes(layers, location + ".sung.strokes", issues);
+                else Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "已唱描边覆盖不能为空。", location + ".sung.strokes");
+            }
+            if (sung.Shadow is { IsSet: true, Value: { FollowsUnsung: false, Value: { IsValid: false } } })
+                Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "阴影覆盖描述无效。", location + ".sung.shadow");
+            if (sung.Glow is { IsSet: true, Value: { FollowsUnsung: false, Value: { IsValid: false } } })
+                Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "辉光覆盖描述无效。", location + ".sung.glow");
+        }
+
+        if (styleOverride.Wipe is { IsValid: false })
+            Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "扫字样式覆盖无效。", location + ".wipe");
 
         if (styleOverride.FontSizePx is { } fontSize && (!float.IsFinite(fontSize) || fontSize <= 0f))
         {
@@ -384,13 +396,6 @@ public static partial class ProjectValidator
             Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "字重覆盖必须在 100 到 900 之间。", location + ".fontWeight");
         if (styleOverride.LetterSpacingPx is { } spacing && !float.IsFinite(spacing))
             Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "字距覆盖必须是有限数。", location + ".letterSpacingPx");
-        if (styleOverride.Stroke is { IsSet: true, Value: { IsValid: false } })
-            Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "描边覆盖描述无效。", location + ".stroke");
-        if (styleOverride.Shadow is { IsSet: true, Value: { IsValid: false } })
-            Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "阴影覆盖描述无效。", location + ".shadow");
-
-        if (styleOverride.Glow is { IsSet: true, Value: { IsValid: false } })
-            Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "辉光覆盖描述无效。", location + ".glow");
 
         if (styleOverride.VerticalCenterRatio is { } ratio && (!double.IsFinite(ratio) || ratio is < 0d or > 1d))
         {
@@ -402,10 +407,6 @@ public static partial class ProjectValidator
                 location + ".verticalCenterRatio");
         }
 
-        if (styleOverride.StrokeWidthPx is < 0f)
-            Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "描边宽度覆盖不能为负数。", location + ".strokeWidthPx");
-        if (styleOverride.ShadowBlurPx is < 0f)
-            Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "阴影模糊半径覆盖不能为负数。", location + ".shadowBlurPx");
         if (styleOverride.Opacity is { } opacity && (!float.IsFinite(opacity) || opacity is < 0f or > 1f))
             Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "不透明度覆盖必须在 0 到 1 之间。", location + ".opacity");
         if (styleOverride.Scale is { } scale && (!float.IsFinite(scale) || scale <= 0f))
@@ -432,6 +433,50 @@ public static partial class ProjectValidator
                 + "整行只整形一次，逐元素改字号/字体/位置/缩放会改变整行度量。",
                 location);
         }
+    }
+
+    private static void ValidateAppearance(TextAppearance appearance, string location, List<ProjectIssue> issues)
+    {
+        ValidateFill(appearance.Fill, location + ".fill", issues);
+        ValidateStrokes(appearance.Strokes, location + ".strokes", issues);
+        if (appearance.Shadow is { IsValid: false })
+            Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "阴影描述无效。", location + ".shadow");
+        if (appearance.Glow is { IsValid: false })
+            Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "辉光描述无效。", location + ".glow");
+    }
+
+    private static void ValidateSungAppearance(SungAppearance appearance, string location, List<ProjectIssue> issues)
+    {
+        ValidateFill(appearance.Fill, location + ".fill", issues);
+        if (!appearance.Strokes.FollowsUnsung)
+        {
+            if (appearance.Strokes.Value is { } strokes) ValidateStrokes(strokes, location + ".strokes", issues);
+            else Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "已唱描边不能为空。", location + ".strokes");
+        }
+        if (appearance.Shadow is { FollowsUnsung: false, Value.IsValid: false })
+            Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "阴影描述无效。", location + ".shadow");
+        if (appearance.Glow is { FollowsUnsung: false, Value.IsValid: false })
+            Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "辉光描述无效。", location + ".glow");
+    }
+
+    private static void ValidateFill(FillSpec fill, string location, List<ProjectIssue> issues)
+    {
+        if (fill is not { IsValid: true })
+            Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "填充无效。", location);
+        else
+            ValidateGradientSupport(fill.Gradient, location + ".gradient", issues);
+    }
+
+    private static void ValidateStrokes(StrokeLayers strokes, string location, List<ProjectIssue> issues)
+    {
+        if (!strokes.IsValid)
+        {
+            Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error,
+                $"描边列表无效：至多 {StrokeLayers.MaxCount} 层，每层宽度须为正，包材质只能用在最内层。", location);
+            return;
+        }
+        for (int index = 0; index < strokes.Count; index++)
+            ValidateGradientSupport(strokes[index].Gradient, $"{location}.{index}.material.gradient", issues);
     }
 
     private static void ValidateFillOverride(OptionalValue<FillSpecOverride?> value,

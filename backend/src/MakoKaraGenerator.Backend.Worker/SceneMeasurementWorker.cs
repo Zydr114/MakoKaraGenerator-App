@@ -49,8 +49,12 @@ internal static class SceneMeasurementWorker
             TransparentBackground = request.AlphaMode == "transparent", CancellationToken = token }, request.Mode == "layout",
             input.EditingLineId, input.EditingCueId, token).ConfigureAwait(false);
         token.ThrowIfCancellationRequested();
-        if (measured.Frame.DiagnosticSnapshot.HasError || !measured.Frame.ImageEffectDiagnostics.IsEmpty || !measured.Frame.MaterialDiagnostics.IsEmpty)
+        if (measured.Frame.DiagnosticSnapshot.HasError)
             throw new WorkerProtocolException("实际Runtime诊断禁止测量像素发布。", "WorkerRuntimeDiagnosticError");
+        // 缺背景的图效果／材质已按声明兜底；同帧测量照常返回，兜底诊断去重后随结果给出。
+        BackendFallbackDiagnosticCollector fallback = new();
+        fallback.Add(measured.Frame);
+        if (fallback.Truncated) throw new WorkerProtocolException("测量兜底诊断超过预算。", "SceneMeasurementBudgetExceeded");
         var scene = measured.Scene;
         if (scene.Definition.Elements.Length > SceneMeasurementContract.MaximumElements
             || scene.Elements.Sum(element => (long)element.WorldCorners.Length) > SceneMeasurementContract.MaximumCorners)
@@ -78,7 +82,8 @@ internal static class SceneMeasurementWorker
         var data = new SceneMeasurementDataDto(input.SourceSha256, input.SampleInputFingerprint, runtimeInput.SourceProfile,
             request.Mode == "layout" ? SceneMeasurementContract.LayoutProfile : input.EditingLineId is null ? SceneMeasurementContract.TimedProfile : "line-reference-v1",
             request.Mode, request.Mode == "layout" ? null : scene.TimeUs.ToString(CultureInfo.InvariantCulture), snapshot.Composition.CanvasWidth,
-            snapshot.Composition.CanvasHeight, request.Width, request.Height, request.AlphaMode, output, WorkerProtocol.ComputeSha256(png), png);
+            snapshot.Composition.CanvasHeight, request.Width, request.Height, request.AlphaMode, output, WorkerProtocol.ComputeSha256(png), png,
+            FallbackDiagnostics: fallback.ToArray());
         WorkerAttachmentGeometryDto? attachment = null;
         if (input.AttachmentContainerId is { } container)
         {

@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Globalization;
 using System.Text.Json;
 using MakoKaraGenerator.Backend.Contracts;
+using MakoKaraGenerator.Backend.Rendering;
 using MakoKaraGenerator.Rendering;
 using MakoKaraGenerator.Scripting;
 
@@ -38,24 +39,11 @@ internal static class BackendPreviewDiagnosticsMapper
         foreach (var s in source)
             values.Add(new(s.Code, s.IsError ? "error" : "warning", s.Message, null, OriginKind: "compileSource",
                 Source: new(s.PackageId, s.Revision, s.InstanceId, s.ExportId, s.Code, s.Message, s.IsError, s.Path, s.Line, s.Column)));
-        foreach (var i in image)
-            values.Add(new(i.Code, "warning", i.Code == "BackgroundMediaUnavailable" ? "背景媒体不可用（未设置、文件丢失或该时刻无帧），图效果已旁路为原样。" : "图效果使用了已声明的降级行为。", null, OriginKind: "imageEffect",
-                ImageEffect: new(i.InstanceId.Value, i.ArtifactHash, Resource(i.Graph.Identity), i.InputId, i.Code)));
-        foreach (var m in material)
-            values.Add(new(m.Code, "warning", m.Code == "BackgroundMediaUnavailable" ? "背景媒体不可用（未设置、文件丢失或该时刻无帧），材质已退回包内兜底外观。" : "材质使用了已声明的降级行为。", null, OriginKind: "material",
-                Material: new(Owner(m.Owner), Resource(m.Material.Identity), m.InputId, m.Code)));
+        foreach (var i in image) values.Add(BackendFallbackDiagnostics.Map(i));
+        foreach (var m in material) values.Add(BackendFallbackDiagnostics.Map(m));
         BackendDiagnosticDto[] result = [.. values];
         if (JsonSerializer.SerializeToUtf8Bytes(result, PublicJsonOptions).Length > BackendPreviewDiagnosticsLimits.MaximumJsonBytes) throw Budget();
         return result;
     }
-    private static BackendDiagnosticResourceDto Resource(ResourceIdentity value) => new(value.PackageId, value.Revision, value.ExportId);
-    private static BackendDiagnosticMaterialOwnerDto Owner(PreparedMaterialOwner owner) => owner switch
-    {
-        PreparedMaterialOwner.Script s => new("script", Script: new(s.InstanceId.Value, s.ArtifactHash,
-            s.PackageIdentity is null ? null : new(s.PackageIdentity.PackageId, s.PackageIdentity.Revision, s.PackageIdentity.ExportId))),
-        PreparedMaterialOwner.Source s => new("source", Source: new(s.Reference.Path, s.Reference.Region, (int)s.Slot,
-            new(s.Reference.Material.PackageId, s.Reference.Material.Revision, s.Reference.Material.ExportId), s.Reference.Material.Parameters.Json)),
-        _ => throw new RenderSessionFailureException("PreviewDiagnosticsInvalid", "材质诊断缺少真实来源。"),
-    };
     private static RenderSessionFailureException Budget() => new("PreviewDiagnosticsBudgetExceeded", "完整诊断超过预览预算。");
 }

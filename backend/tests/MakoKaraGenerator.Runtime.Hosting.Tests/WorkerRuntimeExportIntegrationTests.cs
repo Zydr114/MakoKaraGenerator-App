@@ -44,6 +44,52 @@ public sealed class WorkerRuntimeExportIntegrationTests
     }
 
     [Theory]
+    [InlineData("transparentProRes4444", true, "TransparentBackgroundDependency")]
+    [InlineData("opaqueMp4", true, "BackgroundMediaUnavailable")]
+    [InlineData("opaqueMp4", false, null)]
+    public async Task 真实Worker缺背景材质照预览兜底导出并在报告列出去重诊断(string format, bool background, string? code)
+    {
+        using TemporaryDirectory temp = new();
+        Project project = ProjectSnapshotSourceProject.Restore(Snapshot("static"));
+        var contents = MixedEffectPackageFixture.Contents(pure: true, background: background);
+        var material = new MaterialSpec.PackageMaterial(contents.PackageId, contents.Revision, "ink");
+        ProjectSnapshot snapshot = ProjectSnapshot.FromProject(project with
+        {
+            Effects = new([contents], []),
+            LyricStyle = project.LyricStyle with { UnsungFill = new() { Material = material } },
+        });
+        using var lease = BackendProjectRuntimeInputLease.CreateDetached(snapshot);
+        var preparedResult = await lease.PrepareAsync();
+        Assert.True(preparedResult.Accepted, preparedResult.Error?.Message);
+        using var prepared = preparedResult.Response!;
+        var executor = Executor(); await executor.ProbeAsync();
+        string candidate = temp.FilePath(format == "opaqueMp4" ? "fallback.mp4" : "fallback.mov");
+        ExportReportDto report = await executor.ExecuteAsync(snapshot,
+            new(format, false, candidate, null, RuntimeSource: prepared.SourceBytes));
+        Assert.True(report.StrictlyVerified);
+        Assert.Equal(3, report.FramesWritten);
+        Assert.Equal(WorkerProtocol.ComputeSha256(await File.ReadAllBytesAsync(candidate)), report.Sha256);
+        // 兜底只以结构化诊断出现，不再混进文字警告。
+        Assert.DoesNotContain(report.Warnings, warning => warning.Contains("已跳过背景依赖输入", StringComparison.Ordinal));
+        Assert.False(report.FallbackDiagnosticsTruncated);
+        if (code is null)
+        {
+            Assert.Empty(report.FallbackDiagnostics);
+            Assert.Equal(0, report.FallbackFrameCount);
+            return;
+        }
+        Assert.Equal(3, report.FallbackFrameCount);
+        Assert.NotEmpty(report.FallbackDiagnostics);
+        Assert.Equal(report.FallbackDiagnostics.Length, report.FallbackDiagnostics.Distinct().Count());
+        Assert.All(report.FallbackDiagnostics, diagnostic =>
+        {
+            Assert.Equal(("material", "warning", code), (diagnostic.OriginKind, diagnostic.Severity, diagnostic.Code));
+            Assert.Equal("source", diagnostic.Material!.Owner.Kind);
+            Assert.Equal(contents.Revision, diagnostic.Material.Material.Revision);
+        });
+    }
+
+    [Theory]
     [InlineData("presets", "opaqueMp4")]
     [InlineData("presets", "transparentProRes4444")]
     [InlineData("advanced", "opaqueMp4")]

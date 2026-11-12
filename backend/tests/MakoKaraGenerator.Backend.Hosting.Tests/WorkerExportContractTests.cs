@@ -102,6 +102,61 @@ public sealed class WorkerExportContractTests
         };
         Assert.Throws<WorkerProtocolException>(() => WorkerExportContract.ValidateReport(report, expected));
     }
+    [Theory]
+    [InlineData("valid", true)] [InlineData("truncated", true)] [InlineData("truncated-only", true)]
+    [InlineData("null", false)] [InlineData("runtime-origin", false)] [InlineData("error-severity", false)]
+    [InlineData("duplicate", false)] [InlineData("count", false)] [InlineData("bytes", false)]
+    [InlineData("frames-without-items", false)] [InlineData("items-without-frames", false)]
+    [InlineData("truncated-without-frames", false)] [InlineData("frames-over-total", false)] [InlineData("negative-frames", false)]
+    public void 兜底诊断去重有界且与兜底帧数一致(string mode, bool valid)
+    {
+        var expected = new WorkerExportReportExpectation("opaqueMp4", false, 320, 180, 30, 1, 30, 1_000_000);
+        BackendDiagnosticResourceDto resource = new("package", "sha256:" + new string('a', 64), "ink");
+        BackendDiagnosticDto Item(int index, string input = "background") => new("TransparentBackgroundDependency", "warning",
+            "透明输出没有背景，材质已退回包内兜底外观。", null, OriginKind: "material",
+            Material: new(new("source", Source: new("lyricStyle", "unsung.fill", 0, resource, "{}")), resource, input + index,
+                "TransparentBackgroundDependency"));
+        var report = Report();
+        report = mode switch
+        {
+            "valid" => report with { FallbackDiagnostics = [Item(0), Item(1)], FallbackFrameCount = 30 },
+            "truncated" => report with { FallbackDiagnostics = [Item(0)], FallbackFrameCount = 2, FallbackDiagnosticsTruncated = true },
+            "truncated-only" => report with { FallbackFrameCount = 1, FallbackDiagnosticsTruncated = true },
+            "null" => report with { FallbackDiagnostics = null! },
+            "runtime-origin" => report with { FallbackDiagnostics = [Item(0) with { OriginKind = "runtime" }], FallbackFrameCount = 1 },
+            "error-severity" => report with { FallbackDiagnostics = [Item(0) with { Severity = "error" }], FallbackFrameCount = 1 },
+            "duplicate" => report with { FallbackDiagnostics = [Item(0), Item(0)], FallbackFrameCount = 1 },
+            "count" => report with { FallbackDiagnostics = [.. Enumerable.Range(0, BackendFallbackDiagnosticsContract.MaximumItems + 1).Select(i => Item(i))],
+                FallbackFrameCount = 1 },
+            "bytes" => report with { FallbackDiagnostics = [.. Enumerable.Range(0, 60).Select(i => Item(i, new('x', 2048)))], FallbackFrameCount = 1 },
+            "frames-without-items" => report with { FallbackFrameCount = 1 },
+            "items-without-frames" => report with { FallbackDiagnostics = [Item(0)] },
+            "truncated-without-frames" => report with { FallbackDiagnosticsTruncated = true },
+            "frames-over-total" => report with { FallbackDiagnostics = [Item(0)], FallbackFrameCount = 31 },
+            "negative-frames" => report with { FallbackDiagnostics = [Item(0)], FallbackFrameCount = -1 },
+            _ => throw new ArgumentException(mode),
+        };
+        if (!valid)
+        {
+            Assert.Throws<WorkerProtocolException>(() => WorkerExportContract.ValidateReport(report, expected));
+            return;
+        }
+        var decoded = WorkerExportContract.DecodeReport(WorkerExportContract.EncodeReport(report, expected), expected);
+        Assert.Equal(report.FallbackDiagnostics, decoded.FallbackDiagnostics);
+        Assert.Equal((report.FallbackFrameCount, report.FallbackDiagnosticsTruncated), (decoded.FallbackFrameCount, decoded.FallbackDiagnosticsTruncated));
+    }
+    [Fact]
+    public void 升级前登记的报告没有兜底三项仍按空读取()
+    {
+        var expected = new WorkerExportReportExpectation("opaqueMp4", false, 320, 180, 30, 1, 30, 1_000_000);
+        var json = System.Text.Json.Nodes.JsonNode.Parse(WorkerExportContract.EncodeReport(Report(), expected))!.AsObject();
+        Assert.True(json.Remove("fallbackDiagnostics") && json.Remove("fallbackFrameCount") && json.Remove("fallbackDiagnosticsTruncated"));
+        var decoded = WorkerExportContract.DecodeReport(System.Text.Encoding.UTF8.GetBytes(json.ToJsonString()), expected);
+        Assert.Empty(decoded.FallbackDiagnostics);
+        Assert.Equal((0, false), (decoded.FallbackFrameCount, decoded.FallbackDiagnosticsTruncated));
+        json["fallbackFrameCount"] = 1;
+        Assert.Throws<WorkerProtocolException>(() => WorkerExportContract.DecodeReport(System.Text.Encoding.UTF8.GetBytes(json.ToJsonString()), expected));
+    }
     [Fact]
     public void 原验证标记不被强profile静默改写且完整报告有界()
     {
@@ -171,7 +226,7 @@ public sealed class WorkerExportContractTests
         WorkerProtocol.Validate(primary); Assert.Equal("ActualError", primary.ErrorCode); Assert.Null(primary.ExportDiagnostics);
     }
     private static ExportReportDto Report() => new("opaqueMp4", false, 30, 30, 30, 0, 0, 320, 180, 30, 1, "1000000", "1000000", null,
-        "h264", null, "yuv420p", false, 1000, new('a', 64), [], [], true, null, true);
+        "h264", null, "yuv420p", false, 1000, new('a', 64), [], [], true, null, true, FallbackDiagnostics: []);
     private static byte[] Wave()
     {
         byte[] bytes = new byte[60]; "RIFF"u8.CopyTo(bytes); BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(4, 4), 52);

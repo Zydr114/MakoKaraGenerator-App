@@ -53,7 +53,8 @@ public sealed partial class WorkerProcessProxy
             || data.Mode != input.Request.Mode || data.Elements is null || data.Elements.Length > SceneMeasurementContract.MaximumElements
             || data.Elements.Any(element => element is null || string.IsNullOrWhiteSpace(element.Id) || element.WorldCorners is null)
             || data.Elements.Sum(element => (long)element.WorldCorners.Length) > SceneMeasurementContract.MaximumCorners
-            || data.Png is null || data.PngSha256 != WorkerProtocol.ComputeSha256(data.Png))
+            || data.Png is null || data.PngSha256 != WorkerProtocol.ComputeSha256(data.Png)
+            || !BackendFallbackDiagnosticsContract.IsValid(data.FallbackDiagnostics))
             throw new WorkerProtocolException("测量回执不属于当前固定输入。");
         var renderSnapshot = input.Request.Mode == "layout" ? MakoKaraGenerator.Rendering.LayoutReferenceScene.CreateSnapshot(snapshot) : snapshot;
         var definitions = MakoKaraGenerator.Rendering.SceneDefinitionBuilder.Build(renderSnapshot).Elements.ToDictionary(element => element.Id, StringComparer.Ordinal);

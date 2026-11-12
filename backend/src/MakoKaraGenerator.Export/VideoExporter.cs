@@ -178,10 +178,13 @@ public sealed class VideoExporter
                     }
                 }
 
-                foreach (var diagnostic in frame.ImageEffectDiagnostics)
-                    if (imageWarnings.Add(diagnostic)) warnings.Add($"效果 {diagnostic.InstanceId.Value} 的图 {diagnostic.Graph.Identity.ExportId} 已跳过背景依赖输入 {diagnostic.InputId}（{diagnostic.Code}），使用原输入喵。");
-                foreach (var diagnostic in frame.MaterialDiagnostics)
-                    if (materialWarnings.Add(diagnostic)) warnings.Add($"{diagnostic.OwnerDescription} 的材质 {diagnostic.Material.Identity.ExportId} 已跳过背景依赖输入 {diagnostic.InputId}（{diagnostic.Code}），使用包内基础外观喵。");
+                if (options.FallbackWarnings)
+                {
+                    foreach (var diagnostic in frame.ImageEffectDiagnostics)
+                        if (imageWarnings.Add(diagnostic)) warnings.Add($"效果 {diagnostic.InstanceId.Value} 的图 {diagnostic.Graph.Identity.ExportId} 已跳过背景依赖输入 {diagnostic.InputId}（{diagnostic.Code}），使用原输入喵。");
+                    foreach (var diagnostic in frame.MaterialDiagnostics)
+                        if (materialWarnings.Add(diagnostic)) warnings.Add($"{diagnostic.OwnerDescription} 的材质 {diagnostic.Material.Identity.ExportId} 已跳过背景依赖输入 {diagnostic.InputId}（{diagnostic.Code}），使用包内基础外观喵。");
+                }
                 foreach (var occurrence in sceneCursor.ReadNew(frame.DiagnosticSnapshot))
                 {
                     sceneOccurrences.Add(occurrence); var diagnostic = occurrence.Diagnostic;

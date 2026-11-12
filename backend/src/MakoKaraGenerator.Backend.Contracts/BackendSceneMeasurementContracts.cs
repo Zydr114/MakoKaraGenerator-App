@@ -23,7 +23,8 @@ public sealed record SceneMeasurementDataDto(string SourceSha256, string SampleI
     string SamplingProfile, string Mode,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? TimeUs, int CanvasWidth, int CanvasHeight, int Width, int Height,
     string AlphaMode, SceneMeasurementElementDto[] Elements, string PngSha256, byte[] Png,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? RenderBackend = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? RenderBackend = null,
+    BackendDiagnosticDto[] FallbackDiagnostics = null!);
 
 public sealed record SceneMeasurementResponse(string ProjectSessionId, string ProjectRevision,
     SceneMeasurementDataDto Measurement, string ProtocolVersion = BackendProtocol.Version);

@@ -93,7 +93,8 @@ internal sealed class BackendJobArtifactStore
         string id = "artifact-" + ValidateJobId(jobId);
         string mime = report.Format == "opaqueMp4" ? "video/mp4" : "video/quicktime";
         reservation.PreparedResult = new(new(id, mime, report.MediaSize, report.Sha256),
-            new("report-" + ValidateJobId(jobId), reportBytes.LongLength, WorkerProtocol.ComputeSha256(reportBytes)));
+            new("report-" + ValidateJobId(jobId), reportBytes.LongLength, WorkerProtocol.ComputeSha256(reportBytes)),
+            report.FallbackDiagnostics.Length);
     }
 
     internal ExportJobResultDto Publish(Reservation reservation)

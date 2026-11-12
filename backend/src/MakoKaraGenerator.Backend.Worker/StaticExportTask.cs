@@ -158,7 +158,8 @@ internal static class StaticExportTask
             ? runtimeInput!.CreateFactory(ReplayReason.Initial, renderBackend: renderBackend, graphPixelChecks: false)
             : imageExport ? new ProjectRenderSessionFactory(prepared.Compiler, new FfmpegVideoFrameProvider(), ReplayReason.Initial,
                 imageResolverFactory, renderBackend: renderBackend, graphPixelChecks: false) : sessions!;
-        var strict = new StrictFactory(factory, metadata, snapshot.MediaFeatureInput);
+        BackendFallbackDiagnosticCollector fallback = new();
+        var strict = new StrictFactory(factory, metadata, snapshot.MediaFeatureInput, fallback);
         var probe = new StrictProbe(new FfmpegMediaProbe(metadata.FfprobePath), metadata, plan, snapshot.Composition, decodedAudio);
         var encoder = new StrictEncoder(new FfmpegMediaEncoder(metadata.FfmpegPath), metadata, plan);
         var channel = Channel.CreateBounded<(long Sequence, ExportProgress Progress)>(new BoundedChannelOptions(1)
@@ -172,7 +173,8 @@ internal static class StaticExportTask
                 new() { OutputPath = metadata.CandidatePath!, IncludeAudio = metadata.IncludeAudio, Overwrite = false,
                     Format = metadata.Format == "opaqueMp4" ? ExportVideoFormat.OpaqueMp4 : ExportVideoFormat.TransparentProRes4444,
                     Quality = Quality(metadata.Quality), RenderQuality = RenderQuality.Final, Timeout = metadata.ResourcePolicy?.OperationTimeoutSeconds is { } seconds ? TimeSpan.FromSeconds(seconds) : Timeout.InfiniteTimeSpan,
-                    AudioEncodingPlanOverride = compressedAudio ? CompressedAudioEncodingPlan(metadata.Format) : null },
+                    AudioEncodingPlanOverride = compressedAudio ? CompressedAudioEncodingPlan(metadata.Format) : null,
+                    FallbackWarnings = false },
                 new InlineProgress(value => channel.Writer.TryWrite((++sequence, value))), operation.Token).ConfigureAwait(false);
             if (metadata.Audio is { } pinned) await ValidateAudioAsync(pinned, plan, token).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
@@ -189,7 +191,9 @@ internal static class StaticExportTask
                 video.CodecName, produced.Audio?.CodecName, video.PixelFormat!, video.HasAlpha, file.Length, sha,
                 [.. original.Warnings.Select(Sanitize)], [.. original.DiagnosticOccurrences.Select(MapDiagnostic)], original.IsVerified,
                 produced.Audio is { } outputAudio ? Text(outputAudio.DurationUs) : null, true, metadata.Quality,
-                original.Quality?.ToString().ToLowerInvariant() ?? throw Fail("WorkerExportQualityMismatch"));
+                original.Quality?.ToString().ToLowerInvariant() ?? throw Fail("WorkerExportQualityMismatch"),
+                FallbackDiagnostics: fallback.ToArray(), FallbackFrameCount: fallback.FrameCount, FallbackDiagnosticsTruncated: fallback.Truncated);
+            dto = FitReportBudget(dto);
             byte[] payload = WorkerExportContract.EncodeReport(dto, Expectation(snapshot, metadata.Format, metadata.IncludeAudio, plan, metadata.Audio?.AudioProfile, metadata.Quality, metadata.ResourcePolicy));
             channel.Writer.TryComplete(); await pump.ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
@@ -245,6 +249,20 @@ internal static class StaticExportTask
             if (metadata.Audio is { } audio) result = result.Replace(audio.Path, "[audio]", StringComparison.Ordinal);
             return result;
         }
+    }
+
+    /// <summary>兜底诊断让完整报告超出预算时从末尾丢弃并标记截断；兜底不让导出失败。</summary>
+    internal static ExportReportDto FitReportBudget(ExportReportDto report)
+    {
+        int size = WorkerExportContract.EncodeJson(report, int.MaxValue).Length;
+        int count = report.FallbackDiagnostics.Length;
+        while (size > WorkerExportContract.MaximumReportBytes && count > 0)
+        {
+            count--;
+            size -= WorkerExportContract.EncodeJson(report.FallbackDiagnostics[count], int.MaxValue).Length + (count > 0 ? 1 : 0);
+        }
+        return count == report.FallbackDiagnostics.Length ? report
+            : report with { FallbackDiagnostics = report.FallbackDiagnostics[..count], FallbackDiagnosticsTruncated = true };
     }
 
     private static ExportQuality Quality(string quality) => quality switch
@@ -430,7 +448,7 @@ internal static class StaticExportTask
         }
     }
     private sealed class StrictFactory(IRenderFrameSessionFactory inner, WorkerExportMetadata metadata,
-        MakoKaraGenerator.Core.Media.MediaFeatureInput? media) : IRenderFrameSessionFactory
+        MakoKaraGenerator.Core.Media.MediaFeatureInput? media, BackendFallbackDiagnosticCollector fallback) : IRenderFrameSessionFactory
     {
         public async ValueTask<IRenderFrameSession> CreateAsync(ProjectSnapshot snapshot, CancellationToken cancellationToken = default)
         {
@@ -438,10 +456,10 @@ internal static class StaticExportTask
             // 不同输入仍由会话准入按宿主绑定拒绝。逐帧请求携带原导出器快照，同样换成补回后的实例。
             ProjectSnapshot exporter = snapshot;
             if (media is not null && snapshot.MediaFeatureInput is null) snapshot = snapshot with { MediaFeatureInput = media };
-            return new Session(await inner.CreateAsync(snapshot, cancellationToken).ConfigureAwait(false), metadata, exporter, snapshot);
+            return new Session(await inner.CreateAsync(snapshot, cancellationToken).ConfigureAwait(false), metadata, exporter, snapshot, fallback);
         }
         private sealed class Session(IRenderFrameSession inner, WorkerExportMetadata metadata,
-            ProjectSnapshot exporter, ProjectSnapshot fixedInput) : IRenderFrameSession
+            ProjectSnapshot exporter, ProjectSnapshot fixedInput, BackendFallbackDiagnosticCollector fallback) : IRenderFrameSession
         {
             private readonly RuntimeDiagnosticCursor _cursor = new(); private int _occurrences, _bytes;
             public async ValueTask<RenderFrame> RenderAsync(RenderRequest request, CancellationToken cancellationToken = default)
@@ -452,7 +470,6 @@ internal static class StaticExportTask
                     if (!ReferenceEquals(exporter, fixedInput) && ReferenceEquals(request.Project, exporter)) request = request with { Project = fixedInput };
                     frame = await inner.RenderAsync(request, cancellationToken).ConfigureAwait(false);
                     if (frame.DiagnosticSnapshot.HasError) throw new RenderSessionFailureException("WorkerRuntimeDiagnosticError", "实际Error禁止导出。", frame.DiagnosticSnapshot);
-                    if (!frame.MaterialDiagnostics.IsEmpty || !frame.ImageEffectDiagnostics.IsEmpty) throw Fail("WorkerExportDiagnosticsUnsupported");
                     foreach (var occurrence in _cursor.ReadNew(frame.DiagnosticSnapshot))
                     {
                         if (++_occurrences > WorkerExportContract.MaximumOccurrences) throw Fail("WorkerExportReportBudgetExceeded");
@@ -463,6 +480,8 @@ internal static class StaticExportTask
                         || frame.Height != request.ResolveTarget().PixelHeight || frame.TimeUs != request.TimeUs
                         || request.Quality != RenderQuality.Final || request.TransparentBackground != (metadata.Format == "transparentProRes4444"))
                         throw Fail("WorkerExportFrameMismatch");
+                    // 缺背景的图效果／材质已按声明兜底，照预览继续导出；去重后随报告返回。
+                    fallback.Add(frame);
                     return frame;
                 }
                 catch (Exception failure) { frame?.Dispose(); if (failure is OperationCanceledException or RenderSessionFailureException) throw;

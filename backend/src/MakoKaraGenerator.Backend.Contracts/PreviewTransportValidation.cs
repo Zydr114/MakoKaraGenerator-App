@@ -122,7 +122,7 @@ public static class PreviewTransportValidation
     private static bool Revision(string? value) => value is { Length: 71 } && value.StartsWith("sha256:", StringComparison.Ordinal) && IsSha256(value[7..]);
     private static bool Artifact(string? value) => IsSha256(value) || Revision(value);
     private static bool Resource(BackendDiagnosticResourceDto? value) => value is not null && Text(value.PackageId) && Revision(value.Revision) && Text(value.ExportId);
-    private static bool ValidPackageDiagnostic(BackendDiagnosticDto d)
+    internal static bool ValidPackageDiagnostic(BackendDiagnosticDto d)
     {
         if (d.Occurrence is not null || d.Location is not null) return false;
         if (d.OriginKind == "compileSource" && d.Source is { } s && d.ImageEffect is null && d.Material is null)

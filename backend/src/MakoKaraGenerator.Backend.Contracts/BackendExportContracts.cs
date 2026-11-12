@@ -12,7 +12,12 @@ public sealed record ExportReportDto(string Format, bool AudioIncluded, int Expe
     string? AudioDurationUs, string VideoCodec, string? AudioCodec, string PixelFormat, bool HasAlpha,
     long MediaSize, string Sha256, string[] Warnings, BackendDiagnosticDto[] Diagnostics, bool IsVerified, string? ActualAudioDurationUs = null, bool StrictlyVerified = false,
     string RequestedQuality = "standard", string ActualQuality = "standard",
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? RenderBackend = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? RenderBackend = null,
+    BackendDiagnosticDto[] FallbackDiagnostics = null!, int FallbackFrameCount = 0, bool FallbackDiagnosticsTruncated = false)
+{
+    /// <summary>去重后的兜底诊断。0.112.86 之前登记的报告没有兜底三项，读取时按空数组、0 与 false，旧产物升级后仍可读取。</summary>
+    public BackendDiagnosticDto[] FallbackDiagnostics { get; init; } = FallbackDiagnostics ?? [];
+}
 
 public sealed record BackendExportAudioReferenceDto(string AssetId, long SizeBytes, string Sha256,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? AudioProfile = null);
@@ -23,7 +28,8 @@ public sealed record BackendExportInputDto(string Format, bool IncludeAudio, Bac
     string Quality = "standard",
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? RenderBackend = null);
 public sealed record BackendExportArtifactReferenceDto(string ArtifactId, string ContentType, long SizeBytes, string Sha256);
-public sealed record ExportJobResultDto(BackendExportArtifactReferenceDto Artifact, BackendJobReportReferenceDto Report);
+public sealed record ExportJobResultDto(BackendExportArtifactReferenceDto Artifact, BackendJobReportReferenceDto Report,
+    int FallbackDiagnosticCount = 0);
 
 public sealed record ExportDiagnosticsPageDto(string JobId, string ReportSha256, BackendDiagnosticDto[] Diagnostics,
     string? NextCursor, string? Cursor = null);

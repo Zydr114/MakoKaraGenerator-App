@@ -154,7 +154,7 @@ public sealed class WorkerExportProcessTests(ITestOutputHelper output)
         {
             Probe probe = new(mode); await File.WriteAllTextAsync(probe._temp.FilePath("probe.py"), Source);
             var report = new ExportReportDto("opaqueMp4", false, 30, 30, 30, 0, 0, 320, 180, 30, 1, "1000000", "1000000", null,
-                "h264", null, "yuv420p", false, 1000, new('a', 64), [], [], true, null, true);
+                "h264", null, "yuv420p", false, 1000, new('a', 64), [], [], true, null, true, FallbackDiagnostics: []);
             await File.WriteAllTextAsync(probe._temp.FilePath("report.json"), JsonSerializer.Serialize(report, Json));
             var capabilities = new WorkerExportCapabilitiesDto(true, true, true,
                 EngineIdentity: mode == "cap-engine" ? "old-engine" : StaticProjectSnapshotCodec.EngineIdentity,

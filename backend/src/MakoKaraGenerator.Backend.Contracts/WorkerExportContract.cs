@@ -151,6 +151,13 @@ public static class WorkerExportContract
             || !expected.IncludeAudio && (report.AudioCodec is not null || report.AudioDurationUs is not null)) throw Invalid("实际格式、Alpha或音轨不符合固定导出选项。");
         if (expected.IncludeAudio ? !Number(report.ActualAudioDurationUs, out long actualAudio) || Math.Abs(actualAudio - duration) > 50_000
             : report.ActualAudioDurationUs is not null) throw Invalid("实际产物音轨时长不符合明示的50ms量化容差。");
+        // 兜底诊断：有兜底帧就至少有一条诊断或标了截断；没有兜底帧则两者都为空。
+        if (!BackendFallbackDiagnosticsContract.IsValid(report.FallbackDiagnostics)
+            || report.FallbackFrameCount < 0 || report.FallbackFrameCount > expected.TotalFrames
+            || (report.FallbackFrameCount == 0
+                ? report.FallbackDiagnostics.Length != 0 || report.FallbackDiagnosticsTruncated
+                : report.FallbackDiagnostics.Length == 0 && !report.FallbackDiagnosticsTruncated))
+            throw Invalid("导出兜底诊断、帧数或截断标记无效。");
         Dictionary<Guid, long> sequences = [];
         foreach (var diagnostic in report.Diagnostics)
         {

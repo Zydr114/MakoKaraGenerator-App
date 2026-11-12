@@ -47,6 +47,10 @@ public sealed record VideoExportOptions
     /// <remarks>此选项不授予音频路径访问能力，也不代替调用方对固定来源和完整时长的验证。</remarks>
     public AudioEncodingPlan? AudioEncodingPlanOverride { get; init; }
 
+    /// <summary>是否把图效果与材质的兜底诊断写成报告文字警告；默认写。</summary>
+    /// <remarks>调用方自行收集结构化兜底诊断时关掉，避免同一件事在文字警告里再出现一次。</remarks>
+    public bool FallbackWarnings { get; init; } = true;
+
     /// <summary>默认超时。</summary>
     /// <remarks>六小时：远大于正常成片所需的几分钟，只用来兜住"编码卡死"这类情况。</remarks>
     public static TimeSpan DefaultTimeout { get; } = TimeSpan.FromHours(6d);

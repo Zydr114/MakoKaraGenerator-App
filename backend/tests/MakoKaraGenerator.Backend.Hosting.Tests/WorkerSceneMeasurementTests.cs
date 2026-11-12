@@ -110,6 +110,37 @@ public sealed class WorkerSceneMeasurementTests(ITestOutputHelper output)
         output.WriteLine($"Large actual TTC font measured Worker PID={pid}, mode={mode}; fixed Host snapshot validated and Worker exited.");
     }
 
+    [Theory]
+    [InlineData("transparent", "TransparentBackgroundDependency")]
+    [InlineData("opaque", "BackgroundMediaUnavailable")]
+    public async Task 真实Worker同帧测量对缺背景材质照常返回并带去重兜底诊断(string alpha, string code)
+    {
+        // 源材质按字（token）施加，测量工程需要带字的行。
+        var original = Snapshot() with { Lyrics = LyricsDocument.Create([LyricLine.Create("actual-line", "Measured", new TimeRange(0, 2_000_000),
+            TimingStatus.Confirmed, [LyricToken.Create("token", "Measured", new TimeRange(0, 2_000_000), TimingStatus.Confirmed)])]) };
+        var contents = MixedEffectPackageFixture.Contents(pure: true, background: true);
+        var material = new MaterialSpec.PackageMaterial(contents.PackageId, contents.Revision, "ink");
+        var project = ProjectSnapshotSourceProject.Restore(original) with {
+            Effects = new([contents], []), LyricStyle = original.LyricStyle with { UnsungFill = new() { Material = material } } };
+        var snapshot = ProjectSnapshot.FromProject(project);
+        using var lease = BackendProjectRuntimeInputLease.CreateDetached(snapshot);
+        var preparation = await lease.PrepareAsync();
+        Assert.True(preparation.Accepted, preparation.Error?.Message);
+        using var prepared = preparation.Response!;
+        byte[] source = prepared.SourceBytes.ToArray();
+        var request = new SceneMeasurementRequest("0", "time", "250000", 320, 180, alpha);
+        await using var worker = new WorkerProcessProxy(Options());
+        var result = await worker.MeasureSceneAsync(Input(source, request), source, snapshot, CancellationToken.None);
+        Assert.True(SceneMeasurementContract.IsValidPng(result.Measurement.Png, 320, 180));
+        Assert.NotEmpty(result.Measurement.FallbackDiagnostics);
+        Assert.All(result.Measurement.FallbackDiagnostics, diagnostic =>
+        {
+            Assert.Equal(("material", "warning", code), (diagnostic.OriginKind, diagnostic.Severity, diagnostic.Code));
+            Assert.Equal("source", diagnostic.Material!.Owner.Kind);
+        });
+        output.WriteLine($"Fallback measurement alpha={alpha}: {result.Measurement.FallbackDiagnostics.Length} diagnostics.");
+    }
+
     [Fact]
     public async Task 真实Worker槽动画进入保持退出输出稳定槽节点并保留完整校验()
     {

@@ -119,7 +119,7 @@ M07 没有另一个已接通的 `IPureVisualEffect`、`VisualFrame` 或 `VisualO
 
 顶层 `requires` 是有限能力列表；未知值读取时以 `PackageCapabilityUnsupported` 拒绝。
 当前白名单是：`token.affine`、`line.affine`、`group.affine`、`mark.affine`、`cluster.affine`、
-`token.opacity`、`group.opacity`、`style.fill`、`style.stroke`、`style.shadow`、`style.glow`、`timeline.index`、`line.exit`，
+`token.opacity`、`group.opacity`、`style.fill`、`style.stroke`、`style.shadow`、`style.glow`、`style.wipe`、`timeline.index`、`line.exit`，
 以及 M08/M09 增加的 `particles.continuous`、`particles.burst`、`visuals.dots`、`visuals.segments`、
 `visuals.trails`、`visuals.sprites`、`visuals.paths`、`token.warp`、`cluster.warp`、`mark.warp`、
 `resources.svg.vector`、`resources.svg.atlas`、`image.graph`、`image.graph.group`、`material.uniform`。
@@ -127,13 +127,13 @@ M07 没有另一个已接通的 `IPureVisualEffect`、`VisualFrame` 或 `VisualO
 
 `TextTarget` 是封闭目标类型，现有目标可隐式转换；用真实当前目标，不自己制造编号。
 
-| 目标／取得方式 | `AppendTransform` 必须能力 | `MultiplyOpacity` | `SetFill`／`SetStroke`／`SetShadow`／`SetGlow` |
+| 目标／取得方式 | `AppendTransform` 必须能力 | `MultiplyOpacity` | `SetFill`／`SetStrokes`／`SetShadow`／`SetGlow`／`SetWipe` |
 | --- | --- | --- | --- |
 | `TokenFamilyTarget`，`geometry.WithRuby` | `token.affine` | `token.opacity` | 对应 `style.*` |
 | `BaseTokenTarget`，`geometry.BaseOnly` | `token.affine` | `token.opacity` | 对应 `style.*`，仅基础字 |
 | `LineTarget`，`load.Target` | `line.affine` | 不支持 | 不支持 |
 | `GroupTarget`，真实且可写的组 | `group.affine` | `group.opacity` | 不支持 |
-| `TextMarkTarget`，真实提示标记 | `mark.affine` | 不支持 | 对应 `style.*` |
+| `TextMarkTarget`，真实提示标记 | `mark.affine` | 不支持 | 对应 `style.*`；`SetWipe` 不支持（标记没有扫字样式） |
 | `TextClusterTarget`，`frame.Clusters[i].Target` | `cluster.affine` | 不支持 | 不支持 |
 
 包导出的 `bindingKinds`、输出 `kind`／`target`／`requires` 也必须与入口行为匹配。
@@ -149,8 +149,17 @@ M09 的 `BindGraph(target, GraphBindingValue)` 支持 Family／Line／Mark 的 `
 `AppendTransform(target, matrix)` 在目标局部逻辑空间追加，先写 A 再写 B，累计为 `B * A`。
 矩阵须有限、可逆，并在后端 float 精度下仍然可逆。不同层级由宿主统一合成，不依赖作者遍历顺序推导父链。
 `MultiplyOpacity` 只接受有限 `[0,1]` 因子并累乘；组透明度走隔离合成。
-`SetFill` 显式选择 `FillState.Unsung`／`Sung`；后写覆盖同一叶属性。
-描边、阴影和辉光整体替换，传 `null` 为关闭，未写为继承。
+外观按态写入（0.112.82 起，P3 第 6 步）：`SetFill`、`SetStrokes`、`SetShadow`、`SetGlow` 的第二个参数是 `TextState`
+（`Unsung`、`Sung`、`Both`），`Both` 等于两态各写一次；后写覆盖同一态的同一成员。
+`SetStrokes(target, state, params StrokeValue[])` 整表替换一态的描边，由内向外 0～4 层，不传即无描边；
+超过 4 层或包材质不在最内层报 `InvalidStrokeLayers`。阴影和辉光整体替换，传 `null` 为关闭，未写为继承。
+`SetWipe(target, WipeValue)` 整体替换扫字样式（羽化比例 0～2 字号、可选扫字线高亮），两态共享，需要 `style.wipe`。
+只写一态时另一态不跟着变：源里已唱跟随未唱时，只写未唱会把已唱固定为源的未唱值；两态写同一值则保持跟随。
+
+只读基线 `frame.Baseline.Get(target)` 返回 `StyleView`：`Unsung`、`Sung` 两个 `AppearanceView`（`Fill`、`Strokes`、
+`Shadow`、`Glow`）加 `Opacity` 与 `Wipe`，已唱跟随时与未唱取同一值；`Material(MaterialSlot)` 按
+`UnsungFill`／`SungFill`／`UnsungStroke`／`SungStroke` 取材质（描边槽是最内层）。`SetMaterialUniform` 的槽同样有这四个；
+两态描边绑定同一份包材质时照旧按一个部件执行，不同时按两态拆开、过渡带内交叉淡化。
 
 每个实例只读源基线与源几何，不读取前一实例输出；宿主按固定实例顺序组合。
 输出是本次调用事务，成功返回后才发布；作者不能调用宿主 `Complete()`／`Invalidate()`，也不能保存 `TextOutput`。

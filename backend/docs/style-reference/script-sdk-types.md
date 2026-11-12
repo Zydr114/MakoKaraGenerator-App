@@ -150,14 +150,18 @@
 | `MaterialValue.SolidMaterial` | `ColorRgba Color`；构造器 internal | 工厂结果 |
 | `MaterialValue.GradientMaterial` | `GradientValue Value`；构造器 internal | 工厂结果 |
 | `MaterialValue.PackageMaterial` | `MaterialHandle Handle`；`ParameterValues Parameters`；`GraphUniformValues Uniforms`（公开只读）；构造器和覆盖 helper 非 public | 固定包材质值 |
-| `StrokeValue` | `StrokeValue(double widthPx,MaterialValue material,StrokeJoin join = StrokeJoin.Round,StrokePosition position = StrokePosition.Outside)`；`double WidthPx`；`MaterialValue Material`；`StrokeJoin Join`；`StrokePosition Position` | 外描边 |
+| `StrokeValue` | `StrokeValue(double widthPx,MaterialValue material,StrokeJoin join = StrokeJoin.Round)`；`double WidthPx`；`MaterialValue Material`；`StrokeJoin Join` | 一层外描边 |
 | `ShadowValue` | `ShadowValue(ColorRgba color,double opacity = 1,double angleDegrees = 45,double distancePx = 4,double blurRadiusPx = 8)`；`ColorRgba Color`；`double Opacity,AngleDegrees,DistancePx,BlurRadiusPx` | 阴影 |
 | `GlowValue` | `GlowValue(ColorRgba color,double opacity = 1,double blurRadiusPx = 8,double spreadPx = 0)`；`ColorRgba Color`；`double Opacity,BlurRadiusPx,SpreadPx` | 只读；opacity 为 [0,1]，模糊和外扩为非负有限值 |
-| `StyleView` | `StyleView(MaterialValue unsungMaterial,MaterialValue sungMaterial,StrokeValue? stroke,ShadowValue? shadow,double opacity,GlowValue? glow = null)`；`MaterialValue UnsungMaterial,SungMaterial`；`StrokeValue? Stroke`；`ShadowValue? Shadow`；`double Opacity`；`GlowValue? Glow`；`ColorRgba RequireSungSolidColor()` | 基线输入/中立值；辉光只读，非 Solid 不猜基色 |
+| `AppearanceView` | `AppearanceView(MaterialValue fill,ImmutableArray<StrokeValue> strokes = default,ShadowValue? shadow = null,GlowValue? glow = null)`；`const int MaxStrokes = 4`；`MaterialValue Fill`；`ImmutableArray<StrokeValue> Strokes`（由内向外）；`ShadowValue? Shadow`；`GlowValue? Glow`；`StrokeValue? InnermostStroke` | 一态外观；超过 4 层或包材质不在最内层报 `InvalidStrokeLayers` |
+| `WipeHighlightValue` | `WipeHighlightValue(ColorRgba color,double widthRatio = .25,double opacity = 1,WipeHighlightBlend blend = WipeHighlightBlend.Screen)`；`const double MaxWidthRatio = 2`；同名只读属性 | 扫字线高亮；宽度比例 (0, 2] 字号 |
+| `WipeValue` | `WipeValue(double featherRatio = 0,WipeHighlightValue? highlight = null)`；`const double MaxFeatherRatio = 2`；`double FeatherRatio`；`WipeHighlightValue? Highlight` | 扫字样式，两态共享；羽化比例 [0, 2] 字号 |
+| `StyleView` | `StyleView(AppearanceView unsung,AppearanceView sung,double opacity,WipeValue? wipe = null)`；`AppearanceView Unsung,Sung`；`double Opacity`；`WipeValue Wipe`；`MaterialValue Material(MaterialSlot slot)`；`ColorRgba RequireSungSolidColor()` | 基线输入/中立值；已唱跟随时与未唱同值；非 Solid 不猜基色 |
 | `GroupStyleView` | `GroupStyleView(double opacity)`；`double Opacity` | 组无文字材质 |
 | `BaselineStyles` | `static BaselineStyles Empty`；6 个 `Get`：`StyleView Get(TokenId id)`、`Get(TokenFamilyTarget target)`、`Get(LineId id)`、`Get(LineTarget target)`、`Get(TextMarkTarget target)`；`GroupStyleView Get(GroupTarget target)` | 所有实例共同静态基线；构造器见 §6 |
-| `StrokeUpdate` / `ShadowUpdate` | `StrokeUpdate(StrokeValue? Value)` / `ShadowUpdate(ShadowValue? Value)` | null 包装表示明确关闭 |
-| `StyleUpdate` | `StyleUpdate(MaterialValue? unsung = null,MaterialValue? sung = null,StrokeUpdate? stroke = null,ShadowUpdate? shadow = null,double opacityFactor = 1)`；`MaterialValue? UnsungMaterial,SungMaterial`；`StrokeUpdate? Stroke`；`ShadowUpdate? Shadow`；`double OpacityFactor`；`ImmutableArray<MaterialEdit> MaterialEdits` | 中立输出值，作者通过 writer 发布 |
+| `StrokesUpdate` / `ShadowUpdate` / `GlowUpdate` | `StrokesUpdate(ImmutableArray<StrokeValue> layers)`、`ImmutableArray<StrokeValue> Layers` / `ShadowUpdate(ShadowValue? Value)` / `GlowUpdate(GlowValue? Value)` | 空表、null 包装表示明确关闭 |
+| `AppearanceUpdate` | `AppearanceUpdate(MaterialValue? fill = null,StrokesUpdate? strokes = null,ShadowUpdate? shadow = null,GlowUpdate? glow = null)`；`static AppearanceUpdate None`；同名只读属性；`AppearanceUpdate Then(AppearanceUpdate next)` | 一态的写入，未写成员为 null |
+| `StyleUpdate` | `StyleUpdate(AppearanceUpdate? unsung = null,AppearanceUpdate? sung = null,double opacityFactor = 1,WipeValue? wipe = null)`；`static StyleUpdate Both(AppearanceUpdate appearance)`；`AppearanceUpdate Unsung,Sung`；`WipeValue? Wipe`；`double OpacityFactor`；`ImmutableArray<MaterialEdit> MaterialEdits` | 中立输出值，作者通过 writer 发布 |
 | 同上辅助 | `StyleUpdate Then(StyleUpdate next)`；`StyleView Apply(StyleView baseline)`；`StyleView ApplyMaterials(StyleView baseline)` | 组合/验证值，不自行改变正式工程/帧 |
 | `MaterialEdit` | 封闭 `ReplaceMaterial(MaterialSlot Slot,MaterialValue? Material)`；`Uniform(MaterialSlot Slot,MaterialHandle Handle,string NodeId,string Name,UniformValue Value)` | 有序中立操作日志 |
 | `UniformValue` | `UniformValueKind Kind`；`int? ArrayLength`；`ImmutableArray<double> Numbers`；`ImmutableArray<int> Integers`；8 个静态工厂完整签名见主文 §6 Materials | 7 类型及数组；无 public 构造器 |
@@ -174,8 +178,8 @@
 | `GradientColorSpace` | `LinearRgb, Hsv, Oklch`；Oklch 非当前生产支持 |
 | `GradientHuePath` | `Shorter, Longer, Increasing, Decreasing` |
 | `StrokeJoin` | `Miter, Round, Bevel` |
-| `StrokePosition` | `Outside` |
-| `MaterialSlot` | `UnsungFill, SungFill, Stroke` |
+| `WipeHighlightBlend` | `Normal, Screen, Add` |
+| `MaterialSlot` | `UnsungFill, SungFill, UnsungStroke, SungStroke`（描边槽是最内层） |
 | `UniformValueKind` | `Float, Float2, Float3, Float4, Int, Color, Matrix3x3` |
 
 ## 5. 粒子、发射、临时图元与输出记录
@@ -356,8 +360,8 @@
 | [SpriteOverlays.cs](../../src/MakoKaraGenerator.Scripting.Abstractions/SpriteOverlays.cs) | `Sprite`, `SpriteBatch` |
 | [StableIdentities.cs](../../src/MakoKaraGenerator.Scripting.Abstractions/StableIdentities.cs) | `StableIdentities` |
 | [StateContext.cs](../../src/MakoKaraGenerator.Scripting.Abstractions/StateContext.cs) | `SimulationStep`, `SemanticContext`, `StateContext`, `EventContext` |
-| [StyleUpdate.cs](../../src/MakoKaraGenerator.Scripting.Abstractions/StyleUpdate.cs) | `StrokeUpdate`, `ShadowUpdate`, `StyleUpdate`, `TokenFamilyStyle` |
-| [StyleView.cs](../../src/MakoKaraGenerator.Scripting.Abstractions/StyleView.cs) | `StrokeJoin`, `StrokePosition`, `StrokeValue`, `ShadowValue`, `GlowValue`, `StyleView`, `BaselineStyles` |
+| [StyleUpdate.cs](../../src/MakoKaraGenerator.Scripting.Abstractions/StyleUpdate.cs) | `StrokesUpdate`, `ShadowUpdate`, `GlowUpdate`, `AppearanceUpdate`, `StyleUpdate`, `TokenFamilyStyle` |
+| [StyleView.cs](../../src/MakoKaraGenerator.Scripting.Abstractions/StyleView.cs) | `StrokeJoin`, `StrokeValue`, `ShadowValue`, `GlowValue`, `AppearanceView`, `WipeHighlightBlend`, `WipeHighlightValue`, `WipeValue`, `StyleView`, `BaselineStyles` |
 | [TimeRange.cs](../../src/MakoKaraGenerator.Scripting.Abstractions/TimeRange.cs) | `TimeRange` |
 | [TimelineEvent.cs](../../src/MakoKaraGenerator.Scripting.Abstractions/TimelineEvent.cs) | `TimelineEventKind`, `ReplayReason`, `EventSourceOrder`, `TimelineEvent`, `TokenPerformanceEvent`, `TokenStarted`, `TokenCompleted`, `LinePerformanceEvent`, `LinePerformanceStarted`, `LinePerformanceCompleted` |
 | [TimelineHistory.cs](../../src/MakoKaraGenerator.Scripting.Abstractions/TimelineHistory.cs) | `EventRecord`, `TimelineHistory` |

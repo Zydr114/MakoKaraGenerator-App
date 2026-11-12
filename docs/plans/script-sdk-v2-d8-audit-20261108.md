@@ -161,3 +161,19 @@ v1 向作者暴露 `CancellationToken`，v2 改为宿主在查询与输出处检
   - `author-package-smoke.mjs` 的显式采用同样经该对话框确认；
   - fresh publish 0.112.43 实跑：WordEmphasis 35 项、RepeatEmphasis 18 项、ClusterExit 18 项、author-package 83 项，全部通过。
 - 其余证据缺口 2～7 按用户指示暂不补，下一步进入 M12。
+
+## P3 第 6 步 SDK 两态读写（2026-11-12，产品 0.112.82）
+
+C02 的写法随 P3 设计 §9 改为分态（实现注见该节）：
+- `SetStroke` 改为 `SetStrokes(target, state, params StrokeValue[])`（由内向外 0～4 层）；`SetFill`／`SetShadow`／`SetGlow` 的状态参数改为 `TextState { Unsung, Sung, Both }`。
+- 新增 `SetWipe(target, WipeValue)`，能力名 `style.wipe`，可写元素族与底字，文字标记以 `PropertyTargetUnsupported` 拒绝。
+- `StyleView` 改为两态各一套 `AppearanceView`，加扫字样式；`MaterialSlot` 的描边槽拆为 `UnsungStroke`／`SungStroke`。
+- 样例同步：AdaptiveStroke 改用 `SetStrokes(..., TextState.Both, ...)`，RepeatEmphasis 的 `FillState.Sung` 改为 `TextState.Sung`，两包 manifest 的源码摘要随之更新。
+
+新增证据：
+- 合同：`V2SdkContractTests` 一项（两态展开、层数与包材质位置、未声明 `style.wipe`、非法状态）。
+- 投影：`StateStyleProjectionTests` 4 项（只写未唱钉住已唱、只写已唱、两态同值保持跟随、扫字样式与同值写入返回原实例）。
+- 像素：`WipeFeatherRenderingTests` 的脚本扫字样式 5 项（元素族／底字、注音、原样捕获，与源工程写同一值逐字节相同）与真实脚本进入准备帧 1 项；两态描边材质 9 项（含 GPU）。
+- 诊断映射：`PackageDiagnosticsMappingTests` 一项（已唱描边槽的属主可指向未唱描边路径，不可指向填充路径）。
+
+台账的缺口不变；C02 的「SetShadow 仅输出合同测试，无像素证据」仍成立。

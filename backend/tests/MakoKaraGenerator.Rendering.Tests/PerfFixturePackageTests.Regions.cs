@@ -1,4 +1,5 @@
 using MakoKaraGenerator.Core.Effects;
+using MakoKaraGenerator.Core.Lyrics;
 using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Rendering.Skia;
 using MakoKaraGenerator.Scripting;
@@ -40,12 +41,33 @@ public sealed partial class PerfFixturePackageTests
         Assert.True(tightPeak < 2 * screen, $"收紧后峰值 {tightPeak}");
     }
 
-    private static async Task<(byte[] Pixels, long PeakBytes)> RenderRegion(string kind, bool decorated, bool gpu, bool tight, RenderTarget? target)
+    /// <summary>
+    /// 注音比例 2 时注音的辉光扩张与模糊随之翻倍（P3 第 4 步，D-P3-10）：收紧后的对象区域与原样辉光工作框须按缩放后的装饰包住注音，
+    /// 像素与整屏框逐字节一致。
+    /// </summary>
+    [Fact]
+    public async Task 收紧区域包住按注音比例放大的辉光()
+    {
+        var (full, _) = await RenderRegion("constant", false, false, false, null, rubyScale: 2);
+        var (tight, _) = await RenderRegion("constant", false, false, true, null, rubyScale: 2);
+        Assert.Contains(full, value => value != 0);
+        Assert.Equal(full, tight);
+    }
+
+    private static async Task<(byte[] Pixels, long PeakBytes)> RenderRegion(string kind, bool decorated, bool gpu, bool tight, RenderTarget? target,
+        double rubyScale = 0)
     {
         var package = await Read(kind == "constant" ? "MaterialConstant" : "MaterialBackdrop");
         string export = kind == "constant" ? "constant" : "backdrop";
         var project = Plain(package, []);
         var style = project.LyricStyle;
+        if (rubyScale > 0)
+        {
+            // 小字号让放大后的注音整个留在画面里、注音比底字宽，注音左右的光晕不落进底字的区域。
+            project = project with { Lyrics = LyricsDocument.Create([project.Lyrics.Lines[0] with
+                { RubyAnnotations = [RubyAnnotation.Create("ruby", "token", "xxxx") with { RelativeScale = rubyScale }] }]) };
+            style = style with { FontSizePx = 32, Glow = new GlowSpec { SpreadPx = 8, BlurRadiusPx = 2, Color = new RgbaColor(255, 220, 0, 230) } };
+        }
         if (decorated)
             style = style with
             {

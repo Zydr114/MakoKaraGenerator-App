@@ -7,9 +7,10 @@ namespace MakoKaraGenerator.Rendering.Skia;
 
 public sealed partial class SkiaSceneGeometry
 {
-    /// <summary>一条注音的布局；<paramref name="BaseWidth"/> 是所属底字整行的宽度，整行渐变的横向参考取它（P3 设计 §7.2）。</summary>
+    /// <summary>一条注音的布局；<paramref name="BaseWidth"/> 是所属底字整行的宽度，整行渐变的横向参考取它；
+    /// <paramref name="Scale"/> 是注音比例（<see cref="RubyAnnotation.RelativeScale"/>），装饰按它缩放（P3 设计 §7.2）。</summary>
     internal sealed record RubyLayout(string Id, int TokenIndex, ShapedLine Shaped, TextLayoutOptions Options,
-        float X, float Baseline, TextInkBounds Ink, ImmutableArray<RubyLayoutSegment> Segments, float BaseWidth = 0f);
+        float X, float Baseline, TextInkBounds Ink, ImmutableArray<RubyLayoutSegment> Segments, float BaseWidth = 0f, double Scale = 1d);
 
     internal sealed record RubyLayoutSegment(string Id, float Left, float Right);
 
@@ -103,7 +104,7 @@ public sealed partial class SkiaSceneGeometry
                 segmentLeft = segmentRight;
             }
             result.Add(new(annotation.Id, index, ruby, options, x, baseline,
-                new(x + ink.Left, baseline + ink.Top, x + ink.Right, baseline + ink.Bottom), segmentBuilder.ToImmutable()));
+                new(x + ink.Left, baseline + ink.Top, x + ink.Right, baseline + ink.Bottom), segmentBuilder.ToImmutable(), Scale: annotation.RelativeScale));
         }
         return result;
     }

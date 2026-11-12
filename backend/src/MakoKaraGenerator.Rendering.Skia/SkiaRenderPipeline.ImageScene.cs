@@ -131,9 +131,9 @@ public sealed partial class SkiaRenderPipeline
                 if (token.Clusters.IsEmpty)
                 {
                     Add(basic, token.BaseGeometry);
-                    foreach (var ruby in token.Ruby) Add(family, ruby.Geometry);
+                    foreach (var ruby in token.Ruby) Add(RubyStyle(family, line, ruby.RubyId), ruby.Geometry);
                 }
-                else foreach (var cluster in token.Clusters) Add(cluster.Target.RubyId is null ? basic : family, cluster.Geometry);
+                else foreach (var cluster in token.Clusters) Add(cluster.Target.RubyId is { } rubyId ? RubyStyle(family, line, rubyId) : basic, cluster.Geometry);
             }
         }
         else

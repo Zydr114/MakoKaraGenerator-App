@@ -55,6 +55,38 @@ public sealed record LyricStyle
         return sung ? this with { Unsung = ResolveSung() with { Fill = Unsung.Fill }, Sung = following } : this with { Sung = following };
     }
 
+    /// <summary>
+    /// 装饰按比例缩放：描边各层宽度、阴影距离与模糊、辉光模糊与扩张；已唱一侧显式的值同样缩放，跟随的仍跟随；填充不变。
+    /// 注音按 <see cref="Lyrics.RubyAnnotation.RelativeScale"/> 缩放所属元素的装饰（D-P3-10，P3 设计 §7.2 第 2 条）。
+    /// </summary>
+    /// <param name="scale">比例，须为正的有限数。</param>
+    /// <returns>缩放后的样式；比例为 1 或两态都没有装饰时返回本实例。</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="scale"/> 不是正的有限数时抛出。</exception>
+    public LyricStyle ScaleDecorations(double scale)
+    {
+        if (!double.IsFinite(scale) || scale <= 0d) throw new ArgumentOutOfRangeException(nameof(scale), "装饰比例须为正的有限数。");
+        if (scale == 1d || Unsung.Strokes.Count == 0 && Unsung.Shadow is null && Unsung.Glow is null
+            && Sung.Strokes.Value is not { Count: > 0 } && Sung.Shadow.Value is null && Sung.Glow.Value is null) return this;
+        float factor = (float)scale;
+        return this with
+        {
+            Unsung = Unsung with { Strokes = Strokes(Unsung.Strokes), Shadow = Shadow(Unsung.Shadow), Glow = Glow(Unsung.Glow) },
+            Sung = Sung with
+            {
+                Strokes = Sung.Strokes.FollowsUnsung || Sung.Strokes.Value is null ? Sung.Strokes : Followable.Set(Strokes(Sung.Strokes.Value)),
+                Shadow = Sung.Shadow.FollowsUnsung ? Sung.Shadow : Followable.Set<ShadowSpec?>(Shadow(Sung.Shadow.Value)),
+                Glow = Sung.Glow.FollowsUnsung ? Sung.Glow : Followable.Set<GlowSpec?>(Glow(Sung.Glow.Value)),
+            },
+        };
+
+        StrokeLayers Strokes(StrokeLayers layers) => layers.Count == 0 ? layers
+            : StrokeLayers.From(layers.Select(layer => layer with { WidthPx = layer.WidthPx * factor }));
+        ShadowSpec? Shadow(ShadowSpec? shadow) => shadow is null ? null
+            : shadow with { DistancePx = shadow.DistancePx * factor, BlurRadiusPx = shadow.BlurRadiusPx * factor };
+        GlowSpec? Glow(GlowSpec? glow) => glow is null ? null
+            : glow with { BlurRadiusPx = glow.BlurRadiusPx * factor, SpreadPx = glow.SpreadPx * factor };
+    }
+
     /// <summary>两态展开后的辉光或其来源轮廓是否不同；都相同时整段只画一次辉光。</summary>
     /// <remarks>辉光以整体轮廓（字形加全部描边）为来源（D-P3-9），两态辉光参数相同而描边总宽或外圈拐角不同时也按态绘制。</remarks>
     public bool GlowDiffersByState

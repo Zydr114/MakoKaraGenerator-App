@@ -49,8 +49,8 @@ public sealed partial class SkiaRenderPipeline
                     ? prepared.GetTokenDrawingStyle(token.WithRuby) : sources[token.WithRuby];
                 var basic = prepared.BaseAppearances.ContainsKey(token.BaseOnly) ? prepared.GetBaseDrawingStyle(token.BaseOnly) : familyStyle;
                 Add(basic, token.BaseGeometry);
-                foreach (var ruby in token.Ruby) Add(familyStyle, ruby.Geometry);
-                foreach (var cluster in token.Clusters) Add(cluster.Target.RubyId is null ? basic : familyStyle, cluster.Geometry);
+                foreach (var ruby in token.Ruby) Add(RubyStyle(familyStyle, line, ruby.RubyId), ruby.Geometry);
+                foreach (var cluster in token.Clusters) Add(cluster.Target.RubyId is { } rubyId ? RubyStyle(familyStyle, line, rubyId) : basic, cluster.Geometry);
             }
         }
         else
@@ -123,6 +123,10 @@ public sealed partial class SkiaRenderPipeline
         double glow = style.Glow is { IsEnabled: true } halo ? halo.SpreadPx + 3d * halo.BlurRadiusPx : 0;
         return outline + Math.Max(Math.Max(shadow, glow), 0);
     }
+
+    /// <summary>注音实际绘制所用的样式：所属元素族样式的装饰按该注音的比例缩放（P3 设计 §7.2）；行里找不到该注音时按 1 计。</summary>
+    private static MakoKaraGenerator.Core.Projects.LyricStyle RubyStyle(MakoKaraGenerator.Core.Projects.LyricStyle familyStyle, SceneLineSample line, RubyId rubyId)
+        => familyStyle.ScaleDecorations(line.Frame.Line?.RubyAnnotations.FirstOrDefault(annotation => annotation.Id == rubyId.Value)?.RelativeScale ?? 1d);
 
     /// <summary>整体轮廓画到字框之外的像素数：各层累计宽度乘该层拐角系数（斜接按上限）的最大值；不绘制时为 0。</summary>
     private static double OutlineExtent(MakoKaraGenerator.Core.Projects.StrokeLayers strokes)

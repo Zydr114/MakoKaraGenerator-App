@@ -25,8 +25,9 @@ public sealed partial class SkiaRenderPipeline
         }
         foreach (RubyLayout entry in ruby) DrawSegments(entry, Style(entry), glow: false);
 
-        LyricStyle Style(RubyLayout entry) => familyStyle ?? (line.Tokens[entry.TokenIndex].StyleOverride is { } overlay
-            ? ResolveElementStyle(lineStyle, overlay) : lineStyle);
+        // 注音继承所属元素的样式，装饰按注音比例缩放（P3 设计 §7.2）。
+        LyricStyle Style(RubyLayout entry) => (familyStyle ?? (line.Tokens[entry.TokenIndex].StyleOverride is { } overlay
+            ? ResolveElementStyle(lineStyle, overlay) : lineStyle)).ScaleDecorations(entry.Scale);
 
         void DrawSegments(RubyLayout entry, LyricStyle style, bool glow)
         {

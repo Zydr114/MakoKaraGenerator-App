@@ -435,14 +435,14 @@ public sealed partial class WarpPixelRenderingTests
         Assert.Equal(0, AlphaAt(first, first.Width - 1, first.Height - 1));
     }
 
-    private static ProjectSnapshot TextSnapshot(bool singleToken = false)
+    private static ProjectSnapshot TextSnapshot(bool singleToken = false, double rubyScale = .5)
     {
         ImmutableArray<LyricToken> tokens = [LyricToken.Create("a", "A", new(0, 2_000_000), TimingStatus.Confirmed)];
         if (!singleToken) tokens = tokens.Add(LyricToken.Create("b", "B", new(2_000_000, 4_000_000), TimingStatus.Confirmed));
         var line = LyricLine.Create("line", singleToken ? "A" : "AB", new(0, 4_000_000), TimingStatus.Confirmed,
             tokens) with
         {
-            RubyAnnotations = [RubyAnnotation.Create("ruby", "a", "x")],
+            RubyAnnotations = [RubyAnnotation.Create("ruby", "a", "x") with { RelativeScale = rubyScale }],
         };
         var project = Project.Create("warp pixels", Composition.Create(320, 180, FrameRate.Fps30, outputDurationUs: 4_000_000),
             LyricsDocument.Create([line]), lyricStyle: LyricStyle.Default with

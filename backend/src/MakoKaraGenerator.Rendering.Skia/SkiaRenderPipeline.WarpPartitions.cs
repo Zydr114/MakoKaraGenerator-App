@@ -74,7 +74,7 @@ public sealed partial class SkiaRenderPipeline
         {
             var indices = group.Select(static cluster => cluster.Target.UnitIndex).ToImmutableArray();
             var bounds = PreparedRenderFrame.WarpDecoratedBounds(TextSourceBounds(annotation.Shaped,
-                origin + annotation.X, baseline + annotation.Baseline, indices), familyStyle);
+                origin + annotation.X, baseline + annotation.Baseline, indices), familyStyle.ScaleDecorations(annotation.Scale));
             DrawWarpedTextLayer(canvas, request, new TextTarget.Cluster(group.First().Target), WithoutWorld(group[0].Geometry.Mapping!),
                 bounds, resources ?? capture?.Budget, capture, (source, sourceCapture) =>
                     DrawRuby(source, [annotation], scene.Frame, scene.Frame.Line!, lineStyle, composition, origin, baseline,

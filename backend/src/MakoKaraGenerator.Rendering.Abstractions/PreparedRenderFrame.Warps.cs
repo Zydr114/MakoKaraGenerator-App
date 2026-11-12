@@ -75,8 +75,9 @@ public sealed partial class PreparedRenderFrame
                 var mapping = cluster.Target.RubyId is null
                     ? Mapping([(target, ca), (basic, ba), (family, fa)], cluster.Geometry.BaseWorldMatrix)
                     : Mapping([(target, ca), (family, fa)], cluster.Geometry.BaseWorldMatrix);
+                // 注音的装饰按注音比例缩放（P3 设计 §7.2、§10.6 第 1 条），与实际绘制一致。
                 return cluster.WithGeometry(Project(cluster.Geometry, mapping, target,
-                    cluster.Target.RubyId is null ? baseStyle : familyStyle));
+                    cluster.Target.RubyId is { } rubyId ? familyStyle.ScaleDecorations(RubyScale(cluster.Target.BindingId, rubyId)) : baseStyle));
             }).ToImmutableArray();
             var baseGeometry = Project(token.BaseGeometry, baseMapping, basic, baseStyle, validateInk: false);
             baseGeometry = baseGeometry with { MappedInkVertices = [.. clusters.Where(static cluster => cluster.Target.RubyId is null)
@@ -90,6 +91,10 @@ public sealed partial class PreparedRenderFrame
                 MappedInkVertices = [.. baseGeometry.WorldInkCorners, .. ruby.SelectMany(static item => item.Geometry.WorldInkCorners)] };
             return token with { BaseGeometry = baseGeometry, FamilyGeometry = familyGeometry, Ruby = ruby, Clusters = clusters };
         }
+
+        double RubyScale(BindingId bindingId, RubyId rubyId) => HierarchyScene.Lines
+            .FirstOrDefault(line => line.BindingId == bindingId.Value)?.Frame.Line?.RubyAnnotations
+            .FirstOrDefault(annotation => annotation.Id == rubyId.Value)?.RelativeScale ?? 1d;
 
         TextGeometryMapping Mapping((TextTarget Target, Affine2 Matrix)[] levels, Affine2 world)
         {

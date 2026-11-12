@@ -14,6 +14,7 @@ from w8_authoring_schema import extend as extend_w8_authoring, configure as conf
 from author_metadata_schema import extend as extend_author_metadata, configure as configure_author_metadata
 from preview_inspection_schema import extend as extend_preview_inspection, configure as configure_preview_inspection
 from author_replacement_schema import extend as extend_author_replacement, configure as configure_author_replacement
+from export_fallback_schema import extend as extend_export_fallback
 from p1p2_runtime_schema import extend as extend_p1p2_runtime, configure as configure_p1p2_runtime, VIDEO_MIMES
 from package_preview_schema import extend_package_preview_schemas, LIMITS as PACKAGE_PREVIEW_LIMITS
 from project_image_preview_schema import extend_project_image_preview_schemas, configure_project_image_preview_operation
@@ -29,8 +30,8 @@ from static_style_schema import extend_static_style_schemas, style_query_paramet
 from template_library_schema import extend_template_library_schemas, query_parameters as template_query_parameters, LIMITS as TEMPLATE_LIMITS
 
 ROOT = Path(__file__).resolve().parents[2]
-CONTRACT = "1.50.0"
-BASELINE = "a929faa601ca40fc27918b7acdbc24fc04726b7f"
+CONTRACT = "1.51.0"
+BASELINE = "8df09c8ac248a8fa2ae4640b1f22cb8e7593fe2e"
 PRODUCT = re.search(r"<VersionPrefix>([^<]+)</VersionPrefix>", (ROOT / "Directory.Build.props").read_text()).group(1)
 FREEZE_DATE = "2026-11-13"
 BEHAVIOR = "docs/architecture/backend-api.md"
@@ -986,6 +987,7 @@ def generate(metadata):
     extend_author_metadata(schemas, metadata)
     extend_preview_inspection(schemas, metadata)
     extend_author_replacement(schemas, metadata)
+    extend_export_fallback(schemas, metadata)
 
     # GPU streams use a smaller device pool than ordinary PNG previews.
     schemas["GpuPreviewSizeInput"] = copy.deepcopy(schemas["PreviewSizeDtoInput"])
@@ -1773,7 +1775,7 @@ def manifest(outputs):
     files.update(p for p in TOOL.iterdir() if p.is_file())
     return {"contractVersion": CONTRACT, "httpProtocolVersion": "1", "productVersion": PRODUCT, "sourceBaselineCommit": BASELINE,
             "frozenOn": FREEZE_DATE, "status": "frozen", "behaviorSource": BEHAVIOR,
-            "scope": "Implemented public HTTP API. Contract 1.50.0 replaces the single-state style surface with two-state static styles (unsung/sung appearances where sung strokes, shadow and glow follow or set; up to four stroke layers; wipe feather and highlight; 43 property paths shared by styles.patch/restore, template properties, resolved sources and lead-in marks) and removes progress gradients; it is incompatible with 1.49.x clients although httpProtocolVersion stays 1. It keeps owner-only exact retained-source inspection and optional complete configuration adoption. The Host media feature track publishes project.mediaFeaturesChanged without changing revision, fixes media input per run (project previews and candidates wait for checks, template-workshop and author-draft samples up to 20 s for complete artifacts, project/author validation and export for complete artifacts), retries failed analyses lazily with bounded backoff and pins every straight/transparent output to NoMedia. Opaque preview output without usable background media no longer fails the frame: required BackgroundMedia graph inputs are bypassed and materials fall back to the package base appearance with a BackgroundMediaUnavailable warning that states the cause, optional inputs capture the project base colour; static render sessions and export still reject any image-effect/material diagnostic. Preview frames may opt in to a read-only inspection projection (geometry, cursors, particle anchors, effect catalog and single-frame cost) built from the same prepared frame, retained with the frame and read separately; PNG and export are unchanged. Author drafts may replace an image or font file whole with an uploaded asset of the same format after full decode/font load, taking fixed files from an explicit retained base revision; size and family-name changes only warn. The inspection response is independent and reference-free; public package reference kinds remain asset/library/configuration. Adoption validates the exact successful source and complete target configuration before one document publication. SDK2 graph bindings, per-target material uniforms/base materials, exact source-group admission and scene composition/capture/budgets are fingerprinted together with Warp/SVG, particles, GPU and existing preview/export lifecycles; their finite boundaries remain. Generated contract, regression, matched deployment, fresh HTTP/GPU frames, browser and performance acceptance require separate evidence.",
+            "scope": "Implemented public HTTP API. Contract 1.51.0 lets export and scene measurement continue with the preview fallbacks when image effects/materials need a missing (opaque, no usable media) or absent (transparent) background: the export report lists up to 128 deduplicated fallback diagnostics (imageEffect/material origin, warning severity) with the affected frame count and a truncation flag, the export job result carries their count, and scene measurements return the frame's deduplicated fallback diagnostics; projects without such dependencies export unchanged bytes. Contract 1.50.0 replaced the single-state style surface with two-state static styles (unsung/sung appearances where sung strokes, shadow and glow follow or set; up to four stroke layers; wipe feather and highlight; 43 property paths shared by styles.patch/restore, template properties, resolved sources and lead-in marks) and removes progress gradients; it is incompatible with 1.49.x clients although httpProtocolVersion stays 1. It keeps owner-only exact retained-source inspection and optional complete configuration adoption. The Host media feature track publishes project.mediaFeaturesChanged without changing revision, fixes media input per run (project previews and candidates wait for checks, template-workshop and author-draft samples up to 20 s for complete artifacts, project/author validation and export for complete artifacts), retries failed analyses lazily with bounded backoff and pins every straight/transparent output to NoMedia. Opaque preview output without usable background media no longer fails the frame: required BackgroundMedia graph inputs are bypassed and materials fall back to the package base appearance with a BackgroundMediaUnavailable warning that states the cause, optional inputs capture the project base colour; static render sessions still reject any image-effect/material diagnostic. Preview frames may opt in to a read-only inspection projection (geometry, cursors, particle anchors, effect catalog and single-frame cost) built from the same prepared frame, retained with the frame and read separately; PNG and export are unchanged. Author drafts may replace an image or font file whole with an uploaded asset of the same format after full decode/font load, taking fixed files from an explicit retained base revision; size and family-name changes only warn. The inspection response is independent and reference-free; public package reference kinds remain asset/library/configuration. Adoption validates the exact successful source and complete target configuration before one document publication. SDK2 graph bindings, per-target material uniforms/base materials, exact source-group admission and scene composition/capture/budgets are fingerprinted together with Warp/SVG, particles, GPU and existing preview/export lifecycles; their finite boundaries remain. Generated contract, regression, matched deployment, fresh HTTP/GPU frames, browser and performance acceptance require separate evidence.",
             "files": {str(p.relative_to(ROOT)): sha(p.read_bytes()) for p in sorted(files)},
             "artifacts": {name: sha(data) for name, data in sorted(outputs.items())},
             "guards": "Source hashes require review even for behavior-preserving changes. They are drift alarms, not semantic proofs. Runtime/Media behavior still requires existing regression tests."}
@@ -1782,6 +1784,12 @@ def manifest(outputs):
 def legacy_examples(existing_examples):
     """The reviewed 1.49.2 corpus, rebuilt from any later frozen corpus and refreshed slices."""
     from style_v2_fixtures import LEGACY_CONTRACT, PREFIX as STYLE_V2_PREFIX, restore_legacy
+    from export_fallback_fixtures import LEGACY_CONTRACT as STYLE_V2_CONTRACT, PREFIX as FALLBACK_PREFIX, restore_cases
+    if existing_examples["contractVersion"] not in (LEGACY_CONTRACT, STYLE_V2_CONTRACT):
+        cases = existing_examples["cases"]
+        current = [case for case in cases if not case["name"].startswith(FALLBACK_PREFIX)]
+        assert cases[:len(current)] == current, "export-fallback cases must stay the corpus tail"
+        existing_examples = {**existing_examples, "contractVersion": STYLE_V2_CONTRACT, "cases": restore_cases(current)}
     if existing_examples["contractVersion"] != LEGACY_CONTRACT:
         cases = existing_examples["cases"]
         current = [case for case in cases if not case["name"].startswith(STYLE_V2_PREFIX)]
@@ -1824,6 +1832,11 @@ def main():
     # is migrated forward and the new two-state cases are appended (style_v2_fixtures).
     from style_v2_fixtures import migrate_cases as migrate_style_v2, fixtures as style_v2_fixtures
     example_document["cases"] = migrate_style_v2(example_document["cases"]) + style_v2_fixtures()
+    # Contract 1.51.0 adds always-present fallback diagnostics to export reports, job
+    # results and scene measurements: the 1.50.0 corpus gains the empty values and the
+    # new cases are appended (export_fallback_fixtures).
+    from export_fallback_fixtures import migrate_cases as migrate_fallback, fixtures as fallback_fixtures
+    example_document["cases"] = migrate_fallback(example_document["cases"]) + fallback_fixtures()
     example_document["contractVersion"] = CONTRACT
     examples = encoded(example_document)
     outputs = {"web/openapi.json": encoded(spec), "web/api-index.md": inventory(spec, operations), "web/api-contract.md": (ROOT / "web/api-contract.md").read_bytes(), "web/examples.json": examples}

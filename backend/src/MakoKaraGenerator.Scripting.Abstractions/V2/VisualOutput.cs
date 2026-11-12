@@ -39,22 +39,22 @@ public sealed class VisualOutput
     }
     /// <summary>写最终画布逻辑空间的有序圆点。</summary>
     public void DrawDots(OutputId id, ImmutableArray<Dot> items, OverlayLayer layer)
-        => Draw(new DotBatch(_owner, id, layer, items), VisualPrimitiveKind.Dots, "visuals.dots");
+        => Draw(new DotBatch(_owner, id, layer, items), VisualPrimitiveKind.Dots, CapabilityNames.VisualsDots);
     /// <summary>写最终画布逻辑空间的有序平端线段。</summary>
     public void DrawSegments(OutputId id, ImmutableArray<Segment> items, OverlayLayer layer)
-        => Draw(new SegmentBatch(_owner, id, layer, items), VisualPrimitiveKind.Segments, "visuals.segments");
+        => Draw(new SegmentBatch(_owner, id, layer, items), VisualPrimitiveKind.Segments, CapabilityNames.VisualsSegments);
     /// <summary>写有序带状拖尾，每个节点计入图元预算。</summary>
     public void DrawTrails(OutputId id, ImmutableArray<Trail> items, OverlayLayer layer)
-        => Draw(new TrailBatch(_owner, id, layer, items), VisualPrimitiveKind.Trails, "visuals.trails");
+        => Draw(new TrailBatch(_owner, id, layer, items), VisualPrimitiveKind.Trails, CapabilityNames.VisualsTrails);
     /// <summary>写完整仿射精灵，资源须属于本实例固定包修订。</summary>
     public void DrawSprites(OutputId id, ImmutableArray<Sprite> items, OverlayLayer layer)
-        => Draw(new SpriteBatch(_owner, id, layer, items), VisualPrimitiveKind.Sprites, "visuals.sprites");
+        => Draw(new SpriteBatch(_owner, id, layer, items), VisualPrimitiveKind.Sprites, CapabilityNames.VisualsSprites);
     /// <summary>写固定 SVG 矢量实例；同名声明需同时声明 Paths 和 SVG vector 资源能力。</summary>
     public void DrawPaths(OutputId id, ImmutableArray<VectorVisual> items, OverlayLayer layer)
-        => Draw(new PathBatch(_owner, id, layer, items), VisualPrimitiveKind.Paths, "visuals.paths", VisualResourceKind.SvgVector);
+        => Draw(new PathBatch(_owner, id, layer, items), VisualPrimitiveKind.Paths, CapabilityNames.VisualsPaths, VisualResourceKind.SvgVector);
     /// <summary>写固定 SVG atlas 档位实例；保留完整仿射，共用 Sprites 的名字和绘制项预算。</summary>
     public void DrawAtlasSprites(OutputId id, ImmutableArray<AtlasSprite> items, OverlayLayer layer)
-        => Draw(new AtlasSpriteBatch(_owner, id, layer, items), VisualPrimitiveKind.Sprites, "visuals.sprites", VisualResourceKind.SvgAtlas);
+        => Draw(new AtlasSpriteBatch(_owner, id, layer, items), VisualPrimitiveKind.Sprites, CapabilityNames.VisualsSprites, VisualResourceKind.SvgAtlas);
 
     internal ImmutableArray<OverlayBatch> Complete()
     {

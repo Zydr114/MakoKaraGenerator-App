@@ -29,7 +29,7 @@ internal static class PreparedEffectDeclaration
             if (emitter is null || !emitter.Id.IsValid || emitter.Kind is not ("cursor" or "burst")
                 || emitter.MaxLifetimeUs is <= 0 or > ParticleLimits.MaximumLifetimeUs || !manifest.TryAdd(emitter.Id, emitter))
                 throw Invalid("发射器清单必须具有唯一身份、明确种类与合法最大寿命。");
-            RequirePackage(emitter.Kind == "cursor" ? "particles.continuous" : "particles.burst");
+            RequirePackage(emitter.Kind == "cursor" ? CapabilityNames.ParticlesContinuous : CapabilityNames.ParticlesBurst);
         }
         Dictionary<OutputId, CanvasOutputDeclaration> canvas = [];
         foreach (var output in outputs)
@@ -54,7 +54,7 @@ internal static class PreparedEffectDeclaration
                 || plan.Bridge.Mode == TransitionMode.Bridge && plan.Bridge.DurationUs == 0
                 || plan.Rate.Segments.IsDefault || plan.Rate.EnabledRanges.IsDefault)
                 throw Invalid("连续计划的速率轨、锚点或桥接策略无效。");
-            var declaration = RequireEmitter(plan.Id, "cursor", "particles.continuous");
+            var declaration = RequireEmitter(plan.Id, "cursor", CapabilityNames.ParticlesContinuous);
             ValidateParticle(plan.Particle, declaration);
             RequireRenderCapability(plan.Id, plan.Particle);
             rateElements += (long)plan.Rate.Segments.Length + plan.Rate.EnabledRanges.Length;
@@ -75,7 +75,7 @@ internal static class PreparedEffectDeclaration
         {
             token.ThrowIfCancellationRequested();
             if (plan is null || plan.Selector is null || plan.Rows.IsDefault) throw Invalid("Burst 计划必须具有真实 selector 与明确行集合。");
-            var declaration = RequireEmitter(plan.Id, "burst", "particles.burst");
+            var declaration = RequireEmitter(plan.Id, "burst", CapabilityNames.ParticlesBurst);
             burstRows += plan.Rows.Length; if (burstRows > ParticleLimits.MaximumBurstRows) throw Budget();
             HashSet<EventId> eventIds = [];
             foreach (var row in plan.Rows)
@@ -135,7 +135,7 @@ internal static class PreparedEffectDeclaration
             if (renderPolicies.TryGetValue(id, out var previous) && previous != policy)
                 throw new EffectOutputException("ParticleEmitterRenderPolicyMismatch", "同一发射器必须固定图层与自动／Custom 绘制策略。");
             renderPolicies[id] = policy;
-            if (particle.Rendering == ParticleRenderMode.Dots) RequireOutput(new OutputId(id.Value), "visuals.dots");
+            if (particle.Rendering == ParticleRenderMode.Dots) RequireOutput(new OutputId(id.Value), CapabilityNames.VisualsDots);
         }
     }
 
@@ -158,16 +158,16 @@ internal static class PreparedEffectDeclaration
     }
     internal static string VisualCapability(VisualPrimitiveKind kind) => kind switch
     {
-        VisualPrimitiveKind.Dots => "visuals.dots", VisualPrimitiveKind.Segments => "visuals.segments",
-        VisualPrimitiveKind.Trails => "visuals.trails", VisualPrimitiveKind.Sprites => "visuals.sprites",
-        VisualPrimitiveKind.Paths => "visuals.paths",
+        VisualPrimitiveKind.Dots => CapabilityNames.VisualsDots, VisualPrimitiveKind.Segments => CapabilityNames.VisualsSegments,
+        VisualPrimitiveKind.Trails => CapabilityNames.VisualsTrails, VisualPrimitiveKind.Sprites => CapabilityNames.VisualsSprites,
+        VisualPrimitiveKind.Paths => CapabilityNames.VisualsPaths,
         _ => throw new EffectOutputException("InvalidVisualDeclaration", "未知晚期图元种类。"),
     };
     internal static string? ResourceCapability(VisualResourceKind kind) => kind switch
     {
         VisualResourceKind.None => null,
-        VisualResourceKind.SvgVector => "resources.svg.vector",
-        VisualResourceKind.SvgAtlas => "resources.svg.atlas",
+        VisualResourceKind.SvgVector => CapabilityNames.SvgVector,
+        VisualResourceKind.SvgAtlas => CapabilityNames.SvgAtlas,
         _ => throw new EffectOutputException("InvalidVisualDeclaration", "未知晚期资源种类。"),
     };
     internal static bool IsValidVisualDeclaration(VisualOutputDeclaration? output)

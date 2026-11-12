@@ -3,14 +3,13 @@ using MakoKaraGenerator.Scripting.V2;
 
 public sealed record WordData(double Peak, long ReturnUs) : PreparedEffect;
 
-public sealed class WordEmphasis : IPureKaraokeEffect
+public sealed class WordEmphasis : IPureKaraokeEffect<WordData>
 {
-    public PreparedEffect Declare(DeclareContext source) => new WordData(
+    public WordData Declare(DeclareContext source) => new WordData(
         source.Parameters.GetNumber("peakScale"), source.Parameters.GetDuration("returnUs"));
 
-    public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
+    public void Evaluate(in TextFrame frame, WordData settings, TextOutput output)
     {
-        var settings = (WordData)data;
         foreach (var token in frame.Presentations.TokensInBinding)
         {
             var progress = token.Performance;

@@ -51,6 +51,8 @@ public static partial class ScriptV2PurityAnalyzer
         private readonly HashSet<ITypeSymbol> _checkedInitializers = new(SymbolEqualityComparer.Default);
         private readonly INamedTypeSymbol? _effectInterface;
         private readonly INamedTypeSymbol? _visualInterface;
+        private readonly INamedTypeSymbol? _typedEffectInterface;
+        private readonly INamedTypeSymbol? _typedVisualInterface;
         private readonly INamedTypeSymbol? _preparedBase;
 
         internal Analysis(CSharpCompilation compilation, IEnumerable<string>? entries, CancellationToken token)
@@ -61,8 +63,13 @@ public static partial class ScriptV2PurityAnalyzer
                 .FirstOrDefault(static assembly => assembly.Name == SdkAssembly);
             _effectInterface = sdk?.GetTypeByMetadataName(V2Namespace + ".IPureKaraokeEffect");
             _visualInterface = sdk?.GetTypeByMetadataName(V2Namespace + ".IPureVisualEffect");
+            _typedEffectInterface = sdk?.GetTypeByMetadataName(V2Namespace + ".IPureKaraokeEffect`1");
+            _typedVisualInterface = sdk?.GetTypeByMetadataName(V2Namespace + ".IPureVisualEffect`1");
             _preparedBase = sdk?.GetTypeByMetadataName(V2Namespace + ".PreparedEffect");
         }
+
+        private bool IsEntryContract(INamedTypeSymbol contract) => Same(contract, _effectInterface) || Same(contract, _visualInterface)
+            || Same(contract.OriginalDefinition, _typedEffectInterface) || Same(contract.OriginalDefinition, _typedVisualInterface);
 
         private SemanticModel GetSemanticModel(SyntaxTree tree)
         {
@@ -85,10 +92,11 @@ public static partial class ScriptV2PurityAnalyzer
                     if (model.GetDeclaredSymbol(declaration, _token) is not INamedTypeSymbol type) continue;
                     if (IsPrepared(type)) CheckPrepared(type, declaration.GetLocation());
                     if (_entries.Count != 0 && !_entries.Contains(MetadataName(type))) continue;
-                    if (!type.AllInterfaces.Any(value => Same(value, _effectInterface) || Same(value, _visualInterface))) continue;
+                    if (!type.AllInterfaces.Any(IsEntryContract)) continue;
                     foundEntry = true;
                     CheckStaticState(type);
-                    foreach (INamedTypeSymbol contract in type.AllInterfaces.Where(value => Same(value, _effectInterface) || Same(value, _visualInterface)))
+                    // 泛型入口的非泛型成员由 SDK 的默认实现转发（元数据里没有作者代码）；作者实际写的是泛型成员，必须一并检查。
+                    foreach (INamedTypeSymbol contract in type.AllInterfaces.Where(IsEntryContract))
                     foreach (IMethodSymbol member in contract.GetMembers().OfType<IMethodSymbol>())
                     {
                         if (type.FindImplementationForInterfaceMember(member) is IMethodSymbol method)
@@ -271,7 +279,7 @@ public static partial class ScriptV2PurityAnalyzer
                     or "EventBurstPlan" or "ParticleSchedule" or "GeometrySamplingPolicy" or "VisualOutputDeclaration" or "ParticleLimits"
                     or "ParticleHead" or "ParticleOrigin" or "ParticleIdentity" or "BirthWindow" or "ParticleBirth" or "ParticleView"
                     or "ParticleBirthWindow" or "MediaQueryId" or "MediaQueryProfile" or "MediaFeatureInputInfo" or "MediaQueryCatalog"
-                    or "LinearPremulMean" or "SourceMediaFeatureValues" or "CanvasMediaFeatureValues" or "MediaFeatureSample"
+                    or "LinearPremulMean" or "SourceMediaFeatureValues" or "CanvasMediaFeatureValues" or "MediaFeatureSample" or "CapabilityNames"
                     || type.TypeKind == TypeKind.Enum;
             }
             // These are fixed projections or value identities. Existing lifecycle writers/queries are deliberately absent.

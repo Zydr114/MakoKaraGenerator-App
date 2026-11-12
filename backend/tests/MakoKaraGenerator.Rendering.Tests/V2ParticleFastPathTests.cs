@@ -188,7 +188,10 @@ public sealed class V2ParticleFastPathTests
         {
             string path = "src/" + name + ".cs";
             string source = Encoding.UTF8.GetString(package.Files.Single(file => file.Path == path).Content.AsSpan());
-            source = source.Replace(": IPureKaraokeEffect", ": IPureKaraokeEffect, IPureVisualEffect", StringComparison.Ordinal);
+            // 样例的文字入口可能是泛型入口；在入口类型的基列表末尾追加非泛型晚期入口。
+            int bases = source.IndexOf("public sealed class " + name + " : ", StringComparison.Ordinal);
+            Assert.True(bases >= 0);
+            source = source.Insert(source.IndexOf('\n', bases), ", IPureVisualEffect");
             source = source.Insert(source.LastIndexOf('}'),
                 "public void EvaluateVisuals(in VisualFrame frame, PreparedEffect data, VisualOutput output) { }\n");
             package = await ReplaceSource(package, path, source);

@@ -9,6 +9,20 @@ public interface IPureVisualEffect
     void EvaluateVisuals(in VisualFrame frame, PreparedEffect data, VisualOutput output);
 }
 
+/// <summary>带类型化准备结果的纯晚期入口；继承同一准备记录类型的 <see cref="IPureKaraokeEffect{TPrepared}"/>。</summary>
+/// <typeparam name="TPrepared">本效果的准备记录类型。</typeparam>
+/// <remarks>
+/// 非泛型成员由本接口的默认实现转发，作者不需要也不应再实现。文字入口与晚期入口共用一次 <c>Declare</c>，
+/// 因此两者的准备记录类型必须相同；同时实现不同类型的两个泛型入口会在编译时报错。
+/// </remarks>
+public interface IPureVisualEffect<TPrepared> : IPureVisualEffect, IPureKaraokeEffect<TPrepared> where TPrepared : PreparedEffect
+{
+    /// <summary>只读取最终文字几何、本实例粒子与本效果的准备结果，写本次调用的临时图元。</summary>
+    void EvaluateVisuals(in VisualFrame frame, TPrepared data, VisualOutput output);
+
+    void IPureVisualEffect.EvaluateVisuals(in VisualFrame frame, PreparedEffect data, VisualOutput output) => EvaluateVisuals(in frame, (TPrepared)data, output);
+}
+
 /// <summary>晚期只读帧；不公开历史、文字写入或其他实例的原始输出。</summary>
 public readonly struct VisualFrame
 {

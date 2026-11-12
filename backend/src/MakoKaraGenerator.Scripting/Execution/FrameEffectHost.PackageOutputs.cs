@@ -43,7 +43,7 @@ internal sealed partial class FrameEffectHost
         var package = definition.PackageDefinition ?? throw new EffectOutputException("PackageDefinitionMissing", "真实图绑定须有完整固定包定义。");
         if (definition.IsV2)
         {
-            if (!package.Contents.Requires.Contains("image.graph", StringComparer.Ordinal))
+            if (!package.Contents.Requires.Contains(V2.CapabilityNames.ImageGraph, StringComparer.Ordinal))
                 throw new EffectOutputException("UndeclaredCapability", "包未声明能力：image.graph");
         }
         var graph = package.GetGraph(binding.Graph.Identity.ExportId);

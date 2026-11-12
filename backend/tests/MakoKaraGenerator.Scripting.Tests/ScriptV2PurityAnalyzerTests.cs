@@ -85,7 +85,6 @@ public sealed class ScriptV2PurityAnalyzerTests
     [InlineData("dynamic value = 1; _ = value.ToString();", "", "MKV2007")]
     [InlineData("_ = _items.Add(1);", "private readonly HashSet<int> _items = new();", "MKV2003")]
     [InlineData("var alias = _items; alias.Add(1);", "private readonly ImmutableArray<int>.Builder _items = ImmutableArray.CreateBuilder<int>();", "MKV2003")]
-    [InlineData("output.Complete();", "", "MKV2001")]
     [InlineData("_ = StringComparer.Ordinal.GetHashCode(\"fixed\");", "", "MKV2001")]
     [InlineData("_ = EqualityComparer<string>.Default.GetHashCode(\"fixed\");", "", "MKV2001")]
     [InlineData("_ = new HashData(1).GetHashCode();", "public sealed record HashData(int Value);", "MKV2001")]
@@ -100,6 +99,47 @@ public sealed class ScriptV2PurityAnalyzerTests
             }
             """;
         AssertError(Analyze(source), id);
+    }
+
+    [Theory]
+    [InlineData("Declare", "_ = DateTime.UtcNow;", "MKV2001")]
+    [InlineData("Evaluate", "_ = DateTime.UtcNow;", "MKV2001")]
+    [InlineData("EvaluateVisuals", "_ = DateTime.UtcNow;", "MKV2001")]
+    [InlineData("Evaluate", "_state++;", "MKV2003")]
+    [InlineData("EvaluateVisuals", "_state++;", "MKV2003")]
+    public void 泛型入口的作者成员与非泛型入口同样检查(string where, string body, string id)
+    {
+        // 非泛型成员由 SDK 默认实现转发，作者代码只在泛型成员里；漏查泛型成员时这里不会报错。
+        string At(string member) => member == where ? body : "";
+        string source = $$"""
+            public sealed record Data(double Value) : PreparedEffect;
+            public sealed class Probe : IPureKaraokeEffect<Data>, IPureVisualEffect<Data>
+            {
+                private int _state;
+                public Data Declare(DeclareContext source) { {{At("Declare")}} return new Data(source.Seed); }
+                public void Evaluate(in TextFrame frame, Data data, TextOutput output) { {{At("Evaluate")}} }
+                public void EvaluateVisuals(in VisualFrame frame, Data data, VisualOutput output) { {{At("EvaluateVisuals")}} }
+            }
+            """;
+        AssertError(Analyze(source), id);
+    }
+
+    [Fact]
+    public void 干净的泛型入口直接读准备记录且没有错误()
+    {
+        const string source = """
+            public sealed record Data(double Opacity, ImmutableArray<int> Steps) : PreparedEffect;
+            public sealed class Probe : IPureVisualEffect<Data>
+            {
+                public Data Declare(DeclareContext source) => new Data(.5, [1, 2]);
+                public void Evaluate(in TextFrame frame, Data data, TextOutput output)
+                {
+                    foreach (var token in frame.Presentations.TokensInBinding) output.MultiplyOpacity(token.WithRuby, data.Opacity);
+                }
+                public void EvaluateVisuals(in VisualFrame frame, Data data, VisualOutput output) { _ = data.Steps.Length; }
+            }
+            """;
+        Assert.DoesNotContain(Analyze(source), static value => value.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error);
     }
 
     [Theory]
@@ -125,8 +165,8 @@ public sealed class ScriptV2PurityAnalyzerTests
     [Theory]
     [InlineData("private TextOutput? _output;", "_output = output;")]
     [InlineData("", "var handles = new List<TextOutput>(); handles.Add(output);")]
-    [InlineData("", "Action later = () => output.Invalidate();")]
-    [InlineData("", "Action later = output.Invalidate;")]
+    [InlineData("", "Action later = () => output.ToString();")]
+    [InlineData("", "Func<string?> later = output.ToString;")]
     [InlineData("", "object alias = output; var handles = new List<object>(); handles.Add(alias);")]
     public void 拒绝字段集合和闭包保留输出句柄(string members, string body)
     {
@@ -243,7 +283,7 @@ public sealed class ScriptV2PurityAnalyzerTests
         const string source = """
             public sealed class Probe : IPureKaraokeEffect
             {
-                private static Action Later(TextOutput output) => () => output.Invalidate();
+                private static Action Later(TextOutput output) => () => output.ToString();
                 public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
                 public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output) { var later = Later(output); later(); }
             }

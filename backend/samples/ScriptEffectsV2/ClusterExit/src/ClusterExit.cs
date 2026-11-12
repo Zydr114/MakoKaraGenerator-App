@@ -4,14 +4,13 @@ using MakoKaraGenerator.Scripting.V2;
 
 public sealed record ClusterExitData(double DriftPx, double StaggerFraction) : PreparedEffect;
 
-public sealed class ClusterExit : IPureKaraokeEffect
+public sealed class ClusterExit : IPureKaraokeEffect<ClusterExitData>
 {
-    public PreparedEffect Declare(DeclareContext source) => new ClusterExitData(
+    public ClusterExitData Declare(DeclareContext source) => new ClusterExitData(
         source.Parameters.GetNumber("driftPx"), source.Parameters.GetNumber("staggerFraction"));
 
-    public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
+    public void Evaluate(in TextFrame frame, ClusterExitData settings, TextOutput output)
     {
-        var settings = (ClusterExitData)data;
         var clusters = frame.Clusters;
         foreach (var load in frame.LineLoads)
         {

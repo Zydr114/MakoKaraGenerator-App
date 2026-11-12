@@ -7,16 +7,16 @@ namespace MakoKaraGenerator.Scripting.Compilation;
 // trusted host writableGroups list and PreparedRenderFrame preflight.
 internal static class GroupGraphEffectAdmission
 {
-    internal const string Capability = "image.graph.group";
+    internal const string Capability = V2.CapabilityNames.ImageGraphGroup;
     internal static bool IsAllowedRequirement(EffectOutputDefinition output, string requirement)
-        => requirement == "image.graph" || output.Kind == "ImageGraph" && output.Target == "group" && requirement == Capability;
+        => requirement == V2.CapabilityNames.ImageGraph || output.Kind == "ImageGraph" && output.Target == "group" && requirement == Capability;
 
     internal static void Validate(EffectPackageDefinition package, EffectOutputDefinition output, EffectBinding binding, string path)
     {
         if (!EffectPackageProfiles.IsV2(package.Contents.Profile)
             || !package.Contents.Requires.Contains(Capability, StringComparer.Ordinal))
             throw new EffectPackageException("GroupImageEffectUnsupported", path, "源组图须使用 v3／SDK v2 并显式声明 image.graph.group。");
-        if (!package.Contents.Requires.Contains("image.graph", StringComparer.Ordinal))
+        if (!package.Contents.Requires.Contains(V2.CapabilityNames.ImageGraph, StringComparer.Ordinal))
             throw new EffectPackageException("PackageCapabilityMissing", path, "image.graph.group 必须同时声明 image.graph。");
         if (output.Kind != "ImageGraph" || output.Target != "group")
             throw new EffectPackageException("UndeclaredPackageOutput", path, "组图须声明真实 ImageGraph/group 输出。");

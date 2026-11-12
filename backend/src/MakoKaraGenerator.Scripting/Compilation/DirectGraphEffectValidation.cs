@@ -9,7 +9,7 @@ internal static class DirectGraphEffectValidation
     {
         string path = "exports." + graph.Id;
         bool v2 = EffectPackageProfiles.IsV2(package.Contents.Profile);
-        if (v2 && !package.Contents.Requires.Contains("image.graph", StringComparer.Ordinal))
+        if (v2 && !package.Contents.Requires.Contains(V2.CapabilityNames.ImageGraph, StringComparer.Ordinal))
             throw new EffectPackageException("PackageCapabilityMissing", path, "v2 直接图必须声明 image.graph。");
         if (!graph.BindingKinds.Contains(PackageSdkParameters.BindingKind(binding), StringComparer.Ordinal))
             throw new EffectPackageException("PackageBindingNotAllowed", path + ".bindingKinds", "图导出未允许此绑定类别。");

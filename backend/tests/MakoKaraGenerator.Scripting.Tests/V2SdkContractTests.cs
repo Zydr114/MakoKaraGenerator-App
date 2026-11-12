@@ -20,6 +20,16 @@ public sealed class V2SdkContractTests
     }
 
     [Fact]
+    public void 能力名单一定义与Core清单集合一致且帧输出句柄只由宿主创建和完成()
+    {
+        Assert.Equal(CapabilityNames.All.Length, CapabilityNames.All.Distinct(StringComparer.Ordinal).Count());
+        Assert.True(Core.Effects.EffectPackageProfiles.SupportedV2Capabilities.SetEquals(CapabilityNames.All),
+            $"Core 与 SDK 能力名不一致：{string.Join(", ", Core.Effects.EffectPackageProfiles.SupportedV2Capabilities.Order(StringComparer.Ordinal))} / {string.Join(", ", CapabilityNames.All.Order(StringComparer.Ordinal))}");
+        Assert.Empty(typeof(TextOutput).GetConstructors()); Assert.Empty(typeof(TextFrame).GetConstructors()); Assert.Empty(typeof(DeclareContext).GetConstructors());
+        Assert.Null(typeof(TextOutput).GetMethod("Complete")); Assert.Null(typeof(TextOutput).GetMethod("Invalidate"));
+    }
+
+    [Fact]
     public void 真实事件按类型范围和原文索引且重复装载不增加occurrence序号()
     {
         var first = Start("first", "branch-a", "line-a", 100, 0);

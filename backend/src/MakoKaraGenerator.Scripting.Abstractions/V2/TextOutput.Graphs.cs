@@ -4,8 +4,8 @@ namespace MakoKaraGenerator.Scripting.V2;
 
 public sealed partial class TextOutput
 {
-    private const string ImageGraphCapability = "image.graph";
-    private const string GroupImageGraphCapability = "image.graph.group";
+    private const string ImageGraphCapability = CapabilityNames.ImageGraph;
+    private const string GroupImageGraphCapability = CapabilityNames.ImageGraphGroup;
     private readonly GraphBindingBudget _graphBudget = new();
     private ExceptionDispatchInfo? _graphFailure;
     internal CancellationToken GraphCancellation { private get; init; }

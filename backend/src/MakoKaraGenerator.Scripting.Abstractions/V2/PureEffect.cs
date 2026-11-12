@@ -13,6 +13,22 @@ public interface IPureKaraokeEffect
     void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output);
 }
 
+/// <summary>带类型化准备结果的文字纯求值入口：<see cref="Evaluate"/> 直接收到 <see cref="Declare"/> 返回的记录，不必强转。</summary>
+/// <typeparam name="TPrepared">本效果的准备记录类型。</typeparam>
+/// <remarks>宿主仍经非泛型入口调用，并把 <see cref="Declare"/> 的返回值原样传回；非泛型成员由本接口的默认实现转发，作者不需要也不应再实现。</remarks>
+public interface IPureKaraokeEffect<TPrepared> : IPureKaraokeEffect where TPrepared : PreparedEffect
+{
+    /// <summary>从一次固定输入建立递归只读准备结果；不得保留阶段句柄或可变外部状态。</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1716:Identifiers should not match keywords", Justification = "SDK v2 明确提供 C# 作者入口，Declare 为已固定生命周期名称。")]
+    new TPrepared Declare(DeclareContext source);
+
+    /// <summary>只读取固定输入、本效果的准备结果和当前时刻，向本次调用的临时输出写入文字属性。</summary>
+    void Evaluate(in TextFrame frame, TPrepared data, TextOutput output);
+
+    PreparedEffect IPureKaraokeEffect.Declare(DeclareContext source) => Declare(source);
+    void IPureKaraokeEffect.Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output) => Evaluate(in frame, (TPrepared)data, output);
+}
+
 /// <summary>作者可派生的准备记录；派生记录及其全部成员必须满足编译器的递归只读检查。</summary>
 /// <remarks>宿主按固定输入身份保留本值。不可在其中保存帧、输出、委托、可变集合或原生资源。</remarks>
 public abstract record PreparedEffect
@@ -34,7 +50,7 @@ public abstract record PreparedEffect
 public sealed class DeclareContext
 {
     /// <summary>固定宿主已经解析的目录、参数、分析、资源、种子、源事件索引和工程成片时长。</summary>
-    public DeclareContext(ContentCatalog content, SceneCatalog scene, ParameterValues parameters,
+    internal DeclareContext(ContentCatalog content, SceneCatalog scene, ParameterValues parameters,
         AudioFeatures audio, ResourceCatalog resources, ulong seed, TimelineIndex timeline, Vector2 canvasSize,
         EffectInstanceId instanceId, SourceIndexes? indexes = null, long? projectDurationUs = null)
         : this(content, scene, parameters, audio, resources, seed, timeline, canvasSize, instanceId, indexes, MediaQueryCatalog.Empty, projectDurationUs) { }

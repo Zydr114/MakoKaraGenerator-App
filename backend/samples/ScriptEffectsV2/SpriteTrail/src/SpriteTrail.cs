@@ -6,9 +6,9 @@ using MakoKaraGenerator.Scripting.V2;
 public sealed record SpriteTrailData(ImageHandle Image, long TrailUs) : PreparedEffect;
 
 /// <summary>宿主解析播放头粒子的出生、运动与拖尾；纯视觉阶段以包内图片绘制旋转星芒和逐样本淡出的拖尾。</summary>
-public sealed class SpriteTrail : IPureKaraokeEffect, IPureVisualEffect
+public sealed class SpriteTrail : IPureKaraokeEffect<SpriteTrailData>, IPureVisualEffect<SpriteTrailData>
 {
-    public PreparedEffect Declare(DeclareContext source)
+    public SpriteTrailData Declare(DeclareContext source)
     {
         var p = source.Parameters;
         long end = 1;
@@ -37,11 +37,10 @@ public sealed class SpriteTrail : IPureKaraokeEffect, IPureVisualEffect
         };
     }
 
-    public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output) { }
+    public void Evaluate(in TextFrame frame, SpriteTrailData data, TextOutput output) { }
 
-    public void EvaluateVisuals(in VisualFrame frame, PreparedEffect data, VisualOutput output)
+    public void EvaluateVisuals(in VisualFrame frame, SpriteTrailData settings, VisualOutput output)
     {
-        var settings = (SpriteTrailData)data;
         var sprites = ImmutableArray.CreateBuilder<Sprite>();
         long now = frame.TimeUs;
         foreach (var particle in frame.Particles.Alive)

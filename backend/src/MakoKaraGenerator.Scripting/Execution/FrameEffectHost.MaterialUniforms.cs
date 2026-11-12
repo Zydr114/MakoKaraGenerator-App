@@ -50,7 +50,7 @@ internal sealed partial class FrameEffectHost
                         case TextWrite.MaterialUniform uniform:
                             if (uniform.Target is not (TextTarget.Family or TextTarget.Base or TextTarget.Mark))
                                 throw new EffectOutputException("MaterialUniformTargetPending", "uniform 只支持真实字族、基础字或标记。");
-                            if (!definition.PackageDefinition!.Contents.Requires.Contains("material.uniform", StringComparer.Ordinal))
+                            if (!definition.PackageDefinition!.Contents.Requires.Contains(V2.CapabilityNames.MaterialUniform, StringComparer.Ordinal))
                                 throw new EffectOutputException("UndeclaredCapability", "包未声明 material.uniform。");
                             budget.ChargeMaterialUniform(uniform.Material, uniform.NodeId, uniform.Name, uniform.Value, token);
                             ValidateMaterialExport(definition, uniform.Material, uniform.Slot, null);

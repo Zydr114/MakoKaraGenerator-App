@@ -8,12 +8,12 @@ public sealed record WaveData(double AmplitudePx, double FrequencyHz, double Wav
 
 /// <summary>正在唱的字按网格起伏，唱完后在 settleUs 内回落。网格作用于整个字族（含注音），
 /// 播放头、粒子出生点和星芒都读取变形后的最终几何。</summary>
-public sealed class WaveWarp : IPureKaraokeEffect
+public sealed class WaveWarp : IPureKaraokeEffect<WaveData>
 {
     private const int Columns = 6;
     private const double MarginPx = 64;
 
-    public PreparedEffect Declare(DeclareContext source)
+    public WaveData Declare(DeclareContext source)
     {
         var times = ImmutableDictionary.CreateBuilder<TokenId, TimeRange>();
         foreach (var token in source.Content.Tokens)
@@ -23,9 +23,8 @@ public sealed class WaveWarp : IPureKaraokeEffect
             p.GetDuration("riseUs"), p.GetDuration("settleUs"), times.ToImmutable());
     }
 
-    public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
+    public void Evaluate(in TextFrame frame, WaveData d, TextOutput output)
     {
-        var d = (WaveData)data;
         if (d.AmplitudePx <= 0) return;
         double seconds = frame.TimeUs / 1_000_000d;
         foreach (var token in frame.Geometry)

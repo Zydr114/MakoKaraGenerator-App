@@ -8,9 +8,9 @@ public sealed partial class TextOutput
         RequireOpen(); ArgumentNullException.ThrowIfNull(target);
         string capability = target switch
         {
-            TextTarget.Family or TextTarget.Base => "token.warp",
-            TextTarget.Cluster => "cluster.warp",
-            TextTarget.Mark => "mark.warp",
+            TextTarget.Family or TextTarget.Base => CapabilityNames.TokenWarp,
+            TextTarget.Cluster => CapabilityNames.ClusterWarp,
+            TextTarget.Mark => CapabilityNames.MarkWarp,
             _ => throw Unsupported(),
         };
         Require(target, capability);

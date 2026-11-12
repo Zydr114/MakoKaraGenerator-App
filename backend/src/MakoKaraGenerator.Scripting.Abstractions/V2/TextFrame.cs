@@ -45,7 +45,7 @@ public sealed record TextLineLoad
 public readonly struct TextFrame
 {
     /// <summary>投影宿主已经采样的安全只读输入；退场时由宿主显式提供冻结后的装载和几何。</summary>
-    public TextFrame(DeclareContext source, FrameContext frame, ImmutableArray<TextLineLoad> lineLoads = default)
+    internal TextFrame(DeclareContext source, FrameContext frame, ImmutableArray<TextLineLoad> lineLoads = default)
         : this(source, frame, lineLoads, UnboundMedia(source, frame)) { }
 
     internal TextFrame(DeclareContext source, FrameContext frame, ImmutableArray<TextLineLoad> lineLoads, MediaFeatures media)

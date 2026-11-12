@@ -14,7 +14,7 @@ public sealed partial class TextOutput
             if (string.IsNullOrWhiteSpace(nodeId) || string.IsNullOrWhiteSpace(name))
                 throw new EffectOutputException("InvalidMaterialUniformMetadata", "节点与 uniform 名须为明确非空身份。");
             if (!Enum.IsDefined(slot)) throw new EffectOutputException("InvalidMaterialSlot", "uniform 须明确选择材质部位。");
-            Require(target, "material.uniform");
+            Require(target, CapabilityNames.MaterialUniform);
             if (target is not (TextTarget.Family or TextTarget.Base or TextTarget.Mark))
                 throw new EffectOutputException("MaterialUniformTargetPending", "此粒度的独立包材质 uniform 执行尚未接通。");
             RequireIndependentStyle(target);

@@ -130,7 +130,7 @@ public sealed partial class CompiledEffectPackage
                     throw new EffectPackageException("PackageWriterPending", path, "SDK v2 尚未接通此输出阶段：" + output.Kind);
                 if (output.Kind == "ImageGraph" && output.Target is not ("tokenFamily" or "line" or "textMark" or "group"))
                     throw new EffectPackageException("PackageWriterPending", path, "SDK v2 此图目标的生产调度尚未接通。");
-                if (output.Kind == "ImageGraph" && !Definition.Contents.Requires.Contains("image.graph", StringComparer.Ordinal))
+                if (output.Kind == "ImageGraph" && !Definition.Contents.Requires.Contains(V2.CapabilityNames.ImageGraph, StringComparer.Ordinal))
                     throw new EffectPackageException("PackageCapabilityMissing", path, "图控制器必须声明 image.graph 能力。");
                 if (output.Kind == "ImageGraph" && output.Target == "group")
                 {

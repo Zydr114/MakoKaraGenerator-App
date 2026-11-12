@@ -5,16 +5,15 @@ using MakoKaraGenerator.Scripting.V2;
 public sealed record RepeatData(bool ProjectScope, double ScaleStep, double MaximumScale,
     double DarkenStep, double MinimumBrightness) : PreparedEffect;
 
-public sealed class RepeatEmphasis : IPureKaraokeEffect
+public sealed class RepeatEmphasis : IPureKaraokeEffect<RepeatData>
 {
-    public PreparedEffect Declare(DeclareContext source) => new RepeatData(
+    public RepeatData Declare(DeclareContext source) => new RepeatData(
         source.Parameters.GetEnum("countScope") == "project", source.Parameters.GetNumber("scaleStep"),
         source.Parameters.GetNumber("maxScale"), source.Parameters.GetNumber("darkenStep"),
         source.Parameters.GetNumber("minBrightness"));
 
-    public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
+    public void Evaluate(in TextFrame frame, RepeatData settings, TextOutput output)
     {
-        var settings = (RepeatData)data;
         foreach (var token in frame.Presentations.TokensInBinding)
         {
             var source = frame.Source.Content.GetLine(token.LineId);

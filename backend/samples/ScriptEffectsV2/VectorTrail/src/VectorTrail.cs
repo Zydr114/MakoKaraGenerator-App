@@ -5,9 +5,9 @@ using MakoKaraGenerator.Scripting.V2;
 
 public sealed record VectorTrailData(string Mode, bool ShowBirths, ImageHandle Image) : PreparedEffect;
 
-public sealed class VectorTrail : IPureKaraokeEffect, IPureVisualEffect
+public sealed class VectorTrail : IPureKaraokeEffect<VectorTrailData>, IPureVisualEffect<VectorTrailData>
 {
-    public PreparedEffect Declare(DeclareContext source)
+    public VectorTrailData Declare(DeclareContext source)
     {
         var p = source.Parameters;
         long end = 1;
@@ -42,11 +42,10 @@ public sealed class VectorTrail : IPureKaraokeEffect, IPureVisualEffect
         };
     }
 
-    public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output) { }
+    public void Evaluate(in TextFrame frame, VectorTrailData data, TextOutput output) { }
 
-    public void EvaluateVisuals(in VisualFrame frame, PreparedEffect data, VisualOutput output)
+    public void EvaluateVisuals(in VisualFrame frame, VectorTrailData settings, VisualOutput output)
     {
-        var settings = (VectorTrailData)data;
         var heads = ImmutableArray.CreateBuilder<Dot>();
         var births = ImmutableArray.CreateBuilder<Dot>();
         var segments = ImmutableArray.CreateBuilder<Segment>();

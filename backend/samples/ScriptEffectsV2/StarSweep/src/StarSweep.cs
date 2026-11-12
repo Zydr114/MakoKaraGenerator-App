@@ -6,9 +6,9 @@ using MakoKaraGenerator.Scripting.V2;
 public sealed record StarData(VectorHandle Star, double SizePx, double SpinHz, ColorRgba Tint, int TailCount, double TailStep) : PreparedEffect;
 
 /// <summary>SVG 矢量星沿每个真实播放头扫过整句，后随渐隐小星。位置取 Warp／父组之后的最终几何。</summary>
-public sealed class StarSweep : IPureKaraokeEffect, IPureVisualEffect
+public sealed class StarSweep : IPureKaraokeEffect<StarData>, IPureVisualEffect<StarData>
 {
-    public PreparedEffect Declare(DeclareContext source)
+    public StarData Declare(DeclareContext source)
     {
         var p = source.Parameters;
         return new StarData(source.Resources.GetVector("star"), p.GetNumber("sizePx"), p.GetNumber("spinHz"), p.GetColor("color"),
@@ -18,11 +18,10 @@ public sealed class StarSweep : IPureKaraokeEffect, IPureVisualEffect
         };
     }
 
-    public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output) { }
+    public void Evaluate(in TextFrame frame, StarData data, TextOutput output) { }
 
-    public void EvaluateVisuals(in VisualFrame frame, PreparedEffect data, VisualOutput output)
+    public void EvaluateVisuals(in VisualFrame frame, StarData d, VisualOutput output)
     {
-        var d = (StarData)data;
         var stars = ImmutableArray.CreateBuilder<VectorVisual>();
         var playback = frame.FinalGeometry.Playback;
         if (playback.IsAvailable)

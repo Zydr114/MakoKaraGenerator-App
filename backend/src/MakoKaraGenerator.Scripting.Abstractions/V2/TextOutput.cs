@@ -14,7 +14,7 @@ public sealed partial class TextOutput
     private bool _closed;
 
     /// <summary>宿主建立本帧输出范围；全局组几何不授予写权，writableGroups 必须由运行父树绑定检查取得。</summary>
-    public TextOutput(in TextFrame frame, ImmutableArray<string> capabilities, ImmutableArray<GroupTarget> writableGroups = default)
+    internal TextOutput(in TextFrame frame, ImmutableArray<string> capabilities, ImmutableArray<GroupTarget> writableGroups = default)
     {
         if (capabilities.IsDefault || capabilities.Any(string.IsNullOrWhiteSpace))
             throw new ArgumentException("能力必须是明确的非空身份集合。", nameof(capabilities));
@@ -73,8 +73,8 @@ public sealed partial class TextOutput
         RequireOpen(); ArgumentNullException.ThrowIfNull(target);
         string capability = target switch
         {
-            TextTarget.Family or TextTarget.Base => "token.opacity",
-            TextTarget.Group => "group.opacity",
+            TextTarget.Family or TextTarget.Base => CapabilityNames.TokenOpacity,
+            TextTarget.Group => CapabilityNames.GroupOpacity,
             _ => throw Unsupported(),
         };
         Require(target, capability);
@@ -88,7 +88,7 @@ public sealed partial class TextOutput
     {
         WriteMaterialReplacement(() =>
         {
-            RequireStyle(target, "style.fill"); RequireState(state);
+            RequireStyle(target, CapabilityNames.StyleFill); RequireState(state);
             ArgumentNullException.ThrowIfNull(material); ValidateMaterial(material);
             foreach (var each in States(state))
             {
@@ -102,7 +102,7 @@ public sealed partial class TextOutput
     {
         WriteMaterialReplacement(() =>
         {
-            RequireStyle(target, "style.stroke"); RequireState(state); ArgumentNullException.ThrowIfNull(strokes);
+            RequireStyle(target, CapabilityNames.StyleStroke); RequireState(state); ArgumentNullException.ThrowIfNull(strokes);
             var layers = AppearanceView.ValidateStrokes([.. strokes]);
             foreach (var layer in layers) ValidateMaterial(layer.Material);
             foreach (var each in States(state))
@@ -116,31 +116,31 @@ public sealed partial class TextOutput
     /// <summary>整体替换一态的阴影；null 明确关闭，与未写继承不同。</summary>
     public void SetShadow(TextTarget target, TextState state, ShadowValue? value)
     {
-        RequireStyle(target, "style.shadow"); RequireState(state);
+        RequireStyle(target, CapabilityNames.StyleShadow); RequireState(state);
         foreach (var each in States(state)) _writes.Add(new TextWrite.Shadow(target, each, value));
     }
     /// <summary>整体替换一态的外发光；null 明确关闭，与未写继承不同。</summary>
     public void SetGlow(TextTarget target, TextState state, GlowValue? value)
     {
-        RequireStyle(target, "style.glow"); RequireState(state);
+        RequireStyle(target, CapabilityNames.StyleGlow); RequireState(state);
         foreach (var each in States(state)) _writes.Add(new TextWrite.Glow(target, each, value));
     }
     /// <summary>整体替换扫字样式（羽化与高亮，两态共享）；只用于元素族与底字，文字标记没有扫字样式。</summary>
     public void SetWipe(TextTarget target, WipeValue wipe)
     {
-        RequireStyle(target, "style.wipe"); ArgumentNullException.ThrowIfNull(wipe);
+        RequireStyle(target, CapabilityNames.StyleWipe); ArgumentNullException.ThrowIfNull(wipe);
         if (target is TextTarget.Mark) throw Unsupported();
         _writes.Add(new TextWrite.Wipe(target, wipe));
     }
 
-    /// <summary>宿主在成功返回后关闭并取得整个不可变结果；只允许完成一次，作者不得自行调用。</summary>
-    public TextOutputSnapshot Complete()
+    /// <summary>宿主在成功返回后关闭并取得整个不可变结果；只允许完成一次（宿主内部成员，作者不可见）。</summary>
+    internal TextOutputSnapshot Complete()
     {
         RequireOpen(); _closed = true;
         return _writes.Count == 0 ? TextOutputSnapshot.Empty : new([.. _writes]);
     }
     /// <summary>宿主在退出阶段或异常时废弃未发布结果；幂等，之后所有写入及完成均拒绝。</summary>
-    public void Invalidate() { _closed = true; _writes.Clear(); _transforms.Clear(); }
+    internal void Invalidate() { _closed = true; _writes.Clear(); _transforms.Clear(); }
 
     private void RequireOpen()
     {
@@ -177,11 +177,11 @@ public sealed partial class TextOutput
     };
     private static string TransformCapability(TextTarget target) => target switch
     {
-        TextTarget.Family or TextTarget.Base => "token.affine",
-        TextTarget.Line => "line.affine",
-        TextTarget.Group => "group.affine",
-        TextTarget.Mark => "mark.affine",
-        TextTarget.Cluster => "cluster.affine",
+        TextTarget.Family or TextTarget.Base => CapabilityNames.TokenAffine,
+        TextTarget.Line => CapabilityNames.LineAffine,
+        TextTarget.Group => CapabilityNames.GroupAffine,
+        TextTarget.Mark => CapabilityNames.MarkAffine,
+        TextTarget.Cluster => CapabilityNames.ClusterAffine,
         _ => throw Unsupported(),
     };
     private static EffectOutputException Unsupported() => new("PropertyTargetUnsupported", "本属性不支持该目标粒度。");

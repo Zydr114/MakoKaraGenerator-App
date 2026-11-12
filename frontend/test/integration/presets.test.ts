@@ -112,7 +112,7 @@ describe('工程模板分配（真实 Server）', () => {
     copyId = copied.templateId;
     const { definition } = await client.templates.detail('personal', copyId, copied.revision);
     const red = { kind: 'solid' as const, color: { red: 255, green: 0, blue: 0, alpha: 255 } };
-    const edited = await client.templates.command('personal', copied.revision, { type: 'replace', templateId: copyId, definition: { ...definition!, style: { ...definition!.style, unsungFill: { material: red } } } });
+    const edited = await client.templates.command('personal', copied.revision, { type: 'replace', templateId: copyId, definition: { ...definition!, style: { ...definition!.style, unsung: { ...definition!.style.unsung, fill: red } } } });
     const replaced = await command({ type: 'presetApplications.apply', templateLibraryId: 'personal', templateId: copyId, templateRevision: edited.revision, targets: [line(0)] });
     expect(replaced.presetApplicationResult?.applicationIds).toEqual([first!.applicationId]);
     const apps = await read();

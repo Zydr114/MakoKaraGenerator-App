@@ -223,7 +223,7 @@ describe('编排补齐（真实 Server，1.24.0）', () => {
 
   it('标记：增加（后端给 ID）、改字、完整排序、均匀排列；外观覆盖与倒计时外观；拒绝不改工程', async () => {
     const box = await node(indicator);
-    expect(box.content).toMatchObject({ attachmentMode: 'CueTargetText', appearance: { opacity: 1, stroke: null, shadow: null } });
+    expect(box.content).toMatchObject({ attachmentMode: 'CueTargetText', appearance: { opacity: 1, pending: { strokes: [], shadow: null } } });
     const added = await changes({ type: 'orchestration.addMark', containerId: indicator, text: '★' });
     expect(added.leadInResult).toMatchObject({ operation: 'addMark', indicatorContainerId: indicator, changed: true });
     const mark = added.leadInResult!.markNodeIds![0]!;

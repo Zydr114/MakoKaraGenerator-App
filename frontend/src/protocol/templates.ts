@@ -3,7 +3,7 @@
 // 库修订是不透明字符串：个人库还没有入口时为 'missing'（与已发布的空库不同），否则是 64 位小写十六进制。
 
 import type { EffectPackageInspectResponse, EffectPackageReference } from './effect-packages';
-import type { CanonicalStyle, StaticMaterial } from './style';
+import { STYLE_PROPERTY_PATHS, type CanonicalStyle, type StaticMaterial, type StylePropertyPath } from './style';
 import type { TemplateLibraryId } from './presets';
 import type { PreviewAlphaMode, PreviewSize, PreviewSessionSource, RenderBackend } from './preview';
 
@@ -12,56 +12,15 @@ export const TEMPLATE_LIST_MAX_LIMIT = 100;
 
 export type TemplateKind = 'line' | 'token' | 'composite';
 
-/** 模板可以控制的 26 个属性（与 styles.patch 的 29 个路径无关）。 */
-export const TEMPLATE_PROPERTIES = [
-  'fontFamilyName',
-  'fallbackFamilyNames',
-  'fontSizePx',
-  'fontWeight',
-  'isBold',
-  'isItalic',
-  'letterSpacingPx',
-  'verticalCenterRatio',
-  'horizontalAlignment',
-  'unsungColor',
-  'sungColor',
-  'unsungGradientSpec',
-  'sungGradientSpec',
-  'strokeColor',
-  'strokeWidthPx',
-  'strokeSpec',
-  'shadowColor',
-  'shadowBlurPx',
-  'shadowSpec',
-  'opacity',
-  'scale',
-  'glowSpec',
-  'glowColor',
-  'glowOpacity',
-  'glowBlurRadiusPx',
-  'glowSpreadPx',
-] as const;
-export type TemplateProperty = (typeof TEMPLATE_PROPERTIES)[number];
+/** 模板可以控制的属性就是 43 项样式属性路径（合同 1.50.0 起与 styles.* 共用一张表）。 */
+export const TEMPLATE_PROPERTIES = STYLE_PROPERTY_PATHS;
+export type TemplateProperty = StylePropertyPath;
 
-/** 各用途允许的属性（OpenAPI StaticTemplateDefinitionDto 的 allOf）；文本单元目标也只接受前者范围内的模板。 */
-export const TOKEN_TEMPLATE_PROPERTIES: readonly TemplateProperty[] = [
-  'unsungColor',
-  'sungColor',
-  'unsungGradientSpec',
-  'sungGradientSpec',
-  'strokeColor',
-  'strokeWidthPx',
-  'strokeSpec',
-  'shadowColor',
-  'shadowBlurPx',
-  'shadowSpec',
-  'opacity',
-  'glowSpec',
-  'glowColor',
-  'glowOpacity',
-  'glowBlurRadiusPx',
-  'glowSpreadPx',
-];
+/** 元素模板不能含字体排印、垂直中心、水平对齐与缩放（OpenAPI StaticTemplateDefinitionDto 的 allOf）；文本单元目标也只接受这个范围内的模板。 */
+export const TOKEN_TEMPLATE_PROPERTIES: readonly TemplateProperty[] = TEMPLATE_PROPERTIES.filter(
+  (p) => !p.startsWith('typography.') && p !== 'verticalCenterRatio' && p !== 'horizontalAlignment' && p !== 'scale',
+);
+/** 组合模板不能含垂直中心与水平对齐。 */
 export const COMPOSITE_TEMPLATE_PROPERTIES: readonly TemplateProperty[] = TEMPLATE_PROPERTIES.filter(
   (p) => p !== 'verticalCenterRatio' && p !== 'horizontalAlignment',
 );
@@ -210,6 +169,7 @@ export const TEMPLATE_PREVIEW_SAMPLE_ID = 'default-v1';
 export const TEMPLATE_WORKSHOP_SAMPLE_IDS = ['workshop-single-line-v1', 'workshop-multi-line-v1'] as const;
 export type TemplateWorkshopSampleId = (typeof TEMPLATE_WORKSHOP_SAMPLE_IDS)[number];
 export type TemplateSampleId = typeof TEMPLATE_PREVIEW_SAMPLE_ID | TemplateWorkshopSampleId;
+/** 材质槽名（1.50.0 起不变）：stroke 指未唱最内层描边（unsung.strokes[0]），已唱描边暂无工坊槽。 */
 export type TemplateMaterialSlot = 'unsungFill' | 'sungFill' | 'stroke';
 
 /**

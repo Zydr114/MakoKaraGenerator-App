@@ -149,7 +149,7 @@ try {
   const definition = await page.eval(`JSON.parse(document.querySelector('.template-json').textContent)`);
   const recipe = definition.effectRecipes.find((r) => r.configurationId === configurationId);
   if (recipe?.fixedSeed !== MAX_SEED || JSON.parse(recipe.parametersJson).shape?.kind !== 'cubicBezier') throw new Error('模板没有保留组件参数和种子');
-  if (definition.style.unsungFill.material.packageId !== 'makokara.custom-ink') throw new Error('未唱填充没有采用 CustomInk 材质');
+  if (definition.style.unsung.fill.packageId !== 'makokara.custom-ink') throw new Error('未唱填充没有采用 CustomInk 材质');
   await ui.click(page, 'button', '保存', { scope: '.template-actions' });
   await page.waitFor(`${detailTags}[0] === '我的模板' && !${detailTags}.includes('未保存')`, '保存模板', 30_000);
   await selectTemplate('builtin:line-classic', '经典整行');
@@ -157,7 +157,7 @@ try {
   await ui.click(page, 'tab', '高级');
   await page.waitFor(`document.querySelector('.template-json')?.textContent.includes(${JSON.stringify(configurationId)})`, '保存后重读');
   const reread = await page.eval(`JSON.parse(document.querySelector('.template-json').textContent)`);
-  if (!isDeepStrictEqual([reread.effectRecipes, reread.style.unsungFill.material], [definition.effectRecipes, definition.style.unsungFill.material])) throw new Error('保存重读改变了效果或材质');
+  if (!isDeepStrictEqual([reread.effectRecipes, reread.style.unsung.fill], [definition.effectRecipes, definition.style.unsung.fill])) throw new Error('保存重读改变了效果或材质');
   await page.waitFor(`!!${sampleImg}`, '模板试样', 120_000);
   const sha = await page.eval(`${sampleImg}.dataset.sha`);
   passed('模板分别从效果和材质组件选择，保存重读保留曲线、最大种子与 CustomInk 未唱填充');

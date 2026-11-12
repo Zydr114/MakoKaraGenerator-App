@@ -5,8 +5,7 @@ import type { CanonicalStyle, LyricBranchSummary, PresetApplication, ProjectReso
 import { PROJECT_TARGET, type AppearanceTarget } from './appearance-targets';
 import type { EditorLine } from './lyrics';
 import { clipName, clipsOf, nodePath, type OrchestrationModel } from './orchestration';
-import { describeValue } from './style-overrides';
-import { TEMPLATE_GROUPS } from './template-groups';
+import { groupSwatch, groupValueText, TEMPLATE_GROUPS, type TemplateGroupId } from './template-groups';
 
 export type StyleSource =
   | { kind: 'project' }
@@ -44,34 +43,7 @@ export interface SourceContext {
   model: OrchestrationModel | undefined;
 }
 
-export const STYLE_PROPERTY_TEXT: Record<TemplateProperty, string> = {
-  fontFamilyName: '字体',
-  fallbackFamilyNames: '回退字体',
-  fontSizePx: '字号',
-  fontWeight: '字重',
-  isBold: '粗体',
-  isItalic: '斜体',
-  letterSpacingPx: '字距',
-  verticalCenterRatio: '垂直中心',
-  horizontalAlignment: '水平对齐',
-  unsungColor: '未唱颜色',
-  unsungGradientSpec: '未唱渐变',
-  sungColor: '已唱颜色',
-  sungGradientSpec: '已唱渐变',
-  strokeColor: '描边颜色',
-  strokeWidthPx: '描边宽度',
-  strokeSpec: '描边设置',
-  shadowColor: '阴影颜色',
-  shadowBlurPx: '阴影模糊',
-  shadowSpec: '阴影设置',
-  glowColor: '辉光颜色',
-  glowOpacity: '辉光不透明度',
-  glowSpreadPx: '辉光扩张',
-  glowBlurRadiusPx: '辉光模糊',
-  glowSpec: '辉光设置',
-  opacity: '透明度',
-  scale: '缩放',
-};
+export { STYLE_PROPERTY_TEXT } from './style-overrides';
 
 function branchText(branchId: string, ctx: SourceContext): string {
   return ctx.branches?.find((b) => b.id === branchId)?.name || branchId;
@@ -198,34 +170,7 @@ export function sourceGroups(response: Pick<ProjectResolvedStyleResponse, 'style
   });
 }
 
-function groupValue(id: string, style: CanonicalStyle): { text: string; swatch?: string } {
-  const t = style.typography;
-  switch (id) {
-    case 'font':
-      return { text: [t.fontFamilyName ?? '后端默认字体', ...t.fallbackFamilyNames].join('、') };
-    case 'size':
-      return describeValue('typography.fontSizePx', t.fontSizePx);
-    case 'weight':
-      return { text: [String(t.fontWeight), t.isBold ? '粗体' : '', t.isItalic ? '斜体' : ''].filter(Boolean).join(' · ') };
-    case 'spacing':
-      return describeValue('typography.letterSpacingPx', t.letterSpacingPx);
-    case 'position':
-      return { text: `垂直中心 ${describeValue('verticalCenterRatio', style.verticalCenterRatio).text} · ${describeValue('horizontalAlignment', style.horizontalAlignment).text}` };
-    case 'unsung':
-      return describeValue('unsungFill.material', style.unsungFill.material);
-    case 'sung':
-      return describeValue('sungFill.material', style.sungFill.material);
-    case 'stroke':
-      return describeValue('stroke', style.stroke);
-    case 'shadow':
-      return describeValue('shadow', style.shadow);
-    case 'glow':
-      return describeValue('glow', style.glow);
-    case 'opacity':
-      return describeValue('opacity', style.opacity);
-    case 'scale':
-      return describeValue('scale', style.scale);
-    default:
-      return { text: '' };
-  }
+function groupValue(id: TemplateGroupId, style: CanonicalStyle): { text: string; swatch?: string } {
+  const swatch = groupSwatch(id, style);
+  return { text: groupValueText(id, style), ...(swatch ? { swatch } : {}) };
 }

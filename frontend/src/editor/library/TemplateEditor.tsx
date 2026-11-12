@@ -1,6 +1,8 @@
 // 模板编辑（W3 设计 §2.5，界面改版 §3.6）：外观页签。一项一行：左边是名称，中间是取值，右边的开关决定这一项写不写进模板；
 // 每次提交给 onChange 一份完整的新定义，由样式库状态记成草稿的一步历史。
 // 用了效果包材质的部位只写一行链接，在“材质”页签编辑（W7 设计 §2.3）。
+// 两态（合同 1.50.0）：未唱、已唱各有填充、描边、阴影、辉光，已唱的描边、阴影、辉光可跟随未唱；擦除的羽化与高亮两态共享。
+// 描边这里只编辑最内层，更外的层原样保留。
 
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import type {
@@ -14,28 +16,32 @@ import type {
   StyleShadow,
   StyleStroke,
   StyleTypography,
+  StyleWipeHighlight,
+  StyleWipeHighlightBlend,
   TemplateMaterialSlot,
   TemplateProperty,
 } from '../../protocol';
 import { addStop, gradientProblem, MAX_GRADIENT_STOPS, removeStop, setStopColor, setStopOffset } from '../model/gradient';
 import {
   DEFAULT_GLOW,
+  DEFAULT_HIGHLIGHT,
   DEFAULT_SHADOW,
   DEFAULT_STROKE,
   gradientFrom,
   groupAllowed,
   groupIncluded,
+  isSungEffect,
   KIND_LIMIT_TEXT,
   materialCss,
   materialText,
   setGroupIncluded,
-  setTemplateGlow,
+  setTemplateEffect,
   solidFrom,
-  templateGlowEditing,
+  templateEffectEditing,
   TEMPLATE_GROUPS,
+  type EffectGroupId,
   type TemplateGroup,
   type TemplateGroupId,
-  type GlowLeafProperty,
 } from '../model/template-groups';
 import { Button, IconButton } from '../ui/Button';
 import { SliderField, Switch } from '../ui/choices';
@@ -56,6 +62,11 @@ const JOIN_OPTIONS: readonly { value: StyleStroke['join']; label: string }[] = [
   { value: 'miter', label: '尖角' },
   { value: 'bevel', label: '斜角' },
 ];
+const BLEND_OPTIONS: readonly { value: StyleWipeHighlightBlend; label: string }[] = [
+  { value: 'screen', label: '滤色' },
+  { value: 'normal', label: '普通' },
+  { value: 'add', label: '相加' },
+];
 /** 字形：粗体、斜体两个开关合成一个下拉。 */
 const FACE_OPTIONS = [
   { value: 'regular', label: '常规' },
@@ -68,10 +79,11 @@ const faceOf = (t: StyleTypography): Face => (t.isBold ? (t.isItalic ? 'boldItal
 
 const percent = (value: number) => `${Math.round(value * 100)}%`;
 
-/** 外观页签的三组，每组里按 TEMPLATE_GROUPS 的顺序列出用途允许的项。 */
+/** 外观页签的分组，每组里按 TEMPLATE_GROUPS 的顺序列出用途允许的项。 */
 const SECTIONS: readonly { title: string; ids: readonly TemplateGroupId[] }[] = [
   { title: '文字', ids: ['font', 'size', 'weight', 'spacing'] },
-  { title: '颜色与描边', ids: ['unsung', 'sung', 'stroke', 'shadow', 'glow'] },
+  { title: '颜色与描边', ids: ['unsung', 'sung', 'stroke', 'sungStroke', 'shadow', 'sungShadow', 'glow', 'sungGlow'] },
+  { title: '擦除', ids: ['feather', 'highlight'] },
   { title: '位置与透明', ids: ['position', 'opacity', 'scale'] },
 ];
 /** 行首的短名称（完整名称作开关的可访问名称）。 */
@@ -81,11 +93,16 @@ const ROW_LABEL: Record<TemplateGroupId, string> = {
   weight: '字重',
   spacing: '字距',
   position: '位置',
-  unsung: '未唱',
-  sung: '已唱',
-  stroke: '描边',
-  shadow: '阴影',
-  glow: '辉光',
+  unsung: '未唱填充',
+  sung: '已唱填充',
+  stroke: '未唱描边',
+  sungStroke: '已唱描边',
+  shadow: '未唱阴影',
+  sungShadow: '已唱阴影',
+  glow: '未唱辉光',
+  sungGlow: '已唱辉光',
+  feather: '羽化',
+  highlight: '高亮',
   opacity: '透明度',
   scale: '缩放',
 };
@@ -256,15 +273,39 @@ function rowFields(
         ),
       };
     case 'unsung':
-      return materialRow('未唱颜色', 'unsungFill', style.unsungFill.material, (material) => setStyle({ unsungFill: { material } }), onOpenMaterial, disabled);
+      return materialRow('未唱颜色', 'unsungFill', style.unsung.fill, (fill) => setStyle({ unsung: { ...style.unsung, fill } }), onOpenMaterial, disabled);
     case 'sung':
-      return materialRow('已唱颜色', 'sungFill', style.sungFill.material, (material) => setStyle({ sungFill: { material } }), onOpenMaterial, disabled);
+      return materialRow('已唱颜色', 'sungFill', style.sung.fill, (fill) => setStyle({ sung: { ...style.sung, fill } }), onOpenMaterial, disabled);
     case 'stroke':
-      return strokeRow(style.stroke, (stroke) => setStyle({ stroke }), onOpenMaterial, disabled);
+      return strokeRow('未唱描边', style.unsung.strokes, (strokes) => strokes !== 'follow' && setStyle({ unsung: { ...style.unsung, strokes } }), onOpenMaterial, disabled);
+    case 'sungStroke': {
+      const value = style.sung.strokes.kind === 'follow' ? 'follow' : style.sung.strokes.value;
+      return strokeRow('已唱描边', value, (strokes) => setStyle({ sung: { ...style.sung, strokes: strokes === 'follow' ? { kind: 'follow' } : { kind: 'set', value: strokes } } }), undefined, disabled);
+    }
     case 'shadow':
-      return shadowRow(style.shadow, (shadow) => setStyle({ shadow }), disabled);
+    case 'sungShadow':
     case 'glow':
-      return glowRow(d, (glow, property) => onChange(setTemplateGlow(d, glow, property)), disabled);
+    case 'sungGlow':
+    case 'highlight':
+      return effectRow(d, id, onChange, disabled);
+    case 'feather':
+      return {
+        ctl: (
+          <NumberField
+            label="羽化宽度"
+            labelPlacement="none"
+            size="sm"
+            className="w"
+            suffix="×字号"
+            value={style.wipe.featherRatio}
+            min={0}
+            max={2}
+            onCommit={(featherRatio) => setStyle({ wipe: { ...style.wipe, featherRatio } })}
+            disabled={disabled}
+          />
+        ),
+        sub: <Note>过渡带宽度按字号的倍数，0 是硬边。</Note>,
+      };
     case 'opacity':
       return {
         ctl: <InlineSlider label="透明度" value={style.opacity} min={0} max={1} step={0.01} format={percent} onCommit={(opacity) => setStyle({ opacity })} disabled={disabled} />,
@@ -311,7 +352,15 @@ function materialRow(
   };
 }
 
-function PackageMaterialLink(props: { material: Extract<FullTemplateMaterial, { kind: 'package' }>; onOpen: () => void }) {
+function PackageMaterialLink(props: { material: Extract<FullTemplateMaterial, { kind: 'package' }>; onOpen?: () => void }) {
+  if (!props.onOpen) {
+    return (
+      <span className="material-link" data-package-material title="已唱描边暂无工坊材质槽，不能在这里编辑">
+        <Icon name="texture" />
+        <span>{materialText(props.material)}</span>
+      </span>
+    );
+  }
   return (
     <button type="button" className="material-link" data-package-material onClick={props.onOpen} title="在材质页签编辑">
       <Icon name="texture" />
@@ -321,148 +370,185 @@ function PackageMaterialLink(props: { material: Extract<FullTemplateMaterial, { 
   );
 }
 
+const FOLLOW_OPTION = { value: 'follow', label: '跟随未唱' } as const;
 const STROKE_KINDS = [{ value: 'none', label: '不描边' }, ...STATIC_KINDS] as const;
+const BLACK = { red: 0, green: 0, blue: 0, alpha: 255 };
 
-/** 描边：“不描边”是明确关闭（不是继承）；开着时宽度与转角在下面一行。 */
+/**
+ * 描边：“不描边”是明确关闭（空表，不是继承）；已唱一侧还可跟随未唱。开着时只编辑最内层，宽度与转角在下面一行，更外的层原样保留。
+ * onOpenMaterial 省略时（已唱描边没有工坊槽）包材质只显示，不能编辑。
+ */
 function strokeRow(
-  stroke: StyleStroke<FullTemplateMaterial> | null,
-  onChange: (stroke: StyleStroke<FullTemplateMaterial> | null) => void,
-  onOpenMaterial: (slot: TemplateMaterialSlot) => void,
+  label: string,
+  strokes: StyleStroke<FullTemplateMaterial>[] | 'follow',
+  onChange: (strokes: StyleStroke<FullTemplateMaterial>[] | 'follow') => void,
+  onOpenMaterial: ((slot: TemplateMaterialSlot) => void) | undefined,
   disabled: boolean,
 ): { ctl: ReactNode; sub?: ReactNode } {
+  const canFollow = label.startsWith('已唱');
+  const layers = strokes === 'follow' ? [] : strokes;
+  const [stroke, ...rest] = layers;
   const material = stroke?.material;
-  const kind = !stroke ? 'none' : material!.kind;
+  const kind = strokes === 'follow' ? 'follow' : !stroke ? 'none' : material!.kind;
+  const setFirst = (next: StyleStroke<FullTemplateMaterial>) => onChange([next, ...rest]);
   const shape = stroke && (
-    <div className="ctl-row">
-      <NumberField label="描边宽度" labelPlacement="inside" size="sm" suffix="px" value={stroke.widthPx} min={0} onCommit={(widthPx) => onChange({ ...stroke, widthPx })} disabled={disabled} />
-      <Select label="转角" labelPlacement="inside" size="sm" value={stroke.join} options={JOIN_OPTIONS} onChange={(join) => onChange({ ...stroke, join })} disabled={disabled} />
-    </div>
+    <>
+      <div className="ctl-row">
+        <NumberField label={`${label}宽度`} labelPlacement="inside" size="sm" suffix="px" value={stroke.widthPx} min={0} onCommit={(widthPx) => setFirst({ ...stroke, widthPx })} disabled={disabled} />
+        <Select label="转角" labelPlacement="inside" size="sm" value={stroke.join} options={JOIN_OPTIONS} onChange={(join) => setFirst({ ...stroke, join })} disabled={disabled} />
+      </div>
+      {rest.length > 0 && <Note>另有 {rest.length} 层外圈描边，原样保留。</Note>}
+    </>
   );
   if (material?.kind === 'package') {
-    return { ctl: <PackageMaterialLink material={material} onOpen={() => onOpenMaterial('stroke')} />, sub: shape };
+    return { ctl: <PackageMaterialLink material={material} {...(onOpenMaterial ? { onOpen: () => onOpenMaterial('stroke') } : {})} />, sub: shape };
   }
+  const options = canFollow ? [FOLLOW_OPTION, ...STROKE_KINDS] : STROKE_KINDS;
   return {
     ctl: (
       <>
         <Select
-          label="描边的类型"
+          label={`${label}的类型`}
           labelPlacement="none"
           size="sm"
           className="w"
           value={kind}
-          options={STROKE_KINDS}
+          options={options}
           onChange={(next) => {
-            if (next === 'none') onChange(null);
-            else if (!stroke) onChange(next === 'gradient' ? { ...DEFAULT_STROKE, material: gradientFrom({ red: 0, green: 0, blue: 0, alpha: 255 }) } : DEFAULT_STROKE);
-            else if (material) onChange({ ...stroke, material: next === 'gradient' && material.kind === 'solid' ? gradientFrom(material.color) : solidFrom(material) });
+            if (next === 'follow') onChange('follow');
+            else if (next === 'none') onChange([]);
+            else if (!stroke) onChange([next === 'gradient' ? { ...DEFAULT_STROKE, material: gradientFrom(BLACK) } : DEFAULT_STROKE]);
+            else if (material) setFirst({ ...stroke, material: next === 'gradient' && material.kind === 'solid' ? gradientFrom(material.color) : solidFrom(material) });
           }}
           disabled={disabled}
         />
         {stroke && material ? (
-          <StaticMaterialValue label="描边颜色" material={material} onChange={(m) => onChange({ ...stroke, material: m })} disabled={disabled} compact />
+          <StaticMaterialValue label={`${label}颜色`} material={material} onChange={(m) => setFirst({ ...stroke, material: m })} disabled={disabled} compact />
         ) : (
-          <span className="small inherit">明确关闭，不是继承</span>
+          <span className="small inherit">{kind === 'follow' ? '与未唱相同' : '明确关闭，不是继承'}</span>
         )}
       </>
     ),
     sub: stroke && (
       <>
         {shape}
-        {material?.kind === 'gradient' && <GradientFields gradient={material.gradient} onChange={(gradient) => onChange({ ...stroke, material: { kind: 'gradient', gradient } })} disabled={disabled} />}
+        {material?.kind === 'gradient' && <GradientFields gradient={material.gradient} onChange={(gradient) => setFirst({ ...stroke, material: { kind: 'gradient', gradient } })} disabled={disabled} />}
       </>
     ),
   };
 }
 
-const SHADOW_KINDS = [
-  { value: 'off', label: '无阴影' },
-  { value: 'on', label: '有阴影' },
-] as const;
+const EFFECT_TEXT: Record<'shadow' | 'glow' | 'highlight', { name: string; off: string; on: string; initial: StyleShadow | StyleGlow | StyleWipeHighlight }> = {
+  shadow: { name: '阴影', off: '无阴影', on: '有阴影', initial: DEFAULT_SHADOW },
+  glow: { name: '辉光', off: '无辉光', on: '有辉光', initial: DEFAULT_GLOW },
+  highlight: { name: '高亮', off: '无高亮', on: '有高亮', initial: DEFAULT_HIGHLIGHT },
+};
 
-/** 阴影：“无阴影”是明确关闭；开着时颜色在同一行，不透明度、角度、距离、模糊在下面。 */
-function shadowRow(shadow: StyleShadow | null, onChange: (shadow: StyleShadow | null) => void, disabled: boolean): { ctl: ReactNode; sub?: ReactNode } {
-  return {
-    ctl: (
-      <>
-        <Select
-          label="阴影开关"
-          labelPlacement="none"
-          size="sm"
-          className="w"
-          value={shadow ? 'on' : 'off'}
-          options={SHADOW_KINDS}
-          onChange={(v) => onChange(v === 'on' ? DEFAULT_SHADOW : null)}
-          disabled={disabled}
-        />
-        {shadow ? (
-          <ColorField label="阴影颜色" labelPlacement="none" size="sm" value={shadow.color} onCommit={(color) => onChange({ ...shadow, color })} disabled={disabled} />
-        ) : (
-          <span className="small inherit">明确关闭，不是继承</span>
-        )}
-      </>
-    ),
-    sub: shadow && (
-      <>
-        <div className="ctl-row">
-          <span className="sub-lbl">不透明度</span>
-          <InlineSlider label="阴影不透明度" value={shadow.opacity} min={0} max={1} step={0.01} format={percent} onCommit={(opacity) => onChange({ ...shadow, opacity })} disabled={disabled} />
-        </div>
-        <div className="g3">
-          <NumberField label="角度" labelPlacement="inside" size="sm" suffix="°" value={shadow.angleDegrees} onCommit={(angleDegrees) => onChange({ ...shadow, angleDegrees })} disabled={disabled} />
-          <NumberField label="距离" labelPlacement="inside" size="sm" suffix="px" value={shadow.distancePx} min={0} onCommit={(distancePx) => onChange({ ...shadow, distancePx })} disabled={disabled} />
-          <NumberField label="模糊" labelPlacement="inside" size="sm" suffix="px" value={shadow.blurRadiusPx} min={0} onCommit={(blurRadiusPx) => onChange({ ...shadow, blurRadiusPx })} disabled={disabled} />
-        </div>
-      </>
-    ),
-  };
+function effectKind(group: EffectGroupId): 'shadow' | 'glow' | 'highlight' {
+  return group === 'shadow' || group === 'sungShadow' ? 'shadow' : group === 'glow' || group === 'sungGlow' ? 'glow' : 'highlight';
 }
 
-const GLOW_KINDS = [
-  { value: 'off', label: '无辉光' },
-  { value: 'on', label: '有辉光' },
-] as const;
-
-/** 右侧包含开关控制继承；这里的“无辉光”写入显式 null。 */
-function glowRow(definition: FullTemplateDefinition, onChange: (glow: StyleGlow | null, property?: GlowLeafProperty) => void, disabled: boolean): { ctl: ReactNode; sub?: ReactNode } {
-  const { mode, value: glow } = templateGlowEditing(definition);
-  const options = mode === 'partial' ? [{ value: 'partial', label: '部分覆盖' }, ...GLOW_KINDS] : GLOW_KINDS;
+/**
+ * 阴影、辉光（两态）与擦除高亮：右侧包含开关控制继承；这里的“无…”写入显式 null（已唱一侧是 set null），
+ * 已唱一侧的“跟随未唱”写入 follow。只含叶时是部分覆盖：改哪一项就把那一项写进模板。
+ */
+function effectRow(d: FullTemplateDefinition, group: EffectGroupId, onChange: (next: FullTemplateDefinition) => void, disabled: boolean): { ctl: ReactNode; sub?: ReactNode } {
+  const kind = effectKind(group);
+  const text = EFFECT_TEXT[kind];
+  const { mode, value } = templateEffectEditing(d, group);
+  const sungSide = isSungEffect(group);
+  const prefix = group.startsWith('sung') ? '已唱' : group === 'highlight' ? '' : '未唱';
+  const set = (next: StyleShadow | StyleGlow | StyleWipeHighlight | null | 'follow', leaf?: string) => onChange(setTemplateEffect(d, group, next as never, leaf as never));
+  const options = [
+    ...(mode === 'partial' ? [{ value: 'partial', label: '部分覆盖' }] : []),
+    ...(sungSide ? [FOLLOW_OPTION] : []),
+    { value: 'off', label: text.off },
+    { value: 'on', label: text.on },
+  ];
+  const editable = value && mode !== 'follow' ? value : undefined;
   return {
     ctl: (
       <>
         <Select
-          label="辉光开关"
+          label={`${prefix}${text.name}开关`}
           labelPlacement="none"
           size="sm"
           className="w"
           value={mode}
           options={options}
           onChange={(v) => {
-            if (v !== 'partial') onChange(v === 'on' ? DEFAULT_GLOW : null);
+            if (v === 'follow') set('follow');
+            else if (v === 'on') set(value ?? text.initial);
+            else if (v === 'off') set(null);
           }}
           disabled={disabled}
         />
-        {glow ? (
-          <ColorField label="辉光颜色" labelPlacement="none" size="sm" value={glow.color} onCommit={(color) => onChange({ ...glow, color }, 'glowColor')} disabled={disabled} />
+        {editable ? (
+          <ColorField label={`${prefix}${text.name}颜色`} labelPlacement="none" size="sm" value={editable.color} onCommit={(color) => set({ ...editable, color }, 'color')} disabled={disabled} />
         ) : (
-          <span className="small inherit">明确关闭，不是继承</span>
+          <span className="small inherit">{mode === 'follow' ? '与未唱相同' : '明确关闭，不是继承'}</span>
         )}
       </>
     ),
-    sub: glow && (
+    sub: editable && (
       <>
-        {mode === 'partial' && <Note>只覆盖模板包含的辉光属性，其余从目标继承。修改下方数值会将对应属性写进模板。</Note>}
-        <div className="ctl-row">
-          <span className="sub-lbl">不透明度</span>
-          <InlineSlider label="辉光不透明度" value={glow.opacity} min={0} max={1} step={0.01} format={percent} onCommit={(opacity) => onChange({ ...glow, opacity }, 'glowOpacity')} disabled={disabled} />
-        </div>
-        <div className="g2">
-          <NumberField label="扩张" labelPlacement="inside" size="sm" suffix="px" value={glow.spreadPx} min={0} onCommit={(spreadPx) => onChange({ ...glow, spreadPx }, 'glowSpreadPx')} disabled={disabled} />
-          <NumberField label="模糊" labelPlacement="inside" size="sm" suffix="px" value={glow.blurRadiusPx} min={0} onCommit={(blurRadiusPx) => onChange({ ...glow, blurRadiusPx }, 'glowBlurRadiusPx')} disabled={disabled} />
-        </div>
-        <Note>扩张增加光晕厚度，模糊使边缘更柔和。{mode !== 'partial' && '两项都为 0 时没有光晕。'}</Note>
+        {mode === 'partial' && <Note>只覆盖模板包含的{text.name}属性，其余从目标继承。修改下方数值会将对应属性写进模板。</Note>}
+        {kind === 'shadow' && shadowFields(prefix, editable as StyleShadow, set, disabled)}
+        {kind === 'glow' && glowFields(prefix, editable as StyleGlow, set, disabled, mode !== 'partial')}
+        {kind === 'highlight' && highlightFields(editable as StyleWipeHighlight, set, disabled)}
       </>
     ),
   };
+}
+
+type EffectSetter = (next: StyleShadow | StyleGlow | StyleWipeHighlight, leaf: string) => void;
+
+function shadowFields(prefix: string, shadow: StyleShadow, set: EffectSetter, disabled: boolean): ReactNode {
+  return (
+    <>
+      <div className="ctl-row">
+        <span className="sub-lbl">不透明度</span>
+        <InlineSlider label={`${prefix}阴影不透明度`} value={shadow.opacity} min={0} max={1} step={0.01} format={percent} onCommit={(opacity) => set({ ...shadow, opacity }, 'opacity')} disabled={disabled} />
+      </div>
+      <div className="g3">
+        <NumberField label="角度" labelPlacement="inside" size="sm" suffix="°" value={shadow.angleDegrees} onCommit={(angleDegrees) => set({ ...shadow, angleDegrees }, 'angleDegrees')} disabled={disabled} />
+        <NumberField label="距离" labelPlacement="inside" size="sm" suffix="px" value={shadow.distancePx} min={0} onCommit={(distancePx) => set({ ...shadow, distancePx }, 'distancePx')} disabled={disabled} />
+        <NumberField label="模糊" labelPlacement="inside" size="sm" suffix="px" value={shadow.blurRadiusPx} min={0} onCommit={(blurRadiusPx) => set({ ...shadow, blurRadiusPx }, 'blurRadiusPx')} disabled={disabled} />
+      </div>
+    </>
+  );
+}
+
+function glowFields(prefix: string, glow: StyleGlow, set: EffectSetter, disabled: boolean, whole: boolean): ReactNode {
+  return (
+    <>
+      <div className="ctl-row">
+        <span className="sub-lbl">不透明度</span>
+        <InlineSlider label={`${prefix}辉光不透明度`} value={glow.opacity} min={0} max={1} step={0.01} format={percent} onCommit={(opacity) => set({ ...glow, opacity }, 'opacity')} disabled={disabled} />
+      </div>
+      <div className="g2">
+        <NumberField label="扩张" labelPlacement="inside" size="sm" suffix="px" value={glow.spreadPx} min={0} onCommit={(spreadPx) => set({ ...glow, spreadPx }, 'spreadPx')} disabled={disabled} />
+        <NumberField label="模糊" labelPlacement="inside" size="sm" suffix="px" value={glow.blurRadiusPx} min={0} onCommit={(blurRadiusPx) => set({ ...glow, blurRadiusPx }, 'blurRadiusPx')} disabled={disabled} />
+      </div>
+      <Note>扩张增加光晕厚度，模糊使边缘更柔和。{whole && '两项都为 0 时没有光晕。'}</Note>
+    </>
+  );
+}
+
+function highlightFields(highlight: StyleWipeHighlight, set: EffectSetter, disabled: boolean): ReactNode {
+  return (
+    <>
+      <div className="ctl-row">
+        <span className="sub-lbl">强度</span>
+        <InlineSlider label="高亮强度" value={highlight.opacity} min={0} max={1} step={0.01} format={percent} onCommit={(opacity) => set({ ...highlight, opacity }, 'opacity')} disabled={disabled} />
+      </div>
+      <div className="g2">
+        <NumberField label="宽度" labelPlacement="inside" size="sm" suffix="×字号" value={highlight.widthRatio} greaterThan={0} max={2} onCommit={(widthRatio) => set({ ...highlight, widthRatio }, 'widthRatio')} disabled={disabled} />
+        <Select label="混合" labelPlacement="inside" size="sm" value={highlight.blend} options={BLEND_OPTIONS} onChange={(blend) => set({ ...highlight, blend }, 'blend')} disabled={disabled} />
+      </div>
+      <Note>擦除线上的一道亮带，叠在填充与描边上，羽化为 0 时也显示。</Note>
+    </>
+  );
 }
 
 /** 滑块加右边的数值：拖动中数值跟手，松手才提交。 */
@@ -529,13 +615,12 @@ const GRADIENT_KIND_OPTIONS: readonly { value: StyleGradient['kind']; label: str
   { value: 'linear', label: '线性' },
   { value: 'radial', label: '径向' },
 ];
-// 这三个取值能完整保存（R2 已在 1.13.0 修复），但后端渲染器还没实现：成片里按纯色基色绘制（后端 GradientSupport）。
+// OKLCH 插值能完整保存，但后端渲染器还没实现：成片里按纯色基色绘制（后端 GradientSupport）。单字坐标 0.112.76 起已绘制，演唱进度坐标 1.50.0 起删除。
 const PENDING_TEXT = '（成片暂按纯色绘制）';
 const SPACE_OPTIONS: readonly { value: StyleGradient['coordinateSpace']; label: string }[] = [
   { value: 'line', label: '整行' },
   { value: 'canvas', label: '整个画布' },
-  { value: 'glyph', label: `单个字形${PENDING_TEXT}` },
-  { value: 'progress', label: `演唱进度${PENDING_TEXT}` },
+  { value: 'glyph', label: '单个字形' },
 ];
 const COLOR_SPACE_OPTIONS: readonly { value: StyleGradient['colorSpace']; label: string }[] = [
   { value: 'linearRgb', label: '线性 RGB' },
@@ -543,9 +628,9 @@ const COLOR_SPACE_OPTIONS: readonly { value: StyleGradient['colorSpace']; label:
   { value: 'oklch', label: `OKLCH${PENDING_TEXT}` },
 ];
 
-/** 后端渲染器还没实现的组合：模板照常保存，成片里按纯色基色绘制。 */
+/** 后端渲染器还没实现的组合（只剩 OKLCH 插值）：模板照常保存，成片里按纯色基色绘制。 */
 function renderPending(g: StyleGradient): boolean {
-  return g.coordinateSpace === 'glyph' || g.coordinateSpace === 'progress' || g.colorSpace === 'oklch';
+  return g.colorSpace === 'oklch';
 }
 const HUE_OPTIONS: readonly { value: StyleGradient['huePath']; label: string }[] = [
   { value: 'shorter', label: '较短路径' },

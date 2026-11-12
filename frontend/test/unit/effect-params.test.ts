@@ -80,11 +80,9 @@ function inkPackage(revision = 'sha256:ink1', extra: Partial<EffectPackageInspec
 
 const STYLE: FullTemplateDefinition['style'] = {
   typography: { fontFamilyName: null, fallbackFamilyNames: [], fontSizePx: 72, fontWeight: 400, isBold: false, isItalic: false, letterSpacingPx: 0 },
-  unsungFill: { material: { kind: 'solid', color: { red: 74, green: 80, blue: 96, alpha: 255 } } },
-  sungFill: { material: { kind: 'solid', color: { red: 76, green: 141, blue: 255, alpha: 255 } } },
-  stroke: null,
-  shadow: null,
-  glow: null,
+  unsung: { fill: { kind: 'solid', color: { red: 74, green: 80, blue: 96, alpha: 255 } }, strokes: [], shadow: null, glow: null },
+  sung: { fill: { kind: 'solid', color: { red: 76, green: 141, blue: 255, alpha: 255 } }, strokes: { kind: 'follow' }, shadow: { kind: 'follow' }, glow: { kind: 'follow' } },
+  wipe: { featherRatio: 0, highlight: null },
   verticalCenterRatio: 0.5,
   horizontalAlignment: 'center',
   opacity: 1,
@@ -114,8 +112,8 @@ function withInk(parametersJson = '{}', more: Partial<FullTemplateDefinition> = 
   return {
     name: '含效果',
     kind: 'line',
-    properties: ['unsungColor'],
-    style: { ...STYLE, unsungFill: { material: { kind: 'package', packageId: 'demo.ink', revision: 'sha256:ink1', exportId: 'custom-ink', parametersJson } } },
+    properties: ['unsung.fill'],
+    style: { ...STYLE, unsung: { ...STYLE.unsung, fill: { kind: 'package', packageId: 'demo.ink', revision: 'sha256:ink1', exportId: 'custom-ink', parametersJson } } },
     effectRecipes: [],
     packages: [asset('sha256:ink1')],
     ...more,
@@ -206,9 +204,9 @@ describe('包闭包与材质', () => {
     expect(packageUsers(d, key)).toEqual(['未唱填充', '效果“逐字强调”']);
     expect(packageUsers(d, packageKey('demo.ink', 'sha256:x'))).toEqual([]);
     const next = replacePackageRevision(d, 'demo.ink', 'sha256:ink1', 'sha256:ink2');
-    expect(next.style.unsungFill.material).toMatchObject({ revision: 'sha256:ink2', parametersJson: '{"amplitude":0.3}' });
+    expect(next.style.unsung.fill).toMatchObject({ revision: 'sha256:ink2', parametersJson: '{"amplitude":0.3}' });
     expect(next.effectRecipes[0]!.revision).toBe('sha256:ink2');
-    expect(next.style.sungFill).toEqual(d.style.sungFill);
+    expect(next.style.sung.fill).toEqual(d.style.sung.fill);
   });
 
   it('部位能用的材质导出看 regions，同一个包只列一次；材质类型切换：包材质回到纯色时用退化色，没有可用包材质时不能切换', () => {
@@ -220,7 +218,7 @@ describe('包闭包与材质', () => {
     // 刚导入就用作材质：同一个包既在定义里又在导入过的包里，只列一次。
     expect(materialCandidates([asset('sha256:ink1'), asset('sha256:ink1')], catalog, 'unsungFill')).toHaveLength(1);
 
-    const solid = STYLE.unsungFill.material;
+    const solid = STYLE.unsung.fill;
     const candidate = packageMaterial(pkg, 'custom-ink');
     expect(changeMaterialKind(solid, 'package', undefined, candidate)).toEqual(candidate);
     expect(changeMaterialKind(solid, 'package', undefined, undefined)).toBeUndefined();
@@ -246,10 +244,10 @@ describe('本地校验', () => {
 
   it('导出不存在、种类不对、部位不支持、包不在 packages 里、没用到的包、种子越界', () => {
     const issues = (d: FullTemplateDefinition) => definitionIssues(d, catalog).map((i) => i.message);
-    expect(issues({ ...withInk(), style: { ...withInk().style, unsungFill: { material: { ...packageMaterial(pkg, 'nope') } } } })).toEqual(['包“自定义墨水”里没有导出 nope。']);
+    expect(issues({ ...withInk(), style: { ...withInk().style, unsung: { ...withInk().style.unsung, fill: { ...packageMaterial(pkg, 'nope') } } } })).toEqual(['包“自定义墨水”里没有导出 nope。']);
     expect(issues(withInk('{}', { effectRecipes: [recipe({ exportId: 'custom-ink' })] }))).toEqual(['导出“墨水”是材质，这里要用控制器或图。']);
-    const stroke = { color: { red: 0, green: 0, blue: 0, alpha: 255 }, widthPx: 2, material: packageMaterial(pkg, 'fill-only') };
-    expect(issues({ ...withInk(), style: { ...withInk().style, stroke: stroke as never } })).toEqual(['材质“只填充”不能用在描边。']);
+    const stroke = { join: 'round' as const, widthPx: 2, material: packageMaterial(pkg, 'fill-only') };
+    expect(issues({ ...withInk(), style: { ...withInk().style, unsung: { ...withInk().style.unsung, strokes: [stroke] } } })).toEqual(['材质“只填充”不能用在未唱描边。']);
     expect(issues({ ...withInk(), packages: [] })).toEqual(['模板里没有包 demo.ink（修订 ink1）。']);
     expect(issues({ ...withInk(), packages: [asset('sha256:ink1'), asset('sha256:spare')] })).toEqual(['包 demo.ink 没有被用到。']);
     expect(issues(withInk('{}', { effectRecipes: [recipe({ fixedSeed: '18446744073709551616' })] }))).toEqual(['种子不能大于 18446744073709551615。']);

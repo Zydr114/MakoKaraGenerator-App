@@ -12,9 +12,10 @@
 // 读模型不含最终外观或画布像素矩形；节点身份只用稳定 ID，不用数组位置。
 // 1.17.0 起每个歌词来源都有程序（R4）：还没写进工程的来源返回确定的隐含程序。
 
+import type { BackendDiagnostic } from './common';
 import type { Revision } from './int64';
 import type { RenderBackend } from './preview';
-import type { StaticMaterial, StyleChange, StyleGlow, StyleMaterial, StyleShadow, StyleStroke, StyleTypography } from './style';
+import type { StaticMaterial, StyleAppearance, StyleChange, StyleMaterial, StyleSungAppearance, StyleTypography } from './style';
 
 /**
  * 锚点（后端枚举名）。写入只接受这六个（大小写不敏感，回读是标准名）；读模型按字符串处理，未知值原样显示。
@@ -106,16 +107,13 @@ export interface OrchestrationContent {
 }
 
 /**
- * 倒计时容器的外观（1.24.0）：未到时与已过的填充、描边、阴影（null 是关闭）、不透明度。
+ * 倒计时容器的外观（1.24.0，1.50.0 起两态）：待唱（pending）与已过（elapsed，描边、阴影、辉光可跟随待唱）、不透明度。
  * 写入时不能用包材质（M = StaticMaterial）。
  */
 export interface SceneTextAppearance<M = StyleMaterial> {
   typography: StyleTypography;
-  pendingFill: { material: M };
-  elapsedFill: { material: M };
-  stroke: StyleStroke<M> | null;
-  shadow: StyleShadow | null;
-  glow: StyleGlow | null;
+  pending: StyleAppearance<M>;
+  elapsed: StyleSungAppearance<M>;
   /** 0..1。 */
   opacity: number;
 }
@@ -672,6 +670,8 @@ export interface SceneMeasurement {
   png: string;
   /** 这次测量用的设备；缺失或 null 表示没记录。 */
   renderBackend?: RenderBackend | null;
+  /** 1.51.0：本帧缺背景时图效果或材质已按声明降级，去重后的兜底诊断（warning，最多 128 条）。旧后端缺失时按空。 */
+  fallbackDiagnostics?: BackendDiagnostic[];
 }
 
 export interface SceneMeasurementResponse {

@@ -227,16 +227,16 @@ describe.skipIf(!samples)('完整模板（真实 Server）', () => {
     });
 
     it('默认容器（含里面的句子）和片段都能作为目标；外观来源按“节点→片段”叠加；文本单元目标被拒绝', async () => {
-      expect(await sourceOf(0, 'unsungColor')).toBe('lyricStyle');
+      expect(await sourceOf(0, 'unsung.fill')).toBe('lyricStyle');
 
       const nodeApp = await apply({ kind: 'node', nodeId: containerId, includeDescendants: true });
-      expect(await sourceOf(0, 'unsungColor')).toBe(appPath(nodeApp));
-      expect(await sourceOf(1, 'unsungColor')).toBe(appPath(nodeApp));
+      expect(await sourceOf(0, 'unsung.fill')).toBe(appPath(nodeApp));
+      expect(await sourceOf(1, 'unsung.fill')).toBe(appPath(nodeApp));
 
       const clipApp = await apply({ kind: 'clips', branchId, clipIds: [CLIP] });
       expect(clipApp).not.toBe(nodeApp);
-      expect(await sourceOf(0, 'unsungColor')).toBe(appPath(nodeApp));
-      expect(await sourceOf(1, 'unsungColor')).toBe(appPath(clipApp));
+      expect(await sourceOf(0, 'unsung.fill')).toBe(appPath(nodeApp));
+      expect(await sourceOf(1, 'unsung.fill')).toBe(appPath(clipApp));
 
       const apps = (await client.projects.presetApplications(id(), current())).applications;
       expect(apps.map((a) => a.target)).toEqual([
@@ -252,7 +252,7 @@ describe.skipIf(!samples)('完整模板（真实 Server）', () => {
 
       // 撤销片段上的分配，第二句回到节点分配。
       await client.projects.undo(id());
-      expect(await sourceOf(1, 'unsungColor')).toBe(appPath(nodeApp));
+      expect(await sourceOf(1, 'unsung.fill')).toBe(appPath(nodeApp));
     });
 
     it('应用后工程预览照常出帧，和应用前不同；撤销后与应用前相同', async (ctx) => {

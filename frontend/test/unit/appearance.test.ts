@@ -71,11 +71,22 @@ describe('外观目标', () => {
   it('直接覆盖的显示与预览尺寸', () => {
     const rows = overrideRows([
       { property: 'typography.fontSizePx', value: 80 },
-      { property: 'stroke', value: null },
-      { property: 'sungFill.material', value: { kind: 'solid', color: { red: 255, green: 0, blue: 0, alpha: 255 } } },
-      { property: 'future.property', value: 1 },
+      { property: 'unsung.strokes', value: [] },
+      { property: 'sung.fill', value: { kind: 'solid', color: { red: 255, green: 0, blue: 0, alpha: 255 } } },
+      { property: 'sung.shadow', value: { kind: 'follow' } },
+      { property: 'sung.glow', value: { kind: 'set', value: null } },
+      { property: 'wipe.featherRatio', value: 0.2 },
+      { property: 'future.property' as never, value: 1 },
     ]);
-    expect(rows.map((r) => `${r.label}=${r.text}`)).toEqual(['字号=80 px', '描边=关', '已唱填充=#ff0000', 'future.property=1']);
+    expect(rows.map((r) => `${r.label}=${r.text}`)).toEqual([
+      '字号=80 px',
+      '未唱描边=关',
+      '已唱填充=#ff0000',
+      '已唱阴影=跟随未唱',
+      '已唱辉光=关',
+      '擦除羽化=0.2 倍字号',
+      'future.property=1',
+    ]);
     expect(rows[2]!.swatch).toBe('rgb(255 0 0 / 1)');
 
     expect(fitPreviewSize(1920, 1080)).toEqual({ width: 1280, height: 720 });
@@ -89,7 +100,7 @@ const TEMPLATE: TemplateSummary = {
   name: '红色',
   kind: 'line',
   templateRevision: 't1',
-  properties: ['fontSizePx', 'sungColor'],
+  properties: ['typography.fontSizePx', 'sung.fill'],
   hasEffectRecipes: false,
   hasPackageMaterials: false,
   hasPackages: false,
@@ -182,20 +193,20 @@ describe('外观应用', () => {
   });
 
   it('适用规则：有试样选项的目标键时以它为准，没有时按本地规则（文本单元用途只能用于文本单元；用于文本单元的模板不能含字体、字号等）', () => {
-    const token: TemplateSummary = { ...TEMPLATE, kind: 'token', properties: ['sungColor'] };
+    const token: TemplateSummary = { ...TEMPLATE, kind: 'token', properties: ['sung.fill'] };
     expect(applicability(token, 'line')).toMatch('只能用于文本单元');
     expect(applicability(token, 'token')).toBeUndefined();
     expect(applicability(TEMPLATE, 'token')).toBe('含文本单元不能用的属性：字号');
     expect(applicability(TEMPLATE, 'project')).toBeUndefined();
     // 含效果的模板本地不拦，以后端为准。
-    const effect: TemplateSummary = { ...TEMPLATE, properties: ['sungColor'], hasEffectRecipes: true, hasPackages: true };
+    const effect: TemplateSummary = { ...TEMPLATE, properties: ['sung.fill'], hasEffectRecipes: true, hasPackages: true };
     expect(applicability(effect, 'line')).toBeUndefined();
     expect(applicability(effect, 'token')).toBeUndefined();
     const lineKeys = ['line', 'project', 'branch', 'clip', 'group', 'mark'];
     expect(applicability(effect, 'token', lineKeys)).toBe('含作用于整行的效果，不能用于文本单元');
     expect(applicability(effect, 'token', [...lineKeys, 'token'])).toBeUndefined();
     expect(applicability(TEMPLATE, 'token', lineKeys)).toBe('含文本单元不能用的属性：字号');
-    expect(applicability({ ...TEMPLATE, properties: ['sungColor'] }, 'branch', ['line'])).toBe('这个模板不能用于来源');
+    expect(applicability({ ...TEMPLATE, properties: ['sung.fill'] }, 'branch', ['line'])).toBe('这个模板不能用于来源');
     expect(
       sampleTargetKeys({
         samples: [
@@ -314,11 +325,8 @@ const rect = { widthRatio: 1, heightRatio: 1 };
 const onode = (id: string, extra: Partial<OrchestrationNode> = {}): OrchestrationNode => ({ id, placement, referenceRect: rect, ...extra });
 const COUNTDOWN: SceneTextAppearance = {
   typography: { fontFamilyName: null, fallbackFamilyNames: [], fontSizePx: 48, fontWeight: 400, isBold: false, isItalic: false, letterSpacingPx: 0 },
-  pendingFill: { material: { kind: 'solid', color: { red: 255, green: 255, blue: 255, alpha: 255 } } },
-  elapsedFill: { material: { kind: 'solid', color: { red: 255, green: 0, blue: 0, alpha: 255 } } },
-  stroke: null,
-  shadow: null,
-  glow: null,
+  pending: { fill: { kind: 'solid', color: { red: 255, green: 255, blue: 255, alpha: 255 } }, strokes: [], shadow: null, glow: null },
+  elapsed: { fill: { kind: 'solid', color: { red: 255, green: 0, blue: 0, alpha: 255 } }, strokes: { kind: 'follow' }, shadow: { kind: 'follow' }, glow: { kind: 'follow' } },
   opacity: 1,
 };
 
@@ -427,15 +435,19 @@ describe('编排对象目标', () => {
       '字距=0 px',
       '未到填充=#ffffff',
       '已过填充=#ff0000',
-      '描边=关',
-      '阴影=关',
-      '辉光=关',
+      '未到描边=关',
+      '已过描边=跟随未唱',
+      '未到阴影=关',
+      '已过阴影=跟随未唱',
+      '未到辉光=关',
+      '已过辉光=跟随未唱',
       '透明度=100%',
     ]);
     expect(overrideRows(MODEL.byId.get('m1')!.content!.appearanceOverride!).map((r) => r.text)).toEqual(['40 px']);
     const glow = { color: { red: 255, green: 0, blue: 0, alpha: 255 }, opacity: 0.5, spreadPx: 2, blurRadiusPx: 8 };
-    expect(sceneAppearanceRows({ ...COUNTDOWN, glow }).find((row) => row.property === 'glow')?.text)
-      .toBe('#ff0000 · 不透明度 50% · 扩张 2 px · 模糊 8 px');
+    const rows = sceneAppearanceRows({ ...COUNTDOWN, pending: { ...COUNTDOWN.pending, glow }, elapsed: { ...COUNTDOWN.elapsed, glow: { kind: 'set', value: null } } });
+    expect(rows.find((row) => row.property === 'unsung.glow')?.text).toBe('#ff0000 · 不透明度 50% · 扩张 2 px · 模糊 8 px');
+    expect(rows.find((row) => row.property === 'sung.glow')?.text).toBe('关');
   });
 
   it('外观状态：片段合成一个目标应用；节点的应用范围可以改，不读样式；编排结构更新后去掉失效目标', async () => {
@@ -467,11 +479,9 @@ describe('编排对象目标', () => {
 describe('外观来源', () => {
   const STYLE: CanonicalStyle = {
     typography: { ...COUNTDOWN.typography, fontFamilyName: 'Noto Sans CJK JP', fallbackFamilyNames: ['Arial'] },
-    unsungFill: { material: { kind: 'solid', color: { red: 255, green: 255, blue: 255, alpha: 255 } } },
-    sungFill: { material: { kind: 'solid', color: { red: 255, green: 0, blue: 0, alpha: 255 } } },
-    stroke: null,
-    shadow: null,
-    glow: null,
+    unsung: { fill: { kind: 'solid', color: { red: 255, green: 255, blue: 255, alpha: 255 } }, strokes: [], shadow: null, glow: null },
+    sung: { fill: { kind: 'solid', color: { red: 255, green: 0, blue: 0, alpha: 255 } }, strokes: { kind: 'follow' }, shadow: { kind: 'follow' }, glow: { kind: 'follow' } },
+    wipe: { featherRatio: 0, highlight: null },
     verticalCenterRatio: 0.5,
     horizontalAlignment: 'center',
     opacity: 1,
@@ -529,16 +539,22 @@ describe('外观来源', () => {
   it('按属性分组：组里来源相同时合成一行，不同时逐个属性列出', () => {
     const sources = TEMPLATE_GROUPS.flatMap((g) => g.properties).map((property) => ({
       property,
-      sourcePath: property === 'unsungColor' ? 'presetApplications.a1.snapshot.style' : 'lyricStyle',
+      sourcePath: property === 'unsung.shadow.color' ? 'presetApplications.a1.snapshot.style' : 'lyricStyle',
     }));
     const groups = sourceGroups({ style: STYLE, sources });
     expect(groups.map((g) => g.label)).toEqual(TEMPLATE_GROUPS.map((g) => g.label));
-    expect(groups[0]).toMatchObject({ value: { text: 'Noto Sans CJK JP、Arial' }, rows: [{ path: 'lyricStyle' }] });
+    expect(groups[0]).toMatchObject({ value: { text: 'Noto Sans CJK JP · 回退：Arial' }, rows: [{ path: 'lyricStyle' }] });
     const unsung = groups.find((g) => g.id === 'unsung')!;
-    expect(unsung.value).toEqual({ text: '#ffffff', swatch: 'rgb(255 255 255 / 1)' });
-    expect(unsung.rows.map((r) => `${r.property ? `${STYLE_PROPERTY_TEXT[r.property]} · ` : ''}来自 ${sourceText(r.source, ctx)}`)).toEqual([
-      '未唱颜色 · 来自 分配“红字”（第 2 行）',
-      '未唱渐变 · 来自 工程样式',
+    expect(unsung).toMatchObject({ value: { text: '#ffffff', swatch: 'rgb(255 255 255 / 1)' }, rows: [{ path: 'lyricStyle' }] });
+    expect(groups.find((g) => g.id === 'sungShadow')?.value).toEqual({ text: '跟随未唱' });
+    const shadow = groups.find((g) => g.id === 'shadow')!;
+    expect(shadow.rows.map((r) => `${r.property ? `${STYLE_PROPERTY_TEXT[r.property]} · ` : ''}来自 ${sourceText(r.source, ctx)}`)).toEqual([
+      '未唱阴影 · 来自 工程样式',
+      '未唱阴影颜色 · 来自 分配“红字”（第 2 行）',
+      '未唱阴影不透明度 · 来自 工程样式',
+      '未唱阴影角度 · 来自 工程样式',
+      '未唱阴影距离 · 来自 工程样式',
+      '未唱阴影模糊 · 来自 工程样式',
     ]);
     // 来源里没有的组不列。
     expect(sourceGroups({ style: STYLE, sources: sources.filter((s) => s.property === 'scale') }).map((g) => g.id)).toEqual(['scale']);

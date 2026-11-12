@@ -1,4 +1,4 @@
-// 合同 1.42.0 的真实 HTTP 消费：模板分配、三态继承、来源、帧 SHA 与严格版本门禁。
+// 合同 1.50.0 的真实 HTTP 消费（未唱辉光）：模板分配、三态继承、来源、帧 SHA 与严格版本门禁。
 // 每次运行生成独立 profile；旧格式样本仅从本次保存的工程复制，所有 202 均等待终态。
 import { createHash } from 'node:crypto';
 import { cp, readFile, readdir, writeFile } from 'node:fs/promises';
@@ -85,13 +85,13 @@ function expectSources(value: Awaited<ReturnType<typeof resolved>>, properties: 
   expect(value.finalPixelAppearance).toBe(false);
 }
 
-const glowProperties = ['glowSpec', 'glowColor', 'glowOpacity', 'glowBlurRadiusPx', 'glowSpreadPx'];
+const glowProperties = ['unsung.glow', 'unsung.glow.color', 'unsung.glow.opacity', 'unsung.glow.blurRadiusPx', 'unsung.glow.spreadPx'];
 
 describe('辉光模板与来源（真实 Server）', () => {
   it('创建整体模板，应用只改变辉光；快照、来源和禁用/重新启用的帧 SHA 一致', async () => {
     const builtin = await client.templates.listAll('builtin');
     const base = (await client.templates.detail('builtin', 'builtin:line-classic', builtin.revision)).definition!;
-    fullDefinition = { ...base, name: '集成整体辉光', style: { ...base.style, glow }, properties: ['glowSpec'] };
+    fullDefinition = { ...base, name: '集成整体辉光', style: { ...base.style, unsung: { ...base.style.unsung, glow } }, properties: ['unsung.glow'] };
     const library = await client.templates.listAll('personal');
     const created = await client.templates.command('personal', library.revision, { type: 'create', definition: fullDefinition });
     fullTemplateId = created.templateId;
@@ -100,32 +100,32 @@ describe('辉光模板与来源（真实 Server）', () => {
     unlitFrame = await still();
     fullApplicationId = await apply(fullTemplateId, { kind: 'branch', branchId });
     const apps = (await client.projects.presetApplications(id(), current())).applications;
-    expect(apps[0]).toMatchObject({ applicationId: fullApplicationId, target: { kind: 'branch', branchId }, enabled: true, snapshot: { templateId: fullTemplateId, properties: ['glowSpec'] } });
+    expect(apps[0]).toMatchObject({ applicationId: fullApplicationId, target: { kind: 'branch', branchId }, enabled: true, snapshot: { templateId: fullTemplateId, properties: ['unsung.glow'] } });
     const value = await resolved();
-    expect(value.style.glow).toEqual(glow);
+    expect(value.style.unsung.glow).toEqual(glow);
     expectSources(value, glowProperties, `presetApplications.${fullApplicationId}.snapshot.style`);
-    expect((await style()).staticHierarchy.glow).toBeNull();
+    expect((await style()).staticHierarchy.unsung.glow).toBeNull();
     glowFrame = await still();
     expect(glowFrame).not.toBe(unlitFrame);
     await command({ type: 'presetApplications.setEnabled', applicationId: fullApplicationId, enabled: false });
-    expect((await resolved()).style.glow).toBeNull();
+    expect((await resolved()).style.unsung.glow).toBeNull();
     expect(await still()).toBe(unlitFrame);
     await command({ type: 'presetApplications.setEnabled', applicationId: fullApplicationId, enabled: true });
     expect(await still()).toBe(glowFrame);
   });
 
   it('叶属性模板覆盖整体模板；移除后恢复整体辉光和帧 SHA', async () => {
-    const definition: StaticTemplateDefinition = { ...fullDefinition, name: '集成叶辉光', style: { ...fullDefinition.style, glow: leafGlow }, properties: ['glowColor', 'glowOpacity', 'glowBlurRadiusPx', 'glowSpreadPx'] };
+    const definition: StaticTemplateDefinition = { ...fullDefinition, name: '集成叶辉光', style: { ...fullDefinition.style, unsung: { ...fullDefinition.style.unsung, glow: leafGlow } }, properties: ['unsung.glow.color', 'unsung.glow.opacity', 'unsung.glow.blurRadiusPx', 'unsung.glow.spreadPx'] };
     const library = await client.templates.listAll('personal');
     const created = await client.templates.command('personal', library.revision, { type: 'create', definition });
     expect((await client.templates.detail('personal', created.templateId, created.revision)).definition).toEqual(definition);
     leafApplicationId = await apply(created.templateId);
     const value = await resolved();
-    expect(value.style.glow).toEqual(leafGlow);
+    expect(value.style.unsung.glow).toEqual(leafGlow);
     expectSources(value, definition.properties, `presetApplications.${leafApplicationId}.snapshot.style`);
     expect(await still()).not.toBe(glowFrame);
     await command({ type: 'presetApplications.remove', applicationIds: [leafApplicationId] });
-    expect((await resolved()).style.glow).toEqual(glow);
+    expect((await resolved()).style.unsung.glow).toEqual(glow);
     expect(await still()).toBe(glowFrame);
   });
 });
@@ -133,30 +133,30 @@ describe('辉光模板与来源（真实 Server）', () => {
 describe('直接覆盖的三态继承', () => {
   it('项目→行继承，null 关闭，叶 restore 不撤销 null，整体 restore 恢复；叶覆盖单独恢复', async () => {
     await command({ type: 'presetApplications.remove', applicationIds: [fullApplicationId] });
-    await command({ type: 'styles.patch', targets: [{ kind: 'project' }], changes: [{ property: 'glow', value: glow }] });
-    expect((await style()).staticHierarchy.glow).toEqual(glow);
+    await command({ type: 'styles.patch', targets: [{ kind: 'project' }], changes: [{ property: 'unsung.glow', value: glow }] });
+    expect((await style()).staticHierarchy.unsung.glow).toEqual(glow);
     expectSources(await resolved(), glowProperties, 'lyricStyle');
     const inheritedFrame = await still();
-    await command({ type: 'styles.patch', targets: [target()], changes: [{ property: 'glow', value: null }] });
-    expect((await style()).local).toContainEqual({ property: 'glow', value: null });
-    expect((await style()).staticHierarchy.glow).toBeNull();
+    await command({ type: 'styles.patch', targets: [target()], changes: [{ property: 'unsung.glow', value: null }] });
+    expect((await style()).local).toContainEqual({ property: 'unsung.glow', value: null });
+    expect((await style()).staticHierarchy.unsung.glow).toBeNull();
     expect(await still()).toBe(unlitFrame);
-    const unchanged = await command({ type: 'styles.restore', targets: [target()], properties: ['glow.opacity'] });
+    const unchanged = await command({ type: 'styles.restore', targets: [target()], properties: ['unsung.glow.opacity'] });
     expect(unchanged.changed).toBe(false);
-    expect((await style()).staticHierarchy.glow).toBeNull();
-    await command({ type: 'styles.restore', targets: [target()], properties: ['glow'] });
-    expect((await style()).staticHierarchy.glow).toEqual(glow);
+    expect((await style()).staticHierarchy.unsung.glow).toBeNull();
+    await command({ type: 'styles.restore', targets: [target()], properties: ['unsung.glow'] });
+    expect((await style()).staticHierarchy.unsung.glow).toEqual(glow);
     expect(await still()).toBe(inheritedFrame);
-    await command({ type: 'styles.patch', targets: [target()], changes: [{ property: 'glow.opacity', value: 0.5 }] });
-    expect((await style()).staticHierarchy.glow).toEqual({ ...glow, opacity: 0.5 });
-    expectSources(await resolved(), ['glowOpacity'], `lyrics.branches.${branchId}.lines.${lineId}.styleOverride`);
-    await command({ type: 'styles.restore', targets: [target()], properties: ['glow.opacity'] });
-    expect((await style()).local.some((change) => change.property.startsWith('glow'))).toBe(false);
-    expect((await style()).staticHierarchy.glow).toEqual(glow);
+    await command({ type: 'styles.patch', targets: [target()], changes: [{ property: 'unsung.glow.opacity', value: 0.5 }] });
+    expect((await style()).staticHierarchy.unsung.glow).toEqual({ ...glow, opacity: 0.5 });
+    expectSources(await resolved(), ['unsung.glow.opacity'], `lyrics.branches.${branchId}.lines.${lineId}.styleOverride`);
+    await command({ type: 'styles.restore', targets: [target()], properties: ['unsung.glow.opacity'] });
+    expect((await style()).local.some((change) => change.property.startsWith('unsung.glow'))).toBe(false);
+    expect((await style()).staticHierarchy.unsung.glow).toEqual(glow);
     expect(await still()).toBe(inheritedFrame);
     // 项目样式是 baseline，关闭使用 patch null；restore 仅用于覆盖层。
-    await command({ type: 'styles.patch', targets: [{ kind: 'project' }], changes: [{ property: 'glow', value: null }] });
-    expect((await style()).staticHierarchy.glow).toBeNull();
+    await command({ type: 'styles.patch', targets: [{ kind: 'project' }], changes: [{ property: 'unsung.glow', value: null }] });
+    expect((await style()).staticHierarchy.unsung.glow).toBeNull();
     expect(await still()).toBe(unlitFrame);
   });
 });
@@ -182,14 +182,14 @@ describe('保存重开与严格版本门禁', () => {
     expect(closed.state, closed.error?.message).toBe('succeeded');
     opened.delete(id());
     const entry = JSON.parse(await readFile(join(projectsRoot, 'current.mkgproj', 'project.json'), 'utf8'));
-    expect(entry).toMatchObject({ applicationVersion: CONTRACT_PRODUCT_VERSION, schemaVersion: 29, presetApplications: { templateSchemaVersion: 7 } });
-    expect(JSON.parse(await readFile(join(projectsRoot, 'current.mkgproj', entry.lyricsFile as string), 'utf8')).schemaVersion).toBe(18);
+    expect(entry).toMatchObject({ applicationVersion: CONTRACT_PRODUCT_VERSION, schemaVersion: 31, presetApplications: { templateSchemaVersion: 9 } });
+    expect(JSON.parse(await readFile(join(projectsRoot, 'current.mkgproj', entry.lyricsFile as string), 'utf8')).schemaVersion).toBe(19);
     const reopened = await finish(await client.projects.open({ projectDirectoryHandleId: await handle('current.mkgproj') }));
     expect(reopened.state, reopened.error?.message).toBe('succeeded');
     project = reopened.result!;
     opened.add(id());
     await client.projects.get(id());
-    expect((await resolved()).style.glow).toEqual(glow);
+    expect((await resolved()).style.unsung.glow).toEqual(glow);
     expectSources(await resolved(), glowProperties, `presetApplications.${fullApplicationId}.snapshot.style`);
     expect(await still()).toBe(before);
   });
@@ -201,11 +201,11 @@ describe('保存重开与严格版本门禁', () => {
     const entryFile = join(directory, 'project.json');
     const entry = JSON.parse(await readFile(entryFile, 'utf8'));
     if (variant === 'product') entry.applicationVersion = '0.109.0';
-    if (variant === 'project-schema') entry.schemaVersion = 28;
-    if (variant === 'template-schema') entry.presetApplications.templateSchemaVersion = 6;
+    if (variant === 'project-schema') entry.schemaVersion = 30;
+    if (variant === 'template-schema') entry.presetApplications.templateSchemaVersion = 8;
     if (variant === 'lyrics-schema') {
       const lyrics = JSON.parse(await readFile(join(directory, entry.lyricsFile as string), 'utf8'));
-      lyrics.schemaVersion = 17;
+      lyrics.schemaVersion = 18;
       const bytes = Buffer.from(JSON.stringify(lyrics));
       entry.lyricsFile = `data/lyrics/${sha(bytes)}.json`;
       await writeFile(join(directory, entry.lyricsFile as string), bytes);

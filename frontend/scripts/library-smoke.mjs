@@ -268,7 +268,7 @@ try {
     saved.comparable === draft.comparable &&
       recipe?.parametersJson === '{"peakScale":2}' &&
       recipe?.fixedSeed === MAX_SEED &&
-      saved.definition.style.unsungFill.material.parametersJson === '{"amplitude":0.3}' &&
+      saved.definition.style.unsung.fill.parametersJson === '{"amplitude":0.3}' &&
       saved.definition.packages.every((p) => p.kind === 'library'),
     `保存后重读，完整定义与保存前一致（参数原文 {"peakScale":2}、{"amplitude":0.3}，种子 ${recipe?.fixedSeed}）；包引用变成 library 引用`,
   );

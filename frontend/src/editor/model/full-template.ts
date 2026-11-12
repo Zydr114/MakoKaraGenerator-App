@@ -1,6 +1,7 @@
 // 完整模板定义的纯函数（W7 设计 §2.2～§2.3）：包引用重定位、静态定义的判断与转换、材质部位、包闭包与本地校验。
 
 import type {
+  CanonicalStyle,
   EffectExportKind,
   EffectPackageExport,
   EffectPackageInspectResponse,
@@ -11,7 +12,9 @@ import type {
   StaticMaterial,
   StaticTemplateDefinition,
   StyleColor,
+  StyleStroke,
   TemplateMaterialSlot,
+  TemplateStyle,
 } from '../../protocol';
 import { parametersIssues, seedProblem } from './effect-params';
 import { duplicateRecipeIds, recipeProblems } from './effect-recipes';
@@ -56,46 +59,58 @@ export function isStaticMaterial(material: FullTemplateMaterial): material is St
   return material.kind !== 'package';
 }
 
-/** 定义里用到包材质的部位。 */
+/** 样式里的全部材质：两态填充与各层描边（已唱跟随时没有自己的描边）。 */
+export function styleMaterials<M>(style: CanonicalStyle<M>): M[] {
+  const sung = style.sung.strokes.kind === 'set' ? style.sung.strokes.value : [];
+  return [style.unsung.fill, style.sung.fill, ...style.unsung.strokes.map((s) => s.material), ...sung.map((s) => s.material)];
+}
+
+/** 逐个换掉样式里的材质，其余原样。 */
+export function mapStyleMaterials<A, B>(style: CanonicalStyle<A>, f: (material: A) => B): CanonicalStyle<B> {
+  const strokes = (list: StyleStroke<A>[]): StyleStroke<B>[] => list.map((s) => ({ ...s, material: f(s.material) }));
+  const sung = style.sung.strokes;
+  return {
+    ...style,
+    unsung: { ...style.unsung, fill: f(style.unsung.fill), strokes: strokes(style.unsung.strokes) },
+    sung: { ...style.sung, fill: f(style.sung.fill), strokes: sung.kind === 'follow' ? sung : { kind: 'set', value: strokes(sung.value) } },
+  };
+}
+
+/** 定义里用到的包材质。 */
 export function packageMaterials(definition: FullTemplateDefinition): FullTemplateMaterial[] {
-  const { style } = definition;
-  return [style.unsungFill.material, style.sungFill.material, ...(style.stroke ? [style.stroke.material] : [])].filter((m) => m.kind === 'package');
+  return styleMaterials(definition.style).filter((m) => m.kind === 'package');
 }
 
 /** 没有包、配方和包材质时，按静态格式给出同一份定义；否则 undefined。 */
 export function staticDefinition(definition: FullTemplateDefinition): StaticTemplateDefinition | undefined {
   if (definition.packages.length > 0 || definition.effectRecipes.length > 0 || packageMaterials(definition).length > 0) return undefined;
-  const { style } = definition;
-  const unsung = style.unsungFill.material as StaticMaterial;
-  const sung = style.sungFill.material as StaticMaterial;
   return {
     name: definition.name,
     kind: definition.kind,
     properties: definition.properties,
-    style: {
-      ...style,
-      unsungFill: { material: unsung },
-      sungFill: { material: sung },
-      stroke: style.stroke ? { ...style.stroke, material: style.stroke.material as StaticMaterial } : null,
-    },
+    style: definition.style as TemplateStyle,
   };
 }
 
 // ── 材质部位 ──────────────────────────────────────────
 
 export const MATERIAL_SLOTS: readonly TemplateMaterialSlot[] = ['unsungFill', 'sungFill', 'stroke'];
-export const SLOT_LABEL: Record<TemplateMaterialSlot, string> = { unsungFill: '未唱填充', sungFill: '已唱填充', stroke: '描边' };
+/** 材质槽名不变（合同 1.50.0）：stroke 是未唱最内层描边；已唱描边暂无工坊槽。 */
+export const SLOT_LABEL: Record<TemplateMaterialSlot, string> = { unsungFill: '未唱填充', sungFill: '已唱填充', stroke: '未唱描边' };
 
-/** 部位的材质；描边关闭时 null。 */
+/** 部位的材质；未唱没有描边时 null。 */
 export function slotMaterial(style: FullTemplateStyle, slot: TemplateMaterialSlot): FullTemplateMaterial | null {
-  if (slot === 'stroke') return style.stroke?.material ?? null;
-  return style[slot].material;
+  if (slot === 'stroke') return style.unsung.strokes[0]?.material ?? null;
+  return slot === 'unsungFill' ? style.unsung.fill : style.sung.fill;
 }
 
-/** 换一个部位的材质；描边关闭时不变。 */
+/** 换一个部位的材质；未唱没有描边时不变。描边只换最内层，更外的层原样。 */
 export function withSlotMaterial(style: FullTemplateStyle, slot: TemplateMaterialSlot, material: FullTemplateMaterial): FullTemplateStyle {
-  if (slot === 'stroke') return style.stroke ? { ...style, stroke: { ...style.stroke, material } } : style;
-  return { ...style, [slot]: { material } };
+  if (slot === 'stroke') {
+    const [first, ...rest] = style.unsung.strokes;
+    return first ? { ...style, unsung: { ...style.unsung, strokes: [{ ...first, material }, ...rest] } } : style;
+  }
+  return slot === 'unsungFill' ? { ...style, unsung: { ...style.unsung, fill: material } } : { ...style, sung: { ...style.sung, fill: material } };
 }
 
 /** 包材质导出能用在哪类部位（后端的 region：fill 是两种填充，stroke 是描边）。 */
@@ -207,6 +222,9 @@ export function packageUsers(definition: FullTemplateDefinition, key: string): s
     const material = slotMaterial(definition.style, slot);
     if (material?.kind === 'package' && packageKey(material.packageId, material.revision) === key) users.push(SLOT_LABEL[slot]);
   }
+  const sung = definition.style.sung.strokes;
+  const sungMaterial = sung.kind === 'set' ? sung.value[0]?.material : undefined;
+  if (sungMaterial?.kind === 'package' && packageKey(sungMaterial.packageId, sungMaterial.revision) === key) users.push('已唱描边');
   for (const recipe of definition.effectRecipes) if (packageKey(recipe.packageId, recipe.revision) === key) users.push(`效果“${recipe.name}”`);
   return users;
 }
@@ -215,15 +233,9 @@ export function packageUsers(definition: FullTemplateDefinition, key: string): s
 export function replacePackageRevision(definition: FullTemplateDefinition, packageId: string, from: string, to: string): FullTemplateDefinition {
   const swap = <T extends { packageId: string; revision: string }>(item: T): T => (item.packageId === packageId && item.revision === from ? { ...item, revision: to } : item);
   const swapMaterial = (m: FullTemplateMaterial): FullTemplateMaterial => (m.kind === 'package' ? swap(m) : m);
-  const { style } = definition;
   return {
     ...definition,
-    style: {
-      ...style,
-      unsungFill: { material: swapMaterial(style.unsungFill.material) },
-      sungFill: { material: swapMaterial(style.sungFill.material) },
-      stroke: style.stroke ? { ...style.stroke, material: swapMaterial(style.stroke.material) } : null,
-    },
+    style: mapStyleMaterials(definition.style, swapMaterial),
     effectRecipes: definition.effectRecipes.map(swap),
   };
 }

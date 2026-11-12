@@ -4,8 +4,9 @@ import { NEW_TEMPLATE_NAME, NEW_TEMPLATE_SOURCE, TemplateLibraryStore } from '..
 import { SAMPLE_SIZE, SAMPLE_TIME_US, TEMPLATE_PREVIEW, TemplateThumbnails, THUMBNAIL_SAMPLE_ID, THUMBNAIL_SIZE } from '../../src/editor/library/template-thumbnails';
 import { TEMPLATE_PREVIEW_OPTIONS, TemplateWorkshop, workshopTitle, WORKSHOP_DURATION_US } from '../../src/editor/library/template-workshop';
 import { addStop, gradientProblem, removeStop, setStopOffset } from '../../src/editor/model/gradient';
-import { changeKind, definitionProblem, gradientFrom, groupAllowed, groupValueText, propertySummary, setGroupIncluded, setTemplateGlow, templateGlowEditing, TEMPLATE_GROUPS } from '../../src/editor/model/template-groups';
+import { changeKind, definitionProblem, gradientFrom, groupAllowed, groupValueText, propertySummary, setGroupIncluded, setTemplateEffect, templateEffectEditing, TEMPLATE_GROUPS } from '../../src/editor/model/template-groups';
 import {
+  TEMPLATE_PROPERTIES,
   type EffectPackageInspectResponse,
   type EffectPackageReference,
   type FullTemplateDefinition,
@@ -18,11 +19,9 @@ import {
 
 const STYLE: FullTemplateDefinition['style'] = {
   typography: { fontFamilyName: null, fallbackFamilyNames: [], fontSizePx: 72, fontWeight: 400, isBold: false, isItalic: false, letterSpacingPx: 0 },
-  unsungFill: { material: { kind: 'solid', color: { red: 74, green: 80, blue: 96, alpha: 255 } } },
-  sungFill: { material: { kind: 'solid', color: { red: 76, green: 141, blue: 255, alpha: 255 } } },
-  stroke: null,
-  shadow: null,
-  glow: null,
+  unsung: { fill: { kind: 'solid', color: { red: 74, green: 80, blue: 96, alpha: 255 } }, strokes: [], shadow: null, glow: null },
+  sung: { fill: { kind: 'solid', color: { red: 76, green: 141, blue: 255, alpha: 255 } }, strokes: { kind: 'follow' }, shadow: { kind: 'follow' }, glow: { kind: 'follow' } },
+  wipe: { featherRatio: 0, highlight: null },
   verticalCenterRatio: 0.5,
   horizontalAlignment: 'center',
   opacity: 1,
@@ -41,7 +40,7 @@ const definition = (d: Omit<FullTemplateDefinition, 'effectRecipes' | 'packages'
  */
 function fakeLibraries() {
   const libraries: Record<TemplateLibraryId, { revision: number; templates: Map<string, FullTemplateDefinition> }> = {
-    builtin: { revision: 1, templates: new Map([[NEW_TEMPLATE_SOURCE, definition({ name: '经典整行', kind: 'line', style: STYLE, properties: ['fontSizePx', 'unsungColor'] })]]) },
+    builtin: { revision: 1, templates: new Map([[NEW_TEMPLATE_SOURCE, definition({ name: '经典整行', kind: 'line', style: STYLE, properties: ['typography.fontSizePx', 'unsung.fill'] })]]) },
     personal: { revision: 0, templates: new Map() },
   };
   const versions = new Map<string, number>();
@@ -178,26 +177,43 @@ describe('样式库状态', () => {
   });
 
   it('只含辉光不透明度且样式为 null 时编辑默认叶值，选择关闭后才明确关闭目标辉光', () => {
-    const partial = definition({ name: '辉光默认叶', kind: 'line', style: STYLE, properties: ['glowOpacity'] });
-    const state = templateGlowEditing(partial);
+    const partial = definition({ name: '辉光默认叶', kind: 'line', style: STYLE, properties: ['unsung.glow.opacity'] });
+    const state = templateEffectEditing(partial, 'glow');
     expect(state).toEqual({ mode: 'partial', value: { color: { red: 0, green: 0, blue: 0, alpha: 0 }, opacity: 1, spreadPx: 0, blurRadiusPx: 0 } });
     expect(groupValueText('glow', partial.style, partial.properties)).toBe('仅覆盖：不透明度 100%');
-    const edited = setTemplateGlow(partial, { ...state.value!, opacity: 0.5 }, 'glowOpacity');
-    expect(edited.properties).toEqual(['glowOpacity']);
-    expect(templateGlowEditing(edited).mode).toBe('partial');
-    const closed = setTemplateGlow(partial, null);
-    expect(closed.properties).toEqual(['glowSpec', 'glowOpacity']);
-    expect(templateGlowEditing(closed)).toEqual({ mode: 'off', value: null });
+    const edited = setTemplateEffect(partial, 'glow', { ...state.value!, opacity: 0.5 }, 'opacity');
+    expect(edited.properties).toEqual(['unsung.glow.opacity']);
+    expect(templateEffectEditing(edited, 'glow').mode).toBe('partial');
+    const closed = setTemplateEffect(partial, 'glow', null);
+    expect(closed.properties).toEqual(['unsung.glow', 'unsung.glow.opacity']);
+    expect(templateEffectEditing(closed, 'glow')).toEqual({ mode: 'off', value: null });
     expect(groupValueText('glow', closed.style, closed.properties)).toBe('关');
   });
 
-  it('编辑辉光叶属性时保留并补齐模板属性；整体关闭写入 glowSpec', () => {
-    const partial = definition({ name: '辉光叶', kind: 'line', style: { ...STYLE, glow: { color: { red: 255, green: 255, blue: 255, alpha: 255 }, opacity: 1, spreadPx: 1, blurRadiusPx: 8 } }, properties: ['glowColor'] });
-    const withBlur = setTemplateGlow(partial, partial.style.glow, 'glowBlurRadiusPx');
-    expect(withBlur.properties).toEqual(['glowColor', 'glowBlurRadiusPx']);
-    const closed = setTemplateGlow(withBlur, null);
-    expect(closed.properties).toEqual(['glowSpec', 'glowColor', 'glowBlurRadiusPx']);
-    expect(closed.style.glow).toBeNull();
+  it('编辑辉光叶属性时保留并补齐模板属性；整体关闭写入父项', () => {
+    const glow = { color: { red: 255, green: 255, blue: 255, alpha: 255 }, opacity: 1, spreadPx: 1, blurRadiusPx: 8 };
+    const partial = definition({ name: '辉光叶', kind: 'line', style: { ...STYLE, unsung: { ...STYLE.unsung, glow } }, properties: ['unsung.glow.color'] });
+    const withBlur = setTemplateEffect(partial, 'glow', partial.style.unsung.glow, 'blurRadiusPx');
+    expect(withBlur.properties).toEqual(['unsung.glow.color', 'unsung.glow.blurRadiusPx']);
+    const closed = setTemplateEffect(withBlur, 'glow', null);
+    expect(closed.properties).toEqual(['unsung.glow', 'unsung.glow.color', 'unsung.glow.blurRadiusPx']);
+    expect(closed.style.unsung.glow).toBeNull();
+  });
+
+  it('已唱阴影：跟随未唱时显示未唱的值；改叶写成显式，整项可改回跟随或明确关闭', () => {
+    const shadow = { color: { red: 0, green: 0, blue: 0, alpha: 255 }, opacity: 0.5, angleDegrees: 45, distancePx: 4, blurRadiusPx: 4 };
+    const base = definition({ name: '阴影', kind: 'line', style: { ...STYLE, unsung: { ...STYLE.unsung, shadow } }, properties: ['sung.shadow'] });
+    expect(templateEffectEditing(base, 'sungShadow')).toEqual({ mode: 'follow', value: shadow });
+    expect(groupValueText('sungShadow', base.style, base.properties)).toBe('跟随未唱');
+    const leaf = definition({ ...base, properties: ['sung.shadow.distancePx'] });
+    const moved = setTemplateEffect(leaf, 'sungShadow', { ...shadow, distancePx: 9 }, 'distancePx');
+    expect(moved.style.sung.shadow).toEqual({ kind: 'set', value: { ...shadow, distancePx: 9 } });
+    expect(moved.properties).toEqual(['sung.shadow.distancePx']);
+    expect(groupValueText('sungShadow', moved.style, moved.properties)).toBe('仅覆盖：距离 9 px');
+    const off = setTemplateEffect(base, 'sungShadow', null);
+    expect(off.style.sung.shadow).toEqual({ kind: 'set', value: null });
+    expect(templateEffectEditing(off, 'sungShadow').mode).toBe('off');
+    expect(setTemplateEffect(off, 'sungShadow', 'follow').style.sung.shadow).toEqual({ kind: 'follow' });
   });
 
   it('新建草稿以“经典整行”为起点，算未保存；保存发 create（首次修订 missing），之后选中新模板、不再有修改', async () => {
@@ -267,7 +283,7 @@ describe('样式库状态', () => {
 
   it('库修订变了：草稿当前定义和历史里的 library 引用换成新的，修改与撤销都保留，保存不再 409', async () => {
     const fake = fakeLibraries();
-    const style = { ...STYLE, unsungFill: { material: { kind: 'package' as const, packageId: 'pk', revision: 'v1', exportId: 'ink', parametersJson: '{}' } } };
+    const style = { ...STYLE, unsung: { ...STYLE.unsung, fill: { kind: 'package' as const, packageId: 'pk', revision: 'v1', exportId: 'ink', parametersJson: '{}' } } };
     fake.write('p1', definition({ name: '含效果', kind: 'line', style, properties: ['opacity'], packages: [{ kind: 'asset', packageId: 'pk', packageRevision: 'v1', packageAssetId: 'a1' }] }));
     fake.bump();
     const store = new TemplateLibraryStore(fake.client);
@@ -325,14 +341,14 @@ describe('样式库状态', () => {
 
     const draft = store.state.draft!.definition;
     const material = { kind: 'package' as const, packageId: 'pk', revision: 'v1', exportId: 'ink', parametersJson: '{}' };
-    store.edit({ ...draft, style: { ...draft.style, unsungFill: { material } } });
+    store.edit({ ...draft, style: { ...draft.style, unsung: { ...draft.style.unsung, fill: material } } });
     expect(store.state.draft?.definition.packages).toEqual([v1.reference]);
     expect(store.removePackage('pk\u0000v1')).toEqual(['未唱填充']);
     expect(store.state.draft?.imported).toHaveLength(1);
 
     const v2 = await store.inspectPackageFile(new File(['y'], 'ink2.mkfx'));
     expect(store.addPackage(v2)).toEqual(['v1']);
-    expect(store.state.draft?.definition.style.unsungFill.material).toMatchObject({ revision: 'v2' });
+    expect(store.state.draft?.definition.style.unsung.fill).toMatchObject({ revision: 'v2' });
     expect(store.state.draft?.definition.packages).toEqual([v2.reference]);
     expect(store.removePackage('pk\u0000v1')).toEqual([]);
     expect(store.state.draft?.imported).toEqual([v2.reference]);
@@ -356,27 +372,51 @@ describe('样式库状态', () => {
 });
 
 describe('模板属性分组', () => {
-  it('用途限制：文本单元包含辉光；组合不能有位置', () => {
+  it('用途限制：文本单元包含两态外观与擦除；组合不能有位置', () => {
     const ids = (kind: 'line' | 'token' | 'composite') => TEMPLATE_GROUPS.filter((g) => groupAllowed(g, kind)).map((g) => g.id);
-    expect(ids('token')).toEqual(['unsung', 'sung', 'stroke', 'shadow', 'glow', 'opacity']);
+    expect(ids('token')).toEqual(['unsung', 'sung', 'stroke', 'sungStroke', 'shadow', 'sungShadow', 'glow', 'sungGlow', 'feather', 'highlight', 'opacity']);
     expect(ids('composite')).not.toContain('position');
-    expect(ids('line')).toHaveLength(12);
-    expect(propertySummary('token', ['unsungColor', 'sungColor'])).toBe('未唱填充、已唱填充');
-    expect(propertySummary('token', ['unsungColor', 'sungColor', 'strokeSpec', 'shadowColor', 'glowSpec', 'opacity'])).toBe('全部属性');
+    expect(ids('line')).toHaveLength(17);
+    expect(TEMPLATE_GROUPS.flatMap((g) => g.properties).sort()).toEqual([...TEMPLATE_PROPERTIES].sort());
+    expect(propertySummary('token', ['unsung.fill', 'sung.fill'])).toBe('未唱填充、已唱填充');
+    expect(propertySummary('token', ['unsung.fill', 'sung.fill', 'unsung.strokes', 'sung.strokes', 'unsung.shadow.color', 'sung.shadow', 'unsung.glow', 'sung.glow.color', 'wipe.featherRatio', 'wipe.highlight', 'opacity'])).toBe('全部属性');
   });
 
   it('开关组：重新打开原来包含的组恢复原子集，新打开的组写整组；换用途去掉不允许的属性', () => {
     const fill = TEMPLATE_GROUPS.find((g) => g.id === 'unsung')!;
-    const stroke = TEMPLATE_GROUPS.find((g) => g.id === 'stroke')!;
-    const base = definition({ name: 'x', kind: 'token', style: STYLE, properties: ['unsungColor', 'sungColor'] });
+    const highlight = TEMPLATE_GROUPS.find((g) => g.id === 'highlight')!;
+    const base = definition({ name: 'x', kind: 'token', style: STYLE, properties: ['unsung.fill', 'sung.fill'] });
     const off = setGroupIncluded(base, fill, false, base.properties);
-    expect(off.properties).toEqual(['sungColor']);
-    expect(setGroupIncluded(off, fill, true, base.properties).properties).toEqual(['unsungColor', 'sungColor']);
-    expect(setGroupIncluded(base, stroke, true, base.properties).properties).toEqual(['unsungColor', 'sungColor', 'strokeColor', 'strokeWidthPx', 'strokeSpec']);
+    expect(off.properties).toEqual(['sung.fill']);
+    expect(setGroupIncluded(off, fill, true, base.properties).properties).toEqual(['unsung.fill', 'sung.fill']);
+    expect(setGroupIncluded(base, highlight, true, base.properties).properties).toEqual([
+      'unsung.fill',
+      'sung.fill',
+      'wipe.highlight',
+      'wipe.highlight.color',
+      'wipe.highlight.widthRatio',
+      'wipe.highlight.opacity',
+      'wipe.highlight.blend',
+    ]);
 
-    const line: FullTemplateDefinition = { ...base, kind: 'line', properties: ['fontSizePx', 'verticalCenterRatio', 'opacity'] };
-    expect(changeKind(line, 'composite').properties).toEqual(['fontSizePx', 'opacity']);
-    expect(changeKind(line, 'token').properties).toEqual(['opacity']);
+    const line: FullTemplateDefinition = { ...base, kind: 'line', properties: ['typography.fontSizePx', 'wipe.featherRatio', 'verticalCenterRatio', 'opacity', 'scale'] };
+    expect(changeKind(line, 'composite').properties).toEqual(['typography.fontSizePx', 'wipe.featherRatio', 'opacity', 'scale']);
+    expect(changeKind(line, 'token').properties).toEqual(['wipe.featherRatio', 'opacity']);
+  });
+
+  it('两态取值摘要：描边多层、已唱跟随、羽化与高亮', () => {
+    const black = { kind: 'solid' as const, color: { red: 0, green: 0, blue: 0, alpha: 255 } };
+    const style: FullTemplateDefinition['style'] = {
+      ...STYLE,
+      unsung: { ...STYLE.unsung, strokes: [{ material: black, widthPx: 4, join: 'round' }, { material: black, widthPx: 2, join: 'miter' }] },
+      wipe: { featherRatio: 0.25, highlight: { color: { red: 255, green: 255, blue: 255, alpha: 255 }, widthRatio: 0.25, opacity: 0.8, blend: 'screen' } },
+    };
+    expect(groupValueText('stroke', style)).toBe('2 层：4 px · 圆角连接 · #000000 ／ 2 px · 尖角连接 · #000000');
+    expect(groupValueText('sungStroke', style)).toBe('跟随未唱');
+    expect(groupValueText('feather', style)).toBe('0.25 倍字号');
+    expect(groupValueText('feather', STYLE)).toBe('硬边');
+    expect(groupValueText('highlight', style)).toBe('#ffffff · 宽 0.25 倍字号 · 强度 80% · 滤色');
+    expect(definitionProblem(definition({ name: 'x', kind: 'line', style: { ...style, unsung: { ...style.unsung, strokes: Array(5).fill(style.unsung.strokes[0]) } }, properties: ['opacity'] }))).toMatch('最多 4 层');
   });
 });
 
@@ -403,7 +443,7 @@ describe('渐变色标', () => {
     expect(gradientProblem({ ...g, stops: [{ offset: 0.1, color: black }, { offset: 1, color: white }] })).toMatch('0%');
     expect(gradientProblem({ ...g, stops: [{ offset: 0, color: black }, { offset: 0.6, color: black }, { offset: 0.4, color: black }, { offset: 1, color: white }] })).toMatch('倒序');
     expect(gradientProblem({ ...g, kind: 'radial', radiusX: 0 })).toMatch('半径');
-    const bad = definition({ name: 'x', kind: 'line', style: { ...STYLE, sungFill: { material: { kind: 'gradient', gradient: { ...g, kind: 'radial', radiusY: 0 } } } }, properties: ['opacity'] });
+    const bad = definition({ name: 'x', kind: 'line', style: { ...STYLE, sung: { ...STYLE.sung, fill: { kind: 'gradient', gradient: { ...g, kind: 'radial', radiusY: 0 } } } }, properties: ['opacity'] });
     expect(definitionProblem(bad)).toMatch('已唱填充');
     expect(definitionProblem({ ...bad, style: STYLE, properties: [] })).toMatch('至少要包含一组属性或一个效果');
   });
@@ -672,7 +712,7 @@ describe('试样画布（W7 §2.5）', () => {
       await vi.advanceTimersByTimeAsync(0);
       expect(log.creates.at(-1)).toMatchObject({ materialSlot: 'stroke' });
       expect(workshop.state.echoedSlot).toBe('stroke');
-      expect(workshopTitle(workshop.state)).toBe('试样 · 单行样本 · 整行 · 材质焦点 描边 · 0:03.000');
+      expect(workshopTitle(workshop.state)).toBe('试样 · 单行样本 · 整行 · 材质焦点 未唱描边 · 0:03.000');
 
       workshop.setMaterialSlot(undefined);
       await vi.advanceTimersByTimeAsync(0);
@@ -695,7 +735,7 @@ describe('试样画布（W7 §2.5）', () => {
       await vi.advanceTimersByTimeAsync(0);
       const shown = workshop.state.frame!.sha256;
 
-      const edited = (size: number) => definition({ name: 'a', kind: 'line', style: { ...STYLE, typography: { ...STYLE.typography, fontSizePx: size } }, properties: ['fontSizePx'] });
+      const edited = (size: number) => definition({ name: 'a', kind: 'line', style: { ...STYLE, typography: { ...STYLE.typography, fontSizePx: size } }, properties: ['typography.fontSizePx'] });
       workshop.show({ kind: 'draft', definition: edited(80) }, 'personal|a');
       expect(workshop.state).toMatchObject({ source: 'draft', frame: { status: 'loading', sha256: shown } });
       await vi.advanceTimersByTimeAsync(100);
@@ -707,7 +747,7 @@ describe('试样画布（W7 §2.5）', () => {
       setOptions(options(['line']));
       hold(true);
       await vi.advanceTimersByTimeAsync(1);
-      expect(log.options[1]).toEqual({ kind: 'draft', draftRevision: 'draft-1', definition: { name: 'a', kind: 'line', style: edited(90).style, properties: ['fontSizePx'] } });
+      expect(log.options[1]).toEqual({ kind: 'draft', draftRevision: 'draft-1', definition: { name: 'a', kind: 'line', style: edited(90).style, properties: ['typography.fontSizePx'] } });
       expect(log.creates.at(-1)).toMatchObject({ targetKey: 'line', source: { draftRevision: 'draft-1' } });
       expect(workshop.state.targetKey).toBe('line');
 

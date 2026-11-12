@@ -48,7 +48,7 @@ describe('模板库（真实 Server）', () => {
     const builtin = await client.templates.listAll('builtin');
     const byId = new Map(builtin.templates.map((t) => [t.templateId, t]));
     expect(byId.get('builtin:line-classic')).toMatchObject({ kind: 'line' });
-    expect(byId.get('builtin:token-highlight')).toMatchObject({ kind: 'token', properties: ['unsungColor', 'sungColor'] });
+    expect(byId.get('builtin:token-highlight')).toMatchObject({ kind: 'token', properties: ['unsung.fill', 'sung.fill'] });
   });
 
   it('新建→整体替换→改名→删除；保存后重读的定义与提交的一致；旧修订 409', async () => {
@@ -64,8 +64,8 @@ describe('模板库（真实 Server）', () => {
 
     const replaced: StaticTemplateDefinition = {
       ...definition,
-      style: { ...definition.style, typography: { ...definition.style.typography, fontSizePx: 64 }, stroke: { material: { kind: 'solid', color: { red: 0, green: 0, blue: 0, alpha: 255 } }, widthPx: 4, join: 'round', position: 'outside' } },
-      properties: ['fontSizePx', 'strokeColor', 'strokeWidthPx', 'strokeSpec'],
+      style: { ...definition.style, typography: { ...definition.style.typography, fontSizePx: 64 }, unsung: { ...definition.style.unsung, strokes: [{ material: { kind: 'solid', color: { red: 0, green: 0, blue: 0, alpha: 255 } }, widthPx: 4, join: 'round' }] } },
+      properties: ['typography.fontSizePx', 'unsung.strokes'],
     };
     const r2 = await client.templates.command('personal', created.revision, { type: 'replace', templateId: id, definition: replaced });
     expect(r2.templateId).toBe(id);
@@ -138,7 +138,7 @@ describe('模板库（真实 Server）', () => {
     await expect(client.preview.replaceInput(live.previewId, { expectedPreviewGeneration: previewGeneration, expectedSourceRevision: source.sourceRevision, source: { kind: 'project', sourceId: 'none', sourceRevision: revision('0') }, size })).rejects.toMatchObject({ status: 422, code: 'commandNotSupported' });
     await client.preview.close(live.previewId, { expectedPreviewGeneration: previewGeneration, expectedSourceRevision: source.sourceRevision });
 
-    const composite: StaticTemplateDefinition = { ...definition, kind: 'composite', properties: ['unsungColor', 'sungColor'] };
+    const composite: StaticTemplateDefinition = { ...definition, kind: 'composite', properties: ['unsung.fill', 'sung.fill'] };
     await expect(client.preview.createTemplatePreview({ source: { kind: 'draft', draftRevision: `it-${stamp}-4`, definition: composite }, sampleId: TEMPLATE_PREVIEW_SAMPLE_ID, size })).rejects.toMatchObject({ status: 422, code: 'commandNotSupported' });
     await expect(
       client.preview.createTemplatePreview({ source: { kind: 'savedTemplate', libraryId: 'builtin', libraryRevision: 'f'.repeat(64), templateId: classic.templateId, templateRevision: classic.templateRevision }, sampleId: TEMPLATE_PREVIEW_SAMPLE_ID, size }),

@@ -25,7 +25,7 @@ const templateName = `document.querySelector('.template-name')?.textContent`;
 const sample = `document.querySelector('.template-sample [data-status=ready] img')?.dataset.sha`;
 const revision = `(document.querySelector('.status-bar')?.textContent.match(/修订 (\\d+)/) ?? [])[1]`;
 const playhead = `(document.querySelector('.transport-time span')?.textContent ?? '')`;
-const properties = ['glowSpec', 'glowColor', 'glowOpacity', 'glowBlurRadiusPx', 'glowSpreadPx'];
+const properties = ['unsung.glow', 'unsung.glow.color', 'unsung.glow.opacity', 'unsung.glow.blurRadiusPx', 'unsung.glow.spreadPx'];
 const click = (page, selector) => ui.click(page, selector, null);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function check(condition, message) { if (!condition) throw new Error(message); console.log(`✓ ${message}`); }
@@ -99,8 +99,8 @@ try {
   await page.waitFor(`!!${sample} && ${sample} !== ${JSON.stringify(initial)}`, '辉光草稿试样', 60000);
   check(true, '辉光草稿改变试样');
   let d = await definition(page);
-  check(properties.every(p => d.properties.includes(p)) && isDeepStrictEqual(d.style.glow?.color, { red: 255, green: 32, blue: 192, alpha: 255 }) && d.style.glow?.blurRadiusPx === 18 && d.style.glow?.spreadPx === 8 && Math.abs(d.style.glow?.opacity - 0.65) < 0.011, '辉光属性、颜色、透明度、模糊和扩张进入草稿');
-  const glow = d.style.glow;
+  check(properties.every(p => d.properties.includes(p)) && isDeepStrictEqual(d.style.unsung.glow?.color, { red: 255, green: 32, blue: 192, alpha: 255 }) && d.style.unsung.glow?.blurRadiusPx === 18 && d.style.unsung.glow?.spreadPx === 8 && Math.abs(d.style.unsung.glow?.opacity - 0.65) < 0.011, '辉光属性、颜色、透明度、模糊和扩张进入草稿');
+  const glow = d.style.unsung.glow;
   await appearance(page);
   await theme(page, 'light', '浅色');
   await screenshot(page, 'light-wide');
@@ -116,7 +116,7 @@ try {
   await click(page, `[role=row]:has([data-template-id="${createdId}"])`);
   await page.waitFor(`${templateName} === ${JSON.stringify(name)}`, '重选模板');
   d = await definition(page);
-  check(isDeepStrictEqual(d.style.glow, glow) && properties.every(p => d.properties.includes(p)), '保存并重选后辉光定义保持');
+  check(isDeepStrictEqual(d.style.unsung.glow, glow) && properties.every(p => d.properties.includes(p)), '保存并重选后辉光定义保持');
   await appearance(page);
   await includeGlow(page, false);
   d = await definition(page);
@@ -125,7 +125,7 @@ try {
   await includeGlow(page, true);
   await ui.choose(page, '辉光开关', '无辉光');
   d = await definition(page);
-  check(properties.every(p => d.properties.includes(p)) && d.style.glow === null, '组内关闭保留属性并写入 null');
+  check(properties.every(p => d.properties.includes(p)) && d.style.unsung.glow === null, '组内关闭保留属性并写入 null');
   await appearance(page);
   await ui.choose(page, '辉光开关', '有辉光');
   await ui.fill(page, '辉光颜色', '#ff20c0', { enter: true });

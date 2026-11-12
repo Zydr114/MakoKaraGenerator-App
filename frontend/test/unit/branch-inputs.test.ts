@@ -58,7 +58,7 @@ describe('模板事实', () => {
     templateRevision: `${templateId}-r1`,
     name: templateId,
     kind: 'line',
-    properties: ['sungColor'],
+    properties: ['sung.fill'],
     hasEffectRecipes,
     hasPackageMaterials: false,
     hasPackages: hasEffectRecipes,

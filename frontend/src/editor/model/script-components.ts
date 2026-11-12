@@ -179,7 +179,7 @@ export function componentSample(base: FullTemplateDefinition, detail: ScriptConf
   if (exp.kind === 'material') {
     const slot = (['unsungFill', 'stroke'] as const).find((s) => materialExports(pkg, s).some((e) => e.id === exp.id));
     if (!slot) return { problem: '这个材质不能用在填充或描边上，没法试样。' };
-    if (slot === 'stroke' && !base.style.stroke) return { problem: '这个材质只能用于描边，试样模板没有描边。' };
+    if (slot === 'stroke' && base.style.unsung.strokes.length === 0) return { problem: '这个材质只能用于描边，试样模板没有描边。' };
     const material = { kind: 'package' as const, packageId: pkg.packageId, revision: pkg.packageRevision, exportId: exp.id, parametersJson: configuration.parametersJson };
     return { definition: { ...base, name: configuration.name, style: withSlotMaterial(base.style, slot, material), packages }, materialSlot: slot === 'stroke' ? 'stroke' : 'unsungFill' };
   }

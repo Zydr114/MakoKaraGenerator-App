@@ -154,6 +154,8 @@ export interface ExportArtifactReference {
 export interface ExportJobResult {
   artifact: ExportArtifactReference;
   report: JobReportReference;
+  /** 报告里 fallbackDiagnostics 的条数（1.51.0，0..128）；完整列表、兜底帧数与截断标记见报告。旧后端缺失时按 0。 */
+  fallbackDiagnosticCount?: number;
 }
 
 // ── 完整报告 ──
@@ -218,6 +220,15 @@ export interface ExportReport {
   actualQuality: ExportQuality;
   /** 缺失或 null 表示没记录。 */
   renderBackend?: RenderBackend | null;
+  /**
+   * 1.51.0：缺背景时图效果或材质已按声明降级继续，去重后的兜底诊断（warning，按首次出现排序，最多 128 条）。
+   * 三项要么都有、要么都没有：0.112.86 之前登记的报告没有这三项，按空、0、false 读。
+   */
+  fallbackDiagnostics?: BackendDiagnostic[];
+  /** 含至少一条兜底诊断的帧数。 */
+  fallbackFrameCount?: number;
+  /** 是否因条数或字节预算丢掉了部分兜底诊断。 */
+  fallbackDiagnosticsTruncated?: boolean;
 }
 
 /** 导出失败且有运行时诊断时的分型失败报告；没有成片。 */

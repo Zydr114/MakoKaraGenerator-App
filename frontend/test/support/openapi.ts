@@ -1,7 +1,7 @@
 // 冻结 OpenAPI（docs/backend/contract/openapi.json）的最小校验器，只用于测试。
 // 只实现该文件实际用到的 JSON Schema 关键字：type、properties、required、additionalProperties、prefixItems、items、$ref、enum、const、
 // pattern、oneOf、anyOf、allOf、not、if／then／else、minimum、maximum、exclusiveMinimum、minLength、maxLength、
-// minItems、maxItems、uniqueItems、contains／minContains／maxContains、format(date-time)。
+// minItems、maxItems、uniqueItems、contains／minContains／maxContains、dependentRequired、format(date-time)。
 // 设计 §5“类型漂移的防护”：集成测试用它校验每个实际响应。
 
 import { readFileSync } from 'node:fs';
@@ -147,6 +147,9 @@ export class OpenApiContract {
       const properties = (schema.properties ?? {}) as Record<string, Schema>;
       for (const key of (schema.required ?? []) as string[]) {
         if (!(key in object)) push(`缺少必需字段 ${key}`);
+      }
+      for (const [key, needs] of Object.entries((schema.dependentRequired ?? {}) as Record<string, string[]>)) {
+        if (key in object) for (const need of needs) if (!(need in object)) push(`有 ${key} 时缺少 ${need}`);
       }
       for (const [key, inner] of Object.entries(object)) {
         if (properties[key]) this.check(properties[key], inner, `${path}.${key}`, issues);

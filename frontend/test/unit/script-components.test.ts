@@ -70,17 +70,15 @@ describe('选中组件', () => {
     kind: 'line',
     style: {
       typography: { fontFamilyName: null, fallbackFamilyNames: [], fontSizePx: 72, fontWeight: 400, isBold: false, isItalic: false, letterSpacingPx: 0 },
-      unsungFill: { material: { kind: 'solid', color: { red: 74, green: 80, blue: 96, alpha: 255 } } },
-      sungFill: { material: { kind: 'solid', color: { red: 76, green: 141, blue: 255, alpha: 255 } } },
-      stroke: null,
-      shadow: null,
-      glow: null,
+      unsung: { fill: { kind: 'solid', color: { red: 74, green: 80, blue: 96, alpha: 255 } }, strokes: [], shadow: null, glow: null },
+      sung: { fill: { kind: 'solid', color: { red: 76, green: 141, blue: 255, alpha: 255 } }, strokes: { kind: 'follow' }, shadow: { kind: 'follow' }, glow: { kind: 'follow' } },
+      wipe: { featherRatio: 0, highlight: null },
       verticalCenterRatio: 0.5,
       horizontalAlignment: 'center',
       opacity: 1,
       scale: 1,
     },
-    properties: ['unsungColor', 'sungColor'],
+    properties: ['unsung.fill', 'sung.fill'],
     effectRecipes: [],
     packages: [],
   };
@@ -126,7 +124,7 @@ describe('选中组件', () => {
     expect(componentMaterialProblem('unsungFill', detail(OUTLINE))).toContain('不能用在未唱填充');
     const material = withComponentMaterial(added.definition, 'sungFill', detail(INK, { parametersJson: '{"opacity":0.4}' }));
     expect(material.packages).toEqual([asset]);
-    expect(material.style.sungFill.material).toEqual({ kind: 'package', packageId: 'demo.fx', revision: 'sha256:fx1', exportId: 'ink', parametersJson: '{"opacity":0.4}' });
+    expect(material.style.sung.fill).toEqual({ kind: 'package', packageId: 'demo.fx', revision: 'sha256:fx1', exportId: 'ink', parametersJson: '{"opacity":0.4}' });
     expect(withComponentMaterial(BASE, 'stroke', detail(INK))).toBe(BASE);
   });
 
@@ -167,7 +165,7 @@ describe('选中组件', () => {
     const ink = componentSample(BASE, detail(INK, { relativeTarget: 'application', parametersJson: '{}' }));
     if (!('definition' in ink)) throw new Error(ink.problem);
     expect(ink.materialSlot).toBe('unsungFill');
-    expect(ink.definition.style.unsungFill.material).toEqual({ kind: 'package', packageId: 'demo.fx', revision: 'sha256:fx1', exportId: 'ink', parametersJson: '{}' });
+    expect(ink.definition.style.unsung.fill).toEqual({ kind: 'package', packageId: 'demo.fx', revision: 'sha256:fx1', exportId: 'ink', parametersJson: '{}' });
     expect(ink.definition.effectRecipes).toEqual([]);
     expect(componentSample(BASE, detail(OUTLINE, { relativeTarget: 'application' }))).toEqual({ problem: '这个材质只能用于描边，试样模板没有描边。' });
   });

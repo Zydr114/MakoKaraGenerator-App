@@ -23,7 +23,21 @@ public sealed partial class SkiaRenderPipeline
             // 两态辉光不同时各段在本态区域各画一次，仍先于全部注音填充，后画注音的光晕不会盖住前一注音（P3 设计 §4）。
             if (style.GlowDiffersByState) DrawSegments(entry, style, glow: true);
         }
-        foreach (RubyLayout entry in ruby) DrawSegments(entry, Style(entry), glow: false);
+        IReadOnlyList<HighlightPeak> previousHighlight = _rubyHighlight;
+        try
+        {
+            foreach (RubyLayout entry in ruby)
+            {
+                // 注音按自己的分段进度叠高亮，峰宽按注音字号（P3 设计 §7.2、§10.3）。
+                LyricStyle style = Style(entry);
+                _rubyHighlight = BuildRubyHighlights(entry, sample, style.Wipe.Highlight);
+                DrawSegments(entry, style, glow: false);
+            }
+        }
+        finally
+        {
+            _rubyHighlight = previousHighlight;
+        }
 
         // 注音继承所属元素的样式，装饰按注音比例缩放（P3 设计 §7.2）。
         LyricStyle Style(RubyLayout entry) => (familyStyle ?? (line.Tokens[entry.TokenIndex].StyleOverride is { } overlay

@@ -61,37 +61,46 @@ public sealed partial class SkiaRenderPipeline
             if (capture?.ShadowOnly == true) return;
         }
 
+        // 扫字线高亮在本态填充与各圈描边画完后各叠一遍（P3 设计 §10.3）；没有峰时绘制与之前完全相同。
+        var peaks = HighlightPeaks(rubyGlyph, capture);
         if (style.Unsung.Strokes is { IsEnabled: true } strokes)
-            DrawStrokes(canvas, shaped, options, originX, baselineY, strokes, style, composition, device, antialias, drawUnitIndices, capture, lineSpan);
+            DrawStrokes(canvas, shaped, options, originX, baselineY, strokes, style, composition, device, antialias, drawUnitIndices, capture, lineSpan, peaks);
 
         if (capture?.StrokeOnly == true) return;
-        if (capture?.MaterialFallback is not null || capture is { IsCoverage: true, Part: not null })
+        DrawFill();
+
+        void DrawFill()
         {
-            // Raw 材质区域与基础外观使用同一离屏字形路径，避免 GPU 对直接和 SaveLayer 字形采用不同栅格原点。
-            using var materialLayerReservation = capture.Layer("CaptureMaterialFallbackLayer");
-            capture.MarkDrawn(canvas);
-            int materialLayer = canvas.SaveLayer();
-            _geometry.LayoutEngine.DrawLine(canvas, shaped, options, originX, baselineY, SKColors.White, antialias,
-                drawUnitIndices: drawUnitIndices, unitShader: fill.UnitShader);
-            if (fill.UnitShader is null)
+            if (capture?.MaterialFallback is not null || capture is { IsCoverage: true, Part: not null })
             {
-                using var regionColor = new SKPaint { BlendMode = SKBlendMode.SrcIn, Shader = fill.Shared,
-                    Color = fill.Shared is null ? ToSkColorWithOpacity(color, 1) : SKColors.White };
-                canvas.DrawPaint(regionColor);
+                // Raw 材质区域与基础外观使用同一离屏字形路径，避免 GPU 对直接和 SaveLayer 字形采用不同栅格原点。
+                using var materialLayerReservation = capture.Layer("CaptureMaterialFallbackLayer");
+                capture.MarkDrawn(canvas);
+                int materialLayer = canvas.SaveLayer();
+                _geometry.LayoutEngine.DrawLine(canvas, shaped, options, originX, baselineY, SKColors.White, antialias,
+                    drawUnitIndices: drawUnitIndices, unitShader: fill.UnitShader);
+                if (fill.UnitShader is null)
+                {
+                    using var regionColor = new SKPaint { BlendMode = SKBlendMode.SrcIn, Shader = fill.Shared,
+                        Color = fill.Shared is null ? ToSkColorWithOpacity(color, 1) : SKColors.White };
+                    canvas.DrawPaint(regionColor);
+                }
+                canvas.RestoreToCount(materialLayer); return;
             }
-            canvas.RestoreToCount(materialLayer); return;
+            if (capture?.ShadowOnly == true && shadow is null)
+            {
+                if (shadowSpec is { IsEnabled: true }) throw new PreparedFrameException("CaptureShadowFilterUnavailable", "无法创建真实 shadow-only 滤镜，不能当作没有阴影。");
+                return;
+            }
+            capture?.MarkDrawn(canvas);
+            _geometry.LayoutEngine.DrawLine(
+                canvas, shaped, options, originX, baselineY,
+                // shader 色标已包含样式 alpha；画笔不能再乘历史纯色 alpha 或样式 alpha。
+                fill.IsEmpty ? ToSkColorWithOpacity(color, style.Opacity) : SKColors.White, antialias,
+                SKPaintStyle.Fill, 0f, fill.Shared, outlined ? null : shadow, drawUnitIndices: drawUnitIndices, unitShader: fill.UnitShader);
+            ApplyHighlight(canvas, peaks, originX, (shader, blender) => _geometry.LayoutEngine.DrawLine(canvas, shaped, options, originX, baselineY,
+                SKColors.White, antialias, shader: shader, drawUnitIndices: drawUnitIndices, blender: blender));
         }
-        if (capture?.ShadowOnly == true && shadow is null)
-        {
-            if (shadowSpec is { IsEnabled: true }) throw new PreparedFrameException("CaptureShadowFilterUnavailable", "无法创建真实 shadow-only 滤镜，不能当作没有阴影。");
-            return;
-        }
-        capture?.MarkDrawn(canvas);
-        _geometry.LayoutEngine.DrawLine(
-            canvas, shaped, options, originX, baselineY,
-            // shader 色标已包含样式 alpha；画笔不能再乘历史纯色 alpha 或样式 alpha。
-            fill.IsEmpty ? ToSkColorWithOpacity(color, style.Opacity) : SKColors.White, antialias,
-            SKPaintStyle.Fill, 0f, fill.Shared, outlined ? null : shadow, drawUnitIndices: drawUnitIndices, unitShader: fill.UnitShader);
     }
 
     /// <summary>
@@ -101,7 +110,8 @@ public sealed partial class SkiaRenderPipeline
     /// </summary>
     private void DrawStrokes(SKCanvas canvas, ShapedLine shaped, TextLayoutOptions options, float originX, float baselineY,
         StrokeLayers strokes, LyricStyle style, Composition composition, SKMatrix device, bool antialias,
-        ImmutableArray<int> drawUnitIndices, CapturePaint? capture, LineSpan? lineSpan)
+        ImmutableArray<int> drawUnitIndices, CapturePaint? capture, LineSpan? lineSpan,
+        IReadOnlyList<HighlightPeak> peaks)
     {
         int first = capture?.OuterStrokeOnly == true ? 1 : 0;
         if (strokes.Count <= first) return;
@@ -151,6 +161,13 @@ public sealed partial class SkiaRenderPipeline
             else
                 DrawOutline(canvas, shaped, options, originX, baselineY, strokes[0].WidthPx, ToSkStrokeJoin(strokes[0].Join),
                     cut, antialias, drawUnitIndices, SKBlendMode.DstOut);
+            // 描边层里只有描边：高亮直接画满峰的范围，混合器保持目标 α，没有描边的地方不变（P3 设计 §10.3）。
+            if (!regionColored)
+                ApplyHighlight(canvas, peaks, originX, (shader, blender) =>
+                {
+                    using var paint = new SKPaint { Shader = shader, Blender = blender };
+                    canvas.DrawRect(canvas.LocalClipBounds, paint);
+                });
             if (regionColored)
             {
                 var shared = shadings[first]!.Shared;

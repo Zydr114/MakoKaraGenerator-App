@@ -468,6 +468,23 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
             return;
         }
 
+        // 扫字线高亮的峰按整行采样求出，正文各条绘制路径共用（P3 设计 §10.3）；注音在 DrawRuby 里另求。
+        IReadOnlyList<HighlightPeak> previousHighlight = _baseHighlight;
+        _baseHighlight = BuildHighlights(sample, shaped, token => ElementWipe(lineStyle, line, token), options.FontSizePx);
+        try
+        {
+            DrawSceneLineContent(canvas, request, composition, scene, capture, resources, sample, line, lineStyle, options, layout);
+        }
+        finally
+        {
+            _baseHighlight = previousHighlight;
+        }
+    }
+
+    private void DrawSceneLineContent(SKCanvas canvas, RenderRequest request, Composition composition, SceneLineSample scene, CapturePaint? capture,
+        ImageSurfaceBudgetFrame? resources, LyricFrameSample sample, LyricLine line, LyricStyle lineStyle, TextLayoutOptions options, LineLayout layout)
+    {
+        ShapedLine shaped = layout.Shaped;
         ImmutableArray<RubyLayout> ruby = capture?.Recipe.IncludeRuby == false ? [] : layout.Ruby;
         TextInkBounds? groupInk = GroupInk(shaped.InkBounds, ruby);
         LineRenderGeometry geometry = scene.Geometry!;

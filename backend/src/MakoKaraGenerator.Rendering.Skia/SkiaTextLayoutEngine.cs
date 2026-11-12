@@ -234,6 +234,7 @@ public sealed class SkiaTextLayoutEngine : ITextLayoutEngine
     /// <param name="blendMode">文字与目标图层的混合方式；字形遮罩使用 DstOut。</param>
     /// <param name="drawUnitIndices">可选完整字簇索引；默认绘制全部，空集合不画。不会重新整形或按字符串切字形。</param>
     /// <param name="unitShader">可选按绘制单元取的着色器（按单字渐变，P3 设计 §5.2）；给出时替代 <paramref name="shader"/>。</param>
+    /// <param name="blender">可选自定混合（扫字线高亮，P3 设计 §10.3）；给出时替代 <paramref name="blendMode"/>。</param>
     /// <exception cref="ArgumentNullException">任一引用参数为 <see langword="null"/> 时抛出。</exception>
     /// <exception cref="ObjectDisposedException">已释放时抛出。</exception>
     /// <remarks>
@@ -262,7 +263,8 @@ public sealed class SkiaTextLayoutEngine : ITextLayoutEngine
         SKStrokeJoin strokeJoin = SKStrokeJoin.Round,
         SKBlendMode blendMode = SKBlendMode.SrcOver,
         ImmutableArray<int> drawUnitIndices = default,
-        Func<ShapedDrawUnit, SKShader?>? unitShader = null)
+        Func<ShapedDrawUnit, SKShader?>? unitShader = null,
+        SKBlender? blender = null)
     {
         ArgumentNullException.ThrowIfNull(canvas);
         ArgumentNullException.ThrowIfNull(line);
@@ -287,6 +289,7 @@ public sealed class SkiaTextLayoutEngine : ITextLayoutEngine
             ImageFilter = imageFilter,
             BlendMode = blendMode,
         };
+        if (blender is not null) paint.Blender = blender;
 
         if (line.DrawUnits.IsEmpty)
             throw new ArgumentException("绘制需要整行整形产出的固定字形单元。", nameof(line));

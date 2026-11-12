@@ -1,6 +1,6 @@
 namespace MakoKaraGenerator.Core.Projects;
 
-/// <summary>扫字线高亮的混合方式；P3 第 6 步出样张后由用户定稿取值（设计 §10.3）。</summary>
+/// <summary>扫字线高亮的混合方式（P3 设计 §10.3，用户 2026-11-12 选定三种，默认滤色）。</summary>
 public enum WipeHighlightBlend
 {
     /// <summary>普通叠加。</summary>
@@ -34,7 +34,8 @@ public sealed record WipeSpec
         && (Highlight is null || Highlight.IsValid);
 }
 
-/// <summary>扫字线高亮：以演唱位置为中心的峰。</summary>
+/// <summary>扫字线高亮：以演唱位置为中心的峰，叠在填充与各圈描边上（P3 设计 §10.3）。</summary>
+/// <remarks>与羽化无关：羽化为 0 时照样显示；峰按整行坐标画，可以延伸到相邻文字上。</remarks>
 public sealed record WipeHighlightSpec
 {
     /// <summary>高亮宽度比例的上限。</summary>
@@ -43,14 +44,14 @@ public sealed record WipeHighlightSpec
     /// <summary>高亮颜色。</summary>
     public RgbaColor Color { get; init; } = RgbaColor.White;
 
-    /// <summary>高亮宽度与字号之比，须为正。</summary>
+    /// <summary>高亮峰的全宽与字号之比，须为正；不受过渡带限制。</summary>
     public double WidthRatio { get; init; } = .25d;
 
     /// <summary>高亮强度，0～1。</summary>
     public float Opacity { get; init; } = 1f;
 
-    /// <summary>混合方式。</summary>
-    public WipeHighlightBlend Blend { get; init; } = WipeHighlightBlend.Normal;
+    /// <summary>混合方式，默认滤色。</summary>
+    public WipeHighlightBlend Blend { get; init; } = WipeHighlightBlend.Screen;
 
     /// <summary>参数是否有效。</summary>
     public bool IsValid => double.IsFinite(WidthRatio) && WidthRatio is > 0d and <= MaxWidthRatio

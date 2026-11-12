@@ -103,12 +103,13 @@ public sealed partial class SkiaRenderPipeline
         {
             var target = prepared.FinalMarkGeometry.Single(value => value.Target.NodeId.Value == mark.NodeId && value.Target.CueId.Value == mark.CueId
                 && value.Target.BindingId.Value == mark.Geometry.BindingId).Target;
-            return (prepared.MarkStyles.Any(output => output.Target == target) ? prepared.GetMarkDrawingStyle(target) : mark.Appearance.ToLyricStyle()).Glow is { IsEnabled: true };
+            return (prepared.MarkStyles.Any(output => output.Target == target) ? prepared.GetMarkDrawingStyle(target) : mark.Appearance.ToLyricStyle())
+                .ForState(mark.IsElapsed).Glow is { IsEnabled: true };
         }
         var source = StaticStyleProjection.LoadedSourceStyles(request.Project, prepared.HierarchyScene);
         return prepared.FinalGeometry.Where(token => token.WithRuby.BindingId.Value == item.Line!.BindingId).Any(token =>
-            FamilyStyle(token).Glow is { IsEnabled: true } || prepared.BaseAppearances.ContainsKey(token.BaseOnly)
-                && prepared.GetBaseDrawingStyle(token.BaseOnly).Glow is { IsEnabled: true });
+            HasGlow(FamilyStyle(token)) || prepared.BaseAppearances.ContainsKey(token.BaseOnly)
+                && HasGlow(prepared.GetBaseDrawingStyle(token.BaseOnly)));
         MakoKaraGenerator.Core.Projects.LyricStyle FamilyStyle(TokenGeometrySample token)
             => prepared.TokenStyles.Any(output => output.Target == token.WithRuby) ? prepared.GetTokenDrawingStyle(token.WithRuby) : source[token.WithRuby];
     }
@@ -140,20 +141,23 @@ public sealed partial class SkiaRenderPipeline
                 && value.Target.CueId.Value == mark.CueId && value.Target.BindingId.Value == mark.Geometry.BindingId);
             var style = prepared.MarkStyles.Any(output => output.Target == final.Target)
                 ? prepared.GetMarkDrawingStyle(final.Target) : mark.Appearance.ToLyricStyle();
-            Add(style, final.Geometry);
+            Add(style.ForState(mark.IsElapsed), final.Geometry);
         }
         return bounds;
 
         void Add(MakoKaraGenerator.Core.Projects.LyricStyle style, GeometrySample geometry)
         {
-            if (style.Glow is not { IsEnabled: true } glow || geometry.InkBounds is not { } ink) return;
-            double extent = ValidateGlow(glow);
+            // 两态辉光不同时按较大的外扩计（P3 设计 §4）。
+            double? unsung = GlowExtent(style), sung = style.GlowDiffersByState ? GlowExtent(style.ForState(true)) : null;
+            if (unsung is null && sung is null || geometry.InkBounds is not { } ink) return;
+            double extent = Math.Max(unsung ?? 0, sung ?? 0);
             Rect2 decorated = new(ink.Left - extent, ink.Top - extent, ink.Right + extent, ink.Bottom + extent);
             var corners = geometry.Mapping is { } mapping ? mapping.MapRectangle(decorated, projection)
                 : new[] { new Point2(decorated.Left, decorated.Top), new(decorated.Right, decorated.Top), new(decorated.Right, decorated.Bottom), new(decorated.Left, decorated.Bottom) }
                     .Select(geometry.BaseWorldMatrix.Map).ToImmutableArray();
             bounds = Union(bounds, new(corners.Min(point => point.X), corners.Min(point => point.Y), corners.Max(point => point.X), corners.Max(point => point.Y)));
         }
+        static double? GlowExtent(MakoKaraGenerator.Core.Projects.LyricStyle style) => style.Glow is { IsEnabled: true } glow ? ValidateGlow(glow) : null;
     }
     private static bool Belongs(ImageEffectTarget target, SceneDrawItem item) => target switch
     {

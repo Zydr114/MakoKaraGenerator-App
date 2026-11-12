@@ -44,6 +44,26 @@ public sealed record LyricStyle
     /// <returns>该态的完整外观。</returns>
     public TextAppearance Appearance(bool sung) => sung ? ResolveSung() : Unsung;
 
+    /// <summary>只留一态装饰的样式：该态的描边、阴影、辉光放在未唱一侧，已唱一侧全部跟随；两态填充不变。</summary>
+    /// <param name="sung">取已唱一态的装饰。</param>
+    /// <returns>单态样式；已唱装饰本来全部跟随时返回本实例。</returns>
+    /// <remarks>绘制按态读装饰时用（P3 设计 §4）：每一遍先取本态，再按未唱一侧的访问器读描边、阴影、辉光。</remarks>
+    public LyricStyle ForState(bool sung)
+    {
+        if (Sung is { Strokes.FollowsUnsung: true, Shadow.FollowsUnsung: true, Glow.FollowsUnsung: true }) return this;
+        var following = SungAppearance.Following(Sung.Fill);
+        return sung ? this with { Unsung = ResolveSung() with { Fill = Unsung.Fill }, Sung = following } : this with { Sung = following };
+    }
+
+    /// <summary>两态展开后的辉光是否不同；相同时整段只画一次辉光。</summary>
+    public bool GlowDiffersByState => !Sung.Glow.FollowsUnsung && Sung.Glow.Value != Unsung.Glow;
+
+    /// <summary>两态展开后的描边、阴影或辉光是否不同。</summary>
+    /// <remarks>不同时已唱区域按扫字线延到行的两端之外，字框外的装饰随之切换（P3 设计 §4）。</remarks>
+    public bool DecorationsDifferByState => GlowDiffersByState
+        || !Sung.Strokes.FollowsUnsung && Sung.Strokes.Value != Unsung.Strokes
+        || !Sung.Shadow.FollowsUnsung && Sung.Shadow.Value != Unsung.Shadow;
+
     /// <summary>两态展开后的描边累计宽度的较大值（画布像素，P3 设计 §10.6）。</summary>
     public float MaxStrokeWidthPx => Math.Max(Unsung.Strokes.TotalWidthPx, ResolveSung().Strokes.TotalWidthPx);
 

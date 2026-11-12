@@ -10,8 +10,8 @@ public sealed partial class SkiaRenderPipeline
 
     /// <summary>本帧对象里必然没有像素的部件类别（F3）。</summary>
     /// <param name="Ruby">本行没有注音。</param>
-    /// <param name="Stroke">所有可能参与绘制的样式都没有启用描边。</param>
-    /// <param name="Shadow">所有可能参与绘制的样式都没有启用阴影。</param>
+    /// <param name="Stroke">所有可能参与绘制的样式在两态都没有启用描边。</param>
+    /// <param name="Shadow">所有可能参与绘制的样式在两态都没有启用阴影。</param>
     private readonly record struct KnownEmptyParts(bool Ruby, bool Stroke, bool Shadow)
     {
         /// <summary>注音部件（含注音材质）一律可跳；描边只跳原样部件，描边材质仍按自身区域执行。</summary>
@@ -25,8 +25,8 @@ public sealed partial class SkiaRenderPipeline
         bool stroke = false, shadow = false;
         foreach (var style in ObjectPartStyles(request, item))
         {
-            stroke |= style.Stroke is { IsEnabled: true };
-            shadow |= style.Shadow is { IsEnabled: true };
+            stroke |= EitherState(style, static state => state.Stroke is { IsEnabled: true });
+            shadow |= EitherState(style, static state => state.Shadow is { IsEnabled: true });
             if (stroke && shadow) break;
         }
         return new(item.Line?.Frame.Line?.RubyAnnotations.IsEmpty == true, !stroke, !shadow);

@@ -9,12 +9,16 @@ namespace MakoKaraGenerator.Rendering.Skia;
 public sealed partial class SkiaRenderPipeline
 {
     // 外发光先聚合真实字形，再过滤一次；与填充、材质 alpha 和唱词切分无关。
+    // 两态辉光相同（含已唱跟随）时，调用方在两遍之前整段画一次（state 为 null）；
+    // 不同时改在每一遍的演唱裁剪内各画本态一次（state 为该遍的态），整段那一次不画（P3 设计 §4）。
     private void DrawLineGlow(SKCanvas canvas, ShapedLine shaped, TextLayoutOptions options,
         float origin, float baseline, LyricStyle style, bool antialias,
-        ImmutableArray<int> units = default, CapturePaint? capture = null, bool ruby = false)
+        ImmutableArray<int> units = default, CapturePaint? capture = null, bool ruby = false, bool? state = null)
     {
         if (capture?.IncludesGlyph(ruby) == false || capture is { Part: not null, GlowOnly: false }
             || capture?.RequestedSungPass == true) return;
+        if ((state is null) == style.GlowDiffersByState) return;
+        if (state is { } sung) style = style.ForState(sung);
         if (capture is not null) style = capture.Style(style);
         if (style.Glow is not { IsEnabled: true } glow || style.Opacity == 0 || units is { IsDefault: false, IsEmpty: true }) return;
         ValidateGlow(glow);

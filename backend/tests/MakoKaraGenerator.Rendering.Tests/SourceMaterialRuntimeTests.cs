@@ -160,6 +160,26 @@ public sealed class SourceMaterialRuntimeTests
         Assert.Equal("EffectInputsMismatch", (await Assert.ThrowsAsync<PreparedFrameException>(async () => await compiled.CreateFactory(static () => new SkiaRenderPipeline(), Fx.ReplayReason.Initial).CreateAsync(ProjectSnapshot.FromProject(changed)))).Code);
     }
 
+    /// <summary>描边材质槽到 P3 第 6 步才分两态；此前已唱描边换用另一种材质且涉及包材质时明确拒绝，同一材质照常准备。</summary>
+    [Fact]
+    public async Task 已唱描边换用不同包材质在分槽前明确拒绝()
+    {
+        var project = SourceProject(MixedEffectPackageFixture.Contents(pure: true));
+        var stroke = project.LyricStyle.Stroke!;
+        Project Sung(StrokeSpec sung) => project with { LyricStyle = project.LyricStyle with
+            { Sung = project.LyricStyle.Sung with { Strokes = Followable.Set(StrokeLayers.FromStroke(sung)) } } };
+        await Prepare(Sung(stroke with { WidthPx = 8 }));
+        var error = await Assert.ThrowsAsync<PreparedFrameException>(() => Prepare(Sung(StrokeSpec.Create(new(0, 0, 255), 4))));
+        Assert.Equal("SungStrokeMaterialPending", error.Code);
+
+        static async Task Prepare(Project project)
+        {
+            var compiled = await Compile(project); var snapshot = ProjectSnapshot.FromProject(project);
+            await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), Fx.ReplayReason.Initial).CreateAsync(snapshot);
+            _ = await session.PrepareAsync(12_500_000, Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition));
+        }
+    }
+
     [Theory]
     [InlineData("uniform")] [InlineData("reset")] [InlineData("alpha")]
     public async Task 真实作者读取包基线并按材质操作顺序接管来源(string operation)

@@ -105,8 +105,14 @@ public sealed partial class SkiaRenderPipeline
         return whole.BaseGeometry.DrawUnits.All(units.Contains);
     }
 
-    /// <summary>描边（斜接按上限）＋阴影（偏移＋3σ）与辉光（扩张＋3σ）中较大者，单位为元素本地逻辑像素。</summary>
+    /// <summary>描边（斜接按上限）＋阴影（偏移＋3σ）与辉光（扩张＋3σ）中较大者，单位为元素本地逻辑像素；两态不同时取较大者。</summary>
     private static double RegionDecorationExtent(LyricStyle style)
+    {
+        var sung = style.ForState(true);
+        return ReferenceEquals(sung, style) ? StateExtent(style) : Math.Max(StateExtent(style), StateExtent(sung));
+    }
+
+    private static double StateExtent(LyricStyle style)
     {
         double stroke = style.Stroke is { IsEnabled: true } outline ? outline.WidthPx * (outline.Join == MakoKaraGenerator.Core.Projects.StrokeJoin.Miter ? StrokeMiterLimit : 1) : 0;
         double shadow = style.Shadow is { IsEnabled: true } shade

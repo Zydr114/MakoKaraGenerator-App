@@ -66,12 +66,13 @@ public sealed partial class SkiaRenderPipeline
         {
             if (indices.IsEmpty) return;
             DrawLineGlow(canvas, shaped, options, origin, baseline, style, antialias, indices, capture);
-            using SKPath regions = BuildSungRegions(tokenSample, shaped, origin, canvas.LocalClipBounds);
+            using SKPath regions = BuildSungRegions(tokenSample, shaped, origin, canvas.LocalClipBounds, style.DecorationsDifferByState);
             bool hasSung = !regions.IsEmpty;
             Draw(false); if (hasSung) Draw(true);
             void Draw(bool sung)
             {
                 canvas.Save(); if (hasSung) ClipSungRegions(canvas, regions, sung);
+                DrawLineGlow(canvas, shaped, options, origin, baseline, style, antialias, indices, capture, state: sung);
                 DrawStyledLine(canvas, shaped, options, origin, baseline,
                     sung ? style.SungColor : style.UnsungColor, sung ? style.SungFill.Gradient : style.UnsungFill.Gradient,
                     style, composition, antialias, indices, capture, sung);

@@ -13,7 +13,8 @@ public sealed partial class SkiaRenderPipeline
         var prepared = request.PreparedFrame;
         var effectiveStyle = prepared?.MarkStyles.Any(item => item.Target == target) == true
             ? prepared.GetMarkDrawingStyle(target) : mark.Appearance.ToLyricStyle();
-        var style = effectiveStyle with { Opacity = 1 };
+        // 标记按整体切换待唱／已过，只取当前一态的装饰（P3 设计 §4）。
+        var style = effectiveStyle.ForState(mark.IsElapsed) with { Opacity = 1 };
         double opacity = capture?.IsCoverage == true || capture?.SuppressCommonOpacity == true ? 1 : mark.Opacity * effectiveStyle.Opacity;
         var options = LayoutOptionsFor(style);
         var shaped = _geometry.GetLayout(mark.Text, options);

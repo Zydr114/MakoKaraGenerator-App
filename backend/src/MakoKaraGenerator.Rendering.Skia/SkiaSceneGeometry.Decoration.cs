@@ -23,8 +23,33 @@ public sealed partial class SkiaSceneGeometry
     internal static float ElementPadding(LyricStyle lineStyle, LyricStyleOverride overlay) =>
         MathF.Max(DecorationExtent(lineStyle), DecorationExtent(ResolveElementStyle(lineStyle, overlay)));
 
-    /// <summary>一个样式会画到字框之外的像素数。</summary>
-    internal static float DecorationExtent(LyricStyle style)
+    /// <summary>一个样式会画到字框之外的像素数；两态装饰不同时取较大者（P3 设计 §4）。</summary>
+    internal static float DecorationExtent(LyricStyle style) => MaxOverStates(style, StateDecorationExtent);
+
+    /// <summary>两态中任一态满足条件；已唱装饰全部跟随时只看一次。</summary>
+    /// <param name="style">可含两态装饰的样式。</param>
+    /// <param name="predicate">按未唱一侧访问器读取的单态条件。</param>
+    internal static bool EitherState(LyricStyle style, Func<LyricStyle, bool> predicate)
+    {
+        var sung = style.ForState(true);
+        return predicate(style) || !ReferenceEquals(sung, style) && predicate(sung);
+    }
+
+    /// <summary>两态各自取值后的较大者；已唱装饰全部跟随时只算一次。</summary>
+    /// <param name="style">可含两态装饰的样式。</param>
+    /// <param name="value">按未唱一侧访问器读取的单态取值。</param>
+    internal static float MaxOverStates(LyricStyle style, Func<LyricStyle, float> value)
+    {
+        var sung = style.ForState(true);
+        float unsung = value(style);
+        return ReferenceEquals(sung, style) ? unsung : MathF.Max(unsung, value(sung));
+    }
+
+    /// <summary>任一态启用了辉光。</summary>
+    internal static bool HasGlow(LyricStyle style) => style.Glow is { IsEnabled: true }
+        || style.GlowDiffersByState && style.ResolveSung().Glow is { IsEnabled: true };
+
+    private static float StateDecorationExtent(LyricStyle style)
     {
         StrokeSpec? strokeSpec = LyricStyleEffects.GetStroke(style);
         ShadowSpec? shadowSpec = EffectiveShadow(style);

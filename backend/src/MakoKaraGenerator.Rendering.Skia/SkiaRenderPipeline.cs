@@ -519,7 +519,7 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
 
         // 每个区域只绘制一次最终样式。已唱区域由每个有时间的元素各自贡献，
         // 因此夹在两个已定时元素之间的未定时元素不会被连续填充误染成已唱色。
-        using SKPath sungRegions = BuildSungRegions(sample, shaped, originX, canvas.LocalClipBounds);
+        using SKPath sungRegions = BuildSungRegions(sample, shaped, originX, canvas.LocalClipBounds, lineStyle.DecorationsDifferByState);
         bool hasSungRegions = !sungRegions.IsEmpty;
         DrawStylePass(false);
         if (hasSungRegions) DrawStylePass(true);
@@ -530,6 +530,7 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
             SKRect bounds = canvas.LocalClipBounds;
             if (hasSungRegions)
                 ClipSungRegions(canvas, sungRegions, sung);
+            DrawLineGlow(canvas, shaped, options, originX, baselineY, lineStyle, antialias, capture: capture, state: sung);
 
             canvas.Save();
             foreach (TokenSample token in sample.Tokens)
@@ -665,14 +666,17 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
     /// <param name="shaped">整行布局结果。</param>
     /// <param name="originX">整行左端横坐标。</param>
     /// <param name="bounds">当前画布剪裁边界。</param>
+    /// <param name="lineEdges">按扫字线延到行的两端之外：行首元素开唱后向左延到边界，行尾元素唱完后向右延到边界。</param>
     /// <returns>由调用方释放的已唱区域路径。</returns>
     /// <remarks>
     /// 未定时元素没有来源可靠的进度，即使后面的元素开始演唱，也不能用连续的
     /// 整行裁切区域把它填成已唱色。各元素仍共享同一次整行整形的坐标。
     /// 元素文本拼不回行文本时不推算逐字高亮。
+    /// 两态装饰不同时调用方传 <paramref name="lineEdges"/>：字框外的描边、阴影、辉光在行首、行尾随扫字线切换，
+    /// 不在字框边被竖直切开（P3 设计 §4）；两态装饰相同时不延，行两端字框外的填充溢出保持原样。
     /// </remarks>
     private static SKPath BuildSungRegions(
-        LyricFrameSample sample, ShapedLine shaped, float originX, SKRect bounds)
+        LyricFrameSample sample, ShapedLine shaped, float originX, SKRect bounds, bool lineEdges = false)
     {
         SKPath regions = new();
         if (!sample.HasTokens || !sample.TokensMatchLineText)
@@ -692,6 +696,8 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
             float reached = token.IsSung
                 ? right
                 : MakoKaraGenerator.Scripting.TextProgressPath.XAt(left, right, token.Progress);
+            if (lineEdges && token.Utf16Start == 0) left = Math.Min(left, bounds.Left);
+            if (lineEdges && token.IsSung && token.Utf16End == shaped.Text.Length) reached = Math.Max(reached, bounds.Right);
             if (reached > left)
                 regions.AddRect(new SKRect(left, bounds.Top, reached, bounds.Bottom));
         }

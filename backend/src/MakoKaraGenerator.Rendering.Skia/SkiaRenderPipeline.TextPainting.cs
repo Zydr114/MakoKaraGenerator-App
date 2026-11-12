@@ -24,6 +24,8 @@ public sealed partial class SkiaRenderPipeline
         if (capture?.IncludesGlyph(rubyGlyph) == false || capture?.GlowOnly == true) return;
         if (capture?.RequestedSungPass is { } requested && requested != sungPass) return;
         if (capture?.SungOnly == true && !sungPass) return;
+        // 每一遍只读本态的描边、阴影（P3 设计 §4）；已唱全部跟随时就是原样式。
+        style = style.ForState(sungPass);
         if (capture is not null)
         {
             style = capture.Style(style);

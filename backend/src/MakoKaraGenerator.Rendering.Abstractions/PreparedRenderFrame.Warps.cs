@@ -160,14 +160,21 @@ public sealed partial class PreparedRenderFrame
         _ => false,
     };
 
-    /// <summary>网格必须容纳的保守装饰框；透明采样 gutter 不计入作者定义域。</summary>
+    /// <summary>网格必须容纳的保守装饰框；透明采样 gutter 不计入作者定义域；两态装饰不同时取较大者。</summary>
     public static Rect2 WarpDecoratedBounds(Rect2 ink, LyricStyle style)
+    {
+        ArgumentNullException.ThrowIfNull(style);
+        var sung = style.ForState(true);
+        double extent = ReferenceEquals(sung, style) ? DecorationExtent(style) : Math.Max(DecorationExtent(style), DecorationExtent(sung));
+        return new(ink.Left - extent, ink.Top - extent, ink.Right + extent, ink.Bottom + extent);
+    }
+
+    private static double DecorationExtent(LyricStyle style)
     {
         double stroke = style.Stroke is { IsEnabled: true } outline ? outline.WidthPx : 0;
         double shadow = style.Shadow is { IsEnabled: true } shade
             ? Math.Max(Math.Abs(shade.OffsetXPx), Math.Abs(shade.OffsetYPx)) + 3d * shade.BlurRadiusPx : 0;
         double glow = style.Glow is { IsEnabled: true } halo ? halo.SpreadPx + 3d * halo.BlurRadiusPx : 0;
-        double extent = Math.Max(stroke + shadow, glow);
-        return new(ink.Left - extent, ink.Top - extent, ink.Right + extent, ink.Bottom + extent);
+        return Math.Max(stroke + shadow, glow);
     }
 }

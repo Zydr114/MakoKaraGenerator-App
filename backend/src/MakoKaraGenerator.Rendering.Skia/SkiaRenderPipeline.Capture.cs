@@ -179,9 +179,11 @@ public sealed partial class SkiaRenderPipeline
     private static float CapturePadding(LyricStyle lineStyle, LyricStyleOverride overlay, CapturePaint? capture)
     {
         if (capture is null || capture.Source == GraphInputSource.TargetColor) return ElementPadding(lineStyle, overlay);
-        return Math.Max(Extent(capture.Style(lineStyle)), Extent(capture.Style(ResolveElementStyle(lineStyle, overlay))));
-        static float Extent(LyricStyle style)
+        return Math.Max(MaxOverStates(lineStyle, Extent), MaxOverStates(ResolveElementStyle(lineStyle, overlay), Extent));
+        // 先取单态再套捕获：捕获只改未唱一侧的装饰访问器。
+        float Extent(LyricStyle state)
         {
+            var style = capture.Style(state);
             double stroke = style.Stroke is { IsEnabled: true } outline ? outline.WidthPx : 0;
             double shadow = style.Shadow is { IsEnabled: true } spec
                 ? Math.Max(Math.Abs((double)spec.OffsetXPx), Math.Abs((double)spec.OffsetYPx)) + 3 * (double)spec.BlurRadiusPx : 0;

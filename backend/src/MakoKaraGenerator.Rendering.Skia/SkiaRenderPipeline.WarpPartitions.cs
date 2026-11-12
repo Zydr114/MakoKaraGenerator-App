@@ -50,7 +50,7 @@ public sealed partial class SkiaRenderPipeline
                 bounds, resources ?? capture?.Budget, capture, (source, sourceCapture) =>
                 {
                     DrawLineGlow(source, shaped, options, origin, baseline, style, antialias, indices, sourceCapture);
-                    using var regions = BuildSungRegions(tokenSample, shaped, origin, source.LocalClipBounds);
+                    using var regions = BuildSungRegions(tokenSample, shaped, origin, source.LocalClipBounds, style.DecorationsDifferByState);
                     bool hasSung = !regions.IsEmpty;
                     Draw(false); if (hasSung) Draw(true);
                     void Draw(bool sung)
@@ -59,6 +59,7 @@ public sealed partial class SkiaRenderPipeline
                         try
                         {
                             if (hasSung) ClipSungRegions(source, regions, sung);
+                            DrawLineGlow(source, shaped, options, origin, baseline, style, antialias, indices, sourceCapture, state: sung);
                             DrawStyledLine(source, shaped, options, origin, baseline,
                                 sung ? style.SungColor : style.UnsungColor,
                                 sung ? style.SungFill.Gradient : style.UnsungFill.Gradient,

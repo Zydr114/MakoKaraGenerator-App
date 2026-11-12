@@ -166,6 +166,8 @@
 
 材质值工厂：`MaterialValue.Solid(ColorRgba color)`、`Gradient(GradientValue gradient)`、`PackageExport(MaterialHandle handle, ParameterValues parameters)`。`ColorRgba(double red,double green,double blue,double alpha)` 为 `[0,1]` 直乘 sRGB；`MultiplyRgb(double factor)` 不改 alpha，结果不能超出颜色范围。描边 `StrokeValue(double widthPx, MaterialValue material, StrokeJoin join = StrokeJoin.Round, StrokePosition position = StrokePosition.Outside)`；阴影 `ShadowValue(ColorRgba color, double opacity = 1, double angleDegrees = 45, double distancePx = 4, double blurRadiusPx = 8)`。角度 0 向右、90 向下，长度单位逻辑像素。
 
+两态外观过渡期（0.112.75 至 P3 第 6 步）：基线的描边、阴影、辉光只反映未唱（Pending）一态，描边只反映最内层。`SetStroke`／`SetShadow` 写入与基线不同时两态一起生效，源样式中已唱（Elapsed）一侧的显式值改为跟随未唱；与基线相同的写入视同未写，未写的成员保留源的已唱一侧。已唱显式描边与未唱描边的材质不同且其中一侧是包材质时，准备帧以 `SungStrokeMaterialPending` 拒绝。
+
 `StyleView.Glow` 提供可空、只读的 `GlowValue` 静态基线；`GlowValue` 的颜色、透明度、模糊和外扩均只读。`StyleUpdate` 不提供辉光写入，现有 27 个 writer 重载也没有动态 Glow setter。静态编辑和继承见[辉光参考](glow.md)。
 
 `GradientValue` 能描述更多枚举，但脚本生产样式目前只接受 Linear/Radial、Canvas/Line、LinearRgb/Hsv；Glyph/Progress/Oklch 报 `UnsupportedEffectGradient`，不能按 Core 静态样式的历史回退说明推定脚本会降级。包材质还需固定包修订、fill/stroke 区域声明、参数、ColorOnly 和资源闭包校验。参考 [Style writer](../../src/MakoKaraGenerator.Scripting.Abstractions/FrameWriter.Style.cs)、[StyleUpdate](../../src/MakoKaraGenerator.Scripting.Abstractions/StyleUpdate.cs)、[实际样式转换](../../src/MakoKaraGenerator.Rendering.Abstractions/StaticStyleProjection.cs)、[GradientSupport](../../src/MakoKaraGenerator.Core/Projects/GradientSupport.cs)。

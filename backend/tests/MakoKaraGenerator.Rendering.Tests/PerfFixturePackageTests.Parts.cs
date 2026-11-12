@@ -1,4 +1,5 @@
 using MakoKaraGenerator.Core.Effects;
+using MakoKaraGenerator.Core.Lyrics;
 using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Rendering.Skia;
 using MakoKaraGenerator.Scripting;
@@ -9,34 +10,46 @@ namespace MakoKaraGenerator.Rendering.Tests;
 /// <summary>F3：必然为空的部件先判空再分配，像素不变，表面与材质执行减少。</summary>
 public sealed partial class PerfFixturePackageTests
 {
+    /// <summary>夹具的装饰：无、两态都有、只有已唱一态有。</summary>
+    public enum PartDecoration { None, Both, SungOnly }
+
     /// <remarks>夹具行没有注音：注音部件与注音填充材质一律跳过；无装饰时描边、阴影部件也跳过。
+    /// 只有已唱一态有装饰时描边、阴影部件照常捕获（判空看两态）。
     /// 关闭像素检查（生产配置），否则检查模式会照常捕获来核对判空。</remarks>
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
-    public async Task 必然为空的部件不捕获不执行材质且像素不变(bool gpu, bool decorated)
+    [InlineData(false, PartDecoration.None)] [InlineData(false, PartDecoration.Both)] [InlineData(false, PartDecoration.SungOnly)]
+    [InlineData(true, PartDecoration.None)] [InlineData(true, PartDecoration.Both)] [InlineData(true, PartDecoration.SungOnly)]
+    public async Task 必然为空的部件不捕获不执行材质且像素不变(bool gpu, PartDecoration decoration)
     {
         if (gpu && Environment.GetEnvironmentVariable("MAKO_GPU_SMOKE") != "1") return;
-        var (full, fullSurfaces) = await RenderParts(decorated, gpu, false);
-        var (skipped, skippedSurfaces) = await RenderParts(decorated, gpu, true);
+        var (full, fullSurfaces) = await RenderParts(decoration, gpu, false);
+        var (skipped, skippedSurfaces) = await RenderParts(decoration, gpu, true);
         Assert.Contains(full, value => value != 0);
         Assert.Equal(full, skipped);
         // 实测 41 → 27（无装饰）／41 → 31（有装饰）：省下注音部件的捕获与两次注音填充材质执行，
         // 无装饰时再省行与元素两个成员的描边、阴影捕获。
-        Assert.True(fullSurfaces - skippedSurfaces >= (decorated ? 10 : 14), $"表面 {fullSurfaces} → {skippedSurfaces}");
+        Assert.True(fullSurfaces - skippedSurfaces >= (decoration == PartDecoration.None ? 14 : 10), $"表面 {fullSurfaces} → {skippedSurfaces}");
     }
 
-    private static async Task<(byte[] Pixels, int Surfaces)> RenderParts(bool decorated, bool gpu, bool skip)
+    private static async Task<(byte[] Pixels, int Surfaces)> RenderParts(PartDecoration decoration, bool gpu, bool skip)
     {
         var package = await Read("MaterialConstant");
         var project = Plain(package, []);
         var style = project.LyricStyle;
-        if (decorated)
-            style = style with
-            {
-                Stroke = new StrokeSpec { WidthPx = 6, Color = new RgbaColor(20, 40, 200) },
-                Shadow = new ShadowSpec { DistancePx = 14, AngleDegrees = 135, BlurRadiusPx = 4, Color = new RgbaColor(0, 0, 0, 200) },
-            };
+        var decorations = new TextAppearance
+        {
+            Strokes = StrokeLayers.FromStroke(new StrokeSpec { WidthPx = 6, Color = new RgbaColor(20, 40, 200) }),
+            Shadow = new ShadowSpec { DistancePx = 14, AngleDegrees = 135, BlurRadiusPx = 4, Color = new RgbaColor(0, 0, 0, 200) },
+        };
+        if (decoration == PartDecoration.Both)
+            style = style with { Unsung = decorations with { Fill = style.UnsungFill } };
+        if (decoration == PartDecoration.SungOnly)
+        {
+            style = style with { Sung = SungAppearance.Explicit(decorations with { Fill = style.SungFill }) };
+            // 夹具元素长达 602 秒，此刻几乎还没唱；缩短到此刻唱到一半，已唱区域才有像素。
+            var line = project.Lyrics.AllLines.Single();
+            project = project with { Lyrics = LyricsDocument.Create([line with { Tokens = [line.Tokens[0] with { Time = new(0, 2 * TimeUs) }] }]) };
+        }
         var material = new MaterialSpec.PackageMaterial(package.PackageId, package.Revision, "constant", EffectParameterOverrides.Parse("{}"));
         project = project with { LyricStyle = style with { UnsungFill = new() { Material = material }, SungFill = new() { Material = material } } };
         var compiled = await Compile(project);

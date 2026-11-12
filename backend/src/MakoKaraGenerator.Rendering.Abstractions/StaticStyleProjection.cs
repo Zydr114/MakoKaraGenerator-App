@@ -135,19 +135,27 @@ public static class StaticStyleProjection
     private static LyricStyle ProjectDrawingAppearance(LyricStyle source, Fx.StyleView baseline, Fx.StyleView result, bool geometrySeed, bool sourcePackage)
     {
         // 未改动的成员保留源对象（含多层描边与已唱一侧的跟随）；改动的描边整表换成脚本给出的单层。
+        bool stroke = result.Stroke != baseline.Stroke, shadow = result.Shadow != baseline.Shadow, glow = result.Glow != baseline.Glow;
         TextAppearance unsung = source.Unsung with
         {
             Fill = result.UnsungMaterial == baseline.UnsungMaterial && !sourcePackage ? source.Unsung.Fill : DrawingMaterial(result.UnsungMaterial, geometrySeed),
-            Strokes = result.Stroke == baseline.Stroke && !sourcePackage ? source.Unsung.Strokes : StrokeLayers.FromStroke(Stroke(result.Stroke, geometrySeed)),
-            Shadow = result.Shadow == baseline.Shadow ? source.Unsung.Shadow : Shadow(result.Shadow),
-            Glow = result.Glow == baseline.Glow ? source.Unsung.Glow : Glow(result.Glow),
+            Strokes = !stroke && !sourcePackage ? source.Unsung.Strokes : StrokeLayers.FromStroke(Stroke(result.Stroke, geometrySeed)),
+            Shadow = shadow ? Shadow(result.Shadow) : source.Unsung.Shadow,
+            Glow = glow ? Glow(result.Glow) : source.Unsung.Glow,
         };
-        return source with
+        // 现行 SDK 的描边、阴影、辉光写入不分态（两态写入在 P3 第 6 步）：与基线（未唱一态）不同的成员两态一起变，
+        // 已唱一侧改为跟随；与基线相同的写入视同未写，和整体无变化返回原实例一致。
+        // 未变的成员保留源的已唱一侧，显式的包材质描边与未唱一样只留几何种子。
+        var sungStrokes = source.Sung.Strokes;
+        SungAppearance sung = source.Sung with
         {
-            Unsung = unsung,
-            SungFill = result.SungMaterial == baseline.SungMaterial && !sourcePackage ? source.SungFill : DrawingMaterial(result.SungMaterial, geometrySeed),
-            Opacity = Native(result.Opacity),
+            Fill = result.SungMaterial == baseline.SungMaterial && !sourcePackage ? source.Sung.Fill : DrawingMaterial(result.SungMaterial, geometrySeed),
+            Strokes = stroke ? Followable.Follow<StrokeLayers>()
+                : geometrySeed && sungStrokes is { FollowsUnsung: false, Value: { } explicitStrokes } ? Followable.Set(SeedStrokes(explicitStrokes)) : sungStrokes,
+            Shadow = shadow ? Followable.Follow<ShadowSpec?>() : source.Sung.Shadow,
+            Glow = glow ? Followable.Follow<GlowSpec?>() : source.Sung.Glow,
         };
+        return source with { Unsung = unsung, Sung = sung, Opacity = Native(result.Opacity) };
     }
     private static Fx.ColorRgba Color(RgbaColor color) => new(color.Red / 255d, color.Green / 255d, color.Blue / 255d, color.Alpha / 255d);
     private static RgbaColor Color(Fx.ColorRgba color) => new(Byte(color.Red), Byte(color.Green), Byte(color.Blue), Byte(color.Alpha));

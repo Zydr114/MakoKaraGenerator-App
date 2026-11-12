@@ -74,7 +74,7 @@ public sealed partial class SkiaRenderPipeline
         }
         void ValidateGradients(LyricStyle style, float lineWidth)
         {
-            foreach (var gradient in new[] { style.UnsungFill.Gradient, style.SungFill.Gradient, style.Stroke?.Gradient })
+            foreach (var gradient in new[] { style.UnsungFill.Gradient, style.SungFill.Gradient, style.Stroke?.Gradient, style.ForState(true).Stroke?.Gradient })
             {
                 if (gradient is not null && GradientSupport.IsSupported(gradient))
                     ValidateNativeGradient(gradient, lineWidth, style, prepared.Snapshot.Composition);
@@ -104,12 +104,12 @@ public sealed partial class SkiaRenderPipeline
         var byStyle = styles.ToDictionary(static item => item.Target.TokenId.Value, StringComparer.Ordinal);
         // 有辉光时按与图像协调器一致的部件顺序绘制整域，避免后画族的 halo 覆盖邻族填充。
         // 没有辉光的历史路径保持原有工作量和像素顺序。
-        bool hasGlow = capture?.Recipe.IncludeGlow != false && (lineStyle.Glow is { IsEnabled: true }
-            || line.Tokens.Any(token => token.StyleOverride is { } overlay && ResolveElementStyle(lineStyle, overlay).Glow is { IsEnabled: true })
+        bool hasGlow = capture?.Recipe.IncludeGlow != false && (HasGlow(lineStyle)
+            || line.Tokens.Any(token => token.StyleOverride is { } overlay && HasGlow(ResolveElementStyle(lineStyle, overlay)))
             || prepared is not null && prepared.TokenStyles.Any(output => output.Target.BindingId.Value == scene.BindingId
-                && prepared.GetTokenDrawingStyle(output.Target).Glow is { IsEnabled: true })
+                && HasGlow(prepared.GetTokenDrawingStyle(output.Target)))
             || prepared is not null && prepared.BaseStyles.Any(output => output.Target.BindingId.Value == scene.BindingId
-                && prepared.GetBaseDrawingStyle(output.Target).Glow is { IsEnabled: true }));
+                && HasGlow(prepared.GetBaseDrawingStyle(output.Target))));
         if (hasGlow && (capture is null || capture is { Source: Core.Effects.GraphInputSource.TargetColor, Part: null }))
         {
             var original = capture ?? new CapturePaint(Core.Effects.GraphInputSource.TargetColor,
@@ -146,8 +146,9 @@ public sealed partial class SkiaRenderPipeline
                 || HasTextPartitions(prepared, scene.BindingId!, line.Tokens[i].Id)
                 || warpedFamilies?.ContainsKey(line.Tokens[i].Id) == true;
             if (!partitions[i].CanTransformIndependently && line.Tokens[i].StyleOverride is { } overlay
-                && (ResolveElementStyle(lineStyle, overlay).Glow != lineStyle.Glow
-                    || lineStyle.Glow is { IsEnabled: true } && ResolveElementStyle(lineStyle, overlay).Opacity != lineStyle.Opacity))
+                && (ResolveElementStyle(lineStyle, overlay) is var element && (element.Glow != lineStyle.Glow
+                    || element.ResolveSung().Glow != lineStyle.ResolveSung().Glow
+                    || HasGlow(lineStyle) && element.Opacity != lineStyle.Opacity)))
                 throw new PreparedFrameException("UnsupportedGlyphPartition", "共享字簇不能独立应用元素外发光，不能将邻字纳入辉光蒙版。");
             bool source = TokenStyleSupport.HasDrawableOverride(line.Tokens[i].StyleOverride) && partitions[i].CanTransformIndependently;
             if (!effect && !source) continue;
@@ -168,7 +169,7 @@ public sealed partial class SkiaRenderPipeline
         var remaining = Enumerable.Range(0, shaped.DrawUnits.Length).Where(index => !excludedUnits.Contains(index)).ToImmutableArray();
         HashSet<int> changedBaseTokens = [.. changedTokens.Except(rubyOnlyTokens)];
         // 未受影响的文字仍走同一两态样式规则，但不再包含被移走的 glyph。
-        if (capture?.TokenId is null) using (SKPath sungRegions = BuildSungRegions(sample, shaped, origin, canvas.LocalClipBounds))
+        if (capture?.TokenId is null) using (SKPath sungRegions = BuildSungRegions(sample, shaped, origin, canvas.LocalClipBounds, lineStyle.DecorationsDifferByState))
         {
             DrawLineGlow(canvas, shaped, options, origin, baseline, lineStyle, antialias, remaining, capture);
             bool hasSung = !sungRegions.IsEmpty;
@@ -178,6 +179,7 @@ public sealed partial class SkiaRenderPipeline
             {
                 canvas.Save();
                 if (hasSung) ClipSungRegions(canvas, sungRegions, sung);
+                DrawLineGlow(canvas, shaped, options, origin, baseline, lineStyle, antialias, remaining, capture, state: sung);
                 canvas.Save();
                 foreach (TokenSample token in sample.Tokens)
                 {
@@ -229,7 +231,7 @@ public sealed partial class SkiaRenderPipeline
                 canvas.Restore(); continue;
             }
             DrawLineGlow(canvas, shaped, options, origin, baseline, style, antialias, partitions[index].DrawUnitIndices, capture);
-            using (SKPath regions = BuildSungRegions(tokenSample, shaped, origin, canvas.LocalClipBounds))
+            using (SKPath regions = BuildSungRegions(tokenSample, shaped, origin, canvas.LocalClipBounds, style.DecorationsDifferByState))
             {
                 bool hasSung = !regions.IsEmpty;
                 DrawPart(false);
@@ -238,6 +240,7 @@ public sealed partial class SkiaRenderPipeline
                 {
                     canvas.Save();
                     if (hasSung) ClipSungRegions(canvas, regions, sung);
+                    DrawLineGlow(canvas, shaped, options, origin, baseline, style, antialias, partitions[index].DrawUnitIndices, capture, state: sung);
                     DrawStyledLine(canvas, shaped, options, origin, baseline,
                         sung ? style.SungColor : style.UnsungColor,
                         sung ? style.SungFill.Gradient : style.UnsungFill.Gradient,

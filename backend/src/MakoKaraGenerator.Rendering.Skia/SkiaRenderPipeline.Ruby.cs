@@ -13,20 +13,25 @@ public sealed partial class SkiaRenderPipeline
         LyricLine line, LyricStyle lineStyle, Composition composition, float origin, float baseline, bool antialias, LyricStyle? familyStyle = null,
         CapturePaint? capture = null, ImmutableArray<int> drawUnitIndices = default)
     {
-        if (familyStyle?.Glow is { IsEnabled: true } || familyStyle is null && (lineStyle.Glow is { IsEnabled: true }
-            || ruby.Any(entry => line.Tokens[entry.TokenIndex].StyleOverride is { Glow.IsSet: true })))
+        if (familyStyle is not null && HasGlow(familyStyle) || familyStyle is null && (HasGlow(lineStyle)
+            || ruby.Any(entry => line.Tokens[entry.TokenIndex].StyleOverride is { Glow.IsSet: true } or { Sung.Glow.IsSet: true })))
         foreach (RubyLayout entry in ruby)
         {
-            LyricStyle style = familyStyle ?? (line.Tokens[entry.TokenIndex].StyleOverride is { } overlay
-                ? ResolveElementStyle(lineStyle, overlay) : lineStyle);
+            LyricStyle style = Style(entry);
             DrawLineGlow(canvas, entry.Shaped, entry.Options, origin + entry.X, baseline + entry.Baseline,
                 style, antialias, drawUnitIndices, capture, ruby: true);
+            // 两态辉光不同时各段在本态区域各画一次，仍先于全部注音填充，后画注音的光晕不会盖住前一注音（P3 设计 §4）。
+            if (style.GlowDiffersByState) DrawSegments(entry, style, glow: true);
         }
-        foreach (RubyLayout entry in ruby)
+        foreach (RubyLayout entry in ruby) DrawSegments(entry, Style(entry), glow: false);
+
+        LyricStyle Style(RubyLayout entry) => familyStyle ?? (line.Tokens[entry.TokenIndex].StyleOverride is { } overlay
+            ? ResolveElementStyle(lineStyle, overlay) : lineStyle);
+
+        void DrawSegments(RubyLayout entry, LyricStyle style, bool glow)
         {
-            LyricStyle style = familyStyle ?? (line.Tokens[entry.TokenIndex].StyleOverride is { } overlay
-                ? ResolveElementStyle(lineStyle, overlay) : lineStyle);
             float x = origin + entry.X, y = baseline + entry.Baseline;
+            bool edges = style.DecorationsDifferByState;
 
             // Aggregate shaping is shared by all segments; only sung/unsung clips vary.
             for (int i = 0; i < entry.Segments.Length; i++)
@@ -43,6 +48,8 @@ public sealed partial class SkiaRenderPipeline
                 SKRect clip = canvas.LocalClipBounds;
                 float left = segment.Left == 0 ? clip.Left : start;
                 float right = segment.Right == entry.Shaped.Width ? clip.Right : end;
+                // 两态装饰不同时，末段唱完后已唱一侧延到右边界，与正文行尾一致（行首本来就延到左边界）。
+                if (edges && progress >= 1d && segment.Right == entry.Shaped.Width) split = right;
                 DrawPart(false);
                 if (progress > 0d) DrawPart(true);
                 void DrawPart(bool sung)
@@ -50,10 +57,13 @@ public sealed partial class SkiaRenderPipeline
                     canvas.Save();
                     canvas.ClipRect(sung ? new(left, clip.Top, Math.Min(right, split), clip.Bottom)
                         : new(Math.Max(left, progress > 0d ? split : left), clip.Top, right, clip.Bottom), antialias: false);
-                    DrawStyledLine(canvas, entry.Shaped, entry.Options, x, y,
-                        sung ? style.SungFill.Color : style.UnsungFill.Color,
-                        sung ? style.SungFill.Gradient : style.UnsungFill.Gradient,
-                        style, composition, antialias, drawUnitIndices, capture, sungPass: sung, rubyGlyph: true);
+                    if (glow)
+                        DrawLineGlow(canvas, entry.Shaped, entry.Options, x, y, style, antialias, drawUnitIndices, capture, ruby: true, state: sung);
+                    else
+                        DrawStyledLine(canvas, entry.Shaped, entry.Options, x, y,
+                            sung ? style.SungFill.Color : style.UnsungFill.Color,
+                            sung ? style.SungFill.Gradient : style.UnsungFill.Gradient,
+                            style, composition, antialias, drawUnitIndices, capture, sungPass: sung, rubyGlyph: true);
                     canvas.Restore();
                 }
             }

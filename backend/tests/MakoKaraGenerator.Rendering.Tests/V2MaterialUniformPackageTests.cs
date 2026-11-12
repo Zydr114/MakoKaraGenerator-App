@@ -47,8 +47,8 @@ public sealed class V2MaterialUniformPackageTests
             [V2DirectAndMaterialPackageFixture.Instance(package, mode: 10)]);
         var compiled = await V2DirectAndMaterialPackageFixture.Compile(snapshot);
         await using var session = await V2DirectAndMaterialPackageFixture.Factory(snapshot, compiled).CreateAsync(snapshot);
-        var frame = await V2DirectAndMaterialPackageFixture.Prepare(session, snapshot); var binding = Assert.Single(frame.Materials);
-        Assert.Equal(PreparedMaterialSlot.Stroke, binding.Slot); Assert.Equal("ink", binding.Material.Handle.Identity.ExportId); Assert.Empty(binding.Material.Uniforms.Values);
+        var frame = await V2DirectAndMaterialPackageFixture.Prepare(session, snapshot); Assert.Equal([PreparedMaterialSlot.UnsungStroke, PreparedMaterialSlot.SungStroke], frame.Materials.Select(static item => item.Slot));
+        var binding = frame.Materials[0]; Assert.Equal("ink", binding.Material.Handle.Identity.ExportId); Assert.Empty(binding.Material.Uniforms.Values);
     }
 
     [Theory]

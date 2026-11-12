@@ -83,37 +83,54 @@ public sealed partial class TextOutput
         RequireIndependentStyle(target);
         _writes.Add(new TextWrite.Opacity(target, factor));
     }
-    /// <summary>替换明确演唱态的填充叶属性；包材质必须属于本实例固定资源修订。</summary>
-    public void SetFill(TextTarget target, FillState state, MaterialValue material)
+    /// <summary>替换一态的填充；「两态」等于两态各写一次。包材质必须属于本实例固定资源修订。</summary>
+    public void SetFill(TextTarget target, TextState state, MaterialValue material)
     {
         WriteMaterialReplacement(() =>
         {
-            RequireStyle(target, "style.fill");
-            if (!Enum.IsDefined(state)) throw new ArgumentOutOfRangeException(nameof(state));
+            RequireStyle(target, "style.fill"); RequireState(state);
             ArgumentNullException.ThrowIfNull(material); ValidateMaterial(material);
-            _graphBudget.ChargeMaterial(material, GraphCancellation);
-            _writes.Add(new TextWrite.Fill(target, state, material));
+            foreach (var each in States(state))
+            {
+                _graphBudget.ChargeMaterial(material, GraphCancellation);
+                _writes.Add(new TextWrite.Fill(target, each, material));
+            }
         });
     }
-    /// <summary>整体替换描边；null 明确关闭，与未写继承不同。</summary>
-    public void SetStroke(TextTarget target, StrokeValue? value)
+    /// <summary>整表替换一态的描边，由内向外 0～4 层；不传即无描边。包材质只能用在第 0 层（最内层）。</summary>
+    public void SetStrokes(TextTarget target, TextState state, params StrokeValue[] strokes)
     {
         WriteMaterialReplacement(() =>
         {
-            RequireStyle(target, "style.stroke"); if (value is not null) ValidateMaterial(value.Material);
-            _graphBudget.ChargeMaterial(value?.Material, GraphCancellation);
-            _writes.Add(new TextWrite.Stroke(target, value));
+            RequireStyle(target, "style.stroke"); RequireState(state); ArgumentNullException.ThrowIfNull(strokes);
+            var layers = AppearanceView.ValidateStrokes([.. strokes]);
+            foreach (var layer in layers) ValidateMaterial(layer.Material);
+            foreach (var each in States(state))
+            {
+                if (layers.IsEmpty) _graphBudget.ChargeMaterial(null, GraphCancellation);
+                foreach (var layer in layers) _graphBudget.ChargeMaterial(layer.Material, GraphCancellation);
+                _writes.Add(new TextWrite.Strokes(target, each, layers));
+            }
         });
     }
-    /// <summary>整体替换阴影；null 明确关闭，与未写继承不同。</summary>
-    public void SetShadow(TextTarget target, ShadowValue? value)
+    /// <summary>整体替换一态的阴影；null 明确关闭，与未写继承不同。</summary>
+    public void SetShadow(TextTarget target, TextState state, ShadowValue? value)
     {
-        RequireStyle(target, "style.shadow"); _writes.Add(new TextWrite.Shadow(target, value));
+        RequireStyle(target, "style.shadow"); RequireState(state);
+        foreach (var each in States(state)) _writes.Add(new TextWrite.Shadow(target, each, value));
     }
-    /// <summary>整体替换外发光；null 明确关闭，与未写继承不同。</summary>
-    public void SetGlow(TextTarget target, GlowValue? value)
+    /// <summary>整体替换一态的外发光；null 明确关闭，与未写继承不同。</summary>
+    public void SetGlow(TextTarget target, TextState state, GlowValue? value)
     {
-        RequireStyle(target, "style.glow"); _writes.Add(new TextWrite.Glow(target, value));
+        RequireStyle(target, "style.glow"); RequireState(state);
+        foreach (var each in States(state)) _writes.Add(new TextWrite.Glow(target, each, value));
+    }
+    /// <summary>整体替换扫字样式（羽化与高亮，两态共享）；只用于元素族与底字，文字标记没有扫字样式。</summary>
+    public void SetWipe(TextTarget target, WipeValue wipe)
+    {
+        RequireStyle(target, "style.wipe"); ArgumentNullException.ThrowIfNull(wipe);
+        if (target is TextTarget.Mark) throw Unsupported();
+        _writes.Add(new TextWrite.Wipe(target, wipe));
     }
 
     /// <summary>宿主在成功返回后关闭并取得整个不可变结果；只允许完成一次，作者不得自行调用。</summary>
@@ -147,6 +164,17 @@ public sealed partial class TextOutput
         if (_tokenGeometry.TryGetValue(target, out var geometry) && !geometry.CanTransformIndependently)
             throw new EffectOutputException(geometry.DiagnosticCode ?? "UnsupportedGlyphPartition", "源元素与其他元素共享整形单元，不能独立改变外观。");
     }
+    private static void RequireState(TextState state)
+    {
+        if (!Enum.IsDefined(state)) throw new ArgumentOutOfRangeException(nameof(state));
+    }
+    private static readonly TextState[] UnsungOnly = [TextState.Unsung], SungOnly = [TextState.Sung], BothStates = [TextState.Unsung, TextState.Sung];
+    private static TextState[] States(TextState state) => state switch
+    {
+        TextState.Unsung => UnsungOnly,
+        TextState.Sung => SungOnly,
+        _ => BothStates,
+    };
     private static string TransformCapability(TextTarget target) => target switch
     {
         TextTarget.Family or TextTarget.Base => "token.affine",

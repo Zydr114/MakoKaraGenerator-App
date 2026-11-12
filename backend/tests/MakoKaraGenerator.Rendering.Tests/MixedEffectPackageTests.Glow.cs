@@ -31,8 +31,8 @@ public sealed partial class MixedEffectPackageTests
         var prepared = await session.PrepareAsync(1_000_000, Fx.OutputMode.Transparent, output);
         var plainPrepared = await plainSession.PrepareAsync(1_000_000, Fx.OutputMode.Transparent, output);
         var target = Assert.Single(prepared.FinalGeometry).WithRuby;
-        Assert.IsType<Fx.MaterialValue.PackageMaterial>(prepared.GetTokenAppearance(target).UnsungMaterial);
-        Assert.NotNull(prepared.GetTokenAppearance(target).Glow);
+        Assert.IsType<Fx.MaterialValue.PackageMaterial>(prepared.GetTokenAppearance(target).Unsung.Fill);
+        Assert.NotNull(prepared.GetTokenAppearance(target).Unsung.Glow);
         using var native = CompiledPackageGraphExports.Compile(package.Definition);
         using var resources = MaterialResources(native, package, new(0, 0, 640, 360));
         using var renderer = new SkiaRenderPipeline(null, null, null, resources);

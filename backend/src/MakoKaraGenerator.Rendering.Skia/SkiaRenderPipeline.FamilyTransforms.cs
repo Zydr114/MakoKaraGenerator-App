@@ -173,7 +173,7 @@ public sealed partial class SkiaRenderPipeline
         var remaining = Enumerable.Range(0, shaped.DrawUnits.Length).Where(index => !excludedUnits.Contains(index)).ToImmutableArray();
         HashSet<int> changedBaseTokens = [.. changedTokens.Except(rubyOnlyTokens)];
         // 未受影响的文字仍走同一两态样式规则，但不再包含被移走的 glyph。
-        if (capture?.TokenId is null) using (WipePartition wipe = BuildWipe(sample, shaped, origin, canvas.LocalClipBounds, lineStyle.DecorationsDifferByState,
+        if (capture?.TokenId is null) using (WipePartition wipe = BuildWipe(sample, shaped, origin, canvas.LocalClipBounds, WipeEdges(lineStyle, capture),
             token => FeatherRatio(lineStyle, line, token), options.FontSizePx))
         {
             DrawLineGlow(canvas, shaped, options, origin, baseline, lineStyle, antialias, remaining, capture);
@@ -232,7 +232,7 @@ public sealed partial class SkiaRenderPipeline
                 canvas.Restore(); continue;
             }
             DrawLineGlow(canvas, shaped, options, origin, baseline, style, antialias, partitions[index].DrawUnitIndices, capture);
-            using (WipePartition wipe = BuildWipe(tokenSample, shaped, origin, canvas.LocalClipBounds, style.DecorationsDifferByState,
+            using (WipePartition wipe = BuildWipe(tokenSample, shaped, origin, canvas.LocalClipBounds, WipeEdges(style, capture),
                 _ => style.Wipe.FeatherRatio, options.FontSizePx))
             {
                 DrawWiped(canvas, wipe, () => WipeStatesDiffer(style, capture), capture, sung =>

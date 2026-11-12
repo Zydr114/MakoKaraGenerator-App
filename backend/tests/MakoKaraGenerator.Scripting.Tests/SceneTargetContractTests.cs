@@ -10,7 +10,7 @@ public sealed class SceneTargetContractTests
     private static readonly TextMarkTarget Target = new(new("mark"), new("cue"), new("binding"));
     private static readonly MaterialValue White = MaterialValue.Solid(new(1, 1, 1, 1));
     private static readonly MaterialValue Blue = MaterialValue.Solid(new(0, 0, 1, 1));
-    private static readonly StyleView Appearance = new(White, White, new(2, White), new(new(0, 0, 0, 1)), .4);
+    private static readonly StyleView Appearance = TestStyles.View(White, White, new(2, White), new(new(0, 0, 0, 1)), .4);
     private static readonly BaselineStyles Baseline = new([], [new(new("line"), Appearance)], [new(Target.NodeId, Appearance)],
         [new(new("group"), new(1))]);
     private static FrameWriter Writer(EffectCapabilities capabilities = EffectCapabilities.Style | EffectCapabilities.Transforms)
@@ -48,12 +48,12 @@ public sealed class SceneTargetContractTests
     public void 标记两态和装饰按顺序覆盖且透明度最后合并()
     {
         FrameWriter writer = Writer();
-        writer.Style.SetSungMaterial(Target, Blue); writer.Style.SetSungMaterial(Target, Baseline.Get(Target).SungMaterial);
+        writer.Style.SetSungMaterial(Target, Blue); writer.Style.SetSungMaterial(Target, Baseline.Get(Target).Sung.Fill);
         writer.Style.SetUnsungMaterial(Target, Blue); writer.Style.SetStroke(Target, null); writer.Style.SetShadow(Target, null);
         writer.Style.MultiplyOpacity(Target, 3); writer.Style.MultiplyOpacity(Target, .5);
         var result = Assert.Single(writer.Complete().MarkStyles).Update.Apply(Baseline.Get(Target));
-        Assert.Equal(White, result.SungMaterial); Assert.Equal(Blue, result.UnsungMaterial);
-        Assert.Null(result.Stroke); Assert.Null(result.Shadow); Assert.Equal(.6, result.Opacity, 12);
+        Assert.Equal(White, result.Sung.Fill); Assert.Equal(Blue, result.Unsung.Fill);
+        Assert.Null(result.Unsung.InnermostStroke); Assert.Null(result.Unsung.Shadow); Assert.Equal(.6, result.Opacity, 12);
         Assert.Equal(.4, Baseline.Get(Target).Opacity);
     }
     [Fact]
@@ -100,11 +100,11 @@ public sealed class SceneTargetContractTests
             Lines = branch.Lines.SetItem(0, line).Add(LyricLine.Create("no-elements", "空行")) };
         var snapshot = ProjectSnapshot.FromProject(project with { Lyrics = project.Lyrics.ReplaceBranch(branch) });
         var baseline = StaticStyleProjection.CreateBaseline(snapshot);
-        Assert.Equal(MaterialValue.Solid(new(1, 0, 0, 1)), baseline.Get(new LineId(line.Id)).UnsungMaterial);
-        Assert.Equal(MaterialValue.Solid(new(0, 0, 1, 1)), baseline.Get(new TokenId(token.Id)).UnsungMaterial);
-        Assert.Equal(MaterialValue.Solid(new(0, 1, 0, 1)), baseline.Get(new LineId(line.Id)).SungMaterial);
+        Assert.Equal(MaterialValue.Solid(new(1, 0, 0, 1)), baseline.Get(new LineId(line.Id)).Unsung.Fill);
+        Assert.Equal(MaterialValue.Solid(new(0, 0, 1, 1)), baseline.Get(new TokenId(token.Id)).Unsung.Fill);
+        Assert.Equal(MaterialValue.Solid(new(0, 1, 0, 1)), baseline.Get(new LineId(line.Id)).Sung.Fill);
         Assert.Equal((double).7f, baseline.Get(new LineId("no-elements")).Opacity);
-        Assert.Equal(MaterialValue.Solid(new(0, 1, 0, 1)), baseline.Get(new LineId("no-elements")).SungMaterial);
-        Assert.Equal(StaticStyleProjection.View(project.LyricStyle).UnsungMaterial, baseline.Get(new LineId("no-elements")).UnsungMaterial);
+        Assert.Equal(MaterialValue.Solid(new(0, 1, 0, 1)), baseline.Get(new LineId("no-elements")).Sung.Fill);
+        Assert.Equal(StaticStyleProjection.View(project.LyricStyle).Unsung.Fill, baseline.Get(new LineId("no-elements")).Unsung.Fill);
     }
 }

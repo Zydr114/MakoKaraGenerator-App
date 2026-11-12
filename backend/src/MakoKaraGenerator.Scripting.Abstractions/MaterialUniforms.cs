@@ -3,14 +3,17 @@ using System.Collections.Immutable;
 namespace MakoKaraGenerator.Scripting;
 
 /// <summary>明确选择真实目标的材质部位；标记两态对应 Pending／Elapsed。</summary>
+/// <remarks>描边槽指该态最内层描边的材质（包材质只能用在最内层）。数值与渲染层的准备帧材质槽一一对应。</remarks>
 public enum MaterialSlot
 {
     /// <summary>未唱填充。</summary>
     UnsungFill,
     /// <summary>已唱填充。</summary>
     SungFill,
-    /// <summary>外描边。</summary>
-    Stroke,
+    /// <summary>未唱最内层描边。</summary>
+    UnsungStroke,
+    /// <summary>已唱最内层描边。</summary>
+    SungStroke,
 }
 
 /// <summary>图节点及 uniform 名字共同定义的、不可变的逐帧覆盖集。</summary>
@@ -63,7 +66,7 @@ public sealed class GraphUniformValues : IEquatable<GraphUniformValues>
 public abstract record MaterialEdit
 {
     private MaterialEdit() { }
-    /// <summary>建立部位的新外观并清除其先前覆盖；null 仅用于关闭描边。</summary>
+    /// <summary>建立部位的新外观并清除其先前覆盖；null 仅用于描边槽（该态无描边）。</summary>
     public sealed record ReplaceMaterial(MaterialSlot Slot, MaterialValue? Material) : MaterialEdit;
     /// <summary>修改当时匹配的固定材质、节点和 uniform。</summary>
     public sealed record Uniform(MaterialSlot Slot, MaterialHandle Handle, string NodeId, string Name, UniformValue Value) : MaterialEdit

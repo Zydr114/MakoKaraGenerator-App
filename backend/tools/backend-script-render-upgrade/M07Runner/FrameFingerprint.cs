@@ -85,20 +85,26 @@ internal static class FrameFingerprint
         appearance = Appearance(StaticStyleProjection.View(resolution.Style)),
         sources = resolution.Sources.OrderBy(pair => pair.Key).Select(pair => new { property = pair.Key.ToString(), path = pair.Value }),
     };
-    private static object Appearance(StyleView style) => new { unsung = Material(style.UnsungMaterial), sung = Material(style.SungMaterial),
-        stroke = Stroke(style.Stroke), shadow = style.Shadow, glow = style.Glow, style.Opacity };
+    // P3 第 6 步起外观分两态、描边多层并带扫字样式；指纹按两态各一份记录。
+    private static object Appearance(StyleView style) => new { unsung = Face(style.Unsung), sung = Face(style.Sung), style.Opacity, wipe = style.Wipe };
+    private static object Face(AppearanceView face) => new
+        { fill = Material(face.Fill), strokes = face.Strokes.Select(Stroke).ToArray(), shadow = face.Shadow, glow = face.Glow };
     private static object Style(StyleUpdate style) => new
     {
-        style.OpacityFactor, unsung = Material(style.UnsungMaterial), sung = Material(style.SungMaterial),
-        stroke = style.Stroke is { } stroke ? new { value = Stroke(stroke.Value) } : null,
-        shadow = style.Shadow is { } shadow ? new { value = shadow.Value } : null,
-        glow = style.Glow is { } glow ? new { value = glow.Value } : null,
+        style.OpacityFactor, unsung = Update(style.Unsung), sung = Update(style.Sung), wipe = style.Wipe,
         edits = style.MaterialEdits.Select(edit => edit is MaterialEdit.ReplaceMaterial replace
             ? new { slot = replace.Slot.ToString(), material = Material(replace.Material) }
             : throw new InvalidOperationException("Finite M07 runner does not fingerprint uniform writes.")),
     };
-    private static object? Stroke(StrokeValue? stroke) => stroke is null ? null : new
-        { stroke.WidthPx, material = Material(stroke.Material), join = stroke.Join.ToString(), position = stroke.Position.ToString() };
+    private static object? Update(AppearanceUpdate? update) => update is null ? null : new
+    {
+        fill = Material(update.Fill),
+        strokes = update.Strokes is { } strokes ? strokes.Layers.Select(Stroke).ToArray() : null,
+        shadow = update.Shadow is { } shadow ? new { value = shadow.Value } : null,
+        glow = update.Glow is { } glow ? new { value = glow.Value } : null,
+    };
+    private static object Stroke(StrokeValue stroke) => new
+        { stroke.WidthPx, material = Material(stroke.Material), join = stroke.Join.ToString() };
     private static SolidMaterialFingerprint? Material(MaterialValue? material) => material switch
     {
         null => null,

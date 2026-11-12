@@ -58,7 +58,7 @@ public sealed class V2GraphOutputContractTests
         var original = Assert.Throws<EffectOutputException>(() => output.BindGraph(selected, value)); Assert.Equal(code, original.Code);
         Assert.Same(original, Assert.Throws<EffectOutputException>(() => output.BindGraph(target, Value())));
         Assert.Same(original, Assert.Throws<EffectOutputException>(() => output.AppendTransform(target, Affine2.Identity)));
-        Assert.Same(original, Assert.Throws<EffectOutputException>(() => output.SetStroke(target, null)));
+        Assert.Same(original, Assert.Throws<EffectOutputException>(() => output.SetStrokes(target, TextState.Both)));
         Assert.Same(original, Assert.Throws<EffectOutputException>(() => output.SetWarp(target, null)));
         Assert.Same(original, Assert.Throws<EffectOutputException>(() => output.Complete()));
     }

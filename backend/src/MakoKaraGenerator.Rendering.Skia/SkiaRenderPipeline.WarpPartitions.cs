@@ -50,7 +50,7 @@ public sealed partial class SkiaRenderPipeline
                 bounds, resources ?? capture?.Budget, capture, (source, sourceCapture) =>
                 {
                     DrawLineGlow(source, shaped, options, origin, baseline, style, antialias, indices, sourceCapture);
-                    using var wipe = BuildWipe(tokenSample, shaped, origin, source.LocalClipBounds, style.DecorationsDifferByState,
+                    using var wipe = BuildWipe(tokenSample, shaped, origin, source.LocalClipBounds, WipeEdges(style, sourceCapture),
                         _ => style.Wipe.FeatherRatio, options.FontSizePx);
                     DrawWiped(source, wipe, () => WipeStatesDiffer(style, sourceCapture), sourceCapture, sung =>
                     {

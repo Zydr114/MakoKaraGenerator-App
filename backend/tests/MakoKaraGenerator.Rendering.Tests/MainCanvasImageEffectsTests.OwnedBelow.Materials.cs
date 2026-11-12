@@ -46,7 +46,7 @@ public sealed partial class MainCanvasImageEffectsTests
         }
         var token = Assert.Single(frame.FinalGeometry); var family = new Fx.ImageEffectTarget.Token(token.WithRuby);
         var writer = new PreparedMaterialOwner.Script(new("read"), "material-writer");
-        var update = new Fx.StyleUpdate(unsung: material, sung: material);
+        var update = TestStyle.Update(material, material);
         if (!source && !basic)
             frame = new(snapshot, frame.TimeUs, frame.OutputMode, frame.Target, frame.Scene, [], [new(token.WithRuby, update)], [], [], [], [], [],
                 [new(writer, family, PreparedMaterialSlot.UnsungFill, material), new(writer, family, PreparedMaterialSlot.SungFill, material)]);

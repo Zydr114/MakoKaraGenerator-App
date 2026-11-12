@@ -30,7 +30,7 @@ public sealed class RepeatEmphasis : IPureKaraokeEffect
                 if (geometry.WithRuby == token.WithRuby)
                     output.AppendTransform(token.WithRuby, Affine2.ScaleAt(scale, geometry.BaseGeometry.AdvanceBounds.Center));
             var color = frame.Baseline.Get(token.WithRuby).RequireSungSolidColor();
-            output.SetFill(token.WithRuby, FillState.Sung, MaterialValue.Solid(
+            output.SetFill(token.WithRuby, TextState.Sung, MaterialValue.Solid(
                 new ColorRgba(color.Red * brightness, color.Green * brightness, color.Blue * brightness, color.Alpha)));
         }
     }

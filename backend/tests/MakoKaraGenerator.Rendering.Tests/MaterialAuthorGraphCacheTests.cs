@@ -305,7 +305,7 @@ public sealed class MaterialAuthorGraphCacheTests
             foreach (var geometry in scene.TokenGeometries)
             {
                 var material = Assert.IsType<MaterialValue.PackageMaterial>(MaterialValue.PackageExport(package.Resources.GetMaterial("ink"), Parameters()));
-                styles.Add(new(geometry.WithRuby, new(unsung: material)));
+                styles.Add(new(geometry.WithRuby, TestStyle.Update(material)));
                 bindings.Add(new(new EffectInstanceId("owner-" + geometry.WithRuby.TokenId.Value), "artifact", new ImageEffectTarget.Token(geometry.WithRuby), PreparedMaterialSlot.UnsungFill, material));
             }
             var target = RenderTarget.FromComposition(snapshot.Composition);

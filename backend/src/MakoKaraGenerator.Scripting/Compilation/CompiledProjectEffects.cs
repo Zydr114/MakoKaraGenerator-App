@@ -134,8 +134,7 @@ public sealed class CompiledProjectEffects
                     EffectOverlayLayer.AboveText => OverlayLayer.AboveText, _ => throw new ArgumentException("图元层无效。") } };
         }
     }
-    private static PreparedMaterialOwner.Source SourceOwner(SourceMaterialReference reference) => new(reference,
-        reference.Region == "stroke" ? PreparedMaterialSlot.Stroke : SourceMaterialCatalog.IsSung(reference) ? PreparedMaterialSlot.SungFill : PreparedMaterialSlot.UnsungFill);
+    private static PreparedMaterialOwner.Source SourceOwner(SourceMaterialReference reference) => new(reference, PreparedMaterialSlots.Of(reference));
     /// <summary>为固定闭包和分析创建独立重放会话，使用工程真实视觉／粒子预算。</summary>
     public TimelineFrameSourceFactory CreateFactory(Func<ILineGeometryProvider> geometryFactory, ReplayReason reason,
         MakoKaraGenerator.Rendering.Abstractions.ProjectMediaFeatureBinding? mediaBinding = null)

@@ -32,9 +32,7 @@ public sealed partial class PreparedRenderFrame
         foreach (var output in styles)
         {
             var view = appearances[output.Target];
-            Add(PreparedMaterialSlot.UnsungFill, view.UnsungMaterial);
-            Add(PreparedMaterialSlot.SungFill, view.SungMaterial);
-            Add(PreparedMaterialSlot.Stroke, view.Stroke?.Material);
+            foreach (var slot in Enum.GetValues<MaterialSlot>()) Add(PreparedMaterialSlots.From(slot), view.Material(slot));
             void Add(PreparedMaterialSlot slot, MaterialValue? value)
             {
                 if (value is not MaterialValue.PackageMaterial material) return;

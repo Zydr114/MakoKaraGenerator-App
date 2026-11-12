@@ -115,7 +115,7 @@ internal sealed partial class FrameEffectHost
                 graphBindings[target] = new(target, graph.Value);
                 continue;
             }
-            if (write is TextWrite.Fill or TextWrite.Stroke or TextWrite.MaterialUniform) materialWrites.Add(write);
+            if (write is TextWrite.Fill or TextWrite.Strokes or TextWrite.MaterialUniform) materialWrites.Add(write);
             if (write is TextWrite.MaterialUniform) continue; // Final identity is a whole-frame host reduction.
             if (write is TextWrite.Warp warp) { warps.Add(warp); continue; }
             if (write is TextWrite.Transform transform)
@@ -131,15 +131,17 @@ internal sealed partial class FrameEffectHost
             StyleUpdate update = write switch
             {
                 TextWrite.Opacity value => new(opacityFactor: value.Factor),
-                TextWrite.Fill { State: FillState.Unsung } value => new(unsung: value.Material),
-                TextWrite.Fill value => new(sung: value.Material),
-                TextWrite.Stroke value => new(stroke: new(value.Value)),
-                TextWrite.Shadow value => new(shadow: new(value.Value)),
-                TextWrite.Glow value => new(glow: new(value.Value)),
+                TextWrite.Fill value => State(value.State, new(fill: value.Material)),
+                TextWrite.Strokes value => State(value.State, new(strokes: new(value.Layers))),
+                TextWrite.Shadow value => State(value.State, new(shadow: new(value.Value))),
+                TextWrite.Glow value => State(value.State, new(glow: new(value.Value))),
+                TextWrite.Wipe value => new(wipe: value.Value),
                 _ => throw new EffectOutputException("PropertyTargetUnsupported", "未知文字输出。"),
             };
             styles[write.Target] = styles.TryGetValue(write.Target, out var previous) ? previous.Then(update) : update;
         }
+        // TextOutput 已把「两态」展开成两条写入，这里每条只属于一态。
+        static StyleUpdate State(TextState state, AppearanceUpdate appearance) => state == TextState.Unsung ? new(unsung: appearance) : new(sung: appearance);
         foreach (var target in transforms.Where(static pair => pair.Value == Affine2.Identity).Select(static pair => pair.Key).ToArray())
             transforms.Remove(target);
         return new()

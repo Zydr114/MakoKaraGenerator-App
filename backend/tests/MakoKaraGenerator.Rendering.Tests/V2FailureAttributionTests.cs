@@ -78,7 +78,7 @@ public sealed class V2FailureAttributionTests
             {
                 var material = MaterialValue.PackageExport(frame.Resources.GetMaterial("ink"), frame.Parameters);
                 foreach (var token in frame.Presentations.TokensInBinding)
-                    output.SetFill(new TextTarget.Base(token.BaseOnly), FillState.Sung, material);
+                    output.SetFill(new TextTarget.Base(token.BaseOnly), TextState.Sung, material);
             }
         }
         """;

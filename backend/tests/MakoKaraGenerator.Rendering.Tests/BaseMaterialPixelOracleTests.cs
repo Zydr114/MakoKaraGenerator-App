@@ -50,7 +50,7 @@ public sealed class BaseMaterialPixelOracleTests
             var bindings = frame.BaseMaterials.Select(binding => binding with
             { Material = binding.Slot == PreparedMaterialSlot.SungFill ? sung : unsung }).ToImmutableArray();
             var separate = BaseMaterialPackageFixture.Parent(frame).WithTextPartitions(frame.BaseTransforms,
-                [new(token.BaseOnly, new(unsung, sung, opacityFactor: .5))], frame.ClusterTransforms, bindings);
+                [new(token.BaseOnly, TestStyle.Update(unsung, sung, opacityFactor: .5))], frame.ClusterTransforms, bindings);
             byte[] expected = BaseMaterialPixelOracle.Expected(renderer, snapshot, separate, .25, .75, .5);
             using var actual = BaseMaterialRuntimeTests.Render(renderer, snapshot, separate);
             BaseMaterialPixelOracle.Compare(expected, actual, 2);

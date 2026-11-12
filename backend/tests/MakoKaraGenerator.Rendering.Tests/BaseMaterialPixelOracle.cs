@@ -26,15 +26,15 @@ internal static class BaseMaterialPixelOracle
         Assert.Single(frame.HierarchyScene.Lines);
         Assert.Empty(frame.MarkStyles); Assert.Empty(frame.GroupOpacities); Assert.Empty(frame.OverlayBatches);
         Assert.Equal(1, Assert.Single(frame.HierarchyScene.Lines).Transform.Opacity);
-        Assert.Null(frame.GetBaseAppearance(token.BaseOnly).Shadow);
+        Assert.Null(frame.GetBaseAppearance(token.BaseOnly).Unsung.Shadow);
         Assert.Equal(1f, snapshot.LyricStyle.Opacity);
         var parent = BaseMaterialPackageFixture.Parent(frame).WithImageEffects([]);
         if (parent.TokenStyles.Any(style => style.Target == token.WithRuby))
             Assert.Equal(1, parent.GetTokenAppearance(token.WithRuby).Opacity);
         Assert.Equal(opacity, frame.GetBaseAppearance(token.BaseOnly).Opacity);
 
-        var glow = frame.GetBaseAppearance(token.BaseOnly).Glow;
-        var clear = new StyleUpdate(Clear, Clear, new(null), new(null), opacityFactor: opacity, glow: new(glow));
+        var glow = frame.GetBaseAppearance(token.BaseOnly).Unsung.Glow;
+        var clear = TestStyle.Update(Clear, Clear, [], new(null), new(glow), opacity);
         PreparedRenderFrame decoration = WithoutBaseMaterial(clear);
         using var glowPart = renderer.CaptureSceneColorPart(BaseMaterialRuntimeTests.Request(snapshot, decoration),
             new SceneCaptureTarget.Base(token.BaseOnly), SceneColorPart.BaseGlow, BaseMaterialPackageFixture.Bounds, GraphExecutionBudget.Default);
@@ -42,8 +42,8 @@ internal static class BaseMaterialPixelOracle
 
         if (strokeOnly)
         {
-            Assert.Equal(5, frame.GetBaseAppearance(token.BaseOnly).Stroke!.WidthPx);
-            var strokeFrame = WithoutBaseMaterial(new(Clear, Clear, new(new StrokeValue(5, White)), new(null), glow: new(null)));
+            Assert.Equal(5, frame.GetBaseAppearance(token.BaseOnly).Unsung.InnermostStroke!.WidthPx);
+            var strokeFrame = WithoutBaseMaterial(TestStyle.Update(Clear, Clear, [new StrokeValue(5, White)], new(null), new(null)));
             byte[] mask = Raw(strokeFrame, GraphInputSource.StrokeCoverage, StrokeRecipe);
             Over(expected, Tint(mask, unsungAmount, opacity));
             // A union mask is tinted once. Fully covered stroke alpha cannot exceed 160*.5=80.
@@ -53,14 +53,14 @@ internal static class BaseMaterialPixelOracle
         {
             // Keep two independently captured complementary source passes, especially after real Warp resampling.
             // Subtracting SungCoverage from a full mask would hide overlap/rounding at a transformed cut.
-            var unsung = WithoutBaseMaterial(new(White, Clear, new(null), new(null), glow: new(null)));
-            var sung = WithoutBaseMaterial(new(Clear, White, new(null), new(null), glow: new(null)));
+            var unsung = WithoutBaseMaterial(TestStyle.Update(White, Clear, [], new(null), new(null)));
+            var sung = WithoutBaseMaterial(TestStyle.Update(Clear, White, [], new(null), new(null)));
             Over(expected, Tint(Raw(unsung, GraphInputSource.TargetColor, FillRecipe), unsungAmount, opacity));
             Over(expected, Tint(Raw(sung, GraphInputSource.TargetColor, FillRecipe), sungAmount, opacity));
         }
 
         // An explicit transparent Base shadows parent material while preserving the parent's whole Ruby and Glow.
-        var rubyOnly = WithoutBaseMaterial(new(Clear, Clear, new(null), new(null), glow: new(null)));
+        var rubyOnly = WithoutBaseMaterial(TestStyle.Update(Clear, Clear, [], new(null), new(null)));
         using var ruby = BaseMaterialRuntimeTests.Render(renderer, snapshot, rubyOnly);
         Assert.Equal(ruby.Width * 4, ruby.Stride);
         Over(expected, ruby.PixelMemory.ToArray());

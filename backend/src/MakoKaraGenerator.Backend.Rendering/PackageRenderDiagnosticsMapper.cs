@@ -98,9 +98,10 @@ public sealed class PackageRenderDiagnosticsMapper
         var parameters = EffectParameterOverrides.Parse(owner.ParametersJson!);
         if (parameters.Json != owner.ParametersJson) throw Invalid();
         var reference = new SourceMaterialReference(owner.Path!, owner.Region!, new(id.PackageId, id.Revision, id.ExportId, parameters));
-        PreparedMaterialSlot slot = reference.Region == "stroke" ? PreparedMaterialSlot.Stroke
-            : SourceMaterialCatalog.IsSung(reference) ? PreparedMaterialSlot.SungFill : PreparedMaterialSlot.UnsungFill;
-        if (!_sources.Contains(reference) || owner.Slot != (int)slot || id != material) throw Invalid();
+        // 已唱描边跟随未唱时，已唱描边槽的源引用是未唱一侧的路径。
+        if (owner.Slot is not { } raw) throw Invalid();
+        var slot = (PreparedMaterialSlot)raw;
+        if (!_sources.Contains(reference) || !Enum.IsDefined(slot) || !PreparedMaterialSlots.Accepts(reference, slot) || id != material) throw Invalid();
         SourceMaterialCatalog.Validate(reference, Package(id).Definition);
         return new PreparedMaterialOwner.Source(reference, slot);
     }

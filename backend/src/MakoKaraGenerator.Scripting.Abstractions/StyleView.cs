@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 
 namespace MakoKaraGenerator.Scripting;
 
-/// <summary>外部描边连接方式。</summary>
+/// <summary>描边拐角连接方式。</summary>
 public enum StrokeJoin
 {
     /// <summary>尖角。</summary>
@@ -12,30 +12,23 @@ public enum StrokeJoin
     /// <summary>斜切。</summary>
     Bevel,
 }
-/// <summary>描边位置合同。</summary>
-public enum StrokePosition
-{
-    /// <summary>字形外部。</summary>
-    Outside,
-}
-/// <summary>中立外部描边，几何和材质分开。</summary>
+/// <summary>一层描边，几何和材质分开；位置由层序决定（由内向外）。</summary>
 public sealed record StrokeValue
 {
-    /// <summary>有限非负逻辑宽度、明确连接／位置及非空材质。</summary>
-    public StrokeValue(double widthPx, MaterialValue material, StrokeJoin join = StrokeJoin.Round, StrokePosition position = StrokePosition.Outside)
+    /// <summary>正的有限逻辑宽度、明确拐角及非空材质。</summary>
+    public StrokeValue(double widthPx, MaterialValue material, StrokeJoin join = StrokeJoin.Round)
     {
-        Point2.Finite(widthPx); ArgumentOutOfRangeException.ThrowIfNegative(widthPx); ArgumentNullException.ThrowIfNull(material);
-        if (!Enum.IsDefined(join) || !Enum.IsDefined(position)) throw new ArgumentOutOfRangeException(nameof(join));
-        WidthPx = widthPx; Material = material; Join = join; Position = position;
+        Point2.Finite(widthPx); ArgumentNullException.ThrowIfNull(material);
+        if (widthPx <= 0) throw new ArgumentOutOfRangeException(nameof(widthPx), "描边宽度必须为正。");
+        if (!Enum.IsDefined(join)) throw new ArgumentOutOfRangeException(nameof(join));
+        WidthPx = widthPx; Material = material; Join = join;
     }
     /// <summary>画布逻辑像素宽度。</summary>
     public double WidthPx { get; }
-    /// <summary>轮廓区域材质。</summary>
+    /// <summary>这一圈的材质；包材质只能用在最内层。</summary>
     public MaterialValue Material { get; }
-    /// <summary>连接方式。</summary>
+    /// <summary>拐角连接方式。</summary>
     public StrokeJoin Join { get; }
-    /// <summary>位置。</summary>
-    public StrokePosition Position { get; }
 }
 /// <summary>中立阴影；方向角及距离保持源合同。</summary>
 public sealed record ShadowValue
@@ -58,7 +51,7 @@ public sealed record ShadowValue
     /// <summary>逻辑像素模糊半径。</summary>
     public double BlurRadiusPx { get; }
 }
-/// <summary>中立只读静态外发光；不提供动态写入。</summary>
+/// <summary>中立外发光；以整体轮廓（字形加全部描边）为来源。</summary>
 public sealed record GlowValue
 {
     /// <summary>固定颜色、不透明度、Gaussian sigma 与向外扩张宽度。</summary>
@@ -74,32 +67,133 @@ public sealed record GlowValue
     public double Opacity { get; }
     /// <summary>逻辑像素 Gaussian sigma。</summary>
     public double BlurRadiusPx { get; }
-    /// <summary>真实字形向外扩张的逻辑像素宽度。</summary>
+    /// <summary>整体轮廓向外扩张的逻辑像素宽度。</summary>
     public double SpreadPx { get; }
 }
-/// <summary>静态解析后的只读外观；字号和源排版不属于样式 writer。</summary>
+/// <summary>一态（未唱或已唱）的完整外观：填充、由内向外的描边、阴影、辉光。</summary>
+public sealed record AppearanceView
+{
+    /// <summary>描边层数上限。</summary>
+    public const int MaxStrokes = 4;
+    /// <summary>非空填充；描边 0～4 层、元素非空，包材质只能在第 0 层（最内层）。</summary>
+    public AppearanceView(MaterialValue fill, ImmutableArray<StrokeValue> strokes = default, ShadowValue? shadow = null, GlowValue? glow = null)
+    {
+        ArgumentNullException.ThrowIfNull(fill);
+        Fill = fill; Strokes = ValidateStrokes(strokes); Shadow = shadow; Glow = glow;
+    }
+    /// <summary>填充材质。</summary>
+    public MaterialValue Fill { get; }
+    /// <summary>描边，由内向外；空为无描边。</summary>
+    public ImmutableArray<StrokeValue> Strokes { get; }
+    /// <summary>阴影，空为关闭。</summary>
+    public ShadowValue? Shadow { get; }
+    /// <summary>辉光，空为关闭。</summary>
+    public GlowValue? Glow { get; }
+    /// <summary>最内层描边；无描边时为空。描边材质槽指的就是这一层的材质。</summary>
+    public StrokeValue? InnermostStroke => Strokes.IsEmpty ? null : Strokes[0];
+    /// <summary>按内容比较，描边逐层比较。</summary>
+    public bool Equals(AppearanceView? other) => ReferenceEquals(this, other) || other is not null
+        && Fill == other.Fill && Strokes.SequenceEqual(other.Strokes) && Shadow == other.Shadow && Glow == other.Glow;
+    /// <inheritdoc/>
+    public override int GetHashCode()
+    {
+        HashCode hash = new(); hash.Add(Fill); hash.Add(Shadow); hash.Add(Glow);
+        foreach (var stroke in Strokes) hash.Add(stroke);
+        return hash.ToHashCode();
+    }
+    internal static ImmutableArray<StrokeValue> ValidateStrokes(ImmutableArray<StrokeValue> strokes)
+    {
+        if (strokes.IsDefaultOrEmpty) return [];
+        if (strokes.Length > MaxStrokes) throw new EffectOutputException("InvalidStrokeLayers", "描边至多 4 层。");
+        for (int index = 0; index < strokes.Length; index++)
+        {
+            if (strokes[index] is null) throw new EffectOutputException("InvalidStrokeLayers", "描边层不能为空。");
+            if (index > 0 && strokes[index].Material is MaterialValue.PackageMaterial)
+                throw new EffectOutputException("InvalidStrokeLayers", "包材质只能用在最内层描边。");
+        }
+        return strokes;
+    }
+}
+/// <summary>扫字线高亮的混合方式。</summary>
+public enum WipeHighlightBlend
+{
+    /// <summary>普通叠加。</summary>
+    Normal,
+    /// <summary>滤色。</summary>
+    Screen,
+    /// <summary>相加。</summary>
+    Add,
+}
+/// <summary>扫字线高亮：以演唱位置为中心的峰，叠在本态填充与各圈描边上。</summary>
+public sealed record WipeHighlightValue
+{
+    /// <summary>高亮宽度比例上限。</summary>
+    public const double MaxWidthRatio = 2;
+    /// <summary>颜色、峰全宽与字号之比 (0, 2]、强度 [0,1] 与混合方式。</summary>
+    public WipeHighlightValue(ColorRgba color, double widthRatio = .25, double opacity = 1, WipeHighlightBlend blend = WipeHighlightBlend.Screen)
+    {
+        Point2.Finite(widthRatio); ColorRgba.Unit(opacity);
+        if (widthRatio is <= 0 or > MaxWidthRatio) throw new ArgumentOutOfRangeException(nameof(widthRatio), "高亮宽度比例须在 (0, 2]。");
+        if (!Enum.IsDefined(blend)) throw new ArgumentOutOfRangeException(nameof(blend));
+        Color = color; WidthRatio = widthRatio; Opacity = opacity; Blend = blend;
+    }
+    /// <summary>直乘颜色；强度再乘颜色 α。</summary>
+    public ColorRgba Color { get; }
+    /// <summary>峰的全宽与字号之比。</summary>
+    public double WidthRatio { get; }
+    /// <summary>高亮强度 [0,1]。</summary>
+    public double Opacity { get; }
+    /// <summary>混合方式。</summary>
+    public WipeHighlightBlend Blend { get; }
+}
+/// <summary>扫字样式：过渡带羽化与扫字线高亮；两态共享，文字标记没有。</summary>
+public sealed record WipeValue
+{
+    /// <summary>羽化比例上限：过渡带至多两倍字号。</summary>
+    public const double MaxFeatherRatio = 2;
+    /// <summary>羽化宽度与字号之比 [0, 2]（0 为硬切换）与可选高亮。</summary>
+    public WipeValue(double featherRatio = 0, WipeHighlightValue? highlight = null)
+    {
+        Point2.Finite(featherRatio);
+        if (featherRatio is < 0 or > MaxFeatherRatio) throw new ArgumentOutOfRangeException(nameof(featherRatio), "羽化比例须在 [0, 2]。");
+        FeatherRatio = featherRatio; Highlight = highlight;
+    }
+    /// <summary>无羽化、无高亮的硬切换。</summary>
+    public static WipeValue Hard { get; } = new();
+    /// <summary>过渡带宽度与字号之比；0 为硬切换。</summary>
+    public double FeatherRatio { get; }
+    /// <summary>扫字线高亮，空为关闭。</summary>
+    public WipeHighlightValue? Highlight { get; }
+}
+/// <summary>静态解析后的只读外观：两态各一套完整外观（已唱的「跟随未唱」已展开）、扫字样式与样式不透明度。</summary>
+/// <remarks>字号和源排版不属于样式输出。文字标记的两态对应 Pending／Elapsed，扫字样式恒为硬切换。</remarks>
 public sealed record StyleView
 {
-    /// <summary>固定两态材质、装饰及 [0,1] 样式透明度。</summary>
-    public StyleView(MaterialValue unsungMaterial, MaterialValue sungMaterial, StrokeValue? stroke, ShadowValue? shadow, double opacity, GlowValue? glow = null)
+    /// <summary>两态外观、[0,1] 样式不透明度与扫字样式（空为硬切换）。</summary>
+    public StyleView(AppearanceView unsung, AppearanceView sung, double opacity, WipeValue? wipe = null)
     {
-        ArgumentNullException.ThrowIfNull(unsungMaterial); ArgumentNullException.ThrowIfNull(sungMaterial); ColorRgba.Unit(opacity);
-        UnsungMaterial = unsungMaterial; SungMaterial = sungMaterial; Stroke = stroke; Shadow = shadow; Opacity = opacity; Glow = glow;
+        ArgumentNullException.ThrowIfNull(unsung); ArgumentNullException.ThrowIfNull(sung); ColorRgba.Unit(opacity);
+        Unsung = unsung; Sung = sung; Opacity = opacity; Wipe = wipe ?? WipeValue.Hard;
     }
-    /// <summary>未唱材质。</summary>
-    public MaterialValue UnsungMaterial { get; }
-    /// <summary>已唱材质。</summary>
-    public MaterialValue SungMaterial { get; }
-    /// <summary>静态描边，空为关闭。</summary>
-    public StrokeValue? Stroke { get; }
-    /// <summary>静态阴影，空为关闭。</summary>
-    public ShadowValue? Shadow { get; }
-    /// <summary>只读静态外发光，空为关闭；样式 writer 不修改此值。</summary>
-    public GlowValue? Glow { get; }
+    /// <summary>未唱外观。</summary>
+    public AppearanceView Unsung { get; }
+    /// <summary>已唱外观。</summary>
+    public AppearanceView Sung { get; }
     /// <summary>静态样式不透明度；不包含入场或脚本 alpha。</summary>
     public double Opacity { get; }
+    /// <summary>扫字样式。</summary>
+    public WipeValue Wipe { get; }
+    /// <summary>读取一个材质槽当前的材质：填充槽为该态填充，描边槽为该态最内层描边的材质（无描边时为空）。</summary>
+    public MaterialValue? Material(MaterialSlot slot) => slot switch
+    {
+        MaterialSlot.UnsungFill => Unsung.Fill,
+        MaterialSlot.SungFill => Sung.Fill,
+        MaterialSlot.UnsungStroke => Unsung.InnermostStroke?.Material,
+        MaterialSlot.SungStroke => Sung.InnermostStroke?.Material,
+        _ => throw new EffectOutputException("InvalidMaterialSlot", "未知材质部位。"),
+    };
     /// <summary>明确要求已唱纯色；渐变／包材质报告错误，不采样猜基色。</summary>
-    public ColorRgba RequireSungSolidColor() => SungMaterial is MaterialValue.SolidMaterial solid ? solid.Color
+    public ColorRgba RequireSungSolidColor() => Sung.Fill is MaterialValue.SolidMaterial solid ? solid.Color
         : throw new EffectOutputException("BaselineMaterialNotSolid", "该作者效果要求已唱纯色材质。请替换为纯色或使用材质参数效果。");
 }
 /// <summary>固定完整源元素／行、组和标记基线；各实例读同一份，不读前一个实例的输出。</summary>

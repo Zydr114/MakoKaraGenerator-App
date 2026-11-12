@@ -99,17 +99,35 @@ public static class StaticStyleProjection
     }
 
     /// <summary>无 Skia 类型的静态外观投影；渐变不会猜测纯色基色。</summary>
-    /// <remarks>SDK 表面在 P3 第 6 步改为两态与多层；此前描边、阴影、辉光只投影未唱一态的最内层，描边位置固定为外侧。</remarks>
+    /// <remarks>两态各投影一份完整外观：已唱一侧的跟随在此展开；描边全部层由内向外。</remarks>
     public static Fx.StyleView View(LyricStyle style, PreparedSourceMaterials? materials = null)
     {
         ArgumentNullException.ThrowIfNull(style);
-        return new(Material(style.UnsungFill.Material, materials), Material(style.SungFill.Material, materials),
-            style.Stroke is { } stroke ? new(stroke.WidthPx,
-                Material(stroke.Material, materials),
-                (Fx.StrokeJoin)stroke.Join, Fx.StrokePosition.Outside) : null,
-            style.Shadow is { } shadow ? new(Color(shadow.Color), shadow.Opacity, shadow.AngleDegrees, shadow.DistancePx, shadow.BlurRadiusPx) : null,
-            style.Opacity, style.Glow is { } glow ? new(Color(glow.Color), glow.Opacity, glow.BlurRadiusPx, glow.SpreadPx) : null);
+        // 已唱跟随的成员直接复用未唱一侧的投影值。
+        var unsung = new Fx.AppearanceView(Material(style.Unsung.Fill.Material, materials), Strokes(style.Unsung.Strokes, materials),
+            Shadow(style.Unsung.Shadow), Glow(style.Unsung.Glow));
+        var sung = style.Sung;
+        return new(unsung, new(Material(sung.Fill.Material, materials),
+            sung.Strokes.FollowsUnsung ? unsung.Strokes : Strokes(sung.Strokes.Value!, materials),
+            sung.Shadow.FollowsUnsung ? unsung.Shadow : Shadow(sung.Shadow.Value),
+            sung.Glow.FollowsUnsung ? unsung.Glow : Glow(sung.Glow.Value)), style.Opacity, Wipe(style.Wipe));
     }
+    private static ImmutableArray<Fx.StrokeValue> Strokes(StrokeLayers strokes, PreparedSourceMaterials? materials) =>
+        [.. strokes.Select(stroke => new Fx.StrokeValue(stroke.WidthPx, Material(stroke.Material, materials), (Fx.StrokeJoin)stroke.Join))];
+    private static Fx.ShadowValue? Shadow(ShadowSpec? shadow) =>
+        shadow is null ? null : new(Color(shadow.Color), shadow.Opacity, shadow.AngleDegrees, shadow.DistancePx, shadow.BlurRadiusPx);
+    private static Fx.GlowValue? Glow(GlowSpec? glow) => glow is null ? null : new(Color(glow.Color), glow.Opacity, glow.BlurRadiusPx, glow.SpreadPx);
+    private static Fx.WipeValue Wipe(WipeSpec wipe) => new(wipe.FeatherRatio, wipe.Highlight is { } highlight
+        ? new(Color(highlight.Color), highlight.WidthRatio, highlight.Opacity, (Fx.WipeHighlightBlend)highlight.Blend) : null);
+    private static WipeSpec Wipe(Fx.WipeValue wipe) => new()
+    {
+        FeatherRatio = wipe.FeatherRatio,
+        Highlight = wipe.Highlight is { } highlight ? new()
+        {
+            Color = Color(highlight.Color), WidthRatio = highlight.WidthRatio,
+            Opacity = Native(highlight.Opacity), Blend = (WipeHighlightBlend)highlight.Blend,
+        } : null,
+    };
 
     /// <summary>将最终帧输出投影为现有绘制描述；无变化返回原实例并保留所有未写字段。</summary>
     public static LyricStyle Apply(LyricStyle source, Fx.StyleUpdate update)
@@ -134,31 +152,47 @@ public static class StaticStyleProjection
     }
     private static LyricStyle ProjectDrawingAppearance(LyricStyle source, Fx.StyleView baseline, Fx.StyleView result, bool geometrySeed, bool sourcePackage)
     {
-        // 未改动的成员保留源对象（含多层描边与已唱一侧的跟随）；改动的描边整表换成脚本给出的单层。
-        // 含源包材质而描边未改动时只替换最内层（包材质换成几何种子），外圈各层原样保留（P3 设计 §6）。
-        bool stroke = result.Stroke != baseline.Stroke, shadow = result.Shadow != baseline.Shadow, glow = result.Glow != baseline.Glow;
-        TextAppearance unsung = source.Unsung with
+        // 每态每成员与基线比较，不同才写；未改动的成员保留源对象（含已唱一侧的跟随），
+        // 含源包材质时最内层包材质换成几何种子，外圈各层原样保留（P3 设计 §6）。
+        var source0 = source.Unsung;
+        bool strokes = !Same(result.Unsung.Strokes, baseline.Unsung.Strokes);
+        bool shadow = result.Unsung.Shadow != baseline.Unsung.Shadow, glow = result.Unsung.Glow != baseline.Unsung.Glow;
+        TextAppearance unsung = source0 with
         {
-            Fill = result.UnsungMaterial == baseline.UnsungMaterial && !sourcePackage ? source.Unsung.Fill : DrawingMaterial(result.UnsungMaterial, geometrySeed),
-            Strokes = stroke ? StrokeLayers.FromStroke(Stroke(result.Stroke, geometrySeed))
-                : sourcePackage ? WithInnermost(source.Unsung.Strokes, Stroke(result.Stroke, geometrySeed)) : source.Unsung.Strokes,
-            Shadow = shadow ? Shadow(result.Shadow) : source.Unsung.Shadow,
-            Glow = glow ? Glow(result.Glow) : source.Unsung.Glow,
+            Fill = Fill(result.Unsung.Fill, baseline.Unsung.Fill, source0.Fill),
+            Strokes = strokes ? Strokes(result.Unsung.Strokes) : Seeded(source0.Strokes),
+            Shadow = shadow ? Shadow(result.Unsung.Shadow) : source0.Shadow,
+            Glow = glow ? Glow(result.Unsung.Glow) : source0.Glow,
         };
-        // 现行 SDK 的描边、阴影、辉光写入不分态（两态写入在 P3 第 6 步）：与基线（未唱一态）不同的成员两态一起变，
-        // 已唱一侧改为跟随；与基线相同的写入视同未写，和整体无变化返回原实例一致。
-        // 未变的成员保留源的已唱一侧，显式的包材质描边与未唱一样只留几何种子。
-        var sungStrokes = source.Sung.Strokes;
-        SungAppearance sung = source.Sung with
+        // 已唱一侧：写了且与结果的未唱相同 → 跟随（两态一起写与旧行为逐字节一致）；写了且不同 → 显式；
+        // 没写但未唱变了而已唱原为跟随 → 钉成基线的解析值（只写未唱时已唱不跟着变）；其余保留源。
+        var sung0 = source.Sung;
+        SungAppearance sung = sung0 with
         {
-            Fill = result.SungMaterial == baseline.SungMaterial && !sourcePackage ? source.Sung.Fill : DrawingMaterial(result.SungMaterial, geometrySeed),
-            Strokes = stroke ? Followable.Follow<StrokeLayers>()
-                : geometrySeed && sungStrokes is { FollowsUnsung: false, Value: { } explicitStrokes } ? Followable.Set(SeedStrokes(explicitStrokes)) : sungStrokes,
-            Shadow = shadow ? Followable.Follow<ShadowSpec?>() : source.Sung.Shadow,
-            Glow = glow ? Followable.Follow<GlowSpec?>() : source.Sung.Glow,
+            Fill = Fill(result.Sung.Fill, baseline.Sung.Fill, sung0.Fill),
+            Strokes = !Same(result.Sung.Strokes, baseline.Sung.Strokes)
+                ? Same(result.Sung.Strokes, result.Unsung.Strokes) ? Followable.Follow<StrokeLayers>() : Followable.Set(Strokes(result.Sung.Strokes))
+                : sung0.Strokes.FollowsUnsung ? strokes ? Followable.Set(Seeded(source0.Strokes)) : sung0.Strokes
+                : Followable.Set(Seeded(sung0.Strokes.Value!)),
+            Shadow = result.Sung.Shadow != baseline.Sung.Shadow
+                ? result.Sung.Shadow == result.Unsung.Shadow ? Followable.Follow<ShadowSpec?>() : Followable.Set<ShadowSpec?>(Shadow(result.Sung.Shadow))
+                : sung0.Shadow.FollowsUnsung && shadow ? Followable.Set<ShadowSpec?>(source0.Shadow) : sung0.Shadow,
+            Glow = result.Sung.Glow != baseline.Sung.Glow
+                ? result.Sung.Glow == result.Unsung.Glow ? Followable.Follow<GlowSpec?>() : Followable.Set<GlowSpec?>(Glow(result.Sung.Glow))
+                : sung0.Glow.FollowsUnsung && glow ? Followable.Set<GlowSpec?>(source0.Glow) : sung0.Glow,
         };
-        return source with { Unsung = unsung, Sung = sung, Opacity = Native(result.Opacity) };
+        return source with
+        {
+            Unsung = unsung, Sung = sung, Opacity = Native(result.Opacity),
+            Wipe = result.Wipe == baseline.Wipe ? source.Wipe : Wipe(result.Wipe),
+        };
+
+        FillSpec Fill(Fx.MaterialValue value, Fx.MaterialValue basis, FillSpec original) =>
+            value == basis && !sourcePackage ? original : DrawingMaterial(value, geometrySeed);
+        StrokeLayers Strokes(ImmutableArray<Fx.StrokeValue> layers) => StrokeLayers.From(layers.Select(layer => Stroke(layer, geometrySeed)!));
+        StrokeLayers Seeded(StrokeLayers layers) => geometrySeed ? SeedStrokes(layers) : layers;
     }
+    private static bool Same(ImmutableArray<Fx.StrokeValue> left, ImmutableArray<Fx.StrokeValue> right) => left.SequenceEqual(right);
     private static Fx.ColorRgba Color(RgbaColor color) => new(color.Red / 255d, color.Green / 255d, color.Blue / 255d, color.Alpha / 255d);
     private static RgbaColor Color(Fx.ColorRgba color) => new(Byte(color.Red), Byte(color.Green), Byte(color.Blue), Byte(color.Alpha));
     private static byte Byte(double value) => checked((byte)Math.Round(value * 255));
@@ -189,8 +223,6 @@ public static class StaticStyleProjection
     };
     private static FillSpec SeedFill(FillSpec fill) => fill.Material is MaterialSpec.PackageMaterial ? new() { Color = RgbaColor.White } : fill;
     // 包材质只允许用在最内层（P3 设计 §10.5），其余层原样保留。
-    private static StrokeLayers WithInnermost(StrokeLayers strokes, StrokeSpec? innermost) =>
-        strokes.Count <= 1 || innermost is null ? StrokeLayers.FromStroke(innermost) : StrokeLayers.From([innermost, .. strokes.Skip(1)]);
     private static StrokeLayers SeedStrokes(StrokeLayers strokes) => strokes.Innermost is { Material: MaterialSpec.PackageMaterial } innermost
         ? StrokeLayers.From([innermost with { Material = new MaterialSpec.Solid(RgbaColor.White) }, .. strokes.Skip(1)]) : strokes;
     private static Fx.GradientValue Gradient(GradientSpec value) => new(

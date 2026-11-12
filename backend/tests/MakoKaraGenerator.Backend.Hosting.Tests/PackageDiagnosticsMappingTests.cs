@@ -12,7 +12,7 @@ namespace MakoKaraGenerator.Backend.Hosting.Tests;
 public sealed class PackageDiagnosticsMappingTests
 {
     private const string Reason = "TransparentBackgroundDependency";
-    private static (ProjectSnapshot Snapshot, ResourceCatalog Catalog) Fixture(bool source = false)
+    private static (ProjectSnapshot Snapshot, ResourceCatalog Catalog) Fixture(bool source = false, bool stroke = false)
     {
         var p = MixedEffectPackageFixture.Contents(background: true);
         var material = new MaterialSpec.PackageMaterial(p.PackageId, p.Revision, "ink", EffectParameterOverrides.Parse("{\"amount\":0.12345678901234567}"));
@@ -20,7 +20,8 @@ public sealed class PackageDiagnosticsMappingTests
         {
             Effects = new([p], [new() { Id = "instance", Name = "instance", PackageId = p.PackageId, Revision = p.Revision, ExportId = "controller",
                 Binding = new(ProjectEffectBindingKind.Project), Subscription = new("project") }]),
-            LyricStyle = source ? LyricStyle.Default with { UnsungFill = new() { Material = material }, SungFill = new() { Material = material }, Stroke = null } : LyricStyle.Default,
+            LyricStyle = source ? LyricStyle.Default with { UnsungFill = new() { Material = material }, SungFill = new() { Material = material },
+                Stroke = stroke ? new StrokeSpec { Material = material, WidthPx = 4 } : null } : LyricStyle.Default,
         };
         return (ProjectSnapshot.FromProject(project), new(p.PackageId, p.Revision, ["ink"], ["tint"], []));
     }
@@ -87,6 +88,22 @@ public sealed class PackageDiagnosticsMappingTests
         var decoded = new PackageRenderDiagnosticsMapper(snapshot).DecodeFrame(wire);
         Assert.Equal(frame.MaterialDiagnostics.ToArray(), decoded.Material.ToArray());
         Assert.Equal(reference.Material.Parameters.Json, wire.Material[0].Owner.ParametersJson);
+    }
+
+    [Fact]
+    public void 已唱描边槽可引用跟随来源的未唱描边路径而不能引用填充路径()
+    {
+        var (snapshot, catalog) = Fixture(true, stroke: true);
+        var references = SourceMaterialCatalog.Collect(snapshot.LyricStyle, snapshot.Lyrics, snapshot.LyricPresentation);
+        var stroke = references.Single(item => item.Path.EndsWith(".unsung.strokes.0.material", StringComparison.Ordinal));
+        var fill = references.Single(item => item.Path.EndsWith(".unsung.fill", StringComparison.Ordinal));
+        using RenderFrame frame = new(new byte[16], new() { PixelWidth = 2, PixelHeight = 2 }, PixelFormat.Bgra8888Premultiplied, 0)
+        { MaterialDiagnostics = [new(new PreparedMaterialOwner.Source(stroke, PreparedMaterialSlot.SungStroke), catalog.GetMaterial("ink"), "background", Reason)] };
+        var mapper = new PackageRenderDiagnosticsMapper(snapshot);
+        Assert.Equal(frame.MaterialDiagnostics.ToArray(), mapper.DecodeFrame(PackageRenderDiagnosticsMapper.EncodeFrame(frame)).Material.ToArray());
+        using RenderFrame wrong = new(new byte[16], new() { PixelWidth = 2, PixelHeight = 2 }, PixelFormat.Bgra8888Premultiplied, 0)
+        { MaterialDiagnostics = [new(new PreparedMaterialOwner.Source(fill, PreparedMaterialSlot.SungStroke), catalog.GetMaterial("ink"), "background", Reason)] };
+        Assert.Equal("WorkerPackageDiagnosticsInvalid", Assert.Throws<WorkerProtocolException>(() => mapper.DecodeFrame(PackageRenderDiagnosticsMapper.EncodeFrame(wrong))).Code);
     }
 
     [Fact]

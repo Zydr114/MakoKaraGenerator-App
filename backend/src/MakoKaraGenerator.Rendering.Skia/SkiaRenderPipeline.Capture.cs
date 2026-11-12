@@ -12,8 +12,10 @@ public sealed partial class SkiaRenderPipeline
     private sealed record CapturePaint(GraphInputSource Source, SceneCaptureRecipe Recipe, string? TokenId,
         ImageSurfaceBudgetFrame? Budget = null, long PixelBytes = 0, SceneColorPart? Part = null, HashSet<string>? ExcludedTokens = null,
         EffectMaterialFallback? MaterialFallback = null, bool? RequestedSungPass = null, bool MaterialOperation = false,
-        CaptureDrawProbe? Probe = null, WipeBandProbe? WipeBand = null)
+        CaptureDrawProbe? Probe = null, WipeBandProbe? WipeBand = null, bool InnermostStroke = false)
     {
+        // InnermostStroke：描边按两态拆侧时的一侧，只取本态最内层一圈（外圈另由外圈描边部件画出）；
+        // 覆盖捕获时只画这一圈、不画字形。与之对应的材质一侧本就只取最内层（MaterialOperation）。
         /// <summary>即将在未被剪空的画布上发起部件绘制时记录；未记录即可证明捕获面仍是初始透明。</summary>
         public void MarkDrawn(SKCanvas canvas) { if (Probe is { } probe && !canvas.IsClipEmpty) probe.Drew = true; }
         public bool IsCoverage => Source != GraphInputSource.TargetColor;
@@ -39,15 +41,18 @@ public sealed partial class SkiaRenderPipeline
                 return source with { UnsungFill = materialFill, SungFill = materialFill, Opacity = 1, Shadow = null, Glow = null,
                     Stroke = Recipe.IncludeStroke && source.Stroke is { } outline ? outline with { Material = materialFill.Material } : null };
             }
-            if (!IsCoverage) return source with { Unsung = source.Unsung with { Strokes = Recipe.IncludeStroke ? source.Unsung.Strokes : StrokeLayers.Empty,
+            if (!IsCoverage) return source with { Unsung = source.Unsung with { Strokes = !Recipe.IncludeStroke ? StrokeLayers.Empty
+                    : InnermostStroke ? StrokeLayers.FromStroke(source.Unsung.Strokes.Innermost) : source.Unsung.Strokes,
                 Shadow = Recipe.IncludeShadow ? source.Shadow : null, Glow = Recipe.IncludeGlow ? source.Glow : null } };
-            bool stroke = Source == GraphInputSource.StrokeCoverage || Source == GraphInputSource.TargetRegionCoverage && Recipe.Region is SceneCaptureRegion.Stroke or SceneCaptureRegion.FillAndStroke;
-            bool fill = Source != GraphInputSource.StrokeCoverage && (Source != GraphInputSource.TargetRegionCoverage || Recipe.Region != SceneCaptureRegion.Stroke);
+            bool stroke = InnermostStroke || Source == GraphInputSource.StrokeCoverage
+                || Source == GraphInputSource.TargetRegionCoverage && Recipe.Region is SceneCaptureRegion.Stroke or SceneCaptureRegion.FillAndStroke;
+            bool fill = !InnermostStroke && Source != GraphInputSource.StrokeCoverage
+                && (Source != GraphInputSource.TargetRegionCoverage || Recipe.Region != SceneCaptureRegion.Stroke);
             var color = fill ? RgbaColor.White : new RgbaColor(0, 0, 0, 0);
             // 描边覆盖是全部描边圈的并集（D-P3-9）；描边材质的区域只是最内层一圈。
             var white = new MaterialSpec.Solid(RgbaColor.White);
             var strokes = !stroke ? StrokeLayers.Empty
-                : MaterialOperation && Part is SceneColorPart.BaseStroke or SceneColorPart.RubyStroke
+                : InnermostStroke || MaterialOperation && Part is SceneColorPart.BaseStroke or SceneColorPart.RubyStroke
                     ? StrokeLayers.FromStroke(source.Unsung.Strokes.Innermost is { IsValid: true, WidthPx: > 0 } spec ? spec with { Material = white } : null)
                     : StrokeLayers.From(source.Unsung.Strokes.Where(static layer => layer.IsValid && layer.WidthPx > 0).Select(layer => layer with { Material = white }));
             return source with { SungFill = new() { Color = color }, Opacity = 1,

@@ -160,8 +160,9 @@ internal static class StaticValidationTask
             {
                 PreparedMaterialOwner.Script script => new("script", new(script.InstanceId.Value, script.ArtifactHash,
                     script.PackageIdentity is null ? null : new(script.PackageIdentity.PackageId, script.PackageIdentity.Revision, script.PackageIdentity.ExportId))),
+                // HTTP 合同 1.49 的诊断槽只有 0～2：已唱描边（3）暂按描边（2）报告，P3 第 7 步合同放宽到 0～3。
                 PreparedMaterialOwner.Source source => new("source", null, new(source.Reference.Path, source.Reference.Region,
-                    (int)source.Slot, new(source.Reference.Material.PackageId, source.Reference.Material.Revision, source.Reference.Material.ExportId), source.Reference.Material.Parameters.Json)),
+                    Math.Min((int)source.Slot, 2), new(source.Reference.Material.PackageId, source.Reference.Material.Revision, source.Reference.Material.ExportId), source.Reference.Material.Parameters.Json)),
                 _ => throw new RenderSessionFailureException("WorkerUnsupportedValidationIssue", "材质诊断来源无效。"),
             };
             return new(value.Code, "warning", value.Code, (string?)null, OriginKind: "material",

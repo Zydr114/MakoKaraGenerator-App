@@ -470,7 +470,10 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
 
         // 扫字线高亮的峰按整行采样求出，正文各条绘制路径共用（P3 设计 §10.3）；注音在 DrawRuby 里另求。
         IReadOnlyList<HighlightPeak> previousHighlight = _baseHighlight;
-        _baseHighlight = BuildHighlights(sample, shaped, token => ElementWipe(lineStyle, line, token), options.FontSizePx);
+        // 脚本写过扫字样式的元素按准备后的绘制描述取高亮（底字输出优先于元素族），其余按元素覆盖与行样式。
+        var prepared = PreparedWipes(request.PreparedFrame, scene.BindingId);
+        _baseHighlight = BuildHighlights(sample, shaped, token => prepared is not null && token.Index < line.Tokens.Length
+            && prepared.TryGetValue(line.Tokens[token.Index].Id, out var wipe) ? wipe : ElementWipe(lineStyle, line, token), options.FontSizePx);
         try
         {
             DrawSceneLineContent(canvas, request, composition, scene, capture, resources, sample, line, lineStyle, options, layout);
@@ -538,7 +541,7 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
         // 因此夹在两个已定时元素之间的未定时元素不会被连续填充误染成已唱色。
         // 羽化时过渡带内两态交叉淡化，元素各按自己的羽化比例（P3 设计 §10.1）。
         SKRect bounds = canvas.LocalClipBounds;
-        using WipePartition wipe = BuildWipe(sample, shaped, originX, bounds, lineStyle.DecorationsDifferByState,
+        using WipePartition wipe = BuildWipe(sample, shaped, originX, bounds, WipeEdges(lineStyle, capture),
             token => FeatherRatio(lineStyle, line, token), options.FontSizePx);
         DrawWiped(canvas, wipe, () => WipeStatesDiffer(lineStyle, capture)
             || line.Tokens.Any(token => token.StyleOverride is { } overlay && WipeStatesDiffer(ResolveElementStyle(lineStyle, overlay), capture)),

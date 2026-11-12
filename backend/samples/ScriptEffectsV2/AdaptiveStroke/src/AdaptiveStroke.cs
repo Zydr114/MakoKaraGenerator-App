@@ -28,7 +28,7 @@ public sealed class AdaptiveStroke : IPureKaraokeEffect
             double luminance = values.MeanPremulY;
             double busy = Math.Min(1, Math.Sqrt(values.PremulYVariance) * 4);
             var color = luminance >= settings.Threshold ? Dark : Light;
-            output.SetStroke(token.WithRuby, new StrokeValue(settings.WidthPx * (1 + settings.Busy * busy), MaterialValue.Solid(color)));
+            output.SetStrokes(token.WithRuby, TextState.Both, new StrokeValue(settings.WidthPx * (1 + settings.Busy * busy), MaterialValue.Solid(color)));
         }
     }
 

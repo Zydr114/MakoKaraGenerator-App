@@ -39,7 +39,10 @@ public sealed partial class WipeFeatherRenderingTests
         graph["composite"] = new JsonObject { ["mode"] = "replaceCoveredBackdrop", ["coverage"] = "input:region" };
     }
 
-    /// <summary>手工准备帧：每个元素的 Base 按 <see cref="MaterialSides"/> 绑定「ink」（rgb × amount，未唱 0.25、已唱 1）；可选用组 identity 图触发前缀调度。</summary>
+    /// <summary>
+    /// 手工准备帧：每个元素的 Base 按 <see cref="MaterialSides"/> 绑定「ink」（rgb × amount，未唱 0.25、已唱 1）；可选用组 identity 图触发前缀调度。
+    /// 描边模式下改写两态各一层同宽描边并绑定描边槽；same 时两态用同一材质。
+    /// </summary>
     private sealed class SideRig : IDisposable
     {
         private static readonly Fx.ResourceCatalog GroupCatalog = new("wipe-sides", "sha256:" + new string('d', 64), [], ["identity"], []);
@@ -63,7 +66,9 @@ public sealed partial class WipeFeatherRenderingTests
                 [], [], GraphReference.Input("color"), GraphCoordinateSpace.Canvas, 0, GraphAnchorMode.ColorOnly, GraphCompositeMode.SourceOver), [], []));
         }
 
-        internal byte[] Render(Project project, MaterialSides sides, long time, bool prefix, out ImageSurfaceUsage usage)
+        internal const double StrokeWidth = 8;
+
+        internal byte[] Render(Project project, MaterialSides sides, long time, bool prefix, out ImageSurfaceUsage usage, bool stroke = false, bool same = false)
         {
             var snapshot = ProjectSnapshot.FromProject(project with { Effects = new([_package], []) });
             RenderTarget target = new() { PixelWidth = Width, PixelHeight = Height };
@@ -71,17 +76,20 @@ public sealed partial class WipeFeatherRenderingTests
             using (var measure = new SkiaRenderPipeline()) scene = measure.GetSceneFrame(snapshot, time);
             var frame = new PreparedRenderFrame(snapshot, time, Fx.OutputMode.Opaque, target, scene, []);
             var owner = new PreparedMaterialOwner.Script(new("writer"), "writer-artifact");
-            Fx.MaterialValue.PackageMaterial? unsung = sides is MaterialSides.Sung ? null : _unsung, sung = sides is MaterialSides.Unsung ? null : _sung;
+            Fx.MaterialValue.PackageMaterial? unsung = sides is MaterialSides.Sung ? null : _unsung, sung = sides is MaterialSides.Unsung ? null : same ? _unsung : _sung;
+            PreparedMaterialSlot unsungSlot = stroke ? PreparedMaterialSlot.UnsungStroke : PreparedMaterialSlot.UnsungFill;
+            PreparedMaterialSlot sungSlot = stroke ? PreparedMaterialSlot.SungStroke : PreparedMaterialSlot.SungFill;
             PreparedMaterialSlot[] slots = sides switch
             {
-                MaterialSides.Both => [PreparedMaterialSlot.UnsungFill, PreparedMaterialSlot.SungFill],
-                MaterialSides.Unsung => [PreparedMaterialSlot.UnsungFill],
-                _ => [PreparedMaterialSlot.SungFill],
+                MaterialSides.Both => [unsungSlot, sungSlot],
+                MaterialSides.Unsung => [unsungSlot],
+                _ => [sungSlot],
             };
+            var update = stroke ? new Fx.StyleUpdate(Strokes(unsung), Strokes(sung)) : TestStyle.Update(unsung, sung);
             var tokens = frame.FinalGeometry.ToArray();
-            frame = frame.WithTextPartitions([], [.. tokens.Select(token => new Fx.V2.BaseTokenStyle(token.BaseOnly, new(unsung, sung)))], [],
+            frame = frame.WithTextPartitions([], [.. tokens.Select(token => new Fx.V2.BaseTokenStyle(token.BaseOnly, update))], [],
                 [.. tokens.SelectMany(token => slots.Select(slot => new PreparedBaseMaterialBinding(owner, token.BaseOnly, slot,
-                    slot == PreparedMaterialSlot.SungFill ? sung! : unsung!)))]);
+                    slot == sungSlot ? sung! : unsung!)))]);
             if (prefix)
             {
                 Fx.ImageEffectTarget.Group root = new(new(new(snapshot.LyricPresentation.FindProgram("primary")!.RootContainerId)));
@@ -98,6 +106,9 @@ public sealed partial class WipeFeatherRenderingTests
             Assert.Equal(0, usage.ActiveSurfaces);
             return rendered.PixelMemory.ToArray();
         }
+
+        private static Fx.AppearanceUpdate? Strokes(Fx.MaterialValue? material) =>
+            material is null ? null : new(strokes: new([new(StrokeWidth, material, Fx.StrokeJoin.Miter)]));
 
         private Fx.MaterialValue.PackageMaterial Ink(double amount) => (Fx.MaterialValue.PackageMaterial)Fx.MaterialValue.PackageExport(_handle,
             new Fx.ParameterValues([new("amount", new Fx.ParameterValue.Number(amount))]));

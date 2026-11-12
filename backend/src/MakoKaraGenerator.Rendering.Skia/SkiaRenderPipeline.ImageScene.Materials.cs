@@ -10,7 +10,7 @@ public sealed partial class SkiaRenderPipeline
         SceneColorPart part, bool? sung, ImageObjectState state, SkiaGraphSurface? below, WipeBandProbe? wipeBand = null)
     {
         var output = request.ResolveTarget(); var composition = request.Project.Composition;
-        var regionKind = binding.Slot == PreparedMaterialSlot.Stroke ? SceneCaptureRegion.Stroke : SceneCaptureRegion.Fill;
+        var regionKind = PreparedMaterialSlots.IsStroke(binding.Slot) ? SceneCaptureRegion.Stroke : SceneCaptureRegion.Fill;
         var context = new ImageGraphFrameContext(request.TimeUs, composition.CanvasWidth, composition.CanvasHeight,
             MaterialTargetBounds(state.TargetRegion, program),
             output.ScaleXOf(composition), output.ScaleYOf(composition), binding.Material.Parameters, request.TransparentBackground)

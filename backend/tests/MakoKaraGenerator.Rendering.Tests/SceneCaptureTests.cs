@@ -49,7 +49,7 @@ public sealed class SceneCaptureTests
         var project = Single(); var snapshot = ProjectSnapshot.FromProject(project) with { EffectInputsFingerprint = "capture-fixed" };
         using SkiaRenderPipeline pipeline = new(); var scene = pipeline.GetSceneFrame(snapshot, 1_000_000);
         var token = scene.TokenGeometries[0]; var line = Line(scene);
-        var style = new Fx.StyleUpdate(sung: Fx.MaterialValue.Solid(new(0, 1, 0, .7)), opacityFactor: .5);
+        var style = TestStyle.Update(sung: Fx.MaterialValue.Solid(new(0, 1, 0, .7)), opacityFactor: .5);
         var prepared = new PreparedRenderFrame(snapshot, scene.TimeUs, Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition), scene,
             [new(token.WithRuby, Fx.Affine2.ScaleAt(1.3, token.BaseGeometry.AdvanceBounds.Center))], [new(token.WithRuby, style)], [],
             lineTransforms: [new(line.Target, Fx.Affine2.Translation(14, -9))]);

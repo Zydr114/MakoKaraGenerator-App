@@ -208,7 +208,7 @@ public sealed class V2TextPartitionTests
         Fx.GlowValue value = new(new(1, 0, 0, 210 / 255d), glow.Opacity, glow.BlurRadiusPx, glow.SpreadPx);
         var dynamicPrepared = new PreparedRenderFrame(snapshot, scene.TimeUs, Fx.OutputMode.Transparent,
             RenderTarget.FromComposition(snapshot.Composition), scene, [],
-            [.. scene.TokenGeometries.Select(token => new Fx.TokenFamilyStyle(token.WithRuby, new(glow: new(value))))]);
+            [.. scene.TokenGeometries.Select(token => new Fx.TokenFamilyStyle(token.WithRuby, TestStyle.Update(glow: new(value))))]);
         var expectedPrepared = Prepared(expectedSnapshot, expectedScene);
         var target = scene.TokenGeometries[0];
         if (partition == 1)

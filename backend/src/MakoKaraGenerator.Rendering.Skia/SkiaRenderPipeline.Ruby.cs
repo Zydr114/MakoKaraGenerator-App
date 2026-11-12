@@ -46,7 +46,7 @@ public sealed partial class SkiaRenderPipeline
         void DrawSegments(RubyLayout entry, LyricStyle style, bool glow)
         {
             float x = origin + entry.X, y = baseline + entry.Baseline;
-            bool edges = style.DecorationsDifferByState;
+            bool edges = WipeEdges(style, capture);
 
             // Aggregate shaping is shared by all segments; only sung/unsung clips vary.
             for (int i = 0; i < entry.Segments.Length; i++)

@@ -92,11 +92,11 @@ internal static class BaseMaterialPackageFixture
                     var parameters = new ParameterValues(new[] { KeyValuePair.Create<string, ParameterValue>("amount", new ParameterValue.Number(.5)) });
                     var material = MaterialValue.PackageExport(a, parameters);
                     if (d.Mode == 2) { o.MultiplyOpacity(b, .5); continue; }
-                    if (d.Mode == 12 || d.Mode == 13) o.SetGlow(d.Mode == 12 ? b : family, new GlowValue(new(1,0,0,.8), .8, 14, 3));
-                    if (d.Mode == 10) { o.SetStroke(b, new StrokeValue(5, material)); o.SetFill(b, FillState.Sung, MaterialValue.Solid(new(0,0,0,0))); o.SetFill(b, FillState.Unsung, MaterialValue.Solid(new(0,0,0,0))); continue; }
-                    foreach (var state in new[] { FillState.Unsung, FillState.Sung })
+                    if (d.Mode == 12 || d.Mode == 13) o.SetGlow(d.Mode == 12 ? b : family, TextState.Both, new GlowValue(new(1,0,0,.8), .8, 14, 3));
+                    if (d.Mode == 10) { o.SetStrokes(b, TextState.Both, new StrokeValue(5, material)); o.SetFill(b, TextState.Sung, MaterialValue.Solid(new(0,0,0,0))); o.SetFill(b, TextState.Unsung, MaterialValue.Solid(new(0,0,0,0))); continue; }
+                    foreach (var state in new[] { TextState.Unsung, TextState.Sung })
                     {
-                        var slot = state == FillState.Sung ? MaterialSlot.SungFill : MaterialSlot.UnsungFill;
+                        var slot = state == TextState.Sung ? MaterialSlot.SungFill : MaterialSlot.UnsungFill;
                         if (d.Mode == 9) { o.SetMaterialUniform(b, slot, a, "probe", "amount", UniformValue.Float(.75)); continue; }
                         if (d.Mode == 0 || d.Mode == 3) o.SetFill(family, state, MaterialValue.PackageExport(a, new ParameterValues(new[] { KeyValuePair.Create<string, ParameterValue>("amount", new ParameterValue.Number(1)) })));
                         if (d.Mode == 3) { o.SetFill(b, state, MaterialValue.Solid(new(0,1,0,1))); continue; }

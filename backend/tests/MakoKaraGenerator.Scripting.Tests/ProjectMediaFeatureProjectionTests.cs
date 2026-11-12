@@ -268,7 +268,7 @@ public sealed class ProjectMediaFeatureProjectionTests
         Assert.Same(references[0].Material, references[1].Material); Assert.Same(references[0].Material, references[2].Material);
         var value = (MaterialValue.PackageMaterial)MaterialValue.PackageExport(F.Resources(rig.Package).GetMaterial("ink"), F.Parameters(rig.Catalog, "ink"));
         var projections = references.Select(reference => ProjectMediaFeatureProjection.ResolveSource(rig.Binding,
-            new(reference, reference.Region == "stroke" ? PreparedMaterialSlot.Stroke : PreparedMaterialSlot.UnsungFill), rig.Catalog, value)).ToArray();
+            new(reference, PreparedMaterialSlots.Of(reference)), rig.Catalog, value)).ToArray();
         Assert.Equal(SourcePaths, projections.Select(item => item.Owner!.Path));
         Assert.Equal(SourceRegions, projections.Select(item => item.Owner!.Region));
         for (int index = 0; index < projections.Length; index++) Assert.Same(rig.Plan.Owners[index], projections[index].Owner);

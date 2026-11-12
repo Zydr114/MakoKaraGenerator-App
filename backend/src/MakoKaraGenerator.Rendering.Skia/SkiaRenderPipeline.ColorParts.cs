@@ -36,7 +36,9 @@ public sealed partial class SkiaRenderPipeline
         var surface = RasterSceneSurface(request, bounds, budget, ShaderSurfaceKind.Color, surfaceBudget, "CaptureSceneColorPart", (canvas, resources, bytes) =>
         {
             var paint = new CapturePaint(GraphInputSource.TargetColor, recipe, CaptureTokenId(target),
-                resources, bytes, part, excludedTokens, RequestedSungPass: sungPass, Probe: probe, WipeBand: wipeBand);
+                resources, bytes, part, excludedTokens, RequestedSungPass: sungPass, Probe: probe, WipeBand: wipeBand,
+                // 描边只有按两态拆侧时才按侧捕获：这一侧只画本态最内层一圈。
+                InnermostStroke: sungPass is not null && part is SceneColorPart.BaseStroke or SceneColorPart.RubyStroke);
             if (item.Line is { } line) DrawSceneLine(canvas, request, request.Project.Composition, line, paint);
             else DrawTextMark(canvas, request, request.Project.Composition, item.Mark!, paint);
         });

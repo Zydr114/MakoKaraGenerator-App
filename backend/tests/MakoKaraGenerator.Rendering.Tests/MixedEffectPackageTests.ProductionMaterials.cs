@@ -29,9 +29,10 @@ public sealed partial class MixedEffectPackageTests
         await using var session = await new PureFrameSourceFactory([effect],Fingerprint,static()=>new SkiaRenderPipeline()).CreateAsync(snapshot);
         var output = new RenderTarget { PixelWidth=640*density, PixelHeight=360*density };
         var prepared = await session.PrepareAsync(1_000_000,Fx.OutputMode.Transparent,output);
-        Assert.Equal(2,prepared.Materials.Length);
+        // 两态同写的描边在两个描边槽各有一份绑定（0.112.82）。
+        Assert.Equal(stroke ? 3 : 2,prepared.Materials.Length);
         var target = Assert.Single(prepared.FinalGeometry).WithRuby;
-        Assert.IsType<Fx.MaterialValue.PackageMaterial>(prepared.GetTokenAppearance(target).SungMaterial);
+        Assert.IsType<Fx.MaterialValue.PackageMaterial>(prepared.GetTokenAppearance(target).Sung.Fill);
         Assert.Equal("MaterialAppearanceRequiresCoordinator",Assert.Throws<PreparedFrameException>(()=>prepared.GetTokenStyle(target)).Code);
         Assert.Equal(prepared.Materials,prepared.WithVisualOutput([],prepared.Diagnostics).Materials);
         using var native=CompiledPackageGraphExports.Compile(package.Definition);
@@ -118,8 +119,8 @@ public sealed partial class MixedEffectPackageTests
         using var renderer=new SkiaRenderPipeline(null,null,null,resources);
         using var actual=renderer.Render(RenderRequest.At(snapshot,prepared.TimeUs) with { PreparedFrame=prepared,TransparentBackground=true });
         Assert.Contains(actual.PixelMemory.ToArray().Where((_,i)=>i%4==3),a=>a>0);
-        string resetSource=MixedEffectPackageFixture.MaterialSource.Replace("material);","frame.Baseline.Get(token.WithRuby).UnsungMaterial);")
-            .Replace("output.Style.SetSungMaterial(token.WithRuby, frame.Baseline.Get(token.WithRuby).UnsungMaterial);","output.Style.SetSungMaterial(token.WithRuby,frame.Baseline.Get(token.WithRuby).SungMaterial);");
+        string resetSource=MixedEffectPackageFixture.MaterialSource.Replace("material);","frame.Baseline.Get(token.WithRuby).Unsung.Fill);")
+            .Replace("output.Style.SetSungMaterial(token.WithRuby, frame.Baseline.Get(token.WithRuby).Unsung.Fill);","output.Style.SetSungMaterial(token.WithRuby,frame.Baseline.Get(token.WithRuby).Sung.Fill);");
         var reset=await Compile(MixedEffectPackageFixture.MaterialContents(controllerSource:resetSource));
         await using var resetSession=await new PureFrameSourceFactory([material.CreateEffect("controller",new("first"),new Fx.EffectBinding.Project(),1),
             reset.CreateEffect("controller",new("reset"),new Fx.EffectBinding.Project(),1)],Fingerprint,static()=>new SkiaRenderPipeline()).CreateAsync(snapshot);
@@ -193,7 +194,7 @@ public sealed partial class MixedEffectPackageTests
         using var renderer=new SkiaRenderPipeline(null,null,null,resources);
         var request=RenderRequest.At(snapshot,prepared.TimeUs) with {PreparedFrame=prepared,TransparentBackground=true};
         using var actual=renderer.Render(request);Assert.Contains(actual.PixelMemory.ToArray().Where((_,i)=>i%4==3),a=>a>0);
-        var mark=prepared.FinalMarkGeometry[0];Assert.IsType<Fx.MaterialValue.PackageMaterial>(prepared.GetMarkAppearance(mark.Target).UnsungMaterial);
+        var mark=prepared.FinalMarkGeometry[0];Assert.IsType<Fx.MaterialValue.PackageMaterial>(prepared.GetMarkAppearance(mark.Target).Unsung.Fill);
         using var capture=renderer.CaptureSceneMaterialRegion(request,new SceneCaptureTarget.Mark(mark.Target),SceneColorPart.BaseFill,
             package.Definition.GetMaterial("ink").Fallback,null,new(0,0,snapshot.Composition.CanvasWidth,snapshot.Composition.CanvasHeight),GraphExecutionBudget.Default);
         var pixels=Bytes(capture.TargetColor);int checkedPixels=0;var actualPixels=actual.PixelMemory.ToArray();

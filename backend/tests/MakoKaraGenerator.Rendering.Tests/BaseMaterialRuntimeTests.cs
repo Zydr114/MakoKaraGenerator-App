@@ -41,7 +41,7 @@ public sealed class BaseMaterialRuntimeTests
                 // Explicit Base Solid still uses the original direct Solid reference.
                 MaterialValue color = MaterialValue.Solid(new(0,1,0,1));
                 var reference = parent.WithTextPartitions(frame.BaseTransforms,
-                    [new(token.BaseOnly, new StyleUpdate(color, color, opacityFactor: .5))], frame.ClusterTransforms);
+                    [new(token.BaseOnly, TestStyle.Update(color, color, opacityFactor: .5))], frame.ClusterTransforms);
                 using var expected = Render(renderer, snapshot, reference);
                 Compare(expected, actual, 2);
             }

@@ -34,7 +34,7 @@ public sealed class BaseMaterialCompositionTests
         // A separate transparent-Base parent frame supplies the Ruby reference under the original graphs.
         var clear = MaterialValue.Solid(new(0,0,0,0));
         var rubyReference = BaseMaterialPackageFixture.Parent(prepared).WithTextPartitions([], [new(token.BaseOnly,
-            new StyleUpdate(clear,clear,new(null),new(null),glow:new(null)))],[]).WithImageEffects(graphs);
+            TestStyle.Update(clear, clear, [], new(null), new(null)))],[]).WithImageEffects(graphs);
         using var ruby = BaseMaterialRuntimeTests.Render(renderer,snapshot,rubyReference);
         BaseMaterialRuntimeTests.RubyEqual(ruby,actual,Assert.Single(rubyReference.FinalGeometry));
         BaseMaterialPixelOracle.Compare(expected,actual,2);

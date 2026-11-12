@@ -45,15 +45,20 @@ public sealed partial class SkiaRenderPipeline
     }
 
     /// <summary>扫字遮罩用的一张部件覆盖（字形覆盖或已唱覆盖），只含该部件的字形，范围是对象工作框。</summary>
+    /// <remarks>
+    /// 描边部件取各态最内层一圈的覆盖。两态最内层描边形状不同时，m 是两态覆盖之比的近似：
+    /// 过渡带内两种形状的差异部分按各自一侧的覆盖淡入淡出，带外与两侧单独绘制相同。
+    /// </remarks>
     private SkiaGraphSurface CaptureWipeCoverage(RenderRequest request, SceneCaptureTarget target, SceneColorPart part, GraphInputSource source,
         ImageObjectState state, HashSet<string>? excludedTokens)
     {
-        var recipe = new SceneCaptureRecipe(IsRuby(part), false, false, false, SceneCaptureRegion.Fill, IncludeGlow: false);
+        bool stroke = part is SceneColorPart.BaseStroke or SceneColorPart.RubyStroke;
+        var recipe = new SceneCaptureRecipe(IsRuby(part), stroke, false, false, stroke ? SceneCaptureRegion.Stroke : SceneCaptureRegion.Fill, IncludeGlow: false);
         var item = SelectCaptureItems(request.PreparedFrame!.HierarchyScene, target, recipe).Single();
         return RasterSceneSurface(request, state.Bounds, state.Budget, ShaderSurfaceKind.Coverage, state.Resources, "CaptureWipeCoverage",
             (canvas, resources, bytes) =>
             {
-                var paint = new CapturePaint(source, recipe, CaptureTokenId(target), resources, bytes, part, excludedTokens);
+                var paint = new CapturePaint(source, recipe, CaptureTokenId(target), resources, bytes, part, excludedTokens, InnermostStroke: stroke);
                 if (item.Line is { } line) DrawSceneLine(canvas, request, request.Project.Composition, line, paint);
                 else DrawTextMark(canvas, request, request.Project.Composition, item.Mark!, paint);
             });

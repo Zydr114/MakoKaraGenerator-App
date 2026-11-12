@@ -81,7 +81,6 @@ public sealed class PreparedSourceMaterials
 
         void Add(ImageEffectTarget target, PresetStyleResolution resolution)
         {
-            RejectSungStrokeMaterial(resolution.Style);
             foreach (var slot in Enum.GetValues<PreparedMaterialSlot>())
                 if (Reference(resolution, slot) is { } reference)
                     bindings.Add(new(new PreparedMaterialOwner.Source(reference, slot), target, slot, Resolve(reference.Material)));
@@ -104,26 +103,15 @@ public sealed class PreparedSourceMaterials
         return reference == source.Reference && reference is not null && Resolve(reference.Material) == binding.Material;
     }
 
-    /// <summary>
-    /// 过渡期（P3 第 3～5 步）：描边材质槽在第 6 步随 SDK 分成两态；此前已唱显式描边的最内层材质与未唱不同、
-    /// 且其中一侧是包材质时，材质只能按未唱一侧绑定，会把已唱描边画错，因此明确拒绝。两态材质相同或都不是包材质时照常绘制。
-    /// </summary>
-    private static void RejectSungStrokeMaterial(LyricStyle style)
-    {
-        if (style.Sung.Strokes.FollowsUnsung) return;
-        var unsung = style.Unsung.Strokes.Innermost?.Material;
-        var sung = style.Sung.Strokes.Value?.Innermost?.Material;
-        if (unsung != sung && (unsung is MaterialSpec.PackageMaterial || sung is MaterialSpec.PackageMaterial))
-            throw new PreparedFrameException("SungStrokeMaterialPending", "已唱描边与未唱使用不同的包材质（或只有一态是包材质）要到 P3 第 6 步才接入，不能按未唱材质画已唱描边。");
-    }
-
     private SourceMaterialReference? Reference(PresetStyleResolution resolution, PreparedMaterialSlot slot)
     {
         var property = slot switch
         {
             PreparedMaterialSlot.UnsungFill => LyricStyleProperty.UnsungFill,
             PreparedMaterialSlot.SungFill => LyricStyleProperty.SungFill,
-            PreparedMaterialSlot.Stroke => LyricStyleProperty.UnsungStrokes,
+            PreparedMaterialSlot.UnsungStroke => LyricStyleProperty.UnsungStrokes,
+            // 已唱描边跟随未唱时，解析结果指向未唱一侧的源引用（两态共用同一材质）。
+            PreparedMaterialSlot.SungStroke => LyricStyleProperty.SungStrokes,
             _ => throw new ArgumentOutOfRangeException(nameof(slot)),
         };
         var reference = resolution.MaterialReference(property);

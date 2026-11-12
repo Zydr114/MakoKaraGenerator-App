@@ -28,12 +28,12 @@ public sealed class V2MaterialUniformOutputContractTests
     {
         var frame = Frame(); var target = frame.Geometry[0].WithRuby; var output = new TextOutput(frame, ["material.uniform", "style.fill"]);
         output.SetMaterialUniform(target, MaterialSlot.SungFill, Resources.GetMaterial("a"), "unknown-until-final", "amount", UniformValue.Float(.5));
-        output.SetFill(target, FillState.Sung, MaterialValue.PackageExport(Resources.GetMaterial("b"), ParameterValues.Empty));
+        output.SetFill(target, TextState.Sung, MaterialValue.PackageExport(Resources.GetMaterial("b"), ParameterValues.Empty));
         Assert.Collection(output.Complete().Writes, write => Assert.IsType<TextWrite.MaterialUniform>(write), write => Assert.IsType<TextWrite.Fill>(write));
         var failed = new TextOutput(frame, ["material.uniform", "style.fill", "token.affine"]);
         var failure = Assert.Throws<EffectOutputException>(() => failed.SetMaterialUniform(target, MaterialSlot.SungFill, Resources.GetMaterial("a"), "shader", "amount", UniformValue.Float(1e100)));
         Assert.Equal("ShaderUniformNativeRange", failure.Code);
-        Assert.Same(failure, Assert.Throws<EffectOutputException>(() => failed.SetFill(target, FillState.Sung, MaterialValue.Solid(new(1, 1, 1, 1)))));
+        Assert.Same(failure, Assert.Throws<EffectOutputException>(() => failed.SetFill(target, TextState.Sung, MaterialValue.Solid(new(1, 1, 1, 1)))));
         Assert.Same(failure, Assert.Throws<EffectOutputException>(() => failed.AppendTransform(target, Affine2.Identity)));
         Assert.Same(failure, Assert.Throws<EffectOutputException>(() => failed.Complete()));
     }
@@ -51,7 +51,7 @@ public sealed class V2MaterialUniformOutputContractTests
         var foreign = new ResourceCatalog("materials", "sha256:" + new string('b', 64), ["a"], [], []);
         var error = Assert.Throws<EffectOutputException>(() => output.SetMaterialUniform(new TextTarget.Family(target),
             kind == "slot" ? (MaterialSlot)99 : MaterialSlot.SungFill, (kind == "foreign" ? foreign : Resources).GetMaterial("a"), "shader", kind == "name" ? " " : "amount", UniformValue.Float(.5)));
-        Assert.Equal(code, error.Code); Assert.Same(error, Assert.Throws<EffectOutputException>(() => output.SetStroke(target, null)));
+        Assert.Equal(code, error.Code); Assert.Same(error, Assert.Throws<EffectOutputException>(() => output.SetStrokes(target, TextState.Both)));
         Assert.Same(error, Assert.Throws<EffectOutputException>(() => output.SetWarp(target, null))); Assert.Same(error, Assert.Throws<EffectOutputException>(() => output.Complete()));
     }
 
@@ -74,14 +74,14 @@ public sealed class V2MaterialUniformOutputContractTests
         var frame = Frame(); var target = frame.Geometry[0].WithRuby; var output = new TextOutput(frame, ["material.uniform", "style.fill"]);
         for (int i = 0; i < 128; i++)
         {
-            output.SetFill(target, FillState.Sung, MaterialValue.PackageExport(Resources.GetMaterial("a"), ParameterValues.Empty));
+            output.SetFill(target, TextState.Sung, MaterialValue.PackageExport(Resources.GetMaterial("a"), ParameterValues.Empty));
             output.SetMaterialUniform(target, MaterialSlot.SungFill, Resources.GetMaterial("a"), "shader", "amount", UniformValue.Float(.5));
         }
-        Assert.Equal("GraphOutputBudgetExceeded", Assert.Throws<EffectOutputException>(() => output.SetFill(target, FillState.Sung, MaterialValue.Solid(new(1, 1, 1, 1)))).Code);
+        Assert.Equal("GraphOutputBudgetExceeded", Assert.Throws<EffectOutputException>(() => output.SetFill(target, TextState.Sung, MaterialValue.Solid(new(1, 1, 1, 1)))).Code);
         Assert.Throws<EffectOutputException>(() => output.Complete());
         var data = new TextOutput(frame, ["style.fill"]);
         var parameters = new ParameterValues([new("text", new ParameterValue.Text(new string('x', 4 * 1024 * 1024)))]);
-        Assert.Equal("GraphOutputBudgetExceeded", Assert.Throws<EffectOutputException>(() => data.SetFill(target, FillState.Sung, MaterialValue.PackageExport(Resources.GetMaterial("a"), parameters))).Code);
+        Assert.Equal("GraphOutputBudgetExceeded", Assert.Throws<EffectOutputException>(() => data.SetFill(target, TextState.Sung, MaterialValue.PackageExport(Resources.GetMaterial("a"), parameters))).Code);
         Assert.Throws<EffectOutputException>(() => data.Complete());
         var array = new TextOutput(frame, ["material.uniform"]);
         array.SetMaterialUniform(target, MaterialSlot.SungFill, Resources.GetMaterial("a"), "shader", "amount", UniformValue.Array(Enumerable.Repeat(UniformValue.Float(.5), GraphBindingBudget.MaximumScalars)));

@@ -77,13 +77,13 @@ public sealed class BaseEffect : IPureKaraokeEffect
         foreach(var token in f.Geometry)
         {
             TextTarget family=new TextTarget.Family(token.WithRuby); TextTarget basic=new TextTarget.Base(token.BaseOnly);
-            foreach(var state in new[] { FillState.Unsung, FillState.Sung })
+            foreach(var state in new[] { TextState.Unsung, TextState.Sung })
             {
                 o.SetFill(family,state,MaterialValue.Solid(new(0,0,1,1)));
                 o.SetFill(basic,state,material);
-                o.SetMaterialUniform(basic,state==FillState.Sung?MaterialSlot.SungFill:MaterialSlot.UnsungFill,handle,"probe","amount",UniformValue.Float(d.Factor));
+                o.SetMaterialUniform(basic,state==TextState.Sung?MaterialSlot.SungFill:MaterialSlot.UnsungFill,handle,"probe","amount",UniformValue.Float(d.Factor));
             }
-            if(d.Stroke>0) { o.SetStroke(basic,new StrokeValue(4,material)); o.SetMaterialUniform(basic,MaterialSlot.Stroke,handle,"probe","amount",UniformValue.Float(d.Factor)); }
+            if(d.Stroke>0) { o.SetStrokes(basic,TextState.Both,new StrokeValue(4,material)); foreach(var slot in new[] { MaterialSlot.UnsungStroke, MaterialSlot.SungStroke }) o.SetMaterialUniform(basic,slot,handle,"probe","amount",UniformValue.Float(d.Factor)); }
         }
     }
 }

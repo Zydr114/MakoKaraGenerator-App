@@ -33,13 +33,15 @@ public abstract record TextTarget
     public static implicit operator TextTarget(TextClusterTarget value) => new Cluster(value);
 }
 
-/// <summary>填充的明确演唱状态；未写继承源基线。</summary>
-public enum FillState
+/// <summary>样式写入作用的演唱状态；未写的一态继承源基线。</summary>
+public enum TextState
 {
-    /// <summary>未唱；提示标记对应 Pending。</summary>
+    /// <summary>未唱；文字标记对应 Pending。</summary>
     Unsung,
-    /// <summary>已唱；提示标记对应 Elapsed。</summary>
+    /// <summary>已唱；文字标记对应 Elapsed。</summary>
     Sung,
+    /// <summary>两态：等于未唱、已唱各写一次。</summary>
+    Both,
 }
 
 /// <summary>一条已校验的不可变文字输出；数组顺序即作者调用顺序，合成不得任意排序。</summary>
@@ -63,35 +65,58 @@ public abstract partial record TextWrite
         /// <summary>有限 [0,1] 因子。</summary>
         public double Factor { get; }
     }
-    /// <summary>明确演唱态的填充叶属性，后写覆盖。</summary>
+    /// <summary>一态的填充，后写覆盖。</summary>
     public sealed record Fill : TextWrite
     {
-        internal Fill(TextTarget target, FillState state, MaterialValue material) : base(target) { State = state; Material = material; }
-        /// <summary>未唱或已唱。</summary>
-        public FillState State { get; }
+        internal Fill(TextTarget target, TextState state, MaterialValue material) : base(target) { State = state; Material = material; }
+        /// <summary>未唱或已唱；「两态」在写入时已展开成两条。</summary>
+        public TextState State { get; }
         /// <summary>完整固定材质。</summary>
         public MaterialValue Material { get; }
     }
-    /// <summary>整体替换描边；null 明确关闭，未写继承。</summary>
-    public sealed record Stroke : TextWrite
+    /// <summary>一态的描边整表替换；空表为无描边，未写继承。</summary>
+    public sealed record Strokes : TextWrite
     {
-        internal Stroke(TextTarget target, StrokeValue? value) : base(target) { Value = value; }
-        /// <summary>新的完整描边或 null。</summary>
-        public StrokeValue? Value { get; }
+        internal Strokes(TextTarget target, TextState state, ImmutableArray<StrokeValue> layers) : base(target) { State = state; Layers = layers; }
+        /// <summary>未唱或已唱；「两态」在写入时已展开成两条。</summary>
+        public TextState State { get; }
+        /// <summary>由内向外 0～4 层。</summary>
+        public ImmutableArray<StrokeValue> Layers { get; }
+        /// <summary>逐层比较。</summary>
+        public bool Equals(Strokes? other) => ReferenceEquals(this, other) || other is not null && Target == other.Target
+            && State == other.State && Layers.SequenceEqual(other.Layers);
+        /// <inheritdoc/>
+        public override int GetHashCode()
+        {
+            HashCode hash = new(); hash.Add(Target); hash.Add(State);
+            foreach (var layer in Layers) hash.Add(layer);
+            return hash.ToHashCode();
+        }
     }
-    /// <summary>整体替换阴影；null 明确关闭，未写继承。</summary>
+    /// <summary>一态的阴影整体替换；null 明确关闭，未写继承。</summary>
     public sealed record Shadow : TextWrite
     {
-        internal Shadow(TextTarget target, ShadowValue? value) : base(target) { Value = value; }
+        internal Shadow(TextTarget target, TextState state, ShadowValue? value) : base(target) { State = state; Value = value; }
+        /// <summary>未唱或已唱；「两态」在写入时已展开成两条。</summary>
+        public TextState State { get; }
         /// <summary>新的完整阴影或 null。</summary>
         public ShadowValue? Value { get; }
     }
-    /// <summary>整体替换外发光；null 明确关闭，未写继承。</summary>
+    /// <summary>一态的外发光整体替换；null 明确关闭，未写继承。</summary>
     public sealed record Glow : TextWrite
     {
-        internal Glow(TextTarget target, GlowValue? value) : base(target) { Value = value; }
+        internal Glow(TextTarget target, TextState state, GlowValue? value) : base(target) { State = state; Value = value; }
+        /// <summary>未唱或已唱；「两态」在写入时已展开成两条。</summary>
+        public TextState State { get; }
         /// <summary>新的完整外发光或 null。</summary>
         public GlowValue? Value { get; }
+    }
+    /// <summary>扫字样式整体替换（两态共享）。</summary>
+    public sealed record Wipe : TextWrite
+    {
+        internal Wipe(TextTarget target, WipeValue value) : base(target) { Value = value; }
+        /// <summary>新的扫字样式。</summary>
+        public WipeValue Value { get; }
     }
 }
 

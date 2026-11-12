@@ -6,7 +6,7 @@ public sealed class MaterialUniformWriterTests
     private static readonly ResourceCatalog Resources = new("package", "sha256:" + new string('a', 64), ["ink", "other"], [], []);
     private static readonly MaterialHandle Handle = Resources.GetMaterial("ink");
     private static readonly MaterialValue White = MaterialValue.Solid(new(1, 1, 1, 1));
-    private static readonly StyleView Basis = new(White, White, new(2, White), null, .5);
+    private static readonly StyleView Basis = TestStyles.View(White, White, new(2, White), null, .5);
     private static readonly MaterialValue Package = MaterialValue.PackageExport(Handle, ParameterValues.Empty);
     private static FrameWriter Writer(EffectCapabilities capability = EffectCapabilities.Style, bool independent = true)
         => new([new() { BranchId = new("branch"), LineId = new("line"), WithRuby = Target, BaseOnly = new(Target.TokenId, Target.BindingId),
@@ -23,7 +23,7 @@ public sealed class MaterialUniformWriterTests
     private static StyleView Resolve(FrameWriter writer) => Assert.Single(writer.Complete().TokenStyles).Update.Apply(Basis);
 
     [Theory]
-    [InlineData(MaterialSlot.UnsungFill)] [InlineData(MaterialSlot.SungFill)] [InlineData(MaterialSlot.Stroke)]
+    [InlineData(MaterialSlot.UnsungFill)] [InlineData(MaterialSlot.SungFill)] [InlineData(MaterialSlot.UnsungStroke)] [InlineData(MaterialSlot.SungStroke)]
     public void 显式部位只修改自身且每个节点同名值分别保存(MaterialSlot slot)
     {
         var writer = Writer(); Set(writer, slot);
@@ -31,14 +31,13 @@ public sealed class MaterialUniformWriterTests
         writer.Materials.SetUniform(Handle, Target, slot, "b", "amount", UniformValue.Float(.5));
         writer.Materials.SetUniform(Handle, Target, slot, "a", "amount", UniformValue.Float(.75));
         var style = Resolve(writer);
-        var material = Assert.IsType<MaterialValue.PackageMaterial>(slot switch
-        { MaterialSlot.UnsungFill => style.UnsungMaterial, MaterialSlot.SungFill => style.SungMaterial, _ => style.Stroke!.Material });
+        var material = Assert.IsType<MaterialValue.PackageMaterial>(style.Material(slot));
         Assert.Equal(.75, Assert.Single(material.Uniforms.Values[("a", "amount")].Numbers));
         Assert.Equal(.5, Assert.Single(material.Uniforms.Values[("b", "amount")].Numbers));
         Assert.Equal(2, material.Uniforms.Values.Count); Assert.Empty(Assert.IsType<MaterialValue.PackageMaterial>(Package).Uniforms.Values);
-        Assert.Equal(.5, style.Opacity); Assert.Equal(slot == MaterialSlot.Stroke ? 4 : 2, style.Stroke!.WidthPx);
-        if (slot != MaterialSlot.UnsungFill) Assert.Same(White, style.UnsungMaterial);
-        if (slot != MaterialSlot.SungFill) Assert.Same(White, style.SungMaterial);
+        Assert.Equal(.5, style.Opacity); Assert.Equal(slot is MaterialSlot.UnsungStroke or MaterialSlot.SungStroke ? 4 : 2, style.Unsung.InnermostStroke!.WidthPx);
+        if (slot != MaterialSlot.UnsungFill) Assert.Same(White, style.Unsung.Fill);
+        if (slot != MaterialSlot.SungFill) Assert.Same(White, style.Sung.Fill);
     }
 
     [Fact]
@@ -48,7 +47,7 @@ public sealed class MaterialUniformWriterTests
         writer.Materials.SetUniform(Handle, Target, MaterialSlot.SungFill, "a", "amount", UniformValue.Float(.2));
         Set(writer, MaterialSlot.SungFill);
         writer.Materials.SetUniform(Handle, Target, MaterialSlot.SungFill, "b", "amount", UniformValue.Float(.7));
-        var material = Assert.IsType<MaterialValue.PackageMaterial>(Resolve(writer).SungMaterial);
+        var material = Assert.IsType<MaterialValue.PackageMaterial>(Resolve(writer).Sung.Fill);
         Assert.Equal(("b", "amount"), Assert.Single(material.Uniforms.Values).Key);
     }
 
@@ -79,7 +78,7 @@ public sealed class MaterialUniformWriterTests
         }
         var first = Build(.5); var replay = Build(.5); var changed = Build(.7);
         Assert.Equal(first, replay); Assert.Equal(first.GetHashCode(), replay.GetHashCode()); Assert.NotEqual(first, changed);
-        Assert.NotEqual(first, first.Then(new(sung: Package)));
+        Assert.NotEqual(first, first.Then(new(sung: new(fill: Package))));
     }
 
     [Fact]
@@ -88,8 +87,8 @@ public sealed class MaterialUniformWriterTests
         var first = Writer(); Set(first, MaterialSlot.SungFill);
         var second = Writer(); second.Materials.SetUniform(Handle, Target, MaterialSlot.SungFill, "a", "amount", UniformValue.Float(.9));
         var combined = Assert.Single(first.Complete().TokenStyles).Update.Then(Assert.Single(second.Complete().TokenStyles).Update);
-        var a = Assert.IsType<MaterialValue.PackageMaterial>(combined.Apply(Basis).SungMaterial);
-        var b = Assert.IsType<MaterialValue.PackageMaterial>(combined.Apply(Basis).SungMaterial);
+        var a = Assert.IsType<MaterialValue.PackageMaterial>(combined.Apply(Basis).Sung.Fill);
+        var b = Assert.IsType<MaterialValue.PackageMaterial>(combined.Apply(Basis).Sung.Fill);
         Assert.Equal(a, b); Assert.Equal(a.GetHashCode(), b.GetHashCode()); Assert.Same(ParameterValues.Empty, a.Parameters);
         Assert.Empty(Assert.IsType<MaterialValue.PackageMaterial>(Package).Uniforms.Values);
     }

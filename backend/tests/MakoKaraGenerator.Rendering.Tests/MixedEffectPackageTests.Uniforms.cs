@@ -30,17 +30,24 @@ public sealed partial class MixedEffectPackageTests
     public async Task 真实作者节点uniform只改变指定部位且基础字与注音共用(string slot, int density)
     {
         string prefix = "output.Style.SetStroke(token.WithRuby,new(4,material));\n";
-        string actualSource = UniformSource(prefix + $"output.Materials.SetUniform(frame.Resources.GetMaterial(\"ink\"),token.WithRuby,MaterialSlot.{slot},\"probe\",\"amount\",UniformValue.Float(.8));");
+        // 描边材质槽按两态拆开（0.112.82）：两态同写的描边在两个描边槽各有一份绑定，两槽写同一 uniform 才与直接写参数等价。
+        string[] slots = slot == "Stroke" ? ["UnsungStroke", "SungStroke"] : [slot];
+        string actualSource = UniformSource(prefix + string.Concat(slots.Select(s =>
+            $"output.Materials.SetUniform(frame.Resources.GetMaterial(\"ink\"),token.WithRuby,MaterialSlot.{s},\"probe\",\"amount\",UniformValue.Float(.8));")));
         string method = slot switch { "UnsungFill" => "SetUnsungMaterial", "SungFill" => "SetSungMaterial", _ => "SetStroke" };
         string material = "MaterialValue.PackageExport(frame.Resources.GetMaterial(\"ink\"),new([new(\"amount\",new ParameterValue.Number(.8))]))";
         string argument = slot == "Stroke" ? "new(4," + material + ")" : material;
         var actual = await Compile(MixedEffectPackageFixture.MaterialContents(controllerSource: actualSource));
         var reference = await Compile(MixedEffectPackageFixture.MaterialContents(controllerSource: UniformSource(prefix + $"output.Style.{method}(token.WithRuby,{argument});")));
         var a = await RenderUniform(actual, density: density); var b = await RenderUniform(reference, density: density);
-        Assert.Equal(b.Pixels, a.Pixels); Assert.Equal(3, a.Frame.Materials.Length);
-        var modified = Assert.Single(a.Frame.Materials.Where(binding => !binding.Material.Uniforms.Values.IsEmpty));
-        Assert.Equal(slot, modified.Slot.ToString()); Assert.Equal(.5, modified.Material.Parameters.GetNumber("amount"));
-        Assert.Equal(.8, Assert.Single(modified.Material.Uniforms.Values).Value.Numbers[0]);
+        Assert.Equal(b.Pixels, a.Pixels); Assert.Equal(4, a.Frame.Materials.Length);
+        var modified = a.Frame.Materials.Where(binding => !binding.Material.Uniforms.Values.IsEmpty).ToArray();
+        Assert.Equal(slots, modified.Select(binding => binding.Slot.ToString()));
+        foreach (var binding in modified)
+        {
+            Assert.Equal(.5, binding.Material.Parameters.GetNumber("amount"));
+            Assert.Equal(.8, Assert.Single(binding.Material.Uniforms.Values).Value.Numbers[0]);
+        }
     }
 
     [Fact]

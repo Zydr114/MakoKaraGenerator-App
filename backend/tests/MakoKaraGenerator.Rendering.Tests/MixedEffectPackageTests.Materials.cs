@@ -27,7 +27,7 @@ public sealed partial class MixedEffectPackageTests
         var snapshot = Snapshot(); using SkiaRenderPipeline renderer = new(); var scene = renderer.GetSceneFrame(snapshot, 1_000_000);
         var target = Assert.Single(scene.TokenGeometries).WithRuby;
         var prepared = new PreparedRenderFrame(snapshot, scene.TimeUs, Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition), scene, [],
-            [new(target, new(unsung: value, sung: value))]);
+            [new(target, TestStyle.Update(value, value))]);
         using var actual = renderer.Render(RenderRequest.At(snapshot, scene.TimeUs) with { PreparedFrame = prepared, TransparentBackground = true });
         using var expected = renderer.Render(RenderRequest.At(snapshot with { EffectInputsFingerprint = null,
             LyricStyle = snapshot.LyricStyle with { UnsungFill = fill, SungFill = fill } }, scene.TimeUs) with { TransparentBackground = true });
@@ -36,7 +36,7 @@ public sealed partial class MixedEffectPackageTests
         // 这是回退的显式消费入口；正常模式包材质仍由后续区域适配实施，不能自动当回退使用。
         Assert.Equal("MaterialOwnershipRequired", Assert.Throws<PreparedFrameException>(() => new PreparedRenderFrame(snapshot, scene.TimeUs,
             Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition), scene, [],
-            [new(target, new(sung: Fx.MaterialValue.PackageExport(compiled.Resources.GetMaterial("ink"), compiled.ResolveParameters("ink"))))])).Code);
+            [new(target, TestStyle.Update(sung: Fx.MaterialValue.PackageExport(compiled.Resources.GetMaterial("ink"), compiled.ResolveParameters("ink"))))])).Code);
     }
 
     [Theory]

@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text.Json.Nodes;
 using MakoKaraGenerator.Core.Effects;
 using MakoKaraGenerator.Core.Persistence;
@@ -63,7 +64,7 @@ public sealed class SourceMaterialRuntimeTests
         Assert.NotEmpty(prepared.Materials);
         Assert.All(prepared.Materials, binding => { Assert.IsType<PreparedMaterialOwner.Source>(binding.Owner); Assert.Null(binding.InstanceId); Assert.Null(binding.ArtifactHash); });
         var baseline = StaticStyleProjection.CreateBaseline(snapshot, compiled.SourceMaterials);
-        Assert.IsType<Fx.MaterialValue.PackageMaterial>(baseline.Get(prepared.FinalGeometry[0].WithRuby).UnsungMaterial);
+        Assert.IsType<Fx.MaterialValue.PackageMaterial>(baseline.Get(prepared.FinalGeometry[0].WithRuby).Unsung.Fill);
         using var native = CompiledPackageGraphExports.Compile(package.Definition);
         using var resources = Resources(native, package); using var budget = new ImageSurfaceBudgetSession();
         using var renderer = new SkiaRenderPipeline(null, null, budget, resources);
@@ -148,10 +149,14 @@ public sealed class SourceMaterialRuntimeTests
         await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), Fx.ReplayReason.Initial).CreateAsync(snapshot);
         var prepared = await session.PrepareAsync(12_500_000, Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition));
         var bindings = prepared.Materials.Where(binding => binding.Target is Fx.ImageEffectTarget.Token t && t.Target.TokenId.Value == token.Id).ToArray();
-        Assert.Equal(3, bindings.Length);
+        // 已唱描边跟随未唱：已唱描边槽另有一个绑定，引用未唱一侧的同一源路径。
+        Assert.Equal(4, bindings.Length);
+        Assert.Equal(bindings.Single(binding => binding.Slot == PreparedMaterialSlot.UnsungStroke).Material, bindings.Single(binding => binding.Slot == PreparedMaterialSlot.SungStroke).Material);
+        Assert.Equal(((PreparedMaterialOwner.Source)bindings.Single(binding => binding.Slot == PreparedMaterialSlot.UnsungStroke).Owner).Reference,
+            ((PreparedMaterialOwner.Source)bindings.Single(binding => binding.Slot == PreparedMaterialSlot.SungStroke).Owner).Reference);
         Assert.EndsWith(".lines.first.styleOverride.unsung.fill", ((PreparedMaterialOwner.Source)bindings.Single(binding => binding.Slot == PreparedMaterialSlot.UnsungFill).Owner).Reference.Path);
         Assert.EndsWith(".tokens.first-a.styleOverride.sung.fill", ((PreparedMaterialOwner.Source)bindings.Single(binding => binding.Slot == PreparedMaterialSlot.SungFill).Owner).Reference.Path);
-        Assert.EndsWith(".styleOverride.unsung.strokes.0.material", ((PreparedMaterialOwner.Source)bindings.Single(binding => binding.Slot == PreparedMaterialSlot.Stroke).Owner).Reference.Path);
+        Assert.EndsWith(".styleOverride.unsung.strokes.0.material", ((PreparedMaterialOwner.Source)bindings.Single(binding => binding.Slot == PreparedMaterialSlot.UnsungStroke).Owner).Reference.Path);
         Assert.Equal(8, prepared.GetTokenDrawingStyle(((Fx.ImageEffectTarget.Token)bindings[0].Target).Target).Stroke!.WidthPx);
         using var missing = new SkiaRenderPipeline();
         var error = Assert.Throws<SourceMaterialFailureException>(() => { using var unexpected = missing.Render(RenderRequest.At(snapshot, prepared.TimeUs) with { PreparedFrame = prepared, TransparentBackground = true }); });
@@ -160,23 +165,26 @@ public sealed class SourceMaterialRuntimeTests
         Assert.Equal("EffectInputsMismatch", (await Assert.ThrowsAsync<PreparedFrameException>(async () => await compiled.CreateFactory(static () => new SkiaRenderPipeline(), Fx.ReplayReason.Initial).CreateAsync(ProjectSnapshot.FromProject(changed)))).Code);
     }
 
-    /// <summary>描边材质槽到 P3 第 6 步才分两态；此前已唱描边换用另一种材质且涉及包材质时明确拒绝，同一材质照常准备。</summary>
+    /// <summary>描边材质槽分两态（P3 第 6 步）：已唱显式描边沿用同一包材质时两槽各自绑定；换成普通材质时只有未唱一槽。</summary>
     [Fact]
-    public async Task 已唱描边换用不同包材质在分槽前明确拒绝()
+    public async Task 已唱描边材质按自己的槽绑定()
     {
         var project = SourceProject(MixedEffectPackageFixture.Contents(pure: true));
         var stroke = project.LyricStyle.Stroke!;
         Project Sung(StrokeSpec sung) => project with { LyricStyle = project.LyricStyle with
             { Sung = project.LyricStyle.Sung with { Strokes = Followable.Set(StrokeLayers.FromStroke(sung)) } } };
-        await Prepare(Sung(stroke with { WidthPx = 8 }));
-        var error = await Assert.ThrowsAsync<PreparedFrameException>(() => Prepare(Sung(StrokeSpec.Create(new(0, 0, 255), 4))));
-        Assert.Equal("SungStrokeMaterialPending", error.Code);
+        var same = await Prepare(Sung(stroke with { WidthPx = 8 }));
+        Assert.Contains(same, binding => binding.Slot == PreparedMaterialSlot.SungStroke
+            && ((PreparedMaterialOwner.Source)binding.Owner).Reference.Path.EndsWith(".sung.strokes.0.material", StringComparison.Ordinal));
+        var solid = await Prepare(Sung(StrokeSpec.Create(new(0, 0, 255), 4)));
+        Assert.DoesNotContain(solid, binding => binding.Slot == PreparedMaterialSlot.SungStroke);
+        Assert.Contains(solid, binding => binding.Slot == PreparedMaterialSlot.UnsungStroke);
 
-        static async Task Prepare(Project project)
+        static async Task<ImmutableArray<PreparedMaterialBinding>> Prepare(Project project)
         {
             var compiled = await Compile(project); var snapshot = ProjectSnapshot.FromProject(project);
             await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), Fx.ReplayReason.Initial).CreateAsync(snapshot);
-            _ = await session.PrepareAsync(12_500_000, Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition));
+            return (await session.PrepareAsync(12_500_000, Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition))).Materials;
         }
     }
 
@@ -190,7 +198,7 @@ public sealed class SourceMaterialRuntimeTests
             "reset" => "output.Style.SetSungMaterial(token.WithRuby,MaterialValue.Solid(new(0,1,0,1)));",
             _ => "output.Style.MultiplyOpacity(token.WithRuby,.5);",
         };
-        string source = "using MakoKaraGenerator.Scripting; public sealed class PackEffect:EffectBase { public override void Evaluate(FrameContext frame,FrameWriter output) { foreach(var token in frame.Presentations.TokensInBinding) { if(frame.Baseline.Get(token.WithRuby).SungMaterial is not MaterialValue.PackageMaterial) throw new System.Exception(\"真实包基线缺失\"); " + action + " } } }";
+        string source = "using MakoKaraGenerator.Scripting; public sealed class PackEffect:EffectBase { public override void Evaluate(FrameContext frame,FrameWriter output) { foreach(var token in frame.Presentations.TokensInBinding) { if(frame.Baseline.Get(token.WithRuby).Sung.Fill is not MaterialValue.PackageMaterial) throw new System.Exception(\"真实包基线缺失\"); " + action + " } } }";
         var contents = MixedEffectPackageFixture.MaterialContents(controllerSource: source); var project = SourceProject(contents);
         project = project with { Effects = new([contents], [new() { Id = "actual", Name = "调制", PackageId = contents.PackageId, Revision = contents.Revision, ExportId = "controller" }]) };
         var compiled = await Compile(project); var snapshot = ProjectSnapshot.FromProject(project); var package = Assert.Single(compiled.Packages);
@@ -255,7 +263,8 @@ public sealed class SourceMaterialRuntimeTests
         await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), Fx.ReplayReason.Initial).CreateAsync(snapshot);
         var prepared = await session.PrepareAsync(10_000_000, Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition));
         var bindings = prepared.Materials.Where(binding => binding.Target is Fx.ImageEffectTarget.Mark target && target.Target.NodeId.Value == node.Id).ToArray();
-        Assert.Equal(3, bindings.Length);
+        Assert.Equal(4, bindings.Length);
+        Assert.Contains(bindings, binding => binding.Slot == PreparedMaterialSlot.SungStroke);
         Assert.Equal("lyricPresentation.nodes." + node.Id + ".content.appearanceOverride.pending.fill",
             ((PreparedMaterialOwner.Source)bindings.Single(binding => binding.Slot == PreparedMaterialSlot.UnsungFill).Owner).Reference.Path);
         Assert.EndsWith(".content.appearance.elapsed.fill", ((PreparedMaterialOwner.Source)bindings.Single(binding => binding.Slot == PreparedMaterialSlot.SungFill).Owner).Reference.Path);

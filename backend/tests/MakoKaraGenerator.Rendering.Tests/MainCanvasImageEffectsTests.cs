@@ -133,7 +133,7 @@ public sealed partial class MainCanvasImageEffectsTests
         var baseline = StaticStyleProjection.SourceStyles(request.Project)[token.Target.TokenId];
         Fx.MaterialValue Color(RgbaColor c) => Fx.MaterialValue.Solid(new(c.Red / 510d, c.Green / 510d, c.Blue / 510d, c.Alpha / 255d));
         var styled = new PreparedRenderFrame(request.Project, request.TimeUs, source.OutputMode, source.Target, source.Scene, [],
-            [new(token.Target, new(Color(baseline.UnsungColor), Color(baseline.SungColor)))]);
+            [new(token.Target, TestStyle.Update(Color(baseline.UnsungColor), Color(baseline.SungColor)))]);
         using var expected = renderer.Render(request with { PreparedFrame = styled.WithImageEffects([Bind("only-line", line, "last")]) });
         Close(expected.Pixels.ToArray(), actual.Pixels.ToArray(), 3);
     }

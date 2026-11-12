@@ -20,7 +20,7 @@ public static class EffectPackageProfiles
     {
         var text = ImmutableHashSet.Create(StringComparer.Ordinal,
         "token.affine", "line.affine", "group.affine", "mark.affine", "cluster.affine", "token.opacity", "group.opacity",
-        "style.fill", "style.stroke", "style.shadow", "style.glow", "timeline.index", "line.exit",
+        "style.fill", "style.stroke", "style.shadow", "style.glow", "style.wipe", "timeline.index", "line.exit",
         "token.warp", "cluster.warp", "mark.warp", "visuals.paths", "image.graph", "image.graph.group", "material.uniform",
         EffectPackageSvgResources.VectorCapability, EffectPackageSvgResources.AtlasCapability, EffectPackageMediaQueries.Capability);
         return EnableV2ParticlesAndVisuals ? text.Union(["particles.continuous", "particles.burst", "visuals.dots",

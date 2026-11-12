@@ -106,7 +106,7 @@ public sealed class SceneColorPartTests
         var snapshot = ProjectSnapshot.FromProject(project) with { EffectInputsFingerprint = "parts" }; using var renderer = new SkiaRenderPipeline(); var scene = renderer.GetSceneFrame(snapshot, 2_500_000);
         var token = scene.TokenGeometries.Single(item => item.WithRuby.TokenId.Value == "missing");
         var prepared = new PreparedRenderFrame(snapshot, scene.TimeUs, Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition), scene,
-            [new(token.WithRuby, Fx.Affine2.Translation(12, -8))], [new(token.WithRuby, new Fx.StyleUpdate(unsung: Fx.MaterialValue.Solid(new(.1, .8, .2, .6)), sung: Fx.MaterialValue.Solid(new(1, 0, 0, 1)), opacityFactor: .4))]);
+            [new(token.WithRuby, Fx.Affine2.Translation(12, -8))], [new(token.WithRuby, TestStyle.Update(Fx.MaterialValue.Solid(new(.1, .8, .2, .6)), Fx.MaterialValue.Solid(new(1, 0, 0, 1)), opacityFactor: .4))]);
         var request = RenderRequest.At(snapshot, scene.TimeUs) with { TransparentBackground = true, PreparedFrame = prepared };
         var target = new SceneCaptureTarget.Token(token.WithRuby); using var part = Part(renderer, request, target, SceneColorPart.BaseFill);
         using var reference = renderer.CaptureSceneTarget(request, target, new(false, false, false, false, SceneCaptureRegion.Fill), GraphInputSource.TargetColor, Canvas, GraphExecutionBudget.Default);

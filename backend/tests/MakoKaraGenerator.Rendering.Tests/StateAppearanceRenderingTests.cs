@@ -177,13 +177,13 @@ public sealed class StateAppearanceRenderingTests
             Unsung = new() { Strokes = StrokeLayers.FromStroke(Thin), Glow = Warm },
             Sung = SungAppearance.Explicit(new() { Strokes = StrokeLayers.FromStroke(Thick), Shadow = Drop, Glow = Cool }),
         };
-        var stroke = StaticStyleProjection.Apply(source, new Fx.StyleUpdate(stroke: new Fx.StrokeUpdate(new Fx.StrokeValue(5, Fx.MaterialValue.Solid(new(0, 1, 0, 1))))));
+        var stroke = StaticStyleProjection.Apply(source, TestStyle.Update(strokes: [new Fx.StrokeValue(5, Fx.MaterialValue.Solid(new(0, 1, 0, 1)))]));
         Assert.Equal(5, stroke.Stroke!.WidthPx); Assert.True(stroke.Sung.Strokes.FollowsUnsung);
         Assert.Equal(source.Sung.Shadow, stroke.Sung.Shadow); Assert.Equal(source.Sung.Glow, stroke.Sung.Glow);
-        var shadow = StaticStyleProjection.Apply(source, new Fx.StyleUpdate(shadow: new Fx.ShadowUpdate(new Fx.ShadowValue(new(0, 0, 0, 1)))));
+        var shadow = StaticStyleProjection.Apply(source, TestStyle.Update(shadow: new Fx.ShadowUpdate(new Fx.ShadowValue(new(0, 0, 0, 1)))));
         Assert.NotNull(shadow.Shadow); Assert.True(shadow.Sung.Shadow.FollowsUnsung);
         Assert.Same(source.Sung.Strokes.Value, shadow.Sung.Strokes.Value); Assert.Equal(source.Sung.Glow, shadow.Sung.Glow);
         // 与基线相同的写入视同未写。
-        Assert.Same(source, StaticStyleProjection.Apply(source, new Fx.StyleUpdate(stroke: new Fx.StrokeUpdate(StaticStyleProjection.View(source).Stroke))));
+        Assert.Same(source, StaticStyleProjection.Apply(source, new Fx.StyleUpdate(unsung: new(strokes: new(StaticStyleProjection.View(source).Unsung.Strokes)))));
     }
 }

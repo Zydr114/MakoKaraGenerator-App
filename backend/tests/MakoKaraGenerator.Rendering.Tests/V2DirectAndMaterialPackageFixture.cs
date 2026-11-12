@@ -22,7 +22,7 @@ internal static class V2DirectAndMaterialPackageFixture
         var original = MixedEffectPackageFixture.MaterialContents(controllerSource: Source);
         var manifest = JsonNode.Parse(original.Manifest.AsSpan())!.AsObject();
         manifest["packageVersion"] = 3; manifest["sdkVersion"] = "2.0.0"; manifest["shaderProfile"] = "skia-ganesh-3.119.4-v2";
-        manifest["requires"] = direct ? new JsonArray("image.graph") : new JsonArray("style.fill", "style.stroke", "material.uniform");
+        manifest["requires"] = direct ? new JsonArray("image.graph") : new JsonArray("style.fill", "style.stroke", "material.uniform", "style.wipe");
         manifest["lineExit"] = new JsonObject { ["durationUs"] = 0 }; manifest["emitters"] = new JsonArray();
         foreach (var name in new[] { "mode", "mark", "vary", "writes" }) manifest["parameters"]!.AsArray().Add(new JsonObject
         { ["id"] = name, ["type"] = "number", ["label"] = name, ["default"] = name == "writes" ? 1 : 0, ["min"] = 0, ["max"] = name == "writes" ? 257 : 20 });
@@ -90,14 +90,15 @@ internal static class V2DirectAndMaterialPackageFixture
                 var parameters = new ParameterValues(new[] { KeyValuePair.Create<string, ParameterValue>("amount", new ParameterValue.Number(d.Amount)) });
                 var materialA = MaterialValue.PackageExport(a, parameters); var materialB = MaterialValue.PackageExport(b, parameters);
                 double value = d.Vary > 0 ? .25 + (f.TimeUs % 1000000) / 2000000d : .75;
+                if (d.Mode == 15) { o.SetWipe(t, new WipeValue(.5, new WipeHighlightValue(new(1, 1, .6, 1)))); return; }
                 if (d.Mode == 10)
                 {
-                    o.SetStroke(t, new StrokeValue(2, materialA)); o.SetMaterialUniform(t, MaterialSlot.Stroke, a, "probe", "amount", UniformValue.Float(value));
-                    o.SetStroke(t, null); o.SetStroke(t, new StrokeValue(3, materialA)); return;
+                    o.SetStrokes(t, TextState.Both, new StrokeValue(2, materialA)); o.SetMaterialUniform(t, MaterialSlot.UnsungStroke, a, "probe", "amount", UniformValue.Float(value));
+                    o.SetStrokes(t, TextState.Both); o.SetStrokes(t, TextState.Both, new StrokeValue(3, materialA)); return;
                 }
                 foreach (var slot in new[] { MaterialSlot.UnsungFill, MaterialSlot.SungFill })
                 {
-                    FillState state = slot == MaterialSlot.UnsungFill ? FillState.Unsung : FillState.Sung;
+                    TextState state = slot == MaterialSlot.UnsungFill ? TextState.Unsung : TextState.Sung;
                     if (d.Mode == 0 || d.Mode == 4 || d.Mode == 5 || d.Mode == 11)
                     {
                         try { o.SetMaterialUniform(t, slot, a, d.Mode == 4 ? "missing" : "probe", "amount", UniformValue.Float(d.Mode == 5 ? 1e100 : value)); }

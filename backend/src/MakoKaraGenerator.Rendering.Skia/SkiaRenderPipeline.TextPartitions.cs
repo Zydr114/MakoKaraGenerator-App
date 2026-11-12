@@ -66,7 +66,7 @@ public sealed partial class SkiaRenderPipeline
         {
             if (indices.IsEmpty) return;
             DrawLineGlow(canvas, shaped, options, origin, baseline, style, antialias, indices, capture);
-            using WipePartition wipe = BuildWipe(tokenSample, shaped, origin, canvas.LocalClipBounds, style.DecorationsDifferByState,
+            using WipePartition wipe = BuildWipe(tokenSample, shaped, origin, canvas.LocalClipBounds, WipeEdges(style, capture),
                 _ => style.Wipe.FeatherRatio, options.FontSizePx);
             DrawWiped(canvas, wipe, () => WipeStatesDiffer(style, capture), capture, sung =>
             {

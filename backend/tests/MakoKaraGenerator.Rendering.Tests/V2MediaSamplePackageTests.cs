@@ -55,7 +55,7 @@ public sealed class V2MediaSamplePackageTests
         await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), ReplayReason.Initial,
             new ProjectMediaFeatureBinding(sampler)).CreateAsync(snapshot);
         var frame = await session.PrepareAsync(250_000, OutputMode.Opaque, RenderTarget.FromComposition(snapshot.Composition));
-        return [.. frame.TokenStyles.Where(style => style.Update.Stroke is not null).Select(style => style.Update.Stroke!.Value)];
+        return [.. frame.TokenStyles.Where(style => style.Update.Unsung?.Strokes is { Layers.IsEmpty: false }).Select(style => style.Update.Unsung!.Strokes!.Layers[0])];
     }
 
     private static async Task<(ProjectSnapshot Snapshot, ProjectMediaDependencyPlan Plan)> Snapshot()

@@ -31,7 +31,7 @@ public sealed class V2TargetComplexStyleTests
         Assert.True(frame.ClusterTransforms.Length + frame.LineTransforms.Length > 0); // ClusterExit：第一行退场。
         Assert.NotEmpty(frame.V2Particles);                     // CursorTrail。
         Assert.Contains(frame.FinalGeometry, token => !token.Ruby.IsEmpty);
-        Assert.Contains(frame.TokenStyles, style => style.Update.Stroke is { Value.Material: MaterialValue.SolidMaterial { Color.Red: < 0.1 } }); // 白背景→深色描边。
+        Assert.Contains(frame.TokenStyles, style => style.Update.Unsung?.Strokes?.Layers is [{ Material: MaterialValue.SolidMaterial { Color.Red: < 0.1 } }, ..]); // 白背景→深色描边。
 
         var cursors = frame.Playback.GetCursors(CursorAnchorMode.AdvanceCenter);
         Assert.NotEmpty(cursors);
@@ -54,8 +54,8 @@ public sealed class V2TargetComplexStyleTests
         var available = await PrepareAsync(snapshot, plan, Available(plan, 1.0), ExitAndActiveUs, OutputMode.Opaque);
         var none = await PrepareAsync(snapshot, plan, NoMedia(plan, MediaOutputMode.Normal, MediaNoMediaReason.NoBackgroundContribution),
             ExitAndActiveUs, OutputMode.Opaque);
-        Assert.Contains(available.TokenStyles, style => style.Update.Stroke is not null);
-        Assert.DoesNotContain(none.TokenStyles, style => style.Update.Stroke is not null);
+        Assert.Contains(available.TokenStyles, style => style.Update.Unsung?.Strokes is not null);
+        Assert.DoesNotContain(none.TokenStyles, style => style.Update.Unsung?.Strokes is not null);
         Assert.Equal(available.TextWarps.Length, none.TextWarps.Length);
         Assert.Equal(available.V2Particles.Length, none.V2Particles.Length);
 

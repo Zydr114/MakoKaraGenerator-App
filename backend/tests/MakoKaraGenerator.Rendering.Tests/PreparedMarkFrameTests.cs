@@ -37,7 +37,7 @@ public sealed class PreparedMarkFrameTests
                         var target = mark.Target; var basis = frame.Baseline.Get(target);
                         if (mode == "badCue") target = target with { CueId = new("cue-chorus") };
                         if (mode == "baseline" || mode == "reset")
-                        { output.Style.SetUnsungMaterial(target, basis.UnsungMaterial); output.Style.SetSungMaterial(target, basis.SungMaterial); }
+                        { output.Style.SetUnsungMaterial(target, basis.Unsung.Fill); output.Style.SetSungMaterial(target, basis.Sung.Fill); }
                         else if (mode == "half") output.Style.MultiplyOpacity(target, .5);
                         else if (mode == "alpha2") output.Style.MultiplyOpacity(target, 2);
                         else if (mode == "badAlpha") output.Style.MultiplyOpacity(target, 3);
@@ -165,8 +165,8 @@ public sealed class PreparedMarkFrameTests
         var first = await session.PrepareAsync(10_000_000, Fx.OutputMode.Transparent, target);
         Assert.All(first.MarkStyles, style => Assert.Equal(.6f, first.GetMarkStyle(style.Target).Opacity));
         // reset restores two fills; decorations intentionally remain from the prior instance.
-        Assert.All(first.MarkStyles, style => Assert.Equal(StaticStyleProjection.CreateBaseline(snapshot).Get(style.Target).SungMaterial,
-            StaticStyleProjection.View(first.GetMarkStyle(style.Target)).SungMaterial));
+        Assert.All(first.MarkStyles, style => Assert.Equal(StaticStyleProjection.CreateBaseline(snapshot).Get(style.Target).Sung.Fill,
+            StaticStyleProjection.View(first.GetMarkStyle(style.Target)).Sung.Fill));
         var chorus = await session.PrepareAsync(38_000_000, Fx.OutputMode.Transparent, target);
         Assert.Equal(first.MarkStyles.Select(item => item.Target.NodeId), chorus.MarkStyles.Select(item => item.Target.NodeId));
         Assert.All(chorus.MarkStyles, item => Assert.Equal("cue-chorus", item.Target.CueId.Value));

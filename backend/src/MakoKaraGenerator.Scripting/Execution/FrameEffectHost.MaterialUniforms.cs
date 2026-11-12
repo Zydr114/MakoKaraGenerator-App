@@ -43,9 +43,10 @@ internal sealed partial class FrameEffectHost
                     switch (write)
                     {
                         case TextWrite.Fill fill:
-                            Replacement(fill.Target, fill.State == FillState.Unsung ? MaterialSlot.UnsungFill : MaterialSlot.SungFill, fill.Material); break;
-                        case TextWrite.Stroke stroke:
-                            Replacement(stroke.Target, MaterialSlot.Stroke, stroke.Value?.Material); break;
+                            Replacement(fill.Target, fill.State == TextState.Unsung ? MaterialSlot.UnsungFill : MaterialSlot.SungFill, fill.Material); break;
+                        case TextWrite.Strokes strokes:
+                            Replacement(strokes.Target, strokes.State == TextState.Unsung ? MaterialSlot.UnsungStroke : MaterialSlot.SungStroke,
+                                strokes.Layers.IsEmpty ? null : strokes.Layers[0].Material); break;
                         case TextWrite.MaterialUniform uniform:
                             if (uniform.Target is not (TextTarget.Family or TextTarget.Base or TextTarget.Mark))
                                 throw new EffectOutputException("MaterialUniformTargetPending", "uniform 只支持真实字族、基础字或标记。");
@@ -99,8 +100,7 @@ internal sealed partial class FrameEffectHost
                         { update = marks.GetValueOrDefault(mark.Value) ?? new(); source = baseline.Get(mark.Value); target = new ImageEffectTarget.Mark(mark.Value); }
                         else throw new EffectOutputException("MaterialUniformTargetPending", "此 uniform 目标未接通。");
                         var resolved = update.ApplyMaterials(source);
-                        var installed = key.Slot switch { MaterialSlot.UnsungFill => resolved.UnsungMaterial, MaterialSlot.SungFill => resolved.SungMaterial,
-                            MaterialSlot.Stroke => resolved.Stroke?.Material, _ => throw new EffectOutputException("InvalidMaterialSlot", "未知材质部位。") };
+                        var installed = resolved.Material(key.Slot);
                         if (installed is not MaterialValue.PackageMaterial material || material.Handle != write.Material)
                             throw new EffectOutputException("MaterialUniformIdentityMismatch", "最终安装材质与本作用域存活 uniform 的固定身份不匹配。");
                         var export = ValidateMaterialExport(active.Definition, material.Handle, key.Slot, material.Parameters);

@@ -24,7 +24,7 @@ public sealed partial class MainCanvasImageEffectsTests
         var request = Request(snapshot,width:64,height:36,time:2_000_000); var original = request.PreparedFrame!;
         var owner = new PreparedMaterialOwner.Script(new("actual-base-writer"),"actual-base-artifact");
         var geometries = original.FinalGeometry.ToArray(); Assert.Equal(129,geometries.Length);
-        var frame = original.WithTextPartitions([], [..geometries.Select(token => new Fx.V2.BaseTokenStyle(token.BaseOnly,new(material,material)))],[],
+        var frame = original.WithTextPartitions([], [..geometries.Select(token => new Fx.V2.BaseTokenStyle(token.BaseOnly, TestStyle.Update(material, material)))],[],
             [..geometries.SelectMany(token => new[] { new PreparedBaseMaterialBinding(owner,token.BaseOnly,PreparedMaterialSlot.UnsungFill,material),
                 new PreparedBaseMaterialBinding(owner,token.BaseOnly,PreparedMaterialSlot.SungFill,material) })]);
         request = request with { PreparedFrame=frame.WithImageEffects([Bind("parent-trigger",GroupRoot(request))]) };

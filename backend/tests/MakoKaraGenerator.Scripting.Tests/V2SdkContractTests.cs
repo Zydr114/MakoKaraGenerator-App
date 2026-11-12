@@ -93,18 +93,46 @@ public sealed class V2SdkContractTests
         var a = Affine2.Translation(4, 5); var b = Affine2.ScaleAt(2, default);
         output.AppendTransform(target, a); output.AppendTransform(target, b);
         output.MultiplyOpacity(target, .5);
-        output.SetFill(target, FillState.Sung, MaterialValue.Solid(new(1, 0, 0, 1)));
-        output.SetStroke(target, null); output.SetShadow(target, new(new(0, 0, 0, 1))); output.SetGlow(target, null);
+        output.SetFill(target, TextState.Sung, MaterialValue.Solid(new(1, 0, 0, 1)));
+        output.SetStrokes(target, TextState.Both); output.SetShadow(target, TextState.Both, new(new(0, 0, 0, 1))); output.SetGlow(target, TextState.Both, null);
         var snapshot = output.Complete();
-        Assert.Equal(7, snapshot.Writes.Length);
+        Assert.Equal(10, snapshot.Writes.Length);
         var first = Assert.IsType<TextWrite.Transform>(snapshot.Writes[0]);
         var second = Assert.IsType<TextWrite.Transform>(snapshot.Writes[1]);
         Assert.Equal(new Point2(10, 12), second.LocalMatrix.Compose(first.LocalMatrix).Map(new(1, 1)));
         Assert.Equal(.5, Assert.IsType<TextWrite.Opacity>(snapshot.Writes[2]).Factor);
-        Assert.Null(Assert.IsType<TextWrite.Stroke>(snapshot.Writes[4]).Value);
-        output.Invalidate(); Assert.Equal(7, snapshot.Writes.Length);
+        var strokes = Assert.IsType<TextWrite.Strokes>(snapshot.Writes[4]); Assert.Empty(strokes.Layers); Assert.Equal(TextState.Unsung, strokes.State);
+        Assert.Equal(TextState.Sung, Assert.IsType<TextWrite.Strokes>(snapshot.Writes[5]).State);
+        output.Invalidate(); Assert.Equal(10, snapshot.Writes.Length);
         Assert.Equal("InvalidOutputStage", Assert.Throws<EffectOutputException>(() => output.AppendTransform(target, Affine2.Identity)).Code);
         Assert.Equal("InvalidOutputStage", Assert.Throws<EffectOutputException>(() => output.Complete()).Code);
+    }
+
+    [Fact]
+    public void 两态写入逐态展开且描边层数材质位置与扫字能力受检()
+    {
+        var frame = Frame(); var target = frame.Geometry[0].WithRuby;
+        ImmutableArray<string> capabilities = ["style.fill", "style.stroke", "style.shadow", "style.glow", "style.wipe"];
+        var output = new TextOutput(in frame, capabilities);
+        var solid = MaterialValue.Solid(new(0, 0, 1, 1));
+        output.SetFill(target, TextState.Both, solid); output.SetGlow(target, TextState.Unsung, null);
+        output.SetStrokes(target, TextState.Sung, new StrokeValue(2, solid), new StrokeValue(4, solid));
+        var wipe = new WipeValue(.5, new(new(1, 1, 1, 1))); output.SetWipe(target, wipe);
+        var writes = output.Complete().Writes;
+        Assert.Equal([TextState.Unsung, TextState.Sung], writes.Take(2).Select(write => Assert.IsType<TextWrite.Fill>(write).State));
+        Assert.Equal(TextState.Unsung, Assert.IsType<TextWrite.Glow>(writes[2]).State);
+        var strokes = Assert.IsType<TextWrite.Strokes>(writes[3]); Assert.Equal(TextState.Sung, strokes.State); Assert.Equal(2, strokes.Layers.Length);
+        Assert.Same(wipe, Assert.IsType<TextWrite.Wipe>(writes[4]).Value);
+        Assert.Equal(5, writes.Length);
+
+        // 至多 4 层；包材质只能在最内层（这里用不属于本实例的句柄也会先因层位被拒）。
+        var layers = Enumerable.Repeat(new StrokeValue(1, solid), 5).ToArray();
+        Assert.Equal("InvalidStrokeLayers", Assert.Throws<EffectOutputException>(() => new TextOutput(in frame, capabilities).SetStrokes(target, TextState.Both, layers)).Code);
+        var package = MaterialValue.PackageExport(new ResourceCatalog("p", "sha256:" + new string('a', 64), ["ink"], [], []).GetMaterial("ink"), ParameterValues.Empty);
+        Assert.Equal("InvalidStrokeLayers", Assert.Throws<EffectOutputException>(() =>
+            new TextOutput(in frame, capabilities).SetStrokes(target, TextState.Unsung, new StrokeValue(1, solid), new StrokeValue(2, package))).Code);
+        Assert.Equal("UndeclaredCapability", Assert.Throws<EffectOutputException>(() => new TextOutput(in frame, ["style.fill"]).SetWipe(target, wipe)).Code);
+        Assert.Throws<ArgumentOutOfRangeException>(() => new TextOutput(in frame, capabilities).SetFill(target, (TextState)7, solid));
     }
 
     [Fact]
@@ -126,10 +154,10 @@ public sealed class V2SdkContractTests
         foreach (var sharedTarget in new TextTarget[] { shared.Geometry[0].WithRuby, shared.Geometry[0].BaseOnly })
         {
             Assert.Equal("UnsupportedGlyphPartition", Assert.Throws<EffectOutputException>(() => sharedStyles.MultiplyOpacity(sharedTarget, .5)).Code);
-            Assert.Equal("UnsupportedGlyphPartition", Assert.Throws<EffectOutputException>(() => sharedStyles.SetFill(sharedTarget, FillState.Sung, MaterialValue.Solid(new(1, 0, 0, 1)))).Code);
-            Assert.Equal("UnsupportedGlyphPartition", Assert.Throws<EffectOutputException>(() => sharedStyles.SetStroke(sharedTarget, null)).Code);
-            Assert.Equal("UnsupportedGlyphPartition", Assert.Throws<EffectOutputException>(() => sharedStyles.SetShadow(sharedTarget, null)).Code);
-            Assert.Equal("UnsupportedGlyphPartition", Assert.Throws<EffectOutputException>(() => sharedStyles.SetGlow(sharedTarget, null)).Code);
+            Assert.Equal("UnsupportedGlyphPartition", Assert.Throws<EffectOutputException>(() => sharedStyles.SetFill(sharedTarget, TextState.Sung, MaterialValue.Solid(new(1, 0, 0, 1)))).Code);
+            Assert.Equal("UnsupportedGlyphPartition", Assert.Throws<EffectOutputException>(() => sharedStyles.SetStrokes(sharedTarget, TextState.Both)).Code);
+            Assert.Equal("UnsupportedGlyphPartition", Assert.Throws<EffectOutputException>(() => sharedStyles.SetShadow(sharedTarget, TextState.Both, null)).Code);
+            Assert.Equal("UnsupportedGlyphPartition", Assert.Throws<EffectOutputException>(() => sharedStyles.SetGlow(sharedTarget, TextState.Both, null)).Code);
         }
         Assert.Equal("UnsupportedGlyphPartition", Assert.Throws<EffectOutputException>(() => sharedStyles.Complete()).Code);
     }
@@ -142,7 +170,7 @@ public sealed class V2SdkContractTests
         Assert.Equal("TargetOutsideBinding", Assert.Throws<EffectOutputException>(() => output.AppendTransform(group, Affine2.Identity)).Code);
         var scoped = new TextOutput(in frame, ["group.affine", "group.opacity", "style.fill", "line.affine"], [group]);
         scoped.AppendTransform(group, Affine2.Identity); scoped.MultiplyOpacity(group, .5);
-        Assert.Equal("PropertyTargetUnsupported", Assert.Throws<EffectOutputException>(() => scoped.SetFill(group, FillState.Sung, MaterialValue.Solid(new(1, 1, 1, 1)))).Code);
+        Assert.Equal("PropertyTargetUnsupported", Assert.Throws<EffectOutputException>(() => scoped.SetFill(group, TextState.Sung, MaterialValue.Solid(new(1, 1, 1, 1)))).Code);
         Assert.Equal("PropertyTargetUnsupported", Assert.Throws<EffectOutputException>(() => scoped.MultiplyOpacity(frame.LineLoads[0].Target, .5)).Code);
         Assert.Equal("PropertyTargetUnsupported", Assert.Throws<EffectOutputException>(() => scoped.Complete()).Code);
         var valid = new TextOutput(in frame, ["group.affine", "group.opacity"], [group]);

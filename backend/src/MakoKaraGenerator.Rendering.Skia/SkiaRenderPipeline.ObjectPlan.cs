@@ -224,8 +224,8 @@ public sealed partial class SkiaRenderPipeline
                     && prepared.BaseAppearances.ContainsKey(new(token.Target.TokenId, token.Target.BindingId))
                     ? (SceneCaptureTarget)new SceneCaptureTarget.Base(new(token.Target.TokenId, token.Target.BindingId)) : CaptureTarget(member);
                 var slot = plan.Materials.Where(material => material.Binding.CaptureTarget == captureTarget && (IsStrokePart(part)
-                    ? material.Binding.Slot == PreparedMaterialSlot.Stroke : part is SceneColorPart.BaseFill or SceneColorPart.RubyFill
-                        && material.Binding.Slot != PreparedMaterialSlot.Stroke)).ToArray();
+                    ? PreparedMaterialSlots.IsStroke(material.Binding.Slot) : part is SceneColorPart.BaseFill or SceneColorPart.RubyFill
+                        && !PreparedMaterialSlots.IsStroke(material.Binding.Slot))).ToArray();
                 int order = partOrder * (plan.TokenTargets.Length + 1) + memberOrder;
                 if (part is SceneColorPart.BaseOuterStroke or SceneColorPart.RubyOuterStroke)
                 {
@@ -235,12 +235,16 @@ public sealed partial class SkiaRenderPipeline
                 }
                 if (slot.Length == 0) { parts.Add(new(member, part, order, ObjectPartKind.Original, null, false)); continue; }
                 // 两侧在层序上相邻：未唱在前、已唱在后；有过渡带时执行器把两侧按 m 合并成一层（P3 设计 §10.2）。
-                if (part is SceneColorPart.BaseFill or SceneColorPart.RubyFill) { AddSide(false); AddSide(true); }
-                else AddMaterial(slot[0], null);
+                // 描边两态绑定同一份材质（含已唱跟随未唱）时照旧是一个材质部件；不同时与填充一样按侧拆开，
+                // 没有材质的一侧原样捕获该态最内层一圈（外圈另由外圈描边部件画出）。
+                bool fill = part is SceneColorPart.BaseFill or SceneColorPart.RubyFill;
+                if (!fill && SharedStrokeMaterial(slot) is { Binding: not null } shared) AddMaterial(shared, null);
+                else { AddSide(false); AddSide(true); }
 
                 void AddSide(bool sung)
                 {
-                    var side = sung ? PreparedMaterialSlot.SungFill : PreparedMaterialSlot.UnsungFill;
+                    var side = fill ? sung ? PreparedMaterialSlot.SungFill : PreparedMaterialSlot.UnsungFill
+                        : sung ? PreparedMaterialSlot.SungStroke : PreparedMaterialSlot.UnsungStroke;
                     // 准备帧保证同一目标同一槽位至多一个绑定；没有绑定的一态原样捕获。
                     var match = slot.SingleOrDefault(material => material.Binding.Slot == side);
                     if (match.Binding is null) parts.Add(new(member, part, order, ObjectPartKind.Original, sung, true)); else AddMaterial(match, sung);
@@ -253,6 +257,16 @@ public sealed partial class SkiaRenderPipeline
                 }
             }
         }
+    }
+
+    /// <summary>描边两态绑定同一份材质时取未唱一侧的绑定；只有一侧有材质或两侧材质不同时返回 default。</summary>
+    private static (ObjectMaterialBinding Binding, SceneMaterialProgram Program) SharedStrokeMaterial(
+        (ObjectMaterialBinding Binding, SceneMaterialProgram Program)[] slot)
+    {
+        if (slot.Length != 2) return default;
+        var unsung = slot.Single(material => material.Binding.Slot == PreparedMaterialSlot.UnsungStroke);
+        var sung = slot.Single(material => material.Binding.Slot == PreparedMaterialSlot.SungStroke);
+        return PreparedMaterialSlots.SameMaterial(unsung.Binding.Material, sung.Binding.Material) ? unsung : default;
     }
 
     /// <summary>

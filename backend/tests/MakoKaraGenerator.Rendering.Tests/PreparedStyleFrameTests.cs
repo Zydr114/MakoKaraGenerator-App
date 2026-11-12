@@ -26,7 +26,7 @@ public sealed class PreparedStyleFrameTests
                     {
                         var target = token.WithRuby; var basis = frame.Baseline.Get(target);
                         if (mode == "baseline" || mode == "reset")
-                        { output.Style.SetSungMaterial(target, basis.SungMaterial); if (mode == "baseline") output.Style.SetUnsungMaterial(target, basis.UnsungMaterial); }
+                        { output.Style.SetSungMaterial(target, basis.Sung.Fill); if (mode == "baseline") output.Style.SetUnsungMaterial(target, basis.Unsung.Fill); }
                         else if (mode == "red") output.Style.SetSungMaterial(target, MaterialValue.Solid(new(1, 0, 0, 1)));
                         else if (mode == "alpha2") output.Style.MultiplyOpacity(target, 2);
                         else if (mode == "half") output.Style.MultiplyOpacity(target, .5);
@@ -177,8 +177,8 @@ public sealed class PreparedStyleFrameTests
         var baseline = StaticStyleProjection.CreateBaseline(snapshot);
         var view = baseline.Get(new Fx.TokenId("word"));
         Assert.Equal(new Fx.ColorRgba(10/255d, 20/255d, 30/255d, 180/255d), view.RequireSungSolidColor());
-        Assert.Equal(new Fx.ColorRgba(20/255d, 40/255d, 60/255d, 150/255d), ((Fx.MaterialValue.SolidMaterial)view.UnsungMaterial).Color);
-        Assert.Equal(7, view.Stroke!.WidthPx); Assert.Equal(5, view.Shadow!.BlurRadiusPx); Assert.Equal((double).4f, view.Opacity);
+        Assert.Equal(new Fx.ColorRgba(20/255d, 40/255d, 60/255d, 150/255d), ((Fx.MaterialValue.SolidMaterial)view.Unsung.Fill).Color);
+        Assert.Equal(7, view.Unsung.InnermostStroke!.WidthPx); Assert.Equal(5, view.Unsung.Shadow!.BlurRadiusPx); Assert.Equal((double).4f, view.Opacity);
         Assert.Equal(StaticStyleProjection.View(snapshot.LyricStyle), baseline.Get(new Fx.TokenId("missing")));
         using SkiaRenderPipeline renderer = new(); Assert.DoesNotContain(renderer.GetSceneFrame(snapshot, 2_000_000).Lines, item => item.Branch.Id == "hidden");
         Assert.Equal("MissingBaselineTarget", Assert.Throws<Fx.EffectOutputException>(() => baseline.Get(new Fx.TokenId("gone"))).Code);
@@ -192,7 +192,7 @@ public sealed class PreparedStyleFrameTests
         var snapshot = ProjectSnapshot.FromProject(project with { LyricStyle = style }) with { EffectInputsFingerprint = Fingerprint };
         Assert.Same(style, StaticStyleProjection.Apply(style, new()));
         var view = StaticStyleProjection.View(style);
-        Assert.Equal(Fx.GradientCoordinateSpace.Glyph, ((Fx.MaterialValue.GradientMaterial)view.SungMaterial).Value.CoordinateSpace);
+        Assert.Equal(Fx.GradientCoordinateSpace.Glyph, ((Fx.MaterialValue.GradientMaterial)view.Sung.Fill).Value.CoordinateSpace);
         await using var source = await (await Factory(["baseline"])).CreateAsync(snapshot);
         var prepared = await source.PrepareAsync(2_000_000, Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition));
         Assert.Empty(prepared.TokenStyles);
@@ -287,7 +287,7 @@ public sealed class PreparedStyleFrameTests
         Assert.Equal("InvalidStyleOpacity", Assert.Throws<PreparedFrameException>(() => Make([new(target, new(opacityFactor: 3))])).Code);
         var resources = new Fx.ResourceCatalog("package", "sha256:" + new string('a', 64), ["glass"], [], []);
         Assert.Equal("MaterialOwnershipRequired", Assert.Throws<PreparedFrameException>(() => Make([new(target,
-            new(sung: Fx.MaterialValue.PackageExport(resources.GetMaterial("glass"), Fx.ParameterValues.Empty)))])).Code);
+            TestStyle.Update(sung: Fx.MaterialValue.PackageExport(resources.GetMaterial("glass"), Fx.ParameterValues.Empty)))])).Code);
     }
 
     [Theory]
@@ -300,8 +300,8 @@ public sealed class PreparedStyleFrameTests
         var gradient = new Fx.GradientValue([new(0, new(1, 1, 1, 1)), new(1, new(0, 0, 0, 1))], Fx.GradientKind.Radial,
             coordinateSpace: Fx.GradientCoordinateSpace.Canvas, radiusX: radius, radiusY: radius);
         var prepared = new PreparedRenderFrame(snapshot, scene.TimeUs, Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition), scene, [],
-            [new(target, stroke ? new(stroke: new(new Fx.StrokeValue(4, Fx.MaterialValue.Gradient(gradient))))
-                : new(sung: Fx.MaterialValue.Gradient(gradient)))]);
+            [new(target, stroke ? TestStyle.Update(strokes: [new Fx.StrokeValue(4, Fx.MaterialValue.Gradient(gradient))])
+                : TestStyle.Update(sung: Fx.MaterialValue.Gradient(gradient)))]);
         var error = Assert.Throws<PreparedFrameException>(() => renderer.Render(RenderRequest.At(snapshot, scene.TimeUs) with { PreparedFrame = prepared, TransparentBackground = true }));
         Assert.Equal("UnsupportedNativeStyleValues", error.Code);
     }

@@ -12,10 +12,8 @@ internal sealed partial class FrameEffectHost
         foreach (var slot in update.MaterialEdits.Select(edit => edit switch
             { MaterialEdit.ReplaceMaterial set => set.Slot, MaterialEdit.Uniform uniform => uniform.Slot, _ => throw new InvalidOperationException("未知材质操作。") }).Distinct())
         {
-            var material = slot switch { MaterialSlot.UnsungFill => resolved.UnsungMaterial, MaterialSlot.SungFill => resolved.SungMaterial,
-                MaterialSlot.Stroke => resolved.Stroke?.Material, _ => throw new InvalidOperationException("未知材质部位。") };
-            var preparedSlot = slot switch { MaterialSlot.UnsungFill => PreparedMaterialSlot.UnsungFill, MaterialSlot.SungFill => PreparedMaterialSlot.SungFill,
-                MaterialSlot.Stroke => PreparedMaterialSlot.Stroke, _ => throw new InvalidOperationException("未知材质部位。") };
+            var material = resolved.Material(slot);
+            var preparedSlot = PreparedMaterialSlots.From(slot);
             if (material is MaterialValue.PackageMaterial package)
                 bindings[(target, preparedSlot)] = new(new PreparedMaterialOwner.Script(owner.Definition.Id, owner.Definition.RuntimeHash)
                     { PackageIdentity = owner.Definition.PackageIdentity }, target, preparedSlot, package);
@@ -48,7 +46,7 @@ internal sealed partial class FrameEffectHost
         var package = definition.PackageDefinition ?? throw new EffectOutputException("PackageDefinitionMissing", "包材质须有完整固定包定义。");
         if (!definition.Resources.Contains(handle)) throw new EffectOutputException("InvalidMaterialResource", "材质不属于本固定包修订。");
         var export = package.GetMaterial(handle.Identity.ExportId);
-        string region = slot == MaterialSlot.Stroke ? "stroke" : "fill";
+        string region = slot is MaterialSlot.UnsungStroke or MaterialSlot.SungStroke ? "stroke" : "fill";
         if (!export.Regions.Contains(region, StringComparer.Ordinal))
             throw new EffectOutputException("PackageMaterialRegionInvalid", "材质未声明实际写入区域：" + region);
         if (export.Outputs.Any(item => !item.Requires.IsEmpty || !item.DependsOn.IsEmpty))

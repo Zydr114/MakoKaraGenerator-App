@@ -125,6 +125,15 @@ public sealed partial class SkiaRenderPipeline
         wipe.Pieces.Add(new(rect, 0f, 0f, mask));
     }
 
+    /// <summary>已唱区域是否按扫字线延到行两端之外（<see cref="BuildWipe"/> 的 lineEdges）。</summary>
+    /// <remarks>
+    /// 两态装饰不同时延伸，字框外的装饰随之切换（P3 设计 §4）。描边部件按两态拆侧时也延伸：
+    /// 两侧的材质不同而绘制描述里的种子描边相同，不延伸时字框外的描边总归未唱一侧。
+    /// 拆侧填充照旧只看装饰，保持已有填充材质的输出。
+    /// </remarks>
+    private static bool WipeEdges(LyricStyle style, CapturePaint? capture) => style.DecorationsDifferByState
+        || capture is { Part: SceneColorPart.BaseStroke or SceneColorPart.RubyStroke } && (capture.RequestedSungPass is not null || capture.SungOnly);
+
     /// <summary>
     /// 两态是否画得不同：不同才需要过渡带合成，相同时硬切换的两块画出来与合成一样（P3 设计 §10.1）。
     /// </summary>

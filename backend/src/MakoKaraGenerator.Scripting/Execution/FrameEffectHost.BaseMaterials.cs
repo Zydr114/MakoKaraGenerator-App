@@ -39,13 +39,12 @@ internal sealed partial class FrameEffectHost
                 Invoke(active, "ComposeOutputs", timeUs, diagnostics, _ => BaseMaterialAction(new TextTarget.Base(target), () =>
                 {
                     var resolved = update.ApplyMaterials(basis);
-                    var value = slot switch { MaterialSlot.UnsungFill => resolved.UnsungMaterial, MaterialSlot.SungFill => resolved.SungMaterial,
-                        MaterialSlot.Stroke => resolved.Stroke?.Material, _ => throw new InvalidOperationException("未知材质部位。") };
+                    var value = resolved.Material(slot);
                     if (value is MaterialValue.PackageMaterial material)
                     {
                         ValidateMaterialExport(active.Definition, material.Handle, slot, material.Parameters);
                         result.Add(new(new PreparedMaterialOwner.Script(active.Definition.Id, active.Definition.RuntimeHash)
-                        { PackageIdentity = active.Definition.PackageIdentity }, target, (PreparedMaterialSlot)slot, material));
+                        { PackageIdentity = active.Definition.PackageIdentity }, target, PreparedMaterialSlots.From(slot), material));
                     }
                 }));
             }

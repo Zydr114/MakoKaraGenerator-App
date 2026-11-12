@@ -4,15 +4,55 @@ using MakoKaraGenerator.Scripting;
 
 namespace MakoKaraGenerator.Rendering;
 
-/// <summary>独立区域的最终材质属性。</summary>
+/// <summary>独立区域的最终材质属性；数值与 SDK 的 <see cref="MaterialSlot"/> 一一对应。</summary>
 public enum PreparedMaterialSlot
 {
     /// <summary>未唱填充。</summary>
     UnsungFill,
     /// <summary>已唱填充。</summary>
     SungFill,
-    /// <summary>完整外描边。</summary>
-    Stroke,
+    /// <summary>未唱最内层描边。</summary>
+    UnsungStroke,
+    /// <summary>已唱最内层描边。</summary>
+    SungStroke,
+}
+/// <summary>材质槽的换算与源引用归属。</summary>
+public static class PreparedMaterialSlots
+{
+    /// <summary>SDK 材质槽对应的准备帧材质槽。</summary>
+    public static PreparedMaterialSlot From(MaterialSlot slot) => slot switch
+    {
+        MaterialSlot.UnsungFill => PreparedMaterialSlot.UnsungFill,
+        MaterialSlot.SungFill => PreparedMaterialSlot.SungFill,
+        MaterialSlot.UnsungStroke => PreparedMaterialSlot.UnsungStroke,
+        MaterialSlot.SungStroke => PreparedMaterialSlot.SungStroke,
+        _ => throw new PreparedFrameException("InvalidMaterialSlot", "未知材质部位。"),
+    };
+    /// <summary>是否是描边槽（未唱或已唱）。</summary>
+    public static bool IsStroke(PreparedMaterialSlot slot) => slot is PreparedMaterialSlot.UnsungStroke or PreparedMaterialSlot.SungStroke;
+    /// <summary>源材质引用按自己的路径与区域所属的槽：描边区域按路径分未唱／已唱，填充同理。</summary>
+    public static PreparedMaterialSlot Of(SourceMaterialReference reference)
+    {
+        ArgumentNullException.ThrowIfNull(reference);
+        bool sung = SourceMaterialCatalog.IsSung(reference);
+        return reference.Region == "stroke" ? sung ? PreparedMaterialSlot.SungStroke : PreparedMaterialSlot.UnsungStroke
+            : sung ? PreparedMaterialSlot.SungFill : PreparedMaterialSlot.UnsungFill;
+    }
+    /// <summary>
+    /// 源引用能否绑定到给定槽：与自身所属槽相同，或是未唱描边的引用绑定到已唱描边（已唱描边跟随未唱时，两态共用未唱一侧的源引用）。
+    /// </summary>
+    public static bool Accepts(SourceMaterialReference reference, PreparedMaterialSlot slot)
+    {
+        var own = Of(reference);
+        return own == slot || own == PreparedMaterialSlot.UnsungStroke && slot == PreparedMaterialSlot.SungStroke;
+    }
+    /// <summary>两个包材质是否是同一份材质：同一句柄、内容相同的参数与相同的 uniform 覆盖。</summary>
+    /// <remarks>两态描边材质相同时渲染器照旧只执行一个描边材质部件，不按侧拆开。</remarks>
+    public static bool SameMaterial(MaterialValue.PackageMaterial left, MaterialValue.PackageMaterial right)
+    {
+        ArgumentNullException.ThrowIfNull(left); ArgumentNullException.ThrowIfNull(right);
+        return ReferenceEquals(left, right) || left.Handle == right.Handle && left.Parameters.ContentEquals(right.Parameters) && left.Uniforms.Equals(right.Uniforms);
+    }
 }
 /// <summary>逐属性保存真实最后写入者，不从其他样式字段推断归属。</summary>
 /// <param name="Owner">真实源对象或最后脚本写入者。</param>
@@ -49,8 +89,8 @@ public sealed partial class PreparedRenderFrame
     /// <summary>标记固定字形绘制描述，包材质种子不能作为最终彩色捕获。</summary>
     public LyricStyle GetMarkDrawingStyle(TextMarkTarget target) => _markStyles.TryGetValue(target, out var style) ? style
         : throw new PreparedFrameException("MissingPreparedMarkStyle", "标记没有准备绘制描述。");
-    private static bool ContainsPackageMaterial(StyleUpdate update) => update.UnsungMaterial is MaterialValue.PackageMaterial
-        || update.SungMaterial is MaterialValue.PackageMaterial || update.Stroke?.Value?.Material is MaterialValue.PackageMaterial;
+    private static bool ContainsPackageMaterial(StyleUpdate update) => update.MaterialEdits.Any(static edit =>
+        edit is MaterialEdit.ReplaceMaterial { Material: MaterialValue.PackageMaterial });
     private bool HasMaterial(ImageEffectTarget target) => Materials.Any(binding => binding.Target == target);
     private void ValidateMaterials()
     {
@@ -73,9 +113,8 @@ public sealed partial class PreparedRenderFrame
         if (seen.Count != expected.Count) throw new PreparedFrameException("MaterialOwnershipRequired", "包材质缺少逐属性真实写入者。");
         void Add(ImageEffectTarget target, StyleView style)
         {
-            if (style.UnsungMaterial is MaterialValue.PackageMaterial unsung) expected.Add((target, PreparedMaterialSlot.UnsungFill), unsung);
-            if (style.SungMaterial is MaterialValue.PackageMaterial sung) expected.Add((target, PreparedMaterialSlot.SungFill), sung);
-            if (style.Stroke?.Material is MaterialValue.PackageMaterial stroke) expected.Add((target, PreparedMaterialSlot.Stroke), stroke);
+            foreach (var slot in Enum.GetValues<MaterialSlot>())
+                if (style.Material(slot) is MaterialValue.PackageMaterial material) expected.Add((target, PreparedMaterialSlots.From(slot)), material);
         }
     }
 }

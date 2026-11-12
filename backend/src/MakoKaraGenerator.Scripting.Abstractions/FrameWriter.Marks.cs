@@ -28,21 +28,21 @@ public sealed partial class FrameWriter
     private void WriteMarkStyle(TextMarkTarget target, StyleUpdate update)
     {
         _ = RequireMark(target, EffectCapabilities.Style); _ = _baseline.Get(target);
-        ValidateMaterial(update.UnsungMaterial); ValidateMaterial(update.SungMaterial); ValidateMaterial(update.Stroke?.Value?.Material);
+        foreach (var material in update.Materials()) ValidateMaterial(material);
         _markStyles[target] = _markStyles.TryGetValue(target, out var previous) ? previous.Then(update) : update;
     }
     public sealed partial class StyleWriter
     {
         /// <summary>设置标记 Pending 材质，不产生未唱元素或演唱事件。</summary>
         public void SetUnsungMaterial(TextMarkTarget target, MaterialValue material)
-        { ArgumentNullException.ThrowIfNull(material); _owner.WriteMarkStyle(target, new(unsung: material)); }
+        { ArgumentNullException.ThrowIfNull(material); _owner.WriteMarkStyle(target, new(unsung: new(fill: material))); }
         /// <summary>设置标记 Elapsed 材质，不制造逐字进度。</summary>
         public void SetSungMaterial(TextMarkTarget target, MaterialValue material)
-        { ArgumentNullException.ThrowIfNull(material); _owner.WriteMarkStyle(target, new(sung: material)); }
-        /// <summary>设置标记外部描边；null 明确关闭。</summary>
-        public void SetStroke(TextMarkTarget target, StrokeValue? stroke) => _owner.WriteMarkStyle(target, new(stroke: new(stroke)));
-        /// <summary>设置标记阴影；null 明确关闭。</summary>
-        public void SetShadow(TextMarkTarget target, ShadowValue? shadow) => _owner.WriteMarkStyle(target, new(shadow: new(shadow)));
+        { ArgumentNullException.ThrowIfNull(material); _owner.WriteMarkStyle(target, new(sung: new(fill: material))); }
+        /// <summary>两态一起设置标记的单层描边；null 明确关闭。</summary>
+        public void SetStroke(TextMarkTarget target, StrokeValue? stroke) => _owner.WriteMarkStyle(target, StrokeBoth(stroke));
+        /// <summary>两态一起设置标记阴影；null 明确关闭。</summary>
+        public void SetShadow(TextMarkTarget target, ShadowValue? shadow) => _owner.WriteMarkStyle(target, StyleUpdate.Both(new(shadow: new(shadow))));
         /// <summary>乘标记静态 alpha，动态附着透明度单独且只应用一次。</summary>
         public void MultiplyOpacity(TextMarkTarget target, double factor) => _owner.WriteMarkStyle(target, new(opacityFactor: factor));
     }

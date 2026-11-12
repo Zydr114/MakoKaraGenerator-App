@@ -54,6 +54,18 @@ public sealed partial class SkiaRenderPipeline
         token.Index < line.Tokens.Length && line.Tokens[token.Index].StyleOverride?.Wipe is { } overlay
             ? overlay.Apply(lineStyle.Wipe) : lineStyle.Wipe;
 
+    /// <summary>本装载里有脚本样式输出的元素准备后的扫字样式，按源元素 ID；底字输出优先于元素族。没有输出时为 null。</summary>
+    private static Dictionary<string, WipeSpec>? PreparedWipes(PreparedRenderFrame? prepared, string? binding)
+    {
+        if (prepared is null || binding is null || prepared.TokenStyles.IsEmpty && prepared.BaseStyles.IsEmpty) return null;
+        Dictionary<string, WipeSpec>? wipes = null;
+        foreach (var output in prepared.TokenStyles)
+            if (output.Target.BindingId.Value == binding) (wipes ??= new(StringComparer.Ordinal))[output.Target.TokenId.Value] = prepared.GetTokenDrawingStyle(output.Target).Wipe;
+        foreach (var output in prepared.BaseStyles)
+            if (output.Target.BindingId.Value == binding) (wipes ??= new(StringComparer.Ordinal))[output.Target.TokenId.Value] = prepared.GetBaseDrawingStyle(output.Target).Wipe;
+        return wipes;
+    }
+
     /// <summary>
     /// 整行正文的高亮峰，偏移相对整行左端（P3 设计 §10.3）。
     /// </summary>

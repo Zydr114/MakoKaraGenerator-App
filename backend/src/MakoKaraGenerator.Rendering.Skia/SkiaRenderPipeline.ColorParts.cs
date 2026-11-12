@@ -15,7 +15,7 @@ public sealed partial class SkiaRenderPipeline
 
     private SceneColorPartResult CaptureColorPart(RenderRequest request, SceneCaptureTarget target, SceneColorPart part,
         GraphRect bounds, GraphExecutionBudget budget, ImageSurfaceBudgetFrame? surfaceBudget, HashSet<string>? excludedTokens, bool? sungPass = null,
-        CaptureDrawProbe? probe = null)
+        CaptureDrawProbe? probe = null, WipeBandProbe? wipeBand = null)
     {
         ArgumentNullException.ThrowIfNull(request); ArgumentNullException.ThrowIfNull(target); ArgumentNullException.ThrowIfNull(budget);
         ObjectDisposedException.ThrowIf(_disposed, this); request.CancellationToken.ThrowIfCancellationRequested();
@@ -36,7 +36,7 @@ public sealed partial class SkiaRenderPipeline
         var surface = RasterSceneSurface(request, bounds, budget, ShaderSurfaceKind.Color, surfaceBudget, "CaptureSceneColorPart", (canvas, resources, bytes) =>
         {
             var paint = new CapturePaint(GraphInputSource.TargetColor, recipe, CaptureTokenId(target),
-                resources, bytes, part, excludedTokens, RequestedSungPass: sungPass, Probe: probe);
+                resources, bytes, part, excludedTokens, RequestedSungPass: sungPass, Probe: probe, WipeBand: wipeBand);
             if (item.Line is { } line) DrawSceneLine(canvas, request, request.Project.Composition, line, paint);
             else DrawTextMark(canvas, request, request.Project.Composition, item.Mark!, paint);
         });

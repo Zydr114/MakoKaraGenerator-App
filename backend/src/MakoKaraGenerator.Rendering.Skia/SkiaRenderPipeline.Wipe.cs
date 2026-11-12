@@ -129,10 +129,12 @@ public sealed partial class SkiaRenderPipeline
     /// 两态是否画得不同：不同才需要过渡带合成，相同时硬切换的两块画出来与合成一样（P3 设计 §10.1）。
     /// </summary>
     /// <remarks>
+    /// 拆侧部件的两侧总按不同处理：两侧一边是材质、一边是原样或另一材质，外观相同也不能只按已唱硬区切开，两侧都要画到过渡带。
     /// 只取已唱覆盖时两遍总是不同（带内为字形覆盖 × m）；其他覆盖两遍都画白色，只有两态装饰的形状不同时才不同。
     /// </remarks>
     private static bool WipeStatesDiffer(LyricStyle style, CapturePaint? capture) => capture switch
     {
+        { RequestedSungPass: not null } => true,
         { SungOnly: true } => true,
         { IsCoverage: true } => style.DecorationsDifferByState,
         _ => style.Appearance(false) != style.Appearance(true),
@@ -183,6 +185,7 @@ public sealed partial class SkiaRenderPipeline
 
         if (capture?.RequestedSungPass is { } side)
         {
+            if (capture.WipeBand is { } probe) probe.Seen = true;
             canvas.Save();
             if (side) canvas.ClipRegion(covered);
             else canvas.ClipRegion(hard, SKClipOperation.Difference);

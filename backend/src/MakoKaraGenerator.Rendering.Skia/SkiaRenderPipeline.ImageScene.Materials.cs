@@ -7,7 +7,7 @@ namespace MakoKaraGenerator.Rendering.Skia;
 public sealed partial class SkiaRenderPipeline
 {
     private ImageGraphResult ExecuteObjectMaterial(RenderRequest request, ObjectMaterialBinding binding, SceneMaterialProgram program,
-        SceneColorPart part, bool? sung, ImageObjectState state, SkiaGraphSurface? below)
+        SceneColorPart part, bool? sung, ImageObjectState state, SkiaGraphSurface? below, WipeBandProbe? wipeBand = null)
     {
         var output = request.ResolveTarget(); var composition = request.Project.Composition;
         var regionKind = binding.Slot == PreparedMaterialSlot.Stroke ? SceneCaptureRegion.Stroke : SceneCaptureRegion.Fill;
@@ -17,7 +17,7 @@ public sealed partial class SkiaRenderPipeline
             { Uniforms = binding.Material.Uniforms };
         var definition = program.Package.GetMaterialDefinition(binding.Material.Handle);
         using var captured = CaptureSceneMaterialRegion(request, binding.CaptureTarget, part, definition.Fallback, sung,
-            state.Bounds, state.Budget, state.Resources);
+            state.Bounds, state.Budget, state.Resources, wipeBand);
         Dictionary<string, SkiaGraphInput> inputs = new(StringComparer.Ordinal);
         List<SkiaGraphSurface> owned = [];
         Dictionary<GraphInputSource, SkiaGraphSurface> backgrounds = [];

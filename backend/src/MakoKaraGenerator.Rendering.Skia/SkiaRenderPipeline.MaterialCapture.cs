@@ -11,6 +11,11 @@ public sealed partial class SkiaRenderPipeline
     public SceneMaterialRegionCapture CaptureSceneMaterialRegion(RenderRequest request, SceneCaptureTarget target, SceneColorPart part,
         EffectMaterialFallback fallback, bool? sungPass, GraphRect bounds, GraphExecutionBudget budget,
         ImageSurfaceBudgetFrame? surfaceBudget = null)
+        => CaptureSceneMaterialRegion(request, target, part, fallback, sungPass, bounds, budget, surfaceBudget, null);
+
+    private SceneMaterialRegionCapture CaptureSceneMaterialRegion(RenderRequest request, SceneCaptureTarget target, SceneColorPart part,
+        EffectMaterialFallback fallback, bool? sungPass, GraphRect bounds, GraphExecutionBudget budget,
+        ImageSurfaceBudgetFrame? surfaceBudget, WipeBandProbe? wipeBand)
     {
         ArgumentNullException.ThrowIfNull(request); ArgumentNullException.ThrowIfNull(target); ArgumentNullException.ThrowIfNull(fallback);
         ArgumentNullException.ThrowIfNull(budget); ObjectDisposedException.ThrowIf(_disposed, this);
@@ -41,7 +46,7 @@ public sealed partial class SkiaRenderPipeline
             => RasterSceneSurface(request, bounds, budget, kind, sharedBudget, "CaptureMaterialRegion", (canvas, resources, bytes) =>
             {
                 var paint = new CapturePaint(source, recipe, CaptureTokenId(target),
-                    resources, bytes, part, MaterialFallback: appearance, RequestedSungPass: sungPass, MaterialOperation: true);
+                    resources, bytes, part, MaterialFallback: appearance, RequestedSungPass: sungPass, MaterialOperation: true, WipeBand: wipeBand);
                 if (item.Line is { } line) DrawSceneLine(canvas, request, request.Project.Composition, line, paint);
                 else DrawTextMark(canvas, request, request.Project.Composition, item.Mark!, paint);
             });

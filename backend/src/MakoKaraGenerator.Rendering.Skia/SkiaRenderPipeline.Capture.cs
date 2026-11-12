@@ -12,7 +12,7 @@ public sealed partial class SkiaRenderPipeline
     private sealed record CapturePaint(GraphInputSource Source, SceneCaptureRecipe Recipe, string? TokenId,
         ImageSurfaceBudgetFrame? Budget = null, long PixelBytes = 0, SceneColorPart? Part = null, HashSet<string>? ExcludedTokens = null,
         EffectMaterialFallback? MaterialFallback = null, bool? RequestedSungPass = null, bool MaterialOperation = false,
-        CaptureDrawProbe? Probe = null)
+        CaptureDrawProbe? Probe = null, WipeBandProbe? WipeBand = null)
     {
         /// <summary>即将在未被剪空的画布上发起部件绘制时记录；未记录即可证明捕获面仍是初始透明。</summary>
         public void MarkDrawn(SKCanvas canvas) { if (Probe is { } probe && !canvas.IsClipEmpty) probe.Drew = true; }
@@ -56,6 +56,8 @@ public sealed partial class SkiaRenderPipeline
     }
     // 记录同一捕获的全部 with 副本（含网格源面）是否真正发起过绘制；保守：任何可能着色的绘制都记为已绘制。
     private sealed class CaptureDrawProbe { public bool Drew { get; set; } }
+    // 拆侧捕获（RequestedSungPass）是否按过渡带画了本侧：两侧在带内重叠，执行器据此把两侧按 m 合并（P3 设计 §10.2）。
+    private sealed class WipeBandProbe { public bool Seen { get; set; } }
     internal sealed record SceneDrawItem(string NodeId, SceneLineSample? Line, SceneTextMarkSample? Mark);
     private static IEnumerable<SceneDrawItem> DrawItems(SceneFrame frame)
     {

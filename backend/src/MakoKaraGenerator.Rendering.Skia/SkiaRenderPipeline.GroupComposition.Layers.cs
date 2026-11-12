@@ -14,7 +14,8 @@ public sealed partial class SkiaRenderPipeline
         if (ordered.Length == 0) return;
         destination.SetLayerBudget(checked(destination.Layers.Count + ordered.Length));
         var context = CompositionContext(request, leaf.Bounds);
-        var closed = ordered.Select(layer => leaf.Own(layer.History.IsEmpty
+        // 扫字两侧合并层本身就是闭合对（P3 设计 §10.2 第 4 条），已在 leaf 的拥有表中，直接导出。
+        var closed = ordered.Select(layer => layer.ClosedPayload ?? leaf.Own(layer.History.IsEmpty
             ? _compositionProgram.CaptureCompositionPayload(layer.Surface, context, leaf.Resources, cancellationToken: request.CancellationToken)
             : _compositionProgram.CaptureCompositionPayload(layer.History, leaf.Resources, cancellationToken: request.CancellationToken))).ToArray();
         // Every closed pair is now an independent copy. The original captures,

@@ -25,6 +25,7 @@ public sealed partial class SkiaRenderPipeline
         // ClosedPayload and InheritedPayload borrow from this state's Owned list.
         // Child exports clear History/Graph/ChainTarget; only this target's live chain
         // may retain History and the original independent-child inheritance floor.
+        // 对象内的扫字两侧合并层（P3 设计 §10.2）同时带 ClosedPayload 与两侧材质历史：合成与导出用闭合对，历史只供后续图读取替换范围。
         internal ImageCompositionPayload? ClosedPayload { get; init; }
         internal ImageEffectTarget? ChainTarget { get; init; }
         internal ImageCompositionPayload? InheritedPayload { get; init; }

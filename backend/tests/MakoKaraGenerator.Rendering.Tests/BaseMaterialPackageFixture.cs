@@ -18,9 +18,9 @@ internal static class BaseMaterialPackageFixture
 {
     internal const long TimeUs = 1_250_000;
     internal static readonly GraphRect Bounds = new(0, 0, 640, 360);
-    internal static EffectPackageContents Package()
+    internal static EffectPackageContents Package(Action<JsonObject>? graphChange = null, string? shaderSource = null)
     {
-        var original = MixedEffectPackageFixture.MaterialContents(controllerSource: Source);
+        var original = MixedEffectPackageFixture.MaterialContents(controllerSource: Source, graphChange: graphChange, shaderSource: shaderSource);
         var manifest = JsonNode.Parse(original.Manifest.AsSpan())!.AsObject();
         manifest["packageVersion"] = 3; manifest["sdkVersion"] = "2.0.0"; manifest["shaderProfile"] = "skia-ganesh-3.119.4-v2";
         manifest["packageId"] = "makokara.base-material-draft";

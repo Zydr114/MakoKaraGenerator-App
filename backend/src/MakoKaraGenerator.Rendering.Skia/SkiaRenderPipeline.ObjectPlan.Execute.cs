@@ -80,14 +80,20 @@ public sealed partial class SkiaRenderPipeline
         using var capturedBelow = plan.Below == ObjectBelowSource.DestinationSnapshot ? SnapshotSceneBelow(main, request, bounds, state) : null;
         var below = capturedBelow;
         bool opacityKnown = false;
+        // 填充拆侧的两步相邻（未唱在前）：两侧捕获记到同一个探针上，按过渡带画过就在已唱一侧之后合并（P3 设计 §10.2）。
+        WipeBandProbe? sides = null;
         foreach (var step in plan.Parts)
         {
+            var band = step.Sung switch { false => sides = new(), true => sides, null => null };
             switch (step.Kind)
             {
-                case ObjectPartKind.Material: AddMaterial(step); break;
-                case ObjectPartKind.KnownEmpty: AddEmpty(step); break;
-                default: AddOriginal(step); break;
+                case ObjectPartKind.Material: AddMaterial(step, band); break;
+                case ObjectPartKind.KnownEmpty: AddEmpty(step, band); break;
+                default: AddOriginal(step, band); break;
             }
+            if (step.Sung != true) continue;
+            if (sides?.Seen == true) MergeWipeSides(request, plan, state, step);
+            sides = null;
         }
         state.Backgrounds.Dispose();
 
@@ -105,21 +111,21 @@ public sealed partial class SkiaRenderPipeline
         using var final = ApplyImageObjectOpacity(request, state, processed, below!);
         DrawGraphSurface(main.Canvas, final, SKBlendMode.Src);
 
-        void AddMaterial(ObjectPartStep step)
+        void AddMaterial(ObjectPartStep step, WipeBandProbe? band)
         {
             var binding = step.Material!;
             owner.Value = new(binding.Owner, "RenderMaterials", binding.TextTarget);
             // Admit the actual additional source layer before any material input is captured.
             state.SetLayerBudget(checked(state.Layers.Count + 1));
             state.ScopeBudget?.Result();
-            var result = state.Own(ExecuteObjectMaterial(request, binding, step.MaterialProgram!, step.Part, step.Sung, state, below));
+            var result = state.Own(ExecuteObjectMaterial(request, binding, step.MaterialProgram!, step.Part, step.Sung, state, below, band));
             run.MaterialWarnings.AddRange(result.Diagnostics.Select(diagnostic => new RenderMaterialDiagnostic(binding.Owner,
                 binding.Material.Handle, diagnostic.InputId, diagnostic.Reason)));
             SetOpacity(MaterialCommonOpacity(request, step.Member));
             state.Layers.Add(new(step.Order, [new(step.Member, step.Part)], result.Output, [result], step.MaterialProgram!.Graph, owner.Value));
             state.Changed = true;
         }
-        bool AddOriginal(ObjectPartStep step)
+        bool AddOriginal(ObjectPartStep step, WipeBandProbe? band)
         {
             // Empty parts are still real source layers; admission must precede capture.
             state.SetLayerBudget(checked(state.Layers.Count + 1));
@@ -128,7 +134,7 @@ public sealed partial class SkiaRenderPipeline
             var probe = _graphPixelChecks ? null : new CaptureDrawProbe();
             // 对象成员的部件不含有自己图或材质的元素族。
             var captured = CaptureColorPart(request, CaptureTarget(step.Member), step.Part, bounds, state.Budget, resources,
-                step.Member == plan.Target ? plan.ExcludedTokens : null, step.Sung, probe);
+                step.Member == plan.Target ? plan.ExcludedTokens : null, step.Sung, probe, band);
             state.Own(captured);
             SetOpacity(captured.QuantizedOpacity);
             var surface = captured.Surface;
@@ -150,12 +156,12 @@ public sealed partial class SkiaRenderPipeline
             state.Layers.Add(new(step.Order, [new(step.Member, step.Part)], surface, [], null, null));
             return empty;
         }
-        void AddEmpty(ObjectPartStep step)
+        void AddEmpty(ObjectPartStep step, WipeBandProbe? band)
         {
             // 检查模式按原样部件捕获（表面与读回同原来）并核对判空条件没有漏掉样式来源；注音材质同样不执行。
             if (_graphPixelChecks)
             {
-                if (!AddOriginal(step))
+                if (!AddOriginal(step, band))
                     throw new PreparedFrameException("SceneColorPartKnownEmptyMismatch", "预判为空的对象部件实际有像素。");
                 return;
             }

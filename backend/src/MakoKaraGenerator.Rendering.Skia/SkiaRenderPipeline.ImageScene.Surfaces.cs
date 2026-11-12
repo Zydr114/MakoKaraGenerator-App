@@ -22,7 +22,7 @@ public sealed partial class SkiaRenderPipeline
     internal bool SinglePassLayerAssembly { get; set; } = true;
 
     /// <remarks>无历史层按源序 SrcOver 叠加：同一张表面上依次绘制与逐层复制再叠加逐字节相同（复制是 Src 原样拷贝）。
-    /// 共享空层全透明，SrcOver 不改像素，直接跳过。有历史的层把当前结果交给图链合成，在此断开。</remarks>
+    /// 共享空层全透明，SrcOver 不改像素，直接跳过。有历史的层把当前结果交给图链合成，扫字两侧合并层按闭合对合成，都在此断开。</remarks>
     private SkiaGraphSurface AssembleImageLayers(RenderRequest request, ImageObjectState state, IEnumerable<ColorLayer> layers, SkiaGraphSurface? below)
     {
         var ordered = layers.OrderBy(layer => layer.Order).ToArray();
@@ -34,7 +34,7 @@ public sealed partial class SkiaRenderPipeline
             while (true)
             {
                 int end = index;
-                while (end < ordered.Length && ordered[end].History.IsEmpty) end++;
+                while (end < ordered.Length && !Composited(ordered[end])) end++;
                 var run = ordered[index..end].Where(layer => !ReferenceEquals(layer.Surface, state.Empty)).ToArray();
                 if (current is null || run.Length > 0)
                 {
@@ -68,7 +68,7 @@ public sealed partial class SkiaRenderPipeline
             foreach (var layer in ordered)
             {
                 request.CancellationToken.ThrowIfCancellationRequested();
-                if (!layer.History.IsEmpty) { current = CompositeLayer(request, state, layer, current); continue; }
+                if (Composited(layer)) { current = CompositeLayer(request, state, layer, current); continue; }
                 var next = RasterSceneSurface(request, state.Bounds, state.Budget, ShaderSurfaceKind.Color, state.Resources, "SceneLayerAssembly", (canvas, _, _) =>
                 { DrawGraphSurface(canvas, current, SKBlendMode.Src); DrawGraphSurface(canvas, layer.Surface, SKBlendMode.SrcOver); });
                 current.Dispose(); current = next;
@@ -77,12 +77,21 @@ public sealed partial class SkiaRenderPipeline
         }
         catch { current.Dispose(); throw; }
     }
-    /// <summary>把有历史的层与当前结果按图链合成；成功后释放旧的当前结果，失败时由调用方释放。</summary>
-    private static SkiaGraphSurface CompositeLayer(RenderRequest request, ImageObjectState state, ColorLayer layer, SkiaGraphSurface current)
+    /// <summary>不能按 SrcOver 叠加、要与当前结果合成的层：有图链历史，或是扫字两侧合并层（带闭合对）。</summary>
+    private static bool Composited(ColorLayer layer) => !layer.History.IsEmpty || layer.ClosedPayload is not null;
+
+    /// <summary>把有历史的层与当前结果按图链合成，扫字两侧合并层按闭合对的替换规则合成；成功后释放旧的当前结果，失败时由调用方释放。</summary>
+    /// <remarks>合并层的历史只供后续图读取替换范围，合成用合并后的一对（P3 设计 §10.2 第 4 条）。</remarks>
+    private SkiaGraphSurface CompositeLayer(RenderRequest request, ImageObjectState state, ColorLayer layer, SkiaGraphSurface current)
     {
         request.CancellationToken.ThrowIfCancellationRequested();
         SkiaGraphSurface next;
-        try { next = layer.Graph!.CompositeChain(layer.History, current, state.Resources, 1, request.CancellationToken); }
+        try
+        {
+            next = layer.ClosedPayload is { } payload
+                ? _compositionProgram.CompositePayload(payload, current, state.Resources, 1, clipToBelow: true, request.CancellationToken)
+                : layer.Graph!.CompositeChain(layer.History, current, state.Resources, 1, request.CancellationToken);
+        }
         catch (OperationCanceledException) { throw; }
         catch (Exception error)
         {

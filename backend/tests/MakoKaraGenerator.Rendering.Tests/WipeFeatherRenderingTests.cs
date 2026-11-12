@@ -11,7 +11,7 @@ namespace MakoKaraGenerator.Rendering.Tests;
 /// P3 第 5 步：扫字羽化的直绘（P3 设计 §8.1、§10.1）。
 /// 文字用实心方块「█」（每字恰好 100 px 见方），未唱纯红、已唱纯蓝：带内像素的蓝色分量就是 255·m，红色是 255·(1 − m)。
 /// </summary>
-public sealed class WipeFeatherRenderingTests
+public sealed partial class WipeFeatherRenderingTests
 {
     private const int Width = 640, Height = 240, Row = 120;
     private const float FontSize = 100f;
@@ -353,10 +353,12 @@ public sealed class WipeFeatherRenderingTests
     }
 
     [Fact]
-    public async Task 填充包材质按两态拆侧时羽化先明确拒绝()
+    public async Task 工程填充包材质按两态拆侧时羽化正常渲染()
     {
+        // 真实流程：样式两态填充都是包材质，经编译、准备后在图场景拆侧执行；过渡带内两侧合并（P3 设计 §10.2）。
         var package = BaseMaterialPackageFixture.Package();
         var plain = BaseMaterialPackageFixture.Snapshot(package, [BaseMaterialPackageFixture.Instance(package, "leaf", 2)], source: true);
+        var pixels = new List<byte[]>();
         foreach (bool feathered in new[] { false, true })
         {
             var snapshot = feathered ? plain with { LyricStyle = plain.LyricStyle with { Wipe = new WipeSpec { FeatherRatio = .5 } } } : plain;
@@ -366,11 +368,17 @@ public sealed class WipeFeatherRenderingTests
             using var device = BaseMaterialRuntimeTests.Device(false);
             using var native = CompiledPackageGraphExports.CompileWithDevice(compiled.Packages[0].Definition, null, device);
             using var resources = BaseMaterialRuntimeTests.Resources(native);
-            using var renderer = new SkiaRenderPipeline(null, null, null, resources, false, device, false);
-            if (!feathered) { using var pixels = BaseMaterialRuntimeTests.Render(renderer, snapshot, frame); continue; }
-            var error = Assert.ThrowsAny<Exception>(() => { using var pixels = BaseMaterialRuntimeTests.Render(renderer, snapshot, frame); });
-            Assert.Equal("WipeFeatherMaterialPending", (error as PreparedFrameException ?? Assert.IsType<PreparedFrameException>(error.InnerException)).Code);
+            using var budget = new ImageSurfaceBudgetSession();
+            using var renderer = new SkiaRenderPipeline(null, null, budget, resources, false, device, false);
+            using var rendered = BaseMaterialRuntimeTests.Render(renderer, snapshot, frame);
+            Assert.Empty(rendered.MaterialDiagnostics);
+            Assert.Equal(0, budget.Usage.ActiveSurfaces);
+            pixels.Add(rendered.PixelMemory.ToArray());
         }
+        // 两态都是白色的同一材质：合并结果与硬切换只差舍入。
+        Assert.Equal(pixels[0].Length, pixels[1].Length);
+        int worst = pixels[0].Select((value, index) => Math.Abs(value - pixels[1][index])).Max();
+        Assert.True(worst <= 2, $"同一材质两侧合并后与硬切换最大差 {worst}。");
     }
 
     [Fact]

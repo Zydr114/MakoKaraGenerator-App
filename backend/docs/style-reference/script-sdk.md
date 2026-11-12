@@ -170,7 +170,7 @@
 
 `AppearanceView.Glow` 提供可空、只读的 `GlowValue` 静态基线；`GlowValue` 的颜色、透明度、模糊和外扩均只读。v1 writer 没有辉光写入，v2 用 `SetGlow`。静态编辑和继承见[辉光参考](glow.md)。
 
-`GradientValue` 能描述更多枚举，但脚本生产样式目前只接受 Linear/Radial、Canvas/Line/Glyph、LinearRgb/Hsv（重合色标即硬边）；Progress/Oklch 报 `UnsupportedEffectGradient`，不能按 Core 静态样式的历史回退说明推定脚本会降级。包材质还需固定包修订、fill/stroke 区域声明、参数、ColorOnly 和资源闭包校验。参考 [Style writer](../../src/MakoKaraGenerator.Scripting.Abstractions/FrameWriter.Style.cs)、[StyleUpdate](../../src/MakoKaraGenerator.Scripting.Abstractions/StyleUpdate.cs)、[实际样式转换](../../src/MakoKaraGenerator.Rendering.Abstractions/StaticStyleProjection.cs)、[GradientSupport](../../src/MakoKaraGenerator.Core/Projects/GradientSupport.cs)。
+脚本生产样式接受 Linear/Radial、Canvas/Line/Glyph、LinearRgb/Hsv（重合色标即硬边；`Glyph` 为按单字，每个字簇以自己的字框为参考框）；Oklch 报 `UnsupportedEffectGradient`，不能按 Core 静态样式的历史回退说明推定脚本会降级。0.112.83 起坐标枚举删去 `Progress`，并新增 `GradientValue.Bands(colors, boundaries, …)` 按「颜色＋分界」构造硬边分层渐变，例如 `GradientValue.Bands([red, white, blue], [.4, .6])`。包材质还需固定包修订、fill/stroke 区域声明、参数、ColorOnly 和资源闭包校验。参考 [Style writer](../../src/MakoKaraGenerator.Scripting.Abstractions/FrameWriter.Style.cs)、[StyleUpdate](../../src/MakoKaraGenerator.Scripting.Abstractions/StyleUpdate.cs)、[实际样式转换](../../src/MakoKaraGenerator.Rendering.Abstractions/StaticStyleProjection.cs)、[GradientSupport](../../src/MakoKaraGenerator.Core/Projects/GradientSupport.cs)。
 
 ### Evaluate：Materials（2）
 

@@ -146,6 +146,7 @@
 | `GradientStop` | `GradientStop(double offset,ColorRgba color)`；`double Offset`；`ColorRgba Color` | offset `[0,1]` |
 | `GradientValue` | `GradientValue(ImmutableArray<GradientStop> stops,GradientKind kind = GradientKind.Linear,double angleDegrees = 0,GradientCoordinateSpace coordinateSpace = GradientCoordinateSpace.Line,GradientColorSpace colorSpace = GradientColorSpace.LinearRgb,GradientHuePath huePath = GradientHuePath.Shorter,double centerX = .5,double centerY = .5,double radiusX = .5,double radiusY = .5)` | 完整中立渐变；正式支持子集见主文 |
 | 同上属性 | `ImmutableArray<GradientStop> Stops`；`GradientKind Kind`；`double AngleDegrees,CenterX,CenterY,RadiusX,RadiusY`；`GradientCoordinateSpace CoordinateSpace`；`GradientColorSpace ColorSpace`；`GradientHuePath HuePath` | 首尾 0/1、至少两点、非递减，可同位置硬边 |
+| 分层工厂 | `static GradientValue Bands(ImmutableArray<ColorRgba> colors,ImmutableArray<double> boundaries,GradientKind kind = GradientKind.Linear,double angleDegrees = 0,GradientCoordinateSpace coordinateSpace = GradientCoordinateSpace.Line,double centerX = .5,double centerY = .5,double radiusX = .5,double radiusY = .5)` | 0.112.83 起；n 层颜色、n−1 个严格递增且在 (0,1) 内的分界，每层首尾各一个色标，分界处为硬边，插值空间取 LinearRgb |
 | `MaterialValue` | `static MaterialValue Solid(ColorRgba color)`；`static MaterialValue Gradient(GradientValue gradient)`；`static MaterialValue PackageExport(MaterialHandle handle,ParameterValues parameters)` | 作者值工厂 |
 | `MaterialValue.SolidMaterial` | `ColorRgba Color`；构造器 internal | 工厂结果 |
 | `MaterialValue.GradientMaterial` | `GradientValue Value`；构造器 internal | 工厂结果 |
@@ -174,7 +175,7 @@
 |---|---|
 | `EasingKind` | `Linear, EaseOut, EaseInOut` |
 | `GradientKind` | `Linear, Radial` |
-| `GradientCoordinateSpace` | `Canvas, Line, Glyph, Progress`；后两者不是当前脚本生产支持 |
+| `GradientCoordinateSpace` | `Canvas, Line, Glyph`；`Glyph` 为按单字（每个字簇的字框），0.112.83 起删去 `Progress` |
 | `GradientColorSpace` | `LinearRgb, Hsv, Oklch`；Oklch 非当前生产支持 |
 | `GradientHuePath` | `Shorter, Longer, Increasing, Decreasing` |
 | `StrokeJoin` | `Miter, Round, Bevel` |

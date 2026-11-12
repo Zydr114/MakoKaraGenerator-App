@@ -155,6 +155,9 @@ M09 的 `BindGraph(target, GraphBindingValue)` 支持 Family／Line／Mark 的 `
 超过 4 层或包材质不在最内层报 `InvalidStrokeLayers`。阴影和辉光整体替换，传 `null` 为关闭，未写为继承。
 `SetWipe(target, WipeValue)` 整体替换扫字样式（羽化比例 0～2 字号、可选扫字线高亮），两态共享，需要 `style.wipe`。
 只写一态时另一态不跟着变：源里已唱跟随未唱时，只写未唱会把已唱固定为源的未唱值；两态写同一值则保持跟随。
+渐变填充与描边（0.112.83 起）：坐标取 `Canvas`（画布）、`Line`（整行）或 `Glyph`（按单字，每个字簇以自己的字框为参考框）；
+`GradientValue.Bands(colors, boundaries, …)` 按「颜色＋分界」构造硬边分层渐变，n 层颜色配 n−1 个严格递增、在 (0,1) 内的分界，
+例如 `output.SetFill(target, TextState.Both, MaterialValue.Gradient(GradientValue.Bands([red, white, blue], [.4, .6], coordinateSpace: GradientCoordinateSpace.Glyph)))`。
 
 只读基线 `frame.Baseline.Get(target)` 返回 `StyleView`：`Unsung`、`Sung` 两个 `AppearanceView`（`Fill`、`Strokes`、
 `Shadow`、`Glow`）加 `Opacity` 与 `Wipe`，已唱跟随时与未唱取同一值；`Material(MaterialSlot)` 按

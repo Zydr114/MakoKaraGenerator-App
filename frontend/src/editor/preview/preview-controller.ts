@@ -3,11 +3,13 @@
 // 修订变化先 PUT input 换输入。帧按 generation／sourceRevision／requestSeq 核对后才显示，晚到的丢弃。
 // 渲染设备（渲染设备设计 §2.3）：创建时带偏好；偏好变了，下一次取帧前用 PUT render-backend 换设备。
 // 设备错误（创建或换设备）之后不再取帧，改偏好或 retry() 才再试，不会悄悄用原来的设备继续出新帧。
+// 每帧显示后读一次诊断页（只含最新发布的帧），缺背景兜底时给出提示，不影响画面（合同 1.49.2）。
 // 会话一定要关：释放时有请求在途（包括还没返回的创建），等它结束再按最新代次关闭；丢弃会话前也先关闭，
 // 否则每个客户端 4 个预览会话的名额很快被占满（429 sessionQuotaExceeded）。
 
 import { BackendError, ObservableValue, PreviewFailedError, type MakoClient } from '../../client';
 import { nextSequence, type Generation, type PreviewSize, type RenderBackend, type Revision, type Sequence } from '../../protocol';
+import { previewFallbackText } from '../model/background-fallback';
 import { RENDER_BACKEND_LABEL, type RenderBackendChoice } from '../model/render-device';
 import { toMicros } from '../model/time';
 import { renderBackendErrorText } from './render-device';
@@ -23,6 +25,8 @@ export interface PreviewViewState {
   error?: string;
   /** 设备错误：停止取帧，等改偏好或重试。 */
   deviceBlocked?: boolean;
+  /** 正在显示的帧用了缺背景兜底时的提示。 */
+  fallback?: string;
 }
 
 /** 创建或换设备时的设备错误（field=renderBackend）；记下来，之后的取帧直接报它。 */
@@ -232,6 +236,16 @@ export class PreviewController {
       deviceBlocked: undefined,
     });
     if (previous) URL.revokeObjectURL(previous);
+    this.patch({ fallback: await this.fallbackOf(this.previewId) });
+  }
+
+  /** 诊断页只放最新发布的一帧；按顺序取帧，这里读到的就是刚显示的帧。读不到时不提示。 */
+  private async fallbackOf(previewId: string): Promise<string | undefined> {
+    try {
+      return previewFallbackText((await this.client.preview.diagnostics(previewId)).diagnostics);
+    } catch {
+      return undefined;
+    }
   }
 
   /** 设备错误记下来并换成 RenderBackendBlocked；别的错误原样返回。 */

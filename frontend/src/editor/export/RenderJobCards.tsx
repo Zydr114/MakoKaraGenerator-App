@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
-import type { JobResponse } from '../../protocol';
+import type { ExportReport, JobResponse } from '../../protocol';
+import { backgroundFallbackLine, exportFallbackText } from '../model/background-fallback';
 import { defaultValidationFrames } from '../model/export-readiness';
 import { diagnosticText, downloadName, exportReportFacts, isTerminal, progressFraction, progressText, validationIssueText } from '../model/render-job';
 import { recordedBackendText } from '../model/render-device';
@@ -164,6 +165,7 @@ function ExportResult(props: { track: JobTrack; store: ExportStore; revision: st
               </div>
             ))}
           </dl>
+          <ExportFallback report={report} />
           {downloadError && <Note error>{downloadError}</Note>}
         </>
       ) : (
@@ -172,6 +174,18 @@ function ExportResult(props: { track: JobTrack; store: ExportStore; revision: st
         </Note>
       )}
       <IssueList lines={diagnostics.map(diagnosticText)} />
+    </div>
+  );
+}
+
+/** 导出用了缺背景兜底：摘要加逐条（最多 MAX_LISTED 条），只提示，成片照常可用。 */
+function ExportFallback(props: { report: ExportReport }) {
+  const text = exportFallbackText(props.report);
+  if (!text) return null;
+  return (
+    <div className="export-fallback" role="status">
+      <p className="hint notice-warning">{text}</p>
+      <IssueList lines={(props.report.fallbackDiagnostics ?? []).map(backgroundFallbackLine)} />
     </div>
   );
 }

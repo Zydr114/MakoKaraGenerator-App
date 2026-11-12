@@ -3,6 +3,7 @@ import { ObservableValue } from '../../client';
 import type { Revision } from '../../protocol';
 import type { AudioController } from '../audio/audio-controller';
 import { client, renderDevice } from '../connection';
+import { previewFallbackText } from '../model/background-fallback';
 import { RENDER_BACKEND_LABEL, resolveChoice, usesGpuStream } from '../model/render-device';
 import { formatTime } from '../model/time';
 import type { EditorSession } from '../session/editor-session';
@@ -157,6 +158,11 @@ function StaticPreviewPanel(props: {
         {`静态预览 · 画布 ${state.settings ? `${state.settings.canvasWidth}×${state.settings.canvasHeight}` : '未知'} · 预览 ${size.width}×${size.height}。`}
         {props.warning && <span className="notice-warning"> {props.warning}</span>}
       </p>
+      {view.fallback && (
+        <p className="hint notice-warning preview-fallback" role="status">
+          {view.fallback}
+        </p>
+      )}
     </div>
   );
 }
@@ -223,6 +229,7 @@ function GpuPreviewPanel(props: Parameters<typeof StaticPreviewPanel>[0]) {
   },[controller,props.audio,props.session,targetFps,visible]);
   const view=useObservable(controller?.state$??GPU_IDLE);
   const shown=view.frameRevision!==undefined&&view.frameTimeUs!==undefined?{revision:view.frameRevision,timeUs:view.frameTimeUs}:undefined;
+  const fallback=previewFallbackText(view.diagnostics?.items??[]);
   const replacement=props.replacement;
   if(replacement)return <div className="preview-panel"><div className="preview-title"><span className="pane-title-text">{replacement.title}</span></div><PreviewStage size={size}>{replacement.imageUrl?<img src={replacement.imageUrl} alt={replacement.title}/>:<span className="preview-overlay">{replacement.placeholder}</span>}{props.overlay?.(undefined)}</PreviewStage><p className="hint">{replacement.hint}</p></div>;
   return <div className="preview-panel">
@@ -239,6 +246,7 @@ function GpuPreviewPanel(props: Parameters<typeof StaticPreviewPanel>[0]) {
       {props.overlay?.(shown)}
     </PreviewStage>
     <p className="hint">{`GPU 连续预览 · 预览 ${size.width}×${size.height} · 音频主时钟。`}{props.warning&&<span className="notice-warning"> {props.warning}</span>}</p>
+    {fallback&&<p className="hint notice-warning preview-fallback" role="status">{fallback}</p>}
     {!!view.diagnostics?.total&&<div className={view.diagnostics.errorCount?'notice-error':'notice-warning'} role="status">{`渲染诊断：${view.diagnostics.warningCount} 个警告，${view.diagnostics.errorCount} 个错误。`}{view.diagnostics.items.map((item,index)=><p key={index}>{item.code}：{item.message}</p>)}{view.diagnostics.truncated&&<p>其余诊断已省略。</p>}</div>}
   </div>;
 }

@@ -16,6 +16,8 @@ function fakeClient(
     createGate?: Promise<void>;
     frameGate?: Promise<void>;
     frameFails?: () => BackendError | undefined;
+    /** 诊断页的条目；缺省时假客户端没有 diagnostics 方法（读失败不提示）。 */
+    diagnostics?: () => { code: string; message: string }[];
   } = {},
 ) {
   const calls: string[] = [];
@@ -61,6 +63,7 @@ function fakeClient(
       closeBestEffort: async (id: string, input: { expectedPreviewGeneration: string }) => {
         calls.push(`close ${id} ${input.expectedPreviewGeneration}`);
       },
+      ...(options.diagnostics && { diagnostics: async () => ({ diagnostics: options.diagnostics!() }) }),
     },
     fetchBinary: async () => ({ blob: new Blob(['png']) }),
   } as unknown as MakoClient;
@@ -182,5 +185,18 @@ describe('成片预览会话一定关闭', () => {
     expect(calls).toEqual(['create 默认', 'frame 1 playback', 'close v1 1', 'create 默认', 'frame 1 playback']);
     controller.dispose();
     await vi.waitFor(() => expect(calls.at(-1)).toBe('close v2 1'));
+  });
+
+  it('缺背景兜底：每帧显示后读诊断页，有兜底就提示，下一帧没有就清掉', async () => {
+    let page = [{ code: 'BackgroundMediaUnavailable', message: '背景媒体不可用' }, { code: 'GraphRuntimeWarning', message: '别的' }];
+    const { client } = fakeClient({ diagnostics: () => page });
+    const controller = new PreviewController(client, 'p1', { width: 320, height: 180 });
+    controller.show(0, revision('3'));
+    await vi.waitFor(() => expect(controller.state$.get().fallback).toContain('这一帧有 1 处'));
+    page = [];
+    controller.show(500_000, revision('3'));
+    await vi.waitFor(() => expect(controller.state$.get().frameTimeUs).toBe(500_000));
+    await vi.waitFor(() => expect(controller.state$.get().fallback).toBeUndefined());
+    controller.dispose();
   });
 });

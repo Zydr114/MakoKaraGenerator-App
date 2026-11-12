@@ -37,6 +37,34 @@ export interface BackendDiagnostic {
   occurrence?: BackendDiagnosticOccurrence;
   /** originKind=compileSource 时的编译诊断（后端规范 §20.3）；行列从 1 开始，0 也合法。 */
   source?: BackendSourceDiagnostic;
+  /** originKind=imageEffect 时的图效果载荷（后端规范 §20.3）；导出报告原样登记的兜底诊断里，空槽位显式为 null。 */
+  imageEffect?: BackendImageEffectDiagnostic | null;
+  /** originKind=material 时的材质载荷（后端规范 §20.3）。 */
+  material?: BackendMaterialDiagnostic | null;
+}
+
+/** 诊断指向的包资源：包、修订与导出名。 */
+export interface BackendDiagnosticResource {
+  packageId: string;
+  revision: string;
+  exportId: string;
+}
+
+export interface BackendImageEffectDiagnostic {
+  instanceId?: string;
+  artifactHash?: string;
+  graph?: BackendDiagnosticResource;
+  /** 出问题的图输入，例如缺背景时的 BackgroundMedia 输入。 */
+  inputId?: string;
+  code?: string;
+}
+
+export interface BackendMaterialDiagnostic {
+  /** 材质的持有者：script（脚本写入）或 source（样式里的源材质）；其余字段只显示用，不展开。 */
+  owner: { kind: string };
+  material?: BackendDiagnosticResource;
+  inputId?: string;
+  code?: string;
 }
 
 export interface BackendSourceDiagnostic {

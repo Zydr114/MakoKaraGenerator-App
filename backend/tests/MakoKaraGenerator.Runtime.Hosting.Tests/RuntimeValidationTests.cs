@@ -51,6 +51,31 @@ public sealed class RuntimeValidationTests
     }
 
     [Fact]
+    public void 作者与模板工坊试样反复构建得到相同实例身份与种子()
+    {
+        // M13 作者链探针发现：试样每次从空场景正式应用，曾得到新 Guid 实例身份（模板无固定种子时还抽新种子），
+        // 同一草稿每次刷新预览粒子散布都不同。两次构建的实例身份与种子须完全相同。
+        var package = MixedEffectPackageFixture.Contents(); var configuration = ScriptConfiguration.Create("sample", "neutral", package, "controller");
+        var request = new ScriptSampleRequest(configuration, ScriptSampleBuilder.Targets(configuration, TemplateMaterialSlot.UnsungFill)[0],
+            TemplateMaterialSlot.UnsungFill);
+        TemplateSampleResources resources = new("own.wav", "own.png", null);
+        static (string Id, ulong Seed)[] Identities(ProjectSnapshot snapshot) => [.. snapshot.Effects.Instances.Select(item => (item.Id, item.Seed))];
+        var author = Identities(ScriptSampleBuilder.Build(request, resources));
+        Assert.NotEmpty(author);
+        Assert.Equal(author, Identities(ScriptSampleBuilder.Build(request, resources)));
+
+        var template = MakoKaraGenerator.Core.Projects.StyleTemplate.Create("unseeded", "无固定种子", MakoKaraGenerator.Core.Projects.StyleTemplateKind.Composite,
+            MakoKaraGenerator.Core.Projects.LyricStyle.Default, [], [MakoKaraGenerator.Core.Projects.TemplateEffectRecipe.FromConfiguration("recipe", configuration)], [package]);
+        Assert.Null(template.EffectRecipes[0].FixedSeed);
+        var scene = TemplateSampleScene.WorkshopScene(true, null);
+        var target = TemplateSampleScene.Targets(scene, template)[0];
+        var workshop = Identities(ProjectSnapshot.FromProject(TemplateSampleScene.ApplyWorkshop(scene, template, target, null)));
+        Assert.NotEmpty(workshop);
+        Assert.Equal(workshop, Identities(ProjectSnapshot.FromProject(TemplateSampleScene.ApplyWorkshop(scene, template, target, null))));
+        Assert.All(workshop, item => Assert.Equal(ScriptSampleBuilder.Seed, item.Seed));
+    }
+
+    [Fact]
     public async Task 纯执行器真实编译固定包并保留完整源码失败来源()
     {
         using TemporaryDirectory temp = new();

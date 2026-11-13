@@ -1,3 +1,4 @@
+using System.Globalization;
 using MakoKaraGenerator.Core.Effects;
 using MakoKaraGenerator.Core.Lyrics;
 using MakoKaraGenerator.Core.Projects;
@@ -78,6 +79,17 @@ public static partial class TemplateSampleScene
             .Select(recipe => recipe.BranchInput!).Distinct().ToDictionary(name => name, _ => scene.Lyrics.Branches[0].Id);
         if (!PresetApplicationsEditor.TryApply(scene, template, [target.Binding], inputs, out Project applied, out string reason))
             throw new ArgumentException(reason);
-        return applied;
+        // 正式应用给新实例抽 Guid 身份与随机种子；试样每次捕获都从空场景应用，若沿用会让同一草稿／模板
+        // 每次刷新的随机取值（粒子散布等）都不同。改为按配方与绑定次序的固定身份，种子取配方固定种子或试样种子。
+        return PresetApplicationsEditor.Replace(applied, new(applied.PresetApplications.Items
+            .Select(item => item.Target.Equals(target.Binding) ? Fixed(item) : item)));
     }
+
+    private static PresetApplication Fixed(PresetApplication application) => new(WorkshopApplicationId, application.Target,
+        application.Snapshot, application.Identities.Select((identity, index) => new PresetEffectIdentity(identity.RecipeId,
+            identity.Binding, WorkshopInstancePrefix + index.ToString(CultureInfo.InvariantCulture),
+            application.Snapshot.EffectRecipes.First(recipe => recipe.RecipeId == identity.RecipeId).FixedSeed ?? ScriptSampleBuilder.Seed,
+            identity.Enabled)), application.BranchInputs, application.Enabled);
+
+    private const string WorkshopApplicationId = "preset:workshop-sample", WorkshopInstancePrefix = "fx:workshop-sample-";
 }

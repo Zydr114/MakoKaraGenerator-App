@@ -12,11 +12,12 @@
 // 前提：pnpm dev:backend 与 pnpm dev 都在运行。
 // 用法：node scripts/lyrics-smoke.mjs [--url http://localhost:5173] [--screenshot out.png] [--headed]
 
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
+import { resolveBackendRepo } from './backend-launcher.mjs';
 import { launchChrome } from './cdp.mjs';
 import { shell, ui, uiJs } from './ui-query.mjs';
 
@@ -54,11 +55,15 @@ function makeWav(seconds = 8, sampleRate = 22050) {
   return buffer;
 }
 
+// 工程 TTML 只接受当前歌词 schema（后端格式门禁），版本取自本仓库后端源码，不在这里写死。
+const LYRICS_SCHEMA = /CurrentSchemaVersion\s*=\s*(\d+);/.exec(readFileSync(
+  join(resolveBackendRepo(), 'src/MakoKaraGenerator.Core/Lyrics/LyricsDocument.cs'), 'utf8'))?.[1];
+if (!LYRICS_SCHEMA) throw new Error('读不到后端歌词 schema 版本（LyricsDocument.CurrentSchemaVersion）。');
 const TRANSLATION_ID = 'translation-1ae2eeb00b374e00a36a579eab6635d9';
 const ENGLISH_ID = 'translation-2b7d0c1e9f8a4b3c8d6e5f4a3b2c1d0e';
 const PROJECT_TTML = [
   '<?xml version="1.0" encoding="utf-8"?>',
-  '<tt xmlns:tts="http://www.w3.org/ns/ttml#styling" xmlns:itunes="http://music.apple.com/lyric-ttml-internal" xmlns:mkg="urn:makokara:ttml" mkg:profile="ttml.project" mkg:version="1" mkg:timing-profile="ttml2-media" mkg:primary-branch-id="primary" mkg:lyrics-schema="17" xmlns="http://www.w3.org/ns/ttml">',
+  `<tt xmlns:tts="http://www.w3.org/ns/ttml#styling" xmlns:itunes="http://music.apple.com/lyric-ttml-internal" xmlns:mkg="urn:makokara:ttml" mkg:profile="ttml.project" mkg:version="1" mkg:timing-profile="ttml2-media" mkg:primary-branch-id="primary" mkg:lyrics-schema="${LYRICS_SCHEMA}" xmlns="http://www.w3.org/ns/ttml">`,
   '<head><metadata format="ttml.project" /></head><body>',
   '<div mkg:branch-id="primary" mkg:branch-name="主歌词" mkg:branch-role="Primary" mkg:timing-mode="Independent">',
   '<p begin="0.2s" end="1.6s" mkg:line-id="line-0001" mkg:line-text="朝の光" mkg:timing-status="Imported" mkg:start-us="200000" mkg:end-us="1600000" itunes:key="line-0001">',

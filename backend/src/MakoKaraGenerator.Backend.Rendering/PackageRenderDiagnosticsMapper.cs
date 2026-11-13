@@ -21,7 +21,7 @@ public sealed class PackageRenderDiagnosticsMapper
         _packages = snapshot.Effects.Packages.Select(p => EffectPackageDefinition.Read(p)).ToDictionary(
             p => (p.Contents.PackageId, p.Contents.Revision), p => (p, new ResourceCatalog(p.Contents.PackageId, p.Contents.Revision,
                 [.. p.Materials.Select(m => m.Id)], [.. p.Graphs.Select(g => g.Id)], p.ImagePaths)));
-        _sources = SourceMaterialCatalog.Collect(snapshot.LyricStyle, snapshot.Lyrics, snapshot.LyricPresentation, snapshot.PresetApplications);
+        _sources = SourceMaterialCatalog.CollectForRuntime(snapshot.LyricStyle, snapshot.Lyrics, snapshot.LyricPresentation, snapshot.PresetApplications);
     }
     /// <summary>按固定包源完整映射诊断；身份不匹配时拒绝。</summary>
     public static WorkerPackageResourceDto Encode(ResourceIdentity value) => new(value.PackageId, value.Revision, value.ExportId);

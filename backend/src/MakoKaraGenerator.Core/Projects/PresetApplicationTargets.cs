@@ -9,15 +9,23 @@ public static class PresetApplicationTargets
     /// <summary>结构正确的具体对象当前是否存在。</summary>
     public static bool Exists(Project project, ProjectEffectBinding target)
     {
-        ArgumentNullException.ThrowIfNull(project); _ = PresetApplications.ObjectKey(target);
+        ArgumentNullException.ThrowIfNull(project);
+        return Exists(project.Lyrics, project.LyricPresentation, target);
+    }
+
+    /// <summary>按固定源歌词与展示树判断顶层应用对象是否存在，不检查相对成员或订阅。</summary>
+    public static bool Exists(LyricsDocument lyrics, LyricPresentationDefinition presentation, ProjectEffectBinding target)
+    {
+        ArgumentNullException.ThrowIfNull(lyrics); ArgumentNullException.ThrowIfNull(presentation);
+        _ = PresetApplications.ObjectKey(target);
         return target.Kind switch
         {
             ProjectEffectBindingKind.Project => true,
-            ProjectEffectBindingKind.Branch => project.Lyrics.Branches.Any(branch => branch.Id == target.Id),
-            ProjectEffectBindingKind.Lines => project.Lyrics.AllLines.Any(line => line.Id == target.Ids[0]),
-            ProjectEffectBindingKind.Tokens => project.Lyrics.AllLines.Any(line => line.Tokens.Any(token => token.Id == target.Ids[0])),
-            ProjectEffectBindingKind.Clips => project.LyricPresentation.Programs.Any(program => program.Clips.Any(clip => clip.Id == target.Ids[0])),
-            ProjectEffectBindingKind.Node => project.LyricPresentation.FindNode(target.Id!) is not null,
+            ProjectEffectBindingKind.Branch => lyrics.Branches.Any(branch => branch.Id == target.Id),
+            ProjectEffectBindingKind.Lines => lyrics.AllLines.Any(line => line.Id == target.Ids[0]),
+            ProjectEffectBindingKind.Tokens => lyrics.AllLines.Any(line => line.Tokens.Any(token => token.Id == target.Ids[0])),
+            ProjectEffectBindingKind.Clips => presentation.Programs.Any(program => program.Clips.Any(clip => clip.Id == target.Ids[0])),
+            ProjectEffectBindingKind.Node => presentation.FindNode(target.Id!) is not null,
             _ => false,
         };
     }

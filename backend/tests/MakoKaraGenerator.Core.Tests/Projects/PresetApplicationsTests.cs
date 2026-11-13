@@ -134,6 +134,31 @@ public sealed class PresetApplicationsTests
     }
 
     [Fact]
+    public void 顶层目标仍在时坏订阅和相对成员及直接效果缺目标继续报错()
+    {
+        var source = Source(); var package = CompositePresetDefinitionTests.ScopedPackage();
+        var recipe = new TemplateEffectRecipe("relative", "逐字订阅", TemplateEffectTarget.TokenFamily,
+            package.PackageId, package.Revision, "scale", readScope: ScriptReadScope.BranchInput, branchInput: "vocals");
+        var template = StyleTemplate.Create("relative", "逐字组合", StyleTemplateKind.Composite, source.LyricStyle, [], [recipe], [package]);
+        var applied = Apply(source, template, new(ProjectEffectBindingKind.Lines, ids: ["l1"]), new Dictionary<string, string> { ["vocals"] = "primary" });
+        var item = Assert.Single(applied.PresetApplications.Items);
+        var badInput = new PresetApplication(item.Id, item.Target, item.Snapshot, item.Identities, new Dictionary<string, string> { ["vocals"] = "missing" });
+        var identity = item.Identities[0];
+        var badMember = new PresetApplication(item.Id, item.Target, item.Snapshot,
+            item.Identities.SetItem(0, new(identity.RecipeId, new(ProjectEffectBindingKind.Tokens, ids: ["missing"]), identity.InstanceId, identity.Seed)), item.BranchInputs);
+        foreach (var invalid in new[] { badInput, badMember })
+        {
+            var project = applied with { PresetApplications = new([invalid]) };
+            Assert.True(ProjectValidator.Validate(project, ValidationContext.Export).HasErrors);
+            Assert.Equal(2, PresetApplicationsProjection.Effects(project).Instances.Length);
+        }
+        var direct = item.ProjectInstances()[0] with { Binding = new(ProjectEffectBindingKind.Node, id: "missing") };
+        var directProject = source with { Effects = new([package], [direct]) };
+        Assert.True(ProjectValidator.Validate(directProject, ValidationContext.Export).HasErrors);
+        Assert.Equal(direct, Assert.Single(PresetApplicationsProjection.Effects(directProject).Instances));
+    }
+
+    [Fact]
     public void 工程快照搬移重开保持身份与完整资源且失效对象保留供移除()
     {
         using TemporaryDirectory directory = new(); string first = directory.FilePath("first");

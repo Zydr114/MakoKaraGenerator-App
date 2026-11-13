@@ -11,7 +11,7 @@ public static class ProjectEffectInputs
     public static string? Fingerprint(Project project)
     {
         ArgumentNullException.ThrowIfNull(project);
-        string? effects = PresetApplicationsProjection.Effects(project).InputsFingerprint;
+        string? effects = PresetApplicationsProjection.Effects(project, includeMissingTargets: true).InputsFingerprint;
         var materials = SourceMaterialCatalog.Collect(project);
         if (!materials.IsEmpty)
         {

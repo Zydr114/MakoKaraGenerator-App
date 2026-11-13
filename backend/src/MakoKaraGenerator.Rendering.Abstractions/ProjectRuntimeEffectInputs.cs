@@ -1,18 +1,32 @@
 using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
+using System.Runtime.CompilerServices;
 using MakoKaraGenerator.Core.Media;
+using MakoKaraGenerator.Core.Projects;
 
 namespace MakoKaraGenerator.Rendering;
 
 /// <summary>The sole runtime effect identity; source-material identity retains its original source-only responsibility.</summary>
 public static class ProjectRuntimeEffectInputs
 {
+    private sealed record RuntimeSources(bool OrphanOnly);
+    private static readonly ConditionalWeakTable<ProjectSnapshot, RuntimeSources> Sources = new();
+
     /// <summary>Preserves the exact old identity without media, otherwise binds the complete validated media input revision.</summary>
     public static string? Fingerprint(ProjectSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        if (snapshot.MediaFeatureInput is not { } input) return snapshot.EffectInputsFingerprint;
+        if (snapshot.MediaFeatureInput is not { } input)
+        {
+            if (snapshot.EffectInputsFingerprint is null) return null;
+            // 快照不可变，目录检查只做一次；孤儿源仍参与源指纹，但没有运行输入时不要求空准备会话。
+            bool orphanOnly = Sources.GetValue(snapshot, static source => new(
+                !source.Effects.Instances.Any(instance => instance.Enabled)
+                && source.PresetApplications.Items.Any(item => !PresetApplicationTargets.Exists(source.Lyrics, source.LyricPresentation, item.Target))
+                && SourceMaterialCatalog.CollectForRuntime(source.LyricStyle, source.Lyrics, source.LyricPresentation, source.PresetApplications).IsEmpty)).OrphanOnly;
+            return orphanOnly ? null : snapshot.EffectInputsFingerprint;
+        }
         MediaFeatureInputValidator.Validate(input);
         if (string.IsNullOrWhiteSpace(snapshot.EffectInputsFingerprint))
             throw new PreparedFrameException("EffectInputsMismatch", "固定媒体运行输入需要完整源指纹。");

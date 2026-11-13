@@ -21,7 +21,7 @@ public sealed class PreparedSourceMaterials
         _resolver = PresetSceneStyleProjection.Resolver(snapshot);
         Fingerprint = snapshot.EffectInputsFingerprint ?? throw new PreparedFrameException("SourceMaterialFingerprintRequired", "源材质集合必须固定完整输入指纹。");
         var entries = values.ToImmutableDictionary();
-        var references = SourceMaterialCatalog.Collect(snapshot.LyricStyle, snapshot.Lyrics, snapshot.LyricPresentation, snapshot.PresetApplications);
+        var references = SourceMaterialCatalog.CollectForRuntime(snapshot.LyricStyle, snapshot.Lyrics, snapshot.LyricPresentation, snapshot.PresetApplications);
         if (entries.Count != references.Length || references.Any(reference => !entries.ContainsKey(reference)))
             throw new PreparedFrameException("SourceMaterialClosureMismatch", "源材质投影须覆盖全部真实源引用。");
         _references = entries.Keys.ToImmutableHashSet();
@@ -53,7 +53,7 @@ public sealed class PreparedSourceMaterials
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         ValidateSnapshot(snapshot);
-        var references = SourceMaterialCatalog.Collect(snapshot.LyricStyle, snapshot.Lyrics, snapshot.LyricPresentation, snapshot.PresetApplications);
+        var references = SourceMaterialCatalog.CollectForRuntime(snapshot.LyricStyle, snapshot.Lyrics, snapshot.LyricPresentation, snapshot.PresetApplications);
         // Resolve(Material) alone cannot prove path/region membership or absence
         // of removed references. Bindings also reads the captured immutable tree
         // and resolver, so compare those complete value inputs before reuse.

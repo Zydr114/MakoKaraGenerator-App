@@ -22,11 +22,15 @@ public static class PresetApplicationsProjection
             .ResolveMark(appearance, "style", null, "style", nodePath, branchId).Style;
     }
 
-    /// <summary>按祖先先于局部的顺序产生现有执行实例；同一范围配方不展开。</summary>
-    public static ProjectEffects Effects(Project project)
+    /// <summary>按祖先先于局部的顺序产生现有执行实例；跳过顶层对象已失效的应用，同一范围配方不展开。</summary>
+    public static ProjectEffects Effects(Project project) => Effects(project, includeMissingTargets: false);
+
+    // 完整持久投影只用于源指纹；孤儿身份仍属于源，不能因跳过执行而从身份中丢失。
+    internal static ProjectEffects Effects(Project project, bool includeMissingTargets)
     {
         ArgumentNullException.ThrowIfNull(project);
         var instances = project.PresetApplications.Items.Select((item, index) => (item, index))
+            .Where(pair => includeMissingTargets || PresetApplicationTargets.Exists(project, pair.item.Target))
             .OrderBy(pair => Scope(pair.item.Target.Kind)).ThenBy(pair => NodeDepth(project, pair.item.Target)).ThenBy(pair => pair.index)
             .SelectMany(pair => pair.item.ProjectInstances());
         return new(project.Effects.Packages, project.Effects.Instances.Concat(instances), project.Effects.Budgets);

@@ -62,7 +62,7 @@ public sealed class ProjectRenderSessionFactory(IScriptCompilationService compil
             resolver = backgroundResolverFactory is null ? new BackgroundFrameSourceResolver(videos)
                 : backgroundResolverFactory() ?? throw new InvalidOperationException("背景解析器工厂不能返回空值。");
             token.ThrowIfCancellationRequested();
-            if (snapshot.EffectInputsFingerprint is null)
+            if (ProjectRuntimeEffectInputs.Fingerprint(snapshot) is null)
             {
                 renderer = Renderer(resolver);
                 token.ThrowIfCancellationRequested();

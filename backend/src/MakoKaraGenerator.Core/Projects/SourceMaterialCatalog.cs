@@ -20,6 +20,15 @@ public static class SourceMaterialCatalog
     /// <summary>供固定工程快照使用的完整源目录入口。</summary>
     public static ImmutableArray<SourceMaterialReference> Collect(LyricStyle style, LyricsDocument lyrics, LyricPresentationDefinition presentation,
         PresetApplications? applications = null)
+        => CollectCore(style, lyrics, presentation, applications, skipMissingTargets: false);
+
+    /// <summary>收集运行材质；只跳过顶层应用对象已失效的固定预设，其余不可见对象与存储覆盖仍完整保留。</summary>
+    public static ImmutableArray<SourceMaterialReference> CollectForRuntime(LyricStyle style, LyricsDocument lyrics,
+        LyricPresentationDefinition presentation, PresetApplications applications)
+        => CollectCore(style, lyrics, presentation, applications, skipMissingTargets: true);
+
+    private static ImmutableArray<SourceMaterialReference> CollectCore(LyricStyle style, LyricsDocument lyrics,
+        LyricPresentationDefinition presentation, PresetApplications? applications, bool skipMissingTargets)
     {
         ArgumentNullException.ThrowIfNull(style); ArgumentNullException.ThrowIfNull(lyrics); ArgumentNullException.ThrowIfNull(presentation);
         List<SourceMaterialReference> values = [.. Collect(style, "lyricStyle")];
@@ -41,7 +50,8 @@ public static class SourceMaterialCatalog
         }
         if (applications is not null)
             foreach (var application in applications.Items)
-                values.AddRange(Collect(application.Snapshot.Style, "presetApplications." + application.Id + ".snapshot.style"));
+                if (!skipMissingTargets || PresetApplicationTargets.Exists(lyrics, presentation, application.Target))
+                    values.AddRange(Collect(application.Snapshot.Style, "presetApplications." + application.Id + ".snapshot.style"));
         return [.. values];
         void Add(LyricStyleOverride? overlay, string path, bool scene = false)
         {

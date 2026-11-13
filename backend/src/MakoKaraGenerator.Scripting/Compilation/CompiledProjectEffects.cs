@@ -54,7 +54,7 @@ public sealed class CompiledProjectEffects
         ArgumentNullException.ThrowIfNull(snapshot);
         var audio = ProjectAudioProjection.Create(snapshot);
         var compiled = await CompileCoreAsync(snapshot.Effects, compiler, images, shaders, graphs, materials, svgValidator,
-            SourceMaterialCatalog.Collect(snapshot.LyricStyle, snapshot.Lyrics, snapshot.LyricPresentation, snapshot.PresetApplications), snapshot, cancellationToken).ConfigureAwait(false);
+            SourceMaterialCatalog.CollectForRuntime(snapshot.LyricStyle, snapshot.Lyrics, snapshot.LyricPresentation, snapshot.PresetApplications), snapshot, cancellationToken).ConfigureAwait(false);
         compiled._audio = audio; compiled._snapshot = snapshot; compiled._fingerprint = ProjectRuntimeEffectInputs.Fingerprint(snapshot); return compiled;
     }
     /// <summary>根据固定工程字节离线编译，正式资源门禁由组合根提供。</summary>

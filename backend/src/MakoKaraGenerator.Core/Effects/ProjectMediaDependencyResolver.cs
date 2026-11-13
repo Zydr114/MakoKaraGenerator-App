@@ -16,7 +16,7 @@ public static class ProjectMediaDependencyResolver
     public static ProjectMediaDependencyPlan Resolve(Project project, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(project);
-        return Resolve(project.Effects, project.LyricStyle, project.Lyrics, project.LyricPresentation, project.PresetApplications, cancellationToken);
+        return Resolve(PresetApplicationsProjection.Effects(project), project.LyricStyle, project.Lyrics, project.LyricPresentation, project.PresetApplications, cancellationToken);
     }
 
     /// <summary>Resolves fixed snapshot source values without a dependency on Rendering or a runtime binding.</summary>
@@ -32,7 +32,7 @@ public static class ProjectMediaDependencyResolver
     {
         ArgumentNullException.ThrowIfNull(effects); ArgumentNullException.ThrowIfNull(applications);
         cancellationToken.ThrowIfCancellationRequested();
-        var sources = SourceMaterialCatalog.Collect(style, lyrics, presentation, applications);
+        var sources = SourceMaterialCatalog.CollectForRuntime(style, lyrics, presentation, applications);
         Dictionary<(string, string), EffectPackageMediaQueryCatalog> catalogs = [];
         var owners = ImmutableArray.CreateBuilder<ProjectMediaDependencyOwner>();
         var dependencies = ImmutableArray.CreateBuilder<ProjectMediaDependency>(); SortedSet<long> windows = [];

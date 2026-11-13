@@ -197,7 +197,7 @@ public sealed partial class PreparedRenderFrame
     public static void ValidateRequest(RenderRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (!SourceMaterialCatalog.Collect(request.Project.LyricStyle, request.Project.Lyrics, request.Project.LyricPresentation, request.Project.PresetApplications).IsEmpty
+        if (!SourceMaterialCatalog.CollectForRuntime(request.Project.LyricStyle, request.Project.Lyrics, request.Project.LyricPresentation, request.Project.PresetApplications).IsEmpty
             && request.PreparedFrame?.SourceMaterials is null)
             throw new PreparedFrameException("SourceMaterialResourcesRequired", "源包材质必须先准备真实固定资源与来源，不能绘制几何种子。");
         if (request.PreparedFrame is not { } prepared)

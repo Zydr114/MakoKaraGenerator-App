@@ -157,7 +157,7 @@ public sealed partial class WorkerProcessProxy
         else snapshot = ProjectSnapshotSourceProfile.Decode(source);
         captureProfiles?.Invoke([.. snapshot.Effects.Packages.Select(package => package.Profile).Distinct()]);
 
-        var references = SourceMaterialCatalog.Collect(snapshot.LyricStyle, snapshot.Lyrics, snapshot.LyricPresentation, snapshot.PresetApplications);
+        var references = SourceMaterialCatalog.CollectForRuntime(snapshot.LyricStyle, snapshot.Lyrics, snapshot.LyricPresentation, snapshot.PresetApplications);
         List<EffectPackageDefinition> definitions = [];
         foreach (var key in snapshot.Effects.Instances.Where(instance => instance.Enabled).Select(instance => (instance.PackageId, instance.Revision))
             .Concat(references.Select(reference => (reference.Material.PackageId, reference.Material.Revision))).Distinct())

@@ -12,7 +12,7 @@ public static class ScriptBackendRequirement
         ArgumentNullException.ThrowIfNull(snapshot);
         var references = snapshot.Effects.Instances.Where(static instance => instance.Enabled)
             .Select(static instance => (instance.PackageId, instance.Revision))
-            .Concat(SourceMaterialCatalog.Collect(snapshot.LyricStyle, snapshot.Lyrics, snapshot.LyricPresentation,
+            .Concat(SourceMaterialCatalog.CollectForRuntime(snapshot.LyricStyle, snapshot.Lyrics, snapshot.LyricPresentation,
                 snapshot.PresetApplications).Select(static reference => (reference.Material.PackageId, reference.Material.Revision)));
         return references.Distinct().Any(key => EffectPackageProfiles.IsV2(snapshot.Effects.GetPackage(key.PackageId, key.Revision).Profile));
     }

@@ -54,7 +54,7 @@ public sealed partial class SkiaRenderPipeline
                 if (actualNodes.TryGetValue(element.Id, out var node)) actualNodes[element.Id] = node with { WorldMatrix = element.WorldMatrix, Pivot = element.Pivot };
             return new(RenderCore(request, actual), actual, actualNodes, actualReferences);
         }
-        if (request.Project.EffectInputsFingerprint is not null)
+        if (ProjectRuntimeEffectInputs.Fingerprint(request.Project) is not null)
             throw new PreparedFrameException("SceneMeasurementUnsupported", "效果测量需要同一 Runtime 准备帧。");
         var snapshot = layoutReference ? LayoutReferenceScene.CreateSnapshot(request.Project) : request.Project;
         var scene = _geometry.MeasureSceneFrame(snapshot, request.TimeUs, editingLineId, layoutReference, editingCueId);

@@ -28,6 +28,34 @@ public sealed class ProjectMediaDependencyTests
     }
 
     [Fact]
+    public void OrphanedPresetSkipsControllerAndMaterialQueriesButRetainsSourceAndUndoIdentity()
+    {
+        var source = LeadInFixture.Create(); var node = new SceneContainerDefinition { Id = "media-preset-target" };
+        Assert.True(SceneTreeEditor.TryAddNodes(source, [node], out source, out var report), report.ToSummary());
+        var controller = MediaQueryPackageFixture.Controller(manifest => Export(manifest)["bindingKinds"] = new JsonArray("node"));
+        var material = MediaQueryPackageFixture.PureMaterial();
+        var style = source.LyricStyle with { UnsungFill = new() { Material = new MaterialSpec.PackageMaterial(material.PackageId, material.Revision, "ink") } };
+        var recipe = new TemplateEffectRecipe("media-recipe", "媒体脚本", TemplateEffectTarget.Application,
+            controller.PackageId, controller.Revision, "scale", fixedSeed: ulong.MaxValue);
+        var template = StyleTemplate.Create("media-preset", "媒体组合", StyleTemplateKind.Composite, style,
+            [LyricStyleProperty.UnsungFill], [recipe], [controller, material]);
+        Assert.True(PresetApplicationsEditor.TryApply(source, template, [new(ProjectEffectBindingKind.Node, node.Id)], null, out var applied, out var reason), reason);
+        var before = ProjectMediaDependencyResolver.Resolve(applied);
+        Assert.Equal(2, before.Owners.Length); Assert.Equal(2, before.Dependencies.Length); Oracle(before);
+        Assert.True(SceneTreeEditor.TryDeleteNode(applied, node.Id, out var deleted, out report), report.ToSummary());
+        Assert.Empty(PresetApplicationsProjection.Effects(deleted).Instances);
+        Assert.Single(SourceMaterialCatalog.Collect(deleted));
+        Assert.Empty(SourceMaterialCatalog.CollectForRuntime(deleted.LyricStyle, deleted.Lyrics, deleted.LyricPresentation, deleted.PresetApplications));
+        Assert.Empty(ProjectMediaDependencyResolver.Resolve(deleted).Dependencies);
+        Assert.Equal(applied.PresetApplications, deleted.PresetApplications);
+        Assert.Equal(ProjectEffectInputs.Fingerprint(applied), ProjectEffectInputs.Fingerprint(deleted));
+        Assert.Equal("EffectPackageInUse", Assert.Throws<EffectPackageException>(() => ProjectEffectsEditor.Unregister(deleted, material.PackageId, material.Revision)).Code);
+        Assert.True(SceneTreeEditor.TryAddNodes(deleted, [node], out var restored, out report), report.ToSummary());
+        var after = ProjectMediaDependencyResolver.Resolve(restored);
+        Assert.Equal(before.FixedDependencyDigest, after.FixedDependencyDigest); Assert.Equal(before.QueryCatalogDigest, after.QueryCatalogDigest);
+    }
+
+    [Fact]
     public void MediaCapabilityHasStrictCatalogAndExecutableDefinition()
     {
         var package = MediaQueryPackageFixture.Controller(); var catalog = EffectPackageMediaQueries.Read(package);

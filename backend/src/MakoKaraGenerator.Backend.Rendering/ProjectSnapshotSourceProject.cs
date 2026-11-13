@@ -11,9 +11,12 @@ public static class ProjectSnapshotSourceProject
     public static Project Restore(ProjectSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        var projected = snapshot.PresetApplications.Items.SelectMany(item => item.ProjectInstances()).ToDictionary(item => item.Id, StringComparer.Ordinal);
-        var actual = snapshot.Effects.Instances.Where(item => projected.ContainsKey(item.Id)).ToArray();
-        if (actual.Length != projected.Count || actual.Any(item => !item.Equals(projected[item.Id])))
+        var sourceIds = snapshot.PresetApplications.Items.SelectMany(item => item.Identities).Select(item => item.InstanceId).ToHashSet(StringComparer.Ordinal);
+        var projected = snapshot.PresetApplications.Items
+            .Where(item => PresetApplicationTargets.Exists(snapshot.Lyrics, snapshot.LyricPresentation, item.Target))
+            .SelectMany(item => item.ProjectInstances()).ToDictionary(item => item.Id, StringComparer.Ordinal);
+        var actual = snapshot.Effects.Instances.Where(item => sourceIds.Contains(item.Id)).ToArray();
+        if (actual.Length != projected.Count || actual.Any(item => !projected.TryGetValue(item.Id, out var expected) || !item.Equals(expected)))
             throw new SnapshotContractException("SnapshotPresetInvalid", "固定快照的预设投影实例与源身份不一致。");
         return new()
         {
@@ -21,8 +24,8 @@ public static class ProjectSnapshotSourceProject
             LyricStyle = snapshot.LyricStyle, LyricStylePresetId = snapshot.LyricStylePresetId, EnterAnimation = snapshot.EnterAnimation,
             LyricPresentation = snapshot.LyricPresentation, Background = snapshot.Background, AudioPath = snapshot.AudioPath,
             AudioMedia = snapshot.AudioMedia, AudioAnalysis = snapshot.AudioAnalysis,
-            Effects = projected.Count == 0 ? snapshot.Effects : new(snapshot.Effects.Packages,
-                snapshot.Effects.Instances.Where(item => !projected.ContainsKey(item.Id)), snapshot.Effects.Budgets),
+            Effects = actual.Length == 0 ? snapshot.Effects : new(snapshot.Effects.Packages,
+                snapshot.Effects.Instances.Where(item => !sourceIds.Contains(item.Id)), snapshot.Effects.Budgets),
             PresetApplications = snapshot.PresetApplications,
         };
     }

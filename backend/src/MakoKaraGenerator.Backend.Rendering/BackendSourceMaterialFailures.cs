@@ -39,7 +39,7 @@ public static class BackendSourceMaterialFailures
             var slot = (PreparedMaterialSlot)owner.Slot;
             long timeUs = long.Parse(value.TimeUs, CultureInfo.InvariantCulture);
             if (parameters.Json != owner.ParametersJson || !Enum.IsDefined(slot) || !PreparedMaterialSlots.Accepts(reference, slot)
-                || !SourceMaterialCatalog.Collect(snapshot.LyricStyle, snapshot.Lyrics, snapshot.LyricPresentation, snapshot.PresetApplications).Contains(reference)
+                || !SourceMaterialCatalog.CollectForRuntime(snapshot.LyricStyle, snapshot.Lyrics, snapshot.LyricPresentation, snapshot.PresetApplications).Contains(reference)
                 || snapshot.Composition.OutputDurationUs is { } duration && timeUs >= duration)
                 throw Invalid();
             var package = snapshot.Effects.Packages.FirstOrDefault(p => p.PackageId == material.PackageId && p.Revision == material.Revision)

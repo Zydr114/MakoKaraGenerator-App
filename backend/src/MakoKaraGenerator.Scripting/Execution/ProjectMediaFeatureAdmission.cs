@@ -39,7 +39,7 @@ internal static class ProjectMediaFeatureAdmission
             ValidateInstance(snapshot, instance, definition, token);
             ProjectMediaFeatureProjection.ResolveInstance(binding, definition, token);
         }
-        var references = SourceMaterialCatalog.Collect(snapshot.LyricStyle, snapshot.Lyrics, snapshot.LyricPresentation, snapshot.PresetApplications);
+        var references = SourceMaterialCatalog.CollectForRuntime(snapshot.LyricStyle, snapshot.Lyrics, snapshot.LyricPresentation, snapshot.PresetApplications);
         foreach (var reference in references)
         {
             token.ThrowIfCancellationRequested();

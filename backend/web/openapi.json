@@ -3,8 +3,8 @@
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "info": {
     "title": "MakoKaraGenerator local backend HTTP API",
-    "version": "1.51.1",
-    "description": "冻结合同1.51.1；HTTP协议1，产品0.112.88。只含当前公共HTTP，不含未来功能及私有Worker。与api-contract.md和其固定行为源共同执行。info.version是合同版本，不是产品/HTTP版本。普通响应可忽略未知字段；请求遵守声明字段及业务门禁。"
+    "version": "1.52.0",
+    "description": "冻结合同1.52.0；HTTP协议1，产品0.112.89。只含当前公共HTTP，不含未来功能及私有Worker。与api-contract.md和其固定行为源共同执行。info.version是合同版本，不是产品/HTTP版本。普通响应可忽略未知字段；请求遵守声明字段及业务门禁。"
   },
   "servers": [
     {
@@ -18,9 +18,9 @@
       }
     }
   ],
-  "x-product-version": "0.112.88",
+  "x-product-version": "0.112.89",
   "x-http-protocol-version": "1",
-  "x-source-baseline": "a1f4379fa6d0af9f10e587f9b3f1cce2f9511798",
+  "x-source-baseline": "3c2ac9e5e2c51fce46f03033f5c62194077c5949",
   "x-behavior-contract": "api-contract.md",
   "x-options": {
     "status": 204,
@@ -2790,7 +2790,7 @@
         "tags": [
           "section-8"
         ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §8。",
+        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §8。 实际源材质失败停止导出并登记完整安全诊断；来源为sourceMaterialFailure，不制造脚本发生身份；表面超限附实际预算数值。",
         "x-behavior-section": "8",
         "parameters": [
           {
@@ -2828,6 +2828,12 @@
               }
             }
           }
+        },
+        "x-source-material-failure": {
+          "originKind": "sourceMaterialFailure",
+          "maximumJsonBytes": 65536,
+          "runtimeOccurrence": false,
+          "budgetCode": "ImageSurfaceBudgetExceeded"
         },
         "x-receipt-location": "none"
       }
@@ -3662,7 +3668,7 @@
         "tags": [
           "section-11"
         ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §11。 0.101已保存工程Image导出使用独立project-image-export-v1 Worker能力；客户端仍只提交既有expectedRevision/format/includeAudio/metadata，Image任务的taskProfile/baseSourceProfile仅出现在登记job input/exportInput并由服务配对。此0.101历史独立图片导出profile只支持无预设三基础源且package无音轨；现行统一Runtime来源另行协商。",
+        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §11。 0.101已保存工程Image导出使用独立project-image-export-v1 Worker能力；客户端仍只提交既有expectedRevision/format/includeAudio/metadata，Image任务的taskProfile/baseSourceProfile仅出现在登记job input/exportInput并由服务配对。此0.101历史独立图片导出profile只支持无预设三基础源且package无音轨；现行统一Runtime来源另行协商。 实际源材质失败停止导出并登记完整安全诊断；来源为sourceMaterialFailure，不制造脚本发生身份；表面超限附实际预算数值。",
         "x-behavior-section": "11",
         "parameters": [
           {
@@ -3725,6 +3731,12 @@
           "maxAudioBytes": 16777216,
           "maxReportBytes": 262144
         },
+        "x-source-material-failure": {
+          "originKind": "sourceMaterialFailure",
+          "maximumJsonBytes": 65536,
+          "runtimeOccurrence": false,
+          "budgetCode": "ImageSurfaceBudgetExceeded"
+        },
         "x-receipt-location": "none"
       }
     },
@@ -3735,7 +3747,7 @@
         "tags": [
           "section-11"
         ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §11。 0.101已保存工程Image导出使用独立project-image-export-v1 Worker能力；客户端仍只提交既有expectedRevision/format/includeAudio/metadata，Image任务的taskProfile/baseSourceProfile仅出现在登记job input/exportInput并由服务配对。此0.101历史独立图片导出profile只支持无预设三基础源且package无音轨；现行统一Runtime来源另行协商。",
+        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §11。 0.101已保存工程Image导出使用独立project-image-export-v1 Worker能力；客户端仍只提交既有expectedRevision/format/includeAudio/metadata，Image任务的taskProfile/baseSourceProfile仅出现在登记job input/exportInput并由服务配对。此0.101历史独立图片导出profile只支持无预设三基础源且package无音轨；现行统一Runtime来源另行协商。 实际源材质失败停止导出并登记完整安全诊断；来源为sourceMaterialFailure，不制造脚本发生身份；表面超限附实际预算数值。",
         "x-behavior-section": "11",
         "parameters": [
           {
@@ -3791,6 +3803,12 @@
           "maxMediaBytes": 67108864,
           "maxAudioBytes": 16777216,
           "maxReportBytes": 262144
+        },
+        "x-source-material-failure": {
+          "originKind": "sourceMaterialFailure",
+          "maximumJsonBytes": 65536,
+          "runtimeOccurrence": false,
+          "budgetCode": "ImageSurfaceBudgetExceeded"
         },
         "x-receipt-location": "none"
       }
@@ -5891,7 +5909,7 @@
         "tags": [
           "section-11"
         ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §11。 0.101已保存工程Image导出使用独立project-image-export-v1 Worker能力；客户端仍只提交既有expectedRevision/format/includeAudio/metadata，Image任务的taskProfile/baseSourceProfile仅出现在登记job input/exportInput并由服务配对。此0.101历史独立图片导出profile只支持无预设三基础源且package无音轨；现行统一Runtime来源另行协商。 P2共享固定Runtime输入按实际独立Worker能力消费媒体、包和预设闭包；HTTP不接主机路径或私有grant。旧图片有限profile的预算只适用于其历史路径；完整当前能力读取对应sourceProfiles。 显式设备选择见统一API§25；公共gpu实际使用Vulkan；不修改Host环境或其它客户端偏好。",
+        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §11。 0.101已保存工程Image导出使用独立project-image-export-v1 Worker能力；客户端仍只提交既有expectedRevision/format/includeAudio/metadata，Image任务的taskProfile/baseSourceProfile仅出现在登记job input/exportInput并由服务配对。此0.101历史独立图片导出profile只支持无预设三基础源且package无音轨；现行统一Runtime来源另行协商。 P2共享固定Runtime输入按实际独立Worker能力消费媒体、包和预设闭包；HTTP不接主机路径或私有grant。旧图片有限profile的预算只适用于其历史路径；完整当前能力读取对应sourceProfiles。 显式设备选择见统一API§25；公共gpu实际使用Vulkan；不修改Host环境或其它客户端偏好。 实际源材质失败停止导出并登记完整安全诊断；来源为sourceMaterialFailure，不制造脚本发生身份；表面超限附实际预算数值。",
         "x-behavior-section": "11",
         "parameters": [
           {
@@ -5980,6 +5998,12 @@
           "gpu"
         ],
         "x-render-backend-default": "startup",
+        "x-source-material-failure": {
+          "originKind": "sourceMaterialFailure",
+          "maximumJsonBytes": 65536,
+          "runtimeOccurrence": false,
+          "budgetCode": "ImageSurfaceBudgetExceeded"
+        },
         "requestBody": {
           "required": true,
           "content": {
@@ -8784,7 +8808,7 @@
         "tags": [
           "section-11"
         ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §11。 0.101已保存工程Image导出使用独立project-image-export-v1 Worker能力；客户端仍只提交既有expectedRevision/format/includeAudio/metadata，Image任务的taskProfile/baseSourceProfile仅出现在登记job input/exportInput并由服务配对。此0.101历史独立图片导出profile只支持无预设三基础源且package无音轨；现行统一Runtime来源另行协商。",
+        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §11。 0.101已保存工程Image导出使用独立project-image-export-v1 Worker能力；客户端仍只提交既有expectedRevision/format/includeAudio/metadata，Image任务的taskProfile/baseSourceProfile仅出现在登记job input/exportInput并由服务配对。此0.101历史独立图片导出profile只支持无预设三基础源且package无音轨；现行统一Runtime来源另行协商。 实际源材质失败停止导出并登记完整安全诊断；来源为sourceMaterialFailure，不制造脚本发生身份；表面超限附实际预算数值。",
         "x-behavior-section": "11",
         "parameters": [
           {
@@ -8840,6 +8864,12 @@
           "maxMediaBytes": 67108864,
           "maxAudioBytes": 16777216,
           "maxReportBytes": 262144
+        },
+        "x-source-material-failure": {
+          "originKind": "sourceMaterialFailure",
+          "maximumJsonBytes": 65536,
+          "runtimeOccurrence": false,
+          "budgetCode": "ImageSurfaceBudgetExceeded"
         },
         "x-receipt-location": "none"
       }
@@ -13799,6 +13829,9 @@
           },
           "material": {
             "$ref": "#/components/schemas/BackendMaterialDiagnosticDto"
+          },
+          "sourceMaterialFailure": {
+            "$ref": "#/components/schemas/BackendSourceMaterialFailureDto"
           }
         },
         "required": [
@@ -13878,6 +13911,17 @@
                     }
                   }
                 }
+              },
+              {
+                "not": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "sourceMaterialFailure"
+                      ]
+                    }
+                  ]
+                }
               }
             ]
           },
@@ -13919,7 +13963,20 @@
                   ]
                 }
               ]
-            }
+            },
+            "allOf": [
+              {
+                "not": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "sourceMaterialFailure"
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
           },
           {
             "properties": {
@@ -13959,7 +14016,20 @@
                   ]
                 }
               ]
-            }
+            },
+            "allOf": [
+              {
+                "not": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "sourceMaterialFailure"
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
           },
           {
             "allOf": [
@@ -13991,7 +14061,8 @@
                       "enum": [
                         "compileSource",
                         "imageEffect",
-                        "material"
+                        "material",
+                        "sourceMaterialFailure"
                       ]
                     }
                   },
@@ -13999,11 +14070,65 @@
                     "originKind"
                   ]
                 }
+              },
+              {
+                "not": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "sourceMaterialFailure"
+                      ]
+                    }
+                  ]
+                }
               }
             ]
+          },
+          {
+            "properties": {
+              "originKind": {
+                "const": "sourceMaterialFailure"
+              },
+              "severity": {
+                "const": "error"
+              }
+            },
+            "required": [
+              "originKind",
+              "sourceMaterialFailure"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "location"
+                  ]
+                },
+                {
+                  "required": [
+                    "occurrence"
+                  ]
+                },
+                {
+                  "required": [
+                    "source"
+                  ]
+                },
+                {
+                  "required": [
+                    "imageEffect"
+                  ]
+                },
+                {
+                  "required": [
+                    "material"
+                  ]
+                }
+              ]
+            }
           }
         ],
-        "description": "Legacy report/runtime occurrence or exact compileSource/imageEffect/material payload; unrelated nullable slots omitted. Full public array max768/512KiB; byte/cross-field identity checked by service."
+        "description": "Legacy report/runtime occurrence or exact compileSource/imageEffect/material payload; unrelated nullable slots omitted. Full public array max768/512KiB; byte/cross-field identity checked by service. sourceMaterialFailure是独立源材质执行错误，不能附加脚本occurrence或其他来源payload。"
       },
       "BackendDiagnosticDtoRaw": {
         "type": "object",
@@ -14076,6 +14201,16 @@
                 "type": "null"
               }
             ]
+          },
+          "sourceMaterialFailure": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BackendSourceMaterialFailureDtoRaw"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -14086,7 +14221,56 @@
           "occurrence",
           "originKind"
         ],
-        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.BackendDiagnosticDto"
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.BackendDiagnosticDto",
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "originKind": {
+                  "const": "sourceMaterialFailure"
+                }
+              },
+              "required": [
+                "originKind"
+              ]
+            },
+            "then": {
+              "properties": {
+                "sourceMaterialFailure": {
+                  "$ref": "#/components/schemas/BackendSourceMaterialFailureDtoRaw"
+                },
+                "severity": {
+                  "const": "error"
+                },
+                "location": {
+                  "type": "null"
+                },
+                "occurrence": {
+                  "type": "null"
+                },
+                "source": {
+                  "type": "null"
+                },
+                "imageEffect": {
+                  "type": "null"
+                },
+                "material": {
+                  "type": "null"
+                }
+              },
+              "required": [
+                "sourceMaterialFailure"
+              ]
+            },
+            "else": {
+              "properties": {
+                "sourceMaterialFailure": {
+                  "type": "null"
+                }
+              }
+            }
+          }
+        ]
       },
       "BackendDiagnosticLocationDto": {
         "type": "object",
@@ -15079,6 +15263,114 @@
         ],
         "x-clr-type": "MakoKaraGenerator.Backend.Contracts.BackendImageEffectDiagnosticDto"
       },
+      "BackendImageSurfaceBudgetDto": {
+        "type": "object",
+        "properties": {
+          "currentSurfaces": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "additionalSurfaces": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "maximumSurfaces": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "currentBytes": {
+            "type": "string",
+            "pattern": "^(?:0|[1-9][0-9]*)$",
+            "maxLength": 19,
+            "x-int64-string": true,
+            "description": "规范非负十进制Int64字符串；不接受符号、前导零或指数。精确数值范围由服务校验。"
+          },
+          "additionalBytes": {
+            "type": "string",
+            "pattern": "^(?:0|[1-9][0-9]*)$",
+            "maxLength": 19,
+            "x-int64-string": true,
+            "description": "规范非负十进制Int64字符串；不接受符号、前导零或指数。精确数值范围由服务校验。"
+          },
+          "maximumBytes": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$",
+            "maxLength": 19,
+            "x-int64-string": true,
+            "description": "规范非负十进制Int64字符串；不接受符号、前导零或指数。精确数值范围由服务校验。"
+          }
+        },
+        "required": [
+          "currentSurfaces",
+          "additionalSurfaces",
+          "maximumSurfaces",
+          "currentBytes",
+          "additionalBytes",
+          "maximumBytes"
+        ],
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.BackendImageSurfaceBudgetDto",
+        "description": "失败申请之前的实际活动量、申请量与固定上限；仅ImageSurfaceBudgetExceeded附带，不含异常文本或堆栈。"
+      },
+      "BackendImageSurfaceBudgetDtoRaw": {
+        "type": "object",
+        "properties": {
+          "currentSurfaces": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "additionalSurfaces": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "maximumSurfaces": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "currentBytes": {
+            "type": "string",
+            "pattern": "^(?:0|[1-9][0-9]*)$",
+            "maxLength": 19,
+            "x-int64-string": true,
+            "description": "规范非负十进制Int64字符串；不接受符号、前导零或指数。精确数值范围由服务校验。"
+          },
+          "additionalBytes": {
+            "type": "string",
+            "pattern": "^(?:0|[1-9][0-9]*)$",
+            "maxLength": 19,
+            "x-int64-string": true,
+            "description": "规范非负十进制Int64字符串；不接受符号、前导零或指数。精确数值范围由服务校验。"
+          },
+          "maximumBytes": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$",
+            "maxLength": 19,
+            "x-int64-string": true,
+            "description": "规范非负十进制Int64字符串；不接受符号、前导零或指数。精确数值范围由服务校验。"
+          }
+        },
+        "required": [
+          "currentSurfaces",
+          "additionalSurfaces",
+          "maximumSurfaces",
+          "currentBytes",
+          "additionalBytes",
+          "maximumBytes"
+        ],
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.BackendImageSurfaceBudgetDto",
+        "description": "失败申请之前的实际活动量、申请量与固定上限；仅ImageSurfaceBudgetExceeded附带，不含异常文本或堆栈。"
+      },
       "BackendJobInputDto": {
         "type": "object",
         "properties": {
@@ -15697,6 +15989,128 @@
           "column"
         ],
         "x-clr-type": "MakoKaraGenerator.Backend.Contracts.BackendSourceDiagnosticDto"
+      },
+      "BackendSourceMaterialFailureDto": {
+        "type": "object",
+        "properties": {
+          "owner": {
+            "$ref": "#/components/schemas/BackendDiagnosticSourceOwnerDto"
+          },
+          "stage": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "timeUs": {
+            "type": "string",
+            "pattern": "^(?:0|[1-9][0-9]*)$",
+            "maxLength": 19,
+            "x-int64-string": true,
+            "description": "规范非负十进制Int64字符串；不接受符号、前导零或指数。精确数值范围由服务校验。"
+          },
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "budget": {
+            "$ref": "#/components/schemas/BackendImageSurfaceBudgetDto"
+          }
+        },
+        "required": [
+          "owner",
+          "stage",
+          "timeUs",
+          "code"
+        ],
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.BackendSourceMaterialFailureDto",
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "budget": {
+                  "type": "object"
+                }
+              },
+              "required": [
+                "budget"
+              ]
+            },
+            "then": {
+              "properties": {
+                "code": {
+                  "const": "ImageSurfaceBudgetExceeded"
+                }
+              }
+            }
+          }
+        ],
+        "description": "实际源材质失败的完整安全结构，最多65536字节；包含真实持久源部位、包、参数、阶段、微秒时刻和稳定码；没有脚本实例、编译代次或运行时发生序号。"
+      },
+      "BackendSourceMaterialFailureDtoRaw": {
+        "type": "object",
+        "properties": {
+          "owner": {
+            "$ref": "#/components/schemas/BackendDiagnosticSourceOwnerDto"
+          },
+          "stage": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "timeUs": {
+            "type": "string",
+            "pattern": "^(?:0|[1-9][0-9]*)$",
+            "maxLength": 19,
+            "x-int64-string": true,
+            "description": "规范非负十进制Int64字符串；不接受符号、前导零或指数。精确数值范围由服务校验。"
+          },
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "budget": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BackendImageSurfaceBudgetDto"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "owner",
+          "stage",
+          "timeUs",
+          "code",
+          "budget"
+        ],
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.BackendSourceMaterialFailureDto",
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "budget": {
+                  "type": "object"
+                }
+              },
+              "required": [
+                "budget"
+              ]
+            },
+            "then": {
+              "properties": {
+                "code": {
+                  "const": "ImageSurfaceBudgetExceeded"
+                }
+              }
+            }
+          }
+        ],
+        "description": "实际源材质失败的完整安全结构，最多65536字节；包含真实持久源部位、包、参数、阶段、微秒时刻和稳定码；没有脚本实例、编译代次或运行时发生序号。"
       },
       "BasicLayoutCommandDtoInput": {
         "type": "object",

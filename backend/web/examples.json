@@ -166274,7 +166274,131 @@
         ]
       },
       "valid": false
+    },
+    {
+      "name": "source-material-failure-public-budget",
+      "schema": "BackendDiagnosticDto",
+      "value": {
+        "code": "ImageSurfaceBudgetExceeded",
+        "severity": "error",
+        "message": "源材质执行超过中间表面预算，导出已停止。",
+        "originKind": "sourceMaterialFailure",
+        "sourceMaterialFailure": {
+          "owner": {
+            "path": "lyrics.style",
+            "region": "stroke",
+            "slot": 0,
+            "sourceMaterial": {
+              "packageId": "material",
+              "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "exportId": "fill"
+            },
+            "parametersJson": "{}"
+          },
+          "stage": "sourceMaterial",
+          "timeUs": "46033333",
+          "code": "ImageSurfaceBudgetExceeded",
+          "budget": {
+            "currentSurfaces": 256,
+            "additionalSurfaces": 1,
+            "maximumSurfaces": 256,
+            "currentBytes": "231789600",
+            "additionalBytes": "8294400",
+            "maximumBytes": "536870912"
+          }
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "source-material-failure-raw-budget",
+      "schema": "BackendDiagnosticDtoRaw",
+      "value": {
+        "code": "ImageSurfaceBudgetExceeded",
+        "severity": "error",
+        "message": "源材质执行超过中间表面预算，导出已停止。",
+        "originKind": "sourceMaterialFailure",
+        "sourceMaterialFailure": {
+          "owner": {
+            "path": "lyrics.style",
+            "region": "stroke",
+            "slot": 0,
+            "sourceMaterial": {
+              "packageId": "material",
+              "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "exportId": "fill"
+            },
+            "parametersJson": "{}"
+          },
+          "stage": "sourceMaterial",
+          "timeUs": "46033333",
+          "code": "ImageSurfaceBudgetExceeded",
+          "budget": {
+            "currentSurfaces": 256,
+            "additionalSurfaces": 1,
+            "maximumSurfaces": 256,
+            "currentBytes": "231789600",
+            "additionalBytes": "8294400",
+            "maximumBytes": "536870912"
+          }
+        },
+        "location": null,
+        "occurrence": null,
+        "source": null,
+        "imageEffect": null,
+        "material": null
+      },
+      "valid": true
+    },
+    {
+      "name": "source-material-failure-runtime-occurrence",
+      "schema": "BackendDiagnosticDto",
+      "value": {
+        "code": "ImageSurfaceBudgetExceeded",
+        "severity": "error",
+        "message": "源材质执行超过中间表面预算，导出已停止。",
+        "originKind": "sourceMaterialFailure",
+        "sourceMaterialFailure": {
+          "owner": {
+            "path": "lyrics.style",
+            "region": "stroke",
+            "slot": 0,
+            "sourceMaterial": {
+              "packageId": "material",
+              "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "exportId": "fill"
+            },
+            "parametersJson": "{}"
+          },
+          "stage": "sourceMaterial",
+          "timeUs": "46033333",
+          "code": "ImageSurfaceBudgetExceeded",
+          "budget": {
+            "currentSurfaces": 256,
+            "additionalSurfaces": 1,
+            "maximumSurfaces": 256,
+            "currentBytes": "231789600",
+            "additionalBytes": "8294400",
+            "maximumBytes": "536870912"
+          }
+        },
+        "occurrence": {}
+      },
+      "valid": false
+    },
+    {
+      "name": "source-material-failure-byte-number",
+      "schema": "BackendImageSurfaceBudgetDto",
+      "value": {
+        "currentSurfaces": 256,
+        "additionalSurfaces": 1,
+        "maximumSurfaces": 256,
+        "currentBytes": 231789600,
+        "additionalBytes": "8294400",
+        "maximumBytes": "536870912"
+      },
+      "valid": false
     }
   ],
-  "contractVersion": "1.51.1"
+  "contractVersion": "1.52.0"
 }

@@ -99,4 +99,29 @@ public sealed partial class BackendProjectImageExportJobTests
         Assert.Equal(0, f.ReferenceCount);
         f.AssertScheduler(0, 0);
     }
+
+    // M13 C1：三条导出入口（固定媒体运行输入、图片背景、纯色通用）对实际使用 SDK v2 的工程，
+    // 未选 GPU 时都在登记任务、取输入和调用执行器之前拒绝。
+    [Theory]
+    [InlineData("runtime")]
+    [InlineData("image")]
+    [InlineData("generic")]
+    public async Task SDK2工程未选GPU的导出在登记任务与取输入前拒绝(string path)
+    {
+        await using Fixture f = await Fixture.Create(runtime: path != "image", kind: BackgroundKind.Image);
+        Project project = SdkV2ProjectFixture.WithEnabledV2Instance(f.Session.Workspace.Project);
+        if (path == "generic") project = project with { Background = new BackgroundSource() };
+        f.Session.Workspace.Replace(project);
+        BackendOperationResult<JobResponse> result = await f.StartOperation();
+        Assert.False(result.Accepted);
+        Assert.Equal(BackendErrorCode.CommandNotSupported, result.Error!.Code);
+        Assert.Equal("renderBackend", result.Error.Field);
+        Assert.Equal("PackageBackendUnsupported", result.Error.FailureCode);
+        Assert.Equal(0, f.Executor.Calls);
+        Assert.Empty((await f.Registry.ReadClientStateAsync("client")).Jobs!);
+        Assert.Equal(f.BaselineReferenceCount, f.ReferenceCount);
+        Assert.True(f.Session.DrainPinnedInputReadsAsync().IsCompleted);
+        Assert.Equal(0, f.ArtifactUsedBytes);
+        f.AssertScheduler(0, 0);
+    }
 }

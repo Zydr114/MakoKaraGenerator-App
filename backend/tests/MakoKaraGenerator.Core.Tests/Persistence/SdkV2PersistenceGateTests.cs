@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using MakoKaraGenerator.Core.Diagnostics;
 using MakoKaraGenerator.Core.Effects;
+using MakoKaraGenerator.Core.Lyrics;
 using MakoKaraGenerator.Core.Persistence;
 using MakoKaraGenerator.Core.Projects;
 
@@ -44,18 +45,33 @@ public sealed class SdkV2PersistenceGateTests
     [Theory]
     [InlineData("project")]
     [InlineData("effects")]
+    [InlineData("lyrics")]
     public void 旧工程或旧效果合同只报告错误且保留全部源字节(string kind)
     {
         using TemporaryDirectory temp = new();
         var package = SdkV2PackageFixture.Contents();
         ProjectStore.Save(Project.Create("新工程") with { Effects = new([package]) }, temp.Path);
-        string path = temp.FilePath("project.json"); var root = JsonNode.Parse(File.ReadAllBytes(path))!;
-        if (kind == "project") root["schemaVersion"] = Project.CurrentSchemaVersion - 1;
-        else root["effects"]!["contractVersion"] = ProjectEffectsJson.CurrentContractVersion - 1;
-        File.WriteAllText(path, root.ToJsonString()); byte[] before = File.ReadAllBytes(path);
+        string path = temp.FilePath("project.json");
+        if (kind == "lyrics")
+        {
+            // 工程入口是当前版本，只有它引用的歌词文件是上一版（M13 B2）。
+            var lyrics = JsonNode.Parse(File.ReadAllBytes(ProjectFileFixture.LyricsPath(temp.Path)))!;
+            lyrics["schemaVersion"] = LyricsDocument.CurrentSchemaVersion - 1;
+            ProjectFileFixture.PublishLyrics(temp.Path, lyrics.ToJsonString());
+        }
+        else
+        {
+            var root = JsonNode.Parse(File.ReadAllBytes(path))!;
+            if (kind == "project") root["schemaVersion"] = Project.CurrentSchemaVersion - 1;
+            else root["effects"]!["contractVersion"] = ProjectEffectsJson.CurrentContractVersion - 1;
+            File.WriteAllText(path, root.ToJsonString());
+        }
+        byte[] before = File.ReadAllBytes(path);
+        string lyricsPath = ProjectFileFixture.LyricsPath(temp.Path); byte[] lyricsBefore = File.ReadAllBytes(lyricsPath);
         var loaded = ProjectStore.Load(temp.Path); Assert.Null(loaded.Project);
-        Assert.Contains(loaded.Report.Issues, issue => issue.Code == (kind == "project" ? DiagnosticCode.UnsupportedSchemaVersion : DiagnosticCode.InvalidEffectData));
+        Assert.Contains(loaded.Report.Issues, issue => issue.Code == (kind == "effects" ? DiagnosticCode.InvalidEffectData : DiagnosticCode.UnsupportedSchemaVersion));
         Assert.Equal(before, File.ReadAllBytes(path));
+        Assert.Equal(lyricsBefore, File.ReadAllBytes(lyricsPath));
     }
 
     [Fact]

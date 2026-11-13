@@ -1,6 +1,6 @@
 # D8 能力与样例核对台账
 
-日期：2026-11-04。范围：M00 源码核对与 M07 首批有限证据；**完整 D8 尚未关闭**。
+日期：2026-11-04。范围：M00 源码核对与 M07 首批有限证据。**2026-11-13 M13 已关闭完整 D8**（见下节 M13），以下历史段落保持原文。
 本表落实[主计划 §5.9](script-sdk-v2-render-pipeline-plan.md#59-d8-能力矩阵与九样例验收)，
 不改变 D1–D17，不把现有测试入口、历史报告或候选类型写成当前版本运行通过。
 M01–M06 保持 v1 API／求值语义，不能据其性能优化关闭下表的 v2 项。
@@ -41,6 +41,16 @@ v1 作者诊断通道与工程时长在 v2 缺失，待用户决定；音频／�
 
 同日后续（0.112.43）：工程时长已补（`ProjectDurationUs`）；作者诊断通道按用户决定暂不补；
 author-v2 三例与 author-package 冒烟已跟随现行 UI 并通过。其余证据缺口按用户指示暂缓，进入 M12。
+
+## M13 关闭（产品0.112.88，合同1.51.1，SDK 2.0）
+
+2026-11-08 登记的缺口 a–f 已补齐：mark.affine、SetShadow、group.opacity 像素，Random 与 Available 音频，
+13 个样例与 T01 的不透明／透明导出，CustomInk、GlassInk 样例级像素，13 例逐样例作者链（保存重开逐字节），
+T01 夹具补全与 ±1 µs。冻结点全量后端 8507 条、11 个 HTTP 探针、M08 跨进程与前端回归通过；
+期间发现的两项后端缺陷（0.112.87、0.112.88）已修复并升合同 PATCH，桌面 GPU 附着竞态另修（`393581a`）。C01–C10、S01–S09、附加四例与 T01 的
+E/A/X/D/T 均已齐；P 按 2026-11-13 用户决定不另设门槛，以 M12 收口与 P3 第 8 步复测为证据，P4 余项为批准例外。
+批准例外另有 G-CAP-1 作者诊断通道、T01 复杂背景与视频、缩放／倾斜／Warp 容差。
+详见[M13 记录](script-sdk-render-m13-evidence.md)。下表“待”按此关闭，历史文字不改。
 
 ## 证据登记方式
 
@@ -136,16 +146,16 @@ Vulkan PNG及六件48帧成片。C03包含无DLL直接图、typed动态矩阵、
 
 | ID／v1 可核查用途 | 实际源码与现有回归入口 | v2 候选表达及必须保留的边界 | 后续节点／证据 |
 |---|---|---|---|
-| C01 字族缩放、行／组／标记仿射 | `SA/FrameWriter.cs`、`FrameWriter.Lines.cs`、`FrameWriter.Groups.cs`、`FrameWriter.Marks.cs`；`ST/FrameWriterContractTests.cs`、`GroupTransformContractTests.cs`；`RT/PreparedGroupTransformIntegrationTests.cs`、`PreparedMarkFrameTests.cs` | 强类型 Transform，增加字簇目标；完整仿射、Ruby 继承、父子矩阵与不可拆字簇诊断；不能将不可拆合字按 UTF-16 切开 | M07／M09，E/A/X/D/T/P 待 |
-| C02 样式写入与透明度 | `SA/FrameWriter.Style.cs`、`FrameWriter.Materials.cs`、`FrameWriter.Groups.cs`；`ST/StyleWriterContractTests.cs`、`GroupOpacityContractTests.cs`；`RT/PreparedStyleFrameTests.cs`、`GroupOpacityIsolationTests.cs`、`MixedEffectPackageTests.Glow.cs` | Fill／Stroke／Shadow／Glow／Opacity；基线与叶覆盖、组 alpha 隔离、全域部件顺序；不能让后画字辉光覆盖先画字填充 | M07／M12，E/A/X/D/T/P 待 |
-| C03 材质 uniform／图绑定 | `SA/MaterialUniforms.cs`、`FrameWriter.Materials.cs`、`FrameWriter.ImageEffects.cs`；`SE/FrameEffectHost.Materials.cs`、`FrameEffectHost.PackageOutputs.cs`；`ST/MaterialUniformWriterTests.cs`、`ImageEffectWriterTests.cs`、`DirectGraphEffectTests.cs`；`RT/MixedEffectPackageTests.UniformTypes.cs`、`MixedEffectPackageTests.RegionExecution.cs` | 类型化 Graph／uniform 输出；owning 包、参数／矩阵身份、背景和透明 fallback、采样边界与绑定顺序；组图作为新增能力单列 | M09／M12，E/A/X/D/T/P 待 |
-| C04 事件与 History | `SA/TimelineEvent.cs`、`DisplayTimelineEvents.cs`、`TimelineHistory.cs`；`SE/FrameSession.cs`；`ST/TimelineEventContractTests.cs`、`TimelineHistoryTests.cs`、`HistoryPrefixSessionTests.cs`；`RT/RepeatEmphasisSessionTests.cs` | TimelineIndex、typed selector、ordinal；真实 occurrence／scope、同边界顺序、跨 branch／重复装载去重；事件前后 1 µs、缺时间与不依赖查询方向 | M07／M08，E/A/X/D/T/P 待 |
-| C05 连续发射与 Burst | `SA/EmitterWriter.cs`、`BurstWriter.cs`、`EmissionSchedule.cs`；`SE/FrameEffectHost.Emitters.cs`、`FrameEffectHost.Bursts.cs`；`ST/EmitterWriterContractTests.cs`、`BurstWriterContractTests.cs`；`RT/EmissionStageTests.cs`、`EventBurstTests.cs`、`ContinuousParticleTests.cs` | 累计速率轨／事件出生表；固定、分段常速和有限分段线性速率，payload／scope／occurrence、四类锚点与 line fallback；精确配额、出生死亡边界和随机身份 | M08，E/A/X/D/T/P 待 |
-| C06 解析运动、桥接与拖尾 | `SA/ParticleDescription.cs`、`ParticleSource.cs`、`CursorEndpoint.cs`、`GeometryQueries.cs`；`SE/FrameEffectHost.Bridges.cs`、`FrameEffectHost.Queries.cs`；`RT/ContinuousParticleTests.Bridges.cs`、`ContinuousParticleTests.BridgeLifetime.cs`、`CursorSuccessorSessionTests.cs`、`GeometryQuerySessionTests.cs` | 有界解析查询及最终锚点 memo；未来／插值端点另计预算，不跨身份／断点插值；出生后年龄、Custom 访问、≤5 s 寿命、120 Hz memo 冷热一致 | M08，E/A/X/D/T/P 待 |
-| C07 手工 Overlay／Sprite | `SA/VisualWriter.cs`、`VectorOverlays.cs`、`SpriteOverlays.cs`；`SE/FrameEffectHost.Visuals.cs`；`ST/VisualWriterContractTests.cs`、`VectorOverlayContractTests.cs`、`SpriteOverlayContractTests.cs`；`RT/MainCanvasImageEffectsTests.VectorOverlays.cs`、`MainCanvasImageEffectsTests.Sprites.cs` | 晚期 Dots／Segments／Trails／Sprites／Paths；完整 Sprite 仿射、图层／批次顺序、数量预算，Custom 不能与自动粒子重复绘制 | M08／M09，E/A/X/D/T/P 待 |
-| C08 音频与确定随机 | `SA/AudioFeatures.cs`、`DeterministicRandom.cs`、`ParameterValues.cs`；`ST/FrameServicesTests.cs`；`RT/AudioReactiveFrameTests.cs`、`PersistedAudioFrameTests.cs` | 固定 AudioFeatures、计数式随机；required／optional／无数据状态、固定分析制品身份、实例与粒子稳定身份；参数／seed 的变化不能误命中旧派生结果 | M07／M08，E/A/X/D/T/P 待 |
-| C09 字段状态承载的实际功能 | `SA/StateContext.cs`；`SE/FrameSession.cs`；`samples/ScriptEffects/RepeatEmphasis/src/RepeatEmphasis.cs` 的 `counts`／`ordinal`；`ST/SemanticSessionTests.cs`、`HistoryPrefixSharingTests.cs` | 不支持任意累积字段；逐用途登记为源索引、递归只读准备结果或解析表达。重复强调、时变发射等功能仍须保留；无法表达即 D8 发布阻塞，不能自行标为淘汰 | M07／M08／M13，E/A/X/D/T/P 待 |
-| C10 非生产 AnchorMap／GeometryMapping | `SA/AnchorMap.cs`、`GeometryValues.cs`；`ST/PlaybackGeometryContractTests.cs` 仅验证映射值；`backend/src/MakoKaraGenerator.Scripting/Compilation/DirectGraphEffectValidation.cs` 与 `backend/src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.ImageScene.Binding.cs` 仍拒绝实际映射；`ST/DirectGraphEffectTests.cs` 有 `PackageGraphMappingPending` 负例 | 有界 Warp；拓扑／退化拒绝、接缝与锚点正向映射一致。原值类型不改变生产文字／光标，不能把它当已执行像素基线 | M09，E/A/X/D/T/P 待；新增能力 |
+| C01 字族缩放、行／组／标记仿射 | `SA/FrameWriter.cs`、`FrameWriter.Lines.cs`、`FrameWriter.Groups.cs`、`FrameWriter.Marks.cs`；`ST/FrameWriterContractTests.cs`、`GroupTransformContractTests.cs`；`RT/PreparedGroupTransformIntegrationTests.cs`、`PreparedMarkFrameTests.cs` | 强类型 Transform，增加字簇目标；完整仿射、Ruby 继承、父子矩阵与不可拆字簇诊断；不能将不可拆合字按 UTF-16 切开 | M07／M09，M13 关闭（P 例外） |
+| C02 样式写入与透明度 | `SA/FrameWriter.Style.cs`、`FrameWriter.Materials.cs`、`FrameWriter.Groups.cs`；`ST/StyleWriterContractTests.cs`、`GroupOpacityContractTests.cs`；`RT/PreparedStyleFrameTests.cs`、`GroupOpacityIsolationTests.cs`、`MixedEffectPackageTests.Glow.cs` | Fill／Stroke／Shadow／Glow／Opacity；基线与叶覆盖、组 alpha 隔离、全域部件顺序；不能让后画字辉光覆盖先画字填充 | M07／M12，M13 关闭（P 例外） |
+| C03 材质 uniform／图绑定 | `SA/MaterialUniforms.cs`、`FrameWriter.Materials.cs`、`FrameWriter.ImageEffects.cs`；`SE/FrameEffectHost.Materials.cs`、`FrameEffectHost.PackageOutputs.cs`；`ST/MaterialUniformWriterTests.cs`、`ImageEffectWriterTests.cs`、`DirectGraphEffectTests.cs`；`RT/MixedEffectPackageTests.UniformTypes.cs`、`MixedEffectPackageTests.RegionExecution.cs` | 类型化 Graph／uniform 输出；owning 包、参数／矩阵身份、背景和透明 fallback、采样边界与绑定顺序；组图作为新增能力单列 | M09／M12，M13 关闭（P 例外） |
+| C04 事件与 History | `SA/TimelineEvent.cs`、`DisplayTimelineEvents.cs`、`TimelineHistory.cs`；`SE/FrameSession.cs`；`ST/TimelineEventContractTests.cs`、`TimelineHistoryTests.cs`、`HistoryPrefixSessionTests.cs`；`RT/RepeatEmphasisSessionTests.cs` | TimelineIndex、typed selector、ordinal；真实 occurrence／scope、同边界顺序、跨 branch／重复装载去重；事件前后 1 µs、缺时间与不依赖查询方向 | M07／M08，M13 关闭（P 例外） |
+| C05 连续发射与 Burst | `SA/EmitterWriter.cs`、`BurstWriter.cs`、`EmissionSchedule.cs`；`SE/FrameEffectHost.Emitters.cs`、`FrameEffectHost.Bursts.cs`；`ST/EmitterWriterContractTests.cs`、`BurstWriterContractTests.cs`；`RT/EmissionStageTests.cs`、`EventBurstTests.cs`、`ContinuousParticleTests.cs` | 累计速率轨／事件出生表；固定、分段常速和有限分段线性速率，payload／scope／occurrence、四类锚点与 line fallback；精确配额、出生死亡边界和随机身份 | M08，M13 关闭（P 例外） |
+| C06 解析运动、桥接与拖尾 | `SA/ParticleDescription.cs`、`ParticleSource.cs`、`CursorEndpoint.cs`、`GeometryQueries.cs`；`SE/FrameEffectHost.Bridges.cs`、`FrameEffectHost.Queries.cs`；`RT/ContinuousParticleTests.Bridges.cs`、`ContinuousParticleTests.BridgeLifetime.cs`、`CursorSuccessorSessionTests.cs`、`GeometryQuerySessionTests.cs` | 有界解析查询及最终锚点 memo；未来／插值端点另计预算，不跨身份／断点插值；出生后年龄、Custom 访问、≤5 s 寿命、120 Hz memo 冷热一致 | M08，M13 关闭（P 例外） |
+| C07 手工 Overlay／Sprite | `SA/VisualWriter.cs`、`VectorOverlays.cs`、`SpriteOverlays.cs`；`SE/FrameEffectHost.Visuals.cs`；`ST/VisualWriterContractTests.cs`、`VectorOverlayContractTests.cs`、`SpriteOverlayContractTests.cs`；`RT/MainCanvasImageEffectsTests.VectorOverlays.cs`、`MainCanvasImageEffectsTests.Sprites.cs` | 晚期 Dots／Segments／Trails／Sprites／Paths；完整 Sprite 仿射、图层／批次顺序、数量预算，Custom 不能与自动粒子重复绘制 | M08／M09，M13 关闭（P 例外） |
+| C08 音频与确定随机 | `SA/AudioFeatures.cs`、`DeterministicRandom.cs`、`ParameterValues.cs`；`ST/FrameServicesTests.cs`；`RT/AudioReactiveFrameTests.cs`、`PersistedAudioFrameTests.cs` | 固定 AudioFeatures、计数式随机；required／optional／无数据状态、固定分析制品身份、实例与粒子稳定身份；参数／seed 的变化不能误命中旧派生结果 | M07／M08，M13 关闭（P 例外） |
+| C09 字段状态承载的实际功能 | `SA/StateContext.cs`；`SE/FrameSession.cs`；`samples/ScriptEffects/RepeatEmphasis/src/RepeatEmphasis.cs` 的 `counts`／`ordinal`；`ST/SemanticSessionTests.cs`、`HistoryPrefixSharingTests.cs` | 不支持任意累积字段；逐用途登记为源索引、递归只读准备结果或解析表达。重复强调、时变发射等功能仍须保留；无法表达即 D8 发布阻塞，不能自行标为淘汰 | M07／M08／M13，M13 关闭（P 例外） |
+| C10 非生产 AnchorMap／GeometryMapping | `SA/AnchorMap.cs`、`GeometryValues.cs`；`ST/PlaybackGeometryContractTests.cs` 仅验证映射值；`backend/src/MakoKaraGenerator.Scripting/Compilation/DirectGraphEffectValidation.cs` 与 `backend/src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.ImageScene.Binding.cs` 仍拒绝实际映射；`ST/DirectGraphEffectTests.cs` 有 `PackageGraphMappingPending` 负例 | 有界 Warp；拓扑／退化拒绝、接缝与锚点正向映射一致。原值类型不改变生产文字／光标，不能把它当已执行像素基线 | M09，M13 关闭（P 例外）；新增能力 |
 
 上表为 §5.9 十类能力的核对入口，不证明每个组合已经执行。组图、SVG、Warp、媒体特征轨、
 字簇退场是额外显式范围，见目标样式；C10 的未生产能力不自动形成兼容承诺。
@@ -158,15 +168,15 @@ Vulkan PNG及六件48帧成片。C03包含无DLL直接图、typed动态矩阵、
 
 | ID／包 | v1 实际来源／现有回归 | v2 验收重点 | 后续节点／证据 |
 |---|---|---|---|
-| S01 WordEmphasis | `WordEmphasis/src/WordEmphasis.cs`；`RT/PreparedStyleFrameTests.cs`、`PackageControllerRenderingTests.cs`；`ST/CompiledEffectPackageTests.cs` | 缺时间状态、字族／Ruby、当前字放大、唱完回落；任意 t 及边界 ±1 µs | M07／M11，E/A/X/D/T/P 待 |
-| S02 RepeatEmphasis | `RepeatEmphasis/src/RepeatEmphasis.cs`；`RT/RepeatEmphasisSessionTests.cs`、`MixedEffectPackageTests.cs` | 按真实演唱 occurrence 的 ordinal、project／branch scope、重复装载去重；替换事件累积字典，保留基线材质限制诊断 | M07／M11，E/A/X/D/T/P 待 |
-| S03 CursorTrail | `CursorTrail/src/CursorTrail.cs`；`ST/CursorTrailPackageTests.cs`；`RT/ContinuousParticleTests.cs` | 连续发射精确配额、最终锚点、寿命、Jump／Bridge 和稳定随机身份 | M08／M11，E/A/X/D/T/P 待 |
-| S04 VectorTrail | `VectorTrail/src/VectorTrail.cs`；`ST/VectorOverlayContractTests.cs`；`RT/VectorOverlayRenderingTests.cs` | Custom 粒子、解析拖尾、断点、批次顺序与图元预算；不重复自动输出 | M08／M11，E/A/X/D/T/P 待 |
-| S05 SpriteTrail | `SpriteTrail/src/SpriteTrail.cs`、`assets/spark.png`；`ST/SpriteOverlayContractTests.cs`；`RT/SpriteOverlayRenderingTests.cs` | 固定资源身份、完整仿射、图集边缘、透明颜色与数量预算 | M09／M11，E/A/X/D/T/P 待 |
-| S06 EventBurst | `EventBurst/src/EventBurst.cs`；`ST/BurstWriterContractTests.cs`；`RT/EventBurstTests.cs`；`Export.Tests/EventBurstExportTests.cs` | payload 条件、四类锚点、line fallback、同边界顺序、occurrence 与配额 | M08／M11，E/A/X/D/T/P 待 |
-| S07 CustomInk | `CustomInk/manifest.json`、`graphs/wave.graph.json`、`shaders/wave.sksl`；`RT/PackageShaderProgramsTests.cs`、`MixedEffectPackageTests.Materials.cs` | 无控制器的纯资源包、材质参数／覆盖、uniform 和透明输出 | M09／M11，E/A/X/D/T/P 待 |
-| S08 LineGlitch | `LineGlitch/graphs/glitch.graph.json`、`shaders/glitch.sksl`；`ST/DirectGraphEffectTests.cs`；`RT/PackageImageGraphsTests.cs`、`MixedEffectPackageTests.RegionExecution.cs` | 图节点、目标绑定、动态参数／矩阵、采样范围；保持 ColorOnly 与几何 Warp 的能力边界 | M09／M11，E/A/X/D/T/P 待 |
-| S09 GlassInk | `GlassInk/graphs/glass-media.graph.json`、`graphs/glass-backdrop.graph.json`、`shaders/glass.sksl`；`RT/MixedEffectPackageTests.ProductionMaterials.cs`、`MixedEffectPackageTests.Materials.cs` | BackgroundMedia／BackdropBelow 分离、透明 fallback、模糊／折射范围与真实下层顺序 | M09／M11／M12，E/A/X/D/T/P 待 |
+| S01 WordEmphasis | `WordEmphasis/src/WordEmphasis.cs`；`RT/PreparedStyleFrameTests.cs`、`PackageControllerRenderingTests.cs`；`ST/CompiledEffectPackageTests.cs` | 缺时间状态、字族／Ruby、当前字放大、唱完回落；任意 t 及边界 ±1 µs | M07／M11，M13 关闭（P 例外） |
+| S02 RepeatEmphasis | `RepeatEmphasis/src/RepeatEmphasis.cs`；`RT/RepeatEmphasisSessionTests.cs`、`MixedEffectPackageTests.cs` | 按真实演唱 occurrence 的 ordinal、project／branch scope、重复装载去重；替换事件累积字典，保留基线材质限制诊断 | M07／M11，M13 关闭（P 例外） |
+| S03 CursorTrail | `CursorTrail/src/CursorTrail.cs`；`ST/CursorTrailPackageTests.cs`；`RT/ContinuousParticleTests.cs` | 连续发射精确配额、最终锚点、寿命、Jump／Bridge 和稳定随机身份 | M08／M11，M13 关闭（P 例外） |
+| S04 VectorTrail | `VectorTrail/src/VectorTrail.cs`；`ST/VectorOverlayContractTests.cs`；`RT/VectorOverlayRenderingTests.cs` | Custom 粒子、解析拖尾、断点、批次顺序与图元预算；不重复自动输出 | M08／M11，M13 关闭（P 例外） |
+| S05 SpriteTrail | `SpriteTrail/src/SpriteTrail.cs`、`assets/spark.png`；`ST/SpriteOverlayContractTests.cs`；`RT/SpriteOverlayRenderingTests.cs` | 固定资源身份、完整仿射、图集边缘、透明颜色与数量预算 | M09／M11，M13 关闭（P 例外） |
+| S06 EventBurst | `EventBurst/src/EventBurst.cs`；`ST/BurstWriterContractTests.cs`；`RT/EventBurstTests.cs`；`Export.Tests/EventBurstExportTests.cs` | payload 条件、四类锚点、line fallback、同边界顺序、occurrence 与配额 | M08／M11，M13 关闭（P 例外） |
+| S07 CustomInk | `CustomInk/manifest.json`、`graphs/wave.graph.json`、`shaders/wave.sksl`；`RT/PackageShaderProgramsTests.cs`、`MixedEffectPackageTests.Materials.cs` | 无控制器的纯资源包、材质参数／覆盖、uniform 和透明输出 | M09／M11，M13 关闭（P 例外） |
+| S08 LineGlitch | `LineGlitch/graphs/glitch.graph.json`、`shaders/glitch.sksl`；`ST/DirectGraphEffectTests.cs`；`RT/PackageImageGraphsTests.cs`、`MixedEffectPackageTests.RegionExecution.cs` | 图节点、目标绑定、动态参数／矩阵、采样范围；保持 ColorOnly 与几何 Warp 的能力边界 | M09／M11，M13 关闭（P 例外） |
+| S09 GlassInk | `GlassInk/graphs/glass-media.graph.json`、`graphs/glass-backdrop.graph.json`、`shaders/glass.sksl`；`RT/MixedEffectPackageTests.ProductionMaterials.cs`、`MixedEffectPackageTests.Materials.cs` | BackgroundMedia／BackdropBelow 分离、透明 fallback、模糊／折射范围与真实下层顺序 | M09／M11／M12，M13 关闭（P 例外） |
 
 样例表中的相对包路径以 `backend/samples/ScriptEffects/<包>/` 为根；`Export.Tests` 为
 `backend/tests/MakoKaraGenerator.Export.Tests`。现有混合包回归是相邻消费者入口，不能据名称推定
@@ -177,7 +187,7 @@ Vulkan PNG及六件48帧成片。C03包含无DLL直接图、typed动态矩阵、
 T01 的完整能力为：当前字强调；当前句退场时，具有稳定身份且可独立变换的字簇倾斜／Warp／
 向左下飞行并淡出；粒子跟随最终播放头；SVG 星星扫过整句；背景自适应描边改善可读性。
 它同时依赖 C01–C08，及 M07 退场冻结、M08 锚点、M09 SVG／Warp、M10 媒体轨、M11 作者闭环。
-当前无此完整 v2 样例，E/A/X/D/T/P 全部待执行。
+当前无此完整 v2 样例，E/A/X/D/T/P 全部待执行。（M13 已关闭：组合夹具与导出见 M13 记录 §4，复杂背景、视频与非 1x 容差为批准例外。）
 
 1. 固定测试工程：同句两个实例、Ruby、连字／不可拆字簇、重叠入场退场、场景父子矩阵，
    包含缺时间歌词。记录工程／歌词／包／字体／媒体内容摘要、参数、seed 和分析修订。

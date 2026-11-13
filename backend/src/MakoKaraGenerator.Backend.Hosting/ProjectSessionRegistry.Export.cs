@@ -518,7 +518,7 @@ public sealed partial class ProjectSessionRegistry
         catch (Exception failure)
         {
             primary = failure;
-            if (failure is RenderSessionFailureException { DiagnosticSnapshot.Count: > 0 } actual)
+            if (failure is RenderSessionFailureException actual && (actual.DiagnosticSnapshot is { Count: > 0 } || actual.SourceMaterialFailure is not null))
             {
                 try
                 {

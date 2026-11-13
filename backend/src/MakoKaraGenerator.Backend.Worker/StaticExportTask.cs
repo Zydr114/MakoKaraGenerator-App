@@ -484,8 +484,15 @@ internal static class StaticExportTask
                     fallback.Add(frame);
                     return frame;
                 }
-                catch (Exception failure) { frame?.Dispose(); if (failure is OperationCanceledException or RenderSessionFailureException) throw;
-                    throw Fail("WorkerExportRenderFailed", failure); }
+                catch (Exception failure)
+                {
+                    frame?.Dispose();
+                    if (failure is OperationCanceledException or RenderSessionFailureException) throw;
+                    if (RenderFailureDiagnostics.ExtractSourceMaterial(failure) is { } source)
+                        throw new RenderSessionFailureException(source.Code, "固定源材质未能完成导出。", innerException: failure)
+                        { SourceMaterialFailure = source };
+                    throw Fail("WorkerExportRenderFailed", failure);
+                }
             }
             public ValueTask DisposeAsync() => inner.DisposeAsync();
         }

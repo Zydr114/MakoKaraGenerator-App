@@ -449,14 +449,22 @@ internal static class Program
                 { RenderSessionFailureException value => value.Code, WorkerProtocolException value => value.Code,
                     SnapshotContractException value => value.Code, _ => "WorkerExportFailed" };
                 WorkerDiagnosticsSnapshotDto? diagnostics = null; string? diagnosticsFailure = null;
+                BackendSourceMaterialFailureDto? sourceMaterialFailure = null;
                 if (failure is RenderSessionFailureException { DiagnosticSnapshot: { } actual })
                 {
                     try { diagnostics = StaticExportTask.EncodeDiagnostics(actual); }
                     catch (WorkerProtocolException budget) when (budget.Code == "WorkerExportReportBudgetExceeded")
                     { diagnosticsFailure = budget.Code; }
                 }
+                if (diagnosticsFailure is null && failure is RenderSessionFailureException { SourceMaterialFailure: { } source })
+                {
+                    try { sourceMaterialFailure = BackendSourceMaterialFailures.Encode(source); }
+                    catch (WorkerProtocolException budget) when (budget.Code == "WorkerExportReportBudgetExceeded")
+                    { diagnostics = null; diagnosticsFailure = budget.Code; }
+                }
                 await ReplyAsync(new("error", request.RequestId, request.InputSha256, error: "固定静态导出未能完成。", errorCode: code,
                     exportDiagnostics: diagnostics, exportDiagnosticsFailureCode: diagnosticsFailure,
+                    exportSourceMaterialFailure: sourceMaterialFailure,
                     taskId: request.TaskId, sourceSha256: request.SourceSha256, exportFormat: request.ExportFormat,
                     exportIncludeAudio: request.ExportIncludeAudio)).ConfigureAwait(false);
             }
@@ -485,14 +493,22 @@ internal static class Program
                 { RenderSessionFailureException value => value.Code, WorkerProtocolException value => value.Code,
                     SnapshotContractException value => value.Code, _ => "WorkerImageExportFailed" };
                 WorkerDiagnosticsSnapshotDto? diagnostics = null; string? diagnosticsFailure = null;
+                BackendSourceMaterialFailureDto? sourceMaterialFailure = null;
                 if (failure is RenderSessionFailureException { DiagnosticSnapshot: { } actual })
                 {
                     try { diagnostics = StaticExportTask.EncodeDiagnostics(actual); }
                     catch (WorkerProtocolException budget) when (budget.Code == "WorkerExportReportBudgetExceeded")
                     { diagnosticsFailure = budget.Code; }
                 }
+                if (diagnosticsFailure is null && failure is RenderSessionFailureException { SourceMaterialFailure: { } source })
+                {
+                    try { sourceMaterialFailure = BackendSourceMaterialFailures.Encode(source); }
+                    catch (WorkerProtocolException budget) when (budget.Code == "WorkerExportReportBudgetExceeded")
+                    { diagnostics = null; diagnosticsFailure = budget.Code; }
+                }
                 await ReplyAsync(new("error", request.RequestId, request.InputSha256, error: "图片背景导出未能完成。", errorCode: code,
                     exportDiagnostics: diagnostics, exportDiagnosticsFailureCode: diagnosticsFailure,
+                    exportSourceMaterialFailure: sourceMaterialFailure,
                     taskId: request.TaskId, sourceSha256: request.SourceSha256, exportFormat: request.ExportFormat,
                     exportIncludeAudio: request.ExportIncludeAudio)).ConfigureAwait(false);
             }

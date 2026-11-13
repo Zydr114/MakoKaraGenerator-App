@@ -105,7 +105,7 @@ public sealed class WorkerBackendExportExecutor : IBackendExportExecutor, IBacke
         {
             primary = failure;
             if (failure is WorkerProtocolException protocol)
-                throw new RenderSessionFailureException(protocol.Code, "固定图片导出 Worker 未完成。", protocol.Diagnostics is null ? null : DecodeDiagnostics(protocol.Diagnostics), protocol);
+                throw NeutralFailure(protocol, "固定图片导出 Worker 未完成。", snapshot);
             if (failure is Win32Exception or FileNotFoundException or DirectoryNotFoundException)
                 throw new RenderSessionFailureException("WorkerImageExportUnavailable", "独立图片导出 Worker 不可用。", innerException: failure);
             throw;
@@ -224,13 +224,14 @@ public sealed class WorkerBackendExportExecutor : IBackendExportExecutor, IBacke
     {
         byte[] payload = EncodeInput(snapshot, input);
         var plan = CompositionFramePlan.Create(snapshot.Composition.OutputDurationUs!.Value, snapshot.Composition.FrameRate);
-        WorkerMessage result = await InvokeAsync(payload, false, plan.TotalFrames, progress, cancellationToken).ConfigureAwait(false);
+        WorkerMessage result = await InvokeAsync(payload, false, plan.TotalFrames, progress, cancellationToken, snapshot).ConfigureAwait(false);
         return WorkerExportContract.DecodeReport(result.Payload, new(input.Format, input.IncludeAudio,
             snapshot.Composition.CanvasWidth, snapshot.Composition.CanvasHeight, snapshot.Composition.FrameRate.Numerator,
             snapshot.Composition.FrameRate.Denominator, plan.TotalFrames, plan.VideoDurationUs, input.Audio?.AudioProfile, input.Quality,
             input.ResourcePolicy ?? _resourcePolicy));
     }
-    private async Task<WorkerMessage> InvokeAsync(byte[] payload, bool capabilities, int frames, IProgress<BackendJobProgressDto>? progress, CancellationToken token)
+    private async Task<WorkerMessage> InvokeAsync(byte[] payload, bool capabilities, int frames, IProgress<BackendJobProgressDto>? progress, CancellationToken token,
+        ProjectSnapshot? snapshot = null)
     {
         var input = WorkerExportContract.DecodeInput(payload, capabilities);
         WorkerMessage request = new(capabilities ? WorkerExportContract.CapabilitiesKind : WorkerExportContract.RequestKind,
@@ -243,11 +244,7 @@ public sealed class WorkerBackendExportExecutor : IBackendExportExecutor, IBacke
             primary = failure;
             if (failure is WorkerProtocolException protocol)
             {
-                var neutral = new RenderSessionFailureException(protocol.Code, "独立静态导出Worker未完成。",
-                    protocol.Diagnostics is null ? null : DecodeDiagnostics(protocol.Diagnostics), protocol);
-                if (protocol.Data["WorkerExportDiagnosticsFailureCode"] is { } secondary)
-                    neutral.Data["WorkerExportDiagnosticsFailureCode"] = secondary;
-                throw neutral;
+                throw NeutralFailure(protocol, "独立静态导出Worker未完成。", snapshot);
             }
             if (failure is Win32Exception or FileNotFoundException or DirectoryNotFoundException)
                 throw new RenderSessionFailureException("WorkerExportUnavailable", "独立静态导出Worker不可用。", innerException: failure);
@@ -260,6 +257,21 @@ public sealed class WorkerBackendExportExecutor : IBackendExportExecutor, IBacke
             try { await proxy.DisposeAsync().ConfigureAwait(false); }
             catch (Exception cleanup) when (primary is not null) { primary.Data["WorkerExportCleanupFailure"] = cleanup; }
         }
+    }
+    private static RenderSessionFailureException NeutralFailure(WorkerProtocolException protocol, string message, ProjectSnapshot? snapshot)
+    {
+        RenderSourceMaterialFailure? source = null;
+        if (protocol.SourceMaterialFailure is { } actual)
+        {
+            if (snapshot is null) throw new RenderSessionFailureException("WorkerExportProtocolInvalid", "能力回复不能携带源材质执行失败。", innerException: protocol);
+            try { source = BackendSourceMaterialFailures.Decode(actual, snapshot); }
+            catch (WorkerProtocolException invalid) { throw new RenderSessionFailureException(invalid.Code, "源材质诊断不属于固定导出工程。", innerException: invalid); }
+        }
+        var result = new RenderSessionFailureException(protocol.Code, message,
+            protocol.Diagnostics is null ? null : DecodeDiagnostics(protocol.Diagnostics), protocol) { SourceMaterialFailure = source };
+        if (protocol.Data["WorkerExportDiagnosticsFailureCode"] is { } secondary)
+            result.Data["WorkerExportDiagnosticsFailureCode"] = secondary;
+        return result;
     }
     internal static RuntimeDiagnosticSnapshot DecodeDiagnostics(WorkerDiagnosticsSnapshotDto snapshot)
     {

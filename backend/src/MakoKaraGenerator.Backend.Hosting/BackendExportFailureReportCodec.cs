@@ -9,10 +9,11 @@ internal static class BackendExportFailureReportCodec
 {
     internal static ExportFailureReportDto Project(RenderSessionFailureException failure, JobResponse job, int maxOccurrences)
     {
-        RuntimeDiagnosticSnapshot snapshot = failure.DiagnosticSnapshot ?? throw new IOException("没有实际发生报告。");
-        if (snapshot.Count <= 0 || snapshot.Count > maxOccurrences)
+        RuntimeDiagnosticSnapshot? snapshot = failure.DiagnosticSnapshot;
+        int count = checked((snapshot?.Count ?? 0) + (failure.SourceMaterialFailure is null ? 0 : 1));
+        if (count <= 0 || count > maxOccurrences)
             throw new ExportTaskException("ExportFailureReportBudgetExceeded", "实际失败诊断数量超过完整报告预算。");
-        BackendDiagnosticDto[] diagnostics = [.. snapshot.ReadAll().Select(item =>
+        BackendDiagnosticDto[] diagnostics = [.. (snapshot ?? RuntimeDiagnosticSnapshot.Empty).ReadAll().Select(item =>
         {
             var source = item.Diagnostic; var diagnostic = source.Diagnostic;
             return new BackendDiagnosticDto(diagnostic.Code, diagnostic.Severity.ToString().ToLowerInvariant(), diagnostic.Message, null,
@@ -20,7 +21,7 @@ internal static class BackendExportFailureReportCodec
                     source.Stage, source.TimeUs.ToString(CultureInfo.InvariantCulture),
                     diagnostic.Location is null ? null : new(diagnostic.Location.Path, diagnostic.Location.Line, diagnostic.Location.Column),
                     source.PackageIdentity is null ? null : new(source.PackageIdentity.PackageId, source.PackageIdentity.Revision, source.PackageIdentity.ExportId)), "runtime");
-        })];
+        }), .. failure.SourceMaterialFailure is { } source ? new[] { BackendSourceMaterialFailures.Project(source) } : []];
         return new("exportFailure", failure.Code, job.Input!, job.ExportInput!, diagnostics);
     }
 
@@ -40,9 +41,18 @@ internal static class BackendExportFailureReportCodec
         Dictionary<Guid, long> sequences = [];
         foreach (BackendDiagnosticDto value in report.Diagnostics)
         {
+            if (value?.OriginKind == "sourceMaterialFailure")
+            {
+                if (value.SourceMaterialFailure is not { } actual || value.Code != actual.Code || value.Severity != "error"
+                    || string.IsNullOrWhiteSpace(value.Message) || value.Occurrence is not null || value.Source is not null
+                    || value.ImageEffect is not null || value.Material is not null || value.Location is not null)
+                    throw new IOException("源材质失败报告不能伪造其他来源。");
+                BackendSourceMaterialFailureContract.Validate(actual);
+                continue;
+            }
             BackendDiagnosticOccurrenceDto? source = value?.Occurrence;
             if (value is null || value.OriginKind != "runtime" || value.Severity is not ("info" or "warning" or "error")
-                || string.IsNullOrWhiteSpace(value.Code) || string.IsNullOrWhiteSpace(value.Message) || source is null || source.Epoch == Guid.Empty
+                || value.SourceMaterialFailure is not null || string.IsNullOrWhiteSpace(value.Code) || string.IsNullOrWhiteSpace(value.Message) || source is null || source.Epoch == Guid.Empty
                 || !Number(source.Sequence, out long sequence) || sequence < 1 || !Number(source.TimeUs, out _)
                 || string.IsNullOrWhiteSpace(source.InstanceId) || source.ArtifactHash is null || string.IsNullOrWhiteSpace(source.Stage)
                 || source.Location is { } location && (string.IsNullOrWhiteSpace(location.Path) || location.Line < 1 || location.Column < 1)

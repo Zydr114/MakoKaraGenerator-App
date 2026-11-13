@@ -84,7 +84,8 @@ public sealed record RecoveredJobResponse(JobResponse Job, string PreviousHostIn
 public sealed record BackendDiagnosticDto(string Code, string Severity, string Message, string? Location,
     BackendDiagnosticOccurrenceDto? Occurrence = null, string? OriginKind = null,
     BackendSourceDiagnosticDto? Source = null, BackendImageEffectDiagnosticDto? ImageEffect = null,
-    BackendMaterialDiagnosticDto? Material = null);
+    BackendMaterialDiagnosticDto? Material = null,
+    BackendSourceMaterialFailureDto? SourceMaterialFailure = null);
 
 /// <summary>真实包源码编译报告；不具有运行时发生序号或时刻，0行列合法。</summary>
 public sealed record BackendSourceDiagnosticDto(string PackageId, string Revision, string? InstanceId, string? ExportId,

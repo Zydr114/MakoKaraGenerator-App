@@ -164,7 +164,8 @@ public sealed partial class WorkerProcessProxy
                             || message.ProgressSequence is not null || string.IsNullOrWhiteSpace(message.ErrorCode))
                             throw new WorkerProtocolException("导出错误回执形状无效。", "WorkerExportProtocolInvalid");
                         if (message.Diagnostics is not null) throw new WorkerProtocolException("导出不能混用预览诊断字段。", "WorkerExportProtocolInvalid");
-                        var failure = new WorkerProtocolException("Worker 静态导出失败。", message.ErrorCode ?? "WorkerExportFailed", message.ExportDiagnostics);
+                        var failure = new WorkerProtocolException("Worker 静态导出失败。", message.ErrorCode ?? "WorkerExportFailed", message.ExportDiagnostics,
+                            sourceMaterialFailure: message.ExportSourceMaterialFailure);
                         if (message.ExportDiagnosticsFailureCode is { } secondary) failure.Data["WorkerExportDiagnosticsFailureCode"] = secondary;
                         throw failure;
                     }

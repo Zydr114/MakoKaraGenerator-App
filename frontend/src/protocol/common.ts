@@ -41,6 +41,29 @@ export interface BackendDiagnostic {
   imageEffect?: BackendImageEffectDiagnostic | null;
   /** originKind=material 时的材质载荷（后端规范 §20.3）。 */
   material?: BackendMaterialDiagnostic | null;
+  /** originKind=sourceMaterialFailure 时的真实源材质失败；没有脚本发生身份。 */
+  sourceMaterialFailure?: BackendSourceMaterialFailure | null;
+}
+
+export interface BackendSourceMaterialFailure {
+  owner: {
+    path: string;
+    region: string;
+    slot: number;
+    sourceMaterial: BackendDiagnosticResource;
+    parametersJson: string;
+  };
+  stage: string;
+  timeUs: string;
+  code: string;
+  budget?: {
+    currentSurfaces: number;
+    additionalSurfaces: number;
+    maximumSurfaces: number;
+    currentBytes: string;
+    additionalBytes: string;
+    maximumBytes: string;
+  } | null;
 }
 
 /** 诊断指向的包资源：包、修订与导出名。 */

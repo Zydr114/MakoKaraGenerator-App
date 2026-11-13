@@ -90,7 +90,7 @@ public static class PreviewTransportValidation
             return Error(BackendErrorCode.DiagnosticLimitExceeded, "诊断页超过服务公布的条数上限。", "limit");
         foreach (BackendDiagnosticDto diagnostic in page.Diagnostics)
         {
-            if (diagnostic is null || string.IsNullOrWhiteSpace(diagnostic.Code)
+            if (diagnostic is null || diagnostic.SourceMaterialFailure is not null || string.IsNullOrWhiteSpace(diagnostic.Code)
                 || diagnostic.Severity is not ("info" or "warning" or "error") || diagnostic.Message is null
                 || diagnostic.OriginKind != "compileSource" && string.IsNullOrWhiteSpace(diagnostic.Message))
                 return Error(BackendErrorCode.InvalidRequest, "诊断条目内容无效。", "diagnostics");
@@ -124,7 +124,7 @@ public static class PreviewTransportValidation
     private static bool Resource(BackendDiagnosticResourceDto? value) => value is not null && Text(value.PackageId) && Revision(value.Revision) && Text(value.ExportId);
     internal static bool ValidPackageDiagnostic(BackendDiagnosticDto d)
     {
-        if (d.Occurrence is not null || d.Location is not null) return false;
+        if (d.Occurrence is not null || d.Location is not null || d.SourceMaterialFailure is not null) return false;
         if (d.OriginKind == "compileSource" && d.Source is { } s && d.ImageEffect is null && d.Material is null)
             return Text(s.PackageId) && Revision(s.Revision) && Text(s.Code) && s.Message is not null
                 && (s.InstanceId is null && s.ExportId is null || Text(s.InstanceId) && Text(s.ExportId))

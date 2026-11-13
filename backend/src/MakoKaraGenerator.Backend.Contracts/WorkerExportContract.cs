@@ -162,7 +162,7 @@ public static class WorkerExportContract
         foreach (var diagnostic in report.Diagnostics)
         {
             var occurrence = diagnostic.Occurrence;
-            if (diagnostic.OriginKind != "runtime" || diagnostic.Severity is not ("info" or "warning") || string.IsNullOrWhiteSpace(diagnostic.Code)
+            if (diagnostic.OriginKind != "runtime" || diagnostic.SourceMaterialFailure is not null || diagnostic.Severity is not ("info" or "warning") || string.IsNullOrWhiteSpace(diagnostic.Code)
                 || string.IsNullOrWhiteSpace(diagnostic.Message) || occurrence is null || occurrence.Epoch == Guid.Empty
                 || !Number(occurrence.Sequence, out long sequence) || sequence <= 0 || !Number(occurrence.TimeUs, out long time, positive: false) || time >= duration
                 || string.IsNullOrWhiteSpace(occurrence.InstanceId) || occurrence.ArtifactHash is null || string.IsNullOrWhiteSpace(occurrence.Stage)

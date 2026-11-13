@@ -92,9 +92,15 @@ public static class WorkerProtocol
         }
         if (message.Diagnostics is not null) WorkerDiagnosticsSnapshotDto.Validate(message.Diagnostics);
         if (message.ExportDiagnostics is not null) WorkerExportContract.ValidateDiagnostics(message.ExportDiagnostics);
-        if ((message.ExportDiagnostics is not null || message.ExportDiagnosticsFailureCode is not null)
+        if (message.ExportSourceMaterialFailure is not null)
+        {
+            BackendSourceMaterialFailureContract.Validate(message.ExportSourceMaterialFailure);
+            if (message.ErrorCode != message.ExportSourceMaterialFailure.Code) throw new WorkerProtocolException(
+                "源材质诊断与导出主因不一致。", "WorkerExportProtocolInvalid");
+        }
+        if ((message.ExportDiagnostics is not null || message.ExportDiagnosticsFailureCode is not null || message.ExportSourceMaterialFailure is not null)
             && (message.Kind != "error" || message.ExportFormat is null || message.Diagnostics is not null
-                || message.ExportDiagnostics is not null && message.ExportDiagnosticsFailureCode is not null
+                || message.ExportDiagnosticsFailureCode is not null && (message.ExportDiagnostics is not null || message.ExportSourceMaterialFailure is not null)
                 || message.ExportDiagnosticsFailureCode is not null and not "WorkerExportReportBudgetExceeded"))
             throw new WorkerProtocolException("导出失败诊断字段只能属于独立导出错误回执。", "WorkerExportProtocolInvalid");
     }
@@ -178,7 +184,7 @@ public sealed record WorkerMessage
         BackendJobProgressDto? exportProgress = null, int? processGroupId = null, long? mediaFileSizeLimitBytes = null,
         WorkerDiagnosticsSnapshotDto? exportDiagnostics = null, string? exportDiagnosticsFailureCode = null,
         BackendAnalysisProgressDto? analysisProgress = null, WorkerPackageDiagnosticsDto? packageDiagnostics = null,
-        PreviewInspectionDto? frameInspection = null)
+        PreviewInspectionDto? frameInspection = null, BackendSourceMaterialFailureDto? exportSourceMaterialFailure = null)
     {
         Kind = kind;
         RequestId = requestId;
@@ -203,6 +209,7 @@ public sealed record WorkerMessage
         ProcessGroupId = processGroupId; MediaFileSizeLimitBytes = mediaFileSizeLimitBytes;
         ExportDiagnostics = exportDiagnostics; ExportDiagnosticsFailureCode = exportDiagnosticsFailureCode;
         AnalysisProgress = analysisProgress; PackageDiagnostics = packageDiagnostics; FrameInspection = frameInspection;
+        ExportSourceMaterialFailure = exportSourceMaterialFailure;
     }
 
     public string Kind { get; init; }
@@ -257,6 +264,8 @@ public sealed record WorkerMessage
     public WorkerDiagnosticsSnapshotDto? ExportDiagnostics { get; init; }
     /// <summary>完整失败快照超预算的次要失败；ErrorCode保留原主因。</summary>
     public string? ExportDiagnosticsFailureCode { get; init; }
+    /// <summary>导出实际源材质失败；独立于必须有脚本实例的 Runtime 发生。</summary>
+    public BackendSourceMaterialFailureDto? ExportSourceMaterialFailure { get; init; }
     /// <summary>真实实际解码样本进度；不是渲染帧或最终特征。</summary>
     public BackendAnalysisProgressDto? AnalysisProgress { get; init; }
     public WorkerPackageDiagnosticsDto? PackageDiagnostics { get; init; }
@@ -271,11 +280,14 @@ public sealed record WorkerMessage
 
 /// <summary>Worker 协议违反版本、长度或哈希约束时抛出。</summary>
 public sealed class WorkerProtocolException(string message, string code = "WorkerProtocolInvalid",
-    WorkerDiagnosticsSnapshotDto? diagnostics = null, WorkerPackageDiagnosticsDto? packageDiagnostics = null) : Exception(message)
+    WorkerDiagnosticsSnapshotDto? diagnostics = null, WorkerPackageDiagnosticsDto? packageDiagnostics = null,
+    BackendSourceMaterialFailureDto? sourceMaterialFailure = null) : Exception(message)
 {
     /// <summary>稳定的协议、预算或 Runtime 失败编号。</summary>
     public string Code { get; } = code;
     /// <summary>失败时真实保留的 Runtime 发生快照；没有实际快照时为 null。</summary>
     public WorkerDiagnosticsSnapshotDto? Diagnostics { get; } = diagnostics;
     public WorkerPackageDiagnosticsDto? PackageDiagnostics { get; } = packageDiagnostics;
+    /// <summary>实际源材质失败；宿主还须核对固定工程来源。</summary>
+    public BackendSourceMaterialFailureDto? SourceMaterialFailure { get; } = sourceMaterialFailure;
 }

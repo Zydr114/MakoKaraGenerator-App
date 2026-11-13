@@ -105,6 +105,15 @@ export function diagnosticText(diagnostic: BackendDiagnostic): string {
   const level = severity === 'error' ? '错误' : severity === 'warning' ? '警告' : '信息';
   const where = diagnostic.occurrence?.location;
   const location = diagnostic.location ? `（${diagnostic.location}）` : where ? `（${where.path}:${where.line}:${where.column}）` : '';
+  if (diagnostic.sourceMaterialFailure) {
+    const source = diagnostic.sourceMaterialFailure;
+    const owner = source.owner;
+    const material = owner.sourceMaterial;
+    const budget = source.budget;
+    const mib = (value: string) => (Number(value) / 1_048_576).toFixed(2);
+    const detail = budget ? `；表面 ${budget.currentSurfaces} + ${budget.additionalSurfaces} / ${budget.maximumSurfaces}，估算 ${mib(budget.currentBytes)} + ${mib(budget.additionalBytes)} / ${mib(budget.maximumBytes)} MiB` : '';
+    return `[${level}] ${diagnostic.code}：${diagnostic.message}（${owner.path} · ${material.packageId}/${material.exportId} · ${source.stage} · ${formatTime(Number(source.timeUs))}${detail}）`;
+  }
   return `[${level}] ${diagnostic.code}：${diagnostic.message}${location}`;
 }
 

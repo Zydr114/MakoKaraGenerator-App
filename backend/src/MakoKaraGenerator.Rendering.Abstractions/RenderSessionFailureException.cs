@@ -19,6 +19,8 @@ public sealed class RenderSessionFailureException : Exception
     public System.Collections.Immutable.ImmutableArray<RenderImageEffectDiagnostic> ImageEffectDiagnostics { get; init; } = [];
     /// <summary>失败同帧实际材质旁报及完整 owner。</summary>
     public System.Collections.Immutable.ImmutableArray<RenderMaterialDiagnostic> MaterialDiagnostics { get; init; } = [];
+    /// <summary>实际源材质失败及可用预算数值；不制造脚本运行时发生。</summary>
+    public RenderSourceMaterialFailure? SourceMaterialFailure { get; init; }
     /// <summary>实际 Runtime 完整不可变发生快照；预算或畸形输入无实际快照时为 null。</summary>
     public RuntimeDiagnosticSnapshot? DiagnosticSnapshot { get; }
 }

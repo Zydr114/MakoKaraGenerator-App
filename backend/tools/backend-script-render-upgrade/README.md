@@ -164,3 +164,13 @@ fontFamilyName就认定字体生效；PNG与编码容差沿图工具分别记录
 `telemetry.jsonl` 与按窗口、按尺寸的分项统计；detailed 约有一成开销，计时轮次应使用默认 `off`。
 Host 每 Worker 每秒只转发前 10 行遥测，detailed 须用 `--detail-every N` 把逐帧事件压到约每秒 5 条以下（N≈导出 fps/5），否则超额帧被丢弃、分位数失真；summary.json 的 `detailEvery` 与 drain 行的 `rateDropped` 用于核对。
 结论只对应当前机器状态，不构成跨平台或门槛结论；门槛由用户按实测确认。
+
+## M13 样例导出与预览对照
+
+`m13_export_probe.py --dist <匹配发布> --output <新证据目录> [--sets t01,名1,…] [--transparent t01,名1,…]`
+复用 M12 模板与工程流程（640×360、3 秒 30 fps、浅色图片背景、每 1.25 秒一行），每组单独建模板与工程：
+GPU 不透明 MP4 必做，T01 组合与含粒子、图、材质的几组（默认 t01、SpriteTrail、VectorTrail、LineGlitch、CustomInk、GlassInk）
+再做透明 ProRes4444。成品完整下载并核对大小／SHA 与工件引用，ffprobe 核对编码、尺寸与 90 帧，全量解码后取第 45 帧
+与同一时刻的预览帧比较：不透明比内容像素上的 RGB 均值（限 12），透明比预乘 RGBA 与 alpha 均值（各限 2）。
+导出先于预览：导出等待完整背景分析制品，之后重新固定预览输入，两边读同一份媒体结果。
+GlassInk 叠在纯色浅底上与背景最多差约 15，内容阈值单独取 8。结论只对应当前机器与样例背景，不覆盖复杂背景与视频。

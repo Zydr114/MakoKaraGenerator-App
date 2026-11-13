@@ -44,6 +44,7 @@ class M13AuthorChainProbe(m13.M13ExportProbe):
         directory = m10.ROOT / "samples" / "ScriptEffectsV2" / name
         raw = (directory / "manifest.json").read_bytes()
         manifest = json.loads(raw)
+        self.media_dependent = "media.features" in manifest.get("requires", [])
         files = {item["path"]: (directory / item["path"]).read_bytes() for item in manifest["files"]}
         self.check(all(sha(files[item["path"]]) == item["sha256"] for item in manifest["files"]), name + ": repository bytes match manifest")
         archive = io.BytesIO()
@@ -192,6 +193,11 @@ class M13AuthorChainProbe(m13.M13ExportProbe):
             source = self.template_from(name, draft, kind)
             result["lines"] = self.create_project(name, SECONDS * 1_000_000)
             self.saved_size = self.active_preview["size"]
+            if self.media_dependent:
+                # 预览只等检查，本工程背景分析未完成时按 pending 出帧，重开后命中按内容缓存的结果，两帧不可比。
+                # 先导出（等完整分析制品）再重新固定预览输入；mediaFeaturesChanged 会广播给全部工程，不能据此判断。
+                self.export_one(name + "-media-ready", "opaqueMp4")
+                self.refresh_input(name + "-media-ready-input")
             saved = self.checked_frame(name + "-project-saved", PROJECT_TIME_US)
             self.save_reopen(name, source)
             reopened = self.checked_frame(name + "-project-reopened", PROJECT_TIME_US)
@@ -235,6 +241,7 @@ def arguments():
     parser.add_argument("--poll-ms", type=int, default=50)
     parser.add_argument("--icd", type=Path, default=Path("/usr/share/vulkan/icd.d/radeon_icd.json"))
     parser.add_argument("--ffmpeg", default="/usr/bin/ffmpeg")
+    parser.add_argument("--ffprobe", default="/usr/bin/ffprobe", help="used by the media-ready export of media-dependent samples")
     args = parser.parse_args()
     labels = args.samples.split(",")
     if not (64 <= args.width <= 1280 and 64 <= args.height <= 720) or any(label not in m13.SAMPLES for label in labels):

@@ -183,4 +183,7 @@ GlassInk 叠在纯色浅底上与背景最多差约 15，内容阈值单独取 8
 → 采用 B → 同一会话换输入出帧，须与 A 逐字节相同 → 下载 B 包重新导入、建个人模板（controller／graph 作效果配方，
 material 写入两态填充）→ 建工程（同导出探针的浅色图片背景与行时间）并逐行应用 → 工程预览出帧 → 保存到新目录
 （磁盘工程须引用 B）→ 关闭 → 重开 → 同一时刻出帧，须与保存前逐字节相同。每帧核对诊断无 error。
+声明 `media.features` 的包（AdaptiveStroke）在保存前先导出一次不透明 MP4（导出等待完整背景分析制品）再重新固定预览输入：
+预览只等检查，分析未完成时按 pending 出帧，重开后会命中按内容缓存的结果，两帧不可比；`mediaFeaturesChanged` 广播给全部工程，不能据此判断。
+其余四例（CursorTrail、VectorTrail、EventBurst、AdaptiveStroke）可用 `--samples` 补跑。
 只改注释，不验证改源码后的画面变化（由 M07 作者探针与单元测试覆盖）；不含撤销链与正式验证（M11 验证探针）。

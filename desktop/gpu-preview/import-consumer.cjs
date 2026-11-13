@@ -1,7 +1,7 @@
 'use strict';
 
 /** Shared by finite P0 and production Worker streams. Protocol ACKs remain with
- * the controller, which must fail-stop on consumer/GPU loss: Electron's fallback
+ * the controller, which must stop and isolate on consumer/GPU loss: Electron's fallback
  * callback alone cannot prove the dead consumer's final GPU use completed. */
 async function importAndTransferFrame(options) {
   const { packet, broker, sharedTexture } = options;

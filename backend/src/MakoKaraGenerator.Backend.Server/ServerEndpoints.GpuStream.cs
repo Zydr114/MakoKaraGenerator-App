@@ -8,6 +8,9 @@ internal static partial class ServerEndpoints
     [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
     private sealed record GpuClaimRequest(string ConsumerId, string HostInstanceId, string ExpectedInputGeneration);
 
+    [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+    private sealed record GpuConsumerFailureRequest(string ConsumerId, string HostInstanceId, string InputGeneration, string ProducerEpoch);
+
     private static void ConfigureGpuStreamEndpoints(WebApplication app)
     {
         app.MapPost("/api/v1/gpu-preview-streams", async (HttpRequest request, PreviewBackendService service, AcceptedOperationTracker tracker) =>
@@ -47,6 +50,17 @@ internal static partial class ServerEndpoints
             string? secret = request.Headers["X-Mako-Desktop-Secret"].Count == 1 ? request.Headers["X-Mako-Desktop-Secret"][0] : null;
             var claim = service.ClaimGpuStream(id, input!.ConsumerId, input.HostInstanceId, input.ExpectedInputGeneration, secret);
             return claim is null ? Error(new(BackendErrorCode.UnauthorizedClient, "GPU 领取被拒绝。")) : Results.Json(claim);
+        });
+        app.MapPost("/internal/gpu-preview-streams/{id}/consumer-failed", async (string id, HttpRequest request,
+            PreviewBackendService service, AcceptedOperationTracker tracker) =>
+        {
+            var (input, error) = await ReadStrictJsonAsync<GpuConsumerFailureRequest>(request, gpu: true);
+            if (error is not null) return error;
+            string? secret = request.Headers["X-Mako-Desktop-Secret"].Count == 1 ? request.Headers["X-Mako-Desktop-Secret"][0] : null;
+            bool terminated = await tracker.RunAsync(() => service.AbortGpuConsumerAsync(id, input!.ConsumerId,
+                input.HostInstanceId, input.InputGeneration, input.ProducerEpoch, secret));
+            return terminated ? Results.Json(new { terminated = true, drained = false })
+                : Error(new(BackendErrorCode.UnauthorizedClient, "GPU 故障隔离未确认。"));
         });
     }
 }

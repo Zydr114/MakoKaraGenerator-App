@@ -5,6 +5,7 @@ const path = require('node:path');
 const { createHash } = require('node:crypto');
 const { readLaunchConfig } = require('./gpu-preview/launch-contract.cjs');
 const { importAndTransferFrame } = require('./gpu-preview/import-consumer.cjs');
+const { isolateGpuPreviewStream } = require('./gpu-preview/failure-isolation.cjs');
 const { validateWorkerMessage, workerFailureSummary } = require('./gpu-preview/wire.cjs');
 const { prepareDesktopSession } = require('./gpu-preview/session-paths.cjs');
 
@@ -32,22 +33,42 @@ function diagnostics(value) {
   return value;
 }
 const delay = ms => new Promise(done=>setTimeout(done,ms));
-let window, stream, gpuInfo, ending=false, lost=false, attachBusy=false, attachSeq=0;
+let window, stream, gpuInfo, ending=false, lost=false, attachBusy=false, attachSeq=0, previewIsolation;
 const events=[];
 const record=(type,detail={})=>{ events.push({type,ms:performance.now(),...detail}); if(events.length>256) events.shift(); };
 const safeState = value => {
   if (window && !window.isDestroyed()) window.webContents.send('mako-gpu:state',value);
 };
-function failStop(code='gpuConsumerFailure') {
+function isolatePreview(code='gpuConsumerFailure',s=stream) {
+  if(ending||s?.isolated)return;
+  lost=true;
+  const isolation={code,unknownOutstanding:s?.imports.size??0,workerTerminationConfirmed:false};
+  previewIsolation=isolation;record('preview-isolated',isolation);
+  // Keep the editor and the bounded unknown consumer references alive. The host
+  // retires its owned Worker; no replacement pool is allowed in this process.
+  const termination=s?isolateGpuPreviewStream(s,{
+    closeConnection:connection=>broker.close(connection),
+    detachRenderer:()=>window?.webContents.send('mako-gpu:detach',{attachSeq:s.attachSeq}),
+    abortWorker:async()=>{
+      const response=await fetch(new URL(`/internal/gpu-preview-streams/${encodeURIComponent(s.streamId)}/consumer-failed`,config.baseUrl),{
+        method:'POST',headers:{'Content-Type':'application/json','X-Mako-Desktop-Secret':config.consumerSecret},
+        body:JSON.stringify({consumerId:config.consumerId,hostInstanceId:config.hostInstanceId,inputGeneration:s.inputGeneration??s.expectedInputGeneration,producerEpoch:s.producerEpoch}),
+        signal:AbortSignal.timeout(10000)});
+      return response.ok&&(await response.json()).terminated===true;
+    },
+  }):Promise.resolve(false);
+  try{safeState({type:'failed',...(s?controlIdentity(s):{}),code:'GPU 预览已停用，编辑和保存仍可继续；重启应用后可重试预览。',failureCode:code,previewDisabled:true,workerCode:s?.workerFailure?.code});}catch{}
+  console.error(JSON.stringify({type:'desktop-preview-isolated',...isolation,workerFailure:s?.workerFailure,counters:sTelemetry}));
+  void termination.then(terminated=>{
+    isolation.workerTerminationConfirmed=terminated;
+    record('preview-worker-termination',{confirmed:terminated});
+  });
+}
+function failStop(code='desktopUnhandledFailure') {
   if(ending)return;
-  lost=true; ending=true;
-  record('fail-stop',{code});
-  // A lost consumer makes GPU completion unknown. Disconnect without ACKing or
-  // reusing any lease, then terminate this whole Electron instance.
-  if(stream?.connection) {try{broker.close(stream.connection);}catch{}stream.connection=null;}
-  clearInterval(stream?.poll);
-  try { safeState({type:'failed',code}); console.error(JSON.stringify({type:'desktop-fail-stop',code,workerFailure:stream?.workerFailure,unknownOutstanding:stream?.imports.size??0,counters:sTelemetry})); }
-  finally { app.exit(1); }
+  ending=true;lost=true;
+  console.error(JSON.stringify({type:'desktop-fail-stop',code}));
+  app.exit(1);
 }
 function authorize(event) {
   if(!window || event.sender!==window.webContents || event.senderFrame!==window.webContents.mainFrame || new URL(event.senderFrame.url).origin!==new URL(config.pageUrl).origin) throw new Error('Unexpected desktop caller');
@@ -89,7 +110,7 @@ function validateFrame(s,packet) {
   if(m.modifier!=='0'||!Number.isSafeInteger(m.allocationSize)||m.allocationSize<1||m.allocationSize*3>64*1024**2||!Array.isArray(m.planes)||m.planes.length!==1||packet.fds.length!==1)throw new Error('Invalid native pixmap descriptor');
   for(const p of m.planes)if(p.fdIndex!==0||![p.stride,p.offset,p.size].every(Number.isSafeInteger)||p.stride<m.width*4||p.offset<0||p.size<p.offset+p.stride*m.height||p.size>m.allocationSize)throw new Error('Invalid native pixmap bounds');
   if(!s.device){physicalDevice(m);s.device={...m.gpu,pid:sTelemetry.device.chromiumGpuPid};}
-  // GPU process loss/replacement is a global child-process-gone fail-stop. The
+  // GPU process loss/replacement disables the process preview consumer. The
   // hot path compares the established device without rescanning process metrics.
   else if(['vendorId','deviceId','drmRenderMajor','drmRenderMinor','deviceUUID'].some(k=>m.gpu?.[k]!==s.device[k]))throw new Error('GPU device changed');
   if(performanceDiagnostics)s.lastFrameMetadata=lease(m);s.lastFrame=m.frameSeq;s.slotEpochs.set(m.slotId,BigInt(m.slotEpoch));
@@ -106,8 +127,8 @@ async function consume(s,packet) {
       return current;
     },
     onTransferred:()=>{sTelemetry.transferred++;},
-    onFailure:()=>failStop('gpuImportOrReleaseFailed'),
-    onAbandonedRelease:()=>failStop('gpuCompletionUnknown'),
+    onFailure:()=>isolatePreview('gpuImportOrReleaseFailed',s),
+    onAbandonedRelease:()=>isolatePreview('gpuCompletionUnknown',s),
     onAllReferencesReleased:m=>{
       // No exception can leave this native completion boundary.
       try{
@@ -127,7 +148,7 @@ async function consume(s,packet) {
         if(completed.size>256)completed.delete(completed.keys().next().value);
         if(samples.length>4096)samples.shift();
         completeStop(s);
-      }catch{failStop('gpuFinalReleaseFailed');}
+      }catch{isolatePreview('gpuFinalReleaseFailed',s);}
     },
   });
 }
@@ -146,7 +167,7 @@ function packet(s,p) {
   p.receivedNs=process.hrtime.bigint();
   if(p.peerPid!==s.workerPid)throw new Error('Worker peer PID mismatch');
   validateWorkerMessage(m,s,config);
-  if(m.type==='frame'){void consume(s,p).catch(()=>failStop('gpuFrameFailed'));return;}
+  if(m.type==='frame'){void consume(s,p).catch(()=>isolatePreview('gpuFrameFailed',s));return;}
   for(const fd of p.fds)broker.closeFd(fd);
   if(p.fds.length)throw new Error('Control packet carried handles');
   if(m.type==='hello-accepted'){
@@ -184,15 +205,17 @@ function packet(s,p) {
 async function detach() {
   const s=stream;
   if(!s)return;
+  if(s.isolated){await s.isolationPromise;return;}
   if(s.stopped&&!s.connection){if(stream===s)stream=null;return;}
-  if(s.stopping)return s.stopPromise;
+  if(s.stopping){await s.stopPromise;if(s.isolated)await s.isolationPromise;return;}
   s.stopping=true;window?.webContents.send('mako-gpu:detach',{attachSeq:s.attachSeq});
   s.stopPromise=new Promise((done,reject)=>{s.resolveStop=done;const timeout=setTimeout(()=>reject(new Error('GPU drain deadline')),10000);s.clearStop=()=>clearTimeout(timeout);});
-  send(s,{type:'stop',...controlIdentity(s)});
-  try{await s.stopPromise;}catch(error){failStop('gpuDrainTimeout');throw error;}finally{s.clearStop();if(stream===s)stream=null;}
+  try{send(s,{type:'stop',...controlIdentity(s)});await s.stopPromise;}catch{isolatePreview('gpuDrainTimeout',s);}
+  finally{s.clearStop();if(s.isolated)await s.isolationPromise;else if(stream===s)stream=null;}
   safeState({type:'detached'});
 }
 async function attach(streamId,expectedInputGeneration) {
+  if(lost)throw new Error('GPU preview disabled after an unsafe completion; restart the app to retry');
   if(typeof streamId!=='string'||!/^[a-zA-Z0-9_-]{1,128}$/.test(streamId)||!positive(expectedInputGeneration)||attachBusy)throw new Error('Invalid desktop stream attachment');
   attachBusy=true;
   let stage='drainPrevious';
@@ -209,7 +232,7 @@ async function attach(streamId,expectedInputGeneration) {
     const until=Date.now()+5000;
     stage='connectBroker';
     while(!s.connection){try{const st=fs.lstatSync(claim.brokerEndpoint),parent=fs.lstatSync(path.dirname(claim.brokerEndpoint));if(!st.isSocket()||st.uid!==process.getuid()||!parent.isDirectory()||parent.uid!==process.getuid()||(parent.mode&0o777)!==0o700||fs.realpathSync(path.dirname(claim.brokerEndpoint))!==path.dirname(claim.brokerEndpoint))throw new Error('Invalid broker ownership');s.connection=broker.connect(claim.brokerEndpoint);}catch(error){if(Date.now()>until)throw error;await delay(20);}}
-    const hello=new Promise(done=>{s.resolveHello=done;});
+    const hello=new Promise((done,reject)=>{s.resolveHello=done;s.rejectHello=reject;});
     s.helloNs=process.hrtime.bigint().toString();
     stage='hello';
     send(s,{type:'hello',protocolVersion:1,consumerId:config.consumerId,consumerEpoch:'1',streamId,hostInstanceId:config.hostInstanceId,producerEpoch:s.producerEpoch,handshake:claim.handshake,senderMonotonicNs:s.helloNs});
@@ -220,7 +243,7 @@ async function attach(streamId,expectedInputGeneration) {
         const known=['Worker response identity mismatch','Worker pool identity mismatch','Invalid Worker hello','Invalid calibrated clock','Worker stopped before exact lease drain','Unexpected applied control','peer disconnected; outstanding leases unknown','recvmsg failed','closed connection','Worker GPU completion unknown'];
         const cause=known.includes(error?.message)?error.message:'invalidWorkerPacket';
         console.error(JSON.stringify({type:'desktop-broker-error',stage:s.lastPacketType??'receive',cause,stopping:!!s.stopping,stopped:!!s.stopped,outstanding:s.imports.size,worker:s.workerFailure}));
-        failStop('gpuBrokerProtocolFailed');
+        isolatePreview('gpuBrokerProtocolFailed',s);
       }
       finally{if(pollStarted!==null){const end=process.hrtime.bigint();if(end-pollStarted>=10000000n)performanceDiagnostics.add('main-poll',pollStarted,end,{lease:performanceDiagnostics.identity(s.lastFrameMetadata)});}}
     },2);
@@ -233,8 +256,7 @@ async function attach(streamId,expectedInputGeneration) {
     return attached;
   }catch{
     const s=stream;
-    if(s?.imports.size){failStop('gpuAttachFailed');}
-    else if(s){clearInterval(s.poll);if(s.connection)try{broker.close(s.connection);}catch{}if(stream===s)stream=null;}
+    if(s)isolatePreview('gpuAttachFailed',s);
     console.error(JSON.stringify({type:'desktop-attach-failed',stage}));
     throw new Error(`GPU attachment failed (${stage})`);
   }finally{attachBusy=false;}
@@ -253,7 +275,7 @@ function playback(value,rendererClock) {
   s.desired={...state};s.pending={...state,controlSeq,senderMonotonicNs:rendererClock.senderMonotonicNs,rendererUncertaintyNs:rendererClock.uncertaintyNs,mainReceivedMonotonicNs:now.toString()};flushControl(s);
   return {controlSeq};
 }
-for(const [name,handler] of Object.entries({config:()=>({mode:'production',...(performanceDiagnostics?{performanceDiagnostics:true}:{}),...(config.slowConsumerMs?{scenario:'slow',slowMs:config.slowConsumerMs}:{})}),'consumer-id':()=>config.consumerId,'acceptance-enabled':()=>app.commandLine.hasSwitch('remote-debugging-port'),clock:()=>({mainMonotonicNs:process.hrtime.bigint().toString()}),attach,playback,read:(sinceRevision=0)=>{if(!Number.isSafeInteger(sinceRevision)||sinceRevision<0)throw new Error('Invalid sample cursor');if(stream?.connection&&!stream.stopping&&!stream.stopped)send(stream,{type:'read-state',...controlIdentity(stream)});return {...sTelemetry,nowMonotonicNs:process.hrtime.bigint().toString(),clock:stream?.clock?{...stream.clock,rendererUncertaintyNs:stream.rendererUncertaintyNs,totalUncertaintyNs:(BigInt(stream.clock.uncertaintyNs)+BigInt(stream.rendererUncertaintyNs??'0')).toString()}:undefined,mediaClock:stream?.mediaClock,workerState:stream?.workerState,controlApplied:stream?.controlApplied,attachedMonotonicNs:stream?.attachedMonotonicNs,activeStream:stream?{...controlIdentity(stream),poolGeneration:stream.poolGeneration,size:stream.size}:null,executingControls:stream?.executing?1:0,pendingControls:stream?.pending?1:0,outstanding:stream?.imports.size??0,sampleRevision,sampleCursorExpired:samples.length>0&&sinceRevision>0&&sinceRevision<Math.min(...samples.map(x=>x.sampleRevision))-1,samples:samples.filter(x=>x.sampleRevision>sinceRevision),mainPid:process.pid,workerPid:stream?.workerPid,rendererPid:window?.webContents.getOSProcessId(),performanceDiagnostics:performanceDiagnostics?.snapshot(),processes:measured('main-getAppMetrics',()=>app.getAppMetrics()).map(x=>({pid:x.pid,type:x.type,cpu:x.cpu,memory:x.memory}))};},detach}))ipcMain.handle(`mako-gpu:${name}`,(event,...args)=>{authorize(event);return name==='read'?measured('main-read',()=>handler(...args),undefined,10):handler(...args);});
+for(const [name,handler] of Object.entries({config:()=>({mode:'production',...(performanceDiagnostics?{performanceDiagnostics:true}:{}),...(config.slowConsumerMs?{scenario:'slow',slowMs:config.slowConsumerMs}:{})}),'consumer-id':()=>{if(lost)throw new Error('GPU 预览已停用，请重启应用后重试；编辑和保存仍可继续。');return config.consumerId;},'acceptance-enabled':()=>app.commandLine.hasSwitch('remote-debugging-port'),clock:()=>({mainMonotonicNs:process.hrtime.bigint().toString()}),attach,playback,read:(sinceRevision=0)=>{if(!Number.isSafeInteger(sinceRevision)||sinceRevision<0)throw new Error('Invalid sample cursor');if(stream?.connection&&!stream.stopping&&!stream.stopped)send(stream,{type:'read-state',...controlIdentity(stream)});return {...sTelemetry,previewDisabled:lost,previewIsolation,nowMonotonicNs:process.hrtime.bigint().toString(),clock:stream?.clock?{...stream.clock,rendererUncertaintyNs:stream.rendererUncertaintyNs,totalUncertaintyNs:(BigInt(stream.clock.uncertaintyNs)+BigInt(stream.rendererUncertaintyNs??'0')).toString()}:undefined,mediaClock:stream?.mediaClock,workerState:stream?.workerState,controlApplied:stream?.controlApplied,attachedMonotonicNs:stream?.attachedMonotonicNs,activeStream:stream?{...controlIdentity(stream),poolGeneration:stream.poolGeneration,size:stream.size}:null,executingControls:stream?.executing?1:0,pendingControls:stream?.pending?1:0,outstanding:stream?.imports.size??0,sampleRevision,sampleCursorExpired:samples.length>0&&sinceRevision>0&&sinceRevision<Math.min(...samples.map(x=>x.sampleRevision))-1,samples:samples.filter(x=>x.sampleRevision>sinceRevision),mainPid:process.pid,workerPid:stream?.workerPid,rendererPid:window?.webContents.getOSProcessId(),performanceDiagnostics:performanceDiagnostics?.snapshot(),processes:measured('main-getAppMetrics',()=>app.getAppMetrics()).map(x=>({pid:x.pid,type:x.type,cpu:x.cpu,memory:x.memory}))};},detach}))ipcMain.handle(`mako-gpu:${name}`,(event,...args)=>{authorize(event);return name==='read'?measured('main-read',()=>handler(...args),undefined,10):handler(...args);});
 ipcMain.handle('mako-gpu:acceptance-failure',(event,kind)=>{
   authorize(event);
   if(!app.commandLine.hasSwitch('remote-debugging-port')||!['renderer-loss','worker-loss'].includes(kind))throw new Error('Acceptance fault injection unavailable');
@@ -261,19 +283,20 @@ ipcMain.handle('mako-gpu:acceptance-failure',(event,kind)=>{
   if(!pid)throw new Error('No active owned fault target');
   lost=true;record('injected-consumer-loss',{kind,pid});
   console.error(JSON.stringify({type:'desktop-injected-loss',kind,pid,unknownOutstanding:stream?.imports.size??0,acknowledgedAtLoss:sTelemetry.acknowledgedUnique}));
-  process.kill(pid,'SIGKILL');failStop(kind==='renderer-loss'?'injectedRendererLoss':'injectedWorkerLoss');
+  process.kill(pid,'SIGKILL');isolatePreview(kind==='renderer-loss'?'injectedRendererLoss':'injectedWorkerLoss');
 });
 ipcMain.handle('mako-gpu:acceptance-visibility',(event,visible)=>{
   authorize(event);
   if(!app.commandLine.hasSwitch('remote-debugging-port')||typeof visible!=='boolean')throw new Error('Acceptance visibility unavailable');
   if(visible)window.show();else window.hide();
 });
-ipcMain.on('mako-gpu:error',event=>{authorize(event);failStop('gpuRendererReceiverFailed');});
+ipcMain.on('mako-gpu:error',event=>{authorize(event);isolatePreview('gpuRendererReceiverFailed');});
 ipcMain.on('mako-gpu:drawn',(event,data)=>{authorize(event);const key=leaseKey(data),done=completed.get(key),item=stream?.imports.get(key)??done?.item;if(item&&!item.drawn&&data.timestamp===item.metadata.timeUs){item.drawn=true;sTelemetry.drawn++;if(done){done.sample.drawn=true;done.sample.sampleRevision=++sampleRevision;sTelemetry.completedDrawnUnique++;sTelemetry.completedWithoutDraw--;}safeState({type:'drawn',...data});}});
 ipcMain.on('mako-gpu:renderer-release',(event,data)=>{authorize(event);if(stream?.imports.has(leaseKey(data)))record('renderer-release-requested',{frameSeq:data.frameSeq});});
 async function close() {
   if(ending)return;
-  try{await detach();ending=true;app.exit(0);}catch{failStop('gpuShutdownFailed');}
+  try{await detach();}catch{isolatePreview('gpuShutdownFailed');}
+  ending=true;app.exit(0);
 }
 // 关窗会连后端一起停掉。先在页面里派发一次 beforeunload：编辑器在工程、样式库模板、作者草稿没保存时会拦下，
 // 这时问一下再退出。页面 3 秒没回应（卡住）就当作没拦，照常退出。
@@ -293,7 +316,7 @@ async function requestClose() {
 }
 for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>void close());
 app.on('before-quit',event=>{if(!ending){event.preventDefault();void close();}});
-app.on('child-process-gone',(_event,details)=>{if(details.type==='GPU')failStop('gpuProcessLost');});
+app.on('child-process-gone',(_event,details)=>{if(details.type==='GPU')isolatePreview('gpuProcessLost');});
 process.on('uncaughtException',()=>failStop('desktopUnhandledFailure'));
 process.on('unhandledRejection',()=>failStop('desktopUnhandledFailure'));
 (async()=>{
@@ -313,7 +336,7 @@ process.on('unhandledRejection',()=>failStop('desktopUnhandledFailure'));
   window.webContents.on('will-navigate',event=>event.preventDefault());
   window.webContents.on('will-frame-navigate',event=>event.preventDefault());
   window.webContents.on('before-input-event',(event,input)=>{if(input.key==='F5'||((input.control||input.meta)&&input.key.toLowerCase()==='r'))event.preventDefault();});
-  window.webContents.on('render-process-gone',()=>failStop('gpuRendererLost'));
+  window.webContents.on('render-process-gone',()=>isolatePreview('gpuRendererLost'));
   window.on('close',event=>{if(!ending){event.preventDefault();void requestClose();}});
   window.on('hide',()=>{if(stream)void detach().catch(()=>{});});
   gpuInfo=await app.getGPUInfo('complete');

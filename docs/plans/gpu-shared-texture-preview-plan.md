@@ -253,15 +253,21 @@ pool 初始固定三个槽：一个生产、一个待消费、一个消费；实
 | resize／设备变化 | 新 pool 完整准备后切换；旧 pool 停止发布，引用归零后销毁，不能无限保留历史 pool |
 | 导入／modifier／同步不支持 | 明确失败与原因；不静默改 PNG 或 CPU 并继续标记零回读 |
 | 主动 detach | 停新帧并等待原生最终引用完成，再归还精确 lease |
-| renderer crash | 完成状态未知时 fail-stop 整个 Electron 会话，隔离池、不发 ACK；未验证 crash 安全回收 |
+| 已知源材质／直接表面预算失败 | 本次尚未复制共享帧，停新生产并等待旧 lease 的真实精确 release；仅排空后发送 failed/drained=true，保留应用 |
+| renderer crash | 完成状态未知时隔离故障预览，关闭 broker、禁用本进程再次 attach、由宿主终止所属 Worker；不发 ACK，不清未知引用；主进程保留，renderer 本身已丢失时不宣称编辑器仍可用 |
 | send Promise 超时／late completion | 不当作消费失败后已安全释放；隔离该 lease，等待真实完成／drain，不得覆写或新增槽绕过 |
-| Worker crash／重启 | 旧 producerEpoch 失效，已有未知消费者引用隔离；停止会话，暂不自动恢复 |
+| Worker crash／重启 | 旧 producerEpoch 失效，已有未知消费者引用及配额隔离；停用本进程 GPU 预览，编辑保存可继续，重启应用后可重试 |
 | Chromium GPU process crash | 不把 crash 通知当作普遍 GPU 完成信号；隔离未知 lease，按已证明安全的 drain／device teardown 回收 |
 | 消费者超时／fence 无法确认 | quarantine 受影响槽／pool，停止流；不能超时后直接重写仍可能被 GPU 使用的图像 |
 | 客户端租约失效／应用退出 | 先撤销入口、停止新工作、按自身 PID 与进程身份排水，再释放授权资源 |
 
 进程死亡或设备丢失时可销毁不再使用的隔离 GPU 上下文，但必须由实际 native／
 driver 资源寿命规则证明安全，不能把“等待 N ms”当成普遍释放协议。
+未知完成状态不自动重建池。main 保留至多一次故障流的未知 imports；用户主动关窗时才退出
+Electron 进程，不把进程终止称为 GPU 安全排空。2026-11-14 的有限验收复用
+`scripts/gpu-preview-fault-acceptance.mjs --kind worker --loss-mode injected`，先检查应用存活、
+所属 Worker 终止、拒绝再次 attach 和无新增 ACK／import，再显式关闭应用并核对拥有的进程退出；
+历史 P0 和旧 fail-stop 证据不改写。
 
 ## 5. 实施阶段与 Go／No-go
 

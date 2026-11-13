@@ -3,7 +3,7 @@ using System.Security.Cryptography;
 
 namespace MakoKaraGenerator.Backend.Server;
 
-// The launch credential authenticates only the private consumer claim, never a client operation.
+// The launch credential authenticates only private consumer claim/failure isolation, never a client operation.
 internal sealed class DesktopConsumerIdentity
 {
     private readonly byte[] _secret;

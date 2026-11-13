@@ -1,10 +1,13 @@
 using System.Collections.Concurrent;
 using System.Globalization;
+using System.Reflection;
 using System.Text.Json;
 using Microsoft.Win32.SafeHandles;
 using MakoKaraGenerator.Backend.Contracts;
 using MakoKaraGenerator.Core.Effects;
+using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Rendering;
+using MakoKaraGenerator.Rendering.Skia;
 using MakoKaraGenerator.Scripting;
 
 namespace MakoKaraGenerator.Backend.Worker.Tests;
@@ -257,6 +260,42 @@ public sealed class GpuStreamSessionTests
         Assert.True(first.Released); Assert.False(first.Quarantined);
         Assert.False(failed.Exported); Assert.True(failed.Disposed);
         Assert.Equal("failed", stream.ReadState().State); Assert.True(stream.ReadState().Drained);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SourceMaterialBudgetFailureWaitsForExactEarlierLeaseBeforeReportingDrain(bool earlierFrame)
+    {
+        using var channel = new Channel(); var first = new Lease(1);
+        var budget = (ImageSurfaceBudgetException)Activator.CreateInstance(typeof(ImageSurfaceBudgetException),
+            BindingFlags.Instance | BindingFlags.NonPublic, null,
+            ["ExecuteImageGraphPeak", 62, 3, 64, 64879032L, 2073708L, 536870912L], null)!;
+        var owner = new PreparedMaterialOwner.Source(new("templates.fixture.unsung.fill", "fill",
+            new MaterialSpec.PackageMaterial("fixture", "sha256:" + new string('a', 64), "glass-media", EffectParameterOverrides.Empty)),
+            PreparedMaterialSlot.UnsungFill);
+        var sourceFailure = new SourceMaterialFailureException(owner, "RenderMaterials", 42866666, budget.Code, budget);
+        await using var stream = new GpuStreamSession(Open, Pool, channel, (time, sequence, _) =>
+            earlierFrame && sequence == 1 ? ValueTask.FromResult(Frame(first, time)) : throw sourceFailure, false);
+        channel.Control(1);
+        JsonElement? published = earlierFrame ? await channel.Wait("frame", 1) : null;
+        if (earlierFrame) channel.Control(2, "seek", 42866666);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        while (stream.ReadState().FailureCode is null) await Task.Delay(2, timeout.Token);
+        if (published is { } frame)
+        {
+            Assert.DoesNotContain(channel.Packets, packet => packet.GetProperty("type").GetString() == "failed");
+            Assert.False(first.Released); Assert.False(first.Quarantined);
+            channel.Release(frame);
+        }
+        var failure = await channel.Wait("failed", 1);
+        Assert.True(failure.GetProperty("drained").GetBoolean());
+        Assert.Equal("ImageSurfaceBudgetExceeded", failure.GetProperty("code").GetString());
+        Assert.Equal("ImageSurfaceBudgetException", failure.GetProperty("failureType").GetString());
+        Assert.Contains("62 + 申请 3 / 64", failure.GetProperty("failureDetail").GetString());
+        Assert.True(await stream.StopAsync(timeout.Token));
+        Assert.True(stream.ReadState().Drained); Assert.False(first.Quarantined);
+        Assert.Equal(earlierFrame, first.Released);
     }
 
     [Fact]

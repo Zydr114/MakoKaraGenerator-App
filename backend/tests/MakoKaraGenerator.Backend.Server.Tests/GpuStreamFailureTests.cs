@@ -7,6 +7,48 @@ namespace MakoKaraGenerator.Backend.Server.Tests;
 public sealed partial class PreviewTransportTests
 {
     [Fact]
+    public async Task Consumer_failure_requires_claimed_exact_identity_and_terminates_only_owned_worker_without_reopening_quota()
+    {
+        await using Fixture fixture = await Fixture.Create();
+        const string consumer = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", secret = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        GpuPreviewStreamRegistry registry = new();
+        typeof(PreviewBackendService).GetField("_gpuStreams", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(fixture.Service, registry);
+        typeof(PreviewBackendService).GetField("_desktopConsumer", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .SetValue(fixture.Service, DesktopConsumerIdentity.Create(consumer, secret, "123"));
+        int stopped = 0;
+        await using var pool = new GpuWorkerSparePool<WorkerProcessProxy>("isolation-fixture",
+            () => new(new WorkerProcessOptions("unused", [], TimeSpan.FromSeconds(1))),
+            (_, _) => Task.CompletedTask, _ => { Interlocked.Increment(ref stopped); return Task.CompletedTask; }, _ => true);
+        var workerLease = await pool.AcquireAsync();
+        GpuStreamWorkerOpened opened = new("stream", "1", "1", 64, 64, 3, 49152, 123, 0, 0, 0, 0, "device");
+        GpuStreamWorkerSession worker = (GpuStreamWorkerSession)Activator.CreateInstance(typeof(GpuStreamWorkerSession),
+            BindingFlags.Instance | BindingFlags.NonPublic, null,
+            [workerLease.Worker, workerLease, new StaticWorkerSessionHandle(Guid.NewGuid(), "hash"), "unused", "1", "unused", "secret", opened], null)!;
+        var state = new GpuPreviewStreamState("stream", "1", "1", "ready", fixture.Source, new(64, 64), PreviewAlphaMode.Straight,
+            "vulkan", "1", "1", 3, 49152);
+        using IDisposable reservation = registry.TryReserve(fixture.Client.ClientId, consumer)!;
+        Assert.True(registry.Publish(reservation, state, new(fixture.Source, null!, null!), worker));
+        Assert.False(await fixture.Service.AbortGpuConsumerAsync("stream", consumer, "host", "1", "1", secret));
+        var entries = (System.Collections.IDictionary)typeof(GpuPreviewStreamRegistry).GetField("_entries", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(registry)!;
+        object entry = entries["stream"]!;
+        entry.GetType().GetField("Claimed", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(entry, true);
+        foreach (var request in new[]
+        {
+            ("stream", consumer, "host", "1", "1", "wrong"), ("stream", "other", "host", "1", "1", secret),
+            ("stream", consumer, "other", "1", "1", secret), ("other", consumer, "host", "1", "1", secret),
+            ("stream", consumer, "host", "2", "1", secret), ("stream", consumer, "host", "1", "2", secret),
+        }) Assert.False(await fixture.Service.AbortGpuConsumerAsync(request.Item1, request.Item2, request.Item3, request.Item4, request.Item5, request.Item6));
+        Assert.Equal(0, stopped);
+        Assert.True(await fixture.Service.AbortGpuConsumerAsync("stream", consumer, "host", "1", "1", secret));
+        Assert.Equal(1, stopped); Assert.True(worker.TerminationConfirmed);
+        Assert.Equal("GpuConsumerCompletionUnknown", registry.Read(fixture.Client.ClientId, "stream")!.FailureCode);
+        Assert.Null(registry.Read(fixture.Client.ClientId, "stream")!.WorkerState);
+        Assert.Null(registry.TryReserve(fixture.Client.ClientId, consumer));
+        Assert.Null(registry.Claim(consumer, "stream", "1"));
+        await workerLease.Worker.DisposeAsync();
+    }
+
+    [Fact]
     public async Task Drained_failure_preserves_diagnostics_across_reads_and_can_close_and_reopen_quota()
     {
         await using Fixture fixture = await Fixture.Create();

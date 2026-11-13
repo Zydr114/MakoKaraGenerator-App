@@ -53,6 +53,8 @@ GET    /api/v1/gpu-preview-streams/{streamId} -> StreamState
 
 `PreviewSourceDto` 原样保留 `kind`、`sourceId`、`sourceRevision`、可选 `templateSample` 和 `authorSourceRevision`，实际支持种类以现有 capture 校验为准。`api: vulkan` 是此流的显式原生 API；若内部调用现有 `renderBackend` 选择器，则映射为现有公开合同的 `gpu`，不改写原 API 枚举。`streamRevision`、`inputGeneration`、`producerEpoch`、`poolGeneration` 和 `slotEpoch` 用规范非负十进制字符串；native producerEpoch/poolGeneration 为 uint64。`frameSeq`、`controlSeq` 为非负 JS safe integer，溢出前停止并重建流。main 使用 `POST /internal/gpu-preview-streams/{streamId}/claim`，body 为 `{ consumerId, hostInstanceId, expectedInputGeneration }`，以 `X-Mako-Desktop-Secret` 私有 header 认证；Server 恒时比较 secret，并检查 consumerId、host、stream 和当前输入代次绑定，每个输入代次只领取一次。成功换代后新代可重新领取；旧代的延迟请求不能领取新代。返回 `{ producerEpoch, workerPid, brokerEndpoint, handshake }` 仅供 main。native channel 校验 `SO_PEERCRED` 等于启动 main PID 和 nonce。异常和拒绝不得记录 secret、header 或 handshake。
 
+完成状态未知时，main 使用同一私有 header 调用 `POST /internal/gpu-preview-streams/{streamId}/consumer-failed`，body 为 `{ consumerId, hostInstanceId, inputGeneration, producerEpoch }`。服务端仅允许已领取且四项身份仍精确匹配的绑定，由现有 Worker 所有权代理终止所属进程；成功回包 `{ terminated:true, drained:false }` 只证明进程终止，不证明消费者排空。注册表保持隔离配额；它不授予公开客户端操作，也不接受 renderer 传递的 PID。
+
 v1 初始硬预算：每 client 和每 consumer 最多 1 个 stream、每 host 最多 2 个 stream/Worker；每池恰好 3 槽；最大 dimensions 2560×1440，宽高下限 64，均以 capability 与实际格式能力进一步收紧；每池总实际 allocation 不超过 64 MiB，每 host GPU 池合计不超过 128 MiB。替换和 resize 先停止并 drain 旧代后建立新池，不重叠双代；失败显式进入 failed，不恢复已销毁的旧代。创建前预留预算、按驱动实际分配复核、失败回滚；资源闭包继续受已有输入预算约束。控制每流最多一个执行、一个最新待处理，native packet 最多 16 KiB / 4 FD。目标覆盖 1280×720 24 fps 至 2560×1440 30 fps；`dimensionsSupported` 是实际格式与分配探测结果，`performanceValidated` 必须由生产链路实测证明，未测量时为 false，目标不是承诺。
 
 私有 claim 回包额外携带 `inputGeneration`、`poolGeneration` 和 `size`，供 main 复核代次和尺寸。Linux broker 路径为 `/tmp/mkg-gpu-<24位小写十六进制>/broker.sock`；main 验证私有父目录的属主和 `0700` 权限，连接还须校验进程身份与 nonce。公开的 `registrationState` 仅表示服务端登记状态，不是 Worker 播放状态；Server GET 通过私有 `ReadKind`／`ReadResultKind` 读取同一 Worker 原子快照并放入 `workerState`，native `read-state` 复用该内部状态，不能由两侧猜测播放状态。`alphaMode` 沿用现有选项，只控制输出背景是否透明，GPU 传输纹理为 BGRA 预乘 alpha，公开 `textureAlphaMode: premultiplied`。
@@ -102,9 +104,11 @@ FD 仅随本地 native channel 的 `SCM_RIGHTS` 传递，JSON 的索引不是 FD
 
 真实自含作者草稿已实测该路径：1000 ms 消费者延迟下，C# `Evaluate` 报告 Error 时仍有一个旧租约，Worker 保持 draining 且不提前 ACK；精确 native completion 后才报告排空，随后同一 App 可消费新健康流。原始帧已完成后再触发 Error 的结果与该在途结果分别归档，不混作同一证据。
 
-正常关闭/替换先停止新帧，再等待所有实际消费者和 Worker 排空，最后释放输入、池与设备。renderer/GPU 崩溃时已转移 lease 的完成状态未知，停止整个流和 Electron 会话、隔离槽位并拒绝 ACK，不自动重启或扩池；该结果是 expected fail-stop，不是安全 drain 或恢复。已交付 FD 的 payload 引用可延长 allocation 寿命，不代表 GPU 工作完成。
+正常关闭/替换先停止新帧，再等待所有实际消费者和 Worker 排空，最后释放输入、池与设备。2026-11-14 起，已知 `ImageSurfaceBudgetException`（直接异常或源材质的直接内层异常）发生在共享帧复制之前，和普通作者 Error 一样停止生产，等旧导出 lease 的真实精确 release 后才发送 `failed + drained:true`；该路径保留稳定错误码、根类型与有界引擎文本。未知图／GPU／协议异常不归入可排空类别。
 
-renderer／Worker 丢失历史注入的 Server 清理异常传播曾导致 -6 退出；源码 `f1fe7f8` 修复后，匹配发布的两类注入与两类外部丢失复验均受控退出1、自有进程消失。严格离线分析`921b943`单独复核原日志，不改写原运行来源；注入场景精确loss至fail-stop ACK差为零，外部场景仅证明before-kill观测至检测的ACK差为零。未知租约仍隔离，不能记作正常排空或安全归槽。
+未知完成状态会停用本 Electron 进程的 GPU 预览，关闭 broker、通知 renderer detach，由宿主终止拥有的 Worker，保留主应用供编辑和保存。main 保留该次至多三个未知 import 的引用，不发补偿 ACK、不额外 release、不清空 imports，不再 attach 或建立替代池；失败的 Worker 配额也保留。已检测 loss 后收到的完成回调同样不能 ACK。用户会看到需重启应用才能重试 GPU 预览的错误。用户主动关闭应用时等待有界的 Worker 终止请求后退出进程，由进程寿命结束承接剩余引用；不会把这次退出登记为正常 GPU drain。已交付 FD 的 payload 引用可延长 allocation 寿命，不代表 GPU 工作完成。
+
+renderer／Worker 丢失历史注入的 Server 清理异常传播曾导致 -6 退出；源码 `f1fe7f8` 修复后，匹配发布的两类注入与两类外部丢失复验均受控退出1、自有进程消失。该历史退出规则已由上述保留应用的隔离规则替代，原始证据保持不变。严格离线分析`921b943`单独复核原日志，不改写原运行来源；注入场景精确loss至fail-stop ACK差为零，外部场景仅证明before-kill观测至检测的ACK差为零。未知租约仍隔离，不能记作正常排空或安全归槽。
 
 ## 验收和交付边界
 

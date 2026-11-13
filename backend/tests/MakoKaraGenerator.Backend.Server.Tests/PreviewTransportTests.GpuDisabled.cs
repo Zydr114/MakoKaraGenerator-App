@@ -16,6 +16,9 @@ public sealed partial class PreviewTransportTests
         using HttpResponseMessage response = await fixture.Http.PostAsJsonAsync("/internal/gpu-preview-streams/test/claim",
             new { consumerId = new string('a', 32), hostInstanceId = "host", expectedInputGeneration = "1" }, Json);
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        using HttpResponseMessage failureResponse = await fixture.Http.PostAsJsonAsync("/internal/gpu-preview-streams/test/consumer-failed",
+            new { consumerId = new string('a', 32), hostInstanceId = "host", inputGeneration = "1", producerEpoch = "1" }, Json);
+        Assert.Equal(HttpStatusCode.NotFound, failureResponse.StatusCode);
         using HttpResponseMessage publicResponse = await fixture.Http.PostAsJsonAsync("/api/v1/gpu-preview-streams", new { }, Json);
         Assert.Equal(HttpStatusCode.NotFound, publicResponse.StatusCode);
     }

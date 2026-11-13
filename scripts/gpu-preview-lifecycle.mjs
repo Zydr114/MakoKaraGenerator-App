@@ -63,8 +63,25 @@ try{
     }else{
       try{await page.eval(`window.makoDesktopPreview.injectAcceptanceFailure(${JSON.stringify(values.scenario)})`);}catch(error){report.injectReturn=error.message;}
     }
-    report.ownedAfter=await until(async()=>{const states=await Promise.all(report.ownedIdentities.map(p=>proc(p.pid)));return states.every((s,index)=>s.exited||s.startTicks!==report.ownedIdentities[index].startTicks)?states:false;},30000);
-    report.passed=true;report.evidenceBoundary+='; exact unknown-before-kill and ACK suppression require the owned main log';
+    const mainIdentity=report.ownedIdentities.find(p=>p.pid===before.mainPid);
+    const workerIdentity=report.ownedIdentities.find(p=>p.pid===before.workerPid);
+    report.workerAfter=await until(async()=>{const state=await proc(before.workerPid);return state.exited||state.startTicks!==workerIdentity.startTicks?state:false;},30000);
+    report.mainAfter=await proc(before.mainPid);
+    invariant(!report.mainAfter.exited&&report.mainAfter.startTicks===mainIdentity.startTicks,'Preview fault terminated the main application');
+    if(values.scenario==='worker-loss'){
+      const isolated=await until(async()=>{const s=await sample();return s.previewDisabled&&s.previewIsolation?.workerTerminationConfirmed?s:false;});
+      report.after=isolated;
+      const acknowledgmentBaseline=isolated.acknowledgedUnique;
+      await wait(500);const quiet=await sample();
+      invariant(quiet.acknowledgedUnique===acknowledgmentBaseline,'Isolated consumer ACKed an unknown lease');
+      invariant(quiet.imported===isolated.imported&&quiet.outstanding===isolated.outstanding,'Isolated consumer reused or released unknown imports');
+      let rejection;try{await page.eval(`window.makoDesktopPreview.attachPreview(${JSON.stringify(before.activeStream.streamId)},${JSON.stringify(before.activeStream.inputGeneration)})`);}catch(error){rejection=error.message;}
+      invariant(rejection?.includes('GPU preview disabled'),'Isolated process admitted another attachment');
+      report.attachRejected=rejection;report.editorAlive=await page.eval('document.readyState === "complete"');
+      invariant(report.editorAlive,'Editor is unavailable after Worker failure');
+      report.quiet=quiet;
+    }
+    report.passed=true;report.evidenceBoundary+='; application remains alive and owned Worker is terminated; native drain is not claimed. Exact unknown-before-kill and ACK suppression require the owned main log';
   }
 }catch(error){report.passed=false;report.error=error.stack;process.exitCode=1;}finally{
   report.finishedAt=new Date().toISOString();await writeFile(join(output,'report.json'),JSON.stringify(report,null,2)+'\n');cdp.ws.close();console.log(JSON.stringify({output,passed:report.passed,error:report.error}));

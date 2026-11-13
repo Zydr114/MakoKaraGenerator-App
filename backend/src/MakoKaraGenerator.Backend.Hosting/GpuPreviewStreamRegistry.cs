@@ -105,6 +105,27 @@ public sealed class GpuPreviewStreamRegistry
         }
     }
 
+    /// <summary>仅已领取的精确 consumer 代次能隔离所属预览；保留未知消费者的配额。</summary>
+    public (string Client, GpuStreamWorkerSession Worker)? QuarantineConsumerFailure(string consumer, string streamId,
+        string inputGeneration, string producerEpoch)
+    {
+        lock (_gate)
+        {
+            if (!_entries.TryGetValue(streamId, out var entry) || entry.Consumer != consumer || !entry.Claimed || entry.Busy ||
+                entry.State.InputGeneration != inputGeneration || entry.State.ProducerEpoch != producerEpoch) return null;
+            entry.Busy = true;
+            entry.Quarantined = true;
+            return (entry.Client, entry.Worker);
+        }
+    }
+
+    /// <summary>故障消费者的所属 Worker 已终止；配额仍保留，不能当作正常排空或重新开放。</summary>
+    public bool IsConsumerIsolationComplete(string client, string streamId)
+    {
+        lock (_gate) return _entries.TryGetValue(streamId, out var entry) && entry.Client == client &&
+            entry.Quarantined && entry.Worker.TerminationConfirmed;
+    }
+
     /// <summary>仅 owner 的精确修订可开始一次变更；操作排空时阻止并行领取或变更。</summary>
     public bool TryBeginChange(string client, string streamId, string expectedRevision, out bool found)
     {

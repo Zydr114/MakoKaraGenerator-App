@@ -32,6 +32,36 @@ internal sealed partial class PreviewBackendService
         _renderBackends?.ConfigureGpuStreamDevice(_gpuWorkerPool.VerifyDeviceAsync);
     }
 
+    internal async Task<bool> AbortGpuConsumerAsync(string id, string consumerId, string hostInstanceId,
+        string inputGeneration, string producerEpoch, string? secret)
+    {
+        if (_desktopConsumer is null || _gpuStreams is null || hostInstanceId != _clients.HostInstanceId ||
+            !_desktopConsumer.Authenticate(consumerId, secret)) return false;
+        await _membership.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            var owned = _gpuStreams.QuarantineConsumerFailure(consumerId, id, inputGeneration, producerEpoch);
+            if (owned is null) return false;
+            var (client, worker) = owned.Value;
+            bool terminated = false;
+            try
+            {
+                // Terminate the host-owned process rather than treating an unknown
+                // consumer as drained. Its quota stays quarantined until app exit.
+                await worker.RetryTerminationAsync().ConfigureAwait(false);
+                terminated = true;
+            }
+            catch (Exception) { /* Retained ownership permits another shutdown retry. */ }
+            finally
+            {
+                _gpuStreams.FailChange(client, id, worker, "GpuConsumerCompletionUnknown");
+                _gpuStreams.ReleaseRetiredInput(client, id, worker);
+            }
+            return terminated;
+        }
+        finally { _membership.Release(); }
+    }
+
     internal Task<BackendOperationResult<GpuPreviewStreamState>> CreateGpuStreamAsync(string client,
         GpuPreviewStreamCreateRequest request) => _projects.Receipts.ExecuteAsync(client, request.Metadata,
         "POST /api/v1/gpu-preview-streams", request with { Metadata = null }, () => MutateAsync(client, async () =>
@@ -166,8 +196,14 @@ internal sealed partial class PreviewBackendService
         if (_gpuStreams is null) return;
         List<Exception>? failures = null;
         foreach (var (streamId, revision) in _gpuStreams.ClientStreams(client))
+        {
+            // A deliberately isolated consumer is retained until the desktop exits.
+            // Its owned process is already gone; do not retry the dead protocol or
+            // convert its unverified GPU completion into a shutdown failure.
+            if (_gpuStreams.IsConsumerIsolationComplete(client, streamId)) continue;
             try { await CloseGpuStreamCoreAsync(client, streamId, revision).ConfigureAwait(false); }
             catch (Exception error) { (failures ??= []).Add(error); }
+        }
         if (failures is not null) throw new AggregateException(failures);
     }
 

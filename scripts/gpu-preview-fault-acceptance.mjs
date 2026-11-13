@@ -1,4 +1,4 @@
-// Four finite faults in fresh named App-owned profiles; no production fault hooks are added.
+// Finite faults in fresh named App-owned profiles; no production fault hooks are added.
 import {spawn} from 'node:child_process';
 import {open,mkdir,readFile,readdir,writeFile} from 'node:fs/promises';
 import {resolve,join} from 'node:path';
@@ -8,21 +8,21 @@ import {createHash} from 'node:crypto';
 import {createProject,connectPage,makeFixtures} from './gpu-preview-p3.mjs';
 export function analyzeFaultCase(entry,text) {
   const messages=text.split('\n').filter(x=>x.startsWith('{')).map(x=>{try{return JSON.parse(x)}catch{return {}}});
-  const loss=messages.find(x=>x.type==='desktop-injected-loss'),failStop=messages.find(x=>x.type==='desktop-fail-stop');
+  const loss=messages.find(x=>x.type==='desktop-injected-loss'),isolation=messages.find(x=>x.type==='desktop-preview-isolated');
   const exitLine=text.match(/backend exited (-?\d+)/),serverExit=exitLine?Number(exitLine[1]):null;
   const baseline=entry.external?entry.probe?.externalKill?.acknowledgedAtObservation:loss?.acknowledgedAtLoss;
-  const finalAck=failStop?.counters?.acknowledgedUnique;
+  const finalAck=isolation?.counters?.acknowledgedUnique;
   const ackDelta=Number.isSafeInteger(baseline)&&Number.isSafeInteger(finalAck)?finalAck-baseline:null;
-  const gates={probePassed:entry.probe?.passed===true,allOwnedExited:entry.allOwnedExited===true,
-    unknownOutstanding:Number.isSafeInteger(failStop?.unknownOutstanding)&&failStop.unknownOutstanding>=1,
-    explicitServerExit:exitLine!==null,expectedServerExit:serverExit===1,
-    expectedLauncherExit:entry.launcherExit?.code===1&&entry.launcherExit?.signal===null,
+  const gates={probePassed:entry.probe?.passed===true,allOwnedExitedAfterExplicitClose:entry.allOwnedExited===true,
+    unknownOutstanding:Number.isSafeInteger(isolation?.unknownOutstanding)&&isolation.unknownOutstanding>=1,
+    explicitServerExit:exitLine!==null,expectedServerExit:serverExit===0,
+    expectedLauncherExit:entry.launcherExit?.code===0&&entry.launcherExit?.signal===null,
     zeroAcknowledgements:ackDelta===0};
-  return {loss,failStop,serverExit,serverAbort:serverExit===-6,
-    ...(entry.external?{observationToDetectionAckDelta:ackDelta}:{exactLossToFailStopAckDelta:ackDelta}),gates,passed:Object.values(gates).every(Boolean)};
+  return {loss,isolation,serverExit,serverAbort:serverExit===-6,
+    ...(entry.external?{observationToDetectionAckDelta:ackDelta}:{exactLossToIsolationAckDelta:ackDelta}),gates,passed:Object.values(gates).every(Boolean)};
 }
 async function run() {
-const {values}=parseArgs({options:{output:{type:'string'},prefix:{type:'string'},port:{type:'string',default:'5185'},'cdp-port':{type:'string',default:'9235'},analyze:{type:'string'},'run-source-commit':{type:'string'}}});
+const {values}=parseArgs({options:{output:{type:'string'},prefix:{type:'string'},port:{type:'string',default:'5185'},'cdp-port':{type:'string',default:'9235'},analyze:{type:'string'},'run-source-commit':{type:'string'},kind:{type:'string',default:'all'},'loss-mode':{type:'string',default:'all'}}});
 if(values.analyze){
   const source=resolve(values.analyze),original=JSON.parse(await readFile(source,'utf8'));
   const output=resolve(values.output??`${source}.analyzed.json`);
@@ -31,9 +31,10 @@ if(values.analyze){
   for(const entry of original.cases){const text=await readFile(entry.log,'utf8');cases.push({name:entry.name,external:entry.external,log:entry.log,logSha256:createHash('sha256').update(text).digest('hex'),...analyzeFaultCase(entry,text)});}
   const report={schemaVersion:1,originalRunSourceCommit:values['run-source-commit'],originalReport:source,originalReportSha256:createHash('sha256').update(await readFile(source)).digest('hex'),
     analyzerSource:import.meta.url,analyzerSha256:createHash('sha256').update(await readFile(fileURLToPath(import.meta.url))).digest('hex'),analyzedAt:new Date().toISOString(),
-    boundary:'Original run and source hashes are unchanged. External ACK delta is from the before-kill observation to detection, not an exact loss-time baseline.',cases,passed:cases.length===4&&cases.every(x=>x.passed)};
+    boundary:'Original run and source hashes are unchanged. External ACK delta is from the before-kill observation to detection, not an exact loss-time baseline.',cases,passed:cases.length>0&&cases.every(x=>x.passed)};
   await writeFile(output,JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify({output,passed:report.passed}));if(!report.passed)process.exitCode=1;return;
 }
+if(!['all','renderer','worker'].includes(values.kind)||!['all','injected','external'].includes(values['loss-mode']))throw new Error('Invalid fault selection');
 const root=process.cwd(),prefix=values.prefix??`fault-${Date.now()}`,output=resolve(values.output??`.local/gpu-preview-lifecycle/${prefix}`);
 if(!/^[a-z0-9][a-z0-9-]{0,27}$/.test(prefix)||!output.startsWith(join(root,'.local')+'/'))throw new Error('Invalid fault acceptance prefix/output');
 await mkdir(output,{recursive:true,mode:0o700});
@@ -43,7 +44,7 @@ const tree=async pid=>{const all=(await Promise.all((await readdir('/proc')).fil
 async function command(args){const child=spawn(process.execPath,args,{cwd:root,stdio:['ignore','pipe','pipe']});let text='';child.stdout.on('data',b=>text+=b);child.stderr.on('data',b=>text+=b);const code=await new Promise((done,reject)=>{child.once('error',reject);child.once('exit',done)});if(code!==0)throw new Error(`Acceptance subprocess ${code}: ${text}`);return text;}
 const fixture=await makeFixtures(output),summary={schemaVersion:1,startedAt:new Date().toISOString(),deployment:JSON.parse(await readFile('.local/backend-current.json','utf8')),cases:[]};
 try{
-  for(const external of [false,true])for(const kind of ['renderer','worker']){
+  for(const external of (values['loss-mode']==='all'?[false,true]:[values['loss-mode']==='external']))for(const kind of (values.kind==='all'?['renderer','worker']:[values.kind])){
     const name=`${prefix}-${external?'natural':'injected'}-${kind}`,directory=join(output,name),logPath=join(directory,'desktop.log');await mkdir(directory,{recursive:true});
     const log=await open(logPath,'w',0o600),child=spawn(process.execPath,['scripts/app.mjs','desktop','--session-name',name,'--port',values.port,'--cdp-port',values['cdp-port'],'--slow-consumer-ms','180'],{cwd:root,stdio:['ignore',log.fd,log.fd]});
     const exited=new Promise((done,reject)=>{child.once('error',reject);child.once('exit',(code,signal)=>done({code,signal}));});let cdp,owned=[];
@@ -54,18 +55,20 @@ try{
       await page.waitFor('window.makoDesktopPreview.readPreviewState().then(s=>s.completedDrawnUnique>3)','Real production GPU frame');
       owned=await tree(child.pid);entry.owned=owned;cdp.ws.close();cdp=null;
       await command(['scripts/gpu-preview-lifecycle.mjs','--scenario',`${kind}-loss`,'--cdp-port',values['cdp-port'],'--output',join(directory,'probe'),...(external?['--external-loss','--session-name',name]:[])]);
-      entry.launcherExit=await Promise.race([exited,pause(20000).then(()=>{throw new Error('Owned launcher did not exit');})]);
       entry.probe=JSON.parse(await readFile(join(directory,'probe/report.json'),'utf8'));
+      if(child.exitCode!==null||child.signalCode!==null)throw new Error('Application exited before explicit acceptance close');
+      entry.explicitClose=true;child.kill('SIGTERM');
+      entry.launcherExit=await Promise.race([exited,pause(30000).then(()=>{throw new Error('Owned launcher did not exit after explicit close');})]);
       entry.ownedAfter=await Promise.all(owned.map(x=>proc(x.pid)));entry.allOwnedExited=entry.ownedAfter.every((p,i)=>p.exited||p.startTicks!==owned[i].startTicks);
       Object.assign(entry,analyzeFaultCase(entry,await readFile(logPath,'utf8')));
       if(!entry.passed)throw new Error(`Fault case failed: ${name}`);
-      console.log(JSON.stringify({name,code:entry.failStop.code,unknown:entry.failStop.unknownOutstanding,serverExit:entry.serverExit,allOwnedExited:entry.allOwnedExited}));
+      console.log(JSON.stringify({name,code:entry.isolation.code,unknown:entry.isolation.unknownOutstanding,serverExit:entry.serverExit,allOwnedExited:entry.allOwnedExited}));
     }finally{
       cdp?.ws.close();if(child.exitCode===null&&child.signalCode===null){const current=await proc(child.pid);if(owned.length===0||current.startTicks===owned.find(x=>x.pid===child.pid)?.startTicks)child.kill('SIGTERM');await exited;}await log.close();
       await writeFile(join(output,'report.json'),JSON.stringify(summary,null,2)+'\n');
     }
   }
-}catch(error){summary.error=error.stack;process.exitCode=1;}finally{summary.finishedAt=new Date().toISOString();summary.passed=summary.cases.length===4&&summary.cases.every(x=>x.passed)&&!summary.error;await writeFile(join(output,'report.json'),JSON.stringify(summary,null,2)+'\n');console.log(JSON.stringify({output,passed:summary.passed,error:summary.error}));}
+}catch(error){summary.error=error.stack;process.exitCode=1;}finally{summary.finishedAt=new Date().toISOString();summary.passed=summary.cases.length>0&&summary.cases.every(x=>x.passed)&&!summary.error;await writeFile(join(output,'report.json'),JSON.stringify(summary,null,2)+'\n');console.log(JSON.stringify({output,passed:summary.passed,error:summary.error}));}
 
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url))await run();

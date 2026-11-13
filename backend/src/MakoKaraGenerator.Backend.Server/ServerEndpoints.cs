@@ -46,10 +46,10 @@ internal static partial class ServerEndpoints
                 }
                 bool publicEndpoint = context.Request.Path is { Value: "/health/live" or "/api/v1/health/live" or "/api/v1/clients" };
                 string[] pathParts = (context.Request.Path.Value ?? "").Split('/', StringSplitOptions.RemoveEmptyEntries);
-                bool privateGpuClaim = context.Request.Method == "POST" && pathParts.Length == 4 &&
-                    pathParts[0] == "internal" && pathParts[1] == "gpu-preview-streams" && pathParts[3] == "claim" &&
+                bool privateGpuConsumer = context.Request.Method == "POST" && pathParts.Length == 4 &&
+                    pathParts[0] == "internal" && pathParts[1] == "gpu-preview-streams" && pathParts[3] is "claim" or "consumer-failed" &&
                     context.RequestServices.GetRequiredService<PreviewBackendService>().GpuStreamsConfigured;
-                if (!publicEndpoint && !privateGpuClaim)
+                if (!publicEndpoint && !privateGpuConsumer)
                 {
                     ClientRegistry clients = context.RequestServices.GetRequiredService<ClientRegistry>();
                     string? client = context.Request.Headers["X-Mako-Client-Id"].Count == 1 ? context.Request.Headers["X-Mako-Client-Id"][0] : null;

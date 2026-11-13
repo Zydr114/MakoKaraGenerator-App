@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using MakoKaraGenerator.Backend.Contracts;
 using MakoKaraGenerator.Rendering;
+using MakoKaraGenerator.Rendering.Skia;
 using MakoKaraGenerator.Scripting;
 
 namespace MakoKaraGenerator.Backend.Worker;
@@ -26,6 +27,7 @@ internal sealed class GpuStreamSession : IAsyncDisposable
     private int _disposed;
     private string _consumerEpoch = "1";
     private string? _failureCode;
+    private GpuStreamFailure? _renderFailure;
     private bool _runtimeFailed;
     private long _barrierControlSeq;
     private GpuStreamDiagnosticSummary? _diagnostics;
@@ -159,6 +161,15 @@ internal sealed class GpuStreamSession : IAsyncDisposable
                         BeginRuntimeFailure("WorkerRuntimeDiagnosticError");
                         stopping = true;
                     }
+                    catch (Exception failure) when (KnownBudgetFailure(failure))
+                    {
+                        // This managed admission failure precedes CopyGpuFrame, so this
+                        // attempt has no shared lease. Earlier exports still require their
+                        // exact consumer completion; no cancellation or synthetic ACK.
+                        _renderFailure = GpuStreamFailure.From(failure);
+                        BeginRuntimeFailure(_renderFailure.Code);
+                        stopping = true;
+                    }
                     rendering = null;
                     if (result is not null)
                     {
@@ -200,7 +211,8 @@ internal sealed class GpuStreamSession : IAsyncDisposable
                     if (_runtimeFailed)
                         Send(new { type = "failed", protocolVersion = 1, _open.StreamId, _open.HostInstanceId,
                             producerEpoch = ProducerEpoch, _open.InputGeneration, consumerEpoch = _consumerEpoch,
-                            code = _failureCode, drained = true, diagnostics = _diagnostics });
+                            code = _failureCode, failureType = _renderFailure?.Type, failureSite = _renderFailure?.Site,
+                            failureDetail = _renderFailure?.Detail, drained = true, diagnostics = _diagnostics });
                     else
                         Send(new { type = "stopped", protocolVersion = 1, _open.StreamId, _open.HostInstanceId,
                             producerEpoch = ProducerEpoch, _open.InputGeneration, consumerEpoch = _consumerEpoch,
@@ -285,6 +297,8 @@ internal sealed class GpuStreamSession : IAsyncDisposable
         RenderSessionFailureException { DiagnosticSnapshot: { HasError: true } actual } => actual,
         _ => null,
     };
+    private static bool KnownBudgetFailure(Exception failure) => failure is ImageSurfaceBudgetException ||
+        failure is SourceMaterialFailureException { InnerException: ImageSurfaceBudgetException };
     private void BeginRuntimeFailure(string code)
     {
         _failureCode = code; _runtimeFailed = true;

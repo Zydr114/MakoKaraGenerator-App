@@ -58,6 +58,13 @@ public sealed partial class SkiaRenderPipeline
         internal MaterialAuthorGraphCache AuthorGraphs { get; } = new(resources);
         internal ObjectBackgroundCache Backgrounds { get; } = new(resources);
         internal T Own<T>(T value) where T : IDisposable { Owned.Add(value); return value; }
+        internal void Release(IDisposable value) { if (Owned.Remove(value)) value.Dispose(); }
+        internal void ReleaseOriginal(SkiaGraphSurface surface)
+        {
+            if (ReferenceEquals(surface, Empty) || Layers.Any(layer => ReferenceEquals(layer.Surface, surface))) return;
+            var captured = Owned.OfType<SceneColorPartResult>().FirstOrDefault(value => ReferenceEquals(value.Surface, surface));
+            if (captured is not null) Release(captured);
+        }
         public void Dispose() { try { Backgrounds.Dispose(); AuthorGraphs.Dispose(); AlphaReadback.Dispose(); for (int i = Owned.Count - 1; i >= 0; i--) Owned[i].Dispose(); } finally { SetLayerBudget(0); } }
     }
 

@@ -11,8 +11,8 @@ public sealed record GraphExecutionBudget
     public static GraphExecutionBudget Default { get; } = new();
     /// <summary>每图最大 pass。</summary>
     public int MaximumPasses { get; init; } = 32;
-    /// <summary>输入及中间产物的最大同时活动表面数。</summary>
-    public int MaximumSurfaces { get; init; } = 64;
+    /// <summary>输入及中间产物的最大同时活动表面数；同时受会话像素字节预算约束，不预分配。</summary>
+    public int MaximumSurfaces { get; init; } = 256;
     /// <summary>活动图像预估字节预算。</summary>
     public long MaximumBytes { get; init; } = 512L * 1024 * 1024;
     /// <summary>单张表面每边最大像素。</summary>

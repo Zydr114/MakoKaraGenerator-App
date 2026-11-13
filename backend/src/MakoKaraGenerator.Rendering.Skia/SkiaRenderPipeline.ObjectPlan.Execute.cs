@@ -151,7 +151,7 @@ public sealed partial class SkiaRenderPipeline
             if (empty)
             {
                 if (state.Empty is null) state.Empty = surface;
-                else { captured.Dispose(); surface = state.Empty; }
+                else { state.Release(captured); surface = state.Empty; }
             }
             state.Layers.Add(new(step.Order, [new(step.Member, step.Part)], surface, [], null, null));
             return empty;
@@ -170,7 +170,7 @@ public sealed partial class SkiaRenderPipeline
                 "CaptureSceneColorPart", static (_, _, _) => { }));
             state.Layers.Add(new(step.Order, [new(step.Member, step.Part)], state.Empty, [], null, null));
         }
-        // 每个成员的填充部件从不预判为空，共同透明度总能取到；跳过的空层不参与核对。
+        // 对象至少有一个真实填充部件，共同透明度由实际捕获或材质取得；跳过的空层不参与核对。
         void SetOpacity(double value)
         {
             if (!opacityKnown) { state.Opacity = value; opacityKnown = true; }

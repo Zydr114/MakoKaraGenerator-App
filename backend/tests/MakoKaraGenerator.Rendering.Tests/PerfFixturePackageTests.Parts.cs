@@ -31,6 +31,52 @@ public sealed partial class PerfFixturePackageTests
         Assert.True(fullSurfaces - skippedSurfaces >= (decoration == PartDecoration.None ? 14 : 10), $"表面 {fullSurfaces} → {skippedSurfaces}");
     }
 
+    [Fact]
+    public async Task 成员判空只跳无注音元素与已被接管的整行部件且生产像素不变()
+    {
+        var package = await Read("MaterialConstant");
+        var project = Plain(package, []);
+        var line = project.Lyrics.AllLines.Single();
+        line = line with
+        {
+            Tokens = [LyricToken.Create("a", "A", new(0, 2 * TimeUs), TimingStatus.Edited),
+                LyricToken.Create("b", "B", new(0, 2 * TimeUs), TimingStatus.Edited)],
+            RubyAnnotations = [RubyAnnotation.Create("ruby", "a", "x")],
+        };
+        var material = new MaterialSpec.PackageMaterial(package.PackageId, package.Revision, "constant", EffectParameterOverrides.Parse("{}"));
+        project = project with { Lyrics = LyricsDocument.Create([line]), LyricStyle = project.LyricStyle with
+            { UnsungFill = new() { Material = material }, SungFill = new() { Material = material } } };
+        var compiled = await Compile(project);
+        var snapshot = ProjectSnapshot.FromProject(project);
+        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), ReplayReason.Export).CreateAsync(snapshot);
+        var frame = await session.PrepareAsync(TimeUs, OutputMode.Opaque, RenderTarget.FromComposition(snapshot.Composition));
+        using var device = new GraphPixelCheckModeTests.CountingDevice();
+        var compiledPackage = Assert.Single(compiled.Packages);
+        using var native = CompiledPackageGraphExports.CompileWithDevice(compiledPackage.Definition, null, device, pixelChecks: false);
+        using var resources = new SceneImageEffectResources([], null, [native.CreateMaterialProgram(compiledPackage.Resources.GetMaterial("constant"), Canvas)]);
+        List<SkiaRenderPipeline.ObjectRenderPlan> plans = [];
+        byte[] Render(bool skip, bool checks)
+        {
+            using var renderer = new SkiaRenderPipeline(null, null, null, resources, false, device, false, graphPixelChecks: checks)
+                { SkipKnownEmptyParts = skip, ObjectPlanBuilt = plans.Add };
+            using var image = renderer.Render(RenderRequest.At(snapshot, TimeUs) with { PreparedFrame = frame });
+            return image.PixelMemory.ToArray();
+        }
+        var baseline = Render(false, false);
+        plans.Clear();
+        var actual = Render(true, false);
+        Assert.Equal(0, device.ImageReads); // 两次正式配置都不为判空读回。
+        Assert.Equal(baseline, actual);
+        var plan = Assert.Single(plans);
+        Assert.All(plan.Parts.Where(step => step.Member == plan.Target), step => Assert.Equal(SkiaRenderPipeline.ObjectPartKind.KnownEmpty, step.Kind));
+        var noRuby = plan.Parts.Where(step => step.Member is ImageEffectTarget.Token token && token.Target.TokenId.Value == "b" && IsRubyPart(step.Part));
+        Assert.NotEmpty(noRuby);
+        Assert.All(noRuby, step => Assert.Equal(SkiaRenderPipeline.ObjectPartKind.KnownEmpty, step.Kind));
+        Assert.Contains(plan.Parts, step => step.Member is ImageEffectTarget.Token token && token.Target.TokenId.Value == "a"
+            && step.Part == SceneColorPart.RubyFill && step.Kind == SkiaRenderPipeline.ObjectPartKind.Material);
+        Assert.Equal(actual, Render(true, true)); // 已知为空仍执行原捕获，核对静态证明。
+    }
+
     private static async Task<(byte[] Pixels, int Surfaces)> RenderParts(PartDecoration decoration, bool gpu, bool skip)
     {
         var package = await Read("MaterialConstant");

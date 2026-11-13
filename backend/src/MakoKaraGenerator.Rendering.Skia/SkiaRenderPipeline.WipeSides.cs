@@ -34,10 +34,20 @@ public sealed partial class SkiaRenderPipeline
         using var sungPair = SidePayload(sung);
         var merged = state.Own(_compositionProgram.MixWipePayloads(unsungPair, sungPair, glyph, sungCoverage, resources, cancellationToken));
         var material = sung.History.IsEmpty ? unsung : sung;
+        // 合并对由 RasterPayloadPair 独立拥有颜色与擦除；最终组装和叶到父组导出都优先读取 ClosedPayload。
+        // 只有本对象后续的整行图或同成员图还可能用历史求替换范围，此时必须保留两侧的完整历史。
+        bool readsHistory = plan.Graphs.Any(graph => graph.Binding.Binding.Target is ImageEffectTarget.Line
+            || graph.Binding.Binding.Target == step.Member);
+        var history = unsung.History.AddRange(sung.History);
         state.Layers.RemoveRange(index, 2);
-        state.Layers.Add(new(step.Order, [source], merged.Color, unsung.History.AddRange(sung.History), material.Graph, material.Owner)
+        state.Layers.Add(new(step.Order, [source], merged.Color, readsHistory ? history : [], material.Graph, material.Owner)
             { ClosedPayload = merged });
         state.SetLayerBudget(state.Layers.Count);
+        state.ReleaseOriginal(unsung.Surface);
+        state.ReleaseOriginal(sung.Surface);
+        if (!readsHistory)
+            foreach (var result in history.Distinct())
+                if (!state.Layers.Any(layer => layer.History.Contains(result))) state.Release(result);
 
         ImageCompositionPayload SidePayload(ColorLayer layer) => layer.History.IsEmpty
             ? _compositionProgram.CaptureCompositionPayload(layer.Surface, context, resources, cancellationToken: cancellationToken)

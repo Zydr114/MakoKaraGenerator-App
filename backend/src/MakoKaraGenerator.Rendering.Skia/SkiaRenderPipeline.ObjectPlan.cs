@@ -271,12 +271,35 @@ public sealed partial class SkiaRenderPipeline
 
     /// <summary>
     /// 判空（F3）：本帧必然没有像素的部件改为已知为空，不捕获、不执行材质，只占共享空层；层数与层序不变。
-    /// 注音部件（含注音材质）在无注音行上一律为空；描边与阴影只在所有可能参与绘制的样式都未启用时为空，描边材质仍执行。
+    /// 注音部件（含注音材质）按成员拥有的注音判空；原样描边与阴影只在该成员所选态的所有可能样式都未启用时为空，描边材质仍执行。
     /// </summary>
     private static ObjectRenderPlan MarkKnownEmptyParts(RenderRequest request, ObjectRenderPlan plan)
     {
-        var knownEmpty = ObjectKnownEmptyParts(request, plan.Item);
-        return plan with { Parts = [.. plan.Parts.Select(step => knownEmpty.Contains(step.Part, step.SlotHasMaterial)
-            ? step with { Kind = ObjectPartKind.KnownEmpty, Material = null, MaterialProgram = null } : step)] };
+        // 同一成员的样式只枚举一次；两侧只在这个小集合上分别判定，不按部件重新扫描整行。
+        var members = plan.Parts.Select(step => step.Member).Distinct().ToDictionary(member => member, member =>
+        {
+            var styles = ObjectPartStyles(request, plan.Item, member, plan.ExcludedTokens).ToArray();
+            var line = plan.Item.Line?.Frame.Line;
+            bool ruby = line is not null && !line.RubyAnnotations.Any(annotation => member is ImageEffectTarget.Token token
+                ? annotation.BaseTokenId == token.Target.TokenId.Value : !plan.ExcludedTokens.Contains(annotation.BaseTokenId));
+            return (Both: MemberKnownEmptyParts(styles, ruby, null), Unsung: MemberKnownEmptyParts(styles, ruby, false),
+                Sung: MemberKnownEmptyParts(styles, ruby, true));
+        });
+        // 整行文字完全由独立成员接管时，原样成员已没有基础字；保留不能独立分区时原捕获的明确错误。
+        var geometry = request.PreparedFrame!.FinalGeometry.Where(token => token.WithRuby.BindingId.Value == plan.Item.Line?.BindingId).ToArray();
+        bool noOriginalBase = plan.Item.Line is { Frame: { TokensMatchLineText: true, Line: { } source } }
+            && !source.Tokens.IsEmpty && source.Tokens.All(token => plan.ExcludedTokens.Contains(token.Id))
+            && geometry.Length == source.Tokens.Length
+            && geometry.All(token => token.BaseGeometry.CanTransformIndependently)
+            && geometry.Select(token => token.WithRuby.TokenId.Value).ToHashSet(StringComparer.Ordinal)
+                .SetEquals(source.Tokens.Select(token => token.Id));
+        return plan with { Parts = [.. plan.Parts.Select(step =>
+        {
+            var member = members[step.Member];
+            var known = step.Sung switch { false => member.Unsung, true => member.Sung, null => member.Both };
+            bool empty = known.Contains(step.Part, step.SlotHasMaterial)
+                || noOriginalBase && step.Member == plan.Target && !IsRuby(step.Part) && step.Kind == ObjectPartKind.Original;
+            return empty ? step with { Kind = ObjectPartKind.KnownEmpty, Material = null, MaterialProgram = null } : step;
+        })] };
     }
 }

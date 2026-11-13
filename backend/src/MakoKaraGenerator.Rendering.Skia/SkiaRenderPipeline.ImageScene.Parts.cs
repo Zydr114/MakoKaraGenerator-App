@@ -1,4 +1,5 @@
 using MakoKaraGenerator.Core.Projects;
+using MakoKaraGenerator.Scripting;
 using static MakoKaraGenerator.Rendering.Skia.SkiaSceneGeometry;
 
 namespace MakoKaraGenerator.Rendering.Skia;
@@ -8,10 +9,10 @@ public sealed partial class SkiaRenderPipeline
     /// <summary>F3：先判空再分配；关闭时每个部件照常捕获，供回归对照。</summary>
     internal bool SkipKnownEmptyParts { get; set; } = true;
 
-    /// <summary>本帧对象里必然没有像素的部件类别（F3）。</summary>
-    /// <param name="Ruby">本行没有注音。</param>
-    /// <param name="Stroke">所有可能参与绘制的样式在两态都没有启用描边。</param>
-    /// <param name="Shadow">所有可能参与绘制的样式在两态都没有启用阴影。</param>
+    /// <summary>本帧一个对象成员里必然没有像素的部件类别（F3）。</summary>
+    /// <param name="Ruby">该成员没有注音。</param>
+    /// <param name="Stroke">该成员所有可能参与绘制的样式在所选态都没有启用描边。</param>
+    /// <param name="Shadow">该成员所有可能参与绘制的样式在所选态都没有启用阴影。</param>
     /// <param name="OuterStroke">所有可能参与绘制的样式在两态都没有第 2 层起会绘制的描边（P3 设计 §6.3）。</param>
     private readonly record struct KnownEmptyParts(bool Ruby, bool Stroke, bool Shadow, bool OuterStroke)
     {
@@ -22,23 +23,25 @@ public sealed partial class SkiaRenderPipeline
             || Shadow && part is SceneColorPart.BaseShadow or SceneColorPart.RubyShadow;
     }
 
-    private static KnownEmptyParts ObjectKnownEmptyParts(RenderRequest request, SceneDrawItem item)
+    private static KnownEmptyParts MemberKnownEmptyParts(LyricStyle[] styles, bool ruby, bool? sung)
     {
         bool stroke = false, shadow = false, outer = false;
-        foreach (var style in ObjectPartStyles(request, item))
+        foreach (var style in styles)
         {
-            stroke |= EitherState(style, static state => state.Unsung.Strokes.IsEnabled);
-            outer |= EitherState(style, static state => state.Unsung.Strokes.Skip(1).Any(static layer => layer.IsEnabled));
-            shadow |= EitherState(style, static state => state.Shadow is { IsEnabled: true });
+            stroke |= Enabled(style, static state => state.Unsung.Strokes.IsEnabled);
+            outer |= Enabled(style, static state => state.Unsung.Strokes.Skip(1).Any(static layer => layer.IsEnabled));
+            shadow |= Enabled(style, static state => state.Shadow is { IsEnabled: true });
             if (stroke && shadow && outer) break;
         }
-        return new(item.Line?.Frame.Line?.RubyAnnotations.IsEmpty == true, !stroke, !shadow, !outer);
+        return new(ruby, !stroke, !shadow, !outer);
+        bool Enabled(LyricStyle style, Func<LyricStyle, bool> enabled)
+            => sung is { } side ? enabled(style.ForState(side)) : EitherState(style, enabled);
     }
 
     /// <summary>对象绘制时可能用到的全部样式，保守取并集：任一来源启用描边／阴影就照常捕获。</summary>
     /// <remarks>行：行基础样式与元素覆盖（原样绘制与注音所用）、本帧装载的源外观、脚本字族外观、基础字外观；
     /// 标记：其最终绘制样式。像素检查开启时，判空的部件仍按原样部件捕获并核对（见 DrawObject）。</remarks>
-    private static IEnumerable<LyricStyle> ObjectPartStyles(RenderRequest request, SceneDrawItem item)
+    private static IEnumerable<LyricStyle> ObjectPartStyles(RenderRequest request, SceneDrawItem item, ImageEffectTarget member, HashSet<string> excluded)
     {
         var prepared = request.PreparedFrame!;
         if (item.Mark is { } mark)
@@ -54,15 +57,16 @@ public sealed partial class SkiaRenderPipeline
         var lineStyle = StaticStyleProjection.DrawingSeed(LineBaseStyle(request.Project.LyricStyle, line, scene.Branch));
         yield return lineStyle;
         foreach (var token in line.Tokens)
-            if (token.StyleOverride is { } overlay) yield return ResolveElementStyle(lineStyle, overlay);
+            if (Includes(token.Id) && token.StyleOverride is { } overlay) yield return ResolveElementStyle(lineStyle, overlay);
         foreach (var output in prepared.TokenStyles)
-            if (output.Target.BindingId.Value == binding) yield return prepared.GetTokenDrawingStyle(output.Target);
+            if (output.Target.BindingId.Value == binding && Includes(output.Target.TokenId.Value)) yield return prepared.GetTokenDrawingStyle(output.Target);
         foreach (var output in prepared.BaseStyles)
-            if (output.Target.BindingId.Value == binding) yield return prepared.GetBaseDrawingStyle(output.Target);
+            if (output.Target.BindingId.Value == binding && Includes(output.Target.TokenId.Value)) yield return prepared.GetBaseDrawingStyle(output.Target);
         foreach (var target in prepared.BaseAppearances.Keys)
-            if (target.BindingId.Value == binding) yield return prepared.GetBaseDrawingStyle(target);
+            if (target.BindingId.Value == binding && Includes(target.TokenId.Value)) yield return prepared.GetBaseDrawingStyle(target);
         var resolver = PresetSceneStyleProjection.Resolver(request.Project);
         foreach (var token in line.Tokens)
-            yield return PresetSceneStyleProjection.LyricsForBinding(request.Project, scene, token.Id, prepared.HierarchyScene, resolver).Style;
+            if (Includes(token.Id)) yield return PresetSceneStyleProjection.LyricsForBinding(request.Project, scene, token.Id, prepared.HierarchyScene, resolver).Style;
+        bool Includes(string id) => member is ImageEffectTarget.Token token ? token.Target.TokenId.Value == id : !excluded.Contains(id);
     }
 }

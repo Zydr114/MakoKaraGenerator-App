@@ -57,7 +57,9 @@ public sealed partial class PerfFixturePackageTests
         Assert.Contains(skipped.Parts, step => IsRubyPart(step.Part));
         var decoration = skipped.Parts.Where(step => step.Part is SceneColorPart.BaseStroke or SceneColorPart.BaseShadow).ToArray();
         Assert.NotEmpty(decoration);
-        Assert.All(decoration, step => Assert.Equal(decorated ? ObjectPartKind.Original : ObjectPartKind.KnownEmpty, step.Kind));
+        Assert.All(decoration, step => Assert.Equal(decorated && step.Member != skipped.Target ? ObjectPartKind.Original : ObjectPartKind.KnownEmpty, step.Kind));
+        // 全部基础字都已交给独立元素族，整行原样成员无需保留空捕获。
+        Assert.All(skipped.Parts.Where(step => step.Member == skipped.Target), step => Assert.Equal(ObjectPartKind.KnownEmpty, step.Kind));
         Assert.Equal([(SceneColorPart.BaseFill, false), (SceneColorPart.BaseFill, true)],
             skipped.Parts.Where(step => step.Kind == ObjectPartKind.Material).Select(step => (step.Part, step.Sung!.Value)));
         Assert.All(skipped.Parts.Where(step => step.Kind == ObjectPartKind.KnownEmpty), step => Assert.Null(step.Material));

@@ -68,7 +68,7 @@ public sealed partial class WipeFeatherRenderingTests
 
         internal const double StrokeWidth = 8;
 
-        internal byte[] Render(Project project, MaterialSides sides, long time, bool prefix, out ImageSurfaceUsage usage, bool stroke = false, bool same = false)
+        internal byte[] Render(Project project, MaterialSides sides, long time, bool prefix, out ImageSurfaceUsage usage, bool stroke = false, bool same = false, bool objectGraph = false, bool checks = false)
         {
             var snapshot = ProjectSnapshot.FromProject(project with { Effects = new([_package], []) });
             RenderTarget target = new() { PixelWidth = Width, PixelHeight = Height };
@@ -95,11 +95,17 @@ public sealed partial class WipeFeatherRenderingTests
                 Fx.ImageEffectTarget.Group root = new(new(new(snapshot.LyricPresentation.FindProgram("primary")!.RootContainerId)));
                 frame = frame.WithImageEffects([new(new("group"), "artifact-group", new(root, GroupCatalog.GetGraph("identity"), Fx.ParameterValues.Empty))]);
             }
-            SceneImageGraphProgram[] graphs = prefix
+            if (objectGraph)
+            {
+                var token = tokens[0].WithRuby;
+                frame = frame.WithImageEffects([.. frame.ImageEffects, new(new("token"), "artifact-token",
+                    new(new Fx.ImageEffectTarget.Token(token), GroupCatalog.GetGraph("identity"), Fx.ParameterValues.Empty))]);
+            }
+            SceneImageGraphProgram[] graphs = prefix || objectGraph
                 ? [new(GroupCatalog.GetGraph("identity"), _identity, new(true, true, true, true, SceneCaptureRegion.FillAndStroke, true), Canvas)] : [];
             using var resources = new SceneImageEffectResources(graphs, null, [_native.CreateMaterialProgram(_handle, Canvas)]);
             using var budget = new ImageSurfaceBudgetSession();
-            using var renderer = new SkiaRenderPipeline(null, null, budget, resources, false, _device, false);
+            using var renderer = new SkiaRenderPipeline(null, null, budget, resources, false, _device, false, graphPixelChecks: checks);
             using var rendered = renderer.Render(RenderRequest.At(snapshot, time) with { PreparedFrame = frame, Target = target, TransparentBackground = false });
             Assert.Empty(rendered.MaterialDiagnostics);
             usage = budget.Usage;
@@ -181,6 +187,19 @@ public sealed partial class WipeFeatherRenderingTests
         const long t = 1_400_000;
         byte[] before = rig.Render(project, MaterialSides.Both, 500_000, prefix, out _), after = rig.Render(project, MaterialSides.Both, 3_000_000, prefix, out _);
         AssertCrossfade(before, after, rig.Render(project, MaterialSides.Both, t, prefix, out _), left, right, t, 3, $"GPU replace={replace} prefix={prefix}");
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void 羽化闭合后保留后续元素图所需替换范围且父组导出像素一致(bool prefix)
+    {
+        var project = SideProject(.5, SideUnsung, SideSung);
+        using var rig = new SideRig(replace: true, gpu: false);
+        const long t = 1_400_000;
+        var closed = rig.Render(project, MaterialSides.Both, t, prefix, out _);
+        var continued = rig.Render(project, MaterialSides.Both, t, prefix, out _, objectGraph: true);
+        Assert.InRange(closed.Zip(continued, (a, b) => Math.Abs(a - b)).Max(), 0, 2);
+        Assert.Equal(continued, rig.Render(project, MaterialSides.Both, t, prefix, out _, objectGraph: true, checks: true));
     }
 
     [Fact]

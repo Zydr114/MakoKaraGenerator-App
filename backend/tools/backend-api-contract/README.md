@@ -1,10 +1,12 @@
 # 冻结 API 合同生成与校验
 
-本轮工具源码目标为 **合同1.51.0／产品0.112.86／协议1**（2026-11-13）：导出与同帧测量的兜底诊断（只增字段），行为见[§11.3、§13.21](../../docs/architecture/backend-api.md)。fresh metadata生成与validate为115 paths／128 methods／663 schemas、3926例（2837反例）。下述旧版本材料保留历史归属；合同生成不替代匹配发布与fresh HTTP验收。
+本轮工具源码目标为 **合同1.51.1／产品0.112.88／协议1**（2026-11-13）：换输入切换 alphaMode 时按新模式固定媒体、试样固定实例身份与种子，只改行为不改形状。fresh metadata生成与validate沿用1.51.0的115 paths／128 methods／663 schemas、3926例（2837反例）。下述旧版本材料保留历史归属；合同生成不替代匹配发布与fresh HTTP验收。
 
 从 `backend/` 执行。本工具构建Contracts引用的离线CLI，不启动服务。`author_metadata_schema.py` 审阅真实CLR字段、nullable与构造默认值，复用现有 `AuthorPackageQuery` 和参数/导出/input/file/diagnostic DTO；检查响应独立且无reference，公共包引用kind继续仅为asset/library/configuration。采用配置采用inline完整八字段严格schema，避免改变package-files的既有配置语义；两个可空字段仍显式必填，UInt64种子采用十进制字符串并保留前导零。`author_metadata_fixtures.py` 覆盖精确整数、Int64 `files.size`、未来未知响应字段、完整采用、旧请求兼容和具名拒绝；运行期CAS/owner、重复JSON键、完整UTF-8预算、编译来源、原子存储和真实sampleOptions须由服务/HTTP核对。
 
-`freeze.py` 将新行为接缝显式纳入指纹，新增路径/响应和附加fixture；`validate.py` 保留历史SDK2、作者、GPU/辉光及全量样例门禁，并单独扣除本轮尾部增量后核对旧3434/2548基线。本轮 `BASELINE` 为已提交生产源码 `8df09c8`（完整哈希见 `freeze.py`），已从该源码重建／导出metadata并生成检查；产品版本从 `Directory.Build.props` 读取。静态门禁不替代匹配发布、fresh HTTP或性能验收；进度见App根 `docs/plans/script-sdk-v2-phase-one-progress.md`。
+`freeze.py` 将新行为接缝显式纳入指纹，新增路径/响应和附加fixture；`validate.py` 保留历史SDK2、作者、GPU/辉光及全量样例门禁，并单独扣除本轮尾部增量后核对旧3434/2548基线。本轮 `BASELINE` 为已提交生产源码 `a1f4379`（完整哈希见 `freeze.py`），已从该源码重建／导出metadata并生成检查；产品版本从 `Directory.Build.props` 读取。静态门禁不替代匹配发布、fresh HTTP或性能验收；进度见App根 `docs/plans/script-sdk-v2-phase-one-progress.md`。
+
+1.51.1 是行为补丁（M13 收口）：0.112.87（`PUT …/input` 切换 alphaMode 时按新模式固定媒体输入）与 0.112.88（模板工坊与作者草稿试样固定实例身份与种子）均在既有指纹清单内，不改路由、DTO、schema与例子。`freeze.py` 只改版本、基线 `a1f4379` 与scope；`validate.py` 把1.51.1并入现行门禁，历史1.51.0对应0.112.86。
 
 1.51.0 增加兜底诊断（P3 第 7 步 B）：`export_fallback_schema.py` 审阅三个DTO的新增CLR字段（类型、非空、默认值），新增 `BackendFallbackDiagnostic`（公共省略null形状，复用 `BackendDiagnosticDto` 并把来源收窄为imageEffect／material、级别为warning）与 `BackendFallbackDiagnosticRaw`（登记原样报告形状，空槽位与location／occurrence为null），给 `ExportReportDtoRaw` 加三项同有同无的字段（`dependentRequired`；登记报告按原字节返回，升级前登记的没有这三项）、`ExportJobResultDto` 加 `fallbackDiagnosticCount`（0..128）、`SceneMeasurementDataDto` 加 `fallbackDiagnostics`。`export_fallback_fixtures.py` 的 `migrate_cases` 给1.50.0例子集中的导出报告、job结果与测量例子补上空值字段，`restore_cases` 删去这些字段并核对其为空值，`fixtures()` 生成 `export-fallback-` 前缀的新例子。`freeze.py` 先还原1.50.0例子集，再按1.50.0流水线迁移并追加新例子；`validate.py` 对1.51.0扣除尾部新例子、还原1.50.0例子集交给其后的门禁，当前例子集整体按新spec校验。`render_backend_fixtures.fixtures()` 从例子集取样本，1.51.0 校验时传入还原后的1.50.0例子集。
 

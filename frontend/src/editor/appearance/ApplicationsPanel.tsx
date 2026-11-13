@@ -161,7 +161,7 @@ function Orphans(props: { invalid: readonly PresetApplication[]; other: readonly
               </li>
             ))}
           </ul>
-          <Note>这些分配还在工程里，但已经不起作用。</Note>
+          <Note>这些分配完整保留在工程中，渲染时会跳过，不影响其他目标。可以移除；恢复原目标（例如撤销删除）后，启用的分配会自动生效。</Note>
         </>
       )}
       {props.other.length > 0 && (

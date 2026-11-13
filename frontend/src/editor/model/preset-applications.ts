@@ -9,7 +9,7 @@ export interface ApplicationIndex {
   byId: ReadonlyMap<string, PresetApplication>;
   /** 目标键（与 targetKey 相同）→ 这个目标上的直接分配，按工程里的顺序。 */
   byTarget: ReadonlyMap<string, readonly PresetApplication[]>;
-  /** 目标已不存在的分配：照常参与保存，但不再起作用，可以移除。 */
+  /** 顶层目标已不存在的分配：完整保留并参与保存，渲染时跳过；原目标恢复后，启用的分配重新生效，也可以移除。 */
   invalid: readonly PresetApplication[];
   /** 认不出的目标种类上的分配：只读列出。 */
   other: readonly PresetApplication[];

@@ -316,6 +316,22 @@ describe('工程里的分配', () => {
     expect(updateSource(a, () => false)).toBeUndefined();
     expect(updateSource({ ...a, source: { ...a.source, libraryId: 'personal' } }, () => true)).toBe('personal');
   });
+
+  it('保留启用但目标缺失的分配；原编排对象恢复后，重新归到同一目标', () => {
+    const target: NodeTarget = { kind: 'node', nodeId: 'harmony', includeDescendants: true };
+    const orphan = app('harmony-effect', target, { targetValid: false });
+    const project = app('main-style', { kind: 'project' });
+    const index = indexApplications([project, orphan]);
+    expect(index.byId.get(orphan.applicationId)).toBe(orphan);
+    expect(applicationsOn(index, [target])).toEqual([]);
+    expect(applicationsOn(index, [PROJECT_TARGET])).toEqual([project]);
+
+    const restored = { ...orphan, targetValid: true };
+    const restoredIndex = indexApplications([project, restored]);
+    expect(restoredIndex.invalid).toEqual([]);
+    expect(applicationsOn(restoredIndex, [target])).toEqual([restored]);
+    expect(applicationsOn(restoredIndex, [PROJECT_TARGET])).toEqual([project]);
+  });
 });
 
 // ── W7 第 8 步：编排对象作为目标（W7 设计 §2.7、§2.8） ──

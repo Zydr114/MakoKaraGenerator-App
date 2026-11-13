@@ -98,3 +98,16 @@
 6. 证据记录、台账、验收表；交用户验收 M13。
 
 M13 不做：P4 余项、Windows 与安装包、前端类型从 OpenAPI 生成（路线 §9）；删除 v1 属于 M14。
+
+## 9. 清点结果（第 2 步，2026-11-13，源码 `561fc67`）
+
+- **B2 已有**：工程 31 与效果合同 2 的旧版拒绝且源字节不变、旧 schema 保存门禁在建目录之前（`SdkV2PersistenceGateTests`）；
+  模板库 9 与脚本配置库 2 的旧版／未来版拒绝、拒绝覆盖、旧目录原样保留（同上，`BackendTemplateLibraryPathTests`、`ScriptConfigurationLibraryTests`）；
+  预设应用快照的模板版本不等即拒绝（`PresetApplicationsTests`、`PresetStaticProjectSnapshotCodecTests`）；SDK `2.0.x` 补丁号经 `.mkfx`／`.mktpl` 往返、
+  `2.1.0` 准入拒绝（`EffectPackageTransferTests`、`StyleTemplateTransferTests`、`WorkerPackageProfileAdmissionTests`）。
+  **缺**：当前工程配上一版歌词单独拒绝且字节不变（现有用例工程与歌词同时为旧版）。
+- **C1 已有**：预览 CPU 拒绝（`PreviewTransportTests.SdkV2Backend`）、作者验证 CPU 拒绝（`BackendAuthorV2WorkflowTests`）、运行时拒绝（`V2PurePackageTests` 等）。
+  **缺**：工程级导出与正式验证的 CPU 拒绝（`ProjectSessionRegistry.Export.cs`／`Validation.cs` 有检查、无回归）。
+- **G2**：后端 ADR 到 0253（2026-11-05），v2 的纯函数阶段、只读索引、执行计划、仅 Vulkan、v1 淘汰都没有 ADR。
+- **A3 a／b**：仍缺。`mark.affine` 无 v2 渲染用例；v2 `SetShadow` 只有合同测试；组透明度只有 v1 导出用例（`GroupOpacityExportTests`）；
+  v2 `Random` 与 Available 音频输入无用例。

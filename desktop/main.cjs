@@ -32,7 +32,7 @@ function diagnostics(value) {
   return value;
 }
 const delay = ms => new Promise(done=>setTimeout(done,ms));
-let window, stream, gpuInfo, ending=false, lost=false, attachBusy=false;
+let window, stream, gpuInfo, ending=false, lost=false, attachBusy=false, attachSeq=0;
 const events=[];
 const record=(type,detail={})=>{ events.push({type,ms:performance.now(),...detail}); if(events.length>256) events.shift(); };
 const safeState = value => {
@@ -171,7 +171,7 @@ function packet(s,p) {
     const summary=diagnostics(m.diagnostics);
     if(m.drained===true&&s.imports.size===0){
       s.stopping=true;s.stopped=true;s.pending=null;s.executing=null;
-      window.webContents.send('mako-gpu:detach');
+      window.webContents.send('mako-gpu:detach',{attachSeq:s.attachSeq});
       completeStop(s);
       safeState({type:'failed',...controlIdentity(s),code:m.code??m.failureCode??'gpuRenderFailed',diagnostics:summary});
       return;
@@ -186,7 +186,7 @@ async function detach() {
   if(!s)return;
   if(s.stopped&&!s.connection){if(stream===s)stream=null;return;}
   if(s.stopping)return s.stopPromise;
-  s.stopping=true;window?.webContents.send('mako-gpu:detach');
+  s.stopping=true;window?.webContents.send('mako-gpu:detach',{attachSeq:s.attachSeq});
   s.stopPromise=new Promise((done,reject)=>{s.resolveStop=done;const timeout=setTimeout(()=>reject(new Error('GPU drain deadline')),10000);s.clearStop=()=>clearTimeout(timeout);});
   send(s,{type:'stop',...controlIdentity(s)});
   try{await s.stopPromise;}catch(error){failStop('gpuDrainTimeout');throw error;}finally{s.clearStop();if(stream===s)stream=null;}
@@ -226,8 +226,11 @@ async function attach(streamId,expectedInputGeneration) {
     },2);
     await Promise.race([hello,delay(5000).then(()=>{if(!s.hello)throw new Error('GPU handshake deadline');})]);
     s.attachedMonotonicNs=process.hrtime.bigint().toString();
-    window.webContents.send('mako-gpu:attached',{...controlIdentity(s),inputGeneration:s.inputGeneration,poolGeneration:s.poolGeneration});
-    return {streamId,inputGeneration:s.inputGeneration,producerEpoch:s.producerEpoch};
+    // 返回值与事件内容相同：渲染端谁先到用谁，attachSeq 丢掉晚到的重复事件（preload.cjs）。
+    s.attachSeq=++attachSeq;
+    const attached={...controlIdentity(s),inputGeneration:s.inputGeneration,poolGeneration:s.poolGeneration,attachSeq:s.attachSeq};
+    window.webContents.send('mako-gpu:attached',attached);
+    return attached;
   }catch{
     const s=stream;
     if(s?.imports.size){failStop('gpuAttachFailed');}

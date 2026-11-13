@@ -10,6 +10,7 @@ async function fixture(options={}){
   const ipc=new EventEmitter(),pending=[],barrierTimeouts=[];let api,boot,receiver,draws=0,releases=0;
   ipc.invoke=async(name,...args)=>{
     if(name==='mako-gpu:config')return {mode:'production',performanceDiagnostics:!!options.diagnostics};
+    if(name==='mako-gpu:attach')return options.attachResponse?.(...args);
     if(name==='mako-gpu:clock')return {mainMonotonicNs:BigInt(Math.round(performance.now()*1e6)).toString()};
     if(name==='mako-gpu:playback')return new Promise(resolve=>pending.push({args,resolve}));
     return undefined;
@@ -23,7 +24,7 @@ async function fixture(options={}){
   await boot();
   const identity={protocolVersion:1,streamId:'stream',hostInstanceId:'host',producerEpoch:'1',inputGeneration:'1',consumerEpoch:'1',poolGeneration:'1'};
   const emit=(name,value)=>ipc.emit(`mako-gpu:${name}`,{},value);
-  emit('attached',identity);
+  if(!options.detachedStart)emit('attached',identity);
   const control=(mode='paused')=>({mode,mediaTimeUs:0,rate:1,targetFps:24,timelineResetId:'reset',samplePerformanceMs:performance.now()});
   const barrier=seq=>emit('barrier',{...identity,timelineEpoch:'1',timelineResetId:'reset',minControlSeq:seq});
   const frame=async (seq,extra={})=>receiver({importedSharedTexture:{getVideoFrame:()=>({timestamp:seq,displayWidth:64,displayHeight:64,close(){}}),release(){releases++;}}},{...identity,timelineEpoch:'1',timelineResetId:'reset',controlSeq:seq,frameSeq:seq,slotId:0,slotEpoch:String(seq),timeUs:seq,width:64,height:64,...extra});
@@ -120,4 +121,26 @@ test('a newer playing intent wakes and retires the pending paused target',async(
   f.pending[0].resolve({controlSeq:1});await paused;f.barrier(1);
   f.pending[1].resolve({controlSeq:2});await playing;f.barrier(2);await f.frame(2);
   assert.equal(f.draws,1);assert.equal(f.releases,2);
+});
+
+// 附着的返回值与 attached 事件分开送达，事件可能晚到：返回值先生效，晚到的同序号事件不能清掉首个暂停控制。
+test('the attach response applies first and a late attached event cannot wipe the first paused control',async()=>{
+  let response;const f=await fixture({detachedStart:true,attachResponse:()=>response});
+  response={...f.identity,attachSeq:1};
+  await f.api.attachPreview('stream','1');
+  const state=f.api.setPlaybackState(f.control());await turn();
+  f.emit('attached',{...f.identity,attachSeq:1});
+  f.pending.shift().resolve({controlSeq:1});await state;f.barrier(1);await f.frame(1);
+  assert.equal(f.draws,1,'the sole paused frame of a new attachment must be drawn');
+  assert.equal((await f.api.readPreviewState()).rendererGate.hardControlSeq,1);
+});
+test('a detach event from a replaced attachment cannot detach the newer one',async()=>{
+  let response;const f=await fixture({detachedStart:true,attachResponse:()=>response});
+  f.emit('attached',{...f.identity,attachSeq:1});
+  response={...f.identity,inputGeneration:'2',attachSeq:2};
+  await f.api.attachPreview('stream','2');
+  f.emit('detach',{attachSeq:1});
+  const state=f.api.setPlaybackState(f.control());await turn();f.pending.shift().resolve({controlSeq:1});await state;
+  f.barrier(1);await f.frame(1,{inputGeneration:'2'});
+  assert.equal(f.draws,1);
 });

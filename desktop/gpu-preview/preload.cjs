@@ -67,8 +67,20 @@ ipcRenderer.on('mako-gpu:barrier', (_event,value) => {
   barrier = value;
   refreshBarrier();
 });
-ipcRenderer.on('mako-gpu:attached', (_event,value) => { detached=false;attachment=value;barrier=undefined;desiredPlayback=undefined;waitingReset=true;notifyBarrierWaiters(); });
-ipcRenderer.on('mako-gpu:detach', () => { detached=true;attachment=undefined;barrier=undefined;waitingReset=true;notifyBarrierWaiters(); });
+// The attach response and the attached event travel separately and the event can
+// arrive after the page already sent its first control. Whichever arrives first
+// applies; attachSeq rejects the later duplicate and detach events of replaced
+// attachments, so a late reset cannot wipe the paused intent of the new stream.
+let appliedAttachSeq=0;
+function applyAttached(value) {
+  if(Number.isSafeInteger(value?.attachSeq)){if(value.attachSeq<=appliedAttachSeq)return;appliedAttachSeq=value.attachSeq;}
+  detached=false;attachment=value;barrier=undefined;desiredPlayback=undefined;waitingReset=true;notifyBarrierWaiters();
+}
+ipcRenderer.on('mako-gpu:attached', (_event,value) => applyAttached(value));
+ipcRenderer.on('mako-gpu:detach', (_event,value) => {
+  if(Number.isSafeInteger(value?.attachSeq)&&value.attachSeq<appliedAttachSeq)return;
+  detached=true;attachment=undefined;barrier=undefined;waitingReset=true;notifyBarrierWaiters();
+});
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const nextPaint = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
@@ -77,7 +89,11 @@ contextBridge.exposeInMainWorld('makoDesktopPreview', Object.freeze({
   acceptanceEnabled: () => ipcRenderer.invoke('mako-gpu:acceptance-enabled'),
   injectAcceptanceFailure: kind => ipcRenderer.invoke('mako-gpu:acceptance-failure',kind),
   setAcceptanceVisibility: visible => ipcRenderer.invoke('mako-gpu:acceptance-visibility',visible),
-  attachPreview: (streamId,expectedInputGeneration) => ipcRenderer.invoke('mako-gpu:attach', streamId,expectedInputGeneration),
+  attachPreview: async (streamId,expectedInputGeneration) => {
+    const value=await ipcRenderer.invoke('mako-gpu:attach', streamId,expectedInputGeneration);
+    applyAttached(value);
+    return value;
+  },
   setPlaybackState: async state => {
     const changed = !desiredPlayback || desiredPlayback.timelineResetId!==state.timelineResetId || desiredPlayback.mode!==state.mode || desiredPlayback.rate!==state.rate || desiredPlayback.targetFps!==state.targetFps;
     if(changed)hardBarrier={seq:null};

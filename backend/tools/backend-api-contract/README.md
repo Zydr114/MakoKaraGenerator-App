@@ -4,9 +4,9 @@
 
 从 `backend/` 执行。本工具构建Contracts引用的离线CLI，不启动服务。`author_metadata_schema.py` 审阅真实CLR字段、nullable与构造默认值，复用现有 `AuthorPackageQuery` 和参数/导出/input/file/diagnostic DTO；检查响应独立且无reference，公共包引用kind继续仅为asset/library/configuration。采用配置采用inline完整八字段严格schema，避免改变package-files的既有配置语义；两个可空字段仍显式必填，UInt64种子采用十进制字符串并保留前导零。`author_metadata_fixtures.py` 覆盖精确整数、Int64 `files.size`、未来未知响应字段、完整采用、旧请求兼容和具名拒绝；运行期CAS/owner、重复JSON键、完整UTF-8预算、编译来源、原子存储和真实sampleOptions须由服务/HTTP核对。
 
-`freeze.py` 将本轮运行筛选与持久闭包接缝显式纳入指纹；已有新增路径／响应与fixture保留历史归属；`validate.py` 保留历史SDK2、作者、GPU/辉光及全量样例门禁，并单独扣除本轮尾部增量后核对旧3434/2548基线。本轮 `BASELINE` 为已提交生产源码 `5390bd3`（完整哈希见 `freeze.py`），已从该源码重建／导出metadata并生成检查；产品版本从 `Directory.Build.props` 读取。静态门禁不替代匹配发布、fresh HTTP或性能验收；进度见App根 `docs/plans/script-sdk-v2-phase-one-progress.md`。
+`freeze.py` 将本轮运行筛选与持久闭包接缝显式纳入指纹；已有新增路径／响应与fixture保留历史归属；`validate.py` 保留历史SDK2、作者、GPU/辉光及全量样例门禁，并单独扣除本轮尾部增量后核对旧3434/2548基线。本轮 `BASELINE` 为已提交生产源码 `2eb0299`（完整哈希见 `freeze.py`），已从该源码重建／导出metadata并生成检查；产品版本从 `Directory.Build.props` 读取。静态门禁不替代匹配发布、fresh HTTP或性能验收；进度见App根 `docs/plans/script-sdk-v2-phase-one-progress.md`。
 
-1.52.1 是行为补丁：沿用1.52.0的115／128／667与全部3930个例子，`validate.py` 将1.52.1纳入全部历史门禁，未新增形状例。固定来源包括顶层目标存在性、实例投影、完整源指纹、持久／运行源材质目录、媒体依赖、材质编译准备、设备准入与诊断归属。fresh metadata、freeze write／默认检查、validate和前端合同副本测试的精确日志位于 `artifacts/orphan-preset-20261114/contract/`；运行验收另行登记。
+1.52.1 是行为补丁：沿用1.52.0的115／128／667与全部3930个例子，`validate.py` 将1.52.1纳入全部历史门禁，未新增形状例。固定来源包括顶层目标存在性、实例投影、完整源指纹、持久／运行源材质目录、媒体依赖、材质编译准备、设备准入与诊断归属。同一候选另修复真实布局参考测量：严格匹配试样身份的代表行使用同一不可变试样解析器，同一源快照复用试样。fresh metadata、freeze write／默认检查、validate和前端合同副本测试的首轮日志保留于 `artifacts/orphan-preset-20261114/contract/`，包含布局修复的最终生成证据位于 `artifacts/orphan-preset-20261114/contract-final/`；运行验收另行登记。
 
 1.52.0 新增真实源材质失败：`source_material_failure_schema.py` 审阅可选 `BackendDiagnosticDto.sourceMaterialFailure`、完整 `BackendSourceMaterialFailureDto` 与 `BackendImageSurfaceBudgetDto` 的真实CLR字段／nullable／默认值。`originKind=sourceMaterialFailure` 必须有对应载荷、级别为error，并省略脚本occurrence与其他来源载荷；登记报告保留原始null槽位，既有报告不要求出现新增字段。实际 `ImageSurfaceBudgetExceeded` 可附活动／申请／上限表面数与规范十进制Int64字节字符串；来源不截断，完整JSON最多64KiB，服务另核固定工程归属、数值与跨字段身份。`source_material_failure_fixtures.py` 仅追加4个形状例；`validate.py` 先扣除新增尾部，再执行1.51.1及更早的完整门禁；`freeze.py` 先扣除该尾部再还原历史语料，纳入新增渲染结构提取与公开投影接缝的指纹。
 

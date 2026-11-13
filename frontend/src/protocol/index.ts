@@ -1,6 +1,6 @@
 // 后端协议的手写 TypeScript 类型，对应后端仓库 src/MakoKaraGenerator.Backend.Contracts，
 // 形状以冻结合同 docs/backend/contract（OpenAPI 1.52.1，产品 0.112.90）为准。
-// 源码基线：5390bd3c881ea11ef06c6f83306eca7ccaaec06e（App backend/）；文件指纹见合同manifest。
+// 源码基线：2eb0299013f464ad9e0199113146b323cf145c21（App backend/）；文件指纹见合同manifest。
 // 设计约定见 docs/web-client-w0-design.md §5。本目录不依赖任何其他模块。
 
 /** 后端 BackendProtocol.Version。 */

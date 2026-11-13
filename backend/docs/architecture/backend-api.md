@@ -1303,6 +1303,8 @@ Node apply/update/候选仅接受完整静态模板，拒绝效果recipe、packa
 
 layout模式为Auto、全部槽位及提示mark构建代表试样；representative明确标记合成行，不覆盖原歌词。代表行不应用原来源行/token局部覆盖，保留工程/来源/Node静态预设继承；time模式按真实指定时间采样。代表试样与真实时间测量分别以mode/samplingProfile和fingerprint区分。
 
+0.112.90／合同1.52.1的布局参考修复：布局代表行使用同一不可变试样快照的样式解析器，不再到原工程歌词中查找临时 `__layout_reference__` 行；同一源快照复用同一布局试样。只有严格匹配本次试样身份的行进入该解析路径，普通未知行继续按原规则拒绝。此缺陷在不含失效预设的工程同样存在，与失效预设运行筛选分别验证；HTTP形状、layout-reference-v1采样说明与原真实行样式继承规则保持。
+
 全局2/client1并发，20秒期限并排水；进行中测量保护client回收，Registry shutdown拒绝新测量、取消并等待全组排水；没有受管理能力或旧Worker明确taskUnavailable，不回退Host native。源持久节点≤1024/深64，真实源行≤2048，definition（节点+行+ruby）≤4096，正文+ruby累计≤200000字符，layout样本≤512，完整elements≤4096、全部corners≤20000；含metadata的Worker输入≤4MiB，完整HTTP响应≤2MiB。任何超限整体413，无截断。PNG/SHA与真实几何、附着转换、取消/期限及真实Worker兼容必须由独立运行验收证明；schema正反例只证明wire形状，不代表浏览器或完整B3/B4/B5/B6验收。
 
 

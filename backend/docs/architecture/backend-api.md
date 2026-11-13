@@ -1874,7 +1874,7 @@ controller图事务，0.112.11无DLL直接图与材质uniform，0.112.12独立Ba
 真实组调度与owned Below。它们沿现有包导入、作者、预览、验证、导出入口传递固定输入，不新增
 本节专用HTTP路由或DTO；1.46.0新增的作者声明检查与完整配置采用另见§21。包仍须为明确支持的
 v3／SDK2 profile，生产运行保留§25的Vulkan准入和实际设备核验，不因CPU参考执行器回归而允许
-公开路径回落CPU。SDK接口见[SDK v2参考§4](../../../docs/style-reference/script-sdk-v2.md#4-能力目标和输出顺序)，
+公开路径回落CPU。SDK接口见[SDK 2.0参考§5](../../../docs/style-reference/script-sdk-v2.md#5-文字输出)，
 组像素与父树语义详见[组图合同](../scripting-group-image-composition-contract.md)，实施证据和剩余
 门禁见[M09记录](../../../docs/plans/script-sdk-render-m09-evidence.md)。
 

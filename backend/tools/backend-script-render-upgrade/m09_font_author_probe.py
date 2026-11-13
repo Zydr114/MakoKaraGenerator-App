@@ -34,7 +34,8 @@ class FontProbe(g.GraphM09Probe):
         if method=='POST' and path=='/api/v1/template-libraries/personal/commands':
             command=(value or {}).get('command',{})
             if command.get('type')=='create':
-                command['definition']['properties']=['fontFamilyName','fontSizePx']
+                # 合同 1.50.0 起模板属性用 43 项属性路径（typography.*、unsung.*、sung.*、wipe.*）。
+                command['definition']['properties']=['typography.fontFamilyName','typography.fontSizePx']
                 command['definition']['style']['typography'].update(fontFamilyName=FAMILY,fontSizePx=42)
         return super().request(name,method,path,**kwargs)
 

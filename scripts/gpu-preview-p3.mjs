@@ -7,6 +7,7 @@
 // Reanalyze: node scripts/gpu-preview-p3.mjs --analyze .local/gpu-preview-p3/<run>
 // SDK2 content: add --v2-samples t01|<names> [--v2-lines 72] to --finite/--debug; lyrics shrink to N lines every 5 s
 //   names come from backend/samples/ScriptEffectsV2 or backend/tests/Fixtures/ScriptEffectsV2Perf; --v2-params blurPx=8 rewrites package parameter defaults when packing.
+//   --v2-style twoState|bands|strokes|feather edits the template's style through the editor before saving; it can stand alone without --v2-samples.
 // Background image: --background-image <png> uploads it through project settings before SDK2 content (default: solid colour only).
 // and a UI-built SDK2 line template is applied to all of them before any timed phase.
 // G1 targets: add --phases 720p24 --measure-seconds 60 to --finite/--debug (phase subset and per-phase timing; formal runs keep the full matrix).
@@ -22,7 +23,7 @@ import { release, platform, arch } from 'node:os';
 import { Cdp, Page } from '../frontend/scripts/cdp.mjs';
 import { shell, ui } from '../frontend/scripts/ui-query.mjs';
 import { verifyDesktopDeployment } from './desktop-build.mjs';
-import { applyV2Template, v2ParamOverrides, v2SampleNames } from './gpu-preview-v2-content.mjs';
+import { applyV2Template, v2ParamOverrides, v2SampleNames, v2StyleName } from './gpu-preview-v2-content.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const NS = 1_000_000_000n;
@@ -438,12 +439,13 @@ export function resolutionCycleQuality(lastPhase,index){
 }
 async function run(values) {
   invariant(!values['correctness-snapshot']||values.debug||values.finite,'Correctness screenshot must stay outside formal timed runs');
-  const v2Names=values['v2-samples']?v2SampleNames(values['v2-samples']):null;
+  const v2Style=values['v2-style']?v2StyleName(values['v2-style']):null;
+  const v2Names=values['v2-samples']?v2SampleNames(values['v2-samples']):(v2Style?[]:null);
   const v2Lines=v2Names?Number(values['v2-lines']??'72'):null;
   invariant(!v2Names||(Number.isSafeInteger(v2Lines)&&v2Lines>=2&&v2Lines<=360),'--v2-lines must be 2..360');
   invariant(!v2Names||((values.debug||values.finite)&&!values['reuse-project']&&values.provider==='runtime'),'--v2-samples needs --debug/--finite, a new project and the runtime provider');
   const v2Params=v2ParamOverrides(values['v2-params']);
-  invariant(!values['v2-params']||v2Names,'--v2-params needs --v2-samples');
+  invariant(!values['v2-params']||values['v2-samples'],'--v2-params needs --v2-samples');
   const backgroundImage=values['background-image']?resolve(values['background-image']):null;
   invariant(!backgroundImage||(/\.png$/i.test(backgroundImage)&&!values['reuse-project']&&(values.debug||values.finite)),'--background-image needs a .png, a new project and --debug/--finite');
   const sessionName=values.connect?null:(values['session-name']??`p3-${new Date().toISOString().replaceAll(/[^0-9TZ]/g,'').toLowerCase()}`);
@@ -581,7 +583,7 @@ async function run(values) {
     if(!values['reuse-project'])manifest.background=backgroundImage?await setBackgroundImage(page,backgroundImage):{kind:'solid'};
     if(v2Names){
       // SDK2 内容在计时前经界面建模板并应用到全部行；之后回到编排页重新等 GPU 预览就绪。
-      manifest.v2Content=await applyV2Template(page,output,v2Names,v2Lines,v2Params);
+      manifest.v2Content=await applyV2Template(page,output,v2Names,v2Lines,v2Params,v2Style);
       const appliedAt=Date.now();
       await shell.goto(page,'orchestration');
       await ui.wait(page,'select','GPU 预览规格',{what:'Production GPU preview',timeout:180_000});
@@ -746,7 +748,7 @@ async function run(values) {
 }
 async function main() {
   const {values}=parseArgs({options:{'cdp-port':{type:'string',default:'9223'},port:{type:'string',default:'5174'},output:{type:'string'},provider:{type:'string',default:'runtime'},
-    connect:{type:'boolean'},'ordinary-scheduling':{type:'boolean'},'session-name':{type:'string'},'reuse-project':{type:'boolean'},'dry-run':{type:'boolean'},debug:{type:'boolean'},finite:{type:'boolean'},'correctness-snapshot':{type:'boolean'},analyze:{type:'string'},'v2-samples':{type:'string'},'v2-lines':{type:'string'},'v2-params':{type:'string'},'background-image':{type:'string'},phases:{type:'string'},'measure-seconds':{type:'string'}}});
+    connect:{type:'boolean'},'ordinary-scheduling':{type:'boolean'},'session-name':{type:'string'},'reuse-project':{type:'boolean'},'dry-run':{type:'boolean'},debug:{type:'boolean'},finite:{type:'boolean'},'correctness-snapshot':{type:'boolean'},analyze:{type:'string'},'v2-samples':{type:'string'},'v2-lines':{type:'string'},'v2-params':{type:'string'},'v2-style':{type:'string'},'background-image':{type:'string'},phases:{type:'string'},'measure-seconds':{type:'string'}}});
   invariant(['runtime','synthetic'].includes(values.provider),'provider must be runtime or synthetic');
   if(values.analyze){const directory=resolve(values.analyze);const records=(await readFile(join(directory,'events.jsonl'),'utf8')).trim().split('\n').filter(Boolean).map(line=>JSON.parse(line));
     const manifest=JSON.parse(await readFile(join(directory,'manifest.json'),'utf8'));const report=analyze(records,manifest);

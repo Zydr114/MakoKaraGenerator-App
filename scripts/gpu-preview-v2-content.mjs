@@ -1,4 +1,5 @@
 // P3 GPU 流的 SDK2 内容：经生产界面在样式库建一个含 SDK2 效果的行模板，再在外观页一次应用到全部歌词行。
+// 样式 P3 起可加 --v2-style（两态、硬边分层渐变、4 层描边、羽化加高亮），可以不带包单独测直绘路径。
 // 只用界面操作与文件输入，不读取凭证、不直接发 HTTP；包取本仓库 backend/samples/ScriptEffectsV2 或
 // backend/tests/Fixtures/ScriptEffectsV2Perf（M12 测速用测试包）并校验清单 SHA。
 // 材质包与 M12 HTTP 探针一致：全部材质导出按顺序排开，未唱填充用第一个、已唱填充用最后一个。
@@ -29,6 +30,74 @@ export function v2ParamOverrides(value) {
     overrides[match[1]] = Number(match[2]);
   }
   return overrides;
+}
+
+/**
+ * 样式库模板编辑器里的样式预设（P3 第 8 步复测）：在“外观”页签按界面操作改经典整行，保存前生效。
+ * - twoState：未唱一层描边，已唱描边单独设置为更宽的一层（两态按态绘制）；
+ * - bands：未唱填充改为单个字形坐标的线性渐变，第 2、3 色标重合成硬边；
+ * - strokes：未唱 4 层描边加阴影（阴影取整体轮廓）；
+ * - feather：擦除羽化 0.2 倍字号，开扫字线高亮（缺省滤色）。
+ */
+export const V2_STYLES = {
+  async twoState(page) {
+    await strokeOn(page);
+    await includeGroup(page, 'sungStroke');
+    await ui.choose(page, '已唱描边开关', '单独设置');
+    await page.waitFor(`${strokeLayers('sungStroke')} >= 1`, '已唱描边单独设置');
+    await ui.fill(page, '宽度', '8', { scope: '[data-group="sungStroke"] [data-layer="0"]', enter: true });
+  },
+  async bands(page) {
+    const scope = '[data-group="unsung"]';
+    await includeGroup(page, 'unsung');
+    await ui.choose(page, '未唱颜色的类型', '渐变', { scope });
+    for (let i = 0; i < 2; i++) await ui.click(page, 'button', '添加色标', { scope });
+    await page.waitFor(`document.querySelectorAll('${scope} .gradient-stop').length === 4`, '四个色标');
+    await ui.fill(page, '色标 2', '50', { scope, enter: true });
+    await ui.fill(page, '色标 3 的颜色', '#ff4040', { scope, enter: true });
+    await ui.fill(page, '色标 4 的颜色', '#ff4040', { scope, enter: true });
+    await ui.choose(page, '坐标', '单个字形', { scope });
+  },
+  async strokes(page) {
+    await strokeOn(page);
+    while ((await page.eval(strokeLayers('stroke'))) < 4) await ui.click(page, 'button', '加一层外圈', { scope: '[data-group="stroke"]' });
+    await includeGroup(page, 'shadow');
+    await ui.choose(page, '未唱阴影开关', '有阴影');
+  },
+  async feather(page) {
+    await includeGroup(page, 'feather');
+    await ui.fill(page, '羽化宽度', '0.2', { scope: '[data-group="feather"]', enter: true });
+    await includeGroup(page, 'highlight');
+    await ui.choose(page, '高亮开关', '有高亮');
+  },
+};
+
+export function v2StyleName(value) {
+  if (!Object.hasOwn(V2_STYLES, value)) fail(`--v2-style 须为 ${Object.keys(V2_STYLES).join('、')} 之一`);
+  return value;
+}
+
+const strokeLayers = (group) => `document.querySelectorAll('[data-group="${group}"] .stroke-layer').length`;
+
+/** 勾上模板属性组（右侧包含开关）。 */
+async function includeGroup(page, group) {
+  const selector = `[data-group="${group}"] [role="switch"]`;
+  await page.waitFor(`!!document.querySelector(${JSON.stringify(selector)})`, `${group} 属性组开关`);
+  if (!(await page.eval(`document.querySelector(${JSON.stringify(selector)}).checked`))) await ui.click(page, selector, null);
+  await page.waitFor(`document.querySelector(${JSON.stringify(selector)})?.checked === true`, `包含 ${group}`);
+}
+
+async function strokeOn(page) {
+  await includeGroup(page, 'stroke');
+  if ((await page.eval(strokeLayers('stroke'))) === 0) await ui.choose(page, '未唱描边开关', '有描边');
+  await page.waitFor(`${strokeLayers('stroke')} >= 1`, '未唱描边');
+}
+
+/** 高级页签里的完整定义（只读），复测记录用。 */
+async function definitionStyle(page) {
+  await ui.click(page, 'tab', '高级');
+  await page.waitFor(`!!document.querySelector('.template-json')`, '完整定义');
+  return JSON.parse(await page.eval(`document.querySelector('.template-json').textContent`)).style;
 }
 
 const PACKAGE_SOURCES = { samples: ['samples', 'ScriptEffectsV2'], 'perf-fixtures': ['tests', 'Fixtures', 'ScriptEffectsV2Perf'] };
@@ -148,12 +217,12 @@ export function materialSlotPlan(packages) {
   return all.length === 0 ? [] : [{ slot: 'unsungFill', label: '未唱填充', ...all[0] }, { slot: 'sungFill', label: '已唱填充', ...all.at(-1) }];
 }
 
-/** 样式库复制“经典整行”，导入各包、逐个加效果并填好材质部位后保存；外观页 Shift 选中全部行一次应用。 */
-export async function applyV2Template(page, output, names, lineCount, overrides = {}) {
-  return withFailureEvidence(page, output, () => buildAndApply(page, output, names, lineCount, overrides));
+/** 样式库复制“经典整行”，导入各包、逐个加效果并填好材质部位，按需套样式预设后保存；外观页 Shift 选中全部行一次应用。 */
+export async function applyV2Template(page, output, names, lineCount, overrides = {}, style = null) {
+  return withFailureEvidence(page, output, () => buildAndApply(page, output, names, lineCount, overrides, style));
 }
 
-async function buildAndApply(page, output, names, lineCount, overrides) {
+async function buildAndApply(page, output, names, lineCount, overrides, style) {
   // 每步耗时写到 v2-content-steps.jsonl，便于定位慢步骤；只在计时阶段之前。
   let mark = Date.now();
   const step = async (label) => {
@@ -162,7 +231,7 @@ async function buildAndApply(page, output, names, lineCount, overrides) {
     mark = now;
   };
   const packages = await packV2Samples(output, names, overrides);
-  const name = `P3 SDK2 ${names.join('+')}`;
+  const name = [names.length > 0 && `P3 SDK2 ${names.join('+')}`, style && `P3 样式 ${style}`].filter(Boolean).join(' · ');
   const started = Date.now();
   await shell.goto(page, 'library');
   const classic = '[role=row]:has([data-template-id="builtin:line-classic"])';
@@ -178,7 +247,7 @@ async function buildAndApply(page, output, names, lineCount, overrides) {
   await ui.waitDialogClosed(page, '复制到我的模板', { timeout: 30_000 });
   await page.waitFor(`${templateName} === ${JSON.stringify(name)} && !!document.querySelector('.template-tabs')`, `复制为 ${name}`, 30_000);
   await side(page, '模板编辑');
-  await ui.click(page, 'tab', '效果');
+  if (packages.length > 0) await ui.click(page, 'tab', '效果');
   await step('复制经典整行');
   for (const item of packages) {
     await ui.setFile(page, '导入效果包…', item.path);
@@ -223,6 +292,13 @@ async function buildAndApply(page, output, names, lineCount, overrides) {
     if (await page.eval(`!!${slotMaterial}?.querySelector('.material-off')`)) fail(`模板不包含${target.label}，材质不会生效`);
     await step(`${target.label} ${target.packageId}/${target.id}`);
   }
+  let styleDefinition = null;
+  if (style) {
+    await ui.click(page, 'tab', '外观', { scope: '.template-tabs' });
+    await V2_STYLES[style](page);
+    styleDefinition = await definitionStyle(page);
+    await step(`样式 ${style}`);
+  }
   await page.waitFor(`!document.querySelector('.template-problem')`, '模板没有问题提示', 30_000);
   await ui.click(page, 'button', '保存', { scope: '.template-actions' });
   await page.waitFor(`${detailTags}[0] === '我的模板' && !${detailTags}.includes('未保存')`, '模板保存完成', 60_000);
@@ -262,7 +338,7 @@ async function buildAndApply(page, output, names, lineCount, overrides) {
   await ui.waitDialogClosed(page, '选择模板', { timeout: 120_000 });
   await page.waitFor(`${revision} === ${before + 1}`, `应用「${name}」到 ${lineCount} 行`, 120_000);
   await step('应用到全部行');
-  return { templateName: name, samples: names, appliedLines: lineCount, projectRevision: before + 1, setupMs: Date.now() - started,
+  return { templateName: name, samples: names, style, styleDefinition, appliedLines: lineCount, projectRevision: before + 1, setupMs: Date.now() - started,
     packages: packages.map(({ name: sample, source, packageId, archiveSha256, effects, materials, parameterOverrides }) => ({ sample, source, packageId, archiveSha256,
       exports: effects.map((item) => item.id), materials: materials.map((item) => item.id), parameterOverrides })),
     materialSlots: Object.fromEntries(materialSlotPlan(packages).map((item) => [item.slot, `${item.packageId}/${item.id}`])),

@@ -9,13 +9,16 @@ import {createProject,connectPage,makeFixtures} from './gpu-preview-p3.mjs';
 export function analyzeFaultCase(entry,text) {
   const messages=text.split('\n').filter(x=>x.startsWith('{')).map(x=>{try{return JSON.parse(x)}catch{return {}}});
   const loss=messages.find(x=>x.type==='desktop-injected-loss'),isolation=messages.find(x=>x.type==='desktop-preview-isolated');
-  const exitLine=text.match(/backend exited (-?\d+)/),serverExit=exitLine?Number(exitLine[1]):null;
+  const stopped=text.split('\n').filter(line=>line.startsWith('[backend] WEB_BACKEND_STOPPED '))
+    .map(line=>{try{return JSON.parse(line.slice('[backend] WEB_BACKEND_STOPPED '.length));}catch{return null;}})
+    .filter(message=>Number.isSafeInteger(message?.exitCode)).at(-1);
+  const exitLine=text.match(/backend exited (-?\d+)/),serverExit=stopped?.exitCode??(exitLine?Number(exitLine[1]):null);
   const baseline=entry.external?entry.probe?.externalKill?.acknowledgedAtObservation:loss?.acknowledgedAtLoss;
   const finalAck=isolation?.counters?.acknowledgedUnique;
   const ackDelta=Number.isSafeInteger(baseline)&&Number.isSafeInteger(finalAck)?finalAck-baseline:null;
   const gates={probePassed:entry.probe?.passed===true,allOwnedExitedAfterExplicitClose:entry.allOwnedExited===true,
     unknownOutstanding:Number.isSafeInteger(isolation?.unknownOutstanding)&&isolation.unknownOutstanding>=1,
-    explicitServerExit:exitLine!==null,expectedServerExit:serverExit===0,
+    explicitServerExit:stopped!==undefined||exitLine!==null,expectedServerExit:serverExit===0,
     expectedLauncherExit:entry.launcherExit?.code===0&&entry.launcherExit?.signal===null,
     zeroAcknowledgements:ackDelta===0};
   return {loss,isolation,serverExit,serverAbort:serverExit===-6,

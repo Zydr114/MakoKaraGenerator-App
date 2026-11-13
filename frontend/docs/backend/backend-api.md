@@ -1631,7 +1631,7 @@ KIE1完整任务输入上限4194272字节（4MiB减32字节头），metadata最�
 
 本轮新增公开操作为歌词导入规划、字体目录、字体检查及工程编辑候选预览；工程commands新增四个媒体背景操作和 `project.applyEdits`，既有底色命令保持。空创建支持无歌词/无音频、仅歌词、仅音频及二者都有；上传沿§5流式处理，可空宿主字节策略不等于无限内存或磁盘保证。
 
-工程、编辑候选、预设候选与库内完整模板固定试样共用“固定snapshot与资源引用→原Runtime/Skia”链。保留Color/Image/Video、fit、Loop/FreezeLastFrame、分析、直接包、完整预设实例及其有序配方/包材质/参数/种子/分支输入；包内字体按内部家族/字重/斜体及原回退规则解析，TTC可枚举各字面。字体来自固定包闭包，不接受任意系统路径或字体安装请求。已有高级Line/Token以及P3完整合法模板定义可进入同一运行链；完整草稿、试样目标、clips/高级Node扩展见§24，作者草稿试样仍属P4。
+工程、编辑候选、预设候选与库内完整模板固定试样共用“固定snapshot与资源引用→原Runtime/Skia”链。保留Color/Image/Video、fit、Loop/FreezeLastFrame、分析、直接包、完整预设实例及其有序配方/包材质/参数/种子/分支输入；包内字体按内部家族/字重/斜体及原回退规则解析，TTC可枚举各字面。字体来自固定包闭包，不接受任意系统路径或字体安装请求。已有高级Line/Token以及P3完整合法模板定义可进入同一运行链；完整草稿、试样目标、clips/高级Node扩展见§24，作者草稿试样仍属P4。模板工坊与作者草稿试样每次捕获按配方与绑定次序分配固定实例身份，配方未给 fixedSeed 时用固定试样种子，同一草稿／模板反复刷新时随机取值不变（0.112.88 起；此前每次捕获重新抽取，粒子等随机效果每次刷新散布不同）。
 
 Host在工程Writer内捕获owner、注册session对象、精确revision及资源引用，Writer外复制媒体与完整包资源目录并核size/SHA/包修订，返回Writer再核同一身份、revision及关闭状态才登记消费者。旧来源保留原wire；需要媒体或包字体时使用私有 `runtime-project-input-v1`，文件不挤入4MiB消息。Worker核固定授权与完整内容，再由原Runtime消费；Host测量/验证回执仅用已固定snapshot与封包纯校验，不重新读取私有资源目录。包内容仍受原包codec总量/引用检查，消息、帧、报告及各任务限额分别保持；授权不由客户端构造。
 
@@ -1874,7 +1874,7 @@ controller图事务，0.112.11无DLL直接图与材质uniform，0.112.12独立Ba
 真实组调度与owned Below。它们沿现有包导入、作者、预览、验证、导出入口传递固定输入，不新增
 本节专用HTTP路由或DTO；1.46.0新增的作者声明检查与完整配置采用另见§21。包仍须为明确支持的
 v3／SDK2 profile，生产运行保留§25的Vulkan准入和实际设备核验，不因CPU参考执行器回归而允许
-公开路径回落CPU。SDK接口见[SDK v2参考§4](../../../docs/style-reference/script-sdk-v2.md#4-能力目标和输出顺序)，
+公开路径回落CPU。SDK接口见[SDK 2.0参考§5](../../../docs/style-reference/script-sdk-v2.md#5-文字输出)，
 组像素与父树语义详见[组图合同](../scripting-group-image-composition-contract.md)，实施证据和剩余
 门禁见[M09记录](../../../docs/plans/script-sdk-render-m09-evidence.md)。
 
@@ -1993,7 +1993,8 @@ fallback。作者在纯函数中用 `frame.Media.Sample(query, rect, timeUs)` �
 完整分析制品后再开始。模板工坊与作者草稿试样的背景是服务生成的固定图片，分析在本次运行内只做
 一次；试样最多等待20秒拿到完整结果，超时按 `pending` 处理。Worker按Host私有授权重建采样绑定，HTTP不暴露
 制品路径或授权。透明输出（任何来源的straight透明预览与候选、正式验证的透明半程、透明导出）固定为显式 NoMedia，
-不采样不会被渲染的工程背景；与普通输出共用同一工程修订，互不借用对方的媒体输入。
+不采样不会被渲染的工程背景；与普通输出共用同一工程修订，互不借用对方的媒体输入。`PUT .../input`
+同时切换 alphaMode 时按切换后的模式固定（0.112.87 起；此前沿用旧会话模式，opaque→straight 后依赖媒体的包预览失败）。
 
 **事件。** 分析完成只改变Host派生的输入，不改变工程修订、dirty和撤销历史。此时Server对每个
 打开的工程会话发 `project.mediaFeaturesChanged`，data只带公共身份和summary，没有changeSet。

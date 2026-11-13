@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 using MakoKaraGenerator.Core.Lyrics;
 using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Core.Time;
@@ -8,6 +9,7 @@ namespace MakoKaraGenerator.Rendering;
 /// <summary>不可变布局试样；每个 Auto 容器及每个槽位使用独立代表行，不写入工程。</summary>
 public static class LayoutReferenceScene
 {
+    private static readonly ConditionalWeakTable<ProjectSnapshot, ProjectSnapshot> Snapshots = new();
     /// <summary>固定代表文字和中立动画的明确采样版本。</summary>
     public const string Profile = "layout-reference-v1";
     /// <summary>代表文字不宣称继承任何真实行或元素的覆盖。</summary>
@@ -17,6 +19,12 @@ public static class LayoutReferenceScene
 
     /// <summary>生成保留原分支、节点与预设身份的独立试样快照。</summary>
     public static ProjectSnapshot CreateSnapshot(ProjectSnapshot source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        return Snapshots.GetValue(source, static snapshot => Create(snapshot));
+    }
+
+    private static ProjectSnapshot Create(ProjectSnapshot source)
     {
         var tree = source.LyricPresentation.WithDefaultPrograms(source.Lyrics);
         var additions = source.Lyrics.Branches.ToDictionary(branch => branch.Id, _ => new List<LyricLine>(), StringComparer.Ordinal);
@@ -35,6 +43,26 @@ public static class LayoutReferenceScene
         }
         return source with { LyricPresentation = tree, EnterAnimation = null,
             Lyrics = source.Lyrics with { Branches = [.. source.Lyrics.Branches.Select(branch => branch with { Lines = branch.Lines.AddRange(additions[branch.Id]) })] } };
+    }
+
+    // 几何保留原工程身份，样式仅为明确生成的试样行切换到同一不可变来源；普通失效行仍由原解析器拒绝。
+    internal static ProjectSnapshot StyleSource(ProjectSnapshot source, SceneLineSample sample)
+    {
+        if (sample.DisplayContainerId is not { } container || sample.ParentNodeId is not { } parent
+            || sample.Frame.Line is not { } line || sample.BindingId != Profile + "/" + Uri.EscapeDataString(parent)
+            || line.Id != Id(container, parent)) return source;
+        var tree = source.LyricPresentation.WithDefaultPrograms(source.Lyrics);
+        if (tree.FindNode(container)?.Layout is not { } layout) return source;
+        if (layout.Kind == LyricContainerLayoutKind.Auto)
+        {
+            if (parent != container || sample.SlotId is not null) return source;
+        }
+        else if (layout.Kind != LyricContainerLayoutKind.SlotSequence || !layout.SlotIds.Contains(parent)
+            || sample.SlotId != parent || tree.FindNode(parent) is not { Layout: null } slot || slot.ParentId != container)
+            return source;
+        var branch = Branch(source, tree, container);
+        if (sample.Branch.Id != branch.Id) return source;
+        return branch.Lines.Any(candidate => candidate.Id == line.Id) ? source : CreateSnapshot(source);
     }
 
     /// <summary>对试样快照采样所有布局，完全独立于播放时刻。</summary>

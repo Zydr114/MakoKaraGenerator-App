@@ -75,8 +75,10 @@ public static class PresetSceneStyleProjection
     {
         ArgumentNullException.ThrowIfNull(sample);
         if (sample.ExitReplica is { } exit) return ExitStyle(exit, tokenId);
-        return (resolver ?? Resolver(snapshot)).ResolveLyrics(sample.Frame.Line!.Id, tokenId, sample.DisplayClipId,
-            NodePath(snapshot, sample.ElementId, frame));
+        var source = LayoutReferenceScene.StyleSource(snapshot, sample);
+        if (!ReferenceEquals(source, snapshot)) resolver = null;
+        return (resolver ?? Resolver(source)).ResolveLyrics(sample.Frame.Line!.Id, tokenId, sample.DisplayClipId,
+            NodePath(source, sample.ElementId, frame));
     }
 
     /// <summary>真实提示组／标记来源及实际运行父树。</summary>

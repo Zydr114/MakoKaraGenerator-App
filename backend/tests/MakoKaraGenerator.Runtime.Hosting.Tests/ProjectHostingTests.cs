@@ -72,6 +72,61 @@ public sealed class ProjectHostingTests
         if (layout) Assert.All(measured.Scene.Lines, line => Assert.StartsWith("__layout_reference__/", line.Frame.Line!.Id));
     }
 
+    [Fact]
+    public async Task 布局试样的预设脚本材质与样式共同使用试样来源且不改源身份()
+    {
+        using TemporaryDirectory temp = new(); using FfmpegVideoFrameProvider videos = new();
+        var package = MixedEffectPackageFixture.Contents();
+        var project = ProjectSnapshotSourceProject.Restore(Snapshot(package));
+        string nodeId = project.LyricPresentation.FindProgram("primary")!.DefaultContainerId;
+        var material = new MaterialSpec.PackageMaterial(package.PackageId, package.Revision, "ink");
+        var style = project.LyricStyle with { UnsungFill = new() { Material = material }, Opacity = .4f };
+        var recipe = new TemplateEffectRecipe("layout-script", "布局脚本", TemplateEffectTarget.Application,
+            package.PackageId, package.Revision, "controller", fixedSeed: 42);
+        var template = StyleTemplate.Create("layout-preset", "布局预设", StyleTemplateKind.Composite, style,
+            [LyricStyleProperty.UnsungFill, LyricStyleProperty.Opacity], [recipe], [package]);
+        Assert.True(PresetApplicationsEditor.TryApply(project, template, [new(ProjectEffectBindingKind.Node, nodeId, includeDescendants: true)], null,
+            out var applied, out var reason), reason);
+        var snapshot = ProjectSnapshot.FromProject(applied);
+        var fingerprint = snapshot.EffectInputsFingerprint;
+        var factory = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")),
+            videos, ReplayReason.Initial, layoutReference: true, renderBackend: "cpu");
+        await using var session = await factory.CreateAsync(snapshot);
+        var request = RenderRequest.At(snapshot, 0);
+        using var measured = await ((ISceneMeasurementSession)session).MeasureAsync(request, layoutReference: true);
+        using var rendered = await session.RenderAsync(request);
+        Assert.Equal(rendered.PixelMemory.ToArray(), measured.Frame.PixelMemory.ToArray());
+        var sample = Assert.Single(measured.Scene.Lines, line => line.ContainerId == nodeId);
+        var resolved = PresetSceneStyleProjection.LyricsForBinding(snapshot, sample, null, measured.Scene, PresetSceneStyleProjection.Resolver(snapshot));
+        Assert.Equal(material, resolved.Style.UnsungFill.Material); Assert.Equal(.4f, resolved.Style.Opacity);
+        Assert.StartsWith("presetApplications.", resolved.MaterialReference(LyricStyleProperty.UnsungFill)!.Path);
+        Assert.Same(snapshot, request.Project); Assert.Equal(fingerprint, snapshot.EffectInputsFingerprint);
+        Assert.Equal(applied, ProjectSnapshotSourceProject.Restore(snapshot));
+        Assert.DoesNotContain(snapshot.Lyrics.AllLines, line => line.Id.StartsWith("__layout_reference__/", StringComparison.Ordinal));
+        var layoutSnapshot = LayoutReferenceScene.CreateSnapshot(snapshot);
+        Assert.Same(layoutSnapshot, LayoutReferenceScene.CreateSnapshot(snapshot));
+        Assert.Equal(resolved, PresetSceneStyleProjection.LyricsForBinding(layoutSnapshot, sample, null, measured.Scene));
+        Assert.Throws<ArgumentException>(() => PresetSceneStyleProjection.LyricsForBinding(snapshot,
+            sample with { BindingId = sample.BindingId + "/not-generated" }, null, measured.Scene));
+        Assert.Throws<ArgumentException>(() => PresetSceneStyleProjection.LyricsForBinding(snapshot,
+            sample with { Branch = sample.Branch with { Id = "not-sample-branch" } }, null, measured.Scene));
+        Assert.Throws<ArgumentException>(() => PresetSceneStyleProjection.LyricsForBinding(snapshot,
+            sample with { Frame = sample.Frame with { Line = sample.Frame.Line! with { Id = "missing-real-line" } } }, null, measured.Scene));
+
+        string slotId = "layout-slot";
+        var slotTree = snapshot.LyricPresentation with { Nodes = [.. snapshot.LyricPresentation.Nodes.Select(node => node.Id == nodeId
+            ? node with { Layout = node.Layout! with { Kind = LyricContainerLayoutKind.SlotSequence, SlotIds = [slotId], SlotAnimation = new() } } : node),
+            new() { Id = slotId, ParentId = nodeId }] };
+        var slotSource = snapshot with { LyricPresentation = slotTree };
+        var slotFrame = LayoutReferenceScene.Sample(LayoutReferenceScene.CreateSnapshot(slotSource));
+        var slotSample = Assert.Single(slotFrame.Lines, line => line.ContainerId == nodeId);
+        Assert.Equal(material, PresetSceneStyleProjection.LyricsForBinding(slotSource, slotSample, null, slotFrame).Style.UnsungFill.Material);
+        var detachedSlotSource = slotSource with { LyricPresentation = slotTree with { Nodes = [.. slotTree.Nodes.Select(node => node.Id == slotId
+            ? node with { ParentId = "not-layout-container" } : node)] } };
+        Assert.Throws<ArgumentException>(() => PresetSceneStyleProjection.LyricsForBinding(detachedSlotSource, slotSample, null, slotFrame));
+        Assert.Throws<ArgumentException>(() => PresetSceneStyleProjection.Resolver(snapshot).ResolveLyrics("missing-real-line"));
+    }
+
     private static ProjectRenderSessionFactory Factory(string cache, ReplayReason reason = ReplayReason.Initial) => new(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), cache), new FfmpegVideoFrameProvider(), reason);
 
     private static ProjectSnapshot Snapshot(EffectPackageContents? package = null)

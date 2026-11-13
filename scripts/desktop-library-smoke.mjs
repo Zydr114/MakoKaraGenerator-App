@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { cp, lstat, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { join, resolve } from 'node:path';
@@ -23,7 +24,14 @@ const base = join(ROOT, '.local/acceptance', sessionName);
 const out = join(base, 'evidence');
 const libraries = join(base, 'desktop-profile/state/libraries');
 const legacy = join(libraries, 'templates');
-const current = join(libraries, 'templates-v7/index.json');
+// 当前模板库目录与 schema 取自后端源码，库升级后不必改这里。
+const templateLibrary = readFileSync(join(ROOT, 'backend/src/MakoKaraGenerator.Core/Persistence/StyleTemplateLibrary.cs'), 'utf8');
+const TEMPLATE_DIR = /DirectoryName\s*=\s*"(templates-v\d+)";/.exec(templateLibrary)?.[1];
+const TEMPLATE_SCHEMA = Number(/CurrentSchemaVersion\s*=\s*(\d+);/.exec(templateLibrary)?.[1]);
+assert(TEMPLATE_DIR && Number.isInteger(TEMPLATE_SCHEMA) && TEMPLATE_SCHEMA > 6, '读不到后端模板库版本（StyleTemplateLibrary）');
+const current = join(libraries, TEMPLATE_DIR, 'index.json');
+// 两态样式（合同 1.50.0 起）：辉光在未唱态，属性用路径。
+const GLOW_PROPERTIES = ['unsung.glow', 'unsung.glow.color', 'unsung.glow.opacity', 'unsung.glow.blurRadiusPx', 'unsung.glow.spreadPx'];
 const source = values['legacy-library'] ? resolve(values['legacy-library']) : null;
 const testName = '桌面样式库回归';
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
@@ -212,16 +220,17 @@ try {
   const glowSwitch = '[data-group="glow"] [role="switch"]';
   await ui.wait(page, glowSwitch, null);
   if (!await page.eval(`document.querySelector(${JSON.stringify(glowSwitch)}).checked`)) await ui.click(page, glowSwitch, null);
-  await ui.choose(page, '辉光开关', '有辉光');
-  await ui.fill(page, '辉光颜色', '#ff20c0', { enter: true });
+  await ui.choose(page, '未唱辉光开关', '有辉光');
+  await ui.fill(page, '未唱辉光颜色', '#ff20c0', { enter: true });
   await ui.fill(page, '扩张', '8', { scope: '[data-group="glow"]', enter: true });
   await ui.fill(page, '模糊', '18', { scope: '[data-group="glow"]', enter: true });
   const draft = await definition(page);
-  check(isDeepStrictEqual(draft.style.glow?.color, { red: 255, green: 32, blue: 192, alpha: 255 }) && draft.style.glow?.spreadPx === 8 && draft.style.glow?.blurRadiusPx === 18, '辉光颜色、扩张和模糊写入草稿');
+  const glow = draft.style.unsung.glow;
+  check(isDeepStrictEqual(glow?.color, { red: 255, green: 32, blue: 192, alpha: 255 }) && glow?.spreadPx === 8 && glow?.blurRadiusPx === 18, '未唱辉光颜色、扩张和模糊写入草稿');
   await ui.click(page, 'button', '保存', { scope: '.template-actions' });
   await page.waitFor(`![...document.querySelectorAll('.template-detail .phead .tag')].some(el => el.textContent === '未保存')`, '辉光模板保存', 30_000);
   const saved = JSON.parse(await readFile(current, 'utf8'));
-  check(saved.schemaVersion === 7 && saved.templates.length === 1 && saved.templates[0].id === id, '新写入 templates-v7 且不载入 schema6 旧模板');
+  check(saved.schemaVersion === TEMPLATE_SCHEMA && saved.templates.length === 1 && saved.templates[0].id === id, `新写入 ${TEMPLATE_DIR} 且不载入 schema6 旧模板`);
   safeScreenshot = true;
   await screenshot(page, '1-saved-glow.png');
   await noFailures(first);
@@ -231,7 +240,7 @@ try {
   await ui.click(second.page, `[role=row]:has([data-template-id=${JSON.stringify(id)}])`, null);
   await second.page.waitFor(`document.querySelector('.template-name')?.textContent === ${JSON.stringify(testName)}`, '同 profile 重启读回模板');
   const restored = await definition(second.page);
-  check(isDeepStrictEqual(restored.style.glow, draft.style.glow) && ['glowSpec', 'glowColor', 'glowOpacity', 'glowBlurRadiusPx', 'glowSpreadPx'].every(key => restored.properties.includes(key)), '同 profile 重启后完整辉光与属性组保持');
+  check(isDeepStrictEqual(restored.style.unsung.glow, glow) && GLOW_PROPERTIES.every(key => restored.properties.includes(key)), '同 profile 重启后完整辉光与属性组保持');
   await screenshot(second.page, '2-restarted-glow.png');
   await noFailures(second);
   // 负例只破坏这个隔离会话的新库；始终恢复原始字节，再通过界面重试恢复。
@@ -259,7 +268,7 @@ try {
   await ui.click(second.page, 'button', '重试', { scope: '.library-list' });
   await second.page.waitFor(`!document.body.innerText.includes('读取个人模板库失败') && !!document.querySelector('.library-list [data-template-id=' + ${JSON.stringify(JSON.stringify(id))} + ']')`, '还原新库后重试恢复', 60_000);
   await ui.click(second.page, `[role=row]:has([data-template-id=${JSON.stringify(id)}])`, null);
-  check(isDeepStrictEqual((await definition(second.page)).style.glow, draft.style.glow), '还原隔离新库并重试后辉光仍保持');
+  check(isDeepStrictEqual((await definition(second.page)).style.unsung.glow, glow), '还原隔离新库并重试后辉光仍保持');
   check((await readFile(current)).equals(currentBytes), '负例恢复隔离新库原始字节');
   check(second.exceptions === 0, '负例与恢复期间页面无未处理异常');
   second.expectedNegativeHttpFailures = second.libraryHttpFailures;

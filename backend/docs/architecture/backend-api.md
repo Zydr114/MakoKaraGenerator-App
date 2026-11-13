@@ -1993,7 +1993,8 @@ fallback。作者在纯函数中用 `frame.Media.Sample(query, rect, timeUs)` �
 完整分析制品后再开始。模板工坊与作者草稿试样的背景是服务生成的固定图片，分析在本次运行内只做
 一次；试样最多等待20秒拿到完整结果，超时按 `pending` 处理。Worker按Host私有授权重建采样绑定，HTTP不暴露
 制品路径或授权。透明输出（任何来源的straight透明预览与候选、正式验证的透明半程、透明导出）固定为显式 NoMedia，
-不采样不会被渲染的工程背景；与普通输出共用同一工程修订，互不借用对方的媒体输入。
+不采样不会被渲染的工程背景；与普通输出共用同一工程修订，互不借用对方的媒体输入。`PUT .../input`
+同时切换 alphaMode 时按切换后的模式固定（0.112.87 起；此前沿用旧会话模式，opaque→straight 后依赖媒体的包预览失败）。
 
 **事件。** 分析完成只改变Host派生的输入，不改变工程修订、dirty和撤销历史。此时Server对每个
 打开的工程会话发 `project.mediaFeaturesChanged`，data只带公共身份和summary，没有changeSet。

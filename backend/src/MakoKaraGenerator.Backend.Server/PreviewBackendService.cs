@@ -254,8 +254,9 @@ internal sealed partial class PreviewBackendService : IAsyncDisposable
                     return Reject<PreviewSessionResponse>(BackendErrorCode.PreviewGenerationConflict, "预览输入基线已改变。");
                 var backend = await PrepareRenderBackendAsync(request.RenderBackend, existing.Status.Session.RenderBackend).ConfigureAwait(false);
                 if (!backend.Accepted) return BackendOperationResult<PreviewSessionResponse>.Rejected(backend.Error!);
+                // 换输入可同时切换 alphaMode；媒体输入按更新后会话的输出模式固定，而非旧会话。
                 BackendPreviewInputCaptureResult captured = await CaptureAsync(client, request.Source, backend.Response!,
-                    existing.Status.Session.AlphaMode == PreviewAlphaMode.Straight).ConfigureAwait(false);
+                    request.AlphaMode == PreviewAlphaMode.Straight).ConfigureAwait(false);
                 if (captured.Error is not null) return BackendOperationResult<PreviewSessionResponse>.Rejected(captured.Error);
                 BackendPreviewSessionResult result;
                 try

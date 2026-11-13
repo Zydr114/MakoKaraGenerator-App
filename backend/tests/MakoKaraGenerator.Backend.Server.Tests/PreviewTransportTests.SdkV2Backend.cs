@@ -9,6 +9,7 @@ using MakoKaraGenerator.Backend.Contracts;
 using MakoKaraGenerator.Backend.Hosting;
 using MakoKaraGenerator.Backend.Rendering;
 using MakoKaraGenerator.Core.Effects;
+using MakoKaraGenerator.Core.Media;
 using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Rendering;
 using MakoKaraGenerator.TestSupport;
@@ -119,6 +120,62 @@ public sealed partial class PreviewTransportTests
     }
 
     [Fact]
+    public async Task SDK2工程预览换输入切换透明模式时按新模式固定媒体输入()
+    {
+        // M13 探针发现：PUT input 曾按旧会话 alphaMode 固定媒体输入，opaque→straight 后 Worker 以透明输出
+        // 消费不透明媒体输入而失败；反向切换同理。每次换输入都须按请求的 alphaMode 固定。
+        SdkV2BackendFactory factory = new(new Factory());
+        using BackendRenderBackendConfiguration devices = SdkV2GpuDevices();
+        await using Fixture fixture = await Fixture.Create(injectedFactory: factory, packageProfile: true, renderBackends: devices);
+        EffectPackageContents package = SdkV2PreviewPackage(AddMediaQuery);
+        Project project = ProjectWorkspace.CreateNew("sdk2-media").Project with
+        {
+            Effects = new([package], [ScriptConfiguration.Create("config", "sdk2", package, "scale")
+                .CreateInstance("sdk2-effect", new(ProjectEffectBindingKind.Project), 1)]),
+        };
+        ProjectSession opened = await fixture.OpenNoAudioProject(project, "sdk2-media");
+        using HttpResponseMessage created = await fixture.Http.PostAsJsonAsync("/api/v1/preview-sessions",
+            new PreviewSessionRequest(new("project", opened.ProjectSessionId, "0"), new(1, 1), Metadata: fixture.Metadata()), Json);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        PreviewSessionResponse preview = (await created.Content.ReadFromJsonAsync<PreviewSessionResponse>(Json))!;
+        Assert.IsType<MediaFeatureInput.AvailableSolid>(LastMediaInput(factory));
+        foreach (PreviewAlphaMode alpha in (PreviewAlphaMode[])[PreviewAlphaMode.Straight, PreviewAlphaMode.Opaque])
+        {
+            using HttpResponseMessage updated = await fixture.Http.PutAsJsonAsync($"/api/v1/preview-sessions/{preview.PreviewId}/input",
+                new PreviewProjectInputRequest(preview.PreviewGeneration, preview.Source.SourceRevision, preview.Source,
+                    preview.Size, alpha, fixture.Metadata()), Json);
+            Assert.Equal(HttpStatusCode.OK, updated.StatusCode);
+            preview = (await updated.Content.ReadFromJsonAsync<PreviewSessionResponse>(Json))!;
+            Assert.Equal(alpha, preview.AlphaMode);
+            MediaFeatureInput media = LastMediaInput(factory);
+            if (alpha == PreviewAlphaMode.Straight)
+                Assert.Equal(MediaNoMediaReason.TransparentOutput, Assert.IsType<MediaFeatureInput.NoMedia>(media).Reason);
+            else Assert.IsType<MediaFeatureInput.AvailableSolid>(media);
+        }
+        Assert.Equal(3, factory.State.Bindings);
+        await fixture.Service.CloseAsync(fixture.Client.ClientId, preview.PreviewId,
+            new(preview.PreviewGeneration, preview.Source.SourceRevision, fixture.Metadata()));
+    }
+
+    private static MediaFeatureInput LastMediaInput(SdkV2BackendFactory factory) => Assert.IsAssignableFrom<MediaFeatureInput>(
+        ProjectRuntimeInputCodec.Decode(factory.State.Prepared[^1].SourceBytes).Snapshot.MediaFeatureInput);
+
+    // 与 Hosting.Tests 的作者媒体用例同形：控制器导出声明一个媒体查询，三种回退都走作者分支。
+    private static void AddMediaQuery(JsonObject manifest)
+    {
+        manifest["requires"] = new JsonArray("media.features", "token.affine");
+        manifest["parameters"]!.AsArray().Add(new JsonObject { ["id"] = "window", ["type"] = "duration", ["label"] = "窗口",
+            ["default"] = 200_000L, ["min"] = 0, ["max"] = 2_000_000L });
+        manifest["mediaQueries"] = new JsonArray(new JsonObject { ["id"] = "query", ["space"] = "canvasPixels",
+            ["window"] = new JsonObject { ["kind"] = "parameter", ["parameter"] = "window" } });
+        JsonObject export = manifest["exports"]![0]!.AsObject();
+        export["parameters"]!.AsArray().Add("window");
+        JsonObject State() => new() { ["kind"] = "authorBranch", ["outputs"] = new JsonArray("scale") };
+        export["mediaQueries"] = new JsonArray(new JsonObject { ["query"] = "query",
+            ["fallback"] = new JsonObject { ["pending"] = State(), ["unavailable"] = State(), ["noMedia"] = State() } });
+    }
+
+    [Fact]
     public async Task SDK2CPU公共捕获拒绝释放输入租约和资源预留且不执行准备()
     {
         await using Fixture fixture = await Fixture.Create();
@@ -181,7 +238,7 @@ public sealed partial class PreviewTransportTests
             new(TemplatePreviewLimits.SingleLineSampleId, "token"), draft.Configuration!.SourceRevision);
     }
 
-    private static EffectPackageContents SdkV2PreviewPackage()
+    private static EffectPackageContents SdkV2PreviewPackage(Action<JsonObject>? configure = null)
     {
         Dictionary<string, byte[]> files = EffectPackageFixture.Files();
         files["src/PackEffect.cs"] = Encoding.UTF8.GetBytes("""
@@ -201,6 +258,7 @@ public sealed partial class PreviewTransportTests
         manifest["emitters"] = new JsonArray();
         manifest["exports"]![0]!["bindingKinds"] = new JsonArray("project", "tokens");
         manifest["exports"]![0]!["outputs"]![0]!["requires"] = new JsonArray("token.affine");
+        configure?.Invoke(manifest);
         return EffectPackageContents.CreateSupported(EffectPackageFixture.Bytes(manifest), EffectPackageFixture.Inputs(files));
     }
 

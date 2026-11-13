@@ -1,6 +1,6 @@
 # 前端后端开发交接文档
 
-**当前工作：2026-11-14，产品0.112.89／API合同1.52.0／HTTP协议1。** 真实源材质导出失败新增可选 `sourceMaterialFailure` 安全结构，保留完整源部位、包、参数、阶段、微秒与稳定码，表面超限另附实际预算；不制造脚本occurrence。默认场景表面上限256张，字节上限仍为512MiB。工程／歌词／模板 schema 为31／19／9；合同为115路径、128显式方法、667 schemas、3930例。SDK2 工程和作者预览、正式验证与导出仍要求 GPU，CPU 选择返回 `commandNotSupported/PackageBackendUnsupported`（`field:renderBackend`）；失败的预览切换保留原输入与代次。详细语义见[行为合同](../docs/architecture/backend-api.md)与[执行合同](api-contract.md)，合同、匹配发布、fresh HTTP与浏览器验收分别登记；历史证据保持原归属。
+**当前工作：2026-11-14，产品0.112.90／API合同1.52.1／HTTP协议1。** 已保存预设的顶层应用目标缺失时，完整保留启停状态、身份、种子和包资源；运行跳过整条应用并给出warning，测量、预览与导出继续，恢复相同ID目标后恢复运行。内部binding／subscription、直接effect及损坏包仍保持原拒绝。HTTP形状与fixture不变。1.52.0的真实源材质导出失败新增可选 `sourceMaterialFailure` 安全结构，保留完整源部位、包、参数、阶段、微秒与稳定码，表面超限另附实际预算；不制造脚本occurrence。默认场景表面上限256张，字节上限仍为512MiB。工程／歌词／模板 schema 为31／19／9；合同为115路径、128显式方法、667 schemas、3930例。含实际运行SDK2效果的工程和作者预览、正式验证与导出仍要求 GPU，CPU 选择返回 `commandNotSupported/PackageBackendUnsupported`（`field:renderBackend`）；失败的预览切换保留原输入与代次。详细语义见[行为合同](../docs/architecture/backend-api.md)与[执行合同](api-contract.md)，合同、匹配发布、fresh HTTP与浏览器验收分别登记；历史证据保持原归属。
 
 历史合入：2026-10-27 将 `dev/gpu-render` 的 P3/P4/P5 及两批 GPU 工作快进纳入 `main`，完整保留 95 个提交；该次有定向回归，没有新生产修改、发布或 fresh HTTP，见[10月27日合入记录](../docs/archive/history/backend-main-integration-20261027.md)。2026-10-28 将 `dev/performance-optimization` 快进纳入 `main`，完整保留另外 19 个提交；该次仅作 Git 集成、入口文档和静态核验，见[10月28日合入记录](../docs/archive/history/backend-main-integration-20261028.md)。原版本的 HTTP、硬件、媒体和性能证据仍按各验收报告归属。
 

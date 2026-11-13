@@ -1,7 +1,9 @@
 # 前后端 API 执行合同
 
-状态：**1.52.0 按匹配 metadata 冻结**，更新于2026-11-14；产品 **0.112.89**，HTTP `protocolVersion:"1"`。1.52.0 新增真实源材质失败的可选安全诊断，并调整默认场景表面数预算（见下段）。1.51.1 只改行为、不改形状（M13 收口勘误，见下段）。1.51.0 只增加字段：导出与同帧测量在图效果或材质缺背景时照预览兜底、不再失败，并在结果中列出去重的兜底诊断（见下段）。1.50.0 是不兼容的样式形状改版（P3 两态样式，见下段），1.49.x 客户端须随本合同更新样式相关的请求与解析；协议号不变，以合同版本区分。1.49.2 只改行为、不改形状：不透明预览缺背景媒体时不再整帧失败，改为旁路／兜底并给出 `BackgroundMediaUnavailable` 诊断，见[行为§20.3](../docs/architecture/backend-api.md)；0.112.41～0.112.72 的其余改动是渲染、宿主与GPU流私有协议的内部改动（0.112.69～0.112.72 为渲染层结构整理），公共HTTP不变。1.49.1 起：模板工坊与作者草稿试样接入宿主背景分析，各来源的straight预览固定为透明无媒体输入，分析失败按退避重试，见[行为§28.6](../docs/architecture/backend-api.md#sdk2-m10-media-features)。1.49.0 新增作者草稿整份替换包内图片与字体：保存 package-files 可选 `replacedFiles` 与 `baseSourceRevision`，新增只读 `POST /api/v1/drafts/{id}/package-file-replacement-inspection`，见[行为§21](../docs/architecture/backend-api.md#author-package-replacement)。1.48.0 按帧检查投影见[行为§29](../docs/architecture/backend-api.md#preview-frame-inspection)；1.46.0 起的owner草稿源码检查与完整配置采用保持，见[行为§21](../docs/architecture/backend-api.md#backend-author-p4)；图绑定、Base材质与组消费者见[行为§27](../docs/architecture/backend-api.md#sdk2-m09-svg-warp)。合同为115路径／128方法／667 schemas，3930个合成例（2839反例）。SDK2仍要求GPU，CPU以 `commandNotSupported/PackageBackendUnsupported` 拒绝。合同、匹配发布、fresh HTTP、浏览器和导出分别登记；性能门槛暂不作为本轮验收标准。
+状态：**1.52.1 按匹配 metadata 冻结**，更新于2026-11-14；产品 **0.112.90**，HTTP `protocolVersion:"1"`。1.52.1只改失效预设的运行筛选行为，HTTP形状与fixture保持1.52.0，见下段。1.52.0 新增真实源材质失败的可选安全诊断，并调整默认场景表面数预算（见下段）。1.51.1 只改行为、不改形状（M13 收口勘误，见下段）。1.51.0 只增加字段：导出与同帧测量在图效果或材质缺背景时照预览兜底、不再失败，并在结果中列出去重的兜底诊断（见下段）。1.50.0 是不兼容的样式形状改版（P3 两态样式，见下段），1.49.x 客户端须随本合同更新样式相关的请求与解析；协议号不变，以合同版本区分。1.49.2 只改行为、不改形状：不透明预览缺背景媒体时不再整帧失败，改为旁路／兜底并给出 `BackgroundMediaUnavailable` 诊断，见[行为§20.3](../docs/architecture/backend-api.md)；0.112.41～0.112.72 的其余改动是渲染、宿主与GPU流私有协议的内部改动（0.112.69～0.112.72 为渲染层结构整理），公共HTTP不变。1.49.1 起：模板工坊与作者草稿试样接入宿主背景分析，各来源的straight预览固定为透明无媒体输入，分析失败按退避重试，见[行为§28.6](../docs/architecture/backend-api.md#sdk2-m10-media-features)。1.49.0 新增作者草稿整份替换包内图片与字体：保存 package-files 可选 `replacedFiles` 与 `baseSourceRevision`，新增只读 `POST /api/v1/drafts/{id}/package-file-replacement-inspection`，见[行为§21](../docs/architecture/backend-api.md#author-package-replacement)。1.48.0 按帧检查投影见[行为§29](../docs/architecture/backend-api.md#preview-frame-inspection)；1.46.0 起的owner草稿源码检查与完整配置采用保持，见[行为§21](../docs/architecture/backend-api.md#backend-author-p4)；图绑定、Base材质与组消费者见[行为§27](../docs/architecture/backend-api.md#sdk2-m09-svg-warp)。合同为115路径／128方法／667 schemas，3930个合成例（2839反例）。实际参与运行的SDK2效果仍要求GPU，CPU以 `commandNotSupported/PackageBackendUnsupported` 拒绝。合同、匹配发布、fresh HTTP、浏览器和导出分别登记；性能门槛暂不作为本轮验收标准。
 
+
+1.52.1 的失效预设应用：删除已保存应用的顶层目标（对应具体clip缺失也算该条失效）后，记录完整保留原enabled、应用／配方／实例身份、种子、模板定义与包资源，读模型仍返回 `targetValid:false`。运行跳过整条应用，不投影其实例、不准备或编译其材质、不查询其媒体依赖；`ProjectValidator` 的领域工程检查给出明确warning，测量、预览与导出继续。撤销删除并恢复相同ID目标后按原启停状态和身份恢复运行；界面提示跳过原因与恢复／移除选项。持久 `SourceMaterialCatalog`、fingerprint和codec仍检查完整闭包，不把运行筛选当作删除源数据。该规则只适用于缺失顶层目标；目标有效但内部binding／subscription失效、直接effect和损坏package等仍按原规则拒绝，新apply／update仍完整验证。路由、DTO、schema与3930个形状例保持，详见[行为§13.4](../docs/architecture/backend-api.md#g15-preset-applications)。
 
 1.52.0 的真实源材质导出失败：此前非脚本的源材质执行失败会丢掉安全的完整来源，无法从失败报告判断是哪一个源材质部位。现在以独立 `originKind:"sourceMaterialFailure"`／`severity:"error"` 诊断停止导出，`sourceMaterialFailure` 载荷包含真实 `owner`（path／region／slot／sourceMaterial 的 packageId、revision、exportId／parametersJson）、`stage`、规范十进制Int64字符串 `timeUs` 与稳定 `code`；没有脚本实例、编译代次或运行时occurrence，也不传异常文本或堆栈。实际 `ImageSurfaceBudgetExceeded` 可附 `budget`：currentSurfaces／additionalSurfaces／maximumSurfaces 为整数，currentBytes／additionalBytes／maximumBytes 为规范十进制Int64字符串。单条完整结构最多64KiB，不截断来源；Host按本次固定工程核对来源、参数、包与时刻，登记失败报告并沿既有导出诊断分页读取。新字段可省略，既有登记报告无需补字段；runtime／compileSource／背景兜底的既有语义保持。默认场景表面数上限从64改为256，512MiB字节上限不变；真实成员判空与安全的中间产物及时释放减少表面占用，关闭像素检查不额外同步读回，见[行为补充](../docs/architecture/backend-api.md)。新增4个必要形状例，其余复用既有语料。
 
@@ -46,13 +48,13 @@ GPU 流按精确修订创建、换来源、改变尺寸和关闭；创建受真�
 
 **1.24.1／0.94.1修复：** `ExportJobRequest.format`透明格式与实际服务一致为`transparentProRes4444`；错误旧值`transparentMov`仍被服务拒绝。附着来源／前奏缺失分别带`TargetStale`及`command.branchId`／`command.leadInId`，错误容器带`ContainerInvalid`及`command.containerId`。无新路由、DTO或命令；匹配发布Server＋Worker后使用产品0.94.1。实际构建、HTTP与合同证据见[修复记录](../docs/backend-basic-business-bugfix-0941.md)。
 
-静态辉光新增 `glow` 及 color/opacity/blurRadiusPx/spreadPx 四叶，支持继承、显式关闭和 restore；颜色使用完整RGBA对象。当前工程/歌词/模板 schema 为30/18/8；具体辉光语义及验收入口见[辉光参考](../docs/style-reference/glow.md)，SDK2 格式与来源门禁以当前源码及行为合同为准。
+静态辉光新增 `glow` 及 color/opacity/blurRadiusPx/spreadPx 四叶，支持继承、显式关闭和 restore；颜色使用完整RGBA对象。当前工程/歌词/模板 schema 为31/19/9；具体辉光语义及验收入口见[辉光参考](../docs/style-reference/glow.md)，SDK2 格式与来源门禁以当前源码及行为合同为准。
 
 ## 1. 执行依据与文件分工
 
 | 文件 | 用途 |
 |---|---|
-| [api-index.md](api-index.md) | 全部113路径／126方法、认证、请求和响应清单；包含5兼容别名 |
+| [api-index.md](api-index.md) | 全部115路径／128方法、认证、请求和响应清单；包含5兼容别名 |
 | [openapi.json](openapi.json) | 固定OpenAPI 3.1.0机器规范，供类型生成、请求/响应校验和mock使用 |
 | [行为规范源](../docs/architecture/backend-api.md) | 认证、回执、修订、任务、SSE、字节读取及所有端点的详细语义，继续作为唯一详细行为正文 |
 | [contract-manifest.json](contract-manifest.json) | 固定上述文件、工具及当前Backend源码的SHA-256；绑定这一份行为源而不是任意未来版本 |

@@ -1,8 +1,8 @@
 # 当前后端 HTTP API
 
-更新：2026-11-04。当前 **0.112.1／HTTP协议1／合同1.44.0**，SDK2 精确连续／Burst 粒子与晚期画布图元见§26；合同按匹配 metadata 冻结，生产源码基线为 `0f26db254bdf7562008ca7a573b2bc3fd6486bb1`；发布与实机证据独立登记。静态外辉光继续贯通四层样式、模板、文字标记、Worker快照与颜色捕获，语义见§6.11和[辉光参考](../style-reference/glow.md)。既有作者工作流、浏览器预览与桌面GPU流保持；历史证据保留原归属。接口和源码指纹以同一提交重新冻结的[执行合同](../../web/api-contract.md)为准。
+更新：2026-11-14。当前 **0.112.90／HTTP协议1／合同1.52.1**。已保存预设的顶层应用目标缺失时，完整保留其启停状态、身份、种子和资源，运行跳过整条应用并给出warning；测量、预览与导出继续，恢复相同ID目标后重新参与运行，详见§13.4。HTTP形状不变，合同为115路径／128方法／667 schemas、3930个合成例（2839反例）；精确源码基线和文件指纹见重新冻结的[执行合同](../../web/api-contract.md)与manifest。1.52.0的真实源材质失败安全结构与默认256张表面／512MiB预算保持，SDK2连续／Burst粒子及晚期画布图元见§26。静态外辉光继续贯通四层样式、模板、文字标记、Worker快照与颜色捕获，语义见§6.11和[辉光参考](../style-reference/glow.md)。既有作者工作流、浏览器预览与桌面GPU流保持；匹配发布、HTTP、浏览器及导出证据分别登记，历史证据保留原归属。
 
-1.44.0 的 HTTP DTO 结构沿用 1.43.0，固定112路径／125方法／597 schemas、3434 examples（2548反例），以匹配生成物和合同校验报告为准。公开 `renderBackend` 严格为 `cpu|gpu`，GPU实际API为Vulkan；创建/任务省略或null使用启动默认，已有预览更新省略或null保留当前选择，候选测量省略沿候选固定选择。各渲染任务在准入时固定选择，预览/帧/事件、job input、验证/导出报告及测量响应回显；历史缺失值表示未知。设备可用性不等同于业务渲染成功，202只表示接受，GPU失败不回落CPU。合同静态门禁、本机硬件、HTTP、浏览器、跨平台及性能分别验收。
+历史1.44.0的HTTP DTO结构沿用1.43.0，当时固定112路径／125方法／597 schemas、3434 examples（2548反例），以匹配生成物和合同校验报告为准。公开 `renderBackend` 严格为 `cpu|gpu`，GPU实际API为Vulkan；创建/任务省略或null使用启动默认，已有预览更新省略或null保留当前选择，候选测量省略沿候选固定选择。各渲染任务在准入时固定选择，预览/帧/事件、job input、验证/导出报告及测量响应回显；历史缺失值表示未知。设备可用性不等同于业务渲染成功，202只表示接受，GPU失败不回落CPU。合同静态门禁、本机硬件、HTTP、浏览器、跨平台及性能分别验收。
 
 §20 的0.98直接包预览、§10.1的0.100图片验证、§22的0.99图片预览及§11.5的0.101图片导出，均保留各自历史 profile 与证据归属；这些独立 profile 的旧限制不再是本轮统一输入的全局限制。0.99的1175请求／9760断言、0.100的1412请求／10582断言等历史数字不并入本轮。更早实现、失败过程与验收数字仍见 [实施记录](../backend-extraction-progress.md)。 原顶部历史摘要保持归属：0.75内部诊断各类256条/64KiB、合计512条/128KiB与真实0.74拒绝；0.72修复`1c70fae`后的775/775及HTTP699/4239、58终态、六恢复、七controls、四Server/172成员排水，repair1的753及失败HTTP137/987仍单列于原实施记录，不计本轮。运行能力必须采用实际部署的 Worker 握手与 capabilities，不能由产品版本推定；内部进程隔离不构成任意恶意脚本 OS sandbox，也不代表浏览器或跨平台验收。
 
@@ -992,6 +992,8 @@ apply只带非空且≤128字符的analysisJobId；clear用`{"type":"audio.analy
 ### 13.4 工程预设分配读模型（G15，合同1.14.0）
 
 `GET /api/v1/project-sessions/{id}/preset-applications?expectedRevision=...` 在当前工程 Writer 内读取完整分配列表，并要求唯一的精确工程修订。每项返回稳定 `applicationId`、`target` union、`targetValid`、`enabled`、模板快照摘要和 `branchInputs`。目标有效性按当前歌词来源、行、元素及现有展示节点／片段身份只读计算；失效引用仍会完整返回，不能因读取而修改或删除工程。
+
+合同1.52.1／产品0.112.90起，已经保存的应用若其顶层 `target` 已不存在（包括对应具体clip缺失），运行时跳过整条应用的实例、材质准备和媒体依赖查询；不会把它改成禁用、删除或裁剪。持久快照继续保留原 `enabled`、应用／配方／实例身份、种子、模板定义和包资源，`SourceMaterialCatalog`、源指纹与codec仍检查完整持久闭包。`ProjectValidator` 在领域工程检查中对缺失目标给出明确warning，工程仍可测量、预览和导出；撤销删除、恢复相同ID的目标后，原应用按原启停状态和身份重新参与运行。客户端以 `targetValid:false` 提示当前被跳过，并保留恢复目标或显式移除应用的操作。该规则只针对应用的顶层目标；目标仍有效但内部binding／subscription、直接effect、包或其它闭包损坏继续沿原规则拒绝，不能据此跳过。新apply／update的目标存在性与原子校验不变。没有新增路由、DTO、schema或fixture。
 
 现有 `PresetApplication` 快照没有持久化来源模板库身份和库级 revision，因此响应中的 `source` 明确且固定返回 `comparable:false`、`libraryId:null`、`revision:null`、`newVersionAvailable:null`。这三个字段即使为 null 也不会省略，OpenAPI `ProjectPresetApplicationSourceDto` 明确声明 `string|null`／`boolean|null` 并将其列为必返字段；模板内容哈希不冒充库 revision，“有新版本”比较待后续持久化迁移与合同切片。能力列表独立公布 `project-sessions.preset-applications.read`。读取遵循统一 1 MiB JSON／20000 项预算，超限整批返回 `413 resourceTooLarge`，不截断。
 

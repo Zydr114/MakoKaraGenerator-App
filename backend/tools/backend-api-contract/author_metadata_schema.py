@@ -43,9 +43,9 @@ def extend(schemas, metadata):
         response["properties"][field] = copy.deepcopy(REVISION)
     response["properties"]["draftId"] = copy.deepcopy(DRAFT_ID)
     response["properties"]["protocolVersion"] = {"type": "string", "const": "1"}
-    response["properties"]["packageVersion"]["enum"] = [2, 3]
+    response["properties"]["packageVersion"]["enum"] = [3]
     response["properties"]["sdkVersion"]["description"] = "固定包声明的SDK版本；沿现有profile兼容规则，SDK2补丁版本不收窄为2.0.0。"
-    response["properties"]["shaderProfile"]["enum"] = ["skia-raster-3.119.4-v1", "skia-ganesh-3.119.4-v2"]
+    response["properties"]["shaderProfile"]["enum"] = ["skia-ganesh-3.119.4-v2"]
     response["description"] = (
         "owner草稿保留的精确源码声明完整投影；sourceRevision等于packageRevision，packageId固定为草稿包身份。"
         "独立响应复用参数/导出/input/file/diagnostic DTO，不包含reference、manifest/manifestJson、源码或机器路径。"

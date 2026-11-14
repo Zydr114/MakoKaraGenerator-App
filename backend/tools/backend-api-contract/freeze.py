@@ -31,10 +31,10 @@ from static_style_schema import extend_static_style_schemas, style_query_paramet
 from template_library_schema import extend_template_library_schemas, query_parameters as template_query_parameters, LIMITS as TEMPLATE_LIMITS
 
 ROOT = Path(__file__).resolve().parents[2]
-CONTRACT = "1.52.1"
-BASELINE = "baa5b435ab69f6b52c51bcc267de5034921ac72f"
+CONTRACT = "1.53.0"
+BASELINE = "c2fbff4463a0e190fa834ed80917067be24249d1"
 PRODUCT = re.search(r"<VersionPrefix>([^<]+)</VersionPrefix>", (ROOT / "Directory.Build.props").read_text()).group(1)
-FREEZE_DATE = "2026-11-14"
+FREEZE_DATE = "2026-11-15"
 BEHAVIOR = "docs/architecture/backend-api.md"
 TOOL = Path(__file__).resolve().parent
 
@@ -1388,9 +1388,9 @@ def manifest(outputs):
             "src/MakoKaraGenerator.Rendering.Abstractions/PerformanceTelemetry.cs",
             "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.cs",
             "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.Queries.cs",
-            "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.Emitters.cs",
             "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.Visuals.cs",
-            "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.Particles.cs"):
+            "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.V2Particles.cs",
+            "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.V2Sources.cs"):
         source = ROOT / filename
         if not source.is_file():
             raise ValueError("Missing reviewed GPU rendering behavior source: " + filename)
@@ -1498,7 +1498,7 @@ def manifest(outputs):
             "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.cs",
             "src/MakoKaraGenerator.Rendering.Skia/SkiaSceneGeometry.cs",
             "src/MakoKaraGenerator.Runtime.Hosting/ProjectRenderSessionFactory.cs",
-            "src/MakoKaraGenerator.Scripting.Abstractions/FrameWriter.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/FrameOutput.cs",
             "src/MakoKaraGenerator.Scripting.Abstractions/GeometrySamples.cs",
             "src/MakoKaraGenerator.Scripting.Abstractions/StyleUpdate.cs",
             "src/MakoKaraGenerator.Scripting.Abstractions/StyleView.cs",
@@ -1517,12 +1517,13 @@ def manifest(outputs):
             "src/MakoKaraGenerator.Scripting.Compiler/ScriptV2PurityAnalyzer.cs",
             "src/MakoKaraGenerator.Scripting/Compilation/CompiledEffectPackage.cs",
             "src/MakoKaraGenerator.Scripting/Compilation/ScriptCompilationIdentity.cs",
-            "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.Bursts.cs",
             "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.Exit.cs",
             "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.Groups.cs",
             "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.Lines.cs",
             "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.PackageOutputs.cs",
             "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.Pure.cs",
+            "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.V2Particles.cs",
+            "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.V2Sources.cs",
             "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.Visuals.cs",
             "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.cs",
             "src/MakoKaraGenerator.Scripting/Execution/FrameSession.cs",
@@ -1553,7 +1554,7 @@ def manifest(outputs):
             "src/MakoKaraGenerator.Scripting.Abstractions/ParticleDescription.cs",
             "src/MakoKaraGenerator.Scripting.Abstractions/ParticleSource.cs",
             "src/MakoKaraGenerator.Scripting.Abstractions/ParticleSample.cs",
-            "src/MakoKaraGenerator.Scripting.Abstractions/CursorEmitterDescriptor.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/ParticleCurves.cs",
             "src/MakoKaraGenerator.Scripting.Abstractions/CurveValue.cs",
             "src/MakoKaraGenerator.Scripting.Abstractions/DeterministicRandom.cs",
             "src/MakoKaraGenerator.Scripting.Abstractions/OverlayBatch.cs",
@@ -1688,7 +1689,7 @@ def manifest(outputs):
             "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.cs",
             "src/MakoKaraGenerator.Scripting.Abstractions/FrameOutput.Graphs.cs",
             "src/MakoKaraGenerator.Scripting.Abstractions/FrameOutput.Materials.cs",
-            "src/MakoKaraGenerator.Scripting.Abstractions/FrameWriter.ImageEffects.cs",
+            "src/MakoKaraGenerator.Scripting.Abstractions/ImageEffectBindings.cs",
             "src/MakoKaraGenerator.Scripting.Abstractions/GraphBindingBudget.cs",
             "src/MakoKaraGenerator.Scripting.Abstractions/GraphBindingValue.cs",
             "src/MakoKaraGenerator.Scripting.Abstractions/GraphTransformValues.cs",
@@ -1703,7 +1704,6 @@ def manifest(outputs):
             "src/MakoKaraGenerator.Scripting/Compilation/GroupGraphEffectAdmission.cs",
             "src/MakoKaraGenerator.Scripting/Compilation/ScriptCompilationIdentity.cs",
             "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.BaseMaterials.cs",
-            "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.Bursts.cs",
             "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.DirectGraphs.cs",
             "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.Graphs.cs",
             "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.MaterialUniforms.cs",
@@ -1711,6 +1711,8 @@ def manifest(outputs):
             "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.PackageOutputs.cs",
             "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.Pure.cs",
             "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.V2Anchors.cs",
+            "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.V2Particles.cs",
+            "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.V2Sources.cs",
             "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.cs",
     ):
         source = ROOT / filename
@@ -1793,7 +1795,7 @@ def manifest(outputs):
     files.update(p for p in TOOL.iterdir() if p.is_file())
     return {"contractVersion": CONTRACT, "httpProtocolVersion": "1", "productVersion": PRODUCT, "sourceBaselineCommit": BASELINE,
             "frozenOn": FREEZE_DATE, "status": "frozen", "behaviorSource": BEHAVIOR,
-            "scope": "Implemented public HTTP API. Product 0.112.91 optimizes immutable video-background snapshots with format-preserving raw pixel copies and adds bounded internal background/draw/GPU-submit/export-queue telemetry; HTTP routes, DTOs, fixtures and inspection response fields are unchanged. Contract 1.52.1 is a behavior-only patch without HTTP shape or fixture changes: a saved preset application whose top-level target no longer exists is retained in full, including enabled state, application/recipe/instance identities, seeds, template snapshot and package resources. Runtime projection omits the whole application, its material preparation/compilation and media-dependency queries; project validation warns without blocking measurement, preview or export, and restoring the same target IDs resumes the original application. Persistent SourceMaterialCatalog, source fingerprints and codecs still validate the full source closure; invalid internal bindings/subscriptions under an existing target, direct effects and damaged packages retain their previous rejection rules. The same 0.112.90 candidate also fixes real layout-reference measurement: representative lines that strictly match the current layout sample use the style resolver for that same immutable sample rather than looking up temporary lines in the source lyrics, and a source snapshot reuses one layout sample. Ordinary unknown lines retain their previous rejection and the layout-reference-v1 sampling profile is unchanged. Contract 1.52.0 adds an optional sourceMaterialFailure diagnostic branch for actual source-material export failures, preserving the complete real source owner, material package/revision/export, parameters, execution stage/time and stable code without fabricating a script occurrence. ImageSurfaceBudgetExceeded additionally carries actual current/requested/maximum surface counts and decimal-string byte values. The default scene surface-count budget increases from 64 to 256 with the 512 MiB byte budget unchanged. Existing runtime, compile-source and background fallback diagnostics retain their previous meanings. Contract 1.51.1 is a behavior-only patch without shape change: a PUT .../input that also switches alphaMode pins the run media input under the new mode (straight/transparent output to NoMedia), and template-workshop and author-draft samples assign fixed instance identities in recipe and binding order and use a fixed sample seed when the recipe has no fixedSeed, so repeated captures of the same draft/template draw the same random values. Contract 1.51.0 lets export and scene measurement continue with the preview fallbacks when image effects/materials need a missing (opaque, no usable media) or absent (transparent) background: the export report lists up to 128 deduplicated fallback diagnostics (imageEffect/material origin, warning severity) with the affected frame count and a truncation flag, the export job result carries their count, and scene measurements return the frame's deduplicated fallback diagnostics; projects without such dependencies export unchanged bytes. Contract 1.50.0 replaced the single-state style surface with two-state static styles (unsung/sung appearances where sung strokes, shadow and glow follow or set; up to four stroke layers; wipe feather and highlight; 43 property paths shared by styles.patch/restore, template properties, resolved sources and lead-in marks) and removes progress gradients; it is incompatible with 1.49.x clients although httpProtocolVersion stays 1. It keeps owner-only exact retained-source inspection and optional complete configuration adoption. The Host media feature track publishes project.mediaFeaturesChanged without changing revision, fixes media input per run (project previews and candidates wait for checks, template-workshop and author-draft samples up to 20 s for complete artifacts, project/author validation and export for complete artifacts), retries failed analyses lazily with bounded backoff and pins every straight/transparent output to NoMedia. Opaque preview output without usable background media no longer fails the frame: required BackgroundMedia graph inputs are bypassed and materials fall back to the package base appearance with a BackgroundMediaUnavailable warning that states the cause, optional inputs capture the project base colour; static render sessions still reject any image-effect/material diagnostic. Preview frames may opt in to a read-only inspection projection (geometry, cursors, particle anchors, effect catalog and single-frame cost) built from the same prepared frame, retained with the frame and read separately; PNG and export are unchanged. Author drafts may replace an image or font file whole with an uploaded asset of the same format after full decode/font load, taking fixed files from an explicit retained base revision; size and family-name changes only warn. The inspection response is independent and reference-free; public package reference kinds remain asset/library/configuration. Adoption validates the exact successful source and complete target configuration before one document publication. SDK2 graph bindings, per-target material uniforms/base materials, exact source-group admission and scene composition/capture/budgets are fingerprinted together with Warp/SVG, particles, GPU and existing preview/export lifecycles; their finite boundaries remain. Generated contract, regression, matched deployment, fresh HTTP/GPU frames, browser and performance acceptance require separate evidence.",
+            "scope": "Implemented public HTTP API. Product 0.113.0 / Contract 1.53.0 completes M14 SDK v1 removal: effect packages, author inspection, compilation, preview, validation and export admit only SDK v2 packages (packageVersion=3, shaderProfile=skia-ganesh-3.119.4-v2), legacy IsV2 bridging is removed, and AuthorSourceInspectionResponse narrows packageVersion enum to [3] and shaderProfile enum to [skia-ganesh-3.119.4-v2]; HTTP routes and request DTO structures are unchanged. Product 0.112.91 optimizes immutable video-background snapshots with format-preserving raw pixel copies and adds bounded internal background/draw/GPU-submit/export-queue telemetry; HTTP routes, DTOs, fixtures and inspection response fields are unchanged. Contract 1.52.1 is a behavior-only patch without HTTP shape or fixture changes: a saved preset application whose top-level target no longer exists is retained in full, including enabled state, application/recipe/instance identities, seeds, template snapshot and package resources. Runtime projection omits the whole application, its material preparation/compilation and media-dependency queries; project validation warns without blocking measurement, preview or export, and restoring the same target IDs resumes the original application. Persistent SourceMaterialCatalog, source fingerprints and codecs still validate the full source closure; invalid internal bindings/subscriptions under an existing target, direct effects and damaged packages retain their previous rejection rules. The same 0.112.90 candidate also fixes real layout-reference measurement: representative lines that strictly match the current layout sample use the style resolver for that same immutable sample rather than looking up temporary lines in the source lyrics, and a source snapshot reuses one layout sample. Ordinary unknown lines retain their previous rejection and the layout-reference-v1 sampling profile is unchanged. Contract 1.52.0 adds an optional sourceMaterialFailure diagnostic branch for actual source-material export failures, preserving the complete real source owner, material package/revision/export, parameters, execution stage/time and stable code without fabricating a script occurrence. ImageSurfaceBudgetExceeded additionally carries actual current/requested/maximum surface counts and decimal-string byte values. The default scene surface-count budget increases from 64 to 256 with the 512 MiB byte budget unchanged. Existing runtime, compile-source and background fallback diagnostics retain their previous meanings. Contract 1.51.1 is a behavior-only patch without shape change: a PUT .../input that also switches alphaMode pins the run media input under the new mode (straight/transparent output to NoMedia), and template-workshop and author-draft samples assign fixed instance identities in recipe and binding order and use a fixed sample seed when the recipe has no fixedSeed, so repeated captures of the same draft/template draw the same random values. Contract 1.51.0 lets export and scene measurement continue with the preview fallbacks when image effects/materials need a missing (opaque, no usable media) or absent (transparent) background: the export report lists up to 128 deduplicated fallback diagnostics (imageEffect/material origin, warning severity) with the affected frame count and a truncation flag, the export job result carries their count, and scene measurements return the frame's deduplicated fallback diagnostics; projects without such dependencies export unchanged bytes. Contract 1.50.0 replaced the single-state style surface with two-state static styles (unsung/sung appearances where sung strokes, shadow and glow follow or set; up to four stroke layers; wipe feather and highlight; 43 property paths shared by styles.patch/restore, template properties, resolved sources and lead-in marks) and removes progress gradients; it is incompatible with 1.49.x clients although httpProtocolVersion stays 1. It keeps owner-only exact retained-source inspection and optional complete configuration adoption. The Host media feature track publishes project.mediaFeaturesChanged without changing revision, fixes media input per run (project previews and candidates wait for checks, template-workshop and author-draft samples up to 20 s for complete artifacts, project/author validation and export for complete artifacts), retries failed analyses lazily with bounded backoff and pins every straight/transparent output to NoMedia. Opaque preview output without usable background media no longer fails the frame: required BackgroundMedia graph inputs are bypassed and materials fall back to the package base appearance with a BackgroundMediaUnavailable warning that states the cause, optional inputs capture the project base colour; static render sessions still reject any image-effect/material diagnostic. Preview frames may opt in to a read-only inspection projection (geometry, cursors, particle anchors, effect catalog and single-frame cost) built from the same prepared frame, retained with the frame and read separately; PNG and export are unchanged. Author drafts may replace an image or font file whole with an uploaded asset of the same format after full decode/font load, taking fixed files from an explicit retained base revision; size and family-name changes only warn. The inspection response is independent and reference-free; public package reference kinds remain asset/library/configuration. Adoption validates the exact successful source and complete target configuration before one document publication. SDK2 graph bindings, per-target material uniforms/base materials, exact source-group admission and scene composition/capture/budgets are fingerprinted together with Warp/SVG, particles, GPU and existing preview/export lifecycles; their finite boundaries remain. Generated contract, regression, matched deployment, fresh HTTP/GPU frames, browser and performance acceptance require separate evidence.",
             "files": {str(p.relative_to(ROOT)): sha(p.read_bytes()) for p in sorted(files)},
             "artifacts": {name: sha(data) for name, data in sorted(outputs.items())},
             "guards": "Source hashes require review even for behavior-preserving changes. They are drift alarms, not semantic proofs. Runtime/Media behavior still requires existing regression tests."}
@@ -1804,6 +1806,12 @@ def legacy_examples(existing_examples):
     from style_v2_fixtures import LEGACY_CONTRACT, PREFIX as STYLE_V2_PREFIX, restore_legacy
     from export_fallback_fixtures import LEGACY_CONTRACT as STYLE_V2_CONTRACT, PREFIX as FALLBACK_PREFIX, restore_cases
     from source_material_failure_fixtures import PREFIX as SOURCE_MATERIAL_FAILURE_PREFIX
+    from sdk_v1_removal_fixtures import LEGACY_CONTRACT as SDK_V1_LEGACY_CONTRACT, PREFIX as SDK_V1_REMOVAL_PREFIX, restore_cases as restore_sdk_v1_removal
+    if existing_examples["contractVersion"] not in (LEGACY_CONTRACT, STYLE_V2_CONTRACT, "1.51.0", "1.51.1", "1.52.0", SDK_V1_LEGACY_CONTRACT):
+        cases = existing_examples["cases"]
+        current = [case for case in cases if not case["name"].startswith(SDK_V1_REMOVAL_PREFIX)]
+        assert cases[:len(current)] == current, "sdk-v1-removal cases must stay the corpus tail"
+        existing_examples = {**existing_examples, "contractVersion": SDK_V1_LEGACY_CONTRACT, "cases": restore_sdk_v1_removal(current)}
     cases = existing_examples["cases"]
     current = [case for case in cases if not case["name"].startswith(SOURCE_MATERIAL_FAILURE_PREFIX)]
     assert cases[:len(current)] == current, "source-material-failure cases must stay the corpus tail"
@@ -1862,6 +1870,10 @@ def main():
     example_document["cases"] = migrate_fallback(example_document["cases"]) + fallback_fixtures()
     from source_material_failure_fixtures import fixtures as source_material_failure_fixtures
     example_document["cases"] += source_material_failure_fixtures()
+    # Contract 1.53.0 removes SDK v1 support: the historical v1 inspection fixture becomes
+    # invalid under the narrowed enums and 1.53.0 negative cases are appended.
+    from sdk_v1_removal_fixtures import migrate_cases as migrate_sdk_v1_removal, fixtures as sdk_v1_removal_fixtures
+    example_document["cases"] = migrate_sdk_v1_removal(example_document["cases"]) + sdk_v1_removal_fixtures()
     example_document["contractVersion"] = CONTRACT
     examples = encoded(example_document)
     outputs = {"web/openapi.json": encoded(spec), "web/api-index.md": inventory(spec, operations), "web/api-contract.md": (ROOT / "web/api-contract.md").read_bytes(), "web/examples.json": examples}

@@ -125460,7 +125460,7 @@
     {
       "name": "author-metadata-inspection-response-v1",
       "schema": "AuthorSourceInspectionResponse",
-      "valid": true,
+      "valid": false,
       "value": {
         "draftId": "draft-dddddddddddddddddddddddddddddddd",
         "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -166398,7 +166398,161 @@
         "maximumBytes": "536870912"
       },
       "valid": false
+    },
+    {
+      "name": "sdk-v1-removal-inspection-response-package-version-2",
+      "schema": "AuthorSourceInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "packageId": "demo.closed",
+        "packageRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "Demo",
+        "version": "1.0.0",
+        "packageVersion": 2,
+        "sdkVersion": "2.0.0",
+        "shaderProfile": "skia-ganesh-3.119.4-v2",
+        "structureValid": true,
+        "parameters": [
+          {
+            "id": "counter",
+            "type": "integer",
+            "label": "Counter",
+            "defaultValueJson": "9007199254740993",
+            "minimumJson": "-9223372036854775808",
+            "maximumJson": "9223372036854775807",
+            "options": []
+          }
+        ],
+        "exports": [
+          {
+            "id": "migrated",
+            "kind": "controller",
+            "name": "Migrated",
+            "parameterIds": [
+              "counter"
+            ],
+            "bindingKinds": [
+              "tokens"
+            ],
+            "declaration": {
+              "id": "migrated",
+              "kind": "controller",
+              "parameters": [
+                "counter"
+              ],
+              "bindingKinds": [
+                "tokens"
+              ],
+              "outputs": []
+            }
+          }
+        ],
+        "bindingKinds": [
+          "tokens"
+        ],
+        "inputs": [
+          {
+            "path": "graphs/tint.json",
+            "inputs": [
+              {
+                "id": "color",
+                "source": "TargetColor"
+              }
+            ]
+          }
+        ],
+        "files": [
+          {
+            "path": "src/PackEffect.cs",
+            "role": "csharp",
+            "size": 250,
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "diagnostics": [],
+        "protocolVersion": "1"
+      }
+    },
+    {
+      "name": "sdk-v1-removal-inspection-response-raster-shader-profile",
+      "schema": "AuthorSourceInspectionResponse",
+      "valid": false,
+      "value": {
+        "draftId": "draft-dddddddddddddddddddddddddddddddd",
+        "draftRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "packageId": "demo.closed",
+        "packageRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "Demo",
+        "version": "1.0.0",
+        "packageVersion": 3,
+        "sdkVersion": "2.0.0",
+        "shaderProfile": "skia-raster-3.119.4-v1",
+        "structureValid": true,
+        "parameters": [
+          {
+            "id": "counter",
+            "type": "integer",
+            "label": "Counter",
+            "defaultValueJson": "9007199254740993",
+            "minimumJson": "-9223372036854775808",
+            "maximumJson": "9223372036854775807",
+            "options": []
+          }
+        ],
+        "exports": [
+          {
+            "id": "migrated",
+            "kind": "controller",
+            "name": "Migrated",
+            "parameterIds": [
+              "counter"
+            ],
+            "bindingKinds": [
+              "tokens"
+            ],
+            "declaration": {
+              "id": "migrated",
+              "kind": "controller",
+              "parameters": [
+                "counter"
+              ],
+              "bindingKinds": [
+                "tokens"
+              ],
+              "outputs": []
+            }
+          }
+        ],
+        "bindingKinds": [
+          "tokens"
+        ],
+        "inputs": [
+          {
+            "path": "graphs/tint.json",
+            "inputs": [
+              {
+                "id": "color",
+                "source": "TargetColor"
+              }
+            ]
+          }
+        ],
+        "files": [
+          {
+            "path": "src/PackEffect.cs",
+            "role": "csharp",
+            "size": 250,
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "diagnostics": [],
+        "protocolVersion": "1"
+      }
     }
   ],
-  "contractVersion": "1.52.1"
+  "contractVersion": "1.53.0"
 }

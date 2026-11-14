@@ -5559,4 +5559,17 @@ SDK 2.0 冻结：
 验证边界：合同的metadata、指纹和合成例只验证静态闭包；缺失目标后的实际测量、预览、导出、保存重开、
 撤销恢复及界面反馈，须由匹配构建的独立回归与运行证据确认。
 
-验收补充（同一0.112.90候选）：真实布局参考测量曾用原工程解析器查找临时代表行，在不含失效预设的对照工程同样失败。修复后同一源快照复用同一不可变布局试样，严格匹配试样身份的代表行使用该试样解析器；普通未知行仍拒绝。该修复独立于失效预设，合同形状与layout-reference-v1保持，另以定向回归和新的匹配HTTP测量验收。
+验收补充（同一0.112.90候选）：真实布局参考测量曾用原工程解析器查找临时代表行，在不含失效预设的对照工程同样失败。修复后同一源快照复用同一不可变布局试样，严格匹配试样身份的代表行使用该不可变试样解析器；普通未知行仍拒绝。该修复独立于失效预设，合同形状与layout-reference-v1保持，另以定向回归和新的匹配HTTP测量验收。
+
+<a id="adr-0261"></a>
+
+## ADR-0261：M14 移除 SDK v1 公共准入并冻结 1.53.0 合同（2026-11-15）
+
+背景：M14 阶段删除了遗留 SDK v1 脚本执行、粒子/发射器与光栅 shader 路径，效果包统一收口为 SDK v2（`packageVersion=3`、`shaderProfile="skia-ganesh-3.119.4-v2"`）。原有 `EffectPackageProfiles.IsV2` 临时桥接及合同 `AuthorSourceInspectionResponse` 中的 `packageVersion: 2` / `skia-raster-3.119.4-v1` 枚举已不再存在对应运行实现。
+
+决定：
+- 产品版本升级至 `0.113.0`，收敛 `backend/src/` 与测试/升级工具中残余 `EffectPackageProfiles.IsV2` 为 `EffectPackageProfiles.IsSupported`，移除临时 `IsV2` 方法，并使性能插桩脚本 `instrument.py` 对已删除旧 v1 锚点保持兼容。
+- 合同升级至 `1.53.0`，将 `AuthorSourceInspectionResponse` 的 `packageVersion.enum` 收窄为 `[3]`、`shaderProfile.enum` 收窄为 `["skia-ganesh-3.119.4-v2"]`，更新 `freeze.py` manifest 脚本文件指纹路径（`FrameOutput.cs`、`ImageEffectBindings.cs`、`ParticleCurves.cs`、`FrameEffectHost.{V2Particles,V2Sources}.cs`）。
+- 保留 `1.46.0`～`1.52.1` 历史语料 SHA-256 还原门禁不变；在 `sdk_v1_removal_fixtures.py` 通过 `migrate_cases` / `restore_cases` 将 `author-metadata-inspection-response-v1` 在 `1.53.0` 迁移为反例并追加尾部 `packageVersion: 2` 与 `skia-raster-3.119.4-v1` 拒绝例，共 115 路径 / 128 方法 / 667 schemas / 3932 例（2842 反例）。
+
+验证边界：合同冻结、双端同步、文档归档与全量前后端回归（含 `MAKO_REQUIRE_VULKAN_TESTS=1` 真实 Vulkan GPU 套件）独立执行；发布态独立包与桌面真机演示仍需各自发布门禁证据。

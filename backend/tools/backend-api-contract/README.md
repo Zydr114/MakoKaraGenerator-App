@@ -1,12 +1,16 @@
 # 冻结 API 合同生成与校验
 
+2026-11-15 M14 收敛：产品 **0.113.0**，合同 **1.53.0**；移除 SDK v1 运行与作者准入支持及残余 `IsV2` 桥接，`AuthorSourceInspectionResponse` 的 `packageVersion` enum 收窄为 `[3]`、`shaderProfile` enum 收窄为 `["skia-ganesh-3.119.4-v2"]`，并更新 manifest 中重命名／移除的 6 处脚本路径指纹。此前 0.112.91／0.112.90 历史说明保留原归属。
+
 2026-11-14 性能补充：产品 0.112.91，合同仍为 1.52.1；视频背景不可变快照改用保留格式的原始像素复制，增加内部性能日志阶段，无 HTTP 形状、fixture 或检查响应字段变化。基线 `baa5b43`，新增快照实现纳入指纹。此前 0.112.90 行为说明保留历史归属。
 
-本轮工具源码目标为 **合同1.52.1／产品0.112.90／协议1**（2026-11-14）：缺失顶层应用目标的preset完整保留，运行跳过整条应用的实例、材质准备与媒体依赖，并以warning提示；恢复相同ID目标后沿原身份、种子和启停状态运行。持久 `SourceMaterialCatalog`、fingerprint及codec闭包仍严格，目标有效但内部binding／subscription失效、直接effect与损坏包等仍按原规则拒绝。行为补丁不改HTTP形状，不加fixture，保持115 paths／128 methods／667 schemas、3930例（2839反例）。下述旧版本材料保留历史归属；合同生成不替代匹配发布与fresh HTTP验收。
+本轮工具源码目标为 **合同1.53.0／产品0.113.0／协议1**（2026-11-15）：基于产品 `0.113.0` 提交基线 `c2fbff4`，冻结 M14 移除 SDK v1 后的公共 HTTP 合同（115 paths／128 methods／667 schemas、3932 例／2842 反例）。下述旧版本材料保留历史归属；合同生成不替代匹配发布与fresh HTTP验收。
 
 从 `backend/` 执行。本工具构建Contracts引用的离线CLI，不启动服务。`author_metadata_schema.py` 审阅真实CLR字段、nullable与构造默认值，复用现有 `AuthorPackageQuery` 和参数/导出/input/file/diagnostic DTO；检查响应独立且无reference，公共包引用kind继续仅为asset/library/configuration。采用配置采用inline完整八字段严格schema，避免改变package-files的既有配置语义；两个可空字段仍显式必填，UInt64种子采用十进制字符串并保留前导零。`author_metadata_fixtures.py` 覆盖精确整数、Int64 `files.size`、未来未知响应字段、完整采用、旧请求兼容和具名拒绝；运行期CAS/owner、重复JSON键、完整UTF-8预算、编译来源、原子存储和真实sampleOptions须由服务/HTTP核对。
 
 `freeze.py` 将本轮运行筛选与持久闭包接缝显式纳入指纹；已有新增路径／响应与fixture保留历史归属；`validate.py` 保留历史SDK2、作者、GPU/辉光及全量样例门禁，并单独扣除本轮尾部增量后核对旧3434/2548基线。本轮 `BASELINE` 为已提交生产源码 `2eb0299`（完整哈希见 `freeze.py`），已从该源码重建／导出metadata并生成检查；产品版本从 `Directory.Build.props` 读取。静态门禁不替代匹配发布、fresh HTTP或性能验收；进度见App根 `docs/plans/script-sdk-v2-phase-one-progress.md`。
+
+1.53.0 对应产品 `0.113.0`（基线 `c2fbff4`）：移除 SDK v1 后将 `AuthorSourceInspectionResponse` 的 `packageVersion.enum` 收窄为 `[3]`、`shaderProfile.enum` 收窄为 `["skia-ganesh-3.119.4-v2"]`，保持 115／128／667 路由与 schema 计数，并通过 `sdk_v1_removal_fixtures.py` 将历史 `author-metadata-inspection-response-v1` 迁移为反例且在尾部追加 `packageVersion=2` 与 `shaderProfile="skia-raster-3.119.4-v1"` 拒绝例（共 3932 例 / 2842 反例），同时按 `migrate_cases`/`restore_cases` 在 `validate.py` 内先验当前语料再还原至 1.52.1 语料执行下游历史 SHA-256 门禁；`freeze.py` manifest 同步替换为 `FrameOutput.cs`、`ImageEffectBindings.cs`、`ParticleCurves.cs`、`FrameEffectHost.{V2Particles,V2Sources}.cs`。
 
 1.52.1 是行为补丁：沿用1.52.0的115／128／667与全部3930个例子，`validate.py` 将1.52.1纳入全部历史门禁，未新增形状例。固定来源包括顶层目标存在性、实例投影、完整源指纹、持久／运行源材质目录、媒体依赖、材质编译准备、设备准入与诊断归属。同一候选另修复真实布局参考测量：严格匹配试样身份的代表行使用同一不可变试样解析器，同一源快照复用试样。fresh metadata、freeze write／默认检查、validate和前端合同副本测试的首轮日志保留于 `artifacts/orphan-preset-20261114/contract/`，包含布局修复的最终生成证据位于 `artifacts/orphan-preset-20261114/contract-final/`；运行验收另行登记。
 

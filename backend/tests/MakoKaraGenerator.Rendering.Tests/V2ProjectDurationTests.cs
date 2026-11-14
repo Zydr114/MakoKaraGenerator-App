@@ -25,8 +25,8 @@ public sealed class V2ProjectDurationTests
         foreach ((long? duration, double expected) in new (long?, double)[] { (2_500_000, 250), (7_000_000, 700), (null, -7) })
         {
             var snapshot = Snapshot(duration);
-            await using var session = await new TimelineFrameSourceFactory([effect], Fingerprint,
-                static () => new SkiaRenderPipeline(), ReplayReason.Initial).CreateAsync(snapshot);
+            await using var session = await new PureFrameSourceFactory([effect], Fingerprint,
+                static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
             var target = RenderTarget.FromComposition(snapshot.Composition);
             foreach (long time in new long[] { 50_000, 0, 50_000 })
             {

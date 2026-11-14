@@ -59,15 +59,12 @@ public sealed class VisualOverlayRenderingTests
         Assert.Equal(expected, drawn.PixelMemory.ToArray());
     }
     [Fact]
-    public async Task 纯视觉的空输出保持基础帧且请求历史不能伪造空前缀()
+    public async Task 纯视觉的空输出保持基础帧()
     {
         var snapshot = VisualTestFixture.Snapshot(); var target = VisualTestFixture.Target(snapshot);
         await using var none = await VisualTestFixture.Pure([await VisualTestFixture.Definition("none", "PureDots")]).CreateAsync(snapshot);
         var frame = await none.PrepareAsync(18_001, Fx.OutputMode.Transparent, target);
         Assert.Empty(frame.DotBatches); Assert.Empty(frame.Diagnostics); Assert.Same(frame.Scene, frame.HierarchyScene);
-        await using var history = await VisualTestFixture.Pure([await VisualTestFixture.Definition("history", "PureDots")]).CreateAsync(snapshot);
-        Assert.Equal("TimelineSessionRequired", (await Assert.ThrowsAsync<EffectFailureException>(async () =>
-            await history.PrepareAsync(frame.TimeUs, Fx.OutputMode.Transparent, target))).Code);
     }
     [Theory]
     [InlineData(false)] [InlineData(true)]
@@ -96,9 +93,25 @@ public sealed class VisualOverlayRenderingTests
         await using var budget = await VisualTestFixture.Pure([first, first with { Id = new("second") }], new(1)).CreateAsync(snapshot);
         var error = await Assert.ThrowsAsync<EffectFailureException>(async () => await budget.PrepareAsync(18_001, Fx.OutputMode.Transparent, target));
         Assert.Equal("VisualOutputBudgetExceeded", error.Code); Assert.Equal(new Fx.EffectInstanceId("second"), error.InstanceId);
-        await using var undeclared = await VisualTestFixture.Pure([first with { Capabilities = Fx.EffectCapabilities.None }]).CreateAsync(snapshot);
+        var missingCapability = first with
+        {
+            PackageDefinition = MakoKaraGenerator.Core.Effects.EffectPackageDefinition.Read(V2RenderPackageHelper.UpgradeToV2(
+                first.PackageDefinition!.Contents, [Fx.V2.CapabilityNames.TokenAffine, Fx.V2.CapabilityNames.LineAffine, Fx.V2.CapabilityNames.MarkAffine],
+                manifest =>
+                {
+                    foreach (var export in manifest["exports"]!.AsArray())
+                        foreach (var output in export!["outputs"]!.AsArray())
+                            output!["requires"] = new System.Text.Json.Nodes.JsonArray(
+                                ((System.Text.Json.Nodes.JsonArray)output["requires"]!)
+                                .Where(r => r!.GetValue<string>() != Fx.V2.CapabilityNames.VisualsDots)
+                                .Select(r => System.Text.Json.Nodes.JsonValue.Create(r!.GetValue<string>())).ToArray());
+                })),
+        };
         Assert.Equal("UndeclaredCapability", (await Assert.ThrowsAsync<EffectFailureException>(async () =>
-            await undeclared.PrepareAsync(18_001, Fx.OutputMode.Transparent, target))).Code);
+        {
+            await using var undeclared = await VisualTestFixture.Pure([missingCapability]).CreateAsync(snapshot);
+            await undeclared.PrepareAsync(18_001, Fx.OutputMode.Transparent, target);
+        })).Code);
     }
     [Theory]
     [InlineData("large")] [InlineData("tiny")]

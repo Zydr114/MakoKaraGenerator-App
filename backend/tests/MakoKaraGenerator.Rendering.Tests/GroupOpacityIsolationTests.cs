@@ -154,7 +154,7 @@ public sealed class GroupOpacityIsolationTests
             "branch" => new Fx.EffectBinding.Branch(new("primary")), "lines" => new Fx.EffectBinding.Lines([new("first")]),
             "tokens" => new Fx.EffectBinding.Tokens([new("first-a")]), _ => new Fx.EffectBinding.Clips([new("chorus-clip")]) };
         var effect = (await Package.Value).CreateEffect("group-opacity", new("package"), binding, 1, JsonSerializer.SerializeToUtf8Bytes(new { node = root }));
-        await using var source = await new TimelineFrameSourceFactory([effect], Fingerprint, static () => new SkiaRenderPipeline(), Fx.ReplayReason.Export).CreateAsync(snapshot);
+        await using var source = await new PureFrameSourceFactory([effect], Fingerprint, static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
         if (!allowed)
         {
             var error = await Assert.ThrowsAsync<EffectFailureException>(async () => await source.PrepareAsync(10_000_000, Fx.OutputMode.Transparent, new() { PixelWidth = 640, PixelHeight = 360 }));

@@ -10,6 +10,7 @@ using MakoKaraGenerator.Rendering.Skia;
 using MakoKaraGenerator.Scripting;
 using MakoKaraGenerator.Scripting.Compilation;
 using MakoKaraGenerator.Scripting.Execution;
+using MakoKaraGenerator.Scripting.V2;
 using SkiaSharp;
 
 namespace MakoKaraGenerator.Export.Tests;
@@ -20,19 +21,26 @@ public sealed class GroupOpacityExportTests
     private static readonly Lazy<Task<CompiledEffectPackage>> Artifact = new(async () =>
     {
         ScriptCompiler compiler = new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));
-        var result = await CompiledEffectPackage.CompileAsync(EffectPackageDefinition.Read(EffectPackageFixture.GroupOpacity("""
-            using System.Linq;
+        var contents = V2ExportPackageHelper.UpgradeToV2(EffectPackageFixture.GroupOpacity("""
             using MakoKaraGenerator.Scripting;
-            public sealed class PackEffect : EffectBase
+            using MakoKaraGenerator.Scripting.V2;
+            public sealed class PackEffect : IPureKaraokeEffect
             {
-                public override void Evaluate(FrameContext frame, FrameWriter output)
+                public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
+                public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
                 {
-                    var target = frame.GroupGeometry.Single(item => item.Target.NodeId.Value == frame.Parameters.GetText("node")).Target;
+                    string node = frame.Parameters.GetText("node");
+                    GroupTarget? target = null;
+                    foreach (var item in frame.GroupGeometry)
+                        if (item.Target.NodeId.Value == node) { target = item.Target; break; }
                     if (frame.Parameters.GetBoolean("lateError") && frame.TimeUs >= 300000) target = new(new("missing"));
-                    output.Style.MultiplyOpacity(target, .5);
+                    output.MultiplyOpacity(new TextTarget.Group(target!), .5);
                 }
             }
-            """)), compiler);
+            """),
+            [CapabilityNames.GroupOpacity],
+            manifest => manifest["exports"]![0]!["outputs"]![0]!["requires"] = new System.Text.Json.Nodes.JsonArray(CapabilityNames.GroupOpacity));
+        var result = await CompiledEffectPackage.CompileAsync(EffectPackageDefinition.Read(contents), compiler);
         Assert.True(result.Artifact.Succeeded, string.Join('\n', result.Artifact.Diagnostics)); return result;
     });
     private static Project Project() => Core.Projects.Project.Create("组共同透明度成片", Composition.Create(320, 180, FrameRate.Fps30, outputDurationUs: 700_000),

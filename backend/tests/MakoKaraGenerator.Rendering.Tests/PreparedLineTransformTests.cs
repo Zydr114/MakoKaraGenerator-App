@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using MakoKaraGenerator.Core.Effects;
 using MakoKaraGenerator.Core.Lyrics;
 using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Rendering.Skia;
@@ -11,47 +12,71 @@ namespace MakoKaraGenerator.Rendering.Tests;
 public sealed class PreparedLineTransformTests
 {
     private const string Fingerprint = "R2-line-affine-fixed";
-    private static readonly Lazy<Task<ScriptCompilationResult>> Probe = new(async () =>
-    {
-        ScriptCompiler compiler = new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));
-        var result = await compiler.CompileAsync([new("src/LineProbe.cs", """
-            using System;
-            using System.Linq;
-            using MakoKaraGenerator.Scripting;
-            public sealed class LineProbe : EffectBase
+    private static readonly Lazy<Task<CompiledEffectPackage>> Probe = new(() => V2RenderPackageHelper.CompileControllerAsync("""
+        using System;
+        using MakoKaraGenerator.Scripting;
+        using MakoKaraGenerator.Scripting.V2;
+
+        public sealed class LineProbe : IPureKaraokeEffect
+        {
+            public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
+            public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
             {
-                public override void Evaluate(FrameContext frame, FrameWriter output)
+                string mode = frame.Parameters.GetEnum("mode");
+                foreach (var line in frame.Presentations.LinesInBinding)
                 {
-                    string mode = frame.Parameters.GetEnum("mode");
-                    foreach (var line in frame.Presentations.LinesInBinding.Where(line => line.LineId.Value == "first"))
+                    if (line.LineId.Value != "first") continue;
+                    Affine2 basis = Affine2.Identity;
+                    bool found = false;
+                    foreach (var item in frame.LineGeometry)
+                        if (item.Target == line.Target) { basis = item.BaseGeometry.BaseWorldMatrix; found = true; break; }
+                    Affine2 inverse;
+                    if (!found || !basis.TryInverse(out inverse)) throw new InvalidOperationException("Real invertible base matrix required");
+                    var local = mode == "tiny" ? new Affine2(1e-30, 0, 0, 1e-30, 0, 0)
+                        : mode == "native" ? new Affine2(1e38, 0, 0, 1e38, 0, 0)
+                        : mode == "shear" ? new Affine2(1.05, .2, .3, .9, 8, -6)
+                        : inverse.Compose(Affine2.Translation(mode == "back" ? -30 : 30,
+                            mode == "back" ? 16 : -16)).Compose(basis);
+                    var target = mode == "stale" ? line.Target with { BindingId = new BindingId("old") } : line.Target;
+                    if (mode != "localOnly") output.AppendTransform(new TextTarget.Line(target), mode == "neutral" ? Affine2.Identity : local);
+                    if (mode == "combined" || mode == "localOnly")
                     {
-                        var basis = frame.LineGeometry.Single(item => item.Target == line.Target).BaseGeometry.BaseWorldMatrix;
-                        if (!basis.TryInverse(out var inverse)) throw new Exception("Real invertible base matrix required");
-                        var local = mode == "tiny" ? new Affine2(1e-150, 0, 0, 1e-150, 0, 0)
-                            : mode == "shear" ? new Affine2(1.05, .2, .3, .9, 8, -6)
-                            : inverse.Compose(Affine2.Translation(mode == "back" ? -30 : mode == "native" ? 1e100 : 30,
-                                mode == "back" ? 16 : -16)).Compose(basis);
-                        var target = mode == "stale" ? line.Target with { BindingId = new("old") } : line.Target;
-                        if (mode != "localOnly") output.Transforms.ApplyAffine(target, mode == "neutral" ? Affine2.Identity : local);
-                        if (mode == "combined" || mode == "localOnly")
+                        foreach (var token in frame.Presentations.TokensInBinding)
                         {
-                            foreach (var token in frame.Presentations.TokensInBinding.Where(token => token.LineId == line.LineId))
-                                output.Transforms.ScaleTokenFamily(token.WithRuby, 1.3, Pivot.BaseAdvanceCenter);
-                            foreach (var mark in frame.Presentations.MarksInBinding.Where(mark => mark.TargetLine.LineId == line.LineId))
-                                output.Transforms.ApplyAffine(mark.Target, Affine2.Translation(5, -3));
+                            if (token.LineId != line.LineId) continue;
+                            foreach (var geom in frame.Geometry)
+                                if (geom.WithRuby == token.WithRuby)
+                                    output.AppendTransform(token.WithRuby, Affine2.ScaleAt(1.3, geom.BaseGeometry.AdvanceBounds.Center));
                         }
+                        foreach (var mark in frame.Presentations.MarksInBinding)
+                            if (mark.TargetLine.LineId == line.LineId)
+                                output.AppendTransform(new TextTarget.Mark(mark.Target), Affine2.Translation(5, -3));
                     }
                 }
             }
-            """)]);
-        Assert.True(result.Succeeded, string.Join('\n', result.Diagnostics)); return result;
-    });
+        }
+        """,
+        [Fx.V2.CapabilityNames.LineAffine, Fx.V2.CapabilityNames.TokenAffine, Fx.V2.CapabilityNames.MarkAffine],
+        entryType: "LineProbe",
+        exportId: "line-probe",
+        parameters: new System.Text.Json.Nodes.JsonArray(
+            V2RenderPackageHelper.EnumParameter("mode", "shift",
+                "shift", "back", "neutral", "tiny", "shear", "native", "stale", "localOnly", "combined")),
+        outputs:
+        [
+            V2RenderPackageHelper.Output("line", "VisualTransform", "line", Fx.V2.CapabilityNames.LineAffine),
+            V2RenderPackageHelper.Output("token", "VisualTransform", "tokenFamily", Fx.V2.CapabilityNames.TokenAffine),
+            V2RenderPackageHelper.Output("mark", "VisualTransform", "textMark", Fx.V2.CapabilityNames.MarkAffine),
+        ],
+        packageId: "demo.line.probe.v2"));
     private static async Task<ImmutableArray<CompiledFrameEffect>> Effects(string[] modes, Fx.EffectBinding? binding = null)
     {
-        var artifact = await Probe.Value;
-        return [.. modes.Select((mode, index) => new CompiledFrameEffect(new("line-" + index), artifact, "LineProbe",
-            new(new Dictionary<string, Fx.ParameterValue> { ["mode"] = new Fx.ParameterValue.Choice(mode) }),
-            binding ?? new Fx.EffectBinding.Lines([new("first")]), Fx.EffectCapabilities.Transforms))];
+        var package = await Probe.Value;
+        return [.. modes.Select((mode, index) => package.CreateEffect("line-probe", new("line-" + index),
+            binding ?? new Fx.EffectBinding.Lines([new("first")]), 0) with
+        {
+            Parameters = new Fx.ParameterValues(new Dictionary<string, Fx.ParameterValue> { ["mode"] = new Fx.ParameterValue.Choice(mode) }),
+        })];
     }
     private static PureFrameSourceFactory Factory(ImmutableArray<CompiledFrameEffect> effects)
         => new(effects, Fingerprint, static () => new SkiaRenderPipeline());
@@ -231,7 +256,7 @@ public sealed class PreparedLineTransformTests
         var a = await session.PrepareAsync(12_500_000, Fx.OutputMode.Transparent, target);
         var first = a.Scene.LineGeometries.Single(item => item.Target.LineId.Value == "first").BaseGeometry.BaseWorldMatrix;
         Assert.True(first.TryInverse(out var inverse));
-        var expected = inverse.Compose(Fx.Affine2.Translation(30, -16)).Compose(first).Compose(new(1.05, .2, .3, .9, 8, -6));
+        var expected = new Fx.Affine2(1.05, .2, .3, .9, 8, -6).Compose(inverse.Compose(Fx.Affine2.Translation(30, -16)).Compose(first));
         Assert.Equal(expected, Assert.Single(a.LineTransforms).LocalMatrix);
         await session.PrepareAsync(14_000_000, Fx.OutputMode.Transparent, target);
         var b = await session.PrepareAsync(12_500_000, Fx.OutputMode.Transparent, target); var c = await independent.PrepareAsync(12_500_000, Fx.OutputMode.Transparent, target);

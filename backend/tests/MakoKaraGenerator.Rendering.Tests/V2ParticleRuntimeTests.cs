@@ -11,6 +11,7 @@ using MakoKaraGenerator.Rendering.Skia;
 using MakoKaraGenerator.Scripting;
 using MakoKaraGenerator.Scripting.Compilation;
 using MakoKaraGenerator.Scripting.Execution;
+using MakoKaraGenerator.Scripting.V2;
 
 namespace MakoKaraGenerator.Rendering.Tests;
 
@@ -34,7 +35,7 @@ public sealed class V2ParticleRuntimeTests
         Assert.Equal(frame.V2Particles.ToArray(), warm.V2Particles.ToArray());
         Assert.Equal(0, warm.V2AnchorStatistics.TextCalls); Assert.Equal(0, warm.V2AnchorStatistics.UniqueTimes);
         Assert.True(warm.V2AnchorStatistics.MemoHits >= 6);
-        Assert.Empty(frame.Particles); Assert.Null(frame.EmissionSchedule);
+        Assert.Empty(frame.Particles);
         var copied = frame.WithGroupOpacities([]).WithOverlayOutput(frame.OverlayBatches, []);
         Assert.Equal(frame.V2Particles.ToArray(), copied.V2Particles.ToArray());
         Assert.Same(frame.V2AnchorStatistics, copied.V2AnchorStatistics);
@@ -78,21 +79,19 @@ public sealed class V2ParticleRuntimeTests
     }
 
     [Fact]
-    public async Task 同绑定旧有状态文字依赖具名拒绝且无关旧绑定不阻塞新锚点()
+    public async Task 同绑定纯V2行变换组合不阻塞新锚点并传导偏移()
     {
         var emitter = await Effect(continuous: false);
-        var legacy = await Legacy();
+        var lineTransform = await LineTransform();
         var snapshot = Snapshot(otherLine: true);
-        await using (var blocked = await Factory([legacy, emitter]).CreateAsync(snapshot))
-        {
-            var error = await Assert.ThrowsAsync<EffectFailureException>(async () => await Read(blocked, snapshot, 30_000));
-            Assert.Equal(emitter.Id, error.InstanceId); Assert.Equal(emitter.PackageIdentity, error.PackageIdentity);
-            Assert.Equal("ResolveFinalAnchors", error.Stage); Assert.Equal("FinalAnchorLegacyDependencyUnsupported", error.Code);
-            Assert.Contains("legacy", error.InnerException!.Message, StringComparison.Ordinal);
-        }
-        legacy = legacy with { Binding = new EffectBinding.Lines([new("other-line")]) };
-        await using var allowed = await Factory([legacy, emitter]).CreateAsync(snapshot);
-        Assert.NotEmpty((await Read(allowed, snapshot, 30_000)).V2Particles);
+        await using var sameBinding = await Factory([lineTransform, emitter]).CreateAsync(snapshot);
+        var shifted = await Read(sameBinding, snapshot, 30_000);
+        Assert.NotEmpty(shifted.V2Particles);
+        var separate = lineTransform with { Binding = new EffectBinding.Lines([new("other-line")]) };
+        await using var otherBinding = await Factory([separate, emitter]).CreateAsync(snapshot);
+        var baseline = await Read(otherBinding, snapshot, 30_000);
+        Assert.NotEmpty(baseline.V2Particles);
+        Assert.Equal(baseline.V2Particles[0].Birth.BirthPosition.X + 7f, shifted.V2Particles[0].Birth.BirthPosition.X, 2);
     }
 
     [Fact]
@@ -168,26 +167,32 @@ public sealed class V2ParticleRuntimeTests
         Assert.True(compiled.Succeeded, string.Join('\n', compiled.Artifact.Diagnostics));
         return compiled.CreateEffect("cursor-trail", new("emitter"), new EffectBinding.Project(), 0);
     }
-    private static async Task<CompiledFrameEffect> Legacy()
+    private static ScriptCompiler Compiler() => new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));
+    private static async Task<CompiledFrameEffect> LineTransform()
     {
-        var artifact = await Compiler().CompileAsync([new("Legacy.cs", """
+        var compiled = await V2RenderPackageHelper.CompileControllerAsync("""
             using MakoKaraGenerator.Scripting;
-            public sealed class Legacy : EffectBase
+            using MakoKaraGenerator.Scripting.V2;
+
+            public sealed class LineTransform : IPureKaraokeEffect
             {
-                public override void Advance(SimulationStep step, StateContext context) { }
-                public override void Evaluate(FrameContext frame, FrameWriter output)
+                public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
+                public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
                 {
                     foreach (var line in frame.Presentations.LinesInBinding)
-                        output.Transforms.ApplyAffine(line.Target, Affine2.Translation(7, 0));
+                        output.AppendTransform(new TextTarget.Line(line.Target), Affine2.Translation(7, 0));
                 }
             }
-            """)]);
-        Assert.True(artifact.Succeeded, string.Join('\n', artifact.Diagnostics));
-        return new(new("legacy"), artifact, "Legacy", ParameterValues.Empty, new EffectBinding.Project(), EffectCapabilities.Transforms);
+            """,
+            [CapabilityNames.LineAffine],
+            entryType: "LineTransform",
+            exportId: "line-transform",
+            outputs: [V2RenderPackageHelper.Output("line", "VisualTransform", "line", CapabilityNames.LineAffine)],
+            packageId: "demo.runtime.linetransform.v2");
+        return compiled.CreateEffect("line-transform", new("line-transform"), new EffectBinding.Project(), 0);
     }
-    private static ScriptCompiler Compiler() => new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));
-    private static TimelineFrameSourceFactory Factory(ImmutableArray<CompiledFrameEffect> effects)
-        => new(effects, Fingerprint, static () => new SkiaRenderPipeline(), ReplayReason.Initial);
+    private static PureFrameSourceFactory Factory(ImmutableArray<CompiledFrameEffect> effects)
+        => new(effects, Fingerprint, static () => new SkiaRenderPipeline());
     private static ValueTask<PreparedRenderFrame> Read(IEvaluatedFrameSource session, ProjectSnapshot snapshot, long timeUs)
         => session.PrepareAsync(timeUs, OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition));
     private static ProjectSnapshot Snapshot(bool ruby = false, bool otherLine = false)

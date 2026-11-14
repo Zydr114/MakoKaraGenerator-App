@@ -38,8 +38,8 @@ public sealed class V2PresentInstanceTests
         var snapshot = ProjectSnapshot.FromProject(project with { EnterAnimation = null }) with { EffectInputsFingerprint = Fingerprint };
         var effects = lines.Select((line, index) => compiled.CreateEffect("wave-warp", new($"warp-{index}"),
             new EffectBinding.Lines([new LineId(line.Id)]), (ulong)index)).ToImmutableArray();
-        await using var session = await new TimelineFrameSourceFactory(effects, Fingerprint,
-            static () => new SkiaRenderPipeline(), ReplayReason.Initial).CreateAsync(snapshot);
+        await using var session = await new PureFrameSourceFactory(effects, Fingerprint,
+            static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
         var target = RenderTarget.FromComposition(snapshot.Composition);
         foreach (long time in new long[] { 1_300_000, 90_400_000, 177_500_000 })
         {

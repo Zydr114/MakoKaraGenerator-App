@@ -142,19 +142,25 @@ public sealed partial class MixedEffectPackageTests
         string expression = change switch
         {
             "missing" => "ParameterValues.Empty",
-            "extra" => "new([new(\"amount\",new ParameterValue.Number(.5)),new(\"extra\",new ParameterValue.Number(1))])",
-            "type" => "new([new(\"amount\",new ParameterValue.Whole(1))])",
-            "range" => "new([new(\"amount\",new ParameterValue.Number(2))])",
-            _ => "new([new(\"amount\",new ParameterValue.Number(.5))])",
+            "extra" => "new ParameterValues(new[] { new System.Collections.Generic.KeyValuePair<string, ParameterValue>(\"amount\", new ParameterValue.Number(.5)), new System.Collections.Generic.KeyValuePair<string, ParameterValue>(\"extra\", new ParameterValue.Number(1)) })",
+            "type" => "new ParameterValues(new[] { new System.Collections.Generic.KeyValuePair<string, ParameterValue>(\"amount\", new ParameterValue.Whole(1)) })",
+            "range" => "new ParameterValues(new[] { new System.Collections.Generic.KeyValuePair<string, ParameterValue>(\"amount\", new ParameterValue.Number(2)) })",
+            _ => "new ParameterValues(new[] { new System.Collections.Generic.KeyValuePair<string, ParameterValue>(\"amount\", new ParameterValue.Number(.5)) })",
         };
-        string source = "using MakoKaraGenerator.Scripting; public sealed class PackEffect : EffectBase { public override void Evaluate(FrameContext f,FrameWriter w) { foreach(var line in f.Presentations.LinesInBinding) w.ImageEffects.Bind(line.Target,f.Resources.GetGraph(\"tint\")," + expression + "); } }";
-        var compiled = await Compile(MixedEffectPackageFixture.Contents(manifest =>
+        string source = "using MakoKaraGenerator.Scripting; using MakoKaraGenerator.Scripting.V2; public sealed class PackEffect : IPureKaraokeEffect { public PreparedEffect Declare(DeclareContext s) => PreparedEffect.Empty; public void Evaluate(in TextFrame f, PreparedEffect d, TextOutput w) { foreach(var line in f.Presentations.LinesInBinding) w.BindGraph(new TextTarget.Line(line.Target), new GraphBindingValue(f.Resources.GetGraph(\"tint\"), " + expression + ", GraphUniformValues.Empty, GraphTransformValues.Empty)); } }";
+        var raw = MixedEffectPackageFixture.Contents(manifest =>
         {
+            manifest["exports"]![0]!["outputs"]![0]!["requires"] = new JsonArray(Fx.V2.CapabilityNames.ImageGraph);
             var graph = manifest["exports"]![2]!;
             if (change == "binding") graph["bindingKinds"] = new JsonArray("tokens");
             if (change == "target") graph["outputs"]![0]!["target"] = "tokenFamily";
-            if (change == "requires") graph["outputs"]![0]!["requires"] = new JsonArray("DistanceField");
-        }, controllerSource: source, graphChange: graph => { if (change == "mapping") graph["anchorMode"] = "ImageOnly"; }));
+            if (change == "requires")
+                graph["outputs"]![0]!["requires"] = new JsonArray(Fx.V2.CapabilityNames.TokenAffine);
+        }, controllerSource: source, graphChange: graph => { if (change == "mapping") graph["anchorMode"] = "ImageOnly"; });
+        string[] requires = change == "requires"
+            ? [Fx.V2.CapabilityNames.ImageGraph, Fx.V2.CapabilityNames.TokenAffine]
+            : [Fx.V2.CapabilityNames.ImageGraph];
+        var compiled = await Compile(V2RenderPackageHelper.UpgradeToV2(raw, requires));
         Assert.True(compiled.Succeeded, string.Join('\n', compiled.Artifact.Diagnostics));
         var effect = compiled.CreateEffect("controller", new("restricted"), new Fx.EffectBinding.Project(), 1);
         await using var session = await new PureFrameSourceFactory([effect], Fingerprint, static () => new SkiaRenderPipeline()).CreateAsync(Snapshot());

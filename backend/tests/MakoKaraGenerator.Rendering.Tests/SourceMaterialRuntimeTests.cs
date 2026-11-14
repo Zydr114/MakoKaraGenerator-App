@@ -14,20 +14,25 @@ public sealed class SourceMaterialRuntimeTests
 {
     private const string WriterSource = """
         using MakoKaraGenerator.Scripting;
-        public sealed class PackEffect : EffectBase
+        using MakoKaraGenerator.Scripting.V2;
+        public sealed class PackEffect : IPureKaraokeEffect
         {
-            public override void Evaluate(FrameContext frame, FrameWriter output)
+            public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
+            public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
             {
-                var material=MaterialValue.PackageExport(frame.Resources.GetMaterial("ink"),new([new("amount",new ParameterValue.Number(.5))]));
-                foreach(var token in frame.Presentations.TokensInBinding)
+                var material = MaterialValue.PackageExport(frame.Resources.GetMaterial("ink"),
+                    new ParameterValues(new[] { new System.Collections.Generic.KeyValuePair<string, ParameterValue>("amount", new ParameterValue.Number(.5)) }));
+                foreach (var token in frame.Presentations.TokensInBinding)
                 {
-                    output.Style.SetUnsungMaterial(token.WithRuby,material); output.Style.SetSungMaterial(token.WithRuby,material);
-                    output.Style.SetStroke(token.WithRuby,new(4,material,StrokeJoin.Bevel));
+                    var target = new TextTarget.Family(token.WithRuby);
+                    output.SetFill(target, TextState.Unsung, material); output.SetFill(target, TextState.Sung, material);
+                    output.SetStrokes(target, TextState.Both, new StrokeValue(4, material, StrokeJoin.Bevel));
                 }
-                foreach(var mark in frame.Presentations.MarksInBinding)
+                foreach (var mark in frame.Presentations.MarksInBinding)
                 {
-                    output.Style.SetUnsungMaterial(mark.Target,material); output.Style.SetSungMaterial(mark.Target,material);
-                    output.Style.SetStroke(mark.Target,new(4,material,StrokeJoin.Bevel));
+                    var target = new TextTarget.Mark(mark.Target);
+                    output.SetFill(target, TextState.Unsung, material); output.SetFill(target, TextState.Sung, material);
+                    output.SetStrokes(target, TextState.Both, new StrokeValue(4, material, StrokeJoin.Bevel));
                 }
             }
         }
@@ -71,8 +76,19 @@ public sealed class SourceMaterialRuntimeTests
         using var actual = renderer.Render(RenderRequest.At(snapshot, time) with { PreparedFrame = prepared, TransparentBackground = transparent, Target = output });
         Assert.Equal(0, budget.Usage.ActiveSurfaces); Assert.Equal(0, budget.Usage.EstimatedBytes);
 
-        var writerContents = MixedEffectPackageFixture.MaterialContents(manifest => manifest["exports"]![0]!["outputs"]!.AsArray().Add(new JsonObject
-            { ["id"] = "marks", ["kind"] = "StyleModulation", ["target"] = "textMark", ["requires"] = new JsonArray(), ["dependsOn"] = new JsonArray() }), controllerSource: WriterSource);
+        var writerContents = V2RenderPackageHelper.UpgradeToV2(
+            MixedEffectPackageFixture.MaterialContents(manifest =>
+            {
+                var outputs = manifest["exports"]![0]!["outputs"]!.AsArray();
+                outputs[0]!["requires"] = new JsonArray(Fx.V2.CapabilityNames.StyleFill, Fx.V2.CapabilityNames.StyleStroke);
+                outputs.Add(new JsonObject
+                {
+                    ["id"] = "marks", ["kind"] = "StyleModulation", ["target"] = "textMark",
+                    ["requires"] = new JsonArray(Fx.V2.CapabilityNames.StyleFill, Fx.V2.CapabilityNames.StyleStroke),
+                    ["dependsOn"] = new JsonArray(),
+                });
+            }, controllerSource: WriterSource),
+            [Fx.V2.CapabilityNames.StyleFill, Fx.V2.CapabilityNames.StyleStroke]);
         var plain = SourceProject(writerContents);
         var plainStyle = plain.LyricStyle with { UnsungFill = new() { Color = RgbaColor.White }, SungFill = new() { Color = RgbaColor.White },
             Stroke = new() { Color = RgbaColor.White, WidthPx = 4, Join = StrokeJoin.Bevel } };
@@ -194,12 +210,22 @@ public sealed class SourceMaterialRuntimeTests
     {
         string action = operation switch
         {
-            "uniform" => "output.Materials.SetUniform(frame.Resources.GetMaterial(\"ink\"),token.WithRuby,MaterialSlot.SungFill,\"probe\",\"amount\",UniformValue.Float(.8));",
-            "reset" => "output.Style.SetSungMaterial(token.WithRuby,MaterialValue.Solid(new(0,1,0,1)));",
-            _ => "output.Style.MultiplyOpacity(token.WithRuby,.5);",
+            "uniform" => "output.SetMaterialUniform(new TextTarget.Family(token.WithRuby), MaterialSlot.SungFill, frame.Resources.GetMaterial(\"ink\"), \"probe\", \"amount\", UniformValue.Float(.8));",
+            "reset" => "output.SetFill(new TextTarget.Family(token.WithRuby), TextState.Sung, MaterialValue.Solid(new(0,1,0,1)));",
+            _ => "output.MultiplyOpacity(new TextTarget.Family(token.WithRuby), .5);",
         };
-        string source = "using MakoKaraGenerator.Scripting; public sealed class PackEffect:EffectBase { public override void Evaluate(FrameContext frame,FrameWriter output) { foreach(var token in frame.Presentations.TokensInBinding) { if(frame.Baseline.Get(token.WithRuby).Sung.Fill is not MaterialValue.PackageMaterial) throw new System.Exception(\"真实包基线缺失\"); " + action + " } } }";
-        var contents = MixedEffectPackageFixture.MaterialContents(controllerSource: source); var project = SourceProject(contents);
+        string capability = operation switch
+        {
+            "uniform" => Fx.V2.CapabilityNames.MaterialUniform,
+            "reset" => Fx.V2.CapabilityNames.StyleFill,
+            _ => Fx.V2.CapabilityNames.TokenOpacity,
+        };
+        string source = "using MakoKaraGenerator.Scripting; using MakoKaraGenerator.Scripting.V2; public sealed class PackEffect : IPureKaraokeEffect { public PreparedEffect Declare(DeclareContext s) => PreparedEffect.Empty; public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output) { foreach(var token in frame.Presentations.TokensInBinding) { if(frame.Baseline.Get(token.WithRuby).Sung.Fill is not MaterialValue.PackageMaterial) throw new System.InvalidOperationException(\"真实包基线缺失\"); " + action + " } } }";
+        var contents = V2RenderPackageHelper.UpgradeToV2(
+            MixedEffectPackageFixture.MaterialContents(
+                manifest => manifest["exports"]![0]!["outputs"]![0]!["requires"] = new JsonArray(capability),
+                controllerSource: source),
+            [capability]); var project = SourceProject(contents);
         project = project with { Effects = new([contents], [new() { Id = "actual", Name = "调制", PackageId = contents.PackageId, Revision = contents.Revision, ExportId = "controller" }]) };
         var compiled = await Compile(project); var snapshot = ProjectSnapshot.FromProject(project); var package = Assert.Single(compiled.Packages);
         await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), Fx.ReplayReason.Initial).CreateAsync(snapshot);

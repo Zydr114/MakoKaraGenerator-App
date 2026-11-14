@@ -9,6 +9,7 @@ using MakoKaraGenerator.Rendering.Skia;
 using MakoKaraGenerator.Scripting;
 using MakoKaraGenerator.Scripting.Compilation;
 using MakoKaraGenerator.Scripting.Execution;
+using MakoKaraGenerator.Scripting.V2;
 using SkiaSharp;
 
 namespace MakoKaraGenerator.Export.Tests;
@@ -116,15 +117,19 @@ public sealed partial class MixedPackageExportTests
     public async Task 主Render中途shader坏像素附加真实实例并保护已有输出()
     {
         using TemporaryDirectory temp = new(); string output = temp.FilePath("existing.mp4"); byte[] original = [2, 7, 1, 8]; await File.WriteAllBytesAsync(output, original);
-        var contents = MixedEffectPackageFixture.Contents(controllerSource: """
+        var contents = V2ExportPackageHelper.UpgradeToV2(MixedEffectPackageFixture.Contents(controllerSource: """
             using MakoKaraGenerator.Scripting;
-            public sealed class PackEffect : EffectBase {
-                public override void Evaluate(FrameContext f, FrameWriter w) {
-                    foreach(var l in f.Presentations.LinesInBinding) w.ImageEffects.Bind(l.Target,f.Resources.GetGraph("tint"),
-                        new([new("amount",new ParameterValue.Number(f.TimeUs>=200000 ? 1 : .5))]));
+            using MakoKaraGenerator.Scripting.V2;
+            public sealed class PackEffect : IPureKaraokeEffect {
+                public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
+                public void Evaluate(in TextFrame f, PreparedEffect d, TextOutput o) {
+                    foreach(var l in f.Presentations.LinesInBinding) o.BindGraph(new TextTarget.Line(l.Target), new GraphBindingValue(f.Resources.GetGraph("tint"),
+                        new ParameterValues(new[] { new System.Collections.Generic.KeyValuePair<string, ParameterValue>("amount", new ParameterValue.Number(f.TimeUs>=200000 ? 1 : .5)) }),
+                        GraphUniformValues.Empty, GraphTransformValues.Empty));
                 }
             }
-            """, shaderSource: "uniform float amount; uniform shader original; half4 main(float2 p) { half4 c=original.eval(p); return half4(c.rgb*(amount>.9 ? 4 : 1),c.a); }");
+            """, shaderSource: "uniform float amount; uniform shader original; half4 main(float2 p) { half4 c=original.eval(p); return half4(c.rgb*(amount>.9 ? 4 : 1),c.a); }"),
+            [CapabilityNames.ImageGraph]);
         var definition = EffectPackageDefinition.Read(contents);
         var package = await CompiledEffectPackage.CompileAsync(definition, new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")),
             new PackageImageValidator(), new PackageShaderValidator(), new PackageImageGraphValidator(), new PackageMaterialValidator());

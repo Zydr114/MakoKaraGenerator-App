@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using MakoKaraGenerator.Core.Effects;
 using MakoKaraGenerator.Core.Lyrics;
 using MakoKaraGenerator.Core.Projects;
@@ -9,6 +11,7 @@ using MakoKaraGenerator.Rendering.Skia;
 using MakoKaraGenerator.Scripting;
 using MakoKaraGenerator.Scripting.Compilation;
 using MakoKaraGenerator.Scripting.Execution;
+using MakoKaraGenerator.Scripting.V2;
 using SkiaSharp;
 
 namespace MakoKaraGenerator.Export.Tests;
@@ -17,45 +20,72 @@ namespace MakoKaraGenerator.Export.Tests;
 public sealed class SceneCaptureExportTests
 {
     private const string Fingerprint = "production-capture-export";
-    private static readonly ResourceCatalog Resources = new("capture-export", "sha256:" + new string('c', 64), [], ["tint"], []);
-    private static readonly Lazy<Task<ScriptCompilationResult>> Script = new(async () =>
+    private static readonly Lazy<Task<CompiledEffectPackage>> Package = new(async () =>
     {
-        var compiler = new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));
-        var result = await compiler.CompileAsync([new("src/CaptureExport.cs", """
-            using MakoKaraGenerator.Scripting;
-            public sealed class CaptureExport : EffectBase
-            {
-                public override void Evaluate(FrameContext frame, FrameWriter writer)
+        var contents = V2ExportPackageHelper.UpgradeToV2(MixedEffectPackageFixture.Contents(
+            controllerSource: """
+                using MakoKaraGenerator.Scripting;
+                using MakoKaraGenerator.Scripting.V2;
+                public sealed class CaptureExport : IPureKaraokeEffect
                 {
-                    double amount = frame.Parameters.GetBoolean("fail") && frame.TimeUs >= 200000 ? 2 : 1;
-                    double expand = frame.Parameters.GetBoolean("failBudget") && frame.TimeUs >= 200000 ? 3 : 0;
-                    var values = new ParameterValues(new[] { System.Collections.Generic.KeyValuePair.Create<string, ParameterValue>("amount", new ParameterValue.Number(amount)),
-                        System.Collections.Generic.KeyValuePair.Create<string, ParameterValue>("expand", new ParameterValue.Number(expand)) });
-                    foreach (var line in frame.Presentations.LinesInBinding) writer.ImageEffects.Bind(line.Target, frame.Resources.GetGraph("tint"), values);
+                    public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
+                    public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
+                    {
+                        double amount = frame.Parameters.GetBoolean("fail") && frame.TimeUs >= 200000 ? 2 : 1;
+                        double expand = frame.Parameters.GetBoolean("failBudget") && frame.TimeUs >= 200000 ? 3 : 0;
+                        var values = new ParameterValues(new[] { System.Collections.Generic.KeyValuePair.Create<string, ParameterValue>("amount", new ParameterValue.Number(amount)),
+                            System.Collections.Generic.KeyValuePair.Create<string, ParameterValue>("expand", new ParameterValue.Number(expand)) });
+                        foreach (var line in frame.Presentations.LinesInBinding) output.BindGraph(new TextTarget.Line(line.Target),
+                            new GraphBindingValue(frame.Resources.GetGraph("tint"), values, GraphUniformValues.Empty, GraphTransformValues.Empty));
+                    }
                 }
-            }
-            """)]);
-        Assert.True(result.Succeeded, string.Join('\n', result.Diagnostics)); return result;
+                """,
+            graphChange: graph =>
+            {
+                graph["parameters"] = new JsonArray("amount", "expand");
+            }),
+            [CapabilityNames.ImageGraph],
+            manifest =>
+            {
+                manifest["parameters"] = new JsonArray(
+                    new JsonObject { ["id"] = "amount", ["type"] = "number", ["label"] = "Amount", ["default"] = 1, ["min"] = 0, ["max"] = 2 },
+                    new JsonObject { ["id"] = "expand", ["type"] = "number", ["label"] = "Expand", ["default"] = 0, ["min"] = 0, ["max"] = 3 },
+                    new JsonObject { ["id"] = "fail", ["type"] = "boolean", ["label"] = "Fail", ["default"] = false },
+                    new JsonObject { ["id"] = "failBudget", ["type"] = "boolean", ["label"] = "FailBudget", ["default"] = false });
+                var exports = manifest["exports"]!.AsArray();
+                for (int i = exports.Count - 1; i >= 0; i--) if (exports[i]!["kind"]!.GetValue<string>() == "material") exports.RemoveAt(i);
+                var controller = exports[0]!;
+                controller["id"] = "controller";
+                controller["entryType"] = "CaptureExport";
+                controller["parameters"] = new JsonArray("fail", "failBudget");
+                var tint = exports.Single(item => item!["id"]!.GetValue<string>() == "tint")!;
+                tint["parameters"] = new JsonArray("amount", "expand");
+            });
+        var compiler = new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));
+        var compiled = await CompiledEffectPackage.CompileAsync(EffectPackageDefinition.Read(contents), compiler,
+            new PackageImageValidator(), new PackageShaderValidator(), new PackageImageGraphValidator(), new PackageMaterialValidator());
+        Assert.True(compiled.Succeeded, string.Join('\n', compiled.Artifact.Diagnostics));
+        return compiled;
     });
     private static Project Project() => Core.Projects.Project.Create("生产捕获短片", Composition.Create(320, 180, FrameRate.Fps30, new(20, 40, 80), 1_000_000),
         LyricsDocument.Create([LyricLine.Create("row", "歌", new(0, 1_000_000), TimingStatus.Edited,
             [LyricToken.Create("token", "歌", new(0, 1_000_000), TimingStatus.Edited)]) with { RubyAnnotations = [RubyAnnotation.Create("ruby", "token", "か")] }]),
         lyricStyle: LyricStyle.Default with { FontFamilyName = "Noto Sans CJK SC", FontSizePx = 48, Opacity = .7f,
             UnsungColor = new(90, 220, 40), SungColor = new(230, 90, 50), Stroke = StrokeSpec.Create(new(40, 100, 255), 3), Shadow = null });
-    private static async Task<IEvaluatedFrameSource> Source(ProjectSnapshot snapshot, bool fail, bool failBudget = false)
+    private static async Task<(IEvaluatedFrameSource Source, CompiledEffectPackage Package)> Source(ProjectSnapshot snapshot, bool fail, bool failBudget = false)
     {
-        var artifact = await Script.Value;
-        var factory = new PureFrameSourceFactory([new(new("capture-instance"), artifact, "CaptureExport",
-            new([new("fail", new ParameterValue.Toggle(fail)), new("failBudget", new ParameterValue.Toggle(failBudget))]), new EffectBinding.Project(), EffectCapabilities.ImageEffects) { Resources = Resources }],
-            Fingerprint, static () => new SkiaRenderPipeline());
-        return await factory.CreateAsync(snapshot);
+        var package = await Package.Value;
+        var effect = package.CreateEffect("controller", new("capture-instance"), new EffectBinding.Project(), 1,
+            JsonSerializer.SerializeToUtf8Bytes(new { fail, failBudget }));
+        var factory = new PureFrameSourceFactory([effect], Fingerprint, static () => new SkiaRenderPipeline());
+        return (await factory.CreateAsync(snapshot), package);
     }
     [Theory]
     [InlineData(false)] [InlineData(true)]
     public async Task 实际作者图绑定与生产歌词注音捕获经MP4和Alpha编码保持同帧(bool transparent)
     {
         using TemporaryDirectory temp = new(); var project = Project(); var snapshot = ProjectSnapshot.FromProject(project) with { EffectInputsFingerprint = Fingerprint };
-        await using var source = await Source(snapshot, false); using var pipeline = new CapturePipeline(source, snapshot);
+        var (source, package) = await Source(snapshot, false); await using var _ = source; using var pipeline = new CapturePipeline(source, snapshot, package);
         string output = temp.FilePath(transparent ? "lyrics.mov" : "lyrics.mp4"), decodedPath = temp.FilePath("decoded.png");
         var exporter = new VideoExporter(pipeline, new FfmpegMediaProbe(), new FfmpegMediaEncoder());
         var report = await exporter.ExportAsync(project, new() { OutputPath = output, IncludeAudio = false, Quality = ExportQuality.High,
@@ -81,7 +111,7 @@ public sealed class SceneCaptureExportTests
     {
         using TemporaryDirectory temp = new(); string output = temp.FilePath("existing.mp4"); byte[] original = [2, 7, 1, 8]; await File.WriteAllBytesAsync(output, original);
         var project = Project(); var snapshot = ProjectSnapshot.FromProject(project) with { EffectInputsFingerprint = Fingerprint };
-        await using var source = await Source(snapshot, true); using var pipeline = new CapturePipeline(source, snapshot);
+        var (source, package) = await Source(snapshot, true); await using var _ = source; using var pipeline = new CapturePipeline(source, snapshot, package);
         var exporter = new VideoExporter(pipeline, new FfmpegMediaProbe(), new FfmpegMediaEncoder());
         var error = await Assert.ThrowsAsync<EffectFailureException>(() => exporter.ExportAsync(project, new() { OutputPath = output, IncludeAudio = false, Overwrite = true }));
         Assert.Equal("GraphParameterOutOfRange", error.Code); Assert.Equal("ExecuteImageGraph", error.Stage); Assert.Equal(new EffectInstanceId("capture-instance"), error.InstanceId);
@@ -93,8 +123,8 @@ public sealed class SceneCaptureExportTests
     {
         using TemporaryDirectory temp = new(); string output = temp.FilePath("existing.mp4"); byte[] original = [1, 6, 1, 8]; await File.WriteAllBytesAsync(output, original);
         var project = Project(); var snapshot = ProjectSnapshot.FromProject(project) with { EffectInputsFingerprint = Fingerprint };
-        await using var source = await Source(snapshot, false, true);
-        using var pipeline = new CapturePipeline(source, snapshot, new() { MaximumBytes = 320 * 180 * 4 * 2 });
+        var (source, package) = await Source(snapshot, false, true); await using var _ = source;
+        using var pipeline = new CapturePipeline(source, snapshot, package, new() { MaximumBytes = 320 * 180 * 4 * 2 });
         var exporter = new VideoExporter(pipeline, new FfmpegMediaProbe(), new FfmpegMediaEncoder());
         var error = await Assert.ThrowsAsync<EffectFailureException>(() => exporter.ExportAsync(project, new() { OutputPath = output, IncludeAudio = false, Overwrite = true }));
         Assert.Equal("ImageSurfaceBudgetExceeded", error.Code); Assert.Equal("ExecuteImageGraph", error.Stage); Assert.Equal(new EffectInstanceId("capture-instance"), error.InstanceId);
@@ -113,7 +143,7 @@ public sealed class SceneCaptureExportTests
         public string BackendName => "生产字形捕获和真实作者图绑定编码接缝";
         public int RenderedCount { get; private set; }
         public ImageSurfaceUsage SurfaceUsage => _resources.Usage;
-        public CapturePipeline(IEvaluatedFrameSource source, ProjectSnapshot snapshot, GraphExecutionBudget? limits = null)
+        public CapturePipeline(IEvaluatedFrameSource source, ProjectSnapshot snapshot, CompiledEffectPackage package, GraphExecutionBudget? limits = null)
         {
             _source = source; _snapshot = snapshot;
             _resources = new(limits); _native = new(surfaceBudget: _resources);
@@ -125,7 +155,7 @@ public sealed class SceneCaptureExportTests
                     [new("target", GraphReference.Input("target"))], new(new GraphExpansion.CeilingMultiple("expand", 1), 3, 0, GraphEdgeMode.Transparent))],
                 GraphReference.Node("tint"), GraphCoordinateSpace.Canvas, 3, GraphAnchorMode.ColorOnly, GraphCompositeMode.SourceOver);
             _graph = CompiledImageGraph.Compile(ImageGraphCompiler.Compile(definition, [new EffectParameterConstraint.Number("amount", 0, 1), new EffectParameterConstraint.Number("expand", 0, 3)], [new("tint", program)]));
-            _program = new(Resources.GetGraph("tint"), _graph, new(true, true, true, true, SceneCaptureRegion.FillAndStroke), new(0, 0, 320, 180));
+            _program = new(package.Resources.GetGraph("tint"), _graph, new(true, true, true, true, SceneCaptureRegion.FillAndStroke), new(0, 0, 320, 180));
         }
         public RenderFrame Render(RenderRequest request)
         {

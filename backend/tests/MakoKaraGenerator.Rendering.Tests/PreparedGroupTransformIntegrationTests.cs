@@ -48,10 +48,13 @@ public sealed partial class PreparedGroupTransformTests
     public async Task 已有控制器声明必须明确允许组变换(bool declaresGroup)
     {
         var files = EffectPackageFixture.Files(); var manifest = EffectPackageFixture.Manifest(files);
+        string capability = declaresGroup ? Fx.V2.CapabilityNames.GroupAffine : Fx.V2.CapabilityNames.TokenAffine;
         manifest["exports"]![0]!["outputs"]![0]!["target"] = declaresGroup ? "group" : "tokenFamily";
+        manifest["exports"]![0]!["outputs"]![0]!["requires"] = new JsonArray(capability);
         manifest["exports"]![0]!["bindingKinds"] = new JsonArray("project", "node");
-        var declaration = EffectPackageDefinition.Read(EffectPackageContents.Create(EffectPackageFixture.Bytes(manifest),
-            EffectPackageFixture.Inputs(files), EffectPackageFixture.Profile)).Controllers[0];
+        var declaration = EffectPackageDefinition.Read(V2RenderPackageHelper.UpgradeToV2(
+            EffectPackageContents.Create(EffectPackageFixture.Bytes(manifest), EffectPackageFixture.Inputs(files), EffectPackageFixture.Profile),
+            [Fx.V2.CapabilityNames.GroupAffine, Fx.V2.CapabilityNames.TokenAffine])).Controllers[0];
         var snapshot = Snapshot(); var effects = await Effects(snapshot, ["move"]);
         await using var source = await Factory([effects[0] with { PackageDeclaration = declaration }]).CreateAsync(snapshot);
         if (declaresGroup) Assert.Single((await source.PrepareAsync(10_000_000, Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition))).GroupTransforms);
@@ -62,16 +65,15 @@ public sealed partial class PreparedGroupTransformTests
     public async Task 连续粒子在出生时使用真实最终组播放头且之后保留世界位置()
     {
         var snapshot = Snapshot(); var effects = await Effects(snapshot, ["particle"]);
-        effects = [effects[0] with { Capabilities = Fx.EffectCapabilities.Transforms | Fx.EffectCapabilities.Overlay }];
-        await using var source = await new TimelineFrameSourceFactory(effects, Fingerprint, static () => new SkiaRenderPipeline(), Fx.ReplayReason.Export).CreateAsync(snapshot);
+        await using var source = await Factory(effects).CreateAsync(snapshot);
         var target = RenderTarget.FromComposition(snapshot.Composition);
         var frame = await source.PrepareAsync(12_100_000, Fx.OutputMode.Transparent, target);
-        var particle = Assert.Single(frame.Particles); Assert.Equal(12_100_000, particle.BirthUs);
+        var particle = Assert.Single(frame.V2Particles); Assert.Equal(12_100_000, particle.Birth.BirthUs);
         var cursor = frame.Playback.GetCursors(Fx.CursorAnchorMode.AdvanceCenter).Single(item => item.Identity.BranchId.Value == "primary");
-        Assert.Equal(cursor.Position, particle.BirthPosition); Assert.Equal(particle.BirthPosition, particle.Position);
+        Assert.Equal(cursor.Position, particle.Birth.BirthPosition); Assert.Equal(particle.Birth.BirthPosition, particle.Position);
         var later = await source.PrepareAsync(12_150_000, Fx.OutputMode.Transparent, target);
-        Assert.Equal(particle.BirthPosition, later.Particles.Single(item => item.Id == particle.Id).Position);
+        Assert.Equal(particle.Birth.BirthPosition, later.V2Particles.Single(item => item.Birth.Id == particle.Birth.Id).Position);
         var copy = await source.PrepareAsync(12_100_000, Fx.OutputMode.Transparent, target);
-        Assert.Equal(particle, Assert.Single(copy.Particles));
+        Assert.Equal(particle, Assert.Single(copy.V2Particles));
     }
 }

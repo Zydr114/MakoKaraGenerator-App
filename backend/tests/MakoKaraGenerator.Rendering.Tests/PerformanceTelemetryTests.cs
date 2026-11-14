@@ -270,15 +270,14 @@ public sealed class PerformanceTelemetryTests
             var snapshot = VisualTestFixture.Snapshot();
             var effect = await VisualTestFixture.Definition();
             using var frame = PerformanceTelemetry.BeginFrame("session", "cpu", 1, 1, 1);
-            await using var session = await VisualTestFixture.Timeline([effect]).CreateAsync(snapshot);
+            await using var session = await VisualTestFixture.Pure([effect]).CreateAsync(snapshot);
             await session.PrepareAsync(18_001, MakoKaraGenerator.Scripting.OutputMode.Transparent, VisualTestFixture.Target(snapshot));
             frame.SetOutcome("ok");
         }
         finally { await PerformanceTelemetry.ShutdownAsync(); }
         PerformanceEvent detail = Assert.Single(lines.Select(Decode), e => e.Kind == "frame");
-        Assert.Contains(detail.Scripts, script => script.Stage == "Initialize");
+        Assert.Contains(detail.Scripts, script => script.Stage == "other");
         Assert.Contains(detail.Scripts, script => script.Stage == "Evaluate");
-        Assert.Contains(detail.Scripts, script => script.Stage == "AdvanceVisuals");
         Assert.Contains(detail.Scripts, script => script.Stage == "EvaluateVisuals");
         Assert.All(detail.Scripts, script => Assert.Equal(16, script.Identity.Length));
     }

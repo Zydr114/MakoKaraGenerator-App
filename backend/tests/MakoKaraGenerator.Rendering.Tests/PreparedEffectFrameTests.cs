@@ -1,5 +1,7 @@
 using System.Collections.Immutable;
+using MakoKaraGenerator.Core.Effects;
 using MakoKaraGenerator.Core.Lyrics;
+using MakoKaraGenerator.Core.Persistence;
 using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Rendering.Skia;
 using MakoKaraGenerator.Scripting.Compilation;
@@ -11,44 +13,47 @@ namespace MakoKaraGenerator.Rendering.Tests;
 public sealed class PreparedEffectFrameTests
 {
     private const string Fingerprint = "R2-fixed-source-parameters-binding";
-    private static readonly Lazy<Task<ScriptCompilationResult>> Word = new(async () =>
+    private static readonly Lazy<Task<CompiledEffectPackage>> Word = new(async () =>
     {
-        var compiler = new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));
-        var result = await compiler.CompileAsync([new("src/WordEmphasis.cs", File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "script-samples", "WordEmphasis.cs")))]);
-        Assert.True(result.Succeeded, string.Join('\n', result.Diagnostics));
-        return result;
+        var contents = await EffectPackageStorage.ReadSupportedDirectoryAsync(
+            Path.Combine(AppContext.BaseDirectory, "effect-packages-v2", "WordEmphasis"));
+        return await V2RenderPackageHelper.CompileAsync(contents);
     });
-    private static readonly Lazy<Task<ScriptCompilationResult>> ScopeProbe = new(async () =>
-    {
-        var compiler = new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));
-        var result = await compiler.CompileAsync([new("src/ScopeProbe.cs", """
-            using System;
-            using MakoKaraGenerator.Scripting;
-            public sealed class ScopeProbe : EffectBase
+    private static readonly Lazy<Task<CompiledEffectPackage>> ScopeProbe = new(() => V2RenderPackageHelper.CompileControllerAsync("""
+        using System;
+        using MakoKaraGenerator.Scripting;
+        using MakoKaraGenerator.Scripting.V2;
+
+        public sealed class ScopeProbe : IPureKaraokeEffect
+        {
+            public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
+            public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
             {
-                public override void Evaluate(FrameContext frame, FrameWriter output)
+                if (frame.Source.Content.Lines.Length != 12 || frame.Source.Scene.Clips.Length != 1 || frame.Source.Scene.LeadIns.Length != 2)
+                    throw new InvalidOperationException("Complete catalogs must survive output filtering");
+                foreach (var line in frame.Presentations.LinesInBinding)
                 {
-                    if (frame.Project.Content.Lines.Length != 12 || frame.Project.Scene.Clips.Length != 1 || frame.Project.Scene.LeadIns.Length != 2)
-                        throw new InvalidOperationException("Complete catalogs must survive output filtering");
-                    foreach (var line in frame.Presentations.LinesInBinding)
-                    {
-                        frame.Project.Scene.GetNode(line.NodeId);
-                        frame.Project.Scene.GetNode(line.ParentId);
-                    }
-                    foreach (var token in frame.Presentations.TokensInBinding)
-                        output.Transforms.ScaleTokenFamily(token.WithRuby, 1.2, Pivot.BaseAdvanceCenter);
+                    frame.Source.Scene.GetNode(line.NodeId);
+                    frame.Source.Scene.GetNode(line.ParentId);
                 }
+                foreach (var token in frame.Presentations.TokensInBinding)
+                    output.AppendTransform(new TextTarget.Family(token.WithRuby), new Affine2(1.2, 0, 0, 1.2, 0, 0));
             }
-            """)]);
-        Assert.True(result.Succeeded, string.Join('\n', result.Diagnostics)); return result;
-    });
+        }
+        """,
+        [Fx.V2.CapabilityNames.TokenAffine],
+        entryType: "ScopeProbe",
+        exportId: "scope-probe",
+        outputs: [V2RenderPackageHelper.Output("token", "VisualTransform", "tokenFamily", Fx.V2.CapabilityNames.TokenAffine)],
+        packageId: "demo.prepared.scope.v2"));
     private static Fx.ParameterValues Parameters(double peak = 1.35) => new(new Dictionary<string, Fx.ParameterValue>
     { ["peakScale"] = new Fx.ParameterValue.Number(peak), ["returnUs"] = new Fx.ParameterValue.Duration(500_000) });
     private static async Task<PureFrameSourceFactory> Factory(Fx.EffectBinding? binding = null, double peak = 1.35, int count = 1)
     {
-        var artifact = await Word.Value;
-        return new([.. Enumerable.Range(0, count).Select(index => new CompiledFrameEffect(new("word-" + index), artifact,
-            "WordEmphasis", Parameters(peak), binding ?? new Fx.EffectBinding.Project(), Fx.EffectCapabilities.Transforms))], Fingerprint, static () => new SkiaRenderPipeline());
+        var package = await Word.Value;
+        string exportId = package.Definition.Controllers[0].Id;
+        return new([.. Enumerable.Range(0, count).Select(index => package.CreateEffect(exportId, new("word-" + index),
+            binding ?? new Fx.EffectBinding.Project(), 0) with { Parameters = Parameters(peak) })], Fingerprint, static () => new SkiaRenderPipeline());
     }
 
     [Theory]
@@ -217,9 +222,28 @@ public sealed class PreparedEffectFrameTests
     [Fact]
     public async Task 有限double却超过原生范围的输出明确拒绝()
     {
-        await Word.Value;
+        var package = await V2RenderPackageHelper.CompileControllerAsync("""
+            using MakoKaraGenerator.Scripting;
+            using MakoKaraGenerator.Scripting.V2;
+            public sealed class NativeOverflowProbe : IPureKaraokeEffect
+            {
+                public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
+                public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
+                {
+                    foreach (var token in frame.Presentations.TokensInBinding)
+                        output.AppendTransform(new TextTarget.Family(token.WithRuby), new Affine2(1e38, 0, 0, 1e38, 0, 0));
+                }
+            }
+            """,
+            [Fx.V2.CapabilityNames.TokenAffine],
+            entryType: "NativeOverflowProbe",
+            exportId: "native-overflow",
+            outputs: [V2RenderPackageHelper.Output("scale", "VisualTransform", "tokenFamily", Fx.V2.CapabilityNames.TokenAffine)],
+            packageId: "demo.native.overflow.v2");
         var snapshot = ProjectSnapshot.FromProject(SingleFamily(false)) with { EffectInputsFingerprint = Fingerprint };
-        var factory = await Factory(peak: 1e100); await using var source = await factory.CreateAsync(snapshot);
+        var factory = new PureFrameSourceFactory([package.CreateEffect("native-overflow", new("word-0"), new Fx.EffectBinding.Project(), 0)],
+            Fingerprint, static () => new SkiaRenderPipeline());
+        await using var source = await factory.CreateAsync(snapshot);
         var prepared = await source.PrepareAsync(2_000_000, Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition));
         using SkiaRenderPipeline renderer = new();
         var error = Assert.Throws<PreparedFrameException>(() => renderer.Render(RenderRequest.At(snapshot, prepared.TimeUs) with { PreparedFrame = prepared, TransparentBackground = true }));
@@ -232,7 +256,7 @@ public sealed class PreparedEffectFrameTests
         var project = LeadInFixture.Create(slots: true, crossClip: true);
         var snapshot = ProjectSnapshot.FromProject(project) with { EffectInputsFingerprint = Fingerprint };
         var root = project.LyricPresentation.FindProgram("primary")!.RootContainerId;
-        var artifact = await ScopeProbe.Value;
+        var package = await ScopeProbe.Value;
         var target = RenderTarget.FromComposition(snapshot.Composition);
         var cases = new (Fx.EffectBinding Binding, long Time, int Count)[]
         {
@@ -244,8 +268,8 @@ public sealed class PreparedEffectFrameTests
         };
         foreach (var item in cases)
         {
-            PureFrameSourceFactory factory = new([new(new("scope"), artifact, "ScopeProbe", Fx.ParameterValues.Empty,
-                item.Binding, Fx.EffectCapabilities.Transforms)], Fingerprint, static () => new SkiaRenderPipeline());
+            PureFrameSourceFactory factory = new([package.CreateEffect("scope-probe", new("scope"), item.Binding, 0)],
+                Fingerprint, static () => new SkiaRenderPipeline());
             await using var source = await factory.CreateAsync(snapshot);
             var prepared = await source.PrepareAsync(item.Time, Fx.OutputMode.Transparent, target);
             Assert.Equal(item.Count, prepared.TokenTransforms.Length);

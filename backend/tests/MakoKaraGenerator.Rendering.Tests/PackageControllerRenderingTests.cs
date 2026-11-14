@@ -12,8 +12,10 @@ namespace MakoKaraGenerator.Rendering.Tests;
 public sealed class PackageControllerRenderingTests
 {
     private static ScriptCompiler Compiler() => new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));
-    private static EffectPackageDefinition Read(Dictionary<string, byte[]> files, JsonObject manifest)
-        => EffectPackageDefinition.Read(EffectPackageContents.Create(EffectPackageFixture.Bytes(manifest), EffectPackageFixture.Inputs(files), EffectPackageFixture.Profile));
+    private static EffectPackageDefinition Read(Dictionary<string, byte[]> files, JsonObject manifest, params string[] requires)
+        => EffectPackageDefinition.Read(V2RenderPackageHelper.UpgradeToV2(
+            EffectPackageContents.Create(EffectPackageFixture.Bytes(manifest), EffectPackageFixture.Inputs(files), EffectPackageFixture.Profile),
+            requires));
     private static byte[] Image()
     {
         using var bitmap = new SKBitmap(2, 2); bitmap.Erase(SKColors.Red);
@@ -25,27 +27,32 @@ public sealed class PackageControllerRenderingTests
         files["src/PackEffect.cs"] = Encoding.UTF8.GetBytes(source ?? """
             using System;
             using MakoKaraGenerator.Scripting;
-            public sealed class PackEffect : EffectBase
+            using MakoKaraGenerator.Scripting.V2;
+
+            public sealed record NineData(double Peak) : PreparedEffect;
+
+            public sealed class PackEffect : IPureKaraokeEffect<NineData>
             {
-                private bool initialized;
-                public override void Initialize(EffectInitializationContext context)
+                public NineData Declare(DeclareContext source)
                 {
-                    var p = context.Parameters;
+                    var p = source.Parameters;
                     if (p.GetInteger("integer") != 9007199254740993L || p.GetDuration("duration") != 120000
                         || !p.GetBoolean("boolean") || p.GetText("text") != "" || p.GetEnum("enum") != "branch"
                         || p.GetColor("color").Red != .123456789 || p.GetCurve("curve").Evaluate(.5) != .875
-                        || p.GetAsset("asset") != context.Resources.GetImage("assets/image.png")) throw new Exception("WrongManifestProjection");
-                    initialized = true;
+                        || p.GetAsset("asset") != source.Resources.GetImage("assets/image.png"))
+                        throw new InvalidOperationException("WrongManifestProjection");
+                    return new NineData(p.GetNumber("peak"));
                 }
-                public override void Evaluate(FrameContext frame, FrameWriter output)
+                public void Evaluate(in TextFrame frame, NineData data, TextOutput output)
                 {
-                    if (!initialized) throw new Exception("InitializeRequired");
                     foreach (var token in frame.Presentations.TokensInBinding)
-                        output.Transforms.ScaleTokenFamily(token.WithRuby, frame.Parameters.GetNumber("peak"), Pivot.BaseAdvanceCenter);
+                        output.AppendTransform(new TextTarget.Family(token.WithRuby), new Affine2(data.Peak, 0, 0, data.Peak, 0, 0));
                 }
             }
             """);
-        return (files, EffectPackageFixture.NineParametersManifest(files));
+        var manifest = EffectPackageFixture.NineParametersManifest(files);
+        manifest["exports"]![0]!["outputs"]![0]!["requires"] = new JsonArray(Fx.V2.CapabilityNames.TokenAffine);
+        return (files, manifest);
     }
     [Fact]
     public async Task 工程重开后模板控制器保持字形排版且注音随基础字缩放()
@@ -76,13 +83,15 @@ public sealed class PackageControllerRenderingTests
     [InlineData(640, 360)] [InlineData(320, 180)]
     public async Task 真实样例包默认值与覆盖经过准备帧改变像素且注音不重排(int width, int height)
     {
-        var compiled = await CompiledEffectPackage.CompileAsync(EffectPackageFixture.WordEmphasis(), Compiler()); Assert.True(compiled.Artifact.Succeeded);
+        var wordContents = await MakoKaraGenerator.Core.Persistence.EffectPackageStorage.ReadSupportedDirectoryAsync(
+            Path.Combine(AppContext.BaseDirectory, "effect-packages-v2", "WordEmphasis"));
+        var compiled = await CompiledEffectPackage.CompileAsync(EffectPackageDefinition.Read(wordContents), Compiler()); Assert.True(compiled.Artifact.Succeeded);
         const string fingerprint = "package-word-default";
         var snapshot = ProjectSnapshot.FromProject(LeadInFixture.Create(true)) with { EffectInputsFingerprint = fingerprint };
         var binding = new Fx.EffectBinding.Tokens([new("first-a")]);
         var defaultEffect = compiled.CreateEffect("word-emphasis", new("word"), binding, 1);
         var overrideEffect = compiled.CreateEffect("word-emphasis", new("word"), binding, 1, "{\"peakScale\":1.8}"u8.ToArray());
-        var manual = defaultEffect with { Parameters = new([new("peakScale", new Fx.ParameterValue.Number(1.25)), new("returnUs", new Fx.ParameterValue.Duration(120000))]), PackageDeclaration = null };
+        var manual = defaultEffect with { Parameters = new([new("peakScale", new Fx.ParameterValue.Number(1.25)), new("returnUs", new Fx.ParameterValue.Duration(120000))]) };
         var target = new RenderTarget { PixelWidth = width, PixelHeight = height };
         async Task<PreparedRenderFrame> Prepare(CompiledFrameEffect effect)
         {
@@ -104,9 +113,9 @@ public sealed class PackageControllerRenderingTests
         Assert.Contains(updated.PixelMemory.ToArray().Where((_, index) => index % 4 == 3), alpha => alpha > 0);
     }
     [Fact]
-    public async Task 九类清单输入及真实解码图片在Initialize和生产Evaluate中一致()
+    public async Task 九类清单输入及真实解码图片在Declare和生产Evaluate中一致()
     {
-        var (files, manifest) = Nine(); var package = await CompiledEffectPackage.CompileAsync(Read(files, manifest), Compiler(), new PackageImageValidator());
+        var (files, manifest) = Nine(); var package = await CompiledEffectPackage.CompileAsync(Read(files, manifest, Fx.V2.CapabilityNames.TokenAffine), Compiler(), new PackageImageValidator());
         Assert.True(package.Artifact.Succeeded, string.Join('\n', package.Artifact.Diagnostics));
         var effect = package.CreateEffect("scale", new("nine"), new Fx.EffectBinding.Tokens([new("first-a")]), 10);
         Assert.Equal(package.Definition.Contents.Revision, effect.Parameters.GetAsset("asset").Identity.Revision);
@@ -128,7 +137,9 @@ public sealed class PackageControllerRenderingTests
         var (files, _) = Nine();
         if (failure == "color") files["assets/image.png"] = "not an image"u8.ToArray();
         if (failure == "truncated") files["assets/image.png"] = files["assets/image.png"][..40];
-        var package = Read(files, EffectPackageFixture.NineParametersManifest(files));
+        var manifest = EffectPackageFixture.NineParametersManifest(files);
+        manifest["exports"]![0]!["outputs"]![0]!["requires"] = new JsonArray(Fx.V2.CapabilityNames.TokenAffine);
+        var package = Read(files, manifest, Fx.V2.CapabilityNames.TokenAffine);
         var validator = new PackageImageValidator(failure == "budget" ? new() { MaximumBytes = 15 } : null);
         var error = await Assert.ThrowsAsync<EffectPackageException>(() => CompiledEffectPackage.CompileAsync(package, Compiler(), validator));
         Assert.Equal(code, error.Code); Assert.Equal("assets/image.png", error.Path);
@@ -139,20 +150,32 @@ public sealed class PackageControllerRenderingTests
     [InlineData("Overlay", "tokenFamily")]
     public async Task 清单粗粒度能力不能扩大到未声明目标或视觉批次(string kind, string targetKind)
     {
+        string capability = kind switch
+        {
+            "VisualTransform" => Fx.V2.CapabilityNames.TokenAffine,
+            "StyleModulation" => Fx.V2.CapabilityNames.TokenOpacity,
+            _ => Fx.V2.CapabilityNames.VisualsDots,
+        };
         string source = kind switch
         {
-            "VisualTransform" => EffectPackageFixture.EffectSource,
-            "StyleModulation" => "public class PackEffect : MakoKaraGenerator.Scripting.EffectBase { public override void Evaluate(MakoKaraGenerator.Scripting.FrameContext f, MakoKaraGenerator.Scripting.FrameWriter w) { foreach(var t in f.Presentations.TokensInBinding) w.Style.MultiplyOpacity(t.WithRuby,.5); } }",
-            _ => "public class PackEffect : MakoKaraGenerator.Scripting.EffectBase { public override void EvaluateVisuals(MakoKaraGenerator.Scripting.VisualFrameContext f, MakoKaraGenerator.Scripting.VisualWriter w) { w.Overlay.DrawDots(new(\"undeclared\"),[new(new(10,10),2,new(1,0,0,1))],MakoKaraGenerator.Scripting.OverlayLayer.AboveText); } }",
+            "VisualTransform" => "using MakoKaraGenerator.Scripting; using MakoKaraGenerator.Scripting.V2; public sealed class PackEffect : IPureKaraokeEffect { public PreparedEffect Declare(DeclareContext s) => PreparedEffect.Empty; public void Evaluate(in TextFrame f, PreparedEffect d, TextOutput w) { foreach (var t in f.Presentations.TokensInBinding) w.AppendTransform(new TextTarget.Family(t.WithRuby), new Affine2(2, 0, 0, 2, 0, 0)); } }",
+            "StyleModulation" => "using MakoKaraGenerator.Scripting; using MakoKaraGenerator.Scripting.V2; public sealed class PackEffect : IPureKaraokeEffect { public PreparedEffect Declare(DeclareContext s) => PreparedEffect.Empty; public void Evaluate(in TextFrame f, PreparedEffect d, TextOutput w) { foreach (var t in f.Presentations.TokensInBinding) w.MultiplyOpacity(new TextTarget.Family(t.WithRuby), .5); } }",
+            _ => "using MakoKaraGenerator.Scripting; using MakoKaraGenerator.Scripting.V2; public sealed record DotState : PreparedEffect { } public sealed class PackEffect : IPureKaraokeEffect, IPureVisualEffect { public PreparedEffect Declare(DeclareContext s) => new DotState { VisualOutputs = [new(new(\"undeclared\"), VisualPrimitiveKind.Dots, OverlayLayer.AboveText)] }; public void Evaluate(in TextFrame f, PreparedEffect d, TextOutput w) { } public void EvaluateVisuals(in VisualFrame f, PreparedEffect d, VisualOutput w) { w.DrawDots(new(\"undeclared\"), [new(new(10, 10), 2, new(1, 0, 0, 1))], OverlayLayer.AboveText); } }",
         };
         var files = EffectPackageFixture.Files(); files["src/PackEffect.cs"] = Encoding.UTF8.GetBytes(source);
-        var manifest = EffectPackageFixture.Manifest(files); manifest["exports"]![0]!["outputs"]![0]!["kind"] = kind; manifest["exports"]![0]!["outputs"]![0]!["target"] = targetKind;
-        var compiled = await CompiledEffectPackage.CompileAsync(Read(files, manifest), Compiler()); Assert.True(compiled.Artifact.Succeeded);
+        var manifest = EffectPackageFixture.Manifest(files);
+        manifest["exports"]![0]!["outputs"]![0]!["kind"] = kind == "Overlay" ? "VisualTransform" : kind;
+        manifest["exports"]![0]!["outputs"]![0]!["target"] = targetKind;
+        manifest["exports"]![0]!["outputs"]![0]!["requires"] = new JsonArray(capability);
+        var compiled = await CompiledEffectPackage.CompileAsync(Read(files, manifest, capability), Compiler()); Assert.True(compiled.Artifact.Succeeded);
         var effect = compiled.CreateEffect("scale", new("restricted"), new Fx.EffectBinding.Tokens([new("first-a")]), 1);
         const string fingerprint = "restricted-package"; var snapshot = ProjectSnapshot.FromProject(LeadInFixture.Create()) with { EffectInputsFingerprint = fingerprint };
         var factory = new PureFrameSourceFactory([effect], fingerprint, static () => new SkiaRenderPipeline());
-        await using var frameSource = await factory.CreateAsync(snapshot);
-        var error = await Assert.ThrowsAsync<EffectFailureException>(async () => await frameSource.PrepareAsync(12_500_000, Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition)));
+        var error = await Assert.ThrowsAsync<EffectFailureException>(async () =>
+        {
+            await using var frameSource = await factory.CreateAsync(snapshot);
+            await frameSource.PrepareAsync(12_500_000, Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition));
+        });
         Assert.Equal("UndeclaredPackageOutput", error.Code); Assert.Equal(effect.Id, error.InstanceId);
     }
 }

@@ -37,8 +37,8 @@ public sealed class V2LongTimelineParticleTests
         // 模板逐行应用：每行一个实例，60 个实例共享同一宿主准备预算。
         var effects = lines.Select((line, index) => compiled.CreateEffect("cursor-trail", new($"emitter-{index}"),
             new EffectBinding.Lines([new LineId(line.Id)]), (ulong)index)).ToImmutableArray();
-        await using var session = await new TimelineFrameSourceFactory(effects, Fingerprint,
-            static () => new SkiaRenderPipeline(), ReplayReason.Initial).CreateAsync(snapshot);
+        await using var session = await new PureFrameSourceFactory(effects, Fingerprint,
+            static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
         var target = RenderTarget.FromComposition(snapshot.Composition);
         int supplemented = 0;
         foreach (long time in new long[] { 500_000, 180_000_000, 1_000_000, 180_000_000 })

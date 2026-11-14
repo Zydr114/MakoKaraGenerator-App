@@ -1,5 +1,7 @@
 using System.Collections.Immutable;
+using MakoKaraGenerator.Core.Effects;
 using MakoKaraGenerator.Core.Lyrics;
+using MakoKaraGenerator.Core.Persistence;
 using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Rendering.Skia;
 using MakoKaraGenerator.Scripting.Compilation;
@@ -11,21 +13,30 @@ namespace MakoKaraGenerator.Rendering.Tests;
 public sealed class RepeatEmphasisSessionTests
 {
     private const string Fingerprint = "repeat-author-source-parameters";
-    private static readonly Lazy<Task<ScriptCompilationResult>> Repeat = new(async () =>
+    private static readonly Lazy<Task<CompiledEffectPackage>> Repeat = new(async () =>
     {
-        ScriptCompiler compiler = new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));
-        var result = await compiler.CompileAsync([new("src/RepeatEmphasis.cs",
-            File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "script-samples", "RepeatEmphasis.cs")))]);
-        Assert.True(result.Succeeded, string.Join('\n', result.Diagnostics)); return result;
+        var contents = await EffectPackageStorage.ReadSupportedDirectoryAsync(
+            Path.Combine(AppContext.BaseDirectory, "effect-packages-v2", "RepeatEmphasis"));
+        return await V2RenderPackageHelper.CompileAsync(contents);
     });
-    private static async Task<TimelineFrameSourceFactory> Factory(string scope = "branch", Fx.EffectBinding? binding = null,
-        Fx.SourceSubscription? subscription = null, Fx.ReplayReason reason = Fx.ReplayReason.Initial)
-        => new([new(new("repeat"), await Repeat.Value, "RepeatEmphasis", new(new Dictionary<string, Fx.ParameterValue>
-        { ["countScope"] = new Fx.ParameterValue.Choice(scope), ["scaleStep"] = new Fx.ParameterValue.Number(.2),
-          ["maxScale"] = new Fx.ParameterValue.Number(2), ["darkenStep"] = new Fx.ParameterValue.Number(.2),
-          ["minBrightness"] = new Fx.ParameterValue.Number(.2) }), binding ?? new Fx.EffectBinding.Project(),
-            Fx.EffectCapabilities.Transforms | Fx.EffectCapabilities.Style)
-            { Subscription = subscription ?? new Fx.SourceSubscription.Project() }], Fingerprint, static () => new SkiaRenderPipeline(), reason);
+    private static async Task<PureFrameSourceFactory> Factory(string scope = "branch", Fx.EffectBinding? binding = null,
+        Fx.SourceSubscription? subscription = null)
+    {
+        var package = await Repeat.Value;
+        var parameters = new Fx.ParameterValues(new Dictionary<string, Fx.ParameterValue>
+        {
+            ["countScope"] = new Fx.ParameterValue.Choice(scope), ["scaleStep"] = new Fx.ParameterValue.Number(.2),
+            ["maxScale"] = new Fx.ParameterValue.Number(2), ["darkenStep"] = new Fx.ParameterValue.Number(.2),
+            ["minBrightness"] = new Fx.ParameterValue.Number(.2),
+        });
+        var effect = package.CreateEffect(package.Definition.Controllers[0].Id, new("repeat"),
+            binding ?? new Fx.EffectBinding.Project(), 0) with
+        {
+            Parameters = parameters,
+            Subscription = subscription ?? new Fx.SourceSubscription.Project(),
+        };
+        return new([effect], Fingerprint, static () => new SkiaRenderPipeline());
+    }
     private static Project ThreeRows()
     {
         var rows = Enumerable.Range(0, 3).Select(index => LyricLine.Create("row-" + index, "田", new(index * 500_000, index * 500_000 + 400_000), TimingStatus.Edited,
@@ -92,7 +103,7 @@ public sealed class RepeatEmphasisSessionTests
         var redraw = await Frame(source, snapshot, targetTime);
         await Frame(source, snapshot, 10_001);
         var rewind = await Frame(source, snapshot, targetTime);
-        await using var direct = await (await Factory(reason: Fx.ReplayReason.Export)).CreateAsync(snapshot);
+        await using var direct = await (await Factory()).CreateAsync(snapshot);
         var exported = await Frame(direct, snapshot, targetTime);
         Assert.Equal(1.4, Scale(sequential, "word-2"), 12);
         foreach (var other in new[] { redraw, rewind, exported })
@@ -145,13 +156,20 @@ public sealed class RepeatEmphasisSessionTests
     [Fact]
     public async Task 未定时字不计数也不获得强调精确文本不合并异字()
     {
-        var line = LyricLine.Create("row", "田田異田", new(0, 2_000_000), TimingStatus.Edited,
-            [LyricToken.Create("a", "田", new(0, 400_000), TimingStatus.Edited), LyricToken.Create("missing", "田"),
-             LyricToken.Create("different", "異", new(500_000, 900_000), TimingStatus.Edited), LyricToken.Create("b", "田", new(1_000_000, 1_500_000), TimingStatus.Edited)]);
-        var project = ThreeRows() with { Lyrics = LyricsDocument.Create([line]) };
+        var lineA = LyricLine.Create("row-a", "田", new(0, 400_000), TimingStatus.Edited, [LyricToken.Create("a", "田", new(0, 400_000), TimingStatus.Edited)]);
+        var lineMissing = LyricLine.Create("row-missing", "田", null, TimingStatus.Missing, [LyricToken.Create("missing", "田")]);
+        var lineDifferent = LyricLine.Create("row-different", "異", new(500_000, 900_000), TimingStatus.Edited, [LyricToken.Create("different", "異", new(500_000, 900_000), TimingStatus.Edited)]);
+        var lineB = LyricLine.Create("row-b", "田", new(1_000_000, 1_500_000), TimingStatus.Edited, [LyricToken.Create("b", "田", new(1_000_000, 1_500_000), TimingStatus.Edited)]);
+        var project = ThreeRows() with { Lyrics = LyricsDocument.Create([lineA, lineMissing, lineDifferent, lineB]) };
         var snapshot = Snapshot(project); await using var source = await (await Factory()).CreateAsync(snapshot);
-        var frame = await Frame(source, snapshot, 1_250_000);
-        Assert.DoesNotContain(frame.TokenTransforms, item => item.Target.TokenId.Value == "missing");
-        Assert.Equal(1, Scale(frame, "a")); Assert.Equal(1, Scale(frame, "different")); Assert.Equal(1.2, Scale(frame, "b"), 12);
+        var frameA = await Frame(source, snapshot, 200_000);
+        var frameDiff = await Frame(source, snapshot, 700_000);
+        var frameB = await Frame(source, snapshot, 1_250_000);
+        foreach (var frame in new[] { frameA, frameDiff, frameB })
+        {
+            Assert.DoesNotContain(frame.Scene.TokenGeometries, item => item.WithRuby.TokenId.Value == "missing");
+            Assert.DoesNotContain(frame.TokenTransforms, item => item.Target.TokenId.Value == "missing");
+        }
+        Assert.Equal(1, Scale(frameA, "a")); Assert.Equal(1, Scale(frameDiff, "different")); Assert.Equal(1.2, Scale(frameB, "b"), 12);
     }
 }

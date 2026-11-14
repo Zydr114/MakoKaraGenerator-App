@@ -19,36 +19,32 @@ public sealed class V2MixedOverlayBudgetTests
 {
     private const string Fingerprint = "m09-mixed-overlay-shared-frame-budget";
     private const long EmptyQueryBytes = 16_384;
-    private const long LegacyDotBytes = 320;
+    private const long DotBytes = 320;
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task 旧图元与v2空调度合计字节超限归实际跨线实例且失败后原限额可恢复(bool fullVisualPath)
+    public async Task 多v2实例图元与空调度合计字节超限归实际跨线实例且失败后原限额可恢复(bool fullVisualPath)
     {
-        var legacy = await Legacy(); var pure = await Pure(fullVisualPath); var snapshot = Snapshot();
-        Assert.False(legacy.IsV2); Assert.True(pure.IsV2);
-        // Each independent source fits the same cap. Their retained data must
-        // share one account when the real session combines the two protocols.
-        await using (var onlyLegacy = await Factory([legacy], EmptyQueryBytes).CreateAsync(snapshot, CancellationToken.None))
+        var dots = await DotOverlay(); var pure = await Pure(fullVisualPath); var snapshot = Snapshot();
+        Assert.True(dots.IsV2); Assert.True(pure.IsV2);
+        await using (var onlyDots = await Factory([dots], EmptyQueryBytes + DotBytes).CreateAsync(snapshot, CancellationToken.None))
         {
-            var frame = await Read(onlyLegacy, snapshot, 1000);
+            var frame = await Read(onlyDots, snapshot, 1000);
             var batch = Assert.Single(frame.OverlayBatches);
-            Assert.Equal(LegacyDotBytes, OverlayMemoryCost.Estimate(batch));
-            Assert.Equal(legacy.Id, batch.InstanceId);
+            Assert.Equal(DotBytes, OverlayMemoryCost.Estimate(batch));
+            Assert.Equal(dots.Id, batch.InstanceId);
         }
         await using (var onlyPure = await Factory([pure], EmptyQueryBytes).CreateAsync(snapshot, CancellationToken.None))
             AssertEmptyPure(await Read(onlyPure, snapshot, 1000), pure);
 
-        ImmutableArray<CompiledFrameEffect> effects = [legacy, pure];
-        await using var mixed = await Factory(effects, EmptyQueryBytes).CreateAsync(snapshot, CancellationToken.None);
-        await Failure(mixed);
-        // The same session has been poisoned by the failed frame. A lower-time
-        // request rebuilds it, has no legacy batch, and keeps the original cap.
-        var recovered = await Read(mixed, snapshot, 0);
+        ImmutableArray<CompiledFrameEffect> effects = [dots, pure];
+        await using var shared = await Factory(effects, EmptyQueryBytes * 2).CreateAsync(snapshot, CancellationToken.None);
+        await Failure(shared);
+        var recovered = await Read(shared, snapshot, 0);
         AssertEmptyPure(recovered, pure); Assert.Empty(recovered.OverlayBatches); Assert.Empty(recovered.Diagnostics);
         Assert.Equal(effects.Select(effect => effect.Id), recovered.OverlayOwners.Select(owner => owner.InstanceId));
-        await using (var fresh = await Factory(effects, EmptyQueryBytes).CreateAsync(snapshot, CancellationToken.None))
+        await using (var fresh = await Factory(effects, EmptyQueryBytes * 2).CreateAsync(snapshot, CancellationToken.None))
         {
             var expected = await Read(fresh, snapshot, 0);
             AssertEmptyPure(expected, pure);
@@ -56,22 +52,20 @@ public sealed class V2MixedOverlayBudgetTests
             Assert.Equal(expected.V2AnchorStatistics, recovered.V2AnchorStatistics);
             Assert.Equal(expected.OverlayOwners.ToArray(), recovered.OverlayOwners.ToArray());
         }
-        await Failure(mixed);
+        await Failure(shared);
 
-        // The exact sum succeeds: existing batches are not charged twice by
-        // the later immutable snapshot check or the complete v2 query path.
-        await using var exact = await Factory(effects, EmptyQueryBytes + LegacyDotBytes).CreateAsync(snapshot, CancellationToken.None);
+        await using var exact = await Factory(effects, EmptyQueryBytes * 2 + DotBytes).CreateAsync(snapshot, CancellationToken.None);
         var combined = await Read(exact, snapshot, 1000);
         AssertEmptyPure(combined, pure);
         var retained = Assert.Single(combined.OverlayBatches);
-        Assert.Equal(legacy.Id, retained.InstanceId); Assert.Equal(LegacyDotBytes, OverlayMemoryCost.Estimate(retained));
+        Assert.Equal(dots.Id, retained.InstanceId); Assert.Equal(DotBytes, OverlayMemoryCost.Estimate(retained));
 
         async Task Failure(IEvaluatedFrameSource session)
         {
             var error = await Assert.ThrowsAsync<EffectFailureException>(async () => await Read(session, snapshot, 1000));
             Assert.Equal("ParticleFrameMemoryExceeded", error.Code);
-            Assert.Equal(pure.Id, error.InstanceId); Assert.Equal(pure.RuntimeHash, error.ArtifactHash);
-            Assert.Equal(pure.PackageIdentity, error.PackageIdentity);
+            Assert.Equal(dots.Id, error.InstanceId); Assert.Equal(dots.RuntimeHash, error.ArtifactHash);
+            Assert.Equal(dots.PackageIdentity, error.PackageIdentity);
             Assert.Equal("ReadParticleBirths", error.Stage); Assert.Equal(1000, error.TimeUs);
             var diagnostics = Assert.IsType<RuntimeDiagnosticSnapshot>(error.DiagnosticSnapshot);
             Assert.True(diagnostics.HasError);
@@ -84,8 +78,7 @@ public sealed class V2MixedOverlayBudgetTests
 
     private static void AssertEmptyPure(PreparedRenderFrame frame, CompiledFrameEffect pure)
     {
-        var snapshot = Assert.Single(frame.V2ParticleSnapshots);
-        Assert.Equal(pure.Id, snapshot.InstanceId);
+        var snapshot = frame.V2ParticleSnapshots.Single(item => item.InstanceId == pure.Id);
         Assert.Empty(snapshot.Births.Births); Assert.Empty(snapshot.Alive); Assert.Empty(snapshot.Trails);
         Assert.Empty(frame.V2Particles);
         Assert.Equal(new PreparedV2AnchorStatistics(0, 0, 0, 0, 0), frame.V2AnchorStatistics);
@@ -126,21 +119,30 @@ public sealed class V2MixedOverlayBudgetTests
         return compiled.CreateEffect(Assert.Single(compiled.Definition.Controllers).Id, new("pure-crossing-owner"), new EffectBinding.Project(), 17);
     }
 
-    private static async Task<CompiledFrameEffect> Legacy()
+    private static async Task<CompiledFrameEffect> DotOverlay()
     {
-        var artifact = await Compiler().CompileAsync([new("src/Legacy.cs", """
+        var compiled = await V2RenderPackageHelper.CompileControllerAsync("""
             using MakoKaraGenerator.Scripting;
-            public sealed class Legacy : EffectBase
+            using MakoKaraGenerator.Scripting.V2;
+            public sealed record DotState : PreparedEffect;
+            public sealed class DotOverlay : IPureKaraokeEffect, IPureVisualEffect
             {
-                public override void EvaluateVisuals(VisualFrameContext frame, VisualWriter output)
+                public PreparedEffect Declare(DeclareContext source)
+                    => new DotState { VisualOutputs = [new(new("dot"), VisualPrimitiveKind.Dots, OverlayLayer.AboveText)] };
+                public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output) { }
+                public void EvaluateVisuals(in VisualFrame frame, PreparedEffect data, VisualOutput output)
                 {
                     if (frame.TimeUs < 1000) return;
-                    output.Overlay.DrawDots(new("legacy-dot"), [new(new(20, 20), 3, new(1, 0, 0, 1))], OverlayLayer.AboveText);
+                    output.DrawDots(new("dot"), [new(new(20, 20), 3, new(1, 0, 0, 1))], OverlayLayer.AboveText);
                 }
             }
-            """)]);
-        Assert.True(artifact.Succeeded, string.Join('\n', artifact.Diagnostics));
-        return new(new("legacy-overlay-owner"), artifact, "Legacy", ParameterValues.Empty, new EffectBinding.Project(), EffectCapabilities.Overlay);
+            """,
+            [CapabilityNames.VisualsDots],
+            entryType: "DotOverlay",
+            exportId: "dots",
+            outputs: [V2RenderPackageHelper.Output("dot", "Overlay", "canvas", CapabilityNames.VisualsDots)],
+            packageId: "demo.dot-overlay.v2");
+        return compiled.CreateEffect("dots", new("dot-overlay-owner"), new EffectBinding.Project(), 19);
     }
 
     private static ScriptCompiler Compiler() => new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));

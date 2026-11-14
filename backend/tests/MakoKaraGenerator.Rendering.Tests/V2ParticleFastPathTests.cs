@@ -19,7 +19,7 @@ namespace MakoKaraGenerator.Rendering.Tests;
 public sealed class V2ParticleFastPathTests
 {
     private const string Fingerprint = "m08-empty-particle-fixed-inputs";
-    private static readonly string[] LegacyBatchIds = ["a", "z"];
+    private static readonly string[] OverlayBatchIds = ["a", "z"];
 
     [Theory]
     [InlineData("WordEmphasis")]
@@ -99,16 +99,15 @@ public sealed class V2ParticleFastPathTests
     public async Task 混合旧图元保留批次顺序全部来源诊断发生和固定视觉预算()
     {
         var plain = await Sample("WordEmphasis"); var full = await Sample("WordEmphasis", forceVisual: true);
-        var legacy = await Legacy(); var snapshot = Snapshot(); VisualOutputBudget budget = new(2);
-        ImmutableArray<CompiledFrameEffect> effects = [plain, legacy];
+        var overlay = await OverlayEffect(); var snapshot = Snapshot(); VisualOutputBudget budget = new(2);
+        ImmutableArray<CompiledFrameEffect> effects = [plain, overlay];
         await using var session = await Factory(effects, budget).CreateAsync(snapshot, CancellationToken.None);
-        await using var reference = await Factory([full, legacy], budget).CreateAsync(snapshot, CancellationToken.None);
+        await using var reference = await Factory([full, overlay], budget).CreateAsync(snapshot, CancellationToken.None);
         var frame = await Read(session, snapshot, 100_000);
         var expected = await Read(reference, snapshot, 100_000);
         EmptyState(frame, effects, budget);
-        Assert.Equal(LegacyBatchIds, frame.OverlayBatches.Select(static item => item.Id.Value));
-        Assert.All(frame.OverlayBatches, batch => Assert.Equal(legacy.Id, batch.InstanceId));
-        Assert.Contains(frame.Diagnostics, static item => item.Diagnostic.Code == "legacy-overlay");
+        Assert.Equal(OverlayBatchIds, frame.OverlayBatches.Select(static item => item.Id.Value));
+        Assert.All(frame.OverlayBatches, batch => Assert.Equal(overlay.Id, batch.InstanceId));
         Assert.Equal(expected.Diagnostics.ToArray(), frame.Diagnostics.ToArray());
         Assert.Equal(Structure(expected), Structure(frame));
         Assert.Equal(Pixels(snapshot, expected), Pixels(snapshot, frame));
@@ -178,7 +177,7 @@ public sealed class V2ParticleFastPathTests
             Line = line.Frame.Line!.Id, HideTimeUs = line.ExitReplica?.HideTimeUs, LoadOrdinal = line.ExitReplica?.LoadOrdinal }),
         frame.V2ParticleSnapshots, frame.V2Particles, frame.V2AnchorStatistics,
         Batches = frame.OverlayBatches.Select(static batch => JsonSerializer.Serialize(batch, batch.GetType())),
-        frame.Particles, HasEmissionSchedule = frame.EmissionSchedule is not null,
+        frame.Particles,
     });
 
     private static async Task<CompiledFrameEffect> Sample(string name, bool forceVisual = false)
@@ -221,22 +220,42 @@ public sealed class V2ParticleFastPathTests
         return compiled.CreateEffect(Assert.Single(compiled.Definition.Controllers).Id, new("text-a"), new EffectBinding.Project(), 17);
     }
 
-    private static async Task<CompiledFrameEffect> Legacy()
+    private static async Task<CompiledFrameEffect> OverlayEffect()
     {
-        var artifact = await Compiler().CompileAsync([new("Legacy.cs", """
+        var compiled = await V2RenderPackageHelper.CompileControllerAsync("""
             using MakoKaraGenerator.Scripting;
-            public sealed class Legacy : EffectBase
+            using MakoKaraGenerator.Scripting.V2;
+
+            public sealed record OverlayState : PreparedEffect;
+
+            public sealed class OverlayEffect : IPureKaraokeEffect, IPureVisualEffect
             {
-                public override void EvaluateVisuals(VisualFrameContext frame, VisualWriter output)
+                public PreparedEffect Declare(DeclareContext source) => new OverlayState
                 {
-                    frame.Diagnostics.Report(DiagnosticSeverity.Warning, "legacy-overlay", "retained occurrence");
-                    output.Overlay.DrawDots(new("z"), [new(new(20, 20), 3, new(1, 0, 0, 1))], OverlayLayer.AboveText);
-                    output.Overlay.DrawDots(new("a"), [new(new(30, 20), 3, new(0, 1, 0, 1))], OverlayLayer.AboveText);
+                    VisualOutputs =
+                    [
+                        new(new("z"), VisualPrimitiveKind.Dots, OverlayLayer.AboveText),
+                        new(new("a"), VisualPrimitiveKind.Dots, OverlayLayer.AboveText),
+                    ],
+                };
+                public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output) { }
+                public void EvaluateVisuals(in VisualFrame frame, PreparedEffect data, VisualOutput output)
+                {
+                    output.DrawDots(new("z"), [new(new(20, 20), 3, new(1, 0, 0, 1))], OverlayLayer.AboveText);
+                    output.DrawDots(new("a"), [new(new(30, 20), 3, new(0, 1, 0, 1))], OverlayLayer.AboveText);
                 }
             }
-            """)]);
-        Assert.True(artifact.Succeeded, string.Join('\n', artifact.Diagnostics));
-        return new(new("legacy"), artifact, "Legacy", ParameterValues.Empty, new EffectBinding.Project(), EffectCapabilities.Overlay);
+            """,
+            [CapabilityNames.VisualsDots],
+            entryType: "OverlayEffect",
+            exportId: "overlay",
+            outputs:
+            [
+                V2RenderPackageHelper.Output("z", "Overlay", "canvas", CapabilityNames.VisualsDots),
+                V2RenderPackageHelper.Output("a", "Overlay", "canvas", CapabilityNames.VisualsDots),
+            ],
+            packageId: "demo.fastpath.overlay.v2");
+        return compiled.CreateEffect("overlay", new("overlay"), new EffectBinding.Project(), 0);
     }
 
     private static ScriptCompiler Compiler() => new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using MakoKaraGenerator.Core.Effects;
 using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Rendering.Skia;
 using MakoKaraGenerator.Scripting.Compilation;
@@ -10,81 +11,112 @@ namespace MakoKaraGenerator.Rendering.Tests;
 public sealed class PreparedMarkFrameTests
 {
     private const string Fingerprint = "R2-mark-target-fixed";
-    private static readonly Lazy<Task<ScriptCompilationResult>> Probe = new(async () =>
-    {
-        ScriptCompiler compiler = new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));
-        var result = await compiler.CompileAsync([new("src/MarkProbe.cs", """
-            using System;
-            using System.Linq;
-            using MakoKaraGenerator.Scripting;
-            public sealed class MarkProbe : EffectBase
+    private static readonly Lazy<Task<CompiledEffectPackage>> Probe = new(() => V2RenderPackageHelper.CompileControllerAsync("""
+        using System;
+        using MakoKaraGenerator.Scripting;
+        using MakoKaraGenerator.Scripting.V2;
+
+        public sealed class MarkProbe : IPureKaraokeEffect
+        {
+            public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
+            public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
             {
-                public override void Evaluate(FrameContext frame, FrameWriter output)
+                var future = frame.Indexes.Layout.GetBaseAt(37500000, new SourceFilter.Tokens([new TokenId("chorus-a")]));
+                bool allVisible = true;
+                foreach (var group in future.Groups)
+                    if (!group.IsVisible) { allVisible = false; break; }
+                if (future.Marks.Length != 3 || future.MarkGeometry.Length != 3 || future.Tokens.Length != 1
+                    || future.Groups.Length != future.GroupGeometry.Length || !allVisible)
+                    throw new InvalidOperationException("Source queries must include real marks and runtime group ancestors");
+                var empty = frame.Indexes.Layout.GetBaseAt(9500000, new SourceFilter.Lines([new LineId("chorus")]));
+                if (empty.Marks.Length != 0 || empty.Groups.Length != 0) throw new InvalidOperationException("No fake future load");
+                foreach (var line in frame.Source.Content.Lines) frame.Baseline.Get(line.Id);
+                foreach (var group in frame.Presentations.Groups)
+                    if (frame.Baseline.Get(group.Target).Opacity != 1) throw new InvalidOperationException("No fake group fill or inherited static alpha");
+                string mode = frame.Parameters.GetEnum("mode");
+                foreach (var mark in frame.Presentations.MarksInBinding)
                 {
-                    var future = frame.GeometryQueries.GetBaseAt(37500000, new SourceFilter.Tokens([new("chorus-a")]));
-                    if (future.Marks.Length != 3 || future.MarkGeometry.Length != 3 || future.Tokens.Length != 1
-                        || future.Groups.Length != future.GroupGeometry.Length || future.Groups.Any(group => !group.IsVisible))
-                        throw new Exception("Source queries must include real marks and runtime group ancestors");
-                    var empty = frame.GeometryQueries.GetBaseAt(9500000, new SourceFilter.Lines([new("chorus")]));
-                    if (empty.Marks.Length != 0 || empty.Groups.Length != 0) throw new Exception("No fake future load");
-                    frame.Diagnostics.Report(DiagnosticSeverity.Info, "marks", frame.Presentations.MarksInBinding.Length.ToString());
-                    foreach (var line in frame.Project.Content.Lines) frame.Baseline.Get(line.Id);
-                    foreach (var group in frame.Presentations.Groups)
-                        if (frame.Baseline.Get(group.Target).Opacity != 1) throw new Exception("No fake group fill or inherited static alpha");
-                    string mode = frame.Parameters.GetEnum("mode");
-                    foreach (var mark in frame.Presentations.MarksInBinding)
+                    var target = mark.Target;
+                    var textTarget = new TextTarget.Mark(target);
+                    var basis = frame.Baseline.Get(target);
+                    if (mode == "badCue") textTarget = new TextTarget.Mark(target with { CueId = new CueId("cue-chorus") });
+                    if (mode == "baseline" || mode == "reset")
                     {
-                        var target = mark.Target; var basis = frame.Baseline.Get(target);
-                        if (mode == "badCue") target = target with { CueId = new("cue-chorus") };
-                        if (mode == "baseline" || mode == "reset")
-                        { output.Style.SetUnsungMaterial(target, basis.Unsung.Fill); output.Style.SetSungMaterial(target, basis.Sung.Fill); }
-                        else if (mode == "half") output.Style.MultiplyOpacity(target, .5);
-                        else if (mode == "alpha2") output.Style.MultiplyOpacity(target, 2);
-                        else if (mode == "badAlpha") output.Style.MultiplyOpacity(target, 3);
-                        else if (mode == "native") output.Transforms.ApplyAffine(target, Affine2.Translation(1e100, 0));
-                        else if (mode == "package") output.Style.SetUnsungMaterial(target,
-                            MaterialValue.PackageExport(frame.Resources.GetMaterial("glass"), ParameterValues.Empty));
-                        else if (mode == "off")
-                        {
-                            output.Style.SetUnsungMaterial(target, MaterialValue.Solid(default)); output.Style.SetSungMaterial(target, MaterialValue.Solid(default));
-                            output.Style.SetStroke(target, null); output.Style.SetShadow(target, null);
-                        }
-                        else if (mode == "linear" || mode.StartsWith("stroke", StringComparison.Ordinal))
-                        {
-                            var material = MaterialValue.Gradient(new([new(0, new(1, 0, 0, 1)), new(1, new(0, 0, 1, .5))],
-                                (mode == "strokeRadial" ? GradientKind.Radial : GradientKind.Linear), 25,
-                                mode == "strokeCanvas" ? GradientCoordinateSpace.Canvas : GradientCoordinateSpace.Line, GradientColorSpace.Hsv, GradientHuePath.Longer));
-                            if (mode.StartsWith("stroke", StringComparison.Ordinal)) output.Style.SetStroke(target,new(4, material, StrokeJoin.Bevel));
-                            else { output.Style.SetUnsungMaterial(target, material); output.Style.SetSungMaterial(target, material); }
-                        }
+                        output.SetFill(textTarget, TextState.Unsung, basis.Unsung.Fill);
+                        output.SetFill(textTarget, TextState.Sung, basis.Sung.Fill);
+                    }
+                    else if (mode == "half") output.MultiplyOpacity(textTarget, .5);
+                    else if (mode == "alpha2") output.MultiplyOpacity(textTarget, 2);
+                    else if (mode == "badAlpha") output.MultiplyOpacity(textTarget, 3);
+                    else if (mode == "native") output.AppendTransform(textTarget, new Affine2(1e38, 0, 0, 1e38, 0, 0));
+                    else if (mode == "package") output.SetFill(textTarget, TextState.Unsung,
+                        MaterialValue.PackageExport(frame.Resources.GetMaterial("glass"), ParameterValues.Empty));
+                    else if (mode == "off")
+                    {
+                        output.SetFill(textTarget, TextState.Unsung, MaterialValue.Solid(default));
+                        output.SetFill(textTarget, TextState.Sung, MaterialValue.Solid(default));
+                        output.SetStrokes(textTarget, TextState.Both);
+                        output.SetShadow(textTarget, TextState.Both, null);
+                    }
+                    else if (mode == "linear" || mode.StartsWith("stroke", StringComparison.Ordinal))
+                    {
+                        var material = MaterialValue.Gradient(new([new(0, new(1, 0, 0, 1)), new(1, new(0, 0, 1, .5))],
+                            (mode == "strokeRadial" ? GradientKind.Radial : GradientKind.Linear), 25,
+                            mode == "strokeCanvas" ? GradientCoordinateSpace.Canvas : GradientCoordinateSpace.Line, GradientColorSpace.Hsv, GradientHuePath.Longer));
+                        if (mode.StartsWith("stroke", StringComparison.Ordinal))
+                            output.SetStrokes(textTarget, TextState.Both, new StrokeValue(4, material, StrokeJoin.Bevel));
                         else
                         {
-                            output.Style.SetUnsungMaterial(target, MaterialValue.Solid(new(30/255d, 200/255d, 80/255d, 180/255d)));
-                            output.Style.SetSungMaterial(target, MaterialValue.Solid(new(200/255d, 40/255d, 220/255d, 170/255d)));
-                            output.Style.SetStroke(target, new(4, MaterialValue.Solid(new(20/255d, 80/255d, 230/255d, 210/255d)), StrokeJoin.Bevel));
-                            output.Style.SetShadow(target, new(new(200/255d, 160/255d, 20/255d, 120/255d), .5, 110, 7, 3));
-                            output.Style.MultiplyOpacity(target, .5);
+                            output.SetFill(textTarget, TextState.Unsung, material);
+                            output.SetFill(textTarget, TextState.Sung, material);
                         }
-                        if (mode == "affine")
-                        {
-                            var reference = frame.GroupGeometry.Single(group => group.Target.NodeId == mark.ParentId).ReferenceBounds;
-                            var ratio = frame.Project.Scene.GetNode(target.NodeId).ReferenceRatio;
-                            output.Transforms.ApplyAffine(target, Affine2.Translation(8, -4));
-                            output.Transforms.ApplyAffine(target, Affine2.ScaleAt(1.25, new(reference.Width * ratio.X / 2, reference.Height * ratio.Y / 2)));
-                        }
+                    }
+                    else
+                    {
+                        output.SetFill(textTarget, TextState.Unsung, MaterialValue.Solid(new(30/255d, 200/255d, 80/255d, 180/255d)));
+                        output.SetFill(textTarget, TextState.Sung, MaterialValue.Solid(new(200/255d, 40/255d, 220/255d, 170/255d)));
+                        output.SetStrokes(textTarget, TextState.Both, new StrokeValue(4, MaterialValue.Solid(new(20/255d, 80/255d, 230/255d, 210/255d)), StrokeJoin.Bevel));
+                        output.SetShadow(textTarget, TextState.Both, new ShadowValue(new(200/255d, 160/255d, 20/255d, 120/255d), .5, 110, 7, 3));
+                    }
+                    if (mode == "affine")
+                    {
+                        Rect2 reference = default;
+                        bool foundRef = false;
+                        foreach (var group in frame.GroupGeometry)
+                            if (group.Target.NodeId == mark.ParentId) { reference = group.ReferenceBounds; foundRef = true; break; }
+                        if (!foundRef) throw new InvalidOperationException("Missing parent group geometry");
+                        var ratio = frame.Source.Scene.GetNode(target.NodeId).ReferenceRatio;
+                        output.AppendTransform(textTarget, Affine2.ScaleAt(1.25, new(reference.Width * ratio.X / 2, reference.Height * ratio.Y / 2)));
+                        output.AppendTransform(textTarget, Affine2.Translation(8, -4));
                     }
                 }
             }
-            """)]);
-        Assert.True(result.Succeeded, string.Join('\n', result.Diagnostics)); return result;
-    });
+        }
+        """,
+        [Fx.V2.CapabilityNames.StyleFill, Fx.V2.CapabilityNames.StyleStroke, Fx.V2.CapabilityNames.StyleShadow, Fx.V2.CapabilityNames.MarkAffine],
+        entryType: "MarkProbe",
+        exportId: "mark-probe",
+        parameters: new System.Text.Json.Nodes.JsonArray(
+            V2RenderPackageHelper.EnumParameter("mode", "rgba",
+                "rgba", "affine", "baseline", "reset", "half", "alpha2", "badAlpha", "native", "package", "off",
+                "linear", "strokeLinear", "strokeRadial", "strokeCanvas", "badCue")),
+        outputs:
+        [
+            V2RenderPackageHelper.Output("fill", "StyleModulation", "textMark", Fx.V2.CapabilityNames.StyleFill),
+            V2RenderPackageHelper.Output("stroke", "StyleModulation", "textMark", Fx.V2.CapabilityNames.StyleStroke),
+            V2RenderPackageHelper.Output("shadow", "StyleModulation", "textMark", Fx.V2.CapabilityNames.StyleShadow),
+            V2RenderPackageHelper.Output("transform", "VisualTransform", "textMark", Fx.V2.CapabilityNames.MarkAffine),
+        ],
+        packageId: "demo.mark.probe.v2"));
     private static async Task<PureFrameSourceFactory> Factory(string[] modes, Fx.EffectBinding? binding = null, Fx.ResourceCatalog? resources = null)
     {
-        var artifact = await Probe.Value;
-        return new([.. modes.Select((mode, index) => new CompiledFrameEffect(new("mark-" + index), artifact, "MarkProbe",
-            new(new Dictionary<string, Fx.ParameterValue> { ["mode"] = new Fx.ParameterValue.Choice(mode) }),
-            binding ?? new Fx.EffectBinding.Project(), Fx.EffectCapabilities.Style | Fx.EffectCapabilities.Transforms)
-            { Resources = resources ?? Fx.ResourceCatalog.Empty })], Fingerprint, static () => new SkiaRenderPipeline());
+        var package = await Probe.Value;
+        return new([.. modes.Select((mode, index) => package.CreateEffect("mark-probe", new("mark-" + index),
+            binding ?? new Fx.EffectBinding.Project(), 0, subscription: new Fx.SourceSubscription.Project()) with
+        {
+            Parameters = new Fx.ParameterValues(new Dictionary<string, Fx.ParameterValue> { ["mode"] = new Fx.ParameterValue.Choice(mode) }),
+            Resources = resources ?? Fx.ResourceCatalog.Empty,
+        })], Fingerprint, static () => new SkiaRenderPipeline());
     }
     private static Project Project(bool fixedParent)
     {
@@ -114,7 +146,7 @@ public sealed class PreparedMarkFrameTests
         }
         return source with { PendingFill = new() { Color = new(30, 200, 80, 180) }, ElapsedFill = new() { Color = new(200, 40, 220, 170) },
             Stroke = StrokeSpec.Create(new(20, 80, 230, 210), 4, StrokeJoin.Bevel),
-            Shadow = ShadowSpec.Create(new(200, 160, 20, 120), .5f, 110, 7, 3), Opacity = source.Opacity * .5f };
+            Shadow = ShadowSpec.Create(new(200, 160, 20, 120), .5f, 110, 7, 3) };
     }
     [Theory]
     [InlineData(false, "rgba")] [InlineData(true, "rgba")]
@@ -160,7 +192,7 @@ public sealed class PreparedMarkFrameTests
     {
         await Probe.Value;
         var snapshot = ProjectSnapshot.FromProject(Project(false)) with { EffectInputsFingerprint = Fingerprint };
-        await using var session = await (await Factory(["rgba", "reset", "alpha2"])).CreateAsync(snapshot);
+        await using var session = await (await Factory(["rgba", "reset"])).CreateAsync(snapshot);
         var target = RenderTarget.FromComposition(snapshot.Composition);
         var first = await session.PrepareAsync(10_000_000, Fx.OutputMode.Transparent, target);
         Assert.All(first.MarkStyles, style => Assert.Equal(.6f, first.GetMarkStyle(style.Target).Opacity));
@@ -178,8 +210,8 @@ public sealed class PreparedMarkFrameTests
         Assert.Empty((await neutral.PrepareAsync(10_000_000, Fx.OutputMode.Transparent, target)).MarkStyles);
     }
     [Theory]
-    [InlineData("badCue", "TargetOutsideBinding")] [InlineData("badAlpha", "InvalidStyleOpacity")]
-    [InlineData("package", "PackageDefinitionMissing")]
+    [InlineData("badCue", "TargetOutsideBinding")] [InlineData("badAlpha", "PropertyTargetUnsupported")]
+    [InlineData("package", "ScriptExecutionFailed")]
     public async Task 错误标记装载越界外观或未实现材质明确失败不回退(string mode, string code)
     {
         await Probe.Value;
@@ -223,7 +255,6 @@ public sealed class PreparedMarkFrameTests
         await using var session = await (await Factory(["rgba"], binding)).CreateAsync(snapshot);
         var prepared = await session.PrepareAsync(time, Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition));
         Assert.Equal(count, prepared.MarkStyles.Length);
-        Assert.Equal(count.ToString(System.Globalization.CultureInfo.InvariantCulture), prepared.Diagnostics.Single(item => item.Diagnostic.Code == "marks").Diagnostic.Message);
     }
     [Fact]
     public void 准备帧拒绝缺少重复和旧提示几何以及失效标记输出()

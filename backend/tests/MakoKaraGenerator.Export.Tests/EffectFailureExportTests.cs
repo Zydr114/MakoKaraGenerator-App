@@ -7,6 +7,7 @@ using MakoKaraGenerator.Rendering.Skia;
 using MakoKaraGenerator.Scripting;
 using MakoKaraGenerator.Scripting.Compilation;
 using MakoKaraGenerator.Scripting.Execution;
+using MakoKaraGenerator.Scripting.V2;
 
 namespace MakoKaraGenerator.Export.Tests;
 
@@ -42,44 +43,72 @@ public sealed class EffectFailureExportTests
     }
 
     [Theory]
-    [InlineData("Evaluate")] [InlineData("AdvanceVisuals")] [InlineData("EvaluateVisuals")]
+    [InlineData("Declare")] [InlineData("Evaluate")] [InlineData("EvaluateVisuals")]
     public async Task 真实作者Error经过语义会话阻止编码而不生成占位成功成片(string stage)
     {
         using var directory = new TemporaryDirectory();
         string output = Path.Combine(directory.Path, "existing.mp4"); byte[] original = [9, 2, 4];
         await File.WriteAllBytesAsync(output, original);
-        ScriptCompiler compiler = new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));
-        var artifact = await compiler.CompileAsync([new("src/ErrorEffect.cs", """
+        var package = await V2ExportPackageHelper.CompileControllerAsync("""
+            using System;
             using MakoKaraGenerator.Scripting;
-            public sealed class ErrorEffect : EffectBase
+            using MakoKaraGenerator.Scripting.V2;
+            public sealed class ErrorEffect : IPureKaraokeEffect, IPureVisualEffect
             {
-                private string stage = "";
-                public override void Initialize(EffectInitializationContext context) { stage = context.Parameters.GetEnum("stage"); }
-                public override void Evaluate(FrameContext frame, FrameWriter writer)
+                private sealed record State(string Stage) : PreparedEffect;
+                public PreparedEffect Declare(DeclareContext source)
                 {
-                    Fail("Evaluate", frame.TimeUs, frame.Diagnostics);
+                    string stage = source.Parameters.GetEnum("stage");
+                    if (stage == "Declare") throw new InvalidOperationException("requested failure");
+                    return new State(stage) { VisualOutputs = [new(new("dots"), VisualPrimitiveKind.Dots, OverlayLayer.AboveText)] };
                 }
-                public override void AdvanceVisuals(VisualSimulationStep interval, VisualStateContext context) { Fail("AdvanceVisuals", interval.EndUs, context.Diagnostics); }
-                public override void EvaluateVisuals(VisualFrameContext frame, VisualWriter writer) { Fail("EvaluateVisuals", frame.TimeUs, frame.Diagnostics); }
-                private void Fail(string current, long time, DiagnosticReporter reporter)
+                public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
+                    => Fail(((State)data).Stage, "Evaluate", frame.TimeUs);
+                public void EvaluateVisuals(in VisualFrame frame, PreparedEffect data, VisualOutput output)
+                    => Fail(((State)data).Stage, "EvaluateVisuals", frame.TimeUs);
+                private static void Fail(string expected, string current, long time)
                 {
-                    if (stage == current && time >= 70000)
-                        reporter.Report(DiagnosticSeverity.Error, "AuthorFailed", "requested failure", new SourceLocation("src/ErrorEffect.cs", 7, 5));
+                    if (expected == current && time >= 70000) throw new InvalidOperationException("requested failure");
                 }
             }
-            """)]);
-        Assert.True(artifact.Succeeded, string.Join('\n', artifact.Diagnostics));
+            """,
+            [CapabilityNames.VisualsDots],
+            entryType: "ErrorEffect",
+            exportId: "error-effect",
+            parameters: [new System.Text.Json.Nodes.JsonObject
+            {
+                ["id"] = "stage", ["type"] = "enum", ["default"] = "Evaluate",
+                ["values"] = new System.Text.Json.Nodes.JsonArray(
+                    new System.Text.Json.Nodes.JsonObject { ["value"] = "Declare", ["label"] = "Declare" },
+                    new System.Text.Json.Nodes.JsonObject { ["value"] = "Evaluate", ["label"] = "Evaluate" },
+                    new System.Text.Json.Nodes.JsonObject { ["value"] = "EvaluateVisuals", ["label"] = "EvaluateVisuals" }),
+                ["label"] = "Stage",
+            }],
+            outputs: [new System.Text.Json.Nodes.JsonObject
+            {
+                ["id"] = "dots", ["kind"] = "Overlay", ["target"] = "canvas",
+                ["requires"] = new System.Text.Json.Nodes.JsonArray(CapabilityNames.VisualsDots),
+                ["dependsOn"] = new System.Text.Json.Nodes.JsonArray(),
+            }]);
         var project = Project();
         var snapshot = ProjectSnapshot.FromProject(project) with { EffectInputsFingerprint = "diagnostic-export" };
-        TimelineFrameSourceFactory factory = new([new(new("error-effect"), artifact, "ErrorEffect", new(new Dictionary<string, ParameterValue> { ["stage"] = new ParameterValue.Choice(stage) }),
-            new EffectBinding.Project(), EffectCapabilities.None)], "diagnostic-export", static () => new SkiaRenderPipeline(), ReplayReason.Export);
+        var effect = package.CreateEffect("error-effect", new("error-effect"), new EffectBinding.Project(), 1,
+            System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new { stage }));
+        PureFrameSourceFactory factory = new([effect], "diagnostic-export", static () => new SkiaRenderPipeline());
+        if (stage == "Declare")
+        {
+            var declareError = await Assert.ThrowsAsync<EffectFailureException>(() => factory.CreateAsync(snapshot).AsTask());
+            Assert.Equal("ScriptExecutionFailed", declareError.Code); Assert.Equal("Declare", declareError.Stage); Assert.Equal(0, declareError.TimeUs);
+            Assert.Equal(original, await File.ReadAllBytesAsync(output));
+            Assert.Equal([output], Directory.GetFiles(directory.Path));
+            return;
+        }
         await using var source = await factory.CreateAsync(snapshot);
         using SkiaRenderPipeline native = new();
         PreparedPipeline pipeline = new(native, source, snapshot);
         VideoExporter exporter = new(pipeline, new FfmpegMediaProbe(), new FfmpegMediaEncoder());
         var error = await Assert.ThrowsAsync<EffectFailureException>(() => exporter.ExportAsync(project, new() { OutputPath = output, Overwrite = true }));
-        Assert.Equal("AuthorFailed", error.Code); Assert.Equal(stage, error.Stage); Assert.Equal(75_000, error.TimeUs);
-        Assert.Equal(new SourceLocation("src/ErrorEffect.cs", 7, 5), error.Diagnostic!.Diagnostic.Location);
+        Assert.Equal("ScriptExecutionFailed", error.Code); Assert.Equal(stage, error.Stage); Assert.Equal(100_000, error.TimeUs);
         Assert.Equal(3, pipeline.RenderedCount);
         Assert.Equal(original, await File.ReadAllBytesAsync(output));
         Assert.Equal([output], Directory.GetFiles(directory.Path));

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using MakoKaraGenerator.Core.Effects;
 using MakoKaraGenerator.Core.Lyrics;
 using MakoKaraGenerator.Core.Projects;
@@ -97,12 +98,14 @@ public sealed class PresetApplicationRenderTests
 
     private const string OpacitySource = """
         using MakoKaraGenerator.Scripting;
-        public sealed class PackEffect : EffectBase
+        using MakoKaraGenerator.Scripting.V2;
+        public sealed class PackEffect : IPureKaraokeEffect
         {
-            public override void Evaluate(FrameContext frame, FrameWriter output)
+            public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
+            public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
             {
                 foreach (var token in frame.Presentations.TokensInBinding)
-                    output.Style.MultiplyOpacity(token.WithRuby, .75);
+                    output.MultiplyOpacity(new TextTarget.Family(token.WithRuby), .75);
             }
         }
         """;
@@ -112,7 +115,10 @@ public sealed class PresetApplicationRenderTests
     public async Task 全局单实例与局部包材质消费正式基线并保持同帧及真实来源(bool transparent)
     {
         var source = LeadInFixture.Create(slots: true);
-        var package = MixedEffectPackageFixture.MaterialContents(controllerSource: OpacitySource);
+        var package = V2RenderPackageHelper.UpgradeToV2(
+            MixedEffectPackageFixture.MaterialContents(controllerSource: OpacitySource),
+            [Fx.V2.CapabilityNames.TokenOpacity],
+            manifest => manifest["exports"]![0]!["outputs"]![0]!["requires"] = new JsonArray(Fx.V2.CapabilityNames.TokenOpacity));
         var configuration = ScriptConfiguration.Create("global", "全局效果", package, "controller", readScope: ScriptReadScope.Project);
         var global = StyleTemplate.Create("global", "global", StyleTemplateKind.Composite, source.LyricStyle, [],
             [TemplateEffectRecipe.FromConfiguration("controller", configuration)], [package]);

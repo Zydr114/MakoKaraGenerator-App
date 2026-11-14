@@ -6,6 +6,7 @@ using MakoKaraGenerator.Rendering;
 using MakoKaraGenerator.Rendering.Skia;
 using MakoKaraGenerator.Scripting;
 using MakoKaraGenerator.Scripting.Execution;
+using MakoKaraGenerator.Scripting.V2;
 using SkiaSharp;
 
 namespace MakoKaraGenerator.Export.Tests;
@@ -14,19 +15,22 @@ public sealed partial class MixedPackageExportTests
 {
     private const string GradientSource = """
         using MakoKaraGenerator.Scripting;
-        public sealed class PackEffect : EffectBase
+        using MakoKaraGenerator.Scripting.V2;
+        public sealed class PackEffect : IPureKaraokeEffect
         {
-            public override void Evaluate(FrameContext frame, FrameWriter output)
+            public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
+            public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
             {
                 var fill = MaterialValue.Gradient(new([new(0,new(1,.2,.1,96/255d)),new(1,new(.2,.8,1,160/255d))]));
                 var stroke = MaterialValue.Gradient(new([new(0,new(.1,.3,1,128/255d)),new(1,new(1,.4,.1,180/255d))],
                     GradientKind.Radial, coordinateSpace:GradientCoordinateSpace.Canvas, radiusX:.4, radiusY:.7));
                 foreach(var token in frame.Presentations.TokensInBinding)
                 {
-                    output.Style.SetUnsungMaterial(token.WithRuby,fill);
-                    output.Style.SetSungMaterial(token.WithRuby,fill);
-                    output.Style.SetStroke(token.WithRuby,new(3,stroke,StrokeJoin.Bevel));
-                    output.Style.MultiplyOpacity(token.WithRuby,.5);
+                    output.SetFill(new TextTarget.Family(token.WithRuby), TextState.Unsung, fill);
+                    output.SetFill(new TextTarget.Family(token.WithRuby), TextState.Sung, fill);
+                    output.SetStrokes(new TextTarget.Family(token.WithRuby), TextState.Sung, new StrokeValue(3,stroke,StrokeJoin.Bevel));
+                    output.SetStrokes(new TextTarget.Family(token.WithRuby), TextState.Unsung, new StrokeValue(3,stroke,StrokeJoin.Bevel));
+                    output.MultiplyOpacity(new TextTarget.Family(token.WithRuby), .5);
                 }
             }
         }
@@ -37,7 +41,9 @@ public sealed partial class MixedPackageExportTests
     public async Task 真实包直接渐变填充及描边含注音编码MP4与Alpha保持预览同帧(bool transparent)
     {
         using TemporaryDirectory temp = new();
-        var package = await CompileMaterial(MixedEffectPackageFixture.MaterialContents(controllerSource: GradientSource));
+        var package = await CompileMaterial(V2ExportPackageHelper.UpgradeToV2(
+            MixedEffectPackageFixture.MaterialContents(controllerSource: GradientSource),
+            [CapabilityNames.StyleFill, CapabilityNames.StyleStroke, CapabilityNames.TokenOpacity]));
         Assert.True(package.Succeeded, string.Join('\n', package.Artifact.Diagnostics));
         var project = MaterialProject(); var line = project.Lyrics.Lines[0];
         project = project with { Lyrics = LyricsDocument.Create([line with { RubyAnnotations = [RubyAnnotation.Create("ruby", "token", "かし")] }]) };
@@ -70,8 +76,10 @@ public sealed partial class MixedPackageExportTests
     public async Task 渐变描边中途实际半径退化阻止编码并保护已有输出()
     {
         using TemporaryDirectory temp = new(); string path = temp.FilePath("existing.mp4"); byte[] original = [2, 7, 1, 8]; await File.WriteAllBytesAsync(path, original);
-        var package = await CompileMaterial(MixedEffectPackageFixture.MaterialContents(controllerSource:
-            GradientSource.Replace("radiusX:.4", "radiusX:frame.TimeUs>=200000 ? 1e-20 : .4")));
+        var package = await CompileMaterial(V2ExportPackageHelper.UpgradeToV2(
+            MixedEffectPackageFixture.MaterialContents(controllerSource:
+                GradientSource.Replace("radiusX:.4", "radiusX:frame.TimeUs>=200000 ? 1e-20 : .4")),
+            [CapabilityNames.StyleFill, CapabilityNames.StyleStroke, CapabilityNames.TokenOpacity]));
         Assert.True(package.Succeeded, string.Join('\n', package.Artifact.Diagnostics));
         var project = MaterialProject(); var snapshot = ProjectSnapshot.FromProject(project) with { EffectInputsFingerprint = Fingerprint };
         await using var source = await new PureFrameSourceFactory([package.CreateEffect("controller", new("broken-gradient"), new EffectBinding.Project(), 1)],

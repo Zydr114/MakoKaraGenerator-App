@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json.Nodes;
 using MakoKaraGenerator.Core.Effects;
 using MakoKaraGenerator.Core.Lyrics;
+using MakoKaraGenerator.Core.Persistence;
 using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Core.Time;
 using MakoKaraGenerator.Rendering;
@@ -161,7 +162,9 @@ public sealed class SvgCompilationValidationTests
     [Fact]
     public async Task 没有SVG的原有公开重载与新增项目入口保持兼容且不调用SVG验证器()
     {
-        var definition = EffectPackageFixture.WordEmphasis();
+        var contents = await EffectPackageStorage.ReadSupportedDirectoryAsync(
+            Path.Combine(AppContext.BaseDirectory, "effect-packages-v2", "WordEmphasis"));
+        var definition = EffectPackageDefinition.Read(contents);
         var compiler = new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));
         var validator = new Validator((_, _, _) => throw new InvalidOperationException("No SVG validation expected."));
         var previous = await CompiledEffectPackage.CompileAsync(definition, compiler, null, null, null, null);
@@ -172,7 +175,7 @@ public sealed class SvgCompilationValidationTests
         {
             Effects = new([definition.Contents], [new()
             { Id = "compatible", Name = "Existing package", PackageId = definition.Contents.PackageId,
-                Revision = definition.Contents.Revision, ExportId = "word-emphasis" }]),
+                Revision = definition.Contents.Revision, ExportId = definition.Controllers[0].Id }]),
         };
         var fromProject = await CompiledProjectEffects.CompileAsync(project, compiler, null, null, null, null, validator);
         var fromSnapshot = await CompiledProjectEffects.CompileAsync(ProjectSnapshot.FromProject(project), compiler, null, null, null, null, validator);

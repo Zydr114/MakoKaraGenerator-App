@@ -10,6 +10,7 @@ using MakoKaraGenerator.Rendering;
 using MakoKaraGenerator.Rendering.Skia;
 using MakoKaraGenerator.Scripting;
 using MakoKaraGenerator.Scripting.Compilation;
+using MakoKaraGenerator.Scripting.V2;
 using SkiaSharp;
 
 namespace MakoKaraGenerator.Export.Tests;
@@ -20,18 +21,22 @@ public sealed partial class MixedPackageExportTests
     public async Task 保存重开模板控制器中途Error阻止编码并保留旧产物()
     {
         using TemporaryDirectory temp = new(); string output = temp.FilePath("old.mp4"); byte[] previous = [2, 7, 1, 8]; File.WriteAllBytes(output, previous);
-        var contents = MixedEffectPackageFixture.Contents(controllerSource: """
+        var contents = V2ExportPackageHelper.UpgradeToV2(MixedEffectPackageFixture.Contents(controllerSource: """
+            using System;
             using MakoKaraGenerator.Scripting;
-            public sealed class PackEffect : EffectBase
+            using MakoKaraGenerator.Scripting.V2;
+            public sealed class PackEffect : IPureKaraokeEffect
             {
-                public override void Evaluate(FrameContext frame, FrameWriter writer)
+                public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
+                public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
                 {
-                    if (frame.TimeUs >= 200000) frame.Diagnostics.Report(DiagnosticSeverity.Error, "TemplateMidFrameError", "stop");
-                    foreach(var line in frame.Presentations.LinesInBinding) writer.ImageEffects.Bind(line.Target, frame.Resources.GetGraph("tint"),
-                        new([new("amount",new ParameterValue.Number(.5))]));
+                    if (frame.TimeUs >= 200000) throw new InvalidOperationException("stop");
+                    foreach(var line in frame.Presentations.LinesInBinding) output.BindGraph(new TextTarget.Line(line.Target),
+                        new GraphBindingValue(frame.Resources.GetGraph("tint"), new ParameterValues(new[] { new System.Collections.Generic.KeyValuePair<string, ParameterValue>("amount", new ParameterValue.Number(.5)) }),
+                        GraphUniformValues.Empty, GraphTransformValues.Empty));
                 }
             }
-            """);
+            """), [CapabilityNames.ImageGraph]);
         var project = Project.Create("模板错误", Composition.Create(320, 180, FrameRate.Fps30, outputDurationUs: 400000),
             LyricsDocument.Create([LyricLine.Create("row", "歌", new(0,400000), TimingStatus.Edited)]));
         var template = StyleTemplate.Create("t", "错误", StyleTemplateKind.Line, project.LyricStyle, [],
@@ -44,7 +49,7 @@ public sealed partial class MixedPackageExportTests
         using var pipeline = new PreparedPackagePipeline(source, snapshot, Assert.Single(compiled.Packages).Definition);
         var error = await Assert.ThrowsAsync<EffectFailureException>(()=>new VideoExporter(pipeline,new FfmpegMediaProbe(),new FfmpegMediaEncoder()).ExportAsync(project,
             new(){OutputPath=output,IncludeAudio=false,Overwrite=true}));
-        Assert.Equal("TemplateMidFrameError",error.Code);Assert.Equal(200000,error.TimeUs);Assert.Equal(project.Effects.Instances[0].Id,error.InstanceId.Value);
+        Assert.Equal("ScriptExecutionFailed",error.Code);Assert.Equal(200000,error.TimeUs);Assert.Equal(project.Effects.Instances[0].Id,error.InstanceId.Value);
         Assert.Equal(previous,File.ReadAllBytes(output));Assert.Empty(Directory.GetFiles(temp.Path,"*.tmp",SearchOption.AllDirectories));
     }
 

@@ -10,6 +10,7 @@ using MakoKaraGenerator.Rendering.Skia;
 using MakoKaraGenerator.Scripting;
 using MakoKaraGenerator.Scripting.Compilation;
 using MakoKaraGenerator.Scripting.Execution;
+using MakoKaraGenerator.Scripting.V2;
 using SkiaSharp;
 
 namespace MakoKaraGenerator.Export.Tests;
@@ -20,19 +21,26 @@ public sealed class GroupAffineExportTests
     private static readonly Lazy<Task<CompiledEffectPackage>> Artifact = new(async () =>
     {
         ScriptCompiler compiler = new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));
-        var result = await CompiledEffectPackage.CompileAsync(EffectPackageDefinition.Read(EffectPackageFixture.GroupTransform("""
-            using System.Linq;
+        var contents = V2ExportPackageHelper.UpgradeToV2(EffectPackageFixture.GroupTransform("""
             using MakoKaraGenerator.Scripting;
-            public sealed class PackEffect : EffectBase
+            using MakoKaraGenerator.Scripting.V2;
+            public sealed class PackEffect : IPureKaraokeEffect
             {
-                public override void Evaluate(FrameContext frame, FrameWriter output)
+                public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
+                public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
                 {
-                    var target = frame.GroupGeometry.Single(item => item.Target.NodeId.Value == frame.Parameters.GetText("node")).Target;
+                    string node = frame.Parameters.GetText("node");
+                    GroupTarget? target = null;
+                    foreach (var item in frame.GroupGeometry)
+                        if (item.Target.NodeId.Value == node) { target = item.Target; break; }
                     if (frame.Parameters.GetBoolean("badWrite") && frame.TimeUs >= 300000) target = new(new("missing"));
-                    output.Transforms.ApplyAffine(target, Affine2.Translation(frame.TimeUs / 20000d, -8));
+                    output.AppendTransform(new TextTarget.Group(target!), Affine2.Translation(frame.TimeUs / 20000d, -8));
                 }
             }
-            """)), compiler);
+            """),
+            [CapabilityNames.GroupAffine],
+            manifest => manifest["exports"]![0]!["outputs"]![0]!["requires"] = new System.Text.Json.Nodes.JsonArray(CapabilityNames.GroupAffine));
+        var result = await CompiledEffectPackage.CompileAsync(EffectPackageDefinition.Read(contents), compiler);
         Assert.True(result.Artifact.Succeeded, string.Join('\n', result.Artifact.Diagnostics)); return result;
     });
     private static Project Project() => Core.Projects.Project.Create("组仿射成片", Composition.Create(320, 180, FrameRate.Fps30, outputDurationUs: 700_000),

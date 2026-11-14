@@ -1,4 +1,3 @@
-using System.Text;
 using System.Text.Json.Nodes;
 using MakoKaraGenerator.Core.Effects;
 using MakoKaraGenerator.Core.Lyrics;
@@ -12,33 +11,74 @@ namespace MakoKaraGenerator.Rendering.Tests;
 
 public sealed class TemplateOverlayLayerTests
 {
-    private static readonly string[] OutputIds = ["burst", "emitter", "dot"];
     private static EffectPackageContents Package()
     {
-        var files = EffectPackageFixture.Files(); files["src/PackEffect.cs"] = Encoding.UTF8.GetBytes("""
-            using System.Linq;
+        var emitters = new JsonArray(
+            new JsonObject { ["id"] = "emitter", ["kind"] = "cursor", ["maxLifetimeUs"] = 1_000_000 },
+            new JsonObject { ["id"] = "burst", ["kind"] = "burst", ["maxLifetimeUs"] = 1_000_000 });
+        return V2RenderPackageHelper.CreateControllerContents("""
+            using System.Collections.Immutable;
             using MakoKaraGenerator.Scripting;
-            public sealed class PackEffect : EffectBase
+            using MakoKaraGenerator.Scripting.V2;
+
+            public sealed record TemplateLayerState : PreparedEffect;
+
+            public sealed class PackEffect : IPureKaraokeEffect, IPureVisualEffect
             {
-                public override void OnEvent(TimelineEvent evt, EventContext context)
+                public PreparedEffect Declare(DeclareContext source)
                 {
-                    if (evt is TokenStarted token) context.Bursts.Queue(new("burst"), new()
-                    { Count=1, Anchor=new BurstAnchor.SourceToken(token.TokenId), LifetimeUs=1000000,
-                        SizePx=12, Color=new(1,0,0,1), SeedStreamKey="burst", Layer=OverlayLayer.AboveText });
+                    var particle = new ParticleSpec
+                    {
+                        LifetimeUs = 1_000_000, SizePx = 12, Color = new(1, 0, 0, 1),
+                        SeedStreamKey = "continuous", Layer = OverlayLayer.AboveText,
+                    };
+                    var continuous = new CursorEmissionPlan(new("emitter"),
+                        new RateTrack([new(new(0, 1_000_000), 10, 10)], [new(0, 1_000_000)]),
+                        particle, CursorAnchorMode.AdvanceCenter, BridgePolicy.Jump);
+                    var selector = new TimelineSelector(TimelineEventKind.TokenStarted, new TimelineScope.Project());
+                    var rows = ImmutableArray.CreateBuilder<BurstEventRow>();
+                    for (int index = 0; index < source.Timeline.Count(selector); index++)
+                    {
+                        if (source.Timeline.Nth(selector, index) is TokenStarted token)
+                            rows.Add(new(token.EventId, 1, new BurstAnchor.SourceToken(token.TokenId),
+                                particle with { SeedStreamKey = "burst" }));
+                    }
+                    var burst = new EventBurstPlan(new("burst"), selector, rows.ToImmutable());
+                    return new TemplateLayerState
+                    {
+                        Particles = new([continuous], [burst]),
+                        VisualOutputs = [new(new("dot"), VisualPrimitiveKind.Dots, OverlayLayer.AboveText)],
+                    };
                 }
-                public override void EvaluateEmitters(EmissionFrameContext frame, EmitterWriter output)
-                    => output.Set(new("emitter"), new() { AnchorMode=CursorAnchorMode.AdvanceCenter,
-                        RatePerSecond=10, LifetimeUs=1000000, SizePx=12, Color=new(1,0,0,1), SeedStreamKey="continuous", Layer=OverlayLayer.AboveText });
-                public override void EvaluateVisuals(VisualFrameContext frame, VisualWriter output)
+                public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output) { }
+                public void EvaluateVisuals(in VisualFrame frame, PreparedEffect data, VisualOutput output)
                 {
-                    var cursor=frame.Playback.GetCursors(CursorAnchorMode.AdvanceCenter).Single();
-                    output.Overlay.DrawDots(new("dot"), [new(cursor.Position, 32, new(1,0,0,1))], OverlayLayer.AboveText);
+                    var cursor = frame.FinalGeometry.Playback.GetCursors(CursorAnchorMode.AdvanceCenter)[0];
+                    output.DrawDots(new("dot"), [new(cursor.Position, 32, new(1, 0, 0, 1))], OverlayLayer.AboveText);
                 }
             }
-            """);
-        var manifest=EffectPackageFixture.Manifest(files); manifest["exports"]![0]!["outputs"]=new JsonArray([..OutputIds.Select(id=>(JsonNode)new JsonObject
-            {["id"]=id,["kind"]="Overlay",["target"]="tokenFamily",["requires"]=new JsonArray(),["dependsOn"]=new JsonArray()})]);
-        return EffectPackageContents.Create(EffectPackageFixture.Bytes(manifest), EffectPackageFixture.Inputs(files), EffectPackageFixture.Profile);
+            """,
+            [Fx.V2.CapabilityNames.ParticlesContinuous, Fx.V2.CapabilityNames.ParticlesBurst, Fx.V2.CapabilityNames.VisualsDots, Fx.V2.CapabilityNames.TimelineIndex],
+            entryType: "PackEffect",
+            exportId: "scale",
+            outputs:
+            [
+                new JsonObject
+                {
+                    ["id"] = "burst", ["kind"] = "Overlay", ["target"] = "canvas",
+                    ["requires"] = new JsonArray(Fx.V2.CapabilityNames.ParticlesBurst, Fx.V2.CapabilityNames.VisualsDots),
+                    ["dependsOn"] = new JsonArray(),
+                },
+                new JsonObject
+                {
+                    ["id"] = "emitter", ["kind"] = "Overlay", ["target"] = "canvas",
+                    ["requires"] = new JsonArray(Fx.V2.CapabilityNames.ParticlesContinuous, Fx.V2.CapabilityNames.VisualsDots),
+                    ["dependsOn"] = new JsonArray(),
+                },
+                V2RenderPackageHelper.Output("dot", "Overlay", "canvas", Fx.V2.CapabilityNames.VisualsDots),
+            ],
+            emitters: emitters,
+            packageId: "demo.template.overlay.v2");
     }
     private static Project Apply(EffectOverlayLayer layer)
     {
@@ -59,10 +99,13 @@ public sealed class TemplateOverlayLayerTests
         Assert.True(compiled.Succeeded);var snapshot=ProjectSnapshot.FromProject(project);var target=RenderTarget.FromComposition(snapshot.Composition);
         await using var source=await compiled.CreateFactory(static()=>new SkiaRenderPipeline(),Fx.ReplayReason.Initial).CreateAsync(snapshot);
         var frame=await source.PrepareAsync(500000,Fx.OutputMode.Transparent,target);
-        Assert.Equal(3,frame.DotBatches.Length);Assert.All(frame.DotBatches,b=>Assert.Equal(expected,b.Layer));Assert.Equal(6,frame.Particles.Length);Assert.All(frame.Particles,p=>Assert.Equal(expected,p.Layer));
-        Assert.Single(frame.Particles.Where(p=>p.EventId is not null));Assert.Equal(5,frame.Particles.Count(p=>p.EventId is null));
+        Assert.Equal(3, frame.DotBatches.Length); Assert.All(frame.DotBatches, batch => Assert.Equal(expected, batch.Layer));
+        Assert.Single(frame.DotBatches, batch => batch.Id.Value == "dot");
+        Assert.Equal(6,frame.V2Particles.Length);Assert.All(frame.V2Particles,p=>Assert.Equal(expected,p.Birth.Spec.Layer));
+        Assert.Single(frame.V2Particles.Where(p=>p.Birth.EventId is not null));
+        Assert.Equal(5,frame.V2Particles.Count(p=>p.Birth.EventId is null));
         var pixels=Pixels(frame);await source.PrepareAsync(100000,Fx.OutputMode.Transparent,target);var replay=await source.PrepareAsync(500000,Fx.OutputMode.Transparent,target);
-        Assert.Equal(frame.Particles.Select(p=>(p.Id,p.Layer,p.Position)),replay.Particles.Select(p=>(p.Id,p.Layer,p.Position)));Assert.Equal(pixels,Pixels(replay));
+        Assert.Equal(frame.V2Particles.Select(p=>(p.Birth.Id,p.Birth.Spec.Layer,p.Position)),replay.V2Particles.Select(p=>(p.Birth.Id,p.Birth.Spec.Layer,p.Position)));Assert.Equal(pixels,Pixels(replay));
         if(layer==EffectOverlayLayer.Package)return;
         var other=Apply(layer==EffectOverlayLayer.BehindText?EffectOverlayLayer.AboveText:EffectOverlayLayer.BehindText);
         var otherCompiled=await CompiledProjectEffects.CompileAsync(other,new ScriptCompiler(Path.Combine(AppContext.BaseDirectory,"script-refs","net10.0")));

@@ -6,8 +6,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="../../samples/ScriptEffects/Examples/EventBurst.cs" Link="script-samples/EventBurst.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="../../samples/ScriptEffects/CursorTrail/src/CursorTrail.cs" Link="script-samples/CursorTrail.cs" CopyToOutputDirectory="PreserveNewest" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />

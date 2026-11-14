@@ -13,38 +13,107 @@ namespace MakoKaraGenerator.Rendering.Tests;
 public sealed class BoundSceneImageEffectTests
 {
     private const string Fingerprint = "bound-production-image";
-    private static readonly Fx.ResourceCatalog Resources = new("image-probe", "sha256:" + new string('a', 64), [], ["unused", "image"], []);
-    private static readonly Lazy<Task<ScriptCompilationResult>> Script = new(async () =>
+    private static Fx.ResourceCatalog Resources => Package.Value.Result.Resources;
+    private static readonly Lazy<Task<CompiledEffectPackage>> Package = new(() =>
     {
-        var compiler = new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));
-        var result = await compiler.CompileAsync([new("src/ImageProbe.cs", """
+        string source = """
+            using System;
             using MakoKaraGenerator.Scripting;
-            public sealed class ImageProbe : EffectBase
+            using MakoKaraGenerator.Scripting.V2;
+
+            public sealed record ImageState : PreparedEffect
             {
-                public override void Evaluate(FrameContext frame, FrameWriter output)
+            }
+
+            public sealed class PackEffect : IPureKaraokeEffect, IPureVisualEffect
+            {
+                public PreparedEffect Declare(DeclareContext source) => new ImageState { VisualOutputs = [new(new("proof"), VisualPrimitiveKind.Dots, OverlayLayer.AboveText)] };
+                public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
                 {
-                    var first = frame.Resources.GetGraph("unused"); var last = frame.Resources.GetGraph("image");
-                    var amount = new ParameterValues(new[] { System.Collections.Generic.KeyValuePair.Create<string, ParameterValue>("amount", new ParameterValue.Number(frame.Parameters.GetNumber("amount"))) });
+                    var first = frame.Resources.GetGraph("unused");
+                    var last = frame.Resources.GetGraph("image");
+                    var empty = new GraphBindingValue(first,
+                        new ParameterValues(new[] { new System.Collections.Generic.KeyValuePair<string, ParameterValue>("amount", new ParameterValue.Number(.5)) }),
+                        GraphUniformValues.Empty, GraphTransformValues.Empty);
+                    var amount = new GraphBindingValue(last,
+                        new ParameterValues(new[] { new System.Collections.Generic.KeyValuePair<string, ParameterValue>("amount", new ParameterValue.Number(frame.Parameters.GetNumber("amount"))) }),
+                        GraphUniformValues.Empty, GraphTransformValues.Empty);
                     string mode = frame.Parameters.GetEnum("target");
                     if (mode == "line") foreach (var line in frame.Presentations.LinesInBinding)
-                    { output.ImageEffects.Bind(line.Target, first, ParameterValues.Empty); output.ImageEffects.Bind(line.Target, last, amount); }
+                    { output.BindGraph(new TextTarget.Line(line.Target), empty); output.BindGraph(new TextTarget.Line(line.Target), amount); }
                     if (mode == "token") foreach (var token in frame.Presentations.TokensInBinding)
-                    { output.ImageEffects.Bind(token.WithRuby, first, ParameterValues.Empty); output.ImageEffects.Bind(token.WithRuby, last, amount); }
+                    { output.BindGraph(new TextTarget.Family(token.WithRuby), empty); output.BindGraph(new TextTarget.Family(token.WithRuby), amount); }
                     if (mode == "mark") foreach (var mark in frame.Presentations.MarksInBinding)
-                    { output.ImageEffects.Bind(mark.Target, first, ParameterValues.Empty); output.ImageEffects.Bind(mark.Target, last, amount); }
+                    { output.BindGraph(new TextTarget.Mark(mark.Target), empty); output.BindGraph(new TextTarget.Mark(mark.Target), amount); }
                 }
-                public override void EvaluateVisuals(VisualFrameContext frame, VisualWriter output)
-                    => output.Overlay.DrawDots(new("proof"), [new(new(2, 2), 1, new(1, 0, 0, 1))], OverlayLayer.AboveText);
+                public void EvaluateVisuals(in VisualFrame frame, PreparedEffect data, VisualOutput output)
+                    => output.DrawDots(new("proof"), [new(new(2, 2), 1, new(1, 0, 0, 1))], OverlayLayer.AboveText);
             }
-            """)]);
-        Assert.True(result.Succeeded, string.Join('\n', result.Diagnostics)); return result;
+            """;
+        var raw = MixedEffectPackageFixture.Contents(manifest =>
+        {
+            manifest["packageId"] = "demo.bound.scene.image.v2";
+            manifest["parameters"] = new System.Text.Json.Nodes.JsonArray(
+                V2RenderPackageHelper.NumberParameter("amount", 1, -100, 100),
+                V2RenderPackageHelper.EnumParameter("target", "line", "line", "token", "mark"));
+            var bindings = new System.Text.Json.Nodes.JsonArray("project", "node", "branch", "lines", "tokens", "clips");
+            manifest["exports"] = new System.Text.Json.Nodes.JsonArray(
+                new System.Text.Json.Nodes.JsonObject
+                {
+                    ["id"] = "image-probe",
+                    ["kind"] = "controller",
+                    ["name"] = "image-probe",
+                    ["entryType"] = "PackEffect",
+                    ["parameters"] = new System.Text.Json.Nodes.JsonArray("amount", "target"),
+                    ["bindingKinds"] = System.Text.Json.Nodes.JsonNode.Parse(bindings.ToJsonString()),
+                    ["outputs"] = new System.Text.Json.Nodes.JsonArray(
+                        V2RenderPackageHelper.Output("line", "ImageGraph", "line", Fx.V2.CapabilityNames.ImageGraph),
+                        V2RenderPackageHelper.Output("token", "ImageGraph", "tokenFamily", Fx.V2.CapabilityNames.ImageGraph),
+                        V2RenderPackageHelper.Output("mark", "ImageGraph", "textMark", Fx.V2.CapabilityNames.ImageGraph),
+                        V2RenderPackageHelper.Output("proof", "Overlay", "canvas", Fx.V2.CapabilityNames.VisualsDots)),
+                },
+                new System.Text.Json.Nodes.JsonObject
+                {
+                    ["id"] = "unused",
+                    ["kind"] = "graph",
+                    ["name"] = "unused",
+                    ["graph"] = EffectPackageGraphFixture.GraphPath,
+                    ["parameters"] = new System.Text.Json.Nodes.JsonArray("amount"),
+                    ["bindingKinds"] = System.Text.Json.Nodes.JsonNode.Parse(bindings.ToJsonString()),
+                    ["outputs"] = new System.Text.Json.Nodes.JsonArray(
+                        V2RenderPackageHelper.Output("line", "ImageGraph", "line"),
+                        V2RenderPackageHelper.Output("token", "ImageGraph", "tokenFamily"),
+                        V2RenderPackageHelper.Output("mark", "ImageGraph", "textMark")),
+                },
+                new System.Text.Json.Nodes.JsonObject
+                {
+                    ["id"] = "image",
+                    ["kind"] = "graph",
+                    ["name"] = "image",
+                    ["graph"] = EffectPackageGraphFixture.GraphPath,
+                    ["parameters"] = new System.Text.Json.Nodes.JsonArray("amount"),
+                    ["bindingKinds"] = System.Text.Json.Nodes.JsonNode.Parse(bindings.ToJsonString()),
+                    ["outputs"] = new System.Text.Json.Nodes.JsonArray(
+                        V2RenderPackageHelper.Output("line", "ImageGraph", "line"),
+                        V2RenderPackageHelper.Output("token", "ImageGraph", "tokenFamily"),
+                        V2RenderPackageHelper.Output("mark", "ImageGraph", "textMark")),
+                });
+        }, controllerSource: source);
+        return V2RenderPackageHelper.CompileAsync(V2RenderPackageHelper.UpgradeToV2(
+            raw, [Fx.V2.CapabilityNames.ImageGraph, Fx.V2.CapabilityNames.VisualsDots]));
     });
     private static async Task<PureFrameSourceFactory> Factory(string target, double[] amounts, Fx.EffectBinding? binding = null)
     {
-        var artifact = await Script.Value;
-        return new([.. amounts.Select((amount, index) => new CompiledFrameEffect(new("image-" + index), artifact, "ImageProbe",
-            new([new("amount", new Fx.ParameterValue.Number(amount)), new("target", new Fx.ParameterValue.Choice(target))]),
-            binding ?? new Fx.EffectBinding.Project(), Fx.EffectCapabilities.ImageEffects | Fx.EffectCapabilities.Overlay) { Resources = Resources })],
+        var package = await Package.Value;
+        return new([.. amounts.Select((amount, index) => package.CreateEffect("image-probe", new("image-" + index),
+            binding ?? new Fx.EffectBinding.Project(), 0) with
+        {
+            Parameters = new Fx.ParameterValues(new[]
+            {
+                KeyValuePair.Create<string, Fx.ParameterValue>("amount", new Fx.ParameterValue.Number(amount)),
+                KeyValuePair.Create<string, Fx.ParameterValue>("target", new Fx.ParameterValue.Choice(target)),
+            }),
+        })],
             Fingerprint, static () => new SkiaRenderPipeline());
     }
     private static ProjectSnapshot Snapshot(bool marks = false)
@@ -72,6 +141,7 @@ public sealed class BoundSceneImageEffectTests
     [Fact]
     public async Task 包内同来源不同配方实际捕获注音差分且不会错误别名复用()
     {
+        await Package.Value;
         var programJson = EffectPackageShaderFixture.Program(); programJson["uniforms"] = new System.Text.Json.Nodes.JsonArray();
         programJson["children"] = new System.Text.Json.Nodes.JsonArray(new System.Text.Json.Nodes.JsonObject { ["name"] = "a", ["type"] = "color" },
             new System.Text.Json.Nodes.JsonObject { ["name"] = "b", ["type"] = "color" });
@@ -170,7 +240,7 @@ public sealed class BoundSceneImageEffectTests
         long time = target == "mark" ? 10_000_000 : 1_000_000;
         var prepared = await session.PrepareAsync(time, Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition));
         Assert.Equal(target == "mark" ? 6 : 2, prepared.ImageEffects.Length); Assert.Equal(2, prepared.DotBatches.Length);
-        Assert.All(prepared.ImageEffects, output => { Assert.Equal(Resources.GetGraph("image"), output.Binding.Graph); Assert.Equal(Script.Value.Result.ArtifactHash, output.ArtifactHash); });
+        Assert.All(prepared.ImageEffects, output => { Assert.Equal(Resources.GetGraph("image"), output.Binding.Graph); Assert.Equal(prepared.ImageEffects[0].ArtifactHash, output.ArtifactHash); });
         var first = prepared.ImageEffects[0]; var last = prepared.ImageEffects.Single(item => item.InstanceId.Value == "image-1" && item.Binding.Target == first.Binding.Target);
         Assert.Equal(1, first.Binding.Parameters.GetNumber("amount")); Assert.Equal(.5, last.Binding.Parameters.GetNumber("amount"));
         using SkiaRenderPipeline renderer = new(); using var graph = Graph(); var program = Program(graph);

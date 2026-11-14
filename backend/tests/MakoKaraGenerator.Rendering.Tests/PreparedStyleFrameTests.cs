@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using MakoKaraGenerator.Core.Effects;
 using MakoKaraGenerator.Core.Lyrics;
 using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Rendering.Skia;
@@ -11,67 +12,105 @@ namespace MakoKaraGenerator.Rendering.Tests;
 public sealed class PreparedStyleFrameTests
 {
     private const string Fingerprint = "R2-style-source-fixed";
-    private static readonly Lazy<Task<ScriptCompilationResult>> Probe = new(async () =>
-    {
-        var compiler = new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));
-        var result = await compiler.CompileAsync([new("src/StyleProbe.cs", """
-            using System;
-            using MakoKaraGenerator.Scripting;
-            public sealed class StyleProbe : EffectBase
+    private static readonly Lazy<Task<CompiledEffectPackage>> Probe = new(() => V2RenderPackageHelper.CompileControllerAsync("""
+        using System;
+        using MakoKaraGenerator.Scripting;
+        using MakoKaraGenerator.Scripting.V2;
+
+        public sealed class StyleProbe : IPureKaraokeEffect
+        {
+            public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
+            public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
             {
-                public override void Evaluate(FrameContext frame, FrameWriter output)
+                string mode = frame.Parameters.GetEnum("mode");
+                foreach (var token in frame.Presentations.TokensInBinding)
                 {
-                    string mode = frame.Parameters.GetEnum("mode");
-                    foreach (var token in frame.Presentations.TokensInBinding)
+                    var target = token.WithRuby;
+                    var textTarget = new TextTarget.Family(target);
+                    var basis = frame.Baseline.Get(target);
+                    if (mode == "noop") continue;
+                    if (mode == "baseline" || mode == "reset")
                     {
-                        var target = token.WithRuby; var basis = frame.Baseline.Get(target);
-                        if (mode == "baseline" || mode == "reset")
-                        { output.Style.SetSungMaterial(target, basis.Sung.Fill); if (mode == "baseline") output.Style.SetUnsungMaterial(target, basis.Unsung.Fill); }
-                        else if (mode == "red") output.Style.SetSungMaterial(target, MaterialValue.Solid(new(1, 0, 0, 1)));
-                        else if (mode == "alpha2") output.Style.MultiplyOpacity(target, 2);
-                        else if (mode == "half") output.Style.MultiplyOpacity(target, .5);
-                        else if (mode == "badAlpha") output.Style.MultiplyOpacity(target, 3);
-                        else if (mode == "wide") output.Style.SetStroke(target, new(1e100, MaterialValue.Solid(new(1, 1, 1, 1))));
-                        else if (mode == "off")
-                        { output.Style.SetStroke(target, null); output.Style.SetShadow(target, null); output.Style.SetUnsungMaterial(target, MaterialValue.Solid(default)); output.Style.SetSungMaterial(target, MaterialValue.Solid(default)); }
-                        else if (mode == "rgba" || mode == "scale")
-                        {
-                            output.Style.SetUnsungMaterial(target, MaterialValue.Solid(new(30/255d, 200/255d, 80/255d, 180/255d)));
-                            output.Style.SetSungMaterial(target, MaterialValue.Solid(new(200/255d, 40/255d, 220/255d, 170/255d)));
-                            output.Style.SetStroke(target, new(4, MaterialValue.Solid(new(20/255d, 80/255d, 230/255d, 210/255d)), StrokeJoin.Bevel));
-                            output.Style.SetShadow(target, new(new(200/255d, 160/255d, 20/255d, 120/255d), .5, 110, 7, 3));
-                            output.Style.MultiplyOpacity(target, .5);
-                            if (mode == "scale") output.Transforms.ScaleTokenFamily(target, 1.4, Pivot.BaseAdvanceCenter);
-                        }
-                        else if (mode == "bands")
-                        {
-                            var bands = GradientValue.Bands([new(1, 0, 0, 1), new(0, 1, 0, 180/255d), new(0, 0, 1, 1)], [.3, .6], GradientKind.Linear, 25,
-                                GradientCoordinateSpace.Glyph);
-                            output.Style.SetSungMaterial(target, MaterialValue.Gradient(bands)); output.Style.SetUnsungMaterial(target, MaterialValue.Gradient(bands));
-                        }
+                        output.SetFill(textTarget, TextState.Sung, basis.Sung.Fill);
+                        if (mode == "baseline") output.SetFill(textTarget, TextState.Unsung, basis.Unsung.Fill);
+                    }
+                    else if (mode == "red") output.SetFill(textTarget, TextState.Sung, MaterialValue.Solid(new(1, 0, 0, 1)));
+                    else if (mode == "alpha2") output.MultiplyOpacity(textTarget, 2);
+                    else if (mode == "half") output.MultiplyOpacity(textTarget, .5);
+                    else if (mode == "badAlpha") output.MultiplyOpacity(textTarget, 3);
+                    else if (mode == "wide") output.SetStrokes(textTarget, TextState.Both, new StrokeValue(1e100, MaterialValue.Solid(new(1, 1, 1, 1))));
+                    else if (mode == "off")
+                    {
+                        output.SetStrokes(textTarget, TextState.Both);
+                        output.SetShadow(textTarget, TextState.Both, null);
+                        output.SetFill(textTarget, TextState.Unsung, MaterialValue.Solid(default));
+                        output.SetFill(textTarget, TextState.Sung, MaterialValue.Solid(default));
+                    }
+                    else if (mode == "rgba" || mode == "scale")
+                    {
+                        output.SetFill(textTarget, TextState.Unsung, MaterialValue.Solid(new(30/255d, 200/255d, 80/255d, 180/255d)));
+                        output.SetFill(textTarget, TextState.Sung, MaterialValue.Solid(new(200/255d, 40/255d, 220/255d, 170/255d)));
+                        output.SetStrokes(textTarget, TextState.Both, new StrokeValue(4, MaterialValue.Solid(new(20/255d, 80/255d, 230/255d, 210/255d)), StrokeJoin.Bevel));
+                        output.SetShadow(textTarget, TextState.Both, new ShadowValue(new(200/255d, 160/255d, 20/255d, 120/255d), .5, 110, 7, 3));
+                        output.MultiplyOpacity(textTarget, .5);
+                        if (mode == "scale")
+                            foreach (var geom in frame.Geometry)
+                                if (geom.WithRuby == target)
+                                    output.AppendTransform(target, Affine2.ScaleAt(1.4, geom.BaseGeometry.AdvanceBounds.Center));
+                    }
+                    else if (mode == "bands")
+                    {
+                        var bands = GradientValue.Bands([new(1, 0, 0, 1), new(0, 1, 0, 180/255d), new(0, 0, 1, 1)], [.3, .6], GradientKind.Linear, 25,
+                            GradientCoordinateSpace.Glyph);
+                        output.SetFill(textTarget, TextState.Sung, MaterialValue.Gradient(bands));
+                        output.SetFill(textTarget, TextState.Unsung, MaterialValue.Gradient(bands));
+                    }
+                    else
+                    {
+                        var gradient = new GradientValue([new(0, new(1, 0, 0, 1)), new(.3, new(0, 1, 0, 180/255d)), new(1, new(0, 0, 1, 1))],
+                            (mode == "radial" || mode == "strokeRadial") ? GradientKind.Radial : GradientKind.Linear, 25,
+                            (mode == "canvas" || mode == "strokeCanvas") ? GradientCoordinateSpace.Canvas
+                                : (mode == "glyph" || mode == "strokeGlyph") ? GradientCoordinateSpace.Glyph : GradientCoordinateSpace.Line,
+                            (mode == "unsupported" || mode == "strokeUnsupported") ? GradientColorSpace.Oklch : GradientColorSpace.Hsv, GradientHuePath.Longer, .3, .7, .4, .8);
+                        if (mode.StartsWith("stroke", StringComparison.Ordinal))
+                            output.SetStrokes(textTarget, TextState.Both, new StrokeValue(4, MaterialValue.Gradient(gradient),
+                                mode == "strokeMiter" ? StrokeJoin.Miter : mode == "strokeBevel" ? StrokeJoin.Bevel : StrokeJoin.Round));
                         else
                         {
-                            var gradient = new GradientValue([new(0, new(1, 0, 0, 1)), new(.3, new(0, 1, 0, 180/255d)), new(1, new(0, 0, 1, 1))],
-                                (mode == "radial" || mode == "strokeRadial") ? GradientKind.Radial : GradientKind.Linear, 25,
-                                (mode == "canvas" || mode == "strokeCanvas") ? GradientCoordinateSpace.Canvas
-                                    : (mode == "glyph" || mode == "strokeGlyph") ? GradientCoordinateSpace.Glyph : GradientCoordinateSpace.Line,
-                                (mode == "unsupported" || mode == "strokeUnsupported") ? GradientColorSpace.Oklch : GradientColorSpace.Hsv, GradientHuePath.Longer, .3, .7, .4, .8);
-                            if (mode.StartsWith("stroke", StringComparison.Ordinal)) output.Style.SetStroke(target, new(4, MaterialValue.Gradient(gradient),
-                                mode == "strokeMiter" ? StrokeJoin.Miter : mode == "strokeBevel" ? StrokeJoin.Bevel : StrokeJoin.Round));
-                            else { output.Style.SetSungMaterial(target, MaterialValue.Gradient(gradient)); output.Style.SetUnsungMaterial(target, MaterialValue.Gradient(gradient)); }
+                            output.SetFill(textTarget, TextState.Sung, MaterialValue.Gradient(gradient));
+                            output.SetFill(textTarget, TextState.Unsung, MaterialValue.Gradient(gradient));
                         }
                     }
                 }
             }
-            """)]);
-        Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Diagnostics)); return result;
-    });
+        }
+        """,
+        [Fx.V2.CapabilityNames.StyleFill, Fx.V2.CapabilityNames.StyleStroke, Fx.V2.CapabilityNames.StyleShadow, Fx.V2.CapabilityNames.TokenOpacity, Fx.V2.CapabilityNames.TokenAffine],
+        entryType: "StyleProbe",
+        exportId: "style-probe",
+        parameters: new System.Text.Json.Nodes.JsonArray(
+            V2RenderPackageHelper.EnumParameter("mode", "rgba",
+                "noop", "baseline", "reset", "red", "alpha2", "half", "badAlpha", "wide", "off", "rgba", "scale", "bands",
+                "linear", "radial", "canvas", "glyph", "unsupported",
+                "stroke", "strokeRadial", "strokeCanvas", "strokeGlyph", "strokeUnsupported", "strokeMiter", "strokeBevel", "strokeRound")),
+        outputs:
+        [
+            V2RenderPackageHelper.Output("fill", "StyleModulation", "tokenFamily", Fx.V2.CapabilityNames.StyleFill),
+            V2RenderPackageHelper.Output("stroke", "StyleModulation", "tokenFamily", Fx.V2.CapabilityNames.StyleStroke),
+            V2RenderPackageHelper.Output("shadow", "StyleModulation", "tokenFamily", Fx.V2.CapabilityNames.StyleShadow),
+            V2RenderPackageHelper.Output("opacity", "StyleModulation", "tokenFamily", Fx.V2.CapabilityNames.TokenOpacity),
+            V2RenderPackageHelper.Output("transform", "VisualTransform", "tokenFamily", Fx.V2.CapabilityNames.TokenAffine),
+        ],
+        packageId: "demo.style.probe.v2"));
     private static async Task<PureFrameSourceFactory> Factory(string[] modes, Fx.EffectBinding? binding = null)
     {
-        var artifact = await Probe.Value;
-        return new([.. modes.Select((mode, index) => new CompiledFrameEffect(new("style-" + index), artifact, "StyleProbe",
-            new(new Dictionary<string, Fx.ParameterValue> { ["mode"] = new Fx.ParameterValue.Choice(mode) }), binding ?? new Fx.EffectBinding.Project(),
-            Fx.EffectCapabilities.Style | Fx.EffectCapabilities.Transforms))], Fingerprint, static () => new SkiaRenderPipeline());
+        var package = await Probe.Value;
+        return new([.. modes.Select((mode, index) => package.CreateEffect("style-probe", new("style-" + index),
+            binding ?? new Fx.EffectBinding.Project(), 0) with
+        {
+            Parameters = new Fx.ParameterValues(new Dictionary<string, Fx.ParameterValue> { ["mode"] = new Fx.ParameterValue.Choice(mode) }),
+        })],
+            Fingerprint, static () => new SkiaRenderPipeline());
     }
     private static Project Single()
     {
@@ -136,7 +175,7 @@ public sealed class PreparedStyleFrameTests
     {
         var snapshot = ProjectSnapshot.FromProject(Single()) with { EffectInputsFingerprint = Fingerprint };
         var target = RenderTarget.FromComposition(snapshot.Composition);
-        await using var source = await (await Factory(["red", "reset", "alpha2", "half"])).CreateAsync(snapshot);
+        await using var source = await (await Factory(["red", "reset"])).CreateAsync(snapshot);
         var first = await source.PrepareAsync(2_000_000, Fx.OutputMode.Transparent, target);
         Assert.Empty(first.TokenStyles);
         using SkiaRenderPipeline renderer = new();
@@ -145,6 +184,14 @@ public sealed class PreparedStyleFrameTests
         Assert.Equal(plain.PixelMemory.ToArray(), actual.PixelMemory.ToArray());
         await source.PrepareAsync(3_000_000, Fx.OutputMode.Transparent, target);
         Assert.Empty((await source.PrepareAsync(2_000_000, Fx.OutputMode.Transparent, target)).TokenStyles);
+
+        await using var composed = await (await Factory(["red", "reset", "half", "half"])).CreateAsync(snapshot);
+        var alpha = await composed.PrepareAsync(2_000_000, Fx.OutputMode.Transparent, target);
+        Assert.Equal(.25, Assert.Single(alpha.TokenStyles).Update.OpacityFactor);
+        using var alphaActual = renderer.Render(RenderRequest.At(snapshot, alpha.TimeUs) with { PreparedFrame = alpha, TransparentBackground = true });
+        using var alphaExpected = renderer.Render(RenderRequest.At(snapshot with { EffectInputsFingerprint = null,
+            LyricStyle = snapshot.LyricStyle with { Opacity = snapshot.LyricStyle.Opacity * .25f } }, alpha.TimeUs) with { TransparentBackground = true });
+        Assert.Equal(alphaExpected.PixelMemory.ToArray(), alphaActual.PixelMemory.ToArray());
     }
     [Theory]
     [InlineData("unsupported", "UnsupportedEffectGradient")]
@@ -156,7 +203,7 @@ public sealed class PreparedStyleFrameTests
         var snapshot = ProjectSnapshot.FromProject(Single()) with { EffectInputsFingerprint = Fingerprint };
         await using var source = await (await Factory([mode])).CreateAsync(snapshot);
         var error = await Assert.ThrowsAsync<EffectFailureException>(async () => await source.PrepareAsync(2_000_000, Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition)));
-        Assert.Equal(code, error.Code); Assert.Equal("ComposeOutputs", error.Stage); Assert.Equal(new Fx.EffectInstanceId("style-0"), error.InstanceId);
+        Assert.Equal(code, error.Code); Assert.Equal(mode == "badAlpha" ? "Evaluate" : "ComposeOutputs", error.Stage); Assert.Equal(new Fx.EffectInstanceId("style-0"), error.InstanceId);
     }
     [Fact]
     public async Task 样式与视觉缩放共用一次固定字形绘制()
@@ -226,7 +273,7 @@ public sealed class PreparedStyleFrameTests
             [.. "office".Select((character, index) => LyricToken.Create("t" + index, character.ToString(), new(index * 1_000_000, (index + 1) * 1_000_000), TimingStatus.Edited))]);
         var snapshot = ProjectSnapshot.FromProject(Project.Create("ligature", Composition.Create(640, 360, Core.Time.FrameRate.Fps30, outputDurationUs: 6_000_000),
             LyricsDocument.Create([line]), lyricStyle: LyricStyle.Default with { FontFamilyName = "DejaVu Sans", FontSizePx = 56 })) with { EffectInputsFingerprint = Fingerprint };
-        await using var noOp = await (await Factory(["baseline"])).CreateAsync(snapshot);
+        await using var noOp = await (await Factory(["noop"])).CreateAsync(snapshot);
         var prepared = await noOp.PrepareAsync(1_500_000, Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition));
         Assert.Empty(prepared.TokenStyles);
         await using var changed = await (await Factory(["red"], new Fx.EffectBinding.Tokens([new("t1")]))).CreateAsync(snapshot);

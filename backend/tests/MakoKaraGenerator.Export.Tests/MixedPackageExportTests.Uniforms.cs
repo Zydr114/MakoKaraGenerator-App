@@ -4,22 +4,42 @@ using MakoKaraGenerator.Rendering;
 using MakoKaraGenerator.Rendering.Skia;
 using MakoKaraGenerator.Scripting;
 using MakoKaraGenerator.Scripting.Execution;
+using MakoKaraGenerator.Scripting.V2;
 using SkiaSharp;
 
 namespace MakoKaraGenerator.Export.Tests;
 
 public sealed partial class MixedPackageExportTests
 {
-    private static string ExportUniformSource(string value) => MixedEffectPackageFixture.MaterialSource.Replace(
-        "output.Style.SetSungMaterial(token.WithRuby, material);", "output.Style.SetSungMaterial(token.WithRuby, material);\n" +
-        "foreach(var slot in new[]{MaterialSlot.UnsungFill,MaterialSlot.SungFill}) output.Materials.SetUniform(frame.Resources.GetMaterial(\"ink\"),token.WithRuby,slot,\"probe\",\"amount\"," + value + ");");
+    private static string ExportUniformSource(string value) => $$"""
+        using MakoKaraGenerator.Scripting;
+        using MakoKaraGenerator.Scripting.V2;
+        public sealed class PackEffect : IPureKaraokeEffect
+        {
+            public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
+            public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
+            {
+                var material=MaterialValue.PackageExport(frame.Resources.GetMaterial("ink"),
+                    new([new("amount",new ParameterValue.Number(frame.Parameters.GetNumber("amount")))]));
+                foreach(var token in frame.Presentations.TokensInBinding)
+                {
+                    output.SetFill(new TextTarget.Family(token.WithRuby), TextState.Unsung, material);
+                    output.SetFill(new TextTarget.Family(token.WithRuby), TextState.Sung, material);
+                    foreach(var slot in new[]{MaterialSlot.UnsungFill,MaterialSlot.SungFill})
+                        output.SetMaterialUniform(new TextTarget.Family(token.WithRuby), slot, frame.Resources.GetMaterial("ink"), "probe", "amount", {{value}});
+                }
+            }
+        }
+        """;
 
     [Theory]
     [InlineData(false)] [InlineData(true)]
     public async Task 逐帧uniform经真正作者与主Render导出MP4或Alpha同帧一致(bool transparent)
     {
         using TemporaryDirectory temp = new();
-        var package = await CompileMaterial(MixedEffectPackageFixture.MaterialContents(controllerSource: ExportUniformSource("UniformValue.Float(.2+frame.TimeUs/2000000d)")));
+        var package = await CompileMaterial(V2ExportPackageHelper.UpgradeToV2(
+            MixedEffectPackageFixture.MaterialContents(controllerSource: ExportUniformSource("UniformValue.Float(.2+frame.TimeUs/2000000d)")),
+            [CapabilityNames.StyleFill, CapabilityNames.MaterialUniform]));
         Assert.True(package.Succeeded, string.Join('\n', package.Artifact.Diagnostics));
         var project = MaterialProject(); var snapshot = ProjectSnapshot.FromProject(project) with { EffectInputsFingerprint = Fingerprint };
         await using var source = await new PureFrameSourceFactory([package.CreateEffect("controller", new("uniform-export"), new EffectBinding.Project(), 1)],
@@ -50,8 +70,10 @@ public sealed partial class MixedPackageExportTests
     public async Task 中途uniform类型错误阻止编码且保留旧成片()
     {
         using TemporaryDirectory temp = new(); string path = temp.FilePath("existing.mp4"); byte[] original = [2, 7, 1, 8]; await File.WriteAllBytesAsync(path, original);
-        var package = await CompileMaterial(MixedEffectPackageFixture.MaterialContents(controllerSource: ExportUniformSource(
-            "frame.TimeUs>=200000 ? UniformValue.Int(1) : UniformValue.Float(.5)")));
+        var package = await CompileMaterial(V2ExportPackageHelper.UpgradeToV2(
+            MixedEffectPackageFixture.MaterialContents(controllerSource: ExportUniformSource(
+                "frame.TimeUs>=200000 ? UniformValue.Int(1) : UniformValue.Float(.5)")),
+            [CapabilityNames.StyleFill, CapabilityNames.MaterialUniform]));
         Assert.True(package.Succeeded, string.Join('\n', package.Artifact.Diagnostics));
         var project = MaterialProject(); var snapshot = ProjectSnapshot.FromProject(project) with { EffectInputsFingerprint = Fingerprint };
         await using var source = await new PureFrameSourceFactory([package.CreateEffect("controller", new("bad-uniform"), new EffectBinding.Project(), 1)],

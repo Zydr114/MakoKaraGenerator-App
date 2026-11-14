@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using MakoKaraGenerator.Core.Effects;
 using MakoKaraGenerator.Core.Lyrics;
 using MakoKaraGenerator.Core.Projects;
@@ -9,6 +11,7 @@ using MakoKaraGenerator.Rendering.Skia;
 using MakoKaraGenerator.Scripting;
 using MakoKaraGenerator.Scripting.Compilation;
 using MakoKaraGenerator.Scripting.Execution;
+using MakoKaraGenerator.Scripting.V2;
 using SkiaSharp;
 
 namespace MakoKaraGenerator.Export.Tests;
@@ -18,24 +21,57 @@ public sealed class SceneCompositionChainExportTests
 {
     private static readonly string[] GraphKinds = ["glass", "glitch"];
     private const string Fingerprint = "scene-chain-export";
-    private static readonly ResourceCatalog Resources = new("scene-chain", "sha256:" + new string('e', 64), [], ["glass", "glitch"], []);
-    private static readonly Lazy<Task<ScriptCompilationResult>> Script = new(async () =>
+    private static readonly Lazy<Task<CompiledEffectPackage>> Package = new(async () =>
     {
-        var compiler = new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));
-        var result = await compiler.CompileAsync([new("src/Chain.cs", """
-            using MakoKaraGenerator.Scripting;
-            public sealed class Chain : EffectBase
-            {
-                public override void Evaluate(FrameContext frame, FrameWriter writer)
+        var contents = V2ExportPackageHelper.UpgradeToV2(MixedEffectPackageFixture.Contents(
+            controllerSource: """
+                using MakoKaraGenerator.Scripting;
+                using MakoKaraGenerator.Scripting.V2;
+                public sealed class Chain : IPureKaraokeEffect
                 {
-                    double opacity = frame.Parameters.GetBoolean("fail") && frame.TimeUs >= 200000 ? 2 : 1;
-                    var values = new ParameterValues(new[] { System.Collections.Generic.KeyValuePair.Create<string,ParameterValue>("opacity",new ParameterValue.Number(opacity)) });
-                    foreach (var line in frame.Presentations.LinesInBinding)
-                        writer.ImageEffects.Bind(line.Target, frame.Resources.GetGraph(frame.Parameters.GetEnum("kind")), values);
+                    public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
+                    public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
+                    {
+                        double opacity = frame.Parameters.GetBoolean("fail") && frame.TimeUs >= 200000 ? 2 : 1;
+                        var values = new ParameterValues(new[] { System.Collections.Generic.KeyValuePair.Create<string, ParameterValue>("opacity", new ParameterValue.Number(opacity)) });
+                        foreach (var line in frame.Presentations.LinesInBinding)
+                            output.BindGraph(new TextTarget.Line(line.Target), new GraphBindingValue(frame.Resources.GetGraph(frame.Parameters.GetEnum("kind")), values,
+                                GraphUniformValues.Empty, GraphTransformValues.Empty));
+                    }
                 }
-            }
-            """)]);
-        Assert.True(result.Succeeded, string.Join('\n', result.Diagnostics)); return result;
+                """,
+            graphChange: graph =>
+            {
+                graph["parameters"] = new JsonArray("opacity");
+                graph["nodes"]![0]!["uniforms"]!["amount"] = 1.0;
+            }),
+            [CapabilityNames.ImageGraph],
+            manifest =>
+            {
+                manifest["parameters"] = new JsonArray(
+                    new JsonObject { ["id"] = "amount", ["type"] = "number", ["label"] = "Amount", ["default"] = 1, ["min"] = 0, ["max"] = 1 },
+                    new JsonObject { ["id"] = "opacity", ["type"] = "number", ["label"] = "Opacity", ["default"] = 1, ["min"] = 0, ["max"] = 2 },
+                    new JsonObject { ["id"] = "kind", ["type"] = "enum", ["label"] = "Kind", ["default"] = "glass",
+                        ["values"] = new JsonArray(new JsonObject { ["value"] = "glass", ["label"] = "glass" }, new JsonObject { ["value"] = "glitch", ["label"] = "glitch" }) },
+                    new JsonObject { ["id"] = "fail", ["type"] = "boolean", ["label"] = "Fail", ["default"] = false });
+                var exports = manifest["exports"]!.AsArray();
+                for (int i = exports.Count - 1; i >= 0; i--) if (exports[i]!["kind"]!.GetValue<string>() == "material") exports.RemoveAt(i);
+                var controller = exports[0]!;
+                controller["id"] = "controller";
+                controller["entryType"] = "Chain";
+                controller["parameters"] = new JsonArray("kind", "fail");
+                var tint = exports.Single(item => item!["id"]!.GetValue<string>() == "tint")!;
+                tint["id"] = "glass";
+                tint["parameters"] = new JsonArray("opacity");
+                var glitch = tint.DeepClone();
+                glitch["id"] = "glitch";
+                exports.Add(glitch);
+            });
+        var compiler = new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));
+        var compiled = await CompiledEffectPackage.CompileAsync(EffectPackageDefinition.Read(contents), compiler,
+            new PackageImageValidator(), new PackageShaderValidator(), new PackageImageGraphValidator(), new PackageMaterialValidator());
+        Assert.True(compiled.Succeeded, string.Join('\n', compiled.Artifact.Diagnostics));
+        return compiled;
     });
     private static Project Project(string path) => Core.Projects.Project.Create("合成链短片", Composition.Create(320, 180, FrameRate.Fps30, new(20, 40, 80), 1_000_000),
         LyricsDocument.Create([LyricLine.Create("row", "歌", new(0, 1_000_000), TimingStatus.Edited,
@@ -49,13 +85,12 @@ public sealed class SceneCompositionChainExportTests
         for (int y = 0; y < 32; y++) for (int x = 0; x < 32; x++) bitmap.SetPixel(x, y, new((byte)(60 + x * 4), (byte)(80 + y * 3), 200));
         using var image = SKImage.FromBitmap(bitmap); using var data = image.Encode(SKEncodedImageFormat.Png, 100); using var file = File.Create(path); data.SaveTo(file);
     }
-    private static async Task<IEvaluatedFrameSource> Source(ProjectSnapshot snapshot, bool fail)
+    private static async Task<(IEvaluatedFrameSource Source, CompiledEffectPackage Package)> Source(ProjectSnapshot snapshot, bool fail)
     {
-        var artifact = await Script.Value;
-        var factory = new PureFrameSourceFactory([.. GraphKinds.Select(kind => new CompiledFrameEffect(new(kind), artifact, "Chain",
-            new([new("kind", new ParameterValue.Choice(kind)), new("fail", new ParameterValue.Toggle(fail && kind == "glitch"))]),
-            new EffectBinding.Project(), EffectCapabilities.ImageEffects) { Resources = Resources })], Fingerprint, static () => new SkiaRenderPipeline());
-        return await factory.CreateAsync(snapshot);
+        var package = await Package.Value;
+        var factory = new PureFrameSourceFactory([.. GraphKinds.Select(kind => package.CreateEffect("controller", new(kind), new EffectBinding.Project(), 1,
+            JsonSerializer.SerializeToUtf8Bytes(new { kind, fail = fail && kind == "glitch" })))], Fingerprint, static () => new SkiaRenderPipeline());
+        return (await factory.CreateAsync(snapshot), package);
     }
     [Theory]
     [InlineData(false)] [InlineData(true)]
@@ -63,7 +98,7 @@ public sealed class SceneCompositionChainExportTests
     {
         using TemporaryDirectory temp = new(); string media = temp.FilePath("media.png"); WriteImage(media);
         var project = Project(media); var snapshot = ProjectSnapshot.FromProject(project) with { EffectInputsFingerprint = Fingerprint };
-        await using var source = await Source(snapshot, false); using var pipeline = new ChainPipeline(source, snapshot, automatic: true);
+        var (source, package) = await Source(snapshot, false); await using var _ = source; using var pipeline = new ChainPipeline(source, snapshot, package, automatic: true);
         string output = temp.FilePath(transparent ? "chain.mov" : "chain.mp4"), decodedPath = temp.FilePath("decoded.png");
         var exporter = new VideoExporter(pipeline, new FfmpegMediaProbe(), new FfmpegMediaEncoder());
         var report = await exporter.ExportAsync(project, new() { OutputPath = output, IncludeAudio = false, Quality = ExportQuality.High,
@@ -91,11 +126,11 @@ public sealed class SceneCompositionChainExportTests
         using TemporaryDirectory temp = new(); string media = temp.FilePath("media.png"); WriteImage(media);
         string output = temp.FilePath("existing.mp4"); byte[] original = [2, 7, 1, 8]; await File.WriteAllBytesAsync(output, original);
         var project = Project(media); var snapshot = ProjectSnapshot.FromProject(project) with { EffectInputsFingerprint = Fingerprint };
-        await using var source = await Source(snapshot, true); using var pipeline = new ChainPipeline(source, snapshot);
+        var (source, package) = await Source(snapshot, true); await using var _ = source; using var pipeline = new ChainPipeline(source, snapshot, package);
         var exporter = new VideoExporter(pipeline, new FfmpegMediaProbe(), new FfmpegMediaEncoder());
         var error = await Assert.ThrowsAsync<EffectFailureException>(() => exporter.ExportAsync(project, new() { OutputPath = output, IncludeAudio = false, Overwrite = true }));
         Assert.Equal("InvalidGraphOpacity", error.Code); Assert.Equal("CompositeImageGraph", error.Stage); Assert.Equal(new EffectInstanceId("glitch"), error.InstanceId);
-        Assert.Equal((await Script.Value).ArtifactHash, error.ArtifactHash); Assert.Equal(200_000, error.TimeUs); Assert.Equal(6, pipeline.RenderedCount);
+        Assert.Equal(package.Artifact.ArtifactHash, error.ArtifactHash); Assert.Equal(200_000, error.TimeUs); Assert.Equal(6, pipeline.RenderedCount);
         Assert.Equal(original, await File.ReadAllBytesAsync(output)); Assert.Equal(new[] { media, output }.Order(), Directory.GetFiles(temp.Path).Order());
         Assert.Equal(0, pipeline.Usage.ActiveSurfaces); Assert.Equal(0, pipeline.Usage.EstimatedBytes);
     }
@@ -113,7 +148,7 @@ public sealed class SceneCompositionChainExportTests
         public int RenderedCount { get; private set; }
         public int BypassCount { get; private set; }
         public ImageSurfaceUsage Usage => _budget.Usage;
-        public ChainPipeline(IEvaluatedFrameSource source, ProjectSnapshot snapshot, bool automatic = false)
+        public ChainPipeline(IEvaluatedFrameSource source, ProjectSnapshot snapshot, CompiledEffectPackage package, bool automatic = false)
         {
             _source = source; _snapshot = snapshot; _automatic = automatic;
             var bounds = new GraphNodeBounds(new GraphExpansion.Literal(0), 0, 0, GraphEdgeMode.Transparent);
@@ -131,8 +166,8 @@ public sealed class SceneCompositionChainExportTests
                 GraphReference.Node("glitch"), GraphCoordinateSpace.Canvas, 0, GraphAnchorMode.ColorOnly, GraphCompositeMode.SourceOver);
             _glitch = CompiledImageGraph.Compile(ImageGraphCompiler.Compile(glitch, [], [new("glitch", shader)]));
             var recipe = new SceneCaptureRecipe(true, true, true, true, SceneCaptureRegion.FillAndStroke);
-            _glassProgram = new(Resources.GetGraph("glass"), _glass, recipe, new(0, 0, 320, 180));
-            _glitchProgram = new(Resources.GetGraph("glitch"), _glitch, recipe, new(0, 0, 320, 180));
+            _glassProgram = new(package.Resources.GetGraph("glass"), _glass, recipe, new(0, 0, 320, 180));
+            _glitchProgram = new(package.Resources.GetGraph("glitch"), _glitch, recipe, new(0, 0, 320, 180));
             if (automatic) _resources = new([_glassProgram, _glitchProgram]);
             _native = new(null, null, _budget, _resources);
         }

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using MakoKaraGenerator.Core.Effects;
 using MakoKaraGenerator.Core.Lyrics;
 using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Core.Time;
@@ -14,65 +15,83 @@ namespace MakoKaraGenerator.Rendering.Tests;
 public sealed class AudioReactiveFrameTests
 {
     private const string Fingerprint = "fixed-actual-audio";
-    private static readonly Lazy<Task<ScriptCompilationResult>> Artifact = new(async () =>
-    {
-        var result = await new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")).CompileAsync([new("src/AudioProbe.cs", """
-            using System;
-            using System.Linq;
-            using MakoKaraGenerator.Scripting;
-            public sealed class AudioProbe : EffectBase
+    private static readonly Lazy<Task<CompiledEffectPackage>> Package = new(() => V2RenderPackageHelper.CompileControllerAsync("""
+        using System;
+        using MakoKaraGenerator.Scripting;
+        using MakoKaraGenerator.Scripting.V2;
+
+        public sealed record AudioState : PreparedEffect;
+
+        public sealed class AudioProbe : IPureKaraokeEffect, IPureVisualEffect
+        {
+            public PreparedEffect Declare(DeclareContext source)
+                => new AudioState { VisualOutputs = [new(new("bass-pulse"), VisualPrimitiveKind.Dots, OverlayLayer.AboveText)] };
+            public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
             {
-                private int ticks;
-                public override void OnEvent(TimelineEvent evt, EventContext context)
+                var sample = frame.Audio.GetAt(frame.TimeUs);
+                if (sample.Availability != AudioAvailability.Available)
                 {
-                    if (evt is AudioFeatureTick tick)
-                    {
-                        if (tick.AnalysisRevision != context.Audio.Revision || tick.Point.Values != context.Audio.GetAt(tick.TimeUs).Values)
-                            throw new Exception("real hop must belong to fixed analysis");
-                        ticks++;
-                    }
+                    if (sample.Values != null) throw new InvalidOperationException("unavailable must not be fake silence");
+                    return;
                 }
-                public override void Evaluate(FrameContext frame, FrameWriter writer)
+                if (frame.Audio.GetRange(new(0, 2_000_000)).Points.Length != 100)
+                    throw new InvalidOperationException("expected 100 real audio hop points");
+                double shade = Math.Round(255 * sample.Values!.Value.BassLevel) / 255;
+                foreach (var token in frame.Presentations.TokensInBinding)
                 {
-                    var sample = frame.Audio.GetAt(frame.TimeUs);
-                    if (sample.Availability != AudioAvailability.Available)
-                    {
-                        if (sample.Values != null) throw new Exception("unavailable must not be fake silence");
-                        frame.Diagnostics.Report(DiagnosticSeverity.Warning, "AudioUnavailable", sample.Availability.ToString()); return;
-                    }
-                    var historyTicks = frame.History.Records.Count(record => record.Event is AudioFeatureTick);
-                    if (ticks != historyTicks) throw new Exception("hop callbacks and actual history must agree");
-                    frame.Diagnostics.Report(DiagnosticSeverity.Info, "HopCount", ticks.ToString());
-                    double shade = Math.Round(255 * sample.Values.Value.BassLevel) / 255;
-                    foreach (var token in frame.Presentations.TokensInBinding)
-                    {
-                        writer.Style.SetUnsungMaterial(token.WithRuby, MaterialValue.Solid(new ColorRgba(0, shade, 0, 1)));
-                        writer.Style.SetSungMaterial(token.WithRuby, MaterialValue.Solid(new ColorRgba(0, shade, 0, 1)));
-                    }
-                }
-                public override void EvaluateVisuals(VisualFrameContext frame, VisualWriter writer)
-                {
-                    var sample = frame.Audio.GetAt(frame.TimeUs);
-                    if (sample.Values is not { } values) return;
-                    writer.Overlay.DrawDots(new OutputId("bass-pulse"),
-                        [new Dot(new Point2(20, 20), 4 + 8 * values.Pulse, new ColorRgba(1, 0, 0, .5))], OverlayLayer.AboveText);
+                    var target = new TextTarget.Family(token.WithRuby);
+                    output.SetFill(target, TextState.Unsung, MaterialValue.Solid(new ColorRgba(0, shade, 0, 1)));
+                    output.SetFill(target, TextState.Sung, MaterialValue.Solid(new ColorRgba(0, shade, 0, 1)));
                 }
             }
-            public sealed class PureAudioProbe : EffectBase
+            public void EvaluateVisuals(in VisualFrame frame, PreparedEffect data, VisualOutput output)
             {
-                public override void Evaluate(FrameContext frame, FrameWriter writer)
-                {
-                    var sample = frame.Audio.GetAt(frame.TimeUs);
-                    frame.Diagnostics.Report(DiagnosticSeverity.Info, "Availability", sample.Availability.ToString());
-                }
+                var sample = frame.Audio.GetAt(frame.TimeUs);
+                if (sample.Values is not { } values) return;
+                output.DrawDots(new OutputId("bass-pulse"),
+                    [new Dot(new Point2(20, 20), 4 + 8 * values.Pulse, new ColorRgba(1, 0, 0, .5))], OverlayLayer.AboveText);
             }
-            """)]);
-        Assert.True(result.Succeeded, string.Join('\n', result.Diagnostics)); return result;
-    });
+        }
+
+        public sealed class PureAudioProbe : IPureKaraokeEffect
+        {
+            public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
+            public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
+            {
+                var sample = frame.Audio.GetAt(frame.TimeUs);
+                if (sample.Values != null && sample.Availability != AudioAvailability.Available)
+                    throw new InvalidOperationException("unexpected values when unavailable");
+            }
+        }
+        """,
+        [Fx.V2.CapabilityNames.StyleFill, Fx.V2.CapabilityNames.VisualsDots],
+        entryType: "AudioProbe",
+        exportId: "AudioProbe",
+        outputs:
+        [
+            V2RenderPackageHelper.Output("fill", "StyleModulation", "tokenFamily", Fx.V2.CapabilityNames.StyleFill),
+            V2RenderPackageHelper.Output("bass-pulse", "Overlay", "canvas", Fx.V2.CapabilityNames.VisualsDots),
+        ],
+        packageId: "demo.audio.probe.v2",
+        manifestChange: manifest =>
+        {
+            manifest["exports"]!.AsArray().Add(new System.Text.Json.Nodes.JsonObject
+            {
+                ["id"] = "PureAudioProbe",
+                ["kind"] = "controller",
+                ["name"] = "PureAudioProbe",
+                ["entryType"] = "PureAudioProbe",
+                ["parameters"] = new System.Text.Json.Nodes.JsonArray(),
+                ["bindingKinds"] = new System.Text.Json.Nodes.JsonArray("project"),
+                ["outputs"] = new System.Text.Json.Nodes.JsonArray(),
+            });
+        }));
     private static async Task<CompiledFrameEffect> Definition(bool required = true, bool pure = false)
-        => new(new("audio"), await Artifact.Value, pure ? "PureAudioProbe" : "AudioProbe", Fx.ParameterValues.Empty,
-            new Fx.EffectBinding.Project(), pure ? Fx.EffectCapabilities.None : Fx.EffectCapabilities.Style | Fx.EffectCapabilities.Overlay)
-            { RequiresAudio = required, Subscription = new Fx.SourceSubscription.Project() };
+    {
+        var package = await Package.Value;
+        return package.CreateEffect(pure ? "PureAudioProbe" : "AudioProbe", new("audio"),
+            new Fx.EffectBinding.Project(), 0) with { RequiresAudio = required, Subscription = new Fx.SourceSubscription.Project() };
+    }
     private static ProjectSnapshot Snapshot()
     {
         var line = LyricLine.Create("row", "田田", new(0, 2_000_000), TimingStatus.Edited,
@@ -89,8 +108,8 @@ public sealed class AudioReactiveFrameTests
         var result = await AudioFeatureAnalyzer.CreateDefault().AnalyzeAsync(path);
         Assert.Equal(Fx.AudioAvailability.Available, result.Features.Availability); return result.Features;
     }
-    private static TimelineFrameSourceFactory Factory(CompiledFrameEffect effect, Fx.AudioFeatures audio, Fx.ReplayReason reason = Fx.ReplayReason.Initial)
-        => new([effect], Fingerprint, static () => new SkiaRenderPipeline(), reason, audio);
+    private static PureFrameSourceFactory Factory(CompiledFrameEffect effect, Fx.AudioFeatures audio)
+        => new([effect], Fingerprint, static () => new SkiaRenderPipeline(), audio);
 
     [Theory]
     [InlineData(24)] [InlineData(30)] [InlineData(60)]
@@ -101,18 +120,13 @@ public sealed class AudioReactiveFrameTests
         await using var sequential = await Factory(definition, audio).CreateAsync(snapshot);
         for (int index = 0; index * 1_000_000L / fps < time; index++) await sequential.PrepareAsync(index * 1_000_000L / fps, Fx.OutputMode.Transparent, target);
         var frame = await sequential.PrepareAsync(time, Fx.OutputMode.Transparent, target);
-        Assert.Equal("38", frame.Diagnostics.Last(item => item.Diagnostic.Code == "HopCount").Diagnostic.Message);
         using SkiaRenderPipeline renderer = new();
         using var actual = renderer.Render(RenderRequest.At(snapshot, time) with { PreparedFrame = frame, TransparentBackground = true });
-        foreach (var reason in new[] { Fx.ReplayReason.Initial, Fx.ReplayReason.Export, Fx.ReplayReason.AnchorQuery })
-        {
-            await using var direct = await Factory(definition, audio, reason).CreateAsync(snapshot);
-            var other = await direct.PrepareAsync(time, Fx.OutputMode.Transparent, target);
-            using var pixels = renderer.Render(RenderRequest.At(snapshot, time) with { PreparedFrame = other, TransparentBackground = true });
-            if (reason == Fx.ReplayReason.AnchorQuery) Assert.Empty(other.DotBatches);
-            else Assert.Equal(actual.PixelMemory.ToArray(), pixels.PixelMemory.ToArray());
-            Assert.Equal(frame.TokenStyles.ToArray(), other.TokenStyles.ToArray());
-        }
+        await using var direct = await Factory(definition, audio).CreateAsync(snapshot);
+        var other = await direct.PrepareAsync(time, Fx.OutputMode.Transparent, target);
+        using var pixels = renderer.Render(RenderRequest.At(snapshot, time) with { PreparedFrame = other, TransparentBackground = true });
+        Assert.Equal(actual.PixelMemory.ToArray(), pixels.PixelMemory.ToArray());
+        Assert.Equal(frame.TokenStyles.ToArray(), other.TokenStyles.ToArray());
         await sequential.PrepareAsync(240_000, Fx.OutputMode.Transparent, target);
         var replay = await sequential.PrepareAsync(time, Fx.OutputMode.Transparent, target);
         using var redrawn = renderer.Render(RenderRequest.At(snapshot, time) with { PreparedFrame = replay, TransparentBackground = true });
@@ -154,6 +168,5 @@ public sealed class AudioReactiveFrameTests
         await using var optional = await Factory(required with { RequiresAudio = false }, audio).CreateAsync(snapshot);
         var frame = await optional.PrepareAsync(20_000, Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition));
         Assert.Empty(frame.TokenStyles); Assert.Empty(frame.DotBatches);
-        Assert.Contains(frame.Diagnostics, item => item.Diagnostic.Code == "AudioUnavailable" && item.Diagnostic.Severity == Fx.DiagnosticSeverity.Warning);
     }
 }

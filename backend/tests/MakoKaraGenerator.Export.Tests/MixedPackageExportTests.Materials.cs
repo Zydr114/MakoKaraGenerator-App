@@ -63,9 +63,28 @@ public sealed partial class MixedPackageExportTests
     public async Task 材质中途越出区域阻止编码且保护已有成片()
     {
         using TemporaryDirectory temp=new();string path=temp.FilePath("existing.mp4");byte[] original=[2,7,1,8];await File.WriteAllBytesAsync(path,original);
-        string source=MixedEffectPackageFixture.MaterialSource.Replace("frame.Parameters.GetNumber(\"amount\")","frame.TimeUs>=200000 ? 1 : .5");
-        var package=await CompileMaterial(MixedEffectPackageFixture.MaterialContents(controllerSource:source,shaderSource:
-            "uniform float amount; uniform shader original; half4 main(float2 p) { half4 c=original.eval(p);return amount>.9 ? half4(c.rgb,1) : c; }"));
+        string source="""
+            using MakoKaraGenerator.Scripting;
+            using MakoKaraGenerator.Scripting.V2;
+            public sealed class PackEffect : IPureKaraokeEffect
+            {
+                public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
+                public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
+                {
+                    var material=MaterialValue.PackageExport(frame.Resources.GetMaterial("ink"),
+                        new([new("amount",new ParameterValue.Number(frame.TimeUs>=200000 ? 1 : .5))]));
+                    foreach(var token in frame.Presentations.TokensInBinding)
+                    {
+                        output.SetFill(new TextTarget.Family(token.WithRuby), TextState.Unsung, material);
+                        output.SetFill(new TextTarget.Family(token.WithRuby), TextState.Sung, material);
+                    }
+                }
+            }
+            """;
+        var package=await CompileMaterial(V2ExportPackageHelper.UpgradeToV2(
+            MixedEffectPackageFixture.MaterialContents(controllerSource:source,shaderSource:
+                "uniform float amount; uniform shader original; half4 main(float2 p) { half4 c=original.eval(p);return amount>.9 ? half4(c.rgb,1) : c; }"),
+            [MakoKaraGenerator.Scripting.V2.CapabilityNames.StyleFill]));
         Assert.True(package.Succeeded,string.Join('\n',package.Artifact.Diagnostics));
         var project=MaterialProject();var snapshot=ProjectSnapshot.FromProject(project) with {EffectInputsFingerprint=Fingerprint};
         await using var frameSource=await new PureFrameSourceFactory([package.CreateEffect("controller",new("broken-material"),new EffectBinding.Project(),1)],

@@ -12,52 +12,96 @@ namespace MakoKaraGenerator.Rendering.Tests;
 public sealed partial class PreparedGroupTransformTests
 {
     private const string Fingerprint = "group-affine-0.11.1";
-    private static readonly Lazy<Task<ScriptCompilationResult>> Probe = new(async () =>
-    {
-        ScriptCompiler compiler = new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));
-        var result = await compiler.CompileAsync([new("src/GroupProbe.cs", """
-            using System;
-            using System.Linq;
-            using MakoKaraGenerator.Scripting;
-            public sealed class GroupProbe : EffectBase
+    private static readonly Lazy<Task<CompiledEffectPackage>> Probe = new(() => V2RenderPackageHelper.CompileControllerAsync("""
+        using System;
+        using MakoKaraGenerator.Scripting;
+        using MakoKaraGenerator.Scripting.V2;
+
+        public sealed record GroupState : PreparedEffect;
+
+        public sealed class GroupProbe : IPureKaraokeEffect
+        {
+            public PreparedEffect Declare(DeclareContext source)
             {
-                public override void Evaluate(FrameContext frame, FrameWriter output)
+                if (source.Parameters.GetEnum("mode") != "particle") return PreparedEffect.Empty;
+                var particle = new ParticleSpec
                 {
-                    string mode = frame.Parameters.GetEnum("mode"), node = frame.Parameters.GetEnum("node");
-                    var group = frame.GroupGeometry.Single(item => item.Target.NodeId.Value == node);
-                    var basis = group.BaseWorldMatrix;
-                    if (!basis.TryInverse(out var inverse)) throw new Exception("Real invertible group required");
-                    var local = mode == "neutral" ? Affine2.Identity
-                        : mode == "localMove" ? Affine2.Translation(10, 20)
-                        : mode == "localBack" ? Affine2.Translation(-10, -20)
-                        : mode == "tiny" ? new Affine2(1e-150, 0, 0, 1e-150, 0, 0)
-                        : mode == "large" ? new Affine2(1e150, 0, 0, 1e150, 0, 0)
-                        : mode == "affine" ? new Affine2(.95, .15, -.2, 1.05, 7, -4)
-                        : inverse.Compose(Affine2.Translation(mode == "back" ? -30 : mode == "native" ? 1e100 : 30,
-                            mode == "back" ? 16 : -16)).Compose(basis);
-                    var target = mode == "stale" ? new GroupTarget(new("old"))
-                        : mode == "text" ? new GroupTarget(frame.Presentations.LinesInBinding.First().NodeId) : group.Target;
-                    output.Transforms.ApplyAffine(target, local);
-                    if (mode == "combined")
+                    LifetimeUs = 300_000, SizePx = 4, Color = new(1, 0, 0, 1), SeedStreamKey = "group",
+                };
+                var continuous = new CursorEmissionPlan(new("cursor"),
+                    new RateTrack([new(new(0, 30_000_000), 10, 10)], [new(0, 30_000_000)]),
+                    particle, CursorAnchorMode.AdvanceCenter, BridgePolicy.Jump);
+                return new GroupState { Particles = new([continuous], []) };
+            }
+            public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
+            {
+                string mode = frame.Parameters.GetEnum("mode"), node = frame.Parameters.GetText("node");
+                GroupGeometrySample? group = null;
+                foreach (var item in frame.GroupGeometry)
+                    if (item.Target.NodeId.Value == node) { group = item; break; }
+                if (group is null) throw new InvalidOperationException("Group not found: " + node);
+                var basis = group.BaseWorldMatrix;
+                Affine2 inverse;
+                if (!basis.TryInverse(out inverse)) throw new InvalidOperationException("Real invertible group required");
+                var local = mode == "neutral" ? Affine2.Identity
+                    : mode == "localMove" ? Affine2.Translation(10, 20)
+                    : mode == "localBack" ? Affine2.Translation(-10, -20)
+                    : mode == "tiny" ? new Affine2(1e-30, 0, 0, 1e-30, 0, 0)
+                    : mode == "large" ? new Affine2(1e12, 1, 1e12, 2, 0, 0)
+                    : mode == "native" ? new Affine2(1e38, 0, 0, 1e38, 0, 0)
+                    : mode == "affine" ? new Affine2(.95, .15, -.2, 1.05, 7, -4)
+                    : inverse.Compose(Affine2.Translation(mode == "back" ? -30 : 30,
+                        mode == "back" ? 16 : -16)).Compose(basis);
+                var target = mode == "stale" ? new GroupTarget(new NodeId("old"))
+                    : mode == "text" ? new GroupTarget(frame.Presentations.LinesInBinding[0].NodeId) : group.Target;
+                output.AppendTransform(new TextTarget.Group(target), local);
+                if (mode == "combined")
+                {
+                    FrameLine? line = null;
+                    foreach (var item in frame.Presentations.LinesInBinding)
+                        if (item.LineId.Value == "first") { line = item; break; }
+                    if (line is null) throw new InvalidOperationException("Line first not found");
+                    output.AppendTransform(new TextTarget.Line(line.Target), Affine2.Translation(4, -2));
+                    foreach (var token in frame.Presentations.TokensInBinding)
                     {
-                        var line = frame.Presentations.LinesInBinding.Single(item => item.LineId.Value == "first");
-                        output.Transforms.ApplyAffine(line.Target, Affine2.Translation(4, -2));
-                        foreach (var token in frame.Presentations.TokensInBinding.Where(item => item.LineId == line.LineId))
-                            output.Transforms.ScaleTokenFamily(token.WithRuby, 1.2, Pivot.BaseAdvanceCenter);
-                        foreach (var mark in frame.Presentations.MarksInBinding.Where(item => item.TargetLine.LineId == line.LineId))
-                            output.Transforms.ApplyAffine(mark.Target, Affine2.Translation(2, 3));
+                        if (token.LineId != line.LineId) continue;
+                        foreach (var geom in frame.Geometry)
+                            if (geom.WithRuby == token.WithRuby)
+                                output.AppendTransform(token.WithRuby, Affine2.ScaleAt(1.2, geom.BaseGeometry.AdvanceBounds.Center));
                     }
-                }
-                public override void EvaluateEmitters(EmissionFrameContext frame, EmitterWriter output)
-                {
-                    if (frame.Parameters.GetEnum("mode") != "particle") return;
-                    output.Set(new("cursor"), new() { AnchorMode = CursorAnchorMode.AdvanceCenter, RatePerSecond = 10,
-                        LifetimeUs = 300000, SizePx = 4, Color = new(1,0,0,1), SeedStreamKey = "group" });
+                    foreach (var mark in frame.Presentations.MarksInBinding)
+                        if (mark.TargetLine.LineId == line.LineId)
+                            output.AppendTransform(new TextTarget.Mark(mark.Target), Affine2.Translation(2, 3));
                 }
             }
-            """)]);
-        Assert.True(result.Succeeded, string.Join('\n', result.Diagnostics)); return result;
-    });
+        }
+        """,
+        [Fx.V2.CapabilityNames.GroupAffine, Fx.V2.CapabilityNames.LineAffine, Fx.V2.CapabilityNames.TokenAffine, Fx.V2.CapabilityNames.MarkAffine, Fx.V2.CapabilityNames.ParticlesContinuous, Fx.V2.CapabilityNames.VisualsDots],
+        entryType: "GroupProbe",
+        exportId: "group-probe",
+        parameters: new System.Text.Json.Nodes.JsonArray(
+            V2RenderPackageHelper.EnumParameter("mode", "move", "move", "back", "neutral", "localMove", "localBack", "tiny", "large", "affine", "native", "stale", "text", "combined", "particle"),
+            V2RenderPackageHelper.TextParameter("node", "")),
+        outputs:
+        [
+            V2RenderPackageHelper.Output("group", "VisualTransform", "group", Fx.V2.CapabilityNames.GroupAffine),
+            V2RenderPackageHelper.Output("line", "VisualTransform", "line", Fx.V2.CapabilityNames.LineAffine),
+            V2RenderPackageHelper.Output("token", "VisualTransform", "tokenFamily", Fx.V2.CapabilityNames.TokenAffine),
+            V2RenderPackageHelper.Output("mark", "VisualTransform", "textMark", Fx.V2.CapabilityNames.MarkAffine),
+            new System.Text.Json.Nodes.JsonObject
+            {
+                ["id"] = "cursor",
+                ["kind"] = "Overlay",
+                ["target"] = "canvas",
+                ["requires"] = new System.Text.Json.Nodes.JsonArray(Fx.V2.CapabilityNames.ParticlesContinuous, Fx.V2.CapabilityNames.VisualsDots),
+                ["dependsOn"] = new System.Text.Json.Nodes.JsonArray(),
+            },
+        ],
+        emitters: new System.Text.Json.Nodes.JsonArray(new System.Text.Json.Nodes.JsonObject
+        {
+            ["id"] = "cursor", ["kind"] = "cursor", ["maxLifetimeUs"] = 500_000,
+        }),
+        packageId: "demo.group.transform.v2"));
     private static ProjectSnapshot Snapshot(bool slots = true, bool fixedParent = false)
     {
         var project = LeadInFixture.Create(slots); var tree = project.LyricPresentation; var program = tree.FindProgram("primary")!;
@@ -71,10 +115,16 @@ public sealed partial class PreparedGroupTransformTests
     private static async Task<ImmutableArray<CompiledFrameEffect>> Effects(ProjectSnapshot snapshot, string[] modes,
         Fx.EffectBinding? binding = null, string? node = null)
     {
-        var artifact = await Probe.Value;
-        return [.. modes.Select((mode, index) => new CompiledFrameEffect(new("group-" + index), artifact, "GroupProbe",
-            new(new Dictionary<string, Fx.ParameterValue> { ["mode"] = new Fx.ParameterValue.Choice(mode), ["node"] = new Fx.ParameterValue.Choice(node ?? Root(snapshot)) }),
-            binding ?? new Fx.EffectBinding.Node(new(Root(snapshot)), true), Fx.EffectCapabilities.Transforms))];
+        var package = await Probe.Value;
+        return [.. modes.Select((mode, index) => package.CreateEffect("group-probe", new("group-" + index),
+            binding ?? new Fx.EffectBinding.Node(new(Root(snapshot)), true), 0) with
+        {
+            Parameters = new Fx.ParameterValues(new Dictionary<string, Fx.ParameterValue>
+            {
+                ["mode"] = new Fx.ParameterValue.Choice(mode),
+                ["node"] = new Fx.ParameterValue.Text(node ?? Root(snapshot)),
+            }),
+        })];
     }
     private static PureFrameSourceFactory Factory(ImmutableArray<CompiledFrameEffect> effects)
         => new(effects, Fingerprint, static () => new SkiaRenderPipeline());
@@ -156,7 +206,7 @@ public sealed partial class PreparedGroupTransformTests
         var first = await source.PrepareAsync(12_500_000, Fx.OutputMode.Transparent, target);
         var basis = first.Scene.GroupGeometries.Single(item => item.Target.NodeId.Value == Root(snapshot)).BaseWorldMatrix;
         Assert.True(basis.TryInverse(out var inverse));
-        Assert.Equal(inverse.Compose(Fx.Affine2.Translation(30, -16)).Compose(basis).Compose(new(.95, .15, -.2, 1.05, 7, -4)), Assert.Single(first.GroupTransforms).LocalMatrix);
+        Assert.Equal(new Fx.Affine2(.95, .15, -.2, 1.05, 7, -4).Compose(inverse.Compose(Fx.Affine2.Translation(30, -16)).Compose(basis)), Assert.Single(first.GroupTransforms).LocalMatrix);
         await source.PrepareAsync(18_000_000, Fx.OutputMode.Transparent, target);
         var again = await source.PrepareAsync(first.TimeUs, Fx.OutputMode.Transparent, target); var independent = await other.PrepareAsync(first.TimeUs, Fx.OutputMode.Transparent, target);
         using SkiaRenderPipeline renderer = new();

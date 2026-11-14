@@ -1,0 +1,313 @@
+# GitHub-hosted CI for the suites that do not need a GPU, a display, or a
+# pre-published self-contained Server.
+#
+# Runner: ubuntu-24.04 (Linux x64). The desktop GPU path, Linux process
+# guards, and several tests call /usr/bin/ffmpeg, /bin/sleep, and
+# /usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc. Windows-only branches
+# are already guarded with OperatingSystem.IsWindows(). A windows-latest
+# job would cost twice the minutes and still could not run those paths.
+#
+# GPU: hosted runners have no Vulkan device. Tests marked Category=GpuSmoke
+# are excluded (they only assert real Vulkan pixels and return immediately
+# unless MAKO_GPU_SMOKE=1). Other tests keep running: their CPU / Skia cases
+# execute, and an inline gpu=true case returns before creating a device when
+# MAKO_GPU_SMOKE is unset. That variable is intentionally not set here.
+# MAKO_GPU_SMOKE=1 on a GPU-less runner would fail those cases.
+#
+# PublishedServer: RubyTimelineTransportTests needs a self-contained Server
+# and Worker at artifacts/ttml-ruby/publish (or MAKO_RUBY_HTTP_*_PATH). That
+# tree is gitignored and is not produced by `dotnet build` of the solution.
+# The three facts are excluded so a missing publish is not reported as a
+# product failure. See the PR description for the list.
+#
+# Not in this workflow:
+# - frontend `test:integration` starts a real Server from `.local/backend-dist`
+#   produced by `pnpm build` (self-contained publish). It is not `vitest` alone.
+# - Electron windows are not launched. desktop/gpu-preview/*.test.cjs mocks
+#   Electron, so xvfb is unnecessary.
+# - scripts that drive a live GPU preview (pnpm preview:p0, smoke:desktop).
+
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - "dev/**"
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_NOLOGO: "1"
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1"
+  MSBUILDDISABLENODEREUSE: "1"
+  # Do not opt into Vulkan. Empty is not "1"; the gates compare against "1".
+  MAKO_GPU_SMOKE: ""
+
+jobs:
+  backend:
+    name: backend (build + xUnit)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install ffmpeg, fonts, and fontconfig
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          sudo DEBIAN_FRONTEND=noninteractive apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ffmpeg \
+            fontconfig \
+            libfontconfig1 \
+            fonts-dejavu-core \
+            fonts-noto-cjk \
+            fonts-noto-color-emoji
+          font="$(find /usr/share/fonts -name 'NotoSansCJK-Regular.ttc' -print -quit)"
+          if [[ -z "${font}" ]]; then
+            echo "NotoSansCJK-Regular.ttc was not installed. Font files:"
+            find /usr/share/fonts -iname '*noto*' -o -iname '*cjk*' | sort
+            exit 1
+          fi
+          sudo mkdir -p /usr/share/fonts/noto-cjk
+          if [[ "${font}" != /usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc ]]; then
+            sudo ln -sfn "${font}" /usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc
+          fi
+          fc-cache -f
+          test -f /usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc
+          test -x /usr/bin/ffmpeg
+          test -x /usr/bin/ffprobe
+          fc-list : family | grep -F 'Noto Sans CJK SC'
+          fc-list : family | grep -F 'Noto Color Emoji'
+          fc-list : family | grep -F 'DejaVu Sans'
+          echo "ffmpeg: $(ffmpeg -version | head -n 1)"
+          echo "noto: ${font}"
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: backend/global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-net10-${{ hashFiles('backend/**/*.csproj', 'backend/**/*.props', 'backend/global.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-net10-
+
+      - name: Show SDK
+        run: dotnet --info
+
+      - name: Build
+        run: dotnet build MakoKaraGenerator.slnx -c Debug --nologo
+
+      - name: Test
+        run: |
+          set -euo pipefail
+          # -m:1 runs one test project at a time. Several Skia projects allocate
+          # full frames; overlapping them on a 4-core runner is the likely OOM.
+          # Category!=GpuSmoke drops only the Vulkan-only facts/theories.
+          # Category!=PublishedServer drops RubyTimelineTransportTests, which
+          # asserts a pre-published self-contained Server/Worker exists.
+          # Cases that merely return when MAKO_GPU_SMOKE is unset still run.
+          dotnet test MakoKaraGenerator.slnx -c Debug --no-build --nologo -m:1 \
+            --filter 'Category!=GpuSmoke&Category!=PublishedServer' \
+            --logger 'console;verbosity=minimal' \
+            --logger 'trx;LogFileName=results.trx'
+
+      - name: Summarize test results
+        if: always()
+        working-directory: ${{ github.workspace }}
+        run: |
+          python3 - <<'PY'
+          import glob
+          import os
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          ns = {"t": "http://microsoft.com/schemas/VisualStudio/TeamTest/2010"}
+          rows = []
+          totals = {"total": 0, "passed": 0, "failed": 0, "skipped": 0}
+          for path in sorted(glob.glob("backend/**/TestResults/results.trx", recursive=True)):
+              root = ET.parse(path).getroot()
+              counters = root.find("t:ResultSummary/t:Counters", ns)
+              if counters is None:
+                  continue
+              project = Path(path).parents[1].name
+              counts = {key: int(counters.get(key, "0")) for key in ("total", "passed", "failed")}
+              # xUnit reports skipped tests as notExecuted.
+              counts["skipped"] = int(counters.get("notExecuted", "0"))
+              rows.append((project, counts))
+              for key in totals:
+                  totals[key] += counts[key]
+          lines = ["### Backend xUnit", ""]
+          if not rows:
+              lines.append("No TRX files were written (the build or test host failed before a project finished).")
+          else:
+              lines.append("| Project | Total | Passed | Failed | Skipped |")
+              lines.append("| --- | ---: | ---: | ---: | ---: |")
+              for project, counts in rows:
+                  lines.append(f"| {project} | {counts['total']} | {counts['passed']} | {counts['failed']} | {counts['skipped']} |")
+              lines.append(f"| **Total** | **{totals['total']}** | **{totals['passed']}** | **{totals['failed']}** | **{totals['skipped']}** |")
+          lines += [
+              "",
+              "Excluded from discovery, so they are not in the counts above:",
+              "",
+              "- `Category=GpuSmoke` (needs a Vulkan device; `MAKO_GPU_SMOKE` is unset)",
+              "- `Category=PublishedServer` (needs a self-contained publish that `dotnet build` does not produce)",
+          ]
+          text = "\n".join(lines) + "\n"
+          print(text)
+          summary = os.environ.get("GITHUB_STEP_SUMMARY")
+          if summary:
+              with open(summary, "a", encoding="utf-8") as handle:
+                  handle.write(text)
+          PY
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-trx
+          path: backend/**/TestResults/results.trx
+          if-no-files-found: ignore
+          retention-days: 14
+
+  frontend:
+    name: frontend (typecheck + vitest unit)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Root package.json engines is ">=26". frontend/ has no engines field;
+      # its @types/node is ^26 and the app docs pin Node 26. pnpm 11.7.0 is the
+      # version recorded in the root README. The lockfile that installs
+      # dependencies is frontend/pnpm-lock.yaml (lockfileVersion 9).
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Show toolchain
+        run: |
+          node --version
+          pnpm --version
+
+      - name: Install
+        run: pnpm --dir frontend install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm --dir frontend typecheck
+
+      # Unit tests use a fake fetch and do not start Server.
+      # test:integration is intentionally not run: each file calls
+      # startTestBackend(), which requires a self-contained publish under
+      # .local/backend-dist from `pnpm build`.
+      - name: Vitest unit
+        run: pnpm --dir frontend test:unit
+
+  node:
+    name: node tests (desktop + app)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 26
+
+      - name: Show Node
+        run: node --version
+
+      # These files mock Electron or only parse launch strings. They do not
+      # open a window, so xvfb and the Electron download are not required.
+      # ordinary-exec.test.cjs checks Linux scheduler policy 0 / nice 0.
+      - name: desktop/gpu-preview
+        run: node --test desktop/gpu-preview/*.test.cjs
+
+      - name: desktop host
+        run: node --test tests/desktop-host.test.mjs
+
+      - name: launcher
+        run: node --experimental-test-module-mocks --test tests/launcher.test.mjs
+
+      - name: gpu preview P3 math
+        run: node --test scripts/gpu-preview-p3.test.mjs
+
+      - name: gpu worker pool adapter
+        run: node --test backend/tools/backend-gpu-worker-pool-acceptance/adapter-factory.test.cjs
+
+  contract:
+    name: HTTP contract (Release metadata + validate)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Python venv support
+        working-directory: ${{ github.workspace }}
+        run: |
+          sudo DEBIAN_FRONTEND=noninteractive apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3-venv python3-pip
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: backend/global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-net10-${{ hashFiles('backend/**/*.csproj', 'backend/**/*.props', 'backend/global.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-net10-
+
+      - name: Python environment
+        run: |
+          set -euo pipefail
+          python3 -m venv artifacts/api-contract/venv
+          artifacts/api-contract/venv/bin/python -m pip install --disable-pip-version-check -r tools/backend-api-contract/requirements.txt
+
+      # README: build the offline metadata tool in Release, export CLR facts,
+      # then freeze.py in check mode (no --write) and validate.py. freeze.py
+      # fails if the generated OpenAPI / index / examples / manifest bytes
+      # differ from the committed files.
+      - name: Release metadata and contract check
+        run: |
+          set -euo pipefail
+          dotnet build tools/backend-api-contract/ContractMetadata.csproj -c Release --nologo
+          mkdir -p artifacts/api-contract
+          tools/backend-api-contract/bin/Release/net10.0/ContractMetadata artifacts/api-contract/clr-metadata.json
+          python3 tools/backend-api-contract/freeze.py --metadata artifacts/api-contract/clr-metadata.json
+          artifacts/api-contract/venv/bin/python tools/backend-api-contract/validate.py --report artifacts/api-contract/validation.json

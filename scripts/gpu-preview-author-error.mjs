@@ -12,22 +12,27 @@ const {values}=parseArgs({options:{bootstrap:{type:'string'},desktop:{type:'stri
 const root=resolve(import.meta.dirname,'..'),output=resolve(values.output??join(root,'.local/gpu-preview-author-error',String(Date.now())));
 assert.ok(output.startsWith(join(root,'.local')+sep));
 await mkdir(output,{recursive:true,mode:0o700});
-const source=`using MakoKaraGenerator.Scripting;
-public sealed class AcceptanceAuthorError : EffectBase
+const source=`using System;
+using MakoKaraGenerator.Scripting;
+using MakoKaraGenerator.Scripting.V2;
+public sealed class AcceptanceAuthorError : IPureKaraokeEffect, IPureVisualEffect
 {
-    public override void Evaluate(FrameContext frame, FrameWriter output)
+    public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
+    public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output) { }
+    public void EvaluateVisuals(in VisualFrame frame, PreparedEffect data, VisualOutput output)
     {
         if (frame.TimeUs >= 1000000)
-            frame.Diagnostics.Report(DiagnosticSeverity.Error, "AcceptanceAuthorError", "finite owned author Error", new SourceLocation("src/AcceptanceAuthorError.cs", 7, 13));
+            throw new InvalidOperationException("AcceptanceAuthorError: finite owned author Error");
     }
 }
 `;
 const sha256=bytes=>createHash('sha256').update(bytes).digest('hex');
-const manifest={packageVersion:2,sdkVersion:'1.0.0',shaderProfile:'skia-raster-3.119.4-v1',
-  packageId:'acceptance.author-error',name:'Owned author Error acceptance',version:'1.0.0',
+const manifest={packageVersion:3,sdkVersion:'2.0.0',shaderProfile:'skia-ganesh-3.119.4-v2',
+  packageId:'acceptance.author-error',name:'Owned author Error acceptance',version:'2.0.0',
   files:[{path:'src/AcceptanceAuthorError.cs',role:'csharp',sha256:sha256(source)}],parameters:[],
+  requires:[],lineExit:{durationUs:0},emitters:[],
   exports:[{id:'author-error',kind:'controller',name:'Owned author Error',entryType:'AcceptanceAuthorError',parameters:[],bindingKinds:['tokens'],
-    outputs:[{id:'declared',kind:'VisualTransform',target:'tokenFamily',requires:[],dependsOn:[]}]}]};
+    outputs:[{id:'declared',kind:'Overlay',target:'canvas',requires:[],dependsOn:[]}]}]};
 const archive=join(output,'author-error.mkfx');
 await writeFile(join(output,'AcceptanceAuthorError.cs'),source);
 await writeFile(join(output,'package-manifest.json'),JSON.stringify(manifest,null,2)+'\n');
@@ -41,7 +46,7 @@ if(values.inflight)assert.equal(desktop.slowConsumerMs,1000,'Inflight drain acce
 const base=new URL(bootstrap.baseUrl);assert.equal(base.hostname,'127.0.0.1');assert.equal(desktop.hostInstanceId,bootstrap.hostInstanceId);
 const report={schemaVersion:1,startedAt:new Date().toISOString(),probeSourceCommit:execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim(),
   sessionName:desktop.sessionName,scope:'real author Evaluate Error, exact production lease completion, stream drain and App survival; no timing or display claim',
-  readbacks:'none',inflight:values.inflight===true,fixture:{sourceSha256:sha256(source),archiveSha256:sha256(await readFile(archive)),errorCode:'AcceptanceAuthorError',failureAtTimeUs:1000000},checks:[]};
+  readbacks:'none',inflight:values.inflight===true,fixture:{sourceSha256:sha256(source),archiveSha256:sha256(await readFile(archive)),errorCode:'ScriptExecutionFailed',failureAtTimeUs:1000000},checks:[]};
 const dist=dirname(dirname(desktop.brokerAddon)),deploymentBytes=await readFile(join(dist,'deployment.json'));
 const deployment=JSON.parse(deploymentBytes);report.publishedDeployment={dist:dist.slice(root.length+1),sourceCommit:deployment.sourceCommit,sourceDirty:deployment.sourceDirty,manifestSha256:sha256(deploymentBytes)};
 const metadata=()=>({requestId:randomUUID().replaceAll('-',''),hostInstanceId:bootstrap.hostInstanceId,validUntilUtc:new Date(Date.now()+90000).toISOString()});
@@ -97,7 +102,7 @@ try{
       mainOutstanding:report.waitingForNativeCompletion.outstanding,workerOutstanding:report.waitingForNativeCompletion.workerState.outstanding});
   }
   report.failureEvent=await until(async()=>{const events=await page.eval('window.__authorErrorEvents');return events.find(e=>e.type==='failed'&&e.code==='WorkerRuntimeDiagnosticError');});
-  assert.ok(report.failureEvent.diagnostics.errorCount>=1);assert.ok(report.failureEvent.diagnostics.items.some(item=>item.code==='AcceptanceAuthorError'));
+  assert.ok(report.failureEvent.diagnostics.errorCount>=1);assert.ok(report.failureEvent.diagnostics.items.some(item=>item.code==='ScriptExecutionFailed'));
   report.afterFailure=await sample();assert.equal(report.afterFailure.outstanding,0);assert.equal(report.afterFailure.rendererGate.detached,true);
   if(values.inflight){
     const matching=report.afterFailure.samples.filter(frame=>frame.streamId===stream.streamId&&frame.controlSeq===1&&frame.drawn===true&&frame.provider==='runtime');

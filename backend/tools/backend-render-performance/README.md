@@ -77,10 +77,10 @@ python3 tools/backend-render-performance/analyze.py --output /path/to/new-eviden
 | 场景 | 固定输入 |
 | --- | --- |
 | `lyrics` | 纯歌词，空效果集合。 |
-| `csharp` | `samples/ScriptEffects/WordEmphasis` 的 `word-emphasis` 控制器，工程绑定，包默认参数。 |
-| `graph` | `samples/ScriptEffects/LineGlitch` 的 `line-glitch` 图，工程绑定，包默认参数。 |
-| `material` | `samples/ScriptEffects/CustomInk` 的 `custom-ink` 材质用于未唱填充，包默认参数。 |
-| `particle` | `samples/ScriptEffects/CursorTrail` 的 `cursor-trail` 控制器，工程绑定，包默认参数。 |
+| `csharp` | `samples/ScriptEffectsV2/WordEmphasis` 的 `word-emphasis` 控制器，工程绑定，包默认参数。 |
+| `graph` | `samples/ScriptEffectsV2/LineGlitch` 的 `line-glitch` 图，工程绑定，包默认参数。 |
+| `material` | `samples/ScriptEffectsV2/CustomInk` 的 `custom-ink` 材质用于未唱填充，包默认参数。 |
+| `particle` | `samples/ScriptEffectsV2/CursorTrail` 的 `cursor-trail` 控制器，工程绑定，包默认参数。 |
 | `combined` | 顺序装配以上 WordEmphasis、LineGlitch、CustomInk 和 CursorTrail，未唱填充使用 CustomInk。 |
 
 包从其完整官方样例目录读取，包括清单和清单声明的源码、图、shader 等资源；实例采用项目订阅。输出记录包 ID、revision、效果输入指纹以及 fixture 描述的 SHA-256；后者仅覆盖输出中的描述，不是完整源码树指纹。六场景的实际效果贡献应以同设置反事实运行核对，不能只根据实例存在推断像素贡献。

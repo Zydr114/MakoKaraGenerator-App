@@ -125,7 +125,7 @@ def prepare(args):
     write_json(output / "prepare.json", {
         "schema": "render-performance-source-v1", "createdUtc": stamp(), "sourceCommit": commit, "sourceSubdirectory": prefix,
         "toolCommit": git("rev-parse", "HEAD"), "toolWorkingTreeStatus": git("status", "--short", "--", str(TOOL)),
-        "productionInputs": production, "sampleInputs": inventory(baseline / "samples" / "ScriptEffects"),
+        "productionInputs": production, "sampleInputs": inventory(baseline / "samples" / "ScriptEffectsV2"),
         "toolInputs": inventory(baseline / "tools" / TOOL.name), "toolTemplateInputs": inventory(TOOL),
         "factoryLayout": factory_layout, "instrumentedChanges": differences,
         "monitoringPolicy": MONITORING_POLICY,
@@ -155,7 +155,7 @@ def prepare_ab(args):
         sources[name] = {"commit": commit, "sourceSubdirectory": prefix, "productionInputs": production,
                          "factoryLayout": factory_layout, "toolInputs": generated_tool,
                          "toolChanges": tool_changes(template, generated_tool),
-                         "sampleInputs": inventory(root / "samples" / "ScriptEffects")}
+                         "sampleInputs": inventory(root / "samples" / "ScriptEffectsV2")}
         traced = output / "sources" / (name + "-instrumented")
         shutil.copytree(root, traced)
         subprocess.run([sys.executable, str(TOOL / "instrument.py"), "--source", str(traced),
@@ -202,7 +202,7 @@ def verify_ab_sources(output, preparation):
         if hashlib.sha256(patch).hexdigest() != instrumentation["patchSha256"] or patch != instrumentation["patch"].encode():
             raise ValueError(name + ": instrumentation patch mismatch")
         for root in (original, traced):
-            if inventory(root / "samples" / "ScriptEffects") != source["sampleInputs"] or inventory(root / "tools" / TOOL.name) != source["toolInputs"]:
+            if inventory(root / "samples" / "ScriptEffectsV2") != source["sampleInputs"] or inventory(root / "tools" / TOOL.name) != source["toolInputs"]:
                 raise ValueError(name + ": sample or tool inputs changed")
 
 

@@ -31,12 +31,18 @@ execFileSync('ffmpeg',['-v','error','-y','-f','lavfi','-i','color=c=red:s=320x18
 const header=Buffer.alloc(44),bytes=4*8000*2;header.write('RIFF');header.writeUInt32LE(36+bytes,4);header.write('WAVEfmt ',8);header.writeUInt32LE(16,16);header.writeUInt16LE(1,20);header.writeUInt16LE(1,22);header.writeUInt32LE(8000,24);header.writeUInt32LE(16000,28);header.writeUInt16LE(2,32);header.writeUInt16LE(16,34);header.write('data',36);header.writeUInt32LE(bytes,40);
 await writeFile(audio,Buffer.concat([header,Buffer.alloc(bytes)]));await writeFile(lyrics,'[00:00.00]GPU background validation\n[00:03.00]Finite owned fixture\n');
 
-// Same graph/controller semantics as tests/Shared/MixedEffectPackageFixture.
-const effectSource=`using MakoKaraGenerator.Scripting;
-public sealed class PackEffect : EffectBase {
- public override void Evaluate(FrameContext frame, FrameWriter output) {
+// Same graph/controller semantics as SDK v2 GraphController fixture.
+const effectSource=`using System.Collections.Generic;
+using MakoKaraGenerator.Scripting;
+using MakoKaraGenerator.Scripting.V2;
+public sealed class PackEffect : IPureKaraokeEffect {
+ public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
+ public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output) {
+  var binding = new GraphBindingValue(frame.Source.Resources.GetGraph("tint"),
+   new ParameterValues(new[] { KeyValuePair.Create<string, ParameterValue>("amount", new ParameterValue.Number(0.5)) }),
+   GraphUniformValues.Empty, GraphTransformValues.Empty);
   foreach (var line in frame.Presentations.LinesInBinding)
-   output.ImageEffects.Bind(line.Target, frame.Resources.GetGraph("tint"), new([new("amount",new ParameterValue.Number(0.5))]));
+   output.BindGraph(line.Target, binding);
  }
 }`;
 async function packageArchive(name,enabled){
@@ -48,9 +54,11 @@ async function packageArchive(name,enabled){
   const files={'src/PackEffect.cs':enabled?effectSource:effectSource.replace(/foreach[\s\S]*?\);/,'// no binding: same workshop scene counterfactual'),
     'graphs/probe.graph.json':JSON.stringify(graph),'shaders/probe.program.json':JSON.stringify({programVersion:1,source:'shaders/probe.sksl',profile:'skia-raster-3.119.4-v1',uniforms:[{name:'amount',type:'float'}],children:[{name:'original',type:'color'},{name:'background',type:'color'}]}),
     'shaders/probe.sksl':'uniform float amount; uniform shader original; uniform shader background; half4 main(float2 p) { half4 c=original.eval(p); half4 b=background.eval(p); return half4(b.rgb*c.a,c.a); }'};
-  const manifest={packageVersion:2,sdkVersion:'1.0.0',shaderProfile:'skia-raster-3.119.4-v1',packageId:'acceptance.background-'+name,name:'Owned background '+name,version:'1.0.0',
+  const manifest={packageVersion:3,sdkVersion:'2.0.0',shaderProfile:'skia-ganesh-3.119.4-v2',packageId:'acceptance.background-'+name,name:'Owned background '+name,version:'2.0.0',
     files:Object.entries(files).map(([path,content])=>({path,role:path.endsWith('.cs')?'csharp':path.endsWith('.graph.json')?'graph':path.endsWith('.program.json')?'shaderProgram':'shader',sha256:sha(content)})),
-    parameters:[{id:'amount',type:'number',default:.5,min:0,max:1,label:'Amount'}],exports:[{id:'controller',kind:'controller',name:'Controller',entryType:'PackEffect',parameters:['amount'],bindingKinds:['project','branch','lines','tokens','clips','node'],outputs:[{id:'color',kind:'ImageGraph',target:'line',requires:[],dependsOn:[]}]},
+    parameters:[{id:'amount',type:'number',default:.5,min:0,max:1,label:'Amount'}],
+    requires:['image.graph'],lineExit:{durationUs:0},emitters:[],
+    exports:[{id:'controller',kind:'controller',name:'Controller',entryType:'PackEffect',parameters:['amount'],bindingKinds:['project','branch','lines','tokens','clips','node'],outputs:[{id:'color',kind:'ImageGraph',target:'line',requires:[],dependsOn:[]}]},
     {id:'tint',kind:'graph',name:'Tint',graph:'graphs/probe.graph.json',parameters:['amount'],bindingKinds:['project','branch','lines','tokens','clips','node'],outputs:[{id:'color',kind:'ImageGraph',target:'line',requires:[],dependsOn:[],bypass:{kind:'graphInput',input:'input:original',mapping:'identity'}}]}]};
   const path=join(output,name+'.mkfx');
   execFileSync('python3',['-c','import json,sys,zipfile; x=json.load(sys.stdin); z=zipfile.ZipFile(x["path"],"w",zipfile.ZIP_DEFLATED); z.writestr("manifest.json",json.dumps(x["manifest"])); [z.writestr(k,v) for k,v in x["files"].items()]; z.close()'],{input:JSON.stringify({path,manifest,files})});

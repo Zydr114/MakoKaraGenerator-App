@@ -7,7 +7,6 @@ using System.Text.Json;
 using MakoKaraGenerator.Backend.Contracts;
 using MakoKaraGenerator.Backend.Rendering;
 using MakoKaraGenerator.Rendering.Skia;
-using MakoKaraGenerator.TestSupport;
 using MakoKaraGenerator.Core.Effects;
 using MakoKaraGenerator.Core.Persistence;
 using MakoKaraGenerator.Core.Projects;
@@ -57,9 +56,10 @@ if (args.Length == 2 && args[0] == "generate")
         else if (kind is "image-pages" or "image-over-budget") basis = CustomWarnings(kind == "image-pages" ? 65 : 270);
         else if (kind == "image-envelope-budget")
         {
-            var files = EffectPackageFixture.Files(); files["owned-padding.bin"] = new byte[1536 * 1024];
-            var contents = EffectPackageContents.Create(EffectPackageFixture.Bytes(EffectPackageFixture.Manifest(files)), EffectPackageFixture.Inputs(files), EffectPackageFixture.Profile);
-            basis = FixtureSources.Fingerprint(basis with { Effects = new([contents], [basis.Effects.Instances[0] with { PackageId = contents.PackageId, Revision = contents.Revision }]) });
+            basis = FixtureSources.CustomWarningsPackage(0, new(StringComparer.Ordinal)
+            {
+                ["owned-padding.bin"] = new byte[1536 * 1024],
+            });
         }
         if (kind.StartsWith("runaway-", StringComparison.Ordinal))
         {
@@ -117,7 +117,7 @@ var factory = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(Ap
         try { return new MemoryImageBackgroundFrameSourceResolver(logicalPath, imageBytes); }
         catch (ImageBackgroundDecodeException failure)
         { throw new RenderSessionFailureException(failure.Code == "PackageImageBudgetExceeded" ? "PackageImageBudgetExceeded" : "PackageImageDecodeFailed", failure.Message, innerException: failure); }
-    });
+    }, renderBackend: "gpu");
 int frames = int.Parse(args[3], CultureInfo.InvariantCulture);
 List<RuntimeValidationProgress> progress = [];
 var result = await new RuntimeFrameValidator(factory).ValidateAsync(snapshot, new(frames), new InlineProgress(progress));
@@ -186,14 +186,7 @@ static void WriteImage(string path, bool alternate)
                     runtime.PackageIdentity.ExportId)), "runtime"));
     }
 
-static ProjectSnapshot CustomWarnings(int count)
-{
-    string source = "using MakoKaraGenerator.Scripting; public sealed class PackEffect:EffectBase { private bool reported; public override void Evaluate(FrameContext frame,FrameWriter output) { if(reported)return;reported=true; for(int i=0;i<" + count.ToString(CultureInfo.InvariantCulture) + ";i++) frame.Diagnostics.Report(DiagnosticSeverity.Warning,\"ActualPageWarning\",\"Actual warning \"+i); } }";
-    var files = EffectPackageFixture.Files(); files["src/PackEffect.cs"] = Encoding.UTF8.GetBytes(source);
-    var package = EffectPackageContents.Create(EffectPackageFixture.Bytes(EffectPackageFixture.Manifest(files)), EffectPackageFixture.Inputs(files), EffectPackageFixture.Profile);
-    var basis = FixtureSources.Create("scale");
-    return FixtureSources.Fingerprint(basis with { Effects = new([package], [basis.Effects.Instances[0] with { PackageId = package.PackageId, Revision = package.Revision }]) });
-}
+static ProjectSnapshot CustomWarnings(int count) => FixtureSources.CustomWarningsPackage(count);
 
 static void WriteSolid(string path, int width, int height)
 {

@@ -770,7 +770,7 @@ class StyleProbe(base.TokenProbe):
         form. Revision follows EffectPackageContents length-prefixed hashing.
         No controller or package shader is compiled/executed by this fixture.
         """
-        source = ROOT / 'samples/ScriptEffects/GlassInk'
+        source = ROOT / 'samples/ScriptEffectsV2/GlassInk'
         manifest = json.loads((source / 'manifest.json').read_text())
         def labels(value):
             if isinstance(value, dict):
@@ -793,7 +793,7 @@ class StyleProbe(base.TokenProbe):
         for name, content_bytes in sorted(files.items()):
             add(name.encode()); add(struct.pack('<q', len(content_bytes))); add(hashlib.sha256(content_bytes).digest())
         revision = 'sha256:' + digest.hexdigest()
-        self.check(revision == 'sha256:9be1d3a0096cf2351ad5196e72e054ed7e71019edbdad69c44c4354c3234f279',
+        self.check(revision == 'sha256:b6a192a71f2b04890a68195354aba34967caae6abbb32fa279bb998b603f5fab',
             'owned sample closure revision matches independent published-Core validation')
         package = directory / 'effects/packages' / revision[7:]; package.mkdir(parents=True)
         (package / 'manifest.json').write_bytes(data)

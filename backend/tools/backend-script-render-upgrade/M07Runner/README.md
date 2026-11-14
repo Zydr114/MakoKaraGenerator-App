@@ -1,8 +1,7 @@
 # M07 有限采样工具
 
 本工具只生成本轮本机的有限结构化／像素及耗时证据，不是 M07 完整验收或通用性能基准。
-每次进程运行一个固定包；可比较 v1／v2 WordEmphasis、RepeatEmphasis，另采样 v2 ClusterExit。
-v1 ClusterExit 在入口明确拒绝。
+每次进程运行一个 `ScriptEffectsV2` 固定包（`v2 WordEmphasis`、`RepeatEmphasis`、`ClusterExit`）；SDK v1 已于 M14 移除。
 
 ## 输入矩阵
 
@@ -35,9 +34,7 @@ dotnet build backend/tools/backend-script-render-upgrade/M07Runner/M07Runner.csp
 参考程序集和 SDK 随项目引用复制到 Runner 输出目录，运行不读取开发机参考程序集作为替代。
 
 ```bash
-dotnet backend/tools/backend-script-render-upgrade/M07Runner/bin/Release/net10.0/M07Runner.dll backend v1 WordEmphasis /tmp/m07-run-001/v1-word.json 3
 dotnet backend/tools/backend-script-render-upgrade/M07Runner/bin/Release/net10.0/M07Runner.dll backend v2 WordEmphasis /tmp/m07-run-001/v2-word.json 3
-dotnet backend/tools/backend-script-render-upgrade/M07Runner/bin/Release/net10.0/M07Runner.dll backend v1 RepeatEmphasis /tmp/m07-run-001/v1-repeat.json 3
 dotnet backend/tools/backend-script-render-upgrade/M07Runner/bin/Release/net10.0/M07Runner.dll backend v2 RepeatEmphasis /tmp/m07-run-001/v2-repeat.json 3
 dotnet backend/tools/backend-script-render-upgrade/M07Runner/bin/Release/net10.0/M07Runner.dll backend v2 ClusterExit /tmp/m07-run-001/v2-exit.json 3
 ```

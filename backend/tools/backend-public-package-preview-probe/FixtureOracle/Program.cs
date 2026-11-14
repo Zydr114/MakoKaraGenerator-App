@@ -14,7 +14,6 @@ using MakoKaraGenerator.Media;
 using MakoKaraGenerator.Rendering;
 using MakoKaraGenerator.Runtime.Hosting;
 using MakoKaraGenerator.Scripting;
-using MakoKaraGenerator.TestSupport;
 using PublicPackagePreviewProbe;
 using SkiaSharp;
 
@@ -64,7 +63,7 @@ Project projectInput = ProjectStore.Load(saved).Project ?? throw new InvalidOper
 ProjectSnapshot snapshot = ProjectSnapshot.FromProject(projectInput);
 if (args[7] != "none") snapshot = FixtureSources.WithoutContribution(snapshot, args[7]);
 using var videos = new FfmpegVideoFrameProvider();
-var factory = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), prefix + "-cache"), videos, ReplayReason.Initial);
+var factory = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), prefix + "-cache"), videos, ReplayReason.Initial, renderBackend: "gpu");
 byte[] sourceBytes = snapshot.Effects.Packages.IsEmpty ? StaticProjectSnapshotCodec.Encode(snapshot) : PackageProjectSnapshotCodec.Encode(snapshot);
 int index = 0;
 try
@@ -138,14 +137,7 @@ static object Material(RenderMaterialDiagnostic value) => new
         _ => throw new InvalidOperationException("Unknown actual material owner."),
     },
 };
-static ProjectSnapshot CustomWarnings(int count)
-{
-    string source = "using MakoKaraGenerator.Scripting; public sealed class PackEffect:EffectBase { private bool reported; public override void Evaluate(FrameContext frame,FrameWriter output) { if(reported)return;reported=true; for(int i=0;i<" + count.ToString(CultureInfo.InvariantCulture) + ";i++) frame.Diagnostics.Report(DiagnosticSeverity.Warning,\"ActualPageWarning\",\"Actual warning \"+i); } }";
-    var files = EffectPackageFixture.Files(); files["src/PackEffect.cs"] = Encoding.UTF8.GetBytes(source);
-    var package = EffectPackageContents.Create(EffectPackageFixture.Bytes(EffectPackageFixture.Manifest(files)), EffectPackageFixture.Inputs(files), EffectPackageFixture.Profile);
-    var basis = FixtureSources.Create("scale");
-    return FixtureSources.Fingerprint(basis with { Effects = new([package], [basis.Effects.Instances[0] with { PackageId = package.PackageId, Revision = package.Revision }]) });
-}
+static ProjectSnapshot CustomWarnings(int count) => FixtureSources.CustomWarningsPackage(count);
 internal static class OracleJson
 {
     internal static readonly JsonSerializerOptions Options = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase,

@@ -27,7 +27,7 @@ python3 tools/backend-repository-hygiene-probe/probe.py \
 优先拒绝、严格整数拒绝的原文案及 field，以及合法整数／未知查询参数的既有策略。
 
 同一服务生命周期还运行一个有限的两库保存／重载切片：使用 tracked 的
-`samples/ScriptEffects/WordEmphasis` 完整包原字节，公开上传并检查文件清单；个人脚本配置库和
+`samples/ScriptEffectsV2/WordEmphasis` 完整包原字节，公开上传并检查文件清单；个人脚本配置库和
 个人模板库各自经历 create、旧 revision 的409拒绝（拒绝前后完整目录 inventory 字节相同）、replace，
 读取完整配置／模板定义、包闭包、入口 SHA 与全部包文件。随后正常停机，以同一个 profile 启动新 host
 和新 client，重新读取两库并逐字段、逐文件核对。该切片不编译或执行脚本，也不覆盖作者草稿恢复。

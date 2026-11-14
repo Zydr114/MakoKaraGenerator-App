@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Finite authenticated HTTP seek baseline; no UI/display or SDK v2 claim."""
+"""Finite authenticated HTTP seek baseline using SDK v2 WordEmphasis; no UI/display claim."""
 import argparse
 import copy
 import hashlib
@@ -165,7 +165,7 @@ class SeekProbe(smoke.Smoke):
                 "X-Mako-Valid-Until-Utc": self.metadata(name)["validUntilUtc"]})
 
     def prepare_template(self):
-        directory = ROOT / "samples/ScriptEffects/WordEmphasis"
+        directory = ROOT / "samples/ScriptEffectsV2/WordEmphasis"
         manifest = json.loads((directory / "manifest.json").read_text())
         files = {entry["path"]: (directory / entry["path"]).read_bytes() for entry in manifest["files"]}
         for entry in manifest["files"]:
@@ -396,7 +396,7 @@ def arguments():
     parser.add_argument("--count", type=int, default=20)
     parser.add_argument("--timeout-seconds", type=float, default=90)
     parser.add_argument("--poll-ms", type=int, default=50)
-    parser.add_argument("--backend", choices=("cpu", "gpu"), default="cpu")
+    parser.add_argument("--backend", choices=("cpu", "gpu"), default="gpu")
     parser.add_argument("--ffmpeg", default="/usr/bin/ffmpeg")
     parser.add_argument("--require-reuse", action="store_true")
     args = parser.parse_args()

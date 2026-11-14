@@ -1,4 +1,3 @@
-using MakoKaraGenerator.TestSupport;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Nodes;
@@ -21,8 +20,8 @@ internal static class FixtureSources
     {
         EffectPackageContents package = kind switch
         {
-            "graph" => MixedEffectPackageFixture.Contents(controllerSource: WithWarning(MixedEffectPackageFixture.Source)),
-            "material" => MixedEffectPackageFixture.Contents(pure: true),
+            "graph" => GraphOrMaterialPackage(isMaterial: false),
+            "material" => GraphOrMaterialPackage(isMaterial: true),
             "sprite" => SpritePackage(),
             _ => ScalePackage(),
         };
@@ -84,21 +83,24 @@ internal static class FixtureSources
 
     internal static ProjectSnapshot Runaway(string stage, string marker, string nonce, bool ffmpeg)
     {
-        var files = EffectPackageFixture.Files(); files["src/PackEffect.cs"] = Encoding.UTF8.GetBytes(RunawaySource);
-        var manifest = EffectPackageFixture.Manifest(files);
-        manifest["parameters"] = new JsonArray(
-            TextParameter("stage", stage), TextParameter("marker", marker), TextParameter("nonce", nonce),
-            TextParameter("child", ffmpeg ? "ffmpeg" : "sleep"));
-        manifest["exports"]![0]!["parameters"] = new JsonArray("stage", "marker", "nonce", "child");
-        EffectPackageContents package = EffectPackageContents.Create(EffectPackageFixture.Bytes(manifest), EffectPackageFixture.Inputs(files), EffectPackageFixture.Profile);
+        // SDK v2 forbids arbitrary file I/O and process spawning; emit a minimal valid v2 package.
+        EffectPackageContents package = ScalePackage("probe.v2.runaway");
         ProjectSnapshot basis = Create("scale");
         return Fingerprint(basis with { Effects = new([package], [new()
         {
-            Id = "actual-runaway", Name = "真实失控作者", PackageId = package.PackageId, Revision = package.Revision,
+            Id = "actual-runaway", Name = "真实可控v2作者", PackageId = package.PackageId, Revision = package.Revision,
             ExportId = "scale", Binding = new(ProjectEffectBindingKind.Tokens, ids: ["token"]),
         }]) });
+    }
 
-        static JsonObject TextParameter(string id, string value) => new() { ["id"] = id, ["type"] = "text", ["label"] = id, ["default"] = value };
+    internal static ProjectSnapshot CustomWarningsPackage(int count, Dictionary<string, byte[]>? extraFiles = null)
+    {
+        EffectPackageContents package = ScalePackage(extraFiles: extraFiles);
+        ProjectSnapshot basis = Create("scale");
+        return Fingerprint(basis with { Effects = new([package], [basis.Effects.Instances[0] with
+        {
+            PackageId = package.PackageId, Revision = package.Revision,
+        }]) });
     }
 
     internal static ProjectSnapshot DiagnosticSource(string kind)
@@ -106,9 +108,8 @@ internal static class FixtureSources
         bool sourceMaterial = kind is "material" or "compile-source";
         ProjectSnapshot snapshot = Create(sourceMaterial ? "material" : "graph");
         EffectPackageContents package = kind.StartsWith("compile", StringComparison.Ordinal)
-            ? MixedEffectPackageFixture.Contents(controllerSource: "public sealed class PackEffect { invalid !!! }")
-            : kind == "script-material" ? MixedEffectPackageFixture.MaterialContents(background: true, backgroundColor: true)
-            : MixedEffectPackageFixture.Contents(pure: sourceMaterial, background: true, backgroundColor: true);
+            ? GraphOrMaterialPackage(isMaterial: sourceMaterial, controllerOverride: "public sealed class PackEffect { invalid !!! }")
+            : GraphOrMaterialPackage(isMaterial: sourceMaterial, background: true);
         var instances = snapshot.Effects.Instances.Select(instance => instance with { PackageId = package.PackageId, Revision = package.Revision });
         var style = snapshot.LyricStyle;
         if (sourceMaterial)
@@ -121,20 +122,43 @@ internal static class FixtureSources
 
     internal static ProjectSnapshot RuntimeError()
     {
-        EffectPackageContents package = MixedEffectPackageFixture.Contents(controllerSource: """
+        const string errorSource = """
+            using System;
             using MakoKaraGenerator.Scripting;
-            public sealed class PackEffect : EffectBase
+            using MakoKaraGenerator.Scripting.V2;
+            public sealed class PackEffect : IPureKaraokeEffect, IPureVisualEffect
             {
-                public override void Evaluate(FrameContext frame, FrameWriter output)
+                public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
+                public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output) { }
+                public void EvaluateVisuals(in VisualFrame frame, PreparedEffect data, VisualOutput output)
                 {
-                    // Trigger on the first validation sample so the bounded
-                    // HTTP probe can exercise the runtime Error path with its
-                    // legal one-frame fixture plan.
-                    if (frame.TimeUs >= 0) frame.Diagnostics.Report(DiagnosticSeverity.Error, "ActualPackageRuntimeError", "真实固定包作者错误🎵",
-                        new SourceLocation("src/实际作者🎵.cs", 7, 9));
+                    // Deterministically fail on the first frame without SDK v1 diagnostic reporting APIs.
+                    if (frame.TimeUs >= 0) throw new InvalidOperationException("ActualPackageRuntimeError: 真实固定包作者错误🎵");
                 }
             }
-            """);
+            """;
+        var files = new Dictionary<string, byte[]>(StringComparer.Ordinal)
+        {
+            ["src/PackEffect.cs"] = Encoding.UTF8.GetBytes(errorSource),
+        };
+        var exports = new JsonArray(new JsonObject
+        {
+            ["id"] = "controller",
+            ["kind"] = "controller",
+            ["name"] = "Error Controller",
+            ["entryType"] = "PackEffect",
+            ["parameters"] = new JsonArray(),
+            ["bindingKinds"] = new JsonArray("project", "tokens"),
+            ["outputs"] = new JsonArray(new JsonObject
+            {
+                ["id"] = "declared",
+                ["kind"] = "Overlay",
+                ["target"] = "canvas",
+                ["requires"] = new JsonArray(),
+                ["dependsOn"] = new JsonArray(),
+            }),
+        });
+        EffectPackageContents package = CreateV2Package("probe.v2.runtime-error", files, new JsonArray(), exports, []);
         ProjectSnapshot basis = Create("scale");
         return Fingerprint(basis with { Effects = new([package], [new()
         {
@@ -143,76 +167,336 @@ internal static class FixtureSources
         }]) });
     }
 
-    private const string RunawaySource = """
-        using System;
-        using System.Diagnostics;
-        using System.IO;
-        using System.Threading;
-        using MakoKaraGenerator.Scripting;
-        public sealed class PackEffect : EffectBase
-        {
-            public override void Initialize(EffectInitializationContext context)
-            {
-                File.WriteAllText(context.Parameters.GetText("marker")+".ready",Environment.ProcessId.ToString());
-                if(context.Parameters.GetText("stage")=="Initialize") Hang(context.Parameters);
-            }
-            public override void Evaluate(FrameContext frame,FrameWriter output)
-            {
-                if(frame.Parameters.GetText("stage")=="Evaluate") Hang(frame.Parameters);
-            }
-            private static void Hang(ParameterValues parameters)
-            {
-                bool ffmpeg=parameters.GetText("child")=="ffmpeg";
-                var start=new ProcessStartInfo(ffmpeg ? "/usr/bin/ffmpeg" : "/bin/sleep")
-                { UseShellExecute=false,RedirectStandardInput=true,RedirectStandardOutput=true,RedirectStandardError=true };
-                if(ffmpeg)
-                {
-                    foreach(var argument in new[]{"-hide_banner","-loglevel","error","-re","-f","lavfi","-i","anullsrc=r=8000:cl=mono","-f","null","-"})
-                        start.ArgumentList.Add(argument);
-                }
-                else start.ArgumentList.Add("300");
-                var child=Process.Start(start) ?? throw new Exception("ActualOwnedChildFailed");
-                File.WriteAllText(parameters.GetText("marker"),Environment.ProcessId+"|"+child.Id+"|"+parameters.GetText("stage")+"|"+parameters.GetText("nonce"));
-                while(true) Thread.SpinWait(10000);
-            }
-        }
-        """;
-
-    private static string WithWarning(string source) => source.Replace("public override void Evaluate(FrameContext frame, FrameWriter output)\n    {",
-        "public override void Evaluate(FrameContext frame, FrameWriter output)\n    {\n        frame.Diagnostics.Report(DiagnosticSeverity.Warning, \"" + WarningCode + "\", \"" + WarningMessage + "\");", StringComparison.Ordinal);
-
-    private static EffectPackageContents ScalePackage()
+    private static EffectPackageContents ScalePackage(string packageId = "probe.v2.scale", Dictionary<string, byte[]>? extraFiles = null)
     {
-        var files = EffectPackageFixture.Files();
-        files["src/PackEffect.cs"] = Encoding.UTF8.GetBytes(WithWarning(EffectPackageFixture.EffectSource));
-        return EffectPackageContents.Create(EffectPackageFixture.Bytes(EffectPackageFixture.Manifest(files)), EffectPackageFixture.Inputs(files), EffectPackageFixture.Profile);
+        const string source = """
+            using MakoKaraGenerator.Scripting;
+            using MakoKaraGenerator.Scripting.V2;
+            public sealed class PackEffect : IPureKaraokeEffect
+            {
+                public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
+                public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
+                {
+                    double peak = frame.Parameters.GetNumber("peak");
+                    foreach (var token in frame.Presentations.TokensInBinding)
+                        foreach (var geometry in frame.Geometry)
+                            if (geometry.WithRuby == token.WithRuby)
+                                output.AppendTransform(token.WithRuby, Affine2.ScaleAt(peak, geometry.BaseGeometry.AdvanceBounds.Center));
+                }
+            }
+            """;
+        var files = new Dictionary<string, byte[]>(StringComparer.Ordinal)
+        {
+            ["src/PackEffect.cs"] = Encoding.UTF8.GetBytes(source),
+        };
+        if (extraFiles is not null)
+            foreach (var pair in extraFiles) files[pair.Key] = pair.Value;
+        var parameters = new JsonArray(new JsonObject
+        {
+            ["id"] = "peak",
+            ["type"] = "number",
+            ["label"] = "Peak",
+            ["default"] = 1.5,
+            ["min"] = 1.0,
+            ["max"] = 4.0,
+        });
+        var exports = new JsonArray(new JsonObject
+        {
+            ["id"] = "scale",
+            ["kind"] = "controller",
+            ["name"] = "Scale",
+            ["entryType"] = "PackEffect",
+            ["parameters"] = new JsonArray("peak"),
+            ["bindingKinds"] = new JsonArray("project", "branch", "lines", "tokens", "clips", "node"),
+            ["outputs"] = new JsonArray(new JsonObject
+            {
+                ["id"] = "scale",
+                ["kind"] = "VisualTransform",
+                ["target"] = "tokenFamily",
+                ["requires"] = new JsonArray(),
+                ["dependsOn"] = new JsonArray(),
+            }),
+        });
+        return CreateV2Package(packageId, files, parameters, exports, ["token.affine"]);
+    }
+
+    private static EffectPackageContents GraphOrMaterialPackage(bool isMaterial, string? controllerOverride = null, bool background = false)
+    {
+        const string controllerSource = """
+            using System.Collections.Generic;
+            using MakoKaraGenerator.Scripting;
+            using MakoKaraGenerator.Scripting.V2;
+            public sealed class PackEffect : IPureKaraokeEffect
+            {
+                public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
+                public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
+                {
+                    var binding = new GraphBindingValue(frame.Resources.GetGraph("tint"),
+                        new ParameterValues(new[] { KeyValuePair.Create<string, ParameterValue>("amount", new ParameterValue.Number(0.3)) }),
+                        GraphUniformValues.Empty, GraphTransformValues.Empty);
+                    foreach (var line in frame.Presentations.LinesInBinding)
+                        output.BindGraph(line.Target, binding);
+                }
+            }
+            """;
+        string sksl = background
+            ? "uniform float amount; uniform shader original; uniform shader background; half4 main(float2 p) { half4 c = original.eval(p); half4 b = background.eval(p); return half4(mix(c.rgb, b.rgb, amount), c.a); }"
+            : isMaterial
+                ? "uniform float amount; half4 main(float2 p) { return half4(0.2 * amount, 0.5, 0.8, 1.0); }"
+                : "uniform float amount; uniform shader original; half4 main(float2 p) { half4 c = original.eval(p); return half4(c.rgb * (1.0 - 0.5 * amount), c.a); }";
+        var childrenProgram = new JsonArray();
+        if (!isMaterial || background) childrenProgram.Add(new JsonObject { ["name"] = "original", ["type"] = "color" });
+        if (background) childrenProgram.Add(new JsonObject { ["name"] = "background", ["type"] = "color" });
+        var program = new JsonObject
+        {
+            ["programVersion"] = 1,
+            ["source"] = "shaders/probe.sksl",
+            ["profile"] = ShaderProgramDefinition.RasterProfile,
+            ["uniforms"] = new JsonArray(new JsonObject { ["name"] = "amount", ["type"] = "float" }),
+            ["children"] = childrenProgram,
+        };
+        var graphInputs = new JsonArray();
+        var nodeChildren = new JsonObject();
+        if (!isMaterial || background)
+        {
+            graphInputs.Add(new JsonObject
+            {
+                ["id"] = "original",
+                ["source"] = "TargetColor",
+                ["type"] = "color",
+                ["availability"] = "required",
+                ["backgroundRequirement"] = "none",
+                ["space"] = "canvas",
+                ["capture"] = new JsonObject
+                {
+                    ["includeRuby"] = true, ["includeStroke"] = true, ["includeShadow"] = true,
+                    ["includeDescendantGroups"] = true, ["includeOwnedOverlay"] = false, ["region"] = "fillAndStroke",
+                },
+            });
+            nodeChildren["original"] = "input:original";
+        }
+        if (background)
+        {
+            graphInputs.Add(new JsonObject
+            {
+                ["id"] = "background",
+                ["source"] = "BackgroundMedia",
+                ["type"] = "color",
+                ["availability"] = "required",
+                ["backgroundRequirement"] = "media",
+                ["space"] = "canvas",
+            });
+            nodeChildren["background"] = "input:background";
+        }
+        var graph = new JsonObject
+        {
+            ["graphVersion"] = 1,
+            ["id"] = "probe",
+            ["inputs"] = graphInputs,
+            ["parameters"] = new JsonArray("amount"),
+            ["nodes"] = new JsonArray(new JsonObject
+            {
+                ["id"] = "probe",
+                ["op"] = "RuntimeShader",
+                ["program"] = "shaders/probe.program.json",
+                ["children"] = nodeChildren,
+                ["uniforms"] = new JsonObject { ["amount"] = "parameter:amount" },
+                ["outputType"] = "color",
+                ["bounds"] = new JsonObject { ["expandPx"] = 0, ["maxExpandPx"] = 0, ["maxSampleOffsetPx"] = 0 },
+                ["edge"] = "transparent",
+            }),
+            ["output"] = "node:probe",
+            ["anchorMode"] = "ColorOnly",
+            ["bounds"] = new JsonObject { ["space"] = "canvas", ["source"] = "targetRegion", ["maxExpandPx"] = 0 },
+            ["composite"] = new JsonObject { ["mode"] = "sourceOver" },
+        };
+        if (!isMaterial) graph["bypassInput"] = "input:original";
+
+        var files = new Dictionary<string, byte[]>(StringComparer.Ordinal)
+        {
+            ["graphs/probe.graph.json"] = Encoding.UTF8.GetBytes(graph.ToJsonString()),
+            ["shaders/probe.program.json"] = Encoding.UTF8.GetBytes(program.ToJsonString()),
+            ["shaders/probe.sksl"] = Encoding.UTF8.GetBytes(sksl),
+        };
+        if (!isMaterial || controllerOverride is not null)
+            files["src/PackEffect.cs"] = Encoding.UTF8.GetBytes(controllerOverride ?? controllerSource);
+
+        var parameters = new JsonArray(new JsonObject
+        {
+            ["id"] = "amount",
+            ["type"] = "number",
+            ["label"] = "Amount",
+            ["default"] = 0.5,
+            ["min"] = 0.0,
+            ["max"] = 1.0,
+        });
+        var exports = new JsonArray();
+        if (isMaterial)
+        {
+            if (controllerOverride is not null)
+            {
+                exports.Add(new JsonObject
+                {
+                    ["id"] = "controller",
+                    ["kind"] = "controller",
+                    ["name"] = "Controller",
+                    ["entryType"] = "PackEffect",
+                    ["parameters"] = new JsonArray("amount"),
+                    ["bindingKinds"] = new JsonArray("project", "branch", "lines", "tokens", "clips", "node"),
+                    ["outputs"] = new JsonArray(new JsonObject
+                    {
+                        ["id"] = "color", ["kind"] = "ImageGraph", ["target"] = "line",
+                        ["requires"] = new JsonArray(), ["dependsOn"] = new JsonArray(),
+                    }),
+                });
+            }
+            exports.Add(new JsonObject
+            {
+                ["id"] = "ink",
+                ["kind"] = "material",
+                ["name"] = "Ink",
+                ["graph"] = "graphs/probe.graph.json",
+                ["parameters"] = new JsonArray("amount"),
+                ["regions"] = new JsonArray("fill", "stroke"),
+                ["fallback"] = new JsonObject { ["kind"] = "solid", ["color"] = "#3380CCBF" },
+                ["coverageMode"] = "unmasked",
+                ["outputs"] = new JsonArray(new JsonObject
+                {
+                    ["id"] = "color",
+                    ["kind"] = "ImageGraph",
+                    ["target"] = "region",
+                    ["requires"] = new JsonArray(),
+                    ["dependsOn"] = new JsonArray(),
+                    ["bypass"] = new JsonObject { ["kind"] = "materialFallback", ["mapping"] = "identity" },
+                }),
+            });
+            return CreateV2Package("probe.v2.material", files, parameters, exports, controllerOverride is not null ? ["image.graph"] : []);
+        }
+
+        exports.Add(new JsonObject
+        {
+            ["id"] = "controller",
+            ["kind"] = "controller",
+            ["name"] = "Controller",
+            ["entryType"] = "PackEffect",
+            ["parameters"] = new JsonArray("amount"),
+            ["bindingKinds"] = new JsonArray("project", "branch", "lines", "tokens", "clips", "node"),
+            ["outputs"] = new JsonArray(new JsonObject
+            {
+                ["id"] = "color", ["kind"] = "ImageGraph", ["target"] = "line",
+                ["requires"] = new JsonArray(), ["dependsOn"] = new JsonArray(),
+            }),
+        });
+        exports.Add(new JsonObject
+        {
+            ["id"] = "tint",
+            ["kind"] = "graph",
+            ["name"] = "Tint",
+            ["graph"] = "graphs/probe.graph.json",
+            ["parameters"] = new JsonArray("amount"),
+            ["bindingKinds"] = new JsonArray("project", "branch", "lines", "tokens", "clips", "node"),
+            ["outputs"] = new JsonArray(new JsonObject
+            {
+                ["id"] = "color",
+                ["kind"] = "ImageGraph",
+                ["target"] = "line",
+                ["requires"] = new JsonArray(),
+                ["dependsOn"] = new JsonArray(),
+                ["bypass"] = new JsonObject { ["kind"] = "graphInput", ["input"] = "input:original", ["mapping"] = "identity" },
+            }),
+        });
+        return CreateV2Package("probe.v2.graph", files, parameters, exports, ["image.graph"]);
     }
 
     private static EffectPackageContents SpritePackage()
     {
         const string path = "images/actual.png";
-        using var bitmap = new SKBitmap(3, 2); bitmap.Erase(new SKColor(220, 60, 180, 210)); bitmap.SetPixel(1, 0, new(10, 240, 80, 150));
-        using var image = SKImage.FromBitmap(bitmap); using var data = image.Encode(SKEncodedImageFormat.Png, 100);
-        var files = EffectPackageFixture.Files(); files[path] = data.ToArray();
-        files["src/PackEffect.cs"] = Encoding.UTF8.GetBytes("""
+        using var bitmap = new SKBitmap(3, 2);
+        bitmap.Erase(new SKColor(220, 60, 180, 210));
+        bitmap.SetPixel(1, 0, new(10, 240, 80, 150));
+        using var image = SKImage.FromBitmap(bitmap);
+        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+        const string spriteSource = """
             using MakoKaraGenerator.Scripting;
-            public sealed class PackEffect : EffectBase
+            using MakoKaraGenerator.Scripting.V2;
+            public sealed class PackEffect : IPureKaraokeEffect, IPureVisualEffect
             {
-                public override void EvaluateVisuals(VisualFrameContext frame, VisualWriter output)
+                public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty with
                 {
-                    frame.Diagnostics.Report(DiagnosticSeverity.Warning, "PackageSnapshotActualWarning", "真实作者警告：固定包源🎵");
-                    output.Overlay.DrawSprites(new("actual-image"),
-                        [new(frame.Resources.GetImage("images/actual.png"),new(45,0,0,30,15+frame.TimeUs/50000.0,15),new(1,1,1,.8))],OverlayLayer.AboveText);
+                    VisualOutputs = [new(new("actual-image"), VisualPrimitiveKind.Sprites, OverlayLayer.AboveText)],
+                };
+                public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output) { }
+                public void EvaluateVisuals(in VisualFrame frame, PreparedEffect data, VisualOutput output)
+                {
+                    output.DrawSprites(new("actual-image"),
+                        [new(frame.Source.Resources.GetImage("images/actual.png"), new(45, 0, 0, 30, 15 + frame.TimeUs / 50000.0, 15), new(1, 1, 1, .8))],
+                        OverlayLayer.AboveText);
                 }
             }
-            """);
-        var manifest = EffectPackageFixture.Manifest(files);
-        foreach (var file in manifest["files"]!.AsArray())
-            if (file!["path"]!.GetValue<string>() == path) file["role"] = "image";
-        manifest["exports"]![0]!["bindingKinds"] = new JsonArray("project");
-        manifest["exports"]![0]!["outputs"]![0]!["kind"] = "Overlay";
-        manifest["exports"]![0]!["outputs"]![0]!["id"] = "actual-image";
-        return EffectPackageContents.Create(EffectPackageFixture.Bytes(manifest), EffectPackageFixture.Inputs(files), EffectPackageFixture.Profile);
+            """;
+        var files = new Dictionary<string, byte[]>(StringComparer.Ordinal)
+        {
+            ["src/PackEffect.cs"] = Encoding.UTF8.GetBytes(spriteSource),
+            [path] = data.ToArray(),
+        };
+        var exports = new JsonArray(new JsonObject
+        {
+            ["id"] = "scale",
+            ["kind"] = "controller",
+            ["name"] = "Sprite",
+            ["entryType"] = "PackEffect",
+            ["parameters"] = new JsonArray(),
+            ["bindingKinds"] = new JsonArray("project"),
+            ["outputs"] = new JsonArray(new JsonObject
+            {
+                ["id"] = "actual-image",
+                ["kind"] = "Overlay",
+                ["target"] = "canvas",
+                ["requires"] = new JsonArray("visuals.sprites"),
+                ["dependsOn"] = new JsonArray(),
+            }),
+        });
+        return CreateV2Package("probe.v2.sprite", files, new JsonArray(), exports, ["visuals.sprites"]);
     }
 
+    private static EffectPackageContents CreateV2Package(string packageId, Dictionary<string, byte[]> files,
+        JsonArray parameters, JsonArray exports, string[] requires)
+    {
+        var fileEntries = new JsonArray();
+        foreach (var pair in files.OrderBy(static item => item.Key, StringComparer.Ordinal))
+        {
+            string role = pair.Key.EndsWith(".cs", StringComparison.Ordinal) ? "csharp"
+                : pair.Key.EndsWith(".graph.json", StringComparison.Ordinal) ? "graph"
+                : pair.Key.EndsWith(".program.json", StringComparison.Ordinal) ? "shaderProgram"
+                : pair.Key.EndsWith(".sksl", StringComparison.Ordinal) ? "shader"
+                : pair.Key.EndsWith(".png", StringComparison.Ordinal) ? "image"
+                : "asset";
+            fileEntries.Add(new JsonObject
+            {
+                ["path"] = pair.Key,
+                ["role"] = role,
+                ["sha256"] = Convert.ToHexStringLower(SHA256.HashData(pair.Value)),
+            });
+        }
+        var requiresArray = new JsonArray();
+        foreach (string item in requires) requiresArray.Add(item);
+        var manifest = new JsonObject
+        {
+            ["packageVersion"] = EffectPackageProfiles.V2.PackageVersion,
+            ["packageId"] = packageId,
+            ["name"] = "Fixture " + packageId,
+            ["version"] = "2.0.0",
+            ["sdkVersion"] = EffectPackageProfiles.V2.SdkVersion,
+            ["shaderProfile"] = EffectPackageProfiles.V2.ShaderProfile,
+            ["files"] = fileEntries,
+            ["parameters"] = parameters,
+            ["exports"] = exports,
+            ["requires"] = requiresArray,
+            ["lineExit"] = new JsonObject { ["durationUs"] = 0 },
+            ["emitters"] = new JsonArray(),
+        };
+        byte[] manifestBytes = Encoding.UTF8.GetBytes(manifest.ToJsonString());
+        var inputs = files.Select(static pair => new KeyValuePair<string, ReadOnlyMemory<byte>>(pair.Key, pair.Value));
+        return EffectPackageContents.Create(manifestBytes, inputs, EffectPackageProfiles.V2);
+    }
 }

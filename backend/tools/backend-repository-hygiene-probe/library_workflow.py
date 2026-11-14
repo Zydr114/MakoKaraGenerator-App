@@ -6,7 +6,7 @@ from pathlib import PurePosixPath
 from urllib.parse import urlencode
 import zipfile
 
-SAMPLE = 'samples/ScriptEffects/WordEmphasis'
+SAMPLE = 'samples/ScriptEffectsV2/WordEmphasis'
 CONFIGURATIONS = '/api/v1/script-configurations'
 TEMPLATES = '/api/v1/template-libraries'
 

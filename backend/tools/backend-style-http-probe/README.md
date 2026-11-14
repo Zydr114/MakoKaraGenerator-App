@@ -41,7 +41,7 @@ python3 tools/backend-style-http-probe/probe.py \
 
 ## 高级来源保留与预览输入衔接
 
-高级 fixture 从本次模板生成，复制仓库 tracked `samples/ScriptEffects/GlassInk` 的完整资源闭包，仅将清单可读 name/label 改为确定 ASCII。逐文件核 SHA，按 `EffectPackageContents` 长度前缀规则生成内容修订，所有包字节进入自有工程。固定修订已用既有发布 Core 的独立离线 `ProjectStore.Load` 核实合法；该离线对照不替代本次匹配版本的真实 HTTP 打开。
+高级 fixture 从本次模板生成，复制仓库 tracked `samples/ScriptEffectsV2/GlassInk` 的完整资源闭包，仅将清单可读 name/label 改为确定 ASCII。逐文件核 SHA，按 `EffectPackageContents` 长度前缀规则生成内容修订，所有包字节进入自有工程。固定修订已用既有发布 Core 的独立离线 `EffectPackageContents` 长度前缀规则核实合法；该离线对照不替代本次匹配版本的真实 HTTP 打开。
 
 fixture 保一份高精度参数 `0.12345678901234567` 和合法固定 static preset application；GET 只读 package identity 不暴露参数，`hasPresetApplications` 只提示工程存在快照。独立模型仍只解析四层静态样式，不冒称实际 preset/node/clip 最终外观。字体/局部几何修改、明确选中槽整体替换及 undo、保存关闭重开后，未选 package 参数精度、全部包文件、固定 preset、场景、效果和分析原字段完整保留。此流程不编译/执行包，也不代表开放 package 上传或编辑。
 

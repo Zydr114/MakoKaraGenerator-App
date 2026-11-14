@@ -29,7 +29,7 @@ class W8Probe(completion.CompletionProbe):
         return result
 
     def sample(self, name):
-        directory = ROOT / "samples/ScriptEffects" / name
+        directory = ROOT / "samples/ScriptEffectsV2" / name
         manifest = json.loads((directory / "manifest.json").read_text())
         files = {entry["path"]: (directory / entry["path"]).read_bytes() for entry in manifest["files"]}
         for entry in manifest["files"]:
@@ -76,6 +76,13 @@ class W8Probe(completion.CompletionProbe):
         self.check(response["succeeded"] and response["sourceRevision"] == draft["currentSourceRevision"], name + ": fixed source compiled")
         return response
 
+    def adopt(self, name, draft, source):
+        response = self.request(name, "POST", self.path(draft) + "/adopt-source-revision", value={
+            "expectedDraftRevision": draft["draftRevision"], "sourceRevision": source,
+            "metadata": self.metadata(name)})
+        self.check(response["adoptedSourceRevision"] == source, name + ": adopted exact source")
+        return self.read(name + "-draft", draft)
+
     def download(self, name, draft, source=None):
         headers, data, _ = self.fetch(name, self.path(draft) + "/package?" + urlencode({
             "expectedDraftRevision": draft["draftRevision"], "sourceRevision": source or draft["configuration"]["sourceRevision"]}))
@@ -104,7 +111,7 @@ class W8Probe(completion.CompletionProbe):
             "source": {"kind": "authorDraft", "sourceId": draft["draftId"], "sourceRevision": draft["draftRevision"],
                 "authorSourceRevision": draft["configuration"]["sourceRevision"], "templateSample": selection},
             "previewKind": "authorDraft", "committable": False,
-            "size": {"width": 320, "height": 180}, "alphaMode": "opaque", "purpose": "preview", "renderBackend": "cpu"})
+            "size": {"width": 320, "height": 180}, "alphaMode": "opaque", "purpose": "preview", "renderBackend": "gpu"})
         try:
             self.frame(name + "-frame", preview, "3000000")
         finally:
@@ -201,6 +208,7 @@ class W8Probe(completion.CompletionProbe):
             for f in after["files"] if f["editable"] and f["path"] != helper["path"]]
         edited = self.save_files("remove-and-rename-csharp", edited, after, manifest=json.dumps(manifest), text_files=texts)
         self.compilation("renamed-compile", edited)
+        edited = self.adopt("renamed-adopt", edited, edited["currentSourceRevision"])
         self.preview_author("edited-controller-preview", edited)
         data = self.download("edited-download", edited)
         self.inspect_download("edited-roundtrip", data, edited["currentSourceRevision"])
@@ -213,6 +221,7 @@ class W8Probe(completion.CompletionProbe):
             package = self.files(name + "-files", material)
             text_files = [{"path": f["path"], "text": f["text"] + "\n"} for f in package["files"] if f["editable"]]
             material = self.save_files(name + "-text-edit", material, package, text_files=text_files)
+            material = self.adopt(name + "-adopt", material, material["currentSourceRevision"])
             self.check(not material["canCompile"], name + ": edited graph/shader remains non-C#")
             self.preview_author(name + "-preview", material)
 
@@ -270,7 +279,7 @@ class W8Probe(completion.CompletionProbe):
         self.request("deleted-draft", "GET", self.path(recovered), status=404, code="resourceNotFound")
         _, retained, _ = self.fetch("configuration-after-delete", configuration_path + "/package?expectedRevision=" + created["revision"])
         self.inspect_download("configuration-after-restart-roundtrip", retained, detail["configuration"]["sourceRevision"])
-        self.flows.append({"name": "w8-authoring", "scope": "C# and graph/shader editing, compilation/no-op, history, downloads/reimport, detailed template error, owner isolation, restart claim and explicit deletion; CPU Worker frames."})
+        self.flows.append({"name": "w8-authoring", "scope": "C# and graph/shader editing, compilation/no-op, history, downloads/reimport, detailed template error, owner isolation, restart claim and explicit deletion; GPU Worker frames."})
 
 
 def main():
@@ -303,7 +312,7 @@ def main():
         "deployment": probe.deployment, "deploymentManifestSha256": hashlib.sha256((probe.dist / "deployment.json").read_bytes()).hexdigest(),
         "flows": probe.flows, "jobTerminals": probe.terminals, "runs": probe.runs,
         "workerIdentities": [{"pid": pid, "startTicks": ticks} for pid, ticks in sorted(probe.worker_identities)],
-        "assertionLabels": probe.assertions, "scope": "Finite Linux CPU backend HTTP acceptance. Browser, other platforms and performance were not tested."}
+        "assertionLabels": probe.assertions, "scope": "Finite Linux GPU backend HTTP acceptance. Browser, other platforms and performance were not tested."}
     save_json(output / "summary.json", summary)
     save_json(output / "evidence-manifest.json", {"files": {str(p.relative_to(output)): hashlib.sha256(p.read_bytes()).hexdigest()
         for p in sorted(output.rglob("*")) if p.is_file()}})

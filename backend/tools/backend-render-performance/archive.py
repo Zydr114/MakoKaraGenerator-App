@@ -37,7 +37,7 @@ def verify_sources(root, prepare, instrumentation):
     after = bench.inventory(instrumented, production_filter)
     require(bool(before) and before == prepare["productionInputs"], "baseline production input mismatch")
     for variant in (baseline, instrumented):
-        require(bench.inventory(variant / "samples" / "ScriptEffects") == prepare["sampleInputs"], "sample inputs mismatch")
+        require(bench.inventory(variant / "samples" / "ScriptEffectsV2") == prepare["sampleInputs"], "sample inputs mismatch")
         require(bench.inventory(variant / "tools" / bench.TOOL.name) == prepare["toolInputs"], "tool inputs mismatch")
     files = instrumentation["files"]
     require(bool(files), "empty instrumentation file list")

@@ -38,7 +38,7 @@ internal static class Fixtures
         List<ProjectEffectInstance> instances = [];
         async Task<EffectPackageContents> Package(string name)
         {
-            var package = await EffectPackageStorage.ReadDirectoryAsync(Path.Combine(root, "samples", "ScriptEffects", name), ProjectEffectsJson.PackageProfile);
+            var package = await EffectPackageStorage.ReadDirectoryAsync(Path.Combine(root, "samples", "ScriptEffectsV2", name), EffectPackageProfiles.V2);
             packages.Add(package);
             return package;
         }

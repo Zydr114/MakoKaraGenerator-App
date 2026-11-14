@@ -13,21 +13,20 @@ using MakoKaraGenerator.Runtime.Hosting;
 using MakoKaraGenerator.Scripting;
 using MakoKaraGenerator.Scripting.Compilation;
 
-if (args.Length != 5 || args[1] is not ("v1" or "v2") || args[2] is not ("WordEmphasis" or "RepeatEmphasis" or "ClusterExit")
-    || args[1] == "v1" && args[2] == "ClusterExit")
-    throw new ArgumentException("Arguments: backend-source-root v1|v2 WordEmphasis|RepeatEmphasis|ClusterExit output.json repeats(3..12); ClusterExit requires v2.");
+if (args.Length != 5 || args[1] != "v2" || args[2] is not ("WordEmphasis" or "RepeatEmphasis" or "ClusterExit"))
+    throw new ArgumentException("Arguments: backend-source-root v2 WordEmphasis|RepeatEmphasis|ClusterExit output.json repeats(3..12); SDK v1 was removed in M14.");
 int repeats = int.Parse(args[4], CultureInfo.InvariantCulture);
 if (repeats is < 3 or > 12) throw new ArgumentOutOfRangeException(nameof(args));
 using CancellationTokenSource limit = new(TimeSpan.FromMinutes(12));
 await using var evidence = new EvidenceFiles(args[3]);
 var startedUtc = DateTimeOffset.UtcNow;
 var watch = Stopwatch.StartNew();
-string directory = Path.Combine(Path.GetFullPath(args[0]), "samples", args[1] == "v2" ? "ScriptEffectsV2" : "ScriptEffects", args[2]);
+string directory = Path.Combine(Path.GetFullPath(args[0]), "samples", "ScriptEffectsV2", args[2]);
 var package = await EffectPackageStorage.ReadSupportedDirectoryAsync(directory, cancellationToken: limit.Token);
 var declaration = EffectPackageDefinition.Read(package, limit.Token).Controllers.Single();
 double packageLoadMs = watch.Elapsed.TotalMilliseconds;
-if (EffectPackageProfiles.IsV2(package.Profile) != (args[1] == "v2"))
-    throw new InvalidOperationException("Package profile does not match the requested SDK.");
+if (!EffectPackageProfiles.IsV2(package.Profile))
+    throw new InvalidOperationException("Package profile does not match SDK v2.");
 
 long[] starts = [0, 1_000_000, 2_000_000, 180_000_000, 181_000_000, 360_000_000, 361_000_000];
 var lines = starts.Select((start, index) =>

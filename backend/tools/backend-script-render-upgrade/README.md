@@ -10,7 +10,7 @@ python3 -B backend/tools/backend-script-render-upgrade/probe.py \
 
 探针直接继承 `backend-web-host/smoke.py` 的 `Smoke`，复用随机 loopback 启动、独立 profile、认证、请求／响应脱敏、凭证扫描和所属进程身份排水。不会连接当前用户实例或使用个人 profile。`--dist` 应为 `backend-web-host/host.py publish` 的全新匹配发布产物；`provenance.json` 保留该部署清单、探针摘要及运行参数。
 
-默认新建 320×180、8 秒工程，导入仓库 `samples/ScriptEffects/WordEmphasis` 的完整包，通过个人模板将真实 C# controller 应用到工程歌词行。设置固定行／token 时间，然后执行 20 次串行显式 `intent: seek` 请求，循环时间为 0.5、1、2、3 秒。每次 seek 都要求新公开 generation，并核对帧的 previewId、generation、sourceRevision、requestSeq、timeUs，以及完整 PNG 的字节数、SHA、尺寸和完整解码。重复时间必须得到相同解码 RGBA SHA；这是同输入重复一致性检查，不是独立 Runtime 像素 oracle。
+默认新建 320×180、8 秒工程，导入仓库 `samples/ScriptEffectsV2/WordEmphasis` 的完整包，通过个人模板将真实 C# controller 应用到工程歌词行。设置固定行／token 时间，然后执行 20 次串行显式 `intent: seek` 请求，循环时间为 0.5、1、2、3 秒。每次 seek 都要求新公开 generation，并核对帧的 previewId、generation、sourceRevision、requestSeq、timeUs，以及完整 PNG 的字节数、SHA、尺寸和完整解码。重复时间必须得到相同解码 RGBA SHA；这是同输入重复一致性检查，不是独立 Runtime 像素 oracle。
 
 长工程单独运行，避免近端结果被长时间线的 v1 重放混淆：
 
@@ -26,7 +26,7 @@ python3 -B backend/tools/backend-script-render-upgrade/probe.py \
   --scenario 360s --timeout-seconds 180
 ```
 
-`180s`／`360s` 分别新建 181／361 秒工程，循环 0.5 秒、指定远端、1 秒、相同远端；每个场景默认仍是 20 次。`--scenario all` 顺序运行三场景，各自关闭工程和预览。`--width`／`--height` 可改分辨率，`--backend cpu|gpu` 选择原 HTTP 像素入口的后端。GPU选项不测试桌面共享纹理流。`--count 2..100` 可作有限诊断，默认20；减少样本须在报告中说明。
+`180s`／`360s` 分别新建 181／361 秒工程，循环 0.5 秒、指定远端、1 秒、相同远端；每个场景默认仍是 20 次。`--scenario all` 顺序运行三场景，各自关闭工程和预览。`--width`／`--height` 可改分辨率，`--backend cpu|gpu` 选择原 HTTP 像素入口的后端（默认 `gpu`，SDK v2 包在后端要求 Vulkan GPU）。GPU选项不测试桌面共享纹理流。`--count 2..100` 可作有限诊断，默认20；减少样本须在报告中说明。
 
 每个 `*-sample.json` 登记：
 
@@ -50,17 +50,9 @@ python3 -B backend/tools/backend-script-render-upgrade/probe.py \
 
 每个场景最终请求预览 `closed`、工程关闭任务 `succeeded`；即使 seek失败也尝试这些关闭。最后沿用 Smoke向自有启动器发 SIGTERM、等待所属 Server／Worker身份消失，并扫描所有证据中的内存凭证。结果保留在 `summary.json`、各场景报告、逐次请求／响应、PNG及 `seek-shutdown.json`；失败目录保留，下一次使用新目录。当前探针不覆盖源码／参数改变编译、取消恢复、ALC回收或GPU备用 Worker。
 
-### 取消与恢复探针
+### 取消与恢复探针（已退役）
 
-独立探针只在显式传入 `--run` 时启动，使用全新的输出目录及隔离 profile：
-
-```bash
-python3 -B backend/tools/backend-script-render-upgrade/cancel_probe.py --run \
-  --dist "$PWD/artifacts/web-backend/m03" \
-  --output "$PWD/artifacts/script-render-upgrade/m03-cancel-01"
-```
-
-探针通过 HTTP 导入专用 C# controller。脚本在目标时间写入所属 PID 和实例标记，等待实际 `FrameContext.CancellationToken`；观察屏障后发送新 seek，确认原实例观察到取消、相同 PID 和 startTicks 的 Worker 内出现新 controller 实例、恢复帧身份精确，且与同时间参考帧的 RGBA 像素一致。探针还检查旧 generation 返回 409、关闭资源、排空所属进程并扫描凭证。`summary.json` 与 `markers/` 保留成功或失败证据。它检验特定脚本和 HTTP 场景，不代表 UI 或其他渲染模式均已验收；须分别使用匹配的 M02 和 M03 发布物验证基线失败及升级后通过。
+`cancel_probe.py` 原为 M03 的 SDK v1 文件标记＋`WaitHandle` 取消恢复探针。M14 起 SDK v1 已移除，且 SDK v2 纯脚本禁止文件 I/O（`System.IO.File`）与阻塞等待（`WaitHandle`），该探针已退役（直接运行将返回退出码 `2` 并提示替代入口）；HTTP seek generation 取消与 Worker 复用由 `probe.py --backend gpu` 及宿主集成测试覆盖。
 
 ### 字形安全长时间线探针
 

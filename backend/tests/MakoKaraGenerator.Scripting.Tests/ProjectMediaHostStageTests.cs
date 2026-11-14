@@ -23,7 +23,7 @@ public sealed class ProjectMediaHostStageTests
     public void 实际文字调用退出后媒体和输出都失效(string mode)
     {
         using var cancellation = new CancellationTokenSource();
-        var author = new Probe(mode, cancellation); var (active, frame, scene) = Active(author);
+        var author = new Probe(mode, cancellation); var (active, _, frame, scene) = Active(author);
         Action invoke = () => Call("EvaluatePure", active, frame, scene, ImmutableArray<GroupGeometrySample>.Empty, cancellation.Token);
         if (mode == "success") invoke();
         else if (mode == "cancel") Assert.Throws<OperationCanceledException>(invoke);
@@ -42,7 +42,7 @@ public sealed class ProjectMediaHostStageTests
     public void 实际视觉调用及发布失败都关闭三个阶段句柄(string mode)
     {
         using var cancellation = new CancellationTokenSource();
-        var author = new Probe(mode, cancellation); var (active, _, _) = Active(author);
+        var author = new Probe(mode, cancellation); var (active, _, _, _) = Active(author);
         ImmutableArray<ParticleView> alive = [];
         var births = new ParticleBirthWindow(new(0, 1001), []);
         Func<ParticleIdentity, ImmutableArray<ParticleTrailSample>> trail = _ => [];
@@ -64,7 +64,7 @@ public sealed class ProjectMediaHostStageTests
     public void 重复及乱序文字请求获得彼此独立句柄()
     {
         using var cancellation = new CancellationTokenSource();
-        var author = new Probe("success", cancellation); var (active, frame, scene) = Active(author);
+        var author = new Probe("success", cancellation); var (active, _, frame, scene) = Active(author);
         List<MediaFeatures> handles = [];
         foreach (long timeUs in new long[] { 1001, 0, 1001, 3333 })
         {
@@ -90,7 +90,7 @@ public sealed class ProjectMediaHostStageTests
         var binding = new ProjectMediaFeatureBinding(sampler); var catalog = EffectPackageMediaQueries.Read(contents);
         var projection = ProjectMediaFeatureProjection.ResolveInstance(binding, new("owner-0"), catalog, "scale",
             ProjectMediaProjectionFixture.Parameters(catalog), catalog.ResolveParameters("scale"));
-        var author = new Probe("sample", cancellation); var (active, frame, scene) = Active(author, projection);
+        var author = new Probe("sample", cancellation); var (active, _, frame, scene) = Active(author, projection);
         List<MediaFeatures> handles = [];
         foreach (long nodeUs in new long[] { 3333, 1001, 3333 })
         {
@@ -121,8 +121,8 @@ public sealed class ProjectMediaHostStageTests
             // Metadata projection is not executable package admission. The tested
             // region reducer only reads this real plan owner and calls no author.
             var contents = ProjectMediaProjectionFixture.Package();
-            var project = ProjectMediaProjectionFixture.Project(contents);
-            var plan = ProjectMediaDependencyResolver.Resolve(project);
+            var mediaProject = ProjectMediaProjectionFixture.Project(contents);
+            var plan = ProjectMediaDependencyResolver.Resolve(mediaProject);
             var source = ProjectMediaProjectionFixture.Source();
             var input = MediaFeatureInput.CreatePending(ProjectMediaProjectionFixture.Context(plan, source.Profile), source,
                 new(ProjectMediaProjectionFixture.Hash('a')));
@@ -131,9 +131,9 @@ public sealed class ProjectMediaHostStageTests
             projection = ProjectMediaFeatureProjection.ResolveInstance(binding, new("owner-0"), catalog, "scale",
                 ProjectMediaProjectionFixture.Parameters(catalog), catalog.ResolveParameters("scale"));
         }
-        var author = new Probe("success", cancellation); var (active, frame, scene) = Active(author, projection, continuous: true);
+        var author = new Probe("success", cancellation); var (active, project, _, scene) = Active(author, projection, continuous: true);
         var snapshot = new ProjectSnapshot { Name = "anchor" };
-        using var host = new FrameEffectHost(snapshot, frame.Project, new EmptyGeometry(), [], [], VisualOutputBudget.Default);
+        using var host = new FrameEffectHost(snapshot, project, new EmptyGeometry(), [], [], VisualOutputBudget.Default);
         var instances = (System.Collections.IList)typeof(FrameEffectHost).GetField("_instances", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(host)!;
         instances.Add(active);
         typeof(FrameEffectHost).GetField("_v2AnchorBreakpoints", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(host, ImmutableArray.Create(0L));
@@ -145,7 +145,7 @@ public sealed class ProjectMediaHostStageTests
         Assert.Null(author.Media);
     }
 
-    private static (object Active, FrameContext Frame, SceneFrame Scene) Active(Probe author, ProjectMediaFeatureProjection? projection = null, bool continuous = false)
+    private static (object Active, HostProjectInputs Project, TextFrameHostInputs Frame, SceneFrame Scene) Active(Probe author, ProjectMediaFeatureProjection? projection = null, bool continuous = false)
     {
         var files = EffectPackageFixture.Files(); var manifest = EffectPackageFixture.Manifest(files);
         manifest["packageVersion"] = EffectPackageProfiles.V2.PackageVersion;
@@ -155,7 +155,7 @@ public sealed class ProjectMediaHostStageTests
         manifest["lineExit"] = new JsonObject { ["durationUs"] = 0 }; manifest["emitters"] = new JsonArray();
         var package = EffectPackageDefinition.Read(EffectPackageContents.CreateSupported(EffectPackageFixture.Bytes(manifest), EffectPackageFixture.Inputs(files)));
         ContentCatalog content = new([], [], [], []); SceneCatalog scene = new(content, [], [], [], []);
-        ProjectContext project = new() { Content = content, Scene = scene, CanvasSize = new(320, 240) };
+        HostProjectInputs project = new(content, scene, new(320, 240));
         DeclareContext source = new(content, scene, ParameterValues.Empty, AudioFeatures.NotAnalyzed, ResourceCatalog.Empty,
             42, TimelineIndex.Empty, project.CanvasSize, new("test"), new SourceIndexes(TimelineIndex.Empty, new EmptyIndexes()), projection?.Catalog ?? MediaQueryCatalog.Empty);
         var prepared = PreparedEffect.Empty with { GeometrySampling = continuous ? new(GeometrySamplingMode.Continuous120Hz, [new(0, 10000)], []) : GeometrySamplingPolicy.Exact, VisualOutputs = [new(new("manual"), VisualPrimitiveKind.Dots, OverlayLayer.AboveText)] };
@@ -165,10 +165,9 @@ public sealed class ProjectMediaHostStageTests
         object pure = New(type.GetNestedType("PureEffectRuntime", BindingFlags.NonPublic)!, author, source, prepared, null, null, null, projection);
         object active = New(type.GetNestedType("ActiveEffect", BindingFlags.NonPublic)!, definition, null,
             new DeterministicRandom(42, new("test")), null, null, pure, null);
-        var frame = new FrameContext { TimeUs = 1001, Project = project, Parameters = ParameterValues.Empty,
-            Random = new(42, new("test")), Binding = definition.Binding, Presentations = new() };
+        TextFrameHostInputs frame = new(1001, BaselineStyles.Empty, new(), [], [], [], [], definition.Binding, OutputMode.Opaque);
         var snapshot = new ProjectSnapshot { Name = "stage" };
-        return (active, frame, new() { TimeUs = 1001, Definition = SceneDefinitionBuilder.Build(snapshot) });
+        return (active, project, frame, new() { TimeUs = 1001, Definition = SceneDefinitionBuilder.Build(snapshot) });
     }
 
     private static object New(Type type, params object?[] args) => type.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)

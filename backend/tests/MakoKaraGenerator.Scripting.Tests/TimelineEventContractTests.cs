@@ -67,12 +67,10 @@ public sealed class TimelineEventContractTests
         Assert.Throws<ArgumentException>(() => new CursorIdentity(to.BranchId, to.LineId, to.BindingId, to.TimeRange, ProgressSource.Token));
         var transition = new CursorTransitionEvent(new("track"), from, to, 6000, CursorTransitionReason.LineChange, new(0, 1), ReplayReason.Initial);
         Assert.Equal(0, transition.GapUs);
-        Assert.Throws<ArgumentException>(() => new TimelineHistory(timeline.Content, 7000, [new(transition)]));
         // 固定表发布真实转换；有逐字时间的 From 不能冒用行依据。
         var actual = Assert.Single(timeline.CursorTransitions, edge => edge.To.ProgressSource == ProgressSource.Line);
         Assert.Equal(new TokenId("c"), actual.From.TokenId); Assert.Equal(new TimeRange(4000, 5000), actual.From.TimeRange);
         Assert.Equal(to, actual.To); Assert.Equal(1000, actual.GapUs);
-        Assert.Equal(timeline.Events.Length, timeline.HistoryAt(7000).Records.Length);
     }
 
     [Fact]

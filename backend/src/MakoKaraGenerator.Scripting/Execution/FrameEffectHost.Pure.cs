@@ -32,14 +32,14 @@ internal sealed partial class FrameEffectHost
             string? telemetry = PerformanceTelemetry.CreateScriptIdentity($"{definition.RuntimeHash}|{definition.Id}|{definition.PackageIdentity}");
             var active = new ActiveEffect(definition, module, new(definition.Seed, definition.Id), scope, telemetry);
             PreparedEffect? prepared = null;
-            Invoke(active, "Declare", 0, Diagnostics, _ =>
+            Invoke(active, "Declare", 0, Diagnostics, () =>
             {
                 using var measured = MeasureAuthor(active, "Declare");
                 prepared = instance.Declare(source) ?? throw new EffectOutputException("PreparedEffectMissing", "Declare 必须返回递归只读准备结果。");
             });
             token.ThrowIfCancellationRequested();
             var pure = new PureEffectRuntime(instance, source, prepared!, MediaProjection: mediaProjection);
-            Invoke(active, "PrepareParticles", 0, Diagnostics, _ =>
+            Invoke(active, "PrepareParticles", 0, Diagnostics, () =>
             {
                 var package = definition.PackageDefinition!;
                 PreparedEffectDeclaration.Validate(prepared!, source, package.Contents.Requires,
@@ -70,7 +70,7 @@ internal sealed partial class FrameEffectHost
     private static Affine2 ComposeFor(ActiveEffect active, Affine2 previous, Affine2 next)
         => active.Pure is null ? previous.Compose(next) : next.Compose(previous);
 
-    private static FrameOutput EvaluatePure(ActiveEffect active, FrameContext frame, SceneFrame scene,
+    private static FrameOutput EvaluatePure(ActiveEffect active, TextFrameHostInputs frame, SceneFrame scene,
         ImmutableArray<GroupGeometrySample> writableGroups, CancellationToken token)
     {
         var pure = active.Pure!;

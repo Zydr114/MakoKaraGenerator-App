@@ -65,12 +65,4 @@ public sealed class VectorOverlayContractTests
         Assert.Throws<EffectOutputException>(() => writer.DrawTrails(new("t"), [null!], OverlayLayer.AboveText));
         Assert.Throws<EffectOutputException>(() => writer.DrawTrails(default, [], OverlayLayer.AboveText));
     }
-    [Fact]
-    public void Custom只选择绘制协议不绕过描述校验()
-    {
-        CursorEmitterDescriptor descriptor = new() { AnchorMode = CursorAnchorMode.Baseline, RatePerSecond = 1, LifetimeUs = 1,
-            SizePx = 1, Color = default, SeedStreamKey = "custom", Rendering = ParticleRenderMode.Custom };
-        descriptor.Validate(); Assert.Equal(ParticleRenderMode.Dots, (descriptor with { Rendering = ParticleRenderMode.Dots }).Rendering);
-        Assert.Equal("InvalidEmitter", Assert.Throws<EffectOutputException>(() => (descriptor with { Rendering = (ParticleRenderMode)99 }).Validate()).Code);
-    }
 }

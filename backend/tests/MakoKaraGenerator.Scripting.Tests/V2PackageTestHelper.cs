@@ -224,16 +224,10 @@ internal static class V2PackageTestHelper
             CanTransformIndependently = independent,
             DiagnosticCode = independent ? null : "UnsupportedGlyphPartition",
         };
-        FrameContext legacy = new()
-        {
-            TimeUs = 1000,
-            Project = new() { Content = content, Scene = scene, CanvasSize = new(1920, 1080) },
-            Parameters = ParameterValues.Empty,
-            Resources = resources ?? ResourceCatalog.Empty,
-            Baseline = baseline ?? BaselineStyles.Empty,
-            Random = new(42, new("test")),
-            Binding = binding ?? new EffectBinding.Project(),
-            Presentations = new()
+        TextFrameHostInputs legacy = new(
+            1000,
+            baseline ?? BaselineStyles.Empty,
+            new()
             {
                 LinesInBinding = includeLine ? [line] : [],
                 TokensInBinding =
@@ -252,11 +246,12 @@ internal static class V2PackageTestHelper
                 ],
                 MarksInBinding = includeMark ? [new FrameMark(markTarget, line, new("node"), "mark", false, 1)] : [],
             },
-            Geometry = [new() { BranchId = line.BranchId, LineId = line.LineId, WithRuby = family, BaseOnly = basic, BaseGeometry = geometry, FamilyGeometry = geometry }],
-            LineGeometry = includeLine ? [new() { BranchId = line.BranchId, Target = line.Target, BaseGeometry = geometry, ProgressPath = new(0, 50, 55, 40) }] : [],
-            MarkGeometry = includeMark ? [new(markTarget, geometry)] : [],
-            GroupGeometry = includeGroup ? [new() { Target = groupTarget, ReferenceBounds = new(0, 0, 100, 50), BaseWorldMatrix = Affine2.Identity, WorldPivot = new(50, 25), WorldInkCorners = [] }] : [],
-        };
+            [new() { BranchId = line.BranchId, LineId = line.LineId, WithRuby = family, BaseOnly = basic, BaseGeometry = geometry, FamilyGeometry = geometry }],
+            includeLine ? [new() { BranchId = line.BranchId, Target = line.Target, BaseGeometry = geometry, ProgressPath = new(0, 50, 55, 40) }] : [],
+            includeMark ? [new(markTarget, geometry)] : [],
+            includeGroup ? [new() { Target = groupTarget, ReferenceBounds = new(0, 0, 100, 50), BaseWorldMatrix = Affine2.Identity, WorldPivot = new(50, 25), WorldInkCorners = [] }] : [],
+            binding ?? new EffectBinding.Project(),
+            OutputMode.Opaque);
         var source = new DeclareContext(content, scene, ParameterValues.Empty, AudioFeatures.NotAnalyzed,
             resources ?? ResourceCatalog.Empty, 42, TimelineIndex.Empty, new(1920, 1080), new("test"));
         return new(source, legacy);

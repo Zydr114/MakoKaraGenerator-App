@@ -32,14 +32,11 @@ public sealed class GroupTransformPackageTransferTests
         var author = module.CreateInstance<IPureKaraokeEffect>(effect.EntryType!);
         ContentCatalog catalog = new([], [], [], []);
         SceneCatalog scene = new(catalog, [], [], [], []);
-        ProjectContext project = new() { Content = catalog, Scene = scene, CanvasSize = new(640, 360) };
-        DeterministicRandom random = new(effect.Seed, effect.Id);
         DeclareContext declare = new(catalog, scene, effect.Parameters, AudioFeatures.NotAnalyzed, effect.Resources, effect.Seed, TimelineIndex.Empty, new(640, 360), effect.Id);
         PreparedEffect prepared = author.Declare(declare);
         GroupGeometrySample group = new() { Target = new(new("root")), BaseWorldMatrix = Affine2.Translation(100, 50),
             ReferenceBounds = new(0, 0, 100, 50), WorldPivot = new(150, 75), WorldInkCorners = [] };
-        FrameContext legacy = new() { TimeUs = 0, Project = project, Parameters = effect.Parameters, Resources = effect.Resources, Random = random,
-            Binding = effect.Binding, Presentations = new(), GroupGeometry = [group] };
+        TextFrameHostInputs legacy = new(0, BaselineStyles.Empty, new(), [], [], [], [group], effect.Binding, OutputMode.Opaque);
         TextFrame frame = new(declare, legacy);
         TextOutput output = new(in frame, ["group.affine"], [group.Target]);
         author.Evaluate(in frame, prepared, output);

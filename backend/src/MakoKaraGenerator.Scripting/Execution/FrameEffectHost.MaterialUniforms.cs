@@ -85,7 +85,7 @@ internal sealed partial class FrameEffectHost
                 foreach (var pending in scope.Values.OrderBy(item => item.Order))
                 {
                     token.ThrowIfCancellationRequested(); var active = pending.Owner; var write = pending.Write;
-                    Invoke(active, "ComposeOutputs", timeUs, diagnostics, _ => BaseMaterialAction(key.Target, () =>
+                    Invoke(active, "ComposeOutputs", timeUs, diagnostics, () => BaseMaterialAction(key.Target, () =>
                     {
                         StyleUpdate update; StyleView source; ImageEffectTarget target;
                         if (key.Target is TextTarget.Family family)

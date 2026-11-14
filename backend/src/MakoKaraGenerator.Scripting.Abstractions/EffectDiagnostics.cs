@@ -49,24 +49,6 @@ public sealed record EffectDiagnostic
     public SourceLocation? Location { get; }
 }
 
-/// <summary>只在一个阶段内有效的诊断通道；Error 是否被作者捕获不改变宿主失败判据。</summary>
-public sealed class DiagnosticReporter
-{
-    private Action<EffectDiagnostic>? _report;
-    /// <summary>宿主建立本阶段通道。</summary>
-    public DiagnosticReporter(Action<EffectDiagnostic> report) { ArgumentNullException.ThrowIfNull(report); _report = report; }
-    /// <summary>报告诊断；阶段结束后调用报告 InvalidDiagnosticStage。</summary>
-    public void Report(DiagnosticSeverity severity, string code, string message, SourceLocation? location = null)
-    {
-        var report = _report ?? throw new EffectOutputException("InvalidDiagnosticStage", "诊断通道已结束。");
-        report(new(severity, code, message, location));
-    }
-    /// <summary>宿主在 finally 中结束阶段并释放回调引用。</summary>
-    public void Invalidate() => _report = null;
-    /// <summary>尚未由宿主建立的上下文不能伪造诊断成功。</summary>
-    public static DiagnosticReporter Unavailable => new(static _ => throw new EffectOutputException("DiagnosticsUnavailable", "此上下文没有宿主诊断通道。"));
-}
-
 /// <summary>宿主附加身份的只读运行诊断。</summary>
 /// <param name="InstanceId">实例。</param><param name="ArtifactHash">固定产物。</param>
 /// <param name="Stage">阶段。</param><param name="TimeUs">整数微秒时刻。</param><param name="Diagnostic">作者报告。</param>

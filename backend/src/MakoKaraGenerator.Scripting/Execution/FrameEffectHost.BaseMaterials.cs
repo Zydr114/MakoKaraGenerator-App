@@ -36,7 +36,7 @@ internal sealed partial class FrameEffectHost
             {
                 if (!owners.TryGetValue((target, slot), out var active))
                     throw new PreparedFrameException("BaseMaterialOwnershipRequired", "Base 材质部位缺少真实写入者。") { TextTarget = new TextTarget.Base(target) };
-                Invoke(active, "ComposeOutputs", timeUs, diagnostics, _ => BaseMaterialAction(new TextTarget.Base(target), () =>
+                Invoke(active, "ComposeOutputs", timeUs, diagnostics, () => BaseMaterialAction(new TextTarget.Base(target), () =>
                 {
                     var resolved = update.ApplyMaterials(basis);
                     var value = resolved.Material(slot);

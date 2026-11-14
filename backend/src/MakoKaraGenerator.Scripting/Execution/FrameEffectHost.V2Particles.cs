@@ -44,7 +44,7 @@ internal sealed partial class FrameEffectHost
             foreach (var row in rows)
             {
                 token.ThrowIfCancellationRequested(); ParticleBirth? birth = null;
-                Invoke(active, "ResolveFinalAnchors", row.BirthUs, diagnostics, _ =>
+                Invoke(active, "ResolveFinalAnchors", row.BirthUs, diagnostics, () =>
                 {
                     var anchor = ResolveV2Anchor(active, row, query, diagnostics, token);
                     birth = ParticleKinematics.ResolveBirth(row, anchor, owner);
@@ -59,7 +59,7 @@ internal sealed partial class FrameEffectHost
             var snapshot = new PreparedV2ParticleSnapshot(active.Definition.Id, new(window, [.. births]), [.. alive],
                 [.. alive.Select(item => new PreparedV2ParticleTrail(item.Id, trails[item.Id]))]);
             snapshots.Add(snapshot);
-            Invoke(active, "EvaluateVisuals", text.TimeUs, diagnostics, _ =>
+            Invoke(active, "EvaluateVisuals", text.TimeUs, diagnostics, () =>
             {
                 // Each auto emitter owns exactly one reserved output id. Custom
                 // particles remain in the view and produce no automatic batch.
@@ -109,7 +109,7 @@ internal sealed partial class FrameEffectHost
             });
         }
         token.ThrowIfCancellationRequested();
-        Invoke(pureOwners[^1], "ResolveFinalAnchors", text.TimeUs, diagnostics, _ => query.Budget.Check());
+        Invoke(pureOwners[^1], "ResolveFinalAnchors", text.TimeUs, diagnostics, () => query.Budget.Check());
         var order = _definitions.Select((definition, index) => (definition.Id, index)).ToDictionary(static item => item.Id, static item => item.index);
         var result = text.WithV2ParticleSnapshots([.. snapshots], query.Budget.Statistics)
             .WithOverlaySnapshot([.. batches.OrderBy(batch => order[batch.InstanceId]).ThenBy(static batch => batch.Id.Value, StringComparer.Ordinal)],

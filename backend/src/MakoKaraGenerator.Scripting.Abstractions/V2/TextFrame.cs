@@ -41,14 +41,27 @@ public sealed record TextLineLoad
     public double ExitProgress { get; }
 }
 
+/// <summary>宿主传递给纯文字帧内部的只读输入封包。</summary>
+internal sealed record TextFrameHostInputs(
+    long TimeUs,
+    BaselineStyles Baseline,
+    FramePresentations Presentations,
+    ImmutableArray<TokenGeometrySample> Geometry,
+    ImmutableArray<LineGeometrySample> LineGeometry,
+    ImmutableArray<TextMarkGeometrySample> MarkGeometry,
+    ImmutableArray<GroupGeometrySample> GroupGeometry,
+    EffectBinding Binding,
+    OutputMode OutputMode,
+    CancellationToken CancellationToken = default);
+
 /// <summary>SDK v2 文字阶段的只读帧；不公开 v1 历史、状态或诊断。</summary>
 public readonly struct TextFrame
 {
     /// <summary>投影宿主已经采样的安全只读输入；退场时由宿主显式提供冻结后的装载和几何。</summary>
-    internal TextFrame(DeclareContext source, FrameContext frame, ImmutableArray<TextLineLoad> lineLoads = default)
+    internal TextFrame(DeclareContext source, TextFrameHostInputs frame, ImmutableArray<TextLineLoad> lineLoads = default)
         : this(source, frame, lineLoads, UnboundMedia(source, frame)) { }
 
-    internal TextFrame(DeclareContext source, FrameContext frame, ImmutableArray<TextLineLoad> lineLoads, MediaFeatures media)
+    internal TextFrame(DeclareContext source, TextFrameHostInputs frame, ImmutableArray<TextLineLoad> lineLoads, MediaFeatures media)
     {
         ArgumentNullException.ThrowIfNull(source); ArgumentNullException.ThrowIfNull(frame); ArgumentNullException.ThrowIfNull(media);
         media.ValidateCatalog(source.Media, source.CanvasSize);
@@ -106,7 +119,7 @@ public readonly struct TextFrame
     /// <summary>当前输出的背景语义。</summary>
     public OutputMode OutputMode { get; }
 
-    private static MediaFeatures UnboundMedia(DeclareContext source, FrameContext frame)
+    private static MediaFeatures UnboundMedia(DeclareContext source, TextFrameHostInputs frame)
     {
         ArgumentNullException.ThrowIfNull(source); ArgumentNullException.ThrowIfNull(frame);
         return new(source.Media, source.CanvasSize, token: frame.CancellationToken);

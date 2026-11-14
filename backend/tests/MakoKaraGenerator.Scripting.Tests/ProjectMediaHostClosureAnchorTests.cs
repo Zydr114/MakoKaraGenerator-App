@@ -28,7 +28,7 @@ public sealed class ProjectMediaHostClosureAnchorTests
         var scene = Geometry(snapshot, alias);
         var content = ContentProjection.Create(snapshot);
         var catalog = SceneProjection.Create(snapshot, content);
-        var project = new ProjectContext { Content = content, Scene = catalog, CanvasSize = new(640, 360) };
+        var project = new HostProjectInputs(content, catalog, new(640, 360));
         var line = FrameProjection.Lines(scene, catalog).Single(item => item.LineId.Value == "chorus");
         var token = FrameProjection.Tokens(scene).Single(item => item.TokenId.Value == "chorus-a");
         ParticleSource source = kind == "token" ? new ParticleSource.Token(token.WithRuby) : new ParticleSource.Line(line.Target);
@@ -68,7 +68,7 @@ public sealed class ProjectMediaHostClosureAnchorTests
         var snapshot = ProjectSnapshot.FromProject(LeadInFixture.Create(true, true));
         var scene = Geometry(snapshot, false);
         var content = ContentProjection.Create(snapshot); var catalog = SceneProjection.Create(snapshot, content);
-        var project = new ProjectContext { Content = content, Scene = catalog, CanvasSize = new(640, 360) };
+        var project = new HostProjectInputs(content, catalog, new(640, 360));
         var line = FrameProjection.Lines(scene, catalog).Single(item => item.LineId.Value == "chorus");
         var owner = Active("requester", new EffectBinding.Project(), project, line, null);
         var writer = Active("writer", new EffectBinding.Node(new("center"), false), project, line, null);
@@ -88,7 +88,7 @@ public sealed class ProjectMediaHostClosureAnchorTests
     {
         var snapshot = ProjectSnapshot.FromProject(LeadInFixture.Create(true, true)); var scene = Geometry(snapshot, false);
         var content = ContentProjection.Create(snapshot); var catalog = SceneProjection.Create(snapshot, content);
-        var project = new ProjectContext { Content = content, Scene = catalog, CanvasSize = new(640, 360) };
+        var project = new HostProjectInputs(content, catalog, new(640, 360));
         var line = FrameProjection.Lines(scene, catalog).Single(item => item.LineId.Value == "chorus");
         var token = FrameProjection.Tokens(scene).Single(item => item.TokenId.Value == "chorus-a");
         ParticleSource source = kind == "token" ? new ParticleSource.Token(token.WithRuby) : new ParticleSource.Line(line.Target);
@@ -117,7 +117,7 @@ public sealed class ProjectMediaHostClosureAnchorTests
             ProjectMediaProjectionFixture.Parameters(catalog), catalog.ResolveParameters("scale"));
     }
 
-    private static object Active(string id, EffectBinding binding, ProjectContext project, FrameLine line, ProjectMediaFeatureProjection? projection, string target = "group")
+    private static object Active(string id, EffectBinding binding, HostProjectInputs project, FrameLine line, ProjectMediaFeatureProjection? projection, string target = "group")
     {
         var original = EffectPackageFixture.GroupTransform();
         var manifest = System.Text.Json.Nodes.JsonNode.Parse(original.Manifest.AsSpan())!.AsObject();

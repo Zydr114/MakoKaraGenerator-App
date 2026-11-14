@@ -11,9 +11,9 @@ public sealed class V2GroupGraphOutputContractTests
     private static TextFrame Frame()
     {
         ContentCatalog content = new([], [], [], []); SceneCatalog scene = new(content, [], [], [], []);
-        FrameContext legacy = new() { TimeUs = 100, Project = new() { Content = content, Scene = scene, CanvasSize = new(16, 16) },
-            Presentations = new(), Parameters = ParameterValues.Empty, Resources = Resources, Random = new(1, new("group")), Binding = new EffectBinding.Project(),
-            GroupGeometry = [new() { Target = Group, ReferenceBounds = new(0, 0, 16, 16), BaseWorldMatrix = Affine2.Identity, WorldPivot = new(8, 8) }] };
+        TextFrameHostInputs legacy = new(100, BaselineStyles.Empty, new(), [], [], [],
+            [new() { Target = Group, ReferenceBounds = new(0, 0, 16, 16), BaseWorldMatrix = Affine2.Identity, WorldPivot = new(8, 8) }],
+            new EffectBinding.Project(), OutputMode.Opaque);
         var source = new DeclareContext(content, scene, ParameterValues.Empty, AudioFeatures.NotAnalyzed, Resources, 1, TimelineIndex.Empty, new(16, 16), new("group"));
         return new(source, legacy);
     }

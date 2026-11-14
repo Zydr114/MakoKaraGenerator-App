@@ -12,12 +12,56 @@ public sealed class V2SdkContractTests
         Assert.Equal(3, Assert.IsType<TestPrepared>(data).Ordinals.Length);
         Assert.Same(PreparedEffect.Empty, PreparedEffect.Empty);
         Assert.DoesNotContain(typeof(TextFrame).GetProperties(), property =>
-            property.PropertyType == typeof(FrameContext)
-            || property.PropertyType.FullName is "MakoKaraGenerator.Scripting.FrameWriter" or "MakoKaraGenerator.Scripting.VisualWriter"
-            || property.PropertyType == typeof(TimelineHistory) || property.PropertyType == typeof(GeometryQueries)
+            property.PropertyType.FullName is "MakoKaraGenerator.Scripting.FrameContext"
+                or "MakoKaraGenerator.Scripting.ProjectContext"
+                or "MakoKaraGenerator.Scripting.FrameWriter"
+                or "MakoKaraGenerator.Scripting.VisualWriter"
+                or "MakoKaraGenerator.Scripting.TimelineHistory"
+                or "MakoKaraGenerator.Scripting.GeometryQueries"
+                or "MakoKaraGenerator.Scripting.DiagnosticReporter"
             || property.Name is "History" or "LastSimulationBoundaryUs" or "State" or "Diagnostics");
-        Assert.Null(typeof(TextOutput).Assembly.GetType("MakoKaraGenerator.Scripting.V2.FrameWriter"));
-        Assert.Null(typeof(VisualOutput).Assembly.GetType("MakoKaraGenerator.Scripting.V2.VisualWriter"));
+        foreach (string removed in new[]
+        {
+            "MakoKaraGenerator.Scripting.IKaraokeEffect",
+            "MakoKaraGenerator.Scripting.EffectBase",
+            "MakoKaraGenerator.Scripting.FrameContext",
+            "MakoKaraGenerator.Scripting.ProjectContext",
+            "MakoKaraGenerator.Scripting.EffectInitializationContext",
+            "MakoKaraGenerator.Scripting.TimelineHistory",
+            "MakoKaraGenerator.Scripting.GeometryQueries",
+            "MakoKaraGenerator.Scripting.DiagnosticReporter",
+            "MakoKaraGenerator.Scripting.FrameWriter",
+            "MakoKaraGenerator.Scripting.TransformWriter",
+            "MakoKaraGenerator.Scripting.StyleWriter",
+            "MakoKaraGenerator.Scripting.ImageEffectWriter",
+            "MakoKaraGenerator.Scripting.MaterialWriter",
+            "MakoKaraGenerator.Scripting.VisualWriter",
+            "MakoKaraGenerator.Scripting.OverlayWriter",
+            "MakoKaraGenerator.Scripting.BurstWriter",
+            "MakoKaraGenerator.Scripting.BurstDescriptor",
+            "MakoKaraGenerator.Scripting.BurstIntent",
+            "MakoKaraGenerator.Scripting.CursorEmitterDescriptor",
+            "MakoKaraGenerator.Scripting.EmitterBinding",
+            "MakoKaraGenerator.Scripting.ParticleSimulationBudget",
+            "MakoKaraGenerator.Scripting.ParticleId",
+            "MakoKaraGenerator.Scripting.ParticleSample",
+            "MakoKaraGenerator.Scripting.VisualSimulationStep",
+            "MakoKaraGenerator.Scripting.VisualContext",
+            "MakoKaraGenerator.Scripting.VisualStateContext",
+            "MakoKaraGenerator.Scripting.VisualFrameContext",
+            "MakoKaraGenerator.Scripting.EmissionFrameContext",
+            "MakoKaraGenerator.Scripting.EmissionSchedule",
+            "MakoKaraGenerator.Scripting.EmitterWriter",
+            "MakoKaraGenerator.Scripting.StateContext",
+            "MakoKaraGenerator.Scripting.AnchorMap",
+            "MakoKaraGenerator.Scripting.CursorEndpoint",
+            "MakoKaraGenerator.Scripting.Pivot",
+            "MakoKaraGenerator.Scripting.CursorTrackFilter",
+            "MakoKaraGenerator.Scripting.ImageOnlyPolicy",
+            "MakoKaraGenerator.Scripting.V2.FrameWriter",
+            "MakoKaraGenerator.Scripting.V2.VisualWriter",
+        })
+            Assert.Null(typeof(TextOutput).Assembly.GetType(removed));
         Assert.All(typeof(DeclareContext).GetProperties(), property => Assert.Null(property.SetMethod));
         Assert.All(typeof(TextLineLoad).GetProperties(), property => Assert.Null(property.SetMethod));
     }
@@ -30,6 +74,18 @@ public sealed class V2SdkContractTests
             $"Core 与 SDK 能力名不一致：{string.Join(", ", Core.Effects.EffectPackageProfiles.SupportedV2Capabilities.Order(StringComparer.Ordinal))} / {string.Join(", ", CapabilityNames.All.Order(StringComparer.Ordinal))}");
         Assert.Empty(typeof(TextOutput).GetConstructors()); Assert.Empty(typeof(TextFrame).GetConstructors()); Assert.Empty(typeof(DeclareContext).GetConstructors());
         Assert.Null(typeof(TextOutput).GetMethod("Complete")); Assert.Null(typeof(TextOutput).GetMethod("Invalidate"));
+    }
+
+    [Fact]
+    public void 源筛选拒绝空列表重复和无效身份()
+    {
+        Assert.Throws<ArgumentException>(() => new SourceFilter.Tokens([]));
+        Assert.Throws<ArgumentException>(() => new SourceFilter.Tokens([new("a"), new("a")]));
+        Assert.Throws<ArgumentException>(() => new SourceFilter.Tokens([default]));
+        Assert.Throws<ArgumentException>(() => new SourceFilter.Lines(default));
+        Assert.Throws<ArgumentException>(() => new SourceFilter.Lines([new("first"), new("first")]));
+        Assert.Throws<ArgumentException>(() => new SourceFilter.Branch(default));
+        Assert.Throws<ArgumentException>(() => new SourceSubscription.Branch(default));
     }
 
     [Fact]
@@ -214,7 +270,8 @@ public sealed class V2SdkContractTests
     public void 工程成片时长作为固定输入公开且只接受正值或未知()
     {
         var legacy = LegacyFrame();
-        DeclareContext Source(long? duration) => new(legacy.Project.Content, legacy.Project.Scene, ParameterValues.Empty,
+        ContentCatalog content = new([], [], [], []); SceneCatalog scene = new(content, [], [], [], []);
+        DeclareContext Source(long? duration) => new(content, scene, ParameterValues.Empty,
             AudioFeatures.NotAnalyzed, ResourceCatalog.Empty, 42, TimelineIndex.Empty, new(1920, 1080), new("test"), projectDurationUs: duration);
         Assert.Null(Frame().ProjectDurationUs); Assert.Null(new TextFrame(Source(null), legacy).Source.ProjectDurationUs);
         var known = new TextFrame(Source(180_000_000), legacy);
@@ -232,25 +289,26 @@ public sealed class V2SdkContractTests
     private static TextFrame Frame(bool independent = true)
     {
         var legacy = LegacyFrame(independent);
-        var source = new DeclareContext(legacy.Project.Content, legacy.Project.Scene, ParameterValues.Empty,
+        ContentCatalog content = new([], [], [], []); SceneCatalog scene = new(content, [], [], [], []);
+        var source = new DeclareContext(content, scene, ParameterValues.Empty,
             AudioFeatures.NotAnalyzed, ResourceCatalog.Empty, 42, TimelineIndex.Empty, new(1920, 1080), new("test"));
         return new(source, legacy);
     }
 
-    private static FrameContext LegacyFrame(bool independent = true)
+    private static TextFrameHostInputs LegacyFrame(bool independent = true)
     {
-        ContentCatalog content = new([], [], [], []); SceneCatalog scene = new(content, [], [], [], []);
         var family = new TokenFamilyTarget(new("token"), new("binding")); var basic = new BaseTokenTarget(family.TokenId, family.BindingId);
         var line = new FrameLine(new("line"), new("branch"), family.BindingId, new("node"), new("group"), new("program"), null, null, DisplayPhase.Performing, 1);
         var geometry = new GeometrySample { AdvanceBounds = new(0, 0, 10, 10), Baseline = new(0, 8), BaseWorldMatrix = Affine2.Identity,
             CanTransformIndependently = independent, DiagnosticCode = independent ? null : "UnsupportedGlyphPartition" };
-        return new() { TimeUs = 1000, Project = new() { Content = content, Scene = scene, CanvasSize = new(1920, 1080) },
-            Parameters = ParameterValues.Empty, Random = new(42, new("test")), Binding = new EffectBinding.Project(),
-            Presentations = new() { LinesInBinding = [line], TokensInBinding = [new() { TokenId = family.TokenId, BranchId = line.BranchId,
+        return new(1000, BaselineStyles.Empty,
+            new() { LinesInBinding = [line], TokensInBinding = [new() { TokenId = family.TokenId, BranchId = line.BranchId,
                 LineId = line.LineId, BindingId = family.BindingId, SourceText = "x", WithRuby = family, BaseOnly = basic,
                 Performance = new(null, null, null, null, false, false, ProgressSource.Missing) }] },
-            Geometry = [new() { BranchId = line.BranchId, LineId = line.LineId, WithRuby = family, BaseOnly = basic, BaseGeometry = geometry, FamilyGeometry = geometry }],
-            LineGeometry = [new() { BranchId = line.BranchId, Target = line.Target, BaseGeometry = geometry, ProgressPath = new(0, 10, 8, 5) }],
-            GroupGeometry = [new() { Target = new(new("group")), ReferenceBounds = new(0, 0, 100, 100), BaseWorldMatrix = Affine2.Identity, WorldPivot = default }] };
+            [new() { BranchId = line.BranchId, LineId = line.LineId, WithRuby = family, BaseOnly = basic, BaseGeometry = geometry, FamilyGeometry = geometry }],
+            [new() { BranchId = line.BranchId, Target = line.Target, BaseGeometry = geometry, ProgressPath = new(0, 10, 8, 5) }],
+            [],
+            [new() { Target = new(new("group")), ReferenceBounds = new(0, 0, 100, 100), BaseWorldMatrix = Affine2.Identity, WorldPivot = default }],
+            new EffectBinding.Project(), OutputMode.Opaque);
     }
 }

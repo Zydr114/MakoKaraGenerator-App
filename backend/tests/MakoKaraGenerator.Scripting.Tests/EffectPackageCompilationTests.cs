@@ -30,9 +30,8 @@ public sealed class EffectPackageCompilationTests
         ContentCatalog catalog = new([], [], [], []);
         SceneCatalog scene = new(catalog, [], [], [], []);
         ParameterValues parameters = new([new("peak", new ParameterValue.Number(1.5))]);
-        var legacy = new FrameContext { TimeUs = 500_000, Project = new() { Content = catalog, Scene = scene, CanvasSize = new(640, 360) },
-            Parameters = parameters, Random = new(1, new("instance")),
-            Binding = new EffectBinding.Tokens([target.TokenId]), Presentations = new() { TokensInBinding = [token] }, Geometry = [geometry] };
+        var legacy = new TextFrameHostInputs(500_000, BaselineStyles.Empty, new() { TokensInBinding = [token] },
+            [geometry], [], [], [], new EffectBinding.Tokens([target.TokenId]), OutputMode.Opaque);
         DeclareContext declare = new(catalog, scene, parameters, AudioFeatures.NotAnalyzed, ResourceCatalog.Empty, 1, TimelineIndex.Empty, new(640, 360), new("instance"));
         PreparedEffect prepared = effect.Declare(declare);
         TextFrame frame = new(declare, legacy);

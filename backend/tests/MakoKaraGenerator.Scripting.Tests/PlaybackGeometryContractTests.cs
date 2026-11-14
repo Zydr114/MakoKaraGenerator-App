@@ -26,13 +26,4 @@ public sealed class PlaybackGeometryContractTests
         Assert.False(PlaybackFrame.Unavailable.IsAvailable);
         Assert.Equal("PlaybackGeometryUnavailable", Assert.Throws<EffectOutputException>(() => PlaybackFrame.Unavailable.GetCursors(CursorAnchorMode.Baseline)).Code);
     }
-    [Fact]
-    public void 查询通道取消阶段引用不能继续使用()
-    {
-        GeometryQueries queries = new(static (time, _) => new() { TimeUs = time });
-        Assert.Equal(1, queries.GetBaseAt(1, new SourceFilter.Project()).TimeUs);
-        queries.Invalidate();
-        Assert.Equal("InvalidGeometryQueryStage", Assert.Throws<EffectOutputException>(() => queries.GetBaseAt(2, new SourceFilter.Project())).Code);
-        Assert.Equal("GeometryQueriesUnavailable", Assert.Throws<EffectOutputException>(() => GeometryQueries.Unavailable.GetBaseAt(2, new SourceFilter.Project())).Code);
-    }
 }

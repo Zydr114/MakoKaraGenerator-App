@@ -21,7 +21,7 @@ internal sealed partial class FrameEffectHost
         return new(definition, null, new(definition.Seed, definition.Id), scope, null, HostGraph: new(graph, binding));
     }
 
-    private static FrameOutput EvaluateHostDirectGraph(ActiveEffect active, FrameContext frame,
+    private static FrameOutput EvaluateHostDirectGraph(ActiveEffect active, TextFrameHostInputs frame,
         ImmutableArray<GroupGeometrySample> writableGroups)
     {
         var graph = active.HostGraph ?? throw new EffectOutputException("InvalidDirectGraphActivity", "缺少宿主直接图活动。");

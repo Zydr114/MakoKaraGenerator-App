@@ -28,7 +28,7 @@ public sealed class TimelineProjectionTests
         Assert.False(LyricSampler.SampleLine(snapshot.Lyrics.Lines[0], 2000).Tokens[0].IsCurrent);
         Assert.True(LyricSampler.SampleLine(snapshot.Lyrics.Lines[0], 2000).Tokens[2].IsCurrent);
         Assert.Equal(0, timeline.Events.OfType<BindingEntered>().First().TimeUs);
-        Assert.Empty(timeline.HistoryAt(999).GetStarts(new(0, 7000), new SourceFilter.Project()));
+        Assert.DoesNotContain(timeline.Events.OfType<TokenStarted>(), evt => evt.TimeUs <= 999);
     }
 
     [Theory]
@@ -44,7 +44,7 @@ public sealed class TimelineProjectionTests
                 { BranchId = snapshot.Lyrics.PrimaryBranchId, AnimationPolicy = LyricBranchAnimationPolicy.Static }) };
         var timeline = TimelineProjection.Create(snapshot, ReplayReason.Initial);
         Assert.Equal(3, timeline.Events.OfType<TokenStarted>().Count());
-        Assert.Equal(3, timeline.HistoryAt(5000).GetStarts(new(0, 7000), new SourceFilter.Project()).Length);
+        Assert.Equal(3, timeline.Events.OfType<TokenStarted>().Count(evt => evt.TimeUs <= 5000));
         if (hidden)
             Assert.Empty(timeline.Events.OfType<BindingTimelineEvent>());
         else

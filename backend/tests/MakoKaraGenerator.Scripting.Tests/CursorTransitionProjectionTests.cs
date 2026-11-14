@@ -123,7 +123,7 @@ public sealed class CursorTransitionProjectionTests
             var replay = TimelineProjection.Create(snapshot with { Composition = snapshot.Composition with { FrameRate = new(fps, 1) } }, reason);
             Assert.Equal(original.Events.Select(evt => evt.EventId), replay.Events.Select(evt => evt.EventId));
             Assert.All(replay.CursorTransitions, edge => Assert.Equal(reason, edge.ReplayReason));
-            Assert.Empty(replay.HistoryAt(799).Records.Select(record => record.Event).OfType<CursorTransitionEvent>());
+            Assert.DoesNotContain(replay.Events.OfType<CursorTransitionEvent>(), evt => evt.TimeUs <= 799);
         }
     }
     internal static LyricLine Row(string id, long start, long end) => LyricLine.Create(id, "歌", new(start, end), TimingStatus.Edited,

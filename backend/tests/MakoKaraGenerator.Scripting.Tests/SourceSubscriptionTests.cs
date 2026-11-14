@@ -18,7 +18,7 @@ public sealed class SourceSubscriptionTests
         Assert.Single(timeline.Events.OfType<TokenStarted>(), bound.Matches);
         Assert.Equal(3, timeline.Events.OfType<TokenStarted>().Count(broad.Matches));
         Assert.Equal([new TokenId("a")], Assert.IsType<EffectBinding.Tokens>(binding).Ids.ToArray());
-        Assert.Equal(3, timeline.HistoryAt(5000).GetStarts(new(0, 6000), new SourceFilter.Project()).Length);
+        Assert.Equal(3, timeline.Events.OfType<TokenStarted>().Count(evt => evt.TimeUs <= 5000));
     }
 
     [Fact]

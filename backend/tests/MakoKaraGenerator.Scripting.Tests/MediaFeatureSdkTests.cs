@@ -195,11 +195,8 @@ public sealed class MediaFeatureSdkTests
             1, TimelineIndex.Empty, Canvas, new("probe")) : new(content, scene, ParameterValues.Empty, AudioFeatures.NotAnalyzed,
             ResourceCatalog.Empty, 1, TimelineIndex.Empty, Canvas, new("probe"), null, catalog);
     }
-    private static FrameContext Legacy(DeclareContext source) => new()
-    {
-        TimeUs = 100, Project = new() { Content = source.Content, Scene = source.Scene, CanvasSize = Canvas },
-        Parameters = ParameterValues.Empty, Random = source.Random, Presentations = new(), Binding = new EffectBinding.Project(),
-    };
+    private static TextFrameHostInputs Legacy(DeclareContext source) => new(
+        100, BaselineStyles.Empty, new(), [], [], [], [], new EffectBinding.Project(), OutputMode.Opaque);
     private static void AssertCode<T>(string code, Func<T> call)
         => Assert.Equal(code, Assert.Throws<EffectOutputException>(() => { _ = call(); }).Code);
 }

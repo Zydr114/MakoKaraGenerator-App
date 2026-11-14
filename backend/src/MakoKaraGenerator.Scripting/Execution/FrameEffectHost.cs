@@ -8,12 +8,22 @@ using MakoKaraGenerator.Scripting.Projection;
 
 namespace MakoKaraGenerator.Scripting.Execution;
 
+internal sealed record HostProjectInputs(
+    ContentCatalog Content,
+    SceneCatalog Scene,
+    Vector2 CanvasSize,
+    long? DurationUs = null,
+    AudioFeatures? AudioInput = null)
+{
+    public AudioFeatures Audio => AudioInput ?? AudioFeatures.NotAnalyzed;
+}
+
 internal sealed partial class FrameEffectHost : IDisposable
 {
     private readonly ProjectSnapshot _snapshot;
     private readonly ProjectMediaFeatureBinding? _mediaBinding;
     private readonly string? _runtimeInputsFingerprint;
-    private readonly ProjectContext _project;
+    private readonly HostProjectInputs _project;
     private readonly ILineGeometryProvider _geometry;
     private readonly ImmutableArray<CompiledFrameEffect> _definitions;
     private readonly ImmutableArray<ResolvedSourceSubscription> _subscriptions;
@@ -26,7 +36,7 @@ internal sealed partial class FrameEffectHost : IDisposable
     private readonly List<ActiveEffect> _instances = [];
     public RuntimeDiagnosticBuffer Diagnostics { get; private set; } = new();
     public ContentCatalog Content => _project.Content;
-    public FrameEffectHost(ProjectSnapshot snapshot, ProjectContext project, ILineGeometryProvider geometry,
+    public FrameEffectHost(ProjectSnapshot snapshot, HostProjectInputs project, ILineGeometryProvider geometry,
         ImmutableArray<CompiledFrameEffect> definitions, ImmutableArray<ResolvedSourceSubscription> subscriptions, VisualOutputBudget visualBudget,
         PreparedSourceMaterials? sourceMaterials = null, TimelineProjection? timeline = null,
         ProjectMediaFeatureBinding? mediaBinding = null, CancellationToken cancellationToken = default)
@@ -159,13 +169,11 @@ internal sealed partial class FrameEffectHost : IDisposable
             var scopedGeometry = scene.TokenGeometries.Where(item => targets.Contains(item.WithRuby)).ToImmutableArray();
             var scopedMarks = scene.MarkGeometries.Where(mark => marks.Any(item => item.Target == mark.Target)).ToImmutableArray();
             var scopedLines = scene.LineGeometries.Where(line => lines.Any(item => item.Target == line.Target)).ToImmutableArray();
-            FrameContext frame = new() { TimeUs = timeUs, Project = _project, Parameters = definition.Parameters,
-                Resources = definition.Resources, Random = active.Random, Baseline = baseline,
-                Presentations = new() { TokensInBinding = tokens, LinesInBinding = lines, MarksInBinding = marks, Groups = FrameProjection.Groups(scene) },
-                Geometry = scopedGeometry, LineGeometry = scopedLines, MarkGeometry = scopedMarks, GroupGeometry = sourceGroups, Binding = definition.Binding,
-                OutputMode = outputMode, CancellationToken = cancellationToken };
+            V2.TextFrameHostInputs frame = new(timeUs, baseline,
+                new() { TokensInBinding = tokens, LinesInBinding = lines, MarksInBinding = marks, Groups = FrameProjection.Groups(scene) },
+                scopedGeometry, scopedLines, scopedMarks, sourceGroups, definition.Binding, outputMode, cancellationToken);
             FrameOutput? output = null;
-            Invoke(active, "Evaluate", timeUs, diagnostics, ignoredReporter =>
+            Invoke(active, "Evaluate", timeUs, diagnostics, () =>
             {
                 using (MeasureAuthor(active, "Evaluate"))
                 {
@@ -173,7 +181,7 @@ internal sealed partial class FrameEffectHost : IDisposable
                     else output = EvaluatePure(active, frame, scene, writableGroups, cancellationToken);
                 }
             });
-            Invoke(active, "ComposeOutputs", timeUs, diagnostics, ignoredReporter =>
+            Invoke(active, "ComposeOutputs", timeUs, diagnostics, () =>
             {
                 ValidatePureGraphWrites(definition, output!, graphBudget, cancellationToken);
                 materialScopes.Observe(active, output!, graphBudget, cancellationToken);
@@ -247,12 +255,12 @@ internal sealed partial class FrameEffectHost : IDisposable
         materialScopes.Complete(styles, markStyles, baseStyles, baseMaterialOwners, baseline, styleOwners, markOwners, materials, timeUs, diagnostics, cancellationToken);
         // 只在所有实例合并后校验最终 alpha，允许先乘大于 1 再缩小。
         foreach (var pair in styles.Where(pair => styleOwners.ContainsKey(pair.Key)))
-            Invoke(styleOwners[pair.Key], "ComposeOutputs", timeUs, diagnostics, ignoredReporter => StaticStyleProjection.ApplyDrawingStyle(
+            Invoke(styleOwners[pair.Key], "ComposeOutputs", timeUs, diagnostics, () => StaticStyleProjection.ApplyDrawingStyle(
                 loadedStyles is null ? _sourceStyles[pair.Key.TokenId] : loadedStyles[pair.Key], pair.Value, _sourceMaterials));
         foreach (var pair in markStyles.Where(pair => markOwners.ContainsKey(pair.Key)))
-            Invoke(markOwners[pair.Key], "ComposeOutputs", timeUs, diagnostics, ignoredReporter => StaticStyleProjection.ApplyDrawingStyle(sourceMarkStyles[pair.Key.NodeId], pair.Value, _sourceMaterials));
+            Invoke(markOwners[pair.Key], "ComposeOutputs", timeUs, diagnostics, () => StaticStyleProjection.ApplyDrawingStyle(sourceMarkStyles[pair.Key.NodeId], pair.Value, _sourceMaterials));
         foreach (var pair in groupOpacities)
-            Invoke(groupOpacityOwners[pair.Key], "ComposeOutputs", timeUs, diagnostics, ignoredReporter =>
+            Invoke(groupOpacityOwners[pair.Key], "ComposeOutputs", timeUs, diagnostics, () =>
             {
                 if (pair.Value is < 0 or > 1) throw new EffectOutputException("InvalidStyleOpacity", "最终组透明度必须在 [0,1]，不夹值。");
             });

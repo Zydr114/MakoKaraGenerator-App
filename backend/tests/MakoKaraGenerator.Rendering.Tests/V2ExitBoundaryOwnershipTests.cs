@@ -54,9 +54,10 @@ public sealed class V2ExitBoundaryOwnershipTests
         // claim that a normal project can create duplicate source events.
         var timelineConstructor = Assert.Single(typeof(TimelineProjection).GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic));
         var corrupt = (TimelineProjection)timelineConstructor.Invoke([timeline.Content, timeline.Scene,
-            ImmutableArray.Create<TimelineEvent>(enter, enter), ReplayReason.Initial]);
-        var context = new ProjectContext { Content = timeline.Content, Scene = timeline.Scene,
-            CanvasSize = new(snapshot.Composition.CanvasWidth, snapshot.Composition.CanvasHeight), DurationUs = snapshot.Composition.OutputDurationUs };
+            ImmutableArray.Create<TimelineEvent>(enter, enter)]);
+        var contextType = typeof(PureFrameSourceFactory).Assembly.GetType("MakoKaraGenerator.Scripting.Execution.HostProjectInputs", throwOnError: true)!;
+        var context = Assert.Single(contextType.GetConstructors()).Invoke([timeline.Content, timeline.Scene,
+            new Vector2(snapshot.Composition.CanvasWidth, snapshot.Composition.CanvasHeight), snapshot.Composition.OutputDurationUs, null]);
         using SkiaRenderPipeline geometry = new();
         var hostType = typeof(PureFrameSourceFactory).Assembly.GetType("MakoKaraGenerator.Scripting.Execution.FrameEffectHost", throwOnError: true)!;
         var hostConstructor = Assert.Single(hostType.GetConstructors());

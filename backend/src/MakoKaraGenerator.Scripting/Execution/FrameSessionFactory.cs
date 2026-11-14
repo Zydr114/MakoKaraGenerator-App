@@ -47,8 +47,8 @@ internal sealed class FrameSessionFactory
         _sourceMaterials?.ValidateSnapshot(snapshot);
         var timeline = TimelineProjection.Create(snapshot, ReplayReason.Initial, _audio, cancellationToken);
         var content = timeline.Content;
-        var project = new ProjectContext { Content = content, Scene = timeline.Scene,
-            CanvasSize = new(snapshot.Composition.CanvasWidth, snapshot.Composition.CanvasHeight), DurationUs = snapshot.Composition.OutputDurationUs, Audio = _audio };
+        var project = new HostProjectInputs(content, timeline.Scene,
+            new(snapshot.Composition.CanvasWidth, snapshot.Composition.CanvasHeight), snapshot.Composition.OutputDurationUs, _audio);
         foreach (var effect in _effects) ResolvedSourceSubscription.ValidateBinding(project.Content, project.Scene, effect.Binding);
         var subscriptions = _effects.Select(effect => ResolvedSourceSubscription.Create(timeline, effect.Binding, effect.Subscription)).ToImmutableArray();
         ILineGeometryProvider geometry = _geometryFactory() ?? throw new InvalidOperationException("几何后端工厂返回 null。");

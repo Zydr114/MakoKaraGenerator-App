@@ -12,13 +12,13 @@ public sealed class V2GraphOutputContractTests
         var line = new FrameLine(new("line"), new("branch"), family.BindingId, new("node"), new("group"), new("program"), null, null, DisplayPhase.Performing, 1);
         var geometry = new GeometrySample { AdvanceBounds = new(0, 0, 10, 10), Baseline = new(0, 8), BaseWorldMatrix = Affine2.Identity,
             CanTransformIndependently = independent, DiagnosticCode = independent ? null : "UnsupportedGlyphPartition" };
-        FrameContext legacy = new() { TimeUs = 1000, Project = new() { Content = content, Scene = scene, CanvasSize = new(16, 16) },
-            Parameters = ParameterValues.Empty, Resources = Resources, Random = new(42, new("test")), Binding = new EffectBinding.Project(),
-            Presentations = new() { LinesInBinding = [line], TokensInBinding = [new() { TokenId = family.TokenId, BranchId = line.BranchId,
+        TextFrameHostInputs legacy = new(1000, BaselineStyles.Empty,
+            new() { LinesInBinding = [line], TokensInBinding = [new() { TokenId = family.TokenId, BranchId = line.BranchId,
                 LineId = line.LineId, BindingId = family.BindingId, SourceText = "x", WithRuby = family, BaseOnly = basic,
                 Performance = new(null, null, null, null, false, false, ProgressSource.Missing) }] },
-            Geometry = [new() { BranchId = line.BranchId, LineId = line.LineId, WithRuby = family, BaseOnly = basic, BaseGeometry = geometry, FamilyGeometry = geometry }],
-            LineGeometry = [new() { BranchId = line.BranchId, Target = line.Target, BaseGeometry = geometry, ProgressPath = new(0, 10, 8, 5) }] };
+            [new() { BranchId = line.BranchId, LineId = line.LineId, WithRuby = family, BaseOnly = basic, BaseGeometry = geometry, FamilyGeometry = geometry }],
+            [new() { BranchId = line.BranchId, Target = line.Target, BaseGeometry = geometry, ProgressPath = new(0, 10, 8, 5) }],
+            [], [], new EffectBinding.Project(), OutputMode.Opaque);
         var source = new DeclareContext(content, scene, ParameterValues.Empty, AudioFeatures.NotAnalyzed, Resources, 42, TimelineIndex.Empty, new(16, 16), new("test"));
         return new(source, legacy);
     }

@@ -8,12 +8,10 @@ namespace MakoKaraGenerator.Scripting.Projection;
 /// <summary>固定源／场景时间线；不运行作者代码或按 UI 帧累积事件。</summary>
 public sealed class TimelineProjection
 {
-    private readonly Lazy<TimelineHistory.ValidatedEventTable> _historyTable;
-    private TimelineProjection(ContentCatalog content, SceneCatalog scene, ImmutableArray<TimelineEvent> events, ReplayReason reason)
+    private TimelineProjection(ContentCatalog content, SceneCatalog scene, ImmutableArray<TimelineEvent> events)
     {
         Content = content; Scene = scene; Events = events;
         CursorTransitions = [.. events.OfType<CursorTransitionEvent>()];
-        _historyTable = new(() => CreateHistoryTable(reason, default));
     }
     /// <summary>与事件一致的完整源目录。</summary>
     public ContentCatalog Content { get; }
@@ -47,20 +45,7 @@ public sealed class TimelineProjection
         events.Sort(TimelineEvent.Comparer);
         if (events.Select(static evt => evt.EventId).Distinct().Count() != events.Count)
             throw new PreparedFrameException("DuplicateTimelineEvent", "固定事件表中存在重复身份，不能悄悄去重。");
-        return new(content, scene, [.. events], reason);
-    }
-    /// <summary>截取已处理边界的真实历史；不会因请求未来区间而暴露未来事件。</summary>
-    public TimelineHistory HistoryAt(long lastBoundaryUs)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegative(lastBoundaryUs);
-        return _historyTable.Value.At(lastBoundaryUs);
-    }
-    internal TimelineHistory.ValidatedEventTable CreateHistoryTable(ReplayReason reason, CancellationToken token)
-    {
-        if (!Enum.IsDefined(reason)) throw new ArgumentOutOfRangeException(nameof(reason));
-        var records = ImmutableArray.CreateBuilder<EventRecord>(Events.Length);
-        foreach (var evt in Events) { token.ThrowIfCancellationRequested(); records.Add(new(evt.WithReplayReason(reason))); }
-        return new(Content, records.MoveToImmutable(), token);
+        return new(content, scene, [.. events]);
     }
     private static void AddPerformance(ContentCatalog content, ReplayReason reason, List<TimelineEvent> events, CancellationToken cancellationToken)
     {

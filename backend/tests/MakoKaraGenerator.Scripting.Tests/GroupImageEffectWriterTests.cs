@@ -17,17 +17,8 @@ public sealed class GroupImageEffectWriterTests
     {
         ContentCatalog content = new([], [], [], []);
         SceneCatalog scene = new(content, [], [], [], []);
-        FrameContext legacy = new()
-        {
-            TimeUs = 0,
-            Project = new() { Content = content, Scene = scene, CanvasSize = new(1920, 1080) },
-            Parameters = ParameterValues.Empty,
-            Resources = resources,
-            Random = new(1, new("group-image")),
-            Binding = new EffectBinding.Project(),
-            Presentations = new(),
-            GroupGeometry = [Geometry(Group), Geometry(Child)],
-        };
+        TextFrameHostInputs legacy = new(0, BaselineStyles.Empty, new(), [], [], [], [Geometry(Group), Geometry(Child)],
+            new EffectBinding.Project(), OutputMode.Opaque);
         DeclareContext declare = new(content, scene, ParameterValues.Empty, AudioFeatures.NotAnalyzed, resources, 1, TimelineIndex.Empty, new(1920, 1080), new("group-image"));
         TextFrame frame = new(declare, legacy);
         return new(in frame, [.. capabilities.Length == 0 ? [CapabilityNames.ImageGraph, CapabilityNames.ImageGraphGroup] : capabilities],

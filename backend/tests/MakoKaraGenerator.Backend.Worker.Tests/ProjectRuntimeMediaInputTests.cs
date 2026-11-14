@@ -17,6 +17,7 @@ namespace MakoKaraGenerator.Backend.Worker.Tests;
 public sealed class ProjectRuntimeMediaInputTests
 {
     [Fact]
+    [Trait("Category", "GpuSmoke")]
     public async Task 运行输入携带纯色媒体输入时Worker创建绑定并求值()
     {
         var (_, basis, input) = await SolidMediaInputAsync();
@@ -47,6 +48,7 @@ public sealed class ProjectRuntimeMediaInputTests
     }
 
     [Fact]
+    [Trait("Category", "GpuSmoke")]
     public async Task 携带媒体输入的运行导出按同一固定输入建会话并产出候选()
     {
         var (package, basis, input) = await SolidMediaInputAsync();

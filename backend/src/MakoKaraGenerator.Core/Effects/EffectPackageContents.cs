@@ -92,33 +92,39 @@ public sealed class EffectPackageContents
         if (expected.PackageVersion <= 0 || string.IsNullOrWhiteSpace(expected.SdkVersion) || string.IsNullOrWhiteSpace(expected.ShaderProfile))
             throw new ArgumentException("宿主必须明确支持的包／SDK／profile。", nameof(expected));
         cancellationToken.ThrowIfCancellationRequested();
+        EffectPackageProfiles.RequireSupported(expected);
         EffectPackageContentUsage usage = new(budget); usage.Claim("manifest.json", manifest.Length);
         using var document = Parse(manifest.Span);
         var root = document.RootElement;
-        bool v2 = EffectPackageProfiles.IsV2(expected);
-        Keys(root, "manifest.json", v2
-            ? ["packageVersion", "packageId", "name", "version", "sdkVersion", "shaderProfile", "requires", "lineExit", "emitters", "files", "parameters", "exports"]
-            : ["packageVersion", "packageId", "name", "version", "sdkVersion", "shaderProfile", "files", "parameters", "exports"],
-            v2 ? ["mediaQueries"] : []);
+        if (root.ValueKind == JsonValueKind.Object
+            && root.TryGetProperty("packageVersion", out var versionValue)
+            && root.TryGetProperty("sdkVersion", out _)
+            && root.TryGetProperty("shaderProfile", out _))
+        {
+            if (versionValue.ValueKind != JsonValueKind.Number || !versionValue.TryGetInt32(out int candidateVersion))
+                throw Error("PackageProfileMismatch", "manifest.json", "包版本、SDK 或 shader profile 与明确支持值不一致。");
+            var candidate = new EffectPackageProfile(candidateVersion, Text(root, "sdkVersion", "manifest.json"), Text(root, "shaderProfile", "manifest.json"));
+            if (!EffectPackageProfiles.Compatible(candidate, expected))
+                throw Error("PackageProfileMismatch", "manifest.json", "包版本、SDK 或 shader profile 与明确支持值不一致。");
+        }
+        Keys(root, "manifest.json",
+            ["packageVersion", "packageId", "name", "version", "sdkVersion", "shaderProfile", "requires", "lineExit", "emitters", "files", "parameters", "exports"],
+            ["mediaQueries"]);
         if (root.GetProperty("packageVersion").ValueKind != JsonValueKind.Number
             || !root.GetProperty("packageVersion").TryGetInt32(out int packageVersion))
             throw Error("PackageProfileMismatch", "manifest.json", "包版本、SDK 或 shader profile 与明确支持值不一致。");
         var actual = new EffectPackageProfile(packageVersion, Text(root, "sdkVersion", "manifest.json"), Text(root, "shaderProfile", "manifest.json"));
         if (!EffectPackageProfiles.Compatible(actual, expected))
             throw Error("PackageProfileMismatch", "manifest.json", "包版本、SDK 或 shader profile 与明确支持值不一致。");
-        ImmutableArray<string> requires = []; ImmutableArray<EffectEmitterDefinition> emitters = []; long lineExitDurationUs = 0;
-        if (v2)
-        {
-            requires = EffectPackageJson.Strings(root.GetProperty("requires"), "manifest.json.requires");
-            foreach (string capability in requires) EffectPackageProfiles.RequireKnownCapability(capability, "manifest.json.requires");
-            var exit = root.GetProperty("lineExit"); Keys(exit, "manifest.json.lineExit", ["durationUs"]);
-            if (exit.GetProperty("durationUs").ValueKind != JsonValueKind.Number
-                || !exit.GetProperty("durationUs").TryGetInt64(out lineExitDurationUs) || lineExitDurationUs is < 0 or > 3_000_000)
-                throw Error("PackageLineExitInvalid", "manifest.json.lineExit.durationUs", "退场寿命须为 0 至 3000000 的整数微秒。");
-            if (lineExitDurationUs > 0 && !requires.Contains("line.exit", StringComparer.Ordinal))
-                throw Error("PackageCapabilityMissing", "manifest.json.requires", "非零退场寿命必须声明 line.exit。");
-            emitters = ReadEmitters(root.GetProperty("emitters"), requires, cancellationToken);
-        }
+        ImmutableArray<string> requires = EffectPackageJson.Strings(root.GetProperty("requires"), "manifest.json.requires");
+        foreach (string capability in requires) EffectPackageProfiles.RequireKnownCapability(capability, "manifest.json.requires");
+        var exit = root.GetProperty("lineExit"); Keys(exit, "manifest.json.lineExit", ["durationUs"]);
+        if (exit.GetProperty("durationUs").ValueKind != JsonValueKind.Number
+            || !exit.GetProperty("durationUs").TryGetInt64(out long lineExitDurationUs) || lineExitDurationUs is < 0 or > 3_000_000)
+            throw Error("PackageLineExitInvalid", "manifest.json.lineExit.durationUs", "退场寿命须为 0 至 3000000 的整数微秒。");
+        if (lineExitDurationUs > 0 && !requires.Contains("line.exit", StringComparer.Ordinal))
+            throw Error("PackageCapabilityMissing", "manifest.json.requires", "非零退场寿命必须声明 line.exit。");
+        ImmutableArray<EffectEmitterDefinition> emitters = ReadEmitters(root.GetProperty("emitters"), requires, cancellationToken);
         string id = Text(root, "packageId", "manifest.json"), name = Text(root, "name", "manifest.json"), version = Text(root, "version", "manifest.json");
         foreach (string field in new[] { "parameters", "exports", "files" })
             if (root.GetProperty(field).ValueKind != JsonValueKind.Array) throw Error("PackageManifestType", field, "清单集合必须为数组。");

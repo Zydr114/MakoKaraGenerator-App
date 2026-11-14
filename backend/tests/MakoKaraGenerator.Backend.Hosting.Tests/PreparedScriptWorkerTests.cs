@@ -41,64 +41,25 @@ public sealed class PreparedScriptWorkerTests(ITestOutputHelper output)
             ExportId = "controller", Binding = new(ProjectEffectBindingKind.Project) }]) };
         return ProjectSnapshot.FromProject(project);
     }
-    private static ProjectSnapshot SnapshotV1(string controller)
-    {
-        var files = EffectPackageFixture.Files();
-        files["src/PackEffect.cs"] = System.Text.Encoding.UTF8.GetBytes(controller);
-        JsonObject manifest = EffectPackageFixture.Manifest(files);
-        manifest["packageVersion"] = EffectPackageProfiles.V1.PackageVersion;
-        manifest["sdkVersion"] = EffectPackageProfiles.V1.SdkVersion;
-        manifest["shaderProfile"] = EffectPackageProfiles.V1.ShaderProfile;
-        manifest.Remove("requires");
-        manifest.Remove("lineExit");
-        manifest.Remove("emitters");
-        manifest["exports"]![0]!["id"] = "controller";
-        manifest["exports"]![0]!["bindingKinds"] = new JsonArray("project");
-        manifest["exports"]![0]!["outputs"]![0]!["requires"] = new JsonArray();
-        var package = EffectPackageContents.Create(EffectPackageFixture.Bytes(manifest), EffectPackageFixture.Inputs(files), EffectPackageProfiles.V1);
-        var project = Project.Create("fixed scripts", Composition.Create(8, 4, FrameRate.Fps30, outputDurationUs: 1_000_000), LyricsDocument.Create([])) with
-        { Effects = new([package], [new() { Id = "instance", Name = "instance", PackageId = package.PackageId, Revision = package.Revision,
-            ExportId = "controller", Binding = new(ProjectEffectBindingKind.Project) }]) };
-        return ProjectSnapshot.FromProject(project);
-    }
     private static JsonObject Metadata(StaticWorkerSessionHandle session) => JsonNode.Parse(session.PreparedInput!.Input.Envelope.AsSpan(8))!.AsObject();
 
     [Fact]
     public async Task 同Host编译器跨两个真实Worker复用并同PID重开原固定目录最终清理()
     {
         using TemporaryDirectory root = new(); var compiler = new ScriptCompiler(References, root.FilePath("cache"));
-        string marker = root.FilePath("assemblies.txt");
-        string source = $$"""
-            using System;
-            using System.IO;
-            using System.Linq;
-            using MakoKaraGenerator.Scripting;
-            public sealed class PackEffect : EffectBase
-            {
-                public override void Evaluate(FrameContext frame, FrameWriter output)
-                {
-                    File.WriteAllLines({{System.Text.Json.JsonSerializer.Serialize(marker)}},
-                        new[] { Environment.ProcessId.ToString(), File.ReadAllText("/proc/self/stat") }.Concat(
-                        AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetName().Name + "|" + a.Location + "|" + a.ManifestModule.ModuleVersionId)));
-                }
-            }
-            """;
-        byte[] bytes = PackageProjectSnapshotCodec.Encode(SnapshotV1(source));
+        byte[] bytes = PackageProjectSnapshotCodec.Encode(Snapshot());
         int firstPid;
-        await using (var first = new WorkerProcessProxy(Options(compiler, renderBackend: null)))
+        await using (var first = new WorkerProcessProxy(Options(compiler)))
         {
             var handle = await first.OpenPackageSessionAsync(bytes, Timeout); firstPid = first.ProcessId!.Value;
             string inputRoot = Metadata(handle)["Root"]!.GetValue<string>();
             var initial = Directory.GetFiles(inputRoot, "*", SearchOption.AllDirectories).ToDictionary(path => path, File.GetLastWriteTimeUtc);
             await first.RenderPackageSessionAsync(new(handle.SessionId, handle.SourceSha256, 8, 4, 0, false, 1, 1), Timeout);
-            string[] evidence = File.ReadAllLines(marker); Assert.Equal(firstPid.ToString(System.Globalization.CultureInfo.InvariantCulture), evidence[0]);
-            Assert.Equal(File.ReadAllText($"/proc/{firstPid}/stat").Split(')')[1].Split(' ', StringSplitOptions.RemoveEmptyEntries)[19],
-                evidence[1].Split(')')[1].Split(' ', StringSplitOptions.RemoveEmptyEntries)[19]);
-            Assert.Contains(evidence, line => line.StartsWith("MakoKaraGenerator.Scripting|", StringComparison.Ordinal));
-            Assert.DoesNotContain(evidence, line => line.StartsWith("Microsoft.CodeAnalysis", StringComparison.Ordinal)
-                || line.StartsWith("MakoKaraGenerator.Scripting.Compiler|", StringComparison.Ordinal));
-            output.WriteLine(string.Join(Environment.NewLine, evidence));
-            output.WriteLine($"Loaded-assembly evidence PID={firstPid}; {evidence.Length - 2} assemblies; no Roslyn/compiler assembly.");
+            string maps = File.ReadAllText($"/proc/{firstPid}/maps");
+            Assert.Contains("MakoKaraGenerator.Scripting.dll", maps, StringComparison.Ordinal);
+            Assert.DoesNotContain("Microsoft.CodeAnalysis", maps, StringComparison.Ordinal);
+            Assert.DoesNotContain("MakoKaraGenerator.Scripting.Compiler", maps, StringComparison.Ordinal);
+            output.WriteLine($"Loaded-assembly maps verified for PID={firstPid}; MakoKaraGenerator.Scripting.dll present, no Roslyn/compiler assembly.");
             await first.ClosePackageSessionForReopenAsync(handle, 2, Timeout);
             Assert.True(Directory.Exists(inputRoot));
             var reopened = await first.OpenPreparedSessionAsync(handle.PreparedInput!, Timeout);
@@ -108,7 +69,7 @@ public sealed class PreparedScriptWorkerTests(ITestOutputHelper output)
             Assert.Equal(1, compiler.CompilationCount);
             await first.ClosePackageSessionAsync(reopened, 1, Timeout); Assert.False(Directory.Exists(inputRoot));
         }
-        await using var second = new WorkerProcessProxy(Options(compiler, renderBackend: null));
+        await using var second = new WorkerProcessProxy(Options(compiler));
         var secondHandle = await second.OpenPackageSessionAsync(bytes, Timeout);
         Assert.NotEqual(firstPid, second.ProcessId); Assert.Equal(1, compiler.CompilationCount);
         await second.ClosePackageSessionAsync(secondHandle, 1, Timeout);

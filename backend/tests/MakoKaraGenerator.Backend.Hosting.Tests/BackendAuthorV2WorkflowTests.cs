@@ -155,8 +155,15 @@ public sealed partial class BackendAuthorV2WorkflowTests
         AuthorDraftResponse before = fixture.Read();
         AuthorCompilationResponse compiled = await fixture.CompileAsync();
         Assert.False(compiled.Succeeded);
-        Assert.Contains(compiled.Diagnostics, diagnostic => diagnostic.Code == "PackageEntryInvalid" && diagnostic.IsError);
+        Assert.Contains(compiled.Diagnostics, diagnostic => diagnostic.IsError);
         Assert.False((await fixture.AdoptAsync(before.CurrentSourceRevision)).Accepted);
+
+        const string missingInterfaceSource = "public sealed class PackEffect { }";
+        await using Fixture invalidEntryFixture = await Fixture.CreateAsync(missingInterfaceSource);
+        AuthorCompilationResponse entryRejected = await invalidEntryFixture.CompileAsync();
+        Assert.False(entryRejected.Succeeded);
+        Assert.Contains(entryRejected.Diagnostics, diagnostic => diagnostic.Code == "PackageEntryInvalid" && diagnostic.IsError);
+        Assert.False((await invalidEntryFixture.AdoptAsync(invalidEntryFixture.Read().CurrentSourceRevision)).Accepted);
         string foreign = "sha256:" + new string('a', 64);
         BackendOperationResult<AuthorCompilationResponse> sync = await fixture.Registry.CompileAuthorDraftAsync("client", before.DraftId,
             new(before.DraftRevision, fixture.Metadata(), SourceRevision: foreign));

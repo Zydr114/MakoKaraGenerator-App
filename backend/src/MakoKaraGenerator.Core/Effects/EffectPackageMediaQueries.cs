@@ -22,7 +22,7 @@ public static class EffectPackageMediaQueries
         ImmutableArray<EffectParameterDefinition> parameters, CancellationToken token)
     {
         if (!root.TryGetProperty("mediaQueries", out var entries)) return [];
-        if (!EffectPackageProfiles.IsV2(contents.Profile)) throw Error("PackageMediaQueryVersionUnsupported", "mediaQueries", "仅 v2 支持媒体查询声明。");
+        EffectPackageProfiles.RequireSupported(contents.Profile);
         var result = ImmutableArray.CreateBuilder<EffectMediaQueryDefinition>(); HashSet<string> ids = new(StringComparer.Ordinal);
         var parameterMap = parameters.ToDictionary(parameter => parameter.Id, StringComparer.Ordinal);
         foreach (var entry in Array(entries, "mediaQueries"))

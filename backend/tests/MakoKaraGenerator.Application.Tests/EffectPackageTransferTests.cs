@@ -7,7 +7,7 @@ namespace MakoKaraGenerator.Application.Tests;
 public sealed class EffectPackageTransferTests
 {
     [Fact]
-    public async Task 显式支持读取器对目录和归档分派v1v2且保留实际身份()
+    public async Task 显式支持读取器对目录和归档仅接受v2并显式拒绝v1()
     {
         using TemporaryDirectory temp = new();
         var files = EffectPackageFixture.Files(); var manifest = EffectPackageFixture.Manifest(files);
@@ -23,8 +23,31 @@ public sealed class EffectPackageTransferTests
         Assert.Equal(current.Revision, restoredArchive.Revision); Assert.Equal(current.Profile, restoredArchive.Profile);
         Assert.Equal("PackageFileBudgetExceeded", (await Assert.ThrowsAsync<EffectPackageException>(() =>
             EffectPackageTransfer.ReadSupportedArchiveAsync(zip, new() { MaximumFileBytes = 1 }))).Code);
-        string legacy = temp.FilePath("v1.mkfx"); var old = EffectPackageFixture.Contents(); await EffectPackageTransfer.WriteArchiveAsync(legacy, old);
-        Assert.Equal(old.Revision, (await EffectPackageTransfer.ReadSupportedArchiveAsync(legacy)).Revision);
+
+        string legacyDir = temp.FilePath("v1-directory"); MakoKaraGenerator.Core.Persistence.EffectPackageStorage.Publish(legacyDir, current);
+        JsonObject v1Manifest = EffectPackageFixture.Manifest(files);
+        v1Manifest["packageVersion"] = 2; v1Manifest["sdkVersion"] = "1.0.0";
+        v1Manifest["shaderProfile"] = ShaderProgramDefinition.RasterProfile;
+        v1Manifest.Remove("requires"); v1Manifest.Remove("lineExit"); v1Manifest.Remove("emitters");
+        v1Manifest["exports"]![0]!["outputs"]![0]!["requires"] = new JsonArray();
+        byte[] v1Bytes = EffectPackageFixture.Bytes(v1Manifest);
+        await File.WriteAllBytesAsync(Path.Combine(legacyDir, "manifest.json"), v1Bytes);
+        Assert.Equal("PackageProfileMismatch", (await Assert.ThrowsAsync<EffectPackageException>(() =>
+            EffectPackageTransfer.ReadSupportedDirectoryAsync(legacyDir))).Code);
+        Assert.Equal("PackageProfileMismatch", (await Assert.ThrowsAsync<EffectPackageException>(() =>
+            EffectPackageTransfer.ReadDirectoryAsync(legacyDir, EffectPackageProfiles.V2))).Code);
+        string legacyZip = temp.FilePath("v1.mkfx"); File.Copy(zip, legacyZip);
+        using (var archive = ZipFile.Open(legacyZip, ZipArchiveMode.Update))
+        {
+            archive.GetEntry("manifest.json")!.Delete();
+            using var output = archive.CreateEntry("manifest.json").Open(); await output.WriteAsync(v1Bytes);
+        }
+        Assert.Equal("PackageProfileMismatch", (await Assert.ThrowsAsync<EffectPackageException>(() =>
+            EffectPackageTransfer.ReadSupportedArchiveAsync(legacyZip))).Code);
+        Assert.Equal("PackageProfileMismatch", (await Assert.ThrowsAsync<EffectPackageException>(() =>
+            EffectPackageTransfer.ReadArchiveAsync(legacyZip, EffectPackageProfiles.V2))).Code);
+        Assert.Equal(v1Bytes, await File.ReadAllBytesAsync(Path.Combine(legacyDir, "manifest.json")));
+
         using (var archive = ZipFile.Open(zip, ZipArchiveMode.Update))
         {
             archive.GetEntry("manifest.json")!.Delete(); manifest["requires"] = new JsonArray("future.unknown");

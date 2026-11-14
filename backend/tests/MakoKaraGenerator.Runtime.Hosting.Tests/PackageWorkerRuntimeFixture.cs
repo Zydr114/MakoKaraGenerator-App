@@ -40,8 +40,8 @@ internal static class PackageWorkerRuntimeFixture
         return CreateWithPackage(kind, package);
     }
 
-    internal static ProjectSnapshot CreateV1Scale(string scaleSource) =>
-        CreateWithPackage("scale", V1ScalePackage(scaleSource));
+    internal static ProjectSnapshot CreateScale(string scaleSource) =>
+        CreateWithPackage("scale", V2ScalePackage(scaleSource));
 
     private static ProjectSnapshot CreateWithPackage(string kind, EffectPackageContents package)
     {
@@ -124,14 +124,12 @@ internal static class PackageWorkerRuntimeFixture
         return root?.FullName ?? throw new IOException("Repository root not found.");
     }
 
-    internal static ProjectSnapshot Runaway(string stage, string marker, string nonce, bool ffmpeg)
+    internal static ProjectSnapshot Runaway(string stage)
     {
-        EffectPackageContents package = V1ScalePackage(RunawaySource, manifest =>
+        EffectPackageContents package = V2ScalePackage(RunawaySource, manifest =>
         {
-            manifest["parameters"] = new JsonArray(
-                TextParameter("stage", stage), TextParameter("marker", marker), TextParameter("nonce", nonce),
-                TextParameter("child", ffmpeg ? "ffmpeg" : "sleep"));
-            manifest["exports"]![0]!["parameters"] = new JsonArray("stage", "marker", "nonce", "child");
+            manifest["parameters"] = new JsonArray(TextParameter("stage", stage));
+            manifest["exports"]![0]!["parameters"] = new JsonArray("stage");
         });
         ProjectSnapshot basis = Create("scale");
         return Fingerprint(basis with { Effects = new([package], [new()
@@ -163,13 +161,15 @@ internal static class PackageWorkerRuntimeFixture
 
     internal static ProjectSnapshot RuntimeError()
     {
-        EffectPackageContents package = V1ScalePackage("""
+        EffectPackageContents package = V2ScalePackage("""
+            using System;
             using MakoKaraGenerator.Scripting;
-            public sealed class PackEffect : EffectBase
+            using MakoKaraGenerator.Scripting.V2;
+            public sealed class PackEffect : IPureKaraokeEffect
             {
-                public override void Evaluate(FrameContext frame, FrameWriter output)
-                    => frame.Diagnostics.Report(DiagnosticSeverity.Error, "ActualPackageRuntimeError", "真实固定包作者错误🎵",
-                        new SourceLocation("src/实际作者🎵.cs", 7, 9));
+                public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
+                public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
+                    => throw new InvalidOperationException("真实固定包作者错误🎵");
             }
             """, manifest =>
         {
@@ -185,54 +185,31 @@ internal static class PackageWorkerRuntimeFixture
     }
 
     private const string RunawaySource = """
-        using System;
-        using System.Diagnostics;
-        using System.IO;
-        using System.Threading;
         using MakoKaraGenerator.Scripting;
-        public sealed class PackEffect : EffectBase
+        using MakoKaraGenerator.Scripting.V2;
+        public sealed class PackEffect : IPureKaraokeEffect
         {
-            public override void Initialize(EffectInitializationContext context)
+            public PreparedEffect Declare(DeclareContext source)
             {
-                File.WriteAllText(context.Parameters.GetText("marker")+".ready",Environment.ProcessId.ToString());
-                if(context.Parameters.GetText("stage")=="Initialize") Hang(context.Parameters);
+                if (source.Parameters.GetText("stage") == "Declare")
+                    while (source.CanvasSize.X >= 0) { }
+                return PreparedEffect.Empty;
             }
-            public override void Evaluate(FrameContext frame,FrameWriter output)
+            public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
             {
-                if(frame.Parameters.GetText("stage")=="Evaluate") Hang(frame.Parameters);
-            }
-            private static void Hang(ParameterValues parameters)
-            {
-                bool ffmpeg=parameters.GetText("child")=="ffmpeg";
-                var start=new ProcessStartInfo(ffmpeg ? "/usr/bin/ffmpeg" : "/bin/sleep")
-                { UseShellExecute=false,RedirectStandardInput=true,RedirectStandardOutput=true,RedirectStandardError=true };
-                if(ffmpeg)
-                {
-                    foreach(var argument in new[]{"-hide_banner","-loglevel","error","-re","-f","lavfi","-i","anullsrc=r=8000:cl=mono","-f","null","-"})
-                        start.ArgumentList.Add(argument);
-                }
-                else start.ArgumentList.Add("300");
-                var child=Process.Start(start) ?? throw new Exception("ActualOwnedChildFailed");
-                File.WriteAllText(parameters.GetText("marker"),Environment.ProcessId+"|"+child.Id+"|"+parameters.GetText("stage")+"|"+parameters.GetText("nonce"));
-                while(true) Thread.SpinWait(10000);
+                if (frame.Parameters.GetText("stage") == "Evaluate")
+                    while (frame.TimeUs >= 0) { }
             }
         }
         """;
 
-    private static EffectPackageContents V1ScalePackage(string source, Action<JsonObject>? configureManifest = null)
+    private static EffectPackageContents V2ScalePackage(string source, Action<JsonObject>? configureManifest = null)
     {
         var files = EffectPackageFixture.Files();
         files["src/PackEffect.cs"] = Encoding.UTF8.GetBytes(source);
         var manifest = EffectPackageFixture.Manifest(files);
-        manifest["packageVersion"] = EffectPackageProfiles.V1.PackageVersion;
-        manifest["sdkVersion"] = EffectPackageProfiles.V1.SdkVersion;
-        manifest["shaderProfile"] = EffectPackageProfiles.V1.ShaderProfile;
-        manifest.Remove("requires");
-        manifest.Remove("lineExit");
-        manifest.Remove("emitters");
-        manifest["exports"]![0]!["outputs"]![0]!["requires"] = new JsonArray();
         configureManifest?.Invoke(manifest);
-        return EffectPackageContents.Create(EffectPackageFixture.Bytes(manifest), EffectPackageFixture.Inputs(files), EffectPackageProfiles.V1);
+        return EffectPackageContents.Create(EffectPackageFixture.Bytes(manifest), EffectPackageFixture.Inputs(files), EffectPackageFixture.Profile);
     }
 
     private static EffectPackageContents SpritePackage()

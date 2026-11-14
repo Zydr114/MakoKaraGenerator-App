@@ -108,7 +108,7 @@ public sealed class PackageWorkerContractTests
             case "missing-sdk": profiles[0]!.AsObject().Remove("sdkVersion"); break;
             case "empty-shader": profiles[0]!["shaderProfile"] = ""; break;
             case "unknown-field": profiles[0]!["unexpected"] = true; break;
-            case "too-many": for (int i = 0; i < 15; i++) profiles.Add(new JsonObject { ["packageVersion"] = i + 4, ["sdkVersion"] = "future", ["shaderProfile"] = "future" }); break;
+            case "too-many": for (int i = 0; i < 16; i++) profiles.Add(new JsonObject { ["packageVersion"] = i + 4, ["sdkVersion"] = "future", ["shaderProfile"] = "future" }); break;
         }
         string encoded = json.ToJsonString();
         if (damage == "duplicate-field") encoded = encoded.Replace("\"packageVersion\":3", "\"packageVersion\":3,\"PackageVersion\":3", StringComparison.Ordinal);

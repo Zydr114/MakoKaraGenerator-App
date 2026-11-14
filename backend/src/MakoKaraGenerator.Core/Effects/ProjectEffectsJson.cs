@@ -8,9 +8,9 @@ namespace MakoKaraGenerator.Core.Effects;
 public static class ProjectEffectsJson
 {
     private static readonly System.Buffers.SearchValues<char> HashCharacters = System.Buffers.SearchValues.Create("0123456789abcdef");
-    /// <summary>保留的 v1 包 profile；消费者须显式选择 v1 或 v2，不能据此推断全部能力。</summary>
-    public static EffectPackageProfile PackageProfile => EffectPackageProfiles.V1;
-    /// <summary>当前工程效果源格式；明确声明开发期 v1／v2 并存。</summary>
+    /// <summary>当前工程效果源包 profile 合同；仅允许 SDK v2。</summary>
+    public static EffectPackageProfile PackageProfile => EffectPackageProfiles.V2;
+    /// <summary>当前工程效果源格式。</summary>
     public const int CurrentContractVersion = 2;
     /// <summary>规范包目录，仅接受完整小写修订。</summary>
     public static string PackagePath(string revision)

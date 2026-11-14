@@ -5,6 +5,7 @@ using MakoKaraGenerator.Backend.Hosting;
 using MakoKaraGenerator.Backend.Rendering;
 using MakoKaraGenerator.Processes;
 using MakoKaraGenerator.Rendering;
+using MakoKaraGenerator.Scripting.Compilation;
 using Xunit.Abstractions;
 
 namespace MakoKaraGenerator.Runtime.Hosting.Tests;
@@ -12,13 +13,13 @@ namespace MakoKaraGenerator.Runtime.Hosting.Tests;
 public sealed class WorkerPackageRunawayIntegrationTests(ITestOutputHelper output)
 {
     [Theory]
-    [InlineData("Initialize", "cancel", true)]
-    [InlineData("Initialize", "deadline", false)]
-    [InlineData("Initialize", "dispose", false)]
-    [InlineData("Evaluate", "cancel", false)]
-    [InlineData("Evaluate", "deadline", false)]
-    [InlineData("Evaluate", "dispose", false)]
-    public async Task 实际作者进入后失控仍受取消期限关闭隔离并排水真实私有组且Host可用(string stage, string action, bool ffmpeg)
+    [InlineData("Declare", "cancel")]
+    [InlineData("Declare", "deadline")]
+    [InlineData("Declare", "dispose")]
+    [InlineData("Evaluate", "cancel")]
+    [InlineData("Evaluate", "deadline")]
+    [InlineData("Evaluate", "dispose")]
+    public async Task 实际作者进入后失控仍受取消期限关闭隔离并排水真实私有组且Host可用(string stage, string action)
     {
         Assert.True(LinuxProcessGuards.IsSupported, "This bounded acceptance requires actual Linux private process groups.");
         Assert.True(LinuxProcessGuards.TryEnableChildReaping());
@@ -26,10 +27,14 @@ public sealed class WorkerPackageRunawayIntegrationTests(ITestOutputHelper outpu
         string nonce = Guid.NewGuid().ToString("N");
         string evidence = Path.Combine(PackageWorkerRuntimeFixture.RepositoryRoot(), "artifacts", "backend-b3g-author-runtime", "owned-runaway", stage + "-" + action + "-" + nonce);
         Directory.CreateDirectory(evidence);
-        string marker = Path.Combine(evidence, "actual-entered");
-        ProjectSnapshot runaway = PackageWorkerRuntimeFixture.Runaway(stage, marker, nonce, ffmpeg);
+        ProjectSnapshot runaway = PackageWorkerRuntimeFixture.Runaway(stage);
         ProjectSnapshot healthy = PackageWorkerRuntimeFixture.Create("scale");
-        var options = new WorkerProcessOptions(PackageWorkerRuntimeFixture.WorkerApphost(), cancellationGracePeriod: TimeSpan.FromMilliseconds(150)) { RenderBackend = "gpu" };
+        var compiler = new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));
+        var options = new WorkerProcessOptions(PackageWorkerRuntimeFixture.WorkerApphost(), cancellationGracePeriod: TimeSpan.FromMilliseconds(150))
+        {
+            RenderBackend = "gpu",
+            ScriptCompilationService = compiler,
+        };
         var factory = new WorkerPackageRenderFrameSessionFactory(options, TimeSpan.FromSeconds(20));
         await using WorkerProcessProxy proxy = new(options);
         using CancellationTokenSource cancel = new();
@@ -37,41 +42,35 @@ public sealed class WorkerPackageRunawayIntegrationTests(ITestOutputHelper outpu
         IRenderFrameSession? session = null;
         Task? active = null;
         ProcessIdentity[] observed = [];
+        int workerPid = 0;
         var host = Process.GetCurrentProcess();
         long hostStart = host.StartTime.ToUniversalTime().Ticks;
         try
         {
-            if (stage == "Initialize")
+            if (stage == "Declare")
             {
-                active = action == "deadline" ? factory.CreateAsync(runaway, cancel.Token).AsTask()
-                    : proxy.OpenPackageSessionAsync(PackageProjectSnapshotCodec.Encode(runaway), TimeSpan.FromSeconds(20), cancel.Token);
-                int readyPid = int.Parse(await WaitForFileAsync(marker + ".ready", active, TimeSpan.FromSeconds(12)), CultureInfo.InvariantCulture);
-                using Process ready = Process.GetProcessById(readyPid);
-                group = OwnedProcessGroup.TryCapture(ready); Assert.NotNull(group);
+                TimeSpan timeout = action == "deadline" ? TimeSpan.FromSeconds(4) : TimeSpan.FromSeconds(20);
+                active = proxy.OpenPackageSessionAsync(PackageProjectSnapshotCodec.Encode(runaway), timeout, cancel.Token);
+                workerPid = await WaitForWorkerPidAsync(() => proxy.ProcessId, active, TimeSpan.FromSeconds(12));
+                group = await WaitForProcessGroupAsync(workerPid, active, TimeSpan.FromSeconds(5));
+                await WaitForCpuAdvanceAsync(workerPid, ReadCpuTicks(workerPid), active, TimeSpan.FromSeconds(10));
             }
             else
             {
-                session = await factory.CreateAsync(runaway);
-                int readyPid = int.Parse(await WaitForFileAsync(marker + ".ready", active, TimeSpan.FromSeconds(10)), CultureInfo.InvariantCulture);
-                using Process ready = Process.GetProcessById(readyPid);
-                group = OwnedProcessGroup.TryCapture(ready); Assert.NotNull(group);
+                var evalFactory = action == "deadline" ? new WorkerPackageRenderFrameSessionFactory(options, TimeSpan.FromSeconds(4)) : factory;
+                session = await evalFactory.CreateAsync(runaway);
+                var evalProxy = (WorkerProcessProxy)session.GetType().GetFields(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                    .Single(field => field.FieldType == typeof(WorkerProcessProxy)).GetValue(session)!;
+                workerPid = Assert.IsType<int>(evalProxy.ProcessId);
+                group = await WaitForProcessGroupAsync(workerPid, null, TimeSpan.FromSeconds(5));
+                ulong baselineTicks = ReadCpuTicks(workerPid);
                 active = session.RenderAsync(WorkerPackageSessionIntegrationTests.Request(runaway, 100_000), cancel.Token).AsTask();
+                await WaitForCpuAdvanceAsync(workerPid, baselineTicks, active, TimeSpan.FromSeconds(10));
             }
-            string[] entered = (await WaitForFileAsync(marker, active, TimeSpan.FromSeconds(12))).Split('|');
-            Assert.Equal(4, entered.Length); Assert.Equal(stage, entered[2]); Assert.Equal(nonce, entered[3]);
-            int workerPid = int.Parse(entered[0], CultureInfo.InvariantCulture), childPid = int.Parse(entered[1], CultureInfo.InvariantCulture);
-            using (Process process = Process.GetProcessById(workerPid)) group ??= OwnedProcessGroup.TryCapture(process);
-            Assert.NotNull(group); Assert.Equal(workerPid, group.Leader.ProcessId);
+            Assert.Equal(workerPid, group.Leader.ProcessId);
             observed = [.. group.ObserveMembers()];
             await File.WriteAllTextAsync(Path.Combine(evidence, "observed-identities.json"), System.Text.Json.JsonSerializer.Serialize(observed));
-            ProcessIdentity child = Assert.Single(observed, value => value.ProcessId == childPid);
-            Assert.Equal(group.Leader.ProcessGroupId, child.ProcessGroupId); Assert.True(child.StartTicks >= group.Leader.StartTicks);
-            Assert.False(active.IsCompleted, "The real author loop must still be running after its marker was observed.");
-            if (ffmpeg)
-            {
-                string command = await File.ReadAllTextAsync("/proc/" + childPid.ToString(CultureInfo.InvariantCulture) + "/cmdline");
-                Assert.Contains("ffmpeg", command, StringComparison.Ordinal); Assert.Contains("anullsrc", command, StringComparison.Ordinal);
-            }
+            Assert.False(active.IsCompleted, "The real author loop must still be running after CPU advance was observed.");
             // The Host must perform useful work while the author's CPU loop is
             // still live in a different Worker, before any termination action.
             await AssertHealthyAsync(factory, healthy);
@@ -84,7 +83,7 @@ public sealed class WorkerPackageRunawayIntegrationTests(ITestOutputHelper outpu
             }
             else if (action == "dispose")
             {
-                if (stage == "Initialize") await proxy.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(6));
+                if (stage == "Declare") await proxy.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(6));
                 else await session!.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(6));
                 failure = await Record.ExceptionAsync(() => active.WaitAsync(TimeSpan.FromSeconds(6)));
                 Assert.IsAssignableFrom<OperationCanceledException>(failure);
@@ -92,13 +91,21 @@ public sealed class WorkerPackageRunawayIntegrationTests(ITestOutputHelper outpu
             else
             {
                 failure = await Record.ExceptionAsync(() => active.WaitAsync(TimeSpan.FromSeconds(25)));
-                Assert.Equal("WorkerPackageTimedOut", failure switch
+                if (stage == "Declare")
                 {
-                    WorkerProtocolException protocol => protocol.Code,
-                    RenderSessionFailureException render => render.Code,
-                    _ => failure?.GetType().Name,
-                });
-                Assert.False(failure is OperationCanceledException);
+                    Assert.IsAssignableFrom<OperationCanceledException>(failure);
+                    Assert.False(cancel.IsCancellationRequested);
+                }
+                else
+                {
+                    Assert.Equal("WorkerPackageTimedOut", failure switch
+                    {
+                        WorkerProtocolException protocol => protocol.Code,
+                        RenderSessionFailureException render => render.Code,
+                        _ => failure?.GetType().Name,
+                    });
+                    Assert.False(failure is OperationCanceledException);
+                }
             }
             Assert.Empty(group.ObserveMembers());
             foreach (ProcessIdentity identity in observed)
@@ -111,7 +118,7 @@ public sealed class WorkerPackageRunawayIntegrationTests(ITestOutputHelper outpu
             }
             Assert.False(host.HasExited); Assert.Equal(hostStart, host.StartTime.ToUniversalTime().Ticks);
             await AssertHealthyAsync(factory, healthy);
-            if (stage == "Initialize" && action == "cancel")
+            if (stage == "Declare" && action == "cancel")
             {
                 StaticWorkerSessionHandle reopened = await proxy.OpenPackageSessionAsync(PackageProjectSnapshotCodec.Encode(healthy), TimeSpan.FromSeconds(20));
                 Assert.NotEqual(workerPid, proxy.ProcessId);
@@ -120,8 +127,8 @@ public sealed class WorkerPackageRunawayIntegrationTests(ITestOutputHelper outpu
                 await proxy.ClosePackageSessionAsync(reopened, 2, TimeSpan.FromSeconds(20)); await proxy.StopAsync();
             }
             await File.WriteAllTextAsync(Path.Combine(evidence, "verified-terminal.json"), System.Text.Json.JsonSerializer.Serialize(new
-            { stage, action, ffmpeg, nonce, hostPid = Environment.ProcessId, entered = true, observed, allObservedIdentitiesGone = true, parallelHealthyFrame = true, recoveredHealthyFrame = true }));
-            output.WriteLine($"Actual {stage}/{action}/{(ffmpeg ? "ffmpeg" : "sleep")} marker confirmed; Host={Environment.ProcessId}; drained={string.Join(',', observed.Select(value => value.ToString()))}; useful parallel Host operation and new Worker recovery passed.");
+            { stage, action, nonce, hostPid = Environment.ProcessId, entered = true, observed, allObservedIdentitiesGone = true, parallelHealthyFrame = true, recoveredHealthyFrame = true }));
+            output.WriteLine($"Actual {stage}/{action} pure-v2 runaway confirmed; Host={Environment.ProcessId}; drained={string.Join(',', observed.Select(value => value.ToString()))}; useful parallel Host operation and new Worker recovery passed.");
         }
         finally
         {
@@ -144,24 +151,64 @@ public sealed class WorkerPackageRunawayIntegrationTests(ITestOutputHelper outpu
         Assert.Empty(frame.DiagnosticSnapshot.ReadAll());
     }
 
-    private static async Task<string> WaitForFileAsync(string path, Task? active, TimeSpan timeout)
+    private static async Task<int> WaitForWorkerPidAsync(Func<int?> readPid, Task active, TimeSpan timeout)
     {
         Stopwatch clock = Stopwatch.StartNew();
         while (clock.Elapsed < timeout)
         {
-            if (File.Exists(path))
-            {
-                string text = await File.ReadAllTextAsync(path);
-                if (text.Length > 0) return text;
-            }
-            if (active?.IsCompleted == true)
+            if (readPid() is { } pid) return pid;
+            if (active.IsCompleted)
             {
                 await active;
-                Assert.Fail("Actual author invocation finished without its entered marker.");
+                Assert.Fail("Actual author invocation finished before Worker PID became active.");
             }
             await Task.Delay(10);
         }
-        throw new TimeoutException("Actual author entered marker was not observed before the fixture deadline.");
+        throw new TimeoutException("Worker PID was not observed before the fixture deadline.");
+    }
+
+    private static async Task<OwnedProcessGroup> WaitForProcessGroupAsync(int pid, Task? active, TimeSpan timeout)
+    {
+        Stopwatch clock = Stopwatch.StartNew();
+        while (clock.Elapsed < timeout)
+        {
+            try
+            {
+                using Process process = Process.GetProcessById(pid);
+                if (OwnedProcessGroup.TryCapture(process) is { } group) return group;
+            }
+            catch (ArgumentException) { }
+            if (active?.IsCompleted == true)
+            {
+                await active;
+                Assert.Fail("Actual author invocation finished before Worker private process group became ready.");
+            }
+            await Task.Delay(10);
+        }
+        throw new TimeoutException("Worker private process group was not captured before the fixture deadline.");
+    }
+
+    private static async Task WaitForCpuAdvanceAsync(int pid, ulong baselineTicks, Task active, TimeSpan timeout)
+    {
+        Stopwatch clock = Stopwatch.StartNew();
+        while (clock.Elapsed < timeout)
+        {
+            if (ReadCpuTicks(pid) >= baselineTicks + 10) return;
+            if (active.IsCompleted)
+            {
+                await active;
+                Assert.Fail("Actual author invocation finished before CPU runaway ticks advanced.");
+            }
+            await Task.Delay(15);
+        }
+        throw new TimeoutException("Worker CPU ticks did not advance before the fixture deadline.");
+    }
+
+    private static ulong ReadCpuTicks(int pid)
+    {
+        string stat = File.ReadAllText("/proc/" + pid.ToString(CultureInfo.InvariantCulture) + "/stat");
+        string[] fields = stat[(stat.LastIndexOf(')') + 2)..].Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return ulong.Parse(fields[11], CultureInfo.InvariantCulture) + ulong.Parse(fields[12], CultureInfo.InvariantCulture);
     }
 
     private static bool IdentityStillExists(ProcessIdentity identity)

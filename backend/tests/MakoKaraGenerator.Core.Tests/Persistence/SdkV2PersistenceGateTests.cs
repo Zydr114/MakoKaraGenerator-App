@@ -10,33 +10,45 @@ namespace MakoKaraGenerator.Core.Tests.Persistence;
 public sealed class SdkV2PersistenceGateTests
 {
     [Fact]
-    public void 当前工程格式与效果合同显式往返v1v2及独立读取范围()
+    public void 当前工程格式与效果合同显式往返v2独立读取范围并阻断内嵌v1()
     {
         using TemporaryDirectory temp = new();
-        var old = V1Contents(); var current = SdkV2PackageFixture.Contents();
+        var current = SdkV2PackageFixture.Contents();
         var instance = new ProjectEffectInstance
         {
             Id = "v2-instance", Name = "纯求值", PackageId = current.PackageId, Revision = current.Revision, ExportId = "scale",
             Binding = new(ProjectEffectBindingKind.Tokens, ids: ["missing-token"]), Subscription = new("project"), Seed = ulong.MaxValue,
         };
-        var project = Project.Create("开发期并存") with { Effects = new([old, current], [instance]) };
+        var project = Project.Create("纯SDK2") with { Effects = new([current], [instance]) };
         ProjectStore.Save(project, temp.Path);
         var entry = JsonNode.Parse(File.ReadAllBytes(temp.FilePath("project.json")))!;
         Assert.Equal(Project.CurrentSchemaVersion, entry["schemaVersion"]!.GetValue<int>());
         Assert.Equal(ProjectEffectsJson.CurrentContractVersion, entry["effects"]!["contractVersion"]!.GetValue<int>());
+        Assert.Equal(120, entry["effects"]!["simulation"]!["stepHz"]!.GetValue<int>());
         var loaded = ProjectStore.Load(temp.Path);
         Assert.NotNull(loaded.Project); Assert.Equal(project.Effects, loaded.Project.Effects);
-        Assert.Equal([EffectPackageProfiles.V1, EffectPackageProfiles.V2], loaded.Project.Effects.Packages.Select(package => package.Profile));
+        Assert.Equal([EffectPackageProfiles.V2], loaded.Project.Effects.Packages.Select(package => package.Profile));
         Assert.Equal("project", Assert.Single(loaded.Project.Effects.Instances).Subscription.Kind);
+
+        var files = EffectPackageFixture.Files();
+        byte[] oldManifest = EffectPackageFixture.Bytes(V1Manifest(files));
+        Assert.Equal("PackageProfileMismatch", Assert.Throws<EffectPackageException>(() =>
+            EffectPackageContents.CreateSupported(oldManifest, EffectPackageFixture.Inputs(files))).Code);
+        Assert.Equal("PackageProfileMismatch", Assert.Throws<EffectPackageException>(() =>
+            EffectPackageContents.Create(oldManifest, EffectPackageFixture.Inputs(files), EffectPackageProfiles.V2)).Code);
+        string packageManifest = Path.Combine(temp.Path, ProjectEffectsJson.PackagePath(current.Revision), "manifest.json");
+        File.WriteAllBytes(packageManifest, oldManifest);
+        var rejectedLoad = ProjectStore.Load(temp.Path);
+        Assert.Null(rejectedLoad.Project);
+        Assert.Contains(rejectedLoad.Report.Issues, issue => issue.Code == DiagnosticCode.InvalidEffectData);
+        Assert.Equal(oldManifest, File.ReadAllBytes(packageManifest));
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void 旧schema保存门禁发生于创建目录或发布资源之前(bool withV2)
+    [Fact]
+    public void 旧schema保存门禁发生于创建目录或发布资源之前()
     {
         using TemporaryDirectory temp = new(); string target = temp.FilePath("uncreated");
-        var package = withV2 ? SdkV2PackageFixture.Contents() : V1Contents();
+        var package = SdkV2PackageFixture.Contents();
         var project = Project.Create("旧schema") with { SchemaVersion = Project.CurrentSchemaVersion - 1, Effects = new([package]) };
         Assert.Equal("ProjectSchemaVersionUnsupported", Assert.Throws<EffectPackageException>(() => ProjectStore.Save(project, target)).Code);
         Assert.False(Directory.Exists(target));
@@ -116,33 +128,48 @@ public sealed class SdkV2PersistenceGateTests
     }
 
     [Fact]
-    public void 未知包身份不能借助当前效果合同写出()
+    public void 未知或v1包身份在创建与存储入口直接拒绝且不损坏原库文件()
     {
-        var files = EffectPackageFixture.Files(); var manifest = V1Manifest(files); manifest["shaderProfile"] = "foreign";
-        var package = EffectPackageContents.Create(EffectPackageFixture.Bytes(manifest), EffectPackageFixture.Inputs(files), new(2, "1.0.0", "foreign"));
-        using TemporaryDirectory temp = new(); string target = temp.FilePath("uncreated");
-        Assert.Equal("PackageProfileMismatch", Assert.Throws<EffectPackageException>(() => ProjectStore.Save(
-            Project.Create("未知包") with { Effects = new([package]) }, target)).Code);
-        Assert.False(Directory.Exists(target));
-        Assert.Equal("PackageProfileMismatch", Assert.Throws<EffectPackageException>(() => ProjectEffectsJson.Encode(new([package]))).Code);
+        var files = EffectPackageFixture.Files();
+        var v1 = V1Manifest(files);
+        Assert.Equal("PackageProfileMismatch", Assert.Throws<EffectPackageException>(() =>
+            EffectPackageContents.Create(EffectPackageFixture.Bytes(v1), EffectPackageFixture.Inputs(files), new(2, "1.0.0", ShaderProgramDefinition.RasterProfile))).Code);
+        v1["shaderProfile"] = "foreign";
+        Assert.Equal("PackageProfileMismatch", Assert.Throws<EffectPackageException>(() =>
+            EffectPackageContents.Create(EffectPackageFixture.Bytes(v1), EffectPackageFixture.Inputs(files), new(2, "1.0.0", "foreign"))).Code);
+
+        using TemporaryDirectory temp = new();
+        var v2 = SdkV2PackageFixture.Contents();
+        var configuration = ScriptConfiguration.Create("pure", "纯求值", v2, "scale", target: ScriptRelativeTarget.TokenFamily);
+        string scriptPath = ScriptConfigurationLibrary.ResolvePath(temp.Path);
+        ScriptConfigurationLibrary.Save(scriptPath, [configuration]);
+        var template = StyleTemplate.Create("pure-template", "纯求值模板", StyleTemplateKind.Token, LyricStyle.Default, [],
+            [TemplateEffectRecipe.FromConfiguration("pure-recipe", configuration)], [v2]);
+        string templatePath = StyleTemplateLibrary.ResolvePath(temp.Path);
+        StyleTemplateLibrary.Save(templatePath, [template]);
+        string scriptManifest = Path.Combine(Path.GetDirectoryName(scriptPath)!, ScriptConfigurationLibrary.PackagePath(v2.Revision), "manifest.json");
+        string templateManifest = Path.Combine(Path.GetDirectoryName(templatePath)!, StyleTemplateLibrary.PackagePath(v2.Revision), "manifest.json");
+        byte[] oldManifest = EffectPackageFixture.Bytes(V1Manifest(files));
+        File.WriteAllBytes(scriptManifest, oldManifest);
+        File.WriteAllBytes(templateManifest, oldManifest);
+        var scriptLoad = ScriptConfigurationLibrary.Load(scriptPath);
+        var templateLoad = StyleTemplateLibrary.Load(templatePath);
+        Assert.Empty(scriptLoad.Configurations); Assert.NotEmpty(scriptLoad.Issues);
+        Assert.Empty(templateLoad.Templates); Assert.NotEmpty(templateLoad.Issues);
+        Assert.Equal(oldManifest, File.ReadAllBytes(scriptManifest));
+        Assert.Equal(oldManifest, File.ReadAllBytes(templateManifest));
     }
 
     private static JsonObject V1Manifest(Dictionary<string, byte[]> files)
     {
         var manifest = EffectPackageFixture.Manifest(files);
-        manifest["packageVersion"] = EffectPackageProfiles.V1.PackageVersion;
-        manifest["sdkVersion"] = EffectPackageProfiles.V1.SdkVersion;
-        manifest["shaderProfile"] = EffectPackageProfiles.V1.ShaderProfile;
+        manifest["packageVersion"] = 2;
+        manifest["sdkVersion"] = "1.0.0";
+        manifest["shaderProfile"] = ShaderProgramDefinition.RasterProfile;
         manifest.Remove("requires");
         manifest.Remove("lineExit");
         manifest.Remove("emitters");
         manifest["exports"]![0]!["outputs"]![0]!["requires"] = new JsonArray();
         return manifest;
-    }
-
-    private static EffectPackageContents V1Contents()
-    {
-        var files = EffectPackageFixture.Files();
-        return EffectPackageContents.Create(EffectPackageFixture.Bytes(V1Manifest(files)), EffectPackageFixture.Inputs(files), EffectPackageProfiles.V1);
     }
 }

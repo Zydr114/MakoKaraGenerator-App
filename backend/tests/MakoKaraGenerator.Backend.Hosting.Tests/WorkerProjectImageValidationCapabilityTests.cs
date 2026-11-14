@@ -128,7 +128,7 @@ public sealed class WorkerProjectImageValidationCapabilityTests(ITestOutputHelpe
             image = mode switch
             {
                 "missing-package-profiles" => image with { PackageCapabilities = image.PackageCapabilities with { SupportedPackageProfiles = null } },
-                "only-v1" => image with { PackageCapabilities = image.PackageCapabilities with { SupportedPackageProfiles = [WorkerPackageProfileAdmission.Current[0]] } },
+                "only-v1" => image with { PackageCapabilities = image.PackageCapabilities with { SupportedPackageProfiles = [new(2, "1.0.0", ShaderProgramDefinition.RasterProfile)] } },
                 "engine" => image with { EngineIdentity = "other-engine", PackageCapabilities = image.PackageCapabilities with { EngineIdentity = "other-engine" } },
                 "package-version" => image with { PackageCapabilities = image.PackageCapabilities with { PackageVersion = profile.PackageVersion + 1 } },
                 "sdk" => image with { PackageCapabilities = image.PackageCapabilities with { SdkVersion = profile.SdkVersion + "-other" } },

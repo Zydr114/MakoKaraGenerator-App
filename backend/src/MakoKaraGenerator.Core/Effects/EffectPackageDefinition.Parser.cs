@@ -12,17 +12,17 @@ public sealed partial class EffectPackageDefinition
         var structure = ReadStructure(contents, cancellationToken);
         // Only this entry can produce Definition. A structural catalog never grants execution.
         foreach (string capability in contents.Requires) EffectPackageProfiles.RequireCapability(capability, "manifest.json.requires");
-        if (EffectPackageProfiles.IsV2(contents.Profile))
-            foreach (var export in structure.Exports)
-                foreach (var output in export.Outputs)
-                    foreach (string capability in output.Requires)
-                        EffectPackageProfiles.RequireCapability(capability, "exports." + export.Id + ".outputs." + output.Id + ".requires");
+        foreach (var export in structure.Exports)
+            foreach (var output in export.Outputs)
+                foreach (string capability in output.Requires)
+                    EffectPackageProfiles.RequireCapability(capability, "exports." + export.Id + ".outputs." + output.Id + ".requires");
         return new(contents, structure.Parameters, structure.Exports, structure.Programs, structure.Graphs, structure.SvgResources);
     }
 
     internal static EffectPackageStructure ReadStructure(EffectPackageContents contents, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(contents); cancellationToken.ThrowIfCancellationRequested();
+        EffectPackageProfiles.RequireSupported(contents.Profile);
         using var json = ReadJson(contents.Manifest.AsMemory(), "manifest.json");
         var files = contents.Files.ToImmutableDictionary(file => file.Path, StringComparer.Ordinal);
         var parameters = EffectPackageParameterParser.Read(json.RootElement.GetProperty("parameters"), files, cancellationToken);
@@ -43,22 +43,21 @@ public sealed partial class EffectPackageDefinition
                 "graph" => ["id", "kind", "name", "graph", "parameters", "bindingKinds", "outputs"],
                 _ => throw Error("PackageExportKindUnsupported", path + ".kind", "未知导出种类。"),
             };
-            Keys(item, path, fields, EffectPackageProfiles.IsV2(contents.Profile) ? ["mediaQueries"] : []);
+            Keys(item, path, fields, ["mediaQueries"]);
             string id = RequiredText(item, "id", path), name = RequiredText(item, "name", path);
             if (!ids.Add(id)) throw Error("PackageExportDuplicate", path + ".id", "跨种类导出身份重复。");
             var references = Strings(item.GetProperty("parameters"), path + ".parameters");
             foreach (string reference in references)
                 if (!parameterIds.Contains(reference)) throw Error("PackageParameterMissing", path + ".parameters", "引用不存在的参数：" + reference);
-            var outputs = ReadOutputs(item.GetProperty("outputs"), kind, path + ".outputs", EffectPackageProfiles.IsV2(contents.Profile), cancellationToken);
-            if (EffectPackageProfiles.IsV2(contents.Profile))
-                foreach (var output in outputs)
-                    foreach (string capability in output.Requires)
-                    {
-                        EffectPackageProfiles.RequireKnownCapability(capability, path + ".outputs." + output.Id + ".requires");
-                        if (!contents.Requires.Contains(capability, StringComparer.Ordinal))
-                            throw Error("PackageCapabilityMissing", path + ".outputs." + output.Id + ".requires", "输出能力必须同时在包 requires 中声明。");
-                    }
-            if (EffectPackageProfiles.IsV2(contents.Profile)) ValidateV2Stages(outputs, contents.Emitters, path);
+            var outputs = ReadOutputs(item.GetProperty("outputs"), kind, path + ".outputs", true, cancellationToken);
+            foreach (var output in outputs)
+                foreach (string capability in output.Requires)
+                {
+                    EffectPackageProfiles.RequireKnownCapability(capability, path + ".outputs." + output.Id + ".requires");
+                    if (!contents.Requires.Contains(capability, StringComparer.Ordinal))
+                        throw Error("PackageCapabilityMissing", path + ".outputs." + output.Id + ".requires", "输出能力必须同时在包 requires 中声明。");
+                }
+            ValidateV2Stages(outputs, contents.Emitters, path);
             var ordered = Sort(outputs, path);
             var mediaQueries = EffectPackageMediaQueries.ReadReferences(item, kind, outputs, path, queries, references, cancellationToken);
             if (kind == "controller")

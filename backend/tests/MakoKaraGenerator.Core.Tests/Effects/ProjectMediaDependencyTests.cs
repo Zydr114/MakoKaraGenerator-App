@@ -71,21 +71,17 @@ public sealed class ProjectMediaDependencyTests
     }
 
     [Fact]
-    public void OldV1AndV2PackagesKeepEmptyOptionalQueryFieldsAndExecutionBehavior()
+    public void V2PackagesKeepEmptyOptionalQueryFieldsAndRejectV1()
     {
-        var old = V1Contents();
-        foreach (var package in new[] { old, SdkV2PackageFixture.Contents() })
-        {
-            var catalog = EffectPackageMediaQueries.Read(package); Assert.Empty(catalog.Queries);
-            Assert.All(catalog.Exports, export => Assert.Empty(export.MediaQueries));
-            Assert.NotNull(EffectPackageDefinition.Read(package));
-            Assert.Equal(EffectPackageDefinition.Read(package).ResolveParameters("scale")["peak"], catalog.ResolveParameters("scale")["peak"]);
-        }
-        var root = JsonNode.Parse(old.Manifest.AsSpan())!.AsObject(); root["mediaQueries"] = new JsonArray();
-        Assert.Equal("PackageManifestUnknownField", Assert.Throws<EffectPackageException>(() => MediaQueryPackageFixture.Recreate(old, root)).Code);
-        root.Remove("mediaQueries"); root["exports"]![0]!["mediaQueries"] = new JsonArray();
-        var invalid = MediaQueryPackageFixture.Recreate(old, root);
-        Assert.Equal("PackageSemanticUnknownField", Assert.Throws<EffectPackageException>(() => EffectPackageMediaQueries.Read(invalid)).Code);
+        var files = EffectPackageFixture.Files();
+        byte[] oldManifest = EffectPackageFixture.Bytes(V1Manifest(files));
+        Assert.Equal("PackageProfileMismatch", Assert.Throws<EffectPackageException>(() =>
+            EffectPackageContents.CreateSupported(oldManifest, EffectPackageFixture.Inputs(files))).Code);
+        var package = SdkV2PackageFixture.Contents();
+        var catalog = EffectPackageMediaQueries.Read(package); Assert.Empty(catalog.Queries);
+        Assert.All(catalog.Exports, export => Assert.Empty(export.MediaQueries));
+        Assert.NotNull(EffectPackageDefinition.Read(package));
+        Assert.Equal(EffectPackageDefinition.Read(package).ResolveParameters("scale")["peak"], catalog.ResolveParameters("scale")["peak"]);
     }
 
     [Fact]
@@ -392,17 +388,16 @@ public sealed class ProjectMediaDependencyTests
         }
     }
 
-    private static EffectPackageContents V1Contents()
+    private static JsonObject V1Manifest(Dictionary<string, byte[]> files)
     {
-        var files = EffectPackageFixture.Files();
         var manifest = EffectPackageFixture.Manifest(files);
-        manifest["packageVersion"] = EffectPackageProfiles.V1.PackageVersion;
-        manifest["sdkVersion"] = EffectPackageProfiles.V1.SdkVersion;
-        manifest["shaderProfile"] = EffectPackageProfiles.V1.ShaderProfile;
+        manifest["packageVersion"] = 2;
+        manifest["sdkVersion"] = "1.0.0";
+        manifest["shaderProfile"] = ShaderProgramDefinition.RasterProfile;
         manifest.Remove("requires");
         manifest.Remove("lineExit");
         manifest.Remove("emitters");
         manifest["exports"]![0]!["outputs"]![0]!["requires"] = new JsonArray();
-        return EffectPackageContents.Create(EffectPackageFixture.Bytes(manifest), EffectPackageFixture.Inputs(files), EffectPackageProfiles.V1);
+        return manifest;
     }
 }

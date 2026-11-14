@@ -17,7 +17,7 @@ public sealed partial class EffectPackageSvgResources
         var sources = contents.Files.Where(file => file.Role == "svg").ToArray();
         var descriptors = contents.Files.Where(file => file.Role == "svgResource").ToArray();
         if (sources.Length == 0 && descriptors.Length == 0) return new(contents.PackageId, contents.Revision, result.ToImmutable());
-        if (!EffectPackageProfiles.IsV2(contents.Profile))
+        if (!EffectPackageProfiles.IsSupported(contents.Profile))
             throw Error("PackageSvgProfileMismatch", "manifest.json.files", "SVG 资源只属于明确的 SDK v2 包合同。");
         if (descriptors.Length > budget.MaximumResources)
             throw Budget("manifest.json.files", "SVG 描述数量超过包预算。");

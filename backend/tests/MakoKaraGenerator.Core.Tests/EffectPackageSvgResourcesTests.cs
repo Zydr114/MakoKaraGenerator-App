@@ -152,10 +152,10 @@ public sealed class EffectPackageSvgResourcesTests
         Assert.Equal("PackageSvgSourceMissing", Assert.Throws<EffectPackageException>(() => Create(files, manifest)).Code);
         manifest = Manifest(files); FileEntry(manifest, "assets/pixel.bin")["role"] = "svg";
         Assert.Equal("PackageSvgImageMissing", Assert.Throws<EffectPackageException>(() => Create(files, manifest)).Code);
-        manifest = Manifest(files); manifest["packageVersion"] = EffectPackageProfiles.V1.PackageVersion;
-        manifest["sdkVersion"] = EffectPackageProfiles.V1.SdkVersion; manifest["shaderProfile"] = EffectPackageProfiles.V1.ShaderProfile;
+        manifest = Manifest(files); manifest["packageVersion"] = 2;
+        manifest["sdkVersion"] = "1.0.0"; manifest["shaderProfile"] = ShaderProgramDefinition.RasterProfile;
         manifest.Remove("requires"); manifest.Remove("lineExit"); manifest.Remove("emitters");
-        Assert.Equal("PackageSvgProfileMismatch", Assert.Throws<EffectPackageException>(() => Create(files, manifest)).Code);
+        Assert.Equal("PackageProfileMismatch", Assert.Throws<EffectPackageException>(() => Create(files, manifest)).Code);
     }
 
     [Fact]

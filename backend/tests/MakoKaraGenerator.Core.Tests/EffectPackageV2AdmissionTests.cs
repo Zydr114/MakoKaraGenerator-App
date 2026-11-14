@@ -7,13 +7,24 @@ namespace MakoKaraGenerator.Core.Tests;
 public sealed class EffectPackageV2AdmissionTests
 {
     [Fact]
-    public void 开发期显式分派保留v1并固定v2实际SDK身份及能力()
+    public void 显式阻断v1并固定v2实际SDK身份及能力()
     {
-        var old = V1Contents();
-        var oldCopy = EffectPackageContents.CreateSupported(old.Manifest.AsMemory(),
-            old.Files.Select(file => KeyValuePair.Create(file.Path, (ReadOnlyMemory<byte>)file.Content.ToArray())));
-        Assert.Equal(old.Revision, oldCopy.Revision); Assert.Equal(EffectPackageProfiles.V1, oldCopy.Profile);
-        Assert.Empty(oldCopy.Requires); Assert.Equal(0, oldCopy.LineExitDurationUs);
+        var files = EffectPackageFixture.Files();
+        byte[] oldManifest = EffectPackageFixture.Bytes(V1Manifest(files));
+        Assert.False(EffectPackageProfiles.IsSupported(V1Profile));
+        Assert.Equal("PackageProfileMismatch", Assert.Throws<EffectPackageException>(() =>
+            EffectPackageProfiles.RequireSupported(V1Profile)).Code);
+        Assert.Equal("PackageProfileMismatch", Assert.Throws<EffectPackageException>(() =>
+            EffectPackageProfiles.ShaderProgramProfile(V1Profile)).Code);
+        Assert.Equal(ShaderProgramDefinition.RasterProfile,
+            EffectPackageProfiles.ShaderProgramProfile(EffectPackageProfiles.V2));
+        Assert.Equal("PackageProfileMismatch", Assert.Throws<EffectPackageException>(() =>
+            EffectPackageContents.CreateSupported(oldManifest, EffectPackageFixture.Inputs(files))).Code);
+        Assert.Equal("PackageProfileMismatch", Assert.Throws<EffectPackageException>(() =>
+            EffectPackageContents.Create(oldManifest, EffectPackageFixture.Inputs(files), EffectPackageProfiles.V2)).Code);
+        Assert.Equal("PackageProfileMismatch", Assert.Throws<EffectPackageException>(() =>
+            EffectPackageContents.Create(oldManifest, EffectPackageFixture.Inputs(files), V1Profile)).Code);
+
         var current = SdkV2PackageFixture.Contents(manifest => manifest["sdkVersion"] = "2.0.7");
         Assert.Equal("2.0.7", current.Profile.SdkVersion); Assert.True(EffectPackageProfiles.IsV2(current.Profile));
         Assert.Equal(600_000, current.LineExitDurationUs); Assert.Empty(current.Emitters);
@@ -78,11 +89,13 @@ public sealed class EffectPackageV2AdmissionTests
     }
 
     [Fact]
-    public void v1不会接收v2字段且v2输出不能绕过包级必须能力()
+    public void v1包在带或不带v2字段时均拒绝且v2输出不能绕过包级必须能力()
     {
         var files = EffectPackageFixture.Files(); var manifest = V1Manifest(files);
+        Assert.Equal("PackageProfileMismatch", Assert.Throws<EffectPackageException>(() =>
+            EffectPackageContents.CreateSupported(EffectPackageFixture.Bytes(manifest), EffectPackageFixture.Inputs(files))).Code);
         manifest["requires"] = new JsonArray();
-        Assert.Equal("PackageManifestUnknownField", Assert.Throws<EffectPackageException>(() =>
+        Assert.Equal("PackageProfileMismatch", Assert.Throws<EffectPackageException>(() =>
             EffectPackageContents.CreateSupported(EffectPackageFixture.Bytes(manifest), EffectPackageFixture.Inputs(files))).Code);
         var undeclared = SdkV2PackageFixture.Contents(value => value["exports"]![0]!["outputs"]![0]!["requires"] = new JsonArray("group.affine"));
         Assert.Equal("PackageCapabilityMissing", Assert.Throws<EffectPackageException>(() => EffectPackageDefinition.Read(undeclared)).Code);
@@ -94,7 +107,7 @@ public sealed class EffectPackageV2AdmissionTests
     [InlineData("baseToken", "VisualTransform")]
     [InlineData("baseToken", "StyleModulation")]
     [InlineData("cluster", "VisualTransform")]
-    public void v2正式字与簇目标按输出类型准入且v1不扩大(string target, string kind)
+    public void v2正式字与簇目标按输出类型准入且v1直接阻断(string target, string kind)
     {
         var current = SdkV2PackageFixture.Contents(manifest =>
         {
@@ -108,8 +121,8 @@ public sealed class EffectPackageV2AdmissionTests
         var files = EffectPackageFixture.Files(); var old = V1Manifest(files);
         old["exports"]![0]!["outputs"]![0]!["target"] = target;
         old["exports"]![0]!["outputs"]![0]!["kind"] = kind;
-        var oldContents = EffectPackageContents.CreateSupported(EffectPackageFixture.Bytes(old), EffectPackageFixture.Inputs(files));
-        Assert.Equal("PackageOutputTargetUnsupported", Assert.Throws<EffectPackageException>(() => EffectPackageDefinition.Read(oldContents)).Code);
+        Assert.Equal("PackageProfileMismatch", Assert.Throws<EffectPackageException>(() =>
+            EffectPackageContents.CreateSupported(EffectPackageFixture.Bytes(old), EffectPackageFixture.Inputs(files))).Code);
     }
 
     [Theory]
@@ -140,22 +153,18 @@ public sealed class EffectPackageV2AdmissionTests
             Encoding.UTF8.GetBytes(duplicate), EffectPackageFixture.Inputs(files))).Code);
     }
 
+    private static readonly EffectPackageProfile V1Profile = new(2, "1.0.0", ShaderProgramDefinition.RasterProfile);
+
     private static JsonObject V1Manifest(Dictionary<string, byte[]> files)
     {
         var manifest = EffectPackageFixture.Manifest(files);
-        manifest["packageVersion"] = EffectPackageProfiles.V1.PackageVersion;
-        manifest["sdkVersion"] = EffectPackageProfiles.V1.SdkVersion;
-        manifest["shaderProfile"] = EffectPackageProfiles.V1.ShaderProfile;
+        manifest["packageVersion"] = V1Profile.PackageVersion;
+        manifest["sdkVersion"] = V1Profile.SdkVersion;
+        manifest["shaderProfile"] = V1Profile.ShaderProfile;
         manifest.Remove("requires");
         manifest.Remove("lineExit");
         manifest.Remove("emitters");
         manifest["exports"]![0]!["outputs"]![0]!["requires"] = new JsonArray();
         return manifest;
-    }
-
-    private static EffectPackageContents V1Contents()
-    {
-        var files = EffectPackageFixture.Files();
-        return EffectPackageContents.Create(EffectPackageFixture.Bytes(V1Manifest(files)), EffectPackageFixture.Inputs(files), EffectPackageProfiles.V1);
     }
 }

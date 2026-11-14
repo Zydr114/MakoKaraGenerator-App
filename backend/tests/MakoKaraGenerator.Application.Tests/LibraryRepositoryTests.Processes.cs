@@ -69,27 +69,13 @@ public sealed partial class LibraryRepositoryTests
     public async Task 两个真实脚本配置进程也拒绝相同空修订的第二次新增()
     {
         using TemporaryDirectory temp = new(); string index = ScriptConfigurationLibrary.ResolvePath(temp.Path);
-        string package = temp.FilePath("material.mkfx"); await EffectPackageTransfer.WriteArchiveAsync(package, LegacyMaterialContents());
+        string package = temp.FilePath("material.mkfx"); await EffectPackageTransfer.WriteArchiveAsync(package, MixedEffectPackageFixture.MaterialContents());
         using var first = Child.Start(temp, "first", index, "script-add", new { Id = "a", Name = "A", Package = package });
         using var second = Child.Start(temp, "second", index, "script-add", new { Id = "b", Name = "B", Package = package });
         await first.Ready(); await second.Ready(); first.Go(); second.Go();
         var results = new[] { await first.Result(), await second.Result() };
         Assert.Equal(["LibraryRevisionConflictException", "ok"], results.OrderBy(x => x, StringComparer.Ordinal));
         Assert.Single(ScriptConfigurationLibrary.Load(index).Configurations);
-    }
-
-    private static EffectPackageContents LegacyMaterialContents()
-    {
-        var source = MixedEffectPackageFixture.MaterialContents();
-        var manifest = JsonNode.Parse(source.Manifest.AsSpan())!.AsObject();
-        manifest["packageVersion"] = EffectPackageProfiles.V1.PackageVersion;
-        manifest["sdkVersion"] = EffectPackageProfiles.V1.SdkVersion;
-        manifest["shaderProfile"] = EffectPackageProfiles.V1.ShaderProfile;
-        manifest.Remove("requires"); manifest.Remove("lineExit"); manifest.Remove("emitters");
-        manifest["exports"]![0]!["outputs"]![0]!["requires"] = new JsonArray();
-        return EffectPackageContents.Create(EffectPackageFixture.Bytes(manifest),
-            source.Files.Select(file => KeyValuePair.Create(file.Path, (ReadOnlyMemory<byte>)file.Content.ToArray())),
-            EffectPackageProfiles.V1);
     }
 
     private sealed class Child : IDisposable

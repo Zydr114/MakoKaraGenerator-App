@@ -7,8 +7,6 @@ namespace MakoKaraGenerator.Core.Effects;
 /// <summary>开发期显式并存的包合同；不会从产品版本猜测 SDK 或授予未实现能力。</summary>
 public static class EffectPackageProfiles
 {
-    /// <summary>保留至 v2 发布验收结束的有状态 SDK v1 包合同。</summary>
-    public static EffectPackageProfile V1 { get; } = new(2, "1.0.0", ShaderProgramDefinition.RasterProfile);
     /// <summary>纯求值 SDK v2 包合同；包 profile 与内部 shader 程序 profile 分别校验。</summary>
     public static EffectPackageProfile V2 { get; } = new(3, "2.0.0", "skia-ganesh-3.119.4-v2");
     // 只由源码集成开通；不能由清单、环境变量或作者代码绕过未接通执行器。
@@ -31,16 +29,16 @@ public static class EffectPackageProfiles
     public static bool IsV2(EffectPackageProfile profile)
         => profile is not null && profile.PackageVersion == V2.PackageVersion && profile.ShaderProfile == V2.ShaderProfile
             && TryVersion(profile.SdkVersion, out int major, out int minor) && major == 2 && minor == 0;
-    /// <summary>是否是明确支持的开发期 v1 或 v2 包身份。</summary>
+    /// <summary>是否是明确支持的 SDK v2 包身份。</summary>
     public static bool IsSupported(EffectPackageProfile profile)
-        => profile == V1 || IsV2(profile);
+        => IsV2(profile);
     /// <summary>当前包执行合同采用的独立 SkSL 程序 ABI；不将 v2 的 Vulkan 执行身份当作程序格式。</summary>
     public static string ShaderProgramProfile(EffectPackageProfile profile)
     {
         RequireSupported(profile);
         return ShaderProgramDefinition.RasterProfile;
     }
-    /// <summary>拒绝未知包／SDK／shader profile，不将未知身份回退成 v1。</summary>
+    /// <summary>拒绝未知或已退出的旧包／SDK／shader profile，显式阻断 v1。</summary>
     public static void RequireSupported(EffectPackageProfile profile)
     {
         if (!IsSupported(profile)) throw Mismatch();
@@ -55,13 +53,11 @@ public static class EffectPackageProfiles
         var profile = new EffectPackageProfile(version, EffectPackageJson.RequiredText(root, "sdkVersion", "manifest.json"),
             EffectPackageJson.RequiredText(root, "shaderProfile", "manifest.json"));
         RequireSupported(profile);
-        return IsV2(profile) ? V2 : V1;
+        return V2;
     }
 
     internal static bool Compatible(EffectPackageProfile actual, EffectPackageProfile supported)
-    {
-        return IsV2(supported) ? IsV2(actual) : actual == supported;
-    }
+        => IsV2(supported) && IsV2(actual);
     internal static void RequireCapability(string capability, string path)
     {
         if (!SupportedV2Capabilities.Contains(capability))
@@ -86,5 +82,5 @@ public static class EffectPackageProfiles
         major = values[0]; minor = values[1]; return true;
     }
     private static EffectPackageException Mismatch()
-        => new("PackageProfileMismatch", "manifest.json", "包版本、SDK 或 shader profile 不属于明确支持的 v1／v2 合同。");
+        => new("PackageProfileMismatch", "manifest.json", "包版本、SDK 或 shader profile 不属于明确支持的 v2 合同。");
 }

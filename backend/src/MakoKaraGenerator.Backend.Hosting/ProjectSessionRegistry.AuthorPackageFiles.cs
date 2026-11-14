@@ -188,13 +188,10 @@ public sealed partial class ProjectSessionRegistry
                 _ = EffectPackageDefinition.Read(package, lifetime);
                 AuthorDraftConfigurationDocument previous = document.Configuration ?? DefaultConfiguration(document);
                 AuthorDraftConfigurationDocument configuration = previous;
-                bool v2 = EffectPackageProfiles.IsV2(package.Profile);
                 if (snapshot.Configuration is { } input)
-                    configuration = NormalizeConfiguration(document, new(input.Name, document.PackageId, v2 ? previous.SourceRevision : package.Revision,
+                    configuration = NormalizeConfiguration(document, new(input.Name, document.PackageId, previous.SourceRevision,
                         input.ExportId, input.ParametersJson, input.RelativeTarget, input.ReadScope, input.BranchInput,
                         input.FixedSeed, input.OverlayLayer));
-                else if (!v2 && previous.SourceRevision == document.CurrentSourceRevision)
-                    configuration = previous with { SourceRevision = package.Revision };
                 EffectPackageContents configuredPackage = configuration.SourceRevision == package.Revision ? package
                     : await LoadPackageAsync(document.DraftId, configuration.SourceRevision, lifetime).ConfigureAwait(false);
                 _ = BuildSampleOptions(BuildConfiguration(configuredPackage, configuration));
@@ -205,10 +202,10 @@ public sealed partial class ProjectSessionRegistry
                     Configuration = configuration,
                     Name = configuration.Name,
                     ExportId = configuration.ExportId,
-                    LastCompilation = changedSource && v2 && document.LastCompilation is { } compilation
+                    LastCompilation = changedSource && document.LastCompilation is { } compilation
                         ? compilation with { Stale = compilation.SourceRevision != package.Revision }
-                        : changedSource ? null : document.LastCompilation,
-                    LastCompilationDiagnostics = changedSource && !v2 ? null : document.LastCompilationDiagnostics,
+                        : document.LastCompilation,
+                    LastCompilationDiagnostics = document.LastCompilationDiagnostics,
                 };
                 AuthorDraftDocument updated = updatedBase with { DraftRevision = ComputeDraftRevision(updatedBase, null) };
                 if (updated == document)

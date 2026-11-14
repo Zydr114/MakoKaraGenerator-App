@@ -85,17 +85,17 @@ public sealed class EffectPackageV2ParticleAdmissionTests
         var textOverlay = SdkV2PackageFixture.Contents(manifest => manifest["exports"]![0]!["outputs"]![0]!["kind"] = "Overlay");
         Assert.Equal("PackageOutputTargetUnsupported", Assert.Throws<EffectPackageException>(() => EffectPackageDefinition.Read(textOverlay)).Code);
         var files = EffectPackageFixture.Files(); var old = EffectPackageFixture.Manifest(files);
-        old["packageVersion"] = EffectPackageProfiles.V1.PackageVersion;
-        old["sdkVersion"] = EffectPackageProfiles.V1.SdkVersion;
-        old["shaderProfile"] = EffectPackageProfiles.V1.ShaderProfile;
+        old["packageVersion"] = 2;
+        old["sdkVersion"] = "1.0.0";
+        old["shaderProfile"] = ShaderProgramDefinition.RasterProfile;
         old.Remove("requires"); old.Remove("lineExit"); old.Remove("emitters");
         old["exports"]![0]!["outputs"]![0]!["requires"] = new JsonArray();
         old["exports"]![0]!["outputs"]![0]!["kind"] = "Overlay";
-        var legacy = EffectPackageDefinition.Read(EffectPackageContents.CreateSupported(EffectPackageFixture.Bytes(old), EffectPackageFixture.Inputs(files)));
-        Assert.Equal("tokenFamily", Assert.Single(Assert.Single(legacy.Controllers).Outputs).Target);
+        Assert.Equal("PackageProfileMismatch", Assert.Throws<EffectPackageException>(() =>
+            EffectPackageContents.CreateSupported(EffectPackageFixture.Bytes(old), EffectPackageFixture.Inputs(files))).Code);
         old["exports"]![0]!["outputs"]![0]!["target"] = "canvas";
-        Assert.Equal("PackageOutputTargetUnsupported", Assert.Throws<EffectPackageException>(() => EffectPackageDefinition.Read(
-            EffectPackageContents.CreateSupported(EffectPackageFixture.Bytes(old), EffectPackageFixture.Inputs(files)))).Code);
+        Assert.Equal("PackageProfileMismatch", Assert.Throws<EffectPackageException>(() =>
+            EffectPackageContents.CreateSupported(EffectPackageFixture.Bytes(old), EffectPackageFixture.Inputs(files))).Code);
     }
 
     [Fact]

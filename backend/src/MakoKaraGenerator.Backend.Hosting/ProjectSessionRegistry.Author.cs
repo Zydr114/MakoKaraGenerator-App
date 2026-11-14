@@ -294,20 +294,13 @@ public sealed partial class ProjectSessionRegistry
             await _authorStorageGate.WaitAsync(_authorStop?.Token ?? CancellationToken.None).ConfigureAwait(false);
             try
             {
-                AuthorDraftConfigurationDocument? configuration = document.Configuration;
-                bool v2 = EffectPackageProfiles.IsV2(package.Profile);
-                if (v2) configuration ??= DefaultConfiguration(document);
-                if (!v2 && (configuration is null || string.Equals(configuration.SourceRevision, document.CurrentSourceRevision, StringComparison.Ordinal)))
-                    configuration = (configuration ?? new(document.Name, document.PackageId, document.CurrentSourceRevision, document.ExportId,
-                        EffectParameterOverrides.Empty.Json, nameof(ScriptRelativeTarget.Application), nameof(ScriptReadScope.BoundSources), null, null,
-                        nameof(EffectOverlayLayer.Package))) with { PackageId = document.PackageId, SourceRevision = package.Revision };
+                AuthorDraftConfigurationDocument? configuration = document.Configuration ?? DefaultConfiguration(document);
                 AuthorDraftDocument updatedBase = document with
                 {
                     CurrentSourceRevision = package.Revision,
                     Configuration = configuration,
-                    LastCompilation = v2 && document.LastCompilation is { } previousCompilation
+                    LastCompilation = document.LastCompilation is { } previousCompilation
                         ? previousCompilation with { Stale = previousCompilation.SourceRevision != package.Revision } : null,
-                    LastCompilationDiagnostics = v2 ? document.LastCompilationDiagnostics : null,
                 };
                 AuthorDraftDocument updated = updatedBase with { DraftRevision = ComputeDraftRevision(updatedBase, null) };
                 if (!TryPersistAuthorDocument(updated, package))
@@ -548,11 +541,6 @@ public sealed partial class ProjectSessionRegistry
                     Configuration = configuration,
                     Name = configuration.Name,
                     ExportId = configuration.ExportId,
-                    LastCompilation = EffectPackageProfiles.IsV2(package.Profile)
-                        || document.LastCompilation is { SourceRevision: var source } && source == request.SourceRevision ? document.LastCompilation : null,
-                    LastCompilationDiagnostics = EffectPackageProfiles.IsV2(package.Profile)
-                        || document.LastCompilation is { SourceRevision: var diagnosticSource } && diagnosticSource == request.SourceRevision
-                        ? document.LastCompilationDiagnostics : null,
                 };
                 AuthorDraftDocument updated = adopted with { DraftRevision = ComputeDraftRevision(adopted, null) };
                 await _authorStorageGate.WaitAsync(_authorStop?.Token ?? CancellationToken.None).ConfigureAwait(false);
@@ -563,8 +551,7 @@ public sealed partial class ProjectSessionRegistry
                 }
                 finally { _authorStorageGate.Release(); }
                 return BackendOperationResult<AuthorAdoptSourceRevisionResponse>.Success(new(updated.DraftId, updated.DraftRevision,
-                    updated.PackageId, EffectPackageProfiles.IsV2(package.Profile) ? previousConfiguration.SourceRevision
-                        : document.AdoptedSourceRevision ?? document.CurrentSourceRevision, request.SourceRevision, updated.ExportId));
+                    updated.PackageId, previousConfiguration.SourceRevision, request.SourceRevision, updated.ExportId));
             }
             catch (AuthorAdoptionConfigurationException error)
             { return AuthorReject<AuthorAdoptSourceRevisionResponse>(error.ErrorCode, error.Message, error.Field, error.FailureCode); }
@@ -794,7 +781,7 @@ public sealed partial class ProjectSessionRegistry
     private string DocumentPath(string draftId) => Path.Combine(_authorRoot!, draftId, "draft.json");
 
     private bool CanAdoptAuthorSource(AuthorDraftDocument document, EffectPackageContents package) =>
-        !EffectPackageProfiles.IsV2(package.Profile) || !package.Files.Any(file => file.Role == "csharp")
+        !package.Files.Any(file => file.Role == "csharp")
         || ReadAuthorSourceHistory(document).Revisions.Any(revision => revision.SourceRevision == package.Revision
             && revision.Compilation is { Succeeded: true });
 
@@ -806,9 +793,7 @@ public sealed partial class ProjectSessionRegistry
         {
             try
             {
-                if (EffectPackageProfiles.IsV2(definition.Contents.Profile))
-                    module.ValidateEntry<MakoKaraGenerator.Scripting.V2.IPureKaraokeEffect>(controller.EntryType);
-                else module.ValidateEntry<MakoKaraGenerator.Scripting.IKaraokeEffect>(controller.EntryType);
+                module.ValidateEntry<MakoKaraGenerator.Scripting.V2.IPureKaraokeEffect>(controller.EntryType);
             }
             catch (Exception error) when (error is not OperationCanceledException)
             { throw new EffectPackageException("PackageEntryInvalid", "exports." + controller.Id + ".entryType",

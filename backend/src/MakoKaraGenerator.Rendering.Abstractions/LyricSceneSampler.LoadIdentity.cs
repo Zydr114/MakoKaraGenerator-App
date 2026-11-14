@@ -10,7 +10,11 @@ public static partial class LyricSceneSampler
 {
     private static readonly ConditionalWeakTable<ProjectSnapshot, LoadIdentityIndex> LoadIdentityCache = new();
     private static bool NeedsLoadIdentities(ProjectSnapshot snapshot) => snapshot.Effects.Instances.Any(instance =>
-        instance.Enabled && EffectPackageProfiles.IsV2(snapshot.Effects.GetPackage(instance.PackageId, instance.Revision).Profile));
+    {
+        if (!instance.Enabled) return false;
+        EffectPackageProfiles.RequireSupported(snapshot.Effects.GetPackage(instance.PackageId, instance.Revision).Profile);
+        return true;
+    });
     private static LoadIdentityIndex LoadIdentities(ProjectSnapshot snapshot, CancellationToken token)
         => LoadIdentityCache.GetValue(snapshot, value => new(value, token));
 

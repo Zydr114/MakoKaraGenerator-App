@@ -163,35 +163,37 @@ public sealed class PackageProjectSnapshotCodecRejectionTests
     }
 
     [Theory]
+    [InlineData("v1")]
     [InlineData("packageVersion")]
     [InlineData("sdkVersion")]
     [InlineData("shaderProfile")]
-    public void 自定义合法包profile在编码与预校验阶段也必须拒绝(string field)
+    public void 自定义合法包profile与v1在创建及解码阶段也必须拒绝(string field)
     {
-        EffectPackageProfile current = EffectPackageProfiles.V1;
+        EffectPackageProfile current = EffectPackageProfiles.V2;
         EffectPackageProfile unsupported = field switch
         {
+            "v1" => new(2, "1.0.0", ShaderProgramDefinition.RasterProfile),
             "packageVersion" => current with { PackageVersion = current.PackageVersion + 1 },
             "sdkVersion" => current with { SdkVersion = "unsupported-sdk" },
             _ => current with { ShaderProfile = "unsupported-shader" },
         };
         var files = EffectPackageFixture.Files();
         JsonObject manifest = EffectPackageFixture.Manifest(files);
-        manifest.Remove("requires"); manifest.Remove("lineExit"); manifest.Remove("emitters");
-        manifest["exports"]![0]!["outputs"]![0]!["requires"] = new JsonArray();
+        if (field == "v1")
+        {
+            manifest.Remove("requires"); manifest.Remove("lineExit"); manifest.Remove("emitters");
+            manifest["exports"]![0]!["outputs"]![0]!["requires"] = new JsonArray();
+        }
         manifest["packageVersion"] = unsupported.PackageVersion;
         manifest["sdkVersion"] = unsupported.SdkVersion;
         manifest["shaderProfile"] = unsupported.ShaderProfile;
-        EffectPackageContents package = EffectPackageContents.Create(EffectPackageFixture.Bytes(manifest),
-            EffectPackageFixture.Inputs(files), unsupported);
-        Assert.Equal(unsupported, package.Profile);
-        ProjectSnapshot source = PackageSnapshotContractFixture.Fingerprint(StaticSnapshotFixture.Create() with { Effects = new([package]) });
-        Assert.Empty(source.Effects.Instances);
-        Assert.Null(source.EffectInputsFingerprint);
-        Exception? validation = Record.Exception(() => PackageProjectSnapshotCodec.ValidateSupported(source));
-        Exception? encoding = Record.Exception(() => PackageProjectSnapshotCodec.Encode(source));
-        Assert.Equal("SnapshotPackageInvalid", Assert.IsType<SnapshotContractException>(validation).Code);
-        Assert.Equal("SnapshotPackageInvalid", Assert.IsType<SnapshotContractException>(encoding).Code);
+        Assert.Equal("PackageProfileMismatch", Assert.Throws<EffectPackageException>(() =>
+            EffectPackageContents.Create(EffectPackageFixture.Bytes(manifest), EffectPackageFixture.Inputs(files), unsupported)).Code);
+        Assert.Equal("PackageProfileMismatch", Assert.Throws<EffectPackageException>(() =>
+            EffectPackageContents.CreateSupported(EffectPackageFixture.Bytes(manifest), EffectPackageFixture.Inputs(files))).Code);
+        JsonObject wire = Root(); JsonNode package = wire["snapshot"]!["effects"]!["packages"]![0]!;
+        package["manifest"] = Convert.ToBase64String(EffectPackageFixture.Bytes(manifest));
+        Reject(wire);
     }
 
     [Theory]

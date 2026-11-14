@@ -680,9 +680,9 @@ public sealed class WorkerPackageSessionFactoryTests(ITestOutputHelper output)
                     if mode == 'cap-missing-diagnostics-version': del cap['packageDiagnosticsVersion']
                     if mode == 'cap-old-diagnostics-version': cap['packageDiagnosticsVersion'] = 0
                     if mode == 'cap-missing-package-profiles': del cap['supportedPackageProfiles']
-                    if mode == 'cap-only-v1': cap['supportedPackageProfiles'] = cap['supportedPackageProfiles'][:1]
-                    if mode == 'cap-v2-sdk': cap['supportedPackageProfiles'][1]['sdkVersion'] = '2.1.0'
-                    if mode == 'cap-v2-shader': cap['supportedPackageProfiles'][1]['shaderProfile'] = 'unknown-shader'
+                    if mode == 'cap-only-v1': cap['supportedPackageProfiles'] = [{'packageVersion': 2, 'sdkVersion': '1.0.0', 'shaderProfile': 'skia-raster-3.119.4-v1'}]
+                    if mode == 'cap-v2-sdk': cap['supportedPackageProfiles'][0]['sdkVersion'] = '2.1.0'
+                    if mode == 'cap-v2-shader': cap['supportedPackageProfiles'][0]['shaderProfile'] = 'unknown-shader'
                     if kind == 'project-image-preview-capabilities-v1' and mode != 'image-old-worker':
                         cap = dict(engineIdentity=cap['engineIdentity'],codecProfile='project-image-preview-v1',
                             baseProfiles=['static-lyrics-scene-v1','static-lyrics-scene-analysis-v1','package-lyrics-scene-v1'],

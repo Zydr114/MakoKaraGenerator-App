@@ -6,7 +6,7 @@ namespace MakoKaraGenerator.Rendering;
 /// <summary>从实际启用实例和源材质闭包判定渲染设备要求；未使用的包不剥夺无效果 CPU 能力。</summary>
 public static class ScriptBackendRequirement
 {
-    /// <summary>固定快照实际使用 SDK v2 时要求 Vulkan，不根据目录中闲置的包判断。</summary>
+    /// <summary>固定快照实际使用受支持效果或源材质时要求 Vulkan，不根据目录中闲置的包判断。</summary>
     public static bool RequiresVulkan(ProjectSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
@@ -14,7 +14,11 @@ public static class ScriptBackendRequirement
             .Select(static instance => (instance.PackageId, instance.Revision))
             .Concat(SourceMaterialCatalog.CollectForRuntime(snapshot.LyricStyle, snapshot.Lyrics, snapshot.LyricPresentation,
                 snapshot.PresetApplications).Select(static reference => (reference.Material.PackageId, reference.Material.Revision)));
-        return references.Distinct().Any(key => EffectPackageProfiles.IsV2(snapshot.Effects.GetPackage(key.PackageId, key.Revision).Profile));
+        return references.Distinct().Any(key =>
+        {
+            EffectPackageProfiles.RequireSupported(snapshot.Effects.GetPackage(key.PackageId, key.Revision).Profile);
+            return true;
+        });
     }
 
     /// <summary>精确拒绝不支持的设备；调用方仍必须核验实际创建设备身份。</summary>

@@ -12,7 +12,7 @@ public static class EffectPackageTransfer
         CancellationToken cancellationToken = default)
         => MakoKaraGenerator.Core.Persistence.EffectPackageStorage.ReadDirectoryAsync(directory, expected, budget, cancellationToken);
 
-    /// <summary>按明确开发期 v1／v2 合同固定完整目录，未知身份不会被解释成旧包。</summary>
+    /// <summary>按明确 SDK v2 合同固定完整目录，未知或旧版身份不会被解释成受支持包。</summary>
     public static Task<EffectPackageContents> ReadSupportedDirectoryAsync(string directory, EffectPackageContentBudget? budget = null,
         CancellationToken cancellationToken = default)
         => MakoKaraGenerator.Core.Persistence.EffectPackageStorage.ReadSupportedDirectoryAsync(directory, budget, cancellationToken);
@@ -25,7 +25,7 @@ public static class EffectPackageTransfer
         return ReadArchiveGuardedAsync(path, expected, budget, cancellationToken);
     }
 
-    /// <summary>按清单的明确 v1／v2 身份读取归档；同样执行全部路径、链接、预算与摘要门禁。</summary>
+    /// <summary>按清单的明确 SDK v2 身份读取归档；同样执行全部路径、链接、预算与摘要门禁。</summary>
     public static Task<EffectPackageContents> ReadSupportedArchiveAsync(string path, EffectPackageContentBudget? budget = null,
         CancellationToken cancellationToken = default)
         => ReadArchiveGuardedAsync(path, null, budget, cancellationToken);

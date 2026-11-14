@@ -111,7 +111,7 @@ public sealed partial class ProjectSessionRegistry
             EffectPackageContents package = await LoadPackageAsync(document.DraftId, saved.SourceRevision,
                 _authorStop?.Token ?? CancellationToken.None).ConfigureAwait(false);
             ScriptConfiguration configuration = BuildConfiguration(package, saved);
-            if (renderBackend != "gpu" && EffectPackageProfiles.IsV2(package.Profile))
+            if (renderBackend != "gpu")
                 return AuthorReject<AuthorPreviewCapture>(BackendErrorCode.CommandNotSupported,
                     "SDK v2 效果仅支持 Vulkan；请显式选择 GPU 后端后再预览。", "renderBackend", "PackageBackendUnsupported");
             TemplateMaterialSlot slot = ParseMaterialSlot(sample.MaterialSlot, configuration);

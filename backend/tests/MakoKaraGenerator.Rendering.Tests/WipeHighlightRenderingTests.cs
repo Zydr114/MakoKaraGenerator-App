@@ -97,6 +97,9 @@ public sealed class WipeHighlightRenderingTests
     [InlineData(WipeHighlightBlend.Add, true)]
     public void 硬切换时峰以演唱位置为中心且三种混合按未预乘颜色计算(WipeHighlightBlend blend, bool gpu)
     {
+        // Vulkan rows are opt-in, matching the other pixel theories. A host
+        // without a graphics queue still runs the three CPU rows.
+        if (gpu && Environment.GetEnvironmentVariable("MAKO_GPU_SMOKE") != "1") return;
         var project = Project(Spec(blend));
         using var pipeline = Pipeline(gpu);
         var spans = Spans(pipeline, project);

@@ -136,6 +136,12 @@ public sealed partial class AuthorWorkflowTransportTests
         using HttpResponseMessage response = await fixture.Http.PostAsJsonAsync("/api/v1/drafts",
             new AuthorDraftCreateRequest(asset.AssetId, "scale", "inspection transport", fixture.Metadata()));
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        return (await response.Content.ReadFromJsonAsync<AuthorDraftResponse>())!;
+        AuthorDraftResponse draft = (await response.Content.ReadFromJsonAsync<AuthorDraftResponse>())!;
+        using HttpResponseMessage compile = await fixture.Http.PostAsJsonAsync($"/api/v1/drafts/{draft.DraftId}/compilation-jobs",
+            new AuthorCompilationRequest(draft.DraftRevision, fixture.Metadata()));
+        Assert.Equal(HttpStatusCode.OK, compile.StatusCode);
+        AuthorCompilationResponse compiled = (await compile.Content.ReadFromJsonAsync<AuthorCompilationResponse>())!;
+        Assert.True(compiled.Succeeded, string.Join('\n', compiled.Diagnostics.Select(d => d.Message)));
+        return fixture.Projects.ReadAuthorDraft(fixture.Client.ClientId, draft.DraftId).Response!;
     }
 }

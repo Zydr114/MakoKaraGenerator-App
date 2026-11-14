@@ -102,7 +102,7 @@ public sealed class StaticValidationTaskTests
         WorkerMessage request = new(WorkerValidationContract.RequestKind, Guid.NewGuid().ToString("N"), WorkerProtocol.ComputeSha256(payload), payload,
             taskId: id.ToString("N"), sourceSha256: WorkerProtocol.ComputeSha256(bytes), validationFramesPerOutput: 1);
 
-        WorkerMessage result = await StaticValidationTask.ExecuteAsync(request, _ => Task.CompletedTask, CancellationToken.None);
+        WorkerMessage result = await StaticValidationTask.ExecuteAsync(request, _ => Task.CompletedTask, CancellationToken.None, renderBackend: "vulkan");
         ValidationReportDto report = WorkerValidationContract.DecodeReport(result.Payload, 1);
         Assert.False(report.Succeeded);
         Assert.Equal(0, report.OpaqueFrames); Assert.Equal(0, report.TransparentFrames);

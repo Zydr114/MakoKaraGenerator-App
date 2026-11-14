@@ -17,7 +17,9 @@ public sealed partial class PreviewTransportTests
     public async Task HTTP预览换源不得在工程与作者草稿之间切换(bool authorToProject)
     {
         Factory factory = new();
-        await using Fixture fixture = await Fixture.Create(injectedFactory: new RuntimePassthroughFactory(factory));
+        using BackendRenderBackendConfiguration devices = new(new WorkerProcessOptions("missing-worker"), "vulkan");
+        devices.ConfigureGpuStreamDevice(_ => Task.FromResult(new RenderBackendDeviceInfoDto("fixture", "device", "driver", "1.3")));
+        await using Fixture fixture = await Fixture.Create(injectedFactory: new RuntimePassthroughFactory(factory), renderBackends: devices);
         fixture.Projects.ConfigureAuthorWorkflows(null);
         string archive = fixture._directory.FilePath("author-source.mkfx");
         await EffectPackageTransfer.WriteArchiveAsync(archive, EffectPackageFixture.Contents());
@@ -47,9 +49,11 @@ public sealed partial class PreviewTransportTests
         Assert.Equal(preview, state.Session);
     }
 
-    private sealed class RuntimePassthroughFactory(Factory inner) : IRenderFrameSessionFactory,
-        IBackendRuntimePreviewFactory, IBackendPreviewProfileCapability
+    private sealed class RuntimePassthroughFactory(Factory inner, string renderBackend = "cpu") : IRenderFrameSessionFactory,
+        IBackendRuntimePreviewFactory, IBackendPreviewProfileCapability, IBackendPreviewRenderBackendFactory
     {
+        public string RenderBackend => renderBackend;
+        public IRenderFrameSessionFactory WithRenderBackend(string backend) => new RuntimePassthroughFactory(inner, backend);
         public IRenderFrameSessionFactory Bind(BackendPreparedProjectRuntimeInput input) => inner;
         public ValueTask<BackendErrorResponse?> EnsureProfileAsync(string profile, CancellationToken cancellationToken = default) =>
             inner.EnsureProfileAsync(profile, cancellationToken);

@@ -14,7 +14,7 @@ internal static class PackageSnapshotContractFixture
         EffectPackageContents mixed = MixedEffectPackageFixture.Contents(manifest =>
             manifest["exports"]![0]!["outputs"]!.AsArray().Add(new System.Text.Json.Nodes.JsonObject
             {
-                ["id"] = "overlay", ["kind"] = "Overlay", ["target"] = "tokenFamily",
+                ["id"] = "overlay", ["kind"] = "Overlay", ["target"] = "canvas",
                 ["requires"] = new System.Text.Json.Nodes.JsonArray(), ["dependsOn"] = new System.Text.Json.Nodes.JsonArray(),
             }));
         EffectPackageContents scale = EffectPackageFixture.Contents();

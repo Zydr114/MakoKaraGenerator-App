@@ -73,14 +73,15 @@ public sealed class ProjectMediaDependencyTests
     [Fact]
     public void OldV1AndV2PackagesKeepEmptyOptionalQueryFieldsAndExecutionBehavior()
     {
-        foreach (var package in new[] { EffectPackageFixture.Contents(), SdkV2PackageFixture.Contents() })
+        var old = V1Contents();
+        foreach (var package in new[] { old, SdkV2PackageFixture.Contents() })
         {
             var catalog = EffectPackageMediaQueries.Read(package); Assert.Empty(catalog.Queries);
             Assert.All(catalog.Exports, export => Assert.Empty(export.MediaQueries));
             Assert.NotNull(EffectPackageDefinition.Read(package));
             Assert.Equal(EffectPackageDefinition.Read(package).ResolveParameters("scale")["peak"], catalog.ResolveParameters("scale")["peak"]);
         }
-        var old = EffectPackageFixture.Contents(); var root = JsonNode.Parse(old.Manifest.AsSpan())!.AsObject(); root["mediaQueries"] = new JsonArray();
+        var root = JsonNode.Parse(old.Manifest.AsSpan())!.AsObject(); root["mediaQueries"] = new JsonArray();
         Assert.Equal("PackageManifestUnknownField", Assert.Throws<EffectPackageException>(() => MediaQueryPackageFixture.Recreate(old, root)).Code);
         root.Remove("mediaQueries"); root["exports"]![0]!["mediaQueries"] = new JsonArray();
         var invalid = MediaQueryPackageFixture.Recreate(old, root);
@@ -389,5 +390,19 @@ public sealed class ProjectMediaDependencyTests
             Assert.DoesNotContain(type.GetProperties(), property => property.SetMethod?.IsPublic == true);
             Assert.DoesNotContain(type.GetProperties(), property => property.PropertyType == typeof(EffectPackageDefinition));
         }
+    }
+
+    private static EffectPackageContents V1Contents()
+    {
+        var files = EffectPackageFixture.Files();
+        var manifest = EffectPackageFixture.Manifest(files);
+        manifest["packageVersion"] = EffectPackageProfiles.V1.PackageVersion;
+        manifest["sdkVersion"] = EffectPackageProfiles.V1.SdkVersion;
+        manifest["shaderProfile"] = EffectPackageProfiles.V1.ShaderProfile;
+        manifest.Remove("requires");
+        manifest.Remove("lineExit");
+        manifest.Remove("emitters");
+        manifest["exports"]![0]!["outputs"]![0]!["requires"] = new JsonArray();
+        return EffectPackageContents.Create(EffectPackageFixture.Bytes(manifest), EffectPackageFixture.Inputs(files), EffectPackageProfiles.V1);
     }
 }

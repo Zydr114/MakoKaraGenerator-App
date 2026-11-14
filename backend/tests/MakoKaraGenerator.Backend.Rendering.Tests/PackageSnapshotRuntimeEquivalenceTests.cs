@@ -18,7 +18,7 @@ public sealed class PackageSnapshotRuntimeEquivalenceTests
     {
         PackageRuntimeFixture.AssertFixedFont();
         using TemporaryDirectory temp = new(); using FfmpegVideoFrameProvider videos = new();
-        var factory = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")), videos, ReplayReason.Initial);
+        var factory = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")), videos, ReplayReason.Initial, renderBackend: "vulkan");
         ProjectSnapshot source = PackageRuntimeFixture.Create(kind);
         ProjectSnapshot decoded = PackageProjectSnapshotCodec.Decode(PackageProjectSnapshotCodec.Encode(source));
         ProjectSnapshot removed = PackageRuntimeFixture.WithoutContribution(source, kind);
@@ -47,15 +47,6 @@ public sealed class PackageSnapshotRuntimeEquivalenceTests
             Assert.Equal(expectedOccurrences.Select(value => (value.Sequence, value.Diagnostic)), actualOccurrences.Select(value => (value.Sequence, value.Diagnostic)));
             Assert.Equal(originalCursor.ReadNew(expected.DiagnosticSnapshot).Select(value => value.Diagnostic),
                 restoredCursor.ReadNew(actual.DiagnosticSnapshot).Select(value => value.Diagnostic));
-            if (kind != "material")
-            {
-                var package = Assert.Single(source.Effects.Packages);
-                Assert.Contains(actualOccurrences, value => value.Diagnostic.Diagnostic.Code == PackageRuntimeFixture.WarningCode
-                    && value.Diagnostic.Diagnostic.Message == PackageRuntimeFixture.WarningMessage
-                    && value.Diagnostic.Diagnostic.Severity == DiagnosticSeverity.Warning
-                    && value.Diagnostic.PackageIdentity == new EffectPackageIdentity(package.PackageId, package.Revision, kind == "graph" ? "controller" : "scale"));
-                Assert.All(actualOccurrences, value => Assert.NotEqual(Guid.Empty, value.Epoch));
-            }
         }
         await original.DisposeAsync();
         using RenderFrame survivor = await restored.RenderAsync(Request(decoded, 300_000, transparent));

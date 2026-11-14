@@ -35,7 +35,7 @@ public sealed class BackendAuthorValidationTests
         Assert.Equal("failed", terminal.State);
         Assert.Equal("ValidationFailed", terminal.FailureCode);
         byte[] report = f.Registry.ReadValidationResult("client", started.JobId).Response!;
-        Assert.Equal(WorkerValidationContract.EncodeReport(ErrorReport(), 360), report);
+        Assert.Equal(WorkerValidationContract.EncodeReport(ErrorReport() with { RenderBackend = "gpu" }, 360), report);
         ValidationDiagnosticsPageDto page = f.Registry.ReadValidationDiagnostics("client", started.JobId, null, 1).Response!;
         Assert.Equal(ErrorReport().Diagnostics, page.Diagnostics);
         Assert.Equal(terminal.ValidationResult!.Report.Sha256, page.ReportSha256);
@@ -91,12 +91,14 @@ public sealed class BackendAuthorValidationTests
 
     private sealed record Call(byte[] Bytes, string MediaPath, TaskCompletionSource<ValidationReportDto> Release,
         TaskCompletionSource Cancelled, TaskCompletionSource Drain);
-    private sealed class Executor : IBackendValidationExecutor, IBackendRuntimeValidationExecutor
+    private sealed class Executor : IBackendValidationExecutor, IBackendRuntimeValidationExecutor,
+        IBackendRenderBackendExecutor<IBackendValidationExecutor>
     {
         private readonly Channel<Call> _calls = Channel.CreateUnbounded<Call>();
         internal int Calls;
         internal bool HoldDrain;
         public bool RuntimeValidationAvailable => true;
+        public IBackendValidationExecutor WithRenderBackend(string renderBackend) => this;
         internal Task<Call> Next() => _calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10));
         public Task<ValidationReportDto> ExecuteAsync(ProjectSnapshot snapshot, int framesPerOutput,
             IProgress<BackendJobProgressDto>? progress = null, CancellationToken cancellationToken = default) =>
@@ -123,6 +125,7 @@ public sealed class BackendAuthorValidationTests
     private sealed class Fixture : IAsyncDisposable
     {
         private readonly TemporaryDirectory _directory = new();
+        private readonly List<BackendRenderBackendConfiguration> _renderBackends = [];
         internal ProjectSessionRegistry Registry = null!;
         internal ResourceStore Resources = null!;
         internal Executor Executor = new();
@@ -143,6 +146,10 @@ public sealed class BackendAuthorValidationTests
         internal ProjectSessionRegistry NewRegistry(IBackendValidationExecutor executor)
         {
             ProjectSessionRegistry registry = new("author-validation-" + Guid.NewGuid().ToString("N"), Resources, NewProjectPreparationService.CreateDefault());
+            BackendRenderBackendConfiguration renderBackends = new(new WorkerProcessOptions("missing-worker"), "vulkan");
+            renderBackends.ConfigureGpuStreamDevice(_ => Task.FromResult(new RenderBackendDeviceInfoDto("fixture", "device", "driver", "1.3")));
+            _renderBackends.Add(renderBackends);
+            registry.ConfigureRenderBackends(renderBackends);
             registry.ConfigurePersistence(new() { StateRoot = _directory.FilePath("state") });
             registry.ConfigureAuthorWorkflows(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));
             registry.ConfigureValidationTasks(executor, new() { MaxRunning = 1, MaxQueued = 2, MaxQueuedPerClient = 2 });
@@ -166,6 +173,11 @@ public sealed class BackendAuthorValidationTests
             using CancellationTokenSource stop = new(TimeSpan.FromSeconds(5));
             while (File.Exists(path)) await Task.Delay(20, stop.Token);
         }
-        public async ValueTask DisposeAsync() { await Registry.DisposeAsync(); _directory.Dispose(); }
+        public async ValueTask DisposeAsync()
+        {
+            await Registry.DisposeAsync();
+            foreach (var configuration in _renderBackends) configuration.Dispose();
+            _directory.Dispose();
+        }
     }
 }

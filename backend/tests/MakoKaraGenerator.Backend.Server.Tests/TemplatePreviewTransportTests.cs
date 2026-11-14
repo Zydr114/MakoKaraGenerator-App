@@ -19,8 +19,9 @@ public sealed partial class PreviewTransportTests
     {
         var plain = new WorkerRenderFrameSessionFactory(new(FindWorkerApphost()));
         var packageFactory = new WorkerPackageRenderFrameSessionFactory(new(FindWorkerApphost()));
+        using BackendRenderBackendConfiguration devices = SdkV2GpuDevices();
         await using Fixture f = await Fixture.Create(injectedFactory: new ProjectPreviewFrameSessionFactory(plain, packageFactory),
-            presetProfile: true, packageProfile: true, exportFixture: true);
+            presetProfile: true, packageProfile: true, exportFixture: true, renderBackends: devices);
         f.Projects.ConfigureTemplateLibrary();
         var package = EffectPackageFixture.Contents();
         var template = StyleTemplate.Create("advanced", "完整高级", kind, LyricStyle.Default,

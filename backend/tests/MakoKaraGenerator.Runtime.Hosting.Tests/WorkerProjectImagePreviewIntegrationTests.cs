@@ -35,10 +35,10 @@ public sealed class WorkerProjectImagePreviewIntegrationTests(ITestOutputHelper 
         ProjectSnapshot oracle = PackageWorkerRuntimeFixture.Fingerprint(snapshot with
         { Background = snapshot.Background with { Path = imagePath } });
         ProjectSnapshot plain = PackageWorkerRuntimeFixture.Fingerprint(snapshot with { Background = BackgroundSource.Color });
-        var runtime = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")), videos, ReplayReason.Initial);
+        var runtime = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")), videos, ReplayReason.Initial, renderBackend: kind == "package" ? "vulkan" : null);
         await using IRenderFrameSession direct = await runtime.CreateAsync(oracle);
         await using IRenderFrameSession counterfactual = await runtime.CreateAsync(plain);
-        await using WorkerProcessProxy proxy = new(new(PackageWorkerRuntimeFixture.WorkerApphost()));
+        await using WorkerProcessProxy proxy = new(new(PackageWorkerRuntimeFixture.WorkerApphost()) { RenderBackend = kind == "package" ? "gpu" : null });
         var capability = await proxy.GetImagePreviewCapabilitiesAsync(TimeSpan.FromSeconds(30));
         Assert.Equal(BackendSnapshotProfiles.ProjectImagePreview, capability.CodecProfile);
         StaticWorkerSessionHandle handle = await proxy.OpenImagePreviewSessionAsync(ProjectImagePreviewSnapshotCodec.Encode(snapshot, bytes), TimeSpan.FromSeconds(30));
@@ -79,7 +79,7 @@ public sealed class WorkerProjectImagePreviewIntegrationTests(ITestOutputHelper 
     {
         byte[] bytes = Png();
         ProjectSnapshot snapshot = WithImage(Basis("static"), bytes);
-        var factory = new WorkerPackageRenderFrameSessionFactory(new(PackageWorkerRuntimeFixture.WorkerApphost()));
+        var factory = new WorkerPackageRenderFrameSessionFactory(new(PackageWorkerRuntimeFixture.WorkerApphost()) { RenderBackend = "gpu" });
         IRenderFrameSessionFactory bound = factory.Bind(snapshot, bytes);
         Array.Clear(bytes);
         await using IRenderFrameSession session = await bound.CreateAsync(snapshot);
@@ -96,7 +96,7 @@ public sealed class WorkerProjectImagePreviewIntegrationTests(ITestOutputHelper 
     {
         byte[] bytes = kind == "corrupt" ? [1, 2, 3] : kind == "dimension" ? Png(4097, 1) : Png(2049, 2049);
         ProjectSnapshot snapshot = WithImage(Basis("static"), bytes);
-        var factory = new WorkerPackageRenderFrameSessionFactory(new(PackageWorkerRuntimeFixture.WorkerApphost()));
+        var factory = new WorkerPackageRenderFrameSessionFactory(new(PackageWorkerRuntimeFixture.WorkerApphost()) { RenderBackend = "gpu" });
         IRenderFrameSessionFactory bound = factory.Bind(snapshot, bytes);
         RenderSessionFailureException failure = await Assert.ThrowsAsync<RenderSessionFailureException>(() => bound.CreateAsync(snapshot).AsTask());
         Assert.Equal(code, failure.Code);
@@ -108,7 +108,7 @@ public sealed class WorkerProjectImagePreviewIntegrationTests(ITestOutputHelper 
     {
         byte[] bytes = Png();
         ProjectSnapshot snapshot = WithImage(PackageWorkerRuntimeFixture.DiagnosticSource("compile"), bytes);
-        var factory = new WorkerPackageRenderFrameSessionFactory(new(PackageWorkerRuntimeFixture.WorkerApphost()));
+        var factory = new WorkerPackageRenderFrameSessionFactory(new(PackageWorkerRuntimeFixture.WorkerApphost()) { RenderBackend = "gpu" });
         RenderSessionFailureException failure = await Assert.ThrowsAsync<RenderSessionFailureException>(() => factory.Bind(snapshot, bytes).CreateAsync(snapshot).AsTask());
         Assert.Equal("WorkerPackageCompilationFailed", failure.Code);
         Assert.NotEmpty(failure.SourceDiagnostics);
@@ -140,7 +140,7 @@ public sealed class WorkerProjectImagePreviewIntegrationTests(ITestOutputHelper 
         byte[] bytes = Png();
         ProjectSnapshot snapshot = WithImage(Basis(kind), bytes);
         byte[] envelope = ProjectImagePreviewSnapshotCodec.Encode(snapshot, bytes);
-        await using WorkerProcessProxy proxy = new(new(PackageWorkerRuntimeFixture.WorkerApphost()));
+        await using WorkerProcessProxy proxy = new(new(PackageWorkerRuntimeFixture.WorkerApphost()) { RenderBackend = kind == "package" ? "gpu" : null });
         ProjectImageValidationWorkerCapabilities capability = await proxy.GetImageValidationCapabilitiesAsync(TimeSpan.FromSeconds(30));
         Assert.Equal(ProjectImageValidationWorkerContract.ValidationProfile, capability.CodecProfile);
         ValidationReportDto report = await proxy.ValidateImageProjectAsync(envelope, 2, TimeSpan.FromSeconds(30));

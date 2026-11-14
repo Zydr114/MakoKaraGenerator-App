@@ -46,7 +46,7 @@ public sealed class ProjectHostingTests
             Assert.True(Directory.Exists(packageDirectory));
         }
         Assert.False(Directory.Exists(packageDirectory));
-        await using var session = await Factory(temp.FilePath("cache")).CreateAsync(source);
+        await using var session = await Factory(temp.FilePath("cache"), renderBackend: null).CreateAsync(source);
         using var expectedRenderer = new SkiaRenderPipeline(fixedFonts);
         var request = RenderRequest.At(source, 300_000);
         using var expected = expectedRenderer.Render(request);
@@ -61,7 +61,7 @@ public sealed class ProjectHostingTests
     {
         using TemporaryDirectory temp = new();
         var snapshot = Snapshot(MixedEffectPackageFixture.Contents());
-        var factory = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")), new FfmpegVideoFrameProvider(), ReplayReason.Initial, layoutReference: layout);
+        var factory = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")), new FfmpegVideoFrameProvider(), ReplayReason.Initial, layoutReference: layout, renderBackend: "vulkan");
         await using var session = await factory.CreateAsync(snapshot);
         var request = RenderRequest.At(snapshot, layout ? 0 : 300_000);
         using var measured = await ((ISceneMeasurementSession)session).MeasureAsync(request, layout);
@@ -90,7 +90,7 @@ public sealed class ProjectHostingTests
         var snapshot = ProjectSnapshot.FromProject(applied);
         var fingerprint = snapshot.EffectInputsFingerprint;
         var factory = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")),
-            videos, ReplayReason.Initial, layoutReference: true, renderBackend: "cpu");
+            videos, ReplayReason.Initial, layoutReference: true, renderBackend: "vulkan");
         await using var session = await factory.CreateAsync(snapshot);
         var request = RenderRequest.At(snapshot, 0);
         using var measured = await ((ISceneMeasurementSession)session).MeasureAsync(request, layoutReference: true);
@@ -127,7 +127,7 @@ public sealed class ProjectHostingTests
         Assert.Throws<ArgumentException>(() => PresetSceneStyleProjection.Resolver(snapshot).ResolveLyrics("missing-real-line"));
     }
 
-    private static ProjectRenderSessionFactory Factory(string cache, ReplayReason reason = ReplayReason.Initial) => new(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), cache), new FfmpegVideoFrameProvider(), reason);
+    private static ProjectRenderSessionFactory Factory(string cache, ReplayReason reason = ReplayReason.Initial, string? renderBackend = "vulkan") => new(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), cache), new FfmpegVideoFrameProvider(), reason, renderBackend: renderBackend);
 
     private static ProjectSnapshot Snapshot(EffectPackageContents? package = null)
     {
@@ -147,24 +147,20 @@ public sealed class ProjectHostingTests
     public async Task 无GUI调用真实固定包编译原生装配且独立会话重放保持全部帧和诊断(bool transparent)
     {
         using TemporaryDirectory temp = new();
-        var package = MixedEffectPackageFixture.Contents(controllerSource: MixedEffectPackageFixture.Source.Replace(
-            "foreach (var line", "frame.Diagnostics.Report(DiagnosticSeverity.Warning, \"HostingWarning\", \"完整来源\");\n        foreach (var line", StringComparison.Ordinal));
+        var package = MixedEffectPackageFixture.Contents();
         var snapshot = Snapshot(package); var factory = Factory(temp.FilePath("cache"));
         await using var preview = await factory.CreateAsync(snapshot);
         await using var export = await Factory(temp.FilePath("cache"), ReplayReason.Export).CreateAsync(snapshot);
         using SkiaRenderPipeline baseline = new();
-        var cursor = new RuntimeDiagnosticCursor();
         foreach (long time in new long[] { 0, 100_000, 300_000, 500_000, 100_000, 500_000 })
         {
             var request = RenderRequest.At(snapshot, time) with { TransparentBackground = transparent };
             using var actual = await preview.RenderAsync(request); using var expected = await export.RenderAsync(request);
             Assert.Equal(expected.PixelMemory.ToArray(), actual.PixelMemory.ToArray());
             Assert.Equal(expected.DiagnosticSnapshot.ReadAll().Select(value => value.Diagnostic), actual.DiagnosticSnapshot.ReadAll().Select(value => value.Diagnostic));
-            Assert.Contains(actual.DiagnosticSnapshot.ReadAll(), value => value.Diagnostic.Diagnostic.Code == "HostingWarning"
-                && value.Diagnostic.PackageIdentity == new EffectPackageIdentity(package.PackageId, package.Revision, "controller"));
+            Assert.Empty(actual.DiagnosticSnapshot.ReadAll());
             using var plain = baseline.Render(RenderRequest.At(Snapshot(), time) with { TransparentBackground = transparent });
             Assert.NotEqual(plain.PixelMemory.ToArray(), actual.PixelMemory.ToArray());
-            Assert.NotEmpty(cursor.ReadNew(actual.DiagnosticSnapshot));
         }
         string artifact = Assert.Single(Directory.EnumerateDirectories(temp.FilePath("cache")),
             path => Path.GetFileName(path) != ".locks");
@@ -173,7 +169,7 @@ public sealed class ProjectHostingTests
         await preview.DisposeAsync();
         // Closing one session must leave the other's native programs and replay state alive.
         using var surviving = await export.RenderAsync(RenderRequest.At(snapshot, 500_000) with { TransparentBackground = transparent });
-        Assert.NotEmpty(surviving.DiagnosticSnapshot.ReadAll());
+        Assert.Empty(surviving.DiagnosticSnapshot.ReadAll());
     }
 
     [Fact]

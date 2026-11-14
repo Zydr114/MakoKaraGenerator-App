@@ -27,18 +27,24 @@ internal static class PackageWorkerRuntimeFixture
     }
 
     internal const string Family = "Noto Sans CJK SC";
-    internal const string WarningCode = "PackageSnapshotActualWarning";
-    internal const string WarningMessage = "真实作者警告：固定包源🎵";
 
-    internal static ProjectSnapshot Create(string kind, string? scaleSource = null)
+    internal static ProjectSnapshot Create(string kind)
     {
         EffectPackageContents package = kind switch
         {
-            "graph" => MixedEffectPackageFixture.Contents(controllerSource: WithWarning(MixedEffectPackageFixture.Source)),
+            "graph" => MixedEffectPackageFixture.Contents(),
             "material" => MixedEffectPackageFixture.Contents(pure: true),
             "sprite" => SpritePackage(),
-            _ => ScalePackage(scaleSource),
+            _ => EffectPackageFixture.Contents(),
         };
+        return CreateWithPackage(kind, package);
+    }
+
+    internal static ProjectSnapshot CreateV1Scale(string scaleSource) =>
+        CreateWithPackage("scale", V1ScalePackage(scaleSource));
+
+    private static ProjectSnapshot CreateWithPackage(string kind, EffectPackageContents package)
+    {
         var line = LyricLine.Create("row", "歌詞", new(0, 700_000), TimingStatus.Edited,
             [LyricToken.Create("token", "歌詞", new(0, 700_000), TimingStatus.Edited)]);
         var project = Project.Create("固定包Runtime", Composition.Create(320, 180, FrameRate.Fps30, outputDurationUs: 700_000),
@@ -120,13 +126,13 @@ internal static class PackageWorkerRuntimeFixture
 
     internal static ProjectSnapshot Runaway(string stage, string marker, string nonce, bool ffmpeg)
     {
-        var files = EffectPackageFixture.Files(); files["src/PackEffect.cs"] = Encoding.UTF8.GetBytes(RunawaySource);
-        var manifest = EffectPackageFixture.Manifest(files);
-        manifest["parameters"] = new JsonArray(
-            TextParameter("stage", stage), TextParameter("marker", marker), TextParameter("nonce", nonce),
-            TextParameter("child", ffmpeg ? "ffmpeg" : "sleep"));
-        manifest["exports"]![0]!["parameters"] = new JsonArray("stage", "marker", "nonce", "child");
-        EffectPackageContents package = EffectPackageContents.Create(EffectPackageFixture.Bytes(manifest), EffectPackageFixture.Inputs(files), EffectPackageFixture.Profile);
+        EffectPackageContents package = V1ScalePackage(RunawaySource, manifest =>
+        {
+            manifest["parameters"] = new JsonArray(
+                TextParameter("stage", stage), TextParameter("marker", marker), TextParameter("nonce", nonce),
+                TextParameter("child", ffmpeg ? "ffmpeg" : "sleep"));
+            manifest["exports"]![0]!["parameters"] = new JsonArray("stage", "marker", "nonce", "child");
+        });
         ProjectSnapshot basis = Create("scale");
         return Fingerprint(basis with { Effects = new([package], [new()
         {
@@ -157,7 +163,7 @@ internal static class PackageWorkerRuntimeFixture
 
     internal static ProjectSnapshot RuntimeError()
     {
-        EffectPackageContents package = MixedEffectPackageFixture.Contents(controllerSource: """
+        EffectPackageContents package = V1ScalePackage("""
             using MakoKaraGenerator.Scripting;
             public sealed class PackEffect : EffectBase
             {
@@ -165,7 +171,11 @@ internal static class PackageWorkerRuntimeFixture
                     => frame.Diagnostics.Report(DiagnosticSeverity.Error, "ActualPackageRuntimeError", "真实固定包作者错误🎵",
                         new SourceLocation("src/实际作者🎵.cs", 7, 9));
             }
-            """);
+            """, manifest =>
+        {
+            manifest["exports"]![0]!["id"] = "controller";
+            manifest["exports"]![0]!["bindingKinds"] = new JsonArray("project");
+        });
         ProjectSnapshot basis = Create("scale");
         return Fingerprint(basis with { Effects = new([package], [new()
         {
@@ -209,14 +219,20 @@ internal static class PackageWorkerRuntimeFixture
         }
         """;
 
-    private static string WithWarning(string source) => source.Replace("public override void Evaluate(FrameContext frame, FrameWriter output)\n    {",
-        "public override void Evaluate(FrameContext frame, FrameWriter output)\n    {\n        frame.Diagnostics.Report(DiagnosticSeverity.Warning, \"" + WarningCode + "\", \"" + WarningMessage + "\");", StringComparison.Ordinal);
-
-    private static EffectPackageContents ScalePackage(string? source = null)
+    private static EffectPackageContents V1ScalePackage(string source, Action<JsonObject>? configureManifest = null)
     {
         var files = EffectPackageFixture.Files();
-        files["src/PackEffect.cs"] = Encoding.UTF8.GetBytes(source ?? WithWarning(EffectPackageFixture.EffectSource));
-        return EffectPackageContents.Create(EffectPackageFixture.Bytes(EffectPackageFixture.Manifest(files)), EffectPackageFixture.Inputs(files), EffectPackageFixture.Profile);
+        files["src/PackEffect.cs"] = Encoding.UTF8.GetBytes(source);
+        var manifest = EffectPackageFixture.Manifest(files);
+        manifest["packageVersion"] = EffectPackageProfiles.V1.PackageVersion;
+        manifest["sdkVersion"] = EffectPackageProfiles.V1.SdkVersion;
+        manifest["shaderProfile"] = EffectPackageProfiles.V1.ShaderProfile;
+        manifest.Remove("requires");
+        manifest.Remove("lineExit");
+        manifest.Remove("emitters");
+        manifest["exports"]![0]!["outputs"]![0]!["requires"] = new JsonArray();
+        configureManifest?.Invoke(manifest);
+        return EffectPackageContents.Create(EffectPackageFixture.Bytes(manifest), EffectPackageFixture.Inputs(files), EffectPackageProfiles.V1);
     }
 
     private static EffectPackageContents SpritePackage()
@@ -227,22 +243,29 @@ internal static class PackageWorkerRuntimeFixture
         var files = EffectPackageFixture.Files(); files[path] = data.ToArray();
         files["src/PackEffect.cs"] = Encoding.UTF8.GetBytes("""
             using MakoKaraGenerator.Scripting;
-            public sealed class PackEffect : EffectBase
+            using MakoKaraGenerator.Scripting.V2;
+            public sealed record SpriteData : PreparedEffect;
+            public sealed class PackEffect : IPureKaraokeEffect, IPureVisualEffect
             {
-                public override void EvaluateVisuals(VisualFrameContext frame, VisualWriter output)
+                public PreparedEffect Declare(DeclareContext source) => new SpriteData
                 {
-                    frame.Diagnostics.Report(DiagnosticSeverity.Warning, "PackageSnapshotActualWarning", "真实作者警告：固定包源🎵");
-                    output.Overlay.DrawSprites(new("actual-image"),
+                    VisualOutputs = [new(new("actual-image"), VisualPrimitiveKind.Sprites, OverlayLayer.AboveText)],
+                };
+                public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output) { }
+                public void EvaluateVisuals(in VisualFrame frame, PreparedEffect data, VisualOutput output)
+                    => output.DrawSprites(new("actual-image"),
                         [new(frame.Resources.GetImage("images/actual.png"),new(45,0,0,30,15+frame.TimeUs/50000.0,15),new(1,1,1,.8))],OverlayLayer.AboveText);
-                }
             }
             """);
         var manifest = EffectPackageFixture.Manifest(files);
+        manifest["requires"] = new JsonArray("visuals.sprites");
         foreach (var file in manifest["files"]!.AsArray())
             if (file!["path"]!.GetValue<string>() == path) file["role"] = "image";
         manifest["exports"]![0]!["bindingKinds"] = new JsonArray("project");
         manifest["exports"]![0]!["outputs"]![0]!["kind"] = "Overlay";
+        manifest["exports"]![0]!["outputs"]![0]!["target"] = "canvas";
         manifest["exports"]![0]!["outputs"]![0]!["id"] = "actual-image";
+        manifest["exports"]![0]!["outputs"]![0]!["requires"] = new JsonArray("visuals.sprites");
         return EffectPackageContents.Create(EffectPackageFixture.Bytes(manifest), EffectPackageFixture.Inputs(files), EffectPackageFixture.Profile);
     }
 

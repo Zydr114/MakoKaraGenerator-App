@@ -28,10 +28,34 @@ public sealed class PreparedScriptWorkerTests(ITestOutputHelper output)
         }
     }
     private static string References => Path.Combine(Path.GetDirectoryName(WorkerPath)!, "script-refs", "net10.0");
-    private static WorkerProcessOptions Options(IScriptCompilationService compiler) => new("dotnet", [WorkerPath]) { ScriptCompilationService = compiler };
+    private static WorkerProcessOptions Options(IScriptCompilationService compiler, string? renderBackend = "gpu") => new("dotnet", [WorkerPath])
+    {
+        ScriptCompilationService = compiler,
+        RenderBackend = renderBackend,
+    };
     private static ProjectSnapshot Snapshot(string? controller = null)
     {
         var package = MixedEffectPackageFixture.Contents(controllerSource: controller);
+        var project = Project.Create("fixed scripts", Composition.Create(8, 4, FrameRate.Fps30, outputDurationUs: 1_000_000), LyricsDocument.Create([])) with
+        { Effects = new([package], [new() { Id = "instance", Name = "instance", PackageId = package.PackageId, Revision = package.Revision,
+            ExportId = "controller", Binding = new(ProjectEffectBindingKind.Project) }]) };
+        return ProjectSnapshot.FromProject(project);
+    }
+    private static ProjectSnapshot SnapshotV1(string controller)
+    {
+        var files = EffectPackageFixture.Files();
+        files["src/PackEffect.cs"] = System.Text.Encoding.UTF8.GetBytes(controller);
+        JsonObject manifest = EffectPackageFixture.Manifest(files);
+        manifest["packageVersion"] = EffectPackageProfiles.V1.PackageVersion;
+        manifest["sdkVersion"] = EffectPackageProfiles.V1.SdkVersion;
+        manifest["shaderProfile"] = EffectPackageProfiles.V1.ShaderProfile;
+        manifest.Remove("requires");
+        manifest.Remove("lineExit");
+        manifest.Remove("emitters");
+        manifest["exports"]![0]!["id"] = "controller";
+        manifest["exports"]![0]!["bindingKinds"] = new JsonArray("project");
+        manifest["exports"]![0]!["outputs"]![0]!["requires"] = new JsonArray();
+        var package = EffectPackageContents.Create(EffectPackageFixture.Bytes(manifest), EffectPackageFixture.Inputs(files), EffectPackageProfiles.V1);
         var project = Project.Create("fixed scripts", Composition.Create(8, 4, FrameRate.Fps30, outputDurationUs: 1_000_000), LyricsDocument.Create([])) with
         { Effects = new([package], [new() { Id = "instance", Name = "instance", PackageId = package.PackageId, Revision = package.Revision,
             ExportId = "controller", Binding = new(ProjectEffectBindingKind.Project) }]) };
@@ -59,9 +83,9 @@ public sealed class PreparedScriptWorkerTests(ITestOutputHelper output)
                 }
             }
             """;
-        byte[] bytes = PackageProjectSnapshotCodec.Encode(Snapshot(source));
+        byte[] bytes = PackageProjectSnapshotCodec.Encode(SnapshotV1(source));
         int firstPid;
-        await using (var first = new WorkerProcessProxy(Options(compiler)))
+        await using (var first = new WorkerProcessProxy(Options(compiler, renderBackend: null)))
         {
             var handle = await first.OpenPackageSessionAsync(bytes, Timeout); firstPid = first.ProcessId!.Value;
             string inputRoot = Metadata(handle)["Root"]!.GetValue<string>();
@@ -84,7 +108,7 @@ public sealed class PreparedScriptWorkerTests(ITestOutputHelper output)
             Assert.Equal(1, compiler.CompilationCount);
             await first.ClosePackageSessionAsync(reopened, 1, Timeout); Assert.False(Directory.Exists(inputRoot));
         }
-        await using var second = new WorkerProcessProxy(Options(compiler));
+        await using var second = new WorkerProcessProxy(Options(compiler, renderBackend: null));
         var secondHandle = await second.OpenPackageSessionAsync(bytes, Timeout);
         Assert.NotEqual(firstPid, second.ProcessId); Assert.Equal(1, compiler.CompilationCount);
         await second.ClosePackageSessionAsync(secondHandle, 1, Timeout);

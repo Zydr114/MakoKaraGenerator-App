@@ -85,6 +85,11 @@ public sealed class EffectPackageV2ParticleAdmissionTests
         var textOverlay = SdkV2PackageFixture.Contents(manifest => manifest["exports"]![0]!["outputs"]![0]!["kind"] = "Overlay");
         Assert.Equal("PackageOutputTargetUnsupported", Assert.Throws<EffectPackageException>(() => EffectPackageDefinition.Read(textOverlay)).Code);
         var files = EffectPackageFixture.Files(); var old = EffectPackageFixture.Manifest(files);
+        old["packageVersion"] = EffectPackageProfiles.V1.PackageVersion;
+        old["sdkVersion"] = EffectPackageProfiles.V1.SdkVersion;
+        old["shaderProfile"] = EffectPackageProfiles.V1.ShaderProfile;
+        old.Remove("requires"); old.Remove("lineExit"); old.Remove("emitters");
+        old["exports"]![0]!["outputs"]![0]!["requires"] = new JsonArray();
         old["exports"]![0]!["outputs"]![0]!["kind"] = "Overlay";
         var legacy = EffectPackageDefinition.Read(EffectPackageContents.CreateSupported(EffectPackageFixture.Bytes(old), EffectPackageFixture.Inputs(files)));
         Assert.Equal("tokenFamily", Assert.Single(Assert.Single(legacy.Controllers).Outputs).Target);

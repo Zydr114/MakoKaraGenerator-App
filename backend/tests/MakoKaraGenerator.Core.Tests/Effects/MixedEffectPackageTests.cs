@@ -95,7 +95,7 @@ public sealed class MixedEffectPackageTests
                 case "emptyRegion": material["regions"] = new JsonArray(); break;
                 case "materialOutput": material["outputs"]![0]!["target"] = "line"; break;
                 case "materialBypass": material["outputs"]![0]!.AsObject().Remove("bypass"); break;
-                case "graphOutput": graph["outputs"]![0]!["kind"] = "Overlay"; break;
+                case "graphOutput": graph["outputs"]![0]!["kind"] = "StyleModulation"; break;
                 case "graphBypass": graph["outputs"]![0]!["bypass"] = new JsonObject { ["kind"] = "materialFallback", ["mapping"] = "identity" }; break;
                 case "mapping": material["outputs"]![0]!["bypass"]!["mapping"] = "estimated"; break;
                 case "extra": material["fallback"]!["silentDefault"] = true; break;

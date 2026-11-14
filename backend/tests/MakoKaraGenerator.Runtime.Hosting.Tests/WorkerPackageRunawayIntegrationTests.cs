@@ -29,7 +29,7 @@ public sealed class WorkerPackageRunawayIntegrationTests(ITestOutputHelper outpu
         string marker = Path.Combine(evidence, "actual-entered");
         ProjectSnapshot runaway = PackageWorkerRuntimeFixture.Runaway(stage, marker, nonce, ffmpeg);
         ProjectSnapshot healthy = PackageWorkerRuntimeFixture.Create("scale");
-        var options = new WorkerProcessOptions(PackageWorkerRuntimeFixture.WorkerApphost(), cancellationGracePeriod: TimeSpan.FromMilliseconds(150));
+        var options = new WorkerProcessOptions(PackageWorkerRuntimeFixture.WorkerApphost(), cancellationGracePeriod: TimeSpan.FromMilliseconds(150)) { RenderBackend = "gpu" };
         var factory = new WorkerPackageRenderFrameSessionFactory(options, TimeSpan.FromSeconds(20));
         await using WorkerProcessProxy proxy = new(options);
         using CancellationTokenSource cancel = new();
@@ -140,7 +140,8 @@ public sealed class WorkerPackageRunawayIntegrationTests(ITestOutputHelper outpu
         await using IRenderFrameSession session = await factory.CreateAsync(healthy).AsTask().WaitAsync(TimeSpan.FromSeconds(12));
         using RenderFrame frame = await session.RenderAsync(WorkerPackageSessionIntegrationTests.Request(healthy, 100_000)).AsTask().WaitAsync(TimeSpan.FromSeconds(8));
         Assert.Equal(320 * 180 * 4, frame.PixelMemory.Length);
-        Assert.Contains(frame.DiagnosticSnapshot.ReadAll(), value => value.Diagnostic.Diagnostic.Code == PackageWorkerRuntimeFixture.WarningCode);
+        Assert.False(frame.DiagnosticSnapshot.HasError);
+        Assert.Empty(frame.DiagnosticSnapshot.ReadAll());
     }
 
     private static async Task<string> WaitForFileAsync(string path, Task? active, TimeSpan timeout)

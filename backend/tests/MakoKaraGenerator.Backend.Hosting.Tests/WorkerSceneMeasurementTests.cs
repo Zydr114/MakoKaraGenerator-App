@@ -129,7 +129,7 @@ public sealed class WorkerSceneMeasurementTests(ITestOutputHelper output)
         using var prepared = preparation.Response!;
         byte[] source = prepared.SourceBytes.ToArray();
         var request = new SceneMeasurementRequest("0", "time", "250000", 320, 180, alpha);
-        await using var worker = new WorkerProcessProxy(Options());
+        await using var worker = new WorkerProcessProxy(Options() with { RenderBackend = "gpu" });
         var result = await worker.MeasureSceneAsync(Input(source, request), source, snapshot, CancellationToken.None);
         Assert.True(SceneMeasurementContract.IsValidPng(result.Measurement.Png, 320, 180));
         Assert.NotEmpty(result.Measurement.FallbackDiagnostics);

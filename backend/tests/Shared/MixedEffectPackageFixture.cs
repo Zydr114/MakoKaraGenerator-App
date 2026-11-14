@@ -8,29 +8,31 @@ internal static class MixedEffectPackageFixture
 {
     public const string Source = """
         using MakoKaraGenerator.Scripting;
-        public sealed class PackEffect : EffectBase
+        using MakoKaraGenerator.Scripting.V2;
+        public sealed class PackEffect : IPureKaraokeEffect
         {
-            public override void Evaluate(FrameContext frame, FrameWriter output)
+            public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
+            public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
             {
                 foreach (var line in frame.Presentations.LinesInBinding)
-                    output.ImageEffects.Bind(line.Target, frame.Resources.GetGraph("tint"),
-                        new([new("amount", new ParameterValue.Number(frame.Parameters.GetNumber("amount")))]));
+                    output.BindGraph(line.Target, new(frame.Resources.GetGraph("tint"),
+                        new([new("amount", new ParameterValue.Number(frame.Parameters.GetNumber("amount")))]),
+                        GraphUniformValues.Empty, GraphTransformValues.Empty));
             }
         }
         """;
     public const string MaterialSource = """
         using MakoKaraGenerator.Scripting;
-        public sealed class PackEffect : EffectBase
+        using MakoKaraGenerator.Scripting.V2;
+        public sealed class PackEffect : IPureKaraokeEffect
         {
-            public override void Evaluate(FrameContext frame, FrameWriter output)
+            public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
+            public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
             {
-                var material=MaterialValue.PackageExport(frame.Resources.GetMaterial("ink"),
-                    new([new("amount",new ParameterValue.Number(frame.Parameters.GetNumber("amount")))]));
-                foreach(var token in frame.Presentations.TokensInBinding)
-                {
-                    output.Style.SetUnsungMaterial(token.WithRuby, material);
-                    output.Style.SetSungMaterial(token.WithRuby, material);
-                }
+                var material = MaterialValue.PackageExport(frame.Resources.GetMaterial("ink"),
+                    new([new("amount", new ParameterValue.Number(frame.Parameters.GetNumber("amount")))]));
+                foreach (var token in frame.Presentations.TokensInBinding)
+                    output.SetFill(token.WithRuby, TextState.Both, material);
             }
         }
         """;
@@ -39,8 +41,9 @@ internal static class MixedEffectPackageFixture
         string? shaderSource = null, Action<JsonObject>? programChange = null)
         => Contents(manifest =>
         {
+            manifest["requires"] = new JsonArray("style.fill");
             manifest["exports"]![0]!["outputs"] = new JsonArray(new JsonObject { ["id"]="style", ["kind"]="StyleModulation",
-                ["target"]="tokenFamily", ["requires"]=new JsonArray(), ["dependsOn"]=new JsonArray() });
+                ["target"]="tokenFamily", ["requires"]=new JsonArray("style.fill"), ["dependsOn"]=new JsonArray() });
             manifestChange?.Invoke(manifest);
         }, background:background, backgroundColor: backgroundColor, fallback:fallback, controllerSource:controllerSource ?? MaterialSource,
             graphChange:graphChange, shaderSource:shaderSource,
@@ -109,11 +112,12 @@ internal static class MixedEffectPackageFixture
         var manifest = EffectPackageShaderFixture.Manifest(files);
         foreach (var file in manifest["files"]!.AsArray())
             if (file!["path"]!.GetValue<string>() == EffectPackageGraphFixture.GraphPath) file["role"] = "graph";
+        manifest["requires"] = pure ? new JsonArray() : new JsonArray("image.graph");
         manifest["parameters"] = new JsonArray(new JsonObject { ["id"] = "amount", ["type"] = "number", ["label"] = "亮度", ["default"] = .5, ["min"] = 0, ["max"] = 1 });
         JsonArray exports = [];
         if (!pure)
         {
-            var output = Output("line"); output.Remove("bypass");
+            var output = Output("line"); output.Remove("bypass"); output["requires"] = new JsonArray("image.graph");
             exports.Add(new JsonObject { ["id"] = "controller", ["kind"] = "controller", ["name"] = "Controller", ["entryType"] = "PackEffect",
                 ["parameters"] = new JsonArray("amount"), ["bindingKinds"] = new JsonArray("project", "branch", "lines", "tokens", "clips", "node"), ["outputs"] = new JsonArray(output) });
         }

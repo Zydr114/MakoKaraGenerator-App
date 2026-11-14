@@ -7,15 +7,23 @@ namespace MakoKaraGenerator.TestSupport;
 
 internal static class EffectPackageFixture
 {
-    public static readonly EffectPackageProfile Profile = new(2, "1.0.0", ShaderProgramDefinition.RasterProfile);
+    public static readonly EffectPackageProfile Profile = EffectPackageProfiles.V2;
     public const string EffectSource = """
         using MakoKaraGenerator.Scripting;
-        public sealed class PackEffect : EffectBase
+        using MakoKaraGenerator.Scripting.V2;
+        public sealed class PackEffect : IPureKaraokeEffect
         {
-            public override void Evaluate(FrameContext frame, FrameWriter output)
+            public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
+            public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
             {
+                double peak = frame.Parameters.GetNumber("peak");
                 foreach (var token in frame.Presentations.TokensInBinding)
-                    output.Transforms.ScaleTokenFamily(token.WithRuby, frame.Parameters.GetNumber("peak"), Pivot.BaseAdvanceCenter);
+                    foreach (var geometry in frame.Geometry)
+                        if (geometry.WithRuby == token.WithRuby)
+                        {
+                            output.AppendTransform(token.WithRuby, Affine2.ScaleAt(peak, geometry.BaseGeometry.AdvanceBounds.Center));
+                            break;
+                        }
             }
         }
         """;
@@ -35,11 +43,13 @@ internal static class EffectPackageFixture
         return new()
         {
             ["packageVersion"] = Profile.PackageVersion, ["sdkVersion"] = Profile.SdkVersion, ["shaderProfile"] = Profile.ShaderProfile,
-            ["packageId"] = "demo.closed", ["name"] = "Demo", ["version"] = "1.0.0", ["files"] = list,
+            ["packageId"] = "demo.closed", ["name"] = "Demo", ["version"] = "1.0.0",
+            ["requires"] = new JsonArray("token.affine"), ["lineExit"] = new JsonObject { ["durationUs"] = 0L }, ["emitters"] = new JsonArray(),
+            ["files"] = list,
             ["parameters"] = new JsonArray(new JsonObject { ["id"] = "peak", ["type"] = "number", ["default"] = 1.5, ["min"] = 1, ["max"] = 4, ["label"] = "Scale", ["unit"] = "x" }),
             ["exports"] = new JsonArray(new JsonObject { ["id"] = "scale", ["kind"] = "controller", ["name"] = "Scale", ["entryType"] = "PackEffect",
                 ["parameters"] = new JsonArray("peak"), ["bindingKinds"] = new JsonArray("tokens"),
-                ["outputs"] = new JsonArray(new JsonObject { ["id"] = "scale", ["kind"] = "VisualTransform", ["target"] = "tokenFamily", ["requires"] = new JsonArray(), ["dependsOn"] = new JsonArray() }) }),
+                ["outputs"] = new JsonArray(new JsonObject { ["id"] = "scale", ["kind"] = "VisualTransform", ["target"] = "tokenFamily", ["requires"] = new JsonArray("token.affine"), ["dependsOn"] = new JsonArray() }) }),
         };
     }
     public static byte[] Bytes(JsonObject manifest) => Encoding.UTF8.GetBytes(manifest.ToJsonString());
@@ -49,7 +59,7 @@ internal static class EffectPackageFixture
     { var files = Files(preview); return EffectPackageContents.Create(Bytes(Manifest(files)), Inputs(files), Profile); }
     public static EffectPackageDefinition WordEmphasis()
     {
-        string root = Path.Combine(AppContext.BaseDirectory, "effect-packages", "WordEmphasis");
+        string root = Path.Combine(AppContext.BaseDirectory, "effect-packages-v2", "WordEmphasis");
         var files = Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories).Where(path => Path.GetFileName(path) != "manifest.json")
             .ToDictionary(path => Path.GetRelativePath(root, path).Replace('\\', '/'), File.ReadAllBytes, StringComparer.Ordinal);
         return EffectPackageDefinition.Read(EffectPackageContents.Create(File.ReadAllBytes(Path.Combine(root, "manifest.json")), Inputs(files), Profile));
@@ -58,24 +68,39 @@ internal static class EffectPackageFixture
     {
         var files = Files(); files["src/PackEffect.cs"] = Encoding.UTF8.GetBytes(source ?? """
             using System;
-            using System.Linq;
             using MakoKaraGenerator.Scripting;
-            public sealed class PackEffect : EffectBase
+            using MakoKaraGenerator.Scripting.V2;
+            public sealed class PackEffect : IPureKaraokeEffect
             {
-                public override void Evaluate(FrameContext frame, FrameWriter output)
+                public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
+                public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
                 {
-                    var group = frame.GroupGeometry.Single(item => item.Target.NodeId.Value == frame.Parameters.GetText("node"));
+                    GroupGeometry? group = null;
+                    string targetNode = frame.Parameters.GetText("node");
+                    foreach (var item in frame.GroupGeometry)
+                        if (item.Target.NodeId.Value == targetNode)
+                        {
+                            if (group is not null) throw new InvalidOperationException("More than one group matched.");
+                            group = item;
+                        }
+                    if (group is null) throw new InvalidOperationException("No group matched.");
                     if (!group.BaseWorldMatrix.TryInverse(out var inverse)) throw new Exception("InvalidGroupMatrix");
                     var local = inverse.Compose(Affine2.Translation(frame.Parameters.GetNumber("offsetX"), frame.Parameters.GetNumber("offsetY")))
                         .Compose(group.BaseWorldMatrix);
-                    output.Transforms.ApplyAffine(group.Target, local);
+                    output.AppendTransform(group.Target, local);
                     if (frame.Parameters.GetBoolean("badWrite"))
                         foreach (var token in frame.Presentations.TokensInBinding)
-                            output.Transforms.ScaleTokenFamily(token.WithRuby, 1.2, Pivot.BaseAdvanceCenter);
+                            foreach (var geometry in frame.Geometry)
+                                if (geometry.WithRuby == token.WithRuby)
+                                {
+                                    output.AppendTransform(token.WithRuby, Affine2.ScaleAt(1.2, geometry.BaseGeometry.AdvanceBounds.Center));
+                                    break;
+                                }
                 }
             }
             """);
         var manifest = Manifest(files);
+        manifest["requires"] = new JsonArray("group.affine");
         manifest["parameters"] = new JsonArray(
             new JsonObject { ["id"] = "node", ["type"] = "text", ["label"] = "目标组", ["default"] = "" },
             new JsonObject { ["id"] = "offsetX", ["type"] = "number", ["label"] = "水平移动", ["default"] = 30, ["min"] = -300, ["max"] = 300 },
@@ -85,24 +110,37 @@ internal static class EffectPackageFixture
         export["parameters"] = new JsonArray("node", "offsetX", "offsetY", "badWrite");
         export["bindingKinds"] = new JsonArray("project", "node", "branch", "lines", "tokens", "clips");
         export["outputs"]![0]!["target"] = "group";
+        export["outputs"]![0]!["requires"] = new JsonArray("group.affine");
         return EffectPackageContents.Create(Bytes(manifest), Inputs(files), Profile);
     }
     public static EffectPackageContents GroupOpacity(string? source = null, bool declaresGroup = true)
     {
         var files = Files(); files["src/PackEffect.cs"] = Encoding.UTF8.GetBytes(source ?? """
-            using System.Linq;
+            using System;
             using MakoKaraGenerator.Scripting;
-            public sealed class PackEffect : EffectBase
+            using MakoKaraGenerator.Scripting.V2;
+            public sealed class PackEffect : IPureKaraokeEffect
             {
-                public override void Evaluate(FrameContext frame, FrameWriter output)
+                public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
+                public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
                 {
-                    var target = frame.GroupGeometry.Single(item => item.Target.NodeId.Value == frame.Parameters.GetText("node")).Target;
+                    GroupTarget? target = null;
+                    string node = frame.Parameters.GetText("node");
+                    foreach (var item in frame.GroupGeometry)
+                        if (item.Target.NodeId.Value == node)
+                        {
+                            if (target is not null) throw new InvalidOperationException("More than one group matched.");
+                            target = item.Target;
+                        }
+                    if (target is null) throw new InvalidOperationException("No group matched.");
                     if (frame.Parameters.GetBoolean("lateError") && frame.TimeUs >= 300000) target = new(new("missing"));
-                    output.Style.MultiplyOpacity(target, frame.Parameters.GetNumber("factor"));
+                    output.MultiplyOpacity(target, frame.Parameters.GetNumber("factor"));
                 }
             }
             """);
         var manifest = Manifest(files);
+        string capability = declaresGroup ? "group.opacity" : "token.opacity";
+        manifest["requires"] = new JsonArray(capability);
         manifest["parameters"] = new JsonArray(
             new JsonObject { ["id"] = "node", ["type"] = "text", ["label"] = "目标组", ["default"] = "" },
             new JsonObject { ["id"] = "factor", ["type"] = "number", ["label"] = "共同透明度", ["default"] = .5, ["min"] = 0, ["max"] = 3 },
@@ -112,6 +150,7 @@ internal static class EffectPackageFixture
         export["bindingKinds"] = new JsonArray("project", "node", "branch", "lines", "tokens", "clips");
         export["outputs"]![0]!["kind"] = "StyleModulation";
         export["outputs"]![0]!["target"] = declaresGroup ? "group" : "tokenFamily";
+        export["outputs"]![0]!["requires"] = new JsonArray(capability);
         return EffectPackageContents.Create(Bytes(manifest), Inputs(files), Profile);
     }
     public static JsonObject NineParametersManifest(Dictionary<string, byte[]> files)

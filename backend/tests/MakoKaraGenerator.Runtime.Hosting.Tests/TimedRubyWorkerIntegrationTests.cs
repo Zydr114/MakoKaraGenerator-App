@@ -28,9 +28,9 @@ public sealed class TimedRubyWorkerIntegrationTests(ITestOutputHelper output)
         using TemporaryDirectory temp = new(); using FfmpegVideoFrameProvider videos = new();
         var snapshot = Source(package);
         byte[] bytes = package ? PackageProjectSnapshotCodec.Encode(snapshot) : StaticProjectSnapshotCodec.Encode(snapshot);
-        var runtime = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")), videos, ReplayReason.Initial);
+        var runtime = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")), videos, ReplayReason.Initial, renderBackend: package ? "vulkan" : null);
         await using var expected = await runtime.CreateAsync(snapshot);
-        await using WorkerProcessProxy worker = new(new(PackageWorkerRuntimeFixture.WorkerApphost()));
+        await using WorkerProcessProxy worker = new(new(PackageWorkerRuntimeFixture.WorkerApphost()) { RenderBackend = package ? "gpu" : null });
         var handle = package ? await worker.OpenPackageSessionAsync(bytes, TimeSpan.FromSeconds(30))
             : await worker.OpenStaticSessionAsync(bytes, TimeSpan.FromSeconds(30));
         int pid = Assert.IsType<int>(worker.ProcessId);
@@ -50,8 +50,7 @@ public sealed class TimedRubyWorkerIntegrationTests(ITestOutputHelper output)
             Assert.Equal(Png(direct), Png(transported));
             if (frames.TryGetValue(time, out var repeated)) Assert.Equal(repeated, actual.Payload);
             frames[time] = actual.Payload;
-            if (package) Assert.Contains(actual.Diagnostics!.Occurrences, value => value.Diagnostic.Code == "TimedRubyReadOnly"
-                && value.Diagnostic.Message == "early:100000:300000:せ");
+            if (package) Assert.False(actual.Diagnostics?.HasError ?? false);
         }
         Assert.False(frames[150_000].AsSpan().SequenceEqual(frames[250_000]), "Ruby changes pixels before the base token starts.");
         if (package) await worker.ClosePackageSessionAsync(handle, ++sequence, TimeSpan.FromSeconds(20));
@@ -112,22 +111,30 @@ public sealed class TimedRubyWorkerIntegrationTests(ITestOutputHelper output)
         if (!package) return snapshot;
         var files = EffectPackageFixture.Files();
         files["src/PackEffect.cs"] = Encoding.UTF8.GetBytes("""
-            using System;
             using MakoKaraGenerator.Scripting;
-            public sealed class PackEffect : EffectBase
+            using MakoKaraGenerator.Scripting.V2;
+            public sealed class PackEffect : IPureKaraokeEffect
             {
-                public override void Evaluate(FrameContext frame, FrameWriter output)
+                public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
+                public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
                 {
-                    var ruby = frame.Project.Content.GetRuby(new RubyId("ruby"));
-                    var first = ruby.Segments[0];
-                    var changed = first with { Text = "local copy" };
-                    if (ruby.Segments.Length != 2 || ruby.Text != "せん" || first.Id != "early"
-                        || first.TimeRange.Value.StartUs != 100000 || first.TimeRange.Value.EndUs != 300000
-                        || first.TimingStatus != SourceTimingStatus.Imported || ruby.Segments[0].Text != "せ"
-                        || changed.Text == ruby.Segments[0].Text) throw new Exception("TimedRubyProjectionMismatch");
-                    frame.Diagnostics.Report(DiagnosticSeverity.Warning, "TimedRubyReadOnly", "early:100000:300000:せ");
+                    int rubyClusters = 0;
+                    foreach (var cluster in frame.Clusters)
+                        if (cluster.Target.RubyId == new RubyId("ruby")) rubyClusters++;
                     foreach (var token in frame.Presentations.TokensInBinding)
-                        output.Transforms.ScaleTokenFamily(token.WithRuby, 1.2, Pivot.BaseAdvanceCenter);
+                    {
+                        if (rubyClusters != 2)
+                        {
+                            output.AppendTransform(token.WithRuby, default);
+                            return;
+                        }
+                        foreach (var geometry in frame.Geometry)
+                            if (geometry.WithRuby == token.WithRuby)
+                            {
+                                output.AppendTransform(token.WithRuby, Affine2.ScaleAt(1.2, geometry.BaseGeometry.AdvanceBounds.Center));
+                                break;
+                            }
+                    }
                 }
             }
             """);

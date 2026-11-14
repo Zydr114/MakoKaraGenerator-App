@@ -86,7 +86,7 @@ public sealed class BasicLayoutTests
     [Fact]
     public async Task 拆分映射直接片段效果并分配固定成员预设身份而不重建种子()
     {
-        var package = await EffectPackageTransfer.ReadDirectoryAsync(Path.Combine(AppContext.BaseDirectory, "effect-packages", "WordEmphasis"), ProjectEffectsJson.PackageProfile);
+        var package = await EffectPackageTransfer.ReadDirectoryAsync(Path.Combine(AppContext.BaseDirectory, "effect-packages-v2", "WordEmphasis"), EffectPackageProfiles.V2);
         var source = AutoClipSource() with { Effects = new([package], [new()
         {
             Id = "range-instance", Name = "整个片段", PackageId = package.PackageId, Revision = package.Revision, ExportId = "word-emphasis",
@@ -129,7 +129,7 @@ public sealed class BasicLayoutTests
     public async Task 单个范围配方无法拆成多个应用时整次取消()
     {
         var source = AutoClipSource();
-        var package = await EffectPackageTransfer.ReadDirectoryAsync(Path.Combine(AppContext.BaseDirectory, "effect-packages", "WordEmphasis"), ProjectEffectsJson.PackageProfile);
+        var package = await EffectPackageTransfer.ReadDirectoryAsync(Path.Combine(AppContext.BaseDirectory, "effect-packages-v2", "WordEmphasis"), EffectPackageProfiles.V2);
         var preset = StyleTemplate.Create("scope", "范围", StyleTemplateKind.Composite, source.LyricStyle, [],
             [new("recipe", "范围效果", TemplateEffectTarget.Application, package.PackageId, package.Revision, "word-emphasis")], [package]);
         Assert.True(PresetApplicationsEditor.TryApply(source, preset, [new(ProjectEffectBindingKind.Clips, ids: [ExclusiveDisplayFixture.ClipId])], null,

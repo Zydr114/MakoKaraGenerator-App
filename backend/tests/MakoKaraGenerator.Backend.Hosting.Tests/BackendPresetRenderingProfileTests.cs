@@ -24,6 +24,9 @@ public sealed partial class BackendAnalysisAdoptionTests
             }]),
         });
         var exporter = new ProfileExport();
+        using BackendRenderBackendConfiguration renderBackends = new(new WorkerProcessOptions("missing-worker"), "vulkan");
+        renderBackends.ConfigureGpuStreamDevice(_ => Task.FromResult(new RenderBackendDeviceInfoDto("fixture", "device", "driver", "1.3")));
+        f.Registry.ConfigureRenderBackends(renderBackends);
         f.Registry.ConfigureExportTasks(exporter, new(true, true, true,
             SourceProfiles: [BackendSnapshotProfiles.StaticLyricsScene, BackendSnapshotProfiles.StaticLyricsSceneAnalysis, PackageProjectSnapshotCodec.Profile]));
         Assert.Contains(PackageProjectSnapshotCodec.Profile, f.Registry.ExportCapabilities.SourceProfiles!);

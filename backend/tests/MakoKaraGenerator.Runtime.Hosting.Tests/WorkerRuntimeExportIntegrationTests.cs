@@ -34,7 +34,7 @@ public sealed class WorkerRuntimeExportIntegrationTests
         Assert.Null(prepared.Grant);
         Assert.Equal(ProjectRuntimeInputCodec.Profile, prepared.SourceProfile);
         Assert.True(package.Files.Sum(file => file.Content.Length) > StaticRenderWorkerContract.MaximumSnapshotBytes);
-        var executor = Executor(); await executor.ProbeAsync();
+        var executor = Executor("gpu"); await executor.ProbeAsync();
         string candidate = temp.FilePath("font.mp4");
         ExportReportDto report = await executor.ExecuteAsync(snapshot,
             new("opaqueMp4", false, candidate, null, RuntimeSource: prepared.SourceBytes));
@@ -62,7 +62,7 @@ public sealed class WorkerRuntimeExportIntegrationTests
         var preparedResult = await lease.PrepareAsync();
         Assert.True(preparedResult.Accepted, preparedResult.Error?.Message);
         using var prepared = preparedResult.Response!;
-        var executor = Executor(); await executor.ProbeAsync();
+        var executor = Executor("gpu"); await executor.ProbeAsync();
         string candidate = temp.FilePath(format == "opaqueMp4" ? "fallback.mp4" : "fallback.mov");
         ExportReportDto report = await executor.ExecuteAsync(snapshot,
             new(format, false, candidate, null, RuntimeSource: prepared.SourceBytes));
@@ -98,7 +98,7 @@ public sealed class WorkerRuntimeExportIntegrationTests
     {
         using TemporaryDirectory temp = new();
         ProjectSnapshot snapshot = Snapshot(kind);
-        var executor = Executor();
+        var executor = Executor(kind == "advanced" ? "gpu" : null);
         BackendExportCapabilities caps = await executor.ProbeAsync();
         string profile = kind == "advanced" ? BackendSnapshotProfiles.PackageLyricsScenePresets : BackendSnapshotProfiles.StaticLyricsScenePresets;
         Assert.Contains(profile, caps.SourceProfiles!);
@@ -138,7 +138,7 @@ public sealed class WorkerRuntimeExportIntegrationTests
         var grant = new ProjectRuntimeBackgroundGrant(project.Background.Kind, media.RelativePath, path, media.Hash, media.ByteLength,
             media.OriginalName, fit, playback);
         byte[] source = ProjectRuntimeInputCodec.Encode(snapshot, grant);
-        var executor = Executor();
+        var executor = Executor(sourceKind == "advanced" ? "gpu" : null);
         Assert.Contains(ProjectRuntimeInputCodec.Profile, (await executor.ProbeAsync()).SourceProfiles!);
         string candidate = temp.FilePath(format == "opaqueMp4" ? "candidate.mp4" : "candidate.mov");
         ExportReportDto report = await executor.ExecuteAsync(snapshot, new(format, false, candidate, null, RuntimeSource: source));
@@ -150,7 +150,7 @@ public sealed class WorkerRuntimeExportIntegrationTests
         byte[] actual = raw.ToArray();
         Assert.Equal(3 * 320 * 180 * 4, actual.Length);
         using var videos = new FfmpegVideoFrameProvider();
-        var factory = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("oracle-cache")), videos, ReplayReason.Initial);
+        var factory = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("oracle-cache")), videos, ReplayReason.Initial, renderBackend: sourceKind == "advanced" ? "vulkan" : null);
         await using var session = await factory.CreateAsync(snapshot);
         for (int index = 0; index < 3; index++)
         {
@@ -176,14 +176,14 @@ public sealed class WorkerRuntimeExportIntegrationTests
         byte[] source = ProjectRuntimeInputCodec.Encode(snapshot, new(BackgroundKind.Image, media.RelativePath, path, media.Hash, 3,
             media.OriginalName, snapshot.Background.Fit, snapshot.Background.Playback));
         await File.WriteAllBytesAsync(path, [3, 2, 1]);
-        var executor = Executor(); await executor.ProbeAsync();
+        var executor = Executor("gpu"); await executor.ProbeAsync();
         string candidate = temp.FilePath("out.mp4");
         var error = await Assert.ThrowsAsync<RenderSessionFailureException>(() =>
             executor.ExecuteAsync(snapshot, new("opaqueMp4", false, candidate, null, RuntimeSource: source)));
         Assert.Equal("ProjectRuntimeSourceChanged", error.Code); Assert.False(File.Exists(candidate));
     }
 
-    private static WorkerBackendExportExecutor Executor() => new(new WorkerProcessOptions(PackageWorkerRuntimeFixture.WorkerApphost()),
+    private static WorkerBackendExportExecutor Executor(string? renderBackend = null) => new(new WorkerProcessOptions(PackageWorkerRuntimeFixture.WorkerApphost()) { RenderBackend = renderBackend },
         "/usr/bin/ffmpeg", "/usr/bin/ffprobe");
 
     private static ProjectSnapshot Snapshot(string kind)

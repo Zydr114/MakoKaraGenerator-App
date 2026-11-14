@@ -199,13 +199,14 @@ public sealed partial class BackendExportJobTests
 
     private static async Task<byte[]> Read(Stream input) { using MemoryStream output = new(); await input.CopyToAsync(output); return output.ToArray(); }
     private sealed record Call(BackendExportExecutionInput Input, ProjectSnapshot Snapshot, TaskCompletionSource Release);
-    private sealed class Executor : IBackendExportExecutor
+    private sealed class Executor : IBackendExportExecutor, IBackendRenderBackendExecutor<IBackendExportExecutor>
     {
         // Transport seam fixture bytes; independent real Worker/media acceptance is a separate probe.
         internal static readonly byte[] Bytes = "controlled-export-media"u8.ToArray();
         private readonly Channel<Call> _calls = Channel.CreateUnbounded<Call>();
         internal int Calls; internal int Drained; internal bool RejectInput; internal bool BadFrames; internal RenderSessionFailureException? Failure; internal bool IgnoreCancellation;
         internal string SourceAudioDuration = "3000000";
+        public IBackendExportExecutor WithRenderBackend(string renderBackend) => this;
         public Task<BackendExportCapabilities> ProbeAsync(CancellationToken cancellationToken = default) => Task.FromResult(new BackendExportCapabilities(true, true, true));
         public void ValidateInput(ProjectSnapshot snapshot, BackendExportExecutionInput input)
         { if (RejectInput) throw new WorkerProtocolException("controlled dynamic input budget"); }
@@ -232,9 +233,10 @@ public sealed partial class BackendExportJobTests
             finally { Interlocked.Increment(ref Drained); }
         }
     }
-    private sealed class Validator : IBackendValidationExecutor
+    private sealed class Validator : IBackendValidationExecutor, IBackendRenderBackendExecutor<IBackendValidationExecutor>
     {
         internal readonly TaskCompletionSource Entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public IBackendValidationExecutor WithRenderBackend(string renderBackend) => this;
         public async Task<ValidationReportDto> ExecuteAsync(ProjectSnapshot snapshot, int framesPerOutput, IProgress<BackendJobProgressDto>? progress = null, CancellationToken cancellationToken = default)
         { Entered.TrySetResult(); await Task.Delay(Timeout.Infinite, cancellationToken); return new(true, framesPerOutput, framesPerOutput, [], []); }
     }
@@ -245,14 +247,18 @@ public sealed partial class BackendExportJobTests
         private readonly TemporaryDirectory _directory = new(); internal string State => _directory.FilePath("state");
         internal readonly Executor Exporter = new(); internal readonly Validator Validator = new(); internal readonly Time Clock = new();
         internal ProjectSessionRegistry Registry = null!; internal ResourceStore Resources = null!; private string _host = "host-one"; private BackendExportOptions? _options;
-        private BackendExportCapabilities? _capabilities;
+        private BackendExportCapabilities? _capabilities; private BackendRenderBackendConfiguration? _renderBackends;
         internal static Task<Fixture> Create(BackendExportOptions? options = null, BackendExportCapabilities? capabilities = null)
         { Fixture f = new() { _options = options, _capabilities = capabilities }; f.CreateRegistry(); return Task.FromResult(f); }
         private void CreateRegistry()
         {
+            _renderBackends?.Dispose();
             Resources = new(new() { ResourceRoot = _directory.FilePath("uploads") }, Clock);
             WaveformPeakBuilder peaks = new(); peaks.Append(new float[24000]); LoadedWaveform sample = new(new(3000000, 8000, 1, "pcm", "wav"), peaks.Build(8000));
             Registry = new(_host, Resources, new((_, _) => Task.FromResult<LoadedWaveform?>(sample)), Clock);
+            _renderBackends = new(new WorkerProcessOptions("missing-worker"), "vulkan");
+            _renderBackends.ConfigureGpuStreamDevice(_ => Task.FromResult(new RenderBackendDeviceInfoDto("fixture", "device", "driver", "1.3")));
+            Registry.ConfigureRenderBackends(_renderBackends);
             Registry.ConfigurePersistence(new() { StateRoot = State }); Registry.ConfigureValidationTasks(Validator);
             Registry.ConfigureExportTasks(Exporter, _capabilities ?? new(true, true, true), _options);
         }
@@ -282,6 +288,6 @@ public sealed partial class BackendExportJobTests
         internal async Task<JobResponse> Terminal(string client, string id)
         { using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(8)); while (true) { JobResponse job = Registry.ReadJob(client, id).Response!; if (job.State is "succeeded" or "failed" or "cancelled" or "unknown") return job; await Task.Delay(10, timeout.Token); } }
         internal async Task Restart() { await Registry.DisposeAsync(); _host = "host-two"; CreateRegistry(); }
-        public async ValueTask DisposeAsync() { await Registry.DisposeAsync(); _directory.Dispose(); }
+        public async ValueTask DisposeAsync() { await Registry.DisposeAsync(); _renderBackends?.Dispose(); _directory.Dispose(); }
     }
 }

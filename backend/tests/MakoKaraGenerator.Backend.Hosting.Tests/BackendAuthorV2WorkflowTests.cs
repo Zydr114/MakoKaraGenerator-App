@@ -144,7 +144,14 @@ public sealed partial class BackendAuthorV2WorkflowTests
     [Fact]
     public async Task SDK2编译拒绝仅实现SDK1的真实入口且目标须属于草稿历史()
     {
-        await using Fixture fixture = await Fixture.CreateAsync(EffectPackageFixture.EffectSource);
+        const string sdk1OnlySource = """
+            using MakoKaraGenerator.Scripting;
+            public sealed class PackEffect : EffectBase
+            {
+                public override void Evaluate(FrameContext frame, FrameWriter output) { }
+            }
+            """;
+        await using Fixture fixture = await Fixture.CreateAsync(sdk1OnlySource);
         AuthorDraftResponse before = fixture.Read();
         AuthorCompilationResponse compiled = await fixture.CompileAsync();
         Assert.False(compiled.Succeeded);

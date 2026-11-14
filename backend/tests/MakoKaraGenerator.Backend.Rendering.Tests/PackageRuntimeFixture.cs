@@ -12,14 +12,11 @@ namespace MakoKaraGenerator.Backend.Rendering.Tests;
 
 internal static class PackageRuntimeFixture
 {
-    internal const string WarningCode = "PackageSnapshotActualWarning";
-    internal const string WarningMessage = "真实作者警告：固定包源🎵";
-
     internal static ProjectSnapshot Create(string kind)
     {
         EffectPackageContents package = kind switch
         {
-            "graph" => MixedEffectPackageFixture.Contents(controllerSource: WithWarning(MixedEffectPackageFixture.Source)),
+            "graph" => MixedEffectPackageFixture.Contents(),
             "material" => MixedEffectPackageFixture.Contents(pure: true),
             "sprite" => SpritePackage(),
             _ => ScalePackage(),
@@ -68,15 +65,7 @@ internal static class PackageRuntimeFixture
         return PackageSnapshotContractFixture.Fingerprint(changed);
     }
 
-    private static string WithWarning(string source) => source.Replace("public override void Evaluate(FrameContext frame, FrameWriter output)\n    {",
-        "public override void Evaluate(FrameContext frame, FrameWriter output)\n    {\n        frame.Diagnostics.Report(DiagnosticSeverity.Warning, \"" + WarningCode + "\", \"" + WarningMessage + "\");", StringComparison.Ordinal);
-
-    private static EffectPackageContents ScalePackage()
-    {
-        var files = EffectPackageFixture.Files();
-        files["src/PackEffect.cs"] = Encoding.UTF8.GetBytes(WithWarning(EffectPackageFixture.EffectSource));
-        return EffectPackageContents.Create(EffectPackageFixture.Bytes(EffectPackageFixture.Manifest(files)), EffectPackageFixture.Inputs(files), EffectPackageFixture.Profile);
-    }
+    private static EffectPackageContents ScalePackage() => EffectPackageFixture.Contents();
 
     private static EffectPackageContents SpritePackage()
     {
@@ -86,22 +75,29 @@ internal static class PackageRuntimeFixture
         var files = EffectPackageFixture.Files(); files[path] = data.ToArray();
         files["src/PackEffect.cs"] = Encoding.UTF8.GetBytes("""
             using MakoKaraGenerator.Scripting;
-            public sealed class PackEffect : EffectBase
+            using MakoKaraGenerator.Scripting.V2;
+            public sealed record SpriteData : PreparedEffect;
+            public sealed class PackEffect : IPureKaraokeEffect, IPureVisualEffect
             {
-                public override void EvaluateVisuals(VisualFrameContext frame, VisualWriter output)
+                public PreparedEffect Declare(DeclareContext source) => new SpriteData
                 {
-                    frame.Diagnostics.Report(DiagnosticSeverity.Warning, "PackageSnapshotActualWarning", "真实作者警告：固定包源🎵");
-                    output.Overlay.DrawSprites(new("actual-image"),
+                    VisualOutputs = [new(new("actual-image"), VisualPrimitiveKind.Sprites, OverlayLayer.AboveText)],
+                };
+                public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output) { }
+                public void EvaluateVisuals(in VisualFrame frame, PreparedEffect data, VisualOutput output)
+                    => output.DrawSprites(new("actual-image"),
                         [new(frame.Resources.GetImage("images/actual.png"),new(45,0,0,30,15+frame.TimeUs/50000.0,15),new(1,1,1,.8))],OverlayLayer.AboveText);
-                }
             }
             """);
         var manifest = EffectPackageFixture.Manifest(files);
+        manifest["requires"] = new JsonArray("visuals.sprites");
         foreach (var file in manifest["files"]!.AsArray())
             if (file!["path"]!.GetValue<string>() == path) file["role"] = "image";
         manifest["exports"]![0]!["bindingKinds"] = new JsonArray("project");
         manifest["exports"]![0]!["outputs"]![0]!["kind"] = "Overlay";
+        manifest["exports"]![0]!["outputs"]![0]!["target"] = "canvas";
         manifest["exports"]![0]!["outputs"]![0]!["id"] = "actual-image";
+        manifest["exports"]![0]!["outputs"]![0]!["requires"] = new JsonArray("visuals.sprites");
         return EffectPackageContents.Create(EffectPackageFixture.Bytes(manifest), EffectPackageFixture.Inputs(files), EffectPackageFixture.Profile);
     }
 

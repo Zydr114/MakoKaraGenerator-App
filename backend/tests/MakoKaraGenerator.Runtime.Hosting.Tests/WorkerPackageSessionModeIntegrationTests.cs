@@ -34,6 +34,7 @@ public sealed class WorkerPackageSessionModeIntegrationTests(ITestOutputHelper o
             { RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false },
         };
         process.StartInfo.Environment.Remove("MAKO_BACKEND_WORKER_MEDIA_LIMIT_BYTES");
+        process.StartInfo.Environment["MAKO_RENDER_BACKEND"] = "vulkan";
         Assert.True(process.Start());
         Task<string> stderr = process.StandardError.ReadToEndAsync();
         OwnedProcessGroup? group = null;
@@ -141,7 +142,8 @@ public sealed class WorkerPackageSessionModeIntegrationTests(ITestOutputHelper o
         if (package)
         {
             PackageRenderWorkerContract.ValidateFrameResult(frame, actual);
-            Assert.Contains(actual.Diagnostics!.Occurrences, value => value.Diagnostic.Code == PackageWorkerRuntimeFixture.WarningCode);
+            Assert.False(actual.Diagnostics!.HasError);
+            Assert.Empty(actual.Diagnostics.Occurrences);
         }
         else StaticRenderWorkerContract.ValidateFrameResult(frame, actual);
         Assert.Equal(320 * 180 * 4, actual.Payload.Length);

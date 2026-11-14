@@ -43,7 +43,7 @@ public sealed class WorkerProjectImageExportIntegrationTests(ITestOutputHelper o
                 AudioMedia = new(grant.Sha256, grant.Size, "original." + audioFormat) });
         }
         string candidate = temp.FilePath(format == "opaqueMp4" ? "candidate.mp4" : "candidate.mov");
-        WorkerBackendExportExecutor executor = Executor();
+        WorkerBackendExportExecutor executor = Executor(kind == "package" ? "gpu" : null);
         BackendExportCapabilities capabilities = await executor.ProbeAsync();
         Assert.True(capabilities.ImageExportAvailable); Assert.True(executor.ImageExportAvailable);
         List<BackendJobProgressDto> progress = [];
@@ -98,7 +98,7 @@ public sealed class WorkerProjectImageExportIntegrationTests(ITestOutputHelper o
         Assert.True(report.StrictlyVerified); Assert.Equal(3, report.DecodedFrames);
     }
 
-    private static WorkerBackendExportExecutor Executor() => new(new WorkerProcessOptions(PackageWorkerRuntimeFixture.WorkerApphost()),
+    private static WorkerBackendExportExecutor Executor(string? renderBackend = null) => new(new WorkerProcessOptions(PackageWorkerRuntimeFixture.WorkerApphost()) { RenderBackend = renderBackend },
         "/usr/bin/ffmpeg", "/usr/bin/ffprobe", exportOptions: new BackendExportOptions { MaxMediaBytes = WorkerExportContract.MaximumMediaBytes });
     private static ProjectSnapshot Snapshot(string kind, byte[] bytes)
     {

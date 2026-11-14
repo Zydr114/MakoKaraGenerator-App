@@ -13,7 +13,7 @@ public sealed class SdkV2PersistenceGateTests
     public void 当前工程格式与效果合同显式往返v1v2及独立读取范围()
     {
         using TemporaryDirectory temp = new();
-        var old = EffectPackageFixture.Contents(); var current = SdkV2PackageFixture.Contents();
+        var old = V1Contents(); var current = SdkV2PackageFixture.Contents();
         var instance = new ProjectEffectInstance
         {
             Id = "v2-instance", Name = "纯求值", PackageId = current.PackageId, Revision = current.Revision, ExportId = "scale",
@@ -36,7 +36,7 @@ public sealed class SdkV2PersistenceGateTests
     public void 旧schema保存门禁发生于创建目录或发布资源之前(bool withV2)
     {
         using TemporaryDirectory temp = new(); string target = temp.FilePath("uncreated");
-        var package = withV2 ? SdkV2PackageFixture.Contents() : EffectPackageFixture.Contents();
+        var package = withV2 ? SdkV2PackageFixture.Contents() : V1Contents();
         var project = Project.Create("旧schema") with { SchemaVersion = Project.CurrentSchemaVersion - 1, Effects = new([package]) };
         Assert.Equal("ProjectSchemaVersionUnsupported", Assert.Throws<EffectPackageException>(() => ProjectStore.Save(project, target)).Code);
         Assert.False(Directory.Exists(target));
@@ -118,12 +118,31 @@ public sealed class SdkV2PersistenceGateTests
     [Fact]
     public void 未知包身份不能借助当前效果合同写出()
     {
-        var files = EffectPackageFixture.Files(); var manifest = EffectPackageFixture.Manifest(files); manifest["shaderProfile"] = "foreign";
+        var files = EffectPackageFixture.Files(); var manifest = V1Manifest(files); manifest["shaderProfile"] = "foreign";
         var package = EffectPackageContents.Create(EffectPackageFixture.Bytes(manifest), EffectPackageFixture.Inputs(files), new(2, "1.0.0", "foreign"));
         using TemporaryDirectory temp = new(); string target = temp.FilePath("uncreated");
         Assert.Equal("PackageProfileMismatch", Assert.Throws<EffectPackageException>(() => ProjectStore.Save(
             Project.Create("未知包") with { Effects = new([package]) }, target)).Code);
         Assert.False(Directory.Exists(target));
         Assert.Equal("PackageProfileMismatch", Assert.Throws<EffectPackageException>(() => ProjectEffectsJson.Encode(new([package]))).Code);
+    }
+
+    private static JsonObject V1Manifest(Dictionary<string, byte[]> files)
+    {
+        var manifest = EffectPackageFixture.Manifest(files);
+        manifest["packageVersion"] = EffectPackageProfiles.V1.PackageVersion;
+        manifest["sdkVersion"] = EffectPackageProfiles.V1.SdkVersion;
+        manifest["shaderProfile"] = EffectPackageProfiles.V1.ShaderProfile;
+        manifest.Remove("requires");
+        manifest.Remove("lineExit");
+        manifest.Remove("emitters");
+        manifest["exports"]![0]!["outputs"]![0]!["requires"] = new JsonArray();
+        return manifest;
+    }
+
+    private static EffectPackageContents V1Contents()
+    {
+        var files = EffectPackageFixture.Files();
+        return EffectPackageContents.Create(EffectPackageFixture.Bytes(V1Manifest(files)), EffectPackageFixture.Inputs(files), EffectPackageProfiles.V1);
     }
 }

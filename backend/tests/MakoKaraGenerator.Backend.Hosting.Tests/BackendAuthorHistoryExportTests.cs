@@ -135,7 +135,7 @@ public sealed class BackendAuthorHistoryExportTests
                 string path = _directory.FilePath("download-" + Guid.NewGuid().ToString("N") + ".mkfx");
                 await using (FileStream output = File.Create(path)) await lease.Stream.CopyToAsync(output);
                 EffectPackageContents package = await EffectPackageTransfer.ReadArchiveAsync(path,
-                    ProjectEffectsJson.PackageProfile);
+                    EffectPackageProfiles.V2);
                 return (package.PackageId, package.Revision);
             }
         }

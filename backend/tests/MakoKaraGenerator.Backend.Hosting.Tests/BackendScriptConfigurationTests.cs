@@ -50,20 +50,24 @@ public sealed class BackendScriptConfigurationTests
     public async Task 合法配置可固定失败源码并从库建立草稿及模板自己的闭包()
     {
         await using Fixture f = await Fixture.CreateAsync();
+        var compiledOriginal = Accepted(await f.Registry.CompileAuthorDraftAsync("client", f.Draft.DraftId,
+            new(f.Draft.DraftRevision, f.Metadata())));
+        Assert.True(compiledOriginal.Succeeded);
+        var originalDraft = Accepted(f.Registry.ReadAuthorDraft("client", f.Draft.DraftId));
+        var adopted = Accepted(await f.Registry.AdoptAuthorSourceRevisionAsync("client", originalDraft.DraftId,
+            new(originalDraft.DraftRevision, f.Draft.CurrentSourceRevision, f.Metadata())));
         var saved = Accepted(await f.Registry.SaveAuthorSourceRevisionAsync("client", f.Draft.DraftId,
-            new(f.Draft.DraftRevision, [new("src/PackEffect.cs", "public class Broken { invalid !!! }")], f.Metadata())));
+            new(adopted.DraftRevision, [new("src/PackEffect.cs", "public class Broken { invalid !!! }")], f.Metadata())));
         var draft = Accepted(f.Registry.ReadAuthorDraft("client", f.Draft.DraftId));
         Assert.Equal(saved.SourceRevision, draft.CurrentSourceRevision);
-        var adopted = Accepted(await f.Registry.AdoptAuthorSourceRevisionAsync("client", draft.DraftId,
-            new(draft.DraftRevision, f.Draft.CurrentSourceRevision, f.Metadata())));
-        var adoptedDraft = Accepted(f.Registry.ReadAuthorDraft("client", draft.DraftId));
-        Assert.Equal(f.Draft.CurrentSourceRevision, adoptedDraft.Configuration!.SourceRevision);
-        Assert.Equal(saved.SourceRevision, adoptedDraft.CurrentSourceRevision);
-        Accepted(await f.Registry.AdoptAuthorSourceRevisionAsync("client", draft.DraftId,
-            new(adopted.DraftRevision, saved.SourceRevision, f.Metadata())));
-        draft = Accepted(f.Registry.ReadAuthorDraft("client", draft.DraftId));
+        Assert.Equal(f.Draft.CurrentSourceRevision, draft.Configuration!.SourceRevision);
         var compiled = Accepted(await f.Registry.CompileAuthorDraftAsync("client", draft.DraftId, new(draft.DraftRevision, f.Metadata())));
         Assert.False(compiled.Succeeded);
+        draft = Accepted(f.Registry.ReadAuthorDraft("client", draft.DraftId));
+        var rejectedAdopt = await f.Registry.AdoptAuthorSourceRevisionAsync("client", draft.DraftId,
+            new(draft.DraftRevision, saved.SourceRevision, f.Metadata()));
+        Assert.False(rejectedAdopt.Accepted);
+        Assert.Equal("AuthorSourceCompilationRequired", rejectedAdopt.Error!.FailureCode);
         var created = Accepted(await f.Registry.ExecuteScriptConfigurationCommandAsync("client", f.Request("missing", new ScriptConfigurationCreateCommandDto("create", Input(draft)))));
         var detail = Accepted(f.Registry.ReadScriptConfiguration(created.ConfigurationId, created.Revision));
         var restored = Accepted(await f.Registry.CreateAuthorDraftAsync("client", new(null, "scale", "restored", f.Metadata(), created.ConfigurationId, created.Revision)));

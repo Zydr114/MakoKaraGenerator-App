@@ -34,13 +34,13 @@ public sealed class ProjectImagePreviewRuntimeTests
         };
         var decoded = ProjectImagePreviewSnapshotCodec.Decode(ProjectImagePreviewSnapshotCodec.Encode(source, imageBytes));
         string references = Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0");
-        var originalFactory = new ProjectRenderSessionFactory(new ScriptCompiler(references, temp.FilePath("original-cache")), videos, ReplayReason.Initial);
+        var originalFactory = new ProjectRenderSessionFactory(new ScriptCompiler(references, temp.FilePath("original-cache")), videos, ReplayReason.Initial, renderBackend: package ? "vulkan" : null);
         List<CountingResolver> resolvers = [];
         var fixedFactory = new ProjectRenderSessionFactory(new ScriptCompiler(references, temp.FilePath("fixed-cache")), videos, ReplayReason.Initial, () =>
         {
             var resolver = new CountingResolver(new MemoryImageBackgroundFrameSourceResolver(decoded.LogicalPath, decoded.ImageBytes));
             resolvers.Add(resolver); return resolver;
-        });
+        }, renderBackend: package ? "vulkan" : null);
         await using var original = await originalFactory.CreateAsync(source);
         await using var actual = await fixedFactory.CreateAsync(decoded.Snapshot);
         await using var survivor = await fixedFactory.CreateAsync(decoded.Snapshot);
@@ -70,7 +70,7 @@ public sealed class ProjectImagePreviewRuntimeTests
         string references = Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0");
         List<CountingResolver> created = [];
         var factory = new ProjectRenderSessionFactory(new ScriptCompiler(references, temp.FilePath("cache")), videos, ReplayReason.Initial, () =>
-        { var value = new CountingResolver(new BackgroundFrameSourceResolver()); created.Add(value); return value; });
+        { var value = new CountingResolver(new BackgroundFrameSourceResolver()); created.Add(value); return value; }, renderBackend: "vulkan");
         ProjectSnapshot snapshot = PackageRuntimeFixture.Create("scale");
         var files = EffectPackageFixture.Files();
         files["src/PackEffect.cs"] = Encoding.UTF8.GetBytes("public sealed class PackEffect { invalid !!! }");
@@ -90,7 +90,7 @@ public sealed class ProjectImagePreviewRuntimeTests
         Assert.Empty(created);
         using CancellationTokenSource midway = new();
         var cancellingFactory = new ProjectRenderSessionFactory(new ScriptCompiler(references, temp.FilePath("cache")), videos, ReplayReason.Initial, () =>
-        { var value = new CountingResolver(new BackgroundFrameSourceResolver()); created.Add(value); midway.Cancel(); return value; });
+        { var value = new CountingResolver(new BackgroundFrameSourceResolver()); created.Add(value); midway.Cancel(); return value; }, renderBackend: "vulkan");
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cancellingFactory.CreateAsync(snapshot, midway.Token).AsTask());
         Assert.Equal(1, Assert.Single(created).Disposals);
     }

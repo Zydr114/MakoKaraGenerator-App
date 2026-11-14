@@ -19,7 +19,11 @@ internal static class MediaFeatureSamplerFixture
         manifest["packageVersion"] = EffectPackageProfiles.V2.PackageVersion;
         manifest["sdkVersion"] = EffectPackageProfiles.V2.SdkVersion;
         manifest["shaderProfile"] = EffectPackageProfiles.V2.ShaderProfile;
-        manifest["requires"] = new JsonArray("media.features", "image.graph");
+        var requires = manifest["requires"]?.AsArray() ?? [];
+        manifest["requires"] = requires;
+        foreach (string capability in new[] { "media.features", "image.graph" })
+            if (!requires.Any(node => node?.GetValue<string>() == capability))
+                requires.Add(capability);
         manifest["lineExit"] = new JsonObject { ["durationUs"] = 0 }; manifest["emitters"] = new JsonArray();
         JsonArray queries = [];
         for (int i = 0; i < windows.Length; i++)

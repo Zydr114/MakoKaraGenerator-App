@@ -168,7 +168,7 @@ public sealed class PackageProjectSnapshotCodecRejectionTests
     [InlineData("shaderProfile")]
     public void 自定义合法包profile在编码与预校验阶段也必须拒绝(string field)
     {
-        EffectPackageProfile current = EffectPackageFixture.Profile;
+        EffectPackageProfile current = EffectPackageProfiles.V1;
         EffectPackageProfile unsupported = field switch
         {
             "packageVersion" => current with { PackageVersion = current.PackageVersion + 1 },
@@ -177,6 +177,8 @@ public sealed class PackageProjectSnapshotCodecRejectionTests
         };
         var files = EffectPackageFixture.Files();
         JsonObject manifest = EffectPackageFixture.Manifest(files);
+        manifest.Remove("requires"); manifest.Remove("lineExit"); manifest.Remove("emitters");
+        manifest["exports"]![0]!["outputs"]![0]!["requires"] = new JsonArray();
         manifest["packageVersion"] = unsupported.PackageVersion;
         manifest["sdkVersion"] = unsupported.SdkVersion;
         manifest["shaderProfile"] = unsupported.ShaderProfile;

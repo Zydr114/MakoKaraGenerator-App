@@ -126,9 +126,10 @@ public sealed partial class BackendAnalysisAdoptionTests
         { Snapshot = snapshot; Entered.TrySetResult(); await Release.Task.WaitAsync(cancellationToken); return new(true, framesPerOutput, framesPerOutput, [], []); }
     }
 
-    private sealed class ProfileExport : IBackendExportExecutor
+    private sealed class ProfileExport : IBackendExportExecutor, IBackendRenderBackendExecutor<IBackendExportExecutor>
     {
         internal ProjectSnapshot? Prepared, Executed;
+        public IBackendExportExecutor WithRenderBackend(string renderBackend) => this;
         public Task<BackendExportCapabilities> ProbeAsync(CancellationToken cancellationToken = default) => Task.FromResult(new BackendExportCapabilities(true, true, true));
         public void ValidateInput(ProjectSnapshot snapshot, BackendExportExecutionInput input) => Prepared = snapshot;
         public async Task<ExportReportDto> ExecuteAsync(ProjectSnapshot snapshot, BackendExportExecutionInput input,

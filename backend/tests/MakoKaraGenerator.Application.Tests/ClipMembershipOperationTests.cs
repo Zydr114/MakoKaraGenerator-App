@@ -10,7 +10,7 @@ public sealed class ClipMembershipOperationTests
     public async Task 显式拆分保完整相对配方实例种子执行顺序与实际槽位时钟()
     {
         var source = Source();
-        var package = await EffectPackageTransfer.ReadDirectoryAsync(Path.Combine(AppContext.BaseDirectory, "effect-packages", "WordEmphasis"), ProjectEffectsJson.PackageProfile);
+        var package = await EffectPackageTransfer.ReadDirectoryAsync(Path.Combine(AppContext.BaseDirectory, "effect-packages-v2", "WordEmphasis"), EffectPackageProfiles.V2);
         source = source with { Effects = new([package], [new() { Id = "direct", Name = "direct", PackageId = package.PackageId,
             Revision = package.Revision, ExportId = "word-emphasis", Binding = new(ProjectEffectBindingKind.Clips, ids: [ExclusiveDisplayFixture.ClipId]), Seed = 987, Enabled = false }]) };
         var preset = StyleTemplate.Create("relative", "固定成员", StyleTemplateKind.Composite, source.LyricStyle,
@@ -38,7 +38,7 @@ public sealed class ClipMembershipOperationTests
     public async Task 显式拆分不安全范围配方原子拒绝且合并直接片段集合完整去重映射()
     {
         var source = Source();
-        var package = await EffectPackageTransfer.ReadDirectoryAsync(Path.Combine(AppContext.BaseDirectory, "effect-packages", "WordEmphasis"), ProjectEffectsJson.PackageProfile);
+        var package = await EffectPackageTransfer.ReadDirectoryAsync(Path.Combine(AppContext.BaseDirectory, "effect-packages-v2", "WordEmphasis"), EffectPackageProfiles.V2);
         var preset = StyleTemplate.Create("range", "范围", StyleTemplateKind.Composite, source.LyricStyle,
             [LyricStyleProperty.Opacity], [new("recipe", "范围", TemplateEffectTarget.Application, package.PackageId, package.Revision, "word-emphasis", fixedSeed: 73)], [package]);
         Assert.True(PresetApplicationsEditor.TryApply(source, preset, [new(ProjectEffectBindingKind.Clips, ids: [ExclusiveDisplayFixture.ClipId])], null, out var withPreset, out var reason), reason);

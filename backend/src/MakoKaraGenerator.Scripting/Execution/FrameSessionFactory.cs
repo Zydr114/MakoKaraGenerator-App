@@ -12,16 +12,13 @@ internal sealed class FrameSessionFactory
     private readonly string _fingerprint;
     private readonly Func<ILineGeometryProvider> _geometryFactory;
     private readonly AudioFeatures _audio;
-    private readonly ReplayReason? _reason;
     private readonly VisualOutputBudget _visualBudget;
-    private readonly ParticleSimulationBudget _particleBudget;
     private readonly PreparedSourceMaterials? _sourceMaterials;
     private readonly V2RuntimeBudgetOptions _v2Budgets;
     private readonly ProjectMediaFeatureBinding? _mediaBinding;
     public FrameSessionFactory(ImmutableArray<CompiledFrameEffect> effects, string fingerprint,
-        Func<ILineGeometryProvider> geometryFactory, AudioFeatures? audio, ReplayReason? reason, VisualOutputBudget? visualBudget = null,
-        ParticleSimulationBudget? particleBudget = null, PreparedSourceMaterials? sourceMaterials = null,
-        V2RuntimeBudgetOptions? v2Budgets = null, ProjectMediaFeatureBinding? mediaBinding = null)
+        Func<ILineGeometryProvider> geometryFactory, AudioFeatures? audio, VisualOutputBudget? visualBudget = null,
+        PreparedSourceMaterials? sourceMaterials = null, V2RuntimeBudgetOptions? v2Budgets = null, ProjectMediaFeatureBinding? mediaBinding = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fingerprint); ArgumentNullException.ThrowIfNull(geometryFactory);
         if (effects.IsDefault || effects.IsEmpty && sourceMaterials is null || effects.Any(static item => item is null || !item.Id.IsValid || !HasExecutable(item)
@@ -30,9 +27,9 @@ internal sealed class FrameSessionFactory
             || effects.Select(static item => item.Id).Distinct().Count() != effects.Length)
             throw new ArgumentException("帧输入须有唯一有效实例与成功的固定控制器产物或真实直接图声明。", nameof(effects));
         _effects = effects; _fingerprint = fingerprint; _geometryFactory = geometryFactory;
-        _audio = audio ?? AudioFeatures.NotAnalyzed; _reason = reason;
+        _audio = audio ?? AudioFeatures.NotAnalyzed;
         _visualBudget = visualBudget ?? VisualOutputBudget.Default;
-        _particleBudget = particleBudget ?? ParticleSimulationBudget.Default; _sourceMaterials = sourceMaterials;
+        _sourceMaterials = sourceMaterials;
         _mediaBinding = mediaBinding;
         _v2Budgets = v2Budgets ?? V2RuntimeBudgetOptions.Default;
     }
@@ -48,27 +45,21 @@ internal sealed class FrameSessionFactory
             throw new PreparedFrameException("EffectInputsMismatch", "快照效果输入指纹不匹配固定会话。");
         ProjectMediaFeatureAdmission.Validate(snapshot, _effects, _sourceMaterials, _mediaBinding, cancellationToken);
         _sourceMaterials?.ValidateSnapshot(snapshot);
-        var timeline = _reason is not null || _effects.Any(static effect => effect.IsV2)
-            ? TimelineProjection.Create(snapshot, _reason ?? ReplayReason.Initial, _audio, cancellationToken) : null;
-        var content = timeline?.Content ?? ContentProjection.Create(snapshot);
-        var project = new ProjectContext { Content = content, Scene = timeline?.Scene ?? SceneProjection.Create(snapshot, content),
+        var timeline = TimelineProjection.Create(snapshot, ReplayReason.Initial, _audio, cancellationToken);
+        var content = timeline.Content;
+        var project = new ProjectContext { Content = content, Scene = timeline.Scene,
             CanvasSize = new(snapshot.Composition.CanvasWidth, snapshot.Composition.CanvasHeight), DurationUs = snapshot.Composition.OutputDurationUs, Audio = _audio };
         foreach (var effect in _effects) ResolvedSourceSubscription.ValidateBinding(project.Content, project.Scene, effect.Binding);
-        var subscriptions = timeline is null ? ImmutableArray<ResolvedSourceSubscription>.Empty
-            : _effects.Select(effect => ResolvedSourceSubscription.Create(timeline, effect.Binding, effect.Subscription)).ToImmutableArray();
+        var subscriptions = _effects.Select(effect => ResolvedSourceSubscription.Create(timeline, effect.Binding, effect.Subscription)).ToImmutableArray();
         ILineGeometryProvider geometry = _geometryFactory() ?? throw new InvalidOperationException("几何后端工厂返回 null。");
-        if (_effects.Any(static effect => effect.IsV2)) geometry = new FixedInputGeometryProvider(snapshot, geometry);
+        if (!_effects.IsEmpty) geometry = new FixedInputGeometryProvider(snapshot, geometry);
         FrameEffectHost? host = null;
         try
         {
-            var query = _reason is not null && _reason != ReplayReason.AnchorQuery
-                ? new SemanticAnchorQuery(snapshot, _effects, _fingerprint, _geometryFactory, _audio, _sourceMaterials, _mediaBinding) : null;
-            host = new(snapshot, project, geometry, _effects, subscriptions, _visualBudget, _particleBudget, _sourceMaterials, timeline, query, _mediaBinding, cancellationToken)
+            host = new(snapshot, project, geometry, _effects, subscriptions, _visualBudget, _sourceMaterials, timeline, _mediaBinding, cancellationToken)
             { V2Budgets = _v2Budgets };
-            // v2 的事件表仅供只读索引，不能再由目标绝对时间推进 120 Hz 作者状态。
-            bool replayLegacy = _reason is not null && timeline is not null && _effects.Any(static effect => !effect.IsV2);
-            host.Load(replayLegacy, cancellationToken);
-            return ValueTask.FromResult<IEvaluatedFrameSource>(new FrameSession(host, replayLegacy ? timeline : null, _reason, cancellationToken));
+            host.Load(cancellationToken);
+            return ValueTask.FromResult<IEvaluatedFrameSource>(new FrameSession(host));
         }
         catch
         {

@@ -39,6 +39,6 @@ public sealed partial class PreparedRenderFrame
                 && node.SourceNodeId == item.Opacity.Target.NodeId.Value).Select(node => item with
                 { Opacity = item.Opacity with { Target = new(new(node.Id)) } })))];
         if (outputs.SequenceEqual(GroupOpacities)) return this;
-        return new(this, OverlayBatches, DiagnosticSnapshot, VisualBudget, Particles, EmissionSchedule) { GroupOpacities = outputs };
+        return new(this, OverlayBatches, DiagnosticSnapshot, VisualBudget) { GroupOpacities = outputs };
     }
 }

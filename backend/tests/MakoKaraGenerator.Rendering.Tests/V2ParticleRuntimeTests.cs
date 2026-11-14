@@ -35,7 +35,6 @@ public sealed class V2ParticleRuntimeTests
         Assert.Equal(frame.V2Particles.ToArray(), warm.V2Particles.ToArray());
         Assert.Equal(0, warm.V2AnchorStatistics.TextCalls); Assert.Equal(0, warm.V2AnchorStatistics.UniqueTimes);
         Assert.True(warm.V2AnchorStatistics.MemoHits >= 6);
-        Assert.Empty(frame.Particles);
         var copied = frame.WithGroupOpacities([]).WithOverlayOutput(frame.OverlayBatches, []);
         Assert.Equal(frame.V2Particles.ToArray(), copied.V2Particles.ToArray());
         Assert.Same(frame.V2AnchorStatistics, copied.V2AnchorStatistics);

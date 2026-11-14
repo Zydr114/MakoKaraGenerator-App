@@ -84,9 +84,7 @@ public sealed partial class CompiledEffectPackage
                 cancellationToken.ThrowIfCancellationRequested();
                 try
                 {
-                    if (EffectPackageProfiles.IsV2(definition.Contents.Profile))
-                        module.ValidateEntry<V2.IPureKaraokeEffect>(controller.EntryType);
-                    else module.ValidateEntry<IKaraokeEffect>(controller.EntryType);
+                    module.ValidateEntry<V2.IPureKaraokeEffect>(controller.EntryType);
                 }
                 catch (Exception error) when (error is not OperationCanceledException)
                 { throw new EffectPackageException("PackageEntryInvalid", "exports." + controller.Id + ".entryType", "真实 DLL 入口缺失或不符合公共 SDK 构造合同。", error); }
@@ -124,38 +122,27 @@ public sealed partial class CompiledEffectPackage
         foreach (var output in controller.Outputs)
         {
             string path = "exports." + exportId + ".outputs." + output.Id;
-            if (EffectPackageProfiles.IsV2(Definition.Contents.Profile))
+            if (output.Kind is not ("VisualTransform" or "StyleModulation" or "Overlay" or "ImageGraph"))
+                throw new EffectPackageException("PackageWriterPending", path, "SDK v2 尚未接通此输出阶段：" + output.Kind);
+            if (output.Kind == "ImageGraph" && output.Target is not ("tokenFamily" or "line" or "textMark" or "group"))
+                throw new EffectPackageException("PackageWriterPending", path, "SDK v2 此图目标的生产调度尚未接通。");
+            if (output.Kind == "ImageGraph" && !Definition.Contents.Requires.Contains(V2.CapabilityNames.ImageGraph, StringComparer.Ordinal))
+                throw new EffectPackageException("PackageCapabilityMissing", path, "图控制器必须声明 image.graph 能力。");
+            if (output.Kind == "ImageGraph" && output.Target == "group")
             {
-                if (output.Kind is not ("VisualTransform" or "StyleModulation" or "Overlay" or "ImageGraph"))
-                    throw new EffectPackageException("PackageWriterPending", path, "SDK v2 尚未接通此输出阶段：" + output.Kind);
-                if (output.Kind == "ImageGraph" && output.Target is not ("tokenFamily" or "line" or "textMark" or "group"))
-                    throw new EffectPackageException("PackageWriterPending", path, "SDK v2 此图目标的生产调度尚未接通。");
-                if (output.Kind == "ImageGraph" && !Definition.Contents.Requires.Contains(V2.CapabilityNames.ImageGraph, StringComparer.Ordinal))
-                    throw new EffectPackageException("PackageCapabilityMissing", path, "图控制器必须声明 image.graph 能力。");
-                if (output.Kind == "ImageGraph" && output.Target == "group")
-                {
-                    GroupGraphEffectAdmission.Validate(Definition, output, binding, path);
-                    if (controller.Outputs.Count(item => item.Kind == "ImageGraph" && item.Target == "group") != 1)
-                        throw new EffectPackageException("PackageOutputPlanPending", path, "组图须有唯一同类别输出，不能猜测执行计划。");
-                }
-                // v2 的有限能力已由完整包解析器与包级 requires 共同校验。
+                GroupGraphEffectAdmission.Validate(Definition, output, binding, path);
+                if (controller.Outputs.Count(item => item.Kind == "ImageGraph" && item.Target == "group") != 1)
+                    throw new EffectPackageException("PackageOutputPlanPending", path, "组图须有唯一同类别输出，不能猜测执行计划。");
             }
-            else
-            {
-                if (output.Requires.Any(requirement => requirement != "AudioFeatures")) throw new EffectPackageException("PackageRequirementUnsupported", path + ".requires", "当前控制器适配尚不能解析这些能力需求：" + string.Join(",", output.Requires));
-                requiresAudio |= output.Requires.Contains("AudioFeatures", StringComparer.Ordinal);
-            }
+            // v2 的有限能力已由完整包解析器与包级 requires 共同校验。
             if (!output.DependsOn.IsEmpty) throw new EffectPackageException("PackageOutputPlanPending", path + ".dependsOn", "依赖已校验，但跨输出执行／旁路计划尚未接入。");
             if (output.Bypass is not null && output.Kind != "ImageGraph")
                 throw new EffectPackageException("PackageOutputPlanPending", path + ".bypass", "此旁路尚不能通过生产输出计划执行。");
             capabilities |= (output.Kind, output.Target) switch
             {
-                ("VisualTransform", "tokenFamily" or "line" or "group" or "textMark") => EffectCapabilities.Transforms,
-                ("VisualTransform", "baseToken" or "cluster") when EffectPackageProfiles.IsV2(Definition.Contents.Profile) => EffectCapabilities.Transforms,
-                ("StyleModulation", "tokenFamily" or "textMark" or "group") => EffectCapabilities.Style,
-                ("StyleModulation", "baseToken") when EffectPackageProfiles.IsV2(Definition.Contents.Profile) => EffectCapabilities.Style,
-                ("Overlay", "tokenFamily" or "line" or "textMark") => EffectCapabilities.Overlay,
-                ("Overlay", "canvas") when EffectPackageProfiles.IsV2(Definition.Contents.Profile) => EffectCapabilities.Overlay,
+                ("VisualTransform", "tokenFamily" or "line" or "group" or "textMark" or "baseToken" or "cluster") => EffectCapabilities.Transforms,
+                ("StyleModulation", "tokenFamily" or "textMark" or "group" or "baseToken") => EffectCapabilities.Style,
+                ("Overlay", "tokenFamily" or "line" or "textMark" or "canvas") => EffectCapabilities.Overlay,
                 ("ImageGraph", "tokenFamily" or "line" or "group" or "textMark") => EffectCapabilities.ImageEffects,
                 _ => throw new EffectPackageException("PackageWriterPending", path, "当前生产运行时尚未提供此输出和目标组合。"),
             };

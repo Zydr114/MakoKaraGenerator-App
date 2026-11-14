@@ -133,7 +133,7 @@ public sealed class ProjectMediaHostStageTests
         }
         var author = new Probe("success", cancellation); var (active, frame, scene) = Active(author, projection, continuous: true);
         var snapshot = new ProjectSnapshot { Name = "anchor" };
-        using var host = new FrameEffectHost(snapshot, frame.Project, new EmptyGeometry(), [], [], VisualOutputBudget.Default, ParticleSimulationBudget.Default);
+        using var host = new FrameEffectHost(snapshot, frame.Project, new EmptyGeometry(), [], [], VisualOutputBudget.Default);
         var instances = (System.Collections.IList)typeof(FrameEffectHost).GetField("_instances", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(host)!;
         instances.Add(active);
         typeof(FrameEffectHost).GetField("_v2AnchorBreakpoints", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(host, ImmutableArray.Create(0L));
@@ -163,7 +163,7 @@ public sealed class ProjectMediaHostStageTests
             { PackageDefinition = package, PackageDeclaration = package.GetExport("scale") };
         var type = typeof(FrameEffectHost);
         object pure = New(type.GetNestedType("PureEffectRuntime", BindingFlags.NonPublic)!, author, source, prepared, null, null, null, projection);
-        object active = New(type.GetNestedType("ActiveEffect", BindingFlags.NonPublic)!, definition, null, null,
+        object active = New(type.GetNestedType("ActiveEffect", BindingFlags.NonPublic)!, definition, null,
             new DeterministicRandom(42, new("test")), null, null, pure, null);
         var frame = new FrameContext { TimeUs = 1001, Project = project, Parameters = ParameterValues.Empty,
             Random = new(42, new("test")), Binding = definition.Binding, Presentations = new() };

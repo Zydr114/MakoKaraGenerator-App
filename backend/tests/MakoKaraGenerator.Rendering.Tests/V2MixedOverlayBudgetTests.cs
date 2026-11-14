@@ -147,7 +147,7 @@ public sealed class V2MixedOverlayBudgetTests
 
     private static ScriptCompiler Compiler() => new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));
     private static FrameSessionFactory Factory(ImmutableArray<CompiledFrameEffect> effects, long frameBytes)
-        => new(effects, Fingerprint, static () => new SkiaRenderPipeline(), null, ReplayReason.Initial,
+        => new(effects, Fingerprint, static () => new SkiaRenderPipeline(), null,
             v2Budgets: new(frameBytes: frameBytes));
     private static ValueTask<PreparedRenderFrame> Read(IEvaluatedFrameSource session, ProjectSnapshot snapshot, long time)
         => session.PrepareAsync(time, OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition));

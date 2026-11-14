@@ -20,7 +20,7 @@ public sealed partial class V2ParticleBoundaryTests
         { Effects = new([package], [Instance(package, "birth-budget-owner")]) });
         var compiled = await Compile(snapshot);
         var geometry = new BudgetGeometry();
-        var factory = new FrameSessionFactory(compiled.Effects, snapshot.EffectInputsFingerprint!, () => geometry, null, null);
+        var factory = new FrameSessionFactory(compiled.Effects, snapshot.EffectInputsFingerprint!, () => geometry, null);
         await using var session = await factory.CreateAsync(snapshot, CancellationToken.None);
         await Prepare(session, snapshot, 0);
         geometry.Calls.Clear();

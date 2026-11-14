@@ -192,11 +192,11 @@ public sealed class PreparedLineTransformTests
         var prepared = await session.PrepareAsync(12_500_000, Fx.OutputMode.Transparent, target);
         var cursor = Assert.Single(prepared.Playback.GetCursors(Fx.CursorAnchorMode.AdvanceCenter));
         Assert.Equal(Fx.ProgressSource.Line, cursor.ProgressSource); Assert.Null(cursor.TokenId);
-        SemanticAnchorQuery query = new(snapshot, effects, Fingerprint, static () => new SkiaRenderPipeline());
-        var endpoint = await query.ResolveAsync(cursor.Identity, Fx.CursorEndpointKind.NextStart, Fx.CursorAnchorMode.AdvanceCenter, Fx.OutputMode.Transparent, target);
-        Assert.True(endpoint.IsAvailable); Assert.Equal(line.Time!.Value.StartUs, endpoint.TimeUs);
-        var direct = await session.PrepareAsync(endpoint.TimeUs, Fx.OutputMode.Transparent, target);
-        Assert.Equal(Assert.Single(direct.Playback.GetCursors(Fx.CursorAnchorMode.AdvanceCenter)), endpoint.Cursor);
+        await using var independent = await Factory(effects).CreateAsync(snapshot);
+        var endpoint = await independent.PrepareAsync(line.Time!.Value.StartUs, Fx.OutputMode.Transparent, target);
+        var direct = await session.PrepareAsync(line.Time!.Value.StartUs, Fx.OutputMode.Transparent, target);
+        Assert.Equal(Assert.Single(direct.Playback.GetCursors(Fx.CursorAnchorMode.AdvanceCenter)),
+            Assert.Single(endpoint.Playback.GetCursors(Fx.CursorAnchorMode.AdvanceCenter)));
         using SkiaRenderPipeline renderer = new(); using var actual = renderer.Render(RenderRequest.At(snapshot, prepared.TimeUs) with { PreparedFrame = prepared, TransparentBackground = true });
         using var expected = renderer.Render(RenderRequest.At(StaticShift(snapshot, prepared.Scene), prepared.TimeUs) with { TransparentBackground = true });
         Assert.Equal(expected.PixelMemory.ToArray(), actual.PixelMemory.ToArray());

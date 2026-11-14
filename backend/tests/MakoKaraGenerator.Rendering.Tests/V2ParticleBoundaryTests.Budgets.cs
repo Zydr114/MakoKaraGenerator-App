@@ -24,7 +24,7 @@ public sealed partial class V2ParticleBoundaryTests
         using CancellationTokenSource cancellation = new();
         var geometry = new BudgetGeometry();
         var factory = new FrameSessionFactory(compiled.Effects, snapshot.EffectInputsFingerprint!, () => geometry,
-            null, null, v2Budgets: options);
+            null, v2Budgets: options);
         await using var session = await factory.CreateAsync(snapshot, CancellationToken.None);
         geometry.Calls.Clear();
         geometry.OnFrame = timeUs =>
@@ -70,7 +70,7 @@ public sealed partial class V2ParticleBoundaryTests
         Assert.Equal(expectedBirths, recovered.V2AnchorStatistics.TextCalls);
         Assert.Equal(0, recovered.V2AnchorStatistics.MemoHits);
         var freshFactory = new FrameSessionFactory(compiled.Effects, snapshot.EffectInputsFingerprint!, static () => new SkiaRenderPipeline(),
-            null, null, v2Budgets: options);
+            null, v2Budgets: options);
         await using var fresh = await freshFactory.CreateAsync(snapshot, CancellationToken.None);
         var direct = await Prepare(fresh, snapshot, recoveryUs);
         Assert.Equal(direct.V2AnchorStatistics, recovered.V2AnchorStatistics);

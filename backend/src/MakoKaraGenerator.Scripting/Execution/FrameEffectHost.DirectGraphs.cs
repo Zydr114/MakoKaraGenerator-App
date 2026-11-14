@@ -18,7 +18,7 @@ internal sealed partial class FrameEffectHost
             throw new EffectOutputException("InvalidDirectGraphActivity", "宿主直接图须为无 DLL 的固定 v2 图导出。");
         var scope = ResolvedSourceSubscription.Create(_timeline ?? throw new EffectOutputException("PureSourceIndexRequired", "纯图需要固定源订阅。"), definition.Binding, definition.Subscription);
         var binding = new GraphBindingValue(definition.Resources.GetGraph(graph.Id), definition.Parameters, GraphUniformValues.Empty, GraphTransformValues.Empty);
-        return new(definition, null, null!, new(definition.Seed, definition.Id), scope, null, HostGraph: new(graph, binding));
+        return new(definition, null, new(definition.Seed, definition.Id), scope, null, HostGraph: new(graph, binding));
     }
 
     private static FrameOutput EvaluateHostDirectGraph(ActiveEffect active, FrameContext frame,

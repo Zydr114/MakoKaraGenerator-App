@@ -86,7 +86,7 @@ public sealed partial class PreparedRenderFrame
                     .FirstOrDefault(item => x >= item.Geometry.AdvanceBounds.Left && x < item.Geometry.AdvanceBounds.Right);
                 return cluster is null ? cursor : cursor with { WorldMatrix = cluster.Geometry.BaseWorldMatrix };
             })]);
-        return new(this, OverlayBatches, DiagnosticSnapshot, VisualBudget, Particles, EmissionSchedule)
+        return new(this, OverlayBatches, DiagnosticSnapshot, VisualBudget)
         {
             BaseTransforms = baseTransforms, BaseStyles = baseStyles, ClusterTransforms = clusterTransforms,
             BaseDrawingStyles = drawing.ToImmutable(), BaseAppearances = appearances.ToImmutable(), BaseMaterials = validatedMaterials,

@@ -29,7 +29,7 @@ public sealed partial class PreparedRenderFrame
             _ = WarpGeometry(binding.Target);
         }
         if (values.Values.All(static binding => binding.Value is null))
-            return new(this, OverlayBatches, DiagnosticSnapshot, VisualBudget, Particles, EmissionSchedule) { TextWarps = warps };
+            return new(this, OverlayBatches, DiagnosticSnapshot, VisualBudget) { TextWarps = warps };
         var budget = new TextGeometryProjectionBudget();
         var sourceStyles = StaticStyleProjection.LoadedSourceStyles(Snapshot, HierarchyScene);
         var markStyles = StaticStyleProjection.MarkStyles(Snapshot, HierarchyScene);
@@ -51,7 +51,7 @@ public sealed partial class PreparedRenderFrame
                 { MappedInkVertices = [.. tokens.SelectMany(static token => token.BaseGeometry.WorldInkCorners)] } };
         }).ToImmutableArray();
         var playback = PlaybackProjection.Create(Snapshot, HierarchyScene, final);
-        return new(this, OverlayBatches, DiagnosticSnapshot, VisualBudget, Particles, EmissionSchedule)
+        return new(this, OverlayBatches, DiagnosticSnapshot, VisualBudget)
         {
             TextWarps = warps, FinalGeometry = final, FinalMarkGeometry = marks, FinalLineGeometry = lines,
             FinalGroupGeometry = GroupInkProjection.Create(HierarchyScene, final, marks), Playback = playback,

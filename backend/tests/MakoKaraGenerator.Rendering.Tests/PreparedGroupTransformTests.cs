@@ -262,10 +262,11 @@ public sealed partial class PreparedGroupTransformTests
         using var expectedBitmap = SKBitmap.FromImage(expected.Image); Assert.Equal(expectedBitmap.Bytes, capturedBitmap.Bytes);
         var singing = await source.PrepareAsync(12_500_000, Fx.OutputMode.Transparent, target);
         var cursor = singing.Playback.GetCursors(Fx.CursorAnchorMode.AdvanceCenter).Single(item => item.Identity.BranchId.Value == "primary");
-        SemanticAnchorQuery query = new(snapshot, effects, Fingerprint, static () => new SkiaRenderPipeline());
-        var endpoint = await query.ResolveAsync(cursor.Identity, Fx.CursorEndpointKind.NextStart, Fx.CursorAnchorMode.AdvanceCenter, Fx.OutputMode.Transparent, target);
-        Assert.True(endpoint.IsAvailable); var direct = await source.PrepareAsync(endpoint.TimeUs, Fx.OutputMode.Transparent, target);
-        Assert.Equal(direct.Playback.GetCursors(Fx.CursorAnchorMode.AdvanceCenter).Single(item => item.Identity == cursor.Identity), endpoint.Cursor);
+        await using var independent = await Factory(effects).CreateAsync(snapshot);
+        var endpoint = await independent.PrepareAsync(cursor.Identity.TimeRange.StartUs, Fx.OutputMode.Transparent, target);
+        var direct = await source.PrepareAsync(cursor.Identity.TimeRange.StartUs, Fx.OutputMode.Transparent, target);
+        Assert.Equal(direct.Playback.GetCursors(Fx.CursorAnchorMode.AdvanceCenter).Single(item => item.Identity == cursor.Identity),
+            endpoint.Playback.GetCursors(Fx.CursorAnchorMode.AdvanceCenter).Single(item => item.Identity == cursor.Identity));
     }
     [Theory]
     [InlineData("stale")] [InlineData("text")]

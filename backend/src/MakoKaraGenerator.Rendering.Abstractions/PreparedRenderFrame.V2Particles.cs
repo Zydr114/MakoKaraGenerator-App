@@ -54,7 +54,7 @@ public sealed partial class PreparedRenderFrame
         }
         if (births > ParticleLimits.MaximumBirths || alive > ParticleLimits.MaximumAlive || trails > ParticleLimits.MaximumTrailNodes)
             throw new PreparedFrameException("ParticleQueryBudgetExceeded", "全部实例的纯粒子快照超过出生、存活或拖尾预算。");
-        return new(this, OverlayBatches, DiagnosticSnapshot, VisualBudget, Particles, EmissionSchedule)
+        return new(this, OverlayBatches, DiagnosticSnapshot, VisualBudget)
         {
             V2ParticleSnapshots = snapshots, V2Particles = [.. snapshots.SelectMany(static item => item.Alive)],
             V2AnchorStatistics = statistics,

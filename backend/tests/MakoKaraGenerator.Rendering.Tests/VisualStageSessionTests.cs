@@ -114,15 +114,16 @@ public sealed class VisualStageSessionTests
         }
     }
     [Fact]
-    public async Task 独立未来端点只执行语义文字且跳过视觉异常与所有圆点()
+    public async Task 独立纯会话在目标端点时刻返回最终几何与播放头()
     {
-        var snapshot = VisualTestFixture.Snapshot(); var definition = await VisualTestFixture.Definition("ThrowEvaluateVisuals");
+        var snapshot = VisualTestFixture.Snapshot(); var definition = await VisualTestFixture.Definition("normal");
         using SkiaRenderPipeline renderer = new();
         var scene = renderer.GetSceneFrame(snapshot, 5_001);
         var identity = Assert.Single(PlaybackProjection.Create(snapshot, scene, scene.TokenGeometries).Cursors).Identity;
-        SemanticAnchorQuery query = new(snapshot, [definition], VisualTestFixture.Fingerprint, static () => new SkiaRenderPipeline());
-        var endpoint = await query.ResolveAsync(identity, Fx.CursorEndpointKind.NextStart, Fx.CursorAnchorMode.AdvanceCenter,
-            Fx.OutputMode.Transparent, VisualTestFixture.Target(snapshot));
-        Assert.True(endpoint.IsAvailable);
+        await using var session = await VisualTestFixture.Pure([definition]).CreateAsync(snapshot);
+        var frame = await session.PrepareAsync(identity.TimeRange.StartUs, Fx.OutputMode.Transparent, VisualTestFixture.Target(snapshot));
+        var cursor = Assert.Single(frame.Playback.GetCursors(Fx.CursorAnchorMode.AdvanceCenter));
+        Assert.Equal(identity, cursor.Identity);
+        Assert.Equal(0, cursor.Progress);
     }
 }

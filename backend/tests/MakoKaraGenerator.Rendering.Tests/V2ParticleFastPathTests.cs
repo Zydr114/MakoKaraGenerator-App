@@ -177,7 +177,6 @@ public sealed class V2ParticleFastPathTests
             Line = line.Frame.Line!.Id, HideTimeUs = line.ExitReplica?.HideTimeUs, LoadOrdinal = line.ExitReplica?.LoadOrdinal }),
         frame.V2ParticleSnapshots, frame.V2Particles, frame.V2AnchorStatistics,
         Batches = frame.OverlayBatches.Select(static batch => JsonSerializer.Serialize(batch, batch.GetType())),
-        frame.Particles,
     });
 
     private static async Task<CompiledFrameEffect> Sample(string name, bool forceVisual = false)
@@ -261,7 +260,7 @@ public sealed class V2ParticleFastPathTests
     private static ScriptCompiler Compiler() => new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));
     private static FrameSessionFactory Factory(ImmutableArray<CompiledFrameEffect> effects,
         VisualOutputBudget? budget = null, V2RuntimeBudgetOptions? options = null)
-        => new(effects, Fingerprint, static () => new SkiaRenderPipeline(), null, ReplayReason.Initial,
+        => new(effects, Fingerprint, static () => new SkiaRenderPipeline(), null,
             visualBudget: budget, v2Budgets: options);
     private static ValueTask<PreparedRenderFrame> Read(IEvaluatedFrameSource session, ProjectSnapshot snapshot, long time)
         => session.PrepareAsync(time, OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition));

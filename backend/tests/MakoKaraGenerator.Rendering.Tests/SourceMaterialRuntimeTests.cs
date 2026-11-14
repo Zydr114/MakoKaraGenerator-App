@@ -264,15 +264,16 @@ public sealed class SourceMaterialRuntimeTests
             sourceMaterials: compiled.SourceMaterials).CreateAsync(snapshot);
         var frame = await pure.PrepareAsync(12_500_000, Fx.OutputMode.Transparent, target);
         var cursor = frame.Playback.GetCursors(Fx.CursorAnchorMode.AdvanceCenter).First();
-        SemanticAnchorQuery query = new(snapshot, [], snapshot.EffectInputsFingerprint!, static () => new SkiaRenderPipeline(), sourceMaterials: compiled.SourceMaterials);
-        var endpoint = await query.ResolveAsync(cursor.Identity, Fx.CursorEndpointKind.NextStart, Fx.CursorAnchorMode.AdvanceCenter, Fx.OutputMode.Transparent, target);
-        Assert.True(endpoint.IsAvailable); Assert.Equal(cursor.Identity.TimeRange.StartUs, endpoint.TimeUs);
-        var reference = await pure.PrepareAsync(endpoint.TimeUs, Fx.OutputMode.Transparent, target);
-        Assert.Equal(reference.Playback.GetCursors(Fx.CursorAnchorMode.AdvanceCenter).Single(item => item.Identity == cursor.Identity), endpoint.Cursor);
+        await using var independent = await new PureFrameSourceFactory([], snapshot.EffectInputsFingerprint!, static () => new SkiaRenderPipeline(),
+            sourceMaterials: compiled.SourceMaterials).CreateAsync(snapshot);
+        var endpoint = await independent.PrepareAsync(cursor.Identity.TimeRange.StartUs, Fx.OutputMode.Transparent, target);
+        var reference = await pure.PrepareAsync(cursor.Identity.TimeRange.StartUs, Fx.OutputMode.Transparent, target);
+        Assert.Equal(reference.Playback.GetCursors(Fx.CursorAnchorMode.AdvanceCenter).Single(item => item.Identity == cursor.Identity),
+            endpoint.Playback.GetCursors(Fx.CursorAnchorMode.AdvanceCenter).Single(item => item.Identity == cursor.Identity));
         Assert.All(reference.Materials, binding => Assert.IsType<PreparedMaterialOwner.Source>(binding.Owner));
         using CancellationTokenSource canceled = new(); canceled.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await query.ResolveAsync(cursor.Identity, Fx.CursorEndpointKind.NextStart,
-            Fx.CursorAnchorMode.AdvanceCenter, Fx.OutputMode.Transparent, target, canceled.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await independent.PrepareAsync(cursor.Identity.TimeRange.StartUs,
+            Fx.OutputMode.Transparent, target, canceled.Token));
         Assert.Contains("PackageMaterial", project.LyricStyle.UnsungFill.Material.ToString());
     }
 

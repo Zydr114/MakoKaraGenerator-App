@@ -21,19 +21,20 @@ internal sealed partial class FrameEffectHost : IDisposable
     private readonly ImmutableDictionary<NodeId, Core.Projects.LyricStyle> _sourceMarkStyles;
     private readonly BaselineStyles _baseline;
     private readonly PreparedSourceMaterials? _sourceMaterials;
+    private readonly TimelineProjection? _timeline;
     private readonly VisualOutputBudget _visualBudget;
     private readonly List<ActiveEffect> _instances = [];
     public RuntimeDiagnosticBuffer Diagnostics { get; private set; } = new();
     public ContentCatalog Content => _project.Content;
     public FrameEffectHost(ProjectSnapshot snapshot, ProjectContext project, ILineGeometryProvider geometry,
         ImmutableArray<CompiledFrameEffect> definitions, ImmutableArray<ResolvedSourceSubscription> subscriptions, VisualOutputBudget visualBudget,
-        ParticleSimulationBudget particleBudget, PreparedSourceMaterials? sourceMaterials = null, TimelineProjection? timeline = null,
-        SemanticAnchorQuery? anchorQuery = null, ProjectMediaFeatureBinding? mediaBinding = null, CancellationToken cancellationToken = default)
+        PreparedSourceMaterials? sourceMaterials = null, TimelineProjection? timeline = null,
+        ProjectMediaFeatureBinding? mediaBinding = null, CancellationToken cancellationToken = default)
     {
         ProjectMediaFeatureAdmission.Validate(snapshot, definitions, sourceMaterials, mediaBinding, cancellationToken);
         _mediaBinding = mediaBinding; _runtimeInputsFingerprint = ProjectRuntimeEffectInputs.Fingerprint(snapshot);
         _snapshot = snapshot; _project = project; _geometry = geometry; _definitions = definitions; _subscriptions = subscriptions;
-        _visualBudget = visualBudget; _particles = new(particleBudget); _timeline = timeline; _anchorQuery = anchorQuery;
+        _visualBudget = visualBudget; _timeline = timeline;
         _sourceStyles = StaticStyleProjection.SourceStyles(snapshot);
         _sourceMarkStyles = StaticStyleProjection.MarkStyles(snapshot);
         _sourceMaterials = sourceMaterials;
@@ -41,18 +42,14 @@ internal sealed partial class FrameEffectHost : IDisposable
         InitializeExitReplicas(timeline, cancellationToken);
     }
     internal void ValidateMediaOutput(OutputMode outputMode) => ProjectMediaFeatureAdmission.ValidateOutput(_mediaBinding, outputMode);
-    private sealed record ActiveEffect(CompiledFrameEffect Definition, ScriptModule? Module, IKaraokeEffect Instance,
+    private sealed record ActiveEffect(CompiledFrameEffect Definition, ScriptModule? Module,
         DeterministicRandom Random, ResolvedSourceSubscription? Subscription, string? TelemetryIdentity, PureEffectRuntime? Pure = null, HostDirectGraphRuntime? HostGraph = null)
     { internal bool IsPureText => Pure is not null || HostGraph is not null; }
-    public bool RequiresPureAtLegacyBoundaries { get; private set; }
-    public bool CanReuseBoundaryFrame => RequiresPureAtLegacyBoundaries || !_definitions.Any(static definition => definition.IsV2);
-    public void Load(bool semantic, CancellationToken cancellationToken, bool preservePure = false)
+    public void Load(CancellationToken cancellationToken)
     {
-        var retained = preservePure ? _instances.Where(static active => active.IsPureText)
-            .ToDictionary(static active => active.Definition.Id) : [];
         try
         {
-            Unload(preservePure); _instances.Clear(); Diagnostics = new(); RequiresPureAtLegacyBoundaries = false;
+            Unload(); _instances.Clear(); Diagnostics = new();
             for (int index = 0; index < _definitions.Length; index++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -75,88 +72,25 @@ internal sealed partial class FrameEffectHost : IDisposable
                 catch (EffectOutputException error) { throw Failure(definition, "ValidateInputs", 0, error, Diagnostics.Snapshot()); }
                 catch (EffectPackageException error) { throw Failure(definition, "ValidateInputs", 0, new EffectOutputException(error.Code, error.Message), Diagnostics.Snapshot()); }
                 catch (KeyNotFoundException error) { throw Failure(definition, "ValidateInputs", 0, new EffectOutputException("InvalidGraphResource", error.Message), Diagnostics.Snapshot()); }
-                ScriptModule? module = null;
-                ActiveEffect? active = null;
-                try
-                {
-                    if (definition.IsV2)
-                    {
-                        active = retained.Remove(definition.Id, out var prepared) ? prepared
-                            : definition.PackageDeclaration is EffectGraphDefinition ? LoadHostDirectGraph(definition) : LoadPure(definition, cancellationToken);
-                        _instances.Add(active);
-                        continue;
-                    }
-                    IKaraokeEffect instance;
-                    if (definition.PackageDeclaration is EffectGraphDefinition graph) instance = new DirectGraphEffect(graph);
-                    else
-                    {
-                        var artifact = definition.Artifact!;
-                        module = new ScriptModule(artifact.PeImage.AsMemory(), artifact.PdbImage.AsMemory());
-                        instance = module.CreateInstance<IKaraokeEffect>(definition.EntryType!);
-                    }
-                    string? telemetryIdentity = module is not null
-                        ? PerformanceTelemetry.CreateScriptIdentity($"{definition.RuntimeHash}|{definition.Id}|{definition.PackageIdentity}") : null;
-                    active = new(definition, module, instance, new(definition.Seed, definition.Id), semantic ? _subscriptions[index] : null, telemetryIdentity);
-                    _instances.Add(active);
-                    // Legacy consumers of final geometry inherit their existing replay
-                    // cost: their boundary inputs must include current pure text output.
-                    RequiresPureAtLegacyBoundaries |= HasOverride(instance, nameof(IKaraokeEffect.OnEvent))
-                        || HasOverride(instance, nameof(IKaraokeEffect.EvaluateEmitters))
-                        || HasOverride(instance, nameof(IKaraokeEffect.AdvanceVisuals))
-                        || HasOverride(instance, nameof(IKaraokeEffect.EvaluateVisuals));
-                    if (!semantic)
-                    {
-                        var map = instance.GetType().GetInterfaceMap(typeof(IKaraokeEffect));
-                        for (int method = 0; method < map.InterfaceMethods.Length; method++)
-                            if (map.InterfaceMethods[method].Name is nameof(IKaraokeEffect.OnEvent) or nameof(IKaraokeEffect.Advance) or nameof(IKaraokeEffect.AdvanceVisuals)
-                                && map.TargetMethods[method].DeclaringType != typeof(EffectBase))
-                                throw Failure(definition, "Load", 0, new EffectOutputException("TimelineSessionRequired", "有状态作者入口需要语义会话。"), Diagnostics.Snapshot());
-                    }
-                    InvokeContext(active, "Initialize", 0, Diagnostics, (reporter, queries) => instance.Initialize(new()
-                        { Project = _project, Parameters = definition.Parameters, Resources = definition.Resources,
-                            Random = active.Random, Diagnostics = reporter, GeometryQueries = queries, CancellationToken = cancellationToken }), cancellationToken);
-                }
-                catch (Exception error)
-                {
-                    if (active is null)
-                    {
-                        try { module?.Dispose(); } catch { /* 保留原始入口失败。 */ }
-                        if (error is not (OperationCanceledException or EffectFailureException))
-                            throw Failure(definition, "Load", 0, error, Diagnostics.Snapshot());
-                    }
-                    throw;
-                }
+                if (!definition.IsV2)
+                    throw Failure(definition, "Load", 0, new EffectOutputException("PackageProfileUnsupported", "仅支持 SDK v2 效果包。"), Diagnostics.Snapshot());
+                var active = definition.PackageDeclaration is EffectGraphDefinition ? LoadHostDirectGraph(definition) : LoadPure(definition, cancellationToken);
+                _instances.Add(active);
             }
         }
         catch
         {
-            // A failed legacy rebuild still owns every retained pure module, including
-            // definitions not reached yet. Drain them before returning the first error.
-            foreach (var active in retained.Values)
-                if (!_instances.Contains(active)) _instances.Add(active);
             try { Unload(); } catch { /* 保留原始失败。 */ }
             throw;
         }
     }
-    public void Advance(SimulationStep step, TimelineHistory history, CancellationToken cancellationToken)
-    {
-        foreach (var active in _instances)
-        {
-            if (active.IsPureText) continue;
-            cancellationToken.ThrowIfCancellationRequested();
-            var definition = active.Definition;
-            InvokeContext(active, "Advance", step.StartUs, Diagnostics, (reporter, queries) => active.Instance.Advance(step, new()
-            { Project = _project, Parameters = definition.Parameters, Resources = definition.Resources, Random = active.Random,
-                History = history, Binding = definition.Binding, Diagnostics = reporter, GeometryQueries = queries, CancellationToken = cancellationToken }), cancellationToken);
-        }
-    }
-    public PreparedRenderFrame Evaluate(long timeUs, OutputMode outputMode, RenderTarget target, TimelineHistory? history,
-        RuntimeDiagnosticBuffer diagnostics, CancellationToken cancellationToken, bool includePure = true,
+    public PreparedRenderFrame Evaluate(long timeUs, OutputMode outputMode, RenderTarget target,
+        RuntimeDiagnosticBuffer diagnostics, CancellationToken cancellationToken,
         bool pureTextOnly = false, V2AnchorQueryBudget? anchorBudget = null)
     {
         ValidateMediaOutput(outputMode);
         SceneFrame scene = _geometry.GetSceneFrame(_snapshot, timeUs);
-        if (includePure) scene = ExtendExitReplicas(scene, cancellationToken);
+        scene = ExtendExitReplicas(scene, cancellationToken);
         FrameBindingScope scope = new(scene);
         bool hasExits = scene.Lines.Any(static line => line.ExitReplica is not null);
         bool sessionStyles = _snapshot.PresetApplications.Items.IsEmpty && !hasExits;
@@ -165,10 +99,8 @@ internal sealed partial class FrameEffectHost : IDisposable
         // 本帧基线由会话基线派生：不在场行与场景无关、原样共享，只重算在场行与标记，并复用上面已解析的标记与装载外观。
         var baseline = sessionStyles ? _baseline : StaticStyleProjection.CreateFrameBaseline(_baseline, _snapshot, _sourceMaterials, scene,
             _snapshot.PresetApplications.Items.IsEmpty ? null : sourceMarkStyles, loadedStyles);
-        var activeBindings = scene.Lines.Where(static line => line.ExitReplica is null).Select(static line => line.BindingId!).ToHashSet(StringComparer.Ordinal);
         var sourceGroupIds = scene.Elements.Where(static node => node.SourceNodeId is null).Select(static node => node.Id).ToHashSet(StringComparer.Ordinal);
         var sourceGroups = scene.GroupGeometries.Where(group => sourceGroupIds.Contains(group.Target.NodeId.Value)).ToImmutableArray();
-        var legacyGroups = hasExits ? LegacyGroups(scene, scene.TokenGeometries, scene.MarkGeometries, sourceGroups, activeBindings) : sourceGroups;
         var allTokens = FrameProjection.Tokens(scene);
         Dictionary<TokenFamilyTarget, Affine2> combined = [];
         Dictionary<BaseTokenTarget, Affine2> baseTransforms = [];
@@ -211,49 +143,36 @@ internal sealed partial class FrameEffectHost : IDisposable
         foreach (var active in _instances)
         {
             if (pureTextOnly && !active.IsPureText) continue;
-            if (!includePure && active.IsPureText) continue;
             cancellationToken.ThrowIfCancellationRequested();
             var definition = active.Definition;
             bool outside = OutsideFrame(definition.Binding);
-            var tokens = outside ? [] : allTokens.Where(token => (active.IsPureText || activeBindings.Contains(token.BindingId.Value))
-                && scope.ContainsToken(definition.Binding, token)).ToImmutableArray();
-            var lines = outside ? [] : allLines.Where(line => (active.IsPureText || activeBindings.Contains(line.BindingId.Value))
-                && scope.ContainsLine(definition.Binding, line)).ToImmutableArray();
+            var tokens = outside ? [] : allTokens.Where(token => scope.ContainsToken(definition.Binding, token)).ToImmutableArray();
+            var lines = outside ? [] : allLines.Where(line => scope.ContainsLine(definition.Binding, line)).ToImmutableArray();
             var marks = outside ? [] : allMarks.Where(mark => scope.ContainsMark(definition.Binding, mark)).ToImmutableArray();
-            var frameGroups = !active.IsPureText ? legacyGroups : sourceGroups;
-            var writableGroups = outside ? [] : frameGroups.Where(group => scope.ContainsGroup(definition.Binding, group.Target)).ToImmutableArray();
+            var writableGroups = outside ? [] : sourceGroups.Where(group => scope.ContainsGroup(definition.Binding, group.Target)).ToImmutableArray();
             // 本时刻绑定范围内没有任何目标的纯实例（含宿主直接图）不能写文字或图绑定（越界写入一律拒绝），
             // 纯求值又没有跨帧状态（随机数按流键取值），输出必为空：正式帧与锚点补算都不调用，
-            // 也不计入锚点文字调用，避免逐行应用模板时随全曲行数线性放大。v1 实例保留原调用。
-            if (active.IsPureText && tokens.IsEmpty && lines.IsEmpty && marks.IsEmpty && writableGroups.IsEmpty) continue;
+            // 也不计入锚点文字调用，避免逐行应用模板时随全曲行数线性放大。
+            if (tokens.IsEmpty && lines.IsEmpty && marks.IsEmpty && writableGroups.IsEmpty) continue;
             anchorBudget?.TextCall();
             var targets = tokens.Select(static token => token.WithRuby).ToHashSet();
             var scopedGeometry = scene.TokenGeometries.Where(item => targets.Contains(item.WithRuby)).ToImmutableArray();
             var scopedMarks = scene.MarkGeometries.Where(mark => marks.Any(item => item.Target == mark.Target)).ToImmutableArray();
             var scopedLines = scene.LineGeometries.Where(line => lines.Any(item => item.Target == line.Target)).ToImmutableArray();
-            var writableLines = definition.Binding is EffectBinding.Tokens ? ImmutableArray<LineGeometrySample>.Empty : scopedLines;
-            FrameWriter writer = new(scopedGeometry, definition.Capabilities, writableGroups, baseline, definition.Resources, scopedMarks, writableLines);
             FrameContext frame = new() { TimeUs = timeUs, Project = _project, Parameters = definition.Parameters,
                 Resources = definition.Resources, Random = active.Random, Baseline = baseline,
                 Presentations = new() { TokensInBinding = tokens, LinesInBinding = lines, MarksInBinding = marks, Groups = FrameProjection.Groups(scene) },
-                Geometry = scopedGeometry, LineGeometry = scopedLines, MarkGeometry = scopedMarks, GroupGeometry = frameGroups, Binding = definition.Binding,
+                Geometry = scopedGeometry, LineGeometry = scopedLines, MarkGeometry = scopedMarks, GroupGeometry = sourceGroups, Binding = definition.Binding,
                 OutputMode = outputMode, CancellationToken = cancellationToken };
-            if (history is not null) frame = frame with { History = history };
             FrameOutput? output = null;
-            try { InvokeContext(active, "Evaluate", timeUs, diagnostics, (reporter, queries) =>
+            Invoke(active, "Evaluate", timeUs, diagnostics, ignoredReporter =>
+            {
+                using (MeasureAuthor(active, "Evaluate"))
                 {
-                    using (MeasureAuthor(active, "Evaluate"))
-                    {
-                        if (active.HostGraph is not null) output = EvaluateHostDirectGraph(active, frame, writableGroups);
-                        else if (active.Pure is not null) output = EvaluatePure(active, frame, scene, writableGroups, cancellationToken);
-                        else
-                        {
-                            active.Instance.Evaluate(frame with { Diagnostics = reporter, GeometryQueries = queries }, writer);
-                            output = writer.Complete();
-                        }
-                    }
-                }, cancellationToken); }
-            finally { writer.Invalidate(); }
+                    if (active.HostGraph is not null) output = EvaluateHostDirectGraph(active, frame, writableGroups);
+                    else output = EvaluatePure(active, frame, scene, writableGroups, cancellationToken);
+                }
+            });
             Invoke(active, "ComposeOutputs", timeUs, diagnostics, ignoredReporter =>
             {
                 ValidatePureGraphWrites(definition, output!, graphBudget, cancellationToken);
@@ -367,18 +286,14 @@ internal sealed partial class FrameEffectHost : IDisposable
             throw Failure(partitionOwners[error.TextTarget!].Definition, "ComposeOutputs", timeUs, error, diagnostics.Snapshot());
         }
     }
-    public void Unload(bool preservePure = false)
+    public void Unload()
     {
-        if (!preservePure)
-        {
-            _v2AnchorMemo.Clear(); _v2PrepareBudget = new(); _v2CursorCuts.Clear(); _v2CursorCutCount = 0; _v2AnchorBreakpoints = default;
-        }
-        _pendingBursts.Clear(); _particles.Clear(); _bridgeEndpoints.Clear(); var owned = _instances.ToArray(); _instances.Clear(); List<Exception> failures = [];
+        _v2AnchorMemo.Clear(); _v2PrepareBudget = new(); _v2CursorCuts.Clear(); _v2CursorCutCount = 0; _v2AnchorBreakpoints = default;
+        var owned = _instances.ToArray(); _instances.Clear(); List<Exception> failures = [];
         foreach (var active in owned)
         {
-            if (preservePure && active.IsPureText) { _instances.Add(active); continue; }
             active.Pure?.Source.Indexes.Invalidate();
-            try { if (active.Module is { } module) module.Dispose(); else active.Instance?.Dispose(); }
+            try { active.Module?.Dispose(); }
             catch (Exception error) { failures.Add(Failure(active.Definition, "Dispose", 0, error, Diagnostics.Snapshot())); }
         }
         if (failures.Count > 0)

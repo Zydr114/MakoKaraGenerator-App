@@ -119,21 +119,19 @@ public sealed class GeometryQuerySessionTests
         using SkiaRenderPipeline geometry = new();
         var future = PlaybackProjection.Create(snapshot, geometry.GetSceneFrame(snapshot, 30_000), geometry.GetSceneFrame(snapshot, 30_000).TokenGeometries);
         var identity = Assert.Single(future.GetCursors(Fx.CursorAnchorMode.AdvanceCenter)).Identity;
-        SemanticAnchorQuery query = new(snapshot, effects, Fingerprint, static () => new SkiaRenderPipeline());
-        var endpoint = await query.ResolveAsync(identity, Fx.CursorEndpointKind.NextStart, Fx.CursorAnchorMode.AdvanceCenter, Fx.OutputMode.Transparent, target);
-        Assert.True(endpoint.IsAvailable); Assert.Equal(30_000, endpoint.TimeUs); Assert.Equal(0, endpoint.Cursor!.Progress);
+        await using var endpoint = await Factory(effects).CreateAsync(snapshot);
+        var endpointFrame = await endpoint.PrepareAsync(30_000, Fx.OutputMode.Transparent, target);
+        var endpointCursor = Assert.Single(endpointFrame.Playback.GetCursors(Fx.CursorAnchorMode.AdvanceCenter));
+        Assert.Equal(identity, endpointCursor.Identity); Assert.Equal(0, endpointCursor.Progress);
         await using var export = await Factory(effects).CreateAsync(snapshot);
         for (long time = 0; time < 30_000; time += 1_000_000 / fps) await export.PrepareAsync(time, Fx.OutputMode.Transparent, target);
         var reference = await export.PrepareAsync(30_000, Fx.OutputMode.Transparent, target);
-        Assert.Equal(Assert.Single(reference.Playback.GetCursors(Fx.CursorAnchorMode.AdvanceCenter)), endpoint.Cursor);
+        Assert.Equal(Assert.Single(reference.Playback.GetCursors(Fx.CursorAnchorMode.AdvanceCenter)), endpointCursor);
         var after = await main.PrepareAsync(16_000, Fx.OutputMode.Transparent, target);
         Assert.Equal(before.TokenTransforms.ToArray(), after.TokenTransforms.ToArray());
-        var previous = await query.ResolveAsync(Assert.Single(before.Playback.Cursors).Identity, Fx.CursorEndpointKind.PreviousEndLimit,
-            Fx.CursorAnchorMode.Baseline, Fx.OutputMode.Transparent, target);
-        Assert.True(previous.IsAvailable); Assert.Equal(19_999, previous.TimeUs); Assert.Equal(.9999, previous.Cursor!.Progress);
-        var missing = await query.ResolveAsync(new(identity.BranchId, identity.LineId, new("absent-binding"), identity.TimeRange,
-            identity.ProgressSource, identity.TokenId, identity.OccurrenceId), Fx.CursorEndpointKind.NextStart, Fx.CursorAnchorMode.Baseline, Fx.OutputMode.Transparent, target);
-        Assert.False(missing.IsAvailable); Assert.Null(missing.Cursor);
+        var previousFrame = await endpoint.PrepareAsync(19_999, Fx.OutputMode.Transparent, target);
+        var previous = Assert.Single(previousFrame.Playback.GetCursors(Fx.CursorAnchorMode.Baseline));
+        Assert.Equal(Assert.Single(before.Playback.Cursors).Identity, previous.Identity); Assert.Equal(.9999, previous.Progress);
     }
     [Fact]
     public async Task 未来异常取消和错误源均不回退为伪造端点且主状态仍可用()
@@ -141,20 +139,13 @@ public sealed class GeometryQuerySessionTests
         var snapshot = Snapshot(); var effects = await Effects("error"); var target = RenderTarget.FromComposition(snapshot.Composition);
         await using var main = await Factory(effects).CreateAsync(snapshot);
         var frame = await main.PrepareAsync(15_000, Fx.OutputMode.Transparent, target);
-        var token = ContentProjection.Create(snapshot).GetToken(new("second-token")); var range = token.TimeRange!.Value;
-        Fx.CursorIdentity identity = new(token.BranchId, token.LineId, new("binding"), range, Fx.ProgressSource.Token, token.Id,
-            Fx.StableIdentities.Occurrence(token.BranchId, token.LineId, token.Id, range));
-        SemanticAnchorQuery query = new(snapshot, effects, Fingerprint, static () => new SkiaRenderPipeline());
-        Assert.Equal("ScriptExecutionFailed", (await Assert.ThrowsAsync<EffectFailureException>(async () => await query.ResolveAsync(identity,
-            Fx.CursorEndpointKind.NextStart, Fx.CursorAnchorMode.Baseline, Fx.OutputMode.Transparent, target))).Code);
+        await using var endpoint = await Factory(effects).CreateAsync(snapshot);
+        Assert.Equal("ScriptExecutionFailed", (await Assert.ThrowsAsync<EffectFailureException>(async () => await endpoint.PrepareAsync(30_000,
+            Fx.OutputMode.Transparent, target))).Code);
         Assert.Single((await main.PrepareAsync(16_000, Fx.OutputMode.Transparent, target)).TokenTransforms);
         using CancellationTokenSource canceled = new(); canceled.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await query.ResolveAsync(identity, Fx.CursorEndpointKind.NextStart,
-            Fx.CursorAnchorMode.Baseline, Fx.OutputMode.Transparent, target, canceled.Token));
-        var wrong = new Fx.CursorIdentity(identity.BranchId, identity.LineId, identity.BindingId, new(30_001, 40_000), Fx.ProgressSource.Token,
-            identity.TokenId, identity.OccurrenceId);
-        Assert.Equal("InvalidCursorSource", (await Assert.ThrowsAsync<Fx.EffectOutputException>(async () => await query.ResolveAsync(wrong,
-            Fx.CursorEndpointKind.NextStart, Fx.CursorAnchorMode.Baseline, Fx.OutputMode.Transparent, target))).Code);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await endpoint.PrepareAsync(30_000,
+            Fx.OutputMode.Transparent, target, canceled.Token));
         Assert.Single(frame.Playback.GetCursors(Fx.CursorAnchorMode.Baseline));
     }
 }

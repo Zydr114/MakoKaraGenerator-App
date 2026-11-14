@@ -51,7 +51,7 @@ public sealed class ProjectMediaHostClosureAnchorTests
 
         var owner = Active("requester", new EffectBinding.Project(), project, line, null);
         var writer = Active("writer", binding, project, line, MediaProjection());
-        using var host = new FrameEffectHost(snapshot, project, new EmptyGeometry(), [], [], VisualOutputBudget.Default, ParticleSimulationBudget.Default);
+        using var host = new FrameEffectHost(snapshot, project, new EmptyGeometry(), [], [], VisualOutputBudget.Default);
         var instances = (IList)typeof(FrameEffectHost).GetField("_instances", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(host)!;
         instances.Add(owner); instances.Add(writer);
         typeof(FrameEffectHost).GetField("_v2AnchorBreakpoints", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(host, ImmutableArray.Create(0L));
@@ -72,7 +72,7 @@ public sealed class ProjectMediaHostClosureAnchorTests
         var line = FrameProjection.Lines(scene, catalog).Single(item => item.LineId.Value == "chorus");
         var owner = Active("requester", new EffectBinding.Project(), project, line, null);
         var writer = Active("writer", new EffectBinding.Node(new("center"), false), project, line, null);
-        using var host = new FrameEffectHost(snapshot, project, new EmptyGeometry(), [], [], VisualOutputBudget.Default, ParticleSimulationBudget.Default);
+        using var host = new FrameEffectHost(snapshot, project, new EmptyGeometry(), [], [], VisualOutputBudget.Default);
         var instances = (IList)typeof(FrameEffectHost).GetField("_instances", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(host)!;
         instances.Add(owner); instances.Add(writer);
         typeof(FrameEffectHost).GetField("_v2AnchorBreakpoints", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(host, ImmutableArray.Create(0L));
@@ -94,7 +94,7 @@ public sealed class ProjectMediaHostClosureAnchorTests
         ParticleSource source = kind == "token" ? new ParticleSource.Token(token.WithRuby) : new ParticleSource.Line(line.Target);
         var owner = Active("requester", new EffectBinding.Project(), project, line, null);
         var writer = Active("writer", new EffectBinding.Lines([line.LineId]), project, line, MediaProjection(), kind == "token" ? "tokenFamily" : "line");
-        using var host = new FrameEffectHost(snapshot, project, new EmptyGeometry(), [], [], VisualOutputBudget.Default, ParticleSimulationBudget.Default);
+        using var host = new FrameEffectHost(snapshot, project, new EmptyGeometry(), [], [], VisualOutputBudget.Default);
         var instances = (IList)typeof(FrameEffectHost).GetField("_instances", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(host)!;
         instances.Add(owner); instances.Add(writer);
         typeof(FrameEffectHost).GetField("_v2AnchorBreakpoints", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(host, ImmutableArray.Create(0L));
@@ -124,8 +124,10 @@ public sealed class ProjectMediaHostClosureAnchorTests
         manifest["packageVersion"] = EffectPackageProfiles.V2.PackageVersion;
         manifest["sdkVersion"] = EffectPackageProfiles.V2.SdkVersion;
         manifest["shaderProfile"] = EffectPackageProfiles.V2.ShaderProfile;
-        manifest["requires"] = new System.Text.Json.Nodes.JsonArray(target == "group" ? "group.affine" : target == "line" ? "line.affine" : "token.affine");
+        string capability = target == "group" ? "group.affine" : target == "line" ? "line.affine" : "token.affine";
+        manifest["requires"] = new System.Text.Json.Nodes.JsonArray(capability);
         manifest["exports"]![0]!["outputs"]![0]!["target"] = target;
+        manifest["exports"]![0]!["outputs"]![0]!["requires"] = new System.Text.Json.Nodes.JsonArray(capability);
         manifest["lineExit"] = new System.Text.Json.Nodes.JsonObject { ["durationUs"] = 0 };
         manifest["emitters"] = new System.Text.Json.Nodes.JsonArray();
         var package = EffectPackageDefinition.Read(EffectPackageContents.CreateSupported(EffectPackageFixture.Bytes(manifest),
@@ -137,7 +139,7 @@ public sealed class ProjectMediaHostClosureAnchorTests
             { PackageDefinition = package, PackageDeclaration = package.GetExport("group-transform") };
         var type = typeof(FrameEffectHost);
         object pure = New(type.GetNestedType("PureEffectRuntime", BindingFlags.NonPublic)!, new NoOp(), source, prepared, null, null, null, projection);
-        return New(type.GetNestedType("ActiveEffect", BindingFlags.NonPublic)!, definition, null, null,
+        return New(type.GetNestedType("ActiveEffect", BindingFlags.NonPublic)!, definition, null,
             new DeterministicRandom(42, new(id)), null, null, pure, null);
     }
 

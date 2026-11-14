@@ -39,6 +39,6 @@ public sealed partial class PreparedRenderFrame
             if (!present) throw new PreparedFrameException("InvalidPreparedImageEffectTarget", "图绑定必须是本准备帧的真实装载，元素族须独立。");
         }
         if (bindings.SequenceEqual(ImageEffects)) return this;
-        return new(this, OverlayBatches, DiagnosticSnapshot, VisualBudget, Particles, EmissionSchedule) { ImageEffects = bindings };
+        return new(this, OverlayBatches, DiagnosticSnapshot, VisualBudget) { ImageEffects = bindings };
     }
 }

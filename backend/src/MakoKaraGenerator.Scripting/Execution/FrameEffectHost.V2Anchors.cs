@@ -77,7 +77,7 @@ internal sealed partial class FrameEffectHost
                     query.Budget.Time(nodeUs);
                     // This call has no particle/visual reference, and keeps every
                     // loaded pure instance and its original Declare result.
-                    text = Evaluate(nodeUs, query.Request.OutputMode, query.Request.Target, null, diagnostics, token,
+                    text = Evaluate(nodeUs, query.Request.OutputMode, query.Request.Target, diagnostics, token,
                         pureTextOnly: true, anchorBudget: query.Budget);
                     long bytes = 1024L + text.FinalGeometry.Sum(static item => 768L + item.Clusters.Length * 192L)
                         + 512L * (text.FinalLineGeometry.Length + text.FinalMarkGeometry.Length + text.FinalGroupGeometry.Length);

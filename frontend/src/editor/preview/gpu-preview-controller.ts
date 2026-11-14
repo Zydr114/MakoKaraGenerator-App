@@ -9,6 +9,19 @@ export interface GpuPreviewViewState {
   diagnostics?: GpuDiagnosticsSummary;
 }
 interface Want { revision: Revision; playback: GpuPlaybackState }
+
+/** Refreshes stale playback clock samples after long-running stream setup to avoid the 30s preload expiration gate. */
+function freshPlayback(playback: GpuPlaybackState): GpuPlaybackState {
+  const now = performance.now();
+  const ageMs = now - playback.samplePerformanceMs;
+  if (ageMs <= 1000) return playback;
+  if (playback.mode === 'paused') return { ...playback, samplePerformanceMs: now };
+  return {
+    ...playback,
+    mediaTimeUs: Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, playback.mediaTimeUs + Math.round(ageMs * 1000 * playback.rate))),
+    samplePerformanceMs: now,
+  };
+}
 // React cleanup cannot await. Serialize ownership across old and new panels so
 // an in-flight create must close before another panel consumes the one-stream quota.
 let desktopOperations: Promise<void> = Promise.resolve();
@@ -123,7 +136,7 @@ export class GpuPreviewController {
         if(this.disposed||!this.enabled)continue;
         // A newer UI state can supersede this snapshot during an HTTP operation.
         if(this.want!==want)continue;
-        await this.bridge.setPlaybackState(want.playback);
+        await this.bridge.setPlaybackState(freshPlayback(want.playback));
         this.sent=want;
       }
     }catch(error){

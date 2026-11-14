@@ -1,20 +1,21 @@
 import {afterEach,beforeEach,expect,it,vi} from 'vitest';
 import type {MakoClient} from '../../src/client';
-import {revision,type DesktopPreviewBridge,type DesktopPreviewEvent,type GpuPreviewCreateInput,type GpuPreviewStreamState} from '../../src/protocol';
+import {revision,type DesktopPreviewBridge,type DesktopPreviewEvent,type GpuPlaybackState,type GpuPreviewCreateInput,type GpuPreviewStreamState} from '../../src/protocol';
 import {GpuPreviewController} from '../../src/editor/preview/gpu-preview-controller';
 
 const deferred=()=>{let resolve!:()=>void;const promise=new Promise<void>(done=>{resolve=done;});return {promise,resolve};};
 beforeEach(()=>vi.stubGlobal('window',{}));
-afterEach(()=>vi.unstubAllGlobals());
-function fixture(options:{createGate?:Promise<void>;replaceGate?:Promise<void>;replaceFails?:()=>boolean;acceptanceEnabled?:boolean}={}){
+afterEach(()=>{vi.restoreAllMocks();vi.unstubAllGlobals();});
+function fixture(options:{createGate?:Promise<void>;replaceGate?:Promise<void>;onCreate?:()=>void;onReplace?:()=>void;replaceFails?:()=>boolean;acceptanceEnabled?:boolean}={}){
   const calls:string[]=[];let nextId=0;let attached=false;
   const creates:GpuPreviewCreateInput[]=[];
   const streams=new Map<string,GpuPreviewStreamState>();
   const listeners=new Set<(event:DesktopPreviewEvent)=>void>();
+  const playbackStates:GpuPlaybackState[]=[];
   const state=(id:string,source:GpuPreviewStreamState['source'],generation='1',alphaMode:GpuPreviewStreamState['alphaMode']='opaque'):GpuPreviewStreamState=>({streamId:id,streamRevision:generation,inputGeneration:generation,registrationState:'ready',source,size:{width:1280,height:720},alphaMode,textureAlphaMode:'premultiplied',api:'vulkan',producerEpoch:generation,poolGeneration:'1',slotCount:3,allocationBytes:4096,lastAppliedControlSeq:0});
   const client={gpuPreview:{
-    create:async(input:GpuPreviewCreateInput)=>{calls.push(`create:${input.source.sourceId}`);creates.push(input);await options.createGate;const next=state(`s${++nextId}`,input.source,'1',input.alphaMode);streams.set(next.streamId,next);return next;},
-    replaceInput:async(id:string,input:{source:GpuPreviewStreamState['source']})=>{calls.push(`replace:${id}`);await options.replaceGate;if(options.replaceFails?.())throw new Error('replace failed');const next=state(id,input.source,'2',streams.get(id)!.alphaMode);streams.set(id,next);return next;},
+    create:async(input:GpuPreviewCreateInput)=>{calls.push(`create:${input.source.sourceId}`);creates.push(input);options.onCreate?.();await options.createGate;const next=state(`s${++nextId}`,input.source,'1',input.alphaMode);streams.set(next.streamId,next);return next;},
+    replaceInput:async(id:string,input:{source:GpuPreviewStreamState['source']})=>{calls.push(`replace:${id}`);options.onReplace?.();await options.replaceGate;if(options.replaceFails?.())throw new Error('replace failed');const next=state(id,input.source,'2',streams.get(id)!.alphaMode);streams.set(id,next);return next;},
     resize:async(id:string,input:{size:GpuPreviewStreamState['size']})=>{calls.push(`resize:${id}`);const next={...streams.get(id)!,streamRevision:'3',inputGeneration:'3',size:input.size};streams.set(id,next);return next;},
     close:async(id:string)=>{calls.push(`close:${id}`);},
   }} as unknown as MakoClient;
@@ -22,13 +23,13 @@ function fixture(options:{createGate?:Promise<void>;replaceGate?:Promise<void>;r
     acceptanceEnabled:async()=>options.acceptanceEnabled??false,consumerId:async()=>'a'.repeat(32),
     attachPreview:async(id:string,generation:string)=>{calls.push(`attach:${id}:${generation}`);attached=true;},
     detachPreview:async()=>{calls.push('detach');attached=false;},
-    setPlaybackState:async(state:{samplePerformanceMs:number})=>{if(!attached)throw new Error('not attached');calls.push('playback');samples.push(state.samplePerformanceMs);return {controlSeq:1};},
+    setPlaybackState:async(state:GpuPlaybackState)=>{if(!attached)throw new Error('not attached');const now=performance.now();if(!Number.isFinite(state.samplePerformanceMs)||state.samplePerformanceMs<0||state.samplePerformanceMs>now+5||now-state.samplePerformanceMs>30000)throw new Error('Invalid audio clock sample');calls.push('playback');samples.push(state.samplePerformanceMs);playbackStates.push(state);return {controlSeq:1};},
     onPreviewState:(listener:(event:DesktopPreviewEvent)=>void)=>{listeners.add(listener);return()=>listeners.delete(listener);},
   } as unknown as DesktopPreviewBridge;
   const make=(id='p1')=>new GpuPreviewController(client,id,{width:1280,height:720},bridge);
   const show=(controller:GpuPreviewController,rev='1')=>controller.show(revision(rev),{mode:'paused',mediaTimeUs:0,rate:1,targetFps:24,timelineResetId:'reset',samplePerformanceMs:performance.now()});
   const samples:number[]=[];
-  return {calls,creates,streams,make,show,samples,emit:(event:DesktopPreviewEvent)=>listeners.forEach(listener=>listener(event))};
+  return {calls,creates,streams,make,show,samples,playbackStates,emit:(event:DesktopPreviewEvent)=>listeners.forEach(listener=>listener(event))};
 }
 it('requests opaque composition preview and retains mode across revision replacement and resize',async()=>{
   const f=fixture({acceptanceEnabled:true});const controller=f.make();f.show(controller);
@@ -95,4 +96,35 @@ it('visibility enable followed by fresh audio sampling sends the new paused samp
   expect(f.samples.at(-1)).toBe(fresh);
   expect(f.creates.map(input=>input.alphaMode)).toEqual(['opaque','opaque']);
   controller.dispose();await vi.waitFor(()=>expect(f.calls).toContain('close:s2'));
+});
+it('refreshes stale paused playback clock sample after a 31s create without error',async()=>{
+  let currentNow=1_000;
+  vi.spyOn(performance,'now').mockImplementation(()=>currentNow);
+  const f=fixture({onCreate:()=>{currentNow+=31_000;}});
+  const controller=f.make();
+  controller.show(revision('1'),{mode:'paused',mediaTimeUs:420_000,rate:1,targetFps:24,timelineResetId:'reset',samplePerformanceMs:currentNow});
+  await vi.waitFor(()=>expect(f.playbackStates).toHaveLength(1));
+  expect(f.playbackStates[0]).toMatchObject({mode:'paused',mediaTimeUs:420_000,samplePerformanceMs:32_000});
+  expect(controller.state$.get().status).not.toBe('error');
+  controller.dispose();await vi.waitFor(()=>expect(f.calls).toContain('close:s1'));
+});
+it('extrapolates playing mediaTimeUs and refreshes samplePerformanceMs after 31s create and replaceInput',async()=>{
+  let currentNow=5_000;
+  vi.spyOn(performance,'now').mockImplementation(()=>currentNow);
+  const f=fixture({onCreate:()=>{currentNow+=31_000;},onReplace:()=>{currentNow+=31_000;}});
+  const controller=f.make();
+  controller.show(revision('1'),{mode:'playing',mediaTimeUs:1_000_000,rate:1.5,targetFps:24,timelineResetId:'reset',samplePerformanceMs:currentNow});
+  await vi.waitFor(()=>expect(f.playbackStates).toHaveLength(1));
+  const afterCreate=f.playbackStates[0]!;
+  expect(afterCreate.samplePerformanceMs).toBe(36_000);
+  expect(afterCreate.mediaTimeUs).toBe(1_000_000+Math.round(31_000*1000*1.5));
+  expect(Number.isSafeInteger(afterCreate.mediaTimeUs)&&afterCreate.mediaTimeUs>=0).toBe(true);
+  controller.show(revision('2'),{mode:'playing',mediaTimeUs:2_000_000,rate:1.25,targetFps:24,timelineResetId:'reset',samplePerformanceMs:currentNow});
+  await vi.waitFor(()=>expect(f.playbackStates).toHaveLength(2));
+  const afterReplace=f.playbackStates[1]!;
+  expect(afterReplace.samplePerformanceMs).toBe(67_000);
+  expect(afterReplace.mediaTimeUs).toBe(2_000_000+Math.round(31_000*1000*1.25));
+  expect(Number.isSafeInteger(afterReplace.mediaTimeUs)&&afterReplace.mediaTimeUs>=0).toBe(true);
+  expect(controller.state$.get().status).not.toBe('error');
+  controller.dispose();await vi.waitFor(()=>expect(f.calls).toContain('close:s1'));
 });

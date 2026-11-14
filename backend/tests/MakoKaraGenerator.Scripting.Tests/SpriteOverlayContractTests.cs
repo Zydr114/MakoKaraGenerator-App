@@ -1,8 +1,19 @@
+using System.Collections.Immutable;
+using MakoKaraGenerator.Scripting.V2;
+
 namespace MakoKaraGenerator.Scripting.Tests;
 
 public sealed class SpriteOverlayContractTests
 {
-    private static ImageHandle Image => new ResourceCatalog("sprites", "sha256:" + new string('a', 64), [], [], ["spark.png"]).GetImage("spark.png");
+    private static readonly ResourceCatalog Catalog = new("sprites", "sha256:" + new string('a', 64), [], [], ["spark.png"]);
+    private static ImageHandle Image => Catalog.GetImage("spark.png");
+    private static ImmutableArray<VisualOutputDeclaration> Declarations =>
+    [
+        new(new("image"), VisualPrimitiveKind.Sprites, OverlayLayer.AboveText),
+        new(new("more"), VisualPrimitiveKind.Sprites, OverlayLayer.AboveText),
+        new(new("bad"), VisualPrimitiveKind.Sprites, OverlayLayer.AboveText),
+        new(new("late"), VisualPrimitiveKind.Sprites, OverlayLayer.AboveText),
+    ];
     [Fact]
     public void 精灵要求真实句柄非空图片内裁片及可逆有限世界几何()
     {
@@ -18,16 +29,18 @@ public sealed class SpriteOverlayContractTests
     [Fact]
     public void 精灵沿用混合名字预算能力与过期门禁透明项同样计费()
     {
-        VisualWriter writer = new(new("fx"), EffectCapabilities.Overlay, new(1));
-        writer.Overlay.DrawSprites(new("image"), [new(Image, Affine2.Identity, default)], OverlayLayer.AboveText);
-        Assert.Equal("DuplicateOverlayBatch", Assert.Throws<EffectOutputException>(() => writer.Overlay.DrawDots(new("image"), [], OverlayLayer.AboveText)).Code);
-        Assert.Equal("VisualOutputBudgetExceeded", Assert.Throws<EffectOutputException>(() => writer.Overlay.DrawSprites(new("more"), [new(Image, Affine2.Identity, default)], OverlayLayer.AboveText)).Code);
-        Assert.IsType<SpriteBatch>(Assert.Single(writer.CompleteOverlay()));
-        Assert.Equal("InvalidVisualOutputStage", Assert.Throws<EffectOutputException>(() => writer.Overlay.DrawSprites(new("late"), [], OverlayLayer.AboveText)).Code);
-        VisualWriter invalid = new(new("fx"), EffectCapabilities.Overlay);
-        Assert.Equal("InvalidOverlay", Assert.Throws<EffectOutputException>(() => invalid.Overlay.DrawSprites(new("bad"), [default], OverlayLayer.AboveText)).Code);
-        Assert.Throws<EffectOutputException>(() => invalid.Overlay.DrawSprites(new("bad"), default, OverlayLayer.AboveText));
-        VisualWriter none = new(new("fx"), EffectCapabilities.None);
-        Assert.Equal("UndeclaredCapability", Assert.Throws<EffectOutputException>(() => none.Overlay.DrawSprites(new("bad"), [], OverlayLayer.AboveText)).Code);
+        VisualOutput writer = new(new("fx"), [CapabilityNames.VisualsSprites, CapabilityNames.VisualsDots], Declarations, Catalog, new(1));
+        writer.DrawSprites(new("image"), [new(Image, Affine2.Identity, default)], OverlayLayer.AboveText);
+        Assert.Equal("UndeclaredPackageOutput", Assert.Throws<EffectOutputException>(() => writer.DrawDots(new("image"), [], OverlayLayer.AboveText)).Code);
+        Assert.Equal("VisualOutputBudgetExceeded", Assert.Throws<EffectOutputException>(() => writer.DrawSprites(new("more"), [new(Image, Affine2.Identity, default)], OverlayLayer.AboveText)).Code);
+        VisualOutput completed = new(new("fx"), [CapabilityNames.VisualsSprites], Declarations, Catalog, new(1));
+        completed.DrawSprites(new("image"), [new(Image, Affine2.Identity, default)], OverlayLayer.AboveText);
+        Assert.IsType<SpriteBatch>(Assert.Single(completed.Complete()));
+        Assert.Equal("InvalidVisualOutputStage", Assert.Throws<EffectOutputException>(() => completed.DrawSprites(new("late"), [], OverlayLayer.AboveText)).Code);
+        VisualOutput invalid = new(new("fx"), [CapabilityNames.VisualsSprites], Declarations, Catalog);
+        Assert.Equal("InvalidOverlay", Assert.Throws<EffectOutputException>(() => invalid.DrawSprites(new("bad"), [default], OverlayLayer.AboveText)).Code);
+        Assert.Throws<EffectOutputException>(() => invalid.DrawSprites(new("bad"), default, OverlayLayer.AboveText));
+        VisualOutput none = new(new("fx"), [], Declarations, Catalog);
+        Assert.Equal("UndeclaredCapability", Assert.Throws<EffectOutputException>(() => none.DrawSprites(new("bad"), [], OverlayLayer.AboveText)).Code);
     }
 }

@@ -14,10 +14,6 @@
     <ProjectReference Include="../../src/MakoKaraGenerator.Application/MakoKaraGenerator.Application.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="../../samples/ScriptEffects/CursorTrail/**/*" Link="effect-packages/CursorTrail/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="../../samples/ScriptEffects/WordEmphasis/**/*" Link="effect-packages/WordEmphasis/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="../../samples/ScriptEffects/EventBurst/**/*" Link="effect-packages/EventBurst/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="../../samples/ScriptEffects/VectorTrail/**/*" Link="effect-packages/VectorTrail/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="../Shared/TemporaryDirectory.cs" Link="Shared/TemporaryDirectory.cs" />
     <Compile Include="../Shared/Rendering/TimedRubyFixture.cs" Link="Shared/TimedRubyFixture.cs" />
     <Compile Include="../Shared/LeadInFixture.cs" Link="Shared/LeadInFixture.cs" />

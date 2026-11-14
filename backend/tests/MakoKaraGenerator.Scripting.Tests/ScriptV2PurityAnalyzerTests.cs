@@ -492,10 +492,11 @@ public sealed class ScriptV2PurityAnalyzerTests
 
     [Theory]
     [InlineData("_ = default(VisualFrame);", "MKV2001")]
-    [InlineData("_ = new VisualWriter(new(\"other\"), EffectCapabilities.Overlay);", "MKV2006")]
+    [InlineData("_ = new System.Text.StringBuilder().Append(\"other\");", "MKV2006")]
     [InlineData("Action later = () => output.DrawDots(new(\"dots\"), [], OverlayLayer.AboveText); later();", "MKV2005")]
-    public void 晚期入口不能伪造阶段或回退旧生命周期(string body, string code)
+    public void 晚期入口不能伪造阶段或未白名单调用(string body, string code)
     {
+        Assert.Null(typeof(MakoKaraGenerator.Scripting.V2.VisualOutput).Assembly.GetType("MakoKaraGenerator.Scripting.V2.VisualWriter"));
         string source = $$"""
             public sealed class Probe : IPureKaraokeEffect, IPureVisualEffect
             {

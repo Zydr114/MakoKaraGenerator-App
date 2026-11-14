@@ -12,9 +12,12 @@ public sealed class V2SdkContractTests
         Assert.Equal(3, Assert.IsType<TestPrepared>(data).Ordinals.Length);
         Assert.Same(PreparedEffect.Empty, PreparedEffect.Empty);
         Assert.DoesNotContain(typeof(TextFrame).GetProperties(), property =>
-            property.PropertyType == typeof(FrameContext) || property.PropertyType == typeof(FrameWriter)
+            property.PropertyType == typeof(FrameContext)
+            || property.PropertyType.FullName is "MakoKaraGenerator.Scripting.FrameWriter" or "MakoKaraGenerator.Scripting.VisualWriter"
             || property.PropertyType == typeof(TimelineHistory) || property.PropertyType == typeof(GeometryQueries)
             || property.Name is "History" or "LastSimulationBoundaryUs" or "State" or "Diagnostics");
+        Assert.Null(typeof(TextOutput).Assembly.GetType("MakoKaraGenerator.Scripting.V2.FrameWriter"));
+        Assert.Null(typeof(VisualOutput).Assembly.GetType("MakoKaraGenerator.Scripting.V2.VisualWriter"));
         Assert.All(typeof(DeclareContext).GetProperties(), property => Assert.Null(property.SetMethod));
         Assert.All(typeof(TextLineLoad).GetProperties(), property => Assert.Null(property.SetMethod));
     }

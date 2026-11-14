@@ -23,7 +23,7 @@ public sealed class DirectGraphEffectTests
         manifest["requires"] = new JsonArray();
         manifest["lineExit"] = new JsonObject { ["durationUs"] = 0 };
         manifest["emitters"] = new JsonArray();
-        var definition = EffectPackageDefinition.Read(EffectPackageContents.CreateSupported(EffectPackageFixture.Bytes(manifest),
+        var definition = EffectPackageDefinition.Read(EffectPackageContents.CreateSupported(V2PackageTestHelper.Bytes(manifest),
             original.Files.Select(file => KeyValuePair.Create(file.Path, (ReadOnlyMemory<byte>)file.Content.ToArray()))));
         var compiled = await Compile(definition);
         Assert.True(compiled.Succeeded);
@@ -44,7 +44,7 @@ public sealed class DirectGraphEffectTests
     // This fixture exercises the production package and prepared-binding protocol, not native pixels.
     // Its identity graph has no shader, image, C# file or native pass.
     private static EffectPackageDefinition Definition(string target = "tokenFamily", string anchor = "ColorOnly",
-        Action<JsonObject>? changeExport = null)
+        Action<JsonObject>? changeExport = null, Action<JsonObject>? changeManifest = null)
     {
         JsonObject graph = new()
         {
@@ -64,8 +64,8 @@ public sealed class DirectGraphEffectTests
             ["bounds"] = new JsonObject { ["space"] = "canvas", ["source"] = "targetRegion", ["maxExpandPx"] = 0 },
             ["composite"] = new JsonObject { ["mode"] = "sourceOver" },
         };
-        Dictionary<string, byte[]> files = new(StringComparer.Ordinal) { [GraphPath] = EffectPackageFixture.Bytes(graph) };
-        JsonObject manifest = EffectPackageFixture.Manifest(files);
+        Dictionary<string, byte[]> files = new(StringComparer.Ordinal) { [GraphPath] = V2PackageTestHelper.Bytes(graph) };
+        JsonObject manifest = V2PackageTestHelper.Manifest(files, ["image.graph"]);
         manifest["files"]![0]!["role"] = "graph";
         JsonObject export = manifest["exports"]![0]!.AsObject();
         export["id"] = ExportId; export["name"] = "直接图"; export["kind"] = "graph";
@@ -74,8 +74,9 @@ public sealed class DirectGraphEffectTests
         export["outputs"]![0]!["id"] = "image";
         export["outputs"]![0]!["kind"] = "ImageGraph"; export["outputs"]![0]!["target"] = target;
         changeExport?.Invoke(export);
-        return EffectPackageDefinition.Read(EffectPackageContents.Create(EffectPackageFixture.Bytes(manifest),
-            EffectPackageFixture.Inputs(files), EffectPackageFixture.Profile));
+        changeManifest?.Invoke(manifest);
+        return EffectPackageDefinition.Read(EffectPackageContents.Create(V2PackageTestHelper.Bytes(manifest),
+            V2PackageTestHelper.Inputs(files), EffectPackageProfiles.V2));
     }
 
     private sealed class RecordingGraphValidator : IPackageImageGraphValidator
@@ -137,14 +138,15 @@ public sealed class DirectGraphEffectTests
             {
                 if (change == "binding") export["bindingKinds"] = new JsonArray("tokens");
                 var output = export["outputs"]![0]!;
-                if (change == "requires") output["requires"] = new JsonArray("AudioFeatures");
+                if (change == "requires") output["requires"] = new JsonArray("token.affine");
                 if (change is "dependsOn" or "sameTarget")
                 {
                     var other = output.DeepClone(); other["id"] = "other";
                     if (change == "dependsOn") { other["target"] = "line"; output["dependsOn"] = new JsonArray("other"); }
                     export["outputs"]!.AsArray().Add(other);
                 }
-            });
+            },
+            change == "requires" ? manifest => manifest["requires"]!.AsArray().Add("token.affine") : null);
         var compiled = await Compile(definition);
         var failure = Assert.Throws<EffectPackageException>(() => compiled.CreateEffect(ExportId, new("blocked"),
             new EffectBinding.Project(), 0));
@@ -297,14 +299,8 @@ public sealed class DirectGraphEffectTests
             Assert.Equal(prepared.Scene.Lines.Single(line => line.Frame.Line!.Id == "first").BindingId,
                 Assert.IsType<ImageEffectTarget.Line>(image.Binding.Target).Target.BindingId.Value);
         }
-        var tokenEffect = linePackage.CreateEffect(ExportId, new("invalid-line-image"), new EffectBinding.Tokens([new("first-a")]), 1);
-        await using (var session = await new PureFrameSourceFactory([tokenEffect], Fingerprint,
-            static () => new RuntimeGeometry()).CreateAsync(snapshot))
-        {
-            var failure = await Assert.ThrowsAsync<EffectFailureException>(() => session.PrepareAsync(12_500_000, OutputMode.Opaque, target).AsTask());
-            Assert.Equal("TargetOutsideBinding", failure.Code); Assert.Equal(tokenEffect.Id, failure.InstanceId);
-            Assert.Equal(tokenEffect.PackageIdentity, failure.PackageIdentity);
-        }
+        Assert.Equal("PackageBindingNotAllowed", Assert.Throws<EffectPackageException>(() =>
+            linePackage.CreateEffect(ExportId, new("invalid-line-image"), new EffectBinding.Tokens([new("first-a")]), 1)).Code);
         var markPackage = await Compile(Definition("textMark"));
         var markEffect = markPackage.CreateEffect(ExportId, new("mark-image"), new EffectBinding.Lines([new("first")]), 1);
         await using (var session = await new PureFrameSourceFactory([markEffect], Fingerprint,
@@ -326,8 +322,8 @@ public sealed class DirectGraphEffectTests
         var compiled = await Compile(Definition()); var binding = new EffectBinding.Node(new(first.ParentId), true);
         var a = compiled.CreateEffect(ExportId, new("a"), binding, 1, "{\"peak\":2}"u8.ToArray());
         var b = compiled.CreateEffect(ExportId, new("b"), binding, 2, "{\"peak\":3}"u8.ToArray());
-        await using var session = await new TimelineFrameSourceFactory([a, b], Fingerprint,
-            static () => new RuntimeGeometry(), ReplayReason.Initial).CreateAsync(snapshot);
+        await using var session = await new PureFrameSourceFactory([a, b], Fingerprint,
+            static () => new RuntimeGeometry()).CreateAsync(snapshot);
         var target = RenderTarget.FromComposition(snapshot.Composition);
         var before = await session.PrepareAsync(12_500_000, OutputMode.Opaque, target);
         var after = await session.PrepareAsync(47_000_000, OutputMode.Transparent, target);

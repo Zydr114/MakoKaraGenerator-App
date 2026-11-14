@@ -1,5 +1,6 @@
 using MakoKaraGenerator.Rendering;
 using MakoKaraGenerator.Scripting.Projection;
+using MakoKaraGenerator.Scripting.V2;
 using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Core.Lyrics;
 
@@ -13,9 +14,13 @@ public sealed class SceneTargetContractTests
     private static readonly StyleView Appearance = TestStyles.View(White, White, new(2, White), new(new(0, 0, 0, 1)), .4);
     private static readonly BaselineStyles Baseline = new([], [new(new("line"), Appearance)], [new(Target.NodeId, Appearance)],
         [new(new("group"), new(1))]);
-    private static FrameWriter Writer(EffectCapabilities capabilities = EffectCapabilities.Style | EffectCapabilities.Transforms)
-        => new([], capabilities, Baseline, markGeometry: [new(Target, new() { AdvanceBounds = new(10, 20, 50, 60),
-            Baseline = new(10, 55), BaseWorldMatrix = Affine2.Identity, InkBounds = new(12, 23, 48, 58), CanTransformIndependently = true })]);
+    private static TextOutput Output(params string[] capabilities)
+    {
+        var frame = V2PackageTestHelper.CreateTextFrame(baseline: Baseline);
+        return new(in frame, [.. capabilities.Length == 0
+            ? [CapabilityNames.StyleFill, CapabilityNames.StyleStroke, CapabilityNames.StyleShadow, CapabilityNames.MarkAffine]
+            : capabilities]);
+    }
     [Fact]
     public void 组没有假文字材质且行标记基线按身份独立读取()
     {
@@ -30,49 +35,54 @@ public sealed class SceneTargetContractTests
         Assert.Throws<ArgumentException>(() => Baseline.Get(Target with { CueId = default }));
     }
     [Fact]
-    public void 标记writer检查完整提示身份能力和阶段()
+    public void 标记输出检查完整提示身份能力和阶段()
     {
-        FrameWriter writer = Writer();
         foreach (var invalid in new[] { Target with { CueId = new("other") }, Target with { BindingId = new("other") }, Target with { NodeId = new("other") } })
         {
-            Assert.Equal("TargetOutsideBinding", Assert.Throws<EffectOutputException>(() => writer.Style.SetSungMaterial(invalid, Blue)).Code);
-            Assert.Equal("TargetOutsideBinding", Assert.Throws<EffectOutputException>(() => writer.Transforms.ApplyAffine(invalid, Affine2.Identity)).Code);
+            Assert.Equal("TargetOutsideBinding", Assert.Throws<EffectOutputException>(() => Output().SetFill(new TextTarget.Mark(invalid), TextState.Sung, Blue)).Code);
+            Assert.Equal("TargetOutsideBinding", Assert.Throws<EffectOutputException>(() => Output().AppendTransform(new TextTarget.Mark(invalid), Affine2.Identity)).Code);
         }
-        Assert.Equal("UndeclaredCapability", Assert.Throws<EffectOutputException>(() => Writer(EffectCapabilities.None).Style.SetUnsungMaterial(Target, Blue)).Code);
-        Assert.Equal("UndeclaredCapability", Assert.Throws<EffectOutputException>(() => Writer(EffectCapabilities.Style).Transforms.ApplyAffine(Target, Affine2.Identity)).Code);
-        writer.Style.SetSungMaterial(Target, Blue); writer.Complete();
-        Assert.Equal("InvalidOutputStage", Assert.Throws<EffectOutputException>(() => writer.Style.SetShadow(Target, null)).Code);
-        Assert.Equal("InvalidOutputStage", Assert.Throws<EffectOutputException>(() => writer.Transforms.ApplyAffine(Target, Affine2.Identity)).Code);
+        Assert.Equal("UndeclaredCapability", Assert.Throws<EffectOutputException>(() => Output(CapabilityNames.MarkAffine).SetFill(new TextTarget.Mark(Target), TextState.Unsung, Blue)).Code);
+        Assert.Equal("UndeclaredCapability", Assert.Throws<EffectOutputException>(() => Output(CapabilityNames.StyleFill).AppendTransform(new TextTarget.Mark(Target), Affine2.Identity)).Code);
+        TextOutput output = Output();
+        output.SetFill(new TextTarget.Mark(Target), TextState.Sung, Blue); output.Complete();
+        Assert.Equal("InvalidOutputStage", Assert.Throws<EffectOutputException>(() => output.SetShadow(new TextTarget.Mark(Target), TextState.Unsung, null)).Code);
+        Assert.Equal("InvalidOutputStage", Assert.Throws<EffectOutputException>(() => output.AppendTransform(new TextTarget.Mark(Target), Affine2.Identity)).Code);
     }
     [Fact]
-    public void 标记两态和装饰按顺序覆盖且透明度最后合并()
+    public void 标记两态和装饰按顺序写入并拒绝直接标记透明度写入()
     {
-        FrameWriter writer = Writer();
-        writer.Style.SetSungMaterial(Target, Blue); writer.Style.SetSungMaterial(Target, Baseline.Get(Target).Sung.Fill);
-        writer.Style.SetUnsungMaterial(Target, Blue); writer.Style.SetStroke(Target, null); writer.Style.SetShadow(Target, null);
-        writer.Style.MultiplyOpacity(Target, 3); writer.Style.MultiplyOpacity(Target, .5);
-        var result = Assert.Single(writer.Complete().MarkStyles).Update.Apply(Baseline.Get(Target));
-        Assert.Equal(White, result.Sung.Fill); Assert.Equal(Blue, result.Unsung.Fill);
-        Assert.Null(result.Unsung.InnermostStroke); Assert.Null(result.Unsung.Shadow); Assert.Equal(.6, result.Opacity, 12);
+        TextOutput output = Output();
+        var mark = new TextTarget.Mark(Target);
+        output.SetFill(mark, TextState.Sung, Blue); output.SetFill(mark, TextState.Sung, Baseline.Get(Target).Sung.Fill);
+        output.SetFill(mark, TextState.Unsung, Blue); output.SetStrokes(mark, TextState.Unsung); output.SetShadow(mark, TextState.Unsung, null);
+        Assert.Equal("PropertyTargetUnsupported", Assert.Throws<EffectOutputException>(() => output.MultiplyOpacity(mark, .5)).Code);
+        var writes = output.Complete().Writes;
+        Assert.Equal(5, writes.Length);
+        Assert.Equal(White, Assert.IsType<TextWrite.Fill>(writes[1]).Material);
+        Assert.Equal(Blue, Assert.IsType<TextWrite.Fill>(writes[2]).Material);
+        Assert.Empty(Assert.IsType<TextWrite.Strokes>(writes[3]).Layers);
+        Assert.Null(Assert.IsType<TextWrite.Shadow>(writes[4]).Value);
         Assert.Equal(.4, Baseline.Get(Target).Opacity);
     }
     [Fact]
-    public void 标记仿射不接受零矩阵且按所属逻辑空间顺序组合()
+    public void 标记仿射不接受零矩阵且按所属逻辑空间顺序写入()
     {
-        FrameWriter writer = Writer();
-        Assert.Equal("InvalidTransform", Assert.Throws<EffectOutputException>(() => writer.Transforms.ApplyAffine(Target, default)).Code);
-        writer.Transforms.ApplyAffine(Target, Affine2.Translation(10, 20));
-        writer.Transforms.ApplyAffine(Target, Affine2.ScaleAt(2, default));
-        Assert.Equal(new Point2(12, 24), Assert.Single(writer.Complete().MarkTransforms).LocalMatrix.Map(new(1, 2)));
-        FrameWriter neutral = Writer(); neutral.Transforms.ApplyAffine(Target, Affine2.Identity);
-        neutral.Transforms.ApplyAffine(Target, Affine2.Translation(10, 0)); neutral.Transforms.ApplyAffine(Target, Affine2.Translation(-10, 0));
-        Assert.Empty(neutral.Complete().MarkTransforms);
+        TextOutput output = Output();
+        var mark = new TextTarget.Mark(Target);
+        Assert.Equal("InvalidTransform", Assert.Throws<EffectOutputException>(() => output.AppendTransform(mark, default)).Code);
+        output.AppendTransform(mark, Affine2.Translation(10, 20));
+        output.AppendTransform(mark, Affine2.ScaleAt(2, default));
+        var writes = output.Complete().Writes;
+        Assert.Equal(2, writes.Length);
+        var combined = ((TextWrite.Transform)writes[1]).LocalMatrix.Compose(((TextWrite.Transform)writes[0]).LocalMatrix);
+        Assert.Equal(new Point2(22, 44), combined.Map(new(1, 2)));
     }
     [Fact]
     public void 标记材质严格校验固定资源修订不当作已经执行shader()
     {
         var handle = new ResourceCatalog("package", "sha256:" + new string('a', 64), ["glass"], [], []).GetMaterial("glass");
-        Assert.Equal("InvalidMaterialResource", Assert.Throws<EffectOutputException>(() => Writer().Style.SetUnsungMaterial(Target,
+        Assert.Equal("InvalidMaterialResource", Assert.Throws<EffectOutputException>(() => Output().SetFill(new TextTarget.Mark(Target), TextState.Unsung,
             MaterialValue.PackageExport(handle, ParameterValues.Empty))).Code);
     }
     [Fact]

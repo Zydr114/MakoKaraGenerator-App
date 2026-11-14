@@ -61,13 +61,15 @@ public sealed class CompilerTests
     {
         const string source = """
             using MakoKaraGenerator.Scripting;
-            public sealed class PackEffect : EffectBase
+            using MakoKaraGenerator.Scripting.V2;
+            public sealed class PackEffect : IPureKaraokeEffect
             {
-                public override void Evaluate(FrameContext frame, FrameWriter writer)
+                public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
+                public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
                 {
                     var value = MaterialValue.PackageExport(frame.Resources.GetMaterial("ink"),
                         new([new("amount",new ParameterValue.Number(.5))]));
-                    foreach (var token in frame.Presentations.TokensInBinding) writer.Style.SetSungMaterial(token.WithRuby, value);
+                    foreach (var token in frame.Presentations.TokensInBinding) output.SetFill(token.WithRuby, TextState.Sung, value);
                 }
             }
             """;
@@ -222,11 +224,6 @@ internal static class ArtifactReuseProcess
             }
             catch (Exception error) { Console.Error.WriteLine(error); return 1; }
         }
-        if (args is ["--semantic-benchmark", var scenario, var seconds, var output])
-            return SemanticCostBenchmark.RunAsync(scenario, int.Parse(seconds, System.Globalization.CultureInfo.InvariantCulture), output).GetAwaiter().GetResult();
-        if (args is ["--semantic-benchmark-incremental", var incrementalScenario, var incrementalSeconds, var incrementalOutput])
-            return SemanticCostBenchmark.RunAsync(incrementalScenario, int.Parse(incrementalSeconds, System.Globalization.CultureInfo.InvariantCulture), incrementalOutput,
-                incremental: true).GetAwaiter().GetResult();
         if (args is not ["--reuse", var path]) return 2;
         try
         {

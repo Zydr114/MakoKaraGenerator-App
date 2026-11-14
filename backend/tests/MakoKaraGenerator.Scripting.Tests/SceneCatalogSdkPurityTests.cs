@@ -25,9 +25,10 @@ public sealed class SceneCatalogSdkPurityTests
     [Theory]
     [InlineData("_ = frame.Source.Scene.Programs[0].GetHashCode();", "MKV2001")]
     [InlineData("_ = System.IO.File.ReadAllText(frame.Source.Scene.Programs[0].RootNodeId.Value);", "MKV2001")]
-    [InlineData("_ = new FrameWriter([], EffectCapabilities.None);", "MKV2006")]
-    public async Task 场景目录白名单不开放进程哈希外部IO或旧写者(string body, string code)
+    [InlineData("_ = string.Format(\"{0}\", frame.Source.Scene.Programs.Length);", "MKV2006")]
+    public async Task 场景目录白名单不开放进程哈希外部IO或未白名单调用(string body, string code)
     {
+        Assert.Null(typeof(TextOutput).Assembly.GetType("MakoKaraGenerator.Scripting.V2.FrameWriter"));
         var result = await Compile(body);
 
         Assert.False(result.Succeeded);

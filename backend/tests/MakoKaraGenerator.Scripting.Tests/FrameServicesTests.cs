@@ -175,28 +175,29 @@ public sealed class FrameServicesTests
     public async Task 真正编译入口在初始化和任意纯帧读取同一固定服务()
     {
         var compiler = new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));
-        var result = await compiler.CompileAsync([new("src/ServicesProbe.cs", """
+        var package = await CompiledEffectPackage.CompileAsync(V2PackageTestHelper.CreateControllerPackage("""
             using System;
             using MakoKaraGenerator.Scripting;
-            public sealed class ServicesProbe : EffectBase
+            using MakoKaraGenerator.Scripting.V2;
+            public sealed class ServicesProbe : IPureKaraokeEffect
             {
-                private ResourceCatalog resources = null!;
-                private DeterministicRandom random = null!;
-                public override void Initialize(EffectInitializationContext context)
+                private sealed record ProbeData(ResourceCatalog Resources, AudioFeatures Audio) : PreparedEffect;
+                public PreparedEffect Declare(DeclareContext source)
                 {
-                    resources = context.Resources; random = context.Random;
-                    if (resources.GetMaterial("ink").Identity.PackageId != "sample"
-                        || resources.GetGraph("glitch").Identity.ExportId != "glitch"
-                        || context.Parameters.GetAsset("asset") != resources.GetImage("spark")
-                        || context.Parameters.GetColor("color").Alpha != .25
-                        || context.Parameters.GetCurve("curve").Evaluate(.5) != .5
-                        || random.GetUInt32("stream", 0) != 0x77b617a6)
+                    if (source.Resources.GetMaterial("ink").Identity.PackageId != "sample"
+                        || source.Resources.GetGraph("glitch").Identity.ExportId != "glitch"
+                        || source.Parameters.GetAsset("asset") != source.Resources.GetImage("spark")
+                        || source.Parameters.GetColor("color").Alpha != .25
+                        || source.Parameters.GetCurve("curve").Evaluate(.5) != .5
+                        || source.Random.GetUInt32("stream", 0) != 0x77b617a6)
                         throw new Exception("InitServiceMismatch");
+                    return new ProbeData(source.Resources, source.Audio);
                 }
-                public override void Evaluate(FrameContext frame, FrameWriter output)
+                public void Evaluate(in TextFrame frame, PreparedEffect prepared, TextOutput output)
                 {
-                    if (!ReferenceEquals(resources, frame.Resources) || !ReferenceEquals(random, frame.Random)
-                        || !ReferenceEquals(frame.Audio, frame.Project.Audio)
+                    var data = (ProbeData)prepared;
+                    if (!ReferenceEquals(data.Resources, frame.Resources)
+                        || !ReferenceEquals(data.Audio, frame.Audio)
                         || frame.Random.GetUInt32("stream", 5) != 0xba7c00f5)
                         throw new Exception("FrameServiceMismatch");
                     var value = frame.Audio.GetAt(frame.TimeUs);
@@ -208,24 +209,24 @@ public sealed class FrameServicesTests
                         throw new Exception("FakeEndAudio");
                 }
             }
-            """)]);
-        Assert.True(result.Succeeded, string.Join('\n', result.Diagnostics));
+            """, "ServicesProbe", ["token.affine"], ["project"]), compiler);
+        Assert.True(package.Artifact.Succeeded, string.Join('\n', package.Artifact.Diagnostics));
         var resources = Resources();
         ParameterValues parameters = new(new Dictionary<string, ParameterValue>
         {
             ["asset"] = new ParameterValue.Asset(resources.GetImage("spark")), ["color"] = new ParameterValue.Color(new(.8, .6, .4, .25)),
             ["curve"] = new ParameterValue.Curve(Curves.EaseInOutCurve),
         });
-        var effect = new CompiledFrameEffect(new("instance"), result, "ServicesProbe", parameters, new EffectBinding.Project(), EffectCapabilities.None)
-            { Resources = resources, Seed = 0 };
-        PureFrameSourceFactory factory = new([effect], "services-fixed", static () => new EmptyGeometry(), Audio());
-        var snapshot = new ProjectSnapshot { Name = "services", EffectInputsFingerprint = "services-fixed" };
+        var effect = new CompiledFrameEffect(new("instance"), package.Artifact, "ServicesProbe", parameters, new EffectBinding.Project(), EffectCapabilities.None)
+            { Resources = resources, Seed = 0, PackageDefinition = package.Definition, PackageDeclaration = package.Definition.GetExport("probe") };
+        PureFrameSourceFactory factory = new([effect], "services-fixed", static () => new ActiveTokenGeometry(), Audio());
+        var snapshot = ActiveSnapshot("services", "services-fixed");
         await using var source = await factory.CreateAsync(snapshot);
         foreach (long time in new long[] { 0, 20_000, 59_999, 60_000, 0 })
             Assert.Empty((await source.PrepareAsync(time, OutputMode.Transparent, new() { PixelWidth = 100, PixelHeight = 100 })).TokenTransforms);
         await using var other = await factory.CreateAsync(snapshot);
         Assert.Empty((await other.PrepareAsync(20_000, OutputMode.Opaque, new() { PixelWidth = 200, PixelHeight = 200 })).TokenTransforms);
-        var badResources = new PureFrameSourceFactory([effect with { Resources = Resources('b') }], "services-fixed", static () => new EmptyGeometry(), Audio());
+        var badResources = new PureFrameSourceFactory([effect with { Resources = Resources('b') }], "services-fixed", static () => new ActiveTokenGeometry(), Audio());
         var error = await Assert.ThrowsAsync<EffectFailureException>(async () => await badResources.CreateAsync(snapshot));
         Assert.Equal("ValidateInputs", error.Stage); Assert.Equal("InvalidParameterResource", error.Code); Assert.Equal(effect.Id, error.InstanceId);
     }
@@ -234,30 +235,38 @@ public sealed class FrameServicesTests
     public async Task 没有注入分析时真实帧读取未分析而不是假静音()
     {
         var compiler = new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));
-        var result = await compiler.CompileAsync([new("src/NoAnalysis.cs", """
+        var package = await CompiledEffectPackage.CompileAsync(V2PackageTestHelper.CreateControllerPackage("""
             using System;
             using MakoKaraGenerator.Scripting;
-            public sealed class NoAnalysis : EffectBase
+            using MakoKaraGenerator.Scripting.V2;
+            public sealed class NoAnalysis : IPureKaraokeEffect
             {
-                public override void Evaluate(FrameContext frame, FrameWriter output)
+                public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
+                public void Evaluate(in TextFrame frame, PreparedEffect prepared, TextOutput output)
                 {
                     var sample = frame.Audio.GetAt(frame.TimeUs);
                     if (sample.Availability != AudioAvailability.NotAnalyzed || sample.Values is not null)
                         throw new Exception("FakeAnalyzedAudio");
                 }
             }
-            """)]);
-        Assert.True(result.Succeeded, string.Join('\n', result.Diagnostics));
-        var factory = new PureFrameSourceFactory([new(new("instance"), result, "NoAnalysis", ParameterValues.Empty,
-            new EffectBinding.Project(), EffectCapabilities.None)], "unavailable", static () => new EmptyGeometry());
-        await using var source = await factory.CreateAsync(new() { Name = "no-analysis", EffectInputsFingerprint = "unavailable" });
+            """, "NoAnalysis", ["token.affine"], ["project"]), compiler);
+        Assert.True(package.Artifact.Succeeded, string.Join('\n', package.Artifact.Diagnostics));
+        var factory = new PureFrameSourceFactory([package.CreateEffect("probe", new("instance"), new EffectBinding.Project(), 0)],
+            "unavailable", static () => new ActiveTokenGeometry());
+        await using var source = await factory.CreateAsync(ActiveSnapshot("no-analysis", "unavailable"));
         Assert.Empty((await source.PrepareAsync(0, OutputMode.Opaque, new() { PixelWidth = 100, PixelHeight = 100 })).TokenTransforms);
     }
 
-    private sealed class EmptyGeometry : ILineGeometryProvider
+    private static ProjectSnapshot ActiveSnapshot(string name, string fingerprint)
+        => ProjectSnapshot.FromProject(Core.Projects.Project.Create(name, lyrics: Core.Lyrics.LyricsDocument.Create([
+            Core.Lyrics.LyricLine.Create("line", "甲", new(0, 100_000), Core.Lyrics.TimingStatus.Edited,
+                [Core.Lyrics.LyricToken.Create("token", "甲", new(0, 100_000), Core.Lyrics.TimingStatus.Edited)])])))
+            with { EffectInputsFingerprint = fingerprint };
+
+    private sealed class ActiveTokenGeometry : ILineGeometryProvider
     {
         public LineRenderGeometry? GetLineGeometry(ProjectSnapshot snapshot, string lineId) => null;
         public SceneFrame GetSceneFrame(ProjectSnapshot snapshot, long timeUs, string? editingLineId = null)
-            => new() { Definition = SceneDefinitionBuilder.Build(snapshot), TimeUs = timeUs };
+            => LyricSceneSampler.SampleFrame(snapshot, timeUs);
     }
 }

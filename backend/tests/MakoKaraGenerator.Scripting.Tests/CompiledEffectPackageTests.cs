@@ -7,10 +7,10 @@ namespace MakoKaraGenerator.Scripting.Tests;
 
 public sealed class CompiledEffectPackageTests
 {
-    private static readonly Lazy<Task<CompiledEffectPackage>> Word = new(() => CompiledEffectPackage.CompileAsync(EffectPackageFixture.WordEmphasis(), Compiler()));
+    private static readonly Lazy<Task<CompiledEffectPackage>> Word = new(() => CompiledEffectPackage.CompileAsync(V2PackageTestHelper.WordEmphasis(), Compiler()));
     private static ScriptCompiler Compiler() => new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));
     private static EffectPackageDefinition Read(Dictionary<string, byte[]> files, JsonObject manifest)
-        => EffectPackageDefinition.Read(EffectPackageContents.Create(EffectPackageFixture.Bytes(manifest), EffectPackageFixture.Inputs(files), EffectPackageFixture.Profile));
+        => EffectPackageDefinition.Read(EffectPackageContents.Create(V2PackageTestHelper.Bytes(manifest), V2PackageTestHelper.Inputs(files), EffectPackageProfiles.V2));
     [Fact]
     public async Task 真正样例清单默认值覆盖入口绑定及种子进入生产帧描述()
     {
@@ -27,12 +27,17 @@ public sealed class CompiledEffectPackageTests
     }
     [Theory]
     [InlineData("binding", "PackageBindingNotAllowed")] [InlineData("writer", "PackageWriterPending")]
-    [InlineData("requirement", "PackageRequirementUnsupported")] [InlineData("dependency", "PackageOutputPlanPending")]
+    [InlineData("requirement", "PackageCapabilityUnsupported")] [InlineData("dependency", "PackageOutputPlanPending")]
     public async Task 清单不扩大绑定范围也不伪造未实施writer及输出执行计划(string change, string code)
     {
-        var files = EffectPackageFixture.Files(); var manifest = EffectPackageFixture.Manifest(files); var output = manifest["exports"]![0]!["outputs"]![0]!;
+        var files = V2PackageTestHelper.Files(); var manifest = V2PackageTestHelper.Manifest(files); var output = manifest["exports"]![0]!["outputs"]![0]!;
         if (change == "writer") { output["target"] = "line"; output["kind"] = "StyleModulation"; }
-        if (change == "requirement") output["requires"] = new JsonArray("DistanceField");
+        if (change == "requirement")
+        {
+            output["requires"] = new JsonArray("DistanceField");
+            Assert.Equal(code, Assert.Throws<EffectPackageException>(() => Read(files, manifest)).Code);
+            return;
+        }
         if (change == "dependency")
         {
             var other = output.DeepClone(); other["id"] = "parent"; manifest["exports"]![0]!["outputs"]!.AsArray().Add(other); output["dependsOn"] = new JsonArray("parent");
@@ -43,49 +48,51 @@ public sealed class CompiledEffectPackageTests
     }
     [Theory]
     [InlineData("Missing")]
-    [InlineData("public abstract class PackEffect : MakoKaraGenerator.Scripting.EffectBase { }")]
-    [InlineData("internal class PackEffect : MakoKaraGenerator.Scripting.EffectBase { }")]
+    [InlineData("using MakoKaraGenerator.Scripting.V2; public abstract class PackEffect : IPureKaraokeEffect { public PreparedEffect Declare(DeclareContext s) => PreparedEffect.Empty; public void Evaluate(in TextFrame f, PreparedEffect d, TextOutput o) { } }")]
+    [InlineData("using MakoKaraGenerator.Scripting.V2; internal class PackEffect : IPureKaraokeEffect { public PreparedEffect Declare(DeclareContext s) => PreparedEffect.Empty; public void Evaluate(in TextFrame f, PreparedEffect d, TextOutput o) { } }")]
     [InlineData("public class PackEffect { }")]
-    [InlineData("public class PackEffect : MakoKaraGenerator.Scripting.EffectBase { private PackEffect() { } }")]
+    [InlineData("using MakoKaraGenerator.Scripting.V2; public class PackEffect : IPureKaraokeEffect { private PackEffect() { } public PreparedEffect Declare(DeclareContext s) => PreparedEffect.Empty; public void Evaluate(in TextFrame f, PreparedEffect d, TextOutput o) { } }")]
     [InlineData("Struct")]
     public async Task 真正DLL全部导出入口必须符合公共无参SDK合同(string source)
     {
-        var files = EffectPackageFixture.Files(); var manifest = EffectPackageFixture.Manifest(files);
+        var files = V2PackageTestHelper.Files(); var manifest = V2PackageTestHelper.Manifest(files);
         if (source == "Struct") source = """
-            using MakoKaraGenerator.Scripting;
-            public struct PackEffect : IKaraokeEffect
+            using MakoKaraGenerator.Scripting.V2;
+            public struct PackEffect : IPureKaraokeEffect
             {
                 public PackEffect() { }
-                public void Initialize(EffectInitializationContext c) { }
-                public void OnEvent(TimelineEvent e, EventContext c) { }
-                public void Advance(SimulationStep s, StateContext c) { }
-                public void Evaluate(FrameContext f, FrameWriter w) { }
-                public void EvaluateEmitters(EmissionFrameContext f, EmitterWriter w) { }
-                public void AdvanceVisuals(VisualSimulationStep s, VisualStateContext c) { }
-                public void EvaluateVisuals(VisualFrameContext f, VisualWriter w) { }
-                public void Dispose() { }
+                public PreparedEffect Declare(DeclareContext s) => PreparedEffect.Empty;
+                public void Evaluate(in TextFrame f, PreparedEffect d, TextOutput o) { }
             }
             """;
         if (source == "Missing") manifest["exports"]![0]!["entryType"] = "Missing";
-        else { files["src/PackEffect.cs"] = Encoding.UTF8.GetBytes(source); manifest = EffectPackageFixture.Manifest(files); }
+        else { files["src/PackEffect.cs"] = Encoding.UTF8.GetBytes(source); manifest = V2PackageTestHelper.Manifest(files); }
         var error = await Assert.ThrowsAsync<EffectPackageException>(() => CompiledEffectPackage.CompileAsync(Read(files, manifest), Compiler()));
         Assert.Equal("PackageEntryInvalid", error.Code); Assert.Equal("exports.scale.entryType", error.Path);
     }
     [Fact]
     public async Task 入口反射不调用作者构造且源码失败不能创建帧实例()
     {
-        var files = EffectPackageFixture.Files(); files["src/PackEffect.cs"] = Encoding.UTF8.GetBytes("public class PackEffect : MakoKaraGenerator.Scripting.EffectBase { public PackEffect() => throw new System.Exception(\"must not construct during validation\"); }");
-        var validated = await CompiledEffectPackage.CompileAsync(Read(files, EffectPackageFixture.Manifest(files)), Compiler()); Assert.True(validated.Artifact.Succeeded);
+        var files = V2PackageTestHelper.Files(); files["src/PackEffect.cs"] = Encoding.UTF8.GetBytes("""
+            using MakoKaraGenerator.Scripting.V2;
+            public class PackEffect : IPureKaraokeEffect
+            {
+                public PackEffect() => throw new System.Exception("must not construct during validation");
+                public PreparedEffect Declare(DeclareContext s) => PreparedEffect.Empty;
+                public void Evaluate(in TextFrame f, PreparedEffect d, TextOutput o) { }
+            }
+            """);
+        var validated = await CompiledEffectPackage.CompileAsync(Read(files, V2PackageTestHelper.Manifest(files)), Compiler()); Assert.True(validated.Artifact.Succeeded);
         _ = validated.CreateEffect("scale", new("instance"), new EffectBinding.Tokens([new("word")]), 0);
         files["src/PackEffect.cs"] = "invalid !"u8.ToArray();
-        var failed = await CompiledEffectPackage.CompileAsync(Read(files, EffectPackageFixture.Manifest(files)), Compiler());
+        var failed = await CompiledEffectPackage.CompileAsync(Read(files, V2PackageTestHelper.Manifest(files)), Compiler());
         Assert.False(failed.Artifact.Succeeded); Assert.Empty(failed.Artifact.PeImage);
         Assert.Equal("PackageCompilationFailed", Assert.Throws<EffectPackageException>(() => failed.CreateEffect("scale", new("instance"), new EffectBinding.Tokens([new("word")]), 0)).Code);
     }
     [Fact]
     public async Task 图片未实际解码前不能进入固定SDK目录且取消不变为包错误()
     {
-        var files = EffectPackageFixture.Files(); files["assets/image.png"] = [1, 2]; var definition = Read(files, EffectPackageFixture.NineParametersManifest(files));
+        var files = V2PackageTestHelper.Files(); files["assets/image.png"] = [1, 2]; var definition = Read(files, V2PackageTestHelper.NineParametersManifest(files));
         Assert.Equal("PackageImageValidatorMissing", (await Assert.ThrowsAsync<EffectPackageException>(() => CompiledEffectPackage.CompileAsync(definition, Compiler()))).Code);
         using var cancel = new CancellationTokenSource(); cancel.Cancel();
         await Assert.ThrowsAsync<OperationCanceledException>(() => CompiledEffectPackage.CompileAsync(definition, Compiler(), cancellationToken: cancel.Token));
@@ -93,7 +100,7 @@ public sealed class CompiledEffectPackageTests
     [Fact]
     public async Task 已实现组仿射从真实清单启用并保留参数与声明约束()
     {
-        var compiled = await CompiledEffectPackage.CompileAsync(EffectPackageDefinition.Read(EffectPackageFixture.GroupTransform()), Compiler());
+        var compiled = await CompiledEffectPackage.CompileAsync(EffectPackageDefinition.Read(V2PackageTestHelper.GroupTransform()), Compiler());
         Assert.True(compiled.Artifact.Succeeded, string.Join('\n', compiled.Artifact.Diagnostics));
         foreach (EffectBinding binding in new EffectBinding[] { new EffectBinding.Project(), new EffectBinding.Node(new("root"), false) })
         {
@@ -108,7 +115,7 @@ public sealed class CompiledEffectPackageTests
     [Fact]
     public async Task 资源与默认值改变内容修订而入口集合改变编译Artifact()
     {
-        var files = EffectPackageFixture.Files(); var manifest = EffectPackageFixture.Manifest(files); var original = await CompiledEffectPackage.CompileAsync(Read(files, manifest), Compiler());
+        var files = V2PackageTestHelper.Files(); var manifest = V2PackageTestHelper.Manifest(files); var original = await CompiledEffectPackage.CompileAsync(Read(files, manifest), Compiler());
         manifest["parameters"]![0]!["default"] = 2.5; var modified = await CompiledEffectPackage.CompileAsync(Read(files, manifest), Compiler());
         Assert.NotEqual(original.Definition.Contents.Revision, modified.Definition.Contents.Revision);
         Assert.Equal(original.Artifact.ArtifactHash, modified.Artifact.ArtifactHash); Assert.True(original.Artifact.PeImage.AsSpan().SequenceEqual(modified.Artifact.PeImage.AsSpan()));

@@ -120,14 +120,28 @@ public sealed class ProjectMediaHostAdmissionTests
     {
         var (snapshot, _, _, _) = Fixed();
         var compiler = new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));
-        var artifact = await compiler.CompileAsync([new("src/NoOp.cs", """
-            using MakoKaraGenerator.Scripting;
-            public sealed class NoOp : EffectBase { }
-            """)]);
-        Assert.True(artifact.Succeeded, string.Join('\n', artifact.Diagnostics));
+        var files = new Dictionary<string, byte[]>(StringComparer.Ordinal)
+        {
+            ["src/NoOp.cs"] = System.Text.Encoding.UTF8.GetBytes("""
+                using MakoKaraGenerator.Scripting.V2;
+                public sealed class NoOp : IPureKaraokeEffect
+                {
+                    public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
+                    public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output) { }
+                }
+                """),
+        };
+        var manifest = V2PackageTestHelper.Manifest(files, ["token.affine"], "NoOp");
+        manifest["parameters"] = new JsonArray();
+        manifest["exports"]![0]!["parameters"] = new JsonArray();
+        manifest["exports"]![0]!["bindingKinds"] = new JsonArray("project");
+        var package = await CompiledEffectPackage.CompileAsync(
+            EffectPackageDefinition.Read(EffectPackageContents.CreateSupported(V2PackageTestHelper.Bytes(manifest), V2PackageTestHelper.Inputs(files))),
+            compiler);
+        Assert.True(package.Artifact.Succeeded, string.Join('\n', package.Artifact.Diagnostics));
         bool geometry = false;
-        var factory = new PureFrameSourceFactory([new(new("standalone"), artifact, "NoOp", ParameterValues.Empty,
-            new EffectBinding.Project(), EffectCapabilities.None)], snapshot.EffectInputsFingerprint!, () => { geometry = true; throw new InvalidOperationException(); });
+        var factory = new PureFrameSourceFactory([package.CreateEffect("scale", new("standalone"), new EffectBinding.Project(), 0)],
+            snapshot.EffectInputsFingerprint!, () => { geometry = true; throw new InvalidOperationException(); });
         var error = await Assert.ThrowsAsync<EffectOutputException>(async () => await factory.CreateAsync(snapshot));
         Assert.Equal("MediaFeatureBindingRequired", error.Code); Assert.False(geometry);
     }
@@ -162,15 +176,10 @@ public sealed class ProjectMediaHostAdmissionTests
     [InlineData("overlay")]
     public void 无query导出仍证明真实源实例和完整参数(string mode)
     {
-        var files = EffectPackageFixture.Files(); files["assets/image.png"] = [1, 2, 3];
-        var manifest = EffectPackageFixture.NineParametersManifest(files);
-        manifest["packageVersion"] = EffectPackageProfiles.V2.PackageVersion;
-        manifest["sdkVersion"] = EffectPackageProfiles.V2.SdkVersion;
-        manifest["shaderProfile"] = EffectPackageProfiles.V2.ShaderProfile;
-        manifest["requires"] = new JsonArray("token.affine");
-        manifest["lineExit"] = new JsonObject { ["durationUs"] = 0 }; manifest["emitters"] = new JsonArray();
+        var files = V2PackageTestHelper.Files(); files["assets/image.png"] = [1, 2, 3];
+        var manifest = V2PackageTestHelper.NineParametersManifest(files);
         manifest["exports"]![0]!["bindingKinds"] = new JsonArray("project", "branch");
-        var contents = EffectPackageContents.CreateSupported(EffectPackageFixture.Bytes(manifest), EffectPackageFixture.Inputs(files));
+        var contents = EffectPackageContents.CreateSupported(V2PackageTestHelper.Bytes(manifest), V2PackageTestHelper.Inputs(files));
         var package = EffectPackageDefinition.Read(contents); var catalog = EffectPackageMediaQueries.Read(contents);
         var instance = new ProjectEffectInstance { Id = "plain", Name = "Plain", PackageId = contents.PackageId,
             Revision = contents.Revision, ExportId = "scale", Parameters = EffectParameterOverrides.Parse("{\"peak\":2}") };

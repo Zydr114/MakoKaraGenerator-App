@@ -88,9 +88,9 @@ internal static class ProjectMediaProjectionFixture
     // A formally read descriptor only: no compiler, image decoder or author callback is run; no pending capability is opened.
     internal static CompiledFrameEffect NoQueryCompiledDescriptor(string overrides = "{}")
     {
-        var files = EffectPackageFixture.Files(); files["assets/image.png"] = [1, 2, 3];
-        var manifest = EffectPackageFixture.NineParametersManifest(files);
-        var contents = EffectPackageContents.Create(EffectPackageFixture.Bytes(manifest), EffectPackageFixture.Inputs(files), EffectPackageFixture.Profile);
+        var files = V2PackageTestHelper.Files(); files["assets/image.png"] = [1, 2, 3];
+        var manifest = V2PackageTestHelper.NineParametersManifest(files);
+        var contents = EffectPackageContents.Create(V2PackageTestHelper.Bytes(manifest), V2PackageTestHelper.Inputs(files), EffectPackageProfiles.V2);
         EffectPackageDefinition package = EffectPackageDefinition.Read(contents);
         ResourceCatalog resources = new(contents.PackageId, contents.Revision, [], [], ["assets/image.png"]);
         ParameterValues parameters = new(package.ResolveParameters("scale", EffectParameterOverrides.Parse(overrides).Encode())

@@ -1,3 +1,4 @@
+using MakoKaraGenerator.Scripting.V2;
 using Xunit;
 
 namespace MakoKaraGenerator.Scripting.Tests;
@@ -9,35 +10,39 @@ public sealed class StyleWriterContractTests
     private static readonly MaterialValue Red = MaterialValue.Solid(new(1, 0, 0, 1));
     private static readonly StyleView Basis = TestStyles.View(White, White, new(2, White), new(new(0, 0, 0, .5)), .5);
     private static readonly BaselineStyles Baseline = new([new(Target.TokenId, Basis)]);
-    private static TokenGeometrySample Geometry(bool independent = true) => new()
+    private static TextOutput Output(bool independent = true, params string[] capabilities)
     {
-        BranchId = new("branch"), LineId = new("line"), WithRuby = Target, BaseOnly = new(Target.TokenId, Target.BindingId),
-        BaseGeometry = new() { AdvanceBounds = new(10, 20, 50, 80), Baseline = new(10, 70), BaseWorldMatrix = Affine2.Identity,
-            CanTransformIndependently = independent, DiagnosticCode = independent ? null : "UnsupportedGlyphPartition" },
-        FamilyGeometry = new() { AdvanceBounds = new(10, 20, 50, 80), Baseline = new(10, 70), BaseWorldMatrix = Affine2.Identity },
-    };
+        var frame = V2PackageTestHelper.CreateTextFrame(independent: independent, baseline: Baseline);
+        return new(in frame, [.. capabilities.Length == 0
+            ? [CapabilityNames.StyleFill, CapabilityNames.StyleStroke, CapabilityNames.StyleShadow, CapabilityNames.TokenOpacity]
+            : capabilities]);
+    }
     [Fact]
     public void 写入需要声明能力真实装载目标且结束后不能复用()
     {
-        FrameWriter undeclared = new([Geometry()], EffectCapabilities.Transforms, Baseline);
-        Assert.Equal("UndeclaredCapability", Assert.Throws<EffectOutputException>(() => undeclared.Style.SetSungMaterial(Target, Red)).Code);
-        FrameWriter writer = new([Geometry()], EffectCapabilities.Style, Baseline);
-        Assert.Equal("TargetOutsideBinding", Assert.Throws<EffectOutputException>(() => writer.Style.SetSungMaterial(new TokenFamilyTarget(Target.TokenId, new("wrong")), Red)).Code);
-        writer.Style.SetSungMaterial(Target, Red);
-        Assert.Equal(Red, Assert.Single(writer.Complete().TokenStyles).Update.Apply(Basis).Sung.Fill);
-        Assert.Equal("InvalidOutputStage", Assert.Throws<EffectOutputException>(() => writer.Style.SetShadow(Target, null)).Code);
+        var undeclared = Output(capabilities: [CapabilityNames.TokenAffine]);
+        Assert.Equal("UndeclaredCapability", Assert.Throws<EffectOutputException>(() => undeclared.SetFill(new TextTarget.Family(Target), TextState.Sung, Red)).Code);
+        Assert.Equal("TargetOutsideBinding", Assert.Throws<EffectOutputException>(() => Output().SetFill(new TextTarget.Family(new TokenFamilyTarget(Target.TokenId, new("wrong"))), TextState.Sung, Red)).Code);
+        var output = Output();
+        output.SetFill(new TextTarget.Family(Target), TextState.Sung, Red);
+        var write = Assert.IsType<TextWrite.Fill>(Assert.Single(output.Complete().Writes));
+        Assert.Equal(Red, write.Material);
+        Assert.Equal("InvalidOutputStage", Assert.Throws<EffectOutputException>(() => output.SetShadow(new TextTarget.Family(Target), TextState.Unsung, null)).Code);
         Assert.Equal(White, Baseline.Get(Target).Sung.Fill);
     }
     [Fact]
     public void 未写入与显式关闭分开且后项Set可以恢复静态基线()
     {
-        FrameWriter writer = new([Geometry()], EffectCapabilities.Style, Baseline);
-        writer.Style.SetSungMaterial(Target, Red); writer.Style.SetSungMaterial(Target, White);
-        writer.Style.SetStroke(Target, null); writer.Style.SetShadow(Target, null);
-        writer.Style.MultiplyOpacity(Target, 2); writer.Style.MultiplyOpacity(Target, .25);
-        var result = Assert.Single(writer.Complete().TokenStyles).Update.Apply(Basis);
-        Assert.Equal(White, result.Sung.Fill); Assert.Equal(White, result.Unsung.Fill);
-        Assert.Null(result.Unsung.InnermostStroke); Assert.Null(result.Unsung.Shadow); Assert.Equal(.25, result.Opacity);
+        var output = Output();
+        var target = new TextTarget.Family(Target);
+        output.SetFill(target, TextState.Sung, Red); output.SetFill(target, TextState.Sung, White);
+        output.SetStrokes(target, TextState.Unsung); output.SetShadow(target, TextState.Unsung, null);
+        output.MultiplyOpacity(target, .5); output.MultiplyOpacity(target, .5);
+        var writes = output.Complete().Writes;
+        Assert.Equal(6, writes.Length);
+        Assert.Equal(White, Assert.IsType<TextWrite.Fill>(writes[1]).Material);
+        Assert.Empty(Assert.IsType<TextWrite.Strokes>(writes[2]).Layers);
+        Assert.Null(Assert.IsType<TextWrite.Shadow>(writes[3]).Value);
         Assert.Equal(Basis, new StyleUpdate().Apply(Basis));
         Assert.Equal(White, new StyleUpdate(sung: new(fill: Red)).Then(new(sung: new(fill: White))).Apply(Basis).Sung.Fill);
     }
@@ -53,13 +58,12 @@ public sealed class StyleWriterContractTests
         Assert.Equal("InvalidStyleOpacity", Assert.Throws<EffectOutputException>(() => new StyleUpdate(opacityFactor: 1e300).Then(new(opacityFactor: 1e300))).Code);
     }
     [Fact]
-    public void 共享字簇允许无变化写入但拒绝独立变色()
+    public void 共享字簇拒绝独立样式写入()
     {
-        FrameWriter writer = new([Geometry(false)], EffectCapabilities.Style, Baseline);
-        writer.Style.SetSungMaterial(Target, White);
-        Assert.Single(writer.Complete().TokenStyles);
-        FrameWriter changed = new([Geometry(false)], EffectCapabilities.Style, Baseline);
-        Assert.Equal("UnsupportedGlyphPartition", Assert.Throws<EffectOutputException>(() => changed.Style.SetSungMaterial(Target, Red)).Code);
+        var output = Output(independent: false);
+        Assert.Equal("UnsupportedGlyphPartition", Assert.Throws<EffectOutputException>(() => output.SetFill(new TextTarget.Family(Target), TextState.Sung, White)).Code);
+        var changed = Output(independent: false);
+        Assert.Equal("UnsupportedGlyphPartition", Assert.Throws<EffectOutputException>(() => changed.SetFill(new TextTarget.Family(Target), TextState.Sung, Red)).Code);
     }
     [Fact]
     public void 渐变保持色标原序硬边与完整参数且不猜基色()
@@ -99,8 +103,8 @@ public sealed class StyleWriterContractTests
     public void 包材质仅可引用固定资源修订()
     {
         var handle = new ResourceCatalog("package", "sha256:" + new string('a', 64), ["glass"], [], []).GetMaterial("glass");
-        FrameWriter writer = new([Geometry()], EffectCapabilities.Style, Baseline);
-        Assert.Equal("InvalidMaterialResource", Assert.Throws<EffectOutputException>(() => writer.Style.SetSungMaterial(Target,
+        var output = Output();
+        Assert.Equal("InvalidMaterialResource", Assert.Throws<EffectOutputException>(() => output.SetFill(new TextTarget.Family(Target), TextState.Sung,
             MaterialValue.PackageExport(handle, ParameterValues.Empty))).Code);
     }
 }

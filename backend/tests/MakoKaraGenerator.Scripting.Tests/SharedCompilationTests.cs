@@ -79,10 +79,10 @@ public sealed class SharedCompilationTests
     public async Task 参数默认值资源种子变化不Emit而源码仅重编所属包()
     {
         using TemporaryDirectory temporary = new(); var compiler = new ScriptCompiler(References, temporary.Path);
-        var files = EffectPackageFixture.Files();
-        var manifest = EffectPackageFixture.Manifest(files);
+        var files = V2PackageTestHelper.Files();
+        var manifest = V2PackageTestHelper.Manifest(files);
         EffectPackageDefinition Read() => EffectPackageDefinition.Read(EffectPackageContents.Create(
-            EffectPackageFixture.Bytes(manifest), EffectPackageFixture.Inputs(files), EffectPackageFixture.Profile));
+            V2PackageTestHelper.Bytes(manifest), V2PackageTestHelper.Inputs(files), EffectPackageProfiles.V2));
         var first = await CompiledEffectPackage.CompileAsync(Read(), compiler);
         var unrelated = await compiler.CompileAsync(Sources("\n// independent package"), ["Probe"]);
         Assert.Equal(2, compiler.CompilationCount);
@@ -90,12 +90,12 @@ public sealed class SharedCompilationTests
         var changedDefault = await CompiledEffectPackage.CompileAsync(Read(), compiler);
         _ = changedDefault.CreateEffect("scale", new("one"), new EffectBinding.Tokens([new("word")]), 10, "{\"peak\":2}"u8.ToArray());
         _ = changedDefault.CreateEffect("scale", new("two"), new EffectBinding.Tokens([new("word")]), 99, "{\"peak\":3}"u8.ToArray());
-        files["preview.bin"] = [7, 8, 9]; manifest = EffectPackageFixture.Manifest(files);
+        files["preview.bin"] = [7, 8, 9]; manifest = V2PackageTestHelper.Manifest(files);
         var changedResource = await CompiledEffectPackage.CompileAsync(Read(), compiler);
         Assert.Equal(first.Artifact.ArtifactHash, changedDefault.Artifact.ArtifactHash);
         Assert.Equal(first.Artifact.ArtifactHash, changedResource.Artifact.ArtifactHash); Assert.Equal(2, compiler.CompilationCount);
-        files["src/PackEffect.cs"] = Encoding.UTF8.GetBytes(EffectPackageFixture.EffectSource + "\n// changed source");
-        manifest = EffectPackageFixture.Manifest(files);
+        files["src/PackEffect.cs"] = Encoding.UTF8.GetBytes(V2PackageTestHelper.EffectSource + "\n// changed source");
+        manifest = V2PackageTestHelper.Manifest(files);
         var changedSource = await CompiledEffectPackage.CompileAsync(Read(), compiler);
         Assert.NotEqual(first.Artifact.ArtifactHash, changedSource.Artifact.ArtifactHash);
         Assert.Equal(unrelated.ArtifactHash, (await compiler.CompileAsync(Sources("\n// independent package"), ["Probe"])).ArtifactHash);

@@ -25,6 +25,13 @@ EXTRA_SCENARIOS = ("ruby", "multi", "video")
 VARIANTS = ("baseline", "instrumented")
 BACKENDS = ("cpu", "vulkan")
 AB_VARIANTS = ("old", "new", "old-instrumented", "new-instrumented")
+
+
+def parse_backends(value):
+    items = value.split(",") if isinstance(value, str) else list(value)
+    if not items or any(item not in BACKENDS for item in items):
+        raise ValueError("unknown backend")
+    return tuple(dict.fromkeys(items))
 MONITORING_MODES = ("off", "summary", "detailed")
 MONITORING_POLICY = "All inherited MAKO_PERFORMANCE* selectors are removed. Main A/B and isolated traces explicitly use off; monitoring overhead uses separate off/summary/detailed processes."
 
@@ -402,6 +409,9 @@ def run(args):
     scenarios = args.scenarios.split(",")
     if not scenarios or any(x not in SCENARIOS + EXTRA_SCENARIOS for x in scenarios):
         raise ValueError("unknown scenario")
+    backends = parse_backends(getattr(args, "backends", ",".join(BACKENDS)))
+    if hasattr(args, "backends"):
+        args.backends = ",".join(backends)
     variants = args.variants.split(",")
     if not variants or len(set(variants)) != len(variants) or any(x not in available_variants for x in variants):
         raise ValueError("unknown build variant")
@@ -438,7 +448,7 @@ def run(args):
     write_json(run_root / "manifest.json", manifest)
     for round_index in range(args.rounds):
         # Alternate both backend and build ordering to reduce a fixed first/last bias.
-        backend_order = BACKENDS if round_index % 2 == 0 else tuple(reversed(BACKENDS))
+        backend_order = backends if len(backends) == 1 or round_index % 2 == 0 else tuple(reversed(backends))
         schedule = [(variant, mode) for variant in variants for mode in (MONITORING_MODES if monitoring else ("off",))]
         variant_order = schedule if round_index % 2 == 0 else list(reversed(schedule))
         for scenario in scenarios:
@@ -524,6 +534,8 @@ def main():
         run_args.add_argument("--output", required=True)
         run_args.add_argument("--label", required=True)
         run_args.add_argument("--scenarios", default=",".join(SCENARIOS))
+        run_args.add_argument("--backends", default=",".join(BACKENDS),
+                              help="comma-separated subset of cpu,vulkan (default: cpu,vulkan)")
         if action == "run":
             run_args.add_argument("--variants", default=",".join(VARIANTS))
         else:

@@ -141,19 +141,22 @@ class AnalysisTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
 
-    def make_run(self, label, counterfactual="none", pixel="a", frame_count=2, variants=("baseline", "instrumented")):
+    def make_run(self, label, counterfactual="none", pixel="a", frame_count=2, variants=("baseline", "instrumented"),
+                 backends=("cpu", "vulkan")):
         folder = self.root / "runs" / label
         folder.mkdir(parents=True)
         records = []
-        for backend in ("cpu", "vulkan"):
+        for backend in backends:
             for variant in variants:
                 filename = backend + "-" + variant + ".json"
                 write_json(folder / filename, sample(backend, variant, counterfactual, pixel, frame_count))
                 records.append({"name": backend + "-" + variant, "round": 1, "scenario": "material", "backend": backend,
                                 "variant": variant, "identity": {"pid": 42, "startTicks": 123},
                                 "exitCode": 0, "exited": True, "result": filename})
-        write_json(folder / "manifest.json", {"complete": True, "arguments": {"rounds": 1, "scenarios": "material",
-                                                                               "variants": ",".join(variants)},
+        arguments = {"rounds": 1, "scenarios": "material", "variants": ",".join(variants)}
+        if tuple(backends) != bench.BACKENDS:
+            arguments["backends"] = ",".join(backends)
+        write_json(folder / "manifest.json", {"complete": True, "arguments": arguments,
                                                "runs": records})
         return folder
 
@@ -411,6 +414,65 @@ class AnalysisTests(unittest.TestCase):
                         with self.assertRaisesRegex(ValueError, "contribution requires complete, validated runs"):
                             analyze.contribution(self.root, "control", "disabled")
                     path.write_text(original, encoding="utf-8")
+
+    def test_single_backend_selection_validation_and_ordering(self):
+        self.assertEqual(("cpu", "vulkan"), bench.parse_backends("cpu,vulkan"))
+        self.assertEqual(("vulkan",), bench.parse_backends("vulkan"))
+        self.assertEqual(("vulkan", "cpu"), bench.parse_backends("vulkan,cpu,vulkan"))
+        for invalid in ("", "gpu", "cpu,,vulkan"):
+            with self.subTest(backends=invalid), self.assertRaises(ValueError):
+                bench.parse_backends(invalid)
+
+        folder = self.make_run("vulkan-only", backends=("vulkan",))
+        self.run_analyze("vulkan-only")
+        summary = json.loads((folder / "summary.json").read_text(encoding="utf-8"))
+        self.assertEqual({"vulkan"}, {item["backend"] for item in summary["groups"]})
+        self.assertEqual([], analyze.matrix_errors(json.loads((folder / "manifest.json").read_text(encoding="utf-8"))))
+
+        bad_missing = self.make_run("vulkan-missing-run", backends=("vulkan",))
+        self.edit_json(bad_missing / "manifest.json", lambda manifest: manifest["runs"].pop())
+        self.run_analyze("vulkan-missing-run", "incomplete, duplicated or unexpected")
+
+        bad_unexpected = self.make_run("vulkan-unexpected-cpu")
+        self.edit_json(bad_unexpected / "manifest.json", lambda manifest: manifest["arguments"].update(backends="vulkan"))
+        self.run_analyze("vulkan-unexpected-cpu", "incomplete, duplicated or unexpected")
+
+        bad_value = self.make_run("vulkan-invalid-arg", backends=("vulkan",))
+        self.edit_json(bad_value / "manifest.json", lambda manifest: manifest["arguments"].update(backends="gpu"))
+        self.run_analyze("vulkan-invalid-arg", "invalid backend matrix")
+
+        control = self.make_run("vulkan-control", counterfactual="none", pixel="a", variants=("old", "new"), backends=("vulkan",))
+        disabled = self.make_run("vulkan-disabled", counterfactual="material", pixel="b", variants=("old", "new"), backends=("vulkan",))
+        self.run_analyze("vulkan-control")
+        self.run_analyze("vulkan-disabled")
+        with contextlib.redirect_stdout(io.StringIO()):
+            analyze.contribution(self.root, "vulkan-control", "vulkan-disabled")
+        contribution = json.loads((disabled / "contribution.json").read_text(encoding="utf-8"))
+        self.assertTrue(contribution["valid"])
+        self.assertEqual({"vulkan"}, {item["backend"] for item in contribution["comparisons"]})
+
+        (self.root / "prepare.json").write_text(json.dumps({"toolCommit": "test"}))
+        (self.root / "build-inputs.json").write_text("{}")
+        args = SimpleNamespace(output=str(self.root), label="vulkan-bench", warmup=0, frames=1, rounds=2,
+            scenarios="material", backends="vulkan,vulkan", variants="baseline", action="run", mode="sequential",
+            times_us=None, width=2, height=2, video_width=320, video_height=240, transparent=False,
+            counterfactual="none", timeout=1, pause=0)
+        process = mock.Mock(pid=123, args=["runner"])
+        def fake_popen(command, **kwargs):
+            out_path = Path(command[command.index("--output") + 1])
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text("{}", encoding="utf-8")
+            return process
+        with mock.patch.object(bench.subprocess, "Popen", side_effect=fake_popen), \
+             mock.patch.object(bench, "child_identity", return_value={"pid": 123, "startTicks": 1}), \
+             mock.patch.object(bench, "wait_observing", return_value=0), \
+             mock.patch.object(bench, "exists", return_value=False), \
+             contextlib.redirect_stdout(io.StringIO()):
+            bench.run(args)
+        manifest = json.loads((self.root / "runs/vulkan-bench/manifest.json").read_text(encoding="utf-8"))
+        self.assertTrue(manifest["complete"])
+        self.assertEqual("vulkan", manifest["arguments"]["backends"])
+        self.assertEqual([(1, "vulkan"), (2, "vulkan")], [(r["round"], r["backend"]) for r in manifest["runs"]])
 
 
 if __name__ == "__main__":

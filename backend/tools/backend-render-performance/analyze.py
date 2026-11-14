@@ -36,8 +36,12 @@ def matrix_errors(manifest):
     modes = tuple(manifest.get("monitoringModes", ["off"]))
     if not modes or any(mode not in {"off", "summary", "detailed"} for mode in modes):
         return ["invalid monitoring mode matrix"]
+    try:
+        backends = bench.parse_backends(args.get("backends", ",".join(bench.BACKENDS)))
+    except (ValueError, TypeError):
+        return ["invalid backend matrix"]
     expected = {(r, s, b, v) for r in range(1, args["rounds"] + 1)
-                for s in args["scenarios"].split(",") for b in ("cpu", "vulkan")
+                for s in args["scenarios"].split(",") for b in backends
                 for v in args["variants"].split(",")}
     expected = {(r, s, b, v, mode) for r, s, b, v in expected for mode in modes}
     records = [(r["round"], r["scenario"], r["backend"], r["variant"], r.get("monitoringMode", "off")) for r in manifest["runs"]]

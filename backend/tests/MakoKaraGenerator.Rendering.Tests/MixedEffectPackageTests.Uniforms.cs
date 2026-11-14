@@ -9,8 +9,14 @@ namespace MakoKaraGenerator.Rendering.Tests;
 
 public sealed partial class MixedEffectPackageTests
 {
+    private static void RequireCapabilities(JsonObject manifest, params string[] capabilities)
+    {
+        var requires = manifest["requires"]!.AsArray();
+        foreach (string capability in capabilities)
+            if (!requires.Any(node => node?.GetValue<string>() == capability)) requires.Add(capability);
+    }
     private static string UniformSource(string calls) => MixedEffectPackageFixture.MaterialSource.Replace(
-        "output.Style.SetSungMaterial(token.WithRuby, material);", "output.Style.SetSungMaterial(token.WithRuby, material);\n" + calls);
+        "output.SetFill(token.WithRuby, TextState.Both, material);", "{\noutput.SetFill(token.WithRuby, TextState.Both, material);\n" + calls + "\n}");
     private static async Task<(byte[] Pixels, PreparedRenderFrame Frame)> RenderUniform(CompiledEffectPackage package,
         long timeUs = 1_000_000, int density = 1)
     {
@@ -29,16 +35,20 @@ public sealed partial class MixedEffectPackageTests
     [InlineData("UnsungFill", 1)] [InlineData("SungFill", 2)] [InlineData("Stroke", 1)]
     public async Task 真实作者节点uniform只改变指定部位且基础字与注音共用(string slot, int density)
     {
-        string prefix = "output.Style.SetStroke(token.WithRuby,new(4,material));\n";
+        string prefix = "output.SetStrokes(token.WithRuby,TextState.Both,new StrokeValue(4,material));\n";
         // 描边材质槽按两态拆开（0.112.82）：两态同写的描边在两个描边槽各有一份绑定，两槽写同一 uniform 才与直接写参数等价。
         string[] slots = slot == "Stroke" ? ["UnsungStroke", "SungStroke"] : [slot];
         string actualSource = UniformSource(prefix + string.Concat(slots.Select(s =>
-            $"output.Materials.SetUniform(frame.Resources.GetMaterial(\"ink\"),token.WithRuby,MaterialSlot.{s},\"probe\",\"amount\",UniformValue.Float(.8));")));
-        string method = slot switch { "UnsungFill" => "SetUnsungMaterial", "SungFill" => "SetSungMaterial", _ => "SetStroke" };
+            $"output.SetMaterialUniform(token.WithRuby,MaterialSlot.{s},frame.Resources.GetMaterial(\"ink\"),\"probe\",\"amount\",UniformValue.Float(.8));")));
         string material = "MaterialValue.PackageExport(frame.Resources.GetMaterial(\"ink\"),new([new(\"amount\",new ParameterValue.Number(.8))]))";
-        string argument = slot == "Stroke" ? "new(4," + material + ")" : material;
-        var actual = await Compile(MixedEffectPackageFixture.MaterialContents(controllerSource: actualSource));
-        var reference = await Compile(MixedEffectPackageFixture.MaterialContents(controllerSource: UniformSource(prefix + $"output.Style.{method}(token.WithRuby,{argument});")));
+        string write = slot switch
+        {
+            "UnsungFill" => $"output.SetFill(token.WithRuby,TextState.Unsung,{material});",
+            "SungFill" => $"output.SetFill(token.WithRuby,TextState.Sung,{material});",
+            _ => $"output.SetStrokes(token.WithRuby,TextState.Both,new StrokeValue(4,{material}));",
+        };
+        var actual = await Compile(MixedEffectPackageFixture.MaterialContents(manifest => RequireCapabilities(manifest, "style.stroke", "material.uniform"), controllerSource: actualSource));
+        var reference = await Compile(MixedEffectPackageFixture.MaterialContents(manifest => RequireCapabilities(manifest, "style.stroke"), controllerSource: UniformSource(prefix + write)));
         var a = await RenderUniform(actual, density: density); var b = await RenderUniform(reference, density: density);
         Assert.Equal(b.Pixels, a.Pixels); Assert.Equal(4, a.Frame.Materials.Length);
         var modified = a.Frame.Materials.Where(binding => !binding.Material.Uniforms.Values.IsEmpty).ToArray();
@@ -61,11 +71,11 @@ public sealed partial class MixedEffectPackageTests
         }
         string source = UniformSource("""
             foreach(var slot in new[]{MaterialSlot.UnsungFill,MaterialSlot.SungFill}) {
-                output.Materials.SetUniform(frame.Resources.GetMaterial("ink"),token.WithRuby,slot,"probe","amount",UniformValue.Float(.25));
-                output.Materials.SetUniform(frame.Resources.GetMaterial("ink"),token.WithRuby,slot,"after","amount",UniformValue.Float(.8));
+                output.SetMaterialUniform(token.WithRuby,slot,frame.Resources.GetMaterial("ink"),"probe","amount",UniformValue.Float(.25));
+                output.SetMaterialUniform(token.WithRuby,slot,frame.Resources.GetMaterial("ink"),"after","amount",UniformValue.Float(.8));
             }
             """);
-        var actual = await Compile(MixedEffectPackageFixture.MaterialContents(controllerSource: source, graphChange: Graph));
+        var actual = await Compile(MixedEffectPackageFixture.MaterialContents(manifest => RequireCapabilities(manifest, "material.uniform"), controllerSource: source, graphChange: Graph));
         var reference = await Compile(MixedEffectPackageFixture.MaterialContents(graphChange: graph =>
         { Graph(graph); graph["nodes"]![0]!["uniforms"]!["amount"] = .25; graph["nodes"]![1]!["uniforms"]!["amount"] = .8; }));
         var a = await RenderUniform(actual); var b = await RenderUniform(reference);
@@ -76,12 +86,15 @@ public sealed partial class MixedEffectPackageTests
     [InlineData(false)] [InlineData(true)]
     public async Task 同实例再Set清除覆盖且坏早期写入不能由后来Set隐藏(bool invalidEarly)
     {
-        string source = UniformSource($"output.Materials.SetUniform(frame.Resources.GetMaterial(\"ink\"),token.WithRuby,MaterialSlot.SungFill,\"probe\",\"{(invalidEarly ? "unknown" : "amount")}\",UniformValue.Float(.9));\noutput.Style.SetSungMaterial(token.WithRuby,material);");
-        var package = await Compile(MixedEffectPackageFixture.MaterialContents(controllerSource: source));
+        string earlyWrite = invalidEarly
+            ? "try { output.SetMaterialUniform(token.WithRuby,MaterialSlot.SungFill,frame.Resources.GetMaterial(\"ink\"),\"probe\",\"amount\",UniformValue.Float(1e100)); } catch (EffectOutputException) { }"
+            : "output.SetMaterialUniform(token.WithRuby,MaterialSlot.SungFill,frame.Resources.GetMaterial(\"ink\"),\"probe\",\"amount\",UniformValue.Float(.9));";
+        string source = UniformSource($"{earlyWrite}\noutput.SetFill(token.WithRuby,TextState.Sung,material);");
+        var package = await Compile(MixedEffectPackageFixture.MaterialContents(manifest => RequireCapabilities(manifest, "material.uniform"), controllerSource: source));
         if (invalidEarly)
         {
             var failure = await Assert.ThrowsAsync<EffectFailureException>(() => RenderUniform(package));
-            Assert.Equal("MaterialUniformUnknown", failure.Code); Assert.Equal(new Fx.EffectInstanceId("uniform"), failure.InstanceId);
+            Assert.Equal("ShaderUniformNativeRange", failure.Code); Assert.Equal(new Fx.EffectInstanceId("uniform"), failure.InstanceId);
         }
         else
         {
@@ -96,10 +109,9 @@ public sealed partial class MixedEffectPackageTests
     {
         string source = UniformSource("""
             if(frame.Parameters.GetNumber("amount")>.6)
-                output.Materials.SetUniform(frame.Resources.GetMaterial("ink"),token.WithRuby,MaterialSlot.SungFill,"probe","amount",UniformValue.Float(.9));
-            """).Replace("output.Style.SetUnsungMaterial(token.WithRuby, material);", "if(frame.Parameters.GetNumber(\"amount\")<=.6) output.Style.SetUnsungMaterial(token.WithRuby, material);")
-            .Replace("output.Style.SetSungMaterial(token.WithRuby, material);", "if(frame.Parameters.GetNumber(\"amount\")<=.6) output.Style.SetSungMaterial(token.WithRuby, material);");
-        var package = await Compile(MixedEffectPackageFixture.MaterialContents(controllerSource: source));
+                output.SetMaterialUniform(token.WithRuby,MaterialSlot.SungFill,frame.Resources.GetMaterial("ink"),"probe","amount",UniformValue.Float(.9));
+            """).Replace("output.SetFill(token.WithRuby, TextState.Both, material);", "if(frame.Parameters.GetNumber(\"amount\")<=.6) output.SetFill(token.WithRuby, TextState.Both, material);");
+        var package = await Compile(MixedEffectPackageFixture.MaterialContents(manifest => RequireCapabilities(manifest, "material.uniform"), controllerSource: source));
         var effects = new List<CompiledFrameEffect> { package.CreateEffect("controller", new("base"), new Fx.EffectBinding.Project(), 1),
             package.CreateEffect("controller", new("override"), new Fx.EffectBinding.Project(), 2, "{\"amount\":0.8}"u8.ToArray()) };
         if (reset) effects.Add(package.CreateEffect("controller", new("reset"), new Fx.EffectBinding.Project(), 3, "{\"amount\":0.3}"u8.ToArray()));
@@ -127,9 +139,10 @@ public sealed partial class MixedEffectPackageTests
         string node = change == "node" ? "missing" : "probe", name = change == "name" ? "missing" : "amount";
         string value = change switch { "type" => "UniformValue.Int(1)", "array" => "UniformValue.Array(new[]{UniformValue.Float(.5)})",
             "overflow" => "UniformValue.Float(1e100)", "underflow" => "UniformValue.Float(1e-100)", _ => "UniformValue.Float(.5)" };
-        string source = UniformSource($"output.Materials.SetUniform(frame.Resources.GetMaterial(\"ink\"),token.WithRuby,MaterialSlot.SungFill,\"{node}\",\"{name}\",{value});");
-        if (change == "identity") source = source.Replace("output.Style.SetSungMaterial(token.WithRuby, material);", "output.Style.SetSungMaterial(token.WithRuby,MaterialValue.Solid(new(1,1,1,1)));");
-        var package = await Compile(MixedEffectPackageFixture.MaterialContents(background: true, controllerSource: source));
+        string source = UniformSource($"output.SetMaterialUniform(token.WithRuby,MaterialSlot.SungFill,frame.Resources.GetMaterial(\"ink\"),\"{node}\",\"{name}\",{value});");
+        if (change == "identity") source = source.Replace("output.SetFill(token.WithRuby, TextState.Both, material);",
+            "output.SetFill(token.WithRuby,TextState.Unsung,material);\noutput.SetFill(token.WithRuby,TextState.Sung,MaterialValue.Solid(new ColorRgba(1,1,1,1)));");
+        var package = await Compile(MixedEffectPackageFixture.MaterialContents(manifest => RequireCapabilities(manifest, "material.uniform"), background: true, controllerSource: source));
         var failure = await Assert.ThrowsAsync<EffectFailureException>(() => RenderUniform(package));
         Assert.Equal(code, failure.Code); Assert.Equal(new Fx.EffectInstanceId("uniform"), failure.InstanceId);
         Assert.Equal(package.Artifact.ArtifactHash, failure.ArtifactHash); Assert.Equal(1_000_000, failure.TimeUs);
@@ -138,9 +151,13 @@ public sealed partial class MixedEffectPackageTests
     [Fact]
     public async Task 前奏标记使用真实部位覆盖且重新求值不保留前一帧值()
     {
-        string source = UniformSource("output.Materials.SetUniform(frame.Resources.GetMaterial(\"ink\"),token.WithRuby,MaterialSlot.UnsungFill,\"probe\",\"amount\",UniformValue.Float(frame.TimeUs/20000000d));")
+        string source = UniformSource("output.SetMaterialUniform(token.WithRuby,MaterialSlot.UnsungFill,frame.Resources.GetMaterial(\"ink\"),\"probe\",\"amount\",UniformValue.Float(frame.TimeUs/20000000d));")
             .Replace("TokensInBinding", "MarksInBinding").Replace("token.WithRuby", "token.Target");
-        var package = await Compile(MixedEffectPackageFixture.MaterialContents(manifest => manifest["exports"]![0]!["outputs"]![0]!["target"] = "textMark", controllerSource: source));
+        var package = await Compile(MixedEffectPackageFixture.MaterialContents(manifest =>
+        {
+            RequireCapabilities(manifest, "material.uniform");
+            manifest["exports"]![0]!["outputs"]![0]!["target"] = "textMark";
+        }, controllerSource: source));
         var snapshot = ProjectSnapshot.FromProject(LeadInFixture.Create(true, true)) with { EffectInputsFingerprint = Fingerprint };
         await using var frames = await new PureFrameSourceFactory([package.CreateEffect("controller", new("mark"), new Fx.EffectBinding.Project(), 1)],
             Fingerprint, static () => new SkiaRenderPipeline()).CreateAsync(snapshot);

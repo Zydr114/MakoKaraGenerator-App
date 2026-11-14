@@ -20,10 +20,14 @@ public sealed partial class MixedEffectPackageTests
     public async Task 真正CSharp材质经准备帧主Render限制在字形并保持注音与局部alpha(string mode, bool stroke, int density)
     {
         var source = MixedEffectPackageFixture.MaterialSource;
-        if (stroke) source = source.Replace("output.Style.SetUnsungMaterial(token.WithRuby, material);", "output.Style.SetStroke(token.WithRuby,new(4,material));");
+        if (stroke) source = source.Replace("output.SetFill(token.WithRuby, TextState.Both, material);",
+            "{\noutput.SetFill(token.WithRuby, TextState.Sung, material);\noutput.SetStrokes(token.WithRuby, TextState.Both, new StrokeValue(4, material));\n}");
         string? shader = mode == "unmasked" ? "uniform float amount; uniform shader original; half4 main(float2 p) { return half4(amount,0,original.eval(p).a*.001,1); }" : null;
-        var package = await Compile(MixedEffectPackageFixture.MaterialContents(manifest => manifest["exports"]![1]!["coverageMode"]=mode,
-            controllerSource: source, shaderSource: shader));
+        var package = await Compile(MixedEffectPackageFixture.MaterialContents(manifest =>
+        {
+            manifest["exports"]![1]!["coverageMode"] = mode;
+            if (stroke) RequireCapabilities(manifest, "style.stroke");
+        }, controllerSource: source, shaderSource: shader));
         Assert.True(package.Succeeded, string.Join('\n',package.Artifact.Diagnostics));
         var snapshot = Snapshot(); var effect = package.CreateEffect("controller",new("material"),new Fx.EffectBinding.Project(),1);
         await using var session = await new PureFrameSourceFactory([effect],Fingerprint,static()=>new SkiaRenderPipeline()).CreateAsync(snapshot);
@@ -90,7 +94,7 @@ public sealed partial class MixedEffectPackageTests
     public async Task 真正材质包在作者求值时校验完整参数与绑定区域(string change,string code)
     {
         var source=MixedEffectPackageFixture.MaterialSource;
-        if(change=="missing")source=source.Replace("new([new(\"amount\",new ParameterValue.Number(frame.Parameters.GetNumber(\"amount\")))]))","ParameterValues.Empty)");
+        if(change=="missing")source=source.Replace("new([new(\"amount\", new ParameterValue.Number(frame.Parameters.GetNumber(\"amount\")))])","ParameterValues.Empty");
         if(change=="range")source=source.Replace("frame.Parameters.GetNumber(\"amount\")","2");
         var package=await Compile(MixedEffectPackageFixture.MaterialContents(manifest=>
         { if(change=="region")manifest["exports"]![1]!["regions"]=new JsonArray("stroke"); },controllerSource:source));
@@ -105,9 +109,8 @@ public sealed partial class MixedEffectPackageTests
     public async Task 后续alpha写入不抢走材质归属且恢复纯色会删除区域绑定()
     {
         var material=await Compile(MixedEffectPackageFixture.MaterialContents());
-        string alphaSource=MixedEffectPackageFixture.MaterialSource.Replace("output.Style.SetUnsungMaterial(token.WithRuby, material);","output.Style.MultiplyOpacity(token.WithRuby,.5);")
-            .Replace("output.Style.SetSungMaterial(token.WithRuby, material);","");
-        var alpha=await Compile(MixedEffectPackageFixture.MaterialContents(controllerSource:alphaSource));
+        string alphaSource=MixedEffectPackageFixture.MaterialSource.Replace("output.SetFill(token.WithRuby, TextState.Both, material);","output.MultiplyOpacity(token.WithRuby,.5);");
+        var alpha=await Compile(MixedEffectPackageFixture.MaterialContents(manifest=>RequireCapabilities(manifest,"token.opacity"),controllerSource:alphaSource));
         var snapshot=Snapshot();
         await using var session=await new PureFrameSourceFactory([
             material.CreateEffect("controller",new("owner"),new Fx.EffectBinding.Project(),1),alpha.CreateEffect("controller",new("alpha"),new Fx.EffectBinding.Project(),1)],
@@ -119,8 +122,8 @@ public sealed partial class MixedEffectPackageTests
         using var renderer=new SkiaRenderPipeline(null,null,null,resources);
         using var actual=renderer.Render(RenderRequest.At(snapshot,prepared.TimeUs) with { PreparedFrame=prepared,TransparentBackground=true });
         Assert.Contains(actual.PixelMemory.ToArray().Where((_,i)=>i%4==3),a=>a>0);
-        string resetSource=MixedEffectPackageFixture.MaterialSource.Replace("material);","frame.Baseline.Get(token.WithRuby).Unsung.Fill);")
-            .Replace("output.Style.SetSungMaterial(token.WithRuby, frame.Baseline.Get(token.WithRuby).Unsung.Fill);","output.Style.SetSungMaterial(token.WithRuby,frame.Baseline.Get(token.WithRuby).Sung.Fill);");
+        string resetSource=MixedEffectPackageFixture.MaterialSource.Replace("output.SetFill(token.WithRuby, TextState.Both, material);",
+            "{\noutput.SetFill(token.WithRuby, TextState.Unsung, frame.Baseline.Get(token.WithRuby).Unsung.Fill);\noutput.SetFill(token.WithRuby, TextState.Sung, frame.Baseline.Get(token.WithRuby).Sung.Fill);\n}");
         var reset=await Compile(MixedEffectPackageFixture.MaterialContents(controllerSource:resetSource));
         await using var resetSession=await new PureFrameSourceFactory([material.CreateEffect("controller",new("first"),new Fx.EffectBinding.Project(),1),
             reset.CreateEffect("controller",new("reset"),new Fx.EffectBinding.Project(),1)],Fingerprint,static()=>new SkiaRenderPipeline()).CreateAsync(snapshot);
@@ -131,12 +134,15 @@ public sealed partial class MixedEffectPackageTests
     {
         string source=MixedEffectPackageFixture.MaterialSource.Replace("    }\n}", """
                 foreach(var line in frame.Presentations.LinesInBinding)
-                    output.ImageEffects.Bind(line.Target,frame.Resources.GetGraph("tint"),new([new("amount",new ParameterValue.Number(.5))]));
+                    output.BindGraph(line.Target,new(frame.Resources.GetGraph("tint"),new([new("amount",new ParameterValue.Number(.5))]),GraphUniformValues.Empty,GraphTransformValues.Empty));
             }
         }
         """);
         var package=await Compile(MixedEffectPackageFixture.MaterialContents(manifest=>
-        { var output=MixedEffectPackageFixture.Output("line");output.Remove("bypass");manifest["exports"]![0]!["outputs"]!.AsArray().Add(output); },controllerSource:source));
+        {
+            RequireCapabilities(manifest, "image.graph");
+            var output=MixedEffectPackageFixture.Output("line");output.Remove("bypass");manifest["exports"]![0]!["outputs"]!.AsArray().Add(output);
+        },controllerSource:source));
         Assert.True(package.Succeeded,string.Join('\n',package.Artifact.Diagnostics));
         var snapshot=Snapshot();await using var session=await new PureFrameSourceFactory([package.CreateEffect("controller",new("chain"),new Fx.EffectBinding.Project(),1)],
             Fingerprint,static()=>new SkiaRenderPipeline()).CreateAsync(snapshot);
@@ -160,9 +166,8 @@ public sealed partial class MixedEffectPackageTests
     {
         var package=await Compile(MixedEffectPackageFixture.MaterialContents(shaderSource:
             "uniform float amount; uniform shader original; half4 main(float2 p) { return half4(amount,0,original.eval(p).a*.001,1); }"));
-        string alphaSource=MixedEffectPackageFixture.MaterialSource.Replace("output.Style.SetUnsungMaterial(token.WithRuby, material);","output.Style.MultiplyOpacity(token.WithRuby,.5);")
-            .Replace("output.Style.SetSungMaterial(token.WithRuby, material);","");
-        var alpha=await Compile(MixedEffectPackageFixture.MaterialContents(controllerSource:alphaSource));
+        string alphaSource=MixedEffectPackageFixture.MaterialSource.Replace("output.SetFill(token.WithRuby, TextState.Both, material);","output.MultiplyOpacity(token.WithRuby,.5);");
+        var alpha=await Compile(MixedEffectPackageFixture.MaterialContents(manifest=>RequireCapabilities(manifest,"token.opacity"),controllerSource:alphaSource));
         var snapshot=Snapshot();await using var session=await new PureFrameSourceFactory([package.CreateEffect("controller",new("bad-material"),new Fx.EffectBinding.Project(),1),
             alpha.CreateEffect("controller",new("later-alpha"),new Fx.EffectBinding.Project(),1)],Fingerprint,static()=>new SkiaRenderPipeline()).CreateAsync(snapshot);
         var prepared=await session.PrepareAsync(1_000_000,Fx.OutputMode.Transparent,RenderTarget.FromComposition(snapshot.Composition));

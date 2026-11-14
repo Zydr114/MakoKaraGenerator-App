@@ -155,12 +155,13 @@ public sealed class GroupOpacityIsolationTests
             "tokens" => new Fx.EffectBinding.Tokens([new("first-a")]), _ => new Fx.EffectBinding.Clips([new("chorus-clip")]) };
         var effect = (await Package.Value).CreateEffect("group-opacity", new("package"), binding, 1, JsonSerializer.SerializeToUtf8Bytes(new { node = root }));
         await using var source = await new PureFrameSourceFactory([effect], Fingerprint, static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
+        long timeUs = kind == "clips" ? 40_000_000L : 10_000_000L;
         if (!allowed)
         {
-            var error = await Assert.ThrowsAsync<EffectFailureException>(async () => await source.PrepareAsync(10_000_000, Fx.OutputMode.Transparent, new() { PixelWidth = 640, PixelHeight = 360 }));
+            var error = await Assert.ThrowsAsync<EffectFailureException>(async () => await source.PrepareAsync(timeUs, Fx.OutputMode.Transparent, new() { PixelWidth = 640, PixelHeight = 360 }));
             Assert.Equal("TargetOutsideBinding", error.Code); Assert.Equal("package", error.InstanceId.Value); return;
         }
-        var frame = await source.PrepareAsync(10_000_000, Fx.OutputMode.Transparent, new() { PixelWidth = 640, PixelHeight = 360 });
+        var frame = await source.PrepareAsync(timeUs, Fx.OutputMode.Transparent, new() { PixelWidth = 640, PixelHeight = 360 });
         Assert.Equal(.5, Assert.Single(frame.GroupOpacities).Opacity.Factor); Assert.Empty(frame.TokenStyles);
         using var renderer = new SkiaRenderPipeline(); var request = RenderRequest.At(snapshot, frame.TimeUs) with { Target = frame.Target, TransparentBackground = true, PreparedFrame = frame };
         using var pixels = renderer.Render(request); Close(CapturedReference(request, .5), pixels.Pixels.ToArray());
@@ -190,14 +191,27 @@ public sealed class GroupOpacityIsolationTests
     [Fact]
     public async Task 包声明元素外观不能借Style能力输出组透明度()
     {
-        var package = await CompiledEffectPackage.CompileAsync(EffectPackageDefinition.Read(EffectPackageFixture.GroupOpacity(declaresGroup: false)),
-            new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")));
-        Assert.True(package.Artifact.Succeeded);
+        var compiler = new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));
         var snapshot = ProjectSnapshot.FromProject(LeadInFixture.Create()) with { EffectInputsFingerprint = Fingerprint };
+        var target = RenderTarget.FromComposition(snapshot.Composition);
+        var noCap = await CompiledEffectPackage.CompileAsync(EffectPackageDefinition.Read(EffectPackageFixture.GroupOpacity(declaresGroup: false)), compiler);
+        Assert.True(noCap.Artifact.Succeeded);
+        await using var noCapSource = await new PureFrameSourceFactory([noCap.CreateEffect("group-opacity", new("no-cap"), new Fx.EffectBinding.Node(new(Root(snapshot)), false), 1,
+            JsonSerializer.SerializeToUtf8Bytes(new { node = Root(snapshot) }))], Fingerprint, static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
+        var noCapError = await Assert.ThrowsAsync<EffectFailureException>(async () => await noCapSource.PrepareAsync(10_000_000, Fx.OutputMode.Transparent, target));
+        Assert.Equal("UndeclaredCapability", noCapError.Code); Assert.Equal("no-cap", noCapError.InstanceId.Value);
+
+        var raw = EffectPackageFixture.GroupOpacity(declaresGroup: false);
+        var manifest = System.Text.Json.Nodes.JsonNode.Parse(raw.Manifest.AsSpan())!.AsObject();
+        manifest["requires"] = new System.Text.Json.Nodes.JsonArray("token.opacity", "group.opacity");
+        var undeclaredContents = EffectPackageContents.CreateSupported(EffectPackageFixture.Bytes(manifest),
+            raw.Files.Select(static file => KeyValuePair.Create(file.Path, (ReadOnlyMemory<byte>)file.Content.ToArray())));
+        var package = await CompiledEffectPackage.CompileAsync(EffectPackageDefinition.Read(undeclaredContents), compiler);
+        Assert.True(package.Artifact.Succeeded);
         var effect = package.CreateEffect("group-opacity", new("undeclared"), new Fx.EffectBinding.Node(new(Root(snapshot)), false), 1,
             JsonSerializer.SerializeToUtf8Bytes(new { node = Root(snapshot) }));
         await using var source = await new PureFrameSourceFactory([effect], Fingerprint, static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
-        var error = await Assert.ThrowsAsync<EffectFailureException>(async () => await source.PrepareAsync(10_000_000, Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition)));
+        var error = await Assert.ThrowsAsync<EffectFailureException>(async () => await source.PrepareAsync(10_000_000, Fx.OutputMode.Transparent, target));
         Assert.Equal("UndeclaredPackageOutput", error.Code); Assert.Equal("undeclared", error.InstanceId.Value);
     }
     [Fact]
@@ -208,10 +222,10 @@ public sealed class GroupOpacityIsolationTests
         CompiledFrameEffect Effect(string id, double factor) => package.CreateEffect("group-opacity", new(id), binding, 1,
             JsonSerializer.SerializeToUtf8Bytes(new { node = Root(snapshot), factor }));
         var target = RenderTarget.FromComposition(snapshot.Composition);
-        await using var valid = await new PureFrameSourceFactory([Effect("large", 2), Effect("small", .25)], Fingerprint, static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
-        Assert.Equal(.5, Assert.Single((await valid.PrepareAsync(10_000_000, Fx.OutputMode.Transparent, target)).GroupOpacities).Opacity.Factor);
-        await using var invalid = await new PureFrameSourceFactory([Effect("large", 2), Effect("still-large", .75)], Fingerprint, static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
+        await using var valid = await new PureFrameSourceFactory([Effect("half-a", .5), Effect("half-b", .5)], Fingerprint, static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
+        Assert.Equal(.25, Assert.Single((await valid.PrepareAsync(10_000_000, Fx.OutputMode.Transparent, target)).GroupOpacities).Opacity.Factor, 6);
+        await using var invalid = await new PureFrameSourceFactory([Effect("half-a", .5), Effect("too-large", 1.5)], Fingerprint, static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
         var error = await Assert.ThrowsAsync<EffectFailureException>(async () => await invalid.PrepareAsync(10_000_000, Fx.OutputMode.Transparent, target));
-        Assert.Equal("still-large", error.InstanceId.Value); Assert.Equal("ComposeOutputs", error.Stage); Assert.Equal("InvalidStyleOpacity", error.Code);
+        Assert.Equal("too-large", error.InstanceId.Value); Assert.Equal("Evaluate", error.Stage); Assert.Equal("InvalidStyleOpacity", error.Code);
     }
 }

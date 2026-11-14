@@ -30,7 +30,7 @@ public sealed class PackageGroupTransformTests
     [InlineData(false, false, 10_000_000L)] [InlineData(true, true, 12_500_000L)]
     public async Task 真实包组仿射及参数覆盖在前奏和演唱中与静态父组移动逐像素一致(bool nodeBinding, bool transparent, long time)
     {
-        var snapshot = Snapshot(); var package = await Package.Value; Assert.True(package.Artifact.Succeeded);
+        var snapshot = Snapshot(); var package = await Package.Value; Assert.True(package.Artifact.Succeeded, string.Join('\n', package.Artifact.Diagnostics));
         var effect = Effect(package, nodeBinding ? new Fx.EffectBinding.Node(new(Root(snapshot)), false) : new Fx.EffectBinding.Project(), Root(snapshot), 60);
         await using var source = await Factory(effect).CreateAsync(snapshot);
         var target = RenderTarget.FromComposition(snapshot.Composition);
@@ -71,7 +71,13 @@ public sealed class PackageGroupTransformTests
     [Fact]
     public async Task 组能力门禁放行不允许作者额外写未声明元素目标()
     {
-        var snapshot = Snapshot(); var effect = Effect(await Package.Value, new Fx.EffectBinding.Project(), Root(snapshot), badWrite: true);
+        var raw = EffectPackageFixture.GroupTransform();
+        var manifest = System.Text.Json.Nodes.JsonNode.Parse(raw.Manifest.AsSpan())!.AsObject();
+        manifest["requires"] = new System.Text.Json.Nodes.JsonArray("group.affine", "token.affine");
+        var contents = EffectPackageContents.CreateSupported(EffectPackageFixture.Bytes(manifest),
+            raw.Files.Select(static file => KeyValuePair.Create(file.Path, (ReadOnlyMemory<byte>)file.Content.ToArray())));
+        var package = await Compile(contents); Assert.True(package.Artifact.Succeeded, string.Join('\n', package.Artifact.Diagnostics));
+        var snapshot = Snapshot(); var effect = Effect(package, new Fx.EffectBinding.Project(), Root(snapshot), badWrite: true);
         await using var source = await Factory(effect).CreateAsync(snapshot);
         var error = await Assert.ThrowsAsync<EffectFailureException>(async () => await source.PrepareAsync(12_500_000, Fx.OutputMode.Transparent,
             RenderTarget.FromComposition(snapshot.Composition)));

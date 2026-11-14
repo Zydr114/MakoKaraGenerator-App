@@ -39,8 +39,8 @@ public sealed partial class MixedEffectPackageTests
                 : new JsonArray(components.Select(n => (JsonNode?)JsonValue.Create(n)).ToArray());
         }
         if (length > 0) value = $"UniformValue.Array(new[]{{{string.Join(',', Enumerable.Repeat(value, length))}}})";
-        string source = UniformSource($"foreach(var slot in new[]{{MaterialSlot.UnsungFill,MaterialSlot.SungFill}}) output.Materials.SetUniform(frame.Resources.GetMaterial(\"ink\"),token.WithRuby,slot,\"probe\",\"amount\",{value});");
-        var actual = await Compile(MixedEffectPackageFixture.MaterialContents(controllerSource: source, shaderSource: shader, programChange: Program, graphChange: graph => Graph(graph, false)));
+        string source = UniformSource($"foreach(var slot in new[]{{MaterialSlot.UnsungFill,MaterialSlot.SungFill}}) output.SetMaterialUniform(token.WithRuby,slot,frame.Resources.GetMaterial(\"ink\"),\"probe\",\"amount\",{value});");
+        var actual = await Compile(MixedEffectPackageFixture.MaterialContents(manifest => RequireCapabilities(manifest, "material.uniform"), controllerSource: source, shaderSource: shader, programChange: Program, graphChange: graph => Graph(graph, false)));
         var reference = await Compile(MixedEffectPackageFixture.MaterialContents(shaderSource: shader, programChange: Program, graphChange: graph => Graph(graph, true)));
         Assert.True(actual.Succeeded, string.Join('\n', actual.Artifact.Diagnostics));
         var a = await RenderUniform(actual); var b = await RenderUniform(reference);

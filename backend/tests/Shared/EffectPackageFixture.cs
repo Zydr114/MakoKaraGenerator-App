@@ -75,7 +75,7 @@ internal static class EffectPackageFixture
                 public PreparedEffect Declare(DeclareContext source) => PreparedEffect.Empty;
                 public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
                 {
-                    GroupGeometry? group = null;
+                    GroupGeometrySample? group = null;
                     string targetNode = frame.Parameters.GetText("node");
                     foreach (var item in frame.GroupGeometry)
                         if (item.Target.NodeId.Value == targetNode)
@@ -84,7 +84,8 @@ internal static class EffectPackageFixture
                             group = item;
                         }
                     if (group is null) throw new InvalidOperationException("No group matched.");
-                    if (!group.BaseWorldMatrix.TryInverse(out var inverse)) throw new Exception("InvalidGroupMatrix");
+                    Affine2 inverse;
+                    if (!group.BaseWorldMatrix.TryInverse(out inverse)) throw new Exception("InvalidGroupMatrix");
                     var local = inverse.Compose(Affine2.Translation(frame.Parameters.GetNumber("offsetX"), frame.Parameters.GetNumber("offsetY")))
                         .Compose(group.BaseWorldMatrix);
                     output.AppendTransform(group.Target, local);

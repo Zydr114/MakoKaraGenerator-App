@@ -28,7 +28,8 @@ public sealed partial class MixedEffectPackageTests
     [Fact]
     public async Task 全部资源验证后纯包无DLL且真实材质与图句柄严格分开()
     {
-        var definition = EffectPackageDefinition.Read(MixedEffectPackageFixture.Contents(pure: true));
+        var definition = EffectPackageDefinition.Read(MixedEffectPackageFixture.Contents(
+            manifest => manifest["requires"] = new JsonArray("image.graph"), pure: true));
         var missing = await Assert.ThrowsAsync<EffectPackageException>(() => CompiledEffectPackage.CompileAsync(definition, Compiler(),
             new PackageImageValidator(), new PackageShaderValidator(), new PackageImageGraphValidator()));
         Assert.Equal("PackageMaterialValidatorMissing", missing.Code);

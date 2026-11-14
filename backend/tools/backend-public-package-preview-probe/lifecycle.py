@@ -282,26 +282,91 @@ def identity(pid):
     except (OSError,IndexError):return None
 
 
+def read_cpu_ticks(pid, expected_start_ticks):
+    try:
+        stat = Path(f'/proc/{pid}/stat').read_text().rsplit(')', 1)[1].split()
+        if stat[19] != expected_start_ticks:
+            return None
+        return int(stat[11]) + int(stat[12])
+    except (OSError, IndexError, ValueError):
+        return None
+
+
+def descendant_workers(root_pid):
+    seen = set()
+    queue = [root_pid]
+    workers = []
+    while queue:
+        pid = queue.pop(0)
+        if pid in seen:
+            continue
+        seen.add(pid)
+        try:
+            if Path(f'/proc/{pid}/exe').resolve().name == 'MakoKaraGenerator.Backend.Worker':
+                info = identity(pid)
+                if info is not None:
+                    workers.append(info)
+        except OSError:
+            pass
+        try:
+            for task in Path(f'/proc/{pid}/task').iterdir():
+                try:
+                    for child in (task / 'children').read_text().split():
+                        queue.append(int(child))
+                except OSError:
+                    pass
+        except OSError:
+            pass
+    return workers
+
+
 def exercise_runaway(probe,stage,action,healthy_kind='static',recovery_kind='scale'):
     kind='runaway-'+stage+'-'+action
     source=probe.open_fixture(kind); preview=probe.create_preview(kind,source)
-    marker=probe.output/'profile/projects/markers'/kind
+    root_pid = probe.current_ready['pid'] if getattr(probe, 'current_ready', None) else probe.launcher.pid
+    baseline_workers = {(item['pid'], item['startTicks']) for item in descendant_workers(root_pid)}
     preview=probe.frame_request(kind,preview,1,100000)
     deadline=time.monotonic()+15
-    while not marker.exists() and time.monotonic()<deadline:time.sleep(.05)
-    probe.check(marker.exists(),kind+': actual author entered marker')
-    pid,child,actual_stage,nonce=marker.read_text().split('|')
-    probe.check(actual_stage==stage and nonce==kind,kind+': actual author stage/nonce')
-    worker,owned_child=identity(int(pid)),identity(int(child))
-    probe.check(worker is not None and owned_child is not None and worker['processGroupId']==owned_child['processGroupId'],kind+': actual Worker/child same private group')
-    probe.observe(int(pid))
-    probe.check(Path(f'/proc/{pid}').exists(),kind+': author still live before lifecycle action')
+    worker=None
+    baseline_ticks=None
+    observed_ticks=None
+    while time.monotonic()<deadline:
+        candidates = [item for item in descendant_workers(root_pid)
+                      if (item['pid'], item['startTicks']) not in baseline_workers
+                      and item['processGroupId'] == item['pid']]
+        if worker is None and candidates:
+            candidates.sort(key=lambda item: item['pid'], reverse=True)
+            candidate = candidates[0]
+            ticks = read_cpu_ticks(candidate['pid'], candidate['startTicks'])
+            if ticks is not None:
+                worker = candidate
+                baseline_ticks = ticks
+                observed_ticks = ticks
+        if worker is not None:
+            ticks = read_cpu_ticks(worker['pid'], worker['startTicks'])
+            if ticks is not None:
+                observed_ticks = ticks
+                if observed_ticks >= baseline_ticks + 15:
+                    state = probe.state(kind + '-runaway-check', preview)['session']
+                    probe.check(state['state'] not in ('ready', 'failed'),
+                                kind + ': preview request remains non-terminal while v2 runaway spins')
+                    break
+            else:
+                worker = None
+                baseline_ticks = None
+        time.sleep(.05)
+    probe.check(worker is not None and observed_ticks is not None and observed_ticks >= baseline_ticks + 15,
+                kind + ': new active package Worker entered v2 CPU runaway loop')
+    probe.observe(worker['pid'])
+    probe.check(identity(worker['pid']) == worker, kind + ': author Worker live before concurrent work')
     # Useful unrelated HTTP/Worker rendering while the author remains stuck.
     healthy_source=probe.projects.get(healthy_kind) or probe.open_fixture(healthy_kind)
     healthy=probe.create_preview(kind+'-concurrent',healthy_source)
     healthy=probe.frame_request(kind+'-concurrent',healthy,1,100000)
     probe.terminal(kind+'-concurrent',healthy,1)
     probe.close_preview(kind+'-concurrent',healthy)
+    probe.observe(worker['pid'])
+    probe.check(identity(worker['pid']) == worker, kind + ': author Worker still live before lifecycle action')
     if action=='cancel':
         preview=update(probe,kind+'-cancel',preview,healthy_source)
         preview=probe.frame_request(kind+'-recovered',preview,2,100000)
@@ -315,13 +380,13 @@ def exercise_runaway(probe,stage,action,healthy_kind='static',recovery_kind='sca
         preview=probe.frame_request(kind+'-recovery',preview,2,100000)
         probe.terminal(kind+'-recovery',preview,2);probe.close_preview(kind,preview)
     else:probe.close_preview(kind,preview)
-    deadline=time.monotonic()+6
-    while time.monotonic()<deadline and (identity(worker['pid'])==worker or identity(owned_child['pid'])==owned_child):time.sleep(.05)
-    probe.check(identity(worker['pid'])!=worker and identity(owned_child['pid'])!=owned_child,kind+': original observed Worker and child identities drained')
+    deadline=time.monotonic()+8
+    while time.monotonic()<deadline and identity(worker['pid'])==worker:time.sleep(.05)
+    probe.check(identity(worker['pid'])!=worker,kind+': original observed Worker identity drained')
     closed=probe.request(kind+'-project-close','POST','/api/v1/project-sessions/'+source['sourceId']+'/close',status=202,value={'expectedRevision':source['sourceRevision'],'policy':'discard','activeJobs':'wait'})
     probe.job(kind+'-project-close',closed)
     if action=='close':
-        # A new package session after the stuck session and child have drained.
+        # A new package session after the stuck session has drained.
         recovery_source=probe.projects.get(recovery_kind) or probe.open_fixture(recovery_kind)
         recovery=probe.create_preview(kind+'-after-close',recovery_source)
         recovery=probe.frame_request(kind+'-after-close',recovery,1,100000)
@@ -329,7 +394,7 @@ def exercise_runaway(probe,stage,action,healthy_kind='static',recovery_kind='sca
         direct=probe.direct(kind+'-after-close',recovery_kind,320,180,False,[100000])[0]
         probe.compare_frame(kind+'-after-close',actual,direct,recovery_kind)
         probe.close_preview(kind+'-after-close',recovery)
-    probe.runaway_results.append({'stage':stage,'action':action,'worker':worker,'child':owned_child,'markerSha256':hashlib.sha256(marker.read_bytes()).hexdigest(),'drained':True})
+    probe.runaway_results.append({'stage':stage,'action':action,'worker':worker,'cpuTicksBaseline':baseline_ticks,'cpuTicksObserved':observed_ticks,'drained':True})
 
 
 def exercise_b4_rejections(probe):

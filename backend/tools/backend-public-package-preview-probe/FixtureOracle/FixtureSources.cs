@@ -50,7 +50,9 @@ internal static class FixtureSources
                 ExportId = kind == "graph" ? "controller" : "scale", Seed = ulong.MaxValue,
                 Binding = kind == "scale" ? new(ProjectEffectBindingKind.Tokens, ids: ["token"]) : new(ProjectEffectBindingKind.Project),
                 Subscription = new("project"),
-                Parameters = EffectParameterOverrides.Parse(kind == "graph" ? "{\"amount\":0.3}" : "{\"peak\":1.8}"),
+                Parameters = kind == "graph" ? EffectParameterOverrides.Parse("{\"amount\":0.3}")
+                    : kind == "sprite" ? EffectParameterOverrides.Empty
+                    : EffectParameterOverrides.Parse("{\"peak\":1.8}"),
             }]) };
         }
         return ProjectSnapshot.FromProject(project);
@@ -83,8 +85,54 @@ internal static class FixtureSources
 
     internal static ProjectSnapshot Runaway(string stage, string marker, string nonce, bool ffmpeg)
     {
-        // SDK v2 forbids arbitrary file I/O and process spawning; emit a minimal valid v2 package.
-        EffectPackageContents package = ScalePackage("probe.v2.runaway");
+        // Pure SDK v2 runaway effect: infinite loop inside Declare (Initialize/Declare) or Evaluate.
+        const string runawaySource = """
+            using MakoKaraGenerator.Scripting;
+            using MakoKaraGenerator.Scripting.V2;
+            public sealed class PackEffect : IPureKaraokeEffect
+            {
+                public PreparedEffect Declare(DeclareContext source)
+                {
+                    if (source.Parameters.GetText("stage") is "Initialize" or "Declare")
+                        while (source.CanvasSize.X >= 0) { }
+                    return PreparedEffect.Empty;
+                }
+                public void Evaluate(in TextFrame frame, PreparedEffect data, TextOutput output)
+                {
+                    if (frame.Parameters.GetText("stage") == "Evaluate")
+                        while (frame.TimeUs >= 0) { }
+                }
+            }
+            """;
+        var files = new Dictionary<string, byte[]>(StringComparer.Ordinal)
+        {
+            ["src/PackEffect.cs"] = Encoding.UTF8.GetBytes(runawaySource),
+        };
+        var parameters = new JsonArray(new JsonObject
+        {
+            ["id"] = "stage",
+            ["type"] = "text",
+            ["label"] = "stage",
+            ["default"] = stage,
+        });
+        var exports = new JsonArray(new JsonObject
+        {
+            ["id"] = "scale",
+            ["kind"] = "controller",
+            ["name"] = "Runaway",
+            ["entryType"] = "PackEffect",
+            ["parameters"] = new JsonArray("stage"),
+            ["bindingKinds"] = new JsonArray("project", "branch", "lines", "tokens", "clips", "node"),
+            ["outputs"] = new JsonArray(new JsonObject
+            {
+                ["id"] = "scale",
+                ["kind"] = "VisualTransform",
+                ["target"] = "tokenFamily",
+                ["requires"] = new JsonArray(),
+                ["dependsOn"] = new JsonArray(),
+            }),
+        });
+        EffectPackageContents package = CreateV2Package("probe.v2.runaway", files, parameters, exports, ["token.affine"]);
         ProjectSnapshot basis = Create("scale");
         return Fingerprint(basis with { Effects = new([package], [new()
         {

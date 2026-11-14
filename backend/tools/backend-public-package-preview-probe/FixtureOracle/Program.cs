@@ -41,8 +41,7 @@ if (args.Length >= 2 && args[0] == "generate")
     foreach (string stage in new[] { "Initialize", "Evaluate" }) foreach (string action in new[] { "cancel", "deadline", "close" })
     {
         string name = "runaway-" + stage + "-" + action;
-        string marker = Path.Combine(directory, "markers", name); Directory.CreateDirectory(Path.GetDirectoryName(marker)!);
-        fixtures.Add(name, FixtureSources.Runaway(stage, marker, name, stage == "Initialize" && action == "cancel"));
+        fixtures.Add(name, FixtureSources.Runaway(stage, string.Empty, name, stage == "Initialize" && action == "cancel"));
     }
     foreach (var pair in fixtures)
     {
@@ -54,7 +53,7 @@ if (args.Length >= 2 && args[0] == "generate")
         ProjectStore.Save(project, Path.Combine(directory, pair.Key));
     }
     await File.WriteAllTextAsync(Path.Combine(directory, "fixtures.json"), JsonSerializer.Serialize(new { Kinds = fixtures.Keys,
-        Scope = "Probe-owned production ProjectStore.Save closures; no public author mutation is claimed. Runaway marker paths belong only to this output." }, OracleJson.Options));
+        Scope = "Probe-owned production ProjectStore.Save closures; no public author mutation is claimed. Pure SDK v2 runaway fixtures need no marker paths." }, OracleJson.Options));
     return;
 }
 if (args.Length is not (8 or 9) || args[0] != "render") throw new ArgumentException("generate directory | render saved-directory prefix width height transparent comma-times counterfactual-kind-or-none");
@@ -63,7 +62,7 @@ Project projectInput = ProjectStore.Load(saved).Project ?? throw new InvalidOper
 ProjectSnapshot snapshot = ProjectSnapshot.FromProject(projectInput);
 if (args[7] != "none") snapshot = FixtureSources.WithoutContribution(snapshot, args[7]);
 using var videos = new FfmpegVideoFrameProvider();
-var factory = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), prefix + "-cache"), videos, ReplayReason.Initial, renderBackend: "gpu");
+var factory = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), prefix + "-cache"), videos, ReplayReason.Initial, renderBackend: Environment.GetEnvironmentVariable("MAKO_RENDER_BACKEND") ?? "vulkan");
 byte[] sourceBytes = snapshot.Effects.Packages.IsEmpty ? StaticProjectSnapshotCodec.Encode(snapshot) : PackageProjectSnapshotCodec.Encode(snapshot);
 int index = 0;
 try

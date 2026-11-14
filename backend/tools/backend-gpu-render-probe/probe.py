@@ -47,6 +47,10 @@ def hardware_icd(path):
             "apiVersion": model["ICD"].get("api_version"), "library": Path(library).name}
 
 
+DEFAULT_CONTROLS = ("Initialize-cancel", "Initialize-deadline", "Initialize-close",
+                    "Evaluate-cancel", "Evaluate-deadline", "Evaluate-close")
+
+
 class GpuProbe(exports.PackageExportProbe):
     def __init__(self, output, dist, oracle, icd):
         super().__init__(output, dist, oracle)
@@ -303,7 +307,7 @@ class GpuProbe(exports.PackageExportProbe):
             results.append({"action": action, "worker": worker, "jobId": accepted["jobId"], "state": terminal["state"], "failureCode": terminal.get("failureCode"), "drained": True})
         save_json(self.output / "export-controls.json", results)
 
-    def run(self, stages, kinds):
+    def run(self, stages, kinds, controls=None):
         self.prepare()
         self.start("gpu-render")
         self.connect("gpu-render")
@@ -325,10 +329,11 @@ class GpuProbe(exports.PackageExportProbe):
                     self.require_workers_drained(label)
             self.completed_stages.append("exports")
         if "preview-controls" in stages:
-            for stage in ("Initialize", "Evaluate"):
-                for action in ("cancel", "deadline", "close"):
-                    preview.lifecycle.exercise_runaway(self, stage, action)
-                    self.require_workers_drained("runaway-" + stage + "-" + action)
+            selected_controls = list(DEFAULT_CONTROLS) if controls is None else controls
+            for item in selected_controls:
+                stage, action = item.split("-", 1)
+                preview.lifecycle.exercise_runaway(self, stage, action)
+                self.require_workers_drained("runaway-" + stage + "-" + action)
             self.completed_stages.append("preview-controls")
         if "export-controls" in stages:
             self.export_controls()
@@ -343,12 +348,15 @@ def main():
     parser.add_argument("--icd", type=Path, default=Path("/usr/share/vulkan/icd.d/radeon_icd.json"), help="one explicit hardware Vulkan ICD, inherited by Server/Worker/oracle")
     parser.add_argument("--stages", default="previews,exports,preview-controls,export-controls")
     parser.add_argument("--kinds", default="static,scale,graph,sprite,material", help="preview fixture subset; only selected kinds are claimed")
+    parser.add_argument("--controls", default=",".join(DEFAULT_CONTROLS), help="preview-controls subset; only selected controls are claimed")
     args = parser.parse_args()
-    stages, kinds = args.stages.split(","), args.kinds.split(",")
+    stages, kinds, controls = args.stages.split(","), args.kinds.split(","), args.controls.split(",")
     if not stages or set(stages) - {"previews", "exports", "preview-controls", "export-controls"}:
         parser.error("unknown or empty --stages")
     if not kinds or set(kinds) - {"static", "scale", "graph", "sprite", "material"}:
         parser.error("unknown or empty --kinds")
+    if not controls or set(controls) - set(DEFAULT_CONTROLS):
+        parser.error("unknown or empty --controls")
     if not args.oracle.is_file():
         parser.error("build Release FixtureOracle first, or supply --oracle")
     if not shutil.which("ffmpeg") or not shutil.which("ffprobe"):
@@ -366,7 +374,7 @@ def main():
         save_json(output / "gpu-environment.json", {"backend": "vulkan", "icd": icd,
                   "oracle": str(args.oracle.resolve()), "oracleSha256": sha(args.oracle.read_bytes()),
                   "dist": str(args.dist.resolve()), "deploymentSha256": sha((args.dist / "deployment.json").read_bytes())})
-        probe.run(stages, kinds)
+        probe.run(stages, kinds, controls)
     except BaseException as error:
         failure = error
         (output / "failure.txt").write_text(str(error) + "\n")

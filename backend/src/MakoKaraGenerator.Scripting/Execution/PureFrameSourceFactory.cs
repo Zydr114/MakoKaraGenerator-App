@@ -36,7 +36,7 @@ public sealed record CompiledFrameEffect(EffectInstanceId Id, ScriptCompilationR
     /// <summary>宿主固定的临时图元层覆盖；null保持各作者输出。</summary>
     public OverlayLayer? OverlayLayerOverride { get; init; }
     /// <summary>明确的包执行分派；独立旧源码接缝保持 v1，不按作者类名猜测。</summary>
-    public bool IsV2 => PackageDefinition is { } package && EffectPackageProfiles.IsV2(package.Contents.Profile);
+    public bool IsV2 => PackageDefinition is { } package && EffectPackageProfiles.IsSupported(package.Contents.Profile);
 }
 
 /// <summary>纯外观准备帧工厂；有状态入口或历史请求明确拒绝，不静默跳过回调。</summary>

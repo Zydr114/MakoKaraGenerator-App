@@ -25,7 +25,7 @@ public sealed class V2ResourceSamplePackageTests
     public async Task 纯资源样例按v2准入且全部图导出可原生编译(string name, string[] exports)
     {
         var package = await Read(name);
-        Assert.True(EffectPackageProfiles.IsV2(package.Profile));
+        Assert.True(EffectPackageProfiles.IsSupported(package.Profile));
         Assert.DoesNotContain(package.Files, file => file.Role == "csharp");
         var definition = EffectPackageDefinition.Read(package);
         var compiled = await CompiledEffectPackage.CompileAsync(definition, new NoCompiler(), new PackageImageValidator(),

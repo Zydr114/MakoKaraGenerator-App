@@ -15,10 +15,17 @@ DEVICE_PREPARED = '''bool enableGpuPreviewBenchmark = false, RuntimeGpuPreparati
             device = gpuPreparation?.TakeDevice() ?? SkiaRenderDeviceFactory.Create(enableGpuPreview
                 ? (_renderBackendOptions ?? SkiaRenderBackendOptions.FromEnvironment()) with { EnableGpuPreview = true }
                 : _renderBackendOptions);'''
+DEVICE_PREPARED_CURRENT = DEVICE_PREPARED.replace(
+    'RuntimeGpuPreparation? gpuPreparation = null)',
+    'RuntimeGpuPreparation? gpuPreparation = null,\n'
+    '    ProjectMediaFeatureBinding? mediaBinding = null, bool graphPixelChecks = true)')
 MAIN_EXPLICIT = '''        using var scratch = state.Resources.Reserve(1, bytes, "SceneBackdropSnapshot");
         _device.FlushAndSubmit(main);
         using var snapshot = main.Snapshot();'''
 MAIN_REMOVED = '''        using var scratch = state.Resources.Reserve(1, bytes, "SceneBackdropSnapshot");
+        using var snapshot = main.Snapshot();'''
+MAIN_REMOVED_CHARGED = '''        using var scratch = state.Resources.Reserve(1, bytes, "SceneBackdropSnapshot");
+        state.Resources.ChargeScenePass(request.CancellationToken);
         using var snapshot = main.Snapshot();'''
 VIDEO_OLD = '''        private readonly byte[] _buffer;
         private readonly VideoFrame _frame;
@@ -36,7 +43,8 @@ class InstrumentLayoutTests(unittest.TestCase):
     def test_legacy_preview_and_prepared_device_contracts(self):
         for source, expected in (
                 ('            device = SkiaRenderDeviceFactory.Create(_renderBackendOptions);', 'legacy'),
-                (DEVICE_PREVIEW, 'preview'), (DEVICE_PREPARED, 'prepared-preview')):
+                (DEVICE_PREVIEW, 'preview'), (DEVICE_PREPARED, 'prepared-preview'),
+                (DEVICE_PREPARED_CURRENT, 'prepared-preview')):
             with self.subTest(layout=expected):
                 layout, statement = instrument.device_factory_layout(source)
                 self.assertEqual(layout, expected)
@@ -54,6 +62,7 @@ class InstrumentLayoutTests(unittest.TestCase):
     def test_main_submit_explicit_and_removed_contracts(self):
         self.assertEqual(instrument.scene_main_submit_layout(MAIN_EXPLICIT), ('explicit', MAIN_EXPLICIT))
         self.assertEqual(instrument.scene_main_submit_layout(MAIN_REMOVED), ('removed', MAIN_REMOVED))
+        self.assertEqual(instrument.scene_main_submit_layout(MAIN_REMOVED_CHARGED), ('removed', MAIN_REMOVED_CHARGED))
 
     def test_main_submit_missing_unknown_or_duplicate_never_means_removed(self):
         for source in ('', MAIN_EXPLICIT * 2, MAIN_REMOVED * 2, MAIN_EXPLICIT + MAIN_REMOVED,

@@ -27,11 +27,15 @@ def device_factory_layout(source):
         raise ValueError(f"unknown or mixed render device factory layout: {matches}")
     layout, statement = layouts[matches]
     if layout == "prepared-preview":
-        signature = 'bool enableGpuPreviewBenchmark = false, RuntimeGpuPreparation? gpuPreparation = null)'
+        signatures = (
+            'bool enableGpuPreviewBenchmark = false, RuntimeGpuPreparation? gpuPreparation = null)',
+            'bool enableGpuPreviewBenchmark = false, RuntimeGpuPreparation? gpuPreparation = null,\n'
+            '    ProjectMediaFeatureBinding? mediaBinding = null, bool graphPixelChecks = true)',
+        )
         guard = ('            if (gpuPreparation is not null && (!enableGpuPreview ||\n'
                  '                (_renderBackendOptions ?? SkiaRenderBackendOptions.FromEnvironment()).Backend != SkiaRenderBackend.Vulkan))\n'
                  '                throw new InvalidOperationException("GPU 预热只能转移给显式 Vulkan shared preview 会话。");')
-        if source.count(signature) != 1 or source.count(guard) != 1:
+        if sum(source.count(item) for item in signatures) != 1 or source.count(guard) != 1:
             raise ValueError("unknown prepared render device signature or guard")
     elif "gpuPreparation" in source:
         raise ValueError("mixed prepared render device factory layout")
@@ -43,11 +47,16 @@ def scene_main_submit_layout(source):
               '        _device.FlushAndSubmit(main);\n'
               '        using var snapshot = main.Snapshot();')
     after = before.replace('        _device.FlushAndSubmit(main);\n', '')
-    matches = (source.count(before), source.count(after), source.count('_device.FlushAndSubmit(main);'))
-    if matches == (1, 0, 1):
+    charged = after.replace('        using var snapshot = main.Snapshot();',
+                            '        state.Resources.ChargeScenePass(request.CancellationToken);\n'
+                            '        using var snapshot = main.Snapshot();')
+    matches = (source.count(before), source.count(after), source.count(charged), source.count('_device.FlushAndSubmit(main);'))
+    if matches == (1, 0, 0, 1):
         return "explicit", before
-    if matches == (0, 1, 0):
+    if matches == (0, 1, 0, 0):
         return "removed", after
+    if matches == (0, 0, 1, 0):
+        return "removed", charged
     raise ValueError(f"unknown or mixed scene main submit layout: {matches}")
 
 
@@ -99,12 +108,22 @@ def instrument(root):
     device_layout, device_statement = device_factory_layout(factory_source)
     replace(factory, device_statement, '            using (RenderPerformanceTrace.Measure("session.device"))\n' + device_statement)
     compiler = "_compiler.Value" if factory_layout == "legacy" else "compiler"
-    replace(factory, f'            var compiled = await CompiledProjectEffects.CompileAsync(snapshot, {compiler}, new PackageImageValidator(), new PackageShaderValidator(),\n                new PackageImageGraphValidator(), new PackageMaterialValidator(), token).ConfigureAwait(false);',
-            f'            CompiledProjectEffects compiled;\n            using (RenderPerformanceTrace.Measure("session.compile"))\n                compiled = await CompiledProjectEffects.CompileAsync(snapshot, {compiler}, new PackageImageValidator(), new PackageShaderValidator(),\n                    new PackageImageGraphValidator(), new PackageMaterialValidator(), token).ConfigureAwait(false);')
+    compile_old = f'            var compiled = await CompiledProjectEffects.CompileAsync(snapshot, {compiler}, new PackageImageValidator(), new PackageShaderValidator(),\n                new PackageImageGraphValidator(), new PackageMaterialValidator(), token).ConfigureAwait(false);'
+    compile_new = f'            var compiled = await CompiledProjectEffects.CompileAsync(snapshot, {compiler}, new PackageImageValidator(), new PackageShaderValidator(),\n                new PackageImageGraphValidator(), new PackageMaterialValidator(), new PackageSvgValidator(), token).ConfigureAwait(false);'
+    compile_target = compile_new if compile_new in factory_source else compile_old
+    replace(factory, compile_target,
+            '            CompiledProjectEffects compiled;\n            using (RenderPerformanceTrace.Measure("session.compile"))\n' + compile_target.replace('            var compiled = ', '                compiled = '))
     replace(factory, '            foreach (var package in compiled.Packages)\n            {',
             '            using (RenderPerformanceTrace.Measure("session.resources"))\n            foreach (var package in compiled.Packages)\n            {')
-    replace(factory, '            source = await compiled.CreateFactory(() => layoutReference || editingLineId is not null\n                ? new MeasurementGeometryProvider(Renderer(), layoutReference, editingLineId, editingCueId)\n                : Renderer(), reason).CreateAsync(snapshot, token).ConfigureAwait(false);',
-            '            using (RenderPerformanceTrace.Measure("session.source"))\n                source = await compiled.CreateFactory(() => layoutReference || editingLineId is not null\n                    ? new MeasurementGeometryProvider(Renderer(), layoutReference, editingLineId, editingCueId)\n                    : Renderer(), reason).CreateAsync(snapshot, token).ConfigureAwait(false);')
+    source_old = ('            source = await compiled.CreateFactory(() => layoutReference || editingLineId is not null\n'
+                  '                ? new MeasurementGeometryProvider(Renderer(), layoutReference, editingLineId, editingCueId)\n'
+                  '                : Renderer(), reason).CreateAsync(snapshot, token).ConfigureAwait(false);')
+    source_new = ('            source = await compiled.CreateFactory(() => layoutReference || editingLineId is not null\n'
+                  '                ? new MeasurementGeometryProvider(Geometry(), layoutReference, editingLineId, editingCueId)\n'
+                  '                : Geometry(), reason, mediaBinding).CreateAsync(snapshot, token).ConfigureAwait(false);')
+    source_target = source_new if source_new in factory_source else source_old
+    replace(factory, source_target,
+            '            using (RenderPerformanceTrace.Measure("session.source"))\n' + "\n".join("    " + line for line in source_target.splitlines()))
     replace(factory, '    private async Task<IRenderFrameSession> CreateCoreAsync(ProjectSnapshot snapshot, CancellationToken token)\n    {',
             '    private async Task<IRenderFrameSession> CreateCoreAsync(ProjectSnapshot snapshot, CancellationToken token)\n    {\n        using var performanceSessionCreate = RenderPerformanceTrace.Measure("session.create.core");')
 
@@ -132,31 +151,44 @@ def instrument(root):
                 '                RenderFrame frame;\n                using (RenderPerformanceTrace.Measure("runtime.skia"))\n                    frame = renderer.Render(request with { PreparedFrame = prepared, CancellationToken = linked.Token });')
 
     frame = "src/MakoKaraGenerator.Scripting/Execution/FrameSession.cs"
+    frame_source = (root / frame).read_text(encoding="utf-8")
+    prepare_span = '_anchorQuery ? "script.anchor.prepare" : "script.frame.prepare"' if "_anchorQuery" in frame_source else '"script.frame.prepare"'
     replace(frame, '        ArgumentOutOfRangeException.ThrowIfNegative(timeUs);',
-            '        using var performanceFramePrepare = RenderPerformanceTrace.Measure(_anchorQuery ? "script.anchor.prepare" : "script.frame.prepare");\n        ArgumentOutOfRangeException.ThrowIfNegative(timeUs);')
-    replace(frame, '        var previous = _boundaryFrame; var previousHistory = _history;',
-            '        using var performanceBoundary = RenderPerformanceTrace.Measure("script.boundary");\n        var previous = _boundaryFrame; var previousHistory = _history;')
+            f'        using var performanceFramePrepare = RenderPerformanceTrace.Measure({prepare_span});\n        ArgumentOutOfRangeException.ThrowIfNegative(timeUs);')
+    if "_boundaryFrame" in frame_source:
+        replace(frame, '        var previous = _boundaryFrame; var previousHistory = _history;',
+                '        using var performanceBoundary = RenderPerformanceTrace.Measure("script.boundary");\n        var previous = _boundaryFrame; var previousHistory = _history;')
     host = "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.cs"
     replace(host, '        SceneFrame scene = _geometry.GetSceneFrame(_snapshot, timeUs);',
             '        using var performanceEvaluate = RenderPerformanceTrace.Measure("script.evaluate");\n        SceneFrame scene = _geometry.GetSceneFrame(_snapshot, timeUs);')
     diagnostic = "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.Diagnostics.cs"
-    replace(diagnostic, '        RuntimeDiagnostic? fatal = null;',
-            '        using var performanceInvoke = RenderPerformanceTrace.Measure("script.invoke." + stage);\n        RuntimeDiagnostic? fatal = null;')
+    diagnostic_source = (root / diagnostic).read_text(encoding="utf-8")
+    if '        RuntimeDiagnostic? fatal = null;' in diagnostic_source:
+        replace(diagnostic, '        RuntimeDiagnostic? fatal = null;',
+                '        using var performanceInvoke = RenderPerformanceTrace.Measure("script.invoke." + stage);\n        RuntimeDiagnostic? fatal = null;')
+    else:
+        replace(diagnostic, '        try\n        {\n            action();',
+                '        using var performanceInvoke = RenderPerformanceTrace.Measure("script.invoke." + stage);\n        try\n        {\n            action();')
     particles = "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.Particles.cs"
-    replace(particles, '        var geometry = BirthGeometry(mode, target, history, cancellationToken);',
-            '        using var performanceParticleCommit = RenderPerformanceTrace.Measure("particle.commit");\n        var geometry = BirthGeometry(mode, target, history, cancellationToken);')
-    replace(particles, '            cancellationToken.ThrowIfCancellationRequested();\n            if (cachedTime != timeUs)',
-            '            using var performanceBirthGeometry = RenderPerformanceTrace.Measure("particle.birthGeometry");\n            cancellationToken.ThrowIfCancellationRequested();\n            if (cachedTime != timeUs)')
+    if (root / particles).is_file():
+        replace(particles, '        var geometry = BirthGeometry(mode, target, history, cancellationToken);',
+                '        using var performanceParticleCommit = RenderPerformanceTrace.Measure("particle.commit");\n        var geometry = BirthGeometry(mode, target, history, cancellationToken);')
+        replace(particles, '            cancellationToken.ThrowIfCancellationRequested();\n            if (cachedTime != timeUs)',
+                '            using var performanceBirthGeometry = RenderPerformanceTrace.Measure("particle.birthGeometry");\n            cancellationToken.ThrowIfCancellationRequested();\n            if (cachedTime != timeUs)')
     emitters = "src/MakoKaraGenerator.Scripting/Execution/FrameEffectHost.Emitters.cs"
-    replace(emitters, '        List<ResolvedEmitter> emitters = [];',
-            '        using var performanceEmitters = RenderPerformanceTrace.Measure("script.emitters");\n        List<ResolvedEmitter> emitters = [];')
-    replace(emitters, '        var particles = ParticleOperation(() => _particles.Read(text.TimeUs,',
-            '        using var performanceParticleRead = RenderPerformanceTrace.Measure("particle.read");\n        var particles = ParticleOperation(() => _particles.Read(text.TimeUs,')
+    if (root / emitters).is_file():
+        replace(emitters, '        List<ResolvedEmitter> emitters = [];',
+                '        using var performanceEmitters = RenderPerformanceTrace.Measure("script.emitters");\n        List<ResolvedEmitter> emitters = [];')
+        replace(emitters, '        var particles = ParticleOperation(() => _particles.Read(text.TimeUs,',
+                '        using var performanceParticleRead = RenderPerformanceTrace.Measure("particle.read");\n        var particles = ParticleOperation(() => _particles.Read(text.TimeUs,')
     anchor = "src/MakoKaraGenerator.Scripting/Execution/SemanticAnchorQuery.cs"
-    replace(anchor, '        ArgumentNullException.ThrowIfNull(identity); ArgumentNullException.ThrowIfNull(target);',
-            '        using var performanceAnchor = RenderPerformanceTrace.Measure("script.anchor.query");\n        ArgumentNullException.ThrowIfNull(identity); ArgumentNullException.ThrowIfNull(target);')
+    if (root / anchor).is_file():
+        replace(anchor, '        ArgumentNullException.ThrowIfNull(identity); ArgumentNullException.ThrowIfNull(target);',
+                '        using var performanceAnchor = RenderPerformanceTrace.Measure("script.anchor.query");\n        ArgumentNullException.ThrowIfNull(identity); ArgumentNullException.ThrowIfNull(target);')
 
     geometry = "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.Geometry.cs"
+    if not (root / geometry).is_file():
+        geometry = "src/MakoKaraGenerator.Rendering.Skia/SkiaSceneGeometry.Geometry.cs"
     replace(geometry, '    public SceneFrame GetSceneFrame(ProjectSnapshot snapshot, long timeUs, string? editingLineId = null)\n    {\n        return MeasureSceneFrame(snapshot, timeUs, editingLineId, false);',
             '    public SceneFrame GetSceneFrame(ProjectSnapshot snapshot, long timeUs, string? editingLineId = null)\n    {\n        using var performanceGeometry = global::MakoKaraGenerator.Rendering.RenderPerformanceTrace.Measure("geometry.scene");\n        return MeasureSceneFrame(snapshot, timeUs, editingLineId, false);')
     text = "src/MakoKaraGenerator.Rendering.Skia/SkiaTextLayoutEngine.cs"
@@ -199,14 +231,21 @@ def instrument(root):
                     '        using (RenderPerformanceTrace.Measure("graph.sceneReadback"))\n        {\n            fixed (byte* destination = pixels)\n            {\n                var info = new SKImageInfo(image.Width, image.Height, SKColorType.Bgra8888, SKAlphaType.Premul);\n                bool read = surface.HasOwnedImageOn(device) ? device.ReadOwnedImagePixels(image, info, (IntPtr)destination, rowBytes)\n                    : device.ReadPixels(image, info, (IntPtr)destination, rowBytes);\n                if (!read)\n                    throw new InvalidOperationException($"Skia {device.Info.Backend} 图像 readback 失败（{device.Info}）。");\n            }\n        }')
     replace(skia, '        ArgumentNullException.ThrowIfNull(request);\n        ObjectDisposedException.ThrowIf(_disposed, this);\n\n        request.CancellationToken.ThrowIfCancellationRequested();',
             '        using var performanceSkia = RenderPerformanceTrace.Measure("skia.render");\n        ArgumentNullException.ThrowIfNull(request);\n        ObjectDisposedException.ThrowIf(_disposed, this);\n\n        request.CancellationToken.ThrowIfCancellationRequested();')
-    replace(skia, '        PreparedRenderFrame.ValidateRequest(request);\n        ValidateNativePreparedFrame(request.PreparedFrame);',
-            '        using (RenderPerformanceTrace.Measure("skia.validate"))\n        {\n            PreparedRenderFrame.ValidateRequest(request);\n            ValidateNativePreparedFrame(request.PreparedFrame);\n        }')
-    new_output_layout = '    private T RenderToOutput<T>(RenderRequest request, SceneFrame? measuredScene,' in (root / skia).read_text(encoding="utf-8")
+    skia_source = (root / skia).read_text(encoding="utf-8")
+    validate_old = '        PreparedRenderFrame.ValidateRequest(request);\n        ValidateNativePreparedFrame(request.PreparedFrame);'
+    validate_new = '        ValidateRequestOnce(request);\n        ValidateNativeOnce(request.PreparedFrame);'
+    validate_target = validate_new if validate_new in skia_source else validate_old
+    replace(skia, validate_target,
+            '        using (RenderPerformanceTrace.Measure("skia.validate"))\n        {\n' + validate_target + '\n        }')
+    new_output_layout = '    private T RenderToOutput<T>(RenderRequest request, SceneFrame? measuredScene,' in skia_source
     if new_output_layout:
         replace(skia, '        using (SKSurface surface = _device.CreateSurface(info))\n        {\n            SKCanvas canvas = surface.Canvas;',
                 '        SKSurface surface;\n        using (RenderPerformanceTrace.Measure("skia.surface.create")) surface = _device.CreateSurface(info);\n        using (surface)\n        {\n            using var performanceDraw = RenderPerformanceTrace.Measure("skia.draw");\n            SKCanvas canvas = surface.Canvas;')
-        replace(skia, '            canvas.Restore();\n            return output(surface, info, target, new(materialDiagnostics, imageDiagnostics, sceneDiagnostics));',
-                '            canvas.Restore();\n            performanceDraw.Dispose();\n            return output(surface, info, target, new(materialDiagnostics, imageDiagnostics, sceneDiagnostics));')
+        restore_old = '            canvas.Restore();\n            return output(surface, info, target, new(materialDiagnostics, imageDiagnostics, sceneDiagnostics));'
+        restore_new = '            canvas.Restore();\n            drawing.Dispose();\n            return output(surface, info, target, new(materialDiagnostics, imageDiagnostics, sceneDiagnostics));'
+        restore_target = restore_new if restore_new in skia_source else restore_old
+        replace(skia, restore_target,
+                restore_target.replace('            canvas.Restore();\n', '            canvas.Restore();\n            performanceDraw.Dispose();\n'))
         replace(skia, '                    _device.FlushAndSubmit(surface);\n                    unsafe',
                 '                    using (RenderPerformanceTrace.Measure("skia.finalSubmit")) _device.FlushAndSubmit(surface);\n                    using (RenderPerformanceTrace.Measure("skia.finalReadback"))\n                    unsafe')
     else:
@@ -215,12 +254,23 @@ def instrument(root):
     if new_output_layout:
         replace(skia, '                DrawBackground(canvas, request, composition);',
                 '                using (RenderPerformanceTrace.Measure("skia.draw.background"))\n                    DrawBackground(canvas, request, composition);')
-        replace(skia, '            DrawOverlays(canvas, request, Scripting.OverlayLayer.BehindText);',
-                '            using (RenderPerformanceTrace.Measure("skia.draw.overlays"))\n                DrawOverlays(canvas, request, Scripting.OverlayLayer.BehindText);')
-        replace(skia, '                imageDiagnostics = DrawImageEffectScene(surface, request, frameResources, out var drawingDiagnostics, out materialDiagnostics);',
-                '                ImmutableArray<Scripting.RuntimeDiagnostic> drawingDiagnostics;\n                using (RenderPerformanceTrace.Measure("skia.draw.imageScene"))\n                    imageDiagnostics = DrawImageEffectScene(surface, request, frameResources, out drawingDiagnostics, out materialDiagnostics);')
-        replace(skia, '            else DrawLyrics(canvas, request, composition, measuredScene);\n            DrawOverlays(canvas, request, Scripting.OverlayLayer.AboveText);',
-                '            else using (RenderPerformanceTrace.Measure("skia.draw.lyrics")) DrawLyrics(canvas, request, composition, measuredScene);\n            using (RenderPerformanceTrace.Measure("skia.draw.overlays"))\n                DrawOverlays(canvas, request, Scripting.OverlayLayer.AboveText);')
+        behind_new = '            DrawOverlays(canvas, request, Scripting.OverlayLayer.BehindText, frameResources, svgWork);'
+        behind_old = '            DrawOverlays(canvas, request, Scripting.OverlayLayer.BehindText);'
+        behind_target = behind_new if behind_new in skia_source else behind_old
+        replace(skia, behind_target,
+                '            using (RenderPerformanceTrace.Measure("skia.draw.overlays"))\n    ' + behind_target)
+        scene_draw_new = '                imageDiagnostics = DrawImageEffectScene(surface, request, frameResources, backdropFrame, out var drawingDiagnostics, out materialDiagnostics);'
+        scene_draw_old = '                imageDiagnostics = DrawImageEffectScene(surface, request, frameResources, out var drawingDiagnostics, out materialDiagnostics);'
+        scene_draw_target = scene_draw_new if scene_draw_new in skia_source else scene_draw_old
+        replace(skia, scene_draw_target,
+                '                ImmutableArray<Scripting.RuntimeDiagnostic> drawingDiagnostics;\n                using (RenderPerformanceTrace.Measure("skia.draw.imageScene"))\n' + scene_draw_target.replace('out var drawingDiagnostics', 'out drawingDiagnostics').replace('                ', '                    ', 1))
+        lyrics_above_new = '            else DrawLyrics(canvas, request, composition, measuredScene, frameResources);\n            DrawOverlays(canvas, request, Scripting.OverlayLayer.AboveText, frameResources, svgWork);'
+        lyrics_above_old = '            else DrawLyrics(canvas, request, composition, measuredScene);\n            DrawOverlays(canvas, request, Scripting.OverlayLayer.AboveText);'
+        lyrics_above_target = lyrics_above_new if lyrics_above_new in skia_source else lyrics_above_old
+        lyrics_line, above_line = lyrics_above_target.splitlines()
+        replace(skia, lyrics_above_target,
+                f'            else using (RenderPerformanceTrace.Measure("skia.draw.lyrics")) {lyrics_line.removeprefix("            else ")}\n'
+                f'            using (RenderPerformanceTrace.Measure("skia.draw.overlays"))\n    {above_line}')
     else:
         replace(skia, '                    DrawBackground(canvas, request, composition);',
                 '                    using (RenderPerformanceTrace.Measure("skia.draw.background"))\n                        DrawBackground(canvas, request, composition);')
@@ -237,8 +287,15 @@ def instrument(root):
             '        using var performanceRaster = RenderPerformanceTrace.Measure("graph.raster");\n        int width = checked((int)Math.Round(shape.Width * frame.DensityX)), height = checked((int)Math.Round(shape.Height * frame.DensityY));')
     replace(graph, '            using var surface = _device.CreateSurface(new SKImageInfo(width, height, SKColorType.Bgra8888, SKAlphaType.Premul, srgb));',
             '            SKSurface createdSurface;\n            using (RenderPerformanceTrace.Measure("graph.surface.create"))\n                createdSurface = _device.CreateSurface(new SKImageInfo(width, height, SKColorType.Bgra8888, SKAlphaType.Premul, srgb));\n            using var surface = createdSurface;')
-    replace(graph, '            cancellationToken.ThrowIfCancellationRequested(); draw(canvas); cancellationToken.ThrowIfCancellationRequested();\n            _device.FlushAndSubmit(surface);',
-            '            cancellationToken.ThrowIfCancellationRequested();\n            using (RenderPerformanceTrace.Measure("graph.draw")) draw(canvas);\n            cancellationToken.ThrowIfCancellationRequested();\n            using (RenderPerformanceTrace.Measure("graph.submit")) _device.FlushAndSubmit(surface);')
+    graph_source = (root / graph).read_text(encoding="utf-8")
+    graph_submit_old = '            cancellationToken.ThrowIfCancellationRequested(); draw(canvas); cancellationToken.ThrowIfCancellationRequested();\n            _device.FlushAndSubmit(surface);'
+    graph_submit_new = '            cancellationToken.ThrowIfCancellationRequested(); draw(canvas); cancellationToken.ThrowIfCancellationRequested();\n            if (_pixelChecks) _device.FlushAndSubmit(surface);'
+    graph_submit_target = graph_submit_new if graph_submit_new in graph_source else graph_submit_old
+    graph_submit_call = '            if (_pixelChecks) using (RenderPerformanceTrace.Measure("graph.submit")) _device.FlushAndSubmit(surface);' if graph_submit_target == graph_submit_new else '            using (RenderPerformanceTrace.Measure("graph.submit")) _device.FlushAndSubmit(surface);'
+    replace(graph, graph_submit_target,
+            '            cancellationToken.ThrowIfCancellationRequested();\n'
+            '            using (RenderPerformanceTrace.Measure("graph.draw")) draw(canvas);\n'
+            '            cancellationToken.ThrowIfCancellationRequested();\n' + graph_submit_call)
     surfaces = "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.ImageScene.Surfaces.cs"
     main_submit_layout, main_submit_anchor = scene_main_submit_layout((root / surfaces).read_text(encoding="utf-8"))
     main_submit_instrumented = main_submit_anchor.replace('        _device.FlushAndSubmit(main);',

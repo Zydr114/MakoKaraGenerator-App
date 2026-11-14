@@ -30,7 +30,7 @@ var package = await EffectPackageStorage.ReadSupportedDirectoryAsync(directory, 
 var declaration = EffectPackageDefinition.Read(package, limit.Token).Controllers.Single();
 double packageLoadMs = watch.Elapsed.TotalMilliseconds;
 long packageLoadAllocatedBytes = GC.GetTotalAllocatedBytes(false) - bytes;
-if (!EffectPackageProfiles.IsV2(package.Profile)) throw new InvalidOperationException("M08 requires an actual SDK v2 package.");
+if (!EffectPackageProfiles.IsSupported(package.Profile)) throw new InvalidOperationException("M08 requires an actual SDK v2 package.");
 var snapshot = M08Fixture.Snapshot(package, declaration.Id, args[1]);
 long[] times = M08Fixture.Times(args[1]);
 var orders = M08Fixture.Orders(times);

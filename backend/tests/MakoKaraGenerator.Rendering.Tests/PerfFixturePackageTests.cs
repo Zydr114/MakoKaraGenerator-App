@@ -37,7 +37,7 @@ public sealed partial class PerfFixturePackageTests
     public async Task 测试包按v2准入且唯一导出可原生编译(string name, string export)
     {
         var package = await Read(name);
-        Assert.True(EffectPackageProfiles.IsV2(package.Profile));
+        Assert.True(EffectPackageProfiles.IsSupported(package.Profile));
         Assert.DoesNotContain(package.Files, file => file.Role == "csharp");
         var definition = EffectPackageDefinition.Read(package);
         Assert.Equal(export, Assert.Single(definition.Exports).Id);

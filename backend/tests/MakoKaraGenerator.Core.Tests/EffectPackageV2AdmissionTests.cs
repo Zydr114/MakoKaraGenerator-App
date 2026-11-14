@@ -26,7 +26,7 @@ public sealed class EffectPackageV2AdmissionTests
             EffectPackageContents.Create(oldManifest, EffectPackageFixture.Inputs(files), V1Profile)).Code);
 
         var current = SdkV2PackageFixture.Contents(manifest => manifest["sdkVersion"] = "2.0.7");
-        Assert.Equal("2.0.7", current.Profile.SdkVersion); Assert.True(EffectPackageProfiles.IsV2(current.Profile));
+        Assert.Equal("2.0.7", current.Profile.SdkVersion); Assert.True(EffectPackageProfiles.IsSupported(current.Profile));
         Assert.Equal(600_000, current.LineExitDurationUs); Assert.Empty(current.Emitters);
         var definition = EffectPackageDefinition.Read(current);
         Assert.Equal(current.Requires, definition.Requires); Assert.Equal(current.LineExitDurationUs, definition.LineExitDurationUs);

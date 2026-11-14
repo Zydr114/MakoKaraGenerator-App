@@ -13,7 +13,7 @@ internal static class GroupGraphEffectAdmission
 
     internal static void Validate(EffectPackageDefinition package, EffectOutputDefinition output, EffectBinding binding, string path)
     {
-        if (!EffectPackageProfiles.IsV2(package.Contents.Profile)
+        if (!EffectPackageProfiles.IsSupported(package.Contents.Profile)
             || !package.Contents.Requires.Contains(Capability, StringComparer.Ordinal))
             throw new EffectPackageException("GroupImageEffectUnsupported", path, "源组图须使用 v3／SDK v2 并显式声明 image.graph.group。");
         if (!package.Contents.Requires.Contains(V2.CapabilityNames.ImageGraph, StringComparer.Ordinal))

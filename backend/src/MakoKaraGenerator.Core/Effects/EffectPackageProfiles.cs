@@ -25,13 +25,10 @@ public static class EffectPackageProfiles
             "visuals.segments", "visuals.trails", "visuals.sprites"]) : text;
     }
 
-    /// <summary>是否属于已支持的 SDK v2 包身份；不只比较 SDK 数字。</summary>
-    public static bool IsV2(EffectPackageProfile profile)
+    /// <summary>是否是明确支持的 SDK v2 包身份；不只比较 SDK 数字。</summary>
+    public static bool IsSupported(EffectPackageProfile profile)
         => profile is not null && profile.PackageVersion == V2.PackageVersion && profile.ShaderProfile == V2.ShaderProfile
             && TryVersion(profile.SdkVersion, out int major, out int minor) && major == 2 && minor == 0;
-    /// <summary>是否是明确支持的 SDK v2 包身份。</summary>
-    public static bool IsSupported(EffectPackageProfile profile)
-        => IsV2(profile);
     /// <summary>当前包执行合同采用的独立 SkSL 程序 ABI；不将 v2 的 Vulkan 执行身份当作程序格式。</summary>
     public static string ShaderProgramProfile(EffectPackageProfile profile)
     {
@@ -57,7 +54,7 @@ public static class EffectPackageProfiles
     }
 
     internal static bool Compatible(EffectPackageProfile actual, EffectPackageProfile supported)
-        => IsV2(supported) && IsV2(actual);
+        => IsSupported(supported) && IsSupported(actual);
     internal static void RequireCapability(string capability, string path)
     {
         if (!SupportedV2Capabilities.Contains(capability))

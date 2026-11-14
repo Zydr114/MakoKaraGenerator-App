@@ -25,7 +25,7 @@ string directory = Path.Combine(Path.GetFullPath(args[0]), "samples", "ScriptEff
 var package = await EffectPackageStorage.ReadSupportedDirectoryAsync(directory, cancellationToken: limit.Token);
 var declaration = EffectPackageDefinition.Read(package, limit.Token).Controllers.Single();
 double packageLoadMs = watch.Elapsed.TotalMilliseconds;
-if (!EffectPackageProfiles.IsV2(package.Profile))
+if (!EffectPackageProfiles.IsSupported(package.Profile))
     throw new InvalidOperationException("Package profile does not match SDK v2.");
 
 long[] starts = [0, 1_000_000, 2_000_000, 180_000_000, 181_000_000, 360_000_000, 361_000_000];

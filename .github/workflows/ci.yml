@@ -2,10 +2,17 @@
 # pre-published self-contained Server.
 #
 # Runner: ubuntu-24.04 (Linux x64). The desktop GPU path, Linux process
-# guards, and several tests call /usr/bin/ffmpeg, /bin/sleep, and
-# /usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc. Windows-only branches
+# guards, and several tests call /usr/bin/ffmpeg, /usr/bin/ffprobe, /bin/sleep,
+# and /usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc. Windows-only branches
 # are already guarded with OperatingSystem.IsWindows(). A windows-latest
 # job would cost twice the minutes and still could not run those paths.
+#
+# FFmpeg: ubuntu-24.04 ships 6.1 (libavformat 60). native/media-presentation
+# requires libavformat>=63, libavcodec>=63 and libavutil>=61, which is FFmpeg 9.
+# The documented toolchain is 9.0.2, and several tests call /usr/bin/ffmpeg by
+# absolute path. The backend job builds that shared release, points those paths
+# at it, and registers the libraries with ldconfig. native/media-envelope also
+# needs libsystemd-dev, which the image does not install.
 #
 # GPU: hosted runners have no Vulkan device. Tests marked Category=GpuSmoke
 # are excluded (they only assert real Vulkan pixels and return immediately
@@ -57,6 +64,9 @@ jobs:
     name: backend (build + xUnit)
     runs-on: ubuntu-24.04
     timeout-minutes: 180
+    env:
+      PKG_CONFIG_PATH: ${{ github.workspace }}/.ffmpeg/lib/pkgconfig
+      LD_LIBRARY_PATH: ${{ github.workspace }}/.ffmpeg/lib
     defaults:
       run:
         working-directory: backend
@@ -64,13 +74,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install ffmpeg, fonts, and fontconfig
+      - name: Install fonts and native build packages
         working-directory: ${{ github.workspace }}
         run: |
           set -euo pipefail
           sudo DEBIAN_FRONTEND=noninteractive apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-            ffmpeg \
+            build-essential \
+            cmake \
+            pkg-config \
+            nasm \
+            xz-utils \
+            libsystemd-dev \
             fontconfig \
             libfontconfig1 \
             fonts-dejavu-core \
@@ -88,13 +103,68 @@ jobs:
           fi
           fc-cache -f
           test -f /usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc
-          test -x /usr/bin/ffmpeg
-          test -x /usr/bin/ffprobe
+          pkg-config --exists libsystemd
           fc-list : family | grep -F 'Noto Sans CJK SC'
           fc-list : family | grep -F 'Noto Color Emoji'
           fc-list : family | grep -F 'DejaVu Sans'
-          echo "ffmpeg: $(ffmpeg -version | head -n 1)"
           echo "noto: ${font}"
+
+      # Distro ffmpeg on ubuntu-24.04 is 6.1. Cache the shared install so later
+      # runs skip the compile. The prefix path is stable for this repository
+      # on GitHub-hosted runners, which is what the installed libraries record.
+      - name: Cache FFmpeg 9.0.2
+        id: ffmpeg-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.ffmpeg
+          key: ffmpeg-9.0.2-shared-linux-x64-v1
+
+      - name: Build FFmpeg 9.0.2
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /tmp/ffmpeg-9.0.2.tar.xz https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz
+          echo "8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e  /tmp/ffmpeg-9.0.2.tar.xz" | sha256sum -c -
+          tar -xf /tmp/ffmpeg-9.0.2.tar.xz -C /tmp
+          cd /tmp/ffmpeg-9.0.2
+          ./configure \
+            --prefix="${GITHUB_WORKSPACE}/.ffmpeg" \
+            --enable-shared \
+            --disable-static \
+            --disable-doc \
+            --disable-debug \
+            --disable-ffplay
+          make -j"$(nproc)"
+          make install
+          test -x "${GITHUB_WORKSPACE}/.ffmpeg/bin/ffmpeg"
+          test -f "${GITHUB_WORKSPACE}/.ffmpeg/lib/pkgconfig/libavformat.pc"
+
+      - name: Expose FFmpeg 9.0.2
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          sudo ln -sfn "${GITHUB_WORKSPACE}/.ffmpeg/bin/ffmpeg" /usr/bin/ffmpeg
+          sudo ln -sfn "${GITHUB_WORKSPACE}/.ffmpeg/bin/ffprobe" /usr/bin/ffprobe
+          echo "${GITHUB_WORKSPACE}/.ffmpeg/lib" | sudo tee /etc/ld.so.conf.d/ffmpeg-9.conf >/dev/null
+          sudo ldconfig
+          python3 - <<'PY'
+          import os
+          import subprocess
+          required = {"libavformat": 63, "libavcodec": 63, "libavutil": 61}
+          for name, minimum in required.items():
+              version = subprocess.check_output(["pkg-config", "--modversion", name], text=True).strip()
+              major = int(version.split(".", 1)[0])
+              print(f"{name} {version}")
+              if major < minimum:
+                  raise SystemExit(f"{name} {version} is older than {minimum}")
+          for tool in ("/usr/bin/ffmpeg", "/usr/bin/ffprobe"):
+              line = subprocess.check_output([tool, "-version"], text=True).splitlines()[0]
+              print(line)
+              if "9.0.2" not in line:
+                  raise SystemExit(f"{tool} is not 9.0.2: {line}")
+          print("PKG_CONFIG_PATH", os.environ.get("PKG_CONFIG_PATH"))
+          PY
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4

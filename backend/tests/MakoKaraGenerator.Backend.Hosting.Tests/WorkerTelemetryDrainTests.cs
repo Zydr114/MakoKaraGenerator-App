@@ -29,15 +29,24 @@ public sealed class WorkerTelemetryDrainTests
         string extra = valid.Insert(valid.Length - 1, ",\"secret\":\"token\"");
         string input = PerformanceTelemetry.Prefix + injected + "\n"
             + PerformanceTelemetry.Prefix + new string('x', 9000) + "\n"
-            + PerformanceTelemetry.Prefix + extra + "\n";
+            + PerformanceTelemetry.Prefix + extra + "\n"
+            + PerformanceTelemetry.Prefix + JsonSerializer.Serialize(item with { BackgroundCopyMs = -1 }) + "\n"
+            + PerformanceTelemetry.Prefix + JsonSerializer.Serialize(item with
+            {
+                Kind = "exportQueueWait", Backend = "unknown", Frames = 0,
+                ExportQueueWaitCalls = 1, ExportQueueWaitMs = 2.5,
+            }) + "\n";
         List<string> output = [];
         using StreamReader reader = new(new MemoryStream(Encoding.UTF8.GetBytes(input)));
         await WorkerTelemetryDrain.DrainAsync(reader, 123, output.Add);
-        string accepted = Assert.Single(output, line => line.StartsWith("worker_telemetry_untrusted", StringComparison.Ordinal));
+        string[] records = output.Where(line => line.StartsWith("worker_telemetry_untrusted", StringComparison.Ordinal)).ToArray();
+        Assert.Equal(2, records.Length);
+        string accepted = Assert.Single(records, line => !line.Contains("exportQueueWait", StringComparison.Ordinal));
         Assert.StartsWith("worker_telemetry_untrusted pid=123 ", accepted, StringComparison.Ordinal);
         Assert.DoesNotContain("secret", accepted, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("token", accepted, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains(output, line => line.Contains("invalid=1 oversized=1", StringComparison.Ordinal));
+        Assert.Contains(records, line => line.Contains("\"ExportQueueWaitMs\":2.5", StringComparison.Ordinal));
+        Assert.Contains(output, line => line.Contains("invalid=2 oversized=1", StringComparison.Ordinal));
     }
 
     [Fact]

@@ -14,6 +14,42 @@ public sealed class PerformanceTelemetryTests
     private static PerformanceEvent Decode(string line) => JsonSerializer.Deserialize<PerformanceEvent>(line[PerformanceTelemetry.Prefix.Length..])!;
 
     [Fact]
+    public async Task BackgroundDrawAndSubmitPhasesReachCaptureDetailAndSummary()
+    {
+        ConcurrentBag<string> lines = [];
+        List<PerformanceEvent> captures = [];
+        PerformanceTelemetry.Configure(lines.Add, detailEvery: 1, intervalSeconds: 3600, maxEventsPerSecond: 100);
+        try
+        {
+            for (int i = 0; i < 2; i++)
+            {
+                using var frame = PerformanceTelemetry.BeginFrame("session", "gpu", i, 2, 2, capture: true);
+                foreach (var phase in new[] { PerformancePhase.BackgroundAcquire, PerformancePhase.BackgroundCopy, PerformancePhase.Draw, PerformancePhase.GpuSubmit })
+                    using (PerformanceTelemetry.Measure(phase)) Thread.Sleep(1);
+                frame.SetOutcome("ok");
+                captures.Add(frame.Capture()!);
+            }
+        }
+        finally { await PerformanceTelemetry.ShutdownAsync(); }
+
+        PerformanceEvent[] details = lines.Select(Decode).Where(e => e.Kind == "frame").OrderBy(e => e.Sequence).ToArray();
+        PerformanceEvent summary = Assert.Single(lines.Select(Decode), e => e.Kind == "summary");
+        Assert.Equal(2, details.Length);
+        Assert.Equal(2, summary.Frames);
+        foreach (Func<PerformanceEvent, double> phase in new Func<PerformanceEvent, double>[]
+        {
+            e => e.BackgroundAcquireMs, e => e.BackgroundCopyMs, e => e.DrawMs, e => e.GpuSubmitMs
+        })
+        {
+            Assert.All(captures, e => Assert.True(phase(e) > 0));
+            Assert.Equal(captures.Select(phase), details.Select(phase));
+            Assert.Equal(details.Sum(phase), phase(summary));
+        }
+        Assert.Equal(0, summary.RasterMs);
+        Assert.All(lines, line => Assert.StartsWith("MAKO_PERFORMANCE_V1 ", line));
+    }
+
+    [Fact]
     public async Task RateOneRotatesBackendsAndPreservesDeferredWindow()
     {
         ConcurrentBag<string> lines = [];
@@ -35,8 +71,8 @@ public sealed class PerformanceTelemetryTests
 
     [Theory]
     [InlineData("off", 0, 0)]
-    [InlineData("summary", 1, 0)]
-    [InlineData("detailed", 1, 1)]
+    [InlineData("summary", 2, 0)]
+    [InlineData("detailed", 2, 1)]
     public async Task EnvironmentModesAreApplied(string mode, int summaries, int details)
     {
         string? previous = Environment.GetEnvironmentVariable("MAKO_PERFORMANCE_MODE");
@@ -48,9 +84,17 @@ public sealed class PerformanceTelemetryTests
             Environment.SetEnvironmentVariable("MAKO_PERFORMANCE_DETAIL_EVERY", null);
             PerformanceTelemetry.ConfigureFromEnvironment(lines.Add);
             using (var frame = PerformanceTelemetry.BeginFrame("s", "cpu", 1, 1, 1)) frame.SetOutcome("ok");
+            using (PerformanceTelemetry.MeasureExportQueueWait("s", 1)) { }
             await PerformanceTelemetry.ShutdownAsync();
             Assert.Equal(summaries, lines.Count(line => Decode(line).Kind == "summary"));
             Assert.Equal(details, lines.Count(line => Decode(line).Kind == "frame"));
+            Assert.Equal(details, lines.Count(line => Decode(line).Kind == "exportQueueWait"));
+            if (mode == "off") Assert.Empty(lines);
+            else
+            {
+                Assert.Equal(1, lines.Select(Decode).Where(e => e.Kind == "summary").Sum(e => e.Frames));
+                Assert.Contains(lines.Select(Decode), e => e is { Kind: "summary", Backend: "unknown", Frames: 0, ExportQueueWaitCalls: 1 });
+            }
         }
         finally
         {
@@ -58,6 +102,60 @@ public sealed class PerformanceTelemetryTests
             Environment.SetEnvironmentVariable("MAKO_PERFORMANCE_MODE", previous);
             Environment.SetEnvironmentVariable("MAKO_PERFORMANCE_DETAIL_EVERY", previousSample);
         }
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public async Task ExportQueueWaitSurvivesOperationOnlyWindow(int detailEvery)
+    {
+        ConcurrentBag<string> lines = [];
+        PerformanceTelemetry.Configure(lines.Add, detailEvery: detailEvery, intervalSeconds: 3600, maxEventsPerSecond: 100);
+        try
+        {
+            // No ambient frame is required. Copying a scope must not count the wait twice.
+            using (PerformanceTelemetry.BeginRequest("request-secret"))
+            {
+                var wait = PerformanceTelemetry.MeasureExportQueueWait("session-secret", 1);
+                var copy = wait;
+                await Task.Delay(1);
+                wait.Dispose(); copy.Dispose();
+                Assert.Throws<OperationCanceledException>((Action)(() =>
+                {
+                    using var cancelled = PerformanceTelemetry.MeasureExportQueueWait("session-secret", 2);
+                    throw new OperationCanceledException();
+                }));
+            }
+        }
+        finally { await PerformanceTelemetry.ShutdownAsync(); }
+
+        PerformanceEvent summary = Assert.Single(lines.Select(Decode), e => e.Kind == "summary");
+        Assert.Equal("unknown", summary.Backend);
+        Assert.Equal(2, summary.ExportQueueWaitCalls);
+        Assert.True(summary.ExportQueueWaitMs > 0);
+        Assert.Equal(0, summary.Frames);
+        Assert.Equal(0, summary.Errors);
+        Assert.Equal(0, summary.Cancelled);
+        Assert.Equal(0, summary.WallMs);
+        Assert.Equal(0, summary.MaxWallMs);
+        Assert.Equal(0, summary.ActiveFrames);
+        PerformanceEvent[] details = lines.Select(Decode).Where(e => e.Kind == "exportQueueWait").ToArray();
+        Assert.Equal(detailEvery == 0 ? 0 : 2, details.Length);
+        if (detailEvery > 0)
+        {
+            Assert.Equal(details.Sum(e => e.ExportQueueWaitMs), summary.ExportQueueWaitMs);
+            Assert.All(details, e =>
+            {
+                Assert.Equal("unknown", e.Backend);
+                Assert.Equal(1, e.ExportQueueWaitCalls);
+                Assert.Equal(16, e.Request.Length);
+                Assert.Equal(16, e.Session.Length);
+                Assert.Equal(0, e.Frames);
+                Assert.Equal(0, e.WallMs);
+                Assert.Equal(0, e.MaxWallMs);
+            });
+        }
+        Assert.DoesNotContain(lines, line => line.Contains("secret", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

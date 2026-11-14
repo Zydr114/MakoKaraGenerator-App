@@ -231,6 +231,8 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
                 DrawBackground(canvas, request, composition);
             }
 
+            // 主绘制包含材质/图等嵌套阶段，不包含背景取帧、快照复制和最终输出提交/回读。
+            using var drawing = PerformanceTelemetry.Measure(PerformancePhase.Draw);
             using var frameResources = _surfaceBudget.BeginFrame();
             using var spriteImages = BorrowSpriteImages(request, frameResources);
             using var svgInputs = BorrowSvgInputs(request, frameResources);
@@ -247,6 +249,7 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
             DrawOverlays(canvas, request, Scripting.OverlayLayer.AboveText, frameResources, svgWork);
 
             canvas.Restore();
+            drawing.Dispose();
             return output(surface, info, target, new(materialDiagnostics, imageDiagnostics, sceneDiagnostics));
         }
     }
@@ -275,6 +278,7 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
             return;
         }
 
+        using var drawing = PerformanceTelemetry.Measure(PerformancePhase.Draw);
         DrawBackgroundFrame(canvas, frame, background, composition);
     }
 
@@ -294,8 +298,8 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
         var frame = ResolveBackgroundFrameCore(request);
         if (frame is { Bitmap.IsImmutable: false })
         {
-            var copy = frame.Bitmap.Copy() ?? throw new InvalidOperationException("无法固定本帧背景位图。");
-            copy.SetImmutable();
+            using var copying = PerformanceTelemetry.Measure(PerformancePhase.BackgroundCopy);
+            var copy = CreateBackgroundSnapshot(frame.Bitmap);
             scope.Copy = copy;
             frame = frame with { Bitmap = copy };
         }
@@ -324,6 +328,7 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
 
     private BackgroundFrame? ResolveBackgroundFrameCore(RenderRequest request)
     {
+        using var acquiring = PerformanceTelemetry.Measure(PerformancePhase.BackgroundAcquire);
         var source = _backgroundResolver.Resolve(request.Project.Background, request.CancellationToken);
         if (source is null) return null;
         // Raster nearest sampling has a stable integer phase. Vulkan texture sampling at

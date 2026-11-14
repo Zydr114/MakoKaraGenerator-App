@@ -8,7 +8,7 @@ using System.Threading.Channels;
 namespace MakoKaraGenerator.Rendering;
 
 /// <summary>Inclusive host wall times; these are not GPU hardware timings.</summary>
-public enum PerformancePhase { Prepare, Script, Graph, Material, Particle, Raster, Validation, Readback }
+public enum PerformancePhase { Prepare, Script, Graph, Material, Particle, Raster, Validation, Readback, BackgroundAcquire, BackgroundCopy, Draw, GpuSubmit }
 
 public sealed record PerformanceScript(string Identity, string Stage, long Calls, double WallMs, double MaxMs);
 
@@ -38,6 +38,12 @@ public sealed record PerformanceEvent
     public double RasterMs { get; init; }
     public double ValidationMs { get; init; }
     public double ReadbackMs { get; init; }
+    public double BackgroundAcquireMs { get; init; }
+    public double BackgroundCopyMs { get; init; }
+    public double DrawMs { get; init; }
+    public double GpuSubmitMs { get; init; }
+    public long ExportQueueWaitCalls { get; init; }
+    public double ExportQueueWaitMs { get; init; }
     public long ScriptCalls { get; init; }
     public long ImageReads { get; init; }
     public long ImageBytes { get; init; }
@@ -124,6 +130,14 @@ public static class PerformanceTelemetry
         return state is null || Volatile.Read(ref state.Closed) != 0 ? default : new PhaseScope(state, phase, Stopwatch.GetTimestamp());
     }
 
+    /// <summary>Measure export queue admission wall time, including failed or cancelled waits; independent of render frames and encoding time.</summary>
+    public static ExportQueueWaitScope MeasureExportQueueWait(string session, long sequence)
+    {
+        Collector? collector = Volatile.Read(ref _collector);
+        return collector is null ? default : new ExportQueueWaitScope(collector, Request.Value ?? "none", SafeId(session), sequence,
+            collector.SampleExportQueueWait(), Stopwatch.GetTimestamp());
+    }
+
     public static void RecordReadback(bool image, long requestedBytes)
     {
         FrameState? state = Current.Value;
@@ -170,7 +184,7 @@ public static class PerformanceTelemetry
         internal readonly string Request = request, Session = session, Backend = backend;
         internal readonly long Sequence = sequence, Started = Stopwatch.GetTimestamp(), Allocated = GC.GetTotalAllocatedBytes(false);
         internal readonly int Width = width, Height = height, Gc0 = GC.CollectionCount(0), Gc1 = GC.CollectionCount(1), Gc2 = GC.CollectionCount(2);
-        internal readonly long[] Ticks = new long[8];
+        internal readonly long[] Ticks = new long[12];
         internal readonly bool Sampled = sampled;
         internal readonly int ActiveSlot = collector?.StartFrame() ?? -1;
         internal readonly Dictionary<(string, string), PerformanceScript> Scripts = [];
@@ -221,7 +235,9 @@ public static class PerformanceTelemetry
                     WallMs = wallMs, MaxWallMs = wallMs, PrepareMs = state.Ticks[0] * ms,
                     ScriptMs = state.Ticks[1] * ms, GraphMs = state.Ticks[2] * ms, MaterialMs = state.Ticks[3] * ms,
                     ParticleMs = state.Ticks[4] * ms, RasterMs = state.Ticks[5] * ms, ValidationMs = state.Ticks[6] * ms,
-                    ReadbackMs = state.Ticks[7] * ms, ScriptCalls = state.ScriptCalls, ImageReads = state.ImageReads,
+                    ReadbackMs = state.Ticks[7] * ms, BackgroundAcquireMs = state.Ticks[8] * ms,
+                    BackgroundCopyMs = state.Ticks[9] * ms, DrawMs = state.Ticks[10] * ms,
+                    GpuSubmitMs = state.Ticks[11] * ms, ScriptCalls = state.ScriptCalls, ImageReads = state.ImageReads,
                     ImageBytes = state.ImageBytes, SurfaceReads = state.SurfaceReads, SurfaceBytes = state.SurfaceBytes,
                     ProcessAllocatedBytes = Math.Max(0, GC.GetTotalAllocatedBytes(false) - state.Allocated),
                     Gc0 = GC.CollectionCount(0) - state.Gc0, Gc1 = GC.CollectionCount(1) - state.Gc1, Gc2 = GC.CollectionCount(2) - state.Gc2,
@@ -272,7 +288,7 @@ public static class PerformanceTelemetry
         public void Dispose()
         {
             PhaseLease? lease = _lease;
-            if (lease is null || Interlocked.Exchange(ref lease.Closed, 1) != 0 || (uint)lease.Phase >= 8 || Volatile.Read(ref lease.State.Closed) != 0) return;
+            if (lease is null || Interlocked.Exchange(ref lease.Closed, 1) != 0 || (uint)lease.Phase >= (uint)lease.State.Ticks.Length || Volatile.Read(ref lease.State.Closed) != 0) return;
             Interlocked.Add(ref lease.State.Ticks[(int)lease.Phase], Stopwatch.GetTimestamp() - lease.Start);
         }
     }
@@ -285,6 +301,37 @@ public static class PerformanceTelemetry
         internal int Closed;
     }
 
+    public readonly struct ExportQueueWaitScope : IDisposable
+    {
+        private readonly ExportQueueWaitLease? _lease;
+        internal ExportQueueWaitScope(Collector collector, string request, string session, long sequence, bool sampled, long start) =>
+            _lease = new(collector, request, session, sequence, sampled, start);
+        public void Dispose()
+        {
+            ExportQueueWaitLease? lease = _lease;
+            if (lease is null || Interlocked.Exchange(ref lease.Closed, 1) != 0) return;
+            try
+            {
+                lease.Collector.Enqueue(new PerformanceEvent
+                {
+                    Kind = "exportQueueWait", Request = lease.Request, Session = lease.Session, Sequence = lease.Sequence,
+                    ExportQueueWaitCalls = 1, ExportQueueWaitMs = (Stopwatch.GetTimestamp() - lease.Start) * (1000d / Stopwatch.Frequency),
+                    DetailEvery = lease.Sampled ? lease.Collector.DetailEvery : 0
+                });
+            }
+            catch { /* Telemetry must not replace the export outcome. */ }
+        }
+    }
+
+    private sealed class ExportQueueWaitLease(Collector collector, string request, string session, long sequence, bool sampled, long start)
+    {
+        internal readonly Collector Collector = collector;
+        internal readonly string Request = request, Session = session;
+        internal readonly long Sequence = sequence, Start = start;
+        internal readonly bool Sampled = sampled;
+        internal int Closed;
+    }
+
     internal sealed class Collector
     {
         private readonly Channel<PerformanceEvent> _queue = Channel.CreateBounded<PerformanceEvent>(new BoundedChannelOptions(128)
@@ -293,6 +340,7 @@ public static class PerformanceTelemetry
         private readonly int _detailEvery, _intervalSeconds, _maxRate;
         private long _dropped;
         private long _sampleCounter;
+        private long _exportQueueWaitSampleCounter;
         private readonly long[] _active = new long[128];
         private long _activeOverflow;
         internal int StartFrame()
@@ -306,6 +354,7 @@ public static class PerformanceTelemetry
         internal void EndFrame(int slot) { if (slot >= 0) Interlocked.Exchange(ref _active[slot], 0); }
         internal int DetailEvery => _detailEvery;
         internal bool Sample() => _detailEvery > 0 && Interlocked.Increment(ref _sampleCounter) % _detailEvery == 0;
+        internal bool SampleExportQueueWait() => _detailEvery > 0 && Interlocked.Increment(ref _exportQueueWaitSampleCounter) % _detailEvery == 0;
         internal Task Completion { get; }
         internal Collector(Action<string> sink, int detailEvery, int intervalSeconds, int maxRate)
         {
@@ -348,7 +397,7 @@ public static class PerformanceTelemetry
                 for (int offset = 0; offset < totals.Length; offset++)
                 {
                     int i = (nextBackend + offset) % totals.Length;
-                    if (totals[i].Frames == 0) continue;
+                    if (totals[i].Frames == 0 && totals[i].ExportQueueWaitCalls == 0) continue;
                     long dropped = Interlocked.Read(ref _dropped);
                     bool success = Emit(totals[i] with { Dropped = dropped, DetailEvery = _detailEvery,
                         WindowMs = (flushTime - windowStart[i]) * (1000d / Stopwatch.Frequency),
@@ -364,7 +413,7 @@ public static class PerformanceTelemetry
                     }
                 }
                 nextBackend = (nextBackend + 1) % totals.Length;
-                if (!emittedSummary && !totals.Any(static t => t.Frames > 0))
+                if (!emittedSummary && !totals.Any(static t => t.Frames > 0 || t.ExportQueueWaitCalls > 0))
                 {
                     long dropped = Interlocked.Read(ref _dropped);
                     if (Emit(new PerformanceEvent { ProcessCpuMs = cpu, ProcessWorkingSetBytes = workingSet, ActiveFrames = active,
@@ -379,13 +428,16 @@ public static class PerformanceTelemetry
                 {
                     int i = frame.Backend == "cpu" ? 0 : frame.Backend == "gpu" ? 1 : 2;
                     PerformanceEvent t = totals[i];
-                    totals[i] = t with { Frames = t.Frames + 1, Errors = t.Errors + frame.Errors, Cancelled = t.Cancelled + frame.Cancelled,
+                    totals[i] = t with { Frames = t.Frames + frame.Frames, Errors = t.Errors + frame.Errors, Cancelled = t.Cancelled + frame.Cancelled,
                         MaxWallMs = Math.Max(t.MaxWallMs, frame.WallMs), Request = frame.WallMs > t.MaxWallMs ? frame.Request : t.Request,
                         Session = frame.WallMs > t.MaxWallMs ? frame.Session : t.Session, Sequence = frame.WallMs > t.MaxWallMs ? frame.Sequence : t.Sequence,
                         Width = frame.WallMs > t.MaxWallMs ? frame.Width : t.Width, Height = frame.WallMs > t.MaxWallMs ? frame.Height : t.Height,
                         WallMs = t.WallMs + frame.WallMs, PrepareMs = t.PrepareMs + frame.PrepareMs, ScriptMs = t.ScriptMs + frame.ScriptMs,
                         GraphMs = t.GraphMs + frame.GraphMs, MaterialMs = t.MaterialMs + frame.MaterialMs, ParticleMs = t.ParticleMs + frame.ParticleMs,
                         RasterMs = t.RasterMs + frame.RasterMs, ValidationMs = t.ValidationMs + frame.ValidationMs, ReadbackMs = t.ReadbackMs + frame.ReadbackMs,
+                        BackgroundAcquireMs = t.BackgroundAcquireMs + frame.BackgroundAcquireMs, BackgroundCopyMs = t.BackgroundCopyMs + frame.BackgroundCopyMs,
+                        DrawMs = t.DrawMs + frame.DrawMs, GpuSubmitMs = t.GpuSubmitMs + frame.GpuSubmitMs,
+                        ExportQueueWaitCalls = t.ExportQueueWaitCalls + frame.ExportQueueWaitCalls, ExportQueueWaitMs = t.ExportQueueWaitMs + frame.ExportQueueWaitMs,
                         ScriptCalls = t.ScriptCalls + frame.ScriptCalls, ImageReads = t.ImageReads + frame.ImageReads, ImageBytes = t.ImageBytes + frame.ImageBytes,
                         SurfaceReads = t.SurfaceReads + frame.SurfaceReads, SurfaceBytes = t.SurfaceBytes + frame.SurfaceBytes,
                         ProcessAllocatedBytes = t.ProcessAllocatedBytes + frame.ProcessAllocatedBytes, Gc0 = t.Gc0 + frame.Gc0, Gc1 = t.Gc1 + frame.Gc1, Gc2 = t.Gc2 + frame.Gc2 };

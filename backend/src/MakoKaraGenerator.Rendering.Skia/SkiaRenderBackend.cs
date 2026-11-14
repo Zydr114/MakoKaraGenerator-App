@@ -356,6 +356,7 @@ internal sealed class VulkanSkiaRenderDevice : ISkiaRenderDevice
     {
         ArgumentNullException.ThrowIfNull(surface);
         ObjectDisposedException.ThrowIf(_disposed, this);
+        using var submission = PerformanceTelemetry.Measure(PerformancePhase.GpuSubmit);
         surface.Flush();
         _context.Flush();
         _context.Submit(true);
@@ -365,6 +366,7 @@ internal sealed class VulkanSkiaRenderDevice : ISkiaRenderDevice
     {
         ArgumentNullException.ThrowIfNull(surface);
         ObjectDisposedException.ThrowIf(_disposed, this);
+        using var submission = PerformanceTelemetry.Measure(PerformancePhase.GpuSubmit);
         surface.Flush();
         _context.Flush();
         _context.Submit(false);
@@ -374,8 +376,11 @@ internal sealed class VulkanSkiaRenderDevice : ISkiaRenderDevice
     {
         ArgumentNullException.ThrowIfNull(image);
         ObjectDisposedException.ThrowIf(_disposed, this);
-        _context.Flush();
-        _context.Submit(true);
+        using (PerformanceTelemetry.Measure(PerformancePhase.GpuSubmit))
+        {
+            _context.Flush();
+            _context.Submit(true);
+        }
         return image.ToRasterImage(true);
     }
 
@@ -394,8 +399,11 @@ internal sealed class VulkanSkiaRenderDevice : ISkiaRenderDevice
         ObjectDisposedException.ThrowIf(_disposed, this);
         using var performance = PerformanceTelemetry.Measure(PerformancePhase.Readback);
         SkiaReadbackTelemetry.Record(true, imageInfo);
-        _context.Flush();
-        _context.Submit(true);
+        using (PerformanceTelemetry.Measure(PerformancePhase.GpuSubmit))
+        {
+            _context.Flush();
+            _context.Submit(true);
+        }
         SKImage? raster = image.ToRasterImage(true);
         if (raster is null) return false;
         try { return raster.ReadPixels(imageInfo, destination, rowBytes, 0, 0); }
@@ -415,8 +423,11 @@ internal sealed class VulkanSkiaRenderDevice : ISkiaRenderDevice
 
         using var performance = PerformanceTelemetry.Measure(PerformancePhase.Readback);
         SkiaReadbackTelemetry.Record(true, imageInfo);
-        _context.Flush();
-        _context.Submit(true);
+        using (PerformanceTelemetry.Measure(PerformancePhase.GpuSubmit))
+        {
+            _context.Flush();
+            _context.Submit(true);
+        }
         // Skia treats a null destination color space as the image's color space.
         // Explicitly matching it avoids the expensive raster intermediate without
         // changing the requested pixel encoding.

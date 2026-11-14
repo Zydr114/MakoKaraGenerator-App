@@ -94,7 +94,7 @@ internal static class WorkerTelemetryDrain
         static bool Number(double value) => double.IsFinite(value) && value >= 0 && value <= 1e15;
         return e.Version == 1 && DateTimeOffset.TryParseExact(e.TimestampUtc, "O", System.Globalization.CultureInfo.InvariantCulture,
                 System.Globalization.DateTimeStyles.None, out _) && Number(e.WindowMs)
-            && e.Kind is "summary" or "frame" && e.Backend is "cpu" or "gpu" or "unknown"
+            && e.Kind is "summary" or "frame" or "exportQueueWait" && e.Backend is "cpu" or "gpu" or "unknown"
             && Id(e.Request) && Id(e.Session) && e.Sequence >= 0 && e.Width is >= 0 and <= 100000 && e.Height is >= 0 and <= 100000
             && e.Frames >= 0 && e.Errors >= 0 && e.Cancelled >= 0 && e.ScriptCalls >= 0 && e.ImageReads >= 0 && e.ImageBytes >= 0
             && e.SurfaceReads >= 0 && e.SurfaceBytes >= 0 && e.ProcessAllocatedBytes >= 0 && e.Gc0 >= 0 && e.Gc1 >= 0 && e.Gc2 >= 0
@@ -102,6 +102,10 @@ internal static class WorkerTelemetryDrain
             && e.ActiveFrames is >= 0 and <= 128 && e.ActiveOverflow >= 0
             && Number(e.WallMs) && Number(e.MaxWallMs) && Number(e.PrepareMs) && Number(e.ScriptMs) && Number(e.GraphMs)
             && Number(e.MaterialMs) && Number(e.ParticleMs) && Number(e.RasterMs) && Number(e.ValidationMs) && Number(e.ReadbackMs)
+            && Number(e.BackgroundAcquireMs) && Number(e.BackgroundCopyMs) && Number(e.DrawMs) && Number(e.GpuSubmitMs)
+            && Number(e.ExportQueueWaitMs) && e.ExportQueueWaitCalls >= 0
+            && (e.Kind != "exportQueueWait" || e.Backend == "unknown" && e.Frames == 0 && e.Errors == 0 && e.Cancelled == 0
+                && e.WallMs == 0 && e.MaxWallMs == 0 && e.ExportQueueWaitCalls == 1)
             && Number(e.ProcessCpuMs) && Number(e.LongestActiveFrameMs) && e.Scripts is { Length: <= 16 }
             && e.Scripts.All(static s => s is not null && Id(s.Identity) && s.Identity != "none"
                 && s.Stage is "Initialize" or "Advance" or "Evaluate" or "OnEvent" or "AdvanceVisuals" or "EvaluateVisuals" or "EvaluateEmitters" or "other"

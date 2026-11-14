@@ -132,6 +132,8 @@ internal sealed class FfmpegEncodingSession : IVideoEncodingSession
     private CancellationTokenSource? _timeoutSource;
     private CancellationTokenSource? _linked;
     private int _framesWritten;
+    private readonly string _telemetrySession = Guid.NewGuid().ToString("N");
+    private long _telemetrySequence;
     private int _droppedFrames;
     private bool _disposed;
     private bool _completed;
@@ -221,6 +223,9 @@ internal sealed class FfmpegEncodingSession : IVideoEncodingSession
 
         try
         {
+            // 编码层只记录入队耗时；它既不是编码耗时，也不属于已经结束的渲染帧作用域。
+            using var queueWait = PerformanceTelemetry.MeasureExportQueueWait(_telemetrySession,
+                Interlocked.Increment(ref _telemetrySequence));
             await _frames.Writer.WriteAsync(frame, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException)

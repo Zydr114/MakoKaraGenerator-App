@@ -8,8 +8,8 @@
 
 | 变量 | 默认 | 语义 |
 | --- | --- | --- |
-| `MAKO_PERFORMANCE_MODE` | `summary` | `off` 关闭；`summary` 仅周期摘要；`detailed` 在摘要之外采样逐帧事件。忽略大小写；其他值按 summary。 |
-| `MAKO_PERFORMANCE_DETAIL_EVERY` | `1`（detailed） | 每 N 帧输出一条明细，限制 1..1000000；仅 detailed 生效。 |
+| `MAKO_PERFORMANCE_MODE` | `summary` | `off` 关闭；`summary` 仅周期摘要；`detailed` 在摘要之外采样逐帧及编码入队事件。忽略大小写；其他值按 summary。 |
+| `MAKO_PERFORMANCE_DETAIL_EVERY` | `1`（detailed） | 每 N 帧输出一条明细，编码入队另用独立计数器采样；限制 1..1000000，仅 detailed 生效。 |
 | `MAKO_PERFORMANCE_INTERVAL_SECONDS` | `10` | 周期，限制 1..3600 秒。 |
 | `MAKO_PERFORMANCE_MAX_EVENTS_PER_SECOND` | `10` | 每 Worker 输出速率上限，限制 1..100；摘要保留一个输出名额，设置为 1 时不输出 detail。 |
 
@@ -23,7 +23,7 @@ Worker 仅在 stderr 写入 `MAKO_PERFORMANCE_V1 ` 加 JSON，stdout 仍保留�
 
 Worker stderr EOF 后，Hosting 尝试输出固定格式 `worker_telemetry_drain pid=... accepted=... invalid=... oversized=... rateDropped=... queueDropped=...`，并等待输出队列屏障最多 200ms；队列已满或 sink 挂起时计数行与尾摘要也可能丢失。`accepted` 为通过白名单的行数（包含随后因队列满而丢弃的行）。
 
-所有 JSON 字段为 PascalCase。`Version` 为 1，`Kind` 为 `summary` 或 `frame`。`TimestampUtc` 是 UTC ISO 8601；`WindowMs` 为对应 backend 自上次成功输出摘要以来的时间，逐帧通常为 0。摘要按 backend 汇总窗口内完成的帧；限速时待发 backend 轮流优先，未发出的数据保留到下轮；没有完成帧也定期产生心跳。以下字段均为固定基数、数值或受限标识：
+所有 JSON 字段为 PascalCase。`Version` 为 1，`Kind` 为 `summary`、`frame` 或 `exportQueueWait`。`TimestampUtc` 是 UTC ISO 8601；`WindowMs` 为对应 backend 自上次成功输出摘要以来的时间，明细为 0。摘要按 backend 汇总窗口内完成的帧和编码入队调用；限速时待发 backend 轮流优先，未发出的数据保留到下轮；没有完成帧也定期产生心跳。以下字段均为固定基数、数值或受限标识：
 
 | 字段 | 含义 |
 | --- | --- |
@@ -33,6 +33,11 @@ Worker stderr EOF 后，Hosting 尝试输出固定格式 `worker_telemetry_drain
 | `Frames`, `Errors`, `Cancelled` | 窗口内完成、失败、取消的帧数；frame 事件代表一个帧。 |
 | `WallMs`, `MaxWallMs` | 完成帧 wall 毫秒之和及窗口最大值；单帧事件的 `WallMs` 是本帧。 |
 | `PrepareMs`, `ScriptMs` | 前者为宿主准备（含回放和作者调用），后者为实际 C# 作者回调，二者重叠。 |
+| `BackgroundAcquireMs` | 解析背景来源及取帧，包含视频解码等待和来源缓冲到可变位图的复制；不含下面的不可变快照复制。 |
+| `BackgroundCopyMs` | 将本帧可变背景按原始像素复制为独立不可变快照；同一帧后续使用复用该快照。 |
+| `DrawMs` | 背景绘制与主画面绘制的宿主墙钟，包含材质、图等嵌套工作；不含上述背景获取/复制和最终输出提交/回读。 |
+| `GpuSubmitMs` | Vulkan 显式 flush/submit 的宿主墙钟；同步提交包含 CPU 等待，异步提交不代表 GPU 已完成。桌面共享输出包含纹理复制和同步等待。它可能与 Draw、Readback 重叠，不能当成 GPU 硬件执行时间。 |
+| `ExportQueueWaitCalls`, `ExportQueueWaitMs` | 编码有界队列 WriteAsync 的调用数与耗时，含失败/取消的入队尝试；不含编码器实际执行时间。独立于渲染帧作用域，固定归入 `unknown` backend，不增加 Frames/Errors/Cancelled/WallMs/MaxWallMs。 |
 | `GraphMs`, `MaterialMs`, `ParticleMs`, `RasterMs`, `ValidationMs`, `ReadbackMs` | 各阶段含其嵌套阶段的宿主 wall 毫秒，可重叠，不可相加推算帧总时长。`MaterialMs` 从材质执行核心入口开始，不包含该入口之前的场景区域捕获；`ParticleMs` 覆盖宿主粒子模拟操作。 |
 | `ScriptCalls`, `Scripts`, `ScriptOverflow` | C# 回调次数；明细中 `Scripts` 按实例短哈希与固定 `Stage` 聚合 `Calls`、`WallMs`、`MaxMs`；超过 16 个键计入 overflow。直接图并非 C# 作者回调。 |
 | `ImageReads`, `ImageBytes`, `SurfaceReads`, `SurfaceBytes` | 图像或表面读回次数及请求字节，不代表物理总线流量。 |

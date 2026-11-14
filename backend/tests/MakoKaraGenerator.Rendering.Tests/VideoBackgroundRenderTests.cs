@@ -3,6 +3,7 @@ using MakoKaraGenerator.Core.Time;
 using MakoKaraGenerator.Rendering.Abstractions;
 using MakoKaraGenerator.Rendering.Skia;
 using MakoKaraGenerator.Text;
+using SkiaSharp;
 
 namespace MakoKaraGenerator.Rendering.Tests;
 
@@ -110,6 +111,48 @@ public sealed class VideoBackgroundRenderTests : IDisposable
             Assert.True(expected.TryGetPixel(x, y, out RgbaColor expectedColor));
             Assert.Equal(expectedColor, actualColor);
         }
+    }
+
+    [Theory]
+    [InlineData(SKColorType.Bgra8888, SKAlphaType.Unpremul, 0)]
+    [InlineData(SKColorType.Bgra8888, SKAlphaType.Unpremul, 12)]
+    [InlineData(SKColorType.Rgba8888, SKAlphaType.Premul, 12)]
+    [InlineData(SKColorType.Bgra8888, SKAlphaType.Opaque, 0)]
+    public void 背景快照保留有效像素与颜色信息且独立拥有每帧数据(SKColorType colorType, SKAlphaType alphaType, int padding)
+    {
+        using var colorSpace = SKColorSpace.CreateSrgbLinear();
+        SKImageInfo info = new(3, 3, colorType, alphaType, colorSpace);
+        using var source = new SKBitmap(info, info.RowBytes + padding);
+        byte[] expected = new byte[info.BytesSize];
+        for (int i = 0; i < expected.Length; i += 4)
+        {
+            byte alpha = alphaType == SKAlphaType.Opaque ? (byte)255 : (byte)(i == 0 ? 0 : i == 4 ? 1 : 97);
+            expected[i] = alphaType == SKAlphaType.Premul ? Math.Min((byte)19, alpha) : (byte)19;
+            expected[i + 1] = alphaType == SKAlphaType.Premul ? Math.Min((byte)83, alpha) : (byte)83;
+            expected[i + 2] = alphaType == SKAlphaType.Premul ? Math.Min((byte)211, alpha) : (byte)211;
+            expected[i + 3] = alpha;
+        }
+        source.GetPixelSpan().Fill(0xCC); // padding 不属于有效像素，也不能被拼到下一行。
+        for (int y = 0; y < info.Height; y++)
+            expected.AsSpan(y * info.RowBytes, info.RowBytes).CopyTo(source.GetPixelSpan().Slice(y * source.RowBytes, info.RowBytes));
+
+        using var first = SkiaRenderPipeline.CreateBackgroundSnapshot(source);
+        Assert.True(first.IsImmutable);
+        Assert.False(source.IsImmutable);
+        Assert.Equal(info, first.Info);
+        Assert.True(SKColorSpace.Equal(colorSpace, first.ColorSpace));
+        Assert.Equal(info.RowBytes, first.RowBytes);
+        Assert.NotEqual(source.GetPixels(), first.GetPixels());
+        Assert.Equal(expected, first.GetPixelSpan().ToArray());
+
+        // 复用来源的下一帧改变像素；先前快照既不别名也不依赖来源的生命周期。
+        source.GetPixelSpan().Fill(0xFF);
+        source.NotifyPixelsChanged();
+        using var next = SkiaRenderPipeline.CreateBackgroundSnapshot(source);
+        source.Dispose();
+        Assert.Equal(expected, first.GetPixelSpan().ToArray());
+        Assert.True(next.IsImmutable);
+        Assert.All(next.GetPixelSpan().ToArray(), value => Assert.Equal((byte)0xFF, value));
     }
 
     private sealed class SamplingSource(bool resize) : IVideoFrameSource

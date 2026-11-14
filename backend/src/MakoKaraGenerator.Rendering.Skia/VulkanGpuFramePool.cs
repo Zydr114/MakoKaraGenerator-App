@@ -54,6 +54,8 @@ internal sealed class VulkanGpuFramePool : IDisposable
         lock (_gate)
         {
             EnsureOpen();
+            // 包含共享纹理提交、复制与本机同步等待；这是宿主墙钟，不是 GPU 时间戳。
+            using var submission = PerformanceTelemetry.Measure(PerformancePhase.GpuSubmit);
             var lease = GpuPreviewNative.Lease.Create();
             var error = GpuPreviewNative.Error.Create();
             GpuPreviewNative.Check(GpuPreviewNative.Acquire(_pool, sequence, ref lease, ref error), error, "reserve shared GPU slot");

@@ -8,14 +8,22 @@ from pathlib import Path
 
 
 def assess(current, baseline):
-    expected = {('v1', 'WordEmphasis'), ('v2', 'WordEmphasis'), ('v1', 'RepeatEmphasis'),
-                ('v2', 'RepeatEmphasis'), ('v2', 'ClusterExit')}
-    def index(report):
+    legacy_expected = {('v1', 'WordEmphasis'), ('v2', 'WordEmphasis'), ('v1', 'RepeatEmphasis'),
+                       ('v2', 'RepeatEmphasis'), ('v2', 'ClusterExit')}
+    v2_only_expected = {('v2', 'WordEmphasis'), ('v2', 'RepeatEmphasis'), ('v2', 'ClusterExit')}
+    def index(report, allow_v2_only=False):
         rows = report['timings']
         result = {(row['sdk'], row['sample']): row for row in rows}
-        if set(result) != expected or len(rows) != len(expected):
+        keys = set(result)
+        if len(rows) != len(keys):
             raise ValueError('Incomplete or duplicate finite matrix.')
-        if len(report['comparisons']) != 24 or len(report['crossProcessDeterminism']) != 20:
+        if keys == legacy_expected:
+            expected_determinism = 20
+        elif allow_v2_only and keys == v2_only_expected:
+            expected_determinism = 12
+        else:
+            raise ValueError('Incomplete or duplicate finite matrix.')
+        if len(report['comparisons']) != 24 or len(report['crossProcessDeterminism']) != expected_determinism:
             raise ValueError('Missing correctness comparisons.')
         for (_, sample), row in result.items():
             cycle = ([999999, 1000000, 1300000, 1599999, 1600000, 180750000, 360750000, 1300000, 999999]
@@ -27,7 +35,7 @@ def assess(current, baseline):
             if len(row['queries']) != len(coordinates) or queries != coordinates:
                 raise ValueError('Incomplete, duplicate or altered query-position matrix.')
         return result
-    actual, before = index(current), index(baseline)
+    actual, before = index(current, allow_v2_only=True), index(baseline, allow_v2_only=False)
     checks = []
     def add(sample, stage, metric, value, limit, **identity):
         if not all(isinstance(x, (int, float)) and math.isfinite(x) and x >= 0 for x in (value, limit)):

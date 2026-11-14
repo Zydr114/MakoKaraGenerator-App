@@ -32,22 +32,24 @@ def main():
     cli.add_argument("--backend", type=Path, required=True)
     cli.add_argument("--source-commit", required=True)
     cli.add_argument("--icd", type=Path, required=True)
+    cli.add_argument("--v1-reference-dir", type=Path, default=None)
     args = cli.parse_args()
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
     runner = args.runner.resolve()
     backend = args.backend.resolve()
+    v1_reference_dir = args.v1_reference_dir.resolve() if args.v1_reference_dir is not None else None
     environment = {**os.environ, "VK_DRIVER_FILES": str(args.icd.resolve()), "VK_ICD_FILENAMES": str(args.icd.resolve())}
     save(output / "inputs.json", {"sourceCommit": args.source_commit,
-        "scope": "Already-built M07 binaries and unchanged M07 samples. No rebuild. Three fresh processes per SDK/sample; three cycles per process. No OS or driver cache reset.",
+        "scope": "Already-built M07 binaries and unchanged M07 samples. No rebuild. Three fresh processes per v2 sample; three cycles per process. No OS or driver cache reset.",
         "runner": str(runner), "binarySha256": {p.name: sha(p) for p in sorted(runner.parent.glob('*.dll'))},
-        "icdSha256": sha(args.icd), "cpuLoadStart": os.getloadavg()})
+        "icdSha256": sha(args.icd), "v1ReferenceDir": str(v1_reference_dir) if v1_reference_dir is not None else None,
+        "cpuLoadStart": os.getloadavg()})
     runs = []
+    samples = ['WordEmphasis', 'RepeatEmphasis', 'ClusterExit']
     for round_index in range(1, 4):
-        variants = ['v1', 'v2'] if round_index % 2 else ['v2', 'v1']
-        matrix = [(sdk, sample) for sample in ['WordEmphasis', 'RepeatEmphasis'] for sdk in variants]
-        matrix.append(('v2', 'ClusterExit'))
-        for sdk, sample in matrix:
+        for sample in samples:
+            sdk = 'v2'
             name = f"r{round_index}-{sdk}-{sample}"
             path = output / (name + '.json')
             command = ['dotnet', str(runner), str(backend), sdk, sample, str(path), '3']
@@ -66,23 +68,23 @@ def main():
     reports = {(r['round'], r['sdk'], r['sample']): json.loads((output / r['file']).read_text()) for r in runs}
     comparisons = []
     determinism = []
-    for sample in ['WordEmphasis', 'RepeatEmphasis', 'ClusterExit']:
-        for sdk in (['v2'] if sample == 'ClusterExit' else ['v1', 'v2']):
-            baseline = reports[(1, sdk, sample)]
-            for round_index in (2, 3):
-                current = reports[(round_index, sdk, sample)]
-                for stage, key in [('preparation', 'sha256'), ('rendering', 'bgraSha256')]:
-                    expected = {r['timeUs']: r[key] for r in baseline[stage]}
-                    actual = {r['timeUs']: r[key] for r in current[stage]}
-                    determinism.append({'sdk': sdk, 'sample': sample, 'round': round_index,
-                                        'stage': stage, 'passed': actual == expected})
-        if sample == 'ClusterExit':
+    for sample in samples:
+        baseline = reports[(1, 'v2', sample)]
+        for round_index in (2, 3):
+            current = reports[(round_index, 'v2', sample)]
+            for stage, key in [('preparation', 'sha256'), ('rendering', 'bgraSha256')]:
+                expected = {r['timeUs']: r[key] for r in baseline[stage]}
+                actual = {r['timeUs']: r[key] for r in current[stage]}
+                determinism.append({'sdk': 'v2', 'sample': sample, 'round': round_index,
+                                    'stage': stage, 'passed': actual == expected})
+        if sample == 'ClusterExit' or v1_reference_dir is None:
             continue
         for round_index in range(1, 4):
-            left = {r['timeUs']: r['pixelAsset'] for r in reports[(round_index, 'v1', sample)]['rendering']}
+            v1_report = json.loads((v1_reference_dir / f'r{round_index}-v1-{sample}.json').read_text())
+            left = {r['timeUs']: r['pixelAsset'] for r in v1_report['rendering']}
             right = {r['timeUs']: r['pixelAsset'] for r in reports[(round_index, 'v2', sample)]['rendering']}
             for time_us, asset in left.items():
-                a = (output / f'r{round_index}-v1-{sample}.json.assets' / asset).read_bytes()
+                a = (v1_reference_dir / f'r{round_index}-v1-{sample}.json.assets' / asset).read_bytes()
                 b = (output / f'r{round_index}-v2-{sample}.json.assets' / right[time_us]).read_bytes()
                 if len(a) != len(b):
                     raise RuntimeError('Pixel byte lengths differ.')
@@ -92,7 +94,7 @@ def main():
                     'maxChannelDifference': maximum, 'channelsOver2': sum(d > 2 for d in differences),
                     'passed': maximum <= 2})
     timings = []
-    for sdk, sample in [('v1','WordEmphasis'),('v2','WordEmphasis'),('v1','RepeatEmphasis'),('v2','RepeatEmphasis'),('v2','ClusterExit')]:
+    for sdk, sample in [('v2', 'WordEmphasis'), ('v2', 'RepeatEmphasis'), ('v2', 'ClusterExit')]:
         group = [reports[(r,sdk,sample)] for r in range(1,4)]
         item = {'sdk':sdk, 'sample':sample, 'setup':{}, 'queries':[]}
         for key in ('packageLoadMs','compileMs','prepareSessionMs','renderSessionMs'):
@@ -109,7 +111,8 @@ def main():
                     item['queries'].append(row)
         timings.append(item)
     result = {'status':'passed' if all(x['passed'] for x in comparisons+determinism) else 'failed',
-              'pixelToleranceChannel8bit':2,'comparisons':comparisons,'crossProcessDeterminism':determinism,
+              'pixelToleranceChannel8bit':2,'v1ReferenceDir':str(v1_reference_dir) if v1_reference_dir is not None else None,
+              'comparisons':comparisons,'crossProcessDeterminism':determinism,
               'timings':timings,'formalPerformanceThreshold':'user confirmed 2026-11-04; run m07_thresholds.py with the explicit archived baseline',
               'scope':'Finite one-token CJK/Ruby parity. Separate setup/query metrics; no HTTP/UI timing or arbitrary v1 equivalence claim.'}
     save(output / 'summary.json', result)

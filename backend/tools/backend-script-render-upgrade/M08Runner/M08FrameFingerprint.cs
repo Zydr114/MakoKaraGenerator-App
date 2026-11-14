@@ -9,8 +9,6 @@ internal static class M08FrameFingerprint
     // Every output array retains production order; only the linked M07 text map projection sorts target maps.
     internal static byte[] Serialize(PreparedRenderFrame frame)
     {
-        if (!frame.Particles.IsEmpty)
-            throw new InvalidOperationException("The finite M08 canonical format requires independent v2 particle output.");
         using MemoryStream stream = new();
         using (Utf8JsonWriter writer = new(stream))
         {

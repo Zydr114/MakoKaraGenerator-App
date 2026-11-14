@@ -91,6 +91,7 @@ jobs:
             libmp3lame-dev \
             libopus-dev \
             libvorbis-dev \
+            libzimg-dev \
             fontconfig \
             libfontconfig1 \
             fonts-dejavu-core \
@@ -122,7 +123,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ github.workspace }}/.ffmpeg
-          key: ffmpeg-9.0.2-shared-linux-x64-gpl-v2
+          key: ffmpeg-9.0.2-shared-linux-x64-gpl-zimg-v3
 
       - name: Build FFmpeg 9.0.2
         if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
@@ -134,8 +135,8 @@ jobs:
           tar -xf /tmp/ffmpeg-9.0.2.tar.xz -C /tmp
           cd /tmp/ffmpeg-9.0.2
           # Tests and the exporter call libx264 (crf/preset), libmp3lame, libopus
-          # and libvorbis by name. The native aac/flac/pcm/ffv1 encoders are
-          # already in a default build; these four are external libraries.
+          # and libvorbis by name. Integer-factor video downscale uses the
+          # zscale filter, which is libzimg. aac/flac/pcm/ffv1 are built in.
           ./configure \
             --prefix="${GITHUB_WORKSPACE}/.ffmpeg" \
             --enable-shared \
@@ -147,7 +148,8 @@ jobs:
             --enable-libx264 \
             --enable-libmp3lame \
             --enable-libopus \
-            --enable-libvorbis
+            --enable-libvorbis \
+            --enable-libzimg
           make -j"$(nproc)"
           make install
           test -x "${GITHUB_WORKSPACE}/.ffmpeg/bin/ffmpeg"
@@ -181,6 +183,10 @@ jobs:
               if name not in encoders:
                   raise SystemExit(f"ffmpeg is missing encoder {name}")
               print("encoder", name)
+          filters = subprocess.check_output(["/usr/bin/ffmpeg", "-hide_banner", "-filters"], text=True)
+          if "zscale" not in filters:
+              raise SystemExit("ffmpeg is missing the zscale filter (libzimg)")
+          print("filter zscale")
           print("PKG_CONFIG_PATH", os.environ.get("PKG_CONFIG_PATH"))
           PY
 

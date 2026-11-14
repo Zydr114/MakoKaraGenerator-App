@@ -91,8 +91,7 @@ export class DraftAdoptionModel {
   compiled(candidate = this.state.candidate): boolean {
     const pkg = candidate?.metadata;
     if (!candidate || !pkg) return false;
-    const requiresCompilation = pkg.packageVersion === 3 && pkg.sdkVersion.split('.')[0] === '2'
-      && pkg.files.some((file) => file.role === 'csharp');
+    const requiresCompilation = pkg.files.some((file) => file.role === 'csharp');
     return !requiresCompilation || this.port.compiled(candidate.targetSourceRevision);
   }
 

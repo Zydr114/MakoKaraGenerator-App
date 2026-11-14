@@ -15,7 +15,7 @@ import { Select } from '../ui/fields';
 import { useObservable, useObservableSelector } from '../ui/hooks';
 import { Icon } from '../ui/Icon';
 import { Group, Note } from '../workspace/panel';
-import { isV2AuthorDraft, type FullDraft } from './author-draft-store';
+import { type FullDraft } from './author-draft-store';
 import type { DraftSourceModel } from './draft-source';
 import {
   AUTHOR_VALIDATION_SPEC,
@@ -114,7 +114,7 @@ export function DraftValidationTab(props: {
               )}
             </div>
             <Note>按固定规格逐帧检查：{AUTHOR_VALIDATION_SPEC}。渲染设备按顶栏的选择。</Note>
-            {isV2AuthorDraft(draft) && <Note>SDK 2 验证需要 Vulkan，请在顶栏明确选择 GPU。</Note>}
+            <Note>SDK 2 验证需要 Vulkan，请在顶栏明确选择 GPU。</Note>
             {source?.dirty && <Note error>源码页签还有改动没保存成修订，本次验证只检查草稿的在用修订。</Note>}
             <div className="row-actions">
               <Button

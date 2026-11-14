@@ -33,7 +33,7 @@ function fakePort() {
   const inspected: string[] = [];
   let gate: Promise<void> | undefined;
   const port: DraftSourcePort = {
-    current: () => server, isV2: () => true, savedRevisions: () => [], rememberSaved: () => {},
+    current: () => server, savedRevisions: () => [], rememberSaved: () => {},
     refresh: async () => server,
     readPackage: async (sent, source) => {
       const data = packages.get(source);
@@ -75,7 +75,6 @@ function fakePort() {
     read: async () => { throw new Error('legacy sources must not run'); },
     save: async () => { throw new Error('legacy save must not run'); },
     adopt: async () => {},
-    use: async () => { throw new Error('package save must not auto-use'); },
     compile: async () => ({ jobId: 'j1', kind: 'author-compilation', state: 'queued', canCancel: false }) as JobResponse,
     waitJob: async () => ({ jobId: 'j1', kind: 'author-compilation', state: 'succeeded', canCancel: false }) as JobResponse,
     cancelJob: async () => {},

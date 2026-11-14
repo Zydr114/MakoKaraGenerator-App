@@ -3,7 +3,7 @@
 // 后端不记录草稿来自哪个组件，对应关系记在 sessionStorage（按 client ID 区分）。
 
 import { BackendError, ObservableValue, type MakoClient } from '../../client';
-import { AUTHOR_DRAFT_LIMIT, type AuthorDraft, type ProfileAuthorDraft, type AuthorSourceInspectionResponse, type EffectPackageInspectResponse, type ScriptConfigurationDetailResponse, type ScriptConfiguration } from '../../protocol';
+import { AUTHOR_DRAFT_LIMIT, type AuthorDraft, type ProfileAuthorDraft, type AuthorSourceInspectionResponse, type ScriptConfigurationDetailResponse, type ScriptConfiguration } from '../../protocol';
 import { FOLLOW_DEFAULT, renderBackendField, type RenderBackendRequest } from '../model/render-device';
 import { componentFromDraft, configurationIssues, draftConfigurationInput, editableOf, sameAsComponent } from '../model/script-components';
 import { errorText } from '../session/editor-session';
@@ -32,14 +32,6 @@ export type DraftSaveState = 'saved' | 'unsaved' | 'orphan' | 'checking';
 
 /** 带完整配置和试样选项的草稿（读取一定给出两者，列表和命令回执没有时补读）。 */
 export type FullDraft = AuthorDraft & { configuration: NonNullable<AuthorDraft['configuration']>; sampleOptions: NonNullable<AuthorDraft['sampleOptions']> };
-
-/** 由草稿正式 profile 分派；旧宿主可回读固定包清单。 */
-export function isV2AuthorDraft(draft: AuthorDraft | undefined, pkg?: EffectPackageInspectResponse | AuthorSourceInspectionResponse): boolean {
-  if (draft?.packageVersion !== undefined || draft?.sdkVersion !== undefined)
-    return draft.packageVersion === 3 && draft.sdkVersion?.split('.')[0] === '2';
-  if (pkg && 'packageVersion' in pkg) return pkg.packageVersion === 3 && pkg.sdkVersion.split('.')[0] === '2';
-  return pkg?.manifest.packageVersion === 3 && typeof pkg.manifest.sdkVersion === 'string' && pkg.manifest.sdkVersion.split('.')[0] === '2';
-}
 
 /** 配置控件只使用在用源码的精确 metadata；来源组件同 packageId 不代表同内容。 */
 export function exactDraftPackage<T extends { packageId: string; packageRevision: string }>(draft: FullDraft, pkg: T | undefined): T | undefined {
@@ -189,7 +181,6 @@ export class AuthorDraftStore {
     const clientId = () => this.client.state$.get().clientId;
     const model = new DraftSourceModel({
       current: () => this.draft(draftId),
-      isV2: () => isV2AuthorDraft(this.draft(draftId), this.state.packages[draftId]),
       settleConfiguration: async () => (await this.editors.get(draftId)?.flush()) ?? true,
       readPackage: (draft, revision) => this.client.drafts.packageFiles(draftId, draft.draftRevision, revision),
       savePackage: async (draft, input) => {
@@ -214,13 +205,6 @@ export class AuthorDraftStore {
       lockConfiguration: () => this.configEditor(draftId)?.lockForAdoption() ?? (() => {}),
       adoptionBoundary: (draft) => this.editors.get(draftId)?.schemaBoundary(draft),
       adoptionUncertain: () => this.editors.get(draftId)?.adoptionUncertain(),
-      use: async (draft, revision) => {
-        const next = await this.full(
-          await this.client.drafts.setConfiguration(draftId, draft.draftRevision, { ...draftConfigurationInput(draft.configuration), sourceRevision: revision }),
-        );
-        this.replace(next);
-        return next;
-      },
       refresh: (expectedAdoption) => this.refreshDraft(draftId, expectedAdoption),
       compile: (draft, revision) => this.client.drafts.compile(draftId, draft.draftRevision, revision),
       waitJob: (jobId, onProgress, signal) => this.client.jobs.waitForTerminal(jobId, { signal, onProgress }),

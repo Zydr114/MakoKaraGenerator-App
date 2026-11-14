@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import type { DraftTab, FullDraft } from './author-draft-store';
-import { draftSaveState, isV2AuthorDraft, type AuthorDraftStore, type DraftsState } from './author-draft-store';
+import { draftSaveState, type AuthorDraftStore, type DraftsState } from './author-draft-store';
 import { compiledOk, componentKindText } from '../model/script-components';
 import { shortRevision } from '../model/full-template';
 import { Button, IconButton } from '../ui/Button';
@@ -70,7 +70,7 @@ export function DraftDetail(props: { state: ComponentState; drafts: AuthorDraftS
 
   return (
     <div className="lib-detail draft-detail" data-draft-id={draft.draftId} data-save-state={saveState}
-      data-author-source-revision={isV2AuthorDraft(draft, pkg) ? configuration.sourceRevision : undefined}>
+      data-author-source-revision={configuration.sourceRevision}>
       <header className="phead">
         <div className="phead-row">
           <h2 className="template-name">{configuration.name}</h2>
@@ -81,8 +81,7 @@ export function DraftDetail(props: { state: ComponentState; drafts: AuthorDraftS
         </div>
         <div className="phead-row template-actions">
           <span className="meta draft-package" title={`${pkg ? `${pkg.name} ${pkg.version} · ` : ''}${configuration.packageId}`}>
-            {isV2AuthorDraft(draft, pkg) ? 'SDK 2 · ' : ''}
-            {componentKindText(configuration.kind)}，在用修订 {shortRevision(configuration.sourceRevision)}
+            SDK 2 · {componentKindText(configuration.kind)}，在用修订 {shortRevision(configuration.sourceRevision)}
             {configuration.sourceRevision === draft.baseSourceRevision ? '（原包）' : ''}
           </span>
           <span className="spacer" />
@@ -106,11 +105,11 @@ export function DraftDetail(props: { state: ComponentState; drafts: AuthorDraftS
         {originConfig ? `保存会更新组件“${originConfig.name}”。` : ''}草稿保存在本机，Server 重启或换标签页后可在“可恢复的草稿”里认领；仍请及时保存到组件库。
       </Note>
       {saveState === 'orphan' && <Note className="phead-note">{origin ? '来源组件已经不在组件库里了' : '不知道这个草稿来自哪个组件'}，只能另存为新组件。</Note>}
-      {isV2AuthorDraft(draft, pkg) && <Note className="phead-note">
+      <Note className="phead-note">
         最新源码 {shortRevision(draft.currentSourceRevision)}；试样请求与保存使用在用修订 {shortRevision(configuration.sourceRevision)}。
         {draft.currentSourceRevision !== configuration.sourceRevision ? ' 新源码须编译通过并采用后才用于试样。' : ''}
         {' SDK 2 试样和验证需要 Vulkan，请在顶栏明确选择 GPU。'}
-      </Note>}
+      </Note>
       {workshop && (
         <SampleArea
           workshop={workshop}

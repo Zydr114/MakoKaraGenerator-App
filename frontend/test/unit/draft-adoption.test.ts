@@ -114,9 +114,9 @@ describe('完整配置采用历史', () => {
     const inputs: AuthorPackageConfigurationInput[] = [];
     const revisions: string[] = [];
     const port: DraftSourcePort = {
-      current: () => current, isV2: () => true, read: async () => ({ draftId: 'd1', draftRevision: current.draftRevision,
+      current: () => current, read: async () => ({ draftId: 'd1', draftRevision: current.draftRevision,
         sourceRevision: A, packageId: 'demo', packageRevision: A, files: [{ path: 'a.cs', text: 'original' }], protocolVersion: '1' }),
-      save: async () => { throw new Error('unused'); }, use: async () => { throw new Error('unused'); },
+      save: async () => { throw new Error('unused'); },
       adopt: async (_sent, source, configuration) => {
         revisions.push(_sent.draftRevision);
         posts++; if (failure) throw failure;

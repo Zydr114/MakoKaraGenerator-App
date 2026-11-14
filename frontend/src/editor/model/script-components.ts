@@ -253,11 +253,10 @@ export function componentFromDraft(draft: AuthorDraft & { configuration: AuthorD
   return { ...rest, name, source: { draftId: draft.draftId, expectedDraftRevision: draft.draftRevision, sourceRevision } };
 }
 
-/** 最近一次编译是否验证在用修订；SDK2 的旧于最新标记不使该固定源的成功失效。 */
+/** 最近一次编译是否验证在用修订；旧于最新标记不使该固定源的成功失效。 */
 export function compiledOk(draft: AuthorDraft): boolean {
   const last = draft.lastCompilation;
-  const v2 = draft.packageVersion === 3 && draft.sdkVersion?.split('.')[0] === '2';
-  return !!last && !!draft.configuration && last.sourceRevision === draft.configuration.sourceRevision && last.succeeded && (v2 || !last.stale);
+  return !!last && !!draft.configuration && last.sourceRevision === draft.configuration.sourceRevision && last.succeeded;
 }
 
 // ── 配置页签（§2.5）──────────────────────────────────────

@@ -44,10 +44,10 @@ function draft(patch: Partial<FullDraft> & { inUse?: string } = {}): FullDraft {
 const conflict = () => new BackendError(409, { code: 'revisionConflict', message: '草稿修订已过期' } as never);
 const notFound = () => new BackendError(404, { code: 'resourceNotFound', message: '源码修订不包含 C# 文件' } as never);
 
-/** 假后端：按修订存文件，保存按内容算修订（和最新修订相同是 no-op）；在用修订原来就是最新修订时才跟着换（§0）。 */
-function fakePort(options: { v2?: boolean; files?: Record<string, AuthorSourceFile[]>; stale?: number; diagnostics?: AuthorCompilationDiagnostic[]; jobState?: JobResponse['state'] } = {}) {
+/** 假后端：按修订存文件，保存按内容算修订（和最新修订相同是 no-op）；SDK2 保存只推进最新修订，不改变在用修订。 */
+function fakePort(options: { files?: Record<string, AuthorSourceFile[]>; stale?: number; diagnostics?: AuthorCompilationDiagnostic[]; jobState?: JobResponse['state'] } = {}) {
   const sources: Record<string, AuthorSourceFile[]> = options.files ?? { [BASE]: [{ path: 'src/A.cs', text: 'class A {}' }] };
-  let server = draft(options.v2 ? { packageVersion: 3, sdkVersion: '2.0.0' } : {});
+  let server = draft({ packageVersion: 3, sdkVersion: '2.0.0' });
   let stale = options.stale ?? 0;
   let revisions = 1;
   const calls: string[] = [];
@@ -69,7 +69,6 @@ function fakePort(options: { v2?: boolean; files?: Record<string, AuthorSourceFi
   };
   const port: DraftSourcePort = {
     current: () => local,
-    isV2: () => options.v2 ?? false,
     read: async (sent, revision) => {
       calls.push(`read ${sent.draftRevision} ${revision}`);
       check(sent);
@@ -85,8 +84,7 @@ function fakePort(options: { v2?: boolean; files?: Record<string, AuthorSourceFi
         return { draftId: 'd1', draftRevision: server.draftRevision, packageId: 'demo.fx', sourceRevision: server.currentSourceRevision, sourcePaths: [], protocolVersion: '1' };
       const revision = `sha256:${files.map((f) => f.text).join('|')}`;
       sources[revision] = files;
-      const follow = !options.v2 && server.configuration.sourceRevision === server.currentSourceRevision;
-      bump({ currentSourceRevision: revision, ...(follow ? { inUse: revision } : {}) });
+      bump({ currentSourceRevision: revision });
       return { draftId: 'd1', draftRevision: server.draftRevision, packageId: 'demo.fx', sourceRevision: revision, sourcePaths: files.map((f) => f.path), protocolVersion: '1' };
     },
     adopt: async (sent, revision) => {
@@ -94,17 +92,10 @@ function fakePort(options: { v2?: boolean; files?: Record<string, AuthorSourceFi
       check(sent);
       const failure = adoptFailures.shift();
       if (failure) throw failure;
-      if (options.v2 && !compiled.has(revision))
+      if (!compiled.has(revision))
         throw new BackendError(422, { code: 'commandRejected', message: '源码修订须先编译通过', failureCode: 'AuthorSourceCompilationRequired' } as never);
       bump({ adoptedSourceRevision: revision, inUse: revision });
       return {};
-    },
-    use: async (sent, revision) => {
-      calls.push(`use ${sent.draftRevision} ${revision}`);
-      check(sent);
-      bump({ inUse: revision });
-      local = server;
-      return local;
     },
     refresh: async () => {
       calls.push('refresh');
@@ -218,7 +209,8 @@ describe('源码页签', () => {
     expect(fake.calls.slice(1)).toEqual(['save r1', 'refresh']);
     expect(fake.remembered).toEqual([['sha256:a2|b']]);
     expect(model.state.revision).toBe('sha256:a2|b');
-    expect(fake.port.current()!.configuration.sourceRevision).toBe('sha256:a2|b');
+    expect(fake.port.current()!.currentSourceRevision).toBe('sha256:a2|b');
+    expect(fake.port.current()!.configuration.sourceRevision).toBe(BASE);
     // a3 是保存之后打的，仍然没保存。
     expect(model.state.files.map((f) => [f.text, f.saved])).toEqual([
       ['a3', 'a2'],
@@ -266,32 +258,33 @@ describe('源码页签', () => {
     expect(model.state).toMatchObject({ status: 'ready', revision: 'sha256:old', error: expect.stringMatching(/^读取修订失败/) });
   });
 
-  it('在用修订不是最新修订时（采用了原包）保存：后端不换在用修订，前端再提交配置换过来，采用标记不变', async () => {
+  it('保存只推进最新修订，不改变在用修订；改成和最新修订相同内容为 no-op', async () => {
     const fake = fakePort({ files: { [BASE]: [{ path: 'src/A.cs', text: 'base' }] } });
     const model = new DraftSourceModel(fake.port);
     await model.load();
     model.edit('src/A.cs', 'v2');
-    await model.save();
-    await model.adopt(BASE);
+    await model.compile();
+    await model.adopt('sha256:v2');
     model.edit('src/A.cs', 'v3');
     expect(await model.save()).toEqual({ kind: 'saved', revision: 'sha256:v3', created: true });
-    expect(fake.calls.slice(-3)).toEqual(['save r3', 'refresh', 'use r4 sha256:v3']);
-    expect(fake.port.current()).toMatchObject({ adoptedSourceRevision: BASE, currentSourceRevision: 'sha256:v3', configuration: { sourceRevision: 'sha256:v3' } });
+    expect(fake.calls.slice(-2)).toEqual(['save r3', 'refresh']);
+    expect(fake.port.current()).toMatchObject({ adoptedSourceRevision: 'sha256:v2', currentSourceRevision: 'sha256:v3', configuration: { sourceRevision: 'sha256:v2' } });
 
-    // 采用保留编辑器；明确查看原包后改成最新内容：不新建修订，但试样改用它。
-    await model.adopt(BASE);
+    // 查看原包后改成与最新修订相同内容：no-op，在用修订仍保持不变。
     await model.load(BASE);
     model.edit('src/A.cs', 'v3');
-    expect(await model.save()).toEqual({ kind: 'saved', revision: 'sha256:v3', created: false });
-    expect(fake.port.current()!.configuration.sourceRevision).toBe('sha256:v3');
+    expect(await model.save()).toEqual({ kind: 'unchanged' });
+    expect(fake.port.current()!.configuration.sourceRevision).toBe('sha256:v2');
   });
 
   it('采用保留查看修订、文本和视图；另一个明确查看操作才切换文件', async () => {
     const fake = fakePort({ files: { [BASE]: [{ path: 'src/A.cs', text: 'base' }] } });
     const model = new DraftSourceModel(fake.port);
     await model.load();
+    await model.compile();
     model.edit('src/A.cs', 'v2');
-    await model.save();
+    await model.compile();
+    await model.adopt('sha256:v2');
     expect(model.state.revision).toBe('sha256:v2');
 
     expect(await model.adopt(BASE)).toEqual({ kind: 'adopted', revision: BASE });
@@ -308,13 +301,12 @@ describe('源码页签', () => {
 
 describe('SDK2 保存、编译与采用', () => {
   it('保存和编译失败不改变在用来源，未通过修订不能采用', async () => {
-    const fake = fakePort({ v2: true, diagnostics: [{ code: 'CS0103', message: 'unknown', isError: true, path: 'src/A.cs', line: 1, column: 1 }] });
+    const fake = fakePort({ diagnostics: [{ code: 'CS0103', message: 'unknown', isError: true, path: 'src/A.cs', line: 1, column: 1 }] });
     const model = new DraftSourceModel(fake.port);
     await model.load();
     model.edit('src/A.cs', 'broken');
     await model.compile();
     expect(fake.port.current()).toMatchObject({ currentSourceRevision: 'sha256:broken', configuration: { sourceRevision: BASE } });
-    expect(fake.calls.some((call) => call.startsWith('use '))).toBe(false);
     expect(model.state.compilation).toMatchObject({ sourceRevision: 'sha256:broken', succeeded: false });
     expect((await model.adopt('sha256:broken')).kind).toBe('failed');
     expect(fake.port.current()!.configuration.sourceRevision).toBe(BASE);
@@ -322,7 +314,7 @@ describe('SDK2 保存、编译与采用', () => {
   });
 
   it('编译最新修订后明确采用；撤销须先查看并编译原包，采用历史在失败后保留', async () => {
-    const fake = fakePort({ v2: true });
+    const fake = fakePort();
     const model = new DraftSourceModel(fake.port);
     await model.load();
     model.edit('src/A.cs', 'new');
@@ -347,7 +339,7 @@ describe('SDK2 保存、编译与采用', () => {
   });
 
   it('采用前等待配置提交，配置被拒绝时保留来源和撤销状态', async () => {
-    const fake = fakePort({ v2: true });
+    const fake = fakePort();
     fake.port.settleConfiguration = async () => false;
     const model = new DraftSourceModel(fake.port);
     await model.load();
@@ -358,7 +350,7 @@ describe('SDK2 保存、编译与采用', () => {
   });
 
   it('409 直接交回且不重读重发，不能覆盖对方来源', async () => {
-    const fake = fakePort({ v2: true });
+    const fake = fakePort();
     const model = new DraftSourceModel(fake.port);
     await model.load();
     model.edit('src/A.cs', 'new');
@@ -373,7 +365,7 @@ describe('SDK2 保存、编译与采用', () => {
   });
 
   it('接受编译后切换查看修订仍保留原目标，旧成功不验证最新源码', async () => {
-    const fake = fakePort({ v2: true });
+    const fake = fakePort();
     const model = new DraftSourceModel(fake.port);
     await model.load();
     model.edit('src/A.cs', 'new');

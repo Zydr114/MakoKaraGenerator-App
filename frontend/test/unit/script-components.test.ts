@@ -238,7 +238,7 @@ describe('作者草稿与组件', () => {
     });
   });
 
-  it('在用修订编译通过：最近一次编译就是它、成功且没过期', () => {
+  it('在用修订编译通过：最近一次编译就是它且成功', () => {
     const compiled = (c: Partial<NonNullable<FullDraft['lastCompilation']>>) => ({
       ...draft,
       lastCompilation: { sourceRevision: 'sha256:fx1', succeeded: true, stale: false, artifactHash: 'h', diagnosticCount: 0, completedAtUtc: '2026-10-30T00:00:00Z', ...c },
@@ -247,8 +247,7 @@ describe('作者草稿与组件', () => {
     expect(compiledOk(compiled({}))).toBe(true);
     expect(compiledOk(compiled({ succeeded: false }))).toBe(false);
     expect(compiledOk(compiled({ sourceRevision: 'sha256:other' }))).toBe(false);
-    expect(compiledOk(compiled({ stale: true }))).toBe(false);
-    expect(compiledOk({ ...compiled({ stale: true }), packageVersion: 3, sdkVersion: '2.0.0', currentSourceRevision: 'sha256:new' })).toBe(true);
-    expect(compiledOk({ ...compiled({ stale: true, sourceRevision: 'sha256:other' }), packageVersion: 3, sdkVersion: '2.0.0' })).toBe(false);
+    expect(compiledOk({ ...compiled({ stale: true }), currentSourceRevision: 'sha256:new' })).toBe(true);
+    expect(compiledOk(compiled({ stale: true, sourceRevision: 'sha256:other' }))).toBe(false);
   });
 });

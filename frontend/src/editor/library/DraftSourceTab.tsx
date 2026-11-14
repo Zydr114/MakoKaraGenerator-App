@@ -53,7 +53,7 @@ export function DraftSourceTab(props: { draft: FullDraft; model: DraftSourceMode
   const dirty = model.dirty;
   const busy = disabled || !!state.busy;
 
-  const reportResult = (result: SourceResult) => report(result, model.isV2 || !!state.packageFiles);
+  const reportResult = (result: SourceResult) => report(result);
   const save = async () => reportResult(await model.save());
   const view = async (revision: string) => {
     if (model.dirty && !(await confirmLoseEdits('查看别的修订'))) return;
@@ -155,8 +155,8 @@ export function DraftSourceTab(props: { draft: FullDraft; model: DraftSourceMode
                 <IconButton
                   icon="check_circle"
                   size="sm"
-                  label={`${model.isV2 ? '采用' : '改用'}修订 ${shortRevision(row.revision)}`}
-                  tooltip={model.isV2 ? (draft.canCompile ? '采用此修订（须编译通过）' : '采用此固定资源修订') : '改用此修订'}
+                  label={`采用修订 ${shortRevision(row.revision)}`}
+                  tooltip={draft.canCompile ? '采用此修订（须编译通过）' : '采用此固定资源修订'}
                   className="source-revision-adopt"
                   isDisabled={busy || row.revision === inUse}
                   onPress={() => void adopt(row.revision)}
@@ -168,9 +168,9 @@ export function DraftSourceTab(props: { draft: FullDraft; model: DraftSourceMode
         <Note className="srcside-note">这里列出草稿保留的全部修订，可查看、采用或下载为 .mkfx。</Note>
         {state.historyError && <Note error className="srcside-note">{state.historyError}
           <Button variant="text" size="sm" onPress={() => void model.loadHistory()}>重试</Button></Note>}
-        {model.isV2 && <Note className="srcside-note">保存不会改变在用修订。{draft.canCompile
+        <Note className="srcside-note">保存不会改变在用修订。{draft.canCompile
           ? '查看任一修订后可编译，编译通过再采用；撤销采用的目标也须先编译通过。'
-          : '纯资源修订可按包门禁显式采用，实际运行使用验证页签。'}</Note>}
+          : '纯资源修订可按包门禁显式采用，实际运行使用验证页签。'}</Note>
         {state.packageFiles && <Note className="srcside-note">manifest 与可编辑文本一起保存；图片、字体可整份换成同一格式的文件，SVG 可用文件替换文本，其余二进制只读。保存会检查包结构，编译或资源运行结果另行显示。</Note>}
       </aside>
       <div className="srcmain draft-source-main">
@@ -188,15 +188,13 @@ export function DraftSourceTab(props: { draft: FullDraft; model: DraftSourceMode
             <FileButton label="用文件替换…" accept=".svg,image/svg+xml" variant="text" size="sm" icon="upload_file" disabled={busy || !!state.replacing}
               onPick={(file) => void replace(active.path, file)} />
           )}
-          {model.isV2 && <>
-            <IconButton icon="undo" size="sm" label="撤销源码采用" isDisabled={busy || !state.canUndoAdoption} onPress={() => void undoAdoption()} />
-            <IconButton icon="redo" size="sm" label="重做源码采用" isDisabled={busy || !state.canRedoAdoption} onPress={() => void redoAdoption()} />
-          </>}
+          <IconButton icon="undo" size="sm" label="撤销源码采用" isDisabled={busy || !state.canUndoAdoption} onPress={() => void undoAdoption()} />
+          <IconButton icon="redo" size="sm" label="重做源码采用" isDisabled={busy || !state.canRedoAdoption} onPress={() => void redoAdoption()} />
           <Button variant="filled" size="sm" icon="save" className="source-save" isPending={state.busy === 'saving'} isDisabled={busy || !dirty} onPress={() => void save()}>
             保存修订
           </Button>
           <Button variant="tonal" size="sm" icon="build" className="source-compile-button" isPending={!!state.compiling} isDisabled={busy || !!state.compiling || !draft.canCompile} onPress={() => void compile()}>
-            {dirty ? '保存并编译' : model.isV2 ? '编译查看的修订' : '编译'}
+            {dirty ? '保存并编译' : '编译查看的修订'}
           </Button>
         </div>
         {state.error && <Note error>{state.error}</Note>}
@@ -240,17 +238,13 @@ export function DraftSourceTab(props: { draft: FullDraft; model: DraftSourceMode
             <span className="source-compile-outcome">
               {compilation ? `编译 · 修订 ${shortRevision(compilation.sourceRevision)} · ${compileOutcomeText(compilation)}` : '还没有编译过'}
             </span>
-            {stale && <span className="diag-stale">{model.isV2 ? '此结果属于旧修订，最新源码尚未由此结果验证' : '已过期，需要重新编译'}</span>}
+            {stale && <span className="diag-stale">此结果属于旧修订，最新源码尚未由此结果验证</span>}
             <span className="faint">
               {state.compiling
                 ? state.compiling.cancelling
                   ? '正在取消…'
                   : '正在编译…'
-                : model.isV2
-                  ? `编译目标 ${shortRevision(state.revision ?? latest)}；在用 ${shortRevision(inUse)}`
-                  : inUse !== latest
-                  ? `编译的是最新修订 ${shortRevision(latest)}；试样在用的是 ${shortRevision(inUse)}`
-                  : ''}
+                : `编译目标 ${shortRevision(state.revision ?? latest)}；在用 ${shortRevision(inUse)}`}
             </span>
             {state.compiling && (
               <Button variant="text" size="sm" isDisabled={!state.compiling.canCancel || state.compiling.cancelling} onPress={() => void model.cancelCompile()}>
@@ -259,7 +253,7 @@ export function DraftSourceTab(props: { draft: FullDraft; model: DraftSourceMode
             )}
           </header>
           {state.compileError && <Note error>{state.compileError}</Note>}
-          {model.isV2 && compilation?.succeeded && compilation.sourceRevision !== inUse && (
+          {compilation?.succeeded && compilation.sourceRevision !== inUse && (
             <Button variant="tonal" size="sm" isDisabled={busy || !!state.compiling} onPress={() => void adopt(compilation.sourceRevision)}>
               采用编译通过的修订 {shortRevision(compilation.sourceRevision)}
             </Button>
@@ -309,18 +303,16 @@ class EditorBoundary extends Component<{ children: ReactNode }, { error?: unknow
   }
 }
 
-function report(result: SourceResult, explicitAdoption = false): void {
+function report(result: SourceResult): void {
   switch (result.kind) {
     case 'saved':
-      toast(explicitAdoption
-        ? `已保存修订 ${shortRevision(result.revision)}；在用修订保持，采用后才用于试样`
-        : result.created ? `已保存为修订 ${shortRevision(result.revision)}，试样已改用它` : `内容和修订 ${shortRevision(result.revision)} 相同，试样已改用它`);
+      toast(`已保存修订 ${shortRevision(result.revision)}；在用修订保持，采用后才用于试样`);
       break;
     case 'unchanged':
       toast('内容没有变化');
       break;
     case 'adopted':
-      toast(`已改用修订 ${shortRevision(result.revision)}，试样跟着换了`);
+      toast(`已采用修订 ${shortRevision(result.revision)}，试样跟着换了`);
       break;
     case 'failed':
       toast(result.message);

@@ -135,8 +135,6 @@ export interface AuthorAdoptionExpectation {
 
 export interface DraftSourcePort {
   current(): FullDraft | undefined;
-  /** 固定包 manifest 的 SDK2 身份；省略保持 v1 行为。 */
-  isV2?(): boolean;
   /** 在改变采用来源前先提交待写配置。 */
   settleConfiguration?(): Promise<boolean>;
   /** 配对提供时启用完整包编辑；未提供时保留旧 C# 源码流程。 */
@@ -152,8 +150,6 @@ export interface DraftSourcePort {
   lockConfiguration?(): () => void;
   adoptionBoundary?(draft: FullDraft): void;
   adoptionUncertain?(): void;
-  /** 只把在用修订换成 revision（PUT 配置，采用标记不变），新草稿写回列表。 */
-  use(draft: FullDraft, revision: string): Promise<FullDraft>;
   /** 重读草稿并写回列表。 */
   refresh(expectedAdoption?: AuthorAdoptionExpectation): Promise<FullDraft>;
   /** 后端保留的全部源码修订；不提供时只列已知身份。 */
@@ -215,8 +211,6 @@ export class DraftSourceModel {
   get dirty(): boolean {
     return this.state.files.some((f) => (f.editable !== false && f.text !== f.saved) || !!f.replacement);
   }
-
-  get isV2(): boolean { return this.port.isV2?.() ?? false; }
 
   /** 把一个修订读进编辑器；不给时读在用修订。编辑器里的改动会丢掉，由调用方先确认。 */
   async load(revision?: string): Promise<boolean> {
@@ -386,9 +380,8 @@ export class DraftSourceModel {
         this.patch({ saved });
         this.port.rememberSaved(saved);
       }
-      const fresh = created ? await this.port.refresh() : this.port.current();
-      if (!this.isV2 && fresh && fresh.configuration.sourceRevision !== revision) await this.withFreshDraft((draft) => this.port.use(draft, revision));
-      else if (!created) return { kind: 'unchanged' };
+      if (!created) return { kind: 'unchanged' };
+      await this.port.refresh();
       return { kind: 'saved', revision, created };
     } catch (error) {
       return { kind: 'failed', message: `保存修订失败：${errorText(error)}` };
@@ -524,12 +517,10 @@ export class DraftSourceModel {
       confirmed = true;
       const after = snapshotConfiguration(fresh.configuration);
       this.port.adoptionBoundary?.(fresh);
-      if (this.isV2) {
-        if (action === 'undo') this.redoAdoptions.push(this.undoAdoptions.pop()!);
-        else if (action === 'redo') this.undoAdoptions.push(this.redoAdoptions.pop()!);
-        else { this.undoAdoptions.push({ before, after }); this.redoAdoptions.length = 0; }
-        this.patch({ canUndoAdoption: this.undoAdoptions.length > 0, canRedoAdoption: this.redoAdoptions.length > 0 });
-      }
+      if (action === 'undo') this.redoAdoptions.push(this.undoAdoptions.pop()!);
+      else if (action === 'redo') this.undoAdoptions.push(this.redoAdoptions.pop()!);
+      else { this.undoAdoptions.push({ before, after }); this.redoAdoptions.length = 0; }
+      this.patch({ canUndoAdoption: this.undoAdoptions.length > 0, canRedoAdoption: this.redoAdoptions.length > 0 });
       // 保留显示的文件、cursor、undo 和 dirty；切到在用源仍由用户明确查看。
       return { kind: 'adopted', revision };
     } catch (error) {
@@ -549,7 +540,7 @@ export class DraftSourceModel {
   }
 
   /**
-   * SDK2 编译编辑器显示的固定修订，v1 编译最新修订。编辑器有改动时先保存。
+   * 编译编辑器显示的固定修订。编辑器有改动时先保存。
    * 编译不通过时任务照样成功，结果里 succeeded 为 false。
    */
   async compile(): Promise<SourceResult | undefined> {
@@ -563,7 +554,7 @@ export class DraftSourceModel {
       saved = await this.save();
       if (saved.kind === 'failed' || saved.kind === 'busy') return saved;
     }
-    const sourceRevision = this.isV2 || this.state.packageFiles ? this.state.revision : undefined;
+    const sourceRevision = this.state.revision;
     this.patch({ compiling: { canCancel: false, cancelling: false }, compileError: undefined });
     try {
       const accepted = await this.withFreshDraft((draft) => this.port.compile(draft, sourceRevision));

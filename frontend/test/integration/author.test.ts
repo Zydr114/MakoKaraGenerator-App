@@ -7,7 +7,7 @@ import type { AuthorDraft } from '../../src/protocol';
 import { ContractRecorder, startTestBackend, type TestBackend } from '../support/backend';
 
 const samples = sampleEffectsDir();
-if (!samples) console.warn('[skipped] 找不到 samples/ScriptEffects（MAKO_BACKEND_REPO），跳过作者集成测试。');
+if (!samples) console.warn('[skipped] 找不到 samples/ScriptEffectsV2（MAKO_BACKEND_REPO），跳过作者集成测试。');
 let backend: TestBackend;
 let client: MakoClient;
 let draft: AuthorDraft | undefined;
@@ -58,15 +58,22 @@ describe.skipIf(!samples)('作者关键链路（真实 Server）', () => {
     draft = await client.drafts.get(draft.draftId);
     expect(saved.sourceRevision).not.toBe(source.sourceRevision);
     expect((await client.drafts.sources(draft.draftId, draft.draftRevision, saved.sourceRevision)).files).toEqual(files);
-    expect(draft.configuration?.sourceRevision).toBe(saved.sourceRevision);
+    expect(draft.currentSourceRevision).toBe(saved.sourceRevision);
+    expect(draft.configuration?.sourceRevision).toBe(source.sourceRevision);
 
-    const compilation = await client.drafts.compile(draft.draftId, draft.draftRevision);
+    const compilation = await client.drafts.compile(draft.draftId, draft.draftRevision, saved.sourceRevision);
     expect((await client.jobs.waitForTerminal(compilation.jobId, { timeoutMs: 120_000 })).state).toBe('succeeded');
     expect(await client.drafts.compilationResult(compilation.jobId)).toMatchObject({ succeeded: true, sourceRevision: saved.sourceRevision });
-    const validation = await client.drafts.validate(draft.draftId, draft.draftRevision, { sampleId: 'workshop-single-line-v1', targetKey: 'line', renderBackend: 'cpu' });
-    const terminal = await client.jobs.waitForTerminal(validation.jobId, { timeoutMs: 150_000 });
-    expect(terminal.state, terminal.error?.message ?? terminal.failureCode).toBe('succeeded');
-    expect(await client.jobs.validationResult(validation.jobId)).toMatchObject({ succeeded: true, opaqueFrames: 360, transparentFrames: 360, renderBackend: 'cpu' });
+    await client.drafts.adopt(draft.draftId, draft.draftRevision, saved.sourceRevision);
+    draft = await client.drafts.get(draft.draftId);
+    expect(draft.configuration?.sourceRevision).toBe(saved.sourceRevision);
+    const gpuAvailable = (await client.preview.renderBackends()).backends.some((backend) => backend.renderBackend === 'gpu' && backend.available);
+    if (gpuAvailable) {
+      const validation = await client.drafts.validate(draft.draftId, draft.draftRevision, { sampleId: 'workshop-single-line-v1', targetKey: 'line', renderBackend: 'gpu' });
+      const terminal = await client.jobs.waitForTerminal(validation.jobId, { timeoutMs: 150_000 });
+      expect(terminal.state, terminal.error?.message ?? terminal.failureCode).toBe('succeeded');
+      expect(await client.jobs.validationResult(validation.jobId)).toMatchObject({ succeeded: true, opaqueFrames: 360, transparentFrames: 360, renderBackend: 'gpu' });
+    }
 
     draft = await client.drafts.get(draft.draftId);
     if (!draft.configuration) throw new Error('草稿丢失配置');

@@ -11,7 +11,7 @@
 //   外观来源写明分配和目标，点来源选中那个目标；在样式库中编辑副本，保存并返回试看，应用后撤销 → 删除本次的模板。
 //
 // 控件按 ARIA 角色和可访问名称找（scripts/ui-query.mjs）；外观目标树的行按 data-target-key 点，检查器的路径在 .ihead 的 data-path 上。
-// 前提：pnpm dev:backend 与 pnpm dev 都在运行；效果包取后端仓库 samples/ScriptEffects（找不到时跳过含效果模板的部分并写明原因）。
+// 前提：pnpm dev:backend 与 pnpm dev 都在运行；效果包取后端仓库 samples/ScriptEffectsV2（找不到时跳过含效果模板的部分并写明原因）。
 // 个人库里只增删本次创建的模板。
 // 用法：node scripts/appearance-smoke.mjs [--url http://localhost:5173] [--screenshot out.png] [--headed]
 
@@ -512,25 +512,29 @@ try {
 
   // 8. 含效果的模板（W7 设计 §5 第 5～8 条）
   if (!sampleEffectsDir()) {
-    console.log('[skipped] 找不到后端仓库的 samples/ScriptEffects（用 MAKO_BACKEND_REPO 指定后端仓库），跳过含效果模板的部分。');
+    console.log('[skipped] 找不到后端仓库的 samples/ScriptEffectsV2（用 MAKO_BACKEND_REPO 指定后端仓库），跳过含效果模板的部分。');
   } else {
     writeFileSync(inkPath, packSampleEffect('CustomInk'));
     writeFileSync(emphasisPath, packSampleEffect('WordEmphasis'));
 
     // 8a. 样式库：“波纹”把未唱填充换成包材质；“读来源”加一个读取输入“翻译”的逐字强调
+    await ui.click(page, 'button', '（渲染设备）', { partial: true, scope: '.app-bar' });
+    await page.waitFor(`!!document.querySelector('.render-device-menu')`, '设备菜单');
+    await ui.click(page, 'menuitem', 'GPU', { scope: '.render-device-menu' });
+    await page.waitFor(`!document.querySelector('.render-device-menu')`, '设备菜单关闭');
     await gotoPage(page, 'library', `!!document.querySelector('.library-list [data-template-id="builtin:line-classic"]')`);
     await copyClassic(page, waveName);
     copied = true;
     await ui.click(page, 'tab', '材质');
     await page.waitFor(`!!document.querySelector('.slot-material')`, '材质页签');
-    await importPackage(page, inkPath, 'makokara.custom-ink');
+    await importPackage(page, inkPath, 'makokara.v2.custom-ink');
     await ui.click(page, 'button', '未唱填充', { scope: '.slot-buttons' });
     await ui.click(page, 'button', '效果包', { scope: '.slot-material .material-kind' });
     await page.waitFor(`document.querySelector('.slot-material')?.dataset.kind === 'package'`, '未唱填充换成包材质');
     await saveTemplate(page);
     await copyClassic(page, inputName);
     await ui.click(page, 'tab', '效果');
-    await importPackage(page, emphasisPath, 'makokara.word-emphasis');
+    await importPackage(page, emphasisPath, 'makokara.v2.word-emphasis');
     await ui.click(page, 'button', '加效果', { scope: '.add-effect' });
     await page.waitFor(`document.querySelectorAll('.recipe-item').length === 1`, '效果已加');
     await ui.choose(page, '读取', '指定输入', { scope: '.recipe-fields' });

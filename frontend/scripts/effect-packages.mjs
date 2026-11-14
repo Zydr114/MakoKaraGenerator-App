@@ -1,4 +1,4 @@
-// 测试素材：把后端仓库 samples/ScriptEffects 下的示例效果包打成 .mkfx（ZIP，根目录是 manifest.json；W7 设计 §4）。
+// 测试素材：把后端仓库 samples/ScriptEffectsV2 下的示例效果包打成 .mkfx（ZIP，根目录是 manifest.json；W7 设计 §4）。
 // 集成测试和 smoke 共用。找不到后端仓库时 sampleEffectsDir() 返回 null，调用方跳过并写明原因。
 
 import { createHash } from 'node:crypto';
@@ -9,7 +9,7 @@ import { resolveBackendRepo } from './backend-launcher.mjs';
 
 /** 示例效果包目录；后端仓库不在时为 null。 */
 export function sampleEffectsDir() {
-  const dir = join(resolveBackendRepo(), 'samples', 'ScriptEffects');
+  const dir = join(resolveBackendRepo(), 'samples', 'ScriptEffectsV2');
   return existsSync(join(dir, 'WordEmphasis', 'manifest.json')) ? dir : null;
 }
 
@@ -43,7 +43,7 @@ export function packVariantEffect(variant) {
     manifest = manifest.replace(from, to);
   };
   if (variant === 'WordEmphasisCurves') {
-    replace('"packageId": "makokara.word-emphasis"', '"packageId": "makokara.word-emphasis-curves"');
+    replace('"packageId": "makokara.v2.word-emphasis"', '"packageId": "makokara.v2.word-emphasis-curves"');
     replace('"name": "逐字强调"', '"name": "逐字强调（曲线）"');
     replace(
       '"parameters": [',
@@ -54,7 +54,7 @@ export function packVariantEffect(variant) {
   } else {
     const square = solidPng(16, [255, 255, 255, 255]);
     files.push({ name: 'assets/square.png', data: square });
-    replace('"packageId": "makokara.sprite-trail"', '"packageId": "makokara.sprite-trail-images"');
+    replace('"packageId": "makokara.v2.sprite-trail"', '"packageId": "makokara.v2.sprite-trail-images"');
     replace('"name": "图片粒子与固定拖尾",\n  "version"', '"name": "图片粒子（两张图片）",\n  "version"');
     replace('"files": [', `"files": [\n    { "path": "assets/square.png", "role": "image", "sha256": "${createHash('sha256').update(square).digest('hex')}" },`);
   }

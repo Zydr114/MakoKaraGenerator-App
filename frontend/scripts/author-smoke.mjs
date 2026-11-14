@@ -13,7 +13,7 @@ import { packSampleEffect, packVariantEffect, sampleEffectsDir } from './effect-
 const { values } = parseArgs({ options: { url: { type: 'string', default: 'http://localhost:5173' }, headed: { type: 'boolean' }, screenshot: { type: 'string' } } });
 const samples = sampleEffectsDir();
 if (!samples) {
-  console.log('[skipped] 找不到 samples/ScriptEffects（用 MAKO_BACKEND_REPO 指定），跳过作者冒烟。');
+  console.log('[skipped] 找不到 samples/ScriptEffectsV2（用 MAKO_BACKEND_REPO 指定），跳过作者冒烟。');
   process.exit(0);
 }
 const assets = mkdtempSync(join(tmpdir(), 'mako-author-smoke-'));
@@ -78,6 +78,13 @@ async function pickComponent(id, submit) {
   await ui.waitDialogClosed(page, '从效果组件选');
 }
 
+async function chooseGpuDevice() {
+  await ui.click(page, 'button', '（渲染设备）', { partial: true, scope: '.app-bar' });
+  await page.waitFor(`!!document.querySelector('.render-device-menu')`, '设备菜单');
+  await ui.click(page, 'menuitem', 'GPU', { scope: '.render-device-menu' });
+  await page.waitFor(`!document.querySelector('.render-device-menu')`, '设备菜单关闭');
+}
+
 function passed(message) {
   console.log(`✓ ${message}`);
 }
@@ -89,6 +96,7 @@ try {
   page = await browser.openPage(`${new URL(values.url).origin}/`, { width: 1440, height: 1000 });
   await page.send('DOM.enable');
   await page.waitFor(shell.connected, '连接 Server');
+  await chooseGpuDevice();
   await shell.goto(page, 'library');
   await section('效果组件');
   await page.waitFor(`!!document.querySelector('.component-list')`, '读取组件库', 30_000);
@@ -107,14 +115,18 @@ try {
   passed('导入曲线包→编辑草稿，比例 3、最大种子、贝塞尔曲线与试样');
 
   await ui.click(page, 'tab', '源码');
-  await source(original.replace('context.Parameters.GetNumber', 'contxt.Parameters.GetNumber'));
+  await source(original.replace('source.Parameters.GetNumber', 'sourc.Parameters.GetNumber'));
   await page.waitFor(`document.querySelector('.source-compile')?.dataset.outcome === 'failed'`, '错误编译', 120_000);
   await ui.wait(page, 'button', 'CS0103', { partial: true, scope: '.source-compile' });
   await ui.click(page, 'button', 'CS0103', { partial: true, scope: '.source-compile' });
   await page.waitFor(`!!document.querySelector('.cm-lintRange-error') && document.activeElement?.classList.contains('cm-content')`, '跳到诊断并显示标记');
   await source(`${original}\n// ${name}\n`);
   await page.waitFor(`document.querySelector('.source-compile')?.dataset.outcome === 'passed' && !document.querySelector('.source-compile[data-stale]')`, '修正后编译', 120_000);
-  passed('保存错误源码→CS0103 行列和编辑器诊断→修正后编译通过');
+  await ui.click(page, 'button', '采用编译通过的修订', { partial: true, scope: '.source-compile' });
+  await ui.waitDialog(page, '采用修订并配置', { partial: true });
+  await ui.clickInDialog(page, '采用源码与配置');
+  await ui.waitDialogClosed(page, '采用修订并配置', { partial: true });
+  passed('保存错误源码→CS0103 行列和编辑器诊断→修正后编译通过并采用修订');
 
   await ui.click(page, 'tab', '验证');
   await ui.click(page, 'button', '开始验证');
@@ -149,7 +161,7 @@ try {
   const definition = await page.eval(`JSON.parse(document.querySelector('.template-json').textContent)`);
   const recipe = definition.effectRecipes.find((r) => r.configurationId === configurationId);
   if (recipe?.fixedSeed !== MAX_SEED || JSON.parse(recipe.parametersJson).shape?.kind !== 'cubicBezier') throw new Error('模板没有保留组件参数和种子');
-  if (definition.style.unsung.fill.packageId !== 'makokara.custom-ink') throw new Error('未唱填充没有采用 CustomInk 材质');
+  if (definition.style.unsung.fill.packageId !== 'makokara.v2.custom-ink') throw new Error('未唱填充没有采用 CustomInk 材质');
   await ui.click(page, 'button', '保存', { scope: '.template-actions' });
   await page.waitFor(`${detailTags}[0] === '我的模板' && !${detailTags}.includes('未保存')`, '保存模板', 30_000);
   await selectTemplate('builtin:line-classic', '经典整行');

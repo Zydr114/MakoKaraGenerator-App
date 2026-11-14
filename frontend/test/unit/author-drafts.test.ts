@@ -2,7 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BackendError, PreviewFailedError, type MakoClient } from '../../src/client';
-import { isV2AuthorDraft, type FullDraft } from '../../src/editor/library/author-draft-store';
+import { type FullDraft } from '../../src/editor/library/author-draft-store';
 import { DraftConfigEditor } from '../../src/editor/library/draft-config-editor';
 import { authorSampleFailure, TemplateWorkshop } from '../../src/editor/library/template-workshop';
 import type { AuthorSampleSource } from '../../src/editor/library/template-thumbnails';
@@ -66,16 +66,6 @@ function draft(revision: string, patch: Partial<FullDraft['configuration']> = {}
     protocolVersion: '1',
   };
 }
-
-describe('作者草稿 SDK 身份', () => {
-  it('优先正式草稿 profile，仅旧宿主缺省时使用包清单', () => {
-    const v2Package = { ...PKG, manifest: { packageVersion: 3, sdkVersion: '2.0.0' } };
-    expect(isV2AuthorDraft({ ...draft('r1'), packageVersion: 3, sdkVersion: '2.0.0' })).toBe(true);
-    expect(isV2AuthorDraft({ ...draft('r1'), packageVersion: 2, sdkVersion: '1.0.0' }, v2Package)).toBe(false);
-    expect(isV2AuthorDraft(draft('r1'), v2Package)).toBe(true);
-    expect(isV2AuthorDraft(draft('r1'), PKG)).toBe(false);
-  });
-});
 
 describe('配置页签的本地校验', () => {
   const value = editableOf(draft('r1').configuration);

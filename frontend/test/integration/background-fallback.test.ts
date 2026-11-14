@@ -1,7 +1,7 @@
 // 连真实 Server 的缺背景兜底（合同 1.49.2 预览、1.51.0 导出；P3 第 7 步 C）：
 // 未唱填充用 GlassInk 的“媒体背景玻璃”（必需 BackgroundMedia），工程不设背景。
 // 预览控制器在出帧后读诊断页给出提示；不透明与透明导出都成功，报告带兜底诊断，提示文字按原因区分。
-// 效果包用后端仓库 samples/ScriptEffects 的示例运行时打包；找不到时整个文件跳过并写明原因。
+// 效果包用后端仓库 samples/ScriptEffectsV2 的示例运行时打包；找不到时整个文件跳过并写明原因。
 
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { packSampleEffect, sampleEffectsDir } from '../../scripts/effect-packages.mjs';
@@ -14,7 +14,7 @@ import { ContractRecorder, startTestBackend, type TestBackend } from '../support
 import { makeWav } from '../support/fixtures';
 
 const samples = sampleEffectsDir();
-if (!samples) console.warn('[skipped] 找不到后端仓库的 samples/ScriptEffects（MAKO_BACKEND_REPO），跳过缺背景兜底集成测试。');
+if (!samples) console.warn('[skipped] 找不到后端仓库的 samples/ScriptEffectsV2（MAKO_BACKEND_REPO），跳过缺背景兜底集成测试。');
 
 let backend: TestBackend;
 let client: MakoClient;
@@ -72,7 +72,7 @@ afterAll(async () => {
 });
 
 async function exportReport(format: ExportFormat): Promise<ExportReport> {
-  const accepted = await client.projects.exportVideo(id(), { format, includeAudio: false, ...(format === 'opaqueMp4' && { quality: 'draft' as const }) });
+  const accepted = await client.projects.exportVideo(id(), { format, includeAudio: false, renderBackend: 'gpu', ...(format === 'opaqueMp4' && { quality: 'draft' as const }) });
   const job = await client.jobs.waitForTerminal(accepted.jobId, { timeoutMs: 180_000 });
   expect(job.state, job.error?.message ?? job.failureCode).toBe('succeeded');
   const report = await client.jobs.exportResult(job.jobId);
@@ -83,7 +83,7 @@ async function exportReport(format: ExportFormat): Promise<ExportReport> {
 
 describe.skipIf(!samples)('缺背景兜底（真实 Server）', () => {
   it('预览：出帧后读到本帧的兜底诊断，给出缺背景提示', async () => {
-    const controller = new PreviewController(client, id(), { width: 320, height: 180 });
+    const controller = new PreviewController(client, id(), { width: 320, height: 180 }, { request: 'gpu', target: 'gpu' });
     try {
       controller.show(500_000, current());
       await vi.waitFor(() => expect(['ready', 'error']).toContain(controller.state$.get().status), { timeout: 60_000, interval: 200 });
@@ -100,7 +100,7 @@ describe.skipIf(!samples)('缺背景兜底（真实 Server）', () => {
     expect(report.fallbackDiagnostics?.[0]).toMatchObject({ code: 'BackgroundMediaUnavailable', originKind: 'material', severity: 'warning' });
     expect(report.diagnostics).toEqual([]);
     expect(exportFallbackText(report)).toMatch(new RegExp(`^没有可用的背景媒体：\\d+ 处图效果或材质按兜底外观导出，涉及 ${report.fallbackFrameCount}/${report.expectedFrames} 帧。$`));
-    expect(backgroundFallbackLine(report.fallbackDiagnostics![0]!)).toMatch(/^材质 makokara\.glass-ink · glass-media：/);
+    expect(backgroundFallbackLine(report.fallbackDiagnostics![0]!)).toMatch(/^材质 makokara\.v2\.glass-ink · glass-media：/);
   });
 
   it('透明导出：成功，原因是透明输出没有背景', async () => {

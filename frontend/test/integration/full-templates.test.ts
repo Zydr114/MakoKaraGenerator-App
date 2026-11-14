@@ -1,6 +1,6 @@
 // 连真实 Server 的完整模板（合同 1.37.0，规范 §24；W7 设计 §0、§2）：完整定义往返、效果包检查、工坊试样、
 // 用到编排节点和片段上、外观来源、.mktpl 往返与传输配额（G32）。
-// 效果包用后端仓库 samples/ScriptEffects 的示例运行时打包；找不到后端仓库时整个文件跳过并写明原因。
+// 效果包用后端仓库 samples/ScriptEffectsV2 的示例运行时打包；找不到后端仓库时整个文件跳过并写明原因。
 // 个人库属于本次运行的独立测试 profile（.dev/it-full-templates-*）；结束时删掉本文件写入的模板，目录留作证据。
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -26,7 +26,7 @@ import { ContractRecorder, startTestBackend, type TestBackend } from '../support
 import { makeWav } from '../support/fixtures';
 
 const samples = sampleEffectsDir();
-if (!samples) console.warn('[skipped] 找不到后端仓库的 samples/ScriptEffects（MAKO_BACKEND_REPO），跳过完整模板集成测试。');
+if (!samples) console.warn('[skipped] 找不到后端仓库的 samples/ScriptEffectsV2（MAKO_BACKEND_REPO），跳过完整模板集成测试。');
 
 let backend: TestBackend;
 let client: MakoClient;
@@ -77,16 +77,16 @@ const inkMaterial = (parametersJson: string): FullPackageMaterial => {
 describe.skipIf(!samples)('完整模板（真实 Server）', () => {
   it('效果包检查：材质、控制器的导出与参数表；时长上限按原文给出；坏 ZIP 422', async () => {
     const ink = await inspect('CustomInk');
-    expect(ink).toMatchObject({ packageId: 'makokara.custom-ink', name: '自定义波纹材质', structureValid: true, reference: { kind: 'asset', packageId: 'makokara.custom-ink' } });
+    expect(ink).toMatchObject({ packageId: 'makokara.v2.custom-ink', name: '自定义波纹材质', structureValid: true, reference: { kind: 'asset', packageId: 'makokara.v2.custom-ink' } });
     expect(exportOf(ink, 'custom-ink')).toMatchObject({ kind: 'material' });
     expect(ink.parameters.map((p) => p.id)).toEqual(['frequencyHz', 'amplitude', 'colorA', 'colorB']);
 
     const emphasis = await inspect('WordEmphasis');
     expect(exportOf(emphasis, 'word-emphasis')).toMatchObject({ kind: 'controller' });
-    const burst = await inspect('EventBurst');
-    expect(burst.structureValid).toBe(true);
+    const sprite = await inspect('SpriteTrail');
+    expect(sprite.structureValid).toBe(true);
     // manifest 原文保留 Int64 上限，前端不能先转成数字。
-    expect(burst.manifestJson).toContain('9223372036854775807');
+    expect(sprite.manifestJson).toContain('9223372036854775807');
 
     const broken = await client.assets.upload(new Blob([new TextEncoder().encode('PK 不是 ZIP')]), { fileName: 'broken.mkfx' });
     await expect(client.effectPackages.inspect({ packageAssetId: broken.assetId })).rejects.toMatchObject({ status: 422 });
@@ -99,19 +99,19 @@ describe.skipIf(!samples)('完整模板（真实 Server）', () => {
 
     const ink = packages.get('CustomInk')!;
     const emphasis = packages.get('WordEmphasis')!;
-    const burst = packages.get('EventBurst')!;
+    const sprite = packages.get('SpriteTrail')!;
     let draft: FullTemplateDefinition = {
       ...classic.definition,
       name: `集成完整-${stamp}`,
       style: withSlotMaterial(classic.definition.style, 'unsungFill', inkMaterial('{"frequencyHz":4.5}')),
-      packages: [ink.reference, emphasis.reference, burst.reference],
+      packages: [ink.reference, emphasis.reference, sprite.reference],
     };
     const first = addRecipe(draft, emphasis, exportOf(emphasis, 'word-emphasis'));
     draft = updateRecipe(first.definition, first.recipeId, { parametersJson: '{"peakScale":2}', fixedSeed: MAX_SEED });
-    const second = addRecipe(draft, burst, exportOf(burst, 'event-burst'));
+    const second = addRecipe(draft, sprite, exportOf(sprite, 'sprite-trail'));
     // 和参数控件一样经 withEntry 改写（键按名称排序，与后端的规范形式一致）。停用：只核对参数原文，不让粒子进画面。
-    const burstParameters = withEntry(withEntry('{}', 'lifeUs', '9223372036854775807'), 'count', '3');
-    draft = updateRecipe(second.definition, second.recipeId, { parametersJson: burstParameters, enabled: false });
+    const spriteParameters = withEntry(withEntry('{}', 'lifeUs', '9223372036854775807'), 'rate', '3');
+    draft = updateRecipe(second.definition, second.recipeId, { parametersJson: spriteParameters, enabled: false });
     definition = draft;
 
     const { revision } = await client.templates.listAll('personal');
@@ -123,10 +123,10 @@ describe.skipIf(!samples)('完整模板（真实 Server）', () => {
     expect(detail.definitionAvailability).toBe('fullAvailable');
     expect(withoutPackages(detail.definition)).toEqual(withoutPackages(definition));
     expect(detail.definition.effectRecipes[0]).toMatchObject({ parametersJson: '{"peakScale":2}', fixedSeed: '18446744073709551615' });
-    expect(detail.definition.effectRecipes[1]!.parametersJson).toBe('{"count":3,"lifeUs":9223372036854775807}');
+    expect(detail.definition.effectRecipes[1]!.parametersJson).toBe('{"lifeUs":9223372036854775807,"rate":3}');
     // 读回的包按 packageId 排序。
     expect(detail.definition.packages).toEqual(
-      [ink, burst, emphasis].map((p) => ({ kind: 'library', packageId: p.packageId, packageRevision: p.packageRevision, libraryId: 'personal', libraryRevision: created.revision, templateId, templateRevision: expect.any(String) })),
+      [ink, sprite, emphasis].map((p) => ({ kind: 'library', packageId: p.packageId, packageRevision: p.packageRevision, libraryId: 'personal', libraryRevision: created.revision, templateId, templateRevision: expect.any(String) })),
     );
     expect(detail.summary).toMatchObject({ hasEffectRecipes: true, hasPackageMaterials: true });
 
@@ -147,7 +147,7 @@ describe.skipIf(!samples)('完整模板（真实 Server）', () => {
     expect(single.targets.map((t) => t.key)).toEqual(expect.arrayContaining(['line', 'project', 'branch', 'clip', 'group']));
     expect(options.samples[1]!.targets.map((t) => t.key)).toContain('mark');
     expect(options.materialSlots.map((s) => s.slot)).toEqual(['unsungFill', 'sungFill', 'stroke']);
-    expect(options.materialSlots[0]).toMatchObject({ present: true, material: { kind: 'package', packageId: 'makokara.custom-ink' } });
+    expect(options.materialSlots[0]).toMatchObject({ present: true, material: { kind: 'package', packageId: 'makokara.v2.custom-ink' } });
 
     const runtime = await client.preview.runtimeInfo();
     if (!runtime.enabled) {
@@ -156,7 +156,7 @@ describe.skipIf(!samples)('完整模板（真实 Server）', () => {
     }
     const size = { width: 320, height: 180 };
     const still = (source: TemplatePreviewSource) =>
-      client.preview.renderTemplateStill({ source, sampleId: 'workshop-single-line-v1', targetKey: 'line', materialSlot: 'sungFill', size, timeUs: micros(3_000_000) });
+      client.preview.renderTemplateStill({ source, sampleId: 'workshop-single-line-v1', targetKey: 'line', materialSlot: 'sungFill', size, timeUs: micros(3_000_000), renderBackend: 'gpu' });
     const frame = await still(saved);
     expect(frame.verified).toBe(true);
     expect(frame.preview).toMatchObject({ previewKind: 'template', committable: false, source: { kind: 'template', templateSample: { sampleId: 'workshop-single-line-v1', targetKey: 'line', materialSlot: 'sungFill' } } });
@@ -174,7 +174,7 @@ describe.skipIf(!samples)('完整模板（真实 Server）', () => {
     expect(red.sha256).not.toBe(frame.sha256);
 
     // 按帧检查投影（合同 1.48.0）：含脚本效果的试样经过效果准备，有几何；响应由 recorder 按冻结 OpenAPI 校验。
-    const live = await client.preview.createTemplatePreview({ source: saved, sampleId: 'workshop-single-line-v1', targetKey: 'line', materialSlot: 'sungFill', size });
+    const live = await client.preview.createTemplatePreview({ source: saved, sampleId: 'workshop-single-line-v1', targetKey: 'line', materialSlot: 'sungFill', size, renderBackend: 'gpu' });
     try {
       const accepted = await client.preview.requestFrame(live.previewId, {
         expectedSourceRevision: live.source.sourceRevision,
@@ -262,7 +262,7 @@ describe.skipIf(!samples)('完整模板（真实 Server）', () => {
         ctx.skip();
       }
       const still = async () => {
-        const frame = await client.preview.renderStill({ projectSessionId: id(), sourceRevision: current(), timeUs: micros(2_500_000), size: { width: 320, height: 180 } });
+        const frame = await client.preview.renderStill({ projectSessionId: id(), sourceRevision: current(), timeUs: micros(2_500_000), size: { width: 320, height: 180 }, renderBackend: 'gpu' });
         expect(frame.verified).toBe(true);
         return frame.sha256;
       };

@@ -5,7 +5,7 @@
 // → 试样：多行样本、换目标、拖时刻、试播 → 保存后重读与保存前一致（参数原文、最大种子）→ 列表缩略图
 // → .mktpl：导出两个模板并核对，导入得到两个新 ID、定义一致，第三次传输写明要等几分钟 → 删除本次的模板。
 //
-// 前提：pnpm dev:backend 与 pnpm dev 都在运行；效果包取后端仓库 samples/ScriptEffects（找不到时跳过并写明原因）。
+// 前提：pnpm dev:backend 与 pnpm dev 都在运行；效果包取后端仓库 samples/ScriptEffectsV2（找不到时跳过并写明原因）。
 // 个人库里只增删本次创建的模板。控件按 ARIA 角色和名称找（scripts/ui-query.mjs），区域用样式库自己的类名限定。
 // 用法：node scripts/library-smoke.mjs [--url http://localhost:5173] [--screenshot out.png] [--headed]
 
@@ -28,7 +28,7 @@ const { values } = parseArgs({
 const ORIGIN = new URL(values.url).origin;
 
 if (!sampleEffectsDir()) {
-  console.log('[skipped] 找不到后端仓库的 samples/ScriptEffects（用 MAKO_BACKEND_REPO 指定后端仓库），没有效果包可用，跳过样式库冒烟。');
+  console.log('[skipped] 找不到后端仓库的 samples/ScriptEffectsV2（用 MAKO_BACKEND_REPO 指定后端仓库），没有效果包可用，跳过样式库冒烟。');
   process.exit(0);
 }
 
@@ -148,6 +148,10 @@ try {
   await page.send('DOM.enable');
   await browser.cdp.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: downloads });
   await page.waitFor(shell.connected, '连接 Server');
+  await ui.click(page, 'button', '（渲染设备）', { partial: true, scope: '.app-bar' });
+  await page.waitFor(`!!document.querySelector('.render-device-menu')`, '设备菜单');
+  await ui.click(page, 'menuitem', 'GPU', { scope: '.render-device-menu' });
+  await page.waitFor(`!document.querySelector('.render-device-menu')`, '设备菜单关闭');
 
   // 1. 复制“经典整行”
   await shell.goto(page, 'library');
@@ -188,7 +192,7 @@ try {
   // 3. 材质：导入“自定义波纹材质”作未唱填充
   await ui.click(page, 'tab', '材质');
   await page.waitFor(`!!document.querySelector('.slot-material')`, '材质页签');
-  await importPackage(page, inkPath, 'makokara.custom-ink');
+  await importPackage(page, inkPath, 'makokara.v2.custom-ink');
   await ui.click(page, 'button', '未唱填充', { scope: '.slot-buttons' });
   await ui.click(page, 'button', '效果包', { scope: '.slot-material .material-kind' });
   await page.waitFor(`document.querySelector('.slot-material')?.dataset.kind === 'package'`, '包材质');
@@ -210,10 +214,10 @@ try {
   await commitIn(page, amplitude, '0.3');
   await page.waitFor(`!document.querySelector('${amplitude} .param-problem') && !${saveDisabled}`, '改回 0.3');
 
-  await clickAt(page, 'button', { scope: '.package-item[data-package-id="makokara.custom-ink"]' });
+  await clickAt(page, 'button', { scope: '.package-item[data-package-id="makokara.v2.custom-ink"]' });
   await page.waitFor(`!!document.querySelector('.package-notice')`, '移除被拦下');
   const notice = await page.eval(`document.querySelector('.package-notice').textContent`);
-  check(notice.includes('未唱填充') && (await page.eval(`!!document.querySelector('.package-item[data-package-id="makokara.custom-ink"]')`)), `移除还在用的包被拦下：${notice}`);
+  check(notice.includes('未唱填充') && (await page.eval(`!!document.querySelector('.package-item[data-package-id="makokara.v2.custom-ink"]')`)), `移除还在用的包被拦下：${notice}`);
 
   await ui.click(page, 'button', '已唱填充', { scope: '.slot-buttons' });
   await page.waitFor(`${sampleFocus} === 'sungFill' && !!${sampleImg}`, '焦点已唱填充', 60_000);
@@ -222,7 +226,7 @@ try {
 
   // 4. 效果：导入“逐字强调”，放大比例 2，最大种子
   await ui.click(page, 'tab', '效果');
-  await importPackage(page, emphasisPath, 'makokara.word-emphasis');
+  await importPackage(page, emphasisPath, 'makokara.v2.word-emphasis');
   await ui.wait(page, 'button', '加效果', { scope: '.add-effect' });
   sha = await sampleSha(page);
   await ui.click(page, 'button', '加效果', { scope: '.add-effect' });

@@ -11,7 +11,7 @@ import { ContractRecorder, startTestBackend, type TestBackend } from '../support
 import { makePng } from '../support/fixtures';
 
 const samples = sampleEffectsDir();
-if (!samples) console.warn('[skipped] 找不到 samples/ScriptEffects（MAKO_BACKEND_REPO），跳过替换素材集成测试。');
+if (!samples) console.warn('[skipped] 找不到 samples/ScriptEffectsV2（MAKO_BACKEND_REPO），跳过替换素材集成测试。');
 const SERIF = '/usr/share/fonts/liberation/LiberationSerif-Regular.ttf';
 const MONO = '/usr/share/fonts/liberation/LiberationMono-Regular.ttf';
 const OTF = '/usr/share/fonts/gsfonts/NimbusMonoPS-Regular.otf';
@@ -48,7 +48,7 @@ function packFontEffect(): Uint8Array {
   const font = readFileSync(SERIF);
   files.push({ name: FONT, data: font });
   const manifest = readFileSync(join(dir, 'manifest.json'), 'utf8')
-    .replace('"packageId": "makokara.word-emphasis"', '"packageId": "makokara.word-emphasis-font"')
+    .replace('"packageId": "makokara.v2.word-emphasis"', '"packageId": "makokara.v2.word-emphasis-font"')
     .replace('"files": [', `"files": [\n    { "path": "${FONT}", "role": "font", "sha256": "${sha(font)}" },`);
   if (!manifest.includes(FONT)) throw new Error('WordEmphasis/manifest.json 结构变了');
   return zipFiles([{ name: 'manifest.json', data: Buffer.from(manifest, 'utf8') }, ...files]);

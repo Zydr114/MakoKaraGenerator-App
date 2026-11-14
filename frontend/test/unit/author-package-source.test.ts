@@ -38,7 +38,7 @@ function fakePackagePort() {
   const compiled = new Set<string>();
   const check = (sent: FullDraft) => { if (sent.draftRevision !== server.draftRevision) throw new BackendError(409, { code: 'revisionConflict', message: 'stale' } as never); };
   const port: DraftSourcePort = {
-    current: () => local, isV2: () => true, savedRevisions: () => [], rememberSaved: () => {},
+    current: () => local, savedRevisions: () => [], rememberSaved: () => {},
     refresh: async () => { calls.push('refresh'); local = server; return local; },
     readPackage: async (sent, source) => {
       check(sent); calls.push(`package ${source}`);
@@ -65,7 +65,6 @@ function fakePackagePort() {
       server = { ...server, draftRevision: `r${++revision}`, adoptedSourceRevision: source,
         configuration: { ...server.configuration, sourceRevision: source, packageRevision: source } };
     },
-    use: async () => { throw new Error('package save must not auto-use'); },
     compile: async (_sent, source) => { target = source!; calls.push(`compile ${source}`); return { jobId: 'j1', kind: 'author-compilation', state: 'queued', canCancel: false } as JobResponse; },
     waitJob: async () => ({ jobId: 'j1', kind: 'author-compilation', state: 'succeeded', authorCompilationResult: {}, canCancel: false }) as JobResponse,
     cancelJob: async () => {},

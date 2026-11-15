@@ -107,10 +107,24 @@ public sealed partial class SkiaSceneGeometry
         var tree = snapshot.LyricPresentation.WithDefaultPrograms(snapshot.Lyrics);
         var program = tree.FindProgram(scene.Branch.Id);
         var cue = program?.LeadIns.FirstOrDefault(item => item.Id == cueId);
-        if (cue is null || tree.FindNode(cue.IndicatorContainerId) is not { Content: CountdownSequenceContent } group) return null;
+        if (cue is null || tree.FindNode(cue.IndicatorContainerId) is not { Content: CountdownSequenceContent sequence } group) return null;
         var mode = group.Attachment?.Mode ?? SceneAttachmentMode.FixedParent;
         if (mode is not (SceneAttachmentMode.CueTargetText or SceneAttachmentMode.CueTargetAboveStart)) return null;
         if (LeadInTiming.Range(scene.Frame.Line!, cue.DurationUs) is null) return null;
+        int totalMarks = sequence.MarkNodeIds.Length;
+        if (totalMarks == 0) return null;
+        int firstVisibleIndex = -1;
+        int lastVisibleIndex = -1;
+        for (int i = 0; i < totalMarks; i++)
+        {
+            if (tree.FindNode(sequence.MarkNodeIds[i]) is { Content: TextMarkContent markContent } markNode
+                && ResolveMarkOpacity(snapshot, sequence, markNode, markContent) > 1e-4f)
+            {
+                if (firstVisibleIndex < 0) firstVisibleIndex = i;
+                lastVisibleIndex = i;
+            }
+        }
+        if (firstVisibleIndex < 0) return null;
 
         var fixedNodes = SceneTreeGeometryResolver.Resolve(tree.Nodes, composition.CanvasWidth, composition.CanvasHeight);
         var containerRef = fixedNodes.TryGetValue(scene.ContainerId, out var resolvedContainer)
@@ -175,13 +189,15 @@ public sealed partial class SkiaSceneGeometry
             ? resolvedParent
             : new SceneTreeGeometry(composition.CanvasWidth, composition.CanvasHeight, SceneMatrix.Identity, new(0, 0));
 
-        (double MinX, double MaxX, double MinY, double MaxY) UnionBounds(LineRenderGeometry target)
+        (double OrigStartX, double CountdownMinX, double MinX, double MaxX, double MinY, double MaxY) MeasureAttach(LineRenderGeometry target)
         {
             var baseTop = target.EffectiveBaseTopLeft;
             var baseBottom = target.EffectiveBaseBottomRight;
+            double baseCenterY = (baseTop.Y + baseBottom.Y) / 2d;
+            double origStartX = target.WorldMatrix!.Value.Map(new(baseTop.X, baseCenterY)).X;
             var anchor = mode == SceneAttachmentMode.CueTargetAboveStart
                 ? new CanvasPoint(baseTop.X, target.TopLeft.Y)
-                : new CanvasPoint(baseTop.X, (baseTop.Y + baseBottom.Y) / 2);
+                : new CanvasPoint(baseTop.X, baseCenterY);
             var basis = target.WorldMatrix!.Value * SceneMatrix.Translate(anchor.X, anchor.Y);
             double gw = parentRef.Width * group.ReferenceRect.WidthRatio;
             double gh = parentRef.Height * group.ReferenceRect.HeightRatio;
@@ -191,36 +207,46 @@ public sealed partial class SkiaSceneGeometry
             var gWorld = basis * SceneMatrix.Translate(px, py)
                 * SceneMatrix.RotateScale(group.Placement.RotationDegrees, group.Placement.Scale)
                 * SceneMatrix.Translate(-gAnchor.X, -gAnchor.Y);
-            CanvasPoint[] points =
+            double x0 = gw * firstVisibleIndex / totalMarks;
+            double x1 = gw * (lastVisibleIndex + 1) / totalMarks;
+            CanvasPoint[] markCorners =
             [
-                .. target.Corners(),
-                gWorld.Map(new(0, 0)), gWorld.Map(new(gw, 0)), gWorld.Map(new(gw, gh)), gWorld.Map(new(0, gh)),
+                gWorld.Map(new(x0, 0d)),
+                gWorld.Map(new(x1, 0d)),
+                gWorld.Map(new(x1, gh)),
+                gWorld.Map(new(x0, gh)),
             ];
-            return (points.Min(p => p.X), points.Max(p => p.X), points.Min(p => p.Y), points.Max(p => p.Y));
+            double countdownMinX = markCorners.Min(p => p.X);
+            CanvasPoint[] all = [.. target.Corners(), .. markCorners];
+            return (origStartX, countdownMinX, all.Min(p => p.X), all.Max(p => p.X), all.Min(p => p.Y), all.Max(p => p.Y));
         }
 
-        var bounds = UnionBounds(steadyGeometry);
-        if (bounds.MinX >= safeLeft && bounds.MaxX <= safeRight && bounds.MinY >= safeTop && bounds.MaxY <= safeBottom)
-            return null;
-
+        var metrics = MeasureAttach(steadyGeometry);
         var basisPlacement = scene.Placement ?? LinePlacementEditor.ResolveDefault(style);
-        double unionW = bounds.MaxX - bounds.MinX;
-        double unionH = bounds.MaxY - bounds.MinY;
+        double unionW = metrics.MaxX - metrics.MinX;
+        double unionH = metrics.MaxY - metrics.MinY;
         double fit = Math.Clamp(Math.Min(unionW > safeW ? safeW / unionW : 1d, unionH > safeH ? safeH / unionH : 1d), 0.1d, 1d);
         if (fit < 1d)
         {
             var scaledPlacement = basisPlacement with { Scale = basisPlacement.Scale * fit };
             steadyGeometry = BuildGeometry(scene.Frame.Line!.Id, style, shaped, composition, scaledPlacement, groupInk, maxWidthRatio, steadyScene, includeWorld: true);
             if (steadyGeometry.WorldMatrix is null) return null;
-            bounds = UnionBounds(steadyGeometry);
+            metrics = MeasureAttach(steadyGeometry);
         }
 
-        double dx = bounds.MaxX - bounds.MinX <= safeW
-            ? (bounds.MinX < safeLeft ? safeLeft - bounds.MinX : bounds.MaxX > safeRight ? safeRight - bounds.MaxX : 0d)
-            : (safeLeft + safeRight) / 2 - (bounds.MinX + bounds.MaxX) / 2;
-        double dy = bounds.MaxY - bounds.MinY <= safeH
-            ? (bounds.MinY < safeTop ? safeTop - bounds.MinY : bounds.MaxY > safeBottom ? safeBottom - bounds.MaxY : 0d)
-            : (safeTop + safeBottom) / 2 - (bounds.MinY + bounds.MaxY) / 2;
+        double inlineDx = mode == SceneAttachmentMode.CueTargetText && metrics.CountdownMinX < metrics.OrigStartX
+            ? metrics.OrigStartX - metrics.CountdownMinX
+            : 0d;
+        double shiftedMinX = metrics.MinX + inlineDx;
+        double shiftedMaxX = metrics.MaxX + inlineDx;
+        double clampDx = shiftedMaxX - shiftedMinX <= safeW
+            ? (shiftedMinX < safeLeft ? safeLeft - shiftedMinX : shiftedMaxX > safeRight ? safeRight - shiftedMaxX : 0d)
+            : (safeLeft + safeRight) / 2d - (shiftedMinX + shiftedMaxX) / 2d;
+        double clampDy = metrics.MaxY - metrics.MinY <= safeH
+            ? (metrics.MinY < safeTop ? safeTop - metrics.MinY : metrics.MaxY > safeBottom ? safeBottom - metrics.MaxY : 0d)
+            : (safeTop + safeBottom) / 2d - (metrics.MinY + metrics.MaxY) / 2d;
+        double dx = inlineDx + clampDx;
+        double dy = clampDy;
 
         if (Math.Abs(dx) < 1e-6 && Math.Abs(dy) < 1e-6 && fit >= 1d - 1e-9) return null;
 
@@ -236,4 +262,10 @@ public sealed partial class SkiaSceneGeometry
         };
         return BuildGeometry(scene.Frame.Line!.Id, style, shaped, composition, yieldedPlacement, groupInk, maxWidthRatio, scene, includeWorld: true);
     }
+
+    private static float ResolveMarkOpacity(ProjectSnapshot snapshot, CountdownSequenceContent sequence,
+        SceneContainerDefinition markNode, TextMarkContent markContent) =>
+        snapshot.PresetApplications.Items.IsEmpty
+            ? sequence.Appearance.Resolve(markContent.AppearanceOverride).Opacity
+            : PresetSceneStyleProjection.Mark(snapshot, markNode.Id).Style.Opacity;
 }

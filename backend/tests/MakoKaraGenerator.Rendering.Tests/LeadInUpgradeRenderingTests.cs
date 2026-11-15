@@ -124,12 +124,25 @@ public sealed class LeadInUpgradeRenderingTests
 
         using SkiaRenderPipeline pipeline = new();
 
+        var leftFixed = leftEdge with
+        {
+            LyricPresentation = leftEdge.LyricPresentation with
+            {
+                Nodes = [.. leftEdge.LyricPresentation.Nodes.Select(n => n.Content is CountdownSequenceContent
+                    ? n with { Attachment = new() { Mode = SceneAttachmentMode.FixedParent } } : n)],
+            },
+        };
+        var leftPlain = pipeline.GetSceneFrame(ProjectSnapshot.FromProject(leftFixed), 10_000_000);
+        var leftPlainGlyph = leftPlain.Lines.Single().Geometry!;
+        double leftOrigStartX = leftPlainGlyph.WorldMatrix!.Value.Map(new(leftPlainGlyph.EffectiveBaseTopLeft.X,
+            (leftPlainGlyph.EffectiveBaseTopLeft.Y + leftPlainGlyph.EffectiveBaseBottomRight.Y) / 2d)).X;
         var leftSnap = ProjectSnapshot.FromProject(leftEdge);
         var leftPrep = pipeline.GetSceneFrame(leftSnap, 11_990_000);
         var leftSing = pipeline.GetSceneFrame(leftSnap, 12_000_000);
-        var leftGroupId = leftEdge.LyricPresentation.Nodes.Single(n => n.Content is CountdownSequenceContent).Id;
-        var leftOwner = leftPrep.Elements.Single(e => e.Id == leftGroupId);
-        Assert.True(leftOwner.WorldCorners.Min(p => p.X) >= safeArea.Left * 640 - 0.5);
+        double leftMarksMinX = leftPrep.TextMarks.SelectMany(m => m.Geometry.Corners()).Min(p => p.X);
+        Assert.Equal(leftOrigStartX, FirstMarkCellMinX(leftEdge, leftPrep), 0.5);
+        Assert.True(leftMarksMinX >= leftOrigStartX - 0.5);
+        Assert.True(leftMarksMinX >= safeArea.Left * 640 - 0.5);
         Assert.Equal(leftPrep.Lines.Single().Geometry!.OriginX, leftSing.Lines.Single().Geometry!.OriginX, 6);
         Assert.Equal(leftPrep.Lines.Single().Geometry!.BaselineY, leftSing.Lines.Single().Geometry!.BaselineY, 6);
         AssertMatrix(leftPrep.Lines.Single().Geometry!.WorldMatrix!.Value, leftSing.Lines.Single().Geometry!.WorldMatrix!.Value);
@@ -144,9 +157,115 @@ public sealed class LeadInUpgradeRenderingTests
         Assert.Equal(topPrep.Lines.Single().Geometry!.BaselineY, topSing.Lines.Single().Geometry!.BaselineY, 6);
         AssertMatrix(topPrep.Lines.Single().Geometry!.WorldMatrix!.Value, topSing.Lines.Single().Geometry!.WorldMatrix!.Value);
 
-        var centeredAttach = pipeline.GetSceneFrame(ProjectSnapshot.FromProject(centered), 10_000_000);
+        var centeredSnap = ProjectSnapshot.FromProject(centered);
+        var centeredPrep = pipeline.GetSceneFrame(centeredSnap, 11_990_000);
+        var centeredSing = pipeline.GetSceneFrame(centeredSnap, 12_000_000);
         var centeredPlain = pipeline.GetSceneFrame(ProjectSnapshot.FromProject(centeredFixed), 10_000_000);
-        AssertMatrix(centeredPlain.Lines.Single().Geometry!.WorldMatrix!.Value, centeredAttach.Lines.Single().Geometry!.WorldMatrix!.Value);
+        var centeredPlainGlyph = centeredPlain.Lines.Single().Geometry!;
+        double centeredOrigStartX = centeredPlainGlyph.WorldMatrix!.Value.Map(new(centeredPlainGlyph.EffectiveBaseTopLeft.X,
+            (centeredPlainGlyph.EffectiveBaseTopLeft.Y + centeredPlainGlyph.EffectiveBaseBottomRight.Y) / 2d)).X;
+        double centeredMarksMinX = centeredPrep.TextMarks.SelectMany(m => m.Geometry.Corners()).Min(p => p.X);
+        Assert.Equal(centeredOrigStartX, FirstMarkCellMinX(centered, centeredPrep), 0.5);
+        Assert.True(centeredMarksMinX >= centeredOrigStartX - 0.5);
+        Assert.True(centeredPrep.Lines.Single().Geometry!.Pivot.X > centeredPlainGlyph.Pivot.X + 120d);
+        AssertMatrix(centeredPrep.Lines.Single().Geometry!.WorldMatrix!.Value, centeredSing.Lines.Single().Geometry!.WorldMatrix!.Value);
+    }
+
+    [Fact]
+    public void 删减至单标记与缩放及隐藏标记均按实际可见标记宽度退让且全部透明时不退让()
+    {
+        var baseProject = CreateRubyProject(SceneAttachmentMode.CueTargetText,
+            ScenePlacement.Create(new(0.5, 0.5), ScenePlacementAnchor.Center));
+        var group = baseProject.LyricPresentation.Nodes.Single(n => n.Content is CountdownSequenceContent);
+        var sequence = (CountdownSequenceContent)group.Content!;
+        var unattachedProject = baseProject with
+        {
+            LyricPresentation = baseProject.LyricPresentation with
+            {
+                Nodes = baseProject.LyricPresentation.Nodes.Replace(group, group with { Attachment = new() { Mode = SceneAttachmentMode.FixedParent } }),
+            },
+        };
+        using SkiaRenderPipeline pipeline = new();
+        var plainGlyph = pipeline.GetSceneFrame(ProjectSnapshot.FromProject(unattachedProject), 10_000_000).Lines.Single().Geometry!;
+        double origStartX = plainGlyph.WorldMatrix!.Value.Map(new(plainGlyph.EffectiveBaseTopLeft.X,
+            (plainGlyph.EffectiveBaseTopLeft.Y + plainGlyph.EffectiveBaseBottomRight.Y) / 2d)).X;
+
+        // 1. 删除后两个标记仅留 1 个，并放大容器 Scale 至 1.8，应仅退让单个标记放大后宽度 + 默认间距。
+        Assert.True(SceneTreeEditor.TryDeleteNode(baseProject, sequence.MarkNodeIds[2], out var shrunkProject, out var r1), r1.ToSummary());
+        Assert.True(SceneTreeEditor.TryDeleteNode(shrunkProject, sequence.MarkNodeIds[1], out shrunkProject, out var r2), r2.ToSummary());
+        var shrunkGroup = shrunkProject.LyricPresentation.FindNode(group.Id)!;
+        double gapRatio = LeadInEditor.DefaultInlineGapPx / 640d;
+        Assert.True(SceneTreeEditor.TrySetNode(shrunkProject, shrunkGroup with
+        {
+            Placement = shrunkGroup.Placement with { Position = new(-gapRatio, 0d), Anchor = ScenePlacementAnchor.RightCenter, Scale = 1.8d },
+        }, out shrunkProject, out var r3), r3.ToSummary());
+        var shrunkFrame = pipeline.GetSceneFrame(ProjectSnapshot.FromProject(shrunkProject), 10_000_000);
+        double singleMarkMinX = shrunkFrame.TextMarks.Single().Geometry.Corners().Min(p => p.X);
+        Assert.Equal(origStartX, FirstMarkCellMinX(shrunkProject, shrunkFrame), 0.5);
+        Assert.True(singleMarkMinX >= origStartX - 0.5);
+        double expectedShift = LeadInEditor.MarkCellSizePx * 1.8d + LeadInEditor.DefaultInlineGapPx;
+        Assert.Equal(expectedShift, shrunkFrame.Lines.Single().Geometry!.Pivot.X - plainGlyph.Pivot.X, 1.0);
+
+        // 2. 隐藏前 2 个标记（Opacity = 0），仅按紧邻歌词的第 3 个可见标记退让。
+        var treeWithHidden = baseProject.LyricPresentation;
+        for (int i = 0; i < 2; i++)
+        {
+            var m = treeWithHidden.FindNode(sequence.MarkNodeIds[i])!;
+            treeWithHidden = treeWithHidden with
+            {
+                Nodes = treeWithHidden.Nodes.Replace(m, m with
+                {
+                    Content = ((TextMarkContent)m.Content!) with { AppearanceOverride = new() { Opacity = 0f } },
+                }),
+            };
+        }
+        var hiddenGroup = treeWithHidden.FindNode(group.Id)!;
+        var treeWithHiddenPlaced = treeWithHidden with
+        {
+            Nodes = treeWithHidden.Nodes.Replace(hiddenGroup, hiddenGroup with
+            {
+                Placement = hiddenGroup.Placement with { Position = new(-gapRatio, 0d), Anchor = ScenePlacementAnchor.RightCenter, Scale = 1d },
+            }),
+        };
+        var partialHiddenFrame = pipeline.GetSceneFrame(ProjectSnapshot.FromProject(baseProject with { LyricPresentation = treeWithHiddenPlaced }), 10_000_000);
+        double firstVisibleShift = partialHiddenFrame.Lines.Single().Geometry!.Pivot.X - plainGlyph.Pivot.X;
+        Assert.Equal(LeadInEditor.MarkCellSizePx + LeadInEditor.DefaultInlineGapPx, firstVisibleShift, 1.0);
+
+        // 3. 全部标记 Opacity = 0 时不产生退让。
+        var mLast = treeWithHiddenPlaced.FindNode(sequence.MarkNodeIds[2])!;
+        var allHiddenTree = treeWithHiddenPlaced with
+        {
+            Nodes = treeWithHiddenPlaced.Nodes.Replace(mLast, mLast with
+            {
+                Content = ((TextMarkContent)mLast.Content!) with { AppearanceOverride = new() { Opacity = 0f } },
+            }),
+        };
+        var allHiddenFrame = pipeline.GetSceneFrame(ProjectSnapshot.FromProject(baseProject with { LyricPresentation = allHiddenTree }), 10_000_000);
+        AssertMatrix(plainGlyph.WorldMatrix!.Value, allHiddenFrame.Lines.Single().Geometry!.WorldMatrix!.Value);
+    }
+
+    [Fact]
+    public void TrySetAttachment切换到首字上方时渲染标记整体位于注音上方且左缘对齐起唱字()
+    {
+        var project = CreateRubyProject(SceneAttachmentMode.CueTargetText);
+        var program = project.LyricPresentation.FindProgram("primary")!;
+        string indicatorId = program.LeadIns.Single().IndicatorContainerId;
+        var fixedNodes = SceneTreeGeometryResolver.Resolve(project.LyricPresentation.Nodes, 640, 360);
+        using SkiaRenderPipeline pipeline = new();
+        var initialFrame = pipeline.GetSceneFrame(ProjectSnapshot.FromProject(project), 10_000_000);
+        var refs = SceneAttachmentReferences.Resolve(ProjectSnapshot.FromProject(project), initialFrame, includeFixed: true, SceneAttachmentMode.CueTargetAboveStart);
+        Assert.True(LeadInEditor.TrySetAttachment(project, indicatorId, SceneAttachmentMode.CueTargetAboveStart,
+            fixedNodes[indicatorId], refs[indicatorId], out var aboveProject, out var report), report.ToSummary());
+
+        var aboveFrame = pipeline.GetSceneFrame(ProjectSnapshot.FromProject(aboveProject), 10_000_000);
+        var targetGlyph = aboveFrame.Lines.Single().Geometry!;
+        var targetWorld = targetGlyph.WorldMatrix!.Value;
+        double expectedLeftX = targetWorld.Map(new(targetGlyph.EffectiveBaseTopLeft.X, targetGlyph.TopLeft.Y)).X;
+        double rubyTopY = targetWorld.Map(new(targetGlyph.EffectiveBaseTopLeft.X, targetGlyph.TopLeft.Y)).Y;
+        var markCorners = aboveFrame.TextMarks.SelectMany(m => m.Geometry.Corners()).ToArray();
+        Assert.Equal(expectedLeftX, FirstMarkCellMinX(aboveProject, aboveFrame), 0.5);
+        Assert.True(markCorners.Min(p => p.X) >= expectedLeftX - 0.5);
+        Assert.True(markCorners.Max(p => p.Y) < rubyTopY);
     }
 
     [Theory]
@@ -382,5 +501,22 @@ public sealed class LeadInUpgradeRenderingTests
             }
         }
         return (green, red);
+    }
+
+    private static double FirstMarkCellMinX(Project project, SceneFrame frame)
+    {
+        var snap = ProjectSnapshot.FromProject(project);
+        var refs = SceneAttachmentReferences.Resolve(snap, frame);
+        var nodes = SceneTreeGeometryResolver.Resolve(project.LyricPresentation.Nodes, 640, 360, refs);
+        var seq = (CountdownSequenceContent)project.LyricPresentation.Nodes.Single(n => n.Content is CountdownSequenceContent).Content!;
+        var g = nodes[seq.MarkNodeIds[0]];
+        CanvasPoint[] corners =
+        [
+            g.WorldMatrix.Map(new(0, 0)),
+            g.WorldMatrix.Map(new(g.Width, 0)),
+            g.WorldMatrix.Map(new(g.Width, g.Height)),
+            g.WorldMatrix.Map(new(0, g.Height)),
+        ];
+        return corners.Min(p => p.X);
     }
 }

@@ -154,11 +154,21 @@ public sealed partial class PreviewTransportTests
         await http.Send(new SetLeadInAttachmentCommandDto("primary", cueId, indicator, "CueTargetAboveStart"));
         var aboveNode = (await http.Read()).Nodes.Single(n => n.Id == indicator);
         Assert.Equal("CueTargetAboveStart", aboveNode.Content!.AttachmentMode);
+        Assert.Equal("LeftCenter", aboveNode.Placement.Anchor);
+        Assert.True(aboveNode.Placement.Y < 0d);
+        SceneMeasurementDataDto aboveMeasured = await WorkflowMeasure(f, http, "time", "2500000");
+        var rubyCorners = aboveMeasured.Elements.Where(e => e.Kind == "ruby" && e.LineId == line.Id && e.Visible).SelectMany(e => e.WorldCorners).ToArray();
+        var markCorners = aboveMeasured.Elements.Where(e => e.Kind == "mark" && e.Visible).SelectMany(e => e.WorldCorners).ToArray();
+        Assert.NotEmpty(rubyCorners);
+        Assert.NotEmpty(markCorners);
+        Assert.True(markCorners.Max(p => p.Y) < rubyCorners.Min(p => p.Y));
 
         await http.Send(new SetLeadInAttachmentCommandDto("primary", cueId, indicator, "CueTargetText"));
         var leftNode = (await http.Read()).Nodes.Single(n => n.Id == indicator);
         Assert.Equal("CueTargetText", leftNode.Content!.AttachmentMode);
-        Assert.True(aboveNode.Placement.Y > leftNode.Placement.Y);
+        Assert.Equal("RightCenter", leftNode.Placement.Anchor);
+        Assert.True(leftNode.Placement.X < 0d);
+        Assert.Equal(0d, leftNode.Placement.Y, 6);
 
         await http.Send(new SetLeadInAttachmentCommandDto("primary", cueId, indicator, "FixedParent"));
         var fixedNode = (await http.Read()).Nodes.Single(n => n.Id == indicator);

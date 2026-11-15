@@ -8,7 +8,8 @@ namespace MakoKaraGenerator.Backend.Contracts;
 public sealed record WorkerSceneMeasurementInput(SceneMeasurementRequest Request, string SourceSha256,
     string SampleInputFingerprint, string? EditingLineId = null, string? EditingCueId = null, string? AttachmentContainerId = null);
 public sealed record WorkerAttachmentGeometryDto(string ContainerId, string LineId,
-    ProjectGeometryReferenceDto Previous, ProjectGeometryReferenceDto FixedParent, ProjectGeometryReferenceDto TargetText);
+    ProjectGeometryReferenceDto Previous, ProjectGeometryReferenceDto FixedParent,
+    ProjectGeometryReferenceDto TargetText, ProjectGeometryReferenceDto TargetAboveStart);
 public sealed record WorkerSceneMeasurementOutput(SceneMeasurementDataDto Measurement, WorkerAttachmentGeometryDto? Attachment = null);
 public sealed record WorkerSceneMeasurementCapabilities(string Profile, string EngineIdentity, string[] SourceProfiles);
 

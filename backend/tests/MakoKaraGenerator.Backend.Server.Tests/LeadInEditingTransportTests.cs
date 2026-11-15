@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using MakoKaraGenerator.Backend.Contracts;
+using MakoKaraGenerator.Backend.Hosting;
 
 namespace MakoKaraGenerator.Backend.Server.Tests;
 
@@ -71,6 +72,12 @@ public sealed partial class PreviewTransportTests
     [InlineData("{\"type\":\"orchestration.reorderMarks\",\"containerId\":\"x\",\"orderedIds\":null}")]
     [InlineData("{\"type\":\"orchestration.spaceMarks\",\"containerId\":\"x\",\"mode\":\"auto\"}")]
     [InlineData("{\"type\":\"orchestration.setCountdownAppearance\",\"containerId\":\"x\",\"appearance\":null}")]
+    [InlineData("{\"type\":\"orchestration.setCountdownPresentation\",\"containerId\":\"x\",\"shape\":null,\"animation\":null}")]
+    [InlineData("{\"type\":\"orchestration.setCountdownPresentation\",\"containerId\":\"x\",\"animation\":null}")]
+    [InlineData("{\"type\":\"orchestration.setCountdownPresentation\",\"containerId\":\"x\",\"shape\":{\"kind\":\"Circle\",\"barMinHeightRatio\":0.45,\"svgColorMode\":\"SilhouetteStyle\"},\"animation\":null}")]
+    [InlineData("{\"type\":\"orchestration.setCountdownPresentation\",\"containerId\":\"x\",\"shape\":{\"kind\":\"Circle\",\"barMinHeightRatio\":0.45,\"svgXml\":null,\"svgColorMode\":\"SilhouetteStyle\"},\"animation\":null,\"extra\":1}")]
+    [InlineData("{\"type\":\"orchestration.setCountdownPresentation\",\"containerId\":\"x\",\"shape\":{\"kind\":\"CustomSvg\",\"barMinHeightRatio\":0.45,\"svgXml\":\"<svg><script>alert(1)</script></svg>\",\"svgColorMode\":\"SilhouetteStyle\"},\"animation\":null}")]
+    [InlineData("{\"type\":\"orchestration.setCountdownPresentation\",\"containerId\":\"x\",\"shape\":{\"kind\":\"CustomSvg\",\"barMinHeightRatio\":0.45,\"svgXml\":\"<svg><rect><animate attributeName=\\\"x\\\"/></rect></svg>\",\"svgColorMode\":\"SilhouetteStyle\"},\"animation\":null}")]
     [InlineData("{\"type\":\"orchestration.setMarkAppearance\",\"nodeId\":\"x\",\"changes\":[{\"property\":\"opacity\",\"value\":0.5,\"extra\":true}]}")]
     public async Task 真实HTTP前奏制作严格形状拒绝不产生历史(string command)
     {
@@ -80,5 +87,81 @@ public sealed partial class PreviewTransportTests
         using var response = await f.Http.PostAsync($"/api/v1/project-sessions/{f.Project.ProjectSessionId}/commands", new StringContent(body, Encoding.UTF8, "application/json"));
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal("0", (await f.Projects.ReadSummaryAsync(f.Client.ClientId, f.Project.ProjectSessionId))!.ProjectRevision);
+    }
+
+    [Fact]
+    public async Task 真实HTTP能力声明与前奏图形SVG动画往返及413拒绝()
+    {
+        await using Fixture f = await Fixture.Create();
+        BackendCapabilitiesResponse capabilities = (await f.Http.GetFromJsonAsync<BackendCapabilitiesResponse>("/api/v1/capabilities", Json))!;
+        Assert.Contains("project-sessions.commands.orchestration.setCountdownPresentation", capabilities.Features);
+
+        ProjectSession project = await f.OpenNoAudioProject();
+        NodeHttpHarness http = new(f, project.ProjectSessionId);
+        string root = (await http.Read()).Programs.Single(p => p.BranchId == "primary").RootContainerId;
+        var created = await http.Send(new CreateOrchestrationCountdownCommandDto(root, "图形组", 3));
+        string group = created.LeadInResult!.IndicatorContainerId!;
+
+        CountdownShapeSpecDto stepped = new("SteppedBars", 0.35, null, "SilhouetteStyle");
+        CountdownAnimationSpecDto wipe = new("BlinkThenWipeFill", 0.35, 2, 0.04);
+        await http.Send(new SetCountdownPresentationCommandDto(group, stepped, wipe));
+        var readBuiltIn = (await http.Read()).Nodes.Single(n => n.Id == group).Content!;
+        Assert.Equal(stepped, readBuiltIn.Shape);
+        Assert.Equal(wipe, readBuiltIn.Animation);
+
+        string inlineSvg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"12\" r=\"10\" fill=\"currentColor\"/></svg>";
+        CountdownShapeSpecDto customSvg = new("CustomSvg", 0.45, inlineSvg, "SilhouetteStyle");
+        await http.Send(new SetCountdownPresentationCommandDto(group, customSvg, null));
+        var readSvg = (await http.Read()).Nodes.Single(n => n.Id == group).Content!;
+        Assert.Equal(customSvg, readSvg.Shape);
+        Assert.Equal(wipe, readSvg.Animation);
+
+        string tooLargeSvg = "<svg viewBox=\"0 0 24 24\"><path d=\"M0 0h" + new string('1', 64 * 1024) + "\"/></svg>";
+        using HttpResponseMessage oversized = await http.Post(
+            new SetCountdownPresentationCommandDto(group, new("CustomSvg", 0.45, tooLargeSvg, "SilhouetteStyle"), null),
+            http.Revision, f.Metadata());
+        await Error(oversized, HttpStatusCode.RequestEntityTooLarge, BackendErrorCode.ResourceTooLarge);
+        Assert.Equal(http.Revision, (await f.Projects.ReadSummaryAsync(f.Client.ClientId, project.ProjectSessionId))!.ProjectRevision);
+    }
+
+    [Fact]
+    public async Task 真实Worker同帧测量HTTP切换前奏首字上方避让注音左侧与固定附着()
+    {
+        await using Fixture f = await Fixture.Create(
+            injectedFactory: new WorkerRenderFrameSessionFactory(new(FindWorkerApphost())));
+        f.Projects.ConfigureSceneMeasurements(new(FindWorkerApphost()));
+        ProjectSession project = await f.OpenNoAudioProject();
+        NodeHttpHarness http = new(f, project.ProjectSessionId);
+        await http.Send(new SetOutputDurationCommandDto("8000000"));
+        await http.Send(new AddLineCommandDto("primary", null));
+        var lyrics = (await f.Http.GetFromJsonAsync<ProjectLyricsWindowResponse>(
+            http.Path + "/lyrics/window?branchId=primary&expectedRevision=" + http.Revision, Json))!;
+        var line = Assert.Single(lyrics.Lines);
+        await http.Send(new SetLineTextCommandDto(new("primary", line.Id), "踊れ"));
+        lyrics = (await f.Http.GetFromJsonAsync<ProjectLyricsWindowResponse>(
+            http.Path + "/lyrics/window?branchId=primary&expectedRevision=" + http.Revision, Json))!;
+        line = Assert.Single(lyrics.Lines);
+        await http.Send(new SetRubyTextCommandDto(new("primary", line.Id, line.Tokens[0].Id), "おど"));
+        await http.Send(new ProjectCommandDto("lyrics.setTimeRange", new("primary", line.Id), "4000000", "6000000"));
+        foreach (var token in line.Tokens) await http.Send(new ClearTokenTimeCommandDto(new("primary", line.Id, token.Id)));
+
+        string root = (await http.Read()).Programs.Single(p => p.BranchId == "primary").RootContainerId;
+        var countdown = await http.Send(new CreateOrchestrationCountdownCommandDto(root, "注音避让提示", 3));
+        string indicator = countdown.LeadInResult!.IndicatorContainerId!;
+        var leadIn = await http.Send(new CreateOrchestrationLeadInCommandDto("primary", "cue/above-ruby", null, line.Id, indicator, "2000000", true));
+        string cueId = leadIn.LeadInResult!.LeadInId!;
+
+        await http.Send(new SetLeadInAttachmentCommandDto("primary", cueId, indicator, "CueTargetAboveStart"));
+        var aboveNode = (await http.Read()).Nodes.Single(n => n.Id == indicator);
+        Assert.Equal("CueTargetAboveStart", aboveNode.Content!.AttachmentMode);
+
+        await http.Send(new SetLeadInAttachmentCommandDto("primary", cueId, indicator, "CueTargetText"));
+        var leftNode = (await http.Read()).Nodes.Single(n => n.Id == indicator);
+        Assert.Equal("CueTargetText", leftNode.Content!.AttachmentMode);
+        Assert.True(aboveNode.Placement.Y > leftNode.Placement.Y);
+
+        await http.Send(new SetLeadInAttachmentCommandDto("primary", cueId, indicator, "FixedParent"));
+        var fixedNode = (await http.Read()).Nodes.Single(n => n.Id == indicator);
+        Assert.Equal("FixedParent", fixedNode.Content!.AttachmentMode);
     }
 }

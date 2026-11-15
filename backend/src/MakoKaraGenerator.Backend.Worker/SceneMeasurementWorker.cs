@@ -88,7 +88,8 @@ internal static class SceneMeasurementWorker
         if (input.AttachmentContainerId is { } container)
         {
             if (input.EditingLineId is not { } lineId || !measured.Nodes.TryGetValue(container, out var previous)
-                || !SceneAttachmentReferences.Resolve(snapshot, scene, includeFixed: true).TryGetValue(container, out var target)
+                || !SceneAttachmentReferences.Resolve(snapshot, scene, includeFixed: true, modeOverride: SceneAttachmentMode.CueTargetText).TryGetValue(container, out var targetText)
+                || !SceneAttachmentReferences.Resolve(snapshot, scene, includeFixed: true, modeOverride: SceneAttachmentMode.CueTargetAboveStart).TryGetValue(container, out var targetAboveStart)
                 || !scene.Lines.Any(line => line.Frame.Line!.Id == lineId && line.Geometry is { } geometry
                     && geometry.BottomRight.X > geometry.TopLeft.X && geometry.BottomRight.Y > geometry.TopLeft.Y))
                 throw new WorkerProtocolException("所选前奏目标没有可用的真实文字参考。", "SceneAttachmentReferenceUnavailable");
@@ -96,7 +97,7 @@ internal static class SceneMeasurementWorker
             var fixedNodes = SceneTreeGeometryResolver.Resolve(projectedTree.Nodes, snapshot.Composition.CanvasWidth, snapshot.Composition.CanvasHeight);
             var parent = node.ParentId is { } parentId ? fixedNodes[parentId]
                 : new SceneTreeGeometry(snapshot.Composition.CanvasWidth, snapshot.Composition.CanvasHeight, SceneMatrix.Identity, new(0, 0));
-            attachment = new(container, lineId, Reference(previous), Reference(parent), Reference(target));
+            attachment = new(container, lineId, Reference(previous), Reference(parent), Reference(targetText), Reference(targetAboveStart));
         }
         return SceneMeasurementContract.EncodeBounded(new WorkerSceneMeasurementOutput(data, attachment));
     }

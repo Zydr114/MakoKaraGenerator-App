@@ -56,9 +56,14 @@ public sealed partial class ProjectSession
         ProjectOrchestrationContentDto? content = null;
         if (node.Content is CountdownSequenceContent sequence)
         {
-            budget.Item(sequence.MarkNodeIds.Length); foreach (string id in sequence.MarkNodeIds) budget.Text(id);
-            budget.Text(node.Attachment?.Mode.ToString());
-            content = new(sequence.MarkNodeIds.ToArray(), null, node.Attachment?.Mode.ToString(), ProjectSceneAppearance(sequence.Appearance, budget));
+            budget.Item(sequence.MarkNodeIds.Length + 2);
+            foreach (string id in sequence.MarkNodeIds) budget.Text(id);
+            budget.Text(node.Attachment?.Mode.ToString(), sequence.Shape.Kind.ToString(), sequence.Shape.SvgXml,
+                sequence.Shape.SvgColorMode.ToString(), sequence.Animation.Mode.ToString());
+            content = new(sequence.MarkNodeIds.ToArray(), null, node.Attachment?.Mode.ToString(),
+                ProjectSceneAppearance(sequence.Appearance, budget),
+                Shape: new(sequence.Shape.Kind.ToString(), sequence.Shape.BarMinHeightRatio, sequence.Shape.SvgXml, sequence.Shape.SvgColorMode.ToString()),
+                Animation: new(sequence.Animation.Mode.ToString(), sequence.Animation.BlinkRatio, sequence.Animation.BlinkCount, sequence.Animation.FeatherRatio));
         }
         else if (node.Content is TextMarkContent mark) { budget.Text(mark.Text); content = new(null, mark.Text, null, null, ProjectLocalStyle(mark.AppearanceOverride?.ToStyleOverride(), budget)); }
         return new(node.Id, node.Name, node.ParentId, Placement(node.Placement),

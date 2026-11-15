@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace MakoKaraGenerator.Backend.Contracts;
 
 /// <summary>创建由 Core 生成稳定身份的提示容器，标记数限制为1..64。</summary>
@@ -17,9 +19,15 @@ public sealed record DeleteOrchestrationLeadInCommandDto(string? BranchId, strin
 /// <summary>前奏完整配置与 Core 派生时间；不会开启自动生成。</summary>
 public sealed record ProjectOrchestrationLeadInDto(string Id, string? Name, bool Enabled, string TargetLineId,
     string IndicatorContainerId, string DurationUs, string Origin, string? StartUs, string? EndUs);
+/// <summary>前奏提示标记图形定义；仅当 Kind 为 CustomSvg 时 SvgXml 为非 null 静态内联 SVG。</summary>
+public sealed record CountdownShapeSpecDto(string Kind, double BarMinHeightRatio,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? SvgXml, string SvgColorMode);
+/// <summary>前奏提示容器动画定义。</summary>
+public sealed record CountdownAnimationSpecDto(string Mode, double BlinkRatio, int BlinkCount, double FeatherRatio);
 /// <summary>提示组及标记的有限内容投影。</summary>
 public sealed record ProjectOrchestrationContentDto(string[]? MarkNodeIds, string? Text, string? AttachmentMode,
-    SceneTextAppearanceDto? Appearance = null, StyleChangeDto[]? AppearanceOverride = null);
+    SceneTextAppearanceDto? Appearance = null, StyleChangeDto[]? AppearanceOverride = null,
+    CountdownShapeSpecDto? Shape = null, CountdownAnimationSpecDto? Animation = null);
 /// <summary>前奏命令的稳定身份回执。</summary>
 public sealed record OrchestrationLeadInCommandResultDto(string Operation, string? BranchId, string? LeadInId,
     string? IndicatorContainerId, string[]? MarkNodeIds, bool Changed);

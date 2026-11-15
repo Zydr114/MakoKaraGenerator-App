@@ -34,6 +34,7 @@ public sealed partial class ProjectSession
         ReorderOrchestrationMarksCommandDto => command.Type == "orchestration.reorderMarks",
         SpaceOrchestrationMarksCommandDto => command.Type == "orchestration.spaceMarks",
         SetCountdownAppearanceCommandDto => command.Type == "orchestration.setCountdownAppearance",
+        SetCountdownPresentationCommandDto => command.Type == "orchestration.setCountdownPresentation",
         SetMarkAppearanceCommandDto => command.Type == "orchestration.setMarkAppearance",
         PatchStylesCommandDto => command.Type == "styles.patch",
         RestoreStylesCommandDto => command.Type == "styles.restore",

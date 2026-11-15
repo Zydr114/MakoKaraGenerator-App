@@ -22,6 +22,8 @@ public sealed record SpaceOrchestrationMarksCommandDto(string? ContainerId) : Pr
 public sealed record SceneTextAppearanceDto(StyleTypographyDto Typography, StyleAppearanceDto Pending, StyleSungAppearanceDto Elapsed, float Opacity);
 public sealed record SetCountdownAppearanceCommandDto(string? ContainerId, SceneTextAppearanceDto? Appearance)
     : ProjectCommandDto("orchestration.setCountdownAppearance");
+public sealed record SetCountdownPresentationCommandDto(string? ContainerId, CountdownShapeSpecDto? Shape, CountdownAnimationSpecDto? Animation)
+    : ProjectCommandDto("orchestration.setCountdownPresentation");
 public sealed record SetMarkAppearanceCommandDto(string? NodeId, StyleChangeDto[]? Changes)
     : ProjectCommandDto("orchestration.setMarkAppearance");
 public sealed record LeadInGenerationAnchorDto(string TimeUs, string TimingStatus, bool UsesLineTime, bool HasMissingPrefix);

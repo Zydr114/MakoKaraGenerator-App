@@ -178,7 +178,7 @@ internal static partial class ServerEndpoints
                 "project-sessions.commands.orchestration.setLeadInGeneration", "project-sessions.commands.orchestration.previewLeadInGeneration", "project-sessions.commands.orchestration.applyLeadInGeneration",
                 "project-sessions.commands.orchestration.setLeadInAttachment",
                 "project-sessions.commands.orchestration.deleteLeadInAndExclude", "project-sessions.commands.orchestration.addMark", "project-sessions.commands.orchestration.setMarkText",
-                "project-sessions.commands.orchestration.reorderMarks", "project-sessions.commands.orchestration.spaceMarks", "project-sessions.commands.orchestration.setCountdownAppearance", "project-sessions.commands.orchestration.setMarkAppearance",
+                "project-sessions.commands.orchestration.reorderMarks", "project-sessions.commands.orchestration.spaceMarks", "project-sessions.commands.orchestration.setCountdownAppearance", "project-sessions.commands.orchestration.setCountdownPresentation", "project-sessions.commands.orchestration.setMarkAppearance",
                 "project-sessions.commands.orchestration.updateLeadIn", "project-sessions.commands.orchestration.deleteLeadIn",
                 "project-sessions.commands.orchestration.createClip", "project-sessions.commands.orchestration.renameClip",
                 "project-sessions.commands.orchestration.setClipContainer", "project-sessions.commands.orchestration.deleteClip",

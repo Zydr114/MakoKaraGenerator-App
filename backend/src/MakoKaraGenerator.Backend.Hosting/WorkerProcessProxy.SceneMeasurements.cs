@@ -102,8 +102,8 @@ public sealed partial class WorkerProcessProxy
             || !SceneMeasurementContract.IsValidPng(data.Png, data.Width, data.Height))
             throw new WorkerProtocolException("测量回执几何、身份或PNG内容无效。");
         if (result.Attachment is { } attachment && (attachment.ContainerId != input.AttachmentContainerId || attachment.LineId != input.EditingLineId
-            || attachment.Previous is null || attachment.FixedParent is null || attachment.TargetText is null
-            || !Reference(attachment.Previous) || !Reference(attachment.FixedParent) || !Reference(attachment.TargetText)))
+            || attachment.Previous is null || attachment.FixedParent is null || attachment.TargetText is null || attachment.TargetAboveStart is null
+            || !Reference(attachment.Previous) || !Reference(attachment.FixedParent) || !Reference(attachment.TargetText) || !Reference(attachment.TargetAboveStart)))
             throw new WorkerProtocolException("附着测量回执不属于当前输入。");
         return result;
     }

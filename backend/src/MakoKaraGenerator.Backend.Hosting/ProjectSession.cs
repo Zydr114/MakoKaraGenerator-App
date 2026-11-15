@@ -407,6 +407,7 @@ public sealed partial class ProjectSession
                 case "orchestration.reorderMarks":
                 case "orchestration.spaceMarks":
                 case "orchestration.setCountdownAppearance":
+                case "orchestration.setCountdownPresentation":
                 case "orchestration.setMarkAppearance":
                     TryPrepareLeadInEditing(before, request.Command, out after, out leadInResult,
                         out leadInGenerationResult, out BackendErrorResponse? leadInEditingError);

@@ -76,7 +76,12 @@ public sealed partial class ProjectSession
             if ((node?.Attachment?.Mode ?? SceneAttachmentMode.FixedParent) != mode)
             {
                 if (geometry is null) return ProjectCommandExecutionResult.Rejected(new(BackendErrorCode.CommandRejected, "附着真实参考不可用。"));
-                var reference = mode == SceneAttachmentMode.FixedParent ? geometry.FixedParent : geometry.TargetText;
+                var reference = mode switch
+                {
+                    SceneAttachmentMode.FixedParent => geometry.FixedParent,
+                    SceneAttachmentMode.CueTargetAboveStart => geometry.TargetAboveStart,
+                    _ => geometry.TargetText,
+                };
                 if (!LeadInEditor.TrySetAttachment(capture.Project, command.ContainerId!, mode, From(geometry.Previous), From(reference), out candidate, out _))
                     return ProjectCommandExecutionResult.Rejected(new(BackendErrorCode.CommandRejected, "附着参考不可用或变换无效。", FailureCode: "SceneAttachmentReferenceUnavailable"));
             }

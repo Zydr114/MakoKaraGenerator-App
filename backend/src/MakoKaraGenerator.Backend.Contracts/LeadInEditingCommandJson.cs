@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 
 namespace MakoKaraGenerator.Backend.Contracts;
@@ -7,7 +8,8 @@ internal static class LeadInEditingCommandJson
     internal static bool IsType(string? type) => type is "orchestration.setLeadInGeneration" or "orchestration.previewLeadInGeneration"
         or "orchestration.applyLeadInGeneration" or "orchestration.deleteLeadInAndExclude" or "orchestration.addMark"
         or "orchestration.setMarkText" or "orchestration.reorderMarks" or "orchestration.spaceMarks"
-        or "orchestration.setCountdownAppearance" or "orchestration.setMarkAppearance" or "orchestration.setLeadInAttachment";
+        or "orchestration.setCountdownAppearance" or "orchestration.setCountdownPresentation"
+        or "orchestration.setMarkAppearance" or "orchestration.setLeadInAttachment";
 
     internal static ProjectCommandDto Read(JsonElement root, string type, JsonSerializerOptions options)
     {
@@ -22,6 +24,7 @@ internal static class LeadInEditingCommandJson
             "orchestration.reorderMarks" => ["type", "containerId", "orderedIds"],
             "orchestration.spaceMarks" => ["type", "containerId"],
             "orchestration.setCountdownAppearance" => ["type", "containerId", "appearance"],
+            "orchestration.setCountdownPresentation" => ["type", "containerId", "shape", "animation"],
             _ => ["type", "nodeId", "changes"],
         };
         Fields(root, names);
@@ -52,14 +55,58 @@ internal static class LeadInEditingCommandJson
             "orchestration.reorderMarks" => new ReorderOrchestrationMarksCommandDto(Text(root, "containerId"), Strings(root.GetProperty("orderedIds"))),
             "orchestration.spaceMarks" => new SpaceOrchestrationMarksCommandDto(Text(root, "containerId")),
             "orchestration.setCountdownAppearance" => new SetCountdownAppearanceCommandDto(Text(root, "containerId"), Appearance(root.GetProperty("appearance"), options)),
+            "orchestration.setCountdownPresentation" => Presentation(root),
             _ => new SetMarkAppearanceCommandDto(Text(root, "nodeId"), Changes(root.GetProperty("changes"), options)),
         };
     }
 
+    private static SetCountdownPresentationCommandDto Presentation(JsonElement root)
+    {
+        var shape = Shape(root.GetProperty("shape"));
+        var animation = Animation(root.GetProperty("animation"));
+        if (shape is null && animation is null) throw new JsonException("shape与animation至少需要提供一项。");
+        return new(Text(root, "containerId"), shape, animation);
+    }
+    private static CountdownShapeSpecDto? Shape(JsonElement value)
+    {
+        if (value.ValueKind == JsonValueKind.Null) return null;
+        Fields(value, ["kind", "barMinHeightRatio", "svgXml", "svgColorMode"]);
+        string kind = Text(value, "kind")!;
+        if (kind is not ("Text" or "Circle" or "SteppedBars" or "Capsule" or "Diamond" or "Star" or "CustomSvg"))
+            throw new JsonException("shape.kind无效。");
+        double ratio = StyleCommandJson.Number(value.GetProperty("barMinHeightRatio"));
+        if (ratio is < 0.15 or > 1.0) throw new JsonException("shape.barMinHeightRatio必须在0.15..1之间。");
+        string? svgXml = Text(value, "svgXml", nullable: true);
+        if (svgXml is not null && Encoding.UTF8.GetByteCount(svgXml) > 64 * 1024)
+            throw new StyleCommandBudgetExceededException();
+        if (kind == "CustomSvg" ? string.IsNullOrWhiteSpace(svgXml) : svgXml is not null)
+            throw new JsonException("仅CustomSvg可且必须提供非空svgXml。");
+        string svgColorMode = Text(value, "svgColorMode")!;
+        if (svgColorMode is not ("SilhouetteStyle" or "OriginalColor"))
+            throw new JsonException("shape.svgColorMode无效。");
+        return new(kind, ratio, svgXml, svgColorMode);
+    }
+    private static CountdownAnimationSpecDto? Animation(JsonElement value)
+    {
+        if (value.ValueKind == JsonValueKind.Null) return null;
+        Fields(value, ["mode", "blinkRatio", "blinkCount", "featherRatio"]);
+        string mode = Text(value, "mode")!;
+        if (mode is not ("DiscreteSteps" or "BlinkThenWipeFill" or "BlinkThenErase"))
+            throw new JsonException("animation.mode无效。");
+        double blinkRatio = StyleCommandJson.Number(value.GetProperty("blinkRatio"));
+        if (blinkRatio is < 0 or > 0.85) throw new JsonException("animation.blinkRatio必须在0..0.85之间。");
+        int blinkCount = StyleCommandJson.Integer(value.GetProperty("blinkCount"));
+        if (blinkCount is < 0 or > 16 || (mode != "DiscreteSteps" && blinkRatio > 0 && blinkCount < 1))
+            throw new JsonException("animation.blinkCount无效或开启闪烁时不足1次。");
+        double featherRatio = StyleCommandJson.Number(value.GetProperty("featherRatio"));
+        if (featherRatio is < 0 or > 0.5) throw new JsonException("animation.featherRatio必须在0..0.5之间。");
+        return new(mode, blinkRatio, blinkCount, featherRatio);
+    }
     private static string Mode(JsonElement root)
     {
         string value = Text(root, "mode")!;
-        return value is "FixedParent" or "CueTargetText" ? value : throw new JsonException("mode必须是FixedParent或CueTargetText。");
+        return value is "FixedParent" or "CueTargetText" or "CueTargetAboveStart" ? value
+            : throw new JsonException("mode必须是FixedParent、CueTargetText或CueTargetAboveStart。");
     }
     private static SceneTextAppearanceDto Appearance(JsonElement value, JsonSerializerOptions options)
     {
@@ -112,6 +159,32 @@ internal static class LeadInEditingCommandJson
             case ReorderOrchestrationMarksCommandDto v: writer.WriteString("containerId", v.ContainerId); Value("orderedIds", v.OrderedIds); break;
             case SpaceOrchestrationMarksCommandDto v: writer.WriteString("containerId", v.ContainerId); break;
             case SetCountdownAppearanceCommandDto v: writer.WriteString("containerId", v.ContainerId); Value("appearance", v.Appearance); break;
+            case SetCountdownPresentationCommandDto v:
+                writer.WriteString("containerId", v.ContainerId);
+                writer.WritePropertyName("shape");
+                if (v.Shape is null) writer.WriteNullValue();
+                else
+                {
+                    writer.WriteStartObject();
+                    writer.WriteString("kind", v.Shape.Kind);
+                    writer.WriteNumber("barMinHeightRatio", v.Shape.BarMinHeightRatio);
+                    if (v.Shape.SvgXml is null) writer.WriteNull("svgXml");
+                    else writer.WriteString("svgXml", v.Shape.SvgXml);
+                    writer.WriteString("svgColorMode", v.Shape.SvgColorMode);
+                    writer.WriteEndObject();
+                }
+                writer.WritePropertyName("animation");
+                if (v.Animation is null) writer.WriteNullValue();
+                else
+                {
+                    writer.WriteStartObject();
+                    writer.WriteString("mode", v.Animation.Mode);
+                    writer.WriteNumber("blinkRatio", v.Animation.BlinkRatio);
+                    writer.WriteNumber("blinkCount", v.Animation.BlinkCount);
+                    writer.WriteNumber("featherRatio", v.Animation.FeatherRatio);
+                    writer.WriteEndObject();
+                }
+                break;
             case SetMarkAppearanceCommandDto v: writer.WriteString("nodeId", v.NodeId); Value("changes", v.Changes); break;
         }
         if (command.Target is not null) Value("target", command.Target);

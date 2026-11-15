@@ -209,6 +209,114 @@ public sealed class BackendLeadInEditingTests
         { Assert.False((await f.Command("4", bad)).Accepted); Assert.Same(before, f.Workspace.Project); }
     }
 
+    [Fact]
+    public async Task 前奏图形与动画配置完整往返部分更新撤销重做及批量编辑()
+    {
+        await using Fixture f = await Fixture.Create();
+        var created = Accepted(await f.Command("0", new CreateOrchestrationCountdownCommandDto(f.Root, null, 3)));
+        string group = created.LeadInResult!.IndicatorContainerId!;
+        var initial = (await f.Registry.ReadOrchestrationAsync("client", f.Id, "1")).Response!;
+        var content = initial.Nodes.Single(n => n.Id == group).Content!;
+        Assert.Equal(new CountdownShapeSpecDto("Text", 0.45, null, "SilhouetteStyle"), content.Shape);
+        Assert.Equal(new CountdownAnimationSpecDto("DiscreteSteps", 0.35, 2, 0.06), content.Animation);
+
+        CountdownShapeSpecDto stepped = new("SteppedBars", 0.35, null, "SilhouetteStyle");
+        CountdownAnimationSpecDto wipe = new("BlinkThenWipeFill", 0.35, 2, 0.04);
+        var updated = Accepted(await f.Command("1", new SetCountdownPresentationCommandDto(group, stepped, wipe)));
+        Assert.True(updated.Changed);
+        var afterWipe = (await f.Registry.ReadOrchestrationAsync("client", f.Id, "2")).Response!.Nodes.Single(n => n.Id == group).Content!;
+        Assert.Equal(stepped, afterWipe.Shape);
+        Assert.Equal(wipe, afterWipe.Animation);
+
+        // 部分更新只改图形或只改动画，未传入侧保持原值。
+        CountdownShapeSpecDto capsule = new("Capsule", 0.45, null, "SilhouetteStyle");
+        Accepted(await f.Command("2", new SetCountdownPresentationCommandDto(group, capsule, null)));
+        CountdownAnimationSpecDto erase = new("BlinkThenErase", 0, 0, 0.08);
+        Accepted(await f.Command("3", new SetCountdownPresentationCommandDto(group, null, erase)));
+        var afterPartial = (await f.Registry.ReadOrchestrationAsync("client", f.Id, "4")).Response!.Nodes.Single(n => n.Id == group).Content!;
+        Assert.Equal(capsule, afterPartial.Shape);
+        Assert.Equal(erase, afterPartial.Animation);
+
+        Accepted(await f.Command("4", new ProjectCommandDto("history.undo")));
+        var afterUndo = (await f.Registry.ReadOrchestrationAsync("client", f.Id, "5")).Response!.Nodes.Single(n => n.Id == group).Content!;
+        Assert.Equal(capsule, afterUndo.Shape);
+        Assert.Equal(wipe, afterUndo.Animation);
+
+        // 相同配置重复提交应为 no-op 且保留 Redo 栈。
+        Project snapshot = f.Workspace.Project;
+        var noop = Accepted(await f.Command("5", new SetCountdownPresentationCommandDto(group, capsule, wipe)));
+        Assert.False(noop.Changed);
+        Assert.True(noop.CanRedo);
+        Assert.Same(snapshot, f.Workspace.Project);
+
+        Accepted(await f.Command("5", new ProjectCommandDto("history.redo")));
+        Assert.Equal(erase, (await f.Registry.ReadOrchestrationAsync("client", f.Id, "6")).Response!.Nodes.Single(n => n.Id == group).Content!.Animation);
+
+        CountdownShapeSpecDto circle = new("Circle", 0.45, null, "SilhouetteStyle");
+        var batch = Accepted(await f.Command("6", new ApplyProjectEditsCommandDto([new SetCountdownPresentationCommandDto(group, circle, null)])));
+        Assert.True(batch.Changed);
+        Assert.Equal(circle, (await f.Registry.ReadOrchestrationAsync("client", f.Id, "7")).Response!.Nodes.Single(n => n.Id == group).Content!.Shape);
+    }
+
+    [Fact]
+    public async Task 自定义内联SVG近64KiB往返与非法图形动画SVG预算及严格拒绝()
+    {
+        await using Fixture f = await Fixture.Create();
+        var created = Accepted(await f.Command("0", new CreateOrchestrationCountdownCommandDto(f.Root, null, 3)));
+        string group = created.LeadInResult!.IndicatorContainerId!;
+        string mark = created.LeadInResult.MarkNodeIds![0];
+
+        string simpleSvg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"12\" r=\"10\" fill=\"currentColor\"/></svg>";
+        Accepted(await f.Command("1", new SetCountdownPresentationCommandDto(group,
+            new("CustomSvg", 0.45, simpleSvg, "SilhouetteStyle"), null)));
+        Assert.Equal(simpleSvg, (await f.Registry.ReadOrchestrationAsync("client", f.Id, "2")).Response!.Nodes.Single(n => n.Id == group).Content!.Shape!.SvgXml);
+
+        // ~58 KiB 有效 SVG（JSON 引号转义后命令总字节超 64 KiB 但仍在 128 KiB 命令预算内）应成功保存。
+        string rectItem = "<rect x=\"1\" y=\"1\" width=\"2\" height=\"2\" fill=\"#ff00aa\"/>";
+        string largeValidSvg = "<svg viewBox=\"0 0 24 24\">" + string.Concat(Enumerable.Repeat(rectItem, 1100)) + "</svg>";
+        Assert.InRange(System.Text.Encoding.UTF8.GetByteCount(largeValidSvg), 50 * 1024, CountdownShapeSpec.MaximumSvgBytes);
+        Accepted(await f.Command("2", new SetCountdownPresentationCommandDto(group,
+            new("CustomSvg", 0.45, largeValidSvg, "OriginalColor"), null)));
+        Assert.Equal(largeValidSvg, (await f.Registry.ReadOrchestrationAsync("client", f.Id, "3")).Response!.Nodes.Single(n => n.Id == group).Content!.Shape!.SvgXml);
+
+        Project unchanged = f.Workspace.Project;
+        string tooLargeSvg = "<svg viewBox=\"0 0 24 24\"><path d=\"M0 0h" + new string('1', CountdownShapeSpec.MaximumSvgBytes) + "\"/></svg>";
+        var overBudget = await f.Command("3", new SetCountdownPresentationCommandDto(group,
+            new("CustomSvg", 0.45, tooLargeSvg, "SilhouetteStyle"), null));
+        Assert.Equal(BackendErrorCode.ResourceTooLarge, overBudget.Error!.Code);
+        Assert.Same(unchanged, f.Workspace.Project);
+
+        ProjectCommandDto[] invalid =
+        [
+            new SetCountdownPresentationCommandDto(group, null, null),
+            new SetCountdownPresentationCommandDto(group, new("Circle", 0.45, simpleSvg, "SilhouetteStyle"), null),
+            new SetCountdownPresentationCommandDto(group, new("CustomSvg", 0.45, null, "SilhouetteStyle"), null),
+            new SetCountdownPresentationCommandDto(group, new("CustomSvg", 0.45, "<svg><script>alert(1)</script></svg>", "SilhouetteStyle"), null),
+            new SetCountdownPresentationCommandDto(group, new("CustomSvg", 0.45, "<svg><rect><animate attributeName=\"x\" from=\"0\" to=\"1\" dur=\"1s\"/></rect></svg>", "SilhouetteStyle"), null),
+            new SetCountdownPresentationCommandDto(group, new("CustomSvg", 0.45, "<svg><use href=\"https://example.com/a.svg#x\"/></svg>", "SilhouetteStyle"), null),
+            new SetCountdownPresentationCommandDto(group, new("CustomSvg", 0.45, "<svg><path", "SilhouetteStyle"), null),
+            new SetCountdownPresentationCommandDto(group, new("SteppedBars", 0.14, null, "SilhouetteStyle"), null),
+            new SetCountdownPresentationCommandDto(group, null, new("BlinkThenWipeFill", 0.35, 0, 0.06)),
+            new SetCountdownPresentationCommandDto(group, null, new("BlinkThenWipeFill", 0.86, 2, 0.06)),
+            new SetCountdownPresentationCommandDto(group, null, new("BlinkThenWipeFill", 0.2, 1, 0.51)),
+        ];
+        foreach (var bad in invalid)
+        {
+            var rejected = await f.Command("3", bad);
+            Assert.False(rejected.Accepted);
+            Assert.Equal(BackendErrorCode.InvalidRequest, rejected.Error!.Code);
+            Assert.Same(unchanged, f.Workspace.Project);
+        }
+
+        var missing = await f.Command("3", new SetCountdownPresentationCommandDto("missing-container",
+            new("Circle", 0.45, null, "SilhouetteStyle"), null));
+        Assert.Equal("TargetStale", missing.Error!.FailureCode);
+        var wrongNode = await f.Command("3", new SetCountdownPresentationCommandDto(mark,
+            new("Circle", 0.45, null, "SilhouetteStyle"), null));
+        Assert.Equal("ContainerInvalid", wrongNode.Error!.FailureCode);
+        Assert.Same(unchanged, f.Workspace.Project);
+    }
+
     private static ProjectCommandResponse Accepted(ProjectCommandExecutionResult result)
     { Assert.True(result.Accepted, result.Error?.ToString()); return result.Response!; }
 

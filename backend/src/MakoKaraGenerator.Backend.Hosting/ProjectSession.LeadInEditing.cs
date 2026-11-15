@@ -1,5 +1,7 @@
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
+using System.Xml;
 using MakoKaraGenerator.Backend.Contracts;
 using MakoKaraGenerator.Core.Diagnostics;
 using MakoKaraGenerator.Core.Projects;
@@ -12,12 +14,13 @@ public sealed partial class ProjectSession
     private static bool IsLeadInEditing(ProjectCommandDto command) => command is SetLeadInGenerationCommandDto
         or PreviewLeadInGenerationCommandDto or ApplyLeadInGenerationCommandDto or DeleteLeadInAndExcludeCommandDto
         or AddOrchestrationMarkCommandDto or SetOrchestrationMarkTextCommandDto or ReorderOrchestrationMarksCommandDto
-        or SpaceOrchestrationMarksCommandDto or SetCountdownAppearanceCommandDto or SetMarkAppearanceCommandDto;
+        or SpaceOrchestrationMarksCommandDto or SetCountdownAppearanceCommandDto
+        or SetCountdownPresentationCommandDto or SetMarkAppearanceCommandDto;
 
     internal static BackendErrorResponse? CheckLeadInAttachmentIntent(SetLeadInAttachmentCommandDto command)
     {
         if (!EditingCommandTypeMatches(command) || !IsStableId(command.BranchId) || !LeadInCueIdentity(command.LeadInId)
-            || !IsStableId(command.ContainerId) || command.Mode is not ("FixedParent" or "CueTargetText")
+            || !IsStableId(command.ContainerId) || command.Mode is not ("FixedParent" or "CueTargetText" or "CueTargetAboveStart")
             || command.Target is not null || command.StartUs is not null || command.EndUs is not null || command.AnalysisJobId is not null)
             return LeadInInvalid("附着切换需要明确来源、cue、提示容器及合法mode。");
         return null;
@@ -42,6 +45,7 @@ public sealed partial class ProjectSession
                 ApplyLeadInGenerationCommandDto v => v.BranchId, DeleteLeadInAndExcludeCommandDto v => v.BranchId,
                 AddOrchestrationMarkCommandDto v => v.ContainerId, ReorderOrchestrationMarksCommandDto v => v.ContainerId,
                 SpaceOrchestrationMarksCommandDto v => v.ContainerId, SetCountdownAppearanceCommandDto v => v.ContainerId,
+                SetCountdownPresentationCommandDto v => v.ContainerId,
                 SetOrchestrationMarkTextCommandDto v => v.NodeId, SetMarkAppearanceCommandDto v => v.NodeId, _ => null };
             if (!IsStableId(identity) || settings?.IndicatorContainerId is { } indicator && !IsStableId(indicator)
                 || settings?.ExcludedLineIds?.Any(id => !IsStableId(id)) == true
@@ -52,10 +56,21 @@ public sealed partial class ProjectSession
                 || command is SetOrchestrationMarkTextCommandDto text && !ValidMarkText(text.Text))
                 return LeadInInvalid("前奏身份、文字或生成字段超出合法范围。");
             if (command is SetCountdownAppearanceCommandDto appearance) _ = CoreSceneAppearance(appearance.Appearance);
+            if (command is SetCountdownPresentationCommandDto presentation)
+            {
+                if (presentation.Shape is null && presentation.Animation is null)
+                    return LeadInInvalid("shape 与 animation 至少需要提供一项。");
+                if (presentation.Shape?.SvgXml is { } svg && Encoding.UTF8.GetByteCount(svg) > CountdownShapeSpec.MaximumSvgBytes)
+                    throw new ReadModelBudgetExceededException();
+                if (presentation.Shape is not null) _ = CoreCountdownShape(presentation.Shape);
+                if (presentation.Animation is not null) _ = CoreCountdownAnimation(presentation.Animation);
+            }
             if (command is SetMarkAppearanceCommandDto mark) _ = CoreMarkAppearance(mark.Changes);
-            using (StyleIntentStream counter = new()) JsonSerializer.Serialize(counter, command, ReadModelJson);
+            if (command is not SetCountdownPresentationCommandDto)
+                using (StyleIntentStream counter = new()) JsonSerializer.Serialize(counter, command, ReadModelJson);
             byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(command, ReadModelJson);
-            if (bytes.Length > 64 * 1024) throw new ReadModelBudgetExceededException();
+            int maxIntentBytes = command is SetCountdownPresentationCommandDto ? 128 * 1024 : 64 * 1024;
+            if (bytes.Length > maxIntentBytes) throw new ReadModelBudgetExceededException();
             _ = JsonSerializer.Deserialize<ProjectCommandDto>(bytes, ReadModelJson);
             return null;
         }
@@ -179,6 +194,7 @@ public sealed partial class ProjectSession
                     ReorderOrchestrationMarksCommandDto c => c.ContainerId,
                     SpaceOrchestrationMarksCommandDto c => c.ContainerId,
                     SetCountdownAppearanceCommandDto c => c.ContainerId,
+                    SetCountdownPresentationCommandDto c => c.ContainerId,
                     SetOrchestrationMarkTextCommandDto c => c.NodeId,
                     SetMarkAppearanceCommandDto c => c.NodeId,
                     _ => null,
@@ -211,6 +227,11 @@ public sealed partial class ProjectSession
                         var baseline = CoreSceneAppearance(appearance.Appearance);
                         if (!baseline.IsValid) { error = LeadInInvalid("提示基线外观无效。"); return; }
                         accepted = SceneTreeEditor.TrySetNode(input, node with { Content = ((CountdownSequenceContent)node.Content!) with { Appearance = baseline } }, out after, out report); break;
+                    case SetCountdownPresentationCommandDto presentation:
+                        var current = (CountdownSequenceContent)node.Content!;
+                        var nextShape = presentation.Shape is null ? current.Shape : CoreCountdownShape(presentation.Shape);
+                        var nextAnimation = presentation.Animation is null ? current.Animation : CoreCountdownAnimation(presentation.Animation);
+                        accepted = LeadInEditor.TrySetCountdownPresentation(input, nodeId!, nextShape, nextAnimation, out after, out report); break;
                     case SetMarkAppearanceCommandDto appearance:
                         var owner = tree.Nodes.FirstOrDefault(n => n.Content is CountdownSequenceContent seq && seq.MarkNodeIds.Contains(nodeId!));
                         var overlay = CoreMarkAppearance(appearance.Changes);
@@ -248,6 +269,94 @@ public sealed partial class ProjectSession
     private static bool ValidMarkText(string? text) => !string.IsNullOrWhiteSpace(text) && text.Length <= 4096;
     private static bool LeadInCueIdentity(string? id) => !string.IsNullOrWhiteSpace(id) && id.Length <= 4096;
     private static string Us(long value) => value.ToString(CultureInfo.InvariantCulture);
+
+    private static CountdownShapeSpec CoreCountdownShape(CountdownShapeSpecDto value)
+    {
+        if (!Enum.TryParse<CountdownShapeKind>(value.Kind, out var kind) || !Enum.IsDefined(kind) || kind.ToString() != value.Kind
+            || !Enum.TryParse<CountdownSvgColorMode>(value.SvgColorMode, out var colorMode) || !Enum.IsDefined(colorMode) || colorMode.ToString() != value.SvgColorMode
+            || !double.IsFinite(value.BarMinHeightRatio) || value.BarMinHeightRatio is < 0.15 or > 1.0)
+            throw new JsonException("前奏图形配置无效。");
+        if (kind == CountdownShapeKind.CustomSvg)
+        {
+            if (string.IsNullOrWhiteSpace(value.SvgXml))
+                throw new JsonException("CustomSvg 必须提供静态 SVG 源码。");
+            if (Encoding.UTF8.GetByteCount(value.SvgXml) > CountdownShapeSpec.MaximumSvgBytes)
+                throw new ReadModelBudgetExceededException();
+            ValidateSafeInlineSvgXml(value.SvgXml);
+        }
+        else if (value.SvgXml is not null)
+        {
+            throw new JsonException("非 CustomSvg 图形不得携带 svgXml。");
+        }
+        return new() { Kind = kind, BarMinHeightRatio = value.BarMinHeightRatio, SvgXml = value.SvgXml, SvgColorMode = colorMode };
+    }
+
+    private static CountdownAnimationSpec CoreCountdownAnimation(CountdownAnimationSpecDto value)
+    {
+        if (!Enum.TryParse<CountdownAnimationMode>(value.Mode, out var mode) || !Enum.IsDefined(mode) || mode.ToString() != value.Mode
+            || !double.IsFinite(value.BlinkRatio) || value.BlinkRatio is < 0 or > 0.85
+            || value.BlinkCount is < 0 or > 16
+            || (mode != CountdownAnimationMode.DiscreteSteps && value.BlinkRatio > 0 && value.BlinkCount < 1)
+            || !double.IsFinite(value.FeatherRatio) || value.FeatherRatio is < 0 or > 0.5)
+            throw new JsonException("前奏动画配置无效。");
+        return new() { Mode = mode, BlinkRatio = value.BlinkRatio, BlinkCount = value.BlinkCount, FeatherRatio = value.FeatherRatio };
+    }
+
+    private static void ValidateSafeInlineSvgXml(string svgXml)
+    {
+        XmlReaderSettings settings = new()
+        {
+            DtdProcessing = DtdProcessing.Prohibit,
+            XmlResolver = null,
+            ConformanceLevel = ConformanceLevel.Document,
+            MaxCharactersInDocument = CountdownShapeSpec.MaximumSvgBytes,
+            MaxCharactersFromEntities = 1,
+        };
+        try
+        {
+            using StringReader input = new(svgXml);
+            using XmlReader reader = XmlReader.Create(input, settings);
+            bool sawRoot = false;
+            while (reader.Read())
+            {
+                if (reader.NodeType is XmlNodeType.ProcessingInstruction or XmlNodeType.DocumentType or XmlNodeType.EntityReference)
+                    throw new JsonException("自定义 SVG 禁止包含 DTD、实体或处理指令。");
+                if (reader.NodeType != XmlNodeType.Element) continue;
+                if (reader.NamespaceURI.Length > 0 && !string.Equals(reader.NamespaceURI, "http://www.w3.org/2000/svg", StringComparison.Ordinal))
+                    throw new JsonException("自定义 SVG 仅支持标准 SVG 命名空间。");
+                if (!sawRoot)
+                {
+                    if (!string.Equals(reader.LocalName, "svg", StringComparison.Ordinal))
+                        throw new JsonException("自定义 SVG 根元素必须为 <svg>。");
+                    sawRoot = true;
+                }
+                else if (string.Equals(reader.LocalName, "svg", StringComparison.Ordinal))
+                {
+                    throw new JsonException("自定义 SVG 不支持嵌套 <svg>。");
+                }
+                if (reader.LocalName.Equals("script", StringComparison.OrdinalIgnoreCase)
+                    || reader.LocalName.Equals("foreignObject", StringComparison.OrdinalIgnoreCase)
+                    || reader.LocalName.Equals("image", StringComparison.OrdinalIgnoreCase)
+                    || reader.LocalName.StartsWith("animate", StringComparison.OrdinalIgnoreCase)
+                    || reader.LocalName.Equals("set", StringComparison.OrdinalIgnoreCase))
+                    throw new JsonException("自定义 SVG 包含禁止的动态或外部元素。");
+                if (reader.MoveToFirstAttribute())
+                {
+                    do
+                    {
+                        if (reader.LocalName.StartsWith("on", StringComparison.OrdinalIgnoreCase))
+                            throw new JsonException("自定义 SVG 禁止包含事件属性。");
+                        if (string.Equals(reader.LocalName, "href", StringComparison.Ordinal)
+                            && !reader.Value.Trim().StartsWith('#'))
+                            throw new JsonException("自定义 SVG 禁止外部或非锚点资源引用。");
+                    } while (reader.MoveToNextAttribute());
+                    reader.MoveToElement();
+                }
+            }
+            if (!sawRoot) throw new JsonException("自定义 SVG 缺少根元素。");
+        }
+        catch (XmlException error) { throw new JsonException("自定义 SVG XML 无效。", error); }
+    }
     private static BackendErrorResponse LeadInEditingBudget() => new(BackendErrorCode.ResourceTooLarge,
         "前奏意图、最多1000分析行、源或候选树、完整读模型、分析报告或回执超过预算；工程未改变。", "command");
 

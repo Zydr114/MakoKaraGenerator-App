@@ -120,7 +120,7 @@ public sealed partial class ProjectSessionRegistry
     private async Task<ProjectCommandExecutionResult> ExecuteLeadInAttachmentAsync(string clientId, ProjectSession session, ProjectCommandRequest request,
         ProjectSession? sourceSession = null, long sourceRevision = 0)
     {
-        if (request.Command is not SetLeadInAttachmentCommandDto command || command.Mode is not ("FixedParent" or "CueTargetText")
+        if (request.Command is not SetLeadInAttachmentCommandDto command || command.Mode is not ("FixedParent" or "CueTargetText" or "CueTargetAboveStart")
             || string.IsNullOrWhiteSpace(command.BranchId) || string.IsNullOrWhiteSpace(command.LeadInId) || string.IsNullOrWhiteSpace(command.ContainerId))
             return ProjectCommandExecutionResult.Rejected(new(BackendErrorCode.InvalidRequest, "附着命令需要明确分支、前奏、容器及模式。"));
         if (!ReserveMeasurement(clientId)) return ProjectCommandExecutionResult.Rejected(MeasurementBusy());

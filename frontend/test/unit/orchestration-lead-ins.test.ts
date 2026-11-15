@@ -154,6 +154,13 @@ describe('自动生成（§14.5）', () => {
     const savedSettings = { includeOpening: false, includeLongGaps: true, gapThresholdUs: '3000000', durationUs: '2000000', indicatorContainerId: 'node/cd2', excludedLineIds: ['l2'] };
     const saved = buildOrchestration(scene({ leadInGeneration: savedSettings }));
     expect(initialGenerationSettings(saved, saved.programs[0]!)).toEqual(savedSettings);
+    const staleSaved = buildOrchestration(scene({ leadInGeneration: { ...savedSettings, indicatorContainerId: 'node/deleted' } }));
+    expect(initialGenerationSettings(staleSaved, staleSaved.programs[0]!)).toEqual({ ...savedSettings, indicatorContainerId: 'node/cd' });
+    const clearedSaved = buildOrchestration(scene({ leadInGeneration: { ...savedSettings, indicatorContainerId: null } }));
+    expect(initialGenerationSettings(clearedSaved, clearedSaved.programs[0]!)).toEqual({ ...savedSettings, indicatorContainerId: 'node/cd' });
+    const baseNoCd = scene({ leadInGeneration: { ...savedSettings, indicatorContainerId: 'node/deleted' } });
+    const noCd = buildOrchestration({ ...baseNoCd, nodes: baseNoCd.nodes.filter((n) => n.contentKind !== 'countdownSequence') });
+    expect(initialGenerationSettings(noCd, noCd.programs[0]!)).toEqual({ ...savedSettings, indicatorContainerId: null });
     expect([generationSettingsBlock(savedSettings), generationSettingsBlock({ ...savedSettings, indicatorContainerId: null })]).toEqual([undefined, '请选择提示组，或新建一个。']);
   });
 

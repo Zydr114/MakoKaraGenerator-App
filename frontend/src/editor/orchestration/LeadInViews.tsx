@@ -311,7 +311,7 @@ function AttachmentField(props: {
       <Note>
         {!leadIn
           ? '还没有前奏用这个提示组，添加前奏后才能切换附着方式。'
-          : `附着方式属于提示组“${nodeName(model, indicator)}”，用它的 ${users} 个前奏都跟着变。切换时按目标句文字的真实位置换算，画面上不动。`}
+          : `附着方式属于提示组“${nodeName(model, indicator)}”，用它的 ${users} 个前奏都跟着变。切换为跟着文字或放在首字上方时自动对齐到目标句对应位置；切换为固定在父级时保持当前画面位置。`}
       </Note>
     </Group>
   );

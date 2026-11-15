@@ -289,18 +289,24 @@ export const GENERATION_DEFAULTS = { includeOpening: true, includeLongGaps: true
 
 /** 对话框的初值：来源已有设置时用它，否则用默认值，提示组取第一个提示组。 */
 export function initialGenerationSettings(model: OrchestrationModel, program: OrchestrationProgram): LeadInGenerationSettings {
+  const countdowns = countdownsOf(model, program);
+  const fallbackId = countdowns[0]?.id ?? null;
   const saved = program.leadInGeneration;
   if (saved) {
+    const indicatorContainerId =
+      saved.indicatorContainerId && countdowns.some((c) => c.id === saved.indicatorContainerId)
+        ? saved.indicatorContainerId
+        : fallbackId;
     return {
       includeOpening: saved.includeOpening,
       includeLongGaps: saved.includeLongGaps,
       gapThresholdUs: saved.gapThresholdUs,
       durationUs: saved.durationUs,
-      indicatorContainerId: saved.indicatorContainerId,
+      indicatorContainerId,
       excludedLineIds: [...saved.excludedLineIds],
     };
   }
-  return { ...GENERATION_DEFAULTS, indicatorContainerId: countdownsOf(model, program)[0]?.id ?? null, excludedLineIds: [] };
+  return { ...GENERATION_DEFAULTS, indicatorContainerId: fallbackId, excludedLineIds: [] };
 }
 
 /** 设置能不能预演：要有提示组。时长、阈值的范围由输入框检查。 */

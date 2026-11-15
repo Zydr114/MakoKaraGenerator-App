@@ -42,7 +42,16 @@ import { Group, InspectorHead, Note, Row, ToolButton } from '../workspace/panel'
 import type { OrchestrationState, OrchestrationStore } from './orchestration-store';
 import { clipBands, clipColors } from './clip-bands';
 import { ClipMemberButtons, ClipMembersDialog, SplitClipDialog, type ClipMemberActions } from './ClipMemberViews';
-import { AddLeadInDialog, CountdownSections, GenerateLeadInsDialog, LeadInInspector, MarkSection, type LeadInActions, type MarkActions } from './LeadInViews';
+import {
+  AddLeadInDialog,
+  CountdownSections,
+  GenerateLeadInsDialog,
+  LeadInInspector,
+  MarkSection,
+  type LeadInActions,
+  type MarkActions,
+  type PresentationActions,
+} from './LeadInViews';
 import { LineInspector, LinesSummary, type LineActions } from './LineInspector';
 import { NewClipDialog } from './NewClipDialog';
 import { QuickLayoutDialog } from './QuickLayoutDialog';
@@ -242,7 +251,16 @@ export function OrchestrationPage(props: {
     },
     onAttachment: async (branchId, leadIn, mode) => {
       const result = await store.setLeadInAttachment(branchId, leadIn.id, leadIn.indicatorContainerId, mode);
-      if (result === 'applied') toast(mode === 'FixedParent' ? '提示组已改为固定在父级' : '提示组已改为跟着目标句的文字', undo);
+      if (result === 'applied') {
+        toast(
+          mode === 'CueTargetAboveStart'
+            ? '提示组已改为放在目标句首字上方'
+            : mode === 'FixedParent'
+              ? '提示组已改为固定在父级'
+              : '提示组已改为跟着目标句的文字',
+          undo,
+        );
+      }
       return result;
     },
     onSelect: (branchId, id) => {
@@ -253,9 +271,24 @@ export function OrchestrationPage(props: {
   };
   const attachmentBlock = readOnly ? '工程只读，不能切换附着方式。' : !session.supportsCommand('orchestration.setLeadInAttachment') ? '后端没有开放附着方式。' : undefined;
   const countdownBlock = readOnly ? '工程只读，不能新建提示组。' : !session.supportsCommand('orchestration.createCountdown') ? '后端没有开放前奏提示组。' : undefined;
+  const modernDefaults = session.supportsCommand('orchestration.setCountdownPresentation');
+  const countdownPresentation: PresentationActions = {
+    block: readOnly ? '工程只读，不能修改提示组图形与动画。' : !modernDefaults ? '后端没有开放提示组图形与动画。' : undefined,
+    busy: !!view.busy,
+    onShape: async (containerId, shape, done) => {
+      const result = await store.setCountdownPresentation(containerId, { shape });
+      if (result === 'applied') toast(done, undo);
+      return result;
+    },
+    onAnimation: async (containerId, animation, done) => {
+      const result = await store.setCountdownPresentation(containerId, { animation });
+      if (result === 'applied') toast(done, undo);
+      return result;
+    },
+  };
   const createCountdown = async (): Promise<{ containerId: string } | { error: string }> => {
     if (!program) return { error: NO_PROGRAM };
-    const outcome = await store.createCountdown(program.rootContainerId, '', DEFAULT_MARK_COUNT);
+    const outcome = await store.createCountdown(program.rootContainerId, '', DEFAULT_MARK_COUNT, { modernDefaults });
     if (outcome.result === 'failed') return { error: outcome.error };
     toast('已新建提示组“前奏提示”', undo);
     return { containerId: outcome.containerId };
@@ -474,6 +507,7 @@ export function OrchestrationPage(props: {
                 properties={properties}
                 leadIns={leadInActions}
                 attachmentBlock={attachmentBlock}
+                presentation={countdownPresentation}
                 marks={marks}
                 linesOf={linesOf}
                 onSelect={(id) => store.select(id)}
@@ -634,7 +668,7 @@ export function OrchestrationPage(props: {
         countdown={session.supportsCommand('orchestration.createCountdown')}
         onCreate={async (node) => {
           if (node.kind === 'countdown') {
-            const created = await store.createCountdown(node.parentId, node.name, node.count, { select: true });
+            const created = await store.createCountdown(node.parentId, node.name, node.count, { select: true, modernDefaults });
             if (created.result === 'failed') return created.error;
             setNewNodeOpen(false);
             const name = node.name.trim();
@@ -682,6 +716,7 @@ function NodeInspector(props: {
   properties: PropertyActions;
   leadIns: LeadInActions;
   attachmentBlock: string | undefined;
+  presentation: PresentationActions;
   marks: MarkActions;
   linesOf: (branchId: string) => readonly EditorLine[];
   onSelect: (id: string) => void;
@@ -755,6 +790,7 @@ function NodeInspector(props: {
           branchName={sourceName}
           actions={props.leadIns}
           attachmentBlock={props.attachmentBlock}
+          presentation={props.presentation}
           marks={props.marks}
           onSelectNode={props.onSelect}
         />

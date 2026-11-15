@@ -697,7 +697,7 @@ const HUE_OPTIONS: readonly { value: StyleGradient['huePath']; label: string }[]
  * 渐变：类型、角度或中心与半径、坐标空间、插值空间与色相路径、色标。
  * 渐变条只按色标从左到右显示颜色，不是渲染结果；条下面的圆点是色标位置。
  */
-function GradientFields(props: { gradient: StyleGradient; onChange: (gradient: StyleGradient) => void; disabled: boolean }) {
+export function GradientFields(props: { gradient: StyleGradient; onChange: (gradient: StyleGradient) => void; disabled: boolean }) {
   const { gradient: g, disabled } = props;
   const set = (patch: Partial<StyleGradient>) => props.onChange({ ...g, ...patch });
   const problem = gradientProblem(g);

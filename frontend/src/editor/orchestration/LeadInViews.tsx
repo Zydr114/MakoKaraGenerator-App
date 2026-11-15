@@ -1,10 +1,30 @@
 // 前奏提示（G23，W4 设计 §14.2～§14.6）：前奏列表、前奏属性、提示组与标记两节、添加前奏与自动生成两个对话框。
 
-import { useEffect, useState } from 'react';
-import type { LeadInAttachmentMode, LeadInGenerationCommandResult, LeadInGenerationSettings, OrchestrationLeadIn, OrchestrationNode, OrchestrationProgram } from '../../protocol';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import type {
+  CountdownAnimationMode,
+  CountdownAnimationSpec,
+  CountdownShapeKind,
+  CountdownShapeSpec,
+  CountdownSvgColorMode,
+  LeadInAttachmentMode,
+  LeadInGenerationCommandResult,
+  LeadInGenerationSettings,
+  OrchestrationLeadIn,
+  OrchestrationNode,
+  OrchestrationProgram,
+} from '../../protocol';
 import type { EditorLine } from '../model/lyrics';
 import { nodeName, type OrchestrationModel } from '../model/orchestration';
 import {
+  COUNTDOWN_ANIMATION_OPTIONS,
+  COUNTDOWN_SHAPE_OPTIONS,
+  COUNTDOWN_SVG_COLOR_OPTIONS,
+  countdownAnimationOf,
+  countdownShapeOf,
+  DEFAULT_CUSTOM_SVG,
+  inlineSvgBlock,
+  MAX_COUNTDOWN_SVG_BYTES,
   candidateReasonText,
   candidateSelectable,
   candidateStatusText,
@@ -40,9 +60,18 @@ import type { GenerationPreviewState, NewLeadIn, OrchestrationResult } from './o
 
 const ATTACHMENT_OPTIONS: readonly { value: LeadInAttachmentMode; label: string }[] = [
   { value: 'CueTargetText', label: '跟着目标句的文字' },
+  { value: 'CueTargetAboveStart', label: '放在目标句首字上方（避让注音）' },
   { value: 'FixedParent', label: '固定在父级' },
 ];
-const APPEARANCE_HINT = '标记的颜色和字体属于外观，外观页支持编排对象后在那里设置。';
+const APPEARANCE_HINT = '提示组的独立双态配色、描边与字体可在“外观”页选中提示组后直接设置。';
+
+/** 提示组显示形态（图形 / SVG）与动画设置。 */
+export interface PresentationActions {
+  block: string | undefined;
+  busy: boolean;
+  onShape: (containerId: string, shape: CountdownShapeSpec, done: string) => Promise<OrchestrationResult>;
+  onAnimation: (containerId: string, animation: CountdownAnimationSpec, done: string) => Promise<OrchestrationResult>;
+}
 
 /** 前奏的增删改（§14.2～§14.4）：block 是整体不可用的原因（只读、后端没开放、来源不支持）。 */
 export interface LeadInActions {
@@ -290,7 +319,192 @@ function AttachmentField(props: {
 
 // ── 提示组与标记 ──
 
-/** 选中提示组时属性区的两节（§14.6）：用它的前奏与附着方式，标记列表。 */
+function CountdownPresentationSection(props: { node: OrchestrationNode; actions: PresentationActions }) {
+  const { node, actions } = props;
+  const shape = countdownShapeOf(node.content);
+  const animation = countdownAnimationOf(node.content);
+  const disabled = !!actions.block || actions.busy;
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [svgDraft, setSvgDraft] = useState(shape.svgXml ?? DEFAULT_CUSTOM_SVG);
+  const [svgUploadError, setSvgUploadError] = useState<string | undefined>();
+  const [trackedNodeId, setTrackedNodeId] = useState(node.id);
+  const [trackedSvgXml, setTrackedSvgXml] = useState(shape.svgXml);
+  if (node.id !== trackedNodeId || shape.svgXml !== trackedSvgXml) {
+    setTrackedNodeId(node.id);
+    setTrackedSvgXml(shape.svgXml);
+    setSvgDraft(shape.svgXml ?? DEFAULT_CUSTOM_SVG);
+    setSvgUploadError(undefined);
+  }
+  const svgError = shape.kind === 'CustomSvg' ? inlineSvgBlock(svgDraft) : undefined;
+  const shapeOptions = COUNTDOWN_SHAPE_OPTIONS.some((o) => o.value === shape.kind)
+    ? COUNTDOWN_SHAPE_OPTIONS
+    : [...COUNTDOWN_SHAPE_OPTIONS, { value: shape.kind, label: shape.kind, note: '' }];
+  const animOptions = COUNTDOWN_ANIMATION_OPTIONS.some((o) => o.value === animation.mode)
+    ? COUNTDOWN_ANIMATION_OPTIONS
+    : [...COUNTDOWN_ANIMATION_OPTIONS, { value: animation.mode, label: animation.mode, note: '' }];
+  const shapeNote = COUNTDOWN_SHAPE_OPTIONS.find((o) => o.value === shape.kind)?.note;
+  const animNote = COUNTDOWN_ANIMATION_OPTIONS.find((o) => o.value === animation.mode)?.note;
+
+  const commitShapeKind = (kind: CountdownShapeKind) => {
+    if (kind === shape.kind) return;
+    if (kind === 'CustomSvg') {
+      const candidate = inlineSvgBlock(svgDraft) ? DEFAULT_CUSTOM_SVG : svgDraft.trim();
+      setSvgDraft(candidate);
+      setSvgUploadError(undefined);
+      void actions.onShape(node.id, { ...shape, kind: 'CustomSvg', svgXml: candidate }, '提示组已切换为自定义 SVG');
+    } else {
+      const label = COUNTDOWN_SHAPE_OPTIONS.find((o) => o.value === kind)?.label ?? kind;
+      void actions.onShape(node.id, { ...shape, kind, svgXml: null }, `提示组图形已改为“${label}”`);
+    }
+  };
+
+  const commitSvgFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (file.size > MAX_COUNTDOWN_SVG_BYTES) {
+      setSvgUploadError('所选 SVG 文件超过 64 KiB 限制。');
+      return;
+    }
+    const text = (await file.text()).trim();
+    const issue = inlineSvgBlock(text);
+    setSvgDraft(text);
+    if (issue) {
+      setSvgUploadError(issue);
+      return;
+    }
+    setSvgUploadError(undefined);
+    void actions.onShape(node.id, { ...shape, kind: 'CustomSvg', svgXml: text }, `已导入 SVG“${file.name}”`);
+  };
+
+  const commitAnimationMode = (mode: CountdownAnimationMode) => {
+    if (mode === animation.mode) return;
+    const blinkCount = mode !== 'DiscreteSteps' && animation.blinkRatio > 0 && animation.blinkCount < 1 ? 2 : animation.blinkCount;
+    const label = COUNTDOWN_ANIMATION_OPTIONS.find((o) => o.value === mode)?.label ?? mode;
+    void actions.onAnimation(node.id, { ...animation, mode, blinkCount }, `提示组动画已改为“${label}”`);
+  };
+
+  const applyBlinkRatio = (blinkRatio: number) => {
+    const blinkCount = animation.mode !== 'DiscreteSteps' && blinkRatio > 0 && animation.blinkCount < 1 ? 2 : animation.blinkCount;
+    void actions.onAnimation(node.id, { ...animation, blinkRatio, blinkCount }, '已更新闪烁时长占比');
+  };
+
+  return (
+    <Group title="图形与动画">
+      <Select<CountdownShapeKind>
+        label="标记图形"
+        labelPlacement="inside"
+        value={shape.kind}
+        options={shapeOptions}
+        disabled={disabled}
+        onChange={commitShapeKind}
+      />
+      {shape.kind === 'SteppedBars' && (
+        <NumberField
+          key={`${node.id}-barMin`}
+          label="最矮竖条比例"
+          labelPlacement="inside"
+          min={0.15}
+          max={1}
+          value={shape.barMinHeightRatio}
+          disabled={disabled}
+          onCommit={(barMinHeightRatio) =>
+            void actions.onShape(node.id, { ...shape, kind: 'SteppedBars', svgXml: null, barMinHeightRatio }, '已更新阶梯竖条高度比例')
+          }
+        />
+      )}
+      {shape.kind === 'CustomSvg' && (
+        <>
+          <Select<CountdownSvgColorMode>
+            label="SVG 配色"
+            labelPlacement="inside"
+            value={shape.svgColorMode}
+            options={COUNTDOWN_SVG_COLOR_OPTIONS}
+            disabled={disabled}
+            onChange={(svgColorMode) => {
+              if (!svgError) void actions.onShape(node.id, { ...shape, kind: 'CustomSvg', svgXml: svgDraft.trim(), svgColorMode }, '已更新 SVG 配色模式');
+            }}
+          />
+          <div className="countdown-svg-actions">
+            <input ref={fileRef} type="file" accept=".svg,image/svg+xml" hidden onChange={(e) => void commitSvgFile(e)} />
+            <Button variant="tonal" size="sm" icon="upload_file" isDisabled={disabled} onPress={() => fileRef.current?.click()}>
+              选择 SVG 文件…
+            </Button>
+            <Button
+              variant="tonal"
+              size="sm"
+              isDisabled={disabled || !!svgError || svgDraft.trim() === (shape.svgXml ?? '').trim()}
+              onPress={() => {
+                setSvgUploadError(undefined);
+                void actions.onShape(node.id, { ...shape, kind: 'CustomSvg', svgXml: svgDraft.trim() }, '已应用自定义 SVG');
+              }}
+            >
+              应用 SVG
+            </Button>
+          </div>
+          <TextField
+            label="内联 SVG（不超过 64 KiB）"
+            className="countdown-svg-editor"
+            rows={5}
+            value={svgDraft}
+            disabled={disabled}
+            error={svgUploadError ?? svgError}
+            onChange={(text) => {
+              setSvgUploadError(undefined);
+              setSvgDraft(text);
+            }}
+          />
+        </>
+      )}
+      <Select<CountdownAnimationMode>
+        label="动画模式"
+        labelPlacement="inside"
+        value={animation.mode}
+        options={animOptions}
+        disabled={disabled}
+        onChange={commitAnimationMode}
+      />
+      {animation.mode !== 'DiscreteSteps' && (
+        <div className="g2">
+          <NumberField
+            key={`${node.id}-blinkRatio`}
+            label="闪烁阶段占比"
+            labelPlacement="inside"
+            min={0}
+            max={0.85}
+            value={animation.blinkRatio}
+            disabled={disabled}
+            onCommit={applyBlinkRatio}
+          />
+          <NumberField
+            key={`${node.id}-blinkCount`}
+            label="闪烁次数"
+            labelPlacement="inside"
+            integer
+            min={animation.blinkRatio > 0 ? 1 : 0}
+            max={16}
+            value={animation.blinkCount}
+            disabled={disabled || animation.blinkRatio === 0}
+            onCommit={(blinkCount) => void actions.onAnimation(node.id, { ...animation, blinkCount }, '已更新闪烁次数')}
+          />
+          <NumberField
+            key={`${node.id}-feather`}
+            label="擦除羽化"
+            labelPlacement="inside"
+            min={0}
+            max={0.5}
+            value={animation.featherRatio}
+            disabled={disabled}
+            onCommit={(featherRatio) => void actions.onAnimation(node.id, { ...animation, featherRatio }, '已更新擦除羽化')}
+          />
+        </div>
+      )}
+      <Note>{actions.block ?? [shapeNote, animNote].filter(Boolean).join(' ')}</Note>
+    </Group>
+  );
+}
+
+/** 选中提示组时属性区的各节（§14.6）：用它的前奏、附着方式、图形与动画、标记列表。 */
 export function CountdownSections(props: {
   model: OrchestrationModel;
   node: OrchestrationNode;
@@ -298,6 +512,7 @@ export function CountdownSections(props: {
   branchName: (branchId: string) => string;
   actions: LeadInActions;
   attachmentBlock: string | undefined;
+  presentation: PresentationActions;
   marks: MarkActions;
   onSelectNode: (id: string) => void;
 }) {
@@ -306,6 +521,7 @@ export function CountdownSections(props: {
   const first = users[0];
   const markIds = node.content?.markNodeIds ?? [];
   const markDisabled = !!marks.block || marks.busy;
+  const shapeKind = countdownShapeOf(node.content).kind;
   return (
     <>
       <Group title={`前奏 · ${users.length} 个`}>
@@ -333,6 +549,7 @@ export function CountdownSections(props: {
         busy={actions.busy}
         onAttachment={actions.onAttachment}
       />
+      <CountdownPresentationSection node={node} actions={props.presentation} />
       <Group title={`标记 · ${markIds.length} 个`}>
         <div className="slots mark-list" role="list" aria-label="标记">
           {markIds.map((id, i) => {
@@ -365,7 +582,12 @@ export function CountdownSections(props: {
             均匀排列
           </Button>
         </div>
-        <Note>{marks.block ?? (markIds.length >= MAX_MARKS ? `最多 ${MAX_MARKS} 个标记。${APPEARANCE_HINT}` : APPEARANCE_HINT)}</Note>
+        <Note>
+          {marks.block ??
+            `${shapeKind !== 'Text' ? '当前提示组使用几何/SVG 图形，标记数与布局间距仍按以下节点驱动。' : ''}${
+              markIds.length >= MAX_MARKS ? `最多 ${MAX_MARKS} 个标记。` : ''
+            }${APPEARANCE_HINT}`}
+        </Note>
       </Group>
     </>
   );
@@ -392,7 +614,10 @@ export function MarkSection(props: { model: OrchestrationModel; node: Orchestrat
           提示组“{nodeName(model, container)}”的第 {owner.index} 个标记。上移、下移调整它在提示组里的顺序。
         </Note>
       )}
-      <Note>{marks.block ?? APPEARANCE_HINT}</Note>
+      <Note>
+        {marks.block ??
+          `${container && countdownShapeOf(container.content).kind !== 'Text' ? '所属提示组当前使用几何/SVG 图形，单标记文本仅在切回文字标记时显示。' : ''}${APPEARANCE_HINT}`}
+      </Note>
     </Group>
   );
 }
@@ -469,8 +694,12 @@ export function AddLeadInDialog(props: {
   const [error, setError] = useState<string | undefined>();
   const countdowns = model && program ? countdownsOf(model, program) : [];
   const [opened, setOpened] = useState(false);
+  const [autoCreated, setAutoCreated] = useState(false);
+  const openRef = useRef(props.open);
+  openRef.current = props.open;
   if (props.open !== opened) {
     setOpened(props.open);
+    setAutoCreated(false);
     if (props.open) {
       setTarget(program ? defaultLeadInTarget(program, lines, props.selected) : undefined);
       setIndicator(countdowns[0]?.id ?? null);
@@ -479,6 +708,16 @@ export function AddLeadInDialog(props: {
       setError(undefined);
     }
   }
+  const { onCreateCountdown } = props;
+  useEffect(() => {
+    if (!props.open || !model || !program || countdowns.length > 0 || props.createBlock || props.busy || autoCreated) return;
+    setAutoCreated(true);
+    void onCreateCountdown().then((outcome) => {
+      if (!openRef.current) return;
+      if ('containerId' in outcome) setIndicator(outcome.containerId);
+      else setError(outcome.error);
+    });
+  }, [props.open, model, program, countdowns.length, props.createBlock, props.busy, autoCreated, onCreateCountdown]);
 
   const value = parseSeconds(seconds);
   const secondsError = !(value > 0) ? '时长要大于 0 秒。' : undefined;
@@ -563,8 +802,12 @@ export function GenerateLeadInsDialog(props: {
   const [selection, setSelection] = useState<{ result: LeadInGenerationCommandResult; ids: readonly string[] } | undefined>();
   const [error, setError] = useState<string | undefined>();
   const [opened, setOpened] = useState(false);
+  const [autoCreated, setAutoCreated] = useState(false);
+  const openRef = useRef(props.open);
+  openRef.current = props.open;
   if (props.open !== opened) {
     setOpened(props.open);
+    setAutoCreated(false);
     if (props.open && model && program) {
       const initial = initialGenerationSettings(model, program);
       setSettings(initial);
@@ -574,6 +817,22 @@ export function GenerateLeadInsDialog(props: {
       setError(undefined);
     }
   }
+
+  // 打开时若没有任何提示组，自动以现代默认图形与动画创建一个并选上；同时每次改设置后预演一次。
+  const countdownCount = model && program ? countdownsOf(model, program).length : 0;
+  const { onCreateCountdown } = props;
+  useEffect(() => {
+    if (!props.open || !model || !program || countdownCount > 0 || props.createBlock || props.busy || autoCreated) return;
+    setAutoCreated(true);
+    void onCreateCountdown().then((outcome) => {
+      if (!openRef.current) return;
+      if ('containerId' in outcome) {
+        setSettings((prev) => (prev ? { ...prev, indicatorContainerId: outcome.containerId } : prev));
+      } else {
+        setError(outcome.error);
+      }
+    });
+  }, [props.open, model, program, countdownCount, props.createBlock, props.busy, autoCreated, onCreateCountdown]);
 
   // 打开时和每次改设置后预演一次（store 只留最新一次）。
   const { onPreview } = props;

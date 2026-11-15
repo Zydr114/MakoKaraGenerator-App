@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
-import type { LyricBranchSummary, OrchestrationNode, PresetApplication, TemplateLibraryId } from '../../protocol';
+import type { LyricBranchSummary, OrchestrationNode, PresetApplication, SceneTextAppearance, StaticMaterial, TemplateLibraryId } from '../../protocol';
 import type { AudioController } from '../audio/audio-controller';
 import { templateFacts } from '../connection';
 import { NoAudioBar } from '../audio/NoAudioBar';
@@ -51,6 +51,7 @@ import { WorkLayout } from '../workspace/WorkLayout';
 import { isEditing } from '../workspace/Workspace';
 import { ApplicationsPanel, type ApplicationActions } from './ApplicationsPanel';
 import type { AppearanceState, AppearanceStore } from './appearance-store';
+import { CountdownAppearanceEditor } from './CountdownAppearanceEditor';
 import { TemplatePicker, type TemplateChoice } from './TemplatePicker';
 import './appearance.css';
 
@@ -115,6 +116,8 @@ export function AppearancePage(props: {
   /** 选择器打开时先选中的模板（从样式库返回时）。 */
   const [pickInitial, setPickInitial] = useState<TemplateChoice | null>(null);
   const canApply = session.supportsCommand('presetApplications.apply') && !state.summary.isReadOnly;
+  const canEditCountdown = session.supportsCommand('orchestration.setCountdownAppearance') && !state.summary.isReadOnly;
+  const canSyncCountdown = session.supports('project-sessions.style.read') || store.canReadSources;
   const canvasWidth = state.settings?.canvasWidth;
   const canvasHeight = state.settings?.canvasHeight;
   const previewSize = useMemo(() => fitPreviewSize(canvasWidth, canvasHeight), [canvasWidth, canvasHeight]);
@@ -313,6 +316,18 @@ export function AppearancePage(props: {
               onSourcesOpen={(open) => store.setSourcesOpen(open)}
               onRetrySources={() => store.reloadResolved()}
               onPickSource={(target) => store.setTargets([target])}
+              countdownEdit={{
+                enabled: canEditCountdown,
+                canSyncLyric: canSyncCountdown,
+                onChange: async (containerId, appearance) => {
+                  const result = await store.setCountdownAppearance(containerId, appearance);
+                  if (result === 'applied') toast('已更新提示组外观', { label: '撤销', run: props.onUndo });
+                },
+                onSyncLyric: async (containerId) => {
+                  const result = await store.syncCountdownWithLyricStyle(containerId);
+                  if (result === 'applied') toast('已同步当前歌词配色到提示组', { label: '撤销', run: props.onUndo });
+                },
+              }}
               copy={copySource && { blocked: copySource.blocked, busy: copying || libraries.busy || !copySource.libraryId, copying, run: () => void editCopy() }}
             />
           </div>
@@ -812,6 +827,12 @@ function Inspector(props: {
   onSourcesOpen: (open: boolean) => void;
   onRetrySources: () => void;
   onPickSource: (target: AppearanceTarget) => void;
+  countdownEdit: {
+    enabled: boolean;
+    canSyncLyric: boolean;
+    onChange: (containerId: string, appearance: SceneTextAppearance<StaticMaterial>) => Promise<void>;
+    onSyncLyric: (containerId: string) => Promise<void>;
+  };
   /** “在样式库中编辑副本”；目标上没有直接分配时没有。 */
   copy: { blocked: string | undefined; busy: boolean; copying: boolean; run: () => void } | undefined;
 }) {
@@ -867,7 +888,13 @@ function Inspector(props: {
       </Group>
 
       {kind === 'clip' || kind === 'node' ? (
-        <ObjectAppearance node={node} kind={kind} multiple={targets.length > 1} />
+        <ObjectAppearance
+          node={node}
+          kind={kind}
+          multiple={targets.length > 1}
+          busy={!!view.applying}
+          countdownEdit={props.countdownEdit}
+        />
       ) : (
         <DirectOverrides kind={kind} multiple={targets.length > 1} inspect={view.inspect} onRetry={props.onRetry} />
       )}
@@ -1005,7 +1032,18 @@ function DirectOverrides(props: { kind: AppearanceTarget['kind']; multiple: bool
  * 编排对象自己的外观（W7 设计 §2.8）：前奏提示组的完整外观和标记的覆盖只读显示；要改它们，把模板分配到提示组或标记上。
  * 片段、容器和组没有自己的外观。
  */
-function ObjectAppearance(props: { node: OrchestrationNode | undefined; kind: 'clip' | 'node'; multiple: boolean }) {
+function ObjectAppearance(props: {
+  node: OrchestrationNode | undefined;
+  kind: 'clip' | 'node';
+  multiple: boolean;
+  busy: boolean;
+  countdownEdit: {
+    enabled: boolean;
+    canSyncLyric: boolean;
+    onChange: (containerId: string, appearance: SceneTextAppearance<StaticMaterial>) => Promise<void>;
+    onSyncLyric: (containerId: string) => Promise<void>;
+  };
+}) {
   const { node } = props;
   if (props.kind === 'clip' || !node || (node.contentKind !== 'countdownSequence' && node.contentKind !== 'textMark')) {
     return (
@@ -1015,11 +1053,25 @@ function ObjectAppearance(props: { node: OrchestrationNode | undefined; kind: 'c
     );
   }
   const countdown = node.contentKind === 'countdownSequence';
+  if (countdown && !props.multiple && props.countdownEdit.enabled) {
+    return (
+      <CountdownAppearanceEditor
+        key={node.id}
+        containerId={node.id}
+        appearance={node.content?.appearance}
+        disabled={!props.countdownEdit.enabled}
+        busy={props.busy}
+        canSyncLyric={props.countdownEdit.canSyncLyric}
+        onChange={(appearance) => void props.countdownEdit.onChange(node.id, appearance)}
+        onSyncLyric={() => void props.countdownEdit.onSyncLyric(node.id)}
+      />
+    );
+  }
   const rows = countdown ? (node.content?.appearance ? sceneAppearanceRows(node.content.appearance) : []) : overrideRows(node.content?.appearanceOverride ?? []);
   return (
     <Group title={countdown ? '提示组外观 · 只读' : '标记的覆盖 · 只读'} className="direct-overrides">
       {rows.length > 0 ? <OverrideList rows={rows} /> : <Note>{countdown ? '读模型里没有提示组外观。' : '没有覆盖：外观来自提示组和模板分配。'}</Note>}
-      <Note>提示组和标记自己的外观只显示、不编辑。要改颜色和字体，把模板分配到提示组（包括里面的标记）或单个标记上。</Note>
+      <Note>{countdown ? '提示组当前只读（工程只读或后端未开放直接修改）；也可通过上方模板分配覆盖。' : '单个标记可在“编排”页改文字，这里显示只读覆盖；要批量改外观请选中所属提示组。'}</Note>
     </Group>
   );
 }

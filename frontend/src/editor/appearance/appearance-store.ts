@@ -6,12 +6,15 @@
 import { BackendError, ObservableValue, type MakoClient, type Unsubscribe } from '../../client';
 import {
   micros,
+  type CanonicalStyle,
   type PresetApplication,
   type PreviewSize,
   type ProjectCommand,
   type ProjectResolvedStyleResponse,
   type ProjectStyleResponse,
   type Revision,
+  type SceneTextAppearance,
+  type StaticMaterial,
   type StyleTarget,
   type TemplateLibraryId,
   type TemplateSummary,
@@ -27,8 +30,10 @@ import {
   type AppearanceTarget,
 } from '../model/appearance-targets';
 import type { OrchestrationModel } from '../model/orchestration';
+import { leadInsUsing } from '../model/orchestration-lead-ins';
 import { indexApplications, type ApplicationIndex } from '../model/preset-applications';
 import { FOLLOW_DEFAULT, renderBackendField, type RenderBackendRequest } from '../model/render-device';
+import { lyricStyleToCountdownAppearance } from '../model/style-overrides';
 import type { EditorSession } from '../session/editor-session';
 
 /** 预设预览需要的 Worker 输入（合同 §9）：工程含模板分配时 Host 自动选它。 */
@@ -244,6 +249,58 @@ export class AppearanceStore {
   async remove(applicationIds: readonly string[]): Promise<boolean> {
     if (applicationIds.length === 0) return true;
     return (await this.run({ type: 'presetApplications.remove', applicationIds: [...applicationIds] })).status !== 'failed';
+  }
+
+  /** 直接设置前奏提示组的完整双态外观（与歌词样式解耦，不走模板分配）。 */
+  async setCountdownAppearance(containerId: string, appearance: SceneTextAppearance<StaticMaterial>): Promise<ApplyResult> {
+    return (await this.run({ type: 'orchestration.setCountdownAppearance', containerId, appearance })).status;
+  }
+
+  /** 按当前目标歌词行（或所在来源）的解析样式，一键同步前奏提示组的双态配色与字体（保留原有字号与字距）。 */
+  async syncCountdownWithLyricStyle(containerId: string): Promise<ApplyResult> {
+    const node = this.orchestration?.byId.get(containerId);
+    const current = node?.content?.appearance ?? null;
+    const firstUse = this.orchestration ? leadInsUsing(this.orchestration, containerId)[0] : undefined;
+    const state = this.session.state;
+    const branchId = firstUse?.program.branchId ?? state.branchId;
+    const lineId =
+      firstUse?.leadIn.targetLineId ??
+      (branchId === state.branchId ? state.selection?.lineId : undefined) ??
+      state.linesByBranch[branchId]?.[0]?.id;
+    const revision = this.session.latestRevision;
+    let style: CanonicalStyle | undefined;
+    this.patch({ applying: true });
+    try {
+      if (this.canReadSources && branchId && lineId && this.client.projects?.resolvedStyle) {
+        try {
+          const resolved = await this.client.projects.resolvedStyle(this.session.projectSessionId, revision, { branchId, lineId });
+          style = resolved.style;
+        } catch {
+          // 读取单句解析样式失败时回退到静态层级样式。
+        }
+      }
+      if (!style && this.client.projects?.style) {
+        const response = await this.client.projects.style(
+          this.session.projectSessionId,
+          branchId ? { kind: 'branch', branchId } : PROJECT_TARGET,
+          revision,
+        );
+        style = response.staticHierarchy;
+      }
+      if (!style) {
+        this.session.notify({ level: 'error', message: '无法读取当前歌词样式，不能同步配色。' });
+        return 'failed';
+      }
+    } catch (error) {
+      this.session.notify({
+        level: 'error',
+        message: `读取当前歌词样式失败：${error instanceof Error ? error.message : String(error)}`,
+      });
+      return 'failed';
+    } finally {
+      this.patch({ applying: undefined });
+    }
+    return await this.setCountdownAppearance(containerId, lyricStyleToCountdownAppearance(style, current));
   }
 
   private async run(command: ProjectCommand): Promise<{ status: 'applied'; revision: Revision } | { status: Exclude<ApplyResult, 'applied'> }> {

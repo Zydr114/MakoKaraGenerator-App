@@ -22,6 +22,7 @@ import type {
   ProjectLinePresentationResponse,
   Revision,
 } from '../../protocol';
+import type { CountdownAnimationSpec, CountdownShapeSpec } from '../../protocol';
 import {
   basicLayoutFields,
   buildOrchestration,
@@ -39,7 +40,13 @@ import {
   type OrchestrationModel,
 } from '../model/orchestration';
 import { clipMembersFailureText, type ClipMembersOperation } from '../model/orchestration-clip-members';
-import { leadInFailureText, updateLeadInCommand, type LeadInPatch } from '../model/orchestration-lead-ins';
+import {
+  leadInFailureText,
+  MODERN_COUNTDOWN_ANIMATION,
+  MODERN_COUNTDOWN_SHAPE,
+  updateLeadInCommand,
+  type LeadInPatch,
+} from '../model/orchestration-lead-ins';
 import { propertyFailureText } from '../model/orchestration-properties';
 import type { EditorSession } from '../session/editor-session';
 
@@ -422,11 +429,29 @@ export class OrchestrationStore {
    * 新建提示组（G23，§14.4、§14.6）：在普通组 parentId 下新建有 count 个标记的倒计时容器，一条历史。
    * select 时读到新修订后在结构树里选中它。失败时返回原因（结构的对照表）。
    */
-  async createCountdown(parentId: string, name: string, count: number, options?: { select?: boolean }): Promise<{ result: 'applied'; containerId: string } | { result: 'failed'; error: string }> {
+  async createCountdown(
+    parentId: string,
+    name: string,
+    count: number,
+    options?: { select?: boolean; modernDefaults?: boolean },
+  ): Promise<{ result: 'applied'; containerId: string } | { result: 'failed'; error: string }> {
     const response = await this.structureCommand({ type: 'orchestration.createCountdown', parentId, name: name.trim() || null, count });
     const containerId = response?.leadInResult?.indicatorContainerId;
     if (!response || !containerId) return { result: 'failed', error: this.session.state.notice?.message ?? '新建提示组没有成功。' };
-    if (options?.select) this.selectAfter(response.projectRevision, containerId);
+    let revision = response.projectRevision;
+    if (options?.modernDefaults) {
+      const presentation = await this.structureCommand(
+        {
+          type: 'orchestration.setCountdownPresentation',
+          containerId,
+          shape: MODERN_COUNTDOWN_SHAPE,
+          animation: MODERN_COUNTDOWN_ANIMATION,
+        },
+        LEAD_IN_OPTIONS,
+      );
+      if (presentation) revision = presentation.projectRevision;
+    }
+    if (options?.select) this.selectAfter(revision, containerId);
     return { result: 'applied', containerId };
   }
 
@@ -474,6 +499,24 @@ export class OrchestrationStore {
   /** 改提示组的附着方式（§14.3）：带一个用这个提示组的前奏；同方式是 no-op。 */
   async setLeadInAttachment(branchId: string, leadInId: string, containerId: string, mode: LeadInAttachmentMode): Promise<OrchestrationResult> {
     return this.outcome(await this.structureCommand({ type: 'orchestration.setLeadInAttachment', branchId, leadInId, containerId, mode }, LEAD_IN_OPTIONS));
+  }
+
+  /** 设置提示组的图形形状与动画方式（1.54.0）：至少提供 shape 或 animation 其一，缺省一侧传 null 保持不变。 */
+  async setCountdownPresentation(
+    containerId: string,
+    presentation: { shape?: CountdownShapeSpec | null; animation?: CountdownAnimationSpec | null },
+  ): Promise<OrchestrationResult> {
+    return this.outcome(
+      await this.structureCommand(
+        {
+          type: 'orchestration.setCountdownPresentation',
+          containerId,
+          shape: presentation.shape ?? null,
+          animation: presentation.animation ?? null,
+        },
+        LEAD_IN_OPTIONS,
+      ),
+    );
   }
 
   /** 给提示组加一个标记（§14.6）：一条历史。 */

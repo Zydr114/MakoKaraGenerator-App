@@ -6,13 +6,19 @@ import {
   candidateReasonText,
   candidateSelectable,
   candidateSummary,
+  countdownAnimationOf,
+  countdownShapeOf,
   countdownsOf,
+  DEFAULT_COUNTDOWN_ANIMATION,
+  DEFAULT_COUNTDOWN_SHAPE,
+  DEFAULT_CUSTOM_SVG,
   DEFAULT_ENTER_ANIMATION,
   defaultLeadInTarget,
   defaultSelection,
   enterAnimationText,
   generationSettingsBlock,
   initialGenerationSettings,
+  inlineSvgBlock,
   isNeutralAnimation,
   leadInEditBlock,
   leadInsOf,
@@ -23,6 +29,9 @@ import {
   lineEnterCommand,
   lineLabel,
   lineTransformCommand,
+  MODERN_COUNTDOWN_ANIMATION,
+  MODERN_COUNTDOWN_SHAPE,
+  MAX_COUNTDOWN_SVG_BYTES,
   markTextBlock,
   newLeadInBlock,
   updateLeadInCommand,
@@ -200,5 +209,34 @@ describe('句子：本句微调与进入动画（§14.7、§14.8）', () => {
     const model = buildOrchestration(scene({ clips: [{ id: 'clip/1', name: '副歌', lineIds: ['l2'], containerId: 'node/center' }] }));
     const program = model.programs[0]!;
     expect([lineContainerText(model, program, 'l1'), lineContainerText(model, program, 'l2')]).toEqual(['常规（默认容器）', '居中（片段“副歌”的目标容器）']);
+  });
+
+  it('提示组图形与动画读取回落默认值，现代默认值使用 Circle + BlinkThenWipeFill', () => {
+    expect(countdownShapeOf(undefined)).toEqual(DEFAULT_COUNTDOWN_SHAPE);
+    expect(countdownAnimationOf(undefined)).toEqual(DEFAULT_COUNTDOWN_ANIMATION);
+    expect(MODERN_COUNTDOWN_SHAPE.kind).toBe('Circle');
+    expect(MODERN_COUNTDOWN_ANIMATION.mode).toBe('BlinkThenWipeFill');
+    expect(
+      countdownShapeOf({
+        shape: { kind: 'SteppedBars', barMinHeightRatio: 0.3, svgXml: null, svgColorMode: 'OriginalColor' },
+      }),
+    ).toEqual({ kind: 'SteppedBars', barMinHeightRatio: 0.3, svgXml: null, svgColorMode: 'OriginalColor' });
+    expect(
+      countdownAnimationOf({
+        animation: { mode: 'BlinkThenErase', blinkRatio: 0.25, blinkCount: 3, featherRatio: 0.1 },
+      }),
+    ).toEqual({ mode: 'BlinkThenErase', blinkRatio: 0.25, blinkCount: 3, featherRatio: 0.1 });
+  });
+
+  it('inlineSvgBlock 接收合法静态 SVG 并拦截空串、超限、危险声明与外链', () => {
+    expect(inlineSvgBlock(DEFAULT_CUSTOM_SVG)).toBeUndefined();
+    expect(inlineSvgBlock('   ')).toBeTruthy();
+    expect(inlineSvgBlock(`<svg xmlns="http://www.w3.org/2000/svg"><path d="${'M0 0'.repeat(MAX_COUNTDOWN_SVG_BYTES)}"/></svg>`)).toContain('64 KiB');
+    expect(inlineSvgBlock('<!DOCTYPE svg><svg></svg>')).toBeTruthy();
+    expect(inlineSvgBlock('<svg><script>alert(1)</script></svg>')).toBeTruthy();
+    expect(inlineSvgBlock('<svg><image href="#x"/></svg>')).toBeTruthy();
+    expect(inlineSvgBlock('<svg><use href="https://example.com/a.svg#x"/></svg>')).toBeTruthy();
+    expect(inlineSvgBlock('<svg><rect fill="url(https://example.com/g)"/></svg>')).toBeTruthy();
+    expect(inlineSvgBlock('<div/>')).toBeTruthy();
   });
 });

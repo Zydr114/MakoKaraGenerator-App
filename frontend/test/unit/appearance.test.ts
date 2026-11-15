@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BackendError, ObservableValue, type MakoClient } from '../../src/client';
-import { AppearanceStore, CANDIDATE_PREVIEW, PRESETS_PREVIEW_PROFILE } from '../../src/editor/appearance/appearance-store';
+import { AppearanceStore, CANDIDATE_PREVIEW, PRESETS_PREVIEW_PROFILE, RESOLVED_STYLE_READ } from '../../src/editor/appearance/appearance-store';
 import {
   applicability,
   clipTarget,
@@ -23,7 +23,7 @@ import { lineAppearance, linePlacement } from '../../src/editor/model/line-place
 import type { EditorLine } from '../../src/editor/model/lyrics';
 import { buildOrchestration } from '../../src/editor/model/orchestration';
 import { applicationNames, applicationsOn, indexApplications, nodeScopeOf, orphanTargetText, scopeText, updateSource } from '../../src/editor/model/preset-applications';
-import { overrideRows, sceneAppearanceRows } from '../../src/editor/model/style-overrides';
+import { DEFAULT_SCENE_TEXT_APPEARANCE, lyricStyleToCountdownAppearance, overrideRows, sceneAppearanceRows, toStaticSceneAppearance } from '../../src/editor/model/style-overrides';
 import { parseSourcePath, sourceGroups, sourceTarget, sourceText, STYLE_PROPERTY_TEXT, type SourceContext } from '../../src/editor/model/style-sources';
 import { TEMPLATE_GROUPS } from '../../src/editor/model/template-groups';
 import { fitPreviewSize } from '../../src/editor/preview/preview-controller';
@@ -107,7 +107,7 @@ const TEMPLATE: TemplateSummary = {
 };
 
 /** 只有外观状态用到的会话成员：命令按 reply 的设定成功或以 404 拒绝（模板库修订对不上）。 */
-function fakeSession(options: { preview?: Partial<MakoClient['preview']>; supports?: (feature: string) => boolean } = {}) {
+function fakeSession(options: { preview?: Partial<MakoClient['preview']>; projects?: Partial<MakoClient['projects']>; supports?: (feature: string) => boolean } = {}) {
   const state$ = new ObservableValue({
     summary: { projectRevision: '0', canUndo: false },
     branchId: 'main',
@@ -145,7 +145,10 @@ function fakeSession(options: { preview?: Partial<MakoClient['preview']>; suppor
       return session.command({ type: 'history.undo' });
     },
   };
-  const client = { preview: { runtimeInfo: () => new Promise(() => undefined), ...options.preview } } as unknown as MakoClient;
+  const client = {
+    preview: { runtimeInfo: () => new Promise(() => undefined), ...options.preview },
+    ...(options.projects ? { projects: options.projects } : {}),
+  } as unknown as MakoClient;
   return { store: new AppearanceStore(client, session as unknown as EditorSession), commands, control, session };
 }
 
@@ -613,5 +616,119 @@ describe('歌词页的“外观”和“显示在”（界面改版批 4）', ()
     expect(lineAppearance(index, undefined, l3, lines, '主歌词')).toEqual({ name: '来源样式', source: '继承自来源「主歌词」' });
     expect(lineAppearance(indexApplications([app('基础', { kind: 'project' })]), MODEL, l3, lines, '主歌词').source).toBe('继承自工程默认');
     expect(lineAppearance(indexApplications([]), MODEL, l3, lines, '主歌词')).toEqual({ source: '没有分配模板，用默认样式' });
+  });
+
+  it('前奏提示组外观转换：静态收敛 package 材质、默认空描边、同步歌词配色保留提示组字号字距', async () => {
+    expect(DEFAULT_SCENE_TEXT_APPEARANCE.pending.strokes).toEqual([]);
+    expect(DEFAULT_SCENE_TEXT_APPEARANCE.typography.fontSizePx).toBe(32);
+
+    const withPackage: SceneTextAppearance = {
+      ...DEFAULT_SCENE_TEXT_APPEARANCE,
+      pending: {
+        fill: { kind: 'package', packageId: 'pkg', revision: '1', exportId: 'f' },
+        strokes: [{ material: { kind: 'package', packageId: 'pkg', revision: '1', exportId: 's' }, widthPx: 3, join: 'round' }],
+        shadow: null,
+        glow: null,
+      },
+    };
+    const staticConverted = toStaticSceneAppearance(withPackage);
+    expect(staticConverted.pending.fill).toEqual({ kind: 'solid', color: { red: 255, green: 255, blue: 255, alpha: 255 } });
+    expect(staticConverted.pending.strokes[0]?.material).toEqual({ kind: 'solid', color: { red: 255, green: 255, blue: 255, alpha: 255 } });
+
+    const lyricStyle: CanonicalStyle = {
+      typography: { fontFamilyName: 'Noto Sans JP', fallbackFamilyNames: ['Meiryo'], fontSizePx: 64, fontWeight: 700, isBold: true, isItalic: false, letterSpacingPx: 2 },
+      unsung: { fill: { kind: 'solid', color: { red: 240, green: 240, blue: 240, alpha: 255 } }, strokes: [], shadow: null, glow: null },
+      sung: {
+        fill: { kind: 'solid', color: { red: 255, green: 90, blue: 160, alpha: 255 } },
+        strokes: { kind: 'follow' },
+        shadow: { kind: 'follow' },
+        glow: { kind: 'follow' },
+      },
+      wipe: { featherRatio: 0.1, highlight: null },
+      verticalCenterRatio: 0.85,
+      horizontalAlignment: 'center',
+      opacity: 0.9,
+      scale: 1,
+    };
+    const synced = lyricStyleToCountdownAppearance(lyricStyle, { ...DEFAULT_SCENE_TEXT_APPEARANCE, typography: { ...DEFAULT_SCENE_TEXT_APPEARANCE.typography, fontSizePx: 28, letterSpacingPx: 1 } });
+    expect(synced.typography).toMatchObject({ fontFamilyName: 'Noto Sans JP', fontSizePx: 28, letterSpacingPx: 1, fontWeight: 700, isBold: true });
+    expect(synced.pending.fill).toEqual(lyricStyle.unsung.fill);
+    expect(synced.elapsed.fill).toEqual(lyricStyle.sung.fill);
+    expect(synced.opacity).toBe(0.9);
+
+    // 通过 AppearanceStore 直接设置外观 + 按 resolvedStyle / fallback staticHierarchy 同步歌词配色。
+    const { store, commands } = fakeSession({
+      supports: (f) => f === RESOLVED_STYLE_READ,
+      projects: {
+        resolvedStyle: async () => ({
+          projectSessionId: 's1',
+          projectRevision: revision('0'),
+          context: {
+            branchId: 'main',
+            lineId: 'l1',
+            tokenId: null,
+            clipId: null,
+            containerId: 'main/display/regular',
+            nodeId: 't1',
+            textNodeId: 't1',
+            nodePath: [],
+            contextKind: 'container',
+          },
+          style: lyricStyle,
+          sources: [],
+          resolution: 'staticPresetHierarchy',
+          finalPixelAppearance: false,
+          protocolVersion: '1',
+        }),
+        style: async () => ({
+          projectSessionId: 's1',
+          projectRevision: revision('0'),
+          target: { kind: 'branch', branchId: 'main' },
+          baseline: lyricStyle,
+          local: [],
+          staticHierarchy: { ...lyricStyle, opacity: 0.7 },
+          hasPresetApplications: false,
+          resolution: 'staticHierarchy',
+          protocolVersion: '1',
+        }),
+      },
+    });
+    store.setOrchestration(MODEL);
+
+    expect(await store.setCountdownAppearance('main/display/regular', staticConverted)).toBe('applied');
+    expect(commands.at(-1)).toEqual({ type: 'orchestration.setCountdownAppearance', containerId: 'main/display/regular', appearance: staticConverted });
+
+    expect(await store.syncCountdownWithLyricStyle('main/display/regular')).toBe('applied');
+    expect(commands.at(-1)).toMatchObject({
+      type: 'orchestration.setCountdownAppearance',
+      containerId: 'main/display/regular',
+      appearance: { opacity: 0.9, elapsed: { fill: lyricStyle.sung.fill } },
+    });
+
+    // 无 resolvedStyle 能力时回落到 projects.style。
+    const fallback = fakeSession({
+      supports: () => false,
+      projects: {
+        style: async () => ({
+          projectSessionId: 's1',
+          projectRevision: revision('0'),
+          target: { kind: 'branch', branchId: 'main' },
+          baseline: lyricStyle,
+          local: [],
+          staticHierarchy: { ...lyricStyle, opacity: 0.75 },
+          hasPresetApplications: false,
+          resolution: 'staticHierarchy',
+          protocolVersion: '1',
+        }),
+      },
+    });
+    expect(await fallback.store.syncCountdownWithLyricStyle('main/display/regular')).toBe('applied');
+    expect(fallback.commands.at(-1)).toMatchObject({
+      type: 'orchestration.setCountdownAppearance',
+      containerId: 'main/display/regular',
+      appearance: { opacity: 0.75 },
+    });
+    store.dispose();
+    fallback.store.dispose();
   });
 });

@@ -637,3 +637,31 @@ button.source-row:focus-visible {
     width: 380px;
   }
 }
+
+.countdown-appearance {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.countdown-appearance-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.countdown-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.countdown-field-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.countdown-ctl-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}

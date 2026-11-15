@@ -455,3 +455,14 @@
 .layout-impact.err {
   color: var(--error);
 }
+.countdown-svg-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.countdown-svg-editor textarea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+}

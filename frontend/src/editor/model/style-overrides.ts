@@ -2,7 +2,20 @@
 // 以及前奏提示组自己的完整外观（编排读模型，W7 设计 §2.8）。
 // 属性路径是 43 项闭合集合（合同 1.50.0）；取值只做显示，不回写。认不出的属性或取值原样显示 JSON。
 
-import type { SceneTextAppearance, StaticMaterial, StyleChange, StyleColor, StyleGlow, StylePropertyPath, StyleShadow, StyleStroke, StyleWipeHighlight } from '../../protocol';
+import type {
+  CanonicalStyle,
+  SceneTextAppearance,
+  StaticMaterial,
+  StyleAppearance,
+  StyleChange,
+  StyleColor,
+  StyleGlow,
+  StylePropertyPath,
+  StyleShadow,
+  StyleStroke,
+  StyleSungAppearance,
+  StyleWipeHighlight,
+} from '../../protocol';
 import { formatColor } from './settings';
 import {
   ALIGN_TEXT,
@@ -74,6 +87,113 @@ function label(property: string): string {
 
 export function overrideRows(local: readonly StyleChange[]): OverrideRow[] {
   return local.map(({ property, value }) => ({ property, label: label(property), ...describe(property, value) }));
+}
+
+const FALLBACK_WHITE_COLOR: StyleColor = { red: 255, green: 255, blue: 255, alpha: 255 };
+
+/** 前奏提示组的标准默认外观（可编辑静态材质，对应后端 Core 默认）。 */
+export const DEFAULT_SCENE_TEXT_APPEARANCE: SceneTextAppearance<StaticMaterial> = {
+  typography: {
+    fontFamilyName: null,
+    fallbackFamilyNames: [],
+    fontSizePx: 32,
+    fontWeight: 400,
+    isBold: false,
+    isItalic: false,
+    letterSpacingPx: 0,
+  },
+  pending: {
+    fill: { kind: 'solid', color: { ...FALLBACK_WHITE_COLOR } },
+    strokes: [],
+    shadow: null,
+    glow: null,
+  },
+  elapsed: {
+    fill: { kind: 'solid', color: { red: 95, green: 95, blue: 95, alpha: 255 } },
+    strokes: { kind: 'follow' },
+    shadow: { kind: 'follow' },
+    glow: { kind: 'follow' },
+  },
+  opacity: 1,
+};
+
+function cloneStaticMaterial(material: SceneTextAppearance['pending']['fill']): StaticMaterial {
+  if (material.kind === 'package') {
+    return { kind: 'solid', color: { ...FALLBACK_WHITE_COLOR } };
+  }
+  if (material.kind === 'solid') {
+    return { kind: 'solid', color: { ...material.color } };
+  }
+  return {
+    kind: 'gradient',
+    gradient: {
+      ...material.gradient,
+      stops: material.gradient.stops.map((stop) => ({ offset: stop.offset, color: { ...stop.color } })),
+    },
+  };
+}
+
+function toStaticStrokes(strokes: readonly StyleStroke[]): StyleStroke<StaticMaterial>[] {
+  return strokes.map((stroke) => ({
+    ...stroke,
+    material: cloneStaticMaterial(stroke.material),
+  }));
+}
+
+function toStaticAppearance(side: StyleAppearance): StyleAppearance<StaticMaterial> {
+  return {
+    fill: cloneStaticMaterial(side.fill),
+    strokes: toStaticStrokes(side.strokes),
+    shadow: side.shadow ? { ...side.shadow, color: { ...side.shadow.color } } : null,
+    glow: side.glow ? { ...side.glow, color: { ...side.glow.color } } : null,
+  };
+}
+
+function toStaticSungAppearance(side: StyleSungAppearance): StyleSungAppearance<StaticMaterial> {
+  return {
+    fill: cloneStaticMaterial(side.fill),
+    strokes: side.strokes.kind === 'follow' ? { kind: 'follow' } : { kind: 'set', value: toStaticStrokes(side.strokes.value) },
+    shadow: side.shadow.kind === 'follow'
+      ? { kind: 'follow' }
+      : { kind: 'set', value: side.shadow.value ? { ...side.shadow.value, color: { ...side.shadow.value.color } } : null },
+    glow: side.glow.kind === 'follow'
+      ? { kind: 'follow' }
+      : { kind: 'set', value: side.glow.value ? { ...side.glow.value, color: { ...side.glow.value.color } } : null },
+  };
+}
+
+/** 将场景文本外观收敛为纯静态材质（遇到只读 package 材质时回落为纯白 #ffffff）。 */
+export function toStaticSceneAppearance(appearance: SceneTextAppearance): SceneTextAppearance<StaticMaterial> {
+  return {
+    typography: {
+      ...appearance.typography,
+      fallbackFamilyNames: [...appearance.typography.fallbackFamilyNames],
+    },
+    pending: toStaticAppearance(appearance.pending),
+    elapsed: toStaticSungAppearance(appearance.elapsed),
+    opacity: appearance.opacity,
+  };
+}
+
+/** 将歌词（主样式）外观转换为前奏提示组的独立外观，保留提示组原有的字号与字距（若有）。 */
+export function lyricStyleToCountdownAppearance(
+  style: CanonicalStyle,
+  current?: SceneTextAppearance | null,
+): SceneTextAppearance<StaticMaterial> {
+  return toStaticSceneAppearance({
+    typography: {
+      fontFamilyName: style.typography.fontFamilyName,
+      fallbackFamilyNames: [...style.typography.fallbackFamilyNames],
+      fontSizePx: current?.typography.fontSizePx ?? style.typography.fontSizePx,
+      fontWeight: style.typography.fontWeight,
+      isBold: style.typography.isBold,
+      isItalic: style.typography.isItalic,
+      letterSpacingPx: current?.typography.letterSpacingPx ?? style.typography.letterSpacingPx,
+    },
+    pending: style.unsung,
+    elapsed: style.sung,
+    opacity: style.opacity,
+  });
 }
 
 /** 前奏提示组的完整外观（未到／已过两态）；回退字体为空时不列。 */

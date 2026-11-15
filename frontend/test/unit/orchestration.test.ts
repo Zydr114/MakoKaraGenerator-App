@@ -1039,6 +1039,50 @@ describe('前奏与句子（G23、G24）', () => {
     ]);
     store.dispose();
   });
+
+  it('setCountdownPresentation、createCountdown(modernDefaults) 与 CueTargetAboveStart 附着命令组装正确', async () => {
+    const { store, commands, control } = setup();
+    await tick();
+
+    control.result = { leadInResult: { operation: 'createCountdown', indicatorContainerId: 'node/cd-new', markNodeIds: ['node/m1'], changed: true } };
+    control.nodes = [node('node/cd-new', { parentId: 'branch/primary/display', contentKind: 'countdownSequence' })];
+    const created = await store.createCountdown('branch/primary/display', '圆点倒计时', 3, { select: true, modernDefaults: true });
+    expect(created).toEqual({ result: 'applied', containerId: 'node/cd-new' });
+    expect(commands.slice(0, 2)).toEqual([
+      { type: 'orchestration.createCountdown', parentId: 'branch/primary/display', name: '圆点倒计时', count: 3 },
+      {
+        type: 'orchestration.setCountdownPresentation',
+        containerId: 'node/cd-new',
+        shape: { kind: 'Circle', barMinHeightRatio: 0.45, svgXml: null, svgColorMode: 'SilhouetteStyle' },
+        animation: { mode: 'BlinkThenWipeFill', blinkRatio: 0.35, blinkCount: 2, featherRatio: 0.06 },
+      },
+    ]);
+    await tick();
+    expect(store.state.selectedId).toBe('node/cd-new');
+
+    delete control.result;
+    const onlyAnim = await store.setCountdownPresentation('node/cd-new', {
+      animation: { mode: 'BlinkThenErase', blinkRatio: 0.4, blinkCount: 3, featherRatio: 0.08 },
+    });
+    expect(onlyAnim).toBe('applied');
+    expect(commands.at(-1)).toEqual({
+      type: 'orchestration.setCountdownPresentation',
+      containerId: 'node/cd-new',
+      shape: null,
+      animation: { mode: 'BlinkThenErase', blinkRatio: 0.4, blinkCount: 3, featherRatio: 0.08 },
+    });
+
+    const attachResult = await store.setLeadInAttachment('primary', 'lead/1', 'node/cd-new', 'CueTargetAboveStart');
+    expect(attachResult).toBe('applied');
+    expect(commands.at(-1)).toEqual({
+      type: 'orchestration.setLeadInAttachment',
+      branchId: 'primary',
+      leadInId: 'lead/1',
+      containerId: 'node/cd-new',
+      mode: 'CueTargetAboveStart',
+    });
+    store.dispose();
+  });
 });
 
 describe('片段成员：调整句子、拆分与合并（§15）', () => {

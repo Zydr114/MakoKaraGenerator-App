@@ -18,6 +18,13 @@ import type {
   OrchestrationProgram,
   ProjectCommand,
 } from '../../protocol';
+import type {
+  CountdownAnimationMode,
+  CountdownAnimationSpec,
+  CountdownShapeKind,
+  CountdownShapeSpec,
+  CountdownSvgColorMode,
+} from '../../protocol';
 import { clipByLine, nodeName, quickLayoutBlock, subtreeIds, type OrchestrationModel } from './orchestration';
 import { EASING_OPTIONS, fromSeconds, roundTo, toSeconds, type Option } from './orchestration-properties';
 import { ratioDelta } from './scene-geometry';
@@ -102,6 +109,10 @@ const LEAD_IN_FAILURE_TEXT: Record<string, string> = {
   LeadInTimeConflict: '前奏放不下：起唱前的时间不够这么长，或和别的句子、前奏的时间重叠。缩短时长，或换一句。',
   SceneAttachmentReferenceUnavailable: '目标句的文字测不到（例如没有时间或在画面外），不能切换附着方式。',
   PresentationInvalid: '结果没有通过画面结构校验，没有修改。',
+  PackageSvgBudgetExceeded: 'SVG 内容或复杂度超过后端预算限制。',
+  PackageSvgXmlUnsafe: 'SVG 包含不安全的 XML 声明或禁止的标签/属性。',
+  PackageSvgImageUnsafe: '静态内联 SVG 不允许引用外部图片资源。',
+  PackageSvgSyntaxInvalid: 'SVG XML 语法无效，请检查标签与属性格式。',
 };
 
 export function leadInFailureText(failureCode: string): string | undefined {
@@ -130,6 +141,122 @@ export const DEFAULT_LEAD_IN_SECONDS = 3;
 export const DEFAULT_MARK_COUNT = 3;
 export const DEFAULT_MARK_TEXT = '●';
 export const MAX_MARKS = 64;
+export const MAX_COUNTDOWN_SVG_BYTES = 64 * 1024;
+
+/** 后端 Core 的前奏提示图形与动画默认值（保持旧项目向后兼容）。 */
+export const DEFAULT_COUNTDOWN_SHAPE: CountdownShapeSpec = {
+  kind: 'Text',
+  barMinHeightRatio: 0.45,
+  svgXml: null,
+  svgColorMode: 'SilhouetteStyle',
+};
+
+export const DEFAULT_COUNTDOWN_ANIMATION: CountdownAnimationSpec = {
+  mode: 'DiscreteSteps',
+  blinkRatio: 0.35,
+  blinkCount: 2,
+  featherRatio: 0.06,
+};
+
+/** 前端新建提示组时应用的现代默认图形与经典“先闪烁再填充”动画。 */
+export const MODERN_COUNTDOWN_SHAPE: CountdownShapeSpec = {
+  kind: 'Circle',
+  barMinHeightRatio: 0.45,
+  svgXml: null,
+  svgColorMode: 'SilhouetteStyle',
+};
+
+export const MODERN_COUNTDOWN_ANIMATION: CountdownAnimationSpec = {
+  mode: 'BlinkThenWipeFill',
+  blinkRatio: 0.35,
+  blinkCount: 2,
+  featherRatio: 0.06,
+};
+
+export const DEFAULT_CUSTOM_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="currentColor"/></svg>';
+
+export interface CountdownChoiceOption<T extends string> {
+  value: T;
+  label: string;
+  note: string;
+}
+
+export const COUNTDOWN_SHAPE_OPTIONS: readonly CountdownChoiceOption<CountdownShapeKind>[] = [
+  { value: 'Text', label: '文字标记', note: '渲染每个标记节点自身的文字内容（例如 ●）。' },
+  { value: 'Circle', label: '圆点', note: '几何圆形指示器，适配提示组双态填充与描边。' },
+  { value: 'SteppedBars', label: '阶梯竖条', note: '按倒计时序列高度递减的圆角竖条。' },
+  { value: 'Capsule', label: '胶囊', note: '圆角胶囊形指示器。' },
+  { value: 'Diamond', label: '菱形', note: '几何菱形指示器。' },
+  { value: 'Star', label: '五角星', note: '五角星形指示器。' },
+  { value: 'CustomSvg', label: '自定义 SVG', note: '静态内联矢量 SVG，支持适配配色或保留原色。' },
+];
+
+export const COUNTDOWN_SVG_COLOR_OPTIONS: readonly CountdownChoiceOption<CountdownSvgColorMode>[] = [
+  { value: 'SilhouetteStyle', label: '使用提示组配色', note: '提取 SVG 轮廓并应用提示组的未到/已过填充、描边与渐变擦除。' },
+  { value: 'OriginalColor', label: '保留 SVG 原色', note: '按 SVG 自身颜色渲染，仅随序列进度做透明度与闪烁/擦除过渡。' },
+];
+
+export const COUNTDOWN_ANIMATION_OPTIONS: readonly CountdownChoiceOption<CountdownAnimationMode>[] = [
+  { value: 'BlinkThenWipeFill', label: '先闪烁再渐进填充', note: '经典卡拉 OK 效果：先按拍点闪烁预备，再沿序列逐步填充。' },
+  { value: 'BlinkThenErase', label: '先闪烁再渐进消除', note: '先按拍点闪烁预备，再沿序列逐步消除填充。' },
+  { value: 'DiscreteSteps', label: '逐格跳变', note: '按标记时间逐个切换点亮状态，无闪烁和连续擦除。' },
+];
+
+/** 读取提示组当前的图形配置（缺失时回落到 Core 默认）。 */
+export function countdownShapeOf(content: { shape?: CountdownShapeSpec | null } | null | undefined): CountdownShapeSpec {
+  const shape = content?.shape;
+  if (!shape) return DEFAULT_COUNTDOWN_SHAPE;
+  return {
+    kind: shape.kind,
+    barMinHeightRatio: shape.barMinHeightRatio,
+    svgXml: shape.svgXml ?? null,
+    svgColorMode: shape.svgColorMode ?? 'SilhouetteStyle',
+  };
+}
+
+/** 读取提示组当前的动画配置（缺失时回落到 Core 默认）。 */
+export function countdownAnimationOf(content: { animation?: CountdownAnimationSpec | null } | null | undefined): CountdownAnimationSpec {
+  const animation = content?.animation;
+  if (!animation) return DEFAULT_COUNTDOWN_ANIMATION;
+  return {
+    mode: animation.mode,
+    blinkRatio: animation.blinkRatio,
+    blinkCount: animation.blinkCount,
+    featherRatio: animation.featherRatio,
+  };
+}
+
+/**
+ * 本地快速校验静态内联 SVG：拦截空串、超 64 KiB、不安全声明/脚本/外链元素以及明显语法错误；
+ * 返回问题说明或 undefined。
+ */
+export function inlineSvgBlock(svgXml: string | null | undefined): string | undefined {
+  const trimmed = svgXml?.trim() ?? '';
+  if (!trimmed) return '请输入包含 <svg> 根节点的静态矢量 SVG 代码。';
+  if (new TextEncoder().encode(trimmed).length > MAX_COUNTDOWN_SVG_BYTES) return 'SVG 内容超过 64 KiB 限制。';
+  if (/<!(?:DOCTYPE|ENTITY)\b/i.test(trimmed)) return '静态内联 SVG 不允许包含 DOCTYPE 或实体声明。';
+  if (/<(?:script|foreignObject|iframe|object|embed|audio|video|animate|animateTransform|animateMotion|animateColor|set)\b/i.test(trimmed)) {
+    return '静态内联 SVG 不允许包含脚本、外部对象或动画元素。';
+  }
+  if (/<image\b/i.test(trimmed)) return '前奏内联 SVG 仅支持纯矢量，不允许 <image> 元素。';
+  if (/\bon[a-z]+\s*=|\bjavascript\s*:/i.test(trimmed)) return '静态内联 SVG 不允许包含事件处理属性或脚本链接。';
+  if (/\b(?:xlink:)?href\s*=\s*['"]\s*(?!#)/i.test(trimmed) || /\burl\(\s*['"]?(?!#)/i.test(trimmed)) {
+    return '静态内联 SVG 不允许引用外部 URI，只支持文档内部 #id。';
+  }
+  if (typeof DOMParser !== 'undefined') {
+    const doc = new DOMParser().parseFromString(trimmed, 'image/svg+xml');
+    if (doc.getElementsByTagName('parsererror').length > 0) return 'SVG XML 语法无效，请检查标签与引号是否闭合。';
+    const root = doc.documentElement;
+    if (!root || root.localName.toLowerCase() !== 'svg') return 'SVG 根节点必须是 <svg>。';
+  } else {
+    const stripped = trimmed.replace(/^\s*(?:<\?xml[\s\S]*?\?>|<!--[\s\S]*?-->|\s)+/i, '');
+    if (!/^<svg(?:\s|>)/i.test(stripped) || !/<\/svg>\s*$/i.test(trimmed)) {
+      return 'SVG 必须以 <svg> 开头并以 </svg> 结尾。';
+    }
+  }
+  return undefined;
+}
 
 /** 添加前奏的预填目标句：选中的那一句（还没有前奏时）；否则第一个有时间、还没有前奏的句子。 */
 export function defaultLeadInTarget(program: OrchestrationProgram, lines: readonly LineLike[], selected: readonly string[] | undefined): string | undefined {

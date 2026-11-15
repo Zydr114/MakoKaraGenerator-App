@@ -92,9 +92,34 @@ export interface OrchestrationLayout {
   slotAnimation?: SlotAnimation | null;
 }
 
+/** 前奏提示容器图形种类（1.54.0）。 */
+export type CountdownShapeKind = 'Text' | 'Circle' | 'SteppedBars' | 'Capsule' | 'Diamond' | 'Star' | 'CustomSvg';
+
+/** 自定义内联 SVG 着色模式（1.54.0）。 */
+export type CountdownSvgColorMode = 'SilhouetteStyle' | 'OriginalColor';
+
+/** 前奏提示标记图形定义（1.54.0）；仅当 kind 为 CustomSvg 时 svgXml 为非 null 静态内联 SVG。 */
+export interface CountdownShapeSpec {
+  kind: CountdownShapeKind;
+  barMinHeightRatio: number;
+  svgXml: string | null;
+  svgColorMode: CountdownSvgColorMode;
+}
+
+/** 前奏提示容器动画曲线与时间切换方式（1.54.0）。 */
+export type CountdownAnimationMode = 'DiscreteSteps' | 'BlinkThenWipeFill' | 'BlinkThenErase';
+
+/** 前奏提示组动画配置（1.54.0）。 */
+export interface CountdownAnimationSpec {
+  mode: CountdownAnimationMode;
+  blinkRatio: number;
+  blinkCount: number;
+  featherRatio: number;
+}
+
 /**
- * 内容节点的有限投影（1.22.0）：倒计时容器（contentKind=countdownSequence）给 markNodeIds 与 attachmentMode；
- * 文字标记（contentKind=textMark）给 text。不开放任意内容。
+ * 内容节点的有限投影（1.22.0）：倒计时容器（contentKind=countdownSequence）给 markNodeIds、attachmentMode、
+ * appearance、shape、animation；文字标记（contentKind=textMark）给 text 与 appearanceOverride。不开放任意内容。
  */
 export interface OrchestrationContent {
   markNodeIds?: string[];
@@ -104,6 +129,10 @@ export interface OrchestrationContent {
   appearance?: SceneTextAppearance | null;
   /** 标记本层的外观覆盖（1.24.0）：与静态样式的属性修改同形，空数组表示没有覆盖。 */
   appearanceOverride?: StyleChange[];
+  /** 倒计时容器的图形与内联 SVG 配置（1.54.0）。 */
+  shape?: CountdownShapeSpec | null;
+  /** 倒计时容器的闪烁与渐进动画配置（1.54.0）。 */
+  animation?: CountdownAnimationSpec | null;
 }
 
 /**
@@ -118,8 +147,8 @@ export interface SceneTextAppearance<M = StyleMaterial> {
   opacity: number;
 }
 
-/** 前奏提示组的附着方式（1.24.0）：固定在父级，或跟着目标句的文字。 */
-export type LeadInAttachmentMode = 'FixedParent' | 'CueTargetText';
+/** 前奏提示组的附着方式（1.24.0；1.54.0 新增首字上方附着）：固定在父级、跟着目标句文字，或置于目标句首字上方（避让注音）。 */
+export type LeadInAttachmentMode = 'FixedParent' | 'CueTargetText' | 'CueTargetAboveStart';
 
 export interface OrchestrationNode {
   id: string;
@@ -370,8 +399,9 @@ export type OrchestrationLeadInCommand =
   /** 1.24.0：完整的标记顺序（最多 64 个）；spaceMarks 按后端规则均匀排列。 */
   | { type: 'orchestration.reorderMarks'; containerId: string; orderedIds: string[] }
   | { type: 'orchestration.spaceMarks'; containerId: string }
-  /** 1.24.0：倒计时容器的完整外观；标记本层的完整覆盖（最多 21 项，不能改缩放、垂直中心、水平对齐，空数组清除）。 */
+  /** 1.24.0：倒计时容器的完整外观；标记本层的完整覆盖（最多 34 项，不能改擦除、缩放、垂直中心、水平对齐，空数组清除）。1.54.0：设置倒计时提示组图形／SVG 与动画。 */
   | { type: 'orchestration.setCountdownAppearance'; containerId: string; appearance: SceneTextAppearance<StaticMaterial> }
+  | { type: 'orchestration.setCountdownPresentation'; containerId: string; shape: CountdownShapeSpec | null; animation: CountdownAnimationSpec | null }
   | { type: 'orchestration.setMarkAppearance'; nodeId: string; changes: StyleChange[] };
 
 /**

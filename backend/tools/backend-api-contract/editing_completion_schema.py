@@ -3,6 +3,14 @@ import copy
 from orchestration_properties_schema import int64_pattern
 from static_style_schema import CHANGES, MARK_PROPERTIES, PARENTS
 
+LEAD_IN_PRESENTATION_SCHEMAS = (
+    "CountdownShapeSpecDto",
+    "CountdownShapeSpecDtoInput",
+    "CountdownAnimationSpecDto",
+    "CountdownAnimationSpecDtoInput",
+    "SetCountdownPresentationCommandDtoInput",
+)
+
 
 def ref(name):
     return {"$ref": "#/components/schemas/" + name}
@@ -40,9 +48,12 @@ def extend_editing_completion_schemas(schemas, metadata, schema_for, variants, b
             "ProjectLineEnterAnimationDto": {"durationUs": "String", "easing": "String", "startOpacity": "Single", "startScale": "Single", "startOffsetPx": "Single"},
             "LeadInGenerationSettingsDto": {"includeOpening": "Boolean", "includeLongGaps": "Boolean", "gapThresholdUs": "String", "durationUs": "String", "indicatorContainerId": "String", "excludedLineIds": "String[]"},
             "SceneTextAppearanceDto": {"typography": "StyleTypographyDto", "pending": "StyleAppearanceDto", "elapsed": "StyleSungAppearanceDto", "opacity": "Single"},
+            "CountdownShapeSpecDto": {"kind": "String", "barMinHeightRatio": "Double", "svgXml": "String", "svgColorMode": "String"},
+            "CountdownAnimationSpecDto": {"mode": "String", "blinkRatio": "Double", "blinkCount": "Int32", "featherRatio": "Double"},
             "SceneMeasurementRequest": {"expectedRevision": "String", "mode": "String", "timeUs": "String", "width": "Int32", "height": "Int32", "alphaMode": "String", "previewId": "String", "expectedPreviewGeneration": "String", "candidateRevision": "String"},
         }[name]
-        nullable_fields = {"LeadInGenerationSettingsDto": {"indicatorContainerId"}, "SceneMeasurementRequest": {"timeUs", "previewId", "expectedPreviewGeneration", "candidateRevision"}}.get(name, set())
+        nullable_fields = {"LeadInGenerationSettingsDto": {"indicatorContainerId"}, "CountdownShapeSpecDto": {"svgXml"},
+                           "SceneMeasurementRequest": {"timeUs", "previewId", "expectedPreviewGeneration", "candidateRevision"}}.get(name, set())
         if render_field:
             expected["renderBackend"] = "String"
             nullable_fields.add("renderBackend")
@@ -79,11 +90,52 @@ def extend_editing_completion_schemas(schemas, metadata, schema_for, variants, b
         "elapsed": ref("StyleSungAppearanceDto"), "opacity": {"type": "number", "minimum": 0, "maximum": 1}}, "response")
     for suffix in ("", "Input"):
         schemas["SceneTextAppearanceDto" + suffix]["description"] = "文字标记完整外观：字形、待唱/已过两态外观与不透明度；不含扫字样式与布局，材质只接受静态solid/gradient。"
+    shape_base = {
+        "kind": {"type": "string", "enum": ["Text", "Circle", "SteppedBars", "Capsule", "Diamond", "Star", "CustomSvg"]},
+        "barMinHeightRatio": {"type": "number", "minimum": 0.15, "maximum": 1},
+        "svgXml": nullable({"type": "string"}),
+        "svgColorMode": {"type": "string", "enum": ["SilhouetteStyle", "OriginalColor"]},
+    }
+    shape_input = dto("CountdownShapeSpecDto", {
+        **shape_base,
+        "svgXml": nullable({"type": "string", "minLength": 1, "maxLength": 65536, "pattern": r"\S"}),
+    })
+    dto("CountdownShapeSpecDto", shape_base, "response")
+    schemas["CountdownShapeSpecDtoInput"].update({
+        "if": {"properties": {"kind": {"const": "CustomSvg"}}, "required": ["kind"]},
+        "then": {"properties": {"svgXml": {"type": "string", "minLength": 1, "maxLength": 65536, "pattern": r"\S"}}},
+        "else": {"properties": {"svgXml": {"type": "null"}}},
+        "description": "前奏提示标记图形定义；仅CustomSvg须提供非空白静态内联SVG（<=64KiB UTF-8），其余形状svgXml必须为null。",
+    })
+    schemas["CountdownShapeSpecDto"]["description"] = "前奏提示标记图形响应；svgXml仅CustomSvg非null，其余形状固定返回null。"
+    countdown_animation_props = {
+        "mode": {"type": "string", "enum": ["DiscreteSteps", "BlinkThenWipeFill", "BlinkThenErase"]},
+        "blinkRatio": {"type": "number", "minimum": 0, "maximum": 0.85},
+        "blinkCount": {"type": "integer", "minimum": 0, "maximum": 16},
+        "featherRatio": {"type": "number", "minimum": 0, "maximum": 0.5},
+    }
+    countdown_animation_input = dto("CountdownAnimationSpecDto", countdown_animation_props)
+    dto("CountdownAnimationSpecDto", countdown_animation_props, "response")
+    schemas["CountdownAnimationSpecDtoInput"]["allOf"] = [{
+        "if": {
+            "properties": {
+                "mode": {"enum": ["BlinkThenWipeFill", "BlinkThenErase"]},
+                "blinkRatio": {"exclusiveMinimum": 0},
+            },
+            "required": ["mode", "blinkRatio"],
+        },
+        "then": {"properties": {"blinkCount": {"minimum": 1}}},
+    }]
+    schemas["CountdownAnimationSpecDtoInput"]["description"] = "前奏提示容器动画定义；开启闪烁（mode!=DiscreteSteps 且 blinkRatio>0）时 blinkCount 须>=1。"
+    schemas["CountdownAnimationSpecDto"]["description"] = "前奏提示容器动画响应。"
     # Marks reuse the style change records except wipe style and line layout (34 paths).
     mark_changes = [ref(clr + "Input") for prop, clr, *_ in CHANGES if prop in MARK_PROPERTIES]
     schemas["MarkAppearanceChangeInput"] = {"oneOf": mark_changes}
     schemas["MarkAppearanceChange"] = {"oneOf": [ref(clr) for prop, clr, *_ in CHANGES if prop in MARK_PROPERTIES]}
-    schemas["ProjectOrchestrationContentDto"]["properties"]["appearanceOverride"] = {"type": "array", "maxItems": len(MARK_PROPERTIES), "items": ref("MarkAppearanceChange")}
+    content_props = schemas["ProjectOrchestrationContentDto"]["properties"]
+    content_props["appearanceOverride"] = {"type": "array", "maxItems": len(MARK_PROPERTIES), "items": ref("MarkAppearanceChange")}
+    content_props["shape"] = ref("CountdownShapeSpecDto")
+    content_props["animation"] = ref("CountdownAnimationSpecDto")
     commands = [
         ("setLayoutKind", "SetOrchestrationLayoutKindCommandDto", {"containerId": stable, "kind": {"type": "string", "enum": ["Auto", "SlotSequence"]},
             "slotIds": {**ids, "maxItems": 64}, "newSlotCount": {"type": "integer", "minimum": 0, "maximum": 64}}),
@@ -94,12 +146,14 @@ def extend_editing_completion_schemas(schemas, metadata, schema_for, variants, b
         ("applyLeadInGeneration", "ApplyLeadInGenerationCommandDto", {"branchId": stable, "settings": settings, "selectedLineIds": ids}),
         ("deleteLeadInAndExclude", "DeleteLeadInAndExcludeCommandDto", {"branchId": stable, "leadInId": cue_identity}),
         ("setLeadInAttachment", "SetLeadInAttachmentCommandDto", {"branchId": stable, "leadInId": cue_identity, "containerId": stable,
-            "mode": {"type": "string", "enum": ["FixedParent", "CueTargetText"]}}),
+            "mode": {"type": "string", "enum": ["FixedParent", "CueTargetText", "CueTargetAboveStart"]}}),
         ("addMark", "AddOrchestrationMarkCommandDto", {"containerId": stable, "text": mark_text}),
         ("setMarkText", "SetOrchestrationMarkTextCommandDto", {"nodeId": stable, "text": mark_text}),
         ("reorderMarks", "ReorderOrchestrationMarksCommandDto", {"containerId": stable, "orderedIds": {**ids, "maxItems": 64}}),
         ("spaceMarks", "SpaceOrchestrationMarksCommandDto", {"containerId": stable}),
         ("setCountdownAppearance", "SetCountdownAppearanceCommandDto", {"containerId": stable, "appearance": appearance}),
+        ("setCountdownPresentation", "SetCountdownPresentationCommandDto", {"containerId": stable,
+            "shape": nullable(shape_input), "animation": nullable(countdown_animation_input)}),
         ("setMarkAppearance", "SetMarkAppearanceCommandDto", {"nodeId": stable, "changes": {"type": "array", "maxItems": len(MARK_PROPERTIES),
             "items": ref("MarkAppearanceChangeInput"), "description": "完整本层override；空数组清除，property不得重复，整体项与其分量不能同批出现。"}}),
     ]
@@ -118,7 +172,8 @@ def extend_editing_completion_schemas(schemas, metadata, schema_for, variants, b
         if info.get("baseType") != "ProjectCommandDto" or {p["name"] for p in info["properties"]} != set(base_command["properties"]) | set(fields):
             raise ValueError("Unreviewed editing command fields/base: " + clr)
         field_types = {"newSlotCount": "Int32", "slotIds": "String[]", "orderedIds": "String[]", "selectedLineIds": "String[]",
-                       "animation": "ProjectLineEnterAnimationDto", "settings": "LeadInGenerationSettingsDto",
+                       "animation": ("CountdownAnimationSpecDto" if clr == "SetCountdownPresentationCommandDto" else "ProjectLineEnterAnimationDto"),
+                       "shape": "CountdownShapeSpecDto", "settings": "LeadInGenerationSettingsDto",
                        "appearance": "SceneTextAppearanceDto", "changes": "StyleChangeDto[]"}
         if any(p["type"] != field_types.get(p["name"], "String") or not p["nullable"] or p["optional"]
                or p["defaultValue"] is not None for p in info["properties"] if p["name"] in fields):
@@ -127,7 +182,8 @@ def extend_editing_completion_schemas(schemas, metadata, schema_for, variants, b
         schemas[component] = {**obj({"type": {"type": "string", "const": "orchestration." + operation}, **copy.deepcopy(fields)}),
             "x-clr-type": "MakoKaraGenerator.Backend.Contracts." + clr,
             "x-capability": "project-sessions.commands.orchestration." + operation,
-            "x-completion-limits": {"maxIntentBytes": 16384 if operation in ("setLayoutKind", "setLineEnterAnimation", "setProjectEnterAnimation") else 65536,
+            "x-completion-limits": {
+                "maxIntentBytes": 131072 if operation == "setCountdownPresentation" else (16384 if operation in ("setLayoutKind", "setLineEnterAnimation", "setProjectEnterAnimation") else 65536),
                 "maxNodes": 2000, "maxDepth": 64, "maxInputItems": 20000, "maxInputCharacters": 1048576,
                 "maxReadBytes": 1048576, "maxReadItems": 20000, "maxAnalyzedLines": 1000,
                 "maxMarks": 64, "maxTextUtf16Units": 4096, "receipt": "完整回执提交前按实际配置验证，默认64KiB；无截断。"}}
@@ -136,6 +192,13 @@ def extend_editing_completion_schemas(schemas, metadata, schema_for, variants, b
                 {"properties": {"kind": {"const": "SlotSequence"}}, "anyOf": [
                     {"properties": {"slotIds": {"minItems": 1}}}, {"properties": {"newSlotCount": {"minimum": 1}}}]}]
             schemas[component]["description"] = "保留旧节点；Auto清布局slot引用，SlotSequence要求slotIds数量+newSlotCount为1..64，现有slot须唯一直属纯节点。跨字段总数由服务校验。"
+        elif operation == "setCountdownPresentation":
+            schemas[component]["anyOf"] = [
+                {"properties": {"shape": {"type": "object"}}},
+                {"properties": {"animation": {"type": "object"}}},
+            ]
+            schemas[component]["x-completion-limits"]["maxSvgUtf8Bytes"] = 65536
+            schemas[component]["description"] = "设置倒计时提示组图形/SVG 与闪烁擦除动画；shape 与 animation 至少一项非 null，CustomSvg 的 svgXml 限 64KiB UTF-8 静态安全矢量。"
         variants.append(ref(component))
     schemas["OrchestrationPropertiesCommandResultDto"]["properties"]["operation"]["enum"] += ["setLayoutKind", "setLineEnterAnimation", "setProjectEnterAnimation", "setLeadInAttachment"]
     schemas["OrchestrationLeadInCommandResultDto"]["properties"]["operation"]["enum"] += [op for op, _, _ in commands if op not in (

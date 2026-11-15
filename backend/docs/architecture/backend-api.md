@@ -1,6 +1,6 @@
 # 当前后端 HTTP API
 
-更新：2026-11-15。当前 **0.113.0／HTTP协议1／合同1.53.0**。M14 完成 SDK v1 移除与版本收敛：效果包、作者源码检查、编译、预览、验证与导出仅准入 SDK v2（`packageVersion=3`、`shaderProfile="skia-ganesh-3.119.4-v2"`），`AuthorSourceInspectionResponse` 将 `packageVersion` enum 收窄为 `[3]`、`shaderProfile` enum 收窄为 `["skia-ganesh-3.119.4-v2"]`，并移除残余 `IsV2` 桥接。HTTP 路由与请求 DTO 结构不变，合同为115路径／128方法／667 schemas、3932个合成例（2842反例）；精确源码基线和文件指纹见重新冻结的[执行合同](../../web/api-contract.md)与manifest。保留 1.52.1 的失效预设应用筛选与布局参考测量修复、1.52.0 的真实源材质失败安全结构与默认256张表面／512MiB预算，SDK2连续／Burst粒子及晚期画布图元见§26。静态外辉光继续贯通四层样式、模板、文字标记、Worker快照与颜色捕获，语义见§6.11和[辉光参考](../style-reference/glow.md)。既有作者工作流、浏览器预览与桌面GPU流保持；匹配发布、HTTP、浏览器及导出证据分别登记，历史证据保留原归属。
+更新：2026-11-15。当前 **0.113.0／HTTP协议1／合同1.54.0**。1.54.0 新增前奏提示组图形／自定义静态内联 SVG 与闪烁渐进擦除动画命令 `orchestration.setCountdownPresentation`、`countdownSequence` 读模型 `shape`/`animation` 字段及 `orchestration.setLeadInAttachment` 的 `CueTargetAboveStart` 模式；继续保持 M14 SDK v1 移除与版本收敛（效果包、作者源码检查、编译、预览、验证与导出仅准入 SDK v2：`packageVersion=3`、`shaderProfile="skia-ganesh-3.119.4-v2"`）。合同为115路径／128方法／672 schemas、3995个合成例（2879反例）；精确源码基线和文件指纹见重新冻结的[执行合同](../../web/api-contract.md)与manifest。保留 1.52.1 的失效预设应用筛选与布局参考测量修复、1.52.0 的真实源材质失败安全结构与默认256张表面／512MiB预算，SDK2连续／Burst粒子及晚期画布图元见§26。静态外辉光继续贯通四层样式、模板、文字标记、Worker快照与颜色捕获，语义见§6.11和[辉光参考](../style-reference/glow.md)。既有作者工作流、浏览器预览与桌面GPU流保持；匹配发布、HTTP、浏览器及导出证据分别登记，历史证据保留原归属。
 
 历史1.44.0的HTTP DTO结构沿用1.43.0，当时固定112路径／125方法／597 schemas、3434 examples（2548反例），以匹配生成物和合同校验报告为准。公开 `renderBackend` 严格为 `cpu|gpu`，GPU实际API为Vulkan；创建/任务省略或null使用启动默认，已有预览更新省略或null保留当前选择，候选测量省略沿候选固定选择。各渲染任务在准入时固定选择，预览/帧/事件、job input、验证/导出报告及测量响应回显；历史缺失值表示未知。设备可用性不等同于业务渲染成功，202只表示接受，GPU失败不回落CPU。合同静态门禁、本机硬件、HTTP、浏览器、跨平台及性能分别验收。
 
@@ -306,7 +306,7 @@ composition可省略，默认1920×1080／30:1／黑色alpha255／未指定输�
 
 分析采用／清除沿同一响应结构；实际变化的changeSet保守返回`areas:["project"]`／`requiresFullRefresh:true`，客户端再读summary，不新增分析points或任意patch。
 
-领域no-op仍200但changed:false，不改修订／dirty／redo，不产生本操作project.changed事件；响应eventCursor为client事件流当前位置，其他任务／操作可使其前进。未知命令422 commandNotSupported，旧修订409 revisionConflict，非法JSON／字段400，目标／规则拒绝422 commandRejected。当前九十六种命令：背景与批量编辑见§6.12，正文／行／设置见§6.6、来源见§6.7、元素结构见§6.8、导入见§6.9，静态样式见§6.11；完整清单以冻结API index为准。
+领域no-op仍200但changed:false，不改修订／dirty／redo，不产生本操作project.changed事件；响应eventCursor为client事件流当前位置，其他任务／操作可使其前进。未知命令422 commandNotSupported，旧修订409 revisionConflict，非法JSON／字段400，目标／规则拒绝422 commandRejected。当前九十七种命令：背景与批量编辑见§6.12，正文／行／设置见§6.6、来源见§6.7、元素结构见§6.8、导入见§6.9，静态样式见§6.11；完整清单以冻结API index为准。
 
 ### 6.4 精确修订的编辑读模型（0.76.0）
 
@@ -1263,7 +1263,7 @@ capabilities分别公布 `project-sessions.commands.orchestration.createNode` �
 
 编排根投影始终返回可空`projectEnterAnimation`，包括零行工程。三种新命令复用`propertiesResult`，canonical状态由精确修订GET读取。输入command≤16KiB；源/候选2000节点、深64、验证输入20000项/累计字符1MiB；完整编排读取1MiB/20000项，实际完整回执默认64KiB，全部提交前检查。ID为非空白且≤128 UTF-16 units。目标缺失422 TargetStale、错误容器422 ContainerInvalid、候选非法422 PresentationInvalid、预算413 resourceTooLarge；失败不改变工程。
 
-## 13.19 前奏生成、mark与附着（合同1.24.0）
+## 13.19 前奏生成、mark与附着（合同1.24.0；1.54.0 扩展图形／SVG／动画与首字上方附着）
 
 每个program始终包含可空`leadInGeneration`。完整settings为`includeOpening/includeLongGaps/gapThresholdUs/durationUs/indicatorContainerId/excludedLineIds`六字段：gapThresholdUs非负、durationUs正Int64微秒字符串，indicatorContainerId必须显式给出，可null；排除行ID≤1000、唯一且属于来源。沿原时间解析canonical化，分析以歌词时间和起唱锚点为依据。
 
@@ -1275,15 +1275,16 @@ capabilities分别公布 `project-sessions.commands.orchestration.createNode` �
 | `orchestration.deleteLeadInAndExclude` | `branchId/leadInId`；删除并排除该目标；原deleteLeadIn仅删除并保持原设置 |
 | `orchestration.addMark` / `setMarkText` | 分别`containerId/text`与`nodeId/text`；text非空白且≤4096 UTF-16 units；新增身份由Server生成 |
 | `orchestration.reorderMarks` / `spaceMarks` | 分别`containerId/orderedIds`与`containerId`；完整mark顺序、唯一成员，单容器最多64个mark；均调用原Core规则 |
-| `orchestration.setCountdownAppearance` | `containerId/appearance`；完整六字段typography/pendingFill/elapsedFill/stroke/shadow/opacity，stroke/shadow显式null可关闭，其他不可null |
-| `orchestration.setMarkAppearance` | `nodeId/changes`；完整本层override数组，空数组清除；≤21种静态属性，禁scale/verticalCenterRatio/horizontalAlignment，拒绝重复property |
-| `orchestration.setLeadInAttachment` | `branchId/leadInId/containerId/mode`；mode为FixedParent或CueTargetText，容器须为该前奏提示组；真实Worker测量目标文字参考，转换位置后在同一修订提交；缺真实参考明确失败；相同mode为no-op，不要求Worker或再次文字测量，保redo |
+| `orchestration.setCountdownAppearance` | `containerId/appearance`；四字段两态`typography/pending/elapsed/opacity`（历史六字段已随1.50.0样式改版统一） |
+| `orchestration.setCountdownPresentation` | （1.54.0）`containerId/shape?/animation?`（至少一项非null，命令JSON上限128KiB）；`shape`为`CountdownShapeSpec`（`kind`: `Text|Circle|SteppedBars|Capsule|Diamond|Star|CustomSvg`，`barMinHeightRatio`: `0.15..1`，`svgXml`仅`CustomSvg`非空白静态安全内联SVG且UTF-8≤64KiB，否则为`null`，`svgColorMode`: `SilhouetteStyle|OriginalColor`）；`animation`为`CountdownAnimationSpec`（`mode`: `DiscreteSteps|BlinkThenWipeFill|BlinkThenErase`，`blinkRatio`: `0..0.85`，`blinkCount`: `0..16`且非`DiscreteSteps`并`blinkRatio>0`时`>=1`，`featherRatio`: `0..0.5`） |
+| `orchestration.setMarkAppearance` | `nodeId/changes`；完整本层override数组，空数组清除；≤34种静态属性（不含wipe.*、scale、verticalCenterRatio、horizontalAlignment），拒绝重复property |
+| `orchestration.setLeadInAttachment` | `branchId/leadInId/containerId/mode`；mode为`FixedParent`、`CueTargetText`或`CueTargetAboveStart`（1.54.0新增首字上方对齐并避让注音），容器须为该前奏提示组；真实Worker测量目标文字参考（含双锚点与容器局部安全区退让），转换位置后在同一修订提交；缺真实参考明确失败；相同mode为no-op，不要求Worker或再次文字测量，保redo |
 
 合同1.24.1修正附着错误定位：精确修订检查优先；来源不存在返回422 `commandRejected`、`failureCode:TargetStale`、`field:command.branchId`，此前奏不存在于指定来源时为`TargetStale`／`command.leadInId`；容器不存在、不是倒计时提示组或与该前奏关联不符时为`ContainerInvalid`／`command.containerId`。拒绝保留工程、修订、dirty、历史和redo，并释放测量名额；同意图重试仍取原回执。
 
 `leadInGenerationResult`完整返回operation/branchId、可用settings、全部candidates、diagnostics、selectedLineIds与changed。每候选含targetLineId/status/reason以及可用的existing/proposed完整前奏、startUs/endUs、anchor；status为New/Update/Remove/Preserved/Skipped，reason为None/MissingLineTime/UnknownPrecedingTime/TooShort/NotEligible/ExistingManual/Disabled/Excluded/TimingConflict。可选数据不可用时按普通响应省略，不能用空成功替代分析错误。预览与应用的完整候选均不截断；analysis最多1000来源行，完整回执超限在提交前413。
 
-普通mark/外观操作复用`leadInResult`；附着使用`propertiesResult.operation=setLeadInAttachment`。内容投影提供提示组完整appearance、mark完整appearanceOverride及attachmentMode；样式新输入沿原字体名256/fallback32/渐变256规则，拒绝包材质，普通Node静态预设见§13.20。所有本节command≤64KiB，源/候选2000节点/深64/20000验证项/1MiB累计字符，完整读取1MiB/20000项，默认完整回执64KiB；任何失败均原子不变，不截断。自动生成的前奏ID沿已有Core规则，deleteAndExclude及attachment容许≤4096字符身份，普通branch/node/line为≤128。
+普通mark/图形动画/外观操作复用`leadInResult`；附着使用`propertiesResult.operation=setLeadInAttachment`。内容投影提供提示组完整`appearance`、`shape`、`animation`、mark完整`appearanceOverride`及`attachmentMode`（读模型兼容保留历史字符串值）；样式新输入沿原字体名256/fallback32/渐变256规则，拒绝包材质，普通Node静态预设见§13.20。`orchestration.setCountdownPresentation` 单条command≤128KiB（SVG XML ≤64KiB UTF-8），其余本节command≤64KiB；源/候选2000节点/深64/20000验证项/1MiB累计字符，完整读取1MiB/20000项，默认完整回执64KiB；任何失败均原子不变，不截断。自动生成的前奏ID沿已有Core规则，deleteAndExclude及attachment容许≤4096字符身份，普通branch/node/line为≤128。
 
 ## 13.20 历史：Node静态预设目标（合同1.24.0）
 

@@ -3,8 +3,8 @@
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "info": {
     "title": "MakoKaraGenerator local backend HTTP API",
-    "version": "1.53.0",
-    "description": "冻结合同1.53.0；HTTP协议1，产品0.113.0。只含当前公共HTTP，不含未来功能及私有Worker。与api-contract.md和其固定行为源共同执行。info.version是合同版本，不是产品/HTTP版本。普通响应可忽略未知字段；请求遵守声明字段及业务门禁。"
+    "version": "1.54.0",
+    "description": "冻结合同1.54.0；HTTP协议1，产品0.113.0。只含当前公共HTTP，不含未来功能及私有Worker。与api-contract.md和其固定行为源共同执行。info.version是合同版本，不是产品/HTTP版本。普通响应可忽略未知字段；请求遵守声明字段及业务门禁。"
   },
   "servers": [
     {
@@ -20,7 +20,7 @@
   ],
   "x-product-version": "0.113.0",
   "x-http-protocol-version": "1",
-  "x-source-baseline": "c2fbff4463a0e190fa834ed80917067be24249d1",
+  "x-source-baseline": "36032fa18e340a05c638fc7c0eec63113c0b5a1b",
   "x-behavior-contract": "api-contract.md",
   "x-options": {
     "status": 204,
@@ -5781,7 +5781,7 @@
     "/api/v1/project-sessions/{id}/commands": {
       "post": {
         "operationId": "executeCommand",
-        "summary": "提交九十六种已开放具名命令之一",
+        "summary": "提交九十七种已开放具名命令之一",
         "tags": [
           "section-6"
         ],
@@ -17012,6 +17012,234 @@
           "description": "完整command canonical JSON不含metadata；完整响应/回执提交前预算。新定义限额不套旧模板复制/改名/删除。索引原16MiB、包原256MiB/1024文件/单64MiB；分页只约束响应，不承诺全库IO被分页限制。"
         }
       },
+      "CountdownAnimationSpecDto": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "DiscreteSteps",
+              "BlinkThenWipeFill",
+              "BlinkThenErase"
+            ]
+          },
+          "blinkRatio": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 0.85
+          },
+          "blinkCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 16
+          },
+          "featherRatio": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 0.5
+          }
+        },
+        "required": [
+          "mode",
+          "blinkRatio",
+          "blinkCount",
+          "featherRatio"
+        ],
+        "additionalProperties": false,
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.CountdownAnimationSpecDto",
+        "description": "前奏提示容器动画响应。"
+      },
+      "CountdownAnimationSpecDtoInput": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "DiscreteSteps",
+              "BlinkThenWipeFill",
+              "BlinkThenErase"
+            ]
+          },
+          "blinkRatio": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 0.85
+          },
+          "blinkCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 16
+          },
+          "featherRatio": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 0.5
+          }
+        },
+        "required": [
+          "mode",
+          "blinkRatio",
+          "blinkCount",
+          "featherRatio"
+        ],
+        "additionalProperties": false,
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.CountdownAnimationSpecDto",
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "mode": {
+                  "enum": [
+                    "BlinkThenWipeFill",
+                    "BlinkThenErase"
+                  ]
+                },
+                "blinkRatio": {
+                  "exclusiveMinimum": 0
+                }
+              },
+              "required": [
+                "mode",
+                "blinkRatio"
+              ]
+            },
+            "then": {
+              "properties": {
+                "blinkCount": {
+                  "minimum": 1
+                }
+              }
+            }
+          }
+        ],
+        "description": "前奏提示容器动画定义；开启闪烁（mode!=DiscreteSteps 且 blinkRatio>0）时 blinkCount 须>=1。"
+      },
+      "CountdownShapeSpecDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "Text",
+              "Circle",
+              "SteppedBars",
+              "Capsule",
+              "Diamond",
+              "Star",
+              "CustomSvg"
+            ]
+          },
+          "barMinHeightRatio": {
+            "type": "number",
+            "minimum": 0.15,
+            "maximum": 1
+          },
+          "svgXml": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "svgColorMode": {
+            "type": "string",
+            "enum": [
+              "SilhouetteStyle",
+              "OriginalColor"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "barMinHeightRatio",
+          "svgXml",
+          "svgColorMode"
+        ],
+        "additionalProperties": false,
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.CountdownShapeSpecDto",
+        "description": "前奏提示标记图形响应；svgXml仅CustomSvg非null，其余形状固定返回null。"
+      },
+      "CountdownShapeSpecDtoInput": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "Text",
+              "Circle",
+              "SteppedBars",
+              "Capsule",
+              "Diamond",
+              "Star",
+              "CustomSvg"
+            ]
+          },
+          "barMinHeightRatio": {
+            "type": "number",
+            "minimum": 0.15,
+            "maximum": 1
+          },
+          "svgXml": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 65536,
+                "pattern": "\\S"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "svgColorMode": {
+            "type": "string",
+            "enum": [
+              "SilhouetteStyle",
+              "OriginalColor"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "barMinHeightRatio",
+          "svgXml",
+          "svgColorMode"
+        ],
+        "additionalProperties": false,
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.CountdownShapeSpecDto",
+        "if": {
+          "properties": {
+            "kind": {
+              "const": "CustomSvg"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        "then": {
+          "properties": {
+            "svgXml": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536,
+              "pattern": "\\S"
+            }
+          }
+        },
+        "else": {
+          "properties": {
+            "svgXml": {
+              "type": "null"
+            }
+          }
+        },
+        "description": "前奏提示标记图形定义；仅CustomSvg须提供非空白静态内联SVG（<=64KiB UTF-8），其余形状svgXml必须为null。"
+      },
       "CreateOrchestrationClipCommandDtoInput": {
         "type": "object",
         "properties": {
@@ -23030,6 +23258,7 @@
               "reorderMarks",
               "spaceMarks",
               "setCountdownAppearance",
+              "setCountdownPresentation",
               "setMarkAppearance"
             ]
           },
@@ -26886,6 +27115,9 @@
             "$ref": "#/components/schemas/SetCountdownAppearanceCommandDtoInput"
           },
           {
+            "$ref": "#/components/schemas/SetCountdownPresentationCommandDtoInput"
+          },
+          {
             "$ref": "#/components/schemas/SetMarkAppearanceCommandDtoInput"
           },
           {
@@ -27023,6 +27255,7 @@
             "orchestration.reorderMarks": "#/components/schemas/ReorderOrchestrationMarksCommandDtoInput",
             "orchestration.spaceMarks": "#/components/schemas/SpaceOrchestrationMarksCommandDtoInput",
             "orchestration.setCountdownAppearance": "#/components/schemas/SetCountdownAppearanceCommandDtoInput",
+            "orchestration.setCountdownPresentation": "#/components/schemas/SetCountdownPresentationCommandDtoInput",
             "orchestration.setMarkAppearance": "#/components/schemas/SetMarkAppearanceCommandDtoInput",
             "orchestration.setClipMembers": "#/components/schemas/SetOrchestrationClipMembersCommandDtoInput",
             "orchestration.splitClip": "#/components/schemas/SplitOrchestrationClipCommandDtoInput",
@@ -27559,6 +27792,9 @@
           },
           {
             "$ref": "#/components/schemas/SetCountdownAppearanceCommandDtoInput"
+          },
+          {
+            "$ref": "#/components/schemas/SetCountdownPresentationCommandDtoInput"
           },
           {
             "$ref": "#/components/schemas/SetMarkAppearanceCommandDtoInput"
@@ -28627,6 +28863,12 @@
             "items": {
               "$ref": "#/components/schemas/MarkAppearanceChange"
             }
+          },
+          "shape": {
+            "$ref": "#/components/schemas/CountdownShapeSpecDto"
+          },
+          "animation": {
+            "$ref": "#/components/schemas/CountdownAnimationSpecDto"
           }
         },
         "required": [],
@@ -33860,6 +34102,81 @@
           "receipt": "完整回执提交前按实际配置验证，默认64KiB；无截断。"
         }
       },
+      "SetCountdownPresentationCommandDtoInput": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "orchestration.setCountdownPresentation"
+          },
+          "containerId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "\\S"
+          },
+          "shape": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CountdownShapeSpecDtoInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "animation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CountdownAnimationSpecDtoInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "containerId",
+          "shape",
+          "animation"
+        ],
+        "additionalProperties": false,
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.SetCountdownPresentationCommandDto",
+        "x-capability": "project-sessions.commands.orchestration.setCountdownPresentation",
+        "x-completion-limits": {
+          "maxIntentBytes": 131072,
+          "maxNodes": 2000,
+          "maxDepth": 64,
+          "maxInputItems": 20000,
+          "maxInputCharacters": 1048576,
+          "maxReadBytes": 1048576,
+          "maxReadItems": 20000,
+          "maxAnalyzedLines": 1000,
+          "maxMarks": 64,
+          "maxTextUtf16Units": 4096,
+          "receipt": "完整回执提交前按实际配置验证，默认64KiB；无截断。",
+          "maxSvgUtf8Bytes": 65536
+        },
+        "anyOf": [
+          {
+            "properties": {
+              "shape": {
+                "type": "object"
+              }
+            }
+          },
+          {
+            "properties": {
+              "animation": {
+                "type": "object"
+              }
+            }
+          }
+        ],
+        "description": "设置倒计时提示组图形/SVG 与闪烁擦除动画；shape 与 animation 至少一项非 null，CustomSvg 的 svgXml 限 64KiB UTF-8 静态安全矢量。"
+      },
       "SetFrameRateCommandDtoInput": {
         "type": "object",
         "properties": {
@@ -33917,7 +34234,8 @@
             "type": "string",
             "enum": [
               "FixedParent",
-              "CueTargetText"
+              "CueTargetText",
+              "CueTargetAboveStart"
             ]
           }
         },

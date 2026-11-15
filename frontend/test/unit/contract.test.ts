@@ -16,6 +16,9 @@ import {
   TOKEN_TEMPLATE_PROPERTIES,
   COMPOSITE_TEMPLATE_PROPERTIES,
   generation,
+  type CountdownAnimationSpec,
+  type CountdownShapeSpec,
+  type LeadInAttachmentMode,
   type LyricBranchRole,
   type LyricBranchTimingMode,
   type ProjectCommandType,
@@ -104,7 +107,7 @@ describe('手写协议类型与 OpenAPI 一致', () => {
     expect([...JOB_STATES].sort()).toEqual([...job.state!.enum].sort());
   });
 
-  it('96 种工程命令与 ProjectCommandDtoInput 的 oneOf 分支一致', () => {
+  it('97 种工程命令与 ProjectCommandDtoInput 的 oneOf 分支一致', () => {
     const types = commandTypes('ProjectCommandDtoInput');
     const expected: ProjectCommandType[] = [
       'lyrics.setTimeRange',
@@ -184,6 +187,7 @@ describe('手写协议类型与 OpenAPI 一致', () => {
       'orchestration.reorderMarks',
       'orchestration.spaceMarks',
       'orchestration.setCountdownAppearance',
+      'orchestration.setCountdownPresentation',
       'orchestration.setMarkAppearance',
       'audio.replaceAsset',
       'audio.clear',
@@ -280,5 +284,49 @@ describe('测试用 schema 校验器', () => {
     });
     expect(result?.template).toBe('/api/v1/project-sessions/{id}');
     expect(result?.issues).toEqual([]);
+  });
+});
+
+describe('前奏图形、SVG 与附着（1.54.0）', () => {
+  it('手写图形与动画类型及新增 CueTargetAboveStart 枚举与 OpenAPI 一致', () => {
+    const attachEnum = (contract.schema('SetLeadInAttachmentCommandDtoInput').properties as Record<string, { enum: string[] }>).mode!.enum;
+    const expectedModes: LeadInAttachmentMode[] = ['FixedParent', 'CueTargetText', 'CueTargetAboveStart'];
+    expect([...attachEnum].sort()).toEqual([...expectedModes].sort());
+
+    const circle: CountdownShapeSpec = { kind: 'Circle', barMinHeightRatio: 0.45, svgXml: null, svgColorMode: 'SilhouetteStyle' };
+    const customSvg: CountdownShapeSpec = {
+      kind: 'CustomSvg',
+      barMinHeightRatio: 0.45,
+      svgXml: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>',
+      svgColorMode: 'OriginalColor',
+    };
+    const wipeAnim: CountdownAnimationSpec = { mode: 'BlinkThenWipeFill', blinkRatio: 0.35, blinkCount: 2, featherRatio: 0.06 };
+    const discreteAnim: CountdownAnimationSpec = { mode: 'DiscreteSteps', blinkRatio: 0, blinkCount: 0, featherRatio: 0 };
+
+    expect(contract.validateNamed('CountdownShapeSpecDtoInput', circle)).toEqual([]);
+    expect(contract.validateNamed('CountdownShapeSpecDtoInput', customSvg)).toEqual([]);
+    expect(contract.validateNamed('CountdownShapeSpecDtoInput', { ...customSvg, svgXml: '   ' }).length).toBeGreaterThan(0);
+    expect(contract.validateNamed('CountdownShapeSpecDtoInput', { ...circle, svgXml: '<svg/>' }).length).toBeGreaterThan(0);
+
+    expect(contract.validateNamed('CountdownAnimationSpecDtoInput', wipeAnim)).toEqual([]);
+    expect(contract.validateNamed('CountdownAnimationSpecDtoInput', discreteAnim)).toEqual([]);
+    expect(contract.validateNamed('CountdownAnimationSpecDtoInput', { ...wipeAnim, blinkCount: 0 }).length).toBeGreaterThan(0);
+
+    expect(
+      contract.validateNamed('SetCountdownPresentationCommandDtoInput', {
+        type: 'orchestration.setCountdownPresentation',
+        containerId: 'node/cd',
+        shape: circle,
+        animation: wipeAnim,
+      }),
+    ).toEqual([]);
+    expect(
+      contract.validateNamed('SetCountdownPresentationCommandDtoInput', {
+        type: 'orchestration.setCountdownPresentation',
+        containerId: 'node/cd',
+        shape: null,
+        animation: null,
+      }).length,
+    ).toBeGreaterThan(0);
   });
 });

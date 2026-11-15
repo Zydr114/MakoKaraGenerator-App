@@ -166552,7 +166552,889 @@
         "diagnostics": [],
         "protocolVersion": "1"
       }
+    },
+    {
+      "name": "lead-in-presentation-command",
+      "schema": "SetCountdownPresentationCommandDtoInput",
+      "valid": true,
+      "value": {
+        "type": "orchestration.setCountdownPresentation",
+        "containerId": "countdown",
+        "shape": {
+          "kind": "Circle",
+          "barMinHeightRatio": 0.45,
+          "svgXml": null,
+          "svgColorMode": "SilhouetteStyle"
+        },
+        "animation": {
+          "mode": "BlinkThenWipeFill",
+          "blinkRatio": 0.35,
+          "blinkCount": 2,
+          "featherRatio": 0.06
+        }
+      }
+    },
+    {
+      "name": "lead-in-presentation-command-union",
+      "schema": "ProjectCommandDtoInput",
+      "valid": true,
+      "value": {
+        "type": "orchestration.setCountdownPresentation",
+        "containerId": "countdown",
+        "shape": {
+          "kind": "Circle",
+          "barMinHeightRatio": 0.45,
+          "svgXml": null,
+          "svgColorMode": "SilhouetteStyle"
+        },
+        "animation": {
+          "mode": "BlinkThenWipeFill",
+          "blinkRatio": 0.35,
+          "blinkCount": 2,
+          "featherRatio": 0.06
+        }
+      }
+    },
+    {
+      "name": "lead-in-presentation-command-edit-union",
+      "schema": "ProjectEditDtoInput",
+      "valid": true,
+      "value": {
+        "type": "orchestration.setCountdownPresentation",
+        "containerId": "countdown",
+        "shape": {
+          "kind": "Circle",
+          "barMinHeightRatio": 0.45,
+          "svgXml": null,
+          "svgColorMode": "SilhouetteStyle"
+        },
+        "animation": {
+          "mode": "BlinkThenWipeFill",
+          "blinkRatio": 0.35,
+          "blinkCount": 2,
+          "featherRatio": 0.06
+        }
+      }
+    },
+    {
+      "name": "lead-in-presentation-command-envelope",
+      "schema": "ProjectCommandRequest",
+      "valid": true,
+      "value": {
+        "expectedRevision": "0",
+        "requestId": "lead-in-presentation-fixture",
+        "hostInstanceId": "host",
+        "validUntilUtc": "2026-11-15T12:00:00Z",
+        "command": {
+          "type": "orchestration.setCountdownPresentation",
+          "containerId": "countdown",
+          "shape": {
+            "kind": "Circle",
+            "barMinHeightRatio": 0.45,
+            "svgXml": null,
+            "svgColorMode": "SilhouetteStyle"
+          },
+          "animation": {
+            "mode": "BlinkThenWipeFill",
+            "blinkRatio": 0.35,
+            "blinkCount": 2,
+            "featherRatio": 0.06
+          }
+        }
+      }
+    },
+    {
+      "name": "lead-in-presentation-command-shape-only",
+      "schema": "SetCountdownPresentationCommandDtoInput",
+      "valid": true,
+      "value": {
+        "type": "orchestration.setCountdownPresentation",
+        "containerId": "countdown",
+        "shape": {
+          "kind": "Circle",
+          "barMinHeightRatio": 0.45,
+          "svgXml": null,
+          "svgColorMode": "SilhouetteStyle"
+        },
+        "animation": null
+      }
+    },
+    {
+      "name": "lead-in-presentation-command-animation-only",
+      "schema": "SetCountdownPresentationCommandDtoInput",
+      "valid": true,
+      "value": {
+        "type": "orchestration.setCountdownPresentation",
+        "containerId": "countdown",
+        "shape": null,
+        "animation": {
+          "mode": "BlinkThenWipeFill",
+          "blinkRatio": 0.35,
+          "blinkCount": 2,
+          "featherRatio": 0.06
+        }
+      }
+    },
+    {
+      "name": "lead-in-presentation-command-custom-svg",
+      "schema": "SetCountdownPresentationCommandDtoInput",
+      "valid": true,
+      "value": {
+        "type": "orchestration.setCountdownPresentation",
+        "containerId": "countdown",
+        "shape": {
+          "kind": "CustomSvg",
+          "barMinHeightRatio": 0.45,
+          "svgXml": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"12\" r=\"10\"/></svg>",
+          "svgColorMode": "SilhouetteStyle"
+        },
+        "animation": {
+          "mode": "BlinkThenWipeFill",
+          "blinkRatio": 0.35,
+          "blinkCount": 2,
+          "featherRatio": 0.06
+        }
+      }
+    },
+    {
+      "name": "lead-in-presentation-command-custom-svg-original",
+      "schema": "SetCountdownPresentationCommandDtoInput",
+      "valid": true,
+      "value": {
+        "type": "orchestration.setCountdownPresentation",
+        "containerId": "countdown",
+        "shape": {
+          "kind": "CustomSvg",
+          "barMinHeightRatio": 0.45,
+          "svgXml": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"12\" r=\"10\"/></svg>",
+          "svgColorMode": "OriginalColor"
+        },
+        "animation": {
+          "mode": "BlinkThenWipeFill",
+          "blinkRatio": 0.35,
+          "blinkCount": 2,
+          "featherRatio": 0.06
+        }
+      }
+    },
+    {
+      "name": "lead-in-presentation-shape-kind-Text",
+      "schema": "CountdownShapeSpecDtoInput",
+      "valid": true,
+      "value": {
+        "kind": "Text",
+        "barMinHeightRatio": 0.45,
+        "svgXml": null,
+        "svgColorMode": "SilhouetteStyle"
+      }
+    },
+    {
+      "name": "lead-in-presentation-shape-kind-Circle",
+      "schema": "CountdownShapeSpecDtoInput",
+      "valid": true,
+      "value": {
+        "kind": "Circle",
+        "barMinHeightRatio": 0.45,
+        "svgXml": null,
+        "svgColorMode": "SilhouetteStyle"
+      }
+    },
+    {
+      "name": "lead-in-presentation-shape-kind-SteppedBars",
+      "schema": "CountdownShapeSpecDtoInput",
+      "valid": true,
+      "value": {
+        "kind": "SteppedBars",
+        "barMinHeightRatio": 0.45,
+        "svgXml": null,
+        "svgColorMode": "SilhouetteStyle"
+      }
+    },
+    {
+      "name": "lead-in-presentation-shape-kind-Capsule",
+      "schema": "CountdownShapeSpecDtoInput",
+      "valid": true,
+      "value": {
+        "kind": "Capsule",
+        "barMinHeightRatio": 0.45,
+        "svgXml": null,
+        "svgColorMode": "SilhouetteStyle"
+      }
+    },
+    {
+      "name": "lead-in-presentation-shape-kind-Diamond",
+      "schema": "CountdownShapeSpecDtoInput",
+      "valid": true,
+      "value": {
+        "kind": "Diamond",
+        "barMinHeightRatio": 0.45,
+        "svgXml": null,
+        "svgColorMode": "SilhouetteStyle"
+      }
+    },
+    {
+      "name": "lead-in-presentation-shape-kind-Star",
+      "schema": "CountdownShapeSpecDtoInput",
+      "valid": true,
+      "value": {
+        "kind": "Star",
+        "barMinHeightRatio": 0.45,
+        "svgXml": null,
+        "svgColorMode": "SilhouetteStyle"
+      }
+    },
+    {
+      "name": "lead-in-presentation-shape-custom-svg-min",
+      "schema": "CountdownShapeSpecDtoInput",
+      "valid": true,
+      "value": {
+        "kind": "CustomSvg",
+        "barMinHeightRatio": 0.15,
+        "svgXml": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"12\" r=\"10\"/></svg>",
+        "svgColorMode": "SilhouetteStyle"
+      }
+    },
+    {
+      "name": "lead-in-presentation-shape-bars-max",
+      "schema": "CountdownShapeSpecDtoInput",
+      "valid": true,
+      "value": {
+        "kind": "SteppedBars",
+        "barMinHeightRatio": 1,
+        "svgXml": null,
+        "svgColorMode": "SilhouetteStyle"
+      }
+    },
+    {
+      "name": "lead-in-presentation-animation-mode-DiscreteSteps",
+      "schema": "CountdownAnimationSpecDtoInput",
+      "valid": true,
+      "value": {
+        "mode": "DiscreteSteps",
+        "blinkRatio": 0.35,
+        "blinkCount": 2,
+        "featherRatio": 0.06
+      }
+    },
+    {
+      "name": "lead-in-presentation-animation-mode-BlinkThenWipeFill",
+      "schema": "CountdownAnimationSpecDtoInput",
+      "valid": true,
+      "value": {
+        "mode": "BlinkThenWipeFill",
+        "blinkRatio": 0.35,
+        "blinkCount": 2,
+        "featherRatio": 0.06
+      }
+    },
+    {
+      "name": "lead-in-presentation-animation-mode-BlinkThenErase",
+      "schema": "CountdownAnimationSpecDtoInput",
+      "valid": true,
+      "value": {
+        "mode": "BlinkThenErase",
+        "blinkRatio": 0.35,
+        "blinkCount": 2,
+        "featherRatio": 0.06
+      }
+    },
+    {
+      "name": "lead-in-presentation-animation-wipe-zero-blink-ratio",
+      "schema": "CountdownAnimationSpecDtoInput",
+      "valid": true,
+      "value": {
+        "mode": "BlinkThenWipeFill",
+        "blinkRatio": 0,
+        "blinkCount": 0,
+        "featherRatio": 0
+      }
+    },
+    {
+      "name": "lead-in-presentation-animation-erase-max-bounds",
+      "schema": "CountdownAnimationSpecDtoInput",
+      "valid": true,
+      "value": {
+        "mode": "BlinkThenErase",
+        "blinkRatio": 0.85,
+        "blinkCount": 16,
+        "featherRatio": 0.5
+      }
+    },
+    {
+      "name": "lead-in-presentation-animation-discrete-zero-count",
+      "schema": "CountdownAnimationSpecDtoInput",
+      "valid": true,
+      "value": {
+        "mode": "DiscreteSteps",
+        "blinkRatio": 0.35,
+        "blinkCount": 0,
+        "featherRatio": 0
+      }
+    },
+    {
+      "name": "lead-in-presentation-command-both-null",
+      "schema": "SetCountdownPresentationCommandDtoInput",
+      "valid": false,
+      "value": {
+        "type": "orchestration.setCountdownPresentation",
+        "containerId": "countdown",
+        "shape": null,
+        "animation": null
+      }
+    },
+    {
+      "name": "lead-in-presentation-command-missing-type",
+      "schema": "SetCountdownPresentationCommandDtoInput",
+      "valid": false,
+      "value": {
+        "containerId": "countdown",
+        "shape": {
+          "kind": "Circle",
+          "barMinHeightRatio": 0.45,
+          "svgXml": null,
+          "svgColorMode": "SilhouetteStyle"
+        },
+        "animation": {
+          "mode": "BlinkThenWipeFill",
+          "blinkRatio": 0.35,
+          "blinkCount": 2,
+          "featherRatio": 0.06
+        }
+      }
+    },
+    {
+      "name": "lead-in-presentation-command-missing-containerId",
+      "schema": "SetCountdownPresentationCommandDtoInput",
+      "valid": false,
+      "value": {
+        "type": "orchestration.setCountdownPresentation",
+        "shape": {
+          "kind": "Circle",
+          "barMinHeightRatio": 0.45,
+          "svgXml": null,
+          "svgColorMode": "SilhouetteStyle"
+        },
+        "animation": {
+          "mode": "BlinkThenWipeFill",
+          "blinkRatio": 0.35,
+          "blinkCount": 2,
+          "featherRatio": 0.06
+        }
+      }
+    },
+    {
+      "name": "lead-in-presentation-command-missing-shape",
+      "schema": "SetCountdownPresentationCommandDtoInput",
+      "valid": false,
+      "value": {
+        "type": "orchestration.setCountdownPresentation",
+        "containerId": "countdown",
+        "animation": {
+          "mode": "BlinkThenWipeFill",
+          "blinkRatio": 0.35,
+          "blinkCount": 2,
+          "featherRatio": 0.06
+        }
+      }
+    },
+    {
+      "name": "lead-in-presentation-command-missing-animation",
+      "schema": "SetCountdownPresentationCommandDtoInput",
+      "valid": false,
+      "value": {
+        "type": "orchestration.setCountdownPresentation",
+        "containerId": "countdown",
+        "shape": {
+          "kind": "Circle",
+          "barMinHeightRatio": 0.45,
+          "svgXml": null,
+          "svgColorMode": "SilhouetteStyle"
+        }
+      }
+    },
+    {
+      "name": "lead-in-presentation-command-extra-field",
+      "schema": "SetCountdownPresentationCommandDtoInput",
+      "valid": false,
+      "value": {
+        "type": "orchestration.setCountdownPresentation",
+        "containerId": "countdown",
+        "shape": {
+          "kind": "Circle",
+          "barMinHeightRatio": 0.45,
+          "svgXml": null,
+          "svgColorMode": "SilhouetteStyle"
+        },
+        "animation": {
+          "mode": "BlinkThenWipeFill",
+          "blinkRatio": 0.35,
+          "blinkCount": 2,
+          "featherRatio": 0.06
+        },
+        "unknown": true
+      }
+    },
+    {
+      "name": "lead-in-presentation-command-wrong-type",
+      "schema": "SetCountdownPresentationCommandDtoInput",
+      "valid": false,
+      "value": {
+        "type": "Orchestration.setCountdownPresentation",
+        "containerId": "countdown",
+        "shape": {
+          "kind": "Circle",
+          "barMinHeightRatio": 0.45,
+          "svgXml": null,
+          "svgColorMode": "SilhouetteStyle"
+        },
+        "animation": {
+          "mode": "BlinkThenWipeFill",
+          "blinkRatio": 0.35,
+          "blinkCount": 2,
+          "featherRatio": 0.06
+        }
+      }
+    },
+    {
+      "name": "lead-in-presentation-command-container-blank",
+      "schema": "SetCountdownPresentationCommandDtoInput",
+      "valid": false,
+      "value": {
+        "type": "orchestration.setCountdownPresentation",
+        "containerId": " \t",
+        "shape": {
+          "kind": "Circle",
+          "barMinHeightRatio": 0.45,
+          "svgXml": null,
+          "svgColorMode": "SilhouetteStyle"
+        },
+        "animation": {
+          "mode": "BlinkThenWipeFill",
+          "blinkRatio": 0.35,
+          "blinkCount": 2,
+          "featherRatio": 0.06
+        }
+      }
+    },
+    {
+      "name": "lead-in-presentation-command-container-null",
+      "schema": "SetCountdownPresentationCommandDtoInput",
+      "valid": false,
+      "value": {
+        "type": "orchestration.setCountdownPresentation",
+        "containerId": null,
+        "shape": {
+          "kind": "Circle",
+          "barMinHeightRatio": 0.45,
+          "svgXml": null,
+          "svgColorMode": "SilhouetteStyle"
+        },
+        "animation": {
+          "mode": "BlinkThenWipeFill",
+          "blinkRatio": 0.35,
+          "blinkCount": 2,
+          "featherRatio": 0.06
+        }
+      }
+    },
+    {
+      "name": "lead-in-presentation-command-container-long",
+      "schema": "SetCountdownPresentationCommandDtoInput",
+      "valid": false,
+      "value": {
+        "type": "orchestration.setCountdownPresentation",
+        "containerId": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "shape": {
+          "kind": "Circle",
+          "barMinHeightRatio": 0.45,
+          "svgXml": null,
+          "svgColorMode": "SilhouetteStyle"
+        },
+        "animation": {
+          "mode": "BlinkThenWipeFill",
+          "blinkRatio": 0.35,
+          "blinkCount": 2,
+          "featherRatio": 0.06
+        }
+      }
+    },
+    {
+      "name": "lead-in-presentation-shape-custom-svg-null-xml",
+      "schema": "CountdownShapeSpecDtoInput",
+      "valid": false,
+      "value": {
+        "kind": "CustomSvg",
+        "barMinHeightRatio": 0.45,
+        "svgXml": null,
+        "svgColorMode": "SilhouetteStyle"
+      }
+    },
+    {
+      "name": "lead-in-presentation-shape-custom-svg-blank-xml",
+      "schema": "CountdownShapeSpecDtoInput",
+      "valid": false,
+      "value": {
+        "kind": "CustomSvg",
+        "barMinHeightRatio": 0.45,
+        "svgXml": "   ",
+        "svgColorMode": "SilhouetteStyle"
+      }
+    },
+    {
+      "name": "lead-in-presentation-shape-circle-nonnull-xml",
+      "schema": "CountdownShapeSpecDtoInput",
+      "valid": false,
+      "value": {
+        "kind": "Circle",
+        "barMinHeightRatio": 0.45,
+        "svgXml": "<svg/>",
+        "svgColorMode": "SilhouetteStyle"
+      }
+    },
+    {
+      "name": "lead-in-presentation-shape-invalid-kind",
+      "schema": "CountdownShapeSpecDtoInput",
+      "valid": false,
+      "value": {
+        "kind": "Hexagon",
+        "barMinHeightRatio": 0.45,
+        "svgXml": null,
+        "svgColorMode": "SilhouetteStyle"
+      }
+    },
+    {
+      "name": "lead-in-presentation-shape-invalid-color-mode",
+      "schema": "CountdownShapeSpecDtoInput",
+      "valid": false,
+      "value": {
+        "kind": "CustomSvg",
+        "barMinHeightRatio": 0.45,
+        "svgXml": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"12\" r=\"10\"/></svg>",
+        "svgColorMode": "Tint"
+      }
+    },
+    {
+      "name": "lead-in-presentation-shape-ratio-too-low",
+      "schema": "CountdownShapeSpecDtoInput",
+      "valid": false,
+      "value": {
+        "kind": "Circle",
+        "barMinHeightRatio": 0.14,
+        "svgXml": null,
+        "svgColorMode": "SilhouetteStyle"
+      }
+    },
+    {
+      "name": "lead-in-presentation-shape-ratio-too-high",
+      "schema": "CountdownShapeSpecDtoInput",
+      "valid": false,
+      "value": {
+        "kind": "Circle",
+        "barMinHeightRatio": 1.01,
+        "svgXml": null,
+        "svgColorMode": "SilhouetteStyle"
+      }
+    },
+    {
+      "name": "lead-in-presentation-shape-missing-kind",
+      "schema": "CountdownShapeSpecDtoInput",
+      "valid": false,
+      "value": {
+        "barMinHeightRatio": 0.45,
+        "svgXml": null,
+        "svgColorMode": "SilhouetteStyle"
+      }
+    },
+    {
+      "name": "lead-in-presentation-shape-missing-barMinHeightRatio",
+      "schema": "CountdownShapeSpecDtoInput",
+      "valid": false,
+      "value": {
+        "kind": "Circle",
+        "svgXml": null,
+        "svgColorMode": "SilhouetteStyle"
+      }
+    },
+    {
+      "name": "lead-in-presentation-shape-missing-svgXml",
+      "schema": "CountdownShapeSpecDtoInput",
+      "valid": false,
+      "value": {
+        "kind": "Circle",
+        "barMinHeightRatio": 0.45,
+        "svgColorMode": "SilhouetteStyle"
+      }
+    },
+    {
+      "name": "lead-in-presentation-shape-missing-svgColorMode",
+      "schema": "CountdownShapeSpecDtoInput",
+      "valid": false,
+      "value": {
+        "kind": "Circle",
+        "barMinHeightRatio": 0.45,
+        "svgXml": null
+      }
+    },
+    {
+      "name": "lead-in-presentation-shape-extra",
+      "schema": "CountdownShapeSpecDtoInput",
+      "valid": false,
+      "value": {
+        "kind": "Circle",
+        "barMinHeightRatio": 0.45,
+        "svgXml": null,
+        "svgColorMode": "SilhouetteStyle",
+        "extra": 1
+      }
+    },
+    {
+      "name": "lead-in-presentation-animation-invalid-mode",
+      "schema": "CountdownAnimationSpecDtoInput",
+      "valid": false,
+      "value": {
+        "mode": "Fade",
+        "blinkRatio": 0.35,
+        "blinkCount": 2,
+        "featherRatio": 0.06
+      }
+    },
+    {
+      "name": "lead-in-presentation-animation-blink-ratio-negative",
+      "schema": "CountdownAnimationSpecDtoInput",
+      "valid": false,
+      "value": {
+        "mode": "BlinkThenWipeFill",
+        "blinkRatio": -0.01,
+        "blinkCount": 2,
+        "featherRatio": 0.06
+      }
+    },
+    {
+      "name": "lead-in-presentation-animation-blink-ratio-too-high",
+      "schema": "CountdownAnimationSpecDtoInput",
+      "valid": false,
+      "value": {
+        "mode": "BlinkThenWipeFill",
+        "blinkRatio": 0.86,
+        "blinkCount": 2,
+        "featherRatio": 0.06
+      }
+    },
+    {
+      "name": "lead-in-presentation-animation-blink-count-negative",
+      "schema": "CountdownAnimationSpecDtoInput",
+      "valid": false,
+      "value": {
+        "mode": "BlinkThenWipeFill",
+        "blinkRatio": 0.35,
+        "blinkCount": -1,
+        "featherRatio": 0.06
+      }
+    },
+    {
+      "name": "lead-in-presentation-animation-blink-count-too-high",
+      "schema": "CountdownAnimationSpecDtoInput",
+      "valid": false,
+      "value": {
+        "mode": "BlinkThenWipeFill",
+        "blinkRatio": 0.35,
+        "blinkCount": 17,
+        "featherRatio": 0.06
+      }
+    },
+    {
+      "name": "lead-in-presentation-animation-blink-count-zero-with-ratio",
+      "schema": "CountdownAnimationSpecDtoInput",
+      "valid": false,
+      "value": {
+        "mode": "BlinkThenWipeFill",
+        "blinkRatio": 0.35,
+        "blinkCount": 0,
+        "featherRatio": 0.06
+      }
+    },
+    {
+      "name": "lead-in-presentation-animation-feather-negative",
+      "schema": "CountdownAnimationSpecDtoInput",
+      "valid": false,
+      "value": {
+        "mode": "BlinkThenWipeFill",
+        "blinkRatio": 0.35,
+        "blinkCount": 2,
+        "featherRatio": -0.01
+      }
+    },
+    {
+      "name": "lead-in-presentation-animation-feather-too-high",
+      "schema": "CountdownAnimationSpecDtoInput",
+      "valid": false,
+      "value": {
+        "mode": "BlinkThenWipeFill",
+        "blinkRatio": 0.35,
+        "blinkCount": 2,
+        "featherRatio": 0.51
+      }
+    },
+    {
+      "name": "lead-in-presentation-animation-missing-mode",
+      "schema": "CountdownAnimationSpecDtoInput",
+      "valid": false,
+      "value": {
+        "blinkRatio": 0.35,
+        "blinkCount": 2,
+        "featherRatio": 0.06
+      }
+    },
+    {
+      "name": "lead-in-presentation-animation-missing-blinkRatio",
+      "schema": "CountdownAnimationSpecDtoInput",
+      "valid": false,
+      "value": {
+        "mode": "BlinkThenWipeFill",
+        "blinkCount": 2,
+        "featherRatio": 0.06
+      }
+    },
+    {
+      "name": "lead-in-presentation-animation-missing-blinkCount",
+      "schema": "CountdownAnimationSpecDtoInput",
+      "valid": false,
+      "value": {
+        "mode": "BlinkThenWipeFill",
+        "blinkRatio": 0.35,
+        "featherRatio": 0.06
+      }
+    },
+    {
+      "name": "lead-in-presentation-animation-missing-featherRatio",
+      "schema": "CountdownAnimationSpecDtoInput",
+      "valid": false,
+      "value": {
+        "mode": "BlinkThenWipeFill",
+        "blinkRatio": 0.35,
+        "blinkCount": 2
+      }
+    },
+    {
+      "name": "lead-in-presentation-animation-extra",
+      "schema": "CountdownAnimationSpecDtoInput",
+      "valid": false,
+      "value": {
+        "mode": "BlinkThenWipeFill",
+        "blinkRatio": 0.35,
+        "blinkCount": 2,
+        "featherRatio": 0.06,
+        "extra": 1
+      }
+    },
+    {
+      "name": "lead-in-presentation-attachment-above-start",
+      "schema": "SetLeadInAttachmentCommandDtoInput",
+      "valid": true,
+      "value": {
+        "type": "orchestration.setLeadInAttachment",
+        "branchId": "branch",
+        "leadInId": "leadIn",
+        "containerId": "countdown",
+        "mode": "CueTargetAboveStart"
+      }
+    },
+    {
+      "name": "lead-in-presentation-attachment-above-start-wrong-case",
+      "schema": "SetLeadInAttachmentCommandDtoInput",
+      "valid": false,
+      "value": {
+        "type": "orchestration.setLeadInAttachment",
+        "branchId": "branch",
+        "leadInId": "leadIn",
+        "containerId": "countdown",
+        "mode": "cueTargetAboveStart"
+      }
+    },
+    {
+      "name": "lead-in-presentation-content-circle",
+      "schema": "ProjectOrchestrationContentDto",
+      "valid": true,
+      "value": {
+        "markNodeIds": [
+          "m1",
+          "m2",
+          "m3"
+        ],
+        "attachmentMode": "CueTargetAboveStart",
+        "shape": {
+          "kind": "Circle",
+          "barMinHeightRatio": 0.45,
+          "svgXml": null,
+          "svgColorMode": "SilhouetteStyle"
+        },
+        "animation": {
+          "mode": "BlinkThenWipeFill",
+          "blinkRatio": 0.35,
+          "blinkCount": 2,
+          "featherRatio": 0.06
+        }
+      }
+    },
+    {
+      "name": "lead-in-presentation-content-custom-svg",
+      "schema": "ProjectOrchestrationContentDto",
+      "valid": true,
+      "value": {
+        "markNodeIds": [
+          "m1",
+          "m2",
+          "m3"
+        ],
+        "attachmentMode": "CueTargetAboveStart",
+        "shape": {
+          "kind": "CustomSvg",
+          "barMinHeightRatio": 0.45,
+          "svgXml": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"12\" r=\"10\"/></svg>",
+          "svgColorMode": "SilhouetteStyle"
+        },
+        "animation": {
+          "mode": "BlinkThenWipeFill",
+          "blinkRatio": 0.35,
+          "blinkCount": 2,
+          "featherRatio": 0.06
+        }
+      }
+    },
+    {
+      "name": "lead-in-presentation-content-shape-missing-svgXml",
+      "schema": "ProjectOrchestrationContentDto",
+      "valid": false,
+      "value": {
+        "markNodeIds": [
+          "m1",
+          "m2",
+          "m3"
+        ],
+        "attachmentMode": "CueTargetAboveStart",
+        "shape": {
+          "kind": "Circle",
+          "barMinHeightRatio": 0.45,
+          "svgColorMode": "SilhouetteStyle"
+        },
+        "animation": {
+          "mode": "BlinkThenWipeFill",
+          "blinkRatio": 0.35,
+          "blinkCount": 2,
+          "featherRatio": 0.06
+        }
+      }
+    },
+    {
+      "name": "lead-in-presentation-result-setCountdownPresentation",
+      "schema": "OrchestrationLeadInCommandResultDto",
+      "valid": true,
+      "value": {
+        "operation": "setCountdownPresentation",
+        "indicatorContainerId": "countdown",
+        "changed": true
+      }
     }
   ],
-  "contractVersion": "1.53.0"
+  "contractVersion": "1.54.0"
 }

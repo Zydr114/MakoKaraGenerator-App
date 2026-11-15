@@ -1,14 +1,16 @@
 # 冻结 API 合同生成与校验
 
-2026-11-15 M14 收敛：产品 **0.113.0**，合同 **1.53.0**；移除 SDK v1 运行与作者准入支持及残余 `IsV2` 桥接，`AuthorSourceInspectionResponse` 的 `packageVersion` enum 收窄为 `[3]`、`shaderProfile` enum 收窄为 `["skia-ganesh-3.119.4-v2"]`，并更新 manifest 中重命名／移除的 6 处脚本路径指纹。此前 0.112.91／0.112.90 历史说明保留原归属。
+2026-11-15 前奏展示增强：产品 **0.113.0**，合同 **1.54.0**；新增 `orchestration.setCountdownPresentation` 命令、`CountdownShapeSpec`／`CountdownAnimationSpec`、`ProjectOrchestrationContentDto.{shape,animation}` 及 `setLeadInAttachment` 的 `CueTargetAboveStart` 枚举值，扩展 `lead_in_presentation_fixtures.py` 并更新渲染层新增 5 个源文件的 manifest 指纹。此前 1.53.0／0.112.91／0.112.90 历史说明保留原归属。
 
 2026-11-14 性能补充：产品 0.112.91，合同仍为 1.52.1；视频背景不可变快照改用保留格式的原始像素复制，增加内部性能日志阶段，无 HTTP 形状、fixture 或检查响应字段变化。基线 `baa5b43`，新增快照实现纳入指纹。此前 0.112.90 行为说明保留历史归属。
 
-本轮工具源码目标为 **合同1.53.0／产品0.113.0／协议1**（2026-11-15）：基于产品 `0.113.0` 提交基线 `c2fbff4`，冻结 M14 移除 SDK v1 后的公共 HTTP 合同（115 paths／128 methods／667 schemas、3932 例／2842 反例）。下述旧版本材料保留历史归属；合同生成不替代匹配发布与fresh HTTP验收。
+本轮工具源码目标为 **合同1.54.0／产品0.113.0／协议1**（2026-11-15）：基于产品 `0.113.0` 提交基线 `36032fa`，冻结前奏提示组图形／SVG／动画与首字上方附着增强后的公共 HTTP 合同（115 paths／128 methods／672 schemas、3995 例／2879 反例）。下述旧版本材料保留历史归属；合同生成不替代匹配发布与fresh HTTP验收。
 
 从 `backend/` 执行。本工具构建Contracts引用的离线CLI，不启动服务。`author_metadata_schema.py` 审阅真实CLR字段、nullable与构造默认值，复用现有 `AuthorPackageQuery` 和参数/导出/input/file/diagnostic DTO；检查响应独立且无reference，公共包引用kind继续仅为asset/library/configuration。采用配置采用inline完整八字段严格schema，避免改变package-files的既有配置语义；两个可空字段仍显式必填，UInt64种子采用十进制字符串并保留前导零。`author_metadata_fixtures.py` 覆盖精确整数、Int64 `files.size`、未来未知响应字段、完整采用、旧请求兼容和具名拒绝；运行期CAS/owner、重复JSON键、完整UTF-8预算、编译来源、原子存储和真实sampleOptions须由服务/HTTP核对。
 
 `freeze.py` 将本轮运行筛选与持久闭包接缝显式纳入指纹；已有新增路径／响应与fixture保留历史归属；`validate.py` 保留历史SDK2、作者、GPU/辉光及全量样例门禁，并单独扣除本轮尾部增量后核对旧3434/2548基线。本轮 `BASELINE` 为已提交生产源码 `2eb0299`（完整哈希见 `freeze.py`），已从该源码重建／导出metadata并生成检查；产品版本从 `Directory.Build.props` 读取。静态门禁不替代匹配发布、fresh HTTP或性能验收；进度见App根 `docs/plans/script-sdk-v2-phase-one-progress.md`。
+
+1.54.0 对应产品 `0.113.0`（基线 `36032fa`）：新增 `orchestration.setCountdownPresentation` 工程命令（命令上限 128KiB，第九十七种工程命令）、`CountdownShapeSpec`/`CountdownAnimationSpec`、`ProjectOrchestrationContentDto.{shape,animation}` 以及 `orchestration.setLeadInAttachment` 的 `CueTargetAboveStart` 附着模式（保留读模型 `attachmentMode` 对历史值的兼容），通过 `lead_in_presentation_fixtures.py` 在尾部追加 63 个正反例（总计 3995 例 / 2879 反例、672 schemas），并在 `validate.py` 内先验 1.54.0 语料再切片扣除尾部增量交付 `1.53.0` 及下游历史 SHA-256 门禁；`freeze.py` manifest 同步纳入 `LineRenderGeometry.cs`、`SceneTextMarkSample.cs`、`Effects/Svg/SvgNativePictureCompiler.Inline.cs`、`Effects/Svg/SvgStaticCompiler.Inline.cs`、`SkiaCountdownShapeRenderer.cs`。
 
 1.53.0 对应产品 `0.113.0`（基线 `c2fbff4`）：移除 SDK v1 后将 `AuthorSourceInspectionResponse` 的 `packageVersion.enum` 收窄为 `[3]`、`shaderProfile.enum` 收窄为 `["skia-ganesh-3.119.4-v2"]`，保持 115／128／667 路由与 schema 计数，并通过 `sdk_v1_removal_fixtures.py` 将历史 `author-metadata-inspection-response-v1` 迁移为反例且在尾部追加 `packageVersion=2` 与 `shaderProfile="skia-raster-3.119.4-v1"` 拒绝例（共 3932 例 / 2842 反例），同时按 `migrate_cases`/`restore_cases` 在 `validate.py` 内先验当前语料再还原至 1.52.1 语料执行下游历史 SHA-256 门禁；`freeze.py` manifest 同步替换为 `FrameOutput.cs`、`ImageEffectBindings.cs`、`ParticleCurves.cs`、`FrameEffectHost.{V2Particles,V2Sources}.cs`。
 
@@ -55,7 +57,7 @@ artifacts/api-contract/venv/bin/python tools/backend-api-contract/validate.py \
 每次新冻结必须先从当前源码执行上述dotnet build和刚生成的ContractMetadata apphost，不能复用其他提交生成的metadata。dotnet run会把不支持的-m:1透传为应用参数，因此此处将单节点编译与工具执行分开。默认freeze.py只检查，不改文件。检查内容：
 
 - 编译Contracts后反射真实property类型、nullable、枚举、构造默认值与严格未知字段标记，再按显式公共路由图递归选取schema，排除私有Worker协议。派生record的继承属性必须匹配声明该属性的record构造参数；未知计算属性仍失败，不能跳过。
-- 单独审阅Server handler对应的HTTP DTO、匿名envelope、原始Core分析codec及跨字段语义覆盖；当前合同维护九十六个工程命令、五个模板库命令及作者配置分型，必填metadata、字符串Int64等由freeze.py维护。C#可空不等于HTTP可省略。
+- 单独审阅Server handler对应的HTTP DTO、匿名envelope、原始Core分析codec及跨字段语义覆盖；当前合同维护九十七个工程命令、五个模板库命令及作者配置分型，必填metadata、字符串Int64等由freeze.py维护。C#可空不等于HTTP可省略。
 - 自定义命令converter的具名分型分支通过显式type/CLR/字段映射审阅，反射得到的完整继承属性集合必须匹配；随后生成只含该分支wire字段的strict schema。旧五分支保留已知无关字段显式null兼容。批量时间声明1..1000条完整元素目标；重复目标、实际存在性与领域边界由服务校验。
 - S3a字段按真实converter维护：text必填非null但可空串；durationUs必填且允许显式null；afterLineId可省略/null；画布/帧率为正整数、四颜色为0..255整数；无入参type也拒绝无关null槽。feedback的selection明确区分保留选择建议、选择行与清空选择，不生成token/ruby复制映射。
 - S3b四来源命令保持nullable字段的presence语义：configure的language和link的primaryLineId必填但可null；add的language可省略。role/timingMode重用S1字符串enum，拒绝整数/null/未知枚举。来源ID按Core非空白原值校验，不新增128字符上限；branchResult仅为新增/删除真实变化提供实际来源选择，完整反馈继续受回执预算约束。

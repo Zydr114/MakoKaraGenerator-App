@@ -77,10 +77,20 @@ public sealed class BackendLeadInEditingTests
         await using Fixture f = await Fixture.Create();
         var created = Accepted(await f.Command("0", new CreateOrchestrationCountdownCommandDto(f.Root, null, 3)));
         string group = created.LeadInResult!.IndicatorContainerId!; string[] old = created.LeadInResult.MarkNodeIds!;
-        var placements = old.Select(id => f.Workspace.Project.LyricPresentation.FindNode(id)!.Placement).ToArray();
+        double canvasW = f.Workspace.Project.Composition.CanvasWidth, canvasH = f.Workspace.Project.Composition.CanvasHeight;
+        var beforeGeo = SceneTreeGeometryResolver.Resolve(f.Workspace.Project.LyricPresentation.Nodes, canvasW, canvasH);
+        Assert.Equal(120d, beforeGeo[group].Width, 6);
         var added = Accepted(await f.Command("1", new AddOrchestrationMarkCommandDto(group, "四")));
         string mark = Assert.Single(added.LeadInResult!.MarkNodeIds!);
-        for (int i = 0; i < old.Length; i++) Assert.Equal(placements[i], f.Workspace.Project.LyricPresentation.FindNode(old[i])!.Placement);
+        var afterAddGeo = SceneTreeGeometryResolver.Resolve(f.Workspace.Project.LyricPresentation.Nodes, canvasW, canvasH);
+        Assert.Equal(160d, afterAddGeo[group].Width, 6);
+        for (int i = 0; i < old.Length; i++)
+        {
+            Assert.Equal(40d, afterAddGeo[old[i]].Width, 6);
+            double localCenterX = f.Workspace.Project.LyricPresentation.FindNode(old[i])!.Placement.Position.X * afterAddGeo[group].Width;
+            Assert.Equal((i + .5) * 40d, localCenterX, 6);
+        }
+        var placements = old.Select(id => f.Workspace.Project.LyricPresentation.FindNode(id)!.Placement).ToArray();
         string[] order = [mark, .. old.Reverse()];
         Accepted(await f.Command("2", new ReorderOrchestrationMarksCommandDto(group, order)));
         Assert.Equal(order, ((CountdownSequenceContent)f.Workspace.Project.LyricPresentation.FindNode(group)!.Content!).MarkNodeIds);

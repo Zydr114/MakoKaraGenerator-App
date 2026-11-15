@@ -68,11 +68,8 @@ public static partial class SceneTreeEditor
             nodes = nodes.SetItem(index, owner with { Layout = layout with { SlotIds = layout.SlotIds.Add(copyId) } });
         }
         var markOwner = tree.Nodes.FirstOrDefault(item => item.Content is CountdownSequenceContent sequence && sequence.MarkNodeIds.Contains(nodeId));
-        if (markOwner?.Content is CountdownSequenceContent markSequence)
-        {
-            int index = Array.FindIndex(nodes.ToArray(), item => item.Id == markOwner.Id);
-            nodes = nodes.SetItem(index, markOwner with { Content = markSequence with { MarkNodeIds = markSequence.MarkNodeIds.Add(copyId) } });
-        }
+        if (markOwner is not null && !descendants.Contains(markOwner.Id))
+            nodes = LeadInEditor.ResizeCountdownAfterAppend(nodes, markOwner.Id, copyId);
         return PresentationEditor.TrySetTree(project, tree with { Nodes = nodes }, out result, out report);
     }
 
@@ -87,28 +84,66 @@ public static partial class SceneTreeEditor
         }
     }
 
-    /// <summary>删除未被展示程序引用的子树；槽位删除同步更新父序列并校验容量。</summary>
+    /// <summary>删除未被展示程序引用的子树；同步清理生成配置中的容器引用并按剩余标记收窄提示容器。</summary>
     public static bool TryDeleteNode(Project project, string nodeId, out Project result, out ValidationReport report)
     {
         var tree = project.LyricPresentation.WithDefaultPrograms(project.Lyrics);
         if (tree.FindNode(nodeId) is null) return Fail(project, "容器不存在。", out result, out report);
         var ids = Descendants(tree, nodeId);
         var leadInReferences = tree.Programs.SelectMany(program => program.LeadIns.Where(cue => ids.Contains(cue.IndicatorContainerId))
-            .Select(cue => program.BranchId+"／"+cue.TargetLineId+"（"+cue.Id+"）")).ToArray();
-        if (leadInReferences.Length>0)
-            return Fail(project,"容器子树仍有前奏引用，请先删除或明确改绑："+string.Join("、",leadInReferences),out result,out report);
+            .Select(cue => program.BranchId + "／" + cue.TargetLineId + "（" + cue.Id + "）")).ToArray();
+        if (leadInReferences.Length > 0)
+            return Fail(project, "容器子树仍有前奏引用，请先删除或明确改绑：" + string.Join("、", leadInReferences), out result, out report);
         if (tree.Programs.Any(program => ids.Contains(program.RootContainerId) || ids.Contains(program.DefaultContainerId)
             || program.Clips.Any(clip => ids.Contains(clip.ContainerId))
-            || program.LeadIns.Any(cue => ids.Contains(cue.IndicatorContainerId))
-            || program.LeadInGeneration?.IndicatorContainerId is { } indicator && ids.Contains(indicator)))
+            || program.LeadIns.Any(cue => ids.Contains(cue.IndicatorContainerId))))
             return Fail(project, "容器子树仍有默认归属、片段或前奏引用，请先明确改绑。", out result, out report);
+        var oldCounts = tree.Nodes
+            .Where(node => !ids.Contains(node.Id) && node.Content is CountdownSequenceContent)
+            .ToDictionary(node => node.Id, node => ((CountdownSequenceContent)node.Content!).MarkNodeIds.Length, StringComparer.Ordinal);
         var nodes = tree.Nodes.Where(node => !ids.Contains(node.Id)).Select(node => node with
         {
             Layout = node.Layout is not { } layout ? null : layout with { SlotIds = [.. layout.SlotIds.Where(id => !ids.Contains(id))] },
             Content = node.Content is CountdownSequenceContent sequence
                 ? sequence with { MarkNodeIds = [.. sequence.MarkNodeIds.Where(id => !ids.Contains(id))] } : node.Content,
         }).ToImmutableArray();
-        return PresentationEditor.TrySetTree(project, tree with { Nodes = nodes }, out result, out report);
+        nodes = ShrinkCountdownsAfterDelete(nodes, oldCounts);
+        var programs = tree.Programs.Select(program =>
+            program.LeadInGeneration is { IndicatorContainerId: { } indicator } settings && ids.Contains(indicator)
+                ? program with { LeadInGeneration = settings with { IndicatorContainerId = null } }
+                : program).ToImmutableArray();
+        return PresentationEditor.TrySetTree(project, tree with { Nodes = nodes, Programs = programs }, out result, out report);
+    }
+
+    private static ImmutableArray<SceneContainerDefinition> ShrinkCountdownsAfterDelete(
+        ImmutableArray<SceneContainerDefinition> nodes, Dictionary<string, int> oldCounts)
+    {
+        for (int ownerIndex = 0; ownerIndex < nodes.Length; ownerIndex++)
+        {
+            var owner = nodes[ownerIndex];
+            if (owner.Content is not CountdownSequenceContent sequence
+                || !oldCounts.TryGetValue(owner.Id, out int oldCount))
+                continue;
+            int newCount = sequence.MarkNodeIds.Length;
+            if (newCount < 1 || newCount >= oldCount) continue;
+            nodes = nodes.SetItem(ownerIndex, owner with
+            {
+                ReferenceRect = new(owner.ReferenceRect.WidthRatio * newCount / oldCount, owner.ReferenceRect.HeightRatio),
+            });
+            for (int newIndex = 0; newIndex < newCount; newIndex++)
+            {
+                string markId = sequence.MarkNodeIds[newIndex];
+                int markIndex = Array.FindIndex(nodes.ToArray(), item => item.Id == markId);
+                if (markIndex < 0) continue;
+                var mark = nodes[markIndex];
+                nodes = nodes.SetItem(markIndex, mark with
+                {
+                    ReferenceRect = new(1d / newCount, mark.ReferenceRect.HeightRatio),
+                    Placement = mark.Placement with { Position = new((newIndex + 0.5d) / newCount, mark.Placement.Position.Y) },
+                });
+            }
+        }
+        return nodes;
     }
 
     /// <summary>在现有槽位序列加入一个新槽位，不隐式修改同屏容量。</summary>

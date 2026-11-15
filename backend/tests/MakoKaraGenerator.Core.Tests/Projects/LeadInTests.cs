@@ -295,4 +295,78 @@ public sealed class LeadInTests
         File.WriteAllText(path, json.ToJsonString());
         Assert.True(ProjectStore.Load(directory.Path).Report.HasErrors);
     }
+
+    [Fact]
+    public void 删除全部前奏后可删提示容器并清理生成容器引用且保留排除设置()
+    {
+        var project = Create(out string indicator);
+        string programId = project.LyricPresentation.Programs[0].Id;
+        var settings = new LeadInGenerationSettings { IndicatorContainerId = indicator, DurationUs = 2_500_000 };
+        Assert.True(LeadInGeneration.TryApply(project, programId, settings, ["first", "chorus"], out project, out var report), report.ToSummary());
+        foreach (var cue in project.LyricPresentation.Programs[0].LeadIns.ToArray())
+            Assert.True(LeadInEditor.TryDeleteLeadIn(project, programId, cue.Id, cue.TargetLineId == "chorus", out project, out report), report.ToSummary());
+
+        Assert.True(SceneTreeEditor.TryDeleteNode(project, indicator, out var deleted, out report), report.ToSummary());
+        Assert.Null(deleted.LyricPresentation.FindNode(indicator));
+        var updatedGeneration = deleted.LyricPresentation.Programs[0].LeadInGeneration!;
+        Assert.Null(updatedGeneration.IndicatorContainerId);
+        Assert.Equal(2_500_000, updatedGeneration.DurationUs);
+        Assert.Equal(["chorus"], updatedGeneration.ExcludedLineIds.ToArray());
+    }
+
+    [Fact]
+    public void 删减追加与复制标记同步按标记数缩放提示容器宽度()
+    {
+        var project = Create(out string indicator);
+        var sequence = (CountdownSequenceContent)project.LyricPresentation.FindNode(indicator)!.Content!;
+        var initialGeo = SceneTreeGeometryResolver.Resolve(project.LyricPresentation.Nodes, project.Composition.CanvasWidth, project.Composition.CanvasHeight);
+        Assert.Equal(120d, initialGeo[indicator].Width, 6);
+
+        Assert.True(SceneTreeEditor.TryDeleteNode(project, sequence.MarkNodeIds[2], out project, out var report), report.ToSummary());
+        Assert.True(SceneTreeEditor.TryDeleteNode(project, sequence.MarkNodeIds[1], out project, out report), report.ToSummary());
+        var singleGeo = SceneTreeGeometryResolver.Resolve(project.LyricPresentation.Nodes, project.Composition.CanvasWidth, project.Composition.CanvasHeight);
+        Assert.Equal(40d, singleGeo[indicator].Width, 6);
+        Assert.Equal(40d, singleGeo[sequence.MarkNodeIds[0]].Width, 6);
+        Assert.Equal(0.5d, project.LyricPresentation.FindNode(sequence.MarkNodeIds[0])!.Placement.Position.X, 6);
+
+        Assert.True(LeadInEditor.TryAddMark(project, indicator, "●", out string addedMarkId, out project, out report), report.ToSummary());
+        var twoGeo = SceneTreeGeometryResolver.Resolve(project.LyricPresentation.Nodes, project.Composition.CanvasWidth, project.Composition.CanvasHeight);
+        Assert.Equal(80d, twoGeo[indicator].Width, 6);
+        Assert.Equal(40d, twoGeo[addedMarkId].Width, 6);
+
+        Assert.True(SceneTreeEditor.TryCopySubtree(project, addedMarkId, null, out string copiedMarkId, out project, out report), report.ToSummary());
+        var threeGeo = SceneTreeGeometryResolver.Resolve(project.LyricPresentation.Nodes, project.Composition.CanvasWidth, project.Composition.CanvasHeight);
+        Assert.Equal(120d, threeGeo[indicator].Width, 6);
+        Assert.Equal(40d, threeGeo[copiedMarkId].Width, 6);
+    }
+
+    [Fact]
+    public void 附着方式切换按目标模式定位并在固定父级保持当前画面位置()
+    {
+        var project = Create(out string indicator);
+        var geometry = SceneTreeGeometryResolver.Resolve(project.LyricPresentation.Nodes, project.Composition.CanvasWidth, project.Composition.CanvasHeight);
+        string parentId = project.LyricPresentation.FindNode(indicator)!.ParentId!;
+        var parentGeo = geometry[parentId];
+        var previous = geometry[indicator];
+
+        Assert.True(LeadInEditor.TrySetAttachment(project, indicator, SceneAttachmentMode.CueTargetAboveStart, previous, parentGeo, out project, out var report), report.ToSummary());
+        var above = project.LyricPresentation.FindNode(indicator)!;
+        Assert.Equal(ScenePlacementAnchor.LeftCenter, above.Placement.Anchor);
+        Assert.Equal(0d, above.Placement.Position.X, 6);
+        Assert.True(above.Placement.Position.Y < 0d);
+        Assert.Equal(0d, above.Placement.RotationDegrees, 6);
+
+        geometry = SceneTreeGeometryResolver.Resolve(project.LyricPresentation.Nodes, project.Composition.CanvasWidth, project.Composition.CanvasHeight);
+        Assert.True(LeadInEditor.TrySetAttachment(project, indicator, SceneAttachmentMode.CueTargetText, geometry[indicator], parentGeo, out project, out report), report.ToSummary());
+        var inline = project.LyricPresentation.FindNode(indicator)!;
+        Assert.Equal(ScenePlacementAnchor.RightCenter, inline.Placement.Anchor);
+        Assert.Equal(-LeadInEditor.DefaultInlineGapPx / parentGeo.Width, inline.Placement.Position.X, 6);
+        Assert.Equal(0d, inline.Placement.Position.Y, 6);
+
+        geometry = SceneTreeGeometryResolver.Resolve(project.LyricPresentation.Nodes, project.Composition.CanvasWidth, project.Composition.CanvasHeight);
+        var inlineGeo = geometry[indicator];
+        Assert.True(LeadInEditor.TrySetAttachment(project, indicator, SceneAttachmentMode.FixedParent, inlineGeo, parentGeo, out project, out report), report.ToSummary());
+        var afterFixedGeo = SceneTreeGeometryResolver.Resolve(project.LyricPresentation.Nodes, project.Composition.CanvasWidth, project.Composition.CanvasHeight)[indicator];
+        Assert.Equal(inlineGeo.WorldMatrix.Map(new(0, 0)), afterFixedGeo.WorldMatrix.Map(new(0, 0)));
+    }
 }

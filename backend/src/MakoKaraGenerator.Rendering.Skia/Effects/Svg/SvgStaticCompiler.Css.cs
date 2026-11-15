@@ -96,7 +96,7 @@ internal sealed partial class SvgStaticCompiler
             foreach (var declaration in ReadDeclarations(TokenizeCss(style, node), node)) node.Styles[declaration.Key] = declaration.Value;
         }
         foreach (var child in node.Children) ApplyStyles(child);
-        if (node.Parent is null) _usage.Css(_source.Path, _rules.Count, _cssDeclarations, _selectorSteps);
+        if (node.Parent is null) _usage.Css(_sourcePath, _rules.Count, _cssDeclarations, _selectorSteps);
     }
 
     private string ValidateStyleValue(string name, string text, Node node)
@@ -195,7 +195,7 @@ internal sealed partial class SvgStaticCompiler
 
     private List<CssToken> TokenizeCss(string text, Node node)
     {
-        _usage.Prepare(checked((long)text.Length * 64), _source.Path);
+        _usage.Prepare(checked((long)text.Length * 64), _sourcePath);
         List<CssToken> result = []; int position = 0;
         bool NameStart(char c) => char.IsAsciiLetter(c) || c is '_' or '-' or '\\';
         bool NamePart(char c) => NameStart(c) || char.IsAsciiDigit(c);

@@ -17,6 +17,16 @@ public sealed record SceneTextMarkSample
     public required SceneTextAppearance Appearance { get; init; }
     /// <summary>该标记对应的步骤是否已经过。</summary>
     public bool IsElapsed { get; init; }
+    /// <summary>标记在容器中的序号。</summary>
+    public int MarkIndex { get; init; }
+    /// <summary>容器中的总标记数量。</summary>
+    public int MarkCount { get; init; } = 1;
+    /// <summary>所属提示容器的图形配置。</summary>
+    public CountdownShapeSpec Shape { get; init; } = CountdownShapeSpec.Default;
+    /// <summary>所属提示容器的动画配置。</summary>
+    public CountdownAnimationSpec Animation { get; init; } = CountdownAnimationSpec.Default;
+    /// <summary>当前标记在擦除阶段的局部进度（0..1）。</summary>
+    public double WipeProgress { get; init; }
     /// <summary>附着继承的动画透明度；外观透明度在绘制链上只乘一次。</summary>
     public double Opacity { get; init; } = 1;
     /// <summary>已测量的最终文字几何。</summary>

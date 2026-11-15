@@ -58,6 +58,14 @@ public sealed record LineRenderGeometry
     public CanvasPoint TopLeft { get; init; }
     /// <summary>字形边界右下角，变换之前。</summary>
     public CanvasPoint BottomRight { get; init; }
+    /// <summary>不含注音的主字墨迹左上角（变换前）；未提供时回退至 <see cref="TopLeft"/>。</summary>
+    public CanvasPoint? BaseTopLeft { get; init; }
+    /// <summary>不含注音的主字墨迹右下角（变换前）；未提供时回退至 <see cref="BottomRight"/>。</summary>
+    public CanvasPoint? BaseBottomRight { get; init; }
+    /// <summary>实际可用的主字墨迹左上角。</summary>
+    public CanvasPoint EffectiveBaseTopLeft => BaseTopLeft ?? TopLeft;
+    /// <summary>实际可用的主字墨迹右下角。</summary>
+    public CanvasPoint EffectiveBaseBottomRight => BaseBottomRight ?? BottomRight;
 
     /// <summary>把未变换画布点映射为实际画布点。</summary>
     /// <param name="point">未变换的点。</param>

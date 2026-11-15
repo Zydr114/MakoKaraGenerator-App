@@ -20,14 +20,14 @@ internal sealed partial class SvgStaticCompiler
             Check(encodedCharacters + 32 <= _limits.MaximumSafeXmlBytes, "图片 data URI 超过受控文档预算。", entry.Node, "PackageSvgBudgetExceeded");
             // Account for the generated UTF-16 base64 copy before creating it. The final XML stream
             // independently charges its actual UTF-8 bytes, without subtracting the source budget.
-            _usage.Prepare(checked(encodedCharacters * 2), _source.Path);
+            _usage.Prepare(checked(encodedCharacters * 2), _sourcePath);
             entry.Node.Attributes["href"] = "data:" + mime + ";base64," + Convert.ToBase64String(entry.Image.Bytes.Span);
         }
         // Whitelisted-but-unused package resources also pass exact format and complete decoding.
-        foreach (string path in _definition.Images.Where(path => !usedPaths.Contains(path)))
+        foreach (string path in _definition!.Images.Where(path => !usedPaths.Contains(path)))
         {
             _token.ThrowIfCancellationRequested();
-            var file = _contents.Files.Single(f => f.Path == path && f.Role == "image");
+            var file = _contents!.Files.Single(f => f.Path == path && f.Role == "image");
             _ = DecodeImage(file.Content.AsMemory(), null, null, 0);
         }
     }
@@ -50,7 +50,7 @@ internal sealed partial class SvgStaticCompiler
                 && encoded.Skip(encoded.Length - padding).All(c => c == '='), "base64 必须完整且不含空白/非法字符。", node, "PackageSvgImageUnsafe");
             long size = checked((long)encoded.Length / 4 * 3 - padding);
             Check(size <= _limits.MaximumImageBytes, "单图片编码字节超过预算。", node, "PackageSvgBudgetExceeded");
-            _usage.Prepare(size, _source.Path);
+            _usage.Prepare(size, _sourcePath);
             byte[] bytes;
             try { bytes = Convert.FromBase64String(encoded); }
             catch (FormatException error) { throw Fail("PackageSvgImageUnsafe", "base64 图片无效。", node, error); }
@@ -58,9 +58,9 @@ internal sealed partial class SvgStaticCompiler
             return new(bytes, mime, null);
         }
         // No URI normalizer, percent decoding, SVG-relative path, cwd or OS path fallback exists.
-        Check(!href.Any(c => c is '%' or '\\' or '?' or '#' or ':') && _definition.Images.Contains(href, StringComparer.Ordinal),
+        Check(!href.Any(c => c is '%' or '\\' or '?' or '#' or ':') && _definition!.Images.Contains(href, StringComparer.Ordinal),
             "图片 href 必须精确匹配 descriptor 的同包 role:image 白名单且不含 URI 编码/片段/scheme。", node, "PackageSvgImageUnsafe");
-        var image = _contents.Files.SingleOrDefault(f => f.Path == href && f.Role == "image");
+        var image = _contents!.Files.SingleOrDefault(f => f.Path == href && f.Role == "image");
         Check(image is not null, "图片缺失或 role 不匹配。", node, "PackageSvgImageUnsafe");
         Check(image!.Content.Length <= _limits.MaximumImageBytes, "单图片编码字节超过预算。", node, "PackageSvgBudgetExceeded");
         return new(image.Content.AsMemory(), null, image.Path);
@@ -70,9 +70,9 @@ internal sealed partial class SvgStaticCompiler
     {
         _token.ThrowIfCancellationRequested();
         Check(bytes.Length > 0 && bytes.Length <= _limits.MaximumImageBytes, "单图片编码字节超过预算。", node, "PackageSvgBudgetExceeded");
-        _usage.EncodedImage(_source.Path, checked((long)bytes.Length * Math.Max(1, occurrences)), occurrences);
+        _usage.EncodedImage(_sourcePath, checked((long)bytes.Length * Math.Max(1, occurrences)), occurrences);
         ValidatePngStructure(bytes.Span, node);
-        _usage.Prepare(bytes.Length, _source.Path); // SKData owns an independent encoded copy.
+        _usage.Prepare(bytes.Length, _sourcePath); // SKData owns an independent encoded copy.
         using var data = SKData.CreateCopy(bytes.Span);
         using var codec = SKCodec.Create(data);
         Check(codec is not null, "图片编码无法读取。", node, "PackageSvgImageDecodeFailed");
@@ -86,7 +86,7 @@ internal sealed partial class SvgStaticCompiler
             && pixels <= _limits.MaximumImagePixels, "图片尺寸/像素超过明确预算。", node, "PackageSvgBudgetExceeded");
         // All aggregate decode/native-residency reservations happen before allocating a bitmap.
         long nativeDecoded = checked(decoded * occurrences);
-        _usage.DecodedImage(_source.Path, decoded, nativeDecoded);
+        _usage.DecodedImage(_sourcePath, decoded, nativeDecoded);
         _decodedBytes = checked(_decodedBytes + decoded); _nativeDecodedBytes = checked(_nativeDecodedBytes + nativeDecoded);
         _token.ThrowIfCancellationRequested();
         using var srgb = SKColorSpace.CreateSrgb();
@@ -97,7 +97,7 @@ internal sealed partial class SvgStaticCompiler
         string hash = Convert.ToHexStringLower(SHA256.HashData(bytes.Span));
         if (!_validatedImages.ContainsKey(hash))
         {
-            _usage.Prepare(bytes.Length, _source.Path);
+            _usage.Prepare(bytes.Length, _sourcePath);
             _validatedImages.Add(hash, new(hash, width, height, mime, [.. bytes.Span]));
         }
         return mime;

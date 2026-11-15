@@ -35,6 +35,54 @@ public sealed record SceneLeadInSample
     public TimeRange Range { get; init; }
     /// <summary>已经过的步骤数。</summary>
     public int ElapsedMarks { get; init; }
+    /// <summary>归一化倒计时进度（0..1）。</summary>
+    public double NormalizedProgress { get; init; }
+    /// <summary>闪烁阶段的全体透明度调制倍率（0.25..1）。</summary>
+    public double BlinkOpacity { get; init; } = 1;
+}
+
+/// <summary>前奏提示组动画曲线求值器，兼顾旧版离散步进与连续闪烁／渐进擦除。</summary>
+public static class LeadInAnimationEvaluator
+{
+    /// <summary>计算当前时刻提示组的全体闪烁透明度倍率（0..1）。</summary>
+    public static double EvaluateBlinkOpacity(TimeRange range, CountdownAnimationSpec animation, long timeUs)
+    {
+        ArgumentNullException.ThrowIfNull(animation);
+        if (animation.Mode == CountdownAnimationMode.DiscreteSteps || animation.BlinkRatio <= 0 || animation.BlinkCount < 1)
+            return 1d;
+        double u = NormalizedProgress(range, timeUs);
+        if (u >= animation.BlinkRatio) return 1d;
+        double phase = (u / animation.BlinkRatio) * animation.BlinkCount;
+        // 1.0 -> 0.25 -> 1.0 smooth cosine breathing cycles, ending cleanly at 1.0 when wipe begins.
+        return 0.625d + 0.375d * Math.Cos(2d * Math.PI * phase);
+    }
+
+    /// <summary>计算单个标记的局部擦除进度（0..1）与是否已完全经过。</summary>
+    public static (bool IsElapsed, double WipeProgress) EvaluateMark(TimeRange range, int markIndex, int markCount,
+        CountdownAnimationSpec animation, long timeUs)
+    {
+        ArgumentNullException.ThrowIfNull(animation);
+        int count = Math.Max(1, markCount);
+        if (animation.Mode == CountdownAnimationMode.DiscreteSteps)
+        {
+            bool elapsed = markIndex < LeadInTiming.ElapsedMarks(range, count, timeUs);
+            return (elapsed, elapsed ? 1d : 0d);
+        }
+        double u = NormalizedProgress(range, timeUs);
+        if (animation.BlinkRatio > 0 && animation.BlinkCount >= 1 && u < animation.BlinkRatio)
+            return (false, 0d);
+        double wipeU = animation.BlinkRatio >= 1d ? 1d : Math.Clamp((u - animation.BlinkRatio) / (1d - animation.BlinkRatio), 0d, 1d);
+        double progress = Math.Clamp(wipeU * count - markIndex, 0d, 1d);
+        return (progress >= 0.999999d, progress);
+    }
+
+    /// <summary>计算准备区间内的归一化时间（0..1）。</summary>
+    public static double NormalizedProgress(TimeRange range, long timeUs)
+    {
+        long duration = range.DurationUs;
+        if (duration <= 0) return 1d;
+        return Math.Clamp((timeUs - range.StartUs) / (double)duration, 0d, 1d);
+    }
 }
 
 public static partial class LyricSceneSampler
@@ -50,7 +98,10 @@ public static partial class LyricSceneSampler
             var content = (CountdownSequenceContent)snapshot.LyricPresentation.FindNode(cue.IndicatorContainerId)!.Content!;
             cues.Add(new() { CueId = cue.Id, ProgramId = program.Id, ContainerId = cue.IndicatorContainerId,
                 TargetElementId = sample.ElementId, TargetBindingId = sample.BindingId!, BranchId = sample.Branch.Id,
-                TargetLineId = sample.Frame.Line!.Id, Range = range, ElapsedMarks = LeadInTiming.ElapsedMarks(range, content.MarkNodeIds.Length, frame.TimeUs) });
+                TargetLineId = sample.Frame.Line!.Id, Range = range,
+                ElapsedMarks = LeadInTiming.ElapsedMarks(range, content.MarkNodeIds.Length, frame.TimeUs),
+                NormalizedProgress = LeadInAnimationEvaluator.NormalizedProgress(range, frame.TimeUs),
+                BlinkOpacity = LeadInAnimationEvaluator.EvaluateBlinkOpacity(range, content.Animation, frame.TimeUs) });
         }
         return [.. cues];
     }

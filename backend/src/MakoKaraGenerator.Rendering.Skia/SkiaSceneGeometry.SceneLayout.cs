@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using MakoKaraGenerator.Core.Lyrics;
 using MakoKaraGenerator.Core.Projects;
+using MakoKaraGenerator.Text;
 
 namespace MakoKaraGenerator.Rendering.Skia;
 
@@ -92,7 +93,147 @@ public sealed partial class SkiaSceneGeometry
         LyricStyle style = LineBaseStyle(snapshot.LyricStyle, line, scene.Branch);
         var layout = GetLineLayout(line, style);
         var shaped = layout.Shaped;
-        return BuildGeometry(line.Id, style, shaped, composition, scene.Placement,
-            GroupInk(shaped.InkBounds, layout.Ruby), Math.Min(scene.Presentation.MaxWidthRatio, scene.Presentation.SafeArea.Right - scene.Presentation.SafeArea.Left), scene, includeWorld);
+        TextInkBounds? groupInk = GroupInk(shaped.InkBounds, layout.Ruby);
+        double maxWidthRatio = Math.Min(scene.Presentation.MaxWidthRatio, scene.Presentation.SafeArea.Right - scene.Presentation.SafeArea.Left);
+        var geometry = BuildGeometry(line.Id, style, shaped, composition, scene.Placement, groupInk, maxWidthRatio, scene, includeWorld);
+        if (!includeWorld || geometry is null || scene.CueId is not { } cueId) return geometry;
+        return YieldForAttachedCountdown(snapshot, scene, style, shaped, composition, groupInk, maxWidthRatio, cueId) ?? geometry;
+    }
+
+    /// <summary>在目标句完整绑定生命周期内保持恒定退让，使前奏期与演唱期交接处零跳变。</summary>
+    private static LineRenderGeometry? YieldForAttachedCountdown(ProjectSnapshot snapshot, SceneLineSample scene, LyricStyle style,
+        ShapedLine shaped, Composition composition, TextInkBounds? groupInk, double maxWidthRatio, string cueId)
+    {
+        var tree = snapshot.LyricPresentation.WithDefaultPrograms(snapshot.Lyrics);
+        var program = tree.FindProgram(scene.Branch.Id);
+        var cue = program?.LeadIns.FirstOrDefault(item => item.Id == cueId);
+        if (cue is null || tree.FindNode(cue.IndicatorContainerId) is not { Content: CountdownSequenceContent } group) return null;
+        var mode = group.Attachment?.Mode ?? SceneAttachmentMode.FixedParent;
+        if (mode is not (SceneAttachmentMode.CueTargetText or SceneAttachmentMode.CueTargetAboveStart)) return null;
+        if (LeadInTiming.Range(scene.Frame.Line!, cue.DurationUs) is null) return null;
+
+        var fixedNodes = SceneTreeGeometryResolver.Resolve(tree.Nodes, composition.CanvasWidth, composition.CanvasHeight);
+        var containerRef = fixedNodes.TryGetValue(scene.ContainerId, out var resolvedContainer)
+            ? resolvedContainer
+            : new SceneTreeGeometry(composition.CanvasWidth, composition.CanvasHeight, SceneMatrix.Identity, new(0, 0));
+        double containerW = containerRef.Width, containerH = containerRef.Height;
+
+        SceneMatrix localParentMatrix = SceneMatrix.Identity;
+        if (!string.Equals(scene.ParentId, scene.ContainerId, StringComparison.Ordinal))
+        {
+            string? currentId = scene.ParentId;
+            bool reachedContainer = false;
+            int guard = 0;
+            while (currentId is not null && guard++ <= tree.Nodes.Length)
+            {
+                if (string.Equals(currentId, scene.ContainerId, StringComparison.Ordinal))
+                {
+                    reachedContainer = true;
+                    break;
+                }
+                var node = tree.FindNode(currentId);
+                if (node is null) break;
+                var nodeParentRef = node.ParentId is { } npId && fixedNodes.TryGetValue(npId, out var resolvedNodeParent)
+                    ? resolvedNodeParent
+                    : new SceneTreeGeometry(composition.CanvasWidth, composition.CanvasHeight, SceneMatrix.Identity, new(0, 0));
+                double nw = nodeParentRef.Width * node.ReferenceRect.WidthRatio;
+                double nh = nodeParentRef.Height * node.ReferenceRect.HeightRatio;
+                var nAnchor = SceneMatrix.Anchor(node.Placement.Anchor, nw, nh);
+                var nLocal = SceneMatrix.Translate(node.Placement.Position.X * nodeParentRef.Width, node.Placement.Position.Y * nodeParentRef.Height)
+                    * SceneMatrix.RotateScale(node.Placement.RotationDegrees, node.Placement.Scale)
+                    * SceneMatrix.Translate(-nAnchor.X, -nAnchor.Y);
+                localParentMatrix = nLocal * localParentMatrix;
+                currentId = node.ParentId;
+            }
+            if (!reachedContainer)
+            {
+                if (!containerRef.WorldMatrix.TryInverse(out var containerInv)) return null;
+                localParentMatrix = containerInv * scene.ParentMatrix;
+            }
+        }
+        if (!localParentMatrix.TryInverse(out var localParentInv)) return null;
+
+        var steadyTransform = scene.Presentation.SlotSequenceProfile?.Hold ?? SceneTransform.Neutral;
+        var steadyScene = scene with
+        {
+            Transform = steadyTransform,
+            ContainerMatrix = SceneMatrix.Identity,
+            ParentMatrix = localParentMatrix,
+        };
+        var steadyGeometry = BuildGeometry(scene.Frame.Line!.Id, style, shaped, composition, scene.Placement, groupInk, maxWidthRatio, steadyScene, includeWorld: true);
+        if (steadyGeometry.WorldMatrix is null) return null;
+
+        var safe = scene.Presentation.SafeArea.IsValid ? scene.Presentation.SafeArea : NormalizedSafeArea.Full;
+        double safeLeft = safe.Left * containerW;
+        double safeRight = safe.Right * containerW;
+        double safeTop = safe.Top * containerH;
+        double safeBottom = safe.Bottom * containerH;
+        double safeW = Math.Max(1, safeRight - safeLeft);
+        double safeH = Math.Max(1, safeBottom - safeTop);
+
+        var parentRef = group.ParentId is { } parentId && fixedNodes.TryGetValue(parentId, out var resolvedParent)
+            ? resolvedParent
+            : new SceneTreeGeometry(composition.CanvasWidth, composition.CanvasHeight, SceneMatrix.Identity, new(0, 0));
+
+        (double MinX, double MaxX, double MinY, double MaxY) UnionBounds(LineRenderGeometry target)
+        {
+            var baseTop = target.EffectiveBaseTopLeft;
+            var baseBottom = target.EffectiveBaseBottomRight;
+            var anchor = mode == SceneAttachmentMode.CueTargetAboveStart
+                ? new CanvasPoint(baseTop.X, target.TopLeft.Y)
+                : new CanvasPoint(baseTop.X, (baseTop.Y + baseBottom.Y) / 2);
+            var basis = target.WorldMatrix!.Value * SceneMatrix.Translate(anchor.X, anchor.Y);
+            double gw = parentRef.Width * group.ReferenceRect.WidthRatio;
+            double gh = parentRef.Height * group.ReferenceRect.HeightRatio;
+            double px = group.Placement.Position.X * parentRef.Width;
+            double py = group.Placement.Position.Y * parentRef.Height;
+            var gAnchor = SceneMatrix.Anchor(group.Placement.Anchor, gw, gh);
+            var gWorld = basis * SceneMatrix.Translate(px, py)
+                * SceneMatrix.RotateScale(group.Placement.RotationDegrees, group.Placement.Scale)
+                * SceneMatrix.Translate(-gAnchor.X, -gAnchor.Y);
+            CanvasPoint[] points =
+            [
+                .. target.Corners(),
+                gWorld.Map(new(0, 0)), gWorld.Map(new(gw, 0)), gWorld.Map(new(gw, gh)), gWorld.Map(new(0, gh)),
+            ];
+            return (points.Min(p => p.X), points.Max(p => p.X), points.Min(p => p.Y), points.Max(p => p.Y));
+        }
+
+        var bounds = UnionBounds(steadyGeometry);
+        if (bounds.MinX >= safeLeft && bounds.MaxX <= safeRight && bounds.MinY >= safeTop && bounds.MaxY <= safeBottom)
+            return null;
+
+        var basisPlacement = scene.Placement ?? LinePlacementEditor.ResolveDefault(style);
+        double unionW = bounds.MaxX - bounds.MinX;
+        double unionH = bounds.MaxY - bounds.MinY;
+        double fit = Math.Clamp(Math.Min(unionW > safeW ? safeW / unionW : 1d, unionH > safeH ? safeH / unionH : 1d), 0.1d, 1d);
+        if (fit < 1d)
+        {
+            var scaledPlacement = basisPlacement with { Scale = basisPlacement.Scale * fit };
+            steadyGeometry = BuildGeometry(scene.Frame.Line!.Id, style, shaped, composition, scaledPlacement, groupInk, maxWidthRatio, steadyScene, includeWorld: true);
+            if (steadyGeometry.WorldMatrix is null) return null;
+            bounds = UnionBounds(steadyGeometry);
+        }
+
+        double dx = bounds.MaxX - bounds.MinX <= safeW
+            ? (bounds.MinX < safeLeft ? safeLeft - bounds.MinX : bounds.MaxX > safeRight ? safeRight - bounds.MaxX : 0d)
+            : (safeLeft + safeRight) / 2 - (bounds.MinX + bounds.MaxX) / 2;
+        double dy = bounds.MaxY - bounds.MinY <= safeH
+            ? (bounds.MinY < safeTop ? safeTop - bounds.MinY : bounds.MaxY > safeBottom ? safeBottom - bounds.MaxY : 0d)
+            : (safeTop + safeBottom) / 2 - (bounds.MinY + bounds.MaxY) / 2;
+
+        if (Math.Abs(dx) < 1e-6 && Math.Abs(dy) < 1e-6 && fit >= 1d - 1e-9) return null;
+
+        var shiftedContainerPivot = new CanvasPoint(steadyGeometry.Pivot.X + dx, steadyGeometry.Pivot.Y + dy);
+        var shiftedLocalPivot = localParentInv.Map(shiftedContainerPivot);
+        double refW = scene.ParentReferenceWidth > 0 ? scene.ParentReferenceWidth : composition.CanvasWidth;
+        double refH = scene.ParentReferenceHeight > 0 ? scene.ParentReferenceHeight : composition.CanvasHeight;
+        var local = scene.LocalTransform ?? LyricLocalTransform.Neutral;
+        var yieldedPlacement = basisPlacement with
+        {
+            Position = new(shiftedLocalPivot.X / refW - local.OffsetXRatio, shiftedLocalPivot.Y / refH - local.OffsetYRatio),
+            Scale = basisPlacement.Scale * fit,
+        };
+        return BuildGeometry(scene.Frame.Line!.Id, style, shaped, composition, yieldedPlacement, groupInk, maxWidthRatio, scene, includeWorld: true);
     }
 }

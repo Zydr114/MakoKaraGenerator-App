@@ -12,12 +12,16 @@ internal sealed partial class SvgStaticCompiler
     private const string SvgNamespace = "http://www.w3.org/2000/svg";
     private const string XlinkNamespace = "http://www.w3.org/1999/xlink";
     private const double MaximumNumber = 1_000_000;
-    private readonly EffectPackageContents _contents;
-    private readonly EffectSvgResourceDefinition _definition;
+    private readonly EffectPackageContents? _contents;
+    private readonly EffectSvgResourceDefinition? _definition;
     private readonly SvgResourceBudget _limits;
     private readonly Usage _usage;
     private readonly CancellationToken _token;
-    private readonly EffectPackageFile _source;
+    private readonly EffectPackageFile? _source;
+    private readonly string _sourcePath;
+    private readonly string? _inlineXml;
+    private readonly double _viewportWidth;
+    private readonly double _viewportHeight;
     private readonly Dictionary<string, Node> _ids = new(StringComparer.Ordinal);
     private readonly List<Node> _nodes = [];
     private readonly List<CssRule> _rules = [];
@@ -35,7 +39,20 @@ internal sealed partial class SvgStaticCompiler
     {
         _contents = contents; _definition = definition; _limits = limits; _usage = usage; _token = token;
         _source = contents.Files.Single(f => f.Path == definition.SourcePath && f.Role == "svg");
+        _sourcePath = _source.Path;
+        _viewportWidth = definition.Viewport.Width;
+        _viewportHeight = definition.Viewport.Height;
     }
+
+    private SvgStaticCompiler(string sourcePath, string inlineXml, double viewportWidth, double viewportHeight,
+        SvgResourceBudget limits, Usage usage, CancellationToken token)
+    {
+        _limits = limits; _usage = usage; _token = token;
+        _sourcePath = sourcePath; _inlineXml = inlineXml;
+        _viewportWidth = viewportWidth; _viewportHeight = viewportHeight;
+    }
+
+    private string ReadSourceText() => _inlineXml ?? _source!.ReadUtf8();
 
     internal static SvgStaticPackage CompilePackage(EffectPackageContents contents, EffectPackageSvgResources resources,
         SvgResourceBudget limits, CancellationToken token)
@@ -69,9 +86,12 @@ internal sealed partial class SvgStaticCompiler
     private SvgStaticDocument Compile()
     {
         _token.ThrowIfCancellationRequested();
-        if (_source.Content.Length > _limits.MaximumSourceBytes) throw Fail("PackageSvgBudgetExceeded", "SVG 源字节超过预算。");
+        var contents = _contents!;
+        var definition = _definition!;
+        var source = _source!;
+        if (source.Content.Length > _limits.MaximumSourceBytes) throw Fail("PackageSvgBudgetExceeded", "SVG 源字节超过预算。");
         // Reserve UTF-16 input plus the application tree/token working copy before creating either.
-        _usage.Prepare(checked((long)_source.Content.Length * 4), _source.Path);
+        _usage.Prepare(checked((long)source.Content.Length * 4), _sourcePath);
         Node root = ReadXml();
         ValidateClipContent();
         foreach (Node node in _nodes) { _token.ThrowIfCancellationRequested(); ValidateNode(node, root); }
@@ -85,12 +105,12 @@ internal sealed partial class SvgStaticCompiler
         RewriteImages();
         var atlas = AtlasPlans();
         var (safeXml, safeBytes, sourceMap) = WriteSafeXml(root);
-        var dependencies = _definition.Images.Append(_definition.SourcePath).Append(_definition.DescriptorPath)
+        var dependencies = definition.Images.Append(definition.SourcePath).Append(definition.DescriptorPath)
             .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)
-            .Select(path => _contents.Files.Single(f => f.Path == path))
+            .Select(path => contents.Files.Single(f => f.Path == path))
             .Select(f => new SvgDependencyInspection(f.Path, f.Role, f.Sha256)).ToImmutableArray();
-        var inspection = new SvgResourceInspection(_definition.Id, _definition.Mode, _definition.Viewport,
-            _source.Path, _source.Sha256, dependencies, _nodes.Count, _expandedElements, _rawCommands,
+        var inspection = new SvgResourceInspection(definition.Id, definition.Mode, definition.Viewport,
+            source.Path, source.Sha256, dependencies, _nodes.Count, _expandedElements, _rawCommands,
             _expandedCommands, _operations, _rules.Count, _cssDeclarations, _selectorSteps,
             _decodedBytes, _nativeDecodedBytes, _filterPasses, _filterBytes, safeBytes, atlas);
         return new(safeXml, sourceMap, inspection, _validatedImages.ToImmutableDictionary(StringComparer.Ordinal));
@@ -99,7 +119,7 @@ internal sealed partial class SvgStaticCompiler
     private ImmutableArray<SvgAtlasPlan> AtlasPlans()
     {
         var plans = ImmutableArray.CreateBuilder<SvgAtlasPlan>();
-        foreach (var variant in _definition.Variants)
+        foreach (var variant in _definition!.Variants)
         {
             _token.ThrowIfCancellationRequested();
             int width = checked(variant.Width + 2 * _definition.PaddingPx), height = checked(variant.Height + 2 * _definition.PaddingPx);
@@ -111,13 +131,13 @@ internal sealed partial class SvgStaticCompiler
                 if (width == 1 && height == 1) break;
                 width = Math.Max(1, width / 2); height = Math.Max(1, height / 2);
             }
-            _usage.Atlas(bytes, _source.Path); plans.Add(new(variant.Id, levels.ToImmutable(), bytes));
+            _usage.Atlas(bytes, _sourcePath); plans.Add(new(variant.Id, levels.ToImmutable(), bytes));
         }
         return plans.ToImmutable();
     }
 
     private EffectPackageException Fail(string code, string message, Node? node = null, Exception? inner = null)
-        => new(code, _source.Path, node is null ? message : $"第 {node.Line} 行 {node.Column} 列：{message}", inner);
+        => new(code, _sourcePath, node is null ? message : $"第 {node.Line} 行 {node.Column} 列：{message}", inner);
     private void Check([DoesNotReturnIf(false)] bool value, string message, Node? node = null, string code = "PackageSvgSyntaxInvalid")
     { if (!value) throw Fail(code, message, node); }
     private static string F(double value) => value.ToString("G17", CultureInfo.InvariantCulture);

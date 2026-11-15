@@ -40,7 +40,7 @@ internal sealed partial class SvgStaticCompiler
         };
         try
         {
-            using var input = new StringReader(_source.ReadUtf8()); using var reader = XmlReader.Create(input, settings);
+            using var input = new StringReader(ReadSourceText()); using var reader = XmlReader.Create(input, settings);
             Stack<Node> stack = []; Node? root = null; long textCharacters = 0;
             Dictionary<Node, StringBuilder> textBuffers = [];
             while (reader.Read())
@@ -55,7 +55,7 @@ internal sealed partial class SvgStaticCompiler
                         Check(stack.Count < _limits.MaximumXmlDepth, "XML 深度超过预算。", code: "PackageSvgBudgetExceeded");
                         Check(_nodes.Count < _limits.MaximumElements, "原始元素超过预算。", code: "PackageSvgBudgetExceeded");
                         Check(reader.AttributeCount <= _limits.MaximumAttributesPerElement, "元素属性超过预算。", code: "PackageSvgBudgetExceeded");
-                        _usage.Prepare(checked(512L + reader.AttributeCount * 128L), _source.Path);
+                        _usage.Prepare(checked(512L + reader.AttributeCount * 128L), _sourcePath);
                         Node node = new(reader.LocalName, location.LineNumber, location.LinePosition, stack.TryPeek(out Node? parent) ? parent : null);
                         if (parent is null) { Check(root is null && node.Name == "svg", "根元素必须为唯一 svg。", node); root = node; }
                         else { Check(node.Name != "svg", "不支持嵌套 svg。", node); parent.Children.Add(node); }
@@ -147,12 +147,12 @@ internal sealed partial class SvgStaticCompiler
             case "svg":
                 Check(ReferenceEquals(node, root), "禁止嵌套 svg。", node);
                 ValidateViewBox(node, true);
-                if (node.Has("width")) Check(Get("width", min: 0) == _definition.Viewport.Width, "根 width 必须匹配 descriptor viewport。", node);
-                if (node.Has("height")) Check(Get("height", min: 0) == _definition.Viewport.Height, "根 height 必须匹配 descriptor viewport。", node);
-                node.Attributes["width"] = F(_definition.Viewport.Width); node.Attributes["height"] = F(_definition.Viewport.Height);
-                Check(NativeNumber(_definition.Viewport.Width) && NativeNumber(_definition.Viewport.Height), "descriptor viewport 无法由 native float 表示。", node);
+                if (node.Has("width")) Check(Get("width", min: 0) == _viewportWidth, "根 width 必须匹配 descriptor viewport。", node);
+                if (node.Has("height")) Check(Get("height", min: 0) == _viewportHeight, "根 height 必须匹配 descriptor viewport。", node);
+                node.Attributes["width"] = F(_viewportWidth); node.Attributes["height"] = F(_viewportHeight);
+                Check(NativeNumber(_viewportWidth) && NativeNumber(_viewportHeight), "descriptor viewport 无法由 native float 表示。", node);
                 ValidateAspect(node);
-                _rootTransform = ViewportMatrix(node, _definition.Viewport.Width, _definition.Viewport.Height);
+                _rootTransform = ViewportMatrix(node, _viewportWidth, _viewportHeight);
                 CheckMatrix(_rootTransform, node); break;
             case "symbol": ValidateViewBox(node, true); ValidateAspect(node); break;
             case "path": ReadPath(node); break;
@@ -229,7 +229,7 @@ internal sealed partial class SvgStaticCompiler
             void Write(Node node)
             {
                 _token.ThrowIfCancellationRequested(); if (node.Name == "style") return;
-                map.Add(new(map.Count, _source.Path, node.Line, node.Column)); writer.WriteStartElement(node.Name, SvgNamespace);
+                map.Add(new(map.Count, _sourcePath, node.Line, node.Column)); writer.WriteStartElement(node.Name, SvgNamespace);
                 foreach (var pair in node.Attributes.OrderBy(p => p.Key, StringComparer.Ordinal))
                 {
                     _token.ThrowIfCancellationRequested();
@@ -264,7 +264,7 @@ internal sealed partial class SvgStaticCompiler
         {
             owner._token.ThrowIfCancellationRequested();
             owner.Check(Length <= owner._limits.MaximumSafeXmlBytes - buffer.Length, "受控 XML 文档超过字节预算。", code: "PackageSvgBudgetExceeded");
-            owner._usage.Safe(buffer.Length, owner._source.Path); _output.Write(buffer);
+            owner._usage.Safe(buffer.Length, owner._sourcePath); _output.Write(buffer);
         }
         public override void WriteByte(byte value) { Span<byte> data = stackalloc byte[1]; data[0] = value; Write(data); }
         protected override void Dispose(bool disposing) { if (disposing) _output.Dispose(); base.Dispose(disposing); }

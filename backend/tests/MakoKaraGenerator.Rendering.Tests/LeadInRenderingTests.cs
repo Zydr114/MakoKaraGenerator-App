@@ -51,7 +51,7 @@ public sealed class LeadInRenderingTests
         var owner = frame.Elements.Single(element => element.Id == group.Id);
         var staticGeometry = SceneTreeGeometryResolver.Resolve(tree.Nodes,640,360);
         var reference = staticGeometry[group.ParentId!];
-        var anchor = SceneMatrix.Translate(glyph.TopLeft.X,(glyph.TopLeft.Y + glyph.BottomRight.Y)/2);
+        var anchor = SceneMatrix.Translate(glyph.EffectiveBaseTopLeft.X, (glyph.EffectiveBaseTopLeft.Y + glyph.EffectiveBaseBottomRight.Y) / 2);
         var expected = glyph.WorldMatrix!.Value * anchor * SceneMatrix.Translate(group.Placement.Position.X * reference.Width, group.Placement.Position.Y * reference.Height)
             * SceneMatrix.RotateScale(group.Placement.RotationDegrees,group.Placement.Scale)
             * SceneMatrix.Translate(-640 * group.ReferenceRect.WidthRatio, -360 * group.ReferenceRect.HeightRatio/2);

@@ -91,10 +91,12 @@ public sealed partial class SkiaSceneGeometry
             Lines = [.. lines.Select(line => line with { BindingId = "layout/" + line.ElementId })] }, snapshot.Composition);
         var cue = program.LeadIns.FirstOrDefault(item => item.TargetLineId == lineId && (editingCueId is null || item.Id == editingCueId));
         if (cue is null || LeadInTiming.Range(selected, cue.DurationUs) is not { } range) return bound;
+        var updatedLines = bound.Lines.Select(line => line.Frame.Line?.Id == lineId ? line with { CueId = cue.Id } : line).ToImmutableArray();
+        bound = bound with { Lines = updatedLines };
         var target = bound.Lines.Single(line => line.Frame.Line!.Id == lineId);
         return bound with { TimeUs = range.StartUs, LeadIns = [new() { CueId = cue.Id, ProgramId = program.Id,
             ContainerId = cue.IndicatorContainerId, TargetElementId = target.ElementId, TargetBindingId = target.BindingId!,
-            BranchId = branch.Id, TargetLineId = lineId, Range = range }] };
+            BranchId = branch.Id, TargetLineId = lineId, Range = range, NormalizedProgress = 0, BlinkOpacity = 1 }] };
     }
 
     /// <inheritdoc/>
@@ -119,7 +121,8 @@ public sealed partial class SkiaSceneGeometry
     {
         double width = scene?.ParentReferenceWidth > 0 ? scene.ParentReferenceWidth : composition.CanvasWidth,
             height = scene?.ParentReferenceHeight > 0 ? scene.ParentReferenceHeight : composition.CanvasHeight;
-        TextInkBounds ink = groupInk ?? shaped.InkBounds ?? new(0, -style.FontSizePx * .85f, shaped.Width, style.FontSizePx * .15f);
+        TextInkBounds baseInk = shaped.InkBounds ?? new(0, -style.FontSizePx * .85f, shaped.Width, style.FontSizePx * .15f);
+        TextInkBounds ink = groupInk ?? baseInk;
         double cx = (ink.Left + ink.Right) / 2d, cy = (ink.Top + ink.Bottom) / 2d;
         ScenePlacement basis = defaultPlacement ?? LinePlacementEditor.ResolveDefault(style);
         var local = scene?.LocalTransform ?? LyricLocalTransform.Neutral;
@@ -155,6 +158,8 @@ public sealed partial class SkiaSceneGeometry
             Pivot = parent.Map(new(pivotX, pivotY)), Scale = scale, RotationDegrees = rotation,
             TopLeft = new(origin + ink.Left, baseline + ink.Top),
             BottomRight = new(origin + ink.Right, baseline + ink.Bottom),
+            BaseTopLeft = new(origin + baseInk.Left, baseline + baseInk.Top),
+            BaseBottomRight = new(origin + baseInk.Right, baseline + baseInk.Bottom),
         };
     }
 

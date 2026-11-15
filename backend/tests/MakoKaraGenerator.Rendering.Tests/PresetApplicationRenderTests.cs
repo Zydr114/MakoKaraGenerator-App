@@ -43,9 +43,7 @@ public sealed class PresetApplicationRenderTests
         var actual = Apply(source, Static("global", global, LyricStyleProperty.FontSizePx, LyricStyleProperty.UnsungFill), new(ProjectEffectBindingKind.Project));
         actual = Apply(actual, Static("local", local, LyricStyleProperty.UnsungFill, LyricStyleProperty.Opacity),
             new(ProjectEffectBindingKind.Tokens, ids: ["first-a"]));
-        var expected = source with { LyricStyle = global, LyricPresentation = source.LyricPresentation with
-        { Nodes = [.. source.LyricPresentation.Nodes.Select(node => node.Content is CountdownSequenceContent sequence ? node with
-            { Content = sequence with { Appearance = sequence.Appearance with { Typography = sequence.Appearance.Typography with { FontSizePx = 44 }, PendingFill = new() { Color = color } } } } : node)] } };
+        var expected = source with { LyricStyle = global };
         expected = WithLine(expected, "first", line => line with { Tokens = line.Tokens.SetItem(0, line.Tokens[0] with
             { StyleOverride = new() { UnsungFill = OptionalValue.Set<FillSpecOverride?>(new() { Material = local.UnsungFill.Material }), Opacity = .5f } }) });
         using var a = new SkiaRenderPipeline(); using var b = new SkiaRenderPipeline();
@@ -181,7 +179,18 @@ public sealed class PresetApplicationRenderTests
             (LyricStyleProperty.VerticalCenterRatio or LyricStyleProperty.HorizontalAlignment));
         var preset = StyleTemplate.Create("material", "material", StyleTemplateKind.Composite, expected.LyricStyle,
             properties, packages: [package]);
-        var actual = Apply(source, preset, new(ProjectEffectBindingKind.Project));
+        var projectOnly = Apply(source, preset, new(ProjectEffectBindingKind.Project));
+        if (time == 10_000_000)
+        {
+            var projectOnlyCompiled = await SourceMaterialRuntimeTests.Compile(projectOnly);
+            Assert.True(projectOnlyCompiled.Succeeded);
+            var projectOnlySnapshot = ProjectSnapshot.FromProject(projectOnly);
+            await using var projectOnlySession = await projectOnlyCompiled.CreateFactory(static () => new SkiaRenderPipeline(), Fx.ReplayReason.Export).CreateAsync(projectOnlySnapshot);
+            var projectOnlyFrame = await projectOnlySession.PrepareAsync(time, Fx.OutputMode.Transparent, new RenderTarget { PixelWidth = 640, PixelHeight = 360 });
+            Assert.DoesNotContain(projectOnlyFrame.Materials, binding => binding.Target is Fx.ImageEffectTarget.Mark);
+        }
+        string indicatorId = source.LyricPresentation.FindProgram("primary")!.LeadIns[0].IndicatorContainerId;
+        var actual = Apply(projectOnly, preset, new(ProjectEffectBindingKind.Node, id: indicatorId, includeDescendants: true));
         var compiled = await SourceMaterialRuntimeTests.Compile(actual);
         var expectedCompiled = await SourceMaterialRuntimeTests.Compile(expected);
         Assert.True(compiled.Succeeded); Assert.True(expectedCompiled.Succeeded); Assert.Empty(compiled.Effects);

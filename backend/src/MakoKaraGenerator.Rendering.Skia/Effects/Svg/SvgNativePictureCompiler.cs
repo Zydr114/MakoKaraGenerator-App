@@ -9,12 +9,17 @@ namespace MakoKaraGenerator.Rendering.Skia.Effects.Svg;
 
 // Svg.Skia owns SVG semantics. This narrow recorder avoids its non-disposable native caches.
 // Only public geometry/value conversions are reused; no upstream Draw/ToPicture/ToSKPaint path is called.
-internal sealed class SvgNativePictureCompiler : IDisposable
+internal sealed partial class SvgNativePictureCompiler : IDisposable
 {
-    private readonly SvgStaticDocument _document;
+    private readonly SvgStaticDocument? _document;
     private readonly SvgResourceBudget _limits;
-    private readonly SvgNativeImageStore _images;
+    private readonly SvgNativeImageStore? _images;
     private readonly CancellationToken _token;
+    private readonly string? _inlineSafeXml;
+    private readonly double _inlineViewportWidth;
+    private readonly double _inlineViewportHeight;
+    private readonly string? _inlineSourcePath;
+    private string SourcePath => _inlineSourcePath ?? _document!.Inspection.SourcePath;
     private readonly SKSvgSettings _settings;
     private readonly SkiaModel _convert;
     private readonly HashSet<object> _stack = new(ReferenceEqualityComparer.Instance);
@@ -39,18 +44,18 @@ internal sealed class SvgNativePictureCompiler : IDisposable
         XmlReaderSettings settings = new() { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null,
             MaxCharactersInDocument = _limits.MaximumSafeXmlBytes, MaxCharactersFromEntities = 1,
             IgnoreProcessingInstructions = false, ConformanceLevel = ConformanceLevel.Document };
-        using var text = new StringReader(_document.SafeXml);
+        using var text = new StringReader(_document!.SafeXml);
         using var reader = XmlReader.Create(text, settings);
         var fragment = SvgService.Open(reader, false) ?? throw Fail("受控 XML 未生成 SVG 文档。");
         _token.ThrowIfCancellationRequested();
-        var assets = new StrictSvgAssetLoader(_document, _token);
+        var assets = new StrictSvgAssetLoader(_document!, _token);
         var model = SvgSceneRuntime.CreateModel(fragment, assets, global::Svg.Model.DrawAttributes.None,
-            new(0, 0, (float)_document.Inspection.Viewport.Width, (float)_document.Inspection.Viewport.Height));
+            new(0, 0, (float)_document!.Inspection.Viewport.Width, (float)_document.Inspection.Viewport.Height));
         assets.ThrowIfFaulted();
         if (model is null) throw Fail("已准入的 SVG 未生成完整模型。");
         using var source = Record(model);
         _token.ThrowIfCancellationRequested();
-        float width = (float)_document.Inspection.Viewport.Width, height = (float)_document.Inspection.Viewport.Height;
+        float width = (float)_document!.Inspection.Viewport.Width, height = (float)_document.Inspection.Viewport.Height;
         SKRect bounds = source.CullRect;
         if (!Finite(bounds)) throw Fail("native Picture bounds 非有限。");
         var unitBounds = new SKRect(bounds.Left / width, bounds.Top / height, bounds.Right / width, bounds.Bottom / height);
@@ -92,7 +97,7 @@ internal sealed class SvgNativePictureCompiler : IDisposable
                         break;
                     case S.DrawImageCanvasCommand { Image: { } image } draw:
                         using (var scope = new NativeScope())
-                            canvas.DrawImage(_images.Get(_document, image), _convert.ToSKRect(draw.Source), _convert.ToSKRect(draw.Dest),
+                        canvas.DrawImage((_images ?? throw Fail("内联 SVG 禁止位图绘制。")).Get(_document ?? throw Fail("内联 SVG 禁止位图绘制。"), image), _convert.ToSKRect(draw.Source), _convert.ToSKRect(draw.Dest),
                                 draw.Sampling is { } sampling ? Sampling(sampling)
                                     : _convert.ToSKSamplingOptions(draw.Paint?.FilterQuality ?? S.SKFilterQuality.None),
                                 draw.Paint is { } imagePaint ? Paint(imagePaint, scope) : null);
@@ -259,8 +264,8 @@ internal sealed class SvgNativePictureCompiler : IDisposable
     private void Enter(object value)
     { _token.ThrowIfCancellationRequested(); if (_stack.Count >= (long)_limits.MaximumReferenceDepth + _limits.MaximumXmlDepth + _limits.MaximumFilterPasses + 4 || !_stack.Add(value)) throw Fail("native 模型存在循环或超过引用深度。"); }
     private void Charge()
-    { _token.ThrowIfCancellationRequested(); if (++_operations > _limits.MaximumPictureOperations) throw new EffectPackageException("PackageSvgBudgetExceeded", _document.Inspection.SourcePath, "实际 native 录制操作超过预算。"); }
-    private EffectPackageException Fail(string message) => new("PackageSvgNativeCompilationFailed", _document.Inspection.SourcePath, message);
+    { _token.ThrowIfCancellationRequested(); if (++_operations > _limits.MaximumPictureOperations) throw new EffectPackageException("PackageSvgBudgetExceeded", SourcePath, "实际 native 录制操作超过预算。"); }
+    private EffectPackageException Fail(string message) => new("PackageSvgNativeCompilationFailed", SourcePath, message);
     private static bool Finite(SKRect rect) => float.IsFinite(rect.Left) && float.IsFinite(rect.Top) && float.IsFinite(rect.Right) && float.IsFinite(rect.Bottom);
     public void Dispose()
     {

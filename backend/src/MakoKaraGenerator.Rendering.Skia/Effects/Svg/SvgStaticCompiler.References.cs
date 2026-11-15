@@ -93,7 +93,7 @@ internal sealed partial class SvgStaticCompiler
             foreach (var stop in stops)
             { double offset = Number(stop.Get("offset"), stop, 0, 1, true); Check(offset >= previous, "stop offset 必须非递减。", stop); previous = offset; }
         }
-        _usage.Raw(_source.Path, _nodes.Count, _rawCommands);
+        _usage.Raw(_sourcePath, _nodes.Count, _rawCommands);
         _ = root;
     }
 
@@ -129,7 +129,7 @@ internal sealed partial class SvgStaticCompiler
             CountExpanded(_ids[reference.Id], active, referenceDepth + 1, false, referenced);
         }
         active.Remove(node);
-        if (top) _usage.Expanded(_source.Path, _expandedElements, _expandedCommands, _operations);
+        if (top) _usage.Expanded(_sourcePath, _expandedElements, _expandedCommands, _operations);
     }
     private Matrix SymbolMatrix(Node use, Node symbol)
     {
@@ -164,8 +164,8 @@ internal sealed partial class SvgStaticCompiler
             double width = Number(filter.Get("width"), filter, 0, MaximumNumber, objectRegion);
             double height = Number(filter.Get("height"), filter, 0, MaximumNumber, objectRegion);
             Check(width > 0 && height > 0, "filter region 不得退化。", filter); CheckFinitePoint(x + width, y + height, filter);
-            double objectWidth = Math.Max(_definition.Viewport.Width, _expandedGeometry.IsEmpty ? 0 : _expandedGeometry.Right - _expandedGeometry.Left);
-            double objectHeight = Math.Max(_definition.Viewport.Height, _expandedGeometry.IsEmpty ? 0 : _expandedGeometry.Bottom - _expandedGeometry.Top);
+            double objectWidth = Math.Max(_viewportWidth, _expandedGeometry.IsEmpty ? 0 : _expandedGeometry.Right - _expandedGeometry.Left);
+            double objectHeight = Math.Max(_viewportHeight, _expandedGeometry.IsEmpty ? 0 : _expandedGeometry.Bottom - _expandedGeometry.Top);
             if (objectRegion) { width *= objectWidth; height *= objectHeight; }
             HashSet<string> available = new(["SourceGraphic", "SourceAlpha"], StringComparer.Ordinal); string previous = "SourceGraphic";
             int passes = 0; double outsetX = 0, outsetY = 0;
@@ -220,7 +220,7 @@ internal sealed partial class SvgStaticCompiler
             long bytes;
             try { bytes = checked((long)w * (long)h * 4 * (passes + 2)); }
             catch (OverflowException error) { throw Fail("PackageSvgBudgetExceeded", "filter 工作面字节溢出。", filter, error); }
-            _usage.Filter(bytes, _source.Path); _filterBytes = checked(_filterBytes + bytes);
+            _usage.Filter(bytes, _sourcePath); _filterBytes = checked(_filterBytes + bytes);
         }
     }
 }

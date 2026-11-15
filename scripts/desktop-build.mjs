@@ -1,8 +1,9 @@
 import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createHash } from 'node:crypto';
-import { readFile, writeFile, copyFile, readdir, lstat, realpath, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, copyFile, readdir, realpath, mkdir } from 'node:fs/promises';
 import { resolve, join, sep, dirname } from 'node:path';
+import backendHost from '../desktop/runtime/backend-host.cjs';
 
 const execute = promisify(execFile);
 const hash = async file => createHash('sha256').update(await readFile(file)).digest('hex');
@@ -92,15 +93,6 @@ export async function augmentDesktopDeployment(root,dist,native) {
 export async function verifyDesktopDeployment(root,dist) {
   root=await realpath(root);dist=await realpath(dist);
   if(!inside(join(root,'.local/backend-dist'),dist)) throw new Error('Desktop deployment escaped App');
-  const manifest=JSON.parse(await readFile(join(dist,'gpu-preview-manifest.json'),'utf8'));
-  const deployment=JSON.parse(await readFile(join(dist,'deployment.json'),'utf8'));
-  if(manifest.abiVersion!==1||manifest.electron!=='45.2.1'||deployment.gpuPreview?.sha256!==await hash(join(dist,'gpu-preview-manifest.json'))) throw new Error('Desktop native manifest mismatch');
-  for(const [name,expected] of Object.entries(manifest.files)) {
-    const target=resolve(dist,name);
-    if(!inside(dist,target)||(await lstat(target)).isSymbolicLink()||await hash(target)!==expected) throw new Error('Desktop native payload mismatch');
-  }
-  await execute('python3',['-c',
-    "import importlib.util,pathlib,sys; s=importlib.util.spec_from_file_location('mako_app_host',sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); m.validate_dist(pathlib.Path(sys.argv[2]))",
-    join(root,'backend/tools/backend-web-host/host.py'),dist],{cwd:root,maxBuffer:1024*1024});
-  return manifest;
+  const { gpuManifest } = backendHost.validateDesktopDeployment(dist, '45.2.1');
+  return gpuManifest;
 }

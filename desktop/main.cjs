@@ -2,26 +2,95 @@
 const { app, BrowserWindow, Menu, dialog, ipcMain, screen, sharedTexture } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
-const { createHash } = require('node:crypto');
+const { createHash, randomBytes } = require('node:crypto');
 const { readLaunchConfig } = require('./gpu-preview/launch-contract.cjs');
 const { importAndTransferFrame } = require('./gpu-preview/import-consumer.cjs');
 const { isolateGpuPreviewStream } = require('./gpu-preview/failure-isolation.cjs');
 const { validateWorkerMessage, workerFailureSummary } = require('./gpu-preview/wire.cjs');
 const { prepareDesktopSession } = require('./gpu-preview/session-paths.cjs');
+const { prepareStandaloneSession } = require('./runtime/standalone-paths.cjs');
+const { compatibleProductVersion, startBackendProcess, validateDesktopDeployment } = require('./runtime/backend-host.cjs');
+const { startStaticWebServer } = require('./runtime/web-server.cjs');
 
-const root = fs.realpathSync(path.join(__dirname,'..'));
-const configFile = process.argv[process.argv.indexOf('--launch-config')+1];
-let config = readLaunchConfig(configFile,root,process.pid);
-const performanceDiagnostics=config.performanceDiagnostics?require('./gpu-preview/performance-diagnostics.cjs').createPerformanceDiagnostics():null;
-const measured=(type,action,metadata,threshold)=>performanceDiagnostics?performanceDiagnostics.measure(type,action,metadata,threshold):action();
 if (process.versions.electron !== '45.2.1') throw new Error('Desktop requires the pinned Electron runtime');
-const sessionPaths=prepareDesktopSession(root,config.sessionName);
-app.setPath('userData',sessionPaths.userData);
-app.setPath('crashDumps',sessionPaths.crashDumps);
-app.commandLine.appendSwitch('disable-breakpad');
-const addon=fs.realpathSync(config.brokerAddon);
-if(addon!==config.brokerAddon||!addon.startsWith(path.join(root,'.local/backend-dist')+path.sep)||createHash('sha256').update(fs.readFileSync(addon)).digest('hex')!==config.brokerAddonSha256)throw new Error('Desktop broker payload mismatch');
-const broker = require(addon);
+const launchConfigFlagIndex = process.argv.indexOf('--launch-config');
+const standaloneMode = launchConfigFlagIndex === -1;
+
+let root;
+let configFile;
+let config;
+let sessionPaths;
+let standaloneResources;
+let broker;
+let webServer;
+let backendProcess;
+let singleInstanceGranted = true;
+
+function resolveStandaloneResources() {
+  const resourcesDir = process.resourcesPath;
+  const packagedFrontend = path.join(resourcesDir, 'frontend-dist');
+  const packagedBackend = path.join(resourcesDir, 'backend-dist');
+  let frontendDist;
+  let backendDist;
+  if (fs.existsSync(path.join(packagedFrontend, 'index.html')) && fs.existsSync(path.join(packagedBackend, 'deployment.json'))) {
+    frontendDist = packagedFrontend;
+    backendDist = packagedBackend;
+  } else {
+    const repoRoot = fs.realpathSync(path.join(__dirname, '..'));
+    frontendDist = path.join(repoRoot, 'frontend/dist');
+    const pointer = path.join(repoRoot, '.local/backend-current.json');
+    if (!fs.existsSync(path.join(frontendDist, 'index.html')) || !fs.existsSync(pointer)) {
+      throw new Error('缺少桌面应用构建产物（frontend-dist 或 backend-dist）。');
+    }
+    backendDist = JSON.parse(fs.readFileSync(pointer, 'utf8')).dist;
+  }
+  const validated = validateDesktopDeployment(backendDist, '45.2.1');
+  if (!compatibleProductVersion(validated.deployment.version)) {
+    throw new Error(`桌面后端部署版本 ${validated.deployment.version} 与当前应用不兼容。`);
+  }
+  const brokerAddon = path.join(validated.dist, 'desktop', 'gpu_preview_broker.node');
+  const brokerAddonSha256 = validated.gpuManifest.files['desktop/gpu_preview_broker.node'];
+  if (!brokerAddonSha256 || fs.realpathSync(brokerAddon) !== brokerAddon) {
+    throw new Error('Desktop broker payload mismatch');
+  }
+  return { frontendDist, backendDist: validated.dist, brokerAddon, brokerAddonSha256 };
+}
+
+if (standaloneMode) {
+  sessionPaths = prepareStandaloneSession('makokara-generator');
+  app.setPath('userData', sessionPaths.userData);
+  app.setPath('crashDumps', sessionPaths.crashDumps);
+  app.commandLine.appendSwitch('disable-breakpad');
+  if (typeof app.setDesktopName === 'function') app.setDesktopName('makokara-generator.desktop');
+  singleInstanceGranted = app.requestSingleInstanceLock();
+  if (!singleInstanceGranted) {
+    app.exit(0);
+  } else {
+    standaloneResources = resolveStandaloneResources();
+    broker = require(standaloneResources.brokerAddon);
+    config = { ready: false };
+  }
+} else {
+  root = fs.realpathSync(path.join(__dirname, '..'));
+  configFile = process.argv[launchConfigFlagIndex + 1];
+  config = readLaunchConfig(configFile, root, process.pid);
+  sessionPaths = prepareDesktopSession(root, config.sessionName);
+  app.setPath('userData', sessionPaths.userData);
+  app.setPath('crashDumps', sessionPaths.crashDumps);
+  app.commandLine.appendSwitch('disable-breakpad');
+  const addon = fs.realpathSync(config.brokerAddon);
+  if (
+    addon !== config.brokerAddon ||
+    !addon.startsWith(path.join(root, '.local/backend-dist') + path.sep) ||
+    createHash('sha256').update(fs.readFileSync(addon)).digest('hex') !== config.brokerAddonSha256
+  ) {
+    throw new Error('Desktop broker payload mismatch');
+  }
+  broker = require(addon);
+}
+
+const performanceDiagnostics = config?.performanceDiagnostics ? require('./gpu-preview/performance-diagnostics.cjs').createPerformanceDiagnostics() : null;
+const measured = (type, action, metadata, threshold) => performanceDiagnostics ? performanceDiagnostics.measure(type, action, metadata, threshold) : action();
 const decimal = value => typeof value === 'string' && /^(0|[1-9]\d*)$/.test(value) && BigInt(value)<=0xffffffffffffffffn;
 const positive = value => decimal(value) && BigInt(value)>0n;
 const identityKeys = ['streamId','hostInstanceId','producerEpoch','inputGeneration','consumerEpoch','timelineEpoch','poolGeneration','slotId','slotEpoch','frameSeq'];
@@ -64,11 +133,22 @@ function isolatePreview(code='gpuConsumerFailure',s=stream) {
     record('preview-worker-termination',{confirmed:terminated});
   });
 }
+let standaloneStopPromise = null;
+function shutdownOwnedRuntime(timeoutMs = 15000) {
+  standaloneStopPromise ??= (async () => {
+    const tasks = [];
+    if (webServer) tasks.push(webServer.close().catch(() => {}));
+    if (backendProcess) tasks.push(backendProcess.stop().catch(() => {}));
+    if (tasks.length === 0) return;
+    await Promise.race([Promise.all(tasks), delay(timeoutMs)]);
+  })();
+  return standaloneStopPromise;
+}
 function failStop(code='desktopUnhandledFailure') {
   if(ending)return;
   ending=true;lost=true;
   console.error(JSON.stringify({type:'desktop-fail-stop',code}));
-  app.exit(1);
+  void shutdownOwnedRuntime(5000).finally(()=>app.exit(1));
 }
 function authorize(event) {
   if(!window || event.sender!==window.webContents || event.senderFrame!==window.webContents.mainFrame || new URL(event.senderFrame.url).origin!==new URL(config.pageUrl).origin) throw new Error('Unexpected desktop caller');
@@ -293,10 +373,14 @@ ipcMain.handle('mako-gpu:acceptance-visibility',(event,visible)=>{
 ipcMain.on('mako-gpu:error',event=>{authorize(event);isolatePreview('gpuRendererReceiverFailed');});
 ipcMain.on('mako-gpu:drawn',(event,data)=>{authorize(event);const key=leaseKey(data),done=completed.get(key),item=stream?.imports.get(key)??done?.item;if(item&&!item.drawn&&data.timestamp===item.metadata.timeUs){item.drawn=true;sTelemetry.drawn++;if(done){done.sample.drawn=true;done.sample.sampleRevision=++sampleRevision;sTelemetry.completedDrawnUnique++;sTelemetry.completedWithoutDraw--;}safeState({type:'drawn',...data});}});
 ipcMain.on('mako-gpu:renderer-release',(event,data)=>{authorize(event);if(stream?.imports.has(leaseKey(data)))record('renderer-release-requested',{frameSeq:data.frameSeq});});
+let closingProcess = false;
 async function close() {
-  if(ending)return;
+  if(ending||closingProcess)return;
+  closingProcess=true;
   try{await detach();}catch{isolatePreview('gpuShutdownFailed');}
-  ending=true;app.exit(0);
+  ending=true;
+  await shutdownOwnedRuntime();
+  app.exit(0);
 }
 // 关窗会连后端一起停掉。先在页面里派发一次 beforeunload：编辑器在工程、样式库模板、作者草稿没保存时会拦下，
 // 这时问一下再退出。页面 3 秒没回应（卡住）就当作没拦，照常退出。
@@ -314,20 +398,57 @@ async function requestClose() {
     await close();
   }finally{closing=false;}
 }
-for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>void close());
+for(const signal of ['SIGINT','SIGTERM','SIGHUP'])process.on(signal,()=>void close());
 app.on('before-quit',event=>{if(!ending){event.preventDefault();void close();}});
 app.on('child-process-gone',(_event,details)=>{if(details.type==='GPU')isolatePreview('gpuProcessLost');});
+if(standaloneMode&&singleInstanceGranted){
+  app.on('second-instance',()=>{if(window&&!window.isDestroyed()){if(window.isMinimized())window.restore();if(!window.isVisible())window.show();window.focus();}});
+}
 process.on('uncaughtException',()=>failStop('desktopUnhandledFailure'));
 process.on('unhandledRejection',()=>failStop('desktopUnhandledFailure'));
-(async()=>{
-  const deadline=Date.now()+45000;
-  while(!config.ready){if(Date.now()>deadline)throw new Error('Desktop launch deadline');await delay(50);config=readLaunchConfig(configFile,root,process.pid);}
+if(singleInstanceGranted)(async()=>{
+  if (standaloneMode) {
+    webServer = await startStaticWebServer({
+      distRoot: standaloneResources.frontendDist,
+      port: 5180,
+      allowFallbackPort: true,
+      getBootstrap: () => backendProcess?.info,
+    });
+    const consumerId = randomBytes(16).toString('hex');
+    const consumerSecret = randomBytes(32).toString('hex');
+    backendProcess = await startBackendProcess({
+      dist: standaloneResources.backendDist,
+      profile: sessionPaths.profile,
+      origins: webServer.origins,
+      env: {
+        MAKO_DESKTOP_CONSUMER_ID: consumerId,
+        MAKO_DESKTOP_CONSUMER_SECRET: consumerSecret,
+        MAKO_DESKTOP_MAIN_PID: String(process.pid),
+      },
+      log: (line) => console.log(line),
+    });
+    backendProcess.exited.then((code) => { if (!ending && !closingProcess) failStop(`desktopBackendExited:${code}`); });
+    config = {
+      consumerId,
+      consumerSecret,
+      pageUrl: webServer.origins[0],
+      baseUrl: backendProcess.info.baseUrl,
+      hostInstanceId: backendProcess.info.hostInstanceId,
+      brokerAddon: standaloneResources.brokerAddon,
+      brokerAddonSha256: standaloneResources.brokerAddonSha256,
+      ready: true,
+    };
+  } else {
+    const deadline=Date.now()+45000;
+    while(!config.ready){if(Date.now()>deadline)throw new Error('Desktop launch deadline');await delay(50);config=readLaunchConfig(configFile,root,process.pid);}
+  }
   await app.whenReady();
   // 编辑器自带顶栏，不要 Electron 默认菜单；窗口按工作区收小，最小 1024 宽（界面改版的最窄断点）。
   // 页面画好再显示，避免先闪一下白底。
   Menu.setApplicationMenu(null);
   const work=screen.getPrimaryDisplay().workAreaSize;
-  window=new BrowserWindow({width:Math.min(1440,work.width),height:Math.min(1000,work.height),minWidth:1024,minHeight:640,title:'MakoKara Generator',icon:path.join(__dirname,'assets/icon-128.png'),show:false,
+  const iconPng = fs.existsSync(path.join(__dirname, 'assets/icon.png')) ? path.join(__dirname, 'assets/icon.png') : path.join(__dirname, 'assets/icon-128.png');
+  window=new BrowserWindow({width:Math.min(1440,work.width),height:Math.min(1000,work.height),minWidth:1024,minHeight:640,title:'MakoKara Generator',icon:iconPng,show:false,
     webPreferences:{preload:path.join(__dirname,'gpu-preview/preload.cjs'),sandbox:true,contextIsolation:true,nodeIntegration:false,backgroundThrottling:true}});
   window.once('ready-to-show',()=>{if(!ending&&!window.isDestroyed())window.show();});
   window.webContents.setWindowOpenHandler(()=>({action:'deny'}));
@@ -342,4 +463,8 @@ process.on('unhandledRejection',()=>failStop('desktopUnhandledFailure'));
   gpuInfo=await app.getGPUInfo('complete');
   await window.loadURL(config.pageUrl);
   if(!ending&&!window.isDestroyed()&&!window.isVisible())window.show();
-})().catch(()=>failStop('desktopStartupFailed'));
+})().catch((error)=>{
+  console.error(error?.stack||String(error));
+  if(standaloneMode&&app.isReady()){try{dialog.showErrorBox('MakoKara Generator 启动失败',error?.message??String(error));}catch{}}
+  failStop('desktopStartupFailed');
+});

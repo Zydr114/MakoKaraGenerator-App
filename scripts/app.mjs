@@ -1,9 +1,8 @@
 // App-owned build and process lifecycle. No sibling repository or pre-existing deployment fallback.
 import { spawn } from 'node:child_process';
-import { createServer } from 'node:http';
-import { createReadStream, existsSync } from 'node:fs';
-import { mkdir, readdir, readFile, realpath, stat, rm } from 'node:fs/promises';
-import { dirname, extname, join, resolve, sep } from 'node:path';
+import { existsSync } from 'node:fs';
+import { mkdir, readdir, readFile, realpath, rm } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { startBackend, writeBootstrapFile } from '../frontend/scripts/backend-launcher.mjs';
@@ -12,6 +11,7 @@ import { buildDesktopNative, augmentDesktopDeployment } from './desktop-build.mj
 import { desktopBuildState, recordWebBuild, webInputs } from './build-state.mjs';
 import desktopSessionPaths from '../desktop/gpu-preview/session-paths.cjs';
 import ordinaryExec from '../desktop/gpu-preview/ordinary-exec.cjs';
+import webServer from '../desktop/runtime/web-server.cjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const LOCAL = join(ROOT, '.local');
@@ -130,11 +130,7 @@ if (command === 'build' || command === 'build:desktop') {
         desktopChild.kill('SIGTERM');
       });
     }
-    if (web) await new Promise((done) => {
-      const result = web.close(done);
-      if (result?.then) result.then(done, done);
-      web.closeAllConnections?.();
-    });
+    if (web) await web.close();
     if (startup) backend = await startup.catch(() => null);
     if (backend) await backend.stop();
     if (desktopConfigFile) await rm(desktopConfigFile, { force:true });
@@ -175,37 +171,11 @@ if (command === 'build' || command === 'build:desktop') {
       web = await createViteServer({ root: join(ROOT, 'frontend'), configFile: join(ROOT, 'frontend/vite.config.ts'), server: { host: '127.0.0.1', port, strictPort: true } });
       await web.listen();
     } else {
-      const hosts = new Set([`127.0.0.1:${port}`, `localhost:${port}`]);
-      const loopback = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
-      const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json; charset=utf-8', '.woff2': 'font/woff2' };
-      web = createServer((req, res) => { void (async () => {
-        res.setHeader('X-Content-Type-Options', 'nosniff');
-        if (!hosts.has(req.headers.host) || !loopback.has(req.socket.remoteAddress)) { res.writeHead(403).end(); return; }
-        const pathname = new URL(req.url, origins[0]).pathname;
-        if (pathname === '/__mako/bootstrap') {
-          res.setHeader('Cache-Control', 'no-store');
-          const sameOrigin = req.headers.origin === undefined || req.headers.origin === `http://${req.headers.host}`;
-          if (req.method !== 'GET' || req.headers['sec-fetch-site'] !== 'same-origin' || !sameOrigin) { res.writeHead(403).end(); return; }
-          const { baseUrl, hostInstanceId, bootstrapToken } = backend.info;
-          res.setHeader('Content-Type', 'application/json; charset=utf-8');
-          res.end(JSON.stringify({ baseUrl, hostInstanceId, bootstrapToken }));
-          return;
-        }
-        if (!['GET', 'HEAD'].includes(req.method)) { res.writeHead(405).end(); return; }
-        let path;
-        try { path = resolve(distRoot, '.' + decodeURIComponent(pathname)); } catch { res.writeHead(400).end(); return; }
-        if (!path.startsWith(distRoot + sep) && path !== distRoot) { res.writeHead(403).end(); return; }
-        if (!extname(path)) path = join(distRoot, 'index.html');
-        let info;
-        try { info = await stat(path); } catch { res.writeHead(404).end(); return; }
-        if (!info.isFile()) { res.writeHead(404).end(); return; }
-        res.setHeader('Content-Type', types[extname(path)] ?? 'application/octet-stream');
-        res.setHeader('Cache-Control', 'no-cache');
-        res.setHeader('Content-Length', info.size);
-        if (req.method === 'HEAD') res.end();
-        else createReadStream(path).on('error', () => { if (!res.headersSent) res.writeHead(500); res.end(); }).pipe(res);
-      })().catch(() => { if (!res.headersSent) res.writeHead(500); res.end(); }); });
-      await new Promise((done, reject) => { web.once('error', reject); web.listen(port, '127.0.0.1', done); });
+      web = await webServer.startStaticWebServer({
+        distRoot,
+        port,
+        getBootstrap: () => backend.info,
+      });
     }
     if (desktopSession) await writeBootstrapFile(desktopConfigFile, { ...desktopSession, ready:true, baseUrl:backend.info.baseUrl, hostInstanceId:backend.info.hostInstanceId, mainPid:desktopChild.pid });
     console.log(`[app] ${command === 'dev' ? '开发' : command === 'desktop' ? '桌面' : '构建'}页面：http://127.0.0.1:${port}（Ctrl+C 停止）`);

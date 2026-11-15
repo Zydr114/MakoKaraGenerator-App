@@ -11,6 +11,7 @@
     "build": "node scripts/app.mjs build",
     "build:desktop": "node scripts/app.mjs build:desktop",
     "desktop": "node scripts/app.mjs desktop",
+    "package:appimage": "node scripts/package-appimage.mjs",
     "start": "node scripts/app.mjs start",
     "dev": "node scripts/app.mjs dev",
     "test:unit": "pnpm --dir frontend test:unit",

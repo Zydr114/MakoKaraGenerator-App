@@ -8,8 +8,27 @@ internal static partial class ProjectDtoMapper
     private static SceneContentDto? ToDto(SceneContent? content) => content switch
     {
         null => null,
-        CountdownSequenceContent sequence => new() { Kind = "CountdownSequence", StepMode = "EqualDuration",
-            MarkNodeIds = [.. sequence.MarkNodeIds], Appearance = ToDto(sequence.Appearance) },
+        CountdownSequenceContent sequence => new()
+        {
+            Kind = "CountdownSequence",
+            StepMode = "EqualDuration",
+            MarkNodeIds = [.. sequence.MarkNodeIds],
+            Appearance = ToDto(sequence.Appearance),
+            Shape = new()
+            {
+                Kind = sequence.Shape.Kind.ToString(),
+                SvgXml = sequence.Shape.SvgXml,
+                SvgColorMode = sequence.Shape.SvgColorMode.ToString(),
+                BarMinHeightRatio = sequence.Shape.BarMinHeightRatio,
+            },
+            Animation = new()
+            {
+                Mode = sequence.Animation.Mode.ToString(),
+                BlinkRatio = sequence.Animation.BlinkRatio,
+                BlinkCount = sequence.Animation.BlinkCount,
+                FeatherRatio = sequence.Animation.FeatherRatio,
+            },
+        },
         TextMarkContent mark => new() { Kind = "TextMark", Text = mark.Text, AppearanceOverride = ToDto(mark.AppearanceOverride) },
         _ => throw new ArgumentException("未知场景内容。", nameof(content)),
     };
@@ -21,11 +40,34 @@ internal static partial class ProjectDtoMapper
             if (!string.Equals(dto.StepMode, "EqualDuration", StringComparison.OrdinalIgnoreCase)
                 || dto.Text is not null || dto.AppearanceOverride is not null)
                 DiagnosticList.Add(issues, DiagnosticCode.InvalidDisplayProgram, IssueSeverity.Error, "倒计时组的步进方式或内容字段无效。", path);
-            return new CountdownSequenceContent { MarkNodeIds = dto.MarkNodeIds is null ? [] : [.. dto.MarkNodeIds], Appearance = MapAppearance(dto.Appearance, path + ".appearance", issues) };
+            CountdownShapeSpec shape = dto.Shape is null ? CountdownShapeSpec.Default : new()
+            {
+                Kind = ParseBranchEnum<CountdownShapeKind>(dto.Shape.Kind),
+                SvgXml = dto.Shape.SvgXml,
+                SvgColorMode = dto.Shape.SvgColorMode is null
+                    ? CountdownSvgColorMode.SilhouetteStyle
+                    : ParseBranchEnum<CountdownSvgColorMode>(dto.Shape.SvgColorMode),
+                BarMinHeightRatio = dto.Shape.BarMinHeightRatio,
+            };
+            CountdownAnimationSpec animation = dto.Animation is null ? CountdownAnimationSpec.Default : new()
+            {
+                Mode = ParseBranchEnum<CountdownAnimationMode>(dto.Animation.Mode),
+                BlinkRatio = dto.Animation.BlinkRatio,
+                BlinkCount = dto.Animation.BlinkCount,
+                FeatherRatio = dto.Animation.FeatherRatio,
+            };
+            return new CountdownSequenceContent
+            {
+                MarkNodeIds = dto.MarkNodeIds is null ? [] : [.. dto.MarkNodeIds],
+                Appearance = MapAppearance(dto.Appearance, path + ".appearance", issues),
+                Shape = shape,
+                Animation = animation,
+            };
         }
         if (string.Equals(dto.Kind, "TextMark", StringComparison.OrdinalIgnoreCase))
         {
-            if (dto.MarkNodeIds is not null || dto.StepMode is not null || dto.Appearance is not null)
+            if (dto.MarkNodeIds is not null || dto.StepMode is not null || dto.Appearance is not null
+                || dto.Shape is not null || dto.Animation is not null)
                 DiagnosticList.Add(issues, DiagnosticCode.InvalidDisplayProgram, IssueSeverity.Error, "文字标记不能携带倒计时组配置。", path);
             var overlay = dto.AppearanceOverride;
             return new TextMarkContent { Text = dto.Text ?? string.Empty,

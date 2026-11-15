@@ -74,7 +74,9 @@ public sealed class PresetApplicationsTests
         Assert.Equal(blue, PresetApplicationsProjection.ResolveLyrics(project, "l1", "t1", "clip", context).SungColor);
         project = Apply(project, Static("line", white, LyricStyleProperty.SungFill), new(ProjectEffectBindingKind.Lines, ids: ["l1"]));
         Assert.Equal(white, PresetApplicationsProjection.ResolveLyrics(project, "l1", "t1", "clip", context).SungColor);
-        Assert.Equal(red, PresetApplicationsProjection.ResolveMark(project, SceneTextAppearance.Default.ToLyricStyle(), context).SungColor);
+        var markResolved = PresetApplicationsProjection.ResolveMark(project, SceneTextAppearance.Default.ToLyricStyle(), context);
+        Assert.Equal(red, markResolved.SungColor);
+        Assert.NotEqual(88, markResolved.FontSizePx);
         var noDescendants = Apply(Source(), Static("self", red, LyricStyleProperty.SungFill), new(ProjectEffectBindingKind.Node, id: root));
         Assert.Equal(Source().LyricStyle.SungColor, PresetApplicationsProjection.ResolveLyrics(noDescendants, "l1", nodePath: context).SungColor);
         Assert.Equal(red, PresetApplicationsProjection.ResolveLyrics(noDescendants, "l1", nodePath: [root]).SungColor);
@@ -231,5 +233,34 @@ public sealed class PresetApplicationsTests
         var project = Apply(Source(), preset, new(ProjectEffectBindingKind.Project));
         Assert.Equal(ProjectEffectBindingKind.Project, Assert.Single(PresetApplicationsProjection.Effects(project).Instances).Binding.Kind);
         Assert.False(PresetApplicationTargets.CanApply(Source(), preset, new(ProjectEffectBindingKind.Branch, id: "primary"), out _));
+    }
+
+    [Fact]
+    public void 前奏提示组与标记不继承工程分支根容器预设仅响应直接节点绑定()
+    {
+        var source = Source();
+        var root = source.LyricPresentation.Programs[0].RootContainerId;
+        Assert.True(LeadInEditor.TryCreateCountdown(source, root, "前奏", 3, out string indicator, out source, out var report), report.ToSummary());
+        var sequence = Assert.IsType<CountdownSequenceContent>(source.LyricPresentation.FindNode(indicator)!.Content);
+        string markId = sequence.MarkNodeIds[0];
+
+        var white = new RgbaColor(255, 255, 255, 255);
+        var red = new RgbaColor(220, 30, 30, 255);
+        var blue = new RgbaColor(30, 30, 220, 255);
+        var green = new RgbaColor(30, 200, 80, 255);
+        var project = Apply(source, Static("proj", white, LyricStyleProperty.SungFill), new(ProjectEffectBindingKind.Project));
+        project = Apply(project, Static("branch", white, LyricStyleProperty.FontSizePx), new(ProjectEffectBindingKind.Branch, id: "primary"));
+        project = Apply(project, Static("root-node", red, LyricStyleProperty.SungFill), new(ProjectEffectBindingKind.Node, id: root, includeDescendants: true));
+
+        var baseStyle = SceneTextAppearance.Default.ToLyricStyle();
+        var unresolvedFromLyricPresets = PresetApplicationsProjection.ResolveMark(project, baseStyle, [root, indicator, markId], "primary");
+        Assert.Equal(baseStyle.SungColor, unresolvedFromLyricPresets.SungColor);
+        Assert.Equal(baseStyle.FontSizePx, unresolvedFromLyricPresets.FontSizePx);
+
+        project = Apply(project, Static("countdown-node", blue, LyricStyleProperty.SungFill), new(ProjectEffectBindingKind.Node, id: indicator, includeDescendants: true));
+        Assert.Equal(blue, PresetApplicationsProjection.ResolveMark(project, baseStyle, [root, indicator, markId], "primary").SungColor);
+
+        project = Apply(project, Static("mark-node", green, LyricStyleProperty.SungFill), new(ProjectEffectBindingKind.Node, id: markId));
+        Assert.Equal(green, PresetApplicationsProjection.ResolveMark(project, baseStyle, [root, indicator, markId], "primary").SungColor);
     }
 }

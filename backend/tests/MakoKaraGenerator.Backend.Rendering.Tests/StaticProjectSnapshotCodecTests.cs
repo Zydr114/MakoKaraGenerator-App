@@ -264,6 +264,61 @@ public sealed class StaticProjectSnapshotCodecTests
         AssertCode("SnapshotInvalid", root);
     }
 
+    [Fact]
+    public void 前奏图形动画与首字上方附着在静态快照往返保留并校验()
+    {
+        ProjectSnapshot source = StaticSnapshotFixture.Create();
+        SceneContainerDefinition countdown = Assert.Single(source.LyricPresentation.Nodes, node => node.Content is CountdownSequenceContent);
+        CountdownSequenceContent sequence = (CountdownSequenceContent)countdown.Content!;
+        var updatedShape = new CountdownShapeSpec
+        {
+            Kind = CountdownShapeKind.CustomSvg,
+            SvgXml = "<svg viewBox=\"0 0 24 24\"><path d=\"M12 2L22 22H2Z\"/></svg>",
+            SvgColorMode = CountdownSvgColorMode.SilhouetteStyle,
+            BarMinHeightRatio = 0.55,
+        };
+        var updatedAnimation = new CountdownAnimationSpec
+        {
+            Mode = CountdownAnimationMode.BlinkThenWipeFill,
+            BlinkRatio = 0.35,
+            BlinkCount = 2,
+            FeatherRatio = 0.06,
+        };
+        SceneContainerDefinition updatedCountdown = countdown with
+        {
+            Attachment = new() { Mode = SceneAttachmentMode.CueTargetAboveStart },
+            Content = sequence with { Shape = updatedShape, Animation = updatedAnimation },
+        };
+        ProjectSnapshot updated = source with
+        {
+            LyricPresentation = source.LyricPresentation with
+            {
+                Nodes = source.LyricPresentation.Nodes.Replace(countdown, updatedCountdown),
+            },
+        };
+
+        ProjectSnapshot roundtripped = StaticProjectSnapshotCodec.Decode(StaticProjectSnapshotCodec.Encode(updated));
+        SceneContainerDefinition roundtrippedNode = Assert.Single(roundtripped.LyricPresentation.Nodes, node => node.Id == countdown.Id);
+        CountdownSequenceContent roundtrippedSequence = Assert.IsType<CountdownSequenceContent>(roundtrippedNode.Content);
+        Assert.Equal(SceneAttachmentMode.CueTargetAboveStart, roundtrippedNode.Attachment?.Mode);
+        Assert.Equal(updatedShape, roundtrippedSequence.Shape);
+        Assert.Equal(updatedAnimation, roundtrippedSequence.Animation);
+
+        AssertInvalid(source with
+        {
+            LyricPresentation = source.LyricPresentation with
+            {
+                Nodes = source.LyricPresentation.Nodes.Replace(countdown, countdown with
+                {
+                    Content = sequence with
+                    {
+                        Shape = new() { Kind = CountdownShapeKind.CustomSvg, SvgXml = "<svg><script/></svg>" },
+                    },
+                }),
+            },
+        });
+    }
+
     private static JsonObject Root() => JsonNode.Parse(StaticProjectSnapshotCodec.Encode(StaticSnapshotFixture.Create()))!.AsObject();
     private static void AssertCode(string code, JsonObject root) => Assert.Equal(code,
         Assert.Throws<SnapshotContractException>(() => StaticProjectSnapshotCodec.Decode(Encoding.UTF8.GetBytes(root.ToJsonString()))).Code);

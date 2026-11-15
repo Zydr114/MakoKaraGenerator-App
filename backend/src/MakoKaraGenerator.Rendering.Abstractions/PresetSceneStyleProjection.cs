@@ -81,19 +81,18 @@ public static class PresetSceneStyleProjection
             NodePath(source, sample.ElementId, frame));
     }
 
-    /// <summary>真实提示组／标记来源及实际运行父树。</summary>
+    /// <summary>真实提示组／标记来源及其节点自身样式应用；与歌词工程／分支／槽位预设解耦。</summary>
     public static PresetStyleResolution Mark(ProjectSnapshot snapshot, string nodeId,
         SceneFrame? frame = null, PresetStyleResolver? resolver = null)
     {
+        _ = frame;
         var tree = snapshot.LyricPresentation.WithDefaultPrograms(snapshot.Lyrics);
         var node = tree.FindNode(nodeId);
         if (node?.Content is not TextMarkContent mark || tree.FindNode(node.ParentId!) is not { Content: CountdownSequenceContent sequence } parent)
             throw new PreparedFrameException("InvalidMarkParent", "标记缺少真实提示组外观。");
-        string? branchId = frame?.LeadIns.FirstOrDefault(cue => cue.ContainerId == parent.Id)?.BranchId
-            ?? tree.Programs.FirstOrDefault(program => program.LeadIns.Any(cue => cue.IndicatorContainerId == parent.Id))?.BranchId;
         return (resolver ?? Resolver(snapshot)).ResolveMark(sequence.Appearance.ToLyricStyle(),
             "lyricPresentation.nodes." + parent.Id + ".content.appearance", mark.AppearanceOverride?.ToStyleOverride(),
-            "lyricPresentation.nodes." + nodeId + ".content.appearanceOverride", NodePath(snapshot, nodeId, frame), branchId);
+            "lyricPresentation.nodes." + nodeId + ".content.appearanceOverride", [parent.Id, nodeId]);
     }
 
     /// <summary>将生效外观写到只读帧副本，保持所有源ID／时间／文字与正式装载身份。</summary>
@@ -165,7 +164,7 @@ public static class PresetSceneStyleProjection
             _frame = new(StringComparer.Ordinal);
             foreach (var line in frame.Lines) _frame[line.ElementId] = line.ParentId;
             foreach (var cue in frame.LeadIns)
-                if (snapshot.LyricPresentation.FindNode(cue.ContainerId)?.Attachment?.Mode == SceneAttachmentMode.CueTargetText)
+                if (snapshot.LyricPresentation.FindNode(cue.ContainerId)?.Attachment?.Mode is SceneAttachmentMode.CueTargetText or SceneAttachmentMode.CueTargetAboveStart)
                     _frame[cue.ContainerId] = cue.TargetElementId;
             foreach (var node in frame.Elements) _frame[node.Id] = node.ParentId;
         }

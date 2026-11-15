@@ -104,15 +104,23 @@ public sealed class PresetStyleResolver
         return layers.Complete();
     }
 
-    /// <summary>标记保持真实提示组／自身源外观，再解析应用层及真实运行父链。</summary>
+    /// <summary>标记保持提示组／自身源外观，仅继承显式绑定在提示组或标记节点的模板，不继承工程／分支歌词预设。</summary>
     public PresetStyleResolution ResolveMark(LyricStyle appearance, string appearancePath,
         LyricStyleOverride? ownOverride, string ownPath, IReadOnlyList<string> nodePath, string? branchId = null)
     {
+        _ = branchId;
         var layers = new Layers(appearance, appearancePath);
+        if (nodePath is { Count: >= 2 })
+        {
+            // Marks inherit only their direct parent container preset (when IncludeDescendants is enabled),
+            // ignoring outer ancestors such as root/default containers even if a full container path is passed.
+            var parentTarget = new ProjectEffectBinding(ProjectEffectBindingKind.Node, id: nodePath[^2]);
+            if (_applications.Find(parentTarget) is { Enabled: true } application && application.Target.IncludeDescendants)
+                Apply(layers, parentTarget);
+        }
         layers.Overlay(ownOverride, ownPath);
-        Apply(layers, new(ProjectEffectBindingKind.Project));
-        if (branchId is not null) Apply(layers, new(ProjectEffectBindingKind.Branch, id: branchId));
-        ApplyNodes(layers, nodePath);
+        if (nodePath is { Count: > 0 })
+            Apply(layers, new(ProjectEffectBindingKind.Node, id: nodePath[^1]));
         return layers.Complete();
     }
 

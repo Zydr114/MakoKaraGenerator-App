@@ -14,7 +14,7 @@ public static class PresetApplicationsProjection
             .ResolveLyrics(lineId, tokenId, clipId, nodePath).Style;
     }
 
-    /// <summary>按真实根到父链解析标记外观；局部外观只覆盖声明属性。</summary>
+    /// <summary>按提示组／标记节点自身绑定的模板解析标记外观；不继承工程或分支歌词预设。</summary>
     public static LyricStyle ResolveMark(Project project, LyricStyle appearance, IReadOnlyList<string> nodePath, string? branchId = null)
     {
         ArgumentNullException.ThrowIfNull(project);

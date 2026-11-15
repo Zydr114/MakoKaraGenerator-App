@@ -6,8 +6,24 @@ internal sealed class SceneContentDto
     public List<string>? MarkNodeIds { get; set; }
     public string? StepMode { get; set; }
     public SceneTextAppearanceDto? Appearance { get; set; }
+    public CountdownShapeSpecDto? Shape { get; set; }
+    public CountdownAnimationSpecDto? Animation { get; set; }
     public string? Text { get; set; }
     public SceneTextAppearanceOverrideDto? AppearanceOverride { get; set; }
+}
+internal sealed class CountdownShapeSpecDto
+{
+    public string? Kind { get; set; }
+    public string? SvgXml { get; set; }
+    public string? SvgColorMode { get; set; }
+    public double BarMinHeightRatio { get; set; } = 0.45;
+}
+internal sealed class CountdownAnimationSpecDto
+{
+    public string? Mode { get; set; }
+    public double BlinkRatio { get; set; } = 0.35;
+    public int BlinkCount { get; set; } = 2;
+    public double FeatherRatio { get; set; } = 0.06;
 }
 internal sealed class SceneAttachmentDto { public string? Mode { get; set; } }
 /// <summary>场景标记外观（schema v31 起）：字形、待唱外观、已过外观与不透明度。</summary>

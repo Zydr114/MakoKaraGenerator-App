@@ -106,6 +106,19 @@ public static class LeadInEditor
         return PresentationEditor.TrySetTree(project, tree with { Nodes = nodes }, out result, out report);
     }
 
+    /// <summary>更新前奏提示容器的统一图形/SVG 与闪烁扫色动画设置。</summary>
+    public static bool TrySetCountdownPresentation(Project project, string containerId, CountdownShapeSpec shape,
+        CountdownAnimationSpec animation, out Project result, out ValidationReport report)
+    {
+        ArgumentNullException.ThrowIfNull(shape);
+        ArgumentNullException.ThrowIfNull(animation);
+        var node = project.LyricPresentation.FindNode(containerId);
+        if (node?.Content is not CountdownSequenceContent sequence)
+            return Fail(project, "需要选择有效前奏提示容器。", out result, out report);
+        return SceneTreeEditor.TrySetNode(project, node with { Content = sequence with { Shape = shape, Animation = animation } },
+            out result, out report);
+    }
+
     /// <summary>以已经解析的稳定参考保持外观切换附着方式；缺失或不可逆参考拒绝。</summary>
     public static bool TrySetAttachment(Project project, string containerId, SceneAttachmentMode mode,
         SceneTreeGeometry previous, SceneTreeGeometry newReference, out Project result, out ValidationReport report)

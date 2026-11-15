@@ -1,3 +1,5 @@
+using System.Text;
+using System.Xml;
 using MakoKaraGenerator.Core.Diagnostics;
 using MakoKaraGenerator.Core.Lyrics;
 using MakoKaraGenerator.Core.Projects;
@@ -36,6 +38,8 @@ public static partial class PresentationValidator
                         || sequence.MarkNodeIds.Any(id => !nodes.TryGetValue(id, out var mark) || mark.ParentId != node.Id || mark.Content is not TextMarkContent))
                         Error("提示组必须包含一个或多个唯一、有序的直接文字标记子节点。", path + ".content.markNodeIds");
                     if (!sequence.Appearance.IsValid) Error("提示默认外观无效。", path + ".content.appearance", DiagnosticCode.InvalidStyleValue);
+                    ValidateCountdownShape(sequence.Shape, path + ".content.shape", Error);
+                    ValidateCountdownAnimation(sequence.Animation, path + ".content.animation", Error);
                     break;
                 case TextMarkContent mark:
                     if (string.IsNullOrWhiteSpace(mark.Text) || tree.Nodes.Any(child => child.ParentId == node.Id)
@@ -113,6 +117,142 @@ public static partial class PresentationValidator
                 { Error(exception.Message, "programs[" + program.Id + "].leadIns"); }
             }
         return ValidationReport.From(issues);
+    }
+
+    private static void ValidateCountdownShape(CountdownShapeSpec? shape, string path,
+        Action<string, string, DiagnosticCode> error)
+    {
+        if (shape is null || !Enum.IsDefined(shape.Kind) || !Enum.IsDefined(shape.SvgColorMode))
+        {
+            error("提示图形配置类型无效。", path, DiagnosticCode.InvalidDisplayProgram);
+            return;
+        }
+        if (!double.IsFinite(shape.BarMinHeightRatio) || shape.BarMinHeightRatio is < 0.15 or > 1.0)
+            error("阶梯竖条最矮高度比例必须在 0.15 到 1.0 之间。", path + ".barMinHeightRatio", DiagnosticCode.InvalidDisplayProgram);
+        if (shape.Kind == CountdownShapeKind.CustomSvg)
+        {
+            if (string.IsNullOrWhiteSpace(shape.SvgXml))
+            {
+                error("自定义 SVG 图形必须提供 SVG 源码。", path + ".svgXml", DiagnosticCode.InvalidDisplayProgram);
+                return;
+            }
+            if (Encoding.UTF8.GetByteCount(shape.SvgXml) > CountdownShapeSpec.MaximumSvgBytes)
+            {
+                error("自定义 SVG 源码超过 64KiB 大小限制。", path + ".svgXml", DiagnosticCode.InvalidDisplayProgram);
+                return;
+            }
+            if (!IsSafeStaticSvgXml(shape.SvgXml, out string? reason))
+                error(reason!, path + ".svgXml", DiagnosticCode.InvalidDisplayProgram);
+        }
+        else if (shape.SvgXml is not null)
+        {
+            error("非自定义 SVG 图形不得携带 svgXml。", path + ".svgXml", DiagnosticCode.InvalidDisplayProgram);
+        }
+    }
+
+    private static void ValidateCountdownAnimation(CountdownAnimationSpec? animation, string path,
+        Action<string, string, DiagnosticCode> error)
+    {
+        if (animation is null || !Enum.IsDefined(animation.Mode))
+        {
+            error("前奏提示动画模式无效。", path, DiagnosticCode.InvalidDisplayProgram);
+            return;
+        }
+        if (!double.IsFinite(animation.BlinkRatio) || animation.BlinkRatio is < 0 or > 0.85)
+            error("闪烁阶段占比必须在 0 到 0.85 之间。", path + ".blinkRatio", DiagnosticCode.InvalidDisplayProgram);
+        if (animation.BlinkCount is < 0 or > 16
+            || (animation.Mode != CountdownAnimationMode.DiscreteSteps && animation.BlinkRatio > 0 && animation.BlinkCount < 1))
+            error("闪烁次数必须在有效范围内（非离散模式开启闪烁时至少 1 次）。", path + ".blinkCount", DiagnosticCode.InvalidDisplayProgram);
+        if (!double.IsFinite(animation.FeatherRatio) || animation.FeatherRatio is < 0 or > 0.5)
+            error("扫色边缘羽化比例必须在 0 到 0.5 之间。", path + ".featherRatio", DiagnosticCode.InvalidDisplayProgram);
+    }
+
+    private static bool IsSafeStaticSvgXml(string svgXml, out string? reason)
+    {
+        XmlReaderSettings settings = new()
+        {
+            DtdProcessing = DtdProcessing.Prohibit,
+            XmlResolver = null,
+            ConformanceLevel = ConformanceLevel.Document,
+            MaxCharactersInDocument = CountdownShapeSpec.MaximumSvgBytes,
+            MaxCharactersFromEntities = 1,
+        };
+        try
+        {
+            using StringReader input = new(svgXml);
+            using XmlReader reader = XmlReader.Create(input, settings);
+            bool sawRoot = false;
+            while (reader.Read())
+            {
+                if (reader.NodeType is XmlNodeType.ProcessingInstruction or XmlNodeType.DocumentType or XmlNodeType.EntityReference)
+                {
+                    reason = "自定义 SVG 禁止包含 DTD、实体或处理指令。";
+                    return false;
+                }
+                if (reader.NodeType == XmlNodeType.Element)
+                {
+                    if (reader.NamespaceURI.Length > 0 && !string.Equals(reader.NamespaceURI, "http://www.w3.org/2000/svg", StringComparison.Ordinal))
+                    {
+                        reason = "自定义 SVG 仅支持标准 SVG 命名空间。";
+                        return false;
+                    }
+                    if (!sawRoot)
+                    {
+                        if (!string.Equals(reader.LocalName, "svg", StringComparison.Ordinal))
+                        {
+                            reason = "自定义 SVG 根元素必须为 <svg>。";
+                            return false;
+                        }
+                        sawRoot = true;
+                    }
+                    else if (string.Equals(reader.LocalName, "svg", StringComparison.Ordinal))
+                    {
+                        reason = "自定义 SVG 不支持嵌套 <svg>。";
+                        return false;
+                    }
+                    if (reader.LocalName.Equals("script", StringComparison.OrdinalIgnoreCase)
+                        || reader.LocalName.Equals("foreignObject", StringComparison.OrdinalIgnoreCase)
+                        || reader.LocalName.Equals("image", StringComparison.OrdinalIgnoreCase))
+                    {
+                        reason = $"自定义 SVG 禁止包含不安全或外部图像元素 <{reader.LocalName}>。";
+                        return false;
+                    }
+                    if (reader.MoveToFirstAttribute())
+                    {
+                        do
+                        {
+                            if (reader.LocalName.StartsWith("on", StringComparison.OrdinalIgnoreCase))
+                            {
+                                reason = $"自定义 SVG 禁止包含事件属性 {reader.LocalName}。";
+                                return false;
+                            }
+                            if (string.Equals(reader.LocalName, "href", StringComparison.Ordinal))
+                            {
+                                string href = reader.Value.Trim();
+                                if (!href.StartsWith('#'))
+                                {
+                                    reason = "自定义 SVG 禁止外部或非锚点资源引用。";
+                                    return false;
+                                }
+                            }
+                        } while (reader.MoveToNextAttribute());
+                        reader.MoveToElement();
+                    }
+                }
+            }
+            if (!sawRoot)
+            {
+                reason = "自定义 SVG 缺少根元素。";
+                return false;
+            }
+            reason = null;
+            return true;
+        }
+        catch (XmlException error)
+        {
+            reason = $"自定义 SVG XML 无效：第 {error.LineNumber} 行 {error.LinePosition} 列。";
+            return false;
+        }
     }
 
     private static bool Intersects(TimeRange first, TimeRange second) => first.StartUs < second.EndUs && second.StartUs < first.EndUs;

@@ -203,4 +203,96 @@ public sealed class LeadInTests
         Assert.Empty(cleaned.Programs[0].LeadIns); Assert.Empty(cleaned.Programs[0].LeadInGeneration!.ExcludedLineIds);
         Assert.NotNull(cleaned.FindNode(indicator)); Assert.False(PresentationValidator.Validate(project with { Lyrics = lyrics,LyricPresentation = cleaned }).HasErrors);
     }
+
+    [Fact]
+    public void 前奏容器可配置矢量图形自定义SVG动画模式与首字上方附着并持久化()
+    {
+        using TemporaryDirectory directory = new();
+        var project = Create(out string indicator);
+        project = Add(project, Cue(indicator));
+        var shape = new CountdownShapeSpec
+        {
+            Kind = CountdownShapeKind.CustomSvg,
+            SvgXml = "<svg viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"12\" r=\"10\"/></svg>",
+            SvgColorMode = CountdownSvgColorMode.OriginalColor,
+            BarMinHeightRatio = 0.6,
+        };
+        var animation = new CountdownAnimationSpec
+        {
+            Mode = CountdownAnimationMode.BlinkThenWipeFill,
+            BlinkRatio = 0.4,
+            BlinkCount = 3,
+            FeatherRatio = 0.08,
+        };
+        Assert.True(LeadInEditor.TrySetCountdownPresentation(project, indicator, shape, animation, out project, out var report), report.ToSummary());
+        var geometry = SceneTreeGeometryResolver.Resolve(project.LyricPresentation.Nodes, project.Composition.CanvasWidth, project.Composition.CanvasHeight);
+        var previous = geometry[indicator];
+        var parentId = project.LyricPresentation.FindNode(indicator)!.ParentId!;
+        Assert.True(LeadInEditor.TrySetAttachment(project, indicator, SceneAttachmentMode.CueTargetAboveStart, previous, geometry[parentId], out project, out report), report.ToSummary());
+
+        ProjectStore.Save(project, directory.Path);
+        var loaded = ProjectStore.Load(directory.Path);
+        Assert.False(loaded.Report.HasErrors, loaded.Report.ToSummary());
+        var node = loaded.Project!.LyricPresentation.FindNode(indicator)!;
+        var sequence = Assert.IsType<CountdownSequenceContent>(node.Content);
+        Assert.Equal(shape, sequence.Shape);
+        Assert.Equal(animation, sequence.Animation);
+        Assert.Equal(SceneAttachmentMode.CueTargetAboveStart, node.Attachment?.Mode);
+    }
+
+    [Fact]
+    public void 非法前奏图形SVG或动画参数及标记携带图形字段会被拒绝()
+    {
+        var project = Create(out string indicator);
+        var sequence = Assert.IsType<CountdownSequenceContent>(project.LyricPresentation.FindNode(indicator)!.Content);
+        string markId = sequence.MarkNodeIds[0];
+
+        Assert.False(LeadInEditor.TrySetCountdownPresentation(project, indicator,
+            new() { Kind = CountdownShapeKind.CustomSvg, SvgXml = "<svg><script>alert(1)</script></svg>" },
+            CountdownAnimationSpec.Default, out _, out var scriptReport));
+        Assert.True(scriptReport.HasErrors);
+
+        Assert.False(LeadInEditor.TrySetCountdownPresentation(project, indicator,
+            new() { Kind = CountdownShapeKind.CustomSvg, SvgXml = "<svg><foreignObject/></svg>" },
+            CountdownAnimationSpec.Default, out _, out var foreignReport));
+        Assert.True(foreignReport.HasErrors);
+
+        Assert.False(LeadInEditor.TrySetCountdownPresentation(project, indicator,
+            new() { Kind = CountdownShapeKind.CustomSvg, SvgXml = "<svg><image href=\"#x\"/></svg>" },
+            CountdownAnimationSpec.Default, out _, out var imageReport));
+        Assert.True(imageReport.HasErrors);
+
+        Assert.False(LeadInEditor.TrySetCountdownPresentation(project, indicator,
+            new() { Kind = CountdownShapeKind.CustomSvg, SvgXml = "<svg><rect width=\"10\" height=\"10\"/></svg>" + new string(' ', CountdownShapeSpec.MaximumSvgBytes) },
+            CountdownAnimationSpec.Default, out _, out var oversizedReport));
+        Assert.True(oversizedReport.HasErrors);
+
+        Assert.False(LeadInEditor.TrySetCountdownPresentation(project, indicator,
+            new() { Kind = CountdownShapeKind.SteppedBars, BarMinHeightRatio = 0.05 },
+            CountdownAnimationSpec.Default, out _, out _));
+
+        Assert.False(LeadInEditor.TrySetCountdownPresentation(project, indicator,
+            CountdownShapeSpec.Default,
+            new() { Mode = CountdownAnimationMode.BlinkThenErase, BlinkRatio = 0.9, BlinkCount = 2, FeatherRatio = 0.05 },
+            out _, out _));
+
+        Assert.False(LeadInEditor.TrySetCountdownPresentation(project, indicator,
+            CountdownShapeSpec.Default,
+            new() { Mode = CountdownAnimationMode.BlinkThenWipeFill, BlinkRatio = 0.3, BlinkCount = 0, FeatherRatio = 0.05 },
+            out _, out _));
+
+        Assert.False(LeadInEditor.TrySetCountdownPresentation(project, indicator,
+            CountdownShapeSpec.Default,
+            new() { Mode = CountdownAnimationMode.BlinkThenWipeFill, BlinkRatio = 0.3, BlinkCount = 2, FeatherRatio = 0.6 },
+            out _, out _));
+
+        using TemporaryDirectory directory = new();
+        ProjectStore.Save(project, directory.Path);
+        string path = Path.Combine(directory.Path, ProjectJson.ProjectFileName);
+        var json = JsonNode.Parse(File.ReadAllText(path))!;
+        var markNode = json["lyricPresentation"]!["nodes"]!.AsArray().First(n => n!["id"]!.GetValue<string>() == markId)!;
+        markNode["content"]!["shape"] = new JsonObject { ["kind"] = "Circle" };
+        File.WriteAllText(path, json.ToJsonString());
+        Assert.True(ProjectStore.Load(directory.Path).Report.HasErrors);
+    }
 }

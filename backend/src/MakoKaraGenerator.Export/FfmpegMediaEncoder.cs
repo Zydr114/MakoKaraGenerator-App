@@ -265,6 +265,29 @@ internal sealed class FfmpegEncodingSession : IVideoEncodingSession
                 throw CreateSizeLimitExceededException();
             }
 
+            // RLIMIT_FSIZE can close the pipe before CompleteAsync gets the exit status.
+            // Only wait on this Linux boundary case; ordinary failures keep their existing path.
+            if (OperatingSystem.IsLinux() && _request.MaximumOutputBytes is { } maximum)
+            {
+                long size = TryReadActualFileLength(_temporaryOutputPath);
+                if (size > maximum) throw CreateSizeLimitExceededException(size);
+                if (size == maximum)
+                {
+                    try
+                    {
+                        // Closing stdin does not guarantee the child has exited. Bound this
+                        // wait so ordinary failures still reach Dispose and terminate it.
+                        CommandResult result = await Execution.WaitAsync(TimeSpan.FromSeconds(1), cancellationToken).ConfigureAwait(false);
+                        if (HitLinuxFileSizeLimit(result, size)) throw CreateSizeLimitExceededException(size);
+                    }
+                    catch (TimeoutException) { }
+                    catch (OperationCanceledException) when (_sizeLimitSource.IsCancellationRequested)
+                    {
+                        throw CreateSizeLimitExceededException();
+                    }
+                }
+            }
+
             throw new IOException($"编码进程已经结束，无法再写入帧：{Tail()}");
         }
     }
@@ -307,7 +330,8 @@ internal sealed class FfmpegEncodingSession : IVideoEncodingSession
 
         long size = ReadFinalActualFileLength(_temporaryOutputPath);
         if (_request.MaximumOutputBytes is { } maximumOutputBytes
-            && (canceledBySizeLimit || _sizeLimitSource.IsCancellationRequested || size > maximumOutputBytes))
+            && (canceledBySizeLimit || _sizeLimitSource.IsCancellationRequested || size > maximumOutputBytes
+                || (result is not null && HitLinuxFileSizeLimit(result, size))))
         {
             long observed = Math.Max(size, Volatile.Read(ref _exceededActualBytes));
             await DisposeAsync().ConfigureAwait(false);
@@ -438,6 +462,12 @@ internal sealed class FfmpegEncodingSession : IVideoEncodingSession
         {
         }
     }
+
+    // .NET uses exit code 128 + 25 for a Linux SIGXFSZ termination. At RLIMIT_FSIZE the
+    // file stops exactly at the limit, so a strict byte-overrun check cannot detect it.
+    private bool HitLinuxFileSizeLimit(CommandResult result, long actualBytes)
+        => OperatingSystem.IsLinux() && result.ExitCode == 128 + 25
+            && _request.MaximumOutputBytes is { } maximum && actualBytes >= maximum;
 
     private OutputSizeLimitExceededException CreateSizeLimitExceededException(long? observedBytes = null)
     {

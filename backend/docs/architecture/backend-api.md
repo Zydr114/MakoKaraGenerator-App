@@ -785,6 +785,8 @@ Worker每Runtime session建立独立内存resolver并复用原RuntimeFrameValida
 
 Composition须有显式正时长；帧率、画布、单裸帧、总帧数和总时长受 `WorkerExportResourcePolicy` 的部署值约束。默认 Server 的导出帧数、时长、帧率、画布、裸帧、媒体、音频和压缩音频策略均为null，表示该维度不施加部署限制；宿主可显式配置正值并通过 capabilities 公布；普通MP4宽高必须偶数。总帧数沿原Exporter规则：`max(1, Round(outputDurationUs / 1_000_000 × fps, AwayFromZero))`；第index帧时刻为`floor(index × 1_000_000 × denominator / numerator)`。派生视频时长`floor(totalFrames × 1_000_000 × denominator / numerator)`也须正，并受宿主 `MaxDurationUs`（若有）约束，不等同于未量化的Composition时长。pixels仅在Worker本地渲染／编码，不扩大预览IPC上限。
 
+配置媒体字节预算时，Linux 编码器在文件达到预算且被 `SIGXFSZ` 终止后返回 `WorkerExportArtifactBudgetExceeded`，包括写帧阶段提前断管与编码收尾阶段；不发布残片。恰好达到预算但正常退出，或其他退出码的普通编码失败，不仅凭长度判为超限。Windows 保持既有实际长度监控及收尾校验。
+
 `includeAudio`默认true：音频必须是已授权ResourceStore中自包含的受支持音轨；具体 codec、采样率和字节上限由能力响应与 `WorkerExportResourcePolicy.MaxAudioBytes` 公布，null 表示不施加该宿主字节限额。当前执行器按profile选择PCM16 WAV、MP3 LayerIII、native FLAC、AAC ADTS、MOV/M4A音轨或Ogg音轨，mono/stereo、codec与采样率门禁由真实Worker校验。Host直接pin授权资源，不复制音频；复用固定bytes分类、actual hash／size、canonical fullpath／祖先no-link与read lease出口。WAV保原精确采样帧admission和旧执行profile；MP3/FLAC先按非free LayerIII／有界ID3或native FLAC STREAMINFO固定候选，不凭MIME／后缀或probe估时长授予完整解码能力。AAC/MOV/Ogg由中央profile映射选择受限demuxer，实际codec核对与完整严格解码后才授予音轨执行能力，不凭MIME或后缀接受任意容器变体。
 
 压缩Worker按中央AudioProfile映射强制mp3／flac／aac／mov／ogg demuxer及file,pipe协议，实际probe核codec／声道／源采样率；完整strict decode至EOF且进程实际exit0，再按**源采样率的每声道sample frames**计数。64KiB流式读取不保存整曲PCM；帧数受宿主 `MaxCompressedAudioDurationUs`（若有）约束。能力响应中的 `maxCompressedAudioDurationUs` 可省略；`compressedAudioDurationBasis` 仍为 `strict-source-rate-decoded-sample-frames`。该预算仅压缩export，不套旧WAV或通用prepare，也不借用48k分析采样数。

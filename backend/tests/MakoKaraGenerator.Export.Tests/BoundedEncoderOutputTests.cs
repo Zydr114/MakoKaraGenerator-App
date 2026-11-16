@@ -251,6 +251,105 @@ public sealed class BoundedEncoderOutputTests
         Assert.Empty(Directory.GetFiles(directory.Path, "*.encoding*"));
     }
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(120)]
+    public async Task Linux真实FFmpeg达到硬文件上限时识别超限并清理残片(int frames)
+    {
+        if (!OperatingSystem.IsLinux()) return;
+        using TemporaryDirectory directory = new();
+        // Limit only the encoder child, never the test runner or its other tests.
+        string executable = CreatePythonWrapper(directory, "hard-limit-encoder", $$"""
+            import os, resource, signal, sys
+            resource.setrlimit(resource.RLIMIT_FSIZE, (256, 256))
+            signal.signal(signal.SIGXFSZ, signal.SIG_DFL)
+            os.execv({{JsonSerializer.Serialize(TestMediaToolPaths.Ffmpeg)}},
+                     [{{JsonSerializer.Serialize(TestMediaToolPaths.Ffmpeg)}}, *sys.argv[1:-1],
+                      "-tune", "zerolatency", "-flush_packets", "1", sys.argv[-1]])
+            """);
+        using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(20));
+        await using IVideoEncodingSession session = await new FfmpegMediaEncoder(executable).StartAsync(new()
+        {
+            OutputPath = directory.FilePath("limited.mp4"), Width = 320, Height = 180,
+            FrameRate = FrameRate.Fps24, TotalFrames = frames, MaximumOutputBytes = 256,
+        }, deadline.Token);
+        var target = new RenderTarget { PixelWidth = 320, PixelHeight = 180 };
+        OutputSizeLimitExceededException error = await Assert.ThrowsAsync<OutputSizeLimitExceededException>(async () =>
+        {
+            for (int i = 0; i < frames; i++)
+                await session.WriteFrameAsync(new RenderFrame(new byte[320 * 180 * 4], target,
+                    PixelFormat.Bgra8888Premultiplied, i * 41_667L), deadline.Token);
+            await session.CompleteAsync(deadline.Token);
+        });
+        Assert.Equal(256, error.MaximumBytes);
+        Assert.Equal(256, error.ActualBytes);
+        await session.DisposeAsync();
+        Assert.False(File.Exists(directory.FilePath("limited.mp4")));
+        Assert.Empty(Directory.GetFiles(directory.Path, "*.encoding.*"));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public async Task 恰好达到预算的正常退出或普通失败不冒充硬限额信号(int exitCode)
+    {
+        using TemporaryDirectory directory = new();
+        string executable = CreatePythonWrapper(directory, "exact-budget-encoder", $$"""
+            import sys
+            sys.stdin.buffer.read()
+            with open(sys.argv[-1], 'wb') as out:
+                out.write(b'A' * 256)
+            sys.exit({{exitCode}})
+            """);
+        using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(10));
+        await using IVideoEncodingSession session = await new FfmpegMediaEncoder(executable).StartAsync(new()
+        {
+            OutputPath = directory.FilePath("exact.mp4"), Width = 2, Height = 2,
+            FrameRate = FrameRate.Fps30, TotalFrames = 1, MaximumOutputBytes = 256,
+        }, deadline.Token);
+        await session.WriteFrameAsync(new RenderFrame(new byte[16], new RenderTarget { PixelWidth = 2, PixelHeight = 2 },
+            PixelFormat.Bgra8888Premultiplied, 0), deadline.Token);
+        if (exitCode == 0)
+        {
+            var result = await session.CompleteAsync(deadline.Token);
+            using (result.Artifact) Assert.Equal(256, new FileInfo(result.Artifact.TemporaryPath).Length);
+        }
+        else
+        {
+            await Assert.ThrowsAsync<IOException>(() => session.CompleteAsync(deadline.Token));
+        }
+    }
+
+    [Fact]
+    public async Task Linux达到预算但仅关闭输入的编码器不会阻塞失败清理()
+    {
+        if (!OperatingSystem.IsLinux()) return;
+        using TemporaryDirectory directory = new();
+        string executable = CreatePythonWrapper(directory, "closed-input-encoder", """
+            import os, sys, time
+            with open(sys.argv[-1], 'wb') as out:
+                out.write(b'A' * 256)
+            os.close(0)
+            time.sleep(30)
+            """);
+        using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(5));
+        await using IVideoEncodingSession session = await new FfmpegMediaEncoder(executable).StartAsync(new()
+        {
+            OutputPath = directory.FilePath("closed.mp4"), Width = 320, Height = 180,
+            FrameRate = FrameRate.Fps24, TotalFrames = 20, MaximumOutputBytes = 256,
+            Timeout = Timeout.InfiniteTimeSpan,
+        }, deadline.Token);
+        var target = new RenderTarget { PixelWidth = 320, PixelHeight = 180 };
+        await Assert.ThrowsAsync<IOException>(async () =>
+        {
+            for (int i = 0; i < 20; i++)
+                await session.WriteFrameAsync(new RenderFrame(new byte[320 * 180 * 4], target,
+                    PixelFormat.Bgra8888Premultiplied, i * 41_667L), deadline.Token);
+        });
+        await session.DisposeAsync();
+        Assert.Empty(Directory.GetFiles(directory.Path, "*.encoding.*"));
+    }
+
     private static string CreatePythonWrapper(TemporaryDirectory directory, string name, string pythonSource)
     {
         if (OperatingSystem.IsWindows())

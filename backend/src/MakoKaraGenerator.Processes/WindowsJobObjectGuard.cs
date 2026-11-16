@@ -275,9 +275,9 @@ public sealed partial class WindowsJobObjectGuard : IWorkerProcessGuard
     }
 
     /// <summary>Verifies that our held <see cref="SafeProcessHandle"/> still matches the recorded <see cref="Leader"/> identity.</summary>
-    [SupportedOSPlatform("windows")]
     public void VerifyIdentity()
     {
+        if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException();
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         int actualPid = Win32.GetProcessId(_processHandle);
         if (actualPid != Leader.ProcessId)
@@ -288,9 +288,9 @@ public sealed partial class WindowsJobObjectGuard : IWorkerProcessGuard
     }
 
     /// <summary>Queries the leader process exit code if it has already terminated.</summary>
-    [SupportedOSPlatform("windows")]
     public bool TryGetLeaderExitCode(out int exitCode)
     {
+        if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException();
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         if (!Win32.GetExitCodeProcess(_processHandle, out uint raw))
             throw new Win32Exception(Marshal.GetLastPInvokeError(), "GetExitCodeProcess failed.");
@@ -304,9 +304,9 @@ public sealed partial class WindowsJobObjectGuard : IWorkerProcessGuard
     }
 
     /// <summary>Queries the number of currently active processes inside this Job Object.</summary>
-    [SupportedOSPlatform("windows")]
     public int ObserveActiveProcessCount()
     {
+        if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException();
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         unsafe
         {
@@ -319,9 +319,9 @@ public sealed partial class WindowsJobObjectGuard : IWorkerProcessGuard
     }
 
     /// <summary>Queries the live PIDs currently inside this Job Object.</summary>
-    [SupportedOSPlatform("windows")]
     public IReadOnlyList<int> ObserveProcessIds()
     {
+        if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException();
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         int capacity = 64;
         while (true)
@@ -364,9 +364,9 @@ public sealed partial class WindowsJobObjectGuard : IWorkerProcessGuard
     }
 
     /// <inheritdoc/>
-    [SupportedOSPlatform("windows")]
     public async Task KillAndDrainAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
     {
+        if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException();
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(timeout, TimeSpan.Zero);
         VerifyIdentity();
         if (!Win32.TerminateJobObject(_jobHandle, 1))

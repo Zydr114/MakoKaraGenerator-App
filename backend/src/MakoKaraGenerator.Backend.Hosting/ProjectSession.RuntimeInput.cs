@@ -170,7 +170,7 @@ public sealed class BackendProjectRuntimeInputLease : IDisposable
                     token.ThrowIfCancellationRequested();
                     usage.Claim("manifest.json", package.Manifest.Length);
                     foreach (var file in package.Files) usage.Claim(file.Path, file.Content.Length);
-                    string directory = Path.Combine(temporary, "packages", package.Revision);
+                    string directory = Path.Combine(temporary, "packages", package.Revision.Replace(':', '_'));
                     EffectPackageStorage.Publish(directory, package);
                     if (!OperatingSystem.IsWindows())
                     {
@@ -195,7 +195,8 @@ public sealed class BackendProjectRuntimeInputLease : IDisposable
             string root = Path.GetFullPath(_directory);
             string expected = _assetPath ? Path.GetFullPath(path)
                 : Path.GetFullPath(Path.Combine(root, media.RelativePath.Replace('/', Path.DirectorySeparatorChar)));
-            if (expected != path || Path.GetFullPath(path) != expected || !Directory.Exists(root) || !File.Exists(expected)) return Unavailable();
+            string normalizedPath = OperatingSystem.IsWindows() ? path.Replace('/', Path.DirectorySeparatorChar) : path;
+            if (expected != normalizedPath || Path.GetFullPath(path) != expected || !Directory.Exists(root) || !File.Exists(expected)) return Unavailable();
             ProjectDirectoryHandles.EnsurePathHasNoLinks(expected);
             temporary ??= Directory.CreateTempSubdirectory("makokara-runtime-input-").FullName;
             if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(temporary, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);

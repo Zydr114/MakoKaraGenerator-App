@@ -356,7 +356,9 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
             // Self-contained deployments use the apphost as FileName, while Debug
             // probes commonly use `dotnet <Worker.dll>`; in the latter case the
             // runtime's script-refs live beside the managed Worker, not beside dotnet.
-            string executable = _options.Arguments?.FirstOrDefault(argument => argument.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+            string executable = _options.Arguments?.FirstOrDefault(argument =>
+                    argument.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)
+                    || argument.EndsWith(".py", StringComparison.OrdinalIgnoreCase))
                 ?? _options.FileName;
             string root = Path.GetDirectoryName(Path.GetFullPath(executable)) ?? string.Empty;
             string directory = Path.Combine(root, "script-refs", "net10.0");

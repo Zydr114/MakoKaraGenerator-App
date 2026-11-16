@@ -124,6 +124,7 @@ internal sealed class FfmpegEncodingSession : IVideoEncodingSession
     private readonly Channel<RenderFrame> _frames;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly CancellationTokenSource _sizeLimitSource = new();
+    private readonly CancellationTokenSource _monitorStop = new();
     private readonly TaskCompletionSource _pipesReady =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly List<string> _log = [];
@@ -133,6 +134,7 @@ internal sealed class FfmpegEncodingSession : IVideoEncodingSession
     private Task? _sizeMonitor;
     private CancellationTokenSource? _timeoutSource;
     private CancellationTokenSource? _linked;
+    private CancellationTokenSource? _monitorLinked;
     private int _framesWritten;
     private long _exceededActualBytes;
     private readonly string _telemetrySession = Guid.NewGuid().ToString("N");
@@ -194,7 +196,8 @@ internal sealed class FfmpegEncodingSession : IVideoEncodingSession
         _execution = ExecuteAsync(command);
         if (_request.MaximumOutputBytes is { } maximumOutputBytes)
         {
-            _sizeMonitor = MonitorOutputSizeAsync(maximumOutputBytes);
+            _monitorLinked = CancellationTokenSource.CreateLinkedTokenSource(_linked.Token, _monitorStop.Token);
+            _sizeMonitor = MonitorOutputSizeAsync(maximumOutputBytes, _monitorLinked.Token);
         }
 
         // "进程起不来"必须在这里就报出来，而不是等到第一帧写完才发现。
@@ -297,6 +300,7 @@ internal sealed class FfmpegEncodingSession : IVideoEncodingSession
 
         if (_sizeMonitor is not null)
         {
+            await _monitorStop.CancelAsync().ConfigureAwait(false);
             try { await _sizeMonitor.ConfigureAwait(false); }
             catch (OperationCanceledException) { }
         }
@@ -345,6 +349,7 @@ internal sealed class FfmpegEncodingSession : IVideoEncodingSession
         _disposed = true;
 
         // 还在跑就杀掉：取消 _lifetime 会让 CliWrap 终止进程。
+        await _monitorStop.CancelAsync().ConfigureAwait(false);
         await _lifetime.CancelAsync().ConfigureAwait(false);
         _frames.Writer.TryComplete();
 
@@ -366,18 +371,20 @@ internal sealed class FfmpegEncodingSession : IVideoEncodingSession
         }
 
         _timeoutSource?.Dispose();
+        _monitorLinked?.Dispose();
         _linked?.Dispose();
+        _monitorStop.Dispose();
         _sizeLimitSource.Dispose();
         _lifetime.Dispose();
         if (!_completed) DeleteTemporaryOutputQuietly();
     }
 
-    private async Task MonitorOutputSizeAsync(long maximumOutputBytes)
+    private async Task MonitorOutputSizeAsync(long maximumOutputBytes, CancellationToken monitorToken)
     {
         using PeriodicTimer timer = new(TimeSpan.FromMilliseconds(25));
         try
         {
-            while (await timer.WaitForNextTickAsync(_linked!.Token).ConfigureAwait(false))
+            while (await timer.WaitForNextTickAsync(monitorToken).ConfigureAwait(false))
             {
                 long actual = TryReadActualFileLength(_temporaryOutputPath);
                 if (actual > maximumOutputBytes)
@@ -388,7 +395,7 @@ internal sealed class FfmpegEncodingSession : IVideoEncodingSession
                 }
             }
         }
-        catch (OperationCanceledException) when (_linked!.IsCancellationRequested)
+        catch (OperationCanceledException) when (monitorToken.IsCancellationRequested)
         {
         }
     }

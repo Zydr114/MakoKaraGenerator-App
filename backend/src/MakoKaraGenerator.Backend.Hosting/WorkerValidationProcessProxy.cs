@@ -118,7 +118,7 @@ public sealed partial class WorkerProcessProxy
                     try
                     {
                         Process? verified = runtime ? _runtimeValidationVerifiedProcess : image ? _imageValidationVerifiedProcess : _packageValidationVerifiedProcess;
-                        if (!_childReapingEnabled || _ownedGroup is null || _process is null || _process.HasExited
+                        if (!HasVerifiedPrivateGuard || _process is null || _process.HasExited
                             || !ReferenceEquals(_process, verified))
                             throw new WorkerProtocolException(image ? "图片验证 Worker 实际进程未通过能力验证。" : "包验证 Worker 实际进程未通过能力验证。",
                                 image ? "WorkerImageValidationUnavailable" : "WorkerPackageUnavailable");

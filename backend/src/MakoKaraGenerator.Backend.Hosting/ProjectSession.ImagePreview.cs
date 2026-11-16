@@ -31,6 +31,7 @@ public sealed class BackendProjectImageReadLease : IDisposable
         }
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (_directory is null || _background is not { Kind: BackgroundKind.Image, Media: { } media }
                 || string.IsNullOrWhiteSpace(_background.Path)) return Unavailable();
             if (media.ByteLength is <= 0 or > ProjectImagePreviewSnapshotCodec.MaximumImageBytes)
@@ -38,7 +39,8 @@ public sealed class BackendProjectImageReadLease : IDisposable
                     "固定图片超过编码大小预算。", "background", FailureCode: "SnapshotSizeExceeded"));
             string root = Path.GetFullPath(_directory);
             string expected = _assetPath ? Path.GetFullPath(_background.Path) : Path.GetFullPath(Path.Combine(root, media.RelativePath.Replace('/', Path.DirectorySeparatorChar)));
-            if (!string.Equals(_background.Path, expected, StringComparison.Ordinal)
+            string normalizedPath = OperatingSystem.IsWindows() ? _background.Path.Replace('/', Path.DirectorySeparatorChar) : _background.Path;
+            if (!string.Equals(normalizedPath, expected, StringComparison.Ordinal)
                 || !string.Equals(Path.GetFullPath(_background.Path), expected, StringComparison.Ordinal)) return Unavailable();
             ProjectDirectoryHandles.EnsurePathHasNoLinks(expected);
             if (!Directory.Exists(root) || !File.Exists(expected)) return Unavailable();

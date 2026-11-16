@@ -371,14 +371,14 @@ async function startBackendProcess(options = {}) {
 
   const serverExe = path.join(dist, 'server', executableName(ROLES.server));
   const serverArgs = ['--urls', 'http://127.0.0.1:0'];
-  const launch = options.ordinaryScheduling
-    ? require('../gpu-preview/ordinary-exec.cjs').ordinaryCommand(serverExe, serverArgs)
-    : { executable: serverExe, args: serverArgs };
 
   log(`[backend] 部署 ${dist}（${manifest.version}）`);
   log(`[backend] profile ${profile}`);
 
-  const child = spawnFn(launch.executable, launch.args, {
+  const spawnServer = options.ordinaryScheduling
+    ? (executable, args, spawnOptions) => require('../gpu-preview/ordinary-exec.cjs').spawnOrdinary(executable, args, spawnOptions, spawnFn)
+    : spawnFn;
+  const child = spawnServer(serverExe, serverArgs, {
     cwd: options.cwd ?? dist,
     stdio: ['pipe', 'pipe', 'pipe'],
     detached: process.platform !== 'win32',

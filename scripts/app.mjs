@@ -13,10 +13,13 @@ import { resolvePnpmCommand } from './pnpm-command.mjs';
 import desktopSessionPaths from '../desktop/gpu-preview/session-paths.cjs';
 import ordinaryExec from '../desktop/gpu-preview/ordinary-exec.cjs';
 import privateFs from '../desktop/runtime/private-fs.cjs';
+import appPaths from '../desktop/runtime/app-paths.cjs';
 import webServer from '../desktop/runtime/web-server.cjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const LOCAL = join(ROOT, '.local');
+const runtimePaths = appPaths.appRuntimePaths(ROOT);
+const RUNTIME = runtimePaths.runtimeRoot;
 const { positionals, values } = parseArgs({
   allowPositionals: true,
   options: {
@@ -56,7 +59,9 @@ privateFs.ensurePrivateDir(LOCAL, { label: 'App .local' });
 if (!privateFs.isSamePath(await realpath(LOCAL), LOCAL)) {
   throw new Error('App .local 不能通过符号链接引用外部目录。');
 }
-const sessionPaths = command === 'desktop' ? desktopSessionPaths.prepareDesktopSession(ROOT, sessionName) : undefined;
+const sessionPaths = command === 'desktop'
+  ? desktopSessionPaths.prepareDesktopSession(ROOT, sessionName, { runtimeRoot: RUNTIME })
+  : undefined;
 if (process.env.MAKO_BACKEND_REPO && !privateFs.isSamePath(resolve(process.env.MAKO_BACKEND_REPO), join(ROOT, 'backend'))) {
   throw new Error('App 禁止引用外部 MAKO_BACKEND_REPO；请移除该环境变量。');
 }
@@ -195,7 +200,7 @@ function isPidAlive(pid) {
 
 /** 清掉已经退出的桌面启动器留下的私有启动文件（异常退出时来不及删）；通过 (pid, creationTicks) 核对进程身份。 */
 async function removeStaleDesktopRunFiles() {
-  const directory = join(LOCAL, 'run');
+  const directory = runtimePaths.run;
   const names = await readdir(directory).catch(() => []);
   const entries = [];
   const livePids = new Set();
@@ -264,8 +269,8 @@ if (command === 'build' || command === 'build:desktop') {
 } else {
   const desktopBuild = command === 'desktop' ? await ensureDesktopBuild() : undefined;
   if (desktopBuild) await removeStaleDesktopRunFiles();
-  privateFs.ensurePrivateDir(join(LOCAL, 'run'), { label: 'App run directory' });
-  const bootstrapFile = command === 'desktop' ? join(LOCAL, 'run', `desktop-backend-${process.pid}.json`) : join(LOCAL, 'run', 'backend.json');
+  privateFs.ensurePrivateDir(runtimePaths.run, { label: 'App run directory' });
+  const bootstrapFile = command === 'desktop' ? join(runtimePaths.run, `desktop-backend-${process.pid}.json`) : join(runtimePaths.run, 'backend.json');
   const origins = [`http://127.0.0.1:${port}`, `http://localhost:${port}`];
   const distRoot = join(ROOT, 'frontend/dist');
   if (command !== 'dev' && !existsSync(join(distRoot, 'index.html'))) throw new Error('缺少 Web 构建；请先运行 pnpm build。');
@@ -321,7 +326,7 @@ if (command === 'build' || command === 'build:desktop') {
       launcherCreationTicks = await getCurrentCreationTicks();
       const { dist: desktopDist, manifest: desktopManifest } = desktopBuild;
       const { default: electron } = await import('../desktop/node_modules/electron/index.js');
-      desktopConfigFile = join(LOCAL, 'run', `desktop-${process.pid}.json`);
+      desktopConfigFile = join(runtimePaths.run, `desktop-${process.pid}.json`);
       desktopSession = {
         consumerId: randomBytes(16).toString('hex'),
         consumerSecret: randomBytes(32).toString('hex'),
@@ -343,13 +348,12 @@ if (command === 'build' || command === 'build:desktop') {
         '--launch-config',
         desktopConfigFile,
       ];
-      const launch = values['ordinary-scheduling']
-        ? ordinaryExec.ordinaryCommand(electron, electronArgs)
-        : { executable: electron, args: electronArgs };
-      desktopChild = spawn(launch.executable, launch.args, {
+      const spawnDesktop = values['ordinary-scheduling'] ? ordinaryExec.spawnOrdinary : spawn;
+      desktopChild = spawnDesktop(electron, electronArgs, {
         cwd: ROOT,
         env: { ...process.env, ELECTRON_RUN_AS_NODE: undefined },
         stdio: ['ignore', 'pipe', 'pipe'],
+        windowsHide: true,
       });
       desktopExited = new Promise((done) => { desktopChild.once('exit', done); desktopChild.once('error', done); });
       desktopChild.stdout.on('data', (data) => process.stdout.write(data));
@@ -359,7 +363,7 @@ if (command === 'build' || command === 'build:desktop') {
       if (!desktopChild.pid) throw new Error('Electron did not start');
     }
     startup = startBackend({
-      profile: sessionPaths?.profile ?? join(LOCAL, 'profile'),
+      profile: sessionPaths?.profile ?? runtimePaths.profile,
       bootstrapFile,
       origins,
       ordinaryScheduling: !!values['ordinary-scheduling'],

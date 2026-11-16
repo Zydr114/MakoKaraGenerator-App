@@ -8,6 +8,26 @@ import { join } from 'node:path';
 
 export function findChrome() {
   if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
+  if (process.platform === 'win32') {
+    const localPlaywright = process.env.LOCALAPPDATA ? join(process.env.LOCALAPPDATA, 'ms-playwright') : '';
+    if (localPlaywright && existsSync(localPlaywright)) {
+      for (const dir of readdirSync(localPlaywright).filter((d) => d.startsWith('chromium-')).sort().reverse()) {
+        for (const sub of ['chrome-win64/chrome.exe', 'chrome-win/chrome.exe']) {
+          const candidate = join(localPlaywright, dir, sub);
+          if (existsSync(candidate)) return candidate;
+        }
+      }
+    }
+    const winCandidates = [
+      process.env.ProgramFiles && join(process.env.ProgramFiles, 'Google/Chrome/Application/chrome.exe'),
+      process.env.LOCALAPPDATA && join(process.env.LOCALAPPDATA, 'Google/Chrome/Application/chrome.exe'),
+      process.env['ProgramFiles(x86)'] && join(process.env['ProgramFiles(x86)'], 'Microsoft/Edge/Application/msedge.exe'),
+      process.env.ProgramFiles && join(process.env.ProgramFiles, 'Microsoft/Edge/Application/msedge.exe'),
+    ].filter(Boolean);
+    for (const candidate of winCandidates) {
+      if (existsSync(candidate)) return candidate;
+    }
+  }
   const root = join(homedir(), '.cache/ms-playwright');
   if (existsSync(root)) {
     for (const dir of readdirSync(root).filter((d) => d.startsWith('chromium-')).sort().reverse()) {
@@ -15,7 +35,7 @@ export function findChrome() {
       if (existsSync(candidate)) return candidate;
     }
   }
-  throw new Error('找不到 Chrome：请设置 CHROME_PATH。');
+  throw new Error('找不到 Chrome/Edge：请设置 CHROME_PATH。');
 }
 
 export class Cdp {
@@ -112,13 +132,13 @@ export async function launchChrome({ headed = false } = {}) {
   );
   let chromeLog = '';
   chrome.stderr.on('data', (chunk) => (chromeLog += chunk));
-  const close = async () => {
-    if (chrome.exitCode === null) {
-      chrome.kill('SIGTERM');
-      await new Promise((r) => chrome.once('exit', r));
-    }
-    rmSync(profile, { recursive: true, force: true });
-  };
+    const close = async () => {
+      if (chrome.exitCode === null) {
+        chrome.kill('SIGTERM');
+        await new Promise((r) => chrome.once('exit', r));
+      }
+      rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    };
 
   try {
     const portFile = join(profile, 'DevToolsActivePort');
@@ -142,6 +162,7 @@ export async function launchChrome({ headed = false } = {}) {
       cdp,
       openPage,
       close: async () => {
+        await cdp.send('Browser.close').catch(() => {});
         cdp.ws.close();
         await close();
       },

@@ -9,6 +9,7 @@ import { startBackend, writeBootstrapFile } from '../frontend/scripts/backend-la
 import { randomBytes } from 'node:crypto';
 import { buildDesktopNative, augmentDesktopDeployment } from './desktop-build.mjs';
 import { desktopBuildState, recordWebBuild, webInputs } from './build-state.mjs';
+import { resolvePnpmCommand } from './pnpm-command.mjs';
 import desktopSessionPaths from '../desktop/gpu-preview/session-paths.cjs';
 import ordinaryExec from '../desktop/gpu-preview/ordinary-exec.cjs';
 import privateFs from '../desktop/runtime/private-fs.cjs';
@@ -60,42 +61,6 @@ if (process.env.MAKO_BACKEND_REPO && !privateFs.isSamePath(resolve(process.env.M
   throw new Error('App 禁止引用外部 MAKO_BACKEND_REPO；请移除该环境变量。');
 }
 
-function findInPath(names) {
-  for (const dir of String(process.env.PATH ?? '').split(delimiter)) {
-    if (!dir || !isAbsolute(dir)) continue;
-    for (const name of names) {
-      const candidate = join(dir, name);
-      if (existsSync(candidate)) return candidate;
-    }
-  }
-  return null;
-}
-
-function resolvePnpmCommand() {
-  if (process.platform !== 'win32') {
-    const pnpmPath = findInPath(['pnpm']);
-    return pnpmPath ? { executable: pnpmPath, prefixArgs: [] } : { executable: 'corepack', prefixArgs: ['pnpm'] };
-  }
-  const pnpmExe = findInPath(['pnpm.exe']);
-  if (pnpmExe) return { executable: pnpmExe, prefixArgs: [] };
-  const pnpmCmd = findInPath(['pnpm.cmd']);
-  if (pnpmCmd) return { executable: process.env.ComSpec || 'cmd.exe', prefixArgs: ['/d', '/s', '/c', pnpmCmd] };
-
-  const nodeCorepackJs = join(dirname(process.execPath), 'node_modules', 'corepack', 'dist', 'corepack.js');
-  if (existsSync(nodeCorepackJs)) {
-    return { executable: process.execPath, prefixArgs: [nodeCorepackJs, 'pnpm'] };
-  }
-  const corepackCmd = findInPath(['corepack.cmd', 'corepack']);
-  if (corepackCmd) {
-    const siblingCorepackJs = join(dirname(corepackCmd), 'node_modules', 'corepack', 'dist', 'corepack.js');
-    if (existsSync(siblingCorepackJs)) {
-      return { executable: process.execPath, prefixArgs: [siblingCorepackJs, 'pnpm'] };
-    }
-    return { executable: process.env.ComSpec || 'cmd.exe', prefixArgs: ['/d', '/s', '/c', corepackCmd, 'pnpm'] };
-  }
-  throw new Error('Cannot locate pnpm or corepack in PATH.');
-}
-
 function resolvePythonCommand() {
   if (process.platform !== 'win32') return 'python3';
   for (const dir of String(process.env.PATH ?? '').split(delimiter)) {
@@ -107,9 +72,9 @@ function resolvePythonCommand() {
   return 'python';
 }
 
-function run(executable, args, cwd) {
+function run(executable, args, cwd, spawnOptions = {}) {
   return new Promise((resolveRun, reject) => {
-    const child = spawn(executable, args, { cwd, stdio: 'inherit', windowsHide: true });
+    const child = spawn(executable, args, { ...spawnOptions, cwd, stdio: 'inherit', windowsHide: true });
     const forward = (signal) => {
       try {
         child.kill(signal);
@@ -130,8 +95,8 @@ function run(executable, args, cwd) {
 /** Web 构建，并记下构建时的源码输入（桌面版启动时据此判断是否过期）。 */
 async function buildWeb() {
   const inputs = await webInputs(ROOT);
-  const pnpm = resolvePnpmCommand();
-  await run(pnpm.executable, [...pnpm.prefixArgs, 'build'], join(ROOT, 'frontend'));
+  const pnpm = resolvePnpmCommand(['build']);
+  await run(pnpm.executable, pnpm.args, join(ROOT, 'frontend'), pnpm.spawnOptions);
   await recordWebBuild(ROOT, inputs);
 }
 

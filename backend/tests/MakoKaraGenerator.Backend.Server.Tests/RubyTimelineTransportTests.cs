@@ -475,7 +475,9 @@ public sealed class RubyTimelineTransportTests(ITestOutputHelper output)
                 if (windowsChildren is not null)
                 {
                     if (windowsChildren.TryGetValue(pid, out List<int>? children))
-                        foreach (int childPid in children) pending.Enqueue(childPid);
+                        foreach (int childPid in children)
+                            if (Read(childPid) is { } childIdentity && childIdentity.StartTime >= identity.StartTime)
+                                pending.Enqueue(childPid);
                     continue;
                 }
                 if (!OperatingSystem.IsLinux()) continue;

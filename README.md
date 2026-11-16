@@ -2,6 +2,8 @@
 
 本仓库把 Backend 与 Web 的版本化源码整合为独立应用，提供浏览器入口和 Electron 桌面入口。桌面复用同一编辑器，并新增 Linux 本机 GPU 共享纹理预览；浏览器继续使用既有 PNG 静态预览。两条预览路径分别保留自己的能力和验收边界。
 
+2026-11-16 跨平台适配 **M1 已完成，Windows G1 门禁通过**：Windows x64 浏览器启动、真实音频波形、CPU/Vulkan 静态预览与视频导出、SDK2 编译和验证、导出超限清理均已实测。修复与证据见 [M1 验收记录](docs/integration/2026-11-16-cross-platform-m1.md)。Windows 桌面 SHM 预览、媒体特征封套和 Portable 包继续按[跨平台计划](docs/plans/cross-platform-adaptation-plan.md)的 M2～M4 实施。
+
 2026-11-03 歌词导入兼容修复：后端 `0.110.2`、HTTP 合同 `1.42.2`。已修复 ASS 上传／新建准入，并从 MakoLrcStudio 的源打轴注释恢复正文、ruby 与片段时间；有效 TTML 的 project／AMLL 导入导出已验证往返。Downloads 两份原始 TTML 因导出时清空 body 命名空间而不符合 TTML 结构，按要求暂缓处理。真实样本、HTTP 和 Electron 验证见[歌词导入修复记录](docs/integration/2026-11-03-lyrics-import.md)。
 
 2026-11-03 已合入静态外辉光后端并接通重构后的前端：后端 `0.110.0`、HTTP 合同 `1.42.0`。在样式库的“外观 → 颜色与描边 → 辉光”配置颜色、不透明度、扩张和模糊，再从外观页分配模板。取消“辉光写进模板”表示继承，选择“无辉光”表示明确关闭；只包含部分辉光属性的模板会显示“部分覆盖”。工程／歌词／模板 schema 为 `29/18/7`，旧版本由现有门禁直接拒绝，不迁移或改写原文件。实施与验证见[辉光整合记录](docs/integration/2026-11-03-glow.md)。
@@ -10,7 +12,7 @@
 
 `backend/` 来源 `a4783fad683bcfef3f2db4042e8963e5228830b5`，`frontend/` 来源 `c2d06fd68a051de1ab1018b9cd2b18ef2ccd8bab`。路径、分支、tree 与源工作树排除项见 [source-snapshots.json](source-snapshots.json)。两个源仓库保持原样；App 保留自己的 Git 历史，用户授权的私有远程同步目标为 `https://github.com/Zydr114/MakoKaraGenerator-App`，暂不添加许可证；实际推送结果以远程核验为准。上游已有的文档、AGENTS 和历史验收保持原归属，本仓库工作规则见根 [AGENTS.md](AGENTS.md)。
 
-需要 Linux x64、Node 26、pnpm、Python 3、仓库 `backend/global.json` 允许的 .NET 10 SDK、flock、FFmpeg/FFprobe，以及 Skia 使用的字体和系统 native 库。本机实测使用 Node 26.12.1、pnpm 11.7.0、.NET SDK 10.0.113。
+浏览器入口支持 Windows x64 与 Linux x64；桌面共享纹理入口目前仍限定 Linux。需要 Node >=24、pnpm（也可通过 Corepack 使用）、Python >=3.10、仓库 `backend/global.json` 允许的 .NET 10 SDK、FFmpeg/FFprobe，以及 Skia 使用的字体和系统 native 库。Linux 发布还需要 flock；Windows 使用独立旁路文件的 LockFileEx 锁。Windows 可从 PATH 或 WinGet 安装目录发现 FFmpeg/FFprobe。
 
 在 App 根目录运行：
 
@@ -29,19 +31,20 @@ pnpm start --port 5174
 
 首次构建需要下载 NuGet/npm 依赖时可设置 `HTTPS_PROXY=http://127.0.0.1:7897`，loopback 请求直连。根入口始终使用 App 内的 `backend/`、`frontend/` 和新发布的 `.local/backend-dist/<UTC时间>/`；`.local/backend-current.json` 指向最近成功发布。构建失败保留独立目录与日志，不覆盖旧发布。缺少构建时明确失败，不回退源仓库的 `artifacts`；外部 `MAKO_BACKEND_REPO`、外部 `MAKO_BACKEND_DIST` 和逃出 App 的部署符号链接均拒绝。
 
-页面与 Server 仅绑定 loopback；Server 随机端口，Web 默认 5173，桌面版固定 5180（页面的本机设置按地址保存，端口固定才留得住主题、布局和渲染设备偏好）。`start`／`dev` 复用 App 专有 `.local/profile/`，保存的工程、状态和日志保留在其中；不要同时启动两个实例共用此 profile。前端连接信息写入私有 `.local/run/backend.json`（0600）；后端启动器还在本次 `.local/profile/runs/run-*/` 内持有私有 bootstrap，不打印凭证。页面的 bootstrap 通道要求准确 Host、本机地址与同源 fetch；直接在地址栏访问会拒绝。
+页面与 Server 仅绑定 loopback；Server 随机端口，Web 默认 5173，桌面版固定 5180（页面的本机设置按地址保存，端口固定才留得住主题、布局和渲染设备偏好）。Linux 的运行时根目录为 App `.local/`；Windows 默认为 `%LOCALAPPDATA%\makokara-generator`，可设置绝对路径 `MAKO_RUNTIME_HOME`，实际根目录为其下的 `makokara-generator` 子目录。Windows 自定义运行时卷必须支持持久化 ACL。`start`／`dev` 复用运行时根目录下的 `profile/`，保存工程、状态和日志；不要同时启动两个实例共用此 profile。前端连接信息写入该根目录的 `run/backend.json`，后端在 `profile/runs/run-*/` 内持有 bootstrap。Linux 使用 0700/0600 权限，Windows 使用仅当前用户 SID 的受保护可继承 DACL；凭证不打印。页面的 bootstrap 通道要求准确 Host、本机地址与同源 fetch；直接在地址栏访问会拒绝。
 
-桌面使用独立 `.local/desktop-profile/` 与 `.local/desktop-electron-profile/`；其私有启动配置在 `.local/run/desktop-<PID>.json`，只交给本次 Electron main，进程退出后删除，残留的会在下次启动时按 PID 清理。桌面构建会验证实际 native ABI 符号和部署哈希，普通 `pnpm build` 的发布不能用于 GPU 桌面启动。
+当前 Linux 桌面使用独立 `.local/desktop-profile/` 与 `.local/desktop-electron-profile/`；其私有启动配置在 `.local/run/desktop-<PID>.json`，只交给本次 Electron main，进程退出后删除，残留的会在下次启动时按进程身份清理。桌面构建会验证实际 native ABI 符号和部署哈希，普通 `pnpm build` 的发布不能用于 GPU 桌面启动。
 
 `pnpm desktop` 启动前按源码内容哈希判断构建是否过期：后端、GPU 预览原生源码有改动或还没有桌面构建时，整套重建（等同 `pnpm build:desktop`）；只有前端改动时只重建 Web（构建记录在 `.local/web-build.json`）。桌面版的成片预览（编排页、外观页）在渲染设备为“跟随后端默认”且检测到 GPU 可用、或明确选 GPU 时走 GPU 共享纹理；明确选 CPU 时退回与浏览器相同的 PNG 静态预览。关窗时工程、样式库模板或作者草稿有未保存的修改会先弹窗确认。
 
-按 Ctrl+C 或向根 App 进程发送 SIGTERM，桌面入口先排空共享纹理消费者，随后关闭自有 Web、等待自有后端排水，清除 bootstrap；不按名称终止其他进程。`.local/`、构建目录、依赖和私人配置均被 Git 忽略。
+按 Ctrl+C 停止根 App；Linux 也可向根 App 进程发送 SIGTERM。自动化启动可设置 `MAKO_APP_SHUTDOWN_STDIN=1`，向启动器 stdin 写入 `SHUTDOWN` 加换行，或关闭 stdin，以受控方式退出；Windows 不应将强制终止进程当作优雅退出。Linux 桌面入口先排空共享纹理消费者，随后关闭自有 Web、等待自有后端排水，清除 bootstrap；不按名称终止其他进程。`.local/`、构建目录、依赖和私人配置均被 Git 忽略。
 
 有限验证入口：
 
 ```bash
 pnpm test:launcher     # 启动失败清理、正常停止、符号链接与旧产品部署门禁
 pnpm test:unit         # 上游前端单元回归
+python scripts/cross-platform-g1-http.py --dist .local/backend-dist/<已发布目录> --output .local/g1-<新证据目录> # 有限 G1 HTTP 实测
 pnpm smoke:browser    # start运行时：新建、编辑、撤销、暂停seek、PNG显示、关闭工程
 pnpm smoke:glow --url http://127.0.0.1:5173  # 隔离profile运行时：辉光模板编辑、保存应用、继承开关和浅深主题
 pnpm smoke:layout     # start运行时：几种窗口尺寸下编排、外观页画布完整显示、不需要滚动

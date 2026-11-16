@@ -1,6 +1,9 @@
 # 跨平台（Windows 优先）技术适配与 `IPreviewPort` 实施计划
 
-状态：**设计已交叉核证定稿（v3.1 定稿），待按 M1 → M4 分阶段实施**。日期：2026-11-16。  
+状态：**设计已交叉核证定稿（v3.1）；M1 已完成，Windows G1 门禁于 2026-11-16 通过；M2～M4 待实施**。
+
+验收依据：[M1 修复与 G1 实测记录](../integration/2026-11-16-cross-platform-m1.md)；最终验收发布源为 `1bb1bef84d309aaadc6c1d35bd54a9fefb9e4ba5`（`win-x64`，`sourceDirty=false`）。
+
 关联文档：[GPU 预览流 v1 合同](../architecture/gpu-preview-stream-v1.md)、[GPU 共享纹理预览实施计划](./gpu-shared-texture-preview-plan.md)、[GPU 预览生产验收记录](../performance/gpu-preview-production-2026-11-01.md)。
 
 ---
@@ -227,6 +230,18 @@ sequenceDiagram
 ## 5. 分阶段实施路线图与硬门禁（M1 → M4）
 
 实施须遵守仓库 [AGENTS.md](../../AGENTS.md) 约定：每步一个中文 `type(scope): 摘要` 提交，按所属路径暂存并保留并行改动；严禁按进程名批量杀进程（必须按自有 PID + `CreationTime`/`StartTicks` 身份停止）。
+
+### 5.1 当前进度与 G1 结论（2026-11-16）
+
+**M1 完成，G1 通过，可以进入 M2。** 本轮复核并修复 pnpm Windows 空格路径调用、私有目录 DACL 不完整及祖先缓存误放行、普通调度包装器 PID 错位和 Windows 运行时目录位置；实际启动另发现并修复 Python 临时目录 ACL 更新请求安全审计权限的问题。
+
+Windows 实测结果：后端构建零警告零错误，`dotnet test` 报告 8,387 项通过；`pnpm test:unit` 55 文件、4,558 项通过；`pnpm build` 和隔离 profile 的 `pnpm start` 成功。最终宿主回归 9 项通过，包含独立进程竞争 `LockFileEx`、持锁 17 秒且实际阻塞超过 15 秒。Node 回归 30 项通过、2 项 Linux 专属跳过。真实浏览器完成新建、编辑、撤销、暂停定位和 1280×720 PNG 显示。
+
+真实 HTTP 验证在 AMD Radeon 880M / Vulkan 1.4.329 完成：2 秒 PCM 音频的全部 9 层波形与独立计算逐字节一致；CPU/Vulkan 静态 PNG 及各 48 帧 MP4 均通过完整解码与哈希核对；SDK2 WordEmphasis 实际编译并完成 360 不透明帧、360 透明帧验证。独立 256 字节预算下导出准确返回 `WorkerExportArtifactBudgetExceeded`，下载 404，暂存与媒体产物零残留。两个 HTTP 宿主均通过 stdin 受控退出 0，删除 bootstrap 及临时 profile。完整命令、证据和限制见上述验收记录。
+
+本轮 Windows 单测中的 Linux 专属提前返回不代表 Linux 实机通过。M2 的 `IPreviewPort`/SHM、M3 的 Windows Electron 全链路与 Linux 回归、M4 的媒体特征封套和 exFAT Portable 验收均未完成；后续 G2～G4 硬门禁保持不变。非 Linux 的 `MakoMediaEnvelopeEnabled=false` 仍符合 M1～M3 边界。
+
+### 5.2 后续路线与硬门禁
 
 ```mermaid
 flowchart TD

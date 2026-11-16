@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Diagnostics;
 using MakoKaraGenerator.Backend.Contracts;
 using MakoKaraGenerator.Media;
+using MakoKaraGenerator.TestSupport;
 using Xunit.Abstractions;
 
 namespace MakoKaraGenerator.Backend.Hosting.Tests;
@@ -13,7 +14,7 @@ public sealed class WorkerFirstAudioStreamTests(ITestOutputHelper output)
     [InlineData(true)]
     public async Task 真实Worker双音轨第二默认和单音轨均保首轨完整时间基与全部峰值(bool secondDefault)
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
         using TemporaryDirectory directory = new();
         using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(30));
         string audio = directory.FilePath("owned.mov");
@@ -32,10 +33,10 @@ public sealed class WorkerFirstAudioStreamTests(ITestOutputHelper output)
         WaveformPeakPyramid expected = WaveformPeakPyramid.Build(samples, 8000);
         string root = RepositoryRoot();
         string worker = Environment.GetEnvironmentVariable("MAKO_FIRST_STREAM_WORKER")
-            ?? Path.Combine(root, "src/MakoKaraGenerator.Backend.Worker/bin/Debug/net10.0/MakoKaraGenerator.Backend.Worker");
+            ?? Path.Combine(root, "src", "MakoKaraGenerator.Backend.Worker", "bin", "Debug", "net10.0", "MakoKaraGenerator.Backend.Worker" + (OperatingSystem.IsWindows() ? ".exe" : ""));
         Assert.True(File.Exists(worker), worker);
         byte[] bytes = await File.ReadAllBytesAsync(audio, deadline.Token);
-        WorkerBackendAudioPreparationExecutor executor = new(new(worker), "/usr/bin/ffmpeg", "/usr/bin/ffprobe");
+        WorkerBackendAudioPreparationExecutor executor = new(new(worker), TestMediaToolPaths.Ffmpeg, TestMediaToolPaths.Ffprobe);
         BackendAudioPreparationCapabilities capabilities = await executor.ProbeAsync(deadline.Token);
         Assert.True(capabilities.GuardAvailable, capabilities.FailureCode);
         Assert.True(capabilities.ToolStartupVerified, capabilities.FailureCode);
@@ -45,8 +46,8 @@ public sealed class WorkerFirstAudioStreamTests(ITestOutputHelper output)
         Assert.Equal(1, actual.Info.Channels);
         Assert.Equal("pcm_s16le", actual.Info.CodecName);
         Assert.Equal(1000000, actual.Info.DurationUs);
-        Assert.Equal(await new FfmpegMediaProbe().ProbeAsync(audio, deadline.Token), actual.Info);
-        LoadedWaveform direct = (await AudioWaveformLoader.CreateForSelfContainedFiles().LoadAsync(audio, cancellationToken: deadline.Token))!;
+        Assert.Equal(await new FfmpegMediaProbe(TestMediaToolPaths.Ffprobe).ProbeAsync(audio, deadline.Token), actual.Info);
+        LoadedWaveform direct = (await AudioWaveformLoader.CreateForSelfContainedFiles(TestMediaToolPaths.Ffmpeg, TestMediaToolPaths.Ffprobe).LoadAsync(audio, cancellationToken: deadline.Token))!;
         Assert.Equal(actual.Info, direct.Info);
         foreach (WaveformPeakPyramid pyramid in new[] { actual.Peaks, direct.Peaks })
         {
@@ -70,7 +71,7 @@ public sealed class WorkerFirstAudioStreamTests(ITestOutputHelper output)
 
     private static async Task<byte[]> Ffmpeg(IEnumerable<string> arguments, CancellationToken token)
     {
-        ProcessStartInfo info = new("/usr/bin/ffmpeg") { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
+        ProcessStartInfo info = new(TestMediaToolPaths.Ffmpeg) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
         foreach (string argument in arguments) info.ArgumentList.Add(argument);
         using Process process = Process.Start(info)!;
         using MemoryStream bytes = new();

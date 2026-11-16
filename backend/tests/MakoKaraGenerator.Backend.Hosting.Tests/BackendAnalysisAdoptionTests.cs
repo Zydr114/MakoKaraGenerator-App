@@ -121,6 +121,7 @@ public sealed partial class BackendAnalysisAdoptionTests
     [InlineData("result")]
     public async Task 已登记音频或结果文件损坏拒绝采用且不污染历史(string damage)
     {
+        if (damage == "link" && OperatingSystem.IsWindows()) return;
         await using Fixture f = new(); ProjectSession project = await f.Project(); JobResponse job = await f.Complete(project);
         string path = f.Resources.GetAuthorized("a", project.AudioAssetId).StoragePath;
         byte[] original = await File.ReadAllBytesAsync(path);

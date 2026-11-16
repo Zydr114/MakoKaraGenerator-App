@@ -235,6 +235,7 @@ public sealed class WorkerStaticSessionFactoryTests(ITestOutputHelper output)
     [InlineData("nonexecutable")]
     public async Task 缺失删除或不可执行Worker的open失败保中立Unavailable且不回退Runtime(string mode)
     {
+        if (mode == "nonexecutable" && !OperatingSystem.IsLinux()) return;
         using TemporaryDirectory temp = new();
         string path = temp.FilePath("worker-apphost");
         if (mode != "missing") File.Copy(WorkerApphost(), path);
@@ -317,8 +318,8 @@ public sealed class WorkerStaticSessionFactoryTests(ITestOutputHelper output)
             await File.WriteAllTextAsync(probe._temp.FilePath("diagnostics.json"), JsonSerializer.Serialize(diagnostics, JsonOptions));
             return probe;
         }
-        public WorkerRenderFrameSessionFactory Factory(TimeSpan? timeout = null) => new(new("python3",
-            [_temp.FilePath("probe.py"), _mode, _temp.FilePath("diagnostics.json"), _temp.FilePath("pid"), _temp.FilePath("attempt")], TimeSpan.FromMilliseconds(80)), timeout);
+        public WorkerRenderFrameSessionFactory Factory(TimeSpan? timeout = null) => new(HostingTestPlatformHelpers.PythonOptions(
+            _temp.FilePath("probe.py"), [_mode, _temp.FilePath("diagnostics.json"), _temp.FilePath("pid"), _temp.FilePath("attempt")], TimeSpan.FromMilliseconds(80)), timeout);
         public async Task<int> PidAsync() => int.Parse(await File.ReadAllTextAsync(_temp.FilePath("pid")), System.Globalization.CultureInfo.InvariantCulture);
         public async Task WaitForAttemptAsync()
         {

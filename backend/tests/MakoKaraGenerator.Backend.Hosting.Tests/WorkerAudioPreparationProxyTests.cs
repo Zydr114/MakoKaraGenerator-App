@@ -2,6 +2,7 @@ using System.Diagnostics;
 using MakoKaraGenerator.Backend.Contracts;
 using MakoKaraGenerator.Backend.Rendering;
 using MakoKaraGenerator.Rendering;
+using MakoKaraGenerator.TestSupport;
 using Xunit.Abstractions;
 
 namespace MakoKaraGenerator.Backend.Hosting.Tests;
@@ -11,7 +12,7 @@ public sealed class WorkerAudioPreparationProxyTests(ITestOutputHelper output)
     [Fact]
     public async Task 已验证Worker输入拒绝返回原媒体输入异常且不泄露Worker内部详情()
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
         using TemporaryDirectory directory = new();
         WorkerBackendAudioPreparationExecutor executor = Executor(directory, "input-rejected");
         IOException failure = await Assert.ThrowsAsync<IOException>(() => executor.ExecuteAsync(Grant(directory)));
@@ -22,7 +23,7 @@ public sealed class WorkerAudioPreparationProxyTests(ITestOutputHelper output)
     [Fact]
     public async Task 已验证Worker无音流仍返回空结果供原调用方分类()
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
         using TemporaryDirectory directory = new();
         Assert.Null(await Executor(directory, "no-stream").ExecuteAsync(Grant(directory)));
     }
@@ -33,7 +34,7 @@ public sealed class WorkerAudioPreparationProxyTests(ITestOutputHelper output)
     [InlineData("WorkerAudioPreparationSourceChanged")]
     public async Task 已关联Worker错误回执映射仍保原稳定编号(string code)
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
         using TemporaryDirectory directory = new();
         RenderSessionFailureException failure = await Assert.ThrowsAsync<RenderSessionFailureException>(() =>
             Executor(directory, code).ExecuteAsync(Grant(directory)));
@@ -52,7 +53,7 @@ public sealed class WorkerAudioPreparationProxyTests(ITestOutputHelper output)
     [InlineData("missing-budget")]
     public async Task actual握手能力来源profile完整集合与固定预算缺失错配均disabled(string damage)
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
         using TemporaryDirectory directory = new(); WorkerBackendAudioPreparationExecutor executor = Executor(directory, damage);
         BackendAudioPreparationCapabilities result = await executor.ProbeAsync();
         Assert.False(result.GuardAvailable); Assert.False(result.ToolStartupVerified); Assert.Equal("WorkerAudioPreparationProfileMismatch", result.FailureCode);
@@ -61,7 +62,7 @@ public sealed class WorkerAudioPreparationProxyTests(ITestOutputHelper output)
     [Fact]
     public async Task 无实际私有group的cap回执不能宣称guardAvailable()
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
         using TemporaryDirectory directory = new(); WorkerBackendAudioPreparationExecutor executor = Executor(directory, "no-group");
         BackendAudioPreparationCapabilities result = await executor.ProbeAsync(); Assert.False(result.GuardAvailable);
         Assert.Equal("WorkerAudioPreparationUnavailable", result.FailureCode);
@@ -74,7 +75,7 @@ public sealed class WorkerAudioPreparationProxyTests(ITestOutputHelper output)
     [InlineData("unexpected-progress")]
     public async Task 错关联的Worker错误不能作为这次音频的真实输入拒绝(string damage)
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
         using TemporaryDirectory directory = new(); WorkerBackendAudioPreparationExecutor executor = Executor(directory, damage);
         RenderSessionFailureException failure = await Assert.ThrowsAsync<RenderSessionFailureException>(() => executor.ExecuteAsync(Grant(directory)));
         Assert.Equal("WorkerAudioPreparationProtocolInvalid", failure.Code);
@@ -85,7 +86,7 @@ public sealed class WorkerAudioPreparationProxyTests(ITestOutputHelper output)
     [InlineData(true)]
     public async Task 未响应cancel的准备进程必须强制排水实际private成员并区分deadline与用户取消(bool userCancel)
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
         using TemporaryDirectory directory = new(); WorkerBackendAudioPreparationExecutor executor = Executor(directory, "hang", TimeSpan.FromSeconds(1));
         using CancellationTokenSource caller = new(); Task pending = executor.ExecuteAsync(Grant(directory), caller.Token);
         string identities = directory.FilePath("identities.json"); await WaitUntil(() => File.Exists(identities));
@@ -102,14 +103,14 @@ public sealed class WorkerAudioPreparationProxyTests(ITestOutputHelper output)
     [Fact]
     public async Task 真实Worker能力与完整WAV波形还原保源采样数及原Info()
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
         using TemporaryDirectory directory = new(); string root = RepositoryRoot();
-        string worker = Path.Combine(root, "src/MakoKaraGenerator.Backend.Worker/bin/Debug/net10.0/MakoKaraGenerator.Backend.Worker");
+        string worker = Path.Combine(root, "src", "MakoKaraGenerator.Backend.Worker", "bin", "Debug", "net10.0", "MakoKaraGenerator.Backend.Worker" + (OperatingSystem.IsWindows() ? ".exe" : ""));
         Assert.True(File.Exists(worker)); string audio = directory.FilePath("wave.wav"); WavWriter.Write(audio, WavWriter.BuildSegmentedTone(8000, (0.15, 0.8f)), 8000);
         byte[] bytes = File.ReadAllBytes(audio); BackendAudioPreparationGrant grant = new(audio, bytes.LongLength, WorkerProtocol.ComputeSha256(bytes));
-        WorkerBackendAudioPreparationExecutor executor = new(new(worker), "/usr/bin/ffmpeg", "/usr/bin/ffprobe");
+        WorkerBackendAudioPreparationExecutor executor = new(new(worker), TestMediaToolPaths.Ffmpeg, TestMediaToolPaths.Ffprobe);
         BackendAudioPreparationCapabilities capabilities = await executor.ProbeAsync(); Assert.True(capabilities.GuardAvailable, capabilities.FailureCode); Assert.True(capabilities.ToolStartupVerified);
-        var expected = (await MakoKaraGenerator.Media.AudioWaveformLoader.CreateForSelfContainedFiles().LoadAsync(audio))!;
+        var expected = (await MakoKaraGenerator.Media.AudioWaveformLoader.CreateForSelfContainedFiles(TestMediaToolPaths.Ffmpeg, TestMediaToolPaths.Ffprobe).LoadAsync(audio))!;
         var actual = (await executor.ExecuteAsync(grant))!;
         Assert.Equal(expected.Info, actual.Info); Assert.Equal(expected.Peaks.SampleRate, actual.Peaks.SampleRate);
         Assert.Equal(expected.Peaks.SampleCount, actual.Peaks.SampleCount); Assert.Equal(expected.Peaks.DurationUs, actual.Peaks.DurationUs);
@@ -129,32 +130,35 @@ public sealed class WorkerAudioPreparationProxyTests(ITestOutputHelper output)
     internal static WorkerBackendAudioPreparationExecutor Executor(TemporaryDirectory directory, string damage, TimeSpan? timeout = null)
     {
         string script = directory.FilePath("worker.py"); File.WriteAllText(script, ControlledWorker);
-        return new(new("/usr/bin/python3", ["-u", script, damage, directory.FilePath("identities.json"), StaticProjectSnapshotCodec.EngineIdentity]),
-            "/usr/bin/ffmpeg", "/usr/bin/ffprobe", timeout);
+        return new(HostingTestPlatformHelpers.PythonOptions(script, [damage, directory.FilePath("identities.json"), StaticProjectSnapshotCodec.EngineIdentity]),
+            HostingTestPlatformHelpers.ContractFfmpegPath, HostingTestPlatformHelpers.ContractFfprobePath, timeout);
     }
     private static BackendAudioPreparationGrant Grant(TemporaryDirectory directory)
     { string source = directory.FilePath("source.wav"); File.WriteAllBytes(source, [1, 2, 3]); return new(source, 3, WorkerProtocol.ComputeSha256([1, 2, 3])); }
     private static async Task WaitUntil(Func<bool> condition)
     { using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(8)); while (!condition()) await Task.Delay(10, timeout.Token); }
-    private static bool IsSameProcess(int pid, long start)
-    {
-        try
-        {
-            string stat = File.ReadAllText($"/proc/{pid}/stat"); string[] fields = stat[(stat.LastIndexOf(')') + 2)..].Split(' ');
-            return fields[0] != "Z" && long.Parse(fields[19], System.Globalization.CultureInfo.InvariantCulture) == start;
-        }
-        catch (IOException) { return false; }
-    }
+    private static bool IsSameProcess(int pid, long start) => HostingTestPlatformHelpers.IsSameProcess(pid, start);
     private static string RepositoryRoot()
     { DirectoryInfo? current = new(AppContext.BaseDirectory); while (current is not null && !File.Exists(Path.Combine(current.FullName, "MakoKaraGenerator.slnx"))) current = current.Parent; return current!.FullName; }
     private const string ControlledWorker = """
         import base64, hashlib, json, os, struct, subprocess, sys, time
         mode, identity_path, engine = sys.argv[1:]
-        if mode != 'no-group': os.setsid()
+        if mode != 'no-group' and hasattr(os, 'setsid'): os.setsid()
         def send(value, payload=b''):
             body = json.dumps(dict(protocolVersion='worker-1', payload=base64.b64encode(payload).decode(), delayMilliseconds=0, cancelled=False, **value)).encode()
             sys.stdout.buffer.write(struct.pack('<i', len(body)) + body); sys.stdout.buffer.flush()
         def identity(pid):
+            if sys.platform == 'win32':
+                import ctypes
+                from ctypes import wintypes
+                k32 = ctypes.WinDLL('kernel32', use_last_error=True)
+                h = k32.OpenProcess(0x1000, False, pid)
+                c, e, k, u = wintypes.FILETIME(), wintypes.FILETIME(), wintypes.FILETIME(), wintypes.FILETIME()
+                try:
+                    k32.GetProcessTimes(h, ctypes.byref(c), ctypes.byref(e), ctypes.byref(k), ctypes.byref(u))
+                    return [pid, (c.dwHighDateTime << 32) | c.dwLowDateTime]
+                finally:
+                    if h: k32.CloseHandle(h)
             stat = open('/proc/%d/stat' % pid).read(); fields = stat[stat.rfind(')')+2:].split(); return [pid, int(fields[19])]
         while True:
             prefix = sys.stdin.buffer.read(4)
@@ -162,7 +166,7 @@ public sealed class WorkerAudioPreparationProxyTests(ITestOutputHelper output)
             message = json.loads(sys.stdin.buffer.read(struct.unpack('<i', prefix)[0])); kind = message['kind']
             if kind == 'hello':
                 hello = dict(kind='hello', requestId=message['requestId'])
-                if mode != 'no-group': hello['processGroupId'] = os.getpgrp()
+                if mode != 'no-group': hello['processGroupId'] = os.getpgrp() if hasattr(os, 'getpgrp') else os.getpid()
                 send(hello)
             elif kind == 'shutdown': break
             elif kind == 'task-audio-prepare-capabilities-v1':
@@ -180,7 +184,9 @@ public sealed class WorkerAudioPreparationProxyTests(ITestOutputHelper output)
             elif kind == 'task-audio-prepare-v1':
                 if mode == 'hang':
                     child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    with open(identity_path, 'w') as out: json.dump([identity(os.getpid()), identity(child.pid)], out)
+                    tmp_identity = identity_path + '.tmp'
+                    with open(tmp_identity, 'w') as out: json.dump([identity(os.getpid()), identity(child.pid)], out)
+                    os.replace(tmp_identity, identity_path)
                     time.sleep(60)
                 else:
                     reply = dict(kind='error', requestId=message['requestId'], taskId=message['taskId'], inputSha256=message['inputSha256'], sourceSha256=message['sourceSha256'], errorCode='WorkerAudioPreparationInputRejected', error='controlled')

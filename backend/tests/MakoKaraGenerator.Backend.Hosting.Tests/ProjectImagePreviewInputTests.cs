@@ -142,7 +142,7 @@ public sealed class ProjectImagePreviewInputTests
     {
         string hash = Convert.ToHexStringLower(SHA256.HashData(bytes)); MediaFileRevision media = new(hash, bytes.Length, "image.png");
         Project project = ProjectWorkspace.CreateNew("image").Project with { Background = source ?? new()
-        { Kind = BackgroundKind.Image, Path = Path.Combine(root, media.RelativePath), Media = media } };
+        { Kind = BackgroundKind.Image, Path = Path.Combine(root, media.RelativePath.Replace('/', Path.DirectorySeparatorChar)), Media = media } };
         return new("project", "host", "client", ProjectWorkspace.Adopt(project), string.Empty, 0,
             TimeProvider.System, new(), new("host", 100)) { PinnedInputDirectory = root };
     }

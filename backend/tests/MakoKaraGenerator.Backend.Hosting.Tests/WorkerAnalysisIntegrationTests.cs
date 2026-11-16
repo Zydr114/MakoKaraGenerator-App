@@ -5,6 +5,7 @@ using MakoKaraGenerator.Backend.Hosting;
 using MakoKaraGenerator.Core.Persistence;
 using MakoKaraGenerator.Media;
 using MakoKaraGenerator.Rendering;
+using MakoKaraGenerator.TestSupport;
 using Xunit.Abstractions;
 
 namespace MakoKaraGenerator.Backend.Hosting.Tests;
@@ -64,7 +65,7 @@ public sealed class WorkerAnalysisIntegrationTests(ITestOutputHelper output)
         DirectoryInfo? root = new(AppContext.BaseDirectory);
         while (root is not null && !File.Exists(Path.Combine(root.FullName, "MakoKaraGenerator.slnx"))) root = root.Parent;
         string dll = Path.Combine(root!.FullName, "src/MakoKaraGenerator.Backend.Worker/bin/Debug/net10.0/MakoKaraGenerator.Backend.Worker.dll");
-        return new(new WorkerProcessOptions("dotnet", [dll]), "/usr/bin/ffmpeg", "/usr/bin/ffprobe");
+        return new(new WorkerProcessOptions("dotnet", [dll]), TestMediaToolPaths.Ffmpeg, TestMediaToolPaths.Ffprobe);
     }
     private static byte[] Wave(int rate, int channels, double seconds)
     {

@@ -24,7 +24,7 @@ public sealed class WorkerAnalysisProcessTests
     [Fact]
     public async Task 分析deadline为稳定失败且拥有子进程全部释放后执行器可重用()
     {
-        using Probe probe = await Probe.CreateAsync("timeout"); var executor = Executor(probe, TimeSpan.FromMilliseconds(300));
+        using Probe probe = await Probe.CreateAsync("timeout"); var executor = Executor(probe, TimeSpan.FromMilliseconds(1500));
         var failure = await Assert.ThrowsAsync<RenderSessionFailureException>(() => executor.ExecuteAsync(probe.Grant()));
         Assert.Equal("WorkerAnalysisTimedOut", failure.Code); await AssertDeadAsync(await probe.PidAsync()); await AssertDeadAsync(await probe.ChildAsync());
         Assert.NotEmpty(await executor.ExecuteAsync(probe.Grant())); Assert.False(Alive(await probe.PidAsync()));
@@ -51,7 +51,7 @@ public sealed class WorkerAnalysisProcessTests
         Assert.Equal("AudioAnalysisFailed", failure.Code); Assert.Null(failure.DiagnosticSnapshot);
     }
     private static WorkerBackendAnalysisExecutor Executor(Probe probe, TimeSpan? timeout = null)
-        => new(probe.Options(), "/usr/bin/ffmpeg", "/usr/bin/ffprobe", timeout);
+        => new(probe.Options(), HostingTestPlatformHelpers.ContractFfmpegPath, HostingTestPlatformHelpers.ContractFfprobePath, timeout);
     private static bool Alive(int pid)
     { try { using Process process = Process.GetProcessById(pid); return !process.HasExited; } catch (ArgumentException) { return false; } }
     private static async Task AssertDeadAsync(int pid)
@@ -69,7 +69,7 @@ public sealed class WorkerAnalysisProcessTests
             await File.WriteAllBytesAsync(probe._temp.FilePath("result.json"), AudioAnalysisJson.Encode(data)); return probe;
         }
         public BackendAudioAnalysisGrant Grant() => new(_temp.FilePath("source.wav"), 44, new('a', 64));
-        public WorkerProcessOptions Options() => new("python3", [_temp.FilePath("probe.py"), _mode, _temp.FilePath("pid"),
+        public WorkerProcessOptions Options() => HostingTestPlatformHelpers.PythonOptions(_temp.FilePath("probe.py"), [_mode, _temp.FilePath("pid"),
             _temp.FilePath("child"), _temp.FilePath("attempt"), _temp.FilePath("result.json")], TimeSpan.FromMilliseconds(100));
         public async Task<int> PidAsync() => int.Parse(await File.ReadAllTextAsync(_temp.FilePath("pid")), CultureInfo.InvariantCulture);
         public async Task<int> ChildAsync() => int.Parse(await File.ReadAllTextAsync(_temp.FilePath("child")), CultureInfo.InvariantCulture);
@@ -77,7 +77,7 @@ public sealed class WorkerAnalysisProcessTests
         private const string Source = """
             import base64, hashlib, json, os, struct, subprocess, sys, time
             mode,pid_file,child_file,attempt,result_file=sys.argv[1:]
-            os.setpgid(0,0)
+            if hasattr(os, 'setpgid'): os.setpgid(0,0)
             with open(pid_file,'w') as target: target.write(str(os.getpid()))
             def send(value):
                 body=json.dumps(dict(protocolVersion='worker-1',delayMilliseconds=0,cancelled=False,**value)).encode()

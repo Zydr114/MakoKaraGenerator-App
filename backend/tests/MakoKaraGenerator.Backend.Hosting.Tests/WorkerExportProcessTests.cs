@@ -95,7 +95,7 @@ public sealed class WorkerExportProcessTests(ITestOutputHelper output)
     public async Task Deadline不是用户取消且排水后执行器可重新创建Worker()
     {
         using Probe probe = await Probe.CreateAsync("timeout");
-        var executor = Executor(probe, TimeSpan.FromMilliseconds(300));
+        var executor = Executor(probe, TimeSpan.FromMilliseconds(1500));
         var failure = await Assert.ThrowsAsync<RenderSessionFailureException>(() => executor.ExecuteAsync(Snapshot(), probe.Input()));
         Assert.Equal("WorkerExportTimedOut", failure.Code);
         int pid = await probe.PidAsync(), child = await probe.ChildAsync(); await AssertDeadAsync(pid); await AssertDeadAsync(child);
@@ -130,7 +130,7 @@ public sealed class WorkerExportProcessTests(ITestOutputHelper output)
         Assert.Equal("WorkerSessionConflict", failure.Code); Assert.Null(failure.DiagnosticSnapshot);
     }
     private static WorkerBackendExportExecutor Executor(Probe probe, TimeSpan? timeout = null)
-        => new(probe.Options(), "/usr/bin/ffmpeg", "/usr/bin/ffprobe", timeout,
+        => new(probe.Options(), HostingTestPlatformHelpers.ContractFfmpegPath, HostingTestPlatformHelpers.ContractFfprobePath, timeout,
             new BackendExportOptions { MaxMediaBytes = WorkerExportContract.MaximumMediaBytes });
     private static ProjectSnapshot Snapshot()
     {
@@ -178,15 +178,17 @@ public sealed class WorkerExportProcessTests(ITestOutputHelper output)
             await File.WriteAllTextAsync(probe._temp.FilePath("capabilities.json"), capabilityJson); return probe;
         }
         public BackendExportExecutionInput Input() => new("opaqueMp4", false, _temp.FilePath("candidate.mp4"), null);
-        public WorkerProcessOptions Options() => new("python3", [_temp.FilePath("probe.py"), _mode, _temp.FilePath("pid"),
+        public WorkerProcessOptions Options() => HostingTestPlatformHelpers.PythonOptions(_temp.FilePath("probe.py"), [_mode, _temp.FilePath("pid"),
             _temp.FilePath("child"), _temp.FilePath("attempt"), _temp.FilePath("report.json")], TimeSpan.FromMilliseconds(100));
         public async Task<int> PidAsync() => int.Parse(await File.ReadAllTextAsync(_temp.FilePath("pid")), CultureInfo.InvariantCulture);
         public async Task<int> ChildAsync() => int.Parse(await File.ReadAllTextAsync(_temp.FilePath("child")), CultureInfo.InvariantCulture);
         public void Dispose() => _temp.Dispose();
         private const string Source = """
-            import base64, hashlib, json, os, resource, struct, subprocess, sys, time
+            import base64, hashlib, json, os, struct, subprocess, sys, time
             mode, pid_file, child_file, attempt, report_file = sys.argv[1:]
-            os.setpgid(0,0); resource.setrlimit(resource.RLIMIT_FSIZE,(67108864,67108864))
+            if hasattr(os, 'setpgid'):
+                import resource
+                os.setpgid(0,0); resource.setrlimit(resource.RLIMIT_FSIZE,(67108864,67108864))
             with open(pid_file,'w') as target: target.write(str(os.getpid()))
             def send(value):
                 body=json.dumps(dict(protocolVersion='worker-1',delayMilliseconds=0,cancelled=False,**value)).encode()

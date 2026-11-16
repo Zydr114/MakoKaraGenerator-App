@@ -110,7 +110,7 @@ public sealed class RuntimeValidationWorkerTests
     {
         DirectoryInfo? root = new(AppContext.BaseDirectory);
         while (root is not null && !File.Exists(Path.Combine(root.FullName, "MakoKaraGenerator.slnx"))) root = root.Parent;
-        string path = Path.Combine(root!.FullName, "src/MakoKaraGenerator.Backend.Worker/bin/Debug/net10.0/MakoKaraGenerator.Backend.Worker");
+        string path = Path.Combine(root!.FullName, "src", "MakoKaraGenerator.Backend.Worker", "bin", "Debug", "net10.0", "MakoKaraGenerator.Backend.Worker" + (OperatingSystem.IsWindows() ? ".exe" : ""));
         Assert.True(File.Exists(path), "Build Debug Worker before executing the real Worker test."); return path;
     }
     private sealed class ProgressSink(List<BackendJobProgressDto> values) : IProgress<BackendJobProgressDto>

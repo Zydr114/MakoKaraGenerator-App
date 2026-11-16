@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using MakoKaraGenerator.Processes;
+using MakoKaraGenerator.TestSupport;
 
 namespace MakoKaraGenerator.Backend.Hosting.Tests;
 
@@ -17,9 +18,9 @@ public sealed class WorkerControlDrainTests
         string script = directory.FilePath("owned-worker.py");
         string childFile = directory.FilePath("owned-child");
         await File.WriteAllTextAsync(script, Source);
-        using Process unrelated = Process.Start(new ProcessStartInfo("python3")
+        using Process unrelated = Process.Start(new ProcessStartInfo(TestMediaToolPaths.Python)
         { ArgumentList = { "-c", "import time,sys; time.sleep(.5); sys.exit(7)" } })!;
-        WorkerProcessProxy proxy = new(new("python3", [script, childFile, stopReadingAfterHello ? "blocked" : "legacy"],
+        WorkerProcessProxy proxy = new(HostingTestPlatformHelpers.PythonOptions(script, [childFile, stopReadingAfterHello ? "blocked" : "legacy"],
             TimeSpan.FromMilliseconds(80)));
         OwnedProcessTree? cleanupTree = null;
         Task? call = null;

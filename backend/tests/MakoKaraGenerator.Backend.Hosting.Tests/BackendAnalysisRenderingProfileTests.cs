@@ -79,8 +79,8 @@ public sealed partial class BackendAnalysisAdoptionTests
     public async Task 实际导出metadata超预算在注册与spawn之前拒绝并撤候选释放预留()
     {
         await using Fixture f = new(); ProjectSession project = await f.Project(timed: true);
-        string unicodeTool = "/" + new string('音', 4095);
-        WorkerBackendExportExecutor executor = new("/no-worker-may-start", unicodeTool, unicodeTool);
+        string unicodeTool = HostingTestPlatformHelpers.CrossPlatformRootedPath("/" + new string('音', 4092));
+        WorkerBackendExportExecutor executor = new(HostingTestPlatformHelpers.CrossPlatformRootedPath("/no-worker-may-start"), unicodeTool, unicodeTool);
         f.Registry.ConfigureExportTasks(executor, new(true, true, true));
         ProjectSessionSummaryResponse before = (await f.Registry.ReadSummaryAsync("a", project.ProjectSessionId))!;
         var result = await f.Registry.StartExportAsync("a", project.ProjectSessionId, new("0", IncludeAudio: false, Metadata: f.Meta()));

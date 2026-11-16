@@ -30,8 +30,8 @@ public sealed class WorkerAnalysisCapabilitiesTests
         };
         await File.WriteAllBytesAsync(temp.FilePath("cap.json"), WorkerAnalysisContract.EncodeJson(caps, 4096));
         await File.WriteAllTextAsync(temp.FilePath("probe.py"), Source);
-        var executor = new WorkerBackendAnalysisExecutor(new WorkerProcessOptions("python3",
-            [temp.FilePath("probe.py"), temp.FilePath("cap.json"), temp.FilePath("pid")]), "/usr/bin/ffmpeg", "/usr/bin/ffprobe");
+        var executor = new WorkerBackendAnalysisExecutor(HostingTestPlatformHelpers.PythonOptions(temp.FilePath("probe.py"),
+            [temp.FilePath("cap.json"), temp.FilePath("pid")]), HostingTestPlatformHelpers.ContractFfmpegPath, HostingTestPlatformHelpers.ContractFfprobePath);
         var actual = await executor.ProbeAsync();
         if (mode == "valid")
         {
@@ -51,7 +51,7 @@ public sealed class WorkerAnalysisCapabilitiesTests
     private const string Source = """
         import base64,hashlib,json,os,struct,sys
         cap,pid=sys.argv[1:]
-        os.setpgid(0,0)
+        if hasattr(os, 'setpgid'): os.setpgid(0,0)
         with open(pid,'w') as target: target.write(str(os.getpid()))
         def send(value):
             body=json.dumps(dict(protocolVersion='worker-1',delayMilliseconds=0,cancelled=False,**value)).encode()

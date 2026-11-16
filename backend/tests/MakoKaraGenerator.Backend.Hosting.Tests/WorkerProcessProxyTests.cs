@@ -342,7 +342,7 @@ public sealed class WorkerProcessProxyTests(ITestOutputHelper output)
         string marker = temp.FilePath("first-frame");
         string childPidFile = temp.FilePath("child-pid");
         await File.WriteAllTextAsync(script, UnresponsiveWorkerProbe, Encoding.UTF8);
-        await using WorkerProcessProxy proxy = new(new WorkerProcessOptions("python3", [script, marker, childPidFile], TimeSpan.FromMilliseconds(80)));
+        await using WorkerProcessProxy proxy = new(HostingTestPlatformHelpers.PythonOptions(script, [marker, childPidFile], TimeSpan.FromMilliseconds(80)));
         await proxy.StartAsync();
         int processId = Assert.IsType<int>(proxy.ProcessId);
         RenderFrameV1WorkerRequest request = new(1, 1, 42, false, 1, 2, 3);

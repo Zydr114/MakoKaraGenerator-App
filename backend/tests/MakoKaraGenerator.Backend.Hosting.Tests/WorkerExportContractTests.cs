@@ -10,11 +10,15 @@ public sealed class WorkerExportContractTests
     [Fact]
     public void 旧WAV音频字段省略保持且未声明质量沿用standard()
     {
+        string candidatePath = HostingTestPlatformHelpers.CrossPlatformRootedPath("/owned/candidate.mp4");
+        string songPath = HostingTestPlatformHelpers.CrossPlatformRootedPath("/owned/song.wav");
+        string ffmpegPath = HostingTestPlatformHelpers.ContractFfmpegPath;
+        string ffprobePath = HostingTestPlatformHelpers.ContractFfprobePath;
         var metadata = new WorkerExportMetadata(WorkerExportContract.ExecutionProfile, BackendSnapshotProfiles.StaticLyricsScene,
-            "opaqueMp4", true, "/owned/candidate.mp4", new("/owned/song.wav", 60, new('a', 64)), "/usr/bin/ffmpeg", "/usr/bin/ffprobe");
+            "opaqueMp4", true, candidatePath, new(songPath, 60, new('a', 64)), ffmpegPath, ffprobePath);
         byte[] bytes = WorkerExportContract.EncodeInput(Guid.Parse("12345678-1234-4321-1234-123456789abc"), metadata, [1, 2, 3]);
-        const string original = """
-            {"executionProfile":"static-export-pcmwav-v1","codecProfile":"static-lyrics-scene-v1","format":"opaqueMp4","includeAudio":true,"candidatePath":"/owned/candidate.mp4","audio":{"path":"/owned/song.wav","size":60,"sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"ffmpegPath":"/usr/bin/ffmpeg","ffprobePath":"/usr/bin/ffprobe","quality":"standard"}
+        string original = $$"""
+            {"executionProfile":"static-export-pcmwav-v1","codecProfile":"static-lyrics-scene-v1","format":"opaqueMp4","includeAudio":true,"candidatePath":{{JsonSerializer.Serialize(candidatePath)}},"audio":{"path":{{JsonSerializer.Serialize(songPath)}},"size":60,"sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"ffmpegPath":{{JsonSerializer.Serialize(ffmpegPath)}},"ffprobePath":{{JsonSerializer.Serialize(ffprobePath)}},"quality":"standard"}
             """;
         Assert.Equal(System.Text.Encoding.UTF8.GetBytes(original), bytes.AsSpan(32, bytes.Length - 35).ToArray());
         Assert.Equal("standard", WorkerExportContract.DecodeInput(bytes, false).Metadata.Quality);
@@ -36,7 +40,7 @@ public sealed class WorkerExportContractTests
     public void 压缩来源必须显式格式并与唯一执行profile匹配(string profile)
     {
         var metadata = new WorkerExportMetadata(WorkerExportContract.CompressedExecutionProfile, BackendSnapshotProfiles.StaticLyricsScene,
-            "opaqueMp4", true, "/owned/candidate.mp4", new("/owned/source", 64, new('a', 64), profile), "/usr/bin/ffmpeg", "/usr/bin/ffprobe");
+            "opaqueMp4", true, HostingTestPlatformHelpers.CrossPlatformRootedPath("/owned/candidate.mp4"), new(HostingTestPlatformHelpers.CrossPlatformRootedPath("/owned/source"), 64, new('a', 64), profile), HostingTestPlatformHelpers.ContractFfmpegPath, HostingTestPlatformHelpers.ContractFfprobePath);
         var actual = WorkerExportContract.DecodeInput(WorkerExportContract.EncodeInput(Guid.NewGuid(), metadata, [1]), false);
         Assert.Equal(profile, actual.Metadata.Audio!.AudioProfile);
         Assert.Equal(WorkerExportContract.CompressedExecutionProfile, WorkerExportContract.GetExecutionProfile(profile));
@@ -66,7 +70,7 @@ public sealed class WorkerExportContractTests
     public void 私有输入完整保护metadata与snapshot且严格拒绝重复字段()
     {
         var metadata = new WorkerExportMetadata(WorkerExportContract.ExecutionProfile, "static-lyrics-scene-v1", "opaqueMp4", false,
-            "/owned/candidate.mp4", null, "/usr/bin/ffmpeg", "/usr/bin/ffprobe");
+            HostingTestPlatformHelpers.CrossPlatformRootedPath("/owned/candidate.mp4"), null, HostingTestPlatformHelpers.ContractFfmpegPath, HostingTestPlatformHelpers.ContractFfprobePath);
         Guid id = Guid.NewGuid(); byte[] bytes = WorkerExportContract.EncodeInput(id, metadata, [1, 2, 3]);
         var input = WorkerExportContract.DecodeInput(bytes, false);
         Assert.Equal(metadata, input.Metadata); Assert.Equal(id, input.TaskId); Assert.Equal(new byte[] { 1, 2, 3 }, input.SnapshotBytes);
@@ -78,7 +82,7 @@ public sealed class WorkerExportContractTests
     [InlineData("header")] [InlineData("version")] [InlineData("reserved")] [InlineData("size")]
     public void 导出畸形header统一typed拒绝(string mode)
     {
-        var meta = new WorkerExportMetadata(WorkerExportContract.ExecutionProfile, "static-lyrics-scene-v1", "opaqueMp4", false, null, null, "/usr/bin/ffmpeg", "/usr/bin/ffprobe");
+        var meta = new WorkerExportMetadata(WorkerExportContract.ExecutionProfile, "static-lyrics-scene-v1", "opaqueMp4", false, null, null, HostingTestPlatformHelpers.ContractFfmpegPath, HostingTestPlatformHelpers.ContractFfprobePath);
         byte[] bytes = WorkerExportContract.EncodeInput(Guid.NewGuid(), meta, []);
         switch (mode) { case "header": bytes[0] = 0; break; case "version": bytes[4] = 2; break;
             case "reserved": bytes[7] = 1; break; case "size": bytes.AsSpan(24, 4).Fill(255); break; }

@@ -11,7 +11,7 @@ public sealed class WorkerAnalysisContractTests
     [InlineData("header")] [InlineData("version")] [InlineData("reserved")] [InlineData("task")] [InlineData("length")]
     public void 分析封包畸形身份预算和inputSHA拒绝(string mode)
     {
-        var meta = new WorkerAnalysisMetadata(WorkerAnalysisContract.Profile, new("/owned/input.wav", 44, new('a', 64)), "/usr/bin/ffmpeg", "/usr/bin/ffprobe");
+        var meta = new WorkerAnalysisMetadata(WorkerAnalysisContract.Profile, new(HostingTestPlatformHelpers.CrossPlatformRootedPath("/owned/input.wav"), 44, new('a', 64)), HostingTestPlatformHelpers.ContractFfmpegPath, HostingTestPlatformHelpers.ContractFfprobePath);
         byte[] bytes = WorkerAnalysisContract.EncodeInput(Guid.NewGuid(), meta); string sha = WorkerProtocol.ComputeSha256(bytes);
         switch (mode) { case "header": bytes[0] = 0; break; case "version": bytes[4] = 9; break; case "reserved": bytes[31] = 1; break;
             case "task": bytes.AsSpan(8, 16).Clear(); break; case "length": bytes.AsSpan(24, 4).Fill(255); break; }
@@ -21,7 +21,7 @@ public sealed class WorkerAnalysisContractTests
     [Fact]
     public void profile授权路径及重复字段不能被静默忽略()
     {
-        var meta = new WorkerAnalysisMetadata(WorkerAnalysisContract.Profile, new("relative.wav", 44, new('a', 64)), "/usr/bin/ffmpeg", "/usr/bin/ffprobe");
+        var meta = new WorkerAnalysisMetadata(WorkerAnalysisContract.Profile, new("relative.wav", 44, new('a', 64)), HostingTestPlatformHelpers.ContractFfmpegPath, HostingTestPlatformHelpers.ContractFfprobePath);
         Assert.Throws<WorkerProtocolException>(() => WorkerAnalysisContract.EncodeInput(Guid.NewGuid(), meta));
         Assert.Throws<WorkerProtocolException>(() => WorkerAnalysisContract.DecodeJson<WorkerAnalysisCapabilitiesDto>(
             "{\"guardAvailable\":true,\"guardAvailable\":false,\"toolStartupVerified\":true}"u8, 4096));

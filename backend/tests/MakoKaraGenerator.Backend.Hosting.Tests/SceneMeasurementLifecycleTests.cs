@@ -5,6 +5,7 @@ using MakoKaraGenerator.Backend.Contracts;
 using MakoKaraGenerator.Backend.Rendering;
 using MakoKaraGenerator.Media;
 using MakoKaraGenerator.TestSupport;
+using MakoKaraGenerator.TestSupport;
 using Xunit.Abstractions;
 
 namespace MakoKaraGenerator.Backend.Hosting.Tests;
@@ -31,7 +32,7 @@ while True:
  elif m['kind']=='scene-measurement-capabilities-v1':
   b=open(sys.argv[2],'rb').read();r={'kind':'result','requestId':m['requestId'],'inputSha256':m['inputSha256'],'payload':base64.b64encode(b).decode(),'outputSha256':hashlib.sha256(b).hexdigest()}
  elif m['kind']=='scene-measurement-v1':
-  child=subprocess.Popen(['sleep','60'])
+  child=subprocess.Popen([sys.executable,'-c','import time; time.sleep(60)'])
   open(sys.argv[1],'w').write(str(os.getpid())+' '+str(child.pid))
   time.sleep(60)
   continue
@@ -45,7 +46,7 @@ while True:
         WaveformPeakBuilder peaks = new(); peaks.Append(new float[8000]);
         LoadedWaveform waveform = new(new AudioStreamInfo(1_000_000,8000,1,"pcm","wav"),peaks.Build(8000));
         await using var registry = new ProjectSessionRegistry("host",resources,new((_,_) => Task.FromResult<LoadedWaveform?>(waveform)));
-        registry.ConfigureSceneMeasurements(new("python3",[script,marker,capabilityFile],TimeSpan.FromMilliseconds(80)));
+        registry.ConfigureSceneMeasurements(HostingTestPlatformHelpers.PythonOptions(script,[marker,capabilityFile],TimeSpan.FromMilliseconds(80)));
         var session = (await registry.CreateAsync("client",new("measure",audio.AssetId,lyrics.AssetId))).Session!;
         using var cancellation = new CancellationTokenSource();
         var request = new SceneMeasurementRequest("0","time","0",64,36,"transparent");

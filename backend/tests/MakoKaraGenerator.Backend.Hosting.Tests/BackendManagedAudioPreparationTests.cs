@@ -20,7 +20,7 @@ public sealed class BackendManagedAudioPreparationTests
     [InlineData(true, true)]
     public async Task 确认Worker输入拒绝或无音流的新建保原输入分类字段且同资源可重试(bool noStream, bool withLyrics)
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
         await using Fixture f = await Fixture.Create();
         using TemporaryDirectory worker = new();
         f.Executor.OnExecute = WorkerAudioPreparationProxyTests.Executor(worker, noStream ? "no-stream" : "input-rejected").ExecuteAsync;
@@ -44,7 +44,7 @@ public sealed class BackendManagedAudioPreparationTests
     [InlineData(true, true)]
     public async Task 确认Worker输入拒绝或无音流的打开恢复保原终态并释放候选可重试(bool recover, bool noStream)
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
         await using Fixture f = await Fixture.Create();
         ProjectSession project = (await f.CreateProject()).Session!;
         string target = recover ? await f.PrepareRecovery() : await f.SavedAndClosed(project);
@@ -77,7 +77,7 @@ public sealed class BackendManagedAudioPreparationTests
     [InlineData(true, "WorkerAudioPreparationSourceChanged")]
     public async Task 确认Worker打开恢复的已关联错误回执仍保稳定编号且不发布候选(bool recover, string code)
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
         await using Fixture f = await Fixture.Create();
         ProjectSession project = (await f.CreateProject()).Session!;
         string target = recover ? await f.PrepareRecovery() : await f.SavedAndClosed(project);

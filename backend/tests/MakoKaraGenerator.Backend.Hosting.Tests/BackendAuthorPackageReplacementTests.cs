@@ -117,29 +117,47 @@ public sealed class BackendAuthorPackageReplacementTests
     {
         await using Fixture fixture = await Fixture.CreateAsync(withFont: true);
         AuthorPackageFilesResponse before = fixture.Files();
-        byte[] noto = File.ReadAllBytes("/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc");
-        string assetId = await fixture.UploadAsync("noto.ttc", "application/octet-stream", noto);
+        (byte[] replacementTtc, string expectedFamily) = ReplacementCollectionFont();
+        string assetId = await fixture.UploadAsync("noto.ttc", "application/octet-stream", replacementTtc);
 
         BackendOperationResult<AuthorPackageFileReplacementInspectionResponse> inspected = await fixture.InspectAsync(before, FontPath, assetId);
         Assert.True(inspected.Accepted, inspected.Error?.Message);
         AuthorPackageFileReplacementInspectionResponse inspection = inspected.Response!;
         Assert.Equal(("font", "collection", "collection"), (inspection.Role, inspection.Current.Format, inspection.Replacement.Format));
         Assert.Contains(PackageFontFixture.Family, inspection.Current.FamilyNames!);
-        Assert.Contains("Noto Sans CJK SC", inspection.Replacement.FamilyNames!);
+        Assert.Contains(expectedFamily, inspection.Replacement.FamilyNames!);
         Assert.Null(inspection.Replacement.Width);
         Assert.Equal(["fontFamilyChanged"], inspection.Warnings.Select(warning => warning.Code));
 
         BackendOperationResult<AuthorDraftResponse> saved = await fixture.SaveAsync(before, [new(FontPath, assetId)]);
         Assert.True(saved.Accepted, saved.Error?.Message);
-        Assert.Equal(Sha(noto), fixture.Files(saved.Response!).Files.Single(file => file.Path == FontPath).Sha256);
+        Assert.Equal(Sha(replacementTtc), fixture.Files(saved.Response!).Files.Single(file => file.Path == FontPath).Sha256);
 
-        string ttfPath = Directory.EnumerateFiles("/usr/share/fonts", "*.ttf", SearchOption.AllDirectories).First();
+        string ttfPath = new[] { "/usr/share/fonts", "/usr/local/share/fonts", Environment.GetFolderPath(Environment.SpecialFolder.Fonts) }
+            .Where(Directory.Exists)
+            .SelectMany(root => Directory.EnumerateFiles(root, "*.ttf", SearchOption.AllDirectories))
+            .First();
         string ttf = await fixture.UploadAsync("plain.ttf", "application/octet-stream", File.ReadAllBytes(ttfPath));
         BackendOperationResult<AuthorPackageFileReplacementInspectionResponse> mismatch = await fixture.InspectAsync(fixture.Files(saved.Response), FontPath, ttf);
         Assert.Equal("AuthorReplacementFormatMismatch", mismatch.Error!.FailureCode);
         string garbage = await fixture.UploadAsync("bad.ttc", "application/octet-stream", Encoding.ASCII.GetBytes("ttcf-not-really-a-font"));
         BackendOperationResult<AuthorPackageFileReplacementInspectionResponse> invalid = await fixture.InspectAsync(fixture.Files(saved.Response), FontPath, garbage);
         Assert.Equal("AuthorReplacementFontInvalid", invalid.Error!.FailureCode);
+    }
+
+    private static (byte[] Bytes, string Family) ReplacementCollectionFont()
+    {
+        const string linuxPath = "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc";
+        if (OperatingSystem.IsLinux() || File.Exists(linuxPath))
+            return (File.ReadAllBytes(linuxPath), "Noto Sans CJK SC");
+
+        string fontsDir = Environment.GetFolderPath(Environment.SpecialFolder.Fonts);
+        string msyh = Path.Combine(fontsDir, "msyh.ttc");
+        if (File.Exists(msyh))
+            return (File.ReadAllBytes(msyh), "Microsoft YaHei");
+
+        string simsun = Path.Combine(fontsDir, "simsun.ttc");
+        return (File.ReadAllBytes(simsun), "SimSun");
     }
 
     private static byte[] Image(int width, int height, SKEncodedImageFormat format, SKColor color)

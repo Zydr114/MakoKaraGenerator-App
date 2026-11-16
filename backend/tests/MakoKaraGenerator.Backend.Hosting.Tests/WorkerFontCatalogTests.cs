@@ -10,7 +10,7 @@ public sealed class WorkerFontCatalogTests
         DirectoryInfo? root = new(AppContext.BaseDirectory);
         while (root is not null && !File.Exists(Path.Combine(root.FullName, "MakoKaraGenerator.slnx"))) root = root.Parent;
         string worker = Environment.GetEnvironmentVariable("MAKO_TEST_FONT_WORKER_PATH")
-            ?? Path.Combine(root!.FullName, "src/MakoKaraGenerator.Backend.Worker/bin/Debug/net10.0/MakoKaraGenerator.Backend.Worker");
+            ?? Path.Combine(root!.FullName, "src", "MakoKaraGenerator.Backend.Worker", "bin", "Debug", "net10.0", "MakoKaraGenerator.Backend.Worker" + (OperatingSystem.IsWindows() ? ".exe" : ""));
         Assert.True(File.Exists(worker), "Build the Debug Worker or configure the published Worker path.");
         await using WorkerProcessProxy proxy = new(new WorkerProcessOptions(worker));
         FontListResponse fonts = await proxy.ListFontsAsync(TimeSpan.FromSeconds(10));

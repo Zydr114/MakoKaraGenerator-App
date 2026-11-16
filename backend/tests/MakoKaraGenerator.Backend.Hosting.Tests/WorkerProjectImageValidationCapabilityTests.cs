@@ -19,7 +19,7 @@ public sealed class WorkerProjectImageValidationCapabilityTests(ITestOutputHelpe
     [Fact]
     public async Task 独立图片验证探测通过当前引擎与本地实际refs并在停止后排水()
     {
-        Assert.True(LinuxProcessGuards.IsSupported);
+        Assert.True(ProcessGuards.TryEnableChildReaping());
         using Probe probe = await Probe.CreateAsync("current");
         await using WorkerProcessProxy proxy = new(probe.Options());
         var value = await proxy.GetImageValidationCapabilitiesAsync(TimeSpan.FromSeconds(5));
@@ -38,7 +38,7 @@ public sealed class WorkerProjectImageValidationCapabilityTests(ITestOutputHelpe
     [InlineData("package-only")]
     public async Task 旧图片预览或包验证能力即使真实探测成功也不能代替图片验证能力(string mode)
     {
-        Assert.True(LinuxProcessGuards.IsSupported);
+        Assert.True(ProcessGuards.TryEnableChildReaping());
         using Probe probe = await Probe.CreateAsync(mode);
         await using WorkerProcessProxy proxy = new(probe.Options());
         if (mode == "preview-only")
@@ -74,7 +74,7 @@ public sealed class WorkerProjectImageValidationCapabilityTests(ITestOutputHelpe
     [InlineData("missing-local-refs")]
     public async Task 图片验证结构合法但与当前部署引擎包版本或实际refs不匹配拒绝并回收Worker(string mode)
     {
-        Assert.True(LinuxProcessGuards.IsSupported);
+        Assert.True(ProcessGuards.TryEnableChildReaping());
         using Probe probe = await Probe.CreateAsync(mode);
         await using WorkerProcessProxy proxy = new(probe.Options());
         WorkerProtocolException failure = await Assert.ThrowsAsync<WorkerProtocolException>(
@@ -96,7 +96,7 @@ public sealed class WorkerProjectImageValidationCapabilityTests(ITestOutputHelpe
         internal static async Task<Probe> CreateAsync(string mode)
         {
             Probe probe = new(mode);
-            string executable = probe._temp.FilePath("worker");
+            string executable = probe._temp.FilePath(OperatingSystem.IsWindows() ? "worker.py" : "worker");
             await File.WriteAllTextAsync(executable, "#!/usr/bin/python3\n" + Source);
             if (OperatingSystem.IsLinux())
                 File.SetUnixFileMode(executable, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
@@ -149,14 +149,24 @@ public sealed class WorkerProjectImageValidationCapabilityTests(ITestOutputHelpe
             return probe;
         }
 
-        internal WorkerProcessOptions Options() => new(_temp.FilePath("worker"), [_mode, _temp.Path], TimeSpan.FromMilliseconds(100));
+        internal WorkerProcessOptions Options() => OperatingSystem.IsWindows()
+            ? HostingTestPlatformHelpers.PythonOptions(_temp.FilePath("worker.py"), [_mode, _temp.Path], TimeSpan.FromMilliseconds(100))
+            : new(_temp.FilePath("worker"), [_mode, _temp.Path], TimeSpan.FromMilliseconds(100));
         internal string[] Requests() => File.ReadAllLines(_temp.FilePath("requests"));
         internal int Pid() => int.Parse(File.ReadAllText(_temp.FilePath("pid")), CultureInfo.InvariantCulture);
         internal void AssertDrained(ITestOutputHelper testOutput)
         {
             int pid = Pid();
-            Assert.False(Directory.Exists("/proc/" + pid.ToString(CultureInfo.InvariantCulture)));
+            if (OperatingSystem.IsLinux())
+                Assert.False(Directory.Exists("/proc/" + pid.ToString(CultureInfo.InvariantCulture)));
+            else
+                Assert.False(HostingTestPlatformHelpers.IsSameProcess(pid, AliveStartIdentity(pid)));
             testOutput.WriteLine($"Image validation capability mode={_mode}, Worker PID={pid}, gone=true.");
+        }
+        private static long AliveStartIdentity(int pid)
+        {
+            try { using var p = System.Diagnostics.Process.GetProcessById(pid); return p.StartTime.ToFileTimeUtc(); }
+            catch (Exception error) when (error is ArgumentException or InvalidOperationException) { return -1L; }
         }
         public void Dispose() => _temp.Dispose();
         private static void Append(IncrementalHash hash, byte[] bytes)
@@ -169,7 +179,7 @@ public sealed class WorkerProjectImageValidationCapabilityTests(ITestOutputHelpe
         private const string Source = """
             import base64, hashlib, json, os, struct, sys
             mode, root = sys.argv[1:]
-            os.setsid()
+            if hasattr(os, 'setsid'): os.setsid()
             with open(os.path.join(root,'pid'),'w') as target: target.write(str(os.getpid()))
             def read_exact(length):
                 result=b''
@@ -189,7 +199,7 @@ public sealed class WorkerProjectImageValidationCapabilityTests(ITestOutputHelpe
                 request=json.loads(body); kind=request['kind']
                 with open(os.path.join(root,'requests'),'a') as target: target.write(kind+'\n')
                 if kind=='hello':
-                    send(dict(kind='hello',requestId=request['requestId'],processGroupId=os.getpgrp())); continue
+                    send(dict(kind='hello',requestId=request['requestId'],processGroupId=os.getpgrp() if hasattr(os, 'getpgrp') else os.getpid())); continue
                 if kind=='shutdown': break
                 if kind=='cancel': continue
                 if kind=='project-image-preview-capabilities-v1' or (kind=='project-image-validation-capabilities-v1' and mode=='preview-only'):

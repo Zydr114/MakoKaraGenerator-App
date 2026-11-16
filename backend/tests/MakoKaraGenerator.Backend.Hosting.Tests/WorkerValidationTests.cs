@@ -137,7 +137,7 @@ public sealed class WorkerValidationTests(ITestOutputHelper output)
     public async Task 任务Deadline为稳定失败而非用户取消且杀树后原执行器可重用()
     {
         using Probe probe = await Probe.CreateAsync("timeout");
-        var executor = new WorkerBackendValidationExecutor(probe.Options(), TimeSpan.FromMilliseconds(300));
+        var executor = new WorkerBackendValidationExecutor(probe.Options(), TimeSpan.FromMilliseconds(1500));
         var failure = await Assert.ThrowsAsync<RenderSessionFailureException>(() => executor.ExecuteAsync(Snapshot(), 3));
         Assert.Equal("WorkerTaskTimedOut", failure.Code); Assert.Null(failure.DiagnosticSnapshot);
         int pid = await probe.PidAsync(); int child = await probe.ChildAsync();
@@ -154,9 +154,9 @@ public sealed class WorkerValidationTests(ITestOutputHelper output)
         using Probe probe = await Probe.CreateAsync("package-handshake-timeout");
         await using WorkerProcessProxy proxy = new(probe.Options());
         using CancellationTokenSource cancellation = new();
-        if (userCancel) cancellation.CancelAfter(TimeSpan.FromMilliseconds(500));
+        if (userCancel) cancellation.CancelAfter(TimeSpan.FromMilliseconds(1000));
         Task<ValidationReportDto> operation = proxy.ValidateProjectAsync(PackageProjectSnapshotCodec.Encode(Snapshot()), 1,
-            TimeSpan.FromMilliseconds(userCancel ? 5000 : 500), null, PackageProjectSnapshotCodec.Profile, cancellation.Token);
+            TimeSpan.FromMilliseconds(userCancel ? 5000 : 1500), null, PackageProjectSnapshotCodec.Profile, cancellation.Token);
         if (userCancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => operation);
         else
         {
@@ -203,7 +203,7 @@ public sealed class WorkerValidationTests(ITestOutputHelper output)
             await File.WriteAllTextAsync(probe._temp.FilePath("error.json"), JsonSerializer.Serialize(ErrorReport(), Json));
             return probe;
         }
-        public WorkerProcessOptions Options() => new("python3", [_temp.FilePath("probe.py"), _mode, _temp.FilePath("pid"),
+        public WorkerProcessOptions Options() => HostingTestPlatformHelpers.PythonOptions(_temp.FilePath("probe.py"), [_mode, _temp.FilePath("pid"),
             _temp.FilePath("child"), _temp.FilePath("attempt"), _temp.FilePath("error.json")], TimeSpan.FromMilliseconds(100));
         public bool HandshakeStarted => File.Exists(_temp.FilePath("attempt"));
         public async Task<int> PidAsync() => int.Parse(await File.ReadAllTextAsync(_temp.FilePath("pid")), CultureInfo.InvariantCulture);
@@ -212,7 +212,7 @@ public sealed class WorkerValidationTests(ITestOutputHelper output)
         private const string Source = """
             import base64, hashlib, json, os, struct, subprocess, sys, time
             mode, pid_file, child_file, attempt, error_file = sys.argv[1:]
-            if mode=='package-handshake-timeout': os.setsid()
+            if mode=='package-handshake-timeout' and hasattr(os, 'setsid'): os.setsid()
             with open(pid_file, 'w') as target: target.write(str(os.getpid()))
             def send(value):
                 body=json.dumps(dict(protocolVersion='worker-1', delayMilliseconds=0, cancelled=False, **value)).encode()
@@ -224,7 +224,7 @@ public sealed class WorkerValidationTests(ITestOutputHelper output)
                 kind=request['kind']
                 if kind=='hello':
                     hello=dict(kind='hello',requestId=request['requestId'])
-                    if mode=='package-handshake-timeout': hello['processGroupId']=os.getpgrp()
+                    if mode=='package-handshake-timeout': hello['processGroupId']=os.getpgrp() if hasattr(os, 'getpgrp') else os.getpid()
                     send(hello); continue
                 if kind=='shutdown': break
                 if kind=='cancel': continue

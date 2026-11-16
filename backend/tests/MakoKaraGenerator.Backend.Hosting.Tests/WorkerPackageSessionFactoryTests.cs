@@ -21,7 +21,7 @@ public sealed class WorkerPackageSessionFactoryTests(ITestOutputHelper output)
     [Fact]
     public async Task 包调用在代理门闩排队时取消仍可复用()
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
         using Probe probe = await Probe.CreateAsync("valid");
         ProjectSnapshot snapshot = Snapshot();
         await using IRenderFrameSession session = await probe.Factory().CreateAsync(snapshot);
@@ -70,7 +70,7 @@ public sealed class WorkerPackageSessionFactoryTests(ITestOutputHelper output)
     [InlineData("local-no-runtime")]
     public async Task 能力或实际隔离不匹配在发送任何包open字节前拒绝并释放Worker(string mode)
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
         using Probe probe = await Probe.CreateAsync(mode);
         RenderSessionFailureException failure = await Assert.ThrowsAsync<RenderSessionFailureException>(() =>
             CreateAndDisposeAsync(probe.Factory()));
@@ -91,7 +91,7 @@ public sealed class WorkerPackageSessionFactoryTests(ITestOutputHelper output)
     [InlineData("local-empty-refs", false)]
     public async Task 公共包能力门禁实际握手且不发送包open(string mode, bool supported)
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
         using Probe probe = await Probe.CreateAsync(mode);
         BackendErrorResponse? error = await probe.Factory().EnsureProfileAsync(PackageProjectSnapshotCodec.Profile);
         Assert.Equal(supported, error is null);
@@ -112,7 +112,7 @@ public sealed class WorkerPackageSessionFactoryTests(ITestOutputHelper output)
     [InlineData("worker-runtime-error-full-invalid-compilation")]
     public async Task 实际协议失败保完整同帧图效果材质旁报且不发布像素(string mode)
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
         var p = MixedEffectPackageFixture.Contents(background: true);
         var project = Project.Create("full failure", Composition.Create(8, 4, FrameRate.Fps30, outputDurationUs: 1_000_000), LyricsDocument.Create([])) with
         { Effects = new([p], [new() { Id = "instance", Name = "instance", PackageId = p.PackageId, Revision = p.Revision,
@@ -150,7 +150,7 @@ public sealed class WorkerPackageSessionFactoryTests(ITestOutputHelper output)
     [InlineData("open-foreign-validation-count")]
     public async Task Open空回执不能携带像素或其它操作元数据(string mode)
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
         using Probe probe = await Probe.CreateAsync(mode);
         var failure = await Assert.ThrowsAsync<RenderSessionFailureException>(() => CreateAndDisposeAsync(probe.Factory()));
         Assert.True(probe.OpenSeen);
@@ -161,7 +161,7 @@ public sealed class WorkerPackageSessionFactoryTests(ITestOutputHelper output)
     [Fact]
     public async Task 能力与打开关闭回执拒绝所有未协商帧字段和伪错误取消形状()
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
         string[] fields = ["frameWidth", "frameHeight", "frameStride", "frameTimeUs", "frameFormat",
             "frameTransparentBackground", "frameQuality", "diagnostics"];
         foreach (string operation in new[] { "cap", "open", "close" })
@@ -202,7 +202,7 @@ public sealed class WorkerPackageSessionFactoryTests(ITestOutputHelper output)
     [InlineData("cap-malformed-json")]
     public async Task 直接proxy能力解码或身份错配立即排水不依赖工厂清理(string mode)
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
         using Probe probe = await Probe.CreateAsync(mode);
         await using WorkerProcessProxy proxy = new(probe.Options());
         await Assert.ThrowsAsync<WorkerProtocolException>(() => proxy.GetPackageCapabilitiesAsync(TimeSpan.FromSeconds(3)));
@@ -212,7 +212,7 @@ public sealed class WorkerPackageSessionFactoryTests(ITestOutputHelper output)
     [Fact]
     public async Task 能力回执后进程退出不能向新进程发送未经其能力验证的包open()
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
         using Probe probe = await Probe.CreateAsync("cap-exit-first");
         Exception? failure = await Record.ExceptionAsync(() => CreateAndDisposeAsync(probe.Factory()));
         Assert.False(probe.UnverifiedOpenSeen);
@@ -244,7 +244,7 @@ public sealed class WorkerPackageSessionFactoryTests(ITestOutputHelper output)
     [InlineData("worker-runtime-error")]
     public async Task 不可信帧终止会话并排水Worker和实际同组子进程(string mode)
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
         using Probe probe = await Probe.CreateAsync(mode);
         ProjectSnapshot snapshot = Snapshot();
         await using IRenderFrameSession session = await probe.Factory().CreateAsync(snapshot);
@@ -269,7 +269,7 @@ public sealed class WorkerPackageSessionFactoryTests(ITestOutputHelper output)
     [InlineData("WorkerPackageUnavailable")]
     public async Task 预算或能力失败显式保留编号且不伪造Runtime发生(string code)
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
         using Probe probe = await Probe.CreateAsync(code);
         var failure = await Assert.ThrowsAsync<RenderSessionFailureException>(() => CreateAndDisposeAsync(probe.Factory()));
         Assert.Equal(code, failure.Code);
@@ -282,7 +282,7 @@ public sealed class WorkerPackageSessionFactoryTests(ITestOutputHelper output)
     [InlineData(true)]
     public async Task 进入实际render后deadline与用户取消分别保编号与OCE并排水所有观察成员(bool callerCancel)
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
         using Probe probe = await Probe.CreateAsync("hang-once");
         var factory = probe.Factory(TimeSpan.FromSeconds(2));
         ProjectSnapshot snapshot = Snapshot();
@@ -307,7 +307,7 @@ public sealed class WorkerPackageSessionFactoryTests(ITestOutputHelper output)
     [InlineData(true)]
     public async Task 严格合作回执后用户取消可复用而deadline仍排水(bool callerCancel)
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
         using Probe probe = await Probe.CreateAsync("cooperative-cancel");
         ProjectSnapshot snapshot = Snapshot();
         await using IRenderFrameSession session = await probe.Factory(TimeSpan.FromSeconds(2)).CreateAsync(snapshot);
@@ -352,7 +352,7 @@ public sealed class WorkerPackageSessionFactoryTests(ITestOutputHelper output)
     [InlineData("cooperative-stale")]
     public async Task 包取消回执无效或过期时回收进程组(string mode)
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
         using Probe probe = await Probe.CreateAsync(mode);
         ProjectSnapshot snapshot = Snapshot();
         await using IRenderFrameSession session = await probe.Factory().CreateAsync(snapshot);
@@ -367,7 +367,7 @@ public sealed class WorkerPackageSessionFactoryTests(ITestOutputHelper output)
     [Fact]
     public async Task 调用前取消不回收包Worker且随后可渲染()
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
         using Probe probe = await Probe.CreateAsync("valid");
         ProjectSnapshot snapshot = Snapshot();
         await using IRenderFrameSession session = await probe.Factory().CreateAsync(snapshot);
@@ -381,7 +381,7 @@ public sealed class WorkerPackageSessionFactoryTests(ITestOutputHelper output)
     [Fact]
     public async Task 本地非法请求拒绝后同一固定会话仍可渲染并保完整发生身份()
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
         var occurrence = StaticWorkerContractTests.Occurrence(1);
         occurrence = occurrence with { Diagnostic = occurrence.Diagnostic with { Package = new("package", "sha256:" + new string('a', 64), "export") } };
         using Probe probe = await Probe.CreateAsync("valid", new([occurrence], false));
@@ -422,7 +422,7 @@ public sealed class WorkerPackageSessionFactoryTests(ITestOutputHelper output)
     [InlineData("no-group", false)]
     public async Task 图片能力独立握手并拒绝旧包Worker及任何预算基础profile错配(string mode, bool supported)
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
         using Probe probe = await Probe.CreateAsync(mode);
         BackendErrorResponse? error = await probe.Factory().EnsureProfileAsync(BackendSnapshotProfiles.ProjectImagePreview);
         Assert.Equal(supported, error is null);
@@ -438,7 +438,7 @@ public sealed class WorkerPackageSessionFactoryTests(ITestOutputHelper output)
     [Fact]
     public async Task 图片能力回执后进程退出不得向新进程发送图片open()
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
         using Probe probe = await Probe.CreateAsync("cap-exit-first");
         byte[] bytes = [1, 2, 3];
         var snapshot = ImageSnapshot(bytes);
@@ -455,7 +455,7 @@ public sealed class WorkerPackageSessionFactoryTests(ITestOutputHelper output)
     [InlineData("worker-runtime-error")]
     public async Task 图片open使用独立能力且帧沿原完整诊断与严格关联校验(string mode)
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
         using Probe probe = await Probe.CreateAsync(mode);
         byte[] bytes = [1, 2, 3];
         var snapshot = ImageSnapshot(bytes);
@@ -481,7 +481,7 @@ public sealed class WorkerPackageSessionFactoryTests(ITestOutputHelper output)
     [InlineData("close")]
     public async Task 图片会话deadline用户取消和活动关闭排水全部实际观察成员(string operation)
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
         using Probe probe = await Probe.CreateAsync("hang-once");
         byte[] bytes = [1, 2, 3];
         var snapshot = ImageSnapshot(bytes);
@@ -514,16 +514,7 @@ public sealed class WorkerPackageSessionFactoryTests(ITestOutputHelper output)
         await using IRenderFrameSession session = await factory.CreateAsync(Snapshot());
     }
 
-    private static bool SameIdentity(int pid, long start)
-    {
-        try
-        {
-            string stat = File.ReadAllText($"/proc/{pid}/stat");
-            string[] fields = stat[(stat.LastIndexOf(')') + 2)..].Split(' ');
-            return fields[0] != "Z" && long.Parse(fields[19], CultureInfo.InvariantCulture) == start;
-        }
-        catch (IOException) { return false; }
-    }
+    private static bool SameIdentity(int pid, long start) => HostingTestPlatformHelpers.IsSameProcess(pid, start);
 
     private sealed class Probe : IDisposable
     {
@@ -537,7 +528,7 @@ public sealed class WorkerPackageSessionFactoryTests(ITestOutputHelper output)
         public static async Task<Probe> CreateAsync(string mode, WorkerDiagnosticsSnapshotDto? diagnostics = null, WorkerPackageDiagnosticsDto? packageDiagnostics = null)
         {
             Probe probe = new(mode);
-            string executable = probe._temp.FilePath("worker");
+            string executable = probe._temp.FilePath(OperatingSystem.IsWindows() ? "worker.py" : "worker");
             await File.WriteAllTextAsync(executable, "#!/usr/bin/python3\n" + Source);
             if (OperatingSystem.IsLinux()) File.SetUnixFileMode(executable, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
             string referenceRoot = ReferenceRoot();
@@ -547,13 +538,15 @@ public sealed class WorkerPackageSessionFactoryTests(ITestOutputHelper output)
                 Directory.CreateDirectory(references);
                 if (mode == "local-no-runtime") File.Copy(Path.Combine(referenceRoot, "net10.0", "System.Console.dll"), Path.Combine(references, "System.Console.dll"));
             }
-            else Directory.CreateSymbolicLink(probe._temp.FilePath("script-refs"), referenceRoot);
+            else HostingTestPlatformHelpers.CreateDirectoryLink(probe._temp.FilePath("script-refs"), referenceRoot);
             await File.WriteAllTextAsync(probe._temp.FilePath("diagnostics.json"), JsonSerializer.Serialize(diagnostics ?? new([], false), Json));
             await File.WriteAllTextAsync(probe._temp.FilePath("capabilities.json"), CapabilitiesJson());
             await File.WriteAllTextAsync(probe._temp.FilePath("package-diagnostics.json"), JsonSerializer.Serialize(packageDiagnostics ?? new(1, [], [], []), Json));
             return probe;
         }
-        public WorkerProcessOptions Options() => new(_temp.FilePath("worker"), [_mode, _temp.Path], TimeSpan.FromMilliseconds(80));
+        public WorkerProcessOptions Options() => OperatingSystem.IsWindows()
+            ? HostingTestPlatformHelpers.PythonOptions(_temp.FilePath("worker.py"), [_mode, _temp.Path], TimeSpan.FromMilliseconds(80))
+            : new(_temp.FilePath("worker"), [_mode, _temp.Path], TimeSpan.FromMilliseconds(80));
         public WorkerPackageRenderFrameSessionFactory Factory(TimeSpan? timeout = null) => new(Options(), timeout);
         public async Task WaitForRenderAsync()
         {
@@ -579,7 +572,13 @@ public sealed class WorkerPackageSessionFactoryTests(ITestOutputHelper output)
             using JsonDocument document = JsonDocument.Parse(await File.ReadAllBytesAsync(_temp.FilePath("identities.json")));
             return [.. document.RootElement.EnumerateArray().Select(value => (value[0].GetInt32(), value[1].GetInt64()))];
         }
-        public void Dispose() => _temp.Dispose();
+        public void Dispose()
+        {
+            string link = _temp.FilePath("script-refs");
+            if (Directory.Exists(link) && new DirectoryInfo(link).LinkTarget is not null)
+                Directory.Delete(link, recursive: false);
+            _temp.Dispose();
+        }
 
         // Filled from the same actual deployment identity inspected by the Host;
         // only corruption/lifecycle is faked. Real package pixels use Runtime tests.
@@ -619,9 +618,20 @@ public sealed class WorkerPackageSessionFactoryTests(ITestOutputHelper output)
         private const string Source = """
             import base64, copy, hashlib, json, os, struct, subprocess, sys, time
             mode, root = sys.argv[1:]
-            if mode != 'no-group': os.setsid()
+            if mode != 'no-group' and hasattr(os, 'setsid'): os.setsid()
             def path(name): return os.path.join(root, name)
             def identity(pid):
+                if sys.platform == 'win32':
+                    import ctypes
+                    from ctypes import wintypes
+                    k32 = ctypes.WinDLL('kernel32', use_last_error=True)
+                    h = k32.OpenProcess(0x1000, False, pid)
+                    c, e, k, u = wintypes.FILETIME(), wintypes.FILETIME(), wintypes.FILETIME(), wintypes.FILETIME()
+                    try:
+                        k32.GetProcessTimes(h, ctypes.byref(c), ctypes.byref(e), ctypes.byref(k), ctypes.byref(u))
+                        return [pid, (c.dwHighDateTime << 32) | c.dwLowDateTime]
+                    finally:
+                        if h: k32.CloseHandle(h)
                 stat = open('/proc/%d/stat' % pid).read(); fields = stat[stat.rfind(')')+2:].split(); return [pid, int(fields[19])]
             def identities(child=None):
                 with open(path('identities.json'), 'w') as out: json.dump([identity(os.getpid())] + ([identity(child.pid)] if child else []), out)
@@ -656,7 +666,7 @@ public sealed class WorkerPackageSessionFactoryTests(ITestOutputHelper output)
                 message = json.loads(sys.stdin.buffer.read(struct.unpack('<i', prefix)[0])); kind = message['kind']
                 if kind == 'hello':
                     reply = dict(kind='hello', requestId=message['requestId'])
-                    if mode != 'no-group': reply['processGroupId'] = os.getpgrp()
+                    if mode != 'no-group': reply['processGroupId'] = os.getpgrp() if hasattr(os, 'getpgrp') else os.getpid()
                     send(reply)
                 elif kind == 'shutdown': break
                 elif kind == 'cancel' and mode in ('cooperative-cancel', 'cooperative-invalid', 'cooperative-stale'):

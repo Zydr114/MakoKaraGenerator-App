@@ -192,7 +192,7 @@ while True:
  if r['kind']=='error': r['error']='unsupported old worker'; r['errorCode']='SceneMeasurementUnavailable'
  b=json.dumps(r).encode();sys.stdout.buffer.write(struct.pack('<I',len(b))+b);sys.stdout.buffer.flush()
 """);
-        await using var worker = new WorkerProcessProxy(new("python3",[script]));
+        await using var worker = new WorkerProcessProxy(HostingTestPlatformHelpers.PythonOptions(script,[]));
         byte[] source = StaticProjectSnapshotCodec.Encode(Snapshot());
         var error = await Assert.ThrowsAsync<WorkerProtocolException>(() => worker.MeasureSceneAsync(Input(source,new("0","layout",null,64,36,"transparent")),source,CancellationToken.None));
         Assert.Equal("SceneMeasurementUnavailable",error.Code);
@@ -241,7 +241,7 @@ while True:
                 case "slot-role": elements.First(element => element!["kind"]!.GetValue<string>() == "line")!["slotId"] = "scheduler-role"; break;
             }
             await File.WriteAllTextAsync(forged,root.ToJsonString(SceneMeasurementContract.JsonOptions));
-            await using var worker = new WorkerProcessProxy(new("python3",[script,capability,forged]));
+            await using var worker = new WorkerProcessProxy(HostingTestPlatformHelpers.PythonOptions(script,[capability,forged]));
             await Assert.ThrowsAsync<WorkerProtocolException>(() => worker.MeasureSceneAsync(input,source,CancellationToken.None));
             int? pid = worker.ProcessId; await worker.DisposeAsync(); if (pid is { } actual) Assert.False(Alive(actual));
             output.WriteLine("Rejected complete forged measurement: " + mutation);

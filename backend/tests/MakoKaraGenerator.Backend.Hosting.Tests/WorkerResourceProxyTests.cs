@@ -131,7 +131,7 @@ public sealed class WorkerResourceProxyTests
 
     private static string FindWorkerApphost()
     {
-        string path = Path.Combine(FindRepositoryRoot(), "src", "MakoKaraGenerator.Backend.Worker", "bin", "Debug", "net10.0", "MakoKaraGenerator.Backend.Worker");
+        string path = Path.Combine(FindRepositoryRoot(), "src", "MakoKaraGenerator.Backend.Worker", "bin", "Debug", "net10.0", "MakoKaraGenerator.Backend.Worker" + (OperatingSystem.IsWindows() ? ".exe" : ""));
         Assert.True(File.Exists(path), path);
         return path;
     }

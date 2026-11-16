@@ -137,14 +137,24 @@ public sealed class BackendTemplateLibraryPathTests
     [InlineData(false)] [InlineData(true)]
     public async Task 固定入口及祖先链接不可被当作可忽略旧库(bool directoryLink)
     {
+        if (OperatingSystem.IsWindows() && !directoryLink) return;
         using TemporaryDirectory temp = new(); string outside = temp.FilePath("outside"); Directory.CreateDirectory(outside);
         File.WriteAllText(Path.Combine(outside, "index.json"), $"{{\"schemaVersion\":{StyleTemplateLibrary.CurrentSchemaVersion - 1}}}");
         string legacy = Legacy(temp); Directory.CreateDirectory(Path.GetDirectoryName(Path.GetDirectoryName(legacy))!);
-        if (directoryLink) Directory.CreateSymbolicLink(Path.GetDirectoryName(legacy)!, outside);
-        else { Directory.CreateDirectory(Path.GetDirectoryName(legacy)!); File.CreateSymbolicLink(legacy, Path.Combine(outside, "index.json")); }
-        await using var registry = Registry(temp);
-        Assert.Equal(2, Accepted(await registry.ReadTemplatesAsync("builtin", null)).TotalCount);
-        Invalid(await registry.ReadTemplatesAsync("personal", null)); Assert.False(File.Exists(Current(temp)));
+        string parentDir = Path.GetDirectoryName(legacy)!;
+        if (directoryLink) HostingTestPlatformHelpers.CreateDirectoryLink(parentDir, outside);
+        else { Directory.CreateDirectory(parentDir); File.CreateSymbolicLink(legacy, Path.Combine(outside, "index.json")); }
+        try
+        {
+            await using var registry = Registry(temp);
+            Assert.Equal(2, Accepted(await registry.ReadTemplatesAsync("builtin", null)).TotalCount);
+            Invalid(await registry.ReadTemplatesAsync("personal", null)); Assert.False(File.Exists(Current(temp)));
+        }
+        finally
+        {
+            if (directoryLink && Directory.Exists(parentDir) && new DirectoryInfo(parentDir).LinkTarget is not null)
+                Directory.Delete(parentDir, recursive: false);
+        }
     }
 
     private static void SeedInvalid(string path, string problem)

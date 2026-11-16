@@ -161,14 +161,14 @@ public sealed class ProjectImageExportWorkerContractTests
         Assert.Throws<WorkerProtocolException>(() => ProjectImageExportWorkerContract.DecodeCapabilities(Encoding.UTF8.GetBytes(
             json.Replace("\"maximumInputBytes\":", "\"MaximumInputBytes\":1,\"maximumInputBytes\":", StringComparison.Ordinal))));
         ProjectImageExportWorkerMetadata packageAudio = Metadata() with
-        { BaseProfile = BackendSnapshotProfiles.PackageLyricsScene, IncludeAudio = true, Audio = new("/audio.wav", 44, new string('a', 64)) };
+        { BaseProfile = BackendSnapshotProfiles.PackageLyricsScene, IncludeAudio = true, Audio = new(HostingTestPlatformHelpers.CrossPlatformRootedPath("/audio.wav"), 44, new string('a', 64)) };
         byte[] payload = ProjectImageExportWorkerContract.EncodeInput(Guid.NewGuid(), packageAudio, [1]);
         Assert.Equal([1], ProjectImageExportWorkerContract.DecodeInput(payload).SnapshotBytes);
     }
 
     private static ProjectImageExportWorkerMetadata Metadata() => new(ProjectImageExportWorkerContract.ExportProfile,
         BackendSnapshotProfiles.StaticLyricsScene, WorkerExportContract.ExecutionProfile, "opaqueMp4", false,
-        "/candidate.mp4", null, "/usr/bin/ffmpeg", "/usr/bin/ffprobe");
+        HostingTestPlatformHelpers.CrossPlatformRootedPath("/candidate.mp4"), null, HostingTestPlatformHelpers.ContractFfmpegPath, HostingTestPlatformHelpers.ContractFfprobePath);
 
     internal static ProjectImageExportWorkerCapabilities Capabilities() => new("engine", ProjectImageExportWorkerContract.ExportProfile,
         [BackendSnapshotProfiles.StaticLyricsScene, BackendSnapshotProfiles.StaticLyricsSceneAnalysis, BackendSnapshotProfiles.PackageLyricsScene],

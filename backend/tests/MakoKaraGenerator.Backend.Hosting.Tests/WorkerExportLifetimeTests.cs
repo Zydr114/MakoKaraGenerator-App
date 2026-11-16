@@ -6,6 +6,7 @@ using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Core.Time;
 using MakoKaraGenerator.Processes;
 using MakoKaraGenerator.Rendering;
+using MakoKaraGenerator.TestSupport;
 
 namespace MakoKaraGenerator.Backend.Hosting.Tests;
 
@@ -19,7 +20,7 @@ public sealed class WorkerExportLifetimeTests
         string workerPath = Path.Combine(root, "src/MakoKaraGenerator.Backend.Worker/bin/Debug/net10.0/MakoKaraGenerator.Backend.Worker");
         string output = Path.Combine(root, "artifacts/backend-b4b-processes/worker-child-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(output);
-        WorkerBackendExportExecutor executor = new(workerPath, "/usr/bin/ffmpeg", "/usr/bin/ffprobe", TimeSpan.FromSeconds(20),
+        WorkerBackendExportExecutor executor = new(workerPath, TestMediaToolPaths.Ffmpeg, TestMediaToolPaths.Ffprobe, TimeSpan.FromSeconds(20),
             new BackendExportOptions { MaxMediaBytes = WorkerExportContract.MaximumMediaBytes });
         Project project = Project.Create("real owned Worker descendant",
             Composition.Create(1920, 1080, new FrameRate(60, 1), outputDurationUs: 10_000_000),

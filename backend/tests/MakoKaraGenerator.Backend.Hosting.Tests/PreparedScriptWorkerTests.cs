@@ -11,6 +11,7 @@ using MakoKaraGenerator.Core.Time;
 using MakoKaraGenerator.Rendering;
 using MakoKaraGenerator.Scripting.Compilation;
 using MakoKaraGenerator.TestSupport;
+using MakoKaraGenerator.TestSupport;
 using Xunit.Abstractions;
 
 namespace MakoKaraGenerator.Backend.Hosting.Tests;
@@ -55,11 +56,14 @@ public sealed class PreparedScriptWorkerTests(ITestOutputHelper output)
             string inputRoot = Metadata(handle)["Root"]!.GetValue<string>();
             var initial = Directory.GetFiles(inputRoot, "*", SearchOption.AllDirectories).ToDictionary(path => path, File.GetLastWriteTimeUtc);
             await first.RenderPackageSessionAsync(new(handle.SessionId, handle.SourceSha256, 8, 4, 0, false, 1, 1), Timeout);
-            string maps = File.ReadAllText($"/proc/{firstPid}/maps");
-            Assert.Contains("MakoKaraGenerator.Scripting.dll", maps, StringComparison.Ordinal);
-            Assert.DoesNotContain("Microsoft.CodeAnalysis", maps, StringComparison.Ordinal);
-            Assert.DoesNotContain("MakoKaraGenerator.Scripting.Compiler", maps, StringComparison.Ordinal);
-            output.WriteLine($"Loaded-assembly maps verified for PID={firstPid}; MakoKaraGenerator.Scripting.dll present, no Roslyn/compiler assembly.");
+            if (OperatingSystem.IsLinux())
+            {
+                string maps = File.ReadAllText($"/proc/{firstPid}/maps");
+                Assert.Contains("MakoKaraGenerator.Scripting.dll", maps, StringComparison.Ordinal);
+                Assert.DoesNotContain("Microsoft.CodeAnalysis", maps, StringComparison.Ordinal);
+                Assert.DoesNotContain("MakoKaraGenerator.Scripting.Compiler", maps, StringComparison.Ordinal);
+                output.WriteLine($"Loaded-assembly maps verified for PID={firstPid}; MakoKaraGenerator.Scripting.dll present, no Roslyn/compiler assembly.");
+            }
             await first.ClosePackageSessionForReopenAsync(handle, 2, Timeout);
             Assert.True(Directory.Exists(inputRoot));
             var reopened = await first.OpenPreparedSessionAsync(handle.PreparedInput!, Timeout);
@@ -135,7 +139,7 @@ public sealed class PreparedScriptWorkerTests(ITestOutputHelper output)
         {
             using TemporaryDirectory root = new();
             var metadata = new WorkerExportMetadata(WorkerExportContract.ExecutionProfile, PackageProjectSnapshotCodec.Profile,
-                "opaqueMp4", false, root.FilePath("candidate.mp4"), null, "/usr/bin/ffmpeg", "/usr/bin/ffprobe");
+                "opaqueMp4", false, root.FilePath("candidate.mp4"), null, TestMediaToolPaths.Ffmpeg, TestMediaToolPaths.Ffprobe);
             byte[] payload = WorkerExportContract.EncodeInput(Guid.NewGuid(), metadata, bytes);
             var input = WorkerExportContract.DecodeInput(payload, false);
             var request = new WorkerMessage(WorkerExportContract.RequestKind, Guid.NewGuid().ToString("N"), WorkerProtocol.ComputeSha256(payload), payload,

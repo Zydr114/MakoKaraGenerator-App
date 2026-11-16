@@ -10,7 +10,9 @@ namespace MakoKaraGenerator.Processes.Tests;
 /// <summary>Pure fake-backend tests. No manager, cgroup, native helper or process is accessed.</summary>
 public sealed class OwnedNativeEnvelopeTests
 {
-    private static readonly EnvelopeCommand Command = new("/internal/gate", "/internal/tool", []);
+    private static readonly EnvelopeCommand Command = OperatingSystem.IsWindows()
+        ? new(@"C:\internal\gate", @"C:\internal\tool", [])
+        : new("/internal/gate", "/internal/tool", []);
     private static readonly EnvelopeExecutionPolicy Policy = new(TimeSpan.FromSeconds(1), TimeSpan.FromDays(1),
         TimeSpan.FromMilliseconds(200), TimeSpan.FromSeconds(1), TimeSpan.FromMilliseconds(10));
 

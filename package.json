@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "engines": {
-    "node": ">=26"
+    "node": ">=24"
   },
   "scripts": {
     "setup": "pnpm --dir frontend install --frozen-lockfile",

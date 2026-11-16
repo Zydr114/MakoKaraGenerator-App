@@ -77,6 +77,7 @@ public sealed class TtmlImporter : ILyricsImporter
             if (explicitProfile == "ttml2-media" && amllMarker)
                 throw new FormatException("TTML media 与 AMLL absolute 声明冲突。");
             bool absolute = explicitProfile == "amll-absolute" || amllMarker;
+            if (!project && absolute) NormalizeEmptyNamespace(root, issues, discarded);
             if (!project && root.DescendantsAndSelf().Attributes().Any(attribute => attribute.Name.NamespaceName == ProjectNamespace
                 && attribute.Name.LocalName is not "profile" and not "timing-profile"))
                 throw new FormatException("存在未声明版本的 TTML project 扩展，禁止降级导入。");
@@ -88,7 +89,7 @@ public sealed class TtmlImporter : ILyricsImporter
             TtmlTimeTree times = new(root, absolute);
             times.Resolve(body);
             ScanUnmapped(root, discarded);
-            Builder builder = new(context, issues, discarded, times, project, root);
+            Builder builder = new(context, issues, discarded, times, project, absolute, root);
             document = builder.Build(body);
             derivedLineEnds = builder.DerivedLineEndCount;
             fallbackLineEnds = builder.FallbackLineEndCount;
@@ -175,8 +176,8 @@ public sealed class TtmlImporter : ILyricsImporter
         HashSet<string> features = new(StringComparer.Ordinal);
         foreach (XElement element in root.DescendantsAndSelf())
         {
-            if (element.Name.NamespaceName == "http://www.w3.org/ns/ttml#metadata")
-                features.Add(element.Name.LocalName == "agent" ? "ttm:agent 多歌手元数据" : "TTML head metadata");
+            if (element.Name.NamespaceName == "http://www.w3.org/ns/ttml#metadata" && element.Name.LocalName != "agent")
+                features.Add("TTML head metadata");
             if (element.Name.NamespaceName == TtmlNamespace && element.Name.LocalName is "styling" or "style" or "layout" or "region")
                 features.Add("TTML 布局/样式资源");
             if (element.Name.NamespaceName == ItunesNamespace && element.Name.LocalName == "iTunesMetadata")
@@ -187,7 +188,6 @@ public sealed class TtmlImporter : ILyricsImporter
                 features.Add("未知命名空间元素（保留可识别正文）");
             foreach (XAttribute attribute in element.Attributes())
             {
-                if (attribute.Name.LocalName == "agent") features.Add("ttm:agent 多歌手元数据");
                 if (attribute.Name.NamespaceName == ItunesNamespace && attribute.Name.LocalName is "song-part" or "songPart") features.Add("itunes:song-part 歌曲段落");
                 if (attribute.Name.NamespaceName == StylingNamespace && attribute.Name.LocalName != "ruby") features.Add("TTML 样式覆盖");
                 if (attribute.Name.LocalName == "role") features.Add("ttm:role 旁轨角色");
@@ -201,7 +201,7 @@ public sealed class TtmlImporter : ILyricsImporter
                         or "token-id" or "timing-status" or "start-us" or "end-us" or "ruby-id" or "base-token-id" or "language"
                         or "scale" or "gap" or "alignment" or "segment-id",
                     "" => name is "begin" or "end" or "dur" or "timeContainer" or "format" or "frameRate" or "frameRateMultiplier"
-                        or "subFrameRate" or "tickRate" or "timeBase" or "dropMode",
+                        or "subFrameRate" or "tickRate" or "timeBase" or "dropMode" or "xmlns" or "style",
                     "http://www.w3.org/XML/1998/namespace" => name is "lang" or "space",
                     "http://www.w3.org/ns/ttml#parameter" => name is "frameRate" or "frameRateMultiplier" or "subFrameRate"
                         or "tickRate" or "timeBase" or "dropMode",
@@ -216,17 +216,57 @@ public sealed class TtmlImporter : ILyricsImporter
         foreach (string feature in features) discarded.Add(feature);
     }
 
+    /// <summary>
+    /// AMLL/Apple 标记明确、且空命名空间元素就是 TTML 内容词表时，只在内存里把它们恢复回 TTML 命名空间。
+    /// 项目 profile、没有标记的文档、以及认不出的本地名保持严格。
+    /// </summary>
+    private static void NormalizeEmptyNamespace(XElement root, BudgetedImportList<LyricsImportIssue> issues, BudgetedImportList<string> discarded)
+    {
+        int count = 0;
+        void Walk(XElement element)
+        {
+            if (element.Name.NamespaceName.Length == 0
+                && element.Name.LocalName is "body" or "div" or "p" or "span" or "br"
+                && element.Parent is { } parent
+                && (parent.Name == XName.Get("tt", TtmlNamespace) || TtmlTimeTree.IsContent(parent)))
+            {
+                element.Name = XName.Get(element.Name.LocalName, TtmlNamespace);
+                count++;
+            }
+            foreach (XElement child in element.Elements().ToArray()) Walk(child);
+        }
+        Walk(root);
+        if (count == 0) return;
+        const string feature = "空命名空间正文已按 AMLL/Apple 标记在内存中恢复为 TTML 内容元素";
+        discarded.Add(feature);
+        issues.Add(new LyricsImportIssue(LyricsImportIssueKind.DiscardedFeature, IssueSeverity.Info, 0,
+            "xmlns=\"\"", "兼容处理：" + feature + "，未改源文件。"));
+    }
+
     internal static string? Extension(XElement element, string name) => (string?)element.Attribute(XName.Get(name, ProjectNamespace));
     private static string? Language(XElement element) => element.AncestorsAndSelf().Select(node => (string?)node.Attribute(XNamespace.Xml + "lang")).FirstOrDefault(value => value is not null);
-    private static string? RubyKind(XElement element) => (string?)element.Attribute(XName.Get("ruby", StylingNamespace));
 
     private sealed class Builder(LyricsImportContext context, BudgetedImportList<LyricsImportIssue> issues,
-        BudgetedImportList<string> discarded, TtmlTimeTree times, bool project, XElement root)
+        BudgetedImportList<string> discarded, TtmlTimeTree times, bool project, bool absolute, XElement root)
     {
+        private const string MetadataNamespace = "http://www.w3.org/ns/ttml#metadata";
         private readonly HashSet<string> _ids = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, string> _agents = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, XElement> _styles = new(StringComparer.Ordinal);
+        private readonly List<Placed> _placed = [];
+        private readonly HashSet<string> _undefinedAgents = new(StringComparer.Ordinal);
         private int _next;
+        private string? _paragraphAgent;
+        private string? _paragraphRole;
+        private string? _paragraphLanguage;
+        private TimeRange? _paragraphTime;
+        private TimingStatus _paragraphStatus;
+        private XNode? _consume;
+        private bool _inlineSplit;
+        private bool _alignmentFromStyle;
         internal int DerivedLineEndCount { get; private set; }
         internal int FallbackLineEndCount { get; private set; }
+        private sealed record Placed(string? Agent, string? Role, string? Language, LyricLine Line);
 
         internal LyricsDocument Build(XElement body)
         {
@@ -273,17 +313,23 @@ public sealed class TtmlImporter : ILyricsImporter
                 }
                 return document;
             }
-            if (body.Descendants(XName.Get("div", TtmlNamespace)).Count() > 1)
-                discarded.Add("多个 div 章节合并到同一歌词来源（未声明 project 分支）");
-            return LyricsDocument.Create(body.Descendants(XName.Get("p", TtmlNamespace)).Select(ParseLine), Language(body.Descendants(XName.Get("p", TtmlNamespace)).FirstOrDefault() ?? root) ?? context.Language);
+            IndexMetadata();
+            foreach (XElement paragraph in body.Descendants(XName.Get("p", TtmlNamespace))) ParseLine(paragraph);
+            return Assemble(Language(body.Descendants(XName.Get("p", TtmlNamespace)).FirstOrDefault() ?? root) ?? context.Language);
         }
 
         private LyricLine ParseLine(XElement paragraph)
         {
             context.PreparationGuard?.Item(paragraph.Value);
+            _paragraphAgent = project ? null : AgentOf(paragraph);
+            _paragraphRole = project ? null : SidecarOf(paragraph);
+            _paragraphLanguage = Language(paragraph);
             List<LyricToken> tokens = [];
             List<RubyAnnotation> ruby = [];
-            foreach (XNode node in paragraph.Nodes())
+            (TimeRange? time, TimingStatus status) = ReadTime(paragraph, true);
+            _paragraphTime = time;
+            _paragraphStatus = status;
+            foreach (XNode node in Nodes(paragraph))
             {
                 if (project && node is XElement child && (child.Name != XName.Get("span", TtmlNamespace)
                     || Extension(child, "token-id") is null)) throw new FormatException("TTML project p 只能包含有身份的 token span。");
@@ -296,10 +342,12 @@ public sealed class TtmlImporter : ILyricsImporter
                 foreach (TextElementRange element in GraphemeSplitter.Enumerate(text))
                     tokens.Add(Token(NewId("token"), element.Text, null, TimingStatus.Missing));
             }
-            (TimeRange? time, TimingStatus status) = ReadTime(paragraph, true);
-            return LyricLine.Create(Id(paragraph, "line-id", (string?)paragraph.Attribute(XName.Get("key", ItunesNamespace))),
+            LyricLine line = LyricLine.Create(Id(paragraph, "line-id", (string?)paragraph.Attribute(XName.Get("key", ItunesNamespace))),
                 text, time, status, tokens) with { PrimaryLineId = project ? Extension(paragraph, "primary-line-id") : null,
                     RubyAnnotations = [.. ruby] };
+            if (!project && (tokens.Count > 0 || ruby.Count > 0))
+                _placed.Add(new(_paragraphAgent, _paragraphRole, _paragraphLanguage, line));
+            return line;
         }
 
         private void Visit(XNode node, XElement? timingOwner, List<LyricToken> tokens, List<RubyAnnotation> ruby)
@@ -316,13 +364,18 @@ public sealed class TtmlImporter : ILyricsImporter
             }
             if (node is not XElement element) return;
             if (element.Name.NamespaceName is "http://www.w3.org/ns/ttml#metadata" or ItunesNamespace or "http://www.example.com/ns/amll") return;
-            if (element.Name.NamespaceName == TtmlNamespace && element.Name.LocalName is "head" or "metadata") return;
-            string? role = (string?)element.Attribute(XName.Get("role", "http://www.w3.org/ns/ttml#metadata"));
-            if (role?.Split(' ').Any(value => value is "x-bg" or "x-translation" or "x-roman") == true)
+            if (element.Name.NamespaceName.Length == 0 && !TtmlTimeTree.IsContent(element))
             {
-                discarded.Add(role.Contains("x-bg", StringComparison.Ordinal) ? "和声（x-bg）" : "翻译/罗马音旁轨");
+                discarded.Add("未确认的空命名空间元素（未当作歌词）");
                 return;
             }
+            if (element.Name.NamespaceName == TtmlNamespace && element.Name.LocalName is "head" or "metadata") return;
+            if (!project && TtmlTimeTree.IsContent(element) && IsOverride(element))
+            {
+                Extract(element);
+                return;
+            }
+            if (TrySimpleRuby(element, tokens, ruby)) return;
             if (element.Name == XName.Get("br", TtmlNamespace))
             {
                 tokens.Add(Token(NewId("token"), "\n", null, TimingStatus.Missing));
@@ -340,55 +393,95 @@ public sealed class TtmlImporter : ILyricsImporter
                 return;
             }
             XElement? owner = TtmlTimeTree.IsContent(element) && times[element].Explicit ? element : timingOwner;
-            foreach (XNode child in element.Nodes()) Visit(child, owner, tokens, ruby);
+            foreach (XNode child in Nodes(element)) Visit(child, owner, tokens, ruby);
         }
 
         private void ParseRuby(XElement container, XElement? timingOwner, List<LyricToken> tokens, List<RubyAnnotation> rubies)
         {
+            if (container.Descendants().Any(element => RubyKind(element) == "delimiter"))
+                discarded.Add("ruby delimiter 未进入歌词模型");
             XElement[] bases = container.Descendants().Where(element => RubyKind(element) == "base").ToArray();
             XElement[] textContainers = container.Descendants().Where(element => RubyKind(element) == "textContainer").ToArray();
-            if (bases.Length != 1 || textContainers.Length != 1 || container.Descendants().Any(element => RubyKind(element) == "container"))
+            bool nested = container.Descendants().Any(element => RubyKind(element) == "container");
+            XElement[] texts = textContainers.Length == 1
+                ? textContainers[0].Descendants().Where(element => RubyKind(element) == "text").ToArray()
+                : container.Elements().Where(element => RubyKind(element) == "text").ToArray();
+            if (bases.Length != 1 || textContainers.Length > 1 || nested || (textContainers.Length == 0 && texts.Length == 0))
             {
                 discarded.Add("rubyAssociationAmbiguous（基础正文保留，注音关联未映射）");
                 foreach (XElement baseElement in bases)
                     tokens.Add(Token(NewId("token"), baseElement.Value, null, TimingStatus.Missing));
                 return;
             }
-            XElement baseNode = bases[0];
+            XElement textSource = textContainers.Length == 1 ? textContainers[0] : texts[0];
+            FinishRuby(container, bases[0], textSource, texts, timingOwner, tokens, rubies);
+        }
+
+        private void FinishRuby(XElement container, XElement baseNode, XElement textSource, IEnumerable<XElement> textNodes,
+            XElement? timingOwner, List<LyricToken> tokens, List<RubyAnnotation> rubies)
+        {
             XElement tokenNode = project && timingOwner is not null ? timingOwner
-                : times[baseNode].Explicit ? baseNode : times[container].Explicit ? container : timingOwner ?? baseNode;
-            (TimeRange? baseTime, TimingStatus baseStatus) = ReadTime(tokenNode, false);
-            string tokenId = Id(tokenNode, "token-id");
-            tokens.Add(Token(tokenId, baseNode.Value, baseTime, baseStatus));
+                : times.TryGet(baseNode, out TtmlTimeTree.Interval baseInterval) && baseInterval.Explicit ? baseNode
+                : times.TryGet(container, out TtmlTimeTree.Interval containerInterval) && containerInterval.Explicit ? container
+                : timingOwner ?? baseNode;
+            (TimeRange? baseTime, TimingStatus baseStatus) = times.TryGet(tokenNode, out _) || project
+                ? ReadTime(tokenNode, false) : (null, TimingStatus.Missing);
             List<RubyTextSegment> segments = [];
-            XElement textContainer = textContainers[0];
-            foreach (XElement segment in textContainer.Descendants().Where(element => RubyKind(element) == "text"))
+            foreach (XElement segment in textNodes)
             {
                 if (segment.Value.Length == 0) continue;
                 context.PreparationGuard?.Item(segment.Value);
                 (TimeRange? time, TimingStatus status) = ReadTime(segment, false);
                 segments.Add(RubyTextSegment.Create(Id(segment, "segment-id"), segment.Value, time, status));
             }
-            if (!project && textContainer.Descendants().Where(element => RubyKind(element) == "text")
-                .Select(Language).Distinct(StringComparer.Ordinal).Skip(1).Any())
+            if (!project && textNodes.Select(Language).Where(value => value is not null).Distinct(StringComparer.Ordinal).Skip(1).Any())
                 discarded.Add("ruby 片段语言不同（当前注音组仅保留一个 Language）");
-            if (segments.Count == 0 && textContainer.Value.Length > 0)
-                segments.Add(RubyTextSegment.Create(NewId("segment"), textContainer.Value));
+            if (segments.Count == 0 && textSource.Value.Length > 0)
+                segments.Add(RubyTextSegment.Create(NewId("segment"), textSource.Value));
             if (segments.Count == 0) { discarded.Add("rubyAssociationAmbiguous（空注音）"); return; }
-            context.PreparationGuard?.Item(textContainer.Value);
+            if (!project && absolute && baseStatus == TimingStatus.Missing && segments.All(segment => segment.Time is { IsValid: true }))
+            {
+                long start = segments.Min(segment => segment.Time!.Value.StartUs);
+                long end = segments.Max(segment => segment.Time!.Value.EndUs);
+                if (end > start)
+                {
+                    baseTime = new TimeRange(start, end);
+                    baseStatus = TimingStatus.Estimated;
+                    issues.Add(new LyricsImportIssue(LyricsImportIssueKind.DiscardedFeature, IssueSeverity.Info, 0, baseNode.Value,
+                        "原生 AMLL 只有注音片段时间，已按有界片段范围推导正文时间并标记为 Estimated。"));
+                }
+            }
+            context.PreparationGuard?.Item(textSource.Value);
+            string tokenId = Id(tokenNode, "token-id");
+            string? explicitAgent = OwnAgent(baseNode);
+            string? explicitRole = OwnSidecar(baseNode);
+            bool redirect = !project && (explicitAgent is not null && explicitAgent != _paragraphAgent || explicitRole is not null && explicitRole != _paragraphRole);
+            LyricToken token = Token(tokenId, baseNode.Value, baseTime, baseStatus);
+            RubyAlignment alignment = project ? EnumValue<RubyAlignment>(Required(container, "alignment")) : AlignmentOf(container);
             RubyAnnotation ruby = new()
             {
                 Id = Id(container, "ruby-id"), BaseTokenId = tokenId, Text = string.Concat(segments.Select(segment => segment.Text)),
-                Segments = [.. segments], Language = project ? Extension(container, "language") : (string?)textContainer.Attribute(XNamespace.Xml + "lang")
-                    ?? textContainer.Descendants().Select(element => (string?)element.Attribute(XNamespace.Xml + "lang")).FirstOrDefault(value => value is not null) ?? Language(container),
+                Segments = [.. segments], Language = project ? Extension(container, "language") : (string?)textSource.Attribute(XNamespace.Xml + "lang")
+                    ?? textSource.Descendants().Select(element => (string?)element.Attribute(XNamespace.Xml + "lang")).FirstOrDefault(value => value is not null) ?? Language(container),
                 RelativeScale = project ? Double(container, "scale") : 0.5,
                 GapPx = project ? Double(container, "gap") : 2,
-                Alignment = project ? EnumValue<RubyAlignment>(Required(container, "alignment")) : RubyAlignment.Center,
+                Alignment = alignment,
             };
             if (!ruby.IsValid) throw new FormatException("TTML ruby 样式或时间不合法。");
-            if (!project) discarded.Add("ruby 使用项目默认字号比例/间距/对齐（源未提供项目样式）");
+            if (!project) discarded.Add(_alignmentFromStyle
+                ? "ruby 使用项目默认字号比例/间距（对齐取自 tts:rubyAlign）"
+                : "ruby 使用项目默认字号比例/间距/对齐（源未提供项目样式）");
             if (project && Required(container, "base-token-id") != tokenId) throw new FormatException("TTML project 注音基础元素关联错误。");
-            rubies.Add(ruby);
+            if (!redirect)
+            {
+                tokens.Add(token);
+                rubies.Add(ruby);
+                return;
+            }
+            _inlineSplit = true;
+            LyricLine line = LyricLine.Create(NewId("line"), token.Text, _paragraphTime, _paragraphTime is null ? TimingStatus.Missing : _paragraphStatus, [token])
+                with { RubyAnnotations = [ruby] };
+            _placed.Add(new(explicitAgent ?? _paragraphAgent, explicitRole ?? _paragraphRole, Language(baseNode) ?? _paragraphLanguage, line));
         }
 
         private (TimeRange? Time, TimingStatus Status) ReadTime(XElement element, bool line)
@@ -434,6 +527,286 @@ public sealed class TtmlImporter : ILyricsImporter
                 issues.Add(new LyricsImportIssue(LyricsImportIssueKind.DiscardedFeature, IssueSeverity.Info, 0,
                     element.Name.LocalName, "TTML 时间精度损失：有效区间舍入到整数微秒，半微秒向远离零方向舍入。"));
             return (new TimeRange(interval.StartUs, endUs.Value), source);
+        }
+
+        private void IndexMetadata()
+        {
+            foreach (XElement style in root.Descendants(XName.Get("style", TtmlNamespace)))
+            {
+                string? id = (string?)style.Attribute(XNamespace.Xml + "id");
+                if (!string.IsNullOrWhiteSpace(id)) _styles.TryAdd(id, style);
+            }
+            foreach (XElement agent in root.Descendants(XName.Get("agent", MetadataNamespace)))
+            {
+                string? id = (string?)agent.Attribute(XNamespace.Xml + "id");
+                if (string.IsNullOrWhiteSpace(id))
+                {
+                    issues.Add(new LyricsImportIssue(LyricsImportIssueKind.MalformedTag, IssueSeverity.Warning, 0,
+                        agent.Value, "ttm:agent 缺少 xml:id，不能作为歌唱者分支。"));
+                    continue;
+                }
+                string? name = agent.Elements(XName.Get("name", MetadataNamespace)).Select(item => item.Value.Trim()).FirstOrDefault(value => value.Length > 0);
+                _agents.TryAdd(id, string.IsNullOrEmpty(name) ? id : name);
+            }
+        }
+
+        private LyricsDocument Assemble(string? language)
+        {
+            bool divided = root.Descendants(XName.Get("div", TtmlNamespace)).Skip(1).Any();
+            bool attributed = _placed.Any(item => item.Agent is not null || item.Role is not null);
+            if (divided) discarded.Add(attributed
+                ? "多个 div 按文档顺序归入歌唱者或主歌词来源（div 本身不是工程分支）"
+                : "多个 div 章节合并到同一歌词来源（未声明 project 分支）");
+            ReportAgents();
+            if (!attributed)
+                return LyricsDocument.Create(_placed.Select(item => item.Line), language);
+            List<string> order = [];
+            Dictionary<string, List<Placed>> buckets = new(StringComparer.Ordinal);
+            foreach (Placed item in _placed)
+            {
+                string key = item.Agent is not null ? "a:" + item.Agent : item.Role is not null ? "r:" + item.Role : "main";
+                if (!buckets.TryGetValue(key, out List<Placed>? list))
+                {
+                    list = [];
+                    buckets.Add(key, list);
+                    order.Add(key);
+                }
+                list.Add(item);
+            }
+            string primaryKey = buckets.ContainsKey("main") ? "main"
+                : order.Where(key => key.StartsWith("a:", StringComparison.Ordinal) && buckets[key][0].Role is not "x-bg" and not "x-translation" and not "x-roman")
+                    .OrderByDescending(key => buckets[key].Count).ThenBy(key => order.IndexOf(key)).FirstOrDefault() ?? order[0];
+            List<LyricBranch> branches = [];
+            foreach (string key in order)
+            {
+                List<Placed> items = buckets[key];
+                Placed first = items[0];
+                string id = Reserve(key == "main" ? "primary" : BranchToken(key));
+                string? branchLanguage = items.Select(item => item.Language).FirstOrDefault(value => value is not null) ?? language;
+                branches.Add(LyricBranch.Create(id, NameOf(first), key == primaryKey ? LyricBranchRole.Primary : RoleOf(first),
+                    items.Select(item => item.Line), branchLanguage, LyricBranchTimingMode.Independent));
+            }
+            if (_placed.Any(item => item.Role == "x-bg")) discarded.Add("和声（x-bg）已映射为具名分支");
+            if (_placed.Any(item => item.Role is "x-translation" or "x-roman")) discarded.Add("翻译/罗马音旁轨已映射为具名分支");
+            if (_inlineSplit) discarded.Add("行内歌唱者或旁轨覆盖已拆成独立行");
+            ReportUndefinedAgents();
+            LyricBranch primary = branches.First(branch => branch.Role == LyricBranchRole.Primary);
+            return new LyricsDocument
+            {
+                PrimaryBranchId = primary.Id,
+                Branches = [.. branches.Where(branch => branch.Role == LyricBranchRole.Primary), .. branches.Where(branch => branch.Role != LyricBranchRole.Primary)],
+                SchemaVersion = LyricsDocument.CurrentSchemaVersion,
+            };
+        }
+
+        private void ReportAgents()
+        {
+            if (_placed.Any(item => item.Agent is not null)) discarded.Add("ttm:agent 已映射为具名分支");
+            HashSet<string> used = new(_placed.Where(item => item.Agent is not null).SelectMany(item => item.Agent!.Split(' ')), StringComparer.Ordinal);
+            if (_agents.Keys.Any(id => !used.Contains(id))) discarded.Add("ttm:agent 定义未引用");
+        }
+
+        private void ReportUndefinedAgents()
+        {
+            foreach (string id in _undefinedAgents)
+                issues.Add(new LyricsImportIssue(LyricsImportIssueKind.DiscardedFeature, IssueSeverity.Warning, 0, id,
+                    "未定义歌唱者引用：" + id + "。正文已保留在同名分支，未并入其他歌唱者。"));
+        }
+
+        private void Extract(XElement element)
+        {
+            string? savedAgent = _paragraphAgent;
+            string? savedRole = _paragraphRole;
+            string? savedLanguage = _paragraphLanguage;
+            TimeRange? savedTime = _paragraphTime;
+            TimingStatus savedStatus = _paragraphStatus;
+            _paragraphAgent = AgentOf(element);
+            _paragraphRole = SidecarOf(element);
+            _paragraphLanguage = Language(element) ?? savedLanguage;
+            (TimeRange? own, TimingStatus ownStatus) = ExplicitInterval(element);
+            _paragraphTime = own ?? savedTime;
+            _paragraphStatus = own is null ? savedStatus : ownStatus;
+            List<LyricToken> tokens = [];
+            List<RubyAnnotation> ruby = [];
+            foreach (XNode child in Nodes(element)) Visit(child, element, tokens, ruby);
+            _inlineSplit = true;
+            if (tokens.Count > 0 || ruby.Count > 0)
+            {
+                LyricLine line = LyricLine.Create(NewId("line"), string.Concat(tokens.Select(token => token.Text)),
+                    _paragraphTime, _paragraphTime is null ? TimingStatus.Missing : _paragraphStatus, tokens) with { RubyAnnotations = [.. ruby] };
+                _placed.Add(new(_paragraphAgent, _paragraphRole, _paragraphLanguage, line));
+            }
+            _paragraphAgent = savedAgent;
+            _paragraphRole = savedRole;
+            _paragraphLanguage = savedLanguage;
+            _paragraphTime = savedTime;
+            _paragraphStatus = savedStatus;
+        }
+
+        private (TimeRange? Time, TimingStatus Status) ExplicitInterval(XElement element)
+        {
+            if (!times.TryGet(element, out TtmlTimeTree.Interval interval) || !interval.Explicit || !interval.Valid
+                || interval.EndUs is not long end || end <= interval.StartUs)
+                return (null, TimingStatus.Missing);
+            return (new TimeRange(interval.StartUs, end), TimingStatus.Imported);
+        }
+
+        private bool TrySimpleRuby(XElement element, List<LyricToken> tokens, List<RubyAnnotation> ruby)
+        {
+            if (RubyKind(element) != "base") return false;
+            if (element.Parent is XElement parent && RubyKind(parent) is "container" or "baseContainer" or "textContainer") return false;
+            XElement? next = NextElement(element);
+            if (next is null || RubyKind(next) is not ("text" or "textContainer")) return false;
+            _consume = next;
+            XElement[] texts = RubyKind(next) == "text" ? [next] : next.Descendants().Where(child => RubyKind(child) == "text").ToArray();
+            FinishRuby(element, element, next, texts, element, tokens, ruby);
+            return true;
+        }
+
+        private string? RubyKind(XElement element)
+        {
+            string? direct = (string?)element.Attribute(XName.Get("ruby", StylingNamespace));
+            return direct ?? StyleValue(element, "ruby");
+        }
+
+        private RubyAlignment AlignmentOf(XElement element)
+        {
+            _alignmentFromStyle = false;
+            string? value = (string?)element.Attribute(XName.Get("rubyAlign", StylingNamespace)) ?? StyleValue(element, "rubyAlign");
+            if (value is null) return RubyAlignment.Center;
+            _alignmentFromStyle = true;
+            return value switch
+            {
+                "center" => RubyAlignment.Center,
+                "withBase" or "start" => RubyAlignment.Start,
+                "end" => RubyAlignment.End,
+                _ => ReportUnmappedAlign(value),
+            };
+        }
+
+        private RubyAlignment ReportUnmappedAlign(string value)
+        {
+            discarded.Add("tts:rubyAlign=" + value + " 无法映射，已使用居中");
+            return RubyAlignment.Center;
+        }
+
+        private string? StyleValue(XElement element, string local)
+        {
+            string? references = (string?)element.Attribute("style");
+            if (string.IsNullOrWhiteSpace(references)) return null;
+            HashSet<string> seen = new(StringComparer.Ordinal);
+            foreach (string id in references.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                string? value = LookupStyle(id, local, seen);
+                if (value is not null) return value;
+            }
+            return null;
+        }
+
+        private string? LookupStyle(string id, string local, HashSet<string> seen)
+        {
+            if (!seen.Add(id)) return null;
+            if (!_styles.TryGetValue(id, out XElement? style))
+            {
+                discarded.Add("未定义样式引用");
+                return null;
+            }
+            string? direct = (string?)style.Attribute(XName.Get(local, StylingNamespace));
+            if (direct is not null) return direct;
+            string? references = (string?)style.Attribute("style");
+            if (string.IsNullOrWhiteSpace(references)) return null;
+            foreach (string next in references.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                string? value = LookupStyle(next, local, seen);
+                if (value is not null) return value;
+            }
+            return null;
+        }
+
+        private bool IsOverride(XElement element) => AgentOf(element) != _paragraphAgent || SidecarOf(element) != _paragraphRole;
+        private static string? AgentOf(XElement element)
+        {
+            for (XElement? node = element; node is not null; node = node.Parent)
+            {
+                string? value = OwnAgent(node);
+                if (value is not null) return value;
+            }
+            return null;
+        }
+        private static string? OwnAgent(XElement element)
+        {
+            string? value = (string?)element.Attribute(XName.Get("agent", MetadataNamespace));
+            return string.IsNullOrWhiteSpace(value) ? null
+                : string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        }
+        private static string? SidecarOf(XElement element)
+        {
+            for (XElement? node = element; node is not null; node = node.Parent)
+            {
+                string? value = OwnSidecar(node);
+                if (value is not null) return value;
+            }
+            return null;
+        }
+        private static string? OwnSidecar(XElement element)
+        {
+            string? role = (string?)element.Attribute(XName.Get("role", MetadataNamespace));
+            if (string.IsNullOrWhiteSpace(role)) return null;
+            foreach (string token in role.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                if (token is "x-bg" or "x-translation" or "x-roman") return token;
+            return null;
+        }
+        private string NameOf(Placed item)
+        {
+            if (item.Agent is { } agent)
+            {
+                List<string> names = [];
+                foreach (string id in agent.Split(' '))
+                {
+                    if (_agents.TryGetValue(id, out string? name)) names.Add(name);
+                    else { _undefinedAgents.Add(id); names.Add("未定义歌唱者 " + id); }
+                }
+                return string.Join("、", names);
+            }
+            return item.Role switch { "x-bg" => "和声", "x-translation" => "翻译", "x-roman" => "罗马音", _ => "主歌词" };
+        }
+        private static LyricBranchRole RoleOf(Placed item) => item.Role switch
+        {
+            "x-translation" => LyricBranchRole.Translation,
+            "x-roman" => LyricBranchRole.Annotation,
+            _ => LyricBranchRole.Custom,
+        };
+        private static string BranchToken(string key)
+        {
+            string raw = key.StartsWith("a:", StringComparison.Ordinal) ? "agent-" + key[2..].Replace(' ', '+') : "role-" + key[2..];
+            return new string(raw.Where(character => !char.IsWhiteSpace(character)).ToArray());
+        }
+        private string Reserve(string raw)
+        {
+            if (raw.Length > 100) raw = raw[..100];
+            string id = raw;
+            int suffix = 2;
+            while (!_ids.Add(id)) id = raw + "-" + suffix++.ToString(CultureInfo.InvariantCulture);
+            return id;
+        }
+        private IEnumerable<XNode> Nodes(XElement parent)
+        {
+            foreach (XNode node in parent.Nodes())
+            {
+                if (ReferenceEquals(node, _consume)) { _consume = null; continue; }
+                yield return node;
+            }
+        }
+        private static XElement? NextElement(XElement element)
+        {
+            bool seen = false;
+            foreach (XNode node in element.Parent?.Nodes() ?? [])
+            {
+                if (!seen) { if (ReferenceEquals(node, element)) seen = true; continue; }
+                if (node is XElement next) return next;
+                if (node is XText text && text.Value.Any(character => !char.IsWhiteSpace(character))) return null;
+            }
+            return null;
         }
 
         private LyricToken Token(string id, string text, TimeRange? time, TimingStatus status) =>

@@ -24,8 +24,9 @@ internal sealed class TtmlTimeTree
     {
         _absolute = absolute;
         string? timeBase = Parameter(root, "timeBase");
-        if (timeBase is not null and not "media")
-            throw new FormatException("仅支持 TTML media 时间基；clock/smpte 不作猜测。");
+        // SMPTE non-drop 帧时钟可由 frameRate 确定；clock 与 drop-frame 需要外部同步，不能猜。
+        if (timeBase is not null and not "media" and not "smpte")
+            throw new FormatException("仅支持 TTML media 与 non-drop SMPTE 时间基；clock 不作猜测。");
         string? dropMode = Parameter(root, "dropMode");
         if (dropMode is not null and not "nonDrop") throw new FormatException("TTML drop-frame 时间语义未支持。");
         _nominalFrameRate = PositiveInteger(Parameter(root, "frameRate"), 30);
@@ -44,6 +45,7 @@ internal sealed class TtmlTimeTree
     }
 
     internal Interval this[XElement element] => _intervals[element];
+    internal bool TryGet(XElement element, out Interval interval) => _intervals.TryGetValue(element, out interval);
 
     internal void Resolve(XElement body)
     {

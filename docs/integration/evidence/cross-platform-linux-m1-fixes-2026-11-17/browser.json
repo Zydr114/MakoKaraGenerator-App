@@ -1,0 +1,30 @@
+{
+  "png": {
+    "timeText": "0:01.000",
+    "nonBlackRgbPixels": 4281,
+    "width": 1280,
+    "height": 720,
+    "bytes": 14680,
+    "signature": [
+      137,
+      80,
+      78,
+      71,
+      13,
+      10,
+      26,
+      10
+    ],
+    "sha256": "6344e171ebed41929b7dc44793e0af8c9e3560d5b590cffebbe19d1e4ad65074"
+  },
+  "checks": [
+    "connect",
+    "create-wav-lrc",
+    "edit",
+    "undo",
+    "paused-seek-1s",
+    "png-displayed",
+    "close"
+  ],
+  "runtimeExceptions": []
+}

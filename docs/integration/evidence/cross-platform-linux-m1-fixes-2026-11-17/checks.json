@@ -1,0 +1,40 @@
+{
+  "implementationCommit": "0a6164a",
+  "productVersion": "0.113.1",
+  "contractVersion": "1.54.0",
+  "node": {
+    "total": 57,
+    "passed": 49,
+    "failed": 0,
+    "skipped": 8
+  },
+  "exportFocused": {
+    "passed": 26,
+    "failed": 0
+  },
+  "oldImplementationRegression": {
+    "failed": 2,
+    "paths": [
+      "CompleteAsync",
+      "WriteFrameAsync"
+    ]
+  },
+  "pythonHost": {
+    "total": 9,
+    "passed": 7,
+    "skipped": 2
+  },
+  "backendSolutionBuild": {
+    "warnings": 0,
+    "errors": 0
+  },
+  "windowsRuntimeValidation": "not available; existing platform branches retained",
+  "rawLinuxFfmpegProbe": {
+    "ExitCode": 153,
+    "length": 256,
+    "log": ""
+  },
+  "httpPassed": true,
+  "browserPassed": true,
+  "remainingDeploymentProcesses": 0
+}

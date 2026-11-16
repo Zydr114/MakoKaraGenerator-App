@@ -2,6 +2,8 @@
 
 结论：**M2/M3 的主体可以先在本机 Linux 开发，Linux SHM 必须作为正式支持路径；本轮 Linux 冒烟有两项失败，不能标记为全部通过。** 正常浏览器、CPU/Vulkan 渲染和导出已通过，失败集中于退出测试的跨平台预期和极小导出预算的错误分类。本轮仅验证与评估，没有实施 M2/M3 或修改生产代码，也不撤销已有 Windows G1 验收。
 
+后续修复：本记录的两项失败已在 [Linux M1 修复与复验](2026-11-17-linux-m1-fixes.md) 中处理；以下保留首次冒烟的原始结果。
+
 依据：[跨平台计划](../plans/cross-platform-adaptation-plan.md)、[Windows M1 验收](2026-11-16-cross-platform-m1.md)。
 
 ## 来源与范围

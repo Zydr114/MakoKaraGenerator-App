@@ -252,6 +252,20 @@ function resolveExecutableTool(explicitPath, defaultName, envPath = process.env.
     if (fs.existsSync(wingetLinks)) {
       searchDirs.push(wingetLinks);
     }
+    const wingetPackages = path.join(process.env.LOCALAPPDATA, 'Microsoft', 'WinGet', 'Packages');
+    if (fs.existsSync(wingetPackages)) {
+      for (const pkg of fs.readdirSync(wingetPackages, { withFileTypes: true })) {
+        if (!pkg.isDirectory() || !/ffmpeg/i.test(pkg.name)) continue;
+        const pkgDir = path.join(wingetPackages, pkg.name);
+        const directBin = path.join(pkgDir, 'bin');
+        if (fs.existsSync(directBin)) searchDirs.push(directBin);
+        for (const sub of fs.readdirSync(pkgDir, { withFileTypes: true })) {
+          if (!sub.isDirectory()) continue;
+          const nestedBin = path.join(pkgDir, sub.name, 'bin');
+          if (fs.existsSync(nestedBin)) searchDirs.push(nestedBin);
+        }
+      }
+    }
   }
   for (const directory of searchDirs) {
     if (!directory || !path.isAbsolute(directory)) continue;

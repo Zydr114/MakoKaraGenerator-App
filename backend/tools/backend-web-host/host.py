@@ -420,6 +420,14 @@ def resolve_default_tool(name):
             winget_link = Path(local_app_data) / 'Microsoft' / 'WinGet' / 'Links' / f'{name}.exe'
             if winget_link.is_file():
                 return winget_link
+            winget_packages = Path(local_app_data) / 'Microsoft' / 'WinGet' / 'Packages'
+            if winget_packages.is_dir():
+                for pkg_dir in sorted(winget_packages.iterdir()):
+                    if not pkg_dir.is_dir() or 'ffmpeg' not in pkg_dir.name.lower():
+                        continue
+                    for match in sorted(pkg_dir.rglob(f'{name}.exe')):
+                        if match.is_file():
+                            return match
         return None
     posix_sys = Path('/usr/bin') / name
     return posix_sys if posix_sys.is_file() else None

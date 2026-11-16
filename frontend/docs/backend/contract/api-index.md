@@ -1,6 +1,6 @@
 # 冻结 API 清单
 
-合同 **1.54.0** · HTTP **1** · 产品 **0.113.0** · 基线 `f16d4242da87a07d7256b64f2a5613f2ee2e04a7` · 2026-11-15。
+合同 **1.55.0** · HTTP **1** · 产品 **0.114.0** · 基线 `d8064af0ec53566ffaf488d0eaa54d701f64e9af` · 2026-11-16。
 
 执行入口：[行为合同](api-contract.md)；机器规范：[openapi.json](openapi.json)；指纹：[contract-manifest.json](contract-manifest.json)。本表由核对过的路由定义生成，不能手工单独扩表。
 
@@ -259,7 +259,7 @@ resolved-style按真实line推导clip/container及Core调度slot，nodePath包�
 | `lyrics.reorderRubySegments` | 四级`target`及完整`orderedSegmentIds` |
 | `lyrics.setRubySegmentTimes` | 1..1000条`changes[{target,startUs,endUs}]` |
 
-四级目标为branchId/lineId/tokenId/rubyId，五级再加segmentId。严格字段不可混用旧token目标或CLR别名。rubyResult提供真实数量/目标/建议选择/新身份；撤销重做保真实反馈。segments读模型保时间与状态，完整预算计入每个片段。多分支项目TTML导入须options.sourceBranchId选择源分支；全文档导出scope=document且只能ttml.project，禁止branchId含null。详细行为见§18。
+四级目标为branchId/lineId/tokenId/rubyId，五级再加segmentId。严格字段不可混用旧token目标或CLR别名。rubyResult提供真实数量/目标/建议选择/新身份；撤销重做保真实反馈。segments读模型保时间与状态，完整预算计入每个片段。多来源文档用 existing/newBranch 导入时须 options.sourceBranchId；allSources 一次追加全部分支且不能同时携带 sourceBranchId。全文档导出 scope=document 且只能 ttml.project，禁止 branchId 含 null。详细行为见§18。
 
 ## 直接效果包项目预览（0.98 / 合同1.29）
 

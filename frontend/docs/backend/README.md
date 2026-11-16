@@ -2,7 +2,9 @@
 
 本 App 的后端源码位于本仓库 `backend/`。`contract/` 五个文件整体复制自 `backend/web/`，行为文档 `backend-api.md` 复制自 `backend/docs/architecture/backend-api.md`。
 
-当前合同来源：App 后端源码提交 `f16d424`（2026-11-15，完整源码基线见 manifest），冻结合同 **1.54.0**、产品 **0.113.0**、HTTP 协议 `"1"`。1.54.0 新增前奏提示组图形／自定义静态内联 SVG 与闪烁渐进擦除动画配置命令 `orchestration.setCountdownPresentation`（第 97 种工程命令，`CountdownShapeSpec`／`CountdownAnimationSpec`）、`countdownSequence` 内容投影 `shape`／`animation` 字段，以及 `orchestration.setLeadInAttachment` 的 `CueTargetAboveStart` 首字上方避让注音附着模式；继续保留 1.53.0 的 M14 SDK v1 移除与版本收敛（仅准入 SDK v2：`packageVersion=3`、`shaderProfile="skia-ganesh-3.119.4-v2"`）、1.52.1 失效预设筛选与布局参考测量修复、1.52.0 `sourceMaterialFailure` 安全诊断与默认256张场景表面上限（512MiB字节上限不变）、1.51.1 输入固定媒体与试样固定身份／种子、1.51.0 导出／场景测量背景兜底及 1.50.0 两态静态样式。HTTP 路径／方法／schema 为115／128／672，3995个合成例（2879反例）；工程／歌词／模板 schema 为31／19／9。匹配部署、真实HTTP／浏览器／导出单独记录，合同同步不等于这些验收完成。
+当前合同来源：App 后端源码提交 `d8064af`（2026-11-16，完整源码基线见 manifest），冻结合同 **1.55.0**、产品 **0.114.0**、HTTP 协议 `"1"`。1.55.0 补齐标准 TTML 与多歌唱者导入：明确 AMLL/Apple 标记下可确认的空命名空间正文会在内存中恢复并报告；agent 与旁轨映射为具名分支；`lyrics.importAsset` 增加 `destination.kind=allSources`，一次追加全部分支且不替换已有来源。继续保留 1.54.0 的前奏图形／SVG／动画与 `CueTargetAboveStart`。HTTP 路径／方法／schema 为115／128／673，4000个合成例（2881反例）。匹配部署、真实 HTTP、浏览器和用真实歌词样本的最终核对单独记录，合同同步不等于这些验收完成。
+
+用真实歌词样本在本机核对时，把文件交给 TTML 导入（新建工程会保留全部分支；已有工程选“导入全部来源”）。预期是 56 行、主唱 53 行、和声 3 行、113 组注音、255 个带时间的注音片段，正文和时间与原文件逐项一致。仓库里的 `synthetic-amll-two-singers.ttml` 只复现这个统计形状，不是那份真实歌词。
 
 - `contract/` 不得手改；其 SHA-256 由 `contract-manifest.json` 和前端合同测试核对。升级时整体复制五个文件与行为文档，并同步 `src/protocol/index.ts` 的版本常量。
 - App 根 `pnpm build` / `pnpm build:desktop` 发布本仓库匹配 Server 与 Worker，`pnpm desktop` 仅运行经过 native manifest 校验的本地部署。旧上游 artifacts 路径不再是 App 运行入口。

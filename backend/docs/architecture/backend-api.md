@@ -448,7 +448,7 @@ append按原CRLF/CR→LF、跳过空白行，保其他原始空白，Unicode元�
 
 ASS 保留普通 `Dialogue` 与 `\k/\kf/\ko` 解析。文件同时具有 Mako LRC Studio 头标识和 `Comment` 的 `Effect=karaoke` 源事件时，改从这些源事件还原歌词，忽略绘制 Dialogue 层，支持 `正文|读音`、`#|续读音`、裸 `#` 延音和空拍；时间仍是源厘秒精度。样式／特效／分部及翻译、罗马音字幕不映射，报告说明损失；不新增 ASS 导出。
 
-TTML 继续要求正文处于 `http://www.w3.org/ns/ttml` 命名空间。`body xmlns=""` 清空默认命名空间的源文件保持拒绝，不按标签本地名静默恢复。有效 TTML 的主文、逐字和 ruby 片段时间沿现有 project／AMLL profile 读写；未显式定时的 ruby 基础 token 仍为 Missing，不凭注音时间猜测正文时间。project 可保留领域身份、多来源和 raw 时间；AMLL 仍通过损失计划声明不支持的内容，不能据此称任意 TTML2 布局、sidecar 和多歌手元数据都无损。
+TTML 正文默认仍须处于 `http://www.w3.org/ns/ttml` 命名空间。只有同时带明确 AMLL/Apple 标记（`itunes:timing` 为 Word/Line、AMLL metadata，或 `mkg:timing-profile=amll-absolute`／`mkg:profile=ttml.amll`）且不是项目 profile 时，才把结构可确认的空命名空间内容元素（`body/div/p/span/br`，父级已是 `tt` 或 TTML 内容）在内存中恢复为 TTML 命名空间，并在导入报告写明兼容处理；不改源文件。无标记文档、项目 profile、冲突声明，以及认不出的空命名空间本地名保持拒绝或诊断，不按标签名静默恢复。标准 media 时间与 AMLL absolute 仍然分开。non-drop SMPTE 在已知帧率下按帧换算；`clock` 与 drop-frame 拒绝。原生 AMLL 在基础元素没有独立时间、且该注音组每个片段都有合法时间时，用片段最小起点和最大终点推导正文时间并标为 Estimated；项目 profile 的 Missing 原样往返，不凭注音时间改写。标准简单 ruby（含样式引用上的 `tts:ruby`）和既有 container/base/textContainer/text 可导入；多个 base 无法唯一绑定基础元素时诊断 `rubyAssociationAmbiguous` 并保留正文。`ttm:agent` 的定义、继承、单行与行内覆盖，以及多个 ID 的合唱，映射为独立计时的具名分支；未定义引用单独警告并保留正文。`x-bg`／`x-translation`／`x-roman` 旁轨进入和声、翻译或注音来源，不再从正文里静默丢掉。区域排版、动画、嵌入媒体和需要外部时钟的特性仍不能伪装成歌词数据。
 
 ### 6.10 有界同源波形读取（0.82.0）
 
@@ -1410,9 +1410,11 @@ layout模式为Auto、全部槽位及提示mark构建代表试样；representati
 
 ### 18.2 TTML导入、完整document导出与报告
 
-上传、创建及再次导入接受`application/ttml+xml`；授权资源、字节和准备预算仍适用。标准TTML父容器、par/seq、begin/end/dur和frame/tick按有效时间计算；可识别AMLL profile使用其绝对时间约定。外部多个div按文档顺序合入一个候选来源；明确mkg项目profile恢复原分支集合，未知扩展版本、重复身份和坏关联拒绝/诊断。agent、旁轨和不可表达特征进入原完整导入报告，不静默转普通正文或自动拆歌手来源。
+上传、创建及再次导入接受`application/ttml+xml`；授权资源、字节和准备预算仍适用。标准TTML父容器、par/seq、begin/end/dur和frame/tick按有效时间计算；可识别AMLL profile使用其绝对时间约定。没有歌唱者或旁轨标记时，外部多个div仍按文档顺序合入一个候选来源，div本身不是工程分支。明确mkg项目profile恢复原分支集合，未知扩展版本、重复身份和坏关联拒绝/诊断。`ttm:agent`与`x-bg`／`x-translation`／`x-roman`在非项目档映射为具名分支并写入报告；无法无歧义表达的结构只诊断，不静默变成普通正文。
 
-再次导入`options.sourceBranchId`可省略但不可null，出现时须非空白≤128字符。单源默认选择唯一来源；项目TTML含多个来源时须显式选源，否则422 `SourceBranchRequired`，不存在为`SourceBranchNotFound`，field均为`command.options.sourceBranchId`。选定来源经原目标映射写入；省略其它来源与不可恢复跨来源行关联进入报告。HTTP import仍是显式目标编辑命令，完整document编解码能力不改变其目标union。
+再次导入`options.sourceBranchId`可省略但不可null，出现时须非空白≤128字符。单源默认选择唯一来源；多来源文档走`existing`或`newBranch`时须显式选源，否则422 `SourceBranchRequired`，不存在为`SourceBranchNotFound`，field均为`command.options.sourceBranchId`。选定来源经原目标映射写入；省略其它来源与不可恢复跨来源行关联进入报告。`destination.kind=allSources`没有其它字段，把解析文档里每个非空分支追加为新来源：一次编辑、一次撤销，重映射全部分支的行、元素、注音和片段，并重映射本次一起导入的跨分支`PrimaryLineId`。它不替换工程已有来源；导入文档里的主来源角色改为custom，避免出现第二个主歌词。与`sourceBranchId`同时出现为400，field为`command.options.sourceBranchId`。粘贴命令不接受`allSources`。新建工程仍直接采用完整解析文档，不经过这条追加命令。旧的单来源请求保持原语义。
+
+HTTP import仍是显式目标编辑命令。
 
 导出沿§17.3 Plan→显式acceptLosses→认证下载。`scope=document`仅ttml.project，无branchId字段（null也拒绝），保完整分支顺序、主来源、branch role/timingMode、PrimaryLineId、各级稳定ID、独立line.Text、raw微秒与状态、ruby参数及片段顺序。`scope=branch`或省略保持单来源行为，AMLL只用于选定来源交换。计划与导出响应均必返scope及branchId，document的branchId显式null；document不以选定来源冒充完整工程。
 

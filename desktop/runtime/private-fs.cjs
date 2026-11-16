@@ -8,8 +8,6 @@ const os = require('node:os');
 const path = require('node:path');
 
 const FILE_PERSISTENT_ACLS = 0x00000008;
-const SYSTEM_SID = 'S-1-5-18';
-const BUILTIN_ADMINS_SID = 'S-1-5-32-544';
 
 let cachedCurrentUserSid = null;
 const volumeInfoCache = new Map();
@@ -57,6 +55,11 @@ function defaultRuntimeDataDir(appName = 'makokara-generator', env = process.env
 }
 
 function runEncodedPowerShell(script, extraEnv = {}) {
+  // PowerShell 7's inherited module path can break Windows PowerShell 5.1.
+  const childEnv = { ...process.env, ...extraEnv };
+  for (const key of Object.keys(childEnv)) {
+    if (key.toUpperCase() === 'PSMODULEPATH') delete childEnv[key];
+  }
   const encoded = Buffer.from(`$ProgressPreference = 'SilentlyContinue'\n${script}`, 'utf16le').toString('base64');
   return childProcess.execFileSync(
     'powershell.exe',
@@ -65,7 +68,7 @@ function runEncodedPowerShell(script, extraEnv = {}) {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
-      env: { ...process.env, ...extraEnv },
+      env: childEnv,
     },
   ).trim();
 }
@@ -181,28 +184,46 @@ function assertPersistentAclVolume(targetPath, options = {}) {
   return info;
 }
 
-function isProtectedAncestorCached(resolved) {
-  const key = normalizeCasePath(resolved);
-  if (protectedDirCache.has(key)) return true;
-  for (const root of protectedDirCache) {
-    if (isInsideRoot(root, resolved)) return true;
-  }
-  return false;
-}
-
+// Cache only exact directories after full verification. Ancestors never vouch
+// for pre-existing descendants. Same-user ACL mutation after admission is outside
+// this process-local cache trust boundary; no per-file ACL shell is required.
 function readWindowsDirectoryAclSids(dirPath) {
   const psScript = [
     '$acl = Get-Acl -LiteralPath $env:MAKO_ACL_TARGET',
     '$items = @($acl.Access | ForEach-Object {',
     '  $sid = $_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value',
-    '  [PSCustomObject]@{ sid = $sid; type = $_.AccessControlType.ToString() }',
+    '  [PSCustomObject]@{ sid = $sid; type = $_.AccessControlType.ToString(); rights = [int]$_.FileSystemRights; inheritance = [int]$_.InheritanceFlags; propagation = [int]$_.PropagationFlags }',
     '})',
-    'ConvertTo-Json -InputObject $items -Compress',
+    'ConvertTo-Json -InputObject @{ protected = $acl.AreAccessRulesProtected; rules = $items } -Compress',
   ].join('\n');
-  const raw = runEncodedPowerShell(psScript, { MAKO_ACL_TARGET: dirPath });
-  if (!raw) return [];
-  const parsed = JSON.parse(raw);
-  return Array.isArray(parsed) ? parsed : [parsed];
+  return JSON.parse(runEncodedPowerShell(psScript, { MAKO_ACL_TARGET: dirPath }));
+}
+
+function assertWindowsDirectoryAcl(acl, currentSid, label, resolved) {
+  const rules = acl.rules;
+  if (acl.protected !== true || !Array.isArray(rules) || rules.length !== 1 ||
+      rules[0].sid !== currentSid || rules[0].type !== 'Allow' ||
+      rules[0].rights !== 2032127 || rules[0].inheritance !== 3 || rules[0].propagation !== 0) {
+    throw new Error(`${label} must be private (protected current-user-only inheritable DACL required): ${resolved}`);
+  }
+}
+
+function setWindowsDirectoryAcl(dirPath, sid) {
+  runEncodedPowerShell([
+    "$ErrorActionPreference = 'Stop'",
+    '$acl = Get-Acl -LiteralPath $env:MAKO_ACL_TARGET',
+    '$rules = @($acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]))',
+    '$safe = $acl.AreAccessRulesProtected -and $rules.Count -eq 1',
+    'if ($safe) {',
+    '  $rule = $rules[0]',
+    "  $safe = $rule.IdentityReference.Value -eq $env:MAKO_ACL_SID -and $rule.AccessControlType.ToString() -eq 'Allow' -and [int]$rule.FileSystemRights -eq 2032127 -and [int]$rule.InheritanceFlags -eq 3 -and [int]$rule.PropagationFlags -eq 0",
+    '}',
+    'if (-not $safe) {',
+    // Replace the complete access section: /grant:r leaves other explicit ACEs.
+    '$acl.SetSecurityDescriptorSddlForm("D:P(A;OICI;FA;;;" + $env:MAKO_ACL_SID + ")", [System.Security.AccessControl.AccessControlSections]::Access)',
+    'Set-Acl -LiteralPath $env:MAKO_ACL_TARGET -AclObject $acl',
+    '}',
+  ].join('\n'), { MAKO_ACL_TARGET: dirPath, MAKO_ACL_SID: sid });
 }
 
 function ensurePrivateDir(dirPath, options = {}) {
@@ -228,17 +249,6 @@ function ensurePrivateDir(dirPath, options = {}) {
     return resolved;
   }
 
-  if (isProtectedAncestorCached(resolved) && fs.existsSync(resolved)) {
-    const info = fs.lstatSync(resolved);
-    if (info.isSymbolicLink() || !info.isDirectory()) {
-      throw new Error(`${label} cannot be a symlink: ${resolved}`);
-    }
-    if (!isSamePath(fs.realpathSync(resolved), resolved)) {
-      throw new Error(`${label} cannot be a symlink: ${resolved}`);
-    }
-    return resolved;
-  }
-
   assertPersistentAclVolume(resolved, options);
   fs.mkdirSync(resolved, { recursive: true });
   const info = fs.lstatSync(resolved);
@@ -249,17 +259,12 @@ function ensurePrivateDir(dirPath, options = {}) {
     throw new Error(`${label} cannot be a symlink: ${resolved}`);
   }
 
-  if (!isProtectedAncestorCached(resolved)) {
-    const sid = getCurrentUserSid();
-    childProcess.execFileSync(
-      'icacls.exe',
-      [resolved, '/inheritance:r', '/grant:r', `*${sid}:(OI)(CI)F`],
-      { encoding: 'utf8', windowsHide: true },
-    );
-    const cacheKey = normalizeCasePath(resolved);
-    protectedDirCache.add(cacheKey);
-    verifiedDirCache.add(cacheKey);
+  const cacheKey = normalizeCasePath(resolved);
+  if (!protectedDirCache.has(cacheKey)) {
+    setWindowsDirectoryAcl(resolved, getCurrentUserSid());
   }
+  assertPrivateDir(resolved, options);
+  protectedDirCache.add(cacheKey);
   return resolved;
 }
 
@@ -282,30 +287,10 @@ function assertPrivateDir(dirPath, options = {}) {
   }
 
   const cacheKey = normalizeCasePath(resolved);
-  if (verifiedDirCache.has(cacheKey) || isProtectedAncestorCached(resolved)) {
-    return resolved;
-  }
-
+  if (verifiedDirCache.has(cacheKey)) return resolved;
   assertPersistentAclVolume(resolved, options);
-  const currentSid = getCurrentUserSid();
-  const allowedSids = new Set(
-    options.strictOwnerOnly ? [currentSid] : [currentSid, SYSTEM_SID, BUILTIN_ADMINS_SID],
-  );
-  const rules = (options.readAclSids ?? readWindowsDirectoryAclSids)(resolved);
-  let ownerAllowed = false;
-  for (const rule of rules) {
-    if (rule.type === 'Allow') {
-      if (!allowedSids.has(rule.sid)) {
-        throw new Error(`${label} must be private (unexpected Allow ACE for ${rule.sid}): ${resolved}`);
-      }
-      if (rule.sid === currentSid) {
-        ownerAllowed = true;
-      }
-    }
-  }
-  if (!ownerAllowed) {
-    throw new Error(`${label} must be private (missing Allow ACE for current user): ${resolved}`);
-  }
+  const acl = (options.readAclSids ?? readWindowsDirectoryAclSids)(resolved);
+  assertWindowsDirectoryAcl(acl, getCurrentUserSid(), label, resolved);
   verifiedDirCache.add(cacheKey);
   return resolved;
 }
@@ -355,6 +340,7 @@ module.exports = {
   assertNoSymlinkAncestors,
   assertPersistentAclVolume,
   assertPrivateDir,
+  assertWindowsDirectoryAcl,
   assertPrivateFile,
   clearCachesForTesting,
   defaultRuntimeDataDir,

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Publish and run a matched, loopback-only Linux x64 / Windows x64 Web development backend."""
 import argparse
+import base64
 from contextlib import contextmanager
 import ctypes
 import hashlib
@@ -97,9 +98,9 @@ def _current_user_sid():
 
 
 def _assert_no_symlink_ancestors(target: Path):
-    cursor = target.resolve()
+    cursor = Path(os.path.abspath(target))
     while True:
-        if cursor.exists() and cursor.is_symlink():
+        if cursor.is_symlink() or getattr(cursor, 'is_junction', lambda: False)():
             raise ValueError(f'Private path cannot be or traverse a symlink: {cursor}')
         if cursor.parent == cursor:
             break
@@ -145,8 +146,50 @@ def _assert_windows_persistent_acl_volume(target: Path):
         _VERIFIED_VOLUME_ROOTS.add(drive_key)
 
 
+def _windows_directory_acl(target: Path, sid: str):
+    # Replace the entire Access section: icacls /grant:r retains foreign ACEs.
+    # Return the actual post-write ACL, never trust a successful setter alone.
+    script = r"""
+$ErrorActionPreference = 'Stop'
+$acl = Get-Acl -LiteralPath $env:MAKO_ACL_TARGET
+$rules = @($acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]))
+$safe = $acl.AreAccessRulesProtected -and $rules.Count -eq 1
+if ($safe) {
+  $rule = $rules[0]
+  $safe = $rule.IdentityReference.Value -eq $env:MAKO_ACL_SID -and $rule.AccessControlType.ToString() -eq 'Allow' -and [int]$rule.FileSystemRights -eq 2032127 -and [int]$rule.InheritanceFlags -eq 3 -and [int]$rule.PropagationFlags -eq 0
+}
+if (-not $safe) {
+  $acl.SetSecurityDescriptorSddlForm("D:P(A;OICI;FA;;;" + $env:MAKO_ACL_SID + ")", [System.Security.AccessControl.AccessControlSections]::Access)
+  Set-Acl -LiteralPath $env:MAKO_ACL_TARGET -AclObject $acl
+}
+$acl = Get-Acl -LiteralPath $env:MAKO_ACL_TARGET
+$items = @($acl.Access | ForEach-Object {
+  [PSCustomObject]@{ sid = $_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value; type = $_.AccessControlType.ToString(); rights = [int]$_.FileSystemRights; inheritance = [int]$_.InheritanceFlags; propagation = [int]$_.PropagationFlags }
+})
+ConvertTo-Json -InputObject @{ protected = $acl.AreAccessRulesProtected; rules = $items } -Compress
+"""
+    encoded = base64.b64encode(script.encode('utf-16le')).decode('ascii')
+    child_env = {**os.environ, 'MAKO_ACL_TARGET': str(target), 'MAKO_ACL_SID': sid}
+    child_env = {key: value for key, value in child_env.items() if key.upper() != 'PSMODULEPATH'}
+    # Do not inherit PowerShell 7 module paths in Windows PowerShell 5.1.
+    result = subprocess.run(
+        ['powershell.exe', '-NoProfile', '-NonInteractive', '-EncodedCommand', encoded],
+        env=child_env,
+        check=True, capture_output=True, text=True, encoding='utf-8', errors='replace',
+        creationflags=subprocess.CREATE_NO_WINDOW if IS_WINDOWS else 0,
+    )
+    return json.loads(result.stdout)
+
+
+def _assert_private_windows_acl(acl, sid):
+    expected = {'sid': sid, 'type': 'Allow', 'rights': 2032127, 'inheritance': 3, 'propagation': 0}
+    if acl.get('protected') is not True or acl.get('rules') != [expected]:
+        raise ValueError('Private directory requires a protected current-user-only inheritable DACL')
+
+
 def ensure_private_dir(target: Path):
-    resolved = target.resolve()
+    # resolve() erases the links that this check must reject.
+    resolved = Path(os.path.abspath(target))
     _assert_no_symlink_ancestors(resolved)
     if not IS_WINDOWS:
         resolved.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -156,24 +199,20 @@ def ensure_private_dir(target: Path):
         return resolved
 
     norm_key = str(resolved).lower()
-    if any(norm_key == root or norm_key.startswith(root.rstrip('\\') + '\\') for root in _PROTECTED_DIRS):
-        resolved.mkdir(parents=True, exist_ok=True)
-        if resolved.is_symlink() or not resolved.is_dir():
-            raise ValueError(f'Private directory cannot be a symlink: {resolved}')
+    # Only this exact path has been verified. A protected ancestor says nothing
+    # about explicit ACEs or disabled inheritance on an existing child. Same-user
+    # ACL mutation after admission is outside this process-local trust boundary.
+    if norm_key in _PROTECTED_DIRS:
+        if not resolved.is_dir():
+            raise ValueError(f'Private directory must exist: {resolved}')
         return resolved
-
     _assert_windows_persistent_acl_volume(resolved)
     resolved.mkdir(parents=True, exist_ok=True)
-    if resolved.is_symlink() or not resolved.is_dir():
+    _assert_no_symlink_ancestors(resolved)
+    if not resolved.is_dir():
         raise ValueError(f'Private directory cannot be a symlink: {resolved}')
     sid = _current_user_sid()
-    subprocess.run(
-        ['icacls.exe', str(resolved), '/inheritance:r', '/grant:r', f'*{sid}:(OI)(CI)F'],
-        check=True,
-        capture_output=True,
-        text=True,
-        encoding='utf-8',
-    )
+    _assert_private_windows_acl(_windows_directory_acl(resolved, sid), sid)
     _PROTECTED_DIRS.add(norm_key)
     return resolved
 
@@ -458,7 +497,7 @@ def run(args):
         if not tool.is_absolute() or not tool.is_file() or (not IS_WINDOWS and not os.access(tool, os.X_OK)):
             raise ValueError(f'native tool must be an absolute executable file: {tool}')
 
-    profile = ensure_private_dir(args.profile.resolve())
+    profile = ensure_private_dir(args.profile)
     for name in ('state', 'projects', 'runs'):
         ensure_private_dir(profile / name)
     run_dir = Path(tempfile.mkdtemp(prefix='run-', dir=profile / 'runs'))

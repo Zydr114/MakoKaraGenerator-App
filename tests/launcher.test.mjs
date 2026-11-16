@@ -201,7 +201,7 @@ try {
       await mkdir(insecureDir, { recursive: true });
       actualChildProcess.execFileSync('icacls.exe', [insecureDir, '/grant', '*S-1-1-0:(R)'], { windowsHide: true });
       privateFs.clearCachesForTesting();
-      assert.throws(() => privateFs.assertPrivateDir(insecureDir), /private/);
+      assert.throws(() => privateFs.assertPrivateDir(insecureDir), /protected current-user-only inheritable DACL/);
     }
   });
 } finally {

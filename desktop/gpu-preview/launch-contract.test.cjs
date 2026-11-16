@@ -50,7 +50,7 @@ test('launcher identity uses the exact Server hex contract and owned PID', () =>
         const badFile = path.join(badRunDir, 'launch.json');
         fs.writeFileSync(badFile, JSON.stringify({ ...valid, root: badRoot }));
         privateFs.clearCachesForTesting();
-        assert.throws(() => readLaunchConfig(badFile, badRoot, process.pid), /private/);
+        assert.throws(() => readLaunchConfig(badFile, badRoot, process.pid), /protected current-user-only inheritable DACL/);
       } finally {
         fs.rmSync(badRoot, { recursive: true, force: true });
       }

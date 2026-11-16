@@ -110,6 +110,81 @@ class DeploymentTests(unittest.TestCase):
         self.assertIn('DEPLOYMENT_READY', output.getvalue())
         self.assertEqual('initial-commit', host.validate_dist(self.dist)['sourceCommit'])
 
+class PrivateDirectoryTests(unittest.TestCase):
+    def test_complete_acl_shape_rejects_foreign_explicit_grants_in_memory(self):
+        sid = 'S-1-5-21-123-456-789-1001'
+        rule = {'sid': sid, 'type': 'Allow', 'rights': 2032127, 'inheritance': 3, 'propagation': 0}
+        host._assert_private_windows_acl({'protected': True, 'rules': [rule]}, sid)
+        for acl in [
+            {'protected': False, 'rules': [rule]},
+            {'protected': True, 'rules': []},
+            {'protected': True, 'rules': [rule, {'sid': 'S-1-1-0', 'type': 'Allow'}]},
+            {'protected': True, 'rules': [{**rule, 'inheritance': 0}]},
+        ]:
+            with self.subTest(acl=acl), self.assertRaisesRegex(ValueError, 'current-user-only'):
+                host._assert_private_windows_acl(acl, sid)
+
+    def test_existing_child_is_not_admitted_by_ancestor_cache(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            child = root / 'existing'
+            child.mkdir()
+            host._PROTECTED_DIRS.clear()
+            sid = 'S-1-5-21-123-456-789-1001'
+            rule = {'sid': sid, 'type': 'Allow', 'rights': 2032127, 'inheritance': 3, 'propagation': 0}
+            with patch.object(host, 'IS_WINDOWS', True), \
+                    patch.object(host, '_assert_windows_persistent_acl_volume'), \
+                    patch.object(host, '_current_user_sid', return_value=sid), \
+                    patch.object(host, '_windows_directory_acl', return_value={'protected': True, 'rules': [rule]}) as setter:
+                host.ensure_private_dir(root)
+                host.ensure_private_dir(child)
+                host.ensure_private_dir(child)
+                self.assertEqual([root, child], [call.args[0] for call in setter.call_args_list])
+            host._PROTECTED_DIRS.clear()
+
+    @unittest.skipUnless(host.IS_WINDOWS, 'Windows DACL / LockFileEx integration')
+    def test_own_temporary_directory_dacl_and_lock_wait_longer_than_15_seconds(self):
+        # Only tighten our own temporary directory; no broad ACE is added.
+        import sys
+        import time
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'private'
+            host.ensure_private_dir(root)
+            lock = root / 'publish.lock'
+            code = (
+                'import importlib.util,sys,time;from pathlib import Path;'
+                's=importlib.util.spec_from_file_location("lock_host",sys.argv[1]);'
+                'h=importlib.util.module_from_spec(s);s.loader.exec_module(h);'
+                'h.ensure_private_dir(Path(sys.argv[2]).parent);print("ready",flush=True);start=time.monotonic();'
+                '\nwith h.acquire_publish_lock(Path(sys.argv[2])):\n print(time.monotonic()-start,flush=True)'
+            )
+            with host.acquire_publish_lock(lock):
+                child = subprocess.Popen([sys.executable, '-c', code, str(Path(host.__file__).absolute()), str(lock)],
+                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                try:
+                    self.assertEqual('ready', child.stdout.readline().strip())
+                    time.sleep(17)
+                    if child.poll() is not None:
+                        out, err = child.communicate()
+                        self.fail(f'contender exited before release: {out} {err}')
+                except BaseException:
+                    child.kill()  # This test owns this Popen identity.
+                    child.communicate()
+                    raise
+            out, err = child.communicate(timeout=20)
+            self.assertEqual(0, child.returncode, err)
+            self.assertGreater(float(out.strip()), 15)
+            self.assertEqual(b'', lock.read_bytes())
+
+    def test_symlink_ancestor_is_checked_before_canonicalization(self):
+        target = Path('private') / 'alias' / 'child'
+        # Memory-only link avoids Windows Developer Mode requirements.
+        def linked(path):
+            return path.name == 'alias'
+        with patch.object(Path, 'is_symlink', linked):
+            with self.assertRaisesRegex(ValueError, 'symlink'):
+                host._assert_no_symlink_ancestors(target)
+
 
 if __name__ == '__main__':
     unittest.main()

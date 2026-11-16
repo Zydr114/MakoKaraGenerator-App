@@ -74,7 +74,12 @@ internal static class ContentAddressFileStore
     internal static void EnsureNoLinks(string path)
     {
         for (string? current = Path.GetFullPath(path); current is not null; current = Path.GetDirectoryName(current))
-            if (new FileInfo(current).LinkTarget is not null) throw new IOException("受管资源路径不能经过文件或目录链接。");
+        {
+            var info = new FileInfo(current);
+            if (info.LinkTarget is not null
+                || ((File.Exists(current) || Directory.Exists(current)) && (File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0))
+                throw new IOException("受管资源路径不能经过文件或目录链接。");
+        }
     }
     private static void CheckSize(long length, long maximum)
     { if (maximum <= 0 || length < 0 || length > maximum) throw new IOException("资源超过显式持久IO限额，未裁切或减少数据。"); }

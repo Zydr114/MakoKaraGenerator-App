@@ -124,12 +124,36 @@ public sealed class ScriptConfigurationLibraryTests
     {
         using TemporaryDirectory temp = new(); var configuration = Configuration(); string path = ScriptConfigurationLibrary.ResolvePath(temp.Path);
         ScriptConfigurationLibrary.Save(path, [configuration]); string original = temp.FilePath("outside.json");
-        File.Move(path, original); File.CreateSymbolicLink(path, original);
-        Assert.NotEmpty(ScriptConfigurationLibrary.Load(path).Issues); Assert.ThrowsAny<IOException>(() => ScriptConfigurationLibrary.Save(path, []));
-        File.Delete(path); File.Move(original, path);
+        File.Move(path, original);
+        bool fileLinked = true;
+        try { File.CreateSymbolicLink(path, original); }
+        catch (IOException error) when (OperatingSystem.IsWindows() && error.HResult == unchecked((int)0x80070522)) { fileLinked = false; }
+        if (fileLinked)
+        {
+            Assert.NotEmpty(ScriptConfigurationLibrary.Load(path).Issues); Assert.ThrowsAny<IOException>(() => ScriptConfigurationLibrary.Save(path, []));
+            File.Delete(path);
+        }
+        File.Move(original, path);
         string package = Path.Combine(Path.GetDirectoryName(path)!, ScriptConfigurationLibrary.PackagePath(configuration.Package.Revision));
-        Directory.Move(package, temp.FilePath("outside-package")); Directory.CreateSymbolicLink(package, temp.FilePath("outside-package"));
-        Assert.NotEmpty(ScriptConfigurationLibrary.Load(path).Issues);
+        string outsidePkg = temp.FilePath("outside-package");
+        Directory.Move(package, outsidePkg);
+        try { Directory.CreateSymbolicLink(package, outsidePkg); }
+        catch (IOException error) when (OperatingSystem.IsWindows() && error.HResult == unchecked((int)0x80070522))
+        {
+            using var mklink = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe", $"/c mklink /J \"{package}\" \"{outsidePkg}\"") { CreateNoWindow = true, UseShellExecute = false })!;
+            mklink.WaitForExit(); Assert.Equal(0, mklink.ExitCode);
+        }
+        try
+        {
+            Assert.NotEmpty(ScriptConfigurationLibrary.Load(path).Issues);
+        }
+        finally
+        {
+            if (Directory.Exists(package))
+            {
+                Directory.Delete(package, false);
+            }
+        }
     }
 
     [Fact]

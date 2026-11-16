@@ -91,7 +91,9 @@ public static class EffectPackageTransfer
                 }
                 await output.FlushAsync(cancellationToken).ConfigureAwait(false);
             }
-            cancellationToken.ThrowIfCancellationRequested(); File.Move(temporary, target, true);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (Directory.Exists(target)) throw new IOException($"目标路径是目录，无法覆盖为文件：{target}");
+            File.Move(temporary, target, true);
         }
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
     }

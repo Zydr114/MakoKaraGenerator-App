@@ -32,7 +32,8 @@ public static class ProjectMediaPath
             return path;
         }
 
-        string relative = Path.GetRelativePath(Path.GetFullPath(directoryPath), Path.GetFullPath(path));
+        string relative = Path.GetRelativePath(Path.GetFullPath(directoryPath), Path.GetFullPath(path))
+            .Replace('\\', '/');
 
         return IsInside(relative) ? relative : path;
     }
@@ -56,6 +57,8 @@ public static class ProjectMediaPath
 
     /// <summary>相对路径是否指向工程目录之内。</summary>
     private static bool IsInside(string relative) =>
-        !relative.StartsWith("..", StringComparison.Ordinal)
+        relative != ".."
+        && !relative.StartsWith("../", StringComparison.Ordinal)
+        && !relative.StartsWith("..\\", StringComparison.Ordinal)
         && !Path.IsPathRooted(relative);
 }

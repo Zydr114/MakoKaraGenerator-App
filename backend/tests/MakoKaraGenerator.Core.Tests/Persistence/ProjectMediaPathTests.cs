@@ -11,7 +11,7 @@ public sealed class ProjectMediaPathTests
         string stored = ProjectMediaPath.ToStored("/work/song.mkgproj/assets/audio.mp3", "/work/song.mkgproj")
             ?? string.Empty;
 
-        Assert.Equal(Path.Combine("assets", "audio.mp3"), stored);
+        Assert.Equal("assets/audio.mp3", stored);
     }
 
     [Fact]

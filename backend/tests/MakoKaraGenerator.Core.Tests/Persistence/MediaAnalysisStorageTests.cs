@@ -9,6 +9,11 @@ namespace MakoKaraGenerator.Core.Tests.Persistence;
 public sealed class MediaAnalysisStorageTests
 {
     private static string Hash(byte[] bytes) => Convert.ToHexStringLower(SHA256.HashData(bytes));
+    private static bool TryCreateFileSymlink(string path, string target)
+    {
+        try { File.CreateSymbolicLink(path, target); return true; }
+        catch (IOException error) when (OperatingSystem.IsWindows() && error.HResult == unchecked((int)0x80070522)) { return false; }
+    }
     private static Project Source(TemporaryDirectory directory)
     {
         string audio = directory.FilePath("原曲.wav"), background = directory.FilePath("背景.mp4");
@@ -90,7 +95,7 @@ public sealed class MediaAnalysisStorageTests
         var restored = ProjectStore.Load(saved).Project!;
         if (kind == "missing") File.Delete(restored.AudioPath!);
         else if (kind == "hash") File.WriteAllBytes(restored.AudioPath!, [9, 9, 9, 9]);
-        else if (kind == "link") { File.Delete(restored.AudioPath!); File.CreateSymbolicLink(restored.AudioPath!, source.AudioPath!); }
+        else if (kind == "link") { File.Delete(restored.AudioPath!); if (!TryCreateFileSymlink(restored.AudioPath!, source.AudioPath!)) return; }
         else Change(saved, root =>
         {
             switch (kind) { case "length": root["media"]!["audio"]!["byteLength"] = 5; break; case "path": root["audioPath"] = "../原曲.wav"; break;
@@ -116,7 +121,7 @@ public sealed class MediaAnalysisStorageTests
         string path = Path.Combine(saved, source.AudioAnalysis!.Data!.RelativePath);
         if (kind == "missing") File.Delete(path);
         else if (kind == "bytes") File.AppendAllText(path, " ");
-        else if (kind == "link") { File.Delete(path); File.CreateSymbolicLink(path, source.AudioPath!); }
+        else if (kind == "link") { File.Delete(path); if (!TryCreateFileSymlink(path, source.AudioPath!)) return; }
         else Change(saved, root =>
         {
             switch (kind)

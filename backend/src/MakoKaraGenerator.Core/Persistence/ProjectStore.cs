@@ -338,7 +338,7 @@ public static class ProjectStore
                 stream.Flush(flushToDisk: true);
             }
 
-            File.Move(temporaryPath, path, overwrite: true);
+            MoveOverwrite(temporaryPath, path);
         }
         finally
         {
@@ -357,9 +357,38 @@ public static class ProjectStore
         {
             using (FileStream stream = new(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
             { stream.Write(bytes); stream.Flush(flushToDisk: true); }
-            File.Move(temporary, path, overwrite: true);
+            MoveOverwrite(temporary, path);
         }
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
+    }
+
+    private static void MoveOverwrite(string temporaryPath, string path)
+    {
+        if (Directory.Exists(path))
+            throw new IOException($"目标路径是目录，无法覆盖为文件：{path}");
+
+        if (!OperatingSystem.IsWindows())
+        {
+            File.Move(temporaryPath, path, overwrite: true);
+            return;
+        }
+
+        const int maxAttempts = 25;
+        for (int attempt = 1; ; attempt++)
+        {
+            try
+            {
+                File.Move(temporaryPath, path, overwrite: true);
+                return;
+            }
+            catch (Exception error) when (attempt < maxAttempts
+                && error is IOException or UnauthorizedAccessException
+                && !Directory.Exists(path)
+                && (!File.Exists(path) || (File.GetAttributes(path) & FileAttributes.ReadOnly) == 0))
+            {
+                Thread.Sleep(10);
+            }
+        }
     }
 
     private static ProjectLoadResult Failure(List<ProjectIssue> issues) =>

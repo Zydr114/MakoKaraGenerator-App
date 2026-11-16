@@ -40,8 +40,12 @@ public static class EffectPackageStorage
     private static void EnsureNoLinks(string path)
     {
         for (string? current = Path.GetFullPath(path); current is not null; current = Path.GetDirectoryName(current))
-            if (new FileInfo(current).LinkTarget is not null)
+        {
+            var info = new FileInfo(current);
+            if (info.LinkTarget is not null
+                || ((File.Exists(current) || Directory.Exists(current)) && (File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0))
                 throw new EffectPackageException("PackageLinkRejected", path, "包路径不能经过文件或目录链接。");
+        }
     }
     /// <summary>固定目录全部字节，严格验证声明、预算、链接和内容。</summary>
     public static Task<EffectPackageContents> ReadDirectoryAsync(string directory, EffectPackageProfile expected, EffectPackageContentBudget? budget = null,

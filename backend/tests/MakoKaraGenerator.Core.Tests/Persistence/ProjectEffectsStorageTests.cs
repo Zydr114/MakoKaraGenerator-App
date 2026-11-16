@@ -94,7 +94,11 @@ public sealed class ProjectEffectsStorageTests
             case "missing": File.Delete(source); break;
             case "extra": File.WriteAllText(Path.Combine(package, "extra"), "bad"); break;
             case "changed": File.AppendAllText(source, "changed"); break;
-            case "link": string outside = directory.FilePath("outside.cs"); File.Move(source, outside); File.CreateSymbolicLink(source, outside); break;
+            case "link":
+                string outside = directory.FilePath("outside.cs"); File.Move(source, outside);
+                try { File.CreateSymbolicLink(source, outside); }
+                catch (IOException error) when (OperatingSystem.IsWindows() && error.HResult == unchecked((int)0x80070522)) { return; }
+                break;
         }
         var loaded = ProjectStore.Load(directory.Path); Assert.Null(loaded.Project); Assert.Contains(loaded.Report.Issues, i => i.Code == DiagnosticCode.InvalidEffectData);
         Assert.Equal(entry, File.ReadAllBytes(directory.FilePath("project.json")));

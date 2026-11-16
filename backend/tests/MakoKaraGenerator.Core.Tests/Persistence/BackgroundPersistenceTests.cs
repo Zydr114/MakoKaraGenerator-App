@@ -34,7 +34,7 @@ public sealed class BackgroundPersistenceTests : IDisposable
         Assert.NotNull(result.Project);
         Assert.Equal(BackgroundKind.Image, result.Project.Background.Kind);
         Assert.Equal(BackgroundFit.Cover, result.Project.Background.Fit);
-        Assert.Equal(Path.Combine(projectDirectory, result.Project.Background.Media!.RelativePath), result.Project.Background.Path);
+        Assert.Equal(Path.GetFullPath(Path.Combine(projectDirectory, result.Project.Background.Media!.RelativePath)), result.Project.Background.Path);
         Assert.Equal("bg.png", result.Project.Background.Media.OriginalName);
         Assert.False(result.Report.HasErrors);
     }

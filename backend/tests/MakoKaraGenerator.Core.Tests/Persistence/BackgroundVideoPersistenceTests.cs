@@ -27,7 +27,7 @@ public sealed class BackgroundVideoPersistenceTests : IDisposable
 
         Assert.NotNull(result.Project);
         Assert.Equal(BackgroundKind.Video, result.Project.Background.Kind);
-        Assert.Equal(Path.Combine(projectDirectory, result.Project.Background.Media!.RelativePath), result.Project.Background.Path);
+        Assert.Equal(Path.GetFullPath(Path.Combine(projectDirectory, result.Project.Background.Media!.RelativePath)), result.Project.Background.Path);
         Assert.Equal("movie.mp4", result.Project.Background.Media.OriginalName);
         Assert.Equal(BackgroundFit.Cover, result.Project.Background.Fit);
         Assert.Equal(BackgroundPlaybackMode.FreezeLastFrame, result.Project.Background.Playback);

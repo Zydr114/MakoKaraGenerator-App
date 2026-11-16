@@ -88,7 +88,9 @@ public sealed class PreparedScriptInputTests
         metadata["SourcePath"] = "source.bin";
         string text = metadata.ToJsonString(); text = text.Insert(1, "\"SourcePath\":\"source.bin\",");
         Assert.Throws<InvalidDataException>(() => ScriptPreparedInputCodec.Read(Encode(text), identity));
-        File.Delete(sourcePath); File.CreateSymbolicLink(sourcePath, Path.Combine(root.Path, "outside.bin"));
+        File.Delete(sourcePath);
+        try { File.CreateSymbolicLink(sourcePath, Path.Combine(root.Path, "outside.bin")); }
+        catch (IOException error) when (OperatingSystem.IsWindows() && error.HResult == unchecked((int)0x80070522)) { return; }
         File.WriteAllText(Path.Combine(root.Path, "outside.bin"), "source");
         Assert.Throws<InvalidDataException>(() => ScriptPreparedInputCodec.Read(prepared.Envelope, identity));
     }

@@ -32,7 +32,7 @@ public sealed class ProjectMediaPersistenceTests
         ProjectLoadResult result = ProjectStore.Load(projectDirectory);
 
         Assert.True(result.Loaded);
-        Assert.Equal(Path.Combine(projectDirectory, result.Project!.AudioMedia!.RelativePath), result.Project.AudioPath);
+        Assert.Equal(Path.GetFullPath(Path.Combine(projectDirectory, result.Project!.AudioMedia!.RelativePath)), result.Project.AudioPath);
         Assert.Equal("audio.mp3", result.Project.AudioMedia.OriginalName);
     }
 
@@ -50,7 +50,7 @@ public sealed class ProjectMediaPersistenceTests
 
         ProjectLoadResult result = ProjectStore.Load(projectDirectory);
 
-        Assert.Equal(Path.Combine(projectDirectory, result.Project!.AudioMedia!.RelativePath), result.Project.AudioPath);
+        Assert.Equal(Path.GetFullPath(Path.Combine(projectDirectory, result.Project!.AudioMedia!.RelativePath)), result.Project.AudioPath);
         Assert.Equal(File.ReadAllBytes(outside), File.ReadAllBytes(result.Project.AudioPath!));
         Assert.Equal("song.mp3", result.Project.AudioMedia.OriginalName);
     }

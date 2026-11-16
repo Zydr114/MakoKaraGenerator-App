@@ -62,10 +62,35 @@ public sealed class TemplateRecipeStorageTests
     public void 链接入口及包拒绝而非读取外部文件()
     {
         using TemporaryDirectory temp = new(); string path = StyleTemplateLibrary.ResolvePath(temp.Path); var template = Template(); StyleTemplateLibrary.Save(path, [template]);
-        string saved = temp.FilePath("external.json"); File.Move(path, saved); File.CreateSymbolicLink(path, saved);
-        Assert.NotEmpty(StyleTemplateLibrary.Load(path).Issues); Assert.ThrowsAny<IOException>(() => StyleTemplateLibrary.Save(path, []));
-        File.Delete(path); File.Move(saved, path);
+        string saved = temp.FilePath("external.json"); File.Move(path, saved);
+        bool fileLinked = true;
+        try { File.CreateSymbolicLink(path, saved); }
+        catch (IOException error) when (OperatingSystem.IsWindows() && error.HResult == unchecked((int)0x80070522)) { fileLinked = false; }
+        if (fileLinked)
+        {
+            Assert.NotEmpty(StyleTemplateLibrary.Load(path).Issues); Assert.ThrowsAny<IOException>(() => StyleTemplateLibrary.Save(path, []));
+            File.Delete(path);
+        }
+        File.Move(saved, path);
         string package = Path.Combine(Path.GetDirectoryName(path)!, StyleTemplateLibrary.PackagePath(template.Packages[0].Revision));
-        Directory.Move(package, temp.FilePath("external")); Directory.CreateSymbolicLink(package, temp.FilePath("external")); Assert.NotEmpty(StyleTemplateLibrary.Load(path).Issues);
+        string externalDir = temp.FilePath("external");
+        Directory.Move(package, externalDir);
+        try { Directory.CreateSymbolicLink(package, externalDir); }
+        catch (IOException error) when (OperatingSystem.IsWindows() && error.HResult == unchecked((int)0x80070522))
+        {
+            using var mklink = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe", $"/c mklink /J \"{package}\" \"{externalDir}\"") { CreateNoWindow = true, UseShellExecute = false })!;
+            mklink.WaitForExit(); Assert.Equal(0, mklink.ExitCode);
+        }
+        try
+        {
+            Assert.NotEmpty(StyleTemplateLibrary.Load(path).Issues);
+        }
+        finally
+        {
+            if (Directory.Exists(package))
+            {
+                Directory.Delete(package, false);
+            }
+        }
     }
 }

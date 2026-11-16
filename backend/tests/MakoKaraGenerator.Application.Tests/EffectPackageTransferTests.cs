@@ -177,9 +177,27 @@ public sealed class EffectPackageTransferTests
     public async Task 目录及源码链接拒绝完整性失败不补读外部资源()
     {
         using TemporaryDirectory temp = new(); string source = temp.FilePath("editable"); EffectPackageFixture.WriteDirectory(source);
-        string linked = temp.FilePath("linked"); Directory.CreateSymbolicLink(linked, source);
-        Assert.Equal("PackageLinkRejected", (await Assert.ThrowsAsync<EffectPackageException>(() => EffectPackageTransfer.ReadDirectoryAsync(linked, EffectPackageFixture.Profile))).Code);
-        string file = Path.Combine(source, "README.md"); File.Move(file, temp.FilePath("external.md")); File.CreateSymbolicLink(file, temp.FilePath("external.md"));
+        string linked = temp.FilePath("linked");
+        try { Directory.CreateSymbolicLink(linked, source); }
+        catch (IOException error) when (OperatingSystem.IsWindows() && error.HResult == unchecked((int)0x80070522))
+        {
+            using var mklink = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe", $"/c mklink /J \"{linked}\" \"{source}\"") { CreateNoWindow = true, UseShellExecute = false })!;
+            mklink.WaitForExit(); Assert.Equal(0, mklink.ExitCode);
+        }
+        try
+        {
+            Assert.Equal("PackageLinkRejected", (await Assert.ThrowsAsync<EffectPackageException>(() => EffectPackageTransfer.ReadDirectoryAsync(linked, EffectPackageFixture.Profile))).Code);
+        }
+        finally
+        {
+            if (Directory.Exists(linked))
+            {
+                Directory.Delete(linked, false);
+            }
+        }
+        string file = Path.Combine(source, "README.md"); File.Move(file, temp.FilePath("external.md"));
+        try { File.CreateSymbolicLink(file, temp.FilePath("external.md")); }
+        catch (IOException error) when (OperatingSystem.IsWindows() && error.HResult == unchecked((int)0x80070522)) { return; }
         Assert.Equal("PackageLinkRejected", (await Assert.ThrowsAsync<EffectPackageException>(() => EffectPackageTransfer.ReadDirectoryAsync(source, EffectPackageFixture.Profile))).Code);
     }
     [Fact]

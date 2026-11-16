@@ -40,7 +40,9 @@ public static class StyleTemplateTransfer
             }
             var verified = await ReadArchiveAsync(temporary, budget, cancellationToken).ConfigureAwait(false);
             if (!StyleTemplateLibrary.Encode(verified).AsSpan().SequenceEqual(bytes)) throw new IOException("模板分享核验不一致。");
-            cancellationToken.ThrowIfCancellationRequested(); File.Move(temporary, target, true);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (Directory.Exists(target)) throw new IOException($"目标路径是目录，无法覆盖为文件：{target}");
+            File.Move(temporary, target, true);
         }
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
     }

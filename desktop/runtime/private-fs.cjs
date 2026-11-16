@@ -220,8 +220,9 @@ function setWindowsDirectoryAcl(dirPath, sid) {
     '}',
     'if (-not $safe) {',
     // Replace the complete access section: /grant:r leaves other explicit ACEs.
-    '$acl.SetSecurityDescriptorSddlForm("D:P(A;OICI;FA;;;" + $env:MAKO_ACL_SID + ")", [System.Security.AccessControl.AccessControlSections]::Access)',
-    'Set-Acl -LiteralPath $env:MAKO_ACL_TARGET -AclObject $acl',
+    '$access = New-Object System.Security.AccessControl.DirectorySecurity',
+    '$access.SetSecurityDescriptorSddlForm("D:P(A;OICI;FA;;;" + $env:MAKO_ACL_SID + ")", [System.Security.AccessControl.AccessControlSections]::Access)',
+    '[System.IO.Directory]::SetAccessControl($env:MAKO_ACL_TARGET, $access)',
     '}',
   ].join('\n'), { MAKO_ACL_TARGET: dirPath, MAKO_ACL_SID: sid });
 }

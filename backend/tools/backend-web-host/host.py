@@ -150,6 +150,8 @@ def _windows_directory_acl(target: Path, sid: str):
     # Replace the entire Access section: icacls /grant:r retains foreign ACEs.
     # Return the actual post-write ACL, never trust a successful setter alone.
     script = r"""
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+$ProgressPreference = 'SilentlyContinue'
 $ErrorActionPreference = 'Stop'
 $acl = Get-Acl -LiteralPath $env:MAKO_ACL_TARGET
 $rules = @($acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]))
@@ -159,8 +161,9 @@ if ($safe) {
   $safe = $rule.IdentityReference.Value -eq $env:MAKO_ACL_SID -and $rule.AccessControlType.ToString() -eq 'Allow' -and [int]$rule.FileSystemRights -eq 2032127 -and [int]$rule.InheritanceFlags -eq 3 -and [int]$rule.PropagationFlags -eq 0
 }
 if (-not $safe) {
-  $acl.SetSecurityDescriptorSddlForm("D:P(A;OICI;FA;;;" + $env:MAKO_ACL_SID + ")", [System.Security.AccessControl.AccessControlSections]::Access)
-  Set-Acl -LiteralPath $env:MAKO_ACL_TARGET -AclObject $acl
+  $access = New-Object System.Security.AccessControl.DirectorySecurity
+  $access.SetSecurityDescriptorSddlForm("D:P(A;OICI;FA;;;" + $env:MAKO_ACL_SID + ")", [System.Security.AccessControl.AccessControlSections]::Access)
+  [System.IO.Directory]::SetAccessControl($env:MAKO_ACL_TARGET, $access)
 }
 $acl = Get-Acl -LiteralPath $env:MAKO_ACL_TARGET
 $items = @($acl.Access | ForEach-Object {
@@ -168,6 +171,7 @@ $items = @($acl.Access | ForEach-Object {
 })
 ConvertTo-Json -InputObject @{ protected = $acl.AreAccessRulesProtected; rules = $items } -Compress
 """
+    script = 'try {\n' + script + '\n} catch { [Console]::WriteLine($_.Exception.Message); exit 1 }'
     encoded = base64.b64encode(script.encode('utf-16le')).decode('ascii')
     child_env = {**os.environ, 'MAKO_ACL_TARGET': str(target), 'MAKO_ACL_SID': sid}
     child_env = {key: value for key, value in child_env.items() if key.upper() != 'PSMODULEPATH'}
@@ -175,9 +179,17 @@ ConvertTo-Json -InputObject @{ protected = $acl.AreAccessRulesProtected; rules =
     result = subprocess.run(
         ['powershell.exe', '-NoProfile', '-NonInteractive', '-EncodedCommand', encoded],
         env=child_env,
-        check=True, capture_output=True, text=True, encoding='utf-8', errors='replace',
+        check=False, stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding='utf-8', errors='replace',
         creationflags=subprocess.CREATE_NO_WINDOW if IS_WINDOWS else 0,
     )
+    if result.returncode:
+        # Only this fixed ACL script runs here; no tokens or user file contents
+        # enter it. Preserve its diagnostic instead of the opaque encoded argv.
+        detail = (result.stderr or result.stdout).strip()
+        message = f'Private directory ACL initialization failed for {target}: {detail}'
+        # The launcher may inherit a legacy console encoding while its caller
+        # reads UTF-8. Keep this startup diagnostic unambiguous on that pipe.
+        raise ValueError(message.encode('ascii', errors='backslashreplace').decode('ascii'))
     return json.loads(result.stdout)
 
 

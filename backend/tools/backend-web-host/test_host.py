@@ -176,6 +176,20 @@ class PrivateDirectoryTests(unittest.TestCase):
             self.assertGreater(float(out.strip()), 15)
             self.assertEqual(b'', lock.read_bytes())
 
+    @unittest.skipUnless(host.IS_WINDOWS, 'Windows DACL integration')
+    def test_private_run_directory_created_by_tempfile_accepts_access_only_repair(self):
+        # Python 3.13+ creates tempfile directories with a restrictive DACL for
+        # mode 0700. Rewriting a Get-Acl object via Set-Acl can request audit
+        # privileges even though only Access should change.
+        with tempfile.TemporaryDirectory() as directory:
+            profile = host.ensure_private_dir(Path(directory) / 'profile')
+            for name in ('state', 'projects', 'runs'):
+                host.ensure_private_dir(profile / name)
+            run = Path(tempfile.mkdtemp(prefix='run-', dir=profile / 'runs'))
+            self.assertEqual(run, host.ensure_private_dir(run))
+            host._PROTECTED_DIRS.discard(str(run).lower())
+            self.assertEqual(run, host.ensure_private_dir(run))
+
     def test_symlink_ancestor_is_checked_before_canonicalization(self):
         target = Path('private') / 'alias' / 'child'
         # Memory-only link avoids Windows Developer Mode requirements.

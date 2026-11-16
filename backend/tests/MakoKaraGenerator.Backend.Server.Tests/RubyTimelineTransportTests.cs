@@ -11,6 +11,7 @@ using System.Text.Json.Serialization;
 using MakoKaraGenerator.Backend.Contracts;
 using MakoKaraGenerator.Core.Lyrics.Import;
 using MakoKaraGenerator.Core.Time;
+using MakoKaraGenerator.TestSupport;
 using Xunit.Abstractions;
 
 namespace MakoKaraGenerator.Backend.Server.Tests;
@@ -303,8 +304,8 @@ public sealed class RubyTimelineTransportTests(ITestOutputHelper output)
             string repo = AppContext.BaseDirectory;
             while (!File.Exists(Path.Combine(repo, "MakoKaraGenerator.slnx")) || !Directory.Exists(Path.Combine(repo, "src")))
                 repo = Directory.GetParent(repo)?.FullName ?? throw new InvalidOperationException("Cannot locate repository.");
-            string server = Environment.GetEnvironmentVariable("MAKO_RUBY_HTTP_SERVER_PATH") ?? Path.Combine(repo, "artifacts/ttml-ruby/publish/server/MakoKaraGenerator.Backend.Server");
-            string worker = Environment.GetEnvironmentVariable("MAKO_RUBY_HTTP_WORKER_PATH") ?? Path.Combine(repo, "artifacts/ttml-ruby/publish/worker/MakoKaraGenerator.Backend.Worker");
+            string server = Environment.GetEnvironmentVariable("MAKO_RUBY_HTTP_SERVER_PATH") ?? Path.Combine(repo, "artifacts/ttml-ruby/publish/server/MakoKaraGenerator.Backend.Server" + (OperatingSystem.IsWindows() ? ".exe" : ""));
+            string worker = Environment.GetEnvironmentVariable("MAKO_RUBY_HTTP_WORKER_PATH") ?? Path.Combine(repo, "artifacts/ttml-ruby/publish/worker/MakoKaraGenerator.Backend.Worker" + (OperatingSystem.IsWindows() ? ".exe" : ""));
             Assert.True(File.Exists(server), "Publish the matching self-contained Server first: " + server);
             Assert.True(File.Exists(worker), "Publish the matching complete Worker first: " + worker);
             string root = Path.Combine(repo, "artifacts/ttml-ruby/http", Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root);
@@ -318,7 +319,7 @@ public sealed class RubyTimelineTransportTests(ITestOutputHelper output)
             start.Environment["MAKO_BACKEND_ALLOWED_ROOTS"] = JsonSerializer.Serialize(new Dictionary<string, string> { ["ruby-root"] = projects });
             start.Environment["MAKO_BACKEND_BOOTSTRAP_TOKEN"] = bootstrap;
             start.Environment["MAKO_BACKEND_WORKER_PATH"] = worker;
-            start.Environment["MAKO_BACKEND_FFMPEG_PATH"] = "/usr/bin/ffmpeg"; start.Environment["MAKO_BACKEND_FFPROBE_PATH"] = "/usr/bin/ffprobe";
+            start.Environment["MAKO_BACKEND_FFMPEG_PATH"] = TestMediaToolPaths.Ffmpeg; start.Environment["MAKO_BACKEND_FFPROBE_PATH"] = TestMediaToolPaths.Ffprobe;
             Process process = Process.Start(start)!;
             ObservedProcessTree processes = new(process.Id, Path.GetFileName(worker), root);
             TaskCompletionSource<string> ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -445,6 +446,7 @@ public sealed class RubyTimelineTransportTests(ITestOutputHelper output)
             {
                 if (!seen.Add(pid) || Read(pid) is not { } identity) continue;
                 _observed.AddOrUpdate((identity.Pid, identity.StartTime), identity, (_, previous) => identity.Image.Length > 0 ? identity : previous);
+                if (!OperatingSystem.IsLinux()) continue;
                 try
                 {
                     foreach (string child in File.ReadAllText($"/proc/{pid}/task/{pid}/children").Split(' ', StringSplitOptions.RemoveEmptyEntries))
@@ -455,6 +457,16 @@ public sealed class RubyTimelineTransportTests(ITestOutputHelper output)
         }
         private static Identity? Read(int pid)
         {
+            if (!OperatingSystem.IsLinux())
+            {
+                try
+                {
+                    using Process p = Process.GetProcessById(pid);
+                    if (p.HasExited) return null;
+                    return new(pid, p.StartTime.ToFileTimeUtc(), 0, p.ProcessName);
+                }
+                catch (Exception error) when (error is ArgumentException or InvalidOperationException) { return null; }
+            }
             try
             {
                 string stat = File.ReadAllText($"/proc/{pid}/stat");

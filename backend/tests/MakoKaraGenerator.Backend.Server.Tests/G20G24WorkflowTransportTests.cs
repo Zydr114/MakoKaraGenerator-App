@@ -167,12 +167,13 @@ public sealed partial class PreviewTransportTests
     [Fact]
     public async Task G23真实HTTP十帧透明纯视频导出完整解码与同帧Worker像素对照()
     {
-        WorkerBackendExportExecutor exporter = new(FindWorkerApphost(), "/usr/bin/ffmpeg", "/usr/bin/ffprobe",
+        WorkerBackendExportExecutor exporter = new(FindWorkerApphost(), TestMediaToolPaths.Ffmpeg, TestMediaToolPaths.Ffprobe,
             exportOptions: new BackendExportOptions { MaxMediaBytes = WorkerExportContract.MaximumMediaBytes, MaxAudioBytes = WorkerExportContract.MaximumAudioBytes });
         BackendExportCapabilities capabilities = await exporter.ProbeAsync();
         Assert.True(capabilities.GuardAvailable, capabilities.FailureCode); Assert.True(capabilities.TransparentProRes4444);
         await using Fixture f = await Fixture.Create(injectedFactory: new WorkerRenderFrameSessionFactory(new(FindWorkerApphost())),
             injectedExportExecutor: exporter, exportCapabilities: capabilities);
+        f.Http.Timeout = TimeSpan.FromSeconds(30);
         f.Projects.ConfigureSceneMeasurements(new(FindWorkerApphost()));
         ProjectSession project = await f.OpenNoAudioProject();
         NodeHttpHarness http = new(f, project.ProjectSessionId);
@@ -222,7 +223,7 @@ public sealed partial class PreviewTransportTests
 
     private static async Task<byte[]> WorkflowDecodeVideo(string path)
     {
-        ProcessStartInfo start = new("/usr/bin/ffmpeg") { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
+        ProcessStartInfo start = new(TestMediaToolPaths.Ffmpeg) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
         foreach (string argument in new[] { "-v", "error", "-threads", "1", "-filter_threads", "1", "-i", path,
             "-map", "0:v:0", "-f", "rawvideo", "-pix_fmt", "rgba", "pipe:1" }) start.ArgumentList.Add(argument);
         using Process process = Process.Start(start)!;

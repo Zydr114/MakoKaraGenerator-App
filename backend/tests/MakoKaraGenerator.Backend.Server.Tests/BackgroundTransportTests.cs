@@ -12,7 +12,7 @@ public sealed partial class PreviewTransportTests
     [Fact]
     public async Task HTTP背景上传编辑撤销重做未保存图片读取和保存重开资源授权一致()
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
         await using Fixture f = await Fixture.Create();
         string route = "/api/v1/project-sessions/" + f.Project.ProjectSessionId;
         await BasicMediaCommand(f, "0", new ClearProjectAudioCommandDto());

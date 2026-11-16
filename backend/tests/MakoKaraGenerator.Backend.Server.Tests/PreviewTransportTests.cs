@@ -531,6 +531,7 @@ public sealed partial class PreviewTransportTests
     [InlineData("nonexecutable")]
     public async Task 已验证能力后真实WorkerFactory的open不可用在GET和SSE保留稳定码并释放音频引用(string mode)
     {
+        if (mode == "nonexecutable" && !OperatingSystem.IsLinux()) return;
         using TemporaryDirectory workerFiles = new();
         string path = workerFiles.FilePath("worker-apphost");
         if (mode != "missing") File.Copy(FindWorkerApphost(), path);

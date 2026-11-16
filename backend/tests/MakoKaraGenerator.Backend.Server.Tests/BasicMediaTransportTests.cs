@@ -7,6 +7,7 @@ using System.Text.Json;
 using MakoKaraGenerator.Backend.Contracts;
 using MakoKaraGenerator.Backend.Hosting;
 using MakoKaraGenerator.Media;
+using MakoKaraGenerator.TestSupport;
 
 namespace MakoKaraGenerator.Backend.Server.Tests;
 
@@ -15,7 +16,7 @@ public sealed partial class PreviewTransportTests
     [Fact]
     public async Task 真HTTP真实Worker替换坏源无音轨原子失败且双音轨只准备首轨()
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
         using TemporaryDirectory directory = new();
         (byte[] firstBytes, LoadedWaveform firstWaveform) = BasicWave(8000, 8000, 31);
         (byte[] secondBytes, _) = BasicWave(16000, 32000, 47);
@@ -27,7 +28,7 @@ public sealed partial class PreviewTransportTests
         await BasicFfmpeg(["-v", "error", "-f", "lavfi", "-i", "color=c=black:s=16x16:r=1:d=1", "-an", "-c:v", "mpeg4", videoPath]);
         await using Fixture f = await Fixture.Create(analysisBytes: firstBytes, waveformOverride: firstWaveform);
         f.Http.Timeout = TimeSpan.FromSeconds(30);
-        WorkerBackendAudioPreparationExecutor executor = new(new(FindWorkerApphost()), "/usr/bin/ffmpeg", "/usr/bin/ffprobe");
+        WorkerBackendAudioPreparationExecutor executor = new(new(FindWorkerApphost()), TestMediaToolPaths.Ffmpeg, TestMediaToolPaths.Ffprobe);
         f.Projects.ConfigureAudioPreparation(executor, await executor.ProbeAsync());
         string route = "/api/v1/project-sessions/" + f.Project.ProjectSessionId;
         string original = f.Project.AudioAssetId;
@@ -71,14 +72,14 @@ public sealed partial class PreviewTransportTests
     [Fact]
     public async Task 真HTTP真实Worker替换清除恢复音频字节完整波形分析及保存重开和租约释放()
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
         (byte[] oldBytes, LoadedWaveform oldWaveform) = BasicWave(8000, 8000, 3);
         (byte[] newBytes, LoadedWaveform newWaveform) = BasicWave(16000, 32000, 11);
         WaveformCache cache = new();
         await using Fixture f = await Fixture.Create(analysisFixture: true, analysisBytes: oldBytes,
             waveformOverride: oldWaveform, waveformCache: cache);
         f.Http.Timeout = TimeSpan.FromSeconds(30);
-        WorkerBackendAudioPreparationExecutor executor = new(new(FindWorkerApphost()), "/usr/bin/ffmpeg", "/usr/bin/ffprobe");
+        WorkerBackendAudioPreparationExecutor executor = new(new(FindWorkerApphost()), TestMediaToolPaths.Ffmpeg, TestMediaToolPaths.Ffprobe);
         BackendAudioPreparationCapabilities capabilities = await executor.ProbeAsync();
         Assert.True(capabilities.GuardAvailable, capabilities.FailureCode); Assert.True(capabilities.ToolStartupVerified, capabilities.FailureCode);
         f.Projects.ConfigureAudioPreparation(executor, capabilities);
@@ -289,7 +290,7 @@ public sealed partial class PreviewTransportTests
     }
     private static async Task BasicFfmpeg(string[] arguments)
     {
-        ProcessStartInfo start = new("/usr/bin/ffmpeg") { UseShellExecute = false, RedirectStandardError = true, RedirectStandardOutput = true };
+        ProcessStartInfo start = new(TestMediaToolPaths.Ffmpeg) { UseShellExecute = false, RedirectStandardError = true, RedirectStandardOutput = true };
         foreach (string argument in arguments) start.ArgumentList.Add(argument);
         using Process process = Process.Start(start)!;
         Task<string> error = process.StandardError.ReadToEndAsync();

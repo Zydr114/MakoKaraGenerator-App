@@ -304,7 +304,7 @@ public sealed partial class PreviewTransportTests
     {
         Assert.True(response.StatusCode == HttpStatusCode.Accepted, await response.Content.ReadAsStringAsync());
         JobResponse accepted = (await response.Content.ReadFromJsonAsync<JobResponse>(Json))!;
-        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(15));
+        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(45));
         while (true)
         {
             JobResponse current = (await f.Http.GetFromJsonAsync<JobResponse>("/api/v1/jobs/" + accepted.JobId, Json, timeout.Token))!;

@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -304,16 +305,32 @@ public sealed class RubyTimelineTransportTests(ITestOutputHelper output)
             string repo = AppContext.BaseDirectory;
             while (!File.Exists(Path.Combine(repo, "MakoKaraGenerator.slnx")) || !Directory.Exists(Path.Combine(repo, "src")))
                 repo = Directory.GetParent(repo)?.FullName ?? throw new InvalidOperationException("Cannot locate repository.");
-            string server = Environment.GetEnvironmentVariable("MAKO_RUBY_HTTP_SERVER_PATH") ?? Path.Combine(repo, "artifacts/ttml-ruby/publish/server/MakoKaraGenerator.Backend.Server" + (OperatingSystem.IsWindows() ? ".exe" : ""));
-            string worker = Environment.GetEnvironmentVariable("MAKO_RUBY_HTTP_WORKER_PATH") ?? Path.Combine(repo, "artifacts/ttml-ruby/publish/worker/MakoKaraGenerator.Backend.Worker" + (OperatingSystem.IsWindows() ? ".exe" : ""));
+            string exeSuffix = OperatingSystem.IsWindows() ? ".exe" : "";
+            string? appDist = null;
+            string appCurrentPointer = Path.GetFullPath(Path.Combine(repo, "..", ".local", "backend-current.json"));
+            if (File.Exists(appCurrentPointer))
+            {
+                using JsonDocument pointerDoc = JsonDocument.Parse(File.ReadAllText(appCurrentPointer));
+                if (pointerDoc.RootElement.TryGetProperty("dist", out JsonElement distEl) && distEl.GetString() is { Length: > 0 } distCandidate && Directory.Exists(distCandidate))
+                    appDist = distCandidate;
+            }
+            string defaultServer = appDist is not null
+                ? Path.Combine(appDist, "server", "MakoKaraGenerator.Backend.Server" + exeSuffix)
+                : Path.Combine(repo, "artifacts/ttml-ruby/publish/server/MakoKaraGenerator.Backend.Server" + exeSuffix);
+            string defaultWorker = appDist is not null
+                ? Path.Combine(appDist, "worker", "MakoKaraGenerator.Backend.Worker" + exeSuffix)
+                : Path.Combine(repo, "artifacts/ttml-ruby/publish/worker/MakoKaraGenerator.Backend.Worker" + exeSuffix);
+            string server = Environment.GetEnvironmentVariable("MAKO_RUBY_HTTP_SERVER_PATH") ?? defaultServer;
+            string worker = Environment.GetEnvironmentVariable("MAKO_RUBY_HTTP_WORKER_PATH") ?? defaultWorker;
             Assert.True(File.Exists(server), "Publish the matching self-contained Server first: " + server);
             Assert.True(File.Exists(worker), "Publish the matching complete Worker first: " + worker);
             string root = Path.Combine(repo, "artifacts/ttml-ruby/http", Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root);
             string projects = Path.Combine(root, "projects"); Directory.CreateDirectory(Path.Combine(projects, "saved"));
             string bootstrap = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
-            ProcessStartInfo start = new(server) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, WorkingDirectory = root };
+            ProcessStartInfo start = new(server) { UseShellExecute = false, RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true, WorkingDirectory = root };
             foreach (string key in start.Environment.Keys.Where(key => key.StartsWith("MAKO_BACKEND_", StringComparison.Ordinal)).ToArray()) start.Environment.Remove(key);
             start.ArgumentList.Add("--urls"); start.ArgumentList.Add("http://127.0.0.1:0");
+            start.Environment["MAKO_BACKEND_SHUTDOWN_STDIN"] = "1";
             start.Environment["MAKO_BACKEND_RESOURCE_ROOT"] = Path.Combine(root, "resources");
             start.Environment["MAKO_BACKEND_STATE_ROOT"] = Path.Combine(root, "state");
             start.Environment["MAKO_BACKEND_ALLOWED_ROOTS"] = JsonSerializer.Serialize(new Dictionary<string, string> { ["ruby-root"] = projects });
@@ -397,8 +414,16 @@ public sealed class RubyTimelineTransportTests(ITestOutputHelper output)
                 Http.Dispose();
                 if (!_server.HasExited)
                 {
-                    ProcessStartInfo kill = new("/bin/kill") { UseShellExecute = false }; kill.ArgumentList.Add("-TERM"); kill.ArgumentList.Add(_server.Id.ToString(CultureInfo.InvariantCulture));
-                    using Process signal = Process.Start(kill)!; await signal.WaitForExitAsync();
+                    if (OperatingSystem.IsWindows())
+                    {
+                        try { await _server.StandardInput.WriteLineAsync("SHUTDOWN"); _server.StandardInput.Close(); }
+                        catch (Exception error) when (error is IOException or ObjectDisposedException or InvalidOperationException) { }
+                    }
+                    else
+                    {
+                        ProcessStartInfo kill = new("/bin/kill") { UseShellExecute = false }; kill.ArgumentList.Add("-TERM"); kill.ArgumentList.Add(_server.Id.ToString(CultureInfo.InvariantCulture));
+                        using Process signal = Process.Start(kill)!; await signal.WaitForExitAsync();
+                    }
                     try { await _server.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(30)); }
                     catch (TimeoutException) { _server.Kill(entireProcessTree: true); await _server.WaitForExitAsync(); throw; }
                 }
@@ -442,10 +467,17 @@ public sealed class RubyTimelineTransportTests(ITestOutputHelper output)
             if (Read(_serverPid) is { } server && server.StartTime == _serverStart) pending.Enqueue(_serverPid);
             foreach (Identity identity in _observed.Values)
                 if (Read(identity.Pid) is { } current && current.StartTime == identity.StartTime) pending.Enqueue(identity.Pid);
+            Dictionary<int, List<int>>? windowsChildren = OperatingSystem.IsWindows() ? SnapshotWindowsChildren() : null;
             while (pending.TryDequeue(out int pid))
             {
                 if (!seen.Add(pid) || Read(pid) is not { } identity) continue;
                 _observed.AddOrUpdate((identity.Pid, identity.StartTime), identity, (_, previous) => identity.Image.Length > 0 ? identity : previous);
+                if (windowsChildren is not null)
+                {
+                    if (windowsChildren.TryGetValue(pid, out List<int>? children))
+                        foreach (int childPid in children) pending.Enqueue(childPid);
+                    continue;
+                }
                 if (!OperatingSystem.IsLinux()) continue;
                 try
                 {
@@ -455,6 +487,40 @@ public sealed class RubyTimelineTransportTests(ITestOutputHelper output)
                 catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
             }
         }
+        private static Dictionary<int, List<int>> SnapshotWindowsChildren()
+        {
+            Dictionary<int, List<int>> map = [];
+            IntPtr snapshot = CreateToolhelp32Snapshot(2u, 0u);
+            if (snapshot == IntPtr.Zero || snapshot == new IntPtr(-1)) return map;
+            try
+            {
+                PROCESSENTRY32W entry = new() { dwSize = (uint)Marshal.SizeOf<PROCESSENTRY32W>() };
+                if (Process32FirstW(snapshot, ref entry))
+                {
+                    do
+                    {
+                        int parent = unchecked((int)entry.th32ParentProcessID);
+                        int child = unchecked((int)entry.th32ProcessID);
+                        if (!map.TryGetValue(parent, out List<int>? list)) map[parent] = list = [];
+                        list.Add(child);
+                    } while (Process32NextW(snapshot, ref entry));
+                }
+            }
+            finally { _ = CloseHandle(snapshot); }
+            return map;
+        }
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct PROCESSENTRY32W
+        {
+            public uint dwSize; public uint cntUsage; public uint th32ProcessID; public IntPtr th32DefaultHeapID;
+            public uint th32ModuleID; public uint cntThreads; public uint th32ParentProcessID; public int pcPriClassBase;
+            public uint dwFlags;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)] public string szExeFile;
+        }
+        [DllImport("kernel32.dll", SetLastError = true)] private static extern IntPtr CreateToolhelp32Snapshot(uint dwFlags, uint th32ProcessID);
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] private static extern bool Process32FirstW(IntPtr hSnapshot, ref PROCESSENTRY32W lppe);
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] private static extern bool Process32NextW(IntPtr hSnapshot, ref PROCESSENTRY32W lppe);
+        [DllImport("kernel32.dll", SetLastError = true)] private static extern bool CloseHandle(IntPtr hObject);
         private static Identity? Read(int pid)
         {
             if (!OperatingSystem.IsLinux())
@@ -463,9 +529,10 @@ public sealed class RubyTimelineTransportTests(ITestOutputHelper output)
                 {
                     using Process p = Process.GetProcessById(pid);
                     if (p.HasExited) return null;
-                    return new(pid, p.StartTime.ToFileTimeUtc(), 0, p.ProcessName);
+                    string image = OperatingSystem.IsWindows() ? p.ProcessName + ".exe" : p.ProcessName;
+                    return new(pid, p.StartTime.ToFileTimeUtc(), 0, image);
                 }
-                catch (Exception error) when (error is ArgumentException or InvalidOperationException) { return null; }
+                catch (Exception error) when (error is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception) { return null; }
             }
             try
             {

@@ -507,6 +507,14 @@ def run(args):
         lines.put(None)
 
     threading.Thread(target=reader, daemon=True).start()
+    if os.environ.get('MAKO_HOST_SHUTDOWN_STDIN') == '1':
+        def stdin_watcher():
+            for raw in sys.stdin:
+                if raw.strip() == 'SHUTDOWN':
+                    break
+            if process.poll() is None:
+                _request_graceful_shutdown(process)
+        threading.Thread(target=stdin_watcher, daemon=True).start()
     ready = False
     deadline = time.monotonic() + 60
     code = None

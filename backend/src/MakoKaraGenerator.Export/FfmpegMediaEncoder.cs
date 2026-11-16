@@ -123,15 +123,18 @@ internal sealed class FfmpegEncodingSession : IVideoEncodingSession
     private readonly string _temporaryOutputPath;
     private readonly Channel<RenderFrame> _frames;
     private readonly CancellationTokenSource _lifetime = new();
+    private readonly CancellationTokenSource _sizeLimitSource = new();
     private readonly TaskCompletionSource _pipesReady =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly List<string> _log = [];
     private readonly object _logGate = new();
 
     private Task<CommandResult>? _execution;
+    private Task? _sizeMonitor;
     private CancellationTokenSource? _timeoutSource;
     private CancellationTokenSource? _linked;
     private int _framesWritten;
+    private long _exceededActualBytes;
     private readonly string _telemetrySession = Guid.NewGuid().ToString("N");
     private long _telemetrySequence;
     private int _droppedFrames;
@@ -178,7 +181,8 @@ internal sealed class FfmpegEncodingSession : IVideoEncodingSession
         _linked = CancellationTokenSource.CreateLinkedTokenSource(
             _lifetime.Token,
             cancellationToken,
-            _timeoutSource.Token);
+            _timeoutSource.Token,
+            _sizeLimitSource.Token);
 
         Command command = Cli.Wrap(_executablePath)
             .WithArguments(arguments)
@@ -188,6 +192,10 @@ internal sealed class FfmpegEncodingSession : IVideoEncodingSession
             .WithStandardErrorPipe(PipeTarget.Create(ReadLogAsync));
 
         _execution = ExecuteAsync(command);
+        if (_request.MaximumOutputBytes is { } maximumOutputBytes)
+        {
+            _sizeMonitor = MonitorOutputSizeAsync(maximumOutputBytes);
+        }
 
         // "进程起不来"必须在这里就报出来，而不是等到第一帧写完才发现。
         // 管道回调在进程起来之后才会被调用，于是这两件事谁先完成就说明了问题。
@@ -221,6 +229,12 @@ internal sealed class FfmpegEncodingSession : IVideoEncodingSession
                     $"帧尺寸 {frame.Width}×{frame.Height} 与请求的 {_request.Width}×{_request.Height} 不一致。"));
         }
 
+        if (_sizeLimitSource.IsCancellationRequested)
+        {
+            frame.Dispose();
+            throw CreateSizeLimitExceededException();
+        }
+
         try
         {
             // 编码层只记录入队耗时；它既不是编码耗时，也不属于已经结束的渲染帧作用域。
@@ -232,6 +246,10 @@ internal sealed class FfmpegEncodingSession : IVideoEncodingSession
         {
             // 取消要把整条管线停下：光丢一帧没有意义，进程还在等下一帧。
             frame.Dispose();
+            if (_sizeLimitSource.IsCancellationRequested)
+            {
+                throw CreateSizeLimitExceededException();
+            }
             await _lifetime.CancelAsync().ConfigureAwait(false);
 
             throw;
@@ -239,6 +257,10 @@ internal sealed class FfmpegEncodingSession : IVideoEncodingSession
         catch (ChannelClosedException)
         {
             frame.Dispose();
+            if (_sizeLimitSource.IsCancellationRequested)
+            {
+                throw CreateSizeLimitExceededException();
+            }
 
             throw new IOException($"编码进程已经结束，无法再写入帧：{Tail()}");
         }
@@ -253,11 +275,16 @@ internal sealed class FfmpegEncodingSession : IVideoEncodingSession
 
         _frames.Writer.TryComplete();
 
-        CommandResult result;
+        CommandResult? result = null;
+        bool canceledBySizeLimit = false;
 
         try
         {
             result = await Execution.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (_sizeLimitSource.IsCancellationRequested)
+        {
+            canceledBySizeLimit = true;
         }
         catch (OperationCanceledException) when (_timeoutSource?.IsCancellationRequested == true)
         {
@@ -268,7 +295,23 @@ internal sealed class FfmpegEncodingSession : IVideoEncodingSession
                 $"编码超时（超过 {_request.Timeout ?? VideoExportOptions.DefaultTimeout}）：已终止编码进程。"));
         }
 
-        if (result.ExitCode != 0)
+        if (_sizeMonitor is not null)
+        {
+            try { await _sizeMonitor.ConfigureAwait(false); }
+            catch (OperationCanceledException) { }
+        }
+
+        long size = ReadFinalActualFileLength(_temporaryOutputPath);
+        if (_request.MaximumOutputBytes is { } maximumOutputBytes
+            && (canceledBySizeLimit || _sizeLimitSource.IsCancellationRequested || size > maximumOutputBytes))
+        {
+            long observed = Math.Max(size, Volatile.Read(ref _exceededActualBytes));
+            await DisposeAsync().ConfigureAwait(false);
+            DeleteTemporaryOutputQuietly();
+            throw CreateSizeLimitExceededException(observed);
+        }
+
+        if (result!.ExitCode != 0)
         {
             throw new IOException(string.Create(
                 CultureInfo.InvariantCulture,
@@ -277,7 +320,6 @@ internal sealed class FfmpegEncodingSession : IVideoEncodingSession
 
         cancellationToken.ThrowIfCancellationRequested();
         _linked!.Token.ThrowIfCancellationRequested();
-        long size = File.Exists(_temporaryOutputPath) ? new FileInfo(_temporaryOutputPath).Length : 0L;
         if (size == 0) throw new IOException("编码产物为空，原输出保持。");
         // 暂存产物转交导出事务；验证及会话释放成功之前不能发布最终输出。
         VideoEncodingArtifact artifact = new(_temporaryOutputPath);
@@ -312,6 +354,12 @@ internal sealed class FfmpegEncodingSession : IVideoEncodingSession
             catch { /* 执行失败由 Start／Complete 或调用方原始错误报告；此处确保管道和进程已经结束。 */ }
         }
 
+        if (_sizeMonitor is not null)
+        {
+            try { await _sizeMonitor.ConfigureAwait(false); }
+            catch { }
+        }
+
         while (_frames.Reader.TryRead(out RenderFrame? leftover))
         {
             leftover.Dispose();
@@ -319,8 +367,81 @@ internal sealed class FfmpegEncodingSession : IVideoEncodingSession
 
         _timeoutSource?.Dispose();
         _linked?.Dispose();
+        _sizeLimitSource.Dispose();
         _lifetime.Dispose();
-        if (!_completed) File.Delete(_temporaryOutputPath);
+        if (!_completed) DeleteTemporaryOutputQuietly();
+    }
+
+    private async Task MonitorOutputSizeAsync(long maximumOutputBytes)
+    {
+        using PeriodicTimer timer = new(TimeSpan.FromMilliseconds(25));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(_linked!.Token).ConfigureAwait(false))
+            {
+                long actual = TryReadActualFileLength(_temporaryOutputPath);
+                if (actual > maximumOutputBytes)
+                {
+                    Interlocked.CompareExchange(ref _exceededActualBytes, actual, 0L);
+                    await _sizeLimitSource.CancelAsync().ConfigureAwait(false);
+                    return;
+                }
+            }
+        }
+        catch (OperationCanceledException) when (_linked!.IsCancellationRequested)
+        {
+        }
+    }
+
+    private static long TryReadActualFileLength(string path)
+    {
+        try
+        {
+            // 以 FileShare.ReadWrite | FileShare.Delete 打开读取 FileStream.Length（底层 GetFileSizeEx 直读 FCB 真实长度，
+            // 绕过 NTFS 目录项元数据缓存不刷新陷阱）。
+            using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            return stream.Length;
+        }
+        catch (Exception error) when (error is FileNotFoundException or DirectoryNotFoundException or IOException)
+        {
+            return 0L;
+        }
+    }
+
+    private static long ReadFinalActualFileLength(string path)
+    {
+        try
+        {
+            using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            return stream.Length;
+        }
+        catch (Exception error) when (error is FileNotFoundException or DirectoryNotFoundException)
+        {
+            return 0L;
+        }
+    }
+
+    private void DeleteTemporaryOutputQuietly()
+    {
+        try
+        {
+            if (File.Exists(_temporaryOutputPath)) File.Delete(_temporaryOutputPath);
+        }
+        catch (IOException)
+        {
+        }
+    }
+
+    private OutputSizeLimitExceededException CreateSizeLimitExceededException(long? observedBytes = null)
+    {
+        long maximum = _request.MaximumOutputBytes ?? 0L;
+        long actual = observedBytes ?? Math.Max(Volatile.Read(ref _exceededActualBytes), TryReadActualFileLength(_temporaryOutputPath));
+        return new OutputSizeLimitExceededException(
+            maximum,
+            actual,
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"编码输出体积（{actual} 字节）超过允许上限（{maximum} 字节），已终止编码并清理临时文件。"));
     }
 
     private Task<CommandResult> Execution => _execution

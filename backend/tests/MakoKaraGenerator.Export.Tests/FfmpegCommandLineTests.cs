@@ -140,6 +140,19 @@ public sealed class FfmpegCommandLineTests
         Assert.Contains("-nostdin", arguments);
     }
 
+    [Fact]
+    public void 输出字节上限将_fs_设为上限加64KiB作为兜底()
+    {
+        const long maxBytes = 128 * 1024;
+        IReadOnlyList<string> arguments = FfmpegCommandLine.BuildVideoEncoding(
+            CreateRequest() with { MaximumOutputBytes = maxBytes });
+
+        List<string> list = [.. arguments];
+        int index = list.IndexOf("-fs");
+        Assert.True(index >= 0);
+        Assert.Equal((maxBytes + 64L * 1024L).ToString(System.Globalization.CultureInfo.InvariantCulture), list[index + 1]);
+    }
+
     private static VideoEncodingRequest CreateRequest(
         ExportQuality quality = ExportQuality.Standard,
         bool overwrite = true) => new()

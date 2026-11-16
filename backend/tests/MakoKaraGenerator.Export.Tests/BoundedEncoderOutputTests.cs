@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text.Json;
 using MakoKaraGenerator.Core.Time;
 using MakoKaraGenerator.Rendering;
 
@@ -10,18 +12,14 @@ public sealed class BoundedEncoderOutputTests
     [InlineData(false)]
     public async Task 队列满时等待并在取消或编码失败后释放所有帧(bool cancel)
     {
-        if (!OperatingSystem.IsLinux()) return;
         using TemporaryDirectory directory = new();
-        string executable = directory.FilePath("blocked-encoder");
         string release = directory.FilePath("release");
-        await File.WriteAllTextAsync(executable, $"""
-            #!/usr/bin/env python3
+        string executable = CreatePythonWrapper(directory, "blocked-encoder", $$"""
             import os, time
-            while not os.path.exists({System.Text.Json.JsonSerializer.Serialize(release)}):
+            while not os.path.exists({{JsonSerializer.Serialize(release)}}):
                 time.sleep(0.01)
             raise SystemExit(17)
             """);
-        File.SetUnixFileMode(executable, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
         using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(20));
         IVideoEncodingSession session = await new FfmpegMediaEncoder(executable).StartAsync(new()
         {
@@ -58,11 +56,12 @@ public sealed class BoundedEncoderOutputTests
     [Fact]
     public async Task 完成编码按顺序写出并释放所有帧()
     {
-        if (!OperatingSystem.IsLinux()) return;
         using TemporaryDirectory directory = new();
-        string executable = directory.FilePath("ordered-encoder");
-        await File.WriteAllTextAsync(executable, "#!/usr/bin/env python3\nimport sys\nopen(sys.argv[-1], 'wb').write(sys.stdin.buffer.read())\n");
-        File.SetUnixFileMode(executable, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        string executable = CreatePythonWrapper(directory, "ordered-encoder", """
+            import sys
+            with open(sys.argv[-1], 'wb') as out:
+                out.write(sys.stdin.buffer.read())
+            """);
         using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(10));
         await using IVideoEncodingSession session = await new FfmpegMediaEncoder(executable).StartAsync(new()
         {
@@ -90,11 +89,11 @@ public sealed class BoundedEncoderOutputTests
     [Fact]
     public async Task 已释放会话拒绝帧时仍释放帧()
     {
-        if (!OperatingSystem.IsLinux()) return;
         using TemporaryDirectory directory = new();
-        string executable = directory.FilePath("controlled-encoder");
-        await File.WriteAllTextAsync(executable, "#!/bin/sh\ncat >/dev/null\n");
-        File.SetUnixFileMode(executable, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        string executable = CreatePythonWrapper(directory, "controlled-encoder", """
+            import sys
+            sys.stdin.buffer.read()
+            """);
         IVideoEncodingSession session = await new FfmpegMediaEncoder(executable).StartAsync(new()
         {
             OutputPath = directory.FilePath("candidate.mp4"), Width = 2, Height = 2,
@@ -109,19 +108,16 @@ public sealed class BoundedEncoderOutputTests
     [Fact]
     public async Task 无换行编码诊断保持有界且排水后原帧所有权已释放()
     {
-        if (!OperatingSystem.IsLinux()) return;
         using TemporaryDirectory directory = new();
-        string executable = directory.FilePath("controlled-encoder");
-        await File.WriteAllTextAsync(executable, """
-            #!/usr/bin/env python3
+        string executable = CreatePythonWrapper(directory, "controlled-encoder", """
             import sys
             sys.stderr.write('x' * (4*1024*1024))
             sys.stderr.flush()
             data=sys.stdin.buffer.read()
-            open(sys.argv[-1], 'wb').write(b'x')
+            with open(sys.argv[-1], 'wb') as out:
+                out.write(b'x')
             print('drop_frames=0')
             """);
-        File.SetUnixFileMode(executable, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
         using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(10));
         await using IVideoEncodingSession session = await new FfmpegMediaEncoder(executable).StartAsync(new()
         {
@@ -139,5 +135,136 @@ public sealed class BoundedEncoderOutputTests
             Assert.Throws<ObjectDisposedException>(() => frame.PixelMemory);
             Assert.False(File.Exists(directory.FilePath("candidate.mp4")));
         }
+    }
+
+    [Fact]
+    public async Task 编码器零退出码超限写盘绝不静默截断成功且清理临时残片()
+    {
+        using TemporaryDirectory directory = new();
+        // Simulate FFmpeg hitting -fs and exiting gracefully with exit code 0 while producing maxBytes + 1.
+        string executable = CreatePythonWrapper(directory, "fs-zero-exit-encoder", """
+            import sys
+            fs_index = sys.argv.index('-fs')
+            fs_value = int(sys.argv[fs_index + 1])
+            assert fs_value == 1024 + 65536
+            sys.stdin.buffer.read()
+            with open(sys.argv[-1], 'wb') as out:
+                out.write(b'A' * 1025)
+            sys.exit(0)
+            """);
+        using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(10));
+        await using IVideoEncodingSession session = await new FfmpegMediaEncoder(executable).StartAsync(new()
+        {
+            OutputPath = directory.FilePath("candidate.mp4"),
+            Width = 2,
+            Height = 2,
+            FrameRate = FrameRate.Fps30,
+            TotalFrames = 1,
+            MaximumOutputBytes = 1024,
+        }, deadline.Token);
+
+        RenderFrame frame = new(new byte[16], new RenderTarget { PixelWidth = 2, PixelHeight = 2 }, PixelFormat.Bgra8888Premultiplied, 0);
+        await session.WriteFrameAsync(frame, deadline.Token);
+
+        OutputSizeLimitExceededException error = await Assert.ThrowsAsync<OutputSizeLimitExceededException>(
+            () => session.CompleteAsync(deadline.Token));
+        Assert.Equal(1024, error.MaximumBytes);
+        Assert.Equal(1025, error.ActualBytes);
+        Assert.False(File.Exists(directory.FilePath("candidate.mp4")));
+        Assert.Empty(Directory.GetFiles(directory.Path, "*.encoding.*"));
+    }
+
+    [Fact]
+    public async Task 运行期流式监控通过共享句柄读取真实长度超限即杀并清理残片()
+    {
+        using TemporaryDirectory directory = new();
+        // Keep the output handle open without closing or exiting; FileStream.Length (GetFileSizeEx) must detect > maxBytes.
+        string executable = CreatePythonWrapper(directory, "streaming-overrun-encoder", """
+            import sys, time
+            with open(sys.argv[-1], 'wb') as out:
+                out.write(b'B' * 4096)
+                out.flush()
+                time.sleep(30)
+            """);
+        using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(10));
+        await using IVideoEncodingSession session = await new FfmpegMediaEncoder(executable).StartAsync(new()
+        {
+            OutputPath = directory.FilePath("candidate.mp4"),
+            Width = 2,
+            Height = 2,
+            FrameRate = FrameRate.Fps30,
+            TotalFrames = 1,
+            MaximumOutputBytes = 1024,
+        }, deadline.Token);
+
+        RenderFrame frame = new(new byte[16], new RenderTarget { PixelWidth = 2, PixelHeight = 2 }, PixelFormat.Bgra8888Premultiplied, 0);
+        try
+        {
+            await session.WriteFrameAsync(frame, deadline.Token);
+            await Assert.ThrowsAsync<OutputSizeLimitExceededException>(() => session.CompleteAsync(deadline.Token));
+        }
+        catch (OutputSizeLimitExceededException)
+        {
+            // Also acceptable if detected during WriteFrameAsync.
+        }
+        await session.DisposeAsync();
+        Assert.False(File.Exists(directory.FilePath("candidate.mp4")));
+        Assert.Empty(Directory.GetFiles(directory.Path, "*.encoding.*"));
+    }
+
+    [Fact]
+    public async Task 真实FFmpeg超限触发防截断报错并彻底清理临时残片()
+    {
+        using TemporaryDirectory directory = new();
+        string output = directory.FilePath("overrun.mp4");
+        using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(20));
+        await using IVideoEncodingSession session = await new FfmpegMediaEncoder(TestMediaToolPaths.Ffmpeg).StartAsync(new()
+        {
+            OutputPath = output,
+            Width = 128,
+            Height = 128,
+            FrameRate = FrameRate.Fps30,
+            TotalFrames = 30,
+            MaximumOutputBytes = 4096,
+        }, deadline.Token);
+
+        var target = new RenderTarget { PixelWidth = 128, PixelHeight = 128 };
+        Random rng = new(42);
+        try
+        {
+            for (int i = 0; i < 30; i++)
+            {
+                byte[] pixels = new byte[128 * 128 * 4];
+                rng.NextBytes(pixels);
+                for (int p = 3; p < pixels.Length; p += 4) pixels[p] = 255;
+                await session.WriteFrameAsync(new RenderFrame(pixels, target, PixelFormat.Bgra8888Premultiplied, i * 33_333L), deadline.Token);
+            }
+            await Assert.ThrowsAsync<OutputSizeLimitExceededException>(() => session.CompleteAsync(deadline.Token));
+        }
+        catch (OutputSizeLimitExceededException)
+        {
+            // Exceedance detected mid-stream while feeding frames.
+        }
+
+        await session.DisposeAsync();
+        Assert.False(File.Exists(output));
+        Assert.Empty(Directory.GetFiles(directory.Path, "*.encoding*"));
+    }
+
+    private static string CreatePythonWrapper(TemporaryDirectory directory, string name, string pythonSource)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            string pyPath = directory.FilePath(name + ".py");
+            File.WriteAllText(pyPath, pythonSource);
+            string cmdPath = directory.FilePath(name + ".cmd");
+            File.WriteAllText(cmdPath, string.Create(CultureInfo.InvariantCulture, $"@echo off\r\n\"{TestMediaToolPaths.Python}\" \"{pyPath}\" %*\r\n"));
+            return cmdPath;
+        }
+
+        string scriptPath = directory.FilePath(name);
+        File.WriteAllText(scriptPath, "#!/usr/bin/env python3\n" + pythonSource.Replace("\r\n", "\n", StringComparison.Ordinal));
+        File.SetUnixFileMode(scriptPath, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        return scriptPath;
     }
 }

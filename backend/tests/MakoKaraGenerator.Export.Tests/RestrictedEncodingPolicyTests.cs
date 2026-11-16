@@ -22,12 +22,12 @@ public sealed class RestrictedEncodingPolicyTests
         Assert.Contains("libx264", arguments);
         Assert.DoesNotContain("-shortest", arguments);
         Assert.Contains("-t", arguments);
-        int size = arguments.ToList().IndexOf("-fs"); Assert.Equal("67108864", arguments[size + 1]);
+        int size = arguments.ToList().IndexOf("-fs"); Assert.Equal("67174400", arguments[size + 1]);
         string[] wave = ["-hide_banner", "-nostdin", "-loglevel", "warning", "-f", "rawvideo", "-pix_fmt", "bgra",
             "-s", "320x180", "-r", "30", "-i", "pipe:0", "-protocol_whitelist", "file,pipe", "-f", "wav", "-i", "input.wav",
             "-map", "0:v:0", "-map", "1:a:0", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "20", "-preset", "medium",
             "-c:a", "aac", "-b:a", "192k", "-t", "3", "-movflags", "+faststart", "-progress", "pipe:1", "-nostats",
-            "-fs", "67108864", "-y", "output.mp4"];
+            "-fs", "67174400", "-y", "output.mp4"];
         Assert.Equal(wave, arguments);
         IReadOnlyList<string> ordinary = FfmpegCommandLine.BuildVideoEncoding(request with { AudioInputFormat = null, MaximumOutputBytes = null });
         Assert.DoesNotContain("-protocol_whitelist", ordinary);

@@ -162,7 +162,7 @@ internal static class FfmpegCommandLine
 
         if (request.MaximumOutputBytes is { } maximum)
         {
-            arguments.Add("-fs"); arguments.Add(maximum.ToString(CultureInfo.InvariantCulture));
+            arguments.Add("-fs"); arguments.Add(checked(maximum + 64L * 1024L).ToString(CultureInfo.InvariantCulture));
         }
 
         arguments.Add(request.Overwrite ? "-y" : "-n");

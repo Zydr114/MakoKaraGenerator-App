@@ -10,7 +10,6 @@ public sealed class RestrictedRationalAudioTests
     [Fact]
     public async Task 强WAV透明有理帧率不得因尾音采样取整丢最后一帧()
     {
-        if (!OperatingSystem.IsLinux()) return;
         using TemporaryDirectory directory = new();
         string audioPath = directory.FilePath("source.wav");
         const int sourceSamples = 44_100 * 3;
@@ -23,7 +22,7 @@ public sealed class RestrictedRationalAudioTests
             for (int sample = 0; sample < sourceSamples; sample++) wave.Write((short)4096);
         }
         using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(15));
-        await using IVideoEncodingSession session = await new FfmpegMediaEncoder("/usr/bin/ffmpeg").StartAsync(new()
+        await using IVideoEncodingSession session = await new FfmpegMediaEncoder(TestMediaToolPaths.Ffmpeg).StartAsync(new()
         {
             OutputPath = directory.FilePath("candidate.mov"), Width = 32, Height = 18,
             FrameRate = new(30_000, 1001), TotalFrames = 60, Format = ExportVideoFormat.TransparentProRes4444,
@@ -43,7 +42,7 @@ public sealed class RestrictedRationalAudioTests
         using (result.Artifact)
         {
             Assert.Equal(60, result.FramesWritten);
-            MediaFileInfo? info = await new FfmpegMediaProbe("/usr/bin/ffprobe").ProbeFileAsync(
+            MediaFileInfo? info = await new FfmpegMediaProbe(TestMediaToolPaths.Ffprobe).ProbeFileAsync(
                 result.Artifact.TemporaryPath, true, "mov", deadline.Token);
             Assert.Equal(60L, info!.Video!.DecodedFrameCount);
             Assert.Equal(30_000, info.Video.FrameRateNumerator); Assert.Equal(1001, info.Video.FrameRateDenominator);
@@ -51,7 +50,7 @@ public sealed class RestrictedRationalAudioTests
             Assert.Equal("pcm_s16le", info.Audio!.CodecName);
             // 2.002 seconds at 44.1 kHz is not an integer number of samples.
             Assert.InRange(info.Audio.DurationUs, 2_001_990, 2_002_010);
-            ProcessStartInfo decode = new("/usr/bin/ffmpeg") { RedirectStandardOutput = true, RedirectStandardError = true };
+            ProcessStartInfo decode = new(TestMediaToolPaths.Ffmpeg) { RedirectStandardOutput = true, RedirectStandardError = true };
             foreach (string argument in new[] { "-v", "error", "-i", result.Artifact.TemporaryPath,
                 "-map", "0:a:0", "-f", "s16le", "pipe:1" }) decode.ArgumentList.Add(argument);
             using Process process = Process.Start(decode)!;

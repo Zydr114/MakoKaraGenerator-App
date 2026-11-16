@@ -124,6 +124,7 @@ export async function launchChrome({ headed = false } = {}) {
       `--user-data-dir=${profile}`,
       '--no-first-run',
       '--no-default-browser-check',
+      '--no-proxy-server',
       '--disable-gpu',
       '--autoplay-policy=no-user-gesture-required',
       'about:blank',

@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const { createServer } = require('node:http');
 const path = require('node:path');
+const privateFs = require('./private-fs.cjs');
 
 const MIME_TYPES = Object.freeze({
   '.html': 'text/html; charset=utf-8',
@@ -72,7 +73,7 @@ async function startStaticWebServer(options) {
         res.writeHead(400).end();
         return;
       }
-      if (!target.startsWith(distRoot + path.sep) && target !== distRoot) {
+      if (!privateFs.isInsideRoot(distRoot, target) && !privateFs.isSamePath(target, distRoot)) {
         res.writeHead(403).end();
         return;
       }
@@ -83,7 +84,7 @@ async function startStaticWebServer(options) {
       let info;
       try {
         realTarget = await fsp.realpath(target);
-        if (!realTarget.startsWith(distRoot + path.sep) && realTarget !== distRoot) {
+        if (!privateFs.isInsideRoot(distRoot, realTarget) && !privateFs.isSamePath(realTarget, distRoot)) {
           res.writeHead(403).end();
           return;
         }

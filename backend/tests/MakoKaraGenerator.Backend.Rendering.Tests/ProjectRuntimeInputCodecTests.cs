@@ -40,9 +40,10 @@ public sealed class ProjectRuntimeInputCodecTests
     {
         var source = AdvancedPresetSnapshotCodecTests.Create();
         var media = new MediaFileRevision(new string('a', 64), 12345, kind == BackgroundKind.Image ? "背景.png" : "背景.mp4");
-        source = source with { Background = new() { Kind = kind, Path = "/host/only/背景", Media = media, Fit = fit, Playback = playback } };
+        string hostPrivatePath = HostPath("/private/immutable/input");
+        source = source with { Background = new() { Kind = kind, Path = HostPath("/host/only/背景"), Media = media, Fit = fit, Playback = playback } };
         source = source with { EffectInputsFingerprint = MakoKaraGenerator.Core.Effects.ProjectEffectInputs.Fingerprint(ProjectSnapshotSourceProject.Restore(source)) };
-        var grant = new ProjectRuntimeBackgroundGrant(kind, media.RelativePath, "/private/immutable/input", media.Hash,
+        var grant = new ProjectRuntimeBackgroundGrant(kind, media.RelativePath, hostPrivatePath, media.Hash,
             media.ByteLength, media.OriginalName, fit, playback);
         byte[] bytes = ProjectRuntimeInputCodec.Encode(source, grant);
         Assert.True(ProjectRuntimeInputCodec.IsRuntimeInput(bytes));
@@ -61,6 +62,9 @@ public sealed class ProjectRuntimeInputCodecTests
         var copy = ProjectRuntimeInputCodec.Decode(ProjectRuntimeInputCodec.Encode(source, null));
         Assert.Null(copy.Grant); Assert.Equal(source, copy.Snapshot);
         Assert.Throws<SnapshotContractException>(() => ProjectRuntimeInputCodec.Encode(source,
-            new(BackgroundKind.Video, "invalid", "/private/input", new string('a', 64), 123, "x.mp4", BackgroundFit.Cover, BackgroundPlaybackMode.Loop)));
+            new(BackgroundKind.Video, "invalid", HostPath("/private/input"), new string('a', 64), 123, "x.mp4", BackgroundFit.Cover, BackgroundPlaybackMode.Loop)));
     }
+
+    private static string HostPath(string unixPath) =>
+        OperatingSystem.IsWindows() ? @"C:" + unixPath.Replace('/', '\\') : unixPath;
 }

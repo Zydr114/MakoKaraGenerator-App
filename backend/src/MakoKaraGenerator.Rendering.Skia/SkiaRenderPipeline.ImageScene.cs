@@ -79,7 +79,8 @@ public sealed partial class SkiaRenderPipeline
                 _retained = null;
                 return new byte[length];
             }
-            if (_retained is null || _retained.Length < length) _retained = new byte[length];
+            // 固定在 POH 上：保留的 readback 缓冲在多次读取间地址恒定，避免并发 GC 压缩移动 SOH 数组。
+            if (_retained is null || _retained.Length < length) _retained = GC.AllocateArray<byte>(length, pinned: true);
             return _retained;
         }
         public void Dispose() => _retained = null;

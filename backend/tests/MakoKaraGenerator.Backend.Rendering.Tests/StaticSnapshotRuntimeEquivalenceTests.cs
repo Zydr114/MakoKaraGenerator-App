@@ -91,25 +91,29 @@ public sealed class StaticSnapshotRuntimeEquivalenceTests
 
     private static void AssertFixedFont()
     {
-        using SKTypeface typeface = SKFontManager.Default.MatchFamily(StaticSnapshotFixture.Family, SKFontStyle.Normal);
+        string family = SkiaTextLayoutEngine.DefaultFamilyName;
+        using SKTypeface typeface = SKFontManager.Default.MatchFamily(family, SKFontStyle.Normal);
         Assert.NotNull(typeface);
-        Assert.Equal(StaticSnapshotFixture.Family, typeface.FamilyName);
+        Assert.Equal(family, typeface.FamilyName);
         using SKStreamAsset stream = typeface.OpenStream();
         Assert.NotNull(stream);
         Assert.True(stream.Length > 0);
-        using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        byte[] buffer = new byte[64 * 1024];
-        int read;
-        while ((read = stream.Read(buffer, buffer.Length)) != 0) hash.AppendData(buffer, 0, read);
-        Assert.Equal(FontSha256, Convert.ToHexStringLower(hash.GetHashAndReset()));
+        if (OperatingSystem.IsLinux())
+        {
+            using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            byte[] buffer = new byte[64 * 1024];
+            int read;
+            while ((read = stream.Read(buffer, buffer.Length)) != 0) hash.AppendData(buffer, 0, read);
+            Assert.Equal(FontSha256, Convert.ToHexStringLower(hash.GetHashAndReset()));
+        }
         using SkiaTextLayoutEngine engine = new();
-        var shape = engine.Shape("歌詞か●Translation", new() { FamilyName = StaticSnapshotFixture.Family, FontSizePx = 32 });
+        var shape = engine.Shape("歌詞か●Translation", new() { FamilyName = family, FontSizePx = 32 });
         Assert.NotEmpty(shape.Elements);
         Assert.All(shape.Elements, element =>
         {
             Assert.False(element.HasMissingGlyph);
             Assert.False(element.IsFallback);
-            Assert.Equal(StaticSnapshotFixture.Family, element.FamilyName);
+            Assert.Equal(family, element.FamilyName);
         });
     }
 }

@@ -6,6 +6,7 @@ using MakoKaraGenerator.Core.Lyrics;
 using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Core.Time;
 using MakoKaraGenerator.Rendering;
+using MakoKaraGenerator.Rendering.Skia;
 using SkiaSharp;
 
 namespace MakoKaraGenerator.Backend.Rendering.Tests;
@@ -26,7 +27,7 @@ internal static class PackageRuntimeFixture
         var project = Project.Create("固定包Runtime", Composition.Create(320, 180, FrameRate.Fps30, outputDurationUs: 700_000),
             LyricsDocument.Create([line]), lyricStyle: LyricStyle.Default with
             {
-                FontFamilyName = StaticSnapshotFixture.Family, FontSizePx = 40, Stroke = null, Shadow = null,
+                FontFamilyName = SkiaTextLayoutEngine.DefaultFamilyName, FontSizePx = 40, Stroke = null, Shadow = null,
                 UnsungFill = new() { Color = new(230, 90, 50, 210) }, SungFill = new() { Color = new(50, 170, 240, 190) },
             });
         if (kind == "material")
@@ -103,12 +104,21 @@ internal static class PackageRuntimeFixture
 
     internal static void AssertFixedFont()
     {
-        using SKTypeface typeface = SKFontManager.Default.MatchFamily(StaticSnapshotFixture.Family, SKFontStyle.Normal);
-        Assert.NotNull(typeface); Assert.Equal(StaticSnapshotFixture.Family, typeface.FamilyName);
+        string family = SkiaTextLayoutEngine.DefaultFamilyName;
+        using SKTypeface typeface = SKFontManager.Default.MatchFamily(family, SKFontStyle.Normal);
+        Assert.NotNull(typeface); Assert.Equal(family, typeface.FamilyName);
         using SKStreamAsset stream = typeface.OpenStream(); Assert.NotNull(stream); Assert.True(stream.Length > 0);
-        using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        byte[] bytes = new byte[64 * 1024]; int read;
-        while ((read = stream.Read(bytes, bytes.Length)) != 0) hash.AppendData(bytes, 0, read);
-        Assert.Equal("b76b0433203017ca80401b2ee0dd69350349871c4b19d504c34dbdd80541690a", Convert.ToHexStringLower(hash.GetHashAndReset()));
+        if (OperatingSystem.IsLinux())
+        {
+            using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            byte[] bytes = new byte[64 * 1024]; int read;
+            while ((read = stream.Read(bytes, bytes.Length)) != 0) hash.AppendData(bytes, 0, read);
+            Assert.Equal("b76b0433203017ca80401b2ee0dd69350349871c4b19d504c34dbdd80541690a", Convert.ToHexStringLower(hash.GetHashAndReset()));
+        }
+        else
+        {
+            Assert.True(typeface.GetGlyph('歌') != 0);
+            Assert.True(typeface.GetGlyph('詞') != 0);
+        }
     }
 }

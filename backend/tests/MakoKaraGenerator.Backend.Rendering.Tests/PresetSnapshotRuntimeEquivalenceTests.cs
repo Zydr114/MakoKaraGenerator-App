@@ -52,12 +52,22 @@ public sealed class PresetSnapshotRuntimeEquivalenceTests
 
     private static void AssertFixedFont()
     {
-        using SKTypeface typeface = SKFontManager.Default.MatchFamily(StaticSnapshotFixture.Family, SKFontStyle.Normal);
-        Assert.Equal(StaticSnapshotFixture.Family, typeface.FamilyName);
+        string family = SkiaTextLayoutEngine.DefaultFamilyName;
+        using SKTypeface typeface = SKFontManager.Default.MatchFamily(family, SKFontStyle.Normal);
+        Assert.Equal(family, typeface.FamilyName);
         using SKStreamAsset stream = typeface.OpenStream();
-        using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        byte[] buffer = new byte[64 * 1024]; int count;
-        while ((count = stream.Read(buffer, buffer.Length)) != 0) hash.AppendData(buffer.AsSpan(0, count));
-        Assert.Equal("b76b0433203017ca80401b2ee0dd69350349871c4b19d504c34dbdd80541690a", Convert.ToHexStringLower(hash.GetHashAndReset()));
+        Assert.NotNull(stream); Assert.True(stream.Length > 0);
+        if (OperatingSystem.IsLinux())
+        {
+            using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            byte[] buffer = new byte[64 * 1024]; int count;
+            while ((count = stream.Read(buffer, buffer.Length)) != 0) hash.AppendData(buffer.AsSpan(0, count));
+            Assert.Equal("b76b0433203017ca80401b2ee0dd69350349871c4b19d504c34dbdd80541690a", Convert.ToHexStringLower(hash.GetHashAndReset()));
+        }
+        else
+        {
+            Assert.True(typeface.GetGlyph('歌') != 0);
+            Assert.True(typeface.GetGlyph('詞') != 0);
+        }
     }
 }

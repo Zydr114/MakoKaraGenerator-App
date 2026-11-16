@@ -3,6 +3,8 @@
   <PropertyGroup>
     <RootNamespace>MakoKaraGenerator.Rendering.Tests</RootNamespace>
     <AssemblyName>MakoKaraGenerator.Rendering.Tests</AssemblyName>
+    <!-- 规避 .NET 10.0.12 Tier1 Dynamic PGO 在 Roslyn MetadataWriter.PopulateNestedClassTableRows 触发的间歇性 NRE -->
+    <TieredPGO>false</TieredPGO>
   </PropertyGroup>
 
   <ItemGroup>

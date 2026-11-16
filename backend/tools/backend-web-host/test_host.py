@@ -28,9 +28,10 @@ class DeploymentTests(unittest.TestCase):
     def role_files(self, role, scripting=b'matched scripting ABI'):
         directory = self.dist / role
         directory.mkdir(parents=True)
-        app = directory / host.ROLES[role]
+        app = directory / host.role_executable(role)
         app.write_bytes(b'apphost')
-        app.chmod(0o700)
+        if not host.IS_WINDOWS:
+            app.chmod(0o700)
         (directory / 'MakoKaraGenerator.Scripting.Abstractions.dll').write_bytes(scripting)
         if role == 'worker':
             refs = directory / 'script-refs' / 'net10.0'
@@ -38,12 +39,20 @@ class DeploymentTests(unittest.TestCase):
             (refs / 'System.Runtime.dll').write_bytes(b'reference assembly')
 
     def manifest(self):
-        result = {'rid': 'linux-x64', 'selfContained': True, 'files': host.inventory(self.dist)}
+        result = {'rid': host.target_rid(), 'selfContained': True, 'files': host.inventory(self.dist)}
         (self.dist / 'deployment.json').write_text(json.dumps(result))
         return result
 
     def publish(self, drift_at=None, mismatched=False):
         reads = 0
+        lock_entries = 0
+
+        @contextlib.contextmanager
+        def fake_lock(*_args, **_kwargs):
+            nonlocal lock_entries
+            lock_entries += 1
+            yield self.root / 'publish.lock'
+
         def command(arguments, **_kwargs):
             nonlocal reads
             if arguments[:3] == ['git', 'rev-parse', 'HEAD']:
@@ -52,14 +61,19 @@ class DeploymentTests(unittest.TestCase):
                 return subprocess.CompletedProcess(arguments, 0, stdout=('later-commit' if changed else 'initial-commit') + '\n')
             if arguments[:2] == ['git', 'diff'] or arguments[:2] == ['git', 'ls-files']:
                 return subprocess.CompletedProcess(arguments, 0, stdout=b'')
-            if arguments[:5] == ['flock', '-o', host.LOCK, 'dotnet', 'publish']:
+            expected_prefix = ['dotnet', 'publish'] if host.IS_WINDOWS else ['flock', '-o', host.LINUX_LOCK, 'dotnet', 'publish']
+            if arguments[:len(expected_prefix)] == expected_prefix:
                 role = Path(arguments[-1]).name
                 self.role_files(role, b'different scripting ABI' if mismatched and role == 'worker' else b'matched scripting ABI')
                 return subprocess.CompletedProcess(arguments, 0)
             raise AssertionError(f'Unexpected subprocess: {arguments}')
         with patch.object(host, 'REPO', self.repo), patch.object(host, 'source_inputs', return_value={'source.cs': 'fixed-input'}), \
+                patch.object(host, 'acquire_publish_lock', side_effect=fake_lock), \
                 patch.object(host.subprocess, 'run', side_effect=command):
-            return host.publish(SimpleNamespace(dist=self.dist))
+            result = host.publish(SimpleNamespace(dist=self.dist))
+        if host.IS_WINDOWS:
+            self.assertEqual(2, lock_entries)
+        return result
 
     def test_head_drift_at_each_publish_boundary_is_rejected(self):
         # Initial HEAD capture, then before/after each role, before manifest and before ready.

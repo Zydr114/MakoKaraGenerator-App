@@ -13,21 +13,28 @@ const { prepareStandaloneSession } = require('../desktop/runtime/standalone-path
 
 const sha256 = (buf) => createHash('sha256').update(buf).digest('hex');
 
+const isWindows = process.platform === 'win32';
+const rid = backendHost.platformRid();
+const serverExe = `server/${backendHost.executableName(backendHost.ROLES.server)}`;
+const workerExe = `worker/${backendHost.executableName(backendHost.ROLES.worker)}`;
+const skiaLib = isWindows ? 'worker/SkiaSharp.dll' : 'worker/libSkiaSharp.so';
+const gpuLib = isWindows ? 'worker/mako_gpu_preview.dll' : 'worker/libmako_gpu_preview.so';
+
 function makeFixtureDeployment(rootDir, { withGpu = true } = {}) {
   mkdirSync(join(rootDir, 'server'), { recursive: true });
   mkdirSync(join(rootDir, 'worker', 'script-refs', 'net10.0'), { recursive: true });
   const files = {
-    'server/MakoKaraGenerator.Backend.Server': Buffer.from('#!/bin/sh\nexit 0\n'),
+    [serverExe]: Buffer.from(isWindows ? 'MZ-fixture-server' : '#!/bin/sh\nexit 0\n'),
     'server/MakoKaraGenerator.Scripting.Abstractions.dll': Buffer.from('abi-match'),
-    'worker/MakoKaraGenerator.Backend.Worker': Buffer.from('#!/bin/sh\nexit 0\n'),
+    [workerExe]: Buffer.from(isWindows ? 'MZ-fixture-worker' : '#!/bin/sh\nexit 0\n'),
     'worker/MakoKaraGenerator.Scripting.Abstractions.dll': Buffer.from('abi-match'),
     'worker/script-refs/net10.0/System.Runtime.dll': Buffer.from('sys'),
   };
   if (withGpu) {
     mkdirSync(join(rootDir, 'desktop'), { recursive: true });
     files['desktop/gpu_preview_broker.node'] = Buffer.from('broker');
-    files['worker/libSkiaSharp.so'] = Buffer.from('skia');
-    files['worker/libmako_gpu_preview.so'] = Buffer.from('gpu');
+    files[skiaLib] = Buffer.from('skia');
+    files[gpuLib] = Buffer.from('gpu');
   }
   const inventory = {};
   for (const [rel, body] of Object.entries(files)) {
@@ -40,12 +47,12 @@ function makeFixtureDeployment(rootDir, { withGpu = true } = {}) {
     const gpuManifest = {
       schemaVersion: 1,
       abiVersion: 1,
-      platform: 'linux-x64',
+      platform: rid,
       electron: '45.2.1',
       files: {
         'desktop/gpu_preview_broker.node': inventory['desktop/gpu_preview_broker.node'],
-        'worker/libSkiaSharp.so': inventory['worker/libSkiaSharp.so'],
-        'worker/libmako_gpu_preview.so': inventory['worker/libmako_gpu_preview.so'],
+        [skiaLib]: inventory[skiaLib],
+        [gpuLib]: inventory[gpuLib],
       },
     };
     const gpuText = JSON.stringify(gpuManifest, null, 2) + '\n';
@@ -55,7 +62,7 @@ function makeFixtureDeployment(rootDir, { withGpu = true } = {}) {
   }
   writeFileSync(
     join(rootDir, 'deployment.json'),
-    JSON.stringify({ version: backendHost.EXPECTED_PRODUCT_VERSION, rid: 'linux-x64', selfContained: true, gpuPreview, files: inventory }),
+    JSON.stringify({ version: backendHost.EXPECTED_PRODUCT_VERSION, rid, selfContained: true, gpuPreview, files: inventory }),
   );
 }
 
@@ -88,20 +95,33 @@ test('validateDist and validateDesktopDeployment reject tampering, symlinks, ext
     rmSync(join(tmp, 'extra.txt'));
 
     // Non-executable apphost
-    chmodSync(join(tmp, 'server/MakoKaraGenerator.Backend.Server'), 0o644);
-    assert.throws(() => backendHost.validateDist(tmp), /not executable/);
-    chmodSync(join(tmp, 'server/MakoKaraGenerator.Backend.Server'), 0o755);
+    if (!isWindows) {
+      chmodSync(join(tmp, serverExe), 0o644);
+      assert.throws(() => backendHost.validateDist(tmp), /not executable/);
+      chmodSync(join(tmp, serverExe), 0o755);
+    }
 
     // Tampered payload
-    writeFileSync(join(tmp, 'worker/libmako_gpu_preview.so'), 'tampered');
+    writeFileSync(join(tmp, gpuLib), 'tampered');
     assert.throws(() => backendHost.validateDesktopDeployment(tmp, '45.2.1'), /integrity mismatch/);
 
     // Symlink inside deployment
     makeFixtureDeployment(tmp, { withGpu: true });
-    rmSync(join(tmp, 'worker/libSkiaSharp.so'));
-    symlinkSync('/etc/hosts', join(tmp, 'worker/libSkiaSharp.so'));
-    assert.throws(() => backendHost.validateDist(tmp), /integrity mismatch|symlinks/);
-    rmSync(join(tmp, 'worker/libSkiaSharp.so'));
+    if (isWindows) {
+      const junctionTarget = mkdtempSync(join(tmpdir(), 'mako-junction-target-'));
+      try {
+        symlinkSync(junctionTarget, join(tmp, 'worker/sym-dir'), 'junction');
+        assert.throws(() => backendHost.validateDist(tmp), /symlinks/);
+      } finally {
+        rmSync(join(tmp, 'worker/sym-dir'), { recursive: true, force: true });
+        rmSync(junctionTarget, { recursive: true, force: true });
+      }
+    } else {
+      rmSync(join(tmp, skiaLib));
+      symlinkSync('/etc/hosts', join(tmp, skiaLib));
+      assert.throws(() => backendHost.validateDist(tmp), /integrity mismatch|symlinks/);
+      rmSync(join(tmp, skiaLib));
+    }
 
     // ABI mismatch
     makeFixtureDeployment(tmp, { withGpu: true });
@@ -157,16 +177,17 @@ test('startStaticWebServer enforces loopback, Host, bootstrap same-origin and se
   }
 });
 
-test('prepareStandaloneSession creates private XDG directories and rejects symlinks', () => {
-  const tmp = mkdtempSync(join(tmpdir(), 'mako-xdg-test-'));
+test('prepareStandaloneSession creates private runtime directories and rejects symlinks', () => {
+  const tmp = mkdtempSync(join(tmpdir(), 'mako-runtime-dir-test-'));
   try {
-    const paths = prepareStandaloneSession('makokara-generator', { XDG_DATA_HOME: tmp });
+    const env = { LOCALAPPDATA: tmp, XDG_DATA_HOME: tmp };
+    const paths = prepareStandaloneSession('makokara-generator', env);
     assert.equal(paths.base, join(tmp, 'makokara-generator'));
-    assert.equal(paths.profile, join(tmp, 'makokara-generator/profile'));
+    assert.equal(paths.profile, join(tmp, 'makokara-generator', 'profile'));
 
     const symlinkBase = join(tmp, 'sym-app');
-    symlinkSync(tmp, symlinkBase);
-    assert.throws(() => prepareStandaloneSession('sym-app', { XDG_DATA_HOME: tmp }), /symlink/);
+    symlinkSync(tmp, symlinkBase, isWindows ? 'junction' : 'dir');
+    assert.throws(() => prepareStandaloneSession('sym-app', env), /symlink/);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }

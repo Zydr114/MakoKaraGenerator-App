@@ -16,10 +16,13 @@
     <!-- SVG 4.9.1 固定依赖及 MIT/MS-PL notices 见 docs/plans/script-sdk-v2-m09-svg-notes.md。 -->
     <PackageVersion Include="Svg.Skia" Version="4.9.1" />
     <PackageVersion Include="HarfBuzzSharp" Version="8.3.1.5" />
+    <!-- SkiaSharp / HarfBuzzSharp 跨平台原生资产（MIT，支持 Linux/Win32 官方 NuGet 原生运行库） -->
     <PackageVersion Include="SkiaSharp.NativeAssets.Linux" Version="3.119.4" />
+    <PackageVersion Include="SkiaSharp.NativeAssets.Win32" Version="3.119.4" />
     <PackageVersion Include="SkiaSharp.Vulkan.SharpVk" Version="3.119.4" />
     <PackageVersion Include="SharpVk" Version="0.4.2" />
     <PackageVersion Include="HarfBuzzSharp.NativeAssets.Linux" Version="8.3.1.5" />
+    <PackageVersion Include="HarfBuzzSharp.NativeAssets.Win32" Version="8.3.1.5" />
   </ItemGroup>
 
   <!-- ADR-0071：受管 C# 编译器，MIT，无 native 资产，Linux/Windows 均使用 net10.0。 -->

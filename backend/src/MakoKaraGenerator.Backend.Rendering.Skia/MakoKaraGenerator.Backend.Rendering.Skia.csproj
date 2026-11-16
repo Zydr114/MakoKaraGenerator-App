@@ -7,6 +7,7 @@
     <ProjectReference Include="../MakoKaraGenerator.Backend.Hosting/MakoKaraGenerator.Backend.Hosting.csproj" />
     <PackageReference Include="SkiaSharp" />
     <PackageReference Include="SkiaSharp.NativeAssets.Linux" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Win32" />
     <InternalsVisibleTo Include="MakoKaraGenerator.Backend.Rendering.Skia.Tests" />
   </ItemGroup>
 </Project>

@@ -31,11 +31,13 @@
     <PackageReference Include="SkiaSharp" />
     <PackageReference Include="SkiaSharp.HarfBuzz" />
     <PackageReference Include="Svg.Skia" />
-    <!-- 见 ADR-0007：Linux 的 native 资产必须显式引用，否则运行时 DllNotFoundException -->
+    <!-- 见 ADR-0007：Linux/Win32 的 native 资产必须显式引用，否则运行时 DllNotFoundException -->
     <PackageReference Include="SkiaSharp.NativeAssets.Linux" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Win32" />
     <PackageReference Include="SkiaSharp.Vulkan.SharpVk" />
     <PackageReference Include="SharpVk" />
     <PackageReference Include="HarfBuzzSharp.NativeAssets.Linux" />
+    <PackageReference Include="HarfBuzzSharp.NativeAssets.Win32" />
   </ItemGroup>
 
   <ItemGroup>

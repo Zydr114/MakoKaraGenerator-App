@@ -232,7 +232,7 @@ internal sealed class VulkanSkiaRenderDevice : ISkiaRenderDevice
             Queue queue = device.GetQueue((uint)family, 0);
             Instance stableInstance = instance;
             Device stableDevice = device;
-            vulkanLibrary = NativeLibrary.Load("libvulkan.so.1");
+            vulkanLibrary = NativeLibrary.Load(GetVulkanLibraryName());
             var globalGetInstanceProcAddress = Marshal.GetDelegateForFunctionPointer<VkGetInstanceProcAddrDelegate>(
                 NativeLibrary.GetExport(vulkanLibrary, "vkGetInstanceProcAddr"));
             GRVkGetProcedureAddressDelegate getRawProc = new((name, vkInstance, vkDevice) =>
@@ -291,6 +291,11 @@ internal sealed class VulkanSkiaRenderDevice : ISkiaRenderDevice
             throw new InvalidOperationException($"Vulkan Skia 渲染设备初始化失败；已拒绝回落 CPU：{error.Message}", error);
         }
     }
+
+    internal static string GetVulkanLibraryName() =>
+        OperatingSystem.IsWindows() ? "vulkan-1.dll"
+        : OperatingSystem.IsMacOS() ? "libvulkan.1.dylib"
+        : "libvulkan.so.1";
 
     internal readonly record struct DeviceCandidate(string Name, PhysicalDeviceType Type, int GraphicsQueueFamily);
 
@@ -529,6 +534,8 @@ internal static class SharpVkNativeLoader
 
     private static bool InstallResolver()
     {
+        if (!OperatingSystem.IsLinux())
+            return true;
         try
         {
             NativeLibrary.SetDllImportResolver(typeof(Instance).Assembly, static (name, assembly, searchPath) =>

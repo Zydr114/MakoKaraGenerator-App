@@ -202,6 +202,156 @@ public static class LyricsImportEditUseCase
             EstimatedTokenCount = selected.Lines.SelectMany(line => line.Tokens).Count(token => token.TimingStatus == TimingStatus.Estimated) };
     }
 
+    /// <summary>把已解析文档的全部分支追加为新来源，一次历史、一次撤销；不替换调用方已有分支。</summary>
+    /// <param name="snapshot">固定的工程快照。</param>
+    /// <param name="baseline">新来源使用的完整原歌词门禁；不能指向已有分支。</param>
+    /// <param name="prepared">完整解析结果。</param>
+    /// <param name="sourceBranchId">全部来源导入必须省略；与单来源选择互斥。</param>
+    /// <param name="preparationGuard">可选准备配额。</param>
+    /// <param name="onPreparedLine">每一行写入候选前的预算观察。</param>
+    public static PreparedLyricsImportEdit PrepareImportAllCandidate(LyricsImportEditSnapshot snapshot, LyricsImportEditBaseline baseline,
+        LyricsImportResult prepared, string? sourceBranchId = null, LyricsImportPreparationGuard? preparationGuard = null,
+        Action<LyricBranch, LyricLine, int, int>? onPreparedLine = null)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot); ArgumentNullException.ThrowIfNull(prepared);
+        if (sourceBranchId is not null)
+            return new(snapshot, Reject(snapshot.Project, LyricsImportEditErrorCode.InvalidTarget, "全部来源导入不能同时指定 sourceBranchId。"), "lyrics.importAll");
+        LyricsImportEditResult result = PrepareImportAllCore(snapshot, baseline, prepared, preparationGuard, onPreparedLine);
+        LyricsImportReport report = result.Accepted ? DescribeAllImport(snapshot.Project, prepared, preparationGuard) : prepared.Report;
+        return new(snapshot, result, "lyrics.importAll", report);
+    }
+
+    private static LyricsImportEditResult PrepareImportAllCore(LyricsImportEditSnapshot snapshot, LyricsImportEditBaseline baseline,
+        LyricsImportResult prepared, LyricsImportPreparationGuard? preparationGuard, Action<LyricBranch, LyricLine, int, int>? onPreparedLine)
+    {
+        if (CheckAllTarget(snapshot, baseline) is { } error) return Reject(snapshot.Project, error);
+        Project source = snapshot.Project;
+        LyricBranch[] incoming = prepared.Document.Branches.Where(branch => !branch.Lines.IsEmpty).ToArray();
+        if (incoming.Length == 0 || incoming.All(branch => branch.Lines.IsEmpty))
+            return Reject(source, LyricsImportEditErrorCode.EmptyImport);
+        try
+        {
+            LyricsEditIdAllocator allocator = new(source.Lyrics, preparationGuard is null ? null : preparationGuard.Item);
+            preparationGuard?.Reserve(128L + 64L * incoming.Sum(branch => (long)branch.Lines.Length));
+            Dictionary<string, string> mapping = new(StringComparer.Ordinal);
+            void Map(string id, string replacement)
+            {
+                preparationGuard?.Reserve(128L + 2L * id.Length + 2L * replacement.Length);
+                if (string.IsNullOrWhiteSpace(id)) throw new ArgumentException("源歌词身份为空。");
+                if (!mapping.TryAdd(id, replacement)) throw new LyricsIdentifierExhaustedException();
+            }
+            foreach (LyricBranch branch in incoming)
+            {
+                Map(branch.Id, allocator.NextBranchId("import"));
+                foreach (LyricLine line in branch.Lines)
+                {
+                    if (line.RubyAnnotations.Any(ruby => !line.Tokens.Any(token => token.Id == ruby.BaseTokenId)))
+                        return Reject(source, LyricsImportEditErrorCode.DomainValidationFailed, "源注音未绑定当前行的元素。");
+                    Map(line.Id, allocator.NextLineId());
+                    foreach (LyricToken token in line.Tokens) Map(token.Id, allocator.NextTokenId());
+                    foreach (RubyAnnotation ruby in line.RubyAnnotations)
+                    {
+                        Map(ruby.Id, allocator.NextRubyId());
+                        foreach (RubyTextSegment segment in ruby.Segments) Map(segment.Id, allocator.NextRubySegmentId());
+                    }
+                }
+            }
+            var created = ImmutableArray.CreateBuilder<LyricBranch>(incoming.Length);
+            int totalLines = incoming.Sum(branch => branch.Lines.Length);
+            int seen = 0;
+            foreach (LyricBranch branch in incoming)
+            {
+                var mapped = ImmutableArray.CreateBuilder<LyricLine>(branch.Lines.Length);
+                foreach (LyricLine line in branch.Lines)
+                {
+                    preparationGuard?.Reserve(64L + 32L * (line.Tokens.Length + (long)line.RubyAnnotations.Length
+                        + line.RubyAnnotations.Sum(ruby => (long)ruby.Segments.Length)));
+                    LyricLine finalLine = line with
+                    {
+                        Id = mapping[line.Id],
+                        PrimaryLineId = line.PrimaryLineId is { } linked ? mapping.GetValueOrDefault(linked, linked) : null,
+                        Tokens = [.. line.Tokens.Select(token => token with { Id = mapping[token.Id] })],
+                        RubyAnnotations = [.. line.RubyAnnotations.Select(ruby => ruby with
+                        {
+                            Id = mapping[ruby.Id], BaseTokenId = mapping[ruby.BaseTokenId],
+                            Segments = [.. ruby.Segments.Select(segment => segment with { Id = mapping[segment.Id] })],
+                        })],
+                    };
+                    LyricBranchRole role = branch.Role == LyricBranchRole.Primary ? LyricBranchRole.Custom : branch.Role;
+                    LyricBranch carrier = branch with { Id = mapping[branch.Id], Role = role, Lines = [] };
+                    onPreparedLine?.Invoke(carrier, finalLine, seen, totalLines);
+                    seen++;
+                    mapped.Add(finalLine);
+                }
+                LyricBranchRole branchRole = branch.Role == LyricBranchRole.Primary ? LyricBranchRole.Custom : branch.Role;
+                created.Add(branch with { Id = mapping[branch.Id], Role = branchRole, Lines = mapped.MoveToImmutable() });
+            }
+            ImmutableArray<LyricBranch> branches = created.MoveToImmutable();
+            LyricsDocument lyrics = source.Lyrics with { Branches = source.Lyrics.Branches.AddRange(branches) };
+            LyricBranch selected = branches.FirstOrDefault(branch => branch.Id == mapping[prepared.Document.PrimaryBranchId]) ?? branches[0];
+            return PrepareSubmission(source, source with { Lyrics = lyrics }, totalLines, selected.Id, selected.Lines[0].Id);
+        }
+        catch (LyricsIdentifierExhaustedException exception)
+        {
+            return Reject(source, LyricsImportEditErrorCode.IdentifierExhausted, exception.Message);
+        }
+        catch (ArgumentException exception)
+        {
+            return Reject(source, LyricsImportEditErrorCode.DomainValidationFailed, exception.Message);
+        }
+    }
+
+    private static LyricsImportEditErrorCode? CheckAllTarget(LyricsImportEditSnapshot snapshot, LyricsImportEditBaseline baseline)
+    {
+        ArgumentNullException.ThrowIfNull(baseline.ExpectedWorkspace);
+        if (!ReferenceEquals(snapshot.Workspace, baseline.ExpectedWorkspace) || snapshot.Generation != baseline.ExpectedWorkspaceGeneration)
+            return LyricsImportEditErrorCode.WorkspaceStale;
+        if (baseline.BranchId is not null || baseline.ExpectedBranch is not null || baseline.ExpectedLyrics is null)
+            return LyricsImportEditErrorCode.InvalidTarget;
+        return snapshot.Project.Lyrics == baseline.ExpectedLyrics ? null : LyricsImportEditErrorCode.TargetStale;
+    }
+
+    private static LyricsImportReport DescribeAllImport(Project target, LyricsImportResult prepared, LyricsImportPreparationGuard? guard)
+    {
+        List<LyricsImportIssue> issues = [.. prepared.Report.Issues];
+        List<string> discarded = [.. prepared.Report.DiscardedFeatures];
+        void Report(MakoKaraGenerator.Core.Diagnostics.IssueSeverity severity, string raw, string message)
+        {
+            guard?.Item(raw); guard?.Reserve(512L + 2L * message.Length);
+            issues.Add(new(LyricsImportIssueKind.DiscardedFeature, severity, 0, raw, message));
+        }
+        LyricBranch[] incoming = prepared.Document.Branches.Where(branch => !branch.Lines.IsEmpty).ToArray();
+        Report(MakoKaraGenerator.Core.Diagnostics.IssueSeverity.Info, prepared.Document.PrimaryBranchId,
+            "全部来源一次导入：" + incoming.Length.ToString(System.Globalization.CultureInfo.InvariantCulture) + " 个分支已追加，未替换工程已有来源。");
+        if (incoming.Any(branch => branch.Role == LyricBranchRole.Primary))
+            Report(MakoKaraGenerator.Core.Diagnostics.IssueSeverity.Info, prepared.Document.PrimaryBranchId,
+                "导入的主歌唱者已追加为独立来源，未替换工程主歌词。");
+        HashSet<string> existingNames = new(target.Lyrics.Branches.Select(branch => branch.Name), StringComparer.Ordinal);
+        foreach (LyricBranch branch in incoming)
+            if (existingNames.Contains(branch.Name))
+                Report(MakoKaraGenerator.Core.Diagnostics.IssueSeverity.Info, branch.Id, "同名来源「" + branch.Name + "」未覆盖，已追加新来源。");
+        HashSet<string> importedLines = [.. incoming.SelectMany(branch => branch.Lines).Select(line => line.Id)];
+        HashSet<string> targetLines = [.. target.Lyrics.Lines.Select(line => line.Id)];
+        foreach (LyricLine line in incoming.SelectMany(branch => branch.Lines))
+            if (line.PrimaryLineId is { } link && !importedLines.Contains(link) && !targetLines.Contains(link))
+                Report(MakoKaraGenerator.Core.Diagnostics.IssueSeverity.Warning, line.Id,
+                    "SourceBranchLinkUnavailable：PrimaryLineId=" + link + " 在本次导入和目标主来源中都不存在；原值保留，需显式重关联。");
+            else if (line.PrimaryLineId is not null && importedLines.Contains(line.PrimaryLineId))
+                Report(MakoKaraGenerator.Core.Diagnostics.IssueSeverity.Info, line.Id, "跨来源主行关联已随全部来源导入重映射，不指向工程原有主歌词。");
+        int identifiers = incoming.Sum(branch => 1 + branch.Lines.Sum(line => 1 + line.Tokens.Length + line.RubyAnnotations.Sum(ruby => 1 + ruby.Segments.Length)));
+        Report(MakoKaraGenerator.Core.Diagnostics.IssueSeverity.Info, prepared.Document.PrimaryBranchId,
+            "导入身份重分配：" + identifiers.ToString(System.Globalization.CultureInfo.InvariantCulture) + " 个 branch/line/token/ruby/segment 标识已分配新值，内部关联同步重映射。");
+        int lines = incoming.Sum(branch => branch.Lines.Length);
+        int tokens = incoming.Sum(branch => branch.Lines.Sum(line => line.Tokens.Length));
+        int timed = incoming.SelectMany(branch => branch.Lines).SelectMany(line => line.Tokens).Count(token => token.Time is not null);
+        return prepared.Report with
+        {
+            Issues = issues.ToImmutableArray(), DiscardedFeatures = discarded.ToImmutableArray(),
+            LineCount = lines, TokenCount = tokens, TimedTokenCount = timed, MissingTokenCount = tokens - timed,
+            EstimatedTokenCount = incoming.SelectMany(branch => branch.Lines).SelectMany(line => line.Tokens).Count(token => token.TimingStatus == TimingStatus.Estimated),
+        };
+    }
+
     /// <summary>追加非空原文行及完整 Unicode 元素；新翻译来源按原规则跟随主来源。</summary>
     /// <param name="workspace">当前工作区。</param>
     /// <param name="baseline">明确已有来源或新来源的原值门禁。</param>

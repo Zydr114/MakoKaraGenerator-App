@@ -70,7 +70,8 @@ export function planSummary(plan: LyricsImportPlan): string | undefined {
 
 /**
  * 需要用户留意的地方：格式或编码不确定、文件里有多个来源、跳过的行。
- * 只有 MakoKara 工程 TTML（ttml.project）会有多个来源：新建时全部恢复，导入时选一个。
+ * 多个来源可以是工程 TTML，也可以是带歌唱者或旁轨的标准 TTML。
+ * 新建时全部恢复；导入到已有工程时默认仍选一个来源，另有一次导入全部来源的入口。
  */
 export function planNotes(plan: LyricsImportPlan, purpose: PlanPurpose): string[] {
   const notes: string[] = [];
@@ -81,8 +82,8 @@ export function planNotes(plan: LyricsImportPlan, purpose: PlanPurpose): string[
   if (sources > 1) {
     notes.push(
       purpose === 'create'
-        ? `这是 MakoKara 工程 TTML，新建时会恢复全部 ${sources} 个来源。`
-        : `这是 MakoKara 工程 TTML，有 ${sources} 个来源，一次导入一个。请在下面选择要导入的来源。`,
+        ? `文件有 ${sources} 个来源，新建时会全部恢复。`
+        : `文件有 ${sources} 个来源。可以在下面选择一个来源，或一次导入全部来源（不覆盖已有来源，记一条撤销）。`,
     );
   }
   if (plan.report && plan.report.skippedLineCount > 0) notes.push(`跳过了 ${plan.report.skippedLineCount} 行（空行或无法识别的行）。`);

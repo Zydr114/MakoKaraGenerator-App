@@ -14,6 +14,8 @@ import { PlanChoiceFields, planReady, useLyricsPlan, type PlanChoices } from './
 
 /** 目标选择里“新来源”的取值；其余取值是来源 ID。 */
 const NEW_TARGET = '__new__';
+/** 把解析出的全部分支追加进来，不替换已有来源。 */
+const ALL_SOURCES = '__all__';
 
 /** 一次文件导入的报告；保留文件本身，报告里可以对照源文件的行。 */
 export interface ImportedReport {
@@ -28,7 +30,8 @@ const NO_CHOICES: PlanChoices = { importer: AUTO, encoding: AUTO, source: AUTO }
 /**
  * 导入文件（整体设计 §5.2，W6 设计 §2.3）：选文件 → 上传并做导入规划 → 右边显示识别结果与前几行，左边改选 → 选目标与选项 → 导入。
  * 文件只上传一次，改选格式、编码或来源时用同一个资源重新规划；导入发 lyrics.importAsset，整次导入一条历史，完成后显示导入报告。
- * MakoKara 工程 TTML 有多个来源，一次导入一个，命令带上所选来源。
+ * 多来源文件默认仍导入所选的一个来源。选择“导入全部来源”时发 destination.kind=allSources，
+ * 不带 sourceBranchId，后端把全部分支追加为新来源，并记成一条可以一次撤销的历史。
  */
 export function ImportLyricsDialog(props: {
   session: EditorSession;
@@ -79,17 +82,22 @@ export function ImportLyricsDialog(props: {
   }, [source?.id]);
 
   const isNew = target === NEW_TARGET;
+  const allSources = target === ALL_SOURCES;
   const replaced = branches.find((b) => b.id === target);
   const newName = name.trim();
-  const blocked = plan && primaryImportBlock(plan, !isNew && target === state.primaryBranchId);
-  const ready = planReady(lyrics) && !blocked && (isNew ? !!newName : !!replaced);
+  const blocked = plan && !allSources && primaryImportBlock(plan, !isNew && target === state.primaryBranchId);
+  const ready = planReady(lyrics) && !blocked && (allSources || (isNew ? !!newName : !!replaced));
 
   const submit = async () => {
     if (!file || !lyrics.assetId || !ready || progress) return;
     setError(undefined);
     setProgress('正在导入');
     try {
-      const destination: ImportLyricsDestination = isNew ? { kind: 'newBranch', name: newName, role } : { kind: 'existing', branchId: target };
+      const destination: ImportLyricsDestination = allSources
+        ? { kind: 'allSources' }
+        : isNew
+          ? { kind: 'newBranch', name: newName, role }
+          : { kind: 'existing', branchId: target };
       const response = await session.command({
         type: 'lyrics.importAsset',
         assetId: lyrics.assetId,
@@ -99,7 +107,7 @@ export function ImportLyricsDialog(props: {
           encodingName: chosen(choices.encoding) ?? null,
           splitRule: split,
           estimateSplitTimes: estimate,
-          ...(source ? { sourceBranchId: source.id } : {}),
+          ...(!allSources && source ? { sourceBranchId: source.id } : {}),
         },
       });
       const result = response?.importResult;
@@ -107,8 +115,8 @@ export function ImportLyricsDialog(props: {
         setError(session.state.notice?.message ?? '导入没有成功。');
         return;
       }
-      const branchName = isNew ? newName : (replaced?.name ?? '');
-      toast(`已导入 ${result.lineCount} 行到「${branchName}」`);
+      const branchName = allSources ? '全部来源' : isNew ? newName : (replaced?.name ?? '');
+      toast(allSources ? `已导入 ${result.lineCount} 行，全部来源记为一条撤销` : `已导入 ${result.lineCount} 行到「${branchName}」`);
       props.onClose();
       if (result.report) props.onImported({ report: result.report, file, branchName });
     } finally {
@@ -119,6 +127,7 @@ export function ImportLyricsDialog(props: {
   const targetOptions = [
     ...branches.map((b) => ({ value: b.id, label: `替换「${b.name}」` })),
     { value: NEW_TARGET, label: '作为新来源' },
+    ...(plan && plan.sourceBranches.length > 1 ? [{ value: ALL_SOURCES, label: '导入全部来源（不覆盖已有来源）' }] : []),
   ];
 
   return (
@@ -149,10 +158,19 @@ export function ImportLyricsDialog(props: {
         disabled={!!progress}
         onChange={chooseFile}
       />
-      <PlanChoiceFields plan={plan} choices={choices} onChange={setChoices} disabled={!!progress} />
+      <PlanChoiceFields plan={plan} choices={choices} onChange={setChoices} disabled={!!progress} hideSource={allSources} />
       <div className="g2">
-        <Select label="导入到" value={target} options={targetOptions} disabled={!!progress} onChange={setTarget} />
-        {isNew && (
+        <Select
+          label="导入到"
+          value={targetOptions.some((option) => option.value === target) ? target : branches[0]?.id ?? NEW_TARGET}
+          options={targetOptions}
+          disabled={!!progress}
+          onChange={(value) => {
+            setTarget(value);
+            if (value === ALL_SOURCES) setChoices((current) => ({ ...current, source: AUTO }));
+          }}
+        />
+        {isNew && !allSources && (
           <Select
             label="新来源的角色"
             value={role}
@@ -162,7 +180,11 @@ export function ImportLyricsDialog(props: {
           />
         )}
       </div>
-      {isNew ? (
+      {allSources ? (
+        <p className="hint import-replace">
+          文件里的 {plan?.sourceBranches.length ?? 0} 个来源会追加为新来源。已有来源保持不变，包括主歌词。这次导入只记一条历史，撤销会把它们一起拿掉。
+        </p>
+      ) : isNew ? (
         <TextField
           label="新来源名称"
           value={name}

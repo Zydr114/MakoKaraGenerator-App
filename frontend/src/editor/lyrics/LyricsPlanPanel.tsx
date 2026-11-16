@@ -84,14 +84,14 @@ export function planReady(state: LyricsPlanState): boolean {
  * 导入文件时对识别结果的改选（W6 设计 §2.3）：多来源文件选导入哪个来源，以及格式、编码。
  * 识别结果本身（概要、提示、前几行）在对话框右边的 LyricsCheck；新建工程只在识别有疑问时给出格式、编码，在它自己的表单里。
  */
-export function PlanChoiceFields(props: { plan: LyricsImportPlan | undefined; choices: PlanChoices; onChange: (choices: PlanChoices) => void; disabled?: boolean }) {
+export function PlanChoiceFields(props: { plan: LyricsImportPlan | undefined; choices: PlanChoices; onChange: (choices: PlanChoices) => void; disabled?: boolean; hideSource?: boolean }) {
   const { plan, choices } = props;
   if (!plan) return null;
   const set = (patch: Partial<PlanChoices>) => props.onChange({ ...choices, ...patch });
   const disabled = !!props.disabled;
   return (
     <>
-      {plan.sourceBranches.length > 1 && (
+      {plan.sourceBranches.length > 1 && !props.hideSource && (
         <Select
           label="导入哪个来源"
           value={chosen(choices.source) ?? plan.selectedSourceBranchId ?? plan.sourceBranches[0]!.id}

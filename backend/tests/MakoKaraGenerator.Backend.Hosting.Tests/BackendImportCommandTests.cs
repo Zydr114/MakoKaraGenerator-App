@@ -265,6 +265,47 @@ public sealed class BackendImportCommandTests
         Assert.Equal(3, f.Workspace.History.UndoCount);
     }
 
+    [Fact]
+    public async Task 全部来源导入一次撤销且保留已有主歌词和旧的单来源请求()
+    {
+        await using Fixture f = await Fixture.Create();
+        string primary = f.Workspace.Project.Lyrics.PrimaryBranchId;
+        int before = f.Workspace.Project.Lyrics.Branches.Length;
+        var asset = await f.Resources.UploadAsync("client", "project.ttml", "application/ttml+xml", new MemoryStream(ProjectTtml()));
+        var mixed = await f.Command("0", new ImportAssetCommandDto(asset.AssetId, new AllSourcesLyricsDestinationDto(), new(SourceBranchId: "primary")));
+        Assert.Equal(BackendErrorCode.InvalidRequest, mixed.Error!.Code);
+        Assert.Equal("command.options.sourceBranchId", mixed.Error.Field);
+        Assert.Equal(0, f.Workspace.History.UndoCount);
+        var imported = Accepted(await f.Command("0", new ImportAssetCommandDto(asset.AssetId, new AllSourcesLyricsDestinationDto())));
+        Assert.Equal("lyrics.importAll", imported.UndoName);
+        Assert.Equal(2, imported.ImportResult!.LineCount);
+        Assert.Equal(before + 2, f.Workspace.Project.Lyrics.Branches.Length);
+        Assert.Equal(primary, f.Workspace.Project.Lyrics.PrimaryBranchId);
+        Assert.Equal(LyricBranchRole.Primary, f.Workspace.Project.Lyrics.PrimaryBranch!.Role);
+        LyricBranch addedMain = f.Workspace.Project.Lyrics.Branches[before];
+        LyricBranch addedTranslation = f.Workspace.Project.Lyrics.Branches[before + 1];
+        Assert.NotEqual(LyricBranchRole.Primary, addedMain.Role);
+        Assert.Equal(addedMain.Lines[0].Id, addedTranslation.Lines[0].PrimaryLineId);
+        Assert.Equal(addedMain.Lines[0].Tokens[0].Id, Assert.Single(addedMain.Lines[0].RubyAnnotations).BaseTokenId);
+        Assert.Contains(imported.ImportResult.Report!.Issues, issue => issue.Message.Contains("未替换工程已有来源", StringComparison.Ordinal));
+        Accepted(await f.Command("1", new ProjectCommandDto("history.undo")));
+        Assert.Equal(primary, f.Workspace.Project.Lyrics.PrimaryBranchId);
+        Assert.Equal(before, f.Workspace.Project.Lyrics.Branches.Length);
+        var single = Accepted(await f.Command("2", new ImportAssetCommandDto(asset.AssetId,
+            new NewBranchLyricsDestinationDto("只要翻译", ProjectLyricBranchRole.Translation), new(SourceBranchId: "source-translation"))));
+        Assert.Equal(1, single.ImportResult!.LineCount);
+        Assert.Equal(before + 1, f.Workspace.Project.Lyrics.Branches.Length);
+    }
+
+    [Fact]
+    public void AllSources只接受kind且不能用于粘贴()
+    {
+        ProjectCommandDto imported = JsonSerializer.Deserialize<ProjectCommandDto>("""{"type":"lyrics.importAsset","assetId":"asset","destination":{"kind":"allSources"}}""")!;
+        Assert.IsType<AllSourcesLyricsDestinationDto>(Assert.IsType<ImportAssetCommandDto>(imported).Destination);
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<ProjectCommandDto>("""{"type":"lyrics.importAsset","assetId":"asset","destination":{"kind":"allSources","name":"x"}}"""));
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<ProjectCommandDto>("""{"type":"lyrics.appendText","text":"甲","destination":{"kind":"allSources"}}"""));
+    }
+
     [Theory]
     [InlineData("null")]
     [InlineData("\"\"")]

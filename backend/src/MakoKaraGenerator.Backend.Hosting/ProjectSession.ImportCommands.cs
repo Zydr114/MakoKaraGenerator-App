@@ -55,9 +55,12 @@ public sealed partial class ProjectSession
                     baseline = new(Workspace, Workspace.Generation, null, ExpectedLyrics: snapshot.Project.Lyrics); break;
                 case NewTranslationLyricsDestinationDto translation when command is AppendTextCommandDto && destination.Kind == "newTranslation":
                     name = translation.Name; baseline = new(Workspace, Workspace.Generation, null, ExpectedLyrics: snapshot.Project.Lyrics); break;
+                case AllSourcesLyricsDestinationDto when command is ImportAssetCommandDto importAll && destination.Kind == "allSources":
+                    if (importAll.Options?.SourceBranchId is not null) return (null, InvalidImport("command.options.sourceBranchId"));
+                    baseline = new(Workspace, Workspace.Generation, null, ExpectedLyrics: snapshot.Project.Lyrics); break;
                 default: return (null, InvalidImport("command.destination"));
             }
-            if (destination is not ExistingLyricsDestinationDto && string.IsNullOrWhiteSpace(name))
+            if (destination is not ExistingLyricsDestinationDto and not AllSourcesLyricsDestinationDto && string.IsNullOrWhiteSpace(name))
                 return (null, InvalidImport("command.destination.name"));
             return (new(snapshot, baseline, ProjectSessionId, revision, checked(revision + 1), AudioDurationUs,
                 HostInstanceId, OwnerClientId, _branchReceiptMaxBytes, command, name, role), null);
@@ -107,7 +110,9 @@ public sealed partial class ProjectSession
             [new(branch.Id, branch.Name, (ProjectLyricBranchRole)branch.Role, branch.Language, (ProjectLyricTimingMode)branch.TimingMode, branch.Lines.Length)]));
         LyricsImportCommandResultDto feedback = new(result.LineCount, result.SelectedBranchId!, result.SelectedLineId!, report is null ? null : ProjectImportReport(report));
         ProjectCommandResponse upper = new(capture.SessionId, capture.Revision.ToString(CultureInfo.InvariantCulture), capture.NextRevision.ToString(CultureInfo.InvariantCulture),
-            true, false, false, false, capture.Command is AppendTextCommandDto ? "lyrics.paste" : capture.Baseline.BranchId is null ? "branch.import" : "lyrics.import",
+            true, false, false, false, capture.Command is AppendTextCommandDto ? "lyrics.paste"
+                : capture.Command is ImportAssetCommandDto { Destination: AllSourcesLyricsDestinationDto } ? "lyrics.importAll"
+                : capture.Baseline.BranchId is null ? "branch.import" : "lyrics.import",
             null, new(["project"], [], [], [], true), EventCursor: capture.HostId + ":" + capture.ClientId + ":" + long.MaxValue.ToString(CultureInfo.InvariantCulture), ImportResult: feedback);
         if (JsonSerializer.SerializeToUtf8Bytes(BackendOperationResult<ProjectCommandResponse>.Success(upper)).Length > capture.ReceiptLimit)
             throw new LyricsImportPreparationLimitException();

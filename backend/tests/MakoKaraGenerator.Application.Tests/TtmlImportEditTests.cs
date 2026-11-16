@@ -80,6 +80,43 @@ public sealed class TtmlImportEditTests
     }
 
     [Fact]
+    public void All_sources_import_is_one_undo_and_keeps_existing_branches()
+    {
+        LyricsImportResult prepared = Prepared(multiple: true, link: null);
+        LyricLine linked = prepared.Document.Branches[1].Lines[0];
+        Assert.Equal(prepared.Document.Lines[0].Id, linked.PrimaryLineId);
+        ProjectWorkspace workspace = ProjectWorkspace.Adopt(Project.Create("目标"));
+        Assert.Empty(workspace.Project.Lyrics.Lines);
+        var baseline = new LyricsImportEditBaseline(workspace, workspace.Generation, null, ExpectedLyrics: workspace.Project.Lyrics);
+        var snapshot = LyricsImportEditUseCase.Capture(workspace);
+        Assert.Equal(LyricsImportEditErrorCode.InvalidTarget,
+            LyricsImportEditUseCase.PrepareImportAllCandidate(snapshot, baseline, prepared, sourceBranchId: "primary").Result.Error!.Code);
+        PreparedLyricsImportEdit candidate = LyricsImportEditUseCase.PrepareImportAllCandidate(snapshot, baseline, prepared);
+        Assert.True(candidate.Result.Accepted, candidate.Result.Error?.Detail);
+        Assert.Equal(2, candidate.Result.LineCount);
+        Assert.Equal(3, candidate.Result.Project.Lyrics.Branches.Length);
+        Assert.Empty(candidate.Result.Project.Lyrics.Lines);
+        Assert.Equal(LyricBranchRole.Primary, candidate.Result.Project.Lyrics.PrimaryBranch!.Role);
+        Assert.All(candidate.Result.Project.Lyrics.Branches.Skip(1), branch => Assert.NotEqual(LyricBranchRole.Primary, branch.Role));
+        LyricLine importedTranslation = candidate.Result.Project.Lyrics.Branches[^1].Lines[0];
+        LyricLine importedMain = candidate.Result.Project.Lyrics.Branches[1].Lines[0];
+        Assert.Equal(importedMain.Id, importedTranslation.PrimaryLineId);
+        Assert.NotEqual(prepared.Document.Lines[0].Id, importedMain.Id);
+        Assert.Equal(importedMain.Tokens[0].Id, Assert.Single(importedMain.RubyAnnotations).BaseTokenId);
+        Assert.Contains(candidate.ImportReport!.Issues, issue => issue.Message.Contains("未替换工程已有来源", StringComparison.Ordinal));
+        Assert.Contains(candidate.ImportReport.Issues, issue => issue.Message.Contains("跨来源主行关联已随全部来源导入重映射", StringComparison.Ordinal));
+        Assert.True(LyricsImportEditUseCase.CommitCandidate(workspace, candidate).Accepted);
+        Assert.Equal(1, workspace.History.UndoCount);
+        workspace.Undo();
+        Assert.Empty(workspace.Project.Lyrics.Lines);
+        Assert.Single(workspace.Project.Lyrics.Branches);
+        workspace.Redo();
+        Assert.Equal(3, workspace.Project.Lyrics.Branches.Length);
+        Assert.Equal(1, workspace.History.UndoCount);
+        Assert.Equal(0, workspace.History.RedoCount);
+    }
+
+    [Fact]
     public void Segment_id_collection_and_new_mapping_are_charged_before_any_history()
     {
         LyricsImportResult prepared = Prepared();

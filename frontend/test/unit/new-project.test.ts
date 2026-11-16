@@ -77,7 +77,7 @@ describe('新建工程', () => {
       'create',
     );
     expect(notes).toHaveLength(3);
-    expect(notes[1]).toBe('这是 MakoKara 工程 TTML，新建时会恢复全部 2 个来源。');
+    expect(notes[1]).toBe('文件有 2 个来源，新建时会全部恢复。');
     const failed = plan({ preparationError: { code: 'lyricsImportFailed', message: 'x', protocolVersion: '1', failureCode: 'UnsupportedLyricsFormat' }, formatCandidates: [] });
     expect(planErrorText(failed)).toMatch(/无法识别/);
     expect(planSummary(failed)).toBeUndefined();
@@ -164,7 +164,7 @@ describe('导入文件的识别结果（W6 设计 §2.3）', () => {
   });
 
   it('多来源的工程 TTML：导入时写明一次导入一个，来源候选写出角色和行数', () => {
-    expect(planNotes(plan(sources), 'import')).toEqual(['这是 MakoKara 工程 TTML，有 2 个来源，一次导入一个。请在下面选择要导入的来源。']);
+    expect(planNotes(plan(sources), 'import')).toEqual(['文件有 2 个来源。可以在下面选择一个来源，或一次导入全部来源（不覆盖已有来源，记一条撤销）。']);
     expect(sourceChoices(plan(sources)).map((c) => c.label)).toEqual(['主歌词（主歌词，3 行）', '中文（翻译，2 行）']);
     expect(planSummary(plan({ ...sources }, { lineCount: 5 }))).toBe('识别为：增强 LRC（含逐字时间） · UTF-8 · 2 个来源共 5 行 · 逐字时间 98/100');
   });

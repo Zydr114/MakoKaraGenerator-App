@@ -217,7 +217,7 @@ describe('TTML（整个工程）：导出后新建、再导入选来源（W6 设
 
     const importPlan = await client.assets.lyricsImportPlan({ assetId: ttmlAssetId });
     expect(importPlan.sourceBranches.map((b) => b.id)).toEqual([primary, translation]);
-    expect(planNotes(importPlan, 'create')).toContain('这是 MakoKara 工程 TTML，新建时会恢复全部 2 个来源。');
+    expect(planNotes(importPlan, 'create')).toContain('文件有 2 个来源，新建时会全部恢复。');
 
     const restored = await createProject('从工程 TTML 新建', ttmlAssetId);
     expect(restored.state.branches?.map((b) => [b.id, b.name, b.role])).toEqual([
@@ -236,7 +236,7 @@ describe('TTML（整个工程）：导出后新建、再导入选来源（W6 设
     const plan = await client.assets.lyricsImportPlan({ assetId: ttmlAssetId, options: { sourceBranchId: translation } });
     expect(plan.selectedSourceBranchId).toBe(translation);
     expect(plan.previewLines.map((l) => l.text)).toEqual(['晨光', '风声', '三行']);
-    expect(planNotes(plan, 'import')).toContain('这是 MakoKara 工程 TTML，有 2 个来源，一次导入一个。请在下面选择要导入的来源。');
+    expect(planNotes(plan, 'import')).toContain('文件有 2 个来源。可以在下面选择一个来源，或一次导入全部来源（不覆盖已有来源，记一条撤销）。');
     expect(primaryImportBlock(plan, true)).toMatch(/不能导入到主歌词/);
     expect(primaryImportBlock(plan, false)).toBeUndefined();
 

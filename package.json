@@ -7,21 +7,21 @@
     "node": ">=24"
   },
   "scripts": {
-    "setup": "pnpm --dir frontend install --frozen-lockfile",
+    "setup": "node scripts/pnpm-run.mjs --dir frontend install --frozen-lockfile",
     "build": "node scripts/app.mjs build",
     "build:desktop": "node scripts/app.mjs build:desktop",
     "desktop": "node scripts/app.mjs desktop",
     "package:appimage": "node scripts/package-appimage.mjs",
     "start": "node scripts/app.mjs start",
     "dev": "node scripts/app.mjs dev",
-    "test:unit": "pnpm --dir frontend test:unit",
+    "test:unit": "node scripts/pnpm-run.mjs --dir frontend test:unit",
     "test:launcher": "node --experimental-test-module-mocks --test tests/launcher.test.mjs",
     "smoke:browser": "node scripts/browser-smoke.mjs",
     "smoke:glow": "node frontend/scripts/glow-smoke.mjs",
     "smoke:layout": "node scripts/layout-check.mjs",
     "smoke:desktop": "node scripts/desktop-smoke.mjs",
     "smoke:desktop-library": "node scripts/desktop-library-smoke.mjs",
-    "setup:p0": "pnpm --dir desktop run setup",
-    "preview:p0": "pnpm --dir desktop run p0"
+    "setup:p0": "node scripts/pnpm-run.mjs --dir desktop run setup",
+    "preview:p0": "node scripts/pnpm-run.mjs --dir desktop run p0"
   }
 }

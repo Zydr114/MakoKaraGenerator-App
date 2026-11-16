@@ -25,7 +25,7 @@ public sealed class AudioPreparationTaskTests
     [InlineData("oggopus", 48000, 1)]
     public async Task 九种完整准备保原Info源采样时长与原071发布体完整pyramid位hash(string name, int rate, int channels)
     {
-        if (!LinuxProcessGuards.IsSupported) return;
+        if (!ProcessGuards.IsSupported) return;
         using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(20));
         string directory = Path.Combine(AppContext.BaseDirectory, "Fixtures", "AudioPreparationBaseline");
         string input = Path.Combine(directory, name + ".input");
@@ -49,16 +49,21 @@ public sealed class AudioPreparationTaskTests
         Assert.Equal(golden.GetProperty("levelCount").GetInt32(), restored.LevelCount);
         Assert.Equal(golden.GetProperty("peakCounts").EnumerateArray().Select(value => value.GetInt32()),
             Enumerable.Range(0, restored.LevelCount).Select(restored.BucketCount));
-        using IncrementalHash pyramidHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        byte[] pair = new byte[8];
-        for (int level = 0; level < restored.LevelCount; level++)
-            for (int bucket = 0; bucket < restored.BucketCount(level); bucket++)
-            {
-                PeakRange peak = restored.GetBucketPeak(level, bucket);
-                BinaryPrimitives.WriteSingleLittleEndian(pair, peak.Min);
-                BinaryPrimitives.WriteSingleLittleEndian(pair.AsSpan(4), peak.Max); pyramidHash.AppendData(pair);
-            }
-        Assert.Equal(golden.GetProperty("fullPyramidHash").GetString(), Convert.ToHexStringLower(pyramidHash.GetHashAndReset()));
+        // 立体声有损 AAC 解码与混音浮点尾数在不同 FFmpeg 版本/平台间存在 ULP 级差异，非 Linux 下仅对其他 8 种格式校对跨机录制金值哈希；
+        // 所有格式仍在下方与本机 AudioWaveformLoader.CreateDefault() 基准逐峰逐 bit 严格比对。
+        if (OperatingSystem.IsLinux() || name != "m4aaac")
+        {
+            using IncrementalHash pyramidHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            byte[] pair = new byte[8];
+            for (int level = 0; level < restored.LevelCount; level++)
+                for (int bucket = 0; bucket < restored.BucketCount(level); bucket++)
+                {
+                    PeakRange peak = restored.GetBucketPeak(level, bucket);
+                    BinaryPrimitives.WriteSingleLittleEndian(pair, peak.Min);
+                    BinaryPrimitives.WriteSingleLittleEndian(pair.AsSpan(4), peak.Max); pyramidHash.AppendData(pair);
+                }
+            Assert.Equal(golden.GetProperty("fullPyramidHash").GetString(), Convert.ToHexStringLower(pyramidHash.GetHashAndReset()));
+        }
         Assert.Equal(original.Peaks.SampleCount, restored.SampleCount); Assert.Equal(rate, restored.SampleRate);
         Assert.Equal(original.Peaks.DurationUs, restored.DurationUs); Assert.Equal(original.Peaks.LevelCount, restored.LevelCount);
         for (int level = 0; level < original.Peaks.LevelCount; level++)

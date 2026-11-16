@@ -339,6 +339,16 @@ if (command === 'build' || command === 'build:desktop') {
   }
   const signals = process.platform === 'win32' ? ['SIGINT', 'SIGTERM', 'SIGBREAK'] : ['SIGINT', 'SIGTERM', 'SIGHUP'];
   for (const signal of signals) process.on(signal, () => void shutdown());
+  if (process.env.MAKO_APP_SHUTDOWN_STDIN === '1') {
+    process.stdin.setEncoding('utf8');
+    let stdinBuf = '';
+    process.stdin.on('data', (chunk) => {
+      stdinBuf += chunk;
+      if (stdinBuf.split(/\r?\n/).some((line) => line.trim() === 'SHUTDOWN')) void shutdown(0);
+    });
+    process.stdin.on('end', () => void shutdown(0));
+    process.stdin.resume();
+  }
   try {
     let desktopSession;
     let launcherCreationTicks;

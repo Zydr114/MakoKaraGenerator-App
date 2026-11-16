@@ -24,11 +24,31 @@ internal sealed record ExportWorkerConfiguration(IBackendExportExecutor? Executo
     {
         string? configured = Environment.GetEnvironmentVariable(variable);
         if (configured is not null) return IsExecutable(configured) ? configured : null;
-        foreach (string directory in (Environment.GetEnvironmentVariable("PATH") ?? string.Empty).Split(Path.PathSeparator))
+        string fileName = defaultName + (OperatingSystem.IsWindows() ? ".exe" : string.Empty);
+        foreach (string rawDirectory in (Environment.GetEnvironmentVariable("PATH") ?? string.Empty).Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
+            string directory = rawDirectory.Trim('"');
             if (!Path.IsPathFullyQualified(directory)) continue;
-            string candidate = Path.Combine(directory, defaultName + (OperatingSystem.IsWindows() ? ".exe" : string.Empty));
+            string candidate = Path.Combine(directory, fileName);
             if (IsExecutable(candidate)) return candidate;
+        }
+        if (OperatingSystem.IsWindows())
+        {
+            string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            if (!string.IsNullOrWhiteSpace(localAppData))
+            {
+                string winGetLinksCandidate = Path.Combine(localAppData, "Microsoft", "WinGet", "Links", fileName);
+                if (IsExecutable(winGetLinksCandidate)) return winGetLinksCandidate;
+                string winGetPackages = Path.Combine(localAppData, "Microsoft", "WinGet", "Packages");
+                if (Directory.Exists(winGetPackages))
+                {
+                    foreach (string packageDir in Directory.EnumerateDirectories(winGetPackages, "Gyan.FFmpeg*"))
+                    {
+                        foreach (string candidate in Directory.EnumerateFiles(packageDir, fileName, SearchOption.AllDirectories))
+                            if (IsExecutable(candidate)) return candidate;
+                    }
+                }
+            }
         }
         return null;
     }

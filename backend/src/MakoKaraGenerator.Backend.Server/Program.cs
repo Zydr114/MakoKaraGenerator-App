@@ -155,6 +155,27 @@ Task previewCleanup = previewService.RunLeaseCleanupAsync(app.Lifetime.Applicati
 string address = app.Services.GetRequiredService<Microsoft.AspNetCore.Hosting.Server.IServer>()
     .Features.Get<IServerAddressesFeature>()?.Addresses.FirstOrDefault() ?? throw new InvalidOperationException("No listening address.");
 Console.WriteLine($"BACKEND_READY {address} {hostInstanceId}");
+if (Environment.GetEnvironmentVariable("MAKO_BACKEND_SHUTDOWN_STDIN") == "1")
+{
+    _ = Task.Run(async () =>
+    {
+        try
+        {
+            while (!app.Lifetime.ApplicationStopping.IsCancellationRequested)
+            {
+                string? line = await Console.In.ReadLineAsync(app.Lifetime.ApplicationStopping).ConfigureAwait(false);
+                if (line is null || string.Equals(line.Trim(), "SHUTDOWN", StringComparison.Ordinal))
+                {
+                    app.Lifetime.StopApplication();
+                    break;
+                }
+            }
+        }
+        catch (OperationCanceledException) when (app.Lifetime.ApplicationStopping.IsCancellationRequested) { }
+        catch (IOException) { app.Lifetime.StopApplication(); }
+        catch (ObjectDisposedException) { }
+    });
+}
 await app.WaitForShutdownAsync().ConfigureAwait(false);
 await resourceCleanup.ConfigureAwait(false);
 await previewCleanup.ConfigureAwait(false);

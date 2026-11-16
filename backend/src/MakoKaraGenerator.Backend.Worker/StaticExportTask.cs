@@ -23,14 +23,16 @@ namespace MakoKaraGenerator.Backend.Worker;
 internal static class StaticExportTask
 {
     internal static Task<WorkerMessage> ExecuteAsync(WorkerMessage request, bool guards,
-        Func<WorkerMessage, Task> send, CancellationToken token, string? renderBackend = null) => ExecuteAsync(request, guards, send, null, token, renderBackend: renderBackend);
+        Func<WorkerMessage, Task> send, CancellationToken token, string? renderBackend = null, long? enforcedMediaLimitBytes = null)
+        => ExecuteAsync(request, guards, send, null, token, renderBackend: renderBackend, enforcedMediaLimitBytes: enforcedMediaLimitBytes);
 
     internal static Task<WorkerMessage> ExecuteImageAsync(WorkerMessage request, bool guards,
-        Func<WorkerMessage, Task> send, CancellationToken token, string? renderBackend = null) => ExecuteAsync(request, guards, send, null, token, imageExport: true, renderBackend: renderBackend);
+        Func<WorkerMessage, Task> send, CancellationToken token, string? renderBackend = null, long? enforcedMediaLimitBytes = null)
+        => ExecuteAsync(request, guards, send, null, token, imageExport: true, renderBackend: renderBackend, enforcedMediaLimitBytes: enforcedMediaLimitBytes);
 
     internal static async Task<WorkerMessage> ExecuteAsync(WorkerMessage request, bool guards,
         Func<WorkerMessage, Task> send, IRenderFrameSessionFactory? sessions, CancellationToken token, bool imageExport = false,
-        string? renderBackend = null)
+        string? renderBackend = null, long? enforcedMediaLimitBytes = null)
     {
         bool capabilities = request.Kind == (imageExport ? ProjectImageExportWorkerContract.CapabilitiesKind : WorkerExportContract.CapabilitiesKind);
         WorkerExportMetadata metadata;
@@ -158,10 +160,17 @@ internal static class StaticExportTask
             ? runtimeInput!.CreateFactory(ReplayReason.Initial, renderBackend: renderBackend, graphPixelChecks: false)
             : imageExport ? new ProjectRenderSessionFactory(prepared.Compiler, new FfmpegVideoFrameProvider(), ReplayReason.Initial,
                 imageResolverFactory, renderBackend: renderBackend, graphPixelChecks: false) : sessions!;
+        long? effectiveMaxMediaBytes = (metadata.ResourcePolicy?.MaxMediaBytes, enforcedMediaLimitBytes) switch
+        {
+            (long policyMax, long envMax) => Math.Min(policyMax, envMax),
+            (long policyMax, null) => policyMax,
+            (null, long envMax) => envMax,
+            _ => null,
+        };
         BackendFallbackDiagnosticCollector fallback = new();
         var strict = new StrictFactory(factory, metadata, snapshot.MediaFeatureInput, fallback);
         var probe = new StrictProbe(new FfmpegMediaProbe(metadata.FfprobePath), metadata, plan, snapshot.Composition, decodedAudio);
-        var encoder = new StrictEncoder(new FfmpegMediaEncoder(metadata.FfmpegPath), metadata, plan);
+        var encoder = new StrictEncoder(new FfmpegMediaEncoder(metadata.FfmpegPath), metadata, plan, effectiveMaxMediaBytes);
         var channel = Channel.CreateBounded<(long Sequence, ExportProgress Progress)>(new BoundedChannelOptions(1)
         { SingleReader = true, SingleWriter = true, FullMode = BoundedChannelFullMode.DropOldest });
         using var operation = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -181,14 +190,15 @@ internal static class StaticExportTask
             MediaFileInfo produced = probe.Produced ?? throw Fail("WorkerExportMediaVerificationFailed");
             var video = produced.Video!;
             FileInfo file = new(metadata.CandidatePath!); CheckPath(file.FullName, false, false);
-            if (file.Length <= 0 || file.Length > metadata.ResourcePolicy?.MaxMediaBytes) throw Fail("WorkerExportArtifactBudgetExceeded");
+            long actualLength = ReadActualFileLength(file.FullName);
+            if (actualLength <= 0 || actualLength > effectiveMaxMediaBytes) throw Fail("WorkerExportArtifactBudgetExceeded");
             await using FileStream stream = new(file.FullName, FileMode.Open, FileAccess.Read, FileShare.Read);
             string sha = Convert.ToHexStringLower(await SHA256.HashDataAsync(stream, token).ConfigureAwait(false));
             var dto = new ExportReportDto(metadata.Format, metadata.IncludeAudio, plan.TotalFrames, checked((int)video.DecodedFrameCount!.Value),
                 original.FramesWritten, original.DroppedFrames, original.FailedFrames, video.Width, video.Height,
                 snapshot.Composition.FrameRate.Numerator, snapshot.Composition.FrameRate.Denominator, Text(plan.VideoDurationUs),
                 Text(video.DurationUs > 0 ? video.DurationUs : produced.DurationUs), sourceAudioDuration is { } duration ? Text(duration) : null,
-                video.CodecName, produced.Audio?.CodecName, video.PixelFormat!, video.HasAlpha, file.Length, sha,
+                video.CodecName, produced.Audio?.CodecName, video.PixelFormat!, video.HasAlpha, actualLength, sha,
                 [.. original.Warnings.Select(Sanitize)], [.. original.DiagnosticOccurrences.Select(MapDiagnostic)], original.IsVerified,
                 produced.Audio is { } outputAudio ? Text(outputAudio.DurationUs) : null, true, metadata.Quality,
                 original.Quality?.ToString().ToLowerInvariant() ?? throw Fail("WorkerExportQualityMismatch"),
@@ -202,7 +212,7 @@ internal static class StaticExportTask
         catch (Exception failure)
         {
             primary = failure;
-            if (budgetExceeded) throw Fail("WorkerExportArtifactBudgetExceeded", failure);
+            if (budgetExceeded || failure is OutputSizeLimitExceededException) throw Fail("WorkerExportArtifactBudgetExceeded", failure);
             throw;
         }
         finally
@@ -231,13 +241,12 @@ internal static class StaticExportTask
         {
             try
             {
-                if (metadata.ResourcePolicy?.MaxMediaBytes is null) return;
+                if (effectiveMaxMediaBytes is null) return;
                 using PeriodicTimer timer = new(TimeSpan.FromMilliseconds(40));
                 while (await timer.WaitForNextTickAsync(operation.Token).ConfigureAwait(false))
                     foreach (string path in Directory.EnumerateFiles(Path.GetDirectoryName(metadata.CandidatePath!)!))
                     {
-                        FileInfo file = new(path);
-                        if (file.Length > metadata.ResourcePolicy?.MaxMediaBytes) { budgetExceeded = true; operation.Cancel(); return; }
+                        if (TryReadActualFileLength(path) > effectiveMaxMediaBytes) { budgetExceeded = true; operation.Cancel(); return; }
                     }
             }
             catch (OperationCanceledException) when (operation.IsCancellationRequested) { }
@@ -411,15 +420,25 @@ internal static class StaticExportTask
     { public string BackendName => "WorkerOwnedSession"; public RenderFrame Render(RenderRequest request) => throw Fail("WorkerExportSessionRequired"); }
     private sealed class InlineProgress(Action<ExportProgress> report) : IProgress<ExportProgress>
     { public void Report(ExportProgress value) => report(value); }
-    private sealed class StrictEncoder(IMediaEncoder inner, WorkerExportMetadata metadata, CompositionFramePlan plan) : IMediaEncoder
+    private sealed class StrictEncoder(IMediaEncoder inner, WorkerExportMetadata metadata, CompositionFramePlan plan, long? effectiveMaxMediaBytes) : IMediaEncoder
     {
         public Task<IVideoEncodingSession> StartAsync(VideoEncodingRequest request, CancellationToken cancellationToken = default)
         {
             if (request.TotalFrames != plan.TotalFrames || request.OutputPath != metadata.CandidatePath || request.AudioPath != metadata.Audio?.Path)
                 throw Fail("WorkerExportSourceMismatch");
             return inner.StartAsync(request with { AudioInputFormat = metadata.Audio is { } audio ? AudioFormat(audio) : null,
-                MaximumOutputBytes = metadata.ResourcePolicy?.MaxMediaBytes }, cancellationToken);
+                MaximumOutputBytes = effectiveMaxMediaBytes }, cancellationToken);
         }
+    }
+    private static long TryReadActualFileLength(string path)
+    {
+        try { return ReadActualFileLength(path); }
+        catch (Exception error) when (error is FileNotFoundException or DirectoryNotFoundException or IOException or UnauthorizedAccessException) { return 0L; }
+    }
+    private static long ReadActualFileLength(string path)
+    {
+        using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        return stream.Length;
     }
     private sealed class StrictProbe(FfmpegMediaProbe inner, WorkerExportMetadata metadata, CompositionFramePlan plan, Composition composition,
         AudioStreamInfo? decodedAudio) : IMediaProbe

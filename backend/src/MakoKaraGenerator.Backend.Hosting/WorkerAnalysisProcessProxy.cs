@@ -32,8 +32,8 @@ public sealed partial class WorkerProcessProxy
             try
             {
                 await StartAsync(call.Token).ConfigureAwait(false);
-                if (!_childReapingEnabled || _ownedGroup is null)
-                    throw new WorkerProtocolException("离线分析需要实际私有Worker进程组与子进程回收能力。", "WorkerAnalysisUnavailable");
+                if (!HasVerifiedPrivateGuard)
+                    throw new WorkerProtocolException("离线分析需要实际私有Worker进程守卫与子进程回收能力。", "WorkerAnalysisUnavailable");
                 await WriteAsync(request, call.Token).ConfigureAwait(false);
                 read = ReadLoopAsync();
                 bool cancellationWon = await Task.WhenAny(read, Task.Delay(Timeout.InfiniteTimeSpan, call.Token)).ConfigureAwait(false) != read;

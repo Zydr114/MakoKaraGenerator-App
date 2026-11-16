@@ -126,9 +126,12 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
     private Process? _process;
     private Stream? _input;
     private Stream? _output;
+    private StreamReader? _ownedStderrReader;
     private Task? _stderrDrain;
     private OwnedProcessGroup? _ownedGroup;
     private OwnedProcessTree? _ownedTree;
+    private WindowsJobObjectGuard? _windowsGuard;
+    private bool _guardHandshakeVerified;
     private bool _childReapingEnabled;
     private long? _actualMediaFileSizeLimit;
     private Process? _packageRenderVerifiedProcess;
@@ -155,12 +158,15 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
     /// <summary>当前实际Worker启动时的设备检查；不代表业务会话已创建或产帧。</summary>
     public RenderBackendDeviceInfoDto? VerifiedRenderBackendDevice { get; private set; }
 
-    public bool SupportsExportGuards => _childReapingEnabled && _ownedGroup is not null
+    private bool HasVerifiedPrivateGuard => _childReapingEnabled
+        && (_ownedGroup is not null || _windowsGuard is not null && _guardHandshakeVerified);
+
+    public bool SupportsExportGuards => HasVerifiedPrivateGuard
         && _actualMediaFileSizeLimit == _options.ExportMediaFileSizeLimitBytes;
 
     internal void RequireExportGuards()
     {
-        if (!SupportsExportGuards) throw new WorkerProtocolException("Export requires a verified private Linux x64 Worker group and media file guard.", "WorkerExportUnavailable");
+        if (!SupportsExportGuards) throw new WorkerProtocolException("Export requires a verified private Worker process guard and media file limit.", "WorkerExportUnavailable");
     }
 
     /// <summary>启动并完成协议握手。</summary>
@@ -193,19 +199,35 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
             if (_options.RenderBackend is { } selectedBackend)
                 start.Environment["MAKO_RENDER_BACKEND"] = WorkerRenderBackendContract.EnvironmentValue(selectedBackend);
             start.Environment.Remove("MAKO_BACKEND_WORKER_MEDIA_LIMIT_BYTES");
-            _childReapingEnabled = LinuxProcessGuards.TryEnableChildReaping();
+            _childReapingEnabled = ProcessGuards.TryEnableChildReaping();
             if (_options.ExportMediaFileSizeLimitBytes is { } maximum)
             {
                 if (!_childReapingEnabled) throw new WorkerProtocolException("Export process guards are unavailable.", "WorkerExportUnavailable");
                 start.Environment["MAKO_BACKEND_WORKER_MEDIA_LIMIT_BYTES"] = maximum.ToString(System.Globalization.CultureInfo.InvariantCulture);
             }
-            Process process = new() { StartInfo = start, EnableRaisingEvents = true };
-            if (!process.Start()) throw new InvalidOperationException("Worker 进程启动失败。");
-            _process = process;
-            _ownedTree = OwnedProcessTree.TryCapture(process);
-            _input = process.StandardInput.BaseStream;
-            _output = process.StandardOutput.BaseStream;
-            _stderrDrain = WorkerTelemetryDrain.DrainAsync(process.StandardError, process.Id);
+            _guardHandshakeVerified = false;
+            Process process;
+            if (WindowsJobObjectGuard.IsSupported)
+            {
+                WindowsControlledProcess controlled = WindowsJobObjectGuard.StartProcess(start);
+                _windowsGuard = controlled.Guard;
+                process = controlled.ManagedProcess;
+                _process = process;
+                _input = controlled.StandardInput;
+                _output = controlled.StandardOutput;
+                _ownedStderrReader = controlled.StandardError;
+                _stderrDrain = WorkerTelemetryDrain.DrainAsync(controlled.StandardError, process.Id);
+            }
+            else
+            {
+                process = new() { StartInfo = start, EnableRaisingEvents = true };
+                if (!process.Start()) throw new InvalidOperationException("Worker 进程启动失败。");
+                _process = process;
+                _ownedTree = OwnedProcessTree.TryCapture(process);
+                _input = process.StandardInput.BaseStream;
+                _output = process.StandardOutput.BaseStream;
+                _stderrDrain = WorkerTelemetryDrain.DrainAsync(process.StandardError, process.Id);
+            }
             try
             {
                 WorkerMessage hello = new("hello", Guid.NewGuid().ToString("N"));
@@ -215,9 +237,20 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
                     throw new WorkerProtocolException("Worker 握手回执不匹配。");
                 if (response.ProcessGroupId is { } group)
                 {
-                    _ownedGroup = OwnedProcessGroup.TryCapture(process);
-                    if (_ownedGroup is null || group != _ownedGroup.Leader.ProcessGroupId)
-                        throw new WorkerProtocolException("Worker private group identity does not match the started process.");
+                    if (_windowsGuard is not null)
+                    {
+                        _windowsGuard.VerifyIdentity();
+                        if (group != _windowsGuard.LeaderProcessId)
+                            throw new WorkerProtocolException("Worker private Job guard identity does not match the started process.");
+                        _guardHandshakeVerified = true;
+                    }
+                    else
+                    {
+                        _ownedGroup = OwnedProcessGroup.TryCapture(process);
+                        if (_ownedGroup is null || group != _ownedGroup.Leader.ProcessGroupId)
+                            throw new WorkerProtocolException("Worker private group identity does not match the started process.");
+                        _guardHandshakeVerified = true;
+                    }
                 }
                 _actualMediaFileSizeLimit = response.MediaFileSizeLimitBytes;
                 if (_options.ExportMediaFileSizeLimitBytes is not null) RequireExportGuards();
@@ -712,10 +745,10 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
                     || IsPackageSessionKind(request.Kind) && !ReferenceEquals(_process, _packageSessionProcess)))
                 throw new WorkerProtocolException("包 Worker 实际进程代次已改变或没有已验证会话。", "WorkerPackageUnavailable");
             await StartAsync(cancellationToken).ConfigureAwait(false);
-            if (requireAudioPreparationGuards && (!_childReapingEnabled || _ownedGroup is null))
-                throw new WorkerProtocolException("音频准备需要实际私有Worker进程组与子进程回收能力。", "WorkerAudioPreparationUnavailable");
-            if (requirePackageRuntimeGuards && (!_childReapingEnabled || _ownedGroup is null))
-                throw new WorkerProtocolException("包 Runtime 需要实际私有Worker进程组与子进程回收能力。", "WorkerPackageUnavailable");
+            if (requireAudioPreparationGuards && !HasVerifiedPrivateGuard)
+                throw new WorkerProtocolException("音频准备需要实际私有Worker进程守卫与子进程回收能力。", "WorkerAudioPreparationUnavailable");
+            if (requirePackageRuntimeGuards && !HasVerifiedPrivateGuard)
+                throw new WorkerProtocolException("包 Runtime 需要实际私有Worker进程守卫与子进程回收能力。", "WorkerPackageUnavailable");
             if (requirePackageRuntimeGuards || expectedProcess is not null)
             {
                 // Public StartAsync can replace a dead process independently of the call gate.
@@ -930,7 +963,8 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
             await process.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
             // A terminated group leader is not evidence that its private
             // FFmpeg/ffprobe descendants have exited or released their pipes.
-            if (_ownedGroup is not null) await _ownedGroup.KillAndDrainAsync(TimeSpan.FromSeconds(3), CancellationToken.None).ConfigureAwait(false);
+            if (_windowsGuard is not null) await _windowsGuard.KillAndDrainAsync(TimeSpan.FromSeconds(3), CancellationToken.None).ConfigureAwait(false);
+            else if (_ownedGroup is not null) await _ownedGroup.KillAndDrainAsync(TimeSpan.FromSeconds(3), CancellationToken.None).ConfigureAwait(false);
             else if (_ownedTree is not null) await _ownedTree.KillAndDrainAsync(TimeSpan.FromSeconds(3), CancellationToken.None).ConfigureAwait(false);
             if (_stderrDrain is not null) await _stderrDrain.ConfigureAwait(false);
             reaped = true;
@@ -942,7 +976,8 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
             // disposing Process alone does not terminate the child.
             await KillOwnedAsync().ConfigureAwait(false);
             await process.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
-            if (_ownedGroup is not null) await _ownedGroup.KillAndDrainAsync(TimeSpan.FromSeconds(3), CancellationToken.None).ConfigureAwait(false);
+            if (_windowsGuard is not null) await _windowsGuard.KillAndDrainAsync(TimeSpan.FromSeconds(3), CancellationToken.None).ConfigureAwait(false);
+            else if (_ownedGroup is not null) await _ownedGroup.KillAndDrainAsync(TimeSpan.FromSeconds(3), CancellationToken.None).ConfigureAwait(false);
             else if (_ownedTree is not null) await _ownedTree.KillAndDrainAsync(TimeSpan.FromSeconds(3), CancellationToken.None).ConfigureAwait(false);
             if (_stderrDrain is not null) await _stderrDrain.ConfigureAwait(false);
             reaped = true;
@@ -952,8 +987,15 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
         {
             if (reaped)
             {
-                process.Dispose(); _process = null; _input = null; _output = null; _stderrDrain = null;
-                _ownedGroup = null; _actualMediaFileSizeLimit = null;
+                if (_windowsGuard is not null)
+                {
+                    _input?.Dispose();
+                    _output?.Dispose();
+                    _ownedStderrReader?.Dispose();
+                    await _windowsGuard.DisposeAsync().ConfigureAwait(false);
+                }
+                process.Dispose(); _process = null; _input = null; _output = null; _ownedStderrReader = null; _stderrDrain = null;
+                _ownedGroup = null; _windowsGuard = null; _guardHandshakeVerified = false; _actualMediaFileSizeLimit = null;
                 _ownedTree = null;
                 _packageRenderVerifiedProcess = null; _packageValidationVerifiedProcess = null;
                 _imageValidationVerifiedProcess = null; _runtimeValidationVerifiedProcess = null;
@@ -966,7 +1008,8 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
 
         async Task KillOwnedAsync()
         {
-            if (_ownedGroup is not null) await _ownedGroup.KillAndDrainAsync(TimeSpan.FromSeconds(3), CancellationToken.None).ConfigureAwait(false);
+            if (_windowsGuard is not null) await _windowsGuard.KillAndDrainAsync(TimeSpan.FromSeconds(3), CancellationToken.None).ConfigureAwait(false);
+            else if (_ownedGroup is not null) await _ownedGroup.KillAndDrainAsync(TimeSpan.FromSeconds(3), CancellationToken.None).ConfigureAwait(false);
             else if (_ownedTree is not null) await _ownedTree.KillAndDrainAsync(TimeSpan.FromSeconds(3), CancellationToken.None).ConfigureAwait(false);
             else if (!process.HasExited) process.Kill(entireProcessTree: true);
         }

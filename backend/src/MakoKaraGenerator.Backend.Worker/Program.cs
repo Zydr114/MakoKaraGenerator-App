@@ -27,13 +27,13 @@ internal static class Program
         string renderBackend = RuntimeRenderBackendProbe.ResolveEnvironment();
         bool enableGpuPreview = Environment.GetEnvironmentVariable("MAKO_BACKEND_GPU_PREVIEW") == "1";
         bool enableGpuPreviewBenchmark = enableGpuPreview && Environment.GetEnvironmentVariable("MAKO_BACKEND_GPU_PREVIEW_BENCHMARK") == "1";
-        bool ownsGroup = LinuxProcessGuards.InitializeCurrentProcessGroup();
+        bool ownsGroup = ProcessGuards.InitializeCurrentProcessGuard();
         long? fileSizeLimit = null;
         if (Environment.GetEnvironmentVariable("MAKO_BACKEND_WORKER_MEDIA_LIMIT_BYTES") is { } configuredMediaLimit)
         {
             if (!long.TryParse(configuredMediaLimit, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out long maximum) || maximum <= 0)
                 return 1;
-            fileSizeLimit = LinuxProcessGuards.ApplyCurrentFileSizeLimit(maximum) ? maximum : 0;
+            fileSizeLimit = ProcessGuards.ApplyCurrentFileSizeLimit(maximum, ownsGroup) ? maximum : 0;
         }
         using CancellationTokenSource shutdown = new();
         ConcurrentDictionary<string, CancellationTokenSource> active = new(StringComparer.Ordinal);
@@ -433,7 +433,7 @@ internal static class Program
                 if (!exportGate.Wait(0, cancellationToken)) throw new WorkerProtocolException("Worker 已执行导出任务。", "WorkerBusy");
                 WorkerMessage result;
                 try { result = await StaticExportTask.ExecuteAsync(request, ownsGroup && fileSizeLimit != 0,
-                    ReplyAsync, cancellationToken, renderBackend).ConfigureAwait(false); }
+                    ReplyAsync, cancellationToken, renderBackend, enforcedMediaLimitBytes: fileSizeLimit > 0 ? fileSizeLimit : null).ConfigureAwait(false); }
                 finally { exportGate.Release(); }
                 await ReplyAsync(result).ConfigureAwait(false);
             }
@@ -477,7 +477,7 @@ internal static class Program
                 if (!exportGate.Wait(0, cancellationToken)) throw new WorkerProtocolException("Worker 已执行导出任务。", "WorkerBusy");
                 WorkerMessage result;
                 try { result = await StaticExportTask.ExecuteImageAsync(request, ownsGroup && fileSizeLimit != 0,
-                    ReplyAsync, cancellationToken, renderBackend).ConfigureAwait(false); }
+                    ReplyAsync, cancellationToken, renderBackend, enforcedMediaLimitBytes: fileSizeLimit > 0 ? fileSizeLimit : null).ConfigureAwait(false); }
                 finally { exportGate.Release(); }
                 await ReplyAsync(result).ConfigureAwait(false);
             }

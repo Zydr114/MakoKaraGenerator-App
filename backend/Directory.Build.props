@@ -13,6 +13,8 @@
     <Deterministic>true</Deterministic>
     <!-- 中文字体与区域数据需要完整的 ICU，不能启用 InvariantGlobalization（docs/development.md §9.5） -->
     <InvariantGlobalization>false</InvariantGlobalization>
+    <!-- 规避 .NET 10.0.12 Tier1 Dynamic PGO 下 Roslyn 5.0 反复动态编译触发 MetadataWriter.PopulateNestedClassTableRows NRE -->
+    <TieredPGO Condition="$([MSBuild]::IsOSPlatform('Windows'))">false</TieredPGO>
   </PropertyGroup>
 
   <!-- 质量门禁：警告即错误，避免带着问题前进（docs/roadmap.md §17） -->

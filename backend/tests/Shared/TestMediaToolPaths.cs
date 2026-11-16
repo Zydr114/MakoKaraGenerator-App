@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 
 namespace MakoKaraGenerator.TestSupport;
 
@@ -10,10 +11,47 @@ internal static class TestMediaToolPaths
     internal static string Ffprobe => ResolveMediaTool("MAKO_BACKEND_FFPROBE_PATH", "ffprobe");
     internal static string Python => Cache.GetOrAdd("python", static _ => ResolvePython());
 
+    [ModuleInitializer]
+    internal static void Initialize()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        PrependToolDirectoryToPath("MAKO_BACKEND_FFMPEG_PATH", "ffmpeg");
+        PrependToolDirectoryToPath("MAKO_BACKEND_FFPROBE_PATH", "ffprobe");
+    }
+
     internal static string ResolveMediaTool(string envVariable, string toolName)
         => Cache.GetOrAdd(envVariable + ":" + toolName, _ => ResolveMediaToolCore(envVariable, toolName));
 
+    private static void PrependToolDirectoryToPath(string envVariable, string toolName)
+    {
+        string? resolved = TryResolveMediaToolCore(envVariable, toolName);
+        if (resolved is null)
+            return;
+
+        string? directory = Path.GetDirectoryName(resolved);
+        if (string.IsNullOrWhiteSpace(directory))
+            return;
+
+        string normalizedDirectory = directory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        string currentPath = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+        bool alreadyPresent = currentPath.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Any(entry => string.Equals(
+                entry.Trim('"').TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                normalizedDirectory,
+                StringComparison.OrdinalIgnoreCase));
+
+        if (!alreadyPresent)
+            Environment.SetEnvironmentVariable("PATH", string.IsNullOrEmpty(currentPath) ? directory : $"{directory}{Path.PathSeparator}{currentPath}");
+    }
+
     private static string ResolveMediaToolCore(string envVariable, string toolName)
+        => TryResolveMediaToolCore(envVariable, toolName)
+            ?? throw new FileNotFoundException($"Unable to locate required test tool '{toolName + (OperatingSystem.IsWindows() ? ".exe" : string.Empty)}'.",
+                toolName + (OperatingSystem.IsWindows() ? ".exe" : string.Empty));
+
+    private static string? TryResolveMediaToolCore(string envVariable, string toolName)
     {
         string? configured = Environment.GetEnvironmentVariable(envVariable);
         if (!string.IsNullOrWhiteSpace(configured) && Path.IsPathFullyQualified(configured) && File.Exists(configured))
@@ -55,7 +93,7 @@ internal static class TestMediaToolPaths
             if (File.Exists(unixDefault)) return unixDefault;
         }
 
-        throw new FileNotFoundException($"Unable to locate required test tool '{fileName}'.", fileName);
+        return null;
     }
 
     private static string ResolvePython()

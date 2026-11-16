@@ -185,7 +185,7 @@ public sealed class PreparedLineTransformTests
     public async Task 无逐字时间整行依据和共享合字仍可完整仿射且未来端点使用最终矩阵()
     {
         var snapshot = Snapshot(false); var branch = snapshot.Lyrics.PrimaryBranch!; var old = branch.Lines[0];
-        var line = old with { Text = "office", Tokens = [], RubyAnnotations = [], StyleOverride = new() { FontFamilyName = "DejaVu Sans" } };
+        var line = old with { Text = "office", Tokens = [], RubyAnnotations = [], StyleOverride = new() { FontFamilyName = TestFonts.LigatureFfi } };
         snapshot = snapshot with { Lyrics = snapshot.Lyrics.ReplaceBranch(branch with { Lines = branch.Lines.SetItem(0, line) }) };
         var effects = await Effects(["shift"]); var target = RenderTarget.FromComposition(snapshot.Composition);
         await using var session = await Factory(effects).CreateAsync(snapshot);
@@ -206,7 +206,7 @@ public sealed class PreparedLineTransformTests
     {
         var snapshot = Snapshot(false); var branch = snapshot.Lyrics.PrimaryBranch!; var old = branch.Lines[0];
         var line = old with { Text = "ffi", RubyAnnotations = [], Tokens = [LyricToken.Create("f1", "f"), LyricToken.Create("f2", "f"), LyricToken.Create("i", "i")],
-            StyleOverride = new() { FontFamilyName = "DejaVu Sans", FontSizePx = 64 } };
+            StyleOverride = new() { FontFamilyName = TestFonts.LigatureFfi, FontSizePx = 64 } };
         snapshot = snapshot with { Lyrics = snapshot.Lyrics.ReplaceBranch(branch with { Lines = branch.Lines.SetItem(0, line) }) };
         await using var session = await Factory(await Effects(["shift"])).CreateAsync(snapshot);
         var prepared = await session.PrepareAsync(12_500_000, Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition));

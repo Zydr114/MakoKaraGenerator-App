@@ -142,7 +142,7 @@ public sealed class V2TextPartitionTests
                 new(index * 1_000_000, (index + 1) * 1_000_000), TimingStatus.Imported))]);
         var snapshot = new ProjectSnapshot { Name = "ligature", Lyrics = LyricsDocument.Create([line]),
             Composition = new() { CanvasWidth = 640, CanvasHeight = 360 },
-            LyricStyle = LyricStyle.Default with { FontFamilyName = "DejaVu Sans", FontSizePx = 56 } };
+            LyricStyle = LyricStyle.Default with { FontFamilyName = TestFonts.LigatureFfi, FontSizePx = 56 } };
         using SkiaRenderPipeline renderer = new(); var scene = renderer.GetSceneFrame(snapshot, 2_500_000);
         var shared = scene.TokenGeometries.SelectMany(item => item.Clusters).First(item => item.OwnerTokens.Length > 1);
         Assert.False(shared.Geometry.CanTransformIndependently);
@@ -167,7 +167,7 @@ public sealed class V2TextPartitionTests
             { RubyAnnotations = [RubyAnnotation.Create("ruby", "t1", "xy")] };
         var snapshot = new ProjectSnapshot { Name = "ruby ligature", Lyrics = LyricsDocument.Create([line]),
             Composition = new() { CanvasWidth = 640, CanvasHeight = 360 },
-            LyricStyle = LyricStyle.Default with { FontFamilyName = "DejaVu Sans", FontSizePx = 56, Stroke = null, Shadow = null, Glow = null,
+            LyricStyle = LyricStyle.Default with { FontFamilyName = TestFonts.LigatureFfi, FontSizePx = 56, Stroke = null, Shadow = null, Glow = null,
                 Opacity = .6f, UnsungColor = RgbaColor.White, SungColor = RgbaColor.White } };
         using SkiaRenderPipeline renderer = new(); var scene = renderer.GetSceneFrame(snapshot, 2_500_000);
         var owner = scene.TokenGeometries.Single(item => item.WithRuby.TokenId.Value == "t1");
@@ -237,7 +237,7 @@ public sealed class V2TextPartitionTests
             [LyricToken.Create("token", "AB", new(1_000_000, 3_000_000), TimingStatus.Confirmed)]) with
             { RubyAnnotations = [RubyAnnotation.Create("ruby", "token", "ab")] };
         return ProjectSnapshot.FromProject(Project.Create("partitions", Composition.Create(640, 360, Core.Time.FrameRate.Fps30, outputDurationUs: 5_000_000),
-            LyricsDocument.Create([line]), lyricStyle: LyricStyle.Default with { FontFamilyName = "DejaVu Sans", FontSizePx = 64,
+            LyricsDocument.Create([line]), lyricStyle: LyricStyle.Default with { FontFamilyName = TestFonts.LigatureFfi, FontSizePx = 64,
                 Stroke = null, Shadow = null, Glow = null, UnsungColor = RgbaColor.White, SungColor = RgbaColor.White }));
     }
     private static long Alpha(RenderFrame pixels)

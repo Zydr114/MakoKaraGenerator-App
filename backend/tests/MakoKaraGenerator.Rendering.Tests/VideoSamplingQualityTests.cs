@@ -54,7 +54,7 @@ public sealed class VideoSamplingQualityTests(ITestOutputHelper output)
     {
         using TemporaryDirectory directory = new();
         string path = Path.Combine(directory.Path, "quality.mkv");
-        var info = new ProcessStartInfo("ffmpeg") { RedirectStandardError = true, UseShellExecute = false };
+        var info = new ProcessStartInfo(RenderingTestEnvironment.FfmpegExecutable) { RedirectStandardError = true, UseShellExecute = false };
         foreach (string argument in new[] { "-v", "error", "-f", "lavfi", "-i", $"testsrc=size={width}x{height}:rate=2:duration=1",
             "-vf", $"format=rgba,geq=r='{red}':g='{green}':b='{blue}':a='{alpha}'",
             "-c:v", yuv ? "libx264" : "ffv1", "-pix_fmt", yuv ? "yuv420p" : "bgra", "-y", path }) info.ArgumentList.Add(argument);

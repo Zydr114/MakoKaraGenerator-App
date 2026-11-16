@@ -31,7 +31,7 @@ public sealed class WipeHighlightRenderingTests
         if (ruby is not null) line = line with { RubyAnnotations = [ruby] };
         var style = LyricStyle.Default with
         {
-            FontFamilyName = "Noto Sans CJK SC", FontSizePx = FontSize, UnsungColor = new(255, 0, 0), SungColor = new(0, 0, 255),
+            FontFamilyName = TestFonts.Cjk, FontSizePx = FontSize, UnsungColor = new(255, 0, 0), SungColor = new(0, 0, 255),
             Wipe = new WipeSpec { FeatherRatio = feather, Highlight = highlight },
         };
         return Core.Projects.Project.Create("highlight", Composition.Create(Width, Height, FrameRate.Fps30, outputDurationUs: 5_000_000),

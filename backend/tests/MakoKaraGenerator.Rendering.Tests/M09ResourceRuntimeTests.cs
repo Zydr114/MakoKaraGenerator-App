@@ -22,7 +22,7 @@ namespace MakoKaraGenerator.Rendering.Tests;
 // CPU is an independent oracle, never the production backend for an enabled v3 effect.
 public sealed class M09ResourceRuntimeTests
 {
-    private const string FontFamily = "M09X Sans CJK SC";
+    private static readonly string FontFamily = PackageFontFixture.Family.Replace("Mako", "M09X", StringComparison.Ordinal);
     private static bool GpuRequested => Environment.GetEnvironmentVariable("MAKO_GPU_SMOKE") == "1";
 
     [Theory]

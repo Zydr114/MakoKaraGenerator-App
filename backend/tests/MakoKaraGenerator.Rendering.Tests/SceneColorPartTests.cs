@@ -180,7 +180,7 @@ public sealed class SceneColorPartTests
     {
         var line = LyricLine.Create("line", "office", new(0, 6_000_000), TimingStatus.Edited,
             [.. "office".Select((c, i) => LyricToken.Create("t" + i, c.ToString(), new(i * 1_000_000, (i + 1) * 1_000_000), TimingStatus.Edited))]);
-        var project = Project(false) with { Lyrics = LyricsDocument.Create([line]), LyricStyle = LyricStyle.Default with { FontFamilyName = "DejaVu Sans", FontSizePx = 56 } };
+        var project = Project(false) with { Lyrics = LyricsDocument.Create([line]), LyricStyle = LyricStyle.Default with { FontFamilyName = TestFonts.LigatureFfi, FontSizePx = 56 } };
         using var renderer = new SkiaRenderPipeline(); var request = Request(project, 2_500_000); var scene = renderer.GetSceneFrame(request.Project, request.TimeUs);
         using var whole = Part(renderer, request, Target(scene), SceneColorPart.BaseFill); Assert.True(Alpha(Bytes(whole.Surface)) > 100_000);
         var shared = scene.TokenGeometries.First(item => !item.BaseGeometry.CanTransformIndependently);

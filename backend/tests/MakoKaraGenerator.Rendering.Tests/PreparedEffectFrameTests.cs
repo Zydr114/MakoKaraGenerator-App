@@ -195,7 +195,7 @@ public sealed class PreparedEffectFrameTests
         var line = LyricLine.Create("row", "office", new(0, 6_000_000), TimingStatus.Edited,
             [.. "office".Select((character, index) => LyricToken.Create("t" + index, character.ToString(), new(index * 1_000_000, (index + 1) * 1_000_000), TimingStatus.Edited))]);
         var snapshot = ProjectSnapshot.FromProject(Project.Create("ligature", Composition.Create(640, 360, Core.Time.FrameRate.Fps30, outputDurationUs: 6_000_000),
-            LyricsDocument.Create([line]), lyricStyle: LyricStyle.Default with { FontFamilyName = "DejaVu Sans", FontSizePx = 56 })) with { EffectInputsFingerprint = Fingerprint };
+            LyricsDocument.Create([line]), lyricStyle: LyricStyle.Default with { FontFamilyName = TestFonts.LigatureFfi, FontSizePx = 56 })) with { EffectInputsFingerprint = Fingerprint };
         await using var source = await (await Factory()).CreateAsync(snapshot);
         var error = await Assert.ThrowsAsync<EffectFailureException>(async () => await source.PrepareAsync(1_500_000, Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition)));
         Assert.Equal("UnsupportedGlyphPartition", error.Code); Assert.Equal("Evaluate", error.Stage);

@@ -178,7 +178,7 @@ public sealed class GlowRenderingTests
     {
         var p = Project(); var line = LyricLine.Create("line", "office", new(0, 4_000_000), TimingStatus.Edited,
             [.. "office".Select((c, i) => LyricToken.Create("t" + i, c.ToString()))]);
-        p = p with { Lyrics = LyricsDocument.Create([line]), LyricStyle = p.LyricStyle with { FontFamilyName = "DejaVu Sans" } };
+        p = p with { Lyrics = LyricsDocument.Create([line]), LyricStyle = p.LyricStyle with { FontFamilyName = TestFonts.LigatureFfi } };
         using var r = new SkiaRenderPipeline(); var q = Request(p); var scene = r.GetSceneFrame(q.Project, q.TimeUs);
         var shared = scene.TokenGeometries.First(item => !item.BaseGeometry.CanTransformIndependently);
         var changed = line with { Tokens = [.. line.Tokens.Select(token => token.Id == shared.WithRuby.TokenId.Value

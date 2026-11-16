@@ -48,7 +48,21 @@ namespace MakoKaraGenerator.Rendering.Skia;
 public sealed class SkiaTextLayoutEngine : ITextLayoutEngine
 {
     /// <summary>默认字体族。本机已确认存在，且覆盖简体中文。</summary>
-    public const string DefaultFamilyName = "Noto Sans CJK SC";
+    public static string DefaultFamilyName { get; } = ResolveDefaultFamilyName();
+
+    private static string ResolveDefaultFamilyName()
+    {
+        if (!OperatingSystem.IsWindows())
+            return "Noto Sans CJK SC";
+
+        HashSet<string> families = new(SKFontManager.Default.FontFamilies, StringComparer.OrdinalIgnoreCase);
+        foreach (string candidate in new[] { "Noto Sans CJK SC", "Noto Sans SC", "Microsoft YaHei", "SimSun" })
+        {
+            if (families.Contains(candidate))
+                return candidate;
+        }
+        return SKTypeface.Default.FamilyName;
+    }
 
     private readonly Func<string, int, SKTypeface?> _matchCharacter;
     private readonly Func<string, SKFontStyle, SKTypeface?> _createFallbackTypeface;

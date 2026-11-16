@@ -238,7 +238,7 @@ public sealed class V2ExitPackageTests
             [LyricToken.Create("next", "CD", new(1_000_000, 2_000_000), TimingStatus.Edited)]) with
             { RubyAnnotations = [RubyAnnotation.Create("ruby-1", "next", "cd")] };
         var project = Project.Create("SDK v2 exits", Composition.Create(640, 360, FrameRate.Fps30, outputDurationUs: 601_000_000),
-            LyricsDocument.Create([first, second]), lyricStyle: LyricStyle.Default with { FontFamilyName = "DejaVu Sans", FontSizePx = 56,
+            LyricsDocument.Create([first, second]), lyricStyle: LyricStyle.Default with { FontFamilyName = TestFonts.LigatureFfi, FontSizePx = 56,
                 Stroke = null, Shadow = null, Glow = null, UnsungColor = RgbaColor.White, SungColor = RgbaColor.White });
         return ProjectSnapshot.FromProject(project with { Effects = new(packages, instances), EnterAnimation = null });
     }

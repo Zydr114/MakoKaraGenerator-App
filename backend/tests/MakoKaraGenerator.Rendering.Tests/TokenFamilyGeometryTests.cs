@@ -91,7 +91,7 @@ public sealed class TokenFamilyGeometryTests
                 new Core.Time.TimeRange(index * 1_000_000, (index + 1) * 1_000_000), TimingStatus.Imported))]);
         var snapshot = new ProjectSnapshot { Name = "ligature", Lyrics = LyricsDocument.Create([line]),
             Composition = new() { CanvasWidth = 640, CanvasHeight = 360 },
-            LyricStyle = LyricStyle.Default with { FontFamilyName = "DejaVu Sans", FontSizePx = 56 } };
+            LyricStyle = LyricStyle.Default with { FontFamilyName = TestFonts.LigatureFfi, FontSizePx = 56 } };
         using SkiaRenderPipeline pipeline = new();
         var frame = pipeline.GetSceneFrame(snapshot, 2_500_000);
         Assert.All(frame.TokenGeometries.Skip(1).Take(3), item =>

@@ -16,7 +16,7 @@ public sealed class ShapedDrawUnitTests
     public void 固定字形绘制与上游整行结果像素一致(string text)
     {
         using SkiaTextLayoutEngine engine = new();
-        TextLayoutOptions options = new() { FamilyName = "DejaVu Sans", FontSizePx = 56 };
+        TextLayoutOptions options = new() { FamilyName = TestFonts.LigatureLatinAndArabic, FontSizePx = 56 };
         ShapedLine line = engine.Shape(text, options);
         using SKBitmap actual = Draw(engine, line, options);
         using SKBitmap expected = NewBitmap();
@@ -37,7 +37,7 @@ public sealed class ShapedDrawUnitTests
     public void 完整合字可绑定一个元素但不能跨元素独立变化()
     {
         using SkiaTextLayoutEngine engine = new();
-        ShapedLine line = engine.Shape("office", new() { FamilyName = "DejaVu Sans", FontSizePx = 56 });
+        ShapedLine line = engine.Shape("office", new() { FamilyName = TestFonts.LigatureFfi, FontSizePx = 56 });
         ShapedDrawUnit ligature = Assert.Single(line.DrawUnits.Where(unit => unit.Utf16Length > 1));
         Assert.Equal("ffi", line.Text.Substring(ligature.Utf16Start, ligature.Utf16Length));
         var split = GlyphPartitioner.Partition(line, Enumerable.Range(0, line.Text.Length).Select(index => new TextSpan(index, 1)).ToArray());

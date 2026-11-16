@@ -22,7 +22,7 @@ namespace MakoKaraGenerator.Rendering.Tests;
 /// </remarks>
 public sealed class SkiaTextLayoutEngineTests
 {
-    private const string PrimaryFamily = SkiaTextLayoutEngine.DefaultFamilyName;
+    private static readonly string PrimaryFamily = SkiaTextLayoutEngine.DefaultFamilyName;
 
     private const float DefaultFontSize = 72f;
 
@@ -194,13 +194,13 @@ public sealed class SkiaTextLayoutEngineTests
             new TextLayoutOptions
             {
                 FamilyName = PrimaryFamily,
-                FallbackFamilyNames = ["Missing fallback 987654", "Noto Color Emoji"],
+                FallbackFamilyNames = ["Missing fallback 987654", TestFonts.Emoji],
                 FontSizePx = DefaultFontSize,
             });
 
         ShapedTextElement element = Assert.Single(line.Elements);
         Assert.True(element.IsFallback);
-        Assert.Equal("Noto Color Emoji", element.FamilyName);
+        Assert.Equal(TestFonts.Emoji, element.FamilyName);
         Assert.False(line.HasMissingGlyphs);
     }
 
@@ -411,5 +411,23 @@ public sealed class SkiaTextLayoutEngineTests
 
         Assert.Equal(5, line.Elements.Count);
         Assert.True(line.MappingIsExact);
+    }
+
+    [Fact]
+    public void 固定字体集合索引可跨平台枚举族名并完成整形()
+    {
+        byte[] bytes = MakoKaraGenerator.TestSupport.PackageFontFixture.FontBytes();
+        IReadOnlyList<string> families = SkiaTextLayoutEngine.ReadFixedFontFamilies(bytes);
+        Assert.Contains(MakoKaraGenerator.TestSupport.PackageFontFixture.Family, families);
+
+        using SkiaTextLayoutEngine shaper = new([bytes]);
+        ShapedLine line = shaper.Shape("歌词かし", new TextLayoutOptions
+        {
+            FamilyName = MakoKaraGenerator.TestSupport.PackageFontFixture.Family,
+            FontSizePx = 40f,
+        });
+        Assert.Equal(4, line.Elements.Count);
+        Assert.Equal(0, line.MissingGlyphCount);
+        Assert.All(line.DrawUnits, unit => Assert.Equal(MakoKaraGenerator.TestSupport.PackageFontFixture.Family, unit.FamilyName));
     }
 }

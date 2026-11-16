@@ -214,7 +214,7 @@ public sealed class V2TargetComplexStyleTests
                     new(2_450_000 + index * 70_000, 2_520_000 + index * 70_000), TimingStatus.Edited))]),
         };
         var project = Project.Create("M11 目标复杂样式", Composition.Create(640, 360, FrameRate.Fps30, outputDurationUs: 3_000_000),
-            LyricsDocument.Create(rows), lyricStyle: LyricStyle.Default with { FontFamilyName = "Noto Sans CJK SC", FontSizePx = 64 });
+            LyricsDocument.Create(rows), lyricStyle: LyricStyle.Default with { FontFamilyName = TestFonts.Cjk, FontSizePx = 64 });
         // 根容器带旋转与缩放：所有文字、播放头和锚点都经过父子矩阵。
         {
             var tree = project.LyricPresentation; var root = tree.FindNode(tree.FindProgram("primary")!.RootContainerId)!;

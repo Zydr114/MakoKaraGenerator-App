@@ -106,13 +106,13 @@ public sealed class LeadInRenderingTests
     [Fact]
     public void 标记字号渐变描边阴影真实绘制且装饰透明度只应用一次()
     {
-        var project=LeadInFixture.Create(); var tree=project.LyricPresentation;
+        var project=TestFonts.WithCjkFont(LeadInFixture.Create()); var tree=project.LyricPresentation;
         var group=tree.FindNode(tree.FindProgram("primary")!.LeadIns[0].IndicatorContainerId)!;
         var sequence=(CountdownSequenceContent)group.Content!;
         var removed=sequence.MarkNodeIds.Skip(1).ToHashSet(StringComparer.Ordinal);
         var decorated=sequence.Appearance with
         {
-            Typography=sequence.Appearance.Typography with { FontSizePx=44 },
+            Typography=sequence.Appearance.Typography with { FontFamilyName=TestFonts.Cjk, FontSizePx=44 },
             PendingFill=new() { Color=RgbaColor.White,Gradient=GradientSpec.Create([
                 new GradientStop(0,new(255,0,0)),new GradientStop(1,new(0,0,255))]) },
             Stroke=new() { Color=new(255,0,0),WidthPx=4 },

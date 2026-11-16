@@ -72,7 +72,7 @@ public sealed class BaseMaterialPixelOracleTests
         var compiled = await BaseMaterialPackageFixture.Compile(snapshot);
         await using var source = await BaseMaterialPackageFixture.Factory(snapshot, compiled).CreateAsync(snapshot);
         var frame = await BaseMaterialPackageFixture.Prepare(source, snapshot); var token = Assert.Single(frame.FinalGeometry);
-        Rect2 domain = new(-100, -200, 800, 400); const int shiftX = 5, shiftY = 3;
+        Rect2 domain = new(-100, -200, 800, 600); const int shiftX = 5, shiftY = 3;
         var warp = new GridWarp(domain, 1, 1, [new(domain.Left + shiftX, domain.Top + shiftY), new(domain.Right + shiftX, domain.Top + shiftY),
             new(domain.Left + shiftX, domain.Bottom + shiftY), new(domain.Right + shiftX, domain.Bottom + shiftY)]);
         var warped = frame.WithTextWarps([new(new("oracle-warp"), "oracle-warp", null, new TextTarget.Base(token.BaseOnly), warp)]);

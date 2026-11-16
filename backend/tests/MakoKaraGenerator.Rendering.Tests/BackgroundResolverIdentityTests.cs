@@ -33,7 +33,7 @@ public sealed partial class BackgroundResolverIdentityTests
     public async Task 真实一秒视频复用解析器时循环及冻结像素各自对应正确帧()
     {
         using var temp = new TemporaryDirectory(); string path = temp.FilePath("one-second.mp4");
-        var info = new ProcessStartInfo("ffmpeg") { UseShellExecute = false, RedirectStandardError = true };
+        var info = new ProcessStartInfo(RenderingTestEnvironment.FfmpegExecutable) { UseShellExecute = false, RedirectStandardError = true };
         foreach (string arg in new[] { "-v", "error", "-f", "lavfi", "-i", "testsrc=size=64x48:rate=10:duration=1",
             "-pix_fmt", "yuv420p", "-c:v", "libx264", "-y", path }) info.ArgumentList.Add(arg);
         using (var process = Process.Start(info)!)

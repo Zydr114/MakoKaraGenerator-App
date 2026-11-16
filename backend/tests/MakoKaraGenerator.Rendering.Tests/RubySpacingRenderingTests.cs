@@ -26,7 +26,7 @@ public sealed class RubySpacingRenderingTests
     [Fact]
     public void Shared_layouts_survive_renderer_disposal_and_ruby_styles_do_not_reuse_stale_geometry()
     {
-        var source = RubySpacingFixture.Create();
+        var source = TestFonts.WithCjkFont(RubySpacingFixture.Create());
         var changed = source with { LyricStyle = source.LyricStyle with { FontSizePx = 62 } };
         var cache = new SkiaSceneGeometry.LayoutCache();
         byte[] expected;
@@ -53,7 +53,7 @@ public sealed class RubySpacingRenderingTests
         using var reference = independent.Render(RenderRequest.At(changed, 250_000) with { TransparentBackground = true });
         Assert.Equal(reference.PixelMemory.ToArray(), changedFrame.PixelMemory.ToArray());
         Assert.False(expected.AsSpan().SequenceEqual(changedFrame.PixelMemory.Span));
-        var endAligned = RubySpacingFixture.Create(alignment: RubyAlignment.End);
+        var endAligned = TestFonts.WithCjkFont(RubySpacingFixture.Create(alignment: RubyAlignment.End));
         using var changedRuby = reused.Render(RenderRequest.At(endAligned, 250_000) with { TransparentBackground = true });
         using var referenceRuby = independent.Render(RenderRequest.At(endAligned, 250_000) with { TransparentBackground = true });
         Assert.Equal(referenceRuby.PixelMemory.ToArray(), changedRuby.PixelMemory.ToArray());
@@ -62,7 +62,7 @@ public sealed class RubySpacingRenderingTests
     [Fact]
     public void 共享注音解算淘汰后重算且动态回退不跨引擎复用()
     {
-        var source = RubySpacingFixture.Create();
+        var source = TestFonts.WithCjkFont(RubySpacingFixture.Create());
         var cache = new SkiaSceneGeometry.LayoutCache();
         using var first = new SkiaRenderPipeline(null, null, null, null, false, null, true, cache);
         using var second = new SkiaRenderPipeline(null, null, null, null, false, null, true, cache);

@@ -26,7 +26,21 @@ internal static class PackageWorkerRuntimeFixture
         return ScriptPreparedInputCodec.Prepare(source, root, compiler.Identity, compilations);
     }
 
-    internal const string Family = "Noto Sans CJK SC";
+    internal static readonly string Family = ResolveFamily();
+
+    private static string ResolveFamily()
+    {
+        if (OperatingSystem.IsLinux())
+            return "Noto Sans CJK SC";
+
+        HashSet<string> families = new(SKFontManager.Default.FontFamilies, StringComparer.OrdinalIgnoreCase);
+        foreach (string candidate in new[] { "Noto Sans CJK SC", "Noto Sans SC", "Microsoft YaHei", "SimSun" })
+        {
+            if (families.Contains(candidate))
+                return candidate;
+        }
+        return SKTypeface.Default.FamilyName;
+    }
 
     internal static ProjectSnapshot Create(string kind)
     {
@@ -251,9 +265,17 @@ internal static class PackageWorkerRuntimeFixture
         using SKTypeface typeface = SKFontManager.Default.MatchFamily(Family, SKFontStyle.Normal);
         Assert.NotNull(typeface); Assert.Equal(Family, typeface.FamilyName);
         using SKStreamAsset stream = typeface.OpenStream(); Assert.NotNull(stream); Assert.True(stream.Length > 0);
-        using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        byte[] bytes = new byte[64 * 1024]; int read;
-        while ((read = stream.Read(bytes, bytes.Length)) != 0) hash.AppendData(bytes, 0, read);
-        Assert.Equal("b76b0433203017ca80401b2ee0dd69350349871c4b19d504c34dbdd80541690a", Convert.ToHexStringLower(hash.GetHashAndReset()));
+        if (OperatingSystem.IsLinux())
+        {
+            using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            byte[] bytes = new byte[64 * 1024]; int read;
+            while ((read = stream.Read(bytes, bytes.Length)) != 0) hash.AppendData(bytes, 0, read);
+            Assert.Equal("b76b0433203017ca80401b2ee0dd69350349871c4b19d504c34dbdd80541690a", Convert.ToHexStringLower(hash.GetHashAndReset()));
+        }
+        else
+        {
+            Assert.True(typeface.GetGlyph('歌') != 0);
+            Assert.True(typeface.GetGlyph('詞') != 0);
+        }
     }
 }

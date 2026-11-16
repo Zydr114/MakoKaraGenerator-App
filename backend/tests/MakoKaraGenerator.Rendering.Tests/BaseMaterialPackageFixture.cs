@@ -50,7 +50,7 @@ internal static class BaseMaterialPackageFixture
         var line = LyricLine.Create("line", "AB", new(0, 602_000_000), TimingStatus.Confirmed,
             [LyricToken.Create("token", "AB", new(1_000_000, 3_000_000), TimingStatus.Confirmed)]) with
         { RubyAnnotations = [RubyAnnotation.Create("ruby", "token", "xy")] };
-        var style = LyricStyle.Default with { FontFamilyName = "DejaVu Sans", FontSizePx = 64, SungColor = RgbaColor.White,
+        var style = LyricStyle.Default with { FontFamilyName = TestFonts.LigatureFfi, FontSizePx = 64, SungColor = RgbaColor.White,
             UnsungColor = RgbaColor.White, Stroke = null, Shadow = null, Glow = null };
         if (source)
         {

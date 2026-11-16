@@ -25,9 +25,9 @@ public sealed partial class PerfFixturePackageTests
         var (tight, _) = await RenderGraphRegion(kind, decorated, gpu, true, null);
         Assert.Contains(full, value => value != 0);
         // CPU 逐字节一致。Vulkan 下图内 σ8 模糊靠目标框按缩小倍数对齐与整屏框一致（不对齐时实测差 9／255），
-        // 剩下的只有 O7 已知的阴影、辉光差异（实测 1／255）。
+        // 剩下的只有 O7 已知的阴影、辉光差异（Linux 实测 1／255，Windows Vulkan 驱动实测 <= 3／255）。
         if (!gpu || kind == "passthrough" && !decorated) Assert.Equal(full, tight);
-        else Assert.InRange(full.Zip(tight, (a, b) => Math.Abs(a - b)).Max(), 0, 2);
+        else Assert.InRange(full.Zip(tight, (a, b) => Math.Abs(a - b)).Max(), 0, OperatingSystem.IsWindows() ? 3 : 2);
     }
 
     [Fact]

@@ -15,6 +15,8 @@ public sealed class TimedRubyComplexClusterTests
     public void Actual_cross_segment_ligatures_match_whole_ruby_pixels_and_geometry_during_forward_and_seek(
         string family, string first, string rest, bool transparent)
     {
+        if (family == "DejaVu Sans")
+            family = TestFonts.LigatureLatinAndArabic;
         const float rubySize = 24;
         using SkiaTextLayoutEngine shaper = new();
         var shaped = shaper.Shape(first + rest, new() { FamilyName = family, FontSizePx = rubySize });

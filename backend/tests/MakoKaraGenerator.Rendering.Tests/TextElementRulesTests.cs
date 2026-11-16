@@ -38,15 +38,15 @@ public sealed class TextElementRulesTests
         // 实测现象：彩虹旗里的 U+FE0F 在任何字体里都没有字形（glyph id 为 0），
         // 因此 ContainsGlyphs（"所有码点都要有字形"）会把真正能画它的
         // Noto Color Emoji 判成不覆盖，导致回退逻辑退到中文字体并画出豆腐块。
-        const string flag = "🏳\uFE0F\u200D🌈";
+        string flag = OperatingSystem.IsWindows() ? "🏴\U000E0067\U000E0062\U000E0065\U000E006E\U000E0067\U000E007F" : "🏳\uFE0F\u200D🌈";
 
-        using SkiaSharp.SKTypeface emojiTypeface = SkiaSharp.SKTypeface.FromFamilyName("Noto Color Emoji");
+        using SkiaSharp.SKTypeface emojiTypeface = SkiaSharp.SKTypeface.FromFamilyName(TestFonts.Emoji);
 
         Assert.NotNull(emojiTypeface);
         Assert.False(emojiTypeface.ContainsGlyphs(flag), "前提变了：库的判定行为已改变，请复核 ADR-0010。");
         Assert.True(
             SkiaTypefaceCoverage.IsElementCoveredBy(emojiTypeface, flag),
-            "忽略默认可忽略字符后，Noto Color Emoji 应当被判为覆盖彩虹旗。");
+            "忽略默认可忽略字符后，Emoji 字体应当被判为覆盖含可忽略码点的序列。");
     }
 
     [Fact]

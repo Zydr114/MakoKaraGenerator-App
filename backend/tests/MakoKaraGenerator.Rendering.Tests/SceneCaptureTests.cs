@@ -194,7 +194,7 @@ public sealed class SceneCaptureTests
     {
         var line = LyricLine.Create("row", "office", new(0, 6_000_000), TimingStatus.Edited,
             [.. "office".Select((c, i) => LyricToken.Create("t" + i, c.ToString(), new(i * 1_000_000, (i + 1) * 1_000_000), TimingStatus.Edited))]);
-        var snapshot = ProjectSnapshot.FromProject(Single() with { Lyrics = LyricsDocument.Create([line]), LyricStyle = LyricStyle.Default with { FontFamilyName = "DejaVu Sans", FontSizePx = 56 } });
+        var snapshot = ProjectSnapshot.FromProject(Single() with { Lyrics = LyricsDocument.Create([line]), LyricStyle = LyricStyle.Default with { FontFamilyName = TestFonts.LigatureFfi, FontSizePx = 56 } });
         using SkiaRenderPipeline pipeline = new(); var scene = pipeline.GetSceneFrame(snapshot, 2_500_000); var request = RenderRequest.At(snapshot, scene.TimeUs);
         using var whole = Capture(pipeline, request, Line(scene)); Assert.True(Alpha(Bytes(whole)) > 100_000);
         var shared = scene.TokenGeometries.First(item => !item.BaseGeometry.CanTransformIndependently);
@@ -208,7 +208,7 @@ public sealed class SceneCaptureTests
             [.. "office".Select((c, i) => LyricToken.Create("t" + i, c.ToString(), new(i * 1_000_000, (i + 1) * 1_000_000), TimingStatus.Edited))]);
         line = line with { Tokens = line.Tokens.SetItem(1, line.Tokens[1] with { StyleOverride = new() { Stroke = StrokeSpec.Create(RgbaColor.White, 100f) } }) };
         var snapshot = ProjectSnapshot.FromProject(Single() with { Lyrics = LyricsDocument.Create([line]),
-            LyricStyle = LyricStyle.Default with { FontFamilyName = "DejaVu Sans", FontSizePx = 56, Stroke = null, Shadow = null } });
+            LyricStyle = LyricStyle.Default with { FontFamilyName = TestFonts.LigatureFfi, FontSizePx = 56, Stroke = null, Shadow = null } });
         using SkiaRenderPipeline pipeline = new(); var scene = pipeline.GetSceneFrame(snapshot, 500_000);
         var request = RenderRequest.At(snapshot, scene.TimeUs) with { TransparentBackground = true };
         using var original = pipeline.Render(request); using var color = Capture(pipeline, request, Line(scene));

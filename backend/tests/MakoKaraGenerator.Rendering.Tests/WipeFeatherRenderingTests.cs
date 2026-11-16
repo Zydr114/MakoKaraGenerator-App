@@ -27,7 +27,7 @@ public sealed partial class WipeFeatherRenderingTests
         if (ruby is not null) line = line with { RubyAnnotations = [ruby] };
         var style = LyricStyle.Default with
         {
-            FontFamilyName = "Noto Sans CJK SC", FontSizePx = FontSize, UnsungColor = unsung ?? new(255, 0, 0), SungColor = sung ?? new(0, 0, 255),
+            FontFamilyName = TestFonts.Cjk, FontSizePx = FontSize, UnsungColor = unsung ?? new(255, 0, 0), SungColor = sung ?? new(0, 0, 255),
             Wipe = new WipeSpec { FeatherRatio = feather },
         };
         return Core.Projects.Project.Create("wipe", Composition.Create(Width, Height, FrameRate.Fps30, outputDurationUs: 5_000_000,
@@ -158,7 +158,7 @@ public sealed partial class WipeFeatherRenderingTests
     public void 准备阶段不提前进入过渡带()
     {
         // 前奏准备阶段整行按未唱显示；元素时间清空，过渡带不会在首个元素开唱前 W/(2v) 提前出现。
-        var project = LeadInFixture.Create();
+        var project = TestFonts.WithCjkFont(LeadInFixture.Create());
         Project Feather(double ratio) => project with { LyricStyle = project.LyricStyle with { Wipe = new WipeSpec { FeatherRatio = ratio } } };
         const long t = 11_900_000;
         var line = LyricSceneSampler.SampleFrame(ProjectSnapshot.FromProject(Feather(.5)), t).Lines.Single(static line => line.Branch.Id == "primary");
@@ -192,7 +192,7 @@ public sealed partial class WipeFeatherRenderingTests
     {
         // DejaVu Sans 的 office 中 ffi 连写成一个字形，元素不能单独绘制，覆盖随整行两遍绘制；羽化比例按元素解析。
         var tokens = "office".Select((c, i) => (c.ToString(), (TimeRange?)new TimeRange(i * 500_000L, (i + 1) * 500_000L))).ToArray();
-        Project Dejavu(Project p) => p with { LyricStyle = p.LyricStyle with { FontFamilyName = "DejaVu Sans" } };
+        Project Dejavu(Project p) => p with { LyricStyle = p.LyricStyle with { FontFamilyName = TestFonts.LigatureFfi } };
         var feathered = Dejavu(Project(0, tokens, elementFeather: [null, null, null, .5, null, null]));
         using var pipeline = new SkiaRenderPipeline();
         Assert.False(pipeline.GetSceneFrame(ProjectSnapshot.FromProject(feathered), 0).TokenGeometries[3].BaseGeometry.CanTransformIndependently);

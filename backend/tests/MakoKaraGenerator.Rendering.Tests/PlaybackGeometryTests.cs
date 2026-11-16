@@ -67,7 +67,7 @@ public sealed class PlaybackGeometryTests
         var tokens = "office ".Select((character, index) => LyricToken.Create("t" + index, character.ToString(),
             new Core.Time.TimeRange(index * 1_000_000, (index + 1) * 1_000_000), TimingStatus.Imported));
         var line = LyricLine.Create("line", "office ", new(0, 7_000_000), TimingStatus.Imported, [.. tokens]);
-        var snapshot = Snapshot(line, 4) with { LyricStyle = Snapshot(line, 4).LyricStyle with { FontFamilyName = "DejaVu Sans" } };
+        var snapshot = Snapshot(line, 4) with { LyricStyle = Snapshot(line, 4).LyricStyle with { FontFamilyName = TestFonts.LigatureFfi } };
         using SkiaRenderPipeline renderer = new();
         var space = Prepare(renderer, snapshot, 6_500_000);
         var spaceGeometry = space.FinalGeometry.Single(item => item.WithRuby.TokenId.Value == "t6");

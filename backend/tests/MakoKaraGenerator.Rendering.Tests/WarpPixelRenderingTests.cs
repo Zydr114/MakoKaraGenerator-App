@@ -225,7 +225,7 @@ public sealed partial class WarpPixelRenderingTests
         };
         var snapshot = new ProjectSnapshot { Name = "ruby warp ligature", Lyrics = LyricsDocument.Create([line]),
             Composition = new() { CanvasWidth = 640, CanvasHeight = 360 },
-            LyricStyle = LyricStyle.Default with { FontFamilyName = "DejaVu Sans", FontSizePx = 56,
+            LyricStyle = LyricStyle.Default with { FontFamilyName = TestFonts.LigatureFfi, FontSizePx = 56,
                 Stroke = null, Shadow = null, Glow = null, Opacity = .6f,
                 UnsungColor = RgbaColor.White, SungColor = RgbaColor.White } };
         using SkiaRenderPipeline renderer = TestRenderer();
@@ -447,7 +447,7 @@ public sealed partial class WarpPixelRenderingTests
         var project = Project.Create("warp pixels", Composition.Create(320, 180, FrameRate.Fps30, outputDurationUs: 4_000_000),
             LyricsDocument.Create([line]), lyricStyle: LyricStyle.Default with
             {
-                FontFamilyName = "DejaVu Sans", FontSizePx = 64,
+                FontFamilyName = TestFonts.LigatureLatinAndArabic, FontSizePx = 64,
                 Stroke = null, Shadow = null, Glow = null,
                 UnsungColor = RgbaColor.White, SungColor = RgbaColor.White, Opacity = 1,
             });
@@ -463,7 +463,7 @@ public sealed partial class WarpPixelRenderingTests
         };
         return ProjectSnapshot.FromProject(Project.Create("warp partitions",
             Composition.Create(640, 360, FrameRate.Fps30, outputDurationUs: 4_000_000), LyricsDocument.Create([line]),
-            lyricStyle: LyricStyle.Default with { FontFamilyName = "DejaVu Sans", FontSizePx = 64,
+            lyricStyle: LyricStyle.Default with { FontFamilyName = TestFonts.LigatureLatinAndArabic, FontSizePx = 64,
                 Stroke = null, Shadow = null, Glow = null,
                 UnsungColor = RgbaColor.White, SungColor = RgbaColor.White, Opacity = 1 }));
     }

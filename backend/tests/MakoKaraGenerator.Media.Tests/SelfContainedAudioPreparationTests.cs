@@ -68,7 +68,7 @@ public sealed class SelfContainedAudioPreparationTests
         using TemporaryDirectory temp = new(); using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(15));
         string original = await EncodeAsync(temp, "ipod", "aac", 48000, 2, deadline.Token);
         string referenced = temp.FilePath("owned-reference.m4a"); File.Copy(original, referenced);
-        byte[] name = Encoding.ASCII.GetBytes(Path.GetFileName(referenced)); byte[] fullPath = Encoding.UTF8.GetBytes(referenced);
+        byte[] name = Encoding.ASCII.GetBytes(Path.GetFileName(referenced)); byte[] fullPath = Encoding.UTF8.GetBytes(referenced.Replace('\\', '/'));
         using MemoryStream body = new();
         body.Write(new byte[10 + 28 + 12]); body.WriteByte((byte)name.Length); body.Write(name); body.Write(new byte[63 - name.Length]);
         body.Write(new byte[16]); body.Write(new byte[] { 0, 1, 0, 1 }); body.Write(new byte[16]);
@@ -78,8 +78,8 @@ public sealed class SelfContainedAudioPreparationTests
         string movie = temp.FilePath("owned-reference-movie.m4a");
         await File.WriteAllBytesAsync(movie, ReplaceReferences(await File.ReadAllBytesAsync(original, deadline.Token), external), deadline.Token);
         using MemoryStream opened = new();
-        CommandResult optedIn = await Cli.Wrap(TestMediaToolPaths.Ffmpeg).WithArguments(["-v", "error", "-enable_drefs", "1", "-use_absolute_path", OperatingSystem.IsWindows() ? "1" : "0",
-            "-i", movie, "-vn", "-ac", "1", "-f", "f32le", "-acodec", "pcm_f32le", "-"])
+        CommandResult optedIn = await Cli.Wrap(TestMediaToolPaths.Ffmpeg).WithArguments(["-v", "error", "-enable_drefs", "1", "-use_absolute_path", "0",
+            "-i", movie.Replace('\\', '/'), "-vn", "-ac", "1", "-f", "f32le", "-acodec", "pcm_f32le", "-"])
             .WithStandardOutputPipe(PipeTarget.ToStream(opened)).ExecuteAsync(deadline.Token);
         Assert.Equal(0, optedIn.ExitCode); Assert.True(opened.Length > 0);
         await Assert.ThrowsAsync<IOException>(() => AudioWaveformLoader.CreateForSelfContainedFiles(

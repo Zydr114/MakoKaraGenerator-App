@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Globalization;
 using System.Text.Json;
 
 namespace MakoKaraGenerator.Media.Tests;
@@ -7,7 +9,6 @@ public sealed class BoundedPcmReaderTests
     [Fact]
     public async Task 巨型无换行stderr只保留有限诊断但完整PCM回调仍正确()
     {
-        if (!OperatingSystem.IsLinux()) return;
         using TemporaryDirectory directory = new();
         string executable = await ExecutableAsync(directory, """
             import os,struct,sys
@@ -30,7 +31,6 @@ public sealed class BoundedPcmReaderTests
     [InlineData(true)]
     public async Task 消费者失败和取消保持原原因并等实际解码进程退出(bool cancel)
     {
-        if (!OperatingSystem.IsLinux()) return;
         using TemporaryDirectory directory = new();
         string pidFile = directory.FilePath("owned-pid");
         string executable = await ExecutableAsync(directory, "import os,struct,sys,time\n" +
@@ -45,8 +45,9 @@ public sealed class BoundedPcmReaderTests
             }, deadline.Token).WaitAsync(TimeSpan.FromSeconds(10)));
         if (cancel) Assert.IsAssignableFrom<OperationCanceledException>(failure);
         else Assert.Equal("primary PCM consumer failure", Assert.IsType<IOException>(failure).Message);
-        int pid = int.Parse(await File.ReadAllTextAsync(pidFile), System.Globalization.CultureInfo.InvariantCulture);
-        Assert.False(Directory.Exists("/proc/" + pid.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        int pid = int.Parse(await File.ReadAllTextAsync(pidFile), CultureInfo.InvariantCulture);
+        for (int i = 0; i < 50 && IsProcessAlive(pid); i++) await Task.Delay(20);
+        Assert.False(IsProcessAlive(pid));
     }
 
     [Theory]
@@ -58,7 +59,6 @@ public sealed class BoundedPcmReaderTests
     [InlineData("ogg")]
     public async Task 默认解码参数完整保持而受信入口明确格式严格解码唯一音流和本地协议(string format)
     {
-        if (!OperatingSystem.IsLinux()) return;
         using TemporaryDirectory directory = new();
         string argumentFile = directory.FilePath("arguments.json");
         string input = directory.FilePath("owned.input");
@@ -90,7 +90,6 @@ public sealed class BoundedPcmReaderTests
     [InlineData(3)]
     public async Task 跨读取块float样本完整恢复而残缺EOF不能成功(int tailBytes)
     {
-        if (!OperatingSystem.IsLinux()) return;
         using TemporaryDirectory directory = new();
         string executable = await ExecutableAsync(directory, "import struct,sys,time\n" +
             "data=struct.pack('<fff',.25,-.5,1.25)+b'x'*" + tailBytes.ToString(System.Globalization.CultureInfo.InvariantCulture) + "\n" +
@@ -105,10 +104,23 @@ public sealed class BoundedPcmReaderTests
 
     private static async Task<string> ExecutableAsync(TemporaryDirectory directory, string source)
     {
+        if (OperatingSystem.IsWindows())
+        {
+            string pyPath = directory.FilePath("owned-decoder.py");
+            await File.WriteAllTextAsync(pyPath, source);
+            string cmdPath = directory.FilePath("owned-decoder.cmd");
+            await File.WriteAllTextAsync(cmdPath, string.Create(CultureInfo.InvariantCulture, $"@echo off\r\n\"{TestMediaToolPaths.Python}\" \"{pyPath}\" %*\r\n"));
+            return cmdPath;
+        }
         string path = directory.FilePath("owned-decoder");
         await File.WriteAllTextAsync(path, "#!/usr/bin/env python3\n" + source);
-        if (OperatingSystem.IsLinux())
-            File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
         return path;
+    }
+
+    private static bool IsProcessAlive(int pid)
+    {
+        try { using Process process = Process.GetProcessById(pid); return !process.HasExited; }
+        catch (ArgumentException) { return false; }
     }
 }

@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -77,17 +78,17 @@ public sealed class SelfContainedAudioPreparationTests
         string movie = temp.FilePath("owned-reference-movie.m4a");
         await File.WriteAllBytesAsync(movie, ReplaceReferences(await File.ReadAllBytesAsync(original, deadline.Token), external), deadline.Token);
         using MemoryStream opened = new();
-        CommandResult optedIn = await Cli.Wrap("ffmpeg").WithArguments(["-v", "error", "-enable_drefs", "1", "-use_absolute_path", "0",
+        CommandResult optedIn = await Cli.Wrap(TestMediaToolPaths.Ffmpeg).WithArguments(["-v", "error", "-enable_drefs", "1", "-use_absolute_path", OperatingSystem.IsWindows() ? "1" : "0",
             "-i", movie, "-vn", "-ac", "1", "-f", "f32le", "-acodec", "pcm_f32le", "-"])
             .WithStandardOutputPipe(PipeTarget.ToStream(opened)).ExecuteAsync(deadline.Token);
         Assert.Equal(0, optedIn.ExitCode); Assert.True(opened.Length > 0);
-        await Assert.ThrowsAsync<IOException>(() => AudioWaveformLoader.CreateForSelfContainedFiles().LoadAsync(movie, cancellationToken: deadline.Token));
+        await Assert.ThrowsAsync<IOException>(() => AudioWaveformLoader.CreateForSelfContainedFiles(
+            TestMediaToolPaths.Ffmpeg, TestMediaToolPaths.Ffprobe).LoadAsync(movie, cancellationToken: deadline.Token));
     }
 
     [Fact]
     public async Task 外部声明在native前拒绝且实际MOV复扫未识别开场仍拒绝()
     {
-        if (!OperatingSystem.IsLinux()) return;
         using TemporaryDirectory temp = new(); string marker = temp.FilePath("probe-args.json");
         string probe = await ExecutableAsync(temp, "probe", "import json,sys\njson.dump(sys.argv[1:],open(" + JsonSerializer.Serialize(marker) + ",'w'))\n" +
             "print('{\"streams\":[{\"codec_name\":\"aac\",\"sample_rate\":\"48000\",\"channels\":1}],\"format\":{\"format_name\":\"mov,mp4,m4a,3gp,3g2,mj2\"}}')\n");
@@ -110,7 +111,6 @@ public sealed class SelfContainedAudioPreparationTests
     [InlineData("junk", "rmra")]
     public async Task 未知前置合法box后的外部声明在native探测前明确拒绝(string prefix, string reference)
     {
-        if (!OperatingSystem.IsLinux()) return;
         using TemporaryDirectory temp = new(); string marker = temp.FilePath("native-called");
         string probe = await ExecutableAsync(temp, "probe", "open(" + JsonSerializer.Serialize(marker) +
             ",'w').write('called')\nprint('{\"streams\":[],\"format\":{}}')\n");
@@ -127,7 +127,6 @@ public sealed class SelfContainedAudioPreparationTests
     [InlineData("mov")]
     public async Task 新策略参数明确而默认保持且非法enum不spawn(string format)
     {
-        if (!OperatingSystem.IsLinux()) return;
         using TemporaryDirectory temp = new(); string probeArgs = temp.FilePath("probe.json"), readArgs = temp.FilePath("reader.json");
         string probe = await ExecutableAsync(temp, "probe", "import json,sys\njson.dump(sys.argv[1:],open(" + JsonSerializer.Serialize(probeArgs) + ",'w'))\n" +
             "print('{\"streams\":[{\"codec_name\":\"pcm_s16le\",\"sample_rate\":\"44100\",\"channels\":1}],\"format\":{\"format_name\":\"" + format + "\"}}')\n");
@@ -157,7 +156,6 @@ public sealed class SelfContainedAudioPreparationTests
     [Fact]
     public async Task 新入口零实际样本拒绝但公有注入默认保持()
     {
-        if (!OperatingSystem.IsLinux()) return;
         using TemporaryDirectory temp = new(); string path = temp.FilePath("empty.input"); await File.WriteAllBytesAsync(path, []);
         string probe = await ExecutableAsync(temp, "probe", "print('{\"streams\":[{\"sample_rate\":\"44100\",\"channels\":1}],\"format\":{\"format_name\":\"wav\"}}')\n");
         string decoder = await ExecutableAsync(temp, "reader", "pass\n");
@@ -170,7 +168,6 @@ public sealed class SelfContainedAudioPreparationTests
     [InlineData(true)]
     public async Task 新原采样率策略消费者失败和取消保主因并排水真实子进程(bool cancel)
     {
-        if (!OperatingSystem.IsLinux()) return;
         using TemporaryDirectory temp = new(); string pidFile = temp.FilePath("pid");
         string decoder = await ExecutableAsync(temp, "reader", "import os,struct,sys,time\nopen(" + JsonSerializer.Serialize(pidFile) +
             ",'w').write(str(os.getpid()))\nsys.stdout.buffer.write(struct.pack('<f',.25));sys.stdout.buffer.flush()\ntime.sleep(30)\n");
@@ -180,7 +177,8 @@ public sealed class SelfContainedAudioPreparationTests
         if (cancel) Assert.IsAssignableFrom<OperationCanceledException>(error);
         else Assert.Equal("owned-primary-consumer", Assert.IsType<IOException>(error).Message);
         int pid = int.Parse(await File.ReadAllTextAsync(pidFile), CultureInfo.InvariantCulture);
-        Assert.False(Directory.Exists("/proc/" + pid.ToString(CultureInfo.InvariantCulture)));
+        for (int i = 0; i < 50 && IsProcessAlive(pid); i++) await Task.Delay(20);
+        Assert.False(IsProcessAlive(pid));
     }
 
     private static ValueTask Append(MemoryStream output, ReadOnlyMemory<float> samples)
@@ -190,7 +188,7 @@ public sealed class SelfContainedAudioPreparationTests
     {
         string source = temp.FilePath("owned-source.wav"); WavWriter.Write(source, WavWriter.BuildSegmentedTone(rate, (.213, .7f)), rate);
         string output = temp.FilePath("owned-codec.input"); StringBuilder errors = new();
-        CommandResult result = await Cli.Wrap("ffmpeg").WithArguments(["-v", "error", "-i", source, "-ac", channels.ToString(CultureInfo.InvariantCulture),
+        CommandResult result = await Cli.Wrap(TestMediaToolPaths.Ffmpeg).WithArguments(["-v", "error", "-i", source, "-ac", channels.ToString(CultureInfo.InvariantCulture),
             "-c:a", codec, "-f", muxer, output]).WithValidation(CommandResultValidation.None).WithStandardErrorPipe(PipeTarget.ToStringBuilder(errors)).ExecuteAsync(token);
         Assert.True(result.ExitCode == 0, errors.ToString()); return output;
     }
@@ -215,8 +213,22 @@ public sealed class SelfContainedAudioPreparationTests
 
     private static async Task<string> ExecutableAsync(TemporaryDirectory temp, string name, string source)
     {
+        if (OperatingSystem.IsWindows())
+        {
+            string pyPath = temp.FilePath(name + ".py");
+            await File.WriteAllTextAsync(pyPath, source);
+            string cmdPath = temp.FilePath(name + ".cmd");
+            await File.WriteAllTextAsync(cmdPath, string.Create(CultureInfo.InvariantCulture, $"@echo off\r\n\"{TestMediaToolPaths.Python}\" \"{pyPath}\" %*\r\n"));
+            return cmdPath;
+        }
         string path = temp.FilePath(name); await File.WriteAllTextAsync(path, "#!/usr/bin/env python3\n" + source);
-        if (OperatingSystem.IsLinux()) File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
         return path;
+    }
+
+    private static bool IsProcessAlive(int pid)
+    {
+        try { using Process process = Process.GetProcessById(pid); return !process.HasExited; }
+        catch (ArgumentException) { return false; }
     }
 }

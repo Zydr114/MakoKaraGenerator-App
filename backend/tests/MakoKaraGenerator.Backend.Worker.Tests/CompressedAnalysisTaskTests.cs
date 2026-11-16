@@ -33,7 +33,7 @@ public sealed class CompressedAnalysisTaskTests
     [InlineData("analysis-compressed-audio-v1", "unknown")]
     public void 元数据执行profile必须与固定音频profile严格一致(string execution, string audio)
     {
-        var metadata = new WorkerAnalysisMetadata(execution, new("/owned/source", 100, new('a', 64), audio), "/usr/bin/ffmpeg", "/usr/bin/ffprobe");
+        var metadata = new WorkerAnalysisMetadata(execution, new(OperatingSystem.IsWindows() ? @"C:\owned\source" : "/owned/source", 100, new('a', 64), audio), TestMediaToolPaths.Ffmpeg, TestMediaToolPaths.Ffprobe);
         Assert.Equal("WorkerAnalysisProtocolInvalid", Assert.Throws<WorkerProtocolException>(() => WorkerAnalysisContract.EncodeInput(Guid.NewGuid(), metadata)).Code);
     }
 
@@ -67,7 +67,7 @@ public sealed class CompressedAnalysisTaskTests
     public async Task 真工具列表核验仅配置能力且具有当前引擎及精确profile集合()
     {
         Guid task = Guid.NewGuid(); byte[] payload = WorkerAnalysisContract.EncodeInput(task,
-            new(WorkerAnalysisContract.Profile, null, "/usr/bin/ffmpeg", "/usr/bin/ffprobe"), true);
+            new(WorkerAnalysisContract.Profile, null, TestMediaToolPaths.Ffmpeg, TestMediaToolPaths.Ffprobe), true);
         WorkerMessage result = await StaticAudioAnalysisTask.ExecuteAsync(new(WorkerAnalysisContract.CapabilitiesKind, "cap",
             WorkerProtocol.ComputeSha256(payload), payload, taskId: task.ToString("N")), true, _ => Task.CompletedTask, CancellationToken.None);
         var caps = WorkerAnalysisContract.DecodeJson<WorkerAnalysisCapabilitiesDto>(result.Payload, 4096);
@@ -119,12 +119,23 @@ public sealed class CompressedAnalysisTaskTests
     public async Task 实际Probe工具错误流属性在原Analyzer解码之前严格拒绝(string codec, int rate, int channels)
     {
         using TemporaryDirectory directory = new(); string source = await EncodeAsync(directory, "mp3", 48000, 1, false);
-        string probe = directory.FilePath("owned-probe.py");
         string json = System.Text.Json.JsonSerializer.Serialize(new { streams = new[] { new { codec_name = codec, sample_rate = rate, channels } }, format = new { format_name = "mp3" } });
-        await File.WriteAllTextAsync(probe, "#!/usr/bin/python3\nprint(" + System.Text.Json.JsonSerializer.Serialize(json) + ")\n");
-        if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(probe, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        string probe;
+        if (OperatingSystem.IsWindows())
+        {
+            string py = directory.FilePath("owned-probe.py");
+            await File.WriteAllTextAsync(py, "print(" + System.Text.Json.JsonSerializer.Serialize(json) + ")\n");
+            probe = directory.FilePath("owned-probe.cmd");
+            await File.WriteAllTextAsync(probe, $"@echo off\r\n\"{TestMediaToolPaths.Python}\" \"{py}\" %*\r\n");
+        }
+        else
+        {
+            probe = directory.FilePath("owned-probe.py");
+            await File.WriteAllTextAsync(probe, "#!/usr/bin/python3\nprint(" + System.Text.Json.JsonSerializer.Serialize(json) + ")\n");
+            File.SetUnixFileMode(probe, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
         Guid task = Guid.NewGuid(); var grant = await GrantAsync(source, "mp3");
-        byte[] payload = WorkerAnalysisContract.EncodeInput(task, new(WorkerAnalysisContract.CompressedProfile, grant, "/usr/bin/ffmpeg", probe));
+        byte[] payload = WorkerAnalysisContract.EncodeInput(task, new(WorkerAnalysisContract.CompressedProfile, grant, TestMediaToolPaths.Ffmpeg, probe));
         var request = new WorkerMessage(WorkerAnalysisContract.RequestKind, "probe-policy", WorkerProtocol.ComputeSha256(payload), payload,
             taskId: task.ToString("N"), sourceSha256: grant.Sha256);
         List<WorkerMessage> progress = [];
@@ -137,7 +148,7 @@ public sealed class CompressedAnalysisTaskTests
     private static WorkerMessage Request(WorkerAnalysisAudioGrant grant)
     {
         Guid task = Guid.NewGuid(); byte[] bytes = WorkerAnalysisContract.EncodeInput(task,
-            new(WorkerAnalysisContract.CompressedProfile, grant, "/usr/bin/ffmpeg", "/usr/bin/ffprobe"));
+            new(WorkerAnalysisContract.CompressedProfile, grant, TestMediaToolPaths.Ffmpeg, TestMediaToolPaths.Ffprobe));
         return new(WorkerAnalysisContract.RequestKind, Guid.NewGuid().ToString("N"), WorkerProtocol.ComputeSha256(bytes), bytes,
             taskId: task.ToString("N"), sourceSha256: grant.Sha256);
     }
@@ -146,7 +157,7 @@ public sealed class CompressedAnalysisTaskTests
     private static async Task<string> EncodeAsync(TemporaryDirectory directory, string format, int rate, int channels, bool variable)
     {
         string path = directory.FilePath("source." + format);
-        var start = new ProcessStartInfo("/usr/bin/ffmpeg") { RedirectStandardError = true, RedirectStandardOutput = true, UseShellExecute = false };
+        var start = new ProcessStartInfo(TestMediaToolPaths.Ffmpeg) { RedirectStandardError = true, RedirectStandardOutput = true, UseShellExecute = false };
         foreach (string arg in new[] { "-v", "error", "-f", "lavfi", "-i", "sine=frequency=997:sample_rate=" + rate.ToString(System.Globalization.CultureInfo.InvariantCulture),
             "-t", "0.213", "-ac", channels.ToString(System.Globalization.CultureInfo.InvariantCulture), "-c:a", format == "mp3" ? "libmp3lame" : "flac" }) start.ArgumentList.Add(arg);
         if (format == "mp3") { start.ArgumentList.Add(variable ? "-q:a" : "-b:a"); start.ArgumentList.Add(variable ? "4" : "128k"); }

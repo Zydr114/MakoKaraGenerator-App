@@ -82,7 +82,9 @@ public sealed class MediaPresentationMatroskaTimingTests
         {
             byte[] file = MatroskaFrames(out long[] positions, out long[] payloads, ptsMs, defaultDuration, finalDurationMs);
             _file = new(file); MediaDigest toolHash = Hash([1]);
-            MediaLoadedToolFile gate = new("/controlled/gate", new("gate", 1, toolHash)), helper = new("/controlled/helper", new("helper", 1, toolHash));
+            string gatePath = OperatingSystem.IsWindows() ? @"C:\controlled\gate" : "/controlled/gate";
+            string helperPath = OperatingSystem.IsWindows() ? @"C:\controlled\helper" : "/controlled/helper";
+            MediaLoadedToolFile gate = new(gatePath, new("gate", 1, toolHash)), helper = new(helperPath, new("helper", 1, toolHash));
             _deployment = new(gate.TrustedPath, helper.TrustedPath, [gate, helper], []);
             MediaNativePresentationMetadata Frame(int ordinal) => new(ordinal, ordinal, positions[ordinal], 3,
                 new(ptsMs[ordinal], new(1, 1000)), 0, 1, 1, MediaNativePixelFormat.Rgb24,

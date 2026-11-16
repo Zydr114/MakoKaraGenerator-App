@@ -206,11 +206,26 @@ public sealed class FfmpegVideoFrameTests : IDisposable
     [Fact]
     public void 缺少缩放滤镜时回退原始帧并保持后续读取()
     {
-        if (!OperatingSystem.IsLinux()) return;
         string path = CreateTestVideo();
-        string executable = Path.Combine(_directory.Path, "ffmpeg-without-zscale");
-        File.WriteAllText(executable, "#!/bin/sh\nfor arg in \"$@\"; do case \"$arg\" in *zscale*) exit 1;; esac; done\nexec ffmpeg \"$@\"\n");
-        File.SetUnixFileMode(executable, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        string executable;
+        if (OperatingSystem.IsWindows())
+        {
+            string pyPath = Path.Combine(_directory.Path, "ffmpeg-without-zscale.py");
+            File.WriteAllText(pyPath, $"""
+                import subprocess, sys
+                if any('zscale' in arg for arg in sys.argv[1:]):
+                    sys.exit(1)
+                sys.exit(subprocess.call([{System.Text.Json.JsonSerializer.Serialize(TestMediaToolPaths.Ffmpeg)}, *sys.argv[1:]]))
+                """);
+            executable = Path.Combine(_directory.Path, "ffmpeg-without-zscale.cmd");
+            File.WriteAllText(executable, $"@echo off\r\n\"{TestMediaToolPaths.Python}\" \"{pyPath}\" %*\r\n");
+        }
+        else
+        {
+            executable = Path.Combine(_directory.Path, "ffmpeg-without-zscale");
+            File.WriteAllText(executable, "#!/bin/sh\nfor arg in \"$@\"; do case \"$arg\" in *zscale*) exit 1;; esac; done\nexec ffmpeg \"$@\"\n");
+            File.SetUnixFileMode(executable, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
         using FfmpegVideoFrameProvider provider = new(executable);
         using IVideoFrameSource source = provider.Open(path, out _)!;
         Assert.True(source.TryGetFrame(0, 16, 12, out var first, CancellationToken.None));

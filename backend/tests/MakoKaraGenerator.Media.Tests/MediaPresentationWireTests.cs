@@ -7,10 +7,12 @@ namespace MakoKaraGenerator.Media.Tests;
 
 public sealed class MediaPresentationWireTests
 {
+    private static readonly string ControlledHelper = OperatingSystem.IsWindows() ? @"C:\controlled\helper" : "/controlled/helper";
+
     [Fact]
     public async Task FramesRequireRealLoadedClosureAndExactManifestHashes()
     {
-        var file = new MediaLoadedToolFile("/controlled/helper", new("helper", 1, Hash([1]))); var budget = new Budget();
+        var file = new MediaLoadedToolFile(ControlledHelper, new("helper", 1, Hash([1]))); var budget = new Budget();
         using (var noClosure = new MemoryStream())
         {
             Record(noClosure, 2, FrameBytes(Metadata(0, 0, 0, 0, Hash([1])))); noClosure.Position = 0;
@@ -26,7 +28,7 @@ public sealed class MediaPresentationWireTests
     [Fact]
     public async Task TruncationAndCancellationCannotProduceAFrame()
     {
-        var file = new MediaLoadedToolFile("/controlled/helper", new("helper", 1, Hash([1]))); var budget = new Budget();
+        var file = new MediaLoadedToolFile(ControlledHelper, new("helper", 1, Hash([1]))); var budget = new Budget();
         using (var truncated = new MemoryStream([1, 2, 3]))
         using (var wire = new MediaPresentationWire([file], budget))
             await Assert.ThrowsAsync<MediaAbException>(() => wire.ReadNextAsync(truncated, default).AsTask());

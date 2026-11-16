@@ -81,7 +81,7 @@ public sealed partial class StaticAnalysisExportTaskTests
     [Fact]
     public void 实际metadata加头部与快照共享唯一四MiB预算且未知profile仍拒绝()
     {
-        var metadata = Metadata("/owned/candidate.mp4", BackendSnapshotProfiles.StaticLyricsScene);
+        var metadata = Metadata(OperatingSystem.IsWindows() ? @"C:\owned\candidate.mp4" : "/owned/candidate.mp4", BackendSnapshotProfiles.StaticLyricsScene);
         int metadataBytes = WorkerExportContract.EncodeJson(metadata, WorkerExportContract.MaximumMetadataBytes).Length;
         int exact = WorkerProtocol.MaxPayloadBytes - WorkerExportContract.HeaderBytes - metadataBytes;
         Assert.Equal(WorkerProtocol.MaxPayloadBytes, WorkerExportContract.EncodeInput(Guid.NewGuid(), metadata, new byte[exact]).Length);
@@ -94,7 +94,7 @@ public sealed partial class StaticAnalysisExportTaskTests
     [Fact]
     public void Unicode路径实际转义metadata超过预算在封包生成前稳定拒绝()
     {
-        string path = "/" + new string('歌', 4094);
+        string path = OperatingSystem.IsWindows() ? @"C:\" + new string('歌', 4092) : "/" + new string('歌', 4094);
         var metadata = Metadata(path, BackendSnapshotProfiles.StaticLyricsScene) with { FfmpegPath = path, FfprobePath = path };
         var error = Assert.Throws<WorkerProtocolException>(() => WorkerExportContract.EncodeInput(Guid.NewGuid(), metadata, [0]));
         Assert.Equal("WorkerSnapshotBudgetExceeded", error.Code);
@@ -110,7 +110,7 @@ public sealed partial class StaticAnalysisExportTaskTests
         Assert.Equal(source, PackageProjectSnapshotCodec.Encode(decoded));
         var metadata = new WorkerExportMetadata(WorkerExportContract.ExecutionProfile,
             PackageProjectSnapshotCodec.Profile, "opaqueMp4", false,
-            "/owned/package-candidate.mp4", null, "/usr/bin/ffmpeg", "/usr/bin/ffprobe");
+            OperatingSystem.IsWindows() ? @"C:\owned\package-candidate.mp4" : "/owned/package-candidate.mp4", null, TestMediaToolPaths.Ffmpeg, TestMediaToolPaths.Ffprobe);
         byte[] payload = WorkerExportContract.EncodeInput(Guid.NewGuid(), metadata, source);
         WorkerExportInput input = WorkerExportContract.DecodeInput(payload, capabilities: false);
         Assert.Equal(PackageProjectSnapshotCodec.Profile, input.Metadata.CodecProfile);
@@ -123,8 +123,9 @@ public sealed partial class StaticAnalysisExportTaskTests
     {
         var metadata = new WorkerExportMetadata(WorkerExportContract.ExecutionProfile,
             PackageProjectSnapshotCodec.Profile, "opaqueMp4", true,
-            "/owned/must-not-exist.mp4", new("/owned/audio.wav", 44, new string('a', 64)),
-            "/usr/bin/ffmpeg", "/usr/bin/ffprobe");
+            OperatingSystem.IsWindows() ? @"C:\owned\must-not-exist.mp4" : "/owned/must-not-exist.mp4",
+            new(OperatingSystem.IsWindows() ? @"C:\owned\audio.wav" : "/owned/audio.wav", 44, new string('a', 64)),
+            TestMediaToolPaths.Ffmpeg, TestMediaToolPaths.Ffprobe);
         byte[] payload = WorkerExportContract.EncodeInput(Guid.NewGuid(), metadata, [1]);
         WorkerExportInput input = WorkerExportContract.DecodeInput(payload, capabilities: false);
         Assert.True(input.Metadata.IncludeAudio);
@@ -140,7 +141,7 @@ public sealed partial class StaticAnalysisExportTaskTests
         byte[] bytes = PackageProjectSnapshotCodec.Encode(snapshot); Guid id = Guid.NewGuid();
         var metadata = new WorkerExportMetadata(WorkerExportContract.ExecutionProfile,
             BackendSnapshotProfiles.StaticLyricsScene, "opaqueMp4", false,
-            directory.FilePath("must-not-exist.mp4"), null, "/usr/bin/ffmpeg", "/usr/bin/ffprobe");
+            directory.FilePath("must-not-exist.mp4"), null, TestMediaToolPaths.Ffmpeg, TestMediaToolPaths.Ffprobe);
         byte[] payload = WorkerExportContract.EncodeInput(id, metadata, bytes);
         WorkerMessage request = new(WorkerExportContract.RequestKind, Guid.NewGuid().ToString("N"),
             WorkerProtocol.ComputeSha256(payload), payload, taskId: id.ToString("N"),
@@ -184,7 +185,7 @@ public sealed partial class StaticAnalysisExportTaskTests
     }
 
     private static WorkerExportMetadata Metadata(string candidate, string profile, WorkerExportAudioGrant? grant = null) =>
-        new(WorkerExportContract.ExecutionProfile, profile, "opaqueMp4", grant is not null, candidate, grant, "/usr/bin/ffmpeg", "/usr/bin/ffprobe");
+        new(WorkerExportContract.ExecutionProfile, profile, "opaqueMp4", grant is not null, candidate, grant, TestMediaToolPaths.Ffmpeg, TestMediaToolPaths.Ffprobe);
 
     private static WorkerMessage Request(ProjectSnapshot snapshot, string candidate, string? profile = null, WorkerExportAudioGrant? grant = null)
     {

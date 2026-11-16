@@ -37,7 +37,7 @@ public sealed class CompressedExportTaskTests
         WorkerMessage request = Request(grant, candidate, output);
         WorkerMessage result = await StaticExportTask.ExecuteAsync(request, true,
             message => { progress.Add(message); return Task.CompletedTask; }, factory, CancellationToken.None);
-        long samples = await new FfmpegPcmReader("/usr/bin/ffmpeg").ReadMonoSamplesAtRateAsync(source, rate, _ => ValueTask.CompletedTask);
+        long samples = await new FfmpegPcmReader(TestMediaToolPaths.Ffmpeg).ReadMonoSamplesAtRateAsync(source, rate, _ => ValueTask.CompletedTask);
         var report = WorkerExportContract.DecodeReport(result.Payload, new(output, true, 8, 4, 30, 1, 6, 200_000, grant.AudioProfile));
         Assert.Equal((samples * 1_000_000 / rate).ToString(CultureInfo.InvariantCulture), report.AudioDurationUs);
         Assert.True(report.StrictlyVerified); Assert.Equal(output == "opaqueMp4" ? "aac" : "pcm_s16le", report.AudioCodec);
@@ -52,11 +52,9 @@ public sealed class CompressedExportTaskTests
     public async Task Probe虚高时长不能让真实短压缩源进入工厂或候选()
     {
         using TemporaryDirectory directory = new(); string source = await EncodeAsync(directory, "mp3", 48000, 1, false);
-        string probe = directory.FilePath("dishonest-probe.py");
         string json = JsonSerializer.Serialize(new { streams = new[] { new { codec_name = "mp3", sample_rate = 48000, channels = 1, duration = "1000" } },
             format = new { format_name = "mp3", duration = "1000" } });
-        await File.WriteAllTextAsync(probe, "#!/usr/bin/python3\nprint(" + JsonSerializer.Serialize(json) + ")\n");
-        Executable(probe);
+        string probe = CreatePythonScript(directory, "dishonest-probe", "print(" + JsonSerializer.Serialize(json) + ")\n");
         string candidate = directory.FilePath("must-not-exist.mp4"); var factory = new CountingFactory();
         var grant = await GrantAsync(source, "mp3");
         var failure = await Assert.ThrowsAsync<RenderSessionFailureException>(() => StaticExportTask.ExecuteAsync(
@@ -88,11 +86,27 @@ public sealed class CompressedExportTaskTests
     public async Task 解码完成后的同长度源替换在工厂前被重新SHA门禁拒绝()
     {
         using TemporaryDirectory directory = new(); string source = await EncodeAsync(directory, "flac", 48000, 1, false);
-        var grant = await GrantAsync(source, "flac"); string launcher = directory.FilePath("owned-decoder.sh");
-        string quotedSource = "'" + source.Replace("'", "'\\''", StringComparison.Ordinal) + "'";
-        await File.WriteAllTextAsync(launcher, "#!/bin/sh\n/usr/bin/ffmpeg \"$@\"\nresult=$?\n"
-            + "/usr/bin/python3 - " + quotedSource + " <<'PY'\nimport pathlib, sys\np=pathlib.Path(sys.argv[1]); b=p.read_bytes(); p.write_bytes(b[:-1]+bytes([b[-1]^1]))\nPY\nexit \"$result\"\n");
-        Executable(launcher);
+        var grant = await GrantAsync(source, "flac");
+        string launcher;
+        if (OperatingSystem.IsWindows())
+        {
+            launcher = CreatePythonScript(directory, "owned-decoder", $$"""
+                import pathlib, subprocess, sys
+                result = subprocess.call([{{JsonSerializer.Serialize(TestMediaToolPaths.Ffmpeg)}}, *sys.argv[1:]])
+                p = pathlib.Path({{JsonSerializer.Serialize(source)}})
+                b = p.read_bytes()
+                p.write_bytes(b[:-1] + bytes([b[-1] ^ 1]))
+                sys.exit(result)
+                """);
+        }
+        else
+        {
+            launcher = directory.FilePath("owned-decoder.sh");
+            string quotedSource = "'" + source.Replace("'", "'\\''", StringComparison.Ordinal) + "'";
+            await File.WriteAllTextAsync(launcher, "#!/bin/sh\n" + TestMediaToolPaths.Ffmpeg + " \"$@\"\nresult=$?\n"
+                + TestMediaToolPaths.Python + " - " + quotedSource + " <<'PY'\nimport pathlib, sys\np=pathlib.Path(sys.argv[1]); b=p.read_bytes(); p.write_bytes(b[:-1]+bytes([b[-1]^1]))\nPY\nexit \"$result\"\n");
+            Executable(launcher);
+        }
         string candidate = directory.FilePath("must-not-exist.mp4"); var factory = new CountingFactory();
         var failure = await Assert.ThrowsAsync<RenderSessionFailureException>(() => StaticExportTask.ExecuteAsync(Request(grant, candidate, ffmpeg: launcher), true,
             _ => Task.CompletedTask, factory, CancellationToken.None));
@@ -156,7 +170,7 @@ public sealed class CompressedExportTaskTests
     public async Task 真工具能力列出固定六个音频与两个执行profile()
     {
         Guid task = Guid.NewGuid(); var metadata = new WorkerExportMetadata(WorkerExportContract.ExecutionProfile,
-            BackendSnapshotProfiles.StaticLyricsScene, "opaqueMp4", false, null, null, "/usr/bin/ffmpeg", "/usr/bin/ffprobe");
+            BackendSnapshotProfiles.StaticLyricsScene, "opaqueMp4", false, null, null, TestMediaToolPaths.Ffmpeg, TestMediaToolPaths.Ffprobe);
         byte[] payload = WorkerExportContract.EncodeInput(task, metadata, []);
         var request = new WorkerMessage(WorkerExportContract.CapabilitiesKind, "caps", WorkerProtocol.ComputeSha256(payload), payload,
             taskId: task.ToString("N"), sourceSha256: WorkerProtocol.ComputeSha256([]), exportFormat: "opaqueMp4", exportIncludeAudio: false);
@@ -170,8 +184,10 @@ public sealed class CompressedExportTaskTests
     }
 
     private static WorkerMessage Request(WorkerExportAudioGrant grant, string candidate, string format = "opaqueMp4", long duration = 200_000,
-        string ffmpeg = "/usr/bin/ffmpeg", string ffprobe = "/usr/bin/ffprobe")
+        string? ffmpeg = null, string? ffprobe = null)
     {
+        ffmpeg ??= TestMediaToolPaths.Ffmpeg;
+        ffprobe ??= TestMediaToolPaths.Ffprobe;
         var project = Project.Create("compressed export", Composition.Create(8, 4, FrameRate.Fps30, outputDurationUs: duration),
             MakoKaraGenerator.Core.Lyrics.LyricsDocument.Create([]), audioPath: "/declaration-only-source")
             with { AudioMedia = new(grant.Sha256, grant.Size, "preserved original name") };
@@ -187,13 +203,28 @@ public sealed class CompressedExportTaskTests
     private static async Task<string> EncodeAsync(TemporaryDirectory directory, string format, int rate, int channels, bool variable)
     {
         string path = directory.FilePath("source." + format);
-        var start = new ProcessStartInfo("/usr/bin/ffmpeg") { RedirectStandardError = true, RedirectStandardOutput = true, UseShellExecute = false };
+        var start = new ProcessStartInfo(TestMediaToolPaths.Ffmpeg) { RedirectStandardError = true, RedirectStandardOutput = true, UseShellExecute = false };
         foreach (string argument in new[] { "-v", "error", "-f", "lavfi", "-i", "sine=frequency=997:sample_rate=" + rate.ToString(CultureInfo.InvariantCulture),
             "-t", "0.213", "-ac", channels.ToString(CultureInfo.InvariantCulture), "-c:a", format == "mp3" ? "libmp3lame" : "flac" }) start.ArgumentList.Add(argument);
         if (format == "mp3") { start.ArgumentList.Add(variable ? "-q:a" : "-b:a"); start.ArgumentList.Add(variable ? "4" : "128k"); }
         start.ArgumentList.Add(path);
         using Process process = Process.Start(start)!; Task<string> stderr = process.StandardError.ReadToEndAsync(); Task<string> stdout = process.StandardOutput.ReadToEndAsync();
         await process.WaitForExitAsync(); Assert.True(process.ExitCode == 0, await stderr); await stdout; return path;
+    }
+    private static string CreatePythonScript(TemporaryDirectory directory, string name, string pythonSource)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            string pyPath = directory.FilePath(name + ".py");
+            File.WriteAllText(pyPath, pythonSource);
+            string cmdPath = directory.FilePath(name + ".cmd");
+            File.WriteAllText(cmdPath, string.Create(CultureInfo.InvariantCulture, $"@echo off\r\n\"{TestMediaToolPaths.Python}\" \"{pyPath}\" %*\r\n"));
+            return cmdPath;
+        }
+        string scriptPath = directory.FilePath(name);
+        File.WriteAllText(scriptPath, "#!/usr/bin/env python3\n" + pythonSource.Replace("\r\n", "\n", StringComparison.Ordinal));
+        Executable(scriptPath);
+        return scriptPath;
     }
     private static void Executable(string path)
     { if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute); }

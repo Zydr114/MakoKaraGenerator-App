@@ -71,7 +71,10 @@ public sealed class MediaPresentationDecodePumpTests
         internal PumpFixture(bool fullyFlushed = true, bool duplicate = false)
         {
             byte[] movie = Movie(out long offset, composition: true); File = new(movie);
-            MediaDigest toolHash = Hash([1]); MediaLoadedToolFile gate = new("/controlled/gate", new("gate", 1, toolHash)), helper = new("/controlled/helper", new("helper", 1, toolHash));
+            MediaDigest toolHash = Hash([1]);
+            string gatePath = OperatingSystem.IsWindows() ? @"C:\controlled\gate" : "/controlled/gate";
+            string helperPath = OperatingSystem.IsWindows() ? @"C:\controlled\helper" : "/controlled/helper";
+            MediaLoadedToolFile gate = new(gatePath, new("gate", 1, toolHash)), helper = new(helperPath, new("helper", 1, toolHash));
             Deployment = new(gate.TrustedPath, helper.TrustedPath, [gate, helper], []);
             MediaNativePresentationMetadata first = Metadata(0, 0, offset, 0, Hash(movie.AsSpan((int)offset, 3)));
             Source = MediaPresentationInterpretation.Create(new(Hash(movie), movie.Length), new(MediaSourceKind.Video, 0, null), first, null, Deployment.Tool);

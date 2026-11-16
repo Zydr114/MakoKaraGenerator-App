@@ -8,7 +8,9 @@ namespace MakoKaraGenerator.Media.Tests;
 /// <summary>Real MediaEnvelopeRunner and OwnedNativeEnvelope, fake manager/pipes only; no native process starts.</summary>
 public sealed class MediaEnvelopeRunnerCancellationTests
 {
-    private static readonly EnvelopeCommand Command = new("/internal/gate", "/internal/tool", []);
+    private static readonly EnvelopeCommand Command = OperatingSystem.IsWindows()
+        ? new(@"C:\internal\gate", @"C:\internal\tool", [])
+        : new("/internal/gate", "/internal/tool", []);
 
     [Fact]
     public async Task CallerCancellationCrossesBothLinkedTokensAfterSuccessfulDrain()

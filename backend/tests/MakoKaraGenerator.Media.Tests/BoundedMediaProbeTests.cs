@@ -1,4 +1,4 @@
-using System.Runtime.Versioning;
+using System.Globalization;
 using System.Text.Json;
 
 namespace MakoKaraGenerator.Media.Tests;
@@ -14,7 +14,6 @@ public sealed class BoundedMediaProbeTests
     [InlineData("ogg", "vorbis")]
     public async Task 默认音轨探测参数保持而受限六格式返回实际音流信息(string format, string codec)
     {
-        if (!OperatingSystem.IsLinux()) return;
         using TemporaryDirectory directory = new();
         string argumentFile = directory.FilePath("audio-arguments.json");
         string json = JsonSerializer.Serialize(new
@@ -22,7 +21,7 @@ public sealed class BoundedMediaProbeTests
             streams = new[] { new { codec_name = codec, sample_rate = "44100", channels = 2, duration = "1.013" } },
             format = new { duration = "1.013", format_name = format },
         });
-        string script = "#!/usr/bin/env python3\nimport sys,json\njson.dump(sys.argv[1:],open(" +
+        string script = "import sys,json\njson.dump(sys.argv[1:],open(" +
             JsonSerializer.Serialize(argumentFile) + ", 'w'))\nprint(" + JsonSerializer.Serialize(json) + ")\n";
         FfmpegMediaProbe probe = new(WriteExecutable(directory, script, "audio-args-probe"));
         string input = directory.FilePath("owned.input");
@@ -61,10 +60,8 @@ public sealed class BoundedMediaProbeTests
     [Fact]
     public async Task 无换行巨型错误流可排水而超预算元数据被拒绝()
     {
-        if (!OperatingSystem.IsLinux()) return;
         using TemporaryDirectory directory = new();
         string executable = WriteExecutable(directory, """
-            #!/usr/bin/env python3
             import sys
             sys.stderr.write('x' * (4*1024*1024))
             print('{"streams":[{"codec_name":"pcm_s16le","sample_rate":"44100","channels":1,"duration":"3"}],"format":{"duration":"3","format_name":"wav"}}')
@@ -75,7 +72,6 @@ public sealed class BoundedMediaProbeTests
         AudioStreamInfo? info = await new FfmpegMediaProbe(executable).ProbeAsync(input, "wav", bounded.Token);
         Assert.Equal("pcm_s16le", info!.CodecName);
         string oversized = WriteExecutable(directory, """
-            #!/usr/bin/env python3
             import sys
             while True:
                 sys.stdout.write('x' * 4096)
@@ -87,10 +83,9 @@ public sealed class BoundedMediaProbeTests
     [Fact]
     public async Task 默认探测不增加解码成本而强策略只允许明确容器和文件协议()
     {
-        if (!OperatingSystem.IsLinux()) return;
         using TemporaryDirectory directory = new();
         string arguments = directory.FilePath("args.json");
-        string script = "#!/usr/bin/env python3\nimport sys,json\njson.dump(sys.argv[1:],open(" +
+        string script = "import sys,json\njson.dump(sys.argv[1:],open(" +
             System.Text.Json.JsonSerializer.Serialize(arguments) + ", 'w'))\nprint('{\"streams\":[],\"format\":{}}')\n";
         FfmpegMediaProbe probe = new(WriteExecutable(directory, script, "args-probe"));
         await probe.ProbeFileAsync(directory.FilePath("unused.mov"));
@@ -105,10 +100,17 @@ public sealed class BoundedMediaProbeTests
         await Assert.ThrowsAsync<ArgumentException>(() => probe.ProbeFileAsync(directory.FilePath("x"), true, "hls"));
     }
 
-    [SupportedOSPlatform("linux")]
     private static string WriteExecutable(TemporaryDirectory directory, string content, string name)
     {
-        string path = directory.FilePath(name); File.WriteAllText(path, content);
+        if (OperatingSystem.IsWindows())
+        {
+            string pyPath = directory.FilePath(name + ".py");
+            File.WriteAllText(pyPath, content);
+            string cmdPath = directory.FilePath(name + ".cmd");
+            File.WriteAllText(cmdPath, string.Create(CultureInfo.InvariantCulture, $"@echo off\r\n\"{TestMediaToolPaths.Python}\" \"{pyPath}\" %*\r\n"));
+            return cmdPath;
+        }
+        string path = directory.FilePath(name); File.WriteAllText(path, "#!/usr/bin/env python3\n" + content.Replace("\r\n", "\n", StringComparison.Ordinal));
         File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
         return path;
     }

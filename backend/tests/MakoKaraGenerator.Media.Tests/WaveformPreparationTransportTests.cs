@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 
@@ -42,7 +43,6 @@ public sealed class WaveformPreparationTransportTests
     [Fact]
     public async Task 受限完整结果恰一桶接受超一采样在Append前拒绝且native已排水()
     {
-        if (!OperatingSystem.IsLinux()) return;
         using TemporaryDirectory temporary = new(); string input = temporary.FilePath("owned.input");
         await File.WriteAllBytesAsync(input, "owned"u8.ToArray());
         string probe = await ExecutableAsync(temporary, "probe", "print('{\"streams\":[{\"sample_rate\":\"48000\",\"channels\":3,\"codec_name\":\"pcm_f32le\"}],\"format\":{\"format_name\":\"wav\"}}')\n");
@@ -57,15 +57,30 @@ public sealed class WaveformPreparationTransportTests
         await Assert.ThrowsAsync<WaveformPeakBudgetExceededException>(() =>
             AudioWaveformLoader.CreateForSelfContainedFiles(1, oversized, probe).LoadAsync(input, cancellationToken: deadline.Token));
         int pid = int.Parse(await File.ReadAllTextAsync(pidFile), CultureInfo.InvariantCulture);
-        Assert.False(Directory.Exists("/proc/" + pid.ToString(CultureInfo.InvariantCulture)));
+        for (int i = 0; i < 50 && IsProcessAlive(pid); i++) await Task.Delay(20);
+        Assert.False(IsProcessAlive(pid));
         string ordinary = await ExecutableAsync(temporary, "ordinary", "import struct,sys\nsys.stdout.buffer.write(struct.pack('<65f',*([.25]*65)))\n");
         Assert.Equal(65, (await AudioWaveformLoader.CreateForSelfContainedFiles(ordinary, probe).LoadAsync(input))!.Peaks.SampleCount);
     }
 
     private static async Task<string> ExecutableAsync(TemporaryDirectory temporary, string name, string source)
     {
+        if (OperatingSystem.IsWindows())
+        {
+            string pyPath = temporary.FilePath(name + ".py");
+            await File.WriteAllTextAsync(pyPath, source);
+            string cmdPath = temporary.FilePath(name + ".cmd");
+            await File.WriteAllTextAsync(cmdPath, string.Create(CultureInfo.InvariantCulture, $"@echo off\r\n\"{TestMediaToolPaths.Python}\" \"{pyPath}\" %*\r\n"));
+            return cmdPath;
+        }
         string path = temporary.FilePath(name); await File.WriteAllTextAsync(path, "#!/usr/bin/env python3\n" + source);
-        if (OperatingSystem.IsLinux()) File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
         return path;
+    }
+
+    private static bool IsProcessAlive(int pid)
+    {
+        try { using Process process = Process.GetProcessById(pid); return !process.HasExited; }
+        catch (ArgumentException) { return false; }
     }
 }

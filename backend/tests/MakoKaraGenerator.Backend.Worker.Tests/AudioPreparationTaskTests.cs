@@ -126,11 +126,13 @@ public sealed class AudioPreparationTaskTests
     [Fact]
     public void 输入封包拒未知重复字段路径非规范与混入其他领域回执()
     {
-        var request = Request(new("/owned/audio", 5, new('a', 64)));
+        string ownedAudio = OperatingSystem.IsWindows() ? @"C:\owned\audio" : "/owned/audio";
+        string traversalAudio = OperatingSystem.IsWindows() ? @"C:\owned\..\audio" : "/owned/../audio";
+        var request = Request(new(ownedAudio, 5, new('a', 64)));
         var input = WorkerAudioPreparationContract.DecodeInput(request.Payload);
         Assert.Equal(request.TaskId, input.TaskId.ToString("N"));
         Assert.Throws<WorkerProtocolException>(() => WorkerAudioPreparationContract.EncodeInput(Guid.NewGuid(), input.Metadata with
-            { Audio = input.Metadata.Audio! with { Path = "/owned/../audio" } }));
+            { Audio = input.Metadata.Audio! with { Path = traversalAudio } }));
         foreach (string extra in new[] { ",\"unknown\":1", ",\"profile\":\"different\"", ",\"Profile\":\"self-contained-native-waveform-v1\"" })
         {
             byte[] json = System.Text.Encoding.UTF8.GetBytes(JsonSerializer.Serialize(input.Metadata, Json)[..^1] + extra + "}");
@@ -146,7 +148,6 @@ public sealed class AudioPreparationTaskTests
     [Fact]
     public async Task grant错配前后实际源变化无流与普通媒体拒绝有不同稳定原因()
     {
-        if (!OperatingSystem.IsLinux()) return;
         using TemporaryDirectory temporary = new(); string input = temporary.FilePath("owned.input"); await File.WriteAllBytesAsync(input, "owned"u8.ToArray());
         string probe = await ScriptAsync(temporary, "probe", "print('{\"streams\":[{\"sample_rate\":\"44100\",\"channels\":1,\"codec_name\":\"pcm_f32le\"}],\"format\":{\"format_name\":\"wav\"}}')\n");
         string decoder = await ScriptAsync(temporary, "decoder", "import struct,sys\nsys.stdout.buffer.write(struct.pack('<f',.5))\n");
@@ -173,7 +174,7 @@ public sealed class AudioPreparationTaskTests
     [InlineData(true)]
     public async Task 实际Worker准备与能力探测取消回执保各自kind关联且native已退出(bool capabilities)
     {
-        if (!LinuxProcessGuards.IsSupported) return;
+        if (!ProcessGuards.IsSupported) return;
         using TemporaryDirectory temporary = new(); string input = temporary.FilePath("owned.input");
         await File.WriteAllBytesAsync(input, "owned"u8.ToArray());
         string pidFile = temporary.FilePath("native.pid");
@@ -184,12 +185,15 @@ public sealed class AudioPreparationTaskTests
         var outcome = await ExecuteRealWorkerAsync(request, deadline.Token, pidFile);
         WorkerAudioPreparationContract.ValidateCorrelation(request, outcome);
         Assert.True(outcome.Cancelled); Assert.Empty(outcome.Payload); Assert.Null(outcome.OutputSha256);
-        string pid = await File.ReadAllTextAsync(pidFile, deadline.Token);
-        Assert.False(Directory.Exists("/proc/" + pid));
+        int pid = int.Parse(await File.ReadAllTextAsync(pidFile, deadline.Token), System.Globalization.CultureInfo.InvariantCulture);
+        for (int i = 0; i < 50 && IsProcessAlive(pid); i++) await Task.Delay(20, deadline.Token);
+        Assert.False(IsProcessAlive(pid));
     }
 
-    private static WorkerMessage Request(WorkerAudioPreparationGrant? grant, string ffmpeg = "/usr/bin/ffmpeg", string ffprobe = "/usr/bin/ffprobe")
+    private static WorkerMessage Request(WorkerAudioPreparationGrant? grant, string? ffmpeg = null, string? ffprobe = null)
     {
+        ffmpeg ??= TestMediaToolPaths.Ffmpeg;
+        ffprobe ??= TestMediaToolPaths.Ffprobe;
         Guid id = Guid.NewGuid(); bool capabilities = grant is null;
         byte[] bytes = WorkerAudioPreparationContract.EncodeInput(id, new(WorkerAudioPreparationContract.Profile, grant, ffmpeg, ffprobe), capabilities);
         return new(capabilities ? WorkerAudioPreparationContract.CapabilitiesKind : WorkerAudioPreparationContract.RequestKind,
@@ -200,37 +204,75 @@ public sealed class AudioPreparationTaskTests
     private static async Task<WorkerMessage> ExecuteRealWorkerAsync(WorkerMessage request, CancellationToken token,
         string? cancelAfterNativeStarts = null)
     {
-        Assert.True(LinuxProcessGuards.TryEnableChildReaping());
-        using Process process = new()
+        Assert.True(ProcessGuards.TryEnableChildReaping());
+        string workerPath = Path.Combine(AppContext.BaseDirectory, "MakoKaraGenerator.Backend.Worker" + (OperatingSystem.IsWindows() ? ".exe" : string.Empty));
+        ProcessStartInfo startInfo = new(workerPath)
+        { RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
+        startInfo.Environment.Remove("MAKO_BACKEND_WORKER_MEDIA_LIMIT_BYTES");
+
+        WindowsControlledProcess? controlled = null;
+        Process? legacyProcess = null;
+        Stream stdin;
+        Stream stdout;
+        StreamReader stderrReader;
+        if (WindowsJobObjectGuard.IsSupported)
         {
-            StartInfo = new(Path.Combine(AppContext.BaseDirectory, "MakoKaraGenerator.Backend.Worker"))
-            { RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false },
-        };
-        process.StartInfo.Environment.Remove("MAKO_BACKEND_WORKER_MEDIA_LIMIT_BYTES");
-        Assert.True(process.Start());
-        Task<string> stderr = BoundedTextReader.ReadToEndAsync(process.StandardError, 32768, false, CancellationToken.None);
+            controlled = WindowsJobObjectGuard.StartProcess(startInfo);
+            legacyProcess = controlled.ManagedProcess;
+            stdin = controlled.StandardInput;
+            stdout = controlled.StandardOutput;
+            stderrReader = controlled.StandardError;
+        }
+        else
+        {
+            legacyProcess = new Process { StartInfo = startInfo };
+            Assert.True(legacyProcess.Start());
+            stdin = legacyProcess.StandardInput.BaseStream;
+            stdout = legacyProcess.StandardOutput.BaseStream;
+            stderrReader = legacyProcess.StandardError;
+        }
+
+        Task<string> stderr = BoundedTextReader.ReadToEndAsync(stderrReader, 32768, false, CancellationToken.None);
         OwnedProcessGroup? group = null; Exception? primary = null;
         try
         {
             var hello = new WorkerMessage("hello", Guid.NewGuid().ToString("N"));
-            await WorkerProtocol.WriteAsync(process.StandardInput.BaseStream, hello, token);
-            WorkerMessage greeting = (await WorkerProtocol.ReadAsync(process.StandardOutput.BaseStream, token))!;
+            await WorkerProtocol.WriteAsync(stdin, hello, token);
+            WorkerMessage greeting = (await WorkerProtocol.ReadAsync(stdout, token))!;
             Assert.Equal("hello", greeting.Kind); Assert.Equal(hello.RequestId, greeting.RequestId);
-            Assert.Equal(process.Id, greeting.ProcessGroupId); group = OwnedProcessGroup.TryCapture(process); Assert.NotNull(group);
-            await WorkerProtocol.WriteAsync(process.StandardInput.BaseStream, request, token);
+            Assert.Equal(legacyProcess.Id, greeting.ProcessGroupId);
+            if (controlled is not null)
+            {
+                controlled.Guard.VerifyIdentity();
+            }
+            else
+            {
+                group = OwnedProcessGroup.TryCapture(legacyProcess);
+                Assert.NotNull(group);
+            }
+            await WorkerProtocol.WriteAsync(stdin, request, token);
             if (cancelAfterNativeStarts is not null)
             {
                 while (!File.Exists(cancelAfterNativeStarts)) await Task.Delay(10, token);
-                await WorkerProtocol.WriteAsync(process.StandardInput.BaseStream, new("cancel", request.RequestId), token);
+                await WorkerProtocol.WriteAsync(stdin, new("cancel", request.RequestId), token);
             }
-            WorkerMessage result = (await WorkerProtocol.ReadAsync(process.StandardOutput.BaseStream, token))!;
+            WorkerMessage result = (await WorkerProtocol.ReadAsync(stdout, token))!;
             Assert.Equal(request.Kind == WorkerAudioPreparationContract.CapabilitiesKind
                 ? WorkerAudioPreparationContract.CapabilitiesResultKind : WorkerAudioPreparationContract.ResultKind, result.Kind);
             var shutdown = new WorkerMessage("shutdown", Guid.NewGuid().ToString("N"));
-            await WorkerProtocol.WriteAsync(process.StandardInput.BaseStream, shutdown, token);
-            WorkerMessage stopped = (await WorkerProtocol.ReadAsync(process.StandardOutput.BaseStream, token))!;
+            await WorkerProtocol.WriteAsync(stdin, shutdown, token);
+            WorkerMessage stopped = (await WorkerProtocol.ReadAsync(stdout, token))!;
             Assert.Equal("shutdown", stopped.Kind); Assert.Equal(shutdown.RequestId, stopped.RequestId);
-            await process.WaitForExitAsync(token); Assert.Equal(0, process.ExitCode);
+            await legacyProcess.WaitForExitAsync(token);
+            if (controlled is not null)
+            {
+                Assert.True(controlled.Guard.TryGetLeaderExitCode(out int code));
+                Assert.Equal(0, code);
+            }
+            else
+            {
+                Assert.Equal(0, legacyProcess.ExitCode);
+            }
             return result;
         }
         catch (Exception failure) { primary = failure; throw; }
@@ -238,18 +280,47 @@ public sealed class AudioPreparationTaskTests
         {
             try
             {
-                if (group is not null) await group.KillAndDrainAsync(TimeSpan.FromSeconds(3), CancellationToken.None);
-                else if (!process.HasExited) process.Kill(entireProcessTree: true);
-                await process.WaitForExitAsync(CancellationToken.None); await stderr;
-                if (group is not null) Assert.Empty(group.ObserveMembers());
+                if (controlled is not null)
+                {
+                    await controlled.Guard.KillAndDrainAsync(TimeSpan.FromSeconds(3), CancellationToken.None);
+                    await legacyProcess.WaitForExitAsync(CancellationToken.None);
+                    await stderr;
+                    Assert.Equal(0, controlled.Guard.ObserveActiveProcessCount());
+                    stdin.Dispose(); stdout.Dispose(); stderrReader.Dispose();
+                    await controlled.Guard.DisposeAsync();
+                    legacyProcess.Dispose();
+                }
+                else
+                {
+                    if (group is not null) await group.KillAndDrainAsync(TimeSpan.FromSeconds(3), CancellationToken.None);
+                    else if (!legacyProcess.HasExited) legacyProcess.Kill(entireProcessTree: true);
+                    await legacyProcess.WaitForExitAsync(CancellationToken.None); await stderr;
+                    if (group is not null) Assert.Empty(group.ObserveMembers());
+                    legacyProcess.Dispose();
+                }
             }
             catch (Exception cleanup) when (primary is not null) { primary.Data["AuthorWorkerCleanupFailure"] = cleanup; }
         }
     }
     private static async Task<string> ScriptAsync(TemporaryDirectory temporary, string name, string source)
     {
+        if (OperatingSystem.IsWindows())
+        {
+            string pyPath = temporary.FilePath(name + ".py");
+            await File.WriteAllTextAsync(pyPath, source);
+            string cmdPath = temporary.FilePath(name + ".cmd");
+            await File.WriteAllTextAsync(cmdPath, string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                $"@echo off\r\n\"{TestMediaToolPaths.Python}\" \"{pyPath}\" %*\r\n"));
+            return cmdPath;
+        }
         string path = temporary.FilePath(name); await File.WriteAllTextAsync(path, "#!/usr/bin/env python3\n" + source);
-        if (OperatingSystem.IsLinux()) File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
         return path;
+    }
+
+    private static bool IsProcessAlive(int pid)
+    {
+        try { using Process process = Process.GetProcessById(pid); return !process.HasExited; }
+        catch (ArgumentException) { return false; }
     }
 }

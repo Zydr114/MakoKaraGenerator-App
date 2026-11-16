@@ -60,7 +60,7 @@ public sealed class ProjectRuntimeMediaInputTests
             artifacts.Path, compiler.Identity, [(compilationInput, compilation)]);
         byte[] bytes = prepared.Envelope; Guid task = Guid.NewGuid(); string candidate = output.FilePath("media.mp4");
         var metadata = new WorkerExportMetadata(WorkerExportContract.ExecutionProfile, ProjectRuntimeInputCodec.Profile, "opaqueMp4", false,
-            candidate, null, "/usr/bin/ffmpeg", "/usr/bin/ffprobe");
+            candidate, null, TestMediaToolPaths.Ffmpeg, TestMediaToolPaths.Ffprobe);
         byte[] payload = WorkerExportContract.EncodeInput(task, metadata, bytes);
         WorkerMessage request = new(WorkerExportContract.RequestKind, "media-export", WorkerProtocol.ComputeSha256(payload), payload,
             taskId: task.ToString("N"), sourceSha256: WorkerProtocol.ComputeSha256(bytes), exportFormat: "opaqueMp4", exportIncludeAudio: false);

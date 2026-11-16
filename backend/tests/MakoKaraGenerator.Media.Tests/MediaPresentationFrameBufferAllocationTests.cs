@@ -19,7 +19,10 @@ public sealed class MediaPresentationFrameBufferAllocationTests
     {
         var sourceHold = new CountingSource(); var operation = new DecodeOperationBudget(MediaAbCapacityV1.MaximumDecodeWorkingBytes,
             1024 * 1024, [1024 * 1024], 2, sourceHold); var managed = new MediaPresentationManagedBudget(operation);
-        MediaDigest hash = Hash([1]); MediaLoadedToolFile gate = new("/controlled/gate", new("gate", 1, hash)), helper = new("/controlled/helper", new("helper", 1, hash));
+        MediaDigest hash = Hash([1]);
+        string gatePath = OperatingSystem.IsWindows() ? @"C:\controlled\gate" : "/controlled/gate";
+        string helperPath = OperatingSystem.IsWindows() ? @"C:\controlled\helper" : "/controlled/helper";
+        MediaLoadedToolFile gate = new(gatePath, new("gate", 1, hash)), helper = new(helperPath, new("helper", 1, hash));
         var deployment = new MediaPresentationDeployment(gate.TrustedPath, helper.TrustedPath, [gate, helper], []);
         MediaNativePresentationMetadata frame = Metadata(0, 0, 0, 0, hash);
         MediaFeatureFileSource source = MediaPresentationInterpretation.Create(new(hash, 1), new(MediaSourceKind.Video, 0, null), frame, null, deployment.Tool);

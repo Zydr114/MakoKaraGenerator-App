@@ -562,6 +562,7 @@ module.exports = {
   compatibleProductVersion,
   executableName,
   isInsideRoot,
+  isSamePath: privateFs.isSamePath,
   isLoopbackUrl,
   isValidOrigin,
   platformRid,

@@ -32,8 +32,8 @@ export function compatibleProductVersion(version, expected = EXPECTED_PRODUCT_VE
 
 export function resolveBackendRepo() {
   const local = resolve(PROJECT_ROOT, '../backend');
-  if (realpathSync(local) !== local) throw new Error('App backend 不能通过符号链接引用外部源码。');
-  if (process.env.MAKO_BACKEND_REPO && resolve(process.env.MAKO_BACKEND_REPO) !== local) {
+  if (!backendHost.isSamePath(realpathSync(local), local)) throw new Error('App backend 不能通过符号链接引用外部源码。');
+  if (process.env.MAKO_BACKEND_REPO && !backendHost.isSamePath(resolve(process.env.MAKO_BACKEND_REPO), local)) {
     throw new Error('App 只允许使用本仓库 backend；请移除外部 MAKO_BACKEND_REPO。');
   }
   return local;

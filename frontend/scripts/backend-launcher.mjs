@@ -41,13 +41,14 @@ export function resolveBackendRepo() {
 
 /** App 只运行根 build 生成的本地匹配 Server＋Worker，禁止回退兄弟仓库 artifacts。 */
 export function resolveDist(explicit) {
-  const localRoot = resolve(PROJECT_ROOT, '../.local/backend-dist');
+  const rawLocalRoot = resolve(PROJECT_ROOT, '../.local/backend-dist');
+  const localRoot = existsSync(rawLocalRoot) ? realpathSync(rawLocalRoot) : rawLocalRoot;
   const pointer = resolve(PROJECT_ROOT, '../.local/backend-current.json');
   let selected = explicit ?? process.env.MAKO_BACKEND_DIST;
   if (!selected && existsSync(pointer)) selected = JSON.parse(readFileSync(pointer, 'utf8')).dist;
   if (!selected) throw new Error('App 尚无后端构建；请在 App 根执行 pnpm build。');
   const dist = realpathSync(resolve(selected));
-  if (!dist.startsWith(localRoot + '/')) throw new Error('App 后端部署必须位于本仓库 .local/backend-dist/。');
+  if (!backendHost.isInsideRoot(localRoot, dist)) throw new Error('App 后端部署必须位于本仓库 .local/backend-dist/。');
   if (!existsSync(join(dist, 'deployment.json'))) throw new Error(`后端部署不完整：${dist}`);
   const manifest = JSON.parse(readFileSync(join(dist, 'deployment.json'), 'utf8'));
   if (!compatibleProductVersion(manifest.version)) {

@@ -6,11 +6,22 @@ const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
 const readline = require('node:readline');
+const privateFs = require('./private-fs.cjs');
 
 const ROLES = Object.freeze({
   server: 'MakoKaraGenerator.Backend.Server',
   worker: 'MakoKaraGenerator.Backend.Worker',
 });
+
+function platformRid(platform = process.platform, arch = process.arch) {
+  if (platform === 'linux' && arch === 'x64') return 'linux-x64';
+  if (platform === 'win32' && arch === 'x64') return 'win-x64';
+  throw new Error(`This backend launcher is validated for Linux x64 and Windows x64 only (got ${platform}/${arch}).`);
+}
+
+function executableName(baseName, platform = process.platform) {
+  return platform === 'win32' ? `${baseName}.exe` : baseName;
+}
 
 const SCRIPT_ABI_DLL = 'MakoKaraGenerator.Scripting.Abstractions.dll';
 const DEFAULT_READY_TIMEOUT_MS = 120_000;
@@ -56,7 +67,7 @@ function sha256FileSync(filePath) {
 }
 
 function isInsideRoot(root, target) {
-  return target.startsWith(root + path.sep);
+  return privateFs.isInsideRoot(root, target);
 }
 
 function inventorySync(rootDir, currentDir = rootDir, prefix = '', out = {}) {
@@ -103,12 +114,13 @@ function validateScriptAbi(dist) {
 }
 
 function validateDist(distDir) {
+  const expectedRid = platformRid();
   const dist = fs.realpathSync(path.resolve(distDir));
   const deploymentPath = path.join(dist, 'deployment.json');
   ensureRegularNonSymlinkFile(deploymentPath, 'deployment.json');
   const manifest = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'));
-  if (manifest.rid !== 'linux-x64' || manifest.selfContained !== true) {
-    throw new Error('deployment.json is not a self-contained linux-x64 deployment');
+  if (manifest.rid !== expectedRid || manifest.selfContained !== true) {
+    throw new Error(`deployment.json is not a self-contained ${expectedRid} deployment`);
   }
   if (!manifest.files || typeof manifest.files !== 'object' || Array.isArray(manifest.files)) {
     throw new Error('deployment.json is missing a valid files inventory');
@@ -136,9 +148,12 @@ function validateDist(distDir) {
     throw new Error('deployment contains extra or missing files; publish a fresh directory');
   }
   for (const [role, appName] of Object.entries(ROLES)) {
-    const appPath = path.join(dist, role, appName);
+    const appPath = path.join(dist, role, executableName(appName));
     try {
-      fs.accessSync(appPath, fs.constants.X_OK);
+      ensureRegularNonSymlinkFile(appPath, `${role} apphost`);
+      if (process.platform !== 'win32') {
+        fs.accessSync(appPath, fs.constants.X_OK);
+      }
     } catch {
       throw new Error(`${role} apphost is not executable`);
     }
@@ -205,7 +220,9 @@ function isExecutableFile(candidate) {
   if (!candidate || !path.isAbsolute(candidate)) return false;
   try {
     if (!fs.statSync(candidate).isFile()) return false;
-    fs.accessSync(candidate, fs.constants.X_OK);
+    if (process.platform !== 'win32') {
+      fs.accessSync(candidate, fs.constants.X_OK);
+    }
     return true;
   } catch {
     return false;
@@ -213,14 +230,32 @@ function isExecutableFile(candidate) {
 }
 
 function resolveExecutableTool(explicitPath, defaultName, envPath = process.env.PATH) {
+  const isWin = process.platform === 'win32';
   if (explicitPath !== undefined && explicitPath !== null) {
-    return isExecutableFile(explicitPath) ? explicitPath : null;
+    if (isExecutableFile(explicitPath)) return explicitPath;
+    if (isWin && !explicitPath.toLowerCase().endsWith('.exe')) {
+      const withExe = `${explicitPath}.exe`;
+      if (isExecutableFile(withExe)) return withExe;
+    }
+    return null;
   }
-  const systemCandidate = path.join('/usr/bin', defaultName);
-  if (isExecutableFile(systemCandidate)) return systemCandidate;
-  for (const directory of String(envPath ?? '').split(path.delimiter)) {
-    if (!path.isAbsolute(directory)) continue;
-    const candidate = path.join(directory, defaultName);
+  const toolName = isWin && !defaultName.toLowerCase().endsWith('.exe')
+    ? `${defaultName}.exe`
+    : defaultName;
+  if (!isWin) {
+    const systemCandidate = path.join('/usr/bin', toolName);
+    if (isExecutableFile(systemCandidate)) return systemCandidate;
+  }
+  const searchDirs = String(envPath ?? '').split(path.delimiter);
+  if (isWin && arguments.length < 3 && process.env.LOCALAPPDATA) {
+    const wingetLinks = path.join(process.env.LOCALAPPDATA, 'Microsoft', 'WinGet', 'Links');
+    if (fs.existsSync(wingetLinks)) {
+      searchDirs.push(wingetLinks);
+    }
+  }
+  for (const directory of searchDirs) {
+    if (!directory || !path.isAbsolute(directory)) continue;
+    const candidate = path.join(directory, toolName);
     if (isExecutableFile(candidate)) return candidate;
   }
   return null;
@@ -258,21 +293,11 @@ function isLoopbackUrl(value) {
 }
 
 async function writePrivateJsonAtomic(filePath, info) {
-  await fsp.mkdir(path.dirname(filePath), { recursive: true, mode: 0o700 });
-  const temp = `${filePath}.${process.pid}.tmp`;
-  const handle = await fsp.open(temp, 'w', 0o600);
-  try {
-    await handle.writeFile(JSON.stringify(info, null, 2) + '\n');
-  } finally {
-    await handle.close();
-  }
-  await fsp.rename(temp, filePath);
+  return privateFs.writePrivateJsonAtomic(filePath, info);
 }
 
 async function startBackendProcess(options = {}) {
-  if (process.platform !== 'linux' || process.arch !== 'x64') {
-    throw new Error('This backend launcher is validated for Linux x64 only.');
-  }
+  platformRid();
   const log = options.log ?? ((line) => console.log(line));
   const spawnFn = options.spawnProcess ?? childProcess.spawn;
   const dist = fs.realpathSync(path.resolve(options.dist));
@@ -292,19 +317,18 @@ async function startBackendProcess(options = {}) {
     throw new Error(`Native tool must be an absolute executable file: ${options.ffprobe}`);
   }
   if (requireMediaTools && (!ffmpegPath || !ffprobePath)) {
-    throw new Error('Cannot locate executable ffmpeg/ffprobe in /usr/bin or PATH.');
+    throw new Error('Cannot locate executable ffmpeg/ffprobe in system tool paths or PATH.');
   }
   if (!ffmpegPath || !ffprobePath) {
     log('[backend] 警告：系统 PATH 中未同时找到 ffmpeg/ffprobe，音频准备、分析与导出能力将停用。');
   }
 
-  const profile = path.resolve(options.profile);
-  await fsp.mkdir(profile, { recursive: true, mode: 0o700 });
+  const profile = privateFs.ensurePrivateDir(path.resolve(options.profile), { label: 'Backend profile directory' });
   for (const name of ['state', 'projects', 'runs']) {
-    await fsp.mkdir(path.join(profile, name), { recursive: true, mode: 0o700 });
+    privateFs.ensurePrivateDir(path.join(profile, name), { label: `Backend ${name} directory` });
   }
   const runDir = await fsp.mkdtemp(path.join(profile, 'runs', 'run-'));
-  await fsp.chmod(runDir, 0o700);
+  privateFs.ensurePrivateDir(runDir, { label: 'Backend run directory' });
 
   const credentialFile = path.join(runDir, 'bootstrap.json');
   if (options.bootstrapFile) {
@@ -325,12 +349,13 @@ async function startBackendProcess(options = {}) {
     MAKO_BACKEND_STATE_ROOT: path.join(profile, 'state'),
     MAKO_BACKEND_ALLOWED_ROOTS: JSON.stringify({ projects: path.join(profile, 'projects') }),
     MAKO_BACKEND_ALLOWED_ORIGINS: origins.join(';'),
-    MAKO_BACKEND_WORKER_PATH: path.join(dist, 'worker', ROLES.worker),
+    MAKO_BACKEND_WORKER_PATH: path.join(dist, 'worker', executableName(ROLES.worker)),
+    MAKO_BACKEND_SHUTDOWN_STDIN: '1',
   });
   if (ffmpegPath) env.MAKO_BACKEND_FFMPEG_PATH = ffmpegPath;
   if (ffprobePath) env.MAKO_BACKEND_FFPROBE_PATH = ffprobePath;
 
-  const serverExe = path.join(dist, 'server', ROLES.server);
+  const serverExe = path.join(dist, 'server', executableName(ROLES.server));
   const serverArgs = ['--urls', 'http://127.0.0.1:0'];
   const launch = options.ordinaryScheduling
     ? require('../gpu-preview/ordinary-exec.cjs').ordinaryCommand(serverExe, serverArgs)
@@ -341,10 +366,12 @@ async function startBackendProcess(options = {}) {
 
   const child = spawnFn(launch.executable, launch.args, {
     cwd: options.cwd ?? dist,
-    stdio: ['ignore', 'pipe', 'pipe'],
-    detached: true,
+    stdio: ['pipe', 'pipe', 'pipe'],
+    detached: process.platform !== 'win32',
+    windowsHide: true,
     env,
   });
+  child.stdin?.on?.('error', () => {});
 
   const serverLogStream = fs.createWriteStream(path.join(runDir, 'server.log'), { flags: 'a', mode: 0o600 });
   const writeLogLine = (line) => {
@@ -371,7 +398,7 @@ async function startBackendProcess(options = {}) {
 
   if (child.stderr) {
     child.stderr.on('data', (chunk) => {
-      for (const line of String(chunk).split('\n')) {
+      for (const line of String(chunk).split(/\r?\n/)) {
         if (!line) continue;
         writeLogLine(line);
         log(`[backend:stderr] ${line}`);
@@ -381,6 +408,52 @@ async function startBackendProcess(options = {}) {
 
   const readyTimeoutMs = options.readyTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS;
   const stopTimeoutMs = options.stopTimeoutMs ?? DEFAULT_STOP_TIMEOUT_MS;
+
+  const terminateOwnedChild = async (timeoutMs) => {
+    if (exitCode !== null || !child.pid) return exitCode;
+    const hasWritableStdin =
+      child.stdin &&
+      typeof child.stdin.write === 'function' &&
+      !child.stdin.destroyed &&
+      !child.stdin.writableEnded;
+    if (hasWritableStdin) {
+      try {
+        child.stdin.write('SHUTDOWN\n');
+        child.stdin.end();
+      } catch { /* ignore pipe close during shutdown */ }
+    } else if (process.platform === 'win32') {
+      try {
+        process.kill(child.pid);
+      } catch (error) {
+        if (error.code !== 'ESRCH') throw error;
+      }
+    }
+    if (process.platform !== 'win32') {
+      try {
+        process.kill(child.pid, 'SIGTERM');
+      } catch (error) {
+        if (error.code !== 'ESRCH') throw error;
+      }
+    }
+    let stopTimer;
+    const timeout = new Promise((resolveTimeout) => {
+      stopTimer = setTimeout(() => resolveTimeout('timeout'), timeoutMs);
+    });
+    try {
+      if ((await Promise.race([exited, timeout])) === 'timeout' && exitCode === null && child.pid) {
+        log(`[backend] 等待退出超时，仍在运行的后端 PID: ${child.pid}`);
+        try {
+          process.kill(child.pid, 'SIGKILL');
+        } catch (error) {
+          if (error.code !== 'ESRCH') throw error;
+        }
+        await exited;
+      }
+    } finally {
+      clearTimeout(stopTimer);
+    }
+    return exitCode;
+  };
 
   try {
     const readyLine = await new Promise((resolveReady, rejectReady) => {
@@ -406,10 +479,7 @@ async function startBackendProcess(options = {}) {
       });
     });
 
-    const mode = fs.statSync(credentialFile).mode & 0o777;
-    if (mode !== 0o600) {
-      throw new Error(`bootstrap 凭证文件权限应为 0600，实际 ${mode.toString(8)}。`);
-    }
+    privateFs.assertPrivateFile(credentialFile, { label: 'bootstrap 凭证文件', mode: 0o600 });
     const credential = JSON.parse(fs.readFileSync(credentialFile, 'utf8'));
     const addresses = Array.isArray(credential.addresses) ? credential.addresses : [];
     if (addresses.length === 0 || addresses.some((addr) => !isLoopbackUrl(addr))) {
@@ -440,7 +510,7 @@ async function startBackendProcess(options = {}) {
     const bootstrapFile = options.bootstrapFile ? path.resolve(options.bootstrapFile) : null;
     if (bootstrapFile) {
       await writePrivateJsonAtomic(bootstrapFile, info);
-      log(`[backend] 就绪：${info.baseUrl} host=${info.hostInstanceId}；启动信息已写入 ${bootstrapFile}（0600）`);
+      log(`[backend] 就绪：${info.baseUrl} host=${info.hostInstanceId}；启动信息已写入 ${bootstrapFile}`);
     } else {
       log(`[backend] 就绪：${info.baseUrl} host=${info.hostInstanceId}`);
     }
@@ -448,24 +518,7 @@ async function startBackendProcess(options = {}) {
     let stopping = null;
     const stop = () => {
       stopping ??= (async () => {
-        if (exitCode === null && child.pid) {
-          try {
-            process.kill(child.pid, 'SIGTERM');
-          } catch (error) {
-            if (error.code !== 'ESRCH') throw error;
-          }
-          let stopTimer;
-          const timeout = new Promise((resolveTimeout) => {
-            stopTimer = setTimeout(() => resolveTimeout('timeout'), stopTimeoutMs);
-          });
-          try {
-            if ((await Promise.race([exited, timeout])) === 'timeout') {
-              log(`[backend] 等待退出超时，仍在运行的后端 PID: ${child.pid}`);
-            }
-          } finally {
-            clearTimeout(stopTimer);
-          }
-        }
+        await terminateOwnedChild(stopTimeoutMs);
         await fsp.rm(credentialFile, { force: true }).catch(() => {});
         if (bootstrapFile) await fsp.rm(bootstrapFile, { force: true }).catch(() => {});
         return exitCode;
@@ -480,14 +533,7 @@ async function startBackendProcess(options = {}) {
 
     return { info, ready, stop, exited };
   } catch (error) {
-    if (exitCode === null && child.pid) {
-      try {
-        process.kill(child.pid, 'SIGTERM');
-      } catch (killError) {
-        if (killError.code !== 'ESRCH') throw killError;
-      }
-      await exited;
-    }
+    await terminateOwnedChild(Math.min(stopTimeoutMs, 5000));
     await fsp.rm(credentialFile, { force: true }).catch(() => {});
     if (options.bootstrapFile) {
       await fsp.rm(path.resolve(options.bootstrapFile), { force: true }).catch(() => {});
@@ -500,8 +546,11 @@ module.exports = {
   EXPECTED_PRODUCT_VERSION,
   ROLES,
   compatibleProductVersion,
+  executableName,
+  isInsideRoot,
   isLoopbackUrl,
   isValidOrigin,
+  platformRid,
   resolveExecutableTool,
   sanitizedBackendEnvironment,
   sha256FileSync,

@@ -24,7 +24,7 @@ public sealed class WorkerProjectImagePreviewIntegrationTests(ITestOutputHelper 
     [InlineData("package")]
     public async Task 图片三种基础来源的真实Worker与原Runtime普通透明逐帧等价且背景实际贡献像素(string kind)
     {
-        Assert.True(LinuxProcessGuards.IsSupported);
+        Assert.True(ProcessGuards.TryEnableChildReaping());
         PackageWorkerRuntimeFixture.AssertFixedFont();
         using TemporaryDirectory temp = new(); using FfmpegVideoFrameProvider videos = new();
         byte[] bytes = Png();
@@ -43,8 +43,9 @@ public sealed class WorkerProjectImagePreviewIntegrationTests(ITestOutputHelper 
         Assert.Equal(BackendSnapshotProfiles.ProjectImagePreview, capability.CodecProfile);
         StaticWorkerSessionHandle handle = await proxy.OpenImagePreviewSessionAsync(ProjectImagePreviewSnapshotCodec.Encode(snapshot, bytes), TimeSpan.FromSeconds(30));
         int pid = Assert.IsType<int>(proxy.ProcessId);
-        using Process process = Process.GetProcessById(pid);
-        OwnedProcessGroup group = Assert.IsType<OwnedProcessGroup>(OwnedProcessGroup.TryCapture(process));
+        long startIdentity = RuntimeTestPlatformHelpers.GetStartIdentityUtc(pid);
+        OwnedProcessGroup? group = null;
+        if (OperatingSystem.IsLinux()) { using Process process = Process.GetProcessById(pid); group = Assert.IsType<OwnedProcessGroup>(OwnedProcessGroup.TryCapture(process)); }
         long sequence = 0;
         foreach (bool transparent in new[] { false, true })
         foreach (long time in new long[] { 0, 100_000, 300_000, 100_000 })
@@ -67,9 +68,9 @@ public sealed class WorkerProjectImagePreviewIntegrationTests(ITestOutputHelper 
         Assert.Equal(pid, proxy.ProcessId);
         await proxy.ClosePackageSessionAsync(reopened, 1, TimeSpan.FromSeconds(20));
         await proxy.StopAsync();
-        Assert.Empty(group.ObserveMembers());
-        Assert.False(Directory.Exists("/proc/" + pid.ToString(CultureInfo.InvariantCulture)));
-        output.WriteLine($"Image {kind}: 8 raw BGRA frames byteexact with original Runtime, background counterfactual, close/reopen; Worker {group.Leader} drained.");
+        if (group is not null) Assert.Empty(group.ObserveMembers());
+        Assert.False(RuntimeTestPlatformHelpers.IsProcessAlive(pid, startIdentity));
+        output.WriteLine($"Image {kind}: 8 raw BGRA frames byteexact with original Runtime, background counterfactual, close/reopen; Worker {pid} drained.");
     }
 
     [Theory]

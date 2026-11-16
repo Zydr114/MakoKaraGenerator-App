@@ -7,6 +7,7 @@ using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Core.Time;
 using MakoKaraGenerator.Media;
 using MakoKaraGenerator.Rendering;
+using MakoKaraGenerator.TestSupport;
 using SkiaSharp;
 using Xunit.Abstractions;
 
@@ -34,7 +35,7 @@ public sealed class WorkerProjectImageExportIntegrationTests(ITestOutputHelper o
         if (audioFormat is not null)
         {
             string path = temp.FilePath("audio." + audioFormat);
-            await Cli.Wrap("/usr/bin/ffmpeg").WithArguments(["-v", "error", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000:duration=1",
+            await Cli.Wrap(TestMediaToolPaths.Ffmpeg).WithArguments(["-v", "error", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000:duration=1",
                 "-c:a", audioFormat == "wav" ? "pcm_s16le" : audioFormat == "mp3" ? "libmp3lame" : "flac", path]).ExecuteAsync();
             byte[] audio = await File.ReadAllBytesAsync(path);
             grant = new(path, audio.Length, WorkerProtocol.ComputeSha256(audio), audioFormat == "wav" ? BackendAudioInputProfiles.Pcm16Wave
@@ -56,12 +57,12 @@ public sealed class WorkerProjectImageExportIntegrationTests(ITestOutputHelper o
         Assert.Equal(WorkerProtocol.ComputeSha256(await File.ReadAllBytesAsync(candidate)), report.Sha256);
         Assert.Equal("prepared", progress[^1].Stage); Assert.Equal(3, progress[^1].CompletedFrames);
         using MemoryStream raw = new();
-        await Cli.Wrap("/usr/bin/ffmpeg").WithArguments(["-v", "error", "-i", candidate, "-f", "rawvideo", "-pix_fmt", "bgra", "pipe:1"])
+        await Cli.Wrap(TestMediaToolPaths.Ffmpeg).WithArguments(["-v", "error", "-i", candidate, "-f", "rawvideo", "-pix_fmt", "bgra", "pipe:1"])
             .WithStandardOutputPipe(PipeTarget.ToStream(raw)).ExecuteAsync();
         Assert.Equal(3 * 320 * 180 * 4, raw.Length);
         if (grant is not null)
         {
-            long samples = await new FfmpegPcmReader("/usr/bin/ffmpeg").ReadMonoSamplesAtRateAsync(candidate, 48000, _ => ValueTask.CompletedTask);
+            long samples = await new FfmpegPcmReader(TestMediaToolPaths.Ffmpeg).ReadMonoSamplesAtRateAsync(candidate, 48000, _ => ValueTask.CompletedTask);
             Assert.InRange(samples, 14400 - 1024, 14400 + 1024);
         }
         output.WriteLine($"Image export {kind}/{format}/{audioFormat ?? "none"}: 3 complete BGRA frames, {report.MediaSize} bytes; strict report true.");
@@ -99,7 +100,7 @@ public sealed class WorkerProjectImageExportIntegrationTests(ITestOutputHelper o
     }
 
     private static WorkerBackendExportExecutor Executor(string? renderBackend = null) => new(new WorkerProcessOptions(PackageWorkerRuntimeFixture.WorkerApphost()) { RenderBackend = renderBackend },
-        "/usr/bin/ffmpeg", "/usr/bin/ffprobe", exportOptions: new BackendExportOptions { MaxMediaBytes = WorkerExportContract.MaximumMediaBytes });
+        TestMediaToolPaths.Ffmpeg, TestMediaToolPaths.Ffprobe, exportOptions: new BackendExportOptions { MaxMediaBytes = WorkerExportContract.MaximumMediaBytes });
     private static ProjectSnapshot Snapshot(string kind, byte[] bytes)
     {
         ProjectSnapshot snapshot = PackageWorkerRuntimeFixture.Create("scale");

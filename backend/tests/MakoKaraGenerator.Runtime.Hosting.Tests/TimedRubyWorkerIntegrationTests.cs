@@ -34,8 +34,9 @@ public sealed class TimedRubyWorkerIntegrationTests(ITestOutputHelper output)
         var handle = package ? await worker.OpenPackageSessionAsync(bytes, TimeSpan.FromSeconds(30))
             : await worker.OpenStaticSessionAsync(bytes, TimeSpan.FromSeconds(30));
         int pid = Assert.IsType<int>(worker.ProcessId);
-        using var process = Process.GetProcessById(pid);
-        var group = OwnedProcessGroup.TryCapture(process); Assert.NotNull(group);
+        long startIdentity = RuntimeTestPlatformHelpers.GetStartIdentityUtc(pid);
+        OwnedProcessGroup? group = null;
+        if (OperatingSystem.IsLinux()) { using var process = Process.GetProcessById(pid); group = OwnedProcessGroup.TryCapture(process); Assert.NotNull(group); }
         long sequence = 0; Dictionary<long, byte[]> frames = [];
         foreach (long time in new long[] { 0, 150_000, 250_000, 500_000, 800_000, 250_000 })
         {
@@ -64,9 +65,9 @@ public sealed class TimedRubyWorkerIntegrationTests(ITestOutputHelper output)
         Assert.Equal(frames[250_000], repeat.Payload);
         if (package) await worker.ClosePackageSessionAsync(reopened, 2, TimeSpan.FromSeconds(20));
         else await worker.CloseStaticSessionAsync(reopened, 2, TimeSpan.FromSeconds(20));
-        await worker.StopAsync(); Assert.Null(worker.ProcessId); Assert.Empty(group.ObserveMembers());
-        Assert.False(Directory.Exists("/proc/" + pid.ToString(CultureInfo.InvariantCulture)));
-        output.WriteLine($"Timed ruby real Worker={group.Leader}; package={package}, transparent={transparent}, 7 byteexact BGRA/PNG frames, seek/reopen, group gone.");
+        await worker.StopAsync(); Assert.Null(worker.ProcessId); if (group is not null) Assert.Empty(group.ObserveMembers());
+        Assert.False(RuntimeTestPlatformHelpers.IsProcessAlive(pid, startIdentity));
+        output.WriteLine($"Timed ruby real Worker={pid}; package={package}, transparent={transparent}, 7 byteexact BGRA/PNG frames, seek/reopen, group gone.");
     }
 
     [Theory]
@@ -87,8 +88,9 @@ public sealed class TimedRubyWorkerIntegrationTests(ITestOutputHelper output)
             input = input with { SampleInputFingerprint = WorkerSceneMeasurementContract.Fingerprint(source, input) };
             var result = await worker.InvokeAsync(new(WorkerSceneMeasurementContract.RequestKind, WorkerSceneMeasurementContract.Encode(input, source)));
             int pid = worker.ProcessId!.Value;
-            using var process = Process.GetProcessById(pid);
-            var group = OwnedProcessGroup.TryCapture(process); Assert.NotNull(group);
+            long startIdentity = RuntimeTestPlatformHelpers.GetStartIdentityUtc(pid);
+            OwnedProcessGroup? group = null;
+            if (OperatingSystem.IsLinux()) { using var process = Process.GetProcessById(pid); group = OwnedProcessGroup.TryCapture(process); Assert.NotNull(group); }
             var actual = JsonSerializer.Deserialize<WorkerSceneMeasurementOutput>(result.Payload, SceneMeasurementContract.JsonOptions)!.Measurement;
             using var direct = await measurable.MeasureAsync(WorkerPackageSessionIntegrationTests.Request(snapshot, time, transparent), false);
             Assert.Equal(Png(direct.Frame), actual.Png);
@@ -100,7 +102,7 @@ public sealed class TimedRubyWorkerIntegrationTests(ITestOutputHelper output)
             Assert.True(ruby.Visible); Assert.Equal("measuredInk", ruby.GeometryStatus);
             if (previous is not null) { Assert.Equal(previous, ruby.WorldCorners); Assert.False(previousPng!.AsSpan().SequenceEqual(actual.Png)); }
             previous = ruby.WorldCorners; previousPng = actual.Png;
-            await worker.StopAsync(); Assert.Empty(group.ObserveMembers()); Assert.False(Directory.Exists("/proc/" + pid.ToString(CultureInfo.InvariantCulture)));
+            await worker.StopAsync(); if (group is not null) Assert.Empty(group.ObserveMembers()); Assert.False(RuntimeTestPlatformHelpers.IsProcessAlive(pid, startIdentity));
             output.WriteLine($"Timed ruby same-frame geometry/PNG Worker={pid}; transparent={transparent}, time={time}; exited.");
         }
     }

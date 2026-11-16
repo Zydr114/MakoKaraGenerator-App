@@ -141,12 +141,7 @@ public sealed class WorkerPackageSessionIntegrationTests(ITestOutputHelper outpu
         Assert.False(pending.IsCompleted);
     }
 
-    private static ulong ReadCpuTicks(int pid)
-    {
-        string stat = File.ReadAllText("/proc/" + pid.ToString(System.Globalization.CultureInfo.InvariantCulture) + "/stat");
-        string[] fields = stat[(stat.LastIndexOf(')') + 2)..].Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        return ulong.Parse(fields[11], System.Globalization.CultureInfo.InvariantCulture) + ulong.Parse(fields[12], System.Globalization.CultureInfo.InvariantCulture);
-    }
+    private static ulong ReadCpuTicks(int pid) => RuntimeTestPlatformHelpers.ReadCpuTicks(pid);
 
     [Theory]
     [InlineData("compile")]
@@ -268,7 +263,7 @@ public sealed class WorkerPackageSessionIntegrationTests(ITestOutputHelper outpu
     [InlineData("material", false)] [InlineData("material", true)]
     public async Task 固定包真实持久Worker与直接Runtime逐帧像素诊断等价且效果实际贡献像素(string kind, bool transparent)
     {
-        Assert.True(LinuxProcessGuards.IsSupported, "This bounded process isolation exit requires Linux process guards.");
+        Assert.True(ProcessGuards.TryEnableChildReaping(), "This bounded process isolation exit requires process guards.");
         PackageWorkerRuntimeFixture.AssertFixedFont();
         using TemporaryDirectory temp = new(); using FfmpegVideoFrameProvider videos = new();
         var runtime = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")), videos, ReplayReason.Initial, renderBackend: "vulkan");
@@ -278,8 +273,13 @@ public sealed class WorkerPackageSessionIntegrationTests(ITestOutputHelper outpu
         await using WorkerProcessProxy proxy = new(new(PackageWorkerRuntimeFixture.WorkerApphost()) { RenderBackend = "gpu" });
         StaticWorkerSessionHandle handle = await proxy.OpenPackageSessionAsync(bytes, TimeSpan.FromSeconds(30));
         int pid = Assert.IsType<int>(proxy.ProcessId);
-        using System.Diagnostics.Process process = System.Diagnostics.Process.GetProcessById(pid);
-        OwnedProcessGroup? group = OwnedProcessGroup.TryCapture(process); Assert.NotNull(group);
+        long startIdentity = RuntimeTestPlatformHelpers.GetStartIdentityUtc(pid);
+        OwnedProcessGroup? group = null;
+        if (OperatingSystem.IsLinux())
+        {
+            using System.Diagnostics.Process process = System.Diagnostics.Process.GetProcessById(pid);
+            group = OwnedProcessGroup.TryCapture(process); Assert.NotNull(group);
+        }
         await using IRenderFrameSession expectedSession = await runtime.CreateAsync(source);
         await using IRenderFrameSession counterfactual = await runtime.CreateAsync(removed);
         var expectedCursor = new RuntimeDiagnosticCursor(); var actualCursor = new RuntimeDiagnosticCursor();
@@ -316,14 +316,14 @@ public sealed class WorkerPackageSessionIntegrationTests(ITestOutputHelper outpu
         Assert.Equal(repeatedExpected.PixelMemory.ToArray(), repeated.Payload);
         await proxy.ClosePackageSessionAsync(reopened, 2, TimeSpan.FromSeconds(20));
         await proxy.StopAsync(); Assert.Null(proxy.ProcessId);
-        Assert.Empty(group.ObserveMembers());
-        Assert.False(Directory.Exists("/proc/" + pid.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        if (group is not null) Assert.Empty(group.ObserveMembers());
+        Assert.False(RuntimeTestPlatformHelpers.IsProcessAlive(pid, startIdentity));
         if (kind == "material")
         {
             Assert.Empty(source.Effects.Instances); Assert.Null(source.Effects.InputsFingerprint);
             Assert.NotNull(source.EffectInputsFingerprint); Assert.False(Directory.Exists(temp.FilePath("cache")));
         }
-        output.WriteLine($"Actual {kind}/{transparent} Worker={group.Leader}; 6 frames, seek, complete diagnostics, close/reopen and process release passed.");
+        output.WriteLine($"Actual {kind}/{transparent} Worker={pid}; 6 frames, seek, complete diagnostics, close/reopen and process release passed.");
     }
 
     internal static RenderRequest Request(ProjectSnapshot snapshot, long time, bool transparent = false) => RenderRequest.At(snapshot, time) with

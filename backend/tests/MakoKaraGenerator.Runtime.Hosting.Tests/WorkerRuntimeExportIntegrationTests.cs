@@ -9,6 +9,7 @@ using MakoKaraGenerator.Core.Time;
 using MakoKaraGenerator.Media;
 using MakoKaraGenerator.Rendering;
 using MakoKaraGenerator.Scripting;
+using MakoKaraGenerator.TestSupport;
 using SkiaSharp;
 
 namespace MakoKaraGenerator.Runtime.Hosting.Tests;
@@ -128,7 +129,7 @@ public sealed class WorkerRuntimeExportIntegrationTests
             await File.WriteAllBytesAsync(path, data.ToArray());
         }
         else
-            await Cli.Wrap("/usr/bin/ffmpeg").WithArguments(["-v", "error", "-f", "lavfi", "-i", "testsrc2=size=64x48:rate=10:duration=0.2",
+            await Cli.Wrap(TestMediaToolPaths.Ffmpeg).WithArguments(["-v", "error", "-f", "lavfi", "-i", "testsrc2=size=64x48:rate=10:duration=0.2",
                 "-c:v", "libx264", "-pix_fmt", "yuv420p", path]).ExecuteAsync();
         byte[] bytes = await File.ReadAllBytesAsync(path);
         MediaFileRevision media = new(WorkerProtocol.ComputeSha256(bytes), bytes.Length, Path.GetFileName(path));
@@ -145,7 +146,7 @@ public sealed class WorkerRuntimeExportIntegrationTests
         Assert.True(report.StrictlyVerified); Assert.Equal(3, report.DecodedFrames); Assert.Equal(3, report.FramesWritten);
         Assert.Equal(WorkerProtocol.ComputeSha256(await File.ReadAllBytesAsync(candidate)), report.Sha256);
         using MemoryStream raw = new();
-        await Cli.Wrap("/usr/bin/ffmpeg").WithArguments(["-v", "error", "-i", candidate, "-f", "rawvideo", "-pix_fmt", "bgra", "pipe:1"])
+        await Cli.Wrap(TestMediaToolPaths.Ffmpeg).WithArguments(["-v", "error", "-i", candidate, "-f", "rawvideo", "-pix_fmt", "bgra", "pipe:1"])
             .WithStandardOutputPipe(PipeTarget.ToStream(raw)).ExecuteAsync();
         byte[] actual = raw.ToArray();
         Assert.Equal(3 * 320 * 180 * 4, actual.Length);
@@ -184,7 +185,7 @@ public sealed class WorkerRuntimeExportIntegrationTests
     }
 
     private static WorkerBackendExportExecutor Executor(string? renderBackend = null) => new(new WorkerProcessOptions(PackageWorkerRuntimeFixture.WorkerApphost()) { RenderBackend = renderBackend },
-        "/usr/bin/ffmpeg", "/usr/bin/ffprobe");
+        TestMediaToolPaths.Ffmpeg, TestMediaToolPaths.Ffprobe);
 
     private static ProjectSnapshot Snapshot(string kind)
     {

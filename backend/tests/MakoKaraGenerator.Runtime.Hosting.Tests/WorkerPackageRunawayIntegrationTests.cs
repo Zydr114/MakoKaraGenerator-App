@@ -21,8 +21,7 @@ public sealed class WorkerPackageRunawayIntegrationTests(ITestOutputHelper outpu
     [InlineData("Evaluate", "dispose")]
     public async Task 实际作者进入后失控仍受取消期限关闭隔离并排水真实私有组且Host可用(string stage, string action)
     {
-        Assert.True(LinuxProcessGuards.IsSupported, "This bounded acceptance requires actual Linux private process groups.");
-        Assert.True(LinuxProcessGuards.TryEnableChildReaping());
+        Assert.True(ProcessGuards.TryEnableChildReaping());
         PackageWorkerRuntimeFixture.AssertFixedFont();
         string nonce = Guid.NewGuid().ToString("N");
         string evidence = Path.Combine(PackageWorkerRuntimeFixture.RepositoryRoot(), "artifacts", "backend-b3g-author-runtime", "owned-runaway", stage + "-" + action + "-" + nonce);
@@ -43,6 +42,7 @@ public sealed class WorkerPackageRunawayIntegrationTests(ITestOutputHelper outpu
         Task? active = null;
         ProcessIdentity[] observed = [];
         int workerPid = 0;
+        long workerStartIdentity = 0;
         var host = Process.GetCurrentProcess();
         long hostStart = host.StartTime.ToUniversalTime().Ticks;
         try
@@ -52,7 +52,8 @@ public sealed class WorkerPackageRunawayIntegrationTests(ITestOutputHelper outpu
                 TimeSpan timeout = action == "deadline" ? TimeSpan.FromSeconds(4) : TimeSpan.FromSeconds(20);
                 active = proxy.OpenPackageSessionAsync(PackageProjectSnapshotCodec.Encode(runaway), timeout, cancel.Token);
                 workerPid = await WaitForWorkerPidAsync(() => proxy.ProcessId, active, TimeSpan.FromSeconds(12));
-                group = await WaitForProcessGroupAsync(workerPid, active, TimeSpan.FromSeconds(5));
+                workerStartIdentity = RuntimeTestPlatformHelpers.GetStartIdentityUtc(workerPid);
+                if (OperatingSystem.IsLinux()) group = await WaitForProcessGroupAsync(workerPid, active, TimeSpan.FromSeconds(5));
                 await WaitForCpuAdvanceAsync(workerPid, ReadCpuTicks(workerPid), active, TimeSpan.FromSeconds(10));
             }
             else
@@ -62,13 +63,21 @@ public sealed class WorkerPackageRunawayIntegrationTests(ITestOutputHelper outpu
                 var evalProxy = (WorkerProcessProxy)session.GetType().GetFields(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
                     .Single(field => field.FieldType == typeof(WorkerProcessProxy)).GetValue(session)!;
                 workerPid = Assert.IsType<int>(evalProxy.ProcessId);
-                group = await WaitForProcessGroupAsync(workerPid, null, TimeSpan.FromSeconds(5));
+                workerStartIdentity = RuntimeTestPlatformHelpers.GetStartIdentityUtc(workerPid);
+                if (OperatingSystem.IsLinux()) group = await WaitForProcessGroupAsync(workerPid, null, TimeSpan.FromSeconds(5));
                 ulong baselineTicks = ReadCpuTicks(workerPid);
                 active = session.RenderAsync(WorkerPackageSessionIntegrationTests.Request(runaway, 100_000), cancel.Token).AsTask();
                 await WaitForCpuAdvanceAsync(workerPid, baselineTicks, active, TimeSpan.FromSeconds(10));
             }
-            Assert.Equal(workerPid, group.Leader.ProcessId);
-            observed = [.. group.ObserveMembers()];
+            if (group is not null)
+            {
+                Assert.Equal(workerPid, group.Leader.ProcessId);
+                observed = [.. group.ObserveMembers()];
+            }
+            else
+            {
+                observed = [new ProcessIdentity(workerPid, checked((ulong)workerStartIdentity), workerPid)];
+            }
             await File.WriteAllTextAsync(Path.Combine(evidence, "observed-identities.json"), System.Text.Json.JsonSerializer.Serialize(observed));
             Assert.False(active.IsCompleted, "The real author loop must still be running after CPU advance was observed.");
             // The Host must perform useful work while the author's CPU loop is
@@ -107,7 +116,7 @@ public sealed class WorkerPackageRunawayIntegrationTests(ITestOutputHelper outpu
                     Assert.False(failure is OperationCanceledException);
                 }
             }
-            Assert.Empty(group.ObserveMembers());
+            if (group is not null) Assert.Empty(group.ObserveMembers());
             foreach (ProcessIdentity identity in observed)
                 Assert.False(IdentityStillExists(identity), "Observed owned identity was not drained: " + identity);
             if (session is not null)
@@ -204,22 +213,7 @@ public sealed class WorkerPackageRunawayIntegrationTests(ITestOutputHelper outpu
         throw new TimeoutException("Worker CPU ticks did not advance before the fixture deadline.");
     }
 
-    private static ulong ReadCpuTicks(int pid)
-    {
-        string stat = File.ReadAllText("/proc/" + pid.ToString(CultureInfo.InvariantCulture) + "/stat");
-        string[] fields = stat[(stat.LastIndexOf(')') + 2)..].Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        return ulong.Parse(fields[11], CultureInfo.InvariantCulture) + ulong.Parse(fields[12], CultureInfo.InvariantCulture);
-    }
+    private static ulong ReadCpuTicks(int pid) => RuntimeTestPlatformHelpers.ReadCpuTicks(pid);
 
-    private static bool IdentityStillExists(ProcessIdentity identity)
-    {
-        try
-        {
-            string stat = File.ReadAllText("/proc/" + identity.ProcessId.ToString(CultureInfo.InvariantCulture) + "/stat");
-            string[] fields = stat[(stat.LastIndexOf(')') + 2)..].Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            return ulong.Parse(fields[19], CultureInfo.InvariantCulture) == identity.StartTicks
-                && int.Parse(fields[2], CultureInfo.InvariantCulture) == identity.ProcessGroupId;
-        }
-        catch (IOException) { return false; }
-    }
+    private static bool IdentityStillExists(ProcessIdentity identity) => RuntimeTestPlatformHelpers.IdentityStillExists(identity);
 }

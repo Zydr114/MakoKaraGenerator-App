@@ -7,6 +7,7 @@ using MakoKaraGenerator.Core.Effects;
 using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Media;
 using MakoKaraGenerator.Rendering;
+using MakoKaraGenerator.Rendering.Skia;
 using MakoKaraGenerator.Scripting;
 using SkiaSharp;
 
@@ -115,8 +116,8 @@ public sealed class WorkerStaticSessionIntegrationTests
     public async Task 持久Worker静态歌词场景连续三时刻和寻址与真实Runtime逐字节相等(bool transparent, RenderQuality quality)
     {
         using TemporaryDirectory temp = new();
-        using SKTypeface font = SKTypeface.FromFamilyName("Noto Sans CJK SC");
-        Assert.Equal("Noto Sans CJK SC", font.FamilyName);
+        using SKTypeface font = SKTypeface.FromFamilyName(SkiaTextLayoutEngine.DefaultFamilyName);
+        Assert.Equal(SkiaTextLayoutEngine.DefaultFamilyName, font.FamilyName);
         ProjectSnapshot snapshot = Snapshot();
         var worker = new WorkerRenderFrameSessionFactory(Options());
         var runtime = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("unused-cache")), new FfmpegVideoFrameProvider(), ReplayReason.Initial);

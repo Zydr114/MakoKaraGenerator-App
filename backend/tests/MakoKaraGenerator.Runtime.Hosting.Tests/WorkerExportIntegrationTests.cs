@@ -11,6 +11,7 @@ using MakoKaraGenerator.Core.Time;
 using MakoKaraGenerator.Media;
 using MakoKaraGenerator.Rendering;
 using MakoKaraGenerator.Scripting;
+using MakoKaraGenerator.TestSupport;
 using Xunit.Abstractions;
 
 namespace MakoKaraGenerator.Runtime.Hosting.Tests;
@@ -35,7 +36,7 @@ public sealed class WorkerExportIntegrationTests(ITestOutputHelper output)
             source = temp.FilePath("audio." + compressed);
             List<string> arguments = ["-v", "error", "-i", wav, "-c:a", compressed == "mp3" ? "libmp3lame" : "flac"];
             if (compressed == "mp3") arguments.AddRange(variable ? ["-q:a", "4"] : ["-b:a", "128k"]);
-            arguments.Add(source); Assert.Equal(0, (await Cli.Wrap("/usr/bin/ffmpeg").WithArguments(arguments).ExecuteAsync()).ExitCode);
+            arguments.Add(source); Assert.Equal(0, (await Cli.Wrap(TestMediaToolPaths.Ffmpeg).WithArguments(arguments).ExecuteAsync()).ExitCode);
         }
         var grant = new BackendExportAudioGrant(source, new FileInfo(source).Length, Convert.ToHexStringLower(SHA256.HashData(await File.ReadAllBytesAsync(source))),
             compressed == "mp3" ? BackendAudioInputProfiles.Mp3 : compressed == "flac" ? BackendAudioInputProfiles.Flac : BackendAudioInputProfiles.Pcm16Wave);
@@ -51,7 +52,7 @@ public sealed class WorkerExportIntegrationTests(ITestOutputHelper output)
         Assert.True(report.StrictlyVerified); Assert.True(report.IsVerified);
         Assert.Equal(quality, report.RequestedQuality); Assert.Equal(quality, report.ActualQuality); Assert.Equal(plan.TotalFrames, report.ExpectedFrames);
         Assert.Equal(plan.TotalFrames, report.DecodedFrames); Assert.Equal(plan.TotalFrames, report.FramesWritten);
-        long sourceSamples = await new FfmpegPcmReader("/usr/bin/ffmpeg").ReadMonoSamplesAtRateAsync(source, 44100, _ => ValueTask.CompletedTask);
+        long sourceSamples = await new FfmpegPcmReader(TestMediaToolPaths.Ffmpeg).ReadMonoSamplesAtRateAsync(source, 44100, _ => ValueTask.CompletedTask);
         Assert.Equal((sourceSamples * 1_000_000 / 44100).ToString(CultureInfo.InvariantCulture), report.AudioDurationUs);
         Assert.Equal(0, report.FailedFrames); Assert.Equal(0, report.DroppedFrames); Assert.True(report.AudioIncluded);
         Assert.Equal(format != "opaqueMp4", report.HasAlpha); Assert.Equal(new FileInfo(candidate).Length, report.MediaSize);
@@ -81,7 +82,7 @@ public sealed class WorkerExportIntegrationTests(ITestOutputHelper output)
         Assert.True(glyph > 100); Assert.True(matching > glyph * .9, $"Native glyph coverage mismatch {matching}/{glyph}");
         if (format != "opaqueMp4") { Assert.True(transparent > 1000); Assert.True(semi > 100); }
         double energy = 0; long samples = 0;
-        long decodedSamples = await new FfmpegPcmReader("/usr/bin/ffmpeg").ReadMonoSamplesAtRateAsync(candidate, 44100, data =>
+        long decodedSamples = await new FfmpegPcmReader(TestMediaToolPaths.Ffmpeg).ReadMonoSamplesAtRateAsync(candidate, 44100, data =>
         { foreach (float value in data.Span) energy += value * value; samples += data.Length; return ValueTask.CompletedTask; });
         Assert.Equal(samples, decodedSamples); Assert.True(Math.Sqrt(energy / samples) > .08, "Decoded actual output audio was silent.");
         long expectedSamples = plan.VideoDurationUs * 44100 / 1_000_000;
@@ -123,7 +124,7 @@ public sealed class WorkerExportIntegrationTests(ITestOutputHelper output)
         DirectoryInfo? root = new(AppContext.BaseDirectory);
         while (root is not null && !File.Exists(Path.Combine(root.FullName, "MakoKaraGenerator.slnx"))) root = root.Parent;
         string dll = Path.Combine(root!.FullName, "src", "MakoKaraGenerator.Backend.Worker", "bin", "Debug", "net10.0", "MakoKaraGenerator.Backend.Worker.dll");
-        return new(new WorkerProcessOptions("dotnet", [dll]), "/usr/bin/ffmpeg", "/usr/bin/ffprobe",
+        return new(new WorkerProcessOptions("dotnet", [dll]), TestMediaToolPaths.Ffmpeg, TestMediaToolPaths.Ffprobe,
             exportOptions: new BackendExportOptions { MaxMediaBytes = WorkerExportContract.MaximumMediaBytes });
     }
     private static ProjectSnapshot Snapshot(FrameRate rate, bool audio)
@@ -151,7 +152,7 @@ public sealed class WorkerExportIntegrationTests(ITestOutputHelper output)
     private static async Task<byte[]> FrameAsync(string path, int index)
     {
         using MemoryStream data = new(); using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(30));
-        var result = await Cli.Wrap("/usr/bin/ffmpeg").WithArguments(["-v", "error", "-i", path, "-vf", $"select=eq(n\\,{index.ToString(CultureInfo.InvariantCulture)})",
+        var result = await Cli.Wrap(TestMediaToolPaths.Ffmpeg).WithArguments(["-v", "error", "-i", path, "-vf", $"select=eq(n\\,{index.ToString(CultureInfo.InvariantCulture)})",
             "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "bgra", "pipe:1"]).WithStandardOutputPipe(PipeTarget.ToStream(data))
             .ExecuteAsync(deadline.Token);
         Assert.Equal(0, result.ExitCode); return data.ToArray();

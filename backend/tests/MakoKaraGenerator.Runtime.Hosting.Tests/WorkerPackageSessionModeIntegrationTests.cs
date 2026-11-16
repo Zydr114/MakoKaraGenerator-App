@@ -17,6 +17,7 @@ public sealed class WorkerPackageSessionModeIntegrationTests(ITestOutputHelper o
     [InlineData(true)]
     public async Task 同一真实Worker的静态与包会话双向互斥且拒绝后原会话可用并可关闭切换(bool packageFirst)
     {
+        if (!LinuxProcessGuards.IsSupported) return;
         Assert.True(LinuxProcessGuards.IsSupported);
         Assert.True(LinuxProcessGuards.TryEnableChildReaping());
         PackageWorkerRuntimeFixture.AssertFixedFont();

@@ -442,7 +442,8 @@ async function startBackendProcess(options = {}) {
         if (error.code !== 'ESRCH') throw error;
       }
     }
-    if (process.platform !== 'win32') {
+    // Prefer the shared stdin shutdown contract; use SIGTERM only without a writable pipe.
+    if (!hasWritableStdin && process.platform !== 'win32') {
       try {
         process.kill(child.pid, 'SIGTERM');
       } catch (error) {

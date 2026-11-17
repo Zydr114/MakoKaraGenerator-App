@@ -43,9 +43,11 @@ var result = await validator.ValidateAsync(snapshot, new RuntimeValidationPlan(3
 MINOR0.48.0对应新增公开执行器、作者服务及Application布局用例；作者SDK、中立渲染接口、工程／歌词／模板28／16／6、配置1、包profile2及固定依赖保持，无格式迁移。按用户要求暂不跑全量；本批未启动或操作原生用户窗口，不扩大为Windows、物理输入或用户连续人工验收。F6b已记录的剩余UI延迟不由本次职责迁移推定解决；F8c及最终连续路线继续。
 
 
-## 自动 ruby 水平间距（0.97.0）
+## 自动 ruby 水平间距与样式（0.97.0；0.115.0更新）
 
-`MakoKaraGenerator.Text/RubySpacingSolver` 对完整行shaping和聚合ruby墨迹求解，Skia的共享行布局入口统一服务绘制、SceneLayout、TokenGeometry、SceneFrame和FamilyTransforms。水平最小gap固定1布局像素；只约束垂直墨迹严格相交的所有此前ruby，跨无注音token同样检查。安全token/cluster刚性组整体平移，保留glyph和自然advance，ruby锚点采用原始自然边界加位移；新增gap不能吞入前token的End锚点。正文XAt/progress path的间隙归前token的无墨迹区间。
+`MakoKaraGenerator.Text/RubySpacingSolver` 对完整行shaping和聚合ruby墨迹求解，Skia的共享行布局入口统一服务绘制、SceneLayout、TokenGeometry、SceneFrame和FamilyTransforms。0.115.0起，两段注音的水平墨迹间距至少为连续排版的自然接缝：前段末字右侧 bearing、前段附加字距和后段首字左侧 bearing 之和，并以1个缩放前布局像素为下限；自然距离已足够时不增加位移。只约束垂直墨迹严格相交的所有此前ruby，跨无注音token同样检查。安全token/cluster刚性组整体平移，保留glyph和自然advance，ruby锚点采用原始自然边界加位移；新增gap不能吞入前token的End锚点。正文XAt/progress path的间隙归前token的无墨迹区间。
+
+样式的 `ruby.relativeScale` 与 `ruby.gapPx` 分别控制注音相对正文字号比例和注音与正文距离；工程、来源、行、元素按样式层级继承，显式 null 使用歌词中该注音的原值，restore 删除本层覆盖并恢复继承。注音字体及其余外观继续继承正文，样式调整不改写歌词注音原值。
 
 spacing不读取segment时间或progress；无时间/有时间同文本布局相同，segment仍只裁切完整聚合ruby。无冲突原布局直接保留，既有无碰撞legacy golden不重录；冲突画面允许预期改善。无法合法拆分的共享cluster组内冲突、非单调/不精确映射和非法坐标内部保守回退，不扩张公共诊断合同。
 

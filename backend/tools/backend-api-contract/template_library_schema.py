@@ -60,6 +60,7 @@ def add_canonical_style(schemas):
         source['properties']['unsung'] = ref('TemplateLibraryAppearance' + suffix)
         source['properties']['sung'] = ref('TemplateLibrarySungAppearance' + suffix)
         source['properties']['wipe'] = ref('StyleWipeDto' + suffix)
+        source['properties']['ruby'] = ref('StyleRubyDto' + suffix)
         source['description'] = '完整静态两态canonical style，所有字段必填；字体/阴影/辉光/扫字线高亮允许显式null；不携带包身份的残缺高级定义。'
         schemas['TemplateLibraryStyle' + suffix] = source
     assert all(schemas[name] == value for name, value in before.items()), 'Template extension changed an older schema'

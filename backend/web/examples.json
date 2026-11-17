@@ -21468,7 +21468,11 @@
         "verticalCenterRatio": 0.5,
         "horizontalAlignment": "center",
         "opacity": 1,
-        "scale": 1
+        "scale": 1,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -21568,7 +21572,11 @@
         "verticalCenterRatio": 0.5,
         "horizontalAlignment": "center",
         "opacity": 1,
-        "scale": 1
+        "scale": 1,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -21668,7 +21676,11 @@
         "verticalCenterRatio": 0.5,
         "horizontalAlignment": "center",
         "opacity": 1,
-        "scale": 1
+        "scale": 1,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -21768,7 +21780,11 @@
         "verticalCenterRatio": 0.5,
         "horizontalAlignment": "center",
         "opacity": 1,
-        "scale": 1
+        "scale": 1,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -21934,7 +21950,11 @@
         "verticalCenterRatio": 0.5,
         "horizontalAlignment": "center",
         "opacity": 1,
-        "scale": 1
+        "scale": 1,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -22043,7 +22063,11 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "local": [
           {
@@ -22149,7 +22173,11 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "hasPresetApplications": true,
         "resolution": "staticHierarchy",
@@ -22260,7 +22288,11 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "local": [],
         "staticHierarchy": {
@@ -22357,7 +22389,11 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "hasPresetApplications": true,
         "resolution": "staticHierarchy",
@@ -22468,7 +22504,11 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "local": [
           {
@@ -22574,7 +22614,11 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "hasPresetApplications": true,
         "resolution": "staticHierarchy",
@@ -22686,7 +22730,11 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "local": [
           {
@@ -22792,7 +22840,11 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "hasPresetApplications": true,
         "resolution": "staticHierarchy",
@@ -22904,7 +22956,11 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "local": [
           {
@@ -23010,7 +23066,11 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "hasPresetApplications": true,
         "resolution": "staticHierarchy",
@@ -23118,7 +23178,11 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "local": [
           {
@@ -23224,7 +23288,11 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "hasPresetApplications": true,
         "resolution": "staticHierarchy",
@@ -23347,7 +23415,11 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "hasPresetApplications": true,
         "resolution": "staticHierarchy",
@@ -23460,7 +23532,11 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "staticHierarchy": {
           "typography": {
@@ -23556,7 +23632,11 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "hasPresetApplications": true,
         "resolution": "staticHierarchy",
@@ -23669,7 +23749,11 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "local": [
           {
@@ -23792,7 +23876,11 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "local": [
           {
@@ -23898,7 +23986,11 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "resolution": "staticHierarchy",
         "protocolVersion": "1"
@@ -24010,7 +24102,11 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "local": [
           {
@@ -24116,7 +24212,11 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "hasPresetApplications": true,
         "protocolVersion": "1"
@@ -24228,7 +24328,11 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "local": [
           {
@@ -24334,7 +24438,11 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "hasPresetApplications": true,
         "resolution": "staticHierarchy"
@@ -24446,7 +24554,11 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "local": [
           {
@@ -24552,7 +24664,11 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "hasPresetApplications": true,
         "resolution": "effective",
@@ -24665,7 +24781,11 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "local": [
           {
@@ -24771,7 +24891,11 @@
           "verticalCenterRatio": 0.5,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "hasPresetApplications": true,
         "resolution": "staticHierarchy",
@@ -24902,7 +25026,11 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "ruby": {
+              "relativeScale": null,
+              "gapPx": null
+            }
           }
         }
       }
@@ -25006,7 +25134,11 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "ruby": {
+                "relativeScale": null,
+                "gapPx": null
+              }
             }
           }
         }
@@ -25103,7 +25235,11 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "ruby": {
+              "relativeScale": null,
+              "gapPx": null
+            }
           }
         }
       }
@@ -25200,7 +25336,11 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "ruby": {
+              "relativeScale": null,
+              "gapPx": null
+            }
           }
         }
       }
@@ -25314,7 +25454,11 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "ruby": {
+              "relativeScale": null,
+              "gapPx": null
+            }
           }
         },
         "projectSessionId": null
@@ -25412,7 +25556,11 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "ruby": {
+              "relativeScale": null,
+              "gapPx": null
+            }
           }
         },
         "target": null
@@ -25510,7 +25658,11 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "ruby": {
+              "relativeScale": null,
+              "gapPx": null
+            }
           }
         },
         "sourceLibraryId": null
@@ -25608,7 +25760,11 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "ruby": {
+              "relativeScale": null,
+              "gapPx": null
+            }
           }
         },
         "sourceRevision": null
@@ -25706,7 +25862,11 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "ruby": {
+              "relativeScale": null,
+              "gapPx": null
+            }
           }
         },
         "templateId": null
@@ -25804,7 +25964,11 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "ruby": {
+              "relativeScale": null,
+              "gapPx": null
+            }
           }
         },
         "name": null
@@ -25902,7 +26066,11 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "ruby": {
+              "relativeScale": null,
+              "gapPx": null
+            }
           }
         },
         "extra": null
@@ -26001,7 +26169,11 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "ruby": {
+              "relativeScale": null,
+              "gapPx": null
+            }
           }
         }
       }
@@ -26106,7 +26278,11 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "ruby": {
+                "relativeScale": null,
+                "gapPx": null
+              }
             }
           }
         }
@@ -26204,7 +26380,11 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "ruby": {
+              "relativeScale": null,
+              "gapPx": null
+            }
           }
         }
       }
@@ -26302,7 +26482,11 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "ruby": {
+              "relativeScale": null,
+              "gapPx": null
+            }
           }
         }
       }
@@ -26399,7 +26583,11 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "ruby": {
+              "relativeScale": null,
+              "gapPx": null
+            }
           }
         }
       }
@@ -26497,7 +26685,11 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "ruby": {
+              "relativeScale": null,
+              "gapPx": null
+            }
           }
         }
       }
@@ -26614,7 +26806,11 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "ruby": {
+              "relativeScale": null,
+              "gapPx": null
+            }
           }
         },
         "projectSessionId": null
@@ -26713,7 +26909,11 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "ruby": {
+              "relativeScale": null,
+              "gapPx": null
+            }
           }
         },
         "target": null
@@ -26812,7 +27012,11 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "ruby": {
+              "relativeScale": null,
+              "gapPx": null
+            }
           }
         },
         "sourceLibraryId": null
@@ -26911,7 +27115,11 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "ruby": {
+              "relativeScale": null,
+              "gapPx": null
+            }
           }
         },
         "sourceRevision": null
@@ -27010,7 +27218,11 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "ruby": {
+              "relativeScale": null,
+              "gapPx": null
+            }
           }
         },
         "name": null
@@ -27109,7 +27321,11 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "ruby": {
+              "relativeScale": null,
+              "gapPx": null
+            }
           }
         },
         "extra": null
@@ -27693,7 +27909,11 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "ruby": {
+                "relativeScale": null,
+                "gapPx": null
+              }
             }
           }
         }
@@ -27798,7 +28018,11 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "ruby": {
+                "relativeScale": null,
+                "gapPx": null
+              }
             }
           }
         }
@@ -27898,7 +28122,11 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "ruby": {
+                "relativeScale": null,
+                "gapPx": null
+              }
             }
           }
         }
@@ -27999,7 +28227,11 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "ruby": {
+                "relativeScale": null,
+                "gapPx": null
+              }
             }
           }
         }
@@ -28131,7 +28363,11 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "ruby": {
+                "relativeScale": null,
+                "gapPx": null
+              }
             }
           }
         },
@@ -28237,7 +28473,11 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "ruby": {
+                "relativeScale": null,
+                "gapPx": null
+              }
             }
           }
         }
@@ -28342,7 +28582,11 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "ruby": {
+                "relativeScale": null,
+                "gapPx": null
+              }
             }
           }
         }
@@ -28447,7 +28691,11 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "ruby": {
+                "relativeScale": null,
+                "gapPx": null
+              }
             }
           }
         }
@@ -28552,7 +28800,11 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "ruby": {
+                "relativeScale": null,
+                "gapPx": null
+              }
             }
           }
         }
@@ -28657,7 +28909,11 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "ruby": {
+                "relativeScale": null,
+                "gapPx": null
+              }
             }
           }
         }
@@ -28762,7 +29018,11 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "ruby": {
+                "relativeScale": null,
+                "gapPx": null
+              }
             }
           }
         }
@@ -28867,7 +29127,11 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "ruby": {
+                "relativeScale": null,
+                "gapPx": null
+              }
             }
           }
         }
@@ -28972,7 +29236,11 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "ruby": {
+                "relativeScale": null,
+                "gapPx": null
+              }
             }
           }
         }
@@ -29135,7 +29403,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -29203,7 +29475,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -29271,7 +29547,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -29339,7 +29619,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -29407,7 +29691,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -29475,7 +29763,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -29543,7 +29835,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -29611,7 +29907,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -29679,7 +29979,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -29747,7 +30051,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -29815,7 +30123,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -29883,7 +30195,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -29951,7 +30267,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -30019,7 +30339,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -30087,7 +30411,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -30155,7 +30483,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -30223,7 +30555,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -30291,7 +30627,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -30359,7 +30699,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -30427,7 +30771,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -30495,7 +30843,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -30563,7 +30915,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -30631,7 +30987,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -30699,7 +31059,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -30767,7 +31131,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -30835,7 +31203,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -30903,7 +31275,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -30971,7 +31347,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -31039,7 +31419,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -31107,7 +31491,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -31175,7 +31563,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -31243,7 +31635,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -31311,7 +31707,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -31379,7 +31779,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -31447,7 +31851,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -31515,7 +31923,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -31583,7 +31995,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -31651,7 +32067,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -31719,7 +32139,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -31788,7 +32212,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -31857,7 +32285,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -31926,7 +32358,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -31995,7 +32431,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -32064,7 +32504,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -32133,7 +32577,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -32202,7 +32650,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -32271,7 +32723,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -32340,7 +32796,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -32408,7 +32868,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -32476,7 +32940,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -32544,7 +33012,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -32612,7 +33084,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -32680,7 +33156,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -32748,7 +33228,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -32827,7 +33311,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -32906,7 +33394,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -32985,7 +33477,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -33053,7 +33549,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -33121,7 +33621,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -33189,7 +33693,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -33257,7 +33765,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -33325,7 +33837,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -33393,7 +33909,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -33462,7 +33982,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -33528,7 +34052,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -33597,7 +34125,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -33665,7 +34197,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -33733,7 +34269,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -33801,7 +34341,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -33867,7 +34411,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -33961,7 +34509,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -34055,7 +34607,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -34149,7 +34705,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -34243,7 +34803,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -34336,7 +34900,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -34430,7 +34998,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -34523,7 +35095,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -34617,7 +35193,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -34682,7 +35262,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -34748,7 +35332,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -34919,7 +35507,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "effectRecipes": []
       }
@@ -34970,7 +35562,11 @@
         "verticalCenterRatio": 0.625,
         "horizontalAlignment": "right",
         "opacity": 0.875,
-        "scale": 1.125
+        "scale": 1.125,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -35020,7 +35616,11 @@
         "verticalCenterRatio": 0.625,
         "horizontalAlignment": "right",
         "opacity": 0.875,
-        "scale": 1.125
+        "scale": 1.125,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -35072,7 +35672,11 @@
         "verticalCenterRatio": 0.625,
         "horizontalAlignment": "right",
         "opacity": 0.875,
-        "scale": 1.125
+        "scale": 1.125,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -35124,7 +35728,11 @@
         "verticalCenterRatio": 0.625,
         "horizontalAlignment": "right",
         "opacity": 0.875,
-        "scale": 1.125
+        "scale": 1.125,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -35184,7 +35792,11 @@
         "verticalCenterRatio": 0.625,
         "horizontalAlignment": "right",
         "opacity": 0.875,
-        "scale": 1.125
+        "scale": 1.125,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -35245,7 +35857,11 @@
         "verticalCenterRatio": 0.625,
         "horizontalAlignment": "right",
         "opacity": 0.875,
-        "scale": 1.125
+        "scale": 1.125,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -35305,7 +35921,11 @@
         "verticalCenterRatio": 0.625,
         "horizontalAlignment": "right",
         "opacity": 0.875,
-        "scale": 1.125
+        "scale": 1.125,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -35366,7 +35986,11 @@
         "verticalCenterRatio": 0.625,
         "horizontalAlignment": "right",
         "opacity": 0.875,
-        "scale": 1.125
+        "scale": 1.125,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -35426,7 +36050,11 @@
         },
         "horizontalAlignment": "right",
         "opacity": 0.875,
-        "scale": 1.125
+        "scale": 1.125,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -35487,7 +36115,11 @@
         "verticalCenterRatio": null,
         "horizontalAlignment": "right",
         "opacity": 0.875,
-        "scale": 1.125
+        "scale": 1.125,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -35547,7 +36179,11 @@
         },
         "verticalCenterRatio": 0.625,
         "opacity": 0.875,
-        "scale": 1.125
+        "scale": 1.125,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -35608,7 +36244,11 @@
         "verticalCenterRatio": 0.625,
         "horizontalAlignment": null,
         "opacity": 0.875,
-        "scale": 1.125
+        "scale": 1.125,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -35668,7 +36308,11 @@
         },
         "verticalCenterRatio": 0.625,
         "horizontalAlignment": "right",
-        "scale": 1.125
+        "scale": 1.125,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -35729,7 +36373,11 @@
         "verticalCenterRatio": 0.625,
         "horizontalAlignment": "right",
         "opacity": null,
-        "scale": 1.125
+        "scale": 1.125,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -35789,7 +36437,11 @@
         },
         "verticalCenterRatio": 0.625,
         "horizontalAlignment": "right",
-        "opacity": 0.875
+        "opacity": 0.875,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -35850,7 +36502,11 @@
         "verticalCenterRatio": 0.625,
         "horizontalAlignment": "right",
         "opacity": 0.875,
-        "scale": null
+        "scale": null,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -35912,7 +36568,11 @@
         "horizontalAlignment": "right",
         "opacity": 0.875,
         "scale": 1.125,
-        "extra": null
+        "extra": null,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -36248,7 +36908,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -36342,7 +37006,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -36466,7 +37134,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -36591,7 +37263,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -36685,7 +37361,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -36776,7 +37456,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -36867,7 +37551,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -36958,7 +37646,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -37049,7 +37741,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         }
       }
     },
@@ -37159,7 +37855,11 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "ruby": {
+              "relativeScale": null,
+              "gapPx": null
+            }
           }
         },
         "protocolVersion": "1"
@@ -37318,7 +38018,11 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "ruby": {
+              "relativeScale": null,
+              "gapPx": null
+            }
           }
         },
         "protocolVersion": "1"
@@ -37454,7 +38158,11 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "ruby": {
+              "relativeScale": null,
+              "gapPx": null
+            }
           }
         },
         "protocolVersion": "1"
@@ -37566,7 +38274,11 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "ruby": {
+              "relativeScale": null,
+              "gapPx": null
+            }
           }
         }
       }
@@ -42745,7 +43457,11 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "ruby": {
+                "relativeScale": null,
+                "gapPx": null
+              }
             }
           }
         },
@@ -57329,7 +58045,11 @@
           }
         },
         "opacity": 1,
-        "scale": 1
+        "scale": 1,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       },
       "valid": false
     },
@@ -57381,7 +58101,11 @@
           }
         },
         "verticalCenterRatio": 0.5,
-        "opacity": 1
+        "opacity": 1,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       },
       "valid": false
     },
@@ -57433,7 +58157,11 @@
           }
         },
         "horizontalAlignment": "center",
-        "opacity": 1
+        "opacity": 1,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       },
       "valid": false
     },
@@ -65817,7 +66545,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "sources": [
           {
@@ -65846,6 +66578,14 @@
           },
           {
             "property": "typography.letterSpacingPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "ruby.relativeScale",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "ruby.gapPx",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -66109,7 +66849,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "sources": [
           {
@@ -66138,6 +66882,14 @@
           },
           {
             "property": "typography.letterSpacingPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "ruby.relativeScale",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "ruby.gapPx",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -67049,7 +67801,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "sources": [
           {
@@ -67078,6 +67834,14 @@
           },
           {
             "property": "typography.letterSpacingPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "ruby.relativeScale",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "ruby.gapPx",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -67305,7 +68069,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "sources": [
           {
@@ -67334,6 +68102,14 @@
           },
           {
             "property": "typography.letterSpacingPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "ruby.relativeScale",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "ruby.gapPx",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -67560,7 +68336,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "sources": [
           {
@@ -67589,6 +68369,14 @@
           },
           {
             "property": "typography.letterSpacingPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "ruby.relativeScale",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "ruby.gapPx",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -67816,7 +68604,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "sources": [
           {
@@ -67845,6 +68637,14 @@
           },
           {
             "property": "typography.letterSpacingPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "ruby.relativeScale",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "ruby.gapPx",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -68058,7 +68858,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "sources": [
           {
@@ -68087,6 +68891,14 @@
           },
           {
             "property": "typography.letterSpacingPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "ruby.relativeScale",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "ruby.gapPx",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -68301,7 +69113,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "sources": [
           {
@@ -68330,6 +69146,14 @@
           },
           {
             "property": "typography.letterSpacingPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "ruby.relativeScale",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "ruby.gapPx",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -68533,6 +69357,14 @@
             "sourcePath": "project.baseStyle"
           },
           {
+            "property": "ruby.relativeScale",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "ruby.gapPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
             "property": "unsung.fill",
             "sourcePath": "project.baseStyle"
           },
@@ -68731,6 +69563,14 @@
           },
           {
             "property": "typography.letterSpacingPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "ruby.relativeScale",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "ruby.gapPx",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -68958,7 +69798,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "resolution": "staticPresetHierarchy",
         "finalPixelAppearance": false,
@@ -69040,7 +69884,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "sources": null,
         "resolution": "staticPresetHierarchy",
@@ -69123,7 +69971,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "sources": [
           {
@@ -69290,7 +70142,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "sources": [
           {
@@ -69458,7 +70314,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "sources": [
           {
@@ -69487,6 +70347,14 @@
           },
           {
             "property": "typography.letterSpacingPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "ruby.relativeScale",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "ruby.gapPx",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -69713,7 +70581,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "sources": [
           {
@@ -69742,6 +70614,14 @@
           },
           {
             "property": "typography.letterSpacingPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "ruby.relativeScale",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "ruby.gapPx",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -69969,7 +70849,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "sources": [
           {
@@ -69998,6 +70882,14 @@
           },
           {
             "property": "typography.letterSpacingPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "ruby.relativeScale",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "ruby.gapPx",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -70224,7 +71116,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "sources": [
           {
@@ -70253,6 +71149,14 @@
           },
           {
             "property": "typography.letterSpacingPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "ruby.relativeScale",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "ruby.gapPx",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -112502,7 +113406,11 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "ruby": {
+              "relativeScale": null,
+              "gapPx": null
+            }
           }
         },
         "protocolVersion": "1"
@@ -113018,7 +113926,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "effectRecipes": [
           {
@@ -113109,7 +114021,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "effectRecipes": [
           {
@@ -113200,7 +114116,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "effectRecipes": [],
         "packages": [
@@ -113303,7 +114223,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "packages": [
           {
@@ -113405,7 +114329,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "effectRecipes": [
           {
@@ -113579,7 +114507,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "effectRecipes": [
           null
@@ -113684,7 +114616,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "effectRecipes": [
           {
@@ -113975,7 +114911,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "effectRecipes": [
           {
@@ -114094,7 +115034,11 @@
           "verticalCenterRatio": 0.625,
           "horizontalAlignment": "right",
           "opacity": 0.875,
-          "scale": 1.125
+          "scale": 1.125,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "effectRecipes": [
           {
@@ -114216,7 +115160,11 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "ruby": {
+              "relativeScale": null,
+              "gapPx": null
+            }
           },
           "effectRecipes": [
             {
@@ -114338,7 +115286,11 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "ruby": {
+              "relativeScale": null,
+              "gapPx": null
+            }
           },
           "effectRecipes": [
             {
@@ -114461,7 +115413,11 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "ruby": {
+              "relativeScale": null,
+              "gapPx": null
+            }
           },
           "effectRecipes": [
             {
@@ -114584,7 +115540,11 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "ruby": {
+              "relativeScale": null,
+              "gapPx": null
+            }
           },
           "effectRecipes": [
             {
@@ -114707,7 +115667,11 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "ruby": {
+              "relativeScale": null,
+              "gapPx": null
+            }
           },
           "effectRecipes": [
             {
@@ -114831,7 +115795,11 @@
             "verticalCenterRatio": 0.625,
             "horizontalAlignment": "right",
             "opacity": 0.875,
-            "scale": 1.125
+            "scale": 1.125,
+            "ruby": {
+              "relativeScale": null,
+              "gapPx": null
+            }
           },
           "effectRecipes": [
             {
@@ -114971,7 +115939,11 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "ruby": {
+                "relativeScale": null,
+                "gapPx": null
+              }
             },
             "effectRecipes": [
               {
@@ -115096,7 +116068,11 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "ruby": {
+                "relativeScale": null,
+                "gapPx": null
+              }
             }
           }
         }
@@ -115197,7 +116173,11 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "ruby": {
+                "relativeScale": null,
+                "gapPx": null
+              }
             },
             "effectRecipes": [
               {
@@ -115339,7 +116319,11 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "ruby": {
+                "relativeScale": null,
+                "gapPx": null
+              }
             },
             "effectRecipes": [
               {
@@ -115505,7 +116489,11 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "ruby": {
+                "relativeScale": null,
+                "gapPx": null
+              }
             },
             "effectRecipes": [
               {
@@ -115644,7 +116632,11 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "ruby": {
+                "relativeScale": null,
+                "gapPx": null
+              }
             },
             "effectRecipes": [
               {
@@ -116878,7 +117870,11 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "ruby": {
+                "relativeScale": null,
+                "gapPx": null
+              }
             },
             "effectRecipes": [
               {
@@ -117024,7 +118020,11 @@
               "verticalCenterRatio": 0.625,
               "horizontalAlignment": "right",
               "opacity": 0.875,
-              "scale": 1.125
+              "scale": 1.125,
+              "ruby": {
+                "relativeScale": null,
+                "gapPx": null
+              }
             },
             "effectRecipes": [
               {
@@ -139812,7 +140812,11 @@
         "verticalCenterRatio": 0.85,
         "horizontalAlignment": "center",
         "opacity": 1,
-        "scale": 1
+        "scale": 1,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -139981,7 +140985,11 @@
         "verticalCenterRatio": 0.85,
         "horizontalAlignment": "center",
         "opacity": 1,
-        "scale": 1
+        "scale": 1,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -140144,7 +141152,11 @@
         "verticalCenterRatio": 0.85,
         "horizontalAlignment": "center",
         "opacity": 1,
-        "scale": 1
+        "scale": 1,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -140239,7 +141251,11 @@
         "verticalCenterRatio": 0.85,
         "horizontalAlignment": "center",
         "opacity": 1,
-        "scale": 1
+        "scale": 1,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -140350,7 +141366,11 @@
         "verticalCenterRatio": 0.85,
         "horizontalAlignment": "center",
         "opacity": 1,
-        "scale": 1
+        "scale": 1,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -140508,7 +141528,11 @@
         "verticalCenterRatio": 0.85,
         "horizontalAlignment": "center",
         "opacity": 1,
-        "scale": 1
+        "scale": 1,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -140679,7 +141703,11 @@
         },
         "horizontalAlignment": "center",
         "opacity": 1,
-        "scale": 1
+        "scale": 1,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -140850,7 +141878,11 @@
         },
         "verticalCenterRatio": 0.85,
         "opacity": 1,
-        "scale": 1
+        "scale": 1,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -141021,7 +142053,11 @@
         },
         "verticalCenterRatio": 0.85,
         "horizontalAlignment": "center",
-        "scale": 1
+        "scale": 1,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -141192,7 +142228,11 @@
         },
         "verticalCenterRatio": 0.85,
         "horizontalAlignment": "center",
-        "opacity": 1
+        "opacity": 1,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -141365,7 +142405,11 @@
         "horizontalAlignment": "center",
         "opacity": 1,
         "scale": 1,
-        "unsungFill": null
+        "unsungFill": null,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -141538,7 +142582,11 @@
         "horizontalAlignment": "center",
         "opacity": 1,
         "scale": 1,
-        "sungFill": null
+        "sungFill": null,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -141711,7 +142759,11 @@
         "horizontalAlignment": "center",
         "opacity": 1,
         "scale": 1,
-        "stroke": null
+        "stroke": null,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -141884,7 +142936,11 @@
         "horizontalAlignment": "center",
         "opacity": 1,
         "scale": 1,
-        "shadow": null
+        "shadow": null,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -142057,7 +143113,11 @@
         "horizontalAlignment": "center",
         "opacity": 1,
         "scale": 1,
-        "glow": null
+        "glow": null,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -142198,7 +143258,11 @@
         "verticalCenterRatio": 0.85,
         "horizontalAlignment": "center",
         "opacity": 1,
-        "scale": 1
+        "scale": 1,
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
+        }
       }
     },
     {
@@ -142378,7 +143442,11 @@
           "verticalCenterRatio": 0.85,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "local": [
           {
@@ -142579,7 +143647,11 @@
           "verticalCenterRatio": 0.85,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "hasPresetApplications": false,
         "resolution": "staticHierarchy",
@@ -142763,7 +143835,11 @@
           "verticalCenterRatio": 0.85,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "local": [
           {
@@ -142936,7 +144012,11 @@
           "verticalCenterRatio": 0.85,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "hasPresetApplications": false,
         "resolution": "staticHierarchy",
@@ -143129,7 +144209,11 @@
           "verticalCenterRatio": 0.85,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "sources": [
           {
@@ -143158,6 +144242,14 @@
           },
           {
             "property": "typography.letterSpacingPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "ruby.relativeScale",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "ruby.gapPx",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -143496,7 +144588,11 @@
           "verticalCenterRatio": 0.85,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "sources": [
           {
@@ -143859,7 +144955,11 @@
           "verticalCenterRatio": 0.85,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "sources": [
           {
@@ -144226,7 +145326,11 @@
           "verticalCenterRatio": 0.85,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "sources": [
           {
@@ -144728,6 +145832,10 @@
             "opacity": 1,
             "blend": "screen"
           }
+        },
+        "ruby": {
+          "relativeScale": null,
+          "gapPx": null
         }
       }
     },
@@ -145376,7 +146484,11 @@
           "verticalCenterRatio": 0.85,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "properties": [
           "unsung.fill",
@@ -145542,7 +146654,11 @@
           "verticalCenterRatio": 0.85,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "properties": [
           "typography.fontFamilyName",
@@ -145748,7 +146864,11 @@
           "verticalCenterRatio": 0.85,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "properties": [
           "typography.fontFamilyName",
@@ -145955,7 +147075,11 @@
           "verticalCenterRatio": 0.85,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "properties": [
           "unsungColor"
@@ -146119,7 +147243,11 @@
           "verticalCenterRatio": 0.85,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "properties": [
           "wipe.progress"
@@ -146283,7 +147411,11 @@
           "verticalCenterRatio": 0.85,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "properties": [
           "wipe.featherRatio",
@@ -146448,7 +147580,11 @@
           "verticalCenterRatio": 0.85,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "properties": [
           "scale"
@@ -146612,7 +147748,11 @@
           "verticalCenterRatio": 0.85,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "properties": [
           "horizontalAlignment"
@@ -146735,7 +147875,11 @@
           "verticalCenterRatio": 0.85,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "properties": [
           "unsung.fill",
@@ -146899,7 +148043,11 @@
           "verticalCenterRatio": 0.85,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "properties": [
           "unsung.fill",
@@ -147040,7 +148188,11 @@
           "verticalCenterRatio": 0.85,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "properties": [
           "unsung.fill",
@@ -147221,7 +148373,11 @@
           "verticalCenterRatio": 0.85,
           "horizontalAlignment": "center",
           "opacity": 1,
-          "scale": 1
+          "scale": 1,
+          "ruby": {
+            "relativeScale": null,
+            "gapPx": null
+          }
         },
         "properties": [
           "unsung.fill",
@@ -167504,7 +168660,275 @@
           "sourceBranchId": "source-translation"
         }
       }
+    },
+    {
+      "name": "ruby-style-line-ruby.relativeScale",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "styles.patch",
+        "targets": [
+          {
+            "kind": "line",
+            "branchId": "b",
+            "lineId": "l"
+          }
+        ],
+        "changes": [
+          {
+            "property": "ruby.relativeScale",
+            "value": 0.65
+          }
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "ruby-style-line-ruby.relativeScale-null",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "styles.patch",
+        "targets": [
+          {
+            "kind": "line",
+            "branchId": "b",
+            "lineId": "l"
+          }
+        ],
+        "changes": [
+          {
+            "property": "ruby.relativeScale",
+            "value": null
+          }
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "ruby-style-token-ruby.relativeScale",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "styles.patch",
+        "targets": [
+          {
+            "kind": "token",
+            "branchId": "b",
+            "lineId": "l",
+            "tokenId": "t"
+          }
+        ],
+        "changes": [
+          {
+            "property": "ruby.relativeScale",
+            "value": 0.65
+          }
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "ruby-style-token-ruby.relativeScale-null",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "styles.patch",
+        "targets": [
+          {
+            "kind": "token",
+            "branchId": "b",
+            "lineId": "l",
+            "tokenId": "t"
+          }
+        ],
+        "changes": [
+          {
+            "property": "ruby.relativeScale",
+            "value": null
+          }
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "ruby-style-restore-ruby.relativeScale",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "styles.restore",
+        "targets": [
+          {
+            "kind": "line",
+            "branchId": "b",
+            "lineId": "l"
+          }
+        ],
+        "properties": [
+          "ruby.relativeScale"
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "ruby-style-negative-ruby.relativeScale",
+      "schema": "StyleChangeDtoInput",
+      "value": {
+        "property": "ruby.relativeScale",
+        "value": -1
+      },
+      "valid": false
+    },
+    {
+      "name": "ruby-style-line-ruby.gapPx",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "styles.patch",
+        "targets": [
+          {
+            "kind": "line",
+            "branchId": "b",
+            "lineId": "l"
+          }
+        ],
+        "changes": [
+          {
+            "property": "ruby.gapPx",
+            "value": 3
+          }
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "ruby-style-line-ruby.gapPx-null",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "styles.patch",
+        "targets": [
+          {
+            "kind": "line",
+            "branchId": "b",
+            "lineId": "l"
+          }
+        ],
+        "changes": [
+          {
+            "property": "ruby.gapPx",
+            "value": null
+          }
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "ruby-style-token-ruby.gapPx",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "styles.patch",
+        "targets": [
+          {
+            "kind": "token",
+            "branchId": "b",
+            "lineId": "l",
+            "tokenId": "t"
+          }
+        ],
+        "changes": [
+          {
+            "property": "ruby.gapPx",
+            "value": 3
+          }
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "ruby-style-token-ruby.gapPx-null",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "styles.patch",
+        "targets": [
+          {
+            "kind": "token",
+            "branchId": "b",
+            "lineId": "l",
+            "tokenId": "t"
+          }
+        ],
+        "changes": [
+          {
+            "property": "ruby.gapPx",
+            "value": null
+          }
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "ruby-style-restore-ruby.gapPx",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "styles.restore",
+        "targets": [
+          {
+            "kind": "line",
+            "branchId": "b",
+            "lineId": "l"
+          }
+        ],
+        "properties": [
+          "ruby.gapPx"
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "ruby-style-negative-ruby.gapPx",
+      "schema": "StyleChangeDtoInput",
+      "value": {
+        "property": "ruby.gapPx",
+        "value": -1
+      },
+      "valid": false
+    },
+    {
+      "name": "ruby-style-zero-scale",
+      "schema": "StyleChangeDtoInput",
+      "value": {
+        "property": "ruby.relativeScale",
+        "value": 0
+      },
+      "valid": false
+    },
+    {
+      "name": "ruby-style-zero-gap",
+      "schema": "StyleChangeDtoInput",
+      "value": {
+        "property": "ruby.gapPx",
+        "value": 0
+      },
+      "valid": true
+    },
+    {
+      "name": "ruby-style-huge-scale",
+      "schema": "StyleChangeDtoInput",
+      "value": {
+        "property": "ruby.relativeScale",
+        "value": 3.5e+38
+      },
+      "valid": false
+    },
+    {
+      "name": "ruby-style-mark-ruby-invalid",
+      "schema": "SetMarkAppearanceCommandDtoInput",
+      "value": {
+        "type": "orchestration.setMarkAppearance",
+        "nodeId": "mark",
+        "changes": [
+          {
+            "property": "ruby.gapPx",
+            "value": 2
+          }
+        ]
+      },
+      "valid": false
     }
   ],
-  "contractVersion": "1.55.1"
+  "contractVersion": "1.56.0"
 }

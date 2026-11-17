@@ -22,6 +22,8 @@ CHANGES = [
     ("typography.isBold", "StyleBoldChangeDto", "Boolean", False),
     ("typography.isItalic", "StyleItalicChangeDto", "Boolean", False),
     ("typography.letterSpacingPx", "StyleLetterSpacingChangeDto", "Single", False),
+    ("ruby.relativeScale", "StyleRubyRelativeScaleChangeDto", "Double", True),
+    ("ruby.gapPx", "StyleRubyGapChangeDto", "Double", True),
     ("unsung.fill", "StyleUnsungFillChangeDto", "StyleMaterialDto", False),
     ("sung.fill", "StyleSungFillChangeDto", "StyleMaterialDto", False),
     ("unsung.strokes", "StyleUnsungStrokesChangeDto", "StyleStrokeDto[]", False),
@@ -63,7 +65,7 @@ PROPERTIES = [p for p, *_ in CHANGES]
 TOKEN_PROPERTIES = [p for p in PROPERTIES if not p.startswith("typography.")
                     and p not in ("verticalCenterRatio", "horizontalAlignment", "scale")]
 # Lead-in marks carry no wipe style and no line layout.
-MARK_PROPERTIES = [p for p in PROPERTIES if not p.startswith("wipe.")
+MARK_PROPERTIES = [p for p in PROPERTIES if not p.startswith(("wipe.", "ruby."))
                    and p not in ("verticalCenterRatio", "horizontalAlignment", "scale")]
 # Whole members whose leaves cannot be written in the same batch.
 PARENTS = ("unsung.shadow", "sung.shadow", "unsung.glow", "sung.glow", "wipe.highlight")
@@ -78,7 +80,7 @@ ENUMS = {
     "StyleFollowKind": ["follow", "set"],
     "StyleWipeHighlightBlend": ["normal", "screen", "add"],
 }
-assert len(CHANGES) == 43 and len(TOKEN_PROPERTIES) == 33 and len(MARK_PROPERTIES) == 34
+assert len(CHANGES) == 45 and len(TOKEN_PROPERTIES) == 35 and len(MARK_PROPERTIES) == 34
 TARGETS = [("project", "ProjectStyleTargetDto", []), ("branch", "BranchStyleTargetDto", ["branchId"]),
            ("line", "LineStyleTargetDto", ["branchId", "lineId"]),
            ("token", "TokenStyleTargetDto", ["branchId", "lineId", "tokenId"])]
@@ -173,9 +175,10 @@ def extend_static_style_schemas(schemas, metadata, schema_for, command_variants)
     typed("StyleSungAppearanceDto", {"fill": "StyleMaterialDto", "strokes": "StyleSungStrokesDto", "shadow": "StyleSungShadowDto", "glow": "StyleSungGlowDto"})
     typed("StyleTypographyDto", {"fontFamilyName": "String", "fallbackFamilyNames": "String[]", "fontSizePx": "Single",
           "fontWeight": "Int32", "isBold": "Boolean", "isItalic": "Boolean", "letterSpacingPx": "Single"}, nullable=("fontFamilyName",), modes=("response",))
+    typed("StyleRubyDto", {"relativeScale": "Double", "gapPx": "Double"}, nullable=("relativeScale", "gapPx"))
     typed("CanonicalStyleDto", {"typography": "StyleTypographyDto", "unsung": "StyleAppearanceDto", "sung": "StyleSungAppearanceDto",
           "wipe": "StyleWipeDto", "verticalCenterRatio": "Double", "horizontalAlignment": "StyleHorizontalAlignment",
-          "opacity": "Single", "scale": "Single"}, modes=("response",))
+          "opacity": "Single", "scale": "Single", "ruby": "StyleRubyDto"}, modes=("response",))
     for suffix in ("", "Input"):
         schemas["StyleAppearanceDto" + suffix]["description"] = "未唱一侧的完整外观：填充、描边列表、阴影与辉光（null关闭）。"
         schemas["StyleSungAppearanceDto" + suffix]["description"] = "已唱一侧：填充独立；描边、阴影、辉光可跟随未唱一侧或显式设置。"
@@ -213,6 +216,10 @@ def extend_static_style_schemas(schemas, metadata, schema_for, command_variants)
 
     # Canonical validation is shared; input-only admission limits must not reject legacy reads.
     for suffix in ("", "Input"):
+        # Ruby values use finite Skia float coordinates although the wire uses double.
+        ruby = schemas["StyleRubyDto" + suffix]["properties"]
+        ruby["relativeScale"]["anyOf"][0].update(exclusiveMinimum=0, maximum=3.4028234663852886e38)
+        ruby["gapPx"]["anyOf"][0].update(minimum=0, maximum=3.4028234663852886e38)
         schemas["StyleGradientStopDto" + suffix]["properties"]["offset"].update(minimum=0, maximum=1)
         gradient = schemas["StyleGradientDto" + suffix]
         gradient["properties"]["stops"].update(minItems=2)
@@ -236,6 +243,8 @@ def extend_static_style_schemas(schemas, metadata, schema_for, command_variants)
 
     # Property-level numeric constraints also apply when canonical objects are not sent.
     limits = {"typography.fontSizePx": {"exclusiveMinimum": 0}, "typography.fontWeight": {"minimum": 100, "maximum": 900},
+              "ruby.relativeScale": {"exclusiveMinimum": 0, "maximum": 3.4028234663852886e38},
+              "ruby.gapPx": {"minimum": 0, "maximum": 3.4028234663852886e38},
               "wipe.featherRatio": {"minimum": 0, "maximum": 2}, "wipe.highlight.widthRatio": {"exclusiveMinimum": 0, "maximum": 2},
               "wipe.highlight.opacity": {"minimum": 0, "maximum": 1},
               "verticalCenterRatio": {"minimum": 0, "maximum": 1}, "opacity": {"minimum": 0, "maximum": 1}, "scale": {"exclusiveMinimum": 0}}

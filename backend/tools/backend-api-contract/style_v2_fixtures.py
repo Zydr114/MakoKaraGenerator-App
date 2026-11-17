@@ -13,7 +13,11 @@ import hashlib
 import json
 from pathlib import Path
 
-from static_style_schema import MARK_PROPERTIES, PROPERTIES, TOKEN_PROPERTIES
+from static_style_schema import MARK_PROPERTIES, PROPERTIES as CURRENT_PROPERTIES, TOKEN_PROPERTIES as CURRENT_TOKEN_PROPERTIES
+
+# Keep the 1.50 corpus and its archive reversible; Ruby was introduced in 1.56.
+PROPERTIES = [p for p in CURRENT_PROPERTIES if not p.startswith("ruby.")]
+TOKEN_PROPERTIES = [p for p in CURRENT_TOKEN_PROPERTIES if not p.startswith("ruby.")]
 
 PREFIX = "style-v2-"
 LEGACY_CONTRACT = "1.49.2"

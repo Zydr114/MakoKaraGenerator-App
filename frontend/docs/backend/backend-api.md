@@ -1427,11 +1427,19 @@ HTTP import仍是显式目标编辑命令。
 timed片段按自己半开区间计算progress/current/sung；无独立时间片段逐片沿基础token规则。基础token进度、脚本token事件与行显示窗保持原定义；Preparation待唱清零高亮。注音组聚合整形一次，片段高亮改变裁切而保持几何。静态/package快照、真实Worker和脚本只读projection传递已验证片段数据；公共profile范围仍按既有capabilities，不因此开放完整公共B3/B4、包脚本、作者、浏览器或长片能力。
 
 
+<a id="ruby-style-01150"></a>
+
+## Ruby 大小与距离（0.115.0／合同1.56.0）
+
+静态样式新增 `ruby.relativeScale` 和 `ruby.gapPx`，通过 `styles.patch`／`styles.restore`、模板属性和完整模板样式支持工程、来源、行、元素层级；标记外观不支持这两项。字号比例须为有限正数，距离须为有限非负数，均不超过 float 最大值。完整 canonical 样式必含 `ruby` 对象及这两个可空字段；局部 patch 的显式 null 表示遮蔽上层、使用歌词自身的注音参数，restore 则移除本层覆盖并恢复继承。样式设置不会改写歌词保存的原始 `relativeScale`／`gapPx`；字体及其他外观仍继承正文。预览与导出消费相同解析结果。
+
+工程、歌词及模板持久格式分别为 32、20、10；不兼容格式按各入口的严格版本保护处理，不自动迁移或覆盖原文件。渲染与平台兼容性以实际运行验收为准。
+
 <a id="ruby-spacing-0970"></a>
 
 ## 19. 自动 ruby 水平间距（0.97.0／合同1.28.0）
 
-既有预览/同帧geometry+PNG测量及Runtime渲染使用共享完整行+ruby布局，横排单调映射中自动消解注音间距冲突。聚合ruby墨迹垂直区间须有严格正长度交集；仅相切或不相交不约束。按基础视觉单调顺序检查所有此前ruby，包含跨无注音token的宽注音；水平墨迹间距至少1个缩放前布局像素，等于1无需改变。正文的完整grapheme/HarfBuzz cluster与基础token合成刚性组，只在合法组间插入最小正向平移；不重新整形子串，不拉伸glyph，不按时间切换布局。
+既有预览/同帧geometry+PNG测量及Runtime渲染使用共享完整行+ruby布局，横排单调映射中自动消解注音间距冲突。聚合ruby墨迹垂直区间须有严格正长度交集；仅相切或不相交不约束。按基础视觉单调顺序检查所有此前ruby，包含跨无注音token的宽注音；水平墨迹间距至少为两段连续排版时的自然接缝：前段末字右侧留白、前段字距及后段首字左侧留白之和，并保留至少1个缩放前布局像素；自然距离已足够时无需改变。正文的完整grapheme/HarfBuzz cluster与基础token合成刚性组，只在合法组间插入最小正向平移；不重新整形子串，不拉伸glyph，不按时间切换布局。
 
 ruby沿原Start/Center/End对齐，锚点使用原始基础token自然左右边界加刚性组位移，新增gap不计入前token的ruby右锚点；保留真实自然overhang，不强制把所有基础列扩宽。正文XAt与progress path使用最终位置，新增gap归前token无墨迹进度区间。所有line/token/family/ruby geometry、固定绘制单元及脚本只读几何投影与实际PNG消费同一布局；未新增画布命中API，客户端仍可按既有geometry拾取。
 

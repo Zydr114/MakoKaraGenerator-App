@@ -3,8 +3,8 @@
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "info": {
     "title": "MakoKaraGenerator local backend HTTP API",
-    "version": "1.55.1",
-    "description": "冻结合同1.55.1；HTTP协议1，产品0.114.1。只含当前公共HTTP，不含未来功能及私有Worker。与api-contract.md和其固定行为源共同执行。info.version是合同版本，不是产品/HTTP版本。普通响应可忽略未知字段；请求遵守声明字段及业务门禁。"
+    "version": "1.56.0",
+    "description": "冻结合同1.56.0；HTTP协议1，产品0.115.0。只含当前公共HTTP，不含未来功能及私有Worker。与api-contract.md和其固定行为源共同执行。info.version是合同版本，不是产品/HTTP版本。普通响应可忽略未知字段；请求遵守声明字段及业务门禁。"
   },
   "servers": [
     {
@@ -18,9 +18,9 @@
       }
     }
   ],
-  "x-product-version": "0.114.1",
+  "x-product-version": "0.115.0",
   "x-http-protocol-version": "1",
-  "x-source-baseline": "907a449270f42b169c055ecb32b38ba9ae3fedd1",
+  "x-source-baseline": "13ef1ae57f5659da46888fd7dd57a9f7623a5bef",
   "x-behavior-contract": "api-contract.md",
   "x-options": {
     "status": 204,
@@ -16399,6 +16399,9 @@
             "exclusiveMinimum": 0,
             "minimum": -3.4028234663852886e+38,
             "maximum": 3.4028234663852886e+38
+          },
+          "ruby": {
+            "$ref": "#/components/schemas/StyleRubyDto"
           }
         },
         "required": [
@@ -16409,7 +16412,8 @@
           "verticalCenterRatio",
           "horizontalAlignment",
           "opacity",
-          "scale"
+          "scale",
+          "ruby"
         ],
         "additionalProperties": false,
         "x-clr-type": "MakoKaraGenerator.Backend.Contracts.CanonicalStyleDto",
@@ -16449,6 +16453,9 @@
             "type": "number",
             "format": "float",
             "exclusiveMinimum": 0
+          },
+          "ruby": {
+            "$ref": "#/components/schemas/StyleRubyDtoInput"
           }
         },
         "required": [
@@ -16459,7 +16466,8 @@
           "verticalCenterRatio",
           "horizontalAlignment",
           "opacity",
-          "scale"
+          "scale",
+          "ruby"
         ],
         "x-clr-type": "MakoKaraGenerator.Backend.Contracts.CanonicalStyleDto"
       },
@@ -19531,7 +19539,7 @@
           },
           "properties": {
             "type": "array",
-            "maxItems": 43,
+            "maxItems": 45,
             "uniqueItems": true,
             "items": {
               "$ref": "#/components/schemas/StylePropertyPath"
@@ -19576,6 +19584,8 @@
                 "properties": {
                   "items": {
                     "enum": [
+                      "ruby.relativeScale",
+                      "ruby.gapPx",
                       "unsung.fill",
                       "sung.fill",
                       "unsung.strokes",
@@ -19638,6 +19648,8 @@
                       "typography.isBold",
                       "typography.isItalic",
                       "typography.letterSpacingPx",
+                      "ruby.relativeScale",
+                      "ruby.gapPx",
                       "unsung.fill",
                       "sung.fill",
                       "unsung.strokes",
@@ -19712,7 +19724,7 @@
           },
           "properties": {
             "type": "array",
-            "maxItems": 43,
+            "maxItems": 45,
             "uniqueItems": true,
             "items": {
               "$ref": "#/components/schemas/StylePropertyPath"
@@ -19757,6 +19769,8 @@
                 "properties": {
                   "items": {
                     "enum": [
+                      "ruby.relativeScale",
+                      "ruby.gapPx",
                       "unsung.fill",
                       "sung.fill",
                       "unsung.strokes",
@@ -19819,6 +19833,8 @@
                       "typography.isBold",
                       "typography.isItalic",
                       "typography.letterSpacingPx",
+                      "ruby.relativeScale",
+                      "ruby.gapPx",
                       "unsung.fill",
                       "sung.fill",
                       "unsung.strokes",
@@ -19988,6 +20004,9 @@
             "exclusiveMinimum": 0,
             "minimum": -3.4028234663852886e+38,
             "maximum": 3.4028234663852886e+38
+          },
+          "ruby": {
+            "$ref": "#/components/schemas/StyleRubyDto"
           }
         },
         "required": [
@@ -19998,7 +20017,8 @@
           "verticalCenterRatio",
           "horizontalAlignment",
           "opacity",
-          "scale"
+          "scale",
+          "ruby"
         ],
         "additionalProperties": false,
         "x-clr-type": "MakoKaraGenerator.Backend.Contracts.CanonicalStyleDto",
@@ -23520,7 +23540,7 @@
           "changes": {
             "type": "array",
             "minItems": 1,
-            "maxItems": 43,
+            "maxItems": 45,
             "items": {
               "$ref": "#/components/schemas/StyleChangeDtoInput"
             },
@@ -23614,6 +23634,34 @@
                   "properties": {
                     "property": {
                       "const": "typography.letterSpacingPx"
+                    }
+                  },
+                  "required": [
+                    "property"
+                  ]
+                },
+                "minContains": 0,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "property": {
+                      "const": "ruby.relativeScale"
+                    }
+                  },
+                  "required": [
+                    "property"
+                  ]
+                },
+                "minContains": 0,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "property": {
+                      "const": "ruby.gapPx"
                     }
                   },
                   "required": [
@@ -29781,7 +29829,7 @@
             "items": {
               "$ref": "#/components/schemas/StylePropertyPath"
             },
-            "maxItems": 43,
+            "maxItems": 45,
             "uniqueItems": true
           },
           "hasEffectRecipes": {
@@ -29993,8 +30041,8 @@
             "items": {
               "$ref": "#/components/schemas/ResolvedStylePropertySourceDto"
             },
-            "minItems": 43,
-            "maxItems": 43,
+            "minItems": 45,
+            "maxItems": 45,
             "prefixItems": [
               {
                 "allOf": [
@@ -30089,6 +30137,34 @@
                     "properties": {
                       "property": {
                         "const": "typography.letterSpacingPx"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/ResolvedStylePropertySourceDto"
+                  },
+                  {
+                    "properties": {
+                      "property": {
+                        "const": "ruby.relativeScale"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/ResolvedStylePropertySourceDto"
+                  },
+                  {
+                    "properties": {
+                      "property": {
+                        "const": "ruby.gapPx"
                       }
                     }
                   }
@@ -31083,7 +31159,7 @@
             "items": {
               "$ref": "#/components/schemas/StyleChangeDto"
             },
-            "maxItems": 43
+            "maxItems": 45
           },
           "staticHierarchy": {
             "$ref": "#/components/schemas/CanonicalStyleDto"
@@ -32397,7 +32473,7 @@
           "properties": {
             "type": "array",
             "minItems": 1,
-            "maxItems": 43,
+            "maxItems": 45,
             "items": {
               "$ref": "#/components/schemas/StylePropertyPath"
             },
@@ -32545,6 +32621,8 @@
                 "properties": {
                   "items": {
                     "enum": [
+                      "ruby.relativeScale",
+                      "ruby.gapPx",
                       "unsung.fill",
                       "sung.fill",
                       "unsung.strokes",
@@ -36119,7 +36197,7 @@
           },
           "properties": {
             "type": "array",
-            "maxItems": 43,
+            "maxItems": 45,
             "uniqueItems": true,
             "items": {
               "$ref": "#/components/schemas/StylePropertyPath"
@@ -36152,6 +36230,8 @@
                 "properties": {
                   "items": {
                     "enum": [
+                      "ruby.relativeScale",
+                      "ruby.gapPx",
                       "unsung.fill",
                       "sung.fill",
                       "unsung.strokes",
@@ -36214,6 +36294,8 @@
                       "typography.isBold",
                       "typography.isItalic",
                       "typography.letterSpacingPx",
+                      "ruby.relativeScale",
+                      "ruby.gapPx",
                       "unsung.fill",
                       "sung.fill",
                       "unsung.strokes",
@@ -36275,7 +36357,7 @@
           },
           "properties": {
             "type": "array",
-            "maxItems": 43,
+            "maxItems": 45,
             "uniqueItems": true,
             "items": {
               "$ref": "#/components/schemas/StylePropertyPath"
@@ -36308,6 +36390,8 @@
                 "properties": {
                   "items": {
                     "enum": [
+                      "ruby.relativeScale",
+                      "ruby.gapPx",
                       "unsung.fill",
                       "sung.fill",
                       "unsung.strokes",
@@ -36370,6 +36454,8 @@
                       "typography.isBold",
                       "typography.isItalic",
                       "typography.letterSpacingPx",
+                      "ruby.relativeScale",
+                      "ruby.gapPx",
                       "unsung.fill",
                       "sung.fill",
                       "unsung.strokes",
@@ -36624,6 +36710,12 @@
             "$ref": "#/components/schemas/StyleLetterSpacingChangeDto"
           },
           {
+            "$ref": "#/components/schemas/StyleRubyRelativeScaleChangeDto"
+          },
+          {
+            "$ref": "#/components/schemas/StyleRubyGapChangeDto"
+          },
+          {
             "$ref": "#/components/schemas/StyleUnsungFillChangeDto"
           },
           {
@@ -36755,6 +36847,12 @@
           },
           {
             "$ref": "#/components/schemas/StyleLetterSpacingChangeDtoInput"
+          },
+          {
+            "$ref": "#/components/schemas/StyleRubyRelativeScaleChangeDtoInput"
+          },
+          {
+            "$ref": "#/components/schemas/StyleRubyGapChangeDtoInput"
           },
           {
             "$ref": "#/components/schemas/StyleUnsungFillChangeDtoInput"
@@ -37655,6 +37753,8 @@
           "typography.isBold",
           "typography.isItalic",
           "typography.letterSpacingPx",
+          "ruby.relativeScale",
+          "ruby.gapPx",
           "unsung.fill",
           "sung.fill",
           "unsung.strokes",
@@ -37693,6 +37793,196 @@
           "scale"
         ],
         "description": "样式属性路径；styles.patch/restore、模板属性与解析来源共用，按此规范顺序。"
+      },
+      "StyleRubyDto": {
+        "type": "object",
+        "properties": {
+          "relativeScale": {
+            "anyOf": [
+              {
+                "type": "number",
+                "format": "double",
+                "exclusiveMinimum": 0,
+                "maximum": 3.4028234663852886e+38,
+                "minimum": -1.7976931348623157e+308
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gapPx": {
+            "anyOf": [
+              {
+                "type": "number",
+                "format": "double",
+                "minimum": 0,
+                "maximum": 3.4028234663852886e+38
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "relativeScale",
+          "gapPx"
+        ],
+        "additionalProperties": false,
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.StyleRubyDto"
+      },
+      "StyleRubyDtoInput": {
+        "type": "object",
+        "properties": {
+          "relativeScale": {
+            "anyOf": [
+              {
+                "type": "number",
+                "format": "double",
+                "exclusiveMinimum": 0,
+                "maximum": 3.4028234663852886e+38,
+                "minimum": -1.7976931348623157e+308
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gapPx": {
+            "anyOf": [
+              {
+                "type": "number",
+                "format": "double",
+                "minimum": 0,
+                "maximum": 3.4028234663852886e+38
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "relativeScale",
+          "gapPx"
+        ],
+        "additionalProperties": false,
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.StyleRubyDto"
+      },
+      "StyleRubyGapChangeDto": {
+        "type": "object",
+        "properties": {
+          "property": {
+            "type": "string",
+            "const": "ruby.gapPx"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number",
+                "format": "double",
+                "minimum": 0,
+                "maximum": 3.4028234663852886e+38
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "property",
+          "value"
+        ],
+        "additionalProperties": false,
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.StyleRubyGapChangeDto"
+      },
+      "StyleRubyGapChangeDtoInput": {
+        "type": "object",
+        "properties": {
+          "property": {
+            "type": "string",
+            "const": "ruby.gapPx"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number",
+                "format": "double",
+                "minimum": 0,
+                "maximum": 3.4028234663852886e+38
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "property",
+          "value"
+        ],
+        "additionalProperties": false,
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.StyleRubyGapChangeDto"
+      },
+      "StyleRubyRelativeScaleChangeDto": {
+        "type": "object",
+        "properties": {
+          "property": {
+            "type": "string",
+            "const": "ruby.relativeScale"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number",
+                "format": "double",
+                "exclusiveMinimum": 0,
+                "maximum": 3.4028234663852886e+38,
+                "minimum": -1.7976931348623157e+308
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "property",
+          "value"
+        ],
+        "additionalProperties": false,
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.StyleRubyRelativeScaleChangeDto"
+      },
+      "StyleRubyRelativeScaleChangeDtoInput": {
+        "type": "object",
+        "properties": {
+          "property": {
+            "type": "string",
+            "const": "ruby.relativeScale"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number",
+                "format": "double",
+                "exclusiveMinimum": 0,
+                "maximum": 3.4028234663852886e+38,
+                "minimum": -1.7976931348623157e+308
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "property",
+          "value"
+        ],
+        "additionalProperties": false,
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.StyleRubyRelativeScaleChangeDto"
       },
       "StyleScaleChangeDto": {
         "type": "object",
@@ -38815,6 +39105,12 @@
       },
       "StyleTokenChangeInput": {
         "oneOf": [
+          {
+            "$ref": "#/components/schemas/StyleRubyRelativeScaleChangeDtoInput"
+          },
+          {
+            "$ref": "#/components/schemas/StyleRubyGapChangeDtoInput"
+          },
           {
             "$ref": "#/components/schemas/StyleUnsungFillChangeDtoInput"
           },
@@ -41003,6 +41299,9 @@
             "exclusiveMinimum": 0,
             "minimum": -3.4028234663852886e+38,
             "maximum": 3.4028234663852886e+38
+          },
+          "ruby": {
+            "$ref": "#/components/schemas/StyleRubyDto"
           }
         },
         "required": [
@@ -41013,7 +41312,8 @@
           "verticalCenterRatio",
           "horizontalAlignment",
           "opacity",
-          "scale"
+          "scale",
+          "ruby"
         ],
         "additionalProperties": false,
         "x-clr-type": "MakoKaraGenerator.Backend.Contracts.CanonicalStyleDto",
@@ -41055,6 +41355,9 @@
             "exclusiveMinimum": 0,
             "minimum": -3.4028234663852886e+38,
             "maximum": 3.4028234663852886e+38
+          },
+          "ruby": {
+            "$ref": "#/components/schemas/StyleRubyDtoInput"
           }
         },
         "required": [
@@ -41065,7 +41368,8 @@
           "verticalCenterRatio",
           "horizontalAlignment",
           "opacity",
-          "scale"
+          "scale",
+          "ruby"
         ],
         "additionalProperties": false,
         "x-clr-type": "MakoKaraGenerator.Backend.Contracts.CanonicalStyleDto",
@@ -41831,7 +42135,7 @@
           },
           "properties": {
             "type": "array",
-            "maxItems": 43,
+            "maxItems": 45,
             "uniqueItems": true,
             "items": {
               "$ref": "#/components/schemas/StylePropertyPath"

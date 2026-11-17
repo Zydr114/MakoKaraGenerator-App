@@ -4,11 +4,11 @@
 
 2026-11-14 性能补充：产品 0.112.91，合同仍为 1.52.1；视频背景不可变快照改用保留格式的原始像素复制，增加内部性能日志阶段，无 HTTP 形状、fixture 或检查响应字段变化。基线 `baa5b43`，新增快照实现纳入指纹。此前 0.112.90 行为说明保留历史归属。
 
-本轮工具源码目标为 **合同1.54.0／产品0.113.0／协议1**（2026-11-15）：基于产品 `0.113.0` 提交基线 `f16d424`，冻结前奏提示组图形／SVG／动画与首字上方附着增强后的公共 HTTP 合同（115 paths／128 methods／672 schemas、3995 例／2879 反例）。下述旧版本材料保留历史归属；合同生成不替代匹配发布与fresh HTTP验收。
+本轮工具源码目标为 **合同1.56.0／产品0.115.0／协议1**（2026-11-17），生产源码基线 `13ef1ae57f5659da46888fd7dd57a9f7623a5bef`：支持注音字号与正文距离继承，并调整连续注音间距。合同为115 paths／128 methods／679 schemas、4016例／2886反例。下述旧版本材料保留历史归属；合同生成不替代匹配发布与fresh HTTP验收。
 
 从 `backend/` 执行。本工具构建Contracts引用的离线CLI，不启动服务。`author_metadata_schema.py` 审阅真实CLR字段、nullable与构造默认值，复用现有 `AuthorPackageQuery` 和参数/导出/input/file/diagnostic DTO；检查响应独立且无reference，公共包引用kind继续仅为asset/library/configuration。采用配置采用inline完整八字段严格schema，避免改变package-files的既有配置语义；两个可空字段仍显式必填，UInt64种子采用十进制字符串并保留前导零。`author_metadata_fixtures.py` 覆盖精确整数、Int64 `files.size`、未来未知响应字段、完整采用、旧请求兼容和具名拒绝；运行期CAS/owner、重复JSON键、完整UTF-8预算、编译来源、原子存储和真实sampleOptions须由服务/HTTP核对。
 
-`freeze.py` 将本轮运行筛选与持久闭包接缝显式纳入指纹；已有新增路径／响应与fixture保留历史归属；`validate.py` 保留历史SDK2、作者、GPU/辉光及全量样例门禁，并单独扣除本轮尾部增量后核对旧3434/2548基线。本轮 `BASELINE` 为已提交生产源码 `2eb0299`（完整哈希见 `freeze.py`），已从该源码重建／导出metadata并生成检查；产品版本从 `Directory.Build.props` 读取。静态门禁不替代匹配发布、fresh HTTP或性能验收；进度见App根 `docs/plans/script-sdk-v2-phase-one-progress.md`。
+`freeze.py` 将本轮运行筛选与持久闭包接缝显式纳入指纹；已有新增路径／响应与fixture保留历史归属；`validate.py` 保留历史SDK2、作者、GPU/辉光及全量样例门禁，并单独扣除本轮尾部增量后核对旧3434/2548基线。当时 `BASELINE` 为已提交生产源码 `2eb0299`；当前基线见文首及 `freeze.py`，产品版本从 `Directory.Build.props` 读取。静态门禁不替代匹配发布、fresh HTTP或性能验收；进度见App根 `docs/plans/script-sdk-v2-phase-one-progress.md`。
 
 1.54.0 对应产品 `0.113.0`（基线 `f16d424`）：新增 `orchestration.setCountdownPresentation` 工程命令（命令上限 128KiB，第九十七种工程命令）、`CountdownShapeSpec`/`CountdownAnimationSpec`、`ProjectOrchestrationContentDto.{shape,animation}` 以及 `orchestration.setLeadInAttachment` 的 `CueTargetAboveStart` 附着模式（保留读模型 `attachmentMode` 对历史值的兼容），通过 `lead_in_presentation_fixtures.py` 在尾部追加 63 个正反例（总计 3995 例 / 2879 反例、672 schemas），并在 `validate.py` 内先验 1.54.0 语料再切片扣除尾部增量交付 `1.53.0` 及下游历史 SHA-256 门禁；`freeze.py` manifest 同步纳入 `LineRenderGeometry.cs`、`SceneTextMarkSample.cs`、`Effects/Svg/SvgNativePictureCompiler.Inline.cs`、`Effects/Svg/SvgStaticCompiler.Inline.cs`、`SkiaCountdownShapeRenderer.cs`。
 
@@ -35,6 +35,8 @@
 1.47.0 接通宿主媒体特征轨：`project.mediaFeaturesChanged` 事件、`media.features` 包能力与四个 `MediaFeature*` 失败码，透明输出固定 NoMedia；无 HTTP 形状增量，计数与1.46.1保持一致；历史1.46.1仍对应0.112.15。行为见[§28.6](../../docs/architecture/backend-api.md#sdk2-m10-media-features)。
 
 1.46.1 固定 SDK2 场景目录只读值的纯度修复：SourceNode／SourceProgram／SourceClip／SourceCue 可供真实作者读取与只读准备结果使用；随机哈希、IO、旧生命周期写者仍拒绝。无 HTTP 形状增量，计数与1.46.0保持一致；历史1.46.0仍对应0.112.14。
+
+1.56.0 对应产品 0.115.0：完整样式增加 `ruby.relativeScale`／`ruby.gapPx`，两项均为必返可空值；patch 显式 null 与 restore 分别表达回退歌词数值和恢复上层继承。标记不接受这两项。`ruby_style_fixtures.py` 对历史样式例子做可逆升级并追加正反例，验证时先对当前合同校验，再还原旧例并执行历史哈希门禁。合同生成和静态校验不代替实际 HTTP、渲染或跨平台验收。
 
 ## 检查当前合同
 

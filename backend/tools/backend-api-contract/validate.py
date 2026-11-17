@@ -14,8 +14,8 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def expected_product_versions(contract_version, spec_path):
-    historical = {"1.37.0": "0.103.0", "1.38.0": "0.104.0", "1.38.1": "0.104.1", "1.39.0": "0.106.0", "1.40.0": "0.108.0", "1.41.0": "0.109.0", "1.42.0": "0.110.0", "1.42.1": "0.110.1", "1.42.2": "0.110.2", "1.42.3": "0.110.3", "1.42.4": "0.110.6", "1.43.0": "0.111.3", "1.44.0": "0.112.1", "1.44.1": "0.112.2", "1.44.2": "0.112.3", "1.45.0": "0.112.8", "1.46.0": "0.112.14", "1.46.1": "0.112.15", "1.47.0": "0.112.37", "1.48.0": "0.112.38", "1.49.0": "0.112.39", "1.49.1": "0.112.40", "1.49.2": "0.112.72", "1.50.0": "0.112.85", "1.51.0": "0.112.86", "1.51.1": "0.112.88", "1.52.0": "0.112.89", "1.52.1": "0.112.90", "1.53.0": "0.113.0", "1.54.0": "0.113.0", "1.55.0": "0.114.0", "1.55.1": "0.114.1"}
-    if contract_version not in ("1.38.1", "1.39.0", "1.40.0", "1.41.0", "1.42.0", "1.42.1", "1.42.2", "1.42.3", "1.42.4", "1.43.0", "1.44.0", "1.44.1", "1.44.2", "1.45.0", "1.46.0", "1.46.1", "1.47.0", "1.48.0", "1.49.0", "1.49.1", "1.49.2", "1.50.0", "1.51.0", "1.51.1", "1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1"):
+    historical = {"1.37.0": "0.103.0", "1.38.0": "0.104.0", "1.38.1": "0.104.1", "1.39.0": "0.106.0", "1.40.0": "0.108.0", "1.41.0": "0.109.0", "1.42.0": "0.110.0", "1.42.1": "0.110.1", "1.42.2": "0.110.2", "1.42.3": "0.110.3", "1.42.4": "0.110.6", "1.43.0": "0.111.3", "1.44.0": "0.112.1", "1.44.1": "0.112.2", "1.44.2": "0.112.3", "1.45.0": "0.112.8", "1.46.0": "0.112.14", "1.46.1": "0.112.15", "1.47.0": "0.112.37", "1.48.0": "0.112.38", "1.49.0": "0.112.39", "1.49.1": "0.112.40", "1.49.2": "0.112.72", "1.50.0": "0.112.85", "1.51.0": "0.112.86", "1.51.1": "0.112.88", "1.52.0": "0.112.89", "1.52.1": "0.112.90", "1.53.0": "0.113.0", "1.54.0": "0.113.0", "1.55.0": "0.114.0", "1.55.1": "0.114.1", "1.56.0": "0.115.0"}
+    if contract_version not in ("1.38.1", "1.39.0", "1.40.0", "1.41.0", "1.42.0", "1.42.1", "1.42.2", "1.42.3", "1.42.4", "1.43.0", "1.44.0", "1.44.1", "1.44.2", "1.45.0", "1.46.0", "1.46.1", "1.47.0", "1.48.0", "1.49.0", "1.49.1", "1.49.2", "1.50.0", "1.51.0", "1.51.1", "1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1", "1.56.0"):
         return {historical[contract_version]}
     # The public API can keep its contract version across an internal renderer
     # release. The canonical frozen document must match the current product.
@@ -41,8 +41,8 @@ def main():
     actual_version = spec["info"]["version"]
     # P3/P4 and their documentation patch retain the historical 1.36 gates.
     # Keep previous hash and shape assertions active for the current contract.
-    p4_versions = ("1.38.0", "1.38.1", "1.39.0", "1.40.0", "1.41.0", "1.42.0", "1.42.1", "1.42.2", "1.42.3", "1.42.4", "1.43.0", "1.44.0", "1.44.1", "1.44.2", "1.45.0", "1.46.0", "1.46.1", "1.47.0", "1.48.0", "1.49.0", "1.49.1", "1.49.2", "1.50.0", "1.51.0", "1.51.1", "1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1")
-    sdk_v2_author = actual_version in ("1.43.0", "1.44.0", "1.44.1", "1.44.2", "1.45.0", "1.46.0", "1.46.1", "1.47.0", "1.48.0", "1.49.0", "1.49.1", "1.49.2", "1.50.0", "1.51.0", "1.51.1", "1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1")
+    p4_versions = ("1.38.0", "1.38.1", "1.39.0", "1.40.0", "1.41.0", "1.42.0", "1.42.1", "1.42.2", "1.42.3", "1.42.4", "1.43.0", "1.44.0", "1.44.1", "1.44.2", "1.45.0", "1.46.0", "1.46.1", "1.47.0", "1.48.0", "1.49.0", "1.49.1", "1.49.2", "1.50.0", "1.51.0", "1.51.1", "1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1", "1.56.0")
+    sdk_v2_author = actual_version in ("1.43.0", "1.44.0", "1.44.1", "1.44.2", "1.45.0", "1.46.0", "1.46.1", "1.47.0", "1.48.0", "1.49.0", "1.49.1", "1.49.2", "1.50.0", "1.51.0", "1.51.1", "1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1", "1.56.0")
     p3_versions = ("1.37.0", *p4_versions)
     legacy_version = "1.36.0" if actual_version in p3_versions else actual_version
     validate_spec(spec)
@@ -83,18 +83,27 @@ def main():
     # the current spec; the reviewed 1.50.0 corpus is restored for the gates below.
     validation_cases = None
     render_base_cases = None
+    ruby_style_additions = []
+    if actual_version == "1.56.0":
+        from ruby_style_fixtures import fixtures as ruby_style_fixtures, restore_cases as restore_ruby, PREFIX as RUBY_STYLE_PREFIX
+        ruby_style_additions = ruby_style_fixtures()
+        assert frozen_cases[-len(ruby_style_additions):] == ruby_style_additions
+        validation_cases = frozen_cases
+        frozen_cases = restore_ruby(frozen_cases[:-len(ruby_style_additions)])
+        assert not any(case["name"].startswith(RUBY_STYLE_PREFIX) for case in frozen_cases)
     ttml_import_additions = []
-    if actual_version in ("1.55.0", "1.55.1"):
+    if actual_version in ("1.55.0", "1.55.1", "1.56.0"):
         from ttml_import_fixtures import fixtures as ttml_import_fixtures, PREFIX as TTML_IMPORT_PREFIX, NEW_SCHEMAS as TTML_IMPORT_SCHEMAS
         ttml_import_additions = ttml_import_fixtures()
         assert frozen_cases[-len(ttml_import_additions):] == ttml_import_additions
-        validation_cases = frozen_cases
+        if validation_cases is None:
+            validation_cases = frozen_cases
         frozen_cases = frozen_cases[:-len(ttml_import_additions)]
         assert not any(case["name"].startswith(TTML_IMPORT_PREFIX) for case in frozen_cases)
         assert all(name in components["schemas"] for name in TTML_IMPORT_SCHEMAS)
         assert components["schemas"]["ImportLyricsDestinationInput"]["oneOf"][-1] == {"$ref": "#/components/schemas/AllSourcesLyricsDestinationDtoInput"}
     lead_in_presentation_additions = []
-    if actual_version in ("1.54.0", "1.55.0", "1.55.1"):
+    if actual_version in ("1.54.0", "1.55.0", "1.55.1", "1.56.0"):
         from lead_in_presentation_fixtures import fixtures as lead_in_presentation_fixtures, PREFIX as LEAD_IN_PRESENTATION_PREFIX
         from editing_completion_schema import LEAD_IN_PRESENTATION_SCHEMAS
         lead_in_presentation_additions = lead_in_presentation_fixtures()
@@ -108,7 +117,7 @@ def main():
             "FixedParent", "CueTargetText", "CueTargetAboveStart"]
         assert "setCountdownPresentation" in components["schemas"]["OrchestrationLeadInCommandResultDto"]["properties"]["operation"]["enum"]
     sdk_v1_removal_additions = []
-    if actual_version in ("1.53.0", "1.54.0", "1.55.0", "1.55.1"):
+    if actual_version in ("1.53.0", "1.54.0", "1.55.0", "1.55.1", "1.56.0"):
         from sdk_v1_removal_fixtures import fixtures as sdk_v1_removal_fixtures, restore_cases as restore_sdk_v1_removal, PREFIX as SDK_V1_REMOVAL_PREFIX
         sdk_v1_removal_additions = sdk_v1_removal_fixtures()
         assert frozen_cases[-len(sdk_v1_removal_additions):] == sdk_v1_removal_additions
@@ -120,7 +129,7 @@ def main():
         assert inspection_response["properties"]["packageVersion"]["enum"] == [3]
         assert inspection_response["properties"]["shaderProfile"]["enum"] == ["skia-ganesh-3.119.4-v2"]
     source_material_failure_additions = []
-    if actual_version in ("1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1"):
+    if actual_version in ("1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1", "1.56.0"):
         from source_material_failure_fixtures import fixtures as source_material_failure_fixtures, PREFIX as SOURCE_MATERIAL_FAILURE_PREFIX
         from source_material_failure_schema import NEW_SCHEMAS as SOURCE_MATERIAL_FAILURE_SCHEMAS
         source_material_failure_additions = source_material_failure_fixtures()
@@ -137,7 +146,7 @@ def main():
                              if operation["operationId"] == operation_id)
             assert operation["x-source-material-failure"]["runtimeOccurrence"] is False
     fallback_additions = []
-    if actual_version in ("1.51.0", "1.51.1", "1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1"):
+    if actual_version in ("1.51.0", "1.51.1", "1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1", "1.56.0"):
         from export_fallback_fixtures import fixtures as fallback_fixtures, restore_cases as restore_fallback, PREFIX as FALLBACK_PREFIX
         from export_fallback_schema import NEW_SCHEMAS as FALLBACK_SCHEMAS, MAXIMUM_ITEMS as FALLBACK_MAXIMUM_ITEMS
         fallback_additions = fallback_fixtures()
@@ -161,7 +170,7 @@ def main():
         assert "fallbackDiagnostics" in measurement["required"]
         assert measurement["properties"]["fallbackDiagnostics"]["items"] == {"$ref": "#/components/schemas/BackendFallbackDiagnostic"}
     style_v2_additions = []
-    if actual_version in ("1.50.0", "1.51.0", "1.51.1", "1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1"):
+    if actual_version in ("1.50.0", "1.51.0", "1.51.1", "1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1", "1.56.0"):
         from style_v2_fixtures import fixtures as style_v2_fixtures, restore_legacy, PREFIX as STYLE_V2_PREFIX
         from static_style_schema import PROPERTIES as STYLE_V2_PROPERTIES
         style_v2_additions = style_v2_fixtures()
@@ -175,7 +184,7 @@ def main():
         assert "TemplateProperty" not in components["schemas"]
         assert components["schemas"]["BackendDiagnosticSourceOwnerDto"]["properties"]["slot"]["maximum"] == 3
     author_replacement_additions = []
-    if actual_version in ("1.49.0", "1.49.1", "1.49.2", "1.50.0", "1.51.0", "1.51.1", "1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1"):
+    if actual_version in ("1.49.0", "1.49.1", "1.49.2", "1.50.0", "1.51.0", "1.51.1", "1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1", "1.56.0"):
         from author_replacement_fixtures import fixtures as author_replacement_fixtures
         from author_replacement_schema import NEW_SCHEMAS as AUTHOR_REPLACEMENT_SCHEMAS, LIMITS as AUTHOR_REPLACEMENT_LIMITS, CAPABILITY as AUTHOR_REPLACEMENT_CAPABILITY
         author_replacement_additions = author_replacement_fixtures()
@@ -200,7 +209,7 @@ def main():
         assert components["schemas"]["AuthorPackageFileReplacementDtoInput"]["additionalProperties"] is False
         assert spec["paths"]["/api/v1/drafts/{id}/package-files"]["put"]["x-receipt-location"] == "metadata"
     preview_inspection_additions = []
-    if actual_version in ("1.48.0", "1.49.0", "1.49.1", "1.49.2", "1.50.0", "1.51.0", "1.51.1", "1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1"):
+    if actual_version in ("1.48.0", "1.49.0", "1.49.1", "1.49.2", "1.50.0", "1.51.0", "1.51.1", "1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1", "1.56.0"):
         from preview_inspection_fixtures import fixtures as preview_inspection_fixtures
         from preview_inspection_schema import NEW_SCHEMAS as PREVIEW_INSPECTION_SCHEMAS, LIMITS as PREVIEW_INSPECTION_LIMITS
         preview_inspection_additions = preview_inspection_fixtures()
@@ -221,13 +230,13 @@ def main():
         assert "inspect" not in command["required"]
         assert "inspectionUrl" not in components["schemas"]["PreviewFrameMetadataDto"]["required"]
     author_metadata_additions = []
-    if actual_version in ("1.46.0", "1.46.1", "1.47.0", "1.48.0", "1.49.0", "1.49.1", "1.49.2", "1.50.0", "1.51.0", "1.51.1", "1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1"):
+    if actual_version in ("1.46.0", "1.46.1", "1.47.0", "1.48.0", "1.49.0", "1.49.1", "1.49.2", "1.50.0", "1.51.0", "1.51.1", "1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1", "1.56.0"):
         from author_metadata_fixtures import fixtures as author_metadata_fixtures
         author_metadata_additions = author_metadata_fixtures()
         assert frozen_cases[-len(author_metadata_additions):] == author_metadata_additions
         frozen_cases = frozen_cases[:-len(author_metadata_additions)]
         assert len(spec["paths"]) == 113 + (1 if preview_inspection_additions else 0) + (1 if author_replacement_additions else 0)
-        assert len(components["schemas"]) == 598 + (15 if preview_inspection_additions else 0) + (5 if author_replacement_additions else 0) + (43 if style_v2_additions else 0) + (2 if fallback_additions else 0) + (4 if source_material_failure_additions else 0) + (len(LEAD_IN_PRESENTATION_SCHEMAS) if lead_in_presentation_additions else 0) + (len(TTML_IMPORT_SCHEMAS) if ttml_import_additions else 0)
+        assert len(components["schemas"]) == 598 + (15 if preview_inspection_additions else 0) + (5 if author_replacement_additions else 0) + (43 if style_v2_additions else 0) + (2 if fallback_additions else 0) + (4 if source_material_failure_additions else 0) + (len(LEAD_IN_PRESENTATION_SCHEMAS) if lead_in_presentation_additions else 0) + (len(TTML_IMPORT_SCHEMAS) if ttml_import_additions else 0) + (6 if ruby_style_additions else 0)
         assert len(frozen_cases) == 3434
         assert sum(not case["valid"] for case in frozen_cases) == 2548
         inspection = spec["paths"]["/api/v1/drafts/{id}/source-inspection"]["get"]
@@ -266,26 +275,26 @@ def main():
         assert len(frozen_cases) == 3434
         assert sum(not case["valid"] for case in frozen_cases) == 2548
     glow_additions = []
-    if actual_version in ("1.42.0", "1.42.1", "1.42.2", "1.42.3", "1.42.4", "1.43.0", "1.44.0", "1.44.1", "1.44.2", "1.45.0", "1.46.0", "1.46.1", "1.47.0", "1.48.0", "1.49.0", "1.49.1", "1.49.2", "1.50.0", "1.51.0", "1.51.1", "1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1"):
+    if actual_version in ("1.42.0", "1.42.1", "1.42.2", "1.42.3", "1.42.4", "1.43.0", "1.44.0", "1.44.1", "1.44.2", "1.45.0", "1.46.0", "1.46.1", "1.47.0", "1.48.0", "1.49.0", "1.49.1", "1.49.2", "1.50.0", "1.51.0", "1.51.1", "1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1", "1.56.0"):
         from glow_style_fixtures import fixtures as glow_fixtures, migrate_legacy_cases as migrate_glow
         glow_additions = glow_fixtures()
         assert frozen_cases[-len(glow_additions):] == glow_additions
         frozen_cases = migrate_glow(frozen_cases[:-len(glow_additions)], upgrade=False)
     gpu_additions = []
-    if actual_version in ("1.41.0", "1.42.0", "1.42.1", "1.42.2", "1.42.3", "1.42.4", "1.43.0", "1.44.0", "1.44.1", "1.44.2", "1.45.0", "1.46.0", "1.46.1", "1.47.0", "1.48.0", "1.49.0", "1.49.1", "1.49.2", "1.50.0", "1.51.0", "1.51.1", "1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1"):
+    if actual_version in ("1.41.0", "1.42.0", "1.42.1", "1.42.2", "1.42.3", "1.42.4", "1.43.0", "1.44.0", "1.44.1", "1.44.2", "1.45.0", "1.46.0", "1.46.1", "1.47.0", "1.48.0", "1.49.0", "1.49.1", "1.49.2", "1.50.0", "1.51.0", "1.51.1", "1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1", "1.56.0"):
         from gpu_stream_fixtures import append_to as append_gpu
         gpu_additions = append_gpu({"cases": []})["cases"]
         assert frozen_cases[-len(gpu_additions):] == gpu_additions
         frozen_cases = frozen_cases[:-len(gpu_additions)]
     w8_additions = []
-    if actual_version in ("1.40.0", "1.41.0", "1.42.0", "1.42.1", "1.42.2", "1.42.3", "1.42.4", "1.43.0", "1.44.0", "1.44.1", "1.44.2", "1.45.0", "1.46.0", "1.46.1", "1.47.0", "1.48.0", "1.49.0", "1.49.1", "1.49.2", "1.50.0", "1.51.0", "1.51.1", "1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1"):
+    if actual_version in ("1.40.0", "1.41.0", "1.42.0", "1.42.1", "1.42.2", "1.42.3", "1.42.4", "1.43.0", "1.44.0", "1.44.1", "1.44.2", "1.45.0", "1.46.0", "1.46.1", "1.47.0", "1.48.0", "1.49.0", "1.49.1", "1.49.2", "1.50.0", "1.51.0", "1.51.1", "1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1", "1.56.0"):
         from w8_authoring_fixtures import fixtures as w8_fixtures
         w8_additions = w8_fixtures()["cases"]
         assert frozen_cases[-len(w8_additions):] == w8_additions
         frozen_cases = frozen_cases[:-len(w8_additions)]
     render_additions = []
     render_wire_cases = None
-    if actual_version in ("1.39.0", "1.40.0", "1.41.0", "1.42.0", "1.42.1", "1.42.2", "1.42.3", "1.42.4", "1.43.0", "1.44.0", "1.44.1", "1.44.2", "1.45.0", "1.46.0", "1.46.1", "1.47.0", "1.48.0", "1.49.0", "1.49.1", "1.49.2", "1.50.0", "1.51.0", "1.51.1", "1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1"):
+    if actual_version in ("1.39.0", "1.40.0", "1.41.0", "1.42.0", "1.42.1", "1.42.2", "1.42.3", "1.42.4", "1.43.0", "1.44.0", "1.44.1", "1.44.2", "1.45.0", "1.46.0", "1.46.1", "1.47.0", "1.48.0", "1.49.0", "1.49.1", "1.49.2", "1.50.0", "1.51.0", "1.51.1", "1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1", "1.56.0"):
         from render_backend_fixtures import fixtures as render_fixtures
         from render_backend_schema import migrate_legacy_cases
         # The fixtures sample the reviewed corpus; 1.51.0 reads it from the restored 1.50.0 cases.
@@ -426,7 +435,7 @@ def main():
             if method == "get":
                 assert "requestBody" not in operation, path
             routes.append((method.upper(), re.compile("^" + re.sub(r"\\\{[^{}]+\\\}", "[^/]+", re.escape(path)) + "$"), path, operation))
-    assert (len(routes) - (1 if author_replacement_additions else 0) - (1 if preview_inspection_additions else 0) - (1 if author_metadata_additions else 0) - (5 if actual_version in ("1.41.0", "1.42.0", "1.42.1", "1.42.2", "1.42.3", "1.42.4", "1.43.0", "1.44.0", "1.44.1", "1.44.2", "1.45.0", "1.46.0", "1.46.1", "1.47.0", "1.48.0", "1.49.0", "1.49.1", "1.49.2", "1.50.0", "1.51.0", "1.51.1", "1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1") else 0) - (7 if w8_additions else 0) - (2 if p3_additions else 0) - (8 if p4_additions else 0) - (2 if render_additions else 0), len(spec["paths"]) - (1 if author_replacement_additions else 0) - (1 if preview_inspection_additions else 0) - (1 if author_metadata_additions else 0) - (4 if actual_version in ("1.41.0", "1.42.0", "1.42.1", "1.42.2", "1.42.3", "1.42.4", "1.43.0", "1.44.0", "1.44.1", "1.44.2", "1.45.0", "1.46.0", "1.46.1", "1.47.0", "1.48.0", "1.49.0", "1.49.1", "1.49.2", "1.50.0", "1.51.0", "1.51.1", "1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1") else 0) - (6 if w8_additions else 0) - (2 if p3_additions else 0) - (7 if p4_additions else 0) - (2 if render_additions else 0)) == ({"1.8.0": (65, 58), "1.9.0": (69, 62), "1.10.0": (69, 62), "1.11.0": (69, 62), "1.12.0": (70, 63), "1.13.0": (71, 64), "1.14.0": (71, 64), "1.15.0": (72, 65), "1.16.0": (73, 66), "1.17.0": (73, 66), "1.18.0": (73, 66), "1.19.0": (73, 66), "1.20.0": (73, 66), "1.21.0": (73, 66), "1.22.0": (75, 68), "1.23.0": (75, 68), "1.24.0": (77, 70), "1.24.1": (77, 70), "1.25.0": (89, 80), "1.26.0": (89, 80), "1.27.0": (89, 80), "1.28.0": (89, 80), "1.29.0": (89, 80), "1.30.0": (89, 80), "1.30.1": (89, 80), "1.30.2": (89, 80), "1.31.0": (90, 81), "1.32.0": (97, 87), "1.32.1": (97, 87), "1.33.0": (97, 87), "1.34.0": (97, 87), "1.35.0": (97, 87), "1.36.0": (101, 91), "1.38.0": (101, 91)}[legacy_version])
+    assert (len(routes) - (1 if author_replacement_additions else 0) - (1 if preview_inspection_additions else 0) - (1 if author_metadata_additions else 0) - (5 if actual_version in ("1.41.0", "1.42.0", "1.42.1", "1.42.2", "1.42.3", "1.42.4", "1.43.0", "1.44.0", "1.44.1", "1.44.2", "1.45.0", "1.46.0", "1.46.1", "1.47.0", "1.48.0", "1.49.0", "1.49.1", "1.49.2", "1.50.0", "1.51.0", "1.51.1", "1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1", "1.56.0") else 0) - (7 if w8_additions else 0) - (2 if p3_additions else 0) - (8 if p4_additions else 0) - (2 if render_additions else 0), len(spec["paths"]) - (1 if author_replacement_additions else 0) - (1 if preview_inspection_additions else 0) - (1 if author_metadata_additions else 0) - (4 if actual_version in ("1.41.0", "1.42.0", "1.42.1", "1.42.2", "1.42.3", "1.42.4", "1.43.0", "1.44.0", "1.44.1", "1.44.2", "1.45.0", "1.46.0", "1.46.1", "1.47.0", "1.48.0", "1.49.0", "1.49.1", "1.49.2", "1.50.0", "1.51.0", "1.51.1", "1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1", "1.56.0") else 0) - (6 if w8_additions else 0) - (2 if p3_additions else 0) - (7 if p4_additions else 0) - (2 if render_additions else 0)) == ({"1.8.0": (65, 58), "1.9.0": (69, 62), "1.10.0": (69, 62), "1.11.0": (69, 62), "1.12.0": (70, 63), "1.13.0": (71, 64), "1.14.0": (71, 64), "1.15.0": (72, 65), "1.16.0": (73, 66), "1.17.0": (73, 66), "1.18.0": (73, 66), "1.19.0": (73, 66), "1.20.0": (73, 66), "1.21.0": (73, 66), "1.22.0": (75, 68), "1.23.0": (75, 68), "1.24.0": (77, 70), "1.24.1": (77, 70), "1.25.0": (89, 80), "1.26.0": (89, 80), "1.27.0": (89, 80), "1.28.0": (89, 80), "1.29.0": (89, 80), "1.30.0": (89, 80), "1.30.1": (89, 80), "1.30.2": (89, 80), "1.31.0": (90, 81), "1.32.0": (97, 87), "1.32.1": (97, 87), "1.33.0": (97, 87), "1.34.0": (97, 87), "1.35.0": (97, 87), "1.36.0": (101, 91), "1.38.0": (101, 91)}[legacy_version])
     if legacy_version in ("1.32.0", "1.32.1", "1.33.0", "1.34.0", "1.35.0", "1.36.0", "1.38.0"):
         author_routes = {
             ("post", "/api/v1/drafts"): ("AuthorDraftCreateRequest", "AuthorDraftResponse", "201"),
@@ -597,7 +606,7 @@ def main():
             assert field in context["required"] and {"type": "null"} in context["properties"][field]["anyOf"]
         resolved = schemas["ProjectResolvedStyleResponse"]["properties"]
         assert resolved["resolution"]["const"] == "staticPresetHierarchy" and resolved["finalPixelAppearance"]["const"] is False
-        assert resolved["sources"]["minItems"] == resolved["sources"]["maxItems"] == (43 if style_v2_additions else 26 if actual_version in ("1.42.0", "1.42.1", "1.42.2", "1.42.3", "1.42.4", "1.43.0", "1.44.0", "1.44.1", "1.44.2", "1.45.0", "1.46.0", "1.46.1", "1.47.0", "1.48.0", "1.49.0", "1.49.1", "1.49.2", "1.50.0", "1.51.0", "1.51.1", "1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1") else 21)
+        assert resolved["sources"]["minItems"] == resolved["sources"]["maxItems"] == (45 if ruby_style_additions else 43 if style_v2_additions else 26 if actual_version in ("1.42.0", "1.42.1", "1.42.2", "1.42.3", "1.42.4", "1.43.0", "1.44.0", "1.44.1", "1.44.2", "1.45.0", "1.46.0", "1.46.1", "1.47.0", "1.48.0", "1.49.0", "1.49.1", "1.49.2", "1.50.0", "1.51.0", "1.51.1", "1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1", "1.56.0") else 21)
         assert schemas["ProjectResourceDto"]["properties"]["sizeBytes"]["x-int64-string"]
         for component, fields in (("TemplateImportRequest", ("expectedRevision",)),
                                   ("TemplateArchiveExportRequest", ("expectedRevision",)),
@@ -656,6 +665,7 @@ def main():
             expected_schema_count += 15 if preview_inspection_additions else 0
             expected_schema_count += 5 if author_replacement_additions else 0
             expected_schema_count += 43 if style_v2_additions else 0
+            expected_schema_count += 6 if ruby_style_additions else 0
             expected_schema_count += 2 if fallback_additions else 0
             expected_schema_count += 4 if source_material_failure_additions else 0
             expected_schema_count += len(LEAD_IN_PRESENTATION_SCHEMAS) if lead_in_presentation_additions else 0
@@ -723,14 +733,14 @@ def main():
     if p3_additions:
         assert spec["x-product-version"] in expected_product_versions(actual_version, args.spec), (
             "Frozen contract product must match Directory.Build.props; explicit offline specs may retain the reviewed historical product")
-        assert (len(spec["paths"]), len(routes)) == (((115, 128) if author_replacement_additions else (114, 127) if preview_inspection_additions else (113, 126)) if author_metadata_additions else (112, 125) if actual_version in ("1.41.0", "1.42.0", "1.42.1", "1.42.2", "1.42.3", "1.42.4", "1.43.0", "1.44.0", "1.44.1", "1.44.2", "1.45.0", "1.46.0", "1.46.1", "1.47.0", "1.48.0", "1.49.0", "1.49.1", "1.49.2", "1.50.0", "1.51.0", "1.51.1", "1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1") else (108, 120) if w8_additions else (102, 113) if render_additions else (100, 111) if p4_additions else (93, 103))
+        assert (len(spec["paths"]), len(routes)) == (((115, 128) if author_replacement_additions else (114, 127) if preview_inspection_additions else (113, 126)) if author_metadata_additions else (112, 125) if actual_version in ("1.41.0", "1.42.0", "1.42.1", "1.42.2", "1.42.3", "1.42.4", "1.43.0", "1.44.0", "1.44.1", "1.44.2", "1.45.0", "1.46.0", "1.46.1", "1.47.0", "1.48.0", "1.49.0", "1.49.1", "1.49.2", "1.50.0", "1.51.0", "1.51.1", "1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1", "1.56.0") else (108, 120) if w8_additions else (102, 113) if render_additions else (100, 111) if p4_additions else (93, 103))
         for path in ("/api/v1/effect-packages/inspect", "/api/v1/template-preview-options"):
             operation = spec["paths"][path]["post"]
             assert operation["x-receipt-location"] == "none"
             assert "200" in operation["responses"]
         assert len(components["schemas"]["ProjectCommandDtoInput"]["oneOf"]) == (97 if lead_in_presentation_additions else 96)
         assert components["schemas"]["EffectPackageParameterSchemaDto"]["properties"]["defaultValueJson"]["type"] == "string"
-    if actual_version in ("1.38.1", "1.39.0", "1.40.0", "1.41.0", "1.42.0", "1.42.1", "1.42.2", "1.42.3", "1.42.4", "1.43.0", "1.44.0", "1.44.1", "1.44.2", "1.45.0", "1.46.0", "1.46.1", "1.47.0", "1.48.0", "1.49.0", "1.49.1", "1.49.2", "1.50.0", "1.51.0", "1.51.1", "1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1"):
+    if actual_version in ("1.38.1", "1.39.0", "1.40.0", "1.41.0", "1.42.0", "1.42.1", "1.42.2", "1.42.3", "1.42.4", "1.43.0", "1.44.0", "1.44.1", "1.44.2", "1.45.0", "1.46.0", "1.46.1", "1.47.0", "1.48.0", "1.49.0", "1.49.1", "1.49.2", "1.50.0", "1.51.0", "1.51.1", "1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1", "1.56.0"):
         for path, methods in spec["paths"].items():
             if path.startswith("/api/v1/drafts") or path.startswith("/api/v1/script-configurations") or path == "/api/v1/jobs/{id}/compilation-result":
                 for operation in methods.values():

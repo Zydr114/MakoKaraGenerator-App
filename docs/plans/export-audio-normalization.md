@@ -20,4 +20,24 @@
 
 新增用例先在旧实现失败，再验证修复后的短源、长源、无音频、损坏及报告拒绝规则。执行后端完整构建、相关回归、前端类型与单元测试，生成 metadata 合同并同步双端。发布同源 Server/Worker 后进行隔离 profile 的真实 HTTP 导出，核验下载 SHA、实际帧数、完整解码和尾部静音；真实工程使用副本，原工程保持不变。最后打包、验证 AppImage 并替换本机安装与启动器。
 
-具体执行结果在完成验收后追加；静态合同、测试、HTTP、桌面启动与完整工程导出分别记录。
+### 已完成的回归与构建
+
+- 新短源用例在旧 Worker 上按 `WorkerExportAudioTooShort` 失败；无音频／短 WAV 的 Hosting 回归及旧版本工程读取回归也已确认先失败。
+- Worker 六种支持音频 profile 的短源真实导出与静音尾部：29/29；编码策略隔离与 NTSC 真实补静音／截断：15/15；真实独立 Worker：8/8。
+- Hosting 三条导出路径、分析采用与报告合同：163/163；工程持久化含 0.114.0 只读兼容：22/22。
+- `dotnet build MakoKaraGenerator.slnx -m:1`：零警告、零错误。
+- 前端 typecheck、55 文件／4567 单元测试及匹配发布的工程生命周期 HTTP 联调 26/26 通过。
+- metadata 生成合同：115 路径／128 方法／673 schemas／4000 示例（2881 反例），冻结检查与校验通过，双端生成物一致。
+- 同源 Linux-x64 自包含 Server/Worker 发布：`.local/backend-dist/20261117T112638464Z`，源码 `7524e08`，生产输入无未提交差异。独立 AppImage 已打包，隔离 profile 下编辑器、后端连接与预览桥加载成功，关闭退出码 0。
+
+### 新发布 HTTP 与完整工程验收
+
+`scripts/export-audio-normalization-http.py` 对同源发布运行 8 组 CPU 导出：短 WAV 的普通／透明输出、短 MP3、长 FLAC、30000/1001 短 WAV，以及无音频的 true／false 请求，最后是实际 nayuta 工程只读副本。8/8 完成，合计 1540 次真实 HTTP 请求；短源尾部解码为静音，长源被截断，无音频两种请求均无音轨。
+
+真实工程为 1920×1080、30 fps，7645 帧完整导出并独立全量解码。源音频报告 254,825,583 微秒，成片音轨 254,833,333 微秒，视频计划保持 254,833,333 微秒。成片 122,794,513 字节，SHA-256 `957f96cdf5a6b98ef5b26fb63eaec9814dbd301153914850bb5261d6ce9ed091`。原工程入口及 data 全部文件哈希保持不变；临时 profile 已移除，21 个观察到的所属 Host／Server／Worker／媒体进程已排水，启动凭证文件已移除，退出码 0。导出证据未包含实际会话凭证，部署与证据文本的凭证形状扫描通过。
+
+### AppImage 安装
+
+最终包 `MakoKaraGenerator-0.114.1-x86_64.AppImage`，183,339,512 字节，SHA-256 `586a465a4416bf3bc717badfac6c7fabf8592fa939316fe777705b0eb75cafe6`。已提取并核对包内 deployment、合同清单及 Worker／Core／Export 程序集与实际发布一致，再原子安装到本机 `~/Applications/`，更新桌面启动器并替换原 0.114.0 包。旧包与启动器备份保存在本次忽略证据目录。最终包在隔离 profile 中实际启动，编辑器、后端连接、预览桥就绪并正常退出；安装文件与该包 SHA 一致。
+
+分支保持独立，无合并操作。所有本地证据位于忽略目录 `.local/investigation-nayuta-export-20261117/`，不提交用户工程、成片、profile 或凭证。此次覆盖 Linux-x64 CPU 导出、MP4 与透明 MOV；不是 Windows 或全 GPU 渲染路径验收。

@@ -1,6 +1,6 @@
 // Ruby 设置的有限浏览器验收：使用隔离的 Server profile。
 // 复制内置模板 → 编辑和保存两项 → 重选模板检查定义 → 新建含日文注音的 TTML 工程
-// → 编排页选句，修改两项并检查静态结果和工程修订 → 恢复继承。
+// → 编排页选句并定位播放头，比较设置前后及恢复继承后的实际 PNG。
 // 仅通过页面控件操作；不从页面模块对象读写工程。协议核验由独立 HTTP 验收负责。
 // node scripts/ruby-style-smoke.mjs --url http://127.0.0.1:PORT [--screenshot /tmp/mako-ruby.png] [--headed]
 // 待与相同源码构建的 Server/Worker 和 Web 启动后执行。
@@ -35,6 +35,8 @@ writeFileSync(lyrics, `<?xml version="1.0" encoding="utf-8"?>
 const name = `注音样式冒烟-${Date.now().toString(36)}`;
 const rev = `(document.querySelector('.status-bar')?.textContent.match(/修订 (\\d+)/) ?? [])[1]`;
 const templateName = `document.querySelector('.template-name')?.textContent`;
+const playhead = `(document.querySelector('.transport-time span')?.textContent ?? '')`;
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const scope = '.line-inspector';
 const readSelect = (label) => uiJs(`const el = __ui.find('select', ${JSON.stringify(label)}, false, ${JSON.stringify(scope)}); return el?.querySelector('.select-value')?.textContent.trim();`);
 const readInput = (label) => uiJs(`return __ui.find('textbox', ${JSON.stringify(label)}, false, ${JSON.stringify(scope)})?.value;`);
@@ -70,6 +72,33 @@ async function fill(page, label, number, expectedText) {
   await ui.fill(page, label, number, { scope, enter: true });
   await page.waitFor(`Number(${rev}) > ${before} && ${readInput(label)} === ${JSON.stringify(number)} && !document.querySelector('.status-facts')?.textContent.includes('同步中')`, `${label} 输入已提交`, 30_000);
   await page.waitFor(`(document.querySelector(${JSON.stringify(scope)})?.innerText ?? '').includes(${JSON.stringify(expectedText)})`, `${label} 静态结果`, 30_000);
+}
+/** 只读取已显示、当前修订和播放位置匹配的成片 PNG。 */
+async function previewHash(page, description) {
+  const currentRevision = await page.eval(rev);
+  check(currentRevision !== undefined, `${description}：读取修订 ${currentRevision}`);
+  await page.waitFor(`(() => {
+    const panel = document.querySelector('.orchestration .preview-panel');
+    const title = panel?.querySelector('.preview-title')?.textContent ?? '';
+    const image = panel?.querySelector('.preview-frame img');
+    return title.includes('修订 ${currentRevision} ·') && title.includes(${playhead}) && ${playhead}.startsWith('0:01.5') &&
+      !title.includes('渲染中') && !panel?.querySelector('.preview-error, .notice-error') &&
+      image?.complete && image.naturalWidth > 0 && !!image.getClientRects().length;
+  })()`, `${description}：当前修订 PNG`, 120_000);
+  return page.eval(`(async () => {
+    const image = document.querySelector('.orchestration .preview-panel .preview-frame img');
+    const response = await fetch(image.src);
+    if (!response.ok) throw new Error('读取成片 PNG 失败');
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.length < 8 || [137,80,78,71,13,10,26,10].some((value, index) => bytes[index] !== value)) throw new Error('成片不是 PNG');
+    const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+    return [...digest].map((value) => value.toString(16).padStart(2, '0')).join('');
+  })()`);
+}
+async function seekLine(page) {
+  const point = await page.eval(`(() => { const r = document.querySelector('.orchestration .timeline-canvas canvas').getBoundingClientRect(); return { x: r.x + r.width * 1.5 / 12, y: r.y + 10 }; })()`);
+  for (const type of ['mouseMoved', 'mousePressed', 'mouseReleased']) await page.send('Input.dispatchMouseEvent', { type, ...point, button: type === 'mouseMoved' ? 'none' : 'left', buttons: type === 'mousePressed' ? 1 : 0, clickCount: 1 });
+  await page.waitFor(`${playhead}.startsWith('0:01.5')`, '定位播放头至 1.5 秒', 30_000);
 }
 async function clickLine(page) {
   if (await ui.exists(page, 'button', '关闭提示')) await ui.click(page, 'button', '关闭提示');
@@ -107,6 +136,9 @@ try {
   await ui.fill(page, '注音字号比例', '70', { scope: '[data-group="rubyScale"]', enter: true });
   await ui.choose(page, '注音间距模式', '自定义', { scope: '[data-group="rubyGap"]' });
   await ui.fill(page, '注音与正文间距', '5', { scope: '[data-group="rubyGap"]', enter: true });
+  // 草稿有 300ms 防抖；等待本次编辑后的试样完成，避免截到旧图或加载占位。
+  await delay(1_000);
+  await page.waitFor(`(() => { const stage = document.querySelector('.template-sample [data-status=ready]:not([data-stale])'); const image = stage?.querySelector('img:not([data-stale])'); return image?.complete && image.naturalWidth > 0 && !!image.getClientRects().length; })()`, '模板试样 PNG 就绪', 120_000);
   await screenshot(page, 'template');
   await ui.click(page, 'button', '保存', { scope: '.template-actions' });
   await page.waitFor(`![...document.querySelectorAll('.template-detail .phead .tag')].some(x => x.textContent === '未保存')`, '模板保存', 30_000);
@@ -118,16 +150,24 @@ try {
   await shell.goto(page, 'orchestration');
   await page.waitFor(`!!document.querySelector('.orchestration .timeline-canvas canvas')`, '编排时间轴', 60_000);
   await clickLine(page);
+  await seekLine(page);
+  const originalHash = await previewHash(page, '初始成片');
+  console.log(`初始成片 SHA-256: ${originalHash}`);
   await page.waitFor(`${readSelect('注音字号比例')} === '继承上级' && ${readSelect('注音与正文间距')} === '继承上级'`, '本句注音继承状态', 30_000);
   await change(page, '注音字号比例', '自定义');
   await fill(page, '注音字号比例', '75', '当前静态结果：75%');
   await change(page, '注音与正文间距', '自定义');
   await fill(page, '注音与正文间距', '8', '当前静态结果：8 px');
-  check(true, '本句两项自定义生效并增加工程修订');
+  const changedHash = await previewHash(page, '修改后成片');
+  console.log(`修改后成片 SHA-256: ${changedHash}`);
+  check(changedHash !== originalHash, '本句两项自定义后，1.5 秒成片 PNG 变化');
   await page.eval(`document.querySelector('.ruby-style-field')?.scrollIntoView({ block: 'center' })`);
   await screenshot(page, 'line');
   await change(page, '注音字号比例', '继承上级', '当前静态结果：跟随歌词中的注音设置');
   await change(page, '注音与正文间距', '继承上级', '当前静态结果：跟随歌词中的注音设置');
+  const restoredHash = await previewHash(page, '恢复继承后的成片');
+  console.log(`恢复继承后成片 SHA-256: ${restoredHash}`);
+  check(restoredHash === originalHash, '恢复继承后，同一时刻成片 PNG 与初始一致');
   check(errors.length === 0, `恢复继承，页面无未处理异常 ${errors.join(' | ')}`);
   await shell.goto(page, 'library');
   await page.waitFor(`!!document.querySelector('.library-list [data-template-id="${createdId}"]')`, '返回个人模板');

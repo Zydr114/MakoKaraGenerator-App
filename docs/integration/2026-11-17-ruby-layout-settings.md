@@ -1,7 +1,7 @@
 # Ruby 大小、正文距离与连续字距验收
 
 2026-11-17，按用户选择的方案 2 实施：Ruby 继续继承所属文字的外观，增加字号比例与正文距离。
-产品为 **0.115.0**，HTTP 合同为 **1.56.0**，工作分支为 `fix/ruby-layout-settings`。
+产品为 **0.115.0**，HTTP 合同为 **1.56.0**，开发分支 `fix/ruby-layout-settings` 已快进合入 `main`。
 范围决定见 [实施计划](../plans/ruby-layout-settings-plan.md)，数据决策见
 [ADR-0263](../../backend/docs/archive/decisions/decisions.md#adr-0263)。
 
@@ -89,6 +89,37 @@ HTTP 会话正常退出，观察到的 5 个所属进程全部排水，bootstrap
 
 ![编排句子注音设置及实际成片](evidence/ruby-layout-20261117/orchestration.png)
 
+## 用户手测、主分支与 AppImage
+
+2026-11-17，从 `8bf45d00d2564a73bcd30626ee81bb216165b17f` 的干净源码重新构建桌面配套产物，
+在隔离的桌面会话中交用户手测。用户反馈“手测完成，无问题”，并授权提交到远程 `main`、
+生成 AppImage 和替换本机安装。该反馈属于本次 Ruby 改动的人工验收。
+
+重新获取远程后，`main`／`origin/main` 的 `14a72ee2fbf32090160afa239cc682e41c7d5db8` 是开发分支祖先，
+独立提交数为 0／9，`git merge-tree --write-tree` 无冲突。使用 `git merge --ff-only` 将 `main`
+快进到 `8bf45d0`，保留开发分支及其原有提交；本次收尾仅追加文档和发布记录。
+
+使用 `node scripts/package-appimage.mjs --keep-appdir` 打包 Linux x64 的 **0.115.0 AppImage**。
+打包前桌面构建新鲜度、Server／Worker 和 GPU 原生库部署校验通过。包内发布来源为上述 `8bf45d0`，
+`sourceDirty=false`；独立解包后的 **1134 个文件**与 AppDir 逐文件哈希及可执行标志一致。
+文件大小为 **183351800 字节（174.9 MiB）**，SHA-256 为：
+
+```text
+e902c49c5c228d46907fc606886c8091ca1cf74249329a1dfd50391bc53d2ba3
+```
+
+直接运行生成的 AppImage，使用独立 `XDG_DATA_HOME`、配置和缓存目录进行启动冒烟。
+实际窗口可见、编辑器加载完成、连接包内后端成功，桌面预览桥存在；SIGTERM 正常退出码为 0，
+观察到的 10 个所属进程全部退出。本次未重新运行前文的单元、HTTP、渲染、导出或持续 GPU 性能验收。
+
+已安装到 `~/Applications/MakoKaraGenerator-0.115.0-x86_64.AppImage`，权限为 0755，
+安装文件哈希与生成包一致。应用菜单 `~/.local/share/applications/makokara-generator.desktop`
+的 Exec／TryExec 已更新，桌面项校验和菜单数据库刷新通过。
+原 0.114.1 AppImage 及旧桌面项保留在
+`~/Applications/.backups/makokara-generator-20261117-130548/`，旧包哈希复核一致；
+现有用户工程和配置未由本次打包、启动冒烟或替换操作改写。
+发布证据见 [appimage.json](evidence/ruby-layout-20261117/appimage.json)。
+
 ## 复验入口与边界
 
 ```bash
@@ -98,6 +129,7 @@ node frontend/scripts/ruby-style-smoke.mjs --url <隔离宿主页面> --screensh
 ```
 
 本轮证明本机 Linux 的上述固定流程。Windows、macOS、任意字体／复杂脚本、性能和长时运行未验收；
-未重做 Electron 原生共享纹理协议的验收，也未生成或替换已安装 AppImage。
+未重做 Electron 原生共享纹理协议的验收。原 [checks.json](evidence/ruby-layout-20261117/checks.json)
+保留首次 HTTP／浏览器验收的范围，随后 AppImage 生成、启动和本机替换的证据单独记录。
 证据索引及文件指纹见 [checks.json](evidence/ruby-layout-20261117/checks.json) 和
 [sha256.json](evidence/ruby-layout-20261117/sha256.json)。

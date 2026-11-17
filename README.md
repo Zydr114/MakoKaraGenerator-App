@@ -2,6 +2,8 @@
 
 本仓库把 Backend 与 Web 的版本化源码整合为独立应用，提供浏览器入口和 Electron 桌面入口。桌面复用同一编辑器，并新增 Linux 本机 GPU 共享纹理预览；浏览器继续使用既有 PNG 静态预览。两条预览路径分别保留自己的能力和验收边界。
 
+2026-11-17 Ruby 排版设置已合入 `main`：产品 **0.115.0**、HTTP 合同 **1.56.0**。样式库和编排单句支持注音字号比例与正文距离，相邻注音按连续排版的自然字距退让。用户桌面手测通过，Linux x64 AppImage 已生成并替换本机旧包；实现、格式门禁和发布指纹见 [Ruby 验收记录](docs/integration/2026-11-17-ruby-layout-settings.md)。
+
 2026-11-16 跨平台适配 **M1 已完成，Windows G1 门禁通过**：Windows x64 浏览器启动、真实音频波形、CPU/Vulkan 静态预览与视频导出、SDK2 编译和验证、导出超限清理均已实测。修复与证据见 [M1 验收记录](docs/integration/2026-11-16-cross-platform-m1.md)。Windows 桌面 SHM 预览、媒体特征封套和 Portable 包继续按[跨平台计划](docs/plans/cross-platform-adaptation-plan.md)的 M2～M4 实施。
 
 2026-11-03 歌词导入兼容修复：后端 `0.110.2`、HTTP 合同 `1.42.2`。已修复 ASS 上传／新建准入，并从 MakoLrcStudio 的源打轴注释恢复正文、ruby 与片段时间；有效 TTML 的 project／AMLL 导入导出已验证往返。Downloads 两份原始 TTML 因导出时清空 body 命名空间而不符合 TTML 结构，按要求暂缓处理。真实样本、HTTP 和 Electron 验证见[歌词导入修复记录](docs/integration/2026-11-03-lyrics-import.md)。
@@ -25,6 +27,7 @@ pnpm dev               # 同一匹配后端＋Vite开发页面
 # Linux桌面共享纹理入口：
 pnpm desktop           # 检查桌面构建，过期时自动重建，再打开Electron编辑器（http://127.0.0.1:5180）
 pnpm build:desktop     # 只构建不启动：Web＋匹配Server/Worker＋固定Skia native补丁＋GPU broker
+pnpm package:appimage  # Linux x64：校验现有桌面构建并输出 .local/release/MakoKaraGenerator-<版本>-x86_64.AppImage
 # 可选不同本机端口：
 pnpm start --port 5174
 ```

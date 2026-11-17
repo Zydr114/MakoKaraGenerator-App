@@ -1,0 +1,70 @@
+{
+  "date": "2026-11-17",
+  "productVersion": "0.115.0",
+  "contractVersion": "1.56.0",
+  "platform": "Linux x64",
+  "manualAcceptance": {
+    "feedback": "手测完成，无问题",
+    "scope": "Ruby layout changes in isolated source-built desktop session"
+  },
+  "integration": {
+    "branch": "main",
+    "previousMainCommit": "14a72ee2fbf32090160afa239cc682e41c7d5db8",
+    "sourceBranch": "fix/ruby-layout-settings",
+    "integratedCommit": "8bf45d00d2564a73bcd30626ee81bb216165b17f",
+    "method": "fast-forward",
+    "incomingCommits": 9,
+    "mergeTreeConflicts": false,
+    "developmentBranchPreserved": true
+  },
+  "artifact": {
+    "filename": "MakoKaraGenerator-0.115.0-x86_64.AppImage",
+    "sizeBytes": 183351800,
+    "sha256": "e902c49c5c228d46907fc606886c8091ca1cf74249329a1dfd50391bc53d2ba3",
+    "sourceCommit": "8bf45d00d2564a73bcd30626ee81bb216165b17f",
+    "sourceDirty": false,
+    "backendDeploymentManifestSha256": "8c5a4b57b1e15de228ad01168b6388c3913a9340af83d1754e0be67289cfcb5d",
+    "buildInputs": "matching previously rebuilt desktop Web, self-contained Server/Worker and native GPU bridge; freshness and deployment checks passed",
+    "archiveRoundTrip": true,
+    "verifiedFiles": 1134,
+    "executableFlagsMatch": true
+  },
+  "startupSmoke": {
+    "startedAt": "2026-11-17T13:05:10.783Z",
+    "finishedAt": "2026-11-17T13:05:16.542Z",
+    "runtime": "generated AppImage with isolated XDG data, config and cache directories",
+    "page": {
+      "title": "MakoKara Generator",
+      "url": "http://127.0.0.1:5180/",
+      "ready": "complete",
+      "connected": "ready",
+      "desktopBridge": true
+    },
+    "windowVisible": true,
+    "startupPassed": true,
+    "exitSignal": "SIGTERM",
+    "exitCode": 0,
+    "processExited": true,
+    "observedOwnedProcesses": 10,
+    "allObservedProcessesExited": true
+  },
+  "installation": {
+    "path": "~/Applications/MakoKaraGenerator-0.115.0-x86_64.AppImage",
+    "sha256": "e902c49c5c228d46907fc606886c8091ca1cf74249329a1dfd50391bc53d2ba3",
+    "mode": "0o755",
+    "desktopEntry": "~/.local/share/applications/makokara-generator.desktop",
+    "desktopEntryUpdated": true,
+    "desktopFileValidation": true,
+    "desktopDatabaseUpdated": true,
+    "backupDirectory": "~/Applications/.backups/makokara-generator-20261117-130548",
+    "oldArtifact": "MakoKaraGenerator-0.114.1-x86_64.AppImage",
+    "oldArtifactSha256": "586a465a4416bf3bc717badfac6c7fabf8592fa939316fe777705b0eb75cafe6",
+    "oldArtifactBackupHashVerified": true,
+    "oldDesktopEntryBackedUp": true
+  },
+  "notRerun": [
+    "previous unit/HTTP/render/export acceptance",
+    "native GPU shared-texture protocol or performance acceptance",
+    "Windows or macOS runtime"
+  ]
+}

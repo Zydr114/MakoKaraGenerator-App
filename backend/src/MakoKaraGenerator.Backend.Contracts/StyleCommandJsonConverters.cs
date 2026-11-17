@@ -89,6 +89,8 @@ public sealed class StyleChangeJsonConverter : JsonConverter<StyleChangeDto>
             case StyleBoldChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
             case StyleItalicChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
             case StyleLetterSpacingChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleRubyRelativeScaleChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleRubyGapChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
             case StyleUnsungFillChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
             case StyleSungFillChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
             case StyleUnsungStrokesChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
@@ -189,6 +191,8 @@ internal static class StyleCommandJson
         "typography.isBold",
         "typography.isItalic",
         "typography.letterSpacingPx",
+        "ruby.relativeScale",
+        "ruby.gapPx",
         "unsung.fill",
         "sung.fill",
         "unsung.strokes",
@@ -258,10 +262,16 @@ internal static class StyleCommandJson
     }
     internal static CanonicalStyleDto CanonicalStyle(JsonElement root, bool fullTemplate = false)
     {
-        var f = Fields(root, "typography", "unsung", "sung", "wipe", "verticalCenterRatio", "horizontalAlignment", "opacity", "scale");
+        var f = Fields(root, "typography", "unsung", "sung", "wipe", "verticalCenterRatio", "horizontalAlignment", "opacity", "scale", "ruby");
         return new(Typography(f["typography"]), Appearance(f["unsung"], fullTemplate), SungAppearance(f["sung"], fullTemplate), Wipe(f["wipe"]),
-            Number(f["verticalCenterRatio"]), Enum<StyleHorizontalAlignment>(f["horizontalAlignment"]), Float(f["opacity"]), Float(f["scale"]));
+            Number(f["verticalCenterRatio"]), Enum<StyleHorizontalAlignment>(f["horizontalAlignment"]), Float(f["opacity"]), Float(f["scale"]), Ruby(f["ruby"]));
     }
+    internal static StyleRubyDto Ruby(JsonElement root)
+    {
+        var r = Fields(root, "relativeScale", "gapPx");
+        return new(NullableNumber(r["relativeScale"]), NullableNumber(r["gapPx"]));
+    }
+    private static double? NullableNumber(JsonElement value) => value.ValueKind == JsonValueKind.Null ? null : Number(value);
     internal static StyleTypographyDto Typography(JsonElement root)
     {
         var t = Fields(root, "fontFamilyName", "fallbackFamilyNames", "fontSizePx", "fontWeight", "isBold", "isItalic", "letterSpacingPx");
@@ -321,6 +331,8 @@ internal static class StyleCommandJson
             "typography.isBold" => new StyleBoldChangeDto(Boolean(v)),
             "typography.isItalic" => new StyleItalicChangeDto(Boolean(v)),
             "typography.letterSpacingPx" => new StyleLetterSpacingChangeDto(Float(v)),
+            "ruby.relativeScale" => new StyleRubyRelativeScaleChangeDto(NullableNumber(v)),
+            "ruby.gapPx" => new StyleRubyGapChangeDto(NullableNumber(v)),
             "unsung.fill" => new StyleUnsungFillChangeDto(Material(v)),
             "sung.fill" => new StyleSungFillChangeDto(Material(v)),
             "unsung.strokes" => new StyleUnsungStrokesChangeDto(Strokes(v)),

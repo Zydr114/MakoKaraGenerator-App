@@ -15,6 +15,7 @@ public sealed partial class ProjectSession
         return new()
         {
             Typography = CoreTypography(style.Typography), Unsung = CoreAppearance(style.Unsung, Material), Sung = CoreSungAppearance(style.Sung, Material),
+            Ruby = style.Ruby is { } ruby ? new() { RelativeScale = ruby.RelativeScale, GapPx = ruby.GapPx } : throw new JsonException("缺少注音排版。"),
             Wipe = style.Wipe is { } wipe ? new() { FeatherRatio = wipe.FeatherRatio, Highlight = CoreHighlight(wipe.Highlight) } : throw new JsonException("缺少扫字样式。"),
             VerticalCenterRatio = style.VerticalCenterRatio, HorizontalAlignment = (LyricHorizontalAlignment)style.HorizontalAlignment,
             Opacity = style.Opacity, Scale = style.Scale,

@@ -38,6 +38,29 @@ public sealed class BackendStyleCommandsTests
     { Assert.True(result.Accepted, $"{result.Error?.Code}/{result.Error?.FailureCode}: {result.Error?.Message}"); return result.Response!; }
 
     [Fact]
+    public async Task 注音大小间距支持局部覆盖显式空值恢复和撤销()
+    {
+        using var f = await Fixture.Create();
+        var token = new TokenStyleTargetDto("secondary", "other", "other-token");
+        Accepted(await f.Command("0", Patch(Line, new StyleRubyRelativeScaleChangeDto(.6), new StyleRubyGapChangeDto(4))));
+        var inherited = await f.Read(token, "1");
+        Assert.Equal(.6, inherited.StaticHierarchy.Ruby.RelativeScale);
+        Assert.Equal(4, inherited.StaticHierarchy.Ruby.GapPx);
+        Accepted(await f.Command("1", Patch(token, new StyleRubyRelativeScaleChangeDto(null), new StyleRubyGapChangeDto(0))));
+        var read = await f.Read(token, "2");
+        Assert.Null(read.StaticHierarchy.Ruby.RelativeScale);
+        Assert.Equal(0, read.StaticHierarchy.Ruby.GapPx);
+        Assert.Contains(read.Local, item => item is StyleRubyRelativeScaleChangeDto { Value: null });
+        Assert.Contains("\"property\":\"ruby.relativeScale\",\"value\":null", JsonSerializer.Serialize(read, Json), StringComparison.Ordinal);
+        Assert.False(Accepted(await f.Command("2", Patch(token, new StyleRubyGapChangeDto(0)))).Changed);
+        Accepted(await f.Command("2", new RestoreStylesCommandDto([token], ["ruby.relativeScale"])));
+        Assert.Equal(.6, (await f.Read(token, "3")).StaticHierarchy.Ruby.RelativeScale);
+        Accepted(await f.Command("3", new("history.undo")));
+        Assert.Null((await f.Read(token, "4")).StaticHierarchy.Ruby.RelativeScale);
+        Assert.Equal(BackendErrorCode.CommandRejected, (await f.Command("4", Patch(token, new StyleRubyGapChangeDto(-1)))).Error!.Code);
+    }
+
+    [Fact]
     public async Task 四层非主来源规范投影局部修改撤销重做与空操作历史一致()
     {
         using var f = await Fixture.Create();

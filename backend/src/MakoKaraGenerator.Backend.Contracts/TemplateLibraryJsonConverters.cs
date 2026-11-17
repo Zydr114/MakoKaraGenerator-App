@@ -285,7 +285,7 @@ internal static class TemplateLibraryJson
     private static void CheckNewDefinition(JsonElement definition)
     {
         var d = StyleCommandJson.Fields(definition, "name", "kind", "style", "properties"); CheckName(StyleCommandJson.String(d["name"]));
-        var s = StyleCommandJson.Fields(d["style"], "typography", "unsung", "sung", "wipe", "verticalCenterRatio", "horizontalAlignment", "opacity", "scale");
+        var s = StyleCommandJson.Fields(d["style"], "typography", "unsung", "sung", "wipe", "verticalCenterRatio", "horizontalAlignment", "opacity", "scale", "ruby");
         var t = StyleCommandJson.Fields(s["typography"], "fontFamilyName", "fallbackFamilyNames", "fontSizePx", "fontWeight", "isBold", "isItalic", "letterSpacingPx");
         if (t["fontFamilyName"].ValueKind == JsonValueKind.String && t["fontFamilyName"].GetString()!.Length > StyleEditingLimits.MaxFontLength) throw new TemplateLibraryBudgetExceededException();
         if (t["fallbackFamilyNames"].ValueKind == JsonValueKind.Array)

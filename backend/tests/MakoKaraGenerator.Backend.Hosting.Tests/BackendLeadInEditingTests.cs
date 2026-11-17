@@ -128,6 +128,7 @@ public sealed class BackendLeadInEditingTests
         Assert.Equal(2, sequence.Appearance.Glow!.SpreadPx);
         Assert.Equal(48, sequence.Appearance.Resolve(text.AppearanceOverride).Typography.FontSizePx);
         Assert.Equal(BackendErrorCode.InvalidRequest, (await f.Command("3", new SetMarkAppearanceCommandDto(mark, [new StyleScaleChangeDto(2)]))).Error!.Code);
+        Assert.Equal(BackendErrorCode.InvalidRequest, (await f.Command("3", new SetMarkAppearanceCommandDto(mark, [new StyleRubyGapChangeDto(2)]))).Error!.Code);
         Accepted(await f.Command("3", new SetMarkAppearanceCommandDto(mark, [])));
         Assert.Null(((TextMarkContent)f.Workspace.Project.LyricPresentation.FindNode(mark)!.Content!).AppearanceOverride);
         Assert.NotNull(sequence.Appearance.Resolve(null).Stroke);

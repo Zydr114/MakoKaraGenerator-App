@@ -58,7 +58,8 @@ public sealed partial class ProjectSession
     // 文字标记外观不含扫字样式与 verticalCenterRatio、horizontalAlignment、scale，共 34 条路径。
     private const int LeadInMarkPropertyCount = 34;
     private static bool IsMarkProperty(string property) => LyricStylePropertyExtensions.TryParseJsonName(property, out LyricStyleProperty value)
-        && value is not (LyricStyleProperty.VerticalCenterRatio or LyricStyleProperty.HorizontalAlignment or LyricStyleProperty.Scale)
+        && value is not (LyricStyleProperty.VerticalCenterRatio or LyricStyleProperty.HorizontalAlignment or LyricStyleProperty.Scale
+            or LyricStyleProperty.RubyRelativeScale or LyricStyleProperty.RubyGapPx)
         && value is < LyricStyleProperty.WipeFeatherRatio or > LyricStyleProperty.WipeHighlightBlend;
     private static void CheckSceneStrokes(StyleStrokeDto[]? strokes)
     {

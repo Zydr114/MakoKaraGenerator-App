@@ -134,7 +134,8 @@ public sealed partial class ProjectSession
         budget.Item();
         return new(ProjectTypography(style.Typography, budget), ProjectAppearance(style.Unsung, budget), ProjectSungAppearance(style.Sung, budget),
             new(style.Wipe.FeatherRatio, ProjectHighlight(style.Wipe.Highlight)), style.VerticalCenterRatio,
-            (StyleHorizontalAlignment)style.HorizontalAlignment, style.Opacity, style.Scale);
+            (StyleHorizontalAlignment)style.HorizontalAlignment, style.Opacity, style.Scale,
+            new(style.Ruby.RelativeScale, style.Ruby.GapPx));
     }
     // 本层原始存在的成员：整体关闭、跟随与整表按整体项报告，非空的部分阴影／辉光／高亮按实际存在的分量展开。
     private static StyleChangeDto[] ProjectLocalStyle(LyricStyleOverride? own, ReadModelBudget budget)
@@ -154,6 +155,11 @@ public sealed partial class ProjectSession
             if (t.IsBold is { } bold) values.Add(new StyleBoldChangeDto(bold));
             if (t.IsItalic is { } italic) values.Add(new StyleItalicChangeDto(italic));
             if (t.LetterSpacingPx is { } spacing) values.Add(new StyleLetterSpacingChangeDto(spacing));
+        }
+        if (own.Ruby is { } ruby)
+        {
+            if (ruby.RelativeScale.IsSet) values.Add(new StyleRubyRelativeScaleChangeDto(ruby.RelativeScale.Value));
+            if (ruby.GapPx.IsSet) values.Add(new StyleRubyGapChangeDto(ruby.GapPx.Value));
         }
         if (own.Unsung is { } unsung)
         {
@@ -297,6 +303,8 @@ public sealed partial class ProjectSession
             StyleBoldChangeDto v => new StyleEditChange.IsBold(v.Value),
             StyleItalicChangeDto v => new StyleEditChange.IsItalic(v.Value),
             StyleLetterSpacingChangeDto v => new StyleEditChange.LetterSpacing(v.Value),
+            StyleRubyRelativeScaleChangeDto v => new StyleEditChange.RubyRelativeScale(v.Value),
+            StyleRubyGapChangeDto v => new StyleEditChange.RubyGap(v.Value),
             StyleUnsungFillChangeDto v => new StyleEditChange.Fill(false, CoreMaterial(v.Value)),
             StyleSungFillChangeDto v => new StyleEditChange.Fill(true, CoreMaterial(v.Value)),
             StyleUnsungStrokesChangeDto v => new StyleEditChange.UnsungStrokes(CoreStrokes(v.Value)),

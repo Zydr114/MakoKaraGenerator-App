@@ -20,7 +20,7 @@ public static class StyleEditingLimits
     /// <summary>一态描边层数上限。</summary>
     public const int MaxStrokes = 4;
     /// <summary>属性路径总数，即单次 patch／restore 的条目上限。</summary>
-    public const int PropertyCount = 43;
+    public const int PropertyCount = 45;
 }
 /// <summary>稳定样式目标，派生类定义唯一合法 ID 组合。</summary>
 [JsonConverter(typeof(StyleTargetJsonConverter))]
@@ -89,9 +89,14 @@ public sealed record StyleWipeDto(double FeatherRatio,
 /// <summary>完整排版；fontFamilyName 的 null 必须保留。</summary>
 public sealed record StyleTypographyDto([property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? FontFamilyName,
     string[] FallbackFamilyNames, float FontSizePx, int FontWeight, bool IsBold, bool IsItalic, float LetterSpacingPx);
+/// <summary>注音排版；null 使用歌词内对应注音的原始数值。</summary>
+public sealed record StyleRubyDto(
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] double? RelativeScale,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] double? GapPx);
 /// <summary>完整 canonical 静态样式：字形、未唱与已唱两态外观、扫字样式及整体布局。</summary>
 public sealed record CanonicalStyleDto(StyleTypographyDto Typography, StyleAppearanceDto Unsung, StyleSungAppearanceDto Sung,
-    StyleWipeDto Wipe, double VerticalCenterRatio, StyleHorizontalAlignment HorizontalAlignment, float Opacity, float Scale);
+    StyleWipeDto Wipe, double VerticalCenterRatio, StyleHorizontalAlignment HorizontalAlignment, float Opacity, float Scale,
+    StyleRubyDto Ruby);
 /// <summary>单属性闭合 typed 联合，value 必须显式提供。</summary>
 [JsonConverter(typeof(StyleChangeJsonConverter))]
 public abstract record StyleChangeDto(string Property);
@@ -109,6 +114,10 @@ public sealed record StyleBoldChangeDto(bool Value) : StyleChangeDto("typography
 public sealed record StyleItalicChangeDto(bool Value) : StyleChangeDto("typography.isItalic");
 /// <summary>修改 typography.letterSpacingPx。</summary>
 public sealed record StyleLetterSpacingChangeDto(float Value) : StyleChangeDto("typography.letterSpacingPx");
+/// <summary>设置注音相对字号；null 使用歌词的原始值。</summary>
+public sealed record StyleRubyRelativeScaleChangeDto(double? Value) : StyleChangeDto("ruby.relativeScale");
+/// <summary>设置注音与正文间距；null 使用歌词的原始值。</summary>
+public sealed record StyleRubyGapChangeDto(double? Value) : StyleChangeDto("ruby.gapPx");
 /// <summary>修改 unsung.fill。</summary>
 public sealed record StyleUnsungFillChangeDto(StyleMaterialDto Value) : StyleChangeDto("unsung.fill");
 /// <summary>修改 sung.fill。</summary>

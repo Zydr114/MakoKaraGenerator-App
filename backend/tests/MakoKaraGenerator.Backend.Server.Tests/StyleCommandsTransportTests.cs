@@ -37,6 +37,30 @@ public sealed partial class PreviewTransportTests
         Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
     }
     [Fact]
+    public async Task HTTP注音大小和距离支持数字显式空值及恢复()
+    {
+        await using var f = await Fixture.Create();
+        string path = $"/api/v1/project-sessions/{f.Project.ProjectSessionId}";
+        var lyrics = (await f.Http.GetFromJsonAsync<ProjectLyricsWindowResponse>(path + "/lyrics/window?branchId=primary&expectedRevision=0", Json))!;
+        var line = lyrics.Lines[0];
+        string target = JsonSerializer.Serialize(new TokenStyleTargetDto("primary", line.Id, line.Tokens[0].Id), Json);
+        using var patch = await PostRawEditing(f, "0", $$"""{"type":"styles.patch","targets":[{{target}}],"changes":[{"property":"ruby.relativeScale","value":0.6},{"property":"ruby.gapPx","value":null}]}""");
+        Assert.Equal(HttpStatusCode.OK, patch.StatusCode);
+        string query = $"/style?expectedRevision=1&kind=token&branchId=primary&lineId={Uri.EscapeDataString(line.Id)}&tokenId={Uri.EscapeDataString(line.Tokens[0].Id)}";
+        using var read = await f.Http.GetAsync(path + query);
+        Assert.Equal(HttpStatusCode.OK, read.StatusCode);
+        using var document = JsonDocument.Parse(await read.Content.ReadAsStringAsync());
+        var ruby = document.RootElement.GetProperty("staticHierarchy").GetProperty("ruby");
+        Assert.Equal(.6, ruby.GetProperty("relativeScale").GetDouble());
+        Assert.Equal(JsonValueKind.Null, ruby.GetProperty("gapPx").ValueKind);
+        Assert.Equal(JsonValueKind.Null, document.RootElement.GetProperty("local").EnumerateArray().Single(v => v.GetProperty("property").GetString() == "ruby.gapPx").GetProperty("value").ValueKind);
+        using var restore = await PostRawEditing(f, "1", $$"""{"type":"styles.restore","targets":[{{target}}],"properties":["ruby.relativeScale","ruby.gapPx"]}""");
+        Assert.Equal(HttpStatusCode.OK, restore.StatusCode);
+        using var malformed = await PostRawEditing(f, "2", $$"""{"type":"styles.patch","targets":[{{target}}],"changes":[{"property":"ruby.gapPx","value":"2"}]}""");
+        Assert.Equal(HttpStatusCode.BadRequest, malformed.StatusCode);
+    }
+
+    [Fact]
     public async Task HTTP样式二命令四层实际JSON显式空值和历史刷新保持一致()
     {
         await using var f = await Fixture.Create();

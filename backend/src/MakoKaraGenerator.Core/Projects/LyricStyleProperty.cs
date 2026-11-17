@@ -1,7 +1,7 @@
 namespace MakoKaraGenerator.Core.Projects;
 
 /// <summary>
-/// 样式里可以逐属性覆盖、恢复与追踪来源的各项（P3 设计 §10.5，共 43 个）。
+/// 样式里可以逐属性覆盖、恢复与追踪来源的各项（P3 设计 §10.5，共 45 个）。
 /// </summary>
 /// <remarks>
 /// <para>
@@ -29,6 +29,10 @@ public enum LyricStyleProperty
     IsItalic,
     /// <summary><c>typography.letterSpacingPx</c>。</summary>
     LetterSpacingPx,
+    /// <summary><c>ruby.relativeScale</c>：注音相对字号。</summary>
+    RubyRelativeScale,
+    /// <summary><c>ruby.gapPx</c>：注音与正文的间距。</summary>
+    RubyGapPx,
     /// <summary><c>unsung.fill</c>：未唱填充材质。</summary>
     UnsungFill,
     /// <summary><c>sung.fill</c>：已唱填充材质。</summary>
@@ -155,6 +159,8 @@ public static class LyricStylePropertyExtensions
         LyricStyleProperty.IsBold => "typography.isBold",
         LyricStyleProperty.IsItalic => "typography.isItalic",
         LyricStyleProperty.LetterSpacingPx => "typography.letterSpacingPx",
+        LyricStyleProperty.RubyRelativeScale => "ruby.relativeScale",
+        LyricStyleProperty.RubyGapPx => "ruby.gapPx",
         LyricStyleProperty.UnsungFill => "unsung.fill",
         LyricStyleProperty.SungFill => "sung.fill",
         LyricStyleProperty.UnsungStrokes => "unsung.strokes",

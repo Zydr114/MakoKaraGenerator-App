@@ -22,6 +22,27 @@ public sealed class ProjectStylePersistenceTests : IDisposable
     public void Dispose() => _directory.Dispose();
 
     [Fact]
+    public void 注音布局样式与覆盖三态持久化往返()
+    {
+        var project = Project.Create("注音", lyricStyle: LyricStyle.Default with { Ruby = new() { RelativeScale = .65, GapPx = 4 } },
+            lyrics: LyricsDocument.Create([LyricLine.Create("l", "甲乙丙", tokens:
+            [
+                LyricToken.Create("a", "甲"),
+                LyricToken.Create("b", "乙", styleOverride: new() { Ruby = new() { RelativeScale = OptionalValue.Set<double?>(null) } }),
+                LyricToken.Create("c", "丙", styleOverride: new() { Ruby = new() { RelativeScale = OptionalValue.Set<double?>(.8), GapPx = OptionalValue.Set<double?>(6) } }),
+            ])]));
+        Project loaded = RoundTrip(project);
+        Assert.Equal(.65, loaded.LyricStyle.Ruby.RelativeScale);
+        Assert.Equal(4, loaded.LyricStyle.Ruby.GapPx);
+        Assert.Null(loaded.Lyrics.Lines[0].Tokens[0].StyleOverride);
+        var empty = loaded.Lyrics.Lines[0].Tokens[1].StyleOverride!.Ruby!;
+        Assert.True(empty.RelativeScale.IsSet); Assert.Null(empty.RelativeScale.Value); Assert.False(empty.GapPx.IsSet);
+        var explicitValues = loaded.Lyrics.Lines[0].Tokens[2].StyleOverride!.Ruby!;
+        Assert.Equal(.8, explicitValues.RelativeScale.Value); Assert.Equal(6, explicitValues.GapPx.Value);
+        Assert.Contains("\"relativeScale\": null", ProjectFileFixture.ReadLyrics(_directory.Path), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void 样式基线与预设标识往返无损()
     {
         LyricStyle style = LyricStyle.Create(

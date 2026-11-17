@@ -26,6 +26,8 @@ public sealed record LyricStyleOverride
     public static LyricStyleOverride Empty { get; } = new();
     /// <summary>字体部分覆盖。</summary>
     public TypographySpecOverride? Typography { get; init; }
+    /// <summary>注音布局部分覆盖。</summary>
+    public RubyLayoutSpecOverride? Ruby { get; init; }
     /// <summary>未唱外观部分覆盖。</summary>
     public TextAppearanceOverride? Unsung { get; init; }
     /// <summary>已唱外观部分覆盖。</summary>
@@ -41,7 +43,7 @@ public sealed record LyricStyleOverride
     /// <summary>样式基础缩放覆盖。</summary>
     public float? Scale { get; init; }
     /// <summary>是否没有覆盖成员。</summary>
-    public bool IsEmpty => (Typography is null || Typography.IsEmpty)
+    public bool IsEmpty => (Typography is null || Typography.IsEmpty) && (Ruby is null || Ruby.IsEmpty)
         && (Unsung is null || Unsung.IsEmpty) && (Sung is null || Sung.IsEmpty) && (Wipe is null || Wipe.IsEmpty)
         && VerticalCenterRatio is null && HorizontalAlignment is null && Opacity is null && Scale is null;
     /// <summary>字体 FontFamilyName 覆盖的源码访问外观。</summary>

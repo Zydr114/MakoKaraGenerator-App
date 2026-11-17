@@ -152,7 +152,7 @@ public static partial class ProjectStyleEditUseCase
         return null;
     }
 
-    private const int MaxProperties = 43;
+    private const int MaxProperties = 45;
 
     // 每组第一项是整体项，其余是它的分量。
     private static readonly IReadOnlyList<LyricStyleProperty>[] EffectGroups =

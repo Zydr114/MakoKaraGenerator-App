@@ -16,6 +16,8 @@ public static partial class ProjectStyleEditUseCase
             StyleEditChange.IsBold => LyricStyleProperty.IsBold,
             StyleEditChange.IsItalic => LyricStyleProperty.IsItalic,
             StyleEditChange.LetterSpacing => LyricStyleProperty.LetterSpacingPx,
+            StyleEditChange.RubyRelativeScale => LyricStyleProperty.RubyRelativeScale,
+            StyleEditChange.RubyGap => LyricStyleProperty.RubyGapPx,
             StyleEditChange.Fill c => c.Sung ? LyricStyleProperty.SungFill : LyricStyleProperty.UnsungFill,
             StyleEditChange.UnsungStrokes => LyricStyleProperty.UnsungStrokes,
             StyleEditChange.SungStrokes => LyricStyleProperty.SungStrokes,
@@ -105,6 +107,8 @@ public static partial class ProjectStyleEditUseCase
         StyleEditChange.IsBold c => overlay with { Typography = Typography(overlay) with { IsBold = c.Value } },
         StyleEditChange.IsItalic c => overlay with { Typography = Typography(overlay) with { IsItalic = c.Value } },
         StyleEditChange.LetterSpacing c => overlay with { Typography = Typography(overlay) with { LetterSpacingPx = c.Value } },
+        StyleEditChange.RubyRelativeScale c => overlay with { Ruby = (overlay.Ruby ?? new()) with { RelativeScale = OptionalValue.Set<double?>(c.Value) } },
+        StyleEditChange.RubyGap c => overlay with { Ruby = (overlay.Ruby ?? new()) with { GapPx = OptionalValue.Set<double?>(c.Value) } },
         StyleEditChange.Fill { Sung: false } c => WithUnsung(overlay, value => value with { Fill = Fill(c.Value) }),
         StyleEditChange.Fill c => WithSung(overlay, value => value with { Fill = Fill(c.Value) }),
         StyleEditChange.UnsungStrokes c => WithUnsung(overlay, value => value with { Strokes = c.Value ?? throw new ArgumentException("描边表不能为 null。", nameof(change)) }),
@@ -213,6 +217,7 @@ public static partial class ProjectStyleEditUseCase
         LyricStyleOverride result = overlay with
         {
             Typography = overlay.Typography is { IsEmpty: true } ? null : overlay.Typography,
+            Ruby = overlay.Ruby is { IsEmpty: true } ? null : overlay.Ruby,
             Unsung = overlay.Unsung is { IsEmpty: true } ? null : overlay.Unsung,
             Sung = overlay.Sung is { IsEmpty: true } ? null : overlay.Sung,
             Wipe = overlay.Wipe is { IsEmpty: true } ? null : overlay.Wipe,

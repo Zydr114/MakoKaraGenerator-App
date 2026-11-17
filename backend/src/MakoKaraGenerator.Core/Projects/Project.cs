@@ -32,7 +32,7 @@ public sealed record Project
     /// v30 以效果合同 2 明确保存开发期 v1／v2 包身份；v31 样式改为两态外观（已唱可跟随未唱）、多重描边与扫字样式，
     /// 文字标记外观同样两态。仅支持当前程序版本，不转换旧工程。
     /// </remarks>
-    public const int CurrentSchemaVersion = 31;
+    public const int CurrentSchemaVersion = 32;
 
     /// <summary>项目的 schema 版本。当前只接受当前程序版本和结构，不转换旧工程。</summary>
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;

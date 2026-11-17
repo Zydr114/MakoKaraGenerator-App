@@ -110,6 +110,8 @@ internal sealed class LyricStyleDto
 {
     /// <summary>规范字体对象（schema v16 起）。</summary>
     public TypographySpecDto? Typography { get; set; }
+    /// <summary>注音布局（schema v32 起）。</summary>
+    public RubyLayoutSpecDto? Ruby { get; set; }
     /// <summary>未唱外观（schema v31 起）。</summary>
     public TextAppearanceDto? Unsung { get; set; }
     /// <summary>已唱外观（schema v31 起）。</summary>
@@ -120,6 +122,22 @@ internal sealed class LyricStyleDto
     public string? HorizontalAlignment { get; set; }
     public float? Opacity { get; set; }
     public float? Scale { get; set; }
+}
+
+/// <summary>注音布局的 JSON 形态。</summary>
+internal sealed class RubyLayoutSpecDto
+{
+    public double? RelativeScale { get; set; }
+    public double? GapPx { get; set; }
+}
+
+/// <summary>注音布局部分覆盖；缺失表示继承，null 表示使用歌词注音原值。</summary>
+internal sealed class RubyLayoutSpecOverrideDto
+{
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public System.Text.Json.JsonElement RelativeScale { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public System.Text.Json.JsonElement GapPx { get; set; }
 }
 
 /// <summary>一态的完整外观：填充材质、由内向外的描边列表、阴影与辉光。</summary>
@@ -260,6 +278,8 @@ internal sealed class LyricStyleOverrideDto
 {
     /// <summary>规范字体部分覆盖（schema v13 起）。</summary>
     public TypographySpecOverrideDto? Typography { get; set; }
+    /// <summary>注音布局部分覆盖。</summary>
+    public RubyLayoutSpecOverrideDto? Ruby { get; set; }
     /// <summary>未唱外观部分覆盖。</summary>
     public TextAppearanceOverrideDto? Unsung { get; set; }
     /// <summary>已唱外观部分覆盖。</summary>

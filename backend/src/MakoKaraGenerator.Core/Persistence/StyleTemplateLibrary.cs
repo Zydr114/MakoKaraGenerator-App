@@ -25,11 +25,11 @@ public sealed record StyleTemplateLibraryLoadResult(IReadOnlyList<StyleTemplate>
 public static partial class StyleTemplateLibrary
 {
     /// <summary>新库目录，旧templates.json保持原位。</summary>
-    public const string DirectoryName = "templates-v9";
+    public const string DirectoryName = "templates-v10";
     /// <summary>新库唯一入口。</summary>
     public const string FileName = "index.json";
     /// <summary>模板当前格式。</summary>
-    public const int CurrentSchemaVersion = 9;
+    public const int CurrentSchemaVersion = 10;
     /// <summary>完整规范入口字节限额；资源另受包预算限制。</summary>
     public const int MaximumIndexBytes = 16777216;
     /// <summary>静态只读内置模板。</summary>
@@ -92,7 +92,8 @@ public static partial class StyleTemplateLibrary
                     || File.Exists(Path.Combine(Path.GetDirectoryName(parent!)!, "templates-v5", FileName))
                     || File.Exists(Path.Combine(Path.GetDirectoryName(parent!)!, "templates-v6", FileName))
                     || File.Exists(Path.Combine(Path.GetDirectoryName(parent!)!, "templates-v7", FileName))
-                    || File.Exists(Path.Combine(Path.GetDirectoryName(parent!)!, "templates-v8", FileName)));
+                    || File.Exists(Path.Combine(Path.GetDirectoryName(parent!)!, "templates-v8", FileName))
+                    || File.Exists(Path.Combine(Path.GetDirectoryName(parent!)!, "templates-v9", FileName)));
                 return new([], []) { LegacyLibraryRetained = retained };
             }
             revision = LibraryIndexRevision.FromBytes(bytes);

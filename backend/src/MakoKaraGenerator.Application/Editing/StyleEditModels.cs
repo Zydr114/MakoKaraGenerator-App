@@ -23,7 +23,7 @@ public enum StyleEditTargetKind
 /// <param name="TokenId">行内的元素标识。</param>
 public sealed record StyleEditTarget(StyleEditTargetKind Kind, string? BranchId = null, string? LineId = null, string? TokenId = null);
 
-/// <summary>有类型的规范样式成员值；<see cref="Property"/> 是 Core 的 43 项属性之一，与 HTTP 属性路径一一对应。</summary>
+/// <summary>有类型的规范样式成员值；<see cref="Property"/> 是 Core 的 45 项属性之一，与 HTTP 属性路径一一对应。</summary>
 /// <param name="Property">写入的属性。</param>
 public abstract record StyleEditChange(LyricStyleProperty Property)
 {
@@ -41,6 +41,10 @@ public abstract record StyleEditChange(LyricStyleProperty Property)
     public sealed record IsItalic(bool Value) : StyleEditChange(LyricStyleProperty.IsItalic);
     /// <summary>字距。</summary>
     public sealed record LetterSpacing(float Value) : StyleEditChange(LyricStyleProperty.LetterSpacingPx);
+    /// <summary>注音相对字号；空值使用歌词中的注音比例。</summary>
+    public sealed record RubyRelativeScale(double? Value) : StyleEditChange(LyricStyleProperty.RubyRelativeScale);
+    /// <summary>注音间距；空值使用歌词中的注音间距。</summary>
+    public sealed record RubyGap(double? Value) : StyleEditChange(LyricStyleProperty.RubyGapPx);
     /// <summary>一态的填充材质；只接受静态纯色或渐变。</summary>
     public sealed record Fill(bool Sung, MaterialSpec Value) : StyleEditChange(Sung ? LyricStyleProperty.SungFill : LyricStyleProperty.UnsungFill);
     /// <summary>未唱描边整表；空表为无描边。</summary>

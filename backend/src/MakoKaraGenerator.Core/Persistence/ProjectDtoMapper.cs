@@ -134,6 +134,7 @@ internal static partial class ProjectDtoMapper
                 IsItalic = style.Typography.IsItalic,
                 LetterSpacingPx = style.Typography.LetterSpacingPx,
             },
+            Ruby = new RubyLayoutSpecDto { RelativeScale = style.Ruby.RelativeScale, GapPx = style.Ruby.GapPx },
             Unsung = ToDto(style.Unsung),
             Sung = ToDto(style.Sung),
             Wipe = ToDto(style.Wipe),
@@ -182,6 +183,11 @@ internal static partial class ProjectDtoMapper
         return new LyricStyleOverrideDto
         {
             Typography = styleOverride.Typography is { } typography ? ToDto(typography) : null,
+            Ruby = styleOverride.Ruby is { IsEmpty: false } ruby ? new RubyLayoutSpecOverrideDto
+            {
+                RelativeScale = ruby.RelativeScale.IsSet ? System.Text.Json.JsonSerializer.SerializeToElement(ruby.RelativeScale.Value) : default,
+                GapPx = ruby.GapPx.IsSet ? System.Text.Json.JsonSerializer.SerializeToElement(ruby.GapPx.Value) : default,
+            } : null,
             Unsung = ToDto(styleOverride.Unsung),
             Sung = ToDto(styleOverride.Sung),
             Wipe = ToDto(styleOverride.Wipe),
@@ -633,6 +639,7 @@ internal static partial class ProjectDtoMapper
         return new LyricStyle
         {
             Typography = typography,
+            Ruby = MapRubyLayout(dto.Ruby, "lyricStyle.ruby", issues),
             Unsung = unsung,
             Sung = sung,
             Wipe = MapWipe(dto.Wipe, "lyricStyle.wipe", issues),
@@ -642,6 +649,38 @@ internal static partial class ProjectDtoMapper
             Opacity = MapRatio(dto.Opacity, fallback.Opacity, "lyricStyle.opacity", issues),
             Scale = MapPositive(dto.Scale, fallback.Scale, "lyricStyle.scale", issues),
         };
+    }
+
+    private static RubyLayoutSpec MapRubyLayout(RubyLayoutSpecDto? dto, string location, List<ProjectIssue> issues)
+    {
+        var ruby = new RubyLayoutSpec { RelativeScale = dto?.RelativeScale, GapPx = dto?.GapPx };
+        if (!ruby.IsValid)
+            Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "注音比例必须为有限正数，间距必须为有限非负数。", location);
+        return ruby;
+    }
+
+    private static OptionalValue<double?> MapRubyOptional(System.Text.Json.JsonElement value, string location, List<ProjectIssue> issues)
+    {
+        if (value.ValueKind == System.Text.Json.JsonValueKind.Undefined) return default;
+        if (value.ValueKind == System.Text.Json.JsonValueKind.Null) return OptionalValue.Set<double?>(null);
+        if (value.ValueKind == System.Text.Json.JsonValueKind.Number && value.TryGetDouble(out double number))
+            return OptionalValue.Set<double?>(number);
+        Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "注音布局值必须是数字或 null。", location);
+        return default;
+    }
+
+    private static RubyLayoutSpecOverride? MapRubyLayoutOverride(RubyLayoutSpecOverrideDto? dto, string location, List<ProjectIssue> issues)
+    {
+        if (dto is null) return null;
+        var ruby = new RubyLayoutSpecOverride
+        {
+            RelativeScale = MapRubyOptional(dto.RelativeScale, location + ".relativeScale", issues),
+            GapPx = MapRubyOptional(dto.GapPx, location + ".gapPx", issues),
+        };
+        var values = new RubyLayoutSpec { RelativeScale = ruby.RelativeScale.Value, GapPx = ruby.GapPx.Value };
+        if (!values.IsValid)
+            Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "注音比例必须为有限正数，间距必须为有限非负数。", location);
+        return ruby.IsEmpty ? null : ruby;
     }
 
     private static T MissingStyleObject<T>(T fallback, string location, List<ProjectIssue> issues)
@@ -679,6 +718,7 @@ internal static partial class ProjectDtoMapper
         LyricStyleOverride result = new()
         {
             Typography = MapTypographyOverride(dto.Typography, location + ".typography", issues),
+            Ruby = MapRubyLayoutOverride(dto.Ruby, location + ".ruby", issues),
             Unsung = MapAppearanceOverride(dto.Unsung, location + ".unsung", issues),
             Sung = MapSungAppearanceOverride(dto.Sung, location + ".sung", issues),
             Wipe = MapWipeOverride(dto.Wipe, location + ".wipe", issues),

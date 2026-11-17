@@ -12,6 +12,8 @@ public sealed record LyricStyle
 {
     /// <summary>字体排版参数。</summary>
     public TypographySpec Typography { get; init; } = TypographySpec.Default;
+    /// <summary>注音布局参数。</summary>
+    public RubyLayoutSpec Ruby { get; init; } = new();
     /// <summary>未唱外观。</summary>
     public TextAppearance Unsung { get; init; } = new() { Fill = FillSpec.DefaultUnsung };
     /// <summary>已唱外观；描边、阴影、辉光默认跟随未唱。</summary>
@@ -29,7 +31,7 @@ public sealed record LyricStyle
     /// <summary>默认样式。</summary>
     public static LyricStyle Default { get; } = new();
     /// <summary>所有对象、枚举和数值是否有效。</summary>
-    public bool IsValid => Typography is { IsValid: true }
+    public bool IsValid => Typography is { IsValid: true } && Ruby is { IsValid: true } && Ruby.IsValidForFont(FontSizePx)
         && Unsung is { IsValid: true } && Sung is { IsValid: true } && Wipe is { IsValid: true }
         && Enum.IsDefined(HorizontalAlignment) && double.IsFinite(VerticalCenterRatio)
         && VerticalCenterRatio is >= 0d and <= 1d && float.IsFinite(Opacity)

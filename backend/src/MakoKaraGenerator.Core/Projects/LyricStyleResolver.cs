@@ -96,6 +96,13 @@ public static class LyricStyleResolver
             };
         }
 
+        if (overlay.Ruby is { } ruby)
+            result = result with { Ruby = current.Ruby with
+            {
+                RelativeScale = ruby.RelativeScale.IsSet ? ruby.RelativeScale.Value : current.Ruby.RelativeScale,
+                GapPx = ruby.GapPx.IsSet ? ruby.GapPx.Value : current.Ruby.GapPx,
+            } };
+
         result = result with
         {
             VerticalCenterRatio = overlay.VerticalCenterRatio ?? current.VerticalCenterRatio,
@@ -128,6 +135,11 @@ public static class LyricStyleResolver
         Dictionary<LyricStyleProperty, LyricStyleSource> sources)
     {
         if (overlay.Typography is { } typography) MarkTypographySources(typography, source, sources);
+        if (overlay.Ruby is { } ruby)
+        {
+            if (ruby.RelativeScale.IsSet) sources[LyricStyleProperty.RubyRelativeScale] = source;
+            if (ruby.GapPx.IsSet) sources[LyricStyleProperty.RubyGapPx] = source;
+        }
         if (overlay.Unsung is { } unsung) MarkUnsungSources(unsung, source, sources);
         if (overlay.Sung is { } sung) MarkSungSources(sung, source, sources);
         if (overlay.Wipe is { } wipe)
@@ -277,7 +289,7 @@ public static class LyricStyleResolver
             throw new ArgumentException($"{layerName}产生了无效的扫字样式。", parameterName);
         }
 
-        if (!style.Typography.IsValid || !style.Unsung.IsValid || !style.Sung.IsValid)
+        if (!style.Typography.IsValid || (style.Ruby is not { IsValid: true } || !style.Ruby.IsValidForFont(style.FontSizePx)) || !style.Unsung.IsValid || !style.Sung.IsValid)
         {
             throw new ArgumentException($"{layerName}产生了无效的规范样式对象。", parameterName);
         }

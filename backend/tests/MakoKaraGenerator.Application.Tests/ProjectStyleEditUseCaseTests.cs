@@ -9,6 +9,25 @@ namespace MakoKaraGenerator.Application.Tests;
 
 public sealed class ProjectStyleEditUseCaseTests
 {
+    [Fact]
+    public void 注音设置支持元素级显式回退撤销与无效值拒绝()
+    {
+        var source = Workspace().Project;
+        var workspace = ProjectWorkspace.Adopt(source with { LyricStyle = source.LyricStyle with { Ruby = new() { RelativeScale = .7, GapPx = 5 } } });
+        var target = Target(StyleEditTargetKind.Token);
+        var set = Commit(workspace, target, new StyleEditChange.RubyRelativeScale(null), new StyleEditChange.RubyGap(0));
+        Assert.True(set.Accepted); Assert.Null(Resolve(set.Project, target).Ruby.RelativeScale);
+        Assert.Equal(0, Resolve(set.Project, target).Ruby.GapPx);
+        var own = Own(set.Project, target)!.Ruby!;
+        Assert.True(own.RelativeScale.IsSet); Assert.Null(own.RelativeScale.Value);
+        var bad = ProjectStyleEditUseCase.PreparePatch(workspace, [target], [new StyleEditChange.RubyRelativeScale(0)]);
+        Assert.False(bad.Result.Accepted); Assert.Same(set.Project, workspace.Project);
+        var restored = ProjectStyleEditUseCase.PrepareRestore(workspace, [target], [LyricStyleProperty.RubyRelativeScale, LyricStyleProperty.RubyGapPx]);
+        Assert.True(restored.Result.Accepted); Assert.Equal(.7, Resolve(restored.Result.Project, target).Ruby.RelativeScale);
+        Assert.Equal(5, Resolve(restored.Result.Project, target).Ruby.GapPx);
+        Assert.Null(Own(restored.Result.Project, target));
+    }
+
     [Theory]
     [InlineData(0)] [InlineData(1)] [InlineData(2)] [InlineData(3)]
     public void 辉光四层局部叶覆盖关闭和恢复(int kind)

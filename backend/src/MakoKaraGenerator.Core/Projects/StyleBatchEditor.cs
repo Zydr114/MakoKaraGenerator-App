@@ -119,6 +119,8 @@ public static class StyleBatchEditor
                 LyricStyleProperty.IsBold => overlay with { IsBold = restore ? null : style.IsBold },
                 LyricStyleProperty.IsItalic => overlay with { IsItalic = restore ? null : style.IsItalic },
                 LyricStyleProperty.LetterSpacingPx => overlay with { LetterSpacingPx = restore ? null : style.LetterSpacingPx },
+                LyricStyleProperty.RubyRelativeScale => overlay with { Ruby = (overlay.Ruby ?? new()) with { RelativeScale = restore ? default : OptionalValue.Set<double?>(style.Ruby.RelativeScale) } },
+                LyricStyleProperty.RubyGapPx => overlay with { Ruby = (overlay.Ruby ?? new()) with { GapPx = restore ? default : OptionalValue.Set<double?>(style.Ruby.GapPx) } },
                 LyricStyleProperty.VerticalCenterRatio => overlay with { VerticalCenterRatio = restore ? null : style.VerticalCenterRatio },
                 LyricStyleProperty.HorizontalAlignment => overlay with { HorizontalAlignment = restore ? null : style.HorizontalAlignment },
                 LyricStyleProperty.Opacity => overlay with { Opacity = restore ? null : style.Opacity },
@@ -285,7 +287,7 @@ public static class StyleBatchEditor
         if (!float.IsFinite(style.FontSizePx) || !float.IsFinite(style.LetterSpacingPx)
             || style.FontWeight is < 100 or > 900 || !double.IsFinite(style.VerticalCenterRatio)
             || !float.IsFinite(style.Opacity) || !float.IsFinite(style.Scale)
-            || style.Unsung is not { IsValid: true } || style.Sung is not { IsValid: true } || style.Wipe is not { IsValid: true })
+            || (style.Ruby is not { IsValid: true } || !style.Ruby.IsValidForFont(style.FontSizePx)) || style.Unsung is not { IsValid: true } || style.Sung is not { IsValid: true } || style.Wipe is not { IsValid: true })
             throw new ArgumentOutOfRangeException(nameof(style), "样式数值必须是有限数。");
     }
 

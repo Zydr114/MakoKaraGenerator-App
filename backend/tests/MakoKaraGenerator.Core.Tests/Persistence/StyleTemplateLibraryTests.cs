@@ -7,6 +7,49 @@ namespace MakoKaraGenerator.Core.Tests.Persistence;
 public sealed class StyleTemplateLibraryTests
 {
     [Fact]
+    public void 旧版个人库和资源留在原位新版独立保存且内置模板可用()
+    {
+        using TemporaryDirectory directory = new();
+        string oldDirectory = Path.Combine(directory.Path, "templates-v9");
+        string oldPath = Path.Combine(oldDirectory, "index.json");
+        string oldResource = Path.Combine(oldDirectory, "packages", "retained", "asset.bin");
+        Directory.CreateDirectory(Path.GetDirectoryName(oldResource)!);
+        byte[] oldIndex = System.Text.Encoding.UTF8.GetBytes("{\"schemaVersion\":9,\"packages\":[],\"templates\":[]}");
+        byte[] oldBytes = [0, 1, 128, 255];
+        File.WriteAllBytes(oldPath, oldIndex); File.WriteAllBytes(oldResource, oldBytes);
+
+        string current = StyleTemplateLibrary.ResolvePath(directory.Path);
+        Assert.Equal("templates-v10", Path.GetFileName(Path.GetDirectoryName(current)));
+        var absent = StyleTemplateLibrary.Load(current);
+        Assert.True(absent.LegacyLibraryRetained); Assert.Empty(absent.Templates); Assert.Empty(absent.Issues);
+        Assert.Contains(StyleTemplateLibrary.BuiltIns, item => item.Id == "builtin:line-classic");
+        var template = StyleTemplate.Create("personal", "个人模板", StyleTemplateKind.Line,
+            LyricStyle.Default with { Ruby = new() { RelativeScale = .75 } }, [LyricStyleProperty.RubyRelativeScale]);
+        StyleTemplateLibrary.Save(current, [template]);
+        var loaded = StyleTemplateLibrary.Load(current);
+        Assert.Empty(loaded.Issues); Assert.Equal(template.Id, Assert.Single(loaded.Templates).Id);
+        Assert.Equal(oldIndex, File.ReadAllBytes(oldPath)); Assert.Equal(oldBytes, File.ReadAllBytes(oldResource));
+        Assert.Contains(StyleTemplateLibrary.BuiltIns, item => item.Id == "builtin:line-classic");
+    }
+
+    [Fact]
+    public void 模板保存注音相对字号与空值并按属性复制()
+    {
+        var style = LyricStyle.Default with { Ruby = new() { RelativeScale = .75, GapPx = null } };
+        var template = StyleTemplate.Create("ruby", "注音", StyleTemplateKind.Token, style,
+            [LyricStyleProperty.RubyRelativeScale, LyricStyleProperty.RubyGapPx]);
+        var json = System.Text.Encoding.UTF8.GetString(StyleTemplateLibrary.Encode([template]));
+        var loaded = StyleTemplateLibrary.Deserialize(json);
+        Assert.Empty(loaded.Issues);
+        var restored = Assert.Single(loaded.Templates);
+        Assert.Equal(style.Ruby, restored.Style.Ruby);
+        Assert.Equal(template.Properties.ToArray(), restored.Properties.ToArray());
+        var overlay = StyleBatchEditor.CopyProperties(LyricStyleOverride.Empty, restored.Style, restored.Properties);
+        Assert.Equal(.75, overlay.Ruby!.RelativeScale.Value);
+        Assert.True(overlay.Ruby.GapPx.IsSet); Assert.Null(overlay.Ruby.GapPx.Value);
+    }
+
+    [Fact]
     public void 行和元素模板往返且旧样式文件不读取()
     {
         using TemporaryDirectory directory = new();

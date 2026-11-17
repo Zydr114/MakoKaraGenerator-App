@@ -30,6 +30,8 @@ public sealed class TokenStyleSupportTests
         [LyricStyleProperty.IsBold] = new() { IsBold = true },
         [LyricStyleProperty.IsItalic] = new() { IsItalic = true },
         [LyricStyleProperty.LetterSpacingPx] = new() { LetterSpacingPx = 4f },
+        [LyricStyleProperty.RubyRelativeScale] = new() { Ruby = new() { RelativeScale = OptionalValue.Set<double?>(.7) } },
+        [LyricStyleProperty.RubyGapPx] = new() { Ruby = new() { GapPx = OptionalValue.Set<double?>(3) } },
         [LyricStyleProperty.VerticalCenterRatio] = new() { VerticalCenterRatio = 0.5d },
         [LyricStyleProperty.HorizontalAlignment] = new() { HorizontalAlignment = LyricHorizontalAlignment.Center },
         [LyricStyleProperty.UnsungFill] = new() { UnsungColor = new RgbaColor(0x11, 0x22, 0x33) },

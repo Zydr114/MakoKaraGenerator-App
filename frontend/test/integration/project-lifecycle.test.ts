@@ -418,20 +418,22 @@ describe('正式验证与导出', () => {
     expect(report).toMatchObject({ format: 'transparentProRes4444', audioIncluded: false, hasAlpha: true, audioCodec: null });
   });
 
-  it('没有音频的工程：没有输出时长时拒绝；要音轨时拒绝；只导画面成功', async () => {
+  it('没有音频的工程：没有输出时长时拒绝；有时长时无论是否请求音轨都导出纯画面', async () => {
     const silent = (await create({ name: `${runId} 无音频导出`, lyrics: state.timed })).projectSessionId;
     const noDuration = await rejected(client.projects.exportVideo(silent, { includeAudio: false }));
     expect(noDuration.status).toBe(422);
     console.log(`[W5] 无输出时长导出：${noDuration.status} ${noDuration.code}/${noDuration.failureCode ?? ''} ${noDuration.message}`);
 
     await run(silent, { type: 'composition.setOutputDuration', durationUs: micros(1_000_000) });
-    const withAudio = await rejected(client.projects.exportVideo(silent, { includeAudio: true }));
-    expect(withAudio.status).toBe(422);
-    console.log(`[W5] 无音频含音轨导出：${withAudio.status} ${withAudio.code}/${withAudio.failureCode ?? ''} ${withAudio.message}`);
-
-    const job = await finish(await client.projects.exportVideo(silent, { includeAudio: false, quality: 'draft' }), 180_000);
-    expect(job.state, job.error?.message ?? job.failureCode).toBe('succeeded');
-    expect(job.exportResult?.artifact.contentType).toBe('video/mp4');
+    for (const includeAudio of [true, false]) {
+      const job = await finish(await client.projects.exportVideo(silent, { includeAudio, quality: 'draft' }), 180_000);
+      expect(job.state, job.error?.message ?? job.failureCode).toBe('succeeded');
+      expect(job.exportInput?.includeAudio).toBe(false);
+      expect(job.exportResult?.artifact.contentType).toBe('video/mp4');
+      const report = await client.jobs.exportResult(job.jobId);
+      if (isExportFailureReport(report)) throw new Error(report.failureCode);
+      expect(report).toMatchObject({ audioIncluded: false, audioDurationUs: null, actualAudioDurationUs: null, audioCodec: null });
+    }
   });
 
   it('字没有时间的工程被拒绝，错误里没有具体原因（G29）', async () => {

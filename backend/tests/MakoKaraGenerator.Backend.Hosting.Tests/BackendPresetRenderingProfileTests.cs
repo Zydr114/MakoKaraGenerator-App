@@ -11,7 +11,7 @@ namespace MakoKaraGenerator.Backend.Hosting.Tests;
 public sealed partial class BackendAnalysisAdoptionTests
 {
     [Fact]
-    public async Task 直接效果包固定无音轨快照且带音轨请求核验实际时长与授权资源()
+    public async Task 直接效果包可保留短音轨授权或在清除音频后导出纯视频()
     {
         await using Fixture f = new(); ProjectSession session = await f.Project(timed: true);
         var workspace = Workspace(session); var package = MixedEffectPackageFixture.Contents();
@@ -41,25 +41,26 @@ public sealed partial class BackendAnalysisAdoptionTests
         using (BackendExportReadLease read = f.Registry.AcquireExportRead("a", completed.JobId).Response!)
             Assert.True(await read.VerifyHashAsync());
         Assert.Empty(f.Registry.ReadExportDiagnostics("a", completed.JobId, null, null).Response!.Diagnostics);
-        ProjectSnapshot prepared = exporter.Prepared!, executed = exporter.Executed!;
-        string[] jobs = (await f.Registry.ReadClientStateAsync("a")).Jobs!.Select(job => job.JobId).Order().ToArray();
-        // 此fixture的加载器报告3s，但实际WAV只有64帧／8000Hz；以真实音轨长度拒绝，
-        // 不能恢复已过时的“package一律不支持音轨”门禁。
-        var rejected = await f.Registry.StartExportAsync("a", session.ProjectSessionId,
+        // 此 fixture 的 WAV 实际仅 64 帧／8000 Hz；短源仍应以原始固定授权交给执行器。
+        var shortAudio = await f.Registry.StartExportAsync("a", session.ProjectSessionId,
             new("0", IncludeAudio: true, Metadata: f.Meta()));
-        Assert.Equal(BackendErrorCode.ExportAudioUnsupported, rejected.Error!.Code);
-        Assert.Equal("实际音轨不足计划视频时长。", rejected.Error.Message);
-        Assert.Same(prepared, exporter.Prepared); Assert.Same(executed, exporter.Executed);
-        Assert.Equal(jobs, (await f.Registry.ReadClientStateAsync("a")).Jobs!.Select(job => job.JobId).Order());
+        Assert.True(shortAudio.Accepted, shortAudio.Error?.Message);
+        Assert.True(shortAudio.Response!.ExportInput!.IncludeAudio);
+        Assert.NotNull(shortAudio.Response.ExportInput.Audio);
+        Assert.Equal("succeeded", (await f.Terminal(shortAudio.Response.JobId)).State);
+        Assert.True(exporter.LastInput!.IncludeAudio); Assert.NotNull(exporter.LastInput.Audio);
+        Assert.Equal("8000", System.Text.Json.JsonSerializer.Deserialize<ExportReportDto>(
+            f.Registry.ReadExportResult("a", shortAudio.Response.JobId).Response!, System.Text.Json.JsonSerializerOptions.Web)!.AudioDurationUs);
 
         var cleared = await f.Command(session, "0", new ClearProjectAudioCommandDto());
         Assert.True(cleared.Accepted, cleared.Error?.Message); Assert.True(cleared.Response!.Changed);
         var missing = await f.Registry.StartExportAsync("a", session.ProjectSessionId,
             new(cleared.Response.ProjectRevision, IncludeAudio: true, Metadata: f.Meta()));
-        Assert.Equal(BackendErrorCode.ExportAudioUnsupported, missing.Error!.Code);
-        Assert.Equal("带音轨导出需要已授权的受管音轨资源。", missing.Error.Message);
-        Assert.Same(prepared, exporter.Prepared); Assert.Same(executed, exporter.Executed);
-        Assert.Equal(jobs, (await f.Registry.ReadClientStateAsync("a")).Jobs!.Select(job => job.JobId).Order());
+        Assert.True(missing.Accepted, missing.Error?.Message);
+        Assert.False(missing.Response!.ExportInput!.IncludeAudio); Assert.Null(missing.Response.ExportInput.Audio);
+        Assert.Equal("succeeded", (await f.Terminal(missing.Response.JobId)).State);
+        Assert.False(exporter.LastInput!.IncludeAudio); Assert.Null(exporter.LastInput.Audio);
+        Assert.Null(exporter.Executed!.AudioAnalysis);
     }
 
     [Theory]

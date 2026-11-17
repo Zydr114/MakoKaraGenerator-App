@@ -35,7 +35,7 @@ export function ValidationCard(props: { store: ExportStore; exportState: ExportS
 
   return (
     <Group title="正式验证" hint="可选">
-      <Note>用和导出相同的渲染逐帧检查开头一段，普通和透明画面各一遍，能更早发现渲染问题。</Note>
+      <Note>用和导出相同的渲染逐帧检查开头一段，普通和透明画面各一遍；完整成片与音轨编码仍需在导出时检查。</Note>
       {unavailable ? (
         <Note error>{unavailable}</Note>
       ) : caps === undefined ? (

@@ -91,6 +91,8 @@ public sealed class FfmpegMediaEncoder : IMediaEncoder
 
         if (request.AudioInputFormat is not (null or "wav" or "mp3" or "flac" or "aac" or "mov" or "ogg"))
             throw new ArgumentException("Restricted audio input format must be wav, mp3, flac, aac, mov or ogg.", nameof(request));
+        if (request.NormalizeAudioDuration && !request.Format.SupportsAlpha() && request.AudioPlan is { Copy: true })
+            throw new ArgumentException("Audio duration normalization requires re-encoding.", nameof(request));
         if (request.MaximumOutputBytes is <= 0)
             throw new ArgumentException("Output byte limit must be positive.", nameof(request));
 

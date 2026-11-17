@@ -115,7 +115,7 @@ public sealed class VideoExporter
                 OutputPath = options.OutputPath, Width = target.PixelWidth, Height = target.PixelHeight,
                 FrameRate = frameRate, TotalFrames = totalFrames,
                 Quality = ExportQualityPreset.For(options.Quality), Format = options.Format,
-                AudioPath = audioPath, AudioPlan = audioPlan, Overwrite = options.Overwrite, Timeout = options.Timeout,
+                AudioPath = audioPath, AudioPlan = audioPlan, NormalizeAudioDuration = options.NormalizeAudioDuration, Overwrite = options.Overwrite, Timeout = options.Timeout,
             };
             session = await _encoder.StartAsync(request, cancellationToken).ConfigureAwait(false);
         }
@@ -458,11 +458,15 @@ public sealed class VideoExporter
 
         if (deltaUs is { } delta && Math.Abs(delta) > SignificantDurationDeltaUs)
         {
-            warnings.Add(options.AudioEncodingPlanOverride is null
-                ? string.Create(CultureInfo.InvariantCulture,
-                    $"音视频时长相差 {delta / 1000.0:F0} ms，成片会以较短的一方为准（-shortest）。")
-                : string.Create(CultureInfo.InvariantCulture,
-                    $"音视频时长相差 {delta / 1000.0:F0} ms，音轨按计划视频时长裁切。"));
+            warnings.Add(options.NormalizeAudioDuration
+                ? delta > 0
+                    ? string.Create(CultureInfo.InvariantCulture, $"音轨比画面短 {delta / 1000.0:F0} ms，尾部已补静音。")
+                    : string.Create(CultureInfo.InvariantCulture, $"音轨比画面长 {-delta / 1000.0:F0} ms，尾部已截断。")
+                : options.AudioEncodingPlanOverride is null
+                    ? string.Create(CultureInfo.InvariantCulture,
+                        $"音视频时长相差 {delta / 1000.0:F0} ms，成片会以较短的一方为准（-shortest）。")
+                    : string.Create(CultureInfo.InvariantCulture,
+                        $"音视频时长相差 {delta / 1000.0:F0} ms，音轨按计划视频时长裁切。"));
         }
 
         if (encoding.DroppedFrames > 0)

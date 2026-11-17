@@ -57,7 +57,44 @@ public sealed partial class BackendExportJobTests
     }
 
     [Fact]
-    public async Task 实际音频不足或畸形与超计划输入在接受前拒绝并释放全部预留()
+    public async Task 无音频工程默认导出为纯视频并可恢复读取报告()
+    {
+        await using Fixture f = await Fixture.Create(); string id = await f.Project("a", includeAudio: false);
+        var result = await f.Registry.StartExportAsync("a", id, new("0", Metadata: f.Meta()));
+        Assert.True(result.Accepted, result.Error?.Message);
+        JobResponse started = result.Response!;
+        Assert.False(started.ExportInput!.IncludeAudio); Assert.Null(started.ExportInput.Audio);
+        Call call = await f.Exporter.Next();
+        Assert.False(call.Input.IncludeAudio); Assert.Null(call.Input.Audio);
+        Assert.Null(call.Snapshot.AudioPath); Assert.Null(call.Snapshot.AudioAnalysis);
+        call.Release.TrySetResult();
+        Assert.Equal("succeeded", (await f.Terminal("a", started.JobId)).State);
+        byte[] report = f.Registry.ReadExportResult("a", started.JobId).Response!;
+        await f.Restart();
+        JobResponse recovered = Assert.Single(f.Registry.ReadRecoveredJobs("new-bootstrap")).Job;
+        Assert.False(recovered.ExportInput!.IncludeAudio); Assert.Null(recovered.ExportInput.Audio);
+        Assert.Equal(report, f.Registry.ReadExportResult("new-bootstrap", started.JobId, true).Response);
+    }
+
+    [Fact]
+    public async Task 短WAV仍传递固定音频授权并交由执行器补齐()
+    {
+        await using Fixture f = await Fixture.Create(); string id = await f.Project("a", waveSamples: 8000);
+        f.Exporter.SourceAudioDuration = "1000000";
+        var result = await f.Registry.StartExportAsync("a", id, new("0", Metadata: f.Meta()));
+        Assert.True(result.Accepted, result.Error?.Message);
+        JobResponse started = result.Response!;
+        Call call = await f.Exporter.Next();
+        Assert.True(call.Input.IncludeAudio); Assert.NotNull(call.Input.Audio);
+        Assert.True(started.ExportInput!.IncludeAudio); Assert.Equal(started.ExportInput.Audio!.Sha256, call.Input.Audio!.Sha256);
+        call.Release.TrySetResult();
+        Assert.Equal("succeeded", (await f.Terminal("a", started.JobId)).State);
+        ExportReportDto report = JsonSerializer.Deserialize<ExportReportDto>(f.Registry.ReadExportResult("a", started.JobId).Response!, Json)!;
+        Assert.Equal("1000000", report.AudioDurationUs); Assert.Equal("3000000", report.ActualAudioDurationUs);
+    }
+
+    [Fact]
+    public async Task 畸形音频与超计划输入在接受前拒绝并释放全部预留()
     {
         await using Fixture malformed = await Fixture.Create(); string bad = await malformed.Project("a", validWave: false);
         Assert.Equal(BackendErrorCode.ExportAudioUnsupported, (await malformed.Registry.StartExportAsync("a", bad, new("0", Metadata: malformed.Meta()))).Error!.Code);
@@ -270,17 +307,17 @@ public sealed partial class BackendExportJobTests
             registry.ConfigureExportTasks(Exporter, new(true, true, true), new() { MaxMediaBytes = maximum });
         }
         internal RequestMetadataDto Meta() => new(Guid.NewGuid().ToString("N"), _host, Clock.GetUtcNow().AddMinutes(1));
-        internal async Task<string> Project(string client, bool validWave = true, byte[]? audioBytes = null)
+        internal async Task<string> Project(string client, bool validWave = true, byte[]? audioBytes = null, bool includeAudio = true, int waveSamples = 24000)
         {
-            byte[] wave = new byte[44 + 48000]; "RIFF"u8.CopyTo(wave); BinaryPrimitives.WriteInt32LittleEndian(wave.AsSpan(4), wave.Length - 8);
+            byte[] wave = new byte[44 + waveSamples * 2]; "RIFF"u8.CopyTo(wave); BinaryPrimitives.WriteInt32LittleEndian(wave.AsSpan(4), wave.Length - 8);
             "WAVEfmt "u8.CopyTo(wave.AsSpan(8)); BinaryPrimitives.WriteInt32LittleEndian(wave.AsSpan(16), 16);
             BinaryPrimitives.WriteInt16LittleEndian(wave.AsSpan(20), 1); BinaryPrimitives.WriteInt16LittleEndian(wave.AsSpan(22), 1);
             BinaryPrimitives.WriteInt32LittleEndian(wave.AsSpan(24), 8000); BinaryPrimitives.WriteInt32LittleEndian(wave.AsSpan(28), 16000);
             BinaryPrimitives.WriteInt16LittleEndian(wave.AsSpan(32), 2); BinaryPrimitives.WriteInt16LittleEndian(wave.AsSpan(34), 16);
-            "data"u8.CopyTo(wave.AsSpan(36)); BinaryPrimitives.WriteInt32LittleEndian(wave.AsSpan(40), 48000);
-            StoredAsset audio = await Resources.UploadAsync(client, "song.wav", "audio/wav", new MemoryStream(audioBytes ?? (validWave ? wave : [1, 2, 3])));
+            "data"u8.CopyTo(wave.AsSpan(36)); BinaryPrimitives.WriteInt32LittleEndian(wave.AsSpan(40), waveSamples * 2);
+            StoredAsset? audio = includeAudio ? await Resources.UploadAsync(client, "song.wav", "audio/wav", new MemoryStream(audioBytes ?? (validWave ? wave : [1, 2, 3]))) : null;
             StoredAsset lyrics = await Resources.UploadAsync(client, "song.lrc", "text/plain", new MemoryStream("[00:00.00]<00:00.00>hello<00:03.00>\n"u8.ToArray()));
-            var created = await Registry.CreateAsync(client, new("export", audio.AssetId, lyrics.AssetId, new(16, 16, OutputDurationUs: 3000000), ImporterId: "lrc.enhanced", Metadata: Meta()));
+            var created = await Registry.CreateAsync(client, new("export", audio?.AssetId, lyrics.AssetId, new(16, 16, OutputDurationUs: 3000000), ImporterId: "lrc.enhanced", Metadata: Meta()));
             Assert.True(created.Accepted);
             return created.Session!.ProjectSessionId;
         }

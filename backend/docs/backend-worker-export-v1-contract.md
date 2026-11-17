@@ -1,5 +1,7 @@
 # 静态工程独立导出 Worker 私有合同
 
+> **0.114.1／合同1.55.1：** 当前受管导出保留完整视频帧计划；短音轨补静音、长音轨截断，没有音频声明和受管源时统一纯视频（有效`includeAudio=false`）。源文件损坏、无法解码、授权和身份检查保留。报告`audioDurationUs`为真实源时长，`actualAudioDurationUs`为成片音轨时长，继续校验后者与视频计划的50ms容差。分析不补静音、不延长，效果沿用缺失分析语义。下文旧批次的单profile和默认预算为历史范围，当前完整行为以[统一API §11](architecture/backend-api.md#11-独立成片导出任务)为准。
+
 > **0.71增量入口：** 固定MP3 LayerIII／native FLAC音轨导出有限出口已完成，旧WAV／纯视频保持原执行profile，新增compressed执行profile；完整strict EOF按源采样帧计数≤300秒、整数coverage、AAC／PCM16策略及nullable legacy wire／恢复门禁以[B4计划§12](archive/plans/backend-b4-plan.md#b4-compressed-export-plan)／ADR-0216为准。真实旧0.70.1Workerdisabled，重开后同源分析采用修复及新540／原186独立验证、真正HTTP385请求3560断言与最终SHA见[实施§26](archive/history/backend-extraction-progress.md#b4-compressed-export-0710)。当前HTTP只维护于[统一API](architecture/backend-api.md)；下文首批B4-B合同及0.69增量保持各自历史范围，不作为当前完整profile列表。完整B3／B4仍未完成。
 
 > **0.69增量：** 下文首批单profile／拒分析／预算记录保留其历史范围；当前B4-E已增加完整`static-lyrics-scene-analysis-v1`，旧`static-lyrics-scene-v1`仍仅null。唯一snapshot-v1／Source自动选profile、Available canonical／Failed／NoStream完整保真，总4MiB深200k及实际wire同规则闭口，不截断。public旧sourceProfile保留并增sourceProfiles，私有export真实probe匹配EngineIdentity与双profiles，旧Worker不虚称兼容；purevideo保完整声明但禁止源音频IO，true grant重绑保Media身份，sourceSHA为原编码。preview／validation扣24／32头admission，export按实际metadata＋32在spawn/send前guard，不能承诺所有动态封包均admission拒绝。实际有限559／559及真正HTTP232请求／1864断言、三片各30完整解码帧／首帧oracle见[实施§23](archive/history/backend-extraction-progress.md#b4-analysis-static-profile-0690)／ADR-0213；当前HTTP只维护于[统一API](architecture/backend-api.md)。新profile不表示音频驱动视觉或完整B3／B4完成。
@@ -13,13 +15,13 @@ Worker 在任何握手前建立 Linux 私有进程组。仅导出专用 Worker �
 
 `task-export-v1` 输入为 32 字节 KEX1 header、至多 32KiB 严格 JSON metadata，以及原净快照字节。总输入至多 4MiB，按实际 metadata 长度扣预算；输入 SHA 覆盖整个封包，独立 source SHA 仅覆盖原净快照。metadata 包含两个不同 profile、格式、是否带音轨、Host 独有候选路径、工具路径和可选音频授权。task GUID、source SHA、input SHA、格式与音轨选项在每条进度、错误和结果回执中精确关联；其他帧／会话／验证消息字段不能混入导出回执。
 
-Worker 逐字段还原 `Project`，重新编码后逐字节核对原静态快照，随后才重绑定授权音频。它不调用会建立默认表现程序的 `Project.Create`。来源音频描述不是 IO 授权：带音轨必须另有 Host 固定的路径／SHA／大小能力，Worker 在使用前后检查规则文件、非符号链接、大小、SHA、自包含 RIFF/WAVE PCM16、mono／stereo 和精确样本时长。强制 WAV 解复用和 file／pipe 协议白名单；源音频时长必须不小于派生视频时长。显式纯视频清除音频输入，不读取快照中的音频声明。
+Worker 逐字段还原 `Project`，重新编码后逐字节核对原静态快照，随后才重绑定授权音频。它不调用会建立默认表现程序的 `Project.Create`。来源音频描述不是 IO 授权：带音轨必须另有 Host 固定的路径／SHA／大小能力，Worker 在使用前后检查规则文件、非符号链接、大小、SHA、自包含 RIFF/WAVE PCM16、mono／stereo 和精确样本时长。强制 WAV 解复用和 file／pipe 协议白名单；源音频按完整帧计划补静音或截断，源不足不拒绝。显式纯视频清除音频输入，不读取快照中的音频声明。
 
 正式帧数使用共用 `CompositionFramePlan`，保持原 `Round(AwayFromZero)`、至少一帧以及整数帧时刻。名义和派生时长均至多 10 秒，帧率至多 60，计划至多 600 帧，画布至多 1920×1080 且本地 BGRA 不超过 8MiB；MP4 要求偶数尺寸。正式渲染固定 Final，编码固定 Standard。渲染包装器拒绝任何实际 Error、未协商诊断、错误像素形状和单帧执行失败，避免原桌面普通错误占位策略在此严格能力下产生成功影片。桌面原默认占位语义保持。
 
 原导出器真实回调经容量一的 DropOldest channel 和唯一 pump 发送，回执保留真实单调序号及完成计数。`Committing` 映射为 `preparing-result`，`Completed` 为 `prepared`；这两项都是私有候选的进度，不能使公开任务提前进入不可取消状态。Host 校验任务／来源／选项／序号／阶段及计数；成功终态必须跟随已排水的 `prepared`，迟到进度不能覆盖已完成调用。Worker 不累计已完成操作任务，只保留有界活动操作表。
 
-实际产物以强制 MOV 解复用和 `-count_frames` 完整解码探测。必须有匹配的 codec、Alpha 像素格式、尺寸和精确有理帧率；实际解码帧数与写入帧数均等于计划，failed／dropped 为零。产物视频时长与派生计划差至多 200ms；带音轨必须有正时长和对应 AAC／PCM codec，实际音轨与派生时长差至多 50ms（明确量化容差）。源音轨仍须精确足够，不以该容差放宽。最后检查候选规则文件、大小和 SHA。媒体不经 IPC，结果只有脱敏完整报告和受校验的大小／SHA。
+实际产物以强制 MOV 解复用和 `-count_frames` 完整解码探测。必须有匹配的 codec、Alpha 像素格式、尺寸和精确有理帧率；实际解码帧数与写入帧数均等于计划，failed／dropped 为零。产物视频时长与派生计划差至多 200ms；带音轨必须有正时长和对应 AAC／PCM codec，实际音轨与派生时长差至多 50ms（明确量化容差）。源音轨可短于画面，报告仍保留真实源时长。最后检查候选规则文件、大小和 SHA。媒体不经 IPC，结果只有脱敏完整报告和受校验的大小／SHA。
 
 报告 JSON 至多 256KiB，warnings 至多 256，实际发生至多 512。`IsVerified` 如实保留原导出器对名义时长的验证值，`StrictlyVerified` 独立表示上述新能力校验；低帧率至少一帧可能使原值为 false，不能静默改写。完整实际诊断保留 epoch、连续 sequence、instance、artifact、stage、time、源码逻辑位置和 package 身份；成功报告不能含 Error。累计诊断在进入原导出器集合前守条数和有界 JSON 字节预算。
 

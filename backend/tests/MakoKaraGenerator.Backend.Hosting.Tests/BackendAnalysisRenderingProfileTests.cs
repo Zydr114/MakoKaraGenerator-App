@@ -129,18 +129,19 @@ public sealed partial class BackendAnalysisAdoptionTests
     private sealed class ProfileExport : IBackendExportExecutor, IBackendRenderBackendExecutor<IBackendExportExecutor>
     {
         internal ProjectSnapshot? Prepared, Executed;
+        internal BackendExportExecutionInput? LastInput;
         public IBackendExportExecutor WithRenderBackend(string renderBackend) => this;
         public Task<BackendExportCapabilities> ProbeAsync(CancellationToken cancellationToken = default) => Task.FromResult(new BackendExportCapabilities(true, true, true));
         public void ValidateInput(ProjectSnapshot snapshot, BackendExportExecutionInput input) => Prepared = snapshot;
         public async Task<ExportReportDto> ExecuteAsync(ProjectSnapshot snapshot, BackendExportExecutionInput input,
             IProgress<BackendJobProgressDto>? progress = null, CancellationToken cancellationToken = default)
         {
-            Executed = snapshot; byte[] bytes = "fixed profile export seam"u8.ToArray(); await File.WriteAllBytesAsync(input.CandidatePath, bytes, cancellationToken);
+            Executed = snapshot; LastInput = input; byte[] bytes = "fixed profile export seam"u8.ToArray(); await File.WriteAllBytesAsync(input.CandidatePath, bytes, cancellationToken);
             var c = snapshot.Composition; var plan = MakoKaraGenerator.Core.Time.CompositionFramePlan.Create(c.OutputDurationUs!.Value, c.FrameRate);
             string duration = plan.VideoDurationUs.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            return new(input.Format, false, plan.TotalFrames, plan.TotalFrames, plan.TotalFrames, 0, 0, c.CanvasWidth, c.CanvasHeight,
-                c.FrameRate.Numerator, c.FrameRate.Denominator, duration, duration, null, "h264", null, "yuv420p", false,
-                bytes.Length, WorkerProtocol.ComputeSha256(bytes), [], [], true, null, true);
+            return new(input.Format, input.IncludeAudio, plan.TotalFrames, plan.TotalFrames, plan.TotalFrames, 0, 0, c.CanvasWidth, c.CanvasHeight,
+                c.FrameRate.Numerator, c.FrameRate.Denominator, duration, duration, input.IncludeAudio ? "8000" : null, "h264", input.IncludeAudio ? "aac" : null, "yuv420p", false,
+                bytes.Length, WorkerProtocol.ComputeSha256(bytes), [], [], true, input.IncludeAudio ? duration : null, true);
         }
     }
 }

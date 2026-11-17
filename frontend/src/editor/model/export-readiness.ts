@@ -212,7 +212,8 @@ export function readinessChecks(input: ReadinessInput): ReadinessCheck[] {
     if (audio && (!resourceUsable(audio) || audio.preparationStatus === 'unavailable')) {
       checks.push({ id: 'audio', level: 'block', title: '音轨', text: `音频${audio.preparationStatus === 'unavailable' ? '无法准备' : resourceStatusText(audio)}，不能放进成片。可以替换音频，或取消“含音轨”。`, fix: { kind: 'settings', group: 'audio' } });
     } else {
-      checks.push(ok('audio', '音轨', audio ? `包含音频${formatBytes(audio.sizeBytes) ? `（${formatBytes(audio.sizeBytes)}）` : ''}。` : '包含音频。'));
+      const size = audio ? formatBytes(audio.sizeBytes) : undefined;
+      checks.push(ok('audio', '音轨', `包含音频${size ? `（${size}）` : ''}。音轨较短时尾部补静音，较长时截断至成片结束。`));
     }
   } else {
     checks.push({ id: 'audio', level: 'info', title: '音轨', text: '不含音轨，只导出画面。' });

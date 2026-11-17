@@ -1,5 +1,27 @@
 import { describe, expect, it } from 'vitest';
-import { diagnosticText } from '../../src/editor/model/render-job';
+import { diagnosticText, exportReportFacts } from '../../src/editor/model/render-job';
+import { micros, type ExportReport } from '../../src/protocol';
+
+const report = (overrides: Partial<ExportReport> = {}): ExportReport => ({
+  format: 'opaqueMp4', audioIncluded: true, expectedFrames: 90, decodedFrames: 90, framesWritten: 90,
+  droppedFrames: 0, failedFrames: 0, width: 1920, height: 1080, frameRateNumerator: 30, frameRateDenominator: 1,
+  derivedVideoDurationUs: micros(3_000_000), actualVideoDurationUs: micros(3_000_000),
+  audioDurationUs: micros(1_000_000), videoCodec: 'h264', audioCodec: 'aac', pixelFormat: 'yuv420p',
+  hasAlpha: false, mediaSize: 1024, sha256: 'a'.repeat(64), warnings: [], diagnostics: [],
+  isVerified: true, actualAudioDurationUs: micros(3_000_000), strictlyVerified: true,
+  requestedQuality: 'standard', actualQuality: 'standard', ...overrides,
+});
+
+describe('导出音轨报告', () => {
+  it('区分原始音轨和成片音轨的实际时长；纯画面不显示源音频', () => {
+    const facts = exportReportFacts(report());
+    expect(facts.find((fact) => fact.label === '音轨')?.value).toContain('0:03.000');
+    expect(facts.find((fact) => fact.label === '源音频')?.value).toBe('0:01.000');
+    const silent = exportReportFacts(report({ audioIncluded: false, audioCodec: null, audioDurationUs: null, actualAudioDurationUs: null }));
+    expect(silent.find((fact) => fact.label === '音轨')?.value).toBe('没有');
+    expect(silent.some((fact) => fact.label === '源音频')).toBe(false);
+  });
+});
 
 describe('导出源材质失败', () => {
   it('显示真实源、时刻、阶段与结构预算', () => {

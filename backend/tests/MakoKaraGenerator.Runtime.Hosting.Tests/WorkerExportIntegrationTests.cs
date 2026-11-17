@@ -55,6 +55,7 @@ public sealed class WorkerExportIntegrationTests(ITestOutputHelper output)
         long sourceSamples = await new FfmpegPcmReader(TestMediaToolPaths.Ffmpeg).ReadMonoSamplesAtRateAsync(source, 44100, _ => ValueTask.CompletedTask);
         Assert.Equal((sourceSamples * 1_000_000 / 44100).ToString(CultureInfo.InvariantCulture), report.AudioDurationUs);
         Assert.Equal(0, report.FailedFrames); Assert.Equal(0, report.DroppedFrames); Assert.True(report.AudioIncluded);
+        Assert.Contains(report.Warnings, value => value.Contains("尾部已截断", StringComparison.Ordinal));
         Assert.Equal(format != "opaqueMp4", report.HasAlpha); Assert.Equal(new FileInfo(candidate).Length, report.MediaSize);
         Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(await File.ReadAllBytesAsync(candidate))), report.Sha256);
         Assert.Empty(report.Diagnostics); Assert.DoesNotContain(report.Warnings, value => value.Contains(temp.Path, StringComparison.Ordinal));
@@ -106,16 +107,23 @@ public sealed class WorkerExportIntegrationTests(ITestOutputHelper output)
         Assert.True(report.StrictlyVerified); Assert.False(report.AudioIncluded); Assert.Null(report.AudioCodec); Assert.Null(report.ActualAudioDurationUs);
     }
     [Fact]
-    public async Task 音频授权SHA或时长错配必须失败且不降级静音成功()
+    public async Task 短音轨由真实Worker补静音但音频SHA错配仍必须失败()
     {
         using TemporaryDirectory temp = new(); string wav = temp.FilePath("short.wav"); await File.WriteAllBytesAsync(wav, Wave(1, 1));
         var grant = new BackendExportAudioGrant(wav, new FileInfo(wav).Length, Convert.ToHexStringLower(SHA256.HashData(await File.ReadAllBytesAsync(wav))));
-        var exception = await Assert.ThrowsAsync<RenderSessionFailureException>(() => Executor().ExecuteAsync(Snapshot(FrameRate.Fps30, true),
-            new("opaqueMp4", true, temp.FilePath("short.mp4"), grant)));
-        Assert.Equal("WorkerExportAudioTooShort", exception.Code); Assert.False(File.Exists(temp.FilePath("short.mp4")));
+        var report = await Executor().ExecuteAsync(Snapshot(FrameRate.Fps30, true), new("opaqueMp4", true, temp.FilePath("short.mp4"), grant));
+        Assert.True(report.StrictlyVerified); Assert.Equal("1000000", report.AudioDurationUs); Assert.Equal(60, report.DecodedFrames);
+        Assert.InRange(long.Parse(report.ActualAudioDurationUs!, CultureInfo.InvariantCulture), 1_950_000, 2_050_000);
+        long count = 0; double tailEnergy = 0;
+        await new FfmpegPcmReader(TestMediaToolPaths.Ffmpeg).ReadMonoSamplesAtRateAsync(temp.FilePath("short.mp4"), 44100, samples =>
+        {
+            foreach (float sample in samples.Span) { if (count >= 55_125) tailEnergy += sample * sample; count++; }
+            return ValueTask.CompletedTask;
+        });
+        Assert.True(count > 80_000); Assert.InRange(tailEnergy / (count - 55_125), 0, .000001);
         var corrupt = grant with { Sha256 = new string('a', 64) };
         await File.WriteAllBytesAsync(wav, Wave(1, 3)); corrupt = corrupt with { Size = new FileInfo(wav).Length };
-        exception = await Assert.ThrowsAsync<RenderSessionFailureException>(() => Executor().ExecuteAsync(Snapshot(FrameRate.Fps30, true),
+        var exception = await Assert.ThrowsAsync<RenderSessionFailureException>(() => Executor().ExecuteAsync(Snapshot(FrameRate.Fps30, true),
             new("opaqueMp4", true, temp.FilePath("changed.mp4"), corrupt)));
         Assert.Equal("WorkerExportAudioMismatch", exception.Code); Assert.False(File.Exists(temp.FilePath("changed.mp4")));
     }

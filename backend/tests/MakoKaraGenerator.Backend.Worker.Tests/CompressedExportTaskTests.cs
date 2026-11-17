@@ -48,19 +48,64 @@ public sealed class CompressedExportTaskTests
         Assert.Equal("prepared", progress[^1].ExportProgress!.Stage);
     }
 
+    [Theory]
+    [InlineData("mp3", "opaqueMp4")]
+    [InlineData("flac", "opaqueMp4")]
+    [InlineData("wav", "opaqueMp4")]
+    [InlineData("aac", "opaqueMp4")]
+    [InlineData("mov", "opaqueMp4")]
+    [InlineData("ogg", "opaqueMp4")]
+    [InlineData("mp3", "transparentProRes4444")]
+    [InlineData("wav", "transparentProRes4444")]
+    public async Task 短音轨补静音到完整画面且报告真实源时长(string format, string output)
+    {
+        using TemporaryDirectory directory = new(); string source = await EncodeAsync(directory, format, 48000, 1, false);
+        var grant = await GrantAsync(source, format); string candidate = directory.FilePath(output == "opaqueMp4" ? "short.mp4" : "short.mov");
+        var factory = new CountingFactory();
+        WorkerMessage result = await StaticExportTask.ExecuteAsync(Request(grant, candidate, output, 1_000_000), true,
+            _ => Task.CompletedTask, factory, CancellationToken.None);
+        var report = WorkerExportContract.DecodeReport(result.Payload, new(output, true, 8, 4, 30, 1, 30, 1_000_000, grant.AudioProfile));
+        Assert.True(report.StrictlyVerified); Assert.Equal(30, report.DecodedFrames); Assert.Equal(30, factory.Frames);
+        long decodedSourceSamples = await new FfmpegPcmReader(TestMediaToolPaths.Ffmpeg).ReadMonoSamplesAtRateAsync(source, 48000, _ => ValueTask.CompletedTask);
+        Assert.Equal((decodedSourceSamples * 1_000_000 / 48000).ToString(CultureInfo.InvariantCulture), report.AudioDurationUs);
+        Assert.Contains(report.Warnings, value => value.Contains("尾部已补静音", StringComparison.Ordinal));
+        Assert.InRange(long.Parse(report.ActualAudioDurationUs!, CultureInfo.InvariantCulture), 950_000, 1_050_000);
+        long sampleIndex = 0, early = 0, tail = 0; double earlyEnergy = 0, tailEnergy = 0;
+        await new FfmpegPcmReader(TestMediaToolPaths.Ffmpeg).ReadMonoSamplesAtRateAsync(candidate, 48000, data =>
+        {
+            foreach (float sample in data.Span)
+            {
+                if (sampleIndex >= 2400 && sampleIndex < 7200) { earlyEnergy += sample * sample; early++; }
+                if (sampleIndex >= 24000 && sampleIndex < 43200) { tailEnergy += sample * sample; tail++; }
+                sampleIndex++;
+            }
+            return ValueTask.CompletedTask;
+        });
+        Assert.True(early > 0 && Math.Sqrt(earlyEnergy / early) > .03, "前段原始音轨应有声音。");
+        Assert.True(tail > 0 && Math.Sqrt(tailEnergy / tail) < .001, "音轨结束后必须补静音。");
+    }
+
     [Fact]
-    public async Task Probe虚高时长不能让真实短压缩源进入工厂或候选()
+    public async Task Probe虚高时长仍以完整解码采样报告实际短音轨()
     {
         using TemporaryDirectory directory = new(); string source = await EncodeAsync(directory, "mp3", 48000, 1, false);
         string json = JsonSerializer.Serialize(new { streams = new[] { new { codec_name = "mp3", sample_rate = 48000, channels = 1, duration = "1000" } },
             format = new { format_name = "mp3", duration = "1000" } });
-        string probe = CreatePythonScript(directory, "dishonest-probe", "print(" + JsonSerializer.Serialize(json) + ")\n");
-        string candidate = directory.FilePath("must-not-exist.mp4"); var factory = new CountingFactory();
+        string probe = CreatePythonScript(directory, "dishonest-probe", $$"""
+            import subprocess, sys
+            if {{JsonSerializer.Serialize(source)}} in sys.argv:
+                print({{JsonSerializer.Serialize(json)}})
+            else:
+                sys.exit(subprocess.call([{{JsonSerializer.Serialize(TestMediaToolPaths.Ffprobe)}}, *sys.argv[1:]]))
+            """);
+        string candidate = directory.FilePath("padded.mp4"); var factory = new CountingFactory();
         var grant = await GrantAsync(source, "mp3");
-        var failure = await Assert.ThrowsAsync<RenderSessionFailureException>(() => StaticExportTask.ExecuteAsync(
-            Request(grant, candidate, duration: 1_000_000, ffprobe: probe), true,
-            _ => Task.CompletedTask, factory, CancellationToken.None));
-        Assert.Equal("WorkerExportAudioTooShort", failure.Code); Assert.Equal(0, factory.Created); Assert.False(File.Exists(candidate));
+        WorkerMessage result = await StaticExportTask.ExecuteAsync(Request(grant, candidate, duration: 1_000_000, ffprobe: probe), true,
+            _ => Task.CompletedTask, factory, CancellationToken.None);
+        var report = WorkerExportContract.DecodeReport(result.Payload, new("opaqueMp4", true, 8, 4, 30, 1, 30, 1_000_000, grant.AudioProfile));
+        long samples = await new FfmpegPcmReader(TestMediaToolPaths.Ffmpeg).ReadMonoSamplesAtRateAsync(source, 48000, _ => ValueTask.CompletedTask);
+        Assert.Equal((samples * 1_000_000 / 48000).ToString(CultureInfo.InvariantCulture), report.AudioDurationUs);
+        Assert.Equal(1, factory.Created); Assert.Equal(30, factory.Frames); Assert.True(File.Exists(candidate));
     }
 
     [Fact]
@@ -192,20 +237,26 @@ public sealed class CompressedExportTaskTests
             MakoKaraGenerator.Core.Lyrics.LyricsDocument.Create([]), audioPath: "/declaration-only-source")
             with { AudioMedia = new(grant.Sha256, grant.Size, "preserved original name") };
         byte[] bytes = StaticProjectSnapshotCodec.Encode(ProjectSnapshot.FromProject(project)); Guid task = Guid.NewGuid();
-        var metadata = new WorkerExportMetadata(WorkerExportContract.CompressedExecutionProfile, BackendSnapshotProfiles.StaticLyricsScene,
+        var metadata = new WorkerExportMetadata(WorkerExportContract.GetExecutionProfile(grant.AudioProfile), BackendSnapshotProfiles.StaticLyricsScene,
             format, true, candidate, grant, ffmpeg, ffprobe);
         byte[] payload = WorkerExportContract.EncodeInput(task, metadata, bytes);
         return new(WorkerExportContract.RequestKind, "compressed", WorkerProtocol.ComputeSha256(payload), payload,
             taskId: task.ToString("N"), sourceSha256: WorkerProtocol.ComputeSha256(bytes), exportFormat: format, exportIncludeAudio: true);
     }
     private static async Task<WorkerExportAudioGrant> GrantAsync(string path, string format) => new(path, new FileInfo(path).Length,
-        Convert.ToHexStringLower(SHA256.HashData(await File.ReadAllBytesAsync(path))), format == "mp3" ? BackendAudioInputProfiles.Mp3 : BackendAudioInputProfiles.Flac);
+        Convert.ToHexStringLower(SHA256.HashData(await File.ReadAllBytesAsync(path))), format switch
+        {
+            "mp3" => BackendAudioInputProfiles.Mp3, "flac" => BackendAudioInputProfiles.Flac,
+            "aac" => BackendAudioInputProfiles.Aac, "mov" => BackendAudioInputProfiles.Mov,
+            "ogg" => BackendAudioInputProfiles.Ogg, _ => BackendAudioInputProfiles.Pcm16Wave,
+        });
     private static async Task<string> EncodeAsync(TemporaryDirectory directory, string format, int rate, int channels, bool variable)
     {
         string path = directory.FilePath("source." + format);
         var start = new ProcessStartInfo(TestMediaToolPaths.Ffmpeg) { RedirectStandardError = true, RedirectStandardOutput = true, UseShellExecute = false };
         foreach (string argument in new[] { "-v", "error", "-f", "lavfi", "-i", "sine=frequency=997:sample_rate=" + rate.ToString(CultureInfo.InvariantCulture),
-            "-t", "0.213", "-ac", channels.ToString(CultureInfo.InvariantCulture), "-c:a", format == "mp3" ? "libmp3lame" : "flac" }) start.ArgumentList.Add(argument);
+            "-t", "0.213", "-ac", channels.ToString(CultureInfo.InvariantCulture), "-c:a", format switch
+            { "mp3" => "libmp3lame", "flac" => "flac", "aac" or "mov" => "aac", "ogg" => "libvorbis", _ => "pcm_s16le" } }) start.ArgumentList.Add(argument);
         if (format == "mp3") { start.ArgumentList.Add(variable ? "-q:a" : "-b:a"); start.ArgumentList.Add(variable ? "4" : "128k"); }
         start.ArgumentList.Add(path);
         using Process process = Process.Start(start)!; Task<string> stderr = process.StandardError.ReadToEndAsync(); Task<string> stdout = process.StandardOutput.ReadToEndAsync();

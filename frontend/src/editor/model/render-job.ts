@@ -69,7 +69,11 @@ export function isTerminal(state: JobState): boolean {
 
 const FAILURE_TEXT: Record<string, string> = {
   exportInputRejected: '工程里还有不满足导出要求的地方（例如某句或某个字没有时间、文本为空，或输出时长没有确定）。后端没有指出是哪一处（G29），请看上面的准备检查。',
-  exportAudioUnsupported: '工程没有音频，不能导出音轨。请取消“含音轨”。',
+  exportAudioUnsupported: '音频格式不受支持或文件不可用。请检查音频资源，或取消“含音轨”。',
+  WorkerExportAudioUnsupported: '音频格式或声道不受支持，或音频文件已损坏。请检查或替换音频。',
+  WorkerExportAudioDecodeFailed: '音频文件无法解码，可能已损坏。请检查或替换音频。',
+  WorkerExportAudioMismatch: '音频文件已变化或校验失败，请重新添加音频后再导出。',
+  WorkerExportAudioTooShort: '此任务因音轨长度不足失败，请重新开始导出。',
   validationInputRejected: '工程里还有不满足要求的地方，后端没有指出是哪一处（G29），请看上面的准备检查。',
   revisionConflict: '工程在开始前又改了，请再点一次。',
   quotaExceeded: '后端同时能跑的任务已满，请等前一个任务结束。',
@@ -92,6 +96,7 @@ export function exportReportFacts(report: ExportReport): { label: string; value:
     { label: '帧数', value: `${report.framesWritten}/${report.expectedFrames}${report.droppedFrames || report.failedFrames ? `（丢 ${report.droppedFrames}，失败 ${report.failedFrames}）` : ''}` },
     { label: '时长', value: formatTime(Number(duration)) },
     { label: '音轨', value: report.audioIncluded ? `有${report.audioCodec ? `（${report.audioCodec}）` : ''}${report.actualAudioDurationUs ? `，${formatTime(Number(report.actualAudioDurationUs))}` : ''}` : '没有' },
+    ...(report.audioIncluded && report.audioDurationUs !== null ? [{ label: '源音频', value: formatTime(Number(report.audioDurationUs)) }] : []),
     { label: '质量', value: report.actualQuality === report.requestedQuality ? qualityLabel(report.actualQuality) : `${qualityLabel(report.actualQuality)}（要求${qualityLabel(report.requestedQuality)}）` },
     { label: '大小', value: formatBytes(report.mediaSize) ?? `${report.mediaSize} B` },
     { label: '校验', value: report.strictlyVerified ? '已逐帧校验' : '没有通过严格校验' },

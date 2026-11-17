@@ -140,6 +140,7 @@ public sealed partial class ProjectSessionRegistry
             var sourceReport = ProjectValidator.Validate(session.Workspace.Project, ValidationContext.Export);
             if (sourceReport.HasErrors) return Reject<JobResponse>(BackendErrorCode.ExportInputRejected, "工程存在阻断导出的领域错误，需先修正歌词或工程设置。");
             CompositionFramePlan plan = ValidateExportPlan(snapshot, request.Format);
+            request = NormalizeMissingExportAudio(request, snapshot, session.AudioAssetId);
             BackendExportAudioGrant? grant = null; BackendExportAudioReferenceDto? audioReference = null; StoredAsset? capturedAudio = null;
             if (request.IncludeAudio)
             {
@@ -153,8 +154,6 @@ public sealed partial class ProjectSessionRegistry
                 BackendAudioInputInfo info = ClassifyExportAudio(_resources.AcquireRead(clientId, session.AudioAssetId));
                 if (!_exportAudioProfiles.Contains(info.AudioProfile, StringComparer.Ordinal))
                     return Reject<JobResponse>(BackendErrorCode.TaskUnavailable, "当前部署没有此固定音频格式的导出能力。");
-                if (info.SourceDurationUs is { } duration && duration < plan.VideoDurationUs)
-                    return Reject<JobResponse>(BackendErrorCode.ExportAudioUnsupported, "实际音轨不足计划视频时长。");
                 capturedAudio = audio;
                 grant = new(audio.StoragePath, audio.Size, audio.Sha256, info.AudioProfile);
                 audioReference = new(audio.AssetId, audio.Size, audio.Sha256,
@@ -229,6 +228,7 @@ public sealed partial class ProjectSessionRegistry
                 if (ProjectValidator.Validate(session.Workspace.Project, ValidationContext.Export).HasErrors)
                     return Reject<JobResponse>(BackendErrorCode.ExportInputRejected, "工程存在阻断导出的领域错误。");
                 plan = ValidateExportPlan(snapshot, request.Format);
+                request = NormalizeMissingExportAudio(request, snapshot, session.AudioAssetId);
                 inputLease = session.AcquireProjectRuntimeInput(snapshot);
                 inputLease.TransparentOutput = request.Format == "transparentProRes4444";
                 inputLease.WaitForMediaFeatures = true;
@@ -259,8 +259,6 @@ public sealed partial class ProjectSessionRegistry
                 BackendAudioInputInfo info = ClassifyExportAudio(_resources.AcquireRead(clientId, audio.AssetId));
                 if (!_exportAudioProfiles.Contains(info.AudioProfile, StringComparer.Ordinal))
                     return Reject<JobResponse>(BackendErrorCode.TaskUnavailable, "当前部署没有此固定音频格式的导出能力。");
-                if (info.SourceDurationUs is { } duration && duration < plan.VideoDurationUs)
-                    return Reject<JobResponse>(BackendErrorCode.ExportAudioUnsupported, "实际音轨不足计划视频时长。");
                 VerifyFixedAudioSource(clientId, audio);
                 grant = new(audio.StoragePath, audio.Size, audio.Sha256, info.AudioProfile);
                 audioReference = new(audio.AssetId, audio.Size, audio.Sha256,
@@ -360,6 +358,7 @@ public sealed partial class ProjectSessionRegistry
                 if (ProjectValidator.Validate(session.Workspace.Project, ValidationContext.Export).HasErrors)
                     return Reject<JobResponse>(BackendErrorCode.ExportInputRejected, "工程存在阻断导出的领域错误。");
                 plan = ValidateExportPlan(snapshot, request.Format);
+                request = NormalizeMissingExportAudio(request, snapshot, session.AudioAssetId);
                 imageLease = session.AcquireProjectImageRead(snapshot);
                 if (!string.IsNullOrEmpty(session.AudioAssetId))
                 {
@@ -387,8 +386,6 @@ public sealed partial class ProjectSessionRegistry
                 BackendAudioInputInfo info = ClassifyExportAudio(_resources.AcquireRead(clientId, audio.AssetId));
                 if (!_exportAudioProfiles.Contains(info.AudioProfile, StringComparer.Ordinal))
                     return Reject<JobResponse>(BackendErrorCode.TaskUnavailable, "当前部署没有此固定音频格式的导出能力。");
-                if (info.SourceDurationUs is { } duration && duration < plan.VideoDurationUs)
-                    return Reject<JobResponse>(BackendErrorCode.ExportAudioUnsupported, "实际音轨不足计划视频时长。");
                 VerifyFixedAudioSource(clientId, audio);
                 grant = new(audio.StoragePath, audio.Size, audio.Sha256, info.AudioProfile);
                 audioReference = new(audio.AssetId, audio.Size, audio.Sha256,
@@ -455,6 +452,12 @@ public sealed partial class ProjectSessionRegistry
             finally { try { audioPin?.Dispose(); } finally { try { slot?.Dispose(); } finally { disk?.Dispose(); } } }
         }
     }
+
+    // A project without a declared or managed source produces a pure video even when audio was requested.
+    // A declared source with a missing grant remains an error; it must not be mistaken for an audio-free project.
+    private static ExportJobRequest NormalizeMissingExportAudio(ExportJobRequest request, ProjectSnapshot snapshot, string audioAssetId)
+        => request.IncludeAudio && string.IsNullOrEmpty(audioAssetId) && snapshot.AudioPath is null && snapshot.AudioMedia is null
+            ? request with { IncludeAudio = false } : request;
 
     private CompositionFramePlan ValidateExportPlan(ProjectSnapshot snapshot, string format)
     {

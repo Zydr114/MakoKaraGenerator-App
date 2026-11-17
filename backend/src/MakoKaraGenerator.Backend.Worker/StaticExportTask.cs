@@ -131,7 +131,7 @@ internal static class StaticExportTask
         AudioStreamInfo? decodedAudio = null;
         if (metadata.Audio is { } audio)
         {
-            await ValidateAudioAsync(audio, plan, token).ConfigureAwait(false);
+            await ValidateAudioAsync(audio, token).ConfigureAwait(false);
             string format = AudioFormat(audio);
             var actual = await new FfmpegMediaProbe(metadata.FfprobePath).ProbeAsync(audio.Path, format, token).ConfigureAwait(false);
             if (compressedAudio)
@@ -140,15 +140,14 @@ internal static class StaticExportTask
                 long samples = await CountCompressedSamplesAsync(new RestrictedCompressedReader(metadata.FfmpegPath, format), audio.Path,
                     actual!.SampleRate, token, metadata.ResourcePolicy?.MaxCompressedAudioDurationUs,
                     enforceBudget: metadata.ResourcePolicy is not null).ConfigureAwait(false);
-                if ((Int128)samples * 1_000_000 < (Int128)plan.VideoDurationUs * actual.SampleRate) throw Fail("WorkerExportAudioTooShort");
                 sourceAudioDuration = checked((long)((Int128)samples * 1_000_000 / actual.SampleRate));
                 decodedAudio = actual with { DurationUs = sourceAudioDuration.Value };
-                await ValidateAudioAsync(audio, plan, token).ConfigureAwait(false);
+                await ValidateAudioAsync(audio, token).ConfigureAwait(false);
             }
             else
             {
                 // Keep the original precise WAV path and its report values.
-                if (actual is null || actual.CodecName != "pcm_s16le" || actual.Channels is not (1 or 2) || actual.DurationUs < plan.VideoDurationUs)
+                if (actual is null || actual.CodecName != "pcm_s16le" || actual.Channels is not (1 or 2) || actual.DurationUs <= 0)
                     throw Fail("WorkerExportAudioUnsupported");
                 sourceAudioDuration = actual.DurationUs;
             }
@@ -183,9 +182,9 @@ internal static class StaticExportTask
                     Format = metadata.Format == "opaqueMp4" ? ExportVideoFormat.OpaqueMp4 : ExportVideoFormat.TransparentProRes4444,
                     Quality = Quality(metadata.Quality), RenderQuality = RenderQuality.Final, Timeout = metadata.ResourcePolicy?.OperationTimeoutSeconds is { } seconds ? TimeSpan.FromSeconds(seconds) : Timeout.InfiniteTimeSpan,
                     AudioEncodingPlanOverride = compressedAudio ? CompressedAudioEncodingPlan(metadata.Format) : null,
-                    FallbackWarnings = false },
+                    NormalizeAudioDuration = metadata.IncludeAudio, FallbackWarnings = false },
                 new InlineProgress(value => channel.Writer.TryWrite((++sequence, value))), operation.Token).ConfigureAwait(false);
-            if (metadata.Audio is { } pinned) await ValidateAudioAsync(pinned, plan, token).ConfigureAwait(false);
+            if (metadata.Audio is { } pinned) await ValidateAudioAsync(pinned, token).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
             MediaFileInfo produced = probe.Produced ?? throw Fail("WorkerExportMediaVerificationFailed");
             var video = produced.Video!;
@@ -313,7 +312,7 @@ internal static class StaticExportTask
         }).ToArray(), snapshot.HasError);
         WorkerExportContract.ValidateDiagnostics(result); return result;
     }
-    private static async Task ValidateAudioAsync(WorkerExportAudioGrant audio, CompositionFramePlan plan, CancellationToken token)
+    private static async Task ValidateAudioAsync(WorkerExportAudioGrant audio, CancellationToken token)
     {
         CheckPath(audio.Path, false, false);
         if (new FileInfo(audio.Path).Length != audio.Size) throw Fail("WorkerExportAudioMismatch");
@@ -323,7 +322,7 @@ internal static class StaticExportTask
         {
             if (AudioProfile(audio) == BackendAudioInputProfiles.Pcm16Wave)
             {
-                if (WorkerExportPcmWave.Validate(stream, audio.Size) < plan.VideoDurationUs) throw Fail("WorkerExportAudioTooShort");
+                _ = WorkerExportPcmWave.Validate(stream, audio.Size);
             }
             else
             {

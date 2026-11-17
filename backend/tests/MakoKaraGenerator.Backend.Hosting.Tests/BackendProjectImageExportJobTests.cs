@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Collections;
 using System.Reflection;
 using System.Threading.Channels;
@@ -30,6 +31,71 @@ public sealed partial class BackendProjectImageExportJobTests
         Assert.Equal(baseline, f.ReferenceCount);
         Assert.True(f.Session.DrainPinnedInputReadsAsync().IsCompleted);
         f.AssertScheduler(0, 0);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task 无音频图片及固定媒体默认导出均登记为纯视频(bool runtime)
+    {
+        await using Fixture f = await Fixture.Create(runtime: runtime);
+        SetAudioAssetId(f.Session, string.Empty);
+        f.Session.Workspace.Replace(f.Session.Workspace.Project with { AudioPath = null, AudioMedia = null, AudioAnalysis = null });
+        var result = await f.Registry.StartExportAsync("client", f.SessionId, new("0", Metadata: f.Meta()));
+        Assert.True(result.Accepted, result.Error?.Message);
+        JobResponse started = result.Response!;
+        Assert.False(started.ExportInput!.IncludeAudio); Assert.Null(started.ExportInput.Audio);
+        Call call = await f.Executor.Next();
+        Assert.False(call.Input.IncludeAudio); Assert.Null(call.Input.Audio);
+        call.Release.TrySetResult(Pass());
+        Assert.Equal("succeeded", (await f.Terminal(started.JobId)).State);
+        Assert.NotNull(f.Registry.ReadExportResult("client", started.JobId).Response);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task 短WAV的固定授权在图片和固定媒体导出中保留(bool runtime)
+    {
+        await using Fixture f = await Fixture.Create(runtime: runtime);
+        byte[] wav = new byte[44 + 128];
+        "RIFF"u8.CopyTo(wav); BinaryPrimitives.WriteInt32LittleEndian(wav.AsSpan(4), wav.Length - 8);
+        "WAVEfmt "u8.CopyTo(wav.AsSpan(8)); BinaryPrimitives.WriteInt32LittleEndian(wav.AsSpan(16), 16);
+        BinaryPrimitives.WriteInt16LittleEndian(wav.AsSpan(20), 1); BinaryPrimitives.WriteInt16LittleEndian(wav.AsSpan(22), 1);
+        BinaryPrimitives.WriteInt32LittleEndian(wav.AsSpan(24), 8000); BinaryPrimitives.WriteInt32LittleEndian(wav.AsSpan(28), 16000);
+        BinaryPrimitives.WriteInt16LittleEndian(wav.AsSpan(32), 2); BinaryPrimitives.WriteInt16LittleEndian(wav.AsSpan(34), 16);
+        "data"u8.CopyTo(wav.AsSpan(36)); BinaryPrimitives.WriteInt32LittleEndian(wav.AsSpan(40), 128);
+        StoredAsset audio = await f.Resources.UploadAsync("client", "short.wav", "audio/wav", new MemoryStream(wav));
+        SetAudioAssetId(f.Session, audio.AssetId);
+        f.Session.Workspace.Replace(f.Session.Workspace.Project with
+        { AudioPath = audio.StoragePath, AudioMedia = new(audio.Sha256, audio.Size, audio.FileName), AudioAnalysis = null });
+        var result = await f.Registry.StartExportAsync("client", f.SessionId, new("0", Metadata: f.Meta()));
+        Assert.True(result.Accepted, result.Error?.Message);
+        JobResponse started = result.Response!;
+        Assert.True(started.ExportInput!.IncludeAudio); Assert.Equal(audio.Sha256, started.ExportInput.Audio!.Sha256);
+        Call call = await f.Executor.Next();
+        Assert.True(call.Input.IncludeAudio); Assert.Equal(audio.Sha256, call.Input.Audio!.Sha256);
+        call.Release.TrySetResult(Pass() with { AudioIncluded = true, AudioDurationUs = "8000", AudioCodec = "aac", ActualAudioDurationUs = "3000000" });
+        Assert.Equal("succeeded", (await f.Terminal(started.JobId)).State);
+        Assert.NotNull(f.Registry.ReadExportResult("client", started.JobId).Response);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task 声明音频却缺少授权不会被当作无音频降级(bool runtime)
+    {
+        await using Fixture f = await Fixture.Create(runtime: runtime);
+        string original = f.Session.AudioAssetId;
+        SetAudioAssetId(f.Session, string.Empty);
+        try
+        {
+            var result = await f.Registry.StartExportAsync("client", f.SessionId, new("0", Metadata: f.Meta()));
+            Assert.False(result.Accepted);
+            Assert.Equal(BackendErrorCode.ExportAudioUnsupported, result.Error!.Code);
+            Assert.Equal(0, f.Executor.Calls);
+        }
+        finally { SetAudioAssetId(f.Session, original); }
     }
 
     [Fact]
@@ -198,7 +264,7 @@ public sealed partial class BackendProjectImageExportJobTests
             .SetValue(session, value);
 
     private sealed record Call(TaskCompletionSource<ExportReportDto> Release, byte[] ImageBytes, byte[] EncodedImage,
-        TaskCompletionSource CancellationReceived, TaskCompletionSource Drain);
+        TaskCompletionSource CancellationReceived, TaskCompletionSource Drain, BackendExportExecutionInput Input);
 
     private sealed class Executor : IBackendExportExecutor, IBackendImageExportExecutor
     {
@@ -227,8 +293,7 @@ public sealed partial class BackendProjectImageExportJobTests
             if (!RuntimeEnabled) throw new InvalidOperationException("图片导出不得进入通用执行器。");
             var source = ProjectRuntimeInputCodec.Decode(input.RuntimeSource);
             Assert.True(File.Exists(source.Grant!.FilePath));
-            await ExecuteImageAsync(snapshot, input.RuntimeSource, input, progress, cancellationToken);
-            return Pass();
+            return await ExecuteImageAsync(snapshot, input.RuntimeSource, input, progress, cancellationToken);
         }
         public async Task<ExportReportDto> ExecuteImageAsync(ProjectSnapshot snapshot, ReadOnlyMemory<byte> imageBytes,
             BackendExportExecutionInput input, IProgress<BackendJobProgressDto>? progress = null, CancellationToken cancellationToken = default)
@@ -238,7 +303,7 @@ public sealed partial class BackendProjectImageExportJobTests
             byte[] bytes = imageBytes.ToArray();
             TaskCompletionSource cancelled = new(TaskCreationOptions.RunContinuationsAsynchronously);
             TaskCompletionSource drain = new(TaskCreationOptions.RunContinuationsAsynchronously);
-            _calls.Writer.TryWrite(new(release, bytes, RuntimeEnabled ? bytes : ProjectImagePreviewSnapshotCodec.Encode(snapshot, bytes), cancelled, drain));
+            _calls.Writer.TryWrite(new(release, bytes, RuntimeEnabled ? bytes : ProjectImagePreviewSnapshotCodec.Encode(snapshot, bytes), cancelled, drain, input));
             try
             {
                 ExportReportDto result = await release.Task.WaitAsync(cancellationToken);

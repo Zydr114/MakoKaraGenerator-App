@@ -86,6 +86,9 @@ public sealed record VideoEncodingRequest
     /// <summary>Explicit restricted audio demuxer for managed tasks; null preserves desktop container detection.</summary>
     public string? AudioInputFormat { get; init; }
 
+    /// <summary>将音轨补静音或截断到视频帧计划，要求音频重编码。</summary>
+    public bool NormalizeAudioDuration { get; init; }
+
     /// <summary>Optional FFmpeg output size stop; actual completeness and the OS hard limit remain independently checked.</summary>
     public long? MaximumOutputBytes { get; init; }
 

@@ -44,8 +44,12 @@ public sealed record VideoExportOptions
     public TimeSpan? Timeout { get; init; }
 
     /// <summary>受信任务可明确选择音频编码计划；为 <see langword="null"/> 时保留原源编码自动策略。</summary>
-    /// <remarks>此选项不授予音频路径访问能力，也不代替调用方对固定来源和完整时长的验证。</remarks>
+    /// <remarks>此选项不授予音频路径访问能力，也不代替调用方对固定来源和完整解码的验证。</remarks>
     public AudioEncodingPlan? AudioEncodingPlanOverride { get; init; }
+
+    /// <summary>把音轨补静音或截断到完整视频帧计划，默认保留原音轨策略。</summary>
+    /// <remarks>调用方须先固定并验证实际音频源；不以静音代替读取或解码失败。</remarks>
+    public bool NormalizeAudioDuration { get; init; }
 
     /// <summary>是否把图效果与材质的兜底诊断写成报告文字警告；默认写。</summary>
     /// <remarks>调用方自行收集结构化兜底诊断时关掉，避免同一件事在文字警告里再出现一次。</remarks>

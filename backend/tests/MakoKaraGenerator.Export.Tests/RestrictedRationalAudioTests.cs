@@ -7,12 +7,14 @@ namespace MakoKaraGenerator.Export.Tests;
 
 public sealed class RestrictedRationalAudioTests
 {
-    [Fact]
-    public async Task 强WAV透明有理帧率不得因尾音采样取整丢最后一帧()
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    public async Task 强WAV透明有理帧率归一化保留最后一帧并补静音或截断(int sourceSeconds)
     {
         using TemporaryDirectory directory = new();
         string audioPath = directory.FilePath("source.wav");
-        const int sourceSamples = 44_100 * 3;
+        int sourceSamples = 44_100 * sourceSeconds;
         using (BinaryWriter wave = new(File.Create(audioPath)))
         {
             wave.Write("RIFF"u8); wave.Write(36 + sourceSamples * 2); wave.Write("WAVEfmt "u8);
@@ -26,7 +28,7 @@ public sealed class RestrictedRationalAudioTests
         {
             OutputPath = directory.FilePath("candidate.mov"), Width = 32, Height = 18,
             FrameRate = new(30_000, 1001), TotalFrames = 60, Format = ExportVideoFormat.TransparentProRes4444,
-            AudioPath = audioPath, AudioInputFormat = "wav", AudioPlan = AudioEncodingPlan.Decide("pcm_s16le"),
+            AudioPath = audioPath, AudioInputFormat = "wav", AudioPlan = AudioEncodingPlan.Decide("pcm_s16le"), NormalizeAudioDuration = true,
         }, deadline.Token);
         for (int frameIndex = 0; frameIndex < 60; frameIndex++)
         {
@@ -63,7 +65,8 @@ public sealed class RestrictedRationalAudioTests
             byte[] actual = pcm.ToArray();
             for (int offset = 0; offset < actual.Length; offset += 2)
             {
-                Assert.Equal(0, actual[offset]); Assert.Equal(16, actual[offset + 1]);
+                bool sourceAvailable = offset / 2 < sourceSamples;
+                Assert.Equal(0, actual[offset]); Assert.Equal(sourceAvailable ? 16 : 0, actual[offset + 1]);
             }
         }
     }

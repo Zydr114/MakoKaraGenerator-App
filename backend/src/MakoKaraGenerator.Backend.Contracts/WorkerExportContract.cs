@@ -145,7 +145,7 @@ public static class WorkerExportContract
         if (report.HasAlpha != alpha || report.VideoCodec != (alpha ? "prores" : "h264")
             || (alpha ? !report.PixelFormat.StartsWith("yuva444", StringComparison.Ordinal) : report.PixelFormat != "yuv420p")
             || expected.IncludeAudio && (report.AudioCodec != (alpha ? "pcm_s16le" : "aac")
-                || !Number(report.AudioDurationUs, out long audio) || audio < expected.VideoDurationUs
+                || !Number(report.AudioDurationUs, out long audio)
                 || expected.ResourcePolicy?.MaxCompressedAudioDurationUs is { } compressedLimit
                     && expected.AudioProfile is not null && expected.AudioProfile != BackendAudioInputProfiles.Pcm16Wave && audio > compressedLimit)
             || !expected.IncludeAudio && (report.AudioCodec is not null || report.AudioDurationUs is not null)) throw Invalid("实际格式、Alpha或音轨不符合固定导出选项。");

@@ -36,6 +36,27 @@ public sealed class RestrictedEncodingPolicyTests
         Assert.Equal(wave[..14].Concat(wave[18..36]).Concat(["-shortest"]).Concat(wave[36..43]).Concat(wave[45..]), ordinary);
     }
 
+    [Fact]
+    public async Task 显式音轨归一化补静音并拒绝复制且不改变默认行为()
+    {
+        using TemporaryDirectory directory = new();
+        string audio = directory.FilePath("source.wav"); await File.WriteAllBytesAsync(audio, [0]);
+        VideoEncodingRequest request = new()
+        {
+            OutputPath = directory.FilePath("candidate.mp4"), Width = 32, Height = 18,
+            FrameRate = new(30_000, 1001), TotalFrames = 60, AudioPath = audio,
+            AudioPlan = new(false, "aac", "test"),
+        };
+        var ordinary = FfmpegCommandLine.BuildVideoEncoding(request);
+        Assert.Contains("-shortest", ordinary); Assert.DoesNotContain("apad", ordinary);
+        var normalized = FfmpegCommandLine.BuildVideoEncoding(request with { NormalizeAudioDuration = true });
+        Assert.DoesNotContain("-shortest", normalized); Assert.Contains("apad", normalized);
+        Assert.Equal("apad", normalized[normalized.ToList().IndexOf("-af") + 1]);
+        Assert.Equal("2.002", normalized[normalized.ToList().IndexOf("-t") + 1]);
+        await Assert.ThrowsAsync<ArgumentException>(() => new FfmpegMediaEncoder(directory.FilePath("must-not-run"))
+            .StartAsync(request with { NormalizeAudioDuration = true, AudioPlan = new(true, "aac", "copy") }));
+    }
+
     [Theory]
     [InlineData("mp3", false)]
     [InlineData("flac", false)]

@@ -128,6 +128,27 @@ public sealed class ProjectStoreTests : IDisposable
     }
 
     [Fact]
+    public void 音频导出修复版允许打开同格式01140工程且保持源文件()
+    {
+        ProjectStore.Save(SampleProject(), _directory.Path);
+        string projectPath = _directory.FilePath(ProjectJson.ProjectFileName);
+        string lyricsPath = ProjectFileFixture.LyricsPath(_directory.Path);
+        JsonNode document = JsonNode.Parse(File.ReadAllText(projectPath))!;
+        document["applicationVersion"] = "0.114.0";
+        File.WriteAllText(projectPath, document.ToJsonString());
+        byte[] beforeProject = File.ReadAllBytes(projectPath);
+        byte[] beforeLyrics = File.ReadAllBytes(lyricsPath);
+
+        ProjectLoadResult result = ProjectStore.Load(_directory.Path);
+
+        Assert.Equal("0.114.1", ProductVersion.Current);
+        Assert.True(result.Loaded, result.Report.ToSummary());
+        Assert.False(result.Report.Contains(DiagnosticCode.ApplicationVersionMismatch));
+        Assert.Equal(beforeProject, File.ReadAllBytes(projectPath));
+        Assert.Equal(beforeLyrics, File.ReadAllBytes(lyricsPath));
+    }
+
+    [Fact]
     public void 目标目录不存在时会被创建()
     {
         string nested = Path.Combine(_directory.Path, "a", "b", "song.mkgproj");

@@ -115,6 +115,22 @@ describe('导出：准备检查', () => {
     expect(levels(input({ hasAudio: false })).audio).toBe('info');
   });
 
+  it('音轨短时补静音、长时截断，无音频时只导画面且不阻断', () => {
+    const audio = readinessChecks(input()).find((check) => check.id === 'audio')!;
+    expect(audio.level).toBe('ok');
+    expect(audio.text).toContain('补静音');
+    expect(audio.text).toContain('截断');
+    const silent = readinessChecks(input({ hasAudio: false, includeAudio: true }));
+    expect(silent.find((check) => check.id === 'audio')?.text).toContain('只导出画面');
+    expect(blocked(silent)).toBe(false);
+  });
+
+  it('音频资源损坏仍阻断含音轨导出；选择纯画面时不阻断', () => {
+    const audioResource = { resourceId: 'broken', kind: 'media' as const, roles: ['audio'], status: 'failed' as const };
+    expect(levels(input({ audioResource })).audio).toBe('block');
+    expect(levels(input({ audioResource, includeAudio: false })).audio).toBe('info');
+  });
+
   it('歌词时间问题阻断，修复入口指向第一处', () => {
     const timing = timingProblems([primary], { p: [line('l2', [token('d', '二')], [0, 100])] });
     const check = readinessChecks(input({ timing })).find((c) => c.id === 'timing')!;
@@ -137,5 +153,12 @@ describe('导出：任务文字', () => {
     expect(downloadName(null, 'a/b', 'video/quicktime')).toBe('a-b.mov');
     expect(downloadName('MakoKara-1.mov', '歌名', 'video/mp4')).toBe('歌名.mov');
     expect(downloadName('MakoKara-1.mp4', '  ', 'video/mp4')).toBe('MakoKara-1.mp4');
+  });
+
+  it('音频损坏与格式不支持显示实际原因，不误称没有音频', () => {
+    expect(failureText('WorkerExportAudioDecodeFailed', '独立导出执行器失败')).toContain('无法解码');
+    expect(failureText('WorkerExportAudioUnsupported', '独立导出执行器失败')).toContain('不受支持');
+    expect(failureText('exportAudioUnsupported', '后端说明')).not.toContain('工程没有音频');
+    expect(failureText('WorkerExportAudioMismatch', '独立导出执行器失败')).toContain('音频');
   });
 });

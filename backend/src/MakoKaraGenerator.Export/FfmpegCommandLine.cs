@@ -137,11 +137,10 @@ internal static class FfmpegCommandLine
                 }
             }
 
-            // Desktop keeps its original shortest-input policy. Managed
-            // tasks already verify source audio covers the complete frame plan;
-            // -shortest can otherwise drop the last NTSC frame when PCM sample
-            // rounding makes the trimmed audio a few microseconds shorter.
-            if (request.AudioInputFormat is null) arguments.Add("-shortest");
+            // The managed policy fills any missing audio tail while -t below
+            // caps both short and long sources at the complete frame plan.
+            if (request.NormalizeAudioDuration) arguments.AddRange(["-af", "apad"]);
+            else if (request.AudioInputFormat is null) arguments.Add("-shortest");
 
             // PCM交错队列可能先读到视频EOF之后的音频；单靠-shortest会留下半秒尾音。
             // 按实际请求帧数给输出设置上限，分数帧率也不通过double换算。

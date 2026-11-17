@@ -66,6 +66,18 @@ public sealed class WorkerExportContractTests
         Assert.Throws<WorkerProtocolException>(() => WorkerExportContract.ValidateReport(Report(), expected with { IncludeAudio = false }));
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData(BackendAudioInputProfiles.Mp3)]
+    public void 报告允许短源但仍核对实际成片音轨时长(string? profile)
+    {
+        var expected = new WorkerExportReportExpectation("opaqueMp4", true, 320, 180, 30, 1, 30, 1_000_000, profile);
+        var report = Report() with { AudioIncluded = true, AudioCodec = "aac", AudioDurationUs = "200000", ActualAudioDurationUs = "1000000" };
+        WorkerExportContract.ValidateReport(report, expected);
+        Assert.Throws<WorkerProtocolException>(() => WorkerExportContract.ValidateReport(report with { ActualAudioDurationUs = "200000" }, expected));
+        Assert.Throws<WorkerProtocolException>(() => WorkerExportContract.ValidateReport(report with { AudioDurationUs = "-1" }, expected));
+    }
+
     [Fact]
     public void 私有输入完整保护metadata与snapshot且严格拒绝重复字段()
     {

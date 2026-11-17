@@ -28,6 +28,7 @@ public sealed class TtmlImportCompletionTests
         Assert.DoesNotContain(result.Report.Issues, issue => issue.Severity == IssueSeverity.Error);
         Assert.Contains(result.Report.Issues, issue => issue.Message.Contains("空命名空间", StringComparison.Ordinal));
         Assert.Contains(result.Report.DiscardedFeatures, feature => feature.Contains("agent", StringComparison.Ordinal));
+        Assert.Equal(result.Report.DiscardedFeatures.Distinct(StringComparer.Ordinal).Count(), result.Report.DiscardedFeatures.Count);
 
         Assert.Equal(2, result.Document.Branches.Length);
         LyricBranch main = result.Document.Branches[0];
@@ -285,5 +286,117 @@ public sealed class TtmlImportCompletionTests
             """);
         Assert.Empty(clock.Document.Lines);
         Assert.Contains(clock.Report.Issues, issue => issue.Severity == IssueSeverity.Error);
+
+        LyricsImportResult discontinuous = Import("""
+            <tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttp="http://www.w3.org/ns/ttml#parameter" ttp:timeBase="smpte" ttp:frameRate="25" ttp:markerMode="discontinuous">
+              <body><div><p begin="00:00:01:00" end="00:00:01:10">帧</p></div></body>
+            </tt>
+            """);
+        Assert.Empty(discontinuous.Document.Lines);
+        Assert.Contains(discontinuous.Report.Issues, issue => issue.Severity == IssueSeverity.Error);
+    }
+
+    [Fact]
+    public void Agent_with_inline_or_paragraph_sidecar_keeps_separate_branches_and_document_order()
+    {
+        const string xml = """
+            <tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata" xmlns:tts="http://www.w3.org/ns/ttml#styling">
+              <head><metadata>
+                <ttm:agent xml:id="v1" type="person"><ttm:name type="full">主唱</ttm:name></ttm:agent>
+                <ttm:agent xml:id="v2" type="person"><ttm:name type="full">和声</ttm:name></ttm:agent>
+              </metadata></head>
+              <body><div>
+                <p begin="1s" end="4s" ttm:agent="v1">前<span ttm:role="x-bg" begin="1s" end="2s">啊</span><span ttm:agent="v2" begin="2s" end="3s">合<span ttm:agent="v1" begin="2.5s" end="3s">再主</span></span>后<span ttm:role="x-translation" xml:lang="zh-CN">翻译</span></p>
+                <p begin="5s" end="6s" ttm:agent="v1 v2">重唱</p>
+                <p begin="6s" end="7s" ttm:agent="v2 v1">二</p>
+                <p begin="7s" end="8s" ttm:agent="v1"><span tts:ruby="base" ttm:agent="v2">漢</span><span tts:ruby="text">かん</span></p>
+                <p begin="8s" end="9s" ttm:agent="v1"><span ttm:agent="v2" begin="5s" end="6s">被裁剪</span></p>
+                <p begin="9s" end="10s" ttm:agent="v1">末句</p>
+              </div></body>
+            </tt>
+            """;
+        LyricsImportResult result = Import(xml);
+        Assert.DoesNotContain(result.Report.Issues, issue => issue.Severity == IssueSeverity.Error);
+        LyricBranch primary = result.Document.PrimaryBranch!;
+        Assert.Equal("主唱", primary.Name);
+        Assert.Equal(["前后", "再主", "末句"], primary.Lines.Select(line => line.Text));
+
+        LyricBranch bg = result.Document.Branches.Single(branch => branch.Name == "主唱 · 和声");
+        Assert.Equal(LyricBranchRole.Custom, bg.Role);
+        Assert.Equal("啊", Assert.Single(bg.Lines).Text);
+
+        LyricBranch tr = result.Document.Branches.Single(branch => branch.Name == "主唱 · 翻译");
+        Assert.Equal(LyricBranchRole.Translation, tr.Role);
+        Assert.Equal("zh-CN", tr.Language);
+        Assert.Equal("翻译", Assert.Single(tr.Lines).Text);
+
+        LyricBranch duet = result.Document.Branches.Single(branch => branch.Name == "主唱、和声");
+        Assert.Equal(["重唱", "二"], duet.Lines.Select(line => line.Text));
+
+        LyricBranch harmony = result.Document.Branches.Single(branch => branch.Name == "和声");
+        Assert.Equal(["合", "漢", "被裁剪"], harmony.Lines.Select(line => line.Text));
+        Assert.Equal("かん", Assert.Single(harmony.Lines[1].RubyAnnotations).Text);
+        Assert.Null(harmony.Lines[2].Time);
+        Assert.Equal(TimingStatus.Missing, harmony.Lines[2].TimingStatus);
+        Assert.Contains(result.Report.Issues, issue => issue.Message.Contains("裁剪", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Complex_grouped_ruby_and_multi_pair_container_map_1_to_1_and_ambiguous_keeps_base_timing()
+    {
+        LyricsImportResult grouped = Import("""
+            <tt xmlns="http://www.w3.org/ns/ttml" xmlns:tts="http://www.w3.org/ns/ttml#styling">
+              <body><div>
+                <p begin="1s" end="3s">
+                  <span tts:ruby="container">
+                    <span tts:ruby="baseContainer"><span tts:ruby="base" begin="0s" end="0.5s">東</span><span tts:ruby="base" begin="0.5s" end="1s">京</span></span>
+                    <span tts:ruby="textContainer"><span tts:ruby="text">とう</span><span tts:ruby="text">きょう</span></span>
+                  </span>
+                </p>
+                <p begin="3s" end="5s">
+                  <span tts:ruby="container"><span tts:ruby="base">朝</span><span tts:ruby="text">あさ</span><span tts:ruby="base">顔</span><span tts:ruby="text">がお</span></span>
+                </p>
+              </div></body>
+            </tt>
+            """);
+        Assert.DoesNotContain(grouped.Report.Issues, issue => issue.Severity == IssueSeverity.Error);
+        Assert.Equal(["東", "京"], grouped.Document.Lines[0].Tokens.Select(token => token.Text));
+        Assert.Equal(["とう", "きょう"], grouped.Document.Lines[0].RubyAnnotations.Select(ruby => ruby.Text));
+        Assert.Equal(grouped.Document.Lines[0].Tokens.Select(token => token.Id), grouped.Document.Lines[0].RubyAnnotations.Select(ruby => ruby.BaseTokenId));
+        Assert.Equal(["朝", "顔"], grouped.Document.Lines[1].Tokens.Select(token => token.Text));
+        Assert.Equal(["あさ", "がお"], grouped.Document.Lines[1].RubyAnnotations.Select(ruby => ruby.Text));
+
+        LyricsImportResult ambiguous = Import("""
+            <tt xmlns="http://www.w3.org/ns/ttml" xmlns:tts="http://www.w3.org/ns/ttml#styling">
+              <body><div><p begin="1s" end="2s"><span tts:ruby="container">
+                <span tts:ruby="baseContainer"><span tts:ruby="base" begin="0s" end="0.4s">東</span><span tts:ruby="base" begin="0.4s" end="0.9s">京</span></span>
+                <span tts:ruby="textContainer"><span tts:ruby="text">とうきょう</span></span>
+              </span></p></div></body>
+            </tt>
+            """);
+        LyricLine line = Assert.Single(ambiguous.Document.Lines);
+        Assert.Equal("東京", line.Text);
+        Assert.Empty(line.RubyAnnotations);
+        Assert.Equal(new TimeRange(1_000_000, 1_400_000), line.Tokens[0].Time);
+        Assert.Equal(new TimeRange(1_400_000, 1_900_000), line.Tokens[1].Time);
+        Assert.Contains(ambiguous.Report.DiscardedFeatures, feature => feature.Contains("rubyAssociationAmbiguous", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Amll_head_namespace_reset_and_style_cycle_behave_cleanly()
+    {
+        LyricsImportResult amllHead = Import("""
+            <tt xmlns="http://www.w3.org/ns/ttml" xmlns:amll="http://www.example.com/ns/amll" xmlns:ttm="http://www.w3.org/ns/ttml#metadata" xmlns:tts="http://www.w3.org/ns/ttml#styling" xmlns:itunes="http://music.apple.com/lyric-ttml-internal" itunes:timing="Word">
+              <head xmlns=""><metadata><ttm:agent type="person" xml:id="v1"><ttm:name type="full">主唱</ttm:name></ttm:agent><amll:meta key="musicName" value="曲"/></metadata><styling><style xml:id="rb" tts:ruby="base"/><style xml:id="rt" tts:ruby="text"/><style xml:id="c1" style="c2"/><style xml:id="c2" style="c1"/></styling></head>
+              <body xmlns=""><div><p begin="1s" end="2s" ttm:agent="v1"><span style="rb">海</span><span style="rt">うみ</span><span style="c1">風</span></p></div></body>
+            </tt>
+            """);
+        LyricLine line = Assert.Single(amllHead.Document.Lines);
+        Assert.Equal("海風", line.Text);
+        Assert.Equal("うみ", Assert.Single(line.RubyAnnotations).Text);
+        Assert.DoesNotContain(amllHead.Report.DiscardedFeatures, feature => feature.Contains("未映射 XML 属性", StringComparison.Ordinal));
+        Assert.DoesNotContain(amllHead.Report.DiscardedFeatures, feature => feature.Contains("未知命名空间", StringComparison.Ordinal));
+        Assert.DoesNotContain(amllHead.Report.DiscardedFeatures, feature => feature.Contains("布局/样式资源", StringComparison.Ordinal));
+        Assert.Contains(amllHead.Report.DiscardedFeatures, feature => feature.Contains("循环", StringComparison.Ordinal));
     }
 }

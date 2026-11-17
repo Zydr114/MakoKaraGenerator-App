@@ -1,6 +1,6 @@
 # 导出音频归一化修复（2026-11-17）
 
-分支：`fix/export-audio-normalization`；开发基线：`2552df3`；交付产品 `0.114.1`，合同 `1.55.1`。独立分支交付 AppImage，不合并主分支。
+分支：`fix/export-audio-normalization`；开发基线：`2552df3`；交付产品 `0.114.1`，合同 `1.55.1`。初始按要求以独立分支交付 AppImage；2026-11-17 用户手测通过，随后授权合并至 `main` 并推送远程。
 
 ## 原因
 
@@ -40,4 +40,10 @@
 
 最终包 `MakoKaraGenerator-0.114.1-x86_64.AppImage`，183,339,512 字节，SHA-256 `586a465a4416bf3bc717badfac6c7fabf8592fa939316fe777705b0eb75cafe6`。已提取并核对包内 deployment、合同清单及 Worker／Core／Export 程序集与实际发布一致，再原子安装到本机 `~/Applications/`，更新桌面启动器并替换原 0.114.0 包。旧包与启动器备份保存在本次忽略证据目录。最终包在隔离 profile 中实际启动，编辑器、后端连接、预览桥就绪并正常退出；安装文件与该包 SHA 一致。
 
-分支保持独立，无合并操作。所有本地证据位于忽略目录 `.local/investigation-nayuta-export-20261117/`，不提交用户工程、成片、profile 或凭证。此次覆盖 Linux-x64 CPU 导出、MP4 与透明 MOV；不是 Windows 或全 GPU 渲染路径验收。
+所有本地证据位于忽略目录 `.local/investigation-nayuta-export-20261117/`，不提交用户工程、成片、profile 或凭证。此次覆盖 Linux-x64 CPU 导出、MP4 与透明 MOV；不是 Windows 或全 GPU 渲染路径验收。
+
+### 手测与主分支集成
+
+2026-11-17 用户确认本机 AppImage 手测通过，并授权合并到 `main`、推送远程。刷新远程后确认本地与远程 `main` 均为 `2552df3`，是修复分支的祖先；采用快进方式集成，保留三个修复、合同和验收提交及原修复分支。
+
+此次集成仅补充手测与集成记录，生产源码与已验证、已安装的 AppImage 保持一致，无需重新构建或替换安装包。既有自动化与真实工程验收证据沿用上述对应源码和发布，不将本次 Git 集成表述为新一轮运行测试。

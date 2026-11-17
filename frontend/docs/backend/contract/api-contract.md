@@ -164,7 +164,7 @@ Server生成身份；成功structureResult.operation为createNode/copySubtree，
 
 歌词导出scope省略或branch须branchId；document仅允许ttml.project且禁止branchId（连null也拒绝）。计划与导出响应必返scope，document branchId显式null。project profile恢复明确分支集合、身份、关联、raw时间/状态与ruby参数；未承载样式须完整损失计划。AMLL保持选定来源交换。官方AMLL parser按毫秒舍入及超JS安全整数毫秒的精度风险、略去无独立时间注音/普通词的逐字列表、按ruby范围替代基础元素时间的消费端限制均纳入损失；XML仍保微秒与Missing正文，不宣称消费端无损。导出报告新增三个ruby片段计数，未接受损失不发布产物。
 
-上传/创建/再次导入接受application/ttml+xml。多分支项目TTML再次导入须options.sourceBranchId选择源分支（可省不可null，未选SourceBranchRequired，不存在SourceBranchNotFound）；省略来源/失去跨来源关联进入完整原报告。外部多div普通TTML按文档顺序合入候选来源，不把段落任意解释为工程分支。标准父容器与AMLL时间约定分开；agent/旁轨进入报告。
+上传/创建/再次导入接受application/ttml+xml。多分支文档用existing/newBranch再次导入时须options.sourceBranchId选择源分支（可省不可null，未选SourceBranchRequired，不存在SourceBranchNotFound）；省略来源/失去跨来源关联进入完整原报告。1.55.0 起 destination 增加 allSources：只含 kind，把全部分支追加为新来源，一次撤销，不替换已有来源，且不能与 sourceBranchId 同用；粘贴不接受该 kind。外部多 div 在没有歌唱者或旁轨时仍合入一个候选来源。标准父容器与 AMLL 时间约定分开。带明确 AMLL/Apple 标记时，可确认的空命名空间正文会在内存中恢复并报告；项目档和无标记文档保持严格。agent 与旁轨映射为具名分支，不能表达的结构进入报告。
 
 歌词schema v17只迁移v16；无时间兼容片段逐片跟随基础token，高亮与基础token事件分别保语义。静态/package/Worker同源片段数据并不扩大公共B3/B4/B5/B6、浏览器/用户或原性能/长片矩阵。授权目录、音频替换/清除、改名/资源、完整.mktpl惰性传输、真实上下文21属性来源及clip扩缩拆合继续有效。最终验收状态见实施计划与分层证据，不以合同冻结或合成正反例替代运行验收。
 

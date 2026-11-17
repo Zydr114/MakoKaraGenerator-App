@@ -69,7 +69,9 @@ export type LyricTokenCommand =
 
 export type ImportLyricsDestination =
   | { kind: 'existing'; branchId: string }
-  | { kind: 'newBranch'; name: string; role: 'translation' | 'annotation' | 'custom' };
+  | { kind: 'newBranch'; name: string; role: 'translation' | 'annotation' | 'custom' }
+  /** 追加解析文档中的全部分支，不替换工程已有来源。一次命令、一次撤销。 */
+  | { kind: 'allSources' };
 
 export type AppendLyricsDestination = { kind: 'existing'; branchId: string } | { kind: 'newTranslation'; name: string };
 
@@ -78,7 +80,10 @@ export interface LyricsImportOptions {
   encodingName?: string | null;
   splitRule?: TokenSplitRuleName;
   estimateSplitTimes?: boolean;
-  /** 多来源的 TTML 工程文件必须指定导入哪一个来源（合同 1.27.0）。 */
+  /**
+   * 单来源导入时选择解析文档中的一个分支。
+   * 目标是 allSources 时必须省略；多分支文档省略它会得到 SourceBranchRequired。
+   */
   sourceBranchId?: string | null;
 }
 

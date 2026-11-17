@@ -28,6 +28,9 @@ public sealed class LyricsImportDestinationJsonConverter : JsonConverter<LyricsI
             case "newTranslation":
                 ImportCommandJson.Exact(fields, ["kind", "name"], ["kind", "name"]);
                 result = new NewTranslationLyricsDestinationDto(ImportCommandJson.RequiredString(fields, "name")); break;
+            case "allSources":
+                ImportCommandJson.Exact(fields, ["kind"], ["kind"]);
+                result = new AllSourcesLyricsDestinationDto(); break;
             default: throw new JsonException("destination.kind 不受支持。");
         }
         if (!typeToConvert.IsInstanceOfType(result)) throw new JsonException("目标 DTO 类型不一致。");
@@ -43,6 +46,7 @@ public sealed class LyricsImportDestinationJsonConverter : JsonConverter<LyricsI
             case NewBranchLyricsDestinationDto branch:
                 writer.WriteString("name", branch.Name); writer.WriteString("role", JsonNamingPolicy.CamelCase.ConvertName(branch.Role.ToString())); break;
             case NewTranslationLyricsDestinationDto translation: writer.WriteString("name", translation.Name); break;
+            case AllSourcesLyricsDestinationDto: break;
             default: throw new JsonException("未知目标 DTO。");
         }
         writer.WriteEndObject();
@@ -81,7 +85,8 @@ internal static class ImportCommandJson
         Exact(fields, import ? ["type", "assetId", "destination", "options"] : ["type", "text", "destination"],
             import ? ["type", "assetId", "destination"] : ["type", "text", "destination"]);
         var destination = fields["destination"].Deserialize<LyricsImportDestinationDto>(options) ?? throw new JsonException("destination 不能为空。");
-        if (import && destination is NewTranslationLyricsDestinationDto || !import && destination is NewBranchLyricsDestinationDto)
+        if (import && destination is NewTranslationLyricsDestinationDto
+            || !import && destination is NewBranchLyricsDestinationDto or AllSourcesLyricsDestinationDto)
             throw new JsonException("命令不接受此目标种类。");
         if (!import) return new AppendTextCommandDto(RequiredString(fields, "text"), destination);
         LyricsImportOptionsDto? selected = fields.TryGetValue("options", out var option) ? ReadOptions(option, options) : null;

@@ -21,6 +21,8 @@ public sealed record ExistingLyricsDestinationDto(string? BranchId) : LyricsImpo
 public sealed record NewBranchLyricsDestinationDto(string? Name, ProjectLyricBranchRole Role) : LyricsImportDestinationDto("newBranch");
 /// <summary>粘贴创建新的翻译来源。</summary>
 public sealed record NewTranslationLyricsDestinationDto(string? Name) : LyricsImportDestinationDto("newTranslation");
+/// <summary>把解析文档中的全部分支追加为新来源；不替换工程里已有的来源。</summary>
+public sealed record AllSourcesLyricsDestinationDto() : LyricsImportDestinationDto("allSources");
 /// <summary>格式、编码与完整共享切分选项；未知导入器或编码沿原自动回退。</summary>
 public sealed record LyricsImportOptionsDto(string? ImporterId = null, string? EncodingName = null,
     LyricsImportSplitRule SplitRule = LyricsImportSplitRule.None, bool EstimateSplitTimes = false, string? SourceBranchId = null);

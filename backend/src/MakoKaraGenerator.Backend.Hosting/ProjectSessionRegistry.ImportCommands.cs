@@ -52,7 +52,9 @@ public sealed partial class ProjectSessionRegistry
                     var options = file.Options ?? new();
                     parsed = LyricsImportEditUseCase.Prepare(source!, new() { ImporterId = options.ImporterId, EncodingName = options.EncodingName,
                         SplitRule = (TokenSplitRule)options.SplitRule, EstimateSplitTimes = options.EstimateSplitTimes, SourceBranchId = options.SourceBranchId }, capture.AudioDuration, guard);
-                    candidate = LyricsImportEditUseCase.PrepareImportCandidate(capture.Snapshot, capture.Baseline, parsed, capture.Name, capture.Role, guard, rowBudget.Observe, options.SourceBranchId);
+                    candidate = file.Destination is AllSourcesLyricsDestinationDto
+                        ? LyricsImportEditUseCase.PrepareImportAllCandidate(capture.Snapshot, capture.Baseline, parsed, options.SourceBranchId, guard, rowBudget.Observe)
+                        : LyricsImportEditUseCase.PrepareImportCandidate(capture.Snapshot, capture.Baseline, parsed, capture.Name, capture.Role, guard, rowBudget.Observe, options.SourceBranchId);
                 }
                 else candidate = LyricsImportEditUseCase.PrepareAppendCandidate(capture.Snapshot, capture.Baseline,
                     ((AppendTextCommandDto)capture.Command).Text!, capture.Name, guard, rowBudget.Observe);

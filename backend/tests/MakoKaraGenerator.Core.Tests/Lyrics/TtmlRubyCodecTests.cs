@@ -26,8 +26,8 @@ public sealed class TtmlRubyCodecTests
         Assert.DoesNotContain(first.Report.Issues, issue => issue.Severity == IssueSeverity.Error);
         LyricLine line = Assert.Single(first.Document.Lines);
         Assert.Equal("海 へ", line.Text);
-        Assert.Null(line.Tokens[0].Time);
-        Assert.Equal(TimingStatus.Missing, line.Tokens[0].TimingStatus);
+        Assert.Equal(new TimeRange(61_000_000, 62_000_000), line.Tokens[0].Time);
+        Assert.Equal(TimingStatus.Estimated, line.Tokens[0].TimingStatus);
         RubyAnnotation ruby = Assert.Single(line.RubyAnnotations);
         Assert.Equal("うみ", ruby.Text);
         Assert.Equal([61_000_000L, 61_600_000L], ruby.Segments.Select(segment => segment.Time!.Value.StartUs));
@@ -49,7 +49,7 @@ public sealed class TtmlRubyCodecTests
     }
 
     [Fact]
-    public void Namespace_reset_in_exported_body_is_reported_as_invalid_TTML()
+    public void Apple_marked_namespace_reset_is_normalized_in_memory_and_reported()
     {
         const string source = """
             <tt xmlns="http://www.w3.org/ns/ttml" xmlns:itunes="http://music.apple.com/lyric-ttml-internal" itunes:timing="Word">
@@ -58,8 +58,10 @@ public sealed class TtmlRubyCodecTests
             """;
         using MemoryStream input = new(Encoding.UTF8.GetBytes(source));
         LyricsImportResult result = new TtmlImporter().Import(input, new() { FileName = "namespace-reset.ttml" });
-        Assert.Empty(result.Document.Lines);
-        Assert.Contains(result.Report.Issues, issue => issue.Severity == IssueSeverity.Error && issue.Message.Contains("body", StringComparison.Ordinal));
+        Assert.Equal("海", Assert.Single(result.Document.Lines).Text);
+        Assert.Equal(new TimeRange(1_000_000, 2_000_000), result.Document.Lines[0].Time);
+        Assert.Contains(result.Report.Issues, issue => issue.Message.Contains("空命名空间", StringComparison.Ordinal));
+        Assert.DoesNotContain(result.Report.Issues, issue => issue.Severity == IssueSeverity.Error);
     }
 
     [Fact]

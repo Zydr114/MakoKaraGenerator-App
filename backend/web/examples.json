@@ -167434,7 +167434,77 @@
         "indicatorContainerId": "countdown",
         "changed": true
       }
+    },
+    {
+      "name": "ttml-import-all-sources",
+      "schema": "ProjectCommandDtoInput",
+      "valid": true,
+      "value": {
+        "type": "lyrics.importAsset",
+        "assetId": "asset-ttml",
+        "destination": {
+          "kind": "allSources"
+        }
+      }
+    },
+    {
+      "name": "ttml-import-all-sources-options-without-branch",
+      "schema": "ProjectCommandDtoInput",
+      "valid": true,
+      "value": {
+        "type": "lyrics.importAsset",
+        "assetId": "asset-ttml",
+        "destination": {
+          "kind": "allSources"
+        },
+        "options": {
+          "splitRule": "none",
+          "estimateSplitTimes": false
+        }
+      }
+    },
+    {
+      "name": "ttml-import-all-sources-extra-field",
+      "schema": "ProjectCommandDtoInput",
+      "valid": false,
+      "value": {
+        "type": "lyrics.importAsset",
+        "assetId": "asset-ttml",
+        "destination": {
+          "kind": "allSources",
+          "branchId": "primary"
+        }
+      }
+    },
+    {
+      "name": "ttml-import-all-sources-on-append",
+      "schema": "ProjectCommandDtoInput",
+      "valid": false,
+      "value": {
+        "type": "lyrics.appendText",
+        "text": "甲",
+        "destination": {
+          "kind": "allSources"
+        }
+      }
+    },
+    {
+      "name": "ttml-import-single-source-still-valid",
+      "schema": "ProjectCommandDtoInput",
+      "valid": true,
+      "value": {
+        "type": "lyrics.importAsset",
+        "assetId": "asset-ttml",
+        "destination": {
+          "kind": "newBranch",
+          "name": "翻译",
+          "role": "translation"
+        },
+        "options": {
+          "sourceBranchId": "source-translation"
+        }
+      }
     }
   ],
-  "contractVersion": "1.54.0"
+  "contractVersion": "1.55.0"
 }

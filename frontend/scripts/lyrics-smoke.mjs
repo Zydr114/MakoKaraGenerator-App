@@ -192,8 +192,8 @@ try {
   const createCheck = `document.querySelector('.file-check [data-check="lyrics"]')`;
   const createPlan = await page.eval(`${createCheck}.textContent`);
   check(
-    createPlan.includes('这是 MakoKara 工程 TTML，新建时会恢复全部 3 个来源。') && !(await ui.exists(page, 'select', '导入哪个来源')),
-    '新建工程：多来源的工程 TTML 写明“新建时会恢复全部 3 个来源”，不需要选来源',
+    createPlan.includes('文件有 3 个来源，新建时会全部恢复。') && !(await ui.exists(page, 'select', '导入哪个来源')),
+    '新建工程：多来源歌词写明“新建时会全部恢复”，不需要选来源',
   );
   const createTexts = await page.eval(`[...${createCheck}.querySelectorAll('.found .plan-line-text')].map((n) => n.textContent)`);
   const createRuby = await page.eval(`[...${createCheck}.querySelectorAll('.found .plan-line-ruby')].map((n) => n.textContent)`);
@@ -225,8 +225,8 @@ try {
   await ui.setFile(page, '选择歌词文件', ttmlPath);
   await page.waitFor(`!!${shownIn('导入哪个来源')} && ${previewTexts}[0] === '朝の光'`, '多来源要选来源', 30_000);
   check(
-    (await page.eval(planText)).includes('有 3 个来源，一次导入一个') && (await page.eval(shownIn('导入哪个来源'))).startsWith('主歌词'),
-    '导入工程 TTML：写明一次导入一个来源，默认选主歌词',
+    (await page.eval(planText)).includes('有 3 个来源。可以在下面选择一个来源，或一次导入全部来源') && (await page.eval(shownIn('导入哪个来源'))).startsWith('主歌词'),
+    '导入多来源歌词：写明可以选择一个来源或一次导入全部，默认选主歌词',
   );
   await ui.choose(page, '导入哪个来源', '中文（翻译，3 行）', { scope: '@dialog' });
   await page.waitFor(`${previewTexts}[0] === '晨光'`, '改选来源后预览换成翻译', 30_000);

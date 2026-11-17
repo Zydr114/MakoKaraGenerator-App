@@ -24,10 +24,14 @@ internal sealed class TtmlTimeTree
     {
         _absolute = absolute;
         string? timeBase = Parameter(root, "timeBase");
-        if (timeBase is not null and not "media")
-            throw new FormatException("仅支持 TTML media 时间基；clock/smpte 不作猜测。");
+        // SMPTE non-drop 帧时钟可由 frameRate 确定；clock 与 drop-frame 需要外部同步，不能猜。
+        if (timeBase is not null and not "media" and not "smpte")
+            throw new FormatException("仅支持 TTML media 与 non-drop SMPTE 时间基；clock 不作猜测。");
         string? dropMode = Parameter(root, "dropMode");
         if (dropMode is not null and not "nonDrop") throw new FormatException("TTML drop-frame 时间语义未支持。");
+        string? markerMode = Parameter(root, "markerMode");
+        if (timeBase == "smpte" && markerMode is not null and not "continuous")
+            throw new FormatException("TTML 非连续 SMPTE markerMode 需要外部同步，不支持确定时间导入。");
         _nominalFrameRate = PositiveInteger(Parameter(root, "frameRate"), 30);
         _subFrameRate = PositiveInteger(Parameter(root, "subFrameRate"), 1);
         string? multiplier = Parameter(root, "frameRateMultiplier");
@@ -44,6 +48,7 @@ internal sealed class TtmlTimeTree
     }
 
     internal Interval this[XElement element] => _intervals[element];
+    internal bool TryGet(XElement element, out Interval interval) => _intervals.TryGetValue(element, out interval);
 
     internal void Resolve(XElement body)
     {
@@ -176,7 +181,9 @@ internal sealed class TtmlTimeTree
         foreach (XNode node in element.Nodes())
         {
             if (node is not XElement child || IsContent(child)) { yield return node; continue; }
-            if (child.Name.NamespaceName == "http://www.w3.org/ns/ttml" || child.Name.LocalName is "metadata" or "head") continue;
+            if (child.Name.NamespaceName is "http://www.w3.org/ns/ttml" or "http://www.w3.org/ns/ttml#metadata"
+                or "http://music.apple.com/lyric-ttml-internal" or "http://www.example.com/ns/amll"
+                || child.Name.LocalName is "metadata" or "head") continue;
             foreach (XNode descendant in ContentNodes(child)) yield return descendant;
         }
     }

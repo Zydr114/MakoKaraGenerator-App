@@ -3,6 +3,7 @@ import { BackendError, type MakoClient } from '../../src/client';
 import { NEW_TEMPLATE_NAME, NEW_TEMPLATE_SOURCE, TemplateLibraryStore } from '../../src/editor/library/template-library-store';
 import { SAMPLE_SIZE, SAMPLE_TIME_US, TEMPLATE_PREVIEW, TemplateThumbnails, THUMBNAIL_SAMPLE_ID, THUMBNAIL_SIZE } from '../../src/editor/library/template-thumbnails';
 import { TEMPLATE_PREVIEW_OPTIONS, TemplateWorkshop, workshopTitle, WORKSHOP_DURATION_US } from '../../src/editor/library/template-workshop';
+import { staticDefinition } from '../../src/editor/model/full-template';
 import { addStop, gradientProblem, removeStop, setStopOffset } from '../../src/editor/model/gradient';
 import {
   addStrokeLayer,
@@ -37,6 +38,7 @@ import {
 
 const STYLE: FullTemplateDefinition['style'] = {
   typography: { fontFamilyName: null, fallbackFamilyNames: [], fontSizePx: 72, fontWeight: 400, isBold: false, isItalic: false, letterSpacingPx: 0 },
+  ruby: { relativeScale: null, gapPx: null },
   unsung: { fill: { kind: 'solid', color: { red: 74, green: 80, blue: 96, alpha: 255 } }, strokes: [], shadow: null, glow: null },
   sung: { fill: { kind: 'solid', color: { red: 76, green: 141, blue: 255, alpha: 255 } }, strokes: { kind: 'follow' }, shadow: { kind: 'follow' }, glow: { kind: 'follow' } },
   wipe: { featherRatio: 0, highlight: null },
@@ -250,6 +252,29 @@ describe('样式库状态', () => {
     expect(store.isDirty).toBe(false);
   });
 
+  it('注音两项独立进入模板，静态转换和保存保留自定义及显式跟随歌词', async () => {
+    const fake = fakeLibraries();
+    const store = new TemplateLibraryStore(fake.client);
+    await store.load();
+    await store.createDraft();
+    const current = store.state.draft!.definition;
+    const scale = TEMPLATE_GROUPS.find((g) => g.id === 'rubyScale')!;
+    const gap = TEMPLATE_GROUPS.find((g) => g.id === 'rubyGap')!;
+    const selected = setGroupIncluded(setGroupIncluded(current, scale, true, []), gap, true, []);
+    const edited = { ...selected, style: { ...selected.style, ruby: { relativeScale: 0.65, gapPx: null } } };
+    expect(groupAllowed(scale, 'token')).toBe(true);
+    expect(groupValueText('rubyScale', edited.style)).toBe('65%');
+    expect(groupValueText('rubyGap', edited.style)).toBe('跟随歌词中的注音设置');
+    expect(definitionProblem({ ...edited, style: { ...edited.style, ruby: { ...edited.style.ruby, relativeScale: 0 } } })).toContain('超出有效范围');
+    expect(definitionProblem({ ...edited, style: { ...edited.style, ruby: { ...edited.style.ruby, gapPx: -1 } } })).toContain('超出有效范围');
+    expect(staticDefinition(edited)?.style.ruby).toEqual({ relativeScale: 0.65, gapPx: null });
+    store.edit(edited);
+    expect(await store.save()).toBe(true);
+    expect(fake.libraries.personal.templates.get('p1')?.style.ruby).toEqual({ relativeScale: 0.65, gapPx: null });
+    expect(fake.libraries.personal.templates.get('p1')?.properties).toContain('ruby.relativeScale');
+    expect(fake.libraries.personal.templates.get('p1')?.properties).toContain('ruby.gapPx');
+  });
+
   it('命令 409：提示并重读；选中模板在别处被替换时，有修改的草稿保留修改、改以新定义为基准', async () => {
     const fake = fakeLibraries();
     const store = new TemplateLibraryStore(fake.client);
@@ -392,12 +417,12 @@ describe('样式库状态', () => {
 describe('模板属性分组', () => {
   it('用途限制：文本单元包含两态外观与擦除；组合不能有位置', () => {
     const ids = (kind: 'line' | 'token' | 'composite') => TEMPLATE_GROUPS.filter((g) => groupAllowed(g, kind)).map((g) => g.id);
-    expect(ids('token')).toEqual(['unsung', 'stroke', 'shadow', 'glow', 'sung', 'sungStroke', 'sungShadow', 'sungGlow', 'feather', 'highlight', 'opacity']);
+    expect(ids('token')).toEqual(['rubyScale', 'rubyGap', 'unsung', 'stroke', 'shadow', 'glow', 'sung', 'sungStroke', 'sungShadow', 'sungGlow', 'feather', 'highlight', 'opacity']);
     expect(ids('composite')).not.toContain('position');
-    expect(ids('line')).toHaveLength(17);
+    expect(ids('line')).toHaveLength(19);
     expect(TEMPLATE_GROUPS.flatMap((g) => g.properties).sort()).toEqual([...TEMPLATE_PROPERTIES].sort());
     expect(propertySummary('token', ['unsung.fill', 'sung.fill'])).toBe('未唱填充、已唱填充');
-    expect(propertySummary('token', ['unsung.fill', 'sung.fill', 'unsung.strokes', 'sung.strokes', 'unsung.shadow.color', 'sung.shadow', 'unsung.glow', 'sung.glow.color', 'wipe.featherRatio', 'wipe.highlight', 'opacity'])).toBe('全部属性');
+    expect(propertySummary('token', ['ruby.relativeScale', 'ruby.gapPx', 'unsung.fill', 'sung.fill', 'unsung.strokes', 'sung.strokes', 'unsung.shadow.color', 'sung.shadow', 'unsung.glow', 'sung.glow.color', 'wipe.featherRatio', 'wipe.highlight', 'opacity'])).toBe('全部属性');
   });
 
   it('开关组：重新打开原来包含的组恢复原子集，新打开的组写整组；换用途去掉不允许的属性', () => {

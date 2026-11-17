@@ -12,7 +12,7 @@ export const TEMPLATE_LIST_MAX_LIMIT = 100;
 
 export type TemplateKind = 'line' | 'token' | 'composite';
 
-/** 模板可以控制的属性就是 43 项样式属性路径（合同 1.50.0 起与 styles.* 共用一张表）。 */
+/** 模板可以控制的属性就是 45 项样式属性路径（合同 1.56.0 与 styles.* 共用一张表）。 */
 export const TEMPLATE_PROPERTIES = STYLE_PROPERTY_PATHS;
 export type TemplateProperty = StylePropertyPath;
 

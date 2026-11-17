@@ -1,4 +1,4 @@
-// 模板属性分组（W3 设计 §2.5）：界面按组开关“包含在模板中”，每组对应若干属性路径（合同 1.50.0 起 43 项，与 styles.* 共用）。
+// 模板属性分组（W3 设计 §2.5）：界面按组开关“包含在模板中”，每组对应若干属性路径（合同 1.56.0 起 45 项，与 styles.* 共用）。
 // 用途限制取协议层的 TOKEN／COMPOSITE 属性表；实际属性语义以后端 StyleBatchEditor 为准。
 // 两态：未唱与已唱各有填充、描边、阴影、辉光，已唱的描边、阴影、辉光可跟随未唱；擦除（羽化、高亮）两态共享。
 
@@ -20,6 +20,7 @@ import {
   type TemplateProperty,
 } from '../../protocol';
 import { gradientProblem } from './gradient';
+import { RUBY_VALUE_MAX } from './ruby-style';
 import { describeValue } from './style-overrides';
 import {
   ALIGN_TEXT,
@@ -44,6 +45,8 @@ export type TemplateGroupId =
   | 'size'
   | 'weight'
   | 'spacing'
+  | 'rubyScale'
+  | 'rubyGap'
   | 'position'
   | 'unsung'
   | 'sung'
@@ -74,6 +77,8 @@ export const TEMPLATE_GROUPS: readonly TemplateGroup[] = [
   { id: 'size', label: '字号', properties: ['typography.fontSizePx'] },
   { id: 'weight', label: '字重与字形', properties: ['typography.fontWeight', 'typography.isBold', 'typography.isItalic'] },
   { id: 'spacing', label: '字距', properties: ['typography.letterSpacingPx'] },
+  { id: 'rubyScale', label: '注音字号比例', properties: ['ruby.relativeScale'] },
+  { id: 'rubyGap', label: '注音与正文间距', properties: ['ruby.gapPx'] },
   { id: 'position', label: '位置', properties: ['verticalCenterRatio', 'horizontalAlignment'] },
   // 按状态排（与模板编辑器的分组一致）：未唱四项，再已唱四项。
   { id: 'unsung', label: '未唱填充', properties: ['unsung.fill'] },
@@ -110,7 +115,7 @@ export function groupIncluded(group: TemplateGroup, properties: readonly Templat
 /** 用途的说明：哪些组不可用。 */
 export const KIND_LIMIT_TEXT: Record<TemplateKind, string | null> = {
   line: null,
-  token: '文本单元用途只能包含填充、描边、阴影、辉光、擦除和透明度。',
+  token: '文本单元用途可包含注音设置、填充、描边、阴影、辉光、擦除和透明度。',
   composite: '组合用途不能包含位置。',
 };
 
@@ -163,6 +168,10 @@ export function groupValueText(group: TemplateGroupId, style: AnyStyle, properti
       return [`字重 ${t.fontWeight}`, ...(t.isBold ? ['粗体'] : []), ...(t.isItalic ? ['斜体'] : [])].join(' · ');
     case 'spacing':
       return `${t.letterSpacingPx} px`;
+    case 'rubyScale':
+      return style.ruby.relativeScale === null ? '跟随歌词中的注音设置' : `${round(style.ruby.relativeScale * 100, 2)}%`;
+    case 'rubyGap':
+      return style.ruby.gapPx === null ? '跟随歌词中的注音设置' : `${style.ruby.gapPx} px`;
     case 'position':
       return `垂直中心 ${round(style.verticalCenterRatio * 100, 1)}% · ${ALIGN_TEXT[style.horizontalAlignment]}`;
     case 'unsung':
@@ -396,6 +405,8 @@ export function definitionProblem(definition: FullTemplateDefinition): string | 
   if (new Set(fallbacks).size !== fallbacks.length) return '回退字体不能重复。';
   // 未包含的组也要是合法的完整取值（规范 §13.1），所以两态的填充与各层描边都查。
   const { style } = definition;
+  if (style.ruby.relativeScale !== null && (!Number.isFinite(style.ruby.relativeScale) || style.ruby.relativeScale <= 0 || style.ruby.relativeScale > RUBY_VALUE_MAX)) return '注音字号比例超出有效范围。';
+  if (style.ruby.gapPx !== null && (!Number.isFinite(style.ruby.gapPx) || style.ruby.gapPx < 0 || style.ruby.gapPx > RUBY_VALUE_MAX)) return '注音与正文间距超出有效范围。';
   const sides: [string, StyleStroke<AnyMaterial>[]][] = [
     ['未唱描边', style.unsung.strokes],
     ...(style.sung.strokes.kind === 'set' ? [['已唱描边', style.sung.strokes.value] as [string, StyleStroke<AnyMaterial>[]]] : []),

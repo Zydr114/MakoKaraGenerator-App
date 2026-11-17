@@ -489,6 +489,7 @@ export function OrchestrationPage(props: {
                 line={focused}
                 lines={lines}
                 presentation={shown}
+                session={session}
                 actions={lineActions}
                 leadIns={
                   program && !leadInEditBlock(branch, program)

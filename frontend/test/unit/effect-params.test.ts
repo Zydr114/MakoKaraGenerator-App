@@ -80,6 +80,7 @@ function inkPackage(revision = 'sha256:ink1', extra: Partial<EffectPackageInspec
 
 const STYLE: FullTemplateDefinition['style'] = {
   typography: { fontFamilyName: null, fallbackFamilyNames: [], fontSizePx: 72, fontWeight: 400, isBold: false, isItalic: false, letterSpacingPx: 0 },
+  ruby: { relativeScale: null, gapPx: null },
   unsung: { fill: { kind: 'solid', color: { red: 74, green: 80, blue: 96, alpha: 255 } }, strokes: [], shadow: null, glow: null },
   sung: { fill: { kind: 'solid', color: { red: 76, green: 141, blue: 255, alpha: 255 } }, strokes: { kind: 'follow' }, shadow: { kind: 'follow' }, glow: { kind: 'follow' } },
   wipe: { featherRatio: 0, highlight: null },

@@ -498,6 +498,7 @@ describe('编排对象目标', () => {
 describe('外观来源', () => {
   const STYLE: CanonicalStyle = {
     typography: { ...COUNTDOWN.typography, fontFamilyName: 'Noto Sans CJK JP', fallbackFamilyNames: ['Arial'] },
+    ruby: { relativeScale: null, gapPx: null },
     unsung: { fill: { kind: 'solid', color: { red: 255, green: 255, blue: 255, alpha: 255 } }, strokes: [], shadow: null, glow: null },
     sung: { fill: { kind: 'solid', color: { red: 255, green: 0, blue: 0, alpha: 255 } }, strokes: { kind: 'follow' }, shadow: { kind: 'follow' }, glow: { kind: 'follow' } },
     wipe: { featherRatio: 0, highlight: null },
@@ -637,6 +638,7 @@ describe('歌词页的“外观”和“显示在”（界面改版批 4）', ()
 
     const lyricStyle: CanonicalStyle = {
       typography: { fontFamilyName: 'Noto Sans JP', fallbackFamilyNames: ['Meiryo'], fontSizePx: 64, fontWeight: 700, isBold: true, isItalic: false, letterSpacingPx: 2 },
+      ruby: { relativeScale: null, gapPx: null },
       unsung: { fill: { kind: 'solid', color: { red: 240, green: 240, blue: 240, alpha: 255 } }, strokes: [], shadow: null, glow: null },
       sung: {
         fill: { kind: 'solid', color: { red: 255, green: 90, blue: 160, alpha: 255 } },

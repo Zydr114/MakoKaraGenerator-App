@@ -1,6 +1,6 @@
 // 外观检查器里只读显示的“本层直接覆盖”（GET .../style 的 local，合同 §6.11），
 // 以及前奏提示组自己的完整外观（编排读模型，W7 设计 §2.8）。
-// 属性路径是 43 项闭合集合（合同 1.50.0）；取值只做显示，不回写。认不出的属性或取值原样显示 JSON。
+// 属性路径是 45 项闭合集合（合同 1.50.0）；取值只做显示，不回写。认不出的属性或取值原样显示 JSON。
 
 import type {
   CanonicalStyle,
@@ -58,7 +58,7 @@ function sideLabels(side: 'unsung' | 'sung'): Record<string, string> {
   };
 }
 
-/** 43 项属性路径的中文名。 */
+/** 45 项属性路径的中文名。 */
 export const STYLE_PROPERTY_TEXT = {
   'typography.fontFamilyName': '字体',
   'typography.fallbackFamilyNames': '回退字体',
@@ -67,6 +67,8 @@ export const STYLE_PROPERTY_TEXT = {
   'typography.isBold': '粗体',
   'typography.isItalic': '斜体',
   'typography.letterSpacingPx': '字距',
+  'ruby.relativeScale': '注音字号比例',
+  'ruby.gapPx': '注音与正文间距',
   ...sideLabels('unsung'),
   ...sideLabels('sung'),
   'wipe.featherRatio': '擦除羽化',
@@ -237,6 +239,10 @@ function describe(property: string, value: unknown): { text: string; swatch?: st
   const leaf = /^(?:unsung|sung)\.(shadow|glow)\.(.+)$/.exec(property);
   if (leaf) return describeEffectLeaf(leaf[2]!, value, raw);
   switch (property) {
+    case 'ruby.relativeScale':
+      return value === null ? { text: '跟随歌词中的注音设置' } : typeof value === 'number' ? { text: `${Math.round(value * 10000) / 100}%` } : raw;
+    case 'ruby.gapPx':
+      return value === null ? { text: '跟随歌词中的注音设置' } : typeof value === 'number' ? { text: `${value} px` } : raw;
     case 'typography.fontFamilyName':
       return value === null ? { text: '后端默认字体' } : typeof value === 'string' ? { text: value } : raw;
     case 'typography.fallbackFamilyNames':

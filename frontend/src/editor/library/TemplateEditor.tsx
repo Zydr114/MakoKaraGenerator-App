@@ -22,6 +22,7 @@ import {
   type TemplateMaterialSlot,
   type TemplateProperty,
 } from '../../protocol';
+import { RUBY_VALUE_MAX } from '../model/ruby-style';
 import { addStop, gradientProblem, MAX_GRADIENT_STOPS, removeStop, setStopColor, setStopOffset } from '../model/gradient';
 import {
   DEFAULT_GLOW,
@@ -88,6 +89,7 @@ const percent = (value: number) => `${Math.round(value * 100)}%`;
 /** 外观页签的分组，每组里按 TEMPLATE_GROUPS 的顺序列出用途允许的项。 */
 const SECTIONS: readonly { title: string; ids: readonly TemplateGroupId[] }[] = [
   { title: '文字', ids: ['font', 'size', 'weight', 'spacing'] },
+  { title: '注音', ids: ['rubyScale', 'rubyGap'] },
   { title: '未唱', ids: ['unsung', 'stroke', 'shadow', 'glow'] },
   { title: '已唱', ids: ['sung', 'sungStroke', 'sungShadow', 'sungGlow'] },
   { title: '擦除', ids: ['feather', 'highlight'] },
@@ -99,6 +101,8 @@ const ROW_LABEL: Record<TemplateGroupId, string> = {
   size: '字号',
   weight: '字重',
   spacing: '字距',
+  rubyScale: '字号比例',
+  rubyGap: '与正文间距',
   position: '位置',
   unsung: '填充',
   sung: '填充',
@@ -270,6 +274,25 @@ function rowFields(
       return {
         ctl: <NumberField label="字距" labelPlacement="none" size="sm" className="w" suffix="px" value={t.letterSpacingPx} onCommit={(letterSpacingPx) => setType({ letterSpacingPx })} disabled={disabled} />,
       };
+    case 'rubyScale':
+    case 'rubyGap': {
+      const isScale = id === 'rubyScale';
+      const value = isScale ? style.ruby.relativeScale : style.ruby.gapPx;
+      const setRuby = (next: number | null) => setStyle({ ruby: { ...style.ruby, [isScale ? 'relativeScale' : 'gapPx']: next } });
+      return {
+        ctl: <>
+          <Select label={isScale ? '注音字号比例模式' : '注音间距模式'} labelPlacement="none" size="sm"
+            value={value === null ? 'lyrics' : 'custom'}
+            options={[{ value: 'lyrics', label: '跟随歌词中的注音设置' }, { value: 'custom', label: '自定义' }]}
+            onChange={(mode) => setRuby(mode === 'lyrics' ? null : isScale ? 0.5 : 2)} disabled={disabled} />
+          {value !== null && <NumberField label={isScale ? '注音字号比例' : '注音与正文间距'} labelPlacement="none" size="sm" className="w"
+            suffix={isScale ? '%' : 'px'} value={isScale ? value * 100 : value}
+            {...(isScale ? { greaterThan: 0, max: RUBY_VALUE_MAX * 100 } : { min: 0, max: RUBY_VALUE_MAX })}
+            check={(number) => isScale && (!Number.isFinite(number / 100) || number / 100 <= 0) ? '比例超出可用范围。' : undefined}
+            onCommit={(number) => setRuby(isScale ? number / 100 : number)} disabled={disabled} />}
+        </>,
+      };
+    }
     case 'position':
       return {
         ctl: (

@@ -13,6 +13,8 @@ import {
   type ProjectCommandResponse,
   type ProjectEditCommand,
   type ProjectSessionSummary,
+  type ProjectStyleResponse,
+  type ProjectResolvedStyleResponse,
   type ProjectSettings,
   type Revision,
 } from '../../protocol';
@@ -205,6 +207,18 @@ export class EditorSession {
   /** 已知的最新工程修订（命令队列只接受更大的修订）。 */
   get latestRevision(): Revision {
     return this.client.projects.knownRevision(this.projectSessionId) ?? this.state.summary.projectRevision;
+  }
+
+  /** 同一修订下读取句子的直接覆盖和包含模板的最终静态样式。 */
+  async readLineStyle(branchId: string, lineId: string, revision: Revision): Promise<{ local: ProjectStyleResponse; resolved?: ProjectResolvedStyleResponse; resolvedError?: string }> {
+    const [local, resolved] = await Promise.allSettled([
+      this.client.projects.style(this.projectSessionId, { kind: 'line', branchId, lineId }, revision),
+      this.client.projects.resolvedStyle(this.projectSessionId, revision, { branchId, lineId }),
+    ]);
+    if (local.status === 'rejected') throw local.reason;
+    return resolved.status === 'fulfilled'
+      ? { local: local.value, resolved: resolved.value }
+      : { local: local.value, resolvedError: errorText(resolved.reason) };
   }
 
   get frameRate(): FrameRate | undefined {

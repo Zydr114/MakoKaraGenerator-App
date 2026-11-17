@@ -1,12 +1,12 @@
 // 四层静态样式的底层读写（合同 1.8.0 起，规范 §6.11）、模板库共用的规范样式形状（§13）与最终静态样式的来源解释（合同 1.37.0，规范 §17.6）。
 // 合同 1.50.0 起样式是两态：未唱（unsung）与已唱（sung，描边、阴影、辉光可跟随未唱），另有擦除边缘（wipe）；
-// 样式读写、模板属性、解析来源与文字标记共用一张 43 项属性路径表（StylePropertyPath）。
+// 样式读写、模板属性、解析来源与文字标记共用一张 45 项属性路径表（StylePropertyPath）。
 // 用户决定（docs/web-ui-design.md §11）：外观页只做模板分配，不用 styles.* 写命令编辑样式；
 // 这两个命令只声明类型，供合同对照。GET .../style 用来只读显示“直接覆盖”。
 
 import type { Revision } from './int64';
 
-/** 43 项属性路径，顺序即 local 与 sources 的输出顺序（OpenAPI StylePropertyPath）。父项（如 unsung.shadow）与其叶不能同批。 */
+/** 45 项属性路径，顺序即 local 与 sources 的输出顺序（OpenAPI StylePropertyPath）。父项（如 unsung.shadow）与其叶不能同批。 */
 export const STYLE_PROPERTY_PATHS = [
   'typography.fontFamilyName',
   'typography.fallbackFamilyNames',
@@ -15,6 +15,8 @@ export const STYLE_PROPERTY_PATHS = [
   'typography.isBold',
   'typography.isItalic',
   'typography.letterSpacingPx',
+  'ruby.relativeScale',
+  'ruby.gapPx',
   'unsung.fill',
   'sung.fill',
   'unsung.strokes',
@@ -198,6 +200,8 @@ export type HorizontalAlignment = 'left' | 'center' | 'right';
 /** 完整规范样式（两态）。 */
 export interface CanonicalStyle<M = StyleMaterial> {
   typography: StyleTypography;
+  /** null 使用歌词中该注音的原始值。 */
+  ruby: { relativeScale: number | null; gapPx: number | null };
   unsung: StyleAppearance<M>;
   sung: StyleSungAppearance<M>;
   wipe: StyleWipe;
@@ -248,7 +252,7 @@ export interface ResolvedStyleQuery {
 }
 
 /**
- * 工程、来源、节点、片段、行、文字各层覆盖与模板分配叠加后的静态样式，以及 43 个属性路径各自最后来自哪里（按路径表顺序）。
+ * 工程、来源、节点、片段、行、文字各层覆盖与模板分配叠加后的静态样式，以及 45 个属性路径各自最后来自哪里（按路径表顺序）。
  * sourcePath 是工程里的持久路径，例如 lyricStyle、lyrics.branches.<b>.lines.<l>.styleOverride、presetApplications.<id>.snapshot.style。
  * 不运行动画、脚本与字体测量，finalPixelAppearance 恒为 false。
  */

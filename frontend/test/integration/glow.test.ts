@@ -182,8 +182,8 @@ describe('保存重开与严格版本门禁', () => {
     expect(closed.state, closed.error?.message).toBe('succeeded');
     opened.delete(id());
     const entry = JSON.parse(await readFile(join(projectsRoot, 'current.mkgproj', 'project.json'), 'utf8'));
-    expect(entry).toMatchObject({ applicationVersion: CONTRACT_PRODUCT_VERSION, schemaVersion: 31, presetApplications: { templateSchemaVersion: 9 } });
-    expect(JSON.parse(await readFile(join(projectsRoot, 'current.mkgproj', entry.lyricsFile as string), 'utf8')).schemaVersion).toBe(19);
+    expect(entry).toMatchObject({ applicationVersion: CONTRACT_PRODUCT_VERSION, schemaVersion: 32, presetApplications: { templateSchemaVersion: 10 } });
+    expect(JSON.parse(await readFile(join(projectsRoot, 'current.mkgproj', entry.lyricsFile as string), 'utf8')).schemaVersion).toBe(20);
     const reopened = await finish(await client.projects.open({ projectDirectoryHandleId: await handle('current.mkgproj') }));
     expect(reopened.state, reopened.error?.message).toBe('succeeded');
     project = reopened.result!;

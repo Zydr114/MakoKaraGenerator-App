@@ -78,8 +78,8 @@ describe('未唱辉光与样式属性路径合同（1.50.0）', () => {
     expect(contract.validateNamed('RestoreStylesCommandDtoInput', { ...command, targets: [{ kind: 'project' }] }).length).toBeGreaterThan(0);
   });
 
-  it('43 项属性路径及 token、composite 范围与冻结合同一致', () => {
-    expect([...STYLE_PROPERTY_PATHS]).toHaveLength(43);
+  it('45 项属性路径及 token、composite 范围与冻结合同一致', () => {
+    expect([...STYLE_PROPERTY_PATHS]).toHaveLength(45);
     expect([...STYLE_PROPERTY_PATHS].sort()).toEqual([...(contract.schema('StylePropertyPath').enum as string[])].sort());
     expect(TEMPLATE_PROPERTIES).toBe(STYLE_PROPERTY_PATHS);
     const rules = contract.schema('StaticTemplateDefinitionDto').allOf as { then: { properties: { properties: { items: { enum: string[] } } } } }[];

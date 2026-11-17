@@ -1,5 +1,7 @@
 // 句子的属性（G24，W4 设计 §14.7）：这一句的本句微调、进入动画与前奏；选了几句时只显示范围；工程默认进入动画。
 
+import type { EditorSession } from '../session/editor-session';
+import { RubyStyleSection } from './RubyStyleSection';
 import type { LineEnterAnimation, LineLocalTransform, OrchestrationLeadIn, OrchestrationProgram } from '../../protocol';
 import { isTimed, type EditorLine } from '../model/lyrics';
 import { lineRangeText, type LineRange, type OrchestrationModel } from '../model/orchestration';
@@ -46,6 +48,7 @@ export function LineInspector(props: {
   line: EditorLine;
   lines: readonly EditorLine[];
   presentation: LinePresentationState | undefined;
+  session: EditorSession;
   actions: LineActions;
   /** 来源不支持前奏时是 undefined（不显示前奏一项）。 */
   leadIns: { block: string | undefined; onAdd: (lineId: string) => void; onSelect: (leadIn: OrchestrationLeadIn) => void } | undefined;
@@ -101,6 +104,7 @@ export function LineInspector(props: {
           />
         </>
       )}
+      <RubyStyleSection session={props.session} branchId={props.branchId} lineId={line.id} />
       <ProjectAnimationSection animation={model.projectEnterAnimation} actions={actions} />
       {props.leadIns && (
         <Group title="前奏">

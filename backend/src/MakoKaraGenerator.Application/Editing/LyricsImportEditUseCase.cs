@@ -288,7 +288,9 @@ public static class LyricsImportEditUseCase
             }
             ImmutableArray<LyricBranch> branches = created.MoveToImmutable();
             LyricsDocument lyrics = source.Lyrics with { Branches = source.Lyrics.Branches.AddRange(branches) };
-            LyricBranch selected = branches.FirstOrDefault(branch => branch.Id == mapping[prepared.Document.PrimaryBranchId]) ?? branches[0];
+            LyricBranch selected = mapping.TryGetValue(prepared.Document.PrimaryBranchId, out string? primaryId)
+                ? branches.FirstOrDefault(branch => branch.Id == primaryId) ?? branches[0]
+                : branches[0];
             return PrepareSubmission(source, source with { Lyrics = lyrics }, totalLines, selected.Id, selected.Lines[0].Id);
         }
         catch (LyricsIdentifierExhaustedException exception)

@@ -81,11 +81,23 @@ export function ImportLyricsDialog(props: {
     if ((NEW_BRANCH_ROLES as readonly string[]).includes(source.role)) setRole(source.role as NewBranchRole);
   }, [source?.id]);
 
-  const isNew = target === NEW_TARGET;
-  const allSources = target === ALL_SOURCES;
-  const replaced = branches.find((b) => b.id === target);
+  const targetOptions = [
+    ...branches.map((b) => ({ value: b.id, label: `替换「${b.name}」` })),
+    { value: NEW_TARGET, label: '作为新来源' },
+    ...(plan && plan.sourceBranches.length > 1 ? [{ value: ALL_SOURCES, label: '导入全部来源（不覆盖已有来源）' }] : []),
+  ];
+  const effectiveTarget = targetOptions.some((option) => option.value === target) ? target : branches[0]?.id ?? NEW_TARGET;
+  useEffect(() => {
+    if (target === ALL_SOURCES && !(plan && plan.sourceBranches.length > 1)) {
+      setTarget(branches[0]?.id ?? NEW_TARGET);
+    }
+  }, [target, plan?.sourceBranches.length, branches[0]?.id]);
+
+  const isNew = effectiveTarget === NEW_TARGET;
+  const allSources = effectiveTarget === ALL_SOURCES;
+  const replaced = branches.find((b) => b.id === effectiveTarget);
   const newName = name.trim();
-  const blocked = plan && !allSources && primaryImportBlock(plan, !isNew && target === state.primaryBranchId);
+  const blocked = plan && !allSources && primaryImportBlock(plan, !isNew && effectiveTarget === state.primaryBranchId);
   const ready = planReady(lyrics) && !blocked && (allSources || (isNew ? !!newName : !!replaced));
 
   const submit = async () => {
@@ -97,7 +109,7 @@ export function ImportLyricsDialog(props: {
         ? { kind: 'allSources' }
         : isNew
           ? { kind: 'newBranch', name: newName, role }
-          : { kind: 'existing', branchId: target };
+          : { kind: 'existing', branchId: effectiveTarget };
       const response = await session.command({
         type: 'lyrics.importAsset',
         assetId: lyrics.assetId,
@@ -123,12 +135,6 @@ export function ImportLyricsDialog(props: {
       setProgress(null);
     }
   };
-
-  const targetOptions = [
-    ...branches.map((b) => ({ value: b.id, label: `替换「${b.name}」` })),
-    { value: NEW_TARGET, label: '作为新来源' },
-    ...(plan && plan.sourceBranches.length > 1 ? [{ value: ALL_SOURCES, label: '导入全部来源（不覆盖已有来源）' }] : []),
-  ];
 
   return (
     <FormDialog
@@ -162,7 +168,7 @@ export function ImportLyricsDialog(props: {
       <div className="g2">
         <Select
           label="导入到"
-          value={targetOptions.some((option) => option.value === target) ? target : branches[0]?.id ?? NEW_TARGET}
+          value={effectiveTarget}
           options={targetOptions}
           disabled={!!progress}
           onChange={(value) => {

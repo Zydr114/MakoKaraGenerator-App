@@ -117,6 +117,29 @@ public sealed class TtmlImportEditTests
     }
 
     [Fact]
+    public void All_sources_import_handles_document_with_empty_primary_branch()
+    {
+        LyricsDocument doc = new()
+        {
+            PrimaryBranchId = "primary",
+            Branches =
+            [
+                LyricBranch.Create("primary", "空主", LyricBranchRole.Primary),
+                LyricBranch.Create("secondary", "副歌词", LyricBranchRole.Custom, [LyricLine.Create("s1", "副行")]),
+            ],
+        };
+        LyricsImportResult prepared = new(doc, Prepared(multiple: false, link: null).Report);
+        ProjectWorkspace workspace = ProjectWorkspace.Adopt(Project.Create("目标"));
+        var baseline = new LyricsImportEditBaseline(workspace, workspace.Generation, null, ExpectedLyrics: workspace.Project.Lyrics);
+        var snapshot = LyricsImportEditUseCase.Capture(workspace);
+        PreparedLyricsImportEdit candidate = LyricsImportEditUseCase.PrepareImportAllCandidate(snapshot, baseline, prepared);
+        Assert.True(candidate.Result.Accepted, candidate.Result.Error?.Detail);
+        Assert.Equal(1, candidate.Result.LineCount);
+        Assert.Equal(2, candidate.Result.Project.Lyrics.Branches.Length);
+        Assert.Equal("副行", Assert.Single(candidate.Result.Project.Lyrics.Branches[1].Lines).Text);
+    }
+
+    [Fact]
     public void Segment_id_collection_and_new_mapping_are_charged_before_any_history()
     {
         LyricsImportResult prepared = Prepared();

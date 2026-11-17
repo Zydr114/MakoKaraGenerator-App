@@ -2,8 +2,14 @@ using System.Collections.Immutable;
 
 namespace MakoKaraGenerator.Text;
 
-/// <summary>An annotation's original aggregate ink, anchored to the token's natural, unexpanded range.</summary>
-public readonly record struct RubySpacingItem(int TokenIndex, TextInkBounds Ink);
+/// <summary>An annotation's original ink and natural edge spacing, anchored to its unexpanded token.</summary>
+/// <param name="TokenIndex">Owning token index.</param>
+/// <param name="Ink">Aggregate glyph ink in line coordinates.</param>
+/// <param name="LeadingSpace">Distance from the annotation advance origin to its leftmost ink; may be negative.</param>
+/// <param name="TrailingSpace">Distance from its rightmost ink to the end of its natural advance; may be negative.</param>
+/// <param name="LetterSpacing">Additional spacing between text elements in this annotation's layout options.</param>
+public readonly record struct RubySpacingItem(int TokenIndex, TextInkBounds Ink,
+    float LeadingSpace = 0f, float TrailingSpace = 0f, float LetterSpacing = 0f);
 
 /// <summary>
 /// Layout outcomes. Unsupported inputs retain their original coordinates. A shared-cluster conflict
@@ -39,7 +45,7 @@ public sealed record RubySpacingResult(ShapedLine Basis, ImmutableArray<float> R
 /// </remarks>
 public static class RubySpacingSolver
 {
-    /// <summary>Required one-pixel horizontal ink gap before whole-line scaling; never stretches glyphs or ruby.</summary>
+    /// <summary>Minimum horizontal ink gap before whole-line scaling; never stretches glyphs or ruby.</summary>
     public const float MinimumGap = 1f;
 
     /// <summary>
@@ -75,7 +81,8 @@ public static class RubySpacingSolver
             || basis.DrawUnits.Any(unit => !float.IsFinite(unit.X) || !float.IsFinite(unit.Advance)
                 || unit.Glyphs.Any(glyph => !float.IsFinite(glyph.X) || !float.IsFinite(glyph.Y)
                     || glyph.InkBounds is { } ink && !Finite(ink)))
-            || rubies.Any(ruby => !Finite(ruby.Ink))) return Original(RubySpacingStatus.UnsupportedCoordinates);
+            || rubies.Any(ruby => !Finite(ruby.Ink) || !float.IsFinite(ruby.LeadingSpace)
+                || !float.IsFinite(ruby.TrailingSpace) || !float.IsFinite(ruby.LetterSpacing))) return Original(RubySpacingStatus.UnsupportedCoordinates);
         // Existing shaping is not a complete bidi layout. Never infer logical order from RTL visual coordinates.
         if (!Ordered(basis.Elements.Select(element => element.X)) || !Ordered(basis.DrawUnits.Select(unit => unit.X)))
             return Original(RubySpacingStatus.UnsupportedMapping);
@@ -119,7 +126,11 @@ public static class RubySpacingSolver
                 var previous = ordered[j];
                 if (Math.Min(previous.Ink.Bottom, current.Ink.Bottom) <= Math.Max(previous.Ink.Top, current.Ink.Top)) continue;
                 int previousGroup = groups[previous.TokenIndex];
-                float deficit = previous.Ink.Right + shifts[previousGroup] + MinimumGap - current.Ink.Left - shifts[group];
+                // Treat the seam like two naturally consecutive shaped runs: the preceding
+                // trailing bearing, one letter-spacing interval, and the following leading
+                // bearing all contribute. The final gap still cannot be less than one pixel.
+                float seam = Math.Max(MinimumGap, previous.TrailingSpace + previous.LetterSpacing + current.LeadingSpace);
+                float deficit = previous.Ink.Right + shifts[previousGroup] + seam - current.Ink.Left - shifts[group];
                 if (deficit <= 0) continue;
                 if (previousGroup == group) status |= RubySpacingStatus.SharedClusterConflict;
                 else extra = Math.Max(extra, deficit);

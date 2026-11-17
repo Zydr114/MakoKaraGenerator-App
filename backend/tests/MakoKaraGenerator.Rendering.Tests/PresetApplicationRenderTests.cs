@@ -11,6 +11,80 @@ namespace MakoKaraGenerator.Rendering.Tests;
 
 public sealed class PresetApplicationRenderTests
 {
+    [Fact]
+    public void 注音样式预设投影与实际行和元素覆盖具有相同几何及像素()
+    {
+        var source = LeadInFixture.Create(slots: true);
+        var style = source.LyricStyle with { Ruby = new() { RelativeScale = .8, GapPx = 9 } };
+        var actual = Apply(source, Static("ruby", style, LyricStyleProperty.RubyRelativeScale, LyricStyleProperty.RubyGapPx),
+            new(ProjectEffectBindingKind.Lines, ids: ["first"]));
+        var expected = WithLine(source, "first", line => line with { StyleOverride = (line.StyleOverride ?? new()) with
+        {
+            Ruby = new() { RelativeScale = OptionalValue.Set<double?>(.8), GapPx = OptionalValue.Set<double?>(9) }
+        } });
+        var aSnapshot = ProjectSnapshot.FromProject(actual);
+        var bSnapshot = ProjectSnapshot.FromProject(expected);
+        using var a = new SkiaRenderPipeline();
+        using var b = new SkiaRenderPipeline();
+        SamePixels(a, aSnapshot, b, bSnapshot, 13_000_000, true);
+        Assert.Equal(JsonSerializer.Serialize(b.GetSceneFrame(bSnapshot, 13_000_000).TokenGeometries),
+            JsonSerializer.Serialize(a.GetSceneFrame(aSnapshot, 13_000_000).TokenGeometries));
+    }
+
+    [Fact]
+    public void 元素注音预设在测量和实际绘制时生效()
+    {
+        var source = LeadInFixture.Create(slots: true);
+        var style = source.LyricStyle with { Ruby = new() { RelativeScale = .8, GapPx = 9 } };
+        var actual = Apply(source, Static("ruby-token", style, LyricStyleProperty.RubyRelativeScale, LyricStyleProperty.RubyGapPx),
+            new(ProjectEffectBindingKind.Tokens, ids: ["first-a"]));
+        var expected = WithLine(source, "first", line => line with { Tokens = line.Tokens.SetItem(0, line.Tokens[0] with
+        {
+            StyleOverride = (line.Tokens[0].StyleOverride ?? new()) with { Ruby = new()
+            {
+                RelativeScale = OptionalValue.Set<double?>(.8), GapPx = OptionalValue.Set<double?>(9)
+            } },
+        }) });
+        var aSnapshot = ProjectSnapshot.FromProject(actual);
+        var bSnapshot = ProjectSnapshot.FromProject(expected);
+        using var a = new SkiaRenderPipeline();
+        using var b = new SkiaRenderPipeline();
+        var actualFrame = a.GetSceneFrame(aSnapshot, 13_000_000);
+        var expectedFrame = b.GetSceneFrame(bSnapshot, 13_000_000);
+        Assert.NotEmpty(actualFrame.TokenGeometries.Single(token => token.WithRuby.TokenId.Value == "first-a").Ruby);
+        Assert.Equal(JsonSerializer.Serialize(expectedFrame.TokenGeometries), JsonSerializer.Serialize(actualFrame.TokenGeometries));
+        SamePixels(a, aSnapshot, b, bSnapshot, 13_000_000, true);
+    }
+
+    [Fact]
+    public void 实际槽位注音预设按父链投影并与行覆盖几何像素一致()
+    {
+        var source = LeadInFixture.Create(slots: true, crossClip: true);
+        var program = source.LyricPresentation.FindProgram("primary")!;
+        var slot = source.LyricPresentation.FindNode(program.DefaultContainerId)!.Layout!.SlotIds[0];
+        var style = source.LyricStyle with { Ruby = new() { RelativeScale = .8, GapPx = 9 } };
+        var actual = Apply(source, Static("ruby-slot", style, LyricStyleProperty.RubyRelativeScale, LyricStyleProperty.RubyGapPx),
+            new(ProjectEffectBindingKind.Node, id: slot, includeDescendants: true));
+        using var a = new SkiaRenderPipeline();
+        using var b = new SkiaRenderPipeline();
+        var original = b.GetSceneFrame(ProjectSnapshot.FromProject(source), 13_000_000);
+        var selected = original.Lines.Where(sample => sample.ParentId == slot).ToArray();
+        Assert.NotEmpty(selected);
+        Assert.Contains(selected, sample => !sample.Frame.Line!.RubyAnnotations.IsEmpty);
+        var expected = source;
+        foreach (var sample in selected)
+            expected = WithLine(expected, sample.Frame.Line!.Id, line => line with { StyleOverride = (line.StyleOverride ?? new()) with
+            {
+                Ruby = new() { RelativeScale = OptionalValue.Set<double?>(.8), GapPx = OptionalValue.Set<double?>(9) }
+            } });
+        var aSnapshot = ProjectSnapshot.FromProject(actual);
+        var bSnapshot = ProjectSnapshot.FromProject(expected);
+        var actualFrame = a.GetSceneFrame(aSnapshot, 13_000_000);
+        var expectedFrame = b.GetSceneFrame(bSnapshot, 13_000_000);
+        Assert.Equal(JsonSerializer.Serialize(expectedFrame.TokenGeometries), JsonSerializer.Serialize(actualFrame.TokenGeometries));
+        SamePixels(a, aSnapshot, b, bSnapshot, 13_000_000, true);
+    }
+
     private static Project Apply(Project project, StyleTemplate preset, ProjectEffectBinding target)
     {
         Assert.True(PresetApplicationsEditor.TryApply(project, preset, [target], null, out var result, out var reason), reason);

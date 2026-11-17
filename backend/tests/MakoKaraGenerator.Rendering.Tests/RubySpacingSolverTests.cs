@@ -5,6 +5,36 @@ namespace MakoKaraGenerator.Rendering.Tests;
 
 public sealed class RubySpacingSolverTests
 {
+    [Fact]
+    public void Natural_edge_bearings_and_letter_spacing_set_the_required_seam()
+    {
+        // A ends at ink x=15 with 3 px right bearing; B starts at ink x=16
+        // with 2 px left bearing. One 4 px interval gives a 9 px seam,
+        // hence B and all later groups must move by 8 px.
+        var actual = RubySpacingSolver.Solve(Basis(3), [new(0, 1), new(1, 1), new(2, 1)],
+        [
+            new(0, new(-5, -20, 15, -10), LeadingSpace: 1, TrailingSpace: 3, LetterSpacing: 4),
+            new(1, new(16, -20, 25, -10), LeadingSpace: 2, TrailingSpace: 1),
+        ]);
+        Assert.Equal(RubySpacingStatus.Adjusted, actual.Status);
+        Assert.Equal(new float[] { 0, 8 }, actual.RubyOffsets.ToArray());
+        Assert.Equal(18, actual.Basis.DrawUnits[1].X);
+        Assert.Equal(28, actual.Basis.DrawUnits[2].X);
+    }
+
+    [Fact]
+    public void Natural_seam_without_added_letter_spacing_and_negative_bearings()
+    {
+        var tokens = new TextSpan[] { new(0, 1), new(1, 1) };
+        var basis = Basis(2);
+        var natural = RubySpacingSolver.Solve(basis, tokens,
+            [new(0, new(0, -20, 15, -10), TrailingSpace: 3), new(1, new(16, -20, 25, -10), LeadingSpace: 2)]);
+        Assert.Equal(4, natural.RubyOffsets[1]); // natural gap 5, original gap 1
+        var negative = RubySpacingSolver.Solve(basis, tokens,
+            [new(0, new(0, -20, 15, -10), TrailingSpace: -3), new(1, new(15, -20, 25, -10), LeadingSpace: 1)]);
+        Assert.Equal(1, negative.RubyOffsets[1]); // negative bearings still keep the 1 px floor
+    }
+
     [Theory]
     [InlineData(.99f, true)]
     [InlineData(1f, false)]

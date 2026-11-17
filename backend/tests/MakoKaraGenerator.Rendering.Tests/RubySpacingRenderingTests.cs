@@ -1,6 +1,8 @@
 using MakoKaraGenerator.Core.Lyrics;
 using MakoKaraGenerator.Core.Effects;
+using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Rendering.Skia;
+using MakoKaraGenerator.Text;
 using SkiaSharp;
 using Fx = MakoKaraGenerator.Scripting;
 
@@ -8,6 +10,69 @@ namespace MakoKaraGenerator.Rendering.Tests;
 
 public sealed class RubySpacingRenderingTests
 {
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(3f)]
+    public void Japanese_readings_keep_natural_inter_character_space_at_their_join(float letterSpacing)
+    {
+        var tokens = new[] { LyricToken.Create("a", "大"), LyricToken.Create("b", "原") };
+        var line = LyricLine.Create("line", "大原", tokens: tokens) with
+        {
+            RubyAnnotations = [RubyAnnotation.Create("ra", "a", "だいしょ"), RubyAnnotation.Create("rb", "b", "うはら")],
+        };
+        var style = LyricStyle.Default with { FontFamilyName = TestFonts.Cjk, FontSizePx = 48, LetterSpacingPx = letterSpacing };
+        using var geometry = new SkiaSceneGeometry();
+        var actual = geometry.GetLineLayout(line, style);
+        var first = actual.Ruby.Single(ruby => ruby.Id == "ra");
+        var second = actual.Ruby.Single(ruby => ruby.Id == "rb");
+
+        // Independent oracle: the same two readings shaped as one continuous string.
+        using var shaper = new SkiaTextLayoutEngine();
+        var joined = shaper.Shape("だいしょうはら", new TextLayoutOptions
+        {
+            FamilyName = TestFonts.Cjk, FontSizePx = 24, FontWeight = style.FontWeight,
+            IsBold = style.IsBold, IsItalic = style.IsItalic, LetterSpacingPx = letterSpacing,
+            FallbackFamilyNames = style.FallbackFamilyNames,
+        });
+        var before = joined.DrawUnits.Where(unit => unit.Utf16Start < "だいしょ".Length)
+            .SelectMany(unit => unit.Glyphs).Where(glyph => glyph.InkBounds.HasValue).Max(glyph => glyph.InkBounds!.Value.Right);
+        var after = joined.DrawUnits.Where(unit => unit.Utf16Start >= "だいしょ".Length)
+            .SelectMany(unit => unit.Glyphs).Where(glyph => glyph.InkBounds.HasValue).Min(glyph => glyph.InkBounds!.Value.Left);
+        float expectedGap = Math.Max(1f, after - before);
+        Assert.InRange(second.Ink.Left - first.Ink.Right, expectedGap - .01f, expectedGap + .01f);
+        Assert.True(actual.SpacingStatus.HasFlag(RubySpacingStatus.Adjusted));
+    }
+
+    [Fact]
+    public void Ruby_layout_uses_token_style_then_annotation_fallback_without_changing_base_font()
+    {
+        var first = LyricToken.Create("a", "歌") with { StyleOverride = new()
+        {
+            Ruby = new() { RelativeScale = OptionalValue.Set<double?>(.8), GapPx = OptionalValue.Set<double?>(7) }
+        } };
+        var line = LyricLine.Create("line", "歌歌", tokens: [first, LyricToken.Create("b", "歌")]) with
+        {
+            RubyAnnotations = [RubyAnnotation.Create("ra", "a", "うた"), RubyAnnotation.Create("rb", "b", "うた") with
+                { RelativeScale = .3, GapPx = 4 }],
+        };
+        var style = LyricStyle.Default with { FontFamilyName = TestFonts.Cjk, FontSizePx = 50, Ruby = new() { RelativeScale = .6, GapPx = null } };
+        using var geometry = new SkiaSceneGeometry();
+        var layout = geometry.GetLineLayout(line, style);
+        var a = layout.Ruby.Single(ruby => ruby.Id == "ra");
+        var b = layout.Ruby.Single(ruby => ruby.Id == "rb");
+        Assert.Equal(40f, a.Options.FontSizePx, 3);
+        Assert.Equal(30f, b.Options.FontSizePx, 3);
+        Assert.Equal(.8, a.Scale);
+        Assert.Equal(.6, b.Scale);
+        Assert.Equal(7f, layout.Shaped.InkBounds!.Value.Top - a.Ink.Bottom, 3);
+        Assert.Equal(4f, layout.Shaped.InkBounds!.Value.Top - b.Ink.Bottom, 3);
+
+        var fallback = geometry.GetLineLayout(line, style with { Ruby = new() });
+        Assert.Equal(15f, fallback.Ruby.Single(ruby => ruby.Id == "rb").Options.FontSizePx, 3);
+        Assert.Equal(layout.Shaped.DrawUnits.Select(unit => unit.Glyphs.Select(glyph => glyph.GlyphId)),
+            fallback.Shaped.DrawUnits.Select(unit => unit.Glyphs.Select(glyph => glyph.GlyphId)));
+    }
+
     [Fact]
     public void No_ruby_does_not_build_token_index()
     {

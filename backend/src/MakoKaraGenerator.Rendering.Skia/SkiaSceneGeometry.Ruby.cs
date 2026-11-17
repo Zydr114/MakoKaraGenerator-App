@@ -8,7 +8,7 @@ namespace MakoKaraGenerator.Rendering.Skia;
 public sealed partial class SkiaSceneGeometry
 {
     /// <summary>一条注音的布局；<paramref name="BaseWidth"/> 是所属底字整行的宽度，整行渐变的横向参考取它；
-    /// <paramref name="Scale"/> 是注音比例（<see cref="RubyAnnotation.RelativeScale"/>），装饰按它缩放（P3 设计 §7.2）。</summary>
+    /// <paramref name="Scale"/> 是样式和注音源解析后的最终比例，装饰按它缩放。</summary>
     internal sealed record RubyLayout(string Id, int TokenIndex, ShapedLine Shaped, TextLayoutOptions Options,
         float X, float Baseline, TextInkBounds Ink, ImmutableArray<RubyLayoutSegment> Segments, float BaseWidth = 0f, double Scale = 1d);
 
@@ -33,7 +33,10 @@ public sealed partial class SkiaSceneGeometry
             var span = new TextSpan(offset, token.Text.Length); offset = span.End; return span;
         })];
         var solved = RubySpacingSolver.Solve(shaped, spans,
-            ruby.Select(annotation => new RubySpacingItem(annotation.TokenIndex, annotation.Ink)).ToArray());
+            ruby.Select(annotation => new RubySpacingItem(annotation.TokenIndex, annotation.Ink,
+                annotation.Shaped.InkBounds!.Value.Left,
+                annotation.Shaped.Width - annotation.Shaped.InkBounds.Value.Right,
+                annotation.Options.LetterSpacingPx)).ToArray());
         if (!ReferenceEquals(shaped, solved.Basis))
         {
             ruby = [.. ruby.Select((annotation, index) =>
@@ -68,7 +71,11 @@ public sealed partial class SkiaSceneGeometry
                 : tokens.TryGetValue(annotation.BaseTokenId, out var match) ? match : ((int Index, int Offset)?)null;
             if (!annotation.IsValid || found is null) continue;
             (int index, int offset) = found.Value;
-            TextLayoutOptions options = LayoutOptionsFor(style with { FontSizePx = style.FontSizePx * (float)annotation.RelativeScale });
+            LyricStyle elementStyle = line.Tokens[index].StyleOverride is { } overlay
+                ? ResolveElementStyle(style, overlay) : style;
+            double scale = elementStyle.Ruby.ResolveScale(annotation);
+            double gap = elementStyle.Ruby.ResolveGap(annotation);
+            TextLayoutOptions options = LayoutOptionsFor(style with { FontSizePx = style.FontSizePx * (float)scale });
             ShapedLine ruby = GetLayout(annotation.Text, options);
             if (ruby.InkBounds is not { } ink) continue;
             float left = shaped.XAt(offset), right = shaped.XAt(offset + line.Tokens[index].Text.Length);
@@ -78,7 +85,7 @@ public sealed partial class SkiaSceneGeometry
                 RubyAlignment.End => right - ink.Right,
                 _ => (left + right - ink.Left - ink.Right) / 2,
             };
-            float baseline = baseInk.Top - (float)annotation.GapPx - ink.Bottom;
+            float baseline = baseInk.Top - (float)gap - ink.Bottom;
             ImmutableArray<RubyLayoutSegment>.Builder segmentBuilder = ImmutableArray.CreateBuilder<RubyLayoutSegment>();
             // A segment boundary inside a grapheme or shaping cluster belongs to the
             // segment containing that cluster's first code unit. Never reshape a substring.
@@ -104,7 +111,7 @@ public sealed partial class SkiaSceneGeometry
                 segmentLeft = segmentRight;
             }
             result.Add(new(annotation.Id, index, ruby, options, x, baseline,
-                new(x + ink.Left, baseline + ink.Top, x + ink.Right, baseline + ink.Bottom), segmentBuilder.ToImmutable(), Scale: annotation.RelativeScale));
+                new(x + ink.Left, baseline + ink.Top, x + ink.Right, baseline + ink.Bottom), segmentBuilder.ToImmutable(), Scale: scale));
         }
         return result;
     }

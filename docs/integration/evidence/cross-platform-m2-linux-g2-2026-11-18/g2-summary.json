@@ -1,0 +1,149 @@
+{
+  "date": "2026-11-18",
+  "branch": "feat/cross-platform-m2-shm",
+  "baseCommit": "6f42d17",
+  "productVersion": "0.115.0",
+  "contractVersion": "1.56.0",
+  "mode": "Method B (platform-independent common layer + Linux implementations; Windows OS leaves explicit placeholders)",
+  "environment": {
+    "os": "linux-x64",
+    "electron": "45.2.1",
+    "gpu": "AMD Radeon 880M Graphics (RADV STRIX1)",
+    "sandbox": true,
+    "contextIsolation": true
+  },
+  "gateG2Suites": {
+    "correctnessCpu": {
+      "status": "passed",
+      "device": "Skia raster",
+      "cases": [
+        {
+          "pixelFormat": "bgra8888",
+          "width": 1280,
+          "height": 720,
+          "strideBytes": 5120,
+          "verifiedFrames": 12,
+          "maxAbsChannelDiffLsb": 0,
+          "premultipliedMagentaRgba": [128, 0, 128, 128],
+          "avgRenderUs": 1240,
+          "avgCaptureUs": 653
+        },
+        {
+          "pixelFormat": "rgba8888",
+          "width": 1280,
+          "height": 720,
+          "strideBytes": 5184,
+          "verifiedFrames": 12,
+          "maxAbsChannelDiffLsb": 0,
+          "premultipliedMagentaRgba": [128, 0, 128, 128],
+          "avgRenderUs": 491,
+          "avgCaptureUs": 176
+        }
+      ]
+    },
+    "correctnessVulkan": {
+      "status": "passed",
+      "device": "AMD Radeon 880M Graphics (RADV STRIX1)",
+      "cases": [
+        {
+          "pixelFormat": "bgra8888",
+          "width": 1280,
+          "height": 720,
+          "strideBytes": 5120,
+          "verifiedFrames": 12,
+          "maxAbsChannelDiffLsb": 0,
+          "premultipliedMagentaRgba": [128, 0, 128, 128]
+        },
+        {
+          "pixelFormat": "rgba8888",
+          "width": 1280,
+          "height": 720,
+          "strideBytes": 5184,
+          "verifiedFrames": 12,
+          "maxAbsChannelDiffLsb": 0,
+          "premultipliedMagentaRgba": [128, 0, 128, 128],
+          "avgRenderUs": 118,
+          "avgCaptureUs": 1256
+        }
+      ]
+    },
+    "resize30": {
+      "status": "passed",
+      "switchesCompleted": 30,
+      "generationsRun": 31,
+      "textureRecreations": 31,
+      "fdDeltaAfterWarmup": {
+        "main": 0,
+        "renderer": 0,
+        "worker": 0
+      },
+      "devShmResidualCount": 0
+    },
+    "slowBackpressure": {
+      "status": "passed",
+      "completedFrames": 25,
+      "consumerPeakOutstanding": 3,
+      "workerPeakOutstanding": 3
+    },
+    "stress1000": {
+      "status": "passed",
+      "resolution": "2560x1440",
+      "targetFps": 30,
+      "completedFrames": 1000,
+      "totalPayloadTransferredGb": 14.75,
+      "avgRenderUs": 106,
+      "avgCaptureUs": 3141,
+      "fdDeltaAfterWarmup": {
+        "main": 1,
+        "renderer": 1,
+        "worker": 0
+      },
+      "rssGrowthAfterWarmupMb": {
+        "main": 2.5,
+        "renderer": 0.4
+      },
+      "mainV8ExternalBytesFrame100": 17678443,
+      "mainV8ExternalBytesFrame1000": 17592252,
+      "rendererJsHeapBytesFrame100": 47400000,
+      "rendererJsHeapBytesFrame1000": 47400000,
+      "devShmResidualCount": 0
+    }
+  },
+  "regressionAndContract": {
+    "solutionBuild": {
+      "warnings": 0,
+      "errors": 0
+    },
+    "contractValidation": {
+      "contractVersion": "1.56.0",
+      "paths": 115,
+      "operations": 128,
+      "schemas": 679,
+      "examples": 4016,
+      "negativeExamples": 2886
+    },
+    "frontendUnitTests": {
+      "files": 56,
+      "passed": 4587,
+      "failed": 0
+    },
+    "nodeDesktopAndNativeTests": {
+      "passed": 54,
+      "skippedWindowsOnly": 8,
+      "failed": 0
+    },
+    "dotnetTests": {
+      "backendWorkerTestsPassed": 158,
+      "runtimeHostingTestsPassed": 158,
+      "backendHostingTestsPassed": 1694,
+      "renderingGpuAndShmTestsPassed": 8,
+      "backendServerGpuTestsPassed": 5
+    }
+  },
+  "windowsPendingScope": [
+    "Win32 CreateFileMappingW Local\\mkg-shm-<id> backing + UnmapViewOfFile/CloseHandle in ShmPoolBackingFactory",
+    "Windows NamedPipeServerStream PipeOptions.CurrentUserOnly endpoint in LocalStreamPreviewChannel",
+    "Windows MSVC shm_bridge.cc #ifdef _WIN32 GetProcAddress(GetModuleHandleW(nullptr), ...) N-API loader",
+    "Windows real hardware Gate G2 execution (node.exe + electron.exe loading, OS handles, Commit Charge)"
+  ]
+}

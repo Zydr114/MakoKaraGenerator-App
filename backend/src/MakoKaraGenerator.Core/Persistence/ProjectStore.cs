@@ -208,12 +208,35 @@ public static class ProjectStore
             Add(issues, DiagnosticCode.InvalidEffectData, IssueSeverity.Error, error.Message, error.Path); return Failure(issues);
         }
 
+        project = RemoveLegacyDefaultProgram(project, issues);
+
         // 结构诊断在前、语义诊断在后：先让用户看到"文件哪里不对"，再看"数据哪里不对"。
         ValidationReport report = ValidationReport
             .From(issues)
             .Merge(ProjectValidator.Validate(project, ValidationContext.Open));
 
         return new ProjectLoadResult { Project = project, Report = report };
+    }
+
+    private static Project RemoveLegacyDefaultProgram(Project project, List<ProjectIssue> issues)
+    {
+        // 旧新建流程先初始化空歌词，再整体替换文档。只识别这一条准确的默认记录。
+        const string branchId = "primary";
+        const string programId = "program/primary";
+        if (project.Lyrics.Branches.Any(branch => branch.Id == branchId)) return project;
+
+        var tree = project.LyricPresentation;
+        var candidates = tree.Programs.Where(program => program.BranchId == branchId || program.Id == programId).ToArray();
+        if (candidates.Length != 1 || candidates[0] != new LyricDisplayProgram
+        {
+            Id = programId, BranchId = branchId,
+            RootContainerId = LyricSceneIds.Root(branchId), DefaultContainerId = LyricSceneIds.Regular(branchId),
+        }) return project;
+
+        Add(issues, DiagnosticCode.InvalidDisplayProgram, IssueSeverity.Warning,
+            "已在当前会话移除旧版新建工程遗留的空主歌词显示程序。保存后生效于磁盘副本。",
+            "project.lyricPresentation.programs[program/primary]");
+        return project with { LyricPresentation = tree with { Programs = tree.Programs.Remove(candidates[0]) } };
     }
 
     private static bool ResourceError(Exception error) => error is IOException or UnauthorizedAccessException or ArgumentException or JsonException or EffectPackageException or OverflowException;

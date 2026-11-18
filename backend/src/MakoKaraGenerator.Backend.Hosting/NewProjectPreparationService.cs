@@ -1,7 +1,8 @@
-using MakoKaraGenerator.Application;
 using MakoKaraGenerator.Application.Editing;
+using MakoKaraGenerator.Core.Lyrics;
 using MakoKaraGenerator.Core.Lyrics.Import;
 using MakoKaraGenerator.Core.Projects;
+using MakoKaraGenerator.Core.Validation;
 using MakoKaraGenerator.Media;
 
 namespace MakoKaraGenerator.Backend.Hosting;
@@ -82,7 +83,7 @@ public sealed class NewProjectPreparationService
                 return new(Error: new(NewProjectPreparationErrorCode.NoAudioStream, nameof(NewProjectPreparationRequest.AudioPath)));
         }
 
-        Project project = ProjectWorkspace.CreateDefaultProject(name, composition);
+        LyricsDocument? document = null;
         LyricsImportReport? report = null;
         if (lyricsSource is not null)
         {
@@ -100,10 +101,14 @@ public sealed class NewProjectPreparationService
             cancellationToken.ThrowIfCancellationRequested();
             if (lyrics.Document.Lines.IsEmpty)
                 return new(Error: new(NewProjectPreparationErrorCode.EmptyLyrics, nameof(NewProjectPreparationRequest.LyricsSource)));
-            project = project with { Lyrics = lyrics.Document };
+            document = lyrics.Document;
             report = lyrics.Report;
         }
 
+        Project project = Project.Create(name, composition, document);
+        var presentation = PresentationValidator.Validate(project);
+        if (presentation.HasErrors)
+            return new(Error: new(NewProjectPreparationErrorCode.LyricsImportFailed, nameof(NewProjectPreparationRequest.LyricsSource), presentation.ToSummary()));
         if (audioPath is not null) project = ProjectMediaEditor.SetAudioPath(project, audioPath);
         cancellationToken.ThrowIfCancellationRequested();
         return new(project, loaded, report);

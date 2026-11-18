@@ -11,6 +11,28 @@ namespace MakoKaraGenerator.Backend.Hosting.Tests;
 public sealed class NewProjectPreparationTests
 {
     [Fact]
+    public async Task 多歌唱者TTML创建的显示程序绑定实际来源()
+    {
+        const string ttml = """
+            <tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata">
+              <head><metadata><ttm:agent xml:id="v1" type="person"/><ttm:agent xml:id="v2" type="person"/></metadata></head>
+              <body><div><p ttm:agent="v1" begin="0s" end="1s"><span begin="0s" end="0.5s">甲</span> <span begin="0.5s" end="1s">乙</span></p>
+              <p ttm:agent="v2" begin="0s" end="1s"><span begin="0s" end="1s">丙</span></p></div></body>
+            </tt>
+            """;
+        var result = await Service().PrepareAsync(Request(ttml, "singers.ttml"));
+
+        Assert.True(result.Accepted);
+        Project project = result.Candidate!.Project;
+        Assert.Equal("agent-v1", project.Lyrics.PrimaryBranchId);
+        Assert.Equal(["agent-v1", "agent-v2"], project.Lyrics.Branches.Select(branch => branch.Id));
+        Assert.Equal(["agent-v1", "agent-v2"], project.LyricPresentation.Programs.Select(program => program.BranchId));
+        Assert.False(Core.Validation.PresentationValidator.Validate(project).HasErrors);
+        Assert.Equal("甲 乙", project.Lyrics.Lines.Single().Text);
+        Assert.Null(project.Lyrics.Lines.Single().Tokens[1].Time);
+    }
+
+    [Fact]
     public async Task 成功候选保持合成与默认基线并用实际采样时长解析固定歌词()
     {
         LoadedWaveform waveform = Sample();

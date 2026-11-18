@@ -18,6 +18,38 @@ public sealed class ProjectStoreTests : IDisposable
 
     public void Dispose() => _directory.Dispose();
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void 打开只移除无对应来源的未配置默认主歌词程序(bool customized)
+    {
+        Project template = SampleProject();
+        LyricsDocument lyrics = template.Lyrics with
+        {
+            PrimaryBranchId = "agent-v1",
+            Branches = [template.Lyrics.PrimaryBranch! with { Id = "agent-v1" }],
+        };
+        var presentation = template.LyricPresentation.WithDefaultPrograms(lyrics);
+        if (customized)
+        {
+            var program = presentation.FindProgram("primary")! with { AnimationPolicy = LyricBranchAnimationPolicy.Static };
+            presentation = presentation with { Programs = presentation.Programs.SetItem(0, program) };
+        }
+        var legacy = template with { Lyrics = lyrics, LyricPresentation = presentation };
+        ProjectStore.Save(legacy, _directory.Path);
+        string entry = Path.Combine(_directory.Path, "project.json");
+        byte[] original = File.ReadAllBytes(entry);
+
+        ProjectLoadResult loaded = ProjectStore.Load(_directory.Path);
+
+        Assert.Equal(original, File.ReadAllBytes(entry));
+        Assert.Equal(lyrics, loaded.Project!.Lyrics);
+        Assert.Equal(presentation.Nodes, loaded.Project.LyricPresentation.Nodes.AsEnumerable());
+        Assert.Equal(presentation.FindProgram("agent-v1"), loaded.Project.LyricPresentation.FindProgram("agent-v1"));
+        Assert.Equal(customized, loaded.Report.HasErrors);
+        Assert.Equal(customized, loaded.Project.LyricPresentation.FindProgram("primary") is not null);
+    }
+
     [Fact]
     public void 保存加载校验之后数据不变()
     {

@@ -32,6 +32,28 @@ public sealed class ProjectValidatorTests
         Assert.False(ProjectValidator.Validate(project, ValidationContext.Export).HasErrors);
     }
 
+    [Theory]
+    [InlineData(" ", TimingStatus.Missing, null, false)]
+    [InlineData("\t\u3000", TimingStatus.Missing, null, false)]
+    [InlineData("字", TimingStatus.Missing, DiagnosticCode.MissingTime, true)]
+    [InlineData("", TimingStatus.Missing, DiagnosticCode.EmptyText, true)]
+    [InlineData(" ", TimingStatus.Imported, DiagnosticCode.TimeStatusMismatch, true)]
+    [InlineData(" ", TimingStatus.Confirmed, DiagnosticCode.InvalidTimeRange, true)]
+    public void 导出只豁免实际无时间的非空排版元素(string text, TimingStatus status, DiagnosticCode? code, bool blocked)
+    {
+        var token = new LyricToken { Id = "token", Text = text, TimingStatus = status,
+            Time = status == TimingStatus.Confirmed ? new TimeRange(50_000, 50_000) : null };
+        var line = LyricLine.Create("line", "甲" + text, new TimeRange(0, 1_000_000), TimingStatus.Confirmed,
+            [LyricToken.Create("anchor", "甲", new TimeRange(0, 500_000), TimingStatus.Confirmed), token]);
+        var project = Project.Create("字幕", BuildValidProject().Composition, LyricsDocument.Create([line]));
+
+        ValidationReport report = ProjectValidator.Validate(project, ValidationContext.Export);
+
+        Assert.Equal(blocked, report.HasErrors);
+        if (code is { } expected)
+            Assert.Contains(report.Issues, issue => issue.Code == expected && issue.Severity == IssueSeverity.Error);
+    }
+
     [Fact]
     public void schema_版本不符是阻断性错误()
     {

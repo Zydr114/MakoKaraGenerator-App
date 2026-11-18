@@ -540,7 +540,9 @@ public static partial class ProjectValidator
 
 
             ValidateText(token.Text, context, tokenPath + ".text", issues);
-            if (!staticBranch || token.Time is not null)
+            bool untimedSpacing = context == ValidationContext.Export && token.Time is null
+                && token.TimingStatus == TimingStatus.Missing && token.Text.Length > 0 && token.Text.AsSpan().IsWhiteSpace();
+            if (!untimedSpacing && (!staticBranch || token.Time is not null))
                 ValidateTime(token.Time, token.IsTimeStatusConsistent, context, tokenPath, issues);
             ValidateStyleOverride(token.StyleOverride, tokenPath + ".styleOverride", isToken: true, issues);
 

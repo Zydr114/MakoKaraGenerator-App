@@ -20,8 +20,11 @@ namespace MakoKaraGenerator.Backend.Worker;
 internal static class Program
 {
     private static readonly JsonSerializerOptions FontJson = FontWorkerContract.JsonOptions;
-    private static async Task<int> Main()
+    private static async Task<int> Main(string[] args)
     {
+        if (args is ["--shm-g2-producer"] && Environment.GetEnvironmentVariable("MAKO_SHM_G2_BENCHMARK") == "1")
+            return await ShmG2ProducerRunner.RunAsync().ConfigureAwait(false);
+
         PerformanceTelemetry.ConfigureFromEnvironment(Console.Error.WriteLine);
         // Fixed before any author code runs; later environment changes cannot change session devices.
         string renderBackend = RuntimeRenderBackendProbe.ResolveEnvironment();

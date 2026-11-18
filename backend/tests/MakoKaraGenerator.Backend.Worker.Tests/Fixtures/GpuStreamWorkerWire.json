@@ -12,6 +12,10 @@
     "workerMonotonicNs": "2000000",
     "echoSenderMonotonicNs": "1000000",
     "provider": "runtime",
+    "transport": "dma-buf",
+    "api": "vulkan",
+    "pixelFormat": "bgra8888",
+    "strideBytes": 1024,
     "width": 256,
     "height": 128,
     "slotCount": 3,
@@ -23,6 +27,35 @@
       "drmRenderMajor": 226,
       "drmRenderMinor": 128,
       "deviceUUID": "00000000000000000000000000000000"
+    }
+  },
+  "shmHelloAccepted": {
+    "type": "hello-accepted",
+    "protocolVersion": 1,
+    "streamId": "stream",
+    "hostInstanceId": "host",
+    "producerEpoch": "1",
+    "inputGeneration": "1",
+    "consumerEpoch": "1",
+    "consumerId": "fixture",
+    "poolGeneration": "2",
+    "workerMonotonicNs": "2000000",
+    "echoSenderMonotonicNs": "1000000",
+    "provider": "runtime",
+    "transport": "shm",
+    "api": "cpu",
+    "pixelFormat": "rgba8888",
+    "strideBytes": 1088,
+    "shmName": "shm://fixture",
+    "width": 256,
+    "height": 128,
+    "slotCount": 3,
+    "allocationBytes": 417792,
+    "device": {
+      "api": "cpu",
+      "name": "Skia raster",
+      "vendorId": null,
+      "deviceId": null
     }
   },
   "frame": {
@@ -46,6 +79,10 @@
     "height": 128,
     "renderStartMonotonicNs": "3000000",
     "producerReadyMonotonicNs": "4000000",
+    "transport": "dma-buf",
+    "api": "vulkan",
+    "pixelFormat": "bgra8888",
+    "strideBytes": 1024,
     "format": "BGRA_8888",
     "fourcc": "AR24",
     "modifier": "0",
@@ -87,10 +124,64 @@
       "drmRenderMinor": 128,
       "deviceUUID": "00000000000000000000000000000000"
     },
+    "timings": {
+      "renderDurationUs": 750,
+      "portCaptureDurationUs": 250
+    },
     "counters": {
       "gpuBlits": 1,
       "cpuPixelReadbacks": 0,
       "queueIdleWaits": 1
+    }
+  },
+  "shmFrame": {
+    "type": "frame",
+    "protocolVersion": 1,
+    "streamId": "stream",
+    "hostInstanceId": "host",
+    "producerEpoch": "1",
+    "inputGeneration": "1",
+    "consumerEpoch": "1",
+    "producerPid": 123,
+    "timelineEpoch": "1",
+    "poolGeneration": "2",
+    "slotId": 1,
+    "slotEpoch": "2",
+    "frameSeq": 2,
+    "controlSeq": 1,
+    "timelineResetId": "initial",
+    "timeUs": 2000,
+    "width": 256,
+    "height": 128,
+    "renderStartMonotonicNs": "5000000",
+    "producerReadyMonotonicNs": "5600000",
+    "transport": "shm",
+    "api": "cpu",
+    "pixelFormat": "rgba8888",
+    "strideBytes": 1088,
+    "slotOffsetBytes": 139264,
+    "slotSizeBytes": 139264,
+    "allocationSize": 417792,
+    "origin": "top-left",
+    "alphaMode": "premultiplied",
+    "colorSpace": "srgb",
+    "sync": "read-pixels-memory-barrier",
+    "provider": "runtime",
+    "diagnostics": null,
+    "device": {
+      "api": "cpu",
+      "name": "Skia raster",
+      "vendorId": null,
+      "deviceId": null
+    },
+    "timings": {
+      "renderDurationUs": 420,
+      "portCaptureDurationUs": 180
+    },
+    "counters": {
+      "gpuBlits": 0,
+      "cpuPixelReadbacks": 1,
+      "queueIdleWaits": 0
     }
   },
   "controlApplied": {
@@ -129,6 +220,10 @@
     "clockCalibrated": true,
     "clockUncertaintyNs": "1000",
     "provider": "runtime",
+    "transport": "dma-buf",
+    "api": "vulkan",
+    "pixelFormat": "bgra8888",
+    "strideBytes": 1024,
     "diagnostics": {
       "total": 1,
       "warningCount": 1,

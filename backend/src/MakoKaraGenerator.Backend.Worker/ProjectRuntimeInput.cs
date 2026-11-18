@@ -68,10 +68,10 @@ internal sealed class ProjectRuntimeInput : IDisposable
     internal ProjectRenderSessionFactory CreateFactory(ReplayReason reason,
         bool layoutReference = false, string? editingLineId = null, string? editingCueId = null, string? renderBackend = null,
         bool enableGpuPreview = false, bool enableGpuPreviewBenchmark = false, RuntimeGpuPreparation? gpuPreparation = null,
-        bool graphPixelChecks = true)
+        bool graphPixelChecks = true, PreviewTransportKind? previewTransport = null)
         => new(Compiler, _videos, reason,
             _grant is null ? null : () => new GrantedBackgroundResolver(_grant, _videos), layoutReference, editingLineId, editingCueId, renderBackend, enableGpuPreview, enableGpuPreviewBenchmark, gpuPreparation,
-            _media?.Binding, graphPixelChecks);
+            _media?.Binding, graphPixelChecks, previewTransport);
     /// <summary>
     /// 双输出验证的透明半程：固定输入属于普通输出时，按同一快照另建透明无媒体输入和会话工厂；
     /// 没有媒体输入或已是透明输入时返回 null，沿用原工厂。

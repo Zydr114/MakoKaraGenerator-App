@@ -7,16 +7,25 @@ namespace MakoKaraGenerator.Backend.Worker;
 // Counts describe the actual snapshot; only the textual projection is bounded.
 internal static class GpuStreamDiagnostics
 {
-    internal static GpuStreamDiagnosticSummary Summarize(GpuRenderFrame frame)
+    internal static GpuStreamDiagnosticSummary Summarize(GpuRenderFrame frame) =>
+        SummarizeCore(frame.DiagnosticSnapshot, frame.ImageEffectDiagnostics, frame.MaterialDiagnostics);
+
+    internal static GpuStreamDiagnosticSummary Summarize(PreviewRenderFrame frame) =>
+        SummarizeCore(frame.DiagnosticSnapshot, frame.ImageEffectDiagnostics, frame.MaterialDiagnostics);
+
+    private static GpuStreamDiagnosticSummary SummarizeCore(
+        RuntimeDiagnosticSnapshot snapshot,
+        System.Collections.Immutable.ImmutableArray<RenderImageEffectDiagnostic> imageDiagnostics,
+        System.Collections.Immutable.ImmutableArray<RenderMaterialDiagnostic> materialDiagnostics)
     {
-        GpuStreamDiagnosticSummary runtime = Summarize(frame.DiagnosticSnapshot);
+        GpuStreamDiagnosticSummary runtime = Summarize(snapshot);
         var items = runtime.Items.ToList();
         bool truncated = runtime.Truncated;
-        foreach (var diagnostic in frame.ImageEffectDiagnostics)
+        foreach (var diagnostic in imageDiagnostics)
             Add(new("Warning", diagnostic.Code, "Image effect fallback", diagnostic.InstanceId.Value, "image"));
-        foreach (var diagnostic in frame.MaterialDiagnostics)
+        foreach (var diagnostic in materialDiagnostics)
             Add(new("Warning", diagnostic.Code, "Material fallback", diagnostic.OwnerDescription, "material"));
-        int warnings = checked(frame.ImageEffectDiagnostics.Length + frame.MaterialDiagnostics.Length);
+        int warnings = checked(imageDiagnostics.Length + materialDiagnostics.Length);
         return new(checked(runtime.Total + warnings), checked(runtime.WarningCount + warnings), runtime.ErrorCount,
             truncated, [.. items]);
         void Add(GpuStreamDiagnosticItem item)

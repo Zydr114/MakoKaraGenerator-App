@@ -63,19 +63,40 @@ public static class GpuStreamWorkerContract
     private static WorkerProtocolException Invalid() => new("GPU 流私有消息无效。", "WorkerGpuStreamProtocolInvalid");
 }
 
-/// <summary>固定 Runtime 会话打开后，由 Host 发送的 GPU 初始化请求。</summary>
+/// <summary>可选的物理 GPU 选卡提示（供同卡零拷贝模式使用，SHM 模式下为空）。</summary>
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record PreferredGpuDeviceWorkerDto(
+    uint? VendorId = null,
+    uint? DeviceId = null,
+    uint? DrmRenderMajor = null,
+    uint? DrmRenderMinor = null,
+    string? DeviceLuidHex = null,
+    ulong? MetalRegistryId = null);
+
+/// <summary>固定 Runtime 会话打开后，由 Host 发送的连续预览流初始化请求。</summary>
 /// <remarks>BrokerPath 和 Handshake 是私有数据，禁止日志或公开响应。</remarks>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record GpuStreamWorkerOpen(string StreamId, string HostInstanceId, string InputGeneration,
     int Width, int Height, bool TransparentBackground, ulong MaximumAllocationBytes, int ExpectedMainPid,
-    string BrokerPath, string Handshake);
+    string BrokerPath, string Handshake,
+    string? Transport = null,
+    string? BackendApi = null,
+    string? PixelFormat = null,
+    uint StrideBytes = 0,
+    PreferredGpuDeviceWorkerDto? PreferredGpuDevice = null,
+    string? ShmToken = null);
 
 /// <summary>只有真实分配成功后返回池身份和实际预算使用。</summary>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record GpuStreamWorkerOpened(string StreamId, string ProducerEpoch, string PoolGeneration,
     int Width, int Height, int SlotCount, ulong AllocationBytes, int WorkerPid,
     uint VendorId, uint DeviceId, uint DrmRenderMajor, uint DrmRenderMinor, string DeviceUuid,
-    GpuWorkerBindingProof? WarmupBinding = null);
+    GpuWorkerBindingProof? WarmupBinding = null,
+    string Transport = "dma-buf",
+    string BackendApi = "vulkan",
+    string PixelFormat = "bgra8888",
+    uint StrideBytes = 0,
+    string? ShmResourceName = null);
 
 /// <summary>关闭请求不暗示消费者已完成。</summary>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]

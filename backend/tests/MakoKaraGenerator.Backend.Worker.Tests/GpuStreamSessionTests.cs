@@ -412,7 +412,7 @@ public sealed class GpuStreamSessionTests
         {
             lock (_receiveGate) return Incoming.TryDequeue(out var bytes) ? bytes : null;
         }
-        public bool TrySend(byte[] packet, SafeFileHandle? descriptor = null)
+        public bool TrySend(byte[] packet, System.Runtime.InteropServices.SafeHandle? descriptor = null)
         {
             using var document = JsonDocument.Parse(packet);
             if (descriptor is not null && BlockFrames) return false;

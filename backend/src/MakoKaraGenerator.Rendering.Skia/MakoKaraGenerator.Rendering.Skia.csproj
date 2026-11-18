@@ -27,6 +27,8 @@
   <ItemGroup>
     <InternalsVisibleTo Include="MakoKaraGenerator.Rendering.Tests" />
     <InternalsVisibleTo Include="MakoKaraGenerator.Runtime.Hosting" />
+    <InternalsVisibleTo Include="MakoKaraGenerator.Backend.Worker" />
+    <InternalsVisibleTo Include="MakoKaraGenerator.Backend.Worker.Tests" />
     <InternalsVisibleTo Include="SkiaGpuTargetProbe" />
     <PackageReference Include="SkiaSharp" />
     <PackageReference Include="SkiaSharp.HarfBuzz" />

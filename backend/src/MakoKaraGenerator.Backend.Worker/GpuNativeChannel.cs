@@ -5,12 +5,12 @@ using MakoKaraGenerator.Backend.Contracts;
 
 namespace MakoKaraGenerator.Backend.Worker;
 
-// This wrapper knows packet/FD ownership only; it never authorizes a GPU release.
+// This wrapper knows packet/handle ownership only; it never authorizes a slot release.
 internal interface IGpuStreamChannel : IDisposable
 {
     bool TryAccept(int expectedPid);
     byte[]? TryReceive();
-    bool TrySend(byte[] packet, SafeFileHandle? descriptor = null);
+    bool TrySend(byte[] packet, SafeHandle? descriptor = null);
 }
 
 internal sealed class GpuNativeChannel : IGpuStreamChannel
@@ -47,7 +47,7 @@ internal sealed class GpuNativeChannel : IGpuStreamChannel
         Check(status);
         return _receive.AsSpan(0, checked((int)count)).ToArray();
     }
-    public bool TrySend(byte[] packet, SafeFileHandle? descriptor = null)
+    public bool TrySend(byte[] packet, SafeHandle? descriptor = null)
     {
         ArgumentNullException.ThrowIfNull(packet);
         if (packet.Length is 0 or > GpuStreamWorkerContract.MaximumBytes)

@@ -89,22 +89,52 @@ internal sealed class PackageRenderSession(string? renderBackend = null, bool en
                 if (request.Kind == GpuStreamWorkerContract.OpenKind)
                 {
                     if (!enableGpuPreview || _gpuStream is not null || _runtimeInput is null ||
-                        _session is not IGpuRenderFrameSession { SupportsGpuFrames: true } gpu)
-                        throw new WorkerProtocolException("固定 Runtime 会话没有启用 GPU 流。", "WorkerGpuStreamUnavailable");
+                        _session is not IPreviewRenderSession { SupportsPreviewFrames: true } previewSession)
+                        throw new WorkerProtocolException("固定 Runtime 会话没有启用连续预览流。", "WorkerGpuStreamUnavailable");
                     var open = GpuStreamWorkerContract.Decode<GpuStreamWorkerOpen>(request.Payload);
                     if (open.Width is < 1 or > 4096 || open.Height is < 1 or > 4096 ||
                         open.MaximumAllocationBytes is 0 or > 64UL * 1024 * 1024 || string.IsNullOrEmpty(open.BrokerPath))
                         throw GpuStreamProtocol.Invalid();
+                    PreviewTransportKind? requestedTransport;
+                    PreviewPixelFormat requestedPixelFormat;
+                    try
+                    {
+                        requestedTransport = open.Transport is null ? null : PreviewWireConventions.ParseTransport(open.Transport);
+                        requestedPixelFormat = open.PixelFormat is null ? PreviewPixelFormat.Bgra8888 : PreviewWireConventions.ParsePixelFormat(open.PixelFormat);
+                        if (open.BackendApi is not null &&
+                            PreviewWireConventions.NormalizeBackendApi(open.BackendApi) != previewSession.BackendApi)
+                        {
+                            throw new WorkerProtocolException(
+                                $"请求的渲染设备 '{open.BackendApi}' 与固定会话设备 '{previewSession.BackendApi}' 不一致。",
+                                "WorkerGpuStreamUnavailable");
+                        }
+                    }
+                    catch (GpuPreviewException error)
+                    {
+                        throw new WorkerProtocolException(error.Message, error.Code);
+                    }
+
+                    PreferredGpuDevice? preferredDevice = open.PreferredGpuDevice is { } preferred
+                        ? new PreferredGpuDevice(preferred.VendorId, preferred.DeviceId, preferred.DrmRenderMajor,
+                            preferred.DrmRenderMinor, preferred.DeviceLuidHex, preferred.MetalRegistryId)
+                        : null;
+
                     RenderTarget target = new() { PixelWidth = open.Width, PixelHeight = open.Height };
-                    GpuFramePoolInfo pool = await gpu.InitializeGpuOutputAsync(target, open.MaximumAllocationBytes, token).ConfigureAwait(false);
+                    PreviewPoolInfo pool = await previewSession.InitializePreviewOutputAsync(
+                        target,
+                        open.MaximumAllocationBytes,
+                        new PreviewOutputOptions(requestedTransport, requestedPixelFormat, open.StrideBytes, preferredDevice, open.ShmToken),
+                        token).ConfigureAwait(false);
                     GpuStreamSession.ValidateOpen(open, pool);
                     ProjectSnapshot snapshot = _snapshot!;
-                    var channel = new GpuNativeChannel(open.BrokerPath);
+                    IGpuStreamChannel channel = pool.TransportKind == PreviewTransportKind.Shm
+                        ? new LocalStreamPreviewChannel(open.BrokerPath)
+                        : new GpuNativeChannel(open.BrokerPath);
                     try
                     {
                         _gpuStream = new(open, pool, channel, (timeUs, attempt, lifetime) => enableGpuPreviewBenchmark
-                            ? gpu.RenderSyntheticGpuAsync(target, timeUs, attempt, lifetime)
-                            : gpu.RenderGpuAsync(RenderRequest.At(snapshot, timeUs) with
+                            ? previewSession.RenderSyntheticPreviewAsync(target, timeUs, attempt, requestedPixelFormat, lifetime)
+                            : previewSession.RenderPreviewAsync(RenderRequest.At(snapshot, timeUs) with
                             {
                                 Target = target, TransparentBackground = open.TransparentBackground,
                                 Quality = RenderQuality.Standard, CancellationToken = lifetime,
@@ -113,7 +143,7 @@ internal sealed class PackageRenderSession(string? renderBackend = null, bool en
                     catch { channel.Dispose(); throw; }
                     _gpuOpen = open;
                     return GpuResult(request, GpuStreamWorkerContract.OpenResultKind, _gpuStream.Opened with
-                    { WarmupBinding = gpuPreparation?.BindingProof() });
+                    { WarmupBinding = pool.BackendApi == PreviewWireConventions.ApiVulkan ? gpuPreparation?.BindingProof() : null });
                 }
                 if (_gpuStream is null || _gpuOpen is null) throw GpuStreamProtocol.Invalid();
                 if (request.Kind == GpuStreamWorkerContract.ReadKind)

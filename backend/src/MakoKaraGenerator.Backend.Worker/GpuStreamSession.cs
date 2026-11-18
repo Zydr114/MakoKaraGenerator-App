@@ -8,13 +8,13 @@ using MakoKaraGenerator.Scripting;
 namespace MakoKaraGenerator.Backend.Worker;
 
 // Exactly one render task, one latest control and at most three exported leases.
-// The reader keeps running during GPU work and normal stop/drain.
+// The reader keeps running during render/capture work and normal stop/drain.
 internal sealed class GpuStreamSession : IAsyncDisposable
 {
     private readonly GpuStreamWorkerOpen _open;
-    private readonly GpuFramePoolInfo _pool;
+    private readonly PreviewPoolInfo _pool;
     private readonly IGpuStreamChannel _channel;
-    private readonly Func<long, ulong, CancellationToken, ValueTask<GpuRenderFrame>> _render;
+    private readonly Func<long, ulong, CancellationToken, ValueTask<PreviewRenderFrame>> _render;
     private readonly bool _synthetic;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly GpuPlaybackControl _controls = new();
@@ -35,10 +35,12 @@ internal sealed class GpuStreamSession : IAsyncDisposable
     private GpuPlaybackState? _applied;
     private int _peakExecutingRender, _peakPendingRenderTargets, _peakOutstanding;
     private string ProducerEpoch => GpuStreamProtocol.Decimal(_pool.ProducerEpoch);
-    private string Provider => _synthetic ? "synthetic-gpu" : "runtime";
+    private string Provider => _synthetic
+        ? (_pool.BackendApi == PreviewWireConventions.ApiCpu ? "synthetic-cpu" : "synthetic-gpu")
+        : "runtime";
 
-    internal GpuStreamSession(GpuStreamWorkerOpen open, GpuFramePoolInfo pool, IGpuStreamChannel channel,
-        Func<long, ulong, CancellationToken, ValueTask<GpuRenderFrame>> render, bool synthetic,
+    internal GpuStreamSession(GpuStreamWorkerOpen open, PreviewPoolInfo pool, IGpuStreamChannel channel,
+        Func<long, ulong, CancellationToken, ValueTask<PreviewRenderFrame>> render, bool synthetic,
         TimeSpan? leaseTimeout = null)
     {
         ValidateOpen(open, pool);
@@ -46,7 +48,36 @@ internal sealed class GpuStreamSession : IAsyncDisposable
         _leaseTimeoutNs = checked((leaseTimeout ?? TimeSpan.FromSeconds(30)).Ticks * 100);
         _completion = Task.Run(RunAsync);
     }
-    internal static void ValidateOpen(GpuStreamWorkerOpen open, GpuFramePoolInfo pool)
+
+    internal GpuStreamSession(GpuStreamWorkerOpen open, GpuFramePoolInfo pool, IGpuStreamChannel channel,
+        Func<long, ulong, CancellationToken, ValueTask<GpuRenderFrame>> render, bool synthetic,
+        TimeSpan? leaseTimeout = null)
+        : this(
+            open,
+            GpuStreamProtocol.ToPreviewPoolInfo(pool),
+            channel,
+            async (timeUs, attempt, token) =>
+            {
+                long startNs = GpuStreamProtocol.MonotonicNs();
+                GpuRenderFrame gpuFrame = await render(timeUs, attempt, token).ConfigureAwait(false);
+                long endNs = GpuStreamProtocol.MonotonicNs();
+                var timings = new PreviewFrameTimings(Math.Max(0, (endNs - startNs) / 1_000), 0);
+                return new PreviewRenderFrame(gpuFrame.Target, gpuFrame.TimeUs, DmaBufPreviewPort.AdaptGpuLease(gpuFrame.Lease), timings)
+                {
+                    ImageEffectDiagnostics = gpuFrame.ImageEffectDiagnostics,
+                    MaterialDiagnostics = gpuFrame.MaterialDiagnostics,
+                    DiagnosticSnapshot = gpuFrame.DiagnosticSnapshot,
+                };
+            },
+            synthetic,
+            leaseTimeout)
+    {
+    }
+
+    internal static void ValidateOpen(GpuStreamWorkerOpen open, GpuFramePoolInfo pool) =>
+        ValidateOpen(open, GpuStreamProtocol.ToPreviewPoolInfo(pool));
+
+    internal static void ValidateOpen(GpuStreamWorkerOpen open, PreviewPoolInfo pool)
     {
         if (string.IsNullOrEmpty(open.StreamId) || open.StreamId.Length > 128 ||
             string.IsNullOrEmpty(open.HostInstanceId) || open.HostInstanceId.Length > 128 ||
@@ -56,16 +87,35 @@ internal sealed class GpuStreamSession : IAsyncDisposable
             pool.AllocationBytes > open.MaximumAllocationBytes || open.MaximumAllocationBytes > 64UL * 1024 * 1024)
             throw GpuStreamProtocol.Invalid();
     }
-    internal GpuStreamWorkerOpened Opened => new(_open.StreamId, ProducerEpoch,
-        GpuStreamProtocol.Decimal(_pool.PoolGeneration), _pool.Width, _pool.Height, (int)_pool.SlotCount,
-        _pool.AllocationBytes, Environment.ProcessId, _pool.Device.VendorId, _pool.Device.DeviceId,
-        _pool.Device.DrmRenderMajor, _pool.Device.DrmRenderMinor, _pool.Device.DeviceUuid);
+
+    internal GpuStreamWorkerOpened Opened => new(
+        _open.StreamId,
+        ProducerEpoch,
+        GpuStreamProtocol.Decimal(_pool.PoolGeneration),
+        _pool.Width,
+        _pool.Height,
+        (int)_pool.SlotCount,
+        _pool.AllocationBytes,
+        Environment.ProcessId,
+        _pool.Device.VendorId ?? 0,
+        _pool.Device.DeviceId ?? 0,
+        _pool.Device.DrmRenderMajor ?? 0,
+        _pool.Device.DrmRenderMinor ?? 0,
+        _pool.Device.DeviceUuid ?? string.Empty,
+        WarmupBinding: null,
+        Transport: _pool.TransportKind.ToWireName(),
+        BackendApi: _pool.BackendApi,
+        PixelFormat: _pool.PixelFormat.ToWireName(),
+        StrideBytes: _pool.StrideBytes,
+        ShmResourceName: _pool.ShmResourceName);
+
     internal GpuStreamWorkerState ReadState() => Volatile.Read(ref _state);
     internal async Task<bool> StopAsync(CancellationToken token)
     {
         Interlocked.Exchange(ref _stop, 1);
         return await _completion.WaitAsync(token).ConfigureAwait(false);
     }
+
     public async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
@@ -78,16 +128,19 @@ internal sealed class GpuStreamSession : IAsyncDisposable
         }
         _lifetime.Dispose();
     }
-    private sealed record Rendered(GpuRenderFrame Frame, long StartedNs, long ReadyNs,
+
+    private sealed record Rendered(PreviewRenderFrame Frame, long StartedNs, long ReadyNs,
         long ControlSeq, long TimelineEpoch, string TimelineResetId);
-    private sealed class Published(Rendered rendered, GpuFrameExport exported, byte[] packet)
+
+    private sealed class Published(Rendered rendered, PreviewFrameDelivery exported, byte[] packet)
     {
         internal Rendered Rendered { get; } = rendered;
-        internal GpuFrameExport? Exported { get; set; } = exported;
+        internal PreviewFrameDelivery? Exported { get; set; } = exported;
         internal byte[] Packet { get; } = packet;
         internal long ExportedNs { get; } = GpuStreamProtocol.MonotonicNs();
         internal long SentNs { get; set; }
     }
+
     private async Task<bool> RunAsync()
     {
         Task<Rendered>? rendering = null;
@@ -163,9 +216,8 @@ internal sealed class GpuStreamSession : IAsyncDisposable
                     }
                     catch (Exception failure) when (KnownBudgetFailure(failure))
                     {
-                        // This managed admission failure precedes CopyGpuFrame, so this
-                        // attempt has no shared lease. Earlier exports still require their
-                        // exact consumer completion; no cancellation or synthetic ACK.
+                        // Uncommitted BeginFrame targets automatically cancel and return their slot to Free.
+                        // Earlier exported leases still require exact consumer completion; no synthetic ACK.
                         _renderFailure = GpuStreamFailure.From(failure);
                         BeginRuntimeFailure(_renderFailure.Code);
                         stopping = true;
@@ -184,13 +236,15 @@ internal sealed class GpuStreamSession : IAsyncDisposable
                         { result.Frame.Dispose(); _staleFrames++; }
                         else
                         {
-                            GpuFrameExport? exported = null;
+                            PreviewFrameDelivery? exported = null;
                             try
                             {
                                 exported = result.Frame.Lease.ExportForDelivery();
-                                byte[] bytes = GpuStreamProtocol.Frame(_open, exported.Descriptor, _consumerEpoch,
-                                    result.TimelineEpoch, result.ControlSeq, result.TimelineResetId, result.Frame.TimeUs,
-                                    Provider, result.StartedNs, result.ReadyNs, _diagnostics);
+                                // FrameReady.diagnostics 专用于承载作者脚本/材质告警摘要（无告警时为 null），严禁混入计时字段。
+                                GpuStreamDiagnosticSummary? frameDiagnostics = _diagnostics is { Total: > 0 } ? _diagnostics : null;
+                                byte[] bytes = GpuStreamProtocol.Frame(_open, exported.Descriptor, result.Frame.Timings,
+                                    _consumerEpoch, result.TimelineEpoch, result.ControlSeq, result.TimelineResetId, result.Frame.TimeUs,
+                                    Provider, result.StartedNs, result.ReadyNs, frameDiagnostics);
                                 delivery = new(result, exported, bytes);
                                 _published.Add(exported.Descriptor.Token.FrameSequence, delivery);
                                 _peakOutstanding = Math.Max(_peakOutstanding, _published.Count);
@@ -200,7 +254,7 @@ internal sealed class GpuStreamSession : IAsyncDisposable
                         }
                     }
                 }
-                if (delivery is not null && _channel.TrySend(delivery.Packet, delivery.Exported!.FileDescriptor))
+                if (delivery is not null && _channel.TrySend(delivery.Packet, delivery.Exported!.AuxiliaryHandle))
                 {
                     delivery.Exported.Dispose(); delivery.Exported = null;
                     delivery.SentNs = now; _framesSent++; delivery = null;
@@ -237,7 +291,7 @@ internal sealed class GpuStreamSession : IAsyncDisposable
                         rendering = Task.Run(async () =>
                         {
                             long started = GpuStreamProtocol.MonotonicNs();
-                            GpuRenderFrame frame = await _render(timeUs, attempt, _lifetime.Token).ConfigureAwait(false);
+                            PreviewRenderFrame frame = await _render(timeUs, attempt, _lifetime.Token).ConfigureAwait(false);
                             return new Rendered(frame, started, GpuStreamProtocol.MonotonicNs(), capturedControl, capturedTimeline, capturedReset);
                         });
                         _peakExecutingRender = Math.Max(_peakExecutingRender, rendering is null ? 0 : 1);
@@ -291,32 +345,35 @@ internal sealed class GpuStreamSession : IAsyncDisposable
         }
         finally { _controls.Close(); _channel.Dispose(); }
     }
+
     private static RuntimeDiagnosticSnapshot? RuntimeDiagnosticFailure(Exception failure) => failure switch
     {
         EffectFailureException { DiagnosticSnapshot: { HasError: true } actual } => actual,
         RenderSessionFailureException { DiagnosticSnapshot: { HasError: true } actual } => actual,
         _ => null,
     };
+
     private static bool KnownBudgetFailure(Exception failure) => failure is ImageSurfaceBudgetException ||
         failure is SourceMaterialFailureException { InnerException: ImageSurfaceBudgetException };
+
     private void BeginRuntimeFailure(string code)
     {
         _failureCode = code; _runtimeFailed = true;
         Interlocked.Exchange(ref _stop, 1);
     }
+
     private void SendClockPing()
     {
         long ping = GpuStreamProtocol.MonotonicNs(); _clock.Begin(ping);
         Send(new { type = "clock-ping", workerMonotonicNs = GpuStreamProtocol.Decimal(ping) });
     }
+
     private void Process(byte[] packet, bool executingRender, bool pendingRenderTarget)
     {
         switch (GpuStreamProtocol.Type(packet))
         {
             case "clock-pong":
                 _clock.Complete(GpuStreamWorkerContract.Decode<GpuClockPong>(packet), GpuStreamProtocol.MonotonicNs());
-                // 对端一时繁忙（如换源时主进程忙于接入新流）会让单次往返超出不确定度上限。此时重新校准，
-                // 不回报未校准：桌面端在收到 clock-calibrated 之前不会下发播放控制，用尽次数后才按原样回报。
                 if (_clock.ShouldRetry) { SendClockPing(); break; }
                 Send(new { type = "clock-calibrated", workerMinusSenderNs = GpuStreamProtocol.Decimal(_clock.WorkerMinusSenderNs),
                     uncertaintyNs = GpuStreamProtocol.Decimal(_clock.UncertaintyNs), calibrated = _clock.Calibrated });
@@ -336,7 +393,7 @@ internal sealed class GpuStreamSession : IAsyncDisposable
                 Identity(release.ProtocolVersion, release.StreamId, release.HostInstanceId, release.ProducerEpoch, release.InputGeneration, release.ConsumerEpoch);
                 if (release.FrameSeq < 1 || release.FrameSeq > GpuStreamProtocol.MaximumSafeInteger ||
                     !_published.TryGetValue((ulong)release.FrameSeq, out Published? frame)) throw GpuStreamProtocol.Invalid();
-                GpuFrameToken token = frame.Rendered.Frame.Lease.Token;
+                PreviewFrameToken token = frame.Rendered.Frame.Lease.Token;
                 if (release.PoolGeneration != GpuStreamProtocol.Decimal(token.PoolGeneration) ||
                     release.SlotEpoch != GpuStreamProtocol.Decimal(token.SlotEpoch) || release.SlotId != token.SlotId ||
                     release.TimelineEpoch != GpuStreamProtocol.Decimal(frame.Rendered.TimelineEpoch) || frame.SentNs == 0)
@@ -354,16 +411,19 @@ internal sealed class GpuStreamSession : IAsyncDisposable
             default: throw GpuStreamProtocol.Invalid();
         }
     }
+
     private void Identity(int version, string stream, string host, string producer, string input, string consumer)
     {
         if (version != 1 || stream != _open.StreamId || host != _open.HostInstanceId || producer != ProducerEpoch ||
             input != _open.InputGeneration || consumer != _consumerEpoch) throw GpuStreamProtocol.Invalid();
     }
+
     private void SendApplied(long now) => Send(new { type = "control-applied", protocolVersion = 1,
         _open.StreamId, _open.HostInstanceId, producerEpoch = ProducerEpoch, _open.InputGeneration, consumerEpoch = _consumerEpoch,
         poolGeneration = GpuStreamProtocol.Decimal(_pool.PoolGeneration), controlSeq = _lastControlSeq,
         timelineEpoch = GpuStreamProtocol.Decimal(_timelineEpoch), timelineResetId = _applied!.TimelineResetId,
         mode = _applied.Mode, effectiveMediaTimeUs = _clock.MediaTime(_applied, now) });
+
     private void UpdateState(string? state = null, bool drained = false)
     {
         long? time = null;
@@ -377,28 +437,32 @@ internal sealed class GpuStreamSession : IAsyncDisposable
             _lastControlSeq == 0 ? null : _lastControlSeq, GpuStreamProtocol.Decimal(_timelineEpoch),
             _applied?.TimelineResetId ?? "initial", _applied?.Mode ?? "paused", time, _failureCode, drained, _diagnostics));
     }
+
     private void ObservePendingRenderTarget(bool pending) =>
         _peakPendingRenderTargets = Math.Max(_peakPendingRenderTargets, pending ? 1 : 0);
+
     private void SendState(bool executingRender, bool pendingRenderTarget)
     {
         var controls = _controls.ReadQueueState();
-        // These are Worker-local occupancy counts. A render task stays occupied until harvested;
-        // pending targets describe the latest paused target, never missed playing deadlines.
         Send(new { type = "state", protocolVersion = 1, _open.StreamId, _open.HostInstanceId,
-        producerEpoch = ProducerEpoch, _open.InputGeneration, consumerEpoch = _consumerEpoch,
-        poolGeneration = GpuStreamProtocol.Decimal(_pool.PoolGeneration), timelineEpoch = GpuStreamProtocol.Decimal(_timelineEpoch),
-        lastAppliedControlSeq = _lastControlSeq, mode = _applied?.Mode ?? "paused",
-        state = Volatile.Read(ref _stop) != 0 ? "draining" : _applied?.Mode ?? "opening",
-        outstanding = _published.Count, poolSize = _pool.SlotCount, slotCount = _pool.SlotCount,
-        actualAllocationBytes = _pool.AllocationBytes, retainedAllocationBytes = _pool.RetainedAllocationBytes,
-        executingRender = executingRender ? 1 : 0, pendingControls = controls.Pending,
-        pendingRenderTargets = pendingRenderTarget && Volatile.Read(ref _stop) == 0 ? 1 : 0,
-        peaks = new { executingRender = _peakExecutingRender, pendingControls = controls.PeakPending,
-            pendingRenderTargets = _peakPendingRenderTargets, outstanding = _peakOutstanding },
-        framesSent = _framesSent, framesReleased = _framesReleased,
-        staleFrames = _staleFrames, clockCalibrated = _clock.Calibrated,
-        clockUncertaintyNs = GpuStreamProtocol.Decimal(_clock.UncertaintyNs), provider = Provider, diagnostics = _diagnostics });
+            producerEpoch = ProducerEpoch, _open.InputGeneration, consumerEpoch = _consumerEpoch,
+            poolGeneration = GpuStreamProtocol.Decimal(_pool.PoolGeneration), timelineEpoch = GpuStreamProtocol.Decimal(_timelineEpoch),
+            lastAppliedControlSeq = _lastControlSeq, mode = _applied?.Mode ?? "paused",
+            state = Volatile.Read(ref _stop) != 0 ? "draining" : _applied?.Mode ?? "opening",
+            outstanding = _published.Count, poolSize = _pool.SlotCount, slotCount = _pool.SlotCount,
+            actualAllocationBytes = _pool.AllocationBytes, retainedAllocationBytes = _pool.RetainedAllocationBytes,
+            executingRender = executingRender ? 1 : 0, pendingControls = controls.Pending,
+            pendingRenderTargets = pendingRenderTarget && Volatile.Read(ref _stop) == 0 ? 1 : 0,
+            peaks = new { executingRender = _peakExecutingRender, pendingControls = controls.PeakPending,
+                pendingRenderTargets = _peakPendingRenderTargets, outstanding = _peakOutstanding },
+            framesSent = _framesSent, framesReleased = _framesReleased,
+            staleFrames = _staleFrames, clockCalibrated = _clock.Calibrated,
+            clockUncertaintyNs = GpuStreamProtocol.Decimal(_clock.UncertaintyNs), provider = Provider,
+            transport = _pool.TransportKind.ToWireName(), api = _pool.BackendApi,
+            pixelFormat = _pool.PixelFormat.ToWireName(), strideBytes = _pool.StrideBytes,
+            diagnostics = _diagnostics });
     }
+
     private void Send<T>(T packet) => SendBytes(GpuStreamWorkerContract.Encode(packet));
     private void SendBytes(byte[] packet)
     {

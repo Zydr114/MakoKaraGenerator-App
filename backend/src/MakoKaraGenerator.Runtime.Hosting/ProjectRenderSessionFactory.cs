@@ -24,6 +24,9 @@ public sealed class ProjectRenderSessionFactory(IScriptCompilationService compil
 {
     private readonly SkiaRenderBackendOptions? _renderBackendOptions = renderBackend is null ? null : SkiaRenderBackendOptions.Parse(renderBackend);
 
+    /// <summary>异常或未连接窗口下对宿主预生成的共享内存令牌做幂等兜底清理。</summary>
+    public static void TryCleanupUnopenedShm(string? shmToken) => ShmPoolBackingFactory.TryCleanupUnopened(shmToken);
+
     /// <inheritdoc/>
     public ValueTask<IRenderFrameSession> CreateAsync(ProjectSnapshot snapshot, CancellationToken cancellationToken = default)
     {

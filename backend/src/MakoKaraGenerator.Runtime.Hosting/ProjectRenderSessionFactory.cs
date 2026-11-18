@@ -18,7 +18,8 @@ public sealed class ProjectRenderSessionFactory(IScriptCompilationService compil
     Func<IBackgroundFrameSourceResolver>? backgroundResolverFactory = null,
     bool layoutReference = false, string? editingLineId = null, string? editingCueId = null,
     string? renderBackend = null, bool enableGpuPreview = false, bool enableGpuPreviewBenchmark = false, RuntimeGpuPreparation? gpuPreparation = null,
-    ProjectMediaFeatureBinding? mediaBinding = null, bool graphPixelChecks = true)
+    ProjectMediaFeatureBinding? mediaBinding = null, bool graphPixelChecks = true,
+    PreviewTransportKind? previewTransport = null)
     : IRenderFrameSessionFactory
 {
     private readonly SkiaRenderBackendOptions? _renderBackendOptions = renderBackend is null ? null : SkiaRenderBackendOptions.Parse(renderBackend);
@@ -40,14 +41,21 @@ public sealed class ProjectRenderSessionFactory(IScriptCompilationService compil
         try
         {
             token.ThrowIfCancellationRequested();
-            if (gpuPreparation is not null && (!enableGpuPreview ||
-                (_renderBackendOptions ?? SkiaRenderBackendOptions.FromEnvironment()).Backend != SkiaRenderBackend.Vulkan))
+            var selectedBackend = _renderBackendOptions ?? SkiaRenderBackendOptions.FromEnvironment();
+            string backendApi = selectedBackend.Backend == SkiaRenderBackend.Vulkan
+                ? PreviewWireConventions.ApiVulkan
+                : PreviewWireConventions.ApiCpu;
+            PreviewTransportKind? resolvedTransport = enableGpuPreview
+                ? PreviewTransportSelector.Resolve(backendApi, previewTransport)
+                : null;
+            if (gpuPreparation is not null && (!enableGpuPreview || selectedBackend.Backend != SkiaRenderBackend.Vulkan))
                 throw new InvalidOperationException("GPU 预热只能转移给显式 Vulkan shared preview 会话。");
             device = gpuPreparation?.TakeDevice() ?? SkiaRenderDeviceFactory.Create(enableGpuPreview
-                ? (_renderBackendOptions ?? SkiaRenderBackendOptions.FromEnvironment()) with { EnableGpuPreview = true }
+                ? selectedBackend with { EnableGpuPreview = true, PreviewTransport = resolvedTransport }
                 : _renderBackendOptions);
-            if (enableGpuPreview && device is not VulkanSkiaRenderDevice)
-                throw new GpuPreviewException("GpuPreviewGpuBackendRequired", "Shared GPU preview requires an explicitly selected Vulkan backend.");
+            if (enableGpuPreview && resolvedTransport == PreviewTransportKind.DmaBuf &&
+                device is not VulkanSkiaRenderDevice { SupportsDmaBufExport: true })
+                throw new GpuPreviewException("GpuPreviewGpuBackendRequired", "Shared DMA-BUF preview requires an explicitly selected Vulkan backend with export support.");
             ScriptBackendRequirement.RequireSupported(snapshot, device is VulkanSkiaRenderDevice);
             ReadOnlyMemory<byte>[] fonts = [.. snapshot.Effects.Packages.SelectMany(package => package.Files)
                 .Where(file => file.Role == "font").Select(file => file.Content.AsMemory())];
@@ -66,7 +74,8 @@ public sealed class ProjectRenderSessionFactory(IScriptCompilationService compil
             {
                 renderer = Renderer(resolver);
                 token.ThrowIfCancellationRequested();
-                return new ProjectRenderSession(snapshot, renderer, null, null, [], [], null, null, device, enableGpuPreviewBenchmark);
+                return new ProjectRenderSession(snapshot, renderer, null, null, [], [], null, null, device, enableGpuPreviewBenchmark,
+                    enablePreviewStream: enableGpuPreview);
             }
             var compiled = await CompiledProjectEffects.CompileAsync(snapshot, compiler, new PackageImageValidator(), new PackageShaderValidator(),
                 new PackageImageGraphValidator(), new PackageMaterialValidator(), new PackageSvgValidator(), token).ConfigureAwait(false);
@@ -137,7 +146,8 @@ public sealed class ProjectRenderSessionFactory(IScriptCompilationService compil
             token.ThrowIfCancellationRequested();
             renderer = Renderer(resolver, budget, resources);
             token.ThrowIfCancellationRequested();
-            return new ProjectRenderSession(snapshot, renderer, source, resources, natives, inputs, budget, fixedImages, device, enableGpuPreviewBenchmark, svgResources, svgOwners);
+            return new ProjectRenderSession(snapshot, renderer, source, resources, natives, inputs, budget, fixedImages, device, enableGpuPreviewBenchmark, svgResources, svgOwners,
+                enablePreviewStream: enableGpuPreview);
         }
         catch (Exception error)
         {

@@ -12,7 +12,10 @@ internal enum SkiaRenderBackend
     Vulkan,
 }
 
-internal sealed record SkiaRenderBackendOptions(SkiaRenderBackend Backend = SkiaRenderBackend.Cpu, bool EnableGpuPreview = false)
+internal sealed record SkiaRenderBackendOptions(
+    SkiaRenderBackend Backend = SkiaRenderBackend.Cpu,
+    bool EnableGpuPreview = false,
+    PreviewTransportKind? PreviewTransport = null)
 {
     public static SkiaRenderBackendOptions FromEnvironment() =>
         Parse(Environment.GetEnvironmentVariable("MAKO_RENDER_BACKEND"));
@@ -41,6 +44,7 @@ internal interface ISkiaRenderDevice : IDisposable
 {
     object SynchronizationRoot { get; }
     SkiaRenderDeviceInfo Info { get; }
+    PreviewDeviceIdentity PreviewIdentity => new(Info.Backend, Info.Device ?? Info.Backend);
     SKSurface CreateSurface(SKImageInfo imageInfo);
     void FlushAndSubmit(SKSurface surface);
     /// <summary>提交本表面已记录的绘制，不等待 GPU 完成。同设备后续绘制按提交顺序执行，读回函数各自先同步再读。</summary>
@@ -76,7 +80,7 @@ internal static class SkiaRenderDeviceFactory
         return options.Backend switch
         {
             SkiaRenderBackend.Cpu => new CpuSkiaRenderDevice(),
-            SkiaRenderBackend.Vulkan => VulkanSkiaRenderDevice.Create(options.EnableGpuPreview),
+            SkiaRenderBackend.Vulkan => VulkanSkiaRenderDevice.Create(options.EnableGpuPreview, options.PreviewTransport),
             _ => throw new InvalidOperationException($"不支持的 Skia 渲染后端：{options.Backend}。"),
         };
     }
@@ -88,6 +92,7 @@ internal sealed class CpuSkiaRenderDevice : ISkiaRenderDevice
     public object SynchronizationRoot { get; } = new();
 
     public SkiaRenderDeviceInfo Info { get; } = new("cpu", null, "Skia raster", null, null);
+    public PreviewDeviceIdentity PreviewIdentity { get; } = new(PreviewWireConventions.ApiCpu, "Skia raster");
 
     public SKSurface CreateSurface(SKImageInfo imageInfo)
     {
@@ -152,19 +157,32 @@ internal sealed class VulkanSkiaRenderDevice : ISkiaRenderDevice
     private readonly List<VulkanGpuFramePool> _gpuPools = [];
     private VulkanGpuFramePool? _currentGpuPool;
     private readonly bool _gpuPreviewEnabled;
+    private readonly bool _dmaBufExportEnabled;
     private bool _gpuPreviewFailed;
     private ulong _gpuPoolGeneration, _gpuSequence;
-    private readonly ulong _gpuProducerEpoch = BitConverter.ToUInt64(System.Security.Cryptography.RandomNumberGenerator.GetBytes(8));
+    private readonly ulong _gpuProducerEpoch = CreateNonZeroRandomEpoch();
     private readonly uint _queueFamily;
+    private readonly uint _vendorId;
+    private readonly uint _deviceId;
     public object SynchronizationRoot { get; } = new();
     internal bool SupportsGpuFrames => _gpuPreviewEnabled && !_gpuPreviewFailed && !_disposed;
+    internal bool SupportsDmaBufExport => _dmaBufExportEnabled && !_gpuPreviewFailed && !_disposed;
+    internal GRContext GrContext => _context;
+    internal uint QueueFamilyIndex => _queueFamily;
+    public PreviewDeviceIdentity PreviewIdentity => new(PreviewWireConventions.ApiVulkan, Info.Device ?? "Vulkan GPU", _vendorId, _deviceId);
     // Caller must hold SynchronizationRoot through drawing and CopyGpuFrame.
     internal ulong NextGpuFrameSequence => checked(_gpuSequence + 1);
+
+    private static ulong CreateNonZeroRandomEpoch()
+    {
+        ulong value = BitConverter.ToUInt64(System.Security.Cryptography.RandomNumberGenerator.GetBytes(8));
+        return value == 0 ? 1UL : value;
+    }
 
     private VulkanSkiaRenderDevice(Instance instance, PhysicalDevice physicalDevice, Device device, Queue queue,
         GRVkExtensions extensions, GRSharpVkBackendContext backendContext, GRContext context, IntPtr vulkanLibrary,
         GRVkGetProcedureAddressDelegate nativeProcedure, GRSharpVkGetProcedureAddressDelegate sharpProcedure,
-        SkiaRenderDeviceInfo info, uint queueFamily, bool gpuPreviewEnabled)
+        SkiaRenderDeviceInfo info, uint queueFamily, uint vendorId, uint deviceId, bool gpuPreviewEnabled, bool dmaBufExportEnabled)
     {
         _instance = instance;
         _physicalDevice = physicalDevice;
@@ -178,14 +196,19 @@ internal sealed class VulkanSkiaRenderDevice : ISkiaRenderDevice
         _sharpProcedure = sharpProcedure;
         Info = info;
         _queueFamily = queueFamily;
+        _vendorId = vendorId;
+        _deviceId = deviceId;
         _gpuPreviewEnabled = gpuPreviewEnabled;
+        _dmaBufExportEnabled = dmaBufExportEnabled;
     }
 
     public SkiaRenderDeviceInfo Info { get; }
 
-    public static VulkanSkiaRenderDevice Create(bool enableGpuPreview = false)
+    public static VulkanSkiaRenderDevice Create(bool enableGpuPreview = false, PreviewTransportKind? previewTransport = null)
     {
         SharpVkNativeLoader.EnsureInstalled();
+        bool enableDmaBufExport = enableGpuPreview &&
+            PreviewTransportSelector.Resolve(PreviewWireConventions.ApiVulkan, previewTransport) == PreviewTransportKind.DmaBuf;
         Instance? instance = null;
         Device? device = null;
         GRVkExtensions? extensions = null;
@@ -196,7 +219,7 @@ internal sealed class VulkanSkiaRenderDevice : ISkiaRenderDevice
         {
             instance = Instance.Create(null, null, null,
                 new ApplicationInfo { ApplicationName = "MakoKaraGenerator", ApplicationVersion = new SharpVk.Version(1, 0, 0),
-                    EngineName = "MakoKaraGenerator", EngineVersion = new SharpVk.Version(1, 0, 0), ApiVersion = new SharpVk.Version(1, enableGpuPreview ? 2 : 0, 0) },
+                    EngineName = "MakoKaraGenerator", EngineVersion = new SharpVk.Version(1, 0, 0), ApiVersion = new SharpVk.Version(1, enableDmaBufExport ? 2 : 0, 0) },
                 null, null, null);
             PhysicalDevice[] physicalDevices = instance.EnumeratePhysicalDevices();
             var candidates = physicalDevices.Select(value =>
@@ -210,12 +233,12 @@ internal sealed class VulkanSkiaRenderDevice : ISkiaRenderDevice
             PhysicalDevice physical = physicalDevices[selectedIndex];
             int family = candidates[selectedIndex].GraphicsQueueFamily;
             string[] deviceExtensions = [];
-            if (enableGpuPreview)
+            if (enableDmaBufExport)
             {
                 if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != Architecture.X64)
-                    throw new GpuPreviewException("GpuPreviewUnsupportedPlatform", "GPU shared preview currently requires Linux x64.");
+                    throw new GpuPreviewException("GpuPreviewUnsupportedPlatform", "GPU shared DMA-BUF preview requires Linux x64.");
                 if ((uint)physical.GetProperties().ApiVersion < 0x00402000)
-                    throw new GpuPreviewException("GpuPreviewUnsupportedVulkanVersion", "GPU shared preview requires Vulkan 1.2.");
+                    throw new GpuPreviewException("GpuPreviewUnsupportedVulkanVersion", "GPU shared DMA-BUF preview requires Vulkan 1.2.");
                 deviceExtensions = ["VK_KHR_external_memory_fd", "VK_EXT_external_memory_dma_buf", "VK_EXT_image_drm_format_modifier", "VK_EXT_queue_family_foreign", "VK_EXT_physical_device_drm"];
                 var available = physical.EnumerateDeviceExtensionProperties(null).Select(value => value.ExtensionName).ToHashSet(StringComparer.Ordinal);
                 if (deviceExtensions.Any(name => !available.Contains(name)))
@@ -256,7 +279,7 @@ internal sealed class VulkanSkiaRenderDevice : ISkiaRenderDevice
                 VkDevice = device,
                 VkQueue = queue,
                 GraphicsQueueIndex = (uint)family,
-                MaxAPIVersion = enableGpuPreview ? 0x00402000u : 0x00400000u,
+                MaxAPIVersion = enableDmaBufExport ? 0x00402000u : 0x00400000u,
                 Extensions = extensions,
                 GetProcedureAddress = getSharpProc,
             };
@@ -266,7 +289,8 @@ internal sealed class VulkanSkiaRenderDevice : ISkiaRenderDevice
             var info = new SkiaRenderDeviceInfo("vulkan", $"0x{properties.VendorID:X8}", properties.DeviceName,
                 FormatDriverVersion(properties.DriverVersion), FormatApiVersion(properties.ApiVersion));
             var result = new VulkanSkiaRenderDevice(instance, physical, device, queue, extensions, backendContext, context,
-                vulkanLibrary, getRawProc, getSharpProc, info, (uint)family, enableGpuPreview);
+                vulkanLibrary, getRawProc, getSharpProc, info, (uint)family, properties.VendorID, properties.DeviceID,
+                enableGpuPreview, enableDmaBufExport);
             instance = null; device = null; extensions = null; context = null;
             backendContext = null; vulkanLibrary = IntPtr.Zero;
             return result;
@@ -474,13 +498,36 @@ internal sealed class VulkanSkiaRenderDevice : ISkiaRenderDevice
         }
     }
 
+    internal VulkanGpuFramePool CreateBorrowedDmaBufPool(RenderTarget target, ulong producerEpoch, ulong generation,
+        ulong maximumAllocationBytes, Action failStream)
+    {
+        lock (SynchronizationRoot)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (!SupportsDmaBufExport)
+                throw new GpuPreviewException("GpuPreviewUnavailable", "This Vulkan device did not enable DMA-BUF shared export.");
+            GpuPreviewNative.Context context = new()
+            {
+                Size = (uint)Marshal.SizeOf<GpuPreviewNative.Context>(), Version = 1,
+                Instance = _instance.RawHandle.ToUInt64(), PhysicalDevice = _physicalDevice.RawHandle.ToUInt64(),
+                Device = _device.RawHandle.ToUInt64(), Queue = _queue.RawHandle.ToUInt64(),
+                QueueFamily = _queueFamily, EnabledExtensions = GpuPreviewNative.RequiredExtensions,
+            };
+            return new VulkanGpuFramePool(SynchronizationRoot, context, target, producerEpoch, generation, maximumAllocationBytes, () =>
+            {
+                _gpuPreviewFailed = true;
+                failStream();
+            });
+        }
+    }
+
     internal void EnsureGpuTargetInitialized(RenderTarget target)
     {
         ArgumentNullException.ThrowIfNull(target);
         lock (SynchronizationRoot)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            if (!SupportsGpuFrames) throw new GpuPreviewException("GpuPreviewUnavailable", "This session did not enable GPU shared output or its stream has failed.");
+            if (!SupportsDmaBufExport) throw new GpuPreviewException("GpuPreviewUnavailable", "This session did not enable GPU shared output or its stream has failed.");
             if (_currentGpuPool is null || _currentGpuPool.Target.PixelWidth != target.PixelWidth || _currentGpuPool.Target.PixelHeight != target.PixelHeight)
                 throw new GpuPreviewException("GpuPreviewTargetNotInitialized", "Reserve the session budget and initialize this exact GPU target before rendering.");
         }
@@ -491,7 +538,7 @@ internal sealed class VulkanSkiaRenderDevice : ISkiaRenderDevice
         lock (SynchronizationRoot)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            if (!SupportsGpuFrames) throw new GpuPreviewException("GpuPreviewUnavailable", "This session did not enable GPU shared output or its stream has failed.");
+            if (!SupportsDmaBufExport) throw new GpuPreviewException("GpuPreviewUnavailable", "This session did not enable GPU shared output or its stream has failed.");
             if (target.PixelWidth is < 64 or > 2560 || target.PixelHeight is < 64 or > 1440)
                 throw new GpuPreviewException("GpuPreviewSizeUnsupported", "Shared GPU output is limited to 64..2560 x 64..1440.");
             if (maximumAllocationBytes is 0 or > 192ul * 1024 * 1024)

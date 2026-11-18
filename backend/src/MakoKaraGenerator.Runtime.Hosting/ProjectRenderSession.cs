@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using MakoKaraGenerator.Rendering;
 using MakoKaraGenerator.Rendering.Skia;
 using MakoKaraGenerator.Scripting;
@@ -7,13 +8,22 @@ namespace MakoKaraGenerator.Runtime.Hosting;
 internal sealed class ProjectRenderSession(ProjectSnapshot snapshot, SkiaRenderPipeline renderer, IEvaluatedFrameSource? source,
     SceneImageEffectResources? resources, IReadOnlyList<CompiledPackageGraphExports> natives, IReadOnlyList<SkiaGraphSurface> inputs,
     ImageSurfaceBudgetSession? budget, IDisposable? fixedImages, ISkiaRenderDevice? device = null, bool enableGpuPreviewBenchmark = false,
-    SceneSvgEffectResources? svgResources = null, IReadOnlyList<PackageSvgResources>? svgOwners = null) : IGpuRenderFrameSession, ISceneMeasurementSession
+    SceneSvgEffectResources? svgResources = null, IReadOnlyList<PackageSvgResources>? svgOwners = null,
+    bool? enablePreviewStream = null) : IPreviewRenderSession, ISceneMeasurementSession
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly string _telemetrySession = Guid.NewGuid().ToString("N");
+    private readonly PreviewPortSessionManager? _previewPorts =
+        (enablePreviewStream ?? (device is VulkanSkiaRenderDevice { SupportsGpuFrames: true })) && device is not null
+            ? new PreviewPortSessionManager(device)
+            : null;
     private long _telemetrySequence;
     private bool _disposed;
-    public bool SupportsGpuFrames => !_disposed && device is VulkanSkiaRenderDevice { SupportsGpuFrames: true };
+
+    public bool SupportsGpuFrames => !_disposed && device is VulkanSkiaRenderDevice { SupportsDmaBufExport: true };
+    public bool SupportsPreviewFrames => !_disposed && _previewPorts is { IsHealthy: true };
+    public string BackendApi => device?.Info.Backend ?? PreviewWireConventions.ApiCpu;
+
     public async ValueTask<GpuFramePoolInfo> InitializeGpuOutputAsync(RenderTarget target, ulong maximumAllocationBytes,
         CancellationToken cancellationToken = default)
     {
@@ -28,8 +38,28 @@ internal sealed class ProjectRenderSession(ProjectSnapshot snapshot, SkiaRenderP
         }
         finally { _gate.Release(); }
     }
+
+    public async ValueTask<PreviewPoolInfo> InitializePreviewOutputAsync(
+        RenderTarget target,
+        ulong maximumAllocationBytes,
+        PreviewOutputOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_previewPorts is null || !_previewPorts.IsHealthy)
+                throw new GpuPreviewException("GpuPreviewUnavailable", "This session did not enable continuous preview output.");
+            return _previewPorts.InitializeOutput(target, maximumAllocationBytes, options);
+        }
+        finally { _gate.Release(); }
+    }
+
     public ValueTask<RenderFrame> RenderAsync(RenderRequest request, CancellationToken cancellationToken = default)
         => new(Task.Run(() => RenderCoreAsync(request, cancellationToken), cancellationToken));
+
     private async Task<RenderFrame> RenderCoreAsync(RenderRequest request, CancellationToken token)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -102,6 +132,44 @@ internal sealed class ProjectRenderSession(ProjectSnapshot snapshot, SkiaRenderP
         finally { _gate.Release(); }
     }
 
+    public ValueTask<PreviewRenderFrame> RenderPreviewAsync(RenderRequest request, CancellationToken cancellationToken = default)
+        => new(Task.Run(() => RenderPreviewCoreAsync(request, cancellationToken), cancellationToken));
+
+    private async Task<PreviewRenderFrame> RenderPreviewCoreAsync(RenderRequest request, CancellationToken token)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, request.CancellationToken);
+        await _gate.WaitAsync(linked.Token).ConfigureAwait(false);
+        try
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_previewPorts is null || !_previewPorts.IsHealthy)
+                throw new GpuPreviewException("GpuPreviewUnavailable", "This render session did not enable continuous preview output.");
+            if (!ReferenceEquals(request.Project, snapshot))
+                throw new PreparedFrameException("RenderSessionInputsMismatch", "预览会话不属于当前快照。");
+            var target = request.ResolveTarget();
+            IPreviewPort port = _previewPorts.RequireCurrentPort(target);
+            using var frameScope = PerformanceTelemetry.BeginFrame(_telemetrySession,
+                device?.Info.Backend == "vulkan" ? "gpu" : "cpu", Interlocked.Increment(ref _telemetrySequence), target.PixelWidth, target.PixelHeight);
+            try
+            {
+                long prepareStart = Stopwatch.GetTimestamp();
+                PreparedRenderFrame? prepared;
+                using (PerformanceTelemetry.Measure(PerformancePhase.Prepare))
+                    prepared = source is null ? null : await source.PrepareAsync(request.TimeUs,
+                        request.TransparentBackground ? OutputMode.Transparent : OutputMode.Opaque, target, linked.Token).ConfigureAwait(false);
+                PreviewRenderFrame frame = renderer.RenderToPreview(
+                    request with { PreparedFrame = prepared, CancellationToken = linked.Token },
+                    port,
+                    prepareStart);
+                frameScope.SetOutcome("ok");
+                return frame;
+            }
+            catch (OperationCanceledException) { frameScope.SetOutcome("cancelled"); throw; }
+        }
+        finally { _gate.Release(); }
+    }
+
     public ValueTask<GpuRenderFrame> RenderSyntheticGpuAsync(RenderTarget target, long timeUs, ulong sequence,
         CancellationToken cancellationToken = default)
         => new(Task.Run(async () =>
@@ -118,6 +186,32 @@ internal sealed class ProjectRenderSession(ProjectSnapshot snapshot, SkiaRenderP
             }
             finally { _gate.Release(); }
         }, cancellationToken));
+
+    public ValueTask<PreviewRenderFrame> RenderSyntheticPreviewAsync(
+        RenderTarget target,
+        long timeUs,
+        ulong sequence,
+        PreviewPixelFormat? pixelFormat = null,
+        CancellationToken cancellationToken = default)
+        => new(Task.Run(async () =>
+        {
+            ArgumentNullException.ThrowIfNull(target);
+            await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                ObjectDisposedException.ThrowIf(_disposed, this);
+                if (!enableGpuPreviewBenchmark)
+                    throw new GpuPreviewException("GpuPreviewSyntheticDisabled", "Synthetic preview output requires the explicit benchmark launch flag.");
+                if (_previewPorts is null || !_previewPorts.IsHealthy)
+                    throw new GpuPreviewException("GpuPreviewUnavailable", "This render session did not enable continuous preview output.");
+                cancellationToken.ThrowIfCancellationRequested();
+                IPreviewPort port = _previewPorts.RequireCurrentPort(target);
+                _ = sequence;
+                return renderer.RenderSyntheticToPreview(target, timeUs, port, pixelFormat);
+            }
+            finally { _gate.Release(); }
+        }, cancellationToken));
+
     public async ValueTask<MeasuredRenderFrame> MeasureAsync(RenderRequest request, bool layoutReference,
         string? editingLineId = null, string? editingCueId = null, CancellationToken cancellationToken = default)
     {
@@ -153,7 +247,7 @@ internal sealed class ProjectRenderSession(ProjectSnapshot snapshot, SkiaRenderP
         try
         {
             if (_disposed) return; _disposed = true;
-            await ReleaseAsync(source, renderer, resources, fixedImages, inputs, natives, budget, device, svgResources, svgOwners).ConfigureAwait(false);
+            await ReleaseAsync(source, renderer, resources, fixedImages, inputs, natives, budget, device, svgResources, svgOwners, _previewPorts).ConfigureAwait(false);
         }
         finally { _gate.Release(); }
     }
@@ -161,7 +255,8 @@ internal sealed class ProjectRenderSession(ProjectSnapshot snapshot, SkiaRenderP
     internal static async ValueTask ReleaseAsync(IEvaluatedFrameSource? source, SkiaRenderPipeline? renderer,
         SceneImageEffectResources? resources, IDisposable? fixedImages, IReadOnlyList<SkiaGraphSurface> inputs,
         IReadOnlyList<CompiledPackageGraphExports> natives, ImageSurfaceBudgetSession? budget, ISkiaRenderDevice? device = null,
-        SceneSvgEffectResources? svgResources = null, IReadOnlyList<PackageSvgResources>? svgOwners = null)
+        SceneSvgEffectResources? svgResources = null, IReadOnlyList<PackageSvgResources>? svgOwners = null,
+        IDisposable? previewPorts = null)
     {
         List<Exception> failures = [];
         try { if (source is not null) await source.DisposeAsync().ConfigureAwait(false); }
@@ -170,6 +265,7 @@ internal sealed class ProjectRenderSession(ProjectSnapshot snapshot, SkiaRenderP
         // Every synchronous shared-device owner is retired under its same gate.
         lock (device?.SynchronizationRoot ?? new object())
         {
+            Release(previewPorts);
             Release(renderer); Release(svgResources);
             if (svgOwners is not null) foreach (var svg in svgOwners.Reverse()) Release(svg);
             Release(resources); Release(fixedImages);

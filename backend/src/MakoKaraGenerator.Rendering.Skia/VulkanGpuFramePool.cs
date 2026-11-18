@@ -34,6 +34,20 @@ internal sealed class VulkanGpuFramePool : IDisposable
     internal RenderTarget Target { get; }
     internal GpuFramePoolInfo Info { get; }
     internal ulong AllocationBytes => _info.AllocationBytes;
+    internal bool HasFreeSlot
+    {
+        get
+        {
+            lock (_gate)
+            {
+                EnsureOpen();
+                var state = GpuPreviewNative.PoolState.Create();
+                var error = GpuPreviewNative.Error.Create();
+                GpuPreviewNative.Check(GpuPreviewNative.ReadState(_pool, ref state, ref error), error, "read shared GPU pool state");
+                return state.Quarantined == 0 && state.FreeSlots > 0;
+            }
+        }
+    }
     internal bool IsDrained
     {
         get
@@ -49,16 +63,26 @@ internal sealed class VulkanGpuFramePool : IDisposable
         }
     }
 
-    internal GpuFrameLease CopyFrom(SKSurface surface, GRContext context, uint queueFamily, ulong sequence)
+    internal GpuPreviewNative.Lease AcquireReserved(ulong sequence)
+    {
+        lock (_gate)
+        {
+            EnsureOpen();
+            var lease = GpuPreviewNative.Lease.Create();
+            var error = GpuPreviewNative.Error.Create();
+            GpuPreviewNative.Check(GpuPreviewNative.Acquire(_pool, sequence, ref lease, ref error), error, "reserve shared GPU slot");
+            return lease;
+        }
+    }
+
+    internal GpuFrameLease CommitReserved(GpuPreviewNative.Lease lease, SKSurface surface, GRContext context, uint queueFamily)
     {
         lock (_gate)
         {
             EnsureOpen();
             // 包含共享纹理提交、复制与本机同步等待；这是宿主墙钟，不是 GPU 时间戳。
             using var submission = PerformanceTelemetry.Measure(PerformancePhase.GpuSubmit);
-            var lease = GpuPreviewNative.Lease.Create();
             var error = GpuPreviewNative.Error.Create();
-            GpuPreviewNative.Check(GpuPreviewNative.Acquire(_pool, sequence, ref lease, ref error), error, "reserve shared GPU slot");
             try
             {
                 if (!SkiaGpuBridge.FlushSurface(context.Handle, surface.Handle, 6, uint.MaxValue))
@@ -81,11 +105,34 @@ internal sealed class VulkanGpuFramePool : IDisposable
             }
             catch
             {
-                var cancelError = GpuPreviewNative.Error.Create();
-                var cancelled = GpuPreviewNative.Cancel(_pool, lease, ref cancelError);
-                if (cancelled != GpuPreviewNative.Status.Ok) QuarantineCore();
+                CancelReservedCore(lease);
                 throw;
             }
+        }
+    }
+
+    internal void CancelReserved(GpuPreviewNative.Lease lease)
+    {
+        lock (_gate)
+        {
+            if (_pool == IntPtr.Zero) return;
+            CancelReservedCore(lease);
+        }
+    }
+
+    private void CancelReservedCore(GpuPreviewNative.Lease lease)
+    {
+        var cancelError = GpuPreviewNative.Error.Create();
+        var cancelled = GpuPreviewNative.Cancel(_pool, lease, ref cancelError);
+        if (cancelled != GpuPreviewNative.Status.Ok) QuarantineCore();
+    }
+
+    internal GpuFrameLease CopyFrom(SKSurface surface, GRContext context, uint queueFamily, ulong sequence)
+    {
+        lock (_gate)
+        {
+            var lease = AcquireReserved(sequence);
+            return CommitReserved(lease, surface, context, queueFamily);
         }
     }
 

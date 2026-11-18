@@ -144,3 +144,86 @@ test('a detach event from a replaced attachment cannot detach the newer one',asy
   f.barrier(1);await f.frame(1,{inputGeneration:'2'});
   assert.equal(f.draws,1);
 });
+
+test('SHM WebGL2 receiver enforces RGBA8+sRGB, deletes immutable texture on resize, toggles uSwizzleBgra, and sends lightweight lease ACKs',async()=>{
+  const ipc=new EventEmitter(),pending=[],portReplies=[],glOps=[];
+  let api,boot;
+  ipc.invoke=async(name)=>{
+    if(name==='mako-gpu:config')return {mode:'production',transport:'shm'};
+    if(name==='mako-gpu:clock')return {mainMonotonicNs:BigInt(Math.round(performance.now()*1e6)).toString()};
+    if(name==='mako-gpu:playback')return new Promise(resolve=>pending.push({resolve}));
+    return undefined;
+  };
+  ipc.send=(channel,payload)=>{if(channel==='mako-gpu:error')throw new Error(`Unexpected preload error: ${payload}`);};
+  let nextTexId=1;
+  const fakeGl={
+    VERTEX_SHADER:0x8b31,FRAGMENT_SHADER:0x8b30,COMPILE_STATUS:0x8b81,LINK_STATUS:0x8b82,
+    BLEND:0x0be2,DEPTH_TEST:0x0b71,SCISSOR_TEST:0x0c11,
+    UNPACK_PREMULTIPLY_ALPHA_WEBGL:0x9241,UNPACK_FLIP_Y_WEBGL:0x9240,UNPACK_COLORSPACE_CONVERSION_WEBGL:0x9243,
+    UNPACK_ALIGNMENT:0x0cf5,UNPACK_ROW_LENGTH:0x0cf2,NONE:0,
+    TEXTURE0:0x84c0,TEXTURE_2D:0x0de1,TEXTURE_MIN_FILTER:0x2801,TEXTURE_MAG_FILTER:0x2800,
+    TEXTURE_WRAP_S:0x2802,TEXTURE_WRAP_T:0x2803,NEAREST:0x2600,CLAMP_TO_EDGE:0x812f,
+    RGBA8:0x8058,RGBA:0x1908,UNSIGNED_BYTE:0x1401,TRIANGLES:0x0004,NO_ERROR:0,
+    drawingBufferColorSpace:'uninitialized',
+    createShader:()=>({}),shaderSource(){},compileShader(){},getShaderParameter:()=>true,deleteShader(){},
+    createProgram:()=>({}),attachShader(){},linkProgram(){},getProgramParameter:()=>true,
+    createVertexArray:()=>({}),disable(){},
+    pixelStorei(param,val){glOps.push(['pixelStorei',param,val]);},
+    getUniformLocation:(_p,name)=>name,
+    createTexture:()=>({id:nextTexId++}),
+    deleteTexture(tex){glOps.push(['deleteTexture',tex.id]);},
+    activeTexture(){},bindTexture(){},texParameteri(){},
+    texStorage2D(_t,_l,internalFormat,w,h){glOps.push(['texStorage2D',internalFormat,w,h]);},
+    viewport(_x,_y,w,h){glOps.push(['viewport',w,h]);},
+    texSubImage2D(_t,_l,_x,_y,w,h,_f,_ty,buf){glOps.push(['texSubImage2D',w,h,buf.byteLength]);},
+    useProgram(){},
+    uniform1i(loc,val){if(loc==='uSwizzleBgra'||loc==='uHeight')glOps.push(['uniform1i',loc,val]);},
+    bindVertexArray(){},
+    drawArrays(){glOps.push(['drawArrays']);},
+    getError:()=>0,
+  };
+  const canvas={width:64,height:64,getContext(kind,attrs){assert.equal(kind,'webgl2');assert.equal(attrs.premultipliedAlpha,true);return fakeGl;},addEventListener(){}};
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'preload.cjs'),'utf8'),{
+    require:name=>{assert.equal(name,'electron');return {contextBridge:{exposeInMainWorld(_n,v){api=v;}},ipcRenderer:ipc,sharedTexture:undefined};},
+    window:{addEventListener(_n,cb){boot=cb;}},document:{getElementById:()=>canvas},Uint8Array,performance,process:{sandboxed:true,contextIsolated:true,versions:{}},setTimeout,clearTimeout,setInterval:()=>0,requestAnimationFrame:cb=>setImmediate(cb),
+  });
+  await boot();
+
+  const identity={protocolVersion:1,streamId:'s1',hostInstanceId:'h1',producerEpoch:'1',inputGeneration:'1',consumerEpoch:'1',poolGeneration:'1'};
+  const port={onmessage:null,started:false,start(){this.started=true;},postMessage(msg){assert.equal(msg.buffer,undefined,'ACK must never echo pixel buffer');portReplies.push(msg);}};
+  ipc.emit('mako-gpu:shm-port',{ports:[port]},{...identity,attachSeq:1});
+  assert.equal(port.started,true);
+
+  const play=api.setPlaybackState({mode:'playing',mediaTimeUs:0,rate:1,targetFps:24,timelineResetId:'r1',samplePerformanceMs:performance.now()});
+  await turn();pending.shift().resolve({controlSeq:1});await play;
+  ipc.emit('mako-gpu:barrier',{},{...identity,timelineEpoch:'1',timelineResetId:'r1',minControlSeq:1});
+
+  // Frame 1: 64x64 bgra8888 compact stride (256)
+  port.onmessage({data:{type:'frame',metadata:{...identity,timelineEpoch:'1',timelineResetId:'r1',controlSeq:1,frameSeq:1,slotId:0,slotEpoch:'1',timeUs:100,width:64,height:64,pixelFormat:'bgra8888',strideBytes:256},buffer:new Uint8Array(64*64*4)}});
+  await turn();
+  assert.equal(fakeGl.drawingBufferColorSpace,'srgb');
+  assert.ok(glOps.some(op=>op[0]==='pixelStorei'&&op[1]===fakeGl.UNPACK_FLIP_Y_WEBGL&&op[2]===false));
+  assert.ok(glOps.some(op=>op[0]==='pixelStorei'&&op[1]===fakeGl.UNPACK_PREMULTIPLY_ALPHA_WEBGL&&op[2]===false));
+  assert.ok(glOps.some(op=>op[0]==='texStorage2D'&&op[1]===fakeGl.RGBA8&&op[2]===64&&op[3]===64));
+  assert.ok(glOps.some(op=>op[0]==='uniform1i'&&op[1]==='uSwizzleBgra'&&op[2]===1));
+
+  // Frame 2: Same size 64x64 rgba8888 padded stride (320) -> NO deleteTexture/texStorage2D, uSwizzleBgra = 0, UNPACK_ROW_LENGTH = 80
+  glOps.length=0;
+  port.onmessage({data:{type:'frame',metadata:{...identity,timelineEpoch:'1',timelineResetId:'r1',controlSeq:1,frameSeq:2,slotId:1,slotEpoch:'1',timeUs:200,width:64,height:64,pixelFormat:'rgba8888',strideBytes:320},buffer:new Uint8Array(320*64)}});
+  await turn();
+  assert.ok(!glOps.some(op=>op[0]==='deleteTexture'));
+  assert.ok(!glOps.some(op=>op[0]==='texStorage2D'));
+  assert.ok(glOps.some(op=>op[0]==='pixelStorei'&&op[1]===fakeGl.UNPACK_ROW_LENGTH&&op[2]===80));
+  assert.ok(glOps.some(op=>op[0]==='uniform1i'&&op[1]==='uSwizzleBgra'&&op[2]===0));
+
+  // Frame 3: Resize to 128x72 -> MUST deleteTexture(1) BEFORE texStorage2D(128, 72)
+  glOps.length=0;
+  port.onmessage({data:{type:'frame',metadata:{...identity,timelineEpoch:'1',timelineResetId:'r1',controlSeq:1,frameSeq:3,slotId:2,slotEpoch:'1',timeUs:300,width:128,height:72,pixelFormat:'bgra8888',strideBytes:512},buffer:new Uint8Array(512*72)}});
+  await turn();
+  const delIdx=glOps.findIndex(op=>op[0]==='deleteTexture'&&op[1]===1);
+  const allocIdx=glOps.findIndex(op=>op[0]==='texStorage2D'&&op[2]===128&&op[3]===72);
+  assert.ok(delIdx>=0&&allocIdx>delIdx,'deleteTexture must precede replacement texStorage2D on resize');
+
+  assert.equal(portReplies.length,3);
+  assert.ok(portReplies.every(r=>r.type==='drawn'));
+});

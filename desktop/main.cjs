@@ -1,10 +1,12 @@
 'use strict';
-const { app, BrowserWindow, Menu, dialog, ipcMain, screen, sharedTexture } = require('electron');
+const { app, BrowserWindow, Menu, MessageChannelMain, dialog, ipcMain, screen, sharedTexture } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const { createHash, randomBytes } = require('node:crypto');
 const { readLaunchConfig } = require('./gpu-preview/launch-contract.cjs');
 const { importAndTransferFrame } = require('./gpu-preview/import-consumer.cjs');
+const { connectLocalStream } = require('./gpu-preview/local-stream-client.cjs');
+const { createShmStreamConsumer } = require('./gpu-preview/shm-consumer.cjs');
 const { isolateGpuPreviewStream } = require('./gpu-preview/failure-isolation.cjs');
 const { validateWorkerMessage, workerFailureSummary } = require('./gpu-preview/wire.cjs');
 const { prepareDesktopSession } = require('./gpu-preview/session-paths.cjs');
@@ -22,9 +24,19 @@ let config;
 let sessionPaths;
 let standaloneResources;
 let broker;
+let shmBridge;
 let webServer;
 let backendProcess;
 let singleInstanceGranted = true;
+
+function resolveDefaultTransport() {
+  const raw = process.env.MAKO_PREVIEW_TRANSPORT?.trim().toLowerCase();
+  if (raw) {
+    if (raw !== 'shm' && raw !== 'dma-buf') throw new Error(`Unsupported MAKO_PREVIEW_TRANSPORT: ${raw}`);
+    return raw;
+  }
+  return process.platform === 'linux' ? 'dma-buf' : 'shm';
+}
 
 function resolveStandaloneResources() {
   const resourcesDir = process.resourcesPath;
@@ -48,12 +60,17 @@ function resolveStandaloneResources() {
   if (!compatibleProductVersion(validated.deployment.version)) {
     throw new Error(`桌面后端部署版本 ${validated.deployment.version} 与当前应用不兼容。`);
   }
-  const brokerAddon = path.join(validated.dist, 'desktop', 'gpu_preview_broker.node');
   const brokerAddonSha256 = validated.gpuManifest.files['desktop/gpu_preview_broker.node'];
-  if (!brokerAddonSha256 || fs.realpathSync(brokerAddon) !== brokerAddon) {
+  const brokerAddon = brokerAddonSha256 ? path.join(validated.dist, 'desktop', 'gpu_preview_broker.node') : null;
+  if (brokerAddon && fs.realpathSync(brokerAddon) !== brokerAddon) {
     throw new Error('Desktop broker payload mismatch');
   }
-  return { frontendDist, backendDist: validated.dist, brokerAddon, brokerAddonSha256 };
+  const shmAddonSha256 = validated.gpuManifest.files['desktop/shm_bridge.node'];
+  const shmAddon = shmAddonSha256 ? path.join(validated.dist, 'desktop', 'shm_bridge.node') : null;
+  if (shmAddon && fs.realpathSync(shmAddon) !== shmAddon) {
+    throw new Error('Desktop SHM bridge payload mismatch');
+  }
+  return { frontendDist, backendDist: validated.dist, brokerAddon, brokerAddonSha256, shmAddon, shmAddonSha256 };
 }
 
 if (standaloneMode) {
@@ -67,7 +84,8 @@ if (standaloneMode) {
     app.exit(0);
   } else {
     standaloneResources = resolveStandaloneResources();
-    broker = require(standaloneResources.brokerAddon);
+    if (standaloneResources.brokerAddon) broker = require(standaloneResources.brokerAddon);
+    if (standaloneResources.shmAddon) shmBridge = require(standaloneResources.shmAddon);
     config = { ready: false };
   }
 } else {
@@ -78,15 +96,28 @@ if (standaloneMode) {
   app.setPath('userData', sessionPaths.userData);
   app.setPath('crashDumps', sessionPaths.crashDumps);
   app.commandLine.appendSwitch('disable-breakpad');
-  const addon = fs.realpathSync(config.brokerAddon);
-  if (
-    addon !== config.brokerAddon ||
-    !addon.startsWith(path.join(root, '.local/backend-dist') + path.sep) ||
-    createHash('sha256').update(fs.readFileSync(addon)).digest('hex') !== config.brokerAddonSha256
-  ) {
-    throw new Error('Desktop broker payload mismatch');
+  if (config.brokerAddon) {
+    const addon = fs.realpathSync(config.brokerAddon);
+    if (
+      addon !== config.brokerAddon ||
+      !addon.startsWith(path.join(root, '.local/backend-dist') + path.sep) ||
+      createHash('sha256').update(fs.readFileSync(addon)).digest('hex') !== config.brokerAddonSha256
+    ) {
+      throw new Error('Desktop broker payload mismatch');
+    }
+    broker = require(addon);
   }
-  broker = require(addon);
+  if (config.shmAddon) {
+    const shmAddon = fs.realpathSync(config.shmAddon);
+    if (
+      shmAddon !== config.shmAddon ||
+      !shmAddon.startsWith(path.join(root, '.local/backend-dist') + path.sep) ||
+      createHash('sha256').update(fs.readFileSync(shmAddon)).digest('hex') !== config.shmAddonSha256
+    ) {
+      throw new Error('Desktop SHM bridge payload mismatch');
+    }
+    shmBridge = require(shmAddon);
+  }
 }
 
 const performanceDiagnostics = config?.performanceDiagnostics ? require('./gpu-preview/performance-diagnostics.cjs').createPerformanceDiagnostics() : null;
@@ -108,15 +139,30 @@ const record=(type,detail={})=>{ events.push({type,ms:performance.now(),...detai
 const safeState = value => {
   if (window && !window.isDestroyed()) window.webContents.send('mako-gpu:state',value);
 };
+const streamOutstanding = s => !s ? 0 : (s.transport === 'shm' ? (s.shmConsumer?.getOutstandingCount() ?? 0) : s.imports.size);
+function closeStreamConnection(s) {
+  if (!s) return;
+  try { s.shmConsumer?.close(); } catch {}
+  s.shmConsumer = null;
+  if (s.pendingRendererPort) {
+    try { s.pendingRendererPort.close?.(); } catch {}
+    s.pendingRendererPort = null;
+  }
+  if (s.connection) {
+    if (s.transport === 'shm') { try { s.connection.close(); } catch {} }
+    else { try { broker.close(s.connection); } catch {} }
+    s.connection = null;
+  }
+}
 function isolatePreview(code='gpuConsumerFailure',s=stream) {
   if(ending||s?.isolated)return;
   lost=true;
-  const isolation={code,unknownOutstanding:s?.imports.size??0,workerTerminationConfirmed:false};
+  const isolation={code,unknownOutstanding:streamOutstanding(s),workerTerminationConfirmed:false};
   previewIsolation=isolation;record('preview-isolated',isolation);
   // Keep the editor and the bounded unknown consumer references alive. The host
   // retires its owned Worker; no replacement pool is allowed in this process.
   const termination=s?isolateGpuPreviewStream(s,{
-    closeConnection:connection=>broker.close(connection),
+    closeConnection:()=>closeStreamConnection(s),
     detachRenderer:()=>window?.webContents.send('mako-gpu:detach',{attachSeq:s.attachSeq}),
     abortWorker:async()=>{
       const response=await fetch(new URL(`/internal/gpu-preview-streams/${encodeURIComponent(s.streamId)}/consumer-failed`,config.baseUrl),{
@@ -155,7 +201,8 @@ function authorize(event) {
 }
 function send(s,message) {
   if(lost || !s.connection)throw new Error('Desktop stream disconnected');
-  broker.send(s.connection,JSON.stringify(message));
+  if(s.transport==='shm')s.connection.send(message);
+  else broker.send(s.connection,JSON.stringify(message));
 }
 const controlIdentity=s=>({protocolVersion:1,streamId:s.streamId,hostInstanceId:config.hostInstanceId,producerEpoch:s.producerEpoch,inputGeneration:s.inputGeneration??s.expectedInputGeneration,consumerEpoch:'1'});
 function physicalDevice(m) {
@@ -220,7 +267,7 @@ async function consume(s,packet) {
         s.imports.delete(key);sTelemetry.acknowledgedUnique++;
         if(item.drawn)sTelemetry.completedDrawnUnique++;else sTelemetry.completedWithoutDraw++;
         const completedNs=process.hrtime.bigint();
-        const sample={attachedMonotonicNs:s.attachedMonotonicNs,controlApplied:s.controlApplied,sampleRevision:++sampleRevision,...lease(m),timeUs:m.timeUs,controlSeq:m.controlSeq,timelineResetId:m.timelineResetId,provider:m.provider,width:m.width,height:m.height,counters:m.counters,drawn:!!item.drawn,completedMonotonicNs:completedNs.toString(),renderMs:Number(BigInt(m.producerReadyMonotonicNs)-BigInt(m.renderStartMonotonicNs))/1e6,brokerToCompletionMs:Number(completedNs-item.receivedNs)/1e6,
+        const sample={attachedMonotonicNs:s.attachedMonotonicNs,controlApplied:s.controlApplied,sampleRevision:++sampleRevision,...lease(m),transport:'dma-buf',api:'vulkan',timeUs:m.timeUs,controlSeq:m.controlSeq,timelineResetId:m.timelineResetId,provider:m.provider,width:m.width,height:m.height,timings:m.timings,counters:m.counters,drawn:!!item.drawn,completedMonotonicNs:completedNs.toString(),renderMs:Number(BigInt(m.producerReadyMonotonicNs)-BigInt(m.renderStartMonotonicNs))/1e6,brokerToCompletionMs:Number(completedNs-item.receivedNs)/1e6,
           ...(s.clock?{readyToBrokerMs:Number(item.receivedNs-(BigInt(m.producerReadyMonotonicNs)-BigInt(s.clock.workerMinusSenderNs)))/1e6,readyToCompletionMs:Number(completedNs-(BigInt(m.producerReadyMonotonicNs)-BigInt(s.clock.workerMinusSenderNs)))/1e6,clockUncertaintyMs:Number(BigInt(s.clock.uncertaintyNs))/1e6,totalClockUncertaintyMs:Number(BigInt(s.clock.uncertaintyNs)+BigInt(s.rendererUncertaintyNs??'0'))/1e6}:{})};
         // Retain bounded identity/observation data only, never an imported GPU
         // reference across frames after its exact completion has been ACKed.
@@ -233,7 +280,7 @@ async function consume(s,packet) {
   });
 }
 function completeStop(s) {
-  if(s.stopped&&s.imports.size===0&&s.connection){clearInterval(s.poll);broker.close(s.connection);s.connection=null;s.resolveStop?.();}
+  if(s.stopped&&streamOutstanding(s)===0&&s.connection){clearInterval(s.poll);closeStreamConnection(s);s.resolveStop?.();}
 }
 function flushControl(s) {
   if(s.stopping||s.executing||!s.pending||!s.hello||(s.pending.mode==='playing'&&!s.clock))return;
@@ -245,13 +292,57 @@ function packet(s,p) {
   const m=p.metadata;
   s.lastPacketType=['hello-accepted','frame','clock-ping','clock-calibrated','control-applied','state','stopped','failed'].includes(m.type)?m.type:'unknown';
   p.receivedNs=process.hrtime.bigint();
-  if(p.peerPid!==s.workerPid)throw new Error('Worker peer PID mismatch');
+  if(s.transport!=='shm'&&p.peerPid!==s.workerPid)throw new Error('Worker peer PID mismatch');
   validateWorkerMessage(m,s,config);
-  if(m.type==='frame'){void consume(s,p).catch(()=>isolatePreview('gpuFrameFailed',s));return;}
-  for(const fd of p.fds)broker.closeFd(fd);
+  if(m.type==='frame'){
+    if(s.transport==='shm'){
+      try{
+        if(!s.shmConsumer)throw new Error('SHM consumer not initialized before frame');
+        const current=!s.stopping&&stream===s&&!window.isDestroyed()&&window.isVisible()&&s.desired&&m.timelineResetId===s.desired.timelineResetId&&m.controlSeq>=s.barrierSeq;
+        s.lastFrameReceivedNs.set(leaseKey(m),p.receivedNs);
+        s.shmConsumer.consumeFrame(m);
+        if(current){sTelemetry.imported++;sTelemetry.transferred++;sTelemetry.peakOutstanding=Math.max(sTelemetry.peakOutstanding,s.shmConsumer.getPeakOutstanding());}
+        else sTelemetry.rejectedStale++;
+      }catch{isolatePreview('gpuFrameFailed',s);}
+      return;
+    }
+    void consume(s,p).catch(()=>isolatePreview('gpuFrameFailed',s));return;
+  }
+  if(s.transport!=='shm'){for(const fd of p.fds)broker.closeFd(fd);}
   if(p.fds.length)throw new Error('Control packet carried handles');
   if(m.type==='hello-accepted'){
     if(s.hello||m.protocolVersion!==1||m.streamId!==s.streamId||m.hostInstanceId!==config.hostInstanceId||m.producerEpoch!==s.producerEpoch||m.consumerId!==config.consumerId||m.consumerEpoch!=='1'||m.inputGeneration!==s.expectedInputGeneration||m.poolGeneration!==s.poolGeneration||m.echoSenderMonotonicNs!==s.helloNs)throw new Error('Invalid Worker handshake');
+    if(s.transport==='shm'){
+      if(m.transport!=='shm')throw new Error('Worker transport mismatch: expected shm');
+      const {port1,port2}=new MessageChannelMain();
+      s.shmConsumer=createShmStreamConsumer({
+        shmBridge,
+        shmName:m.shmName,
+        allocationBytes:m.allocationBytes,
+        size:s.size,
+        strideBytes:m.strideBytes,
+        pixelFormat:m.pixelFormat,
+        streamIdentity:{streamId:s.streamId},
+        hostConfig:{hostInstanceId:config.hostInstanceId,producerEpoch:s.producerEpoch,inputGeneration:m.inputGeneration,poolGeneration:m.poolGeneration},
+        port:port1,
+        shouldTransfer:meta=>!s.stopping&&stream===s&&!window.isDestroyed()&&window.isVisible()&&s.desired&&meta.timelineResetId===s.desired.timelineResetId&&meta.controlSeq>=s.barrierSeq,
+        sendRelease:rel=>{if(lost||ending||!s.connection)return;send(s,rel);sTelemetry.acknowledgedUnique++;completeStop(s);},
+        onFrameCompleted:({metadata:meta,drawn,timings,counters})=>{
+          const key=leaseKey(meta),receivedNs=s.lastFrameReceivedNs.get(key)??process.hrtime.bigint();
+          s.lastFrameReceivedNs.delete(key);
+          if(drawn)sTelemetry.completedDrawnUnique++;else sTelemetry.completedWithoutDraw++;
+          const completedNs=process.hrtime.bigint();
+          const sample={attachedMonotonicNs:s.attachedMonotonicNs,controlApplied:s.controlApplied,sampleRevision:++sampleRevision,...lease(meta),transport:'shm',api:meta.api,pixelFormat:meta.pixelFormat,strideBytes:meta.strideBytes,timeUs:meta.timeUs,controlSeq:meta.controlSeq,timelineResetId:meta.timelineResetId,provider:meta.provider,width:meta.width,height:meta.height,timings,counters,drawn:!!drawn,completedMonotonicNs:completedNs.toString(),renderMs:Number(BigInt(meta.producerReadyMonotonicNs)-BigInt(meta.renderStartMonotonicNs))/1e6,brokerToCompletionMs:Number(completedNs-receivedNs)/1e6};
+          samples.push(sample);completed.set(key,{item:{metadata:meta,drawn:!!drawn},sample});
+          if(completed.size>256)completed.delete(completed.keys().next().value);
+          if(samples.length>4096)samples.shift();
+          completeStop(s);
+        },
+        onError:()=>isolatePreview('gpuFinalReleaseFailed',s),
+      });
+      s.pendingRendererPort=port2;
+      sTelemetry.device={api:m.api,name:m.device?.name,vendorId:m.device?.vendorId,deviceId:m.device?.deviceId};
+    }
     s.hello=true;s.inputGeneration=m.inputGeneration;s.poolGeneration=m.poolGeneration;s.resolveHello();flushControl(s);return;
   }
   if(m.type==='clock-ping'){if(!decimal(m.workerMonotonicNs))throw new Error('Invalid clock ping');const receive=process.hrtime.bigint().toString();send(s,{type:'clock-pong',echoWorkerMonotonicNs:m.workerMonotonicNs,senderReceiveMonotonicNs:receive,senderMonotonicNs:process.hrtime.bigint().toString()});return;}
@@ -265,12 +356,12 @@ function packet(s,p) {
     safeState({...m,timelineResetId:applied.timelineResetId});flushControl(s);return;
   }
   if(m.type==='state'){diagnostics(m.diagnostics);s.workerState={...m,mainObservedMonotonicNs:process.hrtime.bigint().toString()};safeState(m);return;}
-  if(m.type==='stopped'){if(m.drained!==true||s.imports.size!==0)throw new Error('Worker stopped before exact lease drain');s.stopped=true;completeStop(s);return;}
+  if(m.type==='stopped'){if(m.drained!==true||streamOutstanding(s)!==0)throw new Error('Worker stopped before exact lease drain');s.stopped=true;completeStop(s);return;}
   if(m.type==='failed'){
     // 先记下 Worker 自带的失败身份，诊断摘要无效或完成未知时日志仍能给出真实原因。
     s.workerFailure=workerFailureSummary(m);
     const summary=diagnostics(m.diagnostics);
-    if(m.drained===true&&s.imports.size===0){
+    if(m.drained===true&&streamOutstanding(s)===0){
       s.stopping=true;s.stopped=true;s.pending=null;s.executing=null;
       window.webContents.send('mako-gpu:detach',{attachSeq:s.attachSeq});
       completeStop(s);
@@ -306,23 +397,30 @@ async function attach(streamId,expectedInputGeneration) {
     if(!response.ok){stage=`claimHttp${response.status}`;throw new Error('Desktop stream claim rejected');}
     stage='validateClaim';
     const claim=await response.json();
-    if(!positive(claim.producerEpoch)||!positive(claim.poolGeneration)||claim.inputGeneration!==expectedInputGeneration||!claim.size||!Number.isInteger(claim.size.width)||!Number.isInteger(claim.size.height)||claim.size.width<64||claim.size.height<64||claim.size.width>2560||claim.size.height>1440||!Number.isSafeInteger(claim.workerPid)||claim.workerPid<1||typeof claim.brokerEndpoint!=='string'||!path.isAbsolute(claim.brokerEndpoint)||typeof claim.handshake!=='string'||claim.handshake.length>512)throw new Error('Invalid desktop claim');
-    const s={streamId,workerPid:claim.workerPid,producerEpoch:claim.producerEpoch,poolGeneration:claim.poolGeneration,size:claim.size,expectedInputGeneration,imports:new Map(),slotEpochs:new Map(),lastFrame:0,controlSeq:0,barrierSeq:1};
+    const transport=claim.transport??config.transport??resolveDefaultTransport();
+    if(!['dma-buf','shm'].includes(transport)||!positive(claim.producerEpoch)||!positive(claim.poolGeneration)||claim.inputGeneration!==expectedInputGeneration||!claim.size||!Number.isInteger(claim.size.width)||!Number.isInteger(claim.size.height)||claim.size.width<64||claim.size.height<64||claim.size.width>2560||claim.size.height>1440||!Number.isSafeInteger(claim.workerPid)||claim.workerPid<1||typeof claim.brokerEndpoint!=='string'||claim.brokerEndpoint.length===0||claim.brokerEndpoint.length>512||claim.brokerEndpoint.includes('\0')||(transport==='dma-buf'&&!path.isAbsolute(claim.brokerEndpoint))||typeof claim.handshake!=='string'||claim.handshake.length>512)throw new Error('Invalid desktop claim');
+    if(transport==='shm'&&!shmBridge)throw new Error('Desktop SHM bridge addon unavailable');
+    if(transport==='dma-buf'&&!broker)throw new Error('Desktop DMA-BUF broker addon unavailable');
+    const s={streamId,transport,workerPid:claim.workerPid,producerEpoch:claim.producerEpoch,poolGeneration:claim.poolGeneration,size:claim.size,expectedInputGeneration,imports:new Map(),lastFrameReceivedNs:new Map(),slotEpochs:new Map(),lastFrame:0,controlSeq:0,barrierSeq:1};
     stream=s;
     const until=Date.now()+5000;
     stage='connectBroker';
-    while(!s.connection){try{const st=fs.lstatSync(claim.brokerEndpoint),parent=fs.lstatSync(path.dirname(claim.brokerEndpoint));if(!st.isSocket()||st.uid!==process.getuid()||!parent.isDirectory()||parent.uid!==process.getuid()||(parent.mode&0o777)!==0o700||fs.realpathSync(path.dirname(claim.brokerEndpoint))!==path.dirname(claim.brokerEndpoint))throw new Error('Invalid broker ownership');s.connection=broker.connect(claim.brokerEndpoint);}catch(error){if(Date.now()>until)throw error;await delay(20);}}
+    if(transport==='shm'){
+      s.connection=await connectLocalStream(claim.brokerEndpoint,{timeoutMs:5000,retryDelayMs:20});
+    }else{
+      while(!s.connection){try{const st=fs.lstatSync(claim.brokerEndpoint),parent=fs.lstatSync(path.dirname(claim.brokerEndpoint));if(!st.isSocket()||st.uid!==process.getuid()||!parent.isDirectory()||parent.uid!==process.getuid()||(parent.mode&0o777)!==0o700||fs.realpathSync(path.dirname(claim.brokerEndpoint))!==path.dirname(claim.brokerEndpoint))throw new Error('Invalid broker ownership');s.connection=broker.connect(claim.brokerEndpoint);}catch(error){if(Date.now()>until)throw error;await delay(20);}}
+    }
     const hello=new Promise((done,reject)=>{s.resolveHello=done;s.rejectHello=reject;});
     s.helloNs=process.hrtime.bigint().toString();
     stage='hello';
     send(s,{type:'hello',protocolVersion:1,consumerId:config.consumerId,consumerEpoch:'1',streamId,hostInstanceId:config.hostInstanceId,producerEpoch:s.producerEpoch,handshake:claim.handshake,senderMonotonicNs:s.helloNs});
     s.poll=setInterval(()=>{
       const pollStarted=performanceDiagnostics?process.hrtime.bigint():null;
-      try{for(let count=0;count<16&&s.connection;count++){const p=broker.receive(s.connection);if(!p)break;packet(s,p);}}
+      try{for(let count=0;count<16&&s.connection;count++){const p=s.transport==='shm'?s.connection.tryReceive():broker.receive(s.connection);if(!p)break;packet(s,p);}}
       catch(error){
         const known=['Worker response identity mismatch','Worker pool identity mismatch','Invalid Worker hello','Invalid calibrated clock','Worker stopped before exact lease drain','Unexpected applied control','peer disconnected; outstanding leases unknown','recvmsg failed','closed connection','Worker GPU completion unknown'];
         const cause=known.includes(error?.message)?error.message:'invalidWorkerPacket';
-        console.error(JSON.stringify({type:'desktop-broker-error',stage:s.lastPacketType??'receive',cause,stopping:!!s.stopping,stopped:!!s.stopped,outstanding:s.imports.size,worker:s.workerFailure}));
+        console.error(JSON.stringify({type:'desktop-broker-error',stage:s.lastPacketType??'receive',cause,stopping:!!s.stopping,stopped:!!s.stopped,outstanding:streamOutstanding(s),worker:s.workerFailure}));
         isolatePreview('gpuBrokerProtocolFailed',s);
       }
       finally{if(pollStarted!==null){const end=process.hrtime.bigint();if(end-pollStarted>=10000000n)performanceDiagnostics.add('main-poll',pollStarted,end,{lease:performanceDiagnostics.identity(s.lastFrameMetadata)});}}
@@ -331,8 +429,13 @@ async function attach(streamId,expectedInputGeneration) {
     s.attachedMonotonicNs=process.hrtime.bigint().toString();
     // 返回值与事件内容相同：渲染端谁先到用谁，attachSeq 丢掉晚到的重复事件（preload.cjs）。
     s.attachSeq=++attachSeq;
-    const attached={...controlIdentity(s),inputGeneration:s.inputGeneration,poolGeneration:s.poolGeneration,attachSeq:s.attachSeq};
-    window.webContents.send('mako-gpu:attached',attached);
+    const attached={...controlIdentity(s),transport:s.transport,inputGeneration:s.inputGeneration,poolGeneration:s.poolGeneration,attachSeq:s.attachSeq};
+    if(s.transport==='shm'&&s.pendingRendererPort){
+      const port2=s.pendingRendererPort;s.pendingRendererPort=null;
+      window.webContents.postMessage('mako-gpu:shm-port',attached,[port2]);
+    }else{
+      window.webContents.send('mako-gpu:attached',attached);
+    }
     return attached;
   }catch{
     const s=stream;
@@ -355,14 +458,14 @@ function playback(value,rendererClock) {
   s.desired={...state};s.pending={...state,controlSeq,senderMonotonicNs:rendererClock.senderMonotonicNs,rendererUncertaintyNs:rendererClock.uncertaintyNs,mainReceivedMonotonicNs:now.toString()};flushControl(s);
   return {controlSeq};
 }
-for(const [name,handler] of Object.entries({config:()=>({mode:'production',...(performanceDiagnostics?{performanceDiagnostics:true}:{}),...(config.slowConsumerMs?{scenario:'slow',slowMs:config.slowConsumerMs}:{})}),'consumer-id':()=>{if(lost)throw new Error('GPU 预览已停用，请重启应用后重试；编辑和保存仍可继续。');return config.consumerId;},'acceptance-enabled':()=>app.commandLine.hasSwitch('remote-debugging-port'),clock:()=>({mainMonotonicNs:process.hrtime.bigint().toString()}),attach,playback,read:(sinceRevision=0)=>{if(!Number.isSafeInteger(sinceRevision)||sinceRevision<0)throw new Error('Invalid sample cursor');if(stream?.connection&&!stream.stopping&&!stream.stopped)send(stream,{type:'read-state',...controlIdentity(stream)});return {...sTelemetry,previewDisabled:lost,previewIsolation,nowMonotonicNs:process.hrtime.bigint().toString(),clock:stream?.clock?{...stream.clock,rendererUncertaintyNs:stream.rendererUncertaintyNs,totalUncertaintyNs:(BigInt(stream.clock.uncertaintyNs)+BigInt(stream.rendererUncertaintyNs??'0')).toString()}:undefined,mediaClock:stream?.mediaClock,workerState:stream?.workerState,controlApplied:stream?.controlApplied,attachedMonotonicNs:stream?.attachedMonotonicNs,activeStream:stream?{...controlIdentity(stream),poolGeneration:stream.poolGeneration,size:stream.size}:null,executingControls:stream?.executing?1:0,pendingControls:stream?.pending?1:0,outstanding:stream?.imports.size??0,sampleRevision,sampleCursorExpired:samples.length>0&&sinceRevision>0&&sinceRevision<Math.min(...samples.map(x=>x.sampleRevision))-1,samples:samples.filter(x=>x.sampleRevision>sinceRevision),mainPid:process.pid,workerPid:stream?.workerPid,rendererPid:window?.webContents.getOSProcessId(),performanceDiagnostics:performanceDiagnostics?.snapshot(),processes:measured('main-getAppMetrics',()=>app.getAppMetrics()).map(x=>({pid:x.pid,type:x.type,cpu:x.cpu,memory:x.memory}))};},detach}))ipcMain.handle(`mako-gpu:${name}`,(event,...args)=>{authorize(event);return name==='read'?measured('main-read',()=>handler(...args),undefined,10):handler(...args);});
+for(const [name,handler] of Object.entries({config:()=>({mode:'production',transport:config.transport??resolveDefaultTransport(),...(performanceDiagnostics?{performanceDiagnostics:true}:{}),...(config.slowConsumerMs?{scenario:'slow',slowMs:config.slowConsumerMs}:{})}),'consumer-id':()=>{if(lost)throw new Error('GPU 预览已停用，请重启应用后重试；编辑和保存仍可继续。');return config.consumerId;},'acceptance-enabled':()=>app.commandLine.hasSwitch('remote-debugging-port'),clock:()=>({mainMonotonicNs:process.hrtime.bigint().toString()}),attach,playback,read:(sinceRevision=0)=>{if(!Number.isSafeInteger(sinceRevision)||sinceRevision<0)throw new Error('Invalid sample cursor');if(stream?.connection&&!stream.stopping&&!stream.stopped)send(stream,{type:'read-state',...controlIdentity(stream)});return {...sTelemetry,previewDisabled:lost,previewIsolation,nowMonotonicNs:process.hrtime.bigint().toString(),clock:stream?.clock?{...stream.clock,rendererUncertaintyNs:stream.rendererUncertaintyNs,totalUncertaintyNs:(BigInt(stream.clock.uncertaintyNs)+BigInt(stream.rendererUncertaintyNs??'0')).toString()}:undefined,mediaClock:stream?.mediaClock,workerState:stream?.workerState,controlApplied:stream?.controlApplied,attachedMonotonicNs:stream?.attachedMonotonicNs,activeStream:stream?{...controlIdentity(stream),transport:stream.transport,poolGeneration:stream.poolGeneration,size:stream.size}:null,executingControls:stream?.executing?1:0,pendingControls:stream?.pending?1:0,outstanding:streamOutstanding(stream),sampleRevision,sampleCursorExpired:samples.length>0&&sinceRevision>0&&sinceRevision<Math.min(...samples.map(x=>x.sampleRevision))-1,samples:samples.filter(x=>x.sampleRevision>sinceRevision),mainPid:process.pid,workerPid:stream?.workerPid,rendererPid:window?.webContents.getOSProcessId(),performanceDiagnostics:performanceDiagnostics?.snapshot(),processes:measured('main-getAppMetrics',()=>app.getAppMetrics()).map(x=>({pid:x.pid,type:x.type,cpu:x.cpu,memory:x.memory}))};},detach}))ipcMain.handle(`mako-gpu:${name}`,(event,...args)=>{authorize(event);return name==='read'?measured('main-read',()=>handler(...args),undefined,10):handler(...args);});
 ipcMain.handle('mako-gpu:acceptance-failure',(event,kind)=>{
   authorize(event);
   if(!app.commandLine.hasSwitch('remote-debugging-port')||!['renderer-loss','worker-loss'].includes(kind))throw new Error('Acceptance fault injection unavailable');
   const pid=kind==='renderer-loss'?window.webContents.getOSProcessId():stream?.workerPid;
   if(!pid)throw new Error('No active owned fault target');
   lost=true;record('injected-consumer-loss',{kind,pid});
-  console.error(JSON.stringify({type:'desktop-injected-loss',kind,pid,unknownOutstanding:stream?.imports.size??0,acknowledgedAtLoss:sTelemetry.acknowledgedUnique}));
+  console.error(JSON.stringify({type:'desktop-injected-loss',kind,pid,unknownOutstanding:streamOutstanding(stream),acknowledgedAtLoss:sTelemetry.acknowledgedUnique}));
   process.kill(pid,'SIGKILL');isolatePreview(kind==='renderer-loss'?'injectedRendererLoss':'injectedWorkerLoss');
 });
 ipcMain.handle('mako-gpu:acceptance-visibility',(event,visible)=>{
@@ -371,7 +474,7 @@ ipcMain.handle('mako-gpu:acceptance-visibility',(event,visible)=>{
   if(visible)window.show();else window.hide();
 });
 ipcMain.on('mako-gpu:error',event=>{authorize(event);isolatePreview('gpuRendererReceiverFailed');});
-ipcMain.on('mako-gpu:drawn',(event,data)=>{authorize(event);const key=leaseKey(data),done=completed.get(key),item=stream?.imports.get(key)??done?.item;if(item&&!item.drawn&&data.timestamp===item.metadata.timeUs){item.drawn=true;sTelemetry.drawn++;if(done){done.sample.drawn=true;done.sample.sampleRevision=++sampleRevision;sTelemetry.completedDrawnUnique++;sTelemetry.completedWithoutDraw--;}safeState({type:'drawn',...data});}});
+ipcMain.on('mako-gpu:drawn',(event,data)=>{authorize(event);const key=leaseKey(data),done=completed.get(key),item=stream?.imports.get(key)??done?.item;if(stream?.transport==='shm'){if(done?.sample.drawn)sTelemetry.drawn++;safeState({type:'drawn',...data});return;}if(item&&!item.drawn&&data.timestamp===item.metadata.timeUs){item.drawn=true;sTelemetry.drawn++;if(done){done.sample.drawn=true;done.sample.sampleRevision=++sampleRevision;sTelemetry.completedDrawnUnique++;sTelemetry.completedWithoutDraw--;}safeState({type:'drawn',...data});}});
 ipcMain.on('mako-gpu:renderer-release',(event,data)=>{authorize(event);if(stream?.imports.has(leaseKey(data)))record('renderer-release-requested',{frameSeq:data.frameSeq});});
 let closingProcess = false;
 async function close() {
@@ -436,6 +539,8 @@ if(singleInstanceGranted)(async()=>{
       hostInstanceId: backendProcess.info.hostInstanceId,
       brokerAddon: standaloneResources.brokerAddon,
       brokerAddonSha256: standaloneResources.brokerAddonSha256,
+      shmAddon: standaloneResources.shmAddon,
+      shmAddonSha256: standaloneResources.shmAddonSha256,
       ready: true,
     };
   } else {

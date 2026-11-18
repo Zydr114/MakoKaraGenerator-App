@@ -12,9 +12,17 @@ function validateWorkerMessage(m,s,config){
   if(Object.keys(identity).some(key=>m[key]!==identity[key]))throw new Error('Worker response identity mismatch');
   if(m.type==='hello-accepted'){
     if(m.consumerId!==config.consumerId||m.poolGeneration!==s.poolGeneration||m.echoSenderMonotonicNs!==s.helloNs||!decimal(m.workerMonotonicNs)||m.width!==s.size.width||m.height!==s.size.height||m.slotCount!==3||!Number.isSafeInteger(m.allocationBytes)||m.allocationBytes<1||m.allocationBytes>64*1024**2)throw new Error('Invalid Worker hello');
+    if(m.transport!==undefined&&!['dma-buf','shm'].includes(m.transport))throw new Error('Invalid Worker transport');
+    if(m.api!==undefined&&!['vulkan','cpu','metal'].includes(m.api))throw new Error('Invalid Worker backend api');
+    if(m.pixelFormat!==undefined&&!['bgra8888','rgba8888'].includes(m.pixelFormat))throw new Error('Invalid Worker pixel format');
+    if(m.strideBytes!==undefined&&(!Number.isSafeInteger(m.strideBytes)||m.strideBytes<m.width*4||m.strideBytes%4!==0))throw new Error('Invalid Worker strideBytes');
+    if(m.transport==='shm'&&(typeof m.shmName!=='string'||m.shmName.length===0||m.shmName.length>256))throw new Error('Invalid Worker SHM resource name');
     return;
   }
   if(['frame','state','control-applied'].includes(m.type)&&m.poolGeneration!==s.poolGeneration)throw new Error('Worker pool identity mismatch');
+  if(m.type==='frame'&&m.timings!==undefined){
+    if(!m.timings||typeof m.timings!=='object'||!Number.isSafeInteger(m.timings.renderDurationUs)||m.timings.renderDurationUs<0||!Number.isSafeInteger(m.timings.portCaptureDurationUs)||m.timings.portCaptureDurationUs<0)throw new Error('Invalid Worker frame timings');
+  }
   if(!['frame','state','control-applied','stopped','failed'].includes(m.type))throw new Error('Unknown Worker response');
 }
 // 硬失败只把稳定代码、根异常类型／抛出方法与引擎文本带进日志；格式不符的字段整体丢弃，不回显原值。

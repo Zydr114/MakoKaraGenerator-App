@@ -4,11 +4,24 @@ const fixture=require('../../backend/tests/MakoKaraGenerator.Backend.Worker.Test
 const {validateWorkerMessage,workerFailureSummary}=require('./wire.cjs');
 const stream={streamId:'stream',producerEpoch:'1',expectedInputGeneration:'1',poolGeneration:'2',helloNs:'1000000',size:{width:256,height:128}};
 const config={hostInstanceId:'host',consumerId:'fixture'};
-test('production main accepts the same serialized fixture as the real Worker',()=>{
+test('production main accepts the same serialized DMA-BUF and SHM fixtures as the real Worker',()=>{
   for(const message of Object.values(fixture))assert.doesNotThrow(()=>validateWorkerMessage(message,stream,config));
 });
-test('old generation, wrong consumer and unnegotiated size are rejected',()=>{
-  for(const [name,patch] of [['frame',{inputGeneration:'2'}],['state',{poolGeneration:'3'}],['controlApplied',{consumerEpoch:'2'}],['helloAccepted',{consumerId:'other'}],['helloAccepted',{width:1280}],['stopped',{hostInstanceId:'old'}]])assert.throws(()=>validateWorkerMessage({...fixture[name],...patch},stream,config));
+test('old generation, wrong consumer, unnegotiated size, invalid transport/format/timings are rejected',()=>{
+  for(const [name,patch] of [
+    ['frame',{inputGeneration:'2'}],
+    ['frame',{timings:{renderDurationUs:-1,portCaptureDurationUs:0}}],
+    ['shmFrame',{timings:{renderDurationUs:10,portCaptureDurationUs:-5}}],
+    ['state',{poolGeneration:'3'}],
+    ['controlApplied',{consumerEpoch:'2'}],
+    ['helloAccepted',{consumerId:'other'}],
+    ['helloAccepted',{width:1280}],
+    ['shmHelloAccepted',{transport:'unknown'}],
+    ['shmHelloAccepted',{pixelFormat:'rgb565'}],
+    ['shmHelloAccepted',{strideBytes:1023}],
+    ['shmHelloAccepted',{shmName:''}],
+    ['stopped',{hostInstanceId:'old'}],
+  ])assert.throws(()=>validateWorkerMessage({...fixture[name],...patch},stream,config));
 });
 test('hard Worker failure keeps code, root type, site and engine text but drops malformed fields',()=>{
   const failed={...fixture.failed,code:'ImageSurfaceBudgetExceeded',failureType:'ImageSurfaceBudgetException',failureSite:'ImageSurfaceBudgetSession.<Reserve>g__Check|5_0',failureDetail:'材质捕获：会话字节 当前 1 + 申请 2 / 3。',drained:false};

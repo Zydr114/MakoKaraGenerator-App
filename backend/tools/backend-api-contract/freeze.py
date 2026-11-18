@@ -1815,6 +1815,23 @@ def manifest(outputs):
         if not source.is_file():
             raise ValueError("Missing reviewed preview inspection behavior source: " + filename)
         files.add(source)
+    # Cross-platform M2 dual-phase IPreviewPort, SHM/DMA-BUF preview ports, and
+    # platform-independent LocalStreamPreviewChannel (public HTTP contract unchanged).
+    for filename in (
+            "src/MakoKaraGenerator.Rendering.Abstractions/PreviewPortContracts.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/IPreviewPort.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/ShmPreviewPort.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/DmaBufPreviewPort.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/LinuxPosixShmBacking.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/PreviewPortSessionManager.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/VulkanGpuFramePool.cs",
+            "src/MakoKaraGenerator.Rendering.Skia/SkiaRenderPipeline.SyntheticGpu.cs",
+            "src/MakoKaraGenerator.Backend.Worker/LocalStreamPreviewChannel.cs",
+    ):
+        source = ROOT / filename
+        if not source.is_file():
+            raise ValueError("Missing reviewed M2 preview port behavior source: " + filename)
+        files.add(source)
     files.update(p for p in TOOL.iterdir() if p.is_file())
     return {"contractVersion": CONTRACT, "httpProtocolVersion": "1", "productVersion": PRODUCT, "sourceBaselineCommit": BASELINE,
             "frozenOn": FREEZE_DATE, "status": "frozen", "behaviorSource": BEHAVIOR,

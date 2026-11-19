@@ -1,0 +1,396 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-19",
+  "branch": "main",
+  "productVersion": "0.116.0",
+  "contractVersion": "1.57.0",
+  "platform": "win-x64 (Windows 11)",
+  "gpuDevice": "AMD Radeon(TM) 880M Graphics",
+  "electronVersion": "45.2.1",
+  "toolchain": {
+    "dotnetSdk": "10.0.401",
+    "node": "24.21.0",
+    "pnpm": "12.21.0",
+    "python": "3.14.7",
+    "msvc": "Visual Studio 18 BuildTools (14.51.36231)",
+    "windowsSdk": "10.0.26100.0"
+  },
+  "publishedDeployment": {
+    "dist": ".local/backend-dist/20261119T075026242Z",
+    "rid": "win-x64",
+    "version": "0.116.0",
+    "sourceCommit": "b6a5dbdec095d9beb729dff62c140f3ed3b2b9cf",
+    "sourceDirty": false,
+    "nativeSourceDirty": false,
+    "defaultTransport": "shm",
+    "deploymentManifestSha256": "6f48458b3c4d6ea63abe0d1991062d11ecd506bcc07030ac23d1c9bc99ba598f",
+    "nativeManifestSha256": "25f70fa1e8a132d7bdacf37585850636513e80d3d19e384c3afa1a09a404d597",
+    "nativeArtifacts": {
+      "desktop/shm_bridge.node": "4af8ee36ce33dfc15050dd5c5d9df943498dc60944bb4d2ac5a70fed1cf0c9f9"
+    }
+  },
+  "scopeBoundary": "Windows x64 M2 OS leaves + Gate G2 and Windows x64 M3 desktop full-chain integration + Gate G3 (GPU·SHM, CPU·SHM, same <canvas key='shm'> reuse, 30x 720p<->1440p HandleCount/CommitCharge, explicit dma-buf zero-fallback, pre-map worker kill, author-error inflight drain, injected/external fault isolation, 32 HTTP guards, browser static PNG regression). M4 (Windows 128 MiB Job Object IOCP media envelope, mkg-presentation.exe, package:windows Portable .zip & exFAT verification) is not started in this milestone.",
+  "gateG2Suites": {
+    "correctnessCpu": {
+      "status": "passed",
+      "device": "Skia raster",
+      "cases": [
+        {
+          "pixelFormat": "bgra8888",
+          "width": 1280,
+          "height": 720,
+          "strideBytes": 5120,
+          "verifiedFrames": 12,
+          "maxAbsChannelDiffLsb": 0,
+          "premultipliedMagentaRgba": [128, 0, 128, 128]
+        },
+        {
+          "pixelFormat": "rgba8888",
+          "width": 1280,
+          "height": 720,
+          "strideBytes": 5184,
+          "verifiedFrames": 12,
+          "maxAbsChannelDiffLsb": 0,
+          "premultipliedMagentaRgba": [128, 0, 128, 128],
+          "avgRenderUs": 1001,
+          "avgCaptureUs": 633
+        }
+      ]
+    },
+    "correctnessVulkan": {
+      "status": "passed",
+      "device": "AMD Radeon(TM) 880M Graphics",
+      "drmRenderMajor": 0,
+      "cases": [
+        {
+          "pixelFormat": "bgra8888",
+          "width": 1280,
+          "height": 720,
+          "strideBytes": 5120,
+          "verifiedFrames": 12,
+          "maxAbsChannelDiffLsb": 0,
+          "premultipliedMagentaRgba": [128, 0, 128, 128]
+        },
+        {
+          "pixelFormat": "rgba8888",
+          "width": 1280,
+          "height": 720,
+          "strideBytes": 5184,
+          "verifiedFrames": 12,
+          "maxAbsChannelDiffLsb": 0,
+          "premultipliedMagentaRgba": [128, 0, 128, 128],
+          "avgRenderUs": 134,
+          "avgCaptureUs": 2860
+        }
+      ]
+    },
+    "resize30": {
+      "status": "passed",
+      "switchesCompleted": 30,
+      "generationsRun": 32,
+      "textureRecreations": 32,
+      "handleCountWarmupMidEnd": {
+        "main": [1108, 1108, 1109],
+        "renderer": [339, 354, 354],
+        "worker": [398, 401, 401]
+      },
+      "handleDeltaAfterWarmup": {
+        "main": 1,
+        "renderer": 15,
+        "worker": 3
+      },
+      "commitDeltaAfterWarmupMb": {
+        "main": 32.38,
+        "renderer": 1.25,
+        "worker": 27.31
+      },
+      "rssDeltaAfterWarmupMb": {
+        "main": 34.59,
+        "renderer": 1.23,
+        "worker": 8.89
+      }
+    },
+    "slowBackpressure": {
+      "status": "passed",
+      "completedFrames": 25,
+      "consumerPeakOutstanding": 3,
+      "workerPeakOutstanding": 3,
+      "avgRenderUs": 328,
+      "avgCaptureUs": 2672
+    },
+    "stress1000": {
+      "status": "passed",
+      "resolution": "2560x1440",
+      "targetFps": 30,
+      "completedFrames": 1000,
+      "totalPayloadTransferredGb": 14.75,
+      "avgRenderUs": 166,
+      "avgCaptureUs": 6567,
+      "handleDeltaFrame100To1000": {
+        "main": -6,
+        "renderer": 1,
+        "worker": 10
+      },
+      "rssDeltaFrame100To1000Mb": {
+        "main": -40.05,
+        "renderer": -252.4
+      },
+      "commitDeltaFrame100To1000Mb": {
+        "main": -0.71,
+        "renderer": -253.84,
+        "worker": -7.82
+      },
+      "mainV8ExternalBytesFrame100": 17695464,
+      "mainV8ExternalBytesFrame1000": 17722885,
+      "rendererJsHeapBytesFrame100": 47400000,
+      "rendererJsHeapBytesFrame1000": 47400000
+    }
+  },
+  "gateG3Suites": {
+    "desktopSmoke": {
+      "passed": true,
+      "checksPassed": 18,
+      "defaultTransport": "shm",
+      "defaultApi": "vulkan",
+      "cpuPixelReadbacks": 1,
+      "playbackFramesIn2000ms": 47,
+      "totalFrames": 59,
+      "peakOutstanding": 1,
+      "launchFilesRemoved": true,
+      "launcherExitCode": 0
+    },
+    "m3WindowsSwitch": {
+      "passed": true,
+      "gpuInitial": {
+        "size": { "width": 1280, "height": 720 },
+        "colors": 123,
+        "readbacks": 1,
+        "timings": { "renderDurationUs": 117679, "portCaptureDurationUs": 10079 }
+      },
+      "cpuShm": {
+        "reusedSameShmCanvas": true,
+        "readbacks": 1,
+        "timings": { "renderDurationUs": 120973, "portCaptureDurationUs": 2469 },
+        "editedCornerRgba": [40, 170, 90, 255],
+        "playbackFramesIn1500ms": 35,
+        "peakOutstanding": 1
+      },
+      "gpuRecovered": {
+        "reusedSameShmCanvas": true,
+        "readbacks": 1,
+        "cornerRgba": [40, 170, 90, 255]
+      },
+      "launchFilesRemoved": true,
+      "launcherExitCode": 0
+    },
+    "m3WindowsShmResize30": {
+      "passed": true,
+      "resizeCount": 30,
+      "sameCanvasAcross30Resizes": true,
+      "sameCanvasAcrossGpuToCpuShm": true,
+      "mainHandleWarmupMidEnd": [1166, 1164, 1164],
+      "mainHandleDelta": -2,
+      "mainHandleMidToEnd": 0,
+      "mainPrivateKiBWarmupMidEnd": [45304, 78404, 77036],
+      "mainPrivateDeltaKiB": 31732,
+      "rendererHandleWarmupMidEnd": [422, 430, 436],
+      "rendererHandleDelta": 14,
+      "rendererHandleMidToEnd": 6,
+      "rendererPrivateKiBWarmupMidEnd": [106436, 106632, 88164],
+      "rendererPrivateDeltaKiB": -18272,
+      "rendererWorkingSetDeltaKiB": -16280,
+      "lastGpuTimings": { "renderDurationUs": 118988, "portCaptureDurationUs": 9952 },
+      "cpuShmTimings": { "renderDurationUs": 116959, "portCaptureDurationUs": 2416 },
+      "cpuProbeColors": 128,
+      "launchFilesRemoved": true,
+      "launcherExitCode": 0
+    },
+    "m3WindowsDmaBufNoFallback": {
+      "passed": true,
+      "advertisesGpuStreams": false,
+      "vulkanAttempt": {
+        "status": 503,
+        "code": "previewUnavailable",
+        "failureCode": "GpuPreviewUnsupportedPlatform"
+      },
+      "cpuAttempt": {
+        "status": 422,
+        "code": "commandNotSupported",
+        "failureCode": "PreviewTransportUnsupported"
+      },
+      "backendExitCode": 0
+    },
+    "m3WindowsPremapKill": {
+      "passed": true,
+      "cases": [
+        {
+          "api": "vulkan",
+          "transport": "shm",
+          "namedPipeMatched": true,
+          "registrationState": "failed",
+          "failureCode": "GpuWorkerExited",
+          "consumerIsolationTerminated": true,
+          "backendExitCode": 0
+        },
+        {
+          "api": "cpu",
+          "transport": "shm",
+          "namedPipeMatched": true,
+          "registrationState": "failed",
+          "failureCode": "GpuWorkerExited",
+          "consumerIsolationTerminated": true,
+          "backendExitCode": 0
+        }
+      ]
+    },
+    "authorErrorShmInflight": {
+      "passed": true,
+      "inflight": true,
+      "device": {
+        "api": "vulkan",
+        "name": "AMD Radeon(TM) 880M Graphics",
+        "vendorId": 4098,
+        "deviceId": 5390
+      },
+      "mainOutstandingBeforeDrain": 1,
+      "workerOutstandingBeforeDrain": 1,
+      "publicFailureState": "failed",
+      "publicFailureDrained": true,
+      "publicFailureCode": "WorkerRuntimeDiagnosticError",
+      "publicDiagnosticCode": "ScriptExecutionFailed",
+      "publicFailureTransport": "shm",
+      "exactCompletionAfterError": {
+        "transport": "shm",
+        "api": "vulkan",
+        "controlSeq": 1,
+        "drawn": true,
+        "provider": "runtime",
+        "cpuPixelReadbacks": 1,
+        "timings": { "renderDurationUs": 197727, "portCaptureDurationUs": 29993 },
+        "brokerToCompletionMs": 1021.5144
+      },
+      "recoveredHealthyStream": true,
+      "launchFilesRemoved": true,
+      "launcherExitCode": 0
+    },
+    "faultAcceptanceShm": {
+      "passed": true,
+      "cases": [
+        {
+          "kind": "renderer",
+          "external": false,
+          "passed": true,
+          "isolationCode": "injectedRendererLoss",
+          "unknownOutstanding": 3,
+          "ackDelta": 0,
+          "serverExit": 0,
+          "launcherExitCode": 0,
+          "allOwnedExited": true
+        },
+        {
+          "kind": "worker",
+          "external": false,
+          "passed": true,
+          "isolationCode": "injectedWorkerLoss",
+          "unknownOutstanding": 3,
+          "ackDelta": 0,
+          "serverExit": 0,
+          "launcherExitCode": 0,
+          "allOwnedExited": true
+        },
+        {
+          "kind": "renderer",
+          "external": true,
+          "passed": true,
+          "isolationCode": "gpuRendererLost",
+          "unknownOutstanding": 3,
+          "ackDelta": 0,
+          "serverExit": 0,
+          "launcherExitCode": 0,
+          "allOwnedExited": true
+        },
+        {
+          "kind": "worker",
+          "external": true,
+          "passed": true,
+          "isolationCode": "gpuBrokerProtocolFailed",
+          "unknownOutstanding": 2,
+          "ackDelta": 0,
+          "serverExit": 0,
+          "launcherExitCode": 0,
+          "allOwnedExited": true
+        }
+      ]
+    },
+    "httpNegative": {
+      "passed": true,
+      "checkCount": 32,
+      "launchFilesRemoved": true,
+      "launcherExitCode": 0
+    },
+    "browserStaticPngRegression": {
+      "passed": true,
+      "checks": [
+        "connect",
+        "create-wav-lrc",
+        "edit",
+        "undo",
+        "paused-seek-1s",
+        "png-displayed",
+        "close"
+      ],
+      "png": {
+        "width": 1280,
+        "height": 720,
+        "bytes": 11952,
+        "nonBlackRgbPixels": 4189,
+        "sha256": "16cc6f9d4fc4e6dc89ed0ecfab0c3379f271d9b2cd8cda709bcac1a6fb856a3d"
+      },
+      "runtimeExceptions": [],
+      "bootstrapRemoved": true,
+      "launcherExitCode": 0
+    }
+  },
+  "unitAndContractVerification": {
+    "dotnetBuild": {
+      "solutionProjects": 34,
+      "warnings": 0,
+      "errors": 0
+    },
+    "contractFreezeAndValidate": {
+      "contractVersion": "1.57.0",
+      "productVersion": "0.116.0",
+      "sourceBaselineCommit": "83a7ba0637f1eae70ab228882eaac643d50dd42a",
+      "paths": 115,
+      "operations": 128,
+      "schemas": 679,
+      "examples": 4023,
+      "negativeExamples": 2890
+    },
+    "frontendUnitTests": {
+      "tscErrors": 0,
+      "files": 56,
+      "passed": 4595,
+      "failed": 0
+    },
+    "nodeDesktopAndLauncherTests": {
+      "passed": 63,
+      "skippedLinuxOnly": 2,
+      "failed": 0
+    },
+    "nativeShmBridgeCheck": {
+      "passed": 3,
+      "failed": 0
+    },
+    "pythonWebHostTests": {
+      "passed": 9,
+      "failed": 0
+    },
+    "dotnetTargetedSuites": {
+      "renderingShmAndGpu": { "passed": 10, "failed": 0 },
+      "backendWorkerGpuAndLocalStream": { "passed": 25, "failed": 0 },
+      "backendHostingGpuAndProxy": { "passed": 68, "failed": 0 },
+      "backendServerGpuFailureAndNegotiation": { "passed": 5, "failed": 0 }
+    }
+  }
+}

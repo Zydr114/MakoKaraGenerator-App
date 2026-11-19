@@ -1,8 +1,8 @@
 # 跨平台（Windows 优先）技术适配与 `IPreviewPort` 实施计划
 
-状态：**设计已交叉核证定稿（v3.1）；M1 已完成（Windows G1 于 2026-11-16 通过，Linux M1 修复于 2026-11-17 复验通过）；M2 平台无关公共层与 Linux 全链路已按方式 B 合并主线（Linux G2 于 2026-11-18 通过）；M3 阶段 Linux 侧全链路集成与门禁验收于 2026-11-19 通过（产品 `0.116.0`、合同 `1.57.0`）；Windows 侧 M2 OS 叶子实现、Windows M3 实机 G3 与 M4 媒体封套/便携包统一延后至 M4 在 Windows 环境下实施与验收**。
+状态：**设计已交叉核证定稿（v3.1）；M1 已完成（Windows G1 于 2026-11-16 通过，Linux M1 修复于 2026-11-17 复验通过）；M2 平台无关公共层、Linux 与 Windows 全链路均已合并主线（Linux G2 于 2026-11-18 通过，Windows G2 于 2026-11-19 通过）；M3 阶段 Linux 侧与 Windows 侧桌面端全链路集成及门禁 G3 均已于 2026-11-19 通过（产品 `0.116.0`、合同 `1.57.0`）；下一阶段为 M4（Windows `128 MiB` Job Object IOCP 媒体特征封套、`mkg-presentation.exe` 及 `pnpm package:windows` 免安装 Portable `.zip` 与 exFAT 门禁 G4）**。
 
-验收依据：[M1 修复与 G1 实测记录](../integration/2026-11-16-cross-platform-m1.md)（`1bb1bef84d309aaadc6c1d35bd54a9fefb9e4ba5`，`win-x64`）、[Linux M1 修复与复验](../integration/2026-11-17-linux-m1-fixes.md)、[M2 方式 B 与 Linux G2 实测记录](../integration/2026-11-18-cross-platform-m2-linux-g2.md)、[M3 Linux 侧全链路实施与门禁验收记录](../integration/2026-11-19-cross-platform-m3-linux.md)。
+验收依据：[M1 修复与 G1 实测记录](../integration/2026-11-16-cross-platform-m1.md)（`1bb1bef84d309aaadc6c1d35bd54a9fefb9e4ba5`，`win-x64`）、[Linux M1 修复与复验](../integration/2026-11-17-linux-m1-fixes.md)、[M2 方式 B 与 Linux G2 实测记录](../integration/2026-11-18-cross-platform-m2-linux-g2.md)、[M3 Linux 侧全链路实施与门禁验收记录](../integration/2026-11-19-cross-platform-m3-linux.md)、[M2 与 M3 Windows 侧实施与门禁 G2/G3 验收记录](../integration/2026-11-19-cross-platform-m2-m3-windows.md)。
 
 关联文档：[GPU 预览流 v1 合同](../architecture/gpu-preview-stream-v1.md)、[GPU 共享纹理预览实施计划](./gpu-shared-texture-preview-plan.md)、[GPU 预览生产验收记录](../performance/gpu-preview-production-2026-11-01.md)。
 

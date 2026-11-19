@@ -52,4 +52,34 @@ public sealed class GpuWorkerWarmupContractTests
                      valid[..^1] + ",\"unexpected\":true}" })
             Assert.Throws<WorkerProtocolException>(() => GpuWorkerWarmupContract.DecodeRequest(Encoding.UTF8.GetBytes(invalid)));
     }
+
+    [Fact]
+    public async Task Windows_job_guarded_worker_completes_gpu_warmup_and_device_proof()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        DirectoryInfo? root = new(AppContext.BaseDirectory);
+        while (root is not null && !Directory.Exists(Path.Combine(root.FullName, "src", "MakoKaraGenerator.Backend.Worker")))
+            root = root.Parent;
+        Assert.NotNull(root);
+        string workerExe = Path.Combine(root!.FullName, "src", "MakoKaraGenerator.Backend.Worker", "bin", "Debug", "net10.0", "MakoKaraGenerator.Backend.Worker.exe");
+        Assert.True(File.Exists(workerExe), $"Missing built Worker binary: {workerExe}");
+
+        WorkerProcessOptions options = new(workerExe, [], TimeSpan.FromSeconds(5))
+        {
+            RenderBackend = "gpu",
+            EnableGpuPreview = true,
+        };
+        await using WorkerProcessProxy proxy = new(options);
+        GpuWorkerWarmupResult warmed = await proxy.WarmGpuAsync();
+        Assert.Equal("vulkan", warmed.Api);
+        Assert.True(warmed.OriginalDeviceRetained);
+        Assert.Equal(1, warmed.DeviceInitializations);
+        Assert.Equal(1, warmed.ContextInitializations);
+        Assert.NotNull(proxy.GpuWarmupProcessIdentity);
+        Assert.Equal(proxy.ProcessId, proxy.GpuWarmupProcessIdentity!.ProcessId);
+
+        RenderBackendDeviceInfoDto proof = await proxy.ReadGpuDeviceProofAsync();
+        Assert.False(string.IsNullOrWhiteSpace(proof.Device));
+        await proxy.StopAsync();
+    }
 }

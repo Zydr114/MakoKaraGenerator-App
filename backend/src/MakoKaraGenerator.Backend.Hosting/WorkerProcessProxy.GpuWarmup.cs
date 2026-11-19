@@ -24,11 +24,12 @@ public sealed partial class WorkerProcessProxy
         await _lifecycleGate.WaitAsync(token).ConfigureAwait(false);
         try
         {
+            ProcessIdentity? ownedIdentity = TryGetOwnedProcessIdentity();
             if (_packageSessionProcess is not null || _gpuWarmupProcess is not null ||
-                _process is null || _process.HasExited || _ownedGroup is null ||
+                _process is null || _process.HasExited || ownedIdentity is null ||
                 !ReferenceEquals(_process, _runtimeInputVerifiedProcess))
                 throw new WorkerProtocolException("Worker 不是未绑定业务输入的原进程。", GpuWorkerWarmupContract.FailureCode);
-            process = _process; identity = _ownedGroup.Leader;
+            process = _process; identity = ownedIdentity;
         }
         finally { _lifecycleGate.Release(); }
         var referenceRoot = WorkerReferenceDirectory();
@@ -53,7 +54,7 @@ public sealed partial class WorkerProcessProxy
         await _lifecycleGate.WaitAsync(token).ConfigureAwait(false);
         try
         {
-            if (!ReferenceEquals(process, _process) || process.HasExited || _ownedGroup?.Leader != identity)
+            if (!ReferenceEquals(process, _process) || process.HasExited || TryGetOwnedProcessIdentity() != identity)
                 throw new WorkerProtocolException("GPU 预热原进程已经改变。", GpuWorkerWarmupContract.FailureCode);
             _gpuWarmupProcess = process; GpuWarmupProcessIdentity = identity; GpuWarmup = warmed;
         }
@@ -71,11 +72,12 @@ public sealed partial class WorkerProcessProxy
         await _lifecycleGate.WaitAsync(token).ConfigureAwait(false);
         try
         {
+            ProcessIdentity? ownedIdentity = TryGetOwnedProcessIdentity();
             if (_gpuWarmupProcess is null || !ReferenceEquals(_gpuWarmupProcess, _process) ||
-                _process.HasExited || _ownedGroup is null || GpuWarmupProcessIdentity != _ownedGroup.Leader ||
+                _process.HasExited || ownedIdentity is null || GpuWarmupProcessIdentity != ownedIdentity ||
                 GpuWarmup is null || VerifiedRenderBackendDevice is null)
                 throw new WorkerProtocolException("GPU 原进程没有存活的设备证明。", GpuWorkerWarmupContract.FailureCode);
-            process = _process; identity = _ownedGroup.Leader; expected = GpuWarmup; device = VerifiedRenderBackendDevice;
+            process = _process; identity = ownedIdentity; expected = GpuWarmup; device = VerifiedRenderBackendDevice;
         }
         finally { _lifecycleGate.Release(); }
         byte[] payload = GpuWorkerWarmupContract.EncodeRequest(expected.Identity);
@@ -96,11 +98,24 @@ public sealed partial class WorkerProcessProxy
         await _lifecycleGate.WaitAsync(token).ConfigureAwait(false);
         try
         {
-            if (!ReferenceEquals(process, _process) || process.HasExited || _ownedGroup?.Leader != identity)
+            if (!ReferenceEquals(process, _process) || process.HasExited || TryGetOwnedProcessIdentity() != identity)
                 throw new WorkerProtocolException("GPU 设备状态原进程已经改变。", GpuWorkerWarmupContract.FailureCode);
             return device;
         }
         finally { _lifecycleGate.Release(); }
+    }
+
+    private ProcessIdentity? TryGetOwnedProcessIdentity()
+    {
+        if (_ownedGroup is not null) return _ownedGroup.Leader;
+        if (_windowsGuard is not null && _guardHandshakeVerified)
+        {
+            try { _windowsGuard.VerifyIdentity(); }
+            catch { return null; }
+            var leader = _windowsGuard.Leader;
+            return new ProcessIdentity(leader.ProcessId, unchecked((ulong)leader.CreationTimeFileTime), leader.ProcessId);
+        }
+        return null;
     }
 
     internal string WorkerReferenceDirectory()

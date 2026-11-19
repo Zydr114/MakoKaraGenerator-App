@@ -125774,7 +125774,8 @@
         "poolGeneration": "1",
         "slotCount": 3,
         "allocationBytes": 11059200,
-        "textureAlphaMode": "premultiplied"
+        "textureAlphaMode": "premultiplied",
+        "transport": "dma-buf"
       },
       "valid": true
     },
@@ -125801,7 +125802,8 @@
         "poolGeneration": "1",
         "slotCount": 3,
         "allocationBytes": 44236800,
-        "textureAlphaMode": "premultiplied"
+        "textureAlphaMode": "premultiplied",
+        "transport": "dma-buf"
       },
       "valid": true
     },
@@ -125828,7 +125830,8 @@
         "poolGeneration": "1",
         "slotCount": 3,
         "allocationBytes": 67108865,
-        "textureAlphaMode": "premultiplied"
+        "textureAlphaMode": "premultiplied",
+        "transport": "dma-buf"
       },
       "valid": false
     },
@@ -125855,7 +125858,8 @@
         "poolGeneration": "1",
         "slotCount": 3,
         "allocationBytes": 11059200,
-        "textureAlphaMode": "straight"
+        "textureAlphaMode": "straight",
+        "transport": "dma-buf"
       },
       "valid": false
     },
@@ -168928,7 +168932,194 @@
         ]
       },
       "valid": false
+    },
+    {
+      "name": "preview-transport-create-cpu",
+      "schema": "GpuPreviewStreamCreateRequest",
+      "value": {
+        "source": {
+          "kind": "project",
+          "sourceId": "project",
+          "sourceRevision": "1"
+        },
+        "size": {
+          "width": 1280,
+          "height": 720
+        },
+        "alphaMode": "opaque",
+        "api": "cpu",
+        "consumerId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "metadata": {
+          "requestId": "preview-transport-example",
+          "hostInstanceId": "host",
+          "validUntilUtc": "2030-01-01T00:00:00Z"
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "preview-transport-create-invalid-api-metal",
+      "schema": "GpuPreviewStreamCreateRequest",
+      "value": {
+        "source": {
+          "kind": "project",
+          "sourceId": "project",
+          "sourceRevision": "1"
+        },
+        "size": {
+          "width": 1280,
+          "height": 720
+        },
+        "alphaMode": "opaque",
+        "api": "metal",
+        "consumerId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "metadata": {
+          "requestId": "preview-transport-example",
+          "hostInstanceId": "host",
+          "validUntilUtc": "2030-01-01T00:00:00Z"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "preview-transport-state-cpu-shm",
+      "schema": "GpuPreviewStreamState",
+      "value": {
+        "streamId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "streamRevision": "1",
+        "inputGeneration": "1",
+        "registrationState": "ready",
+        "source": {
+          "kind": "project",
+          "sourceId": "project",
+          "sourceRevision": "1"
+        },
+        "size": {
+          "width": 1280,
+          "height": 720
+        },
+        "alphaMode": "opaque",
+        "api": "cpu",
+        "producerEpoch": "1",
+        "poolGeneration": "1",
+        "slotCount": 3,
+        "allocationBytes": 11059200,
+        "textureAlphaMode": "premultiplied",
+        "transport": "shm"
+      },
+      "valid": true
+    },
+    {
+      "name": "preview-transport-state-vulkan-shm",
+      "schema": "GpuPreviewStreamState",
+      "value": {
+        "streamId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "streamRevision": "1",
+        "inputGeneration": "1",
+        "registrationState": "ready",
+        "source": {
+          "kind": "project",
+          "sourceId": "project",
+          "sourceRevision": "1"
+        },
+        "size": {
+          "width": 1280,
+          "height": 720
+        },
+        "alphaMode": "opaque",
+        "api": "vulkan",
+        "producerEpoch": "1",
+        "poolGeneration": "1",
+        "slotCount": 3,
+        "allocationBytes": 11059200,
+        "textureAlphaMode": "premultiplied",
+        "transport": "shm"
+      },
+      "valid": true
+    },
+    {
+      "name": "preview-transport-state-missing-transport",
+      "schema": "GpuPreviewStreamState",
+      "value": {
+        "streamId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "streamRevision": "1",
+        "inputGeneration": "1",
+        "registrationState": "ready",
+        "source": {
+          "kind": "project",
+          "sourceId": "project",
+          "sourceRevision": "1"
+        },
+        "size": {
+          "width": 1280,
+          "height": 720
+        },
+        "alphaMode": "opaque",
+        "api": "cpu",
+        "producerEpoch": "1",
+        "poolGeneration": "1",
+        "slotCount": 3,
+        "allocationBytes": 11059200,
+        "textureAlphaMode": "premultiplied"
+      },
+      "valid": false
+    },
+    {
+      "name": "preview-transport-state-invalid-transport",
+      "schema": "GpuPreviewStreamState",
+      "value": {
+        "streamId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "streamRevision": "1",
+        "inputGeneration": "1",
+        "registrationState": "ready",
+        "source": {
+          "kind": "project",
+          "sourceId": "project",
+          "sourceRevision": "1"
+        },
+        "size": {
+          "width": 1280,
+          "height": 720
+        },
+        "alphaMode": "opaque",
+        "api": "cpu",
+        "producerEpoch": "1",
+        "poolGeneration": "1",
+        "slotCount": 3,
+        "allocationBytes": 11059200,
+        "textureAlphaMode": "premultiplied",
+        "transport": "pipe"
+      },
+      "valid": false
+    },
+    {
+      "name": "preview-transport-state-invalid-api-metal",
+      "schema": "GpuPreviewStreamState",
+      "value": {
+        "streamId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "streamRevision": "1",
+        "inputGeneration": "1",
+        "registrationState": "ready",
+        "source": {
+          "kind": "project",
+          "sourceId": "project",
+          "sourceRevision": "1"
+        },
+        "size": {
+          "width": 1280,
+          "height": 720
+        },
+        "alphaMode": "opaque",
+        "api": "metal",
+        "producerEpoch": "1",
+        "poolGeneration": "1",
+        "slotCount": 3,
+        "allocationBytes": 11059200,
+        "textureAlphaMode": "premultiplied",
+        "transport": "shm"
+      },
+      "valid": false
     }
   ],
-  "contractVersion": "1.56.0"
+  "contractVersion": "1.57.0"
 }

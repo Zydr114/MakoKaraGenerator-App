@@ -1435,6 +1435,15 @@ timed片段按自己半开区间计算progress/current/sung；无独立时间片
 
 工程、歌词及模板持久格式分别为 32、20、10；不兼容格式按各入口的严格版本保护处理，不自动迁移或覆盖原文件。渲染与平台兼容性以实际运行验收为准。
 
+<a id="preview-transport-01160"></a>
+
+## 桌面连续预览多设备与传输协商（0.116.0／合同1.57.0）
+
+桌面端连续预览流接口保留 `/api/v1/gpu-preview-streams` 路由不变，向 `GpuPreviewStreamCreateRequest.api` 与 `GpuPreviewStreamState.api` 放开 `"vulkan"` 与 `"cpu"` 双渲染设备，并在 `GpuPreviewStreamState` 中新增必需字段 `transport`（`"dma-buf" | "shm"`），如实公开本流协商到的底层传输通道（私有 claim 回包同步携带 `transport` 供 Electron 主进程使用）。传输模式覆写仍仅由启动环境变量 `MAKO_PREVIEW_TRANSPORT=shm|dma-buf` 控制，不在公开创建请求中暴露。
+
+- **协商与零静默降级规则**：Linux 下未设置 `MAKO_PREVIEW_TRANSPORT` 时，`api:"vulkan"` 默认使用 `"dma-buf"`，`api:"cpu"` 默认使用 `"shm"`；显式设置 `MAKO_PREVIEW_TRANSPORT=shm` 时，`vulkan` 与 `cpu` 均使用 `"shm"`；显式设置 `MAKO_PREVIEW_TRANSPORT=dma-buf` 且请求 `api:"cpu"` 时，服务直接以 `422 commandNotSupported` / `failureCode:"PreviewTransportUnsupported"` 拒绝，严禁静默回退至 `shm` 或静态 PNG。
+- **能力宣告与 Worker 生命周期**：桌面端在默认或显式 `shm` 模式下只要 GPU 或 CPU 任一后端可用即可宣告 `preview.gpu-streams`（显式 `dma-buf` 仍要求 Linux 且 GPU 可用）；`vulkan` 继续复用预热备用池，`cpu` 按需冷启动轻量 Worker 且与 GPU 共享单主机最多 2 条活动流配额。含 SDK v2 效果的工程在 `api:"cpu"` 下仍按既有规则返回 `commandNotSupported` / `PackageBackendUnsupported`。纯浏览器环境维持既有 HTTP 静态 PNG 预览与 500ms 节奏不变。
+
 <a id="ruby-spacing-0970"></a>
 
 ## 19. 自动 ruby 水平间距（0.97.0／合同1.28.0）

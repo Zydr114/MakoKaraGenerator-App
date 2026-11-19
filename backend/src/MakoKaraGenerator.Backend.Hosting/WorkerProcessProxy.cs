@@ -349,7 +349,10 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
             frame.Width, frame.Height, frame.Stride, frame.TimeUs, frame.PixelFormat);
     }
 
-    private (string Identity, int Count)? TryComputeScriptReferenceIdentity()
+    private (string Identity, int Count)? TryComputeScriptReferenceIdentity() =>
+        TryReadScriptReferenceIdentity() is { } references ? (references.Identity, references.Count) : null;
+
+    private ScriptReferenceIdentity? TryReadScriptReferenceIdentity()
     {
         try
         {
@@ -362,8 +365,7 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
                 ?? _options.FileName;
             string root = Path.GetDirectoryName(Path.GetFullPath(executable)) ?? string.Empty;
             string directory = Path.Combine(root, "script-refs", "net10.0");
-            var references = ScriptReferenceIdentity.Read(directory);
-            return (references.Identity, references.Count);
+            return ScriptReferenceIdentity.Read(directory);
         }
         catch (IOException) { return null; }
         catch (UnauthorizedAccessException) { return null; }
@@ -378,7 +380,8 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
     public async Task<PackageRenderWorkerCapabilities> GetPackageValidationCapabilitiesAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
         => await GetPackageCapabilitiesCoreAsync(timeout, validation: true, cancellationToken).ConfigureAwait(false);
 
-    private async Task<PackageRenderWorkerCapabilities> GetPackageCapabilitiesCoreAsync(TimeSpan timeout, bool validation, CancellationToken cancellationToken, bool runtimeInput = false)
+    private async Task<PackageRenderWorkerCapabilities> GetPackageCapabilitiesCoreAsync(TimeSpan timeout, bool validation,
+        CancellationToken cancellationToken, bool runtimeInput = false, Action<ScriptReferenceIdentity>? verifiedReferences = null)
     {
         try
         {
@@ -397,14 +400,15 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
                     if (value.EngineIdentity != StaticProjectSnapshotCodec.EngineIdentity || value.CodecProfile != PackageProjectSnapshotCodec.Profile
                         || value.PackageVersion != profile.PackageVersion || value.SdkVersion != profile.SdkVersion || value.ShaderProfile != profile.ShaderProfile)
                         throw new WorkerProtocolException("包 Worker 能力与当前固定合同不匹配。", "WorkerPackageUnavailable");
-                    (string Identity, int Count)? expected = TryComputeScriptReferenceIdentity();
-                    if (expected is null || value.ScriptRefsIdentity != expected.Value.Identity || value.ScriptRefsCount != expected.Value.Count)
+                    var expected = TryReadScriptReferenceIdentity();
+                    if (expected is null || value.ScriptRefsIdentity != expected.Identity || value.ScriptRefsCount != expected.Count)
                         throw new WorkerProtocolException("包 Worker 编译参考集与当前部署不匹配。", "WorkerPackageUnavailable");
                     if (runtimeInput && value.RuntimeInputProfile != ProjectRuntimeInputWorkerContract.Profile)
                         throw new WorkerProtocolException("Worker 未声明统一工程输入能力。", "WorkerRuntimeInputProfileMismatch");
                     if (validation && (value.ValidationProfiles is null
                         || !value.ValidationProfiles.Contains(PackageRenderWorkerContract.ValidationProfile, StringComparer.Ordinal)))
                         throw new WorkerProtocolException("包 Worker 未声明 package validation profile。", "WorkerPackageUnavailable");
+                    verifiedReferences?.Invoke(expected);
                 }, cancellationToken, requirePackageRuntimeGuards: true).ConfigureAwait(false);
             return value!;
         }
@@ -416,7 +420,8 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
             // Older or otherwise mismatched binaries commonly answer with a generic
             // protocol/unsupported error; expose one stable admission code to callers.
             if (primary is WorkerProtocolException protocol
-                && protocol.Code is not ("WorkerPackageCapabilitiesInvalid" or "WorkerPackageUnavailable"))
+                && protocol.Code is not ("WorkerPackageCapabilitiesInvalid" or "WorkerPackageUnavailable")
+                && !(verifiedReferences is not null && protocol.Code == WorkerRenderBackendContract.SafeFailureCode(protocol.Code)))
                 throw new WorkerProtocolException("包 Worker 未提供当前验证所需的能力。", "WorkerPackageUnavailable",
                     protocol.Diagnostics, protocol.PackageDiagnostics);
             throw;

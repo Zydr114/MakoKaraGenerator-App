@@ -17,8 +17,9 @@ public sealed partial class WorkerProcessProxy
     {
         if (_options.RenderBackend != "gpu" || !_options.EnableGpuPreview)
             throw new InvalidOperationException("GPU 预热只允许显式 GPU preview Worker。");
+        ScriptReferenceIdentity? references = null;
         await GetPackageCapabilitiesCoreAsync(TimeSpan.FromSeconds(20), validation: false,
-            token, runtimeInput: true).ConfigureAwait(false);
+            token, runtimeInput: true, verifiedReferences: value => references = value).ConfigureAwait(false);
         Process process;
         ProcessIdentity identity;
         await _lifecycleGate.WaitAsync(token).ConfigureAwait(false);
@@ -32,8 +33,8 @@ public sealed partial class WorkerProcessProxy
             process = _process; identity = ownedIdentity;
         }
         finally { _lifecycleGate.Release(); }
-        var referenceRoot = WorkerReferenceDirectory();
-        var references = ScriptReferenceIdentity.Read(referenceRoot);
+        if (references is null)
+            throw new WorkerProtocolException("GPU 预热缺少当前参考集核验。", GpuWorkerWarmupContract.FailureCode);
         var expected = new GpuWorkerWarmupIdentity(1, references.Identity, references.Count,
             references.SdkIdentity, ScriptCompilationIdentity.CurrentEngineIdentity);
         byte[] payload = GpuWorkerWarmupContract.EncodeRequest(expected);

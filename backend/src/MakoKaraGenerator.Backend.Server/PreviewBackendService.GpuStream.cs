@@ -1,6 +1,7 @@
 using System.Globalization;
 using MakoKaraGenerator.Backend.Contracts;
 using MakoKaraGenerator.Backend.Hosting;
+using MakoKaraGenerator.Backend.Rendering;
 using MakoKaraGenerator.Rendering;
 
 namespace MakoKaraGenerator.Backend.Server;
@@ -115,8 +116,11 @@ internal sealed partial class PreviewBackendService
             string renderBackend = request.Api == "cpu" ? "cpu" : "gpu";
             using IDisposable? reservation = _gpuStreams.TryReserve(client, request.ConsumerId);
             if (reservation is null) return Reject<GpuPreviewStreamState>(BackendErrorCode.SessionQuotaExceeded, "GPU 流配额已用完。");
-            var backend = await PrepareRenderBackendAsync(renderBackend).ConfigureAwait(false);
-            if (!backend.Accepted) return BackendOperationResult<GpuPreviewStreamState>.Rejected(backend.Error!);
+            if (_renderBackends?.UsesWorkerOptions(_gpuWorkerOptions) != true)
+            {
+                var backend = await PrepareRenderBackendAsync(renderBackend).ConfigureAwait(false);
+                if (!backend.Accepted) return BackendOperationResult<GpuPreviewStreamState>.Rejected(backend.Error!);
+            }
             var capture = await CaptureAsync(client, request.Source, renderBackend,
                 request.AlphaMode == PreviewAlphaMode.Straight).ConfigureAwait(false);
             if (capture.Error is not null) return BackendOperationResult<GpuPreviewStreamState>.Rejected(capture.Error);
@@ -515,7 +519,16 @@ internal sealed partial class PreviewBackendService
         {
             Console.Error.WriteLine(
                 $"BACKEND_GPU_STREAM_{stage}_FAILED stage=worker_protocol type={error.GetType().Name} code={protocol.Code}");
-            mapped = new(BackendErrorCode.PreviewUnavailable, "预览渲染进程初始化失败，请重试。", FailureCode: protocol.Code);
+            mapped = stage == "CREATE" && protocol.Code is (WorkerRenderBackendContract.UnavailableCode or
+                WorkerRenderBackendContract.UnsupportedCode or WorkerRenderBackendContract.MismatchCode or WorkerRenderBackendContract.InvalidCode)
+                ? new(BackendErrorCode.TaskUnavailable, "所选渲染后端当前不可用。", "renderBackend", FailureCode: protocol.Code)
+                : new(BackendErrorCode.PreviewUnavailable, "预览渲染进程初始化失败，请重试。", FailureCode: protocol.Code);
+            return true;
+        }
+        if (error is System.ComponentModel.Win32Exception or UnauthorizedAccessException)
+        {
+            mapped = new(BackendErrorCode.TaskUnavailable, "所选渲染后端当前不可用。", "renderBackend",
+                FailureCode: WorkerRenderBackendContract.UnavailableCode);
             return true;
         }
         if (error is GpuPreviewException preview)

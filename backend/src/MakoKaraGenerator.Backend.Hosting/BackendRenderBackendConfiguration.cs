@@ -24,6 +24,9 @@ public sealed class BackendRenderBackendConfiguration : IDisposable
     /// <summary>本次Host启动固定的公开默认选择。</summary>
     public string DefaultBackend { get; }
 
+    /// <summary>仅同一受管理部署可将探针替换为正式 Worker 自身的启动核验。</summary>
+    public bool UsesWorkerOptions(WorkerProcessOptions? options) => options is not null && ReferenceEquals(_workerOptions, options);
+
     /// <summary>桌面 stream 配额启用后，所有 GPU availability 读取复用其已准备的原设备。</summary>
     public void ConfigureGpuStreamDevice(Func<CancellationToken, Task<RenderBackendDeviceInfoDto>> verify)
     {

@@ -58,8 +58,11 @@ public sealed partial class ProjectSessionRegistry
                 ? BackendOperationResult<TaskRenderSelection<WorkerProcessOptions>>.Success(new(_sceneMeasurementWorker, null))
                 : BackendOperationResult<TaskRenderSelection<WorkerProcessOptions>>.Rejected(RenderBackendUnavailable());
         string backend = _renderBackends.Resolve(requested, fallback);
-        BackendErrorResponse? failure = await _renderBackends.VerifyAsync(backend, token).ConfigureAwait(false);
-        if (failure is not null) return BackendOperationResult<TaskRenderSelection<WorkerProcessOptions>>.Rejected(failure);
+        if (!_renderBackends.UsesWorkerOptions(_sceneMeasurementWorker))
+        {
+            BackendErrorResponse? failure = await _renderBackends.VerifyAsync(backend, token).ConfigureAwait(false);
+            if (failure is not null) return BackendOperationResult<TaskRenderSelection<WorkerProcessOptions>>.Rejected(failure);
+        }
         return BackendOperationResult<TaskRenderSelection<WorkerProcessOptions>>.Success(
             new(_sceneMeasurementWorker with { RenderBackend = backend }, backend));
     }

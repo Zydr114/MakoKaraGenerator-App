@@ -225,6 +225,14 @@ public sealed partial class ProjectSessionRegistry
         var input = new WorkerSceneMeasurementInput(request, capture.SourceSha256, "", lineId, cueId, containerId);
         input = input with { SampleInputFingerprint = WorkerSceneMeasurementContract.Fingerprint(capture.Source, input) };
         await using var worker = new WorkerProcessProxy(workerOptions);
+        if (request.RenderBackend is not null)
+        {
+            try { await worker.StartAsync(token).ConfigureAwait(false); }
+            catch (WorkerProtocolException error)
+            { throw new WorkerProtocolException("所选渲染后端当前不可用。", WorkerRenderBackendContract.SafeFailureCode(error.Code)); }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException or System.ComponentModel.Win32Exception)
+            { throw new WorkerProtocolException("所选渲染后端当前不可用。", WorkerRenderBackendContract.UnavailableCode); }
+        }
         WorkerSceneMeasurementOutput result = await worker.MeasureSceneAsync(input, capture.Source, capture.Snapshot, token).ConfigureAwait(false);
         if (result.Measurement.RenderBackend is not null && result.Measurement.RenderBackend != request.RenderBackend)
             throw new WorkerProtocolException("测量回执渲染后端不属于当前固定输入。", "SceneMeasurementProtocolInvalid");
@@ -258,7 +266,11 @@ public sealed partial class ProjectSessionRegistry
     }
     private static BackendErrorResponse MeasurementUnavailable() => new(BackendErrorCode.TaskUnavailable, "受管理同帧测量Worker未部署。", FailureCode: "SceneMeasurementUnavailable");
     private static BackendErrorResponse MeasurementBusy() => new(BackendErrorCode.RequestQuotaExceeded, "测量名额已用尽；全局最多2个，每client最多1个。");
-    private static BackendErrorResponse MeasurementFailure(WorkerProtocolException error) => new(
+    private static BackendErrorResponse MeasurementFailure(WorkerProtocolException error) => error.Code is
+        WorkerRenderBackendContract.UnavailableCode or WorkerRenderBackendContract.UnsupportedCode or
+        WorkerRenderBackendContract.MismatchCode or WorkerRenderBackendContract.InvalidCode
+        ? new(BackendErrorCode.TaskUnavailable, "所选渲染后端当前不可用。", "renderBackend", FailureCode: error.Code)
+        : new(
         error.Code == "SceneMeasurementBudgetExceeded" ? BackendErrorCode.ResourceTooLarge : BackendErrorCode.TaskUnavailable,
         "受管理同帧测量未完成。", FailureCode: error.Code);
 }

@@ -226,4 +226,13 @@ test('SHM WebGL2 receiver enforces RGBA8+sRGB, deletes immutable texture on resi
 
   assert.equal(portReplies.length,3);
   assert.ok(portReplies.every(r=>r.type==='drawn'));
+
+  const cfg=await api.previewConfig();
+  assert.equal(cfg.transport,'shm');
+
+  // Stale shm-port from an older attachSeq must be closed and ignored without clobbering active port
+  let staleClosed=false;
+  const stalePort={onmessage:null,start(){throw new Error('stale port must not start');},close(){staleClosed=true;}};
+  ipc.emit('mako-gpu:shm-port',{ports:[stalePort]},{...identity,attachSeq:0});
+  assert.equal(staleClosed,true);
 });

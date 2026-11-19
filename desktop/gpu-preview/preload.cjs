@@ -366,9 +366,13 @@ async function consumeShmFrame(port, metadata, incomingBuffer) {
 
 ipcRenderer.on('mako-gpu:shm-port', (event, info) => {
   try {
-    closeActiveShmPort();
     const port = event?.ports?.[0];
     if (!port) throw new Error('Missing MessagePort in mako-gpu:shm-port');
+    if (Number.isSafeInteger(info?.attachSeq) && (info.attachSeq < appliedAttachSeq || (detached && info.attachSeq <= appliedAttachSeq))) {
+      try { port.close?.(); } catch {}
+      return;
+    }
+    closeActiveShmPort();
     activeShmPort = port;
     if (info && typeof info === 'object' && info.streamId) {
       applyAttached(info);
@@ -387,6 +391,7 @@ ipcRenderer.on('mako-gpu:shm-port', (event, info) => {
 });
 
 contextBridge.exposeInMainWorld('makoDesktopPreview', Object.freeze({
+  previewConfig: () => ipcRenderer.invoke('mako-gpu:config'),
   consumerId: () => ipcRenderer.invoke('mako-gpu:consumer-id'),
   acceptanceEnabled: () => ipcRenderer.invoke('mako-gpu:acceptance-enabled'),
   injectAcceptanceFailure: kind => ipcRenderer.invoke('mako-gpu:acceptance-failure',kind),

@@ -1444,6 +1444,13 @@ timed片段按自己半开区间计算progress/current/sung；无独立时间片
 - **协商与零静默降级规则**：Linux 下未设置 `MAKO_PREVIEW_TRANSPORT` 时，`api:"vulkan"` 默认使用 `"dma-buf"`，`api:"cpu"` 默认使用 `"shm"`；显式设置 `MAKO_PREVIEW_TRANSPORT=shm` 时，`vulkan` 与 `cpu` 均使用 `"shm"`；显式设置 `MAKO_PREVIEW_TRANSPORT=dma-buf` 且请求 `api:"cpu"` 时，服务直接以 `422 commandNotSupported` / `failureCode:"PreviewTransportUnsupported"` 拒绝，严禁静默回退至 `shm` 或静态 PNG。
 - **能力宣告与 Worker 生命周期**：桌面端在默认或显式 `shm` 模式下只要 GPU 或 CPU 任一后端可用即可宣告 `preview.gpu-streams`（显式 `dma-buf` 仍要求 Linux 且 GPU 可用）；`vulkan` 继续复用预热备用池，`cpu` 按需冷启动轻量 Worker 且与 GPU 共享单主机最多 2 条活动流配额。含 SDK v2 效果的工程在 `api:"cpu"` 下仍按既有规则返回 `commandNotSupported` / `PackageBackendUnsupported`。纯浏览器环境维持既有 HTTP 静态 PNG 预览与 500ms 节奏不变。
 
+<a id="gpu-stream-recovery-1580"></a>
+
+## 桌面连续预览流权威查询与配额回收语义（0.116.0／合同1.58.0）
+
+- 新增只读查询端点 `GET /api/v1/gpu-preview-streams`，返回当前已认证客户端名下全部连续预览流权威状态（`GpuPreviewStreamListResponse`：`streams` 与 `protocolVersion:"1"`）；读取同样对未忙条目执行 Worker 存活检查，仅用于核对 `OutcomeUnknown`、配额占用和最新 `streamRevision`。
+- `GpuPreviewStreamState` 新增可选只读布尔字段 `quarantined`（未隔离时省略，进入消费者或回滚隔离时为 `true`）。已隔离流保留配额直至服务进程退出，对其发起 `DELETE /api/v1/gpu-preview-streams/{id}` 或来源／尺寸变更直接返回显式 `503 previewUnavailable`（保留隔离 `failureCode`），不重复触碰已终止进程或破坏隔离保护；未隔离流的 Worker 在确认进程终止后，即使协议通道断开或 Windows 临时输入目录短暂占用也不阻塞 `CompleteClose`／`CompleteChange` 归还配额。工程会话关闭完成时（`project.closed`）服务端同步兜底关闭绑定该工程且未隔离的活动流。
+
 <a id="ruby-spacing-0970"></a>
 
 ## 19. 自动 ruby 水平间距（0.97.0／合同1.28.0）

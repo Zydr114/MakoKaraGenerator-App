@@ -1,10 +1,10 @@
 # 冻结 API 清单
 
-合同 **1.57.0** · HTTP **1** · 产品 **0.116.0** · 基线 `83a7ba0637f1eae70ab228882eaac643d50dd42a` · 2026-11-19。
+合同 **1.58.0** · HTTP **1** · 产品 **0.116.0** · 基线 `83a7ba0637f1eae70ab228882eaac643d50dd42a` · 2026-11-20。
 
 执行入口：[行为合同](api-contract.md)；机器规范：[openapi.json](openapi.json)；指纹：[contract-manifest.json](contract-manifest.json)。本表由核对过的路由定义生成，不能手工单独扩表。
 
-共 **115 个路径、128 个显式方法**（含 5 个兼容别名；HEAD 单计，全局 OPTIONS 不计）。业务成功状态仅表示HTTP操作结果，202须等待job或preview状态。
+共 **115 个路径、129 个显式方法**（含 5 个兼容别名；HEAD 单计，全局 OPTIONS 不计）。业务成功状态仅表示HTTP操作结果，202须等待job或preview状态。
 
 | 方法 | 路径 | 认证 | 请求 | 成功响应 | 行为源章节 |
 |---|---|---|---|---|---|
@@ -68,6 +68,7 @@
 | GET | `/api/v1/runtime-info` | access + clientId | - | 200 · PreviewRuntimeInfoResponse | §9 |
 | GET | `/api/v1/render-backends` | access + clientId | - | 200 · RenderBackendsResponse | §25 |
 | POST | `/api/v1/gpu-preview-streams` | access + clientId | GpuPreviewStreamCreateRequest | 201 · GpuPreviewStreamState | §25 |
+| GET | `/api/v1/gpu-preview-streams` | access + clientId | - | 200 · GpuPreviewStreamListResponse | §25 |
 | GET | `/api/v1/gpu-preview-streams/{id}` | access + clientId | - | 200 · GpuPreviewStreamState | §25 |
 | PUT | `/api/v1/gpu-preview-streams/{id}/source` | access + clientId | GpuPreviewStreamReplaceRequest | 200 · GpuPreviewStreamState | §25 |
 | PUT | `/api/v1/gpu-preview-streams/{id}/size` | access + clientId | GpuPreviewStreamResizeRequest | 200 · GpuPreviewStreamState | §25 |

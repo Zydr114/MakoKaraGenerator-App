@@ -23,6 +23,11 @@ export interface GpuPreviewStreamState {
   textureAlphaMode: 'premultiplied';
   workerState?: {state:string;drained:boolean;diagnostics?:GpuDiagnosticsSummary} | null;
   failureCode?: string | null;
+  quarantined?: boolean | null;
+}
+export interface GpuPreviewStreamListResponse {
+  streams: GpuPreviewStreamState[];
+  protocolVersion: string;
 }
 export interface GpuPreviewCreateInput {
   source: PreviewSource;

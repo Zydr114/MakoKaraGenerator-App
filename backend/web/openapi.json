@@ -3,8 +3,8 @@
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "info": {
     "title": "MakoKaraGenerator local backend HTTP API",
-    "version": "1.57.0",
-    "description": "冻结合同1.57.0；HTTP协议1，产品0.116.0。只含当前公共HTTP，不含未来功能及私有Worker。与api-contract.md和其固定行为源共同执行。info.version是合同版本，不是产品/HTTP版本。普通响应可忽略未知字段；请求遵守声明字段及业务门禁。"
+    "version": "1.58.0",
+    "description": "冻结合同1.58.0；HTTP协议1，产品0.116.0。只含当前公共HTTP，不含未来功能及私有Worker。与api-contract.md和其固定行为源共同执行。info.version是合同版本，不是产品/HTTP版本。普通响应可忽略未知字段；请求遵守声明字段及业务门禁。"
   },
   "servers": [
     {
@@ -2521,6 +2521,43 @@
           }
         },
         "x-receipt-location": "metadata"
+      },
+      "get": {
+        "operationId": "listGpuPreviewStreams",
+        "summary": "列出当前客户端全部连续预览流权威状态",
+        "tags": [
+          "section-25"
+        ],
+        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §25。",
+        "x-behavior-section": "25",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/HostInstance"
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "统一BackendErrorResponse。HTTP状态/code映射及端点主要拒绝见行为§1.4与对应章节；不是RFC Problem Details。已开始的SSE/字节流若中断不保证还能返回JSON。",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackendErrorResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "成功；任务state及失败报告仍须检查。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GpuPreviewStreamListResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-receipt-location": "none"
       }
     },
     "/api/v1/gpu-preview-streams/{id}": {
@@ -20258,6 +20295,26 @@
         "additionalProperties": false,
         "x-clr-type": "MakoKaraGenerator.Backend.Contracts.GpuPreviewStreamCreateRequest"
       },
+      "GpuPreviewStreamListResponse": {
+        "type": "object",
+        "properties": {
+          "streams": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GpuPreviewStreamState"
+            }
+          },
+          "protocolVersion": {
+            "type": "string",
+            "const": "1"
+          }
+        },
+        "required": [
+          "streams",
+          "protocolVersion"
+        ],
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.GpuPreviewStreamListResponse"
+      },
       "GpuPreviewStreamReplaceRequest": {
         "type": "object",
         "properties": {
@@ -20378,6 +20435,9 @@
               "dma-buf",
               "shm"
             ]
+          },
+          "quarantined": {
+            "type": "boolean"
           }
         },
         "required": [

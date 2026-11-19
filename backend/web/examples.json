@@ -169119,7 +169119,150 @@
         "transport": "shm"
       },
       "valid": false
+    },
+    {
+      "name": "gpu-stream-recovery-state-quarantined",
+      "schema": "GpuPreviewStreamState",
+      "value": {
+        "streamId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "streamRevision": "1",
+        "inputGeneration": "1",
+        "registrationState": "failed",
+        "source": {
+          "kind": "project",
+          "sourceId": "project",
+          "sourceRevision": "1"
+        },
+        "size": {
+          "width": 1280,
+          "height": 720
+        },
+        "alphaMode": "opaque",
+        "api": "vulkan",
+        "producerEpoch": "1",
+        "poolGeneration": "1",
+        "slotCount": 3,
+        "allocationBytes": 11059200,
+        "textureAlphaMode": "premultiplied",
+        "transport": "dma-buf",
+        "failureCode": "GpuConsumerCompletionUnknown",
+        "quarantined": true
+      },
+      "valid": true
+    },
+    {
+      "name": "gpu-stream-recovery-state-invalid-quarantined-type",
+      "schema": "GpuPreviewStreamState",
+      "value": {
+        "streamId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "streamRevision": "1",
+        "inputGeneration": "1",
+        "registrationState": "ready",
+        "source": {
+          "kind": "project",
+          "sourceId": "project",
+          "sourceRevision": "1"
+        },
+        "size": {
+          "width": 1280,
+          "height": 720
+        },
+        "alphaMode": "opaque",
+        "api": "vulkan",
+        "producerEpoch": "1",
+        "poolGeneration": "1",
+        "slotCount": 3,
+        "allocationBytes": 11059200,
+        "textureAlphaMode": "premultiplied",
+        "transport": "dma-buf",
+        "quarantined": "yes"
+      },
+      "valid": false
+    },
+    {
+      "name": "gpu-stream-recovery-list-empty",
+      "schema": "GpuPreviewStreamListResponse",
+      "value": {
+        "streams": [],
+        "protocolVersion": "1"
+      },
+      "valid": true
+    },
+    {
+      "name": "gpu-stream-recovery-list-active",
+      "schema": "GpuPreviewStreamListResponse",
+      "value": {
+        "streams": [
+          {
+            "streamId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "streamRevision": "1",
+            "inputGeneration": "1",
+            "registrationState": "ready",
+            "source": {
+              "kind": "project",
+              "sourceId": "project",
+              "sourceRevision": "1"
+            },
+            "size": {
+              "width": 1280,
+              "height": 720
+            },
+            "alphaMode": "opaque",
+            "api": "vulkan",
+            "producerEpoch": "1",
+            "poolGeneration": "1",
+            "slotCount": 3,
+            "allocationBytes": 11059200,
+            "textureAlphaMode": "premultiplied",
+            "transport": "dma-buf"
+          },
+          {
+            "streamId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "streamRevision": "1",
+            "inputGeneration": "1",
+            "registrationState": "failed",
+            "source": {
+              "kind": "project",
+              "sourceId": "project",
+              "sourceRevision": "1"
+            },
+            "size": {
+              "width": 1280,
+              "height": 720
+            },
+            "alphaMode": "opaque",
+            "api": "vulkan",
+            "producerEpoch": "1",
+            "poolGeneration": "1",
+            "slotCount": 3,
+            "allocationBytes": 11059200,
+            "textureAlphaMode": "premultiplied",
+            "transport": "dma-buf",
+            "failureCode": "GpuConsumerCompletionUnknown",
+            "quarantined": true
+          }
+        ],
+        "protocolVersion": "1"
+      },
+      "valid": true
+    },
+    {
+      "name": "gpu-stream-recovery-list-missing-streams",
+      "schema": "GpuPreviewStreamListResponse",
+      "value": {
+        "protocolVersion": "1"
+      },
+      "valid": false
+    },
+    {
+      "name": "gpu-stream-recovery-list-invalid-protocol",
+      "schema": "GpuPreviewStreamListResponse",
+      "value": {
+        "streams": [],
+        "protocolVersion": "2"
+      },
+      "valid": false
     }
   ],
-  "contractVersion": "1.57.0"
+  "contractVersion": "1.58.0"
 }

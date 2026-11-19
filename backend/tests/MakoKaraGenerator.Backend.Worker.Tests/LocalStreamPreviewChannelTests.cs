@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.IO.Pipes;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
@@ -186,6 +187,191 @@ public sealed class LocalStreamPreviewChannelTests
         {
             try { Directory.Delete(dir, true); } catch { }
         }
+    }
+
+    [Fact]
+    public async Task WindowsNamedPipe流通道校验PeerPid并跑通Shm会话拆分耗时遥测()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        // 1. 错误的期望 PID 必须拒绝并抛出 WorkerGpuConsumerMismatch
+        string badPipeName = "mkg-shm-bad-" + Guid.NewGuid().ToString("N");
+        string badPipePath = @"\\.\pipe\" + badPipeName;
+        using (var mismatchChannel = new LocalStreamPreviewChannel(badPipePath))
+        using (var client = new NamedPipeClientStream(".", badPipeName, PipeDirection.InOut, PipeOptions.Asynchronous))
+        {
+            await client.ConnectAsync(5000);
+            DateTime deadline = DateTime.UtcNow.AddSeconds(5);
+            WorkerProtocolException? mismatch = null;
+            while (DateTime.UtcNow < deadline)
+            {
+                try
+                {
+                    if (mismatchChannel.TryAccept(Environment.ProcessId + 99999))
+                        throw new InvalidOperationException("Unexpectedly accepted mismatched PID.");
+                }
+                catch (WorkerProtocolException ex)
+                {
+                    mismatch = ex;
+                    break;
+                }
+
+                await Task.Delay(5);
+            }
+
+            Assert.NotNull(mismatch);
+            Assert.Equal("WorkerGpuConsumerMismatch", mismatch!.Code);
+        }
+
+        // 2. 拒绝非法非命名管道前缀路径与重复实例占坑
+        Assert.Throws<WorkerProtocolException>(() => new LocalStreamPreviewChannel(@"C:\temp\not-a-pipe.sock"));
+
+        string pipeName = "mkg-shm-test-" + Guid.NewGuid().ToString("N");
+        string pipePath = @"\\.\pipe\" + pipeName;
+        string handshake = new('e', 64);
+        using var cpuDevice = new CpuSkiaRenderDevice();
+        using var renderer = new SkiaRenderPipeline(null, null, null, null, false, cpuDevice, false);
+        using var manager = new PreviewPortSessionManager(cpuDevice);
+        var target = new RenderTarget { PixelWidth = 128, PixelHeight = 72 };
+        PreviewPoolInfo pool = manager.InitializeOutput(
+            target,
+            maximumAllocationBytes: 8 * 1024 * 1024,
+            new PreviewOutputOptions(PreviewTransportKind.Shm, PreviewPixelFormat.Rgba8888));
+
+        Assert.StartsWith("Local\\mkg-shm-", pool.ShmResourceName, StringComparison.Ordinal);
+
+        var open = new GpuStreamWorkerOpen(
+            "shm-win-stream", "host-win-1", "1", 128, 72, true, 8 * 1024 * 1024,
+            Environment.ProcessId, pipePath, handshake,
+            Transport: "shm", BackendApi: "cpu", PixelFormat: "rgba8888");
+
+        var channel = new LocalStreamPreviewChannel(pipePath);
+        // FirstPipeInstance 必须阻止同名第二监听实例
+        var dup = Assert.Throws<WorkerProtocolException>(() => new LocalStreamPreviewChannel(pipePath));
+        Assert.Equal("WorkerGpuTransportFailed", dup.Code);
+
+        IPreviewPort port = manager.RequireCurrentPort(target);
+        await using var session = new GpuStreamSession(
+            open,
+            pool,
+            channel,
+            (timeUs, _, _) => ValueTask.FromResult(renderer.RenderSyntheticToPreview(target, timeUs, port, PreviewPixelFormat.Rgba8888)),
+            synthetic: true);
+
+        using var consumer = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+        await consumer.ConnectAsync(5000);
+
+        await SendPipeJsonAsync(consumer, new
+        {
+            type = "hello",
+            protocolVersion = 1,
+            consumerId = "desktop-win-1",
+            consumerEpoch = "1",
+            streamId = "shm-win-stream",
+            hostInstanceId = "host-win-1",
+            producerEpoch = GpuStreamProtocol.Decimal(pool.ProducerEpoch),
+            handshake,
+            senderMonotonicNs = "1000000",
+        });
+
+        JsonElement helloAccepted = await ReadPipeJsonAsync(consumer);
+        Assert.Equal("hello-accepted", helloAccepted.GetProperty("type").GetString());
+        Assert.Equal("shm", helloAccepted.GetProperty("transport").GetString());
+        Assert.Equal("cpu", helloAccepted.GetProperty("api").GetString());
+        Assert.Equal("rgba8888", helloAccepted.GetProperty("pixelFormat").GetString());
+        Assert.Equal(pool.ShmResourceName, helloAccepted.GetProperty("shmName").GetString());
+
+        JsonElement clockPing = await ReadPipeJsonAsync(consumer);
+        Assert.Equal("clock-ping", clockPing.GetProperty("type").GetString());
+        string echoNs = clockPing.GetProperty("workerMonotonicNs").GetString()!;
+        await SendPipeJsonAsync(consumer, new
+        {
+            type = "clock-pong",
+            echoWorkerMonotonicNs = echoNs,
+            senderReceiveMonotonicNs = "2000000",
+            senderMonotonicNs = "2001000",
+        });
+
+        JsonElement calibrated = await ReadPipeJsonAsync(consumer);
+        Assert.Equal("clock-calibrated", calibrated.GetProperty("type").GetString());
+
+        await SendPipeJsonAsync(consumer, new
+        {
+            type = "set-playback-state",
+            protocolVersion = 1,
+            streamId = "shm-win-stream",
+            hostInstanceId = "host-win-1",
+            producerEpoch = GpuStreamProtocol.Decimal(pool.ProducerEpoch),
+            inputGeneration = "1",
+            consumerEpoch = "1",
+            controlSeq = 1L,
+            mode = "paused",
+            mediaTimeUs = 5000L,
+            rate = 1.0,
+            targetFps = 24,
+            timelineResetId = "init",
+            clockSample = new { mediaTimeUs = 5000L, senderMonotonicNs = "2002000" },
+        });
+
+        JsonElement applied = await ReadPipeJsonAsync(consumer);
+        Assert.Equal("control-applied", applied.GetProperty("type").GetString());
+
+        JsonElement frame = await ReadPipeJsonAsync(consumer);
+        Assert.Equal("frame", frame.GetProperty("type").GetString());
+        Assert.Equal("shm", frame.GetProperty("transport").GetString());
+        Assert.Equal("cpu", frame.GetProperty("api").GetString());
+        Assert.Equal("rgba8888", frame.GetProperty("pixelFormat").GetString());
+        Assert.Equal(512u, frame.GetProperty("strideBytes").GetUInt32());
+        Assert.Equal(JsonValueKind.Null, frame.GetProperty("diagnostics").ValueKind);
+        Assert.Equal(1UL, frame.GetProperty("counters").GetProperty("cpuPixelReadbacks").GetUInt64());
+        Assert.True(frame.GetProperty("timings").GetProperty("renderDurationUs").GetInt64() >= 0);
+        Assert.True(frame.GetProperty("timings").GetProperty("portCaptureDurationUs").GetInt64() >= 0);
+
+        await SendPipeJsonAsync(consumer, new
+        {
+            type = "release",
+            protocolVersion = 1,
+            streamId = "shm-win-stream",
+            hostInstanceId = "host-win-1",
+            producerEpoch = GpuStreamProtocol.Decimal(pool.ProducerEpoch),
+            inputGeneration = "1",
+            consumerEpoch = "1",
+            timelineEpoch = frame.GetProperty("timelineEpoch").GetString(),
+            poolGeneration = frame.GetProperty("poolGeneration").GetString(),
+            slotId = frame.GetProperty("slotId").GetUInt32(),
+            slotEpoch = frame.GetProperty("slotEpoch").GetString(),
+            frameSeq = frame.GetProperty("frameSeq").GetInt64(),
+        });
+
+        Assert.True(await session.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.True(session.ReadState().Drained);
+
+        // 校验 Worker Dispose 管道前最终 stopped 回包可靠送达消费端
+        JsonElement stopped = await ReadPipeJsonAsync(consumer);
+        Assert.Equal("stopped", stopped.GetProperty("type").GetString());
+        Assert.True(stopped.GetProperty("drained").GetBoolean());
+    }
+
+    private static async Task SendPipeJsonAsync<T>(Stream stream, T message)
+    {
+        byte[] body = GpuStreamWorkerContract.Encode(message);
+        byte[] framed = new byte[4 + body.Length];
+        BinaryPrimitives.WriteUInt32LittleEndian(framed.AsSpan(0, 4), (uint)body.Length);
+        Buffer.BlockCopy(body, 0, framed, 4, body.Length);
+        await stream.WriteAsync(framed);
+        await stream.FlushAsync();
+    }
+
+    private static async Task<JsonElement> ReadPipeJsonAsync(Stream stream)
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        byte[] header = new byte[4];
+        await stream.ReadExactlyAsync(header, cts.Token);
+        uint len = BinaryPrimitives.ReadUInt32LittleEndian(header);
+        byte[] body = new byte[len];
+        await stream.ReadExactlyAsync(body, cts.Token);
+        using JsonDocument doc = JsonDocument.Parse(body);
+        return doc.RootElement.Clone();
     }
 
     private static async Task SendJsonAsync<T>(Socket socket, T message)

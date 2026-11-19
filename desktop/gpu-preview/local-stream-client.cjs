@@ -93,7 +93,7 @@ async function connectLocalStream(endpoint, options = {}) {
       });
     } catch (err) {
       lastError = err;
-      const retryable = err?.code === 'ENOENT' || err?.code === 'ECONNREFUSED' || err?.code === 'EAGAIN';
+      const retryable = err?.code === 'ENOENT' || err?.code === 'ECONNREFUSED' || err?.code === 'EAGAIN' || err?.code === 'EBUSY';
       if (!retryable || Date.now() >= deadline) {
         throw err;
       }

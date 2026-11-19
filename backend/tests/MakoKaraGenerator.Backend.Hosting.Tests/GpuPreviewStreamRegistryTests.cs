@@ -34,6 +34,14 @@ public sealed class GpuPreviewStreamRegistryTests
             Assert.Equal(PreviewTransportKind.DmaBuf, GpuStreamWorkerSession.ResolveEffectiveTransport("vulkan", transport: null, envOverride: ""));
             Assert.Equal(PreviewTransportKind.DmaBuf, GpuStreamWorkerSession.ResolveEffectiveTransport("vulkan", transport: null, envOverride: "dma-buf"));
         }
+        else if (OperatingSystem.IsWindows())
+        {
+            Assert.Equal(PreviewTransportKind.Shm, GpuStreamWorkerSession.ResolveEffectiveTransport("vulkan", transport: null, envOverride: ""));
+            Assert.Throws<PlatformNotSupportedException>(() =>
+                GpuStreamWorkerSession.ResolveEffectiveTransport("vulkan", transport: null, envOverride: "dma-buf"));
+            Assert.Throws<PlatformNotSupportedException>(() =>
+                GpuStreamWorkerSession.ResolveEffectiveTransport("vulkan", transport: PreviewTransportKind.DmaBuf, envOverride: "shm"));
+        }
 
         GpuPreviewException cpuDmaBuf = Assert.Throws<GpuPreviewException>(() =>
             GpuStreamWorkerSession.ResolveEffectiveTransport("cpu", transport: null, envOverride: "dma-buf"));

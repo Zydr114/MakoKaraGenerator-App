@@ -1,7 +1,10 @@
 using System.Buffers.Binary;
+using System.IO.Pipes;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using System.Text.RegularExpressions;
+using Microsoft.Win32.SafeHandles;
 using MakoKaraGenerator.Backend.Contracts;
 
 namespace MakoKaraGenerator.Backend.Worker;
@@ -149,8 +152,7 @@ internal sealed class LocalStreamPreviewChannel : IGpuStreamChannel
 
         if (OperatingSystem.IsWindows())
         {
-            throw new PlatformNotSupportedException(
-                "Windows NamedPipeServerStream (CurrentUserOnly + client PID verification) is deferred under Method B.");
+            return new WindowsNamedPipeStreamEndpoint(endpointPath);
         }
 
         throw new PlatformNotSupportedException(
@@ -333,4 +335,309 @@ internal sealed class LinuxUdsStreamEndpoint : ILocalStreamEndpoint
 
     [DllImport("libc", EntryPoint = "geteuid")]
     private static extern uint GetEffectiveUid();
+}
+
+/// <summary>Windows 专属 CurrentUserOnly 命名管道非阻塞流端点，强制单实例并校验 GetNamedPipeClientProcessId。</summary>
+[SupportedOSPlatform("windows")]
+internal sealed partial class WindowsNamedPipeStreamEndpoint : ILocalStreamEndpoint
+{
+    private const string PipePrefix = @"\\.\pipe\";
+    private const int PipeBufferBytes = 65536;
+    private const int MaxQueuedWriteBytes = 128 * 1024;
+
+    private readonly CancellationTokenSource _ioCts = new();
+    private readonly CancellationTokenSource _writeCts = new();
+    private readonly byte[] _readBuffer = new byte[32768];
+    private readonly object _writeGate = new();
+    private readonly Queue<byte[]> _writeQueue = new();
+
+    private NamedPipeServerStream? _pipe;
+    private Task? _acceptTask;
+    private Task<int>? _pendingReadTask;
+    private Task? _writePumpTask;
+    private bool _writePumpActive;
+    private Exception? _writeFailure;
+    private int _readOffset;
+    private int _readCount;
+    private int _queuedWriteBytes;
+    private bool _accepted;
+    private int _disposed;
+
+    internal WindowsNamedPipeStreamEndpoint(string endpointPath)
+    {
+        if (string.IsNullOrWhiteSpace(endpointPath) ||
+            endpointPath.Contains('\0') ||
+            !endpointPath.StartsWith(PipePrefix, StringComparison.Ordinal))
+        {
+            throw GpuStreamProtocol.Invalid();
+        }
+
+        string pipeName = endpointPath[PipePrefix.Length..];
+        if (pipeName.Length is 0 or > 200 || pipeName.Contains("..", StringComparison.Ordinal) || !PipeNamePattern().IsMatch(pipeName))
+        {
+            throw GpuStreamProtocol.Invalid();
+        }
+
+        try
+        {
+            _pipe = new NamedPipeServerStream(
+                pipeName,
+                PipeDirection.InOut,
+                maxNumberOfServerInstances: 1,
+                PipeTransmissionMode.Byte,
+                PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly | PipeOptions.FirstPipeInstance,
+                inBufferSize: PipeBufferBytes,
+                outBufferSize: PipeBufferBytes);
+            _acceptTask = _pipe.WaitForConnectionAsync(_ioCts.Token);
+        }
+        catch (Exception error)
+        {
+            _pipe?.Dispose();
+            _pipe = null;
+            _ioCts.Dispose();
+            _writeCts.Dispose();
+            throw new WorkerProtocolException($"无法监听 Windows 本地预览流命名管道：{error.Message}", "WorkerGpuTransportFailed");
+        }
+    }
+
+    public bool TryAcceptPeer(int expectedPid)
+    {
+        if (_accepted) return true;
+        if (Volatile.Read(ref _disposed) != 0 || _pipe is null || _acceptTask is null)
+            throw new WorkerProtocolException("本地监听命名管道已关闭。", "WorkerGpuTransportFailed");
+
+        if (!_acceptTask.IsCompleted) return false;
+
+        if (_acceptTask.IsFaulted || _acceptTask.IsCanceled)
+        {
+            string detail = _acceptTask.Exception?.GetBaseException().Message ?? "canceled";
+            throw new WorkerProtocolException($"Windows 本地预览通道 Accept 失败：{detail}", "WorkerGpuTransportFailed");
+        }
+
+        if (!GetNamedPipeClientProcessId(_pipe.SafePipeHandle, out uint clientPid))
+        {
+            int err = Marshal.GetLastPInvokeError();
+            ClosePipeCore();
+            throw new WorkerProtocolException($"无法读取 Windows 本地消费者进程凭证（win32={err}）。", "WorkerGpuTransportFailed");
+        }
+
+        if ((int)clientPid != expectedPid)
+        {
+            ClosePipeCore();
+            throw new WorkerProtocolException("预览消费者进程身份不匹配。", "WorkerGpuConsumerMismatch");
+        }
+
+        _accepted = true;
+        _acceptTask = null;
+        _pendingReadTask = _pipe.ReadAsync(_readBuffer, 0, _readBuffer.Length, _ioCts.Token);
+        return true;
+    }
+
+    public int TryRead(Span<byte> destination)
+    {
+        if (!_accepted || _pipe is null)
+            throw new WorkerProtocolException("本地预览对端尚未连接。", "WorkerGpuTransportFailed");
+        if (destination.IsEmpty) return 0;
+
+        if (_readOffset < _readCount)
+        {
+            int available = _readCount - _readOffset;
+            int toCopy = Math.Min(destination.Length, available);
+            _readBuffer.AsSpan(_readOffset, toCopy).CopyTo(destination);
+            _readOffset += toCopy;
+            if (_readOffset == _readCount)
+            {
+                _readOffset = 0;
+                _readCount = 0;
+                _pendingReadTask = _pipe.ReadAsync(_readBuffer, 0, _readBuffer.Length, _ioCts.Token);
+            }
+
+            return toCopy;
+        }
+
+        _pendingReadTask ??= _pipe.ReadAsync(_readBuffer, 0, _readBuffer.Length, _ioCts.Token);
+        if (!_pendingReadTask.IsCompleted) return 0;
+
+        Task<int> completed = _pendingReadTask;
+        _pendingReadTask = null;
+
+        int bytesRead;
+        try
+        {
+            bytesRead = completed.GetAwaiter().GetResult();
+        }
+        catch (Exception error)
+        {
+            throw new WorkerProtocolException($"本地预览消费者连接已断开；不推定槽位已排空。（{error.Message}）", "WorkerGpuTransportFailed");
+        }
+
+        if (bytesRead <= 0)
+        {
+            throw new WorkerProtocolException("本地预览消费者连接已断开；不推定槽位已排空。", "WorkerGpuTransportFailed");
+        }
+
+        int copied = Math.Min(destination.Length, bytesRead);
+        _readBuffer.AsSpan(0, copied).CopyTo(destination);
+        if (copied < bytesRead)
+        {
+            _readOffset = copied;
+            _readCount = bytesRead;
+        }
+        else
+        {
+            _pendingReadTask = _pipe.ReadAsync(_readBuffer, 0, _readBuffer.Length, _ioCts.Token);
+        }
+
+        return copied;
+    }
+
+    public int TryWrite(ReadOnlySpan<byte> source)
+    {
+        if (!_accepted || _pipe is null)
+            throw new WorkerProtocolException("本地预览对端尚未连接。", "WorkerGpuTransportFailed");
+        if (source.IsEmpty) return 0;
+
+        lock (_writeGate)
+        {
+            if (_writeFailure is not null)
+            {
+                throw new WorkerProtocolException($"本地预览通道写入失败；不推定消费者已排空。（{_writeFailure.Message}）", "WorkerGpuTransportFailed");
+            }
+
+            if (_queuedWriteBytes + source.Length > MaxQueuedWriteBytes)
+            {
+                return 0;
+            }
+
+            byte[] copy = source.ToArray();
+            _writeQueue.Enqueue(copy);
+            _queuedWriteBytes += copy.Length;
+            if (!_writePumpActive)
+            {
+                _writePumpActive = true;
+                _writePumpTask = Task.Run(DrainWritesAsync);
+            }
+
+            return source.Length;
+        }
+    }
+
+    private async Task DrainWritesAsync()
+    {
+        try
+        {
+            while (true)
+            {
+                byte[] next;
+                lock (_writeGate)
+                {
+                    if (_writeQueue.Count == 0 || _writeFailure is not null)
+                    {
+                        _writePumpActive = false;
+                        return;
+                    }
+
+                    next = _writeQueue.Peek();
+                }
+
+                NamedPipeServerStream? pipe = _pipe;
+                if (pipe is null)
+                {
+                    lock (_writeGate) { _writePumpActive = false; }
+                    return;
+                }
+
+                try
+                {
+                    await pipe.WriteAsync(next, _writeCts.Token).ConfigureAwait(false);
+                }
+                catch (Exception error)
+                {
+                    lock (_writeGate)
+                    {
+                        _writeFailure ??= error;
+                        _writeQueue.Clear();
+                        _queuedWriteBytes = 0;
+                        _writePumpActive = false;
+                    }
+
+                    return;
+                }
+
+                lock (_writeGate)
+                {
+                    if (_writeQueue.Count > 0 && ReferenceEquals(_writeQueue.Peek(), next))
+                    {
+                        _writeQueue.Dequeue();
+                        _queuedWriteBytes -= next.Length;
+                    }
+                }
+            }
+        }
+        catch
+        {
+            lock (_writeGate) { _writePumpActive = false; }
+        }
+    }
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+
+        Task? pendingWrite;
+        lock (_writeGate) pendingWrite = _writePumpTask;
+        if (pendingWrite is not null && !pendingWrite.IsCompleted)
+        {
+            // 等待最终控制包（如 stopped/failed）进入内核管道缓冲，超时立即放弃避免对端僵死阻塞。
+            try { pendingWrite.Wait(TimeSpan.FromMilliseconds(250)); } catch { }
+        }
+
+        try { _ioCts.Cancel(); } catch { }
+        try { _writeCts.Cancel(); } catch { }
+
+        // 仅关闭句柄而不调用 DisconnectNamedPipe，保留内核缓冲中尚未被对端读取的终态回包。
+        ClosePipeCore();
+
+        Task? acceptTask = _acceptTask;
+        Task<int>? readTask = _pendingReadTask;
+        _acceptTask = null;
+        _pendingReadTask = null;
+
+        WaitBrieflyAndObserve(pendingWrite);
+        WaitBrieflyAndObserve(acceptTask);
+        WaitBrieflyAndObserve(readTask);
+
+        if ((acceptTask?.IsCompleted ?? true) && (readTask?.IsCompleted ?? true))
+        {
+            _ioCts.Dispose();
+        }
+
+        if (pendingWrite?.IsCompleted ?? true)
+        {
+            _writeCts.Dispose();
+        }
+    }
+
+    private void ClosePipeCore()
+    {
+        NamedPipeServerStream? pipe = Interlocked.Exchange(ref _pipe, null);
+        if (pipe is not null)
+        {
+            try { pipe.Dispose(); } catch { }
+        }
+    }
+
+    private static void WaitBrieflyAndObserve(Task? task)
+    {
+        if (task is null) return;
+        try { task.Wait(TimeSpan.FromMilliseconds(100)); } catch { }
+        if (task.IsFaulted) _ = task.Exception;
+    }
+
+    [GeneratedRegex("^[A-Za-z0-9._-]+$", RegexOptions.CultureInvariant)]
+    private static partial Regex PipeNamePattern();
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetNamedPipeClientProcessId(SafePipeHandle pipe, out uint clientProcessId);
 }

@@ -56,8 +56,10 @@ test('FrameDecoder rejects invalid lengths and malformed JSON', () => {
 
 test('connectLocalStream real server roundtrip & retry', async () => {
   const tmpDir = os.tmpdir();
-  const socketPath = path.join(tmpDir, `shm-test-${crypto.randomBytes(6).toString('hex')}.sock`);
-  if (fs.existsSync(socketPath)) {
+  const socketPath = process.platform === 'win32'
+    ? `\\\\.\\pipe\\shm-test-${crypto.randomBytes(6).toString('hex')}`
+    : path.join(tmpDir, `shm-test-${crypto.randomBytes(6).toString('hex')}.sock`);
+  if (process.platform !== 'win32' && fs.existsSync(socketPath)) {
     try { fs.unlinkSync(socketPath); } catch (_) {}
   }
 
@@ -86,7 +88,7 @@ test('connectLocalStream real server roundtrip & retry', async () => {
   assert.strictEqual(client.isClosed(), true);
 
   await new Promise(resolve => server.close(resolve));
-  if (fs.existsSync(socketPath)) {
+  if (process.platform !== 'win32' && fs.existsSync(socketPath)) {
     try { fs.unlinkSync(socketPath); } catch (_) {}
   }
 });

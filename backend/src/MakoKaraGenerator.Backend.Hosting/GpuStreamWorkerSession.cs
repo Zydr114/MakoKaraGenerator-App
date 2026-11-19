@@ -183,8 +183,7 @@ public sealed class GpuStreamWorkerSession : IAsyncDisposable
     {
         if (transport == PreviewTransportKind.Shm && OperatingSystem.IsWindows())
         {
-            throw new PlatformNotSupportedException(
-                "Windows NamedPipe endpoint allocation is deferred under Method B.");
+            return @"\\.\pipe\mkg-shm-" + Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(16));
         }
 
         return Path.Combine(directory, "broker.sock");

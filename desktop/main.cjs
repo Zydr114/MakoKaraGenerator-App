@@ -140,7 +140,7 @@ const safeState = value => {
   if (window && !window.isDestroyed()) window.webContents.send('mako-gpu:state',value);
 };
 const streamOutstanding = s => !s ? 0 : (s.transport === 'shm' ? (s.shmConsumer?.getOutstandingCount() ?? 0) : s.imports.size);
-function closeStreamConnection(s) {
+function closeStreamConnection(s, conn = s?.connection) {
   if (!s) return;
   try { s.shmConsumer?.close(); } catch {}
   s.shmConsumer = null;
@@ -148,11 +148,11 @@ function closeStreamConnection(s) {
     try { s.pendingRendererPort.close?.(); } catch {}
     s.pendingRendererPort = null;
   }
-  if (s.connection) {
-    if (s.transport === 'shm') { try { s.connection.close(); } catch {} }
-    else { try { broker.close(s.connection); } catch {} }
-    s.connection = null;
+  if (conn) {
+    if (s.transport === 'shm') { try { conn.close(); } catch {} }
+    else { try { broker.close(conn); } catch {} }
   }
+  s.connection = null;
 }
 function isolatePreview(code='gpuConsumerFailure',s=stream) {
   if(ending||s?.isolated)return;
@@ -162,7 +162,7 @@ function isolatePreview(code='gpuConsumerFailure',s=stream) {
   // Keep the editor and the bounded unknown consumer references alive. The host
   // retires its owned Worker; no replacement pool is allowed in this process.
   const termination=s?isolateGpuPreviewStream(s,{
-    closeConnection:()=>closeStreamConnection(s),
+    closeConnection:(conn)=>closeStreamConnection(s,conn),
     detachRenderer:()=>window?.webContents.send('mako-gpu:detach',{attachSeq:s.attachSeq}),
     abortWorker:async()=>{
       const response=await fetch(new URL(`/internal/gpu-preview-streams/${encodeURIComponent(s.streamId)}/consumer-failed`,config.baseUrl),{

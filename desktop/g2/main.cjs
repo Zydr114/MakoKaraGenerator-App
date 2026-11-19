@@ -7,7 +7,9 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const readline = require('node:readline');
 const v8 = require('node:v8');
-const { spawn } = require('node:child_process');
+const { execFile, spawn } = require('node:child_process');
+const { promisify } = require('node:util');
+const execFileAsync = promisify(execFile);
 const { connectLocalStream } = require('../gpu-preview/local-stream-client.cjs');
 const { createShmStreamConsumer } = require('../gpu-preview/shm-consumer.cjs');
 const { validateWorkerMessage } = require('../gpu-preview/wire.cjs');
@@ -60,6 +62,46 @@ function readProcVmRssKb(pid) {
   }
 }
 
+async function queryWindowsProcessMetrics(pids) {
+  if (process.platform !== 'win32') return new Map();
+  const cleanPids = [...new Set(pids.filter((p) => Number.isInteger(p) && p > 0))];
+  if (cleanPids.length === 0) return new Map();
+  const psScript = [
+    "$ProgressPreference = 'SilentlyContinue'",
+    `$ids = @(${cleanPids.join(',')})`,
+    '$out = @{}',
+    'foreach ($id in $ids) {',
+    '  try {',
+    '    $p = Get-Process -Id $id -ErrorAction Stop',
+    '    $out[[string]$id] = @{',
+    '      handles = [int]$p.HandleCount',
+    '      rssKb = [int64][math]::Round($p.WorkingSet64 / 1024.0)',
+    '      commitKb = [int64][math]::Round($p.PrivateMemorySize64 / 1024.0)',
+    '    }',
+    '  } catch {}',
+    '}',
+    'ConvertTo-Json -InputObject $out -Compress',
+  ].join('\n');
+  const childEnv = { ...process.env };
+  for (const key of Object.keys(childEnv)) {
+    if (key.toUpperCase() === 'PSMODULEPATH') delete childEnv[key];
+  }
+  const encoded = Buffer.from(psScript, 'utf16le').toString('base64');
+  try {
+    const { stdout } = await execFileAsync(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded],
+      { encoding: 'utf8', windowsHide: true, env: childEnv, maxBuffer: 1024 * 1024 },
+    );
+    const trimmed = stdout.trim();
+    if (!trimmed) return new Map();
+    const parsed = JSON.parse(trimmed);
+    return new Map(Object.entries(parsed));
+  } catch {
+    return new Map();
+  }
+}
+
 function countResidualShmFiles() {
   if (process.platform !== 'linux' || !fs.existsSync('/dev/shm')) return 0;
   return fs.readdirSync('/dev/shm').filter((name) => name.startsWith('mkg-shm-')).length;
@@ -71,8 +113,8 @@ let win = null;
 let workerProc = null;
 let workerPid = null;
 let finishing = false;
-const sockDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mkg-g2-'));
-fs.chmodSync(sockDir, 0o700);
+const sockDir = process.platform === 'win32' ? null : fs.mkdtempSync(path.join(os.tmpdir(), 'mkg-g2-'));
+if (sockDir) fs.chmodSync(sockDir, 0o700);
 const drawnObservations = [];
 let preloadReadyResolve = null;
 const preloadReadyPromise = new Promise((resolve) => { preloadReadyResolve = resolve; });
@@ -199,19 +241,30 @@ async function sampleProcessMetrics(rendererPid, producerPid, label, frameIndex)
   const appMetrics = app.getAppMetrics();
   const mainMetric = appMetrics.find((m) => m.pid === process.pid);
   const rendererMetric = appMetrics.find((m) => m.pid === rendererPid);
+  const winMetrics = await queryWindowsProcessMetrics([process.pid, rendererPid, producerPid]);
+  const winMain = winMetrics.get(String(process.pid));
+  const winRenderer = winMetrics.get(String(rendererPid));
+  const winWorker = winMetrics.get(String(producerPid));
   return {
     label,
     frameIndex,
     fds: {
-      main: readProcFdCount(process.pid),
-      renderer: readProcFdCount(rendererPid),
-      worker: readProcFdCount(producerPid),
+      main: readProcFdCount(process.pid) ?? winMain?.handles ?? null,
+      renderer: readProcFdCount(rendererPid) ?? winRenderer?.handles ?? null,
+      worker: readProcFdCount(producerPid) ?? winWorker?.handles ?? null,
     },
     rssKb: {
-      main: readProcVmRssKb(process.pid) ?? mainMetric?.memory?.workingSetSize ?? null,
-      renderer: readProcVmRssKb(rendererPid) ?? rendererMetric?.memory?.workingSetSize ?? null,
-      worker: readProcVmRssKb(producerPid),
+      main: readProcVmRssKb(process.pid) ?? winMain?.rssKb ?? mainMetric?.memory?.workingSetSize ?? null,
+      renderer: readProcVmRssKb(rendererPid) ?? winRenderer?.rssKb ?? rendererMetric?.memory?.workingSetSize ?? null,
+      worker: readProcVmRssKb(producerPid) ?? winWorker?.rssKb ?? null,
     },
+    commitKb: process.platform === 'win32'
+      ? {
+          main: winMain?.commitKb ?? mainMetric?.memory?.privateBytes ?? null,
+          renderer: winRenderer?.commitKb ?? rendererMetric?.memory?.privateBytes ?? null,
+          worker: winWorker?.commitKb ?? null,
+        }
+      : null,
     mainV8ExternalBytes: mainHeap.external_memory,
     mainV8UsedHeapBytes: mainHeap.used_heap_size,
     rendererJsHeap: rendererJs,
@@ -235,7 +288,9 @@ async function runSingleStreamGeneration(worker, params) {
     onProgressFrame,
   } = params;
 
-  const brokerPath = path.join(sockDir, `s-${attachSeq}-${crypto.randomBytes(4).toString('hex')}.sock`);
+  const brokerPath = process.platform === 'win32'
+    ? `\\\\.\\pipe\\mkg-shm-g2-${attachSeq}-${crypto.randomBytes(8).toString('hex')}`
+    : path.join(sockDir, `s-${attachSeq}-${crypto.randomBytes(4).toString('hex')}.sock`);
   const handshake = crypto.randomBytes(32).toString('hex');
 
   worker.sendCmd({
@@ -349,8 +404,8 @@ async function runSingleStreamGeneration(worker, params) {
           onError: (err) => rejectTargetFrames(err),
         });
 
-        // Verify immediate unlink on openReadOnly: exact shmName no longer exists on /dev/shm!
-        if (fs.existsSync(m.shmName)) {
+        // Verify immediate unlink on openReadOnly (Linux tmpfs only): exact shmName no longer exists on /dev/shm!
+        if (process.platform === 'linux' && fs.existsSync(m.shmName)) {
           throw new Error(`/dev/shm file ${m.shmName} still exists after openReadOnly!`);
         }
 
@@ -570,11 +625,15 @@ async function main() {
 
       const warmup = report.metrics.find((m) => m.frameIndex === 100);
       const end = report.metrics.find((m) => m.frameIndex === 1000);
+      if (warmup.fds.main === null || end.fds.main === null || warmup.fds.renderer === null || end.fds.renderer === null || warmup.fds.worker === null || end.fds.worker === null) {
+        throw new Error(`Process handle/FD metrics unavailable: warmup=${JSON.stringify(warmup.fds)}, end=${JSON.stringify(end.fds)}`);
+      }
       const fdDeltaMain = end.fds.main - warmup.fds.main;
       const fdDeltaRenderer = end.fds.renderer - warmup.fds.renderer;
       const fdDeltaWorker = end.fds.worker - warmup.fds.worker;
-      if (fdDeltaMain > 2 || fdDeltaRenderer > 2 || fdDeltaWorker > 2) {
-        throw new Error(`FD growth detected across 1000 frames: main=${fdDeltaMain}, renderer=${fdDeltaRenderer}, worker=${fdDeltaWorker}`);
+      const maxHandleGrowth = process.platform === 'win32' ? 16 : 2;
+      if (fdDeltaMain > maxHandleGrowth || fdDeltaRenderer > maxHandleGrowth || fdDeltaWorker > maxHandleGrowth) {
+        throw new Error(`FD/handle growth detected across 1000 frames: main=${fdDeltaMain}, renderer=${fdDeltaRenderer}, worker=${fdDeltaWorker}`);
       }
       // 1000 frames @ 1440p transfers 14.75 GB; an unbounded leak would grow by hundreds/thousands of MB.
       const mainRssGrowthMb = (end.rssKb.main - warmup.rssKb.main) / 1024;
@@ -582,19 +641,36 @@ async function main() {
       if (mainRssGrowthMb > 96 || rendererRssGrowthMb > 160) {
         throw new Error(`Excessive RSS growth across 14.75 GB transfer: main=+${mainRssGrowthMb.toFixed(1)}MB, renderer=+${rendererRssGrowthMb.toFixed(1)}MB`);
       }
+      let commitGrowthAfterWarmupMb = null;
+      if (process.platform === 'win32') {
+        const mainCommitMb = (end.commitKb.main - warmup.commitKb.main) / 1024;
+        const rendererCommitMb = (end.commitKb.renderer - warmup.commitKb.renderer) / 1024;
+        const workerCommitMb = (end.commitKb.worker - warmup.commitKb.worker) / 1024;
+        commitGrowthAfterWarmupMb = {
+          main: Number(mainCommitMb.toFixed(2)),
+          renderer: Number(rendererCommitMb.toFixed(2)),
+          worker: Number(workerCommitMb.toFixed(2)),
+        };
+        if (mainCommitMb > 96 || rendererCommitMb > 160 || workerCommitMb > 96) {
+          throw new Error(`Excessive Windows Commit Charge growth across 1000 frames: ${JSON.stringify(commitGrowthAfterWarmupMb)}`);
+        }
+      }
       report.results.push({
         ...res,
         fdDeltaAfterWarmup: { main: fdDeltaMain, renderer: fdDeltaRenderer, worker: fdDeltaWorker },
         rssGrowthAfterWarmupMb: { main: Number(mainRssGrowthMb.toFixed(2)), renderer: Number(rendererRssGrowthMb.toFixed(2)) },
+        ...(commitGrowthAfterWarmupMb ? { commitGrowthAfterWarmupMb } : {}),
       });
     } else if (config.suite === 'resize30') {
       drawnObservations.length = 0;
       const coldBefore = await sampleProcessMetrics(rendererPid, worker.pid, 'cold-before-warmup', 0);
       report.metrics.push(coldBefore);
 
-      // Generation 1 (720p) warms up .NET SocketAsyncEngine / Skia / Vulkan one-time handles;
-      // Generations 2..31 perform 30 consecutive switches (720p <-> 1440p, bgra8888 / rgba8888) on the same <canvas>!
-      const totalGenerations = 31;
+      // Warm up both 720p and 1440p once (generations 1..2) so one-time Skia/Vulkan/Node 1440p caches
+      // are settled before measuring the 30 consecutive 720p <-> 1440p switches (generations 3..32).
+      const warmupGenerations = 2;
+      const switchCount = 30;
+      const totalGenerations = warmupGenerations + switchCount;
       let afterWarmup = null;
       let warmupWorkerFds = [];
       for (let gen = 1; gen <= totalGenerations; gen++) {
@@ -613,13 +689,18 @@ async function main() {
           targetFrames: 3,
           targetFps: 30,
         });
-        if (gen === 1) {
-          afterWarmup = await sampleProcessMetrics(rendererPid, worker.pid, 'after-gen1-warmup', 1);
+        if (gen === warmupGenerations) {
+          if (typeof global.gc === 'function') { global.gc(); global.gc(); }
+          afterWarmup = await sampleProcessMetrics(rendererPid, worker.pid, 'after-warmup-720p-1440p', gen);
           warmupWorkerFds = readProcFdLinks(worker.pid);
           report.metrics.push(afterWarmup);
+        } else if (gen === warmupGenerations + Math.floor(switchCount / 2)) {
+          if (typeof global.gc === 'function') { global.gc(); global.gc(); }
+          report.metrics.push(await sampleProcessMetrics(rendererPid, worker.pid, 'midpoint-15-resizes', gen));
         }
       }
 
+      if (typeof global.gc === 'function') { global.gc(); global.gc(); }
       const after = await sampleProcessMetrics(rendererPid, worker.pid, 'after-30-resizes', totalGenerations);
       report.metrics.push(after);
       const lastObs = drawnObservations[drawnObservations.length - 1];
@@ -629,15 +710,34 @@ async function main() {
       if (after.devShmResidualCount !== 0) {
         throw new Error(`Residual /dev/shm files after 30 resizes: ${after.devShmResidualCount}`);
       }
+      if (afterWarmup.fds.main === null || after.fds.main === null || afterWarmup.fds.renderer === null || after.fds.renderer === null || afterWarmup.fds.worker === null || after.fds.worker === null) {
+        throw new Error(`Process handle/FD metrics unavailable across 30 resizes: warmup=${JSON.stringify(afterWarmup.fds)}, after=${JSON.stringify(after.fds)}`);
+      }
       const fdDeltaMain = after.fds.main - afterWarmup.fds.main;
       const fdDeltaRenderer = after.fds.renderer - afterWarmup.fds.renderer;
       const fdDeltaWorker = after.fds.worker - afterWarmup.fds.worker;
-      if (fdDeltaMain > 2 || fdDeltaRenderer > 2 || fdDeltaWorker > 2) {
+      const maxHandleGrowth = process.platform === 'win32' ? 16 : 2;
+      if (fdDeltaMain > maxHandleGrowth || fdDeltaRenderer > maxHandleGrowth || fdDeltaWorker > maxHandleGrowth) {
         const afterWorkerFds = readProcFdLinks(worker.pid);
         throw new Error(
-          `FD leak across 30 resizes: main=${fdDeltaMain}, renderer=${fdDeltaRenderer}, worker=${fdDeltaWorker}; ` +
+          `FD/handle leak across 30 resizes: main=${fdDeltaMain}, renderer=${fdDeltaRenderer}, worker=${fdDeltaWorker}; ` +
           `warmupWorkerFds=${JSON.stringify(warmupWorkerFds)}, afterWorkerFds=${JSON.stringify(afterWorkerFds)}`
         );
+      }
+      let commitDeltaAfterWarmupMb = null;
+      if (process.platform === 'win32') {
+        const mainCommitMb = (after.commitKb.main - afterWarmup.commitKb.main) / 1024;
+        const rendererCommitMb = (after.commitKb.renderer - afterWarmup.commitKb.renderer) / 1024;
+        const workerCommitMb = (after.commitKb.worker - afterWarmup.commitKb.worker) / 1024;
+        commitDeltaAfterWarmupMb = {
+          main: Number(mainCommitMb.toFixed(2)),
+          renderer: Number(rendererCommitMb.toFixed(2)),
+          worker: Number(workerCommitMb.toFixed(2)),
+        };
+        // 30 switches without paired UnmapViewOfFile+CloseHandle would leak ~790 MB Commit Charge.
+        if (mainCommitMb > 96 || rendererCommitMb > 160 || workerCommitMb > 96) {
+          throw new Error(`Windows Commit Charge leak across 30 resizes: ${JSON.stringify(commitDeltaAfterWarmupMb)}`);
+        }
       }
       report.results.push({
         switchesCompleted: 30,
@@ -649,6 +749,7 @@ async function main() {
           renderer: Number(((after.rssKb.renderer - afterWarmup.rssKb.renderer) / 1024).toFixed(2)),
           worker: Number(((after.rssKb.worker - afterWarmup.rssKb.worker) / 1024).toFixed(2)),
         },
+        ...(commitDeltaAfterWarmupMb ? { commitDeltaAfterWarmupMb } : {}),
       });
     } else if (config.suite === 'slow-backpressure') {
       const res = await runSingleStreamGeneration(worker, {
@@ -692,7 +793,9 @@ async function main() {
     if (win && !win.isDestroyed()) {
       win.destroy();
     }
-    try { fs.rmSync(sockDir, { recursive: true, force: true }); } catch {}
+    if (sockDir) {
+      try { fs.rmSync(sockDir, { recursive: true, force: true }); } catch {}
+    }
     fs.writeFileSync(path.join(config.runDir, 'result.json'), JSON.stringify(report, null, 2));
     app.exit(report.status === 'passed' ? 0 : 1);
   }

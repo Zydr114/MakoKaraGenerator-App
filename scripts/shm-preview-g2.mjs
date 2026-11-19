@@ -15,9 +15,12 @@ if (!validSuites.includes(requestedSuite)) {
 }
 
 const shmAddon = path.join(root, 'native/shm-preview/build/shm_bridge.node');
-const workerBinary = path.join(root, 'backend/src/MakoKaraGenerator.Backend.Worker/bin/Debug/net10.0/MakoKaraGenerator.Backend.Worker');
+const workerExe = process.platform === 'win32'
+  ? 'MakoKaraGenerator.Backend.Worker.exe'
+  : 'MakoKaraGenerator.Backend.Worker';
+const workerBinary = path.join(root, 'backend/src/MakoKaraGenerator.Backend.Worker/bin/Debug/net10.0', workerExe);
 if (!fs.existsSync(shmAddon)) {
-  execFileSync('bash', ['native/shm-preview/build.sh'], { cwd: root, stdio: 'inherit' });
+  execFileSync(process.execPath, ['native/shm-preview/build.mjs'], { cwd: root, stdio: 'inherit' });
 }
 if (!fs.existsSync(workerBinary)) {
   throw new Error(`Missing built Worker binary at ${workerBinary}; run dotnet build first.`);

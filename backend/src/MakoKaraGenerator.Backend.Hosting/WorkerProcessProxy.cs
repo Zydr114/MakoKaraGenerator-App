@@ -48,8 +48,8 @@ public sealed record WorkerProcessOptions
             throw new ArgumentOutOfRangeException(nameof(ExportMediaFileSizeLimitBytes));
         if (RenderBackend is not null && !WorkerRenderBackendContract.IsSupported(RenderBackend))
             throw new ArgumentException("Worker渲染后端必须为cpu或gpu。", nameof(RenderBackend));
-        if (EnableGpuPreview && RenderBackend != "gpu")
-            throw new ArgumentException("GPU 预览要求显式 GPU 后端。", nameof(EnableGpuPreview));
+        if (EnableGpuPreview && RenderBackend is not ("gpu" or "cpu"))
+            throw new ArgumentException("连续预览流要求显式指定 gpu 或 cpu 渲染后端。", nameof(EnableGpuPreview));
         if (EnableGpuPreviewBenchmark && !EnableGpuPreview)
             throw new ArgumentException("GPU 基准要求 GPU 预览。", nameof(EnableGpuPreviewBenchmark));
     }

@@ -42,5 +42,11 @@ public sealed class GpuPreviewStreamRegistryTests
         GpuPreviewException explicitCpuDmaBuf = Assert.Throws<GpuPreviewException>(() =>
             GpuStreamWorkerSession.ResolveEffectiveTransport("cpu", transport: PreviewTransportKind.DmaBuf, envOverride: "shm"));
         Assert.Equal("PreviewTransportUnsupported", explicitCpuDmaBuf.Code);
+
+        // 连续预览流 Worker 允许显式 gpu 或 cpu，但拒绝隐式 null 渲染后端。
+        new WorkerProcessOptions("unused", [], TimeSpan.FromSeconds(1)) { RenderBackend = "gpu", EnableGpuPreview = true }.Validate();
+        new WorkerProcessOptions("unused", [], TimeSpan.FromSeconds(1)) { RenderBackend = "cpu", EnableGpuPreview = true }.Validate();
+        Assert.Throws<ArgumentException>(() =>
+            new WorkerProcessOptions("unused", [], TimeSpan.FromSeconds(1)) { RenderBackend = null, EnableGpuPreview = true }.Validate());
     }
 }

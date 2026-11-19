@@ -321,7 +321,7 @@ async function runSwitchCase(fixtures, port, cdpPort) {
     assert.equal(gpuInitial.last.counters?.cpuPixelReadbacks, 0);
     const gpuProbe = await probeCanvas(page);
     assert.ok(gpuProbe && gpuProbe.colors > 2, 'GPU DMA-BUF canvas probe empty');
-    await page.eval(`window.__m3GpuCanvasRef = document.querySelector('canvas#mako-gpu-preview')`);
+    await page.eval(`void (window.__m3GpuCanvasRef = document.querySelector('canvas#mako-gpu-preview'))`);
 
     // 切换至 CPU -> 必须切为 CPU · SHM 且 remount 全新 Canvas DOM 节点
     const beforeCpu = gpuInitial.completed;
@@ -430,7 +430,7 @@ async function runShmResize30Case(fixtures, port, cdpPort) {
     const initial = await waitForStreamFrame(page, beforeInit, '成片 · GPU · SHM · ', 'shm', 'vulkan');
     assert.equal(initial.last.counters?.cpuPixelReadbacks, 1);
     await page.waitFor(`!!window.makoGpuPreviewAcceptance`, '验收入口');
-    await page.eval(`window.__m3ShmCanvasRef = document.querySelector('canvas#mako-gpu-preview')`);
+    await page.eval(`void (window.__m3ShmCanvasRef = document.querySelector('canvas#mako-gpu-preview'))`);
 
     const doResizeAndWait = async (width, height, label) => {
       const before = (await readPreviewSummary(page)).completed;

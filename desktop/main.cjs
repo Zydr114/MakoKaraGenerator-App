@@ -11,6 +11,7 @@ const { isolateGpuPreviewStream } = require('./gpu-preview/failure-isolation.cjs
 const { validateWorkerMessage, workerFailureSummary } = require('./gpu-preview/wire.cjs');
 const { prepareDesktopSession } = require('./gpu-preview/session-paths.cjs');
 const { prepareStandaloneSession } = require('./runtime/standalone-paths.cjs');
+const privateFs = require('./runtime/private-fs.cjs');
 const { compatibleProductVersion, startBackendProcess, validateDesktopDeployment } = require('./runtime/backend-host.cjs');
 const { startStaticWebServer } = require('./runtime/web-server.cjs');
 
@@ -62,12 +63,12 @@ function resolveStandaloneResources() {
   }
   const brokerAddonSha256 = validated.gpuManifest.files['desktop/gpu_preview_broker.node'];
   const brokerAddon = brokerAddonSha256 ? path.join(validated.dist, 'desktop', 'gpu_preview_broker.node') : null;
-  if (brokerAddon && fs.realpathSync(brokerAddon) !== brokerAddon) {
+  if (brokerAddon && !privateFs.isSamePath(fs.realpathSync(brokerAddon), brokerAddon)) {
     throw new Error('Desktop broker payload mismatch');
   }
   const shmAddonSha256 = validated.gpuManifest.files['desktop/shm_bridge.node'];
   const shmAddon = shmAddonSha256 ? path.join(validated.dist, 'desktop', 'shm_bridge.node') : null;
-  if (shmAddon && fs.realpathSync(shmAddon) !== shmAddon) {
+  if (shmAddon && !privateFs.isSamePath(fs.realpathSync(shmAddon), shmAddon)) {
     throw new Error('Desktop SHM bridge payload mismatch');
   }
   return { frontendDist, backendDist: validated.dist, brokerAddon, brokerAddonSha256, shmAddon, shmAddonSha256 };
@@ -99,8 +100,8 @@ if (standaloneMode) {
   if (config.brokerAddon) {
     const addon = fs.realpathSync(config.brokerAddon);
     if (
-      addon !== config.brokerAddon ||
-      !addon.startsWith(path.join(root, '.local/backend-dist') + path.sep) ||
+      !privateFs.isSamePath(addon, config.brokerAddon) ||
+      !privateFs.isInsideRoot(path.join(root, '.local/backend-dist'), addon) ||
       createHash('sha256').update(fs.readFileSync(addon)).digest('hex') !== config.brokerAddonSha256
     ) {
       throw new Error('Desktop broker payload mismatch');
@@ -110,8 +111,8 @@ if (standaloneMode) {
   if (config.shmAddon) {
     const shmAddon = fs.realpathSync(config.shmAddon);
     if (
-      shmAddon !== config.shmAddon ||
-      !shmAddon.startsWith(path.join(root, '.local/backend-dist') + path.sep) ||
+      !privateFs.isSamePath(shmAddon, config.shmAddon) ||
+      !privateFs.isInsideRoot(path.join(root, '.local/backend-dist'), shmAddon) ||
       createHash('sha256').update(fs.readFileSync(shmAddon)).digest('hex') !== config.shmAddonSha256
     ) {
       throw new Error('Desktop SHM bridge payload mismatch');
@@ -417,6 +418,8 @@ async function attach(streamId,expectedInputGeneration) {
             break;
           }catch(error){if(Date.now()>until)throw error;await delay(20);}
         }
+      }else if(process.platform==='win32'){
+        if(!/^\\\\\.\\pipe\\mkg-shm-[a-f0-9]{24,64}$/.test(claim.brokerEndpoint))throw new Error('Invalid Windows SHM broker endpoint');
       }
       s.connection=await connectLocalStream(claim.brokerEndpoint,{timeoutMs:Math.max(100,until-Date.now()),retryDelayMs:20});
     }else{

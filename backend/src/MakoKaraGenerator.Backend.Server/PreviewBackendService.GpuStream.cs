@@ -15,7 +15,7 @@ internal sealed partial class PreviewBackendService
 
     internal async Task<bool> GpuStreamsAvailableAsync()
     {
-        if (!GpuStreamsConfigured || !OperatingSystem.IsLinux() || _renderBackends is null)
+        if (!GpuStreamsConfigured || (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) || _renderBackends is null)
             return false;
 
         PreviewTransportKind? configuredTransport;
@@ -30,7 +30,10 @@ internal sealed partial class PreviewBackendService
         }
 
         if (configuredTransport == PreviewTransportKind.DmaBuf)
+        {
+            if (!OperatingSystem.IsLinux()) return false;
             return await _renderBackends.VerifyAsync("gpu", _shutdown.Token).ConfigureAwait(false) is null;
+        }
 
         return await _renderBackends.VerifyAsync("gpu", _shutdown.Token).ConfigureAwait(false) is null
             || await _renderBackends.VerifyAsync("cpu", _shutdown.Token).ConfigureAwait(false) is null;

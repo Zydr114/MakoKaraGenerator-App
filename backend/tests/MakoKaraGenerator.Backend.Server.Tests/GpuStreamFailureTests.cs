@@ -111,6 +111,15 @@ public sealed partial class PreviewTransportTests
             Assert.False(result.Accepted);
             Assert.Equal(BackendErrorCode.CommandNotSupported, result.Error!.Code);
             Assert.Equal("PreviewTransportUnsupported", result.Error.FailureCode);
+
+            if (OperatingSystem.IsWindows())
+            {
+                var winVulkan = await fixture.Service.CreateGpuStreamAsync(fixture.Client.ClientId,
+                    new(fixture.Source, new(640, 360), PreviewAlphaMode.Opaque, "vulkan", consumer, fixture.Metadata()));
+                Assert.False(winVulkan.Accepted);
+                Assert.Equal(BackendErrorCode.PreviewUnavailable, winVulkan.Error!.Code);
+                Assert.Equal("GpuPreviewUnsupportedPlatform", winVulkan.Error.FailureCode);
+            }
         }
         finally
         {

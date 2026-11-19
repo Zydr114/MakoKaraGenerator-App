@@ -1,15 +1,20 @@
 // Finite faults in fresh named App-owned profiles; no production fault hooks are added.
 import {spawn} from 'node:child_process';
-import {open,mkdir,readFile,readdir,writeFile} from 'node:fs/promises';
+import {open,mkdir,readFile,writeFile} from 'node:fs/promises';
+import {createRequire} from 'node:module';
 import {resolve,join} from 'node:path';
 import {parseArgs} from 'node:util';
 import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
 import {createProject,connectPage,makeFixtures} from './gpu-preview-p3.mjs';
+import {getProcessIdentity,getProcessTree,stopLauncherGracefully} from './process-identity.mjs';
+const require=createRequire(import.meta.url);
+const privateFs=require('../desktop/runtime/private-fs.cjs');
 export function analyzeFaultCase(entry,text) {
-  const messages=text.split('\n').filter(x=>x.startsWith('{')).map(x=>{try{return JSON.parse(x)}catch{return {}}});
+  const lines=text.split(/\r?\n/);
+  const messages=lines.filter(x=>x.startsWith('{')).map(x=>{try{return JSON.parse(x)}catch{return {}}});
   const loss=messages.find(x=>x.type==='desktop-injected-loss'),isolation=messages.find(x=>x.type==='desktop-preview-isolated');
-  const stopped=text.split('\n').filter(line=>line.startsWith('[backend] WEB_BACKEND_STOPPED '))
+  const stopped=lines.filter(line=>line.startsWith('[backend] WEB_BACKEND_STOPPED '))
     .map(line=>{try{return JSON.parse(line.slice('[backend] WEB_BACKEND_STOPPED '.length));}catch{return null;}})
     .filter(message=>Number.isSafeInteger(message?.exitCode)).at(-1);
   const exitLine=text.match(/backend exited (-?\d+)/),serverExit=stopped?.exitCode??(exitLine?Number(exitLine[1]):null);
@@ -29,7 +34,7 @@ const {values}=parseArgs({options:{output:{type:'string'},prefix:{type:'string'}
 if(values.analyze){
   const source=resolve(values.analyze),original=JSON.parse(await readFile(source,'utf8'));
   const output=resolve(values.output??`${source}.analyzed.json`);
-  if(!output.startsWith(join(process.cwd(),'.local')+'/')||output===source)throw new Error('Offline analysis must use a separate App .local output');
+  if(!privateFs.isInsideRoot(join(process.cwd(),'.local'),output)||privateFs.isSamePath(output,source))throw new Error('Offline analysis must use a separate App .local output');
   const cases=[];
   for(const entry of original.cases){const text=await readFile(entry.log,'utf8');cases.push({name:entry.name,external:entry.external,log:entry.log,logSha256:createHash('sha256').update(text).digest('hex'),...analyzeFaultCase(entry,text)});}
   const report={schemaVersion:1,originalRunSourceCommit:values['run-source-commit'],originalReport:source,originalReportSha256:createHash('sha256').update(await readFile(source)).digest('hex'),
@@ -39,17 +44,17 @@ if(values.analyze){
 }
 if(!['all','renderer','worker'].includes(values.kind)||!['all','injected','external'].includes(values['loss-mode']))throw new Error('Invalid fault selection');
 const root=process.cwd(),prefix=values.prefix??`fault-${Date.now()}`,output=resolve(values.output??`.local/gpu-preview-lifecycle/${prefix}`);
-if(!/^[a-z0-9][a-z0-9-]{0,27}$/.test(prefix)||!output.startsWith(join(root,'.local')+'/'))throw new Error('Invalid fault acceptance prefix/output');
+if(!/^[a-z0-9][a-z0-9-]{0,27}$/.test(prefix)||!privateFs.isInsideRoot(join(root,'.local'),output))throw new Error('Invalid fault acceptance prefix/output');
 await mkdir(output,{recursive:true,mode:0o700});
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
-const proc=async pid=>{try{const stat=await readFile(`/proc/${pid}/stat`,'utf8'),f=stat.slice(stat.lastIndexOf(')')+2).split(' ');return {pid,parentPid:Number(f[1]),startTicks:f[19],state:f[0]};}catch(e){if(e.code==='ENOENT')return {pid,exited:true};throw e;}};
-const tree=async pid=>{const all=(await Promise.all((await readdir('/proc')).filter(x=>/^\d+$/.test(x)).map(x=>proc(Number(x))))).filter(x=>!x.exited);const result=all.filter(x=>x.pid===pid);for(let i=0;i<result.length;i++)result.push(...all.filter(x=>x.parentPid===result[i].pid&&!result.some(y=>y.pid===x.pid)));return result;};
+const proc=pid=>getProcessIdentity(pid);
+const tree=pid=>getProcessTree(pid);
 async function command(args){const child=spawn(process.execPath,args,{cwd:root,stdio:['ignore','pipe','pipe']});let text='';child.stdout.on('data',b=>text+=b);child.stderr.on('data',b=>text+=b);const code=await new Promise((done,reject)=>{child.once('error',reject);child.once('exit',done)});if(code!==0)throw new Error(`Acceptance subprocess ${code}: ${text}`);return text;}
 const fixture=await makeFixtures(output),summary={schemaVersion:1,startedAt:new Date().toISOString(),deployment:JSON.parse(await readFile('.local/backend-current.json','utf8')),cases:[]};
 try{
   for(const external of (values['loss-mode']==='all'?[false,true]:[values['loss-mode']==='external']))for(const kind of (values.kind==='all'?['renderer','worker']:[values.kind])){
     const name=`${prefix}-${external?'natural':'injected'}-${kind}`,directory=join(output,name),logPath=join(directory,'desktop.log');await mkdir(directory,{recursive:true});
-    const log=await open(logPath,'w',0o600),child=spawn(process.execPath,['scripts/app.mjs','desktop','--session-name',name,'--port',values.port,'--cdp-port',values['cdp-port'],'--slow-consumer-ms','180'],{cwd:root,stdio:['ignore',log.fd,log.fd]});
+    const log=await open(logPath,'w',0o600),child=spawn(process.execPath,['scripts/app.mjs','desktop','--session-name',name,'--port',values.port,'--cdp-port',values['cdp-port'],'--slow-consumer-ms','180'],{cwd:root,env:{...process.env,MAKO_APP_SHUTDOWN_STDIN:'1'},stdio:['pipe',log.fd,log.fd]});
     const exited=new Promise((done,reject)=>{child.once('error',reject);child.once('exit',(code,signal)=>done({code,signal}));});let cdp,owned=[];
     const entry={name,kind,external,launcherPid:child.pid,log:logPath};summary.cases.push(entry);
     try{
@@ -60,14 +65,20 @@ try{
       await command(['scripts/gpu-preview-lifecycle.mjs','--scenario',`${kind}-loss`,'--cdp-port',values['cdp-port'],'--output',join(directory,'probe'),...(external?['--external-loss','--session-name',name]:[])]);
       entry.probe=JSON.parse(await readFile(join(directory,'probe/report.json'),'utf8'));
       if(child.exitCode!==null||child.signalCode!==null)throw new Error('Application exited before explicit acceptance close');
-      entry.explicitClose=true;child.kill('SIGTERM');
+      entry.explicitClose=true;stopLauncherGracefully(child);
       entry.launcherExit=await Promise.race([exited,pause(30000).then(()=>{throw new Error('Owned launcher did not exit after explicit close');})]);
-      entry.ownedAfter=await Promise.all(owned.map(x=>proc(x.pid)));entry.allOwnedExited=entry.ownedAfter.every((p,i)=>p.exited||p.startTicks!==owned[i].startTicks);
+      const exitDeadline=Date.now()+5000;
+      for(;;){
+        entry.ownedAfter=await Promise.all(owned.map(x=>proc(x.pid)));
+        entry.allOwnedExited=entry.ownedAfter.every((p,i)=>p.exited||p.startTicks!==owned[i].startTicks);
+        if(entry.allOwnedExited||Date.now()>=exitDeadline)break;
+        await pause(150);
+      }
       Object.assign(entry,analyzeFaultCase(entry,await readFile(logPath,'utf8')));
       if(!entry.passed)throw new Error(`Fault case failed: ${name}`);
       console.log(JSON.stringify({name,code:entry.isolation.code,unknown:entry.isolation.unknownOutstanding,serverExit:entry.serverExit,allOwnedExited:entry.allOwnedExited}));
     }finally{
-      cdp?.ws.close();if(child.exitCode===null&&child.signalCode===null){const current=await proc(child.pid);if(owned.length===0||current.startTicks===owned.find(x=>x.pid===child.pid)?.startTicks)child.kill('SIGTERM');await exited;}await log.close();
+      cdp?.ws.close();if(child.exitCode===null&&child.signalCode===null){const current=await proc(child.pid);if(owned.length===0||current.startTicks===owned.find(x=>x.pid===child.pid)?.startTicks)stopLauncherGracefully(child);await exited;}await log.close();
       await writeFile(join(output,'report.json'),JSON.stringify(summary,null,2)+'\n');
     }
   }

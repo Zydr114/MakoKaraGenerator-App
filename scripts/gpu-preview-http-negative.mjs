@@ -3,9 +3,14 @@
 import assert from 'node:assert/strict';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { randomUUID, createHash } from 'node:crypto';
-import { resolve, join, sep, dirname } from 'node:path';
+import { resolve, join, dirname } from 'node:path';
 import { parseArgs } from 'node:util';
 import { execFileSync } from 'node:child_process';
+import { createRequire } from 'node:module';
+import { getProcessIdentity, waitOwnedExit } from './process-identity.mjs';
+
+const require = createRequire(import.meta.url);
+const privateFs = require('../desktop/runtime/private-fs.cjs');
 
 const root = resolve(import.meta.dirname, '..');
 const { values } = parseArgs({ options: {
@@ -18,10 +23,12 @@ const base = new URL(bootstrap.baseUrl);
 assert.equal(base.hostname, '127.0.0.1');
 assert.equal(desktop.hostInstanceId, bootstrap.hostInstanceId);
 const output = resolve(values.output ?? join(root, '.local/gpu-preview-http-negative', new Date().toISOString().replaceAll(':','-')));
-assert.ok(output.startsWith(join(root,'.local') + sep));
+assert.ok(privateFs.isInsideRoot(join(root, '.local'), output));
 await mkdir(output, { recursive: true, mode: 0o700 });
-const dist = dirname(dirname(desktop.brokerAddon));
-assert.ok(dist.startsWith(join(root,'.local/backend-dist')+sep));
+const addonPath = desktop.brokerAddon ?? desktop.shmAddon;
+assert.ok(addonPath, 'Desktop launch config missing brokerAddon/shmAddon');
+const dist = dirname(dirname(addonPath));
+assert.ok(privateFs.isInsideRoot(join(root, '.local', 'backend-dist'), dist));
 const deploymentBytes=await readFile(join(dist,'deployment.json'));
 const nativeBytes=await readFile(join(dist,'gpu-preview-manifest.json'));
 const deployment=JSON.parse(deploymentBytes),native=JSON.parse(nativeBytes);
@@ -37,13 +44,9 @@ const publishedDeployment={dist:dist.slice(root.length+1),version:deployment.ver
 const checks = [];
 const ownedWorkers = [];
 const processIdentity = async pid => {
-  try { const text=await readFile(`/proc/${pid}/stat`,'utf8'); const fields=text.slice(text.lastIndexOf(')')+2).split(' ');return {pid,startTicks:fields[19]}; } catch { return null; }
+  const info = await getProcessIdentity(pid);
+  return info.exited ? null : { pid: info.pid, startTicks: info.startTicks };
 };
-async function waitOwnedExit(identity) {
-  const deadline=Date.now()+10_000;
-  while(Date.now()<deadline) { const now=await processIdentity(identity.pid);if(!now||now.startTicks!==identity.startTicks)return true;await new Promise(done=>setTimeout(done,20)); }
-  return false;
-}
 const metadata = () => ({ requestId: randomUUID().replaceAll('-',''), hostInstanceId: bootstrap.hostInstanceId,
   validUntilUtc: new Date(Date.now() + 90_000).toISOString() });
 async function request(client, method, path, body, extra = {}) {

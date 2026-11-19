@@ -7,11 +7,16 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { inflateSync } from 'node:zlib';
 import { connectPage } from './gpu-preview-p3.mjs';
+import { stopLauncherGracefully } from './process-identity.mjs';
 import { shell, ui } from '../frontend/scripts/ui-query.mjs';
+
+const require = createRequire(import.meta.url);
+const { appRuntimePaths } = require('../desktop/runtime/app-paths.cjs');
 
 const ROOT = resolve(import.meta.dirname, '..');
 const { values } = parseArgs({ options: { attach: { type: 'string' }, port: { type: 'string', default: '5193' }, 'cdp-port': { type: 'string', default: '9251' } } });
@@ -155,7 +160,15 @@ async function screenshot(page, name) {
 
 let launcher, log = '';
 async function launch() {
-  launcher = spawn(process.execPath, [join(ROOT, 'scripts/app.mjs'), 'desktop', '--session-name', 'desktop-smoke', '--port', values.port, '--cdp-port', values['cdp-port']], { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
+  launcher = spawn(
+    process.execPath,
+    [join(ROOT, 'scripts/app.mjs'), 'desktop', '--session-name', 'desktop-smoke', '--port', values.port, '--cdp-port', values['cdp-port']],
+    {
+      cwd: ROOT,
+      env: { ...process.env, MAKO_APP_SHUTDOWN_STDIN: '1' },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    },
+  );
   for (const stream of [launcher.stdout, launcher.stderr]) stream.on('data', (chunk) => { log += chunk; });
   const start = Date.now();
   while (!log.includes('[app] 桌面页面')) {
@@ -178,8 +191,11 @@ async function main() {
     await page.waitFor(`document.querySelector('.transport .play') && !document.querySelector('.transport .play').disabled`, '音频就绪', 60_000);
     check(true, '新建工程（音频 6 秒、歌词 3 行），播放器就绪');
 
-    // 外观页：跟随后端默认时，Linux 默认走 GPU · DMA-BUF（MAKO_PREVIEW_TRANSPORT=shm 时走 GPU · SHM）
-    const expectedGpuTransport = process.env.MAKO_PREVIEW_TRANSPORT?.trim().toLowerCase() === 'shm' ? 'shm' : 'dma-buf';
+    // 外观页：跟随后端默认时，Linux 默认走 GPU · DMA-BUF（MAKO_PREVIEW_TRANSPORT=shm 时走 GPU · SHM）；Windows 默认走 GPU · SHM
+    const envTransport = process.env.MAKO_PREVIEW_TRANSPORT?.trim().toLowerCase();
+    const expectedGpuTransport = envTransport === 'shm' || envTransport === 'dma-buf'
+      ? envTransport
+      : (process.platform === 'linux' ? 'dma-buf' : 'shm');
     const expectedGpuPrefix = expectedGpuTransport === 'shm' ? '成片 · GPU · SHM · ' : '成片 · GPU · DMA-BUF · ';
     const expectedGpuReadbacks = expectedGpuTransport === 'shm' ? 1 : 0;
     const beforeAppearance = (await readState(page)).drawn;
@@ -282,8 +298,9 @@ async function main() {
     wait(60_000).then(() => 'timeout'),
   ]);
   cdp.ws.close();
+  const runDir = appRuntimePaths(ROOT).run;
   check(code === 0 && log.includes('[app] 自有 Web 与后端进程已停止。'), '关窗后启动器停掉 Electron、Web 与后端，退出码 0');
-  check(!existsSync(join(ROOT, `.local/run/desktop-${launcher.pid}.json`)) && !existsSync(join(ROOT, `.local/run/desktop-backend-${launcher.pid}.json`)), '本次的私有启动文件已删除');
+  check(!existsSync(join(runDir, `desktop-${launcher.pid}.json`)) && !existsSync(join(runDir, `desktop-backend-${launcher.pid}.json`)), '本次的私有启动文件已删除');
 }
 
 try {
@@ -292,6 +309,6 @@ try {
 } catch (error) {
   console.error(`\n${error.message}`);
   if (log) await writeFile(join(out, 'launcher.log'), log);
-  if (launcher && launcher.exitCode === null) launcher.kill('SIGTERM');
+  if (launcher && launcher.exitCode === null) stopLauncherGracefully(launcher);
   process.exitCode = 1;
 }

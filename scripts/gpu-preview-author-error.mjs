@@ -2,15 +2,20 @@
 // Start a dedicated --session-name author-error-* desktop; never attach to a user project.
 import assert from 'node:assert/strict';
 import {readFile,mkdir,writeFile,appendFile} from 'node:fs/promises';
-import {resolve,join,dirname,sep} from 'node:path';
+import {resolve,join,dirname} from 'node:path';
 import {createHash,randomUUID} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
+import {createRequire} from 'node:module';
 import {parseArgs} from 'node:util';
 import {Cdp,Page} from '../frontend/scripts/cdp.mjs';
+import {getProcessIdentity,resolvePythonExecutable} from './process-identity.mjs';
+
+const require=createRequire(import.meta.url);
+const privateFs=require('../desktop/runtime/private-fs.cjs');
 
 const {values}=parseArgs({options:{bootstrap:{type:'string'},desktop:{type:'string'},'cdp-port':{type:'string',default:'9244'},output:{type:'string'},prepare:{type:'boolean'},inflight:{type:'boolean'}}});
 const root=resolve(import.meta.dirname,'..'),output=resolve(values.output??join(root,'.local/gpu-preview-author-error',String(Date.now())));
-assert.ok(output.startsWith(join(root,'.local')+sep));
+assert.ok(privateFs.isInsideRoot(join(root,'.local'),output));
 await mkdir(output,{recursive:true,mode:0o700});
 const source=`using System;
 using MakoKaraGenerator.Scripting;
@@ -36,7 +41,7 @@ const manifest={packageVersion:3,sdkVersion:'2.0.0',shaderProfile:'skia-ganesh-3
 const archive=join(output,'author-error.mkfx');
 await writeFile(join(output,'AcceptanceAuthorError.cs'),source);
 await writeFile(join(output,'package-manifest.json'),JSON.stringify(manifest,null,2)+'\n');
-execFileSync('python3',['-c','import json,sys,zipfile; x=json.load(sys.stdin); z=zipfile.ZipFile(x["path"],"w",zipfile.ZIP_DEFLATED); z.writestr("manifest.json",json.dumps(x["manifest"])); z.writestr("src/AcceptanceAuthorError.cs",x["source"]); z.close()'],
+execFileSync(resolvePythonExecutable(),['-c','import json,sys,zipfile; x=json.load(sys.stdin); z=zipfile.ZipFile(x["path"],"w",zipfile.ZIP_DEFLATED); z.writestr("manifest.json",json.dumps(x["manifest"])); z.writestr("src/AcceptanceAuthorError.cs",x["source"]); z.close()'],
   {input:JSON.stringify({path:archive,manifest,source})});
 if(values.prepare){console.log(`Prepared owned author Error fixture: ${archive}`);process.exit(0);}
 assert.ok(values.bootstrap&&values.desktop,'Pass private bootstrap and desktop file paths');
@@ -47,7 +52,8 @@ const base=new URL(bootstrap.baseUrl);assert.equal(base.hostname,'127.0.0.1');as
 const report={schemaVersion:1,startedAt:new Date().toISOString(),probeSourceCommit:execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim(),
   sessionName:desktop.sessionName,scope:'real author Evaluate Error, exact production lease completion, stream drain and App survival; no timing or display claim',
   readbacks:'none',inflight:values.inflight===true,fixture:{sourceSha256:sha256(source),archiveSha256:sha256(await readFile(archive)),errorCode:'ScriptExecutionFailed',failureAtTimeUs:1000000},checks:[]};
-const dist=dirname(dirname(desktop.brokerAddon)),deploymentBytes=await readFile(join(dist,'deployment.json'));
+const addonPath=desktop.brokerAddon??desktop.shmAddon;assert.ok(addonPath,'Desktop launch config missing brokerAddon/shmAddon');
+const dist=dirname(dirname(addonPath)),deploymentBytes=await readFile(join(dist,'deployment.json'));
 const deployment=JSON.parse(deploymentBytes);report.publishedDeployment={dist:dist.slice(root.length+1),sourceCommit:deployment.sourceCommit,sourceDirty:deployment.sourceDirty,manifestSha256:sha256(deploymentBytes)};
 const metadata=()=>({requestId:randomUUID().replaceAll('-',''),hostInstanceId:bootstrap.hostInstanceId,validUntilUtc:new Date(Date.now()+90000).toISOString()});
 let client,draft,stream,cdp,page;
@@ -59,7 +65,7 @@ async function request(method,path,body,extra={}){
   const data=await response.json();assert.ok(response.ok,`${method} ${path}: HTTP ${response.status} ${data.code??''}`);return data;
 }
 async function until(predicate,timeout=15000){const deadline=Date.now()+timeout;while(Date.now()<deadline){const value=await predicate();if(value)return value;await wait(25);}throw new Error('Owned author Error acceptance condition timed out');}
-const processIdentity=async pid=>{try{const stat=await readFile(`/proc/${pid}/stat`,'utf8');return {pid,startTicks:stat.slice(stat.lastIndexOf(')')+2).split(' ')[19]};}catch(error){if(error.code==='ENOENT')return {pid,exited:true};throw error;}};
+const processIdentity=async pid=>{const info=await getProcessIdentity(pid);return info.exited?{pid,exited:true}:{pid:info.pid,startTicks:info.startTicks};};
 async function sample(){const state=await page.eval('window.makoDesktopPreview.readPreviewState()');await appendFile(join(output,'events.jsonl'),JSON.stringify({type:'snapshot',snapshot:state})+'\n');return state;}
 async function playback(timeUs,reset){return page.eval(`window.makoDesktopPreview.setPlaybackState({mode:'paused',mediaTimeUs:${timeUs},rate:1,targetFps:24,timelineResetId:${JSON.stringify(reset)},samplePerformanceMs:performance.now()})`);}
 async function closeStream(){if(!stream)return;await page.eval('window.makoDesktopPreview.detachPreview()');const closed=await request('DELETE',`/api/v1/gpu-preview-streams/${stream.streamId}`,{expectedStreamRevision:stream.streamRevision,metadata:metadata()});assert.equal(closed.registrationState,'closed');stream=null;}

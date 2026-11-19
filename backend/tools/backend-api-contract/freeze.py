@@ -32,7 +32,7 @@ from template_library_schema import extend_template_library_schemas, query_param
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTRACT = "1.57.0"
-BASELINE = "7411baf5fcd782c3bac18f9a0f130657f61dd966"
+BASELINE = "83a7ba0637f1eae70ab228882eaac643d50dd42a"
 PRODUCT = re.search(r"<VersionPrefix>([^<]+)</VersionPrefix>", (ROOT / "Directory.Build.props").read_text(encoding="utf-8")).group(1)
 FREEZE_DATE = "2026-11-19"
 BEHAVIOR = "docs/architecture/backend-api.md"

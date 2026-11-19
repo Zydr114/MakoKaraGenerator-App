@@ -4,7 +4,7 @@
 
 2026-11-14 性能补充：产品 0.112.91，合同仍为 1.52.1；视频背景不可变快照改用保留格式的原始像素复制，增加内部性能日志阶段，无 HTTP 形状、fixture 或检查响应字段变化。基线 `baa5b43`，新增快照实现纳入指纹。此前 0.112.90 行为说明保留历史归属。
 
-本轮工具源码目标为 **合同1.57.0／产品0.116.0／协议1**（2026-11-19），生产源码基线 `7411baf5fcd782c3bac18f9a0f130657f61dd966`：放开桌面连续预览流 `api` 为 `"vulkan"|"cpu"` 并在 `GpuPreviewStreamState` 中新增必需字段 `transport`（`"dma-buf"|"shm"`），严守 `MAKO_PREVIEW_TRANSPORT` 零静默降级语义。合同为115 paths／128 methods／679 schemas、4023例／2890反例。下述旧版本材料保留历史归属；合同生成不替代匹配发布与fresh HTTP验收。
+本轮工具源码目标为 **合同1.57.0／产品0.116.0／协议1**（2026-11-19），生产源码基线 `83a7ba0637f1eae70ab228882eaac643d50dd42a`：放开桌面连续预览流 `api` 为 `"vulkan"|"cpu"` 并在 `GpuPreviewStreamState` 中新增必需字段 `transport`（`"dma-buf"|"shm"`），严守 `MAKO_PREVIEW_TRANSPORT` 零静默降级语义。合同为115 paths／128 methods／679 schemas、4023例／2890反例。下述旧版本材料保留历史归属；合同生成不替代匹配发布与fresh HTTP验收。
 
 从 `backend/` 执行。本工具构建Contracts引用的离线CLI，不启动服务。`author_metadata_schema.py` 审阅真实CLR字段、nullable与构造默认值，复用现有 `AuthorPackageQuery` 和参数/导出/input/file/diagnostic DTO；检查响应独立且无reference，公共包引用kind继续仅为asset/library/configuration。采用配置采用inline完整八字段严格schema，避免改变package-files的既有配置语义；两个可空字段仍显式必填，UInt64种子采用十进制字符串并保留前导零。`author_metadata_fixtures.py` 覆盖精确整数、Int64 `files.size`、未来未知响应字段、完整采用、旧请求兼容和具名拒绝；运行期CAS/owner、重复JSON键、完整UTF-8预算、编译来源、原子存储和真实sampleOptions须由服务/HTTP核对。
 

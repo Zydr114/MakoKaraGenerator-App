@@ -2,7 +2,7 @@
 // 请求里带什么（request）与想要的实际设备（target）分开：跟随后端默认时请求不带字段，
 // 但给已开的预览换设备时要填具体值，用检测结果里的 defaultBackend。
 
-import type { RenderBackend, RenderBackendAvailability, RenderBackendsResponse } from '../../protocol';
+import type { PreviewStreamApi, PreviewStreamTransport, RenderBackend, RenderBackendAvailability, RenderBackendsResponse } from '../../protocol';
 
 export type RenderDevicePreference = RenderBackend | 'default';
 
@@ -32,12 +32,31 @@ export function resolveChoice(preference: RenderDevicePreference, backends: Rend
 }
 
 /**
- * 桌面版的成片预览走不走 GPU 共享纹理（2026-11-03 用户决定）：后端没开放连续预览、明确选 CPU 时不走；
- * 选 GPU 时走；跟随后端默认时检测到 GPU 可用就走。浏览器里没有桌面接口，始终是静态预览。
+ * 桌面版的成片预览走不走连续预览流：后端没开放连续预览时不走；明确选 GPU 或 CPU 时走；
+ * 跟随后端默认时，待后端设备检测返回后，只要 GPU 或 CPU 任一可用就走连续预览流。
+ * 浏览器里没有桌面接口，始终维持静态 PNG 预览。
  */
 export function usesGpuStream(preference: RenderDevicePreference, backends: RenderBackendsResponse | undefined, streamsSupported: boolean): boolean {
-  if (!streamsSupported || preference === 'cpu') return false;
-  return preference === 'gpu' || availabilityOf(backends, 'gpu')?.available === true;
+  if (!streamsSupported) return false;
+  if (preference === 'gpu' || preference === 'cpu') return true;
+  if (!backends) return false;
+  return availabilityOf(backends, 'gpu')?.available === true || availabilityOf(backends, 'cpu')?.available === true;
+}
+
+/** 将设备偏好与后端检测结果解析为连续预览流的 api（vulkan / cpu）。 */
+export function resolvePreviewStreamApi(preference: RenderDevicePreference, backends: RenderBackendsResponse | undefined): PreviewStreamApi {
+  if (preference === 'cpu') return 'cpu';
+  if (preference === 'gpu') return 'vulkan';
+  if (availabilityOf(backends, 'gpu')?.available === true) return 'vulkan';
+  if (backends?.defaultBackend === 'gpu') return 'vulkan';
+  return 'cpu';
+}
+
+/** 连续预览流设备与传输模式标签：明确区分 GPU · DMA-BUF、GPU · SHM 与 CPU · SHM。 */
+export function previewStreamBadge(api: PreviewStreamApi, transport: PreviewStreamTransport | undefined): string {
+  const deviceLabel = api === 'cpu' ? 'CPU' : 'GPU';
+  if (!transport) return deviceLabel;
+  return `${deviceLabel} · ${transport === 'shm' ? 'SHM' : 'DMA-BUF'}`;
 }
 
 export const RENDER_BACKEND_LABEL: Record<RenderBackend, string> = { cpu: 'CPU', gpu: 'GPU' };

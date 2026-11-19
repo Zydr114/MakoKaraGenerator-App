@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { ObservableValue } from '../../client';
-import type { Revision } from '../../protocol';
+import type { PreviewStreamApi, PreviewStreamTransport, Revision } from '../../protocol';
 import type { AudioController } from '../audio/audio-controller';
 import { client, renderDevice } from '../connection';
 import { previewFallbackText } from '../model/background-fallback';
-import { RENDER_BACKEND_LABEL, resolveChoice, usesGpuStream } from '../model/render-device';
+import { previewStreamBadge, RENDER_BACKEND_LABEL, resolveChoice, resolvePreviewStreamApi, usesGpuStream } from '../model/render-device';
 import { formatTime } from '../model/time';
 import type { EditorSession } from '../session/editor-session';
 import { Button } from '../ui/Button';
@@ -173,7 +173,19 @@ const GPU_QUALITIES = [{ value:'720p24', label:'720p · 24 fps' }, { value:'1440
 
 function GpuPreviewPanel(props: Parameters<typeof StaticPreviewPanel>[0]) {
   const state=useObservable(props.session.state$);
+  const device=useObservable(renderDevice.state$);
   const available=props.session.supports('preview.gpu-streams');
+  const api: PreviewStreamApi = resolvePreviewStreamApi(device.preference, device.backends);
+  const [defaultTransport, setDefaultTransport] = useState<PreviewStreamTransport>('dma-buf');
+  useEffect(() => {
+    let active = true;
+    void window.makoDesktopPreview?.previewConfig?.().then((cfg) => {
+      if (active && (cfg?.transport === 'shm' || cfg?.transport === 'dma-buf')) {
+        setDefaultTransport(cfg.transport);
+      }
+    }).catch(() => {});
+    return () => { active = false; };
+  }, []);
   const [quality,setQuality]=useState<'720p24'|'1440p30'>('720p24');
   const targetFps=quality==='1440p30'?30:24;
   const size=useMemo(()=>{
@@ -195,10 +207,10 @@ function GpuPreviewPanel(props: Parameters<typeof StaticPreviewPanel>[0]) {
       const response=await props.session.command({type:'composition.setBackgroundColor',red,green,blue,alpha});
       if(!response)throw new Error('Background edit rejected');
       return {sourceRevision:response.projectRevision};
-    });
+    },api);
     setController(next);
     return()=>next.dispose();
-  },[available,props.session,size]);
+  },[available,props.session,size,api]);
   useEffect(()=>{controller?.setEnabled(visible&&!props.replacement);},[controller,visible,props.replacement]);
   useEffect(()=>onMediaFeaturesChanged(props.session.projectSessionId,()=>controller?.refreshInput()),[controller,props.session]);
   useEffect(()=>{
@@ -228,24 +240,27 @@ function GpuPreviewPanel(props: Parameters<typeof StaticPreviewPanel>[0]) {
     return()=>{clearInterval(timer);offAudio?.();offTimeline?.();offProject();};
   },[controller,props.audio,props.session,targetFps,visible]);
   const view=useObservable(controller?.state$??GPU_IDLE);
+  const effectiveApi: PreviewStreamApi = view.api ?? api;
+  const canvasTransport: PreviewStreamTransport = view.transport ?? (effectiveApi === 'cpu' ? 'shm' : defaultTransport);
+  const badge = previewStreamBadge(effectiveApi, view.transport ?? canvasTransport);
   const shown=view.frameRevision!==undefined&&view.frameTimeUs!==undefined?{revision:view.frameRevision,timeUs:view.frameTimeUs}:undefined;
   const fallback=previewFallbackText(view.diagnostics?.items??[]);
   const replacement=props.replacement;
   if(replacement)return <div className="preview-panel"><div className="preview-title"><span className="pane-title-text">{replacement.title}</span></div><PreviewStage size={size}>{replacement.imageUrl?<img src={replacement.imageUrl} alt={replacement.title}/>:<span className="preview-overlay">{replacement.placeholder}</span>}{props.overlay?.(undefined)}</PreviewStage><p className="hint">{replacement.hint}</p></div>;
   return <div className="preview-panel">
     <div className="preview-title">
-      <span className="pane-title-text">{shown?`成片 · GPU · 修订 ${shown.revision} · ${formatTime(shown.timeUs)}`:'成片 · GPU'}</span>
+      <span className="pane-title-text">{shown?`成片 · ${badge} · 修订 ${shown.revision} · ${formatTime(shown.timeUs)}`:`成片 · ${badge}`}</span>
       <span className="muted">{view.status==='rendering'?'准备中':''}</span>
       <Select label="GPU 预览规格" labelPlacement="none" size="sm" className="preview-quality" value={quality} options={GPU_QUALITIES} onChange={setQuality}/>
     </div>
     <PreviewStage size={size}>
-      <canvas id="mako-gpu-preview" width={size.width} height={size.height} style={{width:'100%',height:'100%',objectFit:'contain'}} aria-label="GPU 成片预览"/>
-      {!available&&<span className="preview-overlay notice-error">当前后端没有开放桌面 GPU 连续预览。</span>}
-      {available&&!shown&&view.status!=='error'&&<span className="preview-overlay">正在准备 GPU 预览……</span>}
+      <canvas id="mako-gpu-preview" key={canvasTransport} data-preview-transport={canvasTransport} data-preview-api={effectiveApi} width={size.width} height={size.height} style={{width:'100%',height:'100%',objectFit:'contain'}} aria-label={`${badge} 成片预览`}/>
+      {!available&&<span className="preview-overlay notice-error">当前后端没有开放桌面连续预览。</span>}
+      {available&&!shown&&view.status!=='error'&&<span className="preview-overlay">{`正在准备 ${badge} 预览……`}</span>}
       {view.status==='error'&&<span className="preview-overlay notice-error">{view.error}<RetryButton onRetry={()=>controller?.retry()}/></span>}
       {props.overlay?.(shown)}
     </PreviewStage>
-    <p className="hint">{`GPU 连续预览 · 预览 ${size.width}×${size.height} · 音频主时钟。`}{props.warning&&<span className="notice-warning"> {props.warning}</span>}</p>
+    <p className="hint">{`${badge} 连续预览 · 预览 ${size.width}×${size.height} · 音频主时钟。`}{props.warning&&<span className="notice-warning"> {props.warning}</span>}</p>
     {fallback&&<p className="hint notice-warning preview-fallback" role="status">{fallback}</p>}
     {!!view.diagnostics?.total&&<div className={view.diagnostics.errorCount?'notice-error':'notice-warning'} role="status">{`渲染诊断：${view.diagnostics.warningCount} 个警告，${view.diagnostics.errorCount} 个错误。`}{view.diagnostics.items.map((item,index)=><p key={index}>{item.code}：{item.message}</p>)}{view.diagnostics.truncated&&<p>其余诊断已省略。</p>}</div>}
   </div>;

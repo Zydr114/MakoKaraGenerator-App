@@ -13,12 +13,13 @@ it('GPU stream owner methods retain SDK auth and reliable metadata on the actual
   fake.route('DELETE',/\/gpu-preview-streams\/stream$/,()=>json(200,{}));
   const source={kind:'project' as const,sourceId:'project',sourceRevision:revision('1')};
   await client.gpuPreview.create({source,size:{width:1280,height:720},alphaMode:'straight',api:'vulkan',consumerId:'a'.repeat(32)});
+  await client.gpuPreview.create({source,size:{width:1280,height:720},alphaMode:'opaque',api:'cpu',consumerId:'a'.repeat(32)});
   await client.gpuPreview.read('stream');
   await client.gpuPreview.replaceInput('stream',{expectedStreamRevision:'1',source:{...source,sourceRevision:revision('2')}});
   await client.gpuPreview.resize('stream',{expectedStreamRevision:'2',size:{width:2560,height:1440}});
   await client.gpuPreview.close('stream','3');
   const calls=fake.calls.filter(call=>call.path.includes('/gpu-preview-streams'));
-  expect(calls.map(call=>[call.method,call.path])).toEqual([['POST','/api/v1/gpu-preview-streams'],['GET','/api/v1/gpu-preview-streams/stream'],['PUT','/api/v1/gpu-preview-streams/stream/source'],['PUT','/api/v1/gpu-preview-streams/stream/size'],['DELETE','/api/v1/gpu-preview-streams/stream']]);
+  expect(calls.map(call=>[call.method,call.path])).toEqual([['POST','/api/v1/gpu-preview-streams'],['POST','/api/v1/gpu-preview-streams'],['GET','/api/v1/gpu-preview-streams/stream'],['PUT','/api/v1/gpu-preview-streams/stream/source'],['PUT','/api/v1/gpu-preview-streams/stream/size'],['DELETE','/api/v1/gpu-preview-streams/stream']]);
   for(const call of calls){
     expect(call.headers.get('authorization')).toMatch(/^Bearer /);
     if(call.method!=='GET')expect(call.body).toHaveProperty('metadata');

@@ -1,14 +1,28 @@
-import { ObservableValue, type MakoClient } from '../../client';
-import type { DesktopPreviewBridge, GpuDiagnosticsSummary, GpuPlaybackState, GpuPreviewStreamState, PreviewSize, Revision } from '../../protocol';
+import { BackendError, ObservableValue, type MakoClient } from '../../client';
+import type { DesktopPreviewBridge, GpuDiagnosticsSummary, GpuPlaybackState, GpuPreviewStreamState, PreviewSize, PreviewStreamApi, PreviewStreamTransport, Revision } from '../../protocol';
 
 export interface GpuPreviewViewState {
   status: 'idle' | 'rendering' | 'ready' | 'error';
+  api?: PreviewStreamApi;
+  transport?: PreviewStreamTransport;
   frameRevision?: Revision;
   frameTimeUs?: number;
   error?: string;
   diagnostics?: GpuDiagnosticsSummary;
 }
 interface Want { revision: Revision; playback: GpuPlaybackState }
+
+const nextAnimationFrame = (): Promise<void> =>
+  typeof requestAnimationFrame === 'function'
+    ? new Promise((resolve) => requestAnimationFrame(() => resolve()))
+    : Promise.resolve();
+
+function formatStreamError(error: unknown): string {
+  if (error instanceof BackendError && error.body?.failureCode) {
+    return `${error.message}（${error.body.failureCode}）`;
+  }
+  return error instanceof Error ? error.message : String(error);
+}
 
 /** Refreshes stale playback clock samples after long-running stream setup to avoid the 30s preload expiration gate. */
 function freshPlayback(playback: GpuPlaybackState): GpuPlaybackState {
@@ -49,7 +63,9 @@ export class GpuPreviewController {
   }
   private readonly unsubscribe: () => void;
   constructor(private readonly client: MakoClient, private readonly projectSessionId: string, private size: PreviewSize, private readonly bridge: DesktopPreviewBridge,
-    private readonly acceptanceEdit?: (red:number,green:number,blue:number,alpha:number)=>Promise<{sourceRevision:Revision}>) {
+    private readonly acceptanceEdit?: (red:number,green:number,blue:number,alpha:number)=>Promise<{sourceRevision:Revision}>,
+    private readonly api: PreviewStreamApi = 'vulkan') {
+    this.state$.set({ status: 'idle', api });
     acceptanceOwner=this;
     void bridge.acceptanceEnabled().then(enabled=>{
       if(enabled&&!this.disposed&&acceptanceOwner===this)window.makoGpuPreviewAcceptance={resize:(width,height)=>this.resizeForAcceptance(width,height),current:()=>this.stream,
@@ -65,9 +81,9 @@ export class GpuPreviewController {
       const current=this.stream;
       if(event.streamId!==undefined&&(!current||event.streamId!==current.streamId||event.producerEpoch!==current.producerEpoch||event.inputGeneration!==current.inputGeneration))return;
       if(event.diagnostics)this.state$.set({...this.state$.get(),diagnostics:event.diagnostics});
-      if(event.type==='failed'){this.blocked=true;this.needsRecreate=true;this.state$.set({...this.state$.get(),status:'error',error:event.code??'GPU 预览失败'});}
+      if(event.type==='failed'){this.blocked=true;this.needsRecreate=true;this.state$.set({...this.state$.get(),status:'error',error:event.code??'连续预览失败'});}
       if(event.type==='drawn'&&current&&event.streamId===current.streamId&&event.producerEpoch===current.producerEpoch&&event.inputGeneration===current.inputGeneration&&event.timelineResetId===this.want?.playback.timelineResetId&&event.timeUs!==undefined){
-        this.state$.set({status:'ready',frameRevision:current.source.sourceRevision as Revision,frameTimeUs:event.timeUs,...(event.diagnostics?{diagnostics:event.diagnostics}:{})});
+        this.state$.set({status:'ready',api:current.api,transport:current.transport,frameRevision:current.source.sourceRevision as Revision,frameTimeUs:event.timeUs,...(event.diagnostics?{diagnostics:event.diagnostics}:{})});
       }
     });
   }
@@ -114,13 +130,17 @@ export class GpuPreviewController {
         const want=this.want;
         if(!want||this.blocked||this.sent===want)break;
         if(!this.stream){
-          this.state$.set({...this.state$.get(),status:'rendering'});
+          this.state$.set({...this.state$.get(),status:'rendering',api:this.api});
           const consumerId=await this.bridge.consumerId();
           // This is the full composition preview. Straight alpha requests a
           // transparent lyrics layer and deliberately omits the project background.
-          this.stream=await this.client.gpuPreview.create({source:{kind:'project',sourceId:this.projectSessionId,sourceRevision:want.revision},size:this.size,alphaMode:'opaque',api:'vulkan',consumerId});
+          this.stream=await this.client.gpuPreview.create({source:{kind:'project',sourceId:this.projectSessionId,sourceRevision:want.revision},size:this.size,alphaMode:'opaque',api:this.api,consumerId});
           this.inputEffective('create-response');
+          const previousTransport=this.state$.get().transport;
+          this.state$.set({...this.state$.get(),status:'rendering',api:this.stream.api,transport:this.stream.transport});
           if(this.disposed||!this.enabled)continue;
+          // Ensure <canvas key={transport}> has committed before attaching the consumer.
+          if(previousTransport!==this.stream.transport){await nextAnimationFrame();if(this.disposed||!this.enabled)continue;}
           await this.bridge.attachPreview(this.stream.streamId,this.stream.inputGeneration);
           this.attached=true;
         }else if(this.stream.source.sourceRevision!==want.revision||this.inputStale){
@@ -129,6 +149,7 @@ export class GpuPreviewController {
           this.attached=false;
           this.stream=await this.client.gpuPreview.replaceInput(this.stream.streamId,{expectedStreamRevision:this.stream.streamRevision,source:{kind:'project',sourceId:this.projectSessionId,sourceRevision:want.revision}});
           this.inputEffective('input-replacement-response');
+          this.state$.set({...this.state$.get(),api:this.stream.api,transport:this.stream.transport});
           if(this.disposed||!this.enabled)continue;
           await this.bridge.attachPreview(this.stream.streamId,this.stream.inputGeneration);
           this.attached=true;
@@ -141,7 +162,8 @@ export class GpuPreviewController {
       }
     }catch(error){
       this.blocked=true;this.needsRecreate=true;
-      this.state$.set({...this.state$.get(),status:'error',error:error instanceof Error?error.message:String(error)});
+      const failedTransport=this.stream?.transport??this.state$.get().transport;
+      this.state$.set({...this.state$.get(),status:'error',api:this.stream?.api??this.api,...(failedTransport?{transport:failedTransport}:{}),error:formatStreamError(error)});
       // Dispose during HTTP must still reclaim the eventual result.
       if(this.disposed||!this.enabled)try{await this.close();}catch{/* Keep the error visible; the owner lease remains the final backstop. */}
     }

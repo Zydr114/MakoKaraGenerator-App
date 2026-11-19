@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { BackendError, type MakoClient } from '../../src/client';
 import type { RenderBackendsResponse } from '../../src/protocol';
-import { availabilityOf, availabilityText, recordedBackendText, renderBackendField, usesGpuStream } from '../../src/editor/model/render-device';
+import { availabilityOf, availabilityText, previewStreamBadge, recordedBackendText, renderBackendField, resolvePreviewStreamApi, usesGpuStream } from '../../src/editor/model/render-device';
 import { RENDER_DEVICE_STORAGE_KEY, renderBackendErrorText, RenderDeviceStore } from '../../src/editor/preview/render-device';
 
 const UNAVAILABLE = { code: 'taskUnavailable', message: 'GPU device unavailable', field: 'renderBackend', failureCode: 'RenderBackendUnavailable', protocolVersion: '1' as const };
@@ -85,13 +85,25 @@ describe('渲染设备偏好', () => {
     expect(store.state.checking).toBe(false);
   });
 
-  it('桌面版：明确选 CPU 或后端没开放连续预览时不走共享纹理；选 GPU 时走；跟随默认时 GPU 可用才走', () => {
-    expect(usesGpuStream('cpu', backends(true, 'gpu'), true)).toBe(false);
+  it('桌面版：后端开放连续预览时支持 GPU 与 CPU 连续流；跟随默认等待检测结果后按 GPU 优先、CPU 兜底解析', () => {
+    expect(usesGpuStream('cpu', backends(true, 'gpu'), true)).toBe(true);
+    expect(usesGpuStream('cpu', undefined, true)).toBe(true);
     expect(usesGpuStream('gpu', backends(true), false)).toBe(false);
+    expect(usesGpuStream('cpu', backends(true), false)).toBe(false);
     expect(usesGpuStream('gpu', undefined, true)).toBe(true);
     expect(usesGpuStream('default', backends(true), true)).toBe(true);
-    expect(usesGpuStream('default', backends(false), true)).toBe(false);
+    expect(usesGpuStream('default', backends(false), true)).toBe(true);
     expect(usesGpuStream('default', undefined, true)).toBe(false);
+
+    expect(resolvePreviewStreamApi('cpu', backends(true, 'gpu'))).toBe('cpu');
+    expect(resolvePreviewStreamApi('gpu', backends(false, 'cpu'))).toBe('vulkan');
+    expect(resolvePreviewStreamApi('default', backends(true, 'cpu'))).toBe('vulkan');
+    expect(resolvePreviewStreamApi('default', backends(false, 'cpu'))).toBe('cpu');
+
+    expect(previewStreamBadge('vulkan', 'dma-buf')).toBe('GPU · DMA-BUF');
+    expect(previewStreamBadge('vulkan', 'shm')).toBe('GPU · SHM');
+    expect(previewStreamBadge('cpu', 'shm')).toBe('CPU · SHM');
+    expect(previewStreamBadge('cpu', undefined)).toBe('CPU');
   });
 });
 

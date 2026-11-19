@@ -1,21 +1,21 @@
 import {afterEach,beforeEach,expect,it,vi} from 'vitest';
-import type {MakoClient} from '../../src/client';
-import {revision,type DesktopPreviewBridge,type DesktopPreviewEvent,type GpuPlaybackState,type GpuPreviewCreateInput,type GpuPreviewStreamState} from '../../src/protocol';
+import {BackendError, type MakoClient} from '../../src/client';
+import {revision,type DesktopPreviewBridge,type DesktopPreviewEvent,type GpuPlaybackState,type GpuPreviewCreateInput,type GpuPreviewStreamState,type PreviewStreamApi,type PreviewStreamTransport} from '../../src/protocol';
 import {GpuPreviewController} from '../../src/editor/preview/gpu-preview-controller';
 
 const deferred=()=>{let resolve!:()=>void;const promise=new Promise<void>(done=>{resolve=done;});return {promise,resolve};};
 beforeEach(()=>vi.stubGlobal('window',{}));
 afterEach(()=>{vi.restoreAllMocks();vi.unstubAllGlobals();});
-function fixture(options:{createGate?:Promise<void>;replaceGate?:Promise<void>;onCreate?:()=>void;onReplace?:()=>void;replaceFails?:()=>boolean;acceptanceEnabled?:boolean}={}){
+function fixture(options:{createGate?:Promise<void>;replaceGate?:Promise<void>;onCreate?:()=>void;onReplace?:()=>void;createError?:()=>Error|undefined;replaceFails?:()=>boolean;acceptanceEnabled?:boolean;transportFor?:(api:PreviewStreamApi)=>PreviewStreamTransport}={}){
   const calls:string[]=[];let nextId=0;let attached=false;
   const creates:GpuPreviewCreateInput[]=[];
   const streams=new Map<string,GpuPreviewStreamState>();
   const listeners=new Set<(event:DesktopPreviewEvent)=>void>();
   const playbackStates:GpuPlaybackState[]=[];
-  const state=(id:string,source:GpuPreviewStreamState['source'],generation='1',alphaMode:GpuPreviewStreamState['alphaMode']='opaque'):GpuPreviewStreamState=>({streamId:id,streamRevision:generation,inputGeneration:generation,registrationState:'ready',source,size:{width:1280,height:720},alphaMode,textureAlphaMode:'premultiplied',api:'vulkan',producerEpoch:generation,poolGeneration:'1',slotCount:3,allocationBytes:4096,lastAppliedControlSeq:0});
+  const state=(id:string,source:GpuPreviewStreamState['source'],generation='1',alphaMode:GpuPreviewStreamState['alphaMode']='opaque',api:PreviewStreamApi='vulkan'):GpuPreviewStreamState=>({streamId:id,streamRevision:generation,inputGeneration:generation,registrationState:'ready',source,size:{width:1280,height:720},alphaMode,textureAlphaMode:'premultiplied',api,transport:options.transportFor?.(api)??(api==='cpu'?'shm':'dma-buf'),producerEpoch:generation,poolGeneration:'1',slotCount:3,allocationBytes:4096,lastAppliedControlSeq:0});
   const client={gpuPreview:{
-    create:async(input:GpuPreviewCreateInput)=>{calls.push(`create:${input.source.sourceId}`);creates.push(input);options.onCreate?.();await options.createGate;const next=state(`s${++nextId}`,input.source,'1',input.alphaMode);streams.set(next.streamId,next);return next;},
-    replaceInput:async(id:string,input:{source:GpuPreviewStreamState['source']})=>{calls.push(`replace:${id}`);options.onReplace?.();await options.replaceGate;if(options.replaceFails?.())throw new Error('replace failed');const next=state(id,input.source,'2',streams.get(id)!.alphaMode);streams.set(id,next);return next;},
+    create:async(input:GpuPreviewCreateInput)=>{calls.push(`create:${input.source.sourceId}`);creates.push(input);options.onCreate?.();await options.createGate;const err=options.createError?.();if(err)throw err;const next=state(`s${++nextId}`,input.source,'1',input.alphaMode,input.api);streams.set(next.streamId,next);return next;},
+    replaceInput:async(id:string,input:{source:GpuPreviewStreamState['source']})=>{calls.push(`replace:${id}`);options.onReplace?.();await options.replaceGate;if(options.replaceFails?.())throw new Error('replace failed');const prev=streams.get(id)!;const next=state(id,input.source,'2',prev.alphaMode,prev.api);streams.set(id,next);return next;},
     resize:async(id:string,input:{size:GpuPreviewStreamState['size']})=>{calls.push(`resize:${id}`);const next={...streams.get(id)!,streamRevision:'3',inputGeneration:'3',size:input.size};streams.set(id,next);return next;},
     close:async(id:string)=>{calls.push(`close:${id}`);},
   }} as unknown as MakoClient;
@@ -26,7 +26,7 @@ function fixture(options:{createGate?:Promise<void>;replaceGate?:Promise<void>;o
     setPlaybackState:async(state:GpuPlaybackState)=>{if(!attached)throw new Error('not attached');const now=performance.now();if(!Number.isFinite(state.samplePerformanceMs)||state.samplePerformanceMs<0||state.samplePerformanceMs>now+5||now-state.samplePerformanceMs>30000)throw new Error('Invalid audio clock sample');calls.push('playback');samples.push(state.samplePerformanceMs);playbackStates.push(state);return {controlSeq:1};},
     onPreviewState:(listener:(event:DesktopPreviewEvent)=>void)=>{listeners.add(listener);return()=>listeners.delete(listener);},
   } as unknown as DesktopPreviewBridge;
-  const make=(id='p1')=>new GpuPreviewController(client,id,{width:1280,height:720},bridge);
+  const make=(id='p1',api:PreviewStreamApi='vulkan')=>new GpuPreviewController(client,id,{width:1280,height:720},bridge,undefined,api);
   const show=(controller:GpuPreviewController,rev='1')=>controller.show(revision(rev),{mode:'paused',mediaTimeUs:0,rate:1,targetFps:24,timelineResetId:'reset',samplePerformanceMs:performance.now()});
   const samples:number[]=[];
   return {calls,creates,streams,make,show,samples,playbackStates,emit:(event:DesktopPreviewEvent)=>listeners.forEach(listener=>listener(event))};
@@ -127,4 +127,19 @@ it('extrapolates playing mediaTimeUs and refreshes samplePerformanceMs after 31s
   expect(Number.isSafeInteger(afterReplace.mediaTimeUs)&&afterReplace.mediaTimeUs>=0).toBe(true);
   expect(controller.state$.get().status).not.toBe('error');
   controller.dispose();await vi.waitFor(()=>expect(f.calls).toContain('close:s1'));
+});
+it('creates cpu stream with shm transport and surfaces explicit PreviewTransportUnsupported without fallback',async()=>{
+  const f=fixture();const cpuController=f.make('p1','cpu');f.show(cpuController);
+  await vi.waitFor(()=>expect(f.calls).toContain('playback'));
+  expect(f.creates[0]).toMatchObject({api:'cpu'});
+  expect(cpuController.state$.get()).toMatchObject({api:'cpu',transport:'shm'});
+  f.emit({type:'drawn',streamId:'s1',producerEpoch:'1',inputGeneration:'1',timelineResetId:'reset',timeUs:500});
+  expect(cpuController.state$.get()).toMatchObject({status:'ready',api:'cpu',transport:'shm',frameTimeUs:500});
+  cpuController.dispose();await vi.waitFor(()=>expect(f.calls).toContain('close:s1'));
+
+  const blocked=fixture({createError:()=>new BackendError(422,{code:'commandNotSupported',message:'显式 DMA-BUF 不支持 CPU',field:'api',failureCode:'PreviewTransportUnsupported',protocolVersion:'1'})});
+  const blockedController=blocked.make('p1','cpu');blocked.show(blockedController);
+  await vi.waitFor(()=>expect(blockedController.state$.get().status).toBe('error'));
+  expect(blockedController.state$.get().error).toContain('PreviewTransportUnsupported');
+  blockedController.dispose();
 });

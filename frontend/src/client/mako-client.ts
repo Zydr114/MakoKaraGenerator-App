@@ -12,7 +12,7 @@ import type {
   AuthorPackageFilesResponse,
 } from '../protocol/author-package-files';
 import type { AuthorDraftClaimResponse, AuthorSourceRevisionsResponse, ProfileAuthorDraftListResponse } from '../protocol/author-history';
-import type { GpuPreviewCreateInput, GpuPreviewStreamState } from '../protocol';
+import type { GpuPreviewCreateInput, GpuPreviewStreamListResponse, GpuPreviewStreamState } from '../protocol';
 
 import {
   DIRECTORY_PAGE_MAX,
@@ -1550,21 +1550,23 @@ export class MakoClient extends Emitter<MakoClientEvents> {
   readonly gpuPreview = {
     create: async (input: GpuPreviewCreateInput): Promise<GpuPreviewStreamState> => {
       const receipt = this.requireConn().receipts.create('preview');
-      return (await this.send<GpuPreviewStreamState>({ method:'POST', path:'/api/v1/gpu-preview-streams', json:{...input,metadata:toMetadata(receipt)}, auth:'access', label:'gpuPreview.create' },receipt)).data;
+      return (await this.send<GpuPreviewStreamState>({ method:'POST', path:'/api/v1/gpu-preview-streams', json:{...input,metadata:toMetadata(receipt)}, auth:'access', label:'gpuPreview.create', timeoutMs: 90_000 },receipt)).data;
     },
+    list: async (): Promise<GpuPreviewStreamListResponse> =>
+      (await this.send<GpuPreviewStreamListResponse>({ method:'GET', path:'/api/v1/gpu-preview-streams', auth:'access', label:'gpuPreview.list' })).data,
     read: async (streamId: string): Promise<GpuPreviewStreamState> =>
       (await this.send<GpuPreviewStreamState>({ method:'GET',path:`/api/v1/gpu-preview-streams/${enc(streamId)}`,auth:'access',label:'gpuPreview.read' })).data,
     replaceInput: async (streamId: string, input: { expectedStreamRevision:string;source:PreviewSource }): Promise<GpuPreviewStreamState> => {
       const receipt=this.requireConn().receipts.create('preview-input');
-      return (await this.send<GpuPreviewStreamState>({ method:'PUT',path:`/api/v1/gpu-preview-streams/${enc(streamId)}/source`,json:{...input,metadata:toMetadata(receipt)},auth:'access',label:'gpuPreview.replaceInput' },receipt)).data;
+      return (await this.send<GpuPreviewStreamState>({ method:'PUT',path:`/api/v1/gpu-preview-streams/${enc(streamId)}/source`,json:{...input,metadata:toMetadata(receipt)},auth:'access',label:'gpuPreview.replaceInput', timeoutMs: 90_000 },receipt)).data;
     },
     resize: async (streamId: string, input: { expectedStreamRevision:string;size:PreviewSize }): Promise<GpuPreviewStreamState> => {
       const receipt=this.requireConn().receipts.create('preview-input');
-      return (await this.send<GpuPreviewStreamState>({ method:'PUT',path:`/api/v1/gpu-preview-streams/${enc(streamId)}/size`,json:{...input,metadata:toMetadata(receipt)},auth:'access',label:'gpuPreview.resize' },receipt)).data;
+      return (await this.send<GpuPreviewStreamState>({ method:'PUT',path:`/api/v1/gpu-preview-streams/${enc(streamId)}/size`,json:{...input,metadata:toMetadata(receipt)},auth:'access',label:'gpuPreview.resize', timeoutMs: 90_000 },receipt)).data;
     },
     close: async (streamId: string, expectedStreamRevision:string): Promise<GpuPreviewStreamState> => {
       const receipt=this.requireConn().receipts.create('preview');
-      return (await this.send<GpuPreviewStreamState>({ method:'DELETE',path:`/api/v1/gpu-preview-streams/${enc(streamId)}`,json:{expectedStreamRevision,metadata:toMetadata(receipt)},auth:'access',label:'gpuPreview.close' },receipt)).data;
+      return (await this.send<GpuPreviewStreamState>({ method:'DELETE',path:`/api/v1/gpu-preview-streams/${enc(streamId)}`,json:{expectedStreamRevision,metadata:toMetadata(receipt)},auth:'access',label:'gpuPreview.close', timeoutMs: 60_000 },receipt)).data;
     },
   };
 

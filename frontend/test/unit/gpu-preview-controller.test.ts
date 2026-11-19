@@ -1,7 +1,7 @@
 import {afterEach,beforeEach,expect,it,vi} from 'vitest';
-import {BackendError, type MakoClient} from '../../src/client';
+import {BackendError, OutcomeUnknownError, type MakoClient} from '../../src/client';
 import {revision,type DesktopPreviewBridge,type DesktopPreviewEvent,type GpuPlaybackState,type GpuPreviewCreateInput,type GpuPreviewStreamState,type PreviewStreamApi,type PreviewStreamTransport} from '../../src/protocol';
-import {GpuPreviewController} from '../../src/editor/preview/gpu-preview-controller';
+import {GpuPreviewController, suspendProjectPreviewForClose} from '../../src/editor/preview/gpu-preview-controller';
 
 const deferred=()=>{let resolve!:()=>void;const promise=new Promise<void>(done=>{resolve=done;});return {promise,resolve};};
 beforeEach(()=>vi.stubGlobal('window',{}));
@@ -142,4 +142,94 @@ it('creates cpu stream with shm transport and surfaces explicit PreviewTransport
   await vi.waitFor(()=>expect(blockedController.state$.get().status).toBe('error'));
   expect(blockedController.state$.get().error).toContain('PreviewTransportUnsupported');
   blockedController.dispose();
+});
+
+it('reconciles authoritative orphan streams on OutcomeUnknownError and 409/404 close conflicts',async()=>{
+  const calls:string[]=[];
+  const baseSource={kind:'project' as const,sourceId:'p1',sourceRevision:revision('1')};
+  let serverStream:GpuPreviewStreamState|undefined;
+  let createCalls=0;
+  let replaceCalls=0;
+  let nextRev=1;
+  let attached=false;
+  const client={gpuPreview:{
+    list:async()=>{calls.push('list');return {streams:serverStream?[serverStream]:[],protocolVersion:'1'};},
+    read:async(id:string)=>{calls.push(`read:${id}`);if(!serverStream)throw new BackendError(404,{code:'sessionNotFound',message:'missing',protocolVersion:'1'});return serverStream;},
+    create:async(input:GpuPreviewCreateInput)=>{
+      createCalls++;calls.push(`create:${createCalls}`);
+      serverStream={streamId:`s${createCalls}`,streamRevision:'1',inputGeneration:'1',registrationState:'ready',source:input.source,size:input.size,alphaMode:input.alphaMode,textureAlphaMode:'premultiplied',api:input.api,transport:'shm',producerEpoch:'1',poolGeneration:'1',slotCount:3,allocationBytes:4096,lastAppliedControlSeq:0};
+      if(createCalls===1)throw new OutcomeUnknownError('preview-1',new Error('dropped'));
+      return serverStream;
+    },
+    replaceInput:async(id:string,input:{expectedStreamRevision:string;source:GpuPreviewStreamState['source']})=>{
+      replaceCalls++;calls.push(`replace:${id}`);
+      // Simulate backend committing revision 2 before returning 500 -> OutcomeUnknownError.
+      serverStream={...serverStream!,streamRevision:String(++nextRev),inputGeneration:'2',source:input.source};
+      throw new OutcomeUnknownError('preview-2',new Error('timeout'));
+    },
+    resize:async()=>{throw new Error('unused');},
+    close:async(id:string,expectedStreamRevision:string)=>{
+      calls.push(`close:${id}:${expectedStreamRevision}`);
+      if(!serverStream||serverStream.streamId!==id)throw new BackendError(404,{code:'sessionNotFound',message:'gone',protocolVersion:'1'});
+      if(serverStream.streamRevision!==expectedStreamRevision)throw new BackendError(409,{code:'revisionConflict',message:'conflict',protocolVersion:'1'});
+      serverStream=undefined;
+      return {streamId:id,streamRevision:expectedStreamRevision,inputGeneration:'1',registrationState:'closed',source:baseSource,size:{width:1280,height:720},alphaMode:'opaque',textureAlphaMode:'premultiplied',api:'cpu',transport:'shm',producerEpoch:'1',poolGeneration:'1',slotCount:3,allocationBytes:4096,lastAppliedControlSeq:0};
+    },
+  }} as unknown as MakoClient;
+  const bridge={
+    acceptanceEnabled:async()=>false,consumerId:async()=>'a'.repeat(32),
+    attachPreview:async(id:string,gen:string)=>{calls.push(`attach:${id}:${gen}`);attached=true;},
+    detachPreview:async()=>{calls.push('detach');attached=false;},
+    setPlaybackState:async()=>{if(!attached)throw new Error('not attached');calls.push('playback');return {controlSeq:1};},
+    onPreviewState:()=>()=>{},
+  } as unknown as DesktopPreviewBridge;
+  const controller=new GpuPreviewController(client,'p1',{width:1280,height:720},bridge,undefined,'cpu');
+  controller.show(revision('1'),{mode:'playing',mediaTimeUs:0,rate:1,targetFps:24,timelineResetId:'r1',samplePerformanceMs:performance.now()});
+  await vi.waitFor(()=>expect(calls).toContain('attach:s2:1'));
+  expect(calls).toEqual(['create:1','list','close:s1:1','create:2','attach:s2:1','playback']);
+
+  // OutcomeUnknownError during playback replaceInput also reconciles & recovers cleanly.
+  controller.show(revision('2'),{mode:'playing',mediaTimeUs:500_000,rate:1,targetFps:24,timelineResetId:'r1',samplePerformanceMs:performance.now()});
+  await vi.waitFor(()=>expect(calls).toContain('attach:s3:1'));
+  expect(replaceCalls).toBe(1);
+  expect(controller.state$.get().status).not.toBe('error');
+
+  // Suspends cleanly before project close and flushes desktop close.
+  const resume=await suspendProjectPreviewForClose('p1');
+  expect(calls.at(-1)).toBe('close:s3:1');
+  expect(serverStream).toBeUndefined();
+  resume();
+  controller.dispose();
+  await vi.waitFor(()=>expect(serverStream).toBeUndefined());
+});
+
+it('stops cleanly without looping when authority reports a quarantined stream',async()=>{
+  const calls:string[]=[];
+  const baseSource={kind:'project' as const,sourceId:'p1',sourceRevision:revision('1')};
+  const quarantinedStream:GpuPreviewStreamState={
+    streamId:'sq',streamRevision:'1',inputGeneration:'1',registrationState:'failed',source:baseSource,size:{width:1280,height:720},
+    alphaMode:'opaque',textureAlphaMode:'premultiplied',api:'cpu',transport:'shm',producerEpoch:'1',poolGeneration:'1',slotCount:3,allocationBytes:4096,lastAppliedControlSeq:null,
+    failureCode:'GpuConsumerCompletionUnknown',quarantined:true,
+  };
+  const client={gpuPreview:{
+    list:async()=>{calls.push('list');return {streams:[quarantinedStream],protocolVersion:'1'};},
+    read:async()=>{calls.push('read');return quarantinedStream;},
+    create:async()=>{calls.push('create');throw new BackendError(429,{code:'sessionQuotaExceeded',message:'GPU 流配额已用完。',protocolVersion:'1'});},
+    replaceInput:async()=>{throw new Error('unused');},
+    resize:async()=>{throw new Error('unused');},
+    close:async()=>{calls.push('close');throw new Error('must not close quarantined stream');},
+  }} as unknown as MakoClient;
+  const bridge={
+    acceptanceEnabled:async()=>false,consumerId:async()=>'a'.repeat(32),
+    attachPreview:async()=>{},detachPreview:async()=>{},
+    setPlaybackState:async()=>({controlSeq:1}),onPreviewState:()=>()=>{},
+  } as unknown as DesktopPreviewBridge;
+  const controller=new GpuPreviewController(client,'p1',{width:1280,height:720},bridge,undefined,'cpu');
+  controller.show(revision('1'),{mode:'paused',mediaTimeUs:0,rate:1,targetFps:24,timelineResetId:'r1',samplePerformanceMs:performance.now()});
+  await vi.waitFor(()=>expect(controller.state$.get().status).toBe('error'));
+  expect(controller.state$.get().error).toContain('GpuConsumerCompletionUnknown');
+  controller.retry();
+  await Promise.resolve();
+  expect(calls).toEqual(['create','list']);
+  controller.dispose();
 });

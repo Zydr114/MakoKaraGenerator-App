@@ -23,6 +23,7 @@ import { AppSettings } from './shell/AppSettings';
 import type { CheckFix, SettingsGroup } from './model/export-readiness';
 import { parentPath, suggestDirectoryName } from './model/project-directory';
 import { closeProject, projectLocation, rememberProject, saveProject } from './session/project-files';
+import { flushDesktopPreviewOperations, suspendProjectPreviewForClose } from './preview/gpu-preview-controller';
 import { askCloseUnsaved, DialogHost } from './ui/dialogs';
 import { ToastHost } from './ui/feedback';
 import { useObservableSelector } from './ui/hooks';
@@ -165,10 +166,14 @@ export function App() {
       if (choice === 'save' && !(await save(session))) return;
       if (choice === 'discard') policy = 'discard';
     }
+    let resumePreview: (() => void) | undefined;
     try {
+      resumePreview = await suspendProjectPreviewForClose(session.projectSessionId);
       await closeProject(client, session.projectSessionId, policy);
       leave();
+      await flushDesktopPreviewOperations();
     } catch (error) {
+      resumePreview?.();
       session.notify({ level: 'error', message: `关闭失败：${errorText(error)}` });
     }
   };

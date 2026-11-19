@@ -1,6 +1,6 @@
 # 冻结 API 清单
 
-合同 **1.57.0** · HTTP **1** · 产品 **0.116.0** · 基线 `c8c47a36c529a09cb1d0be594a629cf36aa78a36` · 2026-11-19。
+合同 **1.57.0** · HTTP **1** · 产品 **0.116.0** · 基线 `7411baf5fcd782c3bac18f9a0f130657f61dd966` · 2026-11-19。
 
 执行入口：[行为合同](api-contract.md)；机器规范：[openapi.json](openapi.json)；指纹：[contract-manifest.json](contract-manifest.json)。本表由核对过的路由定义生成，不能手工单独扩表。
 

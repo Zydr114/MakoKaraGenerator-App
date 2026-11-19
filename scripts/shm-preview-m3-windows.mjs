@@ -206,6 +206,11 @@ async function chooseDevice(page, label, partial = false) {
   await page.waitFor(`!document.querySelector('.render-device-menu')`, '渲染设备菜单关闭');
 }
 
+async function collapseRightOverlay(page) {
+  await page.eval(`document.querySelector('.work-rail.right.on[aria-expanded="true"]')?.click()`);
+  await page.waitFor(`!document.querySelector('.work-rail.right.on[aria-expanded="true"]')`, '收起右侧覆盖面板', 5_000);
+}
+
 async function launchDesktopSession(sessionName, port, cdpPort, transportEnv) {
   const env = { ...process.env, MAKO_APP_SHUTDOWN_STDIN: '1' };
   if (transportEnv === undefined) {
@@ -278,6 +283,7 @@ async function runSwitchCase(fixtures, port, cdpPort) {
 
     const beforeInit = (await readPreviewSummary(page)).completed;
     await shell.goto(page, 'appearance');
+    await collapseRightOverlay(page);
     const gpuInitial = await waitForStreamFrame(page, beforeInit, '成片 · GPU · SHM · ', 'shm', 'vulkan');
     assert.equal(gpuInitial.last.counters?.cpuPixelReadbacks, 1);
     assert.ok(Number.isSafeInteger(gpuInitial.last.timings?.renderDurationUs) && gpuInitial.last.timings.renderDurationUs >= 0);
@@ -392,6 +398,7 @@ async function runShmResize30Case(fixtures, port, cdpPort) {
 
     const beforeInit = (await readPreviewSummary(page)).completed;
     await shell.goto(page, 'appearance');
+    await collapseRightOverlay(page);
     const initial = await waitForStreamFrame(page, beforeInit, '成片 · GPU · SHM · ', 'shm', 'vulkan');
     assert.equal(initial.last.counters?.cpuPixelReadbacks, 1);
     await page.waitFor(`!!window.makoGpuPreviewAcceptance`, '验收入口');

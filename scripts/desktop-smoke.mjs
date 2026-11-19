@@ -153,6 +153,12 @@ async function chooseDevice(page, label, partial = false) {
   await page.waitFor(`!document.querySelector('.render-device-menu')`, '菜单关闭');
 }
 
+/** 窄屏 / 高 DPI 下右侧检查器会以覆盖面板浮在预览画布与「GPU 预览规格」上方；若已展开则收起以免遮挡。 */
+async function collapseRightOverlay(page) {
+  await page.eval(`document.querySelector('.work-rail.right.on[aria-expanded="true"]')?.click()`);
+  await page.waitFor(`!document.querySelector('.work-rail.right.on[aria-expanded="true"]')`, '收起右侧覆盖面板', 5_000);
+}
+
 async function screenshot(page, name) {
   const { data } = await page.send('Page.captureScreenshot', { format: 'png' });
   await writeFile(join(out, `${name}.png`), Buffer.from(data, 'base64'));
@@ -200,6 +206,7 @@ async function main() {
     const expectedGpuReadbacks = expectedGpuTransport === 'shm' ? 1 : 0;
     const beforeAppearance = (await readState(page)).drawn;
     await shell.goto(page, 'appearance');
+    await collapseRightOverlay(page);
     let state = await waitFrames(page, beforeAppearance, '外观页', expectedGpuPrefix);
     let probe = await probeCanvas(page);
     check(state.active.size.width === 1280 && state.active.transport === expectedGpuTransport && state.last.provider === 'runtime' && probe.width === 1280 && probe.colors > 2,
@@ -260,6 +267,7 @@ async function main() {
     check(true, '切到歌词页（没有成片预览）后连续预览流关掉');
     const beforeBack = (await readState(page)).drawn;
     await shell.goto(page, 'appearance');
+    await collapseRightOverlay(page);
     state = await waitFrames(page, beforeBack, '回到外观页', expectedGpuPrefix);
     check(!!state.active, '回到外观页重新连上连续预览流并出帧');
 

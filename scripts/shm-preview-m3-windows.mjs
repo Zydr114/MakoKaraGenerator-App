@@ -254,10 +254,12 @@ async function launchDesktopSession(sessionName, port, cdpPort, transportEnv) {
     try {
       await page.eval('window.close()').catch(() => {});
     } catch {}
+    let timer;
     const exitCode = await Promise.race([
       new Promise((done) => (launcher.exitCode !== null ? done(launcher.exitCode) : launcher.once('exit', done))),
-      wait(30_000).then(() => 'timeout'),
+      new Promise((done) => { timer = setTimeout(() => done('timeout'), 30_000); }),
     ]);
+    clearTimeout(timer);
     if (exitCode === 'timeout' && launcher.exitCode === null) {
       stopLauncherGracefully(launcher);
       await new Promise((done) => launcher.once('exit', done));
@@ -554,14 +556,15 @@ async function runDmaBufNoFallbackCase() {
   let innerError = null;
   let result = null;
   try {
-    const caps = await apiReq(null, 'GET', '/api/v1/capabilities');
-    assert.equal(caps.status, 200);
-    const advertisesGpuStreams = Array.isArray(caps.data?.features) && caps.data.features.includes('preview.gpu-streams');
-    assert.equal(advertisesGpuStreams, false, 'Windows with MAKO_PREVIEW_TRANSPORT=dma-buf must NOT advertise preview.gpu-streams');
-
     const reg = await apiReq(null, 'POST', '/api/v1/clients', { protocolVersion: '1' }, { Authorization: `Bearer ${backend.info.bootstrapToken}` });
     assert.equal(reg.status, 201);
     const client = reg.data;
+
+    const caps = await apiReq(client, 'GET', '/api/v1/capabilities');
+    assert.equal(caps.status, 200);
+    assert.ok(Array.isArray(caps.data?.features), 'Capabilities response missing features array');
+    const advertisesGpuStreams = caps.data.features.includes('preview.gpu-streams');
+    assert.equal(advertisesGpuStreams, false, 'Windows with MAKO_PREVIEW_TRANSPORT=dma-buf must NOT advertise preview.gpu-streams');
 
     const projRes = await apiReq(client, 'POST', '/api/v1/project-sessions', { name: 'M3 Windows DMA-BUF Zero Fallback', metadata: metadata() });
     assert.equal(projRes.status, 201);

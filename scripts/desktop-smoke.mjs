@@ -302,10 +302,12 @@ async function main() {
 
   // 关窗：启动器按顺序停掉 Electron、Web 与后端，正常退出，私有启动文件删掉
   void page.eval(`window.close()`).catch(() => {});
+  let exitTimer;
   const code = await Promise.race([
     new Promise((done) => (launcher.exitCode !== null ? done(launcher.exitCode) : launcher.once('exit', done))),
-    wait(60_000).then(() => 'timeout'),
+    new Promise((done) => { exitTimer = setTimeout(() => done('timeout'), 60_000); }),
   ]);
+  clearTimeout(exitTimer);
   cdp.ws.close();
   const runDir = appRuntimePaths(ROOT).run;
   check(code === 0 && log.includes('[app] 自有 Web 与后端进程已停止。'), '关窗后启动器停掉 Electron、Web 与后端，退出码 0');

@@ -2,7 +2,7 @@
   "contractVersion": "1.57.0",
   "httpProtocolVersion": "1",
   "productVersion": "0.116.0",
-  "sourceBaselineCommit": "7ca2b77441d8ed495e392225d896dae5226509d1",
+  "sourceBaselineCommit": "c8c47a36c529a09cb1d0be594a629cf36aa78a36",
   "frozenOn": "2026-11-19",
   "status": "frozen",
   "behaviorSource": "docs/architecture/backend-api.md",
@@ -297,7 +297,7 @@
     "src/MakoKaraGenerator.Backend.Hosting/WorkerProcessProxy.RuntimeValidation.cs": "cfae2375903e3263cb3a0688a0cbad03410a7d05d70d12ec4a03266565490215",
     "src/MakoKaraGenerator.Backend.Hosting/WorkerProcessProxy.SceneMeasurements.cs": "8286c2abf9894f0a3c91182050243a837a42b11be4cd616d68f272f50d434bf4",
     "src/MakoKaraGenerator.Backend.Hosting/WorkerProcessProxy.Scripts.cs": "ef945bd465fb1d3c3247bc47ad1eb6a749c1818d581e9e7c165db740475dd80a",
-    "src/MakoKaraGenerator.Backend.Hosting/WorkerProcessProxy.cs": "d325636a249ca9642c08e7139aaabf3b6d7952c5dc41fc00ea89d13189ec591d",
+    "src/MakoKaraGenerator.Backend.Hosting/WorkerProcessProxy.cs": "cbc2a37e06d73ef75ff1b7dfdd27424e4c92faad4278d852e54c86d14e1dc438",
     "src/MakoKaraGenerator.Backend.Hosting/WorkerRenderFrameSessionFactory.cs": "c15c2ccb57765f7b81f663dddb7676b375fa973afa367207e2d47334fde6e2a4",
     "src/MakoKaraGenerator.Backend.Hosting/WorkerResourceLeaseStore.cs": "9913d094ff921c126974365c23c65b714d32d881128d072acc275239ff3ad8ce",
     "src/MakoKaraGenerator.Backend.Hosting/WorkerTelemetryDrain.cs": "8813597dfec8c83d102ab4c659e246189150af1af701eb298f94fb1b46e38276",
@@ -799,7 +799,7 @@
     "src/MakoKaraGenerator.Text/ShapedLine.cs": "26e27be9b816c4b877f0cb2e4c2e8ff020427887b3bc509dc0c86b43f030ca9f",
     "tools/backend-api-contract/ContractMetadata.csproj": "f1b0c2924cd2f9a979deffada49a2096d6345ffe6e53f06dc0954c781c92cc0e",
     "tools/backend-api-contract/Program.cs": "97bb06e2252c936456c137927b79095ee0a8abde7cbf6408525135d88ad447b6",
-    "tools/backend-api-contract/README.md": "27861e63f536ac4db2d4bb10c440c4de0df493354556766b0e5223ce4dc1e7f7",
+    "tools/backend-api-contract/README.md": "dd82b0d3af878c22f90ba0505bba8cbf72ed9dbac53f1495822ed939236df17f",
     "tools/backend-api-contract/author_metadata_fixtures.py": "c764a8e7a01da7019da73ad0442e405de3542f8bfc283423cc3cff1cbe1b1896",
     "tools/backend-api-contract/author_metadata_schema.py": "e7b14e47d3f4ffee9d919f0494622ddc80edd933eed5e37947831455f2139efe",
     "tools/backend-api-contract/author_replacement_fixtures.py": "a97631f957dc485ed6a0c0579c6737af0fe30031da67b565f1419b9ed9945d88",
@@ -811,7 +811,7 @@
     "tools/backend-api-contract/export_fallback_fixtures.py": "67dc4d9584059461a450ad6883d06fddb538fadcddc2a7af8b2c892ef22bd3ea",
     "tools/backend-api-contract/export_fallback_schema.py": "e1b21f068cce7ba1807a88ad8c503066ed120e6293e1eb4a524af41736f24c15",
     "tools/backend-api-contract/export_request_fixtures.py": "b221f6c1da6ee545b1df3d9c769e5ba8ad8119e8add86004e9b6947fed548321",
-    "tools/backend-api-contract/freeze.py": "9d1cf090a0f7103e42f7863bbe71190ce69dba2d50fb298432e092b61cc24b55",
+    "tools/backend-api-contract/freeze.py": "7e1c54eea07d3347319c9d5d9c93c0613cba4adb923ae4c70d136303584bd687",
     "tools/backend-api-contract/glow_style_fixtures.py": "b571abcdece9844c4e3a2a2d894a98ffce17c017c36345c6cb605653fd10d959",
     "tools/backend-api-contract/gpu_stream_fixtures.py": "8b7b832aa4e1efbd5ce97434ee5e6ed45865016552e08d92cdf0f79bc804fda0",
     "tools/backend-api-contract/lead_in_presentation_fixtures.py": "d7772803d539a648477b0384b087ff4161815e2711f8f6750d003af57eabf1d0",
@@ -859,9 +859,9 @@
   },
   "artifacts": {
     "web/api-contract.md": "0992959e5daed8581d896494ceb232a6d0f2a7c3df51da7a95b35e5adb8c8d7e",
-    "web/api-index.md": "df87007a89bc97f2bbdadc45f2b3a1897d08a955edf0b27bdd1c40767f53a326",
+    "web/api-index.md": "4a903f50d57d23a002df6bc886455c90820c63bf01337082c1689188ab9077fb",
     "web/examples.json": "342cd970e931d11887933ab14838e9e445ae98476592f14c293bb476e389a35c",
-    "web/openapi.json": "28b4f93b941f4fcd5c0b6137942adb188903d8de9f17c8d299911787226e0b0c"
+    "web/openapi.json": "0250bff804405354604831d77e87343ff3714484a87b3369267c65f21c710e82"
   },
   "guards": "Source hashes require review even for behavior-preserving changes. They are drift alarms, not semantic proofs. Runtime/Media behavior still requires existing regression tests."
 }

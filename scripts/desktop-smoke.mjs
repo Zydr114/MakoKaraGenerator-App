@@ -9,6 +9,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
+import { inflateSync } from 'node:zlib';
 import { connectPage } from './gpu-preview-p3.mjs';
 import { shell, ui } from '../frontend/scripts/ui-query.mjs';
 
@@ -42,27 +43,95 @@ async function fixtures() {
 const previewState = `(async () => {
   const s = await window.makoDesktopPreview.readPreviewState();
   return { drawn: s.drawn, completed: s.completedDrawnUnique, outstanding: s.outstanding, peakOutstanding: s.peakOutstanding,
-    active: s.activeStream ? { streamId: s.activeStream.streamId, inputGeneration: s.activeStream.inputGeneration, size: s.activeStream.size } : null,
+    active: s.activeStream ? { streamId: s.activeStream.streamId, inputGeneration: s.activeStream.inputGeneration, size: s.activeStream.size, transport: s.activeStream.transport, api: s.activeStream.api } : null,
     readbacks: s.samples.reduce((n, x) => n + (x.counters?.cpuPixelReadbacks ?? 0), 0), samples: s.samples.length,
-    last: s.samples.at(-1) ? { timeUs: s.samples.at(-1).timeUs, width: s.samples.at(-1).width, height: s.samples.at(-1).height, provider: s.samples.at(-1).provider } : null };
+    last: s.samples.at(-1) ? { timeUs: s.samples.at(-1).timeUs, width: s.samples.at(-1).width, height: s.samples.at(-1).height, provider: s.samples.at(-1).provider, transport: s.samples.at(-1).transport, api: s.samples.at(-1).api, readbacks: s.samples.at(-1).counters?.cpuPixelReadbacks } : null };
 })()`;
 const readState = (page) => page.eval(previewState);
 const title = `(document.querySelector('.preview-panel .preview-title .pane-title-text')?.textContent ?? '')`;
 const gpuCanvas = `document.querySelector('canvas#mako-gpu-preview')`;
 const playhead = `(document.querySelector('.transport-time span')?.textContent ?? '')`;
 
-/** GPU 画面的像素取样：不同颜色数、四角颜色。 */
-const canvasProbe = `(() => {
-  const c = ${gpuCanvas}; if (!c) return null;
-  const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
-  const colors = new Set(); for (let i = 0; i < d.length; i += 4 * 97) colors.add((d[i] << 16) | (d[i + 1] << 8) | d[i + 2]);
-  const at = (x, y) => { const i = (Math.floor(y) * c.width + Math.floor(x)) * 4; return [d[i], d[i + 1], d[i + 2], d[i + 3]]; };
-  return { width: c.width, height: c.height, colors: colors.size, corner: at(4, 4), center: at(c.width / 2, c.height / 2) };
-})()`;
+/** 极简 PNG 解码器（支持 8-bit RGB/RGBA），用于从 CDP 实际合成截图采样 WebGL2 / 2D 画布像素。 */
+function decodePng(buffer) {
+  const sig = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+  if (!buffer.subarray(0, 8).equals(sig)) throw new Error('Invalid PNG signature');
+  let offset = 8, width = 0, height = 0, colorType = 0;
+  const idat = [];
+  while (offset < buffer.length) {
+    const length = buffer.readUInt32BE(offset);
+    const type = buffer.toString('ascii', offset + 4, offset + 8);
+    const data = buffer.subarray(offset + 8, offset + 8 + length);
+    offset += 12 + length;
+    if (type === 'IHDR') {
+      width = data.readUInt32BE(0);
+      height = data.readUInt32BE(4);
+      if (data[8] !== 8) throw new Error(`Unsupported PNG bit depth ${data[8]}`);
+      colorType = data[9];
+    } else if (type === 'IDAT') {
+      idat.push(data);
+    } else if (type === 'IEND') {
+      break;
+    }
+  }
+  const bpp = colorType === 6 ? 4 : colorType === 2 ? 3 : 0;
+  if (!bpp) throw new Error(`Unsupported PNG colorType ${colorType}`);
+  const raw = inflateSync(Buffer.concat(idat));
+  const stride = width * bpp;
+  const pixels = Buffer.alloc(height * stride);
+  const paeth = (a, b, c) => {
+    const p = a + b - c, pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c);
+    return pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+  };
+  for (let y = 0; y < height; y++) {
+    const filter = raw[y * (stride + 1)];
+    const rowIn = y * (stride + 1) + 1;
+    const rowOut = y * stride;
+    for (let x = 0; x < stride; x++) {
+      const val = raw[rowIn + x];
+      const a = x >= bpp ? pixels[rowOut + x - bpp] : 0;
+      const b = y > 0 ? pixels[rowOut - stride + x] : 0;
+      const c = x >= bpp && y > 0 ? pixels[rowOut - stride + x - bpp] : 0;
+      let outVal = val;
+      if (filter === 1) outVal = (val + a) & 0xff;
+      else if (filter === 2) outVal = (val + b) & 0xff;
+      else if (filter === 3) outVal = (val + ((a + b) >> 1)) & 0xff;
+      else if (filter === 4) outVal = (val + paeth(a, b, c)) & 0xff;
+      pixels[rowOut + x] = outVal;
+    }
+  }
+  return { width, height, bpp, pixels };
+}
 
-/** 等 GPU 面板画出新帧：drawn 比 before 多，并且有活动的流。 */
-async function waitFrames(page, before, what, extra = 1) {
-  await page.waitFor(`${gpuCanvas} && ${title}.startsWith('成片 · GPU · 修订')`, `${what}：GPU 面板出帧`, 120_000);
+/** 采样实际展示的画布像素（同时兼容 2D 与 preserveDrawingBuffer=false 的 WebGL2 画布）。 */
+async function probeCanvas(page) {
+  const rect = await page.eval(`(() => {
+    const c = ${gpuCanvas}; if (!c) return null;
+    const r = c.getBoundingClientRect();
+    return { width: c.width, height: c.height, x: r.x, y: r.y, cssW: r.width, cssH: r.height, transport: c.dataset.previewTransport, api: c.dataset.previewApi };
+  })()`);
+  if (!rect || rect.cssW < 4 || rect.cssH < 4) return null;
+  const { data } = await page.send('Page.captureScreenshot', {
+    format: 'png',
+    clip: { x: rect.x, y: rect.y, width: rect.cssW, height: rect.cssH, scale: 1 },
+  });
+  const img = decodePng(Buffer.from(data, 'base64'));
+  const colors = new Set();
+  for (let i = 0; i < img.pixels.length; i += img.bpp * 37) {
+    colors.add((img.pixels[i] << 16) | (img.pixels[i + 1] << 8) | img.pixels[i + 2]);
+  }
+  const at = (nx, ny) => {
+    const x = Math.min(img.width - 1, Math.max(0, Math.floor(nx * img.width)));
+    const y = Math.min(img.height - 1, Math.max(0, Math.floor(ny * img.height)));
+    const idx = (y * img.width + x) * img.bpp;
+    return [img.pixels[idx], img.pixels[idx + 1], img.pixels[idx + 2], img.bpp === 4 ? img.pixels[idx + 3] : 255];
+  };
+  return { width: rect.width, height: rect.height, transport: rect.transport, api: rect.api, colors: colors.size, corner: at(0.03, 0.03), center: at(0.5, 0.5) };
+}
+
+/** 等连续预览面板画出新帧：drawn 比 before 多，并且有活动的流。 */
+async function waitFrames(page, before, what, expectedPrefix = '成片 · GPU · ', extra = 1) {
+  await page.waitFor(`${gpuCanvas} && ${title}.startsWith(${JSON.stringify(expectedPrefix)}) && ${title}.includes('修订 ')`, `${what}：连续预览面板出帧`, 120_000);
   const start = Date.now();
   for (;;) {
     const state = await readState(page);
@@ -109,13 +178,17 @@ async function main() {
     await page.waitFor(`document.querySelector('.transport .play') && !document.querySelector('.transport .play').disabled`, '音频就绪', 60_000);
     check(true, '新建工程（音频 6 秒、歌词 3 行），播放器就绪');
 
-    // 外观页：跟随后端默认时，GPU 可用就走共享纹理
+    // 外观页：跟随后端默认时，Linux 默认走 GPU · DMA-BUF（MAKO_PREVIEW_TRANSPORT=shm 时走 GPU · SHM）
+    const expectedGpuTransport = process.env.MAKO_PREVIEW_TRANSPORT?.trim().toLowerCase() === 'shm' ? 'shm' : 'dma-buf';
+    const expectedGpuPrefix = expectedGpuTransport === 'shm' ? '成片 · GPU · SHM · ' : '成片 · GPU · DMA-BUF · ';
+    const expectedGpuReadbacks = expectedGpuTransport === 'shm' ? 1 : 0;
+    const beforeAppearance = (await readState(page)).drawn;
     await shell.goto(page, 'appearance');
-    let state = await waitFrames(page, (await readState(page)).drawn, '外观页');
-    let probe = await page.eval(canvasProbe);
-    check(state.active.size.width === 1280 && state.last.provider === 'runtime' && probe.width === 1280 && probe.colors > 2,
-      `外观页默认走 GPU 共享纹理：${state.active.size.width}×${state.active.size.height}，画面有内容（取样 ${probe.colors} 种颜色）`);
-    check(state.readbacks === 0 && state.peakOutstanding <= 3, `每帧没有 CPU 像素回读，在途帧最多 ${state.peakOutstanding} 张（上限 3）`);
+    let state = await waitFrames(page, beforeAppearance, '外观页', expectedGpuPrefix);
+    let probe = await probeCanvas(page);
+    check(state.active.size.width === 1280 && state.active.transport === expectedGpuTransport && state.last.provider === 'runtime' && probe.width === 1280 && probe.colors > 2,
+      `外观页默认走 GPU · ${expectedGpuTransport.toUpperCase()}：${state.active.size.width}×${state.active.size.height}，画面有内容（取样 ${probe.colors} 种颜色）`);
+    check(state.last.readbacks === expectedGpuReadbacks && state.peakOutstanding <= 3, `单帧回读计数 ${state.last.readbacks}（预期 ${expectedGpuReadbacks}），在途帧最多 ${state.peakOutstanding} 张（上限 3）`);
     await screenshot(page, '1-appearance-gpu');
 
     // 播放 2 秒：帧持续到达，时刻往前走
@@ -133,7 +206,7 @@ async function main() {
     for (const type of ['mousePressed', 'mouseReleased']) await page.send('Input.dispatchMouseEvent', { type, x: point.x, y: point.y, button: 'left', clickCount: 1 });
     await page.waitFor(`${title}.endsWith(${playhead})`, '画面时刻等于播放头', 30_000);
     const seekText = await page.eval(playhead);
-    check(seekText !== '' && (await page.eval(title)).endsWith(seekText), `暂停时拖动播放头到 ${seekText}，GPU 画面跟到同一时刻`);
+    check(seekText !== '' && (await page.eval(title)).endsWith(seekText), `暂停时拖动播放头到 ${seekText}，画面跟到同一时刻`);
 
     // 编辑：改背景色，流换成新修订的输入，画面跟着变
     const revisionBefore = await page.eval(`${title}.match(/修订 (\\d+)/)?.[1]`);
@@ -141,9 +214,14 @@ async function main() {
     await page.waitFor(`!!window.makoGpuPreviewAcceptance`, '验收入口');
     await page.eval(`window.makoGpuPreviewAcceptance.setBackground(200, 30, 40, 255)`);
     await page.waitFor(`(${title}.match(/修订 (\\d+)/)?.[1] ?? ${revisionBefore}) !== ${JSON.stringify(revisionBefore)}`, '画面换成新修订', 60_000);
-    await page.waitFor(`(() => { const p = ${canvasProbe}; return p && Math.abs(p.corner[0] - 200) <= 3 && Math.abs(p.corner[1] - 30) <= 3 && Math.abs(p.corner[2] - 40) <= 3; })()`, '背景变成新颜色', 30_000);
+    const bgDeadline = Date.now() + 30_000;
+    for (;;) {
+      probe = await probeCanvas(page);
+      if (probe && Math.abs(probe.corner[0] - 200) <= 6 && Math.abs(probe.corner[1] - 30) <= 6 && Math.abs(probe.corner[2] - 40) <= 6) break;
+      if (Date.now() > bgDeadline) throw new Error(`背景未变成新颜色：${JSON.stringify(probe)}`);
+      await wait(150);
+    }
     state = await readState(page);
-    probe = await page.eval(canvasProbe);
     check(state.active.inputGeneration !== generationBefore, `改背景色后流换成新输入（修订 ${revisionBefore} → ${await page.eval(`${title}.match(/修订 (\\d+)/)?.[1]`)}），画面角上是新背景 rgb(${probe.corner.slice(0, 3).join(', ')})`);
     await screenshot(page, '2-appearance-edited');
 
@@ -151,35 +229,41 @@ async function main() {
     const before1440 = (await readState(page)).drawn;
     await ui.choose(page, 'GPU 预览规格', '1440p · 30 fps');
     await page.waitFor(`${gpuCanvas}?.width === 2560`, '1440p 画面', 60_000);
-    state = await waitFrames(page, before1440, '1440p');
+    state = await waitFrames(page, before1440, '1440p', expectedGpuPrefix);
     check(state.active.size.width === 2560 && state.active.size.height === 1440 && state.last.width === 2560, '规格换成 1440p · 30 fps 后重建 2560×1440 的流并出帧');
     await ui.choose(page, 'GPU 预览规格', '720p · 24 fps');
 
-    // 切页：编排页也走 GPU；歌词页没有预览，流关掉；回外观页重新出帧
+    // 切页：编排页也走连续预览；歌词页没有预览，流关掉；回外观页重新出帧
+    const beforeOrch = (await readState(page)).drawn;
     await shell.goto(page, 'orchestration');
-    state = await waitFrames(page, (await readState(page)).drawn, '编排页');
-    check(!!state.active, '编排页的成片预览也走 GPU 共享纹理并出帧');
+    state = await waitFrames(page, beforeOrch, '编排页', expectedGpuPrefix);
+    check(!!state.active, '编排页的成片预览也走连续预览流并出帧');
     await screenshot(page, '3-orchestration-gpu');
     await shell.goto(page, 'lyrics');
     await page.waitFor(`(async () => !(await window.makoDesktopPreview.readPreviewState()).activeStream)()`, '离开预览页后流关掉', 30_000);
-    check(true, '切到歌词页（没有成片预览）后 GPU 流关掉');
+    check(true, '切到歌词页（没有成片预览）后连续预览流关掉');
+    const beforeBack = (await readState(page)).drawn;
     await shell.goto(page, 'appearance');
-    state = await waitFrames(page, (await readState(page)).drawn, '回到外观页');
-    check(!!state.active, '回到外观页重新连上 GPU 流并出帧');
+    state = await waitFrames(page, beforeBack, '回到外观页', expectedGpuPrefix);
+    check(!!state.active, '回到外观页重新连上连续预览流并出帧');
 
-    // 明确选 CPU：退回静态预览；改回跟随默认：又走 GPU
+    // 明确选 CPU：切换至 CPU · SHM 连续预览（并经 key=transport 隔离 Canvas 上下文）；改回跟随默认恢复 GPU 流
+    const beforeCpu = (await readState(page)).drawn;
     await chooseDevice(page, 'CPU');
-    await page.waitFor(`!!document.querySelector('.preview-frame img') && ${title}.startsWith('成片 · CPU')`, 'CPU 静态预览', 120_000);
-    await page.waitFor(`(async () => !(await window.makoDesktopPreview.readPreviewState()).activeStream)()`, 'GPU 流关掉', 30_000);
-    check(!(await page.eval(gpuCanvas)), '渲染设备选 CPU 后退回 PNG 静态预览，GPU 流关掉');
+    state = await waitFrames(page, beforeCpu, 'CPU · SHM 连续预览', '成片 · CPU · SHM · ');
+    probe = await probeCanvas(page);
+    check(state.active.api === 'cpu' && state.active.transport === 'shm' && state.last.readbacks === 1 && probe && probe.colors > 2,
+      `渲染设备选 CPU 后切到 CPU · SHM 连续预览且无 Canvas 上下文冲突（取样 ${probe?.colors} 种颜色）`);
+    await screenshot(page, '4-appearance-cpu-shm');
+    const beforeGpu = (await readState(page)).drawn;
     await chooseDevice(page, '跟随后端默认', true);
-    state = await waitFrames(page, (await readState(page)).drawn, '改回跟随默认');
-    check(!!state.active, '改回跟随后端默认后又走 GPU 共享纹理');
+    state = await waitFrames(page, beforeGpu, '改回跟随默认', expectedGpuPrefix);
+    check(!!state.active && state.active.api === 'vulkan' && state.active.transport === expectedGpuTransport, `改回跟随后端默认后恢复 GPU · ${expectedGpuTransport.toUpperCase()} 连续预览`);
 
     // 关窗前的确认：工程没保存时页面会拦下 beforeunload（主进程据此弹窗问）
     check((await page.eval(`!window.dispatchEvent(new Event('beforeunload', { cancelable: true }))`)) === true, '工程有未保存的修改时，关窗前的 beforeunload 被拦下（会弹窗确认）');
     state = await readState(page);
-    check(state.readbacks === 0 && state.peakOutstanding <= 3, `全程 ${state.drawn} 帧都没有 CPU 像素回读，在途帧最多 ${state.peakOutstanding} 张`);
+    check(state.peakOutstanding <= 3, `全程 ${state.drawn} 帧在途帧最多 ${state.peakOutstanding} 张（上限 3）`);
     await shell.closeProject(page);
     check((await page.eval(`!window.dispatchEvent(new Event('beforeunload', { cancelable: true }))`)) === false, '关闭工程后关窗不再拦');
   } catch (error) {

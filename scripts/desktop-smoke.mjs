@@ -225,9 +225,10 @@ async function main() {
 
     // 暂停后拖动：画面停在播放头的时刻
     await wait(500);
+    const beforeSeek = await page.eval(playhead);
     const point = await page.eval(`(() => { const r = document.querySelector('canvas[aria-label="时间轴"]').getBoundingClientRect(); return { x: r.x + r.width * 0.15, y: r.y + 8 }; })()`);
     for (const type of ['mousePressed', 'mouseReleased']) await page.send('Input.dispatchMouseEvent', { type, x: point.x, y: point.y, button: 'left', clickCount: 1 });
-    await page.waitFor(`${title}.endsWith(${playhead})`, '画面时刻等于播放头', 30_000);
+    await page.waitFor(`${playhead} !== ${JSON.stringify(beforeSeek)} && ${title}.endsWith(${playhead})`, '画面时刻等于播放头', 30_000);
     const seekText = await page.eval(playhead);
     check(seekText !== '' && (await page.eval(title)).endsWith(seekText), `暂停时拖动播放头到 ${seekText}，画面跟到同一时刻`);
 

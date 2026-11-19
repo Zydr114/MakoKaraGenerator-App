@@ -796,14 +796,17 @@ export class MakoClient extends Emitter<MakoClientEvents> {
      * 真实 Worker 同帧测量（1.24.0）：同一次采样的元素几何与 PNG。只读，没有 metadata、回执与历史；
      * 后端全局并发 2、每个客户端 1，单次最长 20 秒。
      */
-    measureScene: async (projectSessionId: string, request: SceneMeasurementRequest): Promise<SceneMeasurementResponse> => {
+    measureScene: async (projectSessionId: string, request: SceneMeasurementRequest, signal?: AbortSignal): Promise<SceneMeasurementResponse> => {
+      signal?.throwIfAborted();
       const { data } = await this.send<SceneMeasurementResponse>({
         method: 'POST',
         path: `/api/v1/project-sessions/${enc(projectSessionId)}/orchestration/measurements`,
         json: request,
         auth: 'access',
         label: 'projects.measureScene',
+        ...(signal ? { signal } : {}),
       });
+      signal?.throwIfAborted();
       this.queue.observeRevision(projectSessionId, data.projectRevision);
       return data;
     },

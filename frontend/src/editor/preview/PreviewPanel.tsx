@@ -203,15 +203,16 @@ function GpuPreviewPanel(props: Parameters<typeof StaticPreviewPanel>[0]) {
   },[]);
   useEffect(()=>{
     if(!available)return;
-    const next=new GpuPreviewController(client,props.session.projectSessionId,size,window.makoDesktopPreview!,async(red,green,blue,alpha)=>{
+    const next=new GpuPreviewController(client,props.session.projectSessionId,undefined,window.makoDesktopPreview!,async(red,green,blue,alpha)=>{
       const response=await props.session.command({type:'composition.setBackgroundColor',red,green,blue,alpha});
       if(!response)throw new Error('Background edit rejected');
       return {sourceRevision:response.projectRevision};
     },api);
     setController(next);
     return()=>next.dispose();
-  },[available,props.session,size,api]);
+  },[available,props.session,api]);
   useEffect(()=>{controller?.setEnabled(visible&&!props.replacement);},[controller,visible,props.replacement]);
+  useEffect(()=>{controller?.setSize(size);},[controller,size]);
   useEffect(()=>onMediaFeaturesChanged(props.session.projectSessionId,()=>controller?.refreshInput()),[controller,props.session]);
   useEffect(()=>{
     if(!controller)return;

@@ -179,6 +179,30 @@ describe('MakoClient 初始化', () => {
   });
 });
 
+describe('MakoClient 场景测量', () => {
+  it('取消信号传到 fetch，取消后的回执不更新已知修订', async () => {
+    const fake = createFakeFetch();
+    installFakeBackend(fake);
+    const client = await connect(fake);
+    const path = '/api/v1/project-sessions/p1/orchestration/measurements';
+    let reply!: (response: Response) => void;
+    fake.route('POST', path, () => new Promise<Response>((resolve) => { reply = resolve; }));
+    const abort = new AbortController();
+    const knownRevision = client.projects.knownRevision('p1');
+    const result = client.projects.measureScene('p1', {
+      expectedRevision: revision('7'), mode: 'layout', timeUs: null, width: 320, height: 180, alphaMode: 'opaque',
+    }, abort.signal);
+    const sent = fake.calls.find((call) => call.path === path);
+    expect(sent?.signal?.aborted).toBe(false);
+
+    abort.abort();
+    expect(sent?.signal?.aborted).toBe(true);
+    reply(json(200, { projectRevision: '7' }));
+    await expect(result).rejects.toMatchObject({ name: 'AbortError' });
+    expect(client.projects.knownRevision('p1')).toBe(knownRevision);
+  });
+});
+
 describe('MakoClient 预览会话配额', () => {
   const still = (signal?: AbortSignal) => ({
     source: { kind: 'savedTemplate' as const, libraryId: 'builtin' as const, libraryRevision: '1', templateId: 't', templateRevision: '1' },

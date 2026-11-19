@@ -249,13 +249,15 @@ async function main() {
     check(state.active.inputGeneration !== generationBefore, `改背景色后流换成新输入（修订 ${revisionBefore} → ${await page.eval(`${title}.match(/修订 (\\d+)/)?.[1]`)}），画面角上是新背景 rgb(${probe.corner.slice(0, 3).join(', ')})`);
     await screenshot(page, '2-appearance-edited');
 
-    // 规格换成 1440p30：重建 2560×1440 的流
-    const before1440 = (await readState(page)).drawn;
-    await ui.choose(page, 'GPU 预览规格', '1440p · 30 fps');
-    await page.waitFor(`${gpuCanvas}?.width === 2560`, '1440p 画面', 60_000);
-    state = await waitFrames(page, before1440, '1440p', expectedGpuPrefix);
-    check(state.active.size.width === 2560 && state.active.size.height === 1440 && state.last.width === 2560, '规格换成 1440p · 30 fps 后重建 2560×1440 的流并出帧');
-    await ui.choose(page, 'GPU 预览规格', '720p · 24 fps');
+    for (const [label, width, height] of [['1440p · 30 fps', 2560, 1440], ['720p · 24 fps', 1280, 720]]) {
+      const beforeResize = await readState(page);
+      await ui.choose(page, 'GPU 预览规格', label);
+      await page.waitFor(`${gpuCanvas}?.width === ${width}`, `${label} 画面`, 60_000);
+      state = await waitFrames(page, beforeResize.drawn, label, expectedGpuPrefix);
+      check(state.active.streamId === beforeResize.active.streamId && state.active.inputGeneration !== beforeResize.active.inputGeneration
+        && state.active.size.width === width && state.active.size.height === height && state.last.width === width,
+      `规格换成 ${label} 后同一条流换代并出帧`);
+    }
 
     // 切页：编排页也走连续预览；歌词页没有预览，流关掉；回外观页重新出帧
     const beforeOrch = (await readState(page)).drawn;
@@ -263,6 +265,13 @@ async function main() {
     state = await waitFrames(page, beforeOrch, '编排页', expectedGpuPrefix);
     check(!!state.active, '编排页的成片预览也走连续预览流并出帧');
     await screenshot(page, '3-orchestration-gpu');
+    await ui.click(page, 'button', '布局参考', { scope: '.canvasbar' });
+    await ui.click(page, 'button', '时间预览', { scope: '.canvasbar' });
+    await ui.click(page, 'button', '布局参考', { scope: '.canvasbar' });
+    await page.waitFor(`${title}.startsWith('布局参考 · 修订 ') && document.querySelector('.orchestration .preview-frame img')?.naturalWidth > 0`, '重新切入后布局测量出图', 30_000);
+    check(true, '快速切换画布模式后布局测量出图');
+    await ui.click(page, 'button', '时间预览', { scope: '.canvasbar' });
+    await page.waitFor(`${title}.startsWith(${JSON.stringify(expectedGpuPrefix)}) && ${title}.includes('修订 ')`, '回到时间预览后恢复出帧', 60_000);
     await shell.goto(page, 'lyrics');
     await page.waitFor(`(async () => !(await window.makoDesktopPreview.readPreviewState()).activeStream)()`, '离开预览页后流关掉', 30_000);
     check(true, '切到歌词页（没有成片预览）后连续预览流关掉');

@@ -12,6 +12,10 @@ export interface GpuPreviewViewState {
 }
 interface Want { revision: Revision; playback: GpuPlaybackState }
 
+function sameSize(actual: PreviewSize | undefined, desired: PreviewSize): boolean {
+  return actual?.width === desired.width && actual.height === desired.height;
+}
+
 class QuarantinedStreamError extends Error {
   constructor(failureCode?: string | null) {
     super(
@@ -115,7 +119,7 @@ export class GpuPreviewController {
     if(this.timings.length>128)this.timings.shift();
   }
   private readonly unsubscribe: () => void;
-  constructor(private readonly client: MakoClient, private readonly projectSessionId: string, private size: PreviewSize, private readonly bridge: DesktopPreviewBridge,
+  constructor(private readonly client: MakoClient, private readonly projectSessionId: string, private size: PreviewSize | undefined, private readonly bridge: DesktopPreviewBridge,
     private readonly acceptanceEdit?: (red:number,green:number,blue:number,alpha:number)=>Promise<{sourceRevision:Revision}>,
     private readonly api: PreviewStreamApi = 'vulkan') {
     this.state$.set({ status: 'idle', api });
@@ -136,7 +140,7 @@ export class GpuPreviewController {
       if(event.streamId!==undefined&&(!current||event.streamId!==current.streamId||event.producerEpoch!==current.producerEpoch||event.inputGeneration!==current.inputGeneration))return;
       if(event.diagnostics)this.state$.set({...this.state$.get(),diagnostics:event.diagnostics});
       if(event.type==='failed'){this.blocked=true;this.needsRecreate=true;this.needsReconcile=true;this.state$.set({...this.state$.get(),status:'error',error:event.code??'连续预览失败'});}
-      if(event.type==='drawn'&&current&&event.streamId===current.streamId&&event.producerEpoch===current.producerEpoch&&event.inputGeneration===current.inputGeneration&&event.timelineResetId===this.want?.playback.timelineResetId&&event.timeUs!==undefined){
+      if(event.type==='drawn'&&this.attached&&current&&event.streamId===current.streamId&&event.producerEpoch===current.producerEpoch&&event.inputGeneration===current.inputGeneration&&event.timelineResetId===this.want?.playback.timelineResetId&&event.timeUs!==undefined){
         this.state$.set({status:'ready',api:current.api,transport:current.transport,frameRevision:current.source.sourceRevision as Revision,frameTimeUs:event.timeUs,...(event.diagnostics?{diagnostics:event.diagnostics}:{})});
       }
     });
@@ -144,26 +148,22 @@ export class GpuPreviewController {
   matchesProject(projectSessionId: string): boolean { return !this.disposed && this.projectSessionId === projectSessionId; }
   isEnabled(): boolean { return this.enabled; }
   show(revision: Revision, playback: GpuPlaybackState): void {if(this.disposed)return;this.want={revision,playback};this.pump();}
+  setSize(size: PreviewSize): void {if(this.disposed||sameSize(this.size,size))return;this.size=size;this.pump();}
   setEnabled(value: boolean): void {if(this.enabled===value)return;this.enabled=value;this.sent=undefined;this.pump();}
   retry(): void {if(this.disposed||this.quarantined)return;this.blocked=false;this.sent=undefined;this.pump();}
   /** 背景媒体特征分析推进：按同一修订替换固定输入。 */
   refreshInput(): void {if(this.disposed||!this.stream)return;this.inputStale=true;this.sent=undefined;this.pump();}
   dispose(): void {this.disposed=true;activeControllers.delete(this);this.unsubscribe();if(acceptanceOwner===this){acceptanceOwner=undefined;delete window.makoGpuPreviewAcceptance;}this.pump();}
-  private resizeForAcceptance(width:number,height:number):Promise<GpuPreviewStreamState> {
-    if(!Number.isInteger(width)||!Number.isInteger(height)||width<64||height<64||width>2560||height>1440)return Promise.reject(new Error('Invalid acceptance preview size'));
-    const task=desktopOperations.then(async()=>{
-      if(this.disposed||!this.enabled||!this.stream)throw new Error('No active acceptance preview');
-      await this.detachIfAttached();
-      this.stream=await this.client.gpuPreview.resize(this.stream.streamId,{expectedStreamRevision:this.stream.streamRevision,size:{width,height}});
-      this.inputEffective('resize-response');
-      this.size={width,height};this.sent=undefined;
-      if(this.disposed||!this.enabled){await this.close();throw new Error('Acceptance panel closed during resize');}
-      await this.bridge.attachPreview(this.stream.streamId,this.stream.inputGeneration);this.attached=true;
-      return this.stream;
-    });
-    desktopOperations=task.then(()=>{},()=>{});
-    void task.finally(()=>this.pump()).catch(()=>{});
-    return task;
+  private async resizeForAcceptance(width:number,height:number):Promise<GpuPreviewStreamState> {
+    if(!Number.isInteger(width)||!Number.isInteger(height)||width<64||height<64||width>2560||height>1440)throw new Error('Invalid acceptance preview size');
+    if(this.disposed||!this.enabled||!this.stream)throw new Error('No active acceptance preview');
+    const size={width,height};
+    this.setSize(size);
+    await flushDesktopPreviewOperations();
+    if(this.disposed||!this.enabled)throw new Error('Acceptance panel closed during resize');
+    if(this.blocked)throw new Error(this.state$.get().error??'Acceptance resize failed');
+    if(!this.stream||!this.attached||!sameSize(this.stream.size,size))throw new Error('Acceptance resize was superseded');
+    return this.stream;
   }
   private pump(): void {
     if(this.running)return;
@@ -252,9 +252,11 @@ export class GpuPreviewController {
       for(;;){
         try{
           for(;;){
+            if(this.quarantined)return;
             if(this.disposed||!this.enabled){
               if(this.needsReconcile){await this.reconcileAuthority();this.needsReconcile=false;this.needsRecreate=false;}
               else{await this.close();this.needsRecreate=false;}
+              if(!this.disposed&&this.enabled)continue;
               return;
             }
             if(this.needsReconcile){
@@ -266,41 +268,54 @@ export class GpuPreviewController {
               this.needsRecreate=false;
             }
             const want=this.want;
-            if(!want||this.blocked||this.sent===want)return;
+            const size=this.size;
+            if(!want||!size||this.blocked)return;
             if(!this.stream){
               this.state$.set({...this.state$.get(),status:'rendering',api:this.api});
               const consumerId=await this.bridge.consumerId();
+              if(this.disposed||!this.enabled||this.size!==size||this.want?.revision!==want.revision)continue;
               // This is the full composition preview. Straight alpha requests a
               // transparent lyrics layer and deliberately omits the project background.
-              this.stream=await this.client.gpuPreview.create({source:{kind:'project',sourceId:this.projectSessionId,sourceRevision:want.revision},size:this.size,alphaMode:'opaque',api:this.api,consumerId});
+              this.stream=await this.client.gpuPreview.create({source:{kind:'project',sourceId:this.projectSessionId,sourceRevision:want.revision},size,alphaMode:'opaque',api:this.api,consumerId});
               this.inputEffective('create-response');
-              const previousTransport=this.state$.get().transport;
-              this.state$.set({...this.state$.get(),status:'rendering',api:this.stream.api,transport:this.stream.transport});
-              if(this.disposed||!this.enabled)continue;
-              // Ensure <canvas key={transport}> has committed before attaching the consumer.
-              if(previousTransport!==this.stream.transport){await nextAnimationFrame();if(this.disposed||!this.enabled)continue;}
-              await this.bridge.attachPreview(this.stream.streamId,this.stream.inputGeneration);
-              this.attached=true;
-            }else if(this.stream.source.sourceRevision!==want.revision||this.inputStale){
-              this.inputStale=false;
+            }else if(this.stream.source.sourceRevision!==want.revision||this.inputStale||!sameSize(this.stream.size,size)){
+              this.sent=undefined;
               await this.detachIfAttached();
-              this.stream=await this.client.gpuPreview.replaceInput(this.stream.streamId,{expectedStreamRevision:this.stream.streamRevision,source:{kind:'project',sourceId:this.projectSessionId,sourceRevision:want.revision}});
-              this.inputEffective('input-replacement-response');
-              this.state$.set({...this.state$.get(),api:this.stream.api,transport:this.stream.transport});
-              if(this.disposed||!this.enabled)continue;
-              await this.bridge.attachPreview(this.stream.streamId,this.stream.inputGeneration);
+              if(this.disposed||!this.enabled||this.blocked||this.size!==size||this.want?.revision!==want.revision)continue;
+              if(this.stream.source.sourceRevision!==want.revision||this.inputStale){
+                this.inputStale=false;
+                this.stream=await this.client.gpuPreview.replaceInput(this.stream.streamId,{expectedStreamRevision:this.stream.streamRevision,source:{kind:'project',sourceId:this.projectSessionId,sourceRevision:want.revision}});
+                this.inputEffective('input-replacement-response');
+              }else{
+                const { api, transport }=this.stream;
+                this.state$.set({status:'rendering',api,transport});
+                this.stream=await this.client.gpuPreview.resize(this.stream.streamId,{expectedStreamRevision:this.stream.streamRevision,size});
+                this.inputEffective('resize-response');
+              }
+            }
+            const stream=this.stream;
+            if(this.disposed||!this.enabled||this.blocked||this.size!==size||!sameSize(stream.size,size)||stream.source.sourceRevision!==this.want?.revision||this.inputStale)continue;
+            if(!this.attached){
+              const previousTransport=this.state$.get().transport;
+              this.state$.set({...this.state$.get(),api:stream.api,transport:stream.transport});
+              // Ensure <canvas key={transport}> has committed before attaching the consumer.
+              if(previousTransport!==stream.transport){
+                await nextAnimationFrame();
+                if(this.disposed||!this.enabled||this.blocked||this.size!==size||stream.source.sourceRevision!==this.want?.revision||this.inputStale)continue;
+              }
+              await this.bridge.attachPreview(stream.streamId,stream.inputGeneration);
               this.attached=true;
             }
-            if(this.disposed||!this.enabled)continue;
             // A newer UI state can supersede this snapshot during an HTTP operation.
-            if(this.want!==want)continue;
+            if(this.disposed||!this.enabled||this.blocked||this.size!==size||this.want!==want||this.inputStale)continue;
+            if(this.sent===want)return;
             await this.bridge.setPlaybackState(freshPlayback(want.playback));
             this.sent=want;
           }
         }catch(error){
-          if(error instanceof QuarantinedStreamError){
+          if(error instanceof QuarantinedStreamError||(error instanceof BackendError&&error.failureCode&&QUARANTINED_FAILURE_CODES.has(error.failureCode))){
             this.blocked=true;this.quarantined=true;this.needsRecreate=false;this.needsReconcile=false;
-            this.applyErrorState(error.message);
+            this.applyErrorState(error instanceof QuarantinedStreamError?error.message:new QuarantinedStreamError(error.failureCode).message);
             return;
           }
           if(!this.disposed&&this.enabled&&!autoRecovered&&isAuthorityAmbiguousError(error)){

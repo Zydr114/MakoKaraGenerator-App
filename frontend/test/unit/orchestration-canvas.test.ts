@@ -1,5 +1,5 @@
 // 编排页画布与属性（W4 第六批）：画布几何、属性的换算与命令、同帧测量。
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BackendError, type MakoClient } from '../../src/client';
 import { buildOrchestration } from '../../src/editor/model/orchestration';
 import {
@@ -384,39 +384,47 @@ describe('属性的换算与命令', () => {
 // ── 同帧测量 ──
 
 describe('同帧测量', () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
   const want = (patch: Partial<MeasurementWant> = {}): MeasurementWant => ({ mode: 'time', revision: revision('3'), timeUs: 1_500_000, width: 320, height: 180, ...patch });
   const problem = (status: number, code: string) => new BackendError(status, { code, message: code, protocolVersion: '1' });
 
   function setup(device?: RenderBackendRequest) {
     const requests: SceneMeasurementRequest[] = [];
-    const pending: { resolve: (r: SceneMeasurementResponse) => void; reject: (e: unknown) => void }[] = [];
+    const pending: { signal: AbortSignal; resolve: (r: SceneMeasurementResponse) => void; reject: (e: unknown) => void }[] = [];
     const client = {
       projects: {
-        measureScene: (_id: string, request: SceneMeasurementRequest) =>
+        measureScene: (_id: string, request: SceneMeasurementRequest, signal: AbortSignal) =>
           new Promise<SceneMeasurementResponse>((resolve, reject) => {
             requests.push(request);
-            pending.push({ resolve, reject });
+            pending.push({ signal, resolve, reject });
           }),
       },
     } as unknown as MakoClient;
-    const controller = new SceneMeasurementController(client, 'p1', { retryDelayMs: 0, ...(device ? { device } : {}) });
+    const controller = new SceneMeasurementController(client, 'p1', device ? { device } : undefined);
     const reply = (i: number) =>
       pending[i]!.resolve({ projectSessionId: 'p1', projectRevision: requests[i]!.expectedRevision, measurement: { ...measurement([]), png: btoa('PNG') }, protocolVersion: '1' });
     return { controller, requests, pending, reply };
   }
-  const settle = () => new Promise((r) => setTimeout(r, 5));
+  const settle = () => vi.advanceTimersByTimeAsync(0);
 
-  it('同时只有一个请求；在途时来的几次只测最新的；与上次成功的相同就不再测；time 带时刻字符串，layout 是 null 并给出 PNG', async () => {
-    const { controller, requests, reply } = setup();
+  it('重复请求不取消；新请求取消旧测量，只发最新且忽略旧回执；layout 给出 PNG', async () => {
+    const { controller, requests, pending, reply } = setup();
     controller.measure(want());
+    controller.measure(want());
+    expect(pending[0]!.signal.aborted).toBe(false);
     controller.measure(want({ timeUs: 2_000_000 }));
     controller.measure(want({ timeUs: 2_500_000 }));
+    expect(pending[0]!.signal.aborted).toBe(true);
     expect(requests).toHaveLength(1);
     expect(requests[0]).toEqual({ expectedRevision: '3', mode: 'time', timeUs: '1500000', width: 320, height: 180, alphaMode: 'opaque' });
     expect(controller.state.status).toBe('measuring');
     reply(0);
     await settle();
     expect(requests.map((r) => r.timeUs)).toEqual(['1500000', '2500000']);
+    expect(controller.state.result).toBeUndefined();
+    expect(pending[1]!.signal.aborted).toBe(false);
     reply(1);
     await settle();
     expect(controller.state).toMatchObject({ status: 'ready', result: { want: want({ timeUs: 2_500_000 }) } });
@@ -441,7 +449,35 @@ describe('同帧测量', () => {
     controller.dispose();
   });
 
-  it('409 等下一次，不算错误；429 稍后重试一次，再失败写明原因并保留上一份结果；413、Worker 不可用各有说明', async () => {
+  it('切回已有结果时取消在途请求，恢复就绪且不重新测量', async () => {
+    const { controller, requests, pending, reply } = setup();
+    controller.measure(want());
+    reply(0);
+    await settle();
+    controller.measure(want({ timeUs: 2_000_000 }));
+    controller.measure(want());
+    expect(pending[1]!.signal.aborted).toBe(true);
+    pending[1]!.reject(problem(429, 'requestQuotaExceeded'));
+    await settle();
+    expect(controller.state).toMatchObject({ status: 'ready', result: { want: want() } });
+    expect(vi.getTimerCount()).toBe(0);
+    expect(requests).toHaveLength(2);
+    controller.dispose();
+  });
+
+  it('销毁时取消在途请求，不发布旧回执也不接受新请求', async () => {
+    const { controller, requests, pending, reply } = setup();
+    controller.measure(want({ mode: 'layout', timeUs: null }));
+    controller.dispose();
+    expect(pending[0]!.signal.aborted).toBe(true);
+    controller.measure(want());
+    reply(0);
+    await settle();
+    expect(controller.state.result).toBeUndefined();
+    expect(requests).toHaveLength(1);
+  });
+
+  it('409 等下一次，不算错误；其他状态不按 429 退避', async () => {
     const { controller, requests, pending, reply } = setup();
     controller.measure(want());
     reply(0);
@@ -453,17 +489,65 @@ describe('同帧测量', () => {
     expect(controller.state.error).toBeUndefined();
 
     controller.measure(want({ revision: revision('5') }));
-    pending[2]!.reject(problem(429, 'requestQuotaExceeded'));
+    pending[2]!.reject(problem(503, 'requestQuotaExceeded'));
     await settle();
-    expect(requests).toHaveLength(4);
-    pending[3]!.reject(problem(429, 'requestQuotaExceeded'));
-    await settle();
-    expect(controller.state).toMatchObject({ status: 'error', error: '测量请求太多，稍后再试。', result: { want: want() } });
+    expect(controller.state).toMatchObject({ status: 'error', error: '画面测量暂时不可用。', result: { want: want() } });
+    expect(vi.getTimerCount()).toBe(0);
+    expect(requests).toHaveLength(3);
 
     expect(measurementFailureText(problem(413, 'resourceTooLarge'))).toBe('画面太复杂，不能测量。');
     expect(measurementFailureText(problem(422, 'taskUnavailable'))).toBe('画面测量暂时不可用。');
     expect(measurementFailureText(new Error('断开'))).toBe('测量失败：断开');
     expect(sameWant(want(), want({ width: 640 }))).toBe(false);
     controller.dispose();
+  });
+
+  it('429 按 1、2、4 秒只重试三次，失败后保留上一份结果', async () => {
+    const { controller, requests, pending, reply } = setup();
+    controller.measure(want());
+    reply(0);
+    await settle();
+    const latest = want({ revision: revision('4') });
+    controller.measure(latest);
+    for (const [index, delay] of [1_000, 2_000, 4_000].entries()) {
+      pending[index + 1]!.reject(problem(429, 'requestQuotaExceeded'));
+      await settle();
+      controller.measure(latest);
+      await vi.advanceTimersByTimeAsync(delay - 1);
+      expect(requests).toHaveLength(index + 2);
+      expect(controller.state.status).toBe('measuring');
+      await vi.advanceTimersByTimeAsync(1);
+      expect(requests).toHaveLength(index + 3);
+    }
+    pending[4]!.reject(problem(429, 'requestQuotaExceeded'));
+    await settle();
+    expect(controller.state).toMatchObject({ status: 'error', error: '测量请求太多，稍后再试。', result: { want: want() } });
+    expect(vi.getTimerCount()).toBe(0);
+    expect(requests.slice(1).map((request) => request.expectedRevision)).toEqual(['4', '4', '4', '4']);
+    controller.dispose();
+  });
+
+  it('新的测量不等待旧请求的退避，销毁也会清除退避计时器', async () => {
+    const { controller, requests, pending } = setup();
+    controller.measure(want());
+    pending[0]!.reject(problem(429, 'requestQuotaExceeded'));
+    await settle();
+    expect(vi.getTimerCount()).toBe(1);
+
+    controller.measure(want({ timeUs: 2_000_000 }));
+    expect(pending[0]!.signal.aborted).toBe(true);
+    await settle();
+    expect(requests.map((request) => request.timeUs)).toEqual(['1500000', '2000000']);
+    expect(vi.getTimerCount()).toBe(0);
+
+    pending[1]!.reject(problem(429, 'requestQuotaExceeded'));
+    await settle();
+    expect(vi.getTimerCount()).toBe(1);
+    controller.dispose();
+    expect(pending[1]!.signal.aborted).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(7_000);
+    expect(requests).toHaveLength(2);
+    expect(controller.state.error).toBeUndefined();
   });
 });

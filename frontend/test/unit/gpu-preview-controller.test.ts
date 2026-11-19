@@ -1,23 +1,35 @@
 import {afterEach,beforeEach,expect,it,vi} from 'vitest';
 import {BackendError, OutcomeUnknownError, type MakoClient} from '../../src/client';
 import {revision,type DesktopPreviewBridge,type DesktopPreviewEvent,type GpuPlaybackState,type GpuPreviewCreateInput,type GpuPreviewStreamState,type PreviewStreamApi,type PreviewStreamTransport} from '../../src/protocol';
-import {GpuPreviewController, suspendProjectPreviewForClose} from '../../src/editor/preview/gpu-preview-controller';
+import {flushDesktopPreviewOperations, GpuPreviewController, suspendProjectPreviewForClose} from '../../src/editor/preview/gpu-preview-controller';
 
 const deferred=()=>{let resolve!:()=>void;const promise=new Promise<void>(done=>{resolve=done;});return {promise,resolve};};
 beforeEach(()=>vi.stubGlobal('window',{}));
 afterEach(()=>{vi.restoreAllMocks();vi.unstubAllGlobals();});
-function fixture(options:{createGate?:Promise<void>;replaceGate?:Promise<void>;onCreate?:()=>void;onReplace?:()=>void;createError?:()=>Error|undefined;replaceFails?:()=>boolean;acceptanceEnabled?:boolean;transportFor?:(api:PreviewStreamApi)=>PreviewStreamTransport}={}){
+function fixture(options:{createGate?:Promise<void>;replaceGate?:Promise<void>;resizeGate?:Promise<void>;onCreate?:()=>void;onReplace?:()=>void;createError?:()=>Error|undefined;replaceFails?:()=>boolean;resizeUnknown?:boolean;resizeError?:BackendError;acceptanceEnabled?:boolean;transportFor?:(api:PreviewStreamApi)=>PreviewStreamTransport}={}){
   const calls:string[]=[];let nextId=0;let attached=false;
   const creates:GpuPreviewCreateInput[]=[];
+  const resizes:{expectedStreamRevision:string;size:GpuPreviewStreamState['size']}[]=[];
+  const closes:{id:string;expectedStreamRevision:string}[]=[];
   const streams=new Map<string,GpuPreviewStreamState>();
   const listeners=new Set<(event:DesktopPreviewEvent)=>void>();
   const playbackStates:GpuPlaybackState[]=[];
   const state=(id:string,source:GpuPreviewStreamState['source'],generation='1',alphaMode:GpuPreviewStreamState['alphaMode']='opaque',api:PreviewStreamApi='vulkan'):GpuPreviewStreamState=>({streamId:id,streamRevision:generation,inputGeneration:generation,registrationState:'ready',source,size:{width:1280,height:720},alphaMode,textureAlphaMode:'premultiplied',api,transport:options.transportFor?.(api)??(api==='cpu'?'shm':'dma-buf'),producerEpoch:generation,poolGeneration:'1',slotCount:3,allocationBytes:4096,lastAppliedControlSeq:0});
   const client={gpuPreview:{
-    create:async(input:GpuPreviewCreateInput)=>{calls.push(`create:${input.source.sourceId}`);creates.push(input);options.onCreate?.();await options.createGate;const err=options.createError?.();if(err)throw err;const next=state(`s${++nextId}`,input.source,'1',input.alphaMode,input.api);streams.set(next.streamId,next);return next;},
-    replaceInput:async(id:string,input:{source:GpuPreviewStreamState['source']})=>{calls.push(`replace:${id}`);options.onReplace?.();await options.replaceGate;if(options.replaceFails?.())throw new Error('replace failed');const prev=streams.get(id)!;const next=state(id,input.source,'2',prev.alphaMode,prev.api);streams.set(id,next);return next;},
-    resize:async(id:string,input:{size:GpuPreviewStreamState['size']})=>{calls.push(`resize:${id}`);const next={...streams.get(id)!,streamRevision:'3',inputGeneration:'3',size:input.size};streams.set(id,next);return next;},
-    close:async(id:string)=>{calls.push(`close:${id}`);},
+    create:async(input:GpuPreviewCreateInput)=>{calls.push(`create:${input.source.sourceId}`);creates.push(input);options.onCreate?.();await options.createGate;const err=options.createError?.();if(err)throw err;const next={...state(`s${++nextId}`,input.source,'1',input.alphaMode,input.api),size:input.size};streams.set(next.streamId,next);return next;},
+    replaceInput:async(id:string,input:{source:GpuPreviewStreamState['source']})=>{calls.push(`replace:${id}`);options.onReplace?.();await options.replaceGate;if(options.replaceFails?.())throw new Error('replace failed');const prev=streams.get(id)!;const next={...state(id,input.source,'2',prev.alphaMode,prev.api),size:prev.size};streams.set(id,next);return next;},
+    resize:async(id:string,input:typeof resizes[number])=>{
+      calls.push(`resize:${id}`);resizes.push(input);await options.resizeGate;
+      if(options.resizeError)throw options.resizeError;
+      const prev=streams.get(id)!;
+      const generation=String(Number(prev.inputGeneration)+1);
+      const next={...prev,streamRevision:String(Number(prev.streamRevision)+1),inputGeneration:generation,producerEpoch:generation,size:input.size};
+      streams.set(id,next);
+      if(options.resizeUnknown)throw new OutcomeUnknownError('resize-1',new Error('dropped response'));
+      return next;
+    },
+    list:async()=>{calls.push('list');return {streams:[...streams.values()],protocolVersion:'1'};},
+    close:async(id:string,expectedStreamRevision:string)=>{calls.push(`close:${id}`);closes.push({id,expectedStreamRevision});streams.delete(id);},
   }} as unknown as MakoClient;
   const bridge={
     acceptanceEnabled:async()=>options.acceptanceEnabled??false,consumerId:async()=>'a'.repeat(32),
@@ -27,9 +39,9 @@ function fixture(options:{createGate?:Promise<void>;replaceGate?:Promise<void>;o
     onPreviewState:(listener:(event:DesktopPreviewEvent)=>void)=>{listeners.add(listener);return()=>listeners.delete(listener);},
   } as unknown as DesktopPreviewBridge;
   const make=(id='p1',api:PreviewStreamApi='vulkan')=>new GpuPreviewController(client,id,{width:1280,height:720},bridge,undefined,api);
-  const show=(controller:GpuPreviewController,rev='1')=>controller.show(revision(rev),{mode:'paused',mediaTimeUs:0,rate:1,targetFps:24,timelineResetId:'reset',samplePerformanceMs:performance.now()});
+  const show=(controller:GpuPreviewController,rev='1',targetFps=24)=>controller.show(revision(rev),{mode:'paused',mediaTimeUs:0,rate:1,targetFps,timelineResetId:'reset',samplePerformanceMs:performance.now()});
   const samples:number[]=[];
-  return {calls,creates,streams,make,show,samples,playbackStates,emit:(event:DesktopPreviewEvent)=>listeners.forEach(listener=>listener(event))};
+  return {calls,creates,resizes,closes,streams,make,show,samples,playbackStates,emit:(event:DesktopPreviewEvent)=>listeners.forEach(listener=>listener(event))};
 }
 it('requests opaque composition preview and retains mode across revision replacement and resize',async()=>{
   const f=fixture({acceptanceEnabled:true});const controller=f.make();f.show(controller);
@@ -48,6 +60,101 @@ it('requests opaque composition preview and retains mode across revision replace
   }finally{
     controller.dispose();await vi.waitFor(()=>expect(f.calls).toContain('close:s1'));
   }
+});
+it.each(['vulkan','cpu'] as const)('resizes the same %s stream and resumes playback at the selected fps',async(api)=>{
+  const f=fixture({transportFor:()=> 'shm'});const controller=f.make('p1',api);f.show(controller);
+  try{
+    await flushDesktopPreviewOperations();
+    const size={width:2560,height:1440};
+    controller.setSize(size);
+    f.show(controller,'1',30);
+    await flushDesktopPreviewOperations();
+    expect(f.resizes).toEqual([{expectedStreamRevision:'1',size}]);
+    expect(f.calls).toEqual(['create:p1','attach:s1:1','playback','detach','resize:s1','attach:s1:2','playback']);
+    expect(f.playbackStates.map(state=>state.targetFps)).toEqual([24,30]);
+    expect(f.streams.get('s1')).toMatchObject({size,api,transport:'shm',inputGeneration:'2'});
+    f.emit({type:'drawn',streamId:'s1',producerEpoch:'1',inputGeneration:'1',timelineResetId:'reset',timeUs:500});
+    expect(controller.state$.get().status).toBe('rendering');
+    f.emit({type:'drawn',streamId:'s1',producerEpoch:'2',inputGeneration:'2',timelineResetId:'reset',timeUs:600});
+    expect(controller.state$.get()).toMatchObject({status:'ready',frameTimeUs:600});
+    controller.setSize({...size});
+    await flushDesktopPreviewOperations();
+    expect(f.resizes).toHaveLength(1);
+    expect(f.playbackStates).toHaveLength(2);
+  }finally{
+    controller.dispose();await flushDesktopPreviewOperations();
+  }
+});
+it('coalesces rapid size changes and only attaches the latest generation',async()=>{
+  const gate=deferred();const f=fixture({resizeGate:gate.promise});const controller=f.make();f.show(controller);
+  try{
+    await flushDesktopPreviewOperations();
+    const high={width:2560,height:1440}, low={width:1280,height:720};
+    controller.setSize(high);
+    f.show(controller,'1',30);
+    await vi.waitFor(()=>expect(f.calls).toContain('resize:s1'));
+    controller.setSize(low);
+    controller.setSize(high);
+    controller.setSize(low);
+    f.show(controller,'1',24);
+    gate.resolve();
+    await flushDesktopPreviewOperations();
+    expect(f.resizes).toEqual([{expectedStreamRevision:'1',size:high},{expectedStreamRevision:'2',size:low}]);
+    expect(f.calls).toEqual(['create:p1','attach:s1:1','playback','detach','resize:s1','resize:s1','attach:s1:3','playback']);
+    expect(f.playbackStates.map(state=>state.targetFps)).toEqual([24,24]);
+  }finally{
+    gate.resolve();controller.dispose();await flushDesktopPreviewOperations();
+  }
+});
+it.each([false,true])('disposes during resize without reattaching (unknown outcome: %s)',async(resizeUnknown)=>{
+  const gate=deferred();const f=fixture({resizeGate:gate.promise,resizeUnknown});const old=f.make();f.show(old);
+  let next:GpuPreviewController|undefined;
+  try{
+    await flushDesktopPreviewOperations();
+    old.setSize({width:2560,height:1440});
+    await vi.waitFor(()=>expect(f.calls).toContain('resize:s1'));
+    old.dispose();next=f.make('p2');f.show(next);
+    gate.resolve();
+    await flushDesktopPreviewOperations();
+    expect(f.closes).toEqual([{id:'s1',expectedStreamRevision:'2'}]);
+    expect(f.calls).toEqual(['create:p1','attach:s1:1','playback','detach','resize:s1',...(resizeUnknown?['list']:[]),'close:s1','create:p2','attach:s2:1','playback']);
+  }finally{
+    gate.resolve();if(next)next.dispose();else old.dispose();await flushDesktopPreviewOperations();
+  }
+});
+it('reconciles an unknown resize before recovering at the latest desired size',async()=>{
+  const gate=deferred();const f=fixture({resizeGate:gate.promise,resizeUnknown:true});const controller=f.make();f.show(controller);
+  try{
+    await flushDesktopPreviewOperations();
+    controller.setSize({width:2560,height:1440});
+    await vi.waitFor(()=>expect(f.calls).toContain('resize:s1'));
+    const latest={width:1920,height:1080};
+    controller.setSize(latest);
+    f.show(controller,'1',30);
+    gate.resolve();
+    await flushDesktopPreviewOperations();
+    expect(f.resizes).toHaveLength(1);
+    expect(f.closes).toEqual([{id:'s1',expectedStreamRevision:'2'}]);
+    expect(f.calls).toEqual(['create:p1','attach:s1:1','playback','detach','resize:s1','list','close:s1','create:p1','attach:s2:1','playback']);
+    expect(f.creates.at(-1)?.size).toEqual(latest);
+    expect(f.playbackStates.at(-1)?.targetFps).toBe(30);
+  }finally{
+    gate.resolve();controller.dispose();await flushDesktopPreviewOperations();
+  }
+});
+it('does not retry or close a stream explicitly quarantined during resize',async()=>{
+  const resizeError=new BackendError(503,{code:'previewUnavailable',message:'quarantined',failureCode:'GpuStreamOpenQuarantined',protocolVersion:'1'});
+  const f=fixture({resizeError});const controller=f.make();f.show(controller);
+  try{
+    await flushDesktopPreviewOperations();
+    controller.setSize({width:2560,height:1440});
+    await flushDesktopPreviewOperations();
+    expect(controller.state$.get().error).toContain('GpuStreamOpenQuarantined');
+    controller.retry();
+  }finally{
+    controller.dispose();await flushDesktopPreviewOperations();
+  }
+  expect(f.calls).toEqual(['create:p1','attach:s1:1','playback','detach','resize:s1']);
 });
 it('unmount during create closes its eventual unclaimed stream before the next panel creates',async()=>{
   const gate=deferred();const f=fixture({createGate:gate.promise});const old=f.make();f.show(old);

@@ -245,8 +245,7 @@ async function launchDesktopSession(sessionName, port, cdpPort, transportEnv) {
   });
   await page.waitFor(shell.connected, '连接 Server', 30_000);
   if (await page.eval(`localStorage.getItem('mako.renderBackend') !== null`)) {
-    await page.eval(`localStorage.removeItem('mako.renderBackend'); location.reload();`);
-    await page.waitFor(shell.connected, '重置设备偏好后重新连接 Server', 30_000);
+    await chooseDevice(page, '跟随后端默认', true);
   }
 
   async function closeAll() {

@@ -405,6 +405,7 @@ async function startBackendProcess(options = {}) {
     });
     child.on('exit', (code, signal) => {
       exitCode = code ?? (signal ? 128 : null);
+      log(`[backend] WEB_BACKEND_STOPPED ${JSON.stringify({ exitCode, runDirectory: runDir })}`);
       serverLogStream.end();
       resolveExit(exitCode);
     });

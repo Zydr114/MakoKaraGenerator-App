@@ -4,7 +4,7 @@ import {createRequire} from 'node:module';
 import {resolve,join} from 'node:path';
 import {parseArgs} from 'node:util';
 import {Cdp,Page} from '../frontend/scripts/cdp.mjs';
-import {getProcessIdentity} from './process-identity.mjs';
+import {getProcessIdentity,getProcessIdentities} from './process-identity.mjs';
 const require=createRequire(import.meta.url);
 const appPaths=require('../desktop/runtime/app-paths.cjs');
 const privateFs=require('../desktop/runtime/private-fs.cjs');
@@ -31,7 +31,7 @@ try{
   invariant(['paused','playing'].includes(values.mode),'Expected paused or playing mode');
   await page.eval(values.mode==='paused'?`document.querySelector('[aria-label="暂停"]')?.click()`:`document.querySelector('[aria-label="播放"]')?.click()`);
   const before=await until(async()=>{const s=await sample();return s.activeStream&&s.mediaClock?.mode===values.mode&&(!values.scenario.endsWith('-loss')||s.outstanding>=1)?s:false;});report.before=before;invariant(before.activeStream&&before.completedDrawnUnique>0,'Requires a real, drawn production GPU stream');
-  report.ownedIdentities=await Promise.all([...new Set([before.mainPid,before.workerPid,before.rendererPid,...before.processes.map(p=>p.pid)])].map(proc));
+  report.ownedIdentities=await getProcessIdentities([...new Set([before.mainPid,before.workerPid,before.rendererPid,...before.processes.map(p=>p.pid)])]);
   if(values.scenario==='hidden'){
     await page.eval('window.makoDesktopPreview.setAcceptanceVisibility(false)');
     const hidden=await until(async()=>{const s=await sample();return s.visibility==='hidden'&&!s.activeStream&&s.outstanding===0?s:false;});
@@ -64,7 +64,8 @@ try{
       const pid=values.scenario==='renderer-loss'?before.rendererPid:before.workerPid;
       const owned=report.ownedIdentities.find(p=>p.pid===pid),current=await proc(pid);
       invariant(owned&&!current.exited&&current.startTicks===owned.startTicks,'External target process identity changed');
-      report.externalKill={target:current,observedBeforeKillMonotonicNs:process.hrtime.bigint().toString(),acknowledgedAtObservation:before.acknowledgedUnique,outstandingAtObservation:before.outstanding};
+      const preKill=await until(async()=>{const s=await sample();return s.activeStream&&s.outstanding>=1?s:false;},5000);
+      report.externalKill={target:current,observedBeforeKillMonotonicNs:process.hrtime.bigint().toString(),acknowledgedAtObservation:preKill.acknowledgedUnique,outstandingAtObservation:preKill.outstanding};
       process.kill(pid,'SIGKILL');
       report.evidenceBoundary='External exact-owned-PID SIGKILL exercises production automatic loss handling. The previous CDP observation precedes kill and detection; it is not an exact loss-time ACK baseline. Native completion remains unknown.';
     }else{

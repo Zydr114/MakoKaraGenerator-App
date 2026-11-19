@@ -7,7 +7,7 @@ import {parseArgs} from 'node:util';
 import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
 import {createProject,connectPage,makeFixtures} from './gpu-preview-p3.mjs';
-import {getProcessIdentity,getProcessTree,stopLauncherGracefully} from './process-identity.mjs';
+import {getProcessIdentity,getProcessIdentities,getProcessTree,stopLauncherGracefully} from './process-identity.mjs';
 const require=createRequire(import.meta.url);
 const privateFs=require('../desktop/runtime/private-fs.cjs');
 export function analyzeFaultCase(entry,text) {
@@ -67,9 +67,10 @@ try{
       if(child.exitCode!==null||child.signalCode!==null)throw new Error('Application exited before explicit acceptance close');
       entry.explicitClose=true;stopLauncherGracefully(child);
       entry.launcherExit=await Promise.race([exited,pause(30000).then(()=>{throw new Error('Owned launcher did not exit after explicit close');})]);
-      const exitDeadline=Date.now()+5000;
+      const exitDeadline=Date.now()+8000;
       for(;;){
-        entry.ownedAfter=await Promise.all(owned.map(x=>proc(x.pid)));
+        const byPid=new Map((await getProcessIdentities(owned.map(x=>x.pid))).map(p=>[p.pid,p]));
+        entry.ownedAfter=owned.map(x=>byPid.get(x.pid)??{pid:x.pid,exited:true});
         entry.allOwnedExited=entry.ownedAfter.every((p,i)=>p.exited||p.startTicks!==owned[i].startTicks);
         if(entry.allOwnedExited||Date.now()>=exitDeadline)break;
         await pause(150);

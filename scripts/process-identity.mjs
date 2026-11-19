@@ -68,6 +68,33 @@ export async function getProcessIdentity(pid) {
   throw new Error(`Unsupported platform for process identity: ${process.platform}`);
 }
 
+export async function getProcessIdentities(pids) {
+  const unique = [...new Set(pids)].filter((pid) => Number.isSafeInteger(pid) && pid >= 1);
+  if (unique.length === 0) return [];
+  if (process.platform !== 'win32') {
+    return Promise.all(unique.map((pid) => getProcessIdentity(pid)));
+  }
+  const script = [
+    "$ProgressPreference = 'SilentlyContinue'",
+    `$ids = @(${unique.join(',')})`,
+    '$wmi = @{}',
+    'foreach ($item in @(Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId)) { $wmi[[int]$item.ProcessId] = [int]$item.ParentProcessId }',
+    '$out = [System.Collections.Generic.List[object]]::new()',
+    'foreach ($id in $ids) {',
+    '  try {',
+    '    $p = Get-Process -Id $id -ErrorAction Stop',
+    '    $ppid = if ($wmi.ContainsKey($id)) { $wmi[$id] } else { 0 }',
+    '    $out.Add(@{ pid = [int]$id; parentPid = $ppid; startTicks = $p.StartTime.ToFileTimeUtc().ToString(); state = "R" })',
+    '  } catch {',
+    '    $out.Add(@{ pid = [int]$id; exited = $true })',
+    '  }',
+    '}',
+    'ConvertTo-Json -InputObject @($out) -Compress',
+  ].join('\n');
+  const list = await runPowerShellJson(script);
+  return Array.isArray(list) ? list : list ? [list] : [];
+}
+
 export async function getProcessMetrics(pid) {
   if (!Number.isSafeInteger(pid) || pid < 1) return { pid, exited: true };
   if (process.platform === 'linux') {

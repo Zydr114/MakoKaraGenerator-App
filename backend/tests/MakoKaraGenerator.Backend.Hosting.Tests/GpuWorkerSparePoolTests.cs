@@ -121,6 +121,26 @@ public sealed class GpuWorkerSparePoolTests
     }
 
     [Fact]
+    public async Task DeviceInspectionWaitsForRetiringSlotsAsync()
+    {
+        var fixture = new Fixture();
+        await using var pool = fixture.Create();
+        var first = await pool.AcquireAsync(); await Until(() => pool.Read().Spare == 1);
+        var second = await pool.AcquireAsync();
+        fixture.StopRelease = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task firstRetiring = first.DisposeAsync().AsTask();
+        Task secondRetiring = second.DisposeAsync().AsTask();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var inspection = pool.InspectReadyAsync((worker, _) => Task.FromResult(worker.Id), deadline.Token);
+        bool wasWaiting = !inspection.IsCompleted;
+        fixture.StopRelease.SetResult();
+        await Task.WhenAll(firstRetiring, secondRetiring);
+        Assert.True(wasWaiting);
+        Assert.True(await inspection > second.Worker.Id);
+        Assert.InRange(fixture.MaximumLive, 1, 2);
+    }
+
+    [Fact]
     public async Task OpeningInspectionCancellationAsync()
     {
         var f = new Fixture { HoldWarmup = true }; await using var pool = f.Create();
@@ -205,6 +225,7 @@ public sealed class GpuWorkerSparePoolTests
         internal int MaximumLive, WarmFailures;
         internal bool HoldWarmup;
         internal TaskCompletionSource? WarmupRelease;
+        internal TaskCompletionSource? StopRelease;
         internal GpuWorkerSparePool<Worker> Create() => new("deployment-A", () =>
         {
             lock (Workers)
@@ -217,11 +238,12 @@ public sealed class GpuWorkerSparePoolTests
             if (HoldWarmup) await Task.Delay(Timeout.Infinite, token);
             if (WarmupRelease is not null) await WarmupRelease.Task.WaitAsync(token);
             if (Interlocked.Decrement(ref WarmFailures) >= 0) throw new IOException("warmup failed");
-        }, worker =>
+        }, async worker =>
         {
             worker.StopCount++;
+            if (StopRelease is not null) await StopRelease.Task;
             if (worker.StopFails) throw new IOException("exact owned exit unconfirmed");
-            worker.Alive = false; return Task.CompletedTask;
+            worker.Alive = false;
         }, worker => worker.Alive, timeProvider: Time);
     }
 }

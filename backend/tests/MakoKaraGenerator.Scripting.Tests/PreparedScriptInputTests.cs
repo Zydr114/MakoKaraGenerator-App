@@ -114,6 +114,22 @@ public sealed class PreparedScriptInputTests
     }
 
     [Fact]
+    public async Task Windows短时共享冲突不会使清理失败()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using TemporaryDirectory root = new(); var identity = ScriptCompilationIdentity.ForDeployment(References);
+        using var prepared = ScriptPreparedInputCodec.Prepare("source"u8.ToArray(), root.Path, identity, []);
+        string inputRoot = Metadata(prepared.Envelope)["Root"]!.GetValue<string>();
+        using var locked = File.Open(Path.Combine(inputRoot, "source.bin"), FileMode.Open, FileAccess.Read, FileShare.Read);
+        Assert.ThrowsAny<IOException>(() => File.Delete(Path.Combine(inputRoot, "source.bin")));
+        var delete = Task.Factory.StartNew(prepared.Dispose, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        await Task.Delay(40);
+        locked.Dispose();
+        await delete;
+        Assert.False(Directory.Exists(inputRoot));
+    }
+
+    [Fact]
     public async Task PE与清单协同篡改仍不匹配可信封包描述()
     {
         using TemporaryDirectory root = new(); var compiler = new ScriptCompiler(References);

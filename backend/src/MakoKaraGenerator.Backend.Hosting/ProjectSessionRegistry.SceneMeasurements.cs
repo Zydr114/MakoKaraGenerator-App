@@ -114,7 +114,7 @@ public sealed partial class ProjectSessionRegistry
         catch (WorkerProtocolException error) { return BackendOperationResult<SceneMeasurementResponse>.Rejected(MeasurementFailure(error)); }
         catch (Exception error) when (error is IOException or InvalidOperationException or System.ComponentModel.Win32Exception)
         { return BackendOperationResult<SceneMeasurementResponse>.Rejected(new(BackendErrorCode.TaskUnavailable, "受管理测量Worker不可用。", FailureCode: "SceneMeasurementWorkerFailed")); }
-        finally { try { preparedInput?.Dispose(); runtimeLease?.Dispose(); candidateReference?.Dispose(); } finally { ReleaseMeasurement(clientId); } }
+        finally { ReleaseMeasurementInputs(clientId, preparedInput, runtimeLease, candidateReference); }
     }
 
     private async Task<ProjectCommandExecutionResult> ExecuteLeadInAttachmentAsync(string clientId, ProjectSession session, ProjectCommandRequest request,
@@ -199,7 +199,23 @@ public sealed partial class ProjectSessionRegistry
         catch (WorkerProtocolException error) { return ProjectCommandExecutionResult.Rejected(MeasurementFailure(error)); }
         catch (Exception error) when (error is IOException or InvalidOperationException or System.ComponentModel.Win32Exception)
         { return ProjectCommandExecutionResult.Rejected(new(BackendErrorCode.TaskUnavailable, "受管理测量Worker不可用。", FailureCode: "SceneMeasurementWorkerFailed")); }
-        finally { try { preparedInput?.Dispose(); runtimeLease?.Dispose(); } finally { ReleaseMeasurement(clientId); } }
+        finally { ReleaseMeasurementInputs(clientId, preparedInput, runtimeLease); }
+    }
+
+    private void ReleaseMeasurementInputs(string clientId, params IDisposable?[] inputs)
+    {
+        try
+        {
+            foreach (var input in inputs)
+            {
+                try { input?.Dispose(); }
+                catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+                {
+                    Console.Error.WriteLine($"BACKEND_SCENE_MEASUREMENT_CLEANUP_FAILED type={error.GetType().Name} hresult={error.HResult:X8}");
+                }
+            }
+        }
+        finally { ReleaseMeasurement(clientId); }
     }
 
     private static async Task<WorkerSceneMeasurementOutput> MeasureCapturedAsync(ProjectSession.SceneMeasurementCapture capture,

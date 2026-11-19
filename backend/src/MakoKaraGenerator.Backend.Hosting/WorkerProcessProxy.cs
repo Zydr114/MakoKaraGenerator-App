@@ -943,7 +943,7 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
     private async Task StopProcessAsync(CancellationToken cancellationToken = default)
     {
         Process? process = _process;
-        if (process is null) { ReleasePreparedScriptInputs(); return; }
+        if (process is null) { ReleasePreparedScriptInputs(processExited: true); return; }
         bool reaped = false;
         try
         {
@@ -1004,7 +1004,7 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
                 _packageResourceVerifiedProcess = null; _packageSessionProcess = null;
                 _imagePreviewVerifiedProcess = null; _runtimeInputVerifiedProcess = null; _packageSessionOpenKind = null;
                 VerifiedRenderBackendDevice = null;
-                ReleasePreparedScriptInputs();
+                ReleasePreparedScriptInputs(processExited: true);
             }
         }
 

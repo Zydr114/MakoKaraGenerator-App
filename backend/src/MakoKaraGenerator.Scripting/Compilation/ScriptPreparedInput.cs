@@ -63,8 +63,19 @@ public sealed class ScriptPreparedInputLease : IDisposable
         lock (_gate)
         {
             if (_root is not { } root) return;
-            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
-            _root = null;
+            for (int attempt = 0; ; attempt++)
+            {
+                try { Directory.Delete(root, recursive: true); }
+                catch (DirectoryNotFoundException) { }
+                catch (Exception error) when (OperatingSystem.IsWindows() && attempt < 3 &&
+                    error is (IOException or UnauthorizedAccessException))
+                {
+                    Thread.Sleep(25 * (attempt + 1));
+                    continue;
+                }
+                _root = null;
+                return;
+            }
         }
     }
 }

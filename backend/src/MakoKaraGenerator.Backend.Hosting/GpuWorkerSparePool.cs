@@ -94,20 +94,18 @@ public sealed class GpuWorkerSparePool<TWorker> : IAsyncDisposable where TWorker
         }
     }
 
-    /// <summary>只在已准备的现有进程上读取设备状态；不取得业务绑定权、不创建额外进程。</summary>
+    /// <summary>只在池内已准备的进程上读取设备状态；不取得业务绑定权、不创建池外进程。</summary>
     public async Task<TResult> InspectReadyAsync<TResult>(Func<TWorker, CancellationToken, Task<TResult>> inspect,
         CancellationToken token = default)
     {
         while (true)
         {
-            Slot[] candidates; Task[] opening;
+            Slot[] candidates;
             lock (_gate)
             {
                 ObjectDisposedException.ThrowIf(_disposed, this);
-                candidates = _slots.Where(s => s.Configuration == _configurationIdentity &&
-                    s.State is State.Spare or State.Bound && s.Ready.Task.IsCompletedSuccessfully && _alive(s.Worker)).ToArray();
-                opening = _slots.Where(s => s.Configuration == _configurationIdentity &&
-                    s.State is State.Opening or State.Bound && !s.Ready.Task.IsCompleted).Select(s => s.Ready.Task).ToArray();
+                token.ThrowIfCancellationRequested();
+                candidates = _slots.Where(IsInspectable).ToArray();
             }
             foreach (var slot in candidates)
             {
@@ -124,9 +122,31 @@ public sealed class GpuWorkerSparePool<TWorker> : IAsyncDisposable where TWorker
                 catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
                 catch { /* A concurrent retirement cannot provide current device proof. */ }
             }
-            if (opening.Length == 0) throw new InvalidOperationException("没有同部署存活的已准备 GPU Worker。");
-            await Task.WhenAny(opening).WaitAsync(token).ConfigureAwait(false);
+            Slot? reserved = null;
+            Task[] pending;
+            lock (_gate)
+            {
+                ObjectDisposedException.ThrowIf(_disposed, this);
+                if (_slots.Any(slot => !candidates.Contains(slot) && IsInspectable(slot))) continue;
+                pending = _slots.Where(slot => slot.Configuration == _configurationIdentity &&
+                    slot.State is State.Opening or State.Bound && !slot.Ready.Task.IsCompleted).Select(slot => slot.Ready.Task).ToArray();
+                if (pending.Length == 0 && !BackingOff())
+                {
+                    if (_spare is null && _slots.Count < 2) reserved = Reserve(bound: false);
+                    else pending = _slots.Where(slot => slot.State == State.Retiring).Select(ObserveRetirementAsync).ToArray();
+                }
+            }
+            if (reserved is not null)
+            {
+                Start(reserved);
+                await reserved.Ready.Task.WaitAsync(token).ConfigureAwait(false);
+            }
+            else if (pending.Length != 0) await Task.WhenAny(pending).WaitAsync(token).ConfigureAwait(false);
+            else throw new InvalidOperationException("没有同部署存活的已准备 GPU Worker。");
         }
+
+        bool IsInspectable(Slot slot) => slot.Configuration == _configurationIdentity &&
+            slot.State is State.Spare or State.Bound && slot.Ready.Task.IsCompletedSuccessfully && _alive(slot.Worker);
     }
 
     /// <summary>部署／配置内容身份改变只淘汰未绑定备用；已使用对象不会变成新配置备用。</summary>

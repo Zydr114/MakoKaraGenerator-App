@@ -103,6 +103,11 @@ public sealed partial class WorkerProcessProxy
             else
             {
                 try { input.Dispose(); }
+                catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+                {
+                    owner.RetainPreparedScriptInput(input);
+                    LogPreparedInputCleanupFailure(error);
+                }
                 catch { owner.RetainPreparedScriptInput(input); throw; }
             }
             _disposed = true;
@@ -191,7 +196,7 @@ public sealed partial class WorkerProcessProxy
     private void RetainPreparedScriptInput(ScriptPreparedInputLease input)
     { lock (_preparedScriptInputs) if (!_preparedScriptInputs.Contains(input)) _preparedScriptInputs.Add(input); }
 
-    private void ReleasePreparedScriptInputs()
+    private void ReleasePreparedScriptInputs(bool processExited = false)
     {
         lock (_preparedScriptInputs)
         {
@@ -199,11 +204,16 @@ public sealed partial class WorkerProcessProxy
             for (int index = _preparedScriptInputs.Count - 1; index >= 0; index--)
             {
                 try { _preparedScriptInputs[index].Dispose(); _preparedScriptInputs.RemoveAt(index); }
+                catch (Exception error) when (processExited && error is (IOException or UnauthorizedAccessException))
+                { LogPreparedInputCleanupFailure(error); }
                 catch (Exception failure) { failures.Add(failure); }
             }
             if (failures.Count != 0) throw new AggregateException("固定脚本输入清理失败；保留所有权以重试。", failures);
         }
     }
+
+    private static void LogPreparedInputCleanupFailure(Exception error) => Console.Error.WriteLine(
+        $"BACKEND_PREPARED_SCRIPT_INPUT_CLEANUP_FAILED type={error.GetType().Name} hresult={error.HResult:X8}");
 
     private static void EnsureScriptGrantNoLinks(string path)
     {

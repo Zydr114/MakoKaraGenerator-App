@@ -68,7 +68,7 @@ internal sealed unsafe class UnmanagedMemoryShmBacking : IShmPoolBacking
     }
 }
 
-/// <summary>按当前运行平台创建共享内存后备存储（方式 B：Windows 分支显式占位）。</summary>
+/// <summary>按当前运行平台创建共享内存后备存储（Linux tmpfs 0600 / Windows Local\ + 当前用户 SID DACL）。</summary>
 internal static class ShmPoolBackingFactory
 {
     public static IShmPoolBacking Create(ulong totalBytes, string? token = null)
@@ -80,8 +80,7 @@ internal static class ShmPoolBackingFactory
 
         if (OperatingSystem.IsWindows())
         {
-            throw new PlatformNotSupportedException(
-                "Windows SHM pool backing (CreateFileMappingW Local\\mkg-shm-*) is deferred under Method B.");
+            return WindowsShmBacking.Create(totalBytes, token);
         }
 
         throw new PlatformNotSupportedException(

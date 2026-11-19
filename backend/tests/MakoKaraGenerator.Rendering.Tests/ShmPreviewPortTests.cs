@@ -240,9 +240,64 @@ public sealed class ShmPreviewPortTests
     }
 
     [Fact]
+    public void WindowsLocalShm后备创建独占命名段并严格配对释放()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        string token = Convert.ToHexStringLower(System.Security.Cryptography.RandomNumberGenerator.GetBytes(16));
+        string expectedName = "Local\\mkg-shm-" + token;
+
+        using (WindowsShmBacking backing = WindowsShmBacking.Create(12288, token))
+        {
+            Assert.Equal(expectedName, backing.ResourceName);
+            Assert.Equal(12288UL, backing.TotalBytes);
+
+            // 禁止复用已存在的同名共享内存对象
+            GpuPreviewException dup = Assert.Throws<GpuPreviewException>(() => ShmPoolBackingFactory.Create(12288, token));
+            Assert.Equal("PreviewShmAlreadyExists", dup.Code);
+
+            // 写入测试载荷并通过独立只读映射核对跨视图可见性
+            byte[] payload = [0xDE, 0xAD, 0xBE, 0xEF, 0x11, 0x22, 0x33, 0x44];
+            Marshal.Copy(payload, 0, backing.BasePointer, payload.Length);
+            Thread.MemoryBarrier();
+
+            IntPtr roSection = Win32TestOpenFileMappingW(0x0004u, 0, expectedName);
+            Assert.NotEqual(IntPtr.Zero, roSection);
+            try
+            {
+                IntPtr roView = Win32TestMapViewOfFile(roSection, 0x0004u, 0, 0, 12288);
+                Assert.NotEqual(IntPtr.Zero, roView);
+                try
+                {
+                    byte[] observed = new byte[payload.Length];
+                    Marshal.Copy(roView, observed, 0, observed.Length);
+                    Assert.Equal(payload, observed);
+                }
+                finally
+                {
+                    Assert.NotEqual(0, Win32TestUnmapViewOfFile(roView));
+                }
+            }
+            finally
+            {
+                Assert.NotEqual(0, Win32TestCloseHandle(roSection));
+            }
+        }
+
+        // Dispose 后 section 句柄与视图均已释放，内核应立即回收命名段
+        IntPtr afterDispose = Win32TestOpenFileMappingW(0x0004u, 0, expectedName);
+        if (afterDispose != IntPtr.Zero)
+        {
+            _ = Win32TestCloseHandle(afterDispose);
+        }
+
+        Assert.Equal(IntPtr.Zero, afterDispose);
+    }
+
+    [Fact]
     public void VulkanShm模式免除Drm导出强耦合且可绘制合成图案()
     {
-        if (!OperatingSystem.IsLinux()) return;
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
 
         using var vulkan = VulkanSkiaRenderDevice.Create(enableGpuPreview: true, previewTransport: PreviewTransportKind.Shm);
         Assert.False(vulkan.SupportsDmaBufExport);
@@ -258,6 +313,10 @@ public sealed class ShmPreviewPortTests
         Assert.Equal("vulkan", pool.BackendApi);
         Assert.Equal(PreviewPixelFormat.Rgba8888, pool.PixelFormat);
         Assert.NotNull(pool.ShmResourceName);
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.StartsWith("Local\\mkg-shm-", pool.ShmResourceName, StringComparison.Ordinal);
+        }
 
         using var renderer = new SkiaRenderPipeline(null, null, null, null, false, vulkan, false);
         IPreviewPort port = manager.RequireCurrentPort(target);
@@ -266,6 +325,18 @@ public sealed class ShmPreviewPortTests
         Assert.Equal(1UL, delivery.Descriptor.Counters.CpuPixelReadbacks);
         frame.Lease.ReleaseAfterConsumerCompletion(frame.Lease.Token);
     }
+
+    [DllImport("kernel32.dll", EntryPoint = "OpenFileMappingW", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr Win32TestOpenFileMappingW(uint dwDesiredAccess, int bInheritHandle, string lpName);
+
+    [DllImport("kernel32.dll", EntryPoint = "MapViewOfFile", SetLastError = true)]
+    private static extern IntPtr Win32TestMapViewOfFile(IntPtr hFileMappingObject, uint dwDesiredAccess, uint dwFileOffsetHigh, uint dwFileOffsetLow, nuint dwNumberOfBytesToMap);
+
+    [DllImport("kernel32.dll", EntryPoint = "UnmapViewOfFile", SetLastError = true)]
+    private static extern int Win32TestUnmapViewOfFile(IntPtr lpBaseAddress);
+
+    [DllImport("kernel32.dll", EntryPoint = "CloseHandle", SetLastError = true)]
+    private static extern int Win32TestCloseHandle(IntPtr hObject);
 
     private sealed class SpyRenderDevice(ISkiaRenderDevice inner) : ISkiaRenderDevice
     {

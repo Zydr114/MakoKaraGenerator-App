@@ -27,7 +27,7 @@
 
   <PropertyGroup>
     <Product>MakoKaraGenerator</Product>
-    <VersionPrefix>0.115.0</VersionPrefix>
+    <VersionPrefix>0.116.0</VersionPrefix>
     <InformationalVersion>$(VersionPrefix)</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <NeutralLanguage>zh-Hans</NeutralLanguage>

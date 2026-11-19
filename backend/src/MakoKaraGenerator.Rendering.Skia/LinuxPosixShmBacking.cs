@@ -14,6 +14,12 @@ internal sealed partial class LinuxPosixShmBacking : IShmPoolBacking
     private const uint Mode0600 = 0x180; // 0600 octal
     private const int ProtReadWrite = 0x01 | 0x02;
     private const int MapShared = 0x01;
+    private const int AtFdcwd = -100;
+    private const int AtSymlinkNofollow = 0x100;
+    private const uint StatxTypeModeUid = 0x0001u | 0x0002u | 0x0008u;
+    private const ushort FileTypeMask = 0xF000;
+    private const ushort RegularFileType = 0x8000;
+    private const ushort PermissionMask = 0x0FFF;
     private static readonly IntPtr MapFailed = new(-1);
 
     private IntPtr _pointer;
@@ -92,12 +98,29 @@ internal sealed partial class LinuxPosixShmBacking : IShmPoolBacking
         }
     }
 
-    public static void TryCleanupUnopened(string token)
+    public static unsafe void TryCleanupUnopened(string token)
     {
         if (!TokenPattern().IsMatch(token)) return;
+        uint currentUid = PosixGetEuid();
+        Span<byte> statxBuffer = stackalloc byte[256];
         foreach (string candidateRoot in EnumerateCandidateDirectories())
         {
+            if (!IsTmpfsDirectory(candidateRoot)) continue;
             string candidate = Path.Combine(candidateRoot, "mkg-shm-" + token);
+            statxBuffer.Clear();
+            fixed (byte* ptr = statxBuffer)
+            {
+                if (PosixStatx(AtFdcwd, candidate, AtSymlinkNofollow, StatxTypeModeUid, (IntPtr)ptr) != 0)
+                    continue;
+            }
+
+            uint fileUid = BitConverter.ToUInt32(statxBuffer.Slice(20, 4));
+            ushort fileMode = BitConverter.ToUInt16(statxBuffer.Slice(28, 2));
+            bool isRegularFile = (fileMode & FileTypeMask) == RegularFileType;
+            bool isPrivateMode = (fileMode & PermissionMask) == Mode0600;
+            if (!isRegularFile || !isPrivateMode || fileUid != currentUid)
+                continue;
+
             _ = PosixUnlink(candidate);
         }
     }
@@ -140,19 +163,24 @@ internal sealed partial class LinuxPosixShmBacking : IShmPoolBacking
         }
     }
 
-    private static unsafe string ResolveTmpfsDirectory()
+    private static unsafe bool IsTmpfsDirectory(string dir)
     {
+        if (!Directory.Exists(dir)) return false;
         Span<long> statfsBuffer = stackalloc long[32];
+        statfsBuffer.Clear();
+        fixed (long* ptr = statfsBuffer)
+        {
+            return PosixStatfs(dir, (IntPtr)ptr) == 0 && statfsBuffer[0] == TmpfsMagic;
+        }
+    }
+
+    private static string ResolveTmpfsDirectory()
+    {
         foreach (string dir in EnumerateCandidateDirectories())
         {
-            if (!Directory.Exists(dir)) continue;
-            statfsBuffer.Clear();
-            fixed (long* ptr = statfsBuffer)
+            if (IsTmpfsDirectory(dir))
             {
-                if (PosixStatfs(dir, (IntPtr)ptr) == 0 && statfsBuffer[0] == TmpfsMagic)
-                {
-                    return dir;
-                }
+                return dir;
             }
         }
 
@@ -188,4 +216,10 @@ internal sealed partial class LinuxPosixShmBacking : IShmPoolBacking
 
     [LibraryImport("libc", EntryPoint = "statfs", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
     private static partial int PosixStatfs(string path, IntPtr buf);
+
+    [LibraryImport("libc", EntryPoint = "statx", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
+    private static partial int PosixStatx(int dirfd, string pathname, int flags, uint mask, IntPtr statxbuf);
+
+    [LibraryImport("libc", EntryPoint = "geteuid")]
+    private static partial uint PosixGetEuid();
 }

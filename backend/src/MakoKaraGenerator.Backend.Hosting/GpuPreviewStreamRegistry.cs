@@ -92,7 +92,7 @@ public sealed class GpuPreviewStreamRegistry
             if (e.State.RegistrationState == "failed") return null;
             e.Claimed = true;
             return new(e.Worker.Opened.ProducerEpoch, e.Worker.Opened.WorkerPid, e.Worker.BrokerPath, e.Worker.Handshake,
-                e.State.InputGeneration, e.State.PoolGeneration, e.State.Size);
+                e.State.InputGeneration, e.State.PoolGeneration, e.State.Size, e.Worker.Opened.Transport ?? e.State.Transport);
         }
     }
 
@@ -100,6 +100,7 @@ public sealed class GpuPreviewStreamRegistry
     {
         if (!entry.Busy && entry.State.RegistrationState != "failed" && !entry.Worker.IsWorkerAlive)
         {
+            entry.Worker.CleanupUnopenedShmIfDead();
             entry.State = entry.State with { RegistrationState = "failed", FailureCode = "GpuWorkerExited" };
             entry.Claimed = true;
         }
@@ -315,4 +316,4 @@ public sealed class GpuPreviewStreamRegistry
 
 /// <summary>不得公开给 renderer 或写入日志的 Worker 领取数据。</summary>
 public sealed record GpuPreviewWorkerClaim(string ProducerEpoch, int WorkerPid, string BrokerEndpoint, string Handshake,
-    string InputGeneration, string PoolGeneration, PreviewSizeDto Size);
+    string InputGeneration, string PoolGeneration, PreviewSizeDto Size, string Transport = "dma-buf");

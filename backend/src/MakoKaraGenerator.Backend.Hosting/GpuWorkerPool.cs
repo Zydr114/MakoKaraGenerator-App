@@ -2,23 +2,38 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using MakoKaraGenerator.Backend.Contracts;
 using MakoKaraGenerator.Processes;
+using MakoKaraGenerator.Rendering;
 
 namespace MakoKaraGenerator.Backend.Hosting;
 
-/// <summary>同一 Host 的 GPU stream Worker 所有者；活动、备用、开启和未知退出共享两个硬名额。</summary>
+/// <summary>连续预览流 Worker 的一次性进程租约（支持 GPU 预热备用池与 CPU 按需冷启动）。</summary>
+internal interface IStreamWorkerLease : IAsyncDisposable
+{
+    WorkerProcessProxy Worker { get; }
+    string Admission { get; }
+    Task RetryTerminationAsync();
+}
+
+/// <summary>同一 Host 的连续预览流 Worker 所有者；Vulkan 复用预热备用池，CPU 按需启动轻量 Worker。</summary>
 public sealed class GpuWorkerPool : IAsyncDisposable
 {
     private readonly WorkerProcessOptions _options;
+    private readonly WorkerProcessOptions _cpuOptions;
     private readonly GpuWorkerSparePool<WorkerProcessProxy> _pool;
     private readonly SemaphoreSlim _configurationGate = new(1, 1);
     private readonly GpuDeploymentIdentity _deployment;
+    private readonly object _onDemandGate = new();
+    private readonly HashSet<OnDemandSlot> _onDemandSlots = [];
+    private bool _disposed;
 
     public GpuWorkerPool(WorkerProcessOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        _options = options with { RenderBackend = "gpu", EnableGpuPreview = true,
-            EnableGpuPreviewBenchmark = Environment.GetEnvironmentVariable("MAKO_BACKEND_GPU_PREVIEW_BENCHMARK") == "1" };
+        bool benchmark = Environment.GetEnvironmentVariable("MAKO_BACKEND_GPU_PREVIEW_BENCHMARK") == "1";
+        _options = options with { RenderBackend = "gpu", EnableGpuPreview = true, EnableGpuPreviewBenchmark = benchmark };
         _options.Validate();
+        _cpuOptions = options with { RenderBackend = "cpu", EnableGpuPreview = true, EnableGpuPreviewBenchmark = benchmark };
+        _cpuOptions.Validate();
         string executable = _options.Arguments?.FirstOrDefault(argument => argument.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
             ?? _options.FileName;
         string directory = Path.GetDirectoryName(Path.GetFullPath(executable))!;
@@ -63,6 +78,40 @@ public sealed class GpuWorkerPool : IAsyncDisposable
         finally { _configurationGate.Release(); }
     }
 
+    /// <summary>按渲染后端获取连续预览 Worker：vulkan 走预热备用池，cpu 按需冷启动且纳入统一进程回收。</summary>
+    internal async Task<IStreamWorkerLease> AcquireStreamWorkerAsync(string backendApi, CancellationToken token = default)
+    {
+        string normalized = PreviewWireConventions.NormalizeBackendApi(backendApi);
+        if (normalized == PreviewWireConventions.ApiVulkan)
+        {
+            return new SparePoolLeaseAdapter(await AcquireAsync(token).ConfigureAwait(false));
+        }
+
+        if (normalized != PreviewWireConventions.ApiCpu)
+        {
+            throw new GpuPreviewException("PreviewBackendUnsupported", $"当前连续预览流不支持渲染后端 '{normalized}'。");
+        }
+
+        OnDemandSlot slot;
+        lock (_onDemandGate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            slot = new OnDemandSlot(new WorkerProcessProxy(_cpuOptions));
+            _onDemandSlots.Add(slot);
+        }
+
+        try
+        {
+            await slot.Worker.StartAsync(token).ConfigureAwait(false);
+            return new OnDemandWorkerLease(this, slot);
+        }
+        catch
+        {
+            try { await RetireOnDemandAsync(slot).ConfigureAwait(false); } catch { }
+            throw;
+        }
+    }
+
     /// <summary>availability 复用同配置、存活的已准备 stream Worker，不增开 helper。</summary>
     public async Task<RenderBackendDeviceInfoDto> VerifyDeviceAsync(CancellationToken token = default)
     {
@@ -94,8 +143,96 @@ public sealed class GpuWorkerPool : IAsyncDisposable
         return Convert.ToHexStringLower(hash.GetHashAndReset());
     }
 
-    public ValueTask DisposeAsync() => _pool.DisposeAsync();
-    public Task RetryShutdownDrainAsync() => _pool.RetryShutdownDrainAsync();
+    public async ValueTask DisposeAsync()
+    {
+        OnDemandSlot[]? onDemand = null;
+        if (_onDemandGate is not null && _onDemandSlots is not null)
+        {
+            lock (_onDemandGate)
+            {
+                _disposed = true;
+                onDemand = _onDemandSlots.ToArray();
+            }
+        }
+
+        List<Exception>? errors = null;
+        try { await _pool.DisposeAsync().ConfigureAwait(false); }
+        catch (Exception error) { (errors ??= []).Add(error); }
+
+        if (onDemand is { Length: > 0 })
+        {
+            foreach (OnDemandSlot slot in onDemand)
+            {
+                try { await RetireOnDemandAsync(slot).ConfigureAwait(false); }
+                catch (Exception error) { (errors ??= []).Add(error); }
+            }
+        }
+
+        if (errors is not null)
+        {
+            throw errors.Count == 1 ? errors[0] : new AggregateException(errors);
+        }
+    }
+
+    public async Task RetryShutdownDrainAsync()
+    {
+        List<Exception>? errors = null;
+        try { await _pool.RetryShutdownDrainAsync().ConfigureAwait(false); }
+        catch (Exception error) { (errors ??= []).Add(error); }
+
+        if (_onDemandGate is not null && _onDemandSlots is not null)
+        {
+            OnDemandSlot[] remaining;
+            lock (_onDemandGate) remaining = _onDemandSlots.ToArray();
+            foreach (OnDemandSlot slot in remaining)
+            {
+                try { await RetireOnDemandAsync(slot).ConfigureAwait(false); }
+                catch (Exception error) { (errors ??= []).Add(error); }
+            }
+        }
+
+        if (errors is not null)
+        {
+            throw errors.Count == 1 ? errors[0] : new AggregateException(errors);
+        }
+    }
+
+    private Task RetireOnDemandAsync(OnDemandSlot slot)
+    {
+        lock (_onDemandGate)
+        {
+            if (!_onDemandSlots.Contains(slot)) return Task.CompletedTask;
+            if (slot.Retirement is { IsCompleted: false }) return slot.Retirement;
+            return slot.Retirement = Task.Run(async () =>
+            {
+                await slot.Worker.StopAsync().ConfigureAwait(false);
+                await slot.Worker.DisposeAsync().ConfigureAwait(false);
+                lock (_onDemandGate) _onDemandSlots.Remove(slot);
+            });
+        }
+    }
+
+    internal sealed class SparePoolLeaseAdapter(GpuWorkerSparePool<WorkerProcessProxy>.Lease inner) : IStreamWorkerLease
+    {
+        public WorkerProcessProxy Worker => inner.Worker;
+        public string Admission => inner.Admission;
+        public ValueTask DisposeAsync() => inner.DisposeAsync();
+        public Task RetryTerminationAsync() => inner.RetryTerminationAsync();
+    }
+
+    private sealed class OnDemandSlot(WorkerProcessProxy worker)
+    {
+        internal readonly WorkerProcessProxy Worker = worker;
+        internal Task? Retirement;
+    }
+
+    private sealed class OnDemandWorkerLease(GpuWorkerPool owner, OnDemandSlot slot) : IStreamWorkerLease
+    {
+        public WorkerProcessProxy Worker => slot.Worker;
+        public string Admission => "cpu-on-demand";
+        public ValueTask DisposeAsync() => new(owner.RetireOnDemandAsync(slot));
+        public Task RetryTerminationAsync() => owner.RetireOnDemandAsync(slot);
+    }
 }
 
 internal sealed record GpuWorkerDiagnostic(string State, bool CurrentConfiguration, bool Ready,

@@ -10,7 +10,7 @@ namespace MakoKaraGenerator.Backend.Hosting;
 public sealed class GpuStreamWorkerSession : IAsyncDisposable
 {
     private readonly WorkerProcessProxy _proxy;
-    private readonly GpuWorkerSparePool<WorkerProcessProxy>.Lease _workerLease;
+    private readonly IStreamWorkerLease _workerLease;
     private readonly StaticWorkerSessionHandle _session;
     private readonly string _directory;
     private readonly string _inputGeneration;
@@ -21,7 +21,7 @@ public sealed class GpuStreamWorkerSession : IAsyncDisposable
     private Task? _disposeTask;
     private bool _terminationConfirmed;
 
-    private GpuStreamWorkerSession(WorkerProcessProxy proxy, GpuWorkerSparePool<WorkerProcessProxy>.Lease workerLease, StaticWorkerSessionHandle session,
+    private GpuStreamWorkerSession(WorkerProcessProxy proxy, IStreamWorkerLease workerLease, StaticWorkerSessionHandle session,
         string directory, string inputGeneration, string brokerPath, string handshake, string? shmToken, GpuStreamWorkerOpened opened)
     {
         _proxy = proxy;
@@ -33,6 +33,15 @@ public sealed class GpuStreamWorkerSession : IAsyncDisposable
         BrokerPath = brokerPath;
         Handshake = handshake;
         Opened = opened;
+    }
+
+    // 保留 8 参私有构造函数，兼容既有反射隔离测试。
+    private GpuStreamWorkerSession(WorkerProcessProxy proxy, GpuWorkerSparePool<WorkerProcessProxy>.Lease workerLease,
+        StaticWorkerSessionHandle session, string directory, string inputGeneration, string brokerPath, string handshake,
+        GpuStreamWorkerOpened opened)
+        : this(proxy, new GpuWorkerPool.SparePoolLeaseAdapter(workerLease), session, directory, inputGeneration,
+            brokerPath, handshake, shmToken: null, opened)
+    {
     }
 
     /// <summary>实际池参数与 Worker 身份。</summary>
@@ -54,6 +63,49 @@ public sealed class GpuStreamWorkerSession : IAsyncDisposable
     /// <summary>仅供可信桌面 consumer 领取的一次性通道凭证。</summary>
     public string Handshake { get; }
 
+    /// <summary>按显式传输、环境变量与后端 API 解析真实传输模式，严守零静默降级。</summary>
+    public static PreviewTransportKind ResolveEffectiveTransport(string? backendApi, PreviewTransportKind? transport = null,
+        string? envOverride = null)
+    {
+        string normalizedApi = PreviewWireConventions.NormalizeBackendApi(backendApi ?? PreviewWireConventions.ApiVulkan);
+        string? raw = envOverride ?? Environment.GetEnvironmentVariable("MAKO_PREVIEW_TRANSPORT");
+        PreviewTransportKind? requested = transport ?? (string.IsNullOrWhiteSpace(raw) ? null : PreviewWireConventions.ParseTransport(raw.Trim()));
+
+        if (requested is { } chosen)
+        {
+            if (chosen == PreviewTransportKind.DmaBuf)
+            {
+                if (normalizedApi != PreviewWireConventions.ApiVulkan)
+                {
+                    throw new GpuPreviewException(
+                        "PreviewTransportUnsupported",
+                        $"显式指定了 DMA-BUF 传输模式，仅支持 vulkan 渲染设备，不支持 '{normalizedApi}'；已拒绝静默降级。");
+                }
+                if (!OperatingSystem.IsLinux())
+                {
+                    throw new PlatformNotSupportedException("DMA-BUF preview requires Linux.");
+                }
+            }
+            return chosen;
+        }
+
+        if (normalizedApi == PreviewWireConventions.ApiCpu)
+        {
+            return PreviewTransportKind.Shm;
+        }
+
+        return OperatingSystem.IsLinux() ? PreviewTransportKind.DmaBuf : PreviewTransportKind.Shm;
+    }
+
+    /// <summary>若 Worker 进程已死亡，幂等清理可能尚未被消费者映射解链的 SHM 具名文件。</summary>
+    internal void CleanupUnopenedShmIfDead()
+    {
+        if (!IsWorkerAlive)
+        {
+            ProjectRenderSessionFactory.TryCleanupUnopenedShm(_shmToken);
+        }
+    }
+
     /// <summary>使用现有固定输入创建独立 Worker，成功前不会返回未初始化池。</summary>
     public static Task<GpuStreamWorkerSession> OpenAsync(GpuWorkerPool pool,
         BackendPreparedProjectRuntimeInput input, string streamId, string hostInstanceId, string inputGeneration,
@@ -71,15 +123,8 @@ public sealed class GpuStreamWorkerSession : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(pool);
         ArgumentNullException.ThrowIfNull(input);
 
-        PreviewTransportKind effectiveTransport = transport
-            ?? (OperatingSystem.IsLinux() && (backendApi is null || backendApi.Equals("vulkan", StringComparison.OrdinalIgnoreCase))
-                ? ReadEnvironmentTransportOrDefault(PreviewTransportKind.DmaBuf)
-                : PreviewTransportKind.Shm);
-
-        if (effectiveTransport == PreviewTransportKind.DmaBuf && !OperatingSystem.IsLinux())
-        {
-            throw new PlatformNotSupportedException("DMA-BUF preview requires Linux.");
-        }
+        string effectiveApi = PreviewWireConventions.NormalizeBackendApi(backendApi ?? PreviewWireConventions.ApiVulkan);
+        PreviewTransportKind effectiveTransport = ResolveEffectiveTransport(effectiveApi, transport);
 
         const ulong maximumAllocationBytes = 64UL * 1024 * 1024;
         string directory = Path.Combine(Path.GetTempPath(), "mkg-gpu-" + Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(12)));
@@ -89,7 +134,7 @@ public sealed class GpuStreamWorkerSession : IAsyncDisposable
             ? Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(16))
             : null;
 
-        var workerLease = await pool.AcquireAsync(token).ConfigureAwait(false);
+        var workerLease = await pool.AcquireStreamWorkerAsync(effectiveApi, token).ConfigureAwait(false);
         WorkerProcessProxy proxy = workerLease.Worker;
         try
         {
@@ -108,7 +153,7 @@ public sealed class GpuStreamWorkerSession : IAsyncDisposable
                 endpointPath,
                 handshake,
                 Transport: effectiveTransport.ToWireName(),
-                BackendApi: backendApi,
+                BackendApi: effectiveApi,
                 PixelFormat: pixelFormat.ToWireName(),
                 StrideBytes: strideBytes,
                 PreferredGpuDevice: null,
@@ -132,12 +177,6 @@ public sealed class GpuStreamWorkerSession : IAsyncDisposable
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }
         }
-    }
-
-    private static PreviewTransportKind ReadEnvironmentTransportOrDefault(PreviewTransportKind fallback)
-    {
-        string? raw = Environment.GetEnvironmentVariable("MAKO_PREVIEW_TRANSPORT");
-        return string.IsNullOrWhiteSpace(raw) ? fallback : PreviewWireConventions.ParseTransport(raw.Trim());
     }
 
     private static string AllocateEndpointIdentifier(string directory, PreviewTransportKind transport)
@@ -217,17 +256,23 @@ public sealed class GpuStreamWorkerSession : IAsyncDisposable
 /// <summary>启动失败且无法确认子进程终止时，保留代理所有权供宿主隔离。</summary>
 public sealed class GpuStreamOpenCleanupException : Exception
 {
-    private readonly GpuWorkerSparePool<WorkerProcessProxy>.Lease _workerLease;
+    private readonly IStreamWorkerLease _workerLease;
     private readonly string _directory;
     private readonly string? _shmToken;
 
-    internal GpuStreamOpenCleanupException(GpuWorkerSparePool<WorkerProcessProxy>.Lease workerLease, string directory,
+    internal GpuStreamOpenCleanupException(IStreamWorkerLease workerLease, string directory,
         Exception openFailure, Exception cleanupFailure, string? shmToken = null)
         : base("GPU Worker 启动失败且清理状态未知。", new AggregateException(openFailure, cleanupFailure))
     {
         _workerLease = workerLease;
         _directory = directory;
         _shmToken = shmToken;
+    }
+
+    internal GpuStreamOpenCleanupException(GpuWorkerSparePool<WorkerProcessProxy>.Lease workerLease, string directory,
+        Exception openFailure, Exception cleanupFailure, string? shmToken = null)
+        : this(new GpuWorkerPool.SparePoolLeaseAdapter(workerLease), directory, openFailure, cleanupFailure, shmToken)
+    {
     }
 
     /// <summary>再次等待所属进程清理；失败不代表进程已经终止。</summary>

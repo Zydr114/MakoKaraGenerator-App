@@ -18,14 +18,34 @@ public sealed partial class WorkerProcessProxy
         GpuStreamWorkerOpened? result = null;
         await InvokeTimedMessageAsync(request, GpuStreamWorkerContract.OpenResultKind, timeout, response =>
         {
-            if (response.OutputSha256 is null || response.Error is not null || response.ErrorCode is not null || response.Cancelled)
+            if (response.Error is not null || response.ErrorCode is not null)
+            {
+                if (!string.IsNullOrWhiteSpace(response.ErrorCode))
+                    throw new WorkerProtocolException(response.Error ?? "连续预览流 Worker 初始化失败。", response.ErrorCode);
+                throw InvalidGpuStream();
+            }
+            if (response.OutputSha256 is null || response.Cancelled)
                 throw InvalidGpuStream();
             result = GpuStreamWorkerContract.Decode<GpuStreamWorkerOpened>(response.Payload);
+            bool isShm = string.Equals(result.Transport, "shm", StringComparison.Ordinal);
+            bool validUuid = result.DeviceUuid is { Length: 32 } &&
+                result.DeviceUuid.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f');
+            bool validTransport = result.Transport is null or "dma-buf" or "shm";
+            bool validApi = result.BackendApi is null or "vulkan" or "cpu" or "metal";
+            bool matchesInputTransport = input.Transport is null || string.Equals(result.Transport, input.Transport, StringComparison.Ordinal);
+            bool matchesInputApi = input.BackendApi is null || string.Equals(result.BackendApi, input.BackendApi, StringComparison.Ordinal);
+            bool validShmPayload = !isShm || (
+                result.PixelFormat is "bgra8888" or "rgba8888" &&
+                result.StrideBytes >= (uint)(result.Width * 4) &&
+                result.StrideBytes % 4 == 0 &&
+                !string.IsNullOrWhiteSpace(result.ShmResourceName));
             if (result.StreamId != input.StreamId || result.WorkerPid != ProcessId || result.Width != input.Width ||
                 result.Height != input.Height || result.SlotCount != 3 || result.AllocationBytes == 0 ||
                 result.AllocationBytes > input.MaximumAllocationBytes || !CanonicalUInt64(result.ProducerEpoch) ||
-                !CanonicalUInt64(result.PoolGeneration) || result.DeviceUuid is not { Length: 32 } ||
-                !result.DeviceUuid.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f')) throw InvalidGpuStream();
+                !CanonicalUInt64(result.PoolGeneration) || !validTransport || !validApi ||
+                !matchesInputTransport || !matchesInputApi || !validShmPayload ||
+                (!isShm && !validUuid) || (isShm && result.DeviceUuid.Length != 0 && !validUuid))
+                throw InvalidGpuStream();
         }, cancellationToken, requirePackageRuntimeGuards: true).ConfigureAwait(false);
         if (GpuWarmup is { } prepared && (result!.WarmupBinding is not { OriginalDeviceBound: true,
             DeviceInitializations: 1, ContextInitializations: 1 } binding ||

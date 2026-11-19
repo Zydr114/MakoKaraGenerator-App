@@ -1,6 +1,7 @@
 using System.Globalization;
 using MakoKaraGenerator.Backend.Contracts;
 using MakoKaraGenerator.Backend.Hosting;
+using MakoKaraGenerator.Rendering;
 
 namespace MakoKaraGenerator.Backend.Server;
 
@@ -11,8 +12,29 @@ internal sealed partial class PreviewBackendService
     private GpuWorkerPool? _gpuWorkerPool;
     private DesktopConsumerIdentity? _desktopConsumer;
     internal bool GpuStreamsConfigured => _gpuStreams is not null;
-    internal async Task<bool> GpuStreamsAvailableAsync() => GpuStreamsConfigured && OperatingSystem.IsLinux() &&
-        _renderBackends is not null && await _renderBackends.VerifyAsync("gpu", _shutdown.Token).ConfigureAwait(false) is null;
+
+    internal async Task<bool> GpuStreamsAvailableAsync()
+    {
+        if (!GpuStreamsConfigured || !OperatingSystem.IsLinux() || _renderBackends is null)
+            return false;
+
+        PreviewTransportKind? configuredTransport;
+        try
+        {
+            string? raw = Environment.GetEnvironmentVariable("MAKO_PREVIEW_TRANSPORT");
+            configuredTransport = string.IsNullOrWhiteSpace(raw) ? null : PreviewWireConventions.ParseTransport(raw.Trim());
+        }
+        catch (GpuPreviewException)
+        {
+            return false;
+        }
+
+        if (configuredTransport == PreviewTransportKind.DmaBuf)
+            return await _renderBackends.VerifyAsync("gpu", _shutdown.Token).ConfigureAwait(false) is null;
+
+        return await _renderBackends.VerifyAsync("gpu", _shutdown.Token).ConfigureAwait(false) is null
+            || await _renderBackends.VerifyAsync("cpu", _shutdown.Token).ConfigureAwait(false) is null;
+    }
 
     internal GpuPreviewWorkerClaim? ClaimGpuStream(string id, string consumerId, string hostInstanceId,
         string expectedInputGeneration, string? secret)
@@ -68,15 +90,32 @@ internal sealed partial class PreviewBackendService
         {
             if (_gpuStreams is null || _gpuWorkerOptions is null || _desktopConsumer is null)
                 return Reject<GpuPreviewStreamState>(BackendErrorCode.PreviewUnavailable, "GPU 流未配置。");
-            if (request.Api != "vulkan" || request.ConsumerId != _desktopConsumer.ConsumerId ||
+            if (request.Api is not ("vulkan" or "cpu") || request.ConsumerId != _desktopConsumer.ConsumerId ||
                 request.Size is null || request.Size.Width is < 64 or > 2560 || request.Size.Height is < 64 or > 1440 ||
                 request.AlphaMode is not (PreviewAlphaMode.Opaque or PreviewAlphaMode.Straight))
-                return Reject<GpuPreviewStreamState>(BackendErrorCode.InvalidRequest, "GPU 流参数无效。");
+                return Reject<GpuPreviewStreamState>(BackendErrorCode.InvalidRequest, "连续预览流参数无效。");
+            PreviewTransportKind resolvedTransport;
+            try
+            {
+                resolvedTransport = GpuStreamWorkerSession.ResolveEffectiveTransport(request.Api, transport: null);
+            }
+            catch (GpuPreviewException error)
+            {
+                return BackendOperationResult<GpuPreviewStreamState>.Rejected(new(
+                    BackendErrorCode.CommandNotSupported, error.Message, "api", FailureCode: error.Code));
+            }
+            catch (PlatformNotSupportedException error)
+            {
+                return BackendOperationResult<GpuPreviewStreamState>.Rejected(new(
+                    BackendErrorCode.PreviewUnavailable, error.Message, "api", FailureCode: "GpuPreviewUnsupportedPlatform"));
+            }
+            string renderBackend = request.Api == "cpu" ? "cpu" : "gpu";
             using IDisposable? reservation = _gpuStreams.TryReserve(client, request.ConsumerId);
             if (reservation is null) return Reject<GpuPreviewStreamState>(BackendErrorCode.SessionQuotaExceeded, "GPU 流配额已用完。");
-            var backend = await PrepareRenderBackendAsync("gpu").ConfigureAwait(false);
+            var backend = await PrepareRenderBackendAsync(renderBackend).ConfigureAwait(false);
             if (!backend.Accepted) return BackendOperationResult<GpuPreviewStreamState>.Rejected(backend.Error!);
-            var capture = await CaptureAsync(client, request.Source, "gpu").ConfigureAwait(false);
+            var capture = await CaptureAsync(client, request.Source, renderBackend,
+                request.AlphaMode == PreviewAlphaMode.Straight).ConfigureAwait(false);
             if (capture.Error is not null) return BackendOperationResult<GpuPreviewStreamState>.Rejected(capture.Error);
             BackendPreviewPinnedInput input = capture.Input!;
             GpuStreamWorkerSession? worker = null;
@@ -89,10 +128,13 @@ internal sealed partial class PreviewBackendService
                 string streamId = Guid.NewGuid().ToString("N");
                 worker = await GpuStreamWorkerSession.OpenAsync(_gpuWorkerPool!, input.PreparedInput, streamId,
                     _clients.HostInstanceId, "1", request.Size.Width, request.Size.Height,
-                    request.AlphaMode == PreviewAlphaMode.Straight, _desktopConsumer.MainPid, _shutdown.Token).ConfigureAwait(false);
+                    request.AlphaMode == PreviewAlphaMode.Straight, _desktopConsumer.MainPid,
+                    transport: resolvedTransport, backendApi: request.Api, token: _shutdown.Token).ConfigureAwait(false);
+                string effectiveTransport = worker.Opened.Transport ?? resolvedTransport.ToWireName();
                 GpuPreviewStreamState state = new(streamId, "1", "1", "ready", input.Source, request.Size,
-                    request.AlphaMode, "vulkan", worker.Opened.ProducerEpoch, worker.Opened.PoolGeneration,
-                    worker.Opened.SlotCount, checked((long)worker.Opened.AllocationBytes));
+                    request.AlphaMode, request.Api, worker.Opened.ProducerEpoch, worker.Opened.PoolGeneration,
+                    worker.Opened.SlotCount, checked((long)worker.Opened.AllocationBytes),
+                    Transport: effectiveTransport);
                 var result = await _projects.RegisterPreparedInputAsync(client, input, () =>
                 {
                     if (!_clients.TryReadLease(client, out _, out bool dormant) || dormant || _shutdown.IsCancellationRequested)
@@ -223,7 +265,24 @@ internal sealed partial class PreviewBackendService
             !long.TryParse(old.StreamRevision, NumberStyles.None, CultureInfo.InvariantCulture, out long revision) ||
             generation == long.MaxValue || revision == long.MaxValue)
             return Reject<GpuPreviewStreamState>(BackendErrorCode.InvalidRequest, "GPU 流尺寸或代次无效。");
-        var captured = await CaptureAsync(client, source ?? old.Source, "gpu").ConfigureAwait(false);
+        string renderBackend = old.Api == "cpu" ? "cpu" : "gpu";
+        PreviewTransportKind resolvedTransport;
+        try
+        {
+            resolvedTransport = GpuStreamWorkerSession.ResolveEffectiveTransport(old.Api, transport: null);
+        }
+        catch (GpuPreviewException error)
+        {
+            return BackendOperationResult<GpuPreviewStreamState>.Rejected(new(
+                BackendErrorCode.CommandNotSupported, error.Message, "api", FailureCode: error.Code));
+        }
+        catch (PlatformNotSupportedException error)
+        {
+            return BackendOperationResult<GpuPreviewStreamState>.Rejected(new(
+                BackendErrorCode.PreviewUnavailable, error.Message, "api", FailureCode: "GpuPreviewUnsupportedPlatform"));
+        }
+        var captured = await CaptureAsync(client, source ?? old.Source, renderBackend,
+            old.AlphaMode == PreviewAlphaMode.Straight).ConfigureAwait(false);
         if (captured.Error is not null) return BackendOperationResult<GpuPreviewStreamState>.Rejected(captured.Error);
         BackendPreviewPinnedInput input = captured.Input!;
         GpuStreamWorkerSession? worker = null;
@@ -250,12 +309,14 @@ internal sealed partial class PreviewBackendService
             string nextGeneration = (generation + 1).ToString(CultureInfo.InvariantCulture);
             worker = await GpuStreamWorkerSession.OpenAsync(_gpuWorkerPool!, input.PreparedInput, id,
                 _clients.HostInstanceId, nextGeneration, size.Width, size.Height,
-                old.AlphaMode == PreviewAlphaMode.Straight, _desktopConsumer.MainPid, _shutdown.Token).ConfigureAwait(false);
+                old.AlphaMode == PreviewAlphaMode.Straight, _desktopConsumer.MainPid,
+                transport: resolvedTransport, backendApi: old.Api, token: _shutdown.Token).ConfigureAwait(false);
             var next = old with { StreamRevision = (revision + 1).ToString(CultureInfo.InvariantCulture),
                 InputGeneration = nextGeneration, RegistrationState = "ready", Source = input.Source, Size = size,
                 ProducerEpoch = worker.Opened.ProducerEpoch, PoolGeneration = worker.Opened.PoolGeneration,
                 SlotCount = worker.Opened.SlotCount, AllocationBytes = checked((long)worker.Opened.AllocationBytes),
-                LastAppliedControlSeq = null, FailureCode = null };
+                LastAppliedControlSeq = null, FailureCode = null,
+                Transport = worker.Opened.Transport ?? resolvedTransport.ToWireName() };
             return await _projects.RegisterPreparedInputAsync(client, input, () =>
             {
                 if (!_clients.TryReadLease(client, out _, out bool dormant) || dormant || _shutdown.IsCancellationRequested)

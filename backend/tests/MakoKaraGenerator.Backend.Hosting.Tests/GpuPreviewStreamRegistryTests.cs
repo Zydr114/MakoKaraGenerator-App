@@ -1,3 +1,5 @@
+using MakoKaraGenerator.Rendering;
+
 namespace MakoKaraGenerator.Backend.Hosting.Tests;
 
 public sealed class GpuPreviewStreamRegistryTests
@@ -18,5 +20,27 @@ public sealed class GpuPreviewStreamRegistryTests
         using IDisposable replacement = registry.TryReserve("c", "consumer-c")!;
         Assert.NotNull(replacement);
         Assert.Null(registry.TryReserve("b", "consumer-b"));
+    }
+
+    [Fact]
+    public void ResolveEffectiveTransportHonorsExplicitRulesWithoutSilentFallback()
+    {
+        Assert.Equal(PreviewTransportKind.Shm, GpuStreamWorkerSession.ResolveEffectiveTransport("cpu", transport: null, envOverride: ""));
+        Assert.Equal(PreviewTransportKind.Shm, GpuStreamWorkerSession.ResolveEffectiveTransport("cpu", transport: null, envOverride: "shm"));
+        Assert.Equal(PreviewTransportKind.Shm, GpuStreamWorkerSession.ResolveEffectiveTransport("vulkan", transport: null, envOverride: "shm"));
+
+        if (OperatingSystem.IsLinux())
+        {
+            Assert.Equal(PreviewTransportKind.DmaBuf, GpuStreamWorkerSession.ResolveEffectiveTransport("vulkan", transport: null, envOverride: ""));
+            Assert.Equal(PreviewTransportKind.DmaBuf, GpuStreamWorkerSession.ResolveEffectiveTransport("vulkan", transport: null, envOverride: "dma-buf"));
+        }
+
+        GpuPreviewException cpuDmaBuf = Assert.Throws<GpuPreviewException>(() =>
+            GpuStreamWorkerSession.ResolveEffectiveTransport("cpu", transport: null, envOverride: "dma-buf"));
+        Assert.Equal("PreviewTransportUnsupported", cpuDmaBuf.Code);
+
+        GpuPreviewException explicitCpuDmaBuf = Assert.Throws<GpuPreviewException>(() =>
+            GpuStreamWorkerSession.ResolveEffectiveTransport("cpu", transport: PreviewTransportKind.DmaBuf, envOverride: "shm"));
+        Assert.Equal("PreviewTransportUnsupported", explicitCpuDmaBuf.Code);
     }
 }

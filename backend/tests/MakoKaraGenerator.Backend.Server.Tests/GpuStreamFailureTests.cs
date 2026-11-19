@@ -89,4 +89,67 @@ public sealed partial class PreviewTransportTests
         Assert.NotNull(retry);
         await proxy.DisposeAsync();
     }
+
+    [Fact]
+    public async Task Explicit_dmabuf_transport_rejects_cpu_preview_stream_without_silent_fallback()
+    {
+        await using Fixture fixture = await Fixture.Create();
+        const string consumer = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", secret = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        GpuPreviewStreamRegistry registry = new();
+        typeof(PreviewBackendService).GetField("_gpuStreams", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(fixture.Service, registry);
+        typeof(PreviewBackendService).GetField("_gpuWorkerOptions", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .SetValue(fixture.Service, new WorkerProcessOptions("unused", [], TimeSpan.FromSeconds(1)));
+        typeof(PreviewBackendService).GetField("_desktopConsumer", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .SetValue(fixture.Service, DesktopConsumerIdentity.Create(consumer, secret, "123"));
+
+        string? previous = Environment.GetEnvironmentVariable("MAKO_PREVIEW_TRANSPORT");
+        try
+        {
+            Environment.SetEnvironmentVariable("MAKO_PREVIEW_TRANSPORT", "dma-buf");
+            var result = await fixture.Service.CreateGpuStreamAsync(fixture.Client.ClientId,
+                new(fixture.Source, new(640, 360), PreviewAlphaMode.Opaque, "cpu", consumer, fixture.Metadata()));
+            Assert.False(result.Accepted);
+            Assert.Equal(BackendErrorCode.CommandNotSupported, result.Error!.Code);
+            Assert.Equal("PreviewTransportUnsupported", result.Error.FailureCode);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("MAKO_PREVIEW_TRANSPORT", previous);
+        }
+    }
+
+    [Fact]
+    public async Task Claim_propagates_shm_transport_to_trusted_desktop_consumer()
+    {
+        await using Fixture fixture = await Fixture.Create();
+        const string consumer = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", secret = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        GpuPreviewStreamRegistry registry = new();
+        typeof(PreviewBackendService).GetField("_gpuStreams", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(fixture.Service, registry);
+        typeof(PreviewBackendService).GetField("_desktopConsumer", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .SetValue(fixture.Service, DesktopConsumerIdentity.Create(consumer, secret, "123"));
+        await using var pool = new GpuWorkerSparePool<WorkerProcessProxy>("claim-shm-fixture",
+            () => new(new WorkerProcessOptions("unused", [], TimeSpan.FromSeconds(1))),
+            (_, _) => Task.CompletedTask, worker => worker.DisposeAsync().AsTask(), _ => true);
+        var workerLease = await pool.AcquireAsync();
+        GpuStreamWorkerOpened opened = new("stream-shm", "1", "1", 640, 360, 3, 640UL * 360 * 4 * 3, 123, 0, 0, 0, 0, "",
+            Transport: "shm", BackendApi: "cpu", PixelFormat: "bgra8888", StrideBytes: 640 * 4, ShmResourceName: "/dev/shm/mkg-shm-test");
+        GpuStreamWorkerSession worker = (GpuStreamWorkerSession)Activator.CreateInstance(typeof(GpuStreamWorkerSession),
+            BindingFlags.Instance | BindingFlags.NonPublic, null,
+            [workerLease.Worker, workerLease, new StaticWorkerSessionHandle(Guid.NewGuid(), "hash"), "unused", "1", "/tmp/broker.sock", "secret", opened], null)!;
+        typeof(GpuStreamWorkerSession).GetField("_disposeTask", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(worker, Task.CompletedTask);
+        typeof(GpuStreamWorkerSession).GetField("_terminationConfirmed", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(worker, true);
+        var state = new GpuPreviewStreamState("stream-shm", "1", "1", "ready", fixture.Source, new(640, 360),
+            PreviewAlphaMode.Opaque, "cpu", "1", "1", 3, 640L * 360 * 4 * 3, Transport: "shm");
+        using IDisposable reservation = registry.TryReserve(fixture.Client.ClientId, consumer)!;
+        Assert.True(registry.Publish(reservation, state, new(fixture.Source, null!, null!), worker));
+
+        // Validate state preserves explicit cpu/shm negotiation and unopened SHM cleanup path does not throw.
+        GpuPreviewStreamState? observed = registry.Read(fixture.Client.ClientId, "stream-shm");
+        Assert.NotNull(observed);
+        Assert.Equal("cpu", observed!.Api);
+        Assert.Equal("shm", observed.Transport);
+        Assert.Equal("failed", observed.RegistrationState);
+        Assert.Equal("GpuWorkerExited", observed.FailureCode);
+        await workerLease.Worker.DisposeAsync();
+    }
 }

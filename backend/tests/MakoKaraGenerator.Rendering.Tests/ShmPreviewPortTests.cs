@@ -205,6 +205,41 @@ public sealed class ShmPreviewPortTests
     }
 
     [Fact]
+    public void Linux未打开清理兜底仅删除当前用户0600普通文件并拒绝非0600或符号链接()
+    {
+        if (!OperatingSystem.IsLinux()) return;
+
+        string ownToken = "aa11223344556677889900aabbccddeeff";
+        string ownPath = Path.Combine("/dev/shm", "mkg-shm-" + ownToken);
+        string looseToken = "bb11223344556677889900aabbccddeeff";
+        string loosePath = Path.Combine("/dev/shm", "mkg-shm-" + looseToken);
+        string linkToken = "cc11223344556677889900aabbccddeeff";
+        string linkPath = Path.Combine("/dev/shm", "mkg-shm-" + linkToken);
+        try
+        {
+            File.WriteAllBytes(ownPath, [1, 2, 3, 4]);
+            File.SetUnixFileMode(ownPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            LinuxPosixShmBacking.TryCleanupUnopened(ownToken);
+            Assert.False(File.Exists(ownPath));
+
+            File.WriteAllBytes(loosePath, [1, 2, 3, 4]);
+            File.SetUnixFileMode(loosePath, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead);
+            LinuxPosixShmBacking.TryCleanupUnopened(looseToken);
+            Assert.True(File.Exists(loosePath));
+
+            File.CreateSymbolicLink(linkPath, loosePath);
+            LinuxPosixShmBacking.TryCleanupUnopened(linkToken);
+            Assert.True(File.Exists(linkPath));
+        }
+        finally
+        {
+            if (File.Exists(linkPath)) File.Delete(linkPath);
+            if (File.Exists(loosePath)) File.Delete(loosePath);
+            if (File.Exists(ownPath)) File.Delete(ownPath);
+        }
+    }
+
+    [Fact]
     public void VulkanShm模式免除Drm导出强耦合且可绘制合成图案()
     {
         if (!OperatingSystem.IsLinux()) return;

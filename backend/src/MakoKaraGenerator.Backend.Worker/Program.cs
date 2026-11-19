@@ -42,7 +42,7 @@ internal static class Program
         ConcurrentDictionary<string, CancellationTokenSource> active = new(StringComparer.Ordinal);
         SemaphoreSlim outputGate = new(1, 1);
         ConcurrentDictionary<string, Task> operations = new(StringComparer.Ordinal);
-        using GpuWorkerPreparationState gpuPreparation = new(enableGpuPreview);
+        using GpuWorkerPreparationState gpuPreparation = new(enableGpuPreview && renderBackend == "vulkan");
         await using StaticRenderSession staticSession = new(renderBackend);
         await using PackageRenderSession packageSession = new(renderBackend, enableGpuPreview, enableGpuPreviewBenchmark, gpuPreparation);
         using SemaphoreSlim renderSessionGate = new(1, 1);

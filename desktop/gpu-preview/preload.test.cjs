@@ -236,3 +236,40 @@ test('SHM WebGL2 receiver enforces RGBA8+sRGB, deletes immutable texture on resi
   ipc.emit('mako-gpu:shm-port',{ports:[stalePort]},{...identity,attachSeq:0});
   assert.equal(staleClosed,true);
 });
+
+test('SHM receiver keeps active port open across mako-gpu:detach so queued/paused frames still emit released ACKs immediately',async()=>{
+  const ipc=new EventEmitter(),pending=[],portReplies=[];
+  let api,boot,closed=false;
+  ipc.invoke=async(name)=>{
+    if(name==='mako-gpu:config')return {mode:'production',transport:'shm'};
+    if(name==='mako-gpu:clock')return {mainMonotonicNs:BigInt(Math.round(performance.now()*1e6)).toString()};
+    if(name==='mako-gpu:playback')return new Promise(resolve=>pending.push({resolve}));
+    return undefined;
+  };
+  ipc.send=(channel,payload)=>{if(channel==='mako-gpu:error')throw new Error(`Unexpected preload error: ${payload}`);};
+  const canvas={width:64,height:64,getContext:()=>null,addEventListener(){}};
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'preload.cjs'),'utf8'),{
+    require:name=>{assert.equal(name,'electron');return {contextBridge:{exposeInMainWorld(_n,v){api=v;}},ipcRenderer:ipc,sharedTexture:undefined};},
+    window:{addEventListener(_n,cb){boot=cb;}},document:{getElementById:()=>canvas},Uint8Array,performance,process:{sandboxed:true,contextIsolated:true,versions:{}},setTimeout,clearTimeout,setInterval:()=>0,requestAnimationFrame:cb=>setImmediate(cb),
+  });
+  await boot();
+
+  const identity={protocolVersion:1,streamId:'s-detach',hostInstanceId:'h1',producerEpoch:'1',inputGeneration:'1',consumerEpoch:'1',poolGeneration:'1'};
+  const port={onmessage:null,start(){},close(){closed=true;},postMessage(msg){portReplies.push(msg);}};
+  ipc.emit('mako-gpu:shm-port',{ports:[port]},{...identity,attachSeq:1});
+
+  const pauseReq=api.setPlaybackState({mode:'paused',mediaTimeUs:0,rate:1,targetFps:24,timelineResetId:'r1',samplePerformanceMs:performance.now()});
+  await turn();pending.shift().resolve({controlSeq:1});await pauseReq;
+
+  ipc.emit('mako-gpu:detach',{attachSeq:1});
+  assert.equal(closed,false,'mako-gpu:detach must not prematurely close activeShmPort');
+
+  port.onmessage({data:{type:'frame',metadata:{...identity,timelineEpoch:'1',timelineResetId:'r1',controlSeq:1,frameSeq:7,slotId:2,slotEpoch:'1',timeUs:500,width:64,height:64,pixelFormat:'bgra8888',strideBytes:256},buffer:new Uint8Array(64*64*4)}});
+  await turn();
+  assert.equal(portReplies.length,1);
+  assert.deepStrictEqual({...portReplies[0]},{
+    type:'released',
+    streamId:'s-detach',hostInstanceId:'h1',producerEpoch:'1',inputGeneration:'1',
+    consumerEpoch:'1',poolGeneration:'1',timelineEpoch:'1',slotId:2,slotEpoch:'1',frameSeq:7,
+  });
+});

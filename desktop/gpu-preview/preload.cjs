@@ -88,7 +88,7 @@ function closeActiveShmPort() {
 ipcRenderer.on('mako-gpu:attached', (_event,value) => applyAttached(value));
 ipcRenderer.on('mako-gpu:detach', (_event,value) => {
   if(Number.isSafeInteger(value?.attachSeq)&&value.attachSeq<appliedAttachSeq)return;
-  closeActiveShmPort();
+  // Keep activeShmPort open so in-flight and queued SHM frames can still post 'released' ACKs during drain.
   detached=true;attachment=undefined;barrier=undefined;waitingReset=true;notifyBarrierWaiters();
 });
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -211,7 +211,7 @@ async function consumeShmFrame(port, metadata, incomingBuffer) {
     if (!metadata || typeof metadata !== 'object' || !(pixelBuffer instanceof Uint8Array)) {
       throw new Error('Invalid SHM frame payload');
     }
-    const barrierExpired = config?.mode === 'production' && desiredPlayback?.mode === 'paused' && waitingReset
+    const barrierExpired = !detached && config?.mode === 'production' && desiredPlayback?.mode === 'paused' && waitingReset
       ? await waitForPausedBarrier(metadata)
       : false;
     const canvas = document.getElementById(config?.mode === 'production' ? 'mako-gpu-preview' : 'preview');

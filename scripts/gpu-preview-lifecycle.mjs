@@ -14,6 +14,7 @@ const target=targets.find(t=>t.type==='page'&&/^http:\/\/127\.0\.0\.1:/.test(t.u
 if(!target)throw new Error('No loopback desktop page');
 const cdp=await Cdp.connect(target.webSocketDebuggerUrl),page=new Page(cdp);
 cdp.ws.addEventListener('close',()=>{for(const p of cdp.pending.values())p.reject(new Error('Owned CDP disconnected'));cdp.pending.clear();});
+cdp.on(m=>{if(m.method==='Inspector.targetCrashed'){for(const p of cdp.pending.values())p.reject(new Error('Owned renderer target crashed'));cdp.pending.clear();}});
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 const invariant=(value,message)=>{if(!value)throw new Error(message);};
 let revision=0;
@@ -61,7 +62,13 @@ try{
       process.kill(pid,'SIGKILL');
       report.evidenceBoundary='External exact-owned-PID SIGKILL exercises production automatic loss handling. The previous CDP observation precedes kill and detection; it is not an exact loss-time ACK baseline. Native completion remains unknown.';
     }else{
-      try{await page.eval(`window.makoDesktopPreview.injectAcceptanceFailure(${JSON.stringify(values.scenario)})`);}catch(error){report.injectReturn=error.message;}
+      const rendererIdentity=report.ownedIdentities.find(p=>p.pid===before.rendererPid);
+      try{
+        await Promise.race([
+          page.eval(`window.makoDesktopPreview.injectAcceptanceFailure(${JSON.stringify(values.scenario)})`),
+          ...(values.scenario==='renderer-loss'&&rendererIdentity?[until(async()=>{const state=await proc(before.rendererPid);return state.exited||state.startTicks!==rendererIdentity.startTicks?state:false;},15000).then(()=>{throw new Error('Owned renderer exited after injected loss');})]:[]),
+        ]);
+      }catch(error){report.injectReturn=error.message;}
     }
     const mainIdentity=report.ownedIdentities.find(p=>p.pid===before.mainPid);
     const workerIdentity=report.ownedIdentities.find(p=>p.pid===before.workerPid);

@@ -225,6 +225,13 @@ public sealed class GpuStreamWorkerSession : IAsyncDisposable
     {
         await _workerLease.RetryTerminationAsync().ConfigureAwait(false);
         ProjectRenderSessionFactory.TryCleanupUnopenedShm(_shmToken);
+        if (!string.IsNullOrWhiteSpace(_directory) && Path.IsPathRooted(_directory))
+        {
+            try { Directory.Delete(_directory, true); }
+            catch (DirectoryNotFoundException) { }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
         Volatile.Write(ref _terminationConfirmed, true);
     }
 

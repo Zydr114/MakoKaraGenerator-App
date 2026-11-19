@@ -43,14 +43,23 @@ public sealed class BackendPreparedProjectRuntimeInput : IDisposable
 
     internal static void DeletePreparedDirectory(string directory)
     {
-        try
+        const int maxAttempts = 4;
+        for (int attempt = 1; ; attempt++)
         {
-            if (!OperatingSystem.IsWindows())
-                foreach (string folder in Directory.EnumerateDirectories(directory, "*", SearchOption.AllDirectories).Prepend(directory))
-                    File.SetUnixFileMode(folder, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
-            Directory.Delete(directory, true);
+            try
+            {
+                if (!OperatingSystem.IsWindows())
+                    foreach (string folder in Directory.EnumerateDirectories(directory, "*", SearchOption.AllDirectories).Prepend(directory))
+                        File.SetUnixFileMode(folder, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+                Directory.Delete(directory, true);
+                return;
+            }
+            catch (DirectoryNotFoundException) when (!Directory.Exists(directory) && !File.Exists(directory)) { return; }
+            catch (Exception error) when (OperatingSystem.IsWindows() && attempt < maxAttempts && error is IOException or UnauthorizedAccessException)
+            {
+                Thread.Sleep(attempt * 25);
+            }
         }
-        catch (DirectoryNotFoundException) when (!Directory.Exists(directory) && !File.Exists(directory)) { }
     }
 
     private sealed class SharedState(string? directory)

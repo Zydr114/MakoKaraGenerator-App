@@ -139,7 +139,7 @@ public sealed class GpuStreamWorkerSession : IAsyncDisposable
         try
         {
             CreatePrivateDirectory(directory);
-            var session = await proxy.OpenRuntimeInputSessionAsync(input.SourceBytes, TimeSpan.FromSeconds(20),
+            var session = await proxy.OpenRuntimeInputSessionAsync(input.SourceBytes, TimeSpan.FromSeconds(45),
                 input.GraphPixelChecks, token).ConfigureAwait(false);
             var request = new GpuStreamWorkerOpen(
                 streamId,
@@ -158,7 +158,7 @@ public sealed class GpuStreamWorkerSession : IAsyncDisposable
                 StrideBytes: strideBytes,
                 PreferredGpuDevice: null,
                 ShmToken: shmToken);
-            var opened = await proxy.OpenGpuStreamAsync(session, request, TimeSpan.FromSeconds(20), token).ConfigureAwait(false);
+            var opened = await proxy.OpenGpuStreamAsync(session, request, TimeSpan.FromSeconds(30), token).ConfigureAwait(false);
             return new(proxy, workerLease, session, directory, inputGeneration, endpointPath, handshake, shmToken, opened);
         }
         catch (Exception openFailure)
@@ -200,10 +200,17 @@ public sealed class GpuStreamWorkerSession : IAsyncDisposable
         Directory.CreateDirectory(directory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
     }
 
-    /// <summary>停止并要求真实排空；失败仍结束所属 Worker 并释放本地引用。</summary>
+    /// <summary>停止并要求真实排空；若进程已确认终止，协议或临时目录清理失败只记录诊断，不再永久阻塞后续释放。</summary>
     public ValueTask DisposeAsync()
     {
-        lock (_disposeGate) return new(_disposeTask ??= DisposeCoreAsync());
+        lock (_disposeGate)
+        {
+            if (_disposeTask is null)
+                return new(_disposeTask = DisposeCoreAsync());
+            if (_disposeTask.IsFaulted && !TerminationConfirmed)
+                return new(_disposeTask = RetryTerminationAsync());
+            return new(_disposeTask);
+        }
     }
 
     /// <summary>读取生产者权威状态，和关闭消息按同一序列串行。</summary>
@@ -237,24 +244,68 @@ public sealed class GpuStreamWorkerSession : IAsyncDisposable
     private async Task DisposeCoreAsync()
     {
         await _operationGate.WaitAsync().ConfigureAwait(false);
-        Exception? failure = null;
+        Exception? protocolFailure = null;
+        Exception? terminationFailure = null;
         try
         {
-            await _proxy.CloseGpuStreamAsync(_session,
-                new(Opened.StreamId, Opened.ProducerEpoch, _inputGeneration), checked(++_sequence), TimeSpan.FromSeconds(20)).ConfigureAwait(false);
-            await _proxy.ClosePackageSessionAsync(_session, checked(++_sequence), TimeSpan.FromSeconds(20)).ConfigureAwait(false);
+            try
+            {
+                await _proxy.CloseGpuStreamAsync(_session,
+                    new(Opened.StreamId, Opened.ProducerEpoch, _inputGeneration), checked(++_sequence), TimeSpan.FromSeconds(20)).ConfigureAwait(false);
+                await _proxy.ClosePackageSessionAsync(_session, checked(++_sequence), TimeSpan.FromSeconds(20)).ConfigureAwait(false);
+            }
+            catch (Exception error) { protocolFailure = error; }
+            try
+            {
+                await _workerLease.DisposeAsync().ConfigureAwait(false);
+                Volatile.Write(ref _terminationConfirmed, true);
+            }
+            catch (Exception error) { terminationFailure = error; }
+            ProjectRenderSessionFactory.TryCleanupUnopenedShm(_shmToken);
+            if (terminationFailure is not null)
+            {
+                await TryDeleteDirectoryWithRetryAsync(_directory, logFailure: false).ConfigureAwait(false);
+                ExceptionDispatchInfo.Capture(terminationFailure).Throw();
+            }
+            if (protocolFailure is not null)
+            {
+                Console.Error.WriteLine(
+                    $"BACKEND_GPU_WORKER_CLOSE_PROTOCOL_FAILED type={protocolFailure.GetType().Name} inner={protocolFailure.InnerException?.GetType().Name ?? "none"}");
+            }
+            await TryDeleteDirectoryWithRetryAsync(_directory, logFailure: true).ConfigureAwait(false);
         }
-        catch (Exception error) { failure = error; }
-        try { await _workerLease.DisposeAsync().ConfigureAwait(false); Volatile.Write(ref _terminationConfirmed, true); }
-        catch (Exception error) { failure ??= error; }
-        ProjectRenderSessionFactory.TryCleanupUnopenedShm(_shmToken);
-        try { Directory.Delete(_directory, true); }
-        catch (IOException error) { failure ??= error; }
-        catch (UnauthorizedAccessException error) { failure ??= error; }
-        _operationGate.Release();
-        if (failure is not null)
+        finally
         {
-            ExceptionDispatchInfo.Capture(failure).Throw();
+            _operationGate.Release();
+        }
+    }
+
+    private static async Task TryDeleteDirectoryWithRetryAsync(string directory, bool logFailure)
+    {
+        if (string.IsNullOrWhiteSpace(directory)) return;
+        const int maxAttempts = 4;
+        for (int attempt = 1; ; attempt++)
+        {
+            try
+            {
+                Directory.Delete(directory, true);
+                return;
+            }
+            catch (DirectoryNotFoundException) { return; }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            {
+                if (attempt < maxAttempts)
+                {
+                    await Task.Delay(attempt * 25).ConfigureAwait(false);
+                    continue;
+                }
+                if (logFailure)
+                {
+                    Console.Error.WriteLine(
+                        $"BACKEND_GPU_WORKER_DIR_CLEANUP_FAILED type={error.GetType().Name} inner={error.InnerException?.GetType().Name ?? "none"}");
+                }
+                return;
+            }
         }
     }
 }
@@ -288,5 +339,7 @@ public sealed class GpuStreamOpenCleanupException : Exception
         ProjectRenderSessionFactory.TryCleanupUnopenedShm(_shmToken);
         try { Directory.Delete(_directory, true); }
         catch (DirectoryNotFoundException) { }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
     }
 }

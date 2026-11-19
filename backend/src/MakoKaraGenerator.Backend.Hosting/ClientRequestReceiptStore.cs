@@ -96,8 +96,9 @@ public sealed class ClientRequestReceiptStore
         {
             BackendOperationResult<T> result;
             try { result = await execute().ConfigureAwait(false); }
-            catch (Exception)
+            catch (Exception error)
             {
+                Console.Error.WriteLine(FormatInternalErrorLog(operationKey, error));
                 // 不能在结果不明时移除占用，让同一请求重新产生副作用。
                 result = Reject<T>(BackendErrorCode.InternalError, "请求结果未能完成，请读取当前状态核对。");
             }
@@ -150,6 +151,20 @@ public sealed class ClientRequestReceiptStore
 
     /// <summary>只能在claim且确认无有效回执之后移除client内存索引。</summary>
     internal void RemoveClient(string clientId) { lock (_gate) _receipts.Remove(clientId); }
+
+    private static string FormatInternalErrorLog(string operationKey, Exception error) =>
+        $"BACKEND_RECEIPT_INTERNAL_ERROR op={SanitizeLogField(operationKey, 64)} type={error.GetType().Name} inner={error.InnerException?.GetType().Name ?? "none"} msg={SanitizeLogField(error.Message, 240)}";
+
+    private static string SanitizeLogField(string? value, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "empty";
+        string cleaned = string.Create(Math.Min(value.Length, maxLength), value, static (span, source) =>
+        {
+            for (int i = 0; i < span.Length; i++)
+                span[i] = char.IsControl(source[i]) ? ' ' : source[i];
+        });
+        return value.Length > maxLength ? string.Concat(cleaned, "...") : cleaned;
+    }
 
     private static BackendOperationResult<T> Reject<T>(BackendErrorCode code, string message, string? field = null) =>
         BackendOperationResult<T>.Rejected(new(code, message, field));

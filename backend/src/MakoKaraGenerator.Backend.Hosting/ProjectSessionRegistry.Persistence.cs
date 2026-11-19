@@ -401,6 +401,7 @@ public sealed partial class ProjectSessionRegistry
                 }
                 finally { session.Writer.Release(); }
                 await RemoveClosedSessionAsync(session).ConfigureAwait(false);
+                await NotifyProjectClosedAsync(session.OwnerClientId, session.ProjectSessionId).ConfigureAwait(false);
                 BackendDiagnosticDto[]? cleanupWarnings = null;
                 try { await ReleasePinnedInputAsync(session.PinnedInputDirectory).ConfigureAwait(false); }
                 catch (Exception error) when (error is IOException or UnauthorizedAccessException)

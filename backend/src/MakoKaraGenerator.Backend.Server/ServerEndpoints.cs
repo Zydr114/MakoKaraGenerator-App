@@ -76,8 +76,11 @@ internal static partial class ServerEndpoints
             }
             catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested) { }
             catch (IOException) when (context.RequestAborted.IsCancellationRequested) { }
-            catch (Exception)
-            { await WriteError(context, new(BackendErrorCode.InternalError, "服务未能完成请求，请读取当前状态核对。"), 500); }
+            catch (Exception error)
+            {
+                Console.Error.WriteLine($"BACKEND_HTTP_UNHANDLED_ERROR method={context.Request.Method} path={context.Request.Path.Value} type={error.GetType().Name} inner={error.InnerException?.GetType().Name ?? "none"}");
+                await WriteError(context, new(BackendErrorCode.InternalError, "服务未能完成请求，请读取当前状态核对。"), 500);
+            }
             finally { operationPin?.Dispose(); }
         });
         app.MapGet("/health/live", (ProjectSessionRegistry registry) => Results.Json(new HealthResponse("live", registry.HostInstanceId)));

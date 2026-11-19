@@ -26,4 +26,8 @@ public sealed record GpuPreviewStreamState(string StreamId, string StreamRevisio
     string RegistrationState, PreviewSourceDto Source, PreviewSizeDto Size, PreviewAlphaMode AlphaMode, string Api,
     string ProducerEpoch, string PoolGeneration, int SlotCount, long AllocationBytes,
     long? LastAppliedControlSeq = null, string? FailureCode = null, string TextureAlphaMode = "premultiplied",
-    GpuStreamWorkerState? WorkerState = null, string Transport = "dma-buf");
+    GpuStreamWorkerState? WorkerState = null, string Transport = "dma-buf", bool? Quarantined = null);
+
+/// <summary>当前客户端名下活跃的连续预览流列表。</summary>
+public sealed record GpuPreviewStreamListResponse(GpuPreviewStreamState[] Streams,
+    string ProtocolVersion = BackendProtocol.Version);

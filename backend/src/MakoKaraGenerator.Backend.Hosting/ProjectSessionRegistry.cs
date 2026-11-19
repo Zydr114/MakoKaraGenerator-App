@@ -61,6 +61,8 @@ public sealed partial class ProjectSessionRegistry : IDisposable, IAsyncDisposab
     private readonly ClientLifecycleOptions _lifecycleOptions;
     private readonly ClientEventJournal _events;
     private readonly object _shutdownGate = new();
+    private readonly object _projectClosedGate = new();
+    private readonly List<Func<string, string, Task>> _projectClosedListeners = [];
     private Task? _shutdown;
     // Set before draining accepted receipts so trusted in-process callers cannot
     // publish a new session while shutdown is releasing the existing graph.
@@ -96,6 +98,13 @@ public sealed partial class ProjectSessionRegistry : IDisposable, IAsyncDisposab
 
     /// <summary>当前后端进程身份。</summary>
     public string HostInstanceId => _hostInstanceId;
+
+    /// <summary>注册工程会话关闭完成后的异步清理回调，仅在会话移出索引并释放写锁后触发。</summary>
+    public void RegisterProjectClosedListener(Func<string, string, Task> listener)
+    {
+        ArgumentNullException.ThrowIfNull(listener);
+        lock (_projectClosedGate) _projectClosedListeners.Add(listener);
+    }
 
     private static bool IsLyricsAsset(StoredAsset asset) =>
         asset.ContentType.StartsWith("text/", StringComparison.Ordinal)
@@ -552,6 +561,21 @@ public sealed partial class ProjectSessionRegistry : IDisposable, IAsyncDisposab
             RemoveSessionLyricsExports(session.ProjectSessionId);
         }
         finally { _membershipGate.Release(); }
+    }
+
+    internal async Task NotifyProjectClosedAsync(string clientId, string projectSessionId)
+    {
+        if (string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(projectSessionId)) return;
+        Func<string, string, Task>[] listeners;
+        lock (_projectClosedGate) listeners = [.. _projectClosedListeners];
+        foreach (Func<string, string, Task> listener in listeners)
+        {
+            try { await listener(clientId, projectSessionId).ConfigureAwait(false); }
+            catch (Exception error)
+            {
+                Console.Error.WriteLine($"BACKEND_PROJECT_CLOSED_LISTENER_FAILED type={error.GetType().Name}");
+            }
+        }
     }
 
     /// <summary>读取当前client的有界事件重放。</summary>

@@ -20,6 +20,8 @@ internal static partial class ServerEndpoints
             request.HttpContext.RequestAborted.ThrowIfCancellationRequested();
             return Result(await tracker.RunAsync(() => service.CreateGpuStreamAsync(Client(request), input!)), 201);
         });
+        app.MapGet("/api/v1/gpu-preview-streams", async (HttpRequest request, PreviewBackendService service) =>
+            Result(await service.ReadGpuStreamsAsync(Client(request))));
         app.MapGet("/api/v1/gpu-preview-streams/{id}", async (string id, HttpRequest request, PreviewBackendService service) =>
             Result(await service.ReadGpuStreamAsync(Client(request), id)));
         app.MapPut("/api/v1/gpu-preview-streams/{id}/source", async (string id, HttpRequest request, PreviewBackendService service, AcceptedOperationTracker tracker) =>

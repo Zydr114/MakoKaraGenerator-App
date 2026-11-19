@@ -161,4 +161,130 @@ public sealed partial class PreviewTransportTests
         Assert.Equal("GpuWorkerExited", observed.FailureCode);
         await workerLease.Worker.DisposeAsync();
     }
+
+    private sealed class ThrowingRetentionLease : IDisposable
+    {
+        public int DisposeCount { get; private set; }
+        public void Dispose() { DisposeCount++; throw new IOException("Simulated Windows handle lock"); }
+    }
+
+    [Fact]
+    public async Task Close_releases_quota_after_confirmed_termination_even_when_protocol_and_retention_io_fail()
+    {
+        await using Fixture fixture = await Fixture.Create();
+        string client = fixture.Client.ClientId;
+        const string consumer = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", secret = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        GpuPreviewStreamRegistry registry = new();
+        typeof(PreviewBackendService).GetField("_gpuStreams", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(fixture.Service, registry);
+        typeof(PreviewBackendService).GetField("_desktopConsumer", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .SetValue(fixture.Service, DesktopConsumerIdentity.Create(consumer, secret, "123"));
+        await using var pool = new GpuWorkerSparePool<WorkerProcessProxy>("close-fault-fixture",
+            () => new(new WorkerProcessOptions("unused", [], TimeSpan.FromSeconds(1))),
+            (_, _) => Task.CompletedTask, _ => Task.CompletedTask, _ => true);
+        var workerLease = await pool.AcquireAsync();
+        GpuStreamWorkerOpened opened = new("stream-close", "1", "1", 64, 64, 3, 49152, 123, 0, 0, 0, 0, "device",
+            Transport: "shm", BackendApi: "cpu", PixelFormat: "bgra8888", StrideBytes: 256);
+        GpuStreamWorkerSession worker = (GpuStreamWorkerSession)Activator.CreateInstance(typeof(GpuStreamWorkerSession),
+            BindingFlags.Instance | BindingFlags.NonPublic, null,
+            [workerLease.Worker, workerLease, new StaticWorkerSessionHandle(Guid.NewGuid(), "hash"), "unused", "1", "unused", "secret", opened], null)!;
+        var throwingLease = new ThrowingRetentionLease();
+        var state = new GpuPreviewStreamState("stream-close", "1", "1", "ready", fixture.Source, new(64, 64),
+            PreviewAlphaMode.Opaque, "cpu", "1", "1", 3, 49152, Transport: "shm");
+        using (IDisposable reservation = registry.TryReserve(client, consumer)!)
+            Assert.True(registry.Publish(reservation, state, new(fixture.Source, null!, null!, throwingLease), worker));
+
+        var closed = await fixture.Service.CloseGpuStreamAsync(client, "stream-close", new("1", fixture.Metadata()));
+        Assert.True(closed.Accepted);
+        Assert.Equal("closed", closed.Response!.RegistrationState);
+        Assert.True(worker.TerminationConfirmed);
+        Assert.Equal(1, throwingLease.DisposeCount);
+
+        var listed = await fixture.Service.ReadGpuStreamsAsync(client);
+        Assert.True(listed.Accepted);
+        Assert.Empty(listed.Response!.Streams);
+        using IDisposable? reopened = registry.TryReserve(client, consumer);
+        Assert.NotNull(reopened);
+        await workerLease.Worker.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Quarantined_stream_appears_in_list_and_close_rejects_cleanly_without_reopening_quota()
+    {
+        await using Fixture fixture = await Fixture.Create();
+        string client = fixture.Client.ClientId;
+        const string consumer = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", secret = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        GpuPreviewStreamRegistry registry = new();
+        typeof(PreviewBackendService).GetField("_gpuStreams", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(fixture.Service, registry);
+        typeof(PreviewBackendService).GetField("_desktopConsumer", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .SetValue(fixture.Service, DesktopConsumerIdentity.Create(consumer, secret, "123"));
+        int stopped = 0;
+        await using var pool = new GpuWorkerSparePool<WorkerProcessProxy>("quarantine-close-fixture",
+            () => new(new WorkerProcessOptions("unused", [], TimeSpan.FromSeconds(1))),
+            (_, _) => Task.CompletedTask, _ => { Interlocked.Increment(ref stopped); return Task.CompletedTask; }, _ => true);
+        var workerLease = await pool.AcquireAsync();
+        GpuStreamWorkerOpened opened = new("stream-q", "1", "1", 64, 64, 3, 49152, 123, 0, 0, 0, 0, "device");
+        GpuStreamWorkerSession worker = (GpuStreamWorkerSession)Activator.CreateInstance(typeof(GpuStreamWorkerSession),
+            BindingFlags.Instance | BindingFlags.NonPublic, null,
+            [workerLease.Worker, workerLease, new StaticWorkerSessionHandle(Guid.NewGuid(), "hash"), "unused", "1", "unused", "secret", opened], null)!;
+        var state = new GpuPreviewStreamState("stream-q", "1", "1", "ready", fixture.Source, new(64, 64), PreviewAlphaMode.Opaque,
+            "cpu", "1", "1", 3, 49152, Transport: "shm");
+        using IDisposable reservation = registry.TryReserve(client, consumer)!;
+        Assert.True(registry.Publish(reservation, state, new(fixture.Source, null!, null!), worker));
+        var entries = (System.Collections.IDictionary)typeof(GpuPreviewStreamRegistry)
+            .GetField("_entries", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(registry)!;
+        entries["stream-q"]!.GetType().GetField("Claimed", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(entries["stream-q"], true);
+        Assert.True(await fixture.Service.AbortGpuConsumerAsync("stream-q", consumer, "host", "1", "1", secret));
+        Assert.Equal(1, stopped);
+
+        var listed = await fixture.Service.ReadGpuStreamsAsync(client);
+        Assert.True(listed.Accepted);
+        Assert.Single(listed.Response!.Streams);
+        Assert.True(listed.Response.Streams[0].Quarantined);
+        Assert.Equal("GpuConsumerCompletionUnknown", listed.Response.Streams[0].FailureCode);
+
+        var closeAttempt = await fixture.Service.CloseGpuStreamAsync(client, "stream-q", new("1", fixture.Metadata()));
+        Assert.False(closeAttempt.Accepted);
+        Assert.Equal(BackendErrorCode.PreviewUnavailable, closeAttempt.Error!.Code);
+        Assert.Equal("GpuConsumerCompletionUnknown", closeAttempt.Error.FailureCode);
+        Assert.Equal(1, stopped);
+        Assert.Null(registry.TryReserve(client, consumer));
+        await workerLease.Worker.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Project_closed_notification_drains_non_quarantined_gpu_streams_for_project()
+    {
+        await using Fixture fixture = await Fixture.Create();
+        string client = fixture.Client.ClientId;
+        const string consumer = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", secret = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        GpuPreviewStreamRegistry registry = new();
+        typeof(PreviewBackendService).GetField("_gpuStreams", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(fixture.Service, registry);
+        typeof(PreviewBackendService).GetField("_desktopConsumer", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .SetValue(fixture.Service, DesktopConsumerIdentity.Create(consumer, secret, "123"));
+        await using var pool = new GpuWorkerSparePool<WorkerProcessProxy>("project-drain-fixture",
+            () => new(new WorkerProcessOptions("unused", [], TimeSpan.FromSeconds(1))),
+            (_, _) => Task.CompletedTask, _ => Task.CompletedTask, _ => true);
+        var workerLease = await pool.AcquireAsync();
+        GpuStreamWorkerOpened opened = new("stream-proj", "1", "1", 64, 64, 3, 49152, 123, 0, 0, 0, 0, "device",
+            Transport: "shm", BackendApi: "cpu", PixelFormat: "bgra8888", StrideBytes: 256);
+        GpuStreamWorkerSession worker = (GpuStreamWorkerSession)Activator.CreateInstance(typeof(GpuStreamWorkerSession),
+            BindingFlags.Instance | BindingFlags.NonPublic, null,
+            [workerLease.Worker, workerLease, new StaticWorkerSessionHandle(Guid.NewGuid(), "hash"), "unused", "1", "unused", "secret", opened], null)!;
+        var state = new GpuPreviewStreamState("stream-proj", "1", "1", "ready", fixture.Source, new(64, 64), PreviewAlphaMode.Opaque,
+            "cpu", "1", "1", 3, 49152, Transport: "shm");
+        using (IDisposable reservation = registry.TryReserve(client, consumer)!)
+            Assert.True(registry.Publish(reservation, state, new(fixture.Source, null!, null!), worker));
+
+        BackendOperationResult<JobResponse> close = await fixture.Projects.StartCloseAsync(client,
+            fixture.Project.ProjectSessionId, new("0", Policy: "discard", Metadata: fixture.Metadata()));
+        Assert.True(close.Accepted);
+        await WaitUntil(() => fixture.Projects.ReadJob(client, close.Response!.JobId).Response!.State == "succeeded");
+
+        var listed = await fixture.Service.ReadGpuStreamsAsync(client);
+        Assert.True(listed.Accepted);
+        Assert.Empty(listed.Response!.Streams);
+        using IDisposable? reopened = registry.TryReserve(client, consumer);
+        Assert.NotNull(reopened);
+        await workerLease.Worker.DisposeAsync();
+    }
 }

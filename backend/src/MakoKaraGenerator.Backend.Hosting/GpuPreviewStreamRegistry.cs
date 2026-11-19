@@ -19,6 +19,21 @@ public sealed class GpuPreviewStreamRegistry
             .Select(e => (e.State.StreamId, e.State.StreamRevision)).ToArray();
     }
 
+    /// <summary>返回绑定指定工程且未隔离、未占线的所有流，用于工程关闭时兜底回收配额。</summary>
+    public (string StreamId, string Revision)[] ClientStreamsForProject(string client, string projectSessionId)
+    {
+        lock (_gate) return _entries.Values
+            .Where(e => e.Client == client && !e.Busy && !e.Quarantined &&
+                string.Equals(e.State.Source.Kind, "project", StringComparison.Ordinal) &&
+                string.Equals(e.State.Source.SourceId, projectSessionId, StringComparison.Ordinal))
+            .Select(e => (e.State.StreamId, e.State.StreamRevision)).ToArray();
+    }
+
+    public bool IsQuarantined(string client, string streamId)
+    {
+        lock (_gate) return _entries.TryGetValue(streamId, out var e) && e.Client == client && e.Quarantined;
+    }
+
     private sealed class Entry(string client, string consumer, GpuPreviewStreamState state,
         BackendPreviewPinnedInput input, GpuStreamWorkerSession worker)
     {
@@ -71,9 +86,23 @@ public sealed class GpuPreviewStreamRegistry
         {
             if (!_entries.TryGetValue(streamId, out var e) || e.Client != client) return null;
             MarkExited(e);
-            return e.State;
+            return ToPublicState(e);
         }
     }
+
+    /// <summary>列出属于当前客户端的全部连续预览流权威状态。</summary>
+    public GpuPreviewStreamState[] List(string client)
+    {
+        lock (_gate)
+        {
+            Entry[] owned = _entries.Values.Where(e => e.Client == client).ToArray();
+            foreach (Entry e in owned) MarkExited(e);
+            return owned.Select(ToPublicState).ToArray();
+        }
+    }
+
+    private static GpuPreviewStreamState ToPublicState(Entry entry) =>
+        entry.Quarantined ? entry.State with { Quarantined = true } : entry.State with { Quarantined = null };
 
     public GpuStreamWorkerSession? WorkerForRead(string client, string streamId)
     {
@@ -98,7 +127,7 @@ public sealed class GpuPreviewStreamRegistry
 
     private static void MarkExited(Entry entry)
     {
-        if (!entry.Busy && entry.State.RegistrationState != "failed" && !entry.Worker.IsWorkerAlive)
+        if (!entry.Busy && !entry.Quarantined && entry.State.RegistrationState != "failed" && !entry.Worker.IsWorkerAlive)
         {
             entry.Worker.CleanupUnopenedShmIfDead();
             entry.State = entry.State with { RegistrationState = "failed", FailureCode = "GpuWorkerExited" };

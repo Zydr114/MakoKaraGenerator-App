@@ -38,6 +38,7 @@ internal sealed partial class PreviewBackendService : IAsyncDisposable
         _defaultRenderBackend = renderBackends?.DefaultBackend
             ?? (factory as IBackendPreviewRenderBackendFactory)?.RenderBackend ?? "cpu";
         _previews.Updated += PublishEvent;
+        _projects.RegisterProjectClosedListener(DrainGpuProjectAsync);
     }
 
     private void PublishEvent(BackendPreviewSessionEvent update)

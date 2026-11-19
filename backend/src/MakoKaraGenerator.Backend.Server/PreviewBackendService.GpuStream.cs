@@ -80,7 +80,7 @@ internal sealed partial class PreviewBackendService
             finally
             {
                 _gpuStreams.FailChange(client, id, worker, "GpuConsumerCompletionUnknown");
-                _gpuStreams.ReleaseRetiredInput(client, id, worker);
+                TryReleaseRetiredInput(_gpuStreams, client, id, worker, "abort_consumer");
             }
             return terminated;
         }
@@ -151,9 +151,17 @@ internal sealed partial class PreviewBackendService
             }
             catch (GpuStreamOpenCleanupException failure)
             {
+                Console.Error.WriteLine(
+                    $"BACKEND_GPU_STREAM_CREATE_FAILED stage=open_cleanup type={failure.GetType().Name} inner={failure.InnerException?.GetType().Name ?? "none"}");
                 _gpuStreams.QuarantineOpen(reservation, null, null, input, failure);
                 quarantinedOpen = true;
-                throw;
+                return BackendOperationResult<GpuPreviewStreamState>.Rejected(new(
+                    BackendErrorCode.PreviewUnavailable, "GPU 流初始化失败且进程清理状态未知，已隔离该名额。",
+                    FailureCode: "GpuStreamOpenQuarantined"));
+            }
+            catch (Exception error) when (TryMapGpuStreamException("CREATE", error, _shutdown.IsCancellationRequested, out BackendErrorResponse? mapped))
+            {
+                return BackendOperationResult<GpuPreviewStreamState>.Rejected(mapped!);
             }
             finally
             {
@@ -162,12 +170,17 @@ internal sealed partial class PreviewBackendService
             }
         }));
 
+    internal Task<BackendOperationResult<GpuPreviewStreamListResponse>> ReadGpuStreamsAsync(string client) =>
+        MutateAsync(client, () => Task.FromResult(BackendOperationResult<GpuPreviewStreamListResponse>.Success(
+            new(_gpuStreams?.List(client) ?? []))));
+
     internal Task<BackendOperationResult<GpuPreviewStreamState>> ReadGpuStreamAsync(string client, string id) =>
         MutateAsync(client, async () =>
         {
             GpuPreviewStreamState? state = _gpuStreams?.Read(client, id);
             if (state is null) return Reject<GpuPreviewStreamState>(BackendErrorCode.SessionNotFound, "GPU 流不存在。");
-            if (state.RegistrationState == "failed") return BackendOperationResult<GpuPreviewStreamState>.Success(state);
+            if (state.RegistrationState == "failed" || state.Quarantined == true)
+                return BackendOperationResult<GpuPreviewStreamState>.Success(state);
             GpuStreamWorkerSession? worker = _gpuStreams!.WorkerForRead(client, id);
             if (worker is null) return BackendOperationResult<GpuPreviewStreamState>.Success(state);
             GpuStreamWorkerState? failedState = null;
@@ -187,7 +200,7 @@ internal sealed partial class PreviewBackendService
                 finally
                 {
                     _gpuStreams.FailChange(client, id, worker, failedState?.FailureCode ?? "GpuWorkerFailed", failedState);
-                    _gpuStreams.ReleaseRetiredInput(client, id, worker);
+                    TryReleaseRetiredInput(_gpuStreams, client, id, worker, "read_failed_worker");
                 }
             }
             return BackendOperationResult<GpuPreviewStreamState>.Success(_gpuStreams.Read(client, id)!);
@@ -208,11 +221,31 @@ internal sealed partial class PreviewBackendService
     internal Task<BackendOperationResult<GpuPreviewStreamState>> CloseGpuStreamAsync(string client, string id,
         GpuPreviewStreamCloseRequest request) => _projects.Receipts.ExecuteAsync(client, request.Metadata,
         "DELETE /api/v1/gpu-preview-streams/" + id, request with { Metadata = null },
-        () => MutateAsync(client, () => CloseGpuStreamCoreAsync(client, id, request.ExpectedStreamRevision)));
+        () => MutateAsync(client, async () =>
+        {
+            try { return await CloseGpuStreamCoreAsync(client, id, request.ExpectedStreamRevision).ConfigureAwait(false); }
+            catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
+            { return Reject<GpuPreviewStreamState>(BackendErrorCode.SessionClosing, "预览服务正在关闭。"); }
+            catch (Exception error) when (!_shutdown.IsCancellationRequested)
+            {
+                Console.Error.WriteLine(
+                    $"BACKEND_GPU_STREAM_CLOSE_FAILED stage=http type={error.GetType().Name} inner={error.InnerException?.GetType().Name ?? "none"}");
+                return BackendOperationResult<GpuPreviewStreamState>.Rejected(new(
+                    BackendErrorCode.PreviewUnavailable, "GPU 流进程尚未确认退出，已保留隔离。",
+                    FailureCode: "GpuStreamDrainFailed"));
+            }
+        }));
 
     private async Task<BackendOperationResult<GpuPreviewStreamState>> CloseGpuStreamCoreAsync(string client, string id, string revision)
     {
         if (_gpuStreams is null) return Reject<GpuPreviewStreamState>(BackendErrorCode.SessionNotFound, "GPU 流不存在。");
+        if (_gpuStreams.IsQuarantined(client, id))
+        {
+            GpuPreviewStreamState? quarantinedState = _gpuStreams.Read(client, id);
+            return BackendOperationResult<GpuPreviewStreamState>.Rejected(new(
+                BackendErrorCode.PreviewUnavailable, "GPU 流已进入故障隔离，请重启应用后重试。",
+                FailureCode: quarantinedState?.FailureCode ?? "GpuStreamQuarantined"));
+        }
         if (!_gpuStreams.TryBeginChange(client, id, revision, out bool found))
             return Reject<GpuPreviewStreamState>(!found ? BackendErrorCode.SessionNotFound : BackendErrorCode.RevisionConflict,
                 "GPU 流不存在或修订已改变。");
@@ -220,20 +253,51 @@ internal sealed partial class PreviewBackendService
         try
         {
             await resources.Worker.DisposeAsync().ConfigureAwait(false);
-            _gpuStreams.ReleaseRetiredInput(client, id, resources.Worker);
-            if (!_gpuStreams.CompleteClose(client, id, resources.Worker))
-            {
-                _gpuStreams.FailChange(client, id, resources.Worker, "GpuStreamQuarantined");
-                return Reject<GpuPreviewStreamState>(BackendErrorCode.RevisionConflict, "GPU 流关闭状态已改变。");
-            }
-            return BackendOperationResult<GpuPreviewStreamState>.Success(resources.State with { RegistrationState = "closed" });
         }
-        catch
+        catch (Exception error)
         {
+            Console.Error.WriteLine(
+                $"BACKEND_GPU_STREAM_CLOSE_FAILED stage=dispose_worker type={error.GetType().Name} inner={error.InnerException?.GetType().Name ?? "none"}");
             _gpuStreams.FailChange(client, id, resources.Worker, "GpuStreamDrainFailed");
-            _gpuStreams.ReleaseRetiredInput(client, id, resources.Worker);
+            TryReleaseRetiredInput(_gpuStreams, client, id, resources.Worker, "close_drain_failed");
             throw;
         }
+
+        // Worker 终止已确认；Windows 下固定输入目录短暂占用不得阻止 CompleteClose 归还配额。
+        TryReleaseRetiredInput(_gpuStreams, client, id, resources.Worker, "close");
+        if (!_gpuStreams.CompleteClose(client, id, resources.Worker))
+        {
+            if (_gpuStreams.IsQuarantined(client, id))
+            {
+                return BackendOperationResult<GpuPreviewStreamState>.Rejected(new(
+                    BackendErrorCode.PreviewUnavailable, "GPU 流已进入故障隔离，请重启应用后重试。",
+                    FailureCode: _gpuStreams.Read(client, id)?.FailureCode ?? "GpuStreamQuarantined"));
+            }
+            _gpuStreams.FailChange(client, id, resources.Worker, "GpuStreamQuarantined");
+            return Reject<GpuPreviewStreamState>(BackendErrorCode.RevisionConflict, "GPU 流关闭状态已改变。");
+        }
+        return BackendOperationResult<GpuPreviewStreamState>.Success(resources.State with { RegistrationState = "closed" });
+    }
+
+    internal async Task DrainGpuProjectAsync(string client, string projectSessionId)
+    {
+        if (_gpuStreams is null || _stopping || _shutdown.IsCancellationRequested) return;
+        await _membership.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (_gpuStreams is null || _stopping || _shutdown.IsCancellationRequested) return;
+            foreach (var (streamId, revision) in _gpuStreams.ClientStreamsForProject(client, projectSessionId))
+            {
+                if (_gpuStreams.IsConsumerIsolationComplete(client, streamId)) continue;
+                try { await CloseGpuStreamCoreAsync(client, streamId, revision).ConfigureAwait(false); }
+                catch (Exception error)
+                {
+                    Console.Error.WriteLine(
+                        $"BACKEND_GPU_PROJECT_DRAIN_FAILED type={error.GetType().Name} inner={error.InnerException?.GetType().Name ?? "none"}");
+                }
+            }
+        }
+        finally { _membership.Release(); }
     }
 
     private async Task DrainGpuClientAsync(string client)
@@ -259,6 +323,10 @@ internal sealed partial class PreviewBackendService
             return Reject<GpuPreviewStreamState>(BackendErrorCode.PreviewUnavailable, "GPU 流未配置。");
         GpuPreviewStreamState? old = _gpuStreams.Read(client, id);
         if (old is null) return Reject<GpuPreviewStreamState>(BackendErrorCode.SessionNotFound, "GPU 流不存在。");
+        if (old.Quarantined == true)
+            return BackendOperationResult<GpuPreviewStreamState>.Rejected(new(
+                BackendErrorCode.PreviewUnavailable, "GPU 流已进入故障隔离，请重启应用后重试。",
+                FailureCode: old.FailureCode ?? "GpuStreamQuarantined"));
         if (old.RegistrationState == "failed") return Reject<GpuPreviewStreamState>(BackendErrorCode.PreviewUnavailable, "GPU 流已失败。");
         if (old.StreamRevision != expectedRevision)
             return Reject<GpuPreviewStreamState>(BackendErrorCode.RevisionConflict, "GPU 流修订已改变。");
@@ -293,6 +361,7 @@ internal sealed partial class PreviewBackendService
         bool published = false;
         bool begun = false;
         bool quarantinedOpen = false;
+        string? changeFailureCode = null;
         try
         {
             if (input.PreparedInput is null) return Reject<GpuPreviewStreamState>(BackendErrorCode.PreviewUnavailable, "固定 Runtime 输入不可用。");
@@ -308,7 +377,18 @@ internal sealed partial class PreviewBackendService
             if (!checkedInput.Accepted) return checkedInput;
             var oldResources = _gpuStreams.GetForClose(client, id)!.Value;
             previous = oldResources.Worker;
-            await previous.DisposeAsync().ConfigureAwait(false);
+            try
+            {
+                await previous.DisposeAsync().ConfigureAwait(false);
+            }
+            catch (Exception error) when (!_shutdown.IsCancellationRequested)
+            {
+                Console.Error.WriteLine(
+                    $"BACKEND_GPU_STREAM_CHANGE_FAILED stage=dispose_previous type={error.GetType().Name} inner={error.InnerException?.GetType().Name ?? "none"}");
+                changeFailureCode = "GpuStreamDrainFailed";
+                return BackendOperationResult<GpuPreviewStreamState>.Rejected(new(
+                    BackendErrorCode.PreviewUnavailable, "旧预览渲染进程尚未确认退出，请稍后重试。", FailureCode: changeFailureCode));
+            }
             string nextGeneration = (generation + 1).ToString(CultureInfo.InvariantCulture);
             worker = await GpuStreamWorkerSession.OpenAsync(_gpuWorkerPool!, input.PreparedInput, id,
                 _clients.HostInstanceId, nextGeneration, size.Width, size.Height,
@@ -327,15 +407,24 @@ internal sealed partial class PreviewBackendService
                 if (!_gpuStreams.CompleteChange(client, id, previous, next, input, worker))
                     return Reject<GpuPreviewStreamState>(BackendErrorCode.RevisionConflict, "GPU 流代次已改变。");
                 published = true;
-                oldResources.Input.RetentionLease?.Dispose();
+                TryDisposeRetentionLease(oldResources.Input.RetentionLease, "change_old_input");
                 return BackendOperationResult<GpuPreviewStreamState>.Success(next);
             }).ConfigureAwait(false);
         }
         catch (GpuStreamOpenCleanupException failure)
         {
+            Console.Error.WriteLine(
+                $"BACKEND_GPU_STREAM_CHANGE_FAILED stage=open_cleanup type={failure.GetType().Name} inner={failure.InnerException?.GetType().Name ?? "none"}");
             _gpuStreams.QuarantineOpen(null, client, id, input, failure);
             quarantinedOpen = true;
-            throw;
+            changeFailureCode = "GpuStreamOpenQuarantined";
+            return BackendOperationResult<GpuPreviewStreamState>.Rejected(new(
+                BackendErrorCode.PreviewUnavailable, "GPU 流切换失败且进程清理状态未知，已隔离该名额。", FailureCode: changeFailureCode));
+        }
+        catch (Exception error) when (TryMapGpuStreamException("CHANGE", error, _shutdown.IsCancellationRequested, out BackendErrorResponse? mapped))
+        {
+            changeFailureCode = mapped!.FailureCode ?? changeFailureCode;
+            return BackendOperationResult<GpuPreviewStreamState>.Rejected(mapped!);
         }
         finally
         {
@@ -349,33 +438,106 @@ internal sealed partial class PreviewBackendService
                 {
                     if (begun && previous is not null)
                     {
-                        _gpuStreams.FailChange(client, id, previous, "GpuStreamChangeFailed");
-                        _gpuStreams.ReleaseRetiredInput(client, id, previous);
+                        _gpuStreams.FailChange(client, id, previous, changeFailureCode ?? "GpuStreamChangeFailed");
+                        TryReleaseRetiredInput(_gpuStreams, client, id, previous, "change_fail");
                     }
                 }
             }
         }
     });
 
-    private static async Task RollbackGpuCreateAsync(GpuPreviewStreamRegistry registry, IDisposable reservation,
-        BackendPreviewPinnedInput input, GpuStreamWorkerSession? worker)
+    private static Task RollbackGpuCreateAsync(GpuPreviewStreamRegistry registry, IDisposable reservation,
+        BackendPreviewPinnedInput input, GpuStreamWorkerSession? worker) =>
+        RollbackGpuWorkerAndInputAsync("create_rollback", input, worker, () => registry.Quarantine(reservation, input, worker!));
+
+    private static Task RollbackGpuChangeAsync(GpuPreviewStreamRegistry registry, string client, string id,
+        BackendPreviewPinnedInput input, GpuStreamWorkerSession? worker) =>
+        RollbackGpuWorkerAndInputAsync("change_rollback", input, worker, () => registry.QuarantineChange(client, id, input, worker!));
+
+    private static async Task RollbackGpuWorkerAndInputAsync(string stage, BackendPreviewPinnedInput input,
+        GpuStreamWorkerSession? worker, Action quarantine)
     {
         if (worker is not null)
         {
             try { await worker.DisposeAsync().ConfigureAwait(false); }
-            catch { registry.Quarantine(reservation, input, worker); throw; }
+            catch (Exception error)
+            {
+                Console.Error.WriteLine(
+                    $"BACKEND_GPU_STREAM_ROLLBACK_QUARANTINED stage={stage} type={error.GetType().Name} inner={error.InnerException?.GetType().Name ?? "none"}");
+                quarantine();
+                return;
+            }
         }
-        input.RetentionLease?.Dispose();
+        TryDisposeRetentionLease(input.RetentionLease, stage);
     }
 
-    private static async Task RollbackGpuChangeAsync(GpuPreviewStreamRegistry registry, string client, string id,
-        BackendPreviewPinnedInput input, GpuStreamWorkerSession? worker)
+    private static void TryReleaseRetiredInput(GpuPreviewStreamRegistry registry, string client, string id,
+        GpuStreamWorkerSession worker, string stage)
     {
-        if (worker is not null)
+        try { registry.ReleaseRetiredInput(client, id, worker); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
-            try { await worker.DisposeAsync().ConfigureAwait(false); }
-            catch { registry.QuarantineChange(client, id, input, worker); throw; }
+            Console.Error.WriteLine($"BACKEND_GPU_INPUT_CLEANUP_FAILED stage={stage} type={error.GetType().Name}");
         }
-        input.RetentionLease?.Dispose();
+    }
+
+    private static void TryDisposeRetentionLease(IDisposable? lease, string stage)
+    {
+        if (lease is null) return;
+        try { lease.Dispose(); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            Console.Error.WriteLine($"BACKEND_GPU_INPUT_CLEANUP_FAILED stage={stage} type={error.GetType().Name}");
+        }
+    }
+
+    private static bool TryMapGpuStreamException(string stage, Exception error, bool shuttingDown,
+        out BackendErrorResponse? mapped)
+    {
+        if (error is OperationCanceledException && shuttingDown)
+        {
+            mapped = new(BackendErrorCode.SessionClosing, "预览服务正在关闭，已取消连续预览流操作。");
+            return true;
+        }
+        if (error is ObjectDisposedException && shuttingDown)
+        {
+            mapped = new(BackendErrorCode.SessionClosing, "预览服务正在关闭，连续预览流工作池已释放。");
+            return true;
+        }
+        if (error is OperationCanceledException)
+        {
+            Console.Error.WriteLine($"BACKEND_GPU_STREAM_{stage}_FAILED stage=timeout type={error.GetType().Name}");
+            mapped = new(BackendErrorCode.PreviewUnavailable, "预览流初始化超时，请重试。",
+                FailureCode: stage == "CHANGE" ? "GpuStreamChangeTimeout" : "GpuStreamOpenTimeout");
+            return true;
+        }
+        if (error is WorkerProtocolException protocol)
+        {
+            Console.Error.WriteLine(
+                $"BACKEND_GPU_STREAM_{stage}_FAILED stage=worker_protocol type={error.GetType().Name} code={protocol.Code}");
+            mapped = new(BackendErrorCode.PreviewUnavailable, "预览渲染进程初始化失败，请重试。", FailureCode: protocol.Code);
+            return true;
+        }
+        if (error is GpuPreviewException preview)
+        {
+            Console.Error.WriteLine(
+                $"BACKEND_GPU_STREAM_{stage}_FAILED stage=preview type={error.GetType().Name} code={preview.Code}");
+            mapped = new(BackendErrorCode.PreviewUnavailable, preview.Message, FailureCode: preview.Code);
+            return true;
+        }
+        if (error is InvalidOperationException)
+        {
+            Console.Error.WriteLine($"BACKEND_GPU_STREAM_{stage}_FAILED stage=pool_or_state type={error.GetType().Name}");
+            mapped = new(BackendErrorCode.PreviewUnavailable, "GPU 渲染进程忙碌或正在退避，请稍后重试。", FailureCode: "GpuWorkerPoolBusy");
+            return true;
+        }
+        if (error is IOException)
+        {
+            Console.Error.WriteLine($"BACKEND_GPU_STREAM_{stage}_FAILED stage=io type={error.GetType().Name}");
+            mapped = new(BackendErrorCode.PreviewUnavailable, "预览输入或通道准备失败，请重试。", FailureCode: "GpuStreamIoFailed");
+            return true;
+        }
+        mapped = null;
+        return false;
     }
 }

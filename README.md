@@ -1,10 +1,10 @@
 # MakoKaraGenerator App
 
-本仓库把 Backend 与 Web 的版本化源码整合为独立应用，提供浏览器入口和 Electron 桌面入口。桌面复用同一编辑器，并新增 Linux 本机 GPU 共享纹理预览；浏览器继续使用既有 PNG 静态预览。两条预览路径分别保留自己的能力和验收边界。
+本仓库把 Backend 与 Web 的版本化源码整合为独立应用，提供浏览器入口和 Electron 桌面入口。桌面复用同一编辑器，Windows 默认使用共享内存（SHM）预览，Linux 默认使用 DMA-BUF 共享纹理；浏览器继续使用既有 PNG 静态预览。
 
 2026-11-17 Ruby 排版设置已合入 `main`：产品 **0.115.0**、HTTP 合同 **1.56.0**。样式库和编排单句支持注音字号比例与正文距离，相邻注音按连续排版的自然字距退让。用户桌面手测通过，Linux x64 AppImage 已生成并替换本机旧包；实现、格式门禁和发布指纹见 [Ruby 验收记录](docs/integration/2026-11-17-ruby-layout-settings.md)。
 
-2026-11-16 跨平台适配 **M1 已完成，Windows G1 门禁通过**：Windows x64 浏览器启动、真实音频波形、CPU/Vulkan 静态预览与视频导出、SDK2 编译和验证、导出超限清理均已实测。修复与证据见 [M1 验收记录](docs/integration/2026-11-16-cross-platform-m1.md)。Windows 桌面 SHM 预览、媒体特征封套和 Portable 包继续按[跨平台计划](docs/plans/cross-platform-adaptation-plan.md)的 M2～M4 实施。
+Windows x64 便携包命令为 `pnpm package:windows`。媒体特征探针受 Windows Job Object 的 128 MiB 硬限额保护；实机验证见 [M4 验收记录](docs/integration/2026-11-20-cross-platform-m4-windows.md)。真实 exFAT 盘符验收暂缓。
 
 2026-11-03 歌词导入兼容修复：后端 `0.110.2`、HTTP 合同 `1.42.2`。已修复 ASS 上传／新建准入，并从 MakoLrcStudio 的源打轴注释恢复正文、ruby 与片段时间；有效 TTML 的 project／AMLL 导入导出已验证往返。Downloads 两份原始 TTML 因导出时清空 body 命名空间而不符合 TTML 结构，按要求暂缓处理。真实样本、HTTP 和 Electron 验证见[歌词导入修复记录](docs/integration/2026-11-03-lyrics-import.md)。
 
@@ -14,7 +14,7 @@
 
 `backend/` 来源 `a4783fad683bcfef3f2db4042e8963e5228830b5`，`frontend/` 来源 `c2d06fd68a051de1ab1018b9cd2b18ef2ccd8bab`。路径、分支、tree 与源工作树排除项见 [source-snapshots.json](source-snapshots.json)。两个源仓库保持原样；App 保留自己的 Git 历史，用户授权的私有远程同步目标为 `https://github.com/Zydr114/MakoKaraGenerator-App`，暂不添加许可证；实际推送结果以远程核验为准。上游已有的文档、AGENTS 和历史验收保持原归属，本仓库工作规则见根 [AGENTS.md](AGENTS.md)。
 
-浏览器入口支持 Windows x64 与 Linux x64；桌面共享纹理入口目前仍限定 Linux。需要 Node >=24、pnpm（也可通过 Corepack 使用）、Python >=3.10、仓库 `backend/global.json` 允许的 .NET 10 SDK、FFmpeg/FFprobe，以及 Skia 使用的字体和系统 native 库。Linux 发布还需要 flock；Windows 使用独立旁路文件的 LockFileEx 锁。Windows 可从 PATH 或 WinGet 安装目录发现 FFmpeg/FFprobe。
+浏览器和桌面入口支持 Windows x64 与 Linux x64。从源码构建需要 Node >=24、pnpm（也可通过 Corepack 使用）、Python >=3.10、仓库 `backend/global.json` 允许的 .NET 10 SDK，以及 Skia 使用的字体和系统 native 库。开发运行使用本机 FFmpeg/FFprobe，Windows 可从 PATH 或 WinGet 安装目录发现；Windows Portable 则只用包内工具。Linux 发布还需要 flock；Windows 使用独立旁路文件的 LockFileEx 锁。
 
 在 App 根目录运行：
 
@@ -24,9 +24,9 @@ pnpm build             # 类型检查、Web生产构建、匹配Server与完整W
 pnpm start             # 启动构建结果，打开 http://127.0.0.1:5173
 # 或在完成build之后：
 pnpm dev               # 同一匹配后端＋Vite开发页面
-# Linux桌面共享纹理入口：
+# Windows / Linux 桌面入口：
 pnpm desktop           # 检查桌面构建，过期时自动重建，再打开Electron编辑器（http://127.0.0.1:5180）
-pnpm build:desktop     # 只构建不启动：Web＋匹配Server/Worker＋固定Skia native补丁＋GPU broker
+pnpm build:desktop     # 只构建不启动：Web＋匹配 Server/Worker＋平台预览原生库
 pnpm package:appimage  # Linux x64：校验现有桌面构建并输出 .local/release/MakoKaraGenerator-<版本>-x86_64.AppImage
 # 可选不同本机端口：
 pnpm start --port 5174
@@ -38,11 +38,24 @@ pnpm start --port 5174
 
 当前 Linux 桌面使用独立 `.local/desktop-profile/` 与 `.local/desktop-electron-profile/`；其私有启动配置在 `.local/run/desktop-<PID>.json`，只交给本次 Electron main，进程退出后删除，残留的会在下次启动时按进程身份清理。桌面构建会验证实际 native ABI 符号和部署哈希，普通 `pnpm build` 的发布不能用于 GPU 桌面启动。
 
-`pnpm desktop` 启动前按源码内容哈希判断构建是否过期：后端、GPU 预览原生源码有改动或还没有桌面构建时，整套重建（等同 `pnpm build:desktop`）；只有前端改动时只重建 Web（构建记录在 `.local/web-build.json`）。桌面版的成片预览（编排页、外观页）在渲染设备为“跟随后端默认”且检测到 GPU 可用、或明确选 GPU 时走 GPU 共享纹理；明确选 CPU 时退回与浏览器相同的 PNG 静态预览。关窗时工程、样式库模板或作者草稿有未保存的修改会先弹窗确认。
+`pnpm desktop` 启动前按源码内容哈希判断构建是否过期：后端、GPU 预览原生源码有改动或还没有桌面构建时，整套重建（等同 `pnpm build:desktop`）；只有前端改动时只重建 Web（构建记录在 `.local/web-build.json`）。桌面版的成片预览（编排页、外观页）支持 GPU 和 CPU SHM；Linux 还支持 GPU DMA-BUF。关窗时工程、样式库模板或作者草稿有未保存的修改会先弹窗确认。
 
 按 Ctrl+C 停止根 App；Linux 也可向根 App 进程发送 SIGTERM。自动化启动可设置 `MAKO_APP_SHUTDOWN_STDIN=1`，向启动器 stdin 写入 `SHUTDOWN` 加换行，或关闭 stdin，以受控方式退出；Windows 不应将强制终止进程当作优雅退出。Linux 桌面入口先排空共享纹理消费者，随后关闭自有 Web、等待自有后端排水，清除 bootstrap；不按名称终止其他进程。`.local/`、构建目录、依赖和私人配置均被 Git 忽略。
 
-有限验证入口：
+## Windows x64 Portable
+
+在 Windows x64 开发机上，按[原生探针构建说明](backend/native/media-presentation/README.md)准备固定的 LGPL FFmpeg devkit：用 `MakoMediaPresentationWindowsDevkitArchive` 指向 ZIP 绝对路径，把 CMake、Ninja 和 llvm-mingw 加入 PATH，并安装用于 SHM 的 Visual Studio Build Tools C++ 工具链。然后按 `scripts/build-windows-export-tools.ps1` 的清单把固定输入归档放入 `.local/windows-media-cache`。构建无需 WSL：
+
+```powershell
+pwsh -NoProfile -File scripts/build-windows-export-tools.ps1
+pnpm package:windows --build
+```
+
+已有含原生探针的 Windows 桌面构建时可省略 `--build`。输出默认是 `.local/release/MakoKaraGenerator-<版本>-windows-x64.zip`；用 `--out` 自定义 ZIP 路径，用 `--exe-name` 指定主程序文件名。用 `--ffmpeg-dir` 可选择另一目录下由同一配方生成的媒体工具包。打包不覆盖现有 ZIP。
+
+使用时解压整个 ZIP 再双击 `MakoKaraGenerator.exe`（或自定义名称）。无需预装 Node、Python、.NET 或 FFmpeg；Vulkan 预览仍取决于本机显卡驱动。工程、配置和私有启动凭证默认写入 `%LOCALAPPDATA%\makokara-generator`，不会写到解压目录；自定义运行时卷必须支持持久化 Windows ACL。包内导出用 FFmpeg/FFprobe 与受控媒体探针彼此独立，各自附有对应源码、构建配方及第三方许可。ZIP 未做代码签名。
+
+## 有限验证入口
 
 ```bash
 pnpm test:launcher     # 启动失败清理、正常停止、符号链接与旧产品部署门禁
@@ -52,15 +65,16 @@ pnpm smoke:browser    # start运行时：新建、编辑、撤销、暂停seek�
 pnpm smoke:glow --url http://127.0.0.1:5173  # 隔离profile运行时：辉光模板编辑、保存应用、继承开关和浅深主题
 pnpm smoke:layout     # start运行时：几种窗口尺寸下编排、外观页画布完整显示、不需要滚动
 pnpm smoke:desktop    # 自己启动隔离的桌面会话：默认走GPU、无CPU回读、播放／seek／编辑／换规格／切页刷新、选CPU退回PNG、关窗确认与正常退出
+node scripts/windows-portable-g4.mjs --zip <ZIP路径> # 干净 NTFS 解包与启动、GPU SHM、成片导出及关窗清理；改名包加 --exe <主程序名>
 ```
 
 浏览器冒烟使用本机已有 Chromium（可设 `CHROME_PATH`），独立临时浏览器 profile 与临时音频/歌词，不操作用户已有浏览器。截图与成功结果保存在 `.local/integration/`。本次构建和真实运行记录见 [docs/integration/2026-11-01-web-integration.md](docs/integration/2026-11-01-web-integration.md)；桌面版一条命令启动与默认 GPU 预览的整合记录、已知问题见 [docs/integration/2026-11-03-desktop-app.md](docs/integration/2026-11-03-desktop-app.md)。
 
 浏览器原预览控制节奏与 API 保持不变。既有 PNG 路径上限仍为 1280×720，[协议门禁报告](docs/performance/preview-protocol-gate.md)记录的是这条路径的限制。新桌面 GPU 流通过独立的低频可靠 HTTP 操作管理固定输入、修订、尺寸和寿命，播放控制与帧使用本机通道，不逐帧消耗 HTTP receipt。
 
-桌面生产路径是 **同一 Worker 的普通 Skia Vulkan surface → 一次 GPU blit（含方向修正）→ 三槽共享 DMA-BUF → Electron SharedTexture／VideoFrame**。最终帧不经过 CPU 像素回读或 PNG；有一次整帧 GPU copy 和 queue-idle 同步等待，不能称严格零拷贝。脚本、材质等内部已有读回与 Chromium 内部复制另计。每池最多 64 MiB、每 host 最多两流及 128 MiB，实际分配与设备握手成功后才公布流。
+Linux DMA-BUF 生产路径是 **同一 Worker 的普通 Skia Vulkan surface → 一次 GPU blit（含方向修正）→ 三槽共享 DMA-BUF → Electron SharedTexture／VideoFrame**。最终帧不经过 CPU 像素回读或 PNG；有一次整帧 GPU copy 和 queue-idle 同步等待，不能称严格零拷贝。脚本、材质等内部已有读回与 Chromium 内部复制另计。每池最多 64 MiB、每 host 最多两流及 128 MiB，实际分配与设备握手成功后才公布流。
 
-当前范围限定本机 Linux x64／AMD 组合，Electron 固定 45.2.1；Wayland 以每次运行的实际进程证据为准。P0 已取得有限正确性和正常排空证据，P1/P2 已实现；**P3 两次正式 720p24 的滑动5s最低分别117／116帧，均未达118帧门槛；本轮以失败收口，1440p／600s未测**。[attempt1](docs/performance/evidence/production-2026-11-01/synthetic-formal-attempt1.json)与显式普通调度的[attempt2](docs/performance/evidence/production-2026-11-01/synthetic-formal-attempt2.json)各保留约180s、4320个唯一完整消费；attempt2的179个快照复核实际main／renderer／GPU／Worker身份与普通调度通过，仍不能用总体帧率抵消窗口失败或确定单一瓶颈根因。[真实 Runtime 有限矩阵](docs/performance/evidence/production-2026-11-01/runtime-finite-summary.json)完成20次切页重附着、10次公开resize及精确新代次消费，但输入生效后p95 164.06ms仍超过150ms候选；五秒阶段不构成持续性能。32 项独立 [HTTP 检查](docs/performance/evidence/production-2026-11-01/http-negative.json)覆盖 owner/CAS/claim、1440p 池换代与实际 Worker 退出。
+以下 DMA-BUF 性能结论限定本机 Linux x64／AMD 组合，Electron 固定 45.2.1；Wayland 以每次运行的实际进程证据为准。P0 已取得有限正确性和正常排空证据，P1/P2 已实现；**P3 两次正式 720p24 的滑动5s最低分别117／116帧，均未达118帧门槛；本轮以失败收口，1440p／600s未测**。[attempt1](docs/performance/evidence/production-2026-11-01/synthetic-formal-attempt1.json)与显式普通调度的[attempt2](docs/performance/evidence/production-2026-11-01/synthetic-formal-attempt2.json)各保留约180s、4320个唯一完整消费；attempt2的179个快照复核实际main／renderer／GPU／Worker身份与普通调度通过，仍不能用总体帧率抵消窗口失败或确定单一瓶颈根因。[真实 Runtime 有限矩阵](docs/performance/evidence/production-2026-11-01/runtime-finite-summary.json)完成20次切页重附着、10次公开resize及精确新代次消费，但输入生效后p95 164.06ms仍超过150ms候选；五秒阶段不构成持续性能。32 项独立 [HTTP 检查](docs/performance/evidence/production-2026-11-01/http-negative.json)覆盖 owner/CAS/claim、1440p 池换代与实际 Worker 退出。
 
 [真实作者错误补验](docs/performance/evidence/production-2026-11-01/author-error-inflight.json)确认 `Evaluate` Error 发生时旧租约仍未完成，Worker 等待该租约的精确 native completion 后报告 `failed + drained:true`；同一 App 随后成功消费新健康流。设备、通道或消费者完成状态未知时隔离池并 fail-stop；Server 清理异常已修复，四类[真实丢失复验](docs/performance/evidence/production-2026-11-01/desktop-faults-fixed.json)按受控非零退出，不能称为成功 drain 或安全归槽。详细来源与未通过门槛见[生产验收记录](docs/performance/gpu-preview-production-2026-11-01.md)、[实施计划](docs/plans/gpu-shared-texture-preview-plan.md)及[流合同](docs/architecture/gpu-preview-stream-v1.md)。构建、单元测试或 capability 成功均不代表屏幕呈现帧率、任意内容吞吐或跨平台验收。
 

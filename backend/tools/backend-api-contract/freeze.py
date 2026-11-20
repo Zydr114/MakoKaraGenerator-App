@@ -32,7 +32,7 @@ from template_library_schema import extend_template_library_schemas, query_param
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTRACT = "1.58.0"
-BASELINE = "3f819e0740bcfc35469a8ef968f8abb4ebbae133"
+BASELINE = "ffb0b652868dcba452d527ec2b2bef360ac1221f"
 PRODUCT = re.search(r"<VersionPrefix>([^<]+)</VersionPrefix>", (ROOT / "Directory.Build.props").read_text(encoding="utf-8")).group(1)
 FREEZE_DATE = "2026-11-20"
 BEHAVIOR = "docs/architecture/backend-api.md"
@@ -1777,6 +1777,12 @@ def manifest(outputs):
             "src/MakoKaraGenerator.Backend.Hosting/BackendMediaFeatureInputs.cs",
             "src/MakoKaraGenerator.Backend.Hosting/BackendMediaFeatureService.cs",
             "src/MakoKaraGenerator.Backend.Hosting/ProjectSessionRegistry.MediaFeatures.cs",
+            "src/MakoKaraGenerator.Media/MediaPresentationDeploymentDiscovery.Windows.cs",
+            "src/MakoKaraGenerator.Media/MediaPresentationWire.cs",
+            "src/MakoKaraGenerator.Processes/MediaEnvelope/WindowsJobEnvelopeBackend.cs",
+            "src/MakoKaraGenerator.Processes/MediaEnvelope/WindowsJobEnvelopeBackend.Pipes.cs",
+            "src/MakoKaraGenerator.Processes/MediaEnvelope/OwnedNativeEnvelope.cs",
+            "src/MakoKaraGenerator.Processes/WindowsJobObjectGuard.Launch.cs",
     ):
         source = ROOT / filename
         if not source.is_file():

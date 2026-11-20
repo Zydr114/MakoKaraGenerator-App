@@ -2012,6 +2012,8 @@ SDK2作者可读取固定SceneCatalog中的SourceNode、SourceProgram、SourceCl
 <a id="sdk2-m10-media-features"></a>
 ### 28.6 宿主媒体特征轨（0.112.37／合同1.47.0）
 
+**Windows x64（0.116.1）。** 随部署提供受控 `mkg-presentation.exe` 时，沿用相同背景媒体特征协议和失败兜底；未安装探针时不启用该服务。探针与加载库清点均在进程及整组各 `128 MiB` 的 Job Object 中执行。仅收到对应 Job 的内核内存超限事件才认定原生容量超限；普通损坏或无超限通知的失败不得通过，也不当作内存超限。无新增 HTTP 路由、字段或浏览器预览节奏变化。
+
 **包能力。** v2包在 `manifest.json.requires` 声明 `media.features` 后，可在清单根写 `mediaQueries`
 （每项 `id`、`space` 为 `sourceNormalized|canvasPixels`、`window` 为字面量或同包Duration参数，
 0..2000000µs），在export中引用查询并为 `pending`、`unavailable`、`noMedia` 三种状态各写

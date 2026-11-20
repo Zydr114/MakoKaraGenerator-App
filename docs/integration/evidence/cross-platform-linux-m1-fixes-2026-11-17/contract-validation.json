@@ -1,9 +1,0 @@
-{
-  "contractVersion": "1.54.0",
-  "paths": 115,
-  "operations": 128,
-  "schemas": 672,
-  "examples": 3995,
-  "negativeExamples": 2879,
-  "http": []
-}

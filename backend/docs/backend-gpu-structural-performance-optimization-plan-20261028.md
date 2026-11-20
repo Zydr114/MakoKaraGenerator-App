@@ -1,4 +1,0 @@
-# 历史文档导航
-
-正文已归档至 [backend-gpu-structural-performance-optimization-plan-20261028.md](archive/plans/backend-gpu-structural-performance-optimization-plan-20261028.md)。
-原路径为历史合同、证据或源码注释保留；归档材料维持原有版本和验收归属。

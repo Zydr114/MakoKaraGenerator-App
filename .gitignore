@@ -11,3 +11,4 @@ __pycache__/
 *.local.json
 .env
 .env.*
+docs-archive-*.tar.gz

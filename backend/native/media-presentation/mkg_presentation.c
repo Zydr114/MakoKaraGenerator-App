@@ -7,13 +7,23 @@
 #include <fcntl.h>
 #include <inttypes.h>
 #include <limits.h>
-#include <link.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+#if !defined(_M_X64) && !defined(__x86_64__)
+#error "The controlled Windows presentation helper requires x64."
+#endif
+#include <io.h>
+#include <windows.h>
+#include <psapi.h>
+#include <wchar.h>
+#else
+#include <link.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#endif
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libavutil/avutil.h>
@@ -31,14 +41,21 @@
 #define MAX_PIXELS 16777216
 #define MAX_SIDE 8192
 #define META_BODY 224
+#ifdef _WIN32
+typedef HANDLE PipeHandle;
+#define output_pipe GetStdHandle(STD_OUTPUT_HANDLE)
+static HANDLE metadata_fd,source_fd;
+#else
+typedef int PipeHandle;
+#define output_pipe 1
 static int metadata_fd = 3;
+static int source_fd = -1;
+#endif
 static uint8_t emitted[MAX_FRAMES];
 static uint64_t packet_count, frame_count;
-static int source_fd = -1;
 static int64_t source_size;
 static AVRational packet_tb, selected_stream_sar;
 static int stream_index, stream_id, family, inspect_only;
-static unsigned loaded_count;
 
 typedef struct PacketProof {
     uint64_t id;
@@ -47,12 +64,29 @@ typedef struct PacketProof {
     uint8_t hash[32];
 } PacketProof;
 
+#ifdef _WIN32
+static void die(const char *code) {
+    HANDLE error=GetStdHandle(STD_ERROR_HANDLE);DWORD written;
+    WriteFile(error,code,(DWORD)strlen(code),&written,NULL);WriteFile(error,"\n",1,&written,NULL);ExitProcess(65);
+}
+static HANDLE open_loaded_image(HMODULE module,wchar_t canonical[32768],LARGE_INTEGER *size);
+#include "mkg_presentation_windows_av.h"
+#else
 static void die(const char *code) { (void)write(2, code, strlen(code)); (void)write(2, "\n", 1); _exit(65); }
+#endif
 static void put32(uint8_t *p, uint32_t v) { for(int i=0;i<4;i++) p[i]=(uint8_t)(v>>(8*i)); }
 static void put64(uint8_t *p, uint64_t v) { for(int i=0;i<8;i++) p[i]=(uint8_t)(v>>(8*i)); }
-static void allwrite(int fd, const void *data, size_t size) {
+static void allwrite(PipeHandle fd, const void *data, size_t size) {
     const uint8_t *p=data;
+#ifdef _WIN32
+    while(size) {
+        DWORD n;
+        if(!WriteFile(fd,p,size>MAXDWORD?MAXDWORD:(DWORD)size,&n,NULL)||!n)die("presentation-pipe-write-failed");
+        p+=n;size-=n;
+    }
+#else
     while(size) { ssize_t n=write(fd,p,size); if(n<0&&errno==EINTR)continue; if(n<=0)die("presentation-pipe-write-failed"); p+=n;size-=(size_t)n; }
+#endif
 }
 static void record(uint32_t type,const void *body,uint32_t size) {
     if(size>16384)die("presentation-metadata-capacity");
@@ -63,6 +97,10 @@ static void sha(const uint8_t *p,size_t n,uint8_t out[32]) {
     struct AVSHA *h=av_sha_alloc(); if(!h||av_sha_init(h,256)<0)die("presentation-hash-unavailable");
     av_sha_update(h,p,n);av_sha_final(h,out);av_free(h);
 }
+#ifdef _WIN32
+#include "mkg_presentation_windows_io.h"
+#else
+static unsigned loaded_count;
 /* The closure is re-reported before every frame, but an unchanged file is hashed once per run: about 120 loaded
  * images (~190 MB) re-hashed per frame made a 1080p30 minute take over ten minutes. Any change of device, inode,
  * size, mtime or ctime invalidates the entry; a write always advances ctime, so a modified image is re-hashed. */
@@ -106,6 +144,7 @@ static int loaded_file(struct dl_phdr_info *info,size_t size,void *state) {
 static void loaded_closure(void) { loaded_count=0;if(dl_iterate_phdr(loaded_file,NULL)<0)die("presentation-loaded-image-enumeration-failed");record(5,NULL,0); }
 static int read_packet(void *state,uint8_t *buf,int bytes) { (void)state;ssize_t n;do{n=read(source_fd,buf,(size_t)bytes);}while(n<0&&errno==EINTR);return n<0?AVERROR(errno):n==0?AVERROR_EOF:(int)n; }
 static int64_t seek_packet(void *state,int64_t offset,int whence) { (void)state;if(whence==AVSEEK_SIZE)return source_size;return lseek(source_fd,offset,whence&~AVSEEK_FORCE); }
+#endif
 static int deny_open(AVFormatContext *s,AVIOContext **pb,const char *url,int flags,AVDictionary **options) { (void)s;(void)pb;(void)url;(void)flags;(void)options;return AVERROR(EPERM); }
 static const char *decoder_name(enum AVCodecID id) {
     switch(id) {
@@ -229,15 +268,45 @@ static void emit_frame(AVFrame *f,const AVCodecParameters *par) {
                     int input_component=c==3?1:0;row[x*components*bytes+c*bytes+b]=input[x*gray*bytes+input_component*bytes+(swap16?bytes-1-b:b)];
                 }
             } else if(swap16) {for(int x=0;x<strides[p];x+=2){row[x]=input[x+1];row[x+1]=input[x];}}
-            else {allwrite(1,input,(size_t)strides[p]);continue;}
-            allwrite(1,row,(size_t)strides[p]);
+            else {allwrite(output_pipe,input,(size_t)strides[p]);continue;}
+            allwrite(output_pipe,row,(size_t)strides[p]);
         }
     }
-    uint8_t ack;ssize_t nr;do{nr=read(0,&ack,1);}while(nr<0&&errno==EINTR);
+    uint8_t ack;
+#ifdef _WIN32
+    DWORD nr;if(!ReadFile(GetStdHandle(STD_INPUT_HANDLE),&ack,1,&nr,NULL))nr=0;
+#else
+    ssize_t nr;do{nr=read(0,&ack,1);}while(nr<0&&errno==EINTR);
+#endif
     if(nr!=1||ack!=(inspect_only?'S':'N'))die("presentation-frame-ack-invalid");
     emitted[proof->id]=1;frame_count++;
 }
 
+static void configure_av(void) {
+#ifdef _WIN32
+    load_controlled_av();
+#endif
+    av_log_set_level(AV_LOG_ERROR);
+    if(avformat_version()!=LIBAVFORMAT_VERSION_INT||avcodec_version()!=LIBAVCODEC_VERSION_INT||avutil_version()!=LIBAVUTIL_VERSION_INT)die("presentation-tool-abi-mismatch");
+}
+
+#ifdef _WIN32
+int wmain(int argc,wchar_t **argv) {
+    use_binary_pipes();
+    if(argc==2&&!wcscmp(argv[1],L"--closure")) {
+        metadata_fd=output_pipe;
+        configure_av();
+        loaded_closure();
+        return 0;
+    }
+    if(argc!=6)die("presentation-internal-arguments-invalid");
+    family=_wtoi(argv[1]);stream_index=_wtoi(argv[2]);inspect_only=!wcscmp(argv[3],L"inspect");
+    if(family<1||family>4||stream_index<0||wcscmp(argv[3],inspect_only?L"inspect":L"decode"))die("presentation-internal-mode-invalid");
+    if(wcscmp(argv[5],L"mkg-libav-same-frame-v1"))die("presentation-capability-revision-invalid");
+    metadata_fd=inherited_metadata_pipe();
+    configure_av();
+    open_source(argv[4]);
+#else
 int main(int argc,char **argv) {
     if(argc!=6)die("presentation-internal-arguments-invalid");
     family=atoi(argv[1]);stream_index=atoi(argv[2]);inspect_only=!strcmp(argv[3],"inspect");
@@ -246,8 +315,8 @@ int main(int argc,char **argv) {
     if(source_fd<0||fstat(source_fd,&st)||!S_ISREG(st.st_mode)||st.st_size<=0||st.st_size>MAX_SOURCE)die("presentation-source-invalid");
     source_size=st.st_size;
     if(strcmp(argv[5],"mkg-libav-same-frame-v1"))die("presentation-capability-revision-invalid");
-    av_log_set_level(AV_LOG_ERROR);
-    if(avformat_version()!=LIBAVFORMAT_VERSION_INT||avcodec_version()!=LIBAVCODEC_VERSION_INT||avutil_version()!=LIBAVUTIL_VERSION_INT)die("presentation-tool-abi-mismatch");
+    configure_av();
+#endif
     loaded_closure();
     uint8_t *avio_buffer=av_malloc(32768);if(!avio_buffer)die("presentation-native-allocation-failed");
     AVIOContext *io=avio_alloc_context(avio_buffer,32768,0,NULL,read_packet,NULL,seek_packet);if(!io)die("presentation-io-allocation-failed");
@@ -283,8 +352,8 @@ int main(int argc,char **argv) {
         if(family>2) {
             if(packet_count){read_result=AVERROR_EOF;}
             else {
-                if(source_size>64LL*1024*1024||source_size>INT_MAX||av_new_packet(packet,(int)source_size)<0||lseek(source_fd,0,SEEK_SET)<0)die("presentation-still-compressed-capacity");
-                int at=0;while(at<packet->size){ssize_t n=read(source_fd,packet->data+at,(size_t)(packet->size-at));if(n<0&&errno==EINTR)continue;if(n<=0)die("presentation-still-source-truncated");at+=(int)n;}
+                if(source_size>64LL*1024*1024||source_size>INT_MAX||av_new_packet(packet,(int)source_size)<0||seek_packet(NULL,0,SEEK_SET)<0)die("presentation-still-compressed-capacity");
+                int at=0;while(at<packet->size){int n=read_packet(NULL,packet->data+at,packet->size-at);if(n<=0)die("presentation-still-source-truncated");at+=n;}
                 packet->pts=0;packet->dts=0;packet->pos=0;packet->stream_index=stream_index;read_result=0;
             }
         } else do { read_result=av_read_frame(fmt,packet);if(read_result<0)break;if(packet->stream_index!=stream_index)av_packet_unref(packet);else break; }while(1);
@@ -299,5 +368,11 @@ int main(int argc,char **argv) {
     }
     if(!inspect_only){if(!finished||packet_count!=frame_count)die("presentation-packet-frame-count-mismatch");for(uint64_t i=0;i<packet_count;i++)if(!emitted[i])die("presentation-packet-not-presented");}
     loaded_closure();uint8_t complete[24]={0};put64(complete,frame_count);put64(complete+8,packet_count);put32(complete+16,(uint32_t)!inspect_only);record(3,complete,sizeof complete);
-    av_frame_free(&frame);av_packet_free(&packet);avcodec_free_context(&ctx);avformat_close_input(&fmt);av_freep(&io->buffer);avio_context_free(&io);close(source_fd);return 0;
+    av_frame_free(&frame);av_packet_free(&packet);avcodec_free_context(&ctx);avformat_close_input(&fmt);av_freep(&io->buffer);avio_context_free(&io);
+#ifdef _WIN32
+    CloseHandle(source_fd);
+#else
+    close(source_fd);
+#endif
+    return 0;
 }

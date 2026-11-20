@@ -12,21 +12,33 @@
     <PropertyGroup>
       <MakoMediaPresentationBuildDir Condition="'$(MakoMediaPresentationBuildDir)' == ''">$(IntermediateOutputPath)media-presentation-native</MakoMediaPresentationBuildDir>
       <MakoMediaPresentationToolDir Condition="'$(MakoMediaPresentationToolDir)' == ''">$(TargetDir)media-tools</MakoMediaPresentationToolDir>
+      <MakoMediaPresentationWindowsCompiler Condition="'$(MakoMediaPresentationWindowsCompiler)' == ''">x86_64-w64-mingw32-clang</MakoMediaPresentationWindowsCompiler>
+      <MakoMediaPresentationWindowsStageDir>$(MakoMediaPresentationBuildDir)/media-tools</MakoMediaPresentationWindowsStageDir>
     </PropertyGroup>
-    <Error Condition="!$([MSBuild]::IsOSPlatform('Linux'))" Text="Media presentation native build requires Linux x64." />
+    <Error Condition="!$([MSBuild]::IsOSPlatform('Linux')) and !$([MSBuild]::IsOSPlatform('Windows'))"
+           Text="Media presentation native build requires Linux x64 or Windows x64." />
     <!-- Host-RID application builds (empty RuntimeIdentifier) are accepted on the
          checked x86_64 Linux host below; any other explicit RID is refused. -->
-    <Error Condition="'$(RuntimeIdentifier)' != '' and '$(RuntimeIdentifier)' != 'linux-x64'"
+    <Error Condition="$([MSBuild]::IsOSPlatform('Linux')) and '$(RuntimeIdentifier)' != '' and '$(RuntimeIdentifier)' != 'linux-x64'"
            Text="Media presentation native ABI supports only linux-x64." />
-    <Exec Command="uname -m" ConsoleToMSBuild="true" StandardOutputImportance="Low">
+    <Exec Condition="$([MSBuild]::IsOSPlatform('Linux'))" Command="uname -m" ConsoleToMSBuild="true" StandardOutputImportance="Low">
       <Output TaskParameter="ConsoleOutput" PropertyName="MakoMediaPresentationHostArchitecture" />
     </Exec>
-    <Error Condition="'$(MakoMediaPresentationHostArchitecture)' != 'x86_64'"
+    <Error Condition="$([MSBuild]::IsOSPlatform('Linux')) and '$(MakoMediaPresentationHostArchitecture)' != 'x86_64'"
            Text="Media presentation helper must be built on a Linux x86_64 host; cross-compilation is not configured." />
-    <Exec Command="cmake -S &quot;$(MakoMediaPresentationSourceDir)&quot; -B &quot;$(MakoMediaPresentationBuildDir)&quot; -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF" />
+    <Exec Condition="$([MSBuild]::IsOSPlatform('Linux'))" Command="cmake -S &quot;$(MakoMediaPresentationSourceDir)&quot; -B &quot;$(MakoMediaPresentationBuildDir)&quot; -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF" />
+    <Error Condition="$([MSBuild]::IsOSPlatform('Windows')) and '$(RuntimeIdentifier)' != '' and '$(RuntimeIdentifier)' != 'win-x64'"
+           Text="Media presentation native ABI supports only win-x64 on Windows." />
+    <Error Condition="$([MSBuild]::IsOSPlatform('Windows')) and ('$(PROCESSOR_ARCHITECTURE)' != 'AMD64' or '$(PlatformTarget)' == 'x86' or '$(PlatformTarget)' == 'ARM64')"
+           Text="Media presentation helper must be built on a Windows x64 host and target x64." />
+    <Error Condition="$([MSBuild]::IsOSPlatform('Windows')) and ('$(MakoMediaPresentationWindowsDevkitArchive)' == '' or !Exists('$(MakoMediaPresentationWindowsDevkitArchive)'))"
+           Text="Set MakoMediaPresentationWindowsDevkitArchive to the pinned LGPL FFmpeg 9.0.2 Windows devkit; see native/media-presentation/README.md." />
+    <Exec Condition="$([MSBuild]::IsOSPlatform('Windows'))" Command="cmake -S &quot;$(MakoMediaPresentationSourceDir)&quot; -B &quot;$(MakoMediaPresentationBuildDir)&quot; -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF &quot;-DCMAKE_C_COMPILER=$(MakoMediaPresentationWindowsCompiler)&quot; &quot;-DMAKO_PRESENTATION_WINDOWS_DEVKIT_ARCHIVE=$(MakoMediaPresentationWindowsDevkitArchive)&quot;" />
     <Exec Command="cmake --build &quot;$(MakoMediaPresentationBuildDir)&quot; --config Release --target mkg-presentation --parallel 2" />
     <ItemGroup>
-      <MakoMediaPresentationNativeFile Include="$(MakoMediaPresentationBuildDir)/mkg-presentation" />
+      <MakoMediaPresentationNativeFile Condition="$([MSBuild]::IsOSPlatform('Linux'))" Include="$(MakoMediaPresentationBuildDir)/mkg-presentation" />
+      <MakoMediaPresentationNativeFile Condition="$([MSBuild]::IsOSPlatform('Windows'))"
+                                       Include="$(MakoMediaPresentationWindowsStageDir)/mkg-presentation.exe;$(MakoMediaPresentationWindowsStageDir)/avutil-61.dll;$(MakoMediaPresentationWindowsStageDir)/avcodec-63.dll;$(MakoMediaPresentationWindowsStageDir)/avformat-63.dll;$(MakoMediaPresentationWindowsStageDir)/FFmpeg-LICENSE.txt;$(MakoMediaPresentationWindowsStageDir)/zlib-LICENSE.txt;$(MakoMediaPresentationWindowsStageDir)/FFmpeg-Windows-Provenance.txt;$(MakoMediaPresentationWindowsStageDir)/ffmpeg-9.0.2.tar.xz;$(MakoMediaPresentationWindowsStageDir)/zlib-1.4.tar.gz;$(MakoMediaPresentationWindowsStageDir)/build_windows_devkit.ps1" />
     </ItemGroup>
     <MakeDir Directories="$(MakoMediaPresentationToolDir)" />
     <Copy SourceFiles="@(MakoMediaPresentationNativeFile)" DestinationFolder="$(MakoMediaPresentationToolDir)" />

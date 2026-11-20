@@ -1,0 +1,13 @@
+This helper uses FFmpeg 9.0.2 (https://ffmpeg.org/), LGPL 2.1 or later.
+The helper dynamically loads avutil-61.dll, avcodec-63.dll and avformat-63.dll.
+The FFmpeg configuration enables no GPL, nonfree, or version-3 components.
+The only non-system dependency compiled into those DLLs is zlib 1.4.
+
+FFmpeg source: https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz
+SHA-256: 8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e
+zlib source: https://github.com/madler/zlib/releases/download/v1.4/zlib-1.4.tar.gz
+SHA-256: 02dd159783677a749c04adbdd02b55b8a2bcc7e054f51b76b549199a916ad584
+
+Both original source archives, licenses and build_windows_devkit.ps1 are
+included beside the runtime. The script lists the compiler and exact FFmpeg
+configuration. These notices apply to the indicated libraries, not the app.

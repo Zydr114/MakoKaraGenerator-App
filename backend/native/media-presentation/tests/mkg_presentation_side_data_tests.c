@@ -1,14 +1,24 @@
 /* Source-level regression draft. It compiles the actual helper guard functions
  * into this translation unit without invoking the helper entrypoint. */
+#ifdef _WIN32
+#define wmain mkg_presentation_entrypoint
+#else
 #define main mkg_presentation_entrypoint
+#endif
 #include "../mkg_presentation.c"
 #undef main
+#undef wmain
 
 static void check(int condition,const char *detail) {
     if(!condition) { fprintf(stderr,"side-data-test-failed: %s\n",detail); exit(1); }
 }
 
+#ifdef _WIN32
+int wmain(void) {
+    configure_av();
+#else
 int main(void) {
+#endif
     static const enum AVFrameSideDataType frame_types[] = {
         AV_FRAME_DATA_ICC_PROFILE,AV_FRAME_DATA_MASTERING_DISPLAY_METADATA,
         AV_FRAME_DATA_CONTENT_LIGHT_LEVEL,AV_FRAME_DATA_DYNAMIC_HDR_PLUS,

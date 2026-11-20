@@ -12,7 +12,7 @@ app = Path(__file__).resolve().parents[2]
 probe = app / "probes/skia-gpu-target"
 task = app / ".local/skia-p0"
 task.mkdir(parents=True, exist_ok=True)
-proxy = os.environ.get("MAKO_BUILD_PROXY", "http://127.0.0.1:7897")
+proxy = os.environ.get("MAKO_BUILD_PROXY") or os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy") or ""
 skia_revision = "7dbfc07dd33181f84e0958afb7ee805c6c769f0b"
 skiasharp_revision = "f568ac94dd768ef9a2f593537cfde2dd0d348ef5"
 
@@ -24,7 +24,11 @@ def digest(path):
 def download(url, path, expected=None):
     if not path.exists():
         partial = path.with_suffix(path.suffix + ".part")
-        subprocess.run(["curl", "-fL", "--retry", "3", "--proxy", proxy, url, "-o", str(partial)], check=True)
+        cmd = ["curl", "-fL", "--retry", "3"]
+        if proxy:
+            cmd.extend(["--proxy", proxy])
+        cmd.extend([url, "-o", str(partial)])
+        subprocess.run(cmd, check=True)
         if expected and digest(partial) != expected:
             raise RuntimeError(f"Downloaded checksum mismatch: {path.name}")
         partial.rename(path)

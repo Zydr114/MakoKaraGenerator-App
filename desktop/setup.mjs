@@ -1,9 +1,9 @@
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { resolvePnpmCommand } from '../../scripts/pnpm-command.mjs';
+import { resolvePnpmCommand } from '../scripts/pnpm-command.mjs';
 
-const desktop = fileURLToPath(new URL('..', import.meta.url));
+const desktop = fileURLToPath(new URL('.', import.meta.url));
 const root = path.dirname(desktop);
 const env = { ...process.env, ELECTRON_CACHE: path.join(root, '.local/electron-cache') };
 const pnpm = resolvePnpmCommand(['install', '--frozen-lockfile']);

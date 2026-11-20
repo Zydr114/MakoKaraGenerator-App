@@ -154,7 +154,7 @@
 - **FFmpeg / FFprobe**（开发运行由本机 `PATH` 或 Windows WinGet 安装目录发现）
 - **Linux 额外要求**：`flock`、Skia 所需系统字体与 Vulkan 运行库，以及允许非特权 Electron sandbox
 
-> 如需通过代理下载 npm / NuGet 依赖或 Electron，可先设置 `HTTPS_PROXY=http://127.0.0.1:7897`（及 `ELECTRON_GET_USE_PROXY=1`），本机回环地址保持直连。
+> 如需通过代理下载 npm / NuGet 依赖或 Electron，可先设置 `HTTPS_PROXY=http://127.0.0.1:<代理端口>`（及 `ELECTRON_GET_USE_PROXY=1`），本机回环地址保持直连。
 
 ### 快速启动
 

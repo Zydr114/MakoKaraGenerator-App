@@ -10,7 +10,7 @@ import sys
 skia = Path(sys.argv[1]).resolve()
 namespace = {}
 exec("def Var(x): return vars[x]\n" + (skia / "DEPS").read_text(), namespace)
-proxy = os.environ.get("MAKO_BUILD_PROXY", "http://127.0.0.1:7897")
+proxy = os.environ.get("MAKO_BUILD_PROXY") or os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy") or ""
 
 
 def fetch(item):
@@ -21,7 +21,8 @@ def fetch(item):
     target = skia / name
     target.mkdir(parents=True, exist_ok=True)
     def git(*args):
-        return subprocess.run(["git", "-c", "http.proxy=" + proxy, *args],
+        cmd = ["git", *(["-c", "http.proxy=" + proxy] if proxy else []), *args]
+        return subprocess.run(cmd,
                               cwd=target, check=True, stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE, text=True).stdout.strip()
     if not (target / ".git").exists():

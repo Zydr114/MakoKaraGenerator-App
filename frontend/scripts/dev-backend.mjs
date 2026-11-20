@@ -2,7 +2,7 @@
 // 机制见 scripts/backend-launcher.mjs 与 docs/web-client-w0-design.md §4.1。
 //
 // 可选参数：--dist <匹配发布目录>  --profile <持久 profile 目录>
-// 环境变量：MAKO_BACKEND_REPO（默认 ../MakoKaraGenerator-Backend）、MAKO_BACKEND_DIST。
+// 环境变量：MAKO_BACKEND_DIST。
 
 import { parseArgs } from 'node:util';
 import { startBackend } from './backend-launcher.mjs';

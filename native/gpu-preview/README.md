@@ -20,7 +20,7 @@ VULKAN_INCLUDE_DIR="$headers" bash native/gpu-preview/check-api.sh
 引导使用 Khronos Vulkan-Headers `vulkan-sdk-1.4.341.0`，提交
 `b5c8f996196ba4aa6d8f97e52b5d3b6e70f7e4e2`，压缩包 SHA-256
 `7937d8ec21785736436d9ff52564db7d55992070b5ac98324472cce6e425a7ba`。
-下载代理默认 `127.0.0.1:7897`，可用 `GPU_PREVIEW_PROXY` 覆盖；系统 Vulkan 库仍由
+如需通过代理下载，可设置 `GPU_PREVIEW_PROXY`（或 `HTTPS_PROXY`）；系统 Vulkan 库仍由
 系统提供，不随探针复制。`build.sh --addon-only` 可独立编译 broker。
 
 默认构建同时输出 `build/libmako_gpu_preview.so`、`build/gpu_preview_broker.node`、

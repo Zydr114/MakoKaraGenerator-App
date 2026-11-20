@@ -1,12 +1,11 @@
 {
-  "name": "makokara-gpu-preview-p0",
+  "name": "makokara-desktop",
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "main": "p0/main.cjs",
+  "main": "main.cjs",
   "scripts": {
-    "setup": "node p0/setup.mjs",
-    "p0": "node p0/run.mjs"
+    "setup": "node setup.mjs"
   },
   "devDependencies": {
     "electron": "45.2.1"

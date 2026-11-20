@@ -16,7 +16,11 @@ const { compatibleProductVersion, startBackendProcess, validateDesktopDeployment
 const { startStaticWebServer } = require('./runtime/web-server.cjs');
 
 if (process.versions.electron !== '45.2.1') throw new Error('Desktop requires the pinned Electron runtime');
+const windowsPortable = process.platform === 'win32' && (
+  app.isPackaged || privateFs.isSamePath(__dirname, path.join(process.resourcesPath, 'app'))
+);
 const launchConfigFlagIndex = process.argv.indexOf('--launch-config');
+if (windowsPortable && launchConfigFlagIndex !== -1) throw new Error('Windows Portable does not accept --launch-config');
 const standaloneMode = launchConfigFlagIndex === -1;
 
 let root;
@@ -84,9 +88,11 @@ if (standaloneMode) {
   if (!singleInstanceGranted) {
     app.exit(0);
   } else {
-    standaloneResources = resolveStandaloneResources();
-    if (standaloneResources.brokerAddon) broker = require(standaloneResources.brokerAddon);
-    if (standaloneResources.shmAddon) shmBridge = require(standaloneResources.shmAddon);
+    if (!windowsPortable) {
+      standaloneResources = resolveStandaloneResources();
+      if (standaloneResources.brokerAddon) broker = require(standaloneResources.brokerAddon);
+      if (standaloneResources.shmAddon) shmBridge = require(standaloneResources.shmAddon);
+    }
     config = { ready: false };
   }
 } else {
@@ -526,6 +532,14 @@ process.on('uncaughtException',()=>failStop('desktopUnhandledFailure'));
 process.on('unhandledRejection',()=>failStop('desktopUnhandledFailure'));
 if(singleInstanceGranted)(async()=>{
   if (standaloneMode) {
+    let portableBackendOptions;
+    if (windowsPortable) {
+      const { resolveWindowsPortableResources, windowsPortableBackendOptions } = require('./runtime/windows-portable.cjs');
+      standaloneResources = resolveWindowsPortableResources(process.resourcesPath);
+      shmBridge = require(standaloneResources.shmAddon);
+      portableBackendOptions = windowsPortableBackendOptions(standaloneResources, sessionPaths);
+      app.setPath('temp', portableBackendOptions.cwd);
+    }
     webServer = await startStaticWebServer({
       distRoot: standaloneResources.frontendDist,
       port: 5180,
@@ -535,10 +549,12 @@ if(singleInstanceGranted)(async()=>{
     const consumerId = randomBytes(16).toString('hex');
     const consumerSecret = randomBytes(32).toString('hex');
     backendProcess = await startBackendProcess({
+      ...portableBackendOptions,
       dist: standaloneResources.backendDist,
       profile: sessionPaths.profile,
       origins: webServer.origins,
       env: {
+        ...portableBackendOptions?.env,
         MAKO_DESKTOP_CONSUMER_ID: consumerId,
         MAKO_DESKTOP_CONSUMER_SECRET: consumerSecret,
         MAKO_DESKTOP_MAIN_PID: String(process.pid),
@@ -585,6 +601,6 @@ if(singleInstanceGranted)(async()=>{
   if(!ending&&!window.isDestroyed()&&!window.isVisible())window.show();
 })().catch((error)=>{
   console.error(error?.stack||String(error));
-  if(standaloneMode&&app.isReady()){try{dialog.showErrorBox('MakoKara Generator 启动失败',error?.message??String(error));}catch{}}
+  if(standaloneMode&&(windowsPortable||app.isReady())){try{dialog.showErrorBox('MakoKara Generator 启动失败',error?.message??String(error));}catch{}}
   failStop('desktopStartupFailed');
 });

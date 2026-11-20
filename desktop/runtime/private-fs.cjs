@@ -61,8 +61,10 @@ function runEncodedPowerShell(script, extraEnv = {}) {
     if (key.toUpperCase() === 'PSMODULEPATH') delete childEnv[key];
   }
   const encoded = Buffer.from(`$ProgressPreference = 'SilentlyContinue'\n${script}`, 'utf16le').toString('base64');
+  const systemRoot = process.env.SystemRoot;
+  if (!systemRoot || !path.isAbsolute(systemRoot)) throw new Error('Cannot locate the Windows system directory.');
   return childProcess.execFileSync(
-    'powershell.exe',
+    path.join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
     ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded],
     {
       encoding: 'utf8',

@@ -10,6 +10,7 @@ const require = createRequire(import.meta.url);
 const sourcePath = new URL('../desktop/runtime/private-fs.cjs', import.meta.url);
 const source = fs.readFileSync(sourcePath, 'utf8');
 const sid = 'S-1-5-21-123-456-789-1001';
+const systemRoot = path.resolve('mock-windows');
 const safeAcl = () => ({ protected: true, rules: [{ sid, type: 'Allow', rights: 2032127, inheritance: 3, propagation: 0 }] });
 
 // Simulate foreign grants in memory only; never grant broad access on disk.
@@ -28,7 +29,7 @@ function fixture() {
         acls.set(target, { protected: true, rules: [...prior.filter(rule => rule.sid !== sid), ...safeAcl().rules] });
         return '';
       }
-      assert.equal(command, 'powershell.exe');
+      assert.equal(command, path.join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'));
       const script = Buffer.from(args.at(-1), 'base64').toString('utf16le');
       const target = options.env.MAKO_ACL_TARGET;
       if (script.includes('SetSecurityDescriptorSddlForm')) {
@@ -45,7 +46,7 @@ function fixture() {
   vm.runInNewContext(source, {
     require(name) { return name === 'node:child_process' ? mockCp : require(name); },
     module, exports: module.exports, Buffer,
-    process: { platform: 'win32', env: process.env },
+    process: { platform: 'win32', env: { ...process.env, SystemRoot: systemRoot } },
   }, { filename: sourcePath.pathname });
   const options = { getVolumeInfo: () => ({ fileSystemFlags: 8 }) };
   return { root, acls, writes, reads, api: module.exports, options };

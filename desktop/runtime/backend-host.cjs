@@ -353,6 +353,11 @@ async function startBackendProcess(options = {}) {
   if (options.env) {
     for (const [key, value] of Object.entries(options.env)) {
       if (value !== undefined && !key.startsWith('MAKO_BACKEND_')) {
+        if (process.platform === 'win32' && (key === 'TEMP' || key === 'TMP')) {
+          for (const inheritedKey of Object.keys(env)) {
+            if (inheritedKey.toUpperCase() === key) delete env[inheritedKey];
+          }
+        }
         env[key] = value;
       }
     }

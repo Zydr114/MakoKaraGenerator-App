@@ -347,11 +347,17 @@ def validate_dist(dist):
     return manifest
 
 
+def source_input_paths():
+    paths = ['src', 'Directory.Build.props', 'Directory.Build.targets', 'Directory.Packages.props',
+             'global.json', 'NuGet.Config', 'NuGet.config']
+    if IS_WINDOWS:
+        paths.extend(['build/MakoMediaPresentation.Native.targets', 'native/media-presentation'])
+    return paths
+
+
 def source_inputs():
     paths = subprocess.run(
-        ['git', 'ls-files', '-co', '--exclude-standard', '--', 'src',
-         'Directory.Build.props', 'Directory.Build.targets', 'Directory.Packages.props',
-         'global.json', 'NuGet.Config', 'NuGet.config'],
+        ['git', 'ls-files', '-co', '--exclude-standard', '--', *source_input_paths()],
         cwd=REPO,
         check=True,
         capture_output=True,
@@ -384,9 +390,7 @@ def publish(args):
     git = git_head()
     frozen_inputs = source_inputs()
     diff = subprocess.run(
-        ['git', 'diff', '--binary', 'HEAD', '--', 'src', 'Directory.Build.props',
-         'Directory.Build.targets', 'Directory.Packages.props', 'global.json', 'NuGet.Config',
-         'NuGet.config'],
+        ['git', 'diff', '--binary', 'HEAD', '--', *source_input_paths()],
         cwd=REPO,
         check=True,
         capture_output=True,
@@ -425,7 +429,7 @@ def publish(args):
         'sourceDiffSha256': hashlib.sha256(diff).hexdigest(),
         'sourceDirty': bool(diff) or bool(
             subprocess.run(
-                ['git', 'ls-files', '--others', '--exclude-standard', '--', 'src'],
+                ['git', 'ls-files', '--others', '--exclude-standard', '--', *source_input_paths()],
                 cwd=REPO,
                 check=True,
                 capture_output=True,

@@ -280,11 +280,8 @@ public static class ProjectStore
                 && parsed.Build >= 0
                 && parsed.ToString(3) == stored;
 
-            // This export-only patch keeps the 0.114.0 project format unchanged.
-            // Admit that one predecessor without rewriting it; schema gates below
-            // still reject unsupported formats. Other release pairs stay strict.
-            bool compatibleExportPatch = ProductVersion.Current == "0.114.1" && stored == "0.114.0";
-            if (!valid || stored != ProductVersion.Current && !compatibleExportPatch)
+            bool compatiblePatch = (ProductVersion.Current, stored) is ("0.114.1", "0.114.0") or ("0.116.1", "0.116.0");
+            if (!valid || stored != ProductVersion.Current && !compatiblePatch)
             {
                 Add(issues, DiagnosticCode.ApplicationVersionMismatch, IssueSeverity.Error,
                     $"工程版本：{stored ?? "未标注程序版本"}；当前程序版本：{ProductVersion.Current}。"

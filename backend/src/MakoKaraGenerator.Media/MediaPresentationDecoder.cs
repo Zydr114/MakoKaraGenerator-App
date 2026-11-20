@@ -39,7 +39,7 @@ public sealed class MediaPresentationDecoder : IMediaPresentationInspector, IMed
             async (session, operation, token) =>
             {
                 var managed = new MediaPresentationManagedBudget(operation);
-                using var wire = new MediaPresentationWire(_deployment.Files, managed);
+                using var wire = new MediaPresentationWire(_deployment.Files, managed, _deployment.RequireExactClosure);
                 using IMediaMemoryReservation small = managed.Reserve(128 * 1024, MediaWorkingSetPurpose.Metadata);
                 byte[] scratch = new byte[64 * 1024]; byte[] ack = [(byte)'S'];
                 await using FileStream file = OpenSource(source);

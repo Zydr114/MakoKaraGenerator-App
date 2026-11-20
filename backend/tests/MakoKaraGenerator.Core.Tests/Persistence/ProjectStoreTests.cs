@@ -160,20 +160,20 @@ public sealed class ProjectStoreTests : IDisposable
     }
 
     [Fact]
-    public void 音频导出修复版允许打开同格式01140工程且保持源文件()
+    public void 便携版补丁允许打开同格式01160工程且保持源文件()
     {
         ProjectStore.Save(SampleProject(), _directory.Path);
         string projectPath = _directory.FilePath(ProjectJson.ProjectFileName);
         string lyricsPath = ProjectFileFixture.LyricsPath(_directory.Path);
         JsonNode document = JsonNode.Parse(File.ReadAllText(projectPath))!;
-        document["applicationVersion"] = "0.114.0";
+        document["applicationVersion"] = "0.116.0";
         File.WriteAllText(projectPath, document.ToJsonString());
         byte[] beforeProject = File.ReadAllBytes(projectPath);
         byte[] beforeLyrics = File.ReadAllBytes(lyricsPath);
 
         ProjectLoadResult result = ProjectStore.Load(_directory.Path);
 
-        Assert.Equal("0.114.1", ProductVersion.Current);
+        Assert.Equal("0.116.1", ProductVersion.Current);
         Assert.True(result.Loaded, result.Report.ToSummary());
         Assert.False(result.Report.Contains(DiagnosticCode.ApplicationVersionMismatch));
         Assert.Equal(beforeProject, File.ReadAllBytes(projectPath));

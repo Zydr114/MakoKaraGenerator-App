@@ -7,6 +7,9 @@
     <MakoMediaEnvelopeEnabled>true</MakoMediaEnvelopeEnabled>
     <MakoMediaPresentationEnabled>true</MakoMediaPresentationEnabled>
   </PropertyGroup>
+  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Windows')) and '$(MakoMediaPresentationWindowsDevkitArchive)' != ''">
+    <MakoMediaPresentationEnabled Condition="'$(MakoMediaPresentationEnabled)' == ''">true</MakoMediaPresentationEnabled>
+  </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
@@ -22,6 +25,6 @@
     <None Include="../MakoKaraGenerator.Backend.Worker.Tests/Fixtures/AudioPreparationBaseline/m4a*.input;../MakoKaraGenerator.Backend.Worker.Tests/Fixtures/AudioPreparationBaseline/ogg*.input"
           Link="Fixtures/AudioPreparationBaseline/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
-  <Import Project="../../build/MakoMediaEnvelope.Native.targets" />
+  <Import Condition="!$([MSBuild]::IsOSPlatform('Windows'))" Project="../../build/MakoMediaEnvelope.Native.targets" />
   <Import Project="../../build/MakoMediaPresentation.Native.targets" />
 </Project>

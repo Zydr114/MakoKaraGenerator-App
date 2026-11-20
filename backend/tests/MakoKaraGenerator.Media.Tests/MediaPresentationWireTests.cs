@@ -26,6 +26,25 @@ public sealed class MediaPresentationWireTests
         Assert.Equal(0, budget.Live);
     }
     [Fact]
+    public async Task ExactClosureRejectsMissingPinnedDependency()
+    {
+        var helper = new MediaLoadedToolFile(ControlledHelper, new("helper", 1, Hash([1])));
+        var dependency = new MediaLoadedToolFile(ControlledHelper + ".dll", new("dependency", 1, Hash([2])));
+        var budget = new Budget();
+        using var metadata = new MemoryStream();
+        Loaded(metadata, helper);
+        Record(metadata, 5, []);
+        Record(metadata, 2, FrameBytes(Metadata(0, 0, 0, 0, Hash([1]))));
+        metadata.Position = 0;
+        using (var wire = new MediaPresentationWire([helper, dependency], budget, requireExactClosure: true))
+            await Assert.ThrowsAsync<MediaAbException>(() => wire.ReadNextAsync(metadata, default).AsTask());
+        metadata.Position = 0;
+        using (var wire = new MediaPresentationWire([helper, dependency], budget))
+            Assert.IsType<MediaNativePresentationMetadata>(await wire.ReadNextAsync(metadata, default));
+        Assert.Equal(0, budget.Live);
+    }
+
+    [Fact]
     public async Task TruncationAndCancellationCannotProduceAFrame()
     {
         var file = new MediaLoadedToolFile(ControlledHelper, new("helper", 1, Hash([1]))); var budget = new Budget();

@@ -21,11 +21,20 @@ public sealed class MediaPresentationDeployment
     /// <param name="dependencies">Pinned complete native dependency closure; no optional untracked libraries.</param>
     public MediaPresentationDeployment(string gateExecutable, string helperExecutable,
         IReadOnlyList<MediaLoadedToolFile> executables, IReadOnlyList<MediaLoadedToolFile> dependencies)
+        : this(gateExecutable, helperExecutable, executables, dependencies, requireExactClosure: false) { }
+
+    internal static MediaPresentationDeployment ForWindows(string helperExecutable, MediaLoadedToolFile executable,
+        IReadOnlyList<MediaLoadedToolFile> dependencies) => new(helperExecutable, helperExecutable, [executable], dependencies, requireExactClosure: true);
+
+    private MediaPresentationDeployment(string gateExecutable, string helperExecutable,
+        IReadOnlyList<MediaLoadedToolFile> executables, IReadOnlyList<MediaLoadedToolFile> dependencies, bool requireExactClosure)
     {
         if (!Path.IsPathFullyQualified(gateExecutable) || !Path.IsPathFullyQualified(helperExecutable) ||
-            executables.Count is < 2 or > MediaAbCapacityV1.MaximumToolManifestEntries || dependencies.Count > MediaAbCapacityV1.MaximumToolManifestEntries - executables.Count)
+            executables.Count < (requireExactClosure ? 1 : 2) || executables.Count > MediaAbCapacityV1.MaximumToolManifestEntries
+            || dependencies.Count > MediaAbCapacityV1.MaximumToolManifestEntries - executables.Count)
             throw Unsupported("Controlled decoder deployment has invalid executable locations or manifest capacity.");
         _gate = gateExecutable; _helper = helperExecutable;
+        RequireExactClosure = requireExactClosure;
         _files = executables.Concat(dependencies).ToArray();
         if (!_files.Any(file => string.Equals(file.TrustedPath, _gate, StringComparison.Ordinal)) || !_files.Any(file => string.Equals(file.TrustedPath, _helper, StringComparison.Ordinal)) ||
             _files.Select(file => file.TrustedPath).Distinct(StringComparer.Ordinal).Count() != _files.Length ||
@@ -58,6 +67,7 @@ public sealed class MediaPresentationDeployment
     /// <summary>Composite content identity of the frozen tool configuration.</summary>
     public MediaToolIdentity Tool => _tool;
     internal IReadOnlyList<MediaLoadedToolFile> Files => _files;
+    internal bool RequireExactClosure { get; }
     internal long WireCapacityBytes => checked(MediaAbCapacityV1.MaximumMetadataRecordBytes + _files.Sum(value => value.TrustedPath.Length * 4L + 768) + 4096);
 
     internal EnvelopeCommand Command(IMediaFileLease source, int family, int stream, bool inspect) => new(_gate, _helper,

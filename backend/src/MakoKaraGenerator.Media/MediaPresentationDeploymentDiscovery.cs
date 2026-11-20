@@ -2,32 +2,38 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Security.Cryptography;
 using MakoKaraGenerator.Core.Media;
+using MakoKaraGenerator.Processes;
 
 namespace MakoKaraGenerator.Media;
 
-/// <summary>Builds the pinned presentation deployment from the shipped gate/helper and the helper's static loader closure.</summary>
+/// <summary>Builds the pinned presentation deployment from the shipped helper and its platform loader closure.</summary>
 /// <remarks>
-/// The helper reports every <c>dl_iterate_phdr</c> image by realpath; this resolves the same loader closure through
-/// <c>ldd</c> and canonical realpaths. A lazily loaded library outside this closure still fails closed in the wire.
+/// Linux resolves the <c>dl_iterate_phdr</c> image set through <c>ldd</c> and canonical realpaths.
+/// Windows measures its shipped helper's loaded images under the same hard Job used for decoding.
 /// </remarks>
-public static class MediaPresentationDeploymentDiscovery
+public static partial class MediaPresentationDeploymentDiscovery
 {
     /// <summary>Gate executable file name inside the tool directory.</summary>
     public const string GateFileName = "mkg-media-exec-gate";
     /// <summary>Presentation helper file name inside the tool directory.</summary>
     public const string HelperFileName = "mkg-presentation";
+    /// <summary>Presentation helper executable inside the Windows tool directory.</summary>
+    public const string WindowsHelperFileName = "mkg-presentation.exe";
     /// <summary>Envelope bridge library file name inside the tool directory.</summary>
     public const string BridgeFileName = "libmkg_media_envelope.so";
 
     /// <summary>Whether the directory carries the complete shipped native media tools.</summary>
-    public static bool IsInstalled(string toolDirectory) => OperatingSystem.IsLinux()
-        && File.Exists(Path.Combine(toolDirectory, GateFileName)) && File.Exists(Path.Combine(toolDirectory, HelperFileName))
-        && File.Exists(Path.Combine(toolDirectory, BridgeFileName));
+    public static bool IsInstalled(string toolDirectory) => WindowsJobObjectGuard.IsSupported
+        ? File.Exists(Path.Combine(toolDirectory, WindowsHelperFileName))
+        : OperatingSystem.IsLinux() && File.Exists(Path.Combine(toolDirectory, GateFileName))
+            && File.Exists(Path.Combine(toolDirectory, HelperFileName)) && File.Exists(Path.Combine(toolDirectory, BridgeFileName));
 
     /// <summary>Resolves, hashes and pins the gate, helper and every helper loader dependency.</summary>
     public static async Task<MediaPresentationDeployment> DiscoverAsync(string toolDirectory, CancellationToken cancellationToken)
     {
-        if (!OperatingSystem.IsLinux()) throw Unsupported("Controlled media decoding requires Linux.");
+        if (WindowsJobObjectGuard.IsSupported)
+            return await DiscoverWindowsAsync(toolDirectory, cancellationToken).ConfigureAwait(false);
+        if (!OperatingSystem.IsLinux()) throw Unsupported("Controlled media decoding requires Linux or Windows x64.");
         string root = RealPath(Path.GetFullPath(toolDirectory));
         string gate = RealPath(Path.Combine(root, GateFileName)), helper = RealPath(Path.Combine(root, HelperFileName));
         string[] dependencies = (await ReadLoaderClosureAsync(helper, cancellationToken).ConfigureAwait(false))

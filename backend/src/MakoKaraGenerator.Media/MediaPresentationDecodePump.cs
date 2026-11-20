@@ -24,7 +24,7 @@ internal static class MediaPresentationDecodePump
         CancellationToken cancellationToken)
     {
         var managed = new MediaPresentationManagedBudget(budget);
-        using var wire = new MediaPresentationWire(deployment.Files, managed);
+        using var wire = new MediaPresentationWire(deployment.Files, managed, deployment.RequireExactClosure);
         using IMediaMemoryReservation small = managed.Reserve(128 * 1024, MediaWorkingSetPurpose.Metadata);
         byte[] intervalBytes = new byte[MediaTrackLayoutV1.IntervalBytes]; byte[] hashScratch = new byte[64 * 1024]; byte[] ack = [(byte)'N'];
         using IncrementalHash indexHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);

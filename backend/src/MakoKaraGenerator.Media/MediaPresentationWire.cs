@@ -224,6 +224,7 @@ public sealed class MediaPresentationWire : IDisposable
     private readonly byte[] _buffer;
     private readonly IMediaMemoryReservation _reservation;
     private readonly HashSet<string> _epoch = new(StringComparer.Ordinal);
+    private readonly bool _requireExactClosure;
     private bool _closureVerified;
 
     /// <summary>Creates a transport reader from the controlled package map.</summary>
@@ -231,8 +232,12 @@ public sealed class MediaPresentationWire : IDisposable
     /// <param name="budget">Operation managed subledger, charged before transport allocations.</param>
     /// <exception cref="MediaAbException">A tool entry or map is invalid.</exception>
     public MediaPresentationWire(IReadOnlyList<MediaLoadedToolFile> allowed, IMediaWorkingSetBudget budget)
+        : this(allowed, budget, requireExactClosure: false) { }
+
+    internal MediaPresentationWire(IReadOnlyList<MediaLoadedToolFile> allowed, IMediaWorkingSetBudget budget, bool requireExactClosure)
     {
         ArgumentNullException.ThrowIfNull(allowed);
+        _requireExactClosure = requireExactClosure;
         if (allowed.Count is <= 0 or > MediaAbCapacityV1.MaximumToolManifestEntries)
             throw Failure("Controlled loaded tool map is empty or exceeds fixed capacity.");
         long textBytes = 0;
@@ -279,7 +284,8 @@ public sealed class MediaPresentationWire : IDisposable
                     if (_closureVerified) { _epoch.Clear(); _closureVerified = false; }
                     VerifyLoadedFile((int)bytes); break;
                 case 5:
-                    if (bytes != 0 || _epoch.Count == 0) throw Failure("Native loaded closure epoch is empty or malformed.");
+                    if (bytes != 0 || _epoch.Count == 0 || (_requireExactClosure && _epoch.Count != _allowed.Count))
+                        throw Failure("Native loaded closure epoch is empty, incomplete or malformed.");
                     _closureVerified = true; break;
                 case 2:
                     if (!_closureVerified || bytes != 224) throw Failure("Native frame precedes verified loaded closure or has invalid size.");

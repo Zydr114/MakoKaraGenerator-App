@@ -152,7 +152,9 @@ public sealed class BackendMediaFeatureService : IAsyncDisposable
             {
                 MediaPresentationDeployment deployment = await DeploymentAsync(token).ConfigureAwait(false);
                 await using var file = new MediaEnvelopeFileLease(new OwnedCopyLease(copy, content));
-                var runner = new MediaEnvelopeRunner(new LinuxSystemdEnvelopeBackend(), _quarantine, NativeBytes);
+                IEnvelopeBackend backend = OperatingSystem.IsWindows()
+                    ? new WindowsJobEnvelopeBackend() : new LinuxSystemdEnvelopeBackend();
+                var runner = new MediaEnvelopeRunner(backend, _quarantine, NativeBytes);
                 var decoder = new MediaPresentationDecoder(deployment, runner);
                 var decodeBudget = new MediaWorkingSetBudget(MediaAbCapacityV1.MaximumDecodeWorkingBytes);
                 MediaFeatureFileSource? source = await InspectAsync(decoder, file, kind, decodeBudget, token).ConfigureAwait(false);
@@ -173,9 +175,11 @@ public sealed class BackendMediaFeatureService : IAsyncDisposable
             finally { _analysisSlot.Release(); }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
-        catch (Exception)
+        catch (Exception error)
         {
             entry.SetSource(null);
+            if (OperatingSystem.IsWindows() && error is MediaAbException { Failure: MediaAbFailure.CapacityExceeded })
+                entry.SetFailure(Failure(entry.Request, error));
             Advance();
         }
         finally
@@ -198,6 +202,7 @@ public sealed class BackendMediaFeatureService : IAsyncDisposable
                 token.ThrowIfCancellationRequested();
                 try { return await decoder.InspectAsync(file, new(kind, stream, missing), budget, token).ConfigureAwait(false); }
                 catch (MediaAbException error) when (error.Failure == MediaAbFailure.ColorUnsupported) { }
+                catch (MediaAbException error) when (OperatingSystem.IsWindows() && error.Failure == MediaAbFailure.CapacityExceeded) { throw; }
                 catch (MediaAbException) { break; }
             }
         }

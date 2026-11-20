@@ -11,6 +11,10 @@
     <MakoMediaEnvelopeEnabled>true</MakoMediaEnvelopeEnabled>
     <MakoMediaPresentationEnabled>true</MakoMediaPresentationEnabled>
   </PropertyGroup>
+  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Windows')) and '$(MakoMediaPresentationWindowsDevkitArchive)' != ''">
+    <MakoMediaEnvelopeEnabled>true</MakoMediaEnvelopeEnabled>
+    <MakoMediaPresentationEnabled Condition="'$(MakoMediaPresentationEnabled)' == ''">true</MakoMediaPresentationEnabled>
+  </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../MakoKaraGenerator.Backend.Contracts/MakoKaraGenerator.Backend.Contracts.csproj" />
     <ProjectReference Include="../MakoKaraGenerator.Backend.Hosting/MakoKaraGenerator.Backend.Hosting.csproj" />
@@ -18,6 +22,6 @@
     <ProjectReference Include="../MakoKaraGenerator.Backend.Rendering.Skia/MakoKaraGenerator.Backend.Rendering.Skia.csproj" />
     <ProjectReference Include="../MakoKaraGenerator.Runtime.Hosting/MakoKaraGenerator.Runtime.Hosting.csproj" />
   </ItemGroup>
-  <Import Project="../../build/MakoMediaEnvelope.Native.targets" />
+  <Import Condition="!$([MSBuild]::IsOSPlatform('Windows'))" Project="../../build/MakoMediaEnvelope.Native.targets" />
   <Import Project="../../build/MakoMediaPresentation.Native.targets" />
 </Project>

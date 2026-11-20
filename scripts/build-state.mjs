@@ -28,7 +28,9 @@ export function webInputs(root) {
 
 /** 后端发布的输入，规则同 backend/tools/backend-web-host/host.py 的 source_inputs。 */
 export function backendInputs(root) {
-  return trackedInputs(join(root, 'backend'), ['src', 'Directory.Build.props', 'Directory.Build.targets', 'Directory.Packages.props', 'global.json', 'NuGet.Config', 'NuGet.config']);
+  const paths = ['src', 'Directory.Build.props', 'Directory.Build.targets', 'Directory.Packages.props', 'global.json', 'NuGet.Config', 'NuGet.config'];
+  if (process.platform === 'win32') paths.push('build/MakoMediaPresentation.Native.targets', 'native/media-presentation');
+  return trackedInputs(join(root, 'backend'), paths);
 }
 
 const WEB_STAMP = (root) => join(root, '.local/web-build.json');

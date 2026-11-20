@@ -65,6 +65,8 @@ internal static partial class Program
             case "win-sleeper" when args.Length == 2:
                 await Task.Delay(TimeSpan.FromSeconds(30));
                 return 0;
+            case "win-media" when OperatingSystem.IsWindows():
+                return await RunMediaChildAsync(args[2..]);
             default:
                 return 64;
         }

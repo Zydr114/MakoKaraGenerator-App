@@ -40,6 +40,9 @@ public sealed class EnvelopeException : Exception
     /// <summary>Path-free category of an overridden failure, or null when no failure was overridden.</summary>
     public string? SafeCauseCode { get; private set; }
 
+    /// <summary>Path-free Windows Job Object evidence, when collected. Peaks are diagnostic only.</summary>
+    public WindowsJobMemoryDiagnostics? WindowsJobMemory { get; internal init; }
+
     internal Exception? RetainedCause => _retainedCause;
 
     internal static EnvelopeException WithRetainedCause(EnvelopeFailure failure, string code, Exception cause)
@@ -63,7 +66,7 @@ public sealed class EnvelopeException : Exception
 }
 
 /// <summary>Structured internal tool command. Never construct this from author or HTTP parameters.</summary>
-/// <param name="GateExecutable">Absolute path of the packaged pre-exec gate.</param>
+/// <param name="GateExecutable">Absolute path of the Linux pre-exec gate, or the decoder itself on Windows.</param>
 /// <param name="Executable">Absolute path of the packaged native decoder.</param>
 /// <param name="Arguments">Bounded argument vector without a shell.</param>
 public sealed record EnvelopeCommand(string GateExecutable, string Executable, string[] Arguments)
@@ -168,39 +171,39 @@ public sealed record EnvelopeExecutionPolicy(TimeSpan StartTimeout, TimeSpan Idl
 /// <summary>Opens owned transport resources, without starting a native process.</summary>
 public interface IEnvelopeBackend
 {
-    /// <summary>Opens the manager connection and four pipes. No unit is created here.</summary>
+    /// <summary>Opens the native control context and four pipes. No process is created here.</summary>
     ValueTask<IEnvelopeSession> OpenAsync(CancellationToken cancellationToken);
 }
 
-/// <summary>One manager connection, pinned cgroup identity, and four owned UNIX pipes.</summary>
+/// <summary>One native control context and four owned binary pipes.</summary>
 public interface IEnvelopeSession : IAsyncDisposable
 {
     /// <summary>Parent-to-tool input; the backend consumes only the initial gate byte.</summary>
     Stream Input { get; }
     /// <summary>Native pixel output.</summary>
     Stream Output { get; }
-    /// <summary>Independent structured metadata output, native fd3.</summary>
+    /// <summary>Independent structured metadata output (fd3 on Linux, inherited HANDLE on Windows).</summary>
     Stream Metadata { get; }
     /// <summary>Bounded diagnostic stream, never a frame database.</summary>
     Stream Diagnostics { get; }
-    /// <summary>Actual total kernel pipe capacity verified using F_GETPIPE_SZ.</summary>
+    /// <summary>Total verified pipe buffer sizes (Linux capacity or Windows configured quota).</summary>
     long PipeBackingBytes { get; }
     /// <summary>Monotone count of successful pipe reads and writes, for inactivity supervision.</summary>
     long ProgressVersion { get; }
-    /// <summary>True once a start request may have reached the manager.</summary>
+    /// <summary>True once a native start has been attempted.</summary>
     bool StartAttempted { get; }
-    /// <summary>Creates the referenced service with limits, running only the blocking gate.</summary>
+    /// <summary>Creates the limited owner without allowing decoder code to execute.</summary>
     ValueTask StartHeldAsync(EnvelopeStart start, CancellationToken cancellationToken);
-    /// <summary>Reads retained manager state, pinned kernel controls and live PID identity.</summary>
-    ValueTask<EnvelopeSnapshot> ObserveAsync(CancellationToken cancellationToken);
-    /// <summary>Reconciles a failed start. Ambiguous bus timeouts must not be reported as absent.</summary>
+    /// <summary>Linux only: reads retained manager state, pinned kernel controls and live PID identity.</summary>
+    ValueTask<EnvelopeSnapshot> ObserveAsync(CancellationToken cancellationToken) => throw new PlatformNotSupportedException();
+    /// <summary>Reconciles a failed start. Ambiguous starts must not be reported as absent.</summary>
     ValueTask<bool> ConfirmStartAbsentAsync(CancellationToken cancellationToken);
-    /// <summary>Releases exactly one gate byte after both manager and kernel controls were verified.</summary>
+    /// <summary>Allows decoder execution only after the native owner and controls have been verified.</summary>
     ValueTask ReleaseExecGateAsync(CancellationToken cancellationToken);
-    /// <summary>Rechecks invocation, PID/start ticks and pinned inode before writing cgroup.kill.</summary>
-    ValueTask KillVerifiedCgroupAsync(EnvelopeIdentity identity, CancellationToken cancellationToken);
-    /// <summary>Releases the manager reference only after terminal, empty/removed cgroup and pipe EOF.</summary>
-    ValueTask UnrefVerifiedAsync(EnvelopeIdentity identity, CancellationToken cancellationToken);
+    /// <summary>Linux only: rechecks invocation, PID/start ticks and pinned inode before writing cgroup.kill.</summary>
+    ValueTask KillVerifiedCgroupAsync(EnvelopeIdentity identity, CancellationToken cancellationToken) => throw new PlatformNotSupportedException();
+    /// <summary>Linux only: releases the manager reference after terminal, empty/removed cgroup and pipe EOF.</summary>
+    ValueTask UnrefVerifiedAsync(EnvelopeIdentity identity, CancellationToken cancellationToken) => throw new PlatformNotSupportedException();
 }
 
 /// <summary>Monotone testable clock; wall-clock changes cannot extend a lease.</summary>
@@ -228,7 +231,7 @@ public sealed class EnvelopeClock : IEnvelopeClock
 
 /// <summary>Retained failed terminal. It owns the operation/source lease through its native reservation.</summary>
 /// <param name="SafeReason">Path-free failure code.</param>
-/// <param name="Identity">Last captured owner, if known.</param>
+/// <param name="Identity">Last captured Linux owner, if known. Windows retains identity in the session's held handles.</param>
 /// <param name="Session">Transport and pinned native owner, deliberately not disposed.</param>
 /// <param name="Reservation">Native reservation that must remain live.</param>
 /// <param name="TransportReservation">Managed transport capacity that must remain live.</param>

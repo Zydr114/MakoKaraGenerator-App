@@ -132,87 +132,8 @@ public sealed partial class WindowsJobObjectGuard : IWorkerProcessGuard
             char[] envBlock = BuildUnicodeEnvironmentBlock(startInfo);
             string? workingDirectory = string.IsNullOrWhiteSpace(startInfo.WorkingDirectory) ? null : startInfo.WorkingDirectory;
 
-            Win32.PROCESS_INFORMATION pi = default;
-            IntPtr attrListBuffer = IntPtr.Zero;
-            bool attrListInitialized = false;
-
-            try
-            {
-                nuint attrSize = 0;
-                Win32.InitializeProcThreadAttributeList(IntPtr.Zero, 2, 0, ref attrSize);
-                if (attrSize == 0) throw new Win32Exception(Marshal.GetLastPInvokeError(), "InitializeProcThreadAttributeList sizing failed.");
-
-                attrListBuffer = Marshal.AllocHGlobal((nint)attrSize);
-                if (!Win32.InitializeProcThreadAttributeList(attrListBuffer, 2, 0, ref attrSize))
-                    throw new Win32Exception(Marshal.GetLastPInvokeError(), "InitializeProcThreadAttributeList failed.");
-                attrListInitialized = true;
-
-                bool jobRefAdded = false, inRefAdded = false, outRefAdded = false, errRefAdded = false;
-                try
-                {
-                    jobHandle.DangerousAddRef(ref jobRefAdded);
-                    stdinRead.DangerousAddRef(ref inRefAdded);
-                    stdoutWrite.DangerousAddRef(ref outRefAdded);
-                    stderrWrite.DangerousAddRef(ref errRefAdded);
-
-                    unsafe
-                    {
-                        IntPtr* jobs = stackalloc IntPtr[1];
-                        jobs[0] = jobHandle.DangerousGetHandle();
-                        if (!Win32.UpdateProcThreadAttribute(attrListBuffer, 0, Win32.PROC_THREAD_ATTRIBUTE_JOB_LIST,
-                            (IntPtr)jobs, (nuint)sizeof(IntPtr), IntPtr.Zero, IntPtr.Zero))
-                            throw new Win32Exception(Marshal.GetLastPInvokeError(), "UpdateProcThreadAttribute(JOB_LIST) failed.");
-
-                        IntPtr* handles = stackalloc IntPtr[3];
-                        handles[0] = stdinRead.DangerousGetHandle();
-                        handles[1] = stdoutWrite.DangerousGetHandle();
-                        handles[2] = stderrWrite.DangerousGetHandle();
-                        if (!Win32.UpdateProcThreadAttribute(attrListBuffer, 0, Win32.PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
-                            (IntPtr)handles, (nuint)(3 * sizeof(IntPtr)), IntPtr.Zero, IntPtr.Zero))
-                            throw new Win32Exception(Marshal.GetLastPInvokeError(), "UpdateProcThreadAttribute(HANDLE_LIST) failed.");
-
-                        Win32.STARTUPINFOEXW siEx = default;
-                        siEx.StartupInfo.cb = (uint)sizeof(Win32.STARTUPINFOEXW);
-                        siEx.StartupInfo.dwFlags = Win32.STARTF_USESTDHANDLES | Win32.STARTF_USESHOWWINDOW;
-                        siEx.StartupInfo.wShowWindow = Win32.SW_HIDE;
-                        siEx.StartupInfo.hStdInput = handles[0];
-                        siEx.StartupInfo.hStdOutput = handles[1];
-                        siEx.StartupInfo.hStdError = handles[2];
-                        siEx.lpAttributeList = attrListBuffer;
-
-                        char[] cmdBuffer = new char[commandLine.Length + 1];
-                        commandLine.CopyTo(0, cmdBuffer, 0, commandLine.Length);
-
-                        fixed (char* pCmd = cmdBuffer)
-                        fixed (char* pEnv = envBlock)
-                        fixed (char* pWorkDir = workingDirectory)
-                        {
-                            uint creationFlags = Win32.EXTENDED_STARTUPINFO_PRESENT
-                                | Win32.CREATE_UNICODE_ENVIRONMENT
-                                | Win32.CREATE_NO_WINDOW
-                                | Win32.CREATE_SUSPENDED;
-                            if (!Win32.CreateProcessW(null, pCmd, IntPtr.Zero, IntPtr.Zero, 1, creationFlags,
-                                (IntPtr)pEnv, pWorkDir, ref siEx, out pi))
-                                throw new Win32Exception(Marshal.GetLastPInvokeError());
-                        }
-                    }
-                }
-                finally
-                {
-                    if (errRefAdded) stderrWrite.DangerousRelease();
-                    if (outRefAdded) stdoutWrite.DangerousRelease();
-                    if (inRefAdded) stdinRead.DangerousRelease();
-                    if (jobRefAdded) jobHandle.DangerousRelease();
-                }
-            }
-            finally
-            {
-                if (attrListInitialized) Win32.DeleteProcThreadAttributeList(attrListBuffer);
-                if (attrListBuffer != IntPtr.Zero) Marshal.FreeHGlobal(attrListBuffer);
-            }
-
-            processHandle = new SafeProcessHandle(pi.hProcess, ownsHandle: true);
-            threadHandle = new SafeThreadHandle(pi.hThread, ownsHandle: true);
+            (processHandle, threadHandle, int pid) = CreateSuspendedProcess(jobHandle,
+                [stdinRead, stdoutWrite, stderrWrite], null, commandLine, envBlock, workingDirectory);
 
             // Close child-side pipe ends in the parent immediately so EOF works reliably.
             stdinRead.Dispose(); stdinRead = null;
@@ -234,7 +155,6 @@ public sealed partial class WindowsJobObjectGuard : IWorkerProcessGuard
                 if (procRefAdded) processHandle.DangerousRelease();
             }
 
-            int pid = checked((int)pi.dwProcessId);
             long creationTime = ReadCreationTimeFileTime(processHandle);
             managedProcess = Process.GetProcessById(pid);
 
@@ -395,7 +315,7 @@ public sealed partial class WindowsJobObjectGuard : IWorkerProcessGuard
     }
 
     [SupportedOSPlatform("windows")]
-    private static long ReadCreationTimeFileTime(SafeProcessHandle handle)
+    internal static long ReadCreationTimeFileTime(SafeProcessHandle handle)
     {
         if (!Win32.GetProcessTimes(handle, out long creationTime, out _, out _, out _))
             throw new Win32Exception(Marshal.GetLastPInvokeError(), "GetProcessTimes failed.");
@@ -416,13 +336,13 @@ public sealed partial class WindowsJobObjectGuard : IWorkerProcessGuard
     }
 
     [SupportedOSPlatform("windows")]
-    private static void SetInheritable(SafeFileHandle handle)
+    internal static void SetInheritable(SafeFileHandle handle)
     {
         if (!Win32.SetHandleInformation(handle, Win32.HANDLE_FLAG_INHERIT, Win32.HANDLE_FLAG_INHERIT))
             throw new Win32Exception(Marshal.GetLastPInvokeError(), "SetHandleInformation failed.");
     }
 
-    private static string BuildCommandLine(ProcessStartInfo startInfo)
+    internal static string BuildCommandLine(ProcessStartInfo startInfo)
     {
         StringBuilder sb = new();
         AppendArgument(sb, startInfo.FileName);
@@ -512,13 +432,13 @@ public sealed partial class WindowsJobObjectGuard : IWorkerProcessGuard
         return chars;
     }
 
-    private sealed class SafeJobHandle : SafeHandleZeroOrMinusOneIsInvalid
+    internal sealed class SafeJobHandle : SafeHandleZeroOrMinusOneIsInvalid
     {
         public SafeJobHandle() : base(ownsHandle: true) { }
         protected override bool ReleaseHandle() => Win32.CloseHandle(handle);
     }
 
-    private sealed class SafeThreadHandle : SafeHandleZeroOrMinusOneIsInvalid
+    internal sealed class SafeThreadHandle : SafeHandleZeroOrMinusOneIsInvalid
     {
         public SafeThreadHandle() : base(ownsHandle: true) { }
         public SafeThreadHandle(IntPtr preexistingHandle, bool ownsHandle) : base(ownsHandle)
@@ -526,7 +446,7 @@ public sealed partial class WindowsJobObjectGuard : IWorkerProcessGuard
         protected override bool ReleaseHandle() => Win32.CloseHandle(handle);
     }
 
-    private static partial class Win32
+    internal static partial class Win32
     {
         internal const uint EXTENDED_STARTUPINFO_PRESENT = 0x00080000;
         internal const uint CREATE_UNICODE_ENVIRONMENT = 0x00000400;

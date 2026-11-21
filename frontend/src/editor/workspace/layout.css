@@ -37,6 +37,14 @@
   padding: 0 var(--gap);
 }
 
+/* 三列（歌词页重构：合并中右栏给动态滚动卡拉 OK 画布）：左栏 | 缝 | 全宽主画布。 */
+.work.no-right {
+  grid-template-columns: var(--left) var(--gap) minmax(0, 1fr);
+}
+.work-dock.join-no-right {
+  border-top-right-radius: 0;
+}
+
 .work-side,
 .work-center,
 .work-dock,

@@ -147,6 +147,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Use long runner temp directory (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Add-Content -Path $env:GITHUB_ENV -Value "TEMP=${{ runner.temp }}" -Encoding utf8NoBOM
+          Add-Content -Path $env:GITHUB_ENV -Value "TMP=${{ runner.temp }}" -Encoding utf8NoBOM
+
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -247,6 +254,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Use long runner temp directory (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Add-Content -Path $env:GITHUB_ENV -Value "TEMP=${{ runner.temp }}" -Encoding utf8NoBOM
+          Add-Content -Path $env:GITHUB_ENV -Value "TMP=${{ runner.temp }}" -Encoding utf8NoBOM
+
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: backend/global.json
@@ -271,6 +285,9 @@ jobs:
             fonts-noto-color-emoji \
             libfontconfig1 \
             libfreetype6
+          sudo mkdir -p /usr/share/fonts/noto-cjk
+          sudo ln -sf /usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc /usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc
+          test -f /usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc
 
       - name: Ensure FFmpeg is installed (Windows)
         if: runner.os == 'Windows'
@@ -283,20 +300,11 @@ jobs:
 
       - name: Restore backend solution
         working-directory: backend
-        run: |
-          dotnet restore MakoKaraGenerator.slnx
-          dotnet restore tests/MakoKaraGenerator.Library.Worker/MakoKaraGenerator.Library.Worker.csproj
-          dotnet restore tests/MakoKaraGenerator.Media.Worker/MakoKaraGenerator.Media.Worker.csproj
+        run: dotnet restore MakoKaraGenerator.slnx
 
-      # Build standalone test helper workers in Release first because they are not
-      # listed in MakoKaraGenerator.slnx, so CopyLibraryWorker/CopyMediaWorker
-      # require their Release output directories to exist.
-      - name: Build test helper workers (Release)
-        working-directory: backend
-        run: |
-          dotnet build tests/MakoKaraGenerator.Library.Worker/MakoKaraGenerator.Library.Worker.csproj --configuration Release --no-restore
-          dotnet build tests/MakoKaraGenerator.Media.Worker/MakoKaraGenerator.Media.Worker.csproj --configuration Release --no-restore
-
+      # Build in Debug because Backend.Hosting.Tests and Backend.Server.Tests spawn
+      # Worker/Server apphosts from bin/Debug/net10.0. Solution build also builds
+      # Library.Worker and Media.Worker via ProjectReference for Copy*Worker targets.
       # Linux PR fast gate disables native media-presentation (FFmpeg 9.0.2) and
       # media-envelope builds; full native builds run in ci-integration.yml and
       # native-media-envelope-tests below.
@@ -304,14 +312,14 @@ jobs:
         if: runner.os == 'Linux'
         working-directory: backend
         run: >-
-          dotnet build MakoKaraGenerator.slnx --configuration Release --no-restore
+          dotnet build MakoKaraGenerator.slnx --configuration Debug --no-restore
           -p:MakoMediaPresentationEnabled=false
           -p:MakoMediaEnvelopeEnabled=false
 
       - name: Build backend solution (Windows)
         if: runner.os == 'Windows'
         working-directory: backend
-        run: dotnet build MakoKaraGenerator.slnx --configuration Release --no-restore
+        run: dotnet build MakoKaraGenerator.slnx --configuration Debug --no-restore
 
       # Run all GPU-less-safe test projects and exclude:
       # 1. Category=PublishedServer (runs after publish in ci-integration.yml)
@@ -343,7 +351,7 @@ jobs:
           FAILED_PROJECTS=()
           for proj in "${PROJECTS[@]}"; do
             echo "::group::dotnet test $proj"
-            if ! dotnet test "$proj" --configuration Release --no-build --no-restore --filter "$FILTER" --blame-hang-timeout 2m; then
+            if ! dotnet test "$proj" --configuration Debug --no-build --no-restore --filter "$FILTER" --blame-hang-timeout 2m; then
               FAILED_PROJECTS+=("$proj")
             fi
             echo "::endgroup::"
@@ -351,7 +359,7 @@ jobs:
 
           echo "::group::dotnet test Runtime.Hosting.Tests (CPU-only subset)"
           if ! dotnet test tests/MakoKaraGenerator.Runtime.Hosting.Tests/MakoKaraGenerator.Runtime.Hosting.Tests.csproj \
-            --configuration Release --no-build --no-restore \
+            --configuration Debug --no-build --no-restore \
             --filter "FullyQualifiedName~PackageAuthorResourceValidatorTests|FullyQualifiedName~RuntimeGpuPreparationTests|FullyQualifiedName~BackendDependencyTests" \
             --blame-hang-timeout 2m; then
             FAILED_PROJECTS+=("Runtime.Hosting.Tests (CPU-only subset)")

@@ -13,6 +13,8 @@ export interface EditorToken {
   endUs?: number;
   /** 最小投影没有时间状态。 */
   status?: TimingStatus;
+  /** 句中停顿收尾提示覆写（undefined 表示按邻接语境自动推导）。 */
+  phraseEndHint?: boolean;
 }
 
 export interface EditorLine {
@@ -53,6 +55,7 @@ export function fromEditableLine(line: EditableLyricLine): EditorLine {
       text: token.text,
       ...fromLyricTime(token.time),
       status: token.timingStatus,
+      ...(token.phraseEndHint !== undefined ? { phraseEndHint: token.phraseEndHint } : {}),
     })),
     ruby: line.rubyAnnotations,
   };

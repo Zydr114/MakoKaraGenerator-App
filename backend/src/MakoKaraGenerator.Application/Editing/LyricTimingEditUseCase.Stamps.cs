@@ -92,6 +92,160 @@ public static partial class LyricTimingEditUseCase
         return SubmitStamp(workspace, candidate, estimatedPlaceholder: false);
     }
 
+    /// <summary>
+    /// 原子连打（J/K）：自动初始化／外扩无时间行与多拍注音父级词元包络，含 1.5s 忘按 L 兜底截断保护。
+    /// 每次按键产生一条独立的 <c>beat.strike</c> 可撤销历史。
+    /// </summary>
+    public static LyricTimingStampResult StrikeBeat(
+        ProjectWorkspace workspace,
+        LyricBeatTarget? closeTarget,
+        LyricBeatTarget openTarget,
+        long playheadUs,
+        long contentDurationUs = 0,
+        long closeGuardGapUs = LyricTimingEditor.DefaultCloseGuardGapUs,
+        long fallbackDurationUs = LyricTimingEditor.DefaultCloseFallbackDurationUs)
+    {
+        ArgumentNullException.ThrowIfNull(workspace);
+        ArgumentNullException.ThrowIfNull(openTarget);
+
+        long clampedPlayhead = ClampPlayhead(playheadUs, contentDurationUs);
+        long oneFrameUs;
+        try { oneFrameUs = TimeUs.FromFrames(1, workspace.Project.Composition.FrameRate); }
+        catch (Exception exception) when (exception is OverflowException or ArgumentOutOfRangeException)
+        { return RejectStamp(workspace.Project, LyricTimingEditErrorCode.NudgeOutOfBounds); }
+
+        if (!BeatExists(workspace.Project, openTarget)
+            || (closeTarget is not null && !BeatExists(workspace.Project, closeTarget)))
+            return RejectStamp(workspace.Project, LyricTimingEditErrorCode.TargetStale);
+
+        if (closeTarget is not null && TryReadBeatTime(workspace.Project, closeTarget, out TimeRange? prevClose)
+            && prevClose is { IsValid: true } prev && clampedPlayhead <= prev.StartUs)
+            return RejectStamp(workspace.Project, LyricTimingEditErrorCode.InvalidRange, "收尾时刻必须晚于上一拍的起点。");
+
+        if (!LyricTimingEditor.TryStrikeBeat(
+                workspace.Project, closeTarget, openTarget, clampedPlayhead, oneFrameUs,
+                closeGuardGapUs, fallbackDurationUs, out Project candidate, out BeatStrikeOutcome outcome, out string reason))
+            return RejectStamp(workspace.Project, LyricTimingEditErrorCode.DomainValidationFailed, reason);
+
+        if (contentDurationUs > 0)
+        {
+            if (TryReadBeatTime(candidate, openTarget, out TimeRange? openTime) && openTime is { IsValid: true } ot && ot.EndUs > contentDurationUs)
+                return RejectStamp(workspace.Project, LyricTimingEditErrorCode.BeyondContentDuration);
+            if (closeTarget is not null && TryReadBeatTime(candidate, closeTarget, out TimeRange? closeTime) && closeTime is { IsValid: true } ct && ct.EndUs > contentDurationUs)
+                return RejectStamp(workspace.Project, LyricTimingEditErrorCode.BeyondContentDuration);
+        }
+
+        if (!TryValidate(candidate, out reason))
+            return RejectStamp(workspace.Project, LyricTimingEditErrorCode.DomainValidationFailed, reason);
+
+        return SubmitBeatStamp(workspace, candidate, "beat.strike", outcome.EstimatedPlaceholder, outcome.CloseGuardApplied);
+    }
+
+    /// <summary>
+    /// 原子显式收尾（L）：定格目标拍点终点并同步外扩父级词元与行尾包络，产生独立 <c>beat.close</c> 历史。
+    /// </summary>
+    public static LyricTimingStampResult CloseBeat(
+        ProjectWorkspace workspace,
+        LyricBeatTarget target,
+        long playheadUs,
+        long contentDurationUs = 0)
+    {
+        ArgumentNullException.ThrowIfNull(workspace);
+        ArgumentNullException.ThrowIfNull(target);
+
+        if (!BeatExists(workspace.Project, target))
+            return RejectStamp(workspace.Project, LyricTimingEditErrorCode.TargetStale);
+
+        if (!TryReadBeatTime(workspace.Project, target, out TimeRange? current) || current is not { IsValid: true } currentTime)
+            return RejectStamp(workspace.Project, LyricTimingEditErrorCode.Untimed);
+
+        long clampedEnd = ClampPlayhead(playheadUs, contentDurationUs);
+        if (clampedEnd <= currentTime.StartUs)
+            return RejectStamp(workspace.Project, LyricTimingEditErrorCode.InvalidRange);
+        if (contentDurationUs > 0 && clampedEnd > contentDurationUs)
+            return RejectStamp(workspace.Project, LyricTimingEditErrorCode.BeyondContentDuration);
+
+        if (!LyricTimingEditor.TryCloseBeat(workspace.Project, target, clampedEnd, out Project candidate, out string reason)
+            || !TryValidate(candidate, out reason))
+            return RejectStamp(workspace.Project, LyricTimingEditErrorCode.DomainValidationFailed, reason);
+
+        return SubmitBeatStamp(workspace, candidate, "beat.close", estimatedPlaceholder: false, closeGuardApplied: null);
+    }
+
+    /// <summary>翻转指定实义词元的句中收尾提示覆写值（auto → !auto → auto）。</summary>
+    public static LyricTimingEditResult TogglePhraseEndHint(
+        ProjectWorkspace workspace,
+        LyricTimingEditTarget target)
+    {
+        ArgumentNullException.ThrowIfNull(workspace);
+        ArgumentNullException.ThrowIfNull(target);
+        if (target.TokenId is null)
+            return Reject(workspace.Project, LyricTimingEditErrorCode.TokenRequired);
+
+        LyricBranch? branch = workspace.Project.Lyrics.Branches.FirstOrDefault(b => b.Id == target.BranchId);
+        LyricLine? line = branch?.Lines.FirstOrDefault(l => l.Id == target.LineId);
+        LyricToken? token = line?.Tokens.FirstOrDefault(t => t.Id == target.TokenId);
+        if (token is null)
+            return Reject(workspace.Project, LyricTimingEditErrorCode.TargetStale);
+
+        if (!LyricTimingEditor.TryTogglePhraseEndHint(
+                workspace.Project, target.BranchId, target.LineId, target.TokenId,
+                out Project candidate, out _, out string reason))
+            return Reject(workspace.Project, LyricTimingEditErrorCode.DomainValidationFailed, reason);
+
+        Project source = workspace.Project;
+        if (ReferenceEquals(source, candidate))
+        {
+            workspace.History.BreakMergeGroup();
+            return new(true, source, ProjectTimingChangeSet.None);
+        }
+
+        workspace.History.BreakMergeGroup();
+        Project committed = workspace.Execute(ProjectCommand.Create("token.phrase-end-hint", _ => candidate));
+        workspace.History.BreakMergeGroup();
+        return new(true, committed, DescribeChanges(source, committed));
+    }
+
+    private static bool BeatExists(Project project, LyricBeatTarget target) =>
+        TryReadBeatTime(project, target, out _);
+
+    private static bool TryReadBeatTime(Project project, LyricBeatTarget target, out TimeRange? time)
+    {
+        time = null;
+        if (!target.HasValidShape) return false;
+        LyricLine? line = project.Lyrics.Branches.FirstOrDefault(b => b.Id == target.BranchId)?
+            .Lines.FirstOrDefault(l => l.Id == target.LineId);
+        LyricToken? token = line?.Tokens.FirstOrDefault(t => t.Id == target.TokenId);
+        if (line is null || token is null) return false;
+        if (!target.IsRubySegment)
+        {
+            time = token.Time;
+            return true;
+        }
+        RubyAnnotation? ruby = line.RubyAnnotations.FirstOrDefault(r => r.Id == target.RubyId && r.BaseTokenId == target.TokenId);
+        RubyTextSegment? segment = ruby?.Segments.FirstOrDefault(s => s.Id == target.SegmentId);
+        if (segment is null) return false;
+        time = segment.Time;
+        return true;
+    }
+
+    private static LyricTimingStampResult SubmitBeatStamp(ProjectWorkspace workspace, Project candidate,
+        string commandName, bool estimatedPlaceholder, bool? closeGuardApplied)
+    {
+        Project source = workspace.Project;
+        if (ReferenceEquals(source, candidate))
+        {
+            workspace.History.BreakMergeGroup();
+            return new(true, source, ProjectTimingChangeSet.None, estimatedPlaceholder: false, closeGuardApplied: closeGuardApplied);
+        }
+
+        workspace.History.BreakMergeGroup();
+        Project result = workspace.Execute(ProjectCommand.Create(commandName, _ => candidate));
+        workspace.History.BreakMergeGroup();
+        return new(true, result, DescribeChanges(source, result),
+            estimatedPlaceholder: estimatedPlaceholder, closeGuardApplied: closeGuardApplied);
+    }
+
     private static long ClampPlayhead(long playheadUs, long contentDurationUs)
     {
         long nonNegative = Math.Max(0L, playheadUs);

@@ -82,8 +82,9 @@ public sealed record ProjectRubyTextSegmentDto(string Id, string Text, LyricTime
 public sealed record ProjectRubyAnnotationDto(string Id, string BaseTokenId, string Text, string? Language,
     double RelativeScale, double GapPx, ProjectRubyAlignment Alignment, ProjectRubyTextSegmentDto[] Segments);
 
-/// <summary>元素正文与原始时间状态。</summary>
-public sealed record ProjectLyricTokenDto(string Id, string Text, LyricTimeDto Time, ProjectLyricTimingStatus TimingStatus);
+/// <summary>元素正文、原始时间状态与可选句中收尾提示覆写。</summary>
+public sealed record ProjectLyricTokenDto(string Id, string Text, LyricTimeDto Time, ProjectLyricTimingStatus TimingStatus,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? PhraseEndHint = null);
 
 /// <summary>行正文、原始时间、关联主行和注音的完整编辑投影。</summary>
 public sealed record ProjectLyricLineDto(string BranchId, string Id, string Text, LyricTimeDto Time,

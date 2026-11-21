@@ -148,7 +148,7 @@ public sealed partial class ProjectSession
         ProjectLyricTokenDto[] tokens = [.. line.Tokens.Select(token =>
         {
             budget?.Text(token.Id, token.Text);
-            return new ProjectLyricTokenDto(token.Id, token.Text, ToTime(token.Time), (ProjectLyricTimingStatus)token.TimingStatus);
+            return new ProjectLyricTokenDto(token.Id, token.Text, ToTime(token.Time), (ProjectLyricTimingStatus)token.TimingStatus, token.PhraseEndHint);
         })];
         ProjectRubyAnnotationDto[] ruby = [.. line.RubyAnnotations.Select(annotation =>
         {

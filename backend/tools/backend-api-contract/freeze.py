@@ -23,6 +23,7 @@ from project_image_validation_schema import extend_project_image_validation_sche
 from project_image_export_schema import extend_project_image_export_schemas, configure_project_image_export_operation
 from validation_package_schema import extend_validation_package_schemas
 from ruby_timeline_schema import extend_ruby_commands, extend_ruby_responses
+from lyrics_refactor_schema import extend_lyrics_refactor_commands, extend_lyrics_refactor_responses
 from basic_business_schema import extend_basic_command_schemas, extend_basic_response_schemas, configure_basic_operation
 from editing_completion_schema import extend_editing_completion_schemas, preset_target_union
 from node_creation_schema import extend_node_creation_schemas
@@ -31,10 +32,10 @@ from static_style_schema import extend_static_style_schemas, style_query_paramet
 from template_library_schema import extend_template_library_schemas, query_parameters as template_query_parameters, LIMITS as TEMPLATE_LIMITS
 
 ROOT = Path(__file__).resolve().parents[2]
-CONTRACT = "1.58.0"
-BASELINE = "ffb0b652868dcba452d527ec2b2bef360ac1221f"
+CONTRACT = "1.59.0"
+BASELINE = "d5d18653bb0891aa63f3fe7c42e7d8e6d5f0f3dc"
 PRODUCT = re.search(r"<VersionPrefix>([^<]+)</VersionPrefix>", (ROOT / "Directory.Build.props").read_text(encoding="utf-8")).group(1)
-FREEZE_DATE = "2026-11-20"
+FREEZE_DATE = "2026-11-22"
 BEHAVIOR = "docs/architecture/backend-api.md"
 TOOL = Path(__file__).resolve().parent
 
@@ -76,7 +77,7 @@ GET|/api/v1/template-libraries/{id}/templates/detail|templateDetail|-|TemplateDe
 POST|/api/v1/template-libraries/{id}/commands|templateCommand|TemplateLibraryCommandRequest|TemplateLibraryCommandResponse|200|13|提交独立个人模板库CAS修改意图
 GET|/api/v1/project-sessions/{id}/waveform|projectWaveform|-|ProjectWaveformResponse|200|6|读取同次音频准备的波形缓存元数据
 GET,HEAD|/api/v1/project-sessions/{id}/waveform/peaks|projectWaveformPeaks|-|waveformPeaks|200|6|读取有界小端float32峰值窗口
-POST|/api/v1/project-sessions/{id}/commands|executeCommand|ProjectCommandRequest|ProjectCommandResponse|200|6|提交九十七种已开放具名命令之一
+POST|/api/v1/project-sessions/{id}/commands|executeCommand|ProjectCommandRequest|ProjectCommandResponse|200|6|提交一百零四种已开放具名命令之一
 GET|/api/v1/file-roots/{rootGrantId}/entries|projectDirectoryEntries|-|ProjectDirectoryEntriesResponse|200|17|读取授权根下单层有界目录
 POST|/api/v1/project-sessions/{id}/lyrics-export-plans|planLyricsExport|LyricsExportPlanRequest|LyricsExportPlanResponse|201|17|预检来源或TTML全文档歌词导出与完整损失报告
 POST|/api/v1/project-sessions/{id}/lyrics-exports|exportLyrics|LyricsExportRequest|LyricsExportResponse|201|17|按固定计划及显式损失确认生成歌词内容
@@ -836,6 +837,7 @@ def generate(metadata):
     extend_editing_completion_schemas(schemas, metadata, schema_for, variants, base_command)
     extend_basic_command_schemas(schemas, metadata, schema_for, variants, base_command)
     extend_ruby_commands(schemas, metadata, schema_for, variants, base_command)
+    extend_lyrics_refactor_commands(schemas, metadata, schema_for, variants, base_command)
     # P1 strict custom-converter branches. CLR inheritance is audited before
     # exposing only the exact public fields, including optional non-null hints.
     for typ, clr, fields, required in [
@@ -958,6 +960,7 @@ def generate(metadata):
     extend_template_library_schemas(schemas, metadata, schema_for)
     extend_basic_response_schemas(schemas, metadata, schema_for)
     extend_ruby_responses(schemas, metadata)
+    extend_lyrics_refactor_responses(schemas, metadata)
     extend_package_preview_schemas(schemas, metadata)
     extend_project_image_preview_schemas(schemas, metadata)
     extend_validation_package_schemas(schemas)
@@ -1858,6 +1861,12 @@ def legacy_examples(existing_examples):
     from sdk_v1_removal_fixtures import LEGACY_CONTRACT as SDK_V1_LEGACY_CONTRACT, PREFIX as SDK_V1_REMOVAL_PREFIX, restore_cases as restore_sdk_v1_removal
     from lead_in_presentation_fixtures import LEGACY_CONTRACT as LEAD_IN_LEGACY_CONTRACT, PREFIX as LEAD_IN_PRESENTATION_PREFIX
     from ttml_import_fixtures import LEGACY_CONTRACT as TTML_IMPORT_LEGACY_CONTRACT, PREFIX as TTML_IMPORT_PREFIX
+    if existing_examples["contractVersion"] == "1.59.0":
+        from lyrics_refactor_fixtures import PREFIX as LYRICS_REFACTOR_PREFIX
+        cases = existing_examples["cases"]
+        current = [case for case in cases if not case["name"].startswith(LYRICS_REFACTOR_PREFIX)]
+        assert cases[:len(current)] == current, "lyrics-refactor cases must stay the corpus tail"
+        existing_examples = {**existing_examples, "contractVersion": "1.58.0", "cases": current}
     if existing_examples["contractVersion"] == "1.58.0":
         from gpu_stream_recovery_fixtures import PREFIX as GPU_STREAM_RECOVERY_PREFIX
         cases = existing_examples["cases"]
@@ -1970,6 +1979,9 @@ def main():
     # 1.58.0 adds GET /api/v1/gpu-preview-streams and optional quarantined flag on GpuPreviewStreamState.
     from gpu_stream_recovery_fixtures import fixtures as gpu_stream_recovery_fixtures
     example_document["cases"] += gpu_stream_recovery_fixtures()
+    # 1.59.0 adds Phase 1 atomic beat-strike/close, phrase-end hint toggle, line split/merge, non-destructive setRubySegments, and applyTextDiff commands.
+    from lyrics_refactor_fixtures import fixtures as lyrics_refactor_fixtures
+    example_document["cases"] += lyrics_refactor_fixtures()
     example_document["contractVersion"] = CONTRACT
     examples = encoded(example_document)
     outputs = {"web/openapi.json": encoded(spec), "web/api-index.md": inventory(spec, operations), "web/api-contract.md": (ROOT / "web/api-contract.md").read_bytes(), "web/examples.json": examples}

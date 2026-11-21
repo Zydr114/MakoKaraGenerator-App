@@ -105,6 +105,80 @@ public static class RubySegmentEditUseCase
         return Prepared(workspace, AcceptCandidate(source, Replace(source, baseline.Target, next), next == baseline.Ruby ? 0 : ids.Length), name);
     }
 
+    /// <summary>
+    /// 非破坏性按段序号更新基础词元的注音分段正文列表：
+    /// 保留已有同序号分段的身份、时间与状态；空数组删除该词元的注音。
+    /// </summary>
+    public static PreparedRubySegmentEdit PrepareSetSegments(
+        ProjectWorkspace workspace,
+        string branchId,
+        string lineId,
+        string tokenId,
+        ImmutableArray<string> segmentTexts,
+        Action<string>? beforeIdentifier = null)
+    {
+        const string name = "ruby.segments.set";
+        Project source = workspace.Project;
+        LyricBranch? branch = source.Lyrics.Branches.FirstOrDefault(b => b.Id == branchId);
+        int lineIndex = branch is null ? -1 : Array.FindIndex(branch.Lines.ToArray(), l => l.Id == lineId);
+        if (branch is null || lineIndex < 0)
+            return Prepared(workspace, Reject(source, RubySegmentEditErrorCode.TargetStale), name);
+
+        LyricLine line = branch.Lines[lineIndex];
+        if (!line.Tokens.Any(t => t.Id == tokenId))
+            return Prepared(workspace, Reject(source, RubySegmentEditErrorCode.TargetStale), name);
+
+        if (!segmentTexts.IsDefault && segmentTexts.Any(string.IsNullOrEmpty))
+            return Prepared(workspace, Reject(source, RubySegmentEditErrorCode.EmptyText), name);
+
+        RubyAnnotation? existing = line.RubyAnnotations.FirstOrDefault(r => r.BaseTokenId == tokenId);
+        try
+        {
+            var allocator = new LyricsEditIdAllocator(source.Lyrics, beforeIdentifier);
+            if (!RubySegmentEditor.TryBuildNonDestructiveSegments(
+                    existing, tokenId, segmentTexts, allocator.NextRubyId, allocator.NextRubySegmentId,
+                    out RubyAnnotation? nextRuby, out int changedCount))
+                return Prepared(workspace, Reject(source, RubySegmentEditErrorCode.DomainValidationFailed), name);
+
+            if (existing == nextRuby)
+                return Prepared(workspace, AcceptCandidate(source, source, 0) with
+                {
+                    SelectedSegmentId = existing?.Segments.FirstOrDefault()?.Id,
+                }, name);
+
+            ImmutableArray<RubyAnnotation> rubies;
+            if (existing is null && nextRuby is not null)
+            {
+                rubies = line.RubyAnnotations.Add(nextRuby);
+            }
+            else if (existing is not null && nextRuby is null)
+            {
+                int rubyIndex = Array.FindIndex(line.RubyAnnotations.ToArray(), r => r.Id == existing.Id);
+                rubies = line.RubyAnnotations.RemoveAt(rubyIndex);
+            }
+            else
+            {
+                int rubyIndex = Array.FindIndex(line.RubyAnnotations.ToArray(), r => r.Id == existing!.Id);
+                rubies = line.RubyAnnotations.SetItem(rubyIndex, nextRuby!);
+            }
+
+            LyricLine nextLine = line with { RubyAnnotations = rubies };
+            Project candidate = source with
+            {
+                Lyrics = source.Lyrics.ReplaceBranch(branch with { Lines = branch.Lines.SetItem(lineIndex, nextLine) }),
+            };
+            return Prepared(workspace, AcceptCandidate(source, candidate, changedCount) with
+            {
+                SelectedSegmentId = nextRuby?.Segments.FirstOrDefault()?.Id,
+                CreatedSegmentId = existing is null ? nextRuby?.Segments.FirstOrDefault()?.Id : null,
+            }, name);
+        }
+        catch (LyricsIdentifierExhaustedException)
+        {
+            return Prepared(workspace, Reject(source, RubySegmentEditErrorCode.IdentifierExhausted), name);
+        }
+    }
+
     /// <summary>提交仍绑定原工作区、代次和原工程引用的候选；不跨请求合并历史。</summary>
     public static RubySegmentEditResult Commit(ProjectWorkspace workspace, PreparedRubySegmentEdit prepared)
     {

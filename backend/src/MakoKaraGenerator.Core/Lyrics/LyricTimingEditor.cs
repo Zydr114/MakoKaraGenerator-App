@@ -4,7 +4,7 @@ using MakoKaraGenerator.Core.Time;
 namespace MakoKaraGenerator.Core.Lyrics;
 
 /// <summary>行与元素时间的统一编辑规则；拒绝时不修改工程。</summary>
-public static class LyricTimingEditor
+public static partial class LyricTimingEditor
 {
     /// <summary>检查一行中所有已定时元素的包含性和文本顺序；未定时元素不占时间槽。</summary>
     public static bool TryValidateLine(LyricLine line, out string reason)

@@ -169262,7 +169262,313 @@
         "protocolVersion": "2"
       },
       "valid": false
+    },
+    {
+      "name": "lyrics-refactor-strike-beat-open-only",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "lyrics.strikeBeat",
+        "branchId": "primary",
+        "openTarget": {
+          "branchId": "primary",
+          "lineId": "line-1",
+          "tokenId": "tok-1"
+        },
+        "playheadUs": "1200000"
+      },
+      "valid": true
+    },
+    {
+      "name": "lyrics-refactor-strike-beat-close-and-open-ruby",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "lyrics.strikeBeat",
+        "branchId": "primary",
+        "closeTarget": {
+          "branchId": "primary",
+          "lineId": "line-1",
+          "tokenId": "tok-1"
+        },
+        "openTarget": {
+          "branchId": "primary",
+          "lineId": "line-1",
+          "tokenId": "tok-2",
+          "rubyId": "ruby-1",
+          "segmentId": "seg-1"
+        },
+        "playheadUs": "1800000",
+        "closeGuardGapUs": "1500000",
+        "fallbackDurationUs": "600000"
+      },
+      "valid": true
+    },
+    {
+      "name": "lyrics-refactor-strike-beat-missing-open",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "lyrics.strikeBeat",
+        "branchId": "primary",
+        "playheadUs": "1200000"
+      },
+      "valid": false
+    },
+    {
+      "name": "lyrics-refactor-strike-beat-extra-field",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "lyrics.strikeBeat",
+        "branchId": "primary",
+        "openTarget": {
+          "branchId": "primary",
+          "lineId": "line-1",
+          "tokenId": "tok-1"
+        },
+        "playheadUs": "1200000",
+        "extra": 1
+      },
+      "valid": false
+    },
+    {
+      "name": "lyrics-refactor-close-beat-token",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "lyrics.closeBeat",
+        "target": {
+          "branchId": "primary",
+          "lineId": "line-1",
+          "tokenId": "tok-1"
+        },
+        "playheadUs": "2000000"
+      },
+      "valid": true
+    },
+    {
+      "name": "lyrics-refactor-close-beat-ruby",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "lyrics.closeBeat",
+        "target": {
+          "branchId": "primary",
+          "lineId": "line-1",
+          "tokenId": "tok-2",
+          "rubyId": "ruby-1",
+          "segmentId": "seg-1"
+        },
+        "playheadUs": "2100000"
+      },
+      "valid": true
+    },
+    {
+      "name": "lyrics-refactor-close-beat-missing-playhead",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "lyrics.closeBeat",
+        "target": {
+          "branchId": "primary",
+          "lineId": "line-1",
+          "tokenId": "tok-1"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "lyrics-refactor-toggle-phrase-end-hint",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "lyrics.togglePhraseEndHint",
+        "target": {
+          "branchId": "primary",
+          "lineId": "line-1",
+          "tokenId": "tok-1"
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "lyrics-refactor-toggle-phrase-end-hint-line-only",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "lyrics.togglePhraseEndHint",
+        "target": {
+          "branchId": "primary",
+          "lineId": "line-1"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "lyrics-refactor-split-line-valid",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "lyrics.splitLine",
+        "target": {
+          "branchId": "primary",
+          "lineId": "line-1"
+        },
+        "tokenIndex": 2
+      },
+      "valid": true
+    },
+    {
+      "name": "lyrics-refactor-split-line-zero-index",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "lyrics.splitLine",
+        "target": {
+          "branchId": "primary",
+          "lineId": "line-1"
+        },
+        "tokenIndex": 0
+      },
+      "valid": false
+    },
+    {
+      "name": "lyrics-refactor-merge-lines-valid",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "lyrics.mergeLines",
+        "target": {
+          "branchId": "primary",
+          "lineId": "line-1"
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "lyrics-refactor-merge-lines-with-token",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "lyrics.mergeLines",
+        "target": {
+          "branchId": "primary",
+          "lineId": "line-1",
+          "tokenId": "tok-1"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "lyrics-refactor-set-ruby-segments-multi",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "lyrics.setRubySegments",
+        "target": {
+          "branchId": "primary",
+          "lineId": "line-1",
+          "tokenId": "tok-1"
+        },
+        "segments": [
+          "ふ",
+          "た",
+          "り"
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "lyrics-refactor-set-ruby-segments-clear",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "lyrics.setRubySegments",
+        "target": {
+          "branchId": "primary",
+          "lineId": "line-1",
+          "tokenId": "tok-1"
+        },
+        "segments": []
+      },
+      "valid": true
+    },
+    {
+      "name": "lyrics-refactor-set-ruby-segments-null-item",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "lyrics.setRubySegments",
+        "target": {
+          "branchId": "primary",
+          "lineId": "line-1",
+          "tokenId": "tok-1"
+        },
+        "segments": [
+          null
+        ]
+      },
+      "valid": false
+    },
+    {
+      "name": "lyrics-refactor-apply-text-diff-valid",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "lyrics.applyTextDiff",
+        "branchId": "primary",
+        "lines": [
+          {
+            "text": "夜空の下",
+            "sourceLineId": "line-1"
+          },
+          {
+            "text": "新しい行"
+          }
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "lyrics-refactor-apply-text-diff-missing-text",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "lyrics.applyTextDiff",
+        "branchId": "primary",
+        "lines": [
+          {
+            "sourceLineId": "line-1"
+          }
+        ]
+      },
+      "valid": false
+    },
+    {
+      "name": "lyrics-refactor-token-dto-phrase-end-hint",
+      "schema": "ProjectLyricTokenDto",
+      "value": {
+        "id": "tok-1",
+        "text": "夢",
+        "time": {},
+        "timingStatus": "missing",
+        "phraseEndHint": true
+      },
+      "valid": true
+    },
+    {
+      "name": "lyrics-refactor-token-dto-invalid-phrase-end-hint",
+      "schema": "ProjectLyricTokenDto",
+      "value": {
+        "id": "tok-1",
+        "text": "夢",
+        "time": {},
+        "timingStatus": "missing",
+        "phraseEndHint": "yes"
+      },
+      "valid": false
+    },
+    {
+      "name": "lyrics-refactor-timing-result-close-guard",
+      "schema": "LyricTimingCommandResultDto",
+      "value": {
+        "estimatedPlaceholder": true,
+        "closeGuardApplied": true
+      },
+      "valid": true
+    },
+    {
+      "name": "lyrics-refactor-timing-result-invalid-close-guard",
+      "schema": "LyricTimingCommandResultDto",
+      "value": {
+        "estimatedPlaceholder": true,
+        "closeGuardApplied": "yes"
+      },
+      "valid": false
     }
   ],
-  "contractVersion": "1.58.0"
+  "contractVersion": "1.59.0"
 }

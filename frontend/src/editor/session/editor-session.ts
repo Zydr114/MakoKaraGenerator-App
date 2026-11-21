@@ -116,7 +116,7 @@ interface SelectionHint {
 }
 
 /** 只影响时间的 changeSet 区域（规范 §6.5）；出现其他区域时整体重读。 */
-const TIMING_AREAS = new Set(['lyricsTiming', 'timeline', 'renderInputs']);
+const TIMING_AREAS = new Set(['lyricsTiming', 'lyricsRubyTiming', 'timeline', 'renderInputs']);
 /** 一次完整读取最多试几次（每次都因为修订前进而冲突时）。 */
 const READ_ATTEMPTS = 20;
 /** 不进歌词读模型的区域（W4 设计 §2.5）：编排页、外观页按修订各自读取，这里只更新摘要。 */
@@ -540,6 +540,8 @@ const TIMING_COMMANDS = new Set([
   'lyrics.nudgeTokenTime',
   'lyrics.shiftLine',
   'lyrics.setTokenTimes',
+  'lyrics.strikeBeat',
+  'lyrics.closeBeat',
 ]);
 
 /** 从命令响应里取建议的来源与选择（规范 §6.6～§6.9）；project.applyEdits 取最后一条带建议的结果。 */

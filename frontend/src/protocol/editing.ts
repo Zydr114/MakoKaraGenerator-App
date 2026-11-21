@@ -61,6 +61,8 @@ export interface EditableLyricToken {
   /** 未打轴是 `{}`；`startUs: "0"` 是合法零起点。 */
   time: LyricTime;
   timingStatus: TimingStatus;
+  /** 句中收尾提示覆写（省略表示按语境自动推导）。 */
+  phraseEndHint?: boolean;
 }
 
 export interface EditableLyricLine {
@@ -133,20 +135,42 @@ export interface TokenTimeChange {
 /** 批量元素时间每次 1～1000 项，重复目标整批拒绝。 */
 export const TOKEN_BATCH_MAX = 1000;
 
+export interface LyricBeatTarget {
+  branchId: string;
+  lineId: string;
+  tokenId: string;
+  /** 指向注音分段时须与 segmentId 同时提供；省略表示基础词元。 */
+  rubyId?: string;
+  segmentId?: string;
+}
+
 export type TimingCommand =
   | { type: 'lyrics.stampTokenStart'; target: TokenTarget; playheadUs: Micros }
   | { type: 'lyrics.stampTokenEnd'; target: TokenTarget; playheadUs: Micros }
   | { type: 'lyrics.clearTokenTime'; target: TokenTarget }
   | { type: 'lyrics.nudgeTokenTime'; target: TokenTarget; frameDelta: number }
   | { type: 'lyrics.shiftLine'; target: LineTarget; deltaUs: Micros }
-  | { type: 'lyrics.setTokenTimes'; changes: TokenTimeChange[] };
+  | { type: 'lyrics.setTokenTimes'; changes: TokenTimeChange[] }
+  | {
+      type: 'lyrics.strikeBeat';
+      branchId: string;
+      closeTarget?: LyricBeatTarget | null;
+      openTarget: LyricBeatTarget;
+      playheadUs: Micros;
+      closeGuardGapUs?: Micros | null;
+      fallbackDurationUs?: Micros | null;
+    }
+  | { type: 'lyrics.closeBeat'; target: LyricBeatTarget; playheadUs: Micros }
+  | { type: 'lyrics.togglePhraseEndHint'; target: TokenTarget };
 
 export type TimingCommandType = TimingCommand['type'];
 
-/** 打点响应附带的结果；只有 stampTokenStart／stampTokenEnd 成功时出现。 */
+/** 打点／连打响应附带的结果；只有 stampTokenStart／stampTokenEnd／strikeBeat／closeBeat 成功时出现。 */
 export interface TimingCommandResult {
   /** 起点打点因缺少可用终点而补了一帧估算终点。 */
   estimatedPlaceholder: boolean;
+  /** 连打时上一拍是否触发了忘按 L 的跨间奏兜底截断（标记为 estimated）。 */
+  closeGuardApplied?: boolean;
 }
 
 /**

@@ -43,8 +43,9 @@ public sealed record TokenTimeChangeDto(LyricTimingTargetDto? Target, string? St
 public sealed record SetTokenTimesCommandDto(TokenTimeChangeDto[]? Changes)
     : ProjectCommandDto("lyrics.setTokenTimes");
 
-/// <summary>打点操作的真实共享用例结果；其他命令不返回此字段。</summary>
-public sealed record LyricTimingCommandResultDto(bool EstimatedPlaceholder);
+/// <summary>打点与连打操作的真实共享用例结果；其他命令不返回此字段。</summary>
+public sealed record LyricTimingCommandResultDto(bool EstimatedPlaceholder,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? CloseGuardApplied = null);
 
 [JsonConverter(typeof(ProjectCommandJsonConverter))]
 public sealed record SetOrchestrationDefaultContainerCommandDto(string? BranchId, string? ContainerId)

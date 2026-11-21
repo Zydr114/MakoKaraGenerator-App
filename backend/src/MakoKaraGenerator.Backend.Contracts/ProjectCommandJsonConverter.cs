@@ -26,6 +26,12 @@ public sealed class ProjectCommandJsonConverter : JsonConverter<ProjectCommandDt
             if (!typeToConvert.IsInstanceOfType(batch)) throw new JsonException("命令type与DTO不一致。");
             return batch;
         }
+        if (root.TryGetProperty("type", out var beatType) && beatType.ValueKind == JsonValueKind.String && LyricBeatCommandJson.IsType(beatType.GetString()))
+        {
+            var beat = LyricBeatCommandJson.Read(root, beatType.GetString()!);
+            if (!typeToConvert.IsInstanceOfType(beat)) throw new JsonException("命令type与指定DTO类型不一致。");
+            return beat;
+        }
         if (root.TryGetProperty("type", out var rubyType) && rubyType.ValueKind == JsonValueKind.String && RubySegmentCommandJson.IsType(rubyType.GetString()))
         {
             var ruby = RubySegmentCommandJson.Read(root, rubyType.GetString()!);
@@ -447,6 +453,7 @@ public sealed class ProjectCommandJsonConverter : JsonConverter<ProjectCommandDt
             writer.WriteEndObject(); return;
         }
         if (BackgroundCommandJson.IsType(value.Type)) { BackgroundCommandJson.Write(writer, value); return; }
+        if (LyricBeatCommandJson.IsType(value.Type)) { LyricBeatCommandJson.Write(writer, value, options); return; }
         if (RubySegmentCommandJson.IsType(value.Type)) { RubySegmentCommandJson.Write(writer, value, options); return; }
         if (value is SetOrchestrationClipMembersCommandDto or SplitOrchestrationClipCommandDto or MergeOrchestrationClipsCommandDto)
         { ClipMembersCommandJson.Write(writer, value, options); return; }

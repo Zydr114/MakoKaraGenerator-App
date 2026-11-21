@@ -295,9 +295,13 @@ public sealed class ShmPreviewPortTests
     }
 
     [Fact]
+    [Trait("Category", "GpuSmoke")]
     public void VulkanShm模式免除Drm导出强耦合且可绘制合成图案()
     {
         if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
+        // GPU smoke is opt-in because VulkanSkiaRenderDevice explicitly rejects software Vulkan (llvmpipe)
+        // and normal rendering tests must remain runnable on GPU-less CI runners.
+        if (!string.Equals(Environment.GetEnvironmentVariable("MAKO_GPU_SMOKE"), "1", StringComparison.Ordinal)) return;
 
         using var vulkan = VulkanSkiaRenderDevice.Create(enableGpuPreview: true, previewTransport: PreviewTransportKind.Shm);
         Assert.False(vulkan.SupportsDmaBufExport);

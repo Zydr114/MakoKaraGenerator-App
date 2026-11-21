@@ -1,0 +1,459 @@
+name: CI (PR & Push)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Least-privilege permissions for public repository & external fork PRs.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-pr-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_NOLOGO: "true"
+
+jobs:
+  changes:
+    name: Detect changed areas
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+      backend: ${{ steps.filter.outputs.backend }}
+      contract: ${{ steps.filter.outputs.contract }}
+      desktop_node: ${{ steps.filter.outputs.desktop_node }}
+      shm_native: ${{ steps.filter.outputs.shm_native }}
+      gpu_native: ${{ steps.filter.outputs.gpu_native }}
+      media_envelope: ${{ steps.filter.outputs.media_envelope }}
+      hw_gpu_native: ${{ steps.filter.outputs.hw_gpu_native }}
+      hw_shm_desktop: ${{ steps.filter.outputs.hw_shm_desktop }}
+      hw_vulkan_rendering: ${{ steps.filter.outputs.hw_vulkan_rendering }}
+      hw_worker_stream: ${{ steps.filter.outputs.hw_worker_stream }}
+      hw_scripting: ${{ steps.filter.outputs.hw_scripting }}
+      hw_media_audio: ${{ steps.filter.outputs.hw_media_audio }}
+      hw_packaging: ${{ steps.filter.outputs.hw_packaging }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            frontend:
+              - 'frontend/**'
+              - 'backend/web/**'
+              - 'package.json'
+              - '.github/workflows/ci-pr.yml'
+            backend:
+              - 'backend/**'
+              - '.github/workflows/ci-pr.yml'
+            contract:
+              - 'backend/src/**'
+              - 'backend/tools/backend-api-contract/**'
+              - 'backend/web/**'
+              - 'backend/Directory.Build.props'
+              - '.github/workflows/ci-pr.yml'
+            desktop_node:
+              - 'desktop/**'
+              - 'tests/**'
+              - 'scripts/**'
+              - 'package.json'
+              - '.github/workflows/ci-pr.yml'
+            shm_native:
+              - 'native/shm-preview/**'
+              - '.github/workflows/ci-pr.yml'
+            gpu_native:
+              - 'native/gpu-preview/**'
+              - '.github/workflows/ci-pr.yml'
+            media_envelope:
+              - 'backend/native/media-envelope/**'
+              - 'backend/build/MakoMediaEnvelope.Native.targets'
+              - '.github/workflows/ci-pr.yml'
+            hw_gpu_native:
+              - 'native/gpu-preview/**'
+              - 'probes/skia-gpu-target/**'
+            hw_shm_desktop:
+              - 'native/shm-preview/**'
+              - 'desktop/gpu-preview/**'
+              - 'desktop/main.cjs'
+            hw_vulkan_rendering:
+              - 'backend/src/MakoKaraGenerator.Rendering.Skia/**'
+              - 'backend/src/MakoKaraGenerator.Backend.Rendering.Skia/**'
+              - 'backend/src/MakoKaraGenerator.Runtime.Hosting/**'
+            hw_worker_stream:
+              - 'backend/src/MakoKaraGenerator.Backend.Worker/**'
+              - 'backend/src/MakoKaraGenerator.Backend.Hosting/**'
+            hw_scripting:
+              - 'backend/src/MakoKaraGenerator.Scripting*/**'
+              - 'backend/samples/ScriptEffectsV2/**'
+            hw_media_audio:
+              - 'backend/src/MakoKaraGenerator.Media/**'
+              - 'backend/native/media-envelope/**'
+              - 'backend/native/media-presentation/**'
+            hw_packaging:
+              - 'scripts/package-*.mjs'
+              - 'scripts/build-windows-export-tools.ps1'
+              - 'desktop/runtime/**'
+
+  frontend-unit:
+    name: Frontend typecheck, build & unit tests
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        run: pnpm --dir frontend install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm --dir frontend typecheck
+
+      - name: Production build
+        run: pnpm --dir frontend build
+
+      - name: Frontend unit tests
+        run: pnpm --dir frontend test:unit
+
+  desktop-and-root-unit:
+    name: Desktop, launcher & SHM native (${{ matrix.os }})
+    needs: changes
+    if: >-
+      github.event_name != 'pull_request' ||
+      needs.changes.outputs.desktop_node == 'true' ||
+      needs.changes.outputs.shm_native == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Desktop protocol & consumer unit tests
+        shell: bash
+        run: node --test desktop/gpu-preview/*.test.cjs desktop/runtime/*.test.cjs
+
+      - name: Root launcher, packaging, ACL & P3 analyzer unit tests
+        shell: bash
+        run: node --experimental-test-module-mocks --test tests/*.test.mjs scripts/gpu-preview-p3.test.mjs
+
+      - name: Build & test native SHM bridge (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          NODE_INCLUDE_DIR="$(dirname "$(dirname "$(which node)")")/include/node"
+          export NODE_INCLUDE_DIR
+          bash native/shm-preview/build.sh
+          node --test native/shm-preview/check-shm-bridge.mjs
+
+      - name: Build & test native SHM bridge (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          node native/shm-preview/build.mjs
+          node --test native/shm-preview/check-shm-bridge.mjs
+
+  api-contract:
+    name: Backend OpenAPI contract freeze & validate
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.contract == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: backend/global.json
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('backend/Directory.Packages.props', 'backend/**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: backend/tools/backend-api-contract/requirements.txt
+
+      - name: Install Python contract validators
+        run: |
+          mkdir -p backend/artifacts/api-contract
+          python3 -m venv backend/artifacts/api-contract/venv
+          backend/artifacts/api-contract/venv/bin/python -m pip install -r backend/tools/backend-api-contract/requirements.txt
+
+      - name: Export CLR contract metadata
+        working-directory: backend
+        run: |
+          dotnet build tools/backend-api-contract/ContractMetadata.csproj -c Release -m:1
+          tools/backend-api-contract/bin/Release/net10.0/ContractMetadata artifacts/api-contract/clr-metadata.json
+
+      - name: Verify contract freeze drift & validate fixtures
+        working-directory: backend
+        run: |
+          python3 tools/backend-api-contract/freeze.py --metadata artifacts/api-contract/clr-metadata.json
+          artifacts/api-contract/venv/bin/python tools/backend-api-contract/validate.py --report artifacts/api-contract/validation.json
+
+  backend-unit:
+    name: Backend CPU & protocol tests (${{ matrix.os }})
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.backend == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: backend/global.json
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('backend/Directory.Packages.props', 'backend/**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Linux test dependencies (FFmpeg & CJK/Emoji fonts)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            ffmpeg \
+            fonts-noto-cjk \
+            fonts-noto-color-emoji \
+            libfontconfig1 \
+            libfreetype6
+
+      - name: Ensure FFmpeg is installed (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
+            choco install ffmpeg -y --no-progress
+          }
+          ffmpeg -version | Select-Object -First 2
+
+      - name: Restore backend solution
+        working-directory: backend
+        run: |
+          dotnet restore MakoKaraGenerator.slnx
+          dotnet restore tests/MakoKaraGenerator.Library.Worker/MakoKaraGenerator.Library.Worker.csproj
+          dotnet restore tests/MakoKaraGenerator.Media.Worker/MakoKaraGenerator.Media.Worker.csproj
+
+      # Build standalone test helper workers in Release first because they are not
+      # listed in MakoKaraGenerator.slnx, so CopyLibraryWorker/CopyMediaWorker
+      # require their Release output directories to exist.
+      - name: Build test helper workers (Release)
+        working-directory: backend
+        run: |
+          dotnet build tests/MakoKaraGenerator.Library.Worker/MakoKaraGenerator.Library.Worker.csproj --configuration Release --no-restore
+          dotnet build tests/MakoKaraGenerator.Media.Worker/MakoKaraGenerator.Media.Worker.csproj --configuration Release --no-restore
+
+      # Linux PR fast gate disables native media-presentation (FFmpeg 9.0.2) and
+      # media-envelope builds; full native builds run in ci-integration.yml and
+      # native-media-envelope-tests below.
+      - name: Build backend solution (Linux)
+        if: runner.os == 'Linux'
+        working-directory: backend
+        run: >-
+          dotnet build MakoKaraGenerator.slnx --configuration Release --no-restore
+          -p:MakoMediaPresentationEnabled=false
+          -p:MakoMediaEnvelopeEnabled=false
+
+      - name: Build backend solution (Windows)
+        if: runner.os == 'Windows'
+        working-directory: backend
+        run: dotnet build MakoKaraGenerator.slnx --configuration Release --no-restore
+
+      # Run all GPU-less-safe test projects and exclude:
+      # 1. Category=PublishedServer (runs after publish in ci-integration.yml)
+      # 2. Category=GpuSmoke (requires physical Vulkan GPU; llvmpipe is rejected by design)
+      # 3. Real-worker SDK v2 package sessions (ScriptBackendRequirement enforces Vulkan)
+      - name: Run GPU-less backend unit & component test suites
+        working-directory: backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILTER="Category!=PublishedServer&Category!=GpuSmoke&FullyQualifiedName!~PackageSnapshotRuntimeEquivalenceTests&FullyQualifiedName!~ProjectImagePreviewRuntimeTests&FullyQualifiedName!~PreparedScriptWorkerTests&FullyQualifiedName!~ProjectRuntimeMediaInputTests&FullyQualifiedName!~StaticValidationTaskTests.包源码编译失败进入带来源诊断的验证报告&FullyQualifiedName!~WorkerSceneMeasurementTests.真实Worker同帧测量对缺背景材质照常返回并带去重兜底诊断&FullyQualifiedName!~BackendAuthorV2WorkflowTests.媒体依赖作者试样经真实宿主分析得到可用文件输入且再次试样复用同一分析制品"
+
+          PROJECTS=(
+            tests/MakoKaraGenerator.Core.Tests/MakoKaraGenerator.Core.Tests.csproj
+            tests/MakoKaraGenerator.Timeline.Tests/MakoKaraGenerator.Timeline.Tests.csproj
+            tests/MakoKaraGenerator.Application.Tests/MakoKaraGenerator.Application.Tests.csproj
+            tests/MakoKaraGenerator.Scripting.Tests/MakoKaraGenerator.Scripting.Tests.csproj
+            tests/MakoKaraGenerator.Processes.Tests/MakoKaraGenerator.Processes.Tests.csproj
+            tests/MakoKaraGenerator.Media.Tests/MakoKaraGenerator.Media.Tests.csproj
+            tests/MakoKaraGenerator.Rendering.Tests/MakoKaraGenerator.Rendering.Tests.csproj
+            tests/MakoKaraGenerator.Export.Tests/MakoKaraGenerator.Export.Tests.csproj
+            tests/MakoKaraGenerator.Backend.Rendering.Skia.Tests/MakoKaraGenerator.Backend.Rendering.Skia.Tests.csproj
+            tests/MakoKaraGenerator.Backend.Rendering.Tests/MakoKaraGenerator.Backend.Rendering.Tests.csproj
+            tests/MakoKaraGenerator.Backend.Worker.Tests/MakoKaraGenerator.Backend.Worker.Tests.csproj
+            tests/MakoKaraGenerator.Backend.Hosting.Tests/MakoKaraGenerator.Backend.Hosting.Tests.csproj
+            tests/MakoKaraGenerator.Backend.Server.Tests/MakoKaraGenerator.Backend.Server.Tests.csproj
+          )
+
+          for proj in "${PROJECTS[@]}"; do
+            echo "::group::dotnet test $proj"
+            dotnet test "$proj" --configuration Release --no-build --no-restore --filter "$FILTER" --blame-hang-timeout 2m
+            echo "::endgroup::"
+          done
+
+          echo "::group::dotnet test Runtime.Hosting.Tests (CPU-only subset)"
+          dotnet test tests/MakoKaraGenerator.Runtime.Hosting.Tests/MakoKaraGenerator.Runtime.Hosting.Tests.csproj \
+            --configuration Release --no-build --no-restore \
+            --filter "FullyQualifiedName~PackageAuthorResourceValidatorTests|FullyQualifiedName~RuntimeGpuPreparationTests|FullyQualifiedName~BackendDependencyTests" \
+            --blame-hang-timeout 2m
+          echo "::endgroup::"
+
+      - name: Run backend web-host launcher tests
+        shell: bash
+        run: python3 backend/tools/backend-web-host/test_host.py || python backend/tools/backend-web-host/test_host.py
+
+  native-media-envelope-tests:
+    name: Native media-envelope C tests (Linux)
+    needs: changes
+    if: >-
+      github.event_name != 'pull_request' ||
+      needs.changes.outputs.media_envelope == 'true' ||
+      needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y cmake pkg-config libsystemd-dev
+
+      - name: Build & run syscall-boundary CTest suite
+        run: |
+          cmake -S backend/native/media-envelope -B build-media-envelope -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+          cmake --build build-media-envelope --parallel
+          ctest --test-dir build-media-envelope --output-on-failure
+
+  native-gpu-compile-check:
+    name: Native GPU preview compile check (Linux, no GPU run)
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.gpu_native == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install Vulkan headers & loader
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y libvulkan-dev
+
+      - name: Compile libmako_gpu_preview, broker addon & producer
+        run: |
+          NODE_INCLUDE_DIR="$(dirname "$(dirname "$(which node)")")/include/node"
+          export NODE_INCLUDE_DIR
+          bash native/gpu-preview/build.sh
+
+  hardware-gate-advisory:
+    name: Real-hardware verification checklist
+    needs: changes
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Generate real-hardware checklist summary
+        shell: bash
+        env:
+          HW_GPU_NATIVE: ${{ needs.changes.outputs.hw_gpu_native }}
+          HW_SHM_DESKTOP: ${{ needs.changes.outputs.hw_shm_desktop }}
+          HW_VULKAN_RENDERING: ${{ needs.changes.outputs.hw_vulkan_rendering }}
+          HW_WORKER_STREAM: ${{ needs.changes.outputs.hw_worker_stream }}
+          HW_SCRIPTING: ${{ needs.changes.outputs.hw_scripting }}
+          HW_MEDIA_AUDIO: ${{ needs.changes.outputs.hw_media_audio }}
+          HW_PACKAGING: ${{ needs.changes.outputs.hw_packaging }}
+        run: |
+          ANY="false"
+          {
+            echo "## Real-Hardware Verification Advisory"
+            echo ""
+            echo "GitHub-hosted runners do not provide physical Vulkan GPUs, DMA-BUF, desktop compositors, or audio hardware."
+            echo ""
+            if [[ "$HW_GPU_NATIVE" == "true" ]]; then
+              ANY="true"
+              echo "- **Native GPU Preview / Skia Vulkan (`native/gpu-preview`, `probes/skia-gpu-target`)** — Linux real GPU required:"
+              echo "  - \`pnpm build:desktop && bash native/gpu-preview/check-api.sh && node native/gpu-preview/check-native.mjs\`"
+              echo "  - \`pnpm smoke:desktop && node scripts/gpu-preview-p3.mjs --finite --provider runtime\`"
+            fi
+            if [[ "$HW_SHM_DESKTOP" == "true" ]]; then
+              ANY="true"
+              echo "- **Desktop SHM / Electron Consumer (`native/shm-preview`, `desktop/gpu-preview`, `desktop/main.cjs`)** — Linux & Windows real machines required:"
+              echo "  - Linux: \`node scripts/shm-preview-m3-linux.mjs\` & \`pnpm smoke:desktop\`"
+              echo "  - Windows: \`node scripts/shm-preview-m3-windows.mjs\` & \`pnpm smoke:desktop\`"
+            fi
+            if [[ "$HW_VULKAN_RENDERING" == "true" ]]; then
+              ANY="true"
+              echo "- **Vulkan Skia Rendering / Runtime Hosting** — Real Vulkan GPU required:"
+              echo "  - \`MAKO_GPU_SMOKE=1 dotnet test backend/MakoKaraGenerator.slnx -c Release\`"
+              echo "  - \`python3 scripts/cross-platform-g1-http.py --dist <dist> --output <new-dir>\`"
+            fi
+            if [[ "$HW_WORKER_STREAM" == "true" ]]; then
+              ANY="true"
+              echo "- **Backend Worker / Preview Stream Hosting** — Real desktop GPU required:"
+              echo "  - \`pnpm smoke:desktop\` & \`node scripts/gpu-preview-fault-acceptance.mjs\`"
+            fi
+            if [[ "$HW_SCRIPTING" == "true" ]]; then
+              ANY="true"
+              echo "- **SDK v2 Scripting / Sample Effects** — Real Vulkan GPU required:"
+              echo "  - \`MAKO_GPU_SMOKE=1 dotnet test backend/tests/MakoKaraGenerator.Rendering.Tests backend/tests/MakoKaraGenerator.Runtime.Hosting.Tests -c Release\`"
+              echo "  - \`node frontend/scripts/author-v2-smoke.mjs\` / \`node frontend/scripts/inspection-smoke.mjs\`"
+            fi
+            if [[ "$HW_MEDIA_AUDIO" == "true" ]]; then
+              ANY="true"
+              echo "- **Media / Audio Playback / Native Media Tools** — Real audio device & target OS required:"
+              echo "  - \`dotnet test backend/tests/MakoKaraGenerator.Media.Tests -c Release\` (real audio output device)"
+              echo "  - \`dotnet test backend/tests/MakoKaraGenerator.Backend.Hosting.Tests --filter BackendMediaFeatureServiceRealToolTests\`"
+            fi
+            if [[ "$HW_PACKAGING" == "true" ]]; then
+              ANY="true"
+              echo "- **Desktop Packaging / Runtime Paths** — Target OS verification required:"
+              echo "  - Linux: \`pnpm build:desktop && pnpm package:appimage\`"
+              echo "  - Windows: \`pnpm package:windows --build && node scripts/windows-portable-g4.mjs\`"
+            fi
+            if [[ "$ANY" == "false" ]]; then
+              echo "No hardware-sensitive paths were modified in this PR. Cloud CI coverage is sufficient."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

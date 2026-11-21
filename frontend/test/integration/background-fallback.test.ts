@@ -20,6 +20,7 @@ let backend: TestBackend;
 let client: MakoClient;
 let project: ProjectSessionSummary;
 let templateId = '';
+let gpuAvailable = false;
 const recorder = new ContractRecorder();
 const id = () => project.projectSessionId;
 const current = () => client.projects.knownRevision(id())!;
@@ -28,6 +29,13 @@ beforeAll(async () => {
   if (!samples) return;
   backend = await startTestBackend('background-fallback');
   client = await MakoClient.connect(backend.provider, { identityStore: new MemoryIdentityStore(), environment: null, onExchange: recorder.observer, jobPollIntervalMs: 500 });
+
+  const backends = await client.preview.renderBackends();
+  gpuAvailable = backends.backends.some((b) => b.renderBackend === 'gpu' && b.available === true);
+  if (!gpuAvailable) {
+    console.warn('[skipped] 本机 GPU 不可用，跳过缺背景兜底（SDK v2 材质）GPU 集成测试。');
+    return;
+  }
 
   const asset = await client.assets.upload(new Blob([packSampleEffect('GlassInk')]), { fileName: 'GlassInk.mkfx' });
   const glass = await client.effectPackages.inspect({ packageAssetId: asset.assetId });
@@ -82,7 +90,8 @@ async function exportReport(format: ExportFormat): Promise<ExportReport> {
 }
 
 describe.skipIf(!samples)('缺背景兜底（真实 Server）', () => {
-  it('预览：出帧后读到本帧的兜底诊断，给出缺背景提示', async () => {
+  it('预览：出帧后读到本帧的兜底诊断，给出缺背景提示', async (ctx) => {
+    if (!gpuAvailable) ctx.skip();
     const controller = new PreviewController(client, id(), { width: 320, height: 180 }, { request: 'gpu', target: 'gpu' });
     try {
       controller.show(500_000, current());
@@ -94,7 +103,8 @@ describe.skipIf(!samples)('缺背景兜底（真实 Server）', () => {
     }
   });
 
-  it('不透明导出：成功，报告写明没有可用的背景媒体与涉及帧数', async () => {
+  it('不透明导出：成功，报告写明没有可用的背景媒体与涉及帧数', async (ctx) => {
+    if (!gpuAvailable) ctx.skip();
     const report = await exportReport('opaqueMp4');
     expect(report.fallbackFrameCount).toBeGreaterThan(0);
     expect(report.fallbackDiagnostics?.[0]).toMatchObject({ code: 'BackgroundMediaUnavailable', originKind: 'material', severity: 'warning' });
@@ -103,7 +113,8 @@ describe.skipIf(!samples)('缺背景兜底（真实 Server）', () => {
     expect(backgroundFallbackLine(report.fallbackDiagnostics![0]!)).toMatch(/^材质 makokara\.v2\.glass-ink · glass-media：/);
   });
 
-  it('透明导出：成功，原因是透明输出没有背景', async () => {
+  it('透明导出：成功，原因是透明输出没有背景', async (ctx) => {
+    if (!gpuAvailable) ctx.skip();
     const report = await exportReport('transparentProRes4444');
     expect(report.fallbackDiagnostics?.[0]).toMatchObject({ code: 'TransparentBackgroundDependency', originKind: 'material' });
     expect(exportFallbackText(report)).toMatch(/^透明输出没有背景：/);
@@ -111,6 +122,7 @@ describe.skipIf(!samples)('缺背景兜底（真实 Server）', () => {
 
   it('JSON 响应符合冻结 OpenAPI', () => {
     expect(recorder.issues).toEqual([]);
+    if (!gpuAvailable) return;
     expect([...recorder.validated].some((v) => v.includes('/diagnostics 200'))).toBe(true);
     expect([...recorder.validated].some((v) => v.includes('/export-result 200'))).toBe(true);
   });

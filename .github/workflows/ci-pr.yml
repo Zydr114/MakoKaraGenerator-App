@@ -151,13 +151,29 @@ jobs:
         with:
           node-version: '24'
 
-      - name: Desktop protocol & consumer unit tests
+      - name: Desktop protocol & consumer unit tests (Linux)
+        if: runner.os == 'Linux'
         shell: bash
         run: node --test desktop/gpu-preview/*.test.cjs desktop/runtime/*.test.cjs
 
-      - name: Root launcher, packaging, ACL & P3 analyzer unit tests
+      - name: Desktop protocol & consumer unit tests (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $files = @(Get-ChildItem desktop/gpu-preview/*.test.cjs, desktop/runtime/*.test.cjs | ForEach-Object { $_.FullName })
+          node --test @files
+
+      - name: Root launcher, packaging, ACL & P3 analyzer unit tests (Linux)
+        if: runner.os == 'Linux'
         shell: bash
         run: node --experimental-test-module-mocks --test tests/*.test.mjs scripts/gpu-preview-p3.test.mjs
+
+      - name: Root launcher, packaging, ACL & P3 analyzer unit tests (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $files = @(Get-ChildItem tests/*.test.mjs | ForEach-Object { $_.FullName }) + @((Resolve-Path scripts/gpu-preview-p3.test.mjs).Path)
+          node --experimental-test-module-mocks --test @files
 
       - name: Build & test native SHM bridge (Linux)
         if: runner.os == 'Linux'
@@ -305,7 +321,7 @@ jobs:
         working-directory: backend
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
           FILTER="Category!=PublishedServer&Category!=GpuSmoke&FullyQualifiedName!~PackageSnapshotRuntimeEquivalenceTests&FullyQualifiedName!~ProjectImagePreviewRuntimeTests&FullyQualifiedName!~PreparedScriptWorkerTests&FullyQualifiedName!~ProjectRuntimeMediaInputTests&FullyQualifiedName!~StaticValidationTaskTests.包源码编译失败进入带来源诊断的验证报告&FullyQualifiedName!~WorkerSceneMeasurementTests.真实Worker同帧测量对缺背景材质照常返回并带去重兜底诊断&FullyQualifiedName!~BackendAuthorV2WorkflowTests.媒体依赖作者试样经真实宿主分析得到可用文件输入且再次试样复用同一分析制品"
 
           PROJECTS=(
@@ -324,22 +340,38 @@ jobs:
             tests/MakoKaraGenerator.Backend.Server.Tests/MakoKaraGenerator.Backend.Server.Tests.csproj
           )
 
+          FAILED_PROJECTS=()
           for proj in "${PROJECTS[@]}"; do
             echo "::group::dotnet test $proj"
-            dotnet test "$proj" --configuration Release --no-build --no-restore --filter "$FILTER" --blame-hang-timeout 2m
+            if ! dotnet test "$proj" --configuration Release --no-build --no-restore --filter "$FILTER" --blame-hang-timeout 2m; then
+              FAILED_PROJECTS+=("$proj")
+            fi
             echo "::endgroup::"
           done
 
           echo "::group::dotnet test Runtime.Hosting.Tests (CPU-only subset)"
-          dotnet test tests/MakoKaraGenerator.Runtime.Hosting.Tests/MakoKaraGenerator.Runtime.Hosting.Tests.csproj \
+          if ! dotnet test tests/MakoKaraGenerator.Runtime.Hosting.Tests/MakoKaraGenerator.Runtime.Hosting.Tests.csproj \
             --configuration Release --no-build --no-restore \
             --filter "FullyQualifiedName~PackageAuthorResourceValidatorTests|FullyQualifiedName~RuntimeGpuPreparationTests|FullyQualifiedName~BackendDependencyTests" \
-            --blame-hang-timeout 2m
+            --blame-hang-timeout 2m; then
+            FAILED_PROJECTS+=("Runtime.Hosting.Tests (CPU-only subset)")
+          fi
           echo "::endgroup::"
 
-      - name: Run backend web-host launcher tests
+          if (( ${#FAILED_PROJECTS[@]} > 0 )); then
+            echo "::error::Failed backend test suites: ${FAILED_PROJECTS[*]}"
+            exit 1
+          fi
+
+      - name: Run backend web-host launcher tests (Linux)
+        if: runner.os == 'Linux'
         shell: bash
-        run: python3 backend/tools/backend-web-host/test_host.py || python backend/tools/backend-web-host/test_host.py
+        run: python3 backend/tools/backend-web-host/test_host.py
+
+      - name: Run backend web-host launcher tests (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: python backend/tools/backend-web-host/test_host.py
 
   native-media-envelope-tests:
     name: Native media-envelope C tests (Linux)

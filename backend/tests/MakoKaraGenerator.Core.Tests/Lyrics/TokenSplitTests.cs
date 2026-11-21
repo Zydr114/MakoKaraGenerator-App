@@ -30,10 +30,10 @@ public sealed class TokenSplitTests
 
     [Theory]
     [InlineData("夜空中最亮的星", TokenSplitRule.Mixed, 7)]
-    [InlineData("Hello world", TokenSplitRule.Mixed, 2)]
-    [InlineData("Hello world 你好", TokenSplitRule.Mixed, 4)]
+    [InlineData("Hello world", TokenSplitRule.Mixed, 3)]
+    [InlineData("Hello world 你好", TokenSplitRule.Mixed, 6)]
     [InlineData("你好", TokenSplitRule.PerTextElement, 2)]
-    [InlineData("Hello world 你好", TokenSplitRule.LatinWords, 3)]
+    [InlineData("Hello world 你好", TokenSplitRule.LatinWords, 5)]
     [InlineData("Hello world", TokenSplitRule.ByWhitespace, 2)]
     [InlineData("你好，世界", TokenSplitRule.ByPunctuation, 2)]
     [InlineData("夜空中最亮的星", TokenSplitRule.None, 1)]
@@ -57,13 +57,15 @@ public sealed class TokenSplitTests
     }
 
     [Fact]
-    public void 混合规则把标点与空白留给前一个元素()
+    public void 混合规则将标点与空白切分为独立元素()
     {
-        // CJK 逐字：每个字一段；标点依附前一个字，不单独成段。
-        Assert.Equal(["你", "好，", "世", "界"], LyricTokenSplitter.Split("你好，世界", TokenSplitRule.Mixed).ToArray());
+        // CJK 逐字：每个字一段；标点各自独立成段，不再附着于实义词末尾。
+        Assert.Equal(["你", "好", "，", "世", "界"], LyricTokenSplitter.Split("你好，世界", TokenSplitRule.Mixed).ToArray());
 
-        // 拉丁按词：段尾带着空格，下一次从词首开新段。
-        Assert.Equal(["Hello ", "world"], LyricTokenSplitter.Split("Hello world", TokenSplitRule.Mixed).ToArray());
+        // 拉丁按词：连续空白独立成段，词元本身不含尾随空白。
+        Assert.Equal(["Hello", " ", "world"], LyricTokenSplitter.Split("Hello world", TokenSplitRule.Mixed).ToArray());
+        Assert.Equal(["Hello", "   ", "world"], LyricTokenSplitter.Split("Hello   world", TokenSplitRule.Mixed).ToArray());
+        Assert.Equal(["「", "パ", "ネ", "ェ", "っ", "す", "」"], LyricTokenSplitter.Split("「パネェっす」", TokenSplitRule.Mixed).ToArray());
     }
 
     [Fact]
@@ -135,8 +137,11 @@ public sealed class TokenSplitTests
 
         LyricTokenSplitResult result = LyricLineTokenSplitter.Apply(line, TokenSplitRule.Mixed, estimateTimes: true, Ids());
 
-        Assert.Equal(["Hello ", "world"], result.Line.Tokens.Select(token => token.Text).ToArray());
-        Assert.All(result.Line.Tokens, token => Assert.Equal(TimingStatus.Estimated, token.TimingStatus));
+        Assert.Equal(["Hello", " ", "world"], result.Line.Tokens.Select(token => token.Text).ToArray());
+        Assert.Equal(TimingStatus.Estimated, result.Line.Tokens[0].TimingStatus);
+        Assert.Null(result.Line.Tokens[1].Time);
+        Assert.Equal(TimingStatus.Missing, result.Line.Tokens[1].TimingStatus);
+        Assert.Equal(TimingStatus.Estimated, result.Line.Tokens[2].TimingStatus);
         Assert.Equal(range.StartUs, result.Line.Tokens[0].Time!.Value.StartUs);
         Assert.Equal(range.EndUs, result.Line.Tokens[^1].Time!.Value.EndUs);
         Assert.Equal(2, result.EstimatedCount);

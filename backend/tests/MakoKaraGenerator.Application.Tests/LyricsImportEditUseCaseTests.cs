@@ -116,13 +116,16 @@ public sealed class LyricsImportEditUseCaseTests
             new() { SplitRule = TokenSplitRule.Mixed, EstimateSplitTimes = estimate });
         var line = result.Document.Lines[0];
         Assert.Equal("Hello world", line.Text);
-        Assert.Equal(["Hello ", "world"], line.Tokens.Select(token => token.Text));
+        Assert.Equal(["Hello", " ", "world"], line.Tokens.Select(token => token.Text));
         Assert.Equal(1, result.Report.SplitLineCount);
         if (estimate)
         {
             Assert.Equal(1_000_000, line.Tokens[0].Time!.Value.StartUs);
+            Assert.Equal(TimingStatus.Estimated, line.Tokens[0].TimingStatus);
+            Assert.Null(line.Tokens[1].Time);
+            Assert.Equal(TimingStatus.Missing, line.Tokens[1].TimingStatus);
             Assert.Equal(3_000_000, line.Tokens[^1].Time!.Value.EndUs);
-            Assert.All(line.Tokens, token => Assert.Equal(TimingStatus.Estimated, token.TimingStatus));
+            Assert.Equal(TimingStatus.Estimated, line.Tokens[^1].TimingStatus);
             Assert.Equal(2, result.Report.SplitEstimatedTokenCount);
         }
         else Assert.All(line.Tokens, token => { Assert.Null(token.Time); Assert.Equal(TimingStatus.Missing, token.TimingStatus); });

@@ -35,6 +35,14 @@ public sealed partial class SkiaRenderPipeline
     /// </summary>
     private readonly record struct WipePiece(SKRect Rect, float Full, float Empty, float? Constant = null);
 
+    private static TokenSample BridgeSourceToken(TokenUntimedBridge bridge) =>
+        new(bridge.SourceTokenIndex, bridge.SourceUtf16Start, bridge.SourceUtf16Length,
+            bridge.SourceProgress, ProgressSource.FromToken, IsCurrent: false)
+        {
+            Time = bridge.SourceTime,
+            ActiveSegment = bridge.SourceActiveSegment,
+        };
+
     /// <summary>
     /// 按每个已定时元素的演唱位置建立扫字分区。各元素的羽化比例为 0 时与 <see cref="BuildSungRegions"/> 相同。
     /// </summary>
@@ -55,36 +63,98 @@ public sealed partial class SkiaRenderPipeline
         Func<TokenSample, double> featherRatio, float fontSizePx)
     {
         if (!sample.HasTokens || !sample.TokensMatchLineText
-            || !sample.Tokens.Any(token => token.Source == ProgressSource.FromToken && featherRatio(token) > 0d))
+            || !sample.Tokens.Any(token =>
+                token.Source == ProgressSource.FromToken && featherRatio(token) > 0d
+                || token.Bridge is { } bridge && featherRatio(BridgeSourceToken(bridge)) > 0d))
             return new(BuildSungRegions(sample, shaped, originX, bounds, lineEdges));
 
         WipePartition wipe = new(new SKPath());
         foreach (TokenSample token in sample.Tokens)
         {
-            if (token.Source != ProgressSource.FromToken) continue;
-            float left = originX + shaped.XAt(token.Utf16Start);
-            float right = originX + shaped.XAt(token.Utf16End);
+            if (token.Source != ProgressSource.FromToken)
+            {
+                if (token.Bridge is not { } bridge) continue;
+                float bridgeLeft = originX + shaped.XAt(token.Utf16Start);
+                float bridgeRight = originX + shaped.XAt(token.Utf16End);
+                float low = MathF.Min(bridgeLeft, bridgeRight), high = MathF.Max(bridgeLeft, bridgeRight);
+                bool bridgeFirst = lineEdges && token.Utf16Start == 0, bridgeLast = lineEdges && token.Utf16End == shaped.Text.Length;
+                if (bridgeFirst) low = Math.Min(low, bounds.Left);
+                if (bridgeLast) high = Math.Max(high, bounds.Right);
+                TokenSample sourceToken = BridgeSourceToken(bridge);
+                SkiaSceneGeometry.TokenWipeSpan sourceSpan = SkiaSceneGeometry.ResolveTokenWipeSpan(shaped, bridge.SourceUtf16Start, bridge.SourceUtf16End);
+                float srcInkLeft = originX + sourceSpan.InkLeft, srcInkRight = originX + sourceSpan.InkRight;
+                float srcWidth = (float)(featherRatio(sourceToken) * fontSizePx);
+                if (TokenSungPosition(sourceToken, sample.TimeUs, srcInkLeft, srcInkRight, srcWidth) is { } srcPosition)
+                {
+                    float srcDirection = srcInkRight > srcInkLeft ? 1f : -1f;
+                    float anchor = bridge.IsLeading ? srcInkLeft : srcInkRight;
+                    float mask = Math.Clamp(.5f + srcDirection * (srcPosition - anchor) / srcWidth, 0f, 1f);
+                    AddConstant(wipe, new SKRect(low, bounds.Top, high, bounds.Bottom), mask);
+                }
+                else if (bridge.IsHardSung && high > low)
+                {
+                    wipe.Sung.AddRect(new SKRect(low, bounds.Top, high, bounds.Bottom));
+                }
+                continue;
+            }
+
+            SkiaSceneGeometry.TokenWipeSpan span = SkiaSceneGeometry.ResolveTokenWipeSpan(shaped, token.Utf16Start, token.Utf16End);
+            float advLeft = originX + span.AdvanceLeft, advRight = originX + span.AdvanceRight;
+            float inkLeft = originX + span.InkLeft, inkRight = originX + span.InkRight;
             bool first = lineEdges && token.Utf16Start == 0, last = lineEdges && token.Utf16End == shaped.Text.Length;
             float width = (float)(featherRatio(token) * fontSizePx);
-            if (SungPosition(token.Time, token.Progress, sample.TimeUs, left, right, width) is not { } position)
+            if (TokenSungPosition(token, sample.TimeUs, inkLeft, inkRight, width) is not { } position)
             {
                 // 没有过渡带的元素按硬切换，与 BuildSungRegions 相同。
                 if (token.Progress <= 0d) continue;
-                float reached = token.IsSung ? right : Scripting.TextProgressPath.XAt(left, right, token.Progress);
-                if (first) left = Math.Min(left, bounds.Left);
+                float reached = token.IsSung ? advRight : Scripting.TextProgressPath.XAt(inkLeft, inkRight, token.Progress);
+                if (first) advLeft = Math.Min(advLeft, bounds.Left);
                 if (last && token.IsSung) reached = Math.Max(reached, bounds.Right);
-                if (reached > left) wipe.Sung.AddRect(new SKRect(left, bounds.Top, reached, bounds.Bottom));
+                if (reached > advLeft) wipe.Sung.AddRect(new SKRect(advLeft, bounds.Top, reached, bounds.Bottom));
                 continue;
             }
-            AddRamp(wipe, bounds, left, right, position, width);
-            float direction = right > left ? 1f : -1f;
-            if (first) AddConstant(wipe, direction > 0 ? new(bounds.Left, bounds.Top, left, bounds.Bottom)
-                : new(left, bounds.Top, bounds.Right, bounds.Bottom), Mask(left));
-            if (last) AddConstant(wipe, direction > 0 ? new(right, bounds.Top, bounds.Right, bounds.Bottom)
-                : new(bounds.Left, bounds.Top, right, bounds.Bottom), Mask(right));
+            AddRamp(wipe, bounds, inkLeft, inkRight, position, width);
+            float direction = inkRight > inkLeft ? 1f : -1f;
+            if (direction > 0f)
+            {
+                float leftOuter = first ? Math.Min(advLeft, bounds.Left) : advLeft;
+                if (inkLeft > leftOuter) AddConstant(wipe, new(leftOuter, bounds.Top, inkLeft, bounds.Bottom), Mask(inkLeft));
+                float rightOuter = last ? Math.Max(advRight, bounds.Right) : advRight;
+                if (rightOuter > inkRight) AddConstant(wipe, new(inkRight, bounds.Top, rightOuter, bounds.Bottom), Mask(inkRight));
+            }
+            else
+            {
+                if (first) AddConstant(wipe, new(inkLeft, bounds.Top, bounds.Right, bounds.Bottom), Mask(inkLeft));
+                if (last) AddConstant(wipe, new(bounds.Left, bounds.Top, inkRight, bounds.Bottom), Mask(inkRight));
+            }
             float Mask(float x) => Math.Clamp(.5f + direction * (position - x) / width, 0f, 1f);
         }
         return wipe;
+    }
+
+    /// <summary>
+    /// 文本元素的不夹值演唱位置：支持单段匀速与多拍注音字分段同步（契约 B1）。
+    /// </summary>
+    private static float? TokenSungPosition(TokenSample token, long timeUs, float inkLeft, float inkRight, float width)
+    {
+        if (!(width > 0f) || !float.IsFinite(width) || inkLeft == inkRight) return null;
+        if (token.ActiveSegment is { } piece)
+        {
+            if (piece.InGap)
+            {
+                float gapPosition = inkLeft + (inkRight - inkLeft) * (float)piece.WeightEnd;
+                return float.IsFinite(gapPosition) ? gapPosition : null;
+            }
+
+            float segLeft = inkLeft + (inkRight - inkLeft) * (float)piece.WeightStart;
+            float segRight = inkLeft + (inkRight - inkLeft) * (float)piece.WeightEnd;
+            if (segLeft == segRight || piece.SegmentTime.EndUs <= piece.SegmentTime.StartUs) return null;
+            double ratio = (double)(timeUs - piece.SegmentTime.StartUs) / (piece.SegmentTime.EndUs - piece.SegmentTime.StartUs);
+            float position = segLeft + (segRight - segLeft) * (float)ratio;
+            return float.IsFinite(position) ? position : null;
+        }
+
+        return SungPosition(token.Time, token.Progress, timeUs, inkLeft, inkRight, width);
     }
 
     /// <summary>

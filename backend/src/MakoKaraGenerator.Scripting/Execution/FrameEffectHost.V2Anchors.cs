@@ -254,6 +254,19 @@ internal sealed partial class FrameEffectHost
         SortedSet<long> boundaries = [];
         if (cursor.Identity.TokenId is { } id)
         {
+            Core.Lyrics.LyricLine? sourceLine = _snapshot.Lyrics.Branches
+                .FirstOrDefault(branch => branch.Id == cursor.Identity.BranchId.Value)?.Lines
+                .FirstOrDefault(line => line.Id == cursor.Identity.LineId.Value);
+            Core.Lyrics.LyricToken? sourceToken = sourceLine?.Tokens.FirstOrDefault(item => item.Id == id.Value);
+            if (sourceLine is not null && sourceToken is not null)
+            {
+                foreach (long cut in LyricSampler.GetPiecewiseBreakpoints(sourceLine, sourceToken))
+                {
+                    if (cut > cursor.Identity.TimeRange.StartUs && cut < cursor.Identity.TimeRange.EndUs)
+                        boundaries.Add(cut);
+                }
+            }
+
             var tokenGeometry = scene.TokenGeometries.SingleOrDefault(item => item.WithRuby.TokenId == id && item.WithRuby.BindingId == cursor.BindingId);
             if (tokenGeometry?.ProgressPath is { } path)
             {
@@ -265,7 +278,10 @@ internal sealed partial class FrameEffectHost
                     bool increasing = path.EndX >= path.StartX;
                     bool Beyond(long t)
                     {
-                        double x = path.At((t - cursor.Identity.TimeRange.StartUs) / (double)cursor.Identity.TimeRange.DurationUs, CursorAnchorMode.Baseline).X;
+                        double progress = sourceLine is not null && sourceToken is not null
+                            ? LyricSampler.ComputeTokenProgress(sourceLine, sourceToken, t)
+                            : (t - cursor.Identity.TimeRange.StartUs) / (double)cursor.Identity.TimeRange.DurationUs;
+                        double x = path.At(progress, CursorAnchorMode.Baseline).X;
                         return increasing ? x >= edge : x < edge;
                     }
                     if (!Beyond(high)) continue;

@@ -82,10 +82,28 @@ public sealed partial class SkiaRenderPipeline
         foreach (TokenSample token in sample.Tokens)
         {
             if (token.Source != ProgressSource.FromToken || wipe(token).Highlight is not { } spec) continue;
-            AddPeak(token.Time, token.Progress, sample.TimeUs, shaped.XAt(token.Utf16Start), shaped.XAt(token.Utf16End),
-                spec, fontSizePx, ref current, ref moving);
+            TokenWipeSpan span = ResolveTokenWipeSpan(shaped, token.Utf16Start, token.Utf16End);
+            AddTokenPeak(token, sample.TimeUs, span.InkLeft, span.InkRight, spec, fontSizePx, ref current, ref moving);
         }
         return current ?? moving ?? (IReadOnlyList<HighlightPeak>)Array.Empty<HighlightPeak>();
+    }
+
+    private static void AddTokenPeak(TokenSample token, long timeUs, float inkLeft, float inkRight,
+        WipeHighlightSpec spec, float fontSizePx, ref List<HighlightPeak>? current, ref List<HighlightPeak>? moving)
+    {
+        if (token.ActiveSegment is { } piece)
+        {
+            if (piece.InGap) return;
+            float width = (float)(spec.WidthRatio * fontSizePx);
+            if (TokenSungPosition(token, timeUs, inkLeft, inkRight, width) is not { } position) return;
+            float half = width / 2f;
+            HighlightPeak peak = new(position, half, spec);
+            if (timeUs >= piece.SegmentTime.StartUs && timeUs < piece.SegmentTime.EndUs) (current ??= []).Add(peak);
+            else if (position > Math.Min(inkLeft, inkRight) - half && position < Math.Max(inkLeft, inkRight) + half) (moving ??= []).Add(peak);
+            return;
+        }
+
+        AddPeak(token.Time, token.Progress, timeUs, inkLeft, inkRight, spec, fontSizePx, ref current, ref moving);
     }
 
     /// <summary>一段注音的高亮峰，偏移相对注音左端；分段各按自己的进度，宽度按注音字号。</summary>

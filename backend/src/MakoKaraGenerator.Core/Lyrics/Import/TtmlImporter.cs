@@ -202,7 +202,7 @@ public sealed class TtmlImporter : ILyricsImporter
                 {
                     ProjectNamespace => name is "profile" or "version" or "timing-profile" or "lyrics-schema" or "primary-branch-id"
                         or "branch-id" or "branch-name" or "branch-role" or "timing-mode" or "line-id" or "line-text" or "primary-line-id"
-                        or "token-id" or "timing-status" or "start-us" or "end-us" or "ruby-id" or "base-token-id" or "language"
+                        or "token-id" or "phrase-end" or "timing-status" or "start-us" or "end-us" or "ruby-id" or "base-token-id" or "language"
                         or "scale" or "gap" or "alignment" or "segment-id",
                     "" => name is "begin" or "end" or "dur" or "timeContainer" or "format" or "frameRate" or "frameRateMultiplier"
                         or "subFrameRate" or "tickRate" or "timeBase" or "dropMode" or "markerMode" or "xmlns" or "style"
@@ -414,7 +414,7 @@ public sealed class TtmlImporter : ILyricsImporter
                     throw new FormatException("TTML project token 子结构不支持，禁止静默展平。");
                 XElement? container = element.Elements().SingleOrDefault(child => RubyKind(child) == "container");
                 if (container is not null) ParseRuby(container, element, tokens, ruby);
-                else tokens.Add(Token(tokenId, element.Value, time, status));
+                else tokens.Add(Token(tokenId, element.Value, time, status, ReadPhraseEndHint(element)));
                 return;
             }
             XElement? owner = TtmlTimeTree.IsContent(element) && times[element].Explicit ? element : timingOwner;
@@ -580,7 +580,7 @@ public sealed class TtmlImporter : ILyricsImporter
             string? explicitAgent = OwnAgent(baseNode);
             string? explicitRole = OwnSidecar(baseNode);
             bool redirect = !project && (explicitAgent is not null && explicitAgent != _paragraphAgent || explicitRole is not null && explicitRole != _paragraphRole);
-            LyricToken token = Token(tokenId, baseNode.Value, baseTime, baseStatus);
+            LyricToken token = Token(tokenId, baseNode.Value, baseTime, baseStatus, ReadPhraseEndHint(tokenNode));
             RubyAlignment alignment = project ? EnumValue<RubyAlignment>(Required(container, "alignment")) : AlignmentOf(container);
             RubyAnnotation ruby = new()
             {
@@ -1002,8 +1002,19 @@ public sealed class TtmlImporter : ILyricsImporter
             return null;
         }
 
-        private LyricToken Token(string id, string text, TimeRange? time, TimingStatus status) =>
-            LyricsImportPreparationGuard.Token(context.PreparationGuard, id, text, time, status);
+        private LyricToken Token(string id, string text, TimeRange? time, TimingStatus status, bool? phraseEndHint = null) =>
+            LyricsImportPreparationGuard.Token(context.PreparationGuard, id, text, time, status) with { PhraseEndHint = phraseEndHint };
+        private bool? ReadPhraseEndHint(XElement element)
+        {
+            if (!project) return null;
+            return Extension(element, "phrase-end") switch
+            {
+                null => null,
+                "true" => true,
+                "false" => false,
+                _ => throw new FormatException("TTML project phrase-end 必须为 true 或 false。"),
+            };
+        }
         private string Id(XElement element, string field, string? external = null)
         {
             if (project) return Required(element, field);

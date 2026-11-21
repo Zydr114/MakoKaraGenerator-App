@@ -51,7 +51,7 @@ public sealed partial class SkiaRenderPipeline
                 {
                     DrawLineGlow(source, shaped, options, origin, baseline, style, antialias, indices, sourceCapture);
                     using var wipe = BuildWipe(tokenSample, shaped, origin, source.LocalClipBounds, WipeEdges(style, sourceCapture),
-                        _ => style.Wipe.FeatherRatio, options.FontSizePx);
+                        item => item.Index == tokenIndex ? style.Wipe.FeatherRatio : FeatherRatio(lineStyle, scene.Frame.Line!, item), options.FontSizePx);
                     DrawWiped(source, wipe, () => WipeStatesDiffer(style, sourceCapture), sourceCapture, sung =>
                     {
                         DrawLineGlow(source, shaped, options, origin, baseline, style, antialias, indices, sourceCapture, state: sung);

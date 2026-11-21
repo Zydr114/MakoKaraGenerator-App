@@ -129,7 +129,11 @@ public sealed class TtmlExporter : ILyricsExporter
                 }
                 foreach (LyricToken token in line.Tokens)
                 {
+                    bool amllBareWhitespace = Profile == TtmlExportProfile.Amll
+                        && !line.RubyAnnotations.Any(ruby => ruby.BaseTokenId == token.Id)
+                        && LyricTokenSemantics.IsUntimedInlineWhitespace(token);
                     if (Profile == TtmlExportProfile.Amll && !line.RubyAnnotations.Any(ruby => ruby.BaseTokenId == token.Id)
+                        && !amllBareWhitespace
                         && (token.Time is not { IsValid: true } || !token.IsTimeStatusConsistent))
                     {
                         consumerUntimedTokens++;
@@ -355,6 +359,11 @@ public sealed class TtmlExporter : ILyricsExporter
         foreach (LyricToken token in line.Tokens)
         {
             RubyAnnotation? ruby = line.RubyAnnotations.FirstOrDefault(annotation => annotation.BaseTokenId == token.Id);
+            if (Profile == TtmlExportProfile.Amll && ruby is null && LyricTokenSemantics.IsUntimedInlineWhitespace(token))
+            {
+                writer.WriteString(token.Text);
+                continue;
+            }
             bool tokenWrapper = ruby is null || Profile == TtmlExportProfile.Project;
             if (tokenWrapper) writer.WriteStartElement("span", TtmlNamespace);
             MakoKaraGenerator.Core.Time.TimeRange? lineTime = Profile == TtmlExportProfile.Project && line.Time is { IsValid: true } ? line.Time : null;
@@ -362,6 +371,8 @@ public sealed class TtmlExporter : ILyricsExporter
             if (Profile == TtmlExportProfile.Project)
             {
                 Extension(writer, "token-id", token.Id);
+                if (token.PhraseEndHint is { } phraseEndHint)
+                    Extension(writer, "phrase-end", phraseEndHint ? "true" : "false");
                 WriteProjectTime(writer, token.Time, token.TimingStatus);
             }
             if (ruby is null)

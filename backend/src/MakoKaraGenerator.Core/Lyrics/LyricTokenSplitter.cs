@@ -98,13 +98,21 @@ public static class LyricTokenSplitter
             // 每个文本元素都切。
             TokenSplitRule.PerTextElement => true,
 
-            // CJK 逐字、emoji 逐个；拉丁字母/数字按词；标点、空白依附前一段。
-            TokenSplitRule.Mixed => current is ElementClass.Cjk or ElementClass.Other
-                || (current == ElementClass.Word && previous != ElementClass.Word),
+            // CJK 逐字、emoji 逐个；拉丁字母/数字按词；连续空白独立为无时间空白段；标点各自独立为无时间标点段。
+            TokenSplitRule.Mixed => current == ElementClass.Space
+                ? previous != ElementClass.Space
+                : previous is ElementClass.Space or ElementClass.Punctuation
+                    || current is ElementClass.Cjk or ElementClass.Other or ElementClass.Punctuation
+                    || (current == ElementClass.Word && previous != ElementClass.Word),
 
-            // 连续的字母数字算一段，连续的 CJK 也算一段。
-            TokenSplitRule.LatinWords => (current == ElementClass.Word && previous != ElementClass.Word)
-                || (current == ElementClass.Cjk && previous != ElementClass.Cjk),
+            // 连续的字母数字算一段，连续的 CJK 也算一段；连续空白独立成段，标点各自独立成段。
+            TokenSplitRule.LatinWords => current == ElementClass.Space
+                ? previous != ElementClass.Space
+                : previous is ElementClass.Space or ElementClass.Punctuation
+                    || current == ElementClass.Punctuation
+                    || (current == ElementClass.Word && previous != ElementClass.Word)
+                    || (current == ElementClass.Cjk && previous != ElementClass.Cjk)
+                    || current == ElementClass.Other,
 
             // 标点之后另起一段。
             TokenSplitRule.ByPunctuation => previous == ElementClass.Punctuation,
@@ -142,23 +150,22 @@ public static class LyricTokenSplitter
             return ElementClass.Other;
         }
 
+        if (LyricTokenSemantics.IsWhitespaceElement(element))
+        {
+            return ElementClass.Space;
+        }
+
+        if (LyricTokenSemantics.IsPunctuationElement(element))
+        {
+            return ElementClass.Punctuation;
+        }
+
         char first = element[0];
         int codePoint = char.IsSurrogatePair(element, 0)
             ? char.ConvertToUtf32(element, 0)
             : first;
 
-        if (char.IsWhiteSpace(element, 0))
-        {
-            return ElementClass.Space;
-        }
-
-        // 常见标点与符号（含全角标点如 ，。！？）：依附前一个元素，自己不起新段。
-        if (char.IsPunctuation(first) || (char.IsSymbol(first) && codePoint < 0x2000))
-        {
-            return ElementClass.Punctuation;
-        }
-
-        if (IsCjk(codePoint))
+        if (LyricTokenSemantics.IsCjkCodePoint(codePoint))
         {
             return ElementClass.Cjk;
         }
@@ -166,16 +173,4 @@ public static class LyricTokenSplitter
         // 其余符号（emoji 等）归入 Other：每个 emoji 自成一个元素，但不与相邻文字粘连。
         return char.IsLetterOrDigit(first) ? ElementClass.Word : ElementClass.Other;
     }
-
-    private static bool IsCjk(int codePoint) => codePoint switch
-    {
-        >= 0x3040 and <= 0x30FF => true,   // 平假名 / 片假名
-        >= 0x3400 and <= 0x4DBF => true,   // CJK 扩展 A
-        >= 0x4E00 and <= 0x9FFF => true,   // CJK 基本区
-        >= 0xF900 and <= 0xFAFF => true,   // CJK 兼容表意文字
-        >= 0xAC00 and <= 0xD7AF => true,   // 谚文音节
-        >= 0x20000 and <= 0x2FA1F => true, // CJK 扩展 B~F
-        >= 0xFF00 and <= 0xFFEF => true,   // 全角/半角形式（含全角标点，按 CJK 逐字处理）
-        _ => false,
-    };
 }

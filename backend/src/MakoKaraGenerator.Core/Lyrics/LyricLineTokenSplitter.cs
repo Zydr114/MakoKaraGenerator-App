@@ -171,9 +171,10 @@ public static class LyricLineTokenSplitter
             return new LyricTokenSplitResult(line, old.Length, 0, 0);
         }
 
-        // 估算用的权重：
-        // ① 同组（同一个旧元素 / “没有归属”的一组）里的累计文本长度；
-        // ② 整行统一的累计文本长度（当这行里有元素本来就没有时间时，只能整行一起估）。
+        // 估算用的权重（纯空白与纯标点不参与分配，初始始终保持无时间）：
+        // ① 同组（同一个旧元素 / “没有归属”的一组）里的累计实义文本长度；
+        // ② 整行统一的累计实义文本长度（当这行里有实义元素本来就没有时间时，只能整行一起估）。
+        bool[] isNonContent = new bool[segments.Length];
         Dictionary<int, long> totals = [];
         Dictionary<int, long> running = [];
         long[] weightBefore = new long[segments.Length];
@@ -184,23 +185,29 @@ public static class LyricLineTokenSplitter
 
         for (int i = 0; i < segments.Length; i++)
         {
+            isNonContent[i] = LyricTokenSemantics.Classify(segments[i]) != LyricTokenKind.Content;
+            long segmentWeight = isNonContent[i] ? 0L : segments[i].Length;
+
             int key = firstOwner[i];
             long before = running.GetValueOrDefault(key);
             weightBefore[i] = before;
-            weightAfter[i] = before + segments[i].Length;
+            weightAfter[i] = before + segmentWeight;
             running[key] = weightAfter[i];
-            totals[key] = totals.GetValueOrDefault(key) + segments[i].Length;
+            totals[key] = totals.GetValueOrDefault(key) + segmentWeight;
 
             globalBefore[i] = globalTotal;
-            globalTotal = checked(globalTotal + segments[i].Length);
+            globalTotal = checked(globalTotal + segmentWeight);
             globalAfter[i] = globalTotal;
         }
 
-        // 行里有元素没时间（例如从只有行级时间的文件导入）⇒ 用行区间 + 全文长度统一分配。
+        // 行里有实义元素没时间（例如从只有行级时间的文件导入）⇒ 用行区间 + 全文实义长度统一分配。
         bool estimateOverWholeLine = line.Time is not null
-            && (old.Length == 0 || !old.All(token => token.Time is not null));
+            && (old.Length == 0
+                || !old.All(token => token.Time is not null
+                    || LyricTokenSemantics.Classify(token.Text) != LyricTokenKind.Content));
 
         ImmutableArray<LyricToken>.Builder tokens = ImmutableArray.CreateBuilder<LyricToken>(segments.Length);
+        HashSet<int> inheritedSources = [];
         int preserved = 0;
         int created = 0;
         int estimated = 0;
@@ -217,7 +224,16 @@ public static class LyricLineTokenSplitter
             if (exact[i] && first >= 0)
             {
                 tokens.Add(old[first]);
+                inheritedSources.Add(first);
                 preserved++;
+                continue;
+            }
+
+            // 新切出的纯空白与纯标点元素初始一律保持无时间（Time = null, TimingStatus.Missing）。
+            if (isNonContent[i])
+            {
+                tokens.Add(LyricToken.Create(nextTokenId(), text));
+                created++;
                 continue;
             }
 
@@ -227,7 +243,7 @@ public static class LyricLineTokenSplitter
                 // 普通行级格式导入后，旧元素通常只有文本而没有逐字时间。
                 // 用户显式勾选估算时仍应使用整行区间；不能因为进入“合并多个旧元素”
                 // 分支就退回 Missing。
-                if (estimateTimes && estimateOverWholeLine && line.Time is { } wholeLine)
+                if (estimateTimes && estimateOverWholeLine && line.Time is { } wholeLine && globalTotal > 0)
                 {
                     (long s, long e) = ProRate(wholeLine, globalBefore[i], globalAfter[i], globalTotal);
                     tokens.Add(LyricToken.Create(nextTokenId(), text, TimeRange.Create(s, e), TimingStatus.Estimated));
@@ -238,7 +254,7 @@ public static class LyricLineTokenSplitter
 
                 (TimeRange? unionStart, TimingStatus status) = MergeRange(old, first, last);
 
-                if (estimateTimes && unionStart is { } merged)
+                if (estimateTimes && unionStart is { } merged && totals.GetValueOrDefault(first) > 0)
                 {
                     (long s, long e) = ProRate(merged, weightBefore[i], weightAfter[i], totals[first]);
                     tokens.Add(LyricToken.Create(nextTokenId(), text, TimeRange.Create(s, e), TimingStatus.Estimated));
@@ -263,8 +279,8 @@ public static class LyricLineTokenSplitter
 
             if (!estimateTimes)
             {
-                // 默认策略：第一段继承原区间与状态（不猜、也不改已确认的时间），其余段未定时。
-                if (source is not null && offsets[i] == 0 && source.Time is not null)
+                // 默认策略：来源的首个实义段继承原区间与状态（不猜、也不改已确认的时间），其余段未定时。
+                if (source is not null && source.Time is not null && inheritedSources.Add(first))
                 {
                     tokens.Add(source with { Text = text });
                     preserved++;
@@ -278,7 +294,7 @@ public static class LyricLineTokenSplitter
                 continue;
             }
 
-            // 估算策略：按文本长度把来源区间切开；来源没有时间就退回行区间。
+            // 估算策略：按实义文本长度把来源区间切开；来源没有时间就退回行区间。
             TimeRange? interval = estimateOverWholeLine ? line.Time : source?.Time ?? line.Time;
 
             if (interval is { } range)
@@ -287,10 +303,18 @@ public static class LyricLineTokenSplitter
                 long before = estimateOverWholeLine ? globalBefore[i] : weightBefore[i];
                 long after = estimateOverWholeLine ? globalAfter[i] : weightAfter[i];
                 long total = estimateOverWholeLine ? globalTotal : totals[key];
-                (long s, long e) = ProRate(range, before, after, total);
-                tokens.Add(LyricToken.Create(nextTokenId(), text, TimeRange.Create(s, e), TimingStatus.Estimated));
-                created++;
-                estimated++;
+                if (total > 0)
+                {
+                    (long s, long e) = ProRate(range, before, after, total);
+                    tokens.Add(LyricToken.Create(nextTokenId(), text, TimeRange.Create(s, e), TimingStatus.Estimated));
+                    created++;
+                    estimated++;
+                }
+                else
+                {
+                    tokens.Add(LyricToken.Create(nextTokenId(), text));
+                    created++;
+                }
             }
             else
             {

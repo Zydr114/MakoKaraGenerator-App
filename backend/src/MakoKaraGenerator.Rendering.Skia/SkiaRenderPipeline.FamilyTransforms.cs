@@ -233,7 +233,7 @@ public sealed partial class SkiaRenderPipeline
             }
             DrawLineGlow(canvas, shaped, options, origin, baseline, style, antialias, partitions[index].DrawUnitIndices, capture);
             using (WipePartition wipe = BuildWipe(tokenSample, shaped, origin, canvas.LocalClipBounds, WipeEdges(style, capture),
-                _ => style.Wipe.FeatherRatio, options.FontSizePx))
+                item => item.Index == index ? style.Wipe.FeatherRatio : FeatherRatio(lineStyle, line, item), options.FontSizePx))
             {
                 DrawWiped(canvas, wipe, () => WipeStatesDiffer(style, capture), capture, sung =>
                 {

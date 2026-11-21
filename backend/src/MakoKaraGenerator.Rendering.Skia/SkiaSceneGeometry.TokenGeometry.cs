@@ -75,6 +75,14 @@ public sealed partial class SkiaSceneGeometry
         => new((float)line.OriginX + shaped.XAt(start), (float)line.OriginX + shaped.XAt(end),
             (float)line.BaselineY, basis.AdvanceBounds.Center.Y);
 
+    private static Fx.TextProgressPath TokenProgressPath(ShapedLine shaped, int start, int end,
+        LineRenderGeometry line, Fx.GeometrySample basis)
+    {
+        TokenWipeSpan span = ResolveTokenWipeSpan(shaped, start, end);
+        return new((float)line.OriginX + span.InkLeft, (float)line.OriginX + span.InkRight,
+            (float)line.BaselineY, basis.AdvanceBounds.Center.Y);
+    }
+
     private ImmutableArray<Fx.TokenGeometrySample> MeasureTokenGeometries(ProjectSnapshot snapshot, SceneFrame frame)
     {
         List<Fx.TokenGeometrySample> result = [];
@@ -153,7 +161,7 @@ public sealed partial class SkiaSceneGeometry
             result.Add(new() { BranchId = new(sample.Branch.Id), LineId = new(line.Id), WithRuby = new(tokenId, bindingId),
                 BaseOnly = new(tokenId, bindingId), BaseGeometry = basis, FamilyGeometry = family, Ruby = [.. ruby],
                 Clusters = [.. clusters],
-                ProgressPath = validMapping ? ProgressPath(shaped, spans[i].Start, spans[i].End, lineGeometry, basis) : null });
+                ProgressPath = validMapping ? TokenProgressPath(shaped, spans[i].Start, spans[i].End, lineGeometry, basis) : null });
         }
         return [.. result];
     }

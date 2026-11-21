@@ -54,10 +54,16 @@ public sealed class PlaybackGeometryTests
         var cursor = Assert.Single(prepared.Playback.GetCursors(Fx.CursorAnchorMode.Baseline));
         Assert.Equal("emoji", cursor.TokenId!.Value.Value);
         Assert.True(geometries[1].BaseGeometry.CanTransformIndependently);
-        Assert.Equal(geometries[0].ProgressPath!.EndX, geometries[1].ProgressPath!.StartX);
-        Assert.Equal(geometries[1].ProgressPath!.EndX, geometries[2].ProgressPath!.StartX);
-        Assert.Equal(geometries[2].ProgressPath!.EndX, Assert.Single(prepared.Scene.LineGeometries).ProgressPath.EndX);
-        Assert.True(geometries[1].ProgressPath!.EndX > geometries[1].ProgressPath!.StartX);
+        // A1：各元素 ProgressPath 使用安全钳位至自身 Advance 内的非空白墨迹区间，相邻区间严格递增不重叠。
+        for (int i = 0; i < geometries.Length; i++)
+        {
+            Assert.True(geometries[i].ProgressPath!.StartX >= geometries[i].BaseGeometry.AdvanceBounds.Left - .001);
+            Assert.True(geometries[i].ProgressPath!.EndX <= geometries[i].BaseGeometry.AdvanceBounds.Right + .001);
+            Assert.True(geometries[i].ProgressPath!.EndX > geometries[i].ProgressPath!.StartX);
+        }
+        Assert.True(geometries[0].ProgressPath!.EndX <= geometries[1].ProgressPath!.StartX);
+        Assert.True(geometries[1].ProgressPath!.EndX <= geometries[2].ProgressPath!.StartX);
+        Assert.True(geometries[2].ProgressPath!.EndX <= Assert.Single(prepared.Scene.LineGeometries).ProgressPath.EndX + .001);
         using var pixels = renderer.Render(RenderRequest.At(prepared.Snapshot, prepared.TimeUs) with { PreparedFrame = prepared, TransparentBackground = true });
         Assert.True(pixels.PixelMemory.Span.ContainsAnyExcept((byte)0));
     }

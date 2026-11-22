@@ -287,7 +287,7 @@ public sealed class PreviewRenderFrame(
 }
 
 /// <summary>平台无关的连续预览帧会话（覆盖 GPU·DMA-BUF、GPU·SHM 与 CPU·SHM）。</summary>
-public interface IPreviewRenderSession : IGpuRenderFrameSession
+public interface IPreviewRenderSession : IRenderFrameSession
 {
     /// <summary>当前会话是否启用连续预览帧输出。</summary>
     bool SupportsPreviewFrames { get; }

@@ -136,10 +136,9 @@ public sealed class CompiledProjectEffects
     }
     private static PreparedMaterialOwner.Source SourceOwner(SourceMaterialReference reference) => new(reference, PreparedMaterialSlots.Of(reference));
     /// <summary>为固定闭包和分析创建独立纯外观帧工厂，使用工程真实视觉预算。</summary>
-    public PureFrameSourceFactory CreateFactory(Func<ILineGeometryProvider> geometryFactory, ReplayReason reason = ReplayReason.Initial,
+    public PureFrameSourceFactory CreateFactory(Func<ILineGeometryProvider> geometryFactory,
         MakoKaraGenerator.Rendering.Abstractions.ProjectMediaFeatureBinding? mediaBinding = null)
     {
-        if (!Enum.IsDefined(reason)) throw new ArgumentOutOfRangeException(nameof(reason));
         if (!Succeeded) throw new EffectPackageException("ProjectEffectsCompilationFailed", "effects.instances", "工程效果编译失败；不能使用旧 DLL 导出。");
         if (Effects.IsEmpty && SourceMaterials is null) throw new EffectPackageException("ProjectEffectsNotEnabled", "effects.instances", "没有启用实例或源材质，无需创建准备会话。");
         if (_snapshot is { } snapshot) ProjectMediaFeatureAdmission.Validate(snapshot, Effects, SourceMaterials, mediaBinding, default);

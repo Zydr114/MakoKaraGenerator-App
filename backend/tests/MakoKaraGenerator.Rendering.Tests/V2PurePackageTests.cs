@@ -22,7 +22,7 @@ public sealed class V2PurePackageTests
         Assert.True(compiled.Succeeded, string.Join('\n', compiled.Packages.SelectMany(package => package.Artifact.Diagnostics)));
         int compilationsBeforeEvaluation = compiler.CompilationCount;
         var measured = new CountingGeometry();
-        await using var session = await compiled.CreateFactory(() => measured, ReplayReason.Initial).CreateAsync(snapshot);
+        await using var session = await compiled.CreateFactory(() => measured).CreateAsync(snapshot);
         long[] times = [250_000, 750_000, 1_250_000, 180_000_000, 600_000_000, 1_250_000, 250_000, 1_250_000];
         var frames = new List<PreparedRenderFrame>();
         foreach (long time in times)
@@ -34,7 +34,7 @@ public sealed class V2PurePackageTests
             Assert.Equal(frames[2].TokenTransforms.ToArray(), frames[position].TokenTransforms.ToArray());
             Assert.Equal(frames[2].TokenStyles.ToArray(), frames[position].TokenStyles.ToArray());
         }
-        await using var reopened = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), ReplayReason.Export).CreateAsync(snapshot);
+        await using var reopened = await compiled.CreateFactory(static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
         var direct = await reopened.PrepareAsync(1_250_000, OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition));
         Assert.Equal(frames[2].TokenTransforms.ToArray(), direct.TokenTransforms.ToArray());
         Assert.Equal(frames[2].TokenStyles.ToArray(), direct.TokenStyles.ToArray());
@@ -63,7 +63,7 @@ public sealed class V2PurePackageTests
         var compiled = await CompiledProjectEffects.CompileAsync(snapshot, compiler);
         Assert.True(compiled.Succeeded);
         var geometry = new CountingGeometry();
-        await using var session = await compiled.CreateFactory(() => geometry, ReplayReason.Initial).CreateAsync(snapshot);
+        await using var session = await compiled.CreateFactory(() => geometry).CreateAsync(snapshot);
         using CancellationTokenSource cancellation = new(); cancellation.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await session.PrepareAsync(180_000_000,
             OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition), cancellation.Token));

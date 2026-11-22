@@ -16,7 +16,7 @@ using MakoKaraGenerator.Processes;
 
 namespace MakoKaraGenerator.Backend.Worker;
 
-/// <summary>受 Hosting 管理的 Worker；render-frame-v1 使用固定输入合同调用真实 Runtime.Hosting。</summary>
+/// <summary>受 Hosting 管理的 Worker，通过固定私有协议调用真实 Runtime.Hosting。</summary>
 internal static class Program
 {
     private static readonly JsonSerializerOptions FontJson = FontWorkerContract.JsonOptions;
@@ -76,8 +76,6 @@ internal static class Program
                             if (active.TryGetValue(message.RequestId, out CancellationTokenSource? cancellation)) cancellation.Cancel();
                         }
                         break;
-                    case "render":
-                    case "render-frame-v1":
                     case GpuWorkerWarmupContract.DeviceStateKind:
                     case GpuWorkerWarmupContract.RequestKind:
                     case WorkerRenderBackendContract.RequestKind:
@@ -90,11 +88,8 @@ internal static class Program
                     case PackageRenderWorkerContract.CapabilitiesKind:
                     case PackageRenderWorkerContract.ValidationCapabilitiesKind:
                     case ProjectRuntimeInputWorkerContract.CapabilitiesKind:
-                    case ProjectImagePreviewWorkerContract.CapabilitiesKind:
-                    case ProjectImageValidationWorkerContract.CapabilitiesKind:
                     case ProjectRuntimeInputWorkerContract.OpenKind:
                     case RuntimeValidationWorkerContract.CapabilitiesKind:
-                    case ProjectImagePreviewWorkerContract.OpenKind:
                     case PackageRenderWorkerContract.OpenKind:
                     case PackageRenderWorkerContract.RenderKind:
                     case PackageRenderWorkerContract.CloseKind:
@@ -104,10 +99,7 @@ internal static class Program
                     case PackageResourceWorkerContract.CapabilitiesKind:
                     case PackageResourceWorkerContract.ValidateKind:
                     case WorkerValidationContract.RequestKind:
-                    case ProjectImageValidationWorkerContract.RequestKind:
                     case RuntimeValidationWorkerContract.RequestKind:
-                    case ProjectImageExportWorkerContract.RequestKind:
-                    case ProjectImageExportWorkerContract.CapabilitiesKind:
                     case WorkerExportContract.RequestKind:
                     case WorkerExportContract.CapabilitiesKind:
                     case WorkerAnalysisContract.RequestKind:
@@ -136,25 +128,21 @@ internal static class Program
                         using (PerformanceTelemetry.BeginRequest(message.RequestId))
                         operation = message.Kind switch
                         {
-                            "render" => RunRenderAsync(message, operationCancellation.Token),
-                            "render-frame-v1" => RunRenderFrameAsync(message, operationCancellation.Token),
                             GpuWorkerWarmupContract.DeviceStateKind => Task.Run(() => RunGpuDeviceStateAsync(message, operationCancellation.Token)),
                             GpuWorkerWarmupContract.RequestKind => Task.Run(() => RunGpuWarmupAsync(message, operationCancellation.Token)),
                             WorkerRenderBackendContract.RequestKind => Task.Run(() => RunRenderBackendVerificationAsync(message, operationCancellation.Token)),
                             WorkerSceneMeasurementContract.CapabilitiesKind or WorkerSceneMeasurementContract.RequestKind => Task.Run(() => RunSceneMeasurementAsync(message, operationCancellation.Token)),
                             StaticRenderWorkerContract.CapabilitiesKind => RunStaticCapabilitiesAsync(message, operationCancellation.Token),
                             WorkerValidationContract.RequestKind => RunValidationAsync(message, operationCancellation.Token),
-                            ProjectImageValidationWorkerContract.RequestKind => RunImageValidationAsync(message, operationCancellation.Token),
                             RuntimeValidationWorkerContract.RequestKind => RunRuntimeValidationAsync(message, operationCancellation.Token),
-                            ProjectImageExportWorkerContract.RequestKind or ProjectImageExportWorkerContract.CapabilitiesKind => RunImageExportAsync(message, operationCancellation.Token),
                             WorkerExportContract.RequestKind or WorkerExportContract.CapabilitiesKind => RunExportAsync(message, operationCancellation.Token),
                             WorkerAnalysisContract.RequestKind or WorkerAnalysisContract.CapabilitiesKind => RunAnalysisAsync(message, operationCancellation.Token),
                             WorkerAudioPreparationContract.RequestKind or WorkerAudioPreparationContract.CapabilitiesKind => RunPreparationAsync(message, operationCancellation.Token),
                             FontWorkerContract.ListKind or FontWorkerContract.InspectKind => RunFontsAsync(message, operationCancellation.Token),
                             PackageRenderWorkerContract.CapabilitiesKind or PackageRenderWorkerContract.ValidationCapabilitiesKind
-                                or ProjectRuntimeInputWorkerContract.CapabilitiesKind or ProjectImagePreviewWorkerContract.CapabilitiesKind or ProjectImageValidationWorkerContract.CapabilitiesKind
+                                or ProjectRuntimeInputWorkerContract.CapabilitiesKind
                                 or RuntimeValidationWorkerContract.CapabilitiesKind
-                                or ProjectRuntimeInputWorkerContract.OpenKind or ProjectImagePreviewWorkerContract.OpenKind or PackageRenderWorkerContract.OpenKind
+                                or ProjectRuntimeInputWorkerContract.OpenKind or PackageRenderWorkerContract.OpenKind
                                 or PackageRenderWorkerContract.RenderKind or PackageRenderWorkerContract.CloseKind
                                 or GpuStreamWorkerContract.OpenKind or GpuStreamWorkerContract.CloseKind or GpuStreamWorkerContract.ReadKind
                                 => Task.Run(() => RunPackageAsync(message, operationCancellation.Token)),
@@ -365,38 +353,6 @@ internal static class Program
             }
         }
 
-        async Task RunImageValidationAsync(WorkerMessage request, CancellationToken cancellationToken)
-        {
-            try
-            {
-                if (!validationGate.Wait(0, cancellationToken)) throw new WorkerProtocolException("Worker 已在执行正式验证任务。", "WorkerBusy");
-                WorkerMessage result;
-                try { result = await StaticValidationTask.ExecuteImageAsync(request, ReplyAsync, cancellationToken, renderBackend).ConfigureAwait(false); }
-                finally { validationGate.Release(); }
-                await ReplyAsync(result).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                await ReplyAsync(new(ProjectImageValidationWorkerContract.ResultKind, request.RequestId, request.InputSha256,
-                    cancelled: true, taskId: request.TaskId, sourceSha256: request.SourceSha256,
-                    validationFramesPerOutput: request.ValidationFramesPerOutput)).ConfigureAwait(false);
-            }
-            catch (Exception failure)
-            {
-                string code = failure switch
-                {
-                    RuntimeValidationBudgetExceededException => "WorkerValidationReportBudgetExceeded",
-                    WorkerProtocolException rejected => rejected.Code,
-                    SnapshotContractException rejected => rejected.Code,
-                    RenderSessionFailureException rejected => rejected.Code,
-                    _ => "WorkerRuntimeFailed",
-                };
-                await ReplyAsync(new("error", request.RequestId, request.InputSha256, error: "图片背景正式验证失败。",
-                    errorCode: code, taskId: request.TaskId, sourceSha256: request.SourceSha256,
-                    validationFramesPerOutput: request.ValidationFramesPerOutput)).ConfigureAwait(false);
-            }
-        }
-
         async Task RunRuntimeValidationAsync(WorkerMessage request, CancellationToken cancellationToken)
         {
             try
@@ -473,50 +429,6 @@ internal static class Program
             }
         }
 
-        async Task RunImageExportAsync(WorkerMessage request, CancellationToken cancellationToken)
-        {
-            try
-            {
-                if (!exportGate.Wait(0, cancellationToken)) throw new WorkerProtocolException("Worker 已执行导出任务。", "WorkerBusy");
-                WorkerMessage result;
-                try { result = await StaticExportTask.ExecuteImageAsync(request, ownsGroup && fileSizeLimit != 0,
-                    ReplyAsync, cancellationToken, renderBackend, enforcedMediaLimitBytes: fileSizeLimit > 0 ? fileSizeLimit : null).ConfigureAwait(false); }
-                finally { exportGate.Release(); }
-                await ReplyAsync(result).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                await ReplyAsync(new(ProjectImageExportWorkerContract.ResultKind, request.RequestId, request.InputSha256, cancelled: true,
-                    taskId: request.TaskId, sourceSha256: request.SourceSha256, exportFormat: request.ExportFormat,
-                    exportIncludeAudio: request.ExportIncludeAudio)).ConfigureAwait(false);
-            }
-            catch (Exception failure)
-            {
-                string code = failure switch
-                { RenderSessionFailureException value => value.Code, WorkerProtocolException value => value.Code,
-                    SnapshotContractException value => value.Code, _ => "WorkerImageExportFailed" };
-                WorkerDiagnosticsSnapshotDto? diagnostics = null; string? diagnosticsFailure = null;
-                BackendSourceMaterialFailureDto? sourceMaterialFailure = null;
-                if (failure is RenderSessionFailureException { DiagnosticSnapshot: { } actual })
-                {
-                    try { diagnostics = StaticExportTask.EncodeDiagnostics(actual); }
-                    catch (WorkerProtocolException budget) when (budget.Code == "WorkerExportReportBudgetExceeded")
-                    { diagnosticsFailure = budget.Code; }
-                }
-                if (diagnosticsFailure is null && failure is RenderSessionFailureException { SourceMaterialFailure: { } source })
-                {
-                    try { sourceMaterialFailure = BackendSourceMaterialFailures.Encode(source); }
-                    catch (WorkerProtocolException budget) when (budget.Code == "WorkerExportReportBudgetExceeded")
-                    { diagnostics = null; diagnosticsFailure = budget.Code; }
-                }
-                await ReplyAsync(new("error", request.RequestId, request.InputSha256, error: "图片背景导出未能完成。", errorCode: code,
-                    exportDiagnostics: diagnostics, exportDiagnosticsFailureCode: diagnosticsFailure,
-                    exportSourceMaterialFailure: sourceMaterialFailure,
-                    taskId: request.TaskId, sourceSha256: request.SourceSha256, exportFormat: request.ExportFormat,
-                    exportIncludeAudio: request.ExportIncludeAudio)).ConfigureAwait(false);
-            }
-        }
-
         async Task RunAnalysisAsync(WorkerMessage request, CancellationToken cancellationToken)
         {
             try
@@ -571,16 +483,12 @@ internal static class Program
             try
             {
                 if (request.Kind is PackageRenderWorkerContract.CapabilitiesKind or PackageRenderWorkerContract.ValidationCapabilitiesKind
-                    or ProjectRuntimeInputWorkerContract.CapabilitiesKind or ProjectImagePreviewWorkerContract.CapabilitiesKind or ProjectImageValidationWorkerContract.CapabilitiesKind
+                    or ProjectRuntimeInputWorkerContract.CapabilitiesKind
                     or RuntimeValidationWorkerContract.CapabilitiesKind)
                 {
                     if (request.Payload.Length != 0)
-                        throw new WorkerProtocolException("能力请求不能携带业务输入。", request.Kind switch
-                        {
-                            RuntimeValidationWorkerContract.CapabilitiesKind => "WorkerRuntimeValidationUnavailable",
-                            ProjectImageValidationWorkerContract.CapabilitiesKind => "WorkerImageValidationCapabilitiesInvalid",
-                            _ => "WorkerImagePreviewCapabilitiesInvalid",
-                        });
+                        throw new WorkerProtocolException("能力请求不能携带业务输入。", request.Kind == RuntimeValidationWorkerContract.CapabilitiesKind
+                            ? "WorkerRuntimeValidationUnavailable" : "WorkerPackageUnavailable");
                     cancellationToken.ThrowIfCancellationRequested();
                     string referenceDirectory = Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0");
                     ScriptReferenceIdentity references;
@@ -598,32 +506,11 @@ internal static class Program
                     byte[] capabilityPayload = request.Kind == RuntimeValidationWorkerContract.CapabilitiesKind
                         ? RuntimeValidationWorkerContract.EncodeCapabilities(new(RuntimeValidationWorkerContract.Profile,
                             RuntimeValidationWorkerContract.MaximumInputBytes, WorkerValidationContract.MaximumReportBytes, capabilities))
-                        : request.Kind == ProjectImagePreviewWorkerContract.CapabilitiesKind
-                        ? ProjectImagePreviewWorkerContract.EncodeCapabilities(new(StaticProjectSnapshotCodec.EngineIdentity,
-                            BackendSnapshotProfiles.ProjectImagePreview,
-                            [StaticProjectSnapshotCodec.Profile, StaticProjectSnapshotCodec.AnalysisProfile, PackageProjectSnapshotCodec.Profile],
-                            ProjectImagePreviewWorkerContract.ImageDecoderProfile, MemoryImageBackgroundFrameSourceResolver.MaximumEncodedBytes,
-                            MemoryImageBackgroundFrameSourceResolver.MaximumDimension, MemoryImageBackgroundFrameSourceResolver.MaximumDecodedBytes,
-                            ProjectImagePreviewSnapshotCodec.MaximumBytes, StaticProjectSnapshotCodec.MaximumBytes,
-                            StaticProjectSnapshotCodec.MaximumSourceValues, WorkerPackageDiagnosticsContract.Version, capabilities))
-                        : request.Kind == ProjectImageValidationWorkerContract.CapabilitiesKind
-                        ? ProjectImageValidationWorkerContract.EncodeCapabilities(new(StaticProjectSnapshotCodec.EngineIdentity,
-                            ProjectImageValidationWorkerContract.ValidationProfile,
-                            [StaticProjectSnapshotCodec.Profile, StaticProjectSnapshotCodec.AnalysisProfile, PackageProjectSnapshotCodec.Profile],
-                            ProjectImageValidationWorkerContract.ImageDecoderProfile, ProjectImageValidationWorkerContract.MaximumInputBytes,
-                            MemoryImageBackgroundFrameSourceResolver.MaximumEncodedBytes, MemoryImageBackgroundFrameSourceResolver.MaximumDimension,
-                            MemoryImageBackgroundFrameSourceResolver.MaximumDecodedBytes, ProjectImageValidationWorkerContract.MaximumBaseSnapshotBytes,
-                            StaticProjectSnapshotCodec.MaximumSourceValues, WorkerValidationContract.MaximumReportBytes,
-                            WorkerPackageDiagnosticsContract.Version, capabilities))
                         : PackageRenderWorkerContract.EncodeCapabilities(capabilities);
                     string resultKind = request.Kind == ProjectRuntimeInputWorkerContract.CapabilitiesKind
                         ? ProjectRuntimeInputWorkerContract.CapabilitiesResultKind
                         : request.Kind == RuntimeValidationWorkerContract.CapabilitiesKind
                         ? RuntimeValidationWorkerContract.CapabilitiesResultKind
-                        : request.Kind == ProjectImagePreviewWorkerContract.CapabilitiesKind
-                        ? ProjectImagePreviewWorkerContract.CapabilitiesResultKind
-                        : request.Kind == ProjectImageValidationWorkerContract.CapabilitiesKind
-                        ? ProjectImageValidationWorkerContract.CapabilitiesResultKind
                         : request.Kind == PackageRenderWorkerContract.ValidationCapabilitiesKind
                         ? PackageRenderWorkerContract.ValidationCapabilitiesResultKind
                         : PackageRenderWorkerContract.CapabilitiesResultKind;
@@ -638,8 +525,6 @@ internal static class Program
                 string kind = request.Kind switch
                 {
                     ProjectRuntimeInputWorkerContract.CapabilitiesKind => ProjectRuntimeInputWorkerContract.CapabilitiesResultKind,
-                    ProjectImagePreviewWorkerContract.CapabilitiesKind => ProjectImagePreviewWorkerContract.CapabilitiesResultKind,
-                    ProjectImageValidationWorkerContract.CapabilitiesKind => ProjectImageValidationWorkerContract.CapabilitiesResultKind,
                     RuntimeValidationWorkerContract.CapabilitiesKind => RuntimeValidationWorkerContract.CapabilitiesResultKind,
                     PackageRenderWorkerContract.CapabilitiesKind => PackageRenderWorkerContract.CapabilitiesResultKind,
                     PackageRenderWorkerContract.ValidationCapabilitiesKind => PackageRenderWorkerContract.ValidationCapabilitiesResultKind,
@@ -705,9 +590,9 @@ internal static class Program
             await renderSessionGate.WaitAsync(token).ConfigureAwait(false);
             try
             {
-                bool package = request.Kind is ProjectRuntimeInputWorkerContract.OpenKind or ProjectImagePreviewWorkerContract.OpenKind or PackageRenderWorkerContract.OpenKind or PackageRenderWorkerContract.RenderKind or PackageRenderWorkerContract.CloseKind
+                bool package = request.Kind is ProjectRuntimeInputWorkerContract.OpenKind or PackageRenderWorkerContract.OpenKind or PackageRenderWorkerContract.RenderKind or PackageRenderWorkerContract.CloseKind
                     or GpuStreamWorkerContract.OpenKind or GpuStreamWorkerContract.CloseKind or GpuStreamWorkerContract.ReadKind;
-                bool opening = request.Kind is ProjectRuntimeInputWorkerContract.OpenKind or ProjectImagePreviewWorkerContract.OpenKind or PackageRenderWorkerContract.OpenKind or StaticRenderWorkerContract.OpenKind;
+                bool opening = request.Kind is ProjectRuntimeInputWorkerContract.OpenKind or PackageRenderWorkerContract.OpenKind or StaticRenderWorkerContract.OpenKind;
                 bool closing = request.Kind is PackageRenderWorkerContract.CloseKind or StaticRenderWorkerContract.CloseKind;
                 string owner = package ? "package" : "static";
                 if (opening && renderSessionOwner is not null)
@@ -722,75 +607,6 @@ internal static class Program
                 return result;
             }
             finally { renderSessionGate.Release(); }
-        }
-
-        async Task RunRenderAsync(WorkerMessage request, CancellationToken cancellationToken)
-        {
-            try
-            {
-                if (request.InputSha256 is null)
-                    throw new WorkerProtocolException("render 缺少 inputSha256。");
-                // 旧 opaque seam 保留延迟取消探针；真实像素使用独立 render-frame-v1 合同。
-                if (request.DelayMilliseconds > 0)
-                    await Task.Delay(request.DelayMilliseconds, cancellationToken).ConfigureAwait(false);
-                await ReplyAsync(new("result", request.RequestId, request.InputSha256, request.Payload)).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                await ReplyAsync(new("result", request.RequestId, request.InputSha256, cancelled: true)).ConfigureAwait(false);
-            }
-            catch (Exception error)
-            {
-                await ReplyAsync(new("error", request.RequestId, error: error.Message)).ConfigureAwait(false);
-            }
-        }
-
-        async Task RunRenderFrameAsync(WorkerMessage request, CancellationToken cancellationToken)
-        {
-            try
-            {
-                if (request.InputSha256 is null)
-                    throw new WorkerProtocolException("render-frame-v1 缺少 inputSha256。");
-                RenderFrameV1WorkerRequest input = RenderFrameV1WorkerRequest.Decode(request.Payload);
-                string actualInputHash = RenderFrameV1WorkerRequest.ComputeInputSha256(request.Payload);
-                if (!string.Equals(actualInputHash, request.InputSha256, StringComparison.OrdinalIgnoreCase))
-                    throw new WorkerProtocolException("render-frame-v1 输入 SHA-256 不匹配。");
-
-                ProjectSnapshot snapshot = ProjectSnapshot.FromProject(Project.Create(
-                    "worker-render-frame-v1",
-                    Composition.Create(input.Width, input.Height, FrameRate.Fps30,
-                        new RgbaColor(input.BackgroundR, input.BackgroundG, input.BackgroundB, input.BackgroundA), 1_000_000),
-                    LyricsDocument.Create([])));
-                var factory = new ProjectRenderSessionFactory(WorkerScriptInputs.Empty,
-                    new FfmpegVideoFrameProvider(), ReplayReason.Initial, renderBackend: renderBackend);
-                await using IRenderFrameSession session = await factory.CreateAsync(snapshot, cancellationToken).ConfigureAwait(false);
-                using RenderFrame frame = await session.RenderAsync(
-                    RenderRequest.At(snapshot, input.TimeUs) with
-                    {
-                        Target = new RenderTarget { PixelWidth = input.Width, PixelHeight = input.Height },
-                        TransparentBackground = input.TransparentBackground,
-                        CancellationToken = cancellationToken,
-                    }, cancellationToken).ConfigureAwait(false);
-                cancellationToken.ThrowIfCancellationRequested();
-                if (frame.Format != PixelFormat.Bgra8888Premultiplied || frame.Width != input.Width
-                    || frame.Height != input.Height || frame.Stride != input.Width * 4
-                    || frame.PixelMemory.Length != input.Width * input.Height * 4 || frame.TimeUs != input.TimeUs)
-                    throw new WorkerProtocolException("Runtime.Hosting 返回帧不符合 render-frame-v1 输出合同。");
-                byte[] pixels = frame.PixelMemory.ToArray();
-                string outputHash = WorkerProtocol.ComputeSha256(pixels);
-                await ReplyAsync(new("result", request.RequestId, request.InputSha256, pixels,
-                    outputSha256: outputHash, frameWidth: frame.Width, frameHeight: frame.Height,
-                    frameStride: frame.Stride, frameTimeUs: frame.TimeUs,
-                    frameFormat: RenderFrameV1WorkerResult.RequiredPixelFormat)).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                await ReplyAsync(new("result", request.RequestId, request.InputSha256, cancelled: true)).ConfigureAwait(false);
-            }
-            catch (Exception error)
-            {
-                await ReplyAsync(new("error", request.RequestId, error: error.Message)).ConfigureAwait(false);
-            }
         }
 
         async Task ReplyAsync(WorkerMessage response)

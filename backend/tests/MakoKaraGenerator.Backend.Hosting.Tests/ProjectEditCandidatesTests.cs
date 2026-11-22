@@ -23,18 +23,6 @@ public sealed class ProjectEditCandidatesTests
         Project source = f.Session.Workspace.Project;
         ProjectCommandDto[] edits = [new ClearBackgroundCommandDto(), new SetBackgroundColorCommandDto(12, 34, 56, 255),
             new RenameProjectCommandDto("candidate background")];
-        var candidate = await f.Registry.CaptureEditPreviewInputAsync("client", f.Session.ProjectSessionId,
-            new("1", edits, new(64, 36)), new NeverFactory());
-        Assert.Null(candidate.Error); Assert.NotNull(candidate.Input);
-        using (candidate.RuntimeInput!)
-        {
-            Assert.Equal(BackgroundSource.Color, candidate.Input.Snapshot.Background);
-            Assert.Equal(new RgbaColor(12, 34, 56, 255), candidate.Input.Snapshot.Composition.BackgroundColor);
-            Assert.Equal("candidate background", candidate.Input.Snapshot.Name);
-        }
-        Assert.Same(source, f.Session.Workspace.Project); Assert.Equal(1, f.Session.ProjectRevision);
-        Assert.Equal(1, f.Session.Workspace.History.UndoCount); await AssertImageReadable();
-
         var applied = Accept(await f.Command("1", new ApplyProjectEditsCommandDto(edits)));
         Assert.Equal("2", applied.ProjectRevision); Assert.Equal(3, applied.EditResults!.Length);
         Assert.All(applied.EditResults, result => Assert.True(result.Changed));
@@ -63,15 +51,6 @@ public sealed class ProjectEditCandidatesTests
         using var f = await Fixture.Create();
         Project source = f.Session.Workspace.Project;
         ProjectCommandDto[] edits = [new SetBackgroundFitCommandDto("cover"), new SetBackgroundPlaybackCommandDto("freezeLastFrame")];
-        var candidate = await f.Registry.CaptureEditPreviewInputAsync("client", f.Session.ProjectSessionId,
-            new("0", edits, new(64, 36)), new NeverFactory());
-        Assert.Null(candidate.Error); Assert.NotNull(candidate.Input);
-        using (candidate.RuntimeInput!)
-        {
-            Assert.Equal(BackgroundFit.Cover, candidate.Input.Snapshot.Background.Fit);
-            Assert.Equal(BackgroundPlaybackMode.FreezeLastFrame, candidate.Input.Snapshot.Background.Playback);
-        }
-        Assert.Same(source, f.Session.Workspace.Project); Assert.Equal(0, f.Session.Workspace.History.UndoCount);
         var applied = Accept(await f.Command("0", new ApplyProjectEditsCommandDto(edits)));
         Assert.Equal("1", applied.ProjectRevision); Assert.All(applied.EditResults!, result => Assert.True(result.Changed));
         Assert.Equal(BackgroundFit.Cover, f.Session.Workspace.Project.Background.Fit);
@@ -97,31 +76,12 @@ public sealed class ProjectEditCandidatesTests
         f.Registry.ConfigureSceneMeasurements(ProjectRuntimePreviewInputTests.Options());
         var cue = source.LyricPresentation.FindProgram("primary")!.LeadIns.Single(cue => cue.Id == "cue-first");
         var attachment = new SetLeadInAttachmentCommandDto("primary", cue.Id, cue.IndicatorContainerId, "FixedParent");
-        var candidate = await f.Registry.CaptureEditPreviewInputAsync("client", f.Session.ProjectSessionId,
-            new("0", [attachment], new(64, 36)), new NeverFactory());
-        Assert.Null(candidate.Error); Assert.NotNull(candidate.Input);
-        Assert.Equal(SceneAttachmentMode.FixedParent, candidate.Input.Snapshot.LyricPresentation.FindNode(cue.IndicatorContainerId)!.Attachment!.Mode);
-        Assert.Same(source, f.Session.Workspace.Project);
-        using (var lease = candidate.RuntimeInput!)
-        {
-            var preparation = await lease.PrepareAsync(); Assert.Null(preparation.Error);
-            using var prepared = preparation.Response!;
-            string fixedPath = prepared.Grant!.FilePath;
-            Assert.True(File.Exists(fixedPath)); prepared.Dispose(); Assert.False(File.Exists(fixedPath));
-        }
-        Assert.True(f.Session.DrainPinnedInputReadsAsync().IsCompleted);
         var applied = Accept(await f.Command("0", new ApplyProjectEditsCommandDto([attachment])));
         Assert.Equal("1", applied.ProjectRevision); Assert.True(applied.Changed);
         Assert.Equal(SceneAttachmentMode.FixedParent, f.Session.Workspace.Project.LyricPresentation.FindNode(cue.IndicatorContainerId)!.Attachment!.Mode);
         Assert.Equal(1, f.Session.Workspace.History.UndoCount);
         Assert.True(f.Session.DrainPinnedInputReadsAsync().IsCompleted);
         Accept(await f.Command("1", new("history.undo"))); Assert.Same(source, f.Session.Workspace.Project);
-    }
-
-    private sealed class NeverFactory : IRenderFrameSessionFactory
-    {
-        public ValueTask<IRenderFrameSession> CreateAsync(ProjectSnapshot snapshot, CancellationToken cancellationToken = default)
-            => throw new InvalidOperationException("候选捕获不应打开预览会话。");
     }
 
     [Fact]

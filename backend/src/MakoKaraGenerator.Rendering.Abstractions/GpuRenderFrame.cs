@@ -3,19 +3,6 @@ using Microsoft.Win32.SafeHandles;
 
 namespace MakoKaraGenerator.Rendering;
 
-/// <summary>可选的本机 GPU 帧会话；不改变既有 CPU 像素与导出入口。</summary>
-public interface IGpuRenderFrameSession : IRenderFrameSession
-{
-    /// <summary>设备是否显式启用本机 GPU 帧输出；不表示任意尺寸或池分配已成功。</summary>
-    bool SupportsGpuFrames { get; }
-    /// <summary>调用方先预留预算，再实际建立目标池；预算包含尚未排空的旧代际，上限 192 MiB。</summary>
-    ValueTask<GpuFramePoolInfo> InitializeGpuOutputAsync(RenderTarget target, ulong maximumAllocationBytes, CancellationToken cancellationToken = default);
-    /// <summary>按同一准备语义绘制，返回尚未向外部消费者导出的 Ready 租约。</summary>
-    ValueTask<GpuRenderFrame> RenderGpuAsync(RenderRequest request, CancellationToken cancellationToken = default);
-    /// <summary>仅显式基准启动配置允许的 GPU 合成图案；sequence 是调用尝试标记，图案身份以返回租约 FrameSequence 为准。</summary>
-    ValueTask<GpuRenderFrame> RenderSyntheticGpuAsync(RenderTarget target, long timeUs, ulong sequence, CancellationToken cancellationToken = default);
-}
-
 /// <summary>生产者、池与槽位代际共同限定的精确释放标识。</summary>
 public sealed record GpuFrameToken(ulong ProducerEpoch, ulong PoolGeneration, ulong FrameSequence, ulong SlotEpoch, uint SlotId);
 

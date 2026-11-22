@@ -134,7 +134,7 @@ public sealed class BackendWaveformTests
         Assert.Equal("succeeded", opened.State);
         ProjectWaveformResponse unavailable = (await f.Registry.ReadWaveformAsync("a", opened.ProjectSessionId!)).Response!;
         Assert.Equal("cacheBudgetExceeded", unavailable.Reason); Assert.Equal(2, f.Decodes);
-        ProjectWorkspace workspace = (ProjectWorkspace)typeof(ProjectSession).GetProperty("Workspace", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(first)!;
+        ProjectWorkspace workspace = first.Workspace;
         Project old = workspace.Project;
         workspace.Replace(old with { AudioMedia = null });
         Assert.True((await f.Metadata(first)).Available);

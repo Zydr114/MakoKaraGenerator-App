@@ -90,7 +90,7 @@ public sealed class V2SampleMaterialPixelTests
         var compiled = await CompiledProjectEffects.CompileAsync(snapshot, new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")),
             new PackageImageValidator(), new PackageShaderValidator(), new PackageImageGraphValidator(), new PackageMaterialValidator());
         Assert.True(compiled.Succeeded); Assert.Empty(compiled.Effects); Assert.NotNull(compiled.SourceMaterials);
-        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), Fx.ReplayReason.Export).CreateAsync(snapshot);
+        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
         var target = RenderTarget.FromComposition(snapshot.Composition);
         var prepared = await session.PrepareAsync(time, transparent ? Fx.OutputMode.Transparent : Fx.OutputMode.Opaque, target);
         Assert.NotEmpty(prepared.Materials);

@@ -7,7 +7,7 @@ namespace MakoKaraGenerator.Backend.Hosting;
 public sealed partial class WorkerProcessProxy
 {
     internal async Task<WorkerMessage> InvokeExportTaskAsync(WorkerMessage request, int totalFrames, TimeSpan timeout,
-        IProgress<BackendJobProgressDto>? progress, CancellationToken cancellationToken, bool imageExport = false)
+        IProgress<BackendJobProgressDto>? progress, CancellationToken cancellationToken)
     {
         if (timeout != Timeout.InfiniteTimeSpan && timeout <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(timeout));
         WorkerProtocol.Validate(request);
@@ -16,48 +16,34 @@ public sealed partial class WorkerProcessProxy
         Process? packageVerifiedProcess = null;
         try
         {
-            using var prepared = request.Kind is WorkerExportContract.RequestKind or ProjectImageExportWorkerContract.RequestKind
+            using var prepared = request.Kind == WorkerExportContract.RequestKind
                 ? await PrepareExportScriptInputAsync().ConfigureAwait(false) : null;
             var result = await InvokeAsync().ConfigureAwait(false);
             prepared?.Complete(); return result;
         }
         catch (OperationCanceledException failure) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested)
-        { throw new RenderSessionFailureException("WorkerExportTimedOut", imageExport ? "图片背景导出超过任务期限。" : "静态导出超过任务期限。", innerException: failure); }
+        { throw new RenderSessionFailureException("WorkerExportTimedOut", "静态导出超过任务期限。", innerException: failure); }
 
         async Task<PreparedScriptCall> PrepareExportScriptInputAsync()
         {
+            var input = WorkerExportContract.DecodeInput(request.Payload, false);
+            PreparedScriptCall inputLease = await PrepareScriptCallAsync(input.SnapshotBytes, deadline.Token).ConfigureAwait(false);
             byte[] payload;
-            PreparedScriptCall inputLease;
-            if (imageExport)
-            {
-                var input = ProjectImageExportWorkerContract.DecodeInput(request.Payload);
-                inputLease = await PrepareScriptCallAsync(input.SnapshotBytes, deadline.Token, image: true).ConfigureAwait(false);
-                try { payload = ProjectImageExportWorkerContract.EncodeInput(input.TaskId, input.Metadata, inputLease.Envelope); }
-                catch { inputLease.Dispose(); throw; }
-            }
-            else
-            {
-                var input = WorkerExportContract.DecodeInput(request.Payload, false);
-                inputLease = await PrepareScriptCallAsync(input.SnapshotBytes, deadline.Token).ConfigureAwait(false);
-                try { payload = WorkerExportContract.EncodeInput(input.TaskId, input.Metadata, inputLease.Envelope); }
-                catch { inputLease.Dispose(); throw; }
-            }
+            try { payload = WorkerExportContract.EncodeInput(input.TaskId, input.Metadata, inputLease.Envelope); }
+            catch { inputLease.Dispose(); throw; }
             try
             {
                 if (inputLease.HasPackages)
                 {
-                    PackageRenderWorkerCapabilities capabilities = imageExport
-                        ? (await GetImagePreviewCapabilitiesAsync(TimeSpan.FromSeconds(20), deadline.Token).ConfigureAwait(false)).PackageCapabilities
-                        : await GetRuntimeInputCapabilitiesAsync(TimeSpan.FromSeconds(20), deadline.Token).ConfigureAwait(false);
+                    PackageRenderWorkerCapabilities capabilities = await GetRuntimeInputCapabilitiesAsync(TimeSpan.FromSeconds(20), deadline.Token).ConfigureAwait(false);
                     inputLease.RequirePackageProfiles(capabilities);
-                    packageVerifiedProcess = imageExport ? _imagePreviewVerifiedProcess : _runtimeInputVerifiedProcess;
+                    packageVerifiedProcess = _runtimeInputVerifiedProcess;
                     if (packageVerifiedProcess is null)
                         throw new WorkerProtocolException("导出包能力证明对应的实际 Worker 已释放。", "WorkerPackageProfileMismatch");
                 }
             }
             catch { inputLease.Dispose(); throw; }
-            string sourceHash = imageExport ? ProjectImageExportWorkerContract.DecodeInput(payload).SourceSha256
-                : WorkerExportContract.DecodeInput(payload, false).SourceSha256;
+            string sourceHash = WorkerExportContract.DecodeInput(payload, false).SourceSha256;
             request = request with { Payload = payload, InputSha256 = WorkerProtocol.ComputeSha256(payload), SourceSha256 = sourceHash };
             return inputLease;
         }
@@ -68,7 +54,6 @@ public sealed partial class WorkerProcessProxy
             using CancellationTokenSource call = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token);
             lock (_lifecycleGate) { _activeCallCancellation = call; }
             Task<WorkerMessage>? read = null; bool matchedCancellation = false;
-            Process? invocationProcess = null;
             Stream? invocationOutput = null;
             long sequence = 0; int completed = 0, stage = -1;
             try
@@ -79,10 +64,9 @@ public sealed partial class WorkerProcessProxy
                 {
                     if (packageVerifiedProcess is not null && !ReferenceEquals(_process, packageVerifiedProcess))
                         throw new WorkerProtocolException("导出实际 Worker 代次与包能力证明不一致。", "WorkerPackageProfileMismatch");
-                    if (_process is null || _process.HasExited || imageExport && request.Kind == ProjectImageExportWorkerContract.RequestKind
-                        && !ReferenceEquals(_process, _imageExportVerifiedProcess))
-                        throw new WorkerProtocolException("图片导出实际 Worker 代次没有通过独立能力协商。", "WorkerImageExportUnavailable");
-                    invocationProcess = _process; invocationOutput = _output;
+                    if (_process is null || _process.HasExited)
+                        throw new WorkerProtocolException("导出实际 Worker 已退出。", "WorkerExportUnavailable");
+                    invocationOutput = _output;
                     await WriteAsync(request, call.Token).ConfigureAwait(false);
                 }
                 finally { _lifecycleGate.Release(); }
@@ -98,21 +82,9 @@ public sealed partial class WorkerProcessProxy
                 if (outcome.Cancelled && !call.IsCancellationRequested) throw new WorkerProtocolException("Worker 无请求返回取消终态。", "WorkerExportProtocolInvalid");
                 matchedCancellation = outcome.Cancelled;
                 if (cancellationWon || call.IsCancellationRequested || outcome.Cancelled) throw new OperationCanceledException(call.Token);
-                if (request.Kind == (imageExport ? ProjectImageExportWorkerContract.RequestKind : WorkerExportContract.RequestKind)
+                if (request.Kind == WorkerExportContract.RequestKind
                     && (stage != 6 || completed != totalFrames || outcome.ProgressSequence != sequence))
                     throw new WorkerProtocolException("导出终态缺少排水后的实际prepared进度。", "WorkerExportProtocolInvalid");
-                if (imageExport && request.Kind == ProjectImageExportWorkerContract.CapabilitiesKind)
-                {
-                    ProjectImageExportWorkerContract.ValidateCapabilities(ProjectImageExportWorkerContract.DecodeCapabilities(outcome.Payload));
-                    await _lifecycleGate.WaitAsync(call.Token).ConfigureAwait(false);
-                    try
-                    {
-                        if (!ReferenceEquals(invocationProcess, _process) || invocationProcess.HasExited)
-                            throw new WorkerProtocolException("图片导出实际 Worker 代次已改变。", "WorkerImageExportUnavailable");
-                        _imageExportVerifiedProcess = invocationProcess;
-                    }
-                    finally { _lifecycleGate.Release(); }
-                }
                 return outcome;
             }
             catch (OperationCanceledException) when (matchedCancellation) { throw; }
@@ -140,12 +112,12 @@ public sealed partial class WorkerProcessProxy
                 {
                     WorkerMessage message = await ReadRequiredFromStreamAsync(invocationOutput!, CancellationToken.None).ConfigureAwait(false);
                     WorkerExportContract.ValidateCorrelation(request, message);
-                    if (message.Kind == (imageExport ? ProjectImageExportWorkerContract.ProgressKind : WorkerExportContract.ProgressKind))
+                    if (message.Kind == WorkerExportContract.ProgressKind)
                     {
                         BackendJobProgressDto? value = message.ExportProgress;
                         int nextStage = value?.Stage switch { "validating" => 0, "probing" => 1, "rendering" => 2,
                             "muxing" => 3, "verifying" => 4, "preparing-result" => 5, "prepared" => 6, _ => -1 };
-                        if (request.Kind != (imageExport ? ProjectImageExportWorkerContract.RequestKind : WorkerExportContract.RequestKind)
+                        if (request.Kind != WorkerExportContract.RequestKind
                             || value is null || message.ProgressSequence is null
                             || message.ProgressSequence <= sequence || message.ProgressSequence > (long)totalFrames + 16 || nextStage < stage || nextStage < 0
                             || value.CompletedFrames < completed || value.CompletedFrames > totalFrames || value.CompletedFrames < 0
@@ -169,10 +141,10 @@ public sealed partial class WorkerProcessProxy
                         if (message.ExportDiagnosticsFailureCode is { } secondary) failure.Data["WorkerExportDiagnosticsFailureCode"] = secondary;
                         throw failure;
                     }
-                    string expected = request.Kind == (imageExport ? ProjectImageExportWorkerContract.CapabilitiesKind : WorkerExportContract.CapabilitiesKind)
-                        ? (imageExport ? ProjectImageExportWorkerContract.CapabilitiesResultKind : WorkerExportContract.CapabilitiesResultKind)
-                        : (imageExport ? ProjectImageExportWorkerContract.ResultKind : WorkerExportContract.ResultKind);
-                    if (message.Kind != expected && !(message.Cancelled && message.Kind == (imageExport ? ProjectImageExportWorkerContract.ResultKind : WorkerExportContract.ResultKind))
+                    string expected = request.Kind == WorkerExportContract.CapabilitiesKind
+                        ? WorkerExportContract.CapabilitiesResultKind
+                        : WorkerExportContract.ResultKind;
+                    if (message.Kind != expected && !(message.Cancelled && message.Kind == WorkerExportContract.ResultKind)
                         || message.ExportProgress is not null || message.Diagnostics is not null || message.Error is not null || message.ErrorCode is not null
                         || message.Cancelled && (message.Payload.Length != 0 || message.OutputSha256 is not null)
                         || !message.Cancelled && (message.OutputSha256 is null || message.ProgressSequence is null || message.ProgressSequence < sequence))

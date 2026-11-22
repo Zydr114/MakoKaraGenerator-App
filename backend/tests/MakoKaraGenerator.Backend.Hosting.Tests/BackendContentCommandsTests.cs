@@ -350,7 +350,7 @@ public sealed class BackendContentCommandsTests
             LoadedWaveform waveform = new(new AudioStreamInfo(3000000, 8000, 1, "pcm", "wav"), builder.Build(8000));
             f.Registry = new("host", store, new((_, _) => Task.FromResult<LoadedWaveform?>(waveform)), new FixedClock());
             f.Session = (await f.Registry.CreateAsync("client", new("content", audio.AssetId, lyrics.AssetId))).Session!;
-            f.Workspace = (ProjectWorkspace)typeof(ProjectSession).GetProperty("Workspace", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(f.Session)!;
+            f.Workspace = f.Session.Workspace;
             LyricLine line = LyricLine.Create("one", "甲乙", TimeRange.Create(0, 2000000), TimingStatus.Imported,
                 [LyricToken.Create("first", "甲", TimeRange.Create(100000, 200000), TimingStatus.Imported),
                  LyricToken.Create("second", "乙", TimeRange.Create(500000, 700000), TimingStatus.Imported)]) with

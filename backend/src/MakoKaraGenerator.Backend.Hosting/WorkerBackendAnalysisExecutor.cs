@@ -26,12 +26,15 @@ public sealed class WorkerBackendAnalysisExecutor : IBackendAnalysisExecutor
     private WorkerAnalysisMetadata Metadata(BackendAudioAnalysisGrant? grant) => new(grant is null || grant.AudioProfile == BackendAudioInputProfiles.Pcm16Wave
             ? WorkerAnalysisContract.Profile : WorkerAnalysisContract.CompressedProfile,
         grant is null ? null : new(grant.Path, grant.Size, grant.Sha256, grant.AudioProfile), _ffmpeg, _ffprobe);
-    public async Task<BackendAnalysisCapabilities> ProbeAsync(CancellationToken cancellationToken = default)
+    public Task<BackendAnalysisCapabilities> ProbeAsync(CancellationToken cancellationToken = default)
+        => ProbeAsync(null, cancellationToken);
+
+    public async Task<BackendAnalysisCapabilities> ProbeAsync(WorkerProcessProxy? sharedProxy, CancellationToken cancellationToken = default)
     {
         byte[] payload = WorkerAnalysisContract.EncodeInput(Guid.NewGuid(), Metadata(null), capabilities: true);
         try
         {
-            WorkerMessage message = await InvokeAsync(payload, true, null, cancellationToken).ConfigureAwait(false);
+            WorkerMessage message = await InvokeAsync(payload, true, null, cancellationToken, sharedProxy).ConfigureAwait(false);
             var result = WorkerAnalysisContract.DecodeJson<WorkerAnalysisCapabilitiesDto>(message.Payload, 4096);
             if (!result.GuardAvailable || !result.ToolStartupVerified && string.IsNullOrWhiteSpace(result.FailureCode)
                 || result.ToolStartupVerified && result.FailureCode is not null)
@@ -58,13 +61,14 @@ public sealed class WorkerBackendAnalysisExecutor : IBackendAnalysisExecutor
         _ = AnalysisResultCodec.Decode(result.Payload, grant.Sha256);
         return result.Payload;
     }
-    private async Task<WorkerMessage> InvokeAsync(byte[] payload, bool capabilities, IProgress<BackendAnalysisProgressDto>? progress, CancellationToken token)
+    private async Task<WorkerMessage> InvokeAsync(byte[] payload, bool capabilities, IProgress<BackendAnalysisProgressDto>? progress, CancellationToken token,
+        WorkerProcessProxy? sharedProxy = null)
     {
         var input = WorkerAnalysisContract.DecodeInput(payload, capabilities);
         WorkerMessage request = new(capabilities ? WorkerAnalysisContract.CapabilitiesKind : WorkerAnalysisContract.RequestKind,
             Guid.NewGuid().ToString("N"), WorkerProtocol.ComputeSha256(payload), payload,
             taskId: input.TaskId.ToString("N"), sourceSha256: input.Metadata.Audio?.Sha256);
-        var proxy = new WorkerProcessProxy(_options); Exception? primary = null;
+        var proxy = sharedProxy ?? new WorkerProcessProxy(_options); Exception? primary = null;
         try { return await proxy.InvokeAnalysisTaskAsync(request, _timeout, progress, token).ConfigureAwait(false); }
         catch (Exception failure)
         {
@@ -79,8 +83,11 @@ public sealed class WorkerBackendAnalysisExecutor : IBackendAnalysisExecutor
         }
         finally
         {
-            try { await proxy.DisposeAsync().ConfigureAwait(false); }
-            catch (Exception cleanup) when (primary is not null) { primary.Data["WorkerCleanupFailure"] = cleanup; }
+            if (sharedProxy is null)
+            {
+                try { await proxy.DisposeAsync().ConfigureAwait(false); }
+                catch (Exception cleanup) when (primary is not null) { primary.Data["WorkerCleanupFailure"] = cleanup; }
+            }
         }
     }
 }

@@ -191,7 +191,7 @@ public sealed class BackendLeadInEditingTests
         Accepted(await f.Command("2", new ApplyLeadInGenerationCommandDto("primary", settings, [line])));
         Assert.Equal(LeadInOrigin.Manual, f.Workspace.Project.LyricPresentation.FindProgram("primary")!.LeadIns[0].Origin);
         Accepted(await f.Command("3", new UpdateOrchestrationLeadInCommandDto("primary", "cue/manual", null, line, group, "3000000", false)));
-        typeof(ProjectSession).GetProperty("IsReadOnly", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(f.Session, true);
+        f.Session.IsReadOnly = true;
         preview = Accepted(await f.Command("4", new PreviewLeadInGenerationCommandDto("primary", settings)));
         Assert.Equal("Disabled", preview.LeadInGenerationResult!.Candidates[0].Reason); Assert.False(preview.Changed);
         Assert.Equal(BackendErrorCode.ReadOnlySession, (await f.Command("4", new SetLeadInGenerationCommandDto("primary", null))).Error!.Code);
@@ -336,7 +336,7 @@ public sealed class BackendLeadInEditingTests
         private readonly TemporaryDirectory _directory = new();
         internal ProjectSessionRegistry Registry = null!;
         internal ProjectSession Session = null!;
-        internal ProjectWorkspace Workspace => (ProjectWorkspace)typeof(ProjectSession).GetProperty("Workspace", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(Session)!;
+        internal ProjectWorkspace Workspace => Session.Workspace;
         internal string Id => Session.ProjectSessionId;
         internal string Root => Workspace.Project.LyricPresentation.WithDefaultPrograms(Workspace.Project.Lyrics).FindProgram("primary")!.RootContainerId;
         internal static async Task<Fixture> Create(int receiptBytes = 65536)

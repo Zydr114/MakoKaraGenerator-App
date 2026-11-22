@@ -37,13 +37,11 @@ public static class WorkerProtocol
             throw new WorkerProtocolException("Worker 消息缺少 kind 或 requestId。");
         if (message.Payload is null || message.Payload.Length > MaxPayloadBytes)
             throw new WorkerProtocolException("Worker payload 为空或超过单条上限。");
-        bool isInput = message.Kind is "render" or "render-frame-v1" or StaticRenderWorkerContract.OpenKind
+        bool isInput = message.Kind is StaticRenderWorkerContract.OpenKind
             or StaticRenderWorkerContract.RenderKind or StaticRenderWorkerContract.CloseKind or StaticRenderWorkerContract.CapabilitiesKind
             or WorkerSceneMeasurementContract.CapabilitiesKind or WorkerSceneMeasurementContract.RequestKind
             or WorkerValidationContract.RequestKind
-            or ProjectImageValidationWorkerContract.CapabilitiesKind or ProjectImageValidationWorkerContract.RequestKind
             or RuntimeValidationWorkerContract.CapabilitiesKind or RuntimeValidationWorkerContract.RequestKind
-            or ProjectImageExportWorkerContract.CapabilitiesKind or ProjectImageExportWorkerContract.RequestKind
             or WorkerExportContract.RequestKind or WorkerExportContract.CapabilitiesKind
             or WorkerAnalysisContract.RequestKind or WorkerAnalysisContract.CapabilitiesKind
             or WorkerAudioPreparationContract.RequestKind or WorkerAudioPreparationContract.CapabilitiesKind
@@ -52,14 +50,11 @@ public static class WorkerProtocol
             or PackageRenderWorkerContract.ValidationCapabilitiesKind
             or PackageRenderWorkerContract.RenderKind or PackageRenderWorkerContract.CloseKind
             or PackageResourceWorkerContract.CapabilitiesKind or PackageResourceWorkerContract.ValidateKind
-            or ProjectImagePreviewWorkerContract.CapabilitiesKind or ProjectImagePreviewWorkerContract.OpenKind
             or ProjectRuntimeInputWorkerContract.CapabilitiesKind or ProjectRuntimeInputWorkerContract.OpenKind;
         if (isInput && message.InputSha256 is null)
             throw new WorkerProtocolException("Worker 输入缺少 SHA-256。");
         // 回执的 inputSha256 是请求关联值，不能与经过渲染的输出像素比较。
-        // 旧 opaque render 回执仍没有 outputSha256，保留其原有回显校验。
-        bool isEcho = message.Kind == "result" && message.OutputSha256 is null && !message.Cancelled;
-        if ((isInput || isEcho) && message.InputSha256 is not null &&
+        if (isInput && message.InputSha256 is not null &&
             !string.Equals(message.InputSha256, ComputeSha256(message.Payload), StringComparison.OrdinalIgnoreCase))
             throw new WorkerProtocolException("Worker 输入 SHA-256 不匹配。");
         if (message.OutputSha256 is not null &&
@@ -68,7 +63,7 @@ public static class WorkerProtocol
         if (message.DelayMilliseconds is < 0 or > 60_000)
             throw new WorkerProtocolException("Worker 延迟参数超出范围。");
         if (message.GraphPixelChecks is not null && message.Kind is not (PackageRenderWorkerContract.OpenKind
-                or ProjectImagePreviewWorkerContract.OpenKind or ProjectRuntimeInputWorkerContract.OpenKind))
+                or ProjectRuntimeInputWorkerContract.OpenKind))
             throw new WorkerProtocolException("图像素检查开关只能属于会话打开请求。");
         if (message.FrameInspection is not null && message.Kind is not (StaticRenderWorkerContract.FrameResultKind or PackageRenderWorkerContract.FrameResultKind))
             throw new WorkerProtocolException("帧检查投影只能属于帧回执。", "WorkerInspectionInvalid");

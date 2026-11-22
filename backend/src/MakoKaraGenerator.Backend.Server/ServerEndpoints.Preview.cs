@@ -12,7 +12,6 @@ internal static partial class ServerEndpoints
         app.MapPost("/api/v1/template-preview-sessions", CreateTemplatePreviewAsync);
         app.MapPost("/api/v1/template-preview-options", ReadTemplatePreviewOptionsAsync);
         app.MapPost("/api/v1/project-sessions/{id}/preset-application-previews", CreatePresetApplicationPreviewAsync);
-        app.MapPost("/api/v1/project-sessions/{id}/edit-previews", CreateEditPreviewAsync);
         app.MapPut("/api/v1/preview-sessions/{id}/input", UpdatePreviewAsync);
         app.MapPut("/api/v1/preview-sessions/{id}/render-backend", SwitchPreviewRenderBackendAsync);
         app.MapPost("/api/v1/preview-sessions/{id}/frame-requests", RequestPreviewFrameAsync);
@@ -42,15 +41,6 @@ internal static partial class ServerEndpoints
         (TemplatePreviewOptionsRequest? input, IResult? error) = await ReadJsonAsync<TemplatePreviewOptionsRequest>(request);
         if (error is not null) return error;
         return Result(await service.ReadTemplatePreviewOptionsAsync(Client(request), input!, request.HttpContext.RequestAborted));
-    }
-
-    private static async Task<IResult> CreateEditPreviewAsync(string id, HttpRequest request,
-        PreviewBackendService service, AcceptedOperationTracker tracker)
-    {
-        (ProjectEditPreviewRequest? input, IResult? error) = await ReadJsonAsync<ProjectEditPreviewRequest>(request);
-        if (error is not null) return error;
-        request.HttpContext.RequestAborted.ThrowIfCancellationRequested();
-        return Result(await tracker.RunAsync(() => service.CreateEditPreviewAsync(Client(request), id, input!)), 201);
     }
 
     private static async Task<IResult> CreatePresetApplicationPreviewAsync(string id, HttpRequest request,

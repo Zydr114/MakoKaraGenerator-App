@@ -36,7 +36,7 @@ public sealed partial class MainCanvasImageEffectsTests
         if (source)
         {
             var compiled = await SourceMaterialRuntimeTests.Compile(project); Assert.True(compiled.Succeeded);
-            await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), Fx.ReplayReason.Export).CreateAsync(snapshot);
+            await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
             frame = await session.PrepareAsync(3_000_000, Fx.OutputMode.Transparent, new() { PixelWidth = 640, PixelHeight = 360 });
         }
         else

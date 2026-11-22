@@ -27,7 +27,7 @@ internal sealed class PackageRenderSession(string? renderBackend = null, bool en
         await _gate.WaitAsync(token).ConfigureAwait(false);
         try
         {
-            if (request.Kind is PackageRenderWorkerContract.OpenKind or ProjectImagePreviewWorkerContract.OpenKind or ProjectRuntimeInputWorkerContract.OpenKind)
+            if (request.Kind is PackageRenderWorkerContract.OpenKind or ProjectRuntimeInputWorkerContract.OpenKind)
             {
                 if (_session is not null) throw new WorkerProtocolException("Worker 已持有固定会话。", "WorkerSessionAlreadyOpen");
                 var preparedGpu = gpuPreparation?.Bind();
@@ -36,18 +36,11 @@ internal sealed class PackageRenderSession(string? renderBackend = null, bool en
                 string sourceHash = WorkerProtocol.ComputeSha256(prepared.Source.Span);
                 ValidateMetadata(request, input.SessionId, sourceHash, 0);
                 ProjectSnapshot snapshot;
-                Func<IBackgroundFrameSourceResolver>? imageResolverFactory = null;
                 ProjectRuntimeInput? runtimeInput = null;
                 if (request.Kind == ProjectRuntimeInputWorkerContract.OpenKind)
                 {
                     runtimeInput = await ProjectRuntimeInput.OpenAsync(prepared.Source, token, prepared.Compiler).ConfigureAwait(false);
                     snapshot = runtimeInput.Snapshot;
-                }
-                else if (request.Kind == ProjectImagePreviewWorkerContract.OpenKind)
-                {
-                    var image = ProjectImagePreviewSnapshotCodec.Decode(prepared.Source);
-                    snapshot = image.Snapshot;
-                    imageResolverFactory = () => new MemoryImageBackgroundFrameSourceResolver(image.LogicalPath, image.ImageBytes, token);
                 }
                 else
                 {
@@ -57,10 +50,10 @@ internal sealed class PackageRenderSession(string? renderBackend = null, bool en
                 }
                 // 正式预览不为逐像素检查读回；Host 只对作者草稿请求开启。
                 bool pixelChecks = request.GraphPixelChecks == true;
-                var factory = runtimeInput?.CreateFactory(ReplayReason.Initial, renderBackend: renderBackend,
+                var factory = runtimeInput?.CreateFactory(renderBackend: renderBackend,
                     enableGpuPreview: enableGpuPreview, enableGpuPreviewBenchmark: enableGpuPreviewBenchmark, gpuPreparation: preparedGpu,
                     graphPixelChecks: pixelChecks) ?? new ProjectRenderSessionFactory(prepared.Compiler,
-                    new FfmpegVideoFrameProvider(), ReplayReason.Initial, imageResolverFactory, renderBackend: renderBackend,
+                    new FfmpegVideoFrameProvider(), renderBackend: renderBackend,
                     enableGpuPreview: enableGpuPreview, enableGpuPreviewBenchmark: enableGpuPreviewBenchmark, gpuPreparation: preparedGpu,
                     graphPixelChecks: pixelChecks);
                 IRenderFrameSession session;
@@ -181,7 +174,7 @@ internal sealed class PackageRenderSession(string? renderBackend = null, bool en
                 byte[] pixels = frame.PixelMemory.ToArray();
                 WorkerMessage result = new(PackageRenderWorkerContract.FrameResultKind, request.RequestId, request.InputSha256, pixels,
                     outputSha256: WorkerProtocol.ComputeSha256(pixels), frameWidth: frame.Width, frameHeight: frame.Height,
-                    frameStride: frame.Stride, frameTimeUs: frame.TimeUs, frameFormat: RenderFrameV1WorkerResult.RequiredPixelFormat,
+                    frameStride: frame.Stride, frameTimeUs: frame.TimeUs, frameFormat: StaticRenderWorkerContract.RequiredPixelFormat,
                     sessionId: _id.ToString("N"), sourceSha256: _sourceHash, frameSequence: input.Sequence,
                     frameTransparentBackground: input.TransparentBackground, diagnostics: diagnostics, frameQuality: input.Quality, packageDiagnostics: packageDiagnostics,
                     frameInspection: StaticRenderSession.EncodeInspection(input, frame, _openMs));

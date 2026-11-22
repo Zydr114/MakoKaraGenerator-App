@@ -8,7 +8,7 @@ namespace MakoKaraGenerator.Backend.Server;
 /// <summary>只用于公共预览的工厂组合；B4及测量继续直接使用原静态工厂。</summary>
 internal sealed class ProjectPreviewFrameSessionFactory(IRenderFrameSessionFactory staticFactory,
     IRenderFrameSessionFactory packageFactory) : IRenderFrameSessionFactory, IBackendPreviewProfileCapability,
-    IBackendImagePreviewFactory, IBackendRuntimePreviewFactory, IBackendPreviewRenderBackendFactory
+    IBackendRuntimePreviewFactory, IBackendPreviewRenderBackendFactory
 {
     public string RenderBackend => staticFactory is IBackendPreviewRenderBackendFactory selected ? selected.RenderBackend : "cpu";
 
@@ -25,20 +25,15 @@ internal sealed class ProjectPreviewFrameSessionFactory(IRenderFrameSessionFacto
 
     public ValueTask<BackendErrorResponse?> EnsureProfileAsync(string profile, CancellationToken token = default)
     {
-        IRenderFrameSessionFactory? factory = ProjectSnapshotSourceProfile.IsPackage(profile) || profile is ProjectImagePreviewSnapshotCodec.Profile or ProjectRuntimeInputWorkerContract.Profile ? packageFactory
+        IRenderFrameSessionFactory? factory = ProjectSnapshotSourceProfile.IsPackage(profile) || profile == ProjectRuntimeInputWorkerContract.Profile ? packageFactory
             : BackendSnapshotProfiles.IsSupported(profile) ? staticFactory : null;
         return factory is IBackendPreviewProfileCapability capability ? capability.EnsureProfileAsync(profile, token)
             : ValueTask.FromResult<BackendErrorResponse?>(new(BackendErrorCode.PreviewUnavailable,
-                "当前预览工厂未提供所选来源能力握手。", "worker", FailureCode: profile == ProjectImagePreviewSnapshotCodec.Profile
-                    ? "WorkerImagePreviewProfileMismatch" : profile == PackageProjectSnapshotCodec.Profile
-                        ? "WorkerPackageProfileMismatch" : "WorkerStaticProfileMismatch"));
+                "当前预览工厂未提供所选来源能力握手。", "worker", FailureCode: profile == PackageProjectSnapshotCodec.Profile
+                    ? "WorkerPackageProfileMismatch" : "WorkerStaticProfileMismatch"));
     }
 
     public IRenderFrameSessionFactory Bind(BackendPreparedProjectRuntimeInput input) =>
         packageFactory is IBackendRuntimePreviewFactory runtimeFactory ? runtimeFactory.Bind(input)
             : throw new SnapshotContractException("WorkerRuntimeInputProfileMismatch", "当前预览工厂未提供固定工程输入能力。");
-
-    public IRenderFrameSessionFactory Bind(ProjectSnapshot snapshot, ReadOnlyMemory<byte> imageBytes) =>
-        packageFactory is IBackendImagePreviewFactory imageFactory ? imageFactory.Bind(snapshot, imageBytes)
-            : throw new SnapshotContractException("WorkerImagePreviewProfileMismatch", "当前预览工厂未提供固定图片能力。");
 }

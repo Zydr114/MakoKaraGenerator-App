@@ -63,7 +63,7 @@ public sealed class WorkerExportIntegrationTests(ITestOutputHelper output)
         Assert.Equal(plan.TotalFrames, progress[^1].CompletedFrames);
         byte[] actual = await FrameAsync(candidate, 15);
         var factory = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("unused-cache")),
-            new FfmpegVideoFrameProvider(), ReplayReason.Initial);
+            new FfmpegVideoFrameProvider());
         await using var session = await factory.CreateAsync(snapshot);
         using var expected = await session.RenderAsync(RenderRequest.At(snapshot, plan.FrameTimeUs(15)) with
         { Quality = RenderQuality.Final, TransparentBackground = format != "opaqueMp4" });

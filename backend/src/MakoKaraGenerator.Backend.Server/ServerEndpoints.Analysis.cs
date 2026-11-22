@@ -5,15 +5,13 @@ namespace MakoKaraGenerator.Backend.Server;
 
 internal static partial class ServerEndpoints
 {
-    private static readonly string[] EnabledAnalysisCapabilities = ["project-sessions.analysis-jobs", "jobs.analysis-result", "recovery-jobs.analysis-result"];
+    private static readonly string[] EnabledAnalysisCapabilities = ["project-sessions.analysis-jobs", "jobs.analysis-result"];
     private static void ConfigureAnalysisEndpoints(WebApplication app)
     {
         app.MapGet("/api/v1/analysis-capabilities", (ProjectSessionRegistry registry) => Results.Json(registry.AnalysisCapabilities));
         app.MapPost("/api/v1/project-sessions/{id}/analysis-jobs", AnalysisAsync);
         app.MapMethods("/api/v1/jobs/{id}/analysis-result", ["GET", "HEAD"],
             (string id, HttpRequest request, HttpResponse response, ProjectSessionRegistry registry) => ReadAnalysisAsync(id, request, response, registry, false));
-        app.MapMethods("/api/v1/recovery-jobs/{id}/analysis-result", ["GET", "HEAD"],
-            (string id, HttpRequest request, HttpResponse response, ProjectSessionRegistry registry) => ReadAnalysisAsync(id, request, response, registry, true));
     }
     private static async Task<IResult> AnalysisAsync(string id, HttpRequest request, ProjectSessionRegistry registry, AcceptedOperationTracker tracker)
     {

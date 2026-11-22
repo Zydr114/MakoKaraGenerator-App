@@ -707,13 +707,7 @@ public sealed class BackendPreviewSessionRegistry : IAsyncDisposable
                 return null;
             }
             if (snapshot.Background.Kind == BackgroundKind.Image)
-            {
-                if (source.Kind is not ("project" or "editCandidate") || input.VerifiedProfile != ProjectImagePreviewSnapshotCodec.Profile
-                    || snapshot.Background.Media is null || !snapshot.Background.HasImage
-                    || !snapshot.PresetApplications.Items.IsEmpty)
-                    return new(BackendErrorCode.CommandNotSupported, "当前预览核心不接受未固定的图片背景输入。", "background");
-                return null;
-            }
+                return new(BackendErrorCode.CommandNotSupported, "当前预览核心不接受未固定的图片背景输入。", "background");
             string profile = ProjectPreviewSnapshotProfile.Select(snapshot);
             if (ProjectSnapshotSourceProfile.IsPackage(profile))
             {

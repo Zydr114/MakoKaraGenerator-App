@@ -65,18 +65,18 @@ internal sealed class ProjectRuntimeInput : IDisposable
         return new(input.Snapshot, input.SourceProfile, input.Grant, bytes, prepared.Compiler, media);
     }
 
-    internal ProjectRenderSessionFactory CreateFactory(ReplayReason reason,
+    internal ProjectRenderSessionFactory CreateFactory(
         bool layoutReference = false, string? editingLineId = null, string? editingCueId = null, string? renderBackend = null,
         bool enableGpuPreview = false, bool enableGpuPreviewBenchmark = false, RuntimeGpuPreparation? gpuPreparation = null,
         bool graphPixelChecks = true, PreviewTransportKind? previewTransport = null)
-        => new(Compiler, _videos, reason,
+        => new(Compiler, _videos,
             _grant is null ? null : () => new GrantedBackgroundResolver(_grant, _videos), layoutReference, editingLineId, editingCueId, renderBackend, enableGpuPreview, enableGpuPreviewBenchmark, gpuPreparation,
             _media?.Binding, graphPixelChecks, previewTransport);
     /// <summary>
     /// 双输出验证的透明半程：固定输入属于普通输出时，按同一快照另建透明无媒体输入和会话工厂；
     /// 没有媒体输入或已是透明输入时返回 null，沿用原工厂。
     /// </summary>
-    internal async Task<TransparentRuntimeOutput?> CreateTransparentOutputAsync(ReplayReason reason, string? renderBackend, CancellationToken token)
+    internal async Task<TransparentRuntimeOutput?> CreateTransparentOutputAsync(string? renderBackend, CancellationToken token)
     {
         if (Snapshot.MediaFeatureInput is not { } input || input.Context.Mapping.OutputMode == MediaOutputMode.Transparent) return null;
         var basis = Snapshot with { MediaFeatureInput = null };
@@ -86,7 +86,7 @@ internal sealed class ProjectRuntimeInput : IDisposable
         var media = await MediaBindingOwner.OpenAsync(snapshot, transparent, null, token).ConfigureAwait(false);
         try
         {
-            ProjectRenderSessionFactory factory = new(Compiler, _videos, reason,
+            ProjectRenderSessionFactory factory = new(Compiler, _videos,
                 _grant is null ? null : () => new GrantedBackgroundResolver(_grant, _videos), renderBackend: renderBackend,
                 mediaBinding: media.Binding);
             return new(snapshot, factory, media);

@@ -100,7 +100,7 @@ public sealed partial class MixedPackageExportTests
         using TemporaryDirectory temp = new(); var project = await StoredAudioProject(temp);
         var compiled = await CompiledProjectEffects.CompileAsync(project, new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")));
         Assert.True(compiled.Succeeded); var snapshot = ProjectSnapshot.FromProject(project);
-        await using var source = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), ReplayReason.Export).CreateAsync(snapshot);
+        await using var source = await compiled.CreateFactory(static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
         using var pipeline = new PreparedPackagePipeline(source, snapshot, Assert.Single(compiled.Packages).Definition);
         string output = temp.FilePath(transparent ? "audio.mov" : "audio.mp4");
         var report = await new VideoExporter(pipeline, new FfmpegMediaProbe(), new FfmpegMediaEncoder()).ExportAsync(project,
@@ -130,7 +130,7 @@ public sealed partial class MixedPackageExportTests
         using TemporaryDirectory temp = new(); var project = await StoredAudioProject(temp, true);
         var compiled = await CompiledProjectEffects.CompileAsync(project, new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")));
         Assert.True(compiled.Succeeded); var snapshot = ProjectSnapshot.FromProject(project);
-        await using var source = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), ReplayReason.Export).CreateAsync(snapshot);
+        await using var source = await compiled.CreateFactory(static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
         using var pipeline = new PreparedPackagePipeline(source, snapshot, Assert.Single(compiled.Packages).Definition);
         string output = temp.FilePath("existing.mp4"); byte[] original = [9, 2, 6, 5]; await File.WriteAllBytesAsync(output, original);
         var error = await Assert.ThrowsAsync<EffectFailureException>(() => new VideoExporter(pipeline, new FfmpegMediaProbe(), new FfmpegMediaEncoder())

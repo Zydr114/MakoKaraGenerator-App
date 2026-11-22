@@ -89,7 +89,7 @@ public sealed partial class BackendPresetApplicationCommandTests
         TemplateSummaryDto template = builtin.Templates.First(item => item.Kind != TemplateKind.Token);
         if (readProjection)
         {
-            ProjectWorkspace workspace = (ProjectWorkspace)typeof(ProjectSession).GetProperty("Workspace", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(f.Session)!;
+            ProjectWorkspace workspace = f.Session.Workspace;
             StyleTemplate snapshot = StyleTemplate.Create("budget", "budget", StyleTemplateKind.Line,
                 f.SessionProject.LyricStyle, [LyricStyleProperty.Opacity]);
             workspace.Replace(f.SessionProject with { PresetApplications = new(Enumerable.Range(0, 10001).Select(index =>
@@ -98,7 +98,7 @@ public sealed partial class BackendPresetApplicationCommandTests
         PresetApplicationTargetDto[] targets = [new("node", NodeId: root, IncludeDescendants: true)];
         if (!readProjection)
         {
-            ProjectWorkspace workspace = (ProjectWorkspace)typeof(ProjectSession).GetProperty("Workspace", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(f.Session)!;
+            ProjectWorkspace workspace = f.Session.Workspace;
             string[] ids = [.. Enumerable.Range(0, 32).Select(index => "receipt/node/" + index)];
             workspace.Replace(f.SessionProject with { LyricPresentation = f.SessionProject.LyricPresentation with {
                 Nodes = f.SessionProject.LyricPresentation.Nodes.AddRange(ids.Select(id => new SceneContainerDefinition { Id = id, ParentId = root })) } });

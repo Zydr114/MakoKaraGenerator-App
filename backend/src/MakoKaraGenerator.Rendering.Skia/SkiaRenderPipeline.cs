@@ -85,13 +85,13 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
     internal SkiaRenderPipeline(SkiaTextLayoutEngine? layoutEngine, IBackgroundFrameSourceResolver? backgroundResolver,
         ImageSurfaceBudgetSession? surfaceBudget, SceneImageEffectResources? imageEffects, bool ownsLayoutEngine,
         ISkiaRenderDevice? device, bool ownsDevice, SkiaSceneGeometry.LayoutCache? layouts = null, SceneSvgEffectResources? svgEffects = null,
-        bool graphPixelChecks = true)
+        bool graphPixelChecks = true, bool? ownsBackgroundResolver = null)
     {
         // Create the shared device before allocating any other native resource. A failed
         // explicit Vulkan initialization therefore cannot leak the layout engine or budget.
         _device = device ?? SkiaRenderDeviceFactory.Create();
         _deviceLifetime = device is null || ownsDevice ? new(_device) : null;
-        _ownsBackgroundResolver = backgroundResolver is null;
+        _ownsBackgroundResolver = ownsBackgroundResolver ?? (backgroundResolver is null);
         _ownsSurfaceBudget = surfaceBudget is null;
         _imageEffects = imageEffects;
         _svgEffects = svgEffects;
@@ -147,21 +147,6 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
                 }
                 catch { ArrayPool<byte>.Shared.Return(buffer); throw; }
             });
-    }
-
-    /// <summary>同一绘制核心输出本机 GPU 租约；不分配最终 CPU 像素或执行最终回读。</summary>
-    public GpuRenderFrame RenderGpu(RenderRequest request)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        lock (_device.SynchronizationRoot)
-        {
-            if (_device is not VulkanSkiaRenderDevice gpu || !gpu.SupportsDmaBufExport)
-                throw new GpuPreviewException("GpuPreviewUnavailable", "This pipeline did not enable shared Vulkan GPU output.");
-            gpu.EnsureGpuTargetInitialized(request.ResolveTarget());
-            return RenderToOutput(request, null, (surface, _, target, diagnostics) =>
-                new GpuRenderFrame(target, request.TimeUs, gpu.CopyGpuFrame(surface, target))
-                { MaterialDiagnostics = diagnostics.Materials, ImageEffectDiagnostics = diagnostics.Images, DiagnosticSnapshot = diagnostics.Scene });
-        }
     }
 
     /// <summary>双阶段预览端口输出：BeginFrame 锁定槽位并录制绘制，Commit 完成单次捕获与拆分计时。</summary>

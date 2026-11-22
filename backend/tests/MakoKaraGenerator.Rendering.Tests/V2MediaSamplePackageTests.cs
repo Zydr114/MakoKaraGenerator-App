@@ -52,7 +52,7 @@ public sealed class V2MediaSamplePackageTests
         var compiler = new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));
         var compiled = await CompiledProjectEffects.CompileAsync(snapshot, compiler);
         Assert.True(compiled.Succeeded, string.Join('\n', compiled.Packages.SelectMany(package => package.Artifact.Diagnostics)));
-        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), ReplayReason.Initial,
+        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline(),
             new ProjectMediaFeatureBinding(sampler)).CreateAsync(snapshot);
         var frame = await session.PrepareAsync(250_000, OutputMode.Opaque, RenderTarget.FromComposition(snapshot.Composition));
         return [.. frame.TokenStyles.Where(style => style.Update.Unsung?.Strokes is { Layers.IsEmpty: false }).Select(style => style.Update.Unsung!.Strokes!.Layers[0])];

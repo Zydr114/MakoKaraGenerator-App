@@ -95,20 +95,6 @@ public sealed partial class PreviewTransportTests
         Assert.Empty(image.Profiles); Assert.Null(image.Bytes);
     }
 
-    [Fact]
-    public async Task 旧图片路由未实现独立能力时握手拒绝且不静态回退()
-    {
-        PreviewRouteFactory plain = new(); NoCapabilityFactory image = new();
-        IRenderFrameSessionFactory factory = new LegacyPreviewFactory(new ProjectPreviewFrameSessionFactory(plain, image));
-        Assert.False(factory is IBackendRuntimePreviewFactory);
-        BackendErrorResponse error = (await ((IBackendPreviewProfileCapability)factory)
-            .EnsureProfileAsync(ProjectImagePreviewSnapshotCodec.Profile))!;
-        Assert.Equal(BackendErrorCode.PreviewUnavailable, error.Code);
-        Assert.Equal("WorkerImagePreviewProfileMismatch", error.FailureCode);
-        Assert.Equal("worker", error.Field);
-        Assert.False(image.Called); Assert.Equal(0, plain.Created); Assert.Empty(plain.Profiles);
-    }
-
     [Theory]
     [InlineData(false)] [InlineData(true)]
     public async Task 图片源大小或同长度篡改创建和更新都拒绝且不替换旧预览(bool size)
@@ -139,8 +125,8 @@ public sealed partial class PreviewTransportTests
         await using Fixture f = await Fixture.Create();
         byte[] bytes = [4, 5, 6]; ProjectSession project = await ImageProject(f, bytes, "image-close-race");
         BackendPreviewInputCaptureResult captured = await project.CapturePreviewInputAsync(f.Client.ClientId, "0", f.Factory,
-            null, captureImageSource: true);
-        using BackendProjectImageReadLease lease = captured.ImageSource!;
+            null, captureRuntimeSource: true);
+        using BackendProjectRuntimeInputLease lease = captured.RuntimeInput!;
         string path = captured.Input!.Snapshot.Background.Path!;
         BackendOperationResult<JobResponse> close = await f.Projects.StartCloseAsync(f.Client.ClientId,
             project.ProjectSessionId, new("0", "discard", Metadata: f.Metadata()));
@@ -149,9 +135,14 @@ public sealed partial class PreviewTransportTests
         await Task.Delay(60);
         Assert.NotEqual("succeeded", f.Projects.ReadJob(f.Client.ClientId, close.Response!.JobId).Response!.State);
         Assert.True(File.Exists(path));
-        BackendOperationResult<byte[]> read = await lease.ReadAsync(); Assert.True(read.Accepted); Assert.Equal(bytes, read.Response);
-        await WaitUntil(() => f.Projects.ReadJob(f.Client.ClientId, close.Response!.JobId).Response!.State == "succeeded");
-        Assert.False(File.Exists(path)); Assert.Equal(bytes, read.Response);
+        BackendOperationResult<BackendPreparedProjectRuntimeInput> prepared = await lease.PrepareAsync();
+        Assert.True(prepared.Accepted);
+        using (var owned = prepared.Response!)
+        {
+            await WaitUntil(() => f.Projects.ReadJob(f.Client.ClientId, close.Response!.JobId).Response!.State == "succeeded");
+            Assert.False(File.Exists(path));
+            Assert.Equal(bytes, File.ReadAllBytes(owned.Grant!.FilePath));
+        }
     }
 
     [Fact]
@@ -160,8 +151,8 @@ public sealed partial class PreviewTransportTests
         await using Fixture f = await Fixture.Create();
         byte[] bytes = [7, 8, 9]; ProjectSession project = await ImageProject(f, bytes, "image-shutdown-race");
         BackendPreviewInputCaptureResult captured = await project.CapturePreviewInputAsync(f.Client.ClientId, "0", f.Factory,
-            null, captureImageSource: true);
-        using BackendProjectImageReadLease lease = captured.ImageSource!;
+            null, captureRuntimeSource: true);
+        using BackendProjectRuntimeInputLease lease = captured.RuntimeInput!;
         string path = captured.Input!.Snapshot.Background.Path!;
         Task shutdown = f.Projects.ShutdownAsync().AsTask();
         try
@@ -170,10 +161,14 @@ public sealed partial class PreviewTransportTests
             while ((await project.CapturePreviewInputAsync(f.Client.ClientId, "0", f.Factory)).Error?.Code != BackendErrorCode.SessionClosing)
                 await Task.Delay(10, timeout.Token);
             Assert.False(shutdown.IsCompleted); Assert.True(File.Exists(path));
-            BackendOperationResult<byte[]> read = await lease.ReadAsync();
-            Assert.True(read.Accepted); Assert.Equal(bytes, read.Response);
-            await shutdown.WaitAsync(timeout.Token);
-            Assert.False(File.Exists(path)); Assert.Equal(bytes, read.Response);
+            BackendOperationResult<BackendPreparedProjectRuntimeInput> prepared = await lease.PrepareAsync();
+            Assert.True(prepared.Accepted);
+            using (var owned = prepared.Response!)
+            {
+                await shutdown.WaitAsync(timeout.Token);
+                Assert.False(File.Exists(path));
+                Assert.Equal(bytes, File.ReadAllBytes(owned.Grant!.FilePath));
+            }
         }
         finally
         {
@@ -200,7 +195,7 @@ public sealed partial class PreviewTransportTests
         return (await response.Content.ReadFromJsonAsync<PreviewSessionResponse>(Json))!;
     }
 
-    private sealed class ImageRouteFactory : IRenderFrameSessionFactory, IBackendPreviewProfileCapability, IBackendImagePreviewFactory,
+    private sealed class ImageRouteFactory : IRenderFrameSessionFactory, IBackendPreviewProfileCapability,
         IBackendRuntimePreviewFactory
     {
         internal PreviewRouteFactory Render { get; } = new();
@@ -209,8 +204,6 @@ public sealed partial class PreviewTransportTests
         internal string? FixedPath;
         public ValueTask<BackendErrorResponse?> EnsureProfileAsync(string profile, CancellationToken cancellationToken = default)
         { Profiles.Add(profile); return ValueTask.FromResult<BackendErrorResponse?>(null); }
-        public IRenderFrameSessionFactory Bind(ProjectSnapshot snapshot, ReadOnlyMemory<byte> imageBytes)
-        { _ = ProjectImagePreviewSnapshotCodec.Encode(snapshot, imageBytes.Span); Bytes = imageBytes.ToArray(); return Render; }
         public IRenderFrameSessionFactory Bind(BackendPreparedProjectRuntimeInput input)
         {
             Assert.Equal(ProjectRuntimeInputWorkerContract.Profile, input.SourceProfile);

@@ -133,7 +133,7 @@ public sealed class BackendLineLocalTransformTests
         internal ProjectSessionRegistry Registry = null!;
         internal ProjectSession Session = null!;
         internal string Id => Session.ProjectSessionId;
-        internal ProjectWorkspace Workspace => (ProjectWorkspace)typeof(ProjectSession).GetProperty("Workspace", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(Session)!;
+        internal ProjectWorkspace Workspace => Session.Workspace;
         internal string LineId => Workspace.Project.Lyrics.Lines[0].Id;
         internal Task<ProjectCommandExecutionResult> Command(string revision, ProjectCommandDto command) => Registry.ExecuteCommandAsync("client", Id,
             new(revision, command, Guid.NewGuid().ToString("N"), Session.HostInstanceId, DateTimeOffset.UtcNow.AddMinutes(1)));

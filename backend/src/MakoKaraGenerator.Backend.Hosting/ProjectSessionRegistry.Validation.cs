@@ -37,8 +37,6 @@ public sealed partial class ProjectSessionRegistry
             string[] profiles = [BackendSnapshotProfiles.StaticLyricsScene, BackendSnapshotProfiles.StaticLyricsSceneAnalysis, BackendSnapshotProfiles.StaticLyricsScenePresets];
             if (_validationExecutor is IBackendPackageValidationExecutor { PackageValidationAvailable: true })
                 profiles = [.. profiles, PackageProjectSnapshotCodec.Profile];
-            if (_validationExecutor is IBackendImageValidationExecutor { ImageValidationAvailable: true })
-                profiles = [.. profiles, ProjectImageValidationWorkerContract.ValidationProfile];
             if (_validationExecutor is IBackendRuntimeValidationExecutor { RuntimeValidationAvailable: true })
                 profiles = [.. profiles, PackagePresetProjectSnapshotCodec.Profile, ProjectRuntimeInputCodec.Profile];
             if (_validationExecutor is IBackendRuntimeValidationExecutor { RuntimeValidationAvailable: true })
@@ -73,17 +71,6 @@ public sealed partial class ProjectSessionRegistry
             await workerExecutor.ProbeCapabilitiesAsync(cancellationToken).ConfigureAwait(false);
         if (executor is IBackendRuntimeValidationExecutor { RuntimeValidationAvailable: true } runtimeExecutor)
             return await StartRuntimeValidationCoreAsync(clientId, session, request, runtimeExecutor, executor).ConfigureAwait(false);
-        bool imageBackground = false;
-        await session.Writer.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            if (CheckPersistenceMutation(session, request.ExpectedRevision, allowReadOnly: true) is { } mutation)
-                return BackendOperationResult<JobResponse>.Rejected(mutation);
-            imageBackground = ProjectSnapshot.FromProject(session.Workspace.Project).Background.Kind == BackgroundKind.Image;
-        }
-        finally { session.Writer.Release(); }
-        if (imageBackground)
-            return await StartImageValidationCoreAsync(clientId, session, request, executor).ConfigureAwait(false);
         IDisposable? audio = null;
         BackendTaskScheduler.Reservation? reservation = null;
         await session.Writer.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -206,80 +193,6 @@ public sealed partial class ProjectSessionRegistry
         }
     }
 
-    private async Task<BackendOperationResult<JobResponse>> StartImageValidationCoreAsync(string clientId, ProjectSession session,
-        ValidationJobRequest request, IBackendValidationExecutor executor)
-    {
-        if (executor is not IBackendImageValidationExecutor imageExecutor || !imageExecutor.ImageValidationAvailable)
-            return BackendOperationResult<JobResponse>.Rejected(new(BackendErrorCode.TaskUnavailable,
-                "正式验证Worker未提供独立图片验证能力。", "worker", FailureCode: "WorkerImageValidationUnavailable"));
-        BackendProjectImageReadLease? imageLease = null;
-        IDisposable? audio = null;
-        BackendTaskScheduler.Reservation? reservation = null;
-        try
-        {
-            ProjectSnapshot snapshot;
-            await session.Writer.WaitAsync().ConfigureAwait(false);
-            try
-            {
-                if (!TryGet(clientId, session.ProjectSessionId, out ProjectSession current) || !ReferenceEquals(session, current))
-                    return Reject<JobResponse>(BackendErrorCode.SessionNotFound, "工程会话不存在。");
-                if (CheckPersistenceMutation(session, request.ExpectedRevision, allowReadOnly: true) is { } mutation)
-                    return BackendOperationResult<JobResponse>.Rejected(mutation);
-                snapshot = ProjectSnapshot.FromProject(session.Workspace.Project);
-                if (ScriptBackendError(snapshot, request.RenderBackend) is { } scriptBackendError)
-                    return BackendOperationResult<JobResponse>.Rejected(scriptBackendError);
-                ValidateValidationPlan(snapshot, request.FramesPerOutput);
-                imageLease = session.AcquireProjectImageRead(snapshot);
-                if (!string.IsNullOrEmpty(session.AudioAssetId)) audio = _resources.AcquireReference(clientId, session.AudioAssetId);
-            }
-            finally { session.Writer.Release(); }
-
-            BackendOperationResult<byte[]> read = await imageLease.ReadAsync().ConfigureAwait(false);
-            imageLease.Dispose(); imageLease = null;
-            if (!read.Accepted) return BackendOperationResult<JobResponse>.Rejected(read.Error!);
-            byte[] encoded = ProjectImagePreviewSnapshotCodec.Encode(snapshot, read.Response!);
-            if (encoded.Length > ProjectImageValidationWorkerContract.MaximumInputBytes)
-                return BackendOperationResult<JobResponse>.Rejected(new(BackendErrorCode.ResourceTooLarge,
-                    "图片验证完整封包超过4MiB扣除头部后的预算。", "background", FailureCode: "SnapshotSizeExceeded"));
-
-            await session.Writer.WaitAsync().ConfigureAwait(false);
-            try
-            {
-                if (!TryGet(clientId, session.ProjectSessionId, out ProjectSession current) || !ReferenceEquals(session, current))
-                    return Reject<JobResponse>(BackendErrorCode.SessionNotFound, "工程会话不存在。");
-                if (CheckPersistenceMutation(session, request.ExpectedRevision, allowReadOnly: true) is { } mutation)
-                    return BackendOperationResult<JobResponse>.Rejected(mutation);
-                reservation = _taskScheduler!.TryReserve(clientId, session.ProjectSessionId);
-                if (reservation is null) return Reject<JobResponse>(BackendErrorCode.RequestQuotaExceeded, "验证任务排队配额已满。");
-                PruneValidationReports();
-                BackendJobInputDto input = new("project", session.ProjectSessionId, request.ExpectedRevision,
-                    ProjectImageValidationWorkerContract.ValidationProfile, WorkerProtocol.ComputeSha256(encoded), request.FramesPerOutput,
-                    snapshot.Composition.CanvasWidth, snapshot.Composition.CanvasHeight, snapshot.Composition.FrameRate.Numerator,
-                    snapshot.Composition.FrameRate.Denominator, snapshot.Composition.OutputDurationUs!.Value.ToString(CultureInfo.InvariantCulture), RenderBackend: request.RenderBackend);
-                ValidationWork work = new(snapshot, ProjectImageValidationWorkerContract.ValidationProfile, request.FramesPerOutput,
-                    audio, reservation, executor, read.Response);
-                BackendOperationResult<JobResponse> accepted = StartJob(clientId, "validation", session.ProjectSessionId,
-                    job => RunValidationAsync(work, job), input: input, failureMapper: ValidationFailure,
-                    cancelOnShutdown: true, deferRunning: true);
-                if (accepted.Accepted) { audio = null; reservation = null; }
-                return accepted;
-            }
-            finally { session.Writer.Release(); }
-        }
-        catch (SnapshotContractException error)
-        { return BackendOperationResult<JobResponse>.Rejected(new(error.Code == "SnapshotSizeExceeded" ? BackendErrorCode.ResourceTooLarge : BackendErrorCode.CommandNotSupported,
-            "工程图片来源不满足当前正式验证合同。", "background", FailureCode: error.Code)); }
-        catch (Exception error) when (error is WorkerProtocolException or ArgumentException or OverflowException)
-        { return Reject<JobResponse>(BackendErrorCode.InvalidRequest, "正式验证帧计划、尺寸或时长不合法。"); }
-        catch (ResourceStoreException error)
-        { return BackendOperationResult<JobResponse>.Rejected(new(error.Code, "验证来源资源不可用。", "source")); }
-        finally
-        {
-            try { imageLease?.Dispose(); }
-            finally { try { audio?.Dispose(); } finally { reservation?.Dispose(); } }
-        }
-    }
-
     private void ValidateValidationPlan(ProjectSnapshot snapshot, int framesPerOutput)
     {
         BackendValidationOptions options = _validationOptions!;
@@ -304,9 +217,6 @@ public sealed partial class ProjectSessionRegistry
             }
             ValidationReportDto report = work.RuntimeInput is { } runtimeInput
                 ? await work.RuntimeExecutor!.ExecuteRuntimeAsync(runtimeInput.SourceBytes, work.FramesPerOutput,
-                    new InlineValidationProgress(job), job.Cancellation).ConfigureAwait(false)
-                : work.Profile == ProjectImageValidationWorkerContract.ValidationProfile
-                ? await ((IBackendImageValidationExecutor)work.Executor).ExecuteImageAsync(work.Snapshot!, work.ImageBytes!, work.FramesPerOutput,
                     new InlineValidationProgress(job), job.Cancellation).ConfigureAwait(false)
                 : work.Profile == PackageProjectSnapshotCodec.Profile
                 ? await ((IBackendPackageValidationExecutor)work.Executor).ExecutePackageAsync(work.Snapshot!, work.FramesPerOutput,
@@ -369,7 +279,6 @@ public sealed partial class ProjectSessionRegistry
             if (response.Kind != "validation" || response.Input is not { } input
                 || !(input.SourceKind == "authorDraft" && input.SourceProfile == AuthorValidationProfile
                     || input.SourceKind == "project" && (BackendSnapshotProfiles.IsSupported(input.SourceProfile) || input.SourceProfile == PackageProjectSnapshotCodec.Profile
-                    || input.SourceProfile == ProjectImageValidationWorkerContract.ValidationProfile
                     || input.SourceProfile == PackagePresetProjectSnapshotCodec.Profile || input.SourceProfile == ProjectRuntimeInputCodec.Profile)))
                 throw new IOException("报告固定来源合同无效。");
             if (input.SourceKind == "authorDraft" && (response.ProjectSessionId is not null
@@ -440,7 +349,7 @@ public sealed partial class ProjectSessionRegistry
     { public void Report(BackendJobProgressDto value) => job.ReportProgress(value); }
 
     private sealed class ValidationWork(ProjectSnapshot snapshot, string profile, int framesPerOutput, IDisposable? audio,
-        BackendTaskScheduler.Reservation reservation, IBackendValidationExecutor executor, byte[]? imageBytes = null,
+        BackendTaskScheduler.Reservation reservation, IBackendValidationExecutor executor,
         BackendPreparedProjectRuntimeInput? runtimeInput = null, IBackendRuntimeValidationExecutor? runtimeExecutor = null) : IDisposable
     {
         internal ProjectSnapshot? Snapshot = snapshot;
@@ -448,7 +357,6 @@ public sealed partial class ProjectSessionRegistry
         internal int FramesPerOutput { get; } = framesPerOutput;
         internal BackendTaskScheduler.Reservation? Reservation = reservation;
         internal IBackendValidationExecutor Executor { get; } = executor;
-        internal byte[]? ImageBytes = imageBytes;
         internal BackendPreparedProjectRuntimeInput? RuntimeInput = runtimeInput;
         internal IBackendRuntimeValidationExecutor? RuntimeExecutor { get; } = runtimeExecutor;
         private IDisposable? _audio = audio;
@@ -459,7 +367,7 @@ public sealed partial class ProjectSessionRegistry
             finally
             {
                 try { Interlocked.Exchange(ref RuntimeInput, null)?.Dispose(); }
-                finally { Snapshot = null; ImageBytes = null; Interlocked.Exchange(ref Reservation, null)?.Dispose(); }
+                finally { Snapshot = null; Interlocked.Exchange(ref Reservation, null)?.Dispose(); }
             }
         }
     }

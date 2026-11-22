@@ -62,7 +62,7 @@ public sealed class V2RandomAndAudioInputTests
         async Task<(double X, double Y)[]> Run(ulong seed, string id, params long[] times)
         {
             var snapshot = Snapshot(TextProject(), "random", id, seed);
-            await using var session = await (await Compile(snapshot)).CreateFactory(static () => new SkiaRenderPipeline(), Fx.ReplayReason.Export)
+            await using var session = await (await Compile(snapshot)).CreateFactory(static () => new SkiaRenderPipeline())
                 .CreateAsync(snapshot);
             List<(double, double)> result = [];
             foreach (long time in times)
@@ -94,7 +94,7 @@ public sealed class V2RandomAndAudioInputTests
         var features = ProjectAudioProjection.Create(project);
         Assert.Equal(Fx.AudioAvailability.Available, features.Availability);
         var snapshot = Snapshot(project, "audio", "audio", 1);
-        await using var session = await (await Compile(snapshot)).CreateFactory(static () => new SkiaRenderPipeline(), Fx.ReplayReason.Export)
+        await using var session = await (await Compile(snapshot)).CreateFactory(static () => new SkiaRenderPipeline())
             .CreateAsync(snapshot);
         var target = RenderTarget.FromComposition(snapshot.Composition);
         var middle = await session.PrepareAsync(500_000, Fx.OutputMode.Transparent, target);

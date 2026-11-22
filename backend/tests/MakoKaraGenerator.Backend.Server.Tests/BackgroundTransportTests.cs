@@ -25,7 +25,12 @@ public sealed partial class PreviewTransportTests
         Assert.Equal(new("image", "original", "freezeLastFrame", "media:" + image.Sha256), settings.Background);
         var captured = await f.Project.CapturePreviewInputAsync(f.Client.ClientId, "4", f.Factory, null, true);
         Assert.Null(captured.Error);
-        using (captured.ImageSource!) Assert.Equal(imageBytes, (await captured.ImageSource!.ReadAsync()).Response);
+        using (captured.RuntimeInput!)
+        {
+            var prepared = await captured.RuntimeInput!.PrepareAsync();
+            Assert.True(prepared.Accepted);
+            using (prepared.Response!) Assert.Equal(imageBytes, await File.ReadAllBytesAsync(prepared.Response!.Grant!.FilePath));
+        }
         Assert.False((await BasicMediaCommand(f, "4", new SetBackgroundAssetCommandDto(image.AssetId, "image"))).Changed);
         await BasicMediaCommand(f, "4", new ClearBackgroundCommandDto());
         Assert.Contains("background", (await BasicMediaCommand(f, "5", new ProjectCommandDto("history.undo"))).ChangeSet.Areas);

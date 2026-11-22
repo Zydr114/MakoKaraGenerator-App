@@ -525,11 +525,7 @@ public sealed partial class ProjectSessionRegistry : IDisposable, IAsyncDisposab
         {
             ClearLyricsExports();
             foreach (ProjectSession session in _sessions.Values)
-            {
-                ReleasePackageAssetsForSession(session.ProjectSessionId);
                 session.DisposeResources();
-            }
-            lock (_packageAssetGate) _packageAssets?.Dispose();
             Volatile.Write(ref _disposed, 1);
             // SemaphoreSlim只有托管等待者；不在结束时Dispose仍可能已排队的查询。
             // 服务入口停止接受并等待HTTP读取响应后，由GC收敛这些短闸门。
@@ -559,7 +555,6 @@ public sealed partial class ProjectSessionRegistry : IDisposable, IAsyncDisposab
         try
         {
             _sessions.TryRemove(session.ProjectSessionId, out _);
-            ReleasePackageAssetsForSession(session.ProjectSessionId);
             RemoveSessionLyricsExports(session.ProjectSessionId);
         }
         finally { _membershipGate.Release(); }

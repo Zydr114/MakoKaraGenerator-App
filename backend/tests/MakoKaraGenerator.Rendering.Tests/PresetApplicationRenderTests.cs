@@ -211,8 +211,8 @@ public sealed class PresetApplicationRenderTests
         var expectedCompiled = await SourceMaterialRuntimeTests.Compile(expected); Assert.True(expectedCompiled.Succeeded);
         var snapshot = ProjectSnapshot.FromProject(actual); var expectedSnapshot = ProjectSnapshot.FromProject(expected);
         Assert.Single(snapshot.Effects.Instances); Assert.Empty(actual.Effects.Instances);
-        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), Fx.ReplayReason.Export).CreateAsync(snapshot);
-        await using var expectedSession = await expectedCompiled.CreateFactory(static () => new SkiaRenderPipeline(), Fx.ReplayReason.Export).CreateAsync(expectedSnapshot);
+        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
+        await using var expectedSession = await expectedCompiled.CreateFactory(static () => new SkiaRenderPipeline()).CreateAsync(expectedSnapshot);
         var target = new RenderTarget { PixelWidth = 640, PixelHeight = 360 };
         var mode = transparent ? Fx.OutputMode.Transparent : Fx.OutputMode.Opaque;
         var prepared = await session.PrepareAsync(13_000_000, mode, target);
@@ -228,7 +228,7 @@ public sealed class PresetApplicationRenderTests
         using var a = new SkiaRenderPipeline(null, null, null, resources);
         using var b = new SkiaRenderPipeline(null, null, null, resources);
         SamePixels(a, snapshot, b, expectedSnapshot, 13_000_000, transparent, prepared, expectedFrame);
-        await using var previewSession = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), Fx.ReplayReason.Initial).CreateAsync(snapshot);
+        await using var previewSession = await compiled.CreateFactory(static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
         var previewFrame = await previewSession.PrepareAsync(13_000_000, mode, target);
         SamePixels(a, snapshot, b, snapshot, 13_000_000, transparent, prepared, previewFrame);
         var changed = Apply(actual, global, new(ProjectEffectBindingKind.Project));
@@ -238,7 +238,7 @@ public sealed class PresetApplicationRenderTests
             localStyle with { FontSizePx = 39 }, local.Snapshot.Properties, packages: [package]), null, out changed, out var reason), reason);
         Assert.NotEqual(snapshot.EffectInputsFingerprint, ProjectSnapshot.FromProject(changed).EffectInputsFingerprint);
         var error = await Assert.ThrowsAsync<PreparedFrameException>(async () =>
-            await compiled.CreateFactory(static () => new SkiaRenderPipeline(), Fx.ReplayReason.Export).CreateAsync(ProjectSnapshot.FromProject(changed)));
+            await compiled.CreateFactory(static () => new SkiaRenderPipeline()).CreateAsync(ProjectSnapshot.FromProject(changed)));
         Assert.Equal("EffectInputsMismatch", error.Code);
     }
 
@@ -259,7 +259,7 @@ public sealed class PresetApplicationRenderTests
             var projectOnlyCompiled = await SourceMaterialRuntimeTests.Compile(projectOnly);
             Assert.True(projectOnlyCompiled.Succeeded);
             var projectOnlySnapshot = ProjectSnapshot.FromProject(projectOnly);
-            await using var projectOnlySession = await projectOnlyCompiled.CreateFactory(static () => new SkiaRenderPipeline(), Fx.ReplayReason.Export).CreateAsync(projectOnlySnapshot);
+            await using var projectOnlySession = await projectOnlyCompiled.CreateFactory(static () => new SkiaRenderPipeline()).CreateAsync(projectOnlySnapshot);
             var projectOnlyFrame = await projectOnlySession.PrepareAsync(time, Fx.OutputMode.Transparent, new RenderTarget { PixelWidth = 640, PixelHeight = 360 });
             Assert.DoesNotContain(projectOnlyFrame.Materials, binding => binding.Target is Fx.ImageEffectTarget.Mark);
         }
@@ -269,8 +269,8 @@ public sealed class PresetApplicationRenderTests
         var expectedCompiled = await SourceMaterialRuntimeTests.Compile(expected);
         Assert.True(compiled.Succeeded); Assert.True(expectedCompiled.Succeeded); Assert.Empty(compiled.Effects);
         var snapshot = ProjectSnapshot.FromProject(actual); var expectedSnapshot = ProjectSnapshot.FromProject(expected);
-        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), Fx.ReplayReason.Export).CreateAsync(snapshot);
-        await using var expectedSession = await expectedCompiled.CreateFactory(static () => new SkiaRenderPipeline(), Fx.ReplayReason.Export).CreateAsync(expectedSnapshot);
+        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
+        await using var expectedSession = await expectedCompiled.CreateFactory(static () => new SkiaRenderPipeline()).CreateAsync(expectedSnapshot);
         var target = new RenderTarget { PixelWidth = 640, PixelHeight = 360 };
         var mode = transparent ? Fx.OutputMode.Transparent : Fx.OutputMode.Opaque;
         var frame = await session.PrepareAsync(time, mode, target);

@@ -71,7 +71,7 @@ public sealed class OrphanedPresetSnapshotTests
         var compiler = new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache"));
         var compiled = await CompiledProjectEffects.CompileAsync(copy, compiler);
         Assert.Empty(compiled.Packages); Assert.Empty(compiled.Effects); Assert.Null(compiled.SourceMaterials);
-        var factory = new ProjectRenderSessionFactory(compiler, videos, ReplayReason.Initial, renderBackend: "cpu");
+        var factory = new ProjectRenderSessionFactory(compiler, videos, renderBackend: "cpu");
         await using var session = await factory.CreateAsync(copy);
         var request = RenderRequest.At(copy, 1_000_000) with { Target = new() { PixelWidth = 160, PixelHeight = 90 } };
         using var frame = await session.RenderAsync(request);

@@ -91,7 +91,7 @@ public sealed class ProjectRuntimePreviewInputTests
             Background = new() { Kind = BackgroundKind.Image, Path = path, Media = media } };
         ProjectSession session = new("project", "host", "client", ProjectWorkspace.Adopt(project), "", 0,
             TimeProvider.System, new(), new("host", 100)) { PinnedInputDirectory = root };
-        var capture = await session.CapturePreviewInputAsync("client", "0", new NeverFactory(), null, false, true);
+        var capture = await session.CapturePreviewInputAsync("client", "0", new NeverFactory(), null, true);
         Assert.Null(capture.Error);
         using var lease = capture.RuntimeInput!;
         var result = await lease.PrepareAsync();

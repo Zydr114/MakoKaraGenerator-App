@@ -88,7 +88,7 @@ public sealed partial class BackendPresetApplicationCommandTests
         internal ProjectSessionRegistry Registry { get; }
         internal ProjectSession Session { get; }
         internal string SessionRevision => ((ProjectSessionSummaryResponse)Registry.ReadSummaryAsync("client", Session.ProjectSessionId).GetAwaiter().GetResult()!).ProjectRevision;
-        internal Project SessionProject => ((ProjectWorkspace)typeof(ProjectSession).GetProperty("Workspace", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(Session)!).Project;
+        internal Project SessionProject => Session.Workspace.Project;
 
         private Fixture(TemporaryDirectory directory, ProjectSessionRegistry registry, ProjectSession session) =>
             (_directory, Registry, Session) = (directory, registry, session);

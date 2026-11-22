@@ -6,7 +6,8 @@ namespace MakoKaraGenerator.Backend.Server;
 internal sealed record AudioPreparationWorkerConfiguration(IBackendAudioPreparationExecutor? Executor,
     BackendAudioPreparationCapabilities Capabilities)
 {
-    internal static async Task<AudioPreparationWorkerConfiguration> ResolveAsync(WorkerProcessOptions? worker, int timeoutSeconds)
+    internal static async Task<AudioPreparationWorkerConfiguration> ResolveAsync(WorkerProcessOptions? worker, int timeoutSeconds,
+        WorkerProcessProxy? sharedProxy = null)
     {
         if (worker is null) return new(null, new(false, false, "WorkerAudioPreparationUnavailable"));
         string? ffmpeg = ExportWorkerConfiguration.ResolveTool("MAKO_BACKEND_FFMPEG_PATH", "ffmpeg");
@@ -16,7 +17,7 @@ internal sealed record AudioPreparationWorkerConfiguration(IBackendAudioPreparat
         using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(15));
         try
         {
-            BackendAudioPreparationCapabilities capabilities = await executor.ProbeAsync(deadline.Token).ConfigureAwait(false);
+            BackendAudioPreparationCapabilities capabilities = await executor.ProbeAsync(sharedProxy, deadline.Token).ConfigureAwait(false);
             return new(capabilities.GuardAvailable && capabilities.ToolStartupVerified ? executor : null, capabilities);
         }
         catch (Exception error) when (error is IOException or OperationCanceledException or RenderSessionFailureException)

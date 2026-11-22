@@ -190,7 +190,7 @@ public sealed class M09ResourceRuntimeTests
 
     private static ProjectRenderSessionFactory Factory(TemporaryDirectory temp, IVideoFrameProvider videos, string backend)
         => new(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")),
-            videos, ReplayReason.Initial, renderBackend: backend);
+            videos, renderBackend: backend);
 
     private static ProjectEffectInstance Instance(EffectPackageContents package) => new()
     { Id = "overlay", Name = "overlay", PackageId = package.PackageId, Revision = package.Revision, ExportId = "controller", Subscription = new("project") };

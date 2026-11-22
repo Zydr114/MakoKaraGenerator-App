@@ -197,7 +197,7 @@ public sealed class BackendRubySegmentCommandsTests
     public async Task 原子时间数组与重排数组排队后保持分离载荷及真实回执指纹()
     {
         using var f = await Fixture.Create();
-        var writer = (SemaphoreSlim)typeof(ProjectSession).GetProperty("Writer", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(f.Session)!;
+        var writer = f.Session.Writer;
         RubySegmentTimeChangeDto[] changes = [new(Target, "150001", "250003")];
         var request = f.Request("0", new SetRubySegmentTimesCommandDto(changes));
         await writer.WaitAsync(); Task<ProjectCommandExecutionResult> pending;
@@ -233,7 +233,7 @@ public sealed class BackendRubySegmentCommandsTests
             LoadedWaveform waveform = new(new AudioStreamInfo(3000000, 8000, 1, "pcm", "wav"), builder.Build(8000));
             f.Registry = new("host", store, new((_, _) => Task.FromResult<LoadedWaveform?>(waveform)), new FixedClock(), new ProjectCommandRetentionOptions { MaxReceiptBytes = receiptBytes });
             f.Session = (await f.Registry.CreateAsync("client", new("content", audio.AssetId, lyrics.AssetId))).Session!;
-            f.Workspace = (ProjectWorkspace)typeof(ProjectSession).GetProperty("Workspace", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(f.Session)!;
+            f.Workspace = f.Session.Workspace;
             LyricLine line = LyricLine.Create("one", "甲乙", TimeRange.Create(0, 2000000), TimingStatus.Imported,
                 [LyricToken.Create("first", "甲", TimeRange.Create(100000, 200000), TimingStatus.Imported),
                  LyricToken.Create("second", "乙", TimeRange.Create(500000, 700000), TimingStatus.Imported)]) with

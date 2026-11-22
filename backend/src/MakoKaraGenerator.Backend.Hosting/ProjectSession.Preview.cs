@@ -9,7 +9,7 @@ using MakoKaraGenerator.Rendering;
 namespace MakoKaraGenerator.Backend.Hosting;
 
 public sealed record BackendPreviewInputCaptureResult(BackendPreviewPinnedInput? Input, BackendErrorResponse? Error,
-    BackendProjectImageReadLease? ImageSource = null, BackendProjectRuntimeInputLease? RuntimeInput = null);
+    BackendProjectRuntimeInputLease? RuntimeInput = null);
 
 public sealed partial class ProjectSession
 {
@@ -24,16 +24,10 @@ public sealed partial class ProjectSession
         Func<string, IRenderFrameSessionFactory>? captureResourceFactory, CancellationToken cancellationToken = default) =>
         CapturePreviewInputAsync(clientId, expectedProjectRevision, factory, captureResourceFactory, false, cancellationToken);
 
-    public Task<BackendPreviewInputCaptureResult> CapturePreviewInputAsync(string clientId,
-        string expectedProjectRevision, IRenderFrameSessionFactory factory,
-        Func<string, IRenderFrameSessionFactory>? captureResourceFactory, bool captureImageSource,
-        CancellationToken cancellationToken = default) =>
-        CapturePreviewInputAsync(clientId, expectedProjectRevision, factory, captureResourceFactory, captureImageSource, false, cancellationToken);
-
-    /// <summary>显式捕获图片时，调用者必须读取或释放返回的 ImageSource；短期引用不执行文件 IO。</summary>
+    /// <summary>显式捕获运行输入时，调用者必须准备或释放返回的 RuntimeInput；短期引用不执行文件 IO。</summary>
     public async Task<BackendPreviewInputCaptureResult> CapturePreviewInputAsync(string clientId,
         string expectedProjectRevision, IRenderFrameSessionFactory factory,
-        Func<string, IRenderFrameSessionFactory>? captureResourceFactory, bool captureImageSource, bool captureRuntimeSource,
+        Func<string, IRenderFrameSessionFactory>? captureResourceFactory, bool captureRuntimeSource,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(factory);
@@ -47,9 +41,7 @@ public sealed partial class ProjectSession
                 return new(null, new(BackendErrorCode.RevisionConflict, "工程来源修订已经改变。", "expectedProjectRevision"));
             ProjectSnapshot snapshot = ProjectSnapshot.FromProject(Workspace.Project);
             IRenderFrameSessionFactory capturedFactory = captureResourceFactory?.Invoke(AudioAssetId) ?? factory;
-            BackendProjectImageReadLease? image = captureImageSource && !captureRuntimeSource && snapshot.Background.Kind == BackgroundKind.Image
-                ? AcquireProjectImageRead(snapshot) : null;
-            return new(new(new("project", ProjectSessionId, revision), snapshot, capturedFactory) { CapturedProjectSession = this }, null, image,
+            return new(new(new("project", ProjectSessionId, revision), snapshot, capturedFactory) { CapturedProjectSession = this }, null,
                 captureRuntimeSource ? AcquireProjectRuntimeInput(snapshot) : null);
         }
         finally { Writer.Release(); }

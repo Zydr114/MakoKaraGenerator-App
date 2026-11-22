@@ -30,7 +30,7 @@ public sealed partial class MixedPackageExportTests
         var compiled = await CompiledProjectEffects.CompileAsync(restored.Effects, new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")),
             new PackageImageValidator(), new PackageShaderValidator(), new PackageImageGraphValidator(), new PackageMaterialValidator()); Assert.True(compiled.Succeeded);
         var snapshot = ProjectSnapshot.FromProject(restored);
-        await using var source = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), ReplayReason.Export).CreateAsync(snapshot);
+        await using var source = await compiled.CreateFactory(static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
         using var pipeline = new PreparedPackagePipeline(source, snapshot, Assert.Single(compiled.Packages).Definition);
         string output = temp.FilePath(transparent ? "stored.mov" : "stored.mp4");
         var report = await new VideoExporter(pipeline, new FfmpegMediaProbe(), new FfmpegMediaEncoder()).ExportAsync(restored,

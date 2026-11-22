@@ -6,7 +6,7 @@ namespace MakoKaraGenerator.Backend.Server;
 
 internal static partial class ServerEndpoints
 {
-    private static readonly string[] EnabledValidationCapabilities = ["project-sessions.validation-jobs", "jobs.validation-result", "jobs.validation-diagnostics", "recovery-jobs.validation-result"];
+    private static readonly string[] EnabledValidationCapabilities = ["project-sessions.validation-jobs", "jobs.validation-result", "jobs.validation-diagnostics"];
 
     private static void ConfigureValidationEndpoints(WebApplication app)
     {
@@ -15,8 +15,6 @@ internal static partial class ServerEndpoints
         app.MapGet("/api/v1/jobs/{id}/validation-result", (string id, HttpRequest request, ProjectSessionRegistry registry) =>
             ValidationReportResult(registry.ReadValidationResult(Client(request), id)));
         app.MapGet("/api/v1/jobs/{id}/validation-diagnostics", ValidationDiagnostics);
-        app.MapGet("/api/v1/recovery-jobs/{id}/validation-result", (string id, HttpRequest request, ProjectSessionRegistry registry) =>
-            ValidationReportResult(registry.ReadRecoveredValidationResult(Client(request), id)));
     }
 
     private static async Task<IResult> ValidationAsync(string id, HttpRequest request, ProjectSessionRegistry registry, AcceptedOperationTracker tracker)

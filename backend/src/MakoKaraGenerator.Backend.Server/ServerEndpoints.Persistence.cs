@@ -17,8 +17,6 @@ internal static partial class ServerEndpoints
         app.MapPost("/api/v1/jobs/{id}/cancel", CancelAsync);
         app.MapGet("/api/v1/recovery-candidates", (HttpRequest request, ProjectSessionRegistry registry) =>
             Results.Json(new { candidates = registry.ReadRecoveryCandidates(Client(request)), protocolVersion = BackendProtocol.Version }));
-        app.MapGet("/api/v1/recovery-jobs", (HttpRequest request, ProjectSessionRegistry registry) =>
-            Results.Json(new { jobs = registry.ReadRecoveredJobs(Client(request)), protocolVersion = BackendProtocol.Version }));
     }
     private static async Task<IResult> FileHandleAsync(HttpRequest request, ProjectSessionRegistry registry, AcceptedOperationTracker tracker)
     {

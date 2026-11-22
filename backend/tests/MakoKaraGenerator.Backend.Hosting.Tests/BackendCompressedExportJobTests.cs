@@ -210,6 +210,5 @@ public sealed partial class BackendExportJobTests
         Assert.Equal(1, f.Exporter.Calls);
     }
 
-    private static ProjectWorkspace ExportWorkspace(ProjectSession session) => (ProjectWorkspace)typeof(ProjectSession)
-        .GetProperty("Workspace", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(session)!;
+    private static ProjectWorkspace ExportWorkspace(ProjectSession session) => session.Workspace;
 }

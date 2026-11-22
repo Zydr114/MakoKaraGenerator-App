@@ -5,7 +5,8 @@ namespace MakoKaraGenerator.Backend.Server;
 
 internal sealed record AnalysisWorkerConfiguration(IBackendAnalysisExecutor? Executor, BackendAnalysisCapabilities Capabilities)
 {
-    internal static async Task<AnalysisWorkerConfiguration> ResolveAsync(WorkerProcessOptions? worker, int timeoutSeconds)
+    internal static async Task<AnalysisWorkerConfiguration> ResolveAsync(WorkerProcessOptions? worker, int timeoutSeconds,
+        WorkerProcessProxy? sharedProxy = null)
     {
         if (worker is null) return new(null, new(false, false, "WorkerUnavailable"));
         string? ffmpeg = ExportWorkerConfiguration.ResolveTool("MAKO_BACKEND_FFMPEG_PATH", "ffmpeg");
@@ -15,7 +16,7 @@ internal sealed record AnalysisWorkerConfiguration(IBackendAnalysisExecutor? Exe
         using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(15));
         try
         {
-            BackendAnalysisCapabilities capabilities = await executor.ProbeAsync(deadline.Token).ConfigureAwait(false);
+            BackendAnalysisCapabilities capabilities = await executor.ProbeAsync(sharedProxy, deadline.Token).ConfigureAwait(false);
             return new(capabilities.GuardAvailable && capabilities.ToolStartupVerified ? executor : null, capabilities);
         }
         catch (Exception error) when (error is IOException or OperationCanceledException or RenderSessionFailureException)

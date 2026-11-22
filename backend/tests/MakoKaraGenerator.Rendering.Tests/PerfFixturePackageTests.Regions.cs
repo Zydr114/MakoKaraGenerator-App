@@ -83,7 +83,7 @@ public sealed partial class PerfFixturePackageTests
         var compiled = await Compile(project);
         var snapshot = ProjectSnapshot.FromProject(project);
         var output = target ?? RenderTarget.FromComposition(snapshot.Composition);
-        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), ReplayReason.Export).CreateAsync(snapshot);
+        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
         var frame = await session.PrepareAsync(TimeUs, OutputMode.Opaque, output);
         var compiledPackage = Assert.Single(compiled.Packages);
         using var device = BaseMaterialRuntimeTests.Device(gpu);

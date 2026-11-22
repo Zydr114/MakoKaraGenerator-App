@@ -81,7 +81,7 @@ public sealed class FrameInspectionTransportTests
     private static WorkerMessage Result(StaticWorkerFrameRequest request) => new(StaticRenderWorkerContract.FrameResultKind,
         "frame", WorkerProtocol.ComputeSha256(StaticRenderWorkerContract.EncodeFrame(request)), [3, 2, 1, 255],
         outputSha256: WorkerProtocol.ComputeSha256([3, 2, 1, 255]), frameWidth: 1, frameHeight: 1, frameStride: 4,
-        frameTimeUs: 42, frameFormat: RenderFrameV1WorkerResult.RequiredPixelFormat, sessionId: request.SessionId.ToString("N"),
+        frameTimeUs: 42, frameFormat: StaticRenderWorkerContract.RequiredPixelFormat, sessionId: request.SessionId.ToString("N"),
         sourceSha256: request.SourceSha256, frameSequence: 1, frameTransparentBackground: false, diagnostics: new([], false),
         frameQuality: request.Quality);
 

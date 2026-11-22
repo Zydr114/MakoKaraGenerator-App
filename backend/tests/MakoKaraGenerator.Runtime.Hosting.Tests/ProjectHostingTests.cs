@@ -61,7 +61,7 @@ public sealed class ProjectHostingTests
     {
         using TemporaryDirectory temp = new();
         var snapshot = Snapshot(MixedEffectPackageFixture.Contents());
-        var factory = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")), new FfmpegVideoFrameProvider(), ReplayReason.Initial, layoutReference: layout, renderBackend: "vulkan");
+        var factory = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")), new FfmpegVideoFrameProvider(), layoutReference: layout, renderBackend: "vulkan");
         await using var session = await factory.CreateAsync(snapshot);
         var request = RenderRequest.At(snapshot, layout ? 0 : 300_000);
         using var measured = await ((ISceneMeasurementSession)session).MeasureAsync(request, layout);
@@ -90,7 +90,7 @@ public sealed class ProjectHostingTests
         var snapshot = ProjectSnapshot.FromProject(applied);
         var fingerprint = snapshot.EffectInputsFingerprint;
         var factory = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")),
-            videos, ReplayReason.Initial, layoutReference: true, renderBackend: "vulkan");
+            videos, layoutReference: true, renderBackend: "vulkan");
         await using var session = await factory.CreateAsync(snapshot);
         var request = RenderRequest.At(snapshot, 0);
         using var measured = await ((ISceneMeasurementSession)session).MeasureAsync(request, layoutReference: true);
@@ -127,7 +127,7 @@ public sealed class ProjectHostingTests
         Assert.Throws<ArgumentException>(() => PresetSceneStyleProjection.Resolver(snapshot).ResolveLyrics("missing-real-line"));
     }
 
-    private static ProjectRenderSessionFactory Factory(string cache, ReplayReason reason = ReplayReason.Initial, string? renderBackend = "vulkan") => new(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), cache), new FfmpegVideoFrameProvider(), reason, renderBackend: renderBackend);
+    private static ProjectRenderSessionFactory Factory(string cache, ReplayReason reason = ReplayReason.Initial, string? renderBackend = "vulkan") => new(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), cache), new FfmpegVideoFrameProvider(), renderBackend: renderBackend);
 
     private static ProjectSnapshot Snapshot(EffectPackageContents? package = null)
     {
@@ -176,7 +176,7 @@ public sealed class ProjectHostingTests
     public async Task 静态路径不创建编译缓存且只接受创建时的快照()
     {
         var snapshot = Snapshot();
-        await using var session = await new ProjectRenderSessionFactory(new FixedScriptArtifactProvider(new ScriptCompilationIdentity("static-unused", "static-unused", new string('0', 64), new string('0', 64), "static-unused", "static-unused"), []), new FfmpegVideoFrameProvider(), ReplayReason.Initial).CreateAsync(snapshot);
+        await using var session = await new ProjectRenderSessionFactory(new FixedScriptArtifactProvider(new ScriptCompilationIdentity("static-unused", "static-unused", new string('0', 64), new string('0', 64), "static-unused", "static-unused"), []), new FfmpegVideoFrameProvider()).CreateAsync(snapshot);
         var request = RenderRequest.At(snapshot, 300_000);
         using SkiaRenderPipeline renderer = new(); using var expected = renderer.Render(request); using var actual = await session.RenderAsync(request);
         Assert.Equal(expected.PixelMemory.ToArray(), actual.PixelMemory.ToArray());

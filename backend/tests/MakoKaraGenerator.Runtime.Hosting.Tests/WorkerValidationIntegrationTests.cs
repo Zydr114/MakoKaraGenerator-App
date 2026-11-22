@@ -31,7 +31,7 @@ public sealed class WorkerValidationIntegrationTests(ITestOutputHelper output)
         using TemporaryDirectory temp = new();
         var snapshot = Snapshot(width, height);
         var runtimeProgress = new List<RuntimeValidationProgress>();
-        var expected = await new RuntimeFrameValidator(new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("unused-cache")), new FfmpegVideoFrameProvider(), ReplayReason.Initial)).ValidateAsync(snapshot, new(3), new RuntimeProgress(runtimeProgress.Add));
+        var expected = await new RuntimeFrameValidator(new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("unused-cache")), new FfmpegVideoFrameProvider())).ValidateAsync(snapshot, new(3), new RuntimeProgress(runtimeProgress.Add));
         Assert.True(expected.Succeeded, string.Join('\n', expected.Issues));
         var progress = new List<BackendJobProgressDto>();
         var executor = new WorkerBackendValidationExecutor(Options());

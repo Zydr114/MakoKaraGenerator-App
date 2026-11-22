@@ -55,46 +55,17 @@ public sealed record WorkerProcessOptions
     }
 }
 
-/// <summary>Worker 调用的专用输入合同；payload 不代表工程保存文件。</summary>
-public sealed record WorkerInvocation(
-    string Kind,
-    byte[] Payload,
-    int DelayMilliseconds = 0,
-    string? RequestId = null);
-
-/// <summary>Worker 调用的校验结果。</summary>
-public sealed record WorkerInvocationResult(
-    string RequestId,
-    byte[] Payload,
-    string InputSha256,
-    bool Cancelled = false);
-
-/// <summary>跨进程 render-frame-v1 的受验证结果；调用者拥有返回像素数组。</summary>
-public sealed record WorkerRenderFrameResult(
-    string RequestId,
-    byte[] Pixels,
-    string InputSha256,
-    string OutputSha256,
-    int Width,
-    int Height,
-    int Stride,
-    long TimeUs,
-    string PixelFormat);
-
 /// <summary>
 /// Hosting 持有的单 Worker 代理。协议消息有长度上限，子进程退出或取消超时会被回收。
-/// 固定背景帧和 snapshot-v1 静态歌词／场景持久会话分离；完整资源和脚本闭包尚未接入。
 /// </summary>
 public sealed partial class WorkerProcessProxy : IAsyncDisposable
 {
     private static bool IsPackageCapabilitiesKind(string kind) => kind is PackageRenderWorkerContract.CapabilitiesKind
         or PackageRenderWorkerContract.ValidationCapabilitiesKind
-        or PackageResourceWorkerContract.CapabilitiesKind or ProjectImagePreviewWorkerContract.CapabilitiesKind
-        or ProjectImageValidationWorkerContract.CapabilitiesKind or ProjectRuntimeInputWorkerContract.CapabilitiesKind
+        or PackageResourceWorkerContract.CapabilitiesKind or ProjectRuntimeInputWorkerContract.CapabilitiesKind
         or RuntimeValidationWorkerContract.CapabilitiesKind;
     private static bool IsPackageRenderCapabilitiesKind(string kind) => kind is PackageRenderWorkerContract.CapabilitiesKind;
     private static bool IsPackageValidationCapabilitiesKind(string kind) => kind is PackageRenderWorkerContract.ValidationCapabilitiesKind;
-    private static bool IsImageValidationCapabilitiesKind(string kind) => kind is ProjectImageValidationWorkerContract.CapabilitiesKind;
     private static bool IsPackageResourceKind(string kind) => kind is PackageResourceWorkerContract.CapabilitiesKind
         or PackageResourceWorkerContract.ValidateKind;
     private static bool IsPackageSessionKind(string kind) => kind is PackageRenderWorkerContract.RenderKind
@@ -107,15 +78,10 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
             ? _runtimeValidationVerifiedProcess
         : IsPackageValidationCapabilitiesKind(kind) || kind == WorkerValidationContract.RequestKind
             ? _packageValidationVerifiedProcess
-            : kind is ProjectImageValidationWorkerContract.CapabilitiesKind or ProjectImageValidationWorkerContract.RequestKind
-                ? _imageValidationVerifiedProcess
             : kind is ProjectRuntimeInputWorkerContract.CapabilitiesKind or ProjectRuntimeInputWorkerContract.OpenKind
                 or WorkerSceneMeasurementContract.CapabilitiesKind or WorkerSceneMeasurementContract.RequestKind
                 || IsPackageSessionKind(kind) && _packageSessionOpenKind == ProjectRuntimeInputWorkerContract.OpenKind
                 ? _runtimeInputVerifiedProcess
-            : kind is ProjectImagePreviewWorkerContract.CapabilitiesKind or ProjectImagePreviewWorkerContract.OpenKind
-                || IsPackageSessionKind(kind) && _packageSessionOpenKind == ProjectImagePreviewWorkerContract.OpenKind
-                ? _imagePreviewVerifiedProcess
                 : IsPackageRenderCapabilitiesKind(kind) || kind == PackageRenderWorkerContract.OpenKind || IsPackageSessionKind(kind)
                     ? _packageRenderVerifiedProcess
                     : null;
@@ -137,11 +103,9 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
     private long? _actualMediaFileSizeLimit;
     private Process? _packageRenderVerifiedProcess;
     private Process? _packageValidationVerifiedProcess;
-    private Process? _imageValidationVerifiedProcess;
     private Process? _runtimeValidationVerifiedProcess;
     private Process? _packageResourceVerifiedProcess;
     private Process? _packageSessionProcess;
-    private Process? _imagePreviewVerifiedProcess;
     private string? _packageSessionOpenKind;
     private bool _disposed;
     private Task? _disposeTask;
@@ -315,44 +279,6 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
         foreach (string key in start.Environment.Keys.Where(key =>
                      key.StartsWith("MAKO_DESKTOP_", StringComparison.OrdinalIgnoreCase)).ToArray())
             start.Environment.Remove(key);
-    }
-
-    /// <summary>发送一条受限 Worker 命令，并校验回执的请求 ID 与输入哈希。</summary>
-    public async Task<WorkerInvocationResult> InvokeAsync(WorkerInvocation invocation, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(invocation);
-        if (string.IsNullOrWhiteSpace(invocation.Kind)) throw new ArgumentException("Worker kind 不能为空。", nameof(invocation));
-        ArgumentNullException.ThrowIfNull(invocation.Payload);
-        if (invocation.Payload.Length > WorkerProtocol.MaxPayloadBytes)
-            throw new WorkerProtocolException("Worker 输入超过单条 payload 上限。");
-        if (invocation.DelayMilliseconds is < 0 or > 60_000)
-            throw new ArgumentOutOfRangeException(nameof(invocation));
-        string requestId = invocation.RequestId ?? Guid.NewGuid().ToString("N");
-        byte[] payload = [.. invocation.Payload];
-        string hash = WorkerProtocol.ComputeSha256(payload);
-        WorkerMessage response = await InvokeMessageAsync(
-            new(invocation.Kind, requestId, hash, payload, invocation.DelayMilliseconds), cancellationToken).ConfigureAwait(false);
-        if (response.Cancelled) throw new OperationCanceledException(cancellationToken);
-        return new(requestId, response.Payload, hash);
-    }
-
-    /// <summary>发送固定长度 render-frame-v1 请求；超时会走同一 cancel/进程树回收合同。</summary>
-    public async Task<WorkerRenderFrameResult> InvokeRenderFrameAsync(
-        RenderFrameV1WorkerRequest request, TimeSpan timeout, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        if (timeout <= TimeSpan.Zero || timeout > TimeSpan.FromMinutes(1))
-            throw new ArgumentOutOfRangeException(nameof(timeout));
-        byte[] payload = request.Encode();
-        string inputHash = RenderFrameV1WorkerRequest.ComputeInputSha256(payload);
-        using CancellationTokenSource deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        deadline.CancelAfter(timeout);
-        string requestId = Guid.NewGuid().ToString("N");
-        RenderFrameV1WorkerResult? frame = null;
-        await InvokeMessageAsync(new("render-frame-v1", requestId, inputHash, payload), deadline.Token,
-            response => frame = RenderFrameV1WorkerResult.FromMessage(request, response)).ConfigureAwait(false);
-        return new(frame!.RequestId, frame.Pixels, frame.InputSha256, frame.OutputSha256,
-            frame.Width, frame.Height, frame.Stride, frame.TimeUs, frame.PixelFormat);
     }
 
     private (string Identity, int Count)? TryComputeScriptReferenceIdentity() =>
@@ -637,8 +563,8 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
             || response.FrameStride is not null || response.FrameTimeUs is not null || response.FrameFormat is not null
             || response.FrameTransparentBackground is not null || response.FrameQuality is not null
             || response.Diagnostics is not null;
-        if (response.Kind is PackageRenderWorkerContract.CapabilitiesResultKind or ProjectImagePreviewWorkerContract.CapabilitiesResultKind
-            or ProjectRuntimeInputWorkerContract.CapabilitiesResultKind or ProjectImageValidationWorkerContract.CapabilitiesResultKind
+        if (response.Kind is PackageRenderWorkerContract.CapabilitiesResultKind
+            or ProjectRuntimeInputWorkerContract.CapabilitiesResultKind
             or RuntimeValidationWorkerContract.CapabilitiesResultKind or PackageRenderWorkerContract.SessionResultKind)
         {
             if (hasFrameMetadata || response.PackageDiagnostics is not null) Reject("包 Worker 能力／会话回执含未协商帧字段。");
@@ -667,7 +593,7 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
             if (response.PackageDiagnostics is { } package)
             {
                 WorkerPackageDiagnosticsContract.Validate(package);
-                bool compilation = request.Kind is PackageRenderWorkerContract.OpenKind or ProjectImagePreviewWorkerContract.OpenKind or ProjectRuntimeInputWorkerContract.OpenKind
+                bool compilation = request.Kind is PackageRenderWorkerContract.OpenKind or ProjectRuntimeInputWorkerContract.OpenKind
                     && response.ErrorCode == "WorkerPackageCompilationFailed" && package.Source.Length != 0
                     && package.Image.Length == 0 && package.Material.Length == 0 && response.Diagnostics is null;
                 bool runtime = request.Kind == PackageRenderWorkerContract.RenderKind
@@ -681,8 +607,8 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
 
         if (response.Error is not null || response.ErrorCode is not null)
             Reject("包 Worker 成功回执含错误字段。");
-        if (response.Kind is PackageRenderWorkerContract.CapabilitiesResultKind or ProjectImagePreviewWorkerContract.CapabilitiesResultKind
-            or ProjectRuntimeInputWorkerContract.CapabilitiesResultKind or ProjectImageValidationWorkerContract.CapabilitiesResultKind or PackageRenderWorkerContract.FrameResultKind)
+        if (response.Kind is PackageRenderWorkerContract.CapabilitiesResultKind
+            or ProjectRuntimeInputWorkerContract.CapabilitiesResultKind or PackageRenderWorkerContract.FrameResultKind)
         {
             if (response.OutputSha256 is null)
                 Reject("包 Worker 回执缺少输出 SHA-256。");
@@ -861,12 +787,10 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
                         throw new WorkerProtocolException("包 Worker 回执的实际进程代次已改变。", "WorkerPackageUnavailable");
                     if (IsPackageRenderCapabilitiesKind(request.Kind)) _packageRenderVerifiedProcess = invocationProcess;
                     if (IsPackageValidationCapabilitiesKind(request.Kind)) _packageValidationVerifiedProcess = invocationProcess;
-                    if (IsImageValidationCapabilitiesKind(request.Kind)) _imageValidationVerifiedProcess = invocationProcess;
                     if (request.Kind == RuntimeValidationWorkerContract.CapabilitiesKind) _runtimeValidationVerifiedProcess = invocationProcess;
                     if (request.Kind == PackageResourceWorkerContract.CapabilitiesKind) _packageResourceVerifiedProcess = invocationProcess;
                     if (request.Kind == ProjectRuntimeInputWorkerContract.CapabilitiesKind) _runtimeInputVerifiedProcess = invocationProcess;
-                    if (request.Kind == ProjectImagePreviewWorkerContract.CapabilitiesKind) _imagePreviewVerifiedProcess = invocationProcess;
-                    if (request.Kind is PackageRenderWorkerContract.OpenKind or ProjectImagePreviewWorkerContract.OpenKind or ProjectRuntimeInputWorkerContract.OpenKind)
+                    if (request.Kind is PackageRenderWorkerContract.OpenKind or ProjectRuntimeInputWorkerContract.OpenKind)
                     { _packageSessionProcess = invocationProcess; _packageSessionOpenKind = request.Kind; }
                     if (request.Kind == PackageRenderWorkerContract.CloseKind)
                     { _packageSessionProcess = null; _packageSessionOpenKind = null; }
@@ -1023,9 +947,9 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
                 _ownedGroup = null; _windowsGuard = null; _guardHandshakeVerified = false; _actualMediaFileSizeLimit = null;
                 _ownedTree = null;
                 _packageRenderVerifiedProcess = null; _packageValidationVerifiedProcess = null;
-                _imageValidationVerifiedProcess = null; _runtimeValidationVerifiedProcess = null;
+                _runtimeValidationVerifiedProcess = null;
                 _packageResourceVerifiedProcess = null; _packageSessionProcess = null;
-                _imagePreviewVerifiedProcess = null; _runtimeInputVerifiedProcess = null; _packageSessionOpenKind = null;
+                _runtimeInputVerifiedProcess = null; _packageSessionOpenKind = null;
                 VerifiedRenderBackendDevice = null;
                 ReleasePreparedScriptInputs(processExited: true);
             }

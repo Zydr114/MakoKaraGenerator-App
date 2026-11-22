@@ -34,7 +34,7 @@ public sealed partial class MixedPackageExportTests
         var compiled = await CompileSources(project); Assert.True(compiled.Succeeded); Assert.Empty(compiled.Effects);
         var package = Assert.Single(compiled.Packages); Assert.Null(package.ControllerArtifact);
         var snapshot = ProjectSnapshot.FromProject(project);
-        await using var source = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), ReplayReason.Export).CreateAsync(snapshot);
+        await using var source = await compiled.CreateFactory(static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
         using var pipeline = new PreparedPackagePipeline(source, snapshot, package.Definition);
         string output = temp.FilePath(transparent ? "source.mov" : "source.mp4");
         var report = await new VideoExporter(pipeline, new FfmpegMediaProbe(), new FfmpegMediaEncoder()).ExportAsync(project,
@@ -69,7 +69,7 @@ public sealed partial class MixedPackageExportTests
             shaderSource: "uniform float amount; uniform shader original; half4 main(float2 p) { half4 c=original.eval(p); return amount>=.2 ? half4(c.rgb,1) : c; }");
         var project = SourceMaterialProject(contents); var compiled = await CompileSources(project); Assert.Empty(compiled.Effects);
         var snapshot = ProjectSnapshot.FromProject(project);
-        await using var source = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), ReplayReason.Export).CreateAsync(snapshot);
+        await using var source = await compiled.CreateFactory(static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
         using var pipeline = new PreparedPackagePipeline(source, snapshot, Assert.Single(compiled.Packages).Definition);
         var failure = await Assert.ThrowsAsync<SourceMaterialFailureException>(() => new VideoExporter(pipeline, new FfmpegMediaProbe(), new FfmpegMediaEncoder()).ExportAsync(project,
             new() { OutputPath = output, IncludeAudio = false, Overwrite = true, Format = ExportVideoFormat.OpaqueMp4 }));

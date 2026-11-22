@@ -13,35 +13,25 @@ public sealed partial class WorkerProcessProxy
         => await ValidateProjectAsync(snapshotBytes, framesPerOutput, timeout, progress,
             StaticProjectSnapshotCodec.Profile, cancellationToken).ConfigureAwait(false);
 
-    public Task<ValidationReportDto> ValidateImageProjectAsync(ReadOnlyMemory<byte> snapshotBytes, int framesPerOutput,
-        TimeSpan timeout, IProgress<BackendJobProgressDto>? progress = null, CancellationToken cancellationToken = default)
-        => ValidateProjectCoreAsync(snapshotBytes, framesPerOutput, timeout, progress,
-            ProjectImageValidationWorkerContract.ValidationProfile, true, cancellationToken);
-
     public Task<ValidationReportDto> ValidateRuntimeProjectAsync(ReadOnlyMemory<byte> sourceBytes, int framesPerOutput,
         TimeSpan timeout, IProgress<BackendJobProgressDto>? progress = null, CancellationToken cancellationToken = default)
-        => ValidateProjectCoreAsync(sourceBytes, framesPerOutput, timeout, progress, RuntimeValidationWorkerContract.Profile, false, cancellationToken);
+        => ValidateProjectCoreAsync(sourceBytes, framesPerOutput, timeout, progress, RuntimeValidationWorkerContract.Profile, cancellationToken);
 
     public async Task<ValidationReportDto> ValidateProjectAsync(ReadOnlyMemory<byte> snapshotBytes, int framesPerOutput,
         TimeSpan timeout, IProgress<BackendJobProgressDto>? progress, string profile, CancellationToken cancellationToken = default)
-        => await ValidateProjectCoreAsync(snapshotBytes, framesPerOutput, timeout, progress, profile, false, cancellationToken).ConfigureAwait(false);
+        => await ValidateProjectCoreAsync(snapshotBytes, framesPerOutput, timeout, progress, profile, cancellationToken).ConfigureAwait(false);
 
     private async Task<ValidationReportDto> ValidateProjectCoreAsync(ReadOnlyMemory<byte> snapshotBytes, int framesPerOutput,
-        TimeSpan timeout, IProgress<BackendJobProgressDto>? progress, string profile, bool imageValidation, CancellationToken cancellationToken)
+        TimeSpan timeout, IProgress<BackendJobProgressDto>? progress, string profile, CancellationToken cancellationToken)
     {
         if (timeout <= TimeSpan.Zero || timeout > TimeSpan.FromMinutes(1)) throw new ArgumentOutOfRangeException(nameof(timeout));
-        bool image = imageValidation || profile == ProjectImageValidationWorkerContract.ValidationProfile;
         bool runtime = profile == RuntimeValidationWorkerContract.Profile;
         byte[] payload = runtime ? RuntimeValidationWorkerContract.EncodeInput(Guid.NewGuid(), framesPerOutput, snapshotBytes.Span)
-            : image
-            ? ProjectImageValidationWorkerContract.EncodeInput(Guid.NewGuid(), framesPerOutput, snapshotBytes.Span)
             : WorkerValidationContract.EncodeInput(Guid.NewGuid(), framesPerOutput, snapshotBytes.Span,
                 profile == PackageProjectSnapshotCodec.Profile);
-        WorkerValidationInput input = runtime ? RuntimeValidationWorkerContract.DecodeInput(payload) : image ? ProjectImageValidationWorkerContract.DecodeInput(payload) : WorkerValidationContract.DecodeInput(payload);
+        WorkerValidationInput input = runtime ? RuntimeValidationWorkerContract.DecodeInput(payload) : WorkerValidationContract.DecodeInput(payload);
         var composition = runtime ? ProjectRuntimeInputCodec.ReadComposition(input.SnapshotBytes)
-            : (image
-                ? ProjectImagePreviewSnapshotCodec.Decode(input.SnapshotBytes).Snapshot
-                : input.Profile == PackageProjectSnapshotCodec.Profile
+            : (input.Profile == PackageProjectSnapshotCodec.Profile
                     ? PackageProjectSnapshotCodec.Decode(input.SnapshotBytes)
                     : StaticProjectSnapshotCodec.Decode(input.SnapshotBytes)).Composition;
         WorkerValidationContract.ValidateGeometryAndTiming(composition.CanvasWidth, composition.CanvasHeight, composition.OutputDurationUs,
@@ -50,13 +40,11 @@ public sealed partial class WorkerProcessProxy
         deadline.CancelAfter(timeout);
         using var prepared = await PrepareValidationScriptInputAsync().ConfigureAwait(false);
         payload = runtime ? RuntimeValidationWorkerContract.EncodeInput(input.TaskId, framesPerOutput, prepared.Envelope)
-            : image ? ProjectImageValidationWorkerContract.EncodeInput(input.TaskId, framesPerOutput, prepared.Envelope)
             : WorkerValidationContract.EncodeInput(input.TaskId, framesPerOutput, prepared.Envelope, profile == PackageProjectSnapshotCodec.Profile);
-        input = runtime ? RuntimeValidationWorkerContract.DecodeInput(payload) : image
-            ? ProjectImageValidationWorkerContract.DecodeInput(payload) : WorkerValidationContract.DecodeInput(payload);
-        string progressKind = runtime ? RuntimeValidationWorkerContract.ProgressKind : image ? ProjectImageValidationWorkerContract.ProgressKind : WorkerValidationContract.ProgressKind;
-        string resultKind = runtime ? RuntimeValidationWorkerContract.ResultKind : image ? ProjectImageValidationWorkerContract.ResultKind : WorkerValidationContract.ResultKind;
-        string requestKind = runtime ? RuntimeValidationWorkerContract.RequestKind : image ? ProjectImageValidationWorkerContract.RequestKind : WorkerValidationContract.RequestKind;
+        input = runtime ? RuntimeValidationWorkerContract.DecodeInput(payload) : WorkerValidationContract.DecodeInput(payload);
+        string progressKind = runtime ? RuntimeValidationWorkerContract.ProgressKind : WorkerValidationContract.ProgressKind;
+        string resultKind = runtime ? RuntimeValidationWorkerContract.ResultKind : WorkerValidationContract.ResultKind;
+        string requestKind = runtime ? RuntimeValidationWorkerContract.RequestKind : WorkerValidationContract.RequestKind;
         WorkerMessage request = new(requestKind, Guid.NewGuid().ToString("N"), WorkerProtocol.ComputeSha256(payload),
             payload, sourceSha256: input.SourceSha256, taskId: input.TaskId.ToString("N"), validationFramesPerOutput: framesPerOutput);
         // Package validation has a different source codec and must prove the actual
@@ -69,12 +57,6 @@ public sealed partial class WorkerProcessProxy
             try { prepared.RequirePackageProfiles(await GetPackageValidationCapabilitiesAsync(timeout, deadline.Token).ConfigureAwait(false)); }
             catch (OperationCanceledException failure) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested)
             { throw new RenderSessionFailureException("WorkerTaskTimedOut", "固定帧计划 Worker 验证超过任务期限。", innerException: failure); }
-        }
-        if (image)
-        {
-            try { prepared.RequirePackageProfiles((await GetImageValidationCapabilitiesAsync(timeout, deadline.Token).ConfigureAwait(false)).PackageCapabilities); }
-            catch (OperationCanceledException failure) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested)
-            { throw new RenderSessionFailureException("WorkerTaskTimedOut", "图片背景验证超过任务期限。", innerException: failure); }
         }
         if (runtime)
         {
@@ -92,7 +74,7 @@ public sealed partial class WorkerProcessProxy
 
         async Task<PreparedScriptCall> PrepareValidationScriptInputAsync()
         {
-            try { return await PrepareScriptCallAsync(snapshotBytes, deadline.Token, image: image).ConfigureAwait(false); }
+            try { return await PrepareScriptCallAsync(snapshotBytes, deadline.Token).ConfigureAwait(false); }
             catch (OperationCanceledException failure) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested)
             { throw new RenderSessionFailureException("WorkerTaskTimedOut", "固定帧计划 Worker 验证超过任务期限。", innerException: failure); }
         }
@@ -111,23 +93,21 @@ public sealed partial class WorkerProcessProxy
             try
             {
                 await StartAsync(call.Token).ConfigureAwait(false);
-                bool bindInvocation = profile == PackageProjectSnapshotCodec.Profile || image || runtime;
+                bool bindInvocation = profile == PackageProjectSnapshotCodec.Profile || runtime;
                 if (bindInvocation)
                 {
                     await _lifecycleGate.WaitAsync(call.Token).ConfigureAwait(false);
                     try
                     {
-                        Process? verified = runtime ? _runtimeValidationVerifiedProcess : image ? _imageValidationVerifiedProcess : _packageValidationVerifiedProcess;
+                        Process? verified = runtime ? _runtimeValidationVerifiedProcess : _packageValidationVerifiedProcess;
                         if (!HasVerifiedPrivateGuard || _process is null || _process.HasExited
                             || !ReferenceEquals(_process, verified))
-                            throw new WorkerProtocolException(image ? "图片验证 Worker 实际进程未通过能力验证。" : "包验证 Worker 实际进程未通过能力验证。",
-                                image ? "WorkerImageValidationUnavailable" : "WorkerPackageUnavailable");
+                            throw new WorkerProtocolException("包验证 Worker 实际进程未通过能力验证。", "WorkerPackageUnavailable");
                         invocationProcess = _process;
                         invocationInput = _input;
                         invocationOutput = _output;
                         if (invocationInput is null || invocationOutput is null)
-                            throw new WorkerProtocolException(image ? "图片验证 Worker 管道未就绪。" : "包验证 Worker 管道未就绪。",
-                                image ? "WorkerImageValidationUnavailable" : "WorkerPackageUnavailable");
+                            throw new WorkerProtocolException("包验证 Worker 管道未就绪。", "WorkerPackageUnavailable");
                         await WriteAsync(invocationInput, request, call.Token).ConfigureAwait(false);
                     }
                     finally { _lifecycleGate.Release(); }
@@ -152,8 +132,7 @@ public sealed partial class WorkerProcessProxy
                     try
                     {
                         if (!ReferenceEquals(invocationProcess, _process) || invocationProcess?.HasExited == true)
-                            throw new WorkerProtocolException(image ? "图片验证 Worker 回执的实际进程代次已改变。" : "包验证 Worker 回执的实际进程代次已改变。",
-                                image ? "WorkerImageValidationUnavailable" : "WorkerPackageUnavailable");
+                            throw new WorkerProtocolException("包验证 Worker 回执的实际进程代次已改变。", "WorkerPackageUnavailable");
                     }
                     finally { _lifecycleGate.Release(); }
                 }

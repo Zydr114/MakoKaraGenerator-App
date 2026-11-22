@@ -39,7 +39,7 @@ internal static class SceneMeasurementWorker
             }
         }
         token.ThrowIfCancellationRequested();
-        await using var session = await runtimeInput.CreateFactory(ReplayReason.Initial, input.Request.Mode == "layout", input.EditingLineId, input.EditingCueId,
+        await using var session = await runtimeInput.CreateFactory(input.Request.Mode == "layout", input.EditingLineId, input.EditingCueId,
             renderBackend).CreateAsync(snapshot, token).ConfigureAwait(false);
         if (session is not ISceneMeasurementSession measurable) throw new WorkerProtocolException("Runtime没有同帧测量能力。", "SceneMeasurementUnavailable");
         var request = input.Request;

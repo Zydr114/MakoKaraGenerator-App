@@ -44,7 +44,7 @@ internal static partial class ServerEndpoints
                     context.Response.Headers.AccessControlAllowHeaders = string.Join(", ", allowedHeaders);
                     context.Response.StatusCode = 204; return;
                 }
-                bool publicEndpoint = context.Request.Path is { Value: "/health/live" or "/api/v1/health/live" or "/api/v1/clients" };
+                bool publicEndpoint = context.Request.Path is { Value: "/api/v1/health/live" or "/api/v1/clients" };
                 string[] pathParts = (context.Request.Path.Value ?? "").Split('/', StringSplitOptions.RemoveEmptyEntries);
                 bool privateGpuConsumer = context.Request.Method == "POST" && pathParts.Length == 4 &&
                     pathParts[0] == "internal" && pathParts[1] == "gpu-preview-streams" && pathParts[3] is "claim" or "consumer-failed" &&
@@ -83,23 +83,18 @@ internal static partial class ServerEndpoints
             }
             finally { operationPin?.Dispose(); }
         });
-        app.MapGet("/health/live", (ProjectSessionRegistry registry) => Results.Json(new HealthResponse("live", registry.HostInstanceId)));
         app.MapGet("/api/v1/health/live", (ProjectSessionRegistry registry) => Results.Json(new HealthResponse("live", registry.HostInstanceId)));
-        app.MapGet("/capabilities", Capabilities);
         app.MapGet("/api/v1/capabilities", Capabilities);
         app.MapPost("/api/v1/clients", RegisterClientAsync);
         app.MapPost("/api/v1/clients/{id}/heartbeat", Heartbeat);
         app.MapGet("/api/v1/clients/{id}/state", ClientStateAsync);
         app.MapGet("/api/v1/events", EventsAsync);
-        app.MapPost("/assets", UploadAssetAsync);
         app.MapPost("/api/v1/assets", UploadAssetAsync);
         app.MapMethods("/api/v1/assets/{id}/content", ["GET", "HEAD"], ReadAssetAsync);
         app.MapMethods("/api/v1/preview-frames/{id}/content", ["GET", "HEAD"], ReadPreviewFrameAsync);
         app.MapGet("/api/v1/preview-frames/{id}/inspection", ReadPreviewInspection);
         app.MapGet("/api/v1/preview-sessions/{id}/diagnostics", ReadPreviewDiagnosticsAsync);
-        app.MapPost("/project-sessions", CreateSessionAsync);
         app.MapPost("/api/v1/project-sessions", CreateSessionAsync);
-        app.MapGet("/project-sessions/{id}", GetSessionAsync);
         app.MapGet("/api/v1/project-sessions/{id}", GetSessionAsync);
         app.MapGet("/api/v1/project-sessions/{id}/history", GetHistoryAsync);
         app.MapGet("/api/v1/project-sessions/{id}/lyrics/lines", GetLyricsAsync);
@@ -142,7 +137,7 @@ internal static partial class ServerEndpoints
             "project-sessions.resolved-style.read", "project-sessions.commands.orchestration.setClipMembers",
             "project-sessions.commands.orchestration.splitClip", "project-sessions.commands.orchestration.mergeClips",
             "project-sessions.commands.audio.replaceAsset", "project-sessions.commands.audio.clear",
-            "project-sessions.commands.project.rename", "project-sessions.resources.read", "project-sessions.resources.package-asset",
+            "project-sessions.commands.project.rename", "project-sessions.resources.read",
             "clients.register", "clients.heartbeat", "clients.state", "events.replay", "assets.upload", "assets.content.range",
             "project-sessions.create", "project-sessions.summary", "project-sessions.lyrics.read", "project-sessions.history.read",
             "project-sessions.lyrics.branches.read", "project-sessions.lyrics.window.read", "project-sessions.settings.read", "project-sessions.orchestration.read", "project-sessions.orchestration.geometry-reference.read", "project-sessions.orchestration.line-local-transform.read", "project-sessions.orchestration.line-presentation.read",
@@ -204,7 +199,7 @@ internal static partial class ServerEndpoints
             "author.drafts.profile-list", "author.drafts.claim", "author.drafts.package-files.read", "author.drafts.package-files.write", "author.drafts.package-files.replace", "author.drafts.source-revisions", "author.drafts.package.download", "script-configurations.package.download",
             "author.drafts.create", "author.drafts.list", "author.drafts.read", "author.drafts.sources", "author.drafts.source-inspection", "author.drafts.configuration", "author.drafts.compilation.read", "author.drafts.delete", "author.drafts.source-revision", "author.drafts.compile", "author.drafts.adopt-source-revision", "script-configurations.read", "script-configurations.detail", "script-configurations.commands.create", "script-configurations.commands.replace", "script-configurations.commands.copy", "script-configurations.commands.rename", "script-configurations.commands.delete",
             "project-sessions.open-jobs", "project-sessions.save-jobs", "project-sessions.close-jobs", "project-sessions.recover-jobs",
-            "jobs.read", "jobs.cancel", "recovery-candidates.read", "recovery-jobs.read",
+            "jobs.read", "jobs.cancel", "recovery-candidates.read",
             "preview.frame.content.range", "preview.diagnostics", "preview.runtime-info", "preview.state", "preview.close",
             "validation.capabilities", "export.capabilities",
             .. (registry.ValidationCapabilities.Enabled ? EnabledValidationCapabilities : []),

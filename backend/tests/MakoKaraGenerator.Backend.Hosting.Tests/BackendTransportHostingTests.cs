@@ -559,8 +559,7 @@ public sealed class BackendTransportHostingTests
     public async Task 已排队的旧查询进入writer后必须重新检查显式关闭状态()
     {
         using CommandFixture fixture = await CommandFixture.CreateAsync();
-        const System.Reflection.BindingFlags Internal = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
-        SemaphoreSlim writer = (SemaphoreSlim)typeof(ProjectSession).GetProperty("Writer", Internal)!.GetValue(fixture.Session)!;
+        SemaphoreSlim writer = fixture.Session.Writer;
         await writer.WaitAsync();
         Task<ProjectSessionSummaryResponse?> summary = fixture.Registry.ReadSummaryAsync("client", fixture.Session.ProjectSessionId);
         Task<ProjectHistoryResponse?> history = fixture.Registry.ReadHistoryAsync("client", fixture.Session.ProjectSessionId);
@@ -570,7 +569,7 @@ public sealed class BackendTransportHostingTests
             Assert.False(summary.IsCompleted);
             Assert.False(history.IsCompleted);
             Assert.False(lyrics.IsCompleted);
-            typeof(ProjectSession).GetProperty("IsClosed", Internal)!.SetValue(fixture.Session, true);
+            fixture.Session.IsClosed = true;
         }
         finally { writer.Release(); }
         Assert.Null(await summary);
@@ -591,9 +590,8 @@ public sealed class BackendTransportHostingTests
         ProjectSession a = (await registry.CreateAsync("client", new("one", audio.AssetId, lyrics.AssetId))).Session!;
         ProjectSession b = (await registry.CreateAsync("client", new("two", audio.AssetId, lyrics.AssetId))).Session!;
         ProjectSession[] ordered = [.. new[] { a, b }.OrderBy(session => session.ProjectSessionId, StringComparer.Ordinal)];
-        const System.Reflection.BindingFlags Internal = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
-        SemaphoreSlim firstWriter = (SemaphoreSlim)typeof(ProjectSession).GetProperty("Writer", Internal)!.GetValue(ordered[0])!;
-        SemaphoreSlim secondWriter = (SemaphoreSlim)typeof(ProjectSession).GetProperty("Writer", Internal)!.GetValue(ordered[1])!;
+        SemaphoreSlim firstWriter = ordered[0].Writer;
+        SemaphoreSlim secondWriter = ordered[1].Writer;
         LyricLineDto line = Assert.Single((await registry.ReadLyricsAsync("client", ordered[0].ProjectSessionId, "primary"))!.Lines);
         await secondWriter.WaitAsync();
         Task<ClientStateResponse> reading = registry.ReadClientStateAsync("client");

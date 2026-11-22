@@ -223,7 +223,7 @@ public sealed class BackendNodeCreationCommandTests
         private readonly TemporaryDirectory _directory = new();
         internal ProjectSessionRegistry Registry = null!;
         internal ProjectSession Session = null!;
-        internal ProjectWorkspace Workspace => (ProjectWorkspace)typeof(ProjectSession).GetProperty("Workspace", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(Session)!;
+        internal ProjectWorkspace Workspace => Session.Workspace;
         internal string Id => Session.ProjectSessionId;
         internal string Root => Workspace.Project.LyricPresentation.WithDefaultPrograms(Workspace.Project.Lyrics).FindProgram("primary")!.RootContainerId;
         internal static async Task<Fixture> Create(int receiptBytes = 65536)

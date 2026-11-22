@@ -9,7 +9,7 @@ namespace MakoKaraGenerator.Backend.Hosting;
 
 /// <summary>用独立受管理 Worker 持有固定 package snapshot 的 Runtime 会话。</summary>
 /// <remarks>该工厂支持预览专用 package 路由，不改变旧静态工厂或正式任务 allowlist。</remarks>
-public sealed class WorkerPackageRenderFrameSessionFactory : IRenderFrameSessionFactory, IBackendPreviewProfileCapability, IBackendImagePreviewFactory, IBackendRuntimePreviewFactory,
+public sealed class WorkerPackageRenderFrameSessionFactory : IRenderFrameSessionFactory, IBackendPreviewProfileCapability, IBackendRuntimePreviewFactory,
     IBackendPreviewRenderBackendFactory
 {
     private readonly WorkerProcessOptions _options;
@@ -34,15 +34,13 @@ public sealed class WorkerPackageRenderFrameSessionFactory : IRenderFrameSession
     /// <summary>实际探测完整包能力及运行隔离；不向 Worker 发送包 open 字节。</summary>
     public async ValueTask<BackendErrorResponse?> EnsureProfileAsync(string profile, CancellationToken cancellationToken = default)
     {
-        if (!ProjectSnapshotSourceProfile.IsPackage(profile) && profile != BackendSnapshotProfiles.ProjectImagePreview && profile != ProjectRuntimeInputWorkerContract.Profile)
+        if (!ProjectSnapshotSourceProfile.IsPackage(profile) && profile != ProjectRuntimeInputWorkerContract.Profile)
             return new(BackendErrorCode.CommandNotSupported, "当前包预览来源能力不受支持。", "source");
         try
         {
             await using WorkerProcessProxy proxy = new(_options);
             if (profile == ProjectRuntimeInputWorkerContract.Profile)
                 await proxy.GetRuntimeInputCapabilitiesAsync(_timeout, cancellationToken).ConfigureAwait(false);
-            else if (profile == BackendSnapshotProfiles.ProjectImagePreview)
-                await proxy.GetImagePreviewCapabilitiesAsync(_timeout, cancellationToken).ConfigureAwait(false);
             else
             {
                 var capabilities = await proxy.GetPackageCapabilitiesAsync(_timeout, cancellationToken).ConfigureAwait(false);
@@ -55,12 +53,12 @@ public sealed class WorkerPackageRenderFrameSessionFactory : IRenderFrameSession
         catch (WorkerProtocolException)
         {
             return new(BackendErrorCode.PreviewUnavailable, "当前预览Worker未通过完整包来源能力握手。", "worker",
-                FailureCode: profile == BackendSnapshotProfiles.ProjectImagePreview ? "WorkerImagePreviewProfileMismatch" : "WorkerPackageProfileMismatch");
+                FailureCode: "WorkerPackageProfileMismatch");
         }
         catch (Exception)
         {
             return new(BackendErrorCode.PreviewUnavailable, "当前包预览Worker不可用。", "worker",
-                FailureCode: profile == BackendSnapshotProfiles.ProjectImagePreview ? "WorkerImagePreviewUnavailable" : "WorkerPackageUnavailable");
+                FailureCode: "WorkerPackageUnavailable");
         }
     }
 
@@ -71,31 +69,6 @@ public sealed class WorkerPackageRenderFrameSessionFactory : IRenderFrameSession
         cancellationToken.ThrowIfCancellationRequested();
         byte[] bytes = ProjectSnapshotSourceProfile.Encode(snapshot);
         return new(CreateCoreAsync(snapshot, bytes, PackageRenderWorkerContract.OpenKind, cancellationToken));
-    }
-
-    /// <summary>绑定已授权图片 bytes；原包入口仍不接受 Image 背景。</summary>
-    public IRenderFrameSessionFactory Bind(ProjectSnapshot snapshot, ReadOnlyMemory<byte> imageBytes)
-    {
-        ArgumentNullException.ThrowIfNull(snapshot);
-        byte[] fixedBytes = imageBytes.ToArray();
-        _ = ProjectImagePreviewSnapshotCodec.Encode(snapshot, fixedBytes);
-        return new ImageFactory(this, fixedBytes);
-    }
-
-    private sealed class ImageFactory(WorkerPackageRenderFrameSessionFactory owner, byte[] fixedBytes)
-        : IRenderFrameSessionFactory, IBackendPreviewProfileCapability, IBackendPreviewRenderBackendFactory
-    {
-        public string RenderBackend => owner.RenderBackend;
-        public IRenderFrameSessionFactory WithRenderBackend(string renderBackend) => new ImageFactory(owner.ForRenderBackend(renderBackend), fixedBytes);
-        public ValueTask<BackendErrorResponse?> EnsureProfileAsync(string profile, CancellationToken cancellationToken = default)
-            => owner.EnsureProfileAsync(profile, cancellationToken);
-
-        public ValueTask<IRenderFrameSession> CreateAsync(ProjectSnapshot snapshot, CancellationToken cancellationToken = default)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            byte[] bytes = ProjectImagePreviewSnapshotCodec.Encode(snapshot, fixedBytes);
-            return new(owner.CreateCoreAsync(snapshot, bytes, ProjectImagePreviewWorkerContract.OpenKind, cancellationToken));
-        }
     }
 
     public IRenderFrameSessionFactory Bind(BackendPreparedProjectRuntimeInput input) => new RuntimeFactory(this, input);
@@ -126,8 +99,6 @@ public sealed class WorkerPackageRenderFrameSessionFactory : IRenderFrameSession
             StaticWorkerSessionHandle handle;
             try { handle = openKind == ProjectRuntimeInputWorkerContract.OpenKind
                 ? await proxy.OpenRuntimeInputSessionAsync(bytes, _timeout, graphPixelChecks, token).ConfigureAwait(false)
-                : openKind == ProjectImagePreviewWorkerContract.OpenKind
-                ? await proxy.OpenImagePreviewSessionAsync(bytes, _timeout, token).ConfigureAwait(false)
                 : await proxy.OpenPackageSessionAsync(bytes, _timeout, token).ConfigureAwait(false); }
             catch (OperationCanceledException) when (!token.IsCancellationRequested)
             { throw new RenderSessionFailureException("WorkerPackageTimedOut", "包 Worker 打开会话超过 deadline。", innerException: new TimeoutException()); }

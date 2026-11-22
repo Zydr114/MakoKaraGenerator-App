@@ -20,24 +20,8 @@ internal sealed class ProjectRenderSession(ProjectSnapshot snapshot, SkiaRenderP
     private long _telemetrySequence;
     private bool _disposed;
 
-    public bool SupportsGpuFrames => !_disposed && device is VulkanSkiaRenderDevice { SupportsDmaBufExport: true };
     public bool SupportsPreviewFrames => !_disposed && _previewPorts is { IsHealthy: true };
     public string BackendApi => device?.Info.Backend ?? PreviewWireConventions.ApiCpu;
-
-    public async ValueTask<GpuFramePoolInfo> InitializeGpuOutputAsync(RenderTarget target, ulong maximumAllocationBytes,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(target);
-        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-            if (device is not VulkanSkiaRenderDevice gpu || !SupportsGpuFrames)
-                throw new GpuPreviewException("GpuPreviewUnavailable", "This session did not enable GPU shared output.");
-            return gpu.InitializeGpuOutput(target, maximumAllocationBytes);
-        }
-        finally { _gate.Release(); }
-    }
 
     public async ValueTask<PreviewPoolInfo> InitializePreviewOutputAsync(
         RenderTarget target,
@@ -100,38 +84,6 @@ internal sealed class ProjectRenderSession(ProjectSnapshot snapshot, SkiaRenderP
         catch (Exception error) when (error is not OperationCanceledException) { }
     }
 
-    public ValueTask<GpuRenderFrame> RenderGpuAsync(RenderRequest request, CancellationToken cancellationToken = default)
-        => new(Task.Run(() => RenderGpuCoreAsync(request, cancellationToken), cancellationToken));
-
-    private async Task<GpuRenderFrame> RenderGpuCoreAsync(RenderRequest request, CancellationToken token)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, request.CancellationToken);
-        await _gate.WaitAsync(linked.Token).ConfigureAwait(false);
-        try
-        {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-            if (!SupportsGpuFrames) throw new GpuPreviewException("GpuPreviewUnavailable", "This render session did not enable GPU shared output.");
-            if (!ReferenceEquals(request.Project, snapshot)) throw new PreparedFrameException("RenderSessionInputsMismatch", "GPU 会话不属于当前快照。");
-            var target = request.ResolveTarget();
-            ((VulkanSkiaRenderDevice)device!).EnsureGpuTargetInitialized(target);
-            using var frameScope = PerformanceTelemetry.BeginFrame(_telemetrySession, "gpu",
-                Interlocked.Increment(ref _telemetrySequence), target.PixelWidth, target.PixelHeight);
-            try
-            {
-                PreparedRenderFrame? prepared;
-                using (PerformanceTelemetry.Measure(PerformancePhase.Prepare))
-                    prepared = source is null ? null : await source.PrepareAsync(request.TimeUs,
-                        request.TransparentBackground ? OutputMode.Transparent : OutputMode.Opaque, target, linked.Token).ConfigureAwait(false);
-                var frame = renderer.RenderGpu(request with { PreparedFrame = prepared, CancellationToken = linked.Token });
-                frameScope.SetOutcome("ok");
-                return frame;
-            }
-            catch (OperationCanceledException) { frameScope.SetOutcome("cancelled"); throw; }
-        }
-        finally { _gate.Release(); }
-    }
-
     public ValueTask<PreviewRenderFrame> RenderPreviewAsync(RenderRequest request, CancellationToken cancellationToken = default)
         => new(Task.Run(() => RenderPreviewCoreAsync(request, cancellationToken), cancellationToken));
 
@@ -169,23 +121,6 @@ internal sealed class ProjectRenderSession(ProjectSnapshot snapshot, SkiaRenderP
         }
         finally { _gate.Release(); }
     }
-
-    public ValueTask<GpuRenderFrame> RenderSyntheticGpuAsync(RenderTarget target, long timeUs, ulong sequence,
-        CancellationToken cancellationToken = default)
-        => new(Task.Run(async () =>
-        {
-            ArgumentNullException.ThrowIfNull(target);
-            await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-            try
-            {
-                ObjectDisposedException.ThrowIf(_disposed, this);
-                if (!enableGpuPreviewBenchmark)
-                    throw new GpuPreviewException("GpuPreviewSyntheticDisabled", "Synthetic GPU output requires the explicit benchmark launch flag.");
-                cancellationToken.ThrowIfCancellationRequested();
-                return renderer.RenderSyntheticGpu(target, timeUs, sequence);
-            }
-            finally { _gate.Release(); }
-        }, cancellationToken));
 
     public ValueTask<PreviewRenderFrame> RenderSyntheticPreviewAsync(
         RenderTarget target,

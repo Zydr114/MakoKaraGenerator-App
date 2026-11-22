@@ -5,19 +5,15 @@ namespace MakoKaraGenerator.Backend.Server;
 
 internal static partial class ServerEndpoints
 {
-    private static readonly string[] EnabledExportCapabilities = ["project-sessions.export-jobs", "jobs.export-result", "jobs.export-content", "jobs.export-diagnostics", "recovery-jobs.export-result", "recovery-jobs.export-content"];
+    private static readonly string[] EnabledExportCapabilities = ["project-sessions.export-jobs", "jobs.export-result", "jobs.export-content", "jobs.export-diagnostics"];
     private static void ConfigureExportEndpoints(WebApplication app)
     {
         app.MapGet("/api/v1/export-capabilities", (ProjectSessionRegistry registry) => Results.Json(registry.ExportCapabilities));
         app.MapPost("/api/v1/project-sessions/{id}/export-jobs", ExportAsync);
         app.MapGet("/api/v1/jobs/{id}/export-result", (string id, HttpRequest request, ProjectSessionRegistry registry) =>
             ValidationReportResult(registry.ReadExportResult(Client(request), id)));
-        app.MapGet("/api/v1/recovery-jobs/{id}/export-result", (string id, HttpRequest request, ProjectSessionRegistry registry) =>
-            ValidationReportResult(registry.ReadExportResult(Client(request), id, recovered: true)));
         app.MapMethods("/api/v1/jobs/{id}/export-content", ["GET", "HEAD"],
             (string id, HttpRequest request, HttpResponse response, ProjectSessionRegistry registry) => ReadExportAsync(id, request, response, registry, false));
-        app.MapMethods("/api/v1/recovery-jobs/{id}/export-content", ["GET", "HEAD"],
-            (string id, HttpRequest request, HttpResponse response, ProjectSessionRegistry registry) => ReadExportAsync(id, request, response, registry, true));
         app.MapGet("/api/v1/jobs/{id}/export-diagnostics", ExportDiagnostics);
     }
     private static async Task<IResult> ExportAsync(string id, HttpRequest request, ProjectSessionRegistry registry, AcceptedOperationTracker tracker)

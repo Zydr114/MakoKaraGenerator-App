@@ -355,29 +355,22 @@ internal sealed partial class PreviewBackendService : IAsyncDisposable
         if (!_projects.TryGet(client, source.SourceId, out ProjectSession project))
             return new(null, new(BackendErrorCode.SessionNotFound, "预览来源工程不存在。", "sourceId"));
         IDisposable? reservation = null;
-        BackendProjectImageReadLease? imageSource = null;
         try
         {
             BackendPreviewInputCaptureResult captured = await project.CapturePreviewInputAsync(client,
                 source.SourceRevision, SelectFactory(_factory, renderBackend), captureResourceFactory: audioAssetId =>
-                    CaptureResourceFactory(client, audioAssetId, out reservation, renderBackend), captureImageSource: false, captureRuntimeSource: true).ConfigureAwait(false);
+                    CaptureResourceFactory(client, audioAssetId, out reservation, renderBackend), captureRuntimeSource: true).ConfigureAwait(false);
             if (captured.Error is not null) return captured;
             IDisposable? ownedReservation = reservation; reservation = null;
             return await CompleteCaptureAsync(captured, ownedReservation, transparentOutput).ConfigureAwait(false);
         }
         catch (SnapshotContractException error)
-        { return new(null, error.Code == "WorkerImagePreviewProfileMismatch"
-            ? new(BackendErrorCode.PreviewUnavailable, "当前预览工厂未提供固定图片能力。", "worker", FailureCode: error.Code)
-            : error.Code == "SnapshotSizeExceeded"
-            ? new(BackendErrorCode.ResourceTooLarge, "固定来源超过快照字节预算。", imageSource is null ? "source" : "background", FailureCode: error.Code)
-            : error.Code is "ProjectImageSourceChanged" or "ProjectImageSourceUnavailable"
-            ? new(BackendErrorCode.CommandNotSupported,
-                error.Code == "ProjectImageSourceChanged" ? "工程图片大小或内容已改变。" : "工程图片的已保存授权闭包不可用。",
-                "background", FailureCode: error.Code)
+        { return new(null, error.Code == "SnapshotSizeExceeded"
+            ? new(BackendErrorCode.ResourceTooLarge, "固定来源超过快照字节预算。", "source", FailureCode: error.Code)
             : new(BackendErrorCode.CommandNotSupported, "项目含当前预览合同不支持的输入。", "source", FailureCode: error.Code)); }
         catch (ResourceStoreException error)
         { return new(null, new(error.Code, "预览固定资源不可用。", "source")); }
-        finally { imageSource?.Dispose(); reservation?.Dispose(); }
+        finally { reservation?.Dispose(); }
     }
 
     private async Task<BackendPreviewInputCaptureResult> CompleteCaptureAsync(BackendPreviewInputCaptureResult captured,
@@ -424,7 +417,7 @@ internal sealed partial class PreviewBackendService : IAsyncDisposable
         catch (SnapshotContractException error)
         { return new(null, new(error.Code == "SnapshotSizeExceeded" ? BackendErrorCode.ResourceTooLarge : BackendErrorCode.CommandNotSupported,
             "固定预览来源未通过能力或预算校验。", "source", FailureCode: error.Code)); }
-        finally { captured.ImageSource?.Dispose(); prepared?.Dispose(); reservation?.Dispose(); }
+        finally { prepared?.Dispose(); reservation?.Dispose(); }
     }
 
     private sealed class CombinedRetention(IDisposable first, IDisposable? second) : IDisposable
@@ -632,7 +625,7 @@ internal sealed partial class PreviewBackendService : IAsyncDisposable
 
     /// <summary>输入引用与正在执行的runtime引用独立；所有失败/取消出口归还运行引用。</summary>
     private sealed class ReferencedFactory(IRenderFrameSessionFactory inner, Func<IDisposable?> acquire)
-        : IRenderFrameSessionFactory, IBackendPreviewProfileCapability, IBackendImagePreviewFactory, IBackendRuntimePreviewFactory,
+        : IRenderFrameSessionFactory, IBackendPreviewProfileCapability, IBackendRuntimePreviewFactory,
             IBackendPreviewRenderBackendFactory
     {
         public string RenderBackend => (inner as IBackendPreviewRenderBackendFactory)?.RenderBackend ?? "cpu";
@@ -642,17 +635,12 @@ internal sealed partial class PreviewBackendService : IAsyncDisposable
             inner is IBackendPreviewProfileCapability capability
                 ? capability.EnsureProfileAsync(profile, token)
                 : ValueTask.FromResult<BackendErrorResponse?>(new(BackendErrorCode.PreviewUnavailable,
-                    "当前预览Worker未提供所选来源能力握手。", "worker", FailureCode: profile == ProjectImagePreviewSnapshotCodec.Profile
-                        ? "WorkerImagePreviewProfileMismatch" : profile == PackageProjectSnapshotCodec.Profile
-                            ? "WorkerPackageProfileMismatch" : "WorkerStaticProfileMismatch"));
+                    "当前预览Worker未提供所选来源能力握手。", "worker", FailureCode: profile == PackageProjectSnapshotCodec.Profile
+                        ? "WorkerPackageProfileMismatch" : "WorkerStaticProfileMismatch"));
 
         public IRenderFrameSessionFactory Bind(BackendPreparedProjectRuntimeInput input) =>
             inner is IBackendRuntimePreviewFactory runtimeFactory ? new ReferencedFactory(runtimeFactory.Bind(input), acquire)
                 : throw new SnapshotContractException("WorkerRuntimeInputProfileMismatch", "当前预览工厂未提供固定工程输入能力。");
-
-        public IRenderFrameSessionFactory Bind(ProjectSnapshot snapshot, ReadOnlyMemory<byte> imageBytes) =>
-            inner is IBackendImagePreviewFactory imageFactory ? new ReferencedFactory(imageFactory.Bind(snapshot, imageBytes), acquire)
-                : throw new SnapshotContractException("WorkerImagePreviewProfileMismatch", "当前预览工厂未提供固定图片能力。");
 
         public async ValueTask<IRenderFrameSession> CreateAsync(ProjectSnapshot snapshot, CancellationToken token = default)
         {

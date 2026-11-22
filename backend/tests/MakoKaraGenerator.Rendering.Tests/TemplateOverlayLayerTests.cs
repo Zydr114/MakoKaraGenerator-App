@@ -97,7 +97,7 @@ public sealed class TemplateOverlayLayerTests
     {
         var project=Apply(layer); var compiled=await CompiledProjectEffects.CompileAsync(project,new ScriptCompiler(Path.Combine(AppContext.BaseDirectory,"script-refs","net10.0")));
         Assert.True(compiled.Succeeded);var snapshot=ProjectSnapshot.FromProject(project);var target=RenderTarget.FromComposition(snapshot.Composition);
-        await using var source=await compiled.CreateFactory(static()=>new SkiaRenderPipeline(),Fx.ReplayReason.Initial).CreateAsync(snapshot);
+        await using var source=await compiled.CreateFactory(static()=>new SkiaRenderPipeline()).CreateAsync(snapshot);
         var frame=await source.PrepareAsync(500000,Fx.OutputMode.Transparent,target);
         Assert.Equal(3, frame.DotBatches.Length); Assert.All(frame.DotBatches, batch => Assert.Equal(expected, batch.Layer));
         Assert.Single(frame.DotBatches, batch => batch.Id.Value == "dot");
@@ -109,7 +109,7 @@ public sealed class TemplateOverlayLayerTests
         if(layer==EffectOverlayLayer.Package)return;
         var other=Apply(layer==EffectOverlayLayer.BehindText?EffectOverlayLayer.AboveText:EffectOverlayLayer.BehindText);
         var otherCompiled=await CompiledProjectEffects.CompileAsync(other,new ScriptCompiler(Path.Combine(AppContext.BaseDirectory,"script-refs","net10.0")));
-        await using var otherSource=await otherCompiled.CreateFactory(static()=>new SkiaRenderPipeline(),Fx.ReplayReason.Initial).CreateAsync(ProjectSnapshot.FromProject(other));
+        await using var otherSource=await otherCompiled.CreateFactory(static()=>new SkiaRenderPipeline()).CreateAsync(ProjectSnapshot.FromProject(other));
         Assert.NotEqual(pixels,Pixels(await otherSource.PrepareAsync(500000,Fx.OutputMode.Transparent,target)));
     }
     private static byte[] Pixels(PreparedRenderFrame frame)

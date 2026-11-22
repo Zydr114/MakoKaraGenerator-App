@@ -10,7 +10,7 @@ using MakoKaraGenerator.Scripting;
 namespace MakoKaraGenerator.Backend.Hosting;
 
 /// <summary>Host固定源／授权文件送入独立Worker，只消费脱敏完整报告。</summary>
-public sealed class WorkerBackendExportExecutor : IBackendExportExecutor, IBackendImageExportExecutor,
+public sealed class WorkerBackendExportExecutor : IBackendExportExecutor,
     IBackendRenderBackendExecutor<IBackendExportExecutor>
 {
     private readonly WorkerProcessOptions _options;
@@ -18,8 +18,6 @@ public sealed class WorkerBackendExportExecutor : IBackendExportExecutor, IBacke
     private readonly TimeSpan _timeout;
     private readonly WorkerExportResourcePolicy _resourcePolicy;
     private string[] _sourceProfiles = [BackendSnapshotProfiles.StaticLyricsScene, BackendSnapshotProfiles.StaticLyricsSceneAnalysis];
-    private readonly object _imageExportCapabilityGate = new();
-    private bool? _imageExportAvailable;
     public WorkerBackendExportExecutor(string workerPath, string ffmpegPath, string ffprobePath, TimeSpan? operationTimeout = null, BackendExportOptions? exportOptions = null)
         : this(new WorkerProcessOptions(workerPath), ffmpegPath, ffprobePath, operationTimeout, exportOptions) { }
     public WorkerBackendExportExecutor(WorkerProcessOptions options, string ffmpegPath, string ffprobePath, TimeSpan? operationTimeout = null, BackendExportOptions? exportOptions = null)
@@ -35,21 +33,12 @@ public sealed class WorkerBackendExportExecutor : IBackendExportExecutor, IBacke
     }
     public void ValidateInput(ProjectSnapshot snapshot, BackendExportExecutionInput input) => _ = EncodeInput(snapshot, input);
 
-    public bool ImageExportAvailable
-    {
-        get
-        {
-            lock (_imageExportCapabilityGate) return _imageExportAvailable == true;
-        }
-    }
-
     private WorkerBackendExportExecutor(WorkerBackendExportExecutor source, string renderBackend)
     {
         _options = source._options with { RenderBackend = renderBackend };
         _ffmpeg = source._ffmpeg; _ffprobe = source._ffprobe; _timeout = source._timeout;
         _resourcePolicy = source._resourcePolicy;
         _sourceProfiles = [.. Volatile.Read(ref source._sourceProfiles)];
-        lock (source._imageExportCapabilityGate) _imageExportAvailable = source._imageExportAvailable;
     }
 
     public IBackendExportExecutor WithRenderBackend(string renderBackend)
@@ -58,95 +47,6 @@ public sealed class WorkerBackendExportExecutor : IBackendExportExecutor, IBacke
         return new WorkerBackendExportExecutor(this, renderBackend);
     }
 
-    private async Task<bool> ProbeImageAsync(CancellationToken cancellationToken)
-    {
-        await using WorkerProcessProxy proxy = new(_options);
-        try
-        {
-            ProjectImageExportWorkerCapabilities value = await proxy.GetImageExportCapabilitiesAsync(_ffmpeg, _ffprobe,
-                _timeout, _resourcePolicy, cancellationToken).ConfigureAwait(false);
-            return value.ExportCapabilities.OpaqueMp4 || value.ExportCapabilities.TransparentProRes4444;
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
-        catch (Exception error) when (error is WorkerProtocolException or RenderSessionFailureException or OperationCanceledException
-            or TimeoutException or IOException or InvalidOperationException or ObjectDisposedException or Win32Exception)
-        { return false; }
-    }
-
-    public void ValidateImageInput(ProjectSnapshot snapshot, ReadOnlyMemory<byte> imageBytes, BackendExportExecutionInput input)
-        => _ = EncodeImageInput(snapshot, imageBytes, input);
-
-    public async Task<ExportReportDto> ExecuteImageAsync(ProjectSnapshot snapshot, ReadOnlyMemory<byte> imageBytes,
-        BackendExportExecutionInput input, IProgress<BackendJobProgressDto>? progress = null,
-        CancellationToken cancellationToken = default)
-    {
-        byte[] payload = EncodeImageInput(snapshot, imageBytes, input);
-        var plan = CompositionFramePlan.Create(snapshot.Composition.OutputDurationUs!.Value, snapshot.Composition.FrameRate);
-        WorkerProcessProxy proxy = new(_options); Exception? primary = null;
-        try
-        {
-            ProjectImageExportWorkerCapabilities capabilities = await proxy.GetImageExportCapabilitiesAsync(_ffmpeg, _ffprobe,
-                _timeout, input.ResourcePolicy ?? _resourcePolicy, cancellationToken).ConfigureAwait(false);
-            if (input.Format == "opaqueMp4" ? !capabilities.ExportCapabilities.OpaqueMp4 : !capabilities.ExportCapabilities.TransparentProRes4444)
-                throw new RenderSessionFailureException("WorkerImageExportUnavailable", "实际图片导出 Worker 没有此格式的编码能力。");
-            ProjectImageExportWorkerInput fixedInput = ProjectImageExportWorkerContract.DecodeInput(payload);
-            WorkerMessage result = await proxy.InvokeExportTaskAsync(
-                new(ProjectImageExportWorkerContract.RequestKind, Guid.NewGuid().ToString("N"), WorkerProtocol.ComputeSha256(payload), payload,
-                    sourceSha256: fixedInput.SourceSha256,
-                    taskId: fixedInput.TaskId.ToString("N"),
-                    exportFormat: input.Format, exportIncludeAudio: input.IncludeAudio),
-                plan.TotalFrames, _timeout, progress, cancellationToken, imageExport: true).ConfigureAwait(false);
-            return WorkerExportContract.DecodeReport(result.Payload, new(input.Format, input.IncludeAudio,
-                snapshot.Composition.CanvasWidth, snapshot.Composition.CanvasHeight, snapshot.Composition.FrameRate.Numerator,
-                snapshot.Composition.FrameRate.Denominator, plan.TotalFrames, plan.VideoDurationUs, input.Audio?.AudioProfile, input.Quality,
-                input.ResourcePolicy ?? _resourcePolicy));
-        }
-        catch (Exception failure)
-        {
-            primary = failure;
-            if (failure is WorkerProtocolException protocol)
-                throw NeutralFailure(protocol, "固定图片导出 Worker 未完成。", snapshot);
-            if (failure is Win32Exception or FileNotFoundException or DirectoryNotFoundException)
-                throw new RenderSessionFailureException("WorkerImageExportUnavailable", "独立图片导出 Worker 不可用。", innerException: failure);
-            throw;
-        }
-        finally
-        {
-            try { await proxy.DisposeAsync().ConfigureAwait(false); }
-            catch (Exception cleanup) when (primary is not null) { primary.Data["WorkerImageExportCleanupFailure"] = cleanup; }
-        }
-    }
-
-    private byte[] EncodeImageInput(ProjectSnapshot snapshot, ReadOnlyMemory<byte> imageBytes, BackendExportExecutionInput input)
-    {
-        ArgumentNullException.ThrowIfNull(snapshot); ArgumentNullException.ThrowIfNull(input);
-        if (snapshot.Composition.OutputDurationUs is not > 0)
-            throw new RenderSessionFailureException("WorkerExportInputRejected", "图片导出要求显式正数时长。");
-        var plan = CompositionFramePlan.Create(snapshot.Composition.OutputDurationUs.Value, snapshot.Composition.FrameRate);
-        WorkerExportContract.ValidatePlanLimits(snapshot.Composition.CanvasWidth, snapshot.Composition.CanvasHeight,
-            snapshot.Composition.FrameRate.Numerator, snapshot.Composition.FrameRate.Denominator, plan.TotalFrames, plan.VideoDurationUs, input.Format, input.ResourcePolicy ?? _resourcePolicy);
-        ProjectSnapshot basis = snapshot with { Background = BackgroundSource.Color };
-        string baseProfile = ProjectPreviewSnapshotProfile.Select(basis);
-        if (baseProfile == BackendSnapshotProfiles.StaticLyricsScenePresets)
-            throw new RenderSessionFailureException("SnapshotEffectsUnsupported", "图片导出不支持固定预设来源。");
-        if (input.IncludeAudio && (snapshot.AudioPath is null || input.Audio is null || snapshot.AudioMedia is { } media
-            && (media.Hash != input.Audio.Sha256 || media.ByteLength != input.Audio.Size)))
-            throw new RenderSessionFailureException("WorkerExportAudioMismatch", "导出音频没有匹配的固定授权。");
-        Project project = ProjectSnapshotSourceProject.Restore(snapshot);
-        if (ProjectValidator.Validate(project, ValidationContext.Export).HasErrors)
-            throw new RenderSessionFailureException("WorkerExportSourceInvalid", "固定工程含正式导出阻断。");
-        byte[] envelope = ProjectImagePreviewSnapshotCodec.Encode(snapshot, imageBytes.Span);
-        var metadata = ImageMetadata(input, capabilities: false, baseProfile);
-        return ProjectImageExportWorkerContract.EncodeInput(Guid.NewGuid(), metadata, envelope);
-    }
-
-    private ProjectImageExportWorkerMetadata ImageMetadata(BackendExportExecutionInput input, bool capabilities,
-        string baseProfile = BackendSnapshotProfiles.StaticLyricsScene)
-        => new(ProjectImageExportWorkerContract.ExportProfile, baseProfile,
-            WorkerExportContract.GetExecutionProfile(capabilities || input.Audio is null ? null : input.Audio.AudioProfile), input.Format,
-            capabilities ? false : input.IncludeAudio, capabilities ? null : input.CandidatePath,
-            capabilities || input.Audio is null ? null : new(input.Audio.Path, input.Audio.Size, input.Audio.Sha256,
-                input.Audio.AudioProfile == BackendAudioInputProfiles.Pcm16Wave ? null : input.Audio.AudioProfile), _ffmpeg, _ffprobe, input.Quality, input.ResourcePolicy ?? _resourcePolicy);
     private byte[] EncodeInput(ProjectSnapshot snapshot, BackendExportExecutionInput input)
     {
         ArgumentNullException.ThrowIfNull(snapshot); ArgumentNullException.ThrowIfNull(input);
@@ -180,13 +80,16 @@ public sealed class WorkerBackendExportExecutor : IBackendExportExecutor, IBacke
         profile, input.Format, capabilities ? false : input.IncludeAudio, capabilities ? null : input.CandidatePath,
         capabilities || input.Audio is null ? null : new(input.Audio.Path, input.Audio.Size, input.Audio.Sha256,
             input.Audio.AudioProfile == BackendAudioInputProfiles.Pcm16Wave ? null : input.Audio.AudioProfile), _ffmpeg, _ffprobe, input.Quality, input.ResourcePolicy ?? _resourcePolicy);
-    public async Task<BackendExportCapabilities> ProbeAsync(CancellationToken cancellationToken = default)
+    public Task<BackendExportCapabilities> ProbeAsync(CancellationToken cancellationToken = default)
+        => ProbeAsync(null, cancellationToken);
+
+    public async Task<BackendExportCapabilities> ProbeAsync(WorkerProcessProxy? sharedProxy, CancellationToken cancellationToken = default)
     {
         Volatile.Write(ref _sourceProfiles, []);
         try
         {
             byte[] payload = WorkerExportContract.EncodeInput(Guid.NewGuid(), Metadata(new("opaqueMp4", false, "", null), true), []);
-            var message = await InvokeAsync(payload, true, 0, null, cancellationToken).ConfigureAwait(false);
+            var message = await InvokeAsync(payload, true, 0, null, cancellationToken, sharedProxy: sharedProxy).ConfigureAwait(false);
             var value = WorkerExportContract.DecodeJson<WorkerExportCapabilitiesDto>(message.Payload, 4096);
             if (value.EngineIdentity != StaticProjectSnapshotCodec.EngineIdentity || value.SourceProfiles is not { Length: > 0 }
                 || value.SourceProfiles.Distinct(StringComparer.Ordinal).Count() != value.SourceProfiles.Length
@@ -205,13 +108,8 @@ public sealed class WorkerBackendExportExecutor : IBackendExportExecutor, IBacke
                 || !value.ExecutionProfiles.Contains(WorkerExportContract.CompressedExecutionProfile, StringComparer.Ordinal))
                 return new(false, false, false, "WorkerExportProfileMismatch", [], []);
             Volatile.Write(ref _sourceProfiles, [.. value.SourceProfiles]);
-            bool imageAvailable = await ProbeImageAsync(cancellationToken).ConfigureAwait(false);
-            lock (_imageExportCapabilityGate) _imageExportAvailable = imageAvailable;
             return new(value.GuardAvailable, value.OpaqueMp4, value.TransparentProRes4444, value.FailureCode,
-                value.AudioProfiles, value.ExecutionProfiles, [.. value.SourceProfiles], imageAvailable,
-                imageAvailable ? null : "WorkerImageExportUnavailable",
-                imageAvailable ? [BackendSnapshotProfiles.StaticLyricsScene, BackendSnapshotProfiles.StaticLyricsSceneAnalysis,
-                    BackendSnapshotProfiles.PackageLyricsScene] : []);
+                value.AudioProfiles, value.ExecutionProfiles, [.. value.SourceProfiles]);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (RenderSessionFailureException failure) when (cancellationToken.IsCancellationRequested)
@@ -231,13 +129,13 @@ public sealed class WorkerBackendExportExecutor : IBackendExportExecutor, IBacke
             input.ResourcePolicy ?? _resourcePolicy));
     }
     private async Task<WorkerMessage> InvokeAsync(byte[] payload, bool capabilities, int frames, IProgress<BackendJobProgressDto>? progress, CancellationToken token,
-        ProjectSnapshot? snapshot = null)
+        ProjectSnapshot? snapshot = null, WorkerProcessProxy? sharedProxy = null)
     {
         var input = WorkerExportContract.DecodeInput(payload, capabilities);
         WorkerMessage request = new(capabilities ? WorkerExportContract.CapabilitiesKind : WorkerExportContract.RequestKind,
             Guid.NewGuid().ToString("N"), WorkerProtocol.ComputeSha256(payload), payload, sourceSha256: input.SourceSha256,
             taskId: input.TaskId.ToString("N"), exportFormat: input.Metadata.Format, exportIncludeAudio: input.Metadata.IncludeAudio);
-        var proxy = new WorkerProcessProxy(_options); Exception? primary = null;
+        var proxy = sharedProxy ?? new WorkerProcessProxy(_options); Exception? primary = null;
         try { return await proxy.InvokeExportTaskAsync(request, frames, _timeout, progress, token).ConfigureAwait(false); }
         catch (Exception failure)
         {
@@ -254,8 +152,11 @@ public sealed class WorkerBackendExportExecutor : IBackendExportExecutor, IBacke
         }
         finally
         {
-            try { await proxy.DisposeAsync().ConfigureAwait(false); }
-            catch (Exception cleanup) when (primary is not null) { primary.Data["WorkerExportCleanupFailure"] = cleanup; }
+            if (sharedProxy is null)
+            {
+                try { await proxy.DisposeAsync().ConfigureAwait(false); }
+                catch (Exception cleanup) when (primary is not null) { primary.Data["WorkerExportCleanupFailure"] = cleanup; }
+            }
         }
     }
     private static RenderSessionFailureException NeutralFailure(WorkerProtocolException protocol, string message, ProjectSnapshot? snapshot)

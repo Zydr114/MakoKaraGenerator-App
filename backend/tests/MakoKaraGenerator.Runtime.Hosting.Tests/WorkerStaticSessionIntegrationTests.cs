@@ -36,7 +36,7 @@ public sealed class WorkerStaticSessionIntegrationTests
         using TemporaryDirectory temp = new();
         using FfmpegVideoFrameProvider videos = new();
         var runtime = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
-            temp.FilePath("cache")), videos, ReplayReason.Initial);
+            temp.FilePath("cache")), videos);
         await using IRenderFrameSession expected = await runtime.CreateAsync(snapshot);
         using RenderFrame reference = await expected.RenderAsync(request);
         Assert.Equal(reference.PixelMemory.ToArray(), actual.PixelMemory.ToArray());
@@ -70,7 +70,7 @@ public sealed class WorkerStaticSessionIntegrationTests
         using TemporaryDirectory temp = new();
         using FfmpegVideoFrameProvider videos = new();
         var runtime = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
-            temp.FilePath("cache")), videos, ReplayReason.Initial);
+            temp.FilePath("cache")), videos);
         await using IRenderFrameSession expected = await runtime.CreateAsync(snapshot);
         using RenderFrame frame = await expected.RenderAsync(RenderRequest.At(snapshot, 12_500_000) with
         { Target = new() { PixelWidth = 320, PixelHeight = 180 }, TransparentBackground = true });
@@ -94,7 +94,7 @@ public sealed class WorkerStaticSessionIntegrationTests
         };
         Assert.Equal(StaticProjectSnapshotCodec.PresetsProfile, StaticProjectSnapshotCodec.SelectProfile(source));
         var worker = new WorkerRenderFrameSessionFactory(Options());
-        var runtime = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("unused-cache")), new FfmpegVideoFrameProvider(), ReplayReason.Initial);
+        var runtime = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("unused-cache")), new FfmpegVideoFrameProvider());
         await using IRenderFrameSession actual = await worker.CreateAsync(source);
         await using IRenderFrameSession expected = await runtime.CreateAsync(source);
         RenderRequest request = RenderRequest.At(source, 12_500_000) with
@@ -120,7 +120,7 @@ public sealed class WorkerStaticSessionIntegrationTests
         Assert.Equal(SkiaTextLayoutEngine.DefaultFamilyName, font.FamilyName);
         ProjectSnapshot snapshot = Snapshot();
         var worker = new WorkerRenderFrameSessionFactory(Options());
-        var runtime = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("unused-cache")), new FfmpegVideoFrameProvider(), ReplayReason.Initial);
+        var runtime = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("unused-cache")), new FfmpegVideoFrameProvider());
         await using IRenderFrameSession actualSession = await worker.CreateAsync(snapshot);
         await using IRenderFrameSession expectedSession = await runtime.CreateAsync(snapshot);
         HashSet<string> hashes = [];

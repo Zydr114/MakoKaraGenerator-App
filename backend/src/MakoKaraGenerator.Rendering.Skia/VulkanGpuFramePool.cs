@@ -127,15 +127,6 @@ internal sealed class VulkanGpuFramePool : IDisposable
         if (cancelled != GpuPreviewNative.Status.Ok) QuarantineCore();
     }
 
-    internal GpuFrameLease CopyFrom(SKSurface surface, GRContext context, uint queueFamily, ulong sequence)
-    {
-        lock (_gate)
-        {
-            var lease = AcquireReserved(sequence);
-            return CommitReserved(lease, surface, context, queueFamily);
-        }
-    }
-
     private GpuFrameExport Export(GpuPreviewNative.Lease lease)
     {
         lock (_gate)

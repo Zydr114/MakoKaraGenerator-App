@@ -132,7 +132,7 @@ public sealed partial class BackendAnalysisJobTests
         Assert.Equal(BackendErrorCode.TaskExecutionFailed, f.Registry.AcquireAnalysisRead("a", job.JobId).Error!.Code);
         await File.WriteAllBytesAsync(path, good); using BackendAnalysisReadLease restored = f.Registry.AcquireAnalysisRead("a", job.JobId).Response!; Assert.Equal(good, await Bytes(restored.Stream));
     }
-    private static ProjectWorkspace Workspace(ProjectSession session) => (ProjectWorkspace)typeof(ProjectSession).GetProperty("Workspace", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(session)!;
+    private static ProjectWorkspace Workspace(ProjectSession session) => session.Workspace;
     private static byte[] Canonical(string source) => AudioAnalysisJson.Encode(new(source, new string('b', 64), 384, [new(0, .1234567890123456, .5, .25, .8)]));
     private static async Task<byte[]> Bytes(Stream stream) { using MemoryStream output = new(); await stream.CopyToAsync(output); return output.ToArray(); }
     private static byte[] Wave(int samples = 64)

@@ -35,7 +35,7 @@ public sealed class ProjectEffectsRuntimeTests
         Assert.Equal("MissingPreparedFrame", Assert.Throws<PreparedFrameException>(() => renderer.Render(RenderRequest.At(snapshot, 500000))).Code);
         var compiled = await CompiledProjectEffects.CompileAsync(restored.Effects, Compiler()); Assert.True(compiled.Succeeded);
         Assert.Equal(ulong.MaxValue, Assert.Single(compiled.Effects).Seed); Assert.IsType<Fx.SourceSubscription.Project>(compiled.Effects[0].Subscription);
-        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), Fx.ReplayReason.Export).CreateAsync(snapshot);
+        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
         var prepared = await session.PrepareAsync(500000, Fx.OutputMode.Opaque, RenderTarget.FromComposition(snapshot.Composition));
         Assert.Equal(2.25, Assert.Single(prepared.TokenTransforms).LocalMatrix.A);
         var request = RenderRequest.At(snapshot, 500000); using var actual = renderer.Render(request with { PreparedFrame = prepared });
@@ -46,7 +46,7 @@ public sealed class ProjectEffectsRuntimeTests
         var geometricToken = Assert.Single(prepared.FinalGeometry); Assert.Single(geometricToken.Ruby);
         var changedSource = new ProjectEffects(restored.Effects.Packages, restored.Effects.Instances.Select(i => i with { Parameters = EffectParameterOverrides.Parse("{\"peak\":2.5}") }));
         Assert.NotEqual(snapshot.EffectInputsFingerprint, changedSource.InputsFingerprint);
-        var mismatch = await Assert.ThrowsAsync<PreparedFrameException>(async () => await compiled.CreateFactory(static () => new SkiaRenderPipeline(), Fx.ReplayReason.Export)
+        var mismatch = await Assert.ThrowsAsync<PreparedFrameException>(async () => await compiled.CreateFactory(static () => new SkiaRenderPipeline())
             .CreateAsync(ProjectSnapshot.FromProject(restored with { Effects = changedSource })));
         Assert.Equal("EffectInputsMismatch", mismatch.Code);
     }
@@ -58,7 +58,7 @@ public sealed class ProjectEffectsRuntimeTests
         ProjectStore.Save(Source(contents), directory.Path); var restored = ProjectStore.Load(directory.Path).Project!;
         var compiled = await CompiledProjectEffects.CompileAsync(restored.Effects, Compiler()); Assert.False(compiled.Succeeded); Assert.Empty(compiled.Effects);
         Assert.Contains(compiled.Packages[0].Artifact.Diagnostics, d => d.IsError && d.Path == "src/PackEffect.cs");
-        Assert.Equal("ProjectEffectsCompilationFailed", Assert.Throws<EffectPackageException>(() => compiled.CreateFactory(static () => new SkiaRenderPipeline(), Fx.ReplayReason.Export)).Code);
+        Assert.Equal("ProjectEffectsCompilationFailed", Assert.Throws<EffectPackageException>(() => compiled.CreateFactory(static () => new SkiaRenderPipeline())).Code);
     }
     [Fact]
     public async Task 全禁用实例不编译坏源码且顺序种子参数逐实例投影()

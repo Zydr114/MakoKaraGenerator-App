@@ -44,7 +44,7 @@ public sealed partial class ProjectSession
     internal ProjectWorkspace Workspace { get; }
     internal string? PreparedAudioSourcePath { get; private set; }
     internal SemaphoreSlim Writer { get; } = new(1, 1);
-    internal long ProjectRevision { get; private set; }
+    internal long ProjectRevision { get; set; }
     private readonly TimeProvider _timeProvider;
     private readonly ClientEventJournal _events;
     private IDisposable? _resourceReference;

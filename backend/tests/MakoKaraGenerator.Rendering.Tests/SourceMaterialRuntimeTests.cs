@@ -63,7 +63,7 @@ public sealed class SourceMaterialRuntimeTests
         var compiled = await Compile(source); Assert.True(compiled.Succeeded); Assert.Empty(compiled.Effects);
         var package = Assert.Single(compiled.Packages); Assert.Null(package.ControllerArtifact); Assert.NotNull(compiled.SourceMaterials);
         var snapshot = ProjectSnapshot.FromProject(source); var output = new RenderTarget { PixelWidth = 640 * density, PixelHeight = 360 * density };
-        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), Fx.ReplayReason.Export).CreateAsync(snapshot);
+        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
         var mode = transparent ? Fx.OutputMode.Transparent : Fx.OutputMode.Opaque;
         var prepared = await session.PrepareAsync(time, mode, output);
         Assert.NotEmpty(prepared.Materials);
@@ -97,7 +97,7 @@ public sealed class SourceMaterialRuntimeTests
             LyricPresentation = plain.LyricPresentation with { Nodes = [.. plain.LyricPresentation.Nodes.Select(node => node.Content is CountdownSequenceContent sequence
                 ? node with { Content = sequence with { Appearance = SceneTextAppearance.FromStyle(plainStyle) } } : node)] } };
         var written = await Compile(plain); var writtenPackage = Assert.Single(written.Packages); var writtenSnapshot = ProjectSnapshot.FromProject(plain);
-        await using var writtenSession = await written.CreateFactory(static () => new SkiaRenderPipeline(), Fx.ReplayReason.Export).CreateAsync(writtenSnapshot);
+        await using var writtenSession = await written.CreateFactory(static () => new SkiaRenderPipeline()).CreateAsync(writtenSnapshot);
         var writtenFrame = await writtenSession.PrepareAsync(time, mode, output);
         using var writtenNative = CompiledPackageGraphExports.Compile(writtenPackage.Definition); using var writtenResources = Resources(writtenNative, writtenPackage);
         using var writtenRenderer = new SkiaRenderPipeline(null, null, null, writtenResources);
@@ -124,7 +124,7 @@ public sealed class SourceMaterialRuntimeTests
         var compiled = await Compile(project);
         Assert.True(compiled.Succeeded);
         var snapshot = ProjectSnapshot.FromProject(project);
-        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), Fx.ReplayReason.Export).CreateAsync(snapshot);
+        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
         var prepared = await session.PrepareAsync(40_500_000, Fx.OutputMode.Opaque, new() { PixelWidth = 640, PixelHeight = 360 });
         using var renderer = new SkiaRenderPipeline();
         using var native = CompiledPackageGraphExports.Compile(definition);
@@ -162,7 +162,7 @@ public sealed class SourceMaterialRuntimeTests
         primary = primary with { Lines = primary.Lines.Replace(primary.Lines[0], line), StyleOverride = new() { Stroke = new StrokeSpec { Material = material, WidthPx = 4, Join = StrokeJoin.Bevel } } };
         project = project with { Lyrics = project.Lyrics with { Branches = project.Lyrics.Branches.Replace(project.Lyrics.PrimaryBranch!, primary) } };
         var compiled = await Compile(project); var snapshot = ProjectSnapshot.FromProject(project);
-        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), Fx.ReplayReason.Initial).CreateAsync(snapshot);
+        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
         var prepared = await session.PrepareAsync(12_500_000, Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition));
         var bindings = prepared.Materials.Where(binding => binding.Target is Fx.ImageEffectTarget.Token t && t.Target.TokenId.Value == token.Id).ToArray();
         // 已唱描边跟随未唱：已唱描边槽另有一个绑定，引用未唱一侧的同一源路径。
@@ -178,7 +178,7 @@ public sealed class SourceMaterialRuntimeTests
         var error = Assert.Throws<SourceMaterialFailureException>(() => { using var unexpected = missing.Render(RenderRequest.At(snapshot, prepared.TimeUs) with { PreparedFrame = prepared, TransparentBackground = true }); });
         Assert.Equal("MaterialResourcesRequired", error.Code); Assert.IsType<PreparedMaterialOwner.Source>(error.Owner); Assert.Contains("源材质", error.Message);
         var changed = project with { LyricStyle = project.LyricStyle with { SungFill = new() { Color = RgbaColor.White } } };
-        Assert.Equal("EffectInputsMismatch", (await Assert.ThrowsAsync<PreparedFrameException>(async () => await compiled.CreateFactory(static () => new SkiaRenderPipeline(), Fx.ReplayReason.Initial).CreateAsync(ProjectSnapshot.FromProject(changed)))).Code);
+        Assert.Equal("EffectInputsMismatch", (await Assert.ThrowsAsync<PreparedFrameException>(async () => await compiled.CreateFactory(static () => new SkiaRenderPipeline()).CreateAsync(ProjectSnapshot.FromProject(changed)))).Code);
     }
 
     /// <summary>描边材质槽分两态（P3 第 6 步）：已唱显式描边沿用同一包材质时两槽各自绑定；换成普通材质时只有未唱一槽。</summary>
@@ -199,7 +199,7 @@ public sealed class SourceMaterialRuntimeTests
         static async Task<ImmutableArray<PreparedMaterialBinding>> Prepare(Project project)
         {
             var compiled = await Compile(project); var snapshot = ProjectSnapshot.FromProject(project);
-            await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), Fx.ReplayReason.Initial).CreateAsync(snapshot);
+            await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
             return (await session.PrepareAsync(12_500_000, Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition))).Materials;
         }
     }
@@ -228,7 +228,7 @@ public sealed class SourceMaterialRuntimeTests
             [capability]); var project = SourceProject(contents);
         project = project with { Effects = new([contents], [new() { Id = "actual", Name = "调制", PackageId = contents.PackageId, Revision = contents.Revision, ExportId = "controller" }]) };
         var compiled = await Compile(project); var snapshot = ProjectSnapshot.FromProject(project); var package = Assert.Single(compiled.Packages);
-        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), Fx.ReplayReason.Initial).CreateAsync(snapshot);
+        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
         var prepared = await session.PrepareAsync(12_500_000, Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition));
         foreach (var token in prepared.FinalGeometry)
         {
@@ -287,7 +287,7 @@ public sealed class SourceMaterialRuntimeTests
             PendingFill = OptionalValue.Set<FillSpecOverride?>(new() { Material = OptionalValue.Set<MaterialSpec?>(project.LyricStyle.UnsungFill.Material) }) } } };
         project = project with { LyricPresentation = project.LyricPresentation with { Nodes = project.LyricPresentation.Nodes.Replace(project.LyricPresentation.FindNode(node.Id)!, node) } };
         var compiled = await Compile(project); var snapshot = ProjectSnapshot.FromProject(project); var package = Assert.Single(compiled.Packages);
-        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), Fx.ReplayReason.Initial).CreateAsync(snapshot);
+        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
         var prepared = await session.PrepareAsync(10_000_000, Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition));
         var bindings = prepared.Materials.Where(binding => binding.Target is Fx.ImageEffectTarget.Mark target && target.Target.NodeId.Value == node.Id).ToArray();
         Assert.Equal(4, bindings.Length);

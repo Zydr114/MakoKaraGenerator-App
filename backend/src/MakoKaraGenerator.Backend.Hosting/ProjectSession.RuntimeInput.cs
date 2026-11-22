@@ -262,6 +262,10 @@ public sealed class BackendProjectRuntimeInputLease : IDisposable
 
 public sealed partial class ProjectSession
 {
+    private readonly object _pinnedInputReadGate = new();
+    private int _pinnedInputReaders;
+    private TaskCompletionSource? _pinnedInputReadsDrained;
+
     /// <summary>Registry-installed background media-feature analysis; never owned by this session.</summary>
     internal BackendMediaFeatureService? MediaFeatures { get; set; }
 
@@ -276,8 +280,21 @@ public sealed partial class ProjectSession
         {
             if (assetPath) assetReference = _backgroundHistory[snapshot.Background.Path!].AcquireReference();
             return new(snapshot, assetPath ? Path.GetDirectoryName(snapshot.Background.Path) : PinnedInputDirectory,
-                assetPath, () => { try { assetReference?.Dispose(); } finally { ReleaseProjectImageRead(); } }) { MediaFeatures = MediaFeatures };
+                assetPath, () => { try { assetReference?.Dispose(); } finally { ReleasePinnedInputRead(); } }) { MediaFeatures = MediaFeatures };
         }
-        catch { ReleaseProjectImageRead(); throw; }
+        catch { ReleasePinnedInputRead(); throw; }
+    }
+
+    private void ReleasePinnedInputRead()
+    {
+        lock (_pinnedInputReadGate)
+            if (--_pinnedInputReaders == 0) _pinnedInputReadsDrained!.TrySetResult();
+    }
+
+    // Closing admission is blocked under Writer before this is called. Never await under Writer.
+    internal Task DrainPinnedInputReadsAsync()
+    {
+        lock (_pinnedInputReadGate)
+            return _pinnedInputReaders == 0 ? Task.CompletedTask : _pinnedInputReadsDrained!.Task;
     }
 }

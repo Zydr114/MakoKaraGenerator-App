@@ -201,7 +201,7 @@ public sealed class BackendOrchestrationPropertiesTests
         internal ProjectSessionRegistry Registry = null!;
         internal ProjectSession Session = null!;
         internal string Id => Session.ProjectSessionId;
-        internal ProjectWorkspace Workspace => (ProjectWorkspace)typeof(ProjectSession).GetProperty("Workspace", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(Session)!;
+        internal ProjectWorkspace Workspace => Session.Workspace;
         internal static ProjectCommandRequest Request(string revision, ProjectCommandDto command) =>
             new(revision, command, Guid.NewGuid().ToString("N"), "host", DateTimeOffset.UtcNow.AddMinutes(1));
         internal Task<ProjectCommandExecutionResult> Command(string revision, ProjectCommandDto command) => Registry.ExecuteCommandAsync("client", Id, Request(revision, command));

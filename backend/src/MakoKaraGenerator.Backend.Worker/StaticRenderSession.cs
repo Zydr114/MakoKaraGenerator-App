@@ -30,7 +30,7 @@ internal sealed class StaticRenderSession(string? renderBackend = null) : IAsync
                 ValidateMetadata(request, input.SessionId, input.SourceSha256, 0);
                 ProjectSnapshot snapshot = StaticProjectSnapshotCodec.Decode(input.SnapshotBytes);
                 var factory = new ProjectRenderSessionFactory(WorkerScriptInputs.Empty,
-                    new FfmpegVideoFrameProvider(), ReplayReason.Initial, renderBackend: renderBackend);
+                    new FfmpegVideoFrameProvider(), renderBackend: renderBackend);
                 long opened = System.Diagnostics.Stopwatch.GetTimestamp();
                 IRenderFrameSession session = await factory.CreateAsync(snapshot, token).ConfigureAwait(false);
                 _openMs = System.Diagnostics.Stopwatch.GetElapsedTime(opened).TotalMilliseconds;
@@ -65,7 +65,7 @@ internal sealed class StaticRenderSession(string? renderBackend = null) : IAsync
                 byte[] pixels = frame.PixelMemory.ToArray();
                 WorkerMessage result = new(StaticRenderWorkerContract.FrameResultKind, request.RequestId, request.InputSha256,
                     pixels, outputSha256: WorkerProtocol.ComputeSha256(pixels), frameWidth: frame.Width, frameHeight: frame.Height,
-                    frameStride: frame.Stride, frameTimeUs: frame.TimeUs, frameFormat: RenderFrameV1WorkerResult.RequiredPixelFormat,
+                    frameStride: frame.Stride, frameTimeUs: frame.TimeUs, frameFormat: StaticRenderWorkerContract.RequiredPixelFormat,
                     sessionId: _id.ToString("N"), sourceSha256: _sourceHash, frameSequence: input.Sequence,
                     frameTransparentBackground: input.TransparentBackground, diagnostics: diagnostics, frameQuality: input.Quality,
                     frameInspection: EncodeInspection(input, frame, _openMs));

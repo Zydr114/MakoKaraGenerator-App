@@ -50,7 +50,7 @@ public sealed partial class PerfFixturePackageTests
             return plain.PixelMemory.ToArray();
         }
         var compiled = await Compile(project);
-        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), ReplayReason.Export).CreateAsync(snapshot);
+        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
         var frame = await session.PrepareAsync(TimeUs, OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition));
         var compiledPackage = Assert.Single(compiled.Packages);
         using var native = CompiledPackageGraphExports.Compile(compiledPackage.Definition);

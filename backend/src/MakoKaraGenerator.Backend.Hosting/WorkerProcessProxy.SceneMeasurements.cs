@@ -8,8 +8,8 @@ namespace MakoKaraGenerator.Backend.Hosting;
 public sealed partial class WorkerProcessProxy
 {
     /// <summary>同一新建Worker进程内先验证执行能力与引擎身份，再进行有界测量。</summary>
-    internal Task<WorkerSceneMeasurementOutput> MeasureSceneAsync(WorkerSceneMeasurementInput input, byte[] source,
-        CancellationToken cancellationToken) =>
+    public Task<WorkerSceneMeasurementOutput> MeasureSceneAsync(WorkerSceneMeasurementInput input, byte[] source,
+        CancellationToken cancellationToken = default) =>
         MeasureSceneAsync(input, source, ProjectRuntimeInputCodec.Decode(source).Snapshot, cancellationToken);
 
     internal async Task<WorkerSceneMeasurementOutput> MeasureSceneAsync(WorkerSceneMeasurementInput input, byte[] source,

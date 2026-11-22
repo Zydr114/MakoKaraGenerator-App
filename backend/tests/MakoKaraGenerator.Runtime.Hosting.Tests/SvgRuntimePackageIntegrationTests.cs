@@ -166,7 +166,7 @@ public sealed class SvgRuntimePackageIntegrationTests
         => new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), cache);
     private static ProjectRenderSessionFactory Factory(ScriptCompiler compiler, IVideoFrameProvider videos,
         string backend = "vulkan", ReplayReason reason = ReplayReason.Initial)
-        => new(compiler, videos, reason, renderBackend: backend);
+        => new(compiler, videos, renderBackend: backend);
 
     private static void AssertPixels(RenderFrame frame, string kind, long timeUs)
     {

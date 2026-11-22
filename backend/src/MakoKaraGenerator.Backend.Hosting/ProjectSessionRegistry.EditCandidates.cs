@@ -11,31 +11,6 @@ public sealed partial class ProjectSessionRegistry
     private sealed record PreparedEdits(ProjectSession.EditCandidateCapture Capture, ProjectChangeSetDto Changes,
         ProjectEditResultDto[] Results);
 
-    /// <summary>复用单命令的原解释器，在独立工作区顺序准备编辑候选。</summary>
-    public async Task<BackendPreviewInputCaptureResult> CaptureEditPreviewInputAsync(string clientId, string sessionId,
-        ProjectEditPreviewRequest request, IRenderFrameSessionFactory factory,
-        Func<string, IRenderFrameSessionFactory>? captureFactory = null, CancellationToken cancellationToken = default)
-    {
-        if (!TryGet(clientId, sessionId, out var session)) return new(null, MissingSessionError(sessionId));
-        IRenderFrameSessionFactory fixedFactory = factory;
-        var prepared = await PrepareEditsAsync(clientId, session, request.ExpectedRevision, request.Edits, false,
-            audio => fixedFactory = captureFactory?.Invoke(audio) ?? factory, cancellationToken).ConfigureAwait(false);
-        if (prepared.Error is { } error) return new(null, error);
-        var work = prepared.Prepared!;
-        try
-        {
-            ProjectSnapshot snapshot = ProjectSnapshot.FromProject(work.Capture.Candidate.Workspace.Project);
-            var runtime = await session.CaptureCandidateRuntimeInputAsync(clientId, work.Capture.Revision, snapshot,
-                () => TryGet(clientId, sessionId, out var current) && ReferenceEquals(current, session), cancellationToken).ConfigureAwait(false);
-            if (runtime.Error is not null) return new(null, runtime.Error);
-            string revision = "candidate-" + Guid.NewGuid().ToString("N");
-            return new(new(new("editCandidate", sessionId, revision), snapshot, fixedFactory)
-            { CapturedProjectSession = session, EditCandidate = new(sessionId, work.Capture.Revision.ToString(CultureInfo.InvariantCulture), revision, work.Changes, work.Results) },
-                null, RuntimeInput: runtime.Lease);
-        }
-        finally { work.Capture.ImageSource?.Dispose(); }
-    }
-
     private async Task<ProjectCommandExecutionResult> ExecuteApplyEditsAsync(string clientId, ProjectSession session,
         ProjectCommandRequest request)
     {
@@ -61,35 +36,29 @@ public sealed partial class ProjectSessionRegistry
         var captured = await session.CaptureEditCandidateAsync(clientId, expectedRevision, mutation, captureFactory, cancellationToken).ConfigureAwait(false);
         if (captured.Error is { } captureError) return (null, captureError);
         var capture = captured.Capture!;
-        bool transferred = false;
-        try
+        if (EditPreparationCheckpoint is { } checkpoint) await checkpoint().ConfigureAwait(false);
+        List<ProjectChangeSetDto> changes = [];
+        List<ProjectEditResultDto> results = [];
+        for (int index = 0; index < edits.Length; index++)
         {
-            if (EditPreparationCheckpoint is { } checkpoint) await checkpoint().ConfigureAwait(false);
-            List<ProjectChangeSetDto> changes = [];
-            List<ProjectEditResultDto> results = [];
-            for (int index = 0; index < edits.Length; index++)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                ProjectCommandDto edit = edits[index];
-                if (ValidateCommandIntent(edit) is { } intentError) return (null, intentError with { Field = "edits[" + index + "]." + intentError.Field });
-                ProjectCommandRequest input = new(capture.Candidate.ProjectRevision.ToString(CultureInfo.InvariantCulture), edit);
-                var result = await ExecuteDetachedEditAsync(clientId, capture.Candidate, input, session, capture.Revision).ConfigureAwait(false);
-                if (!result.Accepted) return (null, result.Error! with { Field = "edits[" + index + "]." + result.Error!.Field });
-                var response = result.Response!;
-                changes.Add(response.ChangeSet);
-                results.Add(new(index, edit.Type, response.Changed, response.TimingResult, response.Feedback,
-                    response.BranchResult, response.TokenResult, response.ImportResult, response.StyleResult,
-                    response.PresetApplicationResult, response.OrchestrationResult, response.LayoutResult, response.StructureResult,
-                    response.BasicLayoutResult, response.ClipResult, response.LeadInResult, response.LineLocalTransformResult,
-                    response.PropertiesResult, response.LeadInGenerationResult, response.ClipMembersResult, response.RubyResult));
-            }
-            if (JsonSerializer.SerializeToUtf8Bytes(results).Length > Receipts.MaxReceiptBytes)
-                return (null, new(BackendErrorCode.ResourceTooLarge, "完整编辑反馈超过命令回执预算。", "edits"));
-            var merged = MergeEditChanges(changes);
-            transferred = true;
-            return (new(capture, merged, [.. results]), null);
+            cancellationToken.ThrowIfCancellationRequested();
+            ProjectCommandDto edit = edits[index];
+            if (ValidateCommandIntent(edit) is { } intentError) return (null, intentError with { Field = "edits[" + index + "]." + intentError.Field });
+            ProjectCommandRequest input = new(capture.Candidate.ProjectRevision.ToString(CultureInfo.InvariantCulture), edit);
+            var result = await ExecuteDetachedEditAsync(clientId, capture.Candidate, input, session, capture.Revision).ConfigureAwait(false);
+            if (!result.Accepted) return (null, result.Error! with { Field = "edits[" + index + "]." + result.Error!.Field });
+            var response = result.Response!;
+            changes.Add(response.ChangeSet);
+            results.Add(new(index, edit.Type, response.Changed, response.TimingResult, response.Feedback,
+                response.BranchResult, response.TokenResult, response.ImportResult, response.StyleResult,
+                response.PresetApplicationResult, response.OrchestrationResult, response.LayoutResult, response.StructureResult,
+                response.BasicLayoutResult, response.ClipResult, response.LeadInResult, response.LineLocalTransformResult,
+                response.PropertiesResult, response.LeadInGenerationResult, response.ClipMembersResult, response.RubyResult));
         }
-        finally { if (!transferred) capture.ImageSource?.Dispose(); }
+        if (JsonSerializer.SerializeToUtf8Bytes(results).Length > Receipts.MaxReceiptBytes)
+            return (null, new(BackendErrorCode.ResourceTooLarge, "完整编辑反馈超过命令回执预算。", "edits"));
+        var merged = MergeEditChanges(changes);
+        return (new(capture, merged, [.. results]), null);
     }
 
     private async Task<ProjectCommandExecutionResult> ExecuteDetachedEditAsync(string clientId, ProjectSession candidate, ProjectCommandRequest input,

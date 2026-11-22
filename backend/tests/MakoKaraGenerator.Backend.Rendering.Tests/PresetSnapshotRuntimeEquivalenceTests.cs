@@ -20,7 +20,7 @@ public sealed class PresetSnapshotRuntimeEquivalenceTests
     {
         AssertFixedFont();
         using TemporaryDirectory temp = new(); using FfmpegVideoFrameProvider videos = new();
-        var factory = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")), videos, ReplayReason.Initial);
+        var factory = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")), videos);
         ProjectSnapshot source = PresetSnapshotFixture.Create();
         byte[] encoded = StaticProjectSnapshotCodec.Encode(source, StaticProjectSnapshotCodec.PresetsProfile);
         ProjectSnapshot decoded = StaticProjectSnapshotCodec.Decode(encoded);

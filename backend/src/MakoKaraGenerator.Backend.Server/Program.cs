@@ -70,60 +70,69 @@ sessions.ConfigureAuthorWorkflows(scriptReferences, scriptCompiler);
 sessions.ConfigureScriptConfigurations();
 sessions.ConfigureTemplateLibrary();
 AcceptedOperationTracker accepted = new();
-PreviewWorkerConfiguration previewWorker = await PreviewWorkerConfiguration.ResolveAsync().ConfigureAwait(false);
-if (previewWorker.Options is { } workerOptions)
-    previewWorker = previewWorker with { Options = workerOptions with { ScriptCompilationService = scriptCompiler } };
-BackendRenderBackendConfiguration renderBackends = new(previewWorker.Options);
-sessions.ConfigureRenderBackends(renderBackends);
-sessions.ConfigureSceneMeasurements(previewWorker.Options);
-sessions.ConfigureFontWorker(previewWorker.Options);
-int audioPreparationTimeoutSeconds = 60;
-string? configuredPreparationTimeout = Environment.GetEnvironmentVariable("MAKO_BACKEND_AUDIO_PREPARATION_TIMEOUT_SECONDS");
-if (configuredPreparationTimeout is not null && (!int.TryParse(configuredPreparationTimeout, NumberStyles.None,
-    CultureInfo.InvariantCulture, out audioPreparationTimeoutSeconds) || audioPreparationTimeoutSeconds is < 1 or > 120))
-    throw new InvalidOperationException("音频准备超时必须为1至120秒。");
-AudioPreparationWorkerConfiguration audioPreparationWorker = await AudioPreparationWorkerConfiguration.ResolveAsync(
-    previewWorker.Options, audioPreparationTimeoutSeconds).ConfigureAwait(false);
-sessions.ConfigureAudioPreparation(audioPreparationWorker.Executor, audioPreparationWorker.Capabilities,
-    operationTimeoutSeconds: audioPreparationTimeoutSeconds);
-int validationTimeoutSeconds = 60;
-string? configuredValidationTimeout = Environment.GetEnvironmentVariable("MAKO_BACKEND_VALIDATION_TIMEOUT_SECONDS");
-if (configuredValidationTimeout is not null && (!int.TryParse(configuredValidationTimeout, NumberStyles.None,
-    CultureInfo.InvariantCulture, out validationTimeoutSeconds) || validationTimeoutSeconds is < 1 or > 60))
-    throw new InvalidOperationException("正式验证超时必须为1至60秒。");
-WorkerBackendValidationExecutor? validationExecutor = previewWorker.Options is null
-    ? null
-    : new WorkerBackendValidationExecutor(previewWorker.Options, TimeSpan.FromSeconds(validationTimeoutSeconds));
-if (validationExecutor is not null)
+PreviewWorkerConfiguration configuredPreview = PreviewWorkerConfiguration.Resolve();
+if (configuredPreview.Options is { } resolvedWorkerOptions)
+    configuredPreview = configuredPreview with { Options = resolvedWorkerOptions with { ScriptCompilationService = scriptCompiler } };
+PreviewWorkerConfiguration previewWorker;
+BackendRenderBackendConfiguration renderBackends;
 {
-    using CancellationTokenSource validationProbeDeadline = new(TimeSpan.FromSeconds(Math.Min(validationTimeoutSeconds, 15)));
-    try { await validationExecutor.ProbeCapabilitiesAsync(validationProbeDeadline.Token).ConfigureAwait(false); }
-    catch (OperationCanceledException) { }
+    await using WorkerProcessProxy? startupProbeProxy = configuredPreview.Options is null ? null : new(configuredPreview.Options);
+    previewWorker = await PreviewWorkerConfiguration.ResolveAsync(configuredPreview, startupProbeProxy).ConfigureAwait(false);
+    renderBackends = new(previewWorker.Options);
+    sessions.ConfigureRenderBackends(renderBackends);
+    sessions.ConfigureSceneMeasurements(previewWorker.Options);
+    sessions.ConfigureFontWorker(previewWorker.Options);
+    int audioPreparationTimeoutSeconds = 60;
+    string? configuredPreparationTimeout = Environment.GetEnvironmentVariable("MAKO_BACKEND_AUDIO_PREPARATION_TIMEOUT_SECONDS");
+    if (configuredPreparationTimeout is not null && (!int.TryParse(configuredPreparationTimeout, NumberStyles.None,
+        CultureInfo.InvariantCulture, out audioPreparationTimeoutSeconds) || audioPreparationTimeoutSeconds is < 1 or > 120))
+        throw new InvalidOperationException("音频准备超时必须为1至120秒。");
+    AudioPreparationWorkerConfiguration audioPreparationWorker = await AudioPreparationWorkerConfiguration.ResolveAsync(
+        previewWorker.Options, audioPreparationTimeoutSeconds, startupProbeProxy).ConfigureAwait(false);
+    sessions.ConfigureAudioPreparation(audioPreparationWorker.Executor, audioPreparationWorker.Capabilities,
+        operationTimeoutSeconds: audioPreparationTimeoutSeconds);
+    int validationTimeoutSeconds = 60;
+    string? configuredValidationTimeout = Environment.GetEnvironmentVariable("MAKO_BACKEND_VALIDATION_TIMEOUT_SECONDS");
+    if (configuredValidationTimeout is not null && (!int.TryParse(configuredValidationTimeout, NumberStyles.None,
+        CultureInfo.InvariantCulture, out validationTimeoutSeconds) || validationTimeoutSeconds is < 1 or > 60))
+        throw new InvalidOperationException("正式验证超时必须为1至60秒。");
+    WorkerBackendValidationExecutor? validationExecutor = previewWorker.Options is null
+        ? null
+        : new WorkerBackendValidationExecutor(previewWorker.Options, TimeSpan.FromSeconds(validationTimeoutSeconds));
+    if (validationExecutor is not null)
+    {
+        using CancellationTokenSource validationProbeDeadline = new(TimeSpan.FromSeconds(Math.Min(validationTimeoutSeconds, 15)));
+        try { await validationExecutor.ProbeCapabilitiesAsync(startupProbeProxy, validationProbeDeadline.Token).ConfigureAwait(false); }
+        catch (OperationCanceledException) { }
+    }
+    sessions.ConfigureValidationTasks(validationExecutor, operationTimeoutSeconds: validationTimeoutSeconds);
+    int? exportTimeoutSeconds = OptionalExportInt("MAKO_BACKEND_EXPORT_TIMEOUT_SECONDS");
+    BackendExportOptions exportOptions = new()
+    {
+        MaxFrames = OptionalExportInt("MAKO_BACKEND_EXPORT_MAX_FRAMES"),
+        MaxDurationUs = OptionalPositiveLong("MAKO_BACKEND_EXPORT_MAX_DURATION_US"),
+        MaxFrameRate = OptionalExportInt("MAKO_BACKEND_EXPORT_MAX_FPS"),
+        MaxCanvasWidth = OptionalExportInt("MAKO_BACKEND_EXPORT_MAX_CANVAS_WIDTH"),
+        MaxCanvasHeight = OptionalExportInt("MAKO_BACKEND_EXPORT_MAX_CANVAS_HEIGHT"),
+        MaxRawFrameBytes = OptionalPositiveLong("MAKO_BACKEND_EXPORT_MAX_RAW_FRAME_BYTES"),
+        MaxMediaBytes = OptionalPositiveLong("MAKO_BACKEND_EXPORT_MAX_MEDIA_BYTES"),
+        MaxAudioBytes = OptionalPositiveLong("MAKO_BACKEND_EXPORT_MAX_AUDIO_BYTES"),
+        MaxCompressedAudioDurationUs = OptionalPositiveLong("MAKO_BACKEND_EXPORT_MAX_COMPRESSED_AUDIO_DURATION_US"),
+        MaxArtifactStorageBytes = OptionalPositiveLong("MAKO_BACKEND_EXPORT_MAX_ARTIFACT_STORAGE_BYTES"),
+    };
+    ExportWorkerConfiguration exportWorker = await ExportWorkerConfiguration.ResolveAsync(
+        previewWorker.Options, exportTimeoutSeconds, exportOptions,
+        exportOptions.MaxMediaBytes is null ? startupProbeProxy : null).ConfigureAwait(false);
+    sessions.ConfigureExportTasks(exportWorker.Executor, exportWorker.Capabilities, exportOptions, operationTimeoutSeconds: exportTimeoutSeconds);
+    int analysisTimeoutSeconds = 60;
+    string? configuredAnalysisTimeout = Environment.GetEnvironmentVariable("MAKO_BACKEND_ANALYSIS_TIMEOUT_SECONDS");
+    if (configuredAnalysisTimeout is not null && (!int.TryParse(configuredAnalysisTimeout, NumberStyles.None,
+        CultureInfo.InvariantCulture, out analysisTimeoutSeconds) || analysisTimeoutSeconds is < 1 or > 60))
+        throw new InvalidOperationException("音频分析超时必须为1至60秒。");
+    AnalysisWorkerConfiguration analysisWorker = await AnalysisWorkerConfiguration.ResolveAsync(
+        previewWorker.Options, analysisTimeoutSeconds, startupProbeProxy).ConfigureAwait(false);
+    sessions.ConfigureAnalysisTasks(analysisWorker.Executor, analysisWorker.Capabilities, operationTimeoutSeconds: analysisTimeoutSeconds);
 }
-sessions.ConfigureValidationTasks(validationExecutor, operationTimeoutSeconds: validationTimeoutSeconds);
-int? exportTimeoutSeconds = OptionalExportInt("MAKO_BACKEND_EXPORT_TIMEOUT_SECONDS");
-BackendExportOptions exportOptions = new()
-{
-    MaxFrames = OptionalExportInt("MAKO_BACKEND_EXPORT_MAX_FRAMES"),
-    MaxDurationUs = OptionalPositiveLong("MAKO_BACKEND_EXPORT_MAX_DURATION_US"),
-    MaxFrameRate = OptionalExportInt("MAKO_BACKEND_EXPORT_MAX_FPS"),
-    MaxCanvasWidth = OptionalExportInt("MAKO_BACKEND_EXPORT_MAX_CANVAS_WIDTH"),
-    MaxCanvasHeight = OptionalExportInt("MAKO_BACKEND_EXPORT_MAX_CANVAS_HEIGHT"),
-    MaxRawFrameBytes = OptionalPositiveLong("MAKO_BACKEND_EXPORT_MAX_RAW_FRAME_BYTES"),
-    MaxMediaBytes = OptionalPositiveLong("MAKO_BACKEND_EXPORT_MAX_MEDIA_BYTES"),
-    MaxAudioBytes = OptionalPositiveLong("MAKO_BACKEND_EXPORT_MAX_AUDIO_BYTES"),
-    MaxCompressedAudioDurationUs = OptionalPositiveLong("MAKO_BACKEND_EXPORT_MAX_COMPRESSED_AUDIO_DURATION_US"),
-    MaxArtifactStorageBytes = OptionalPositiveLong("MAKO_BACKEND_EXPORT_MAX_ARTIFACT_STORAGE_BYTES"),
-};
-ExportWorkerConfiguration exportWorker = await ExportWorkerConfiguration.ResolveAsync(previewWorker.Options, exportTimeoutSeconds, exportOptions).ConfigureAwait(false);
-sessions.ConfigureExportTasks(exportWorker.Executor, exportWorker.Capabilities, exportOptions, operationTimeoutSeconds: exportTimeoutSeconds);
-int analysisTimeoutSeconds = 60;
-string? configuredAnalysisTimeout = Environment.GetEnvironmentVariable("MAKO_BACKEND_ANALYSIS_TIMEOUT_SECONDS");
-if (configuredAnalysisTimeout is not null && (!int.TryParse(configuredAnalysisTimeout, NumberStyles.None,
-    CultureInfo.InvariantCulture, out analysisTimeoutSeconds) || analysisTimeoutSeconds is < 1 or > 60))
-    throw new InvalidOperationException("音频分析超时必须为1至60秒。");
-AnalysisWorkerConfiguration analysisWorker = await AnalysisWorkerConfiguration.ResolveAsync(previewWorker.Options, analysisTimeoutSeconds).ConfigureAwait(false);
-sessions.ConfigureAnalysisTasks(analysisWorker.Executor, analysisWorker.Capabilities, operationTimeoutSeconds: analysisTimeoutSeconds);
 int frameLeaseSeconds = ServerEndpoints.ResolveInt("MAKO_BACKEND_PREVIEW_FRAME_LEASE_SECONDS", 30);
 if (frameLeaseSeconds > 300) throw new InvalidOperationException("预览帧租约配置必须为1至300秒。");
 PreviewFrameHandleStore previewFrames = new();

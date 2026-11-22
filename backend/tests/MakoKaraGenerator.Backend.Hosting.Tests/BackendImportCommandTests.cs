@@ -234,7 +234,7 @@ public sealed class BackendImportCommandTests
         var audio = await f.Resources.UploadAsync("client", "another.wav", "audio/wav", new MemoryStream([1]));
         var created = await f.Registry.CreateAsync("client", new("TTML全文档", audio.AssetId, asset.AssetId));
         Assert.True(created.Accepted, created.Error?.Message);
-        var newWorkspace = (ProjectWorkspace)typeof(ProjectSession).GetProperty("Workspace", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(created.Session)!;
+        var newWorkspace = created.Session!.Workspace;
         Assert.Equal(2, newWorkspace.Project.Lyrics.Branches.Length);
         Assert.Equal("source-main", newWorkspace.Project.Lyrics.Lines[0].Id);
         Assert.Equal("source-main", newWorkspace.Project.Lyrics.Branches[1].Lines[0].PrimaryLineId);
@@ -443,7 +443,7 @@ public sealed class BackendImportCommandTests
         internal ResourceStore Resources = null!;
         internal ProjectSessionRegistry Registry = null!; internal ProjectSession Session = null!;
         internal string Id => Session.ProjectSessionId;
-        internal ProjectWorkspace Workspace => (ProjectWorkspace)typeof(ProjectSession).GetProperty("Workspace", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(Session)!;
+        internal ProjectWorkspace Workspace => Session.Workspace;
         internal LyricBranch Translation => Workspace.Project.Lyrics.Branches.Single(branch => branch.Id == "translation");
         internal void Checkpoint(Func<Task> checkpoint) => Registry.ImportPreparationCheckpoint=checkpoint;
         internal void Replace(Project project) => typeof(ProjectWorkspace).GetProperty("Project")!.SetValue(Workspace, project);

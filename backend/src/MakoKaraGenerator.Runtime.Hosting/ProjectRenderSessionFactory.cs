@@ -14,7 +14,7 @@ namespace MakoKaraGenerator.Runtime.Hosting;
 /// <paramref name="graphPixelChecks"/> 控制图／材质逐像素检查（颜色预乘、材质区域越界）：作者草稿、包验证与测试开启（默认），
 /// 已采用包的正式预览与导出关闭；关闭时节点之间不为检查同步提交或读回，像素与开启时相同。
 /// </remarks>
-public sealed class ProjectRenderSessionFactory(IScriptCompilationService compiler, IVideoFrameProvider videos, ReplayReason reason,
+public sealed class ProjectRenderSessionFactory(IScriptCompilationService compiler, IVideoFrameProvider videos,
     Func<IBackgroundFrameSourceResolver>? backgroundResolverFactory = null,
     bool layoutReference = false, string? editingLineId = null, string? editingCueId = null,
     string? renderBackend = null, bool enableGpuPreview = false, bool enableGpuPreviewBenchmark = false, RuntimeGpuPreparation? gpuPreparation = null,
@@ -68,7 +68,8 @@ public sealed class ProjectRenderSessionFactory(IScriptCompilationService compil
             // 与绘制管线共用布局缓存和渲染设备的同步对象，各自持有排版引擎。
             SkiaRenderPipeline Renderer(IBackgroundFrameSourceResolver? background = null, ImageSurfaceBudgetSession? surfaces = null,
                 SceneImageEffectResources? images = null) => new(LayoutEngine(),
-                    background, surfaces, images, ownsLayoutEngine: fonts.Length != 0, device, ownsDevice: false, layouts, svgResources, graphPixelChecks);
+                    background, surfaces, images, ownsLayoutEngine: fonts.Length != 0, device, ownsDevice: false, layouts, svgResources, graphPixelChecks,
+                    ownsBackgroundResolver: true);
             SkiaSceneGeometry Geometry() => new(LayoutEngine(), ownsLayoutEngine: fonts.Length != 0, layouts, device.SynchronizationRoot);
             resolver = backgroundResolverFactory is null ? new BackgroundFrameSourceResolver(videos)
                 : backgroundResolverFactory() ?? throw new InvalidOperationException("背景解析器工厂不能返回空值。");
@@ -145,7 +146,7 @@ public sealed class ProjectRenderSessionFactory(IScriptCompilationService compil
             if (svgOwners.Count != 0) svgResources = new(svgOwners, device);
             source = await compiled.CreateFactory(() => layoutReference || editingLineId is not null
                 ? new MeasurementGeometryProvider(Geometry(), layoutReference, editingLineId, editingCueId)
-                : Geometry(), reason, mediaBinding).CreateAsync(snapshot, token).ConfigureAwait(false);
+                : Geometry(), mediaBinding).CreateAsync(snapshot, token).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
             renderer = Renderer(resolver, budget, resources);
             token.ThrowIfCancellationRequested();

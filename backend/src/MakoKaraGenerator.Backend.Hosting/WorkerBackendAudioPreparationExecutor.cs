@@ -28,11 +28,14 @@ public sealed class WorkerBackendAudioPreparationExecutor : IBackendAudioPrepara
         ArgumentNullException.ThrowIfNull(grant);
         _ = WorkerAudioPreparationContract.EncodeInput(Guid.NewGuid(), Metadata(grant));
     }
-    public async Task<BackendAudioPreparationCapabilities> ProbeAsync(CancellationToken cancellationToken = default)
+    public Task<BackendAudioPreparationCapabilities> ProbeAsync(CancellationToken cancellationToken = default)
+        => ProbeAsync(null, cancellationToken);
+
+    public async Task<BackendAudioPreparationCapabilities> ProbeAsync(WorkerProcessProxy? sharedProxy, CancellationToken cancellationToken = default)
     {
         try
         {
-            WorkerMessage message = await InvokeAsync(null, true, cancellationToken).ConfigureAwait(false);
+            WorkerMessage message = await InvokeAsync(null, true, cancellationToken, sharedProxy).ConfigureAwait(false);
             WorkerAudioPreparationCapabilities result = WorkerAudioPreparationContract.DecodeCapabilities(message.Payload);
             string[] families = ["wav", "mp3", "flac", "aac", "mov", "ogg"];
             if (result.EngineIdentity != StaticProjectSnapshotCodec.EngineIdentity || result.Profile != WorkerAudioPreparationContract.Profile
@@ -62,13 +65,14 @@ public sealed class WorkerBackendAudioPreparationExecutor : IBackendAudioPrepara
         return new(new(result.Info.DurationUs, result.Info.SampleRate, result.Info.Channels, result.Info.CodecName, result.Info.ContainerName),
             WaveformPeakPyramid.FromBaseBuckets(result.Info.SampleRate, result.SampleCount, result.BaseBucketSamples, result.Minimums, result.Maximums));
     }
-    private async Task<WorkerMessage> InvokeAsync(BackendAudioPreparationGrant? grant, bool capabilities, CancellationToken token)
+    private async Task<WorkerMessage> InvokeAsync(BackendAudioPreparationGrant? grant, bool capabilities, CancellationToken token,
+        WorkerProcessProxy? sharedProxy = null)
     {
         Guid id = Guid.NewGuid(); byte[] payload = WorkerAudioPreparationContract.EncodeInput(id, Metadata(grant), capabilities);
         WorkerMessage request = new(capabilities ? WorkerAudioPreparationContract.CapabilitiesKind : WorkerAudioPreparationContract.RequestKind,
             Guid.NewGuid().ToString("N"), WorkerProtocol.ComputeSha256(payload), payload,
             taskId: id.ToString("N"), sourceSha256: grant?.Sha256);
-        WorkerProcessProxy proxy = new(_options); Exception? primary = null;
+        WorkerProcessProxy proxy = sharedProxy ?? new(_options); Exception? primary = null;
         try { return await proxy.InvokeAudioPreparationTaskAsync(request, _timeout, token).ConfigureAwait(false); }
         catch (Exception failure)
         {
@@ -84,8 +88,11 @@ public sealed class WorkerBackendAudioPreparationExecutor : IBackendAudioPrepara
         }
         finally
         {
-            try { await proxy.DisposeAsync().ConfigureAwait(false); }
-            catch (Exception cleanup) when (primary is not null) { primary.Data["WorkerCleanupFailure"] = cleanup; }
+            if (sharedProxy is null)
+            {
+                try { await proxy.DisposeAsync().ConfigureAwait(false); }
+                catch (Exception cleanup) when (primary is not null) { primary.Data["WorkerCleanupFailure"] = cleanup; }
+            }
         }
     }
 }

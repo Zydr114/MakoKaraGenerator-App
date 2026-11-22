@@ -192,7 +192,7 @@ public sealed class BackendBranchCommandTests
         private readonly TemporaryDirectory _directory = new();
         internal ProjectSessionRegistry Registry = null!; internal ProjectSession Session = null!;
         internal string Id => Session.ProjectSessionId;
-        internal ProjectWorkspace Workspace => (ProjectWorkspace)typeof(ProjectSession).GetProperty("Workspace", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(Session)!;
+        internal ProjectWorkspace Workspace => Session.Workspace;
         internal LyricBranch Translation => Workspace.Project.Lyrics.Branches.Single(branch => branch.Id == "translation");
         internal void Replace(Project project) => typeof(ProjectWorkspace).GetProperty("Project")!.SetValue(Workspace, project);
         internal ProjectCommandRequest Request(string revision, ProjectCommandDto command) => new(revision, command, Guid.NewGuid().ToString("N"), Session.HostInstanceId, DateTimeOffset.UtcNow.AddMinutes(1));

@@ -63,7 +63,6 @@ internal sealed partial class FrameEffectHost : IDisposable
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var definition = _definitions[index];
-                RequireAudio(definition, 0);
                 try
                 {
                     definition.Parameters.ValidateResources(definition.Resources);

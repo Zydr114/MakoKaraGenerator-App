@@ -110,7 +110,7 @@ public sealed class BackendRuntimeValidationJobTests
             SetOwner(f.Session, "client");
             SetProjectRevision(f.Session, 0);
             f.Session.ClosePending = false;
-            await pending.IgnoreFailureAsync();
+            try { await pending.WaitAsync(TimeSpan.FromSeconds(5)); } catch { }
         }
     }
 
@@ -203,8 +203,7 @@ public sealed class BackendRuntimeValidationJobTests
             .SetValue(session, value);
 
     private static void SetProjectRevision(ProjectSession session, long value) =>
-        typeof(ProjectSession).GetProperty("ProjectRevision", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .SetValue(session, value);
+        session.ProjectRevision = value;
 
     private sealed record Call(TaskCompletionSource<ValidationReportDto> Release, string MediaPath, byte[] EncodedImage,
         TaskCompletionSource CancellationReceived, TaskCompletionSource Drain);
@@ -329,7 +328,7 @@ public sealed class BackendRuntimeValidationJobTests
             var prepared = lease.PrepareAsync().GetAwaiter().GetResult().Response!;
             return Activator.CreateInstance(type, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null,
                 [snapshot, ProjectRuntimeInputCodec.Profile, 3, Resources.AcquireReference("client", Session.AudioAssetId),
-                    Scheduler.TryReserve("client", SessionId)!, Executor, null, prepared, Executor], null)!;
+                    Scheduler.TryReserve("client", SessionId)!, Executor, prepared, Executor], null)!;
         }
         internal async Task<JobResponse> Terminal(string id)
         {

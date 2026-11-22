@@ -226,7 +226,7 @@ public sealed class PackageWorkerContractTests
     private static WorkerMessage Result(StaticWorkerFrameRequest request) => new(PackageRenderWorkerContract.FrameResultKind,
         "package-frame", WorkerProtocol.ComputeSha256(PackageRenderWorkerContract.EncodeFrame(request)), [3, 2, 1, 255],
         outputSha256: WorkerProtocol.ComputeSha256([3, 2, 1, 255]), frameWidth: 1, frameHeight: 1, frameStride: 4,
-        frameTimeUs: request.TimeUs, frameFormat: RenderFrameV1WorkerResult.RequiredPixelFormat,
+        frameTimeUs: request.TimeUs, frameFormat: StaticRenderWorkerContract.RequiredPixelFormat,
         sessionId: request.SessionId.ToString("N"), sourceSha256: request.SourceSha256, frameSequence: request.Sequence,
         frameTransparentBackground: request.TransparentBackground, diagnostics: new([], false), frameQuality: request.Quality, packageDiagnostics: WorkerPackageDiagnosticsContract.Empty);
 }

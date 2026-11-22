@@ -17,18 +17,14 @@ internal static class StaticValidationTask
     public static Task<WorkerMessage> ExecuteAsync(WorkerMessage request, Func<WorkerMessage, Task> send, CancellationToken token, string? renderBackend = null)
         => ExecuteAsync(request, send, null, token, renderBackend: renderBackend);
 
-    public static Task<WorkerMessage> ExecuteImageAsync(WorkerMessage request, Func<WorkerMessage, Task> send, CancellationToken token, string? renderBackend = null)
-        => ExecuteAsync(request, send, null, token, imageValidation: true, renderBackend: renderBackend);
-
     public static Task<WorkerMessage> ExecuteRuntimeAsync(WorkerMessage request, Func<WorkerMessage, Task> send, CancellationToken token, string? renderBackend = null)
         => ExecuteAsync(request, send, null, token, runtimeValidation: true, renderBackend: renderBackend);
 
     internal static async Task<WorkerMessage> ExecuteAsync(WorkerMessage request, Func<WorkerMessage, Task> send,
-        IRenderFrameSessionFactory? sessions, CancellationToken token, bool imageValidation = false, bool runtimeValidation = false,
+        IRenderFrameSessionFactory? sessions, CancellationToken token, bool runtimeValidation = false,
         string? renderBackend = null)
     {
-        WorkerValidationInput input = runtimeValidation ? RuntimeValidationWorkerContract.DecodeInput(request.Payload) : imageValidation
-            ? ProjectImageValidationWorkerContract.DecodeInput(request.Payload)
+        WorkerValidationInput input = runtimeValidation ? RuntimeValidationWorkerContract.DecodeInput(request.Payload)
             : WorkerValidationContract.DecodeInput(request.Payload);
         WorkerValidationContract.ValidateCorrelation(request, request);
         if (request.TaskId != input.TaskId.ToString("N") || request.SourceSha256 != input.SourceSha256
@@ -39,27 +35,10 @@ internal static class StaticValidationTask
             ? await ProjectRuntimeInput.OpenAsync(prepared.Source, token, prepared.Compiler).ConfigureAwait(false) : null;
         ProjectSnapshot snapshot;
         bool packageProfile;
-        Func<IBackgroundFrameSourceResolver>? imageResolverFactory = null;
         if (runtime is not null)
         {
             snapshot = runtime.Snapshot;
             packageProfile = true;
-        }
-        else if (imageValidation)
-        {
-            var image = ProjectImagePreviewSnapshotCodec.Decode(prepared.Source);
-            snapshot = image.Snapshot;
-            ProjectSnapshot basis = snapshot with { Background = BackgroundSource.Color };
-            packageProfile = ProjectPreviewSnapshotProfile.Select(basis) == PackageProjectSnapshotCodec.Profile;
-            imageResolverFactory = () =>
-            {
-                try { return new MemoryImageBackgroundFrameSourceResolver(image.LogicalPath, image.ImageBytes, token); }
-                catch (ImageBackgroundDecodeException failure)
-                {
-                    throw new RenderSessionFailureException(failure.Code is "PackageImageBudgetExceeded"
-                        ? "PackageImageBudgetExceeded" : "PackageImageDecodeFailed", failure.Message, innerException: failure);
-                }
-            };
         }
         else
         {
@@ -71,12 +50,10 @@ internal static class StaticValidationTask
         var composition = snapshot.Composition;
         WorkerValidationContract.ValidateGeometryAndTiming(composition.CanvasWidth, composition.CanvasHeight,
             composition.OutputDurationUs, composition.FrameRate.Numerator, composition.FrameRate.Denominator, input.FramesPerOutput);
-        var factory = runtime?.CreateFactory(ReplayReason.Initial, renderBackend: renderBackend)
-            ?? (imageValidation || sessions is null
-            ? new ProjectRenderSessionFactory(prepared.Compiler, new FfmpegVideoFrameProvider(), ReplayReason.Initial, imageResolverFactory, renderBackend: renderBackend)
-            : sessions);
+        var factory = runtime?.CreateFactory(renderBackend: renderBackend)
+            ?? (sessions ?? new ProjectRenderSessionFactory(prepared.Compiler, new FfmpegVideoFrameProvider(), renderBackend: renderBackend));
         using var transparentRuntime = runtime is null ? null
-            : await runtime.CreateTransparentOutputAsync(ReplayReason.Initial, renderBackend, token).ConfigureAwait(false);
+            : await runtime.CreateTransparentOutputAsync(renderBackend, token).ConfigureAwait(false);
         int reportBytes = 2048; // Complete report object, counts, arrays and separators are reserved before items.
         RuntimeValidationBudget budget = new(WorkerValidationContract.MaximumIssues, WorkerValidationContract.MaximumOccurrences,
             issue => Reserve(MapIssue(issue, packageProfile)), diagnostic => Reserve(MapDiagnostic(diagnostic)));
@@ -97,7 +74,7 @@ internal static class StaticValidationTask
             ValidationReportDto report = new(result.Succeeded, result.OpaqueFrames, result.TransparentFrames,
                 [.. result.Issues.Select(value => MapIssue(value, packageProfile))], [.. result.Diagnostics.Select(MapDiagnostic)]);
             byte[] payload = WorkerValidationContract.EncodeReport(report, input.FramesPerOutput);
-            return new(runtimeValidation ? RuntimeValidationWorkerContract.ResultKind : imageValidation ? ProjectImageValidationWorkerContract.ResultKind : WorkerValidationContract.ResultKind,
+            return new(runtimeValidation ? RuntimeValidationWorkerContract.ResultKind : WorkerValidationContract.ResultKind,
                 request.RequestId, request.InputSha256, payload,
                 outputSha256: WorkerProtocol.ComputeSha256(payload), sourceSha256: request.SourceSha256,
                 taskId: request.TaskId, validationFramesPerOutput: input.FramesPerOutput, progressSequence: sequence);
@@ -129,7 +106,7 @@ internal static class StaticValidationTask
                 await foreach (var item in channel.Reader.ReadAllAsync(CancellationToken.None).ConfigureAwait(false))
                 {
                     var value = item.Progress;
-                    await send(new(runtimeValidation ? RuntimeValidationWorkerContract.ProgressKind : imageValidation ? ProjectImageValidationWorkerContract.ProgressKind : WorkerValidationContract.ProgressKind,
+                    await send(new(runtimeValidation ? RuntimeValidationWorkerContract.ProgressKind : WorkerValidationContract.ProgressKind,
                         request.RequestId, request.InputSha256,
                         sourceSha256: request.SourceSha256, taskId: request.TaskId, validationFramesPerOutput: input.FramesPerOutput,
                         progressSequence: item.Sequence, validationProgress: new("rendering", value.CompletedFrames, value.TotalFrames,

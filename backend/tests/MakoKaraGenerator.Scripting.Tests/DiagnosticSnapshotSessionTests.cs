@@ -157,17 +157,15 @@ public sealed class DiagnosticSnapshotSessionTests
         Assert.Empty(cursor.ReadNew(after.DiagnosticSnapshot));
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task 早期宿主门禁保留完整实例归属及空错误日志(bool requiredAudio)
+    [Fact]
+    public async Task 早期宿主门禁保留完整实例归属及空错误日志()
     {
         var compiled = await PurePackage.Value;
         var first = compiled.CreateEffect("probe", new("first"), new EffectBinding.Project(), 0);
-        var second = first with { Id = new("second"), EntryType = requiredAudio ? "PureNoOpProbe" : "MissingEntry", RequiresAudio = requiredAudio };
+        var second = first with { Id = new("second"), EntryType = "MissingEntry" };
         var factory = new PureFrameSourceFactory([first, second], Fingerprint, static () => new Geometry());
         var failure = await Assert.ThrowsAsync<EffectFailureException>(async () => await factory.CreateAsync(Snapshot()));
-        Assert.Equal(requiredAudio ? "ValidateAudio" : "Declare", failure.Stage);
+        Assert.Equal("Declare", failure.Stage);
         Assert.Equal(new EffectInstanceId("second"), failure.InstanceId);
         Assert.NotNull(failure.DiagnosticSnapshot);
         Assert.Empty(failure.DiagnosticSnapshot.ReadAll());

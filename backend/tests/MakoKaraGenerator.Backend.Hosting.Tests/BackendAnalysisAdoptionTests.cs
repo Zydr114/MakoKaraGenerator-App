@@ -102,10 +102,10 @@ public sealed partial class BackendAnalysisAdoptionTests
         Assert.Equal(BackendErrorCode.JobNotFound, (await f.Command(foreignProject, "0", new("audio.analysis.apply", AnalysisJobId: done.JobId), "b")).Error!.Code);
         Assert.Equal(BackendErrorCode.CommandRejected, (await f.Command(other, "0", new("audio.analysis.apply", AnalysisJobId: done.JobId))).Error!.Code);
         Assert.Equal(BackendErrorCode.RevisionConflict, (await f.Command(project, "1", new("audio.analysis.apply", AnalysisJobId: done.JobId))).Error!.Code);
-        Set(project, "IsReadOnly", true);
+        project.IsReadOnly = true;
         Assert.Equal(BackendErrorCode.ReadOnlySession, (await f.Command(project, "0", new("audio.analysis.apply", AnalysisJobId: done.JobId))).Error!.Code);
         Assert.Equal(BackendErrorCode.ReadOnlySession, (await f.Command(project, "0", new("audio.analysis.clear"))).Error!.Code);
-        Set(project, "IsReadOnly", false);
+        project.IsReadOnly = false;
         string handle = await f.Handle("saved"); JobResponse save = await f.Terminal((await f.Registry.StartSaveAsync("a", project.ProjectSessionId, new("0", handle, f.Meta()))).Response!.JobId);
         Assert.Equal(BackendErrorCode.CommandRejected, (await f.Command(project, "0", new("audio.analysis.apply", AnalysisJobId: save.JobId))).Error!.Code);
         f.Clock.Advance(3601);
@@ -145,18 +145,16 @@ public sealed partial class BackendAnalysisAdoptionTests
         Project before = Workspace(project).Project;
         ProjectSessionSummaryResponse summary = (await f.Registry.ReadSummaryAsync("a", project.ProjectSessionId))!;
         string root = Path.Combine(f.State, "analysis-results"); string report = Path.Combine(root, job.AnalysisResult!.Report.ReportId + ".json");
-        object? files = null; bool observed = false;
+        BackendJobSidecarStore? files = null; bool observed = false;
         Action<string> release = id =>
         {
             Assert.Equal(job.AnalysisResult.Report.ReportId, id); observed = true;
             if (!deleteFailure) { f.Clock.Advance(3601); return; }
-            Invoke(files!, "Prune", (object)Array.Empty<string>());
+            files!.Prune(Array.Empty<string>());
             if (OperatingSystem.IsWindows()) File.SetAttributes(report, FileAttributes.ReadOnly);
             else File.SetUnixFileMode(root, UnixFileMode.UserRead | UnixFileMode.UserExecute);
         };
-        Type type = typeof(ProjectSessionRegistry).Assembly.GetType("MakoKaraGenerator.Backend.Hosting.BackendJobSidecarStore")!;
-        files = Activator.CreateInstance(type, BindingFlags.NonPublic | BindingFlags.Instance, null,
-            [root, "analysis-", "AnalysisResult", AnalysisResultCodec.MaximumResultBytes, 64L * 1024 * 1024, null, release], null)!;
+        files = new BackendJobSidecarStore(root, "analysis-", "AnalysisResult", AnalysisResultCodec.MaximumResultBytes, 64L * 1024 * 1024, null, release);
         object results = typeof(ProjectSessionRegistry).GetField("_analysisResults", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(f.Registry)!;
         results.GetType().GetField("_files", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(results, files);
         try
@@ -169,7 +167,7 @@ public sealed partial class BackendAnalysisAdoptionTests
             {
                 Assert.True(File.Exists(report));
                 Assert.IsAssignableFrom<UnauthorizedAccessException>(Record.Exception(() => File.Delete(report)));
-                object entry = ((System.Collections.IDictionary)type.GetField("_entries", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(files)!)[job.AnalysisResult.Report.ReportId]!;
+                object entry = ((System.Collections.IDictionary)typeof(BackendJobSidecarStore).GetField("_entries", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(files)!)[job.AnalysisResult.Report.ReportId]!;
                 Assert.Equal(0, entry.GetType().GetField("Readers", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(entry));
                 Assert.True((bool)entry.GetType().GetField("Expired", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(entry)!);
             }
@@ -223,13 +221,7 @@ public sealed partial class BackendAnalysisAdoptionTests
         Assert.Equal(BackendErrorCode.JobNotFound, (await f.Command(current, "0", new("audio.analysis.apply", AnalysisJobId: job.JobId))).Error!.Code);
     }
 
-    private static ProjectWorkspace Workspace(ProjectSession project) => (ProjectWorkspace)typeof(ProjectSession).GetProperty("Workspace", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(project)!;
-    private static void Set(ProjectSession project, string name, object value) => typeof(ProjectSession).GetProperty(name, BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(project, value);
-    private static object? Invoke(object target, string name, params object?[] args)
-    {
-        try { return target.GetType().GetMethod(name, BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(target, args); }
-        catch (TargetInvocationException error) when (error.InnerException is not null) { ExceptionDispatchInfo.Capture(error.InnerException).Throw(); throw; }
-    }
+    private static ProjectWorkspace Workspace(ProjectSession project) => project.Workspace;
     private static byte[] Canonical(string source) => AudioAnalysisJson.Encode(new(source, new string('b', 64), 384, [new(0, .1234567890123456, .5, .25, .8)]));
     private sealed record Call(BackendAudioAnalysisGrant Grant, TaskCompletionSource<byte[]> Release);
     private sealed class Executor : IBackendAnalysisExecutor

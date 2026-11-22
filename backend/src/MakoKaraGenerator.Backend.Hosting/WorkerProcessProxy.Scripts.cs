@@ -14,7 +14,7 @@ internal sealed record RetainedPreparedScriptInput(WorkerProcessProxy Owner, str
 public sealed partial class WorkerProcessProxy
 {
     private async Task<StaticWorkerSessionHandle> OpenPreparedScriptSessionAsync(string kind, Guid id,
-        ReadOnlyMemory<byte> source, TimeSpan timeout, PackageRenderWorkerCapabilities capabilities, CancellationToken token, bool image = false,
+        ReadOnlyMemory<byte> source, TimeSpan timeout, PackageRenderWorkerCapabilities capabilities, CancellationToken token,
         bool graphPixelChecks = false)
     {
         if (timeout <= TimeSpan.Zero || timeout > TimeSpan.FromMinutes(1)) throw new ArgumentOutOfRangeException(nameof(timeout));
@@ -24,7 +24,7 @@ public sealed partial class WorkerProcessProxy
         EffectPackageProfile[] requiredProfiles = [];
         try
         {
-            prepared = await PrepareScriptInputAsync(source, deadline.Token, image: image, captureProfiles: profiles =>
+            prepared = await PrepareScriptInputAsync(source, deadline.Token, captureProfiles: profiles =>
             {
                 WorkerPackageProfileAdmission.RequireInput(capabilities, profiles);
                 requiredProfiles = profiles;
@@ -69,9 +69,7 @@ public sealed partial class WorkerProcessProxy
                 throw new InvalidOperationException("固定输入已释放或不属于此代理。");
         var capabilities = retained.OpenKind == ProjectRuntimeInputWorkerContract.OpenKind
             ? await GetRuntimeInputCapabilitiesAsync(timeout, token).ConfigureAwait(false)
-            : retained.OpenKind == ProjectImagePreviewWorkerContract.OpenKind
-                ? (await GetImagePreviewCapabilitiesAsync(timeout, token).ConfigureAwait(false)).PackageCapabilities
-                : await GetPackageCapabilitiesAsync(timeout, token).ConfigureAwait(false);
+            : await GetPackageCapabilitiesAsync(timeout, token).ConfigureAwait(false);
         WorkerPackageProfileAdmission.RequireInput(capabilities, retained.RequiredPackageProfiles);
         Guid id = Guid.NewGuid(); byte[] payload = PackageRenderWorkerContract.EncodeOpen(id, retained.Input.Envelope);
         string sourceHash = retained.Input.SourceSha256;
@@ -116,17 +114,17 @@ public sealed partial class WorkerProcessProxy
     }
 
     private async Task<PreparedScriptCall> PrepareScriptCallAsync(ReadOnlyMemory<byte> source, CancellationToken token,
-        ProjectSnapshot? snapshot = null, bool image = false)
+        ProjectSnapshot? snapshot = null)
     {
         EffectPackageProfile[] profiles = [];
-        var input = await PrepareScriptInputAsync(source, token, snapshot, image, values => profiles = values).ConfigureAwait(false);
+        var input = await PrepareScriptInputAsync(source, token, snapshot, values => profiles = values).ConfigureAwait(false);
         return new(this, input, profiles);
     }
 
     private readonly List<CancellationTokenSource> _scriptPreparations = [];
 
     private async Task<ScriptPreparedInputLease> PrepareScriptInputAsync(ReadOnlyMemory<byte> source,
-        CancellationToken token, ProjectSnapshot? fixedSnapshot = null, bool image = false, Action<EffectPackageProfile[]>? captureProfiles = null)
+        CancellationToken token, ProjectSnapshot? fixedSnapshot = null, Action<EffectPackageProfile[]>? captureProfiles = null)
     {
         using var preparation = CancellationTokenSource.CreateLinkedTokenSource(token);
         lock (_stateGate)
@@ -134,17 +132,16 @@ public sealed partial class WorkerProcessProxy
             ObjectDisposedException.ThrowIf(_disposed, this);
             _scriptPreparations.Add(preparation);
         }
-        try { return await PrepareScriptInputCoreAsync(source, fixedSnapshot, image, captureProfiles, preparation.Token).ConfigureAwait(false); }
+        try { return await PrepareScriptInputCoreAsync(source, fixedSnapshot, captureProfiles, preparation.Token).ConfigureAwait(false); }
         finally { lock (_stateGate) _scriptPreparations.Remove(preparation); }
     }
 
     private async Task<ScriptPreparedInputLease> PrepareScriptInputCoreAsync(ReadOnlyMemory<byte> source,
-        ProjectSnapshot? fixedSnapshot, bool image, Action<EffectPackageProfile[]>? captureProfiles, CancellationToken token)
+        ProjectSnapshot? fixedSnapshot, Action<EffectPackageProfile[]>? captureProfiles, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
         ProjectSnapshot snapshot;
         if (fixedSnapshot is not null) snapshot = fixedSnapshot;
-        else if (image) snapshot = ProjectImagePreviewSnapshotCodec.Decode(source).Snapshot;
         else if (ProjectRuntimeInputCodec.IsRuntimeInput(source.Span))
         {
             Dictionary<(string, string), EffectPackageContents> packages = [];

@@ -154,13 +154,9 @@ internal sealed class VulkanSkiaRenderDevice : ISkiaRenderDevice
     private readonly GRVkGetProcedureAddressDelegate _nativeProcedure;
     private readonly GRSharpVkGetProcedureAddressDelegate _sharpProcedure;
     private bool _disposed;
-    private readonly List<VulkanGpuFramePool> _gpuPools = [];
-    private VulkanGpuFramePool? _currentGpuPool;
     private readonly bool _gpuPreviewEnabled;
     private readonly bool _dmaBufExportEnabled;
     private bool _gpuPreviewFailed;
-    private ulong _gpuPoolGeneration, _gpuSequence;
-    private readonly ulong _gpuProducerEpoch = CreateNonZeroRandomEpoch();
     private readonly uint _queueFamily;
     private readonly uint _vendorId;
     private readonly uint _deviceId;
@@ -170,14 +166,6 @@ internal sealed class VulkanSkiaRenderDevice : ISkiaRenderDevice
     internal GRContext GrContext => _context;
     internal uint QueueFamilyIndex => _queueFamily;
     public PreviewDeviceIdentity PreviewIdentity => new(PreviewWireConventions.ApiVulkan, Info.Device ?? "Vulkan GPU", _vendorId, _deviceId);
-    // Caller must hold SynchronizationRoot through drawing and CopyGpuFrame.
-    internal ulong NextGpuFrameSequence => checked(_gpuSequence + 1);
-
-    private static ulong CreateNonZeroRandomEpoch()
-    {
-        ulong value = BitConverter.ToUInt64(System.Security.Cryptography.RandomNumberGenerator.GetBytes(8));
-        return value == 0 ? 1UL : value;
-    }
 
     private VulkanSkiaRenderDevice(Instance instance, PhysicalDevice physicalDevice, Device device, Queue queue,
         GRVkExtensions extensions, GRSharpVkBackendContext backendContext, GRContext context, IntPtr vulkanLibrary,
@@ -473,12 +461,6 @@ internal sealed class VulkanSkiaRenderDevice : ISkiaRenderDevice
         if (_disposed) return;
         _disposed = true;
         Exception? error = SkiaNativeResourceCleanup.Run(null,
-            () =>
-            {
-                Exception? poolError = SkiaNativeResourceCleanup.Run(null, [.. _gpuPools.Select<VulkanGpuFramePool, Action>(pool => pool.Dispose)]);
-                _gpuPools.Clear(); _currentGpuPool = null;
-                if (poolError is not null) ExceptionDispatchInfo.Capture(poolError).Throw();
-            },
             _device.WaitIdle,
             _context.Dispose,
             _backendContext.Dispose,
@@ -487,15 +469,6 @@ internal sealed class VulkanSkiaRenderDevice : ISkiaRenderDevice
             _instance.Dispose,
             () => NativeLibrary.Free(_vulkanLibrary));
         if (error is not null) ExceptionDispatchInfo.Capture(error).Throw();
-    }
-
-    internal GpuFrameLease CopyGpuFrame(SKSurface surface, RenderTarget target)
-    {
-        lock (SynchronizationRoot)
-        {
-            EnsureGpuTargetInitialized(target);
-            return _currentGpuPool!.CopyFrom(surface, _context, _queueFamily, checked(++_gpuSequence));
-        }
     }
 
     internal VulkanGpuFramePool CreateBorrowedDmaBufPool(RenderTarget target, ulong producerEpoch, ulong generation,
@@ -518,54 +491,6 @@ internal sealed class VulkanSkiaRenderDevice : ISkiaRenderDevice
                 _gpuPreviewFailed = true;
                 failStream();
             });
-        }
-    }
-
-    internal void EnsureGpuTargetInitialized(RenderTarget target)
-    {
-        ArgumentNullException.ThrowIfNull(target);
-        lock (SynchronizationRoot)
-        {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-            if (!SupportsDmaBufExport) throw new GpuPreviewException("GpuPreviewUnavailable", "This session did not enable GPU shared output or its stream has failed.");
-            if (_currentGpuPool is null || _currentGpuPool.Target.PixelWidth != target.PixelWidth || _currentGpuPool.Target.PixelHeight != target.PixelHeight)
-                throw new GpuPreviewException("GpuPreviewTargetNotInitialized", "Reserve the session budget and initialize this exact GPU target before rendering.");
-        }
-    }
-
-    internal GpuFramePoolInfo InitializeGpuOutput(RenderTarget target, ulong maximumAllocationBytes)
-    {
-        lock (SynchronizationRoot)
-        {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-            if (!SupportsDmaBufExport) throw new GpuPreviewException("GpuPreviewUnavailable", "This session did not enable GPU shared output or its stream has failed.");
-            if (target.PixelWidth is < 64 or > 2560 || target.PixelHeight is < 64 or > 1440)
-                throw new GpuPreviewException("GpuPreviewSizeUnsupported", "Shared GPU output is limited to 64..2560 x 64..1440.");
-            if (maximumAllocationBytes is 0 or > 192ul * 1024 * 1024)
-                throw new GpuPreviewException("GpuPreviewPoolBudgetExceeded", "The reserved shared GPU session budget must be at most 192 MiB.");
-            if (_currentGpuPool is null || _currentGpuPool.Target.PixelWidth != target.PixelWidth || _currentGpuPool.Target.PixelHeight != target.PixelHeight)
-            {
-                foreach (var retired in _gpuPools.Where(pool => pool != _currentGpuPool && pool.IsDrained).ToArray())
-                { retired.Dispose(); _gpuPools.Remove(retired); }
-                if (_currentGpuPool is not null && _currentGpuPool.IsDrained)
-                { _currentGpuPool.Dispose(); _gpuPools.Remove(_currentGpuPool); _currentGpuPool = null; }
-                ulong retained = _gpuPools.Aggregate(0ul, (total, pool) => checked(total + pool.AllocationBytes));
-                if (retained >= maximumAllocationBytes || _gpuPools.Count >= 2)
-                    throw new GpuPreviewException("GpuPreviewPoolBudgetExceeded", "Outstanding GPU pool generations exceed the shared allocation budget.");
-                GpuPreviewNative.Context context = new()
-                {
-                    Size = (uint)Marshal.SizeOf<GpuPreviewNative.Context>(), Version = 1,
-                    Instance = _instance.RawHandle.ToUInt64(), PhysicalDevice = _physicalDevice.RawHandle.ToUInt64(),
-                    Device = _device.RawHandle.ToUInt64(), Queue = _queue.RawHandle.ToUInt64(),
-                    QueueFamily = _queueFamily, EnabledExtensions = GpuPreviewNative.RequiredExtensions,
-                };
-                var created = new VulkanGpuFramePool(SynchronizationRoot, context, target, _gpuProducerEpoch,
-                    checked(++_gpuPoolGeneration), maximumAllocationBytes - retained, () => _gpuPreviewFailed = true);
-                _gpuPools.Add(created); _currentGpuPool = created;
-            }
-            if (_gpuPools.Aggregate(0ul, (total, pool) => checked(total + pool.AllocationBytes)) > maximumAllocationBytes)
-                throw new GpuPreviewException("GpuPreviewPoolBudgetExceeded", "Existing GPU pool generations exceed the newly reserved session budget.");
-            return _currentGpuPool.Info with { RetainedAllocationBytes = _gpuPools.Aggregate(0ul, (total, pool) => checked(total + pool.AllocationBytes)) };
         }
     }
 

@@ -86,11 +86,11 @@ public sealed class AudioReactiveFrameTests
                 ["outputs"] = new System.Text.Json.Nodes.JsonArray(),
             });
         }));
-    private static async Task<CompiledFrameEffect> Definition(bool required = true, bool pure = false)
+    private static async Task<CompiledFrameEffect> Definition(bool pure = false)
     {
         var package = await Package.Value;
         return package.CreateEffect(pure ? "PureAudioProbe" : "AudioProbe", new("audio"),
-            new Fx.EffectBinding.Project(), 0) with { RequiresAudio = required, Subscription = new Fx.SourceSubscription.Project() };
+            new Fx.EffectBinding.Project(), 0) with { Subscription = new Fx.SourceSubscription.Project() };
     }
     private static ProjectSnapshot Snapshot()
     {
@@ -155,17 +155,10 @@ public sealed class AudioReactiveFrameTests
     }
     [Theory]
     [InlineData(Fx.AudioAvailability.NoAudio)] [InlineData(Fx.AudioAvailability.NotAnalyzed)] [InlineData(Fx.AudioAvailability.AnalysisFailed)]
-    public async Task 必需音频在初始化前失败而可选脚本读到真实不可用状态(Fx.AudioAvailability availability)
+    public async Task 不可用音频状态下脚本读到真实不可用状态(Fx.AudioAvailability availability)
     {
-        var audio = Fx.AudioFeatures.Unavailable(availability, "proof"); var snapshot = Snapshot(); var required = await Definition();
-        var failure = await Assert.ThrowsAsync<EffectFailureException>(async () => await Factory(required, audio).CreateAsync(snapshot));
-        Assert.Equal("RequiredAudioUnavailable", failure.Code); Assert.Equal("ValidateAudio", failure.Stage); Assert.Equal(0, failure.TimeUs);
-        Assert.Equal(required.Id, failure.InstanceId); Assert.Equal(required.Artifact!.ArtifactHash, failure.ArtifactHash);
-        Assert.Contains(availability.ToString(), failure.Message);
-        var pureDefinition = await Definition(pure: true);
-        PureFrameSourceFactory pure = new([pureDefinition], Fingerprint, static () => new SkiaRenderPipeline(), audio);
-        Assert.Equal("RequiredAudioUnavailable", (await Assert.ThrowsAsync<EffectFailureException>(async () => await pure.CreateAsync(snapshot))).Code);
-        await using var optional = await Factory(required with { RequiresAudio = false }, audio).CreateAsync(snapshot);
+        var audio = Fx.AudioFeatures.Unavailable(availability, "proof"); var snapshot = Snapshot(); var definition = await Definition();
+        await using var optional = await Factory(definition, audio).CreateAsync(snapshot);
         var frame = await optional.PrepareAsync(20_000, Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition));
         Assert.Empty(frame.TokenStyles); Assert.Empty(frame.DotBatches);
     }

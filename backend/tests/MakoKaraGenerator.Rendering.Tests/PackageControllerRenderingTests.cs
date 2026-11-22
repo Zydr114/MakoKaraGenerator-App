@@ -66,7 +66,7 @@ public sealed class PackageControllerRenderingTests
         var restored = MakoKaraGenerator.Core.Persistence.ProjectStore.Load(directory).Project!;
         var compiled = await CompiledProjectEffects.CompileAsync(restored, Compiler()); Assert.True(compiled.Succeeded);
         var snapshot = ProjectSnapshot.FromProject(restored); var target = RenderTarget.FromComposition(snapshot.Composition);
-        await using var source = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), Fx.ReplayReason.Initial).CreateAsync(snapshot);
+        await using var source = await compiled.CreateFactory(static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
         var frame = await source.PrepareAsync(12500000, Fx.OutputMode.Transparent, target);
         Assert.Equal(2, Assert.Single(frame.TokenTransforms).LocalMatrix.A);
         var transformed = frame.FinalGeometry.Single(g => g.WithRuby == frame.TokenTransforms[0].Target);

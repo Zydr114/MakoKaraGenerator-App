@@ -174,7 +174,7 @@ public sealed class BackendFixedAudioPreparationTests
         string handle = (await f.Registry.CreateFileHandleAsync("a", new("projects", "silent", Metadata: f.Meta()))).Response!.HandleId;
         JobResponse opened = await f.Open(handle); Assert.Equal("succeeded", opened.State); Assert.Equal(0, f.Decodes);
         Assert.True(f.Registry.TryGet("a", opened.ProjectSessionId!, out ProjectSession session));
-        ProjectWorkspace workspace = (ProjectWorkspace)session.GetType().GetProperty("Workspace", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(session)!;
+        ProjectWorkspace workspace = session.Workspace;
         Assert.Null(workspace.Project.AudioPath); Assert.Null(workspace.Project.AudioMedia); Assert.Equal(0, workspace.History.UndoCount);
         Assert.Equal("0", opened.Result!.ProjectRevision); Assert.False(opened.IsDirty); Assert.Equal(0, f.TotalReferences());
     }

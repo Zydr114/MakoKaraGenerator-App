@@ -388,42 +388,4 @@ public sealed partial class PreviewTransportTests
         using HttpResponseMessage opened = await f.Http.PostAsJsonAsync("/api/v1/project-sessions/open-jobs", new OpenProjectSessionRequest(handle.HandleId, Metadata: f.Metadata()), Json);
         return (await NodeTerminal(f, opened)).ProjectSessionId!;
     }
-
-    [Fact]
-    public async Task 编辑候选固定输入可用于同帧测量且缺省仍测量当前工程()
-    {
-        await using Fixture f = await Fixture.Create(
-            injectedFactory: new WorkerRenderFrameSessionFactory(new(FindWorkerApphost())));
-        f.Projects.ConfigureSceneMeasurements(new(FindWorkerApphost()));
-        ProjectSession project = await f.OpenNoAudioProject();
-        string path = $"/api/v1/project-sessions/{project.ProjectSessionId}";
-        var candidateRequest = new ProjectEditPreviewRequest("0", [new SetCanvasSizeCommandDto(777, 444)], new(64, 36),
-            PreviewAlphaMode.Straight, Metadata: f.Metadata());
-        using HttpResponseMessage created = await f.Http.PostAsJsonAsync(path + "/edit-previews", candidateRequest, Json);
-        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
-        PreviewSessionResponse preview = (await created.Content.ReadFromJsonAsync<PreviewSessionResponse>(Json))!;
-        Assert.Equal("editCandidate", preview.PreviewKind);
-        Assert.NotNull(preview.EditCandidate);
-        SceneMeasurementRequest candidate = new("0", "layout", null, 64, 36, "transparent", preview.PreviewId,
-            preview.PreviewGeneration, preview.EditCandidate!.CandidateRevision);
-        using HttpResponseMessage measuredCandidate = await f.Http.PostAsJsonAsync(path + "/orchestration/measurements", candidate, Json);
-        Assert.Equal(HttpStatusCode.OK, measuredCandidate.StatusCode);
-        SceneMeasurementResponse candidateResponse = (await measuredCandidate.Content.ReadFromJsonAsync<SceneMeasurementResponse>(Json))!;
-        Assert.Equal(preview.EditCandidate.CandidateRevision, candidateResponse.ProjectRevision);
-        Assert.Equal(777, candidateResponse.Measurement.CanvasWidth);
-        Assert.Equal(444, candidateResponse.Measurement.CanvasHeight);
-        using HttpResponseMessage measuredCurrent = await f.Http.PostAsJsonAsync(path + "/orchestration/measurements",
-            new SceneMeasurementRequest("0", "layout", null, 64, 36, "transparent"), Json);
-        Assert.Equal(HttpStatusCode.OK, measuredCurrent.StatusCode);
-        SceneMeasurementResponse currentResponse = (await measuredCurrent.Content.ReadFromJsonAsync<SceneMeasurementResponse>(Json))!;
-        Assert.Equal("0", currentResponse.ProjectRevision);
-        Assert.NotEqual(candidateResponse.Measurement.CanvasWidth, currentResponse.Measurement.CanvasWidth);
-        using HttpResponseMessage stale = await f.Http.PostAsJsonAsync(path + "/orchestration/measurements",
-            candidate with { ExpectedPreviewGeneration = (long.Parse(preview.PreviewGeneration, CultureInfo.InvariantCulture) + 1).ToString(CultureInfo.InvariantCulture) }, Json);
-        await Error(stale, HttpStatusCode.Conflict, BackendErrorCode.PreviewGenerationConflict);
-        using HttpResponseMessage close = await f.Http.PostAsJsonAsync($"/api/v1/preview-sessions/{preview.PreviewId}/close",
-            new ClosePreviewSessionRequest(preview.PreviewGeneration, preview.Source.SourceRevision, f.Metadata()), Json);
-        Assert.Equal(HttpStatusCode.OK, close.StatusCode);
-    }
-
 }

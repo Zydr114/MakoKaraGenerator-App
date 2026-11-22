@@ -31,52 +31,78 @@ internal sealed record PreviewWorkerConfiguration(WorkerProcessOptions? Options,
                 SourceProfiles: [BackendSnapshotProfiles.StaticLyricsScene, BackendSnapshotProfiles.StaticLyricsSceneAnalysis, BackendSnapshotProfiles.StaticLyricsScenePresets]));
     }
 
-    /// <summary>分别探测静态及完整包能力；包失败不禁用原静态来源。</summary>
-    internal static async Task<PreviewWorkerConfiguration> ResolveAsync(string? configuredPath = null)
+    /// <summary>复用同一探测 Worker 依次验证静态、包与统一运行输入能力；包失败不禁用原静态来源。</summary>
+    internal static Task<PreviewWorkerConfiguration> ResolveAsync(string? configuredPath = null, WorkerProcessProxy? sharedProxy = null)
+        => ResolveAsync(Resolve(configuredPath), sharedProxy);
+
+    internal static async Task<PreviewWorkerConfiguration> ResolveAsync(PreviewWorkerConfiguration configured, WorkerProcessProxy? sharedProxy = null)
     {
-        PreviewWorkerConfiguration configured = Resolve(configuredPath);
         if (configured.Options is null) return configured with
         {
             Info = configured.Info with { SourceProfiles = [BackendSnapshotProfiles.StaticLyricsScene, BackendSnapshotProfiles.StaticLyricsSceneAnalysis] }
         };
-        return await ResolveProfilesAsync(configured, new WorkerRenderFrameSessionFactory(configured.Options),
-            new WorkerPackageRenderFrameSessionFactory(configured.Options)).ConfigureAwait(false);
+        WorkerProcessProxy proxy = sharedProxy ?? new(configured.Options);
+        try
+        {
+            TimeSpan timeout = TimeSpan.FromSeconds(20);
+            List<string> profiles = [BackendSnapshotProfiles.StaticLyricsScene, BackendSnapshotProfiles.StaticLyricsSceneAnalysis];
+            try
+            {
+                StaticWorkerCapabilitiesDto staticCaps = await proxy.GetStaticCapabilitiesAsync(timeout).ConfigureAwait(false);
+                if (staticCaps.SourceProfiles.Contains(BackendSnapshotProfiles.StaticLyricsScenePresets, StringComparer.Ordinal))
+                    profiles.Add(BackendSnapshotProfiles.StaticLyricsScenePresets);
+            }
+            catch (Exception error)
+            { Console.Error.WriteLine($"BACKEND_PREVIEW_CAPABILITY_PROBE_FAILED profile={BackendSnapshotProfiles.StaticLyricsScenePresets} type={error.GetType().Name}"); }
+            try
+            {
+                PackageRenderWorkerCapabilities packageCaps = await proxy.GetPackageCapabilitiesAsync(timeout).ConfigureAwait(false);
+                profiles.Add(PackageProjectSnapshotCodec.Profile);
+                if (packageCaps.SourceProfiles?.Contains(PackagePresetProjectSnapshotCodec.Profile, StringComparer.Ordinal) == true)
+                    profiles.Add(PackagePresetProjectSnapshotCodec.Profile);
+            }
+            catch (Exception error)
+            { Console.Error.WriteLine($"BACKEND_PREVIEW_CAPABILITY_PROBE_FAILED profile={PackageProjectSnapshotCodec.Profile} type={error.GetType().Name}"); }
+            try
+            {
+                await proxy.GetRuntimeInputCapabilitiesAsync(timeout).ConfigureAwait(false);
+                profiles.Add(ProjectRuntimeInputWorkerContract.Profile);
+            }
+            catch (Exception error)
+            { Console.Error.WriteLine($"BACKEND_PREVIEW_CAPABILITY_PROBE_FAILED profile={ProjectRuntimeInputWorkerContract.Profile} type={error.GetType().Name}"); }
+            return configured with { Info = configured.Info with { SourceProfiles = [.. profiles] } };
+        }
+        finally
+        {
+            if (sharedProxy is null)
+            {
+                try { await proxy.DisposeAsync().ConfigureAwait(false); }
+                catch (Exception cleanup) { Console.Error.WriteLine($"BACKEND_PREVIEW_CAPABILITY_PROBE_CLEANUP_FAILED type={cleanup.GetType().Name}"); }
+            }
+        }
     }
 
     internal static async Task<PreviewWorkerConfiguration> ResolveProfilesAsync(PreviewWorkerConfiguration configured,
         IBackendPreviewProfileCapability staticFactory, IBackendPreviewProfileCapability packageFactory)
     {
         List<string> profiles = [BackendSnapshotProfiles.StaticLyricsScene, BackendSnapshotProfiles.StaticLyricsSceneAnalysis];
-        try
-        {
-            if (await staticFactory.EnsureProfileAsync(BackendSnapshotProfiles.StaticLyricsScenePresets).ConfigureAwait(false) is null)
-                profiles.Add(BackendSnapshotProfiles.StaticLyricsScenePresets);
-        }
-        catch (Exception) { /* The first actual session still reports the stable unavailable code. */ }
-        try
-        {
-            if (await packageFactory.EnsureProfileAsync(PackageProjectSnapshotCodec.Profile).ConfigureAwait(false) is null)
-                profiles.Add(PackageProjectSnapshotCodec.Profile);
-        }
-        catch (Exception) { /* A failed package probe must not remove static capabilities. */ }
-        try
-        {
-            if (await packageFactory.EnsureProfileAsync(PackagePresetProjectSnapshotCodec.Profile).ConfigureAwait(false) is null)
-                profiles.Add(PackagePresetProjectSnapshotCodec.Profile);
-        }
-        catch (Exception) { /* Mixed preset sources require an explicit package Worker declaration. */ }
-        try
-        {
-            if (await packageFactory.EnsureProfileAsync(ProjectImagePreviewSnapshotCodec.Profile).ConfigureAwait(false) is null)
-                profiles.Add(ProjectImagePreviewSnapshotCodec.Profile);
-        }
-        catch (Exception) { /* Image requires its own actual Worker handshake. */ }
-        try
-        {
-            if (await packageFactory.EnsureProfileAsync(ProjectRuntimeInputWorkerContract.Profile).ConfigureAwait(false) is null)
-                profiles.Add(ProjectRuntimeInputWorkerContract.Profile);
-        }
-        catch (Exception) { /* Unified media inputs require their own actual Worker handshake. */ }
+        await ProbeProfileAsync(staticFactory, BackendSnapshotProfiles.StaticLyricsScenePresets, profiles).ConfigureAwait(false);
+        await ProbeProfileAsync(packageFactory, PackageProjectSnapshotCodec.Profile, profiles).ConfigureAwait(false);
+        await ProbeProfileAsync(packageFactory, PackagePresetProjectSnapshotCodec.Profile, profiles).ConfigureAwait(false);
+        await ProbeProfileAsync(packageFactory, ProjectRuntimeInputWorkerContract.Profile, profiles).ConfigureAwait(false);
         return configured with { Info = configured.Info with { SourceProfiles = [.. profiles] } };
+    }
+
+    private static async Task ProbeProfileAsync(IBackendPreviewProfileCapability capability, string profile, List<string> profiles)
+    {
+        try
+        {
+            if (await capability.EnsureProfileAsync(profile).ConfigureAwait(false) is null)
+                profiles.Add(profile);
+        }
+        catch (Exception error)
+        {
+            Console.Error.WriteLine($"BACKEND_PREVIEW_CAPABILITY_PROBE_FAILED profile={profile} type={error.GetType().Name}");
+        }
     }
 }

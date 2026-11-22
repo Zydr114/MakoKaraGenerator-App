@@ -39,7 +39,7 @@ public sealed class WorkerPackageSessionIntegrationTests(ITestOutputHelper outpu
         using TemporaryDirectory temp = new();
         using FfmpegVideoFrameProvider videos = new();
         var runtime = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
-            temp.FilePath("cache")), videos, ReplayReason.Initial, renderBackend: "vulkan");
+            temp.FilePath("cache")), videos, renderBackend: "vulkan");
         await using IRenderFrameSession expected = await runtime.CreateAsync(source);
         using RenderFrame reference = await expected.RenderAsync(Request(source, 100_000));
         Assert.Equal(reference.PixelMemory.ToArray(), actual.PixelMemory.ToArray());
@@ -58,7 +58,7 @@ public sealed class WorkerPackageSessionIntegrationTests(ITestOutputHelper outpu
         using TemporaryDirectory temp = new();
         using FfmpegVideoFrameProvider videos = new();
         var direct = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
-            temp.FilePath("cache")), videos, ReplayReason.Initial, renderBackend: "vulkan");
+            temp.FilePath("cache")), videos, renderBackend: "vulkan");
         await using IRenderFrameSession expected = await direct.CreateAsync(source);
         await using WorkerProcessProxy proxy = new(new(PackageWorkerRuntimeFixture.WorkerApphost(), cancellationGracePeriod: TimeSpan.FromSeconds(5))
             { RenderBackend = "gpu", ScriptCompilationService = new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")) });
@@ -150,7 +150,7 @@ public sealed class WorkerPackageSessionIntegrationTests(ITestOutputHelper outpu
     {
         PackageWorkerRuntimeFixture.AssertFixedFont();
         using TemporaryDirectory temp = new(); using FfmpegVideoFrameProvider videos = new();
-        var runtime = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")), videos, ReplayReason.Initial, renderBackend: "vulkan");
+        var runtime = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")), videos, renderBackend: "vulkan");
         var factory = new WorkerPackageRenderFrameSessionFactory(new(PackageWorkerRuntimeFixture.WorkerApphost()) { RenderBackend = "gpu" }, TimeSpan.FromSeconds(30));
         ProjectSnapshot invalid = PackageWorkerRuntimeFixture.DiagnosticSource(kind);
         ProjectEffectCompilationException expected = await Assert.ThrowsAsync<ProjectEffectCompilationException>(() => runtime.CreateAsync(invalid).AsTask());
@@ -183,7 +183,7 @@ public sealed class WorkerPackageSessionIntegrationTests(ITestOutputHelper outpu
         PackageWorkerRuntimeFixture.AssertFixedFont();
         using TemporaryDirectory temp = new(); using FfmpegVideoFrameProvider videos = new();
         ProjectSnapshot source = PackageWorkerRuntimeFixture.DiagnosticSource(kind);
-        var runtime = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")), videos, ReplayReason.Initial, renderBackend: "vulkan");
+        var runtime = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")), videos, renderBackend: "vulkan");
         await using IRenderFrameSession direct = await runtime.CreateAsync(source);
         var factory = new WorkerPackageRenderFrameSessionFactory(new(PackageWorkerRuntimeFixture.WorkerApphost()) { RenderBackend = "gpu" }, TimeSpan.FromSeconds(30));
         await using IRenderFrameSession session = await factory.CreateAsync(source);
@@ -240,7 +240,7 @@ public sealed class WorkerPackageSessionIntegrationTests(ITestOutputHelper outpu
     {
         PackageWorkerRuntimeFixture.AssertFixedFont();
         using TemporaryDirectory temp = new(); using FfmpegVideoFrameProvider videos = new();
-        var runtime = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")), videos, ReplayReason.Initial, renderBackend: "vulkan");
+        var runtime = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")), videos, renderBackend: "vulkan");
         var factory = new WorkerPackageRenderFrameSessionFactory(new(PackageWorkerRuntimeFixture.WorkerApphost()) { RenderBackend = "gpu" }, TimeSpan.FromSeconds(30));
         ProjectSnapshot source = PackageWorkerRuntimeFixture.RuntimeError();
         await using IRenderFrameSession direct = await runtime.CreateAsync(source);
@@ -266,7 +266,7 @@ public sealed class WorkerPackageSessionIntegrationTests(ITestOutputHelper outpu
         Assert.True(ProcessGuards.TryEnableChildReaping(), "This bounded process isolation exit requires process guards.");
         PackageWorkerRuntimeFixture.AssertFixedFont();
         using TemporaryDirectory temp = new(); using FfmpegVideoFrameProvider videos = new();
-        var runtime = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")), videos, ReplayReason.Initial, renderBackend: "vulkan");
+        var runtime = new ProjectRenderSessionFactory(new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"), temp.FilePath("cache")), videos, renderBackend: "vulkan");
         ProjectSnapshot source = PackageWorkerRuntimeFixture.Create(kind);
         ProjectSnapshot removed = PackageWorkerRuntimeFixture.WithoutContribution(source, kind);
         byte[] bytes = PackageProjectSnapshotCodec.Encode(source);

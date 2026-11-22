@@ -118,7 +118,6 @@ public sealed partial class CompiledEffectPackage
         if (!controller.BindingKinds.Contains(bindingKind, StringComparer.Ordinal))
             throw new EffectPackageException("PackageBindingNotAllowed", "exports." + exportId + ".bindingKinds", "导出未允许此绑定类别。");
         EffectCapabilities capabilities = EffectCapabilities.None;
-        bool requiresAudio = false;
         foreach (var output in controller.Outputs)
         {
             string path = "exports." + exportId + ".outputs." + output.Id;
@@ -149,7 +148,7 @@ public sealed partial class CompiledEffectPackage
         }
         var parameters = ResolveParameters(exportId, parameterOverrides, cancellationToken);
         return new(instanceId, Artifact, controller.EntryType, parameters, binding, capabilities)
-        { Resources = Resources, Seed = seed, Subscription = subscription ?? new SourceSubscription.BoundSources(), RequiresAudio = requiresAudio, PackageDeclaration = controller, PackageDefinition = Definition };
+        { Resources = Resources, Seed = seed, Subscription = subscription ?? new SourceSubscription.BoundSources(), PackageDeclaration = controller, PackageDefinition = Definition };
     }
     /// <summary>解析任一种导出的完整参数，保留资源修订和九类真实值。</summary>
     public ParameterValues ResolveParameters(string exportId, ReadOnlyMemory<byte> overrides = default, CancellationToken cancellationToken = default)

@@ -645,12 +645,10 @@ public sealed partial class PreviewTransportTests
 
     // Deliberately exposes the historical interfaces without claiming fixed runtime input support.
     private sealed class LegacyPreviewFactory(IRenderFrameSessionFactory inner)
-        : IRenderFrameSessionFactory, IBackendPreviewProfileCapability, IBackendImagePreviewFactory
+        : IRenderFrameSessionFactory, IBackendPreviewProfileCapability
     {
         public ValueTask<BackendErrorResponse?> EnsureProfileAsync(string profile, CancellationToken cancellationToken = default) =>
             ((IBackendPreviewProfileCapability)inner).EnsureProfileAsync(profile, cancellationToken);
-        public IRenderFrameSessionFactory Bind(ProjectSnapshot snapshot, ReadOnlyMemory<byte> imageBytes) =>
-            ((IBackendImagePreviewFactory)inner).Bind(snapshot, imageBytes);
         public ValueTask<IRenderFrameSession> CreateAsync(ProjectSnapshot snapshot, CancellationToken cancellationToken = default) =>
             inner.CreateAsync(snapshot, cancellationToken);
     }
@@ -758,7 +756,6 @@ public sealed partial class PreviewTransportTests
                 : [BackendSnapshotProfiles.StaticLyricsScene, BackendSnapshotProfiles.StaticLyricsSceneAnalysis];
             if (packageProfile) previewProfiles = [.. previewProfiles, MakoKaraGenerator.Backend.Rendering.PackageProjectSnapshotCodec.Profile];
             if (packageProfile && presetProfile) previewProfiles = [.. previewProfiles, BackendSnapshotProfiles.PackageLyricsScenePresets];
-            if (imageProfile) previewProfiles = [.. previewProfiles, BackendSnapshotProfiles.ProjectImagePreview];
             if (injectedFactory is IBackendRuntimePreviewFactory)
                 previewProfiles = [.. previewProfiles, ProjectRuntimeInputWorkerContract.Profile];
             PreviewRuntimeInfoResponse runtime = new(enabled, enabled ? "configured-unverified" : "disabled", "static-lyrics-scene-v1", "worker-process", 1280, 720, rawBudget,

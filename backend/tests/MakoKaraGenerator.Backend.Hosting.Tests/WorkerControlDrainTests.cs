@@ -35,7 +35,9 @@ public sealed class WorkerControlDrainTests
             cleanupTree.ObserveDescendants();
             int child = int.Parse(await File.ReadAllTextAsync(childFile), CultureInfo.InvariantCulture);
             using CancellationTokenSource deadline = new(TimeSpan.FromMilliseconds(300));
-            call = proxy.InvokeAsync(new("probe", stopReadingAfterHello ? new byte[512 * 1024] : []), deadline.Token);
+            call = stopReadingAfterHello
+                ? proxy.OpenStaticSessionAsync(new byte[512 * 1024], TimeSpan.FromSeconds(5), deadline.Token)
+                : proxy.GetStaticCapabilitiesAsync(TimeSpan.FromSeconds(5), deadline.Token);
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => call.WaitAsync(TimeSpan.FromSeconds(3)));
             Assert.Null(proxy.ProcessId);
             Assert.False(Directory.Exists("/proc/" + pid.ToString(CultureInfo.InvariantCulture)));

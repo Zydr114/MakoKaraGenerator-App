@@ -10,8 +10,7 @@ namespace MakoKaraGenerator.Backend.Hosting;
 
 public sealed partial class ProjectSession
 {
-    internal sealed record EditCandidateCapture(Project Before, long Revision, ProjectSession Candidate,
-        BackendProjectImageReadLease? ImageSource = null);
+    internal sealed record EditCandidateCapture(Project Before, long Revision, ProjectSession Candidate);
 
     internal async Task<(EditCandidateCapture? Capture, BackendErrorResponse? Error)> CaptureEditCandidateAsync(
         string client, string expectedRevision, bool mutation, Func<string, IRenderFrameSessionFactory>? captureFactory,
@@ -31,8 +30,7 @@ public sealed partial class ProjectSession
                 _timeProvider, new() { MaxReceiptBytes = _branchReceiptMaxBytes }, new(HostInstanceId, 1, _timeProvider));
             // These references belong to the original session. The detached workspace never owns or disposes them.
             _ = captureFactory?.Invoke(AudioAssetId);
-            BackendProjectImageReadLease? image = null;
-            return (new(Workspace.Project, revision, detached, image), null);
+            return (new(Workspace.Project, revision, detached), null);
         }
         finally { Writer.Release(); }
     }

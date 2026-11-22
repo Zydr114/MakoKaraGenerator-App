@@ -110,7 +110,7 @@ public sealed class DirectGraphEffectTests
         Assert.Null(effect.Artifact); Assert.Null(effect.EntryType); Assert.Equal(definition.Contents.Revision, effect.RuntimeHash);
         Assert.Same(binding, effect.Binding); Assert.Same(subscription, effect.Subscription);
         Assert.Equal(0xfedcba9876543210UL, effect.Seed); Assert.Equal(2.25, effect.Parameters.GetNumber("peak"));
-        Assert.Equal(EffectCapabilities.ImageEffects, effect.Capabilities); Assert.False(effect.RequiresAudio);
+        Assert.Equal(EffectCapabilities.ImageEffects, effect.Capabilities);
         Assert.Same(definition.GetGraph(ExportId), effect.PackageDeclaration); Assert.Same(definition, effect.PackageDefinition);
         Assert.Equal(new EffectPackageIdentity(definition.Contents.PackageId, definition.Contents.Revision, ExportId), effect.PackageIdentity);
         Assert.Same(compiled.Resources, effect.Resources);

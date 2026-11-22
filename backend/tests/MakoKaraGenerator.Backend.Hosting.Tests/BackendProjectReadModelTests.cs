@@ -196,7 +196,7 @@ public sealed partial class BackendProjectReadModelTests
     public async Task 读取等待写者并在取消或关闭后释放而不回传旧内容()
     {
         await using Fixture f = await Fixture.Create();
-        SemaphoreSlim writer = (SemaphoreSlim)typeof(ProjectSession).GetProperty("Writer", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(f.Session)!;
+        SemaphoreSlim writer = f.Session.Writer;
         await writer.WaitAsync();
         using CancellationTokenSource cancelled = new();
         Task<BackendOperationResult<ProjectSettingsResponse>> pending = f.Registry.ReadSettingsAsync("client", f.Id, "0", cancelled.Token);
@@ -204,7 +204,7 @@ public sealed partial class BackendProjectReadModelTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending);
         Task<BackendOperationResult<ProjectSettingsResponse>> closed = f.Registry.ReadSettingsAsync("client", f.Id, "0");
         Assert.False(closed.IsCompleted);
-        typeof(ProjectSession).GetProperty("IsClosed", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(f.Session, true);
+        f.Session.IsClosed = true;
         writer.Release();
         Assert.Equal(BackendErrorCode.SessionNotFound, (await closed).Error!.Code);
     }
@@ -262,7 +262,7 @@ public sealed partial class BackendProjectReadModelTests
         internal ProjectSession Session = null!;
         internal Project Baseline = null!;
         internal string Id => Session.ProjectSessionId;
-        internal ProjectWorkspace Workspace => (ProjectWorkspace)typeof(ProjectSession).GetProperty("Workspace", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(Session)!;
+        internal ProjectWorkspace Workspace => Session.Workspace;
         internal void Replace(Project project) => typeof(ProjectWorkspace).GetProperty("Project")!.SetValue(Workspace, project);
         internal void SetLines(LyricLine[] lines) => Replace(Workspace.Project with
         {

@@ -304,8 +304,7 @@ public sealed class BackendEditingCommandsTests
         using Fixture f = await Fixture.Create();
         TokenTimeChangeDto[] changes = [new(First, "150001", "250003")];
         ProjectCommandRequest request = f.Request("0", new SetTokenTimesCommandDto(changes));
-        SemaphoreSlim writer = (SemaphoreSlim)typeof(ProjectSession)
-            .GetProperty("Writer", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(f.Session)!;
+        SemaphoreSlim writer = f.Session.Writer;
         await writer.WaitAsync();
         Task<ProjectCommandExecutionResult> pending;
         try
@@ -434,7 +433,7 @@ public sealed class BackendEditingCommandsTests
             LoadedWaveform waveform = new(new AudioStreamInfo(3000000, 8000, 1, "pcm", "wav"), builder.Build(8000));
             f.Registry = new("host", store, new((_, _) => Task.FromResult<LoadedWaveform?>(waveform)), new FixedClock());
             f.Session = (await f.Registry.CreateAsync("client", new("editing", audio.AssetId, lyrics.AssetId))).Session!;
-            f.Workspace = (ProjectWorkspace)typeof(ProjectSession).GetProperty("Workspace", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(f.Session)!;
+            f.Workspace = f.Session.Workspace;
             LyricLine line = LyricLine.Create("one", "甲乙丙", TimeRange.Create(0, lineEndUs), TimingStatus.Imported,
                 [new LyricToken { Id = "first", Text = "甲", Time = TimeRange.Create(100000, 200000), TimingStatus = TimingStatus.Imported },
                  new LyricToken { Id = "second", Text = "乙", Time = TimeRange.Create(500000, 700000), TimingStatus = TimingStatus.Imported },

@@ -75,7 +75,7 @@ public sealed class V2TargetComplexStyleTests
         var withMedia = snapshot with { MediaFeatureInput = input };
         using var sampler = new MediaFeatureSampler(input, plan, null, new MediaWorkingSetBudget(MediaAbCapacityV1.MaximumRuntimeCpuCacheBytes));
         var compiled = await Compile(withMedia);
-        var factory = compiled.CreateFactory(static () => new SkiaRenderPipeline(), ReplayReason.Initial, new ProjectMediaFeatureBinding(sampler));
+        var factory = compiled.CreateFactory(static () => new SkiaRenderPipeline(), new ProjectMediaFeatureBinding(sampler));
         await using var session = await factory.CreateAsync(withMedia);
         var target = RenderTarget.FromComposition(withMedia.Composition);
         string first = Signature(await session.PrepareAsync(ExitAndActiveUs, OutputMode.Opaque, target));
@@ -92,7 +92,7 @@ public sealed class V2TargetComplexStyleTests
         var withMedia = snapshot with { MediaFeatureInput = input };
         using var sampler = new MediaFeatureSampler(input, plan, null, new MediaWorkingSetBudget(MediaAbCapacityV1.MaximumRuntimeCpuCacheBytes));
         var compiled = await Compile(withMedia);
-        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), ReplayReason.Initial,
+        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline(),
             new ProjectMediaFeatureBinding(sampler)).CreateAsync(withMedia);
         return await session.PrepareAsync(time, mode, RenderTarget.FromComposition(withMedia.Composition));
     }
@@ -112,7 +112,7 @@ public sealed class V2TargetComplexStyleTests
         var input = Available(plan, 1.0);
         var withMedia = snapshot with { MediaFeatureInput = input };
         using var sampler = new MediaFeatureSampler(input, plan, null, new MediaWorkingSetBudget(MediaAbCapacityV1.MaximumRuntimeCpuCacheBytes));
-        var factory = (await Compile(withMedia)).CreateFactory(static () => new SkiaRenderPipeline(), ReplayReason.Initial,
+        var factory = (await Compile(withMedia)).CreateFactory(static () => new SkiaRenderPipeline(),
             new ProjectMediaFeatureBinding(sampler));
         var target = RenderTarget.FromComposition(withMedia.Composition);
         Dictionary<long, PreparedRenderFrame> frames = [];

@@ -45,7 +45,7 @@ public sealed partial class MixedPackageExportTests
         string directory = temp.FilePath("project.mkgproj"); ProjectStore.Save(applied.Result, directory); project = ProjectStore.Load(directory).Project!;
         var compiled = await CompiledProjectEffects.CompileAsync(project, new ScriptCompiler(Path.Combine(AppContext.BaseDirectory,"script-refs","net10.0")),
             new PackageImageValidator(), new PackageShaderValidator(), new PackageImageGraphValidator(), new PackageMaterialValidator()); Assert.True(compiled.Succeeded);
-        var snapshot = ProjectSnapshot.FromProject(project); await using var source = await compiled.CreateFactory(static()=>new SkiaRenderPipeline(),ReplayReason.Export).CreateAsync(snapshot);
+        var snapshot = ProjectSnapshot.FromProject(project); await using var source = await compiled.CreateFactory(static()=>new SkiaRenderPipeline()).CreateAsync(snapshot);
         using var pipeline = new PreparedPackagePipeline(source, snapshot, Assert.Single(compiled.Packages).Definition);
         var error = await Assert.ThrowsAsync<EffectFailureException>(()=>new VideoExporter(pipeline,new FfmpegMediaProbe(),new FfmpegMediaEncoder()).ExportAsync(project,
             new(){OutputPath=output,IncludeAudio=false,Overwrite=true}));
@@ -75,7 +75,7 @@ public sealed partial class MixedPackageExportTests
         var compiled = await CompiledProjectEffects.CompileAsync(restored.Effects, new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")),
             new PackageImageValidator(), new PackageShaderValidator(), new PackageImageGraphValidator(), new PackageMaterialValidator()); Assert.True(compiled.Succeeded);
         var snapshot = ProjectSnapshot.FromProject(restored);
-        await using var source = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), ReplayReason.Export).CreateAsync(snapshot);
+        await using var source = await compiled.CreateFactory(static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
         using var pipeline = new PreparedPackagePipeline(source, snapshot, Assert.Single(compiled.Packages).Definition);
         string output = temp.FilePath(transparent ? "stored.mov" : "stored.mp4");
         var report = await new VideoExporter(pipeline, new FfmpegMediaProbe(), new FfmpegMediaEncoder()).ExportAsync(restored,

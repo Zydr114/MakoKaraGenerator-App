@@ -21,8 +21,6 @@ public sealed record CompiledFrameEffect(EffectInstanceId Id, ScriptCompilationR
     public ulong Seed { get; init; }
     /// <summary>固定源订阅，与当前输出范围独立；指纹须覆盖此设置。</summary>
     public SourceSubscription Subscription { get; init; } = new SourceSubscription.BoundSources();
-    /// <summary>声明本实例初始化前必须有实际音频分析；缺失、未完成或失败均阻止加载／导出。</summary>
-    public bool RequiresAudio { get; init; }
     /// <summary>真实包导出声明；有值时生产输出必须符合它，不以粗粒度能力位扩大目标类别。</summary>
     public EffectExportDefinition? PackageDeclaration { get; init; }
     /// <summary>完整固定包语义，用于运行时图导出／绑定／参数检查，不包含可写状态。</summary>

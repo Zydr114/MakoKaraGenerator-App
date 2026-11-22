@@ -26,32 +26,16 @@ internal static class StaticExportTask
         Func<WorkerMessage, Task> send, CancellationToken token, string? renderBackend = null, long? enforcedMediaLimitBytes = null)
         => ExecuteAsync(request, guards, send, null, token, renderBackend: renderBackend, enforcedMediaLimitBytes: enforcedMediaLimitBytes);
 
-    internal static Task<WorkerMessage> ExecuteImageAsync(WorkerMessage request, bool guards,
-        Func<WorkerMessage, Task> send, CancellationToken token, string? renderBackend = null, long? enforcedMediaLimitBytes = null)
-        => ExecuteAsync(request, guards, send, null, token, imageExport: true, renderBackend: renderBackend, enforcedMediaLimitBytes: enforcedMediaLimitBytes);
-
     internal static async Task<WorkerMessage> ExecuteAsync(WorkerMessage request, bool guards,
-        Func<WorkerMessage, Task> send, IRenderFrameSessionFactory? sessions, CancellationToken token, bool imageExport = false,
+        Func<WorkerMessage, Task> send, IRenderFrameSessionFactory? sessions, CancellationToken token,
         string? renderBackend = null, long? enforcedMediaLimitBytes = null)
     {
-        bool capabilities = request.Kind == (imageExport ? ProjectImageExportWorkerContract.CapabilitiesKind : WorkerExportContract.CapabilitiesKind);
-        WorkerExportMetadata metadata;
-        ReadOnlyMemory<byte> inputSnapshot;
-        string inputSourceSha;
-        Guid taskId;
-        if (imageExport)
-        {
-            ProjectImageExportWorkerInput imageInput = ProjectImageExportWorkerContract.DecodeInput(request.Payload, capabilities);
-            metadata = new(imageInput.Metadata.ExecutionProfile, imageInput.Metadata.BaseProfile, imageInput.Metadata.Format,
-                imageInput.Metadata.IncludeAudio, imageInput.Metadata.CandidatePath, imageInput.Metadata.Audio,
-                imageInput.Metadata.FfmpegPath, imageInput.Metadata.FfprobePath, imageInput.Metadata.Quality, imageInput.Metadata.ResourcePolicy);
-            inputSnapshot = imageInput.SnapshotBytes; inputSourceSha = imageInput.SourceSha256; taskId = imageInput.TaskId;
-        }
-        else
-        {
-            WorkerExportInput input = WorkerExportContract.DecodeInput(request.Payload, capabilities);
-            metadata = input.Metadata; inputSnapshot = input.SnapshotBytes; inputSourceSha = input.SourceSha256; taskId = input.TaskId;
-        }
+        bool capabilities = request.Kind == WorkerExportContract.CapabilitiesKind;
+        WorkerExportInput input = WorkerExportContract.DecodeInput(request.Payload, capabilities);
+        WorkerExportMetadata metadata = input.Metadata;
+        ReadOnlyMemory<byte> inputSnapshot = input.SnapshotBytes;
+        string inputSourceSha = input.SourceSha256;
+        Guid taskId = input.TaskId;
         WorkerExportContract.ValidateCorrelation(request, request);
         if (request.TaskId != taskId.ToString("N") || request.SourceSha256 != inputSourceSha
             || request.ExportFormat != metadata.Format || request.ExportIncludeAudio != metadata.IncludeAudio)
@@ -60,71 +44,16 @@ internal static class StaticExportTask
         if (capabilities)
         {
             var supported = await ProbeCapabilitiesAsync(metadata, token).ConfigureAwait(false);
-            if (imageExport)
-            {
-                string referenceDirectory = Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0");
-                var references = ScriptReferenceIdentity.Read(referenceDirectory);
-                PackageRenderWorkerCapabilities package = new(StaticProjectSnapshotCodec.EngineIdentity,
-                    PackageProjectSnapshotCodec.Profile, ProjectEffectsJson.PackageProfile.PackageVersion,
-                    ProjectEffectsJson.PackageProfile.SdkVersion, ProjectEffectsJson.PackageProfile.ShaderProfile,
-                    references.Identity, references.Count, ValidationProfiles: [PackageRenderWorkerContract.ValidationProfile],
-                    SupportedPackageProfiles: WorkerPackageProfiles.Current);
-                var imageCapabilities = new ProjectImageExportWorkerCapabilities(StaticProjectSnapshotCodec.EngineIdentity,
-                    ProjectImageExportWorkerContract.ExportProfile,
-                    [BackendSnapshotProfiles.StaticLyricsScene, BackendSnapshotProfiles.StaticLyricsSceneAnalysis, BackendSnapshotProfiles.PackageLyricsScene],
-                    ProjectImagePreviewWorkerContract.ImageDecoderProfile, ProjectImageExportWorkerContract.MaximumInputBytes,
-                    ProjectImageValidationWorkerContract.MaximumImageBytes, ProjectImageValidationWorkerContract.MaximumDimension,
-                    ProjectImageValidationWorkerContract.MaximumDecodedBytes, ProjectImagePreviewWorkerContract.MaximumBaseSnapshotBytes,
-                    ProjectImagePreviewWorkerContract.MaximumSourceValues, WorkerExportContract.MaximumReportBytes,
-                    metadata.ResourcePolicy?.MaxMediaBytes, metadata.ResourcePolicy?.MaxAudioBytes,
-                    WorkerPackageDiagnosticsContract.Version, package, supported);
-                return Result(ProjectImageExportWorkerContract.CapabilitiesResultKind,
-                    ProjectImageExportWorkerContract.EncodeCapabilities(imageCapabilities), 0);
-            }
             return Result(WorkerExportContract.CapabilitiesResultKind, WorkerExportContract.EncodeJson(supported, 4096), 0);
         }
         bool compressedAudio = metadata.ExecutionProfile == WorkerExportContract.CompressedExecutionProfile;
         var prepared = WorkerScriptInputs.Read(inputSnapshot, token); inputSnapshot = prepared.Source;
-        Func<IBackgroundFrameSourceResolver>? imageResolverFactory = null;
-        byte[]? imageBytes = null;
-        string? imageLogicalPath = null;
-        using ProjectRuntimeInput? runtimeInput = imageExport ? null : await ProjectRuntimeInput.OpenAsync(inputSnapshot, token, prepared.Compiler).ConfigureAwait(false);
-        ProjectSnapshot snapshot;
-        try
-        {
-            if (imageExport)
-            {
-                var image = ProjectImagePreviewSnapshotCodec.Decode(inputSnapshot);
-                snapshot = image.Snapshot; imageBytes = image.ImageBytes; imageLogicalPath = image.LogicalPath;
-                ProjectSnapshot basis = snapshot with { Background = BackgroundSource.Color };
-                string actualBaseProfile = ProjectPreviewSnapshotProfile.Select(basis);
-                if (actualBaseProfile != metadata.CodecProfile) throw Fail("WorkerExportSourceMismatch");
-                imageResolverFactory = () =>
-                {
-                    try { return new MemoryImageBackgroundFrameSourceResolver(imageLogicalPath!, imageBytes!, token); }
-                    catch (ImageBackgroundDecodeException failure)
-                    { throw new RenderSessionFailureException(failure.Code, failure.Message, innerException: failure); }
-                };
-            }
-            else
-                snapshot = runtimeInput!.Snapshot;
-        }
-        catch (SnapshotContractException error)
-        {
-            throw Fail("WorkerExportSourceMismatch", error);
-        }
-        if (!imageExport && runtimeInput!.SourceProfile != metadata.CodecProfile) throw Fail("WorkerExportSourceMismatch");
+        using ProjectRuntimeInput runtimeInput = await ProjectRuntimeInput.OpenAsync(inputSnapshot, token, prepared.Compiler).ConfigureAwait(false);
+        ProjectSnapshot snapshot = runtimeInput.Snapshot;
+        if (runtimeInput.SourceProfile != metadata.CodecProfile) throw Fail("WorkerExportSourceMismatch");
         CompositionFramePlan plan = ValidatePlan(snapshot, metadata.Format, metadata.ResourcePolicy);
         Project project = ToProject(snapshot);
-        if (imageExport)
-        {
-            byte[] imageCanonical = ProjectImagePreviewSnapshotCodec.Encode(snapshot, imageBytes!);
-            if (!imageCanonical.AsSpan().SequenceEqual(inputSnapshot.Span)) throw Fail("WorkerExportSourceMismatch");
-        }
-        else
-        {
-            ProjectRuntimeInputCodec.ValidateSnapshot(inputSnapshot, ProjectSnapshot.FromProject(project));
-        }
+        ProjectRuntimeInputCodec.ValidateSnapshot(inputSnapshot, ProjectSnapshot.FromProject(project));
         if (metadata.IncludeAudio && (snapshot.AudioPath is null || snapshot.AudioMedia is { } media
             && (media.Hash != metadata.Audio!.Sha256 || media.ByteLength != metadata.Audio.Size))) throw Fail("WorkerExportAudioMismatch");
         long? sourceAudioDuration = null;
@@ -155,10 +84,9 @@ internal static class StaticExportTask
         }
         CheckPath(metadata.CandidatePath!, isDirectory: false, mayBeMissing: true);
         if (File.Exists(metadata.CandidatePath)) throw Fail("WorkerExportCandidateExists");
-        IRenderFrameSessionFactory factory = !imageExport && (sessions is null || metadata.CodecProfile == ProjectRuntimeInputCodec.Profile)
-            ? runtimeInput!.CreateFactory(ReplayReason.Initial, renderBackend: renderBackend, graphPixelChecks: false)
-            : imageExport ? new ProjectRenderSessionFactory(prepared.Compiler, new FfmpegVideoFrameProvider(), ReplayReason.Initial,
-                imageResolverFactory, renderBackend: renderBackend, graphPixelChecks: false) : sessions!;
+        IRenderFrameSessionFactory factory = sessions is null || metadata.CodecProfile == ProjectRuntimeInputCodec.Profile
+            ? runtimeInput.CreateFactory(renderBackend: renderBackend, graphPixelChecks: false)
+            : sessions;
         long? effectiveMaxMediaBytes = (metadata.ResourcePolicy?.MaxMediaBytes, enforcedMediaLimitBytes) switch
         {
             (long policyMax, long envMax) => Math.Min(policyMax, envMax),
@@ -206,7 +134,7 @@ internal static class StaticExportTask
             byte[] payload = WorkerExportContract.EncodeReport(dto, Expectation(snapshot, metadata.Format, metadata.IncludeAudio, plan, metadata.Audio?.AudioProfile, metadata.Quality, metadata.ResourcePolicy));
             channel.Writer.TryComplete(); await pump.ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
-            return Result(imageExport ? ProjectImageExportWorkerContract.ResultKind : WorkerExportContract.ResultKind, payload, sequence);
+            return Result(WorkerExportContract.ResultKind, payload, sequence);
         }
         catch (Exception failure)
         {
@@ -229,7 +157,7 @@ internal static class StaticExportTask
             try
             {
                 await foreach (var item in channel.Reader.ReadAllAsync(CancellationToken.None).ConfigureAwait(false))
-                    await send(new(imageExport ? ProjectImageExportWorkerContract.ProgressKind : WorkerExportContract.ProgressKind, request.RequestId, request.InputSha256,
+                    await send(new(WorkerExportContract.ProgressKind, request.RequestId, request.InputSha256,
                         sourceSha256: request.SourceSha256, taskId: request.TaskId, exportFormat: request.ExportFormat,
                         exportIncludeAudio: request.ExportIncludeAudio, progressSequence: item.Sequence,
                         exportProgress: new(Stage(item.Progress.Stage), item.Progress.FramesWritten, item.Progress.TotalFrames))).ConfigureAwait(false);

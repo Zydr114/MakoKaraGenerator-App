@@ -21,14 +21,6 @@ public interface IBackendPackageValidationExecutor
         IProgress<BackendJobProgressDto>? progress = null, CancellationToken cancellationToken = default);
 }
 
-/// <summary>已保存工程图片正式验证的独立 Worker 能力。</summary>
-public interface IBackendImageValidationExecutor
-{
-    bool ImageValidationAvailable { get; }
-    Task<ValidationReportDto> ExecuteImageAsync(ProjectSnapshot snapshot, ReadOnlyMemory<byte> imageBytes, int framesPerOutput,
-        IProgress<BackendJobProgressDto>? progress = null, CancellationToken cancellationToken = default);
-}
-
 /// <summary>统一固定Runtime输入的正式验证执行器，返回前须排水实际Worker。</summary>
 public interface IBackendRuntimeValidationExecutor
 {
@@ -40,11 +32,10 @@ public interface IBackendRuntimeValidationExecutor
 /// <summary>Worker 正式验证能力的不可变探测快照。</summary>
 public sealed record WorkerBackendValidationCapabilities(
     bool PackageValidationAvailable,
-    bool ImageValidationAvailable,
     bool RuntimeValidationAvailable);
 
 /// <summary>每个任务独立拥有 Worker，完成或失败均等待私有进程及管道释放。</summary>
-public sealed class WorkerBackendValidationExecutor : IBackendValidationExecutor, IBackendPackageValidationExecutor, IBackendImageValidationExecutor, IBackendRuntimeValidationExecutor,
+public sealed class WorkerBackendValidationExecutor : IBackendValidationExecutor, IBackendPackageValidationExecutor, IBackendRuntimeValidationExecutor,
     IBackendRenderBackendExecutor<IBackendValidationExecutor>
 {
     private readonly WorkerProcessOptions _options;
@@ -73,33 +64,36 @@ public sealed class WorkerBackendValidationExecutor : IBackendValidationExecutor
 
     /// <summary>异步探测并缓存 Worker 正式验证能力快照；与 <see cref="WithRenderBackend"/> 派生实例共享该缓存。</summary>
     public Task<WorkerBackendValidationCapabilities> ProbeCapabilitiesAsync(CancellationToken cancellationToken = default)
-        => _capabilities.GetOrProbeAsync(ProbeCapabilitiesCoreAsync, cancellationToken);
+        => ProbeCapabilitiesAsync(null, cancellationToken);
+
+    /// <summary>复用已有探测代理完成正式验证能力握手；调用方保留代理所有权。</summary>
+    public Task<WorkerBackendValidationCapabilities> ProbeCapabilitiesAsync(WorkerProcessProxy? sharedProxy, CancellationToken cancellationToken = default)
+        => _capabilities.GetOrProbeAsync(token => ProbeCapabilitiesCoreAsync(sharedProxy, token), cancellationToken);
 
     public bool PackageValidationAvailable => _capabilities.Snapshot?.PackageValidationAvailable ?? false;
 
-    public bool ImageValidationAvailable => _capabilities.Snapshot?.ImageValidationAvailable ?? false;
-
     public bool RuntimeValidationAvailable => _capabilities.Snapshot?.RuntimeValidationAvailable ?? false;
 
-    private async Task<WorkerBackendValidationCapabilities> ProbeCapabilitiesCoreAsync(CancellationToken cancellationToken)
+    private async Task<WorkerBackendValidationCapabilities> ProbeCapabilitiesCoreAsync(WorkerProcessProxy? sharedProxy, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        WorkerProcessProxy proxy = new(_options);
+        WorkerProcessProxy proxy = sharedProxy ?? new(_options);
         try
         {
             bool packageAvailable = await ProbeCapabilityAsync(
                 token => proxy.GetPackageValidationCapabilitiesAsync(_timeout, token), cancellationToken).ConfigureAwait(false);
-            bool imageAvailable = await ProbeCapabilityAsync(
-                token => proxy.GetImageValidationCapabilitiesAsync(_timeout, token), cancellationToken).ConfigureAwait(false);
             bool runtimeAvailable = await ProbeCapabilityAsync(
                 token => proxy.GetRuntimeValidationCapabilitiesAsync(_timeout, token), cancellationToken).ConfigureAwait(false);
-            return new(packageAvailable, imageAvailable, runtimeAvailable);
+            return new(packageAvailable, runtimeAvailable);
         }
         finally
         {
-            try { await proxy.DisposeAsync().ConfigureAwait(false); }
-            catch (Exception cleanup) when (cleanup is IOException or InvalidOperationException or ObjectDisposedException
-                or Win32Exception or OperationCanceledException) { }
+            if (sharedProxy is null)
+            {
+                try { await proxy.DisposeAsync().ConfigureAwait(false); }
+                catch (Exception cleanup) when (cleanup is IOException or InvalidOperationException or ObjectDisposedException
+                    or Win32Exception or OperationCanceledException) { }
+            }
         }
     }
 
@@ -196,18 +190,6 @@ public sealed class WorkerBackendValidationExecutor : IBackendValidationExecutor
         return await ExecuteCoreAsync(snapshot, framesPerOutput, PackageProjectSnapshotCodec.Profile, progress, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<ValidationReportDto> ExecuteImageAsync(ProjectSnapshot snapshot, ReadOnlyMemory<byte> imageBytes, int framesPerOutput,
-        IProgress<BackendJobProgressDto>? progress = null, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(snapshot);
-        WorkerBackendValidationCapabilities capabilities = await ProbeCapabilitiesAsync(cancellationToken).ConfigureAwait(false);
-        if (!capabilities.ImageValidationAvailable)
-            throw new RenderSessionFailureException("WorkerImageValidationUnavailable", "固定 Worker 未通过 image validation 能力协商。");
-        byte[] fixedBytes = imageBytes.ToArray();
-        return await ExecuteCoreAsync(snapshot, framesPerOutput, ProjectImageValidationWorkerContract.ValidationProfile,
-            progress, cancellationToken, fixedBytes).ConfigureAwait(false);
-    }
-
     public async Task<ValidationReportDto> ExecuteRuntimeAsync(ReadOnlyMemory<byte> sourceBytes, int framesPerOutput,
         IProgress<BackendJobProgressDto>? progress = null, CancellationToken cancellationToken = default)
     {
@@ -239,24 +221,18 @@ public sealed class WorkerBackendValidationExecutor : IBackendValidationExecutor
     }
 
     private async Task<ValidationReportDto> ExecuteCoreAsync(ProjectSnapshot snapshot, int framesPerOutput, string profile,
-        IProgress<BackendJobProgressDto>? progress, CancellationToken cancellationToken, byte[]? imageBytes = null)
+        IProgress<BackendJobProgressDto>? progress, CancellationToken cancellationToken)
     {
         byte[] bytes = profile == PackageProjectSnapshotCodec.Profile
             ? PackageProjectSnapshotCodec.Encode(snapshot)
-            : profile == ProjectImageValidationWorkerContract.ValidationProfile
-            ? ProjectImagePreviewSnapshotCodec.Encode(snapshot, imageBytes ?? throw new ArgumentNullException(nameof(imageBytes)))
             : StaticProjectSnapshotCodec.Encode(snapshot, profile);
-        int maximum = profile == ProjectImageValidationWorkerContract.ValidationProfile
-            ? ProjectImageValidationWorkerContract.MaximumInputBytes : WorkerValidationContract.MaximumSnapshotBytes;
-        if (bytes.Length > maximum)
+        if (bytes.Length > WorkerValidationContract.MaximumSnapshotBytes)
             throw new RenderSessionFailureException("WorkerValidationInputRejected", "固定来源超过验证封包预算。");
         WorkerProcessProxy proxy = new(_options);
         Exception? primary = null;
         try
         {
-            return profile == ProjectImageValidationWorkerContract.ValidationProfile
-                    ? await proxy.ValidateImageProjectAsync(bytes, framesPerOutput, _timeout, progress, cancellationToken).ConfigureAwait(false)
-                    : await proxy.ValidateProjectAsync(bytes, framesPerOutput, _timeout, progress, profile, cancellationToken).ConfigureAwait(false);
+            return await proxy.ValidateProjectAsync(bytes, framesPerOutput, _timeout, progress, profile, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception failure)
         {

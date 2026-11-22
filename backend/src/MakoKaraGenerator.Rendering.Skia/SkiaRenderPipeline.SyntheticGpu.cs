@@ -5,25 +5,6 @@ namespace MakoKaraGenerator.Rendering.Skia;
 
 public sealed partial class SkiaRenderPipeline
 {
-    /// <summary>有限基准合成图案；调用方必须验证独立启动开关，不经过工程准备或作者代码。</summary>
-    public GpuRenderFrame RenderSyntheticGpu(RenderTarget target, long timeUs, ulong sequence)
-    {
-        ArgumentNullException.ThrowIfNull(target);
-        lock (_device.SynchronizationRoot)
-        {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-            if (_device is not VulkanSkiaRenderDevice { SupportsDmaBufExport: true } gpu)
-                throw new GpuPreviewException("GpuPreviewUnavailable", "Synthetic GPU output requires the same shared Vulkan device.");
-            gpu.EnsureGpuTargetInitialized(target);
-            // Encode the exact authoritative lease identity. A caller attempt
-            // counter can diverge after pool exhaustion or a new stream.
-            sequence = gpu.NextGpuFrameSequence;
-            using var surface = _device.CreateSurface(new(target.PixelWidth, target.PixelHeight, SKColorType.Bgra8888, SKAlphaType.Premul));
-            DrawSyntheticPattern(surface, target.PixelWidth, target.PixelHeight, sequence);
-            return new(target, timeUs, gpu.CopyGpuFrame(surface, target));
-        }
-    }
-
     /// <summary>向双阶段预览端口输出合成测试图案（支持 CPU/Vulkan 及 Bgra8888/Rgba8888 双格式精度验收）。</summary>
     internal PreviewRenderFrame RenderSyntheticToPreview(
         RenderTarget target,

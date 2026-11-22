@@ -22,6 +22,12 @@ public static class StaticRenderWorkerContract
     public const string SessionResultKind = "static-session-result-v1";
     /// <summary>带完整诊断快照的真实像素回执。</summary>
     public const string FrameResultKind = "static-session-frame-v1";
+    /// <summary>允许的最大像素宽度；仍受总像素字节预算约束。</summary>
+    public const int MaxWidth = 1920;
+    /// <summary>允许的最大像素高度；仍受总像素字节预算约束。</summary>
+    public const int MaxHeight = 1080;
+    /// <summary>唯一接受的紧密行布局：BGRA 8-bit 各分量，alpha 预乘。</summary>
+    public const string RequiredPixelFormat = "bgra8888-premultiplied";
     /// <summary>open 的固定前缀长度：magic/version/保留零与会话 Guid。</summary>
     public const int OpenHeaderBytes = 24;
     /// <summary>快照净预算，明确扣除 open 前缀。</summary>
@@ -146,8 +152,8 @@ public static class StaticRenderWorkerContract
     {
         ValidateSession(request.SessionId);
         ValidateHash(request.SourceSha256);
-        if (request.Width <= 0 || request.Height <= 0 || request.Width > RenderFrameV1WorkerRequest.MaxWidth
-            || request.Height > RenderFrameV1WorkerRequest.MaxHeight
+        if (request.Width <= 0 || request.Height <= 0 || request.Width > MaxWidth
+            || request.Height > MaxHeight
             || (long)request.Width * request.Height * 4 > WorkerProtocol.MaxPayloadBytes)
             throw new WorkerProtocolException("静态会话输出超过尺寸或 4 MiB 像素预算。", "WorkerFrameBudgetExceeded");
         if (request.TimeUs < 0 || request.Sequence <= 0 || request.Quality is < 0 or > 2)
@@ -166,7 +172,7 @@ public static class StaticRenderWorkerContract
             || message.FrameQuality != request.Quality
             || message.FrameWidth != request.Width || message.FrameHeight != request.Height
             || message.FrameStride != request.Width * 4 || message.FrameTimeUs != request.TimeUs
-            || message.FrameFormat != RenderFrameV1WorkerResult.RequiredPixelFormat
+            || message.FrameFormat != RequiredPixelFormat
             || message.Payload.Length != request.Width * request.Height * 4 || message.OutputSha256 is null
             || message.Diagnostics is null)
             throw new WorkerProtocolException("静态会话帧回执不属于固定输入或缺少真实诊断。");

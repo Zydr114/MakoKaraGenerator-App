@@ -21,7 +21,6 @@ public sealed class WorkerConcurrencyAndCapabilityCacheTests
         WorkerBackendValidationExecutor executor = new(probe.Options(), TimeSpan.FromSeconds(10));
 
         Assert.False(executor.PackageValidationAvailable);
-        Assert.False(executor.ImageValidationAvailable);
         Assert.False(executor.RuntimeValidationAvailable);
         Assert.Empty(probe.ReadLaunchedPids());
 
@@ -39,7 +38,6 @@ public sealed class WorkerConcurrencyAndCapabilityCacheTests
         foreach (WorkerBackendValidationCapabilities capabilities in probed)
         {
             Assert.True(capabilities.PackageValidationAvailable);
-            Assert.True(capabilities.ImageValidationAvailable);
             Assert.True(capabilities.RuntimeValidationAvailable);
         }
 
@@ -52,7 +50,6 @@ public sealed class WorkerConcurrencyAndCapabilityCacheTests
         foreach (WorkerBackendValidationExecutor instance in new[] { executor, cpuBeforeProbe, gpuBeforeProbe, cpuAfterProbe, gpuAfterProbe })
         {
             Assert.True(instance.PackageValidationAvailable);
-            Assert.True(instance.ImageValidationAvailable);
             Assert.True(instance.RuntimeValidationAvailable);
             WorkerBackendValidationCapabilities cached = await instance.ProbeCapabilitiesAsync();
             Assert.Equal(probed[0], cached);
@@ -80,7 +77,7 @@ public sealed class WorkerConcurrencyAndCapabilityCacheTests
             await Task.WhenAll(startTask, disposeFirst, disposeSecond).WaitAsync(TimeSpan.FromSeconds(15));
             Assert.Null(proxy.ProcessId);
             await Assert.ThrowsAsync<ObjectDisposedException>(() => proxy.StartAsync());
-            await Assert.ThrowsAsync<ObjectDisposedException>(() => proxy.InvokeAsync(new("echo", [1, 2, 3])));
+            await Assert.ThrowsAsync<ObjectDisposedException>(() => proxy.GetStaticCapabilitiesAsync(TimeSpan.FromSeconds(5)));
         }
 
         foreach (int pid in probe.ReadLaunchedPids())
@@ -91,11 +88,11 @@ public sealed class WorkerConcurrencyAndCapabilityCacheTests
     public async Task WorkerProcessProxy在途Invoke期间并发Dispose立即取消并回收进程()
     {
         using LifecycleProbe probe = await LifecycleProbe.CreateAsync();
-        WorkerProcessProxy proxy = new(probe.Options(0));
+        WorkerProcessProxy proxy = new(probe.Options(0, requestDelayMs: 10_000));
         await proxy.StartAsync();
         int pid = Assert.IsType<int>(proxy.ProcessId);
 
-        Task<WorkerInvocationResult> invokeTask = proxy.InvokeAsync(new("echo", [4, 5, 6], DelayMilliseconds: 10_000));
+        Task<StaticWorkerCapabilitiesDto> invokeTask = proxy.GetStaticCapabilitiesAsync(TimeSpan.FromSeconds(20));
         await probe.WaitForRequestAsync(TimeSpan.FromSeconds(5));
 
         Task disposeFirst = proxy.DisposeAsync().AsTask();
@@ -105,7 +102,7 @@ public sealed class WorkerConcurrencyAndCapabilityCacheTests
         await Task.WhenAll(disposeFirst, disposeSecond).WaitAsync(TimeSpan.FromSeconds(10));
         Assert.Null(proxy.ProcessId);
         await AssertDeadAsync(pid);
-        await Assert.ThrowsAsync<ObjectDisposedException>(() => proxy.InvokeAsync(new("echo", [7])));
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => proxy.GetStaticCapabilitiesAsync(TimeSpan.FromSeconds(5)));
     }
 
     [Fact]
@@ -184,20 +181,6 @@ public sealed class WorkerConcurrencyAndCapabilityCacheTests
                 WorkerPackageDiagnosticsContract.Version,
                 ValidationProfiles: [PackageRenderWorkerContract.ValidationProfile],
                 SupportedPackageProfiles: supported);
-            ProjectImageValidationWorkerCapabilities imageCapabilities = new(
-                StaticProjectSnapshotCodec.EngineIdentity,
-                ProjectImageValidationWorkerContract.ValidationProfile,
-                [BackendSnapshotProfiles.StaticLyricsScene, BackendSnapshotProfiles.StaticLyricsSceneAnalysis, BackendSnapshotProfiles.PackageLyricsScene],
-                ProjectImageValidationWorkerContract.ImageDecoderProfile,
-                ProjectImageValidationWorkerContract.MaximumInputBytes,
-                ProjectImageValidationWorkerContract.MaximumImageBytes,
-                ProjectImageValidationWorkerContract.MaximumDimension,
-                ProjectImageValidationWorkerContract.MaximumDecodedBytes,
-                ProjectImageValidationWorkerContract.MaximumBaseSnapshotBytes,
-                ProjectImageValidationWorkerContract.MaximumSourceValues,
-                WorkerValidationContract.MaximumReportBytes,
-                WorkerPackageDiagnosticsContract.Version,
-                packageCapabilities);
             RuntimeValidationWorkerCapabilities runtimeCapabilities = new(
                 RuntimeValidationWorkerContract.Profile,
                 RuntimeValidationWorkerContract.MaximumInputBytes,
@@ -207,7 +190,6 @@ public sealed class WorkerConcurrencyAndCapabilityCacheTests
             Dictionary<string, string> payloads = new()
             {
                 [PackageRenderWorkerContract.ValidationCapabilitiesKind] = Convert.ToBase64String(PackageRenderWorkerContract.EncodeCapabilities(packageCapabilities)),
-                [ProjectImageValidationWorkerContract.CapabilitiesKind] = Convert.ToBase64String(ProjectImageValidationWorkerContract.EncodeCapabilities(imageCapabilities)),
                 [RuntimeValidationWorkerContract.CapabilitiesKind] = Convert.ToBase64String(RuntimeValidationWorkerContract.EncodeCapabilities(runtimeCapabilities)),
             };
             await File.WriteAllTextAsync(probe._temp.FilePath("payloads.json"), JsonSerializer.Serialize(payloads));
@@ -286,9 +268,9 @@ public sealed class WorkerConcurrencyAndCapabilityCacheTests
             return probe;
         }
 
-        public WorkerProcessOptions Options(int round) => HostingTestPlatformHelpers.PythonOptions(
+        public WorkerProcessOptions Options(int round, int requestDelayMs = 0) => HostingTestPlatformHelpers.PythonOptions(
             _temp.FilePath("lifecycle.py"),
-            [_temp.FilePath("launches.log"), _temp.FilePath("request.marker"), (round % 3 * 15).ToString(CultureInfo.InvariantCulture)],
+            [_temp.FilePath("launches.log"), _temp.FilePath("request.marker"), (round % 3 * 15).ToString(CultureInfo.InvariantCulture), requestDelayMs.ToString(CultureInfo.InvariantCulture)],
             TimeSpan.FromMilliseconds(200));
 
         public int[] ReadLaunchedPids()
@@ -315,8 +297,8 @@ public sealed class WorkerConcurrencyAndCapabilityCacheTests
         public void Dispose() => _temp.Dispose();
 
         private const string Source = """
-            import json, os, struct, sys, time
-            launch_log, request_marker, hello_delay_ms = sys.argv[1:]
+            import base64, hashlib, json, os, struct, sys, time
+            launch_log, request_marker, hello_delay_ms, request_delay_ms = sys.argv[1:]
             with open(launch_log, 'a') as log:
                 log.write(f'{os.getpid()}\n')
                 log.flush()
@@ -340,9 +322,10 @@ public sealed class WorkerConcurrencyAndCapabilityCacheTests
                     continue
                 with open(request_marker, 'w') as m:
                     m.write(request['requestId'])
-                delay = request.get('delayMilliseconds', 0)
+                delay = int(request_delay_ms)
                 if delay > 0: time.sleep(delay / 1000.0)
-                send(dict(kind='result', requestId=request['requestId'], inputSha256=request['inputSha256'], payload=request.get('payload', '')))
+                raw = json.dumps(dict(sourceProfiles=['static-lyrics-scene-v1'])).encode()
+                send(dict(kind='static-session-capabilities-result-v1', requestId=request['requestId'], inputSha256=request['inputSha256'], payload=base64.b64encode(raw).decode(), outputSha256=hashlib.sha256(raw).hexdigest()))
             """;
     }
 }

@@ -89,7 +89,7 @@ public sealed class PersistedAudioFrameTests
         var compiled = await CompiledProjectEffects.CompileAsync(project, Compiler());
         Assert.True(compiled.Succeeded, string.Join('\n', compiled.Packages.SelectMany(p => p.Artifact.Diagnostics)));
         Assert.Equal(ProjectEffectInputs.Fingerprint(project), snapshot.EffectInputsFingerprint);
-        var factory = compiled.CreateFactory(static () => new SkiaRenderPipeline(), Fx.ReplayReason.Export);
+        var factory = compiled.CreateFactory(static () => new SkiaRenderPipeline());
         await using var session = await factory.CreateAsync(snapshot); var target = RenderTarget.FromComposition(snapshot.Composition);
         var middle = await session.PrepareAsync(500000, Fx.OutputMode.Opaque, target); var style = Assert.Single(middle.TokenStyles);
         await session.PrepareAsync(100000, Fx.OutputMode.Opaque, target); var replay = await session.PrepareAsync(500000, Fx.OutputMode.Opaque, target);
@@ -120,7 +120,7 @@ public sealed class PersistedAudioFrameTests
         project = project with { AudioAnalysis = data }; var compiled = await CompiledProjectEffects.CompileAsync(project, Compiler());
         Assert.True(compiled.Succeeded); var snapshot = ProjectSnapshot.FromProject(project);
         Assert.Equal(availability, ProjectAudioProjection.Create(project).Availability.ToString());
-        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), Fx.ReplayReason.Export).CreateAsync(snapshot);
+        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
         var frame = await session.PrepareAsync(0, Fx.OutputMode.Opaque, RenderTarget.FromComposition(snapshot.Composition));
         Assert.Empty(frame.TokenStyles);
     }
@@ -133,7 +133,7 @@ public sealed class PersistedAudioFrameTests
         var next = project with { AudioAnalysis = ProjectAudioAnalysis.Available(changed) }; var second = await CompiledProjectEffects.CompileAsync(next, Compiler());
         Assert.Equal(old.Revision, changed.Revision); Assert.NotEqual(old.ContentHash, changed.ContentHash); Assert.NotEqual(ProjectEffectInputs.Fingerprint(project), ProjectEffectInputs.Fingerprint(next));
         Assert.Equal(first.Packages[0].Artifact.ArtifactHash, second.Packages[0].Artifact.ArtifactHash);
-        var error = await Assert.ThrowsAsync<PreparedFrameException>(async () => await first.CreateFactory(static () => new SkiaRenderPipeline(), Fx.ReplayReason.Export).CreateAsync(ProjectSnapshot.FromProject(next)));
+        var error = await Assert.ThrowsAsync<PreparedFrameException>(async () => await first.CreateFactory(static () => new SkiaRenderPipeline()).CreateAsync(ProjectSnapshot.FromProject(next)));
         Assert.Equal("EffectInputsMismatch", error.Code);
     }
 }

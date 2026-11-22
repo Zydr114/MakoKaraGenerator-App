@@ -200,12 +200,12 @@ public sealed class BackendStyleCommandsTests
         using var f = await Fixture.Create(); var source = f.Workspace.Project;
         Assert.Equal(BackendErrorCode.SessionNotFound, (await f.Registry.ReadStyleAsync("other", f.Session.ProjectSessionId, "0", Line)).Error!.Code);
         Assert.Equal(BackendErrorCode.RevisionConflict, (await f.Registry.ReadStyleAsync("client", f.Session.ProjectSessionId, "1", Line)).Error!.Code);
-        Set(f.Session, "IsReadOnly", true);
+        f.Session.IsReadOnly = true;
         Assert.Equal(BackendErrorCode.ReadOnlySession, (await f.Command("0", Patch(Line, new StyleOpacityChangeDto(.5f)))).Error!.Code);
         Assert.True((await f.Registry.ReadStyleAsync("client", f.Session.ProjectSessionId, "0", Line)).Accepted);
-        Set(f.Session, "IsReadOnly", false); Set(f.Session, "IsClosing", true);
+        f.Session.IsReadOnly = false; f.Session.IsClosing = true;
         Assert.Equal(BackendErrorCode.SessionClosing, (await f.Command("0", Patch(Line, new StyleOpacityChangeDto(.5f)))).Error!.Code);
-        Set(f.Session, "IsClosed", true);
+        f.Session.IsClosed = true;
         Assert.Equal(BackendErrorCode.SessionNotFound, (await f.Registry.ReadStyleAsync("client", f.Session.ProjectSessionId, "0", Line)).Error!.Code);
         Assert.Same(source, f.Workspace.Project);
     }
@@ -222,7 +222,7 @@ public sealed class BackendStyleCommandsTests
     [Fact]
     public async Task 排队前递归固定数组并保留非法继承字段的回执身份()
     {
-        using var f = await Fixture.Create(); var writer = (SemaphoreSlim)Get(f.Session, "Writer")!; await writer.WaitAsync();
+        using var f = await Fixture.Create(); var writer = f.Session.Writer; await writer.WaitAsync();
         var fallback = new[] { "before" }; var changes = new StyleChangeDto[] { new StyleFallbackFamiliesChangeDto(fallback) }; var targets = new StyleTargetDto[] { Line };
         var request = f.Request("0", new PatchStylesCommandDto(targets, changes)); Task<ProjectCommandExecutionResult> running = f.Execute(request);
         fallback[0] = "after"; changes[0] = new StyleFontSizeChangeDto(100); targets[0] = new ProjectStyleTargetDto(); writer.Release();
@@ -367,7 +367,7 @@ public sealed class BackendStyleCommandsTests
     [Fact]
     public async Task 预提交完整读预算按真实九到十修订位数增长拒绝()
     {
-        using var f = await Fixture.Create(); Set(f.Session, "ProjectRevision", 9L);
+        using var f = await Fixture.Create(); f.Session.ProjectRevision = 9L;
         var branch = f.Workspace.Project.Lyrics.Branches[1]; string lineId = "edge";
         void Seed(int length) => f.Replace(f.Workspace.Project with { Lyrics = f.Workspace.Project.Lyrics.ReplaceBranch(branch with
             { Lines = [LyricLine.Create(lineId, "字") with { StyleOverride = new() { Typography = new() { FontFamilyName = new string('a', length) }, Opacity = .5f } }] }) });
@@ -384,7 +384,7 @@ public sealed class BackendStyleCommandsTests
     [Fact]
     public async Task 排队前递归固定渐变色标数组()
     {
-        using var f = await Fixture.Create(); var writer = (SemaphoreSlim)Get(f.Session, "Writer")!; await writer.WaitAsync();
+        using var f = await Fixture.Create(); var writer = f.Session.Writer; await writer.WaitAsync();
         var stops = new StyleGradientStopDto[] { new(0, new(1,2,3,4)), new(.5, new(5,6,7,8)), new(1, new(9,10,11,12)) };
         var gradient = new StyleGradientDto(StyleGradientKind.Linear, 0, .5, .5, .5, .5, StyleGradientCoordinateSpace.Line, StyleGradientColorSpace.LinearRgb, StyleGradientHuePath.Shorter, stops);
         var task = f.Command("0", Patch(Line, new StyleUnsungFillChangeDto(new GradientStyleMaterialDto(gradient))));
@@ -417,8 +417,6 @@ public sealed class BackendStyleCommandsTests
         Accepted(await f.Command("0", Patch(Line, new StyleOpacityChangeDto(.5f)))); Assert.Same(applications, f.Workspace.Project.PresetApplications);
     }
 
-    private static object? Get(object value, string property) => value.GetType().GetProperty(property, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)!.GetValue(value);
-    private static void Set(object value, string property, object data) => value.GetType().GetProperty(property, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)!.SetValue(value, data);
     private sealed class Fixture : IDisposable
     {
         private readonly TemporaryDirectory _directory = new();
@@ -433,7 +431,7 @@ public sealed class BackendStyleCommandsTests
             LoadedWaveform waveform = new(new AudioStreamInfo(3000000, 8000, 1, "pcm", "wav"), builder.Build(8000));
             f.Registry = new("host", store, new((_, _) => Task.FromResult<LoadedWaveform?>(waveform)), new FixedClock(), new() { MaxReceiptBytes = receiptBytes });
             f.Session = (await f.Registry.CreateAsync("client", new("styles", audio.AssetId, lyrics.AssetId))).Session!;
-            f.Workspace = (ProjectWorkspace)Get(f.Session, "Workspace")!;
+            f.Workspace = f.Session.Workspace;
             LyricLine primary = LyricLine.Create("one", "甲", tokens: [LyricToken.Create("first", "甲")]);
             LyricLine secondary = LyricLine.Create("other", "乙", tokens: [LyricToken.Create("other-token", "乙")]);
             var document = LyricsDocument.Create([primary]);

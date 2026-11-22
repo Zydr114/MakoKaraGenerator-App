@@ -59,7 +59,7 @@ public sealed partial class PerfFixturePackageTests
         project = project with { LyricStyle = project.LyricStyle with { UnsungFill = new() { Material = material }, SungFill = new() { Material = material } } };
         var compiled = await Compile(project);
         var snapshot = ProjectSnapshot.FromProject(project);
-        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), ReplayReason.Export).CreateAsync(snapshot);
+        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
         var frame = await session.PrepareAsync(TimeUs, OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition));
         var compiledPackage = Assert.Single(compiled.Packages);
         using var native = CompiledPackageGraphExports.Compile(compiledPackage.Definition);
@@ -83,7 +83,7 @@ public sealed partial class PerfFixturePackageTests
         project = project with { LyricStyle = project.LyricStyle with { UnsungFill = new() { Material = material }, SungFill = new() { Material = material } } };
         var compiled = await Compile(project);
         var snapshot = ProjectSnapshot.FromProject(project);
-        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), ReplayReason.Export).CreateAsync(snapshot);
+        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
         var frame = await session.PrepareAsync(TimeUs, OutputMode.Opaque, RenderTarget.FromComposition(snapshot.Composition));
         var compiledPackage = Assert.Single(compiled.Packages);
         using var device = new GraphPixelCheckModeTests.CountingDevice(BaseMaterialRuntimeTests.Device(gpu));
@@ -111,7 +111,7 @@ public sealed partial class PerfFixturePackageTests
         };
         var compiled = await Compile(project);
         var snapshot = ProjectSnapshot.FromProject(project);
-        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), ReplayReason.Export).CreateAsync(snapshot);
+        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
         var frame = await session.PrepareAsync(TimeUs, OutputMode.Opaque, RenderTarget.FromComposition(snapshot.Composition));
         var compiledPackage = Assert.Single(compiled.Packages);
         using var native = CompiledPackageGraphExports.Compile(compiledPackage.Definition);
@@ -169,7 +169,7 @@ public sealed partial class PerfFixturePackageTests
         };
         var compiled = await Compile(project);
         var snapshot = ProjectSnapshot.FromProject(project);
-        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), ReplayReason.Export).CreateAsync(snapshot);
+        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
         var frame = await session.PrepareAsync(TimeUs, OutputMode.Opaque, RenderTarget.FromComposition(snapshot.Composition));
         var compiledPackage = Assert.Single(compiled.Packages);
         using var native = CompiledPackageGraphExports.Compile(compiledPackage.Definition);
@@ -221,7 +221,7 @@ public sealed partial class PerfFixturePackageTests
             return plain.PixelMemory.ToArray();
         }
         var compiled = await Compile(project);
-        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline(), ReplayReason.Export).CreateAsync(snapshot);
+        await using var session = await compiled.CreateFactory(static () => new SkiaRenderPipeline()).CreateAsync(snapshot);
         var frame = await session.PrepareAsync(TimeUs, OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition));
         using var native = CompiledPackageGraphExports.Compile(Assert.Single(compiled.Packages).Definition);
         using var resources = new SceneImageEffectResources([native.CreateProgram(native.Resources.GetGraph(export), Canvas)], null, []);

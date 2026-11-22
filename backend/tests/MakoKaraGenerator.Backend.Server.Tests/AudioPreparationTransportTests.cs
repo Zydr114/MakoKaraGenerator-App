@@ -86,7 +86,7 @@ public sealed partial class PreviewTransportTests
         using JsonDocument error = JsonDocument.Parse(JsonSerializer.SerializeToUtf8Bytes(new BackendErrorResponse(BackendErrorCode.InvalidRequest, "old"), Json));
         Assert.False(error.RootElement.TryGetProperty("failureCode", out _));
         await using Fixture f = await Fixture.Create();
-        using HttpResponseMessage caps = await f.Http.GetAsync("/capabilities");
+        using HttpResponseMessage caps = await f.Http.GetAsync("/api/v1/capabilities");
         using JsonDocument actual = JsonDocument.Parse(await caps.Content.ReadAsByteArrayAsync()); Assert.True(actual.RootElement.TryGetProperty("audioPreparation", out _));
         Assert.False(actual.RootElement.GetProperty("audioPreparation").GetProperty("enabled").GetBoolean());
     }
